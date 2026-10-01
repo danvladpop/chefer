@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { TRPCError } from '@trpc/server';
+import type { z } from 'zod';
 import {
   AiCallType,
   chefProfileRepository,
@@ -18,13 +19,16 @@ import {
   type PlanMealSlotJson,
   type Recipe,
 } from '@chefer/database';
-import type {
-  PlanTailoring,
-  PlanTrainingBasis,
-  PlanTrainingDay,
-  SafetyChecks,
-  TableSafety,
-  UserProfile,
+import {
+  FRIENDS_COPY,
+  type addRecipeToWeekInputSchema,
+  type PlanTailoring,
+  type PlanTrainingBasis,
+  type PlanTrainingDay,
+  type SafetyChecks,
+  type TableSafety,
+  type undoAddToWeekInputSchema,
+  type UserProfile,
 } from '@chefer/types';
 import {
   applyTrainingDayBonus,
@@ -59,6 +63,7 @@ import {
   type SafetyPrefs,
 } from '../../lib/curated-recipes/index.js';
 import { hasFeature } from '../../lib/entitlements.js';
+import { unsafeForTableError } from '../../lib/friends-errors.js';
 import { normalizeIngredientName } from '../../lib/ingredient-prices/index.js';
 import { notifyTailoringQueued } from '../../lib/plan-tailoring-signal.js';
 import { PoolExhaustedCause } from '../../lib/pool-exhausted.js';
@@ -71,7 +76,16 @@ import {
 import { pairLeftovers, pairLeftoverSlots } from '../pantry/leftovers.js';
 import { computeUsedPantryItemsForUser, getUseFirstIngredients } from '../pantry/pantry-context.js';
 import { resolveDailyTargets } from '../preferences/preferences.service.js';
-import { findRecipeVisibleTo, isRecipeOpenTo } from '../recipe/recipe-access.js';
+import {
+  defaultRecipeSocialDeps,
+  findRecipeVisibleTo,
+  isRecipeOpenTo,
+  isRecipeVisibleTo,
+  recipeAttribution,
+  type RecipeAttribution,
+  type RecipeSocialDeps,
+} from '../recipe/recipe-access.js';
+import { recipeCopyService, type RecipeCopyService } from '../recipe/recipe-copy.service.js';
 import { safetyService, type SafetyContext } from '../safety/safety.service.js';
 import { estimatePlanCostEur, type PlanCostEstimate } from '../shared/plan-cost.js';
 import { daysFrom, firstShoppingDay } from '../shared/plan-window.js';
@@ -160,6 +174,37 @@ export interface RecipeDto {
    */
   derivedTags?: string[];
   tagQualifiers?: Record<string, string>;
+  /**
+   * Following (plan §4.2, `mealPlan.getRecipe` only; all additive and
+   * omitted when not applicable): `creator` on another user's recipe
+   * (`By {name}`), `origin` on the viewer's copy (`From {first}`), `hidden`
+   * on the owner's own auto-hidden recipe, and `sourceUrl` when the recipe
+   * was imported (Q-F-7: `Source: {domain}`).
+   */
+  creator?: RecipeAttribution['creator'];
+  origin?: RecipeAttribution['origin'];
+  hidden?: RecipeAttribution['hidden'];
+  sourceUrl?: string;
+}
+
+export type AddRecipeToWeekInput = z.infer<typeof addRecipeToWeekInputSchema>;
+export type UndoAddToWeekInput = z.infer<typeof undoAddToWeekInputSchema>;
+
+/**
+ * `friends.addRecipeToWeek`'s result (plan §4.2). Pass it straight back to
+ * `friends.undoAddToWeek` for the snackbar's Undo.
+ */
+export interface AddRecipeToWeekResultDto {
+  planId: string;
+  dayOfWeek: number;
+  mealType: MealType;
+  slotIndex: number;
+  /** What the slot now holds: the recipe itself (open/own) or the viewer's copy. */
+  addedRecipeId: string;
+  /** The original's id when `addedRecipeId` is the viewer's copy, else null. */
+  copiedFromId: string | null;
+  /** The recipe the slot held before a replace; absent for an add. */
+  previousRecipeId?: string;
 }
 
 export interface MealSlotDto {
@@ -429,7 +474,16 @@ export class MealPlanService {
       'loadLifter' | 'trainingSchedule' | 'trainingWeek' | 'isBumpWidened'
     > = trainingNutritionService,
     private readonly tailoringRepo: IMealPlanTailoringRepository = mealPlanTailoringRepository,
+    /** INV-5: another user's MANUAL recipe → the viewer's copy before any write. */
+    private readonly copies: Pick<RecipeCopyService, 'ownedRecipeFor'> = recipeCopyService,
+    /** The Following branch of recipe access (recipe-access.ts §4.3). */
+    private readonly recipeSocial: RecipeSocialDeps = defaultRecipeSocialDeps,
   ) {}
+
+  /** `findRecipeVisibleTo` with this service's repository and social deps. */
+  private findVisibleRecipe(userId: string, recipeId: string): Promise<Recipe | null> {
+    return findRecipeVisibleTo(userId, recipeId, this.repo, this.recipeSocial);
+  }
 
   /**
    * Generates a fresh 7-day meal plan for the user, persists it, and returns
@@ -1325,19 +1379,26 @@ export class MealPlanService {
     return this.assemblePlanDto(plan, userId, view);
   }
 
-  /** Drops pinned favourites the user may no longer see (recipe-access.ts). */
+  /**
+   * Drops pinned favourites the user may no longer see (recipe-access.ts),
+   * and resolves another user's recipe to the user's own copy (INV-5): a
+   * generated plan only ever holds open or own recipes.
+   */
   private async visiblePins(
     userId: string,
     pins: FavouriteRecipeWithRecipe[],
   ): Promise<FavouriteRecipeWithRecipe[]> {
-    const visible = await Promise.all(
-      pins.map(
-        async (f) =>
-          isRecipeOpenTo(f.recipe, userId) ||
-          (await this.repo.isRecipeInUserPlans(userId, f.recipe.id)),
-      ),
+    const resolved = await Promise.all(
+      pins.map(async (f): Promise<FavouriteRecipeWithRecipe | null> => {
+        if (isRecipeOpenTo(f.recipe, userId)) return f;
+        if (!(await isRecipeVisibleTo(userId, f.recipe, this.repo, this.recipeSocial))) {
+          return null;
+        }
+        const owned = await this.copies.ownedRecipeFor(userId, f.recipe);
+        return { ...f, recipe: owned.recipe };
+      }),
     );
-    return pins.filter((_, i) => visible[i]);
+    return resolved.filter((f): f is FavouriteRecipeWithRecipe => f !== null);
   }
 
   /**
@@ -1845,23 +1906,28 @@ export class MealPlanService {
 
     const days: DayPlanDto[] = plan.days.map((d) => {
       let protein = 0;
-      const meals = (d.meals as PlanMealSlotJson[]).map((m) => {
+      const meals = (d.meals as PlanMealSlotJson[]).flatMap((m): MealSlotDto[] => {
         const row = recipeMap.get(m.recipeId);
         if (!row) {
-          throw new TRPCError({
-            code: 'INTERNAL_SERVER_ERROR',
-            message: `Recipe ${m.recipeId} not found in database.`,
-          });
+          // A slot whose recipe row is gone (e.g. another user's recipe placed
+          // before INV-5, deleted with their account) used to throw and make
+          // the whole week unloadable (PRD FD-7). Drop that one slot instead.
+          console.warn(
+            `[meal-plan] plan ${plan.id} day ${d.dayOfWeek}: recipe ${m.recipeId} is missing — slot dropped from the response`,
+          );
+          return [];
         }
         const portion = slotPortion(m.portion);
         protein += ((row.nutritionInfo as unknown as NutritionInfo).protein ?? 0) * portion;
-        return {
-          type: m.type as MealType,
-          recipe: decorateRecipeDto(rowToRecipeDto(row), rowToRecipeData(row), safetyCtx),
-          ...(m.leftoverOf && { leftoverOf: m.leftoverOf }),
-          ...(portion !== 1 && { portion }),
-          ...(m.pinned && { pinned: true }),
-        };
+        return [
+          {
+            type: m.type as MealType,
+            recipe: decorateRecipeDto(rowToRecipeDto(row), rowToRecipeData(row), safetyCtx),
+            ...(m.leftoverOf && { leftoverOf: m.leftoverOf }),
+            ...(portion !== 1 && { portion }),
+            ...(m.pinned && { pinned: true }),
+          },
+        ];
       });
       // P1-1: an honest per-day protein hint, judged on portioned totals.
       const gap = meals.length > 0 ? proteinGapG(protein, targets?.proteinG) : null;
@@ -1978,12 +2044,47 @@ export class MealPlanService {
    * NOT_FOUND.
    */
   async getRecipe(userId: string, recipeId: string): Promise<RecipeDto> {
-    const row = await findRecipeVisibleTo(userId, recipeId, this.repo);
+    const row = await this.findVisibleRecipe(userId, recipeId);
     if (!row) {
       throw new TRPCError({ code: 'NOT_FOUND', message: 'Recipe not found.' });
     }
-    const ctx = await this.loadSafetyContext(userId);
-    return decorateRecipeDto(rowToRecipeDto(row), rowToRecipeData(row), ctx);
+    const [ctx, attribution] = await Promise.all([
+      this.loadSafetyContext(userId),
+      this.attributionFor(userId, row),
+    ]);
+    return {
+      ...decorateRecipeDto(rowToRecipeDto(row), rowToRecipeData(row), ctx),
+      ...attribution,
+      ...(row.sourceUrl && { sourceUrl: row.sourceUrl }),
+    };
+  }
+
+  /**
+   * Following attribution for the recipe detail (plan §4.2): `creator` on
+   * another user's MANUAL recipe while Following is on for the viewer,
+   * `origin` on the viewer's copy, `hidden` on the owner's auto-hidden recipe.
+   * No query at all for open recipes or a plain own recipe.
+   */
+  private async attributionFor(userId: string, row: Recipe): Promise<RecipeAttribution> {
+    const own = row.creatorId === userId;
+    const othersManual = row.source === 'MANUAL' && !own && row.creatorId !== null;
+    const isCopy = own && row.originCreatorId != null;
+    const friendsOn = othersManual ? await this.recipeSocial.isEnabled(userId) : false;
+    const ids = [
+      ...(friendsOn && row.creatorId ? [row.creatorId] : []),
+      ...(isCopy && row.originCreatorId ? [row.originCreatorId] : []),
+    ];
+    const people = ids.length > 0 ? await favouriteRecipeRepository.findPeopleByIds(ids) : [];
+    const byId = new Map(people.map((p) => [p.id, p]));
+    return recipeAttribution(
+      userId,
+      row,
+      {
+        creator: row.creatorId ? byId.get(row.creatorId) : undefined,
+        originCreator: row.originCreatorId ? byId.get(row.originCreatorId) : undefined,
+      },
+      { friendsOn, withHidden: true },
+    );
   }
 
   /**
@@ -2199,22 +2300,26 @@ export class MealPlanService {
     }
     const slotIndex = resolvePlanSlot(plan, dayOfWeek, mealType, requestedSlotIndex);
 
-    const recipe = await findRecipeVisibleTo(userId, recipeId, this.repo);
-    if (!recipe) {
+    const found = await this.findVisibleRecipe(userId, recipeId);
+    if (!found) {
       throw new TRPCError({ code: 'NOT_FOUND', message: 'Recipe not found.' });
     }
 
     const ctx = await this.loadSafetyContext(userId);
-    const issues = findSafetyIssues(rowToRecipeData(recipe), ctx.prefs);
+    const issues = findSafetyIssues(rowToRecipeData(found), ctx.prefs);
     if (issues.length > 0) {
-      const isOwnRecipe = recipe.source === 'MANUAL' && recipe.creatorId === userId;
-      if (!acknowledgeConflict || !isOwnRecipe) {
+      // Honoured only for a MANUAL recipe the user owns — or, with Following,
+      // another user's MANUAL recipe, which becomes the user's own copy below.
+      if (!acknowledgeConflict || !isAcknowledgeable(found)) {
         throw new TRPCError({
           code: 'FORBIDDEN',
           message: `UNSAFE_FOR_TABLE: this recipe contains ${issues[0]}, which conflicts with an allergy or dietary restriction set for your table.`,
         });
       }
     }
+
+    // INV-5: another user's MANUAL recipe goes in as the user's own copy.
+    const { recipe } = await this.copies.ownedRecipeFor(userId, found);
 
     // T-08.5/T-BUG-X2: keep the slot's current portion (it used to always
     // drop to 1×) and mark the slot `Your pick` (T-07.4) — a manual Replace
@@ -2227,7 +2332,7 @@ export class MealPlanService {
       planId,
       dayOfWeek,
       mealType,
-      recipeId,
+      recipe.id,
       keepPortion !== 1 ? keepPortion : undefined,
       slotIndex ?? undefined,
       true,
@@ -2235,8 +2340,150 @@ export class MealPlanService {
 
     return {
       ...decorateRecipeDto(rowToRecipeDto(recipe), rowToRecipeData(recipe), ctx),
-      ...(previousRecipeId && previousRecipeId !== recipeId && { previousRecipeId }),
+      ...(previousRecipeId && previousRecipeId !== recipe.id && { previousRecipeId }),
     };
+  }
+
+  /**
+   * `friends.addRecipeToWeek` (PRD FR-17.4–17.7, §13; UX §9.5): puts a
+   * recipe the viewer may see into their OWN plan for this or next week.
+   *
+   * - `add` appends a slot of `mealType` to the day (existing slots keep their
+   *   indexes); `replace` swaps the slot at `slotIndex` (its type must match),
+   *   keeping its portion. Either way the slot is the user's pick.
+   * - Another user's MANUAL recipe goes in as the viewer's private copy,
+   *   made once and reused (INV-5, FR-17.7).
+   * - A conflict with the viewer's table refuses with `data.unsafeForTable`
+   *   unless `acknowledgeConflict` (FR-17.5 `Use anyway`) — honoured, like
+   *   `replaceRecipe`, only for a MANUAL recipe (it becomes the viewer's own
+   *   copy); an open AI/curated recipe stays refused, without the
+   *   `unsafeForTable` data so the client offers no `Use anyway`.
+   */
+  async addRecipeToSlot(
+    userId: string,
+    input: AddRecipeToWeekInput,
+  ): Promise<AddRecipeToWeekResultDto> {
+    const { recipeId, weekOffset, dayOfWeek, mealType, mode, acknowledgeConflict } = input;
+    if (mode === 'replace' && input.slotIndex === undefined) {
+      throw new TRPCError({ code: 'BAD_REQUEST', message: 'Choose the meal to replace.' });
+    }
+
+    const found = await this.findVisibleRecipe(userId, recipeId);
+    if (!found) {
+      throw new TRPCError({ code: 'NOT_FOUND', message: 'Recipe not found.' });
+    }
+
+    // The viewer's own week as stored — never `getForWeek`, which writes on
+    // read (carry-forward). The sheet reads that first, so a plan normally
+    // exists by the time this runs.
+    const plan = await this.repo.findForWeek(userId, getMondayOfWeek(weekOffset));
+    if (!plan) {
+      throw new TRPCError({ code: 'NOT_FOUND', message: FRIENDS_COPY.addToWeek.noPlan });
+    }
+    const slotIndex =
+      mode === 'replace' ? resolvePlanSlot(plan, dayOfWeek, mealType, input.slotIndex) : null;
+
+    const ctx = await this.loadSafetyContext(userId);
+    const issues = findSafetyIssues(rowToRecipeData(found), ctx.prefs);
+    if (issues.length > 0 && !(acknowledgeConflict && isAcknowledgeable(found))) {
+      if (isAcknowledgeable(found)) throw unsafeForTableError(issues);
+      throw new TRPCError({
+        code: 'FORBIDDEN',
+        message: `UNSAFE_FOR_TABLE: this recipe contains ${issues[0]}, which conflicts with an allergy or dietary restriction set for your table.`,
+      });
+    }
+
+    const owned = await this.copies.ownedRecipeFor(userId, found);
+    const addedRecipeId = owned.recipe.id;
+
+    if (mode === 'add') {
+      const index = await this.repo.appendDayMeal(plan.id, dayOfWeek, mealType, addedRecipeId, {
+        pinned: true,
+      });
+      return {
+        planId: plan.id,
+        dayOfWeek,
+        mealType,
+        slotIndex: index,
+        addedRecipeId,
+        copiedFromId: owned.copiedFromId,
+      };
+    }
+
+    // replace: `resolvePlanSlot` already proved the slot exists with this type.
+    if (slotIndex === null) {
+      throw new TRPCError({ code: 'BAD_REQUEST', message: 'Choose the meal to replace.' });
+    }
+    const index = slotIndex;
+    const currentSlot = slotAt(plan, dayOfWeek, index);
+    const previousRecipeId = currentSlot?.recipeId;
+    const keepPortion = slotPortion(currentSlot?.portion);
+    await this.repo.updateDayMeal(
+      plan.id,
+      dayOfWeek,
+      mealType,
+      addedRecipeId,
+      keepPortion !== 1 ? keepPortion : undefined,
+      index,
+      true,
+    );
+    return {
+      planId: plan.id,
+      dayOfWeek,
+      mealType,
+      slotIndex: index,
+      addedRecipeId,
+      copiedFromId: owned.copiedFromId,
+      ...(previousRecipeId && previousRecipeId !== addedRecipeId && { previousRecipeId }),
+    };
+  }
+
+  /**
+   * `friends.undoAddToWeek`: reverses `addRecipeToSlot` on the caller's OWN
+   * plan only (NOT_FOUND otherwise), and only while the slot still holds
+   * `addedRecipeId` — a stale or repeated Undo is a no-op. An add removes the
+   * slot; a replace puts `previousRecipeId` back (it must still be a recipe
+   * the user may see, resolved to their own copy like any write — INV-5). The
+   * copy itself is kept, so adding again reuses it.
+   */
+  async undoAddToSlot(userId: string, input: UndoAddToWeekInput): Promise<{ ok: true }> {
+    const plan = await this.repo.findByIdForUser(userId, input.planId);
+    if (!plan) {
+      throw new TRPCError({ code: 'NOT_FOUND', message: 'Meal plan not found.' });
+    }
+    const { dayOfWeek, mealType, slotIndex, addedRecipeId, previousRecipeId } = input;
+
+    if (previousRecipeId === undefined) {
+      await this.repo.removeDayMealIfMatches(
+        plan.id,
+        dayOfWeek,
+        slotIndex,
+        addedRecipeId,
+        mealType,
+      );
+      return { ok: true };
+    }
+
+    const current = slotAt(plan, dayOfWeek, slotIndex);
+    if (current?.type !== mealType || current.recipeId !== addedRecipeId) return { ok: true };
+    const previous = await this.findVisibleRecipe(userId, previousRecipeId);
+    if (!previous) {
+      throw new TRPCError({ code: 'NOT_FOUND', message: 'Recipe not found.' });
+    }
+    const { recipe } = await this.copies.ownedRecipeFor(userId, previous);
+    const portion = slotPortion(current.portion);
+    await this.repo.updateDayMeal(
+      plan.id,
+      dayOfWeek,
+      mealType,
+      recipe.id,
+      portion !== 1 ? portion : undefined,
+      slotIndex,
+      // The replaced slot's own pinned flag isn't in the Undo payload; a
+      // dish the user had in this slot is still their pick.
+      true,
+    );
+    return { ok: true };
   }
 
   /** §T-07.4: toggles `Your pick` on an existing slot without touching its recipe. */
@@ -2697,6 +2944,16 @@ export function resolvePlanSlot(
     });
   }
   return slotIndex;
+}
+
+/**
+ * Whether `acknowledgeConflict` may place this recipe despite a table
+ * conflict: a MANUAL recipe — the user's own, or another user's that is
+ * placed as the user's own copy (INV-5). Never an open AI/curated recipe
+ * (B-34/B-46).
+ */
+function isAcknowledgeable(recipe: Pick<Recipe, 'source'>): boolean {
+  return recipe.source === 'MANUAL';
 }
 
 function slotAt(

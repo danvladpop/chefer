@@ -12,6 +12,7 @@ import { hasFeature } from '../../lib/entitlements.js';
 import { rebalanceWeek, type RebalanceResult } from '../meal-plan/rebalance.js';
 import { resolveDailyTargets, resolveTargets } from '../preferences/preferences.service.js';
 import { findRecipeVisibleTo } from '../recipe/recipe-access.js';
+import { recipeCopyService } from '../recipe/recipe-copy.service.js';
 import {
   trainingDayFields,
   trainingNutritionService,
@@ -325,6 +326,10 @@ export const trackerService = {
    * With a `slotIndex` (Today's "I ate this") only the entry for that slot
    * is replaced, so logging the second of two identical snacks keeps the
    * first. Without one (cook mode, older clients) the old rule stands.
+   *
+   * Following (INV-5): another user's recipe (cooked from their profile) is
+   * logged as the user's own copy — the log must never reference a row the
+   * other person can edit, hide or delete. The entry carries the copy's id.
    */
   async logRecipe(
     user: UserProfile,
@@ -336,8 +341,9 @@ export const trackerService = {
       slotIndex?: number | undefined;
     },
   ): Promise<{ log: DailyLog; rebalance: RebalanceResult | null }> {
-    const recipe = await findRecipeVisibleTo(user.id, input.recipeId);
-    if (!recipe) throw new TRPCError({ code: 'NOT_FOUND', message: 'Recipe not found.' });
+    const visible = await findRecipeVisibleTo(user.id, input.recipeId);
+    if (!visible) throw new TRPCError({ code: 'NOT_FOUND', message: 'Recipe not found.' });
+    const { recipe } = await recipeCopyService.ownedRecipeFor(user.id, visible);
     const n = recipe.nutritionInfo as {
       calories?: number;
       protein?: number;
