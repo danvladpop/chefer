@@ -134,6 +134,9 @@ enum ConsentKind {
   EMAIL_RECAP
   AUTO_PLAN
   HEALTH
+  // Following (docs/friends/implementation-plan.md §2.1): turn-on, visibility
+  // and targets-sharing consent; withdrawn on Turn off (PRD FD-14).
+  SOCIAL_SHARING
 }
 
 enum AiCallType {
@@ -223,6 +226,21 @@ model User {
   safetyReports        SafetyReport[]
   targetChanges        TargetChange[]
   consentEvents        ConsentEvent[]
+
+  // Following (docs/friends/implementation-plan.md §2.3)
+  socialProfile         SocialProfile?
+  followsOut            Follow[]              @relation("FollowsOut")
+  followsIn             Follow[]              @relation("FollowsIn")
+  blocksMade            Block[]               @relation("BlocksMade")
+  blocksReceived        Block[]               @relation("BlocksReceived")
+  dismissalsMade        SuggestionDismissal[] @relation("DismissalsMade")
+  dismissalsReceived    SuggestionDismissal[] @relation("DismissalsReceived")
+  reportsMade           UserReport[]          @relation("ReportsMade")
+  reportsReceived       UserReport[]          @relation("ReportsReceived")
+  moderationLog         ModerationLog[]       @relation("ModerationTarget")
+  notificationsReceived Notification[]        @relation("NotificationsReceived")
+  notificationsCaused   Notification[]        @relation("NotificationsCaused")
+  copiedRecipesOrigin   Recipe[]              @relation("RecipeOriginCreator")
 
   @@index([email])
   @@map("users")
@@ -400,7 +418,26 @@ model Recipe {
   favourites  FavouriteRecipe[]
   mealRatings MealRating[]
 
+  // Following (docs/friends/implementation-plan.md §2.3)
+  /// Set on a viewer's private copy of another user's recipe (made by "Add to my week", PRD §13).
+  originRecipeId  String?
+  originCreatorId String?
+  /// Automatic moderation (PRD §9): hidden from everyone but the creator; existing hearts and copies keep working.
+  hiddenAt        DateTime?
+  hiddenReason    RecipeHiddenReason?
+
+  originRecipe  Recipe?  @relation("RecipeCopies", fields: [originRecipeId], references: [id], onDelete: SetNull)
+  copies        Recipe[] @relation("RecipeCopies")
+  originCreator User?    @relation("RecipeOriginCreator", fields: [originCreatorId], references: [id], onDelete: SetNull)
+
+  // At most one copy per viewer and source. NOT a @@unique: adding a unique
+  // constraint to the populated `recipes` table makes `prisma db push` stop
+  // with a data-loss warning (production's migrate service runs it without
+  // --accept-data-loss), so RecipeCopyService enforces it with a SERIALIZABLE
+  // find-or-create over this index instead.
+  @@index([creatorId, originRecipeId])
   @@index([creatorId])
+  @@index([creatorId, source, createdAt])
   @@map("recipes")
 }
 
@@ -1182,4 +1219,175 @@ model TrainingPause {
 
   @@index([userId])
   @@map("training_pauses")
+}
+
+// ─── Following (docs/friends/implementation-plan.md §2) ──────────────────────
+// Code name `friends`, user-facing name "Following". Every table cascades from
+// User (account deletion). Turning Following off deletes the social rows in
+// one transaction (SocialProfileRepository.deleteCascadeSocial) but keeps
+// UserReport and ModerationLog (PRD FD-14).
+
+enum ProfileVisibility {
+  PUBLIC
+  PRIVATE
+}
+
+enum FollowStatus {
+  PENDING
+  ACCEPTED
+}
+
+enum NotificationKind {
+  FOLLOW_REQUEST
+  NEW_FOLLOWER
+  REQUEST_ACCEPTED
+}
+
+enum ReportReason {
+  INAPPROPRIATE
+  SPAM
+  HARASSMENT
+  UNSAFE
+  OTHER
+}
+
+enum RecipeHiddenReason {
+  REPORTS
+  FILTER
+}
+
+enum ModerationAction {
+  RECIPE_AUTO_HIDDEN // reports threshold (plan §4.6)
+  ACCOUNT_FORCED_PRIVATE // reports threshold
+  RECIPE_FILTER_HIDDEN // word filter on an existing recipe at turn-on / recipes-on
+  NAME_REJECTED // word filter rejected a display name
+  RECIPE_TEXT_REJECTED // word filter rejected a shared recipe write
+  UNDO // ops undo of an earlier row
+}
+
+/// One row = the user turned Following on. No row = not discoverable, not followable.
+model SocialProfile {
+  userId          String            @id
+  visibility      ProfileVisibility @default(PRIVATE)
+  /// normalizeSearchName(first, last) from @chefer/utils; rewritten on activate and on name change.
+  searchName      String
+  sharePlan       Boolean           @default(true)
+  shareRecipes    Boolean           @default(true)
+  shareWorkouts   Boolean           @default(true)
+  shareTargets    Boolean           @default(false)
+  /// Set by moderation (plan §4.6): visibility locked to PRIVATE, excluded from search and suggestions.
+  forcedPrivateAt DateTime?
+  /// Chefer Kitchen (Q-F-8): always eligible for "Popular". Set only by scripts/create-chefer-kitchen.ts.
+  featured        Boolean           @default(false)
+  activatedAt     DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([visibility, forcedPrivateAt])
+  @@index([searchName])
+  @@map("social_profiles")
+}
+
+/// Directed edge follower → followee. PENDING = request. Decline/cancel/unfollow/remove/block = delete.
+model Follow {
+  id         String       @id @default(cuid())
+  followerId String
+  followeeId String
+  status     FollowStatus
+  createdAt  DateTime     @default(now())
+  acceptedAt DateTime?
+
+  follower User @relation("FollowsOut", fields: [followerId], references: [id], onDelete: Cascade)
+  followee User @relation("FollowsIn", fields: [followeeId], references: [id], onDelete: Cascade)
+
+  @@unique([followerId, followeeId])
+  @@index([followeeId, status, createdAt])
+  @@index([followerId, status, createdAt])
+  @@map("follows")
+}
+
+model Block {
+  blockerId String
+  blockedId String
+  createdAt DateTime @default(now())
+
+  blocker User @relation("BlocksMade", fields: [blockerId], references: [id], onDelete: Cascade)
+  blocked User @relation("BlocksReceived", fields: [blockedId], references: [id], onDelete: Cascade)
+
+  @@id([blockerId, blockedId])
+  @@index([blockedId])
+  @@map("blocks")
+}
+
+model SuggestionDismissal {
+  userId          String
+  dismissedUserId String
+  createdAt       DateTime @default(now())
+
+  user      User @relation("DismissalsMade", fields: [userId], references: [id], onDelete: Cascade)
+  dismissed User @relation("DismissalsReceived", fields: [dismissedUserId], references: [id], onDelete: Cascade)
+
+  @@id([userId, dismissedUserId])
+  @@map("suggestion_dismissals")
+}
+
+/// Append-only. Kept when the target turns Following off (PRD FD-14), so leaving can't reset moderation.
+model UserReport {
+  id           String       @id @default(cuid())
+  reporterId   String
+  targetUserId String // the reported user, or the reported recipe's creator
+  recipeId     String? // no FK: the report outlives the recipe
+  reason       ReportReason
+  /// Counts toward thresholds: reporter account ≥ 24 h old and email verified, evaluated at report time.
+  eligible     Boolean
+  /// Set by an ops undo of the action this report contributed to; discounted reports never count again.
+  discountedAt DateTime?
+  createdAt    DateTime     @default(now())
+
+  reporter User @relation("ReportsMade", fields: [reporterId], references: [id], onDelete: Cascade)
+  target   User @relation("ReportsReceived", fields: [targetUserId], references: [id], onDelete: Cascade)
+
+  @@index([targetUserId, eligible])
+  @@index([recipeId, eligible])
+  @@index([createdAt])
+  @@map("user_reports")
+}
+
+/// Append-only log of every automatic moderation action and every ops undo (PRD §9.5).
+model ModerationLog {
+  id                String           @id @default(cuid())
+  action            ModerationAction
+  targetUserId      String
+  recipeId          String?
+  reason            String // e.g. "3 distinct eligible reporters", "blocked term in name"
+  distinctReporters Int?
+  actor             String // "system" | "ops"
+  undoOfId          String? // for UNDO rows
+  createdAt         DateTime         @default(now())
+
+  target User @relation("ModerationTarget", fields: [targetUserId], references: [id], onDelete: Cascade)
+
+  @@index([createdAt])
+  @@index([targetUserId])
+  @@map("moderation_log")
+}
+
+/// In-app Activity. One row per (recipient, kind, actor): a re-sent request upserts it
+/// (fresh createdAt, readAt = null) instead of stacking duplicates.
+model Notification {
+  id        String           @id @default(cuid())
+  userId    String // recipient
+  kind      NotificationKind
+  actorId   String
+  createdAt DateTime         @default(now())
+  readAt    DateTime?
+
+  user  User @relation("NotificationsReceived", fields: [userId], references: [id], onDelete: Cascade)
+  actor User @relation("NotificationsCaused", fields: [actorId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, kind, actorId])
+  @@index([userId, createdAt])
+  @@index([userId, readAt])
+  @@map("notifications")
 }
