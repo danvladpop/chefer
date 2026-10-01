@@ -9,7 +9,7 @@ import {
 } from 'react-native';
 import Animated, { FadeOut, LinearTransition } from 'react-native-reanimated';
 import { Ionicons } from '@expo/vector-icons';
-import { router } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 import {
   FRIENDS_COPY,
   FRIENDS_LIMITS,
@@ -117,6 +117,16 @@ export function FriendsHome({ me, unread, refetchMe }: FriendsHomeProps) {
     rememberedSegment = next;
     setSegmentState(next);
   };
+
+  // `/friends?list=followers` (Sharing & privacy › Private confirm › Review
+  // followers) opens on Followers, also when it updates a mounted home.
+  const { list: listParam } = useLocalSearchParams<{ list?: string }>();
+  useEffect(() => {
+    if (listParam === 'followers') {
+      rememberedSegment = 'followers';
+      setSegmentState('followers');
+    }
+  }, [listParam]);
 
   // Search: `raw` is what's typed, `query` the debounced value (250 ms / submit).
   const [raw, setRaw] = useState('');

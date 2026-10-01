@@ -13,11 +13,13 @@ import { homeHandlers, page, personId, settle, who } from './friends-home-fixtur
 // lists with infinite scroll and the Followers `…`, the badge in the header,
 // the remembered segment, offline.
 
+let mockSearchParams: { list?: string } = {};
 jest.mock('expo-router', () => {
   const { useEffect } = jest.requireActual<typeof import('react')>('react');
   return {
     router: { push: jest.fn(), back: jest.fn(), replace: jest.fn(), canGoBack: () => true },
     Redirect: () => null,
+    useLocalSearchParams: () => mockSearchParams,
     useFocusEffect: (effect: () => void) => {
       useEffect(effect, [effect]);
     },
@@ -44,6 +46,7 @@ beforeEach(() => {
   jest.clearAllMocks();
   resetSnackbarForTests();
   resetRememberedSegment();
+  mockSearchParams = {};
   onlineManager.setOnline(true);
   jest.replaceProperty(Platform, 'OS', 'android');
 });
@@ -249,6 +252,17 @@ describe('You follow | Followers lists', () => {
       selected: true,
     });
     expect(await screen.findByTestId(`friends-followers-${personId(5)}`)).toBeTruthy();
+  });
+
+  it('opens on Followers for /friends?list=followers (Review followers)', async () => {
+    mockSearchParams = { list: 'followers' };
+    await renderHome({
+      'friends.followers': () => page([who(6, { relation: 'following' })], { total: 1 }),
+    });
+    expect(screen.getByTestId('friends-segment-followers').props.accessibilityState).toMatchObject({
+      selected: true,
+    });
+    expect(await screen.findByTestId(`friends-followers-${personId(6)}`)).toBeTruthy();
   });
 
   it('loads the next page of 20 at the end of the list (infinite scroll)', async () => {
