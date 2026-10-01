@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { TextInput, View } from 'react-native';
 import { Button, ChipGroup, Sheet, Text, useSnackbar } from '@chefer/ui-mobile';
-import { reportSentSnackbarText, SAFETY_COPY } from '@chefer/utils';
+import { reportSentSnackbarText, SAFETY_COPY, userFacingErrorMessage } from '@chefer/utils';
 import { trpc } from '../../lib/trpc';
 
 // T-01.5 — report a safety problem (UX-01 (d)): recipe-detail header overflow
@@ -95,7 +95,7 @@ export function ReportSafetySheet({
         />
       </View>
       {reportMutation.isError ? (
-        <Text className="text-xs text-red-600">{reportMutation.error.message}</Text>
+        <Text className="text-xs text-red-600">{userFacingErrorMessage(reportMutation.error)}</Text>
       ) : null}
     </Sheet>
   );

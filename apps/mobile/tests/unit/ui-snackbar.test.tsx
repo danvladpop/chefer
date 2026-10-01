@@ -1,9 +1,10 @@
-import { AccessibilityInfo, Pressable } from 'react-native';
+import { AccessibilityInfo, Pressable, StyleSheet } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { act, fireEvent, render, screen } from '@testing-library/react-native';
 import { duration } from '@chefer/tokens';
 import {
   resetSnackbarForTests,
+  setSnackbarTabBarHeight,
   Snackbar,
   useSnackbar,
   type SnackbarOptions,
@@ -155,5 +156,51 @@ describe('Snackbar (PAT-4)', () => {
     await render(<Harness a={{ message: 'List shared' }} />);
     await fireEvent.press(screen.getByTestId('show-a'));
     expect(screen.getByTestId('snackbar-message')).toHaveTextContent('List shared');
+  });
+});
+
+describe('Snackbar above the tab bar (App Review R-11)', () => {
+  function wrapperBottom(): number | undefined {
+    const wrapper = screen.getByTestId('snackbar').parent;
+    return (StyleSheet.flatten(wrapper?.props.style as never) as { bottom?: number }).bottom;
+  }
+
+  it('sits above a published tab bar height instead of covering it', async () => {
+    await render(<Harness a={{ message: 'Swapped', actionLabel: 'Undo' }} />);
+    await fireEvent.press(screen.getByTestId('show-a'));
+    // No tab bar published: safe-area inset (34) + 8.
+    expect(wrapperBottom()).toBe(42);
+
+    await act(() => {
+      setSnackbarTabBarHeight('food', 83); // 49 bar + 34 inset
+    });
+    expect(wrapperBottom()).toBe(91);
+  });
+
+  it('falls back when the tab bar unmounts, and the latest registered bar wins', async () => {
+    await render(<Harness a={{ message: 'Swapped' }} />);
+    await fireEvent.press(screen.getByTestId('show-a'));
+
+    await act(() => {
+      setSnackbarTabBarHeight('food', 83);
+      setSnackbarTabBarHeight('gym', 90);
+    });
+    expect(wrapperBottom()).toBe(98);
+
+    await act(() => {
+      setSnackbarTabBarHeight('food', null);
+    });
+    expect(wrapperBottom()).toBe(98);
+
+    await act(() => {
+      setSnackbarTabBarHeight('gym', null);
+    });
+    expect(wrapperBottom()).toBe(42);
+  });
+
+  it('lets touches outside the toast through (box-none wrapper)', async () => {
+    await render(<Harness a={{ message: 'Swapped' }} />);
+    await fireEvent.press(screen.getByTestId('show-a'));
+    expect(screen.getByTestId('snackbar').parent?.props.pointerEvents).toBe('box-none');
   });
 });

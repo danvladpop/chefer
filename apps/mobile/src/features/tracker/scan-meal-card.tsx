@@ -4,7 +4,13 @@ import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import { fetch as expoFetch } from 'expo/fetch';
 import { Button, Card, Text } from '@chefer/ui-mobile';
-import { cn, defaultMealSlot, PREMIUM_PITCH_COPY, showSnapTaste } from '@chefer/utils';
+import {
+  cn,
+  defaultMealSlot,
+  PREMIUM_PITCH_COPY,
+  showSnapTaste,
+  userFacingErrorMessage,
+} from '@chefer/utils';
 import { useEntitlement } from '../../hooks/use-entitlement';
 import { getApiBaseUrl } from '../../lib/api-url';
 import { getToken } from '../../lib/auth-store';
@@ -167,7 +173,7 @@ function SnapCard({ date, onLogged }: { date: string; onLogged: () => void }) {
       if (err instanceof ScanUpgradeRequiredError) {
         setUpgradeNeeded(true);
       } else {
-        setError(err instanceof Error ? err.message : 'Scan failed. Try a clearer shot.');
+        setError(userFacingErrorMessage(err, 'Scan failed. Try a clearer shot.'));
       }
     } finally {
       setScanning(false);
@@ -307,7 +313,9 @@ function SnapCard({ date, onLogged }: { date: string; onLogged: () => void }) {
             </Button>
           </View>
           {logMutation.isError && (
-            <Text className="text-xs text-red-600">{logMutation.error.message}</Text>
+            <Text className="text-xs text-red-600">
+              {userFacingErrorMessage(logMutation.error)}
+            </Text>
           )}
         </>
       )}

@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Switch, View } from 'react-native';
 import { Button, Card, Text } from '@chefer/ui-mobile';
+import { userFacingErrorMessage } from '@chefer/utils';
 import { trpc } from '../../lib/trpc';
 import { ensureGymReminderPermission } from '../gym/reminders/permission';
 import {
@@ -261,7 +262,7 @@ export function WeeklyUpdatesCard() {
                 </Button>
               )}
               {resend.isError && (
-                <Text className="text-xs text-red-600">{resend.error.message}</Text>
+                <Text className="text-xs text-red-600">{userFacingErrorMessage(resend.error)}</Text>
               )}
             </View>
           )}

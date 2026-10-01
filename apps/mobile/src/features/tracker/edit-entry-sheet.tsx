@@ -5,6 +5,7 @@ import {
   checkMacroSanity,
   formatQuickAddGrams,
   QUICK_ADD_MEAL_TYPES,
+  userFacingErrorMessage,
   type CustomEntryRow,
   type QuickAddMealType,
 } from '@chefer/utils';
@@ -261,7 +262,7 @@ export function EditEntrySheet({
 
       {updateMutation.isError && (
         <Text testID="edit-entry-api-error" className="text-sm text-red-600">
-          {updateMutation.error.message}
+          {userFacingErrorMessage(updateMutation.error)}
         </Text>
       )}
     </Sheet>

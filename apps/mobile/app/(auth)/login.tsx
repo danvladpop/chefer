@@ -4,6 +4,7 @@ import { Pressable, View, type TextInput } from 'react-native';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Link, router } from 'expo-router';
 import { Button, Input, PasswordInput, Text, useScrollFieldIntoView } from '@chefer/ui-mobile';
+import { userFacingErrorMessage } from '@chefer/utils';
 import { AuthField, AuthScreen } from '../../src/features/auth/auth-screen';
 import { AUTH_COPY } from '../../src/features/auth/copy';
 import { loginSchema, type LoginFormValues } from '../../src/features/auth/schemas';
@@ -116,7 +117,7 @@ function LoginForm() {
 
       {login.error && (
         <Text variant="muted" className="text-destructive" testID="login-error">
-          {login.error.message}
+          {userFacingErrorMessage(login.error)}
         </Text>
       )}
 

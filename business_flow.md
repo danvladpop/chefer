@@ -3256,6 +3256,12 @@ Profile → Your data → "Delete account"  (web /profile, mobile Profile — la
      household, feedback, sign-in on every device) + "Backup copies age out
      within about 30 days."
      Inputs: password + type DELETE (case-insensitive) → destructive button
+     "Forgot your password?" (App Review R-24, web + mobile): asks
+     `auth.requestPasswordReset { email: <the signed-in user's own email> }` and
+     confirms "We sent a reset link to <email>" — the in-app forgot-password
+     screen is signed-out only, so the link lives in the sheet. The mobile
+     password field opts out of iOS "Save Password?" (R-17), and the footer
+     button works on the first tap with the keyboard up (R-03, `Sheet` footers).
         │
         └─ user.deleteSelf { password, confirm: 'DELETE' }
               ├─ wrong password            → FORBIDDEN "That password is not correct"

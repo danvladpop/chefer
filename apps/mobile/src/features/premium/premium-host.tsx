@@ -1,7 +1,7 @@
 import { useEffect, useId, useRef, useState } from 'react';
 import { router } from 'expo-router';
 import type { PremiumSource } from '@chefer/types';
-import { ACTIVATION_STEP_COPY, activationStepKeys } from '@chefer/utils';
+import { ACTIVATION_STEP_COPY, activationStepKeys, userFacingErrorMessage } from '@chefer/utils';
 import { track } from '../../lib/analytics';
 import { trpc } from '../../lib/trpc';
 import { useAiConsent } from '../ai-consent/ai-consent-provider';
@@ -48,7 +48,7 @@ function PremiumOffer({ source }: { source: string | null }) {
       closePremium();
       router.push('/meal-plan');
     },
-    onError: (err) => setActionError(err.message),
+    onError: (err) => setActionError(userFacingErrorMessage(err)),
   });
 
   const upgrade = trpc.user.upgradePlan.useMutation({

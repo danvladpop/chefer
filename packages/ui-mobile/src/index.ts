@@ -6,7 +6,7 @@ export {
   type AvatarSize,
 } from './components/avatar';
 export { Badge, type BadgeProps } from './components/badge';
-export { Button, type ButtonProps } from './components/button';
+export { Button, buttonVariants, type ButtonProps } from './components/button';
 export { Card, CardTitle, type CardProps } from './components/card';
 export {
   ChangeNoticeCard,
@@ -71,6 +71,7 @@ export {
 export {
   Snackbar,
   resetSnackbarForTests,
+  setSnackbarTabBarHeight,
   useSnackbar,
   type SnackbarOptions,
   type SnackbarProps,

@@ -3,7 +3,7 @@ import { Image, Pressable, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { Button, Card, Text } from '@chefer/ui-mobile';
-import { formatPortion, localDateStr, slotPortion } from '@chefer/utils';
+import { formatPortion, localDateStr, slotPortion, userFacingErrorMessage } from '@chefer/utils';
 import { getRecipeImageUrl } from '../../../lib/recipe-image';
 import { trpc, type RouterOutputs } from '../../../lib/trpc';
 import { recordRebalance } from '../../tracker/rebalance-store';
@@ -134,7 +134,7 @@ export function HeroMealCard({ meal, isTomorrow }: { meal: HeroMeal; isTomorrow:
 
       {logMutation.isError && (
         <Text className="px-4 pb-3 text-xs text-red-600">
-          Couldn&apos;t log it: {logMutation.error.message}
+          Couldn&apos;t log it: {userFacingErrorMessage(logMutation.error)}
         </Text>
       )}
       {lastLogged && !logMutation.isError && (

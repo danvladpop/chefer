@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { TextInput } from 'react-native';
 import { Button, Card, Text } from '@chefer/ui-mobile';
-import { cn, FEEDBACK_MAX_LENGTH, feedbackCounter } from '@chefer/utils';
+import { cn, FEEDBACK_MAX_LENGTH, feedbackCounter, userFacingErrorMessage } from '@chefer/utils';
 import { trpc } from '../../lib/trpc';
 
 // Beta feedback — mobile counterpart of web's FeedbackDialog (M2-10). The
@@ -64,7 +64,7 @@ export function FeedbackCard() {
         {submitMutation.isSuccess && !message ? 'Thank you! ✓' : 'Send feedback'}
       </Button>
       {submitMutation.isError && (
-        <Text className="text-xs text-red-600">{submitMutation.error.message}</Text>
+        <Text className="text-xs text-red-600">{userFacingErrorMessage(submitMutation.error)}</Text>
       )}
     </Card>
   );

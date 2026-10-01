@@ -16,7 +16,13 @@ import {
   Screen,
   Text,
 } from '@chefer/ui-mobile';
-import { cn, incompleteLineCount, isSupportedVideoUrl, PREMIUM_PITCH_COPY } from '@chefer/utils';
+import {
+  cn,
+  incompleteLineCount,
+  isSupportedVideoUrl,
+  PREMIUM_PITCH_COPY,
+  userFacingErrorMessage,
+} from '@chefer/utils';
 import { useAiConsent } from '../src/features/ai-consent/ai-consent-provider';
 import { textRejectedOf } from '../src/features/friends/api/friends-errors';
 import type { PickedIngredient } from '../src/features/ingredients/catalog-line';
@@ -282,7 +288,12 @@ export default function ImportRecipeScreen() {
           <VideoDraftForm
             preview={videoPreview}
             saving={saveMutation.isPending}
-            saveError={saveTextRejected ? null : (saveMutation.error?.message ?? null)}
+            saveError={
+              saveTextRejected
+                ? null
+                : ((saveMutation.error ? userFacingErrorMessage(saveMutation.error) : undefined) ??
+                  null)
+            }
             nameError={saveTextRejected ? FRIENDS_COPY.recipe.textRejected : null}
             onBack={startOver}
             onSave={saveVideoDraft}
@@ -489,7 +500,9 @@ export default function ImportRecipeScreen() {
             {saveMutation.isError && (
               <Card className="border-red-200 bg-red-50">
                 <Text testID="import-save-error" className="text-sm text-red-600">
-                  {saveTextRejected ? FRIENDS_COPY.recipe.textRejected : saveMutation.error.message}
+                  {saveTextRejected
+                    ? FRIENDS_COPY.recipe.textRejected
+                    : userFacingErrorMessage(saveMutation.error)}
                 </Text>
               </Card>
             )}

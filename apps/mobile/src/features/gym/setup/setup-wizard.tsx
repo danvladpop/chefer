@@ -29,6 +29,7 @@ import {
   SESSION_LENGTH_OPTIONS,
   unitLabel,
   unitToKg,
+  userFacingErrorMessage,
   VOLUME_GROUP_LABELS,
   weightUnitForSystem,
 } from '@chefer/utils';
@@ -797,7 +798,7 @@ export function SetupWizard() {
             </Text>
             {completeSetupMutation.isError && (
               <Text className="text-sm text-red-600" testID="gym-setup-error">
-                {completeSetupMutation.error.message}
+                {userFacingErrorMessage(completeSetupMutation.error)}
               </Text>
             )}
           </View>

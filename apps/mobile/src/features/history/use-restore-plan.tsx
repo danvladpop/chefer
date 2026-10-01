@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { ConfirmSheet } from '@chefer/ui-mobile';
+import { userFacingErrorMessage } from '@chefer/utils';
 import { trpc } from '../../lib/trpc';
 
 // Restore a past week, behind a confirm (audit F-M-PREM-1-1: Restore fired on
@@ -38,7 +39,7 @@ export function useRestorePlan({ onRestored }: { onRestored?: () => void } = {})
     pendingPlanId: mutation.isPending ? lastPlanId : null,
     /** Error message for the plan whose restore last failed. */
     errorFor: (planId: string) =>
-      mutation.isError && lastPlanId === planId ? mutation.error.message : null,
+      mutation.isError && lastPlanId === planId ? userFacingErrorMessage(mutation.error) : null,
     /** True right after this plan was restored. */
     restoredPlanId: mutation.isSuccess ? lastPlanId : null,
     sheet: (

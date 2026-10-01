@@ -11,6 +11,7 @@ import {
   inToCm,
   onboardingProgress,
   onboardingSteps,
+  userFacingErrorMessage,
   type OnboardingStepKey,
 } from '@chefer/utils';
 import { useIsPremium } from '../../hooks/use-is-premium';
@@ -176,16 +177,16 @@ export function OnboardingWizard() {
   }, [savedPrefs.data]);
 
   const setJobsMutation = trpc.preferences.setJobs.useMutation({
-    onError: (err) => setError(err.message),
+    onError: (err) => setError(userFacingErrorMessage(err)),
   });
   const setDayKindsMutation = trpc.training.setDayKinds.useMutation();
   const setShapeMutation = trpc.mealPlan.setShape.useMutation();
   const setDisplayPrefsMutation = trpc.preferences.setDisplayPreferences.useMutation();
   const safetyMutation = trpc.preferences.updateSafety.useMutation({
-    onError: (err) => setError(err.message),
+    onError: (err) => setError(userFacingErrorMessage(err)),
   });
   const profileBasicsMutation = trpc.preferences.saveProfileBasics.useMutation({
-    onError: (err) => setError(err.message),
+    onError: (err) => setError(userFacingErrorMessage(err)),
   });
   const updateTargetsMutation = trpc.preferences.updateTargets.useMutation();
   // R-18: the first week generates in the background AFTER onboarding has
