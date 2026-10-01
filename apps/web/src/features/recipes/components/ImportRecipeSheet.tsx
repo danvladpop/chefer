@@ -7,7 +7,7 @@ import { useAiConsent } from '@/features/ai-consent/AiConsentProvider';
 import { UpgradeButton } from '@/features/premium/components/UpgradeButton';
 import { useEntitlement } from '@/hooks/useEntitlement';
 import { capture } from '@/lib/analytics';
-import { trpc } from '@/lib/trpc';
+import { trpc, type RouterOutputs } from '@/lib/trpc';
 import {
   AlertTriangle,
   Camera,
@@ -23,6 +23,10 @@ import {
 import { VIDEO_IMPORT_COPY } from '@chefer/types';
 import { Sheet } from '@chefer/ui';
 import { cn, isSupportedVideoUrl, PREMIUM_PITCH_COPY, premiumPitchFor } from '@chefer/utils';
+import { useLiveNutrition, type LiveNutrition } from '../hooks/useLiveNutrition';
+import { rowsFromImport, toSaveLines, type LineRow } from '../lib/recipe-lines';
+import { NutritionPreview } from './NutritionPreview';
+import { RecipeLinesEditor } from './RecipeLinesEditor';
 import {
   VideoDraftForm,
   type VideoDraftRecipe,
@@ -42,20 +46,8 @@ import {
 
 type SourceTab = 'url' | 'text' | 'photo' | 'video';
 
-type ImportPreviewData = {
-  via: 'url' | 'photo' | 'text';
-  original: RecipePayload;
-  adapted: RecipePayload;
-  changes: { kind: string; description: string }[];
-  safety: { ok: boolean; issues: string[] };
-  macroCheck: {
-    status: 'ok' | 'uncertain' | 'unknown';
-    computedCaloriesPerServing: number | null;
-    statedCaloriesPerServing: number;
-  };
-  sourceUrl: string | null;
-  ogImageUrl: string | null;
-};
+type ImportPreviewData = RouterOutputs['recipe']['importPreview'];
+type Variant = 'adapted' | 'original';
 
 type RecipePayload = {
   name: string;
@@ -90,7 +82,14 @@ export function ImportRecipeSheet({ open, onClose }: { open: boolean; onClose: (
   const [videoUrl, setVideoUrl] = useState('');
   const [preview, setPreview] = useState<ImportPreviewData | null>(null);
   const [videoPreview, setVideoPreview] = useState<VideoImportPreviewData | null>(null);
-  const [variant, setVariant] = useState<'adapted' | 'original'>('adapted');
+  const [variant, setVariant] = useState<Variant>('adapted');
+  // Catalog lines per variant (plan-ingredient-catalog §6.2): matched by the
+  // server, reviewed here; unmatched lines get a pick or a private ingredient.
+  const [lines, setLines] = useState<Record<Variant, LineRow[]> | null>(null);
+  const [acceptPartial, setAcceptPartial] = useState(false);
+  const [matchError, setMatchError] = useState<string | null>(null);
+  const liveOriginal = useLiveNutrition(lines?.original ?? [], preview?.original.servings ?? 1);
+  const liveAdapted = useLiveNutrition(lines?.adapted ?? [], preview?.adapted.servings ?? 1);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const previewMutation = trpc.recipe.importPreview.useMutation({
@@ -98,6 +97,12 @@ export function ImportRecipeSheet({ open, onClose }: { open: boolean; onClose: (
       capture('recipe_imported', { via: data.via });
       if (isPremium === false) capture('teaser_engaged', { feature: 'import' });
       setVariant(data.safety.ok && data.changes.length > 0 ? 'adapted' : 'original');
+      setLines({
+        original: rowsFromImport(data.original.ingredients, data.resolution.original),
+        adapted: rowsFromImport(data.adapted.ingredients, data.resolution.adapted),
+      });
+      setAcceptPartial(false);
+      setMatchError(null);
       setPreview(data);
     },
   });
@@ -128,6 +133,8 @@ export function ImportRecipeSheet({ open, onClose }: { open: boolean; onClose: (
 
   const reset = () => {
     setPreview(null);
+    setLines(null);
+    setMatchError(null);
     setVideoPreview(null);
     previewMutation.reset();
     videoPreviewMutation.reset();
@@ -187,17 +194,32 @@ export function ImportRecipeSheet({ open, onClose }: { open: boolean; onClose: (
   };
 
   const handleSave = () => {
-    if (!preview) return;
+    if (!preview || !lines) return;
     const chosen = variant === 'adapted' ? preview.adapted : preview.original;
+    const live = variant === 'adapted' ? liveAdapted : liveOriginal;
+    const ingredients = toSaveLines(lines[variant]);
+    if (ingredients.length === 0) {
+      setMatchError('Keep at least one ingredient with an amount.');
+      return;
+    }
+    // Save is blocked while lines need data, unless the user accepts it (§6.2).
+    if (live.missingCount > 0 && !acceptPartial) {
+      setMatchError(
+        `${live.missingCount} ingredient${live.missingCount === 1 ? ' needs' : 's need'} a match — pick one for each, or tick “Save with incomplete nutrition”.`,
+      );
+      return;
+    }
+    setMatchError(null);
     saveMutation.mutate({
-      recipe: chosen,
+      recipe: { ...chosen, ingredients },
       variant,
       sourceUrl: preview.sourceUrl,
       ogImageUrl: preview.ogImageUrl,
+      acceptPartial,
     });
   };
 
-  const handleVideoSave = (recipe: VideoDraftRecipe) => {
+  const handleVideoSave = (recipe: VideoDraftRecipe, opts: { acceptPartial: boolean }) => {
     if (!videoPreview) return;
     // A reviewed draft is saved as-is: the `original` variant, no Cheferize.
     setVariant('original');
@@ -206,6 +228,7 @@ export function ImportRecipeSheet({ open, onClose }: { open: boolean; onClose: (
       variant: 'original',
       sourceUrl: videoPreview.sourceUrl,
       ogImageUrl: videoPreview.ogImageUrl,
+      acceptPartial: opts.acceptPartial,
     });
   };
 
@@ -279,14 +302,28 @@ export function ImportRecipeSheet({ open, onClose }: { open: boolean; onClose: (
           onBack={reset}
           onSave={handleVideoSave}
         />
-      ) : preview ? (
+      ) : preview && lines ? (
         <PreviewStep
           preview={preview}
           isPremium={isPremium}
           variant={variant}
           adaptedUsable={adaptedUsable}
-          onVariantChange={setVariant}
-          saveError={saveMutation.error?.message ?? null}
+          onVariantChange={(v) => {
+            setVariant(v);
+            setMatchError(null);
+          }}
+          lines={lines}
+          onLinesChange={(v, rows) => {
+            setLines((prev) => (prev ? { ...prev, [v]: rows } : prev));
+            setMatchError(null);
+          }}
+          live={{ original: liveOriginal, adapted: liveAdapted }}
+          acceptPartial={acceptPartial}
+          onAcceptPartialChange={(accept) => {
+            setAcceptPartial(accept);
+            setMatchError(null);
+          }}
+          saveError={matchError ?? saveMutation.error?.message ?? null}
         />
       ) : (
         <div>
@@ -418,43 +455,35 @@ function PreviewStep({
   variant,
   adaptedUsable,
   onVariantChange,
+  lines,
+  onLinesChange,
+  live,
+  acceptPartial,
+  onAcceptPartialChange,
   saveError,
 }: {
   preview: ImportPreviewData;
   isPremium: boolean | undefined;
-  variant: 'adapted' | 'original';
+  variant: Variant;
   adaptedUsable: boolean;
-  onVariantChange: (v: 'adapted' | 'original') => void;
+  onVariantChange: (v: Variant) => void;
+  lines: Record<Variant, LineRow[]>;
+  onLinesChange: (v: Variant, rows: LineRow[]) => void;
+  live: Record<Variant, LiveNutrition>;
+  acceptPartial: boolean;
+  onAcceptPartialChange: (accept: boolean) => void;
   saveError: string | null;
 }) {
+  // Free users can only save the original.
+  const shown: Variant = isPremium && variant === 'adapted' ? 'adapted' : 'original';
   return (
     <div className="space-y-4">
-      {preview.macroCheck.status === 'uncertain' && (
-        <p className="flex items-start gap-2 rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800">
-          <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
-          <span className="min-w-0">
-            {preview.macroCheck.computedCaloriesPerServing !== null ? (
-              <>
-                Calorie estimate uncertain — the page says{' '}
-                {preview.macroCheck.statedCaloriesPerServing} kcal/serving, our ingredient data
-                computes ~{preview.macroCheck.computedCaloriesPerServing} kcal.
-              </>
-            ) : (
-              <>
-                Calorie estimate uncertain — we couldn&apos;t verify the page&apos;s{' '}
-                {preview.macroCheck.statedCaloriesPerServing} kcal/serving against our ingredient
-                data. Treat the macros as approximate.
-              </>
-            )}
-          </span>
-        </p>
-      )}
-
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         {/* Original */}
         <RecipeCard
           label="Original"
           recipe={preview.original}
+          calories={live.original.status === 'EMPTY' ? null : live.original.perServing.calories}
           selected={isPremium ? variant === 'original' : false}
           onSelect={isPremium ? () => onVariantChange('original') : undefined}
         />
@@ -469,6 +498,7 @@ function PreviewStep({
               label="Cheferized for you"
               accent
               recipe={preview.adapted}
+              calories={live.adapted.status === 'EMPTY' ? null : live.adapted.perServing.calories}
               changes={preview.changes}
               selected={isPremium ? variant === 'adapted' : false}
               disabled={!adaptedUsable}
@@ -503,8 +533,13 @@ function PreviewStep({
           every ingredient and step — so the extraction can be checked before
           Save. Free users can only save the original. */}
       <FullRecipePreview
-        recipe={isPremium && variant === 'adapted' ? preview.adapted : preview.original}
-        label={isPremium && variant === 'adapted' ? 'Cheferized for you' : 'Original'}
+        recipe={shown === 'adapted' ? preview.adapted : preview.original}
+        label={shown === 'adapted' ? 'Cheferized for you' : 'Original'}
+        lines={lines[shown]}
+        onLinesChange={(rows) => onLinesChange(shown, rows)}
+        live={live[shown]}
+        acceptPartial={acceptPartial}
+        onAcceptPartialChange={onAcceptPartialChange}
       />
 
       {preview.sourceUrl && (
@@ -513,13 +548,30 @@ function PreviewStep({
         </p>
       )}
 
-      {saveError && <p className="text-sm text-red-600">{saveError}</p>}
+      <div role="alert" aria-atomic="true">
+        {saveError && <p className="text-sm text-red-600">{saveError}</p>}
+      </div>
     </div>
   );
 }
 
-function FullRecipePreview({ recipe, label }: { recipe: RecipePayload; label: string }) {
-  const n = recipe.nutritionInfo;
+function FullRecipePreview({
+  recipe,
+  label,
+  lines,
+  onLinesChange,
+  live,
+  acceptPartial,
+  onAcceptPartialChange,
+}: {
+  recipe: RecipePayload;
+  label: string;
+  lines: LineRow[];
+  onLinesChange: (rows: LineRow[]) => void;
+  live: LiveNutrition;
+  acceptPartial: boolean;
+  onAcceptPartialChange: (accept: boolean) => void;
+}) {
   return (
     <section
       data-testid="import-full-preview"
@@ -532,25 +584,35 @@ function FullRecipePreview({ recipe, label }: { recipe: RecipePayload; label: st
         </p>
         <h3 className="font-serif text-base font-bold text-gray-900">{recipe.name}</h3>
         <p className="text-sm text-gray-600">{recipe.description}</p>
-        <p className="mt-1 text-xs text-gray-500">
-          {recipe.servings} servings · {n.calories} kcal · P {Math.round(n.protein)}g · C{' '}
-          {Math.round(n.carbs)}g · F {Math.round(n.fat)}g
-        </p>
+        <p className="mt-1 text-xs text-gray-500">{recipe.servings} servings</p>
       </div>
       <div>
         <h4 className="text-sm font-semibold text-gray-800">
-          Ingredients ({recipe.ingredients.length})
+          Ingredients ({lines.length}) — check each match
         </h4>
-        <ul className="mt-1 space-y-0.5 text-sm text-gray-700">
-          {recipe.ingredients.map((ing, i) => (
-            <li key={i}>
-              <span className="font-semibold">
-                {ing.quantity} {ing.unit}
-              </span>{' '}
-              {ing.name}
-            </li>
-          ))}
-        </ul>
+        <div className="mt-2">
+          <RecipeLinesEditor
+            rows={lines}
+            onChange={onLinesChange}
+            problems={live.problems}
+            idPrefix="import"
+          />
+        </div>
+      </div>
+      <div>
+        <h4 className="mb-2 text-sm font-semibold text-gray-800">Nutrition per serving</h4>
+        <NutritionPreview live={live} />
+        {live.missingCount > 0 && (
+          <label className="mt-2 flex min-h-11 items-center gap-2 text-sm text-gray-800">
+            <input
+              type="checkbox"
+              checked={acceptPartial}
+              onChange={(e) => onAcceptPartialChange(e.target.checked)}
+              className="h-5 w-5 shrink-0 accent-[#944a00]"
+            />
+            Save with incomplete nutrition
+          </label>
+        )}
       </div>
       <div>
         <h4 className="text-sm font-semibold text-gray-800">
@@ -572,6 +634,7 @@ function FullRecipePreview({ recipe, label }: { recipe: RecipePayload; label: st
 function RecipeCard({
   label,
   recipe,
+  calories,
   changes,
   accent = false,
   selected = false,
@@ -580,13 +643,14 @@ function RecipeCard({
 }: {
   label: string;
   recipe: RecipePayload;
+  /** Live computed kcal per serving (null while there is nothing to compute). */
+  calories: number | null;
   changes?: { kind: string; description: string }[];
   accent?: boolean;
   selected?: boolean;
   disabled?: boolean;
   onSelect?: (() => void) | undefined;
 }) {
-  const n = recipe.nutritionInfo;
   return (
     <div
       onClick={disabled ? undefined : onSelect}
@@ -611,7 +675,7 @@ function RecipeCard({
       <div className="mt-1.5 flex flex-wrap items-center gap-3 text-xs text-gray-500">
         <span className="flex items-center gap-1">
           <Flame className="h-3 w-3 text-[#944a00]" />
-          {n.calories} kcal
+          {calories ?? recipe.nutritionInfo.calories} kcal
         </span>
         <span className="flex items-center gap-1">
           <Clock className="h-3 w-3" />

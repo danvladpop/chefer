@@ -9,6 +9,7 @@ import { StarRatingWidget } from '@/features/recipe/components/StarRatingWidget'
 import { AllergenWarningBanner } from '@/features/recipes/components/AllergenWarning';
 import { RecipeDetailImage } from '@/features/recipes/components/RecipeDetailImage';
 import { RecipeImage } from '@/features/recipes/components/RecipeImage';
+import { RecipeNutritionPanel } from '@/features/recipes/components/RecipeNutritionPanel';
 import { CheckedForLine } from '@/features/safety/components/CheckedForLine';
 import { ReportSafetySheet } from '@/features/safety/components/ReportSafetySheet';
 import { WhatWeCheckSheet } from '@/features/safety/components/WhatWeCheckSheet';
@@ -606,21 +607,8 @@ export default function RecipeDetailPage({ params }: RecipePageProps) {
         </section>
       </div>
 
-      {/* Nutrition Facts panel */}
-      <div className="mt-8 rounded-2xl border bg-white p-5">
-        <h2 className="mb-3 font-serif text-sm font-semibold text-gray-900">
-          Nutrition Facts{' '}
-          <span className="text-xs font-normal text-gray-500">
-            per {recipe.servings} serving{recipe.servings === 1 ? '' : 's'}
-          </span>
-        </h2>
-        <div className="grid grid-cols-2 gap-2 text-sm sm:grid-cols-4">
-          <NutritionRow label="Calories" value={`${n.calories} kcal`} />
-          <NutritionRow label="Protein" value={`${n.protein}g`} />
-          <NutritionRow label="Carbs" value={`${n.carbs}g`} />
-          <NutritionRow label="Fat" value={`${n.fat}g`} />
-        </div>
-      </div>
+      {/* Nutrition Facts + how they were computed (plan-ingredient-catalog §10) */}
+      <RecipeNutritionPanel recipe={recipe} recipeId={id} canEdit={savedData?.canEdit ?? false} />
 
       {/* Star rating — shown when recipe was accessed from a meal plan day */}
       {dayParam !== null && (
@@ -898,15 +886,6 @@ function MacroChip({ label, value }: { label: string; value: number }) {
     <div className="rounded-xl border bg-gray-50 px-3 py-3 text-center">
       <p className="text-base font-bold text-gray-900">{value}g</p>
       <p className="text-xs text-gray-500">{label}</p>
-    </div>
-  );
-}
-
-function NutritionRow({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="flex justify-between rounded-lg bg-gray-50 px-3 py-2">
-      <span className="text-gray-500">{label}</span>
-      <span className="font-semibold text-gray-800">{value}</span>
     </div>
   );
 }

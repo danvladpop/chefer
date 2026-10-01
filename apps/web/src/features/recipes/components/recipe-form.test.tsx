@@ -2,7 +2,8 @@
 import EditRecipePage from '@/app/(dashboard)/recipes/[id]/edit/page';
 import NewRecipePage from '@/app/(dashboard)/recipes/new/page';
 import { uploadImage } from '@/lib/upload-image';
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { catalogState } from '@/test-support/catalog-trpc';
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 // Audit F-X-5-1 / F-REC-3-7 (a11y) + T-40.6 (UX-40 slice 1, D-19): only the
@@ -10,9 +11,19 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 // times and nutrition are all optional, and there is no fiber field
 // anywhere. A failed submit still links, announces and focuses the first
 // error; editing a field still clears its stale error.
+//
+// plan-ingredient-catalog §10: every line is picked from the catalog and
+// stores its ingredientId; nutrition is previewed live with the shared engine
+// and computed by the server on save (no typed numbers on web any more).
 
-const createMutate = vi.fn();
-const updateMutate = vi.fn();
+const { createMutate, updateMutate, recipeState } = vi.hoisted(() => {
+  const state: { current: unknown } = { current: null };
+  return {
+    createMutate: vi.fn((_input: Record<string, unknown>) => undefined),
+    updateMutate: vi.fn((_input: Record<string, unknown>) => undefined),
+    recipeState: state,
+  };
+});
 
 const RECIPE = {
   id: 'r1',
@@ -27,6 +38,19 @@ const RECIPE = {
   ingredients: [{ name: 'basil', quantity: 30, unit: 'g' }],
   instructions: ['Blend the basil.', 'Toss with pasta.'],
   nutritionInfo: { calories: 520.4, protein: 14, carbs: 60, fat: 22, fiber: 4 },
+  nutritionStatus: 'COMPUTED' as const,
+  lines: [
+    {
+      position: 0,
+      ingredientId: 'basil' as string | null,
+      rawName: 'basil',
+      quantity: 30,
+      unit: 'g',
+      grams: 30 as number | null,
+      note: null,
+      optional: false,
+    },
+  ],
 };
 
 vi.mock('next/navigation', () => ({
@@ -41,49 +65,63 @@ vi.mock('next/link', () => ({
   ),
 }));
 vi.mock('@/lib/upload-image', () => ({ uploadImage: vi.fn() }));
-vi.mock('@/features/ingredients/components/IngredientFormModal', () => ({
-  IngredientFormModal: () => null,
-}));
-vi.mock('@/lib/trpc', () => ({
-  trpc: {
-    ingredients: {
-      units: { useQuery: () => ({ data: ['g', 'ml', 'piece'] }) },
-      computeNutrition: { useQuery: () => ({ data: undefined, isFetching: false }) },
-      search: { useQuery: () => ({ data: [], isFetching: false }) },
+vi.mock('@/lib/trpc', async () => {
+  const { catalogIngredientsMock, catalogUtilsMock } = await import('@/test-support/catalog-trpc');
+  return {
+    trpc: {
+      ingredients: catalogIngredientsMock(),
+      recipe: {
+        aiImageUrl: { useQuery: () => ({ refetch: vi.fn(), isFetching: false }) },
+        create: {
+          useMutation: () => ({ mutate: createMutate, isPending: false, error: null }),
+        },
+        getMyRecipe: {
+          useQuery: () => ({
+            data: recipeState.current ?? RECIPE,
+            isLoading: false,
+            error: null,
+            isFetchedAfterMount: true,
+            isFetching: false,
+            refetch: vi.fn(),
+          }),
+        },
+        update: {
+          useMutation: () => ({ mutate: updateMutate, isPending: false, error: null }),
+        },
+      },
+      // T-BUG-O3 C1: EditRecipePage invalidates recipe.getMyRecipe/list +
+      // mealPlan.getRecipe on a successful update.
+      useUtils: () => ({
+        ...catalogUtilsMock(),
+        recipe: { getMyRecipe: { invalidate: vi.fn() }, list: { invalidate: vi.fn() } },
+        mealPlan: { getRecipe: { invalidate: vi.fn() } },
+      }),
     },
-    recipe: {
-      aiImageUrl: { useQuery: () => ({ refetch: vi.fn(), isFetching: false }) },
-      create: {
-        useMutation: () => ({ mutate: createMutate, isPending: false, error: null }),
-      },
-      getMyRecipe: {
-        useQuery: () => ({
-          data: RECIPE,
-          isLoading: false,
-          error: null,
-          isFetchedAfterMount: true,
-          isFetching: false,
-          refetch: vi.fn(),
-        }),
-      },
-      update: {
-        useMutation: () => ({ mutate: updateMutate, isPending: false, error: null }),
-      },
-    },
-    // T-BUG-O3 C1: EditRecipePage invalidates recipe.getMyRecipe/list +
-    // mealPlan.getRecipe on a successful update.
-    useUtils: () => ({
-      recipe: { getMyRecipe: { invalidate: vi.fn() }, list: { invalidate: vi.fn() } },
-      mealPlan: { getRecipe: { invalidate: vi.fn() } },
-    }),
-  },
-}));
+  };
+});
 
+// jsdom has no scrollTo; the Sheet's scroll lock restores the page offset with it.
+vi.spyOn(window, 'scrollTo').mockImplementation(() => undefined);
 afterEach(cleanup);
 beforeEach(() => {
   createMutate.mockClear();
   updateMutate.mockClear();
+  recipeState.current = null;
+  catalogState.resolve.clear();
 });
+
+/** Opens the picker for a line and picks the first search result for `query`. */
+async function pickIngredient(line: number, query: string, result: RegExp) {
+  fireEvent.click(screen.getByRole('button', { name: new RegExp(`^Ingredient ${line}:`) }));
+  const dialog = await screen.findByRole('dialog', { name: 'Choose an ingredient' });
+  fireEvent.change(within(dialog).getByLabelText('Search ingredients'), {
+    target: { value: query },
+  });
+  fireEvent.click(await within(dialog).findByRole('button', { name: result }));
+  await waitFor(() =>
+    expect(screen.queryByRole('dialog', { name: 'Choose an ingredient' })).toBeNull(),
+  );
+}
 
 /** Mirrors axe's `label` rule: every form control needs a programmatic name. */
 function unnamedControls(): string[] {
@@ -121,8 +159,9 @@ describe('NewRecipePage accessibility', () => {
     expect(screen.getByLabelText('Prep (min)')).toBeTruthy();
     expect(screen.getByLabelText('Cook (min)')).toBeTruthy();
     expect(screen.getByLabelText('Servings')).toBeTruthy();
-    expect(screen.getByLabelText('Name for ingredient 1')).toBeTruthy();
-    expect(screen.getByLabelText('Quantity for ingredient 1')).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Ingredient 1: not chosen' })).toBeTruthy();
+    expect(screen.getByLabelText('Amount for ingredient 1')).toBeTruthy();
+    expect(screen.getByLabelText('Unit for ingredient 1')).toBeTruthy();
     expect(screen.getByLabelText('Step 1')).toBeTruthy();
     expect(screen.getByRole('group', { name: 'Cuisine' })).toBeTruthy();
     expect(screen.getByRole('link', { name: 'Back to recipes' })).toBeTruthy();
@@ -131,9 +170,6 @@ describe('NewRecipePage accessibility', () => {
     fireEvent.click(screen.getByRole('button', { name: /add ingredient/i }));
     expect(screen.getByRole('button', { name: 'Remove step 2' })).toBeTruthy();
     expect(screen.getByRole('button', { name: 'Remove ingredient 2' })).toBeTruthy();
-
-    fireEvent.click(screen.getByRole('button', { name: /enter manually instead/i }));
-    expect(screen.getByLabelText('Calories (kcal)')).toBeTruthy();
     expect(unnamedControls()).toEqual([]);
   });
 
@@ -148,11 +184,11 @@ describe('NewRecipePage accessibility', () => {
     expect(form().noValidate).toBe(true);
   });
 
-  it('never renders a fiber input or stat (D-18)', () => {
+  it('never renders a fiber input or stat (D-18), and has no typed-macros path any more', () => {
     render(<NewRecipePage />);
     expect(screen.queryByText(/fiber/i)).toBeNull();
-    fireEvent.click(screen.getByRole('button', { name: /enter manually instead/i }));
-    expect(screen.queryByLabelText(/fiber/i)).toBeNull();
+    expect(screen.queryByRole('button', { name: /enter manually/i })).toBeNull();
+    expect(screen.queryByLabelText(/calories/i)).toBeNull();
   });
 
   it('D-19: on an empty submit, only the name is required — cuisine and steps are not', async () => {
@@ -170,11 +206,51 @@ describe('NewRecipePage accessibility', () => {
     expect(screen.getByRole('alert').textContent).toMatch(/recipe not saved/i);
   });
 
-  // The "name + one ingredient line saves" round trip through the real
-  // IngredientPicker (search/create-custom) is covered end-to-end by
-  // tests/e2e/recipe-form.spec.ts (Playwright) rather than here — typing a
-  // free-text ingredient name only commits through a picked suggestion or
-  // the custom-ingredient modal, both of which need a live search backend.
+  it('picks a catalog ingredient, limits its units, previews nutrition and saves its id', async () => {
+    render(<NewRecipePage />);
+    fireEvent.change(screen.getByLabelText(/Recipe Name/), { target: { value: 'Chicken' } });
+    await pickIngredient(1, 'chick', /Chicken breast, raw/);
+
+    expect(screen.getByRole('button', { name: 'Ingredient 1: Chicken breast, raw' })).toBeTruthy();
+    // grams, the row's own portion, never a volume unit without a density (I6)
+    const units = Array.from(
+      screen.getByLabelText<HTMLSelectElement>('Unit for ingredient 1').options,
+    ).map((o) => o.value);
+    expect(units).toContain('breast');
+    expect(units).not.toContain('cup');
+
+    fireEvent.change(screen.getByLabelText('Amount for ingredient 1'), {
+      target: { value: '200' },
+    });
+    // 200 g × 120 kcal/100 g, 1 serving — the shared engine, in the browser.
+    const preview = screen.getByTestId('nutrition-preview');
+    await waitFor(() => expect(within(preview).getByText(/^240$/)).toBeTruthy());
+    expect(
+      within(preview).getByText('Nutrition is computed from 1 ingredient, per serving.'),
+    ).toBeTruthy();
+
+    submit();
+    expect(createMutate).toHaveBeenCalledTimes(1);
+    const sent = createMutate.mock.calls[0]?.[0] ?? {};
+    expect(sent['ingredients']).toEqual([
+      { name: 'Chicken breast, raw', quantity: 200, unit: 'g', ingredientId: 'chicken' },
+    ]);
+    // The server computes nutrition; the web form never sends typed numbers.
+    expect(sent).not.toHaveProperty('nutritionInfo');
+  });
+
+  it('says "Incomplete" when a unit cannot be converted for the picked ingredient', async () => {
+    render(<NewRecipePage />);
+    await pickIngredient(1, 'basil', /Basil, fresh/);
+    fireEvent.change(screen.getByLabelText('Amount for ingredient 1'), { target: { value: '2' } });
+    fireEvent.change(screen.getByLabelText('Unit for ingredient 1'), {
+      target: { value: 'pinch' },
+    });
+    await waitFor(() => expect(screen.getByText(/computed from 1 ingredient/)).toBeTruthy());
+    fireEvent.change(screen.getByLabelText('Amount for ingredient 1'), { target: { value: 'x' } });
+    // An unparseable amount just leaves the line out of the preview.
+    expect(screen.getByText(/Add ingredients with amounts/)).toBeTruthy();
+  });
 
   it('focuses the first invalid field further down (the audit’s −2 prep time)', async () => {
     render(<NewRecipePage />);
@@ -250,23 +326,91 @@ describe('EditRecipePage accessibility', () => {
     expect(screen.queryByText(/fiber/i)).toBeNull();
   });
 
-  it('D-19: cuisine and calories are optional — saving without changing them still works', () => {
+  it('D-19: cuisine is optional — saving without changing anything still works', () => {
     render(<EditRecipePage />);
     submit();
     expect(updateMutate).toHaveBeenCalledTimes(1);
   });
 
-  it('submits a valid recipe and keeps the stored fiber (calories rounded to the API’s integer)', () => {
+  it('brings stored lines back linked and saves their ids — no typed numbers', () => {
     render(<EditRecipePage />);
+    expect(screen.getByRole('button', { name: 'Ingredient 1: Basil, fresh' })).toBeTruthy();
     submit();
     expect(updateMutate).toHaveBeenCalledTimes(1);
-    expect(updateMutate).toHaveBeenCalledWith(
-      expect.objectContaining({
-        recipeId: 'r1',
-        nutritionInfo: expect.objectContaining({ calories: 520, fiber: 4 }) as unknown,
-        ingredients: [{ name: 'basil', quantity: 30, unit: 'g' }],
+    const sent = updateMutate.mock.calls[0]?.[0] ?? {};
+    expect(sent).toMatchObject({
+      recipeId: 'r1',
+      ingredients: [{ name: 'basil', quantity: 30, unit: 'g', ingredientId: 'basil' }],
+    });
+    expect(sent).not.toHaveProperty('nutritionInfo');
+  });
+
+  it('a legacy line without an id shows the resolver’s suggestions until one is picked', async () => {
+    recipeState.current = {
+      ...RECIPE,
+      nutritionStatus: 'USER_ENTERED',
+      lines: [{ ...RECIPE.lines[0], ingredientId: null, rawName: 'basil leaves', grams: null }],
+    };
+    catalogState.resolve.set('basil leaves', {
+      confidence: 'CANDIDATES',
+      match: null,
+      candidates: [
+        {
+          id: 'basil',
+          slug: 'basil',
+          name: 'Basil, fresh',
+          category: 'HERB_FRESH',
+          owner: 'global',
+          portions: [{ unit: 'leaf', grams: 0.5 }],
+          hasDensity: false,
+          nutritionSource: 'USDA_FDC',
+        },
+      ],
+    });
+    render(<EditRecipePage />);
+
+    expect(
+      screen.getByRole('button', {
+        name: 'Ingredient 1: basil leaves, not matched to the catalog',
       }),
-    );
+    ).toBeTruthy();
+    expect(screen.getByText(/Incomplete — 1 ingredient needs data/)).toBeTruthy();
+    // USER_ENTERED: saving replaces the typed numbers with computed ones.
+    expect(screen.getByText(/numbers you typed in earlier/)).toBeTruthy();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Basil, fresh' }));
+    await waitFor(() => expect(screen.getByText(/computed from 1 ingredient/)).toBeTruthy());
+
+    submit();
+    const sent = updateMutate.mock.calls[0]?.[0] ?? {};
+    // The written name stays; the pick adds the id.
+    expect(sent['ingredients']).toEqual([
+      { name: 'basil leaves', quantity: 30, unit: 'g', ingredientId: 'basil' },
+    ]);
+  });
+
+  it('an EXACT/ALIAS match on a legacy line is linked, as the server would on save', () => {
+    recipeState.current = {
+      ...RECIPE,
+      lines: [{ ...RECIPE.lines[0], ingredientId: null, rawName: 'olive oil', unit: 'tbsp' }],
+    };
+    catalogState.resolve.set('olive oil', {
+      confidence: 'ALIAS',
+      match: {
+        id: 'oil',
+        slug: 'oil',
+        name: 'Olive oil',
+        category: 'OIL_FAT',
+        owner: 'global',
+        portions: [],
+        hasDensity: true,
+        nutritionSource: 'USDA_FDC',
+      },
+      candidates: [],
+    });
+    render(<EditRecipePage />);
+    expect(screen.getByRole('button', { name: 'Ingredient 1: Olive oil' })).toBeTruthy();
+    expect(screen.queryByText(/Pick a match/)).toBeNull();
   });
 
   it('clearing the name still blocks the save and focuses it', async () => {

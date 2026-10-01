@@ -2,7 +2,9 @@
 
 import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
-import { useEffect, useId, useState } from 'react';
+import { useEffect, useId, useMemo, useState } from 'react';
+import { pickedFromRef } from '@/features/ingredients/lib/picked-ingredient';
+import { NutritionPreview } from '@/features/recipes/components/NutritionPreview';
 import {
   Field,
   FormErrorSummary,
@@ -11,6 +13,12 @@ import {
   Section,
 } from '@/features/recipes/components/recipe-form-fields';
 import {
+  firstIncompleteField,
+  lineFieldId,
+  RecipeLinesEditor,
+} from '@/features/recipes/components/RecipeLinesEditor';
+import { useLiveNutrition } from '@/features/recipes/hooks/useLiveNutrition';
+import {
   errorIdFor,
   fieldErrorProps,
   useRecipeFormErrors,
@@ -18,35 +26,26 @@ import {
   type RecipeFormErrors,
   type RecipeFormFocusTargets,
 } from '@/features/recipes/lib/recipe-form';
+import { newLineRow, toSaveLines, type LineRow } from '@/features/recipes/lib/recipe-lines';
 import { trpc } from '@/lib/trpc';
 import { ArrowLeft, Plus, Trash2 } from 'lucide-react';
+import { normalizeRecipeUnit } from '@chefer/utils';
 
-// ─── Types ────────────────────────────────────────────────────────────────────
+// ─── Lines to edit (plan-ingredient-catalog §10) ─────────────────────────────
+// Stored catalog lines come back linked by their ingredientId. A line without
+// one (legacy, or an old client's free text) is resolved: an EXACT/ALIAS match
+// is linked as the server would on save, anything else shows "pick a match"
+// with the resolver's suggestions. A pre-catalog recipe with no stored lines
+// falls back to the Json ingredients.
 
-interface Ingredient {
-  name: string;
-  quantity: string;
+type SourceLine = {
+  ingredientId: string | null;
+  rawName: string;
+  quantity: number;
   unit: string;
-}
-
-interface NutritionInfo {
-  calories: string;
-  protein: string;
-  carbs: string;
-  fat: string;
-}
-
-const isValidIngredient = (i: Ingredient) =>
-  Boolean(i.name.trim() && Number(i.quantity) > 0 && i.unit.trim());
-
-// D-18: no fiber field — a stored value round-trips via `storedFiber` below,
-// out of band from the visible form.
-const NUTRITION_FIELDS = [
-  ['calories', 'Calories (kcal)'],
-  ['protein', 'Protein (g)'],
-  ['carbs', 'Carbs (g)'],
-  ['fat', 'Fat (g)'],
-] as const;
+  note: string | null;
+  optional: boolean;
+};
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
@@ -69,10 +68,7 @@ export default function EditRecipePage() {
     ingredients: `${uid}-ingredients`,
     instructions: `${uid}-instructions`,
   };
-  const ingredientFieldId = (i: number, field: keyof Ingredient) =>
-    `${uid}-ingredient-${i}-${field}`;
   const stepId = (i: number) => `${uid}-step-${i}`;
-  const nutritionId = (key: keyof NutritionInfo) => `${uid}-nutrition-${key}`;
 
   const utils = trpc.useUtils();
 
@@ -98,22 +94,44 @@ export default function EditRecipePage() {
   const [servings, setServings] = useState('1');
   const [imageUrl, setImageUrl] = useState('');
   const [dietaryTags, setDietaryTags] = useState('');
-  const [ingredients, setIngredients] = useState<Ingredient[]>([
-    { name: '', quantity: '', unit: '' },
-  ]);
+  const [lines, setLines] = useState<LineRow[]>(() => [newLineRow()]);
+  const [linesHydrated, setLinesHydrated] = useState(false);
   const [instructions, setInstructions] = useState<string[]>(['']);
-  const [nutrition, setNutrition] = useState<NutritionInfo>({
-    calories: '',
-    protein: '',
-    carbs: '',
-    fat: '',
-  });
-  // D-18/T-BUG-O3 C6: fiber has no input, but a stored value (e.g. from web's
-  // own computed nutrition on create) must round-trip on edit, not be
-  // silently zeroed.
-  const [storedFiber, setStoredFiber] = useState(0);
   const [hydrated, setHydrated] = useState(false);
   const { errors, clear: clearError, report: reportErrors } = useRecipeFormErrors();
+
+  // The recipe's lines: stored catalog lines, else the legacy Json ones.
+  const sourceLines = useMemo<SourceLine[] | null>(() => {
+    if (!recipe || !isFetchedAfterMount || isFetching) return null;
+    if (recipe.lines.length > 0) return recipe.lines;
+    const legacy = recipe.ingredients as { name: string; quantity: number; unit: string }[];
+    return legacy.map((l) => {
+      const { unit, note } = normalizeRecipeUnit(l.unit);
+      return {
+        ingredientId: null,
+        rawName: l.name,
+        quantity: l.quantity,
+        unit: unit || l.unit,
+        note: note ?? null,
+        optional: false,
+      };
+    });
+  }, [recipe, isFetchedAfterMount, isFetching]);
+  const linkedIds = useMemo(
+    () => [
+      ...new Set((sourceLines ?? []).flatMap((l) => (l.ingredientId ? [l.ingredientId] : []))),
+    ],
+    [sourceLines],
+  );
+  const unlinked = useMemo(() => (sourceLines ?? []).filter((l) => !l.ingredientId), [sourceLines]);
+  const details = trpc.ingredients.getMany.useQuery(
+    { ids: linkedIds },
+    { enabled: linkedIds.length > 0, staleTime: 5 * 60_000 },
+  );
+  const resolution = trpc.ingredients.resolve.useQuery(
+    { lines: unlinked.slice(0, 100).map((l) => ({ rawName: l.rawName, unit: l.unit })) },
+    { enabled: unlinked.length > 0, staleTime: 60_000, retry: false },
+  );
 
   // Pre-fill form when recipe loads
   useEffect(() => {
@@ -127,38 +145,42 @@ export default function EditRecipePage() {
     setImageUrl(recipe.imageUrl ?? '');
     setDietaryTags(recipe.dietaryTags.join(', '));
 
-    const rawIngredients = recipe.ingredients as {
-      name: string;
-      quantity: number;
-      unit: string;
-    }[];
-    setIngredients(
-      rawIngredients.length > 0
-        ? rawIngredients.map((i) => ({
-            name: i.name,
-            quantity: String(i.quantity),
-            unit: i.unit,
-          }))
-        : [{ name: '', quantity: '', unit: '' }],
-    );
     setInstructions(recipe.instructions.length > 0 ? recipe.instructions : ['']);
-
-    const n = recipe.nutritionInfo as {
-      calories: number;
-      protein: number;
-      carbs: number;
-      fat: number;
-      fiber?: number;
-    };
-    setNutrition({
-      calories: String(n.calories),
-      protein: String(n.protein),
-      carbs: String(n.carbs),
-      fat: String(n.fat),
-    });
-    setStoredFiber(n.fiber ?? 0);
     setHydrated(true);
   }, [recipe, hydrated, isFetchedAfterMount, isFetching]);
+
+  // Build the line rows once the linked rows' details and the legacy lines'
+  // resolution have landed (a failed lookup still lets the user edit).
+  const detailsReady = linkedIds.length === 0 || !details.isLoading;
+  const resolutionReady = unlinked.length === 0 || !resolution.isLoading;
+  useEffect(() => {
+    if (linesHydrated || !sourceLines || !detailsReady || !resolutionReady) return;
+    const byId = new Map((details.data ?? []).map((d) => [d.id, pickedFromRef(d)] as const));
+    let u = 0;
+    const rows = sourceLines.map((l): LineRow => {
+      const base = {
+        rawName: l.rawName,
+        quantity: String(l.quantity),
+        unit: l.unit,
+        note: l.note,
+        optional: l.optional,
+      };
+      if (l.ingredientId) {
+        const picked = byId.get(l.ingredientId) ?? null;
+        return newLineRow({ ...base, ingredient: picked });
+      }
+      const r = resolution.data?.[u++];
+      if (r?.match && (r.confidence === 'EXACT' || r.confidence === 'ALIAS')) {
+        return newLineRow({ ...base, ingredient: pickedFromRef(r.match) });
+      }
+      return newLineRow({ ...base, candidates: (r?.candidates ?? []).map(pickedFromRef) });
+    });
+    setLines(rows.length > 0 ? rows : [newLineRow()]);
+    setLinesHydrated(true);
+  }, [linesHydrated, sourceLines, detailsReady, resolutionReady, details.data, resolution.data]);
+
+  const servingsNum = Math.max(1, Number(servings) || 1);
+  const live = useLiveNutrition(lines, servingsNum);
 
   const updateMutation = trpc.recipe.update.useMutation({
     onSuccess: () => {
@@ -173,28 +195,10 @@ export default function EditRecipePage() {
 
   // ─── Helpers ────────────────────────────────────────────────────────────────
 
-  const addIngredient = () =>
-    setIngredients((prev) => [...prev, { name: '', quantity: '', unit: '' }]);
-
-  const removeIngredient = (i: number) =>
-    setIngredients((prev) => prev.filter((_, idx) => idx !== i));
-
-  const updateIngredient = (i: number, field: keyof Ingredient, value: string) => {
+  const updateLines = (next: LineRow[]) => {
     clearError('ingredients');
-    setIngredients((prev) =>
-      prev.map((ing, idx) => (idx === i ? { ...ing, [field]: value } : ing)),
-    );
+    setLines(next);
   };
-
-  // The ingredients error only shows when no row is complete: point every row
-  // at it and flag the fields that are actually missing.
-  const ingredientErrorProps = (missing: boolean) =>
-    errors.ingredients
-      ? {
-          'aria-invalid': missing || undefined,
-          'aria-describedby': errorIdFor(ids.ingredients),
-        }
-      : {};
 
   const addInstruction = () => setInstructions((prev) => [...prev, '']);
 
@@ -219,26 +223,19 @@ export default function EditRecipePage() {
       servings,
       instructions,
     });
-    if (!ingredients.some(isValidIngredient)) errs.ingredients = 'Add at least one ingredient.';
+    if (toSaveLines(lines).length === 0) {
+      errs.ingredients = 'Add at least one ingredient with an amount.';
+    }
 
     // Focus lands on the first incomplete ingredient row's first missing field.
-    const badRow = Math.max(
-      0,
-      ingredients.findIndex((r) => !isValidIngredient(r)),
-    );
-    const row = ingredients[badRow];
-    const badField: keyof Ingredient = !row?.name.trim()
-      ? 'name'
-      : !(Number(row.quantity) > 0)
-        ? 'quantity'
-        : 'unit';
+    const bad = firstIncompleteField(lines);
     const targets: RecipeFormFocusTargets = {
       name: ids.name,
       description: ids.description,
       prepTimeMins: ids.prepTimeMins,
       cookTimeMins: ids.cookTimeMins,
       servings: ids.servings,
-      ingredients: ingredientFieldId(badRow, badField),
+      ingredients: lineFieldId(uid, bad.index, bad.field),
       instructions: stepId(0),
     };
     return reportErrors(errs, targets);
@@ -247,10 +244,6 @@ export default function EditRecipePage() {
   const handleSubmit = (e: React.SyntheticEvent) => {
     e.preventDefault();
     if (!validate()) return;
-
-    const validIngredients = ingredients
-      .filter(isValidIngredient)
-      .map((i) => ({ name: i.name.trim(), quantity: Number(i.quantity), unit: i.unit.trim() }));
 
     const validInstructions = instructions.filter((s) => s.trim()).map((s) => s.trim());
 
@@ -269,16 +262,10 @@ export default function EditRecipePage() {
       servings: Number(servings),
       imageUrl: imageUrl.trim() || undefined,
       dietaryTags: tags,
-      ingredients: validIngredients,
+      // Lines carry their ingredientId (unmatched ones only their text); the
+      // server recomputes nutrition from them — no typed numbers (plan §6.2).
+      ingredients: toSaveLines(lines),
       instructions: validInstructions,
-      nutritionInfo: {
-        calories: Math.round(Number(nutrition.calories)),
-        protein: Number(nutrition.protein) || 0,
-        carbs: Number(nutrition.carbs) || 0,
-        fat: Number(nutrition.fat) || 0,
-        // T-BUG-O3 C6/D-18: never shown, but the stored value round-trips.
-        fiber: storedFiber,
-      },
     });
   };
 
@@ -470,71 +457,21 @@ export default function EditRecipePage() {
           error={errors.ingredients}
           errorId={errorIdFor(ids.ingredients)}
         >
-          <div className="space-y-2">
-            {/* Two rows on a phone — see the matching comment in recipes/new.
-                The fixed-width quantity, unit and delete controls leave the
-                name field about 95px at 375px when laid out side by side. */}
-            {ingredients.map((ing, i) => (
-              <div
-                key={i}
-                className="flex flex-col gap-2 rounded-xl border p-2 sm:flex-row sm:items-center sm:border-0 sm:p-0"
-              >
-                <input
-                  id={ingredientFieldId(i, 'name')}
-                  type="text"
-                  value={ing.name}
-                  onChange={(e) => updateIngredient(i, 'name', e.target.value)}
-                  placeholder="Ingredient"
-                  aria-label={`Name for ingredient ${i + 1}`}
-                  {...ingredientErrorProps(!ing.name.trim())}
-                  className={`min-w-0 flex-1 ${inputCls(!!errors.ingredients && !ing.name.trim())}`}
-                />
-                <div className="flex items-center gap-2">
-                  <input
-                    id={ingredientFieldId(i, 'quantity')}
-                    type="number"
-                    min={0}
-                    step="any"
-                    inputMode="decimal"
-                    value={ing.quantity}
-                    onChange={(e) => updateIngredient(i, 'quantity', e.target.value)}
-                    placeholder="Qty"
-                    aria-label={`Quantity for ingredient ${i + 1}`}
-                    {...ingredientErrorProps(!(Number(ing.quantity) > 0))}
-                    className={`w-20 shrink-0 ${inputCls(!!errors.ingredients && !(Number(ing.quantity) > 0))}`}
-                  />
-                  <input
-                    id={ingredientFieldId(i, 'unit')}
-                    type="text"
-                    value={ing.unit}
-                    onChange={(e) => updateIngredient(i, 'unit', e.target.value)}
-                    placeholder="Unit"
-                    aria-label={`Unit for ingredient ${i + 1}`}
-                    {...ingredientErrorProps(!ing.unit.trim())}
-                    className={`w-24 shrink-0 ${inputCls(!!errors.ingredients && !ing.unit.trim())}`}
-                  />
-                  {ingredients.length > 1 && (
-                    <button
-                      type="button"
-                      onClick={() => removeIngredient(i)}
-                      aria-label={`Remove ingredient ${i + 1}`}
-                      className="touch-target relative ml-auto flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-gray-500 transition-colors hover:bg-red-50 hover:text-red-500 sm:ml-0 sm:h-8 sm:w-8"
-                    >
-                      <Trash2 className="h-4 w-4" aria-hidden="true" />
-                    </button>
-                  )}
-                </div>
-              </div>
-            ))}
-          </div>
-          <button
-            type="button"
-            onClick={addIngredient}
-            className="mt-1 flex min-h-11 items-center gap-1.5 text-sm font-medium text-[#944a00] hover:underline"
-          >
-            <Plus className="h-4 w-4" />
-            Add Ingredient
-          </button>
+          {linesHydrated ? (
+            <RecipeLinesEditor
+              rows={lines}
+              onChange={updateLines}
+              problems={live.problems}
+              idPrefix={uid}
+              error={errors.ingredients}
+              errorId={errorIdFor(ids.ingredients)}
+            />
+          ) : (
+            <div className="space-y-2" aria-busy="true" aria-label="Loading ingredients">
+              <div className="h-11 animate-pulse rounded-xl bg-gray-100" />
+              <div className="h-11 animate-pulse rounded-xl bg-gray-100" />
+            </div>
+          )}
         </Section>
 
         {/* ── Instructions ───────────────────────────────────────────── */}
@@ -585,32 +522,16 @@ export default function EditRecipePage() {
           </button>
         </Section>
 
-        {/* ── Nutrition ──────────────────────────────────────────────── */}
+        {/* ── Nutrition (computed live; the server recomputes on save) ── */}
         <Section title="Nutrition (per serving)">
-          <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
-            {NUTRITION_FIELDS.map(([key, label]) => {
-              const error = key === 'calories' ? errors.calories : undefined;
-              return (
-                <Field key={key} id={nutritionId(key)} label={label} error={error}>
-                  <input
-                    id={nutritionId(key)}
-                    type="number"
-                    min={0}
-                    step={key === 'calories' ? 1 : 0.1}
-                    inputMode={key === 'calories' ? 'numeric' : 'decimal'}
-                    value={nutrition[key]}
-                    onChange={(e) => {
-                      setNutrition((n) => ({ ...n, [key]: e.target.value }));
-                      if (key === 'calories') clearError('calories');
-                    }}
-                    onFocus={(e) => e.currentTarget.select()}
-                    {...fieldErrorProps(nutritionId(key), error)}
-                    className={inputCls(!!error)}
-                  />
-                </Field>
-              );
-            })}
-          </div>
+          <NutritionPreview
+            live={live}
+            note={
+              recipe.nutritionStatus === 'USER_ENTERED'
+                ? 'This recipe shows numbers you typed in earlier. Saving replaces them with the numbers computed from its ingredients.'
+                : undefined
+            }
+          />
         </Section>
 
         {/* ── Submit ─────────────────────────────────────────────────── */}
