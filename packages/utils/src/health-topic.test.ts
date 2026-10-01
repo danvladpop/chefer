@@ -14,8 +14,29 @@ describe('isHealthTopic', () => {
     'Este bine pentru diabet?',
     'Sunt gravidă, ce pot mânca?',
     'Am o afecțiune cronică',
+    // R-14: unsafe weight loss / disordered eating
+    'Can I eat 800 calories a day to lose weight fast?',
+    'Is a very low calorie diet okay?',
+    'Is the very-low-calorie approach safe?',
+    'Which crash diet works fastest?',
+    'I want to starve myself until the wedding',
+    'Can I eat only 600 kcal?',
+    'is 1000 cal/day enough',
+    'I think about purging after dinner',
+    'Does fasting to lose weight work?',
+    'Pot sa mananc 800 calorii pe zi?',
+    'Vreau o dieta drastica',
   ])('flags a health question: %s', (text) => {
     expect(isHealthTopic(text)).toBe(true);
+  });
+
+  it.each([
+    'Give me a 500 calorie dinner',
+    'A 400 calorie lunch idea?',
+    'Is 1,800 calories a day right for me?',
+    'I am starving, what is quick?',
+  ])('does not flag a per-meal calorie ask or a normal intake: %s', (text) => {
+    expect(isHealthTopic(text)).toBe(false);
   });
 
   it.each(['What should I cook tonight?', 'Swap my lunch for something else', 'Scale this for 4'])(
