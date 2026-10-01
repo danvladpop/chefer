@@ -3362,7 +3362,7 @@ on every PR; **T-26.7:** the run's output, incl. the printed pool-size report, i
 `Mobile Bundle` (headless `expo export` of `apps/mobile` —
 catches Metro/monorepo-resolution breakage without a simulator; Maestro E2E is
 local-only, see `mobile_native_plan.md` M4-2), `Mobile Contract` (PRs only — the mobile
-client's link stack against a real API + seeded Postgres, incl. `profile.flags` and a
+client's link stack against a real API + seeded Postgres (the job and `E2E Tests` run `pnpm ingredients:sync` after `db:push`, as every deploy does, so catalog-backed saves compute), incl. `profile.flags` and a
 level-0 request still succeeding, T-00.8; the job's API runs with `RATE_LIMIT_MAX=3000`
 so the whole suite from one IP isn't throttled by the default 100/min limiter; **Following:** the job also sets `FEATURE_FLAGS: 'friends'` so `apps/mobile/tests/contract/friends.contract.test.ts` runs — it skips itself when the flag is off — and `flags.contract.test.ts`'s "every flag defaults off" check exempts `friends`), and `E2E Tests` (PRs only — the
 unauthenticated `public` Playwright project; the authenticated `mobile`/`desktop`
