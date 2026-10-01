@@ -144,7 +144,7 @@ export default function IngredientsPage() {
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Search in English or Romanian…"
-            className="w-full rounded-xl border bg-white py-2.5 pl-9 pr-4 text-sm text-gray-800 placeholder-gray-500 focus:border-[#944a00] focus:outline-none"
+            className="min-h-11 w-full rounded-xl border bg-white py-2.5 pl-9 pr-4 text-sm text-gray-800 placeholder-gray-500 focus:border-[#944a00] focus:outline-none"
           />
         </div>
         <div className="sm:w-56">
@@ -375,7 +375,7 @@ function IngredientCard({
               type="button"
               onClick={onEdit}
               aria-label={`${ing.editable === 'full' ? 'Edit' : 'Edit price and image of'} ${ing.name}`}
-              className="flex min-h-11 items-center gap-1 text-xs font-medium text-[#944a00] hover:underline"
+              className="flex min-h-11 min-w-11 items-center gap-1 text-xs font-medium text-[#944a00] hover:underline"
             >
               <Pencil className="h-3 w-3" aria-hidden="true" />
               {ing.editable === 'full' ? 'Edit' : 'Price & image'}
@@ -385,7 +385,7 @@ function IngredientCard({
                 type="button"
                 onClick={onDelete}
                 aria-label={`Delete ${ing.name}`}
-                className="flex min-h-11 items-center gap-1 text-xs font-medium text-red-600 hover:underline"
+                className="flex min-h-11 min-w-11 items-center gap-1 text-xs font-medium text-red-600 hover:underline"
               >
                 <Trash2 className="h-3 w-3" aria-hidden="true" />
                 Delete

@@ -100,7 +100,7 @@ export function IngredientPickerSheet({
             placeholder="Search: chicken, rice, telemea…"
             aria-controls={resultsId}
             autoComplete="off"
-            className="w-full rounded-xl border bg-white py-2.5 pl-9 pr-3 text-sm text-gray-800 placeholder-gray-500 focus:border-[#944a00] focus:outline-none"
+            className="min-h-11 w-full rounded-xl border bg-white py-2.5 pl-9 pr-3 text-sm text-gray-800 placeholder-gray-500 focus:border-[#944a00] focus:outline-none"
           />
         </div>
 
@@ -196,7 +196,7 @@ function CategoryChip({
       onClick={onClick}
       aria-pressed={active}
       className={cn(
-        'min-h-11 shrink-0 snap-start whitespace-nowrap rounded-full border px-3 text-xs font-medium',
+        'min-h-11 min-w-11 shrink-0 snap-start whitespace-nowrap rounded-full border px-3 text-xs font-medium',
         pressControl,
         active
           ? 'border-[#944a00] bg-[#944a00] text-white'
