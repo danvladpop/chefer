@@ -16,9 +16,8 @@
 import { ENERGY_ALLOW_LIST } from './energy-allow-list';
 
 /**
- * Mirrors `enum IngredientCategory` in plan §3. P1 owns the Prisma enum and the
- * shared @chefer/types schema; once those land this list should be replaced by
- * the shared enum (a unit test can assert they match).
+ * Mirrors the Prisma `enum IngredientCategory` (schema.prisma). Kept local so
+ * this module stays Prisma-free; validate.test.ts fails if the two drift.
  */
 export const CATALOG_CATEGORIES = [
   'VEGETABLE',

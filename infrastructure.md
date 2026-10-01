@@ -763,6 +763,22 @@ prisma/
 
 **Exports:** `prisma`, `PrismaClient`, all repository classes, singleton instances, and interfaces; all Prisma model types (`User`, `ChefProfile`, `DietaryPreferences`, `Recipe`, `MealPlan`, `MealPlanDay`, `FavouriteRecipe`, `MealRating`, `DailyLog`, `WeightEntry`, `ChefReview`, and for the ingredient catalog `Ingredient`, `IngredientAlias`, `IngredientPortion`, `RecipeIngredient`); enums (`UserRole`, `PostStatus`, `MealPlanStatus`, `BiologicalSex`, `Prisma`, `IngredientCategory`, `IngredientStatus`, `NutritionSource`, `NutritionStatus`).
 
+**Ingredient catalog build and validators** (plan-ingredient-catalog §4, P3):
+
+- **Validators.** `src/catalog/validate.ts` (`validateCatalog`, `validateEntry`, `energyCheck`, `normalizeAlias`) implements the §4.5 checks and is pure: no I/O, no Prisma.
+  - **Errors:** ranges, the EU energy check, provenance, unique slugs, alias integrity, implausible portions.
+  - **Warnings:** a row in a count category with no count portion, or a row in a volume-measured category with no density. These are coverage gaps; the engine marks such lines PARTIAL.
+  - **Info:** energy deviations that are allow-listed with a reason in `energy-allow-list.ts` (alcohol, polyols, spices, acetic acid, FDC specific Atwater factors).
+  - `CATALOG_CATEGORIES` mirrors the Prisma enum, and a test fails on drift. The data build and `ingredients:sync` (P4) both run these validators.
+- **Build pipeline** (`scripts/ingredients/`, root `pnpm ingredients:*`):
+  - `fetch-sources.sh` (`ingredients:fetch`) downloads FDC Foundation, FDC SR Legacy and CIQUAL into the git-ignored `scripts/ingredients/out/sources/`.
+  - `search-sources.ts` (`ingredients:search`) looks up candidate source records.
+  - `catalog-draft.json` holds names, aliases, categories and source pointers only, never numbers.
+  - `build-catalog.ts` (`ingredients:build`) reads every nutrient, portion and density from the datasets into `out/catalog.candidate.json`.
+  - `review-page.ts` (`ingredients:review`) renders `out/catalog-review.html` with a seeded ~5% spot-check sample.
+  - `export-demand.sh` (P0) and `golden-fixture.mjs` (the engine's FDC test fixture) live alongside.
+- **Sources and licences:** `data/ingredients/SOURCES.md` records each dataset, its release and its licence (FDC CC0, CIQUAL Etalab 2.0). `catalog.json` is committed only after the owner's spot-check.
+
 **Tests:** `pnpm --filter @chefer/database test` (vitest, added with the ingredient catalog). The repositories are tested
 with a mocked client; `recipe-line.repository.test.ts` covers the dual write (order, single transaction, joining a
 caller's transaction, `USER_ENTERED` totals).

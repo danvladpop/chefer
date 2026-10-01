@@ -1,6 +1,8 @@
+import { IngredientCategory } from '@prisma/client';
 import { describe, expect, it } from 'vitest';
 import { ENERGY_ALLOW_LIST } from './energy-allow-list';
 import {
+  CATALOG_CATEGORIES,
   energyCheck,
   normalizeAlias,
   summarizeIssues,
@@ -374,5 +376,11 @@ describe('validateCatalog (cross-row)', () => {
         'count-portion': { error: 0, warning: 1, info: 0 },
       },
     });
+  });
+});
+
+describe('CATALOG_CATEGORIES', () => {
+  it('matches the Prisma IngredientCategory enum', () => {
+    expect([...CATALOG_CATEGORIES].sort()).toEqual(Object.values(IngredientCategory).sort());
   });
 });
