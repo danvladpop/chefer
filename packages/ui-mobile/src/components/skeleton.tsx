@@ -13,10 +13,12 @@ import { cn } from '@chefer/utils';
 import { timing } from '../motion/motion';
 import { useReducedMotion } from '../motion/use-reduced-motion';
 
-// Same cssInterop trick as PressableScale: className becomes a plain `style`
-// BEFORE it reaches Reanimated, so the animated style stays its own array entry.
+// Same cssInterop trick as PressableScale: the LOCAL base below is registered,
+// so `className` becomes a plain `style` before it reaches Reanimated and the
+// animated style stays its own array entry. Never register the animated
+// component itself: Reanimated's Jest mock returns `View` from
+// `createAnimatedComponent`, which would re-register every `View`.
 const AnimatedView = Animated.createAnimatedComponent(View);
-cssInterop(AnimatedView, { className: 'style' });
 
 /** One shimmer cycle (MO-03): fade down for half of it, back up for the other half. */
 export const SKELETON_CYCLE_MS = 1200;
@@ -36,7 +38,7 @@ export type SkeletonProps = {
  * every timing carries `ReduceMotion.System` as a second safety net). It is
  * hidden from the accessibility tree: label the loading region itself.
  */
-export function Skeleton({ className, style, testID }: SkeletonProps) {
+function SkeletonBase({ style, testID }: SkeletonProps) {
   const reduced = useReducedMotion();
   const opacity = useSharedValue(1);
 
@@ -64,8 +66,13 @@ export function Skeleton({ className, style, testID }: SkeletonProps) {
       accessible={false}
       accessibilityElementsHidden
       importantForAccessibility="no-hide-descendants"
-      className={cn('h-4 w-full rounded-md bg-muted', className)}
       style={[style, animatedStyle]}
     />
   );
+}
+
+cssInterop(SkeletonBase, { className: 'style' });
+
+export function Skeleton({ className, ...props }: SkeletonProps) {
+  return <SkeletonBase {...props} className={cn('h-4 w-full rounded-md bg-muted', className)} />;
 }
