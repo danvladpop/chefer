@@ -41,6 +41,10 @@ Chefer already has a partial catalog. **Do not build a second, parallel one. Evo
   - Synonym sprawl: `spinach` / `baby spinach`, `red pepper` / `bell pepper`.
   - Compound lines: `salt and black pepper` (×36).
   - Units carrying prep text: `g, chopped`, `cloves, minced`, `medium, diced`, `pitted`, `lemon`.
+- **Prod demand snapshot (P0, 2026-10-01, `scripts/ingredients/export-demand.sh`):**
+  - 551 recipes (476 AI, 64 CURATED, 11 MANUAL), 2,988 lines, **674 distinct names**, 974 distinct `(name, unit)` pairs, 71 distinct units (73 lines have an empty unit).
+  - 47 names cover 50% of lines, 202 cover 80%, 525 cover 95%. 356 names occur exactly once.
+  - 673 global `ingredient_prices` rows: **672 `AI_ESTIMATE`**, 1 `ADMIN`. All but 2 demand names have a global row, which confirms F1: the global vocabulary is the recipe names, with AI macros. 2 private rows.
 
 Findings. Each one is a defect against the goal:
 
