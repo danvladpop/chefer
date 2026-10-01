@@ -705,7 +705,7 @@ export function OnboardingWizard() {
         accessibilityValue={
           progress.total === null
             ? { text: progress.label }
-            : { min: 1, max: progress.total, now: step + 1 }
+            : { min: 0, max: progress.total, now: step + 1 }
         }
         className="mx-4 mb-2 h-1.5 overflow-hidden rounded-full bg-gray-100"
       >
