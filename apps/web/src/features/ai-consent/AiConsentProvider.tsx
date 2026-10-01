@@ -1,10 +1,15 @@
 'use client';
 
-import { createContext, useCallback, useContext, useState } from 'react';
+import { createContext, useCallback, useContext, useEffect, useState } from 'react';
 import { trpc } from '@/lib/trpc';
 import { AI_CONSENT_COPY, AI_CONSENT_FEATURE_DATA, type AiConsentFeature } from '@chefer/types';
 import { Button, Sheet } from '@chefer/ui';
-import { aiConsentBackupLine, aiConsentIntro, needsAiDataConsent } from '@chefer/utils';
+import {
+  aiConsentBackupLine,
+  aiConsentIntro,
+  needsAiDataConsent,
+  onAiConsentRequired,
+} from '@chefer/utils';
 import { useAiProviderDisclosure } from './use-ai-providers';
 
 // ─── AI data consent gate (App Store 5.1.2(i)) ───────────────────────────────
@@ -83,6 +88,23 @@ export function AiConsentProvider({ children }: { children: React.ReactNode }) {
       else run();
     },
     [me, utils, resetGrant],
+  );
+
+  // R-10: the server refused an AI action for missing consent (revoked on
+  // another device, or this cache is stale). Forget the cached consent and open
+  // the sheet; "Allow" records it, and the user repeats the action. A no-op
+  // `run`: the original action isn't known here.
+  useEffect(
+    () =>
+      onAiConsentRequired((requested) => {
+        utils.user.me.setData(undefined, (prev) =>
+          prev ? { ...prev, aiDataConsentAt: null } : prev,
+        );
+        resetGrant();
+        setFeature(requested);
+        setPending({ feature: requested, run: () => undefined });
+      }),
+    [utils, resetGrant],
   );
 
   const close = () => setPending(null);

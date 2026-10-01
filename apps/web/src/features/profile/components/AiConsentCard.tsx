@@ -48,6 +48,9 @@ export function AiConsentCard() {
           disabled={!user || busy}
         />
       </div>
+      <p className="mt-2 text-xs text-gray-600" data-testid="ai-consent-coach-note">
+        {AI_CONSENT_COPY.coachReviewNote}
+      </p>
       {(grant.isError || revoke.isError) && (
         <p role="alert" className="mt-2 text-sm text-red-700">
           {AI_CONSENT_COPY.saveError}

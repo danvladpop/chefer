@@ -1,6 +1,7 @@
 'use client';
 
 import { useId, useState } from 'react';
+import { useAiConsent } from '@/features/ai-consent/AiConsentProvider';
 import { SourceBadge } from '@/features/ingredients/components/SourceBadge';
 import {
   pickedFromRef,
@@ -120,6 +121,10 @@ export function IngredientFormModal(props: CreateProps | EditProps) {
     },
   });
   const mutation = props.mode === 'edit' ? updateMutation : createMutation;
+
+  // R-10: the pre-fill sends the typed name to the AI provider, so it asks for
+  // AI-data consent first (it used to be exempt).
+  const requestAiConsent = useAiConsent();
 
   // D5: the optional pre-fill is labelled and editable; the stored source stays USER.
   const estimateMutation = trpc.ingredients.estimateNutrition.useMutation({
@@ -393,7 +398,11 @@ export function IngredientFormModal(props: CreateProps | EditProps) {
                 </legend>
                 <button
                   type="button"
-                  onClick={() => estimateMutation.mutate({ name: name.trim() })}
+                  onClick={() =>
+                    requestAiConsent('ingredient-estimate', () =>
+                      estimateMutation.mutate({ name: name.trim() }),
+                    )
+                  }
                   disabled={name.trim().length < 2 || estimateMutation.isPending}
                   className={cn(
                     'flex min-h-11 items-center gap-1 rounded-lg border border-amber-300 bg-amber-50 px-3 text-xs font-medium text-amber-800 hover:bg-amber-100 disabled:opacity-50',
