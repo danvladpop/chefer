@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { mealPlanRepository, pantryItemRepository, prisma } from '@chefer/database';
 import type { UserProfile } from '@chefer/types';
 import { groceryAIService } from '../../lib/grocery-ai/index.js';
+import { fakeIngredientPriceFindMany } from '../../test-support/fake-ingredient-prices.js';
 import { householdService } from '../household/household.service.js';
 import { pantryService } from '../pantry/pantry.service.js';
 import { estimatePlanCostEur } from '../shared/plan-cost.js';
@@ -329,6 +330,32 @@ describe('ShoppingListService — F3 pantry seeding from check-offs', () => {
   it('checked keys that match no list item seed nothing', async () => {
     await service.toggleItems(freeUser, 'plan1', ['plan1-nonexistent|g'], true);
     expect(pantryService.seedFromPurchases).toHaveBeenCalledWith('u1', []);
+  });
+});
+
+describe('ShoppingListService — private ingredient isolation (F6)', () => {
+  const service = new ShoppingListService();
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.mocked(prisma.shoppingList.findUnique).mockResolvedValue(null);
+    vi.mocked(pantryItemRepository.findByUser).mockResolvedValue([]);
+  });
+
+  it("never prices a line from another user's private ingredient row", async () => {
+    planWithRecipes();
+    // 'beef' exists only as someone else's private row; 'tomato' is global.
+    vi.mocked(prisma.ingredientPrice.findMany).mockImplementation(
+      fakeIngredientPriceFindMany([
+        { ingredientName: 'tomato', creatorId: null, pricePer100gEur: 0.5 },
+        { ingredientName: 'beef', creatorId: 'someone-else', pricePer100gEur: 2 },
+      ]) as never,
+    );
+
+    const list = await service.getForWeek(freeUser, 0);
+
+    expect(list.items.find((i) => i.ingredientName === 'Beef')?.estimatedPriceEur).toBeNull();
+    expect(list.estimatedTotalEur).toBe(3); // tomato only: 600 g × €0.5/100 g
   });
 });
 

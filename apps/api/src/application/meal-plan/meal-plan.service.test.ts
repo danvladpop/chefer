@@ -798,7 +798,10 @@ describe('MealPlanService — household context (F2)', () => {
     expect(order).toEqual(['migrate', 'find', 'find']);
     // The week cost is sized for the same table.
     const { estimatePlanCostEur } = await import('../shared/plan-cost.js');
-    expect(vi.mocked(estimatePlanCostEur).mock.calls.at(-1)?.[1]).toEqual({ portions: 2 });
+    expect(vi.mocked(estimatePlanCostEur).mock.calls.at(-1)?.[1]).toEqual({
+      portions: 2,
+      userId: 'user1',
+    });
     expect(result.planId).toBeDefined();
   });
 
@@ -954,11 +957,17 @@ describe('MealPlanService.getForWeek carry-forward', () => {
     const service = new MealPlanService(repo);
 
     await service.getForWeek('u1', 0, { householdScaling: true });
-    expect(vi.mocked(estimatePlanCostEur).mock.calls.at(-1)?.[1]).toEqual({ portions: 3 });
+    expect(vi.mocked(estimatePlanCostEur).mock.calls.at(-1)?.[1]).toEqual({
+      portions: 3,
+      userId: 'u1',
+    });
 
     // Free household: same members, single-portion cost.
     await service.getForWeek('u1', 0);
-    expect(vi.mocked(estimatePlanCostEur).mock.calls.at(-1)?.[1]).toEqual({ portions: null });
+    expect(vi.mocked(estimatePlanCostEur).mock.calls.at(-1)?.[1]).toEqual({
+      portions: null,
+      userId: 'u1',
+    });
   });
 
   it('never clones into a past week', async () => {

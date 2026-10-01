@@ -1,4 +1,4 @@
-import type { IngredientPrice } from '@chefer/database';
+import type { IngredientPrice, Prisma } from '@chefer/database';
 
 // ─── Ingredient price vocabulary — unit conversion & estimation ───────────────
 // Baseline, store-agnostic prices live in the IngredientPrice table
@@ -93,6 +93,17 @@ export { RECIPE_UNITS } from '@chefer/types';
 
 export function normalizeIngredientName(name: string): string {
   return name.toLowerCase().trim().replace(/\s+/g, ' ');
+}
+
+/**
+ * The vocabulary rows `userId` may read: the global rows plus their own
+ * private rows. Every vocabulary load that feeds a user's numbers (reconcile,
+ * import cross-check, plan cost, shopping list, pantry savings) must include
+ * this filter, so a private row never touches another user's data
+ * (plan-ingredient-catalog F6 / I4). Without a user, only global rows.
+ */
+export function visibleToUser(userId: string | null | undefined): Prisma.IngredientPriceWhereInput {
+  return userId ? { OR: [{ creatorId: null }, { creatorId: userId }] } : { creatorId: null };
 }
 
 /**
