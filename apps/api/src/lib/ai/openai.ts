@@ -1,4 +1,4 @@
-import type { ZodType } from 'zod';
+import type { ZodType, ZodTypeDef } from 'zod';
 import { getAiCallContext } from './call-context.js';
 import { CHAT_TOOL_DEFINITIONS, dispatchChatTool, streamText } from './chat-tools.js';
 import {
@@ -13,6 +13,7 @@ import {
   buildIngredientPricesPrompt,
   buildMealPlanDayChunkPrompt,
   buildMealPlanUserPrompt,
+  buildRepairLinesPrompt,
   buildReviewUserPrompt,
   buildShoppingListPrompt,
   buildSwapUserPrompt,
@@ -20,11 +21,13 @@ import {
   CHEFERIZE_SYSTEM_PROMPT,
   EXTRACT_RECIPE_ANNOTATED_SYSTEM_PROMPT,
   EXTRACT_RECIPE_SYSTEM_PROMPT,
+  INGREDIENT_PRICES_ONLY_SYSTEM_PROMPT,
   INGREDIENT_PRICES_SYSTEM_PROMPT,
   MEAL_PHOTO_SYSTEM_PROMPT,
   MEAL_PHOTO_USER_PROMPT,
   MEAL_PLAN_DAY_CHUNK_RULES,
   MEAL_PLAN_SYSTEM_PROMPT,
+  REPAIR_LINES_SYSTEM_PROMPT,
   REVIEW_SYSTEM_PROMPT,
   SHOPPING_LIST_SYSTEM_PROMPT,
   SWAP_SYSTEM_PROMPT,
@@ -35,9 +38,10 @@ import {
   cheferizedRecipeSchema,
   dayPlanSchema,
   extractedRecipeSchema,
+  generatedRecipeSchema,
   ingredientPricesResponseSchema,
   parseMealPhotoResponse,
-  recipeSchema,
+  recipeLineRepairResponseSchema,
   shoppingListResponseSchema,
   weekPlanResponseSchema,
 } from './schemas.js';
@@ -49,6 +53,7 @@ import type {
   CheferizeInput,
   CoachReviewInput,
   DayPlan,
+  EstimateIngredientPricesOptions,
   ExtractedRecipe,
   IAIService,
   IngredientPriceEstimate,
@@ -57,6 +62,8 @@ import type {
   MealPlanInput,
   RecipeData,
   RecipeExtractionSource,
+  RecipeLineRepair,
+  RecipeLineRepairRequest,
   ShoppingListInput,
   ShoppingListResponse,
   SwapInput,
@@ -241,7 +248,19 @@ const RECIPE_CORE_FIELDS =
   `"instructions":[string],"nutritionInfo":${NUTRITION_SHAPE},"cuisineType":string,` +
   `"dietaryTags":[string],"prepTimeMins":number,"cookTimeMins":number,"servings":number`;
 
-const RECIPE_SHAPE = `{"id":string,${RECIPE_CORE_FIELDS},"imageUrl":null}`;
+// Generated recipes (plan, day, swap — plan-ingredient-catalog §6.3): every
+// line names its catalog slug and there is NO nutritionInfo (the server
+// computes it, I2). Extraction keeps RECIPE_CORE_FIELDS.
+const GENERATED_INGREDIENT_SHAPE = '{"name":string,"slug":string,"quantity":number,"unit":string}';
+const GENERATED_RECIPE_CORE_FIELDS =
+  `"name":string,"description":string,"ingredients":[${GENERATED_INGREDIENT_SHAPE}],` +
+  `"instructions":[string],"cuisineType":string,` +
+  `"dietaryTags":[string],"prepTimeMins":number,"cookTimeMins":number,"servings":number`;
+
+const RECIPE_SHAPE = `{"id":string,${GENERATED_RECIPE_CORE_FIELDS},"imageUrl":null}`;
+
+const REPAIR_LINES_SHAPE =
+  '{"items":[{"id":string,"slug":string,"quantity":number,"unit":string}]}';
 
 const EXTRACTED_RECIPE_SHAPE = `{${RECIPE_CORE_FIELDS}}`;
 
@@ -277,19 +296,6 @@ const DAY_PLAN_SHAPE =
 
 // Strict JSON Schema for one plan day (Groq/Cerebras/OpenAI structured
 // outputs): every property required, closed objects, null via a type union.
-const NUTRITION_JSON_SCHEMA = {
-  type: 'object',
-  additionalProperties: false,
-  required: ['calories', 'protein', 'carbs', 'fat', 'fiber'],
-  properties: {
-    calories: { type: 'number' },
-    protein: { type: 'number' },
-    carbs: { type: 'number' },
-    fat: { type: 'number' },
-    fiber: { type: 'number' },
-  },
-};
-
 const RECIPE_JSON_SCHEMA = {
   type: 'object',
   additionalProperties: false,
@@ -299,7 +305,6 @@ const RECIPE_JSON_SCHEMA = {
     'description',
     'ingredients',
     'instructions',
-    'nutritionInfo',
     'cuisineType',
     'dietaryTags',
     'prepTimeMins',
@@ -316,16 +321,16 @@ const RECIPE_JSON_SCHEMA = {
       items: {
         type: 'object',
         additionalProperties: false,
-        required: ['name', 'quantity', 'unit'],
+        required: ['name', 'slug', 'quantity', 'unit'],
         properties: {
           name: { type: 'string' },
+          slug: { type: 'string' },
           quantity: { type: 'number' },
           unit: { type: 'string' },
         },
       },
     },
     instructions: { type: 'array', items: { type: 'string' } },
-    nutritionInfo: NUTRITION_JSON_SCHEMA,
     cuisineType: { type: 'string' },
     dietaryTags: { type: 'array', items: { type: 'string' } },
     prepTimeMins: { type: 'number' },
@@ -398,7 +403,7 @@ export function isBackgroundCall(label: string): boolean {
 
 type Validated<T> = { ok: true; data: T } | { ok: false; problem: string };
 
-function parseAgainst<T>(raw: string, schema: ZodType<T>): Validated<T> {
+function parseAgainst<T>(raw: string, schema: ZodType<T, ZodTypeDef, unknown>): Validated<T> {
   let json: unknown;
   try {
     json = JSON.parse(raw);
@@ -680,7 +685,8 @@ export class OpenAICompatibleAIService implements IAIService {
     system: string;
     user: string | ContentPart[];
     shape: string;
-    schema: ZodType<T>;
+    // Input `unknown`: T is the schema's OUTPUT (transforming schemas, e.g. generatedRecipeSchema).
+    schema: ZodType<T, ZodTypeDef, unknown>;
     temperature: number;
     maxTokens: number;
     model?: string | undefined;
@@ -877,7 +883,7 @@ export class OpenAICompatibleAIService implements IAIService {
       system: SWAP_SYSTEM_PROMPT,
       user: buildSwapUserPrompt(input),
       shape: RECIPE_SHAPE,
-      schema: recipeSchema,
+      schema: generatedRecipeSchema,
       temperature: 0.8,
       maxTokens: MAX_TOKENS_DEFAULT,
     });
@@ -896,11 +902,31 @@ export class OpenAICompatibleAIService implements IAIService {
     });
   }
 
-  async estimateIngredientPrices(ingredientNames: string[]): Promise<IngredientPriceEstimate[]> {
+  /** plan-ingredient-catalog §6.3 repair round: slugs and quantities only. */
+  async repairRecipeLines(request: RecipeLineRepairRequest): Promise<RecipeLineRepair[]> {
+    if (request.lines.length === 0) return [];
+    const parsed = await this.completeJson({
+      label: 'repairRecipeLines',
+      system: REPAIR_LINES_SYSTEM_PROMPT,
+      user: buildRepairLinesPrompt(request),
+      shape: REPAIR_LINES_SHAPE,
+      schema: recipeLineRepairResponseSchema,
+      temperature: 0.1,
+      maxTokens: MAX_TOKENS_DEFAULT,
+    });
+    return parsed.items;
+  }
+
+  async estimateIngredientPrices(
+    ingredientNames: string[],
+    opts: EstimateIngredientPricesOptions = {},
+  ): Promise<IngredientPriceEstimate[]> {
     if (ingredientNames.length === 0) return [];
     const parsed = await this.completeJson({
       label: 'estimateIngredientPrices',
-      system: INGREDIENT_PRICES_SYSTEM_PROMPT,
+      system: opts.nutrition
+        ? INGREDIENT_PRICES_SYSTEM_PROMPT
+        : INGREDIENT_PRICES_ONLY_SYSTEM_PROMPT,
       user: buildIngredientPricesPrompt(ingredientNames),
       shape: INGREDIENT_PRICES_SHAPE,
       schema: ingredientPricesResponseSchema,

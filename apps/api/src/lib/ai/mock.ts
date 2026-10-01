@@ -8,6 +8,7 @@ import type {
   CheferizeInput,
   CoachReviewInput,
   DayPlan,
+  EstimateIngredientPricesOptions,
   ExtractedRecipe,
   IAIService,
   IngredientPriceEstimate,
@@ -16,6 +17,8 @@ import type {
   MealPlanInput,
   RecipeData,
   RecipeExtractionSource,
+  RecipeLineRepair,
+  RecipeLineRepairRequest,
   ShoppingListInput,
   ShoppingListResponse,
   SwapInput,
@@ -146,6 +149,15 @@ export class MockAIService implements IAIService {
     return { dayOfWeek: request.dayOfWeek, meals: structuredClone(day.meals) };
   }
 
+  /** Deterministic repair: the first candidate, the same amount in grams. */
+  async repairRecipeLines(request: RecipeLineRepairRequest): Promise<RecipeLineRepair[]> {
+    await delay(50);
+    return request.lines.flatMap((l) => {
+      const slug = l.candidates[0];
+      return slug ? [{ id: l.id, slug, quantity: l.quantity, unit: 'g' }] : [];
+    });
+  }
+
   async generateRecipeSwap(input: SwapInput): Promise<RecipeData> {
     await delay(300);
 
@@ -189,7 +201,10 @@ export class MockAIService implements IAIService {
     };
   }
 
-  async estimateIngredientPrices(ingredientNames: string[]): Promise<IngredientPriceEstimate[]> {
+  async estimateIngredientPrices(
+    ingredientNames: string[],
+    opts: EstimateIngredientPricesOptions = {},
+  ): Promise<IngredientPriceEstimate[]> {
     await delay(200);
     // Deterministic pseudo-prices derived from the name hash so dev renders
     // stable, plausible-looking values without any API call.
@@ -198,11 +213,25 @@ export class MockAIService implements IAIService {
       for (let i = 0; i < name.length; i++) hash = (hash * 31 + name.charCodeAt(i)) | 0;
       const base = 0.3 + (Math.abs(hash) % 250) / 100; // €0.30 – €2.79
       const round = (v: number) => Math.round(v * 100) / 100;
-      return {
+      const prices = {
         ingredientName: name,
         pricePer100gEur: round(base),
         pricePer100mlEur: round(base * 0.8),
         pricePerPieceEur: round(base * 1.2),
+      };
+      if (!opts.nutrition) {
+        return {
+          ...prices,
+          caloriesPer100g: null,
+          proteinPer100g: null,
+          carbsPer100g: null,
+          fatPer100g: null,
+          fiberPer100g: null,
+          gramsPerPiece: null,
+        };
+      }
+      return {
+        ...prices,
         caloriesPer100g: Math.round(40 + (Math.abs(hash) % 300)),
         proteinPer100g: round(2 + (Math.abs(hash) % 20)),
         carbsPer100g: round(5 + (Math.abs(hash) % 40)),

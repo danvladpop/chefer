@@ -2,12 +2,7 @@ import { forwardRef, useEffect, useRef, useState } from 'react';
 import { Pressable, TextInput, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { router, useLocalSearchParams, useNavigation } from 'expo-router';
-import {
-  CUISINE_PRESETS,
-  FRIENDS_COPY,
-  type RecipeFormIngredientLine,
-  type RecipeNutritionSource,
-} from '@chefer/types';
+import { CUISINE_PRESETS, FRIENDS_COPY, INGREDIENT_CATALOG_COPY } from '@chefer/types';
 import {
   Button,
   Card,
@@ -28,20 +23,27 @@ import {
 import {
   firstIncompleteIngredientLineIndex,
   missingSummary,
+  parseNutritionStatus,
   parseQuantity,
   recipeMissingFields,
   tagConflicts,
 } from '@chefer/utils';
 import { textRejectedOf } from '../src/features/friends/api/friends-errors';
+import {
+  applyResolution,
+  blankLine,
+  linesForPreview,
+  lineState,
+  linesToPayload,
+  prefillLines,
+  type CatalogFormLine,
+  type LineState,
+} from '../src/features/ingredients/catalog-line';
 import { ComputedNutritionCard } from '../src/features/ingredients/computed-nutrition-card';
 import { useComputedNutrition } from '../src/features/ingredients/use-computed-nutrition';
 import { recipeFormCopy } from '../src/features/recipes/form/copy';
 import { FormFooter } from '../src/features/recipes/form/form-footer';
 import { IngredientLine } from '../src/features/recipes/form/ingredient-line';
-import {
-  NutritionFields,
-  type NutritionValues,
-} from '../src/features/recipes/form/nutrition-fields';
 import { PhotoField } from '../src/features/recipes/form/photo-field';
 import { StepLine } from '../src/features/recipes/form/step-line';
 import { useIsOnline } from '../src/features/recipes/form/use-is-online';
@@ -50,11 +52,20 @@ import { trpc } from '../src/lib/trpc';
 // Manual recipe create/edit — rebuilt as sections (T-40.4, UX-40 slice 1).
 // One screen: with ?id= it prefills from getMyRecipe and updates, otherwise
 // it creates. D-19 minimum: a name + at least one ingredient line with a
-// name and an amount — description/cuisine/steps/times/nutrition are all
-// optional (D-18: no fiber input, but a stored value round-trips on edit).
+// name and an amount — description/cuisine/steps/times are optional.
 // The footer button is never silently disabled (PAT-17): while incomplete,
 // a missing summary sits above it and a blocked tap scrolls to and focuses
 // the first problem instead of doing nothing.
+//
+// plan-ingredient-catalog §10 (P9): every line is picked from the ingredient
+// catalog and saved with its `ingredientId`; the unit list only offers what
+// the engine can weigh for that row. Nutrition is computed — live here with
+// the shared engine over `ingredients.getMany`, and authoritatively by the
+// server on save — so the manual-macros path is gone. Editing a recipe whose
+// lines predate the catalog asks `ingredients.resolve`: EXACT/ALIAS links
+// (the server's own rule), anything else shows "Pick a match" with the
+// resolver's suggestions. An unlinked line blocks saving like a line with no
+// amount does (owner decision recorded in the P9 report).
 
 const DIETARY_TAG_PRESETS = [
   'vegan',
@@ -144,11 +155,32 @@ interface FormSnapshot {
   description: string;
   prepTime: string;
   cookTime: string;
-  ingredients: RecipeFormIngredientLine[];
+  ingredients: { q: string; u: string; id: string | null; raw: string }[];
   instructions: string[];
   dietTags: string[];
   imageUrl: string;
-  nutrition: NutritionValues;
+}
+
+/** The lines' part of the dirty-check snapshot. */
+function snapshotLines(lines: readonly CatalogFormLine[]): FormSnapshot['ingredients'] {
+  return lines.map((l) => ({
+    q: l.quantity,
+    u: l.unit,
+    id: l.ingredientId ?? null,
+    raw: l.rawName ?? l.name,
+  }));
+}
+
+/** The PAT-17 error under a line, by what it still needs. */
+function lineErrorFor(state: LineState): string | undefined {
+  switch (state) {
+    case 'needsMatch':
+      return INGREDIENT_CATALOG_COPY.form.lineNeedsMatch;
+    case 'needsQuantity':
+      return recipeFormCopy.missing.fieldLineAmount;
+    default:
+      return undefined;
+  }
 }
 
 export default function RecipeFormScreen() {
@@ -180,26 +212,10 @@ export default function RecipeFormScreen() {
   const [prepTime, setPrepTime] = useState('');
   const [cookTime, setCookTime] = useState('');
   const [moreDetailsOpen, setMoreDetailsOpen] = useState(false);
-  const [ingredients, setIngredients] = useState<RecipeFormIngredientLine[]>([
-    { name: '', quantity: '', unit: 'g' },
-  ]);
+  const [ingredients, setIngredients] = useState<CatalogFormLine[]>(() => [blankLine()]);
   const [instructions, setInstructions] = useState<string[]>(['']);
   const [dietTags, setDietTags] = useState<string[]>([]);
   const [imageUrl, setImageUrl] = useState('');
-  const [nutrition, setNutrition] = useState<NutritionValues>({
-    calories: '',
-    protein: '',
-    carbs: '',
-    fat: '',
-  });
-  // T-40.9 (UX-40 slice 2): 'computed' is the create default (the web
-  // model). Edit starts 'manual' unless the loaded recipe was explicitly
-  // saved as 'computed' — an old/manual save's numbers are never silently
-  // replaced by a fresh recompute on open.
-  const [nutritionMode, setNutritionMode] = useState<'computed' | 'manual'>('computed');
-  // D-18: fiber has no input on either platform, but a stored value must
-  // round-trip on edit (T-BUG-O3 C6) — kept out of band from the form UI.
-  const [storedFiber, setStoredFiber] = useState(0);
   const [prefilled, setPrefilled] = useState(false);
   const [attemptedSave, setAttemptedSave] = useState(false);
   const [discardVisible, setDiscardVisible] = useState(false);
@@ -217,11 +233,10 @@ export default function RecipeFormScreen() {
     description,
     prepTime,
     cookTime,
-    ingredients,
+    ingredients: snapshotLines(ingredients),
     instructions,
     dietTags,
     imageUrl,
-    nutrition,
   });
 
   // Capture the baseline once — on mount for create, once prefill lands for edit.
@@ -232,21 +247,25 @@ export default function RecipeFormScreen() {
     // eslint-disable-next-line react-hooks/exhaustive-deps -- baseline is captured once, deliberately
   }, [isEdit, prefilled]);
 
-  const dirty =
+  const currentSnapshot = useRef<FormSnapshot | null>(null);
+  currentSnapshot.current = snapshot();
+  const isDirty = () =>
     baselineRef.current !== null &&
-    JSON.stringify(snapshot()) !== JSON.stringify(baselineRef.current);
+    JSON.stringify(currentSnapshot.current) !== JSON.stringify(baselineRef.current);
 
   // Discard-changes confirm on the header back, Android back and the iOS
-  // swipe-back alike — one navigator listener covers all three (AC9).
+  // swipe-back alike — one navigator listener covers all three (AC9). It
+  // reads the refs at event time: the baseline can be re-captured without a
+  // render (after the resolver links a legacy recipe's lines).
   useEffect(() => {
     const unsubscribe = navigation.addListener('beforeRemove', (e) => {
-      if (savedRef.current || !dirty) return;
+      if (savedRef.current || !isDirty()) return;
       e.preventDefault();
       pendingNavAction.current = e.data.action;
       setDiscardVisible(true);
     });
     return unsubscribe;
-  }, [navigation, dirty]);
+  }, [navigation]);
 
   useEffect(() => {
     if (!existing || prefilled || !isFetchedAfterMount || isFetching) {
@@ -260,29 +279,9 @@ export default function RecipeFormScreen() {
     setPrepTime(prep);
     setCookTime(cook);
     setServings(Math.max(1, existing.servings));
-    // Prisma stores nutritionInfo as JSON — same narrowing cast the web list uses.
-    const n = (existing.nutritionInfo ?? {}) as {
-      calories?: number;
-      protein?: number;
-      carbs?: number;
-      fat?: number;
-      fiber?: number;
-      source?: string;
-    };
-    setNutrition({
-      calories: n.calories ? String(n.calories) : '',
-      protein: n.protein ? String(n.protein) : '',
-      carbs: n.carbs ? String(n.carbs) : '',
-      fat: n.fat ? String(n.fat) : '',
-    });
-    setStoredFiber(n.fiber ?? 0);
-    setNutritionMode(n.source === 'computed' ? 'computed' : 'manual');
+    // Prisma stores `ingredients` as JSON — same narrowing cast the web list uses.
     const ings = (existing.ingredients ?? []) as { name: string; quantity: number; unit: string }[];
-    setIngredients(
-      ings.length > 0
-        ? ings.map((i) => ({ name: i.name, quantity: String(i.quantity), unit: i.unit }))
-        : [{ name: '', quantity: '', unit: 'g' }],
-    );
+    setIngredients(prefillLines(ings, existing.lines));
     setInstructions(existing.instructions.length > 0 ? [...existing.instructions] : ['']);
     setDietTags([...existing.dietaryTags]);
     setImageUrl(existing.imageUrl ?? '');
@@ -290,6 +289,34 @@ export default function RecipeFormScreen() {
     setMoreDetailsOpen(Boolean(existing.description) || prep !== '' || cook !== '');
     setPrefilled(true);
   }, [existing, prefilled, isFetchedAfterMount, isFetching]);
+
+  // Legacy lines (no stored catalog link): ask the resolver once, after prefill.
+  const toResolve = ingredients.filter((l) => l.resolving);
+  const resolveQuery = trpc.ingredients.resolve.useQuery(
+    {
+      lines: toResolve
+        .slice(0, 100)
+        .map((l) => ({ rawName: (l.rawName ?? l.name).slice(0, 200) || '?', unit: l.unit })),
+    },
+    { enabled: prefilled && toResolve.length > 0, staleTime: Infinity },
+  );
+  useEffect(() => {
+    if (!resolveQuery.data || toResolve.length === 0) return;
+    const next = applyResolution(ingredients, resolveQuery.data);
+    // Applying the resolver's links is not a user edit: move the baseline
+    // with it, so leaving untouched never asks to discard.
+    if (!isDirty() && baselineRef.current) {
+      baselineRef.current = { ...baselineRef.current, ingredients: snapshotLines(next) };
+    }
+    setIngredients(next);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- applied once per resolver answer
+  }, [resolveQuery.data]);
+  useEffect(() => {
+    // The resolver failed: the lines stay unlinked and show "Pick a match".
+    if (resolveQuery.isError) {
+      setIngredients((prev) => prev.map((l) => (l.resolving ? { ...l, resolving: false } : l)));
+    }
+  }, [resolveQuery.isError]);
 
   const onDone = () => {
     savedRef.current = true;
@@ -312,22 +339,15 @@ export default function RecipeFormScreen() {
   // the plain message under the name field instead of the footer.
   const textRejected = mutation.isError && textRejectedOf(mutation.error) === 'recipe';
 
-  const validIngredients = ingredients
-    .filter((i) => i.name.trim() && parseQuantity(i.quantity) > 0 && i.unit.trim())
-    .map((i) => ({
-      name: i.name.trim(),
-      quantity: parseQuantity(i.quantity),
-      unit: i.unit.trim(),
-    }));
+  const validIngredients = linesToPayload(ingredients);
   const validInstructions = instructions.map((s) => s.trim()).filter(Boolean);
 
-  // T-40.9: only fetches while nutritionMode is 'computed' — manual mode
-  // never calls ingredients.computeNutrition.
-  const computedNutrition = useComputedNutrition(
-    validIngredients,
-    servings,
-    nutritionMode === 'computed',
-  );
+  // Live preview: the shared engine over the catalog rows the lines link to.
+  const computed = useComputedNutrition(linesForPreview(ingredients), servings);
+  const ingredientFor = (line: CatalogFormLine) =>
+    line.ingredientId ? (computed.details.get(line.ingredientId) ?? line.ingredient) : undefined;
+  const lineStates = ingredients.map((l) => lineState(l, ingredientFor(l)));
+  const resolving = ingredients.some((l) => l.resolving);
 
   const parsedIngredients = ingredients.map((i) => ({
     name: i.name,
@@ -335,11 +355,19 @@ export default function RecipeFormScreen() {
   }));
   const missing = recipeMissingFields({ name, ingredients: parsedIngredients });
   const incompleteIndex = firstIncompleteIngredientLineIndex(parsedIngredients);
-  const canSave = missing.length === 0;
-  const missingText = missingSummary(
-    missing,
-    incompleteIndex !== null ? incompleteIndex + 1 : undefined,
-  );
+  // A line that is named but not linked, or linked with a unit its row can't
+  // weigh, blocks the save the same way (PAT-17) — after the D-19 checks.
+  const catalogIndex = lineStates.findIndex((s) => s === 'needsMatch' || s === 'needsUnit');
+  const canSave = missing.length === 0 && catalogIndex === -1 && !resolving;
+  const missingText =
+    missingSummary(missing, incompleteIndex !== null ? incompleteIndex + 1 : undefined) ??
+    (catalogIndex === -1
+      ? null
+      : lineStates[catalogIndex] === 'needsUnit'
+        ? INGREDIENT_CATALOG_COPY.form.missingUnit(catalogIndex + 1)
+        : INGREDIENT_CATALOG_COPY.form.missingMatch(catalogIndex + 1));
+  const wasUserEntered =
+    isEdit && parseNutritionStatus(existing?.nutritionStatus) === 'USER_ENTERED';
 
   const conflicts = tagConflicts(validIngredients, dietTags);
 
@@ -355,6 +383,10 @@ export default function RecipeFormScreen() {
         const field = ingredientQtyRefs.current[incompleteIndex] ?? null;
         scrollFieldIntoView(field);
         field?.focus();
+      } else if (catalogIndex !== -1) {
+        // The name field is a sheet trigger, not a text field: scroll the
+        // row into view without raising the keyboard.
+        scrollFieldIntoView(ingredientQtyRefs.current[catalogIndex] ?? null);
       } else {
         const field = ingredientQtyRefs.current[0] ?? null;
         scrollFieldIntoView(field);
@@ -362,41 +394,27 @@ export default function RecipeFormScreen() {
       }
       return;
     }
-    // T-40.9: computed mode sends the live computed numbers (fiber and all —
-    // D-18's "still there under the hood"); manual sends the typed fields
-    // and the stored fiber (T-BUG-O3 C6). `source` records which one saved,
-    // 'none' when computed mode never actually matched anything.
-    const computedStats = computedNutrition.data?.perServing;
-    const nutritionSource: RecipeNutritionSource =
-      nutritionMode === 'manual'
-        ? 'manual'
-        : computedNutrition.data && computedNutrition.data.matchedCount > 0
-          ? 'computed'
-          : 'none';
-    const nutritionInfo =
-      nutritionMode === 'computed' && computedStats
-        ? {
-            calories: Math.round(computedStats.calories),
-            protein: computedStats.protein,
-            carbs: computedStats.carbs,
-            fat: computedStats.fat,
-            fiber: computedStats.fiber,
-            source: nutritionSource,
-          }
-        : {
-            calories: Math.round(parseQuantity(nutrition.calories)),
-            protein: parseQuantity(nutrition.protein),
-            carbs: parseQuantity(nutrition.carbs),
-            fat: parseQuantity(nutrition.fat),
-            fiber: storedFiber,
-            source: nutritionSource,
-          };
+    // The server computes from the linked lines and ignores these numbers
+    // (D4); they are the same engine's preview, marked `computed`, so an API
+    // that predates the catalog still stores something true.
+    const perServing = computed.result?.perServing;
     const payload = {
       name: name.trim(),
       description: description.trim(),
       ingredients: validIngredients,
       instructions: validInstructions,
-      nutritionInfo,
+      ...(perServing
+        ? {
+            nutritionInfo: {
+              calories: Math.round(perServing.calories),
+              protein: perServing.protein,
+              carbs: perServing.carbs,
+              fat: perServing.fat,
+              fiber: perServing.fiber,
+              source: 'computed' as const,
+            },
+          }
+        : {}),
       cuisineType: (cuisineType ?? '').trim(),
       dietaryTags: dietTags,
       prepTimeMins: Math.round(parseQuantity(prepTime)),
@@ -411,7 +429,7 @@ export default function RecipeFormScreen() {
     }
   };
 
-  const updateIngredient = (index: number, patch: Partial<RecipeFormIngredientLine>) => {
+  const updateIngredient = (index: number, patch: Partial<CatalogFormLine>) => {
     setIngredients((prev) => prev.map((r, i) => (i === index ? { ...r, ...patch } : r)));
   };
 
@@ -592,30 +610,34 @@ export default function RecipeFormScreen() {
         {/* Ingredients — required */}
         <View className="gap-2">
           <Text variant="heading">{recipeFormCopy.fields.ingredients} *</Text>
-          {ingredients.map((row, i) => (
-            <IngredientLine
-              key={i}
-              ref={(el) => {
-                ingredientQtyRefs.current[i] = el;
-              }}
-              index={i}
-              line={row}
-              nativeIDPrefix="rf"
-              onChange={(patch) => updateIngredient(i, patch)}
-              onRemove={() => removeIngredient(i)}
-              error={
-                attemptedSave && i === incompleteIndex
-                  ? recipeFormCopy.missing.fieldLineAmount
-                  : undefined
-              }
-            />
-          ))}
+          {ingredients.map((row, i) => {
+            const state = lineStates[i] ?? 'empty';
+            const ingredient = ingredientFor(row);
+            return (
+              <IngredientLine
+                key={row.key}
+                ref={(el) => {
+                  ingredientQtyRefs.current[i] = el;
+                }}
+                index={i}
+                line={row}
+                ingredient={ingredient}
+                nativeIDPrefix="rf"
+                onChange={(patch) => updateIngredient(i, patch)}
+                onRemove={() => removeIngredient(i)}
+                error={attemptedSave ? lineErrorFor(state) : undefined}
+                unitError={
+                  state === 'needsUnit'
+                    ? INGREDIENT_CATALOG_COPY.unit.notUsable(row.unit, ingredient?.name ?? row.name)
+                    : undefined
+                }
+              />
+            );
+          })}
           <Button
             testID="rf-add-ingredient"
             variant="outline"
-            onPress={() =>
-              setIngredients((prev) => [...prev, { name: '', quantity: '', unit: 'g' }])
-            }
+            onPress={() => setIngredients((prev) => [...prev, blankLine()])}
           >
             {recipeFormCopy.buttons.addIngredient}
           </Button>
@@ -651,55 +673,18 @@ export default function RecipeFormScreen() {
           <PhotoField imageUrl={imageUrl} onChange={setImageUrl} disabled={offline} />
         </View>
 
-        {/* Nutrition per serving — optional (D-18: no fiber field). T-40.9:
-            computed by default from the ingredients above; Edit numbers
-            switches to the slice-1 manual fields, prefilled from what was
-            last computed. */}
+        {/* Nutrition per serving — computed from the linked ingredients
+            above with the shared engine (plan-ingredient-catalog §10). No
+            manual path: the server computes the stored numbers on save. */}
         <View className="gap-2">
-          <Text variant="heading">
-            {recipeFormCopy.fields.nutrition}{' '}
-            <Text variant="muted" className="text-xs">
-              {recipeFormCopy.fields.nutritionOptional}
-            </Text>
-          </Text>
-          {nutritionMode === 'computed' ? (
-            <ComputedNutritionCard
-              computed={computedNutrition.data}
-              isComputing={computedNutrition.isComputing}
-              hasIngredients={computedNutrition.hasIngredients}
-              online={online}
-              onEditNumbers={() => {
-                const stats = computedNutrition.data?.perServing;
-                if (stats) {
-                  setNutrition({
-                    calories: String(stats.calories),
-                    protein: String(stats.protein),
-                    carbs: String(stats.carbs),
-                    fat: String(stats.fat),
-                  });
-                  setStoredFiber(stats.fiber);
-                }
-                setNutritionMode('manual');
-              }}
-            />
-          ) : (
-            <View className="gap-2">
-              <NutritionFields
-                values={nutrition}
-                onChange={(patch) => setNutrition((n) => ({ ...n, ...patch }))}
-              />
-              <Pressable
-                testID="rf-nutrition-use-calculated"
-                accessibilityRole="button"
-                onPress={() => setNutritionMode('computed')}
-                className="min-h-11 justify-center self-start"
-              >
-                <Text className="text-sm font-medium text-primary">
-                  {recipeFormCopy.nutrition.useCalculated}
-                </Text>
-              </Pressable>
-            </View>
-          )}
+          <Text variant="heading">{recipeFormCopy.fields.nutrition}</Text>
+          <ComputedNutritionCard
+            result={computed.result}
+            isComputing={computed.isComputing}
+            hasIngredients={computed.hasIngredients}
+            online={online}
+            wasUserEntered={wasUserEntered}
+          />
         </View>
 
         {/* More details — collapsed by default; opens on edit when any field has a value (MO-05) */}

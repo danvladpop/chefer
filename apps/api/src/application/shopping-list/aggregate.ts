@@ -7,6 +7,8 @@
 // three times (tbsp / tsp / ml), "Egg" and "Eggs" were separate, and water,
 // ice cubes and "salt and pepper — to taste" were listed and priced.
 
+import { ingredientBaseKey } from '@chefer/utils';
+
 export interface IngredientLine {
   name: string;
   quantity: number;
@@ -81,54 +83,14 @@ function unitFamily(unit: string): { family: 'mass' | 'volume'; factor: number }
   return null;
 }
 
-// Preparation and freshness words that don't change what you buy.
-const PREP_WORDS = new Set([
-  'fresh',
-  'chopped',
-  'minced',
-  'diced',
-  'sliced',
-  'grated',
-  'shredded',
-  'finely',
-  'roughly',
-  'thinly',
-  'large',
-  'small',
-  'medium',
-  'ripe',
-  'drained',
-  'rinsed',
-  'peeled',
-]);
-
-function singular(word: string): string {
-  if (word.length <= 3) return word;
-  if (/(ss|us|is)$/.test(word)) return word; // hummus, asparagus, swiss
-  if (word.endsWith('ies')) return `${word.slice(0, -3)}y`; // berries
-  if (/(toes|shes|ches|xes)$/.test(word)) return word.slice(0, -2); // tomatoes, radishes
-  if (word.endsWith('s')) return word.slice(0, -1); // eggs, peppers
-  return word;
-}
-
 /**
- * The grouping identity of an ingredient name: lowercase, no parentheticals
- * or trailing prep ("Canned chickpeas (drained)", "parsley, chopped"), no
- * leading prep adjectives ("Fresh parsley"), last word singular ("Eggs").
+ * The grouping identity of an ingredient name: the shared catalog base key
+ * (@chefer/utils `ingredientBaseKey`: no parentheticals or trailing prep, no
+ * prep/size words, diacritics folded, singular), so the list groups exactly
+ * the way the ingredient resolver matches (plan-ingredient-catalog §6.1).
  */
 export function canonicalIngredientName(name: string): string {
-  const cleaned = name
-    .toLowerCase()
-    .replace(/\([^)]*\)/g, ' ')
-    .split(',')[0]!
-    .replace(/[^a-z0-9\s'-]/g, ' ')
-    .trim()
-    .split(/\s+/)
-    .filter((w) => w.length > 0);
-  while (cleaned.length > 1 && PREP_WORDS.has(cleaned[0]!)) cleaned.shift();
-  if (cleaned.length === 0) return name.toLowerCase().trim();
-  cleaned[cleaned.length - 1] = singular(cleaned[cleaned.length - 1]!);
-  return cleaned.join(' ');
+  return ingredientBaseKey(name) || name.toLowerCase().trim();
 }
 
 const ALWAYS_SKIPPED = new Set([

@@ -3,6 +3,8 @@ import {
   favouriteRecipeRepository,
   followRepository,
   mealRatingRepository,
+  recipeLineRepository,
+  toIngredientsMirror,
   type CreateManualRecipeData,
   type IFavouriteRecipeRepository,
   type IMealRatingRepository,
@@ -14,6 +16,13 @@ import { ensureCuratedRecipes, safeCuratedPools } from '../../lib/curated-recipe
 import type { SafetyCheckable } from '../../lib/curated-recipes/safety.js';
 import { moderationService, type ModerationService } from '../friends/moderation.service.js';
 import { socialAccessService } from '../friends/social-access.service.js';
+import {
+  recipeNutritionService,
+  type RecipeNutritionService,
+  type SavedLineReport,
+  type SaveLineInput,
+  type TypedNutrition,
+} from '../ingredients/recipe-nutrition.service.js';
 import { safetyService, type SafetyService } from '../safety/safety.service.js';
 import { selectDiscoverRecipes, type DiscoverFilters, type DiscoverRecipeDto } from './discover.js';
 import {
@@ -25,7 +34,30 @@ import {
   type RecipeSocialDeps,
 } from './recipe-access.js';
 
-type UpdateManualRecipeData = Partial<CreateManualRecipeData>;
+/**
+ * A manual save as the router passes it (plan-ingredient-catalog §6.2, §9):
+ * catalog-aware lines, and typed nutrition the server only keeps under D4.
+ */
+export type ManualRecipeInput = Omit<CreateManualRecipeData, 'ingredients' | 'nutritionInfo'> & {
+  ingredients: SaveLineInput[];
+  nutritionInfo?: TypedNutrition | undefined;
+};
+type UpdateManualRecipeInput = Partial<ManualRecipeInput>;
+
+/** A stored catalog line as `getMyRecipe` returns it (grams null = no data for it). */
+export interface StoredLineDto {
+  position: number;
+  ingredientId: string | null;
+  rawName: string;
+  quantity: number;
+  unit: string;
+  grams: number | null;
+  note: string | null;
+  optional: boolean;
+}
+
+/** A saved manual recipe plus the per-line outcome (grams, problem). Additive. */
+export type SavedRecipe = Recipe & { lines: SavedLineReport[] };
 
 /** One `findAllRecipesForUser` row (the recipe + its creator/origin creator names). */
 type RecipeWithPeople = Awaited<
@@ -127,6 +159,10 @@ export class RecipeService {
     private readonly social: RecipeListSocialDeps = defaultListSocialDeps,
     /** The Following branch of recipe access (recipe-access.ts, plan §4.3). */
     private readonly recipeSocial: RecipeSocialDeps = defaultRecipeSocialDeps,
+    private readonly nutrition: Pick<
+      RecipeNutritionService,
+      'prepareSave'
+    > = recipeNutritionService,
   ) {}
 
   /** `findRecipeVisibleTo` with this service's social deps. */
@@ -233,7 +269,13 @@ export class RecipeService {
     return { hiddenCount: recipes.length - visible.length, filteredFor };
   }
 
-  async create(userId: string, data: CreateManualRecipeData): Promise<Recipe> {
+  /**
+   * Creates a manual recipe. Nutrition is always computed on the server from
+   * the lines (client numbers are kept only under D4, as USER_ENTERED); the
+   * recipe, its catalog lines and the Json mirror are written in one
+   * transaction.
+   */
+  async create(userId: string, data: ManualRecipeInput): Promise<SavedRecipe> {
     // PRD §9.4 word filter — applies only when the author shares recipes
     // (moderation.service decides; BAD_REQUEST + data.textRejected otherwise).
     await this.moderation.checkRecipeText(userId, {
@@ -241,19 +283,56 @@ export class RecipeService {
       description: data.description,
     });
     // Origins are never taken from a create (only RecipeCopyService sets them).
-    const { originRecipeId: _o, originCreatorId: _c, ...own } = data;
-    return favouriteRecipeRepository.createManualRecipe(userId, normaliseCuisine(own));
+    const { originRecipeId: _o, originCreatorId: _c, ingredients, nutritionInfo, ...own } = data;
+    const prepared = await this.nutrition.prepareSave(
+      userId,
+      ingredients,
+      data.servings,
+      nutritionInfo,
+    );
+    const recipe = await favouriteRecipeRepository.createManualRecipe(
+      userId,
+      normaliseCuisine({
+        ...own,
+        ingredients: toIngredientsMirror(prepared.lines),
+        nutritionInfo: prepared.nutrition.perServing,
+      }),
+      { lines: prepared.lines, nutrition: prepared.nutrition },
+    );
+    return { ...recipe, lines: prepared.report };
   }
 
-  async getMyRecipe(userId: string, recipeId: string): Promise<Recipe> {
+  /** The edit form's recipe, plus its stored catalog lines (additive, plan §9). */
+  async getMyRecipe(
+    userId: string,
+    recipeId: string,
+  ): Promise<Recipe & { lines: StoredLineDto[] }> {
     const recipe = await favouriteRecipeRepository.findManualRecipeById(userId, recipeId);
     if (!recipe) {
       throw new TRPCError({ code: 'NOT_FOUND', message: 'Recipe not found.' });
     }
-    return recipe;
+    const lines = await recipeLineRepository.findByRecipeIds([recipe.id]);
+    return {
+      ...recipe,
+      lines: lines.map((l) => ({
+        position: l.position,
+        ingredientId: l.ingredientId,
+        rawName: l.rawName,
+        quantity: l.quantity,
+        unit: l.unit,
+        grams: l.grams,
+        note: l.note,
+        optional: l.optional,
+      })),
+    };
   }
 
-  async update(userId: string, recipeId: string, data: UpdateManualRecipeData): Promise<Recipe> {
+  /** Updates a manual recipe; a save with lines recomputes its nutrition (see create). */
+  async update(
+    userId: string,
+    recipeId: string,
+    data: UpdateManualRecipeInput,
+  ): Promise<SavedRecipe> {
     const existing = await favouriteRecipeRepository.findManualRecipeById(userId, recipeId);
     if (!existing) {
       throw new TRPCError({
@@ -275,7 +354,28 @@ export class RecipeService {
         recipeId,
       );
     }
-    return favouriteRecipeRepository.updateManualRecipe(userId, recipeId, normaliseCuisine(data));
+    const { ingredients, nutritionInfo, ...rest } = data;
+    if (!ingredients) {
+      const recipe = await favouriteRecipeRepository.updateManualRecipe(
+        userId,
+        recipeId,
+        normaliseCuisine(rest),
+      );
+      return { ...recipe, lines: [] };
+    }
+    const prepared = await this.nutrition.prepareSave(
+      userId,
+      ingredients,
+      data.servings ?? existing.servings,
+      nutritionInfo,
+    );
+    const recipe = await favouriteRecipeRepository.updateManualRecipe(
+      userId,
+      recipeId,
+      normaliseCuisine(rest),
+      { lines: prepared.lines, nutrition: prepared.nutrition },
+    );
+    return { ...recipe, lines: prepared.report };
   }
 
   async toggleFavourite(userId: string, recipeId: string): Promise<{ isSaved: boolean }> {

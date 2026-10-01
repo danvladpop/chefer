@@ -22,10 +22,24 @@ import {
 
 // ─── Module mocks (hoisted) ───────────────────────────────────────────────────
 
+// AI recipes are finished on the catalog (plan-ingredient-catalog §6.3) by
+// AiRecipeFinisher — covered in ai-recipe-finisher.test.ts. Here it passes the
+// AI output through unchanged, so these tests keep exercising plan logic
+// (day totals, retries, safety, tailoring) with the numbers they set.
+vi.mock('./ai-recipe-finisher.js', () => ({
+  aiRecipeFinisher: {
+    finishPlan: vi.fn((plan: unknown) => Promise.resolve({ plan, stats: {} })),
+    finishRecipe: vi.fn((recipe: unknown) => Promise.resolve(recipe)),
+    persistLines: vi.fn(() => Promise.resolve()),
+  },
+}));
+
 vi.mock('@chefer/database', async (importOriginal) => {
   const mod = await importOriginal<typeof import('@chefer/database')>();
   return {
     ...mod,
+    // getRecipe's nutrition breakdown (recipe-nutrition.service.test.ts covers it)
+    recipeLineRepository: { findByRecipeIds: vi.fn().mockResolvedValue([]) },
     prisma: {
       aiCallLog: { create: vi.fn().mockResolvedValue({}) },
       // UX-06: reads without a view resolve the viewer's tier for the training payload.

@@ -50,6 +50,17 @@ function unlockBodyScroll(): void {
   window.scrollTo(0, savedScrollY);
 }
 
+// ─── Overlay stack ────────────────────────────────────────────────────────────
+// A Sheet opened from inside another (the ingredient picker inside the import
+// review) must own Escape and Tab on its own: every overlay listens on
+// `document`, so without a stack one Escape closed the parent too.
+
+const overlayStack: object[] = [];
+
+function isTopOverlay(token: object): boolean {
+  return overlayStack[overlayStack.length - 1] === token;
+}
+
 // ─── Hook ─────────────────────────────────────────────────────────────────────
 
 export interface UseDismissableOptions {
@@ -84,12 +95,16 @@ export function useDismissable<T extends HTMLElement>({
 
     restoreRef.current = document.activeElement as HTMLElement | null;
     lockBodyScroll();
+    const token = {};
+    overlayStack.push(token);
 
     const panel = panelRef.current;
     const firstFocusable = panel?.querySelector<HTMLElement>(FOCUSABLE);
     (firstFocusable ?? panel)?.focus();
 
     const handleKeyDown = (e: KeyboardEvent): void => {
+      // Only the top-most overlay reacts; the ones beneath wait their turn.
+      if (!isTopOverlay(token)) return;
       if (closeOnEscape && e.key === 'Escape') {
         e.stopPropagation();
         onCloseRef.current();
@@ -126,6 +141,8 @@ export function useDismissable<T extends HTMLElement>({
 
     return () => {
       document.removeEventListener('keydown', handleKeyDown, true);
+      const at = overlayStack.indexOf(token);
+      if (at >= 0) overlayStack.splice(at, 1);
       unlockBodyScroll();
       restoreRef.current?.focus();
     };

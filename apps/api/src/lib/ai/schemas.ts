@@ -36,14 +36,39 @@ export const recipeSchema = z.object({
   imageUrl: z.string().nullable(),
 });
 
+/**
+ * A GENERATED recipe (meal plan, day, swap — plan-ingredient-catalog §6.3):
+ * every line names a catalog `slug` and the model states no nutrition (I2).
+ * A missing slug parses (the server resolves the name or repairs the line);
+ * `nutritionInfo` is a zero placeholder that `computeAiRecipe` replaces
+ * before anything reads it.
+ */
+export const generatedIngredientSchema = ingredientSchema.extend({
+  slug: z.string().optional(),
+});
+export const generatedRecipeSchema = recipeSchema
+  .omit({ nutritionInfo: true })
+  .extend({ ingredients: z.array(generatedIngredientSchema) })
+  .transform((r) => ({
+    ...r,
+    nutritionInfo: { calories: 0, protein: 0, carbs: 0, fat: 0, fiber: 0 },
+  }));
+
 /** One day of a plan — also the unit of the chunked (per-day) generation. */
 export const dayPlanSchema = z.object({
   dayOfWeek: z.number().int().min(0).max(6),
   meals: z.array(
     z.object({
       type: z.enum(['breakfast', 'lunch', 'dinner', 'snack']),
-      recipe: recipeSchema,
+      recipe: generatedRecipeSchema,
     }),
+  ),
+});
+
+/** repairRecipeLines' response (§6.3 repair round). */
+export const recipeLineRepairResponseSchema = z.object({
+  items: z.array(
+    z.object({ id: z.string(), slug: z.string(), quantity: z.number(), unit: z.string() }),
   ),
 });
 

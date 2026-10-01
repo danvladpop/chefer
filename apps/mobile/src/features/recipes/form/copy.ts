@@ -19,7 +19,6 @@ export const recipeFormCopy = {
     steps: 'Steps',
     photo: 'Photo',
     nutrition: 'Nutrition per serving',
-    nutritionOptional: 'optional',
     moreDetails: 'More details',
     description: 'Description',
     prepTimeMins: 'Prep (min)',
@@ -85,11 +84,7 @@ export const recipeFormCopy = {
     chooseAnother: 'Choose another',
   },
   nutrition: {
-    dontAddUp: (grams: number, macro: string, kcal: number) =>
-      `These don't add up: ${grams} g ${macro} is about ${kcal} kcal.`,
     notAdded: 'Nutrition not added',
-    // T-40.9 (UX-40 slice 2): the manual fields' way back to the computed card.
-    useCalculated: 'Use calculated numbers',
   },
   loadError: {
     title: "Couldn't load your recipe",

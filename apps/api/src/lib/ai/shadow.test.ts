@@ -247,7 +247,9 @@ describe('scoreLiveCall', () => {
       ],
     };
     const s = scoreLiveCall({ op: 'generateMealPlan', input: PLAN_INPUT }, unsafe);
-    expect(s).toMatchObject({ schemaValid: true, allergenViolations: 1, kcalErrorPct: 0 });
+    // kcal is computed from catalog slugs now (plan-ingredient-catalog §6.3),
+    // not the stated nutritionInfo, so only the safety outcome is asserted.
+    expect(s).toMatchObject({ schemaValid: true, allergenViolations: 1 });
   });
 
   it('scores annotated extraction on its recipe', () => {

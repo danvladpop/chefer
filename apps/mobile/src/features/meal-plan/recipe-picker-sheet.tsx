@@ -6,6 +6,7 @@ import { buildPickerSections, filterReplaceCandidates } from '@chefer/utils';
 import { getRecipeImageUrl } from '../../lib/recipe-image';
 import { trpc } from '../../lib/trpc';
 import { AiConsentHost } from '../ai-consent/ai-consent-provider';
+import { NutritionStatusTag } from '../ingredients/nutrition-provenance';
 import { CheckedForChip } from '../safety/checked-for-chip';
 import { FilteredForLine } from '../safety/filtered-for-line';
 
@@ -213,7 +214,10 @@ export function RecipePickerSheet({
                   <Text numberOfLines={1} className="text-sm font-medium text-gray-900">
                     {recipe.name}
                   </Text>
-                  <Text className="text-xs text-gray-500">{n.calories} kcal</Text>
+                  <View className="flex-row items-center gap-1">
+                    <Text className="text-xs text-gray-500">{n.calories} kcal</Text>
+                    <NutritionStatusTag status={recipe.nutritionStatus} />
+                  </View>
                 </View>
                 {/* T-02.4: this row's own checked rules, next to the favourite
                     heart — dislikes are already excluded server-side, so no

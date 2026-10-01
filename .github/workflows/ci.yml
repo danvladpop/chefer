@@ -302,7 +302,9 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Setup test database
-        run: pnpm db:push && pnpm db:seed
+        # ingredients:sync loads the global catalog, as every deploy does
+        # after db push (docker-compose.deploy.yml migrate).
+        run: pnpm db:push && pnpm ingredients:sync && pnpm db:seed
 
       - name: Start API
         run: |
@@ -402,7 +404,7 @@ jobs:
         run: pnpm --filter @chefer/e2e exec playwright install --with-deps chromium
 
       - name: Setup test database
-        run: pnpm db:push
+        run: pnpm db:push && pnpm ingredients:sync
 
       - name: Build
         run: pnpm build

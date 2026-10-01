@@ -1,9 +1,30 @@
 // @vitest-environment jsdom
-import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { catalogRef } from '@/test-support/catalog-trpc';
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { VideoDraftForm, type VideoImportPreviewData } from './VideoDraftForm';
 
+// The private-ingredient sheet's image upload (env-dependent); unused here.
+vi.mock('@/lib/upload-image', () => ({ uploadImage: vi.fn() }));
+vi.mock('@/lib/trpc', async () => {
+  const { catalogIngredientsMock, catalogUtilsMock } = await import('@/test-support/catalog-trpc');
+  return { trpc: { ingredients: catalogIngredientsMock(), useUtils: () => catalogUtilsMock() } };
+});
+
+// jsdom has no scrollTo; the Sheet's scroll lock restores the page offset with it.
+vi.spyOn(window, 'scrollTo').mockImplementation(() => undefined);
 afterEach(cleanup);
+
+type Resolution = VideoImportPreviewData['resolution'][number];
+const matched = (rawName: string, unit: string, id: string): Resolution => ({
+  rawName,
+  unit,
+  note: null,
+  confidence: 'ALIAS',
+  match: catalogRef(id),
+  candidates: [],
+  grams: null,
+});
 
 function preview(overrides: Partial<VideoImportPreviewData> = {}): VideoImportPreviewData {
   return {
@@ -33,6 +54,9 @@ function preview(overrides: Partial<VideoImportPreviewData> = {}): VideoImportPr
     ogImageUrl: null,
     videoTitle: 'Garlic noodles',
     creator: 'chef',
+    // plan-ingredient-catalog §6.2: the server's catalog match per line.
+    resolution: [matched('noodles', 'g', 'noodles'), matched('olive oil', 'tbsp', 'oil')],
+    nutritionStatus: 'COMPUTED',
     ...overrides,
   };
 }
@@ -73,11 +97,13 @@ describe('VideoDraftForm', () => {
     expect(onSave).toHaveBeenCalledWith(
       expect.objectContaining({
         name: 'Garlic Butter Noodles',
+        // the catalog ids picked by the server's match ride along
         ingredients: [
-          { name: 'noodles', quantity: 200, unit: 'g' },
-          { name: 'olive oil', quantity: 0.5, unit: 'cup' },
+          { name: 'noodles', quantity: 200, unit: 'g', ingredientId: 'noodles' },
+          { name: 'olive oil', quantity: 0.5, unit: 'cup', ingredientId: 'oil' },
         ],
       }),
+      { acceptPartial: false },
     );
   });
 
@@ -112,7 +138,42 @@ describe('VideoDraftForm', () => {
         servings: 4,
         nutritionInfo: { calories: 300, protein: 10, carbs: 45, fat: 9, fiber: 2 },
       }),
+      { acceptPartial: false },
     );
+  });
+
+  it('an unmatched line blocks the save until it is matched or incomplete nutrition is accepted', async () => {
+    const { onSave } = renderForm(
+      preview({
+        resolution: [
+          matched('noodles', 'g', 'noodles'),
+          {
+            rawName: 'olive oil',
+            unit: 'tbsp',
+            note: null,
+            confidence: 'CANDIDATES',
+            match: null,
+            candidates: [catalogRef('oil')],
+            grams: null,
+            problem: 'NO_INGREDIENT',
+          },
+        ],
+      }),
+    );
+    expect(screen.getByText(/Incomplete — 1 ingredient needs data/)).toBeTruthy();
+    fireEvent.click(screen.getByText('Save recipe'));
+    expect(onSave).not.toHaveBeenCalled();
+    expect(screen.getByText(/1 ingredient needs a match/)).toBeTruthy();
+
+    // Accepting incomplete nutrition is explicit…
+    fireEvent.click(screen.getByLabelText('Save with incomplete nutrition'));
+    fireEvent.click(screen.getByText('Save recipe'));
+    expect(onSave).toHaveBeenLastCalledWith(expect.anything(), { acceptPartial: true });
+
+    // …or the user picks the suggested match, and the line computes.
+    fireEvent.click(screen.getByRole('button', { name: 'Olive oil' }));
+    await waitFor(() => expect(screen.getByText(/computed from 2 ingredients/)).toBeTruthy());
+    expect(screen.queryByLabelText('Save with incomplete nutrition')).toBeNull();
   });
 
   it('flags amounts nobody said, and the flag follows its row', () => {
@@ -120,7 +181,7 @@ describe('VideoDraftForm', () => {
     expect(screen.getAllByText('Amount not heard — please check')).toHaveLength(1);
     fireEvent.click(screen.getByLabelText('Remove ingredient 1'));
     // "olive oil" is now row 1 and still flagged.
-    expect(screen.getByLabelText<HTMLInputElement>('Ingredient 1').value).toBe('olive oil');
+    expect(screen.getByRole('button', { name: 'Ingredient 1: Olive oil' })).toBeTruthy();
     expect(screen.getAllByText('Amount not heard — please check')).toHaveLength(1);
     fireEvent.change(screen.getByLabelText('Amount for ingredient 1'), { target: { value: '2' } });
     expect(screen.queryByText('Amount not heard — please check')).toBeNull();
@@ -130,7 +191,7 @@ describe('VideoDraftForm', () => {
     renderForm();
     fireEvent.click(screen.getByText('Add ingredient'));
     fireEvent.click(screen.getByText('Add step'));
-    expect(screen.getByLabelText('Ingredient 3')).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Ingredient 3: not chosen' })).toBeTruthy();
     expect(screen.getByLabelText('Step 2')).toBeTruthy();
   });
 

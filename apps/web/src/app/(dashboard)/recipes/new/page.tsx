@@ -2,9 +2,8 @@
 
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { useEffect, useId, useMemo, useState } from 'react';
-import { IngredientFormModal } from '@/features/ingredients/components/IngredientFormModal';
-import { IngredientPicker } from '@/features/recipes/components/IngredientPicker';
+import { useId, useState } from 'react';
+import { NutritionPreview } from '@/features/recipes/components/NutritionPreview';
 import {
   Field,
   FormErrorSummary,
@@ -13,6 +12,12 @@ import {
   Section,
 } from '@/features/recipes/components/recipe-form-fields';
 import {
+  firstIncompleteField,
+  lineFieldId,
+  RecipeLinesEditor,
+} from '@/features/recipes/components/RecipeLinesEditor';
+import { useLiveNutrition } from '@/features/recipes/hooks/useLiveNutrition';
+import {
   errorIdFor,
   fieldErrorProps,
   useRecipeFormErrors,
@@ -20,6 +25,7 @@ import {
   type RecipeFormErrors,
   type RecipeFormFocusTargets,
 } from '@/features/recipes/lib/recipe-form';
+import { newLineRow, toSaveLines, type LineRow } from '@/features/recipes/lib/recipe-lines';
 import { trpc } from '@/lib/trpc';
 import { uploadImage } from '@/lib/upload-image';
 import { ArrowLeft, Plus, Sparkles, Trash2, Upload, X } from 'lucide-react';
@@ -39,16 +45,6 @@ const DIETARY_TAG_PRESETS = [
   'pescatarian',
   'nut-free',
 ];
-
-// ─── Types ────────────────────────────────────────────────────────────────────
-
-interface IngredientRow {
-  name: string;
-  quantity: string;
-  unit: string;
-}
-
-const isValidRow = (i: IngredientRow) => Boolean(i.name.trim() && Number(i.quantity) > 0 && i.unit);
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
@@ -70,13 +66,8 @@ export default function NewRecipePage() {
     servings: `${uid}-servings`,
     ingredients: `${uid}-ingredients`,
     instructions: `${uid}-instructions`,
-    nutrition: `${uid}-nutrition`,
-    enterManual: `${uid}-nutrition-manual`,
   };
-  const ingredientNameId = (i: number) => `${uid}-ingredient-${i}-name`;
-  const ingredientQtyId = (i: number) => `${uid}-ingredient-${i}-qty`;
   const stepId = (i: number) => `${uid}-step-${i}`;
-  const nutritionId = (key: string) => `${uid}-nutrition-${key}`;
 
   // Basic fields
   const [name, setName] = useState('');
@@ -98,68 +89,20 @@ export default function NewRecipePage() {
   const [uploading, setUploading] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
 
-  // Ingredients & instructions
-  const [ingredients, setIngredients] = useState<IngredientRow[]>([
-    { name: '', quantity: '', unit: 'g' },
-  ]);
-  const [customModalFor, setCustomModalFor] = useState<{ row: number; query: string } | null>(null);
+  // Ingredients & instructions. Every line is picked from the catalog
+  // (plan-ingredient-catalog §10) and stores its ingredientId.
+  const [lines, setLines] = useState<LineRow[]>(() => [newLineRow()]);
   const [instructions, setInstructions] = useState<string[]>(['']);
-
-  // Nutrition: auto-computed with manual fallback. No fiber field (D-18) —
-  // a manual entry always sends fiber: 0; the computed path still computes
-  // and sends it under the hood (web's computed nutrition is protected).
-  const [manualNutrition, setManualNutrition] = useState(false);
-  const [manual, setManual] = useState({
-    calories: '',
-    protein: '',
-    carbs: '',
-    fat: '',
-  });
 
   const { errors, clear: clearError, report: reportErrors } = useRecipeFormErrors();
 
   const cuisineType = useCustomCuisine ? cuisineCustom.trim() : (cuisineChip ?? '');
 
-  const { data: units } = trpc.ingredients.units.useQuery(undefined, { staleTime: Infinity });
-  const unitOptions = units ?? ['g', 'kg', 'ml', 'l', 'tsp', 'tbsp', 'cup', 'piece'];
-
-  // ── Auto nutrition ─────────────────────────────────────────────────────────
-  const validRows = useMemo(
-    () =>
-      ingredients
-        .filter(isValidRow)
-        .map((i) => ({ name: i.name.trim(), quantity: Number(i.quantity), unit: i.unit })),
-    [ingredients],
-  );
-
-  // Debounce the computation input so we don't call on every keystroke
-  const [debouncedRows, setDebouncedRows] = useState(validRows);
-  useEffect(() => {
-    const t = setTimeout(() => setDebouncedRows(validRows), 600);
-    return () => clearTimeout(t);
-  }, [validRows]);
-
+  // Nutrition is never typed on web any more: the live preview runs the
+  // shared engine over the picked rows, and the server computes the stored
+  // numbers on save (D4 keeps typed numbers for old clients only).
   const servingsNum = Math.max(1, Number(servings) || 1);
-  const { data: computed, isFetching: computing } = trpc.ingredients.computeNutrition.useQuery(
-    { ingredients: debouncedRows, servings: servingsNum },
-    { enabled: !manualNutrition && debouncedRows.length > 0, placeholderData: (p) => p },
-  );
-
-  const nutrition = manualNutrition
-    ? {
-        calories: Number(manual.calories) || 0,
-        protein: Number(manual.protein) || 0,
-        carbs: Number(manual.carbs) || 0,
-        fat: Number(manual.fat) || 0,
-        fiber: 0,
-      }
-    : (computed?.perServing ?? { calories: 0, protein: 0, carbs: 0, fat: 0, fiber: 0 });
-
-  // The auto-computed calories can arrive after a failed submit — drop the
-  // then-stale "could not be computed" error.
-  useEffect(() => {
-    if (nutrition.calories > 0) clearError('calories');
-  }, [nutrition.calories, clearError]);
+  const live = useLiveNutrition(lines, servingsNum);
 
   // ── AI image generation (deterministic URL from name + cuisine) ────────────
   const aiImageQuery = trpc.recipe.aiImageUrl.useQuery(
@@ -199,15 +142,9 @@ export default function NewRecipePage() {
   });
 
   // ── Row helpers ────────────────────────────────────────────────────────────
-  const addIngredient = () =>
-    setIngredients((prev) => [...prev, { name: '', quantity: '', unit: 'g' }]);
-  const removeIngredient = (i: number) =>
-    setIngredients((prev) => prev.filter((_, idx) => idx !== i));
-  const updateIngredient = (i: number, field: keyof IngredientRow, value: string) => {
+  const updateLines = (next: LineRow[]) => {
     clearError('ingredients');
-    setIngredients((prev) =>
-      prev.map((ing, idx) => (idx === i ? { ...ing, [field]: value } : ing)),
-    );
+    setLines(next);
   };
 
   const addInstruction = () => setInstructions((prev) => [...prev, '']);
@@ -238,23 +175,20 @@ export default function NewRecipePage() {
       servings,
       instructions,
     });
-    if (validRows.length === 0) errs.ingredients = 'Add at least one ingredient.';
+    if (toSaveLines(lines).length === 0) {
+      errs.ingredients = 'Add at least one ingredient with an amount.';
+    }
 
     // Where focus lands for each error: the first incomplete ingredient row's
     // missing field.
-    const badRow = Math.max(
-      0,
-      ingredients.findIndex((r) => !isValidRow(r)),
-    );
+    const bad = firstIncompleteField(lines);
     const targets: RecipeFormFocusTargets = {
       name: ids.name,
       description: ids.description,
       prepTimeMins: ids.prepTimeMins,
       cookTimeMins: ids.cookTimeMins,
       servings: ids.servings,
-      ingredients: ingredients[badRow]?.name.trim()
-        ? ingredientQtyId(badRow)
-        : ingredientNameId(badRow),
+      ingredients: lineFieldId(uid, bad.index, bad.field),
       instructions: stepId(0),
     };
     return reportErrors(errs, targets);
@@ -273,15 +207,9 @@ export default function NewRecipePage() {
       servings: servingsNum,
       imageUrl: imageUrl ?? undefined,
       dietaryTags: tags,
-      ingredients: validRows,
+      // Lines carry their ingredientId; the server computes nutrition.
+      ingredients: toSaveLines(lines),
       instructions: instructions.filter((s) => s.trim()).map((s) => s.trim()),
-      nutritionInfo: {
-        calories: Math.round(nutrition.calories),
-        protein: nutrition.protein,
-        carbs: nutrition.carbs,
-        fat: nutrition.fat,
-        fiber: nutrition.fiber,
-      },
     });
   };
 
@@ -564,79 +492,14 @@ export default function NewRecipePage() {
           error={errors.ingredients}
           errorId={errorIdFor(ids.ingredients)}
         >
-          <div className="space-y-2">
-            {/* Two rows on a phone. Side by side, the quantity (80px), unit
-                (112px) and delete (32px) controls plus gaps consume 248px of
-                fixed width, leaving the ingredient name about 95px at 375px. */}
-            {ingredients.map((ing, i) => (
-              <div
-                key={i}
-                className="flex flex-col gap-2 rounded-xl border p-2 sm:flex-row sm:items-center sm:border-0 sm:p-0"
-              >
-                <IngredientPicker
-                  id={ingredientNameId(i)}
-                  ariaLabel={`Name for ingredient ${i + 1}`}
-                  invalid={!!errors.ingredients && !ing.name.trim()}
-                  describedBy={errors.ingredients ? errorIdFor(ids.ingredients) : undefined}
-                  value={ing.name}
-                  onSelect={(selected) => updateIngredient(i, 'name', selected)}
-                  onCreateCustom={(query) => setCustomModalFor({ row: i, query })}
-                />
-                <div className="flex items-center gap-2">
-                  <input
-                    type="number"
-                    min={0}
-                    step="any"
-                    inputMode="decimal"
-                    value={ing.quantity}
-                    onChange={(e) => updateIngredient(i, 'quantity', e.target.value)}
-                    placeholder="Qty"
-                    id={ingredientQtyId(i)}
-                    aria-label={`Quantity for ingredient ${i + 1}`}
-                    aria-invalid={
-                      (!!errors.ingredients && !(Number(ing.quantity) > 0)) || undefined
-                    }
-                    aria-describedby={errors.ingredients ? errorIdFor(ids.ingredients) : undefined}
-                    className={`w-20 shrink-0 rounded-xl border bg-white px-3 py-2 text-sm text-gray-800 placeholder-gray-400 focus:outline-none ${
-                      errors.ingredients && !(Number(ing.quantity) > 0)
-                        ? 'border-red-400 focus:border-red-500'
-                        : 'focus:border-[#944a00]'
-                    }`}
-                  />
-                  <select
-                    value={ing.unit}
-                    onChange={(e) => updateIngredient(i, 'unit', e.target.value)}
-                    aria-label={`Unit for ingredient ${i + 1}`}
-                    className="w-28 shrink-0 rounded-xl border bg-white px-2 py-2 text-sm text-gray-800 focus:border-[#944a00] focus:outline-none"
-                  >
-                    {unitOptions.map((u) => (
-                      <option key={u} value={u}>
-                        {u}
-                      </option>
-                    ))}
-                  </select>
-                  {ingredients.length > 1 && (
-                    <button
-                      type="button"
-                      onClick={() => removeIngredient(i)}
-                      aria-label={`Remove ingredient ${i + 1}`}
-                      className="touch-target relative ml-auto flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-gray-500 transition-colors hover:bg-red-50 hover:text-red-500 sm:ml-0 sm:h-8 sm:w-8"
-                    >
-                      <Trash2 className="h-4 w-4" aria-hidden="true" />
-                    </button>
-                  )}
-                </div>
-              </div>
-            ))}
-          </div>
-          <button
-            type="button"
-            onClick={addIngredient}
-            className="mt-1 flex min-h-11 items-center gap-1.5 text-sm font-medium text-[#944a00] hover:underline"
-          >
-            <Plus className="h-4 w-4" />
-            Add Ingredient
-          </button>
+          <RecipeLinesEditor
+            rows={lines}
+            onChange={updateLines}
+            problems={live.problems}
+            idPrefix={uid}
+            error={errors.ingredients}
+            errorId={errorIdFor(ids.ingredients)}
+          />
         </Section>
 
         {/* ── Instructions ───────────────────────────────────────────── */}
@@ -687,88 +550,9 @@ export default function NewRecipePage() {
           </button>
         </Section>
 
-        {/* ── Nutrition (auto-computed) ──────────────────────────────── */}
-        <Section
-          title="Nutrition (per serving)"
-          error={errors.calories}
-          errorId={errorIdFor(ids.nutrition)}
-        >
-          {!manualNutrition ? (
-            <div className="rounded-xl border bg-gray-50 p-4">
-              <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-                <Stat label="Calories" value={`${Math.round(nutrition.calories)} kcal`} />
-                <Stat label="Protein" value={`${nutrition.protein} g`} />
-                <Stat label="Carbs" value={`${nutrition.carbs} g`} />
-                <Stat label="Fat" value={`${nutrition.fat} g`} />
-              </div>
-              <div className="mt-3 flex flex-wrap items-center justify-between gap-x-2 text-xs text-gray-500">
-                <span className="min-w-0">
-                  {computing
-                    ? 'Computing from ingredients…'
-                    : computed && computed.unmatched.length > 0
-                      ? `Estimated from ${computed.matchedCount} of ${computed.totalCount} ingredients — no data yet for: ${computed.unmatched.join(', ')}`
-                      : computed
-                        ? 'Computed automatically from your ingredients and servings.'
-                        : 'Add ingredients to compute nutrition automatically.'}
-                </span>
-                <button
-                  id={ids.enterManual}
-                  type="button"
-                  onClick={() => {
-                    setManualNutrition(true);
-                    clearError('calories');
-                  }}
-                  aria-describedby={errors.calories ? errorIdFor(ids.nutrition) : undefined}
-                  className="flex min-h-11 items-center font-medium text-[#944a00] hover:underline"
-                >
-                  Enter manually instead
-                </button>
-              </div>
-            </div>
-          ) : (
-            <>
-              <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
-                {(
-                  [
-                    ['calories', 'Calories (kcal)'],
-                    ['protein', 'Protein (g)'],
-                    ['carbs', 'Carbs (g)'],
-                    ['fat', 'Fat (g)'],
-                  ] as const
-                ).map(([key, label]) => (
-                  <Field key={key} id={nutritionId(key)} label={label}>
-                    <input
-                      id={nutritionId(key)}
-                      type="number"
-                      min={0}
-                      step="0.1"
-                      inputMode="decimal"
-                      value={manual[key]}
-                      onChange={(e) => {
-                        setManual((m) => ({ ...m, [key]: e.target.value }));
-                        if (key === 'calories') clearError('calories');
-                      }}
-                      onFocus={(e) => e.currentTarget.select()}
-                      {...(key === 'calories'
-                        ? fieldErrorProps(ids.nutrition, errors.calories)
-                        : {})}
-                      className={inputCls(key === 'calories' && !!errors.calories)}
-                    />
-                  </Field>
-                ))}
-              </div>
-              <button
-                type="button"
-                onClick={() => {
-                  setManualNutrition(false);
-                  clearError('calories');
-                }}
-                className="flex min-h-11 items-center text-xs font-medium text-[#944a00] hover:underline"
-              >
-                Compute automatically from ingredients instead
-              </button>
-            </>
-          )}
+        {/* ── Nutrition (computed live; the server recomputes on save) ── */}
+        <Section title="Nutrition (per serving)">
+          <NutritionPreview live={live} />
         </Section>
 
         {/* ── Submit ─────────────────────────────────────────────────── */}
@@ -800,19 +584,6 @@ export default function NewRecipePage() {
           </div>
         </div>
       </form>
-
-      {/* Custom ingredient modal */}
-      {customModalFor && (
-        <IngredientFormModal
-          mode="create"
-          initialName={customModalFor.query}
-          onClose={() => setCustomModalFor(null)}
-          onSaved={(displayName) => {
-            updateIngredient(customModalFor.row, 'name', displayName);
-            setCustomModalFor(null);
-          }}
-        />
-      )}
     </div>
   );
 }
@@ -846,14 +617,5 @@ function Chip({
     >
       {label}
     </button>
-  );
-}
-
-function Stat({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="text-center">
-      <p className="text-sm font-bold text-gray-900">{value}</p>
-      <p className="text-xs text-gray-500">{label}</p>
-    </div>
   );
 }

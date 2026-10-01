@@ -41,6 +41,22 @@ const {
   upsertRecipes: vi.fn().mockResolvedValue(undefined),
 }));
 
+// Manual saves compute nutrition through RecipeNutritionService (catalog
+// reads); covered in recipe-nutrition.service.test.ts. Stubbed here.
+vi.mock('../ingredients/recipe-nutrition.service.js', () => ({
+  recipeNutritionService: {
+    prepareSave: vi.fn().mockResolvedValue({
+      lines: [],
+      report: [],
+      nutrition: {
+        status: 'PARTIAL',
+        perServing: { calories: 0, protein: 0, carbs: 0, fat: 0, fiber: 0 },
+        total: null,
+      },
+    }),
+  },
+}));
+
 vi.mock('@chefer/database', async (importOriginal) => {
   const mod = await importOriginal<typeof import('@chefer/database')>();
   return {
@@ -59,6 +75,13 @@ vi.mock('@chefer/database', async (importOriginal) => {
     householdMemberRepository: { findByUserId: findHouseholdByUserId },
     safetyReportRepository: { findRecipeIdsByUser, create: vi.fn(), findAllByUser: vi.fn() },
     mealPlanRepository: { findRecipeById, isRecipeInUserPlans, upsertRecipes },
+    recipeLineRepository: {
+      findByRecipeIds: vi.fn().mockResolvedValue([]),
+      findNutritionStates: vi.fn().mockResolvedValue([]),
+      writeLines: vi.fn(),
+    },
+    // ensureCuratedRecipes → curated line sync (catalog not synced here: no-op)
+    ingredientRepository: { findGlobalIdsBySlugs: vi.fn().mockResolvedValue(new Map()) },
   };
 });
 

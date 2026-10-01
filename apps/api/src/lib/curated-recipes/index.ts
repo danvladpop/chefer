@@ -1,4 +1,5 @@
-import { mealPlanRepository } from '@chefer/database';
+import { ingredientRepository, mealPlanRepository, recipeLineRepository } from '@chefer/database';
+import type { RecipeLineWrite } from '@chefer/database';
 import {
   SWAP_BREAKFAST_POOL,
   SWAP_DINNER_POOL,
@@ -7,6 +8,7 @@ import {
 } from '../ai/fixtures/swap-recipes.fixture.js';
 import { RECIPE_LIBRARY } from '../ai/fixtures/week-plan.fixture.js';
 import type { MealType, RecipeData } from '../ai/types.js';
+import { computeFixtureNutrition, withComputedNutrition } from './computed-nutrition.js';
 import {
   EXTRA_BREAKFAST_POOL,
   EXTRA_DINNER_POOL,
@@ -40,8 +42,10 @@ export {
 
 const R = RECIPE_LIBRARY;
 
+// Nutrition is computed from the catalog (computed-nutrition.ts), not taken
+// from the fixture: every fixture line carries its catalog `slug`.
 function curated(recipe: RecipeData): RecipeData {
-  return { ...recipe, id: `curated-${recipe.id}` };
+  return { ...withComputedNutrition(recipe), id: `curated-${recipe.id}` };
 }
 
 export const CURATED_POOL_BY_TYPE: Record<MealType, RecipeData[]> = {
@@ -157,8 +161,68 @@ export async function ensureCuratedRecipes(): Promise<void> {
       source: 'CURATED' as const,
     })),
   );
+  await syncCuratedLines(all);
   ensured = true;
   console.log(`[curated-recipes] ensured ${all.length} curated recipes`);
+}
+
+/** Field-wise compare: Postgres jsonb reorders keys, so a JSON string compare never matches. */
+function sameFacts(stored: unknown, facts: Record<string, number>): boolean {
+  if (typeof stored !== 'object' || stored === null) return false;
+  const s = stored as Record<string, unknown>;
+  return Object.entries(facts).every(([k, v]) => s[k] === v);
+}
+
+/**
+ * Gives every curated DB row its catalog lines and computed nutrition
+ * (plan-ingredient-catalog §6.2, §7): the fixture is authoritative for CURATED
+ * rows, so a row whose stored state differs is rewritten through the one line
+ * write path. Rows already matching are skipped. If the catalog is not synced
+ * into this database yet, the pool keeps working and the sync is retried on
+ * the next process start.
+ */
+async function syncCuratedLines(all: RecipeData[]): Promise<void> {
+  const slugs = [
+    ...new Set(all.flatMap((r) => r.ingredients.flatMap((i) => (i.slug ? [i.slug] : [])))),
+  ];
+  const ids = await ingredientRepository.findGlobalIdsBySlugs(slugs);
+  const missing = slugs.filter((s) => !ids.has(s));
+  if (missing.length > 0) {
+    console.warn(
+      `[curated-recipes] catalog not synced (${missing.length} slugs missing, e.g. ${missing.slice(0, 3).join(', ')}); curated lines not written — run pnpm ingredients:sync`,
+    );
+    return;
+  }
+  const states = new Map(
+    (await recipeLineRepository.findNutritionStates(all.map((r) => r.id))).map((s) => [s.id, s]),
+  );
+  let written = 0;
+  for (const recipe of all) {
+    const result = computeFixtureNutrition(recipe);
+    const state = states.get(recipe.id);
+    const upToDate =
+      state?.nutritionStatus === result.status &&
+      state.lineCount === recipe.ingredients.length &&
+      sameFacts(state.nutritionInfo, result.perServing);
+    if (!state || upToDate) continue;
+    const lines: RecipeLineWrite[] = recipe.ingredients.map((i, k) => ({
+      ingredientId: i.slug ? (ids.get(i.slug) ?? null) : null,
+      rawName: i.name,
+      quantity: i.quantity,
+      unit: i.unit,
+      grams: result.lines[k]?.grams ?? null,
+      note: i.note ?? null,
+      optional: i.optional ?? false,
+    }));
+    await recipeLineRepository.writeLines(recipe.id, lines, {
+      status: result.status,
+      perServing: result.perServing,
+      total: result.total,
+    });
+    written += 1;
+  }
+  if (written > 0)
+    console.log(`[curated-recipes] wrote catalog lines for ${written} curated recipes`);
 }
 
 /**

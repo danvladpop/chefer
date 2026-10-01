@@ -12,6 +12,15 @@ export interface Ingredient {
   name: string;
   quantity: number;
   unit: string;
+  /**
+   * Catalog row this line is (plan-ingredient-catalog §6.2). Set on every
+   * curated fixture line, so curated nutrition is computed, never typed.
+   */
+  slug?: string | undefined;
+  /** Prep text kept off the name ("halved", "pitted"). */
+  note?: string | undefined;
+  /** "To serve" / garnish: excluded from nutrition totals. */
+  optional?: boolean | undefined;
 }
 
 export interface RecipeData {
@@ -118,6 +127,12 @@ export interface MealPlanInput {
     kcalBonus: number;
     proteinBonus: number;
   };
+  /**
+   * plan-ingredient-catalog §6.3: the catalog slugs this table may use,
+   * grouped by category (ai-recipe-catalog.ts `catalogSlugList`). Present →
+   * every generated line must name one; the model states no nutrition.
+   */
+  catalogSlugs?: string;
 }
 
 // ─── Meal photo analysis (F4 Snap-to-Log) ────────────────────────────────────
@@ -202,6 +217,37 @@ export interface SwapInput {
     allergies: string[];
     cuisinePreferences: string[];
   };
+  /** The catalog slugs the table may use (see MealPlanInput.catalogSlugs). */
+  catalogSlugs?: string;
+}
+
+/**
+ * plan-ingredient-catalog §6.3 repair round: generated lines whose slug is
+ * not in the catalog, or whose unit the row can't convert, sent back once with
+ * the resolver's top candidates. The model answers slugs and quantities only.
+ */
+export interface RecipeLineRepairRequest {
+  lines: {
+    /** Opaque id the answer echoes back. */
+    id: string;
+    recipeName: string;
+    rawName: string;
+    slug?: string | undefined;
+    quantity: number;
+    unit: string;
+    /** Why it failed: NO_INGREDIENT / NO_DENSITY / NO_PORTION / BAD_UNIT / BAD_QTY. */
+    problem: string;
+    /** Up to three catalog slugs that look close. */
+    candidates: string[];
+  }[];
+  catalogSlugs: string;
+}
+
+export interface RecipeLineRepair {
+  id: string;
+  slug: string;
+  quantity: number;
+  unit: string;
 }
 
 export interface ShoppingListInput {
@@ -227,6 +273,11 @@ export interface ShoppingListResponse {
 // Store-agnostic baseline prices per base-unit family plus per-100g macros.
 // At least one price field is set per ingredient; null means the family
 // doesn't apply (e.g. no per-piece price for olive oil).
+
+export interface EstimateIngredientPricesOptions {
+  /** Also estimate per-100 g nutrition and piece weight (labelled AI pre-fill only). */
+  nutrition?: boolean;
+}
 
 export interface IngredientPriceEstimate {
   ingredientName: string;
@@ -323,8 +374,18 @@ export interface IAIService {
    */
   generateMealPlanDay(input: MealPlanInput, request: MealPlanDayRequest): Promise<DayPlan>;
   generateRecipeSwap(input: SwapInput): Promise<RecipeData>;
+  /** plan-ingredient-catalog §6.3: one repair round for unresolved generated lines. */
+  repairRecipeLines(request: RecipeLineRepairRequest): Promise<RecipeLineRepair[]>;
   generateShoppingList(input: ShoppingListInput): Promise<ShoppingListResponse>;
-  estimateIngredientPrices(ingredientNames: string[]): Promise<IngredientPriceEstimate[]>;
+  /**
+   * Store-agnostic EUR prices. Nutrition fields come back null unless
+   * `opts.nutrition` (the premium private-ingredient auto-fill, D5): the price
+   * worker never asks for or stores AI nutrition (plan-ingredient-catalog F1).
+   */
+  estimateIngredientPrices(
+    ingredientNames: string[],
+    opts?: EstimateIngredientPricesOptions,
+  ): Promise<IngredientPriceEstimate[]>;
   chat(messages: ChatMessage[], context: ChatContext): Promise<ReadableStream>;
   /** F4 Snap-to-Log — Gemini implementation lands with feat/snap (wave 1). */
   analyzeMealPhoto(imageBase64: string, mimeType: string): Promise<MealPhotoEstimate>;

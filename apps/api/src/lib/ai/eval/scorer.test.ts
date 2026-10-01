@@ -25,7 +25,15 @@ function recipe(
     id: name,
     name,
     description: '',
-    ingredients: ingredients.map((n) => ({ name: n, quantity: 100, unit: 'g' })),
+    // The first line carries the recipe's numbers through a test slug the
+    // fake catalog below decodes; the rest are 0-kcal lines (names still
+    // drive the safety checks).
+    ingredients: ingredients.map((n, i) => ({
+      name: n,
+      quantity: 100,
+      unit: 'g',
+      slug: i === 0 ? `t:${kcal}:${macros.protein}:${macros.carbs}:${macros.fat}` : 'zero',
+    })),
     instructions: ['Cook.'],
     nutritionInfo: { calories: kcal, ...macros, fiber: 3 },
     cuisineType: 'International',
@@ -36,6 +44,29 @@ function recipe(
     imageUrl: null,
   };
 }
+
+/** Plans are scored on catalog-computed numbers: a fake catalog for the test slugs. */
+const CATALOG = (id: string) => {
+  if (id === 'zero')
+    return {
+      id,
+      kcalPer100g: 0,
+      proteinPer100g: 0,
+      carbsPer100g: 0,
+      fatPer100g: 0,
+      fiberPer100g: 0,
+    };
+  const [tag, kcal, p, c, f] = id.split(':');
+  if (tag !== 't') return undefined;
+  return {
+    id,
+    kcalPer100g: Number(kcal),
+    proteinPer100g: Number(p),
+    carbsPer100g: Number(c),
+    fatPer100g: Number(f),
+    fiberPer100g: 0,
+  };
+};
 
 const INPUT: MealPlanInput = {
   userId: 'u',
@@ -76,7 +107,7 @@ function week(overrides: Partial<Record<number, RecipeData[]>> = {}): WeekPlanRe
 
 describe('scoreMealPlan', () => {
   it('scores a perfect plan as valid, safe and on target', () => {
-    const s = scoreMealPlan(INPUT, week());
+    const s = scoreMealPlan(INPUT, week(), CATALOG);
     expect(s).toMatchObject({
       schemaValid: true,
       allergenViolations: 0,
@@ -84,7 +115,7 @@ describe('scoreMealPlan', () => {
       kcalErrorPct: 0,
       macroErrorPct: 0,
     });
-    expect(s.checks).toEqual({ sevenDays: 1, mealCount: 1, uniqueDishes: 1 });
+    expect(s.checks).toEqual({ sevenDays: 1, mealCount: 1, uniqueDishes: 1, catalogResolution: 1 });
   });
 
   it('counts every dish containing an allergen, separately from diet misses', () => {
@@ -96,6 +127,7 @@ describe('scoreMealPlan', () => {
           recipe('Peanut noodles', 1000, ['noodles', 'peanuts'], undefined, ['vegetarian']),
         ],
       }),
+      CATALOG,
     );
     expect(s.allergenViolations).toBe(2);
     // Chicken breaks the vegetarian restriction too (satay only).
@@ -112,6 +144,7 @@ describe('scoreMealPlan', () => {
           recipe('B', 1000, ['rice'], { protein: 50, carbs: 100, fat: 30 }, ['vegetarian']),
         ],
       }),
+      CATALOG,
     );
     expect(s.kcalErrorPct).toBeCloseTo(3.6, 1);
     expect(s.macroErrorPct).toBe(0);
@@ -127,7 +160,20 @@ describe('scoreMealPlan', () => {
       },
     };
     // Monday at 2000 vs its 2500 target: 20% off on 1 of 7 days.
-    expect(scoreMealPlan(lifter, week()).kcalErrorPct).toBeCloseTo(2.9, 1);
+    expect(scoreMealPlan(lifter, week(), CATALOG).kcalErrorPct).toBeCloseTo(2.9, 1);
+  });
+
+  it('reports the share of lines that resolve to the catalog without repair (§6.3)', () => {
+    const plan = week();
+    const day0 = plan.days[0]!;
+    day0.meals[0]!.recipe.ingredients[0] = {
+      name: 'rice',
+      quantity: 100,
+      unit: 'g',
+      slug: 'not-a-slug',
+    };
+    // 14 lines, 1 unknown slug
+    expect(scoreMealPlan(INPUT, plan, CATALOG).checks['catalogResolution']).toBeCloseTo(13 / 14, 5);
   });
 
   it('flags structure problems and schema failures', () => {

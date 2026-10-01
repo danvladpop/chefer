@@ -105,6 +105,9 @@ function recipe(overrides: Partial<Recipe> = {}): Recipe {
     originCreatorId: null,
     hiddenAt: null,
     hiddenReason: null,
+    nutritionStatus: 'PARTIAL',
+    nutritionComputedAt: null,
+    nutritionTotal: null,
     ...overrides,
   };
   return { ...SMUGGLED, ...row };

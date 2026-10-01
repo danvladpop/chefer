@@ -1,27 +1,81 @@
 import { useState } from 'react';
 import { Pressable, TextInput, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { VIDEO_IMPORT_COPY, type VideoDraftField } from '@chefer/types';
-import { Badge, Button, Card, Input, Text } from '@chefer/ui-mobile';
+import { INGREDIENT_CATALOG_COPY, VIDEO_IMPORT_COPY, type VideoDraftField } from '@chefer/types';
+import {
+  Badge,
+  Button,
+  Card,
+  ConfirmSheet,
+  haptics,
+  Input,
+  PressableScale,
+  SelectField,
+  Text,
+  type SelectOption,
+} from '@chefer/ui-mobile';
 import {
   cn,
   finalizeVideoDraft,
+  incompleteLineCount,
+  ingredientUnitGroups,
+  parseQuantityInput,
+  unitForPickedIngredient,
   videoDraftProblems,
   videoDraftToForm,
   videoFormToDraft,
   type VideoDraftFormValues,
 } from '@chefer/utils';
 import type { RouterOutputs } from '../../lib/trpc';
+import { pickedFromRef, type CatalogRef, type PickedIngredient } from '../ingredients/catalog-line';
+import { IngredientPickerField } from '../ingredients/ingredient-picker-field';
+import { useComputedNutrition } from '../ingredients/use-computed-nutrition';
 
 // Video import review form — port of web's VideoDraftForm. The AI reads the
 // video's words into a draft; the user corrects it, fills what the video did
 // not say ("Not found — please add"), then saves through importSave. The
 // shared videoDraftProblems validates, so web, mobile and the API agree.
+//
+// plan-ingredient-catalog §6.2/§10: each ingredient row's name is the catalog
+// picker. Lines the resolver matched start linked; the rest show its
+// candidates ("Pick a match") and the search / "Create … as my ingredient".
+// Linked rows offer only the units the row can weigh. Nutrition is computed
+// live with the shared engine; saving sends every `ingredientId` and
+// `acceptPartial` (false when complete, true after an explicit confirm).
 
 export type VideoImportPreview = RouterOutputs['recipe']['importVideoPreview'];
 export type VideoDraftRecipe = VideoImportPreview['draft'];
+/** The reviewed draft as importSave takes it: lines may carry their catalog id. */
+export type VideoSaveRecipe = Omit<VideoDraftRecipe, 'ingredients'> & {
+  ingredients: (VideoDraftRecipe['ingredients'][number] & { ingredientId?: string })[];
+};
 
 type IngredientRow = VideoDraftFormValues['ingredients'][number];
+
+/** Per-row catalog link, parallel to `form.ingredients`. */
+interface RowLink {
+  ingredient: PickedIngredient | null;
+  candidates: readonly CatalogRef[];
+}
+
+const UNIT_GROUP_LABELS = INGREDIENT_CATALOG_COPY.unit.groups;
+function unitOptions(ingredient: PickedIngredient): SelectOption[] {
+  return ingredientUnitGroups(ingredient).flatMap((g) =>
+    g.units.map((u) => ({ value: u, label: u, group: UNIT_GROUP_LABELS[g.label] })),
+  );
+}
+
+/** The resolver's answer for each draft line → the row's starting link. */
+function initialLinks(preview: VideoImportPreview): RowLink[] {
+  const rows = Math.max(preview.draft.ingredients.length, 1);
+  return Array.from({ length: rows }, (_, i) => {
+    const r = preview.resolution.at(i);
+    return {
+      ingredient: r?.match ? pickedFromRef(r.match) : null,
+      candidates: r?.match ? [] : (r?.candidates ?? []),
+    };
+  });
+}
 
 function Label({ children }: { children: string }) {
   return <Text className="mb-1 text-xs font-medium text-gray-600">{children}</Text>;
@@ -41,13 +95,25 @@ export function VideoDraftForm({
   /** A server rejection of the name (Following word filter, `data.textRejected`), shown under the field. */
   nameError?: string | null;
   onBack: () => void;
-  onSave: (recipe: VideoDraftRecipe) => void;
+  onSave: (recipe: VideoSaveRecipe, acceptPartial: boolean) => void;
 }) {
   const [form, setForm] = useState<VideoDraftFormValues>(() => videoDraftToForm(preview.draft));
   const [touched, setTouched] = useState<Partial<Record<VideoDraftField, boolean>>>({});
   const [problems, setProblems] = useState<string[]>([]);
   const [unheard, setUnheard] = useState<boolean[]>(() =>
     preview.draft.ingredients.map((_, i) => preview.unverifiedQuantities.includes(i)),
+  );
+  const [links, setLinks] = useState<RowLink[]>(() => initialLinks(preview));
+  const [pendingSave, setPendingSave] = useState<VideoSaveRecipe | null>(null);
+
+  // Live nutrition over the linked rows (the server recomputes on save).
+  const live = useComputedNutrition(
+    form.ingredients.flatMap((row, i) => {
+      const quantity = parseQuantityInput(row.quantity) ?? 0;
+      if (!row.name.trim() || quantity <= 0) return [];
+      return [{ ingredientId: links[i]?.ingredient?.id ?? null, quantity, unit: row.unit }];
+    }),
+    Number(form.servings) || 1,
   );
 
   const flagged = (field: VideoDraftField) => preview.notFound.includes(field);
@@ -67,6 +133,15 @@ export function VideoDraftForm({
   const removeIngredient = (index: number) => {
     update({ ingredients: form.ingredients.filter((_, i) => i !== index) });
     setUnheard((u) => u.filter((_, i) => i !== index));
+    setLinks((l) => l.filter((_, i) => i !== index));
+  };
+  const pickIngredient = (index: number, ingredient: PickedIngredient) => {
+    const row = form.ingredients[index];
+    setIngredient(index, {
+      name: ingredient.name.slice(0, 80),
+      unit: unitForPickedIngredient(row?.unit ?? '', ingredient, { keepDefault: true }),
+    });
+    setLinks((l) => l.map((link, i) => (i === index ? { ingredient, candidates: [] } : link)));
   };
 
   const nameMissing = flagged('name') && !form.name.trim();
@@ -79,7 +154,24 @@ export function VideoDraftForm({
     const edited = videoFormToDraft(preview.draft, form);
     const found = videoDraftProblems(edited);
     setProblems(found);
-    if (found.length === 0) onSave(finalizeVideoDraft(preview.draft, edited));
+    if (found.length > 0) return;
+    const finalized = finalizeVideoDraft(preview.draft, edited);
+    // finalize drops blank rows in order: re-attach each kept row's link.
+    const keptIds = form.ingredients.flatMap((row, i) =>
+      row.name.trim() ? [links[i]?.ingredient?.id] : [],
+    );
+    const recipe: VideoSaveRecipe = {
+      ...finalized,
+      ingredients: finalized.ingredients.map((ing, k) => {
+        const id = keptIds[k];
+        return id ? { ...ing, ingredientId: id } : ing;
+      }),
+    };
+    if (live.result?.status === 'PARTIAL') {
+      setPendingSave(recipe);
+      return;
+    }
+    onSave(recipe, false);
   };
 
   return (
@@ -182,24 +274,38 @@ export function VideoDraftForm({
                   onChangeText={(quantity) => setIngredient(index, { quantity })}
                   className={cn('w-16', unheard[index] && 'border-amber-400')}
                 />
-                <Input
-                  testID={`video-draft-unit-${index}`}
-                  accessibilityLabel={`Unit for ingredient ${index + 1}`}
-                  value={row.unit}
-                  placeholder="g"
-                  maxLength={20}
-                  autoCapitalize="none"
-                  onChangeText={(unit) => setIngredient(index, { unit })}
-                  className="w-16"
-                />
-                <Input
+                {links[index]?.ingredient ? (
+                  <View className="w-20">
+                    <SelectField
+                      testID={`video-draft-unit-${index}`}
+                      label={`Unit for ingredient ${index + 1}`}
+                      value={row.unit || null}
+                      options={unitOptions(links[index].ingredient)}
+                      onChange={(unit) => setIngredient(index, { unit })}
+                      placeholder="unit"
+                    />
+                  </View>
+                ) : (
+                  <Input
+                    testID={`video-draft-unit-${index}`}
+                    accessibilityLabel={`Unit for ingredient ${index + 1}`}
+                    value={row.unit}
+                    placeholder="g"
+                    maxLength={20}
+                    autoCapitalize="none"
+                    onChangeText={(unit) => setIngredient(index, { unit })}
+                    className="w-16"
+                  />
+                )}
+                <IngredientPickerField
                   testID={`video-draft-ingredient-${index}`}
+                  name={row.name}
+                  linked={Boolean(links[index]?.ingredient)}
+                  needsMatch={!links[index]?.ingredient && row.name.trim() !== ''}
+                  suggestions={links[index]?.candidates}
+                  placeholder="Search ingredient"
                   accessibilityLabel={`Ingredient ${index + 1}`}
-                  value={row.name}
-                  placeholder="Ingredient"
-                  maxLength={80}
-                  onChangeText={(name) => setIngredient(index, { name })}
-                  className={cn('min-w-0 flex-1', ingredientsMissing && 'border-red-400')}
+                  onPick={(ingredient) => pickIngredient(index, ingredient)}
                 />
                 <Pressable
                   accessibilityRole="button"
@@ -215,6 +321,36 @@ export function VideoDraftForm({
                   {VIDEO_IMPORT_COPY.quantityCheck}
                 </Text>
               )}
+              {!links[index]?.ingredient && row.name.trim() !== '' ? (
+                <View testID={`video-draft-match-${index}`} className="mt-1 gap-1">
+                  <Text className="text-xs text-amber-800">
+                    {(links[index]?.candidates.length ?? 0) > 0
+                      ? INGREDIENT_CATALOG_COPY.picker.pickMatchHint(row.name)
+                      : INGREDIENT_CATALOG_COPY.picker.noMatchFound(row.name)}
+                  </Text>
+                  <View className="flex-row flex-wrap gap-1.5">
+                    {(links[index]?.candidates ?? []).slice(0, 3).map((c) => (
+                      // MO-01 press feedback on each suggestion.
+                      <PressableScale
+                        key={c.id}
+                        pressScale="control"
+                        testID={`video-draft-candidate-${index}-${c.slug}`}
+                        accessibilityRole="button"
+                        accessibilityLabel={`${INGREDIENT_CATALOG_COPY.picker.pickMatch}: ${c.name}`}
+                        onPress={() => {
+                          haptics.selection();
+                          pickIngredient(index, pickedFromRef(c));
+                        }}
+                        className="min-h-11 justify-center rounded-full border border-amber-300 bg-amber-50 px-3"
+                      >
+                        <Text numberOfLines={1} className="text-xs font-medium text-amber-900">
+                          {c.name}
+                        </Text>
+                      </PressableScale>
+                    ))}
+                  </View>
+                </View>
+              ) : null}
             </View>
           ))}
         </View>
@@ -223,9 +359,10 @@ export function VideoDraftForm({
           variant="ghost"
           size="sm"
           className="mt-1 self-start"
-          onPress={() =>
-            update({ ingredients: [...form.ingredients, { quantity: '', unit: '', name: '' }] })
-          }
+          onPress={() => {
+            update({ ingredients: [...form.ingredients, { quantity: '', unit: '', name: '' }] });
+            setLinks((l) => [...l, { ingredient: null, candidates: [] }]);
+          }}
         >
           + Add ingredient
         </Button>
@@ -294,8 +431,21 @@ export function VideoDraftForm({
         </Card>
       )}
 
+      {live.result ? (
+        <Text
+          testID="video-draft-nutrition-status"
+          className={cn(
+            'text-xs',
+            live.result.status === 'PARTIAL' ? 'text-amber-800' : 'text-gray-600',
+          )}
+        >
+          {live.result.status === 'PARTIAL'
+            ? INGREDIENT_CATALOG_COPY.status.incomplete(incompleteLineCount(live.result))
+            : `${INGREDIENT_CATALOG_COPY.status.computedFrom(live.result.lines.length)} · ${live.result.perServing.calories} kcal per serving`}
+        </Text>
+      ) : null}
       <Text variant="muted" className="text-xs">
-        {VIDEO_IMPORT_COPY.nutritionNote} Saved to your private collection only.
+        {INGREDIENT_CATALOG_COPY.importReview.nutritionNote} Saved to your private collection only.
       </Text>
 
       {(problems.length > 0 || saveError) && (
@@ -317,6 +467,23 @@ export function VideoDraftForm({
           Start over
         </Text>
       </Button>
+
+      <ConfirmSheet
+        testID="video-draft-save-partial"
+        visible={pendingSave !== null}
+        onClose={() => setPendingSave(null)}
+        title={INGREDIENT_CATALOG_COPY.importReview.saveIncompleteTitle}
+        body={INGREDIENT_CATALOG_COPY.importReview.saveIncompleteBody(
+          Math.max(1, live.result ? incompleteLineCount(live.result) : 1),
+        )}
+        confirmLabel={INGREDIENT_CATALOG_COPY.importReview.saveIncompleteConfirm}
+        cancelLabel={INGREDIENT_CATALOG_COPY.importReview.saveIncompleteCancel}
+        onConfirm={() => {
+          const recipe = pendingSave;
+          setPendingSave(null);
+          if (recipe) onSave(recipe, true);
+        }}
+      />
     </View>
   );
 }

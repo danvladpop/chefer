@@ -686,7 +686,9 @@ across all users; claims a job with a 150 s lease — survives restarts)
   │    edit) or one of its meals already logged → KEPT, no AI call
   ├─ IAIService.generateMealPlanDay (the per-day prompt the chunked week
   │    already used; "don't repeat" = the rest of the week), 60 s budget:
-  │    macro reconciliation → day-total validation + one corrective retry
+  │    catalog finish (slugs → computed nutrition, one repair round,
+  │    regenerate/curated fallback, fit to slot targets; §6.3) →
+  │    day-total validation + one corrective retry
   │    if ≥ 15 s remain → server-minted ids → household safety pass
   │    (unsafe dish → safe curated one) → merge: locked slots (the user's
   │    picks, a leftovers dinner/lunch pair) stay, the AI fills the rest; a
@@ -1066,13 +1068,62 @@ Ingredient catalog permissions
   |    (hidden even from admins; others get NOT_FOUND)
   |    and never used for anyone else's numbers: reconcile, import check,
   |    plan cost, shopping-list prices, pantry savings (F6, 2026-10-01)
-  +- /ingredients page: All / My Ingredients tabs, search, add/edit/delete
+  +- /ingredients page (web, P9: ingredients.catalogList): All / My
+  |    ingredients, search (any alias, EN/RO) + category filter; each row shows
+  |    its source (USDA / CIQUAL / Label / Mine), aliases and portions. Global
+  |    nutrition is read-only (D7): the owner edits/deletes private rows, an
+  |    ADMIN edits only a global row's price and image (linked price row)
 
 Recipe creation (revamped form)
-  +- ingredients.search picks from the catalog; ingredients.createCustom adds
-  |    private ingredients (manual macros, uploaded or AI-generated image)
-  +- ingredients.computeNutrition auto-fills per-serving nutrition from
-  |    ingredient quantities (unit conversion x per-100g macros)
+  +- ingredients.search picks from the ingredient CATALOG (USDA/CIQUAL rows +
+  |    own private rows; any alias, Romanian names, diacritic-free)
+  +- ingredients.createCustom adds a private ingredient (the 5 core macros
+  |    from the label, uploaded or AI-generated image). If Chefer already has
+  |    it (exact name or alias) -> CONFLICT "Chefer already has X", unless the
+  |    user confirms theirs is different (confirmDifferent)
+  +- ingredients.computeNutrition: shared engine, grams x catalog per-100 g.
+  |    Lines carry ingredientId (picked) or are resolved by name (exact /
+  |    alias only). A line it cannot convert (unknown name, cup without a
+  |    density, "clove" without a portion) is listed as unmatched and the
+  |    result is PARTIAL -- nothing is guessed
+  +- ingredients.resolve: free text -> catalog row (exact / alias), or fuzzy
+  |    candidates the user must pick from (never auto-applied)
+  +- recipe.create / recipe.update: the SERVER computes nutrition from the
+  |    lines (picked ingredientId, else the name resolved exact/alias):
+  |      all lines resolve        -> COMPUTED (typed numbers ignored)
+  |      old client, unresolved,
+  |      numbers typed by hand    -> USER_ENTERED ("entered by you", D4)
+  |      otherwise                -> PARTIAL (incomplete numbers, flagged)
+  +- editing a private ingredient recomputes the owner's recipes that use it;
+  |    deleting one deprecates it (existing recipes keep their numbers)
+  +- weekly private-ingredient review (plan-ingredient-catalog §8.2, operator
+  |    run, runbook docs/runbooks/ingredient-weekly-review.md):
+  |      ingredients:review-report  -> the week's private rows + global
+  |                                    candidates + nutrition delta (read-only)
+  |      decisions file (MAP / PROMOTE / KEEP / REJECT_DATA)
+  |      ingredients:review-apply   -> MAP/PROMOTE relink the owner's lines to
+  |        the global row, recompute those recipes, row MERGED; refused when
+  |        the user's numbers are >25% kcal / >30% macro away unless forced
+  |      the owner gets ONE in-app notice per review (D6, no email):
+  |        ingredients.notices -> VERIFIED_DATA "N of your ingredients now use
+  |        Chefer's verified data" / CHECK_DATA "please check this
+  |        ingredient"; ingredients.dismissNotice marks it read
+  |      (API only so far: the web/mobile banner is a follow-up)
+  +- web form (P9, plan §10): every line -- new, edit, import review, video
+  |    draft -- is picked in the catalog picker sheet (search + category
+  |    chips) and stores its ingredientId; the unit list holds only units that
+  |    convert for that row (grams, its portions, volume only with a
+  |    density). "Create '...' as my ingredient" opens the private-ingredient
+  |    sheet (5 core values required; CONFLICT -> "Use it" / "No, mine is
+  |    different"). Edit: stored lines come back linked; a legacy line is
+  |    resolved -- EXACT/ALIAS linked, else "pick a match" with candidates.
+  |    The nutrition card is a live preview with the shared engine over
+  |    ingredients.getMany ("Incomplete -- N ingredients need data" when
+  |    PARTIAL); web never sends typed numbers, the server computes on save
+  +- recipe detail (mealPlan.getRecipe.nutritionLines): "Nutrition is
+  |    computed from N ingredients" opens the per-line breakdown (grams, kcal,
+  |    protein, source); PARTIAL -> "Incomplete -- N ingredients need data" +
+  |    a fix link for the owner; USER_ENTERED -> "Entered by you"
   +- recipe photo: device upload (POST /api/uploads/image, <=10 MB since
   |    T-BUG-O1/Q-22; the mobile app first shrinks the photo to <= 2048 px,
   |    JPEG 0.8 — T-BUG-O1.2) or deterministic AI image (recipe.aiImageUrl); a failed
@@ -1124,7 +1175,7 @@ Gym settings unit switch / gym setup
 - **Warnings instead of silence**: `mealPlan.getRecipe` and every plan response carry an optional `allergenWarnings: string[]` (the viewer's conflicting allergies/restrictions). Web and mobile show a red "Contains …" banner on recipe detail and in cook mode, and a chip on plan meal cards — e.g. after allergies change under an existing plan (F-REC-2-3, F-PLAN-1-7). Mobile import now shows the same "could not fully remove" warning as web when an adaptation fails safety (F-M-REC-4-1).
 - **Personalisation depth is premium**: `preferences.setup` / `preferences.updateTargets` (`premiumProcedure`) own goal, body metrics, calorie targets, cuisine, meal cadence and the weekly budget → free users receive `FORBIDDEN`. Units and currency are **not** personalisation depth: they save through the free `preferences.setDisplayPreferences` (P2-6, audit F-DASH-3-2).
 - The Preferences page shows free users the editable safety section plus a locked-targets upgrade panel; the Onboarding wizard branches — free: 3 steps (safety → optional goal → optional body metrics, stored via `preferences.saveProfileBasics` with the premium pitch as a card under step 3), premium: 4 steps (goal → metrics → diet → cuisine). Both platforms start the wizard from the user's saved preferences (`preferences.get`), and `preferences.setup` never shrinks the safety lists, so re-opening onboarding after an upgrade can't erase allergies (audit F-ONB-1-1, 2026-09-25).
-- **Numbers you can trust** (audit P1-1, 2026-09-26): free curated weeks are planned toward the user's calorie and protein targets, and every slot gets a **portion** (0.75×–2× of the recipe, deterministic, zero AI) so each day lands within ±10% of the calorie target — a 2,800–3,200 kcal gain goal is reachable now — with protein as close as the dishes allow (snacks added when the portioned mains still fall short). Plan cards show "1½× portion" and its kcal; day totals, the shopping list, the plan cost and the dashboard all count the portion; recipe detail and cook mode opened from the plan start at it, cook mode's "Made it!" and the tracker log it. When even 2× can't reach the protein target the day says **"Protein short by N g — add a snack"** instead of passing as on target (web + mobile). The dashboard no longer claims a meal "supports your daily nutrition goals" (F-PM-4). Premium AI plans get the protein/carbs/fat targets in the prompt, macro drift counts in the retry, and AI recipes whose stated calories don't match their ingredients are resized so the recipe delivers what it claims (bounded 0.6–1.8×; beyond that the honest computed numbers are shown).
+- **Numbers you can trust** (audit P1-1, 2026-09-26): free curated weeks are planned toward the user's calorie and protein targets, and every slot gets a **portion** (0.75×–2× of the recipe, deterministic, zero AI) so each day lands within ±10% of the calorie target — a 2,800–3,200 kcal gain goal is reachable now — with protein as close as the dishes allow (snacks added when the portioned mains still fall short). Plan cards show "1½× portion" and its kcal; day totals, the shopping list, the plan cost and the dashboard all count the portion; recipe detail and cook mode opened from the plan start at it, cook mode's "Made it!" and the tracker log it. When even 2× can't reach the protein target the day says **"Protein short by N g — add a snack"** instead of passing as on target (web + mobile). The dashboard no longer claims a meal "supports your daily nutrition goals" (F-PM-4). Premium AI plans get the protein/carbs/fat targets in the prompt and macro drift counts in the retry. Since the ingredient catalog (plan-ingredient-catalog §6.3) the AI never states nutrition: it names catalog ingredients and quantities, the server computes every number from catalog data, and each AI recipe is resized toward its slot's share of the day target (bounded 0.6–1.8×).
 - **Pool exhaustion is the upsell**: when the curated pool keeps fewer than `MIN_SAFE_POOL_SIZE` safe recipes for any plan meal type, `mealPlan.generate` / free swap throw `PRECONDITION_FAILED` and the meal-plan page renders a contextual upgrade prompt ("not enough free recipes matching your restrictions") instead of an error.
 
 ---
@@ -1853,17 +1904,33 @@ recipe.importPreview { url | text | imageBase64 }   (protected — free gets 1/d
   │    allergy set is the household union (members included)
   ├─ P1-2 allergen matcher RE-VALIDATES the adapted output (AI never trusted for
   │    safety) — surviving terms are listed and the adapted variant is unusable
-  └─ macro cross-check vs the ingredient vocabulary (>25% off → "estimate uncertain")
+  └─ nutrition COMPUTED from the ingredient catalog (never the AI's numbers):
+       each line resolved (exact/alias; fuzzy candidates returned for the
+       review form, never applied) → resolution[] + nutritionStatus;
+       macroCheck kept for old clients (ok = all lines computed)
 
-recipe.importSave { recipe, variant, sourceUrl?, ogImageUrl? }   (premium)
+recipe.importSave { recipe, variant, sourceUrl?, ogImageUrl?, acceptPartial? }   (premium)
+  ├─ nutrition computed on the server from the lines (picked ingredientId or
+  │    resolved name); client/AI numbers dropped. acceptPartial=false + a line
+  │    without data → BAD_REQUEST; omitted (old clients) / true → saved PARTIAL
   ├─ variant=adapted → matcher re-runs server-side on the submitted payload:
   │    a recipe that still violates the user's allergies/restrictions is REJECTED
   │    (fail closed — the "AI missed the peanut" case cannot be saved as adapted)
   ├─ image: og:image only when a guarded HEAD check confirms an image response,
   │    else the deterministic name-seeded Pollinations URL
-  └─ Recipe created with source: MANUAL, creatorId, sourceUrl provenance
+  └─ Recipe created with source: MANUAL, creatorId, sourceUrl provenance and
+       its catalog lines (one transaction)
        → rateable + pinnable → flows into P1-1 generation placement
 ```
+
+**Ingredient review (web, P9 — plan-ingredient-catalog §6.2, §10):** the preview's
+ingredient list is the recipe-line editor. Lines the server matched come back linked;
+an unmatched line shows the resolver's candidates, a catalog search and "Create as my
+ingredient". The nutrition card recomputes live as lines are picked. Save sends the
+picked `ingredientId`s and `acceptPartial: false` — it is blocked while a line needs
+data, unless the user ticks "Save with incomplete nutrition" (`acceptPartial: true`).
+The old "calorie estimate uncertain" banner is gone. The video draft form (§16.1) uses
+the same editor and the same rule.
 
 **Preview before Save (owner dogfood 2026-09-30, web + mobile):** under the Original /
 Cheferized cards, the chosen version is shown in full — name, description, servings,
@@ -1911,7 +1978,8 @@ recipe.importVideoPreview { url }   (protected; RECIPE_IMPORT quota → FREE FOR
   └─ draft + notFound (name / ingredients / steps / servings not stated / time not
        stated) + amounts that appear nowhere in the words + household allergen warning
 
-Review form (web VideoDraftForm, mobile video-draft-form):
+Review form (web VideoDraftForm, mobile video-draft-form; catalog picker per row
+and computed nutrition since P9 — see "Mobile: catalog lines" in §31):
   ├─ "Check the details — we read this from the video's caption / captions / speech"
   ├─ every field editable: name, servings, prep/cook minutes, ingredient rows
   │    (amount, unit, name; add/remove), steps (add/remove)
@@ -3933,6 +4001,11 @@ dependency (plain glyphs), consistent with the rest of the kit.
 
 ### Mobile ingredient search and computed nutrition (slice 2, T-40.7–T-40.10, AC12)
 
+> **Superseded in part by P9 (2026-10-01), see the next section:** there is no
+> "Use as typed" free text, no name-based natural-unit heuristic and no manual
+> `Edit numbers` path any more — every line is picked from the ingredient catalog
+> and nutrition is computed.
+
 Mobile's manual ingredient lines now match the web reference
 (`IngredientPicker` / `IngredientFormModal`), built entirely in NEW
 `apps/mobile/src/features/ingredients/**`:
@@ -3994,6 +4067,67 @@ enhancement, never the only way to remove a line). The ingredient row's
 forwarded ref now targets the QUANTITY field, not the name field — the name
 field is a sheet trigger, not a `TextInput`, and the quantity is what D-19's
 `incompleteLine` error actually means.
+
+### Mobile: catalog lines, computed nutrition and provenance (P9, plan-ingredient-catalog §10)
+
+The owner's rule — a recipe's numbers are computed from its ingredients, never
+estimated — reaches the app (one codebase, iOS + Android). No API change: it uses
+`ingredients.search/getMany/resolve/createCustom` and the P6 write paths.
+
+```
+Recipe form (create or edit)
+  ingredient name ──tap──► catalog picker (IngredientSearchSheet)
+    category chips (Vegetables, Fruit, Poultry, …) narrow ingredients.search
+    YOUR INGREDIENTS (private) first, then CHEFER CATALOG
+    pick a row ──► line.ingredientId = row.id; unit = the row's natural unit
+                   (egg → piece, garlic → clove, milk → ml, oil → tbsp, else g)
+                   unless an amount is typed and its unit still fits
+    "Create "{text}" as my ingredient" ──► private-ingredient sheet
+        kcal, protein, carbs (EU, no fiber), fat, fiber per 100 g — all required (D5)
+        optional: category, one piece weighs (g), 100 ml weighs (g)
+        CONFLICT "Chefer already has X" ──► [Use it] links the catalog row
+                                            [No, mine is different] → confirmDifferent
+  unit picker ──► only what the row can weigh: g/kg, volume units when it has a
+                  density, its own portions, pinch / to taste
+  live card   ──► ingredients.getMany (new ids only) + computeRecipeNutrition
+                  COMPUTED: "Computed from N ingredients"
+                  PARTIAL:  "Incomplete — N ingredients need data"
+  Save        ──► blocked (PAT-17: scroll to the line + its error) while a line is
+                  not linked ("Pick a match for the ingredient on line N") or its
+                  unit can't be weighed; otherwise recipe.create/update with every
+                  ingredientId (+ note/optional round-tripped); the server computes
+
+Editing a recipe from before the catalog
+  stored lines (getMyRecipe.lines) with an id ──► linked as they were
+  lines without one ──► ingredients.resolve (once, on open)
+      EXACT / ALIAS ──► linked (the same rule the server applies on save)
+      CANDIDATES / NONE ──► amber "Pick a match" + up to 3 suggestion chips
+  linking on open is not an edit: leaving untouched never asks to discard
+  a USER_ENTERED recipe shows "You typed these numbers yourself. Saving computes
+  them from the ingredients instead."
+
+Recipe detail
+  Nutrition Facts ──► "Computed from N ingredients" ▸ Show per ingredient
+      (mealPlan.getRecipe nutritionLines: name, amount, grams, source, kcal,
+       protein; someone else's private ingredient shows grams only — I4)
+  PARTIAL ──► "Incomplete — N ingredients need data" + Fix ingredients (owner)
+  USER_ENTERED ──► "Entered by you"
+  Cookbook cards, plan meal cards, the replace picker and quick-add recipe rows
+  add "· Incomplete" / "· Entered by you" next to the kcal
+
+Import review (link / text) and video draft
+  unmatched lines ──► listed with the resolver's candidates, the catalog search
+                      and "Create … as my ingredient" (video: each row's name IS the
+                      catalog picker, matched rows start linked)
+  numbers ──► recomputed live with the shared engine as lines are matched
+  Save ──► importSave with every ingredientId and
+           acceptPartial = false when every line computes
+           acceptPartial = true only after "Save with incomplete nutrition?"
+  the old "the source claims X kcal" macro warning is gone
+```
+
+Deferred: a mobile "My ingredients" screen (list / edit private ingredients) —
+`mobile_parity_backlog.md`.
 
 ---
 

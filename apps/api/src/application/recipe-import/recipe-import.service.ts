@@ -2,10 +2,12 @@ import { TRPCError } from '@trpc/server';
 import {
   favouriteRecipeRepository,
   householdMemberRepository,
+  toIngredientsMirror,
   type IFavouriteRecipeRepository,
   type Recipe,
 } from '@chefer/database';
 import type {
+  NutritionStatus,
   UserProfile,
   VideoDraftField,
   VideoPlatform,
@@ -33,7 +35,6 @@ import { buildPollinationsUrl } from '../../lib/image-gen/pollinations.js';
 import { buildRecipeImagePrompt } from '../../lib/image-gen/prompt.js';
 import { reserveRecipeImport } from '../../lib/quotas.js';
 import {
-  crossCheckMacros,
   extractPageContent,
   fetchRecipePage,
   headCheckImage,
@@ -45,7 +46,18 @@ import {
   unverifiedQuantityIndexes,
 } from '../../lib/video-import/index.js';
 import { moderationService, type ModerationService } from '../friends/moderation.service.js';
-import { loadMacroVocabulary } from '../ingredients/macro-vocabulary.js';
+import { toRef, type CatalogIngredientRef } from '../ingredients/catalog-dto.js';
+import {
+  ingredientResolver,
+  type IngredientResolver,
+  type ResolveConfidence,
+} from '../ingredients/ingredient-resolver.js';
+import { ensurePrivateTwins } from '../ingredients/private-twins.js';
+import {
+  recipeNutritionService,
+  type RecipeNutritionService,
+  type SavedLineReport,
+} from '../ingredients/recipe-nutrition.service.js';
 import { markLatestImportSaved } from '../profile/ai-usage.service.js';
 import { safetyService, type SafetyService } from '../safety/safety.service.js';
 import {
@@ -77,15 +89,44 @@ export interface ImportSafety {
   blockedBy?: SafetyBlocker[];
 }
 
+/**
+ * One extracted line matched against the ingredient catalog (plan §6.2): the
+ * review form shows unresolved lines with their candidates. Additive.
+ */
+export interface ImportLineResolution {
+  rawName: string;
+  unit: string;
+  note: string | null;
+  confidence: ResolveConfidence;
+  match: CatalogIngredientRef | null;
+  /** Fuzzy suggestions for an unmatched line — never applied without the user. */
+  candidates: CatalogIngredientRef[];
+  /** Edible grams computed for the line; null when it cannot be computed. */
+  grams: number | null;
+  problem?: SavedLineReport['problem'];
+}
+
 export interface ImportPreview {
   via: ImportVia;
+  /** `nutritionInfo` is computed from the catalog, never the AI's numbers (I2). */
   original: ExtractedRecipe;
   adapted: ExtractedRecipe;
   changes: RecipeChange[];
   safety: ImportSafety;
+  /**
+   * Kept for installed clients. Now derived from the catalog computation:
+   * `ok` when every adapted line computes, `unknown` otherwise; stated and
+   * computed calories are the same computed number.
+   */
   macroCheck: MacroCheckResult;
   sourceUrl: string | null;
   ogImageUrl: string | null;
+  // ── Additive (plan-ingredient-catalog §6.2) ──
+  resolution: { original: ImportLineResolution[]; adapted: ImportLineResolution[] };
+  nutritionStatus: {
+    original: Extract<NutritionStatus, 'COMPUTED' | 'PARTIAL'>;
+    adapted: Extract<NutritionStatus, 'COMPUTED' | 'PARTIAL'>;
+  };
 }
 
 /**
@@ -112,13 +153,32 @@ export interface VideoImportPreview {
   ogImageUrl: string | null;
   videoTitle: string;
   creator: string | null;
+  // ── Additive (plan-ingredient-catalog §6.2); `draft.nutritionInfo` is computed. ──
+  resolution: ImportLineResolution[];
+  nutritionStatus: Extract<NutritionStatus, 'COMPUTED' | 'PARTIAL'>;
+}
+
+/** An extracted line as the client sends it back, optionally picked from the catalog. */
+export interface ImportSaveLine {
+  name: string;
+  quantity: number;
+  unit: string;
+  ingredientId?: string | undefined;
+  note?: string | undefined;
+  optional?: boolean | undefined;
 }
 
 export interface ImportSaveInput {
-  recipe: ExtractedRecipe;
+  recipe: Omit<ExtractedRecipe, 'ingredients'> & { ingredients: ImportSaveLine[] };
   variant: 'original' | 'adapted';
   sourceUrl?: string | null | undefined;
   ogImageUrl?: string | null | undefined;
+  /**
+   * New clients send it: false blocks a save whose lines don't all compute
+   * (the review form must resolve them first); true saves it PARTIAL. Old
+   * clients omit it and get PARTIAL rather than a blocked save.
+   */
+  acceptPartial?: boolean | undefined;
 }
 
 /** ExtractedRecipe → RecipeData shim so the P1-2 matcher can run on it. */
@@ -190,7 +250,60 @@ export class RecipeImportService {
     private readonly video: Pick<VideoRecipeService, 'extract'> = videoRecipeService,
     /** PRD §9.4 word filter on shared recipes (Following, plan §4.2 `recipe.importSave`). */
     private readonly moderation: Pick<ModerationService, 'checkRecipeText'> = moderationService,
+    /** Catalog resolution + computed nutrition (plan-ingredient-catalog §6.2). */
+    private readonly resolver: Pick<IngredientResolver, 'resolveMany'> = ingredientResolver,
+    private readonly nutrition: Pick<
+      RecipeNutritionService,
+      'compute' | 'prepareSave'
+    > = recipeNutritionService,
   ) {}
+
+  /**
+   * Matches an extracted recipe's lines against the catalog (with fuzzy
+   * candidates for the review form) and computes its nutrition. The AI's own
+   * numbers are replaced by the computed ones (I2).
+   */
+  private async resolveAndCompute(
+    recipe: ExtractedRecipe,
+    userId: string,
+  ): Promise<{
+    recipe: ExtractedRecipe;
+    resolution: ImportLineResolution[];
+    status: Extract<NutritionStatus, 'COMPUTED' | 'PARTIAL'>;
+  }> {
+    const resolved = await this.resolver.resolveMany(
+      recipe.ingredients.map((i) => ({ rawName: i.name, unit: i.unit })),
+      userId,
+    );
+    const { result } = await this.nutrition.compute(
+      recipe.ingredients.map((i, k) => ({
+        ingredientId: resolved[k]?.match?.id ?? null,
+        rawName: i.name,
+        quantity: i.quantity,
+        unit: i.unit,
+      })),
+      userId,
+      recipe.servings,
+    );
+    const resolution = resolved.map((r, k): ImportLineResolution => {
+      const line = result.lines[k];
+      return {
+        rawName: r.rawName,
+        unit: r.unit,
+        note: r.note,
+        confidence: r.confidence,
+        match: r.match ? toRef(r.match, userId) : null,
+        candidates: r.candidates.map((c) => toRef(c, userId)),
+        grams: line?.grams ?? null,
+        ...(line?.problem ? { problem: line.problem } : {}),
+      };
+    });
+    return {
+      recipe: { ...recipe, nutritionInfo: result.perServing },
+      resolution,
+      status: result.status,
+    };
+  }
 
   /**
    * Extraction + Cheferize preview. Metered per `recipeImportsPerDay` with
@@ -304,17 +417,31 @@ export class RecipeImportService {
     // adaptation; the UI shows a hard warning and importSave rejects it.
     const safety = checkImportSafety(adapted, safetyPrefs);
 
-    const macroCheck = await this.crossCheckAgainstVocabulary(original, user.id);
+    await ensurePrivateTwins(user.id);
+    const [orig, adapt] = await Promise.all([
+      this.resolveAndCompute(original, user.id),
+      this.resolveAndCompute(adapted, user.id),
+    ]);
+    const matched = adapt.resolution.filter((r) => r.problem === undefined).length;
+    const macroCheck: MacroCheckResult = {
+      status: adapt.status === 'COMPUTED' ? 'ok' : 'unknown',
+      computedCaloriesPerServing: adapt.recipe.nutritionInfo.calories,
+      statedCaloriesPerServing: adapt.recipe.nutritionInfo.calories,
+      matchedLines: matched,
+      totalLines: adapt.resolution.length,
+    };
 
     return {
       via,
-      original,
-      adapted,
+      original: orig.recipe,
+      adapted: adapt.recipe,
       changes: cheferized.changes.slice(0, 20),
       safety,
       macroCheck,
       sourceUrl,
       ogImageUrl,
+      resolution: { original: orig.resolution, adapted: adapt.resolution },
+      nutritionStatus: { original: orig.status, adapted: adapt.status },
     };
   }
 
@@ -335,7 +462,9 @@ export class RecipeImportService {
 
   private async runVideoPreview(user: UserProfile, url: string): Promise<VideoImportPreview> {
     const result = await this.video.extract(url);
-    const draft = sanitizeExtracted(result.recipe);
+    await ensurePrivateTwins(user.id);
+    const computed = await this.resolveAndCompute(sanitizeExtracted(result.recipe), user.id);
+    const draft = computed.recipe;
 
     const ctx = await this.safety.loadContext(user.id);
     // Dislikes are soft — never a warning on the video draft either.
@@ -356,6 +485,8 @@ export class RecipeImportService {
       ogImageUrl: result.platform === 'youtube' ? result.thumbnailUrl : null,
       videoTitle: result.title.slice(0, 200),
       creator: result.creator,
+      resolution: computed.resolution,
+      nutritionStatus: computed.status,
     };
   }
 
@@ -368,7 +499,10 @@ export class RecipeImportService {
    * safety prefs server-side — whatever the client sends, an allergen
    * violation is rejected.
    */
-  async save(user: UserProfile, input: ImportSaveInput): Promise<Recipe> {
+  async save(
+    user: UserProfile,
+    input: ImportSaveInput,
+  ): Promise<Recipe & { lines: SavedLineReport[] }> {
     const recipe = sanitizeExtracted(input.recipe);
 
     // PRD §9.4: the same word filter as recipe.create/update — only for an
@@ -411,29 +545,45 @@ export class RecipeImportService {
       );
     }
 
-    const saved = await this.recipeRepo.createManualRecipe(user.id, {
-      ...recipe,
-      ingredients: recipe.ingredients,
-      nutritionInfo: recipe.nutritionInfo,
-      imageUrl,
-      sourceUrl: input.sourceUrl ?? null,
-    });
+    // Nutrition is computed from the lines (plan §6.2): the client's — and the
+    // AI's — numbers are dropped, never stored as USER_ENTERED (I2). Picked
+    // catalog ids survive sanitizing by position.
+    const prepared = await this.nutrition.prepareSave(
+      user.id,
+      recipe.ingredients.map((line, k) => {
+        const sent = input.recipe.ingredients[k];
+        return {
+          ...line,
+          ingredientId: sent?.ingredientId,
+          note: sent?.note,
+          optional: sent?.optional,
+        };
+      }),
+      recipe.servings,
+    );
+    if (prepared.nutrition.status !== 'COMPUTED' && input.acceptPartial === false) {
+      const missing = prepared.report.filter((l) => l.problem).map((l) => l.name);
+      throw new TRPCError({
+        code: 'BAD_REQUEST',
+        message: `Some ingredients have no nutrition data yet: ${missing.join(', ')}. Pick a match for each, or save with incomplete nutrition.`,
+      });
+    }
+
+    const saved = await this.recipeRepo.createManualRecipe(
+      user.id,
+      {
+        ...recipe,
+        ingredients: toIngredientsMirror(prepared.lines),
+        nutritionInfo: prepared.nutrition.perServing,
+        imageUrl,
+        sourceUrl: input.sourceUrl ?? null,
+      },
+      { lines: prepared.lines, nutrition: prepared.nutrition },
+    );
     // T-10.8: the import's AI cost is its preview (already reserved); this
     // only lets Profile say how many of today's previews were saved.
     await markLatestImportSaved(user.id);
-    return saved;
-  }
-
-  /** Vocabulary lookup (the user's visible rows, F6) + pure cross-check (lib/recipe-import/macro-check). */
-  private async crossCheckAgainstVocabulary(
-    recipe: ExtractedRecipe,
-    userId: string,
-  ): Promise<MacroCheckResult> {
-    const rows = await loadMacroVocabulary(
-      recipe.ingredients.map((i) => i.name),
-      userId,
-    );
-    return crossCheckMacros(recipe, rows);
+    return { ...saved, lines: prepared.report };
   }
 }
 

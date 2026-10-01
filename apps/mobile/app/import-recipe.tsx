@@ -2,18 +2,37 @@ import { useState } from 'react';
 import { Pressable, TextInput, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
-import { FRIENDS_COPY, VIDEO_IMPORT_COPY } from '@chefer/types';
-import { Button, Card, KeyboardAwareScrollView, Screen, Text } from '@chefer/ui-mobile';
-import { cn, isSupportedVideoUrl, PREMIUM_PITCH_COPY } from '@chefer/utils';
+import {
+  FRIENDS_COPY,
+  INGREDIENT_CATALOG_COPY,
+  VIDEO_IMPORT_COPY,
+  type NutritionStatus,
+} from '@chefer/types';
+import {
+  Button,
+  Card,
+  ConfirmSheet,
+  KeyboardAwareScrollView,
+  Screen,
+  Text,
+} from '@chefer/ui-mobile';
+import { cn, incompleteLineCount, isSupportedVideoUrl, PREMIUM_PITCH_COPY } from '@chefer/utils';
 import { useAiConsent } from '../src/features/ai-consent/ai-consent-provider';
 import { textRejectedOf } from '../src/features/friends/api/friends-errors';
+import type { PickedIngredient } from '../src/features/ingredients/catalog-line';
+import {
+  effectiveIngredientIds,
+  ImportLineReview,
+} from '../src/features/ingredients/import-line-review';
+import { NutritionStatusTag } from '../src/features/ingredients/nutrition-provenance';
+import { useComputedNutrition } from '../src/features/ingredients/use-computed-nutrition';
 import { LockedFeatureCard } from '../src/features/premium/locked-feature-card';
 import { openPremium } from '../src/features/premium/open-premium';
 import { ImportedRecipePreview } from '../src/features/recipes/imported-recipe-preview';
 import {
   VideoDraftForm,
-  type VideoDraftRecipe,
   type VideoImportPreview,
+  type VideoSaveRecipe,
 } from '../src/features/recipes/video-draft-form';
 import { useIsPremium } from '../src/hooks/use-is-premium';
 import { trpc, type RouterOutputs } from '../src/lib/trpc';
@@ -27,6 +46,12 @@ import { trpc, type RouterOutputs } from '../src/lib/trpc';
 // Video links (2026-09-26): the API reads the video's words (caption,
 // subtitles or speech) into a draft, and VideoDraftForm lets the user correct
 // and complete it before it is saved as the original.
+//
+// plan-ingredient-catalog §6.2/§10: nutrition is computed from the catalog,
+// never the AI. The review lists the lines the resolver couldn't match, with
+// candidates, the catalog search and "Create … as my ingredient"; the save
+// sends each line's `ingredientId` and `acceptPartial` — false when every
+// line computes, true only after "Save with incomplete nutrition?".
 
 type Preview = RouterOutputs['recipe']['importPreview'];
 type Variant = 'original' | 'adapted';
@@ -38,12 +63,14 @@ function VariantCard({
   selected,
   onSelect,
   note,
+  status,
 }: {
   title: string;
   recipe: Preview['original'];
   selected: boolean;
   onSelect?: (() => void) | undefined;
   note?: string;
+  status?: NutritionStatus | undefined;
 }) {
   return (
     <Pressable
@@ -65,10 +92,13 @@ function VariantCard({
       <Text numberOfLines={1} className="mt-1 text-sm text-gray-800">
         {recipe.name}
       </Text>
-      <Text className="text-xs text-gray-500">
-        {recipe.nutritionInfo.calories} kcal · {recipe.ingredients.length} ingredients ·{' '}
-        {recipe.prepTimeMins + recipe.cookTimeMins}m
-      </Text>
+      <View className="flex-row flex-wrap items-center gap-1">
+        <Text className="text-xs text-gray-500">
+          {recipe.nutritionInfo.calories} kcal · {recipe.ingredients.length} ingredients ·{' '}
+          {recipe.prepTimeMins + recipe.cookTimeMins}m
+        </Text>
+        <NutritionStatusTag status={status} />
+      </View>
       {note && (
         <Text variant="muted" className="mt-1 text-xs">
           {note}
@@ -89,10 +119,17 @@ export default function ImportRecipeScreen() {
   const [preview, setPreview] = useState<Preview | null>(null);
   const [videoPreview, setVideoPreview] = useState<VideoImportPreview | null>(null);
   const [variant, setVariant] = useState<Variant>('adapted');
+  // The review's picks, per variant (their lines differ), by line index.
+  const [picks, setPicks] = useState<Record<Variant, Record<number, PickedIngredient>>>({
+    original: {},
+    adapted: {},
+  });
+  const [confirmPartial, setConfirmPartial] = useState(false);
 
   const previewMutation = trpc.recipe.importPreview.useMutation({
     onSuccess: (data) => {
       setPreview(data);
+      setPicks({ original: {}, adapted: {} });
       setVariant(data.safety.ok && data.changes.length > 0 ? 'adapted' : 'original');
     },
   });
@@ -146,7 +183,7 @@ export default function ImportRecipeScreen() {
     }
   };
 
-  const saveVideoDraft = (recipe: VideoDraftRecipe) => {
+  const saveVideoDraft = (recipe: VideoSaveRecipe, acceptPartial: boolean) => {
     if (!videoPreview) {
       return;
     }
@@ -156,6 +193,7 @@ export default function ImportRecipeScreen() {
       variant: 'original',
       sourceUrl: videoPreview.sourceUrl,
       ogImageUrl: videoPreview.ogImageUrl,
+      acceptPartial,
     });
   };
   const startOver = () => {
@@ -166,6 +204,49 @@ export default function ImportRecipeScreen() {
 
   const adaptedUsable = preview ? preview.safety.ok && preview.changes.length > 0 : false;
   const chosen = preview ? (variant === 'adapted' ? preview.adapted : preview.original) : null;
+
+  // Catalog review of the chosen variant: the resolver's matches plus the
+  // user's picks, computed live with the shared engine.
+  const chosenResolution = preview ? preview.resolution[variant] : [];
+  const chosenPicks = picks[variant];
+  const chosenIds = chosen
+    ? effectiveIngredientIds(chosen.ingredients, chosenResolution, chosenPicks)
+    : [];
+  const live = useComputedNutrition(
+    chosen
+      ? chosen.ingredients.map((ing, i) => ({
+          ingredientId: chosenIds[i] ?? null,
+          quantity: ing.quantity,
+          unit: ing.unit,
+        }))
+      : [],
+    chosen?.servings ?? 1,
+  );
+  const liveReady = live.result !== undefined && !live.isComputing;
+  const chosenStatus: NutritionStatus | undefined = liveReady
+    ? live.result?.status
+    : preview?.nutritionStatus[variant];
+  const incompleteIndexes =
+    liveReady && live.result
+      ? live.result.lines.flatMap((l, i) => (l.problem !== undefined && !l.optional ? [i] : []))
+      : chosenResolution.flatMap((r, i) => (r.problem !== undefined ? [i] : []));
+
+  const saveChosen = (acceptPartial: boolean) => {
+    if (!chosen || !preview) return;
+    saveMutation.mutate({
+      recipe: {
+        ...chosen,
+        ingredients: chosen.ingredients.map((ing, i) => {
+          const id = chosenIds[i];
+          return id ? { ...ing, ingredientId: id } : ing;
+        }),
+      },
+      variant,
+      sourceUrl: preview.sourceUrl,
+      ogImageUrl: preview.ogImageUrl,
+      acceptPartial,
+    });
+  };
 
   return (
     <Screen edges={['top', 'bottom', 'left', 'right']} className="px-0">
@@ -325,19 +406,6 @@ export default function ImportRecipeScreen() {
           </>
         ) : (
           <>
-            {/* Macro sanity warning (uncertain stated calories) */}
-            {preview.macroCheck.status === 'uncertain' && (
-              <Card className="border-amber-200 bg-amber-50">
-                <Text className="text-xs text-amber-800">
-                  The source claims {preview.macroCheck.statedCaloriesPerServing} kcal/serving
-                  {preview.macroCheck.computedCaloriesPerServing !== null
-                    ? `, but our ingredient data computes ~${preview.macroCheck.computedCaloriesPerServing} kcal`
-                    : ' — we could not verify it against our ingredient data'}
-                  .
-                </Text>
-              </Card>
-            )}
-
             {isPremium && !preview.safety.ok && (
               // Parity with web ImportRecipeSheet: the adaptation left an
               // allergen or restriction in, so only the original can be saved
@@ -358,12 +426,14 @@ export default function ImportRecipeScreen() {
               recipe={preview.original}
               selected={variant === 'original'}
               onSelect={isPremium ? () => setVariant('original') : undefined}
+              status={variant === 'original' ? chosenStatus : preview.nutritionStatus.original}
             />
             <VariantCard
               title="Cheferized for you"
               recipe={preview.adapted}
               selected={variant === 'adapted'}
               onSelect={isPremium && adaptedUsable ? () => setVariant('adapted') : undefined}
+              status={variant === 'adapted' ? chosenStatus : preview.nutritionStatus.adapted}
               note={
                 preview.changes.length > 0
                   ? preview.changes
@@ -375,10 +445,29 @@ export default function ImportRecipeScreen() {
             />
 
             {chosen ? (
+              <ImportLineReview
+                testID="import-review"
+                lines={chosen.ingredients}
+                resolution={chosenResolution}
+                picks={chosenPicks}
+                result={liveReady ? live.result : undefined}
+                onPick={(index, ingredient) =>
+                  setPicks((prev) => ({
+                    ...prev,
+                    [variant]: { ...prev[variant], [index]: ingredient },
+                  }))
+                }
+              />
+            ) : null}
+
+            {chosen ? (
               <ImportedRecipePreview
                 recipe={chosen}
                 label={variant === 'adapted' ? 'Cheferized for you' : 'Original'}
                 imageUrl={preview.ogImageUrl}
+                nutrition={liveReady ? live.result?.perServing : undefined}
+                status={chosenStatus}
+                incompleteLines={incompleteIndexes}
               />
             ) : null}
 
@@ -387,14 +476,12 @@ export default function ImportRecipeScreen() {
               loading={saveMutation.isPending}
               disabled={!chosen}
               onPress={() => {
-                if (chosen) {
-                  saveMutation.mutate({
-                    recipe: chosen,
-                    variant,
-                    sourceUrl: preview.sourceUrl,
-                    ogImageUrl: preview.ogImageUrl,
-                  });
+                if (!chosen) return;
+                if (chosenStatus === 'PARTIAL') {
+                  setConfirmPartial(true);
+                  return;
                 }
+                saveChosen(false);
               }}
             >
               {variant === 'adapted' ? 'Save Cheferized recipe' : 'Save original recipe'}
@@ -415,6 +502,22 @@ export default function ImportRecipeScreen() {
           </>
         )}
       </KeyboardAwareScrollView>
+
+      <ConfirmSheet
+        testID="import-save-partial"
+        visible={confirmPartial}
+        onClose={() => setConfirmPartial(false)}
+        title={INGREDIENT_CATALOG_COPY.importReview.saveIncompleteTitle}
+        body={INGREDIENT_CATALOG_COPY.importReview.saveIncompleteBody(
+          Math.max(1, live.result ? incompleteLineCount(live.result) : incompleteIndexes.length),
+        )}
+        confirmLabel={INGREDIENT_CATALOG_COPY.importReview.saveIncompleteConfirm}
+        cancelLabel={INGREDIENT_CATALOG_COPY.importReview.saveIncompleteCancel}
+        onConfirm={() => {
+          setConfirmPartial(false);
+          saveChosen(true);
+        }}
+      />
     </Screen>
   );
 }

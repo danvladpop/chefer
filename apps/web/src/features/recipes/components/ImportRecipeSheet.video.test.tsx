@@ -24,11 +24,15 @@ vi.mock('@/features/premium/components/UpgradeButton', () => ({
     <button type="button">{label ?? 'See what Premium adds'}</button>
   ),
 }));
-vi.mock('@/lib/trpc', () => {
+// The private-ingredient sheet's image upload (env-dependent); unused here.
+vi.mock('@/lib/upload-image', () => ({ uploadImage: vi.fn() }));
+vi.mock('@/lib/trpc', async () => {
+  const { catalogIngredientsMock, catalogUtilsMock } = await import('@/test-support/catalog-trpc');
   const idle = { mutate: vi.fn(), reset: vi.fn(), isPending: false, isError: false, error: null };
   return {
     trpc: {
-      useUtils: () => ({ recipe: { list: { invalidate: vi.fn() } } }),
+      useUtils: () => ({ ...catalogUtilsMock(), recipe: { list: { invalidate: vi.fn() } } }),
+      ingredients: catalogIngredientsMock(),
       recipe: {
         importPreview: { useMutation: () => idle },
         importSave: { useMutation: () => idle },
@@ -44,6 +48,8 @@ beforeEach(() => {
   mocks.videoMutate.mockClear();
   mocks.isPremium = true;
 });
+// jsdom has no scrollTo; the Sheet's scroll lock restores the page offset with it.
+vi.spyOn(window, 'scrollTo').mockImplementation(() => undefined);
 afterEach(cleanup);
 
 describe('ImportRecipeSheet — video source', () => {

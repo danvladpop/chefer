@@ -23,7 +23,34 @@ jest.mock('../../src/hooks/use-is-premium', () => ({ useIsPremium: () => mockIsP
 jest.mock('../../src/features/ai-consent/ai-consent-provider', () => ({
   useAiConsent: () => (_feature: string, run: () => void) => run(),
 }));
+jest.mock('../../src/features/premium/premium-host', () => ({ PremiumHost: () => null }));
 jest.mock('../../src/lib/trpc', () => {
+  const detail = (id: string, kcal: number) => ({
+    id,
+    name: id,
+    category: 'OTHER',
+    owner: 'global',
+    portions: [],
+    hasDensity: true,
+    nutritionSource: 'USDA_FDC',
+    status: 'ACTIVE',
+    per100g: {
+      calories: kcal,
+      protein: 1,
+      carbs: 1,
+      fat: 1,
+      fiber: 0,
+      sugar: null,
+      satFat: null,
+      sodiumMg: null,
+    },
+    densityGPerMl: 0.9,
+    edibleFraction: 1,
+    sourceRef: 'fdc:1',
+  });
+  const catalog = jest
+    .requireActual<typeof import('./catalog-trpc-mock')>('./catalog-trpc-mock')
+    .catalogTrpc({ details: [detail('noodles-id', 350), detail('oil-id', 884)] });
   const idle = {
     mutate: jest.fn(),
     reset: jest.fn(),
@@ -33,7 +60,7 @@ jest.mock('../../src/lib/trpc', () => {
   };
   return {
     trpc: {
-      useUtils: () => ({ recipe: { list: { invalidate: jest.fn() } } }),
+      ...catalog,
       recipe: {
         importPreview: { useMutation: () => idle },
         importVideoPreview: {
@@ -84,6 +111,9 @@ function preview(overrides: Partial<VideoImportPreview> = {}): VideoImportPrevie
     ogImageUrl: null,
     videoTitle: 'Garlic noodles',
     creator: 'chef',
+    // Additive catalog fields (plan-ingredient-catalog §6.2).
+    resolution: [],
+    nutritionStatus: 'COMPUTED' as const,
     ...overrides,
   };
 }
@@ -105,7 +135,31 @@ async function renderScreen() {
 
 describe('Import screen — video source', () => {
   it('sends a supported link for a draft, then opens the review form and saves it', async () => {
-    mockVideoPreview = preview();
+    const ref = (id: string, name: string) => ({
+      id,
+      slug: id,
+      name,
+      category: 'OTHER' as const,
+      owner: 'global' as const,
+      portions: [],
+      hasDensity: true,
+      nutritionSource: 'USDA_FDC' as const,
+    });
+    const resolved = (rawName: string, unit: string, match: ReturnType<typeof ref>) => ({
+      rawName,
+      unit,
+      note: null,
+      confidence: 'ALIAS' as const,
+      match,
+      candidates: [],
+      grams: 1,
+    });
+    mockVideoPreview = preview({
+      resolution: [
+        resolved('noodles', 'g', ref('noodles-id', 'Noodles, dry')),
+        resolved('olive oil', 'tbsp', ref('oil-id', 'Olive oil')),
+      ],
+    });
     await renderScreen();
     await fireEvent.press(screen.getByTestId('import-tab-video'));
     await fireEvent.changeText(
@@ -121,8 +175,16 @@ describe('Import screen — video source', () => {
     await fireEvent.press(screen.getByTestId('video-draft-save'));
     expect(mockSaveMutate).toHaveBeenCalledTimes(1);
     const [input] = mockSaveMutate.mock.calls[0] as [
-      { variant: string; sourceUrl: string; recipe: { name: string } },
+      {
+        variant: string;
+        sourceUrl: string;
+        acceptPartial: boolean;
+        recipe: { name: string; ingredients: { ingredientId?: string }[] };
+      },
     ];
+    // Every line resolved: the catalog ids go along and an incomplete save is refused.
+    expect(input.acceptPartial).toBe(false);
+    expect(input.recipe.ingredients.map((i) => i.ingredientId)).toEqual(['noodles-id', 'oil-id']);
     expect(input.variant).toBe('original');
     expect(input.sourceUrl).toBe('https://www.youtube.com/watch?v=abcdef123');
     expect(input.recipe.name).toBe('Garlic Noodles');
@@ -178,13 +240,15 @@ describe('VideoDraftForm (mobile)', () => {
   async function renderForm(data: VideoImportPreview) {
     const onSave = jest.fn();
     await render(
-      <VideoDraftForm
-        preview={data}
-        saving={false}
-        saveError={null}
-        onBack={jest.fn()}
-        onSave={onSave}
-      />,
+      <SafeAreaProvider initialMetrics={metrics}>
+        <VideoDraftForm
+          preview={data}
+          saving={false}
+          saveError={null}
+          onBack={jest.fn()}
+          onSave={onSave}
+        />
+      </SafeAreaProvider>,
     );
     return onSave;
   }
@@ -209,13 +273,16 @@ describe('VideoDraftForm (mobile)', () => {
     expect(screen.queryByText('Not found — please add')).toBeNull();
 
     await fireEvent.press(screen.getByTestId('video-draft-save'));
+    // No line is linked to the catalog in this fixture, so the live result is
+    // PARTIAL: the save asks first, then sends acceptPartial.
+    await fireEvent.press(screen.getByText('Save anyway'));
     expect(onSave).toHaveBeenCalledWith(
       expect.objectContaining({
         name: 'Noodles',
         instructions: ['Boil them.'],
         servings: 4,
-        nutritionInfo: { calories: 300, protein: 10, carbs: 45, fat: 9, fiber: 2 },
       }),
+      true,
     );
   });
 
@@ -225,6 +292,7 @@ describe('VideoDraftForm (mobile)', () => {
     await fireEvent.changeText(screen.getByTestId('video-draft-qty-1'), '1/2');
     expect(screen.queryByText('Amount not heard — please check')).toBeNull();
     await fireEvent.press(screen.getByTestId('video-draft-save'));
+    await fireEvent.press(screen.getByText('Save anyway'));
     expect(onSave).toHaveBeenCalledWith(
       expect.objectContaining({
         ingredients: [
@@ -232,6 +300,7 @@ describe('VideoDraftForm (mobile)', () => {
           { name: 'olive oil', quantity: 0.5, unit: 'tbsp' },
         ],
       }),
+      true,
     );
   });
 

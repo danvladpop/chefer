@@ -29,9 +29,12 @@ services:
     networks:
       - chefer
 
-  # One-shot: applies the Prisma schema before the API starts. Runs on every
-  # deploy (idempotent), so schema changes ship automatically. Reuses the API
-  # image, which has the Prisma CLI available.
+  # One-shot: applies the Prisma schema, then syncs the global ingredient
+  # catalog (packages/database/data/ingredients/catalog.json → ingredients,
+  # aliases, portions; docs/plan-ingredient-catalog.md §4.4 step 7), before the
+  # API starts. Both steps run on every deploy and are idempotent, so schema and
+  # catalog changes ship automatically; either failing fails the deploy. Reuses
+  # the API image, which has the Prisma CLI and tsx available.
   migrate:
     # Images are built in CI and pulled from GHCR. The build: block stays as an
     # emergency fallback (infrastructure/scripts/deploy-local-build.sh).
@@ -43,7 +46,7 @@ services:
     restart: 'no'
     env_file:
       - .env.production
-    command: sh -c "cd packages/database && npx prisma db push --skip-generate"
+    command: sh -c "cd packages/database && npx prisma db push --skip-generate && npx tsx src/catalog/sync-cli.ts"
     depends_on:
       postgres:
         condition: service_healthy

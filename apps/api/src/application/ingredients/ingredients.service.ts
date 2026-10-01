@@ -1,19 +1,35 @@
 import { TRPCError } from '@trpc/server';
-import { ingredientPriceRepository, prisma } from '@chefer/database';
-import type { UserProfile } from '@chefer/types';
+import {
+  ingredientPriceRepository,
+  ingredientRepository,
+  prisma,
+  type CatalogIngredientRow,
+  type IIngredientPriceRepository,
+  type IIngredientRepository,
+  type IngredientCategory,
+  type IngredientPrice,
+  type NutritionSource,
+} from '@chefer/database';
+import type { LineProblem, NutritionStatus, UserProfile } from '@chefer/types';
+import { ingredientSlug, normalizeIngredientKey } from '@chefer/utils';
 import { toFriendlyAiError } from '../../lib/ai/friendly-error.js';
 import { aiService } from '../../lib/ai/index.js';
 import { buildPollinationsUrl } from '../../lib/image-gen/pollinations.js';
 import { resolveIngredientImage } from '../../lib/ingredient-images/index.js';
 import {
-  addMacros,
   normalizeIngredientName,
-  quantityToGrams,
   RECIPE_UNITS,
   type ComputedNutrition,
 } from '../../lib/ingredient-prices/index.js';
 import { reserveNutritionEstimate } from '../../lib/quotas.js';
-import { ingredientPriceWorker } from '../../workers/ingredient-price.worker.js';
+import { toRef, type CatalogIngredientRef } from './catalog-dto.js';
+import {
+  ingredientResolver,
+  type IngredientResolver,
+  type ResolveConfidence,
+} from './ingredient-resolver.js';
+import { ensurePrivateTwins, twinForLegacyRow } from './private-twins.js';
+import { recipeNutritionService, type RecipeNutritionService } from './recipe-nutrition.service.js';
 
 // ─── DTOs ─────────────────────────────────────────────────────────────────────
 
@@ -30,6 +46,72 @@ export interface IngredientSearchResult {
    * ignore it.
    */
   per100g: { calories: number; protein: number; carbs: number; fat: number } | null;
+  // ── Catalog fields (plan-ingredient-catalog §9). Additive: older clients
+  // ignore them. Absent only on a legacy custom row with no catalog twin yet.
+  /** Catalog ingredient id: new clients store it on the recipe line. */
+  id?: string;
+  slug?: string;
+  category?: IngredientCategory;
+  owner?: 'global' | 'mine';
+  portions?: { unit: string; grams: number }[];
+  hasDensity?: boolean;
+  nutritionSource?: NutritionSource;
+}
+
+/** Full nutrition for client-side live preview with @chefer/utils (`ingredients.getMany`). */
+export type { CatalogIngredientRef };
+
+export interface CatalogIngredientDetail extends CatalogIngredientRef {
+  status: 'ACTIVE' | 'MERGED' | 'DEPRECATED';
+  per100g: {
+    calories: number;
+    protein: number;
+    carbs: number;
+    fat: number;
+    fiber: number;
+    sugar: number | null;
+    satFat: number | null;
+    sodiumMg: number | null;
+  };
+  densityGPerMl: number | null;
+  edibleFraction: number;
+  sourceRef: string | null;
+}
+
+export interface ResolvedLineDto {
+  rawName: string;
+  unit: string;
+  note: string | null;
+  confidence: ResolveConfidence;
+  match: CatalogIngredientRef | null;
+  candidates: CatalogIngredientRef[];
+  unitProblem?: LineProblem;
+}
+
+/**
+ * One row of `ingredients.catalogList` (the Ingredients page, plan §10): the
+ * catalog row with its full nutrition, aliases, portions, provenance and the
+ * linked price row. Global nutrition is read-only (D7).
+ */
+export interface CatalogListItem extends CatalogIngredientDetail {
+  imageUrl: string;
+  aliases: { alias: string; locale: string }[];
+  prices: {
+    per100gEur: number | null;
+    per100mlEur: number | null;
+    perPieceEur: number | null;
+  } | null;
+  /**
+   * The linked legacy price row's name: what `ingredients.update` addresses
+   * for an admin's price/image edit of a global row. Null when none is linked.
+   */
+  priceRowName: string | null;
+  /**
+   * What the caller may change: `full` for their own private row (nutrition
+   * included, by `id`), `priceImage` for an admin on a global row that has a
+   * linked price row, `none` otherwise.
+   */
+  editable: 'full' | 'priceImage' | 'none';
 }
 
 export interface IngredientListItem {
@@ -52,6 +134,12 @@ export interface IngredientListItem {
 }
 
 export interface UpdateIngredientInput {
+  /** Catalog id of a private ingredient (new clients); `name` addresses the legacy price row. */
+  id?: string | undefined;
+  /** Private rows only; ignored for global rows (D7). */
+  category?: IngredientCategory | undefined;
+  /** Private rows only; null clears it. Ignored for global rows (D7). */
+  densityGPerMl?: number | null | undefined;
   name: string;
   imageUrl?: string | null | undefined;
   generateAiImage?: boolean | undefined;
@@ -67,6 +155,10 @@ export interface UpdateIngredientInput {
 }
 
 export interface CreateCustomIngredientInput {
+  /** The user saw "Chefer already has …" and says theirs is different (plan §8.1). */
+  confirmDifferent?: boolean | undefined;
+  category?: IngredientCategory | undefined;
+  densityGPerMl?: number | null | undefined;
   name: string;
   imageUrl?: string | null | undefined;
   generateAiImage?: boolean | undefined;
@@ -78,13 +170,33 @@ export interface CreateCustomIngredientInput {
   gramsPerPiece?: number | null | undefined;
 }
 
+export interface NutritionComputationLine {
+  name: string;
+  quantity: number;
+  unit: string;
+  /** Picked from the catalog (new clients); otherwise the name is resolved. */
+  ingredientId?: string | undefined;
+  optional?: boolean | undefined;
+}
+
 export interface NutritionComputationResult {
-  /** Per-serving values, rounded. */
+  /** Per-serving values, rounded (§5.4). */
   perServing: ComputedNutrition;
-  /** Ingredient names that had no macro data (nutrition may be underestimated). */
+  /** Names of lines that could not be computed (nutrition is incomplete). */
   unmatched: string[];
   matchedCount: number;
   totalCount: number;
+  // ── Additive (plan §9) ──
+  status: Extract<NutritionStatus, 'COMPUTED' | 'PARTIAL'>;
+  lines: {
+    position: number;
+    name: string;
+    ingredientId: string | null;
+    grams: number | null;
+    calories: number;
+    protein: number;
+    problem?: LineProblem;
+  }[];
 }
 
 function titleCase(name: string): string {
@@ -100,47 +212,158 @@ function ingredientAiImageUrl(name: string): string {
   return buildPollinationsUrl(prompt, name, 'ingredient', 384, 384);
 }
 
+/**
+ * The name a free-text line should carry for this row: an alias, so it
+ * resolves back to the row. Prefer the alias equal to the display name or the
+ * slug ("olive oil"), not the alphabetically first one ("evoo").
+ */
+function primaryAlias(row: CatalogIngredientRow): string {
+  const preferred = [normalizeIngredientKey(row.name), row.slug.replace(/-/g, ' ')];
+  for (const key of preferred) if (row.aliases.some((a) => a.alias === key)) return key;
+  return (row.aliases.find((a) => a.locale === 'en') ?? row.aliases[0])?.alias ?? row.name;
+}
+
+/** The catalog fields search results add: everything but the display name, since `name` keeps its legacy meaning. */
+function refFields(
+  row: CatalogIngredientRow,
+  userId: string | null,
+): Omit<CatalogIngredientRef, 'name'> {
+  const { name: _display, ...rest } = toRef(row, userId);
+  return rest;
+}
+
+function toDetail(row: CatalogIngredientRow, userId: string | null): CatalogIngredientDetail {
+  return {
+    ...toRef(row, userId),
+    status: row.status,
+    per100g: {
+      calories: row.kcalPer100g,
+      protein: row.proteinPer100g,
+      carbs: row.carbsPer100g,
+      fat: row.fatPer100g,
+      fiber: row.fiberPer100g,
+      sugar: row.sugarPer100g,
+      satFat: row.satFatPer100g,
+      sodiumMg: row.sodiumMgPer100g,
+    },
+    densityGPerMl: row.densityGPerMl,
+    edibleFraction: row.edibleFraction,
+    sourceRef: row.sourceRef,
+  };
+}
+
+/** Search rank of one alias hit: exact, prefix, word-start, substring. */
+function aliasRank(alias: string, key: string): number {
+  if (alias === key) return 0;
+  if (alias.startsWith(key)) return 1;
+  if (alias.includes(` ${key}`)) return 2;
+  return 3;
+}
+
 // ─── Service ──────────────────────────────────────────────────────────────────
 
 export class IngredientsService {
+  constructor(
+    private readonly catalog: IIngredientRepository = ingredientRepository,
+    private readonly resolver: IngredientResolver = ingredientResolver,
+    private readonly nutrition: RecipeNutritionService = recipeNutritionService,
+    private readonly prices: Pick<
+      IIngredientPriceRepository,
+      'findLinkedPrices'
+    > = ingredientPriceRepository,
+  ) {}
+
+  /** Links the user's pre-catalog custom ingredients to private catalog rows (private-twins.ts). */
+  async ensurePrivateTwins(userId: string): Promise<void> {
+    await ensurePrivateTwins(userId, this.catalog);
+  }
+
+  private twinFor(userId: string, row: IngredientPrice): Promise<CatalogIngredientRow | null> {
+    return twinForLegacyRow(userId, row, this.catalog);
+  }
+
   /**
-   * Searches the ingredient catalog: global vocabulary + the user's private
-   * custom ingredients. Substring match, custom entries first. Goes through
-   * `ingredientPriceRepository` (T-BUG-X7 — this used to query `prisma`
-   * directly, skipping the repository layer, CLAUDE.md rule 2).
+   * Searches the catalog (plan §9): global rows + the user's private rows,
+   * matched on any alias, diacritic-free. Ranked exact → prefix → word-start →
+   * substring, the user's own rows first within a rank. The legacy fields keep
+   * their meaning: `name` is the alias the query matched, so an old client
+   * that writes it into a free-text line resolves back to this row.
    */
-  async search(userId: string, query: string, limit = 12): Promise<IngredientSearchResult[]> {
-    const q = normalizeIngredientName(query);
-    if (q.length < 2) return [];
+  async search(
+    userId: string,
+    query: string,
+    limit = 12,
+    opts: { category?: IngredientCategory | undefined } = {},
+  ): Promise<IngredientSearchResult[]> {
+    const key = normalizeIngredientKey(query);
+    if (key.length < 2) return [];
+    await this.ensurePrivateTwins(userId);
 
-    const rows = await ingredientPriceRepository.searchCatalog(q, userId, limit * 2);
-
-    const scored = rows
-      .map((r) => ({
-        row: r,
-        score: (r.creatorId === userId ? 0 : 2) + (r.ingredientName.startsWith(q) ? 0 : 1),
-      }))
-      .sort((a, b) => a.score - b.score || a.row.ingredientName.localeCompare(b.row.ingredientName))
+    const hits = await this.catalog.searchByAlias(key, userId, {
+      category: opts.category,
+      limit: limit * 8,
+    });
+    const byId = new Map<string, { row: CatalogIngredientRow; rank: number; alias: string }>();
+    for (const { alias, ingredient } of hits) {
+      const r = aliasRank(alias, key);
+      const cur = byId.get(ingredient.id);
+      if (!cur || r < cur.rank || (r === cur.rank && alias.length < cur.alias.length))
+        byId.set(ingredient.id, { row: ingredient, rank: r, alias });
+    }
+    const ranked = [...byId.values()]
+      .sort(
+        (a, b) =>
+          a.rank - b.rank ||
+          Number(b.row.ownerId === userId) - Number(a.row.ownerId === userId) ||
+          a.alias.length - b.alias.length ||
+          a.row.name.localeCompare(b.row.name),
+      )
       .slice(0, limit);
 
     return Promise.all(
-      scored.map(async ({ row }) => ({
-        name: row.ingredientName,
-        displayName: titleCase(row.ingredientName),
-        imageUrl: row.imageUrl ?? (await resolveIngredientImage(row.ingredientName)),
-        hasMacros: row.caloriesPer100g != null,
-        isCustom: row.creatorId === userId,
-        per100g:
-          row.caloriesPer100g != null
-            ? {
-                calories: row.caloriesPer100g,
-                protein: row.proteinPer100g ?? 0,
-                carbs: row.carbsPer100g ?? 0,
-                fat: row.fatPer100g ?? 0,
-              }
-            : null,
-      })),
+      ranked.map(async ({ row, alias }) => {
+        // The alias the query matched: what the user was looking for.
+        const name = alias;
+        return {
+          name,
+          displayName: row.name,
+          imageUrl: row.imageUrl ?? (await resolveIngredientImage(name)),
+          hasMacros: true,
+          isCustom: row.ownerId === userId,
+          per100g: {
+            calories: row.kcalPer100g,
+            protein: row.proteinPer100g,
+            carbs: row.carbsPer100g,
+            fat: row.fatPer100g,
+          },
+          ...refFields(row, userId),
+        };
+      }),
     );
+  }
+
+  /** Resolves free-text lines to catalog rows (plan §6.1); import review and legacy edit use it. */
+  async resolve(
+    userId: string,
+    lines: { rawName: string; unit?: string | undefined }[],
+  ): Promise<ResolvedLineDto[]> {
+    await this.ensurePrivateTwins(userId);
+    const results = await this.resolver.resolveMany(lines, userId);
+    return results.map((r) => ({
+      rawName: r.rawName,
+      unit: r.unit,
+      note: r.note,
+      confidence: r.confidence,
+      match: r.match ? toRef(r.match, userId) : null,
+      candidates: r.candidates.map((c) => toRef(c, userId)),
+      ...(r.unitProblem ? { unitProblem: r.unitProblem } : {}),
+    }));
+  }
+
+  /** Full nutrition, portions and density for the rows the user may see (live preview). */
+  async getMany(userId: string, ids: string[]): Promise<CatalogIngredientDetail[]> {
+    const rows = await this.catalog.findVisibleByIds(ids, userId);
+    return rows.map((r) => toDetail(r, userId));
   }
 
   /**
@@ -204,6 +427,76 @@ export class IngredientsService {
   }
 
   /**
+   * The Ingredients page's catalog listing (plan §10): ACTIVE global rows plus
+   * the caller's private rows (never another user's, I4), private first, by
+   * name. Search matches any alias (diacritic-free) or the display name. Each
+   * row carries its source, aliases, portions and the linked price row. The
+   * legacy `list` stays for installed clients (D10).
+   */
+  async catalogList(
+    userId: string,
+    role: string,
+    opts: {
+      search?: string | undefined;
+      category?: IngredientCategory | undefined;
+      mineOnly?: boolean | undefined;
+      limit: number;
+      offset: number;
+    },
+  ): Promise<{ items: CatalogListItem[]; hasMore: boolean; nextCursor: number | null }> {
+    await this.ensurePrivateTwins(userId);
+    const text = opts.search?.trim() ?? '';
+    const key = text ? normalizeIngredientKey(text) : '';
+    const page = await this.catalog.listVisible(userId, {
+      key: key || undefined,
+      text: text || undefined,
+      category: opts.category,
+      mineOnly: opts.mineOnly,
+      limit: opts.limit,
+      offset: opts.offset,
+    });
+
+    const prices = await this.prices.findLinkedPrices(
+      page.rows.map((r) => r.id),
+      userId,
+    );
+    const items = await Promise.all(
+      page.rows.map(async (row): Promise<CatalogListItem> => {
+        const mine = row.ownerId === userId;
+        const alias = primaryAlias(row);
+        const linked = prices.filter(
+          (p) => p.ingredientId === row.id && p.creatorId === (mine ? userId : null),
+        );
+        const price = linked.find((p) => p.ingredientName === alias) ?? linked[0] ?? null;
+        const editable: CatalogListItem['editable'] = mine
+          ? 'full'
+          : role === 'ADMIN' && price
+            ? 'priceImage'
+            : 'none';
+        return {
+          ...toDetail(row, userId),
+          imageUrl: price?.imageUrl ?? row.imageUrl ?? (await resolveIngredientImage(alias)),
+          aliases: row.aliases.map((a) => ({ alias: a.alias, locale: a.locale })),
+          prices: price
+            ? {
+                per100gEur: price.pricePer100gEur,
+                per100mlEur: price.pricePer100mlEur,
+                perPieceEur: price.pricePerPieceEur,
+              }
+            : null,
+          priceRowName: price?.ingredientName ?? null,
+          editable,
+        };
+      }),
+    );
+    return {
+      items,
+      hasMore: page.hasMore,
+      nextCursor: page.hasMore ? opts.offset + page.rows.length : null,
+    };
+  }
+
+  /**
    * Permission gate for update/delete. Owners may edit their custom rows;
    * admins may edit global rows. Someone else's custom row is reported as
    * NOT_FOUND so its existence stays hidden.
@@ -226,17 +519,62 @@ export class IngredientsService {
     return row;
   }
 
+  /** The catalog fields a private ingredient takes from a create/update input. */
+  private privateData(
+    input: (UpdateIngredientInput | CreateCustomIngredientInput) & {
+      category?: IngredientCategory | undefined;
+      densityGPerMl?: number | null | undefined;
+    },
+    imageUrl: string | null,
+    existing?: CatalogIngredientRow,
+  ) {
+    return {
+      name: titleCase(normalizeIngredientName(input.name)),
+      category: input.category ?? existing?.category ?? ('OTHER' as const),
+      kcalPer100g: input.caloriesPer100g,
+      proteinPer100g: input.proteinPer100g,
+      carbsPer100g: input.carbsPer100g,
+      fatPer100g: input.fatPer100g,
+      fiberPer100g: input.fiberPer100g,
+      densityGPerMl:
+        input.densityGPerMl !== undefined ? input.densityGPerMl : (existing?.densityGPerMl ?? null),
+      imageUrl,
+      aliases: [
+        ...new Set([
+          normalizeIngredientKey(input.name),
+          ...(existing?.aliases.map((a) => a.alias) ?? []),
+        ]),
+      ],
+      portions: input.gramsPerPiece ? [{ unit: 'piece', grams: input.gramsPerPiece }] : [],
+    };
+  }
+
+  /** The user's own private catalog row by id, or NOT_FOUND (another user's row stays hidden). */
+  private async ownPrivate(userId: string, id: string): Promise<CatalogIngredientRow> {
+    const [row] = await this.catalog.findVisibleByIds([id], userId);
+    if (row?.ownerId !== userId) {
+      throw new TRPCError({ code: 'NOT_FOUND', message: 'Ingredient not found.' });
+    }
+    return row;
+  }
+
   /**
-   * Updates an editable ingredient. Admin edits of global rows are marked
-   * `source: 'ADMIN'` so the weekly AI refresher never overwrites them
-   * (user rows are already protected via `source: 'USER'`).
+   * Updates an editable ingredient.
+   * - Global rows (admins): price and image only. Their nutrition comes from
+   *   catalog.json through a PR with a source reference (D7), so macro fields
+   *   in the input are ignored. `source: 'ADMIN'` keeps the price refresher off.
+   * - Private rows (the owner): everything; the legacy price row and the
+   *   catalog twin change together, and every recipe of the owner using the
+   *   ingredient is recomputed (plan §8.1).
    */
   async update(
     userId: string,
     role: string,
     input: UpdateIngredientInput,
   ): Promise<IngredientListItem> {
+    if (input.id) return this.updatePrivateById(userId, input.id, input);
     const row = await this.getEditableRow(userId, role, input.name);
+    const isGlobal = row.creatorId === null;
 
     const imageUrl =
       input.imageUrl !== undefined
@@ -249,104 +587,218 @@ export class IngredientsService {
       where: { ingredientName: row.ingredientName },
       data: {
         imageUrl,
-        caloriesPer100g: input.caloriesPer100g,
-        proteinPer100g: input.proteinPer100g,
-        carbsPer100g: input.carbsPer100g,
-        fatPer100g: input.fatPer100g,
-        fiberPer100g: input.fiberPer100g,
-        gramsPerPiece: input.gramsPerPiece ?? null,
+        ...(isGlobal
+          ? {}
+          : {
+              caloriesPer100g: input.caloriesPer100g,
+              proteinPer100g: input.proteinPer100g,
+              carbsPer100g: input.carbsPer100g,
+              fatPer100g: input.fatPer100g,
+              fiberPer100g: input.fiberPer100g,
+              gramsPerPiece: input.gramsPerPiece ?? null,
+            }),
         pricePer100gEur: input.pricePer100gEur ?? row.pricePer100gEur,
         pricePer100mlEur: input.pricePer100mlEur ?? row.pricePer100mlEur,
         pricePerPieceEur: input.pricePerPieceEur ?? row.pricePerPieceEur,
-        source: row.creatorId === userId ? 'USER' : 'ADMIN',
+        source: isGlobal ? 'ADMIN' : 'USER',
         estimatedAt: new Date(),
       },
     });
 
+    if (!isGlobal) {
+      const twin = row.ingredientId
+        ? await this.ownPrivate(userId, row.ingredientId).catch(() => null)
+        : await this.twinFor(userId, updated);
+      if (twin) {
+        if (!row.ingredientId)
+          await ingredientPriceRepository.linkIngredient(updated.ingredientName, twin.id);
+        await this.catalog.updatePrivate(twin.id, userId, this.privateData(input, imageUrl, twin));
+        await this.nutrition.recomputeRecipesUsing(twin.id);
+      }
+    }
+    return this.toListItem(updated, userId);
+  }
+
+  /** Update of a private catalog row addressed by id (new clients; also rows with no price row). */
+  private async updatePrivateById(
+    userId: string,
+    id: string,
+    input: UpdateIngredientInput,
+  ): Promise<IngredientListItem> {
+    const twin = await this.ownPrivate(userId, id);
+    const imageUrl =
+      input.imageUrl !== undefined
+        ? input.imageUrl
+        : input.generateAiImage
+          ? ingredientAiImageUrl(input.name)
+          : twin.imageUrl;
+    const row = await this.catalog.updatePrivate(
+      id,
+      userId,
+      this.privateData(input, imageUrl, twin),
+    );
+    const legacy = await prisma.ingredientPrice.findFirst({
+      where: { ingredientId: id, creatorId: userId },
+    });
+    if (legacy) {
+      await prisma.ingredientPrice.update({
+        where: { ingredientName: legacy.ingredientName },
+        data: {
+          imageUrl,
+          caloriesPer100g: input.caloriesPer100g,
+          proteinPer100g: input.proteinPer100g,
+          carbsPer100g: input.carbsPer100g,
+          fatPer100g: input.fatPer100g,
+          fiberPer100g: input.fiberPer100g,
+          gramsPerPiece: input.gramsPerPiece ?? null,
+          estimatedAt: new Date(),
+        },
+      });
+    }
+    await this.nutrition.recomputeRecipesUsing(id);
+    const piece = row.portions.find((p) => p.unit === 'piece');
+    const name = primaryAlias(row);
     return {
-      name: updated.ingredientName,
-      displayName: titleCase(updated.ingredientName),
-      imageUrl: updated.imageUrl ?? (await resolveIngredientImage(updated.ingredientName)),
-      caloriesPer100g: updated.caloriesPer100g,
-      proteinPer100g: updated.proteinPer100g,
-      carbsPer100g: updated.carbsPer100g,
-      fatPer100g: updated.fatPer100g,
-      fiberPer100g: updated.fiberPer100g,
-      gramsPerPiece: updated.gramsPerPiece,
-      pricePer100gEur: updated.pricePer100gEur,
-      pricePer100mlEur: updated.pricePer100mlEur,
-      pricePerPieceEur: updated.pricePerPieceEur,
-      isCustom: updated.creatorId === userId,
+      name,
+      displayName: row.name,
+      imageUrl: row.imageUrl ?? (await resolveIngredientImage(name)),
+      caloriesPer100g: row.kcalPer100g,
+      proteinPer100g: row.proteinPer100g,
+      carbsPer100g: row.carbsPer100g,
+      fatPer100g: row.fatPer100g,
+      fiberPer100g: row.fiberPer100g,
+      gramsPerPiece: piece?.grams ?? null,
+      pricePer100gEur: legacy?.pricePer100gEur ?? null,
+      pricePer100mlEur: legacy?.pricePer100mlEur ?? null,
+      pricePerPieceEur: legacy?.pricePerPieceEur ?? null,
+      isCustom: true,
       canEdit: true,
-      source: updated.source,
+      source: 'USER',
+    };
+  }
+
+  private async toListItem(row: IngredientPrice, userId: string): Promise<IngredientListItem> {
+    return {
+      name: row.ingredientName,
+      displayName: titleCase(row.ingredientName),
+      imageUrl: row.imageUrl ?? (await resolveIngredientImage(row.ingredientName)),
+      caloriesPer100g: row.caloriesPer100g,
+      proteinPer100g: row.proteinPer100g,
+      carbsPer100g: row.carbsPer100g,
+      fatPer100g: row.fatPer100g,
+      fiberPer100g: row.fiberPer100g,
+      gramsPerPiece: row.gramsPerPiece,
+      pricePer100gEur: row.pricePer100gEur,
+      pricePer100mlEur: row.pricePer100mlEur,
+      pricePerPieceEur: row.pricePerPieceEur,
+      isCustom: row.creatorId === userId,
+      canEdit: true,
+      source: row.source,
     };
   }
 
   /**
-   * Deletes an editable ingredient (own custom row, or a global row as admin).
-   * A deleted global row re-appears with fresh AI estimates on the next
-   * vocabulary sweep if recipes still reference the name.
+   * Deletes an editable ingredient: an own custom row, or a global PRICE row
+   * as admin (global catalog rows only change through catalog.json, D7). A
+   * private catalog row is DEPRECATED rather than deleted, so recipe lines that
+   * use it keep their numbers; it no longer appears in search or resolution.
    */
-  async delete(userId: string, role: string, name: string): Promise<{ success: true }> {
+  async delete(
+    userId: string,
+    role: string,
+    name: string,
+    id?: string,
+  ): Promise<{ success: true }> {
+    if (id) {
+      await this.ownPrivate(userId, id);
+      await this.catalog.deprecatePrivate(id, userId);
+      await prisma.ingredientPrice.deleteMany({ where: { ingredientId: id, creatorId: userId } });
+      return { success: true };
+    }
     const row = await this.getEditableRow(userId, role, name);
+    if (row.creatorId === userId && row.ingredientId)
+      await this.catalog.deprecatePrivate(row.ingredientId, userId);
     await prisma.ingredientPrice.delete({ where: { ingredientName: row.ingredientName } });
     return { success: true };
   }
 
   /**
-   * Creates a private custom ingredient for the user (macros entered manually,
-   * image uploaded or AI-generated). Never overwritten by the AI refresh worker.
+   * Creates a private ingredient (plan §8.1, D5): the five core macros are
+   * required, the image is uploaded or AI-generated.
+   * - If the catalog already has it (EXACT/ALIAS on a global row), CONFLICT
+   *   unless the user confirmed theirs is different (`confirmDifferent`).
+   * - Writes the private catalog row (nutritionSource USER) and, while the
+   *   name is free in the legacy price vocabulary, its linked price row too, so
+   *   pre-catalog consumers (pricing, the Ingredients page) keep seeing it. A
+   *   name another row already holds no longer blocks creation (F7).
    */
   async createCustom(
     userId: string,
     input: CreateCustomIngredientInput,
   ): Promise<IngredientSearchResult> {
     const name = normalizeIngredientName(input.name);
+    const slug = ingredientSlug(name);
+    if (!slug) throw new TRPCError({ code: 'BAD_REQUEST', message: 'Please enter a name.' });
 
-    const existing = await prisma.ingredientPrice.findUnique({ where: { ingredientName: name } });
-    if (existing && existing.creatorId !== userId && existing.creatorId !== null) {
-      throw new TRPCError({ code: 'CONFLICT', message: 'Ingredient name is already taken.' });
-    }
-    if (existing?.creatorId === null) {
-      throw new TRPCError({
-        code: 'CONFLICT',
-        message: `"${titleCase(name)}" already exists in the catalog — search for it instead.`,
+    if (!input.confirmDifferent) {
+      const [hit] = await this.resolver.resolveMany([{ rawName: name }], null, {
+        candidates: false,
       });
+      if (hit?.match) {
+        throw new TRPCError({
+          code: 'CONFLICT',
+          message: `Chefer already has "${hit.match.name}" — search for it instead.`,
+        });
+      }
     }
 
     const imageUrl = input.imageUrl ?? (input.generateAiImage ? ingredientAiImageUrl(name) : null);
+    const existing = await this.catalog.findPrivateBySlug(userId, slug);
+    const twin = existing
+      ? await this.catalog.updatePrivate(
+          existing.id,
+          userId,
+          this.privateData(input, imageUrl, existing),
+        )
+      : await this.catalog.createPrivate(userId, slug, this.privateData(input, imageUrl));
 
-    const fields = {
-      caloriesPer100g: input.caloriesPer100g,
-      proteinPer100g: input.proteinPer100g,
-      carbsPer100g: input.carbsPer100g,
-      fatPer100g: input.fatPer100g,
-      fiberPer100g: input.fiberPer100g,
-      gramsPerPiece: input.gramsPerPiece ?? null,
-      imageUrl,
-      creatorId: userId,
-      source: 'USER',
-      estimatedAt: new Date(),
-    };
+    const legacy = await prisma.ingredientPrice.findUnique({ where: { ingredientName: name } });
+    if (!legacy || legacy.creatorId === userId) {
+      const fields = {
+        caloriesPer100g: input.caloriesPer100g,
+        proteinPer100g: input.proteinPer100g,
+        carbsPer100g: input.carbsPer100g,
+        fatPer100g: input.fatPer100g,
+        fiberPer100g: input.fiberPer100g,
+        gramsPerPiece: input.gramsPerPiece ?? null,
+        imageUrl,
+        creatorId: userId,
+        source: 'USER',
+        estimatedAt: new Date(),
+        ingredientId: twin.id,
+      };
+      await prisma.ingredientPrice.upsert({
+        where: { ingredientName: name },
+        create: { ingredientName: name, ...fields },
+        update: fields,
+      });
+    }
+    if (existing) await this.nutrition.recomputeRecipesUsing(twin.id);
 
-    const row = await prisma.ingredientPrice.upsert({
-      where: { ingredientName: name },
-      create: { ingredientName: name, ...fields },
-      update: fields,
-    });
-
+    const lineName = primaryAlias(twin);
     return {
-      name: row.ingredientName,
-      displayName: titleCase(row.ingredientName),
-      imageUrl: row.imageUrl ?? (await resolveIngredientImage(row.ingredientName)),
+      name: lineName,
+      displayName: twin.name,
+      imageUrl: twin.imageUrl ?? (await resolveIngredientImage(lineName)),
       hasMacros: true,
       isCustom: true,
       per100g: {
-        calories: row.caloriesPer100g ?? input.caloriesPer100g,
-        protein: row.proteinPer100g ?? input.proteinPer100g,
-        carbs: row.carbsPer100g ?? input.carbsPer100g,
-        fat: row.fatPer100g ?? input.fatPer100g,
+        calories: twin.kcalPer100g,
+        protein: twin.proteinPer100g,
+        carbs: twin.carbsPer100g,
+        fat: twin.fatPer100g,
       },
+      ...refFields(twin, userId),
     };
   }
 
@@ -401,7 +853,8 @@ export class IngredientsService {
     const reservation = await reserveNutritionEstimate(user);
     let estimate;
     try {
-      const estimates = await aiService.estimateIngredientPrices([name]);
+      // The labelled AI pre-fill (D5): the only caller that asks for nutrition.
+      const estimates = await aiService.estimateIngredientPrices([name], { nutrition: true });
       estimate = estimates[0];
     } catch (err) {
       await reservation.release();
@@ -428,49 +881,52 @@ export class IngredientsService {
   }
 
   /**
-   * Computes per-serving nutrition from ingredient lines using catalog macros.
-   * Unknown ingredients are reported back and queued for AI estimation.
+   * Computes per-serving nutrition with the shared engine (plan §5, §9). A line
+   * with `ingredientId` uses that row (if the user may see it); a line without
+   * one is resolved by name, EXACT/ALIAS only (fuzzy matches are never
+   * applied). Lines that cannot be computed are listed in `unmatched` and
+   * make the status PARTIAL; nothing is estimated.
    */
   async computeNutrition(
     userId: string,
-    ingredients: { name: string; quantity: number; unit: string }[],
+    ingredients: NutritionComputationLine[],
     servings: number,
   ): Promise<NutritionComputationResult> {
-    const names = ingredients.map((i) => normalizeIngredientName(i.name));
-    const rows = await prisma.ingredientPrice.findMany({
-      where: {
-        ingredientName: { in: names },
-        OR: [{ creatorId: null }, { creatorId: userId }],
-      },
-    });
-    const rowMap = new Map(rows.map((r) => [r.ingredientName, r]));
+    await this.ensurePrivateTwins(userId);
+    const unresolved = ingredients.filter((l) => !l.ingredientId);
+    const resolved = await this.resolver.resolveMany(
+      unresolved.map((l) => ({ rawName: l.name, unit: l.unit })),
+      userId,
+      { candidates: false },
+    );
+    const byLine = new Map(unresolved.map((l, i) => [l, resolved[i]?.match?.id ?? null] as const));
+    const lines = ingredients.map((l) => ({
+      ingredientId: l.ingredientId ?? byLine.get(l) ?? null,
+      rawName: l.name,
+      quantity: l.quantity,
+      unit: l.unit,
+      optional: l.optional,
+    }));
+    const { result } = await this.nutrition.compute(lines, userId, servings);
 
-    const total: ComputedNutrition = { calories: 0, protein: 0, carbs: 0, fat: 0, fiber: 0 };
-    const unmatched: string[] = [];
-
-    for (const ing of ingredients) {
-      const row = rowMap.get(normalizeIngredientName(ing.name));
-      const grams = row ? quantityToGrams(ing.quantity, ing.unit, row.gramsPerPiece) : null;
-      const added = row && grams != null ? addMacros(total, row, grams) : false;
-      if (!added) unmatched.push(ing.name);
-    }
-
-    // Queue unknown ingredients for AI estimation so they resolve for next time
-    if (unmatched.length > 0) ingredientPriceWorker.wake();
-
-    const s = Math.max(1, servings);
-    const round1 = (v: number) => Math.round((v / s) * 10) / 10;
+    const unmatched = result.lines
+      .filter((r) => r.problem)
+      .map((r) => ingredients[r.position]?.name ?? '');
     return {
-      perServing: {
-        calories: Math.round(total.calories / s),
-        protein: round1(total.protein),
-        carbs: round1(total.carbs),
-        fat: round1(total.fat),
-        fiber: round1(total.fiber),
-      },
+      perServing: result.perServing,
       unmatched,
       matchedCount: ingredients.length - unmatched.length,
       totalCount: ingredients.length,
+      status: result.status,
+      lines: result.lines.map((r) => ({
+        position: r.position,
+        name: ingredients[r.position]?.name ?? '',
+        ingredientId: lines[r.position]?.ingredientId ?? null,
+        grams: r.grams,
+        calories: r.facts.calories,
+        protein: r.facts.protein,
+        ...(r.problem ? { problem: r.problem } : {}),
+      })),
     };
   }
 

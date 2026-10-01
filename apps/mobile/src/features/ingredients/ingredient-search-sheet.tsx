@@ -1,37 +1,44 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Image, Pressable, ScrollView, View, type TextInput } from 'react-native';
-import type { RecipeUnit } from '@chefer/types';
-import { Input, Sheet, Text } from '@chefer/ui-mobile';
-import { trpc, type RouterOutputs } from '../../lib/trpc';
-import { ingredientsCopy } from './copy';
-import { naturalUnitForIngredient } from './natural-unit';
+import { Image, ScrollView, View, type TextInput } from 'react-native';
+import {
+  INGREDIENT_CATALOG_COPY,
+  INGREDIENT_CATEGORY_LABELS,
+  INGREDIENT_PICKER_CATEGORIES,
+  NUTRITION_SOURCE_LABELS,
+  type IngredientCategory,
+} from '@chefer/types';
+import { Chip, Input, PressableScale, Sheet, Text } from '@chefer/ui-mobile';
+import { trpc } from '../../lib/trpc';
+import {
+  pickedFromRef,
+  pickedFromSearchRow,
+  type CatalogRef,
+  type IngredientSearchRow,
+  type PickedIngredient,
+} from './catalog-line';
 import { useKeyboardAwareMaxHeight } from './use-keyboard-aware-max-height';
+
+const copy = INGREDIENT_CATALOG_COPY.picker;
 
 /**
  * Reserve for everything ABOVE the one scrollable region: the grabber +
- * title row (~70) and the search input (~60), plus safe-area/padding slop.
- * Deliberately generous — see use-keyboard-aware-max-height.ts. Nothing is
- * pinned below the scroll region any more (see the third bug-fix note), so
- * there's no footer height to reserve for.
+ * title row (~70), the search input (~60) and the category chip row (~56),
+ * plus safe-area/padding slop. Deliberately generous — see
+ * use-keyboard-aware-max-height.ts. Nothing is pinned below the scroll
+ * region (see the layout note below), so there's no footer to reserve for.
  */
-const RESULTS_RESERVED_PX = 180;
-
-export type IngredientSearchRow = RouterOutputs['ingredients']['search'][number];
-
-export interface IngredientPickedResult {
-  name: string;
-  naturalUnit: RecipeUnit | undefined;
-}
+const RESULTS_RESERVED_PX = 240;
 
 export interface IngredientSearchSheetProps {
   visible: boolean;
   onClose: () => void;
   /** Forwarded to the kit Sheet — fires once the close animation is fully done. */
   onExited?: () => void;
-  /** Prefills the search box (e.g. the line's current free-typed name). */
+  /** Prefills the search box (e.g. a legacy line's typed name). */
   initialQuery?: string;
-  onPick: (result: IngredientPickedResult) => void;
-  onUseAsTyped: (text: string) => void;
+  /** The resolver's suggestions for a legacy/imported line, shown before any search. */
+  suggestions?: readonly CatalogRef[] | undefined;
+  onPick: (ingredient: PickedIngredient) => void;
   onCreateCustom: (text: string) => void;
   testID?: string;
 }
@@ -40,69 +47,45 @@ const DEBOUNCE_MS = 250;
 const MIN_QUERY_LENGTH = 2;
 
 /**
- * T-40.7 (UX-40 slice 2): the ingredient name field's combobox trigger opens
- * this full-height search sheet — `ingredients.search` from 2 characters,
- * 250 ms debounce, results kept across keystrokes (`placeholderData`, no
- * flicker), private rows grouped first. Mirrors the web reference
- * (`apps/web/src/features/recipes/components/IngredientPicker.tsx`).
+ * The catalog picker (plan-ingredient-catalog §10, T-40.7 originally): every
+ * recipe line is picked from here and carries the row's `ingredientId`.
+ * `ingredients.search` from 2 characters, 250 ms debounce, results kept
+ * across keystrokes (`placeholderData`, no flicker), private rows grouped
+ * first. Category chips narrow the search (`category`). When nothing fits,
+ * "Create "…" as my ingredient" opens the private-ingredient sheet — there is
+ * no free-text escape hatch any more, because a free-text line cannot be
+ * computed.
  *
- * Bug fix (orchestrator review, Maestro on the iOS simulator): the sheet
- * used to render as just its header — blank below the title, no keyboard.
- * Two compounding causes:
- *  1. The kit `Sheet`'s default `scrollable` mode wraps children in its OWN
- *     `ScrollView`, which sizes to content. Mixed with a long, dynamically
- *     appearing results list that's the search input's ONLY sibling on
- *     first open, that ScrollView could end up with nothing to measure
- *     against and collapse. `recipe-picker-sheet.tsx` (a working reference)
- *     avoids this by passing `scrollable={false}` and owning any inner
- *     scrolling itself — same fix applied here, with the input and the
- *     "Use as typed"/"Add as mine" actions pinned OUTSIDE the scrollable
- *     region (the actions move into Sheet's `footer`, exactly like every
- *     other Sheet with pinned actions in this codebase).
- *  2. `autoFocus` on the search input fired on the very first render, the
- *     SAME moment the Sheet's entrance animation and its own layout were
- *     still settling — racing the keyboard-avoiding calculation before
- *     anything had a measured height. `quick-add-sheet.tsx`'s working
- *     `autoFocus` input is never the sheet's first-and-only child on open;
- *     ours was. Fixed by focusing manually via `InteractionManager`, after
- *     the sheet's opening interaction has finished.
- *
- * Second bug fix (same review, follow-up): with the keyboard up, a long
- * results list rendered past the visible area and UNDER the pinned footer
- * (tapping a row that far down hit the footer instead) — the kit Sheet's
- * `maxHeight` is a fraction of the FULL window and never accounts for the
- * keyboard, so a purely CSS-bounded ScrollView could still end up taller
- * than the actual remaining on-screen room once the keyboard (and the
- * KeyboardAvoidingView padding that shifts the whole sheet up to clear it)
- * were accounted for — the pinned `footer` region has no scroll boundary
- * of its own to protect it from an oversized sibling above it.
- *
- * Third bug fix (same review, confirmed on device): a `maxHeight` on the
- * results ScrollView alone wasn't enough — the overlap persisted with a
- * SEPARATE pinned footer next to it. Fixed per the orchestrator's own
- * suggestion: there is no longer a separate footer region AT ALL. "Use as
- * typed" / "Add as my ingredient" are now the LAST items inside the same
- * ScrollView as the results (exactly like the UX mock's own layout — a
- * divider line, then the two actions, all part of one scrolling list), so
- * there is nothing left for them to be overlapped BY.
+ * Layout notes kept from the orchestrator's Maestro review (iOS simulator):
+ *  1. `scrollable={false}` and an inner, keyboard-aware bounded ScrollView —
+ *     the kit Sheet's own ScrollView collapsed with a dynamic results list
+ *     as the input's only sibling, and its `maxHeight` ignores the keyboard.
+ *  2. Focus via two rAFs after open instead of `autoFocus`, which raced the
+ *     Sheet's entrance layout.
+ *  3. The create action is the LAST row of the same ScrollView, never a
+ *     separately pinned footer a long list could render underneath.
  */
 export function IngredientSearchSheet({
   visible,
   onClose,
   onExited,
   initialQuery = '',
+  suggestions,
   onPick,
-  onUseAsTyped,
   onCreateCustom,
   testID = 'ingredient-search-sheet',
 }: IngredientSearchSheetProps) {
   const [query, setQuery] = useState(initialQuery);
   const [debounced, setDebounced] = useState('');
+  const [category, setCategory] = useState<IngredientCategory | null>(null);
   const inputRef = useRef<TextInput>(null);
   const resultsMaxHeight = useKeyboardAwareMaxHeight(RESULTS_RESERVED_PX);
 
   useEffect(() => {
-    if (visible) setQuery(initialQuery);
+    if (visible) {
+      setQuery(initialQuery);
+      setCategory(null);
+    }
     // Only re-seed when the sheet opens — not on every initialQuery change,
     // which would otherwise wipe out what the user is mid-typing.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -110,12 +93,6 @@ export function IngredientSearchSheet({
 
   useEffect(() => {
     if (!visible) return;
-    // Focus AFTER the sheet's own open animation/layout settle — see the
-    // bug-fix note above. A plain `autoFocus` on the input fires too early
-    // (the same render pass that starts the sheet's entrance animation) and
-    // can wedge the sheet's layout. Two rAFs: one to get past this commit,
-    // one to land after the frame that follows it — `InteractionManager` is
-    // deprecated, so this is the non-deprecated equivalent "next frame".
     let secondFrame = 0;
     const firstFrame = requestAnimationFrame(() => {
       secondFrame = requestAnimationFrame(() => {
@@ -137,30 +114,34 @@ export function IngredientSearchSheet({
   const canSearch = debounced.length >= MIN_QUERY_LENGTH;
 
   const { data: results, isFetching } = trpc.ingredients.search.useQuery(
-    { query: debounced },
+    { query: debounced, ...(category ? { category } : {}) },
     { enabled: visible && canSearch, staleTime: 30_000, placeholderData: (p) => p },
   );
 
   const groups = useMemo(() => {
-    const rows = results ?? [];
-    const mine = rows.filter((r) => r.isCustom);
-    const catalogue = rows.filter((r) => !r.isCustom);
+    // A legacy custom row without a catalog twin has no id and cannot be linked.
+    const rows = (results ?? []).filter((r) => r.id);
+    const mine = rows.filter((r) => r.owner === 'mine' || r.isCustom);
+    const catalog = rows.filter((r) => !(r.owner === 'mine' || r.isCustom));
     return [
-      { label: ingredientsCopy.search.yourIngredients, rows: mine },
-      { label: ingredientsCopy.search.catalogue, rows: catalogue },
+      { label: copy.yourIngredients, rows: mine },
+      { label: copy.catalog, rows: catalog },
     ].filter((g) => g.rows.length > 0);
   }, [results]);
 
-  const pick = (row: IngredientSearchRow) => {
-    onPick({ name: row.displayName, naturalUnit: naturalUnitForIngredient(row.name) });
+  const pickRow = (row: IngredientSearchRow) => {
+    const picked = pickedFromSearchRow(row);
+    if (picked) onPick(picked);
   };
+
+  const showSuggestions = !canSearch && (suggestions?.length ?? 0) > 0;
 
   return (
     <Sheet
       visible={visible}
       onClose={onClose}
       onExited={onExited}
-      title={ingredientsCopy.search.title}
+      title={copy.title}
       testID={testID}
       scrollable={false}
     >
@@ -168,110 +149,172 @@ export function IngredientSearchSheet({
         <Input
           ref={inputRef}
           testID={`${testID}-input`}
-          accessibilityLabel={ingredientsCopy.search.title}
+          accessibilityLabel={copy.title}
           value={query}
           onChangeText={setQuery}
-          placeholder={ingredientsCopy.search.placeholder}
+          placeholder={copy.placeholder}
           returnKeyType="search"
         />
 
-        {trimmed.length > 0 && (
-          <ScrollView
-            testID={`${testID}-results`}
-            keyboardShouldPersistTaps="handled"
-            className="grow-0"
-            style={{ maxHeight: resultsMaxHeight }}
-          >
-            <View className="gap-2">
-              {canSearch &&
-                groups.map((group) => (
-                  <View key={group.label} className="gap-1">
-                    <Text
-                      accessibilityRole="header"
-                      className="px-1 text-xs font-semibold uppercase tracking-widest text-muted-foreground"
-                    >
-                      {group.label}
-                    </Text>
-                    {group.rows.map((row) => (
-                      <Pressable
-                        key={row.name}
-                        testID={`${testID}-result-${row.name}`}
-                        accessibilityRole="button"
-                        accessibilityLabel={
-                          row.per100g
-                            ? `${row.displayName}, ${Math.round(row.per100g.calories)} kcal per 100 g`
-                            : `${row.displayName}, no nutrition data yet`
-                        }
-                        onPress={() => pick(row)}
-                        className="min-h-[52px] flex-row items-center gap-2.5 rounded-lg px-1 py-1.5 active:bg-accent"
-                      >
-                        <Image
-                          source={{ uri: row.imageUrl }}
-                          className="h-9 w-9 shrink-0 rounded-md"
-                          resizeMode="cover"
-                        />
-                        <View className="min-w-0 flex-1">
-                          <Text numberOfLines={1} className="text-sm font-medium text-foreground">
-                            {row.displayName}
-                          </Text>
-                          {row.per100g ? (
-                            <Text className="text-xs text-muted-foreground">
-                              {Math.round(row.per100g.calories)} kcal / 100 g
-                            </Text>
-                          ) : (
-                            <View className="mt-0.5 self-start rounded-full bg-muted px-1.5 py-0.5">
-                              <Text className="text-xs text-muted-foreground">
-                                {ingredientsCopy.search.noMacrosYet}
-                              </Text>
-                            </View>
-                          )}
-                        </View>
-                      </Pressable>
-                    ))}
-                  </View>
-                ))}
-              {canSearch && groups.length === 0 && !isFetching && (
-                <Text testID={`${testID}-empty`} variant="muted" className="px-1 text-xs">
-                  {ingredientsCopy.search.noMatches}
-                </Text>
-              )}
-              {canSearch && isFetching && groups.length === 0 && (
-                <Text variant="muted" className="px-1 text-xs">
-                  {ingredientsCopy.search.searching}
-                </Text>
-              )}
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
+          className="-mx-4 grow-0"
+          contentContainerClassName="gap-2 px-4"
+          testID={`${testID}-categories`}
+          accessibilityLabel={INGREDIENT_CATALOG_COPY.custom.category}
+        >
+          <Chip
+            testID={`${testID}-category-all`}
+            label={copy.allCategories}
+            selected={category === null}
+            onPress={() => setCategory(null)}
+          />
+          {INGREDIENT_PICKER_CATEGORIES.map((c) => (
+            <Chip
+              key={c}
+              testID={`${testID}-category-${c}`}
+              label={INGREDIENT_CATEGORY_LABELS[c]}
+              selected={category === c}
+              onPress={() => setCategory((cur) => (cur === c ? null : c))}
+            />
+          ))}
+        </ScrollView>
 
-              {/* T-40.7: no separate pinned footer any more (orchestrator
-                  review, third bug fix) — these are the last two rows of
-                  THIS scroll container, exactly like the UX mock's own
-                  layout, so there's nothing left for a long results list
-                  to render underneath. */}
-              <View className="gap-1 border-t border-border pt-3">
-                <Pressable
-                  testID={`${testID}-add-custom`}
-                  accessibilityRole="button"
-                  onPress={() => onCreateCustom(trimmed)}
-                  className="min-h-11 justify-center"
+        <ScrollView
+          testID={`${testID}-results`}
+          keyboardShouldPersistTaps="handled"
+          className="grow-0"
+          style={{ maxHeight: resultsMaxHeight }}
+        >
+          <View className="gap-2">
+            {showSuggestions ? (
+              <View className="gap-1">
+                <Text
+                  accessibilityRole="header"
+                  className="px-1 text-xs font-semibold uppercase tracking-widest text-muted-foreground"
                 >
-                  <Text className="text-sm font-medium text-primary">
-                    {ingredientsCopy.search.addAsMine(trimmed)}
-                  </Text>
-                </Pressable>
-                <Pressable
-                  testID={`${testID}-use-as-typed`}
-                  accessibilityRole="button"
-                  onPress={() => onUseAsTyped(trimmed)}
-                  className="min-h-11 justify-center"
-                >
-                  <Text variant="muted" className="text-xs">
-                    {ingredientsCopy.search.useAsTyped(trimmed)}
-                  </Text>
-                </Pressable>
+                  {copy.pickMatch}
+                </Text>
+                {suggestions?.map((ref) => (
+                  <ResultRow
+                    key={ref.id}
+                    testID={`${testID}-suggestion-${ref.slug}`}
+                    name={ref.name}
+                    detail={NUTRITION_SOURCE_LABELS[ref.nutritionSource]}
+                    mine={ref.owner === 'mine'}
+                    onPress={() => onPick(pickedFromRef(ref))}
+                  />
+                ))}
               </View>
+            ) : null}
+
+            {canSearch &&
+              groups.map((group) => (
+                <View key={group.label} className="gap-1">
+                  <Text
+                    accessibilityRole="header"
+                    className="px-1 text-xs font-semibold uppercase tracking-widest text-muted-foreground"
+                  >
+                    {group.label}
+                  </Text>
+                  {group.rows.map((row) => (
+                    <ResultRow
+                      key={row.id ?? row.name}
+                      testID={`${testID}-result-${row.slug ?? row.name}`}
+                      name={row.displayName}
+                      imageUrl={row.imageUrl}
+                      detail={row.per100g ? copy.perHundred(row.per100g.calories) : undefined}
+                      mine={row.owner === 'mine' || row.isCustom}
+                      onPress={() => pickRow(row)}
+                    />
+                  ))}
+                </View>
+              ))}
+            {canSearch && groups.length === 0 && !isFetching && (
+              <Text testID={`${testID}-empty`} variant="muted" className="px-1 text-xs">
+                {copy.noMatches}
+              </Text>
+            )}
+            {canSearch && isFetching && groups.length === 0 && (
+              <Text variant="muted" className="px-1 text-xs">
+                {copy.searching}
+              </Text>
+            )}
+
+            {/* The create action is the last row of this scroll container
+                (layout note 3) — always reachable, never overlapped. */}
+            <View className="gap-1 border-t border-border pt-3">
+              <PressableScale
+                testID={`${testID}-add-custom`}
+                pressScale="control"
+                accessibilityRole="button"
+                onPress={() => onCreateCustom(trimmed)}
+                className="min-h-11 justify-center"
+              >
+                <Text className="text-sm font-medium text-primary">
+                  {trimmed.length > 0 ? copy.createAsMine(trimmed) : copy.createAsMineEmpty}
+                </Text>
+              </PressableScale>
             </View>
-          </ScrollView>
-        )}
+          </View>
+        </ScrollView>
       </View>
     </Sheet>
+  );
+}
+
+function ResultRow({
+  testID,
+  name,
+  imageUrl,
+  detail,
+  mine,
+  onPress,
+}: {
+  testID: string;
+  name: string;
+  imageUrl?: string | undefined;
+  detail?: string | undefined;
+  mine: boolean;
+  onPress: () => void;
+}) {
+  const label = [name, mine ? NUTRITION_SOURCE_LABELS.USER : null, detail]
+    .filter(Boolean)
+    .join(', ');
+  return (
+    // MO-01 press feedback on every result row.
+    <PressableScale
+      testID={testID}
+      pressScale="card"
+      accessibilityRole="button"
+      accessibilityLabel={label}
+      onPress={onPress}
+      className="min-h-[52px] flex-row items-center gap-2.5 rounded-lg px-1 py-1.5"
+    >
+      {imageUrl ? (
+        <Image
+          source={{ uri: imageUrl }}
+          className="h-9 w-9 shrink-0 rounded-md"
+          resizeMode="cover"
+        />
+      ) : (
+        <View className="h-9 w-9 shrink-0 rounded-md bg-muted" />
+      )}
+      <View className="min-w-0 flex-1">
+        <Text numberOfLines={2} className="text-sm font-medium text-foreground">
+          {name}
+        </Text>
+        <View className="flex-row items-center gap-1.5">
+          {mine ? (
+            <View className="rounded-full bg-accent px-1.5 py-0.5">
+              <Text className="text-xs text-primary">{NUTRITION_SOURCE_LABELS.USER}</Text>
+            </View>
+          ) : null}
+          {detail ? <Text className="text-xs text-muted-foreground">{detail}</Text> : null}
+        </View>
+      </View>
+    </PressableScale>
   );
 }

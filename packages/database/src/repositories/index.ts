@@ -50,6 +50,7 @@ export {
   type IFavouriteRecipeRepository,
   type FavouriteRecipeWithRecipe,
   type CreateManualRecipeData,
+  type ManualRecipeLines,
 } from './favourite-recipe.repository';
 
 export {
@@ -198,6 +199,7 @@ export {
   ingredientPriceRepository,
   type IIngredientPriceRepository,
   type IngredientCatalogRow,
+  type LinkedIngredientPrice,
 } from './ingredient-price.repository';
 
 export {
@@ -274,3 +276,36 @@ export {
   type IFriendRecipeRepository,
   type ListSharedRecipesOptions,
 } from './friend-recipe.repository';
+
+export {
+  RecipeLineRepository,
+  recipeLineRepository,
+  toIngredientsMirror,
+  toLineRows,
+  toNutritionColumns,
+  type IRecipeLineRepository,
+  type RecipeLineWrite,
+  type RecipeNutritionFacts,
+  type RecipeNutritionWrite,
+  type RecipeForRecompute,
+  type StoredRecipeLineRow,
+} from './recipe-line.repository';
+
+export {
+  IngredientRepository,
+  ingredientRepository,
+  type IIngredientRepository,
+  type CatalogIngredientRow,
+  type IngredientKeyMatch,
+  type PrivateIngredientData,
+  type PrivateReviewRow,
+  type CatalogListQuery,
+  type CatalogListPage,
+  catalogListWhere,
+} from './ingredient.repository';
+
+export {
+  IngredientNoticeRepository,
+  ingredientNoticeRepository,
+  type IIngredientNoticeRepository,
+} from './ingredient-notice.repository';

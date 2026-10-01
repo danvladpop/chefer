@@ -15,6 +15,11 @@ const recipeIngredientSchema = z.object({
   name: z.string().min(1),
   quantity: z.number().positive(),
   unit: z.string().min(1),
+  // plan-ingredient-catalog §9 (additive): the catalog row the line was picked
+  // as, prep text, and "to serve" garnish lines excluded from totals.
+  ingredientId: z.string().min(1).max(40).optional(),
+  note: z.string().max(200).optional(),
+  optional: z.boolean().optional(),
 });
 const recipeNutritionInfoSchema = z.object({
   calories: z.number().int().min(0),
@@ -98,7 +103,11 @@ export const recipeRouter = router({
     }),
 
   /**
-   * Creates a new manual recipe owned by the authenticated user.
+   * Creates a new manual recipe owned by the authenticated user. Nutrition is
+   * computed on the server from the lines (picked `ingredientId`s, or names
+   * resolved against the catalog); `nutritionInfo` is kept only when an old
+   * client's lines don't all resolve (D4, `nutritionStatus: USER_ENTERED`).
+   * The response adds `nutritionStatus` and per-line `lines[]`.
    */
   create: protectedProcedure
     .input(

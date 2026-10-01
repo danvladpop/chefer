@@ -571,3 +571,6 @@ export {
   firstBlockedField,
   normalizeForFilter,
 } from './moderation/text-filter';
+
+// ─── Computed recipe nutrition (docs/plan-ingredient-catalog.md §5) ───────────
+export * from './nutrition';

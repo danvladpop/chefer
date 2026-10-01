@@ -12,6 +12,15 @@ import {
 } from '../../src/features/recipes/video-draft-form';
 import { SAFE_AREA_METRICS, trpcError } from './friends-core-harness';
 
+// The video review embeds the catalog picker (plan-ingredient-catalog §10).
+jest.mock('expo-router', () => ({ router: { push: jest.fn(), back: jest.fn() } }));
+jest.mock('../../src/features/premium/premium-host', () => ({ PremiumHost: () => null }));
+jest.mock('../../src/lib/trpc', () => ({
+  trpc: jest
+    .requireActual<typeof import('./catalog-trpc-mock')>('./catalog-trpc-mock')
+    .catalogTrpc(),
+}));
+
 // PRD §9.4 / UX §16.13: a shared recipe whose name or description trips the
 // word filter comes back BAD_REQUEST + `data.textRejected: 'recipe'`; the
 // recipe form and the import review show the plain message under the name.
@@ -40,6 +49,9 @@ const PREVIEW: VideoImportPreview = {
   ogImageUrl: null,
   videoTitle: 'Garlic noodles',
   creator: 'chef',
+  // Additive catalog fields (plan-ingredient-catalog §6.2).
+  resolution: [],
+  nutritionStatus: 'COMPUTED' as const,
 };
 
 describe('friends error readers', () => {

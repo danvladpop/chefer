@@ -1,17 +1,40 @@
 import { useEffect, useState } from 'react';
 import { ScrollView, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { Button, Card, Input, Sheet, Text } from '@chefer/ui-mobile';
+import {
+  INGREDIENT_CATALOG_COPY,
+  INGREDIENT_CATEGORIES,
+  INGREDIENT_CATEGORY_LABELS,
+  type IngredientCategory,
+} from '@chefer/types';
+import {
+  Button,
+  Card,
+  Input,
+  SelectField,
+  Sheet,
+  Text,
+  type SelectOption,
+} from '@chefer/ui-mobile';
 import { useIsPremium } from '../../hooks/use-is-premium';
 import { trpc } from '../../lib/trpc';
+import { friendsErrorData } from '../friends/api/friends-errors';
 import { PremiumHost } from '../premium/premium-host';
+import { pickedFromRef, pickedFromSearchRow, type PickedIngredient } from './catalog-line';
 import { ingredientsCopy } from './copy';
 import { openIngredientAutofillUpsell } from './premium-upsell';
 import { useKeyboardAwareMaxHeight } from './use-keyboard-aware-max-height';
 
+const copy = INGREDIENT_CATALOG_COPY.custom;
+
 /** Reserve for the grabber + title row and the pinned Save footer — see
  * ingredient-search-sheet.tsx / use-keyboard-aware-max-height.ts. */
 const CONTENT_RESERVED_PX = 200;
+
+const CATEGORY_OPTIONS: SelectOption[] = INGREDIENT_CATEGORIES.map((c) => ({
+  value: c,
+  label: INGREDIENT_CATEGORY_LABELS[c],
+}));
 
 export interface CustomIngredientSheetProps {
   visible: boolean;
@@ -19,28 +42,58 @@ export interface CustomIngredientSheetProps {
   onExited?: () => void;
   /** Prefills the name from the search query that had no match. */
   initialName: string;
-  onCreated: (displayName: string) => void;
+  /** The new private row — or the catalog row the user chose instead ("Use it"). */
+  onCreated: (ingredient: PickedIngredient) => void;
   testID?: string;
 }
 
+type MacroKey = 'calories' | 'protein' | 'carbs' | 'fat' | 'fiber';
+type Macros = Record<MacroKey, string>;
+const EMPTY_MACROS: Macros = { calories: '', protein: '', carbs: '', fat: '', fiber: '' };
+
 const numStr = (v: number | null | undefined) => (v == null ? '' : String(v));
 
+/** "1,5" or "1.5" → 1.5; blank or junk → NaN. */
+function parseDecimal(value: string): number {
+  const t = value.trim().replace(',', '.');
+  return t === '' ? Number.NaN : Number(t);
+}
+
+/** Pulls the catalog row's name out of the API's CONFLICT message ("Chefer already has "X" — …"). */
+export function conflictNameOf(message: string): string | null {
+  const m = /already has "([^"]+)"/.exec(message);
+  return m?.[1] ?? null;
+}
+
+/** The five core values are all filled in and within the API's bounds (D5). */
+export function macrosComplete(m: Macros): boolean {
+  const kcal = parseDecimal(m.calories);
+  const grams = [m.protein, m.carbs, m.fat, m.fiber].map(parseDecimal);
+  return (
+    Number.isFinite(kcal) &&
+    kcal >= 0 &&
+    kcal <= 900 &&
+    grams.every((g) => Number.isFinite(g) && g >= 0 && g <= 100)
+  );
+}
+
 /**
- * T-40.8 (UX-40 slice 2): the mobile twin of web's `IngredientFormModal` in
- * create mode, over `ingredients.createCustom`. `Fill in for me`
- * (`ingredients.estimateNutrition`) sends only the ingredient NAME — per the
- * delta rules' existing precedent, a name-only nutrition estimate is not AI-
- * consent-gated. It is premium-only (T-40.11's pitch, source
- * `ingredient-autofill`) and the only lock on this screen; free taps open
- * the upsell instead of calling the mutation at all. No fiber field (D-18),
- * no price/checkout copy anywhere in the locked path (delta rule 2).
+ * The private-ingredient sheet (plan-ingredient-catalog §8.1, D5; T-40.8
+ * originally) — the mobile twin of web's `IngredientFormModal`, over
+ * `ingredients.createCustom`.
+ * - All five core values per 100 g are required (kcal, protein, carbs, fat,
+ *   fiber), copied from the package label; carbs follow the EU convention.
+ * - Optional: category, one piece's weight (a `piece` portion) and what 100 ml
+ *   weighs (the density that lets it be measured by volume).
+ * - CONFLICT ("Chefer already has X"): the sheet offers the catalog row
+ *   ("Use it", looked up through `ingredients.resolve`) or an explicit
+ *   "No, mine is different", which re-sends with `confirmDifferent`.
+ * - "Fill in for me" (`ingredients.estimateNutrition`, name only) stays
+ *   premium-only and labelled as a suggestion; free taps open the upsell.
  *
- * Orchestrator review fix (Maestro, iOS simulator): the same class of bug
- * as ingredient-search-sheet.tsx's follow-up — a kit Sheet's `maxHeight`
- * never accounts for the on-screen keyboard, so content could in principle
- * render past the visible area and under the pinned Save footer. This
- * content is short and static (no dynamic list), but it's wrapped in a
- * keyboard-aware-bounded ScrollView defensively, for the same reason.
+ * Content sits in a keyboard-aware bounded ScrollView (see
+ * use-keyboard-aware-max-height.ts) so the pinned Save footer is never
+ * overlapped.
  */
 export function CustomIngredientSheet({
   visible,
@@ -51,22 +104,41 @@ export function CustomIngredientSheet({
   testID = 'custom-ingredient-sheet',
 }: CustomIngredientSheetProps) {
   const isPremium = useIsPremium();
+  const utils = trpc.useUtils();
   const contentMaxHeight = useKeyboardAwareMaxHeight(CONTENT_RESERVED_PX);
 
   const [name, setName] = useState(initialName);
-  const [macros, setMacros] = useState({ calories: '', protein: '', carbs: '', fat: '' });
+  const [category, setCategory] = useState<IngredientCategory | null>(null);
+  const [macros, setMacros] = useState<Macros>(EMPTY_MACROS);
   const [gramsPerPiece, setGramsPerPiece] = useState('');
+  const [gramsPer100ml, setGramsPer100ml] = useState('');
+  const [attempted, setAttempted] = useState(false);
+  const [conflictName, setConflictName] = useState<string | null>(null);
+  const [useItError, setUseItError] = useState(false);
 
   useEffect(() => {
     if (visible) {
       setName(initialName);
-      setMacros({ calories: '', protein: '', carbs: '', fat: '' });
+      setCategory(null);
+      setMacros(EMPTY_MACROS);
       setGramsPerPiece('');
+      setGramsPer100ml('');
+      setAttempted(false);
+      setConflictName(null);
+      setUseItError(false);
     }
   }, [visible, initialName]);
 
   const createMutation = trpc.ingredients.createCustom.useMutation({
-    onSuccess: (row) => onCreated(row.displayName),
+    onSuccess: (row) => {
+      const picked = pickedFromSearchRow(row);
+      if (picked) onCreated(picked);
+    },
+    onError: (error) => {
+      if (friendsErrorData(error).code === 'CONFLICT') {
+        setConflictName(conflictNameOf(error.message) ?? name.trim());
+      }
+    },
   });
   const estimateMutation = trpc.ingredients.estimateNutrition.useMutation({
     onSuccess: (est) => {
@@ -76,25 +148,50 @@ export function CustomIngredientSheet({
         protein: numStr(est.proteinPer100g),
         carbs: numStr(est.carbsPer100g),
         fat: numStr(est.fatPer100g),
+        fiber: numStr(est.fiberPer100g),
       });
       if (est.gramsPerPiece != null) setGramsPerPiece(String(est.gramsPerPiece));
     },
   });
 
-  const canSubmit =
-    name.trim().length >= 2 && macros.calories !== '' && Number(macros.calories) >= 0;
+  const nameOk = name.trim().length >= 2;
+  const complete = nameOk && macrosComplete(macros);
+  const pieceGrams = parseDecimal(gramsPerPiece);
+  const per100ml = parseDecimal(gramsPer100ml);
 
-  const submit = () => {
-    if (!canSubmit) return;
+  const submit = (confirmDifferent = false) => {
+    setAttempted(true);
+    if (!complete || createMutation.isPending) return;
+    setConflictName(null);
     createMutation.mutate({
       name: name.trim(),
-      caloriesPer100g: Number(macros.calories),
-      proteinPer100g: Number(macros.protein) || 0,
-      carbsPer100g: Number(macros.carbs) || 0,
-      fatPer100g: Number(macros.fat) || 0,
-      fiberPer100g: 0,
-      gramsPerPiece: gramsPerPiece ? Number(gramsPerPiece) : null,
+      caloriesPer100g: parseDecimal(macros.calories),
+      proteinPer100g: parseDecimal(macros.protein),
+      carbsPer100g: parseDecimal(macros.carbs),
+      fatPer100g: parseDecimal(macros.fat),
+      fiberPer100g: parseDecimal(macros.fiber),
+      gramsPerPiece: Number.isFinite(pieceGrams) && pieceGrams > 0 ? pieceGrams : null,
+      densityGPerMl: Number.isFinite(per100ml) && per100ml > 0 ? Math.min(3, per100ml / 100) : null,
+      ...(category ? { category } : {}),
+      ...(confirmDifferent ? { confirmDifferent: true } : {}),
     });
+  };
+
+  const chooseCatalogRow = async () => {
+    setUseItError(false);
+    try {
+      const [hit] = await utils.ingredients.resolve.fetch({
+        lines: [{ rawName: conflictName ?? name.trim() }],
+      });
+      const match = hit?.match;
+      if (match) {
+        onCreated(pickedFromRef(match));
+        return;
+      }
+    } catch {
+      // fall through to the inline error
+    }
+    setUseItError(true);
   };
 
   const fillInForMe = () => {
@@ -102,33 +199,34 @@ export function CustomIngredientSheet({
       openIngredientAutofillUpsell();
       return;
     }
-    if (name.trim().length < 2 || estimateMutation.isPending) return;
+    if (!nameOk || estimateMutation.isPending) return;
     estimateMutation.mutate({ name: name.trim() });
   };
 
   const locked = isPremium === false;
+  const showConflict = conflictName !== null;
+  const genericError =
+    createMutation.isError && friendsErrorData(createMutation.error).code !== 'CONFLICT';
 
   return (
     <Sheet
       visible={visible}
       onClose={onClose}
       onExited={onExited}
-      title={ingredientsCopy.custom.title}
+      title={copy.title}
       testID={testID}
-      // Orchestrator review fix: match recipe-picker-sheet.tsx's proven
-      // pattern — this content is short and fully static (no dynamic
-      // list), so it never needs to scroll; avoiding the kit Sheet's own
-      // ScrollView sidesteps the same collapse seen on ingredient-search-sheet.
       scrollable={false}
       footer={
-        <Button
-          testID={`${testID}-save`}
-          loading={createMutation.isPending}
-          disabled={!canSubmit || createMutation.isPending}
-          onPress={submit}
-        >
-          {createMutation.isPending ? ingredientsCopy.custom.saving : ingredientsCopy.custom.save}
-        </Button>
+        showConflict ? undefined : (
+          <Button
+            testID={`${testID}-save`}
+            loading={createMutation.isPending}
+            disabled={createMutation.isPending}
+            onPress={() => submit(false)}
+          >
+            {createMutation.isPending ? copy.saving : copy.save}
+          </Button>
+        )
       }
     >
       <ScrollView
@@ -138,28 +236,69 @@ export function CustomIngredientSheet({
         style={{ maxHeight: contentMaxHeight }}
       >
         <View className="gap-4">
+          {showConflict ? (
+            <Card testID={`${testID}-conflict`} className="gap-3 border-amber-200 bg-amber-50">
+              <View className="gap-1">
+                <Text className="text-sm font-semibold text-amber-900">
+                  {copy.conflictTitle(conflictName)}
+                </Text>
+                <Text className="text-xs text-amber-900">{copy.conflictBody}</Text>
+              </View>
+              <Button testID={`${testID}-use-it`} onPress={() => void chooseCatalogRow()}>
+                {copy.useIt}
+              </Button>
+              <Button
+                testID={`${testID}-mine-is-different`}
+                variant="outline"
+                loading={createMutation.isPending}
+                onPress={() => submit(true)}
+              >
+                {copy.mineIsDifferent}
+              </Button>
+              {useItError ? (
+                <Text className="text-xs text-destructive">
+                  {INGREDIENT_CATALOG_COPY.picker.noMatches}
+                </Text>
+              ) : null}
+            </Card>
+          ) : null}
+
           <Text variant="muted" className="text-xs">
-            {ingredientsCopy.custom.description}
+            {copy.description}
           </Text>
 
           <View className="gap-1">
-            <Text variant="label">{ingredientsCopy.custom.name}</Text>
+            <Text variant="label">{copy.name}</Text>
             <Input
               testID={`${testID}-name`}
-              accessibilityLabel={ingredientsCopy.custom.name}
+              accessibilityLabel={copy.name}
               value={name}
-              onChangeText={setName}
+              onChangeText={(v) => {
+                setName(v);
+                setConflictName(null);
+              }}
             />
           </View>
 
+          <SelectField
+            testID={`${testID}-category`}
+            label={copy.category}
+            value={category}
+            options={CATEGORY_OPTIONS}
+            onChange={(v) => setCategory(v as IngredientCategory)}
+            placeholder={copy.categoryPlaceholder}
+          />
+
           <View className="gap-2">
-            <View className="flex-row items-center justify-between">
-              <Text variant="label">{ingredientsCopy.custom.nutritionHeading}</Text>
+            <View className="flex-row items-center justify-between gap-2">
+              <Text variant="label" className="min-w-0 flex-1">
+                {copy.nutritionHeading}
+              </Text>
               <Button
                 testID={`${testID}-fill-in`}
                 variant="outline"
                 size="sm"
-                disabled={name.trim().length < 2 || estimateMutation.isPending}
+                disabled={!nameOk || estimateMutation.isPending}
                 onPress={fillInForMe}
               >
                 <View className="flex-row items-center gap-1.5">
@@ -187,8 +326,6 @@ export function CustomIngredientSheet({
                 {ingredientsCopy.custom.fillInError}
               </Text>
             )}
-            {/* react-query's discriminated union already guarantees isPending
-              is false whenever data is set — no separate check needed. */}
             {estimateMutation.data && (
               <Text className="text-xs text-muted-foreground">
                 {estimateMutation.data.source === 'catalog'
@@ -200,49 +337,75 @@ export function CustomIngredientSheet({
             <View className="flex-row gap-2">
               <MacroField
                 testID={`${testID}-kcal`}
-                label="kcal"
+                label={copy.kcal}
                 value={macros.calories}
+                invalid={attempted}
                 onChangeText={(v) => setMacros((m) => ({ ...m, calories: v }))}
               />
               <MacroField
                 testID={`${testID}-protein`}
-                label="Protein g"
+                label={copy.protein}
                 value={macros.protein}
+                invalid={attempted}
                 onChangeText={(v) => setMacros((m) => ({ ...m, protein: v }))}
               />
               <MacroField
                 testID={`${testID}-carbs`}
-                label="Carbs g"
+                label={copy.carbs}
                 value={macros.carbs}
+                invalid={attempted}
                 onChangeText={(v) => setMacros((m) => ({ ...m, carbs: v }))}
               />
+            </View>
+            <View className="flex-row gap-2">
               <MacroField
                 testID={`${testID}-fat`}
-                label="Fat g"
+                label={copy.fat}
                 value={macros.fat}
+                invalid={attempted}
                 onChangeText={(v) => setMacros((m) => ({ ...m, fat: v }))}
               />
+              <MacroField
+                testID={`${testID}-fiber`}
+                label={copy.fiber}
+                value={macros.fiber}
+                invalid={attempted}
+                onChangeText={(v) => setMacros((m) => ({ ...m, fiber: v }))}
+              />
+              <View className="min-w-0 flex-1" />
             </View>
-          </View>
-
-          <View className="gap-1">
-            <Text variant="label">
-              {ingredientsCopy.custom.gramsPerPiece}{' '}
-              <Text variant="muted" className="text-xs">
-                ({ingredientsCopy.custom.gramsPerPieceHint})
-              </Text>
+            <Text variant="muted" className="text-xs">
+              {copy.carbsHint}
             </Text>
-            <Input
-              testID={`${testID}-grams-per-piece`}
-              accessibilityLabel={ingredientsCopy.custom.gramsPerPiece}
-              value={gramsPerPiece}
-              onChangeText={setGramsPerPiece}
-              keyboardType="decimal-pad"
-              placeholder="e.g. 118 for a banana"
-            />
+            {attempted && !complete ? (
+              <Text
+                testID={`${testID}-incomplete`}
+                accessibilityLiveRegion="polite"
+                className="text-xs text-destructive"
+              >
+                {copy.allRequired}
+              </Text>
+            ) : null}
           </View>
 
-          {createMutation.isError && (
+          <OptionalNumber
+            testID={`${testID}-grams-per-piece`}
+            label={copy.gramsPerPiece}
+            hint={copy.gramsPerPieceHint}
+            value={gramsPerPiece}
+            onChangeText={setGramsPerPiece}
+            placeholder="e.g. 45"
+          />
+          <OptionalNumber
+            testID={`${testID}-grams-per-100ml`}
+            label={copy.gramsPer100ml}
+            hint={copy.gramsPer100mlHint}
+            value={gramsPer100ml}
+            onChangeText={setGramsPer100ml}
+            placeholder="e.g. 103"
+          />
+
+          {genericError && (
             <Card testID={`${testID}-save-error`} className="border-red-200 bg-red-50">
               <Text className="text-sm text-red-600">{createMutation.error.message}</Text>
             </Card>
@@ -261,17 +424,56 @@ function MacroField({
   testID,
   label,
   value,
+  invalid,
   onChangeText,
 }: {
   testID: string;
   label: string;
   value: string;
+  invalid: boolean;
   onChangeText: (v: string) => void;
 }) {
+  const bad = invalid && !Number.isFinite(parseDecimal(value));
   return (
     <View className="min-w-0 flex-1 gap-1">
       <Text variant="label" className="text-xs">
-        {label}
+        {label} *
+      </Text>
+      <Input
+        testID={testID}
+        accessibilityLabel={`${label}, required`}
+        value={value}
+        onChangeText={onChangeText}
+        keyboardType="decimal-pad"
+        placeholder="0"
+        className={bad ? 'border-red-400 px-2 text-center' : 'px-2 text-center'}
+      />
+    </View>
+  );
+}
+
+function OptionalNumber({
+  testID,
+  label,
+  hint,
+  value,
+  onChangeText,
+  placeholder,
+}: {
+  testID: string;
+  label: string;
+  hint: string;
+  value: string;
+  onChangeText: (v: string) => void;
+  placeholder: string;
+}) {
+  return (
+    <View className="gap-1">
+      <Text variant="label">
+        {label}{' '}
+        <Text variant="muted" className="text-xs">
+          ({hint})
+        </Text>
       </Text>
       <Input
         testID={testID}
@@ -279,8 +481,7 @@ function MacroField({
         value={value}
         onChangeText={onChangeText}
         keyboardType="decimal-pad"
-        placeholder="0"
-        className="px-2 text-center"
+        placeholder={placeholder}
       />
     </View>
   );

@@ -8,6 +8,7 @@ import type {
   CheferizeInput,
   CoachReviewInput,
   DayPlan,
+  EstimateIngredientPricesOptions,
   ExtractedRecipe,
   IAIService,
   IngredientPriceEstimate,
@@ -16,6 +17,8 @@ import type {
   MealPlanInput,
   RecipeData,
   RecipeExtractionSource,
+  RecipeLineRepair,
+  RecipeLineRepairRequest,
   ShoppingListInput,
   ShoppingListResponse,
   SwapInput,
@@ -182,6 +185,10 @@ export class ChainAIService implements IAIService {
     );
   }
 
+  repairRecipeLines(request: RecipeLineRepairRequest): Promise<RecipeLineRepair[]> {
+    return this.run('repairRecipeLines', 'swap', (s) => s.repairRecipeLines(request), request);
+  }
+
   generateRecipeSwap(input: SwapInput): Promise<RecipeData> {
     return this.run('generateRecipeSwap', 'swap', (s) => s.generateRecipeSwap(input), input);
   }
@@ -195,11 +202,14 @@ export class ChainAIService implements IAIService {
     );
   }
 
-  estimateIngredientPrices(ingredientNames: string[]): Promise<IngredientPriceEstimate[]> {
+  estimateIngredientPrices(
+    ingredientNames: string[],
+    opts?: EstimateIngredientPricesOptions,
+  ): Promise<IngredientPriceEstimate[]> {
     return this.run(
       'estimateIngredientPrices',
       'prices',
-      (s) => s.estimateIngredientPrices(ingredientNames),
+      (s) => s.estimateIngredientPrices(ingredientNames, opts),
       ingredientNames,
     );
   }

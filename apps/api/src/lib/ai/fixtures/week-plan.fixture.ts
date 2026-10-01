@@ -18,11 +18,13 @@ export const RECIPE_LIBRARY = {
     description:
       'Creamy Greek yogurt layered with fresh seasonal berries, crunchy granola, and a drizzle of honey. A protein-packed start to your day.',
     ingredients: [
-      { name: 'Greek yogurt (full-fat)', quantity: 200, unit: 'g' },
-      { name: 'Mixed berries (strawberries, blueberries, raspberries)', quantity: 100, unit: 'g' },
-      { name: 'Granola', quantity: 40, unit: 'g' },
-      { name: 'Honey', quantity: 15, unit: 'ml' },
-      { name: 'Chia seeds', quantity: 5, unit: 'g' },
+      { name: 'Greek yogurt (full-fat)', quantity: 200, unit: 'g', slug: 'greek-yogurt-whole' },
+      { name: 'Strawberries', quantity: 34, unit: 'g', slug: 'strawberries-raw' },
+      { name: 'Blueberries', quantity: 33, unit: 'g', slug: 'blueberries-raw' },
+      { name: 'Raspberries', quantity: 33, unit: 'g', slug: 'raspberries-raw' },
+      { name: 'Granola', quantity: 40, unit: 'g', slug: 'granola' },
+      { name: 'Honey', quantity: 15, unit: 'ml', slug: 'honey' },
+      { name: 'Chia seeds', quantity: 5, unit: 'g', slug: 'chia-seeds' },
     ],
     instructions: [
       'Spoon half the Greek yogurt into a glass or bowl.',
@@ -46,12 +48,13 @@ export const RECIPE_LIBRARY = {
     description:
       'Thick sourdough toast topped with smashed avocado, perfectly poached eggs, and chilli flakes. A balanced, satiating breakfast.',
     ingredients: [
-      { name: 'Sourdough bread', quantity: 2, unit: 'slices' },
-      { name: 'Ripe avocado', quantity: 1, unit: 'medium' },
-      { name: 'Eggs', quantity: 2, unit: 'large' },
-      { name: 'Lemon juice', quantity: 10, unit: 'ml' },
-      { name: 'Chilli flakes', quantity: 1, unit: 'pinch' },
-      { name: 'Salt and black pepper', quantity: 1, unit: 'to taste' },
+      { name: 'Sourdough bread', quantity: 2, unit: 'slices', slug: 'bread-sourdough' },
+      { name: 'Ripe avocado', quantity: 1, unit: 'piece', slug: 'avocado-raw' },
+      { name: 'Eggs', quantity: 2, unit: 'large', slug: 'egg-whole-raw' },
+      { name: 'Lemon juice', quantity: 10, unit: 'ml', slug: 'lemon-juice' },
+      { name: 'Chilli flakes', quantity: 1, unit: 'pinch', slug: 'cayenne-pepper' },
+      { name: 'Salt', quantity: 1, unit: 'to taste', slug: 'salt' },
+      { name: 'Black pepper', quantity: 1, unit: 'to taste', slug: 'black-pepper' },
     ],
     instructions: [
       'Toast the sourdough slices until golden and crisp.',
@@ -75,12 +78,12 @@ export const RECIPE_LIBRARY = {
     description:
       'Rolled oats soaked overnight in oat milk, topped with sliced banana and a swirl of almond butter. Ready to grab and go.',
     ingredients: [
-      { name: 'Rolled oats', quantity: 80, unit: 'g' },
-      { name: 'Oat milk', quantity: 180, unit: 'ml' },
-      { name: 'Banana', quantity: 1, unit: 'medium' },
-      { name: 'Almond butter', quantity: 20, unit: 'g' },
-      { name: 'Maple syrup', quantity: 10, unit: 'ml' },
-      { name: 'Cinnamon', quantity: 1, unit: 'pinch' },
+      { name: 'Rolled oats', quantity: 80, unit: 'g', slug: 'oats-rolled' },
+      { name: 'Oat milk', quantity: 180, unit: 'ml', slug: 'oat-milk-unsweetened' },
+      { name: 'Banana', quantity: 1, unit: 'medium', slug: 'banana-raw' },
+      { name: 'Almond butter', quantity: 20, unit: 'g', slug: 'almond-butter' },
+      { name: 'Maple syrup', quantity: 10, unit: 'ml', slug: 'maple-syrup' },
+      { name: 'Cinnamon', quantity: 1, unit: 'pinch', slug: 'cinnamon' },
     ],
     instructions: [
       'Combine oats and oat milk in a jar or container. Stir well.',
@@ -104,12 +107,19 @@ export const RECIPE_LIBRARY = {
     description:
       'Fluffy three-egg omelette packed with wilted spinach, crumbled feta, and cherry tomatoes. High protein and ready in 10 minutes.',
     ingredients: [
-      { name: 'Eggs', quantity: 3, unit: 'large' },
-      { name: 'Baby spinach', quantity: 60, unit: 'g' },
-      { name: 'Feta cheese', quantity: 30, unit: 'g' },
-      { name: 'Cherry tomatoes', quantity: 5, unit: 'halved' },
-      { name: 'Olive oil', quantity: 10, unit: 'ml' },
-      { name: 'Salt and black pepper', quantity: 1, unit: 'to taste' },
+      { name: 'Eggs', quantity: 3, unit: 'large', slug: 'egg-whole-raw' },
+      { name: 'Baby spinach', quantity: 60, unit: 'g', slug: 'spinach-raw' },
+      { name: 'Feta cheese', quantity: 30, unit: 'g', slug: 'feta' },
+      {
+        name: 'Cherry tomatoes',
+        quantity: 5,
+        unit: 'piece',
+        slug: 'cherry-tomato-raw',
+        note: 'halved',
+      },
+      { name: 'Olive oil', quantity: 10, unit: 'ml', slug: 'olive-oil' },
+      { name: 'Salt', quantity: 1, unit: 'to taste', slug: 'salt' },
+      { name: 'Black pepper', quantity: 1, unit: 'to taste', slug: 'black-pepper' },
     ],
     instructions: [
       'Beat eggs with a pinch of salt and pepper until combined.',
@@ -135,12 +145,12 @@ export const RECIPE_LIBRARY = {
     description:
       'Classic Caesar salad with a grilled chicken breast, crunchy romaine lettuce, parmesan shavings, and whole-grain croutons.',
     ingredients: [
-      { name: 'Chicken breast', quantity: 150, unit: 'g' },
-      { name: 'Romaine lettuce', quantity: 120, unit: 'g' },
-      { name: 'Parmesan cheese', quantity: 20, unit: 'g' },
-      { name: 'Whole-grain croutons', quantity: 30, unit: 'g' },
-      { name: 'Caesar dressing (light)', quantity: 30, unit: 'ml' },
-      { name: 'Lemon juice', quantity: 5, unit: 'ml' },
+      { name: 'Chicken breast', quantity: 150, unit: 'g', slug: 'chicken-breast-raw' },
+      { name: 'Romaine lettuce', quantity: 120, unit: 'g', slug: 'lettuce-romaine-raw' },
+      { name: 'Parmesan cheese', quantity: 20, unit: 'g', slug: 'parmesan' },
+      { name: 'Whole-grain croutons', quantity: 30, unit: 'g', slug: 'croutons' },
+      { name: 'Caesar dressing (light)', quantity: 30, unit: 'ml', slug: 'caesar-dressing-light' },
+      { name: 'Lemon juice', quantity: 5, unit: 'ml', slug: 'lemon-juice' },
     ],
     instructions: [
       'Season chicken with salt and pepper. Grill on a ridged pan for 5–6 minutes per side until cooked through.',
@@ -164,14 +174,19 @@ export const RECIPE_LIBRARY = {
     description:
       'Hearty quinoa base topped with oven-roasted seasonal vegetables, chickpeas, and a lemon-tahini drizzle.',
     ingredients: [
-      { name: 'Quinoa (dry)', quantity: 80, unit: 'g' },
-      { name: 'Courgette', quantity: 100, unit: 'g' },
-      { name: 'Red pepper', quantity: 100, unit: 'g' },
-      { name: 'Cherry tomatoes', quantity: 80, unit: 'g' },
-      { name: 'Canned chickpeas (drained)', quantity: 100, unit: 'g' },
-      { name: 'Tahini', quantity: 20, unit: 'g' },
-      { name: 'Lemon juice', quantity: 15, unit: 'ml' },
-      { name: 'Olive oil', quantity: 15, unit: 'ml' },
+      { name: 'Quinoa (dry)', quantity: 80, unit: 'g', slug: 'quinoa-dry' },
+      { name: 'Courgette', quantity: 100, unit: 'g', slug: 'zucchini-raw' },
+      { name: 'Red pepper', quantity: 100, unit: 'g', slug: 'bell-pepper-red-raw' },
+      { name: 'Cherry tomatoes', quantity: 80, unit: 'g', slug: 'cherry-tomato-raw' },
+      {
+        name: 'Canned chickpeas (drained)',
+        quantity: 100,
+        unit: 'g',
+        slug: 'chickpeas-canned-drained',
+      },
+      { name: 'Tahini', quantity: 20, unit: 'g', slug: 'tahini' },
+      { name: 'Lemon juice', quantity: 15, unit: 'ml', slug: 'lemon-juice' },
+      { name: 'Olive oil', quantity: 15, unit: 'ml', slug: 'olive-oil' },
     ],
     instructions: [
       'Preheat oven to 200°C. Toss chopped vegetables and chickpeas with olive oil, salt, and cumin. Roast for 25 minutes.',
@@ -195,13 +210,13 @@ export const RECIPE_LIBRARY = {
     description:
       'A satisfying wrap with lean turkey slices, ripe avocado, crisp romaine, and a tangy Dijon mustard spread.',
     ingredients: [
-      { name: 'Whole-wheat tortilla', quantity: 1, unit: 'large' },
-      { name: 'Turkey breast slices', quantity: 100, unit: 'g' },
-      { name: 'Avocado', quantity: 0.5, unit: 'medium' },
-      { name: 'Romaine lettuce', quantity: 40, unit: 'g' },
-      { name: 'Tomato', quantity: 1, unit: 'medium, sliced' },
-      { name: 'Dijon mustard', quantity: 10, unit: 'g' },
-      { name: 'Red onion', quantity: 20, unit: 'g, thinly sliced' },
+      { name: 'Whole-wheat tortilla', quantity: 1, unit: 'piece', slug: 'tortilla-whole-wheat' },
+      { name: 'Turkey breast slices', quantity: 100, unit: 'g', slug: 'turkey-breast-deli' },
+      { name: 'Avocado', quantity: 0.5, unit: 'piece', slug: 'avocado-raw' },
+      { name: 'Romaine lettuce', quantity: 40, unit: 'g', slug: 'lettuce-romaine-raw' },
+      { name: 'Tomato', quantity: 1, unit: 'medium, sliced', slug: 'tomato-raw' },
+      { name: 'Dijon mustard', quantity: 10, unit: 'g', slug: 'mustard-dijon' },
+      { name: 'Red onion', quantity: 20, unit: 'g, thinly sliced', slug: 'red-onion-raw' },
     ],
     instructions: [
       'Warm the tortilla for 20 seconds in a dry pan or microwave.',
@@ -226,13 +241,19 @@ export const RECIPE_LIBRARY = {
     description:
       'Pan-seared salmon fillet with a fresh herb and lemon crust, served alongside tender roasted asparagus spears.',
     ingredients: [
-      { name: 'Salmon fillet', quantity: 180, unit: 'g' },
-      { name: 'Asparagus spears', quantity: 200, unit: 'g' },
-      { name: 'Fresh parsley', quantity: 15, unit: 'g, chopped' },
-      { name: 'Fresh dill', quantity: 10, unit: 'g, chopped' },
-      { name: 'Lemon zest', quantity: 1, unit: 'lemon' },
-      { name: 'Garlic', quantity: 2, unit: 'cloves, minced' },
-      { name: 'Olive oil', quantity: 20, unit: 'ml' },
+      { name: 'Salmon fillet', quantity: 180, unit: 'g', slug: 'salmon-farmed-raw' },
+      { name: 'Asparagus spears', quantity: 200, unit: 'g', slug: 'asparagus-raw' },
+      { name: 'Fresh parsley', quantity: 15, unit: 'g, chopped', slug: 'parsley-fresh' },
+      { name: 'Fresh dill', quantity: 10, unit: 'g, chopped', slug: 'dill-fresh' },
+      {
+        name: 'Lemon zest',
+        quantity: 1,
+        unit: 'tbsp',
+        slug: 'lemon-zest',
+        note: 'zest of 1 lemon',
+      },
+      { name: 'Garlic', quantity: 2, unit: 'cloves, minced', slug: 'garlic-raw' },
+      { name: 'Olive oil', quantity: 20, unit: 'ml', slug: 'olive-oil' },
     ],
     instructions: [
       'Preheat oven to 200°C. Toss asparagus with half the olive oil, salt, and pepper. Spread on a baking tray.',
@@ -257,15 +278,15 @@ export const RECIPE_LIBRARY = {
     description:
       'Quick Asian-inspired stir-fry with tender chicken strips, colourful vegetables, and a sesame-ginger sauce over nutty brown rice.',
     ingredients: [
-      { name: 'Chicken breast', quantity: 150, unit: 'g, sliced' },
-      { name: 'Brown rice (dry)', quantity: 70, unit: 'g' },
-      { name: 'Broccoli florets', quantity: 100, unit: 'g' },
-      { name: 'Snap peas', quantity: 80, unit: 'g' },
-      { name: 'Carrot', quantity: 60, unit: 'g, julienned' },
-      { name: 'Soy sauce (low-sodium)', quantity: 30, unit: 'ml' },
-      { name: 'Sesame oil', quantity: 10, unit: 'ml' },
-      { name: 'Fresh ginger', quantity: 5, unit: 'g, grated' },
-      { name: 'Garlic', quantity: 2, unit: 'cloves, minced' },
+      { name: 'Chicken breast', quantity: 150, unit: 'g, sliced', slug: 'chicken-breast-raw' },
+      { name: 'Brown rice (dry)', quantity: 70, unit: 'g', slug: 'rice-brown-dry' },
+      { name: 'Broccoli florets', quantity: 100, unit: 'g', slug: 'broccoli-raw' },
+      { name: 'Snap peas', quantity: 80, unit: 'g', slug: 'snap-peas-raw' },
+      { name: 'Carrot', quantity: 60, unit: 'g, julienned', slug: 'carrot-raw' },
+      { name: 'Soy sauce (low-sodium)', quantity: 30, unit: 'ml', slug: 'soy-sauce-low-sodium' },
+      { name: 'Sesame oil', quantity: 10, unit: 'ml', slug: 'sesame-oil' },
+      { name: 'Fresh ginger', quantity: 5, unit: 'g, grated', slug: 'ginger-root-raw' },
+      { name: 'Garlic', quantity: 2, unit: 'cloves, minced', slug: 'garlic-raw' },
     ],
     instructions: [
       'Cook brown rice according to package instructions.',
@@ -290,14 +311,14 @@ export const RECIPE_LIBRARY = {
     description:
       'Flaky baked cod in a rich tomato, olive, and caper sauce. Serve with crusty bread or over couscous.',
     ingredients: [
-      { name: 'Cod fillet', quantity: 180, unit: 'g' },
-      { name: 'Cherry tomatoes', quantity: 150, unit: 'g, halved' },
-      { name: 'Kalamata olives', quantity: 30, unit: 'g, pitted' },
-      { name: 'Capers', quantity: 15, unit: 'g' },
-      { name: 'Garlic', quantity: 3, unit: 'cloves, sliced' },
-      { name: 'Olive oil', quantity: 20, unit: 'ml' },
-      { name: 'Whole-wheat couscous (dry)', quantity: 70, unit: 'g' },
-      { name: 'Fresh basil', quantity: 10, unit: 'g' },
+      { name: 'Cod fillet', quantity: 180, unit: 'g', slug: 'cod-raw' },
+      { name: 'Cherry tomatoes', quantity: 150, unit: 'g, halved', slug: 'cherry-tomato-raw' },
+      { name: 'Kalamata olives', quantity: 30, unit: 'g, pitted', slug: 'olives-black' },
+      { name: 'Capers', quantity: 15, unit: 'g', slug: 'capers' },
+      { name: 'Garlic', quantity: 3, unit: 'cloves, sliced', slug: 'garlic-raw' },
+      { name: 'Olive oil', quantity: 20, unit: 'ml', slug: 'olive-oil' },
+      { name: 'Whole-wheat couscous (dry)', quantity: 70, unit: 'g', slug: 'couscous-dry' },
+      { name: 'Fresh basil', quantity: 10, unit: 'g', slug: 'basil-fresh' },
     ],
     instructions: [
       'Preheat oven to 190°C. Cook couscous with boiling water or stock for 5 minutes.',
@@ -322,16 +343,16 @@ export const RECIPE_LIBRARY = {
     description:
       'Warming, aromatic red lentil curry with coconut milk, fresh spinach, and fragrant Indian spices. Served with basmati rice.',
     ingredients: [
-      { name: 'Red lentils', quantity: 100, unit: 'g, dry' },
-      { name: 'Baby spinach', quantity: 80, unit: 'g' },
-      { name: 'Coconut milk', quantity: 150, unit: 'ml' },
-      { name: 'Canned chopped tomatoes', quantity: 200, unit: 'g' },
-      { name: 'Basmati rice (dry)', quantity: 70, unit: 'g' },
-      { name: 'Onion', quantity: 1, unit: 'medium, diced' },
-      { name: 'Garlic', quantity: 3, unit: 'cloves' },
-      { name: 'Fresh ginger', quantity: 10, unit: 'g' },
-      { name: 'Curry powder', quantity: 15, unit: 'g' },
-      { name: 'Coconut oil', quantity: 15, unit: 'ml' },
+      { name: 'Red lentils', quantity: 100, unit: 'g, dry', slug: 'red-lentils-dry' },
+      { name: 'Baby spinach', quantity: 80, unit: 'g', slug: 'spinach-raw' },
+      { name: 'Coconut milk', quantity: 150, unit: 'ml', slug: 'coconut-milk-canned' },
+      { name: 'Canned chopped tomatoes', quantity: 200, unit: 'g', slug: 'tomatoes-canned' },
+      { name: 'Basmati rice (dry)', quantity: 70, unit: 'g', slug: 'rice-basmati-dry' },
+      { name: 'Onion', quantity: 1, unit: 'medium, diced', slug: 'onion-raw' },
+      { name: 'Garlic', quantity: 3, unit: 'cloves', slug: 'garlic-raw' },
+      { name: 'Fresh ginger', quantity: 10, unit: 'g', slug: 'ginger-root-raw' },
+      { name: 'Curry powder', quantity: 15, unit: 'g', slug: 'curry-powder' },
+      { name: 'Coconut oil', quantity: 15, unit: 'ml', slug: 'coconut-oil' },
     ],
     instructions: [
       'Cook rice according to package instructions.',
@@ -357,9 +378,9 @@ export const RECIPE_LIBRARY = {
     description:
       'Crisp apple slices paired with natural almond butter — a simple, satisfying snack with the perfect balance of fibre and healthy fats.',
     ingredients: [
-      { name: 'Apple', quantity: 1, unit: 'large' },
-      { name: 'Natural almond butter', quantity: 30, unit: 'g' },
-      { name: 'Cinnamon', quantity: 1, unit: 'pinch' },
+      { name: 'Apple', quantity: 1, unit: 'large', slug: 'apple-raw' },
+      { name: 'Natural almond butter', quantity: 30, unit: 'g', slug: 'almond-butter' },
+      { name: 'Cinnamon', quantity: 1, unit: 'pinch', slug: 'cinnamon' },
     ],
     instructions: [
       'Wash and core the apple, then slice into even wedges.',
@@ -382,11 +403,11 @@ export const RECIPE_LIBRARY = {
     description:
       "Creamy blended smoothie with frozen banana, vanilla protein powder, oat milk, and a handful of spinach. You won't taste the greens!",
     ingredients: [
-      { name: 'Frozen banana', quantity: 1, unit: 'medium' },
-      { name: 'Vanilla protein powder', quantity: 30, unit: 'g' },
-      { name: 'Oat milk', quantity: 240, unit: 'ml' },
-      { name: 'Baby spinach', quantity: 30, unit: 'g' },
-      { name: 'Almond butter', quantity: 10, unit: 'g' },
+      { name: 'Frozen banana', quantity: 1, unit: 'medium', slug: 'banana-raw' },
+      { name: 'Vanilla protein powder', quantity: 30, unit: 'g', slug: 'whey-protein' },
+      { name: 'Oat milk', quantity: 240, unit: 'ml', slug: 'oat-milk-unsweetened' },
+      { name: 'Baby spinach', quantity: 30, unit: 'g', slug: 'spinach-raw' },
+      { name: 'Almond butter', quantity: 10, unit: 'g', slug: 'almond-butter' },
     ],
     instructions: [
       'Add all ingredients to a blender.',
@@ -408,8 +429,13 @@ export const RECIPE_LIBRARY = {
     description:
       'A handful of mixed raw nuts paired with sweet Medjool dates — nutrient-dense and deeply satisfying.',
     ingredients: [
-      { name: 'Mixed raw nuts (almonds, walnuts, cashews)', quantity: 40, unit: 'g' },
-      { name: 'Medjool dates', quantity: 2, unit: 'pitted' },
+      {
+        name: 'Mixed raw nuts (almonds, walnuts, cashews)',
+        quantity: 40,
+        unit: 'g',
+        slug: 'mixed-nuts',
+      },
+      { name: 'Medjool dates', quantity: 2, unit: 'piece', slug: 'dates-medjool', note: 'pitted' },
     ],
     instructions: [
       'Portion nuts into a small bowl.',
