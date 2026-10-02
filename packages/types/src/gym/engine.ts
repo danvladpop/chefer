@@ -246,6 +246,8 @@ export interface RoutineLike {
       repMin: number;
       repMax: number;
       restSec: number;
+      /** Superset letter (adjacent equal letters); duration counts one rest per round. */
+      supersetGroup?: string | null;
     }[];
   }[];
 }

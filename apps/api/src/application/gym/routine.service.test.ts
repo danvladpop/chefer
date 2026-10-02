@@ -95,6 +95,24 @@ describe('RoutineService.save', () => {
     );
   });
 
+  it('normalises superset letters before writing (adjacent runs A, B…, lone letters cleared)', async () => {
+    const { service, repo } = setup();
+    repo.replaceDocument.mockResolvedValue({ status: 'ok', routine: routineRow({ version: 2 }) });
+    const one = doc().days[0]!.exercises[0]!;
+    const exercises = ['Q', 'Q', null, 'Z'].map((supersetGroup, i) => ({
+      ...one,
+      id: `re-${i}`,
+      supersetGroup,
+    }));
+
+    await service.save(USER, doc({ days: [{ ...doc().days[0]!, exercises }] }), 1);
+
+    const written = repo.replaceDocument.mock.calls[0]![2] as {
+      days: { exercises: { supersetGroup: string | null }[] }[];
+    };
+    expect(written.days[0]!.exercises.map((e) => e.supersetGroup)).toEqual(['A', 'A', null, null]);
+  });
+
   it('a stale version throws CONFLICT carrying the current RoutineDto', async () => {
     const { service, repo } = setup();
     repo.replaceDocument.mockResolvedValue({

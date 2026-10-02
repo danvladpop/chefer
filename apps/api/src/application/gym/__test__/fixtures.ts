@@ -276,6 +276,7 @@ export function sessionRow(doc: WorkoutSessionDoc, userId = 'u1'): SessionWithCh
       lastSetRir: e.lastSetRir,
       prescription: { ...e.prescription },
       notes: e.notes,
+      supersetGroup: e.supersetGroup ?? null,
       sets: e.sets.map((s) => ({
         id: s.id,
         sessionExerciseId: e.id,

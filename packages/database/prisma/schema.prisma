@@ -1381,6 +1381,7 @@ model SessionExercise {
   lastSetRir        Int? // 0..3 (3 = "3+")
   prescription      Json // { weightKg, reps[], reasonCode, inputs, engineVersion }
   notes             String?
+  supersetGroup     String? // this session's superset letter (plan-library-supersets S-D3)
 
   session  WorkoutSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
   exercise Exercise       @relation(fields: [exerciseId], references: [id])

@@ -535,3 +535,118 @@ describe('workoutReducer', () => {
     expect(doc).toMatchObject({ status: 'DISCARDED', clientUpdatedAt: at(3), finishedAt: null });
   });
 });
+
+describe('workout supersets (plan-library-supersets S-D3)', () => {
+  const ids = (doc: WorkoutSessionDoc) =>
+    [...doc.exercises]
+      .sort((a, b) => a.position - b.position)
+      .map((e) => `${e.exerciseId}:${e.supersetGroup ?? '-'}`);
+
+  it('startSession copies the routine superset letters into the session', () => {
+    const doc = startSession({
+      id: newId(),
+      newId,
+      now: T0,
+      localDate: '2026-09-24',
+      routineId: 'r1',
+      routineDayId: 'd1',
+      name: 'Upper A',
+      isDeload: false,
+      exercises: [
+        { ...planned('curl', 0, suggestion(10, [12, 12])), supersetGroup: 'A' },
+        { ...planned('pushdown', 1, suggestion(20, [12, 12])), supersetGroup: 'A' },
+        planned('raise', 2, suggestion(8, [15, 15])),
+      ],
+    });
+    expect(ids(doc)).toEqual(['curl:A', 'pushdown:A', 'raise:-']);
+    expect(workoutSessionDocSchema.parse(doc)).toEqual(doc);
+  });
+
+  it('creates and ungroups a superset for this session only', () => {
+    const doc = start();
+    const [bench, db, raise] = [...doc.exercises].sort((a, b) => a.position - b.position);
+    const grouped = workoutReducer(doc, {
+      type: 'createSuperset',
+      seIds: [raise!.id, bench!.id],
+      at: at(1),
+    });
+    expect(ids(grouped)).toEqual([
+      'barbell-bench-press:A',
+      'dumbbell-lateral-raise:A',
+      'dumbbell-bench-press:-',
+    ]);
+    expect(grouped.clientUpdatedAt).toBe(at(1));
+    expect(positionsContiguous(grouped)).toBe(true);
+
+    const ungrouped = workoutReducer(grouped, {
+      type: 'ungroupSuperset',
+      seId: raise!.id,
+      at: at(2),
+    });
+    expect(ids(ungrouped)).toEqual([
+      'barbell-bench-press:-',
+      'dumbbell-lateral-raise:-',
+      'dumbbell-bench-press:-',
+    ]);
+    expect(
+      workoutReducer(doc, { type: 'createSuperset', seIds: [db!.id, 'nope'], at: at(3) }),
+    ).toBe(doc);
+  });
+
+  it("keeps an older doc's derived supersets when it is first edited", () => {
+    const doc = start();
+    const legacy: WorkoutSessionDoc = {
+      ...doc,
+      exercises: doc.exercises.map(({ supersetGroup: _drop, ...se }) => se),
+    };
+    const [bench, db, raise] = [...legacy.exercises].sort((a, b) => a.position - b.position);
+    const next = workoutReducer(legacy, {
+      type: 'ungroupSuperset',
+      seId: raise!.id,
+      derivedGroups: { [bench!.id]: 'A', [db!.id]: 'A', [raise!.id]: null },
+      at: at(1),
+    });
+    expect(ids(next)).toEqual([
+      'barbell-bench-press:A',
+      'dumbbell-bench-press:A',
+      'dumbbell-lateral-raise:-',
+    ]);
+  });
+
+  it('add, remove and move keep the session letters consistent', () => {
+    const doc = start();
+    const [bench, db] = [...doc.exercises].sort((a, b) => a.position - b.position);
+    const grouped = workoutReducer(doc, {
+      type: 'createSuperset',
+      seIds: [bench!.id, db!.id],
+      at: at(1),
+    });
+    const added = workoutReducer(grouped, {
+      type: 'addExercise',
+      newSeId: newId(),
+      exerciseId: 'cable-biceps-curl',
+      repMin: 10,
+      repMax: 15,
+      targetRir: 2,
+      restSec: 90,
+      prescription: suggestion(20, [12, 12]),
+      warmups: [],
+      newSetIds: [newId(), newId()],
+      at: at(2),
+    });
+    expect(ids(added).at(-1)).toBe('cable-biceps-curl:-');
+
+    // a step down from A2 hops over nothing: it swaps with its partner first
+    const moved = workoutReducer(added, {
+      type: 'moveExercise',
+      seId: bench!.id,
+      direction: 'down',
+      at: at(3),
+    });
+    expect(ids(moved).slice(0, 2)).toEqual(['dumbbell-bench-press:A', 'barbell-bench-press:A']);
+
+    const removed = workoutReducer(added, { type: 'removeExercise', seId: db!.id, at: at(4) });
+    expect(ids(removed)[0]).toBe('barbell-bench-press:-'); // a superset of one dissolves
+    expect(positionsContiguous(removed)).toBe(true);
+  });
+});

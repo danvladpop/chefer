@@ -1,17 +1,23 @@
 import { describe, expect, it } from 'vitest';
 import type { RoutineDto, SessionExerciseDoc, Suggestion, WorkoutSessionDoc } from '@chefer/types';
+import { estimateMinutes } from './duration';
 import {
+  createSuperset,
   isSupersetWithNext,
   moveSupersetItem,
   moveSupersetItemTo,
   normalizeSupersets,
   removeSupersetItem,
+  routineWithoutSuperset,
+  routineWithSuperset,
+  sessionOwnsSupersets,
   sessionSupersets,
   setSupersetWithNext,
   setTickOutcome,
   supersetGroupLookup,
   supersetRuns,
   supersetSlot,
+  ungroupSuperset,
   workoutFocus,
 } from './supersets';
 
@@ -348,5 +354,130 @@ describe('setTickOutcome + workoutFocus (superset rounds)', () => {
     const plain = new Map();
     const doc = tick(start, 'a1-1');
     expect(workoutFocus(doc, plain)).toEqual({ seId: 'a1', setId: 'a1-2' });
+  });
+});
+
+describe('createSuperset (pick 2–4, plan-library-supersets S-D1)', () => {
+  it('moves the picks together at the first pick, in list order', () => {
+    expect(spec(createSuperset(rows('a b c d e'), [4, 1, 3]))).toBe('a b:A d:A e:A c');
+  });
+
+  it('takes picks out of their old superset; the partners left behind stay grouped', () => {
+    expect(spec(createSuperset(rows('a:A b:A c:A d e'), [2, 4]))).toBe('a:A b:A c:B e:B d');
+    // a partner left alone stops being a superset
+    expect(spec(createSuperset(rows('a:A b:A c d'), [1, 3]))).toBe('a b:A d:A c');
+  });
+
+  it('never merges with a neighbouring superset', () => {
+    expect(spec(createSuperset(rows('a:A b:A c d'), [2, 3]))).toBe('a:A b:A c:B d:B');
+  });
+
+  it('ignores fewer than 2 or more than 4 picks and out-of-range indices', () => {
+    expect(spec(createSuperset(rows('a b c'), [1]))).toBe('a b c');
+    expect(spec(createSuperset(rows('a b c d e'), [0, 1, 2, 3, 4]))).toBe('a b c d e');
+    expect(spec(createSuperset(rows('a b c'), [0, 0, 9]))).toBe('a b c');
+  });
+});
+
+describe('ungroupSuperset', () => {
+  it('clears the whole superset holding the item and relabels the rest', () => {
+    expect(spec(ungroupSuperset(rows('a:A b:A c d:B e:B'), 1))).toBe('a b c d:A e:A');
+    expect(spec(ungroupSuperset(rows('a b'), 0))).toBe('a b');
+  });
+});
+
+describe('sessions that own their supersets (S-D3)', () => {
+  const own = (se: SessionExerciseDoc, g: string | null): SessionExerciseDoc => ({
+    ...se,
+    supersetGroup: g,
+  });
+
+  it('uses the session letters, including for exercises added mid-workout', () => {
+    const doc = session([
+      own(exercise('x', 0, { routineExerciseId: null }), 'A'),
+      own(exercise('a1', 1), 'A'),
+      own(exercise('a2', 2), null),
+    ]);
+    expect(sessionOwnsSupersets(doc.exercises)).toBe(true);
+    const map = sessionSupersets(doc.exercises, groupOf);
+    expect(map.get('x')?.memberIds).toEqual(['x', 'a1']);
+    expect(map.has('a2')).toBe(false); // the routine's A1/A2 pairing is NOT applied
+  });
+
+  it('falls back to the routine for older docs without the field', () => {
+    const doc = session([exercise('a1', 0), exercise('a2', 1)]);
+    expect(sessionOwnsSupersets(doc.exercises)).toBe(false);
+    expect(sessionSupersets(doc.exercises, groupOf).size).toBe(2);
+  });
+});
+
+describe('routineWithSuperset / routineWithoutSuperset', () => {
+  const ex = (id: string, position: number, supersetGroup: string | null = null) => ({
+    id,
+    exerciseId: `ex-${id}`,
+    position,
+    sets: 3,
+    repMin: 8,
+    repMax: 12,
+    targetRir: 2,
+    restSec: 90,
+    supersetGroup,
+    notes: null,
+  });
+  const routine = {
+    id: 'r',
+    name: 'UL',
+    days: [
+      { id: 'd2', position: 1, name: 'Lower', plannedWeekday: null, exercises: [ex('l1', 0)] },
+      {
+        id: 'd1',
+        position: 0,
+        name: 'Upper',
+        plannedWeekday: 1,
+        exercises: [ex('c', 2), ex('a', 0), ex('b', 1, 'A'), ex('d', 3, 'A')],
+      },
+    ],
+  } as unknown as RoutineDto;
+
+  it('groups the routine exercises on their day, keeping every other day as is', () => {
+    const doc = routineWithSuperset(routine, ['d', 'a']);
+    expect(doc?.days.map((d) => d.id)).toEqual(['d1', 'd2']);
+    expect(doc?.days[0]?.exercises.map((e) => `${e.id}:${e.supersetGroup ?? '-'}`)).toEqual([
+      'a:A',
+      'd:A',
+      'b:-',
+      'c:-',
+    ]);
+    expect(doc?.days[1]?.exercises.map((e) => e.id)).toEqual(['l1']);
+  });
+
+  it('is null when the exercises are not all on one day', () => {
+    expect(routineWithSuperset(routine, ['a', 'l1'])).toBeNull();
+    expect(routineWithSuperset(routine, ['a', 'nope'])).toBeNull();
+  });
+
+  it('ungroups the superset holding an exercise', () => {
+    const grouped = {
+      ...routine,
+      days: [{ ...routine.days[1]!, exercises: [ex('a', 0, 'A'), ex('b', 1, 'A')] }],
+    } as RoutineDto;
+    expect(
+      routineWithoutSuperset(grouped, 'b')?.days[0]?.exercises.map((e) => e.supersetGroup),
+    ).toEqual([null, null]);
+    expect(routineWithoutSuperset(grouped, 'nope')).toBeNull();
+  });
+});
+
+describe('estimateMinutes with supersets', () => {
+  it("counts one rest per superset round (the last member's)", () => {
+    const plain = [
+      { sets: 3, restSec: 90, isCompound: false },
+      { sets: 3, restSec: 90, isCompound: false },
+    ];
+    // 6 × (40 + 90) = 780 s = 13 min, + 5 warm-up
+    expect(estimateMinutes(plain)).toBe(18);
+    const superset = plain.map((r) => ({ ...r, supersetGroup: 'A' }));
+    // 6 × 40 + 3 × 90 = 510 s = 8.5 min, + 5 warm-up
+    expect(estimateMinutes(superset)).toBe(14);
   });
 });

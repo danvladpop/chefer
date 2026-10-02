@@ -263,6 +263,7 @@ function fullSession(): FriendSessionRow {
     lastSetRir: 1,
     prescription: { weightKg: 100, reps: [5, 5, 5] },
     notes: 'felt heavy',
+    supersetGroup: null,
     sets,
     exercise: exerciseMeta(id, trackingType, null),
   });

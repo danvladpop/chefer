@@ -7,11 +7,16 @@
 // editor operation below returns a normalised list, so reordering or removing
 // an exercise can never leave a stray letter or a group split in two.
 //
-// Inside a session there is no superset field (the session schema is frozen):
-// grouping is derived from `routineExerciseId` via the routine, and the same
-// adjacency rule applies to the session's current exercise order.
+// Inside a session (2026-10, plan-library-supersets S-D3) the session doc
+// carries its own optional `supersetGroup` per exercise, so a workout can
+// create or break up a superset for that session only. A doc "owns" its
+// grouping once any exercise has the field (`sessionOwnsSupersets`); docs
+// without it (old binaries, older sessions) keep the original derivation from
+// `routineExerciseId` via the routine. The same adjacency rule applies to the
+// session's current exercise order either way.
 import type {
   NextWorkoutDto,
+  RoutineDoc,
   RoutineDto,
   SessionExerciseDoc,
   SessionSetDoc,
@@ -199,6 +204,41 @@ export function moveSupersetItemTo<T extends SupersetItem>(
   return normalizeSupersets(rest);
 }
 
+/** Most exercises one superset may hold (a tri-set plus one; S-D1). */
+export const MAX_SUPERSET_SIZE = 4;
+
+/**
+ * "Group as superset": the picked items (indices into `items`, 2 to
+ * MAX_SUPERSET_SIZE of them) become one superset. They move together to the
+ * first pick's place, in list order; each leaves any superset it was in (the
+ * partners left behind stay grouped, or dissolve at one). Invalid picks
+ * return the list normalised and otherwise unchanged.
+ */
+export function createSuperset<T extends SupersetItem>(
+  items: readonly T[],
+  indices: readonly number[],
+): T[] {
+  const picks = [...new Set(indices)]
+    .filter((i) => i >= 0 && i < items.length)
+    .sort((a, b) => a - b);
+  if (picks.length < 2 || picks.length > MAX_SUPERSET_SIZE) return normalizeSupersets(items);
+  const picked = new Set(picks);
+  const rest = items.filter((_, i) => !picked.has(i));
+  const at = picks[0] ?? 0; // no rest item precedes the first pick, so its rest index is `at`
+  const block = picks.map((i) => ({ ...(items[i] as T), supersetGroup: TEMP_JOIN }));
+  rest.splice(at, 0, ...block);
+  return normalizeSupersets(rest);
+}
+
+/** "Ungroup": every member of the superset containing item `index` stands alone again. */
+export function ungroupSuperset<T extends SupersetItem>(items: readonly T[], index: number): T[] {
+  const groups = groupsOf(items);
+  if (groups[index] === null || groups[index] === undefined) return normalizeSupersets(items);
+  const [start, end] = runBounds(groups, index);
+  for (let i = start; i <= end; i++) groups[i] = null;
+  return normalizeSupersets(withGroups(items, groups));
+}
+
 // ─── Inside a session ─────────────────────────────────────────────────────────
 
 /** `routineExerciseId` → its routine superset letter (null when none / unknown). */
@@ -231,24 +271,44 @@ export interface SessionSupersetSlot {
   memberIds: readonly string[];
 }
 
-type SessionExerciseRef = Pick<SessionExerciseDoc, 'id' | 'routineExerciseId' | 'position'>;
+type SessionExerciseRef = Pick<
+  SessionExerciseDoc,
+  'id' | 'routineExerciseId' | 'position' | 'supersetGroup'
+>;
 
 function byPosition<T extends { position: number }>(items: readonly T[]): T[] {
   return [...items].sort((a, b) => a.position - b.position);
 }
 
 /**
- * Supersets of a running session, keyed by session-exercise id. Exercises
- * added mid-session (no routine slot) never join one; moving an exercise away
- * from its partners in the session breaks the superset for that session.
+ * True when the session stores its own superset letters (S-D3): any exercise
+ * carries the `supersetGroup` field, even as null. Older docs have none.
+ */
+export function sessionOwnsSupersets(
+  exercises: readonly Pick<SessionExerciseDoc, 'supersetGroup'>[],
+): boolean {
+  return exercises.some((se) => se.supersetGroup !== undefined);
+}
+
+/**
+ * Supersets of a running session, keyed by session-exercise id. A doc that
+ * owns its grouping uses its own letters; otherwise grouping is derived from
+ * the routine, so exercises added mid-session (no routine slot) never join
+ * one. Either way, moving an exercise away from its partners breaks the
+ * superset for that session.
  */
 export function sessionSupersets(
   exercises: readonly SessionExerciseRef[],
   groupOf: SupersetGroupOf | null,
 ): Map<string, SessionSupersetSlot> {
   const sorted = byPosition(exercises);
+  const owned = sessionOwnsSupersets(sorted);
   const items = sorted.map((se) => ({
-    supersetGroup: groupOf && se.routineExerciseId ? groupOf(se.routineExerciseId) : null,
+    supersetGroup: owned
+      ? (se.supersetGroup ?? null)
+      : groupOf && se.routineExerciseId
+        ? groupOf(se.routineExerciseId)
+        : null,
   }));
   const out = new Map<string, SessionSupersetSlot>();
   for (const run of supersetRuns(items)) {
@@ -350,4 +410,83 @@ export function workoutFocus(
     }
   }
   return null;
+}
+
+// ─── Saving a workout's superset to the routine ──────────────────────────────
+
+function routineDocWith(
+  routine: RoutineDto,
+  dayId: string,
+  edit: (
+    exercises: RoutineDoc['days'][number]['exercises'],
+  ) => RoutineDoc['days'][number]['exercises'],
+): RoutineDoc {
+  return {
+    id: routine.id,
+    name: routine.name,
+    days: [...routine.days]
+      .sort((a, b) => a.position - b.position)
+      .map((day) => {
+        const exercises = [...day.exercises]
+          .sort((a, b) => a.position - b.position)
+          .map((e) => ({
+            id: e.id,
+            exerciseId: e.exerciseId,
+            sets: e.sets,
+            repMin: e.repMin,
+            repMax: e.repMax,
+            targetRir: e.targetRir,
+            restSec: e.restSec,
+            supersetGroup: e.supersetGroup,
+            notes: e.notes,
+          }));
+        return {
+          id: day.id,
+          name: day.name,
+          plannedWeekday: day.plannedWeekday,
+          exercises: day.id === dayId ? edit(exercises) : exercises,
+        };
+      }),
+  };
+}
+
+function dayHolding(routine: RoutineDto, routineExerciseIds: readonly string[]) {
+  return routine.days.find((d) =>
+    routineExerciseIds.every((id) => d.exercises.some((e) => e.id === id)),
+  );
+}
+
+/**
+ * "Also change my routine" for a superset made in a workout: the routine as a
+ * save document with those routine exercises grouped on their day. Null when
+ * they are not all on one day of this routine (edited elsewhere, or an
+ * exercise added mid-workout has no routine slot).
+ */
+export function routineWithSuperset(
+  routine: RoutineDto,
+  routineExerciseIds: readonly string[],
+): RoutineDoc | null {
+  const day = dayHolding(routine, routineExerciseIds);
+  if (!day || routineExerciseIds.length < 2) return null;
+  return routineDocWith(routine, day.id, (exercises) =>
+    createSuperset(
+      exercises,
+      routineExerciseIds.map((id) => exercises.findIndex((e) => e.id === id)),
+    ),
+  );
+}
+
+/** The routine with the superset holding `routineExerciseId` ungrouped (null when absent). */
+export function routineWithoutSuperset(
+  routine: RoutineDto,
+  routineExerciseId: string,
+): RoutineDoc | null {
+  const day = dayHolding(routine, [routineExerciseId]);
+  if (!day) return null;
+  return routineDocWith(routine, day.id, (exercises) =>
+    ungroupSuperset(
+      exercises,
+      exercises.findIndex((e) => e.id === routineExerciseId),
+    ),
+  );
 }
