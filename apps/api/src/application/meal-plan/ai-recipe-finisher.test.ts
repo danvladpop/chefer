@@ -114,16 +114,34 @@ describe('AiRecipeFinisher.finishPlan', () => {
   });
 
   it('repairs problem lines in ONE AI call', async () => {
+    const OILY = (id: string) =>
+      recipe(id, [
+        { name: 'Rice', quantity: 100, unit: 'g', slug: 'rice-white-dry' },
+        { name: 'Golden drizzle oil', quantity: 10, unit: 'g', slug: 'gold-oil' },
+      ]);
     const { finisher, ctx, repairRecipeLines } = setup({
       repair: (ids) => ids.map((id) => ({ id, slug: 'olive-oil', quantity: 10, unit: 'g' })),
     });
     const { plan, stats } = await finisher.finishPlan(
-      { days: [day(['lunch', 'dinner'], [BROKEN('a'), BROKEN('b')])] },
+      { days: [day(['lunch', 'dinner'], [OILY('a'), OILY('b')])] },
       ctx,
     );
     expect(repairRecipeLines).toHaveBeenCalledTimes(1);
     expect(plan.days[0]!.meals[0]!.recipe.ingredients[1]?.slug).toBe('olive-oil');
     expect(stats.repairedLines).toBe(2);
+  });
+
+  it('refuses a look-alike food from the repair round (repair guard) and regenerates instead', async () => {
+    const { finisher, ctx } = setup({
+      repair: (ids) => ids.map((id) => ({ id, slug: 'olive-oil', quantity: 20, unit: 'g' })),
+      swap: () => GOOD('regenerated'),
+    });
+    const { plan, stats } = await finisher.finishPlan(
+      { days: [day(['dinner'], [BROKEN('a')])] },
+      ctx,
+    );
+    expect(stats.repairedLines).toBe(0);
+    expect(plan.days[0]!.meals[0]!.recipe.id).toBe('regenerated');
   });
 
   it('regenerates a recipe the repair could not fix, then falls back to curated, then drops', async () => {
