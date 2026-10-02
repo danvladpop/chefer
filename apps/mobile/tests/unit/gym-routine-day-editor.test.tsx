@@ -76,8 +76,8 @@ let latest: RoutineDraft | null = null;
 const onAddExercise = jest.fn();
 const onSwapExercise = jest.fn();
 
-function Harness() {
-  const [draft, dispatch] = useReducer(routineDraftReducer, dto(), routineDtoToDraft);
+function Harness({ make = dto }: { make?: () => RoutineDto }) {
+  const [draft, dispatch] = useReducer(routineDraftReducer, make(), routineDtoToDraft);
   latest = draft;
   const day = draft.days[0];
   if (!day) return null;
@@ -235,5 +235,74 @@ describe('routine editor exercise cards', () => {
     await user.press(screen.getByTestId(`${dayBase}-day-menu`));
     expect(screen.getByTestId(`${dayBase}-menu-duplicate`)).toBeTruthy();
     expect(screen.getByTestId(`${dayBase}-menu-delete`)).toBeTruthy();
+  });
+
+  // plan-library-supersets S2: a visible "Superset" action per day → pick
+  // sheet → "Group as superset"; "Ungroup" on the heading.
+  it('"Superset" groups the picked exercises and "Ungroup" frees them', async () => {
+    const user = userEvent.setup();
+    await render(<Harness />);
+    const sheet = `${dayBase}-superset-sheet`;
+
+    await user.press(screen.getByTestId(`${dayBase}-superset-create`));
+    expect(screen.getByTestId(`${sheet}-hint`)).toHaveTextContent(
+      'Pick 2 to 4 exercises to do back to back. You rest after the round.',
+    );
+    expect(screen.getByTestId(`${sheet}-apply`)).toBeDisabled();
+    expect(screen.getByTestId(`${sheet}-status`)).toHaveTextContent('Pick at least 2 exercises.');
+
+    await user.press(screen.getByTestId(`${sheet}-item-e3`));
+    await user.press(screen.getByTestId(`${sheet}-item-e1`));
+    expect(screen.getByTestId(`${sheet}-item-e1`)).toBeChecked();
+    expect(screen.getByTestId(`${sheet}-apply`)).toBeEnabled();
+    await user.press(screen.getByTestId(`${sheet}-apply`));
+
+    // The picks moved together at the first pick's place (curl hops up).
+    expect(latest?.days[0]?.exercises.map((e) => `${e.key}:${e.supersetGroup ?? '-'}`)).toEqual([
+      'e1:A',
+      'e3:A',
+      'e2:-',
+    ]);
+    expect(screen.getByTestId(`${dayBase}-superset-A`)).toHaveTextContent(/Superset A/);
+    expect(screen.getByTestId(`${row('e3')}-superset`)).toHaveTextContent('A2');
+
+    await user.press(screen.getByTestId(`${dayBase}-superset-A-ungroup`));
+    expect(latest?.days[0]?.exercises.map((e) => e.supersetGroup)).toEqual([null, null, null]);
+    expect(screen.queryByTestId(`${dayBase}-superset-A`)).toBeNull();
+  });
+
+  it('"Superset" is disabled below 2 exercises; picks beyond 4 are disabled', async () => {
+    const user = userEvent.setup();
+    const one = () => {
+      const r = dto();
+      const day = r.days[0];
+      if (day) day.exercises = day.exercises.slice(0, 1);
+      return r;
+    };
+    const { unmount } = await render(<Harness make={one} />);
+    expect(screen.getByTestId(`${dayBase}-superset-create`)).toBeDisabled();
+    await unmount();
+
+    const five = () => {
+      const r = dto();
+      const day = r.days[0];
+      if (day) {
+        day.exercises = [...day.exercises, slot('e4', 'row', 3), slot('e5', 'curl', 4)];
+      }
+      return r;
+    };
+    await render(<Harness make={five} />);
+    const sheet = `${dayBase}-superset-sheet`;
+    await user.press(screen.getByTestId(`${dayBase}-superset-create`));
+    for (const key of ['e1', 'e2', 'e3', 'e4']) {
+      await user.press(screen.getByTestId(`${sheet}-item-${key}`));
+    }
+    expect(screen.getByTestId(`${sheet}-item-e5`)).toBeDisabled();
+    expect(screen.getByTestId(`${sheet}-status`)).toHaveTextContent(
+      'That’s the most for one superset.',
+    );
+    // Un-ticking one frees the fifth again.
+    await user.press(screen.getByTestId(`${sheet}-item-e4`));
+    expect(screen.getByTestId(`${sheet}-item-e5`)).toBeEnabled();
   });
 });

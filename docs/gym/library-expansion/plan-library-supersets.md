@@ -130,7 +130,7 @@ use already ships). No procedure is renamed or removed.
 | Phase | State         |
 | ----- | ------------- |
 | S1    | ✅ 2026-10-02 |
-| S2    | ☐             |
+| S2    | ✅ 2026-10-02 |
 | S3    | ☐             |
 | L1    | ☐             |
 | L2    | ☐             |
