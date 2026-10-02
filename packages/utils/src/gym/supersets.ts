@@ -225,7 +225,10 @@ export function createSuperset<T extends SupersetItem>(
   const picked = new Set(picks);
   const rest = items.filter((_, i) => !picked.has(i));
   const at = picks[0] ?? 0; // no rest item precedes the first pick, so its rest index is `at`
-  const block = picks.map((i) => ({ ...(items[i] as T), supersetGroup: TEMP_JOIN }));
+  const block = picks.flatMap((i) => {
+    const item = items[i];
+    return item === undefined ? [] : [{ ...item, supersetGroup: TEMP_JOIN }];
+  });
   rest.splice(at, 0, ...block);
   return normalizeSupersets(rest);
 }

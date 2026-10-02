@@ -537,6 +537,11 @@ describe('workoutReducer', () => {
 });
 
 describe('workout supersets (plan-library-supersets S-D3)', () => {
+  /** Session-exercise ids in position order (missing ones as ''). */
+  const order = (doc: WorkoutSessionDoc): [string, string, string] => {
+    const sorted = [...doc.exercises].sort((a, b) => a.position - b.position).map((e) => e.id);
+    return [sorted[0] ?? '', sorted[1] ?? '', sorted[2] ?? ''];
+  };
   const ids = (doc: WorkoutSessionDoc) =>
     [...doc.exercises]
       .sort((a, b) => a.position - b.position)
@@ -564,10 +569,10 @@ describe('workout supersets (plan-library-supersets S-D3)', () => {
 
   it('creates and ungroups a superset for this session only', () => {
     const doc = start();
-    const [bench, db, raise] = [...doc.exercises].sort((a, b) => a.position - b.position);
+    const [bench, db, raise] = order(doc);
     const grouped = workoutReducer(doc, {
       type: 'createSuperset',
-      seIds: [raise!.id, bench!.id],
+      seIds: [raise, bench],
       at: at(1),
     });
     expect(ids(grouped)).toEqual([
@@ -580,7 +585,7 @@ describe('workout supersets (plan-library-supersets S-D3)', () => {
 
     const ungrouped = workoutReducer(grouped, {
       type: 'ungroupSuperset',
-      seId: raise!.id,
+      seId: raise,
       at: at(2),
     });
     expect(ids(ungrouped)).toEqual([
@@ -588,9 +593,9 @@ describe('workout supersets (plan-library-supersets S-D3)', () => {
       'dumbbell-lateral-raise:-',
       'dumbbell-bench-press:-',
     ]);
-    expect(
-      workoutReducer(doc, { type: 'createSuperset', seIds: [db!.id, 'nope'], at: at(3) }),
-    ).toBe(doc);
+    expect(workoutReducer(doc, { type: 'createSuperset', seIds: [db, 'nope'], at: at(3) })).toBe(
+      doc,
+    );
   });
 
   it("keeps an older doc's derived supersets when it is first edited", () => {
@@ -599,11 +604,11 @@ describe('workout supersets (plan-library-supersets S-D3)', () => {
       ...doc,
       exercises: doc.exercises.map(({ supersetGroup: _drop, ...se }) => se),
     };
-    const [bench, db, raise] = [...legacy.exercises].sort((a, b) => a.position - b.position);
+    const [bench, db, raise] = order(legacy);
     const next = workoutReducer(legacy, {
       type: 'ungroupSuperset',
-      seId: raise!.id,
-      derivedGroups: { [bench!.id]: 'A', [db!.id]: 'A', [raise!.id]: null },
+      seId: raise,
+      derivedGroups: { [bench]: 'A', [db]: 'A', [raise]: null },
       at: at(1),
     });
     expect(ids(next)).toEqual([
@@ -615,10 +620,10 @@ describe('workout supersets (plan-library-supersets S-D3)', () => {
 
   it('add, remove and move keep the session letters consistent', () => {
     const doc = start();
-    const [bench, db] = [...doc.exercises].sort((a, b) => a.position - b.position);
+    const [bench, db] = order(doc);
     const grouped = workoutReducer(doc, {
       type: 'createSuperset',
-      seIds: [bench!.id, db!.id],
+      seIds: [bench, db],
       at: at(1),
     });
     const added = workoutReducer(grouped, {
@@ -639,13 +644,13 @@ describe('workout supersets (plan-library-supersets S-D3)', () => {
     // a step down from A2 hops over nothing: it swaps with its partner first
     const moved = workoutReducer(added, {
       type: 'moveExercise',
-      seId: bench!.id,
+      seId: bench,
       direction: 'down',
       at: at(3),
     });
     expect(ids(moved).slice(0, 2)).toEqual(['dumbbell-bench-press:A', 'barbell-bench-press:A']);
 
-    const removed = workoutReducer(added, { type: 'removeExercise', seId: db!.id, at: at(4) });
+    const removed = workoutReducer(added, { type: 'removeExercise', seId: db, at: at(4) });
     expect(ids(removed)[0]).toBe('barbell-bench-press:-'); // a superset of one dissolves
     expect(positionsContiguous(removed)).toBe(true);
   });

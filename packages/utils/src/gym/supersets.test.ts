@@ -459,7 +459,15 @@ describe('routineWithSuperset / routineWithoutSuperset', () => {
   it('ungroups the superset holding an exercise', () => {
     const grouped = {
       ...routine,
-      days: [{ ...routine.days[1]!, exercises: [ex('a', 0, 'A'), ex('b', 1, 'A')] }],
+      days: [
+        {
+          id: 'd1',
+          position: 0,
+          name: 'Upper',
+          plannedWeekday: 1,
+          exercises: [ex('a', 0, 'A'), ex('b', 1, 'A')],
+        },
+      ],
     } as RoutineDto;
     expect(
       routineWithoutSuperset(grouped, 'b')?.days[0]?.exercises.map((e) => e.supersetGroup),
