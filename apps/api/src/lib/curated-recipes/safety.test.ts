@@ -1,7 +1,16 @@
 import { describe, expect, it } from 'vitest';
 import type { MealType, RecipeData } from '../ai/types.js';
 import { CURATED_POOL_BY_TYPE, MIN_SAFE_POOL_SIZE, safeCuratedPools } from './index.js';
-import { filterSafeRecipes, findSafetyIssues, isRecipeSafe, type SafetyPrefs } from './safety.js';
+import {
+  deriveDietTags,
+  evaluateRestriction,
+  filterSafeRecipes,
+  findSafetyBlockers,
+  findSafetyIssues,
+  isRecipeSafe,
+  KETO_MAX_NET_CARBS_G,
+  type SafetyPrefs,
+} from './safety.js';
 
 const prefs = (over: Partial<SafetyPrefs>): SafetyPrefs => ({
   allergies: [],
@@ -223,5 +232,204 @@ describe('findSafetyIssues', () => {
         dietaryRestrictions: ['Vegetarian'],
       }),
     ).toEqual(['Eggs', 'Vegetarian']);
+  });
+});
+
+// ─── UX-REC-01: diet checks read the ingredients, not just the tags ───────────
+
+const line = (name: string, quantity = 100, unit = 'g') => ({ name, quantity, unit });
+const DERIVE = { deriveFromIngredients: true } as const;
+const PALEO = prefs({ dietaryRestrictions: ['Paleo'] });
+const KETO = prefs({ dietaryRestrictions: ['Keto'] });
+
+describe('paleo — grains, legumes, dairy and refined sugar are out (UX-REC-01)', () => {
+  const quinoaSalad = recipe({
+    name: 'Mexican Quinoa Salad',
+    dietaryTags: ['vegetarian', 'paleo'], // the tag lies
+    ingredients: [line('quinoa'), line('sweetcorn'), line('black beans'), line('lime juice')],
+  });
+
+  it('a quinoa salad is not paleo even when it is tagged paleo, and the blocker names the grain', () => {
+    expect(isRecipeSafe(quinoaSalad, PALEO)).toBe(false);
+    expect(findSafetyIssues(quinoaSalad, PALEO)).toEqual(['Paleo']);
+    const [blocker] = findSafetyBlockers(quinoaSalad, PALEO);
+    expect(blocker?.term).toBe('Paleo');
+    expect(blocker?.ingredients).toEqual(expect.arrayContaining(['quinoa', 'black beans']));
+  });
+
+  it.each([
+    ['rice', 'jasmine rice'],
+    ['oats', 'rolled oats'],
+    ['wheat', 'wholewheat pasta'],
+    ['lentils', 'red lentils'],
+    ['chickpeas', 'chickpeas'],
+    ['peanuts', 'peanut butter'],
+    ['dairy', 'Greek yogurt'],
+    ['dairy (cheese by name)', 'halloumi'],
+    ['refined sugar', 'brown sugar'],
+  ])('%s is not paleo', (_label, ingredient) => {
+    const r = recipe({ dietaryTags: ['paleo'], ingredients: [line(ingredient)] });
+    expect(isRecipeSafe(r, PALEO)).toBe(false);
+  });
+
+  it.each([
+    'almond flour',
+    'cauliflower rice',
+    'courgette noodles',
+    'coconut milk',
+    'coconut sugar',
+    'green beans',
+    'sugar snap peas',
+    'corned beef',
+    'sweet potato',
+  ])('%s does not trip the rule', (ingredient) => {
+    const r = recipe({ dietaryTags: ['paleo'], ingredients: [line(ingredient)] });
+    expect(isRecipeSafe(r, PALEO)).toBe(true);
+  });
+
+  it('a genuine paleo plate passes and is verified from its ingredients', () => {
+    const steak = recipe({
+      dietaryTags: ['paleo'],
+      ingredients: [line('sirloin steak'), line('courgette'), line('olive oil')],
+    });
+    expect(evaluateRestriction(steak, 'Paleo')).toMatchObject({ status: 'pass', verified: true });
+    expect(deriveDietTags(steak)).toContain('paleo');
+  });
+
+  it('the curated pool no longer serves a paleo user a grain dish', () => {
+    for (const pool of Object.values(CURATED_POOL_BY_TYPE)) {
+      for (const r of filterSafeRecipes(pool, PALEO)) {
+        expect(isRecipeSafe(r, PALEO)).toBe(true);
+        expect(
+          evaluateRestriction(r, 'Paleo')?.status,
+          `${r.name} should not be paleo-safe with grains/legumes/dairy/sugar`,
+        ).toBe('pass');
+      }
+    }
+  });
+});
+
+describe('keto — a net-carb limit from the recipe nutrition, with an ingredient fallback (UX-REC-01)', () => {
+  // `nutritionStatus` is not part of RecipeData; the safety check reads it off the row/DTO.
+  const carbs = (carbsG: number, fiberG = 0, status?: string) => ({
+    nutritionInfo: { calories: 500, protein: 30, carbs: carbsG, fat: 30, fiber: fiberG },
+    ...(status ? { nutritionStatus: status } : {}),
+  });
+
+  it('a 110 g-carb recipe tagged keto is no longer keto', () => {
+    const r = recipe({
+      dietaryTags: ['keto'],
+      ingredients: [line('chicken thigh'), line('olive oil')],
+      ...carbs(110, 6),
+    });
+    expect(isRecipeSafe(r, KETO)).toBe(false);
+    expect(findSafetyBlockers(r, KETO)[0]?.reason).toBe('110 g net carbs per serving');
+  });
+
+  it(`passes at or below ${KETO_MAX_NET_CARBS_G} g net carbs; typed totals lose their fibre first`, () => {
+    const salad = recipe({
+      dietaryTags: ['keto'],
+      ingredients: [line('halloumi'), line('cucumber'), line('olive oil')],
+      ...carbs(19.5, 5.3, 'COMPUTED'),
+    });
+    expect(isRecipeSafe(salad, KETO)).toBe(true);
+    expect(evaluateRestriction(salad, 'Keto')?.verified).toBe(true);
+    // 25 g computed carbs is over the limit…
+    expect(isRecipeSafe(recipe({ ...salad, ...carbs(25, 5, 'COMPUTED') }), KETO)).toBe(false);
+    // …but a typed 25 g TOTAL with 8 g fibre is 17 g net.
+    expect(isRecipeSafe(recipe({ ...salad, ...carbs(25, 8, 'USER_ENTERED') }), KETO)).toBe(true);
+  });
+
+  it('computed nutrition already excludes fibre, so it is not subtracted twice', () => {
+    const r = recipe({
+      dietaryTags: ['keto'],
+      ingredients: [line('eggs'), line('spinach')],
+      ...carbs(26, 8, 'COMPUTED'),
+    });
+    expect(isRecipeSafe(r, KETO)).toBe(false); // 26 g net, not 18
+  });
+
+  it('starchy staples fail keto even when the figures look fine', () => {
+    const r = recipe({
+      dietaryTags: ['keto'],
+      ingredients: [line('white rice'), line('chicken breast')],
+      ...carbs(8),
+    });
+    expect(isRecipeSafe(r, KETO)).toBe(false);
+  });
+
+  it('with no usable carb figure, a tagged recipe passes on its tag alone, which is NOT verified', () => {
+    const r = recipe({
+      dietaryTags: ['keto'],
+      ingredients: [line('eggs'), line('spinach')],
+      nutritionInfo: { calories: 0, protein: 0, carbs: 0, fat: 0, fiber: 0 },
+    });
+    expect(evaluateRestriction(r, 'Keto')).toMatchObject({ status: 'pass', verified: false });
+    expect(deriveDietTags(r)).not.toContain('keto');
+  });
+
+  it('a PARTIAL recipe cannot prove keto (its carbs are a lower bound)', () => {
+    const r = recipe({
+      dietaryTags: ['keto'],
+      ingredients: [line('eggs'), line('mystery sauce')],
+      ...carbs(3, 0, 'PARTIAL'),
+    });
+    expect(evaluateRestriction(r, 'Keto')).toMatchObject({ status: 'pass', verified: false });
+  });
+
+  it('an untagged recipe derives keto from its figures, or stays unverified without them', () => {
+    const lowCarb = recipe({ ingredients: [line('salmon'), line('asparagus')], ...carbs(6, 3) });
+    expect(isRecipeSafe(lowCarb, KETO)).toBe(false); // strict: untagged fails
+    expect(isRecipeSafe(lowCarb, KETO, DERIVE)).toBe(true);
+    expect(evaluateRestriction(lowCarb, 'Keto', DERIVE)).toMatchObject({
+      status: 'pass',
+      verified: true,
+    });
+    const blank = recipe({
+      ingredients: [line('salmon')],
+      nutritionInfo: { calories: 0, protein: 0, carbs: 0, fat: 0, fiber: 0 },
+    });
+    expect(evaluateRestriction(blank, 'Keto', DERIVE)?.status).toBe('unverified');
+  });
+});
+
+describe('untagged user and imported recipes derive diet tags from their ingredients (UX-REC-01)', () => {
+  const oats = recipe({ name: 'Porridge', ingredients: [line('rolled oats', 60)] });
+
+  it('plain oats are vegetarian and vegan, not "non-vegetarian"', () => {
+    const vegetarian = prefs({ dietaryRestrictions: ['Vegetarian'] });
+    expect(isRecipeSafe(oats, vegetarian)).toBe(false); // the curated pool stays strict
+    expect(isRecipeSafe(oats, vegetarian, DERIVE)).toBe(true);
+    expect(isRecipeSafe(oats, prefs({ dietaryRestrictions: ['Vegan'] }), DERIVE)).toBe(true);
+    expect(findSafetyIssues(oats, vegetarian, DERIVE)).toEqual([]);
+  });
+
+  it('but oats are still not paleo, and the reason names the grain', () => {
+    expect(findSafetyIssues(oats, PALEO, DERIVE)).toEqual(['Paleo']);
+    expect(findSafetyBlockers(oats, PALEO, DERIVE)[0]?.ingredients).toEqual(['rolled oats']);
+  });
+
+  it('a wrong-diet ingredient still fails an untagged recipe', () => {
+    const chicken = recipe({ ingredients: [line('chicken breast')] });
+    expect(isRecipeSafe(chicken, prefs({ dietaryRestrictions: ['Vegetarian'] }), DERIVE)).toBe(
+      false,
+    );
+  });
+
+  it('a recipe with no ingredients cannot be verified, so an untagged one stays unverified', () => {
+    expect(evaluateRestriction(recipe({}), 'Vegetarian', DERIVE)?.status).toBe('unverified');
+  });
+
+  it('a tagged recipe passing on its tag with ingredients present is verified; tag-only is not', () => {
+    const tagged = recipe({ dietaryTags: ['vegetarian'], ingredients: [line('lentils')] });
+    expect(evaluateRestriction(tagged, 'Vegetarian')).toMatchObject({
+      status: 'pass',
+      verified: true,
+    });
+    const bare = recipe({ dietaryTags: ['vegetarian'] });
+    expect(evaluateRestriction(bare, 'Vegetarian')).toMatchObject({
+      status: 'pass',
+      verified: false,
+    });
   });
 });

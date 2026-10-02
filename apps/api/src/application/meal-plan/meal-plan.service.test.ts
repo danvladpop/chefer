@@ -829,6 +829,7 @@ describe('MealPlanService — household context (F2)', () => {
     const { estimatePlanCostEur } = await import('../shared/plan-cost.js');
     expect(vi.mocked(estimatePlanCostEur).mock.calls.at(-1)?.[1]).toEqual({
       portions: 2,
+      table: { members: [{ portionFactor: 0.5 }], cookingFor: null },
       userId: 'user1',
     });
     expect(result.planId).toBeDefined();
@@ -988,6 +989,7 @@ describe('MealPlanService.getForWeek carry-forward', () => {
     await service.getForWeek('u1', 0, { householdScaling: true });
     expect(vi.mocked(estimatePlanCostEur).mock.calls.at(-1)?.[1]).toEqual({
       portions: 3,
+      table: { members: [{ portionFactor: 1 }, { portionFactor: 0.5 }], cookingFor: null },
       userId: 'u1',
     });
 
@@ -995,6 +997,7 @@ describe('MealPlanService.getForWeek carry-forward', () => {
     await service.getForWeek('u1', 0);
     expect(vi.mocked(estimatePlanCostEur).mock.calls.at(-1)?.[1]).toEqual({
       portions: null,
+      table: null,
       userId: 'u1',
     });
   });

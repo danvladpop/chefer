@@ -228,7 +228,7 @@ export class RecipeService {
     // goes through the ONE SafetyService filter — reported recipes excluded,
     // dislikes hard, taxonomy-recognised legacy terms included.
     const ctx = await this.safety.loadContext(userId);
-    const visible = this.safety.filter(withFavourite, ctx);
+    const visible = this.safety.filter(withFavourite, ctx, { deriveFromIngredients: true });
     // T-02.1/T-02.4: picker rows get their Checked chip from the same
     // payload the plan surfaces use — only attached when the table has
     // rules (UX-02 AC1: no false "Checked" claim on a rule-less table).
@@ -264,7 +264,7 @@ export class RecipeService {
         ...(visibleCreatorIds && { visibleCreatorIds }),
       }),
     ]);
-    const visible = this.safety.filter(recipes, ctx);
+    const visible = this.safety.filter(recipes, ctx, { deriveFromIngredients: true });
     const filteredFor = [...ctx.prefs.allergies, ...ctx.prefs.dietaryRestrictions];
     return { hiddenCount: recipes.length - visible.length, filteredFor };
   }

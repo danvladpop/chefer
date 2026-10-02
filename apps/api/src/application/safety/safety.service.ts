@@ -11,6 +11,7 @@ import {
 import type {
   SafetyCheckedItem,
   SafetyChecks,
+  SafetyConflictDetail,
   TableSafety,
   TableSafetyPerson,
 } from '@chefer/types';
@@ -18,7 +19,9 @@ import { recogniseSafetyTerm } from '@chefer/utils';
 import {
   deriveDietTags,
   deriveTagQualifiers,
+  evaluateRestriction,
   findLabelCaveats,
+  findSafetyBlockers,
   hasSafetyPrefs,
   isRecipeSafe,
   type SafetyCheckable,
@@ -226,7 +229,9 @@ export class SafetyService {
    */
   check(recipe: SafetyCheckable, table: TableSafety): SafetyChecks {
     const checked: SafetyCheckedItem[] = [];
+    const taggedOnly: SafetyCheckedItem[] = [];
     const conflicts = new Set<string>();
+    const conflictDetails = new Map<string, SafetyConflictDetail>();
     const unchecked = new Set<string>();
 
     for (const person of table.people) {
@@ -237,10 +242,51 @@ export class SafetyService {
           dietaryRestrictions: item.kind === 'diet' ? [item.label] : [],
           dislikedIngredients: item.kind === 'dislike' ? [item.label] : [],
         };
+
+        // UX-REC-01: a diet is judged on the recipe's own ingredients, not
+        // only its tags — a pass that rests on the tag alone is not "Checked".
+        if (item.kind === 'diet') {
+          const verdict = evaluateRestriction(recipe, item.label, { deriveFromIngredients: true });
+          if (verdict?.status === 'unverified') {
+            // Untagged and nothing to prove it from: honest "can't check".
+            unchecked.add(item.label);
+            continue;
+          }
+          if (verdict?.status === 'pass') {
+            checked.push({ label: item.label, who: person.who });
+            if (!verdict.verified) taggedOnly.push({ label: item.label, who: person.who });
+            continue;
+          }
+          if (verdict?.status === 'fail') {
+            conflicts.add(item.label);
+            if (!conflictDetails.has(item.label)) {
+              conflictDetails.set(item.label, {
+                label: item.label,
+                kind: 'diet',
+                ingredients: verdict.ingredients,
+                ...(verdict.reason && { reason: verdict.reason }),
+              });
+            }
+            continue;
+          }
+          // An unknown free-text diet term falls through to the matcher below.
+        }
+
         if (isRecipeSafe(recipe, prefs)) {
           checked.push({ label: item.label, who: person.who });
         } else {
           conflicts.add(item.label);
+          if (!conflictDetails.has(item.label)) {
+            const blockers = findSafetyBlockers(recipe, {
+              allergies: prefs.allergies,
+              dietaryRestrictions: prefs.dietaryRestrictions,
+            });
+            conflictDetails.set(item.label, {
+              label: item.label,
+              kind: item.kind,
+              ingredients: blockers.flatMap((b) => b.ingredients),
+            });
+          }
         }
       }
     }
@@ -255,6 +301,8 @@ export class SafetyService {
       conflicts: [...conflicts],
       unchecked: [...unchecked],
       ...(labelCaveats.length > 0 ? { labelCaveats } : {}),
+      ...(taggedOnly.length > 0 ? { taggedOnly } : {}),
+      ...(conflictDetails.size > 0 ? { conflictDetails: [...conflictDetails.values()] } : {}),
     };
   }
 
@@ -263,7 +311,9 @@ export class SafetyService {
    * reported. `opts.dislikes: 'mark'` (search results, UX-01) keeps
    * disliked-but-otherwise-safe recipes in the pool for the caller to chip
    * instead of hard-excluding them — generation and the Replace picker's
-   * default list use the default `'hide'`.
+   * default list use the default `'hide'`. `deriveFromIngredients` (UX-REC-01)
+   * is for pools of recipes people wrote or imported: an untagged one passes a
+   * diet when its own ingredients verify it, instead of vanishing.
    *
    * `T` only needs to be STRUCTURALLY checkable (a Prisma `Recipe` row's
    * `ingredients`/`nutritionInfo` are typed as JSON, not the narrow
@@ -273,7 +323,7 @@ export class SafetyService {
   filter<T extends RecipeSafetyLike & { id: string }>(
     pool: T[],
     ctx: Pick<SafetyContext, 'prefs' | 'hiddenRecipeIds'>,
-    opts?: { dislikes?: 'hide' | 'mark' },
+    opts?: { dislikes?: 'hide' | 'mark'; deriveFromIngredients?: boolean },
   ): T[] {
     const dislikesMode = opts?.dislikes ?? 'hide';
     const prefs: SafetyPrefs =
@@ -285,7 +335,12 @@ export class SafetyService {
     const checkSafety = hasSafetyPrefs(prefs);
     return pool.filter((recipe) => {
       if (ctx.hiddenRecipeIds.includes(recipe.id)) return false;
-      return !checkSafety || isRecipeSafe(recipe as unknown as SafetyCheckable, prefs);
+      return (
+        !checkSafety ||
+        isRecipeSafe(recipe as unknown as SafetyCheckable, prefs, {
+          deriveFromIngredients: opts?.deriveFromIngredients === true,
+        })
+      );
     });
   }
 

@@ -66,8 +66,13 @@ import {
   type SafetyCheckable,
   type SafetyPrefs,
 } from '../../lib/curated-recipes/index.js';
+import { findSafetyBlockers } from '../../lib/curated-recipes/safety.js';
 import { hasFeature } from '../../lib/entitlements.js';
-import { unsafeForTableError } from '../../lib/friends-errors.js';
+import {
+  unsafeForTableError,
+  unsafeForTableMessage,
+  type UnsafeForTableContext,
+} from '../../lib/friends-errors.js';
 import { notifyTailoringQueued } from '../../lib/plan-tailoring-signal.js';
 import { PoolExhaustedCause } from '../../lib/pool-exhausted.js';
 import { recipeImageWorker } from '../../workers/recipe-image.worker.js';
@@ -94,6 +99,7 @@ import {
 } from '../recipe/recipe-access.js';
 import { recipeCopyService, type RecipeCopyService } from '../recipe/recipe-copy.service.js';
 import { safetyService, type SafetyContext } from '../safety/safety.service.js';
+import type { PortionTable } from '../shared/household-scale.js';
 import { estimatePlanCostEur, type PlanCostEstimate } from '../shared/plan-cost.js';
 import { daysFrom, firstShoppingDay } from '../shared/plan-window.js';
 import {
@@ -804,6 +810,7 @@ export class MealPlanService {
       trainingBonus,
       trainingDayTargets,
       householdContext,
+      householdMembers,
       planSafety,
       hiddenRecipeIds: safetyCtx.hiddenRecipeIds,
       safetyTable: safetyCtx.table,
@@ -832,6 +839,7 @@ export class MealPlanService {
       trainingBonus,
       trainingDayTargets,
       householdContext,
+      householdMembers,
       planSafety,
       hiddenRecipeIds,
       safetyTable,
@@ -1117,6 +1125,7 @@ export class MealPlanService {
       // Sized for the table (P2-3): premium generation IS household scaling.
       estimatedCost: await estimatePlanCostEur(daysFrom(weekPlan.days, shopFrom), {
         portions: householdContext?.portionSum ?? null,
+        table: await this.portionTable(userId, householdMembers),
         userId,
       }),
       ...(shopFrom > 0 && { shoppingFromDay: shopFrom }),
@@ -1174,6 +1183,7 @@ export class MealPlanService {
         leftovers: options.leftovers === true,
         // Premium generation IS household scaling (P2-3).
         costPortions: members.length > 0 ? householdPortionSum(members) : null,
+        costMembers: members,
       });
     } catch (err) {
       if (err instanceof TRPCError && err.cause instanceof PoolExhaustedCause) {
@@ -1628,6 +1638,8 @@ export class MealPlanService {
       pinnedFavourites: FavouriteRecipeWithRecipe[];
       leftovers: boolean;
       costPortions: number | null;
+      /** The members `costPortions` was summed from (UX-REC-02: owner portion + Σ members). */
+      costMembers: readonly { portionFactor: number }[];
     },
   ): Promise<{
     dto: WeekPlanDto;
@@ -1873,10 +1885,15 @@ export class MealPlanService {
       estimatedCost: premium
         ? await estimatePlanCostEur(daysFrom(days, curatedShopFrom), {
             portions: premium.costPortions,
+            table: await this.portionTable(userId, premium.costMembers),
             userId,
           })
         : await estimatePlanCostEur(daysFrom(days, curatedShopFrom), {
             portions: firstScaledPortions,
+            table: await this.portionTable(
+              userId,
+              firstScaledPortions !== null ? await this.householdRepo.findByUserId(userId) : [],
+            ),
             userId,
           }),
       ...(!premium && firstScaledPortions !== null && { firstScaledWeek: true }),
@@ -1998,6 +2015,21 @@ export class MealPlanService {
     return safetyService.loadContext(userId);
   }
 
+  /**
+   * Who the week's list and cost are cooked for (UX-PLAN-02, UX-REC-02):
+   * the household's members when this view is scaled to the table (the
+   * caller passes `[]` when it is not), plus the
+   * "two of us" setting. Null when it is only the user's own portion.
+   */
+  private async portionTable(
+    userId: string,
+    members: readonly { portionFactor: number }[],
+  ): Promise<PortionTable | null> {
+    const { cookingFor } = await planShapeService.getShape(userId);
+    if (members.length === 0 && !(typeof cookingFor === 'number' && cookingFor >= 2)) return null;
+    return { members: members.map((m) => ({ portionFactor: m.portionFactor })), cookingFor };
+  }
+
   /** Table portion sum, or null when it's just the owner (P2-3). */
   private async householdPortions(userId: string): Promise<number | null> {
     const members = await this.householdRepo.findByUserId(userId);
@@ -2117,7 +2149,16 @@ export class MealPlanService {
       weekStartDate: plan.weekStartDate,
       days,
       // Same scaling as the shopping list, so the chip equals the list total.
-      estimatedCost: await estimatePlanCostEur(daysFrom(days, shopFrom), { portions, userId }),
+      estimatedCost: await estimatePlanCostEur(daysFrom(days, shopFrom), {
+        portions,
+        table: userId
+          ? await this.portionTable(
+              userId,
+              portions !== null ? await this.householdRepo.findByUserId(userId) : [],
+            )
+          : null,
+        userId,
+      }),
       ...(firstScaledWeek && { firstScaledWeek: true }),
       ...(shopFrom > 0 && { shoppingFromDay: shopFrom }),
       ...(targets && {
@@ -2483,14 +2524,18 @@ export class MealPlanService {
     }
 
     const ctx = await this.loadSafetyContext(userId);
-    const issues = findSafetyIssues(rowToRecipeData(found), ctx.prefs);
+    const issues = findSafetyIssues(
+      { ...rowToRecipeData(found), nutritionStatus: found.nutritionStatus },
+      ctx.prefs,
+      { deriveFromIngredients: true },
+    );
     if (issues.length > 0) {
       // Honoured only for a MANUAL recipe the user owns — or, with Following,
       // another user's MANUAL recipe, which becomes the user's own copy below.
       if (!acknowledgeConflict || !isAcknowledgeable(found)) {
         throw new TRPCError({
           code: 'FORBIDDEN',
-          message: `UNSAFE_FOR_TABLE: this recipe contains ${issues[0]}, which conflicts with an allergy or dietary restriction set for your table.`,
+          message: unsafeForTableMessage(issues, unsafeContext(found, ctx.prefs)),
         });
       }
     }
@@ -2561,12 +2606,17 @@ export class MealPlanService {
       mode === 'replace' ? resolvePlanSlot(plan, dayOfWeek, mealType, input.slotIndex) : null;
 
     const ctx = await this.loadSafetyContext(userId);
-    const issues = findSafetyIssues(rowToRecipeData(found), ctx.prefs);
+    const issues = findSafetyIssues(
+      { ...rowToRecipeData(found), nutritionStatus: found.nutritionStatus },
+      ctx.prefs,
+      { deriveFromIngredients: true },
+    );
     if (issues.length > 0 && !(acknowledgeConflict && isAcknowledgeable(found))) {
-      if (isAcknowledgeable(found)) throw unsafeForTableError(issues);
+      const context = unsafeContext(found, ctx.prefs);
+      if (isAcknowledgeable(found)) throw unsafeForTableError(issues, context);
       throw new TRPCError({
         code: 'FORBIDDEN',
-        message: `UNSAFE_FOR_TABLE: this recipe contains ${issues[0]}, which conflicts with an allergy or dietary restriction set for your table.`,
+        message: unsafeForTableMessage(issues, context),
       });
     }
 
@@ -3271,7 +3321,8 @@ function withAllergenWarnings(
   safety: SafetyPrefs | null,
 ): RecipeDto {
   if (!safety) return dto;
-  const issues = findSafetyIssues(data, safety);
+  // UX-REC-01: a recipe nobody tagged is judged on its ingredients.
+  const issues = findSafetyIssues(data, safety, { deriveFromIngredients: true });
   if (issues.length === 0) return dto;
   const restrictions = new Set(safety.dietaryRestrictions);
   return {
@@ -3325,9 +3376,13 @@ function decorateRecipeDto(
   // in this file passes a full SafetyCheckable already, but decoration
   // failing for one recipe must still never break the whole response.
   try {
-    let out = withDerivedTags(dto, data);
-    out = withAllergenWarnings(out, data, ctx?.prefs ?? null);
-    out = withSafetyChecks(out, data, ctx?.table ?? null);
+    // UX-REC-01: the keto check needs to know whether the carbs are catalogue-computed.
+    const checkable: SafetyCheckable = dto.nutritionStatus
+      ? { ...data, nutritionStatus: dto.nutritionStatus }
+      : data;
+    let out = withDerivedTags(dto, checkable);
+    out = withAllergenWarnings(out, checkable, ctx?.prefs ?? null);
+    out = withSafetyChecks(out, checkable, ctx?.table ?? null);
     return out;
   } catch (err) {
     console.error(
@@ -3365,6 +3420,25 @@ function pickSafeCurated(
   const candidates = pool.filter((r) => r.id !== excludeId);
   const source = candidates.length > 0 ? candidates : pool;
   return source[Math.floor(Math.random() * source.length)] ?? null;
+}
+
+/**
+ * UX-PLAN-06: what the UNSAFE_FOR_TABLE rejection needs to word a DIET conflict
+ * ("isn't paleo (it contains quinoa)") instead of "contains Paleo".
+ */
+function unsafeContext(
+  found: Recipe,
+  prefs: Pick<SafetyPrefs, 'allergies' | 'dietaryRestrictions'>,
+): UnsafeForTableContext {
+  const blockers = findSafetyBlockers(
+    { ...rowToRecipeData(found), nutritionStatus: found.nutritionStatus },
+    prefs,
+    { deriveFromIngredients: true },
+  );
+  return {
+    diets: prefs.dietaryRestrictions,
+    ingredients: Object.fromEntries(blockers.map((b) => [b.term, b.ingredients])),
+  };
 }
 
 /**
