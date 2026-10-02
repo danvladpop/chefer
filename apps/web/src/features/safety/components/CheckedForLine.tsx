@@ -2,7 +2,13 @@
 
 import { ShieldCheck } from 'lucide-react';
 import type { SafetyChecks } from '@chefer/types';
-import { cantCheckLine, checkedForLineText, cn } from '@chefer/utils';
+import {
+  cantCheckLine,
+  checkedForLineText,
+  cn,
+  splitCheckedByVerification,
+  taggedOnlyLineText,
+} from '@chefer/utils';
 
 // PAT-2 — "Checked for …" (UX-02 §2, T-02.2/T-02.3): the full-line form for
 // recipe detail (under the tag chips) and cook mode (top of the ingredient
@@ -11,14 +17,17 @@ import { cantCheckLine, checkedForLineText, cn } from '@chefer/utils';
 // render the conflict banner instead of this line, not both.
 
 export interface CheckedForLineProps {
-  checks: Pick<SafetyChecks, 'checked' | 'unchecked'>;
+  checks: Pick<SafetyChecks, 'checked' | 'unchecked'> & Partial<Pick<SafetyChecks, 'taggedOnly'>>;
   onOpenSheet?: () => void;
   className?: string;
 }
 
 export function CheckedForLine({ checks, onOpenSheet, className }: CheckedForLineProps) {
-  const { checked, unchecked } = checks;
-  if (checked.length === 0 && unchecked.length === 0) return null;
+  const { unchecked } = checks;
+  // UX-REC-01: a pass that rests on the recipe's tag alone is "Tagged … (not
+  // verified)", never "Checked".
+  const { verified: checked, taggedOnly } = splitCheckedByVerification(checks);
+  if (checked.length === 0 && taggedOnly.length === 0 && unchecked.length === 0) return null;
 
   const mainLine = checked.length > 0 ? checkedForLineText(checked) : null;
   const content = (
@@ -27,6 +36,14 @@ export function CheckedForLine({ checks, onOpenSheet, className }: CheckedForLin
         <span className="flex min-w-0 items-start gap-1.5 text-sm text-foreground">
           <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-[#8a7560]" aria-hidden="true" />
           <span className="min-w-0">{mainLine}</span>
+        </span>
+      ) : null}
+      {taggedOnly.length > 0 ? (
+        <span
+          data-testid="checked-for-tagged-only"
+          className={cn('text-xs text-amber-700', mainLine ? 'pl-[22px]' : '')}
+        >
+          {taggedOnlyLineText(taggedOnly)}
         </span>
       ) : null}
       {unchecked.map((term) => (

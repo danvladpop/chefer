@@ -2,12 +2,14 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { render, screen, userEvent } from '@testing-library/react-native';
 import CookModeScreen from '../../app/cook/[id]';
 
-// Backlog P2-3 / P1-1: cook mode starts at a premium household's table
-// portions, multiplied by the plan slot's portion when opened from the plan —
-// same as web's cook mode (`useHousehold().portionSum` × `?portion=`).
+// Backlog P2-3 / P1-1 / UX-REC-02: cook mode starts at the whole table's
+// servings — the user's own plan portion PLUS each household member's portion
+// (owner 2× + Mia ½ + Noah 1 = 3½), never the owner's portion multiplied
+// across the table. Same as web's cook mode (`useHousehold().scaledMembers`).
 
 let mockParams: Record<string, string> = { id: 'r1' };
-let mockPortionSum: number | null = null;
+let mockMembers: { name: string; portionFactor: number }[] | null = null;
+let mockCookingFor: number | null = null;
 
 jest.mock('expo-keep-awake', () => ({ useKeepAwake: jest.fn() }));
 jest.mock('expo-router', () => ({
@@ -15,8 +17,14 @@ jest.mock('expo-router', () => ({
   useLocalSearchParams: () => mockParams,
 }));
 jest.mock('../../src/hooks/use-household', () => ({
-  useHousehold: () => ({ memberCount: 0, tablePortions: null, portionSum: mockPortionSum }),
+  useHousehold: () => ({
+    memberCount: mockMembers?.length ?? 0,
+    tablePortions: null,
+    portionSum: null,
+    scaledMembers: mockMembers,
+  }),
 }));
+jest.mock('../../src/hooks/use-cooking-for', () => ({ useCookingFor: () => mockCookingFor }));
 jest.mock('../../src/hooks/use-unit-system', () => ({ useUnitSystem: () => 'METRIC' }));
 jest.mock('../../src/features/tracker/rebalance-store', () => ({ recordRebalance: jest.fn() }));
 jest.mock('../../src/features/tracker/rebalance-banner', () => ({ RebalanceBanner: () => null }));
@@ -67,7 +75,8 @@ async function openIngredients() {
 
 beforeEach(() => {
   mockParams = { id: 'r1' };
-  mockPortionSum = null;
+  mockMembers = null;
+  mockCookingFor = null;
 });
 
 describe('Cook mode servings', () => {
@@ -77,20 +86,40 @@ describe('Cook mode servings', () => {
     expect(screen.getByText(/200 g lentils/)).toBeOnTheScreen();
   });
 
-  it('starts at the table portions for a premium household', async () => {
-    mockPortionSum = 4;
+  it('starts at the table: the user plus every member, for a premium household', async () => {
+    mockMembers = [
+      { name: 'Mia', portionFactor: 1 },
+      { name: 'Sam', portionFactor: 1 },
+      { name: 'Noah', portionFactor: 1 },
+    ];
     await openIngredients();
     expect(screen.getByTestId('cook-servings')).toHaveTextContent('4');
     expect(screen.getByText(/400 g lentils/)).toBeOnTheScreen();
-    expect(screen.getByTestId('cook-table-portions')).toHaveTextContent(/table of 4 portions/);
+    expect(screen.getByTestId('cook-table-portions')).toHaveTextContent(
+      /You 1 · Mia 1 · Sam 1 · Noah 1 = 4/,
+    );
   });
 
-  it('multiplies the table by the plan slot portion when opened from the plan', async () => {
-    mockPortionSum = 4;
+  it('adds the plan portion to the members instead of multiplying them (owner 2x + Mia 1/2 + Noah 1 = 3.5)', async () => {
+    mockMembers = [
+      { name: 'Mia', portionFactor: 0.5 },
+      { name: 'Noah', portionFactor: 1 },
+    ];
+    mockParams = { id: 'r1', portion: '2' };
+    await openIngredients();
+    expect(screen.getByTestId('cook-servings')).toHaveTextContent('3½');
+    expect(screen.getByText(/350 g lentils/)).toBeOnTheScreen();
+    expect(screen.getByTestId('cook-table-portions')).toHaveTextContent(
+      /You 2 · Mia ½ · Noah 1 = 3½/,
+    );
+  });
+
+  it('"two of us" without members cooks for two while the plan portion stays the eater\'s', async () => {
+    mockCookingFor = 2;
     mockParams = { id: 'r1', portion: '1.5' };
     await openIngredients();
-    expect(screen.getByTestId('cook-servings')).toHaveTextContent('6');
-    expect(screen.getByText(/600 g lentils/)).toBeOnTheScreen();
+    // the 2-serving recipe at 1.5x = 3 servings, never fewer than 1.5 + 1
+    expect(screen.getByTestId('cook-servings')).toHaveTextContent('3');
   });
 
   it('the stepper rescales the ingredients', async () => {

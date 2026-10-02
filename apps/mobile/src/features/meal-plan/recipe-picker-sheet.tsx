@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Image, Pressable, SectionList, TextInput, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Button, Sheet, Text } from '@chefer/ui-mobile';
-import { buildPickerSections, filterReplaceCandidates } from '@chefer/utils';
+import { buildPickerSections, filterReplaceCandidates, verifiedLabels } from '@chefer/utils';
 import { getRecipeImageUrl } from '../../lib/recipe-image';
 import { trpc } from '../../lib/trpc';
 import { AiConsentHost } from '../ai-consent/ai-consent-provider';
@@ -222,10 +222,10 @@ export function RecipePickerSheet({
                 {/* T-02.4: this row's own checked rules, next to the favourite
                     heart — dislikes are already excluded server-side, so no
                     dislike chip belongs here. */}
-                {recipe.safetyChecks?.checked && recipe.safetyChecks.checked.length > 0 && (
+                {verifiedLabels(recipe.safetyChecks).length > 0 && (
                   <CheckedForChip
                     testID={`picker-recipe-${recipe.id}-checked`}
-                    labels={recipe.safetyChecks.checked.map((c) => c.label)}
+                    labels={verifiedLabels(recipe.safetyChecks)}
                   />
                 )}
                 {recipe.isFavourite && <Ionicons name="heart" size={14} color="#944a00" />}
