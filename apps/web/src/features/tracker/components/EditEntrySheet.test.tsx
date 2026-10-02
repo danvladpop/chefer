@@ -19,6 +19,7 @@ const m = vi.hoisted(() => ({
     dashboardSummary: vi.fn(),
   },
   setData: vi.fn(),
+  deleteFails: false,
 }));
 
 vi.mock('@/lib/trpc', () => ({
@@ -44,9 +45,13 @@ vi.mock('@/lib/trpc', () => ({
       },
       deleteCustomMeal: {
         useMutation: () => ({
-          mutate: (vars: unknown, callbacks?: { onSuccess?: () => void }) => {
+          mutate: (
+            vars: unknown,
+            callbacks?: { onSuccess?: () => void; onError?: (e: Error) => void },
+          ) => {
             m.delete(vars);
-            callbacks?.onSuccess?.();
+            if (m.deleteFails) callbacks?.onError?.(new Error('Failed to fetch'));
+            else callbacks?.onSuccess?.();
           },
           isPending: false,
         }),
@@ -98,6 +103,7 @@ function renderSheet(overrides: Partial<CustomEntryRow> = {}) {
 afterEach(cleanup);
 beforeEach(() => {
   vi.clearAllMocks();
+  m.deleteFails = false;
   m.updateState.isPending = false;
   m.updateState.isError = false;
   m.updateState.error = null;
@@ -148,11 +154,24 @@ describe('EditEntrySheet (bug B-34, T-19.2)', () => {
     expect(m.update).toHaveBeenCalledWith(expect.objectContaining({ kcal: 100, protein: 500 }));
   });
 
+  it('UX-FOOD-06: a failed delete re-reads the day and says why, never "Deleted"', () => {
+    m.deleteFails = true;
+    renderSheet();
+    fireEvent.click(screen.getByTestId('edit-entry-delete'));
+    expect(onDeleted).not.toHaveBeenCalled();
+    expect(m.invalidate.getDay).toHaveBeenCalled();
+    expect(showToast).toHaveBeenCalledTimes(1);
+    expect(showToast).toHaveBeenCalledWith(
+      "Couldn't delete Protein shake. Can't reach Chefer right now. Check your connection and try again.",
+    );
+  });
+
   it('bug B-34/AC2: deleting shows Undo, which restores the entry exactly', () => {
     renderSheet();
     fireEvent.click(screen.getByTestId('edit-entry-delete'));
     expect(onClose).toHaveBeenCalled();
-    expect(m.delete).toHaveBeenCalledWith({ date: '2026-09-26', entryIndex: 2 });
+    // UX-FOOD-17: the stable id goes with the index.
+    expect(m.delete).toHaveBeenCalledWith({ date: '2026-09-26', entryId: 'e1', entryIndex: 2 });
     expect(onDeleted).toHaveBeenCalled();
     // The row must be gone as soon as the delete settles — page.tsx's
     // onDeleted only clears local edit-sheet state, so the sheet itself must
