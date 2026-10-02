@@ -41,8 +41,8 @@ instead of hot-linked from `raw.githubusercontent.com` at runtime.
   and its web twin (`apps/web/src/features/gym/library/ExerciseImage.tsx`)
   show the icon placeholder for any slug in that set even though the file is
   still served. Add a slug here and to that set when an audit finds another.
-- **Content gaps:** `incline-barbell-bench-press` and `back-extension`
-  (T-05.10) have no `videoId` yet — no pick has been oEmbed-verified. Handoff
+- **Content gaps:** `incline-barbell-bench-press`, `back-extension`
+  (T-05.10) and `cable-biceps-curl` (added 2026-10-02) have no `videoId` yet — no pick has been oEmbed-verified. Handoff
   for whoever owns exercise-library-research.md next.
 - **Format:** WebP, a "cover" crop (scaled up preserving aspect, then
   center-cropped to 600×400 — never stretched) at quality 78.
