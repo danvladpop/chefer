@@ -473,6 +473,7 @@ export {
   resolvePlanSlots,
 } from './plan-shape';
 export { recogniseSafetyTerm, type SafetyRecogniseOutcome } from './safety-recognise';
+export { applySafetyTerm, keepSafetyTermAsNote, type SafetyTermOutcome } from './safety-add-term';
 export {
   classifySafetyValue,
   serialiseSafetyPickerValue,

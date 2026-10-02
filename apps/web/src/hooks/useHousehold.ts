@@ -24,6 +24,9 @@ export interface HouseholdMemberDto {
 export function useHousehold(): {
   members: HouseholdMemberDto[];
   isLoading: boolean;
+  /** UX-ACC-03: the list failed to load — `members` is then EMPTY because it is unknown, not because nobody is at the table. */
+  loadFailed: boolean;
+  refetch: () => void;
   /** Members only (0 when none). */
   memberCount: number;
   /** People at the table: owner + members. */
@@ -36,7 +39,7 @@ export function useHousehold(): {
   scalesForTable: boolean;
 } {
   const isPremium = useIsPremium();
-  const { data, isLoading } = trpc.household.list.useQuery(undefined, {
+  const { data, isLoading, isError, refetch } = trpc.household.list.useQuery(undefined, {
     staleTime: 60_000,
   });
   const members = data ?? [];
@@ -46,6 +49,8 @@ export function useHousehold(): {
   return {
     members,
     isLoading,
+    loadFailed: isError && data === undefined,
+    refetch: () => void refetch(),
     memberCount,
     peopleCount: memberCount + 1,
     tablePortions,

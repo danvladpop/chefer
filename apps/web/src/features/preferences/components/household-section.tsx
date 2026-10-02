@@ -1,7 +1,7 @@
 'use client';
 
-import { useState } from 'react';
-import { StepDiet } from '@/features/onboarding/components/step-diet';
+import { useRef, useState } from 'react';
+import { StepDiet, type StepDietHandle } from '@/features/onboarding/components/step-diet';
 import { UpgradeButton } from '@/features/premium/components/UpgradeButton';
 import { HealthDeclinedNotice } from '@/features/privacy/components/HealthDeclinedNotice';
 import { useHealthConsent } from '@/features/privacy/use-health-consent';
@@ -139,10 +139,27 @@ export function MemberEditorSheet({
   // T-26.2: a member's allergies/diets are health information — asked once, on the first save.
   const { requestHealthConsent, healthConsentSheet } = useHealthConsent();
   const [safetyDeclined, setSafetyDeclined] = useState(false);
+  // UX-ACC-01: flushes a typed-but-unadded "Something else?" term into the member on save.
+  const safetyRef = useRef<StepDietHandle>(null);
 
   function handleSave() {
     if (!form.name.trim() || isSaving) return;
-    const { dietaryRestrictions, allergies, dislikedIngredients, ...rest } = form;
+    // null = a typed term still needs a Keep/Remove choice: don't save yet.
+    const safety = safetyRef.current
+      ? safetyRef.current.flush()
+      : {
+          dietaryRestrictions: form.dietaryRestrictions,
+          allergies: form.allergies,
+          dislikedIngredients: form.dislikedIngredients,
+        };
+    if (safety === null) return;
+    const { dietaryRestrictions, allergies, dislikedIngredients } = safety;
+    const {
+      dietaryRestrictions: _restrictions,
+      allergies: _allergies,
+      dislikedIngredients: _dislikes,
+      ...rest
+    } = form;
     const base = { ...rest, name: form.name.trim() };
     const send = (
       payload: typeof base &
@@ -261,6 +278,7 @@ export function MemberEditorSheet({
           {/* Safety — the same editor onboarding uses (per-member) */}
           <div className="rounded-xl border bg-muted/30 p-4">
             <StepDiet
+              ref={safetyRef}
               value={{
                 dietaryRestrictions: form.dietaryRestrictions,
                 allergies: form.allergies,
@@ -424,10 +442,12 @@ const EMPTY_SAFETY: SafetyPickerValue = {
 };
 
 function YouRow() {
-  const { data } = trpc.preferences.get.useQuery();
+  const { data, isError, refetch } = trpc.preferences.get.useQuery();
   const utils = trpc.useUtils();
   const [open, setOpen] = useState(false);
   const [draft, setDraft] = useState<SafetyPickerValue>(EMPTY_SAFETY);
+  // UX-ACC-01: flushes a typed-but-unadded "Something else?" term before Save.
+  const pickerRef = useRef<StepDietHandle>(null);
 
   const ownSafety: SafetyPickerValue = {
     allergies: data?.dietaryPreferences?.allergies ?? [],
@@ -451,6 +471,36 @@ function YouRow() {
       void utils.mealPlan.invalidate();
     },
   });
+
+  // UX-ACC-03: "You" is only editable once the saved preferences have loaded —
+  // an editor seeded from a failed load would save empty lists over the real
+  // allergies (updateSafety replaces them).
+  if (data === undefined) {
+    return (
+      <div
+        data-testid="household-you-unavailable"
+        className="flex items-center gap-3 rounded-xl border border-input bg-card px-3 py-2"
+      >
+        <span className="min-w-0 flex-1">
+          <span className="block text-sm font-medium text-foreground">You</span>
+          <span className="block text-xs text-muted-foreground">
+            {isError
+              ? 'Couldn’t load your allergies and diet. Nothing has been changed.'
+              : 'Loading your allergies and diet…'}
+          </span>
+        </span>
+        {isError && (
+          <button
+            type="button"
+            onClick={() => void refetch()}
+            className="min-h-11 rounded-lg border border-input bg-background px-3 text-sm font-medium"
+          >
+            Retry
+          </button>
+        )}
+      </div>
+    );
+  }
 
   return (
     <>
@@ -484,12 +534,15 @@ function YouRow() {
         footer={
           <button
             onClick={() => {
+              // null = a typed term still needs a Keep/Remove choice: don't save yet.
+              const toSave = pickerRef.current ? pickerRef.current.flush() : draft;
+              if (toSave === null) return;
               setDeclined(false);
-              requestHealthConsent(() => saveMutation.mutate(draft), {
+              requestHealthConsent(() => saveMutation.mutate(toSave), {
                 hasHealthData:
-                  draft.allergies.length +
-                    draft.dietaryRestrictions.length +
-                    draft.dislikedIngredients.length >
+                  toSave.allergies.length +
+                    toSave.dietaryRestrictions.length +
+                    toSave.dislikedIngredients.length >
                   0,
                 // "Don't save it": nothing is stored; the sheet stays open with the notice.
                 onDeclined: () => setDeclined(true),
@@ -503,7 +556,7 @@ function YouRow() {
         }
       >
         <div className="px-5 pb-4">
-          <StepDiet value={draft} onChange={setDraft} />
+          <StepDiet ref={pickerRef} value={draft} onChange={setDraft} />
           {declined && (
             <div className="mt-3">
               <HealthDeclinedNotice testId="household-you-declined" />
@@ -538,7 +591,8 @@ export function HouseholdSection({
    */
   variant?: 'preferences' | 'onboarding';
 }) {
-  const { members, memberCount, peopleCount, tablePortions, scalesForTable } = useHousehold();
+  const { members, memberCount, peopleCount, tablePortions, scalesForTable, loadFailed, refetch } =
+    useHousehold();
   const { limit } = useEntitlement('householdMembers');
   const invalidate = useInvalidateHousehold();
   const { data: table } = trpc.safety.getTable.useQuery();
@@ -575,7 +629,25 @@ export function HouseholdSection({
   const body = (
     <>
       {!onboarding && <YouRow />}
-      {showGhost ? (
+      {loadFailed ? (
+        // UX-ACC-03: a failed load must not read as "just you at the table".
+        <div
+          role="alert"
+          data-testid="household-load-error"
+          className="flex flex-col gap-2 rounded-xl border border-input px-3 py-3 sm:flex-row sm:items-center"
+        >
+          <p className="min-w-0 flex-1 text-sm text-muted-foreground">
+            Couldn’t load your household. Nothing has been changed.
+          </p>
+          <button
+            type="button"
+            onClick={refetch}
+            className="min-h-11 rounded-lg border border-input bg-background px-3 text-sm font-medium"
+          >
+            Try again
+          </button>
+        </div>
+      ) : showGhost ? (
         <HouseholdGhost
           ownerSafety={ownerSafety}
           onAdd={(kind) => openEditor(null, MEMBER_PRESETS[kind])}

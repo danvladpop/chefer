@@ -1,16 +1,14 @@
-import { useState } from 'react';
+import { useEffect, useImperativeHandle, useState, type Ref } from 'react';
 import { Pressable, TextInput, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { findSafetyTaxonomyEntry, safetyTaxonomyEntriesByGroup } from '@chefer/types';
 import { ChipGroup, Text } from '@chefer/ui-mobile';
 import {
+  applySafetyTerm,
   BASE_DIET_IDS,
   classifySafetyValue,
   DIET_MODIFIER_IDS,
-  recognisedAddedText,
-  recognisedDietSetText,
-  recognisedModifierAddedText,
-  recogniseSafetyTerm,
+  keepSafetyTermAsNote,
   SAFETY_COPY,
   serialiseSafetyPickerValue,
   type BaseDietId,
@@ -30,13 +28,37 @@ function labelFor(id: string): string {
   return findSafetyTaxonomyEntry(id)?.label ?? id;
 }
 
+/**
+ * UX-ACC-01: what a host calls from its Save / Done / Continue. A term typed
+ * in "Something else?" but never confirmed with "+" must not be lost, so the
+ * host asks the picker to flush it first and saves the RETURNED value (state
+ * updates are async — `value` is stale inside the same handler).
+ *
+ * - nothing pending → the current value;
+ * - a recognised term → it is added and the new value is returned;
+ * - an unrecognised term (or one still awaiting a Keep/Remove choice) → the
+ *   picker shows its notice and returns `null`: the host must NOT save yet.
+ */
+export interface SafetyPickerHandle {
+  flush: () => SafetyPickerValue | null;
+}
+
 export interface SafetyPickerProps {
   value: SafetyPickerValue;
   onChange: (value: SafetyPickerValue) => void;
   testIDPrefix?: string;
+  ref?: Ref<SafetyPickerHandle>;
+  /** True while the field holds un-added text or a Keep/Remove choice is open (a pending edit). */
+  onPendingChange?: (pending: boolean) => void;
 }
 
-export function SafetyPicker({ value, onChange, testIDPrefix = 'safety' }: SafetyPickerProps) {
+export function SafetyPicker({
+  value,
+  onChange,
+  testIDPrefix = 'safety',
+  ref,
+  onPendingChange,
+}: SafetyPickerProps) {
   const classified = classifySafetyValue(value);
   const [somethingElse, setSomethingElse] = useState('');
   const [addedMessage, setAddedMessage] = useState<string | null>(null);
@@ -44,6 +66,8 @@ export function SafetyPicker({ value, onChange, testIDPrefix = 'safety' }: Safet
     variant: 'unrecognised' | 'condition';
     term: string;
   } | null>(null);
+  // Set when a host's Save was held back because a term still needs a choice.
+  const [blockedTerm, setBlockedTerm] = useState<string | null>(null);
 
   const commit = (patch: Partial<ReturnType<typeof classifySafetyValue>>) => {
     onChange(serialiseSafetyPickerValue({ ...classified, ...patch }));
@@ -92,65 +116,51 @@ export function SafetyPicker({ value, onChange, testIDPrefix = 'safety' }: Safet
       : '';
 
   // ── Something else ───────────────────────────────────────────────────────
-  function handleAdd() {
-    const term = somethingElse.trim();
-    if (!term) return;
+  function handleAdd(): SafetyPickerValue | null {
+    const outcome = applySafetyTerm(value, somethingElse);
+    if (outcome.status === 'empty') return value;
     setSomethingElse('');
     setAddedMessage(null);
-    const recognised = recogniseSafetyTerm(term);
-
-    if (recognised.kind === 'unrecognised') {
-      setPending({ variant: 'unrecognised', term });
-      return;
+    setBlockedTerm(null);
+    if (outcome.status === 'needs-decision') {
+      setPending({ variant: outcome.variant, term: outcome.term });
+      return null;
     }
-    if (recognised.kind === 'condition') {
-      if (recognised.impliesDietId) {
-        commit({
-          dietModifierIds: [...new Set([...classified.dietModifierIds, recognised.impliesDietId])],
-        });
-        setAddedMessage(recognisedDietSetText(labelFor(recognised.impliesDietId)));
-      } else {
-        setPending({ variant: 'condition', term });
-      }
-      return;
-    }
-    if (recognised.kind === 'allergy') {
-      commit({ allergyIds: [...new Set([...classified.allergyIds, recognised.id])] });
-      setAddedMessage(recognisedAddedText('Allergies', recognised.label));
-      return;
-    }
-    if (recognised.kind === 'dislike') {
-      commit({ dislikeIds: [...new Set([...classified.dislikeIds, recognised.id])] });
-      setAddedMessage(recognisedAddedText('Won’t eat', recognised.label));
-      return;
-    }
-    // kind === 'diet': AC2 — a bare "no eggs"-family term never silently
-    // makes a meat-eater vegetarian. With a Vegetarian base already chosen it
-    // sets "Vegetarian, no eggs"; otherwise it only adds the Egg-free
-    // modifier.
-    if (
-      recognised.id === 'vegetarian-no-eggs' &&
-      classified.dietBaseId !== 'vegetarian' &&
-      classified.dietBaseId !== 'vegetarian-no-eggs'
-    ) {
-      commit({ dietModifierIds: [...new Set([...classified.dietModifierIds, 'egg-free'])] });
-      setAddedMessage(recognisedModifierAddedText('Egg-free'));
-      return;
-    }
-    if ((BASE_DIET_IDS as readonly string[]).includes(recognised.id)) {
-      commit({ dietBaseId: recognised.id as BaseDietId });
-      setAddedMessage(recognisedDietSetText(recognised.label));
-      return;
-    }
-    commit({ dietModifierIds: [...new Set([...classified.dietModifierIds, recognised.id])] });
-    setAddedMessage(recognisedModifierAddedText(recognised.label));
+    onChange(outcome.value);
+    setAddedMessage(outcome.message);
+    return outcome.value;
   }
 
   function keepPendingAsNote() {
     if (!pending) return;
-    commit({ notes: [...classified.notes, pending.term] });
+    onChange(keepSafetyTermAsNote(value, pending.term));
     setPending(null);
+    setBlockedTerm(null);
   }
+
+  const hasPendingEdit = somethingElse.trim() !== '' || pending !== null;
+  useEffect(() => {
+    onPendingChange?.(hasPendingEdit);
+  }, [hasPendingEdit, onPendingChange]);
+
+  useImperativeHandle(ref, () => ({
+    flush: () => {
+      if (pending?.variant === 'unrecognised') {
+        setBlockedTerm(pending.term);
+        return null;
+      }
+      if (pending) {
+        // A health-condition notice is informational — nothing is ever stored
+        // from it, so a second Save simply moves on.
+        setPending(null);
+        return value;
+      }
+      const typed = somethingElse.trim();
+      const added = handleAdd();
+      if (added === null) setBlockedTerm(typed);
+      return added;
+    },
+  }));
 
   return (
     <View className="gap-6">
@@ -237,7 +247,7 @@ export function SafetyPicker({ value, onChange, testIDPrefix = 'safety' }: Safet
             testID={`${testIDPrefix}-something-else-input`}
             value={somethingElse}
             onChangeText={setSomethingElse}
-            onSubmitEditing={handleAdd}
+            onSubmitEditing={() => handleAdd()}
             placeholder="e.g. aubergine"
             placeholderTextColor="#9ca3af"
             returnKeyType="done"
@@ -248,7 +258,7 @@ export function SafetyPicker({ value, onChange, testIDPrefix = 'safety' }: Safet
             testID={`${testIDPrefix}-something-else-add`}
             accessibilityRole="button"
             accessibilityLabel="Add"
-            onPress={handleAdd}
+            onPress={() => handleAdd()}
             className="h-11 w-11 items-center justify-center rounded-md border border-border"
           >
             <Ionicons name="add" size={20} color="#944a00" />
@@ -265,10 +275,28 @@ export function SafetyPicker({ value, onChange, testIDPrefix = 'safety' }: Safet
             term={pending.term}
             variant={pending.variant}
             onKeepNote={keepPendingAsNote}
-            onRemove={() => setPending(null)}
-            onChooseGoal={() => setPending(null)}
-            onDismiss={() => setPending(null)}
+            onRemove={() => {
+              setPending(null);
+              setBlockedTerm(null);
+            }}
+            onChooseGoal={() => {
+              setPending(null);
+              setBlockedTerm(null);
+            }}
+            onDismiss={() => {
+              setPending(null);
+              setBlockedTerm(null);
+            }}
           />
+        ) : null}
+        {blockedTerm ? (
+          <Text
+            testID={`${testIDPrefix}-save-blocked`}
+            accessibilityLiveRegion="polite"
+            className="text-xs text-red-600"
+          >
+            Choose what to do with “{blockedTerm}” first — then save again.
+          </Text>
         ) : null}
         {classified.notes.length > 0 && (
           <View className="flex-row flex-wrap gap-1.5">

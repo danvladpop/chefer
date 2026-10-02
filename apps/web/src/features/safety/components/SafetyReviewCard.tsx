@@ -1,7 +1,7 @@
 'use client';
 
-import { useState } from 'react';
-import { StepDiet } from '@/features/onboarding/components/step-diet';
+import { useRef, useState } from 'react';
+import { StepDiet, type StepDietHandle } from '@/features/onboarding/components/step-diet';
 import { useHealthConsent } from '@/features/privacy/use-health-consent';
 import { trpc } from '@/lib/trpc';
 import { ShieldQuestion } from 'lucide-react';
@@ -47,6 +47,8 @@ export function SafetyReviewCard() {
     dislikedIngredients: prefsData?.dietaryPreferences?.dislikedIngredients ?? [],
   };
   const [draft, setDraft] = useState<SafetyPickerValue>(EMPTY_SAFETY);
+  // UX-ACC-01: flushes a typed-but-unadded "Something else?" term before Save.
+  const pickerRef = useRef<StepDietHandle>(null);
 
   const confirmMutation = trpc.safety.confirmReview.useMutation({
     onSuccess: () => void utils.safety.getTable.invalidate(),
@@ -109,16 +111,19 @@ export function SafetyReviewCard() {
         size="lg"
         footer={
           <button
-            onClick={() =>
-              requestHealthConsent(() => updateSafetyMutation.mutate(draft), {
+            onClick={() => {
+              // null = a typed term still needs a Keep/Remove choice: don't save yet.
+              const toSave = pickerRef.current ? pickerRef.current.flush() : draft;
+              if (toSave === null) return;
+              requestHealthConsent(() => updateSafetyMutation.mutate(toSave), {
                 hasHealthData:
-                  draft.allergies.length +
-                    draft.dietaryRestrictions.length +
-                    draft.dislikedIngredients.length >
+                  toSave.allergies.length +
+                    toSave.dietaryRestrictions.length +
+                    toSave.dislikedIngredients.length >
                   0,
                 onDeclined: () => setChangeOpen(false),
-              })
-            }
+              });
+            }}
             disabled={updateSafetyMutation.isPending}
             className="min-h-11 w-full rounded-xl bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground transition hover:bg-primary/90 disabled:opacity-50"
           >
@@ -127,7 +132,7 @@ export function SafetyReviewCard() {
         }
       >
         <div className="px-5 pb-4">
-          <StepDiet value={draft} onChange={setDraft} />
+          <StepDiet ref={pickerRef} value={draft} onChange={setDraft} />
         </div>
       </Sheet>
       {healthConsentSheet}

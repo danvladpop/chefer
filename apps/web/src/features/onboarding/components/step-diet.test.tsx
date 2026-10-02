@@ -1,8 +1,8 @@
 // @vitest-environment jsdom
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
-import { afterEach, describe, expect, it } from 'vitest';
-import { StepDiet, type StepDietValues } from './step-diet';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import { StepDiet, type StepDietHandle, type StepDietValues } from './step-diet';
 
 afterEach(cleanup);
 
@@ -81,5 +81,63 @@ describe('StepDiet / SafetyPicker (T-01.7)', () => {
     fireEvent.change(screen.getByLabelText('Something else?'), { target: { value: 'coeliac' } });
     fireEvent.click(screen.getByRole('button', { name: 'Add' }));
     expect(screen.getByText('Set your diet to Gluten-free (coeliac).')).toBeTruthy();
+  });
+});
+
+// UX-ACC-01: a term typed in "Something else?" but never confirmed with "Add"
+// used to be dropped on Save. Hosts flush the picker first and save what it returns.
+describe('StepDiet.flush (UX-ACC-01)', () => {
+  function Host({ onSave }: { onSave: (value: StepDietValues) => void }) {
+    const ref = useRef<StepDietHandle>(null);
+    const [value, setValue] = useState(EMPTY);
+    return (
+      <>
+        <StepDiet ref={ref} value={value} onChange={setValue} />
+        <button
+          onClick={() => {
+            const flushed = ref.current ? ref.current.flush() : value;
+            if (flushed !== null) onSave(flushed);
+          }}
+        >
+          Save
+        </button>
+      </>
+    );
+  }
+
+  it('adds a recognised typed term ("sesame") to what Save receives', () => {
+    const onSave = vi.fn<[StepDietValues], undefined>();
+    render(<Host onSave={onSave} />);
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Peanuts' }));
+    fireEvent.change(screen.getByLabelText('Something else?'), { target: { value: 'sesame' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+
+    expect(onSave).toHaveBeenCalledTimes(1);
+    const saved = onSave.mock.calls[0]?.[0];
+    expect(saved?.allergies).toEqual(expect.arrayContaining(['Peanuts', 'Sesame']));
+    expect(screen.getByLabelText<HTMLInputElement>('Something else?').value).toBe('');
+  });
+
+  it('holds Save back on an unrecognised term and says what to do', () => {
+    const onSave = vi.fn();
+    render(<Host onSave={onSave} />);
+    fireEvent.change(screen.getByLabelText('Something else?'), { target: { value: 'zzqqxx' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+
+    expect(onSave).not.toHaveBeenCalled();
+    expect(screen.getByTestId('safety-save-blocked').textContent).toContain('zzqqxx');
+
+    fireEvent.click(screen.getByRole('button', { name: /Keep as a note/ }));
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+    expect(onSave).toHaveBeenCalledTimes(1);
+    expect(JSON.stringify(onSave.mock.calls[0])).toContain('zzqqxx');
+  });
+
+  it('saves the value untouched when nothing is typed', () => {
+    const onSave = vi.fn();
+    render(<Host onSave={onSave} />);
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Peanuts' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+    expect(onSave).toHaveBeenCalledWith({ ...EMPTY, allergies: ['Peanuts'] });
   });
 });
