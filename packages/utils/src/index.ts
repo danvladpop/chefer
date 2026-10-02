@@ -438,7 +438,7 @@ export {
   type GlossaryDefinition,
   type GlossaryTermId,
 } from './glossary';
-export { defaultWeekOffset, getWeekStartDate } from './week-default';
+export { defaultWeekOffset, getWeekStartDate, weekStartForDate } from './week-default';
 export { defaultMealSlot } from './meal-slot';
 export {
   canShowNudge,

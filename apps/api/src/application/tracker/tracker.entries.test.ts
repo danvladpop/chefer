@@ -15,7 +15,7 @@ vi.mock('@chefer/database', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@chefer/database')>()),
   chefProfileRepository: { findByUserId: vi.fn().mockResolvedValue(null) },
   mealPlanRepository: {
-    findActiveWithDays: vi.fn().mockResolvedValue(null),
+    findForWeek: vi.fn().mockResolvedValue(null),
     findRecipesByIds: vi.fn().mockResolvedValue([]),
   },
   dailyLogRepository: {
@@ -367,5 +367,120 @@ describe('trackerService.weeklySummary — local-day anchor (bug B-33, T-21.1)',
     findLastN.mockClear();
     await trackerService.weeklySummary('u1');
     expect(findLastN).toHaveBeenCalledWith('u1', 7);
+  });
+});
+
+describe('trackerService.deleteCustomMeal (UX-FOOD-17 — by entryId, index for old clients)', () => {
+  const stored = () => [
+    customEntry({ entryId: 'a', custom: { name: 'A', estimatedBy: 'manual' } }),
+    {
+      entryId: 'r1',
+      recipeId: 'curry',
+      mealType: 'dinner',
+      portionMultiplier: 1,
+      kcal: 500,
+      protein: 0,
+      carbs: 0,
+      fat: 0,
+    } as LoggedMealEntry,
+    customEntry({ entryId: 'b', custom: { name: 'B', estimatedBy: 'manual' } }),
+  ];
+  const idsOf = (log: { loggedMeals: unknown }) =>
+    (log.loggedMeals as LoggedMealEntry[]).map((m) => m.entryId);
+
+  it('by entryId deletes exactly that entry', async () => {
+    mockMutateDay(stored());
+    const log = await trackerService.deleteCustomMeal('u1', '2026-09-27', { entryId: 'b' });
+    expect(idsOf(log)).toEqual(['a', 'r1']);
+  });
+
+  it('by entryId still deletes the right one when the array has shifted since render', async () => {
+    // The client rendered "B" at index 2, but a recipe entry was unticked
+    // elsewhere in the meantime, so B is now at index 1.
+    const shifted = stored().filter((m) => m.entryId !== 'r1');
+    mockMutateDay(shifted);
+    const log = await trackerService.deleteCustomMeal('u1', '2026-09-27', {
+      entryId: 'b',
+      entryIndex: 2,
+    });
+    expect(idsOf(log)).toEqual(['a']);
+  });
+
+  it('the legacy index path (1.0.1 clients) still works', async () => {
+    mockMutateDay(stored());
+    const log = await trackerService.deleteCustomMeal('u1', '2026-09-27', { entryIndex: 2 });
+    expect(idsOf(log)).toEqual(['a', 'r1']);
+  });
+
+  it('404s an unknown entryId and an entryId that names a recipe entry', async () => {
+    mockMutateDay(stored());
+    await expect(
+      trackerService.deleteCustomMeal('u1', '2026-09-27', { entryId: 'nope' }),
+    ).rejects.toMatchObject({ code: 'NOT_FOUND' });
+    await expect(
+      trackerService.deleteCustomMeal('u1', '2026-09-27', { entryId: 'r1' }),
+    ).rejects.toMatchObject({ code: 'NOT_FOUND' });
+  });
+
+  it('404s an index that names a recipe entry', async () => {
+    mockMutateDay(stored());
+    await expect(
+      trackerService.deleteCustomMeal('u1', '2026-09-27', { entryIndex: 1 }),
+    ).rejects.toMatchObject({ code: 'NOT_FOUND' });
+  });
+});
+
+describe('trackerService.updateRecipeEntry (UX-FOOD-03 — off-plan rows are editable)', () => {
+  const recipeEntry = (): LoggedMealEntry => ({
+    entryId: 'r1',
+    recipeId: 'pad-thai',
+    mealType: 'dinner',
+    portionMultiplier: 1,
+    kcal: 600,
+    protein: 20,
+    carbs: 80,
+    fat: 20,
+  });
+
+  function withStored(entries: LoggedMealEntry[]) {
+    mockMutateDay(entries);
+    vi.mocked(dailyLogRepository.findByDate).mockResolvedValue({
+      loggedMeals: entries as never,
+    } as never);
+    vi.mocked(mealPlanRepository.findRecipesByIds).mockResolvedValue([
+      { id: 'pad-thai', nutritionInfo: { calories: 600, protein: 20, carbs: 80, fat: 20 } },
+    ] as never);
+  }
+
+  it('changes the portion and recomputes the macros from the recipe', async () => {
+    withStored([recipeEntry()]);
+    const log = await trackerService.updateRecipeEntry('u1', '2026-09-27', 'r1', {
+      portionMultiplier: 1.5,
+    });
+    const meal = (log.loggedMeals as unknown as LoggedMealEntry[])[0]!;
+    expect(meal).toMatchObject({ portionMultiplier: 1.5, kcal: 900, protein: 30, carbs: 120 });
+    expect(meal.mealType).toBe('dinner');
+  });
+
+  it('can move the entry to another meal without touching the portion', async () => {
+    withStored([recipeEntry()]);
+    const log = await trackerService.updateRecipeEntry('u1', '2026-09-27', 'r1', {
+      mealType: 'lunch',
+    });
+    expect((log.loggedMeals as unknown as LoggedMealEntry[])[0]).toMatchObject({
+      mealType: 'lunch',
+      portionMultiplier: 1,
+      kcal: 600,
+    });
+  });
+
+  it('404s a stale id and a custom entry', async () => {
+    withStored([recipeEntry(), customEntry()]);
+    await expect(
+      trackerService.updateRecipeEntry('u1', '2026-09-27', 'gone', { portionMultiplier: 2 }),
+    ).rejects.toMatchObject({ code: 'NOT_FOUND' });
+    await expect(
+      trackerService.updateRecipeEntry('u1', '2026-09-27', 'e1', { portionMultiplier: 2 }),
+    ).rejects.toMatchObject({ code: 'NOT_FOUND' });
   });
 });

@@ -50,6 +50,7 @@ import { aiService } from '../../lib/ai/index.js';
 import type {
   Ingredient,
   MealPlanInput,
+  MealSlot,
   MealType,
   NutritionInfo,
   RecipeData,
@@ -106,6 +107,7 @@ import {
   type FinishContext,
 } from './ai-recipe-finisher.js';
 import { planCuratedWeek, type CuratedShapeOptions } from './curated-planner.js';
+import { mergeKeptSlots, selectKeptSlots, type KeptDay } from './keep-eaten.js';
 import { planShapeService } from './plan-shape.service.js';
 import {
   lockedSlotIndexes,
@@ -506,6 +508,38 @@ export class MealPlanService {
     /** Catalog computation of AI recipes (plan-ingredient-catalog §6.3). */
     private readonly aiFinisher: AiRecipeFinisher = aiRecipeFinisher,
   ) {}
+
+  /**
+   * UX-PLAN-01: what a regenerate of the CURRENT week must keep from the
+   * plan it replaces — past days whole, and today's slots whose recipe is
+   * already logged. Future weeks have nothing to keep. A failed log read
+   * keeps all of today's slots rather than risk replacing an eaten one.
+   */
+  private async loadKeptSlots(
+    userId: string,
+    weekOffset: number,
+    weekStartDate: Date,
+  ): Promise<KeptDay[]> {
+    if (weekOffset !== 0) return [];
+    const existing = await this.repo.findForWeek(userId, weekStartDate);
+    if (!existing) return [];
+    const now = new Date();
+    const today = new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate()));
+    let logged: Set<string> | null = null;
+    try {
+      logged = new Set(await this.tailoringRepo.findLoggedRecipeIds(userId, today));
+    } catch (err) {
+      console.error('[meal-plan] eaten-slot lookup failed — keeping all of today:', err);
+    }
+    return selectKeptSlots(existing.days, getTodayDayIndex(), logged);
+  }
+
+  /** The recipe rows behind kept slots, as planner recipe data. */
+  private async keptRecipes(kept: KeptDay[]): Promise<Map<string, RecipeData>> {
+    const ids = [...new Set(kept.flatMap((k) => k.slots.map((s) => s.recipeId)))];
+    const rows = await this.repo.findRecipesByIds(ids);
+    return new Map(rows.map((r) => [r.id, rowToRecipeData(r)]));
+  }
 
   /** `findRecipeVisibleTo` with this service's repository and social deps. */
   private findVisibleRecipe(userId: string, recipeId: string): Promise<Recipe | null> {
@@ -921,6 +955,26 @@ export class MealPlanService {
     // labels). Runs AFTER pin placement so pins land in fresh slots first.
     if (options.leftovers) {
       weekPlan = pairLeftovers(weekPlan);
+    }
+
+    // 3d. UX-PLAN-01: a mid-week regenerate keeps the days that are over and
+    // anything already eaten today. Kept recipes already exist as rows, so —
+    // like pinned favourites — they are never re-upserted below.
+    const keptWeekStart = getMondayOfWeek(weekOffset);
+    const kept = await this.loadKeptSlots(userId, weekOffset, keptWeekStart);
+    if (kept.length > 0) {
+      const recipeById = await this.keptRecipes(kept);
+      const merged = mergeKeptSlots(weekPlan.days, kept, (slot): MealSlot | null => {
+        const recipe = recipeById.get(slot.recipeId);
+        if (!recipe) return null;
+        pinnedIds.add(recipe.id);
+        return {
+          type: slot.type as MealType,
+          recipe,
+          ...(slot.leftoverOf && { leftoverOf: slot.leftoverOf }),
+        };
+      });
+      weekPlan = { ...weekPlan, days: merged.days };
     }
 
     // 4. Collect unique recipes and their image priority (min day-distance
@@ -1738,6 +1792,29 @@ export class MealPlanService {
     }
     if (premium?.leftovers) {
       days = pairLeftoverSlots(days);
+    }
+
+    // UX-PLAN-01: a mid-week regenerate keeps the days that are over and
+    // anything already eaten today; only the rest is new.
+    const kept = await this.loadKeptSlots(userId, weekOffset, weekStartDate);
+    if (kept.length > 0) {
+      const recipeById = await this.keptRecipes(kept);
+      const merged = mergeKeptSlots(days, kept, (slot): CuratedSlot | null => {
+        const recipe = recipeById.get(slot.recipeId);
+        if (!recipe) return null;
+        return {
+          type: slot.type as MealType,
+          recipe,
+          portion: slotPortion(slot.portion),
+          pinned: slot.pinned === true,
+          ...(slot.leftoverOf && { leftoverOf: slot.leftoverOf }),
+        };
+      });
+      days = merged.days.map((d) => {
+        if (!merged.wholeKept.has(d.dayOfWeek)) return d;
+        const { unfilled: _unfilled, ...rest } = d;
+        return { ...rest, planned: d.meals.length > 0, proteinGapG: null };
+      });
     }
 
     const uniqueRecipeIds = [...new Set(days.flatMap((d) => d.meals.map((m) => m.recipe.id)))];

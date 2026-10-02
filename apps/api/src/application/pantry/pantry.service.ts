@@ -17,6 +17,7 @@ import {
   normalizeIngredientName,
   visibleToUser,
 } from '../../lib/ingredient-prices/index.js';
+import { planForThisWeek } from '../meal-plan/plan-for-date.js';
 import { safetyService, type SafetyService } from '../safety/safety.service.js';
 import { buildPantryMatcher, rankRecipesByPantry } from './pantry-match.js';
 import { isStapleIngredient } from './staples.js';
@@ -217,7 +218,7 @@ export class PantryService {
     for (const recipe of this.safety.filter(curatedCandidates, ctx)) {
       candidates.set(recipe.name, { name: recipe.name, ingredients: recipe.ingredients });
     }
-    const activePlan = await this.planRepo.findActiveWithDays(user.id);
+    const activePlan = await planForThisWeek(this.planRepo, user.id);
     if (activePlan) {
       type MealSlotJson = { type: string; recipeId: string };
       const ids = [

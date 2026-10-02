@@ -26,6 +26,7 @@ import {
 } from '../../lib/ingredient-prices/index.js';
 import { ingredientPriceWorker } from '../../workers/ingredient-price.worker.js';
 import { householdService } from '../household/household.service.js';
+import { planForThisWeek } from '../meal-plan/plan-for-date.js';
 import { buildPantryCoverageMatcher } from '../pantry/pantry-match.js';
 import { pantryService } from '../pantry/pantry.service.js';
 import { safetyService } from '../safety/safety.service.js';
@@ -883,8 +884,7 @@ export class ShoppingListService {
     const userId = user.id;
     const allPlans = await mealPlanRepository.findAllByUserId(userId, 52, 0);
     const plan =
-      allPlans.find((p) => p.id === planId) ??
-      (await mealPlanRepository.findActiveWithDays(userId));
+      allPlans.find((p) => p.id === planId) ?? (await planForThisWeek(mealPlanRepository, userId));
 
     const chefProfile = await chefProfileRepository.findByUserId(userId);
     const currency = chefProfile?.deliveryCurrency ?? 'EUR';

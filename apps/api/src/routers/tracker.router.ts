@@ -162,18 +162,43 @@ export const trackerRouter = router({
       return trackerService.deleteEntries(ctx.user.id, input.date, input.entryIds);
     }),
 
-  // F4: delete one custom entry by its position in the day's loggedMeals.
-  // Older clients (no entryId, T-19.2) keep using this — the server resolves
-  // the index against the current array in one transaction.
+  // F4: delete one custom entry. UX-FOOD-17: by stable `entryId` (new
+  // clients) or, for 1.0.1 builds that only ever send it, by position in the
+  // day's loggedMeals — the server resolves either against the current array
+  // in one transaction, and `entryId` wins when both are sent.
   deleteCustomMeal: protectedProcedure
+    .input(
+      z
+        .object({
+          date: calendarDateSchema,
+          entryIndex: z.number().int().min(0).optional(),
+          entryId: z.string().min(1).optional(),
+        })
+        .refine((v) => v.entryIndex !== undefined || v.entryId !== undefined, {
+          message: 'entryId or entryIndex is required',
+        }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      return trackerService.deleteCustomMeal(ctx.user.id, input.date, {
+        entryId: input.entryId,
+        entryIndex: input.entryIndex,
+      });
+    }),
+
+  // UX-FOOD-03: edit a logged recipe entry (portion / meal) by stable id —
+  // the "Also eaten" rows for recipes that have left the plan. Additive.
+  updateRecipeEntry: protectedProcedure
     .input(
       z.object({
         date: calendarDateSchema,
-        entryIndex: z.number().int().min(0),
+        entryId: z.string().min(1),
+        portionMultiplier: z.number().min(0.5).max(2).optional(),
+        mealType: z.string().min(1).max(20).optional(),
       }),
     )
     .mutation(async ({ ctx, input }) => {
-      return trackerService.deleteCustomMeal(ctx.user.id, input.date, input.entryIndex);
+      const { date, entryId, ...updates } = input;
+      return trackerService.updateRecipeEntry(ctx.user.id, date, entryId, updates);
     }),
 
   // Edit any custom entry by its stable id (bug B-34, T-19.2). Additive —

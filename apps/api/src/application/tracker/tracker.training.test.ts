@@ -22,7 +22,6 @@ vi.mock('@chefer/database', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@chefer/database')>()),
   chefProfileRepository: { findByUserId: vi.fn() },
   mealPlanRepository: {
-    findActiveWithDays: vi.fn().mockResolvedValue(null),
     findForWeek: vi.fn().mockResolvedValue(null),
     findRecipesByIds: vi.fn().mockResolvedValue([]),
   },
