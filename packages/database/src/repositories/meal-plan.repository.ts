@@ -81,7 +81,7 @@ export interface IMealPlanRepository {
   createPlan(data: CreateMealPlanData): Promise<MealPlan & { previousPlanId: string | null }>;
   /**
    * The newest ACTIVE plan of ANY week.
-   * @deprecated Wrong for any "this week" / "the plan for date X" read — it
+   * Wrong for any "this week" / "the plan for date X" read — it
    * returns next week's plan once next week has been opened (UX-FOOD-02).
    * Use `findForWeek`, via `planForDate` / `planForThisWeek` in the API.
    */

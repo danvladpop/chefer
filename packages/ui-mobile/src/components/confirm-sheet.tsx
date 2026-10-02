@@ -28,6 +28,18 @@ export interface ConfirmSheetProps {
    * `${testID}-option-{i}-switch`.
    */
   options?: ConfirmSheetOption[];
+  /**
+   * UX-PLAN-03 — the confirmed action is running: the confirm button shows a
+   * spinner and ignores presses (no multi-fire — Regenerate used to send one
+   * generation per tap and burn the free quota).
+   */
+  busy?: boolean;
+  /**
+   * UX-PLAN-03 — why the confirmed action failed (already user-facing text,
+   * e.g. the free-quota message). Shown above the buttons, so the sheet never
+   * stays open silently after a failure.
+   */
+  error?: string | null | undefined;
   /** Children get `${testID}-body`, `-confirm`, `-cancel` (plus Sheet's `-title`, `-close`). */
   testID: string;
 }
@@ -47,6 +59,8 @@ export function ConfirmSheet({
   onConfirm,
   destructive = false,
   options,
+  busy = false,
+  error,
   testID,
 }: ConfirmSheetProps) {
   return (
@@ -79,12 +93,20 @@ export function ConfirmSheet({
           ))}
         </View>
       ) : null}
+      {error ? (
+        <Text testID={`${testID}-error`} accessibilityRole="alert" className="text-sm text-red-600">
+          {error}
+        </Text>
+      ) : null}
       <View className="gap-2 pt-2">
         <Button
           testID={`${testID}-confirm`}
           size="lg"
           variant={destructive ? 'destructive' : 'default'}
-          onPress={onConfirm}
+          loading={busy}
+          onPress={() => {
+            if (!busy) onConfirm();
+          }}
         >
           {confirmLabel}
         </Button>
