@@ -11,7 +11,6 @@ import {
   type Prisma,
 } from '@chefer/database';
 import { LABEL_DEPENDENT_INGREDIENTS, type TableSafety, type UserProfile } from '@chefer/types';
-import { slotPortion } from '@chefer/utils';
 import { toFriendlyAiError } from '../../lib/ai/friendly-error.js';
 import { aiService } from '../../lib/ai/index.js';
 import type { Ingredient } from '../../lib/ai/types.js';
@@ -31,7 +30,7 @@ import { buildPantryCoverageMatcher } from '../pantry/pantry-match.js';
 import { pantryService } from '../pantry/pantry.service.js';
 import { safetyService } from '../safety/safety.service.js';
 import { inferCategory } from '../shared/category-map.js';
-import { householdScaleFactor } from '../shared/household-scale.js';
+import { slotShopFactor, type PortionTable } from '../shared/household-scale.js';
 import { daysFrom, firstShoppingDay } from '../shared/plan-window.js';
 import {
   aggregateIngredientLines,
@@ -368,7 +367,7 @@ export class ShoppingListService {
   /** Derived (non-AI) item lines from the plan's recipes — the P1-5 merge. */
   private async buildDerivedRawItems(
     targetPlan: MealPlan & { days: MealPlanDay[] },
-    portions: number | null = null,
+    table: PortionTable | null = null,
   ): Promise<StoredShoppingListItem[]> {
     type MealSlotJson = PlanMealSlotJson;
     const uniqueIds = [
@@ -387,13 +386,13 @@ export class ShoppingListService {
         (day.meals as MealSlotJson[]).flatMap((slot) => {
           const recipe = recipeMap.get(slot.recipeId);
           if (!recipe) return [];
-          // P1-1: a portioned slot (1.5× of one serving) buys that much;
-          // P2-3: a premium household multiplies it by portions ÷ servings.
-          const portion = slotPortion(slot.portion);
-          const factor = householdScaleFactor(recipe.servings, portions);
+          // P1-1: a portioned slot (1.5× of one serving) is the eater's share;
+          // the table (premium members, or "two of us") adds the others'
+          // servings on top (P2-3, UX-PLAN-02, UX-REC-02).
+          const factor = slotShopFactor(slot.portion, recipe.servings, table);
           return (recipe.ingredients as unknown as Ingredient[]).map((ing) => ({
             name: ing.name,
-            quantity: ing.quantity * portion * factor,
+            quantity: ing.quantity * factor,
             unit: ing.unit,
             recipeId: slot.recipeId,
           }));
@@ -453,6 +452,7 @@ export class ShoppingListService {
     const checkedKeys = [...new Set(stored?.checkedKeys ?? [])];
     // Premium households get the list sized for the whole table (P2-3).
     const portions = await householdService.scalingPortions(user);
+    const table = await householdService.scalingTable(user);
     const sized = portions !== null ? { portions } : {};
     // User-added items overlay whichever list is served (derived or AI).
     const customItems = readCustomItems(stored?.customItems);
@@ -484,7 +484,7 @@ export class ShoppingListService {
       };
     }
 
-    const rawItems = await this.buildDerivedRawItems(targetPlan, portions);
+    const rawItems = await this.buildDerivedRawItems(targetPlan, table);
     const finalized = await this.finalizeItems([...rawItems, ...customItems], userId);
     const { items, estimatedTotalEur, pantry } = await this.applyPantry(
       user,
@@ -524,7 +524,7 @@ export class ShoppingListService {
     return [
       ...(stored?.aiGenerated
         ? tidyAiItems(stored.items as unknown as StoredShoppingListItem[])
-        : await this.buildDerivedRawItems(plan, await householdService.scalingPortions(user))),
+        : await this.buildDerivedRawItems(plan, await householdService.scalingTable(user))),
       ...readCustomItems(stored?.customItems),
     ];
   }
@@ -764,6 +764,7 @@ export class ShoppingListService {
     ];
     const recipes = await mealPlanRepository.findRecipesByIds(uniqueIds);
     const portions = await householdService.scalingPortions(user);
+    const table = await householdService.scalingTable(user);
 
     // Pre-merge with the shared aggregator before the AI call — the model
     // only needs to do the *hard* consolidation, and water/"to taste" lines
@@ -776,13 +777,13 @@ export class ShoppingListService {
         (day.meals as MealSlotJson[]).flatMap((slot) => {
           const recipe = recipes.find((r) => r.id === slot.recipeId);
           if (!recipe) return [];
-          // P1-1: a portioned slot (1.5× of one serving) buys that much;
-          // P2-3: a premium household multiplies it by portions ÷ servings.
-          const portion = slotPortion(slot.portion);
-          const factor = householdScaleFactor(recipe.servings, portions);
+          // P1-1: a portioned slot (1.5× of one serving) is the eater's share;
+          // the table (premium members, or "two of us") adds the others'
+          // servings on top (P2-3, UX-PLAN-02, UX-REC-02).
+          const factor = slotShopFactor(slot.portion, recipe.servings, table);
           return (recipe.ingredients as unknown as Ingredient[]).map((ing) => ({
             name: ing.name,
-            quantity: ing.quantity * portion * factor,
+            quantity: ing.quantity * factor,
             unit: ing.unit,
             recipeId: slot.recipeId,
           }));
@@ -828,7 +829,7 @@ export class ShoppingListService {
     const before = await prisma.shoppingList.findUnique({ where: { planId: targetPlan.id } });
     const previousItems = before?.aiGenerated
       ? tidyAiItems(before.items as unknown as StoredShoppingListItem[])
-      : await this.buildDerivedRawItems(targetPlan, portions);
+      : await this.buildDerivedRawItems(targetPlan, table);
     const checkedKeys = carryCheckedKeys(
       before?.checkedKeys ?? [],
       [...previousItems, ...readCustomItems(before?.customItems)],

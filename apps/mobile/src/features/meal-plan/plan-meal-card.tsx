@@ -3,7 +3,7 @@ import { View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { Text } from '@chefer/ui-mobile';
-import { formatPortion, slotPortion } from '@chefer/utils';
+import { conflictText, formatPortion, slotPortion, verifiedLabels } from '@chefer/utils';
 import { AiGeneratedChip } from '../../components/ai-generated-chip';
 import type { RouterOutputs } from '../../lib/trpc';
 import { NutritionStatusTag } from '../ingredients/nutrition-provenance';
@@ -40,7 +40,14 @@ export function PlanMealCard({
   const portion = slotPortion(meal.portion);
   const portionParam = portion !== 1 ? { portion: String(portion) } : {};
   const conflicts = meal.recipe.safetyChecks?.conflicts ?? [];
-  const checked = meal.recipe.safetyChecks?.checked ?? [];
+  const conflictDetails = meal.recipe.safetyChecks?.conflictDetails;
+  // UX-PLAN-06: a diet reads "Not paleo: contains quinoa", an allergen "Contains peanut".
+  const conflictLabel = conflicts[0]
+    ? conflictText(
+        conflictDetails?.find((d) => d.label === conflicts[0]) ?? { label: conflicts[0] },
+      )
+    : '';
+  const hasWarnings = (meal.recipe.allergenWarnings?.length ?? 0) > 0;
   return (
     <MealCardView
       testID={testID}
@@ -99,22 +106,29 @@ export function PlanMealCard({
       trailing={trailing}
     >
       <AiGeneratedChip recipe={meal.recipe} />
-      <AllergenWarningChip warnings={meal.recipe.allergenWarnings} />
+      <AllergenWarningChip warnings={meal.recipe.allergenWarnings} details={conflictDetails} />
       {/* T-02.4/AC3: a recipe that fails the table's rules never claims
           "Checked" — a conflict pill takes the Checked chip's place. */}
-      {conflicts.length > 0 ? (
+      {conflicts.length > 0 && hasWarnings ? null : conflicts.length > 0 ? (
         <View
           testID={`${testID}-conflict`}
-          accessibilityLabel={`Contains ${conflicts.join(', ')}`}
+          accessibilityLabel={conflicts
+            .map((label) =>
+              conflictText(conflictDetails?.find((d) => d.label === label) ?? { label }),
+            )
+            .join(', ')}
           className="flex-row items-center gap-1 self-start rounded-full bg-red-100 px-2 py-0.5"
         >
           <Ionicons name="warning" size={12} color="#991b1b" />
           <Text numberOfLines={1} className="text-xs font-semibold text-red-800">
-            Contains {conflicts[0]}
+            {conflictLabel}
           </Text>
         </View>
       ) : (
-        <CheckedForChip testID={`${testID}-checked`} labels={checked.map((c) => c.label)} />
+        <CheckedForChip
+          testID={`${testID}-checked`}
+          labels={verifiedLabels(meal.recipe.safetyChecks)}
+        />
       )}
     </MealCardView>
   );

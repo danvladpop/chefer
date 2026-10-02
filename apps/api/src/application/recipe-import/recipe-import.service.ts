@@ -191,21 +191,29 @@ function toRecipeData(recipe: ExtractedRecipe): RecipeData {
  * can say WHAT survived (shared matcher: curated-recipes/safety.ts).
  */
 export function findSafetyIssues(recipe: ExtractedRecipe, prefs: SafetyPrefs): string[] {
-  return findRecipeSafetyIssues(toRecipeData(recipe), prefs);
+  // UX-REC-01: an imported recipe has no diet tags worth trusting — judge its ingredients.
+  return findRecipeSafetyIssues(toRecipeData(recipe), prefs, { deriveFromIngredients: true });
 }
 
 /** T-BUG-51: builds the full ImportSafety payload (labels AND ingredients). */
 function checkImportSafety(recipe: ExtractedRecipe, prefs: SafetyPrefs): ImportSafety {
   const data = toRecipeData(recipe);
-  const issues = findRecipeSafetyIssues(data, prefs);
-  const blockedBy = findSafetyBlockers(data, prefs);
+  const derive = { deriveFromIngredients: true };
+  const issues = findRecipeSafetyIssues(data, prefs, derive);
+  const blockedBy = findSafetyBlockers(data, prefs, derive);
   return { ok: issues.length === 0, issues, blockedBy };
 }
 
 /** "peanut butter, walnuts (tree nuts)" — the copy half of T-BUG-51. */
 export function describeSafetyBlockers(blockers: SafetyBlocker[]): string {
   return blockers
-    .map((b) => (b.ingredients.length > 0 ? `${b.ingredients.join(', ')} (${b.term})` : b.term))
+    .map((b) =>
+      b.ingredients.length > 0
+        ? `${b.ingredients.join(', ')} (${b.term})`
+        : b.reason
+          ? `${b.term}: ${b.reason}`
+          : b.term,
+    )
     .join('; ');
 }
 

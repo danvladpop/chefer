@@ -1,24 +1,24 @@
 import { AlertTriangle } from 'lucide-react';
-import { cn } from '@chefer/utils';
+import { cn, conflictHeadline, type ConflictLike } from '@chefer/utils';
 
 // ─── AllergenWarning ──────────────────────────────────────────────────────────
 // Shown wherever a recipe conflicts with the viewer's allergies or dietary
 // restrictions (the API's `allergenWarnings`, household union). An unsafe dish
 // must never be presented silently (audit F-REC-2-3, F-PLAN-1-7).
 
-export function allergenLabel(warnings: string[]): string {
-  return warnings.join(', ');
-}
-
 /** Full-width banner for the recipe page and cook mode. */
 export function AllergenWarningBanner({
   warnings,
+  details,
   className,
 }: {
   warnings: string[] | undefined;
+  /** `safetyChecks.conflictDetails` — lets the line say "Not paleo: contains quinoa" (UX-PLAN-06). */
+  details?: readonly ConflictLike[] | null | undefined;
   className?: string;
 }) {
   if (!warnings || warnings.length === 0) return null;
+  const headline = conflictHeadline(warnings, details);
   return (
     <div
       role="alert"
@@ -29,8 +29,8 @@ export function AllergenWarningBanner({
     >
       <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
       <p className="min-w-0">
-        <span className="font-semibold">Contains {allergenLabel(warnings)}.</span> This recipe
-        conflicts with your allergies or diet — check the ingredients or swap it.
+        <span className="font-semibold">{headline}.</span> This recipe conflicts with your allergies
+        or diet — check the ingredients or swap it.
       </p>
     </div>
   );
@@ -39,22 +39,25 @@ export function AllergenWarningBanner({
 /** Compact chip for meal cards. */
 export function AllergenWarningChip({
   warnings,
+  details,
   className,
 }: {
   warnings: string[] | undefined;
+  details?: readonly ConflictLike[] | null | undefined;
   className?: string;
 }) {
   if (!warnings || warnings.length === 0) return null;
+  const headline = conflictHeadline(warnings, details);
   return (
     <span
       className={cn(
         'inline-flex items-center gap-1 rounded-full bg-red-100 px-2 py-0.5 text-xs font-semibold text-red-800',
         className,
       )}
-      title={`Contains ${allergenLabel(warnings)}`}
+      title={headline}
     >
       <AlertTriangle className="h-3 w-3" aria-hidden="true" />
-      <span>Contains {allergenLabel(warnings)}</span>
+      <span>{headline}</span>
     </span>
   );
 }

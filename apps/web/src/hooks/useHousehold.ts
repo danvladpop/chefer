@@ -37,6 +37,8 @@ export function useHousehold(): {
   portionSum: number | null;
   /** True when lists, costs and servings are sized for the whole table. */
   scalesForTable: boolean;
+  /** The members the table scales to (premium households), else null — for `defaultCookServings`. */
+  scaledMembers: HouseholdMemberDto[] | null;
 } {
   const isPremium = useIsPremium();
   const { data, isLoading, isError, refetch } = trpc.household.list.useQuery(undefined, {
@@ -56,5 +58,6 @@ export function useHousehold(): {
     tablePortions,
     portionSum: scalesForTable ? tablePortions : null,
     scalesForTable,
+    scaledMembers: scalesForTable ? members : null,
   };
 }

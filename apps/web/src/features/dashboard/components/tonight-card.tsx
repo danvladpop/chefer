@@ -8,7 +8,7 @@ import { handleRebalanceResult } from '@/features/tracker/lib/rebalance-storage'
 import { getRecipeImageProps } from '@/lib/recipe-image';
 import { trpc, type RouterOutputs } from '@/lib/trpc';
 import { Check, ChefHat, Repeat } from 'lucide-react';
-import { localDateStr, slotPortion } from '@chefer/utils';
+import { localDateStr, slotPortion, verifiedLabels } from '@chefer/utils';
 
 // ─── Tonight card (UX-04 §3, T-04.7) ────────────────────────────────────────────
 // Web parity of mobile's tonight-card.tsx — today's DINNER slot specifically,
@@ -98,8 +98,8 @@ export function TonightCard({
               <span className="rounded-full bg-[#944a00] px-2.5 py-0.5 text-xs font-semibold uppercase text-white">
                 Tonight · Dinner
               </span>
-              {meal.safetyChecks && meal.safetyChecks.checked.length > 0 && (
-                <CheckedForChip labels={meal.safetyChecks.checked.map((c) => c.label)} />
+              {verifiedLabels(meal.safetyChecks).length > 0 && (
+                <CheckedForChip labels={verifiedLabels(meal.safetyChecks)} />
               )}
             </div>
             <h2 className="font-serif text-lg font-bold leading-snug text-gray-900">

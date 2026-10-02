@@ -120,7 +120,10 @@ describe('estimatePlanCostEur', () => {
         ],
       },
     ];
-    const scaled = await estimatePlanCostEur(days, { portions: 3 });
+    const scaled = await estimatePlanCostEur(days, {
+      portions: 3,
+      table: { members: [{ portionFactor: 1 }, { portionFactor: 1 }], cookingFor: null },
+    });
     expect(scaled.totalEur).toBe(6); // 600 g × €1.00/100 g
     expect(scaled.portions).toBe(3);
 
@@ -129,7 +132,7 @@ describe('estimatePlanCostEur', () => {
     expect(unscaled).not.toHaveProperty('portions');
   });
 
-  it('multiplies the P1-1 slot portion by the household scale (1.5× slot, 2-portion table → 3×)', async () => {
+  it('adds the table to the eater slot portion instead of multiplying it (UX-REC-02)', async () => {
     const days = [
       {
         meals: [
@@ -143,7 +146,28 @@ describe('estimatePlanCostEur', () => {
         ],
       },
     ];
-    expect((await estimatePlanCostEur(days, { portions: 2 })).totalEur).toBe(3);
+    // 1.5 (eater) + 1 (member) = 2.5 servings, not 1.5 x 2 = 3.
+    const table = { members: [{ portionFactor: 1 }], cookingFor: null };
+    expect((await estimatePlanCostEur(days, { portions: 2, table })).totalEur).toBe(2.5);
     expect((await estimatePlanCostEur(days)).totalEur).toBe(1.5);
+  });
+
+  it('"two of us" doubles the shop but the slot portion stays the eater\'s (UX-PLAN-02)', async () => {
+    const days = [
+      {
+        meals: [
+          {
+            recipe: {
+              servings: 1,
+              ingredients: [{ name: 'Chicken breast', quantity: 100, unit: 'g' }],
+            },
+          },
+        ],
+      },
+    ];
+    const two = await estimatePlanCostEur(days, { table: { members: [], cookingFor: 2 } });
+    expect(two.totalEur).toBe(2);
+    expect(two).not.toHaveProperty('portions');
+    expect((await estimatePlanCostEur(days)).totalEur).toBe(1);
   });
 });

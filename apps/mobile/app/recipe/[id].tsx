@@ -23,6 +23,7 @@ import {
   parseNutritionStatus,
   scaleNutrition,
   slotPortion,
+  tableBreakdown,
 } from '@chefer/utils';
 import { AiGeneratedChip } from '../../src/components/ai-generated-chip';
 import { AddToWeekSheet } from '../../src/features/friends/add-to-week/add-to-week-sheet';
@@ -39,6 +40,7 @@ import { CheckedForLine } from '../../src/features/safety/checked-for-line';
 import { LabelCaveat } from '../../src/features/safety/label-caveat';
 import { ReportSafetySheet } from '../../src/features/safety/report-sheet';
 import { WhatWeCheckSheet } from '../../src/features/safety/what-we-check-sheet';
+import { useCookingFor } from '../../src/hooks/use-cooking-for';
 import { useHousehold } from '../../src/hooks/use-household';
 import { useUnitSystem } from '../../src/hooks/use-unit-system';
 import { getRecipeImageUrl } from '../../src/lib/recipe-image';
@@ -98,7 +100,8 @@ export default function RecipeDetailScreen() {
   const overflowChoice = useRef<OverflowChoice | null>(null);
   const [reportRecipeOpen, setReportRecipeOpen] = useState(false);
   const [addToWeekOpen, setAddToWeekOpen] = useState(false);
-  const { portionSum } = useHousehold();
+  const { scaledMembers } = useHousehold();
+  const cookingFor = useCookingFor();
 
   if (isLoading) {
     return (
@@ -140,7 +143,7 @@ export default function RecipeDetailScreen() {
   // Opened from a portioned plan slot, quantities start at that portion (P1-1);
   // premium households start from the whole table (P2-3) — the two multiply.
   const selectedServings =
-    servings ?? defaultCookServings(recipe.servings, portionSum, planPortion);
+    servings ?? defaultCookServings(recipe.servings, scaledMembers, planPortion, cookingFor);
   const planN = scaleNutrition(n, planPortion);
   const scale = selectedServings / (recipe.servings || 1);
   // UX-40: "0 min" invents a time nobody entered — a blank prep/cook field
@@ -271,7 +274,11 @@ export default function RecipeDetailScreen() {
             <Text variant="muted" className="text-sm">
               {recipe.description}
             </Text>
-            <AllergenWarningBanner warnings={recipe.allergenWarnings} className="mt-2" />
+            <AllergenWarningBanner
+              warnings={recipe.allergenWarnings}
+              details={safetyData?.safetyChecks?.conflictDetails}
+              className="mt-2"
+            />
             {/* T-02.3 AC3: never both — the line only shows when the
                 existing conflict banner above isn't already showing one. */}
             {(recipe.allergenWarnings?.length ?? 0) === 0 && safetyData?.safetyChecks ? (
@@ -391,6 +398,13 @@ export default function RecipeDetailScreen() {
                 {Math.round(planN.protein)} g protein. Quantities start at it.
               </Text>
             </View>
+          )}
+
+          {/* UX-REC-02: the table is the user's portion plus each member, spelled out. */}
+          {scaledMembers !== null && (
+            <Text testID="recipe-table-breakdown" variant="muted" className="text-xs">
+              Sized for your table: {tableBreakdown(planPortion, scaledMembers)}
+            </Text>
           )}
 
           {/* Macros — no Fiber (D-18); hidden entirely when nothing was added. */}

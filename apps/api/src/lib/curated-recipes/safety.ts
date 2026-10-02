@@ -42,7 +42,29 @@ export interface SafetyPrefs {
 export type SafetyCheckable = Pick<
   RecipeData,
   'name' | 'ingredients' | 'instructions' | 'dietaryTags'
->;
+> & {
+  /**
+   * UX-REC-01: per-serving nutrition, when the caller has it — the keto
+   * net-carb check reads it. For a COMPUTED recipe (`nutritionStatus`) it IS
+   * catalogue nutrition (plan-ingredient-catalog invariant I1). Optional so
+   * existing callers (and recipe rows cast to this) keep working.
+   */
+  nutritionInfo?: { calories?: number; carbs?: number; fiber?: number } | null | undefined;
+  nutritionStatus?: string | null | undefined;
+};
+
+/**
+ * UX-REC-01: how a diet rule is decided.
+ * - `strict` (default): the stored tag AND clean ingredients — the curated
+ *   pool's fail-safe, so an untagged recipe never reaches a plan.
+ * - `deriveFromIngredients`: for recipes people wrote or imported, which have
+ *   no diet tags to trust. A recipe without the tag passes when its own
+ *   ingredients (and, for keto, its net carbs) verify the diet, so plain oats
+ *   are vegetarian instead of "non-vegetarian".
+ */
+export interface SafetyOptions {
+  deriveFromIngredients?: boolean;
+}
 
 // Dairy words must not match their plant-based namesakes ("almond butter",
 // "coconut milk", "oat milk") — those are safe for dairy allergies and for
@@ -328,10 +350,122 @@ const PATTERN_SETS: Record<string, string[]> = {
   NONE: [],
 };
 
+// UX-REC-01: grains (paleo and keto both exclude them). Specific on purpose:
+// "almond flour", "cauliflower rice" and "courgette noodles" are the usual
+// grain-free swaps and must not trip the rule.
+const FLOUR_FREE = notAfter(['almond', 'coconut', 'cassava', 'tapioca', 'arrowroot', 'flax']);
+const GRAIN_PATTERNS = [
+  '\\bwheat',
+  `${FLOUR_FREE}\\bflour`,
+  '(?<!cauliflower )(?<!broccoli )(?<!konjac )\\brice\\b(?! vinegar)(?! wine)',
+  '\\boat',
+  '\\bquinoa',
+  '\\bbarley',
+  '\\brye\\b',
+  '\\bbulgur',
+  '\\bcouscous',
+  '\\bfarro',
+  '\\bspelt',
+  '\\bmillet',
+  '\\bsorghum',
+  '\\bbuckwheat',
+  '\\bamaranth',
+  '\\bteff',
+  '\\bpolenta',
+  '\\bsemolina',
+  '\\bcorn(?!ed)',
+  '\\bsweetcorn',
+  '\\bbread',
+  '\\btoast',
+  '\\bpasta',
+  '\\bspaghetti',
+  '\\bmacaroni',
+  '\\bpenne',
+  '\\blasagn',
+  '(?<!courgette )(?<!zucchini )(?<!zoodle )\\bnoodle',
+  '\\btortilla',
+  '\\bbagel',
+  '\\bpita',
+  '\\bcracker',
+  '\\bcereal',
+  '\\bgranola',
+  '\\bmuesli',
+  '\\bseitan',
+  '\\bcrouton',
+  '\\bbaguette',
+  '\\bsourdough',
+];
+
+// Legumes. "green beans" and "snap peas" are pods eaten fresh and stay legal.
+const BEANS_AND_PEAS_PATTERNS = [
+  '(?<!green )(?<!string )(?<!runner )(?<!vanilla )(?<!coffee )(?<!cocoa )\\bbeans?\\b',
+  '\\blentil',
+  '\\bchickpea',
+  '\\bchick pea',
+  '\\bgarbanzo',
+  '\\bhummus',
+  '(?<!snap )(?<!snow )\\bpeas?\\b',
+  '\\blupin',
+];
+const LEGUME_PATTERNS = [...BEANS_AND_PEAS_PATTERNS, ...PEANUT_PATTERNS, ...SOY_PATTERNS];
+
+// Cheeses that are usually written without the word "cheese".
+const NAMED_CHEESE_PATTERNS = [
+  '\\bfeta',
+  '\\bhalloumi',
+  '\\bmozzarella',
+  '\\bparmesan',
+  '\\bparmigiano',
+  '\\bricotta',
+  '\\bcheddar',
+  '\\bpaneer',
+  '\\bmascarpone',
+  '\\bskyr',
+  '\\bquark',
+];
+
+// Refined sugar: coconut/date/palm sugar and sugar snap peas are not.
+const REFINED_SUGAR_PATTERNS = [
+  '(?<!coconut )(?<!date )(?<!palm )\\bsugar\\b(?! snap)',
+  '\\bcorn syrup',
+  '\\bhigh[- ]fructose',
+];
+
+// Paleo: no grains, legumes, dairy or refined sugar (UX-REC-01).
+const PALEO_FORBIDDEN = [
+  ...GRAIN_PATTERNS,
+  ...LEGUME_PATTERNS,
+  ...DAIRY_PATTERNS,
+  ...NAMED_CHEESE_PATTERNS,
+  ...REFINED_SUGAR_PATTERNS,
+];
+
+// Keto's ingredient fallback: the starchy and sugary staples. Used on its own
+// when a recipe has no usable carb figure, and alongside the net-carb limit
+// when it does (a recipe cannot be keto on a rounding error and a bowl of rice).
+const KETO_FORBIDDEN = [
+  ...GRAIN_PATTERNS,
+  ...BEANS_AND_PEAS_PATTERNS,
+  '\\bsugar\\b(?! snap)',
+  '\\bhoney',
+  '\\bsyrup',
+  '\\bagave',
+  '\\bjam\\b',
+  '\\bpotato',
+  '\\byam\\b',
+  '\\bcassava',
+  '\\bplantain',
+  '\\bbanana',
+];
+
+/** Net carbs per serving a keto recipe may carry (a meal's share of a ~50 g day). */
+export const KETO_MAX_NET_CARBS_G = 20;
+
 // Dietary restrictions: the recipe must carry one of `anyTag` (when set) and
 // must not match any `forbidden` pattern. Keys match the safety-taxonomy.ts
 // diet ids (step-diet.tsx DIET_OPTIONS uses the same canonical values).
-const RESTRICTION_RULES: Record<string, { anyTag?: string[]; forbidden: string[] }> = {
+type RestrictionRule = { anyTag?: string[]; forbidden: string[]; netCarbLimitG?: number };
+const RESTRICTION_RULES: Record<string, RestrictionRule> = {
   omnivore: { forbidden: [] },
   vegetarian: {
     anyTag: ['vegetarian', 'vegan'],
@@ -367,8 +501,8 @@ const RESTRICTION_RULES: Record<string, { anyTag?: string[]; forbidden: string[]
   },
   'egg-free': { anyTag: ['egg-free', 'vegan'], forbidden: EGG_PATTERNS },
   'dairy-free': { anyTag: ['dairy-free', 'vegan'], forbidden: DAIRY_PATTERNS },
-  keto: { anyTag: ['keto'], forbidden: [] },
-  paleo: { anyTag: ['paleo'], forbidden: [] },
+  keto: { anyTag: ['keto'], forbidden: KETO_FORBIDDEN, netCarbLimitG: KETO_MAX_NET_CARBS_G },
+  paleo: { anyTag: ['paleo'], forbidden: PALEO_FORBIDDEN },
 };
 
 /** Lowercase, trim, and strip a plural 's' so "Peanuts" → "peanut". */
@@ -404,9 +538,7 @@ function patternsForTerm(term: string, table: Record<string, string[]>): string[
 }
 
 /** The RESTRICTION_RULES entry for a stored diet term — literal, then recognised. */
-function ruleForRestriction(
-  restriction: string,
-): { anyTag?: string[]; forbidden: string[] } | undefined {
+function ruleForRestriction(restriction: string): RestrictionRule | undefined {
   const key = restriction.trim().toLowerCase();
   if (RESTRICTION_RULES[key]) return RESTRICTION_RULES[key];
   const recognised = recogniseSafetyTerm(restriction);
@@ -436,13 +568,106 @@ function recipeText(recipe: SafetyCheckable): string {
   return parts.join(' \n ').toLowerCase();
 }
 
+// ─── Diet verdicts (UX-REC-01) ────────────────────────────────────────────────
+
+/** What a diet rule concluded about one recipe. */
+export interface DietVerdict {
+  /** `unverified`: untagged and nothing in the recipe could prove the diet. */
+  status: 'pass' | 'fail' | 'unverified';
+  /**
+   * True when the recipe's own ingredients (and, for keto, its carb figures)
+   * back the pass. A pass that rests on the stored tag alone is NOT verified —
+   * clients say "Tagged paleo (not verified)", never "Checked".
+   */
+  verified: boolean;
+  /** Ingredient names that broke the rule (empty when the text or a limit did). */
+  ingredients: string[];
+  /** Plain-language reason a limit failed ("22 g net carbs per serving"). */
+  reason?: string;
+}
+
+/** Net carbs per serving, or null when the recipe has no usable carb figure. */
+function netCarbsPerServing(recipe: SafetyCheckable): number | null {
+  const n = recipe.nutritionInfo;
+  if (!n || typeof n.carbs !== 'number' || !Number.isFinite(n.carbs)) return null;
+  // No calories AND no carbs = a blank form, not a zero-carb recipe.
+  if (!(n.carbs > 0) && !((n.calories ?? 0) > 0)) return null;
+  // Catalogue-computed nutrition (COMPUTED/PARTIAL — and everything without a
+  // status, which is the curated pool and AI recipes) already excludes fibre
+  // (EU available carbohydrate). Only a figure someone TYPED can be a total
+  // that includes it, so only then does fibre come off.
+  const fibre = recipe.nutritionStatus === 'USER_ENTERED' ? Math.max(0, n.fiber ?? 0) : 0;
+  return Math.max(0, n.carbs - fibre);
+}
+
+function verdictFor(
+  recipe: SafetyCheckable,
+  rule: RestrictionRule,
+  options: SafetyOptions,
+): DietVerdict {
+  const text = recipeText(recipe);
+  const tags = recipe.dietaryTags.map((t) => t.toLowerCase());
+  const named = recipe.ingredients
+    .filter((i) => matchesAny(i.name.toLowerCase(), rule.forbidden))
+    .map((i) => i.name);
+  if (named.length > 0 || matchesAny(text, rule.forbidden)) {
+    return { status: 'fail', verified: true, ingredients: named };
+  }
+
+  let netCarbs: number | null = null;
+  if (rule.netCarbLimitG !== undefined) {
+    netCarbs = netCarbsPerServing(recipe);
+    if (netCarbs !== null && netCarbs > rule.netCarbLimitG) {
+      return {
+        status: 'fail',
+        verified: true,
+        ingredients: [],
+        reason: `${Math.round(netCarbs)} g net carbs per serving`,
+      };
+    }
+  }
+
+  // What the ingredients can prove: a rule with a carb limit needs a figure
+  // that is not a lower bound (a PARTIAL recipe's total only counts the lines
+  // that resolved); every rule needs an ingredient list to have been read.
+  const verifiable =
+    recipe.ingredients.length > 0 &&
+    (rule.netCarbLimitG === undefined ||
+      (netCarbs !== null && recipe.nutritionStatus !== 'PARTIAL'));
+  const tagged = !rule.anyTag || rule.anyTag.some((tag) => tags.includes(tag));
+
+  if (tagged) return { status: 'pass', verified: verifiable || !rule.anyTag, ingredients: [] };
+  if (options.deriveFromIngredients) {
+    return verifiable
+      ? { status: 'pass', verified: true, ingredients: [] }
+      : { status: 'unverified', verified: false, ingredients: [] };
+  }
+  return { status: 'fail', verified: false, ingredients: [] };
+}
+
+/**
+ * How one stored diet term fares for a recipe, or null when the term is
+ * unknown free text (those act as an ingredient block elsewhere).
+ */
+export function evaluateRestriction(
+  recipe: SafetyCheckable,
+  restriction: string,
+  options: SafetyOptions = {},
+): DietVerdict | null {
+  const rule = ruleForRestriction(restriction);
+  return rule ? verdictFor(recipe, rule, options) : null;
+}
+
 /**
  * True when the recipe is safe for the given preferences. Exported for unit
  * tests; production code goes through filterSafeRecipes.
  */
-export function isRecipeSafe(recipe: SafetyCheckable, prefs: SafetyPrefs): boolean {
+export function isRecipeSafe(
+  recipe: SafetyCheckable,
+  prefs: SafetyPrefs,
+  options: SafetyOptions = {},
+): boolean {
   const text = recipeText(recipe);
-  const tags = recipe.dietaryTags.map((t) => t.toLowerCase());
 
   for (const allergy of prefs.allergies) {
     if (matchesAny(text, patternsForTerm(allergy, ALLERGEN_PATTERNS))) return false;
@@ -474,8 +699,7 @@ export function isRecipeSafe(recipe: SafetyCheckable, prefs: SafetyPrefs): boole
       if (matchesAny(text, [`\\b${escapeRegExp(normalizeTerm(restriction))}`])) return false;
       continue;
     }
-    if (rule.anyTag && !rule.anyTag.some((tag) => tags.includes(tag))) return false;
-    if (matchesAny(text, rule.forbidden)) return false;
+    if (verdictFor(recipe, rule, options).status !== 'pass') return false;
   }
 
   return true;
@@ -489,12 +713,13 @@ export function isRecipeSafe(recipe: SafetyCheckable, prefs: SafetyPrefs): boole
 export function findSafetyIssues(
   recipe: SafetyCheckable,
   prefs: Pick<SafetyPrefs, 'allergies' | 'dietaryRestrictions'>,
+  options: SafetyOptions = {},
 ): string[] {
   const none = { allergies: [], dietaryRestrictions: [], dislikedIngredients: [] };
   return [
-    ...prefs.allergies.filter((a) => !isRecipeSafe(recipe, { ...none, allergies: [a] })),
+    ...prefs.allergies.filter((a) => !isRecipeSafe(recipe, { ...none, allergies: [a] }, options)),
     ...prefs.dietaryRestrictions.filter(
-      (r) => !isRecipeSafe(recipe, { ...none, dietaryRestrictions: [r] }),
+      (r) => !isRecipeSafe(recipe, { ...none, dietaryRestrictions: [r] }, options),
     ),
   ];
 }
@@ -504,6 +729,8 @@ export interface SafetyBlocker {
   term: string;
   /** T-BUG-51: the actual ingredient names that triggered it (fail-closed evidence). */
   ingredients: string[];
+  /** UX-REC-01: a limit rather than an ingredient broke it ("22 g net carbs per serving"). */
+  reason?: string;
 }
 
 /**
@@ -515,6 +742,7 @@ export interface SafetyBlocker {
 export function findSafetyBlockers(
   recipe: SafetyCheckable,
   prefs: Pick<SafetyPrefs, 'allergies' | 'dietaryRestrictions'>,
+  options: SafetyOptions = {},
 ): SafetyBlocker[] {
   const blockers: SafetyBlocker[] = [];
   const matchingIngredients = (patterns: string[]): string[] =>
@@ -530,15 +758,18 @@ export function findSafetyBlockers(
 
   for (const restriction of prefs.dietaryRestrictions) {
     const rule = ruleForRestriction(restriction);
-    const patterns = rule?.forbidden ?? [`\\b${escapeRegExp(normalizeTerm(restriction))}`];
-    const ingredients = matchingIngredients(patterns);
-    const tagFailure = Boolean(
-      rule?.anyTag &&
-      !rule.anyTag.some((tag) => recipe.dietaryTags.map((t) => t.toLowerCase()).includes(tag)),
-    );
-    if (ingredients.length > 0 || tagFailure) {
-      blockers.push({ term: restriction, ingredients });
+    if (!rule) {
+      const ingredients = matchingIngredients([`\\b${escapeRegExp(normalizeTerm(restriction))}`]);
+      if (ingredients.length > 0) blockers.push({ term: restriction, ingredients });
+      continue;
     }
+    const verdict = verdictFor(recipe, rule, options);
+    if (verdict.status === 'pass') continue;
+    blockers.push({
+      term: restriction,
+      ingredients: verdict.ingredients,
+      ...(verdict.reason && { reason: verdict.reason }),
+    });
   }
 
   return blockers;
@@ -577,6 +808,12 @@ export function deriveDietTags(recipe: SafetyCheckable): string[] {
   if (!matchesAny(text, RESTRICTION_RULES['vegetarian']?.forbidden ?? [])) tags.push('vegetarian');
   if (!matchesAny(text, GLUTEN_PATTERNS)) tags.push('gluten-free');
   if (!matchesAny(text, DAIRY_PATTERNS)) tags.push('dairy-free');
+  // UX-REC-01: the two diets that used to trust the stored tag blindly.
+  const derive = { deriveFromIngredients: true } as const;
+  for (const diet of ['paleo', 'keto'] as const) {
+    const verdict = evaluateRestriction(recipe, diet, derive);
+    if (verdict?.status === 'pass' && verdict.verified) tags.push(diet);
+  }
   return tags;
 }
 

@@ -23,6 +23,11 @@ vi.mock('@chefer/database', async (importOriginal) => {
   return { ...mod, prisma: { ingredientPrice: { findMany: vi.fn() } } };
 });
 
+// Pantry savings read the "two of us" setting (UX-PLAN-02); not what this tests.
+vi.mock('../meal-plan/plan-shape.service.js', () => ({
+  planShapeService: { getShape: vi.fn().mockResolvedValue({ cookingFor: null }) },
+}));
+
 const ROWS: FakeIngredientPriceRow[] = [
   {
     ingredientName: 'chicken breast',

@@ -14,6 +14,7 @@ import { RecipeNutritionPanel } from '@/features/recipes/components/RecipeNutrit
 import { CheckedForLine } from '@/features/safety/components/CheckedForLine';
 import { ReportSafetySheet } from '@/features/safety/components/ReportSafetySheet';
 import { WhatWeCheckSheet } from '@/features/safety/components/WhatWeCheckSheet';
+import { useCookingFor } from '@/hooks/useCookingFor';
 import { useHasMounted } from '@/hooks/useHasMounted';
 import { useHousehold } from '@/hooks/useHousehold';
 import { useIsPremium } from '@/hooks/useIsPremium';
@@ -38,12 +39,14 @@ import { Sheet, Toast } from '@chefer/ui';
 import {
   aiConsentRequiredFor,
   defaultCookServings,
+  formatFractionalQuantity,
   formatPortion,
   formatQuantity,
   labelCaveatLineText,
   reportSentSnackbarText,
   scaleNutrition,
   slotPortion,
+  tableBreakdown,
 } from '@chefer/utils';
 
 // Swap-undo handoff (review F-2): the swap navigates to the NEW recipe's page,
@@ -233,13 +236,15 @@ export default function RecipeDetailPage({ params }: RecipePageProps) {
 
   // Servings adjuster. F2: with household members it defaults to the whole
   // table's portion sum — the count generation scaled the plan's recipes to.
-  const { portionSum, peopleCount, tablePortions } = useHousehold();
+  const { portionSum, peopleCount, tablePortions, scaledMembers } = useHousehold();
+  const cookingFor = useCookingFor();
   const [servings, setServings] = useState<number | null>(null);
   const baseServings = recipe?.servings ?? 1;
   // P1-1: opened from a portioned plan slot, quantities start at that
   // portion (it composes with the household portion sum, never replaces it).
-  const defaultServings = defaultCookServings(baseServings, portionSum, planPortion);
+  const defaultServings = defaultCookServings(baseServings, scaledMembers, planPortion, cookingFor);
   const selectedServings = servings ?? defaultServings;
+  const tableLine = scaledMembers ? tableBreakdown(planPortion, scaledMembers) : null;
   const scale = selectedServings / baseServings;
 
   // Saved-recipe picker state
@@ -350,7 +355,11 @@ export default function RecipeDetailPage({ params }: RecipePageProps) {
           {/* R-14 (Art. 50): AI-generated recipes carry the same label as plan cards. */}
           <AiGeneratedChip recipe={recipe} className="mt-1" />
           <p className="mt-1 text-sm text-gray-500">{recipe.description}</p>
-          <AllergenWarningBanner warnings={recipe.allergenWarnings} className="mt-3" />
+          <AllergenWarningBanner
+            warnings={recipe.allergenWarnings}
+            details={safetyData?.safetyChecks?.conflictDetails}
+            className="mt-3"
+          />
           {/* T-02.3 AC3: never both — only shows when the conflict banner
               above isn't already showing one. */}
           {(recipe.allergenWarnings?.length ?? 0) === 0 && safetyData?.safetyChecks ? (
@@ -503,7 +512,7 @@ export default function RecipeDetailPage({ params }: RecipePageProps) {
         <Stat
           icon={<Users className="h-4 w-4 text-gray-500" />}
           label="Servings"
-          value={String(selectedServings)}
+          value={formatFractionalQuantity(selectedServings)}
         />
         <Stat
           icon={<Flame className="h-4 w-4 text-[#944a00]" />}
@@ -528,8 +537,11 @@ export default function RecipeDetailPage({ params }: RecipePageProps) {
           <Users className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
           <span className="min-w-0">
             Quantities are set for your household of {peopleCount}
-            {selectedServings !== portionSum ? ` — adjusted to ${selectedServings} servings` : ''}.
-            Nutrition facts stay per serving.
+            {tableLine ? ` (${tableLine})` : ''}
+            {selectedServings !== defaultServings
+              ? ` — adjusted to ${formatFractionalQuantity(selectedServings)} servings`
+              : ''}
+            . Nutrition facts stay per serving.
           </span>
         </p>
       )}
@@ -569,7 +581,7 @@ export default function RecipeDetailPage({ params }: RecipePageProps) {
                 −
               </button>
               <span aria-live="polite" className="w-8 text-center text-sm font-medium tabular-nums">
-                {selectedServings}
+                {formatFractionalQuantity(selectedServings)}
               </span>
               <button
                 onClick={() => setServings(Math.min(8, selectedServings + 1))}

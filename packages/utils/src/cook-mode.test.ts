@@ -27,18 +27,28 @@ describe('parseStepDuration (P1-3 inline timers)', () => {
   });
 });
 
-describe('defaultCookServings (P1-1, P2-3)', () => {
-  it('starts at the recipe servings without a premium household', () => {
+describe('defaultCookServings (P1-1, P2-3, UX-REC-02)', () => {
+  it('starts at the recipe servings without a household', () => {
     expect(defaultCookServings(2, null)).toBe(2);
     expect(defaultCookServings(2, null, 1.5)).toBe(3);
+    expect(defaultCookServings(2, [])).toBe(2);
   });
 
-  it('starts at the table portions for a premium household', () => {
-    expect(defaultCookServings(2, 4)).toBe(4);
+  it('is the user portion plus every member (owner 2x + Mia 1/2 + Noah 1 = 3.5)', () => {
+    const members = [{ portionFactor: 0.5 }, { portionFactor: 1 }];
+    expect(defaultCookServings(1, members, 2)).toBe(3.5);
+    expect(defaultCookServings(1, members)).toBe(2.5);
   });
 
-  it('multiplies the table by the plan slot portion', () => {
-    expect(defaultCookServings(2, 3, 1.25)).toBe(3.75);
+  it('never multiplies the owner portion across the whole table', () => {
+    const members = [{ portionFactor: 1 }, { portionFactor: 1 }];
+    expect(defaultCookServings(1, members, 1.25)).toBe(3.25);
+  });
+
+  it('"two of us" cooks a one-serving recipe for the table but leaves a pot recipe alone', () => {
+    expect(defaultCookServings(1, null, 1, 2)).toBe(2);
+    expect(defaultCookServings(1, null, 1.25, 2)).toBe(2.25);
+    expect(defaultCookServings(4, null, 1, 2)).toBe(4);
   });
 });
 
