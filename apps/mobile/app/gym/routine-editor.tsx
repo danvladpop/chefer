@@ -1,11 +1,12 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, Alert, Pressable, View, type TextInput } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { router, useLocalSearchParams, useNavigation } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 import { TEMPLATE_BY_KEY, type RoutineDto } from '@chefer/types';
 import {
   Badge,
   Button,
+  ConfirmSheet,
   Input,
   KeyboardAwareScrollView,
   Screen,
@@ -36,13 +37,14 @@ import { useIsOnline } from '../../src/features/gym/routine/use-online';
 import { WeeklyBalanceCard } from '../../src/features/gym/routine/weekly-balance';
 import { libraryLookup, useGymBootstrap } from '../../src/features/gym/use-gym-bootstrap';
 import { trpc } from '../../src/lib/trpc';
+import { useUnsavedGuard } from '../../src/lib/use-unsaved-guard';
 
 // Routine editor (gym_plan.md §5.4, D5a): a local draft copied from the
 // RoutineDto. Save is explicit and carries `expectedVersion`; a stale version
 // opens the conflict sheet. Leaving with unsaved edits — by the back button,
-// the header back arrow, or an iOS swipe — is confirmed via the navigator's
-// `beforeRemove` event, which fires for all three (and for Android's hardware
-// back button inside a stack navigator), so one listener covers them all.
+// the header back arrow, or an iOS swipe — is confirmed through the shared
+// `useUnsavedGuard` (React Navigation's `usePreventRemove`), which covers all
+// three and Android's hardware back button.
 
 const EMPTY_DRAFT: RoutineDraft = { id: '', name: '', version: 0, days: [] };
 
@@ -57,7 +59,6 @@ type PickerState =
 export default function GymRoutineEditorScreen() {
   const { id } = useLocalSearchParams<{ id?: string }>();
   const routineId = typeof id === 'string' ? id : '';
-  const navigation = useNavigation();
   const isOnline = useIsOnline();
   const utils = trpc.useUtils();
   const bootstrap = useGymBootstrap();
@@ -95,21 +96,13 @@ export default function GymRoutineEditorScreen() {
 
   const dirty = baseline !== null && !draftsEqual(draft, baseline);
 
-  useEffect(() => {
-    const unsubscribe = navigation.addListener('beforeRemove', (e) => {
-      if (!dirty) return;
-      e.preventDefault();
-      Alert.alert('Discard changes?', 'Your edits to this routine have not been saved.', [
-        { text: 'Keep editing', style: 'cancel' },
-        {
-          text: 'Discard',
-          style: 'destructive',
-          onPress: () => navigation.dispatch(e.data.action),
-        },
-      ]);
-    });
-    return unsubscribe;
-  }, [navigation, dirty]);
+  // Unsaved edits are confirmed on the header back, Android BACK and the iOS
+  // swipe alike; `usePreventRemove` also disables the native swipe while
+  // dirty (UX-X-01 — a `beforeRemove` listener could not stop a completed swipe).
+  const guard = useUnsavedGuard(dirty, {
+    title: 'Discard changes?',
+    message: 'Your edits to this routine have not been saved.',
+  });
 
   const library = bootstrap.data?.library ?? [];
   const lookup = useMemo(
@@ -353,6 +346,8 @@ export default function GymRoutineEditorScreen() {
           </Badge>
         ) : null}
       </Sheet>
+
+      <ConfirmSheet testID="gym-routine-editor-discard" {...guard.sheetProps} />
     </Screen>
   );
 }

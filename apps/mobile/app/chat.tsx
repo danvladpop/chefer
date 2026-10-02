@@ -1,17 +1,9 @@
 import { useRef, useState } from 'react';
-import {
-  ActivityIndicator,
-  KeyboardAvoidingView,
-  Platform,
-  Pressable,
-  ScrollView,
-  TextInput,
-  View,
-} from 'react-native';
+import { ActivityIndicator, Pressable, ScrollView, TextInput, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { fetch as expoFetch } from 'expo/fetch';
-import { Card, Screen, Text } from '@chefer/ui-mobile';
+import { Card, Screen, Text, useKeyboardInset } from '@chefer/ui-mobile';
 import { cn, userFacingErrorMessage, WELLNESS_COPY } from '@chefer/utils';
 import { useAiConsent } from '../src/features/ai-consent/ai-consent-provider';
 import { LockedChatPreview } from '../src/features/chat/locked-chat-preview';
@@ -45,6 +37,12 @@ export default function ChatScreen() {
   // AI data consent (App Store 5.1.2(i)): the first message asks before
   // anything is sent; "Not now" keeps the draft and sends nothing.
   const requestAiConsent = useAiConsent();
+  // UX-FOOD-07: under Android's edge-to-edge the window doesn't resize for the
+  // keyboard (KeyboardAvoidingView "height" did nothing), so the composer
+  // column takes the keyboard's height as its own bottom padding. One
+  // mechanism on both platforms; the hook already subtracts the safe-area
+  // bottom that `Screen` pads.
+  const { inset: keyboardInset } = useKeyboardInset();
 
   const send = () => {
     const content = draft.trim();
@@ -122,9 +120,10 @@ export default function ChatScreen() {
         </View>
       </View>
 
-      <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      <View
+        testID="chat-keyboard-inset"
         className="flex-1"
+        style={{ paddingBottom: keyboardInset }}
       >
         <ScrollView
           ref={scrollRef}
@@ -235,7 +234,7 @@ export default function ChatScreen() {
             </Pressable>
           </View>
         )}
-      </KeyboardAvoidingView>
+      </View>
     </Screen>
   );
 }

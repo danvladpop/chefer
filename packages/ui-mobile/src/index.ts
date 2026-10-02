@@ -45,6 +45,11 @@ export {
   type KeyboardAwareScrollViewProps,
   type ScrollFieldIntoView,
 } from './components/keyboard-aware-scroll-view';
+export {
+  useKeyboardInset,
+  type KeyboardInset,
+  type UseKeyboardInsetOptions,
+} from './components/use-keyboard-inset';
 export { PasswordInput, type PasswordInputProps } from './components/password-input';
 export { NumericReturnBar, type NumericReturnBarProps } from './components/numeric-return-bar';
 export { ProgressBar, type ProgressBarProps } from './components/progress-bar';

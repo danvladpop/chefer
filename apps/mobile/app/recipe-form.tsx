@@ -1,7 +1,7 @@
 import { forwardRef, useEffect, useRef, useState } from 'react';
 import { Pressable, TextInput, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { router, useLocalSearchParams, useNavigation } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 import { CUISINE_PRESETS, FRIENDS_COPY, INGREDIENT_CATALOG_COPY } from '@chefer/types';
 import {
   Button,
@@ -49,6 +49,7 @@ import { PhotoField } from '../src/features/recipes/form/photo-field';
 import { StepLine } from '../src/features/recipes/form/step-line';
 import { useIsOnline } from '../src/features/recipes/form/use-is-online';
 import { trpc } from '../src/lib/trpc';
+import { useUnsavedGuard } from '../src/lib/use-unsaved-guard';
 
 // Manual recipe create/edit — rebuilt as sections (T-40.4, UX-40 slice 1).
 // One screen: with ?id= it prefills from getMyRecipe and updates, otherwise
@@ -188,7 +189,6 @@ export default function RecipeFormScreen() {
   const { id } = useLocalSearchParams<{ id?: string }>();
   const isEdit = typeof id === 'string' && id.length > 0;
   const utils = trpc.useUtils();
-  const navigation = useNavigation();
   const snackbar = useSnackbar();
   const scrollFieldIntoView = useScrollFieldIntoView();
   const online = useIsOnline();
@@ -219,13 +219,10 @@ export default function RecipeFormScreen() {
   const [imageUrl, setImageUrl] = useState('');
   const [prefilled, setPrefilled] = useState(false);
   const [attemptedSave, setAttemptedSave] = useState(false);
-  const [discardVisible, setDiscardVisible] = useState(false);
 
   const nameInputRef = useRef<TextInput>(null);
   const ingredientQtyRefs = useRef<(TextInput | null)[]>([]);
   const baselineRef = useRef<FormSnapshot | null>(null);
-  const savedRef = useRef(false);
-  const pendingNavAction = useRef<Parameters<typeof navigation.dispatch>[0] | null>(null);
 
   const snapshot = (): FormSnapshot => ({
     name,
@@ -255,18 +252,17 @@ export default function RecipeFormScreen() {
     JSON.stringify(currentSnapshot.current) !== JSON.stringify(baselineRef.current);
 
   // Discard-changes confirm on the header back, Android back and the iOS
-  // swipe-back alike — one navigator listener covers all three (AC9). It
-  // reads the refs at event time: the baseline can be re-captured without a
-  // render (after the resolver links a legacy recipe's lines).
-  useEffect(() => {
-    const unsubscribe = navigation.addListener('beforeRemove', (e) => {
-      if (savedRef.current || !isDirty()) return;
-      e.preventDefault();
-      pendingNavAction.current = e.data.action;
-      setDiscardVisible(true);
-    });
-    return unsubscribe;
-  }, [navigation]);
+  // swipe-back alike (AC9, UX-X-01): `usePreventRemove` also disables the
+  // native swipe while dirty, which a `beforeRemove` listener could not. The
+  // baseline can be re-captured without a render (after the resolver links a
+  // legacy recipe's lines) — it moves BEFORE the ingredients state does, so
+  // the render that follows always sees a consistent `dirty`.
+  const guard = useUnsavedGuard(isDirty(), {
+    title: recipeFormCopy.discard.title,
+    message: recipeFormCopy.discard.body,
+    discardLabel: recipeFormCopy.discard.confirm,
+    keepLabel: recipeFormCopy.discard.cancel,
+  });
 
   useEffect(() => {
     if (!existing || prefilled || !isFetchedAfterMount || isFetching) {
@@ -320,7 +316,7 @@ export default function RecipeFormScreen() {
   }, [resolveQuery.isError]);
 
   const onDone = () => {
-    savedRef.current = true;
+    guard.release();
     // T-BUG-O3 C1: invalidate every query this same recipe could be read
     // through, not just recipe.list — otherwise a stale getMyRecipe/
     // mealPlan.getRecipe cache reverts the edit the next time it's opened.
@@ -724,25 +720,7 @@ export default function RecipeFormScreen() {
         </View>
       </KeyboardAwareScrollView>
 
-      <ConfirmSheet
-        testID="rf-discard"
-        visible={discardVisible}
-        onClose={() => setDiscardVisible(false)}
-        title={recipeFormCopy.discard.title}
-        body={recipeFormCopy.discard.body}
-        confirmLabel={recipeFormCopy.discard.confirm}
-        cancelLabel={recipeFormCopy.discard.cancel}
-        destructive
-        onConfirm={() => {
-          setDiscardVisible(false);
-          savedRef.current = true;
-          if (pendingNavAction.current) {
-            navigation.dispatch(pendingNavAction.current);
-          } else {
-            router.back();
-          }
-        }}
-      />
+      <ConfirmSheet testID="rf-discard" {...guard.sheetProps} />
     </Screen>
   );
 }
