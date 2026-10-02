@@ -22,13 +22,17 @@ export interface TextProps extends RNTextProps, VariantProps<typeof textVariants
 }
 
 /**
- * Dynamic Type still scales text, but capped at 1.8× by default: at the AX
+ * Dynamic Type still scales text, but capped at 2.0× by default: at the AX
  * sizes (up to ~3.1×) labels collided and ran off-screen — "M TU W TH",
  * "Calories0 / 2728" (audit F-M-X-5-1). Dense controls (chips, segmented
- * controls) pass a tighter cap.
+ * controls, steppers) pass a tighter 1.6× cap. WP-04 raised both (was 1.8 /
+ * 1.3): at +30 % a user who needs larger text — the tester's trainer who
+ * could not read the app without glasses — got almost nothing, so the
+ * primitives now wrap / grow (`min-h-11`, no fixed heights) instead of
+ * relying on a low cap to survive.
  */
-export const DEFAULT_MAX_FONT_SCALE = 1.8;
-export const DENSE_MAX_FONT_SCALE = 1.3;
+export const DEFAULT_MAX_FONT_SCALE = 2.0;
+export const DENSE_MAX_FONT_SCALE = 1.6;
 
 export function Text({ className, variant, maxFontSizeMultiplier, ...props }: TextProps) {
   return (

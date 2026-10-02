@@ -5,17 +5,23 @@ import { haptics } from '../motion/haptics';
 import { PressableScale } from '../motion/pressable-scale';
 import { DENSE_MAX_FONT_SCALE, Text as HintText } from './text';
 
-const chipVariants = cva('min-h-11 flex-row items-center justify-center rounded-full border px-4', {
-  variants: {
-    selected: {
-      true: 'border-primary bg-primary',
-      false: 'border-border bg-background',
+// `min-h-11` (never `h-11`) + `py-2` + `max-w-full`: at large OS text sizes a
+// long label wraps onto a second line and the pill grows with it instead of
+// truncating (X-08); the 44pt hit area holds at every size.
+export const chipVariants = cva(
+  'min-h-11 max-w-full flex-row items-center justify-center rounded-full border px-4 py-2',
+  {
+    variants: {
+      selected: {
+        true: 'border-primary bg-primary',
+        false: 'border-border bg-background',
+      },
     },
+    defaultVariants: { selected: false },
   },
-  defaultVariants: { selected: false },
-});
+);
 
-const chipTextVariants = cva('text-sm font-medium', {
+export const chipTextVariants = cva('shrink text-center text-sm font-medium', {
   variants: {
     selected: {
       true: 'text-primary-foreground',
@@ -133,7 +139,7 @@ export function ChipGroup<T extends string | number>({
         const disabled = disabledValues?.includes(option.value) ?? false;
         const hint = hints?.[option.value];
         return (
-          <View key={String(option.value)} className="items-center gap-1">
+          <View key={String(option.value)} className="max-w-full items-center gap-1">
             <Chip
               testID={option.testID}
               label={option.label}

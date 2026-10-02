@@ -126,7 +126,7 @@ export function Stepper({
         className="min-h-11 min-w-12 items-center justify-center px-1"
       >
         <Text className="text-base font-semibold tabular-nums text-foreground">{display}</Text>
-        {label ? <Text className="text-[12px] text-muted-foreground">{label}</Text> : null}
+        {label ? <Text className="text-xs text-muted-foreground">{label}</Text> : null}
       </PressableScale>
       {button(1, atMax)}
     </View>

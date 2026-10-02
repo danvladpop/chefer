@@ -26,10 +26,18 @@ import { DENSE_MAX_FONT_SCALE } from './text';
 // layout this stepper currently ships in) for the longest values it renders
 // today, e.g. "102.5" (kg with a decimal) and "1:30" (a mm:ss rest/tempo
 // value).
+//
+// WP-04 raised the sizes one step (17/15/13 -> 20/17/14, the logger's
+// `text-xl` value) along with the type scale. The numeric value itself is
+// capped at `VALUE_MAX_FONT_SCALE` (1.3, not the dense 1.6): it already starts
+// at 20pt and sits in a width-constrained cell with no auto-shrink, so a 1.6×
+// OS size would truncate "102.5" — the −/+ glyphs and the caption keep the
+// full dense cap.
+export const VALUE_MAX_FONT_SCALE = 1.3;
 export function valueFontSize(display: string): number {
-  if (display.length <= 4) return 17;
-  if (display.length === 5) return 15;
-  return 13;
+  if (display.length <= 4) return 20;
+  if (display.length === 5) return 17;
+  return 14;
 }
 
 export interface ValueStepperProps {
@@ -150,7 +158,7 @@ function ValueStepperImpl({
       >
         <Text
           numberOfLines={1}
-          maxFontSizeMultiplier={DENSE_MAX_FONT_SCALE}
+          maxFontSizeMultiplier={VALUE_MAX_FONT_SCALE}
           style={{ fontSize: valueFontSize(display) }}
           className={cn(
             'font-semibold tabular-nums',
@@ -161,7 +169,7 @@ function ValueStepperImpl({
         </Text>
         <Text
           maxFontSizeMultiplier={DENSE_MAX_FONT_SCALE}
-          className="text-[12px] text-muted-foreground"
+          className="text-xs text-muted-foreground"
         >
           {caption}
         </Text>
