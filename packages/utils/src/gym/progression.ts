@@ -234,12 +234,20 @@ export function startingGuessKg(
     }
     return profile.barWeightKg + (ex.isLowerBody && ex.category === 'COMPOUND' ? 20 : 10);
   }
+  // Rotator-cuff work (2026-10 library expansion) is deliberately light on
+  // any implement — dumbbell or band — far below a generic isolation guess.
+  if (ex.movementPattern === 'shoulder-external-rotation') {
+    return beginner ? 2 : 4;
+  }
   if (model === 'LIST') {
     if (ex.movementPattern === 'carry') {
       return beginner ? 16 : 24;
     }
     if (ex.category === 'ISOLATION') {
-      const small = ex.movementPattern === 'lateral-raise' || ex.movementPattern === 'rear-delt';
+      const small =
+        ex.movementPattern === 'lateral-raise' ||
+        ex.movementPattern === 'rear-delt' ||
+        ex.movementPattern === 'front-raise';
       return small ? (beginner ? 4 : 8) : beginner ? 6 : 10;
     }
     if (!ex.perHand && ex.isLowerBody) {
