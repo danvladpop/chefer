@@ -21,6 +21,15 @@ const config: Config = {
       },
     },
     extend: {
+      // WP-04 (readability): the secondary text floor is one step up from
+      // Tailwind's 12/14 so it reads at 390 px without glasses, in line with
+      // the mobile app's scale (apps/mobile/tailwind.config.js: 14/16 there,
+      // 13/15 here because desktop density matters more). `base` and up keep
+      // Tailwind's defaults.
+      fontSize: {
+        xs: ['0.8125rem', { lineHeight: '1.125rem' }],
+        sm: ['0.9375rem', { lineHeight: '1.3125rem' }],
+      },
       colors: {
         border: 'hsl(var(--border))',
         input: 'hsl(var(--input))',
