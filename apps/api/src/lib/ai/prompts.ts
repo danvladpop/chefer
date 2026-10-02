@@ -270,11 +270,17 @@ export const REPAIR_LINES_SYSTEM_PROMPT = `\
 You fix recipe ingredient lines so they match the Chefer ingredient catalog.
 Each line either names a slug the catalog does not have, or uses a unit that
 cannot be converted to grams for that ingredient. For every line return:
-- slug: copied EXACTLY from the CATALOG list (prefer one of the line's candidates
-  when it is the same food; raw/dry state for meat, grains and legumes)
-- quantity and unit: the same amount, in "g" for solids or "ml" for liquids
+- slug: copied EXACTLY from the CATALOG list. If the line already has a slug and
+  only its unit failed, return that SAME slug. Otherwise prefer one of the line's
+  candidates when it is the same food (raw/dry state for meat, grains, legumes).
+  Never pick a different food because its name looks alike ("curry paste" is
+  not "pasta").
+- quantity and unit: the WEIGHT of the stated amount, in "g" for solids or "ml"
+  for liquids. Convert, never copy the number: "1 head broccoli" is about 600 g
+  (not 1 g), "2 scoops protein powder" about 60 g, "1 inch ginger" about 10 g,
+  "1 block firm tofu" about 400 g.
 - id: echoed unchanged
-Never invent a slug. Do not output nutrition.`;
+Never invent a slug. Do not output nutrition. Skip a line you cannot fix honestly.`;
 
 export function buildRepairLinesPrompt(request: RecipeLineRepairRequest): string {
   const lines = request.lines

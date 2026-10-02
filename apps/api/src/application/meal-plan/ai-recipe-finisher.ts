@@ -15,6 +15,7 @@ import type {
   SwapInput,
 } from '../../lib/ai/types.js';
 import { ingredientResolver, type IngredientResolver } from '../ingredients/ingredient-resolver.js';
+import { catalogRepairRows, repairRejection } from '../ingredients/repair-guard.js';
 import {
   computeAiRecipe,
   fitToSlotTarget,
@@ -226,10 +227,31 @@ export class AiRecipeFinisher {
       console.warn('[ai-recipes] repair round failed; regenerating instead:', err);
     }
     const byId = new Map(fixes.map((f) => [f.id, f]));
+    const asked = new Map(request.lines.map((l) => [l.id, l]));
     for (const it of items) {
       const ingredients = it.recipe.ingredients.map((line, idx) => {
-        const fix = byId.get(`${it.key}:${idx}`);
-        return fix ? { ...line, slug: fix.slug, quantity: fix.quantity, unit: fix.unit } : line;
+        const id = `${it.key}:${idx}`;
+        const fix = byId.get(id);
+        const ask = asked.get(id);
+        if (!fix || !ask) return line;
+        // repair-guard.ts: a copied count or a look-alike food stays a problem line.
+        const why = repairRejection(
+          {
+            rawName: ask.rawName,
+            quantity: ask.quantity,
+            unit: ask.unit,
+            // A valid slug whose only problem is the unit must be kept.
+            slug: ask.problem === 'NO_INGREDIENT' ? undefined : ask.slug,
+            candidates: ask.candidates,
+          },
+          fix,
+          catalogRepairRows().get(fix.slug),
+        );
+        if (why) {
+          console.warn(`[ai-recipes] repair refused for "${ask.rawName}": ${why}`);
+          return line;
+        }
+        return { ...line, slug: fix.slug, quantity: fix.quantity, unit: fix.unit };
       });
       const c = computeAiRecipe({ ...it.recipe, ingredients });
       out.set(it.key, {
