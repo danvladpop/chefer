@@ -1,5 +1,6 @@
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { render, screen } from '@testing-library/react-native';
+import { DENSE_MAX_FONT_SCALE } from '@chefer/ui-mobile';
 import { WeekSummarySheet } from '../../src/features/meal-plan/week-summary-sheet';
 
 const metrics = {
@@ -36,8 +37,8 @@ describe('WeekSummarySheet day labels (T-21.13, CI-43)', () => {
     );
 
     const monday = screen.getByText('MON');
-    expect(monday.props.maxFontSizeMultiplier).toBe(1.3);
+    expect(monday.props.maxFontSizeMultiplier).toBe(DENSE_MAX_FONT_SCALE);
     const tuesday = screen.getByText('TUE');
-    expect(tuesday.props.maxFontSizeMultiplier).toBe(1.3);
+    expect(tuesday.props.maxFontSizeMultiplier).toBe(DENSE_MAX_FONT_SCALE);
   });
 });

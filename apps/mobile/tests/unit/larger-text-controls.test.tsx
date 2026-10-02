@@ -1,5 +1,5 @@
 import { render, screen } from '@testing-library/react-native';
-import { Button, buttonVariants } from '@chefer/ui-mobile';
+import { Button, buttonVariants, DEFAULT_MAX_FONT_SCALE } from '@chefer/ui-mobile';
 import { HeaderAvatar } from '../../src/components/header-avatar';
 
 // App Review R-20: at Accessibility XL, Today's "Cook it" / "Swap" labels were
@@ -24,7 +24,7 @@ describe('Button at large text (R-20)', () => {
 
   it('caps the label scale so it wraps instead of overflowing', async () => {
     await render(<Button>Cook it</Button>);
-    expect(screen.getByText('Cook it').props.maxFontSizeMultiplier).toBe(1.8);
+    expect(screen.getByText('Cook it').props.maxFontSizeMultiplier).toBe(DEFAULT_MAX_FONT_SCALE);
   });
 });
 

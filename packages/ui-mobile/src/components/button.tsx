@@ -38,6 +38,14 @@ export const buttonVariants = cva(
 
 const buttonTextVariants = cva('text-sm font-medium', {
   variants: {
+    // `lg` (48pt) is the busy-hands size — Start workout, Freestyle (WP-04):
+    // its label steps up with it.
+    size: {
+      default: '',
+      sm: '',
+      lg: 'text-base',
+      icon: '',
+    },
     variant: {
       default: 'text-primary-foreground',
       destructive: 'text-destructive-foreground',
@@ -48,6 +56,7 @@ const buttonTextVariants = cva('text-sm font-medium', {
   },
   defaultVariants: {
     variant: 'default',
+    size: 'default',
   },
 });
 
@@ -95,7 +104,7 @@ export function Button({
       {typeof children === 'string' ? (
         <Text
           maxFontSizeMultiplier={DEFAULT_MAX_FONT_SCALE}
-          className={cn(buttonTextVariants({ variant }), 'shrink text-center')}
+          className={cn(buttonTextVariants({ variant, size }), 'shrink text-center')}
         >
           {children}
         </Text>

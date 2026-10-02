@@ -52,6 +52,7 @@ export { ProgressRing, type ProgressRingProps } from './components/progress-ring
 export { Screen, type ScreenProps } from './components/screen';
 export {
   SegmentedControl,
+  thumbMetrics,
   type SegmentedControlProps,
   type SegmentedOption,
 } from './components/segmented-control';
@@ -99,7 +100,12 @@ export {
   type FieldChainBinding,
   type UseFieldChainResult,
 } from './components/use-field-chain';
-export { ValueStepper, valueFontSize, type ValueStepperProps } from './components/value-stepper';
+export {
+  ValueStepper,
+  VALUE_MAX_FONT_SCALE,
+  valueFontSize,
+  type ValueStepperProps,
+} from './components/value-stepper';
 export { chartPalette, colors } from './components/theme';
 // Charts (react-native-svg)
 export {
