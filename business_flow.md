@@ -767,8 +767,8 @@ FREE generation now honours the shape:
   │    TABLE multiplier (a standard second portion) applied by Shop, the
   │    plan cost, pantry savings and cook mode through the shared
   │    `portionsFor` (`@chefer/utils`). Plans stored before the fix with
-  │    portion 2 for these users are normalised by the migration
-  │    `20261003090000_two_of_us_eater_portion` (see "Portions" below)
+  │    portion 2 for these users are normalised by the owner-run data fix
+  │    `scripts/data-fixes/2026-10-03-two-of-us-eater-portion.sql` (see "Portions" below)
   ├─ an explicit shape with Snacks off never adds an opportunistic
   │    snack (the legacy/no-shape path still tops up automatically)
   ├─ a day that can't fill a wanted slot reports

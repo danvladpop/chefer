@@ -1,3 +1,11 @@
+-- OWNER-RUN DATA FIX (WP-01, UX-PLAN-02). NOT a Prisma migration: deploys use
+-- `prisma db push`, which never applies migration files, so this must be run by
+-- hand once, after the WP-01 deploy, against production:
+--   ssh chefer
+--   docker exec -i chefer-postgres psql -U chefer -d chefer < 2026-10-03-two-of-us-eater-portion.sql
+-- Take a backup first. Safe to re-run (idempotent). Skipping it only means legacy
+-- "two of us" slots stay at 2x until that plan is regenerated.
+--
 -- UX-PLAN-02: a plan slot's `portion` is now the EATER's calorie-driven share
 -- only; "How you cook: two of us" is a table multiplier applied by Shop, the
 -- cost chip and cook mode at read time. Until now the planner overwrote every

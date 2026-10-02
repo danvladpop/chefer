@@ -1439,9 +1439,9 @@ enum ExerciseTrackingType { WEIGHT_REPS  BODYWEIGHT_REPS  DURATION  DURATION_DIS
 enum DistanceUnit         { KM  MI }  // S21 (T-42.0) — GymProfile.distanceUnit
 ```
 
-### Data migration `20261003090000_two_of_us_eater_portion` (UX-PLAN-02)
+### Data fix `scripts/data-fixes/2026-10-03-two-of-us-eater-portion.sql` (UX-PLAN-02)
 
-No schema change. A one-off, idempotent `UPDATE` on `meal_plan_days.meals`: for users whose `dietary_preferences.cookingFor = 2`, a slot with `portion` exactly 2 (the old "two of us" table override) loses the key, i.e. becomes the eater's 1×. Other slots and users are untouched. "Two of us" now scales Shop/cost/cook at read time instead of the stored portion.
+No schema change, and not a Prisma migration (deploys use `prisma db push`, which never applies migration files): the owner runs it by hand once after the WP-01 deploy. A one-off, idempotent `UPDATE` on `meal_plan_days.meals`: for users whose `dietary_preferences.cookingFor = 2`, a slot with `portion` exactly 2 (the old "two of us" table override) loses the key, i.e. becomes the eater's 1×. Other slots and users are untouched. "Two of us" now scales Shop/cost/cook at read time instead of the stored portion.
 
 ### Wave-0 schema changes (T-00.10, additive only)
 
