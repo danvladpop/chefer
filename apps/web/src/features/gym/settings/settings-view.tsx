@@ -7,7 +7,7 @@ import { trpc } from '@/lib/trpc';
 import { AlertTriangle, ArrowLeft, Copy, PauseCircle, RotateCw, Trash2 } from 'lucide-react';
 import type { ActivePauseDto, GymProfileDto, WeightUnit } from '@chefer/types';
 import { Button, Input, Sheet } from '@chefer/ui';
-import { addDaysLocal, cn, formatLoadNumber, unitLabel } from '@chefer/utils';
+import { addDaysLocal, cn, formatLoadNumber, unitLabel, WELLNESS_COPY } from '@chefer/utils';
 import { shortDate } from '../shared/format';
 import { CardLabel, GymCard, GymSkeleton } from '../shared/gym-card';
 import { Stepper } from '../shared/stepper';
@@ -297,6 +297,14 @@ function ProfileSettings({
       </GymCard>
 
       <PauseCard today={today} paused={paused} activePause={activePause} />
+
+      {/* Advisory disclaimer (2026-10-02), always visible on gym settings. */}
+      <p
+        data-testid="gym-settings-advisory-disclaimer"
+        className="px-1 text-center text-xs text-gray-500"
+      >
+        {WELLNESS_COPY.gymAdvisoryDisclaimer}
+      </p>
 
       {(saved !== null || save.isError) && (
         <p
