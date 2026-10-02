@@ -201,17 +201,17 @@ function ExerciseCardImpl({
             <Text
               testID={`${base}-name`}
               numberOfLines={2}
-              className="min-w-0 flex-1 text-base font-semibold"
+              className="min-w-0 flex-1 text-lg font-semibold"
             >
               {meta.name}
             </Text>
           </View>
-          <Text testID={`${base}-progress`} variant="muted" numberOfLines={1}>
+          <Text testID={`${base}-progress`} variant="muted" numberOfLines={2}>
             {se.skipped ? 'Skipped' : subtitle}
             {pr ? ' · PR' : ''}
           </Text>
           {lastNote && !editing ? (
-            <Text testID={`${base}-last-note`} variant="muted" numberOfLines={1}>
+            <Text testID={`${base}-last-note`} variant="muted" numberOfLines={2}>
               Last time: {lastNote}
             </Text>
           ) : null}
@@ -421,9 +421,9 @@ function ExerciseCardImpl({
             testID={`${base}-add-set`}
             accessibilityRole="button"
             onPress={() => ctx.onAddSet(se.id)}
-            className="min-h-11 items-center justify-center rounded-lg border border-dashed border-border"
+            className="min-h-12 items-center justify-center rounded-lg border border-dashed border-border"
           >
-            <Text className="text-sm font-medium text-primary">+ Add set</Text>
+            <Text className="text-base font-medium text-primary">+ Add set</Text>
           </Pressable>
         </View>
       ) : null}

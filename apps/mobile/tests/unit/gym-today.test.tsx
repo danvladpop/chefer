@@ -1,7 +1,7 @@
 import { Platform } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { onlineManager, QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { render, screen, userEvent, waitFor } from '@testing-library/react-native';
+import { render, screen, userEvent, waitFor, within } from '@testing-library/react-native';
 import type { GymOffer, NextWorkoutDto, RoutineDto, SessionSummaryDto } from '@chefer/types';
 import { resetSnackbarForTests, Snackbar } from '@chefer/ui-mobile';
 import { weekdayOf } from '@chefer/utils';
@@ -172,6 +172,29 @@ describe('TodayScreen', () => {
 
     await user.press(screen.getByTestId('gym-today-start'));
     expect(router.push).toHaveBeenCalledWith('/gym/workout');
+  });
+
+  // WP-04 (feedback 1): the busy-hands primaries are the large (48 pt) button,
+  // and a long exercise name wraps to two lines instead of truncating.
+  it('Start workout and Freestyle use the lg button; exercise names wrap to 2 lines', async () => {
+    const queryClient = makeClient();
+    queryClient.setQueryData(
+      gymBootstrapQueryKey,
+      makeBootstrap({ activeRoutine: ROUTINE, nextWorkout: NEXT_WORKOUT }),
+    );
+    await renderToday(queryClient);
+
+    // The lg size is the only one whose label steps up to text-base.
+    const start = within(screen.getByTestId('gym-today-start')).getByText('Start workout');
+    const freestyle = within(screen.getByTestId('gym-today-freestyle')).getByText(
+      'Freestyle workout',
+    );
+    expect(String(start.props.className)).toContain('text-base');
+    expect(String(freestyle.props.className)).toContain('text-base');
+    const [bench] = NEXT_WORKOUT.exercises;
+    if (!bench) throw new Error('expected a fixture exercise');
+    const name = screen.getByTestId(`gym-today-next-up-${bench.routineExerciseId}-name`);
+    expect(within(name).getByText('bench').props.numberOfLines).toBe(2);
   });
 
   it('brackets adjacent superset exercises in "Next up" with a chip and heading', async () => {

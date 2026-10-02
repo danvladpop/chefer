@@ -136,14 +136,16 @@ function SetRowImpl({
               : 'border-transparent',
         )}
       >
-        <View className="min-h-5 flex-row items-center gap-2 px-1">
-          <Text testID={`${testID}-label`} className="text-xs font-semibold text-foreground">
+        {/* WP-04: labels one step up (text-sm). min-h, not h: at large OS text
+            the row grows; "Last 60 × 10" wraps to two lines instead of clipping. */}
+        <View className="min-h-6 flex-row items-center gap-2 px-1">
+          <Text testID={`${testID}-label`} className="text-sm font-semibold text-foreground">
             {label}
           </Text>
           <Text
             testID={`${testID}-last`}
-            numberOfLines={1}
-            className="min-w-0 flex-1 text-xs text-muted-foreground"
+            numberOfLines={2}
+            className="min-w-0 flex-1 text-sm text-muted-foreground"
           >
             {lastText}
           </Text>
@@ -170,12 +172,12 @@ function SetRowImpl({
           </Pressable>
         </View>
         {/* UX-05 A1 (T-05.A1.1, O-05/O-06): grouped kg/reps containers 8 pt
-          apart, and before the ✓, which is now a round 48 pt control — one
+          apart, and before the ✓, which is now a round 52 pt control — one
           filled shape per control, not seven equal tiles. */}
         <View className="flex-row items-center gap-2">
           {weightMode === 'none' ? (
             <View className="min-h-11 flex-1 items-center justify-center">
-              <Text testID={`${testID}-weight-value`} className="text-base font-semibold">
+              <Text testID={`${testID}-weight-value`} className="text-xl font-semibold">
                 BW
               </Text>
             </View>
@@ -215,7 +217,9 @@ function SetRowImpl({
               accessibilityLabel={done ? `${summary}. Logged, tap to undo` : `Log ${summary}`}
               onPress={() => onTick(seId, set.id)}
               className={cn(
-                'h-12 w-12 items-center justify-center rounded-full border-2 active:opacity-70',
+                // WP-04: 52 pt visual + hit area (SET_TICK_SIZE) — the control
+                // used with a barbell in hand.
+                'h-[52px] w-[52px] items-center justify-center rounded-full border-2 active:opacity-70',
                 done ? 'border-emerald-600 bg-emerald-600' : 'border-primary/40 bg-background',
               )}
             >
