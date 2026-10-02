@@ -238,6 +238,7 @@ export {
   type LoggedMealEntryLike,
 } from './tracker';
 
+export { portionsFor, tableBreakdown, type Portions, type PortionsInput } from './portions';
 export { defaultCookServings, finishMealCopy, guessMealType, parseStepDuration } from './cook-mode';
 export {
   buildPickerSections,
@@ -507,6 +508,14 @@ export {
   checkedForChipText,
   checkedForChipA11yLabel,
   cantCheckLine,
+  conflictHeadline,
+  conflictText,
+  splitCheckedByVerification,
+  taggedOnlyLineText,
+  verifiedLabels,
+  warningText,
+  warningsHeadline,
+  type ConflictLike,
   filteredForLineText,
   pickerFooterText,
   checkedForListHeaderText,
