@@ -130,7 +130,7 @@ export function ResumeCard({
               {summary.setsTotal} sets
             </Text>
             {focus ? (
-              <Text variant="muted" className="text-xs" numberOfLines={1}>
+              <Text variant="muted" className="text-xs" numberOfLines={2}>
                 {focus}
               </Text>
             ) : null}
@@ -139,7 +139,12 @@ export function ResumeCard({
       </View>
 
       <View className="mt-3 flex-row flex-wrap items-center gap-x-4 gap-y-2">
-        <Button testID={`${testID}-button`} accessibilityLabel={primaryLabel} onPress={goToWorkout}>
+        <Button
+          testID={`${testID}-button`}
+          size="lg"
+          accessibilityLabel={primaryLabel}
+          onPress={goToWorkout}
+        >
           {primaryLabel}
         </Button>
         {summary.state === 'paused' && remainingSets > 0 ? (

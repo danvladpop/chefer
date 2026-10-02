@@ -187,6 +187,12 @@ export interface ExerciseMenuProps {
   isLast: boolean;
   /** null = "Update routine" is available; otherwise the sentence explaining why not. */
   routineBlockedReason: string | null;
+  /**
+   * WP-04 (feedback 2): false for a freestyle session (no routine) or an
+   * exercise that isn't a routine slot — there is nothing to ask, so Swap
+   * goes straight to the picker as "Just today". Default true (scope page).
+   */
+  swapAsksScope?: boolean;
   history: ExerciseHistoryEntry[];
   unit: WeightUnit;
   loadType: ExerciseDto['loadType'];
@@ -241,7 +247,7 @@ function MenuRow({
         {label}
       </Text>
       {hint ? (
-        <Text variant="muted" className="text-xs">
+        <Text variant="muted" className="text-sm">
           {hint}
         </Text>
       ) : null}
@@ -251,6 +257,7 @@ function MenuRow({
 
 export function ExerciseMenuSheet(props: ExerciseMenuProps) {
   const { visible, onClose, exercise, name, isFirst, isLast, routineBlockedReason } = props;
+  const swapAsksScope = props.swapAsksScope ?? true;
   // Log mode (a new past workout) is edit mode where every listed set counts.
   const logging = props.mode === 'log';
   const editing = props.mode === 'edit' || logging;
@@ -295,7 +302,11 @@ export function ExerciseMenuSheet(props: ExerciseMenuProps) {
             </>
           ) : (
             <>
-              <MenuRow testID="menu-swap" label="Swap exercise" onPress={() => setPage('swap')} />
+              <MenuRow
+                testID="menu-swap"
+                label="Swap exercise"
+                onPress={() => (swapAsksScope ? setPage('swap') : props.onSwap('today'))}
+              />
               <MenuRow
                 testID="menu-skip"
                 label={exercise.skipped ? 'Unskip exercise' : 'Skip exercise'}
@@ -395,6 +406,7 @@ export function ExerciseMenuSheet(props: ExerciseMenuProps) {
         <View className="gap-3">
           <TextInput
             testID="menu-note-input"
+            accessibilityLabel="Exercise note"
             value={note}
             onChangeText={setNote}
             placeholder="Seat height, grip, a cue…"

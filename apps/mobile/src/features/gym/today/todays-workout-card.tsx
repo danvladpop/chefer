@@ -154,7 +154,7 @@ export function TodaysWorkoutCard() {
       <Text variant="muted" className="text-xs">
         {`~${nextWorkout.estimatedMin} min · ${nextWorkout.exercises.length} exercises`}
       </Text>
-      <Button testID="todays-workout-card-start" size="sm" className="mt-1" onPress={handleStart}>
+      <Button testID="todays-workout-card-start" size="lg" className="mt-1" onPress={handleStart}>
         Start workout
       </Button>
     </Card>
