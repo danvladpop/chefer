@@ -81,3 +81,24 @@ export function mappingFor(name: string): MappingEntry | undefined {
   }
   return undefined;
 }
+
+/**
+ * "1 can black beans" resolves to the COOKED row, which has no can portion.
+ * The canned sibling (`black-beans-canned`, `chickpeas-canned-drained`) is
+ * both the truer food and carries the owner's can size (2026-10-02), so a
+ * "can" line moves there. Null when the row already weighs a can or has no
+ * canned sibling with a can portion.
+ */
+export function cannedSibling(
+  row: CatalogIngredientRow,
+  canonicalUnit: string,
+  bySlug: ReadonlyMap<string, CatalogIngredientRow>,
+): CatalogIngredientRow | null {
+  if (canonicalUnit !== 'can' || row.portions.some((p) => p.unit === 'can')) return null;
+  const stem = row.slug.replace(/-(cooked|boiled|raw|dry|dried)$/, '');
+  for (const slug of [`${stem}-canned`, `${stem}-canned-drained`]) {
+    const sib = bySlug.get(slug);
+    if (sib?.portions.some((p) => p.unit === 'can')) return sib;
+  }
+  return null;
+}

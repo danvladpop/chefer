@@ -956,8 +956,14 @@
     "densityGPerMl": 0.862,
     "nutritionSource": "USDA_FDC",
     "sourceRef": "fdc:173930",
-    "sourceNote": "density from fdc-portion:93491 \"1 cup slices\" = 204 g",
-    "portions": []
+    "sourceNote": "can = 400 g (owner decision 2026-10-02: 400 g net can); density from fdc-portion:93491 \"1 cup slices\" = 204 g",
+    "portions": [
+      {
+        "unit": "can",
+        "grams": 400,
+        "source": "owner:can-400g"
+      }
+    ]
   },
   {
     "slug": "apples-dehydrated",
@@ -1102,12 +1108,17 @@
     "densityGPerMl": 1.031,
     "nutritionSource": "USDA_FDC",
     "sourceRef": "fdc:173937",
-    "sourceNote": "density from fdc-portion:93501 \"1 cup, halves\" = 244 g",
+    "sourceNote": "can = 400 g (owner decision 2026-10-02: 400 g net can); density from fdc-portion:93501 \"1 cup, halves\" = 244 g",
     "portions": [
       {
         "unit": "piece",
         "grams": 36,
         "source": "fdc-portion:93502"
+      },
+      {
+        "unit": "can",
+        "grams": 400,
+        "source": "owner:can-400g"
       }
     ]
   },
@@ -1210,7 +1221,14 @@
     "sodiumMgPer100g": 320,
     "nutritionSource": "CIQUAL",
     "sourceRef": "ciqual:20067",
-    "portions": []
+    "sourceNote": "can = 240 g (owner decision 2026-10-02: 400 g net can, drained weight)",
+    "portions": [
+      {
+        "unit": "can",
+        "grams": 240,
+        "source": "owner:can-400g-drained"
+      }
+    ]
   },
   {
     "slug": "artichoke-raw",
@@ -1954,8 +1972,14 @@
     "densityGPerMl": 0.554,
     "nutritionSource": "USDA_FDC",
     "sourceRef": "fdc:169212",
-    "sourceNote": "density from fdc-portion:84443 \"1 cup (1/8\" slices)\" = 131 g",
-    "portions": []
+    "sourceNote": "can = 240 g (owner decision 2026-10-02: 400 g net can, drained weight); density from fdc-portion:84443 \"1 cup (1/8\" slices)\" = 131 g",
+    "portions": [
+      {
+        "unit": "can",
+        "grams": 240,
+        "source": "owner:can-400g-drained"
+      }
+    ]
   },
   {
     "slug": "banana-chips",
@@ -2613,8 +2637,14 @@
     "densityGPerMl": 1.014,
     "nutritionSource": "USDA_FDC",
     "sourceRef": "fdc:171538",
-    "sourceNote": "density from fdc-portion:88950 \"1 cup\" = 240 g",
-    "portions": []
+    "sourceNote": "can = 400 g (owner decision 2026-10-02: 400 g net can); density from fdc-portion:88950 \"1 cup\" = 240 g",
+    "portions": [
+      {
+        "unit": "can",
+        "grams": 400,
+        "source": "owner:can-400g"
+      }
+    ]
   },
   {
     "slug": "beef-chuck-cooked",
@@ -3801,7 +3831,7 @@
     "densityGPerMl": 0.664,
     "nutritionSource": "USDA_FDC",
     "sourceRef": "fdc:169966",
-    "sourceNote": "density from fdc-portion:85765 \"1 cup, diced\" = 157 g",
+    "sourceNote": "can = 240 g (owner decision 2026-10-02: 400 g net can, drained weight); density from fdc-portion:85765 \"1 cup, diced\" = 157 g",
     "portions": [
       {
         "unit": "slice",
@@ -3812,6 +3842,11 @@
         "unit": "piece",
         "grams": 24,
         "source": "fdc-portion:85770"
+      },
+      {
+        "unit": "can",
+        "grams": 240,
+        "source": "owner:can-400g-drained"
       }
     ]
   },
@@ -4170,8 +4205,14 @@
     "densityGPerMl": 1.014,
     "nutritionSource": "USDA_FDC",
     "sourceRef": "fdc:175188",
-    "sourceNote": "density from fdc-portion:95816 \"1 cup\" = 240 g",
-    "portions": []
+    "sourceNote": "can = 400 g (owner decision 2026-10-02: 400 g net can); density from fdc-portion:95816 \"1 cup\" = 240 g",
+    "portions": [
+      {
+        "unit": "can",
+        "grams": 400,
+        "source": "owner:can-400g"
+      }
+    ]
   },
   {
     "slug": "black-beans-cooked",
@@ -8059,8 +8100,14 @@
     "densityGPerMl": 1.057,
     "nutritionSource": "USDA_FDC",
     "sourceRef": "fdc:173958",
-    "sourceNote": "density from fdc-portion:93538 \"1 cup, pitted\" = 250 g",
-    "portions": []
+    "sourceNote": "can = 400 g (owner decision 2026-10-02: 400 g net can); density from fdc-portion:93538 \"1 cup, pitted\" = 250 g",
+    "portions": [
+      {
+        "unit": "can",
+        "grams": 400,
+        "source": "owner:can-400g"
+      }
+    ]
   },
   {
     "slug": "cherries-sweet-raw",
@@ -8595,8 +8642,14 @@
     "densityGPerMl": 1.052,
     "nutritionSource": "USDA_FDC",
     "sourceRef": "fdc:174536",
-    "sourceNote": "density from fdc-portion:94531 \"1 cup\" = 249 g",
-    "portions": []
+    "sourceNote": "can = 400 g (owner decision 2026-10-02: 400 g net can); density from fdc-portion:94531 \"1 cup\" = 249 g",
+    "portions": [
+      {
+        "unit": "can",
+        "grams": 400,
+        "source": "owner:can-400g"
+      }
+    ]
   },
   {
     "slug": "chicken-canned",
@@ -9496,8 +9549,14 @@
     "densityGPerMl": 1.014,
     "nutritionSource": "USDA_FDC",
     "sourceRef": "fdc:173800",
-    "sourceNote": "density from fdc-portion:95843 \"1 cup\" = 240 g (fdc:175206)",
-    "portions": []
+    "sourceNote": "can = 240 g (owner decision 2026-10-02: 400 g net can, drained weight); density from fdc-portion:95843 \"1 cup\" = 240 g (fdc:175206)",
+    "portions": [
+      {
+        "unit": "can",
+        "grams": 240,
+        "source": "owner:can-400g-drained"
+      }
+    ]
   },
   {
     "slug": "chickpeas-cooked",
@@ -10555,8 +10614,14 @@
     "densityGPerMl": 0.955,
     "nutritionSource": "CIQUAL",
     "sourceRef": "ciqual:18041",
-    "sourceNote": "density from fdc-portion:86171 \"1 cup\" = 226 g (fdc:170173)",
-    "portions": []
+    "sourceNote": "can = 400 g (owner decision 2026-10-02: 400 g net can); density from fdc-portion:86171 \"1 cup\" = 226 g (fdc:170173)",
+    "portions": [
+      {
+        "unit": "can",
+        "grams": 400,
+        "source": "owner:can-400g"
+      }
+    ]
   },
   {
     "slug": "coconut-oil",
@@ -11396,8 +11461,14 @@
     "densityGPerMl": 0.693,
     "nutritionSource": "USDA_FDC",
     "sourceRef": "fdc:169214",
-    "sourceNote": "density from fdc-portion:84446 \"1 cup\" = 164 g",
-    "portions": []
+    "sourceNote": "can = 240 g (owner decision 2026-10-02: 400 g net can, drained weight); density from fdc-portion:84446 \"1 cup\" = 164 g",
+    "portions": [
+      {
+        "unit": "can",
+        "grams": 240,
+        "source": "owner:can-400g-drained"
+      }
+    ]
   },
   {
     "slug": "corn-flakes",
@@ -16027,8 +16098,14 @@
     "densityGPerMl": 1.002,
     "nutritionSource": "USDA_FDC",
     "sourceRef": "fdc:174668",
-    "sourceNote": "density from fdc-portion:94723 \"1 cup\" = 237 g",
-    "portions": []
+    "sourceNote": "can = 400 g (owner decision 2026-10-02: 400 g net can); density from fdc-portion:94723 \"1 cup\" = 237 g",
+    "portions": [
+      {
+        "unit": "can",
+        "grams": 400,
+        "source": "owner:can-400g"
+      }
+    ]
   },
   {
     "slug": "garden-cress-raw",
@@ -17317,12 +17394,17 @@
     "densityGPerMl": 0.571,
     "nutritionSource": "USDA_FDC",
     "sourceRef": "fdc:169143",
-    "sourceNote": "density from fdc-portion:84320 \"1 cup\" = 135 g",
+    "sourceNote": "can = 240 g (owner decision 2026-10-02: 400 g net can, drained weight); density from fdc-portion:84320 \"1 cup\" = 135 g",
     "portions": [
       {
         "unit": "piece",
         "grams": 6.2,
         "source": "fdc-portion:84321"
+      },
+      {
+        "unit": "can",
+        "grams": 240,
+        "source": "owner:can-400g-drained"
       }
     ]
   },
@@ -18537,12 +18619,17 @@
     "densityGPerMl": 0.617,
     "nutritionSource": "USDA_FDC",
     "sourceRef": "fdc:168569",
-    "sourceNote": "density from fdc-portion:83344 \"1 cup\" = 146 g",
+    "sourceNote": "can = 400 g (owner decision 2026-10-02: 400 g net can); density from fdc-portion:83344 \"1 cup\" = 146 g",
     "portions": [
       {
         "unit": "piece",
         "grams": 33,
         "source": "fdc-portion:83345"
+      },
+      {
+        "unit": "can",
+        "grams": 400,
+        "source": "owner:can-400g"
       }
     ]
   },
@@ -19657,8 +19744,14 @@
     "densityGPerMl": 1.082,
     "nutritionSource": "USDA_FDC",
     "sourceRef": "fdc:174285",
-    "sourceNote": "density from fdc-portion:95824 \"1 cup\" = 256 g (fdc:175195)",
-    "portions": []
+    "sourceNote": "can = 240 g (owner decision 2026-10-02: 400 g net can, drained weight); density from fdc-portion:95824 \"1 cup\" = 256 g (fdc:175195)",
+    "portions": [
+      {
+        "unit": "can",
+        "grams": 240,
+        "source": "owner:can-400g-drained"
+      }
+    ]
   },
   {
     "slug": "kidney-beans-cooked",
@@ -21814,8 +21907,14 @@
     "densityGPerMl": 1.052,
     "nutritionSource": "USDA_FDC",
     "sourceRef": "fdc:169106",
-    "sourceNote": "density from fdc-portion:84252 \"1 cup\" = 249 g",
-    "portions": []
+    "sourceNote": "can = 400 g (owner decision 2026-10-02: 400 g net can); density from fdc-portion:84252 \"1 cup\" = 249 g",
+    "portions": [
+      {
+        "unit": "can",
+        "grams": 400,
+        "source": "owner:can-400g"
+      }
+    ]
   },
   {
     "slug": "mango-dried",
@@ -24070,7 +24169,7 @@
     "densityGPerMl": 0.659,
     "nutritionSource": "USDA_FDC",
     "sourceRef": "fdc:169254",
-    "sourceNote": "density from fdc-portion:84537 \"1 cup\" = 156 g",
+    "sourceNote": "can = 240 g (owner decision 2026-10-02: 400 g net can, drained weight); density from fdc-portion:84537 \"1 cup\" = 156 g",
     "portions": [
       {
         "unit": "large",
@@ -24091,6 +24190,11 @@
         "unit": "slice",
         "grams": 4,
         "source": "fdc-portion:84542"
+      },
+      {
+        "unit": "can",
+        "grams": 240,
+        "source": "owner:can-400g-drained"
       }
     ]
   },
@@ -26448,8 +26552,14 @@
     "densityGPerMl": 1.057,
     "nutritionSource": "USDA_FDC",
     "sourceRef": "fdc:169930",
-    "sourceNote": "density from fdc-portion:85705 \"1 cup\" = 250 g",
-    "portions": []
+    "sourceNote": "can = 400 g (owner decision 2026-10-02: 400 g net can); density from fdc-portion:85705 \"1 cup\" = 250 g",
+    "portions": [
+      {
+        "unit": "can",
+        "grams": 400,
+        "source": "owner:can-400g"
+      }
+    ]
   },
   {
     "slug": "peaches-canned-syrup",
@@ -26484,12 +26594,17 @@
     "densityGPerMl": 0.938,
     "nutritionSource": "USDA_FDC",
     "sourceRef": "fdc:168181",
-    "sourceNote": "density from fdc-portion:82618 \"1 cup\" = 222 g",
+    "sourceNote": "can = 240 g (owner decision 2026-10-02: 400 g net can, drained weight); density from fdc-portion:82618 \"1 cup\" = 222 g",
     "portions": [
       {
         "unit": "slice",
         "grams": 12.7,
         "source": "fdc-portion:82620"
+      },
+      {
+        "unit": "can",
+        "grams": 240,
+        "source": "owner:can-400g-drained"
       }
     ]
   },
@@ -26890,8 +27005,14 @@
     "densityGPerMl": 1.048,
     "nutritionSource": "USDA_FDC",
     "sourceRef": "fdc:169936",
-    "sourceNote": "density from fdc-portion:85714 \"1 cup, halves\" = 248 g",
-    "portions": []
+    "sourceNote": "can = 400 g (owner decision 2026-10-02: 400 g net can); density from fdc-portion:85714 \"1 cup, halves\" = 248 g",
+    "portions": [
+      {
+        "unit": "can",
+        "grams": 400,
+        "source": "owner:can-400g"
+      }
+    ]
   },
   {
     "slug": "pears-dried",
@@ -26973,8 +27094,14 @@
     "densityGPerMl": 0.719,
     "nutritionSource": "USDA_FDC",
     "sourceRef": "fdc:170104",
-    "sourceNote": "density from fdc-portion:86054 \"0.5 cup\" = 85 g",
-    "portions": []
+    "sourceNote": "can = 240 g (owner decision 2026-10-02: 400 g net can, drained weight); density from fdc-portion:86054 \"0.5 cup\" = 85 g",
+    "portions": [
+      {
+        "unit": "can",
+        "grams": 240,
+        "source": "owner:can-400g-drained"
+      }
+    ]
   },
   {
     "slug": "pecans",
@@ -27704,12 +27831,17 @@
     "densityGPerMl": 0.765,
     "nutritionSource": "USDA_FDC",
     "sourceRef": "fdc:167767",
-    "sourceNote": "density from fdc-portion:81939 \"1 cup, chunks\" = 181 g",
+    "sourceNote": "can = 240 g (owner decision 2026-10-02: 400 g net can, drained weight); density from fdc-portion:81939 \"1 cup, chunks\" = 181 g",
     "portions": [
       {
         "unit": "piece",
         "grams": 26,
         "source": "fdc-portion:81942"
+      },
+      {
+        "unit": "can",
+        "grams": 240,
+        "source": "owner:can-400g-drained"
       }
     ]
   },
@@ -27738,12 +27870,17 @@
     "densityGPerMl": 1.065,
     "nutritionSource": "USDA_FDC",
     "sourceRef": "fdc:169127",
-    "sourceNote": "density from fdc-portion:84296 \"1 cup, crushed, sliced, or chunks\" = 252 g",
+    "sourceNote": "can = 400 g (owner decision 2026-10-02: 400 g net can); density from fdc-portion:84296 \"1 cup, crushed, sliced, or chunks\" = 252 g",
     "portions": [
       {
         "unit": "slice",
         "grams": 48,
         "source": "fdc-portion:84297"
+      },
+      {
+        "unit": "can",
+        "grams": 400,
+        "source": "owner:can-400g"
       }
     ]
   },
@@ -27842,8 +27979,14 @@
     "densityGPerMl": 1.014,
     "nutritionSource": "USDA_FDC",
     "sourceRef": "fdc:174286",
-    "sourceNote": "density from fdc-portion:95834 \"1 cup\" = 240 g (fdc:175201)",
-    "portions": []
+    "sourceNote": "can = 240 g (owner decision 2026-10-02: 400 g net can, drained weight); density from fdc-portion:95834 \"1 cup\" = 240 g (fdc:175201)",
+    "portions": [
+      {
+        "unit": "can",
+        "grams": 240,
+        "source": "owner:can-400g-drained"
+      }
+    ]
   },
   {
     "slug": "pinto-beans-cooked",
@@ -28309,12 +28452,17 @@
     "densityGPerMl": 1.065,
     "nutritionSource": "USDA_FDC",
     "sourceRef": "fdc:169951",
-    "sourceNote": "density from fdc-portion:85739 \"1 cup, pitted\" = 252 g",
+    "sourceNote": "can = 400 g (owner decision 2026-10-02: 400 g net can); density from fdc-portion:85739 \"1 cup, pitted\" = 252 g",
     "portions": [
       {
         "unit": "piece",
         "grams": 46,
         "source": "fdc-portion:85740"
+      },
+      {
+        "unit": "can",
+        "grams": 400,
+        "source": "owner:can-400g"
       }
     ]
   },
@@ -30036,8 +30184,14 @@
     "densityGPerMl": 1.036,
     "nutritionSource": "USDA_FDC",
     "sourceRef": "fdc:168450",
-    "sourceNote": "density from fdc-portion:83114 \"1 cup\" = 245 g",
-    "portions": []
+    "sourceNote": "can = 400 g (owner decision 2026-10-02: 400 g net can); density from fdc-portion:83114 \"1 cup\" = 245 g",
+    "portions": [
+      {
+        "unit": "can",
+        "grams": 400,
+        "source": "owner:can-400g"
+      }
+    ]
   },
   {
     "slug": "pumpkin-pie-spice",
@@ -37838,7 +37992,7 @@
     "densityGPerMl": 1.014,
     "nutritionSource": "USDA_FDC",
     "sourceRef": "fdc:170051",
-    "sourceNote": "density from fdc-portion:85963 \"1 cup\" = 240 g",
+    "sourceNote": "can = 400 g (owner decision 2026-10-02: 400 g net can); density from fdc-portion:85963 \"1 cup\" = 240 g",
     "portions": [
       {
         "unit": "large",
@@ -37854,6 +38008,11 @@
         "unit": "small",
         "grams": 82,
         "source": "fdc-portion:85968"
+      },
+      {
+        "unit": "can",
+        "grams": 400,
+        "source": "owner:can-400g"
       }
     ]
   },
@@ -40574,8 +40733,14 @@
     "densityGPerMl": 1.107,
     "nutritionSource": "CIQUAL",
     "sourceRef": "ciqual:20511",
-    "sourceNote": "density from fdc-portion:95840 \"1 cup\" = 262 g (fdc:175204)",
-    "portions": []
+    "sourceNote": "can = 240 g (owner decision 2026-10-02: 400 g net can, drained weight); density from fdc-portion:95840 \"1 cup\" = 262 g (fdc:175204)",
+    "portions": [
+      {
+        "unit": "can",
+        "grams": 240,
+        "source": "owner:can-400g-drained"
+      }
+    ]
   },
   {
     "slug": "white-beans-cooked",

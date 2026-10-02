@@ -73,6 +73,7 @@ Portions come from FDC `food_portion.csv`, in both Foundation and SR Legacy, for
 - A draft may pin one FDC record to one unit (`portionAs`). That is used when FDC phrases a common unit as a fraction, for example "0.5 breast" or "0.5 fillet" meaning one breast or fillet as sold. `sourceNote` records that.
 - A draft may drop a mapped unit (`skipPortions`) when the first FDC record for it describes a different item. For example, the tomato record's first "piece" is one cherry tomato.
 - **No FDC `can` portions.** FDC can sizes are American (a tomato purée can is 822 g), so `build-catalog.ts` never imports a `can` portion (`SKIPPED_FDC_PORTION_UNITS`). A recipe line in cans stays PARTIAL until a cited EU can size is added. Owner decision, 2026-10-01.
+- **A can is 400 g (owner decision, 2026-10-02).** `build-catalog.ts` (`canPortion`) gives every `-canned` row a `can` portion of 400 g net, the common EU size. Rows that count only the solids (name contains "drained") get 240 g, the drained weight a 400 g EU can of beans or vegetables prints on its label. Fish, seafood and meat cans (tuna, sardines, salmon, crab, chicken) get none, because those cans are far smaller than 400 g. Portion source: `owner:can-400g` / `owner:can-400g-drained`.
 - No `edibleFraction` is set in v1. The FDC CSV releases carry no refuse percentages, so every row is an edible-portion row (boneless, peeled), and FDC portion weights are edible weights.
 
 ### Density (`densityGPerMl`)
@@ -103,7 +104,7 @@ The owner reviewed the candidate (`catalog-review.html`, 55-row seeded sample) a
 - **Energy-check allow-list.** Beyond the plan's alcohol, polyols and spices, the list also accepts vinegars (acetic acid supplies about 3 kcal/g, which the EU formula leaves out) and cocoa and carob (FDC computes their energy with specific Atwater factors). Each entry is in `src/catalog/energy-allow-list.ts` with its reason.
 - **Proxy mappings.** All 31 rows with a `review` note are accepted for v1, for example paneer → queso fresco, telemea → CIQUAL feta-type cheese and cașcaval → gouda.
 - **"½ fillet" and "½ breast" pins.** FDC's "0.5 fillet" and "0.5 breast" records count as one fillet or one breast as sold, because FDC's whole fillet is an entire side of salmon.
-- **`can` portions.** FDC's are dropped (see Portions).
+- **`can` portions.** FDC's are dropped; the owner's 400 g / 240 g drained can is added instead (see Portions).
 - **No label rows in v1.** Gaps stay gaps. Users create private ingredients, and the weekly review promotes them with provenance.
 - **Size.** v1 ships with 1,085 rows, below the ~1,200 target, because some checklist items exist in neither dataset.
 

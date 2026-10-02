@@ -37,7 +37,7 @@ export const SWAP_BREAKFAST_POOL: RecipeData[] = [
     dietaryTags: ['gluten-free', 'vegetarian'],
     prepTimeMins: 5,
     cookTimeMins: 15,
-    servings: 1,
+    servings: 2,
     imageUrl: U('photo-1567620905732-2d1ec7ab7445'),
   },
   {
