@@ -761,9 +761,14 @@ FREE generation now honours the shape:
   ├─ a time cap filters each meal type's candidates; a recipe whose
   │    prepTimeMins + cookTimeMins is 0 ("unknown") fits any cap but
   │    ranks after known-fast recipes (owner feedback Q-35)
-  ├─ "cooking for 2" sets every planned slot's portion to 2 directly
-  │    (a flat multiplier — separate from the calorie-driven P1-1
-  │    portion, and from premium household scaling)
+  ├─ "cooking for 2" does NOT touch the slot's portion (UX-PLAN-02): a
+  │    slot's `portion` is the EATER's calorie-driven share only — what the
+  │    user eats, logs and counts toward their targets. "Two of us" is a
+  │    TABLE multiplier (a standard second portion) applied by Shop, the
+  │    plan cost, pantry savings and cook mode through the shared
+  │    `portionsFor` (`@chefer/utils`). Plans stored before the fix with
+  │    portion 2 for these users are normalised by the migration
+  │    `20261003090000_two_of_us_eater_portion` (see "Portions" below)
   ├─ an explicit shape with Snacks off never adds an opportunistic
   │    snack (the legacy/no-shape path still tops up automatically)
   ├─ a day that can't fill a wanted slot reports
@@ -2113,15 +2118,29 @@ SCALING — premium only (`householdPlans`)
   │    .servingSize); the legacy setting is never read. Imports adapt to the
   │    same number.
   ├─ shopping list (derived AND the AI-consolidation input): every recipe's
-  │    ingredients × portions / recipe.servings — a single-portion curated
-  │    week ×portions, a recipe already generated for the table ×1 — and the
-  │    list reports `portions`
+  │    ingredients × (the slot's eater portion + Σ member portionFactor) /
+  │    recipe.servings — a single-portion curated week × the table, a recipe
+  │    already generated for the table × that ÷ its servings — and the list
+  │    reports `portions` (= householdPortionSum, unchanged for old apps).
+  │    The table is ADDED to the eater's portion, never multiplied across it
+  │    (UX-REC-02: owner 2× + Mia ½ + Noah 1 = 3½, not ceil(2½) × 2)
   ├─ plan week cost: estimatedCost scaled the same way (chip = list total),
   │    with `portions`
-  └─ recipe page + cook mode default to the table's servings, × the plan
-       slot's portion when opened from the plan (shared
-       `defaultCookServings`; mobile cook mode's ingredient list has the
-       servings stepper)
+  └─ recipe page + cook mode default to the table's servings: the user's
+       plan portion + each member (shared `defaultCookServings` →
+       `portionsFor`; shown as "You 2 · Mia ½ · Noah 1 = 3½"; mobile cook
+       mode's ingredient list has the servings stepper)
+Portions — one helper, three numbers (UX-PLAN-02 / UX-REC-02,
+`portionsFor({ eaterPortion, members, cookingFor, recipeServings })` in
+`@chefer/utils`): `eaterPortion` (what the signed-in user eats and logs — the
+stored slot `portion`), `cookServings` (the whole table), `shopMultiplier`
+(what Shop and the cost chip scale quantities by). Members describe the table
+exactly and win over "cooking for"; with no members "cooking for N" adds N − 1
+standard portions. Nutrition, day totals, "I ate this", rebalance and the
+tracker only ever use the eater's portion. Legacy plans: a one-off data
+migration drops `portion: 2` from slots of users whose "cooking for" is 2
+(their original per-eater portion was never stored, so 1× is the honest value;
+Regenerate recomputes it).
 FREE households: lists, costs and recipe pages stay as written (single
 portion for curated plans) and say so ("sized for 1 portion — Premium scales
 it for your table"). Per-person cost is ALWAYS total ÷ the portions the list
@@ -3559,6 +3578,24 @@ Reporting a recipe (T-01.5):
     └─► next SafetyService.loadContext() includes it in hiddenRecipeIds
     └─► recipe.list({forTable:true}) / discover / whatCanIMake never show it again for this user
 ```
+
+**Diets are decided on ingredients, not only tags (UX-REC-01, UX-PLAN-06).**
+`RESTRICTION_RULES` gives paleo a forbidden list (grains, legumes, dairy incl.
+cheeses named without "cheese", refined sugar) and keto a net-carb limit
+(`KETO_MAX_NET_CARBS_G` = 20 g/serving, from the recipe's catalogue-computed
+nutrition; fibre is subtracted only from typed (USER_ENTERED) totals) plus a
+starchy/sugary staple fallback. Two modes: **strict** (the default — stored
+tag AND clean ingredients; the curated pool/generation fail-safe) and
+**`deriveFromIngredients`** (recipes people wrote or imported: an untagged
+recipe passes when its own ingredients verify the diet, so plain oats are
+vegetarian; used by `SafetyService.check`, `findSafetyIssues` for display and
+the Replace/add gates, import, and `recipe.list({forTable})`). A pass that
+rests on the tag alone is reported in the additive `safetyChecks.taggedOnly`
+(still inside `checked` for 1.0.1 apps) and clients say "Tagged paleo (not
+verified)", never "Checked for"; an untagged recipe nothing can verify is
+`unchecked`, not a conflict. `safetyChecks.conflictDetails` (additive) names the
+offending ingredients/limit so copy reads "Not paleo: contains quinoa" instead
+of "Contains Paleo"; `UNSAFE_FOR_TABLE` rejections word diets the same way.
 
 **Dislikes: hard everywhere `SafetyService.filter` runs with its default
 `opts.dislikes: 'hide'`** (generation, the Replace picker's default list,
