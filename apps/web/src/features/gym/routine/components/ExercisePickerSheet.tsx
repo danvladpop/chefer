@@ -4,12 +4,16 @@ import { useMemo, useState } from 'react';
 import { ExerciseImage } from '@/features/gym/library/ExerciseImage';
 import { exerciseImageUrl } from '@/features/gym/use-gym-bootstrap';
 import { Search, X } from 'lucide-react';
-import { HIDDEN_EXERCISE_IMAGE_IDS, type ExerciseDto, type VolumeGroup } from '@chefer/types';
+import {
+  HIDDEN_EXERCISE_IMAGE_IDS,
+  type ExerciseDto,
+  type LibraryFilterGroup,
+} from '@chefer/types';
 import { Badge, Sheet } from '@chefer/ui';
-import { cn, VOLUME_GROUP_LABELS } from '@chefer/utils';
+import { cn, LIBRARY_FILTER_GROUP_LABELS } from '@chefer/utils';
 import { filterExercises, sortBySwapGroupFirst } from '../exercise-filter';
 
-const GROUPS = Object.keys(VOLUME_GROUP_LABELS) as VolumeGroup[];
+const GROUPS = Object.keys(LIBRARY_FILTER_GROUP_LABELS) as LibraryFilterGroup[];
 
 export interface ExercisePickerSheetProps {
   open: boolean;
@@ -33,7 +37,7 @@ export function ExercisePickerSheet({
   excludeIds,
 }: ExercisePickerSheetProps) {
   const [query, setQuery] = useState('');
-  const [group, setGroup] = useState<VolumeGroup | null>(null);
+  const [group, setGroup] = useState<LibraryFilterGroup | null>(null);
 
   const rows = useMemo(() => {
     const filtered = filterExercises(library, { query, group, excludeIds });
@@ -110,7 +114,7 @@ export function ExercisePickerSheet({
                   : 'border-gray-200 bg-white text-gray-600 hover:bg-gray-50',
               )}
             >
-              {VOLUME_GROUP_LABELS[g]}
+              {LIBRARY_FILTER_GROUP_LABELS[g]}
             </button>
           ))}
         </div>

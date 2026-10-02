@@ -3,18 +3,14 @@
 // src/features/gym/library/exercise-picker.tsx filterExercises so both
 // platforms agree on what "matches" means; kept local per G5-B's file
 // ownership (apps/web/src/features/gym/routine/**).
-import { VOLUME_GROUPS, type ExerciseDto, type VolumeGroup } from '@chefer/types';
+import type { ExerciseDto, LibraryFilterGroup } from '@chefer/types';
+import { exerciseMatchesFilterGroup } from '@chefer/utils';
 import { isCardioExercise } from '../shared/cardio';
 
 export interface ExerciseFilterOptions {
   query: string;
-  group: VolumeGroup | null;
+  group: LibraryFilterGroup | null;
   excludeIds?: readonly string[] | undefined;
-}
-
-function matchesGroup(exercise: ExerciseDto, group: VolumeGroup): boolean {
-  const muscles: readonly string[] = VOLUME_GROUPS[group];
-  return exercise.primaryMuscles.some((m) => muscles.includes(m));
 }
 
 export function filterExercises(
@@ -27,7 +23,7 @@ export function filterExercises(
     library
       // T-42.5 (Q-31): the web renders cardio but never logs it — pickers exclude it.
       .filter((e) => !e.archived && !exclude.includes(e.id) && !isCardioExercise(e))
-      .filter((e) => (opts.group ? matchesGroup(e, opts.group) : true))
+      .filter((e) => (opts.group ? exerciseMatchesFilterGroup(e, opts.group) : true))
       .filter((e) =>
         q.length === 0
           ? true

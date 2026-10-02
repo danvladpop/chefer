@@ -79,9 +79,16 @@ describe('filterExercises', () => {
     expect(result.map((e) => e.id).sort()).toEqual(['goblet-squat', 'my-curl']);
   });
 
-  it('filters by muscle group, matching primary or secondary', () => {
-    const result = filterExercises(library, { ...DEFAULT_LIBRARY_FILTERS, muscleGroup: 'glutes' });
-    expect(result.map((e) => e.id)).toEqual(['goblet-squat']);
+  it('filters by muscle group on PRIMARY muscles only, like mobile (L2)', () => {
+    expect(
+      filterExercises(library, { ...DEFAULT_LIBRARY_FILTERS, muscleGroup: 'quads' }).map(
+        (e) => e.id,
+      ),
+    ).toEqual(['goblet-squat']);
+    // glutes is only a secondary muscle of the goblet squat
+    expect(filterExercises(library, { ...DEFAULT_LIBRARY_FILTERS, muscleGroup: 'glutes' })).toEqual(
+      [],
+    );
   });
 
   it('"Mine" keeps only exercises with an owner', () => {

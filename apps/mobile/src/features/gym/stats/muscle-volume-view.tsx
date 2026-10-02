@@ -13,7 +13,6 @@ import {
 } from '@chefer/ui-mobile';
 import { completedSetsByWeek, landmarkFor, VOLUME_GROUP_LABELS } from '@chefer/utils';
 import { trpc } from '../../../lib/trpc';
-import { MUSCLE_GROUP_FILTERS } from '../library-screens/exercise-filters';
 import { useIsOnline } from '../library-screens/online-status';
 import { libraryLookup } from '../use-gym-bootstrap';
 
@@ -23,6 +22,9 @@ import { libraryLookup } from '../use-gym-bootstrap';
 
 const WEEKS = 12;
 const GROUPS = Object.keys(VOLUME_GROUPS) as VolumeGroup[];
+// Volume stats chart the VOLUME groups only (the library's extra filter groups
+// such as Forearms have no weekly-set landmarks).
+const VOLUME_GROUP_FILTERS = GROUPS.map((g) => ({ value: g, label: VOLUME_GROUP_LABELS[g] }));
 
 // T-05.6 (UX-05 F, CI-36): a fixed colour per muscle group, computed once so
 // it drives both the stacked bars (`seriesColors`) and the legend below them
@@ -62,7 +64,7 @@ export function MuscleVolumeView({ bootstrap }: { bootstrap: GymBootstrap }) {
       <CardTitle>Weekly sets per muscle</CardTitle>
       <ChipGroup
         testID="stats-muscle-volume-group"
-        options={MUSCLE_GROUP_FILTERS}
+        options={VOLUME_GROUP_FILTERS}
         value={[group]}
         onChange={(v) => v[0] && setGroup(v[0])}
         className="mb-3"
