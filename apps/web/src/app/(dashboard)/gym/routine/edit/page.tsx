@@ -24,12 +24,13 @@ import {
   confirmDiscardChanges,
   useUnsavedChangesWarning,
 } from '@/features/gym/routine/use-unsaved-warning';
+import { SupersetSheet } from '@/features/gym/shared/superset-sheet';
 import { libraryLookup, useGymBootstrap } from '@/features/gym/use-gym-bootstrap';
 import { useHasMounted } from '@/hooks/useHasMounted';
 import { trpc } from '@/lib/trpc';
 import { ArrowLeft } from 'lucide-react';
 import { TEMPLATE_BY_KEY, type RoutineDto } from '@chefer/types';
-import { validateRoutine, volumeByGroup } from '@chefer/utils';
+import { supersetSlot, validateRoutine, volumeByGroup } from '@chefer/utils';
 import RoutineEditLoading from './loading';
 
 export default function RoutineEditPage() {
@@ -51,6 +52,7 @@ export default function RoutineEditPage() {
   const [version, setVersion] = useState<number | null>(null);
   const [conflictCurrent, setConflictCurrent] = useState<RoutineDto | null>(null);
   const [pickerDayKey, setPickerDayKey] = useState<string | null>(null);
+  const [supersetDayKey, setSupersetDayKey] = useState<string | null>(null);
   const [swapTarget, setSwapTarget] = useState<{ dayKey: string; exerciseKey: string } | null>(
     null,
   );
@@ -126,6 +128,21 @@ export default function RoutineEditPage() {
         .find((d) => d.key === swapTarget.dayKey)
         ?.exercises.find((e) => e.key === swapTarget.exerciseKey)?.exerciseId
     : undefined;
+
+  // plan-library-supersets S3: the "Superset" sheet lists the day's exercises.
+  const supersetDay = draft?.days.find((d) => d.key === supersetDayKey) ?? null;
+  const supersetItems = useMemo(
+    () =>
+      (supersetDay?.exercises ?? []).map((exercise, index) => {
+        const slot = supersetSlot(supersetDay?.exercises ?? [], index);
+        return {
+          id: exercise.key,
+          name: lookup(exercise.exerciseId)?.name ?? exercise.exerciseId,
+          badge: slot ? `${slot.label}${slot.position + 1}` : null,
+        };
+      }),
+    [supersetDay, lookup],
+  );
 
   const handleBack = () => {
     if (!confirmDiscardChanges(isDirty)) return;
@@ -205,6 +222,7 @@ export default function RoutineEditPage() {
           lookup={lookup}
           onAddDay={() => dispatch({ type: 'add_day' })}
           onOpenPicker={setPickerDayKey}
+          onOpenSuperset={setSupersetDayKey}
           onSwap={(dayKey, exerciseKey) => setSwapTarget({ dayKey, exerciseKey })}
         />
         <WeeklyBalancePanel
@@ -222,6 +240,7 @@ export default function RoutineEditPage() {
         lookup={lookup}
         onAddDay={() => dispatch({ type: 'add_day' })}
         onOpenPicker={setPickerDayKey}
+        onOpenSuperset={setSupersetDayKey}
         onSwap={(dayKey, exerciseKey) => setSwapTarget({ dayKey, exerciseKey })}
       />
       <div className="lg:hidden">
@@ -251,6 +270,18 @@ export default function RoutineEditPage() {
             });
             setSwapTarget(null);
           }
+        }}
+      />
+
+      <SupersetSheet
+        open={supersetDay !== null}
+        onClose={() => setSupersetDayKey(null)}
+        items={supersetItems}
+        onGroup={(exerciseKeys) => {
+          if (supersetDay) {
+            dispatch({ type: 'create_superset', dayKey: supersetDay.key, exerciseKeys });
+          }
+          setSupersetDayKey(null);
         }}
       />
 

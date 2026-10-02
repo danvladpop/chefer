@@ -20,7 +20,7 @@ import {
   useSortable,
   verticalListSortingStrategy,
 } from '@dnd-kit/sortable';
-import { GripVertical, Plus } from 'lucide-react';
+import { GripVertical, Link2, Plus } from 'lucide-react';
 import { Button } from '@chefer/ui';
 import { isSupersetWithNext, supersetSlot, type ExerciseLookup } from '@chefer/utils';
 import type { DraftAction, DraftExercise, DraftRoutine } from '../draft';
@@ -34,6 +34,8 @@ export interface DesktopEditorBoardProps {
   lookup: ExerciseLookup;
   onAddDay: () => void;
   onOpenPicker: (dayKey: string) => void;
+  /** Opens the "Superset" sheet for a day (plan-library-supersets S3). */
+  onOpenSuperset: (dayKey: string) => void;
   onSwap: (dayKey: string, exerciseKey: string) => void;
 }
 
@@ -70,6 +72,7 @@ export function DesktopEditorBoard({
   lookup,
   onAddDay,
   onOpenPicker,
+  onOpenSuperset,
   onSwap,
 }: DesktopEditorBoardProps) {
   const [activeId, setActiveId] = useState<string | null>(null);
@@ -166,6 +169,7 @@ export function DesktopEditorBoard({
               lookup={lookup}
               canDelete={draft.days.length > 1}
               onOpenPicker={onOpenPicker}
+              onOpenSuperset={onOpenSuperset}
               onSwap={onSwap}
             />
           ))}
@@ -204,10 +208,19 @@ interface DayColumnProps {
   lookup: ExerciseLookup;
   canDelete: boolean;
   onOpenPicker: (dayKey: string) => void;
+  onOpenSuperset: (dayKey: string) => void;
   onSwap: (dayKey: string, exerciseKey: string) => void;
 }
 
-function DayColumn({ day, dispatch, lookup, canDelete, onOpenPicker, onSwap }: DayColumnProps) {
+function DayColumn({
+  day,
+  dispatch,
+  lookup,
+  canDelete,
+  onOpenPicker,
+  onOpenSuperset,
+  onSwap,
+}: DayColumnProps) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: day.key,
   });
@@ -222,6 +235,7 @@ function DayColumn({ day, dispatch, lookup, canDelete, onOpenPicker, onSwap }: D
       ref={setNodeRef}
       style={style}
       className="flex w-72 shrink-0 flex-col gap-3 rounded-2xl border border-gray-200 bg-gray-50 p-3"
+      data-testid="routine-editor-day"
     >
       <DayHeaderFields
         name={day.name}
@@ -256,7 +270,19 @@ function DayColumn({ day, dispatch, lookup, canDelete, onOpenPicker, onSwap }: D
               key={exercise.key}
               dayKey={day.key}
               exercise={exercise}
-              heading={<SupersetHeading exercises={day.exercises} index={i} />}
+              heading={
+                <SupersetHeading
+                  exercises={day.exercises}
+                  index={i}
+                  onUngroup={() =>
+                    dispatch({
+                      type: 'ungroup_superset',
+                      dayKey: day.key,
+                      exerciseKey: exercise.key,
+                    })
+                  }
+                />
+              }
               superset={supersetSlot(day.exercises, i)}
               linkedToNext={isSupersetWithNext(day.exercises, i)}
               isLast={i === day.exercises.length - 1}
@@ -273,15 +299,29 @@ function DayColumn({ day, dispatch, lookup, canDelete, onOpenPicker, onSwap }: D
         </div>
       </SortableContext>
 
-      <Button
-        type="button"
-        variant="outline"
-        size="sm"
-        className="min-h-11"
-        onClick={() => onOpenPicker(day.key)}
-      >
-        <Plus className="h-4 w-4" /> Add exercise
-      </Button>
+      <div className="grid grid-cols-2 gap-2">
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          className="min-h-11 min-w-0 whitespace-nowrap"
+          onClick={() => onOpenPicker(day.key)}
+        >
+          <Plus className="h-4 w-4 shrink-0" /> Add exercise
+        </Button>
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          className="min-h-11 min-w-0 whitespace-nowrap"
+          disabled={day.exercises.length < 2}
+          onClick={() => onOpenSuperset(day.key)}
+          aria-label={`Superset: ${day.name}`}
+          data-testid="routine-day-superset"
+        >
+          <Link2 className="h-4 w-4 shrink-0" /> Superset
+        </Button>
+      </div>
     </div>
   );
 }
