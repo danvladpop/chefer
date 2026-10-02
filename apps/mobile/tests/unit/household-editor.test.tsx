@@ -26,6 +26,11 @@ const mockPush = jest.fn();
 const mockOpenPremium = jest.fn();
 let mockMembers: Record<string, unknown>[] = [];
 let mockIsPremium: boolean | undefined = false;
+const mockRefetchList = jest.fn();
+const mockRefetchPrefs = jest.fn();
+// UX-ACC-03: the two loads the editor builds on can fail independently.
+let mockListState: Record<string, unknown> = {};
+let mockPrefsState: Record<string, unknown> = {};
 let mockTable: { people: unknown[]; hasRules: boolean; needsReview: boolean } = {
   people: [],
   hasRules: false,
@@ -72,9 +77,7 @@ jest.mock('../../src/lib/trpc', () => {
       }),
       preferences: {
         get: {
-          useQuery: () => ({
-            data: { dietaryPreferences: { allergies: ['Shellfish'], dietaryRestrictions: [] } },
-          }),
+          useQuery: () => mockPrefsState,
         },
         updateSafety: {
           useMutation: () => ({ mutate: mockUpdateSafety, isPending: false }),
@@ -84,7 +87,7 @@ jest.mock('../../src/lib/trpc', () => {
         getTable: { useQuery: () => ({ data: mockTable }) },
       },
       household: {
-        list: { useQuery: () => ({ data: mockMembers, isLoading: false }) },
+        list: { useQuery: () => ({ data: mockMembers, isLoading: false, ...mockListState }) },
         add: {
           useMutation: () => ({ mutate: mockAdd, isPending: false, isError: false, error: null }),
         },
@@ -110,6 +113,12 @@ const sam = {
 beforeEach(() => {
   jest.clearAllMocks();
   mockMembers = [];
+  mockListState = { refetch: mockRefetchList };
+  mockPrefsState = {
+    data: { dietaryPreferences: { allergies: ['Shellfish'], dietaryRestrictions: [] } },
+    isError: false,
+    refetch: mockRefetchPrefs,
+  };
   mockIsPremium = false;
   mockTable = { people: [], hasRules: false, needsReview: false };
 });
@@ -262,5 +271,84 @@ describe('HouseholdEditor', () => {
     expect(screen.getByTestId('household-table-summary')).toHaveTextContent(
       '2 at the table · we’ll check for Peanuts (Sam)',
     );
+  });
+
+  // UX-ACC-01: a term typed in "Something else?" but never confirmed with "+"
+  // must be in what Done / Save stores.
+  describe('a typed-but-unadded "Something else?" term', () => {
+    it('is added by Done on the member sheet and saved with the member', async () => {
+      const user = userEvent.setup();
+      await renderEditor(<HouseholdEditor />);
+      await user.type(screen.getByTestId('household-name'), 'Sam');
+      await user.press(screen.getByTestId('household-safety-open'));
+      await user.press(screen.getByText('Dairy'));
+      await user.type(screen.getByTestId('household-member-something-else-input'), 'sesame');
+      await user.press(screen.getByTestId('household-member-safety-done'));
+
+      expect(screen.getByTestId('household-safety-summary')).toHaveTextContent(/Sesame/);
+      await user.press(screen.getByTestId('household-add'));
+      expect(mockAdd).toHaveBeenCalledTimes(1);
+      const [payload] = mockAdd.mock.calls[0] as [{ allergies: string[] }];
+      expect(payload.allergies).toEqual(expect.arrayContaining(['Dairy', 'Sesame']));
+    });
+
+    it('holds the member sheet open when the term still needs a Keep/Remove choice', async () => {
+      const user = userEvent.setup();
+      await renderEditor(<HouseholdEditor />);
+      await user.type(screen.getByTestId('household-name'), 'Sam');
+      await user.press(screen.getByTestId('household-safety-open'));
+      await user.type(screen.getByTestId('household-member-something-else-input'), 'zzqqxx');
+      await user.press(screen.getByTestId('household-member-safety-done'));
+
+      expect(screen.getByTestId('household-member-save-blocked')).toHaveTextContent(/zzqqxx/);
+      expect(screen.getByTestId('household-member-safety-done')).toBeOnTheScreen();
+      expect(screen.getByTestId('household-member-unchecked-notice')).toBeOnTheScreen();
+    });
+
+    it('is added by Save on the "You" sheet and sent with your existing allergies', async () => {
+      const user = userEvent.setup();
+      await renderEditor(<HouseholdEditor />);
+      await user.press(screen.getByTestId('household-you-card'));
+      await user.type(screen.getByTestId('household-you-something-else-input'), 'sesame');
+      await user.press(screen.getByTestId('household-you-save'));
+
+      expect(mockUpdateSafety).toHaveBeenCalledTimes(1);
+      const [payload] = mockUpdateSafety.mock.calls[0] as [{ allergies: string[] }];
+      expect(payload.allergies).toEqual(expect.arrayContaining(['Shellfish', 'Sesame']));
+    });
+  });
+
+  // UX-ACC-03: a failed load must never look like "Just you", and "You" must
+  // never be editable from data that never arrived (saving it replaces the
+  // stored allergies).
+  describe('when a load fails', () => {
+    it('shows an error with Retry instead of "Just you at the table"', async () => {
+      mockListState = {
+        data: undefined,
+        isLoading: false,
+        isError: true,
+        refetch: mockRefetchList,
+      };
+      const user = userEvent.setup();
+      await renderEditor(<HouseholdEditor />);
+
+      expect(screen.getByTestId('household-load-error')).toBeOnTheScreen();
+      expect(screen.queryByTestId('household-empty')).toBeNull();
+      expect(screen.queryByTestId('household-form')).toBeNull();
+      await user.press(screen.getByTestId('household-load-error-retry'));
+      expect(mockRefetchList).toHaveBeenCalled();
+    });
+
+    it('does not offer "You" until the saved preferences loaded', async () => {
+      mockPrefsState = { data: undefined, isError: true, refetch: mockRefetchPrefs };
+      const user = userEvent.setup();
+      await renderEditor(<HouseholdEditor />);
+
+      expect(screen.queryByTestId('household-you-card')).toBeNull();
+      expect(screen.getByTestId('household-you-unavailable')).toHaveTextContent(/Couldn’t load/);
+      await user.press(screen.getByTestId('household-you-retry'));
+      expect(mockRefetchPrefs).toHaveBeenCalled();
+      expect(mockUpdateSafety).not.toHaveBeenCalled();
+    });
   });
 });

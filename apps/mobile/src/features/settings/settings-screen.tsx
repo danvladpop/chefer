@@ -6,9 +6,8 @@ import { FRIENDS_COPY } from '@chefer/types';
 import { ConfirmSheet, Screen, Text } from '@chefer/ui-mobile';
 import { WELLNESS_COPY } from '@chefer/utils';
 import { track } from '../../lib/analytics';
-import { clearToken } from '../../lib/auth-store';
-import { trpc } from '../../lib/trpc';
 import { useFriendsAvailability } from '../friends/api/use-friends-availability';
+import { unsyncedWorkoutsText, useSignOut } from './use-sign-out';
 
 // ─── Settings hub (T-00.9, PAT-9 §2.9) ─────────────────────────────────────────
 // One Settings entry from both modes (the ModeSwitch gear). Every row below
@@ -146,17 +145,7 @@ export function SettingsScreen() {
   const [signOutVisible, setSignOutVisible] = useState(false);
   const { enabled: friendsAvailable } = useFriendsAvailability();
   const groups = groupsFor(friendsAvailable);
-  const utils = trpc.useUtils();
-  const logout = trpc.auth.logout.useMutation({
-    onSettled: async () => {
-      // Even if the network call failed, drop the local session — the token
-      // may already be dead server-side.
-      await clearToken();
-      utils.invalidate().catch(() => {
-        // Cache cleanup only; the auth gate has already routed to login.
-      });
-    },
-  });
+  const signOut = useSignOut('settings-sign-out-warning');
 
   return (
     <Screen className="gap-2 px-0">
@@ -203,13 +192,18 @@ export function SettingsScreen() {
         visible={signOutVisible}
         onClose={() => setSignOutVisible(false)}
         title="Sign out of Chefer?"
-        body="You can sign back in any time."
-        confirmLabel="Sign out"
+        // UX-ACC-12: workouts that exist only on this phone are deleted by signing out.
+        body={
+          signOut.unsynced > 0
+            ? unsyncedWorkoutsText(signOut.unsynced)
+            : 'You can sign back in any time.'
+        }
+        confirmLabel={signOut.unsynced > 0 ? 'Sign out anyway' : 'Sign out'}
         cancelLabel="Cancel"
         destructive
         onConfirm={() => {
           setSignOutVisible(false);
-          logout.mutate();
+          signOut.proceed();
         }}
       />
     </Screen>

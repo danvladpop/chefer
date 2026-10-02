@@ -1,12 +1,11 @@
 import { useRef, useState } from 'react';
 import { Keyboard, Pressable, TextInput, View } from 'react-native';
-import { useQueryClient } from '@tanstack/react-query';
 import { router } from 'expo-router';
 import { ACCOUNT_DELETION_COPY as COPY } from '@chefer/types';
 import { Button, Card, PasswordInput, Sheet, Text, useSnackbar } from '@chefer/ui-mobile';
 import { userFacingErrorMessage } from '@chefer/utils';
-import { clearToken } from '../../lib/auth-store';
 import { shareExportFile } from '../../lib/share-file';
+import { signOut } from '../../lib/sign-out';
 import { trpc } from '../../lib/trpc';
 
 // Mirrors apps/web/src/features/profile/components/AccountDataCard.tsx.
@@ -66,16 +65,15 @@ export function AccountDataCard() {
 }
 
 function DeleteAccountSheet({ visible, onClose }: { visible: boolean; onClose: () => void }) {
-  const queryClient = useQueryClient();
   const [password, setPassword] = useState('');
   const [confirmText, setConfirmText] = useState('');
   const confirmRef = useRef<TextInput>(null);
   const deleteMutation = trpc.user.deleteSelf.useMutation({
-    // The server already revoked every session. Drop the local one and every
-    // cached (incl. persisted gym) query, then back to the auth screen.
+    // The server already revoked every session. Drop the local one — and every
+    // cached query, the gym data and reminders on this phone (UX-ACC-12) —
+    // through the one sign-out, then back to the auth screen.
     onSuccess: async () => {
-      await clearToken();
-      queryClient.clear();
+      await signOut({ reason: 'account-deleted' });
       router.replace('/(auth)');
     },
   });

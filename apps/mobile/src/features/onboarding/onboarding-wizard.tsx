@@ -1,10 +1,10 @@
-import { useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, View } from 'react-native';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { ActivityIndicator, BackHandler, Pressable, ScrollView, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { router } from 'expo-router';
+import { router, useFocusEffect } from 'expo-router';
 import type { OnboardingJob } from '@chefer/types';
 import { bodyMetricsAgeError, LB_PER_KG } from '@chefer/types';
-import { Button, ErrorState, Screen, Text } from '@chefer/ui-mobile';
+import { Button, ConfirmSheet, ErrorState, Screen, Text } from '@chefer/ui-mobile';
 import {
   aiConsentRequiredFor,
   inferUnitsFromInput,
@@ -15,6 +15,7 @@ import {
   type OnboardingStepKey,
 } from '@chefer/utils';
 import { useIsPremium } from '../../hooks/use-is-premium';
+import { getToken } from '../../lib/auth-store';
 import { trpc } from '../../lib/trpc';
 import { useAiConsent } from '../ai-consent/ai-consent-provider';
 import { setMode } from '../gym/mode-store';
@@ -28,9 +29,17 @@ import { GOALS, type Goal, type MetricsValue, type SafetyValue } from '../prefer
 import { HEALTH_DECLINED_BODY_NOTICE } from '../privacy/copy';
 import { HealthDeclinedNotice } from '../privacy/health-notices';
 import { useHealthConsent } from '../privacy/use-health-consent';
+import type { SafetyPickerHandle } from '../safety/safety-picker';
 import { ONBOARDING_COPY } from './copy';
 import { HowYouCookStep, type HowYouCookStepValue } from './how-you-cook-step';
 import { JobsStep } from './jobs-step';
+import {
+  clearOnboardingDraft,
+  readOnboardingDraft,
+  writeOnboardingDraft,
+  type OnboardingDraftAnswers,
+} from './onboarding-draft';
+import { markOnboardingGateHandled } from './onboarding-gate';
 import { TrainingDaysStep, type TrainingDayKind } from './training-days-step';
 
 // Onboarding — dogfood feedback #9: a new account used to land straight on
@@ -89,6 +98,30 @@ const EMPTY_HOW_YOU_COOK: HowYouCookStepValue = {
   autoPlanWeekly: false,
 };
 
+/** UX-ONB-08: a stored 86.1825503 kg reads "86.2" (one decimal, the precision the fields take). */
+function roundForDisplay(value: number): number {
+  return Math.round(value * 10) / 10;
+}
+
+const EMPTY_METRICS: MetricsValue = {
+  biologicalSex: null,
+  age: null,
+  heightCm: null,
+  weightKg: null,
+  activityLevel: null,
+};
+const EMPTY_SAFETY: SafetyValue = {
+  dietaryRestrictions: [],
+  allergies: [],
+  dislikedIngredients: [],
+};
+
+function hasAnySafetyTerm(value: SafetyValue): boolean {
+  return (
+    value.allergies.length + value.dietaryRestrictions.length + value.dislikedIngredients.length > 0
+  );
+}
+
 export function OnboardingWizard() {
   const isPremium = useIsPremium();
   const utils = trpc.useUtils();
@@ -98,13 +131,32 @@ export function OnboardingWizard() {
   // from the AI consent above (which still guards the first-week generation).
   const { requestHealthConsent, healthConsentSheet } = useHealthConsent();
   const [healthDeclined, setHealthDeclined] = useState<'diet' | 'body' | null>(null);
-  const [step, setStep] = useState(0);
+  // UX-ONB-01: answers typed before an Android BACK-out or a killed process
+  // come back from the on-device draft (scoped to this session's token, so
+  // another account's answers never appear). Read once, synchronously, so the
+  // very first frame is already the resumed step.
+  const [draft] = useState(() => readOnboardingDraft(getToken()));
+  const [step, setStep] = useState(draft?.step ?? 0);
   const [error, setError] = useState<string | null>(null);
+  const [leaveSheetOpen, setLeaveSheetOpen] = useState(false);
+  const safetyPickerRef = useRef<SafetyPickerHandle>(null);
+  // Set once the setup is finished or skipped: the draft is gone for good and
+  // the autosave below must not write it back while the screen unmounts.
+  const finished = useRef(false);
+  // Only a FIRST-TIME setup is worth resuming. Re-opening the wizard from
+  // Preferences (jobs already saved) must not leave a draft that would drag
+  // the user back in on the next cold start. Decided once, when the saved
+  // preferences first arrive; a resumed draft is a first-time setup by definition.
+  const persistDraft = useRef(draft !== null);
 
-  const [jobs, setJobsState] = useState<OnboardingJob[]>([]);
-  const [trainingWeekdays, setTrainingWeekdays] = useState<number[]>([]);
-  const [trainingDayKinds, setTrainingDayKinds] = useState<Record<number, TrainingDayKind>>({});
-  const [howYouCook, setHowYouCook] = useState<HowYouCookStepValue>(EMPTY_HOW_YOU_COOK);
+  const [jobs, setJobsState] = useState<OnboardingJob[]>(draft?.jobs ?? []);
+  const [trainingWeekdays, setTrainingWeekdays] = useState<number[]>(draft?.trainingWeekdays ?? []);
+  const [trainingDayKinds, setTrainingDayKinds] = useState<Record<number, TrainingDayKind>>(
+    draft?.trainingDayKinds ?? {},
+  );
+  const [howYouCook, setHowYouCook] = useState<HowYouCookStepValue>(
+    draft?.howYouCook ?? EMPTY_HOW_YOU_COOK,
+  );
   // §2.4, T-03.8 (bug B-43): set when a typed height/weight didn't fit the
   // current units and the metrics step auto-switched — `from` is the unit
   // Undo restores. `howYouCook.units` is the single units source the whole
@@ -113,55 +165,53 @@ export function OnboardingWizard() {
   const [unitSwitchNotice, setUnitSwitchNotice] = useState<{
     from: 'METRIC' | 'IMPERIAL';
   } | null>(null);
-  const [goodFood, setGoodFood] = useState(false);
-  const [goal, setGoal] = useState<Goal | null>(null);
-  const [metrics, setMetrics] = useState<MetricsValue>({
-    biologicalSex: null,
-    age: null,
-    heightCm: null,
-    weightKg: null,
-    activityLevel: null,
-  });
-  const [ageText, setAgeText] = useState('');
-  const [heightText, setHeightText] = useState('');
-  const [weightText, setWeightText] = useState('');
-  const [safety, setSafety] = useState<SafetyValue>({
-    dietaryRestrictions: [],
-    allergies: [],
-    dislikedIngredients: [],
-  });
-  const [cuisine, setCuisine] = useState<CuisineStepValue>({
-    cuisinePreferences: [],
-    mealsPerDay: 3,
-  });
+  const [goodFood, setGoodFood] = useState(draft?.goodFood ?? false);
+  const [goal, setGoal] = useState<Goal | null>(knownGoal(draft?.goal));
+  const [metrics, setMetrics] = useState<MetricsValue>(draft?.metrics ?? EMPTY_METRICS);
+  const [ageText, setAgeText] = useState(draft?.ageText ?? '');
+  const [heightText, setHeightText] = useState(draft?.heightText ?? '');
+  const [weightText, setWeightText] = useState(draft?.weightText ?? '');
+  const [safety, setSafety] = useState<SafetyValue>(draft?.safety ?? EMPTY_SAFETY);
+  const [cuisine, setCuisine] = useState<CuisineStepValue>(
+    draft?.cuisine ?? { cuisinePreferences: [], mealsPerDay: 3 },
+  );
 
   // Start from what's already saved: a wizard re-opened after upgrading used
   // to start blank, and Finish saved empty allergy lists over the real ones
-  // (audit F-ONB-1-1). Mirrors web's wizardDataFromPreferences.
+  // (audit F-ONB-1-1). Mirrors web's wizardDataFromPreferences. A resumed
+  // draft is newer than the server (it IS the user's latest answers), so it
+  // wins and the server copy is not applied over it.
+  //
+  // UX-ACC-02: this data comes from a query that ran for THIS session — the
+  // cache is emptied on every sign-out and sign-in (`signOut()`, `setToken`),
+  // so another account's preferences can never be what the wizard starts from.
   const savedPrefs = trpc.preferences.get.useQuery();
-  const savedJobs = useRef<OnboardingJob[] | undefined>(undefined);
-  if (savedJobs.current === undefined && savedPrefs.data) {
-    savedJobs.current = savedPrefs.data.jobs;
-  }
-  const hydrated = useRef(false);
+  const hydrated = useRef(draft !== null);
   useEffect(() => {
     const saved = savedPrefs.data;
     if (!saved || hydrated.current) return;
     hydrated.current = true;
+    persistDraft.current = saved.jobs.length === 0;
     const profile = saved.chefProfile;
     const diet = saved.dietaryPreferences;
+    // UX-ONB-08: pre-fill the saved jobs so the steps are built from them (and
+    // Continue on the first step re-saves them) instead of an empty answer.
+    setJobsState(saved.jobs);
     if (profile) {
+      setTrainingWeekdays(profile.trainingWeekdays);
       setGoal(knownGoal(profile.goal));
+      const heightCm = profile.heightCm != null ? roundForDisplay(profile.heightCm) : null;
+      const weightKg = profile.weightKg != null ? roundForDisplay(profile.weightKg) : null;
       setMetrics({
         biologicalSex: profile.biologicalSex ?? null,
         age: profile.age ?? null,
-        heightCm: profile.heightCm ?? null,
-        weightKg: profile.weightKg ?? null,
+        heightCm,
+        weightKg,
         activityLevel: profile.activityLevel ?? null,
       });
       setAgeText(profile.age != null ? String(profile.age) : '');
-      setHeightText(profile.heightCm != null ? String(profile.heightCm) : '');
-      setWeightText(profile.weightKg != null ? String(profile.weightKg) : '');
+      setHeightText(heightCm != null ? String(heightCm) : '');
+      setWeightText(weightKg != null ? String(weightKg) : '');
     }
     if (diet) {
       setSafety({
@@ -175,6 +225,42 @@ export function OnboardingWizard() {
       });
     }
   }, [savedPrefs.data]);
+
+  // UX-ONB-01: the gate must not bounce the user straight back into the wizard
+  // from the layout once they have been here this launch (see onboarding-gate).
+  useEffect(() => {
+    markOnboardingGateHandled(getToken());
+  }, []);
+
+  // UX-ONB-01: save every answer as it changes — the draft's existence is also
+  // what resumes the wizard after a kill (see onboarding-draft.ts).
+  const draftAnswers: OnboardingDraftAnswers = {
+    step,
+    jobs,
+    trainingWeekdays,
+    trainingDayKinds,
+    howYouCook,
+    goodFood,
+    goal,
+    metrics,
+    ageText,
+    heightText,
+    weightText,
+    safety,
+    cuisine,
+  };
+  const draftSnapshot = JSON.stringify(draftAnswers);
+  useEffect(() => {
+    if (finished.current || !persistDraft.current) return;
+    writeOnboardingDraft(getToken(), draftAnswers);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- the snapshot string is the change signal
+  }, [draftSnapshot]);
+
+  /** The setup is over (finished or skipped): the draft must not resume it again. */
+  function finishSetup() {
+    finished.current = true;
+    clearOnboardingDraft();
+  }
 
   const setJobsMutation = trpc.preferences.setJobs.useMutation({
     onError: (err) => setError(userFacingErrorMessage(err)),
@@ -220,6 +306,20 @@ export function OnboardingWizard() {
     scrollRef.current?.scrollTo({ y: 0, animated: false });
   }, [step]);
 
+  // UX-ONB-01: Android hardware BACK steps back one question (first step: asks
+  // before leaving). Focus-scoped, so it never swallows BACK on a screen pushed
+  // over the wizard (gym setup, the legal pages).
+  useFocusEffect(
+    useCallback(() => {
+      const subscription = BackHandler.addEventListener('hardwareBackPress', () => {
+        if (step > 0) setStep((s) => s - 1);
+        else setLeaveSheetOpen(true);
+        return true;
+      });
+      return () => subscription.remove();
+    }, [step]),
+  );
+
   if (savedPrefs.isError && !savedPrefs.data) {
     return (
       <Screen edges={['top', 'bottom', 'left', 'right']} className="items-center justify-center">
@@ -241,13 +341,13 @@ export function OnboardingWizard() {
     );
   }
 
-  const askJobs = (savedJobs.current ?? []).length === 0;
-  const effectiveJobsAnswer = askJobs ? jobs : (savedJobs.current ?? []);
+  // UX-ONB-08: the step list follows what is selected NOW (`jobs`, pre-filled
+  // from the saved answer), never a stale copy of the previously saved jobs.
   const steps = onboardingSteps({
     intent: null,
     askIntent: false,
     isPremium,
-    jobs: effectiveJobsAnswer,
+    jobs,
     askJobs: true,
     hasNumericGoal: !goodFood && goal !== null,
   });
@@ -371,11 +471,6 @@ export function OnboardingWizard() {
       ...(metrics.activityLevel !== null && { activityLevel: metrics.activityLevel }),
     };
   }
-  const hasSafetyTerms =
-    safety.allergies.length +
-      safety.dietaryRestrictions.length +
-      safety.dislikedIngredients.length >
-    0;
 
   /**
    * Finish = save everything. Health fields (allergies/diets/dislikes, goal,
@@ -383,18 +478,18 @@ export function OnboardingWizard() {
    * record) → saved; "Don't save it" → every OTHER answer is still saved and
    * the health fields are left out (AC2).
    */
-  function handleFinish() {
+  function handleFinish(safetyNow: SafetyValue = safety) {
     setError(null);
-    requestHealthConsent(() => void saveAll(true), {
-      hasHealthData: hasSafetyTerms || Object.keys(buildBasics()).length > 0,
+    requestHealthConsent(() => void saveAll(true, safetyNow), {
+      hasHealthData: hasAnySafetyTerm(safetyNow) || Object.keys(buildBasics()).length > 0,
       onDeclined: () => {
         setHealthDeclined('diet');
-        void saveAll(false);
+        void saveAll(false, safetyNow);
       },
     });
   }
 
-  async function saveAll(includeHealth: boolean) {
+  async function saveAll(includeHealth: boolean, safetyNow: SafetyValue) {
     setError(null);
     try {
       await setJobsMutation.mutateAsync({
@@ -418,7 +513,7 @@ export function OnboardingWizard() {
       // Clearing the lists stores nothing health-related, so it always runs;
       // with health left out (declined) nothing health-related is sent at all.
       if (includeHealth) {
-        await safetyMutation.mutateAsync(safety);
+        await safetyMutation.mutateAsync(safetyNow);
         const basics = buildBasics();
         if (Object.keys(basics).length > 0) {
           await profileBasicsMutation.mutateAsync(basics);
@@ -430,6 +525,7 @@ export function OnboardingWizard() {
           mealsPerDay: cuisine.mealsPerDay,
         });
       }
+      finishSetup();
       void utils.preferences.invalidate();
       void utils.dashboard.invalidate();
 
@@ -462,6 +558,7 @@ export function OnboardingWizard() {
     const trainOnly = jobs.length === 1 && jobs[0] === 'TRAIN';
     if (trainOnly) {
       // Train only (AC2): gym setup exactly as today, food later.
+      finishSetup();
       setMode('gym');
       router.replace('/today');
       router.push('/gym/setup');
@@ -479,6 +576,7 @@ export function OnboardingWizard() {
         { jobs: ['PLAN_MEALS'] },
         {
           onSuccess: () => {
+            finishSetup();
             void utils.preferences.invalidate();
             goToDashboard();
           },
@@ -491,11 +589,21 @@ export function OnboardingWizard() {
     handleFinish();
   }
 
+  // UX-ONB-01: BACK (header arrow and Android hardware button alike) steps back
+  // one question; on the first step it asks before leaving — it used to either
+  // close the app (hardware BACK) or drop the user on an empty Today.
   function handleBack() {
     if (step > 0) {
       setStep((s) => s - 1);
       return;
     }
+    setLeaveSheetOpen(true);
+  }
+
+  /** "Leave for now": the draft stays, so the next launch resumes the setup. */
+  function leaveSetup() {
+    setLeaveSheetOpen(false);
+    markOnboardingGateHandled(getToken());
     goToDashboard();
   }
 
@@ -509,8 +617,16 @@ export function OnboardingWizard() {
     // sheet appears where the user just typed it. "Don't save it" discards
     // that step's health fields (they are never sent) and keeps the step open
     // with an amber notice — Continue again moves on.
-    if (stepKey === 'diet' && hasSafetyTerms) {
-      requestHealthConsent(advance, {
+    // UX-ACC-01: a term typed in "Something else?" but never added with "+" is
+    // added first; one that needs a Keep/Remove choice holds Continue back.
+    let safetyNow = safety;
+    if (stepKey === 'diet') {
+      const flushed = safetyPickerRef.current ? safetyPickerRef.current.flush() : safety;
+      if (flushed === null) return;
+      safetyNow = flushed;
+    }
+    if (stepKey === 'diet' && hasAnySafetyTerm(safetyNow)) {
+      requestHealthConsent(() => advance(safetyNow), {
         onDeclined: () => {
           setSafety({ dietaryRestrictions: [], allergies: [], dislikedIngredients: [] });
           setHealthDeclined('diet');
@@ -522,7 +638,7 @@ export function OnboardingWizard() {
       (stepKey === 'goal' && !goodFood && goal !== null) ||
       (stepKey === 'metrics' && Object.values(metrics).some((v) => v !== null && v !== undefined));
     if (bodyStepHasData) {
-      requestHealthConsent(advance, {
+      requestHealthConsent(() => advance(), {
         onDeclined: () => {
           if (stepKey === 'goal') setGoal(null);
           else {
@@ -542,14 +658,14 @@ export function OnboardingWizard() {
       });
       return;
     }
-    advance();
+    advance(safetyNow);
   }
 
-  function advance() {
+  function advance(safetyNow: SafetyValue = safety) {
     if (step < totalSteps - 1) {
       setStep((s) => s + 1);
     } else {
-      handleFinish();
+      handleFinish(safetyNow);
     }
   }
 
@@ -617,7 +733,7 @@ export function OnboardingWizard() {
   } else if (stepKey === 'diet') {
     content = (
       <View className="gap-3">
-        <SafetyStep value={safety} onChange={setSafety} testIDPrefix="onb" />
+        <SafetyStep ref={safetyPickerRef} value={safety} onChange={setSafety} testIDPrefix="onb" />
         {healthDeclined === 'diet' && <HealthDeclinedNotice testID="onb-safety-declined" />}
       </View>
     );
@@ -756,6 +872,16 @@ export function OnboardingWizard() {
         )}
       </View>
       {healthConsentSheet}
+      <ConfirmSheet
+        testID="onboarding-leave-confirm"
+        visible={leaveSheetOpen}
+        onClose={() => setLeaveSheetOpen(false)}
+        title={ONBOARDING_COPY.leaveTitle}
+        body={ONBOARDING_COPY.leaveBody}
+        confirmLabel={ONBOARDING_COPY.leaveConfirm}
+        cancelLabel={ONBOARDING_COPY.leaveCancel}
+        onConfirm={leaveSetup}
+      />
     </Screen>
   );
 }

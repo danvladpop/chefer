@@ -1,4 +1,5 @@
-import { SafetyPicker } from '../../safety/safety-picker';
+import type { Ref } from 'react';
+import { SafetyPicker, type SafetyPickerHandle } from '../../safety/safety-picker';
 import type { SafetyValue } from '../types';
 
 // SafetyStep (T-01.7) — thin wrapper over the shared SafetyPicker, kept as
@@ -17,8 +18,25 @@ export interface SafetyStepProps {
       per-field ids (`prefs-restrictions` etc.), which this rebuild replaces
       with SafetyPicker's own group ids. */
   testIDPrefix?: string;
+  /** UX-ACC-01: lets the host flush a typed-but-unadded "Something else" term on Save. */
+  ref?: Ref<SafetyPickerHandle>;
+  onPendingChange?: (pending: boolean) => void;
 }
 
-export function SafetyStep({ value, onChange, testIDPrefix = 'prefs' }: SafetyStepProps) {
-  return <SafetyPicker value={value} onChange={onChange} testIDPrefix={testIDPrefix} />;
+export function SafetyStep({
+  value,
+  onChange,
+  testIDPrefix = 'prefs',
+  ref,
+  onPendingChange,
+}: SafetyStepProps) {
+  return (
+    <SafetyPicker
+      ref={ref}
+      value={value}
+      onChange={onChange}
+      testIDPrefix={testIDPrefix}
+      onPendingChange={onPendingChange}
+    />
+  );
 }
