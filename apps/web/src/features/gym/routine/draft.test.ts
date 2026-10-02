@@ -407,3 +407,63 @@ describe('draftReducer — supersets (G4-B)', () => {
     expect(groups(d, 1)).toEqual([null]);
   });
 });
+
+describe('draftReducer — Superset sheet (plan-library-supersets S3)', () => {
+  const groups = (d: DraftRoutine) => d.days[0]!.exercises.map((e) => e.supersetGroup);
+  const ids = (d: DraftRoutine) => d.days[0]!.exercises.map((e) => e.exerciseId);
+
+  function threeExercises(): DraftRoutine {
+    const d = draft();
+    return draftReducer(d, {
+      type: 'add_exercise',
+      dayKey: d.days[0]!.key,
+      exercise: meta({ id: 'lateral-raise', name: 'Lateral Raise' }),
+    });
+  }
+
+  it('groups the picks together at the first pick, in list order', () => {
+    const d = threeExercises();
+    const [bench, , raise] = d.days[0]!.exercises;
+    const next = draftReducer(d, {
+      type: 'create_superset',
+      dayKey: d.days[0]!.key,
+      exerciseKeys: [raise!.key, bench!.key],
+    });
+    expect(ids(next)).toEqual(['barbell-bench-press', 'lateral-raise', 'barbell-row']);
+    expect(groups(next)).toEqual(['A', 'A', null]);
+  });
+
+  it('groups three exercises and ungroups them again', () => {
+    const d = threeExercises();
+    const keys = d.days[0]!.exercises.map((e) => e.key);
+    const grouped = draftReducer(d, {
+      type: 'create_superset',
+      dayKey: d.days[0]!.key,
+      exerciseKeys: keys,
+    });
+    expect(groups(grouped)).toEqual(['A', 'A', 'A']);
+    const ungrouped = draftReducer(grouped, {
+      type: 'ungroup_superset',
+      dayKey: d.days[0]!.key,
+      exerciseKey: keys[1]!,
+    });
+    expect(groups(ungrouped)).toEqual([null, null, null]);
+  });
+
+  it('ignores a pick of one, or an unknown key', () => {
+    const d = threeExercises();
+    const [bench] = d.days[0]!.exercises;
+    const one = draftReducer(d, {
+      type: 'create_superset',
+      dayKey: d.days[0]!.key,
+      exerciseKeys: [bench!.key],
+    });
+    expect(groups(one)).toEqual([null, null, null]);
+    const unknown = draftReducer(d, {
+      type: 'create_superset',
+      dayKey: d.days[0]!.key,
+      exerciseKeys: [bench!.key, 'nope'],
+    });
+    expect(unknown.days[0]!.exercises).toBe(d.days[0]!.exercises);
+  });
+});

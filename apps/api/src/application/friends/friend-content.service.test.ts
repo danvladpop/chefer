@@ -503,6 +503,7 @@ function session(
       lastSetRir: 1,
       prescription: { weightKg: 80 },
       notes: 'private',
+      supersetGroup: null,
       exercise: meta(e.id, e.type),
       sets: [
         {

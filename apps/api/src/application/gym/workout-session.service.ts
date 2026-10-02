@@ -356,6 +356,7 @@ function toWriteData(doc: WorkoutSessionDoc): SessionDocWriteData {
       lastSetRir: e.lastSetRir,
       prescription: toJson(e.prescription),
       notes: e.notes,
+      supersetGroup: e.supersetGroup ?? null,
       sets: e.sets.map((s) => ({
         id: s.id,
         position: s.position,

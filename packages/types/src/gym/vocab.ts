@@ -67,6 +67,20 @@ export const VOLUME_GROUPS = {
 } as const satisfies Record<string, readonly Muscle[]>;
 export type VolumeGroup = keyof typeof VOLUME_GROUPS;
 
+/**
+ * Muscle filters for the exercise library and pickers (plan-library-supersets
+ * L2): the volume groups plus the muscles they leave out, so every exercise is
+ * findable by its primary muscle. Volume stats keep VOLUME_GROUPS.
+ */
+export const LIBRARY_FILTER_GROUPS = {
+  ...VOLUME_GROUPS,
+  forearms: ['forearms'],
+  traps: ['traps'],
+  'lower-back': ['lower-back'],
+  'inner-outer-thighs': ['adductors', 'abductors'],
+} as const satisfies Record<string, readonly Muscle[]>;
+export type LibraryFilterGroup = keyof typeof LIBRARY_FILTER_GROUPS;
+
 export const ExerciseEquipment = {
   BARBELL: 'BARBELL',
   DUMBBELL: 'DUMBBELL',

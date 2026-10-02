@@ -14,12 +14,14 @@ import type {
   RoutineLike,
 } from '@chefer/types';
 import {
+  createSuperset,
   defaultTargetRir,
   moveSupersetItem,
   moveSupersetItemTo,
   normalizeSupersets,
   removeSupersetItem,
   setSupersetWithNext,
+  ungroupSuperset,
 } from '@chefer/utils';
 
 export interface DraftExercise {
@@ -196,6 +198,13 @@ export type DraftAction =
   | { type: 'step_exercise'; dayKey: string; exerciseKey: string; direction: 'up' | 'down' }
   /** "Superset with next": link / unlink this exercise and the one after it. */
   | { type: 'set_superset_with_next'; dayKey: string; exerciseKey: string; linked: boolean }
+  /**
+   * "Group as superset" (plan-library-supersets S3): the picked exercises (2 to
+   * MAX_SUPERSET_SIZE) move together to the first pick's place under one letter.
+   */
+  | { type: 'create_superset'; dayKey: string; exerciseKeys: string[] }
+  /** "Ungroup": every member of the superset holding this exercise stands alone. */
+  | { type: 'ungroup_superset'; dayKey: string; exerciseKey: string }
   | {
       /** Reorders within a day when fromDayKey === toDayKey, else moves across days. */
       type: 'move_exercise';
@@ -306,6 +315,18 @@ export function draftReducer(state: DraftRoutine, action: DraftAction): DraftRou
       return mapDayExercises(state, action.dayKey, (exercises) => {
         const index = exercises.findIndex((e) => e.key === action.exerciseKey);
         return index < 0 ? exercises : setSupersetWithNext(exercises, index, action.linked);
+      });
+
+    case 'create_superset':
+      return mapDayExercises(state, action.dayKey, (exercises) => {
+        const indices = action.exerciseKeys.map((k) => exercises.findIndex((e) => e.key === k));
+        return indices.some((i) => i < 0) ? exercises : createSuperset(exercises, indices);
+      });
+
+    case 'ungroup_superset':
+      return mapDayExercises(state, action.dayKey, (exercises) => {
+        const index = exercises.findIndex((e) => e.key === action.exerciseKey);
+        return index < 0 ? exercises : ungroupSuperset(exercises, index);
       });
 
     case 'swap_exercise':

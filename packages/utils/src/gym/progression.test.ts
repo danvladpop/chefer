@@ -158,6 +158,13 @@ describe('initialState & starting guesses (research §1.7)', () => {
     ['push-up', 3, 8, 20, INT, 0],
     ['assisted-pull-up', 3, 6, 10, BEG, 40],
     ['assisted-pull-up', 3, 6, 10, INT, 20],
+    // 2026-10 library expansion: rotator-cuff and front-raise work start light.
+    ['dumbbell-external-rotation', 2, 12, 20, BEG, 2],
+    ['dumbbell-external-rotation', 2, 12, 20, INT, 4],
+    ['band-external-rotation', 2, 12, 20, INT, 5], // 4 → nearest 2.5 kg band step
+    ['dumbbell-front-raise', 2, 10, 15, BEG, 4],
+    ['kettlebell-swing', 3, 10, 20, BEG, 12],
+    ['band-pull-apart', 2, 15, 25, BEG, 5],
   ];
   it.each(cases)('%s (%d×%d–%d, %s) starts at %d kg', (id, sets, lo, hi, exp, kg) => {
     const slot = slotFor(id, sets, lo, hi);

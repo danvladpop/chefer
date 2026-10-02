@@ -6,9 +6,10 @@ import {
   type GymBootstrap,
   type GymProfileDto,
   type NextWorkoutDto,
+  type RoutineDto,
   type SessionSummaryDto,
 } from '@chefer/types';
-import { stepUp, warmupSets } from '@chefer/utils';
+import { routineWithoutSuperset, routineWithSuperset, stepUp, warmupSets } from '@chefer/utils';
 import { activeSessionStore } from './active-session-store';
 import { newId } from './ids';
 import { outbox } from './outbox';
@@ -29,12 +30,15 @@ import {
   buildSwapAction,
   currentExerciseId,
   currentFocus,
+  derivedSupersetGroups,
   lastNoteFor,
   lastTimeSets,
   livePrs,
   loadSlotOf,
   prescriptionFor,
   propagateEditActions,
+  routineSlotsForPicks,
+  routineSupersetSlotOf,
   sessionProgress,
   setLabelOf,
   supersetsOf,
@@ -497,5 +501,132 @@ describe('propagateEditActions', () => {
     };
     const actions2 = propagateEditActions(withTicked, first!, { weightKg: 65 });
     expect(actions2.map((a) => a.setId)).toEqual([third!.id]);
+  });
+});
+
+describe('supersets made in the workout (plan-library-supersets S3)', () => {
+  function routineOf(planned: NextWorkoutDto): RoutineDto {
+    return {
+      id: planned.routineId,
+      name: 'My routine',
+      templateKey: null,
+      isActive: true,
+      nextDayId: null,
+      version: 4,
+      archived: false,
+      updatedAt: '2026-09-01T00:00:00.000Z',
+      days: [
+        {
+          id: planned.dayId,
+          position: 0,
+          name: planned.dayName,
+          plannedWeekday: null,
+          exercises: planned.exercises.map((ex) => ({
+            id: ex.routineExerciseId,
+            exerciseId: ex.exerciseId,
+            position: ex.position,
+            sets: ex.sets,
+            repMin: ex.repMin,
+            repMax: ex.repMax,
+            targetRir: ex.targetRir,
+            restSec: ex.restSec,
+            supersetGroup: ex.supersetGroup,
+            notes: ex.notes,
+          })),
+        },
+      ],
+    };
+  }
+
+  function addCurl(doc: ReturnType<typeof startWorkout>) {
+    const action = buildAddExerciseAction({
+      doc,
+      meta: meta('dumbbell-curl'),
+      bootstrap,
+      lookup,
+      today: TODAY,
+      newId,
+    });
+    return dispatchWorkout(action)!;
+  }
+
+  it('groups exercises (one added mid-workout too): A1 → A2 → A3 with no rest, rest after the round', () => {
+    const planned = plannedWorkout();
+    let doc = startWorkout({ kind: 'planned', workout: planned }, TODAY);
+    doc = addCurl(doc);
+    const ids = [...doc.exercises].sort((a, b) => a.position - b.position).map((e) => e.id);
+    expect(ids).toHaveLength(3);
+
+    const before = supersetsOf(doc, { activeRoutine: null, nextWorkout: planned });
+    expect(derivedSupersetGroups(doc, before)).toBeUndefined(); // the doc owns its letters
+    doc = dispatchWorkout({ type: 'createSuperset', seIds: ids })!;
+
+    // No bootstrap needed: the session's own letters drive grouping.
+    const supersets = supersetsOf(doc, null);
+    expect(ids.map((id) => supersets.get(id)?.index)).toEqual([0, 1, 2]);
+    expect(supersets.get(ids[0]!)?.label).toBe('A');
+
+    const a1 = doc.exercises.find((e) => e.id === ids[0])!;
+    doc = dispatchWorkout(
+      { type: 'completeSet', seId: a1.id, setId: workingSets(a1)[0]!.id },
+      { supersets },
+    )!;
+    expect(getRestTimer()).toBeNull();
+    expect(currentExerciseId(doc, supersets)).toBe(ids[1]);
+
+    doc = dispatchWorkout({ type: 'ungroupSuperset', seId: ids[1]! })!;
+    expect(supersetsOf(doc, null).size).toBe(0);
+  });
+
+  it('an older doc (no own letters) keeps the routine superset it showed when grouping more', () => {
+    const planned = plannedWorkout(['A', 'A']);
+    let doc = startWorkout({ kind: 'planned', workout: planned }, TODAY);
+    // Simulate a doc from before S1: strip the field.
+    doc = {
+      ...doc,
+      exercises: doc.exercises.map(({ supersetGroup: _g, ...se }) => se),
+    };
+    activeSessionStore.set(doc, 'user-a');
+    doc = addCurl(doc);
+    const shown = supersetsOf(doc, { activeRoutine: null, nextWorkout: planned });
+    expect(shown.size).toBe(2);
+    const derivedGroups = derivedSupersetGroups(doc, shown);
+    expect(Object.values(derivedGroups ?? {})).toEqual(['A', 'A', null]);
+
+    const ids = [...doc.exercises].sort((a, b) => a.position - b.position).map((e) => e.id);
+    doc = dispatchWorkout({
+      type: 'ungroupSuperset',
+      seId: ids[0]!,
+      ...(derivedGroups && { derivedGroups }),
+    })!;
+    expect(supersetsOf(doc, { activeRoutine: null, nextWorkout: planned }).size).toBe(0);
+  });
+
+  it('"Also change my routine" applies only to routine slots of the session day', () => {
+    const planned = plannedWorkout();
+    const routine = routineOf(planned);
+    let doc = startWorkout({ kind: 'planned', workout: planned }, TODAY);
+    doc = addCurl(doc);
+    const [bench, squat, curl] = [...doc.exercises].sort((a, b) => a.position - b.position);
+
+    const slots = routineSlotsForPicks(doc, routine, [bench!.id, squat!.id]);
+    expect(slots).toEqual(['re-0', 're-1']);
+    expect(routineSlotsForPicks(doc, routine, [bench!.id, curl!.id])).toBeNull();
+    expect(
+      routineSlotsForPicks(doc, { ...routine, id: 'other' }, [bench!.id, squat!.id]),
+    ).toBeNull();
+    expect(routineSlotsForPicks(doc, null, [bench!.id, squat!.id])).toBeNull();
+
+    const saved = routineWithSuperset(routine, slots!);
+    expect(saved?.days[0]?.exercises.map((e) => e.supersetGroup)).toEqual(['A', 'A']);
+
+    // Ungroup: offered only when the routine has the superset too.
+    expect(routineSupersetSlotOf(doc, routine, [bench!.id, squat!.id])).toBeNull();
+    const grouped = routineOf(plannedWorkout(['A', 'A']));
+    const rid = routineSupersetSlotOf(doc, grouped, [bench!.id, squat!.id]);
+    expect(rid).toBe('re-0');
+    expect(
+      routineWithoutSuperset(grouped, rid!)?.days[0]?.exercises.map((e) => e.supersetGroup),
+    ).toEqual([null, null]);
   });
 });

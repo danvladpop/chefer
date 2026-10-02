@@ -427,6 +427,30 @@ describe('WorkoutSessionService delete / discard / get / list', () => {
     await expect(service.get(USER, doc.id)).resolves.toEqual(doc);
   });
 
+  it('round-trips a session that owns its superset letters (S-D3)', async () => {
+    const base = sessionDoc();
+    const doc = {
+      ...base,
+      exercises: base.exercises.map((e, i) => ({ ...e, supersetGroup: i === 0 ? 'A' : null })),
+    };
+    const repo = makeMemorySessionRepo().repo;
+    vi.mocked(repo.findByIdForUser).mockResolvedValue(sessionRow(doc));
+    const { service } = setup(repo);
+
+    await expect(service.get(USER, doc.id)).resolves.toEqual(doc);
+  });
+
+  it('reads a session with no superset letters back without the field', async () => {
+    const base = sessionDoc();
+    const doc = { ...base, exercises: base.exercises.map((e) => ({ ...e, supersetGroup: null })) };
+    const repo = makeMemorySessionRepo().repo;
+    vi.mocked(repo.findByIdForUser).mockResolvedValue(sessionRow(doc));
+    const { service } = setup(repo);
+
+    const read = await service.get(USER, doc.id);
+    expect(read.exercises.every((e) => !('supersetGroup' in e))).toBe(true);
+  });
+
   it('list pages newest-first with an opaque startedAt|id cursor', async () => {
     const docs = [
       sessionDoc({ startedAt: '2026-09-03T17:00:00.000Z' }),

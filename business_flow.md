@@ -2774,9 +2774,30 @@ Routine editor (mobile + web): "Superset with next" on any exercise but the day'
   → violet bracket + A1/A2 chips + "Superset A · <rest> s rest after each round"
   reorder / remove / cross-day move → groups re-normalised (a pair left with one dissolves;
   a step move hops over a whole superset; a drag dropped between members joins it)
-Active workout: grouping derived from routineExerciseId via the cached routine
-  (the session doc has no superset field; exercises added mid-session never join one,
-  and moving members apart in the session breaks it for that session)
+Routine editor, easy path (2026-10, plan-library-supersets S2/S3): a "Superset" button on
+  each day → pick 2–4 exercises → "Group as superset" moves them together at the first
+  pick's place under one letter (`createSuperset`); "Ungroup" on a superset heading
+  (`ungroupSuperset`). Saving normalises letters on the server too (`normalizeSupersets`).
+Active workout: the session doc carries its own optional `supersetGroup` per exercise
+  (copied from the routine at Start; additive, column session_exercises.supersetGroup).
+  The workout's "Superset" action and "Ungroup" change THIS session only; "Also change my
+  routine" writes the same grouping to the routine day (`routineWithSuperset` /
+  `routineWithoutSuperset`) when every member is a routine slot of that day.
+  Mobile (S2): "Superset" sits under the workout's "+ Add exercise" and in each exercise's ⋯
+  menu (opens with that exercise ticked; skipped exercises are not offered). "Ungroup" on the
+  heading is immediate when the superset exists only in this session; when the routine has the
+  same superset a sheet asks first, with "Also change my routine" off (hidden while offline).
+  Routine editor (mobile): "Superset" in each day's footer, next to the day's ⋯.
+  Exercises added mid-workout can be grouped; moving a member applies the editor's rule
+  (step inside the superset swaps partners, otherwise hops over a whole superset).
+  Web (S3): "Superset" sits under the exercise list (phone) / in the navigator (desktop)
+  and in each exercise's ⋯ sheet (that exercise pre-ticked). "Ungroup" acts at once unless
+  the routine day has the same superset; then a small sheet offers "Also change my routine".
+  A routine save that hits a version CONFLICT is rebuilt on the server's copy and retried
+  once; if it no longer applies, a toast says the routine was left alone.
+  Sessions without the field (older binaries / older docs) keep the original derivation
+  from routineExerciseId via the cached routine; a session that never grouped anything
+  reads back from the API without the field.
   tick set k of A1 → no rest, focus + scroll to set k of A2 (a running rest is cleared)
   last exercise of round k ticked → rest timer with the superset's LAST exercise's rest
   focus walks round by round (A1·1, A2·1, A1·2 …); skipped members drop out of rounds
@@ -2786,9 +2807,11 @@ Also shown outside the workout, same bracket/chip/heading, read-only (no reorder
   via the shared `SupersetHeading` component)
 ```
 
-Shared logic: `@chefer/utils` `gym/supersets.ts` (`setSupersetWithNext`,
-`moveSupersetItem[To]`, `removeSupersetItem`, `sessionSupersets`, `setTickOutcome`,
-`workoutFocus`, `supersetRuns`, `supersetSlot`).
+Shared logic: `@chefer/utils` `gym/supersets.ts` (`createSuperset`, `ungroupSuperset`,
+`setSupersetWithNext`, `moveSupersetItem[To]`, `removeSupersetItem`, `sessionOwnsSupersets`,
+`sessionSupersets`, `setTickOutcome`, `workoutFocus`, `supersetRuns`, `supersetSlot`,
+`routineWithSuperset`, `routineWithoutSuperset`); workout reducer actions `createSuperset` /
+`ungroupSuperset`. The duration estimate counts one rest per superset round.
 
 "Notes from last time": `SessionSummaryDto.exercises[].notes` (additive, optional —
 shipped mobile clients predate it) carries each exercise's session note through

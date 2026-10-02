@@ -19,7 +19,7 @@ import {
   type RoutineListItemDto,
   type TemplateSummaryDto,
 } from '@chefer/types';
-import { instantiateTemplate, type ExerciseLookup } from '@chefer/utils';
+import { instantiateTemplate, normalizeSupersets, type ExerciseLookup } from '@chefer/utils';
 import { ConflictCause } from '../../lib/conflict.js';
 import { ensureExerciseLibrary } from '../../lib/exercise-library/ensure.js';
 import { toRoutineDto } from './mappers.js';
@@ -190,7 +190,9 @@ export class RoutineService {
           id: d.id,
           name: d.name.trim(),
           plannedWeekday: d.plannedWeekday,
-          exercises: d.exercises.map((e) => ({ ...e })),
+          // Canonical letters (A, B… adjacent runs, no lone letters) whatever
+          // the client sent — older clients only normalise on load.
+          exercises: normalizeSupersets(d.exercises.map((e) => ({ ...e }))),
         })),
       },
       expectedVersion,

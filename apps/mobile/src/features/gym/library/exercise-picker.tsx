@@ -2,13 +2,19 @@ import { useMemo, useState } from 'react';
 import { FlatList, Pressable, TextInput, View } from 'react-native';
 import {
   HIDDEN_EXERCISE_IMAGE_IDS,
+  LIBRARY_FILTER_GROUPS,
   MUSCLE_LABELS,
-  VOLUME_GROUPS,
   type ExerciseDto,
-  type VolumeGroup,
+  type LibraryFilterGroup,
 } from '@chefer/types';
 import { ChipGroup, Sheet, Text } from '@chefer/ui-mobile';
-import { cn, isStrengthTrackingType, trackingTypeOf, VOLUME_GROUP_LABELS } from '@chefer/utils';
+import {
+  cn,
+  exerciseMatchesFilterGroup,
+  isStrengthTrackingType,
+  LIBRARY_FILTER_GROUP_LABELS,
+  trackingTypeOf,
+} from '@chefer/utils';
 import { ExerciseImage } from '../components/exercise-image';
 import { CollapsibleChipFilters } from './collapsible-chip-filters';
 import { exerciseImageUrl } from './exercise-image';
@@ -32,22 +38,17 @@ export interface ExercisePickerProps {
   testID?: string;
 }
 
-/** T-42.3: the picker's group filter is a VolumeGroup, or the special "Cardio" bucket. */
-export type PickerFilter = VolumeGroup | 'CARDIO';
+/** T-42.3: the picker's group filter is a library muscle group (L2), or the special "Cardio" bucket. */
+export type PickerFilter = LibraryFilterGroup | 'CARDIO';
 
-const GROUP_FILTERS: { value: VolumeGroup; label: string }[] = (
-  Object.keys(VOLUME_GROUPS) as VolumeGroup[]
+const GROUP_FILTERS: { value: LibraryFilterGroup; label: string }[] = (
+  Object.keys(LIBRARY_FILTER_GROUPS) as LibraryFilterGroup[]
 ).map((group) => ({
   value: group,
-  label: VOLUME_GROUP_LABELS[group],
+  label: LIBRARY_FILTER_GROUP_LABELS[group],
 }));
 
 const CARDIO_FILTER: { value: PickerFilter; label: string } = { value: 'CARDIO', label: 'Cardio' };
-
-function matchesGroup(exercise: ExerciseDto, group: VolumeGroup): boolean {
-  const muscles = VOLUME_GROUPS[group] as readonly string[];
-  return exercise.primaryMuscles.some((m) => muscles.includes(m));
-}
 
 export function filterExercises(
   library: ExerciseDto[],
@@ -58,7 +59,7 @@ export function filterExercises(
     .filter((e) => !e.archived && !(opts.excludeIds ?? []).includes(e.id))
     .filter((e) => {
       if (opts.group === 'CARDIO') return !isStrengthTrackingType(trackingTypeOf(e));
-      return opts.group ? matchesGroup(e, opts.group) : true;
+      return opts.group ? exerciseMatchesFilterGroup(e, opts.group) : true;
     })
     .filter((e) =>
       q.length === 0

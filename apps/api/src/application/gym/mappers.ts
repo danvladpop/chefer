@@ -168,6 +168,10 @@ export function toEquipmentProfile(row: GymProfile | null): EquipmentProfile {
 
 /** Stored rows → the same WorkoutSessionDoc shape the phone uploads (schemaVersion 1). */
 export function toSessionDoc(row: SessionWithChildren): WorkoutSessionDoc {
+  // S-D3: a session that never grouped anything (or came from an older
+  // binary, column null throughout) reads back WITHOUT the field, so clients
+  // keep deriving its supersets from the routine.
+  const ownsSupersets = row.exercises.some((e) => e.supersetGroup !== null);
   return {
     schemaVersion: 1,
     id: row.id,
@@ -198,6 +202,7 @@ export function toSessionDoc(row: SessionWithChildren): WorkoutSessionDoc {
       // out so a hand-edited or legacy row can never leak a malformed shape.
       prescription: suggestionSchema.parse(e.prescription),
       notes: e.notes,
+      ...(ownsSupersets && { supersetGroup: e.supersetGroup }),
       sets: e.sets.map((s) => ({
         id: s.id,
         position: s.position,

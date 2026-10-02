@@ -93,6 +93,12 @@ export const sessionExerciseDocSchema = z.object({
   prescription: suggestionSchema,
   notes: z.string().max(500).nullable(),
   sets: z.array(sessionSetDocSchema).max(20),
+  /**
+   * Superset letter for THIS session (plan-library-supersets S-D3). Optional
+   * and additive: absent on docs from older binaries, which keep deriving
+   * supersets from the routine (`sessionOwnsSupersets`).
+   */
+  supersetGroup: z.string().max(20).nullable().optional(),
 });
 export type SessionExerciseDoc = z.infer<typeof sessionExerciseDocSchema>;
 

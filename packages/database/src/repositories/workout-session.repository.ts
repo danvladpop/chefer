@@ -56,6 +56,7 @@ export interface SessionExerciseWriteData {
   lastSetRir: number | null;
   prescription: Prisma.InputJsonValue;
   notes: string | null;
+  supersetGroup: string | null;
   sets: SessionSetWriteData[];
 }
 
@@ -210,6 +211,7 @@ export class WorkoutSessionRepository implements IWorkoutSessionRepository {
             lastSetRir: e.lastSetRir,
             prescription: e.prescription,
             notes: e.notes,
+            supersetGroup: e.supersetGroup,
           })),
         });
         const sets = doc.exercises.flatMap((e) =>
