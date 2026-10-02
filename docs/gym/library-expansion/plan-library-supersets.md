@@ -127,11 +127,11 @@ use already ships). No procedure is renamed or removed.
 
 ## 5. Progress
 
-| Phase | State |
-| ----- | ----- |
-| S1    | ☐     |
-| S2    | ☐     |
-| S3    | ☐     |
-| L1    | ☐     |
-| L2    | ☐     |
-| L3    | ⏸     |
+| Phase | State                                                                      |
+| ----- | -------------------------------------------------------------------------- |
+| S1    | ☐                                                                          |
+| S2    | ☐                                                                          |
+| S3    | ☐                                                                          |
+| L1    | ✅ 2026-10-02 — 91 rows added (catalog 92 → 183), content + `sources.json` |
+| L2    | ☐                                                                          |
+| L3    | ⏸                                                                          |
