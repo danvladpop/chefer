@@ -81,7 +81,7 @@ function WeekStrip({ days }: { days: WeekStripDay[] }) {
           testID={`gym-today-week-strip-${day.weekday}`}
           className="items-center gap-1"
         >
-          <Text variant="muted" className="text-[12px]">
+          <Text variant="muted" className="text-xs">
             {WEEKDAY_LABELS[i]}
           </Text>
           <View
@@ -584,7 +584,7 @@ export function TodayScreen() {
                             <View className="rounded bg-violet-100 px-1 py-0.5">
                               <RNText
                                 testID={`gym-today-next-up-${ex.routineExerciseId}-superset`}
-                                className="text-[12px] font-bold text-violet-800"
+                                className="text-xs font-bold text-violet-800"
                               >
                                 {slot.label}
                                 {slot.position + 1}

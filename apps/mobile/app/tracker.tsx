@@ -610,7 +610,7 @@ export default function TrackerScreen() {
                         {row.name}
                       </Text>
                       <View className="rounded-full bg-gray-100 px-2 py-0.5">
-                        <Text className="text-[12px] text-gray-500">
+                        <Text className="text-xs text-gray-500">
                           {customEntryChipLabel(row.estimatedBy)}
                         </Text>
                       </View>

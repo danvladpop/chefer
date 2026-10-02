@@ -85,7 +85,7 @@ export function TonightCard({
         <View className="gap-2 px-4 pt-4">
           <View className="flex-row flex-wrap items-center gap-2">
             <View className="self-start rounded-full bg-primary px-2.5 py-0.5">
-              <Text className="text-[12px] font-semibold uppercase text-primary-foreground">
+              <Text className="text-xs font-semibold uppercase text-primary-foreground">
                 Tonight · Dinner
               </Text>
             </View>

@@ -55,7 +55,7 @@ export function CategoryHeader({
       <View className="flex-shrink-0 flex-row items-center gap-2">
         {allDone && (
           <View className="rounded-full bg-emerald-100 px-2 py-0.5">
-            <Text className="text-[12px] font-bold text-emerald-700">✓ all</Text>
+            <Text className="text-xs font-bold text-emerald-700">✓ all</Text>
           </View>
         )}
         <Ionicons name={expanded ? 'chevron-up' : 'chevron-down'} size={16} color="#9ca3af" />
