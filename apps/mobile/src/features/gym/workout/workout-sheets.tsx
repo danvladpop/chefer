@@ -204,6 +204,8 @@ export interface ExerciseMenuProps {
   mode?: 'live' | 'edit' | 'log';
   /** `Remove exercise` (live) / `Remove from this workout` (edit). */
   onRemoveExercise?: () => void;
+  /** plan-library-supersets S2: "Superset" (live only) — opens the pick sheet with this exercise ticked. */
+  onSuperset?: () => void;
 }
 
 type MenuPage = 'actions' | 'swap' | 'note' | 'history';
@@ -339,6 +341,14 @@ export function ExerciseMenuSheet(props: ExerciseMenuProps) {
             disabled={isLast}
             onPress={() => props.onMove('down')}
           />
+          {!editing && props.onSuperset ? (
+            <MenuRow
+              testID="menu-superset"
+              label="Superset"
+              hint="Do it back to back with other exercises."
+              onPress={props.onSuperset}
+            />
+          ) : null}
           <MenuRow
             testID="menu-note"
             label={exercise.notes ? 'Edit note' : 'Add note'}

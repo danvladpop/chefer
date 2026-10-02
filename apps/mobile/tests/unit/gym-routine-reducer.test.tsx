@@ -394,6 +394,92 @@ describe('routineDraftReducer — supersets (G4-B)', () => {
     expect(groups(swapped)).toEqual(['A', 'A', null]);
   });
 
+  // plan-library-supersets S2: the "Superset" pick sheet and "Ungroup".
+  function fourRows(): RoutineDraft {
+    return routineDraftReducer(threeRows(), {
+      type: 'addExercise',
+      dayKey: 'd1',
+      newExerciseKey: 'e4',
+      exercise: isolationCurl,
+    });
+  }
+  const keys = (d: RoutineDraft) => d.days[0]?.exercises.map((e) => e.key);
+
+  it('createSuperset moves the picks together at the first pick and saves one letter', () => {
+    const d = routineDraftReducer(fourRows(), {
+      type: 'createSuperset',
+      dayKey: 'd1',
+      exerciseKeys: ['e4', 'e1', 'e3'],
+    });
+    expect(keys(d)).toEqual(['e1', 'e3', 'e4', 'e2']);
+    expect(groups(d)).toEqual(['A', 'A', 'A', null]);
+    expect(draftToRoutineDoc(d).days[0]?.exercises.map((e) => e.supersetGroup)).toEqual([
+      'A',
+      'A',
+      'A',
+      null,
+    ]);
+  });
+
+  it('createSuperset ignores fewer than 2 picks, more than the max, or unknown keys', () => {
+    const base = fourRows();
+    for (const exerciseKeys of [['e1'], ['e1', 'nope'], []]) {
+      const d = routineDraftReducer(base, { type: 'createSuperset', dayKey: 'd1', exerciseKeys });
+      expect(groups(d)).toEqual([null, null, null, null]);
+      expect(keys(d)).toEqual(['e1', 'e2', 'e3', 'e4']);
+    }
+    const five = routineDraftReducer(base, {
+      type: 'addExercise',
+      dayKey: 'd1',
+      newExerciseKey: 'e5',
+      exercise: bench,
+    });
+    const tooMany = routineDraftReducer(five, {
+      type: 'createSuperset',
+      dayKey: 'd1',
+      exerciseKeys: ['e1', 'e2', 'e3', 'e4', 'e5'],
+    });
+    expect(groups(tooMany)).toEqual([null, null, null, null, null]);
+  });
+
+  it('picking a member of another superset takes it out; a pair left behind dissolves', () => {
+    let d = routineDraftReducer(fourRows(), {
+      type: 'createSuperset',
+      dayKey: 'd1',
+      exerciseKeys: ['e1', 'e2'],
+    });
+    expect(groups(d)).toEqual(['A', 'A', null, null]);
+    d = routineDraftReducer(d, {
+      type: 'createSuperset',
+      dayKey: 'd1',
+      exerciseKeys: ['e2', 'e4'],
+    });
+    expect(keys(d)).toEqual(['e1', 'e2', 'e4', 'e3']);
+    expect(groups(d)).toEqual([null, 'A', 'A', null]);
+  });
+
+  it('ungroupSuperset frees every member of that superset only', () => {
+    let d = routineDraftReducer(fourRows(), {
+      type: 'createSuperset',
+      dayKey: 'd1',
+      exerciseKeys: ['e1', 'e2'],
+    });
+    d = routineDraftReducer(d, {
+      type: 'createSuperset',
+      dayKey: 'd1',
+      exerciseKeys: ['e3', 'e4'],
+    });
+    expect(groups(d)).toEqual(['A', 'A', 'B', 'B']);
+    d = routineDraftReducer(d, { type: 'ungroupSuperset', dayKey: 'd1', exerciseKey: 'e2' });
+    expect(groups(d)).toEqual([null, null, 'A', 'A']);
+    const same = routineDraftReducer(d, {
+      type: 'ungroupSuperset',
+      dayKey: 'd1',
+      exerciseKey: 'missing',
+    });
+    expect(same).toEqual(d);
+  });
+
   it('loads stray server letters in canonical form', () => {
     const dtoWithLetters = makeRoutineDto();
     const first = dtoWithLetters.days[0];

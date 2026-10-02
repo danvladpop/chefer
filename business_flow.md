@@ -2783,6 +2783,11 @@ Active workout: the session doc carries its own optional `supersetGroup` per exe
   The workout's "Superset" action and "Ungroup" change THIS session only; "Also change my
   routine" writes the same grouping to the routine day (`routineWithSuperset` /
   `routineWithoutSuperset`) when every member is a routine slot of that day.
+  Mobile (S2): "Superset" sits under the workout's "+ Add exercise" and in each exercise's ⋯
+  menu (opens with that exercise ticked; skipped exercises are not offered). "Ungroup" on the
+  heading is immediate when the superset exists only in this session; when the routine has the
+  same superset a sheet asks first, with "Also change my routine" off (hidden while offline).
+  Routine editor (mobile): "Superset" in each day's footer, next to the day's ⋯.
   Exercises added mid-workout can be grouped; moving a member applies the editor's rule
   (step inside the superset swaps partners, otherwise hops over a whole superset).
   Web (S3): "Superset" sits under the exercise list (phone) / in the navigator (desktop)

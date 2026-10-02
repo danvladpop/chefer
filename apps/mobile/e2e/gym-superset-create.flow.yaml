@@ -1,0 +1,272 @@
+# Easy supersets E2E — plan-library-supersets S2.
+# Preconditions: signed-in session (connect.yaml signs in as alice if needed)
+# and a gym profile with an ACTIVE routine whose next day has at least three
+# exercises (Setup or a seeded routine must have run first).
+# Checks: Routine editor → the day's visible "Superset" action → pick the
+# first three exercises → "Group as superset" → the "Superset A" heading shows
+# → Save → start that day from Today's day picker → tick A1 set 1: focus goes to A2
+# with NO rest timer → "Ungroup" in the workout (session only) → back to the
+# editor and Ungroup + Save, so repeated runs start from a plain routine.
+# Ends in FOOD mode so the food flows are unaffected.
+appId: dev.chefer.app.dev
+---
+- runFlow: common/connect.yaml
+# A profile that never answered the health-information question gets that
+# sheet over Home; this flow is about the gym, so decline it (stores nothing).
+- extendedWaitUntil:
+    visible:
+      id: 'health-consent-decline'
+    timeout: 5000
+    optional: true
+- tapOn:
+    id: 'health-consent-decline'
+    optional: true
+# ── Gym Today (the Food|Gym switch is on both modes' tab roots) ─────────────
+- extendedWaitUntil:
+    visible:
+      id: 'mode-switch-gym'
+    timeout: 30000
+- tapOn:
+    id: 'mode-switch-gym'
+- extendedWaitUntil:
+    visible:
+      id: 'gym-today-title'
+    timeout: 15000
+
+# A workout left running by an earlier (failed) run is discarded first, so the
+# new session copies the routine's superset.
+- runFlow:
+    when:
+      visible:
+        id: 'gym-today-resume'
+    commands:
+      - tapOn:
+          id: 'gym-today-resume-button'
+      - extendedWaitUntil:
+          visible:
+            id: 'workout-title'
+          timeout: 15000
+      - scrollUntilVisible:
+          element:
+            id: 'workout-discard'
+          direction: DOWN
+          timeout: 20000
+      - tapOn:
+          id: 'workout-discard'
+      - tapOn:
+          id: 'workout-discard-sheet-confirm'
+      - extendedWaitUntil:
+          visible:
+            id: 'gym-today-title'
+          timeout: 15000
+
+# ── Routine editor: group the first three exercises ─────────────────────────
+- tapOn: 'Routine(, tab.*)?'
+- extendedWaitUntil:
+    visible:
+      id: 'gym-routine-edit'
+    timeout: 10000
+- tapOn:
+    id: 'gym-routine-edit'
+- extendedWaitUntil:
+    visible:
+      id: 'gym-routine-editor-title'
+    timeout: 10000
+
+# A superset left by an earlier (failed) run is ungrouped first.
+- runFlow:
+    when:
+      visible:
+        id: 'routine-editor-day-.*-superset-A-ungroup'
+    commands:
+      - tapOn:
+          id: 'routine-editor-day-.*-superset-A-ungroup'
+          index: 0
+
+# The day's "Superset" sits in the day footer, next to "+ Add exercise".
+- scrollUntilVisible:
+    element:
+      id: 'routine-editor-day-.*-superset-create'
+    direction: DOWN
+    timeout: 20000
+- tapOn:
+    id: 'routine-editor-day-.*-superset-create'
+    index: 0
+- extendedWaitUntil:
+    visible:
+      id: 'routine-editor-day-.*-superset-sheet-hint'
+    timeout: 5000
+- assertVisible:
+    id: 'routine-editor-day-.*-superset-sheet-apply'
+    enabled: false
+- tapOn:
+    id: 'routine-editor-day-.*-superset-sheet-item-.*'
+    index: 0
+- tapOn:
+    id: 'routine-editor-day-.*-superset-sheet-item-.*'
+    index: 1
+- tapOn:
+    id: 'routine-editor-day-.*-superset-sheet-item-.*'
+    index: 2
+- tapOn:
+    id: 'routine-editor-day-.*-superset-sheet-apply'
+- extendedWaitUntil:
+    notVisible:
+      id: 'routine-editor-day-.*-superset-sheet-hint'
+    timeout: 5000
+
+# The heading + A1/A2/A3 chips show at the top of the first day.
+- scrollUntilVisible:
+    element:
+      id: 'routine-editor-day-.*-superset-A'
+    direction: UP
+    timeout: 20000
+- assertVisible:
+    text: 'Superset A'
+
+- tapOn:
+    id: 'gym-routine-editor-save'
+- extendedWaitUntil:
+    notVisible:
+      id: 'gym-routine-editor-conflict-title'
+    timeout: 10000
+- tapOn:
+    id: 'gym-routine-editor-title-back'
+- extendedWaitUntil:
+    visible:
+      id: 'gym-routine-title'
+    timeout: 10000
+
+# ── Start the FIRST day (the one just grouped): A1 → A2 with no rest ─────────
+# Today's next day may be another one, so pick the day explicitly ("Do another
+# day instead" lists the days in routine order; picking one starts it).
+- tapOn: 'Today(, tab.*)?'
+- extendedWaitUntil:
+    visible:
+      id: 'gym-today-title'
+    timeout: 15000
+- scrollUntilVisible:
+    element:
+      id: 'gym-today-(rest-|done-)?pick-day'
+    direction: DOWN
+    timeout: 20000
+- tapOn:
+    id: 'gym-today-(rest-|done-)?pick-day'
+- extendedWaitUntil:
+    visible:
+      id: 'gym-today-day-picker-title'
+    timeout: 5000
+- tapOn:
+    id: 'gym-today-day-(?!freestyle|picker).*'
+    index: 0
+- extendedWaitUntil:
+    visible:
+      id: 'workout-title'
+    timeout: 15000
+- assertVisible:
+    id: 'superset-A'
+# iOS reads the chip by its accessible label ("Superset A, exercise 1").
+- assertVisible:
+    id: 'exercise-0-superset'
+    text: '(A1|Superset A, exercise 1)'
+
+- tapOn:
+    id: 'exercise-0-set-1-check'
+# Focus moves to A2 and the list auto-scrolls to it; let that settle first.
+- waitForAnimationToEnd
+# No rest inside the round: the timer bar stays away and A2 is open.
+- assertNotVisible:
+    id: 'rest-timer-remaining'
+- assertNotVisible:
+    id: 'gym-rest-permission-allow'
+- assertVisible:
+    id: 'exercise-1-set-1-check'
+
+# ── Ungroup in the workout (this session only) ──────────────────────────────
+- scrollUntilVisible:
+    element:
+      id: 'superset-A-ungroup'
+    direction: UP
+    timeout: 10000
+# Right to the top of the list (the heading is its first row).
+- swipe:
+    direction: DOWN
+- waitForAnimationToEnd
+# The routine has the same superset, so a sheet asks; leave "Also change my
+# routine" off and confirm.
+# iOS: at the top of the list "Ungroup" (x 312–388, y 129–173 on a 402pt
+# phone) sits mostly under the dev-client Tools bubble's touch frame (x ≥ 315,
+# y ≤ 166, see common/launch.yaml), which swallows taps — tap its lower edge.
+- runFlow:
+    when:
+      platform: iOS
+    commands:
+      - tapOn:
+          point: '350,170'
+- runFlow:
+    when:
+      platform: Android
+    commands:
+      - tapOn:
+          id: 'superset-A-ungroup'
+- extendedWaitUntil:
+    visible:
+      id: 'workout-ungroup-sheet-confirm'
+    timeout: 5000
+- tapOn:
+    id: 'workout-ungroup-sheet-confirm'
+- extendedWaitUntil:
+    notVisible:
+      id: 'superset-A'
+    timeout: 5000
+- assertNotVisible:
+    id: 'exercise-0-superset'
+
+# ── Clean up: discard the workout, ungroup the routine again ────────────────
+- scrollUntilVisible:
+    element:
+      id: 'workout-discard'
+    direction: DOWN
+    timeout: 20000
+- tapOn:
+    id: 'workout-discard'
+- tapOn:
+    id: 'workout-discard-sheet-confirm'
+# Back on Today (still scrolled down to the day picker, so wait for the tab).
+- extendedWaitUntil:
+    visible: 'Routine(, tab.*)?'
+    timeout: 15000
+- tapOn: 'Routine(, tab.*)?'
+- extendedWaitUntil:
+    visible:
+      id: 'gym-routine-edit'
+    timeout: 10000
+- tapOn:
+    id: 'gym-routine-edit'
+- extendedWaitUntil:
+    visible:
+      id: 'gym-routine-editor-title'
+    timeout: 10000
+- tapOn:
+    id: 'routine-editor-day-.*-superset-A-ungroup'
+    index: 0
+- tapOn:
+    id: 'gym-routine-editor-save'
+- extendedWaitUntil:
+    notVisible:
+      id: 'gym-routine-editor-conflict-title'
+    timeout: 10000
+- tapOn:
+    id: 'gym-routine-editor-title-back'
+- extendedWaitUntil:
+    visible:
+      id: 'gym-routine-title'
+    timeout: 10000
+
+# ── Back to Food mode ─────────────────────────────────────────────────────────
+- tapOn:
+    id: 'mode-switch-food'
+- extendedWaitUntil:
+    visible:
+      id: 'home-title'
+    timeout: 15000

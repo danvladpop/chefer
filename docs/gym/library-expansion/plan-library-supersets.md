@@ -130,8 +130,8 @@ use already ships). No procedure is renamed or removed.
 | Phase | State                                                                      |
 | ----- | -------------------------------------------------------------------------- |
 | S1    | ✅ 2026-10-02                                                              |
-| S2    | ☐                                                                          |
+| S2    | ✅ 2026-10-02                                                              |
 | S3    | ✅ 2026-10-02                                                              |
 | L1    | ✅ 2026-10-02 — 91 rows added (catalog 92 → 183), content + `sources.json` |
 | L2    | ✅ 2026-10-02                                                              |
-| L3    | ⏸                                                                          |
+| L3    | ⏸ owner is sourcing replacement photos (L-D1)                              |
