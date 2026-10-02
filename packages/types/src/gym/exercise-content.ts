@@ -516,6 +516,25 @@ export const EXERCISE_CONTENT: Record<string, ExerciseContent> = {
     videoStartSec: 0,
     videoChannel: 'Renaissance Periodization',
   },
+  // Added 2026-10-02 (owner request). videoId left null — no pick has been
+  // oEmbed-verified yet (see apps/api/static/exercises/README.md "content gaps").
+  'cable-biceps-curl': {
+    cues: [
+      'Stand a half-step back so the cable pulls at the bottom.',
+      'Keep your elbows pinned at your sides the whole set.',
+      'Curl to your shoulders and squeeze for a second.',
+    ],
+    mistakes: [
+      'Leaning back to drag the stack up with your body.',
+      'Letting the stack slam down instead of lowering it slowly.',
+    ],
+    blurb:
+      'The cable keeps tension on the biceps through the whole rep, including the bottom where a barbell goes slack.',
+    freeExerciseDbId: 'Standing_Biceps_Cable_Curl',
+    videoId: null,
+    videoStartSec: null,
+    videoChannel: null,
+  },
   'triceps-pushdown': {
     cues: [
       "Pin your elbows to your sides, don't let them drift.",
