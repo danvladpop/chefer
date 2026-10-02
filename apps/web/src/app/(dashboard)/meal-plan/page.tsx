@@ -1135,7 +1135,7 @@ export default function MealPlanPage() {
                       <div className="flex flex-col items-center gap-1 rounded-xl border border-dashed bg-gray-50 p-2 text-center">
                         <p
                           data-testid={`plan-day-unplanned-${day.dayOfWeek}`}
-                          className="text-[11px] leading-tight text-gray-500"
+                          className="text-xs leading-tight text-gray-500"
                         >
                           Not planned
                         </p>
