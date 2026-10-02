@@ -425,10 +425,26 @@ export function roundNearestUp(
 
 // ─── Plate calculator & display ──────────────────────────────────────────────
 
+/** `a` ranks better than `b`: fewer plates, then heavier plates first (lexicographic). */
+function betterPlateSet(a: number[], b: number[]): boolean {
+  if (a.length !== b.length) return a.length < b.length;
+  for (let i = 0; i < a.length; i++) {
+    const x = a[i] ?? 0;
+    const y = b[i] ?? 0;
+    if (x !== y) return x > y;
+  }
+  return false;
+}
+
 /**
- * Plate calculator: plates per side (kg, heaviest first) for a barbell total,
- * greedy over the user's plate pairs (heaviest plate unlimited, as in
- * achievableLoads). `remainderKg` is what could not be loaded, per side.
+ * Plate calculator: plates per side (kg, heaviest first) for a barbell total.
+ * Same inventory rules as `achievableLoads` (each pair once, the heaviest
+ * unlimited) and the same subset-sum search, so it can always make exactly
+ * what `achievableLoads` lists — a greedy pass cannot: 180 lb on a
+ * 45/35/25/10/5/2.5 rack is 35+25+5+2.5, but greedy stops at 45+10+5+2.5
+ * (UX-GYM-07). Picks the heaviest loadable side ≤ the target, then the fewest
+ * plates, then the heaviest ones. `remainderKg` is what could not be loaded,
+ * per side (0 when the target is exact).
  */
 export function platesPerSide(
   totalKg: number,
@@ -436,26 +452,51 @@ export function platesPerSide(
 ): { plates: number[]; remainderKg: number } {
   const unit = profile.unit;
   const bar = toUnitSpace(profile.barWeightKg, unit);
-  let side = (toUnitSpace(totalKg, unit) - bar) / 2;
+  const side = (toUnitSpace(totalKg, unit) - bar) / 2;
   if (side <= 1e-9) {
     return { plates: [], remainderKg: 0 };
   }
-  const available = platePairsInUnit(profile);
+  const target = Math.round(side * 100 + 1e-6);
+  const available = platePairsInUnit(profile).map((p) => Math.round(p * 100));
   const heaviest = available[0];
-  const counts = new Map<number, number>();
-  for (const p of available) {
-    counts.set(p, (counts.get(p) ?? 0) + 1);
+  if (heaviest === undefined) {
+    return { plates: [], remainderKg: unitToKg(side, unit) };
   }
-  const plates: number[] = [];
-  for (const p of [...counts.keys()].sort((a, b) => b - a)) {
-    let left = p === heaviest ? Number.POSITIVE_INFINITY : (counts.get(p) ?? 0);
-    while (left > 0 && side >= p - 1e-9) {
-      plates.push(unitToKg(p, unit));
-      side -= p;
-      left -= 1;
+
+  // Every pair once (the heaviest's one pair is re-added as the unlimited
+  // part below): sum → the best plate set that makes it.
+  let sums = new Map<number, number[]>([[0, []]]);
+  for (const p of available.slice(1)) {
+    const next = new Map(sums);
+    for (const [sum, set] of sums) {
+      const total = sum + p;
+      if (total > target) continue;
+      const candidate = [...set, p].sort((x, y) => y - x);
+      const current = next.get(total);
+      if (!current || betterPlateSet(candidate, current)) next.set(total, candidate);
+    }
+    sums = next;
+  }
+
+  let best: { sum: number; plates: number[] } | null = null;
+  for (const [sum, set] of sums) {
+    for (let k = 0; sum + k * heaviest <= target; k++) {
+      const total = sum + k * heaviest;
+      const plates = [...Array<number>(k).fill(heaviest), ...set].sort((x, y) => y - x);
+      if (
+        !best ||
+        total > best.sum ||
+        (total === best.sum && betterPlateSet(plates, best.plates))
+      ) {
+        best = { sum: total, plates };
+      }
     }
   }
-  return { plates, remainderKg: unitToKg(Math.max(0, side), unit) };
+  const chosen = best ?? { sum: 0, plates: [] };
+  return {
+    plates: chosen.plates.map((p) => unitToKg(p / 100, unit)),
+    remainderKg: unitToKg(Math.max(0, (target - chosen.sum) / 100), unit),
+  };
 }
 
 function formatNumber(n: number): string {

@@ -34,14 +34,19 @@ export class TrainingPauseService {
     return { id: row.id };
   }
 
-  /** Ends a pause early (endDate = today); a pause that hasn't started yet is removed. */
+  /**
+   * Ends a pause early. Ranges are inclusive, so `endDate = today` would still
+   * pause today (UX-GYM-06: a pause started today could never be ended
+   * today). A pause that has not started, or starts today, is removed; one
+   * that started earlier now ends yesterday. One that is already over is left.
+   */
   async end(userId: string, id: string, today: string = serverToday()): Promise<{ ok: true }> {
     const pause = await this.repo.findByIdForUser(userId, id);
     if (!pause) throw new TRPCError({ code: 'NOT_FOUND', message: 'Pause not found.' });
-    if (pause.startDate > today) {
+    if (pause.startDate >= today) {
       await this.repo.delete(id);
-    } else if (pause.endDate > today) {
-      await this.repo.updateEndDate(id, today);
+    } else if (pause.endDate >= today) {
+      await this.repo.updateEndDate(id, addDaysLocal(today, -1));
     }
     return { ok: true };
   }

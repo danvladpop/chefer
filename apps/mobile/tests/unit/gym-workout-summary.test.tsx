@@ -284,6 +284,8 @@ describe('SummaryScreen', () => {
     await user.press(screen.getByTestId('number-sheet-key-0'));
     expect(screen.getByTestId('number-sheet-value')).toHaveTextContent('150 kg');
     await user.press(screen.getByTestId('number-sheet-save'));
+    // 40 → 150 is more than 2x (UX-GYM-01): the keypad asks once before saving.
+    await user.press(screen.getByTestId('number-sheet-jump-confirm'));
 
     expect(screen.getByTestId('adjust-weight-value')).toHaveTextContent('150 kg');
   });

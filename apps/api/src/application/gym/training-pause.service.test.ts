@@ -59,14 +59,29 @@ describe('TrainingPauseService', () => {
     ).rejects.toMatchObject({ code: 'CONFLICT' });
   });
 
-  it('end: an active pause ends today; a future one is removed', async () => {
+  it('end: an active pause ends yesterday (inclusive range); a future one is removed', async () => {
     const active = setup([pause()]);
     await active.service.end('u1', 'p1', '2026-09-24');
-    expect(active.repo.updateEndDate).toHaveBeenCalledWith('p1', '2026-09-24');
+    expect(active.repo.updateEndDate).toHaveBeenCalledWith('p1', '2026-09-23');
+    expect(active.repo.delete).not.toHaveBeenCalled();
 
     const future = setup([pause({ startDate: '2026-10-10', endDate: '2026-10-20' })]);
     await future.service.end('u1', 'p1', '2026-09-24');
     expect(future.repo.delete).toHaveBeenCalledWith('p1');
+  });
+
+  it('end: a pause started today and ended today is removed, so Start works again (UX-GYM-06)', async () => {
+    const { service, repo } = setup([pause({ startDate: '2026-09-24', endDate: '2026-10-01' })]);
+    await service.end('u1', 'p1', '2026-09-24');
+    expect(repo.delete).toHaveBeenCalledWith('p1');
+    expect(repo.updateEndDate).not.toHaveBeenCalled();
+  });
+
+  it('end: a pause that already finished is left alone', async () => {
+    const { service, repo } = setup([pause({ startDate: '2026-09-01', endDate: '2026-09-10' })]);
+    await service.end('u1', 'p1', '2026-09-24');
+    expect(repo.delete).not.toHaveBeenCalled();
+    expect(repo.updateEndDate).not.toHaveBeenCalled();
   });
 
   it("end of someone else's pause is NOT_FOUND", async () => {
