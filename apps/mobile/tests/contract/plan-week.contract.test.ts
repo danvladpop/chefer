@@ -109,15 +109,11 @@ describe('tracker.deleteCustomMeal — entryId vs index (UX-FOOD-17)', () => {
     await add('Contract C');
     const day = await client.tracker.getDay.query({ date });
     const find = (name: string) => day.log?.loggedMeals.find((m) => m.custom?.name === name);
-    const b = find('Contract B');
-    expect(b?.entryId).toBeTruthy();
+    const bId = find('Contract B')?.entryId;
+    if (!bId) throw new Error('expected Contract B to carry an entryId');
 
     // A stale/wrong index plus the right id: the id wins and B is the one that goes.
-    await client.tracker.deleteCustomMeal.mutate({
-      date,
-      entryId: b!.entryId!,
-      entryIndex: 0,
-    });
+    await client.tracker.deleteCustomMeal.mutate({ date, entryId: bId, entryIndex: 0 });
     const afterId = await client.tracker.getDay.query({ date });
     const names = afterId.log?.loggedMeals.flatMap((m) => (m.custom ? [m.custom.name] : []));
     expect(names).toContain('Contract A');
@@ -125,7 +121,9 @@ describe('tracker.deleteCustomMeal — entryId vs index (UX-FOOD-17)', () => {
     expect(names).not.toContain('Contract B');
 
     // 1.0.1 clients: index only.
-    const index = afterId.log!.loggedMeals.findIndex((m) => m.custom?.name === 'Contract A');
+    const index = (afterId.log?.loggedMeals ?? []).findIndex(
+      (m) => m.custom?.name === 'Contract A',
+    );
     await client.tracker.deleteCustomMeal.mutate({ date, entryIndex: index });
     const afterIndex = await client.tracker.getDay.query({ date });
     const left = afterIndex.log?.loggedMeals.flatMap((m) => (m.custom ? [m.custom.name] : []));
@@ -140,7 +138,8 @@ describe('off-plan logged recipes are editable and removable (UX-FOOD-03)', () =
   it('edits the portion by entryId, then deletes the entry', async () => {
     const date = localDateStr(addDays(new Date(), -1)); // yesterday, still this/last week
     // A recipe that is NOT on the plan for that day: take one from next week's plan.
-    const offPlan = nextWeek.days.flatMap((d) => d.meals)[0]!.recipe;
+    const offPlan = nextWeek.days.flatMap((d) => d.meals)[0]?.recipe;
+    if (!offPlan) throw new Error('expected a meal in next week');
     await client.tracker.logRecipe.mutate({
       date,
       recipeId: offPlan.id,
@@ -149,20 +148,17 @@ describe('off-plan logged recipes are editable and removable (UX-FOOD-03)', () =
     });
     const day = await client.tracker.getDay.query({ date });
     const row = day.offPlanLogged.find((m) => m.recipeId === offPlan.id);
-    expect(row?.entryId).toBeTruthy();
+    const entryId = row?.entryId;
+    if (!entryId) throw new Error('expected the off-plan row to carry an entryId');
 
-    await client.tracker.updateRecipeEntry.mutate({
-      date,
-      entryId: row!.entryId!,
-      portionMultiplier: 2,
-    });
+    await client.tracker.updateRecipeEntry.mutate({ date, entryId, portionMultiplier: 2 });
     const edited = (await client.tracker.getDay.query({ date })).offPlanLogged.find(
       (m) => m.recipeId === offPlan.id,
     );
     expect(edited?.portionMultiplier).toBe(2);
-    expect(edited?.kcal).toBe(Math.round((row?.kcal ?? 0) * 2));
+    expect(edited?.kcal).toBe(Math.round(row.kcal * 2));
 
-    await client.tracker.deleteEntries.mutate({ date, entryIds: [row!.entryId!] });
+    await client.tracker.deleteEntries.mutate({ date, entryIds: [entryId] });
     const gone = await client.tracker.getDay.query({ date });
     expect(gone.offPlanLogged.find((m) => m.recipeId === offPlan.id)).toBeUndefined();
   });
