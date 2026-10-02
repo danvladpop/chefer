@@ -149,12 +149,19 @@ export class MockAIService implements IAIService {
     return { dayOfWeek: request.dayOfWeek, meals: structuredClone(day.meals) };
   }
 
-  /** Deterministic repair: the first candidate, the same amount in grams. */
+  /**
+   * Deterministic repair: the line's own slug when only the unit failed, else
+   * the first candidate; a gram/ml amount is kept, any other amount is
+   * converted at a flat 100 g per unit (never the copied count, which the
+   * repair guard refuses).
+   */
   async repairRecipeLines(request: RecipeLineRepairRequest): Promise<RecipeLineRepair[]> {
     await delay(50);
     return request.lines.flatMap((l) => {
-      const slug = l.candidates[0];
-      return slug ? [{ id: l.id, slug, quantity: l.quantity, unit: 'g' }] : [];
+      const slug = l.problem !== 'NO_INGREDIENT' && l.slug ? l.slug : l.candidates[0];
+      if (!slug) return [];
+      const metric = /^(g|ml)$/i.test(l.unit.trim());
+      return [{ id: l.id, slug, quantity: metric ? l.quantity : l.quantity * 100, unit: 'g' }];
     });
   }
 
