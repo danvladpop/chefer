@@ -1,3 +1,4 @@
+import type { QueryClient } from '@tanstack/react-query';
 import * as SecureStore from 'expo-secure-store';
 
 // The session token issued by auth.login/register (same DB Session row the web
@@ -12,6 +13,21 @@ const TOKEN_KEY = 'chefer_session_token';
 // -out device must still see "Welcome back", not the first-launch Welcome
 // screen (AC2).
 const HAS_SIGNED_IN_BEFORE_KEY = 'chefer_has_signed_in_before';
+
+let sessionQueryClient: QueryClient | null = null;
+
+/**
+ * UX-ACC-02: the app's query client, so a new session token can never start
+ * on top of the previous account's cached reads (see `setToken`), and so
+ * `signOut()` knows what to empty. Bound once by `makeQueryClient`.
+ */
+export function bindSessionQueryClient(client: QueryClient): void {
+  sessionQueryClient = client;
+}
+
+export function getSessionQueryClient(): QueryClient | null {
+  return sessionQueryClient;
+}
 
 let cached: string | null | undefined; // undefined = SecureStore not read yet
 let hasSignedInBeforeCached: boolean | undefined; // undefined = not read yet
@@ -42,6 +58,13 @@ export function getToken(): string | null {
 }
 
 export async function setToken(token: string): Promise<void> {
+  // UX-ACC-02: a sign-in always starts from an empty cache — whatever the
+  // previous account left behind (even if its sign-out never ran, e.g. a
+  // killed app) must not render for, or be saved over by, this one.
+  if (sessionQueryClient) {
+    void sessionQueryClient.cancelQueries();
+    sessionQueryClient.clear();
+  }
   cached = token;
   notify();
   await SecureStore.setItemAsync(TOKEN_KEY, token);
