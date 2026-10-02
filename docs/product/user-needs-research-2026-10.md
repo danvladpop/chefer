@@ -69,7 +69,7 @@ Keep a single main goal, as today. The answers only set defaults, and everything
 - **Class days on the food plan: a marker, no calorie bump.** Class days show like run days, with a nudge to put protein in the meal after class. Watch numbers are too rough to drive targets. The weekly Adaptive Chef review already corrects calories from the weight trend, so a bump would count the same effort twice.
 - **Watch calories** are shown on the class log, never added to food targets. Wrist devices were off by 27–93% on calories in a Stanford study ([Shcherbina 2017 via ACSH](https://www.acsh.org/news/2017/05/24/7-fitness-trackers-deliver-very-inaccurate-data-new-study-shows-11321)).
 - **Premium is for heavy AI only:** regenerating the week, AI meal swaps and photo logging. Week rebalance and training-day nutrition use no AI, so they become free. That is a change from today's gating.
-- **Trainer platform:** later, after talking to trainers. It is in Nice to have.
+- **Trainer platform:** ~~later, after talking to trainers~~. **Updated 2 Oct (evening):** top priority among new features once the current fixes and consolidation are done. Discovery and design come first ([WP-18](../backlog-2026-10/WP-18-trainer-platform.md)).
 - **Plan a meal out ahead:** moved to Nice to have. "Ate something else" covers most of the need for now.
 
 ### How you'll know it works
