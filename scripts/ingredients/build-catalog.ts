@@ -51,6 +51,30 @@ const CATALOG_PATH = join(INGREDIENTS_DIR, '../../packages/database/data/ingredi
 /** FDC portion units never imported: US can sizes do not fit the EU market. */
 const SKIPPED_FDC_PORTION_UNITS = ['can'];
 
+// Owner decision 2026-10-02: a can is 400 g net (the common EU size). Rows that
+// count only the solids ("…, drained") get 240 g, the drained weight a 400 g
+// EU can of beans/vegetables prints on its label. Fish, seafood and meat cans
+// are much smaller than 400 g, so they get no can portion.
+const CAN_NET_GRAMS = 400;
+const CAN_DRAINED_GRAMS = 240;
+const NO_CAN_CATEGORIES = new Set([
+  'FISH',
+  'SEAFOOD',
+  'POULTRY',
+  'BEEF',
+  'PORK',
+  'LAMB_GOAT',
+  'GAME',
+  'PROCESSED_MEAT',
+]);
+
+function canPortion(slug: string, name: string, category: string): CatalogPortion | null {
+  if (!/(^|-)canned(-|$)/.test(slug) || NO_CAN_CATEGORIES.has(category)) return null;
+  return /drained/i.test(name)
+    ? { unit: 'can', grams: CAN_DRAINED_GRAMS, source: 'owner:can-400g-drained' }
+    : { unit: 'can', grams: CAN_NET_GRAMS, source: 'owner:can-400g' };
+}
+
 const ANIMAL_ORIGIN = new Set([
   'BEEF',
   'PORK',
@@ -258,6 +282,13 @@ function buildRow(d: DraftEntry, src: Sources): { entry: CatalogEntry; diag: Row
     grams: p.grams,
     source: p.source,
   }));
+  const can = canPortion(d.slug, base.name, base.category);
+  if (can && !portions.some((p) => p.unit === 'can')) {
+    portions.push(can);
+    notes.push(
+      `can = ${can.grams} g (owner decision 2026-10-02: 400 g net can${can.grams === CAN_NET_GRAMS ? '' : ', drained weight'})`,
+    );
+  }
   diag.portionsDetail = mapped;
   const borrowed = mapped.filter((p) => p.fdcId !== ownFdc?.fdcId).map((p) => p.fdcId);
   if (borrowed.length) notes.push(`portions from fdc:${[...new Set(borrowed)].join(', fdc:')}`);

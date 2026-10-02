@@ -73,7 +73,7 @@ export const EXTRA_BREAKFAST_POOL: RecipeData[] = (
       dietaryTags: ['vegan', 'gluten-free', 'dairy-free', 'high-fiber'],
       prepTimeMins: 5,
       cookTimeMins: 0,
-      servings: 1,
+      servings: 2,
     },
     {
       id: 'cur-b-103',
@@ -642,7 +642,7 @@ export const EXTRA_DINNER_POOL: RecipeData[] = (
       dietaryTags: ['vegan', 'gluten-free', 'dairy-free', 'high-fiber'],
       prepTimeMins: 10,
       cookTimeMins: 25,
-      servings: 1,
+      servings: 2,
     },
     {
       id: 'cur-d-102',

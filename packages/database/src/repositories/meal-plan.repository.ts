@@ -275,6 +275,10 @@ export class MealPlanRepository implements IMealPlanRepository {
             name: r.name,
             description: r.description,
             imagePriority: r.imagePriority ?? 100,
+            // The fixture is authoritative for CURATED servings too: their
+            // catalog lines are computed per fixture serving, so the row must
+            // agree (plan-ingredient-catalog §6.2).
+            ...(r.source === 'CURATED' ? { servings: r.servings } : {}),
             // Same dish (name unchanged): imageUrl/imageStatus are NOT touched
             // for AI recipes — the worker owns them and the existing image
             // stays valid. CURATED recipes are the exception: their images

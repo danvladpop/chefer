@@ -565,7 +565,13 @@ Results:
 
 **The prod kcal drop is a correction, not a bug.** By creation month the median change is −24% (Mar), −35% (Apr), −43% (Jul), −36% (Aug) and −8% (Sep). Older generator eras stated slot-target calories that their quantities did not support. Spot checks agree: an "Avocado Lentil Bowl" with 180 g dry lentils and 270 g rice was stored at 589 kcal and computes to 1,240. Active meal plans read recipe nutrition live, so planned days built from old recipes will show lower totals after the prod run.
 
-Open before the prod run (owner): a can-size decision (closes most NO_PORTION lines), whether to accept about 15% PARTIAL legacy AI recipes or regenerate them, and the go-ahead itself. Take a fresh backup first.
+**Prod run, 2026-10-02.** After a backup, the migration ran on prod with the same result as the snapshot dry run: 487 recipes, 397 COMPUTED (81.5%), 2,700 lines. `ingredients:verify` reported 0 problems, and a re-run was a no-op.
+
+**Owner decisions after the prod run (2026-10-02).**
+
+- **A can is 400 g** (catalog `can` portion; 240 g on drained rows; none on fish/meat cans, see SOURCES.md). A legacy "can" line on a cooked legume row moves to its canned sibling (`cannedSibling`: "1 can black beans" → `black-beans-canned`). `ingredients:migrate --incomplete` re-plans only recipes that are not COMPUTED. On the 2026-10-02 backup this lifts COMPUTED to 407 of 487 (83.6%).
+- **Regenerate the rest.** `ingredients:regenerate` (dry run unless `--apply`) sends each still-PARTIAL AI recipe's bad lines through the §6.3 repair round. The model names a catalog slug and an amount, never a nutrition number, and the server recomputes. The dish, its name, instructions and other lines are kept, because these recipes sit in users' existing plans. Amounts over 2 kg per line are rejected. Up to two rounds; anything still unresolved stays PARTIAL and is reported.
+- **Curated servings.** Four fixtures written for two now have `servings: 2`: Banana Oat Pancakes, Chia Pudding with Mango and Coconut, Red Lentil and Spinach Curry, Chickpea Coconut Curry with Rice. Per serving they now compute 352 / 368 / 588 / 536 kcal, against old labels of 360 / 420 / 700 / 680. The curated upsert now updates `servings` on existing CURATED rows, since the fixture is authoritative.
 
 ---
 
