@@ -1,6 +1,7 @@
+import { BackHandler } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { render, screen, userEvent, waitFor } from '@testing-library/react-native';
+import { act, render, screen, userEvent, waitFor } from '@testing-library/react-native';
 import type { CompleteSetupInput } from '@chefer/types';
 import { defaultUnitFromLocale } from '../../src/features/gym/setup/locale-unit';
 import { SetupWizard } from '../../src/features/gym/setup/setup-wizard';
@@ -26,7 +27,16 @@ jest.mock('expo-router', () => ({
   // T-03.4: no params by default (Train-only, AC2) — tests that need the
   // onboarding hand-off override this per case.
   useLocalSearchParams: jest.fn(() => ({})),
+  // The unsaved-work guard (UX-GYM-03) reads navigation state.
+  useNavigation: () => ({ dispatch: mockDispatch, goBack: mockGoBack }),
+  useIsFocused: () => true,
 }));
+jest.mock('expo-router/react-navigation', () => ({
+  usePreventRemove: jest.fn(),
+}));
+
+const mockDispatch = jest.fn();
+const mockGoBack = jest.fn();
 
 const { trpc } = jest.requireMock<ReturnType<typeof createTrpcGymMock>>('../../src/lib/trpc');
 const { router, useLocalSearchParams } = jest.requireMock<{
@@ -183,7 +193,9 @@ describe('SetupWizard', () => {
     await user.press(screen.getByTestId('gym-setup-finish'));
 
     expect(onSuccess).toBeDefined();
-    onSuccess?.({ profile: { setupCompletedAt: '2026-09-24T00:00:00.000Z' } });
+    await act(() => {
+      onSuccess?.({ profile: { setupCompletedAt: '2026-09-24T00:00:00.000Z' } });
+    });
     expect(router.replace).toHaveBeenCalledWith('/today');
   });
 
@@ -205,6 +217,208 @@ describe('SetupWizard', () => {
     const payload = (mutate.mock.calls as [CompleteSetupInput][])[0]?.[0];
     expect(payload?.unit).toBe('LB');
     trpc.preferences.get.useQuery.mockReturnValue(queryResult());
+  });
+
+  // UX-GYM-03: hardware BACK steps back inside the wizard instead of popping it.
+  describe('hardware BACK (UX-GYM-03)', () => {
+    type BackListener = Parameters<typeof BackHandler.addEventListener>[1];
+    const BACK_PRESS = { type: 'hardwareBackPress', timeStamp: 0 } as const;
+    let listeners: BackListener[];
+    let spy: jest.SpyInstance;
+
+    beforeEach(() => {
+      listeners = [];
+      trpc.gym.profile.completeSetup.useMutation.mockReturnValue(mutationResult());
+      spy = jest.spyOn(BackHandler, 'addEventListener').mockImplementation((_event, handler) => {
+        listeners.push(handler);
+        return { remove: jest.fn() };
+      });
+    });
+    afterEach(() => spy.mockRestore());
+
+    /** Presses BACK at the most recently registered handler; true = consumed. */
+    const pressBack = () => listeners.at(-1)?.(BACK_PRESS) === true;
+
+    it('steps back one page and keeps the answers', async () => {
+      const user = userEvent.setup();
+      await renderWizard();
+      await user.press(screen.getByTestId('gym-setup-days-5'));
+      await user.press(screen.getByTestId('gym-setup-next')); // → step 2
+      await user.press(screen.getByTestId('gym-setup-next')); // → step 3
+      expect(screen.getByTestId('gym-setup-unit')).toBeOnTheScreen();
+
+      let consumed = false;
+      await act(() => {
+        consumed = pressBack();
+      });
+      expect(consumed).toBe(true);
+      expect(screen.getByTestId('gym-setup-experience-beginner')).toBeOnTheScreen();
+      expect(screen.queryByTestId('gym-setup-leave-confirm')).toBeNull();
+      expect(router.back).not.toHaveBeenCalled();
+
+      await act(() => {
+        pressBack();
+      });
+      // Back on step 1 the earlier answer is still selected.
+      const chip = screen.getByTestId('gym-setup-days-5') as unknown as {
+        props: { accessibilityState?: { selected?: boolean } };
+      };
+      expect(chip.props.accessibilityState?.selected).toBe(true);
+    });
+
+    it('on the first step it asks before leaving, and "Keep going" stays', async () => {
+      await renderWizard();
+      let consumed = false;
+      await act(() => {
+        consumed = pressBack();
+      });
+      expect(consumed).toBe(true);
+      expect(screen.getByText('Leave setup?')).toBeOnTheScreen();
+      expect(mockDispatch).not.toHaveBeenCalled();
+      expect(mockGoBack).not.toHaveBeenCalled();
+
+      const user = userEvent.setup();
+      await user.press(screen.getByTestId('gym-setup-leave-cancel'));
+      expect(screen.getByTestId('gym-setup-days')).toBeOnTheScreen();
+    });
+
+    it('"Leave setup" confirms and leaves', async () => {
+      const user = userEvent.setup();
+      await renderWizard();
+      await act(() => {
+        pressBack();
+      });
+      await user.press(screen.getByTestId('gym-setup-leave-confirm'));
+      expect(mockGoBack).toHaveBeenCalled();
+    });
+
+    it('from onboarding, step 2 is the first page: BACK asks instead of landing on skipped step 1', async () => {
+      useLocalSearchParams.mockReturnValue({ from: 'onboarding', days: '0,2,4' });
+      await renderWizard();
+      await act(() => {
+        pressBack();
+      });
+      expect(screen.getByText('Leave setup?')).toBeOnTheScreen();
+      expect(screen.queryByTestId('gym-setup-days')).toBeNull();
+    });
+  });
+
+  // UX-GYM-05: onboarding's Imperial choice must reach the Units default.
+  describe('units default (UX-GYM-05)', () => {
+    beforeEach(() => {
+      trpc.gym.profile.completeSetup.useMutation.mockReturnValue(mutationResult());
+    });
+
+    it('waits for the fresh preferences instead of trusting a stale cached metric value', async () => {
+      // Cached from before onboarding saved Imperial, refetch still in flight.
+      trpc.preferences.get.useQuery.mockReturnValue(
+        queryResult({ data: { chefProfile: { preferredUnits: 'METRIC' } }, isFetching: true }),
+      );
+      const user = userEvent.setup();
+      await renderWizard();
+      await user.press(screen.getByTestId('gym-setup-next')); // → step 2
+
+      // The refetch lands with the user's real choice.
+      trpc.preferences.get.useQuery.mockReturnValue(
+        queryResult({ data: { chefProfile: { preferredUnits: 'IMPERIAL' } }, isFetching: false }),
+      );
+      await user.press(screen.getByTestId('gym-setup-next')); // → step 3 (re-render)
+
+      const lb = screen.getByTestId('gym-setup-unit-lb') as unknown as {
+        props: { accessibilityState?: { selected?: boolean } };
+      };
+      expect(lb.props.accessibilityState?.selected).toBe(true);
+      trpc.preferences.get.useQuery.mockReturnValue(queryResult());
+    });
+
+    it('never overrides a unit the user already tapped', async () => {
+      trpc.preferences.get.useQuery.mockReturnValue(
+        queryResult({ data: { chefProfile: { preferredUnits: 'METRIC' } }, isFetching: true }),
+      );
+      const user = userEvent.setup();
+      await renderWizard();
+      await user.press(screen.getByTestId('gym-setup-next'));
+      await user.press(screen.getByTestId('gym-setup-next')); // step 3
+      await user.press(screen.getByTestId('gym-setup-unit-lb'));
+
+      trpc.preferences.get.useQuery.mockReturnValue(
+        queryResult({ data: { chefProfile: { preferredUnits: 'METRIC' } }, isFetching: false }),
+      );
+      await user.press(screen.getByTestId('gym-setup-unit-lb')); // re-render
+      const kg = screen.getByTestId('gym-setup-unit-kg') as unknown as {
+        props: { accessibilityState?: { selected?: boolean } };
+      };
+      expect(kg.props.accessibilityState?.selected).not.toBe(true);
+      trpc.preferences.get.useQuery.mockReturnValue(queryResult());
+    });
+  });
+
+  // UX-GYM-01: starting weights are checked per field, with the server's bounds.
+  describe('starting weight validation (UX-GYM-01)', () => {
+    beforeEach(() => {
+      trpc.gym.profile.completeSetup.useMutation.mockReturnValue(mutationResult());
+    });
+
+    async function openWeights(user: ReturnType<typeof userEvent.setup>) {
+      await user.press(screen.getByTestId('gym-setup-next')); // → step 2
+      await user.press(screen.getByTestId('gym-setup-next')); // → step 3
+      await user.press(screen.getByTestId('gym-setup-unit-kg'));
+      await user.press(screen.getByTestId('gym-setup-next')); // → step 4
+      await user.press(screen.getByTestId('gym-setup-skip')); // → step 5
+      await waitFor(() => expect(screen.getByTestId('gym-setup-preview-day-0')).toBeOnTheScreen());
+      await user.press(screen.getByTestId('gym-setup-next')); // → step 6
+      await user.press(screen.getByTestId('gym-setup-weights-know'));
+      const [input] = screen.getAllByPlaceholderText('kg');
+      if (!input) throw new Error('expected a weight input');
+      return input;
+    }
+
+    it('flags 4055 kg inline, blocks Next, and clears once fixed', async () => {
+      const user = userEvent.setup();
+      await renderWizard();
+      const input = await openWeights(user);
+      await user.type(input, '4055');
+
+      expect(screen.getByText('Max 1000 kg.')).toBeOnTheScreen();
+      expect(screen.getByTestId('gym-setup-next')).toBeDisabled();
+
+      await user.clear(input);
+      await user.type(input, '105');
+      expect(screen.queryByText('Max 1000 kg.')).toBeNull();
+      expect(screen.getByTestId('gym-setup-next')).toBeEnabled();
+    });
+
+    it('treats an empty field as "skip" (no error)', async () => {
+      const user = userEvent.setup();
+      await renderWizard();
+      await openWeights(user);
+      expect(screen.getByTestId('gym-setup-next')).toBeEnabled();
+    });
+  });
+
+  it('shows plain words, never Zod JSON, when completeSetup is rejected', async () => {
+    const zodJson = JSON.stringify([
+      { code: 'too_big', maximum: 1000, path: ['knownWeightsKg', 'x'] },
+    ]);
+    trpc.gym.profile.completeSetup.useMutation.mockReturnValue(
+      mutationResult({
+        isError: true,
+        error: Object.assign(new Error(zodJson), {
+          data: { code: 'BAD_REQUEST', httpStatus: 400 },
+        }),
+      }),
+    );
+    const user = userEvent.setup();
+    await renderWizard();
+    await goToPreview(user);
+    await waitFor(() => expect(screen.getByTestId('gym-setup-preview-day-0')).toBeOnTheScreen());
+    await user.press(screen.getByTestId('gym-setup-next'));
+    await user.press(screen.getByTestId('gym-setup-weights-help'));
+    await user.press(screen.getByTestId('gym-setup-next'));
+
+    const error = screen.getByTestId('gym-setup-error');
+    expect(error).toHaveTextContent(/above the 1000 kg/);
+    expect(error).not.toHaveTextContent(/too_big|\[\{/);
   });
 
   it('back on the first step leaves setup', async () => {

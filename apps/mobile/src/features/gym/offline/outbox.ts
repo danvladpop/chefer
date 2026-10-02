@@ -1,6 +1,7 @@
 import { useSyncExternalStore } from 'react';
 import { onlineManager } from '@tanstack/react-query';
 import { workoutSessionDocSchema, type SyncResultDto, type WorkoutSessionDoc } from '@chefer/types';
+import { describeValidationIssues, friendlyValidationMessage } from '../validation-copy';
 import { createExternalStore } from './external-store';
 import { KV_KEYS } from './keys';
 import { getKvBackend } from './kv';
@@ -193,8 +194,14 @@ export function createOutbox(deps: OutboxDeps = {}) {
     for (const entry of sendable(store.get(), owner)) {
       const parsed = workoutSessionDocSchema.safeParse(entry.doc);
       if (!parsed.success) {
-        const reason = `invalid: ${parsed.error.issues[0]?.message ?? 'schema mismatch'}`;
-        patchEntries(new Set([entry.doc.id]), (e) => ({ ...e, parkedReason: reason }));
+        // UX-GYM-01: a plain sentence (what to fix), never the raw Zod text —
+        // Today and Gym settings render `parkedReason` as-is.
+        const reason = describeValidationIssues(parsed.error.issues);
+        patchEntries(new Set([entry.doc.id]), (e) => ({
+          ...e,
+          lastError: parsed.error.issues[0]?.message ?? 'schema mismatch',
+          parkedReason: reason,
+        }));
         result.parked++;
       }
     }
@@ -234,7 +241,7 @@ export function createOutbox(deps: OutboxDeps = {}) {
           attempts: e.attempts + 1,
           lastAttemptAt: attemptAt,
           lastError: message,
-          parkedReason: `rejected: ${message}`,
+          parkedReason: friendlyValidationMessage(message),
         }));
         result.parked += batch.length;
         return true;
@@ -287,7 +294,7 @@ export function createOutbox(deps: OutboxDeps = {}) {
         attempts: entry.attempts + 1,
         lastAttemptAt: attemptAt,
         lastError: ack.reason ?? 'Rejected by the server',
-        parkedReason: `rejected: ${ack.reason ?? 'rejected by the server'}`,
+        parkedReason: friendlyValidationMessage(ack.reason ?? 'The server rejected this workout.'),
       };
     });
     update((state) => ({

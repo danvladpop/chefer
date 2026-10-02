@@ -7,14 +7,17 @@ import { resetSnackbarForTests, Snackbar } from '@chefer/ui-mobile';
 import { weekdayOf } from '@chefer/utils';
 import { activeSessionStore } from '../../src/features/gym/offline/active-session-store';
 import { localDate } from '../../src/features/gym/offline/ids';
-import { createMemoryKvBackend, setKvBackendForTests } from '../../src/features/gym/offline/kv';
+import { KV_KEYS } from '../../src/features/gym/offline/keys';
+import { createMemoryKvBackend, kv, setKvBackendForTests } from '../../src/features/gym/offline/kv';
 import { outbox } from '../../src/features/gym/offline/outbox';
 import { resetGymOwnerForTests } from '../../src/features/gym/offline/owner';
 import { TodayScreen } from '../../src/features/gym/today/today-screen';
 import { gymBootstrapQueryKey } from '../../src/features/gym/use-gym-bootstrap';
+import { describeValidationIssues } from '../../src/features/gym/validation-copy';
 import { makeBootstrap, makeDoc } from './gym-fixtures';
 import type { createTrpcGymMock } from './gym-trpc-mock';
 import { mutationResult } from './gym-trpc-mock';
+import { activeDoc } from './gym-workout-helpers';
 
 // `TodayScreen` (imported above) transitively imports `../../src/lib/trpc`
 // BEFORE this file's own `./gym-trpc-mock` import would run, so the factory
@@ -736,5 +739,158 @@ describe('TodayScreen', () => {
       await renderToday(queryClient);
       expect(screen.queryByTestId('gym-today-missed')).not.toBeOnTheScreen();
     });
+  });
+});
+
+// UX-GYM-02: a start tap used to land silently in the OTHER in-progress workout.
+describe('TodayScreen — starting while another workout is in progress (UX-GYM-02)', () => {
+  function seedActiveWithLoggedSet() {
+    const doc = activeDoc();
+    const [first] = doc.exercises;
+    if (!first) throw new Error('expected an exercise');
+    const logged = {
+      ...doc,
+      name: 'Lower A',
+      exercises: [
+        {
+          ...first,
+          sets: first.sets.map((set, i) =>
+            i === 1 ? { ...set, completedAt: new Date().toISOString() } : set,
+          ),
+        },
+      ],
+    };
+    activeSessionStore.set(logged, null);
+    return logged;
+  }
+
+  function seedBootstrap() {
+    const queryClient = makeClient();
+    queryClient.setQueryData(
+      gymBootstrapQueryKey,
+      makeBootstrap({ activeRoutine: ROUTINE, nextWorkout: NEXT_WORKOUT }),
+    );
+    return queryClient;
+  }
+
+  it('Start asks Resume / Finish & start / Discard & start instead of reopening the old workout', async () => {
+    const logged = seedActiveWithLoggedSet();
+    const user = userEvent.setup();
+    await renderToday(seedBootstrap());
+
+    await user.press(screen.getByTestId('gym-today-start'));
+
+    expect(screen.getByTestId('gym-start-conflict-body')).toHaveTextContent(
+      /You have 1 set logged in Lower A/,
+    );
+    expect(screen.getByTestId('gym-start-conflict-body')).toHaveTextContent(/start Upper A/);
+    expect(screen.getByTestId('gym-start-conflict-resume')).toBeOnTheScreen();
+    expect(screen.getByTestId('gym-start-conflict-finish')).toBeOnTheScreen();
+    expect(screen.getByTestId('gym-start-conflict-discard')).toBeOnTheScreen();
+    // Nothing happened yet: no navigation, the old workout is still the active one.
+    expect(router.push).not.toHaveBeenCalled();
+    expect(activeSessionStore.get()?.doc.id).toBe(logged.id);
+  });
+
+  it('Resume goes back to the workout in progress', async () => {
+    seedActiveWithLoggedSet();
+    const user = userEvent.setup();
+    await renderToday(seedBootstrap());
+
+    await user.press(screen.getByTestId('gym-today-start'));
+    await user.press(screen.getByTestId('gym-start-conflict-resume'));
+
+    expect(router.push).toHaveBeenCalledWith('/gym/workout');
+    expect(activeSessionStore.get()?.doc.name).toBe('Lower A');
+  });
+
+  it('Discard & start drops the old workout (queued as DISCARDED) and starts the chosen one', async () => {
+    const logged = seedActiveWithLoggedSet();
+    const user = userEvent.setup();
+    await renderToday(seedBootstrap());
+
+    await user.press(screen.getByTestId('gym-today-start'));
+    await user.press(screen.getByTestId('gym-start-conflict-discard'));
+
+    const active = activeSessionStore.get()?.doc;
+    expect(active?.name).toBe('Upper A');
+    expect(active?.id).not.toBe(logged.id);
+    expect(outbox.getState().entries.find((e) => e.doc.id === logged.id)?.doc.status).toBe(
+      'DISCARDED',
+    );
+    expect(router.push).toHaveBeenCalledWith('/gym/workout');
+  });
+
+  it('Finish & start completes the old workout (queued as COMPLETED) and starts the chosen one', async () => {
+    const logged = seedActiveWithLoggedSet();
+    const user = userEvent.setup();
+    await renderToday(seedBootstrap());
+
+    await user.press(screen.getByTestId('gym-today-start'));
+    await user.press(screen.getByTestId('gym-start-conflict-finish'));
+
+    await waitFor(() => expect(activeSessionStore.get()?.doc.name).toBe('Upper A'));
+    expect(outbox.getState().entries.find((e) => e.doc.id === logged.id)?.doc.status).toBe(
+      'COMPLETED',
+    );
+    expect(router.push).toHaveBeenCalledWith('/gym/workout');
+  });
+
+  it('Freestyle is guarded the same way', async () => {
+    seedActiveWithLoggedSet();
+    const user = userEvent.setup();
+    await renderToday(seedBootstrap());
+
+    await user.press(screen.getByTestId('gym-today-freestyle'));
+
+    expect(screen.getByTestId('gym-start-conflict-body')).toHaveTextContent(
+      /start a freestyle workout/,
+    );
+    expect(router.push).not.toHaveBeenCalled();
+  });
+});
+
+// UX-GYM-01: a rejected workout is surfaced on Today, in plain words, with a way to fix it.
+describe('TodayScreen — a workout that did not save (UX-GYM-01)', () => {
+  it('shows what is wrong and offers Fix it', async () => {
+    const doc = makeDoc(9, { name: 'Upper A' });
+    kv.setJSON(KV_KEYS.outbox, {
+      v: 1,
+      entries: [
+        {
+          doc,
+          ownerId: null,
+          enqueuedAt: '2026-09-20T00:00:00.000Z',
+          attempts: 1,
+          lastError: 'Number must be less than or equal to 1000',
+          lastAttemptAt: '2026-09-20T00:00:00.000Z',
+          parkedReason: describeValidationIssues([
+            { code: 'too_big', path: ['exercises', 0, 'sets', 0, 'weightKg'] },
+          ]),
+        },
+      ],
+      lastSyncAt: null,
+      failures: 0,
+      nextAttemptAt: null,
+      lastError: null,
+    });
+    outbox.reload();
+
+    const queryClient = makeClient();
+    queryClient.setQueryData(
+      gymBootstrapQueryKey,
+      makeBootstrap({ activeRoutine: ROUTINE, nextWorkout: NEXT_WORKOUT }),
+    );
+    const user = userEvent.setup();
+    await renderToday(queryClient);
+
+    expect(screen.getByText("Upper A didn't save")).toBeOnTheScreen();
+    const reason = screen.getByTestId(`gym-today-parked-${doc.id}-reason`);
+    expect(reason).toHaveTextContent(/above the 1000 kg/);
+    expect(reason).not.toHaveTextContent(/too_big|invalid/i);
+    await user.press(screen.getByTestId(`gym-today-parked-${doc.id}-fix`));
+    expect(router.push).toHaveBeenCalledWith(`/gym/workout?edit=${doc.id}`);
+    await user.press(screen.getByTestId(`gym-today-parked-${doc.id}-details`));
+    expect(router.push).toHaveBeenCalledWith('/gym/settings');
   });
 });
