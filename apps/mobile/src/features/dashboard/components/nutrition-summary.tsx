@@ -24,6 +24,8 @@ type Nutrition = RouterOutputs['dashboard']['summary']['nutrition'];
 
 const RING_SIZE = 128;
 const RING_STROKE = 12;
+// The widest a caption can be inside the ring without touching the stroke.
+export const RING_INNER_WIDTH = RING_SIZE - 2 * RING_STROKE - 16;
 
 function MacroBar({
   label,
@@ -113,8 +115,18 @@ export function NutritionSummary({
             value={n.eatenKcal}
             className="text-xl font-bold text-gray-900"
           />
-          <Text className="text-xs text-gray-500">
-            of {target.dailyCalorieTarget.toLocaleString('en-US')} kcal eaten
+          {/* UX-FOOD-24: "of 1,701 kcal eaten" ran into the stroke at 390 pt and
+              larger text. Short caption ("eaten" lives in the ring's accessible
+              name and the CountUp), held inside the ring's inner circle. */}
+          <Text
+            testID="calorie-ring-caption"
+            numberOfLines={1}
+            adjustsFontSizeToFit
+            minimumFontScale={0.8}
+            style={{ maxWidth: RING_INNER_WIDTH }}
+            className="text-center text-xs text-muted-foreground"
+          >
+            of {target.dailyCalorieTarget.toLocaleString('en-US')} kcal
           </Text>
         </ProgressRing>
         <Text testID="calorie-remaining" className="text-center text-xs text-gray-500">

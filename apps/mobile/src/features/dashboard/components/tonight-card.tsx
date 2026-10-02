@@ -126,7 +126,7 @@ export function TonightCard({
               portionMultiplier: logPortion,
             })
           }
-          className="min-h-11 items-center justify-center border-t border-border py-2.5"
+          className="min-h-12 items-center justify-center border-t border-border py-2.5"
         >
           <Text className="text-sm font-semibold text-primary">
             {logMutation.isPending ? 'Logging…' : 'I ate this'}

@@ -46,7 +46,7 @@ describe('NutritionSummary', () => {
     const ring = screen.getByTestId('calorie-ring');
     expect(ring).toHaveAccessibleName('800 of 2,000 kcal eaten today');
     expect(ring).toHaveAccessibilityValue({ min: 0, max: 100, now: 40 });
-    expect(screen.getByText('of 2,000 kcal eaten')).toBeOnTheScreen();
+    expect(screen.getByText('of 2,000 kcal')).toBeOnTheScreen();
     expect(screen.getByTestId('calorie-remaining')).toHaveTextContent('1,900 planned · 1,200 left');
     expect(screen.getByText('60g / 140g')).toBeOnTheScreen();
     expect(screen.getByTestId('calorie-count')).toHaveAccessibleName('800');
@@ -125,7 +125,7 @@ describe('NutritionSummary — training day (audit P2-4)', () => {
       'Training day · +250 kcal, +32 g protein',
     );
     expect(screen.getByText(/Full Body A done · protein at 2.2 g\/kg/)).toBeOnTheScreen();
-    expect(screen.getByText('of 2,250 kcal eaten')).toBeOnTheScreen();
+    expect(screen.getByText('of 2,250 kcal')).toBeOnTheScreen();
     expect(screen.getByText('60g / 172g')).toBeOnTheScreen();
     expect(screen.queryByTestId('training-day-upgrade')).toBeNull();
   });
@@ -138,7 +138,7 @@ describe('NutritionSummary — training day (audit P2-4)', () => {
     expect(screen.getByTestId('training-day-line')).toHaveTextContent(
       'Training day · +250 kcal, +32 g protein',
     );
-    expect(screen.getByText('of 2,000 kcal eaten')).toBeOnTheScreen();
+    expect(screen.getByText('of 2,000 kcal')).toBeOnTheScreen();
     await user.press(screen.getByTestId('training-day-upgrade'));
     expect(openPremium).toHaveBeenCalledWith('training-day');
   });

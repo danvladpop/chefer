@@ -95,6 +95,7 @@ export function HeroMealCard({ meal, isTomorrow }: { meal: HeroMeal; isTomorrow:
           <>
             <Button
               testID="today-ate-this"
+              size="lg"
               className="flex-1"
               loading={logMutation.isPending}
               onPress={() =>
