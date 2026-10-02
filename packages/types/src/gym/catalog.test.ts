@@ -119,8 +119,9 @@ describe('home variants (audit F-GYM-2-1)', () => {
   it('are all in the catalog with full coaching content', () => {
     // 77 + 2 library-staple additions (T-05.10, UX-05 A5): incline-barbell-
     // bench-press and back-extension. + 12 cardio entries (T-42.1).
-    // + cable-biceps-curl (owner request 2026-10-02).
-    expect(EXERCISE_CATALOG).toHaveLength(92);
+    // + cable-biceps-curl (owner request 2026-10-02). + 91 library-expansion
+    // rows (plan-library-supersets.md L1, 2026-10-02).
+    expect(EXERCISE_CATALOG).toHaveLength(183);
     for (const id of HOME_VARIANTS) {
       const e = EXERCISE_BY_ID.get(id);
       expect(e, id).toBeDefined();

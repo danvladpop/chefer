@@ -29,7 +29,13 @@ instead of hot-linked from `raw.githubusercontent.com` at runtime.
   `single-leg-calf-raise` and `pike-push-up` (audit F-GYM-2-1), plus the two
   T-05.10 additions carry real photos so this list is unchanged by them.
   Their detail screens rely on the cues and the video; `ExerciseImage`/
-  `PhotoCrossfade` show the icon placeholder.
+  `PhotoCrossfade` show the icon placeholder. The 91 rows added by the
+  2026-10 library expansion (`docs/gym/library-expansion/plan-library-supersets.md`
+  L1) also ship without photos, on purpose: free-exercise-db photo
+  provenance is an open owner decision (L-D1), so their `freeExerciseDbId`
+  stays null and nothing new is vendored here until it is answered. Their
+  candidate free-exercise-db and wger ids are recorded in
+  `docs/gym/library-expansion/sources.json`.
 - **Hidden photos** (file exists, but shows the wrong exercise — a
   free-exercise-db id near-miss): `plank` — both frames actually show a
   kneeling lunge stretch, not a plank. Found 2026-09-27 by a T-05.11 sample
@@ -43,7 +49,9 @@ instead of hot-linked from `raw.githubusercontent.com` at runtime.
   still served. Add a slug here and to that set when an audit finds another.
 - **Content gaps:** `incline-barbell-bench-press`, `back-extension`
   (T-05.10) and `cable-biceps-curl` (added 2026-10-02) have no `videoId` yet — no pick has been oEmbed-verified. Handoff
-  for whoever owns exercise-library-research.md next.
+  for whoever owns exercise-library-research.md next. The same applies to
+  every 2026-10 library-expansion row: no photo and no video until L-D1 is
+  decided and video picks are oEmbed-verified (decision L-D5).
 - **Format:** WebP, a "cover" crop (scaled up preserving aspect, then
   center-cropped to 600×400 — never stretched) at quality 78.
 - **Regenerating:** `scripts/gym/vendor-exercise-photos.ts` downloads,

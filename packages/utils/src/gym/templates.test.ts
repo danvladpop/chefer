@@ -844,15 +844,27 @@ describe('equipment access (audit F-GYM-2-1)', () => {
   });
 
   it('drops a slot when nothing in the set trains that pattern', () => {
+    // The adduction machine has no bodyweight counterpart in the catalog.
+    // (Until the 2026-10 library expansion this case was the abduction
+    // machine; the bodyweight clamshell now stands in for it — see below.)
+    const adduction = lookup('hip-adduction-machine');
+    if (!adduction) {
+      throw new Error('hip-adduction-machine');
+    }
+    expect(closestAccessibleAlternative(adduction, 'BODYWEIGHT')).toBeNull();
+    expect(resolveSlotExercise('hip-adduction-machine', 'BODYWEIGHT', lookup)).toBeNull();
+    expect(resolveSlotExercise('hip-adduction-machine', 'FULL_GYM', lookup)).toBe(
+      'hip-adduction-machine',
+    );
+  });
+
+  it('replaces the abduction machine with the bodyweight clamshell (same swap group and pattern)', () => {
     const abduction = lookup('hip-abduction-machine');
     if (!abduction) {
       throw new Error('hip-abduction-machine');
     }
-    expect(closestAccessibleAlternative(abduction, 'BODYWEIGHT')).toBeNull();
-    expect(resolveSlotExercise('hip-abduction-machine', 'BODYWEIGHT', lookup)).toBeNull();
-    expect(resolveSlotExercise('hip-abduction-machine', 'FULL_GYM', lookup)).toBe(
-      'hip-abduction-machine',
-    );
+    expect(closestAccessibleAlternative(abduction, 'BODYWEIGHT')?.id).toBe('clamshell');
+    expect(resolveSlotExercise('hip-abduction-machine', 'DUMBBELLS', lookup)).toBe('clamshell');
   });
 
   it('falls back to the engine when the curated swap table misses an exercise', () => {
