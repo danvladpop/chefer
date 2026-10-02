@@ -23,12 +23,12 @@ Chefer serves one person well today: a lifter on a fixed routine who cooks to a 
 
 **Step 0, this week:** run the Interview guide with your wife, two women from her group and her trainer. Build steps 2–4 only after that.
 
-| # | Change | Status today | Effort |
-| --- | --- | --- | --- |
-| 1 | **Let class-goers in, safely.** A setup path, "I train in classes", that asks how many classes a week (that becomes the weekly goal). It also keeps these sessions out of the progression engine, so they don't move a lifter's targets. | Freestyle exists but sits behind the routine wizard; the engine counts every session | M |
-| 2 | **Class check-in.** Set your weekly class times once. After each class: one tap for "went" or "skipped", plus effort. Duration, calories from your watch, a note and weights are optional. | New | M |
-| 3 | **Progress for varied training.** Classes per week against the goal, effort trend, which movement patterns were covered, "last time" weights | "Last time" already shown; the rest is new | M |
-| 4 | **Cardio** with time, distance and effort | Specced in the technical plan (W2/W5) | L |
+| #   | Change                                                                                                                                                                                                                                   | Status today                                                                         | Effort |
+| --- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------ | ------ |
+| 1   | **Let class-goers in, safely.** A setup path, "I train in classes", that asks how many classes a week (that becomes the weekly goal). It also keeps these sessions out of the progression engine, so they don't move a lifter's targets. | Freestyle exists but sits behind the routine wizard; the engine counts every session | M      |
+| 2   | **Class check-in.** Set your weekly class times once. After each class: one tap for "went" or "skipped", plus effort. Duration, calories from your watch, a note and weights are optional.                                               | New                                                                                  | M      |
+| 3   | **Progress for varied training.** Classes per week against the goal, effort trend, which movement patterns were covered, "last time" weights                                                                                             | "Last time" already shown; the rest is new                                           | M      |
+| 4   | **Cardio** with time, distance and effort                                                                                                                                                                                                | Specced in the technical plan (W2/W5)                                                | L      |
 
 All items ship on web and mobile. Circuits with timers and the trainer platform have moved to [Nice to have](./nice-to-have.md).
 
@@ -41,13 +41,13 @@ Nothing on the gym side uses AI. Every item above is plain rules and data.
 
 ### Food: what to build, in order
 
-| # | Change | Status today | Effort |
-| --- | --- | --- | --- |
-| 1 | **"Ate something else" or "Skipped"** on any planned meal: quick estimate, recents, or photo (premium) | Quick add can't replace a planned meal yet; no skipped state | M |
-| 2 | **Neutral copy:** drop "off-plan" and "log it honestly"; praise weekly averages, not perfect days | Partly planned (B-31) | S |
-| 3 | **Week rebalance that balances protein too**, free (it uses no AI) | Kcal only; premium today | M |
-| 4 | **"How do you eat" setting:** Full plan · Plan what I cook · Just guide me · No numbers | Parts exist (B-07, B-35) | M–L |
-| 5 | **Light modes:** protein only (about 1.6 g per kg) or a plate guide | Own targets planned (B-35) | M |
+| #   | Change                                                                                                 | Status today                                                 | Effort |
+| --- | ------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------ | ------ |
+| 1   | **"Ate something else" or "Skipped"** on any planned meal: quick estimate, recents, or photo (premium) | Quick add can't replace a planned meal yet; no skipped state | M      |
+| 2   | **Neutral copy:** drop "off-plan" and "log it honestly"; praise weekly averages, not perfect days      | Partly planned (B-31)                                        | S      |
+| 3   | **Week rebalance that balances protein too**, free (it uses no AI)                                     | Kcal only; premium today                                     | M      |
+| 4   | **"How do you eat" setting:** Full plan · Plan what I cook · Just guide me · No numbers                | Parts exist (B-07, B-35)                                     | M–L    |
+| 5   | **Light modes:** protein only (about 1.6 g per kg) or a plate guide                                    | Own targets planned (B-35)                                   | M      |
 
 For your wife's segment, protein only (5) probably matters more than a full plan. Revisit its place after the interviews. Cycle tracking is out of scope.
 
@@ -109,7 +109,7 @@ Three short conversations, about 20 minutes each, plus one timed test. The goal 
 
 ### 3. Timed check-in test (the first gate)
 
-- Right after a real class, show her a paper or Figma mock of the class check-in: "How was Tuesday 18:00?" with *went* or *skipped*, then effort 1–10. Optional extras: duration, watch calories, note, weights.
+- Right after a real class, show her a paper or Figma mock of the class check-in: "How was Tuesday 18:00?" with _went_ or _skipped_, then effort 1–10. Optional extras: duration, watch calories, note, weights.
 - Time it. **Target: under 10 seconds for the check-in alone.**
 - Note which optional fields she fills in without being asked. Those are the ones worth keeping.
 
@@ -141,7 +141,7 @@ The **Summary** tab is the current recommendation. This tab keeps the first-pass
   - "Budget" already means money in chefer, so F4 should say "weekly target".
 - **Evidence corrections.**
   - The 33% photo-underestimate figure is a NUTRITION 2026 conference abstract (NIH, 4 apps, 102 meals), not peer-reviewed.
-  - Kassiano 2022 also says *planned* variation helps.
+  - Kassiano 2022 also says _planned_ variation helps.
   - Conlin 2021's authors do not credit the lean-mass gain to the flexible diet.
   - Group and individual programmes are equivalent for activity levels ([Nature Human Behaviour 2026](https://www.nature.com/articles/s41562-026-02429-0)).
 - **Romanian data is now in the Summary.** The roadmap at the end of this tab is replaced by the Summary's order.
@@ -150,18 +150,18 @@ The **Summary** tab is the current recommendation. This tab keeps the first-pass
 
 I read this from the code and docs as they stand on master. The gym side is a strong engine for strength training on a fixed routine. The food side is a strong engine for planned, home-cooked weeks, with early tools for going off-plan.
 
-| Area | What exists | What it assumes about the user |
-| --- | --- | --- |
-| Routines | Templates (Full Body 2×/3×, Upper/Lower 4×, Push/Pull/Legs 6×), fully editable; rotation pointer; planned weekdays | You repeat the same days for weeks |
-| Logging | Sets of weight × reps with reps-in-reserve (how many reps you had left); warm-ups; offline-first; swap, skip or add for one session | Every exercise is a strength set; `isTimed` is the only escape hatch |
-| Progression | Per-exercise double progression with deload, stall and comeback offers (`ExerciseProgression` keyed by exercise + rep range) | Progress means more weight or reps on the same exercise |
-| Structure | `supersetGroup` on a routine exercise | Pairs at most; no rounds, timers or scores |
-| Profile | Experience (beginner / intermediate), equipment, weekly session goal, pause | One style of training |
-| Catalogue | 54 strength exercises with a `movementPattern` field; no cardio (30 cardio exercises are proposed in the 06 research) |  |
-| Meal plans | AI or curated weekly plans, "My weeks" templates, Sunday auto-plan, household, pantry, priced shopping list | You cook most meals at home from the plan |
-| Tracking | Tick planned meals with portion chips; quick add (free); chat "I ate this" (free); photo scan (premium) | Off-plan eating is the exception |
-| Adaptation | Adaptive Chef weekly review (kcal from adherence + weight trend); week rebalance after any log (premium, kcal only, swaps up to 2 future meals); training-day kcal/protein bump (premium, muscle-gain goal only) |  |
-| Onboarding | Intent (eat better / household / train) and goal (lose / maintain / gain muscle / eat healthier) | No "how do you train" or "how do you eat" question |
+| Area        | What exists                                                                                                                                                                                                      | What it assumes about the user                                       |
+| ----------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------- |
+| Routines    | Templates (Full Body 2×/3×, Upper/Lower 4×, Push/Pull/Legs 6×), fully editable; rotation pointer; planned weekdays                                                                                               | You repeat the same days for weeks                                   |
+| Logging     | Sets of weight × reps with reps-in-reserve (how many reps you had left); warm-ups; offline-first; swap, skip or add for one session                                                                              | Every exercise is a strength set; `isTimed` is the only escape hatch |
+| Progression | Per-exercise double progression with deload, stall and comeback offers (`ExerciseProgression` keyed by exercise + rep range)                                                                                     | Progress means more weight or reps on the same exercise              |
+| Structure   | `supersetGroup` on a routine exercise                                                                                                                                                                            | Pairs at most; no rounds, timers or scores                           |
+| Profile     | Experience (beginner / intermediate), equipment, weekly session goal, pause                                                                                                                                      | One style of training                                                |
+| Catalogue   | 54 strength exercises with a `movementPattern` field; no cardio (30 cardio exercises are proposed in the 06 research)                                                                                            |                                                                      |
+| Meal plans  | AI or curated weekly plans, "My weeks" templates, Sunday auto-plan, household, pantry, priced shopping list                                                                                                      | You cook most meals at home from the plan                            |
+| Tracking    | Tick planned meals with portion chips; quick add (free); chat "I ate this" (free); photo scan (premium)                                                                                                          | Off-plan eating is the exception                                     |
+| Adaptation  | Adaptive Chef weekly review (kcal from adherence + weight trend); week rebalance after any log (premium, kcal only, swaps up to 2 future meals); training-day kcal/protein bump (premium, muscle-gain goal only) |                                                                      |
+| Onboarding  | Intent (eat better / household / train) and goal (lose / maintain / gain muscle / eat healthier)                                                                                                                 | No "how do you train" or "how do you eat" question                   |
 
 The September persona study already points the same way. Its beachhead is "training cooks", and it calls for training that bends to a chaotic week (B-36), onboarding by job (B-03) and correctable snap-to-log (B-37). This report widens the gym half of that beachhead beyond the self-programmed lifter. It also gives the food half a clear model for eating out.
 
@@ -176,14 +176,14 @@ The self-programmed lifter is one of six or seven gym segments, and not the larg
 
 The two coached figures are historic highs ([HFA](https://www.healthandfitness.org/how-77-million-fitness-members-work-out-new-hfa-data-reveals-shifting-equipment-training-and-membership-trends/)). Group strength has grown from 30% to 36% of regular exercisers since 2018. 81% of Gen Z gym-goers do group workouts ([Les Mills 2026](https://www.lesmills.com/articles/2026-global-fitness-report-strength-and-wellness-to-drive-next-wave-of-member-growth), [Les Mills Gen Z](https://www.lesmills.com/us/clubs-and-facilities/research-insights/fitness-trends/landmark-report-lifts-the-lid-on-gen-z-fitness/)). 54% of Strava users track more than one activity type ([Strava 2025](https://www.prnewswire.com/news-releases/strava-releases-12th-annual-year-in-sport-trend-report-revealing-that-doomscrolling-is-out-movement-is-in-302631107.html)).
 
-| Segment | Rough size signal | What they want from an app | What "progress" means to them | Chefer fit today |
-| --- | --- | --- | --- | --- |
-| **Self-programmed lifter** (you) | 32% use free weights | A fixed plan, fast set logging, overload suggestions | More weight or reps on the same lifts; strength and size | Strong |
-| **Coached / small-group functional** (your wife) | 32% small-group, 22.6% PT | Log a workout someone else designed, quickly, after the class; see they're improving | Showing up, feeling fitter, lifting heavier dumbbells than last month, body changes | Weak: no circuits, combos or session-level logging |
-| **Class and studio goers** (Pilates, barre, F45, Orangetheory) | Pilates +66%, barre +30% ClassPass bookings in 2025 ([SGB](https://sgbonline.com/pilates-dominates-fitness-bookings-for-classpass-in-2025/)) | A record of attendance; minutes; maybe heart rate | Consistency and how they feel | None |
-| **Cardio / endurance** (run, bike, row, swim) | Treadmill is the most-used piece of kit; run clubs 3.5× on Strava | Duration, distance, pace, heart rate, wearable sync | Faster, longer, lower heart rate at the same pace | None; the 06 research has the model |
-| **Hybrid athlete** (lift + run, HYROX) | HYROX 1.5M athletes in 2025/26, 2M projected ([BoxRox](https://www.boxrox.com/hyrox-expands-global-2026-27-season-to-2-million-athletes-and-107-races/)) | Strength and conditioning in one place | Both lifts and times | Half |
-| **Casual / health** ("I should move more") | Mental wellbeing is the top reason for 78% ([ACSM 2026](https://acsm.org/top-fitness-trends-2026/)) | Low friction, encouragement, no jargon | Doing it at all; weekly minutes; mood | Partial: good beginner onboarding, but strength-only |
+| Segment                                                        | Rough size signal                                                                                                                                        | What they want from an app                                                           | What "progress" means to them                                                       | Chefer fit today                                     |
+| -------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------- | ---------------------------------------------------- |
+| **Self-programmed lifter** (you)                               | 32% use free weights                                                                                                                                     | A fixed plan, fast set logging, overload suggestions                                 | More weight or reps on the same lifts; strength and size                            | Strong                                               |
+| **Coached / small-group functional** (your wife)               | 32% small-group, 22.6% PT                                                                                                                                | Log a workout someone else designed, quickly, after the class; see they're improving | Showing up, feeling fitter, lifting heavier dumbbells than last month, body changes | Weak: no circuits, combos or session-level logging   |
+| **Class and studio goers** (Pilates, barre, F45, Orangetheory) | Pilates +66%, barre +30% ClassPass bookings in 2025 ([SGB](https://sgbonline.com/pilates-dominates-fitness-bookings-for-classpass-in-2025/))             | A record of attendance; minutes; maybe heart rate                                    | Consistency and how they feel                                                       | None                                                 |
+| **Cardio / endurance** (run, bike, row, swim)                  | Treadmill is the most-used piece of kit; run clubs 3.5× on Strava                                                                                        | Duration, distance, pace, heart rate, wearable sync                                  | Faster, longer, lower heart rate at the same pace                                   | None; the 06 research has the model                  |
+| **Hybrid athlete** (lift + run, HYROX)                         | HYROX 1.5M athletes in 2025/26, 2M projected ([BoxRox](https://www.boxrox.com/hyrox-expands-global-2026-27-season-to-2-million-athletes-and-107-races/)) | Strength and conditioning in one place                                               | Both lifts and times                                                                | Half                                                 |
+| **Casual / health** ("I should move more")                     | Mental wellbeing is the top reason for 78% ([ACSM 2026](https://acsm.org/top-fitness-trends-2026/))                                                      | Low friction, encouragement, no jargon                                               | Doing it at all; weekly minutes; mood                                               | Partial: good beginner onboarding, but strength-only |
 
 **Motivation differs more by format than by gender.** Group exercisers were 26% less likely to cancel their gym membership than gym-only members ([Health Club Management](https://www.healthclubmanagement.co.uk/health-club-management-features/GX-vs-gym/28885)). Women over-index on group and coached formats. They also rated fitness and enjoyment motives higher, while men rated appearance higher ([MDPI](https://www.mdpi.com/2075-4663/9/8/113)). "Women are social, men track numbers" is too simple, though. Women's weight-training uploads were Strava's fastest-growing category in 2024 ([Strava](https://press.strava.com/articles/strava-releases-annual-year-in-sport-trend)).
 
@@ -193,7 +193,7 @@ What looks chaotic is usually structured one level up. A good trainer keeps the 
 
 **Why trainers do it (with evidence):**
 
-- **Enjoyment and adherence, which is the main reason.** In an RCT with 121 inactive adults, a high-variety program produced higher adherence ([Sylvester 2016](https://link.springer.com/article/10.1007/s10865-015-9688-4)). In trained men, randomly varied exercises gave the same muscle and strength gains as a fixed plan. Motivation rose in the varied group and fell in the fixed group ([Baz-Valle 2019](https://journals.plos.org/plosone/article?id=10.1371%2Fjournal.pone.0226989)). Enjoyment *during* exercise predicts whether people keep exercising ([review](https://link.springer.com/article/10.1007/s12160-015-9704-5)).
+- **Enjoyment and adherence, which is the main reason.** In an RCT with 121 inactive adults, a high-variety program produced higher adherence ([Sylvester 2016](https://link.springer.com/article/10.1007/s10865-015-9688-4)). In trained men, randomly varied exercises gave the same muscle and strength gains as a fixed plan. Motivation rose in the varied group and fell in the fixed group ([Baz-Valle 2019](https://journals.plos.org/plosone/article?id=10.1371%2Fjournal.pone.0226989)). Enjoyment _during_ exercise predicts whether people keep exercising ([review](https://link.springer.com/article/10.1007/s12160-015-9704-5)).
 - **General fitness, not one quality.** High-intensity functional training is built from multi-joint movements that can be scaled to any level and are "constantly varied" ([Kennesaw](https://digitalcommons.kennesaw.edu/facpubs/4262/)). The goal is broad capacity: strength, power, stamina and coordination together.
 - **Group logistics.** Ten people share a limited set of dumbbells, balls and floor space. Stations and circuits keep everyone moving.
 - **"Muscle confusion" is not a real reason.** Muscles adapt; they don't get confused. Too much random change does cost something: a review of 8 studies warns that excessive random variation can blunt gains ([Kassiano 2022](https://newbaselineclimbing.com/does-varying-resistance-exercises-promote-superior-muscle-hypertrophy-and-strength-gains-a-systematic-review/), secondary summary). Good trainers rotate exercises and keep the patterns.
@@ -212,20 +212,20 @@ What looks chaotic is usually structured one level up. A good trainer keeps the 
 
 The principle: **one data model, several ways in.** The routine, progression engine and offline logging stay as they are for lifters. Everything below is additive. Each item has an ID (G1–G9) for the roadmap.
 
-**G1. "Log what I did" without a routine.** A session can already exist without a routine (`routineId` is nullable). Make that a first-class entry point on the Gym home: *Start empty*, *Repeat a past session*, or *Import*. After class, she picks exercises from recents, ticks rounds, and optionally adds weights. Weight and reps per set become optional. A ticked exercise with no numbers still counts.
+**G1. "Log what I did" without a routine.** A session can already exist without a routine (`routineId` is nullable). Make that a first-class entry point on the Gym home: _Start empty_, _Repeat a past session_, or _Import_. After class, she picks exercises from recents, ticks rounds, and optionally adds weights. Weight and reps per set become optional. A ticked exercise with no numbers still counts.
 
 **G2. Workout blocks.** Add one layer between session and exercise: a block with a type. The existing `supersetGroup` becomes a special case.
 
-| Block type | Example | What is logged | Score |
-| --- | --- | --- | --- |
-| Straight sets | Bench 3×8 | weight × reps per set (today) | per-exercise progression (today) |
-| Superset / circuit | 3 rounds: lunge-press, ball slams, plank | rounds completed; optional load per exercise | rounds |
-| AMRAP | As many rounds as possible in 12 min | time cap | rounds + reps |
-| EMOM | Every minute on the minute, 10 min | minutes, reps per minute | reps |
-| For time | 50 burpees for time | target work | time |
-| Intervals | 8 × (30 s on / 90 s off) | work and rest seconds | completed intervals |
+| Block type         | Example                                  | What is logged                               | Score                            |
+| ------------------ | ---------------------------------------- | -------------------------------------------- | -------------------------------- |
+| Straight sets      | Bench 3×8                                | weight × reps per set (today)                | per-exercise progression (today) |
+| Superset / circuit | 3 rounds: lunge-press, ball slams, plank | rounds completed; optional load per exercise | rounds                           |
+| AMRAP              | As many rounds as possible in 12 min     | time cap                                     | rounds + reps                    |
+| EMOM               | Every minute on the minute, 10 min       | minutes, reps per minute                     | reps                             |
+| For time           | 50 burpees for time                      | target work                                  | time                             |
+| Intervals          | 8 × (30 s on / 90 s off)                 | work and rest seconds                        | completed intervals              |
 
-With a built-in timer (countdown, EMOM beep, round counter), the app becomes useful *during* a class too. Competitors split here: Strong and Hevy treat circuits as long supersets with no rounds or score. SugarWOD and WodBuddy model AMRAP, EMOM and For Time properly. Trainerize has explicit Circuit and Interval types. Chefer can have both.
+With a built-in timer (countdown, EMOM beep, round counter), the app becomes useful _during_ a class too. Competitors split here: Strong and Hevy treat circuits as long supersets with no rounds or score. SugarWOD and WodBuddy model AMRAP, EMOM and For Time properly. Trainerize has explicit Circuit and Interval types. Chefer can have both.
 
 **G3. Combo movements.** "Lunge + overhead press" should not need its own catalogue entry. Let a user build a combo from 2–3 catalogue movements. It takes one load, its muscles are the union of its parts, and its pattern tags are inherited, so it still counts toward lunge and vertical push. A curated set of the 20–30 most common combos (thruster, clean and press, burpee to box jump, lunge + curl) covers most classes.
 
@@ -260,14 +260,14 @@ Also add three things:
 
 ### Should chefer have user types?
 
-Yes, but as preferences that set defaults, not as identities that gate features. Your instinct is right that one UI can't serve the lifter, the class-goer and the runner equally. A rigid "type" breaks for the many people who mix: Strava's 54% multi-activity users, hybrid athletes, and a lifter who also runs on Sundays. Among the apps I checked, only Ladder routes users by preferred training *style* at onboarding. Fitbod and JEFIT personalise by goal and experience.
+Yes, but as preferences that set defaults, not as identities that gate features. Your instinct is right that one UI can't serve the lifter, the class-goer and the runner equally. A rigid "type" breaks for the many people who mix: Strava's 54% multi-activity users, hybrid athletes, and a lifter who also runs on Sundays. Among the apps I checked, only Ladder routes users by preferred training _style_ at onboarding. Fitbod and JEFIT personalise by goal and experience.
 
 **Recommended shape: two short questions, multi-select, changeable any time in Gym settings.**
 
-| Question | Options | What it changes |
-| --- | --- | --- |
-| **How do you train?** (pick all that apply) | I follow my own program · I train with a coach or in classes · Cardio: running, cycling, rowing · A bit of everything / just starting | Gym home screen, default logging mode, which blocks show first, whether routine setup is offered |
-| **What's it for?** (pick one main) | Build muscle · Get stronger · Lose fat · Fitness and health · Train for an event | Which progress charts lead, nutrition targets (protein, training-day carbs), copy and encouragement |
+| Question                                    | Options                                                                                                                               | What it changes                                                                                     |
+| ------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------- |
+| **How do you train?** (pick all that apply) | I follow my own program · I train with a coach or in classes · Cardio: running, cycling, rowing · A bit of everything / just starting | Gym home screen, default logging mode, which blocks show first, whether routine setup is offered    |
+| **What's it for?** (pick one main)          | Build muscle · Get stronger · Lose fat · Fitness and health · Train for an event                                                      | Which progress charts lead, nutrition targets (protein, training-day carbs), copy and encouragement |
 
 How the defaults play out:
 
@@ -289,13 +289,13 @@ The typical user is neither a meal-prepper nor a delivery addict. They are a hyb
 
 Romania leans more toward home cooking. Food at home is 23.1% of household spending versus 13.2% for the EU ([Eurostat](https://ec.europa.eu/eurostat/statistics-explained/index.php?title=Household_consumption_by_purpose)). Delivery is still growing fast there: Glovo orders were up 26% in 2025, 34% in Bucharest ([Bugetul](https://www.bugetul.ro/piata-food-delivery-romania-2026-glovo-bolt-wolt-miliarde-euro/), press figures). I found no Romanian survey of how often people order, which is worth asking your own users.
 
-| Segment | What they want | What breaks them in a strict plan | Chefer fit today |
-| --- | --- | --- | --- |
-| **Planner / meal-prepper** | A week decided for them, macros hit, one shopping list | Rigid days that don't match batch cooking (B-09) | Strong |
+| Segment                         | What they want                                                        | What breaks them in a strict plan                                          | Chefer fit today                                                           |
+| ------------------------------- | --------------------------------------------------------------------- | -------------------------------------------------------------------------- | -------------------------------------------------------------------------- |
+| **Planner / meal-prepper**      | A week decided for them, macros hit, one shopping list                | Rigid days that don't match batch cooking (B-09)                           | Strong                                                                     |
 | **Hybrid eater** (the majority) | A plan for the meals they cook, and a painless way to handle the rest | Every meal out reads as "off plan"; the plan and list assume 21 home meals | Partial: quick add and rebalance exist; rebalance is premium and kcal-only |
-| **Mostly eats out / delivery** | Help choosing *what* to order; rough numbers | Recipes and shopping lists are irrelevant | Weak |
-| **Precision tracker** | Their own targets, fast accurate logging, correctable photos | Wrong targets; can't fix estimates (B-35, B-37) | Partial |
-| **Non-counter / intuitive** | Eat well for training without numbers | Calorie rings, red numbers, "failed" days | Weak: the calorie ring is the default home (B-31 already says stop) |
+| **Mostly eats out / delivery**  | Help choosing _what_ to order; rough numbers                          | Recipes and shopping lists are irrelevant                                  | Weak                                                                       |
+| **Precision tracker**           | Their own targets, fast accurate logging, correctable photos          | Wrong targets; can't fix estimates (B-35, B-37)                            | Partial                                                                    |
+| **Non-counter / intuitive**     | Eat well for training without numbers                                 | Calorie rings, red numbers, "failed" days                                  | Weak: the calorie ring is the default home (B-31 already says stop)        |
 
 **Why strict tracking fails so often.**
 
@@ -317,18 +317,18 @@ The principle mirrors the gym side: **the plan is a default, not a contract.** E
 
 **F1. A "how do you eat?" setting with four levels.** Changeable any time; it sets defaults, not locks.
 
-| Level | Who | Plan | Tracking | Home shows |
-| --- | --- | --- | --- | --- |
-| Full plan | Planners, preppers | All meals | Tick planned meals | Today's meals + macros |
-| Plan what I cook | Hybrid eaters | Only chosen slots (e.g. dinners, or weekday lunches); B-07 | Planned meals + quick logs for the rest | Tonight's dinner + protein so far |
-| Guide me, no plan | Mostly eat out | None (recipes optional) | Optional photo/describe logs | Protein target, ordering tips, weekly trend |
-| No numbers | Non-counters | Optional | None; plate or hand portions only | Meal ideas, plate guide, training-day tips |
+| Level             | Who                | Plan                                                       | Tracking                                | Home shows                                  |
+| ----------------- | ------------------ | ---------------------------------------------------------- | --------------------------------------- | ------------------------------------------- |
+| Full plan         | Planners, preppers | All meals                                                  | Tick planned meals                      | Today's meals + macros                      |
+| Plan what I cook  | Hybrid eaters      | Only chosen slots (e.g. dinners, or weekday lunches); B-07 | Planned meals + quick logs for the rest | Tonight's dinner + protein so far           |
+| Guide me, no plan | Mostly eat out     | None (recipes optional)                                    | Optional photo/describe logs            | Protein target, ordering tips, weekly trend |
+| No numbers        | Non-counters       | Optional                                                   | None; plate or hand portions only       | Meal ideas, plate guide, training-day tips  |
 
 **F2. "I ate something else" on every planned meal.** One tap on a planned slot opens:
 
-- *Ate out / ordered*: photo, describe in words, or pick a cuisine and size (light / normal / big)
-- *Ate something from home*: recents and favourites
-- *Skipped it*
+- _Ate out / ordered_: photo, describe in words, or pick a cuisine and size (light / normal / big)
+- _Ate something from home_: recents and favourites
+- _Skipped it_
 
 The estimate is logged and the planned recipe's ingredients go back to the pantry, so they can be reused later in the week. Quick add and chat logging already exist. This puts them where the decision actually happens.
 
@@ -343,7 +343,7 @@ Show a **weekly** calorie and protein budget alongside the daily one. Chefer's e
 - explain each swap in one line (B-11)
 - give free users the explanation ("you're 600 kcal over for the week; here's how Thursday could absorb it") even if the automatic swap stays premium
 
-**F5. Menu and delivery helper.** For people who eat out a lot, the useful moment is *before* ordering. Snap a menu, or pick a cuisine (shawarma, pizza, sushi, burger, Romanian lunch menu), and chefer suggests the best fit for what's left of today's protein and calories. This is a likely differentiator: no checked competitor does it well. Glovo, Bolt Food and Wolt deep links are a possible later partnership (the persona study lists them as "partners, not rivals").
+**F5. Menu and delivery helper.** For people who eat out a lot, the useful moment is _before_ ordering. Snap a menu, or pick a cuisine (shawarma, pizza, sushi, burger, Romanian lunch menu), and chefer suggests the best fit for what's left of today's protein and calories. This is a likely differentiator: no checked competitor does it well. Glovo, Bolt Food and Wolt deep links are a possible later partnership (the persona study lists them as "partners, not rivals").
 
 **F6. Honest photo estimates.** AI photo apps under-estimated weighed meals by about 33%, mostly fat ([NIH 2026 abstract via Medical Daily](https://www.medicaldaily.com/ai-calorie-tracking-apps-underestimate-calories-fat-nih-study-2026-476487)). After a scan, ask one follow-up ("Was it cooked in oil or with a sauce?") and round up for restaurant food. Show the estimate as a range. This is B-37 plus a bias fix.
 
@@ -366,26 +366,26 @@ The Adaptive Chef review should then work on partial data: use the weight trend 
 
 Chefer's moat is the link between the two halves, so every new training style should feed the food side. Today's training-day bump only fires for muscle-gain lifters with a finished or scheduled routine. Widen it (B-06) so that any logged session counts, whether a class, a run or a lift, and so the type of session shapes the adjustment:
 
-| Session type | Food adjustment on that day |
-| --- | --- |
-| Strength (routine or class) | Protein emphasis; a modest kcal bump if the goal is muscle |
-| Conditioning / HIIT class | Kcal bump from effort × minutes; post-session protein + carbs |
-| Long cardio (60 min+) | Carbs before and after; fluids reminder |
-| Rest day | Base targets; no guilt copy |
+| Session type                | Food adjustment on that day                                   |
+| --------------------------- | ------------------------------------------------------------- |
+| Strength (routine or class) | Protein emphasis; a modest kcal bump if the goal is muscle    |
+| Conditioning / HIIT class   | Kcal bump from effort × minutes; post-session protein + carbs |
+| Long cardio (60 min+)       | Carbs before and after; fluids reminder                       |
+| Rest day                    | Base targets; no guilt copy                                   |
 
-**Competitive map.** No checked app covers the varied trainee *and* the flexible eater *and* planned cooking. Ladder comes closest on the gym and logging side, but it has no meal planning.
+**Competitive map.** No checked app covers the varied trainee _and_ the flexible eater _and_ planned cooking. Ladder comes closest on the gym and logging side, but it has no meal planning.
 
-| App | Fixed-routine lifting | Varied / class / circuits | Cardio | Meal planning | Flexible / eat-out logging |
-| --- | --- | --- | --- | --- | --- |
-| **Chefer today** | Strong | Weak | None | Strong | Partial (week rebalance) |
-| [Hevy](https://www.hevyapp.com/features/track-workouts/) / [Strong](https://help.strongapp.io/article/98-supersets-and-circuits) | Strong | Supersets only | Duration / distance | — | — |
-| [Fitbod](https://help.fitbod.me/hc/en-us/articles/360004429814-How-Fitbod-Creates-Your-Workout) | AI-generated, varies each session | Circuits | Imports from Health / Strava | — | — |
-| [SugarWOD](https://www.sugarwod.com/athlete-features/) / [WodBuddy](https://wodbuddy.app/) | — | AMRAP / EMOM / For Time; whiteboard photo import | Partial | — | — |
-| [Trainerize](https://help.trainerize.com/hc/en-us/articles/208688896-What-Types-of-Workouts-Can-I-Create) | Trainer-built | Circuit + Interval types | Watch | Trainer add-on | Partial |
-| [Ladder](https://www.joinladder.com/) | Coach programs | New coach workouts weekly; team community | Partial | — | Nutrition logging |
-| [MacroFactor](https://macrofactor.com/new-food-logger/) | Workouts add-on | — | — | — | Strong: quick add, AI describe, adherence-neutral |
-| [MyFitnessPal](https://www.prnewswire.com/news-releases/myfitnesspal-announces-its-2025-summer-release-302536319.html) (+ Cal AI) | — | — | Syncs | Premium+ planner | Strong: restaurants, scan |
-| [Eat This Much](https://blog.eatthismuch.com/eat-this-much-tutorial-8-traking-what-you-eat-and-your-progress/) | — | — | — | Strong | Regenerates the rest of the **day** |
+| App                                                                                                                               | Fixed-routine lifting             | Varied / class / circuits                        | Cardio                       | Meal planning    | Flexible / eat-out logging                        |
+| --------------------------------------------------------------------------------------------------------------------------------- | --------------------------------- | ------------------------------------------------ | ---------------------------- | ---------------- | ------------------------------------------------- |
+| **Chefer today**                                                                                                                  | Strong                            | Weak                                             | None                         | Strong           | Partial (week rebalance)                          |
+| [Hevy](https://www.hevyapp.com/features/track-workouts/) / [Strong](https://help.strongapp.io/article/98-supersets-and-circuits)  | Strong                            | Supersets only                                   | Duration / distance          | —                | —                                                 |
+| [Fitbod](https://help.fitbod.me/hc/en-us/articles/360004429814-How-Fitbod-Creates-Your-Workout)                                   | AI-generated, varies each session | Circuits                                         | Imports from Health / Strava | —                | —                                                 |
+| [SugarWOD](https://www.sugarwod.com/athlete-features/) / [WodBuddy](https://wodbuddy.app/)                                        | —                                 | AMRAP / EMOM / For Time; whiteboard photo import | Partial                      | —                | —                                                 |
+| [Trainerize](https://help.trainerize.com/hc/en-us/articles/208688896-What-Types-of-Workouts-Can-I-Create)                         | Trainer-built                     | Circuit + Interval types                         | Watch                        | Trainer add-on   | Partial                                           |
+| [Ladder](https://www.joinladder.com/)                                                                                             | Coach programs                    | New coach workouts weekly; team community        | Partial                      | —                | Nutrition logging                                 |
+| [MacroFactor](https://macrofactor.com/new-food-logger/)                                                                           | Workouts add-on                   | —                                                | —                            | —                | Strong: quick add, AI describe, adherence-neutral |
+| [MyFitnessPal](https://www.prnewswire.com/news-releases/myfitnesspal-announces-its-2025-summer-release-302536319.html) (+ Cal AI) | —                                 | —                                                | Syncs                        | Premium+ planner | Strong: restaurants, scan                         |
+| [Eat This Much](https://blog.eatthismuch.com/eat-this-much-tutorial-8-traking-what-you-eat-and-your-progress/)                    | —                                 | —                                                | —                            | Strong           | Regenerates the rest of the **day**               |
 
 The gap chefer can own: **"the app that plans your food around however you train"**. That covers a lifter's split, a Tuesday class with friends, a Saturday long run, and the Friday pizza you planned for.
 
