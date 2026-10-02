@@ -95,6 +95,34 @@ describe('resolveTodayMeals — advancing past logged meals (F-PM-10)', () => {
   });
 });
 
+describe('resolveTodayMeals — dinner done follows the log (UX-PLAN-01)', () => {
+  it('a different dinner logged earlier (plan regenerated since) still counts as dinner done', () => {
+    const r = resolveTodayMeals(threeMeals, 19, [{ recipeId: 'pad-thai', mealType: 'dinner' }]);
+    expect(r.next).toBeNull();
+    expect(r.eaten).toEqual([dinner]);
+  });
+
+  it('one stray entry covers one slot of its type only', () => {
+    const twoLunches = [lunch, { type: 'lunch', recipeId: 'soup' }, dinner];
+    const r = resolveTodayMeals(twoLunches, 11, [{ recipeId: 'ramen', mealType: 'lunch' }]);
+    expect(r.eaten).toEqual([lunch]);
+    expect(r.next).toEqual({ type: 'lunch', recipeId: 'soup' });
+  });
+
+  it('an entry that matches a slot is not also counted as a stray', () => {
+    const r = resolveTodayMeals(threeMeals, 12, [{ recipeId: 'oats', mealType: 'lunch' }]);
+    // The breakfast recipe logged under lunch claims breakfast (cross-type),
+    // so lunch is still open.
+    expect(r.eaten).toEqual([breakfast]);
+    expect(r.next).toBe(lunch);
+  });
+
+  it('a stray snack does not swallow the planned snack', () => {
+    const r = resolveTodayMeals(fourMeals, 15, [{ recipeId: 'chips', mealType: 'snack' }]);
+    expect(r.next).toBe(snack);
+  });
+});
+
 describe('isSlotEaten', () => {
   it('matches by recipe, not by meal type alone', () => {
     expect(isSlotEaten(lunch, [{ recipeId: 'other', mealType: 'lunch' }])).toBe(false);

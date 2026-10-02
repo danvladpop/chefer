@@ -7,6 +7,7 @@ import {
   checkMacroSanity,
   formatQuickAddGrams,
   QUICK_ADD_MEAL_TYPES,
+  userFacingErrorMessage,
   type CustomEntryRow,
   type QuickAddMealType,
 } from '@chefer/utils';
@@ -169,7 +170,8 @@ export function EditEntrySheet({
     );
 
     deleteMutation.mutate(
-      { date, entryIndex },
+      // UX-FOOD-17: by stable id (the index is only the fallback).
+      { date, entryId, entryIndex },
       {
         onSuccess: () => {
           invalidateDayQueries(utils, date);
@@ -188,7 +190,12 @@ export function EditEntrySheet({
             },
           });
         },
-        onError: () => void utils.tracker.getDay.invalidate({ date }),
+        // The row was spliced out optimistically — put it back by re-reading
+        // the day, and say why (UX-FOOD-06).
+        onError: (error) => {
+          void utils.tracker.getDay.invalidate({ date });
+          showToast(`Couldn't delete ${entry.name}. ${userFacingErrorMessage(error)}`);
+        },
       },
     );
   };

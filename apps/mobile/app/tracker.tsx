@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { ActivityIndicator, Image, Pressable, ScrollView, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
@@ -7,11 +7,13 @@ import {
   cn,
   customEntryChipLabel,
   customEntryRows,
-  customEntryTotals,
   formatPortion,
   localDateStr,
-  matchLoggedToSlots,
+  plannedRowKey,
   slotPortion,
+  sumLogged,
+  tickStateFromLog,
+  userFacingErrorMessage,
   type CustomEntryRow,
 } from '@chefer/utils';
 import { MealTypeBadge } from '../src/features/dashboard/components/meal-type-badge';
@@ -19,11 +21,13 @@ import { TrainingDayNote } from '../src/features/dashboard/components/training-d
 import { ChangeNoticeCard } from '../src/features/nutrition/change-notice-card';
 import { TargetExplainSheet } from '../src/features/nutrition/target-explain-sheet';
 import { EditEntrySheet } from '../src/features/tracker/edit-entry-sheet';
+import { EditRecipeEntrySheet } from '../src/features/tracker/edit-recipe-entry-sheet';
 import { invalidateDayQueries } from '../src/features/tracker/invalidate';
 import { QuickAddSheet } from '../src/features/tracker/quick-add-sheet';
 import { RebalanceBanner } from '../src/features/tracker/rebalance-banner';
 import { recordRebalance } from '../src/features/tracker/rebalance-store';
 import { ScanMealCard } from '../src/features/tracker/scan-meal-card';
+import { useTrackerWrites } from '../src/features/tracker/use-tracker-writes';
 import { getRecipeImageUrl } from '../src/lib/recipe-image';
 import { trpc } from '../src/lib/trpc';
 
@@ -38,7 +42,7 @@ type PortionKey = number;
  * A planned row's key: its plan slot, so two identical snacks are two rows
  * that tick separately (they used to share `recipeId:mealType`).
  */
-const keyOf = (meal: { slotIndex?: number }, i: number): string => String(meal.slotIndex ?? i);
+const keyOf = plannedRowKey;
 
 const PORTION_OPTIONS: PortionKey[] = [0.5, 1, 1.5, 2];
 
@@ -103,14 +107,11 @@ export default function TrackerScreen() {
   // bumped targets (audit P2-4); everyone else keeps the base.
   const dayTargets = data?.adjustedTargets ?? data?.targets;
 
-  const [checkedMeals, setCheckedMeals] = useState<
-    Record<string, { checked: boolean; portion: PortionKey }>
-  >({});
   const [quickAddOpen, setQuickAddOpen] = useState(false);
   const [explainOpen, setExplainOpen] = useState(false);
   const [copyDayOpen, setCopyDayOpen] = useState(false);
   const [editingEntry, setEditingEntry] = useState<CustomEntryRow | null>(null);
-  const [initialised, setInitialised] = useState<string | null>(null);
+  const [editingRecipeEntryId, setEditingRecipeEntryId] = useState<string | null>(null);
 
   // §2.11, T-11.2: the same resolved view targets.get exposes, for "Why this
   // number" (AC3, tapping the totals card). A no-op fetch when the sheet
@@ -118,122 +119,95 @@ export default function TrackerScreen() {
   // critical path.
   const { data: targetsView } = trpc.targets.get.useQuery(undefined, { enabled: explainOpen });
 
-  // Pre-populate from the existing log, once per date (same rules as web:
-  // custom entries have no recipeId and are preserved verbatim on save).
-  // Each logged entry ticks ONE slot (matchLoggedToSlots): its own slot when
-  // it carries a slotIndex, else the first free slot of its recipe and type.
-  useEffect(() => {
-    if (!data || initialised === dateStr) {
-      return;
-    }
-    if (data.log) {
-      const init: Record<string, { checked: boolean; portion: PortionKey }> = {};
-      const matched = matchLoggedToSlots(
-        data.plannedMeals.map((m, i) => ({
-          type: m.mealType,
-          recipeId: m.recipeId,
-          slotIndex: m.slotIndex ?? i,
-        })),
-        data.log.loggedMeals,
-      );
-      data.plannedMeals.forEach((m, i) => {
-        const entry = matched[i];
-        if (entry) {
-          init[keyOf(m, i)] = { checked: true, portion: entry.portionMultiplier };
-        }
-      });
-      setCheckedMeals(init);
-    } else {
-      setCheckedMeals({});
-    }
-    setInitialised(dateStr);
-  }, [data, dateStr, initialised]);
+  // UX-FOOD-01: ticks and totals are DERIVED from the cached day on every
+  // render — there is no once-a-day copy in component state, so Undo, a log
+  // made on Today or a write that failed can never leave the screen out of
+  // step with the server. Taps edit that cached day optimistically (see
+  // useTrackerWrites: rolled back on error, re-fetched on settle).
+  const ticks = tickStateFromLog(data?.plannedMeals ?? [], data?.log?.loggedMeals ?? []);
 
   // ─── One-save model (bug B-23, T-19.4) — every tick/portion change saves
   // immediately through logRecipe/unlogRecipe; there is no Save Day. ────────
-  const logRecipeMutation = trpc.tracker.logRecipe.useMutation({
-    onSuccess: (result) => {
-      recordRebalance(result.rebalance);
-      invalidateDayQueries(utils, dateStr);
-    },
-  });
-  const unlogRecipeMutation = trpc.tracker.unlogRecipe.useMutation({
-    onSuccess: () => invalidateDayQueries(utils, dateStr),
-  });
+  const {
+    logRecipe: logRecipeMutation,
+    unlogRecipe: unlogRecipeMutation,
+    deleteCustom: deleteCustomMutation,
+    deleteEntries: deleteEntriesMutation,
+    restoreCustom: restoreCustomMutation,
+    updateRecipeEntry: updateRecipeEntryMutation,
+  } = useTrackerWrites(dateStr);
   const copyDayMutation = trpc.tracker.copyDay.useMutation();
-  const deleteEntriesMutation = trpc.tracker.deleteEntries.useMutation({
-    onSuccess: () => invalidateDayQueries(utils, dateStr),
-  });
-  const deleteCustomMutation = trpc.tracker.deleteCustomMeal.useMutation();
-  const restoreCustomMutation = trpc.tracker.restoreCustomMeal.useMutation({
-    onSuccess: () => invalidateDayQueries(utils, dateStr),
-  });
 
   const planned = (data?.plannedMeals ?? []).map((m, i) => ({ ...m, key: keyOf(m, i) }));
   type PlannedRow = (typeof planned)[number];
 
-  const logSlot = (meal: PlannedRow, portionMultiplier: PortionKey) => {
-    logRecipeMutation.mutate({
-      date: dateStr,
-      recipeId: meal.recipeId,
-      mealType: meal.mealType,
-      portionMultiplier,
-      ...(meal.slotIndex !== undefined && { slotIndex: meal.slotIndex }),
-    });
+  const logSlot = (meal: PlannedRow, portionMultiplier: PortionKey, onSuccess?: () => void) => {
+    logRecipeMutation.mutate(
+      {
+        date: dateStr,
+        recipeId: meal.recipeId,
+        mealType: meal.mealType,
+        portionMultiplier,
+        ...(meal.slotIndex !== undefined && { slotIndex: meal.slotIndex }),
+      },
+      onSuccess ? { onSuccess } : {},
+    );
   };
-
-  const toggleMeal = (meal: PlannedRow) => {
-    const wasChecked = checkedMeals[meal.key]?.checked ?? false;
-    const portion = checkedMeals[meal.key]?.portion ?? planPortionOf(meal);
-    setCheckedMeals((prev) => ({ ...prev, [meal.key]: { checked: !wasChecked, portion } }));
-    if (!wasChecked) {
-      logSlot(meal, portion);
-      snackbar.show({
-        message: `Logged ${meal.mealType}`,
-        actionLabel: 'Undo',
-        onAction: () =>
-          unlogRecipeMutation.mutate({
-            date: dateStr,
-            recipeId: meal.recipeId,
-            mealType: meal.mealType,
-            ...(meal.slotIndex !== undefined && { slotIndex: meal.slotIndex }),
-          }),
-        tone: 'success',
-      });
-    } else {
-      unlogRecipeMutation.mutate({
+  const unlogSlot = (meal: PlannedRow, onSuccess?: () => void) => {
+    unlogRecipeMutation.mutate(
+      {
         date: dateStr,
         recipeId: meal.recipeId,
         mealType: meal.mealType,
         ...(meal.slotIndex !== undefined && { slotIndex: meal.slotIndex }),
-      });
-      snackbar.show({
-        message: `Removed ${meal.mealType}`,
-        actionLabel: 'Undo',
-        onAction: () => logSlot(meal, portion),
-      });
+      },
+      onSuccess ? { onSuccess } : {},
+    );
+  };
+
+  // The snackbar confirms only once the server has said yes (UX-FOOD-06): a
+  // failed write shows the reason instead (useTrackerWrites) and the tick
+  // goes back.
+  const toggleMeal = (meal: PlannedRow) => {
+    const wasChecked = ticks[meal.key]?.checked ?? false;
+    const portion = ticks[meal.key]?.portion ?? planPortionOf(meal);
+    if (!wasChecked) {
+      logSlot(meal, portion, () =>
+        snackbar.show({
+          message: `Logged ${meal.mealType}`,
+          actionLabel: 'Undo',
+          onAction: () => unlogSlot(meal),
+          tone: 'success',
+        }),
+      );
+    } else {
+      unlogSlot(meal, () =>
+        snackbar.show({
+          message: `Removed ${meal.mealType}`,
+          actionLabel: 'Undo',
+          onAction: () => logSlot(meal, portion),
+        }),
+      );
     }
   };
 
-  const setPortion = (meal: PlannedRow, portion: PortionKey) => {
-    setCheckedMeals((prev) => ({ ...prev, [meal.key]: { checked: true, portion } }));
-    logSlot(meal, portion);
-  };
+  const setPortion = (meal: PlannedRow, portion: PortionKey) => logSlot(meal, portion);
 
   const changeDate = (delta: number) => {
     setSelectedDate((d) => addDays(d, delta));
-    setCheckedMeals({});
-    setInitialised(null);
   };
 
   const deleteCustomEntry = (row: CustomEntryRow) => {
     if (deleteCustomMutation.isPending) return;
     const entryId = row.entryId;
     deleteCustomMutation.mutate(
-      { date: dateStr, entryIndex: row.entryIndex },
+      // UX-FOOD-17: by stable id when the row has one (the index is only the
+      // fallback for an entry that has none yet).
+      entryId
+        ? { date: dateStr, entryId, entryIndex: row.entryIndex }
+        : { date: dateStr, entryIndex: row.entryIndex },
       {
         onSuccess: () => {
-          invalidateDayQueries(utils, dateStr);
           snackbar.show({
             message: `Deleted ${row.name}`,
             actionLabel: entryId ? 'Undo' : undefined,
@@ -281,46 +255,58 @@ export default function TrackerScreen() {
                 : undefined,
           });
         },
+        onError: (error) => {
+          setCopyDayOpen(false);
+          snackbar.show({ message: `Couldn't copy the day. ${userFacingErrorMessage(error)}` });
+        },
       },
     );
   };
 
-  // Custom and off-plan entries are server-owned: each write is its own
-  // mutation (F-PM-1, F-TRK-1-2) — nothing here re-sends them.
+  // Off-plan recipe rows (UX-FOOD-03): editable and removable like custom
+  // entries — they used to be read-only, so a mis-log or a stale one could
+  // never be fixed.
   const offPlanLogged = data?.offPlanLogged ?? [];
-  const offPlanTotals = offPlanLogged.reduce(
-    (t, m) => ({
-      kcal: t.kcal + m.kcal,
-      protein: t.protein + m.protein,
-      carbs: t.carbs + m.carbs,
-      fat: t.fat + m.fat,
-    }),
-    { kcal: 0, protein: 0, carbs: 0, fat: 0 },
-  );
+  const editingRecipeEntry = offPlanLogged.find((m) => m.entryId === editingRecipeEntryId) ?? null;
+  const deleteOffPlanEntry = (row: (typeof offPlanLogged)[number]) => {
+    const entryId = row.entryId;
+    if (!entryId) return;
+    deleteEntriesMutation.mutate(
+      { date: dateStr, entryIds: [entryId] },
+      {
+        onSuccess: () => {
+          setEditingRecipeEntryId(null);
+          snackbar.show({
+            message: `Deleted ${row.recipeName}`,
+            actionLabel: 'Undo',
+            // The entry is re-logged exactly as it was (recipe, meal, portion).
+            onAction: () =>
+              logRecipeMutation.mutate({
+                date: dateStr,
+                recipeId: row.recipeId,
+                mealType: row.mealType,
+                portionMultiplier: row.portionMultiplier ?? 1,
+              }),
+          });
+        },
+      },
+    );
+  };
+
   const customRows = customEntryRows(data?.log?.loggedMeals ?? []);
-  const customTotals = customEntryTotals(data?.log?.loggedMeals ?? []);
 
-  const checked = (key: string) => checkedMeals[key]?.checked ?? false;
+  const checked = (key: string) => ticks[key]?.checked ?? false;
   const portionOf = (m: { key: string; portion?: number }): PortionKey =>
-    checkedMeals[m.key]?.portion ?? planPortionOf(m);
+    ticks[m.key]?.portion ?? planPortionOf(m);
 
-  const loggedPlanned = planned.filter((m) => checked(m.key));
-  const loggedKcal =
-    loggedPlanned.reduce((s, m) => s + Math.round(m.kcal * portionOf(m)), 0) +
-    customTotals.kcal +
-    offPlanTotals.kcal;
-  const loggedProtein =
-    loggedPlanned.reduce((s, m) => s + m.protein * portionOf(m), 0) +
-    customTotals.protein +
-    offPlanTotals.protein;
-  const loggedCarbs =
-    loggedPlanned.reduce((s, m) => s + m.carbs * portionOf(m), 0) +
-    customTotals.carbs +
-    offPlanTotals.carbs;
-  const loggedFat =
-    loggedPlanned.reduce((s, m) => s + m.fat * portionOf(m), 0) +
-    customTotals.fat +
-    offPlanTotals.fat;
+  // The day's totals are whatever the log holds — planned ticks, custom
+  // entries and off-plan recipes alike (the server's own definition).
+  const {
+    kcal: loggedKcal,
+    protein: loggedProtein,
+    carbs: loggedCarbs,
+    fat: loggedFat,
+  } = sumLogged(data?.log?.loggedMeals ?? []);
 
   return (
     <Screen edges={['top', 'bottom', 'left', 'right']} className="px-0">
@@ -566,24 +552,49 @@ export default function TrackerScreen() {
           )}
 
           {/* Off-plan meals (F-PM-1): logged recipes that have since left
-              today's plan (regenerate or swap). Kept and counted. */}
+              today's plan (regenerate or swap). Kept and counted — and, like
+              custom entries, tap to edit and bin to delete with Undo
+              (UX-FOOD-03). */}
           {offPlanLogged.length > 0 && (
             <View testID="tracker-off-plan" className="gap-2">
               <Text className="text-xs font-semibold uppercase tracking-widest text-gray-500">
                 Also eaten
               </Text>
               {offPlanLogged.map((m) => (
-                <View
-                  key={`${m.recipeId}:${m.mealType}`}
-                  className="rounded-xl border border-border bg-card p-3"
+                <Pressable
+                  key={m.entryId ?? `${m.recipeId}:${m.mealType}`}
+                  testID={`tracker-off-plan-${m.entryId ?? m.recipeId}`}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Edit ${m.recipeName}`}
+                  disabled={!m.entryId}
+                  onPress={() => setEditingRecipeEntryId(m.entryId ?? null)}
+                  className="flex-row items-center gap-3 rounded-xl border border-border bg-card p-3"
                 >
-                  <Text numberOfLines={1} className="text-sm font-medium text-gray-800">
-                    {m.recipeName}
-                  </Text>
-                  <Text className="text-xs text-gray-500">
-                    {m.mealType} · {Math.round(m.kcal)} kcal
-                  </Text>
-                </View>
+                  <View className="min-w-0 flex-1">
+                    <Text numberOfLines={1} className="text-sm font-medium text-gray-800">
+                      {m.recipeName}
+                    </Text>
+                    <Text className="text-xs text-gray-500">
+                      {m.mealType} · {Math.round(m.kcal)} kcal
+                      {(m.portionMultiplier ?? 1) !== 1 &&
+                        ` · ${formatPortion(m.portionMultiplier ?? 1)}`}
+                    </Text>
+                  </View>
+                  {m.entryId && (
+                    <Pressable
+                      accessibilityRole="button"
+                      accessibilityLabel={`Delete ${m.recipeName}`}
+                      disabled={deleteEntriesMutation.isPending}
+                      onPress={(e) => {
+                        e.stopPropagation();
+                        deleteOffPlanEntry(m);
+                      }}
+                      className="h-11 w-11 items-center justify-center"
+                    >
+                      <Ionicons name="trash-outline" size={18} color="#9ca3af" />
+                    </Pressable>
+                  )}
+                </Pressable>
               ))}
             </View>
           )}
@@ -662,6 +673,22 @@ export default function TrackerScreen() {
         entry={editingEntry}
         onSaved={() => invalidateDayQueries(utils, dateStr)}
         onDeleted={() => setEditingEntry(null)}
+      />
+
+      <EditRecipeEntrySheet
+        visible={editingRecipeEntry !== null}
+        onClose={() => setEditingRecipeEntryId(null)}
+        entry={editingRecipeEntry}
+        onSave={(edit) => {
+          if (!editingRecipeEntry?.entryId) return;
+          updateRecipeEntryMutation.mutate({
+            date: dateStr,
+            entryId: editingRecipeEntry.entryId,
+            ...edit,
+          });
+          setEditingRecipeEntryId(null);
+        }}
+        onDelete={() => editingRecipeEntry && deleteOffPlanEntry(editingRecipeEntry)}
       />
 
       <TargetExplainSheet

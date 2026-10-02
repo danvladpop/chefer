@@ -156,12 +156,35 @@ export function resolveTodayMeals<T extends PlannedMealSlot>(
         entry.mealType === slot.type,
     );
 
+  // UX-PLAN-01: "dinner done" is read from the LOG, not from the slot's recipe
+  // id. A recipe logged for a meal type that no slot holds any more (the plan
+  // was regenerated or swapped after the user ate, or they logged something
+  // else from search) still means that meal is done — otherwise Today offers a
+  // second dinner. Same rule as a custom entry: one stray recipe entry covers
+  // ONE still-open slot of its meal type, and snacks are exempt (a logged
+  // snack must not swallow a planned one).
+  const claimed = new Set<unknown>(matched.filter((entry) => entry !== undefined));
+  const strayEaten = new Set<number>();
+  for (const entry of logged) {
+    if (!entry.recipeId || entry.custom || claimed.has(entry) || entry.mealType === 'snack') {
+      continue;
+    }
+    const at = ordered.findIndex(
+      ({ slot }, i) =>
+        matched[i] === undefined &&
+        !strayEaten.has(i) &&
+        slot.type === entry.mealType &&
+        !customEaten(slot),
+    );
+    if (at !== -1) strayEaten.add(at);
+  }
+
   let next: T | null = null;
   const later: T[] = [];
   const eaten: T[] = [];
 
   for (const [i, { slot }] of ordered.entries()) {
-    if (matched[i] !== undefined || customEaten(slot)) {
+    if (matched[i] !== undefined || strayEaten.has(i) || customEaten(slot)) {
       eaten.push(slot);
       continue;
     }

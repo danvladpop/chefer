@@ -438,7 +438,7 @@ export {
   type GlossaryDefinition,
   type GlossaryTermId,
 } from './glossary';
-export { defaultWeekOffset, getWeekStartDate } from './week-default';
+export { defaultWeekOffset, getWeekStartDate, weekStartForDate } from './week-default';
 export { defaultMealSlot } from './meal-slot';
 export {
   canShowNudge,
@@ -602,3 +602,17 @@ export {
   isServerError,
   userFacingErrorMessage,
 } from './user-facing-error';
+export {
+  plannedRowKey,
+  sumLogged,
+  tickStateFromLog,
+  withEntriesRemoved,
+  withEntryRestored,
+  withRecipeEntryEdited,
+  withRecipeLogged,
+  withRecipeUnlogged,
+  type DayEntry,
+  type DayLike,
+  type OffPlanRowLike,
+} from './tracker-day';
+export { regenerateConfirmBody } from './regenerate-copy';

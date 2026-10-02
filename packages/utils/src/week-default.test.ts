@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { defaultWeekOffset, getWeekStartDate } from './week-default';
+import { defaultWeekOffset, getWeekStartDate, weekStartForDate } from './week-default';
 
 describe('defaultWeekOffset', () => {
   it('is 0 on a plain weekday', () => {
@@ -87,5 +87,23 @@ describe('getWeekStartDate', () => {
       expect([monday.getMonth(), monday.getDate()]).toEqual([9, 19]);
       expect(monday.getHours()).toBe(0);
     });
+  });
+});
+
+describe('weekStartForDate (UX-FOOD-02)', () => {
+  it('maps every day of a week to its Monday', () => {
+    // 2026-10-05 is a Monday.
+    for (const d of ['05', '06', '07', '08', '09', '10', '11']) {
+      expect(weekStartForDate(`2026-10-${d}`).toISOString()).toBe('2026-10-05T00:00:00.000Z');
+    }
+  });
+
+  it('puts Sunday in the week that started the Monday before, and Monday in the next', () => {
+    expect(weekStartForDate('2026-10-04').toISOString()).toBe('2026-09-28T00:00:00.000Z');
+    expect(weekStartForDate('2026-10-12').toISOString()).toBe('2026-10-12T00:00:00.000Z');
+  });
+
+  it('crosses month and year boundaries', () => {
+    expect(weekStartForDate('2027-01-01').toISOString()).toBe('2026-12-28T00:00:00.000Z');
   });
 });

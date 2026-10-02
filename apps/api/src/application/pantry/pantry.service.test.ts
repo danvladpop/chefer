@@ -68,7 +68,7 @@ function makeRepo(items: PantryItem[] = []): IPantryItemRepository {
 
 function makePlanRepo(over: Partial<IMealPlanRepository> = {}): IMealPlanRepository {
   return {
-    findActiveWithDays: vi.fn().mockResolvedValue(null),
+    findForWeek: vi.fn().mockResolvedValue(null),
     findByWeekStart: vi.fn().mockResolvedValue(null),
     findRecipesByIds: vi.fn().mockResolvedValue([]),
     ...over,
@@ -185,7 +185,7 @@ describe('PantryService', () => {
   it('whatCanIMake ranks the active plan recipes by pantry coverage (premium)', async () => {
     const repo = makeRepo([pantryRow('halloumi'), pantryRow('couscous')]);
     const planRepo = makePlanRepo({
-      findActiveWithDays: vi.fn().mockResolvedValue({
+      findForWeek: vi.fn().mockResolvedValue({
         id: 'plan1',
         days: [{ meals: [{ type: 'dinner', recipeId: 'r1' }] }],
       }),
@@ -208,6 +208,22 @@ describe('PantryService', () => {
     expect(answer).toContain('everything on hand');
   });
 
+  it("whatCanIMake reads THIS week's plan, not the newest ACTIVE one (UX-FOOD-02)", async () => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date(2026, 9, 2, 10, 0, 0)); // Friday 2 Oct 2026
+    try {
+      const findForWeek = vi.fn().mockResolvedValue(null);
+      const service = new PantryService(
+        makeRepo([pantryRow('halloumi')]),
+        makePlanRepo({ findForWeek }),
+      );
+      await service.whatCanIMake(premiumUser);
+      expect(findForWeek).toHaveBeenCalledWith('u1', new Date(2026, 8, 28, 0, 0, 0, 0));
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it('whatCanIMake never ranks a recipe unsafe for an egg-allergic vegetarian (B-34, B-46, T-00.11)', async () => {
     vi.mocked(dietaryPreferencesRepository.findByUserId).mockResolvedValueOnce({
       allergies: ['egg'],
@@ -216,7 +232,7 @@ describe('PantryService', () => {
     } as never);
     const repo = makeRepo([pantryRow('egg'), pantryRow('spinach'), pantryRow('feta')]);
     const planRepo = makePlanRepo({
-      findActiveWithDays: vi.fn().mockResolvedValue({
+      findForWeek: vi.fn().mockResolvedValue({
         id: 'plan1',
         days: [
           { meals: [{ type: 'breakfast', recipeId: 'r-egg' }] },

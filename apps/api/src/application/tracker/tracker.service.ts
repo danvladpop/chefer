@@ -9,6 +9,7 @@ import type { DailyLog, LoggedMealEntry } from '@chefer/database';
 import type { NutritionTargets, TrainingDayNutrition, UserProfile } from '@chefer/types';
 import { slotPortion } from '@chefer/utils';
 import { hasFeature } from '../../lib/entitlements.js';
+import { planForDate, planForThisWeek } from '../meal-plan/plan-for-date.js';
 import { rebalanceWeek, type RebalanceResult } from '../meal-plan/rebalance.js';
 import { resolveDailyTargets, resolveTargets } from '../preferences/preferences.service.js';
 import { findRecipeVisibleTo } from '../recipe/recipe-access.js';
@@ -57,6 +58,14 @@ export interface DayPlanMeal {
 
 /** A logged planned-recipe entry whose recipe is no longer in today's plan. */
 export interface OffPlanLoggedMeal {
+  /**
+   * The stored entry's stable id (UX-FOOD-03) — what edit/delete address.
+   * Additive: `getDay` backfills ids, so it is present on every row it
+   * returns; optional only so older clients' types stay valid.
+   */
+  entryId?: string;
+  /** The logged portion (UX-FOOD-03) — the edit sheet's starting point. */
+  portionMultiplier?: number;
   recipeId: string;
   recipeName: string;
   mealType: string;
@@ -149,7 +158,7 @@ function dayDate(dateStr: string): Date {
 
 /** Recipe ids the tracker shows as planned for this date (same source as getDay). */
 async function plannedRecipeIdsFor(userId: string, dateStr: string): Promise<Set<string>> {
-  const plan = await mealPlanRepository.findActiveWithDays(userId);
+  const plan = await planForDate(mealPlanRepository, userId, dateStr);
   const jsDay = dayDate(dateStr).getUTCDay();
   const dayOfWeek = jsDay === 0 ? 6 : jsDay - 1;
   const day = plan?.days.find((d) => d.dayOfWeek === dayOfWeek);
@@ -169,8 +178,9 @@ export const trackerService = {
     const date = new Date(dateStr);
     date.setUTCHours(0, 0, 0, 0);
 
-    // Get active plan
-    const plan = await mealPlanRepository.findActiveWithDays(userId);
+    // The plan for the day's own WEEK (UX-FOOD-02) — not the newest ACTIVE
+    // plan, which is next week's once the user has opened next week.
+    const plan = await planForDate(mealPlanRepository, userId, dateStr);
     const [profile, log] = await Promise.all([
       chefProfileRepository.findByUserId(userId),
       dailyLogRepository.findByDate(userId, date),
@@ -276,6 +286,8 @@ export const trackerService = {
           )
         : new Map<string, string>();
     const offPlanLogged: OffPlanLoggedMeal[] = offPlanEntries.map((m) => ({
+      ...(m.entryId && { entryId: m.entryId }),
+      portionMultiplier: m.portionMultiplier,
       recipeId: m.recipeId,
       recipeName: offPlanNames.get(m.recipeId) ?? 'Logged meal',
       mealType: m.mealType,
@@ -438,16 +450,27 @@ export const trackerService = {
   },
 
   /**
-   * Removes one custom entry (by its index in the day's loggedMeals array).
-   * Planned-recipe entries are managed by the tracker page's save flow and
-   * cannot be deleted here.
+   * Removes one custom entry. UX-FOOD-17: by its stable `entryId` when the
+   * client has one (new builds) — the id survives any change to the day's
+   * array between render and tap — else by its index in the day's
+   * loggedMeals (1.0.1 builds, which never send an id). `entryId` wins when
+   * both are present. Planned-recipe entries are managed by `unlogRecipe` /
+   * `deleteEntries` and cannot be deleted here.
    */
-  async deleteCustomMeal(userId: string, dateStr: string, entryIndex: number): Promise<DailyLog> {
+  async deleteCustomMeal(
+    userId: string,
+    dateStr: string,
+    target: { entryId?: string | undefined; entryIndex?: number | undefined },
+  ): Promise<DailyLog> {
     return dailyLogRepository.mutateDay(userId, dayDate(dateStr), (stored) => {
-      if (!stored[entryIndex]?.custom) {
+      const index =
+        target.entryId !== undefined
+          ? stored.findIndex((m) => m.entryId === target.entryId)
+          : (target.entryIndex ?? -1);
+      if (!stored[index]?.custom) {
         throw new TRPCError({ code: 'NOT_FOUND', message: 'No custom entry at that position.' });
       }
-      return stored.filter((_, i) => i !== entryIndex);
+      return stored.filter((_, i) => i !== index);
     });
   },
 
@@ -489,6 +512,54 @@ export const trackerService = {
         protein: updates.protein,
         carbs: updates.carbs,
         fat: updates.fat,
+      };
+      return stored.map((m, i) => (i === index ? next : m));
+    });
+  },
+
+  /**
+   * Edits one logged RECIPE entry by its stable `entryId` (UX-FOOD-03) — the
+   * "Also eaten" rows for a recipe that has left the plan, which otherwise
+   * could be neither corrected nor removed. Changes the portion and/or the
+   * meal; the macros are recomputed from the stored recipe, never trusted
+   * from the client. NOT_FOUND covers a stale id or one that names a custom
+   * entry (those use `updateCustomMeal`).
+   */
+  async updateRecipeEntry(
+    userId: string,
+    dateStr: string,
+    entryId: string,
+    updates: { portionMultiplier?: number | undefined; mealType?: string | undefined },
+  ): Promise<DailyLog> {
+    const log = await dailyLogRepository.findByDate(userId, dayDate(dateStr));
+    const current = ((log?.loggedMeals as unknown as LoggedMealEntry[] | null) ?? []).find(
+      (m) => m.entryId === entryId && isRecipeEntry(m),
+    );
+    if (!current?.recipeId) {
+      throw new TRPCError({ code: 'NOT_FOUND', message: 'Logged meal not found.' });
+    }
+    const [recipe] = await mealPlanRepository.findRecipesByIds([current.recipeId]);
+    if (!recipe) throw new TRPCError({ code: 'NOT_FOUND', message: 'Recipe not found.' });
+    const n = recipe.nutritionInfo as {
+      calories?: number;
+      protein?: number;
+      carbs?: number;
+      fat?: number;
+    };
+    const p = updates.portionMultiplier ?? current.portionMultiplier;
+    return dailyLogRepository.mutateDay(userId, dayDate(dateStr), (stored) => {
+      const index = stored.findIndex((m) => m.entryId === entryId && isRecipeEntry(m));
+      if (index === -1) {
+        throw new TRPCError({ code: 'NOT_FOUND', message: 'Logged meal not found.' });
+      }
+      const next: LoggedMealEntry = {
+        ...stored[index]!,
+        mealType: updates.mealType ?? stored[index]!.mealType,
+        portionMultiplier: p,
+        kcal: Math.round((n.calories ?? 0) * p),
+        protein: Math.round((n.protein ?? 0) * p * 10) / 10,
+        carbs: Math.round((n.carbs ?? 0) * p * 10) / 10,
+        fat: Math.round((n.fat ?? 0) * p * 10) / 10,
       };
       return stored.map((m, i) => (i === index ? next : m));
     });
@@ -587,7 +658,8 @@ export const trackerService = {
   async maybeRebalance(user: UserProfile): Promise<RebalanceResult | null> {
     if (!hasFeature(user, 'photoLogging')) return null;
     try {
-      const plan = await mealPlanRepository.findActiveWithDays(user.id);
+      // Only the current week is ever rebalanced (UX-PLAN-09).
+      const plan = await planForThisWeek(mealPlanRepository, user.id);
       if (!plan) return null;
       return await rebalanceWeek(user.id, plan.id);
     } catch (err) {

@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { prisma } from '@chefer/database';
+import { mealPlanRepository, prisma } from '@chefer/database';
 import type {
   IChefProfileRepository,
   IChefReviewRepository,
@@ -26,7 +26,7 @@ vi.mock('@chefer/database', async (importOriginal) => {
       user: { findMany: vi.fn().mockResolvedValue([]) },
     },
     mealPlanRepository: {
-      findActiveWithDays: vi.fn().mockResolvedValue(null),
+      findForWeek: vi.fn().mockResolvedValue(null),
       findRecipesByIds: vi.fn().mockResolvedValue([]),
     },
   };
@@ -196,6 +196,19 @@ describe('CoachService.runWeeklyReview', () => {
 
     await expect(service.runWeeklyReview('u1', SUNDAY)).resolves.toBeNull();
     expect(reviewRepo.upsert).not.toHaveBeenCalled();
+  });
+
+  it("flavours the review with THIS week's plan dishes, not the newest ACTIVE plan's (UX-FOOD-02)", async () => {
+    const reviewRepo = makeReviewRepo();
+    const service = new CoachService(reviewRepo, makeProfileRepo(), makeWeightRepo());
+    vi.mocked(mealPlanRepository.findForWeek).mockResolvedValueOnce(null);
+
+    await service.runWeeklyReview('u1', SUNDAY);
+
+    const [, weekStart] = vi.mocked(mealPlanRepository.findForWeek).mock.calls[0]!;
+    // A calendar-week lookup: always a Monday at local midnight.
+    expect(weekStart.getDay()).toBe(1);
+    expect(weekStart.getHours()).toBe(0);
   });
 
   it('writes the review row keyed on the UTC Monday of the reviewed week', async () => {

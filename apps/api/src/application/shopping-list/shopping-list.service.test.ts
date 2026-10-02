@@ -397,6 +397,27 @@ describe('ShoppingListService — store search uses the aggregated list', () => 
   });
 });
 
+describe('ShoppingListService.searchStores — fallback plan (UX-FOOD-02)', () => {
+  const service = new ShoppingListService();
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.mocked(prisma.shoppingList.findUnique).mockResolvedValue(null);
+  });
+
+  it("falls back to THIS week's plan when the planId isn't found, never the newest ACTIVE one", async () => {
+    vi.mocked(mealPlanRepository.findAllByUserId).mockResolvedValue([] as never);
+    vi.mocked(mealPlanRepository.findForWeek).mockResolvedValue(null);
+
+    const result = await service.searchStores(premiumUser, 'gone');
+
+    expect(result.stores).toEqual([]);
+    const [, weekStart] = vi.mocked(mealPlanRepository.findForWeek).mock.calls[0]!;
+    expect(weekStart.getDay()).toBe(1);
+    expect(mealPlanRepository.findActiveWithDays).not.toHaveBeenCalled();
+  });
+});
+
 describe('ShoppingListService — plans made mid-week (audit F-PM-3)', () => {
   const service = new ShoppingListService();
 

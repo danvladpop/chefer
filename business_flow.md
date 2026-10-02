@@ -816,6 +816,17 @@ replaced plan's pinned slots onto the new week when the day/slot type still
 exists and the dish still passes the safety filter, and reports how many
 couldn't be kept as `droppedPinned`.
 
+**Regenerate keeps what already happened (UX-PLAN-01).** Regenerating the CURRENT
+week (`weekOffset` 0) keeps every past day exactly as it was and any of today's
+slots whose recipe is already logged (`meal-plan/keep-eaten.ts`; the logged ids
+come from `findLoggedRecipeIds`, and an unreadable log keeps all of today). Only
+today's uneaten slots and the days after it are replaced; a kept slot replaces
+the new slot of its type, so there is never a second dinner. A future week is
+replaced whole. The confirm copy says so (`regenerateConfirmBody`). Today's
+"dinner done" is read from the log, not from the slot's recipe id
+(`resolveTodayMeals`: a recipe logged for a meal type no slot holds any more
+still closes one open slot of that type).
+
 **Regenerate Undo (T-08.3).** Both generation paths return `previousPlanId`
 (the same-week plan the call replaced) so a client can offer `Undo` via the
 existing `mealPlan.restore({ planId: previousPlanId })`. A PREMIUM
@@ -853,6 +864,9 @@ persona-study wave 1, `feat/ux-now/plan-mobile`).** `app/(food)/meal-plan.tsx`
   button sits under the day chips; it opens a `ConfirmSheet` with a "Keep
   the N meals you chose" switch (shown only when pinned picks exist), and
   the success snackbar offers `Undo` → `mealPlan.restore(previousPlanId)`.
+  UX-PLAN-03: while the generation runs the confirm button spins and ignores
+  taps (one generation per confirm), and a failure — the free-quota
+  `TOO_MANY_REQUESTS` message included — shows inside the sheet.
 * **Pin/unpin.** A bookmark toggle next to each meal's Replace action calls
   `mealPlan.setSlotPinned`; a pinned slot shows a "Your pick" badge
   (`plan-meal-card.tsx`).
@@ -3942,6 +3956,25 @@ tracker.updateCustomMeal({ date, entryId, name?, estimatedBy?, mealType?,
   └─ finds the entry by entryId (must be a custom entry — a planned-recipe
      entryId answers NOT_FOUND; those are edited by re-ticking a portion)
      and replaces its fields in one mutateDay transaction
+
+tracker.deleteCustomMeal({ date, entryId?, entryIndex? })    [F4, UX-FOOD-17]
+  └─ by stable entryId when the client has one (wins over the index; a stale
+     id is NOT_FOUND instead of deleting whatever moved into that position),
+     else by index — 1.0.1 clients only send the index
+
+tracker.updateRecipeEntry({ date, entryId, portionMultiplier?, mealType? })
+                                                              [UX-FOOD-03]
+  └─ edits one logged RECIPE entry — the "Also eaten" rows for recipes that
+     left the plan. Macros are recomputed from the stored recipe × portion.
+     Delete is deleteEntries; its Undo re-logs via logRecipe.
+
+Tracker clients (UX-FOOD-01/06): ticks and totals are derived from the cached
+`tracker.getDay` data on every render (`tickStateFromLog`, `sumLogged` in
+@chefer/utils) — no once-a-day copy in component state. A tap edits that cache
+optimistically, rolls back and shows a plain-words error on failure, and
+re-fetches on settle; writes are serialised (mutation scope), and the "Logged"
+confirmation shows only after the server answered. The day's plan is the plan
+of the date's WEEK (UX-FOOD-02), never the newest ACTIVE plan.
 
 tracker.restoreCustomMeal({ date, entry })                    [T-19.2, B-34]
   └─ the bin's `Undo` snackbar (8 s): the client already holds the exact

@@ -7,7 +7,6 @@ import { PLAN_TAILORING_POLL_MS } from '@chefer/types';
 import {
   Button,
   Card,
-  ConfirmSheet,
   DENSE_MAX_FONT_SCALE,
   duration,
   ErrorState,
@@ -49,6 +48,7 @@ import {
   type PremiumChanges,
 } from '../../src/features/meal-plan/premium-changes-card';
 import { RecipePickerSheet } from '../../src/features/meal-plan/recipe-picker-sheet';
+import { RegenerateConfirm } from '../../src/features/meal-plan/regenerate-confirm';
 import { TailoringBanner } from '../../src/features/meal-plan/tailoring-banner';
 import {
   PreRunNote,
@@ -264,7 +264,10 @@ export default function MealPlanScreen() {
   // AI data consent (App Store 5.1.2(i)): premium generation and swaps send
   // the profile to the AI provider; free ones are curated and never ask.
   const requestAiConsent = useAiConsent();
-  const generateWithConsent = (keepPinned?: boolean) =>
+  const generateWithConsent = (keepPinned?: boolean) => {
+    // UX-PLAN-03: one generation at a time — a second tap used to send a
+    // second request and burn the last free generation.
+    if (generateMutation.isPending) return;
     requestAiConsent(
       'meal-plan',
       () =>
@@ -276,6 +279,7 @@ export default function MealPlanScreen() {
         }),
       { usesAi: aiConsentRequiredFor('meal-plan', isPremium) },
     );
+  };
 
   // "Tailor the rest" (PARTIAL/FAILED): re-queues only the untailored days —
   // no new plan-generation quota. Consent-gated like any premium AI call.
@@ -298,6 +302,7 @@ export default function MealPlanScreen() {
 
   // Visible under the day chips (UX-08 §2) — always asks first (§3).
   const openRegenerateConfirm = () => {
+    generateMutation.reset(); // a previous failure's message doesn't greet the new ask
     setSummaryOpen(false);
     setKeepPicks(true);
     setPinnedBeforeRegenerate(pinnedCount);
@@ -1102,24 +1107,22 @@ export default function MealPlanScreen() {
 
           {/* UX-08 §3 (PAT-5): Regenerate always asks; "Keep" defaults on
               and only shows when picks exist. */}
-          <ConfirmSheet
-            testID="regenerate-confirm"
+          <RegenerateConfirm
             visible={regenerateConfirmOpen}
             onClose={() => setRegenerateConfirmOpen(false)}
-            title={`Regenerate ${weekLabel}?`}
-            body={`This replaces the ${plannedMealsCount} planned meal${plannedMealsCount === 1 ? '' : 's'}.`}
-            confirmLabel={`Regenerate ${weekLabel}`}
-            cancelLabel="Cancel"
+            weekLabel={weekLabel}
+            weekOffset={weekOffset}
+            plannedMealsCount={plannedMealsCount}
+            pinnedCount={pinnedCount}
+            keepPicks={keepPicks}
+            onKeepPicksChange={setKeepPicks}
+            busy={generateMutation.isPending}
+            error={
+              generateMutation.isError
+                ? (poolExhaustedMessage ?? userFacingErrorMessage(generateMutation.error))
+                : null
+            }
             onConfirm={() => generateWithConsent(keepPicks)}
-            {...(pinnedCount > 0 && {
-              options: [
-                {
-                  label: `Keep the ${pinnedCount} meal${pinnedCount === 1 ? '' : 's'} you chose`,
-                  value: keepPicks,
-                  onChange: setKeepPicks,
-                },
-              ],
-            })}
           />
 
           {/* L-SAFE2/T-01.5: long-press on a plan card → same report sheet as

@@ -18,7 +18,7 @@ const MY_COPY = { ...THEIRS, id: 'my-copy', creatorId: 'u1', originRecipeId: 'th
 vi.mock('@chefer/database', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@chefer/database')>()),
   chefProfileRepository: { findByUserId: vi.fn().mockResolvedValue(null) },
-  mealPlanRepository: { findActiveWithDays: vi.fn().mockResolvedValue(null) },
+  mealPlanRepository: { findForWeek: vi.fn().mockResolvedValue(null) },
   dailyLogRepository: { findByDate: vi.fn().mockResolvedValue(null), mutateDay: vi.fn() },
   gymProfileRepository: { findByUserId: vi.fn().mockResolvedValue(null) },
   weightEntryRepository: { findLatest: vi.fn().mockResolvedValue(null) },
