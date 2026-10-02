@@ -26,6 +26,7 @@ import {
   unitLabel,
   unitToKg,
   weekStartOf,
+  WELLNESS_COPY,
 } from '@chefer/utils';
 import { useFlags } from '../../../hooks/use-flags';
 import { trpc } from '../../../lib/trpc';
@@ -645,6 +646,15 @@ export function GymSettingsScreen() {
             {outboxStatus.lastSyncAt ? new Date(outboxStatus.lastSyncAt).toLocaleString() : 'Never'}
           </Text>
         </View>
+
+        {/* Advisory disclaimer (2026-10-02), always visible on gym settings. */}
+        <Text
+          testID="gym-settings-advisory-disclaimer"
+          variant="muted"
+          className="text-center text-xs"
+        >
+          {WELLNESS_COPY.gymAdvisoryDisclaimer}
+        </Text>
       </KeyboardAwareScrollView>
 
       <Sheet

@@ -32,6 +32,7 @@ import {
   userFacingErrorMessage,
   VOLUME_GROUP_LABELS,
   weightUnitForSystem,
+  WELLNESS_COPY,
 } from '@chefer/utils';
 import { trpc } from '../../../lib/trpc';
 import { captureGymEvent } from '../analytics';
@@ -288,6 +289,13 @@ export function SetupWizard() {
               <Button variant="ghost" testID="gym-setup-skip" onPress={goNext}>
                 Skip
               </Button>
+            )}
+            {/* Advisory disclaimer (2026-10-02): shown where the user
+                accepts the suggested program, right above "Start training". */}
+            {step === 7 && (
+              <Text testID="gym-setup-advisory-disclaimer" variant="muted" className="text-xs">
+                {WELLNESS_COPY.gymAdvisoryDisclaimer}
+              </Text>
             )}
             {step < 7 ? (
               <Button testID="gym-setup-next" disabled={!canGoNext} onPress={goNext}>

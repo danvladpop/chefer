@@ -79,6 +79,7 @@ import {
   toDisplayCurrency,
   trainingDaysChip,
   trainingKindLabel,
+  WELLNESS_COPY,
 } from '@chefer/utils';
 import MealPlanLoading from './loading';
 
@@ -1232,6 +1233,18 @@ export default function MealPlanPage() {
             <ChevronRight className="h-4 w-4 shrink-0 text-gray-400" aria-hidden="true" />
           </Link>
         </div>
+      )}
+
+      {/* Advisory disclaimer (2026-10-02): the plan is suggestions, and the
+          allergen checks and AI can be wrong. mb-20 clears the chat FAB
+          below lg (review M-2). */}
+      {!isLoading && plan && (
+        <p
+          data-testid="plan-advisory-disclaimer"
+          className="mx-4 mb-20 text-center text-xs text-gray-500 sm:mx-6 lg:mb-6"
+        >
+          {WELLNESS_COPY.mealPlanAdvisoryDisclaimer}
+        </p>
       )}
 
       <ReplaceMealSheet

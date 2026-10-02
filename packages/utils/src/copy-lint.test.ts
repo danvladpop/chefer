@@ -41,7 +41,7 @@ describe('copy modules never carry a forbidden phrase', () => {
     expect(containsForbiddenPhrase('Not medical advice — check with your GP.')).toBeNull();
     expect(
       containsForbiddenPhrase(
-        "Chefer offers general healthy-eating and training guidance. It isn't a medical device and doesn't give medical advice.",
+        "Chefer suggests meals and workouts as general guidance only. It isn't a medical device and doesn't give medical advice, or certified dietary or coaching advice.",
       ),
     ).toBeNull();
     // The allowance is exact and narrow, not a general negation heuristic —
