@@ -131,7 +131,7 @@ use already ships). No procedure is renamed or removed.
 | ----- | ------------- |
 | S1    | ✅ 2026-10-02 |
 | S2    | ☐             |
-| S3    | ☐             |
+| S3    | ✅ 2026-10-02 |
 | L1    | ☐             |
 | L2    | ☐             |
 | L3    | ⏸             |

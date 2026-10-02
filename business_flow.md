@@ -2785,6 +2785,11 @@ Active workout: the session doc carries its own optional `supersetGroup` per exe
   `routineWithoutSuperset`) when every member is a routine slot of that day.
   Exercises added mid-workout can be grouped; moving a member applies the editor's rule
   (step inside the superset swaps partners, otherwise hops over a whole superset).
+  Web (S3): "Superset" sits under the exercise list (phone) / in the navigator (desktop)
+  and in each exercise's ⋯ sheet (that exercise pre-ticked). "Ungroup" acts at once unless
+  the routine day has the same superset; then a small sheet offers "Also change my routine".
+  A routine save that hits a version CONFLICT is rebuilt on the server's copy and retried
+  once; if it no longer applies, a toast says the routine was left alone.
   Sessions without the field (older binaries / older docs) keep the original derivation
   from routineExerciseId via the cached routine; a session that never grouped anything
   reads back from the API without the field.

@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState, type Dispatch } from 'react';
-import { ChevronDown, ChevronUp, Plus } from 'lucide-react';
+import { ChevronDown, ChevronUp, Link2, Plus } from 'lucide-react';
 import { Button } from '@chefer/ui';
 import { isSupersetWithNext, supersetSlot, type ExerciseLookup } from '@chefer/utils';
 import type { DraftAction, DraftRoutine } from '../draft';
@@ -15,6 +15,8 @@ export interface PhoneEditorListProps {
   lookup: ExerciseLookup;
   onAddDay: () => void;
   onOpenPicker: (dayKey: string) => void;
+  /** Opens the "Superset" sheet for a day (plan-library-supersets S3). */
+  onOpenSuperset: (dayKey: string) => void;
   onSwap: (dayKey: string, exerciseKey: string) => void;
 }
 
@@ -28,6 +30,7 @@ export function PhoneEditorList({
   lookup,
   onAddDay,
   onOpenPicker,
+  onOpenSuperset,
   onSwap,
 }: PhoneEditorListProps) {
   // UX-05 A4 (AC25): one exercise card expanded at a time, per day.
@@ -55,7 +58,11 @@ export function PhoneEditorList({
   return (
     <div className="flex flex-col gap-4 lg:hidden">
       {draft.days.map((day, dayIndex) => (
-        <div key={day.key} className="rounded-2xl border border-gray-200 bg-gray-50 p-3">
+        <div
+          key={day.key}
+          className="rounded-2xl border border-gray-200 bg-gray-50 p-3"
+          data-testid="routine-editor-day"
+        >
           <DayHeaderFields
             name={day.name}
             plannedWeekday={day.plannedWeekday}
@@ -97,7 +104,17 @@ export function PhoneEditorList({
           <div className="mt-3 flex flex-col gap-2.5">
             {day.exercises.map((exercise, exIndex) => (
               <div key={exercise.key} className="flex flex-col gap-1.5">
-                <SupersetHeading exercises={day.exercises} index={exIndex} />
+                <SupersetHeading
+                  exercises={day.exercises}
+                  index={exIndex}
+                  onUngroup={() =>
+                    dispatch({
+                      type: 'ungroup_superset',
+                      dayKey: day.key,
+                      exerciseKey: exercise.key,
+                    })
+                  }
+                />
                 <ExerciseFieldsForm
                   exercise={exercise}
                   lookup={lookup}
@@ -209,15 +226,29 @@ export function PhoneEditorList({
             ))}
           </div>
 
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            className="mt-3 min-h-11 w-full whitespace-nowrap"
-            onClick={() => onOpenPicker(day.key)}
-          >
-            <Plus className="h-4 w-4 shrink-0" /> Add exercise
-          </Button>
+          <div className="mt-3 grid grid-cols-2 gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="min-h-11 min-w-0 whitespace-nowrap"
+              onClick={() => onOpenPicker(day.key)}
+            >
+              <Plus className="h-4 w-4 shrink-0" /> Add exercise
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="min-h-11 min-w-0 whitespace-nowrap"
+              disabled={day.exercises.length < 2}
+              onClick={() => onOpenSuperset(day.key)}
+              aria-label={`Superset: ${day.name}`}
+              data-testid="routine-day-superset"
+            >
+              <Link2 className="h-4 w-4 shrink-0" /> Superset
+            </Button>
+          </div>
         </div>
       ))}
 
