@@ -147,6 +147,20 @@ free workout log too, not meal planning alone (CI-16/CI-25).
    onboarding screen clears it. An imperative `router.replace` after the awaited
    SecureStore writes used to race the navigator on a fresh install, so the
    first account landed on Today. Every new account now gets the wizard)
+
+   **Resuming an interrupted setup (mobile, UX-ONB-01, 2026-10).** The wizard
+   saves every answer and the current step to the on-device KV (`onboarding.draft`,
+   scoped to a fingerprint of the session token, so another account's answers never
+   match; removed on finish/skip and by `signOut()`). The Food layout
+   (`useOnboardingGate`) sends the sign-in into `/onboarding` once per launch when
+   there is a draft for this session, or when `preferences.get().jobs` is empty
+   (the account never answered "what should Chefer help with?"). Android hardware
+   BACK (and the header arrow) steps back one question; on the first question it
+   asks "Leave setup for now?" — leaving keeps the draft, so the next launch resumes.
+   "Just looking around" saves `PLAN_MEALS`, which ends the nag. The wizard hydrates
+   from `preferences.get` (saved jobs pre-filled, steps built from the current
+   selection, body metrics rounded to 1 decimal) and a typed-but-unadded
+   "Something else?" allergy is added before the diet step is left (UX-ACC-01).
 4. Onboarding step 1 — "What should Chefer help with?" (§2.4, T-03.1/T-03.2,
    rev 2 — mobile only; web still runs the v1 single-intent flow below until
    its own migration lands, T-03.6). A multi-select JobsStep (`Train` /
@@ -240,6 +254,19 @@ Admins can additionally create users via `user.create` (admin-only).
 
 Sessions are DB rows (`sessions` table), not JWTs — resolution is a lookup on
 every request (see §4), and logout / password reset delete the rows.
+
+**Leaving an account on mobile (UX-ACC-02/12/17, 2026-10).** More, Settings,
+account deletion and the 401 handler all run one `signOut()`
+(`apps/mobile/src/lib/sign-out.ts`): cancel in-flight queries → empty the query
+cache → wipe the on-device KV (everything but `analytics.consent`: gym outbox and
+active workout, mode, landing cache, per-exercise notes, plan dismissals, onboarding
+draft …) and reset the in-memory stores that cached it → cancel gym reminders →
+clear the register draft / pending-onboarding / onboarding gate → clear the token
+last. `setToken` also empties the cache, so a sign-in never starts on the previous
+account's reads. Signing out (More/Settings) warns first when workouts exist only
+on the phone (outbox entries or a workout in progress); a 401 (`session-expired`)
+keeps the gym outbox, active session and owner so unsynced workouts upload on the
+next login. The register draft never holds passwords.
 "Forgot password?" on the form (web and the mobile Sign in screen) starts the
 reset flow (§11). Both platforms' forms have a Show/Hide password toggle; the
 register forms also require a matching confirm-password field (client-side

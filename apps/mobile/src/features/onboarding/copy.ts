@@ -37,7 +37,11 @@ export type OnboardingCopyKey =
   | 'generatingWeek'
   | 'generatingFailed'
   | 'settingsAddTrain'
-  | 'settingsAddFood';
+  | 'settingsAddFood'
+  | 'leaveTitle'
+  | 'leaveBody'
+  | 'leaveConfirm'
+  | 'leaveCancel';
 
 export const ONBOARDING_COPY: Record<OnboardingCopyKey, string> = {
   jobsTitle: 'What should Chefer help with?',
@@ -71,6 +75,11 @@ export const ONBOARDING_COPY: Record<OnboardingCopyKey, string> = {
   finishTrainFood: 'Next: set up training',
   generatingWeek: 'Planning your week…',
   generatingFailed: 'We couldn’t plan your week just now.',
+  leaveTitle: 'Leave setup for now?',
+  leaveBody:
+    'Your allergies and diet are what we check every plan against. Your answers so far are saved — we’ll bring you back here next time you open Chefer.',
+  leaveConfirm: 'Leave for now',
+  leaveCancel: 'Keep going',
   settingsAddTrain: 'Set up training now',
   settingsAddFood: 'Set up your food — 3 quick questions',
 };

@@ -582,6 +582,10 @@ Workout logging never needs a connection:
 
 - `kv.ts` — synchronous JSON KV over `expo-sqlite/kv-store` (database
   `chefer-gym.db`; in-memory fallback under Jest). Keys live in `keys.ts`.
+  The store is shared by every feature that persists device state (landing cache,
+  plan dismissals, onboarding draft …), so `kv.keys()` lets `signOut()` wipe it by
+  scanning (`clear-local-data.ts` keeps only `analytics.consent`); see
+  `business_flow.md` §3.
 - `active-session-store.ts` — the in-progress `WorkoutSessionDoc`, written with
   `setItemSync` on every reducer action (crash-safe; unreadable payloads are
   quarantined, never deleted). `use-active-workout.ts` wraps the shared engine
