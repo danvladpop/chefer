@@ -37,16 +37,16 @@ up to 200 private custom exercises.
 
 ## 1. Decisions
 
-| #    | Decision                                                                                                                                                                                                                              | Status                             |
-| ---- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------- |
-| L-D1 | **Exercise photos.** The free-exercise-db photos have unknown provenance (research §3). Options: keep, replace with CC-BY-SA (wger/Everkinetic, credited), commission/generate original art, or hide photos and rely on cues + video. | **⏸ owner** — blocks phase L3 only |
-| L-D2 | Rows are authored by us (names, muscles, equipment, patterns are facts; cues/mistakes/blurbs in Chefer's own words). Each new row records its cross-references (free-exercise-db id, wger id) in `sources.json`, never copied text.   | decided (Claude, 2026-10-02)       |
-| L-D3 | Add the 37 P1 staples and the P2 rows **except** power-clean, push-press, kettlebell-clean and turkish-get-up: Olympic/complex lifts fit neither the rep-progression engine nor self-coached safety. ≈ 91 new rows.                   | decided (Claude)                   |
-| L-D4 | No new enum values. Trap bar = BARBELL with alias "Hex Bar Deadlift"; rotator-cuff work uses `rear-delts` (no new muscle). Old binaries never see an unknown value.                                                                   | decided (Claude)                   |
-| L-D5 | New rows ship with `freeExerciseDbId: null` and `videoId: null` until L-D1 is answered and videos are oEmbed-verified (existing "content gaps" process). The detail screen shows the icon placeholder plus cues.                      | decided (Claude)                   |
-| S-D1 | A superset is still "adjacent exercises sharing a letter". Creating one from a pick of 2–4 exercises **moves them together** at the first pick's position. Max 4 members.                                                             | decided (Claude)                   |
-| S-D2 | Supersets made in a workout belong to **that session only** until the user taps "Update routine", same as swaps today (D5 "editable at every level").                                                                                 | decided (Claude)                   |
-| S-D3 | The session stores its own `supersetGroup` (additive optional field + nullable column). Sessions without it (old binaries, old docs) keep today's derivation from the routine.                                                        | decided (Claude)                   |
+| #    | Decision                                                                                                                                                                                                                              | Status                                                                                                                                     |
+| ---- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
+| L-D1 | **Exercise photos.** The free-exercise-db photos have unknown provenance (research §3). Options: keep, replace with CC-BY-SA (wger/Everkinetic, credited), commission/generate original art, or hide photos and rely on cues + video. | **decided 2026-10-02 (owner): keep the existing photos for now**; the owner will source replacements. New rows stay photo-less until then. |
+| L-D2 | Rows are authored by us (names, muscles, equipment, patterns are facts; cues/mistakes/blurbs in Chefer's own words). Each new row records its cross-references (free-exercise-db id, wger id) in `sources.json`, never copied text.   | decided (Claude, 2026-10-02)                                                                                                               |
+| L-D3 | Add the 37 P1 staples and the P2 rows **except** power-clean, push-press, kettlebell-clean and turkish-get-up: Olympic/complex lifts fit neither the rep-progression engine nor self-coached safety. ≈ 91 new rows.                   | decided (Claude)                                                                                                                           |
+| L-D4 | No new enum values. Trap bar = BARBELL with alias "Hex Bar Deadlift"; rotator-cuff work uses `rear-delts` (no new muscle). Old binaries never see an unknown value.                                                                   | decided (Claude)                                                                                                                           |
+| L-D5 | New rows ship with `freeExerciseDbId: null` and `videoId: null` until L-D1 is answered and videos are oEmbed-verified (existing "content gaps" process). The detail screen shows the icon placeholder plus cues.                      | decided (Claude)                                                                                                                           |
+| S-D1 | A superset is still "adjacent exercises sharing a letter". Creating one from a pick of 2–4 exercises **moves them together** at the first pick's position. Max 4 members.                                                             | decided (Claude)                                                                                                                           |
+| S-D2 | Supersets made in a workout belong to **that session only** until the user taps "Update routine", same as swaps today (D5 "editable at every level").                                                                                 | decided (Claude)                                                                                                                           |
+| S-D3 | The session stores its own `supersetGroup` (additive optional field + nullable column). Sessions without it (old binaries, old docs) keep today's derivation from the routine.                                                        | decided (Claude)                                                                                                                           |
 
 ## 2. Phases
 
@@ -109,7 +109,7 @@ Traps, Lower back, Hips (adductors + abductors), used by every picker and the
 Exercises tab on both platforms (primary muscles only, so web stops differing
 from mobile). Volume stats keep `VOLUME_GROUPS`.
 
-### L3 — Photos · ⏸ blocked on L-D1
+### L3 — Photos · ⏸ owner is sourcing replacements (L-D1)
 
 Depends on the owner's answer. Also fixes the wrong photos listed in research §4.
 
