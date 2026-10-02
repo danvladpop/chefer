@@ -3,7 +3,9 @@ import { PROGRAM_TEMPLATES } from '@chefer/types';
 import {
   buildSetupPayload,
   defaultUnitForLocale,
+  friendlySetupError,
   knownWeightCandidates,
+  knownWeightError,
   knownWeightsToKg,
   parseWeightInput,
   previewForTemplate,
@@ -40,6 +42,22 @@ describe('setup payload', () => {
 
   it('caps absurd weights at the schema limit', () => {
     expect(knownWeightsToKg({ a: '5000' }, 'KG')).toEqual({ a: 1000 });
+  });
+
+  // UX-GYM-01: the field says what is wrong instead of silently capping.
+  it('validates a starting weight inline against the 1000 kg bound, in the user unit', () => {
+    expect(knownWeightError('', 'KG')).toBeNull();
+    expect(knownWeightError('62,5', 'KG')).toBeNull();
+    expect(knownWeightError('135', 'LB')).toBeNull();
+    expect(knownWeightError('4055', 'KG')).toBe('Max 1000 kg.');
+    expect(knownWeightError('2300', 'LB')).toBe('Max 2204.6 lb.');
+    expect(knownWeightError('0', 'KG')).toMatch(/above 0/);
+    expect(knownWeightError('12abc', 'KG')).toBe('Enter a number.');
+  });
+
+  it('never shows serialised Zod text from a rejected setup', () => {
+    expect(friendlySetupError('[{"code":"too_big","maximum":1000}]')).toMatch(/out of range/);
+    expect(friendlySetupError('Too many requests.')).toBe('Too many requests.');
   });
 
   it('omits knownWeightsKg when calibrating, even if weights were typed', () => {
