@@ -34,6 +34,7 @@ import {
   userFacingErrorMessage,
   weekdayLongName,
   weekdayShortName,
+  WELLNESS_COPY,
 } from '@chefer/utils';
 import { useAiConsent } from '../../src/features/ai-consent/ai-consent-provider';
 import { ModeSwitch } from '../../src/features/gym/components/mode-switch';
@@ -973,6 +974,15 @@ export default function MealPlanScreen() {
                 onOpenStatus={isPast ? undefined : () => openMiss(selectedDay)}
               />
             )}
+            {/* Advisory disclaimer (2026-10-02): the plan is suggestions, and
+                the allergen checks and AI can be wrong. */}
+            <Text
+              testID="plan-advisory-disclaimer"
+              variant="muted"
+              className="pt-2 text-center text-xs"
+            >
+              {WELLNESS_COPY.mealPlanAdvisoryDisclaimer}
+            </Text>
           </ScrollView>
 
           <RecipePickerSheet

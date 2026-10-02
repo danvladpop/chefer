@@ -12,7 +12,13 @@ import {
   type WeightUnit,
 } from '@chefer/types';
 import { Button, Input } from '@chefer/ui';
-import { cn, unitLabel, VOLUME_GROUP_LABELS, weightUnitForSystem } from '@chefer/utils';
+import {
+  cn,
+  unitLabel,
+  VOLUME_GROUP_LABELS,
+  weightUnitForSystem,
+  WELLNESS_COPY,
+} from '@chefer/utils';
 import { CardLabel, GymCard } from '../shared/gym-card';
 import { ToggleRow } from '../shared/toggle-row';
 import { useGymData } from '../shared/use-gym-data';
@@ -312,6 +318,13 @@ export function SetupWizard() {
           onKnownWeight={(id, v) => setKnownWeights((k) => ({ ...k, [id]: v }))}
           onRetry={() => void recommend.refetch()}
         />
+      )}
+      {/* Advisory disclaimer (2026-10-02): shown where the user accepts the
+          suggested program, right above "Start this program". */}
+      {step === 4 && (
+        <p data-testid="setup-advisory-disclaimer" className="mt-4 text-xs text-gray-500">
+          {WELLNESS_COPY.gymAdvisoryDisclaimer}
+        </p>
       )}
 
       {step === 5 && (
