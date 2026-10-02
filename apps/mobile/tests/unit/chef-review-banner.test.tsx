@@ -45,4 +45,38 @@ describe('ChefReviewBanner', () => {
       /you logged 5 of them/,
     );
   });
+
+  // R-14 (Art. 50): the label shows only when the model wrote the text.
+  async function renderFull(aiGenerated: boolean | undefined) {
+    mockReview.mockReturnValue({
+      status: 'full',
+      review: {
+        reviewText: 'A steady week.',
+        adherencePct: 71,
+        avgDailyKcal: 2100,
+        weightTrendKg: null,
+        adjustmentKcal: 0,
+        ...(aiGenerated !== undefined && { aiGenerated }),
+      },
+    });
+    await render(
+      <SafeAreaProvider initialMetrics={metrics}>
+        <ChefReviewBanner />
+      </SafeAreaProvider>,
+    );
+  }
+
+  it('labels an AI-written review "AI-generated"', async () => {
+    await renderFull(true);
+    expect(screen.getByTestId('coach-review-ai-chip')).toBeOnTheScreen();
+    expect(screen.getByLabelText('This review was written by AI')).toBeOnTheScreen();
+  });
+
+  it.each([false, undefined])(
+    'shows no AI label for a template review (aiGenerated=%s)',
+    async (flag) => {
+      await renderFull(flag);
+      expect(screen.queryByTestId('coach-review-ai-chip')).toBeNull();
+    },
+  );
 });

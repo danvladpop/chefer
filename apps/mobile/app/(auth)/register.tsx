@@ -5,10 +5,14 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { Link, router } from 'expo-router';
 import { CURRENT_TERMS_VERSION } from '@chefer/types';
 import { Button, Input, PasswordInput, Text, useScrollFieldIntoView } from '@chefer/ui-mobile';
-import { detectRegion } from '@chefer/utils';
+import { detectRegion, userFacingErrorMessage } from '@chefer/utils';
 import { AuthField, AuthScreen } from '../../src/features/auth/auth-screen';
 import { ConsentCheckbox } from '../../src/features/auth/consent-checkbox';
 import { AUTH_COPY } from '../../src/features/auth/copy';
+import {
+  clearPendingOnboarding,
+  requestOnboarding,
+} from '../../src/features/auth/pending-onboarding';
 import {
   clearRegisterDraft,
   getRegisterDraft,
@@ -98,11 +102,20 @@ function RegisterForm() {
     onSuccess: async (data) => {
       clearRegisterDraft();
       if (data.session) {
-        await setToken(data.session.token);
         // Dogfood feedback #9: guide new accounts through onboarding instead
         // of landing straight on the dashboard. Sign-in (login.tsx) does NOT
         // do this — only a fresh registration goes through the wizard.
-        router.replace('/onboarding');
+        // R-18b: raised BEFORE setToken (which flips the auth guard and mounts
+        // Today); the Food tab layout redirects to /onboarding while it is up.
+        // An imperative router.replace after the awaited token writes raced the
+        // navigator on a fresh install and left the account on Today.
+        requestOnboarding();
+        try {
+          await setToken(data.session.token);
+        } catch (err) {
+          clearPendingOnboarding();
+          throw err;
+        }
       }
     },
   });
@@ -277,7 +290,7 @@ function RegisterForm() {
 
       {register.error && (
         <Text variant="muted" className="text-destructive" testID="register-error">
-          {register.error.message}
+          {userFacingErrorMessage(register.error)}
         </Text>
       )}
 

@@ -7,11 +7,23 @@ import { AccountDataCard } from './AccountDataCard';
 // not the old `chefer-data-...`), and confirms with "Your export is ready."
 
 const mockExportData = vi.hoisted(() => vi.fn());
+const mockResetMutate = vi.hoisted(() => vi.fn());
 
 vi.mock('@/lib/trpc', () => ({
   trpc: {
     useUtils: () => ({ user: { exportData: { fetch: mockExportData } } }),
     user: { deleteSelf: { useMutation: () => ({ mutate: vi.fn(), isPending: false }) } },
+    auth: {
+      me: { useQuery: () => ({ data: { email: 'alice@chefer.dev' } }) },
+      requestPasswordReset: {
+        useMutation: () => ({
+          mutate: mockResetMutate,
+          isPending: false,
+          isSuccess: false,
+          isError: false,
+        }),
+      },
+    },
   },
 }));
 
@@ -83,5 +95,18 @@ describe('AccountDataCard export (T-39.5)', () => {
       expect(screen.getByText("Couldn't prepare your data. Please try again.")).toBeTruthy(),
     );
     expect(screen.queryByText('Your export is ready.')).toBeNull();
+  });
+});
+
+describe('AccountDataCard delete sheet (R-24)', () => {
+  beforeEach(() => {
+    vi.spyOn(window, 'scrollTo').mockImplementation(() => undefined);
+  });
+
+  it('"Forgot your password?" requests a reset link for the signed-in email', () => {
+    render(<AccountDataCard />);
+    fireEvent.click(screen.getByText('Delete account'));
+    fireEvent.click(screen.getByTestId('delete-account-forgot-password'));
+    expect(mockResetMutate).toHaveBeenCalledWith({ email: 'alice@chefer.dev' });
   });
 });

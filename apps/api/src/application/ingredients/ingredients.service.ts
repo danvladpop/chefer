@@ -12,6 +12,7 @@ import {
 } from '@chefer/database';
 import type { LineProblem, NutritionStatus, UserProfile } from '@chefer/types';
 import { ingredientSlug, normalizeIngredientKey } from '@chefer/utils';
+import { assertAiConsent } from '../../lib/ai-consent-gate.js';
 import { toFriendlyAiError } from '../../lib/ai/friendly-error.js';
 import { aiService } from '../../lib/ai/index.js';
 import { buildPollinationsUrl } from '../../lib/image-gen/pollinations.js';
@@ -848,8 +849,10 @@ export class IngredientsService {
       };
     }
 
-    // Catalog matches stay free; the AI fallback is per-user AI, so it is
+    // Catalog matches stay free and need no consent; the AI fallback sends the
+    // typed name to the AI provider, so it needs AI-data consent (R-10), is
     // premium-only and capped (audit F-PAN-2-4). The reservation logs the call.
+    await assertAiConsent({ userId });
     const reservation = await reserveNutritionEstimate(user);
     let estimate;
     try {

@@ -14,7 +14,9 @@ const mockSetConsent = jest.fn((next: Partial<typeof mockConsent>) => {
 const mockRecordConsentMutate = jest.fn();
 const mockTrack = jest.fn();
 
+let mockTransportEnabled = true;
 jest.mock('../../src/lib/analytics', () => ({
+  isTransportEnabled: () => mockTransportEnabled,
   getAnalyticsConsent: () => mockConsent,
   setAnalyticsConsent: (next: Partial<{ anonymous: boolean; linked: boolean }>) =>
     mockSetConsent(next),
@@ -32,6 +34,7 @@ jest.mock('../../src/lib/trpc', () => ({
 }));
 
 beforeEach(() => {
+  mockTransportEnabled = true;
   mockConsent = { anonymous: true, linked: false };
   mockSetConsent.mockClear();
   mockRecordConsentMutate.mockClear();
@@ -39,6 +42,13 @@ beforeEach(() => {
 });
 
 describe('mobile AnalyticsConsentCard', () => {
+  it('renders nothing when the analytics transport is disabled (R-08)', async () => {
+    mockTransportEnabled = false;
+    await render(<AnalyticsConsentCard />);
+    expect(screen.queryByTestId('profile-analytics-consent')).toBeNull();
+    expect(screen.queryByTestId('profile-analytics-anonymous-switch')).toBeNull();
+  });
+
   it('defaults to anonymous on, linked off', async () => {
     await render(<AnalyticsConsentCard />);
     expect(screen.getByTestId('profile-analytics-anonymous-switch').props.value).toBe(true);

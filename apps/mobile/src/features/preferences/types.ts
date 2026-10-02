@@ -3,6 +3,8 @@
 // as apps/web/src/features/onboarding/types.ts — so client code doesn't need
 // to import @chefer/database.
 
+import { computeBmrTdee, computeCalorieTarget } from '@chefer/utils';
+
 // §2.11, T-35.2 (rev 2): RECOMP and PERFORMANCE are additive over the
 // original four — old server responses/requests that only know the original
 // four keep working (preferences.get downgrades them to MAINTAIN for a
@@ -101,27 +103,10 @@ export const ACTIVITY_OPTIONS: ActivityOption[] = [
   { value: 'ATHLETE', label: 'Athlete', description: 'Very hard exercise or physical job' },
 ];
 
-export const ACTIVITY_MULTIPLIERS: Record<ActivityLevel, number> = {
-  SEDENTARY: 1.2,
-  LIGHTLY_ACTIVE: 1.375,
-  MODERATELY_ACTIVE: 1.55,
-  VERY_ACTIVE: 1.725,
-  ATHLETE: 1.9,
-};
-
-/** Mirrors the API's GOAL_ADJUSTMENTS (preferences.service.ts) — see step-metrics.tsx on web. */
-export const GOAL_ADJUSTMENTS: Record<Goal, number> = {
-  LOSE_WEIGHT: -500,
-  MAINTAIN: 0,
-  GAIN_MUSCLE: 300,
-  EAT_HEALTHIER: 0,
-  RECOMP: 0,
-  PERFORMANCE: 0,
-};
-
 /**
- * Mifflin-St Jeor, mirrored from web's step-metrics.tsx so the preview shows
- * the same number the API's computeCalorieTarget will use.
+ * Maintenance calories (Mifflin-St Jeor TDEE). The calculation itself lives in
+ * @chefer/utils (calorie-target.ts), shared with the API and web, so the preview
+ * always shows the number the planner will use.
  */
 export function estimateCalories(
   weightKg: number,
@@ -130,13 +115,13 @@ export function estimateCalories(
   activityLevel: ActivityLevel | null,
   biologicalSex: BiologicalSex | null,
 ): number {
-  const sexConstant = biologicalSex === 'MALE' ? 5 : biologicalSex === 'FEMALE' ? -161 : -78;
-  const bmr = 10 * weightKg + 6.25 * heightCm - 5 * age + sexConstant;
-  const multiplier = activityLevel ? ACTIVITY_MULTIPLIERS[activityLevel] : 1.55;
-  return Math.round(bmr * multiplier);
+  return computeBmrTdee(weightKg, heightCm, age, activityLevel, biologicalSex).tdee;
 }
 
-/** Same floor as the API (computeCalorieTarget): never below 1200 kcal. */
+/**
+ * Goal-adjusted target as the API computes it: no deficit under 18 and a
+ * sex-specific floor (1,500 male / 1,200 otherwise) — App Review R-02.
+ */
 export function estimateCalorieTarget(
   weightKg: number,
   heightCm: number,
@@ -145,9 +130,7 @@ export function estimateCalorieTarget(
   biologicalSex: BiologicalSex | null,
   goal: Goal | null,
 ): number {
-  const maintenance = estimateCalories(weightKg, heightCm, age, activityLevel, biologicalSex);
-  const adjustment = goal ? GOAL_ADJUSTMENTS[goal] : 0;
-  return Math.max(1200, maintenance + adjustment);
+  return computeCalorieTarget(weightKg, heightCm, age, activityLevel, biologicalSex, goal);
 }
 
 export const DIET_OPTIONS: { value: string; icon: string }[] = [

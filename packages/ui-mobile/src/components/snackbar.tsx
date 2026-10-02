@@ -59,6 +59,41 @@ function getSnapshot(): SnackbarState | null {
   return state;
 }
 
+// R-11: the tab bar's height (inset included), published by the tab layouts so
+// the snackbar sits ABOVE it instead of covering it. Last-registered bar wins:
+// switching Food <-> Gym mounts one tab layout before the other unmounts.
+const tabBars = new Map<string, number>();
+const tabBarListeners = new Set<() => void>();
+let tabBarHeight = 0;
+
+function recomputeTabBarHeight(): void {
+  const heights = [...tabBars.values()];
+  const next = heights.length ? (heights[heights.length - 1] ?? 0) : 0;
+  if (next === tabBarHeight) return;
+  tabBarHeight = next;
+  tabBarListeners.forEach((listener) => listener());
+}
+
+/**
+ * Register (or update) a tab bar's full height, measured from the bottom of
+ * the screen, safe-area inset included. Pass `null` when it unmounts. Returns
+ * nothing; `id` identifies the bar (one per tab layout).
+ */
+export function setSnackbarTabBarHeight(id: string, height: number | null): void {
+  tabBars.delete(id);
+  if (height !== null && height > 0) tabBars.set(id, height);
+  recomputeTabBarHeight();
+}
+
+function subscribeTabBar(listener: () => void): () => void {
+  tabBarListeners.add(listener);
+  return () => tabBarListeners.delete(listener);
+}
+
+function getTabBarHeight(): number {
+  return tabBarHeight;
+}
+
 function announce(message: string, actionLabel?: string): void {
   try {
     AccessibilityInfo.announceForAccessibility(
@@ -97,6 +132,8 @@ function dismissSnackbar(id: number): void {
  * as `resetRebalanceStoreForTests`). Never call this from app code. */
 export function resetSnackbarForTests(): void {
   state = null;
+  tabBars.clear();
+  recomputeTabBarHeight();
   notify();
 }
 
@@ -112,11 +149,15 @@ export interface SnackbarProps {
 }
 
 /**
- * The snackbar host — mount exactly once, near the root, above the tab bar.
+ * The snackbar host — mount exactly once, near the root. On tab screens it
+ * rides above the tab bar (the layouts publish its height through
+ * `setSnackbarTabBarHeight`, R-11) and its wrapper is `box-none`, so taps
+ * anywhere but on the toast itself reach the tab bar and the screen below.
  * Renders nothing while the store is empty.
  */
 export function Snackbar({ bottomOffset = 0 }: SnackbarProps = {}) {
   const current = useSyncExternalStore(subscribe, getSnapshot, getSnapshot);
+  const publishedTabBar = useSyncExternalStore(subscribeTabBar, getTabBarHeight, getTabBarHeight);
   const insets = useSafeAreaInsets();
   const reduced = useReducedMotion();
   // Kept only for the ~150 ms fade-out after `current` goes back to null —
@@ -201,7 +242,11 @@ export function Snackbar({ bottomOffset = 0 }: SnackbarProps = {}) {
     <Animated.View
       pointerEvents="box-none"
       className="absolute inset-x-0 items-center px-4"
-      style={{ bottom: insets.bottom + bottomOffset + 8 }}
+      // A published tab bar height already includes the safe-area inset.
+      style={{
+        bottom:
+          (publishedTabBar > 0 ? publishedTabBar + bottomOffset : insets.bottom + bottomOffset) + 8,
+      }}
     >
       <Animated.View
         testID="snackbar"

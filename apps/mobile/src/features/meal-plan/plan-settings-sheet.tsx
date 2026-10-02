@@ -3,7 +3,7 @@ import { ActivityIndicator, Pressable, Switch, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import type { PlanShape } from '@chefer/types';
 import { Button, colors, Sheet, Text } from '@chefer/ui-mobile';
-import { PREMIUM_PITCH_COPY } from '@chefer/utils';
+import { PREMIUM_PITCH_COPY, userFacingErrorMessage } from '@chefer/utils';
 import { trpc } from '../../lib/trpc';
 import { openPremium } from '../premium/open-premium';
 import { PremiumHost } from '../premium/premium-host';
@@ -156,7 +156,7 @@ export function PlanSettingsSheet({
 
           {setShapeMutation.isError && (
             <Text className="text-xs text-red-600">
-              {setShapeMutation.error.message || 'Could not save — try again.'}
+              {userFacingErrorMessage(setShapeMutation.error) || 'Could not save — try again.'}
             </Text>
           )}
         </View>

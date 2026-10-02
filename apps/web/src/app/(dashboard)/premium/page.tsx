@@ -17,10 +17,9 @@ import { PREMIUM_PITCH_COPY } from '@chefer/utils';
 // its funnel `source` (/premium?source=chat-quota). Cards render from the
 // registry in premium-features.ts; wave agents append theirs as features land.
 //
-// Deliberately NO future-price promise yet — exact price and early-bird
-// wording are the product owner's call (§6.1 principle 5). The euro anchor
-// stack (principle 4) carries the value story until then. The free-for-now
-// terms (PREMIUM_PITCH_COPY) are the only wording about what comes later.
+// Deliberately NO future-price or payment-method wording (App Review R-04):
+// Premium is included at no cost. The euro anchor stack (principle 4) carries
+// the value story; PREMIUM_PITCH_COPY holds the terms paragraph.
 
 // The apps a Chefer premium user would otherwise stack (research doc:
 // docs/premium-feature-ideas.md — MacroFactor + MyFitnessPal + Samsung Food).
@@ -33,7 +32,7 @@ const ANCHOR_STACK = [
 const FAQ: { q: string; a: string }[] = [
   {
     q: 'What does Premium cost?',
-    a: 'Nothing for now — one click turns it on, and we never ask for a card to do it.',
+    a: 'Nothing. It is included at no cost, and one click turns it on.',
   },
   {
     q: 'What happens if I switch back to Free?',
@@ -41,7 +40,7 @@ const FAQ: { q: string; a: string }[] = [
   },
   {
     q: 'Will Chefer stay free?',
-    a: 'The free plan stays free, gym included. Premium may get a price one day: we will tell you in the app at least 30 days ahead, you choose whether to keep it, and nothing changes automatically.',
+    a: 'Yes. The free plan includes the gym, and Premium is included at no cost.',
   },
 ];
 

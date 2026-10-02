@@ -59,8 +59,11 @@ describe('ExerciseFormScreen', () => {
     // client-side and the submit handler reaches the mutation — surfaced
     // here by the (mocked, always-failing) network error rather than a
     // validation message, since the test's trpc client points at a dummy
-    // unreachable port (gym-screen-test-utils).
-    expect(await screen.findByTestId('exercise-form-errors')).toHaveTextContent('offline (test)');
+    // unreachable port (gym-screen-test-utils). R-09: shown as the friendly
+    // "Can't reach Chefer" line, not the raw transport text.
+    expect(await screen.findByTestId('exercise-form-errors')).toHaveTextContent(
+      /Can't reach Chefer right now/,
+    );
   });
 
   it('lets the user add and remove cues, capped at 6', async () => {

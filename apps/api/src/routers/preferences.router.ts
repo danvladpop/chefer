@@ -1,6 +1,7 @@
 import { TRPCError } from '@trpc/server';
 import { z } from 'zod';
 import {
+  bodyMetricsAgeSchema,
   goalSchema,
   LEVEL_0_UNKNOWN_GOALS,
   setDisplayPreferencesInputSchema,
@@ -21,7 +22,7 @@ import { premiumProcedure, protectedProcedure, requireHealthConsent, router } fr
 const setupSchema = z.object({
   goal: goalSchema,
   biologicalSex: z.enum(['MALE', 'FEMALE']),
-  age: z.number().int().min(10).max(110),
+  age: bodyMetricsAgeSchema,
   heightCm: z.number().positive().max(300),
   weightKg: z.number().positive().max(500),
   activityLevel: z.enum([
@@ -232,7 +233,7 @@ export const preferencesRouter = router({
       z.object({
         goal: goalSchema,
         biologicalSex: z.enum(['MALE', 'FEMALE']),
-        age: z.number().int().min(10).max(110),
+        age: bodyMetricsAgeSchema,
         heightCm: z.number().positive().max(300),
         weightKg: z.number().positive().max(500),
         activityLevel: z.enum([

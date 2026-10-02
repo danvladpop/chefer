@@ -128,10 +128,9 @@ the lines that are in the build being submitted.
 
 ### Screenshots
 
-See [screenshots/README.md](./screenshots/README.md). The **iPhone 6.9" set** (8 images, 1320 × 2868 px)
-is in `screenshots/iphone-6.9/`, captured before waves 1–3; that README lists which ones are
-outdated and the shot list to retake from the integrated build. No iPad set is needed because
-`supportsTablet: false`.
+See [screenshots/README.md](./screenshots/README.md). The **iPhone 6.9" set** (7 images, 1320 × 2868 px)
+is in `screenshots/iphone-6.9/`, retaken on 2 Oct 2026 from the App Review fix build (Free account,
+no Premium wording). No iPad set is needed because `supportsTablet: false`.
 
 ### App icon
 

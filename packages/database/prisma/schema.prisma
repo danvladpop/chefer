@@ -625,6 +625,11 @@ model ChefReview {
   // surfaces as a SUGGESTED TargetChange until acknowledged.
   proposedAdjustmentKcal Int?
   proposalResolvedAt     DateTime?
+  // App Review R-14 (Guideline 1.4.1 / EU AI Act Art. 50): true when the review
+  // prose came from the AI model, false for the deterministic template. Rows
+  // written before this column existed read false (unlabelled) until the next
+  // weekly review replaces them.
+  aiGenerated            Boolean   @default(false)
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 

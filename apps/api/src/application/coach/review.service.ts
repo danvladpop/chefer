@@ -2,6 +2,8 @@
 // Pure functions over already-loaded inputs — no I/O, fully unit-tested.
 // CoachService (coach.service.ts) does the loading and persistence.
 
+import { calorieFloor, isMinorAge } from '@chefer/utils';
+
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 export interface WeightPoint {
@@ -43,6 +45,9 @@ export interface AdjustmentInput {
   bmr: number | null;
   /** Activity-multiplied TDEE — null when body metrics are incomplete. */
   tdee: number | null;
+  /** Optional (R-02): drives the under-18 no-deficit rule and the sex-specific floor. */
+  age?: number | null;
+  biologicalSex?: string | null;
 }
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -161,11 +166,14 @@ export function decideAdjustmentKcal(input: AdjustmentInput): number {
   if (bmr === null || tdee === null) return 0;
 
   if (goal === 'LOSE_WEIGHT') {
+    // R-02: never trim calories for someone under 18 (their target is
+    // maintenance — see calorie-target.ts).
+    if (isMinorAge(input.age)) return 0;
     const plateauNow = trendKgPerWeek >= LOSE_PLATEAU_KG_PER_WEEK;
     const plateauPrev =
       prevTrendKgPerWeek !== null && prevTrendKgPerWeek >= LOSE_PLATEAU_KG_PER_WEEK;
     if (!plateauNow || !plateauPrev) return 0;
-    const floor = Math.round(bmr * FLOOR_BMR_FACTOR);
+    const floor = Math.max(Math.round(bmr * FLOOR_BMR_FACTOR), calorieFloor(input.biologicalSex));
     const headroom = currentTargetKcal - floor; // kcal available above the floor
     if (headroom <= 0) return 0;
     return -Math.min(STEP_KCAL, headroom);

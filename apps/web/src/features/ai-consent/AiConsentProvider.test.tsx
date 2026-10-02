@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
-import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { notifyAiConsentRequired } from '@chefer/utils';
 import { AiConsentProvider, useAiConsent } from './AiConsentProvider';
 
 // App Store 5.1.2(i): before the first AI action the consent sheet asks;
@@ -115,11 +116,36 @@ describe('AiConsentProvider', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Import' }));
     expect(m.action).not.toHaveBeenCalled();
     expect(screen.getByRole('dialog')).toBeTruthy();
-    expect(screen.getByText(/Google Gemini/)).toBeTruthy();
+    expect(screen.getByText(/sends some of your data to Groq/)).toBeTruthy();
     expect(screen.getByText('The link, text or photo you submit')).toBeTruthy();
     expect(screen.getByRole('link', { name: 'Privacy policy' }).getAttribute('href')).toBe(
       '/privacy',
     );
+  });
+
+  it('R-10: before the provider list loads (or when it fails) it names Groq + Cloudflare, never the legacy Gemini', () => {
+    m.providers = undefined;
+    renderGate();
+    fireEvent.click(screen.getByRole('button', { name: 'Import' }));
+    expect(screen.getByText(/sends some of your data to Groq/)).toBeTruthy();
+    expect(screen.getByText(/handled by Cloudflare Workers AI/)).toBeTruthy();
+    expect(screen.queryByText(/Gemini/)).toBeNull();
+  });
+
+  it('R-10: when the server refuses an AI action for missing consent the sheet reopens with that feature’s copy', () => {
+    // A stale cache: the client thinks consent is on record.
+    m.user = { aiDataConsentAt: new Date() };
+    renderGate();
+    expect(screen.queryByRole('dialog')).toBeNull();
+
+    act(() => notifyAiConsentRequired('ingredient-estimate'));
+
+    expect(screen.getByRole('dialog')).toBeTruthy();
+    expect(screen.getByText('The ingredient name you typed')).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: 'Allow' }));
+    expect(m.grant).toHaveBeenCalledTimes(1);
+    expect(m.action).not.toHaveBeenCalled();
+    expect(screen.queryByRole('dialog')).toBeNull();
   });
 
   it('names Groq and Cloudflare, never Gemini, when the server runs free-only', () => {

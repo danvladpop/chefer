@@ -16,8 +16,10 @@ import {
   Text,
   type SelectOption,
 } from '@chefer/ui-mobile';
+import { userFacingErrorMessage } from '@chefer/utils';
 import { useIsPremium } from '../../hooks/use-is-premium';
 import { trpc } from '../../lib/trpc';
+import { AiConsentHost, useAiConsent } from '../ai-consent/ai-consent-provider';
 import { friendsErrorData } from '../friends/api/friends-errors';
 import { PremiumHost } from '../premium/premium-host';
 import { pickedFromRef, pickedFromSearchRow, type PickedIngredient } from './catalog-line';
@@ -89,7 +91,8 @@ export function macrosComplete(m: Macros): boolean {
  *   ("Use it", looked up through `ingredients.resolve`) or an explicit
  *   "No, mine is different", which re-sends with `confirmDifferent`.
  * - "Fill in for me" (`ingredients.estimateNutrition`, name only) stays
- *   premium-only and labelled as a suggestion; free taps open the upsell.
+ *   premium-only and labelled as a suggestion; free taps open the upsell. It
+ *   asks for AI-data consent first (the typed name is what is sent).
  *
  * Content sits in a keyboard-aware bounded ScrollView (see
  * use-keyboard-aware-max-height.ts) so the pinned Save footer is never
@@ -104,6 +107,9 @@ export function CustomIngredientSheet({
   testID = 'custom-ingredient-sheet',
 }: CustomIngredientSheetProps) {
   const isPremium = useIsPremium();
+  // R-10: "Fill in for me" sends the typed name to the AI provider, so it asks
+  // for AI-data consent like every other AI action (it used to be exempt).
+  const requestAiConsent = useAiConsent();
   const utils = trpc.useUtils();
   const contentMaxHeight = useKeyboardAwareMaxHeight(CONTENT_RESERVED_PX);
 
@@ -200,7 +206,7 @@ export function CustomIngredientSheet({
       return;
     }
     if (!nameOk || estimateMutation.isPending) return;
-    estimateMutation.mutate({ name: name.trim() });
+    requestAiConsent('ingredient-estimate', () => estimateMutation.mutate({ name: name.trim() }));
   };
 
   const locked = isPremium === false;
@@ -407,7 +413,9 @@ export function CustomIngredientSheet({
 
           {genericError && (
             <Card testID={`${testID}-save-error`} className="border-red-200 bg-red-50">
-              <Text className="text-sm text-red-600">{createMutation.error.message}</Text>
+              <Text className="text-sm text-red-600">
+                {userFacingErrorMessage(createMutation.error)}
+              </Text>
             </Card>
           )}
         </View>
@@ -416,6 +424,8 @@ export function CustomIngredientSheet({
           present a Modal over a Modal, so the sheet nests in its own host
           (the AiConsentHost pattern). */}
       <PremiumHost />
+      {/* ...and so does the AI consent sheet. */}
+      <AiConsentHost />
     </Sheet>
   );
 }

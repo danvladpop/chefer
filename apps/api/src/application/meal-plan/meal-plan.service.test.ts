@@ -8,6 +8,7 @@ import {
   mealRatingRepository,
   prisma,
 } from '@chefer/database';
+import { aiConsentMissing } from '../../lib/ai-consent-gate.js';
 import { aiService } from '../../lib/ai/index.js';
 import { pickRandomCurated, safeCuratedPools } from '../../lib/curated-recipes/index.js';
 import { resolveDailyTargets } from '../preferences/preferences.service.js';
@@ -21,6 +22,13 @@ import {
 } from './meal-plan.service.js';
 
 // ─── Module mocks (hoisted) ───────────────────────────────────────────────────
+
+// R-10: the server-side AI-consent check. In a bare unit test env cannot load
+// so it would answer "not missing"; mocked so a test can say "no consent".
+vi.mock('../../lib/ai-consent-gate.js', async (importOriginal) => {
+  const mod = await importOriginal<typeof import('../../lib/ai-consent-gate.js')>();
+  return { ...mod, aiConsentMissing: vi.fn().mockResolvedValue(false) };
+});
 
 // AI recipes are finished on the catalog (plan-ingredient-catalog §6.3) by
 // AiRecipeFinisher — covered in ai-recipe-finisher.test.ts. Here it passes the
@@ -2095,6 +2103,7 @@ describe('MealPlanService — instant week + live tailoring (premium)', () => {
     vi.mocked(householdMemberRepository.findByUserId).mockResolvedValue([]);
     vi.mocked(chefProfileRepository.findByUserId).mockResolvedValue(CHEF_PROFILE as never);
     vi.mocked(dietaryPreferencesRepository.findByUserId).mockResolvedValue(null);
+    vi.mocked(aiConsentMissing).mockResolvedValue(false);
     vi.mocked(mealPlanTailoringRepository.findUserGate).mockResolvedValue(CONSENTED);
     vi.mocked(mealPlanTailoringRepository.findByPlanId).mockResolvedValue(null);
     vi.mocked(mealPlanTailoringRepository.findCheckedKeys).mockResolvedValue(['carried|g']);
@@ -2245,6 +2254,60 @@ describe('MealPlanService — instant week + live tailoring (premium)', () => {
 
     expect(aiService.generateMealPlan).toHaveBeenCalled();
     expect(plan.tailoring).toBeUndefined();
+  });
+
+  it('R-10: a table the curated pool cannot cover and NO AI consent — no AI week, the pool-exhausted answer instead', async () => {
+    vi.mocked(aiConsentMissing).mockResolvedValue(true);
+    vi.mocked(mealPlanTailoringRepository.findUserGate).mockResolvedValue({
+      ...CONSENTED,
+      aiDataConsentAt: null,
+    });
+    vi.mocked(safeCuratedPools).mockReturnValueOnce({
+      breakfast: [],
+      lunch: [],
+      dinner: [],
+      snack: [],
+    });
+    const repo = makeRepo();
+    const service = new MealPlanService(repo);
+    const { PoolExhaustedCause } = await import('./meal-plan.service.js');
+
+    await expect(
+      service.generate('user1', 0, true, { instant: true, usageReserved: true }),
+    ).rejects.toMatchObject({
+      code: 'PRECONDITION_FAILED',
+      message: expect.stringContaining('AI & your data'),
+      cause: expect.any(PoolExhaustedCause),
+    });
+    expect(aiService.generateMealPlan).not.toHaveBeenCalled();
+  });
+
+  it('R-10: with tailoring switched off and NO AI consent, premium gets the curated week — never the blocking AI call', async () => {
+    vi.mocked(aiConsentMissing).mockResolvedValue(true);
+    vi.mocked(mealPlanTailoringRepository.findUserGate).mockResolvedValue({
+      ...CONSENTED,
+      aiDataConsentAt: null,
+    });
+    const repo = makeRepo();
+    const service = new MealPlanService(repo);
+
+    const plan = await service.generate('user1', 0, true, { usageReserved: true });
+
+    expect(aiService.generateMealPlan).not.toHaveBeenCalled();
+    expect(mealPlanTailoringRepository.create).not.toHaveBeenCalled();
+    expect(plan.days).toHaveLength(7);
+    expect(plan.days.every((d) => d.meals.length >= 3)).toBe(true);
+  });
+
+  it('R-10: with tailoring switched off and consent on record, the blocking AI week still runs', async () => {
+    vi.mocked(aiConsentMissing).mockResolvedValue(false);
+    vi.mocked(aiService.generateMealPlan).mockResolvedValue(AI_WEEK_PLAN as never);
+    const repo = makeRepo();
+    const service = new MealPlanService(repo);
+
+    await service.generate('user1', 0, true, { usageReserved: true });
+
+    expect(aiService.generateMealPlan).toHaveBeenCalled();
   });
 
   it('reads carry the tailoring block (additive — absent when there is no job)', async () => {

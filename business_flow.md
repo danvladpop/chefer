@@ -140,7 +140,13 @@ free workout log too, not meal planning alone (CI-16/CI-25).
              an error response.
    └── the router then emails the address-confirmation link in the
        background (P2-5, §23) — never blocks or fails the signup
-3. Client redirects to /onboarding
+3. Client redirects to /onboarding (mobile, R-18b: as state, not a navigation call —
+   register raises the in-memory `pending-onboarding` flag BEFORE storing the
+   token, and the Food tab layout, the first protected screen the auth-guard flip
+   mounts, renders a `<Redirect href="/onboarding">` while it is up; the
+   onboarding screen clears it. An imperative `router.replace` after the awaited
+   SecureStore writes used to race the navigator on a fresh install, so the
+   first account landed on Today. Every new account now gets the wizard)
 4. Onboarding step 1 — "What should Chefer help with?" (§2.4, T-03.1/T-03.2,
    rev 2 — mobile only; web still runs the v1 single-intent flow below until
    its own migration lands, T-03.6). A multi-select JobsStep (`Train` /
@@ -158,7 +164,8 @@ free workout log too, not meal planning alone (CI-16/CI-25).
    │     pre-selected from the device region, CI-24, and the once-only
    │     "Plan my next week automatically every Sunday?" switch, default
    │     off, T-03.9) → Your goal (adds a "Just good food" card — no
-   │     calorie target, ever, AC6) → Body metrics (optional).
+   │     calorie target, ever, AC6) → Body metrics (optional; age must be 16+
+   │     — see "Body-metric age and calorie-target safety rules" below).
    ├── Feed my household also adds "Who's at your table?" before Diet.
    ├── Train + a food job also adds "Which days do you train?" before Diet
    │     (weekday chips + a per-day Lift/Run/Long run row via
@@ -201,9 +208,13 @@ free workout log too, not meal planning alone (CI-16/CI-25).
    flow). The premium wizard no longer asks "How many people are you
    cooking for?" — the household is the one people model (F-PM-8).
    Step counter (both platforms, shared `onboardingProgress`): while the
-   jobs/intent question is on screen it reads "Step 1" with no total and an
-   empty bar — the answer changes the total, so it never reads "1 of 4" and
-   then "2 of 5"; from step 2 on it is "Step N of M" with a percentage.
+   jobs/intent question is on screen it reads "Getting started" with no total
+   and an empty bar (R-21; it used to read a bare "Step 1") — the answer changes
+   the total, so it never reads "1 of 4" and then "2 of 5"; from step 2 on it is
+   "Step N of M" with a percentage. Finishing a food path generates the first week
+   in the background after navigating to Today; the generate mutation invalidates
+   `mealPlan`, `dashboard` and `shoppingList` when it settles (R-18, mobile and
+   web) so Today never keeps showing "nothing planned".
 ```
 
 Admins can additionally create users via `user.create` (admin-only).
@@ -488,7 +499,7 @@ UpgradeButton (ONE shared surface; every touchpoint passes a `source`)
            the chat in place)
   → capture('upgrade_prompt_shown' { source, job })
   → Sheet dialog headlined by the JOB the source unlocks, with the
-    "FREE FOR NOW" terms (T-10.5) → capture('upgrade_clicked')
+    "INCLUDED" terms (T-10.5) → capture('upgrade_clicked')
   → user.upgradePlan (protected) → planTier = PREMIUM
   → capture('upgrade_completed') → full cache invalidate + router.refresh
 
@@ -542,10 +553,9 @@ Admin (/admin/users, adminProcedure-gated)
   default (`Food that fits your training week`) on a default source; the gym
   itself is never pitched as Premium (D-11). `ingredient-autofill` is the
   source behind "Fill in for me" on the custom-ingredient sheet (T-40.11).
-- **Terms on every open.** The sheet/dialog shows the FREE FOR NOW paragraph
-  (`Premium costs nothing for now, and we won't ask for a card. Before it has a
-price, we'll tell you in the app at least 30 days ahead and you choose
-whether to keep it. Nothing changes automatically.`) — never "beta" (App
+- **Terms on every open.** The sheet/dialog shows the INCLUDED paragraph
+  (`Premium is included at no cost. Turning it on unlocks every feature
+below.` — no "for now", price, card or payment-method wording, R-04) — never "beta" (App
   Review 2.2) — and carries no price, currency, checkout or purchase link on
   any platform (App Review 3.1.1): "Turn on Premium" is the same free
   `user.upgradePlan` toggle.
@@ -564,7 +574,7 @@ meals to my training days`; household and the AI chef open their job.
   job; a gym-only user, and a user whose jobs are still unknown, never see it.
   It sends nothing, so it asks no AI consent (the real scan still does).
 - **Profile › Plan & Premium.** `Your plan: Free` (what Free includes) +
-  `See what Premium adds`, or `Your plan: Premium` · `Free for now` · `What you
+  `See what Premium adds`, or `Your plan: Premium` · `Included` · `What you
 have` · `Switch back to Free`. The downgrade sheet names what you keep and
   lists only the Premium jobs this user has used (`downgradeLosses`); cancel
   keeps Premium.
@@ -617,7 +627,8 @@ mealPlan.generate { weekOffset }
        ├─ calorie + macro targets from resolveDailyTargets()
        │   (preferences.service — THE single source: live Mifflin-St Jeor
        │   TDEE ± goal adjustment when metrics are complete, else the stored
-       │   snapshot. The dashboard ring and tracker read the same resolver,
+       │   snapshot; no deficit under 18, sex-specific floor — see "Body-metric
+       │   age and calorie-target safety rules". The dashboard ring and tracker read the same resolver,
        │   so a goal change moves all three together.)
        ├─ IAIService.generateMealPlan (Gemini) → 21 personalised recipes
        │   (prompt carries "Liked recently (4-5★)…" / "Disliked recently
@@ -1584,6 +1595,17 @@ blood pressure, pregnancy, medication) instead of answering. Both prompts
 share one string so they can't drift apart; a snapshot test
 (`prompts.chat-guardrail.test.ts`) locks the wording in.
 
+**Unsafe weight-loss guardrail (App Review R-14, Guideline 1.4.1).** The chat
+prompt also carries `DISORDERED_EATING_RULE`: never endorse very-low-calorie
+diets (below about 1,200 kcal a day), crash diets, fasting to lose weight,
+purging or other disordered eating — say so kindly, suggest a doctor or
+dietitian, offer a balanced meal idea, and for signs of an eating disorder or
+self-harm point to professional help or local emergency services.
+`isHealthTopic` also matches "very low calorie", "crash diet", "starve myself",
+purging/laxatives and a stated daily intake under 1,200 kcal ("800 calories a
+day"), so the "Not medical advice" footer appears on those replies; a per-meal
+figure ("a 500 calorie dinner") is deliberately not matched.
+
 **Header flags + footer disclaimers (UX-22, T-22.2, wave 1 L-ENTRY).** The
 chat header always shows the subtitle `AI · answers can be wrong`, and the
 empty thread shows a chef-not-a-doctor line (`WELLNESS_COPY` in
@@ -1701,7 +1723,13 @@ the adjusted target must shape next week's budget)
   fresh (≤14 days after its weekStart), shaped by entitlement:
   `full` for `adaptiveCoaching` accounts; `teaser` (FIRST line only +
   `lockedLineCount` — the full text never leaves the server) for free;
-  `none` with `loggedDaysThisWeek`/`daysNeeded` otherwise.
+  `none` with `loggedDaysThisWeek`/`daysNeeded` otherwise. The `full` review
+  carries an additive `aiGenerated` flag (R-14, EU AI Act Art. 50): true only
+  when the model wrote the text (`ChefReview.aiGenerated`, set by
+  `generateReviewTextWithSource`; the template, mock mode and failure
+  fallbacks are false). Web and mobile show the "AI-generated" chip next to
+  the review title only when it is true. Reviews written before the column
+  existed read false until the next weekly review.
 - Dashboard banner (`ChefReviewBanner`): premium sees summary chips + a
   full-review Sheet (`chef_review_viewed`); free sees the blurred-teaser ghost
   state (`upgrade_prompt_shown {source: 'coach-review'}` on impression,
@@ -2477,6 +2505,10 @@ against `recentSessions` and the next day's `plannedWeekday`:
   (checked first, regardless of weekday). Gym Today shows `Done today` with
   the just-finished session's stats (`doneTodayCard()`: duration, working
   sets, PR count via `collectPrs`) and `Next session: {weekday} — {dayName}`;
+  the weekday is `nextSessionWeekday()` (R-19): the next day's own pin when it
+  is still ahead of today, otherwise the next planned training weekday after
+  today (any routine day's pin), wrapping into next week — so an off-schedule
+  Thursday session with Mon/Wed/Fri pinned names Friday, not the past Wednesday;
   no Start button. `See summary` opens that session; `Train again today? Pick
 a day` reuses the existing day-picker sheet.
 - **`rest`** — nothing done today, and the next day's `plannedWeekday`
@@ -3224,6 +3256,12 @@ Profile → Your data → "Delete account"  (web /profile, mobile Profile — la
      household, feedback, sign-in on every device) + "Backup copies age out
      within about 30 days."
      Inputs: password + type DELETE (case-insensitive) → destructive button
+     "Forgot your password?" (App Review R-24, web + mobile): asks
+     `auth.requestPasswordReset { email: <the signed-in user's own email> }` and
+     confirms "We sent a reset link to <email>" — the in-app forgot-password
+     screen is signed-out only, so the link lives in the sheet. The mobile
+     password field opts out of iOS "Save Password?" (R-17), and the footer
+     button works on the first tap with the keyboard up (R-03, `Sheet` footers).
         │
         └─ user.deleteSelf { password, confirm: 'DELETE' }
               ├─ wrong password            → FORBIDDEN "That password is not correct"
@@ -3274,12 +3312,15 @@ when the account never linked, or when `POSTHOG_PERSONAL_API_KEY` /
 
 ## 25. AI Data Consent Flow (App Store 5.1.2(i))
 
-> **Status:** Implemented on web and mobile 2026-09-26. User-initiated AI
-> procedures are gated in the clients only (the API does not re-check them).
-> Server-initiated jobs check consent themselves: the Sunday auto-plan skips
-> premium users without consent (§9) and the weekly review writes their text
-> from the template instead of the AI (§14). Other background AI calls carry
-> no personal data (recipe images from AI recipe names; the global ingredient
+> **Status:** Implemented on web and mobile 2026-09-26; enforced on the
+> server too since 2026-10-02 (R-10). The clients' sheet asks first; the API
+> then refuses any user-triggered AI action from a user with no consent on
+> record (`AI_CONSENT_ENFORCE`, default on): an old binary, a stale cache or a
+> consent revoked on another device can no longer send data. Server-initiated
+> jobs check consent themselves: the Sunday auto-plan skips premium users
+> without consent (§9) and the weekly review writes their text from the
+> template instead of the AI (§14). Other background AI calls carry no
+> personal data (recipe images from AI recipe names; the global ingredient
 > price vocabulary).
 
 ```
@@ -3292,9 +3333,9 @@ user taps an AI action ──► requestAiConsent(feature, run, { usesAi })
              "Allow AI to use your data?"
              "To <action>, Chefer sends some of your data to <primary>, a
               third-party AI service, which uses it only to produce the result."
-             (<primary>/<backups> from profile.aiProviders — Google Gemini +
-              Groq by default; Groq + Cloudflare Workers AI when the API runs
-              AI_FREE_ONLY=true)
+             (<primary>/<backups> from profile.aiProviders — Groq +
+              Cloudflare Workers AI by default, i.e. what production runs;
+              Google Gemini + Groq only when the API says so)
              What gets sent: <per-feature list, AI_CONSENT_FEATURE_DATA>
              "Your data is not used to train AI models."
              backup-provider line · "You can turn this off at any time in
@@ -3313,14 +3354,46 @@ user taps an AI action ──► requestAiConsent(feature, run, { usesAi })
 | `recipe-import`              | Import recipe sheet preview (URL / text / photo / video)     | Import recipe screen preview (URL / text / video)     |
 | `chat`                       | Chat widget send + suggested prompts                         | AI Chef screen send                                   |
 | `shopping-list`              | Shop "Regenerate list"                                       | Shop "Regenerate with AI"                             |
+| `ingredient-estimate`        | Ingredient form "Fill in for me"                             | Custom ingredient sheet "Fill in for me"              |
 
 The first plan after onboarding is generated from the Plan tab / dashboard
-"Generate my week", so it is covered by `meal-plan`. Not gated (no personal
-data): AI nutrition estimate for a custom ingredient (ingredient name only) and
-recipe image generation.
+"Generate my week", so it is covered by `meal-plan`. The ingredient "Fill in
+for me" used to be exempt (name only); it now asks like the rest, saying that
+the typed name is what is sent. Not gated (no personal data): recipe image
+generation.
+
+**Server-side check (R-10).** Every row above is backed by a check in the API:
+
+```
+AI action ──► API
+  ├─ consent on record (aiDataConsentAt set) ──────────────────► runs
+  ├─ AI_CONSENT_ENFORCE=off ───────────────────────────────────► runs (emergency switch)
+  └─ no consent
+        ├─ tRPC procedure ─► FORBIDDEN, message "Allow AI features in
+        │    Profile → AI & your data to use this.", data.reason =
+        │    'AI_CONSENT_REQUIRED'   (recipe.importPreview/importVideoPreview,
+        │    shoppingList.regenerate/searchStores, premium mealPlan.swapRecipe,
+        │    ingredients.estimateNutrition's AI fallback, mealPlan.resumeTailoring)
+        ├─ /api/chat, /api/scan-meal ─► 403 { error, reason } +
+        │    X-AI-Consent-Required: 1
+        └─ mealPlan.generate ─► never an error over consent: a premium user
+             without consent gets the curated week (no tailoring); the AI
+             fallback for a table the curated pool can't cover is skipped and
+             the existing "not enough recipes" answer is returned instead
+```
+
+On a consent rejection the client (web and mobile) drops its cached consent
+and reopens the consent sheet for that feature instead of a generic error;
+"Allow" records consent and the user repeats the action. Old binaries show the
+same sentence as a normal error.
 
 **Revoking:** Profile → "AI & your data" → "Allow AI features to process my
 data" switch (web + mobile) → `user.revokeAiDataConsent` / `grantAiDataConsent`.
+The switch text lists every feature that may send data (plans, swaps, photo
+scans, recipe and video imports, chat, ingredient fill-in, the AI shopping-list
+tidy-up and the weekly coach review), and a note under it says what the coach
+review sends (weight trend, goal, average calories) and that without consent
+it is written from a template and nothing is sent.
 
 **Who is named (2026-09-26):** the sheet, the Profile switch's "on" text, the
 web privacy page ("AI processing" + "Who receives your data") and the support
@@ -3328,7 +3401,9 @@ FAQ never hard-code a provider. They read `profile.aiProviders` (public), which
 the API derives from its live route table, and fill the shared templates in
 `@chefer/types` `AI_CONSENT_COPY` via `@chefer/utils` (`aiConsentIntro`,
 `aiConsentBackupLine`, `aiConsentToggleOn`). Until it answers, or against an
-API that predates it, clients show the standard set (Gemini, Groq backup).
+API that predates it (or when the request fails — it is retried), clients
+show the set production runs (Groq, Cloudflare Workers AI backup), never the
+legacy Gemini one.
 
 **When the AI is out of capacity** (every provider in a chain busy or past its
 free daily quota): the user sees "The chef is over capacity right now — give it
@@ -3393,6 +3468,9 @@ app/_layout.tsx ──► initAnalytics(): starts the 30s flush timer + backgrou
                              next event (AC2); off → sign-out resets it to off
 
 Profile → Privacy & data → "Usage analytics" (AnalyticsConsentCard, mobile)
+  rendered only when the transport is enabled (PostHog key + host set at
+  bundle time — not in the App Store build; R-08), so the app never shows an
+  "on" switch for something that sends nothing;
   same two switches as web; each change also calls
   privacy.recordAnalyticsConsent and fires analytics_consent_changed
 ```
@@ -3688,6 +3766,40 @@ Profile → Your data → "Download my data" / "Export my data"
 
 ## 29. Your Own Targets & Change Notices Flow
 
+### Body-metric age and calorie-target safety rules (App Review R-02)
+
+Guideline 1.4.1 (physical harm): a diet app must not hand a child a weight-loss
+target. Chefer is 16+ (sign-up checkbox, Terms), and these rules enforce it
+where body metrics are entered:
+
+- **Minimum age 16** for body metrics. `MIN_BODY_METRICS_AGE` / `MIN_AGE_MESSAGE`
+  ("Chefer is for people aged 16 and over.") live in `@chefer/types`
+  (`body-metrics.ts`); `bodyMetricsAgeSchema` is the zod rule on every API write
+  (`preferences.setup`, `saveProfileBasics`, `computeTargets`) and
+  `bodyMetricsAgeError` drives the web and mobile forms (error under the Age
+  field, no calorie estimate, Continue/Save disabled until fixed or cleared).
+  Installed clients that send an age under 16 get a normal `BAD_REQUEST`
+  carrying that message. Stored ages under 16 are never re-validated on read:
+  reads, plan generation and targets keep working for those rows.
+- **No deficit under 18.** `goalAdjustmentKcal` (`calorie-target.ts`,
+  `@chefer/utils`) turns a negative goal adjustment (LOSE_WEIGHT) into 0 for
+  anyone under 18, so the suggested target is maintenance. The forms show
+  `MINOR_NO_DEFICIT_NOTE` ("Under 18 we don't set a calorie deficit — your
+  target is maintenance. Talk to a doctor before trying to lose weight."), the
+  Explain sheet's rate reads "Maintenance calories (no calorie deficit under
+  18)", a negative coach dial is ignored and the coach never proposes a trim
+  (`decideAdjustmentKcal` returns 0).
+- **Sex-specific floor.** `calorieFloor`: 1,500 kcal for male, 1,200 for female
+  or unknown, applied to the computed target, the coach's dial and the coach's
+  BMR×1.1 safety bound. Own targets (`targets.set`) keep their 1,200–5,000
+  validation: they are a deliberate user choice, not a suggestion.
+- **One implementation.** The API (`computeCalorieTarget`, `computeBmrTdee`
+  re-exported from `preferences.service.ts`), the web preview (onboarding
+  `StepMetrics`, preferences `TargetsSection`) and the mobile preview
+  (`MetricsStep`, `estimateCalorieTarget`) all call `@chefer/utils`
+  `calorie-target.ts`, so the number typed into a form is the number the planner
+  uses.
+
 **§2.11 (UX-35 "Set my own targets", UX-11 "Never change it silently"), wave 1
 (L-TRACK).** One resolver, an own-target override that nothing can move
 silently, and a provable change log.
@@ -3696,7 +3808,10 @@ silently, and a provable change log.
 resolveTargets(profile, lifterBodyweightKg?)      [preferences.service.ts]
   ├─ suggested = live Mifflin-St Jeor TDEE ± goal adjustment ± the coach's
   │    cumulative dial, macros from the goal's split; lifter g/kg protein +
-  │    BMI ≥ 30 adjusted-weight rule when lifterBodyweightKg is given
+  │    BMI ≥ 30 adjusted-weight rule when lifterBodyweightKg is given.
+  │    R-02: under 18 a deficit goal resolves to maintenance (and a negative
+  │    dial is ignored); the floor is 1,500 kcal male / 1,200 female or
+  │    unknown (`calorie-target.ts` in @chefer/utils — shared with web+mobile)
   ├─ effective = profile.targetMode === 'OWN'
   │      ? { customKcal, customProteinG, customCarbsG, customFatG }
   │          (falling back per-field to `suggested`)

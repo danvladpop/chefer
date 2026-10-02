@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { View } from 'react-native';
 import { Button, Input, Text } from '@chefer/ui-mobile';
-import { parseBodyWeight } from '@chefer/utils';
+import { parseBodyWeight, userFacingErrorMessage } from '@chefer/utils';
 import { useUnitSystem } from '../../../hooks/use-unit-system';
 import { trpc } from '../../../lib/trpc';
 import { HealthDeclinedNotice } from '../../privacy/health-notices';
@@ -27,7 +27,7 @@ export function LogWeightPrompt({ testID = 'log-weight-prompt' }: { testID?: str
       void utils.gym.stats.monthlyRecap.invalidate();
       void utils.tracker.weightHistory.invalidate();
     },
-    onError: (err) => setError(err.message),
+    onError: (err) => setError(userFacingErrorMessage(err)),
   });
 
   const submit = () => {

@@ -203,8 +203,10 @@ export const userRouter = router({
   }),
 
   /**
-   * Withdraws AI data consent (Profile toggle). The next AI action asks again.
-   * Not enforced server-side: background jobs keep working.
+   * Withdraws AI data consent (Profile toggle). The next AI action asks again,
+   * and the server now refuses user-triggered AI actions without it
+   * (`AI_CONSENT_ENFORCE`, lib/ai-consent-gate.ts, R-10); background jobs
+   * skip the user's data the same way.
    */
   revokeAiDataConsent: protectedProcedure.mutation(async ({ ctx }) => {
     return userService.setAiDataConsent(ctx.user.id, false, ctx.isMobileClient ? 'mobile' : 'web');

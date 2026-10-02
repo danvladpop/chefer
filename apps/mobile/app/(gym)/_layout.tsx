@@ -1,5 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import { Tabs } from 'expo-router';
+import { SnackbarAwareTabBar } from '../../src/components/snackbar-tab-bar';
 import { TAB_BAR_SCREEN_OPTIONS } from '../../src/lib/tab-bar-options';
 
 // Gym mode tab bar (gym_plan.md D3): Today / Routine / Exercises / Stats.
@@ -7,7 +8,11 @@ import { TAB_BAR_SCREEN_OPTIONS } from '../../src/lib/tab-bar-options';
 // belongs to the food dashboard.
 export default function GymTabsLayout() {
   return (
-    <Tabs screenOptions={TAB_BAR_SCREEN_OPTIONS}>
+    <Tabs
+      screenOptions={TAB_BAR_SCREEN_OPTIONS}
+      // R-11: lets the global snackbar sit above the tab bar.
+      tabBar={(props) => <SnackbarAwareTabBar {...props} />}
+    >
       <Tabs.Screen
         name="today"
         options={{

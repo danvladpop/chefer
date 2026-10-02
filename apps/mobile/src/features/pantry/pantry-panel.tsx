@@ -3,7 +3,7 @@ import { ActivityIndicator, Pressable, ScrollView, TextInput, View } from 'react
 import { Ionicons } from '@expo/vector-icons';
 import type { DisplayCurrency } from '@chefer/types';
 import { Button, Card, Text, useScrollFieldIntoView } from '@chefer/ui-mobile';
-import { cn } from '@chefer/utils';
+import { cn, userFacingErrorMessage } from '@chefer/utils';
 import { useEntitlement } from '../../hooks/use-entitlement';
 import { trpc } from '../../lib/trpc';
 import { openPremium } from '../premium/open-premium';
@@ -201,7 +201,9 @@ export function PantryPanel({
             </Pressable>
           </View>
           {addMutation.isError && (
-            <Text className="text-xs text-red-600">{addMutation.error.message}</Text>
+            <Text className="text-xs text-red-600">
+              {userFacingErrorMessage(addMutation.error)}
+            </Text>
           )}
         </View>
       )}

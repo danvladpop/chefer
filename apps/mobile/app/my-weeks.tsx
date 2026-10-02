@@ -3,6 +3,7 @@ import { ActivityIndicator, Alert, Pressable, ScrollView, TextInput, View } from
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { Button, Card, ErrorState, Screen, Text } from '@chefer/ui-mobile';
+import { userFacingErrorMessage } from '@chefer/utils';
 import { PastWeeksSection } from '../src/features/history/past-weeks-section';
 import { trpc } from '../src/lib/trpc';
 
@@ -56,10 +57,10 @@ export default function MyWeeksScreen() {
     renameMutation.isPending ||
     deleteMutation.isPending;
   const error =
-    saveMutation.error?.message ??
-    followMutation.error?.message ??
-    renameMutation.error?.message ??
-    deleteMutation.error?.message ??
+    (saveMutation.error ? userFacingErrorMessage(saveMutation.error) : undefined) ??
+    (followMutation.error ? userFacingErrorMessage(followMutation.error) : undefined) ??
+    (renameMutation.error ? userFacingErrorMessage(renameMutation.error) : undefined) ??
+    (deleteMutation.error ? userFacingErrorMessage(deleteMutation.error) : undefined) ??
     null;
 
   const confirmDelete = (templateId: string, name: string) => {

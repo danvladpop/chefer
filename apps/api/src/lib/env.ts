@@ -215,6 +215,13 @@ const envSchema = z.object({
   // (§2.8 "rollout").
   HEALTH_CONSENT_ENFORCE: z.enum(['off', 'declared', 'all']).default('off'),
 
+  // AI-data consent enforcement (App Store 5.1.2(i), R-10). `on` (the
+  // default) refuses an AI action from a user with no `aiDataConsentAt` with
+  // `AI_CONSENT_REQUIRED` (lib/ai-consent-gate.ts); every shipped client
+  // already asks before it calls the AI, so consenting users never notice.
+  // `off` restores the client-only behaviour (an emergency switch).
+  AI_CONSENT_ENFORCE: z.enum(['off', 'on']).default('on'),
+
   // Grocery store search (lib/grocery-ai): mock is enabled by default so
   // local dev never calls the real store-search AI. T-BUG-X6: this used to
   // be a direct `process.env['GROCERY_AI_MOCK_ENABLED']` read in

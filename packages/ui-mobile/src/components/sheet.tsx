@@ -21,6 +21,7 @@ import { elevation } from '@chefer/tokens';
 import { cn } from '@chefer/utils';
 import { duration, springs, timing } from '../motion/motion';
 import { useReducedMotion } from '../motion/use-reduced-motion';
+import { KeyboardPersistFooter } from './keyboard-persist-footer';
 import { Text } from './text';
 
 export interface SheetProps {
@@ -271,7 +272,16 @@ export function Sheet({
             ) : (
               <View className="shrink px-4 pb-4">{children}</View>
             )}
-            {footer ? <View className="border-t border-border px-4 pt-3">{footer}</View> : null}
+            {footer ? (
+              // R-03: a footer outside a keyboardShouldPersistTaps ScrollView
+              // loses its first tap while the keyboard is up.
+              <KeyboardPersistFooter
+                testID={testID ? `${testID}-footer` : undefined}
+                contentContainerClassName="border-t border-border px-4 pt-3"
+              >
+                {footer}
+              </KeyboardPersistFooter>
+            ) : null}
           </View>
         </Animated.View>
       </KeyboardAvoidingView>

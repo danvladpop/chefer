@@ -6,6 +6,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { router, useLocalSearchParams } from 'expo-router';
 import { Button, Card, PasswordInput, Text, useScrollFieldIntoView } from '@chefer/ui-mobile';
+import { userFacingErrorMessage } from '@chefer/utils';
 import { AuthField, AuthScreen, backToLogin } from '../../src/features/auth/auth-screen';
 import { resetPasswordSchema, type ResetPasswordFormValues } from '../../src/features/auth/schemas';
 import { trpc } from '../../src/lib/trpc';
@@ -142,7 +143,7 @@ function ResetPasswordForm({ token }: { token: string }) {
 
       {reset.error && (
         <Text variant="muted" className="text-destructive" testID="reset-password-error">
-          {reset.error.message}
+          {userFacingErrorMessage(reset.error)}
         </Text>
       )}
 

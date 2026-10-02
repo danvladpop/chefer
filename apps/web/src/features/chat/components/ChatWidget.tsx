@@ -8,7 +8,8 @@ import { capture } from '@/lib/analytics';
 import { useChat } from '@ai-sdk/react';
 import { TextStreamChatTransport, type UIMessage } from 'ai';
 import { MessageCircle, Send, Sparkles, X } from 'lucide-react';
-import { WELLNESS_COPY } from '@chefer/utils';
+import { AI_CONSENT_REQUIRED_HEADER, AI_CONSENT_REQUIRED_MESSAGE } from '@chefer/types';
+import { notifyAiConsentRequired, WELLNESS_COPY } from '@chefer/utils';
 import { LockedChatPreview } from './LockedChatPreview';
 
 // Showcase what the chat can actually DO with the user's real plan (P1-4).
@@ -68,12 +69,21 @@ export function ChatWidget() {
     if (isPremium) setQuotaExhausted(false);
   }, [isPremium]);
 
+  // R-10: set when the server answered 403 for missing AI consent, so the
+  // inline error says what to do instead of "unavailable".
+  const consentRefusedRef = useRef(false);
   const { messages, sendMessage, status } = useChat({
     transport: new TextStreamChatTransport({
       api: '/api/chat',
       fetch: async (input: RequestInfo | URL, init?: RequestInit) => {
         const res = await fetch(input, init);
+        consentRefusedRef.current = false;
         if (res.headers.get('X-Chat-Quota-Exhausted') === '1') setQuotaExhausted(true);
+        // R-10: the server has no AI consent on record — reopen the sheet.
+        if (res.status === 403 && res.headers.get(AI_CONSENT_REQUIRED_HEADER) === '1') {
+          consentRefusedRef.current = true;
+          notifyAiConsentRequired('chat');
+        }
         pendingTopicFlagsRef.current = {
           health: res.headers.get('X-Chat-Health-Topic') === '1',
           safety: res.headers.get('X-Chat-Safety-Topic') === '1',
@@ -81,7 +91,12 @@ export function ChatWidget() {
         return res;
       },
     }),
-    onError: () => setChatError('The chef is unavailable right now — please try again.'),
+    onError: () =>
+      setChatError(
+        consentRefusedRef.current
+          ? AI_CONSENT_REQUIRED_MESSAGE
+          : 'The chef is unavailable right now — please try again.',
+      ),
   });
   const isLoading = status === 'submitted' || status === 'streaming';
 

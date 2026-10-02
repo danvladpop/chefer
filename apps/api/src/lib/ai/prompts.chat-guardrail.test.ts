@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { CHAT_SYSTEM_PROMPT, REVIEW_SYSTEM_PROMPT } from './prompts.js';
+import { CHAT_SYSTEM_PROMPT, DISORDERED_EATING_RULE, REVIEW_SYSTEM_PROMPT } from './prompts.js';
 
 // T-00.14 (UX-22 AC3, Art. 50 floor): the chat prompt used to invite
 // "nutritional advice" and carried no medical-topic guardrail at all — the
@@ -15,6 +15,24 @@ describe('CHAT_SYSTEM_PROMPT — guardrail (T-00.14)', () => {
   it('carries the "chef, not a doctor" rule', () => {
     expect(CHAT_SYSTEM_PROMPT).toContain('You are a chef, not a doctor');
     expect(CHAT_SYSTEM_PROMPT).toContain('no medical claims');
+  });
+
+  it('refuses to endorse very-low-calorie or disordered-eating advice and refers out (R-14)', () => {
+    expect(CHAT_SYSTEM_PROMPT).toContain(DISORDERED_EATING_RULE);
+    const rule = DISORDERED_EATING_RULE.toLowerCase();
+    for (const term of [
+      'very-low-calorie',
+      '1,200',
+      'crash diets',
+      'fasting',
+      'purging',
+      'doctor or dietitian',
+      'eating disorder',
+      'self-harm',
+      'emergency services',
+    ]) {
+      expect(rule).toContain(term);
+    }
   });
 
   it('matches the known-good snapshot', () => {

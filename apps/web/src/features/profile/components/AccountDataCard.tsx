@@ -5,6 +5,7 @@ import { trpc } from '@/lib/trpc';
 import { Download, Trash2 } from 'lucide-react';
 import { ACCOUNT_DELETION_COPY as COPY } from '@chefer/types';
 import { Button, Sheet, Toast } from '@chefer/ui';
+import { userFacingErrorMessage } from '@chefer/utils';
 
 // ─── Your data ────────────────────────────────────────────────────────────────
 // Self-service export and account deletion (audit P0-6, F-PROF-1-1). The
@@ -84,6 +85,11 @@ function DeleteAccountSheet({ open, onClose }: { open: boolean; onClose: () => v
     // cached query.
     onSuccess: () => window.location.assign('/'),
   });
+  // R-24 (parity with mobile): deleting needs the password, so a signed-in
+  // user who forgot it asks for a reset link for their own address right here.
+  const me = trpc.auth.me.useQuery(undefined, { staleTime: 5 * 60_000 });
+  const email = me.data?.email ?? null;
+  const resetMutation = trpc.auth.requestPasswordReset.useMutation();
   const ready = password.length > 0 && confirmText.trim().toUpperCase() === COPY.confirmWord;
 
   return (
@@ -121,12 +127,37 @@ function DeleteAccountSheet({ open, onClose }: { open: boolean; onClose: () => v
           {COPY.passwordLabel}
           <input
             type="password"
-            autoComplete="current-password"
+            autoComplete="off"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             className="mt-1 block min-h-11 w-full rounded-lg border border-gray-300 px-3"
           />
         </label>
+        {email &&
+          (resetMutation.isSuccess ? (
+            <p
+              role="status"
+              className="text-sm text-gray-700"
+              data-testid="delete-account-reset-sent"
+            >
+              {COPY.resetSentTo} {email}. {COPY.resetSentHint}
+            </p>
+          ) : (
+            <button
+              type="button"
+              data-testid="delete-account-forgot-password"
+              disabled={resetMutation.isPending}
+              onClick={() => resetMutation.mutate({ email })}
+              className="min-h-11 text-sm font-semibold text-primary hover:underline disabled:opacity-60"
+            >
+              {resetMutation.isPending ? COPY.resetSending : COPY.forgotPassword}
+            </button>
+          ))}
+        {resetMutation.isError && (
+          <p role="alert" className="text-sm text-red-700">
+            {userFacingErrorMessage(resetMutation.error)}
+          </p>
+        )}
         <label className="block text-sm font-medium text-gray-800">
           {COPY.confirmLabel}
           <input
@@ -138,7 +169,7 @@ function DeleteAccountSheet({ open, onClose }: { open: boolean; onClose: () => v
         </label>
         {deleteMutation.isError && (
           <p role="alert" className="text-sm text-red-700">
-            {deleteMutation.error.message}
+            {userFacingErrorMessage(deleteMutation.error)}
           </p>
         )}
       </div>

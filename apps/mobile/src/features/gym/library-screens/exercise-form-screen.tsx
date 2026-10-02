@@ -23,7 +23,7 @@ import {
   useFieldChain,
   useScrollFieldIntoView,
 } from '@chefer/ui-mobile';
-import { isTimedFor, trackingTypeOf } from '@chefer/utils';
+import { isTimedFor, trackingTypeOf, userFacingErrorMessage } from '@chefer/utils';
 import { useFlags } from '../../../hooks/use-flags';
 import { trpc } from '../../../lib/trpc';
 import { useGymBootstrap } from '../use-gym-bootstrap';
@@ -130,14 +130,14 @@ export function ExerciseFormScreen({ exerciseId }: { exerciseId?: string }) {
       void utils.gym.bootstrap.invalidate();
       router.replace(`/gym/exercise/${created.id}`);
     },
-    onError: (err) => setErrors([err.message]),
+    onError: (err) => setErrors([userFacingErrorMessage(err)]),
   });
   const updateMutation = trpc.gym.library.updateCustom.useMutation({
     onSuccess: () => {
       void utils.gym.bootstrap.invalidate();
       router.back();
     },
-    onError: (err) => setErrors([err.message]),
+    onError: (err) => setErrors([userFacingErrorMessage(err)]),
   });
   const isSaving = createMutation.isPending || updateMutation.isPending;
 

@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { View } from 'react-native';
 import { Button, Card, Input, SegmentedControl, Text } from '@chefer/ui-mobile';
+import { userFacingErrorMessage } from '@chefer/utils';
 import { trpc } from '../../lib/trpc';
 
 // ─── TargetsCard (§2.11, T-35.3) ────────────────────────────────────────────────
@@ -70,7 +71,7 @@ export function TargetsCard() {
       void utils.tracker.getDay.invalidate();
       setLocalError(null);
     },
-    onError: (err) => setLocalError(err.message),
+    onError: (err) => setLocalError(userFacingErrorMessage(err)),
   });
 
   const save = () => {
@@ -195,9 +196,11 @@ export function TargetsCard() {
       <Button testID="targets-save" loading={setMutation.isPending} onPress={save}>
         {setMutation.isSuccess && !dirty ? 'Saved ✓' : 'Save targets'}
       </Button>
-      {(localError ?? setMutation.error?.message) && (
+      {(localError ??
+        (setMutation.error ? userFacingErrorMessage(setMutation.error) : undefined)) && (
         <Text testID="targets-error" className="text-xs text-red-600">
-          {localError ?? setMutation.error?.message}
+          {localError ??
+            (setMutation.error ? userFacingErrorMessage(setMutation.error) : undefined)}
         </Text>
       )}
     </Card>

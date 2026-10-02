@@ -8,6 +8,7 @@ import { trpc } from '@/lib/trpc';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useQueryClient } from '@tanstack/react-query';
 import { z } from 'zod';
+import { userFacingErrorMessage } from '@chefer/utils';
 
 const loginSchema = z.object({
   email: z.string().min(1, 'Email is required').email('Please enter a valid email address'),
@@ -36,7 +37,7 @@ export function LoginForm() {
       router.refresh();
     },
     onError: (err) => {
-      setServerError(err.message ?? 'Invalid email or password');
+      setServerError(userFacingErrorMessage(err, 'Invalid email or password'));
     },
   });
 

@@ -15,6 +15,11 @@ import { SAFE_AREA_METRICS, trpcError } from './friends-core-harness';
 // The video review embeds the catalog picker (plan-ingredient-catalog §10).
 jest.mock('expo-router', () => ({ router: { push: jest.fn(), back: jest.fn() } }));
 jest.mock('../../src/features/premium/premium-host', () => ({ PremiumHost: () => null }));
+// R-10: the custom-ingredient sheet asks for AI consent before "Fill in for me".
+jest.mock('../../src/features/ai-consent/ai-consent-provider', () => ({
+  useAiConsent: () => (_feature: string, run: () => void) => run(),
+  AiConsentHost: () => null,
+}));
 jest.mock('../../src/lib/trpc', () => ({
   trpc: jest
     .requireActual<typeof import('./catalog-trpc-mock')>('./catalog-trpc-mock')

@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { use, useEffect, useState } from 'react';
 import { useAiConsent } from '@/features/ai-consent/AiConsentProvider';
 import { UpgradeButton } from '@/features/premium/components/UpgradeButton';
+import { AiGeneratedChip } from '@/features/privacy/components/AiGeneratedChip';
 import { StarRatingWidget } from '@/features/recipe/components/StarRatingWidget';
 import { AllergenWarningBanner } from '@/features/recipes/components/AllergenWarning';
 import { RecipeDetailImage } from '@/features/recipes/components/RecipeDetailImage';
@@ -346,6 +347,8 @@ export default function RecipeDetailPage({ params }: RecipePageProps) {
             ))}
           </div>
           <h1 className="font-serif text-2xl font-bold text-gray-900">{recipe.name}</h1>
+          {/* R-14 (Art. 50): AI-generated recipes carry the same label as plan cards. */}
+          <AiGeneratedChip recipe={recipe} className="mt-1" />
           <p className="mt-1 text-sm text-gray-500">{recipe.description}</p>
           <AllergenWarningBanner warnings={recipe.allergenWarnings} className="mt-3" />
           {/* T-02.3 AC3: never both — only shows when the conflict banner

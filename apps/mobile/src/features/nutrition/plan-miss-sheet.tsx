@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, View } from 'react-native';
 import { Button, Sheet, Text } from '@chefer/ui-mobile';
+import { userFacingErrorMessage } from '@chefer/utils';
 import { trpc } from '../../lib/trpc';
 
 // ─── PlanMissSheet (§2.11, T-11.3) ─────────────────────────────────────────────
@@ -143,7 +144,8 @@ export function PlanMissSheet({
             ) : null}
             {applyMutation.isError && (
               <Text className="text-xs text-red-600">
-                {applyMutation.error.message || 'Could not change the portions — try again.'}
+                {userFacingErrorMessage(applyMutation.error) ||
+                  'Could not change the portions — try again.'}
               </Text>
             )}
           </View>

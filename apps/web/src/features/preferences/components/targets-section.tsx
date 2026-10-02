@@ -5,27 +5,24 @@ import type { ActivityLevel, BiologicalSex, Goal } from '@/features/onboarding/t
 import { UpgradeCard } from '@/features/premium/components/UpgradeButton';
 import { trpc } from '@/lib/trpc';
 import { skipToken } from '@tanstack/react-query';
-import { lifterProteinNote } from '@chefer/utils';
+import {
+  bodyMetricsAgeError,
+  MAX_BODY_METRICS_AGE,
+  MIN_BODY_METRICS_AGE,
+  MINOR_NO_DEFICIT_NOTE,
+} from '@chefer/types';
+import {
+  computeBmrTdee,
+  computeCalorieTarget,
+  goalAdjustmentKcal,
+  isDeficitBlockedForAge,
+  lifterProteinNote,
+} from '@chefer/utils';
 import { Section } from './section';
 import { TargetsCard } from './TargetsCard';
 
 // ─── Client-side nutrition preview (instant estimate, replaced by the
 // server's numbers as soon as they arrive — see serverPreview below) ─────────
-
-const ACTIVITY_MULTIPLIERS: Record<string, number> = {
-  SEDENTARY: 1.2,
-  LIGHTLY_ACTIVE: 1.375,
-  MODERATELY_ACTIVE: 1.55,
-  VERY_ACTIVE: 1.725,
-  ATHLETE: 1.9,
-};
-
-const GOAL_ADJUSTMENTS: Record<string, number> = {
-  LOSE_WEIGHT: -500,
-  MAINTAIN: 0,
-  GAIN_MUSCLE: 300,
-  EAT_HEALTHIER: 0,
-};
 
 const GOAL_MACRO_SPLITS: Record<string, { protein: number; carbs: number; fat: number }> = {
   LOSE_WEIGHT: { protein: 0.35, carbs: 0.35, fat: 0.3 },
@@ -61,24 +58,41 @@ function computePreviewTargets(data: PreviewFormData) {
   ) {
     return null;
   }
-  const sexConstant = data.biologicalSex === 'MALE' ? 5 : -161;
-  const bmr = 10 * data.weightKg + 6.25 * data.heightCm - 5 * data.age + sexConstant;
-  const multiplier = ACTIVITY_MULTIPLIERS[data.activityLevel] ?? 1.55;
-  const tdee = Math.round(bmr * multiplier);
-  const adjustment = GOAL_ADJUSTMENTS[data.goal] ?? 0;
-  const calories = Math.max(1200, tdee + adjustment);
+  // Shared with the API and mobile (@chefer/utils calorie-target.ts): no
+  // deficit under 18, sex-specific floor (App Review R-02).
+  if (bodyMetricsAgeError(data.age) !== null) return null;
+  const { tdee } = computeBmrTdee(
+    data.weightKg,
+    data.heightCm,
+    data.age,
+    data.activityLevel,
+    data.biologicalSex,
+  );
+  const calories = computeCalorieTarget(
+    data.weightKg,
+    data.heightCm,
+    data.age,
+    data.activityLevel,
+    data.biologicalSex,
+    data.goal,
+  );
+  const deficitBlocked = isDeficitBlockedForAge(data.goal, data.age);
+  const adjustment = deficitBlocked ? 0 : goalAdjustmentKcal(data.goal, data.age);
   const split = GOAL_MACRO_SPLITS[data.goal] ?? GOAL_MACRO_SPLITS['MAINTAIN']!;
   return {
     calories,
     tdee,
     adjustment,
+    deficitBlocked,
     proteinG: Math.round((calories * split.protein) / 4),
     carbsG: Math.round((calories * split.carbs) / 4),
     fatG: Math.round((calories * split.fat) / 9),
     proteinPct: Math.round(split.protein * 100),
     carbsPct: Math.round(split.carbs * 100),
     fatPct: Math.round(split.fat * 100),
-    description: GOAL_DESCRIPTIONS[data.goal] ?? '',
+    description: deficitBlocked
+      ? GOAL_DESCRIPTIONS['MAINTAIN']!
+      : (GOAL_DESCRIPTIONS[data.goal] ?? ''),
   };
 }
 
@@ -117,8 +131,8 @@ export function TargetsSection({ isPremium, data, onChange }: TargetsSectionProp
     data.goal !== null &&
     data.biologicalSex !== null &&
     data.age !== null &&
-    data.age >= 10 &&
-    data.age <= 110 &&
+    data.age >= MIN_BODY_METRICS_AGE &&
+    data.age <= MAX_BODY_METRICS_AGE &&
     data.heightCm !== null &&
     data.heightCm > 0 &&
     data.heightCm <= 300 &&
@@ -240,6 +254,14 @@ export function TargetsSection({ isPremium, data, onChange }: TargetsSectionProp
               className="mt-3 text-center text-xs text-muted-foreground"
             >
               {lifterProteinNote(lifter.proteinGPerKg)}
+            </p>
+          )}
+          {preview.deficitBlocked && (
+            <p
+              data-testid="preferences-minor-note"
+              className="mt-3 text-center text-xs text-foreground"
+            >
+              {MINOR_NO_DEFICIT_NOTE}
             </p>
           )}
           {preview.adjustment !== 0 && (

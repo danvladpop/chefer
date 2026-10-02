@@ -42,6 +42,9 @@ export function AiConsentCard() {
           trackColor={TRACK}
         />
       </View>
+      <Text variant="muted" className="text-xs" testID="profile-ai-consent-coach-note">
+        {AI_CONSENT_COPY.coachReviewNote}
+      </Text>
       <Button
         variant="ghost"
         size="sm"

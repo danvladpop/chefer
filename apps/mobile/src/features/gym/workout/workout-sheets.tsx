@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Linking, Pressable, TextInput, View } from 'react-native';
+import { Pressable, TextInput, View } from 'react-native';
 import {
   HIDDEN_EXERCISE_IMAGE_IDS,
   type ExerciseDto,
@@ -9,6 +9,7 @@ import {
 import { Button, ExplainSheet, Sheet, Text } from '@chefer/ui-mobile';
 import { cn, explain, explainInputs, formatLoad } from '@chefer/utils';
 import { ExerciseImage } from '../components/exercise-image';
+import { ExerciseVideoSheet } from '../library-screens/exercise-video-sheet';
 import { exerciseImageUrl } from '../library/exercise-image';
 import type { ExerciseHistoryEntry } from './workout-model';
 
@@ -17,9 +18,7 @@ import type { ExerciseHistoryEntry } from './workout-model';
 
 // ─── Technique ────────────────────────────────────────────────────────────────
 
-export function youtubeUrl(videoId: string, startSec: number | null): string {
-  return `https://youtu.be/${videoId}${startSec ? `?t=${startSec}` : ''}`;
-}
+type VideoRequest = { videoId: string; startSec: number; channel: string | null };
 
 export function TechniqueSheet({
   visible,
@@ -30,88 +29,116 @@ export function TechniqueSheet({
   onClose: () => void;
   exercise: ExerciseDto | null;
 }) {
+  // R-16: "Watch technique" plays in the in-app video sheet instead of
+  // throwing the user out to YouTube mid-set. iOS refuses to present a Modal
+  // while another is still dismissing, so the technique sheet closes first and
+  // the video sheet opens from its `onExited` (never two Modals stacked). The
+  // video's details are captured at tap time because the parent clears its
+  // sheet content once this sheet is gone.
+  const [pendingVideo, setPendingVideo] = useState<VideoRequest | null>(null);
+  const [video, setVideo] = useState<VideoRequest | null>(null);
   const images = exercise
     ? [exerciseImageUrl(exercise, 0), exerciseImageUrl(exercise, 1)].filter(
         (u): u is string => u !== null,
       )
     : [];
   return (
-    <Sheet
-      visible={visible}
-      onClose={onClose}
-      title={exercise?.name ?? 'Technique'}
-      eyebrow="Technique"
-      testID="technique-sheet"
-    >
-      {exercise ? (
-        <View className="flex-row gap-2">
-          {images.length > 0 ? (
-            images.map((uri, i) => (
-              <View key={uri} className="flex-1 overflow-hidden rounded-xl">
+    <>
+      <Sheet
+        visible={visible}
+        onClose={onClose}
+        title={exercise?.name ?? 'Technique'}
+        eyebrow="Technique"
+        testID="technique-sheet"
+        onExited={() => {
+          if (pendingVideo) {
+            setVideo(pendingVideo);
+            setPendingVideo(null);
+          }
+        }}
+      >
+        {exercise ? (
+          <View className="flex-row gap-2">
+            {images.length > 0 ? (
+              images.map((uri, i) => (
+                <View key={uri} className="flex-1 overflow-hidden rounded-xl">
+                  <ExerciseImage
+                    uri={uri}
+                    equipment={exercise.equipment}
+                    name={exercise.name}
+                    size="hero"
+                    hidden={HIDDEN_EXERCISE_IMAGE_IDS.has(exercise.id)}
+                    analyticsExerciseId={exercise.ownerId ? 'custom' : exercise.id}
+                    testID={`technique-sheet-image-${i}`}
+                  />
+                </View>
+              ))
+            ) : (
+              <View className="flex-1 overflow-hidden rounded-xl">
                 <ExerciseImage
-                  uri={uri}
+                  uri={null}
                   equipment={exercise.equipment}
                   name={exercise.name}
                   size="hero"
-                  hidden={HIDDEN_EXERCISE_IMAGE_IDS.has(exercise.id)}
                   analyticsExerciseId={exercise.ownerId ? 'custom' : exercise.id}
-                  testID={`technique-sheet-image-${i}`}
+                  testID="technique-sheet-image-0"
                 />
               </View>
-            ))
-          ) : (
-            <View className="flex-1 overflow-hidden rounded-xl">
-              <ExerciseImage
-                uri={null}
-                equipment={exercise.equipment}
-                name={exercise.name}
-                size="hero"
-                analyticsExerciseId={exercise.ownerId ? 'custom' : exercise.id}
-                testID="technique-sheet-image-0"
-              />
-            </View>
-          )}
-        </View>
+            )}
+          </View>
+        ) : null}
+        {exercise?.videoId ? (
+          <Button
+            testID="technique-sheet-video"
+            variant="outline"
+            onPress={() => {
+              if (!exercise.videoId) return;
+              setPendingVideo({
+                videoId: exercise.videoId,
+                startSec: exercise.videoStartSec ?? 0,
+                channel: exercise.videoChannel,
+              });
+              onClose();
+            }}
+          >
+            ▶ Watch technique
+          </Button>
+        ) : null}
+        {exercise && exercise.cues.length > 0 ? (
+          <View className="gap-1">
+            <Text variant="label">Focus on</Text>
+            {exercise.cues.map((cue) => (
+              <Text key={cue} className="text-sm">
+                • {cue}
+              </Text>
+            ))}
+          </View>
+        ) : null}
+        {exercise && exercise.mistakes.length > 0 ? (
+          <View className="gap-1">
+            <Text variant="label">Avoid</Text>
+            {exercise.mistakes.map((m) => (
+              <Text key={m} className="text-sm">
+                • {m}
+              </Text>
+            ))}
+          </View>
+        ) : null}
+        {exercise?.cues.length === 0 && exercise.mistakes.length === 0 ? (
+          <Text variant="muted">No coaching notes for this exercise yet.</Text>
+        ) : null}
+      </Sheet>
+      {video ? (
+        <ExerciseVideoSheet
+          visible
+          onClose={() => setVideo(null)}
+          videoId={video.videoId}
+          startSec={video.startSec}
+          channel={video.channel}
+          testID="technique-video-sheet"
+        />
       ) : null}
-      {exercise?.videoId ? (
-        <Button
-          testID="technique-sheet-video"
-          variant="outline"
-          onPress={() => {
-            if (exercise.videoId) {
-              Linking.openURL(youtubeUrl(exercise.videoId, exercise.videoStartSec)).catch(
-                () => undefined,
-              );
-            }
-          }}
-        >
-          ▶ Watch technique
-        </Button>
-      ) : null}
-      {exercise && exercise.cues.length > 0 ? (
-        <View className="gap-1">
-          <Text variant="label">Focus on</Text>
-          {exercise.cues.map((cue) => (
-            <Text key={cue} className="text-sm">
-              • {cue}
-            </Text>
-          ))}
-        </View>
-      ) : null}
-      {exercise && exercise.mistakes.length > 0 ? (
-        <View className="gap-1">
-          <Text variant="label">Avoid</Text>
-          {exercise.mistakes.map((m) => (
-            <Text key={m} className="text-sm">
-              • {m}
-            </Text>
-          ))}
-        </View>
-      ) : null}
-      {exercise?.cues.length === 0 && exercise.mistakes.length === 0 ? (
-        <Text variant="muted">No coaching notes for this exercise yet.</Text>
-      ) : null}
-    </Sheet>
+    </>
   );
 }
 

@@ -4,6 +4,7 @@ import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import { fetch as expoFetch } from 'expo/fetch';
 import { Button, Text } from '@chefer/ui-mobile';
+import { userFacingErrorMessage } from '@chefer/utils';
 import { getApiBaseUrl } from '../../../lib/api-url';
 import { getToken } from '../../../lib/auth-store';
 import { uploadImage } from '../../../lib/media-client';
@@ -56,7 +57,7 @@ export function PhotoField({ imageUrl, onChange, disabled = false }: PhotoFieldP
       const url = await uploadPreparedPhoto(prepared);
       onChange(url);
     } catch (err) {
-      setError(err instanceof Error ? err.message : recipeFormCopy.photo.generic);
+      setError(userFacingErrorMessage(err, recipeFormCopy.photo.generic));
     } finally {
       setUploading(false);
     }

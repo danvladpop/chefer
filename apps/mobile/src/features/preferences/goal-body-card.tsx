@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { View } from 'react-native';
 import { skipToken } from '@tanstack/react-query';
+import { bodyMetricsAgeError, MAX_BODY_METRICS_AGE, MIN_BODY_METRICS_AGE } from '@chefer/types';
 import { Button, Card, Text } from '@chefer/ui-mobile';
 import { lifterProteinNote } from '@chefer/utils';
 import { trpc } from '../../lib/trpc';
@@ -120,8 +121,8 @@ export function GoalBodyCard({
     metrics.biologicalSex !== null &&
     metrics.activityLevel !== null &&
     metrics.age !== null &&
-    metrics.age >= 10 &&
-    metrics.age <= 110 &&
+    metrics.age >= MIN_BODY_METRICS_AGE &&
+    metrics.age <= MAX_BODY_METRICS_AGE &&
     metrics.heightCm !== null &&
     metrics.heightCm > 0 &&
     metrics.heightCm <= 300 &&
@@ -162,11 +163,16 @@ export function GoalBodyCard({
     setMetrics((m) => ({ ...m, weightKg: raw === '' || isNaN(n) ? null : n }));
   }
 
+  // R-02: an age under 16 (or over 110) is never sent; Save stays disabled
+  // until it is fixed or cleared. The message itself shows under the Age field.
+  const ageError = bodyMetricsAgeError(metrics.age);
+
   function handleSave() {
+    if (ageError !== null) return;
     const payload: GoalBodySavePayload = {
       ...(goal !== null && { goal }),
       ...(metrics.biologicalSex !== null && { biologicalSex: metrics.biologicalSex }),
-      ...(metrics.age !== null && metrics.age > 0 && { age: metrics.age }),
+      ...(metrics.age !== null && { age: metrics.age }),
       ...(metrics.heightCm !== null && metrics.heightCm > 0 && { heightCm: metrics.heightCm }),
       ...(metrics.weightKg !== null && metrics.weightKg > 0 && { weightKg: metrics.weightKg }),
       ...(metrics.activityLevel !== null && { activityLevel: metrics.activityLevel }),
@@ -215,7 +221,12 @@ export function GoalBodyCard({
         onWeightText={handleWeightText}
       />
 
-      <Button testID="prefs-save-goal-body" loading={isSaving} onPress={handleSave}>
+      <Button
+        testID="prefs-save-goal-body"
+        loading={isSaving}
+        disabled={ageError !== null}
+        onPress={handleSave}
+      >
         {isSaved && !dirty ? 'Saved ✓' : 'Save goal & body'}
       </Button>
       {errorMessage && <Text className="text-xs text-red-600">{errorMessage}</Text>}

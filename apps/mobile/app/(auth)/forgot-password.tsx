@@ -4,6 +4,7 @@ import { View, type TextInput } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Button, Card, Input, Text, useScrollFieldIntoView } from '@chefer/ui-mobile';
+import { userFacingErrorMessage } from '@chefer/utils';
 import { AuthField, AuthScreen, backToLogin } from '../../src/features/auth/auth-screen';
 import {
   forgotPasswordSchema,
@@ -92,7 +93,7 @@ function ForgotPasswordForm() {
 
           {request.error && (
             <Text variant="muted" className="text-destructive" testID="forgot-password-error">
-              {request.error.message}
+              {userFacingErrorMessage(request.error)}
             </Text>
           )}
 

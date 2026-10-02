@@ -1,4 +1,4 @@
-import { formatBuildInfo } from '../../src/lib/build-info';
+import { formatBuildInfo, formatVersionLabel } from '../../src/lib/build-info';
 
 const base = {
   appVersion: '0.0.1',
@@ -41,5 +41,15 @@ describe('formatBuildInfo', () => {
     expect(formatBuildInfo({ ...base, channel: '' })).toBe(
       'Chefer 0.0.1 · production · channel none · built-in bundle',
     );
+  });
+});
+
+describe('formatVersionLabel', () => {
+  it('shows just the version, with no variant or update id', () => {
+    expect(formatVersionLabel('1.0.1')).toBe('Version 1.0.1');
+  });
+
+  it('degrades to a bare label when the version is unknown', () => {
+    expect(formatVersionLabel(undefined)).toBe('Version');
   });
 });

@@ -65,6 +65,20 @@ export {
 export { isHealthTopic, isSafetyTopic } from './health-topic';
 
 export {
+  ACTIVITY_MULTIPLIERS,
+  CALORIE_FLOOR_FEMALE,
+  CALORIE_FLOOR_MALE,
+  GOAL_ADJUSTMENTS,
+  calorieFloor,
+  computeBmrTdee,
+  computeCalorieTarget,
+  goalAdjustmentKcal,
+  isDeficitBlockedForAge,
+  isMinorAge,
+  previewCalorieTarget,
+} from './calorie-target';
+
+export {
   invariant,
   assertDefined,
   assertString,
@@ -393,10 +407,15 @@ export {
   aiConsentBackupLine,
   aiConsentIntro,
   aiConsentRequiredFor,
+  aiConsentFeatureForPath,
   aiConsentToggleOn,
   aiDisclosureProviders,
   formatAiProviderNames,
+  handleAiConsentRequiredError,
+  isAiConsentRequiredError,
   needsAiDataConsent,
+  notifyAiConsentRequired,
+  onAiConsentRequired,
   toAiProviderDisclosure,
   type AiConsentSubject,
 } from './ai-consent';
@@ -574,3 +593,12 @@ export {
 
 // ─── Computed recipe nutrition (docs/plan-ingredient-catalog.md §5) ───────────
 export * from './nutrition';
+
+export {
+  GENERIC_ERROR_MESSAGE,
+  NETWORK_ERROR_MESSAGE,
+  SERVER_ERROR_MESSAGE,
+  isNetworkError,
+  isServerError,
+  userFacingErrorMessage,
+} from './user-facing-error';

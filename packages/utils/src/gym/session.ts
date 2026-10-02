@@ -67,6 +67,38 @@ export function nextDayIdAfter(routine: RoutineDto, completedDayId: string | nul
   return days[(idx + 1) % days.length]?.id ?? null;
 }
 
+/**
+ * R-19: the weekday the "Next session" line should name once something has
+ * been trained today. The rotation's next day carries the weekday it was
+ * pinned to (`plannedWeekday`), but a session done off-schedule leaves that
+ * pin in the past ("Next session: Wednesday" on a Thursday) — a calendar
+ * can't go backwards. So: a pin still ahead of `today` stands; otherwise
+ * (pinned today or earlier this week) it's the next planned training weekday
+ * after today — any routine day's pin — wrapping into next week (the earliest
+ * pin) when none is left this week. A day with no fixed weekday, or a routine
+ * with no pinned days, stays `null` (the card then says no weekday).
+ * 0 = Monday … 6 = Sunday.
+ */
+export function nextSessionWeekday(input: {
+  activeRoutine: RoutineDto | null | undefined;
+  nextDayId: string | null | undefined;
+  today: string;
+}): number | null {
+  const { activeRoutine, nextDayId, today } = input;
+  if (!activeRoutine || !nextDayId) return null;
+  const pinned = activeRoutine.days.find((d) => d.id === nextDayId)?.plannedWeekday ?? null;
+  if (pinned === null) return null;
+  const todayWeekday = weekdayOf(today);
+  if (pinned > todayWeekday) return pinned;
+
+  const planned = [
+    ...new Set(
+      activeRoutine.days.map((d) => d.plannedWeekday).filter((w): w is number => w !== null),
+    ),
+  ].sort((a, b) => a - b);
+  return planned.find((w) => w > todayWeekday) ?? planned[0] ?? null;
+}
+
 export type TodayStatus =
   /**
    * Nothing done today, and the rotation's next day is due today, has no
@@ -102,7 +134,17 @@ export function todayStatus(input: {
     null;
 
   if (doneToday) {
-    return { kind: 'done', dayName: next?.dayName ?? '', weekday };
+    // R-19: not the template's pin (it can be in the past after an
+    // off-schedule session) — the next planned training day after today.
+    return {
+      kind: 'done',
+      dayName: next?.dayName ?? '',
+      weekday: nextSessionWeekday({
+        activeRoutine: bootstrap.activeRoutine,
+        nextDayId: next?.dayId,
+        today,
+      }),
+    };
   }
   if (!next || weekday === null || weekday === weekdayOf(today)) {
     return { kind: 'training' };
@@ -210,9 +252,13 @@ export function doneTodayCard(input: {
   const next = bootstrap.nextWorkout
     ? {
         dayName: bootstrap.nextWorkout.dayName,
-        weekday:
-          bootstrap.activeRoutine?.days.find((d) => d.id === bootstrap.nextWorkout?.dayId)
-            ?.plannedWeekday ?? null,
+        // R-19: the next planned training day after today, not the weekday the
+        // template was originally pinned to (see nextSessionWeekday).
+        weekday: nextSessionWeekday({
+          activeRoutine: bootstrap.activeRoutine,
+          nextDayId: bootstrap.nextWorkout.dayId,
+          today,
+        }),
       }
     : null;
 

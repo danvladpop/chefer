@@ -1,9 +1,10 @@
-import { useState } from 'react';
-import { TextInput, View } from 'react-native';
+import { useRef, useState } from 'react';
+import { Keyboard, Pressable, TextInput, View } from 'react-native';
 import { useQueryClient } from '@tanstack/react-query';
 import { router } from 'expo-router';
 import { ACCOUNT_DELETION_COPY as COPY } from '@chefer/types';
 import { Button, Card, PasswordInput, Sheet, Text, useSnackbar } from '@chefer/ui-mobile';
+import { userFacingErrorMessage } from '@chefer/utils';
 import { clearToken } from '../../lib/auth-store';
 import { shareExportFile } from '../../lib/share-file';
 import { trpc } from '../../lib/trpc';
@@ -68,6 +69,7 @@ function DeleteAccountSheet({ visible, onClose }: { visible: boolean; onClose: (
   const queryClient = useQueryClient();
   const [password, setPassword] = useState('');
   const [confirmText, setConfirmText] = useState('');
+  const confirmRef = useRef<TextInput>(null);
   const deleteMutation = trpc.user.deleteSelf.useMutation({
     // The server already revoked every session. Drop the local one and every
     // cached (incl. persisted gym) query, then back to the auth screen.
@@ -77,12 +79,39 @@ function DeleteAccountSheet({ visible, onClose }: { visible: boolean; onClose: (
       router.replace('/(auth)');
     },
   });
+  // R-24: the reset link lands on the website (no universal links yet), and the
+  // in-app forgot-password screen is signed-out only — so a signed-in user who
+  // forgot the password asks for the link here, for their own address.
+  const me = trpc.auth.me.useQuery(undefined, { staleTime: 5 * 60_000 });
+  const email = me.data?.email ?? null;
+  const resetMutation = trpc.auth.requestPasswordReset.useMutation();
   const ready = password.length > 0 && confirmText.trim().toUpperCase() === COPY.confirmWord;
+
+  // R-17: iOS offers "Save Password?" when a secure field that still holds
+  // text leaves the screen. Empty it before the sheet goes away (close, or the
+  // delete request — which uses the captured value).
+  const close = () => {
+    setPassword('');
+    onClose();
+  };
+  const submitDelete = () => {
+    const typed = password;
+    setPassword('');
+    deleteMutation.mutate({ password: typed, confirm: COPY.confirmWord });
+  };
+  // R-03: with the keyboard up, the first tap on a footer button only closed
+  // the keyboard (the sheet drops as it hides and the press is cancelled). Once
+  // DELETE is typed there is nothing left to type, so close the keyboard then —
+  // the button settles in place and one tap deletes.
+  const onConfirmTextChange = (text: string) => {
+    setConfirmText(text);
+    if (text.trim().toUpperCase() === COPY.confirmWord) Keyboard.dismiss();
+  };
 
   return (
     <Sheet
       visible={visible}
-      onClose={onClose}
+      onClose={close}
       title={COPY.title}
       testID="delete-account"
       footer={
@@ -93,11 +122,11 @@ function DeleteAccountSheet({ visible, onClose }: { visible: boolean; onClose: (
             size="lg"
             disabled={!ready}
             loading={deleteMutation.isPending}
-            onPress={() => deleteMutation.mutate({ password, confirm: COPY.confirmWord })}
+            onPress={submitDelete}
           >
             {COPY.submit}
           </Button>
-          <Button variant="outline" size="lg" onPress={onClose}>
+          <Button variant="outline" size="lg" onPress={close}>
             {COPY.cancel}
           </Button>
         </View>
@@ -121,22 +150,60 @@ function DeleteAccountSheet({ visible, onClose }: { visible: boolean; onClose: (
         <PasswordInput
           testID="delete-account-password"
           accessibilityLabel={COPY.passwordLabel}
-          autoComplete="current-password"
+          // R-17: this is a confirmation field for an account that is about to
+          // disappear — keep iOS from offering to save its password.
+          autoComplete="off"
+          textContentType="oneTimeCode"
+          importantForAutofill="no"
+          returnKeyType="next"
+          submitBehavior="submit"
+          onSubmitEditing={() => confirmRef.current?.focus()}
           value={password}
           onChangeText={setPassword}
         />
+        {email ? (
+          resetMutation.isSuccess ? (
+            <Text testID="delete-account-reset-sent" className="text-sm text-gray-700">
+              {COPY.resetSentTo} {email}. {COPY.resetSentHint}
+            </Text>
+          ) : (
+            <Pressable
+              testID="delete-account-forgot-password"
+              accessibilityRole="link"
+              disabled={resetMutation.isPending}
+              onPress={() => resetMutation.mutate({ email })}
+              className="min-h-11 justify-center self-start"
+            >
+              <Text className="text-sm font-semibold text-primary">
+                {resetMutation.isPending ? COPY.resetSending : COPY.forgotPassword}
+              </Text>
+            </Pressable>
+          )
+        ) : null}
+        {resetMutation.isError && (
+          <Text testID="delete-account-reset-error" className="text-sm text-red-700">
+            {userFacingErrorMessage(resetMutation.error)}
+          </Text>
+        )}
         <Text className="text-sm font-medium text-gray-800">{COPY.confirmLabel}</Text>
         <TextInput
+          ref={confirmRef}
           testID="delete-account-confirm-text"
           accessibilityLabel={COPY.confirmLabel}
           autoCapitalize="characters"
           autoCorrect={false}
+          // R-03: "Done" closes the keyboard so the footer button is one tap away.
+          returnKeyType="done"
+          submitBehavior="blurAndSubmit"
+          onSubmitEditing={() => Keyboard.dismiss()}
           value={confirmText}
-          onChangeText={setConfirmText}
+          onChangeText={onConfirmTextChange}
           className="min-h-11 rounded-lg border border-gray-300 px-3 text-base"
         />
         {deleteMutation.isError && (
-          <Text className="text-sm text-red-700">{deleteMutation.error.message}</Text>
+          <Text className="text-sm text-red-700">
+            {userFacingErrorMessage(deleteMutation.error)}
+          </Text>
         )}
       </View>
     </Sheet>

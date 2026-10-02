@@ -9,7 +9,7 @@ import type { UserProfile } from '@chefer/types';
 import { targetsService } from '../targets/targets.service.js';
 import { trainingNutritionService } from '../training-nutrition/training-nutrition.service.js';
 import { CoachService, MIN_LOGGED_DAYS, weekStartUtc } from './coach.service.js';
-import { generateReviewText } from './review-text.js';
+import { generateReviewTextWithSource as generateReviewText } from './review-text.js';
 
 // ─── Module mocks (hoisted) ───────────────────────────────────────────────────
 
@@ -35,9 +35,10 @@ vi.mock('@chefer/database', async (importOriginal) => {
 // review-text pulls env validation (Gemini path) — the template is what the
 // mock path returns anyway, so substitute it directly.
 vi.mock('./review-text.js', () => ({
-  generateReviewText: vi
-    .fn()
-    .mockResolvedValue('First line of the review.\nSecond line.\nThird line.'),
+  generateReviewTextWithSource: vi.fn().mockResolvedValue({
+    text: 'First line of the review.\nSecond line.\nThird line.',
+    aiGenerated: true,
+  }),
 }));
 
 // F3 seam: reviews carry the week's pantry savings — stubbed here so coach
@@ -304,6 +305,7 @@ describe('CoachService.getCurrentReview', () => {
     adjustmentKcal: -100,
     savedEur: null,
     reviewText: 'First line of the review.\nSecond line.\nThird line.',
+    aiGenerated: true,
     createdAt: SUNDAY,
   };
 
@@ -341,7 +343,23 @@ describe('CoachService.getCurrentReview', () => {
     if (result.status === 'full') {
       expect(result.review.reviewText).toContain('Second line.');
       expect(result.review.adjustmentKcal).toBe(-100);
+      // R-14: the banner labels AI-written reviews from this flag.
+      expect(result.review.aiGenerated).toBe(true);
     }
+  });
+
+  it('exposes aiGenerated=false for a template review (no AI label)', async () => {
+    const service = new CoachService(
+      makeReviewRepo({
+        findLatest: vi.fn().mockResolvedValue({ ...REVIEW_ROW, aiGenerated: false }),
+      }),
+      makeProfileRepo(),
+      makeWeightRepo(),
+    );
+
+    const result = await service.getCurrentReview(PREMIUM_USER, SUNDAY);
+
+    expect(result.status === 'full' && result.review.aiGenerated).toBe(false);
   });
 
   it('free gets ONLY the first line — the rest never leaves the server', async () => {
@@ -458,5 +476,19 @@ describe('CoachService.runReviewSweep', () => {
 
     expect(generateReviewText).toHaveBeenCalledTimes(1);
     expect(aiSkipped).toBe(0);
+  });
+
+  it('stores aiGenerated=true only when the model wrote the text (R-14)', async () => {
+    const reviewRepo = makeReviewRepo();
+    const service = new CoachService(reviewRepo, makeProfileRepo(), makeWeightRepo());
+    await service.runWeeklyReview('u1', SUNDAY, true, true);
+    expect(reviewRepo.upsert).toHaveBeenCalledWith(expect.objectContaining({ aiGenerated: true }));
+  });
+
+  it('stores aiGenerated=false when the weekly review uses the template (no AI text)', async () => {
+    const reviewRepo = makeReviewRepo();
+    const service = new CoachService(reviewRepo, makeProfileRepo(), makeWeightRepo());
+    await service.runWeeklyReview('u1', SUNDAY, true, false);
+    expect(reviewRepo.upsert).toHaveBeenCalledWith(expect.objectContaining({ aiGenerated: false }));
   });
 });

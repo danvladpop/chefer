@@ -99,7 +99,7 @@ describe('OnboardingWizard — jobs step (§2.4, T-03.6)', () => {
   it('asks "What should Chefer help with?" first, Continue disabled at 0 (AC1)', () => {
     render(<OnboardingWizard isPremium={false} />);
     expect(screen.getByRole('heading', { name: 'What should Chefer help with?' })).toBeTruthy();
-    expect(screen.getByText('Step 1')).toBeTruthy();
+    expect(screen.getByText('Getting started')).toBeTruthy();
     expect(screen.queryByText(/% complete/)).toBeNull();
     expect(screen.getByTestId('onboarding-continue').getAttribute('disabled')).toBe('');
   });

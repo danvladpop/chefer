@@ -2,6 +2,7 @@ import { TRPCError } from '@trpc/server';
 import { Router, type Request, type Response } from 'express';
 import { isHealthTopic, isSafetyTopic } from '@chefer/utils';
 import { chatService } from '../application/chat/chat.service.js';
+import { rejectWithoutAiConsent } from '../lib/ai-consent-gate.js';
 import { AI_OVER_CAPACITY_MESSAGE, isAiCapacityFailure } from '../lib/ai/friendly-error.js';
 import type { ChatMessage } from '../lib/ai/index.js';
 import { asyncHandler } from '../lib/async-handler.js';
@@ -47,6 +48,11 @@ chatRouter.post(
       res.status(401).json({ error: 'Unauthorized' });
       return;
     }
+
+    // R-10 (App Store 5.1.2(i)): no AI-data consent on record → nothing is
+    // sent. 403 + `reason` + X-AI-Consent-Required; clients open the consent
+    // sheet, older ones show `error`.
+    if (await rejectWithoutAiConsent(res, { userId: user.id })) return;
 
     const body = req.body as { messages?: IncomingMessage[] } | undefined;
     const messages = toChatMessages(body?.messages ?? []);

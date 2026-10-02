@@ -12,7 +12,7 @@ import {
 } from '@/features/privacy/components/HealthDeclinedNotice';
 import { useHealthConsent } from '@/features/privacy/use-health-consent';
 import { trpc } from '@/lib/trpc';
-import type { OnboardingJob } from '@chefer/types';
+import { bodyMetricsAgeError, type OnboardingJob } from '@chefer/types';
 import { aiConsentRequiredFor, onboardingProgress, onboardingSteps } from '@chefer/utils';
 import { EMPTY_WIZARD_DATA, type Goal, type WizardData } from '../types';
 import { StepCuisine } from './step-cuisine';
@@ -120,7 +120,16 @@ export function OnboardingWizard({
     onError: (err) => setError(err.message),
   });
   const updateTargetsMutation = trpc.preferences.updateTargets.useMutation();
-  const generateMutation = trpc.mealPlan.generate.useMutation();
+  // R-18: the first week generates in the background AFTER the wizard has
+  // navigated away, so the dashboard cached at navigation time says "nothing
+  // planned". Invalidate everything that reads the plan when generation lands.
+  const generateMutation = trpc.mealPlan.generate.useMutation({
+    onSettled: () => {
+      void utils.mealPlan.invalidate();
+      void utils.dashboard.invalidate();
+      void utils.shoppingList.invalidate();
+    },
+  });
 
   const hasTrain = jobs.includes('TRAIN');
 
@@ -131,6 +140,8 @@ export function OnboardingWizard({
 
   function canContinue(): boolean {
     if (stepKey === 'jobs') return jobs.length > 0;
+    // R-02: an age under 16 blocks the body-metrics step until fixed or cleared.
+    if (stepKey === 'metrics') return bodyMetricsAgeError(data.age) === null;
     return true; // every later step is independently optional
   }
 
@@ -181,7 +192,7 @@ export function OnboardingWizard({
     return {
       ...(!goodFood && data.goal !== null && { goal: data.goal }),
       ...(data.biologicalSex !== null && { biologicalSex: data.biologicalSex }),
-      ...(data.age !== null && data.age > 0 && { age: data.age }),
+      ...(data.age !== null && bodyMetricsAgeError(data.age) === null && { age: data.age }),
       ...(data.heightCm !== null && data.heightCm > 0 && { heightCm: data.heightCm }),
       ...(data.weightKg !== null && data.weightKg > 0 && { weightKg: data.weightKg }),
       ...(data.activityLevel !== null && { activityLevel: data.activityLevel }),
@@ -470,7 +481,7 @@ export function OnboardingWizard({
                 <UpgradeCard
                   source="onboarding"
                   title="Want every week generated around this profile?"
-                  description="Free plans are chef-picked and always respect your allergies. Premium — free for now — has the AI chef build each week around your goal, targets and taste."
+                  description="Free plans are chef-picked and always respect your allergies. Premium has the AI chef build each week around your goal, targets and taste."
                   perkDisplay="carousel"
                 />
               )}

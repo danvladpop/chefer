@@ -27,6 +27,7 @@ import {
   parseQuantity,
   recipeMissingFields,
   tagConflicts,
+  userFacingErrorMessage,
 } from '@chefer/utils';
 import { textRejectedOf } from '../src/features/friends/api/friends-errors';
 import {
@@ -543,7 +544,9 @@ export default function RecipeFormScreen() {
             offline={offline}
             saving={mutation.isPending}
             saveError={
-              mutation.isError && !textRejected ? friendlySaveError(mutation.error.message) : null
+              mutation.isError && !textRejected
+                ? friendlySaveError(userFacingErrorMessage(mutation.error))
+                : null
             }
             onPress={save}
           />

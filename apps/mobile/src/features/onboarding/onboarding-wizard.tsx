@@ -3,7 +3,7 @@ import { ActivityIndicator, Pressable, ScrollView, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import type { OnboardingJob } from '@chefer/types';
-import { LB_PER_KG } from '@chefer/types';
+import { bodyMetricsAgeError, LB_PER_KG } from '@chefer/types';
 import { Button, ErrorState, Screen, Text } from '@chefer/ui-mobile';
 import {
   aiConsentRequiredFor,
@@ -11,6 +11,7 @@ import {
   inToCm,
   onboardingProgress,
   onboardingSteps,
+  userFacingErrorMessage,
   type OnboardingStepKey,
 } from '@chefer/utils';
 import { useIsPremium } from '../../hooks/use-is-premium';
@@ -176,19 +177,30 @@ export function OnboardingWizard() {
   }, [savedPrefs.data]);
 
   const setJobsMutation = trpc.preferences.setJobs.useMutation({
-    onError: (err) => setError(err.message),
+    onError: (err) => setError(userFacingErrorMessage(err)),
   });
   const setDayKindsMutation = trpc.training.setDayKinds.useMutation();
   const setShapeMutation = trpc.mealPlan.setShape.useMutation();
   const setDisplayPrefsMutation = trpc.preferences.setDisplayPreferences.useMutation();
   const safetyMutation = trpc.preferences.updateSafety.useMutation({
-    onError: (err) => setError(err.message),
+    onError: (err) => setError(userFacingErrorMessage(err)),
   });
   const profileBasicsMutation = trpc.preferences.saveProfileBasics.useMutation({
-    onError: (err) => setError(err.message),
+    onError: (err) => setError(userFacingErrorMessage(err)),
   });
   const updateTargetsMutation = trpc.preferences.updateTargets.useMutation();
-  const generateMutation = trpc.mealPlan.generate.useMutation();
+  // R-18: the first week generates in the background AFTER onboarding has
+  // already navigated to Today, so the dashboard cached at navigation time
+  // says "nothing planned". Invalidate everything that reads the plan when the
+  // generation lands (success or failure). These are mutation-level callbacks,
+  // so they still fire after the wizard has unmounted.
+  const generateMutation = trpc.mealPlan.generate.useMutation({
+    onSettled: () => {
+      void utils.mealPlan.invalidate();
+      void utils.dashboard.invalidate();
+      void utils.shoppingList.invalidate();
+    },
+  });
 
   // Bug (UX-03): the ScrollView is one persistent instance across every
   // step, so a step reached scrolled down (e.g. How you cook, which needs
@@ -352,7 +364,8 @@ export function OnboardingWizard() {
     return {
       ...(!goodFood && goal !== null && { goal }),
       ...(metrics.biologicalSex !== null && { biologicalSex: metrics.biologicalSex }),
-      ...(metrics.age !== null && metrics.age > 0 && { age: metrics.age }),
+      ...(metrics.age !== null &&
+        bodyMetricsAgeError(metrics.age) === null && { age: metrics.age }),
       ...(metrics.heightCm !== null && metrics.heightCm > 0 && { heightCm: metrics.heightCm }),
       ...(metrics.weightKg !== null && metrics.weightKg > 0 && { weightKg: metrics.weightKg }),
       ...(metrics.activityLevel !== null && { activityLevel: metrics.activityLevel }),
@@ -655,7 +668,10 @@ export function OnboardingWizard() {
       ? jobs.length > 0
       : stepKey === 'goal'
         ? goodFood || true // goal is always optional past the jobs step
-        : true;
+        : // R-02: an age under 16 blocks the body-metrics step until fixed or cleared.
+          stepKey === 'metrics'
+          ? bodyMetricsAgeError(metrics.age) === null
+          : true;
 
   return (
     <Screen edges={['top', 'bottom', 'left', 'right']} className="px-0">
@@ -689,7 +705,7 @@ export function OnboardingWizard() {
         accessibilityValue={
           progress.total === null
             ? { text: progress.label }
-            : { min: 1, max: progress.total, now: step + 1 }
+            : { min: 0, max: progress.total, now: step + 1 }
         }
         className="mx-4 mb-2 h-1.5 overflow-hidden rounded-full bg-gray-100"
       >

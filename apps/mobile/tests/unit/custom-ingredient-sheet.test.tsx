@@ -36,6 +36,18 @@ jest.mock('expo-router', () => ({
   },
 }));
 
+// R-10: "Fill in for me" asks for AI-data consent first. The consent guard is
+// replaced by a stub that either allows (runs the action) or declines.
+let mockConsentGranted = true;
+const mockRequestConsent = jest.fn();
+jest.mock('../../src/features/ai-consent/ai-consent-provider', () => ({
+  useAiConsent: () => (feature: string, run: () => void) => {
+    mockRequestConsent(feature);
+    if (mockConsentGranted) run();
+  },
+  AiConsentHost: () => null,
+}));
+
 jest.mock('../../src/features/premium/premium-host', () => ({ PremiumHost: () => null }));
 jest.mock('../../src/features/premium/open-premium', () => ({
   openPremium: (...args: unknown[]) => {
@@ -163,6 +175,7 @@ beforeEach(() => {
   mockPremiumUser = { planTier: 'PREMIUM', role: 'USER' };
   mockEstimateState = { isPending: false, isError: false, data: undefined };
   mockConflictOnce = false;
+  mockConsentGranted = true;
 });
 
 async function fillLabel(
@@ -248,12 +261,22 @@ describe('CustomIngredientSheet', () => {
     expect(screen.getByTestId('custom-sheet-fiber').props.value).toBe('10');
   });
 
+  it('premium: "Fill in for me" asks for AI consent first (feature ingredient-estimate); declining sends nothing (R-10)', async () => {
+    mockConsentGranted = false;
+    await renderSheet('oat bran');
+    await fireEvent.press(screen.getByTestId('custom-sheet-fill-in'));
+
+    expect(mockRequestConsent).toHaveBeenCalledWith('ingredient-estimate');
+    expect(mockEstimate).not.toHaveBeenCalled();
+  });
+
   it('free: "Fill in for me" never calls estimateNutrition and opens the upsell instead', async () => {
     mockPremiumUser = { planTier: 'FREE', role: 'USER' };
     await renderSheet('oat bran');
     await fireEvent.press(screen.getByTestId('custom-sheet-fill-in'));
 
     expect(mockEstimate).not.toHaveBeenCalled();
+    expect(mockRequestConsent).not.toHaveBeenCalled();
     expect(mockOpenPremium).toHaveBeenCalledWith('ingredient-autofill');
   });
 

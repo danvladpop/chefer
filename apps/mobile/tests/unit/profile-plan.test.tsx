@@ -93,6 +93,20 @@ beforeEach(() => {
   mockMembers = [];
 });
 
+describe('Profile › role badge (R-15)', () => {
+  it('hides the role for a normal user', async () => {
+    await renderProfile();
+    expect(screen.queryByTestId('profile-role-badge')).toBeNull();
+    expect(screen.queryByText('USER')).toBeNull();
+  });
+
+  it.each(['ADMIN', 'MODERATOR'])('shows the %s badge', async (role) => {
+    mockUser = { ...mockUser, role };
+    await renderProfile();
+    expect(screen.getByTestId('profile-role-badge')).toHaveTextContent(role);
+  });
+});
+
 describe('Profile › Plan & Premium', () => {
   it('free: says what Free includes and opens the premium sheet with source profile', async () => {
     const user = userEvent.setup();
@@ -109,11 +123,11 @@ describe('Profile › Plan & Premium', () => {
     expect(openPremium).toHaveBeenCalledWith('profile');
   });
 
-  it('premium: "Free for now", what you have, and a switch back that asks first', async () => {
+  it('premium: "Included", what you have, and a switch back that asks first', async () => {
     mockUser = { ...mockUser, planTier: 'PREMIUM' };
     await renderProfile();
     expect(screen.getByTestId('profile-plan-title')).toHaveTextContent('Your plan: Premium');
-    expect(screen.getByText('Free for now')).toBeOnTheScreen();
+    expect(screen.getByText('Included')).toBeOnTheScreen();
     expect(screen.getByText('What you have')).toBeOnTheScreen();
     expect(screen.getByText('Recipes scaled to everyone at your table')).toBeOnTheScreen();
     expect(screen.queryByText(/beta/i)).toBeNull();

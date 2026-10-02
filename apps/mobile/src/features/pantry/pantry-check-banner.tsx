@@ -7,6 +7,7 @@ import {
   PANTRY_CONFIRM_MIN_AGE_DAYS,
   pantryConfirmWeekKey,
   pantryItemsToConfirm,
+  userFacingErrorMessage,
 } from '@chefer/utils';
 import { useEntitlement } from '../../hooks/use-entitlement';
 import { trpc } from '../../lib/trpc';
@@ -157,7 +158,9 @@ export function PantryCheckBanner({ manualOpen = false, onManualClose }: PantryC
               : 'Done — I still have everything'}
           </Button>
           {confirmMutation.isError && (
-            <Text className="text-xs text-red-600">{confirmMutation.error.message}</Text>
+            <Text className="text-xs text-red-600">
+              {userFacingErrorMessage(confirmMutation.error)}
+            </Text>
           )}
         </>
       )}

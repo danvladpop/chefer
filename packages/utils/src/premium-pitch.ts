@@ -20,10 +20,11 @@ import {
 //     (never rendered). A flag can retire a bullet (`hiddenWhenFlag`) once the
 //     thing it promises becomes free. So a pitch can never promise an unbuilt
 //     feature (UX-25 rule).
-//   - No price, currency, checkout or "buy" wording — Premium is the free
-//     toggle for now and the iOS build must carry no purchase path (App Review
-//     3.1.1). The terms paragraph says nothing changes without notice.
-//   - No "beta" in user-facing copy (App Review 2.2) — "free for now".
+//   - No price, currency, checkout, card or "buy" wording, and nothing that
+//     implies a future price or payment method — Premium is an included
+//     toggle and the iOS build must carry no purchase path (App Review 3.1.1,
+//     R-04). The terms paragraph only says it is included at no cost.
+//   - No "beta" in user-facing copy (App Review 2.2) — "included".
 //   - The gym stays free (D-11): the Train pitch says so, and no bullet ever
 //     sells gym features as Premium.
 // Scanned by `chefer/no-forbidden-copy` and the belt-and-braces test in
@@ -35,9 +36,8 @@ export const PREMIUM_PITCH_COPY = {
   eyebrow: 'PREMIUM',
   alsoIncluded: 'Also included',
   dailyAllowanceSuffix: '(daily allowance)',
-  termsHeading: 'FREE FOR NOW',
-  termsBody:
-    "Premium costs nothing for now, and we won't ask for a card. Before it has a price, we'll tell you in the app at least 30 days ahead and you choose whether to keep it. Nothing changes automatically.",
+  termsHeading: 'INCLUDED',
+  termsBody: 'Premium is included at no cost. Turning it on unlocks every feature below.',
   turnOn: 'Turn on Premium',
   notNow: 'Not now',
   successTitle: 'Premium is on',
@@ -52,7 +52,7 @@ export const PREMIUM_PITCH_COPY = {
   planFreeBody:
     'Free includes the gym log, weekly plans from our recipes, allergy checks on every plan and your shopping list.',
   planPremiumTitle: 'Your plan: Premium',
-  planPremiumNote: 'Free for now',
+  planPremiumNote: 'Included',
   planWhatYouHave: 'What you have',
   switchBackToFree: 'Switch back to Free',
   downgradeTitle: 'Switch back to Free?',

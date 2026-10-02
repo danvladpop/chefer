@@ -12,7 +12,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { fetch as expoFetch } from 'expo/fetch';
 import { Card, Screen, Text } from '@chefer/ui-mobile';
-import { cn, WELLNESS_COPY } from '@chefer/utils';
+import { cn, userFacingErrorMessage, WELLNESS_COPY } from '@chefer/utils';
 import { useAiConsent } from '../src/features/ai-consent/ai-consent-provider';
 import { LockedChatPreview } from '../src/features/chat/locked-chat-preview';
 import { openPremium } from '../src/features/premium/open-premium';
@@ -91,7 +91,7 @@ export default function ChatScreen() {
         );
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'The chef is unavailable right now.');
+      setError(userFacingErrorMessage(err, 'The chef is unavailable right now.'));
       // Drop the empty assistant bubble on failure
       setThread((prev) => prev.filter((m) => m.id !== assistantId || m.content !== ''));
     } finally {

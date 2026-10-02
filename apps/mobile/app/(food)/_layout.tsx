@@ -1,6 +1,8 @@
 import { Ionicons } from '@expo/vector-icons';
 import { Redirect, Tabs, usePathname } from 'expo-router';
 import { colors, countPillText } from '@chefer/ui-mobile';
+import { SnackbarAwareTabBar } from '../../src/components/snackbar-tab-bar';
+import { usePendingOnboarding } from '../../src/features/auth/pending-onboarding';
 import { useFriendsMe } from '../../src/features/friends/api/use-friends-me';
 import { landingSurfaceSync, useSyncLandingCache } from '../../src/features/navigation/use-landing';
 import { getToken } from '../../src/lib/auth-store';
@@ -37,7 +39,15 @@ export default function FoodTabsLayout() {
   // foreground poll running; with `friends.availability` off it only ever
   // asks `availability` and the count stays 0.
   const { badgeCount } = useFriendsMe();
+  // R-18b: a just-registered account goes through onboarding first — decided
+  // here, as state, because this is the first protected screen the sign-in
+  // guard flip mounts (see pending-onboarding.ts). Wins over the landing
+  // surface below so a leftover Gym mode can't swallow it.
+  const onboardingPending = usePendingOnboarding();
   const token = getToken();
+  if (onboardingPending) {
+    return <Redirect href="/onboarding" />;
+  }
   if (landingCheckedForToken !== token) {
     landingCheckedForToken = token;
     if (pathname === '/' && landingSurfaceSync() === 'gym') {
@@ -46,7 +56,11 @@ export default function FoodTabsLayout() {
   }
 
   return (
-    <Tabs screenOptions={TAB_BAR_SCREEN_OPTIONS}>
+    <Tabs
+      screenOptions={TAB_BAR_SCREEN_OPTIONS}
+      // R-11: lets the global snackbar sit above the tab bar.
+      tabBar={(props) => <SnackbarAwareTabBar {...props} />}
+    >
       <Tabs.Screen
         name="index"
         options={{

@@ -15,6 +15,7 @@ import {
   localDateStr,
   parseStepDuration,
   slotPortion,
+  userFacingErrorMessage,
 } from '@chefer/utils';
 import { AllergenWarningBanner } from '../../src/features/recipes/allergen-warning';
 import { StarRating } from '../../src/features/recipes/star-rating';
@@ -345,7 +346,7 @@ export default function CookModeScreen() {
             {logged ? 'Logged to tracker ✓' : 'Log this meal'}
           </Button>
           {upsertDay.isError && (
-            <Text className="text-xs text-red-600">{upsertDay.error.message}</Text>
+            <Text className="text-xs text-red-600">{userFacingErrorMessage(upsertDay.error)}</Text>
           )}
           {logged && (
             <>
