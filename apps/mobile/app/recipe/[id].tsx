@@ -18,6 +18,7 @@ import {
   useSnackbar,
 } from '@chefer/ui-mobile';
 import {
+  clampCookServings,
   cn,
   defaultCookServings,
   formatFractionalQuantity,
@@ -496,6 +497,8 @@ export default function RecipeDetailScreen() {
                       id,
                       ...(meal && { meal }),
                       ...(planPortion !== 1 && { portion: String(planPortion) }),
+                      // UX-COOK-05: the stepper's choice follows you into cook mode.
+                      ...(servings !== null && { servings: String(selectedServings) }),
                     },
                   })
                 }
@@ -622,7 +625,7 @@ export default function RecipeDetailScreen() {
                   <Pressable
                     accessibilityRole="button"
                     accessibilityLabel="Decrease servings"
-                    onPress={() => setServings(Math.max(1, selectedServings - 1))}
+                    onPress={() => setServings(clampCookServings(selectedServings - 1))}
                     className="h-11 w-11 items-center justify-center"
                   >
                     <Text className="text-lg text-gray-600">−</Text>
@@ -636,7 +639,7 @@ export default function RecipeDetailScreen() {
                   <Pressable
                     accessibilityRole="button"
                     accessibilityLabel="Increase servings"
-                    onPress={() => setServings(Math.min(8, selectedServings + 1))}
+                    onPress={() => setServings(clampCookServings(selectedServings + 1))}
                     className="h-11 w-11 items-center justify-center"
                   >
                     <Text className="text-lg text-gray-600">+</Text>

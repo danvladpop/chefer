@@ -41,6 +41,7 @@ import {
 import { ErrorState, Sheet, Toast } from '@chefer/ui';
 import {
   aiConsentRequiredFor,
+  clampCookServings,
   defaultCookServings,
   formatFractionalQuantity,
   formatPortion,
@@ -113,11 +114,15 @@ function parseSlotIndex(raw: string | null): number | undefined {
   return parseInt(raw, 10);
 }
 
-/** Cook-mode query: the meal type and, for a portioned plan slot, its portion. */
-function cookQuery(meal: string | null, portion: number): string {
+/**
+ * Cook-mode query: the meal type, for a portioned plan slot its portion, and
+ * (UX-COOK-05) the servings the stepper was set to — only when it was touched.
+ */
+function cookQuery(meal: string | null, portion: number, servings: number | null): string {
   const params = new URLSearchParams();
   if (meal) params.set('meal', meal);
   if (portion !== 1) params.set('portion', String(portion));
+  if (servings !== null) params.set('servings', String(servings));
   const query = params.toString();
   return query ? `?${query}` : '';
 }
@@ -542,7 +547,7 @@ export default function RecipeDetailPage({ params }: RecipePageProps) {
 
           {/* Cook mode (P1-3) — the primary action on a recipe you're about to make */}
           <Link
-            href={`/recipes/${id}/cook${cookQuery(meal, planPortion)}`}
+            href={`/recipes/${id}/cook${cookQuery(meal, planPortion, servings === null ? null : selectedServings)}`}
             className="flex min-h-11 items-center gap-1.5 rounded-xl bg-[#944a00] px-3 py-2 text-xs font-semibold text-white shadow-sm hover:bg-[#7a3d00]"
           >
             <ChefHat className="h-3.5 w-3.5" />
@@ -696,9 +701,9 @@ export default function RecipeDetailPage({ params }: RecipePageProps) {
             {/* Servings adjuster — was 20x20px per button */}
             <div className="flex items-center gap-1 rounded-xl border px-1">
               <button
-                onClick={() => setServings(Math.max(1, selectedServings - 1))}
+                onClick={() => setServings(clampCookServings(selectedServings - 1))}
                 aria-label="Decrease servings"
-                className="touch-target relative flex h-9 w-9 items-center justify-center rounded-full text-lg text-gray-600 hover:bg-gray-100"
+                className="flex h-11 w-11 items-center justify-center rounded-full text-lg text-gray-600 hover:bg-gray-100"
               >
                 −
               </button>
@@ -706,9 +711,9 @@ export default function RecipeDetailPage({ params }: RecipePageProps) {
                 {formatFractionalQuantity(selectedServings)}
               </span>
               <button
-                onClick={() => setServings(Math.min(8, selectedServings + 1))}
+                onClick={() => setServings(clampCookServings(selectedServings + 1))}
                 aria-label="Increase servings"
-                className="touch-target relative flex h-9 w-9 items-center justify-center rounded-full text-lg text-gray-600 hover:bg-gray-100"
+                className="flex h-11 w-11 items-center justify-center rounded-full text-lg text-gray-600 hover:bg-gray-100"
               >
                 +
               </button>

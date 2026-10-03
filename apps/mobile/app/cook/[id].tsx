@@ -1,10 +1,11 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useKeepAwake } from 'expo-keep-awake';
 import { router, useLocalSearchParams } from 'expo-router';
 import {
   Button,
+  ChipGroup,
   ConfirmSheet,
   ErrorState,
   KeyboardAwareScrollView,
@@ -13,9 +14,11 @@ import {
   useQueryState,
 } from '@chefer/ui-mobile';
 import {
+  clampCookServings,
   cn,
   defaultCookServings,
   finishMealCopy,
+  formatCookTimer,
   formatFractionalQuantity,
   formatPortion,
   formatScaledQuantity,
@@ -23,8 +26,10 @@ import {
   isNotFoundError,
   labelCaveatLineText,
   localDateStr,
+  parseServingsParam,
   parseStepDuration,
   slotPortion,
+  stepIngredientAmounts,
   tableBreakdown,
   userFacingErrorMessage,
 } from '@chefer/utils';
@@ -34,6 +39,7 @@ import {
   getCookSession,
   saveCookSession,
 } from '../../src/features/recipes/cook-session-store';
+import { useCookTimers, type CookTimerView } from '../../src/features/recipes/cook-timers';
 import { StarRating } from '../../src/features/recipes/star-rating';
 import { CheckedForLine } from '../../src/features/safety/checked-for-line';
 import { LabelCaveat } from '../../src/features/safety/label-caveat';
@@ -41,7 +47,7 @@ import { RebalanceBanner } from '../../src/features/tracker/rebalance-banner';
 import { recordRebalance } from '../../src/features/tracker/rebalance-store';
 import { useCookingFor } from '../../src/hooks/use-cooking-for';
 import { useHousehold } from '../../src/hooks/use-household';
-import { useUnitSystem } from '../../src/hooks/use-unit-system';
+import { useUnits } from '../../src/hooks/use-units';
 import { trpc } from '../../src/lib/trpc';
 import { useUnsavedGuard } from '../../src/lib/use-unsaved-guard';
 
@@ -51,94 +57,119 @@ import { useUnsavedGuard } from '../../src/lib/use-unsaved-guard';
 // semantics as web) → star rating. A premium week rebalance triggered by the
 // log shows its banner + undo right here on the finish screen. Servings
 // start at a premium household's table portions (P2-3), multiplied by the
-// plan slot's portion when opened from the plan (P1-1) — same as web.
+// plan slot's portion when opened from the plan (P1-1) — same as web. A
+// `servings` param (the recipe page's stepper, UX-COOK-05) wins over all of
+// that. Step timers are absolute `endsAt` stamps held at screen level, not in
+// the step view (UX-COOK-01), and each step lists its own ingredients with
+// scaled amounts (UX-COOK-04).
 
 // Local calendar day, not the UTC one (F-TRK-1-1).
 const todayIso = (): string => localDateStr();
 
-function StepTimer({ seconds }: { seconds: number }) {
-  const [remaining, setRemaining] = useState(seconds);
-  const [running, setRunning] = useState(false);
-  const interval = useRef<ReturnType<typeof setInterval> | null>(null);
+const MEAL_SLOTS = [
+  { value: 'breakfast', label: 'Breakfast', testID: 'cook-slot-breakfast' },
+  { value: 'lunch', label: 'Lunch', testID: 'cook-slot-lunch' },
+  { value: 'dinner', label: 'Dinner', testID: 'cook-slot-dinner' },
+  { value: 'snack', label: 'Snack', testID: 'cook-slot-snack' },
+] as const;
+type MealSlot = (typeof MEAL_SLOTS)[number]['value'];
 
-  useEffect(() => {
-    if (!running) {
-      return;
-    }
-    interval.current = setInterval(() => {
-      setRemaining((r) => {
-        if (r <= 1) {
-          setRunning(false);
-          return 0;
-        }
-        return r - 1;
-      });
-    }, 1000);
-    return () => {
-      if (interval.current) {
-        clearInterval(interval.current);
-      }
-    };
-  }, [running]);
+const isMealSlot = (value: string | undefined): value is MealSlot =>
+  MEAL_SLOTS.some((slot) => slot.value === value);
 
-  const mins = Math.floor(remaining / 60);
-  const secs = remaining % 60;
-  const done = remaining === 0;
+function StepTimer({
+  view,
+  onToggle,
+  onReset,
+}: {
+  view: CookTimerView;
+  onToggle: () => void;
+  onReset: () => void;
+}) {
+  const { status, remainingSec } = view;
+  const done = status === 'done';
+  const running = status === 'running';
 
   return (
-    <Pressable
-      testID="step-timer"
-      accessibilityRole="button"
-      onPress={() => {
-        if (done) {
-          setRemaining(seconds);
-          setRunning(false);
-        } else {
-          setRunning((r) => !r);
+    <View className="flex-row items-center gap-2 self-start">
+      <Pressable
+        testID="step-timer"
+        accessibilityRole="button"
+        accessibilityLabel={
+          done
+            ? 'Timer finished. Tap to reset'
+            : running
+              ? `Timer running, ${formatCookTimer(remainingSec)} left. Tap to pause`
+              : status === 'paused'
+                ? `Timer paused at ${formatCookTimer(remainingSec)}. Tap to resume`
+                : `Start a ${formatCookTimer(remainingSec)} timer`
         }
-      }}
-      className={cn(
-        'flex-row items-center gap-2 self-start rounded-full border px-4 py-2',
-        done
-          ? 'border-emerald-300 bg-emerald-50'
-          : running
-            ? 'border-primary bg-accent'
-            : 'border-border bg-white',
-      )}
-    >
-      <Ionicons
-        name={done ? 'checkmark' : running ? 'pause' : 'play'}
-        size={16}
-        color={done ? '#059669' : '#944a00'}
-      />
-      <Text
+        onPress={onToggle}
         className={cn(
-          'text-sm font-semibold tabular-nums',
-          done ? 'text-emerald-700' : 'text-primary',
+          'min-h-11 flex-row items-center gap-2 rounded-full border px-4 py-2',
+          done
+            ? 'border-emerald-300 bg-emerald-50'
+            : running
+              ? 'border-primary bg-accent'
+              : 'border-border bg-white',
         )}
       >
-        {done ? 'Time!' : `${mins}:${secs.toString().padStart(2, '0')}`}
-      </Text>
-    </Pressable>
+        <Ionicons
+          name={done ? 'checkmark' : running ? 'pause' : 'play'}
+          size={16}
+          color={done ? '#059669' : '#944a00'}
+        />
+        <Text
+          className={cn(
+            'text-sm font-semibold tabular-nums',
+            done ? 'text-emerald-700' : 'text-primary',
+          )}
+        >
+          {done ? 'Time!' : formatCookTimer(remainingSec)}
+        </Text>
+      </Pressable>
+      {status === 'paused' ? (
+        <Pressable
+          testID="step-timer-reset"
+          accessibilityRole="button"
+          accessibilityLabel="Reset timer"
+          onPress={onReset}
+          className="h-11 w-11 items-center justify-center"
+        >
+          <Ionicons name="refresh" size={18} color="#4b5563" />
+        </Pressable>
+      ) : null}
+    </View>
   );
 }
 
 export default function CookModeScreen() {
   useKeepAwake();
-  const { id, meal, portion } = useLocalSearchParams<{
+  const {
+    id,
+    meal,
+    portion,
+    servings: servingsParam,
+  } = useLocalSearchParams<{
     id: string;
     meal?: string;
     portion?: string;
+    servings?: string;
   }>();
   // Tracker logging still needs a real slot (breakfast/lunch/…) even when
   // cook mode was opened with no `meal` param — the clock guess is fine
   // THERE. bug B-21: the finish-screen COPY is different — it must never
   // claim a meal it doesn't actually know, so it uses `meal` directly via
   // `finishMealCopy` below instead of this guessed value.
-  const mealType = meal ?? guessMealType();
+  const guessedSlot = guessMealType();
+  const initialSlot: MealSlot = isMealSlot(meal)
+    ? meal
+    : isMealSlot(guessedSlot)
+      ? guessedSlot
+      : 'dinner';
   // P1-1: cooking a portioned plan slot shows its quantities and logs it.
   const planPortion = slotPortion(parseFloat(portion ?? ''));
-  const unitSystem = useUnitSystem();
+  const { system: unitSystem } = useUnits();
 
   const recipeQuery = trpc.mealPlan.getRecipe.useQuery({ recipeId: id });
   const { data: recipe } = recipeQuery;
@@ -151,7 +182,8 @@ export default function CookModeScreen() {
   // Premium households cook for the whole table (null otherwise).
   const { scaledMembers } = useHousehold();
   const cookingFor = useCookingFor();
-  const [servings, setServings] = useState<number | null>(null);
+  // UX-COOK-05: the recipe page's chosen servings, when it passed any.
+  const [servings, setServings] = useState<number | null>(() => parseServingsParam(servingsParam));
 
   // UX-COOK-02: leaving and coming back resumes the step and the ticks.
   const [step, setStep] = useState(() => getCookSession(id).step);
@@ -161,11 +193,35 @@ export default function CookModeScreen() {
     () => new Set(getCookSession(id).checked),
   );
   const [showIngredients, setShowIngredients] = useState(false);
+  // UX-COOK-04: the slot "Log this meal" files the meal under — chosen, not guessed.
+  const [slot, setSlot] = useState<MealSlot>(initialSlot);
+  const [loggedAs, setLoggedAs] = useState<{ date: string; slot: MealSlot } | null>(null);
+
+  // UX-COOK-01: timers are screen state (see cook-timers.ts).
+  const [initialSession] = useState(() => getCookSession(id));
+  const cookTimers = useCookTimers(
+    recipe?.name ?? '',
+    initialSession.timers ?? {},
+    initialSession.notifications ?? {},
+  );
 
   useEffect(() => {
     if (finished) return;
-    saveCookSession(id, { step, checked: [...checkedIngredients] });
-  }, [id, step, checkedIngredients, finished]);
+    saveCookSession(id, {
+      step,
+      checked: [...checkedIngredients],
+      timers: cookTimers.timers,
+      notifications: { ...cookTimers.notificationIds.current },
+    });
+  }, [
+    id,
+    step,
+    checkedIngredients,
+    finished,
+    cookTimers.timers,
+    cookTimers.notificationIds,
+    cookTimers.notificationVersion,
+  ]);
 
   // UX-COOK-02: BACK (Android), the header ✕ and the iOS swipe close the
   // ingredients panel first, then ask before leaving mid-recipe. The panel
@@ -184,9 +240,23 @@ export default function CookModeScreen() {
 
   const upsertDay = trpc.tracker.logRecipe.useMutation({
     meta: { silent: true },
-    onSuccess: (result) => {
+    onSuccess: (result, variables) => {
       setLogged(true);
+      setLoggedAs({ date: variables.date, slot });
       recordRebalance(result.rebalance);
+      void utils.tracker.getDay.invalidate();
+      void utils.tracker.weeklySummary.invalidate();
+      void utils.dashboard.summary.invalidate();
+    },
+  });
+
+  // UX-COOK-04: a tap on the wrong slot used to leave a second "lunch" in the
+  // tracker until you found it there — the log can be taken back right here.
+  const undoLog = trpc.tracker.unlogRecipe.useMutation({
+    meta: { silent: true },
+    onSuccess: () => {
+      setLogged(false);
+      setLoggedAs(null);
       void utils.tracker.getDay.invalidate();
       void utils.tracker.weeklySummary.invalidate();
       void utils.dashboard.summary.invalidate();
@@ -202,7 +272,7 @@ export default function CookModeScreen() {
     upsertDay.mutate({
       date: todayIso(),
       recipeId: recipe.id,
-      mealType,
+      mealType: slot,
       // One serving eaten — cooking for 4 doesn't mean you ate 4×. A plan
       // slot sized to 1.5× means you ate 1.5 servings (P1-1).
       portionMultiplier: Math.min(2, Math.max(0.5, planPortion)),
@@ -243,7 +313,9 @@ export default function CookModeScreen() {
   }
 
   const finishCooking = () => {
-    // Done cooking: the next time this recipe is opened starts from the top.
+    // Done cooking: the next time this recipe is opened starts from the top,
+    // and any timer still running (and its notification) ends here.
+    cookTimers.stopAll();
     clearCookSession(id);
     setFinished(true);
   };
@@ -260,6 +332,8 @@ export default function CookModeScreen() {
   const safeStep = Math.max(0, Math.min(step, totalSteps - 1));
   const stepText = recipe.instructions[safeStep] ?? '';
   const stepDuration = parseStepDuration(stepText);
+  // UX-COOK-04: the amounts this step uses, scaled to the chosen servings.
+  const stepAmounts = stepIngredientAmounts(stepText, recipe.ingredients, scale, unitSystem);
 
   return (
     <Screen edges={['top', 'bottom', 'left', 'right']} className="px-0">
@@ -295,6 +369,60 @@ export default function CookModeScreen() {
         </Pressable>
       </View>
 
+      {/* UX-COOK-01: every timer that is going (or has finished) stays in
+          view whichever step you are reading; tapping one jumps to its step. */}
+      {!finished && cookTimers.active.length > 0 ? (
+        <View testID="cook-timer-chips" className="mx-4 mb-2 flex-row flex-wrap gap-2">
+          {cookTimers.active.map((t) => (
+            <Pressable
+              key={t.step}
+              testID={`cook-timer-chip-${t.step}`}
+              accessibilityRole="button"
+              accessibilityLabel={
+                t.status === 'done'
+                  ? `Step ${t.step + 1} timer finished. Go to step`
+                  : `Step ${t.step + 1} timer, ${formatCookTimer(t.remainingSec)} ${
+                      t.status === 'paused' ? 'paused' : 'left'
+                    }. Go to step`
+              }
+              onPress={() => {
+                setShowIngredients(false);
+                setStep(t.step);
+              }}
+              className={cn(
+                'min-h-11 flex-row items-center gap-1.5 rounded-full border px-3 py-2',
+                t.status === 'done'
+                  ? 'border-emerald-300 bg-emerald-50'
+                  : t.status === 'running'
+                    ? 'border-primary bg-accent'
+                    : 'border-border bg-white',
+              )}
+            >
+              <Ionicons
+                name={
+                  t.status === 'done'
+                    ? 'checkmark'
+                    : t.status === 'paused'
+                      ? 'pause'
+                      : 'timer-outline'
+                }
+                size={16}
+                color={t.status === 'done' ? '#059669' : '#944a00'}
+              />
+              <Text
+                className={cn(
+                  'text-sm font-semibold tabular-nums',
+                  t.status === 'done' ? 'text-emerald-700' : 'text-primary',
+                )}
+              >
+                Step {t.step + 1} ·{' '}
+                {t.status === 'done' ? 'Time!' : formatCookTimer(t.remainingSec)}
+              </Text>
+            </Pressable>
+          ))}
+        </View>
+      ) : null}
+
       {/* Allergen conflicts stay visible while cooking (F-REC-2-3) */}
       <AllergenWarningBanner
         warnings={recipe.allergenWarnings}
@@ -323,7 +451,7 @@ export default function CookModeScreen() {
                 testID="cook-servings-dec"
                 accessibilityRole="button"
                 accessibilityLabel="Fewer servings"
-                onPress={() => setServings(Math.max(1, selectedServings - 1))}
+                onPress={() => setServings(clampCookServings(selectedServings - 1))}
                 className="h-11 w-11 items-center justify-center"
               >
                 <Ionicons name="remove" size={18} color="#4b5563" />
@@ -339,7 +467,7 @@ export default function CookModeScreen() {
                 testID="cook-servings-inc"
                 accessibilityRole="button"
                 accessibilityLabel="More servings"
-                onPress={() => setServings(Math.min(20, selectedServings + 1))}
+                onPress={() => setServings(clampCookServings(selectedServings + 1))}
                 className="h-11 w-11 items-center justify-center"
               >
                 <Ionicons name="add" size={18} color="#4b5563" />
@@ -429,6 +557,21 @@ export default function CookModeScreen() {
           <Text variant="muted" className="text-center text-sm">
             Log it to today&apos;s tracker so your nutrition stays honest.
           </Text>
+          {/* UX-COOK-04: the slot is a choice, preset from the plan or the clock. */}
+          {logged ? null : (
+            <View className="items-center gap-2 self-stretch">
+              <Text variant="muted" className="text-sm">
+                Log it as
+              </Text>
+              <ChipGroup
+                testID="cook-slot"
+                className="justify-center"
+                options={MEAL_SLOTS.map((o) => ({ ...o }))}
+                value={[slot]}
+                onChange={([next]) => next && setSlot(next)}
+              />
+            </View>
+          )}
           <Button
             testID="cook-log"
             loading={upsertDay.isPending}
@@ -438,8 +581,34 @@ export default function CookModeScreen() {
             {logged ? 'Logged to tracker ✓' : 'Log this meal'}
           </Button>
           {upsertDay.isError && (
-            <Text className="text-xs text-red-600">{userFacingErrorMessage(upsertDay.error)}</Text>
+            <Text className="text-sm text-red-600">{userFacingErrorMessage(upsertDay.error)}</Text>
           )}
+          {logged && loggedAs ? (
+            <View className="items-center gap-1">
+              <Text testID="cook-logged-as" variant="muted" className="text-sm">
+                Logged as {loggedAs.slot}.
+              </Text>
+              <Button
+                testID="cook-log-undo"
+                variant="outline"
+                loading={undoLog.isPending}
+                onPress={() =>
+                  undoLog.mutate({
+                    date: loggedAs.date,
+                    recipeId: recipe.id,
+                    mealType: loggedAs.slot,
+                  })
+                }
+              >
+                Undo
+              </Button>
+              {undoLog.isError ? (
+                <Text className="text-sm text-red-600">
+                  {userFacingErrorMessage(undoLog.error)}
+                </Text>
+              ) : null}
+            </View>
+          ) : null}
           {logged && (
             <>
               <RebalanceBanner className="self-stretch" />
@@ -466,7 +635,32 @@ export default function CookModeScreen() {
             >
               {stepText}
             </Text>
-            {stepDuration !== null && <StepTimer key={safeStep} seconds={stepDuration} />}
+            {stepAmounts.length > 0 ? (
+              <View
+                testID="cook-step-amounts"
+                className="gap-1 rounded-xl border border-border bg-white p-3"
+              >
+                <Text variant="muted" className="text-sm">
+                  For {formatFractionalQuantity(selectedServings)}{' '}
+                  {selectedServings === 1 ? 'serving' : 'servings'}
+                </Text>
+                {stepAmounts.map((a) => (
+                  <View key={a.index} className="flex-row items-baseline gap-2">
+                    <Text className="shrink-0 text-base font-semibold text-gray-900">
+                      {a.amount}
+                    </Text>
+                    <Text className="min-w-0 flex-1 text-base text-gray-700">{a.name}</Text>
+                  </View>
+                ))}
+              </View>
+            ) : null}
+            {stepDuration !== null && (
+              <StepTimer
+                view={cookTimers.view(safeStep, stepDuration)}
+                onToggle={() => cookTimers.toggle(safeStep, stepDuration)}
+                onReset={() => cookTimers.reset(safeStep)}
+              />
+            )}
           </ScrollView>
           <View className="flex-row gap-3">
             <Button

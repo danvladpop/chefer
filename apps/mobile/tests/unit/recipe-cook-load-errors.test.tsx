@@ -9,6 +9,7 @@ import { testQueryClient } from './friends-profile-fixtures';
 // shows ErrorState with Retry; only a real NOT_FOUND says "not found". A recipe
 // with no steps opens on its ingredients, not "Step 0 of 0".
 
+jest.mock('expo-notifications', () => ({}));
 jest.mock('expo-keep-awake', () => ({ useKeepAwake: jest.fn() }));
 jest.mock('expo-router', () => ({
   router: { push: jest.fn(), back: jest.fn() },

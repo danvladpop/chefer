@@ -220,6 +220,42 @@ describe('recipe page details', () => {
     expect(note).toHaveTextContent(/600 kcal/);
   });
 
+  it('UX-COOK-05: Cook carries the servings chosen on the page, and only then', async () => {
+    await renderWithTrpc(
+      <RecipeDetailScreen />,
+      handlers({}, true, { servings: 2 }),
+      testQueryClient(),
+    );
+    await screen.findByTestId('recipe-name');
+    const user = userEvent.setup();
+    await user.press(screen.getByTestId('recipe-cook'));
+    expect(router.push).toHaveBeenLastCalledWith({
+      pathname: '/cook/[id]',
+      params: { id: 'rcp-1' },
+    });
+
+    await user.press(screen.getByLabelText('Increase servings'));
+    await user.press(screen.getByLabelText('Increase servings'));
+    await user.press(screen.getByTestId('recipe-cook'));
+    expect(router.push).toHaveBeenLastCalledWith({
+      pathname: '/cook/[id]',
+      params: { id: 'rcp-1', servings: '4' },
+    });
+  });
+
+  it('UX-COOK-05: the servings stepper goes past 8, up to the cook-mode cap of 20', async () => {
+    await renderWithTrpc(
+      <RecipeDetailScreen />,
+      handlers({}, true, { servings: 19 }),
+      testQueryClient(),
+    );
+    await screen.findByTestId('recipe-name');
+    const user = userEvent.setup();
+    await user.press(screen.getByLabelText('Increase servings'));
+    await user.press(screen.getByLabelText('Increase servings'));
+    expect(screen.getByTestId('recipe-servings-count')).toHaveTextContent(/^20$/);
+  });
+
   it('UX-REC-10: a hero image that fails to load becomes a placeholder', async () => {
     await renderWithTrpc(<RecipeDetailScreen />, handlers(), testQueryClient());
     const hero = await screen.findByTestId('recipe-hero');
