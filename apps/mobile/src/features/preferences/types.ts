@@ -3,6 +3,7 @@
 // as apps/web/src/features/onboarding/types.ts — so client code doesn't need
 // to import @chefer/database.
 
+import type { Ionicons } from '@expo/vector-icons';
 import { computeBmrTdee, computeCalorieTarget } from '@chefer/utils';
 
 // §2.11, T-35.2 (rev 2): RECOMP and PERFORMANCE are additive over the
@@ -27,10 +28,13 @@ export type ActivityLevel =
 
 export type BiologicalSex = 'MALE' | 'FEMALE';
 
+type IconName = keyof typeof Ionicons.glyphMap;
+
 export interface GoalOption {
   value: Goal;
   label: string;
-  icon: string;
+  /** Ionicons glyph (UX-ONB-10: the goal cards used emoji next to Ionicons everywhere else). */
+  icon: IconName;
   description: string;
   /** How the goal changes the daily calorie target (web step-goal.tsx). */
   calorieEffect: string;
@@ -40,42 +44,42 @@ export const GOALS: GoalOption[] = [
   {
     value: 'LOSE_WEIGHT',
     label: 'Lose Weight',
-    icon: '⚖️',
+    icon: 'scale-outline',
     description: 'Reduce body fat and reach a healthier weight',
     calorieEffect: '−500 kcal/day deficit',
   },
   {
     value: 'MAINTAIN',
     label: 'Maintain Weight',
-    icon: '🎯',
+    icon: 'locate-outline',
     description: 'Keep your current weight while eating well',
     calorieEffect: 'Maintenance calories',
   },
   {
     value: 'GAIN_MUSCLE',
     label: 'Gain Muscle',
-    icon: '💪',
+    icon: 'barbell-outline',
     description: 'Build strength and increase lean muscle mass',
     calorieEffect: '+300 kcal/day surplus',
   },
   {
     value: 'EAT_HEALTHIER',
     label: 'Eat Healthier',
-    icon: '🥗',
+    icon: 'leaf-outline',
     description: 'Improve overall nutrition and eating habits',
     calorieEffect: 'Maintenance calories, better macros',
   },
   {
     value: 'RECOMP',
     label: 'Recomposition',
-    icon: '🔄',
+    icon: 'sync-outline',
     description: 'Lose fat and build muscle at the same time',
     calorieEffect: 'Maintenance calories',
   },
   {
     value: 'PERFORMANCE',
     label: 'Performance',
-    icon: '🏃',
+    icon: 'speedometer-outline',
     description: 'Fuel training and recovery, not a scale number',
     calorieEffect: 'Maintenance calories',
   },

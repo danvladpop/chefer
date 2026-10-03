@@ -12,9 +12,18 @@ import {
 } from '@/features/privacy/components/HealthDeclinedNotice';
 import { useHealthConsent } from '@/features/privacy/use-health-consent';
 import { trpc } from '@/lib/trpc';
-import { bodyMetricsAgeError, type OnboardingJob } from '@chefer/types';
+import {
+  bodyMetricsAgeError,
+  bodyMetricsHeightError,
+  bodyMetricsWeightError,
+  isPlausibleHeightCm,
+  isPlausibleWeightKg,
+  type OnboardingJob,
+} from '@chefer/types';
 import {
   aiConsentRequiredFor,
+  defaultsForRegion,
+  detectRegion,
   onboardingProgress,
   onboardingSteps,
   previewTargetKcalFromBasics,
@@ -45,6 +54,19 @@ const EMPTY_HOW_YOU_COOK: HowYouCookStepValue = {
   units: 'METRIC',
   autoPlanWeekly: false,
 };
+
+/**
+ * UX-ONB-04: the device region picks the starting units and currency ONCE, in
+ * the wizard's initial state. The How-you-cook step used to apply it in an
+ * effect every time it mounted, so going Back and forward again overwrote the
+ * user's own pick with the region's.
+ */
+function initialHowYouCook(): HowYouCookStepValue {
+  const { preferredUnits, currency } = defaultsForRegion(
+    detectRegion(typeof navigator === 'undefined' ? [] : navigator.languages),
+  );
+  return { ...EMPTY_HOW_YOU_COOK, units: preferredUnits, currency };
+}
 
 function stepTitle(key: string): string {
   switch (key) {
@@ -96,7 +118,7 @@ export function OnboardingWizard({
   const [jobs, setJobs] = useState<OnboardingJob[]>(askJobs ? [] : initialJobs);
   const [trainingWeekdays, setTrainingWeekdays] = useState<number[]>([]);
   const [trainingDayKinds, setTrainingDayKinds] = useState<Record<number, TrainingDayKind>>({});
-  const [howYouCook, setHowYouCook] = useState<HowYouCookStepValue>(EMPTY_HOW_YOU_COOK);
+  const [howYouCook, setHowYouCook] = useState<HowYouCookStepValue>(initialHowYouCook);
   const [goodFood, setGoodFood] = useState(false);
   const [step, setStep] = useState(1);
   const [error, setError] = useState<string | null>(null);
@@ -157,8 +179,15 @@ export function OnboardingWizard({
 
   function canContinue(): boolean {
     if (stepKey === 'jobs') return jobs.length > 0;
-    // R-02: an age under 16 blocks the body-metrics step until fixed or cleared.
-    if (stepKey === 'metrics') return bodyMetricsAgeError(data.age) === null;
+    // R-02 / UX-ONB-05: an age under 16, or a height/weight outside the plausible
+    // range, blocks the body-metrics step until fixed or cleared.
+    if (stepKey === 'metrics') {
+      return (
+        bodyMetricsAgeError(data.age) === null &&
+        bodyMetricsHeightError(data.heightCm) === null &&
+        bodyMetricsWeightError(data.weightKg) === null
+      );
+    }
     return true; // every later step is independently optional
   }
 
@@ -210,8 +239,11 @@ export function OnboardingWizard({
       ...(!goodFood && data.goal !== null && { goal: data.goal }),
       ...(data.biologicalSex !== null && { biologicalSex: data.biologicalSex }),
       ...(data.age !== null && bodyMetricsAgeError(data.age) === null && { age: data.age }),
-      ...(data.heightCm !== null && data.heightCm > 0 && { heightCm: data.heightCm }),
-      ...(data.weightKg !== null && data.weightKg > 0 && { weightKg: data.weightKg }),
+      // UX-ONB-05: only plausible values are stored ("1,80" must not save 1.8 cm).
+      ...(data.heightCm !== null &&
+        isPlausibleHeightCm(data.heightCm) && { heightCm: data.heightCm }),
+      ...(data.weightKg !== null &&
+        isPlausibleWeightKg(data.weightKg) && { weightKg: data.weightKg }),
       ...(data.activityLevel !== null && { activityLevel: data.activityLevel }),
     };
   }

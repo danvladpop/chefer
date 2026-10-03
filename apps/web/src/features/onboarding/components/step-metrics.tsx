@@ -3,9 +3,15 @@
 import { useState } from 'react';
 import {
   bodyMetricsAgeError,
+  bodyMetricsHeightError,
+  bodyMetricsWeightError,
   LB_PER_KG,
   MAX_BODY_METRICS_AGE,
+  MAX_HEIGHT_CM,
+  MAX_WEIGHT_KG,
   MIN_BODY_METRICS_AGE,
+  MIN_HEIGHT_CM,
+  MIN_WEIGHT_KG,
   MINOR_NO_DEFICIT_NOTE,
 } from '@chefer/types';
 import {
@@ -270,6 +276,17 @@ export function StepMetrics({ value, onChange, goal }: StepMetricsProps) {
   // ── Calorie preview ──────────────────────────────────────────────────────────
 
   const ageError = bodyMetricsAgeError(value.age);
+  // UX-ONB-05: a height or weight outside the plausible range is flagged under
+  // its field (worded in the unit being typed), and the estimate waits for a
+  // plausible value — "1,80" cm or 8 kg is a typo, not a body.
+  const heightError = bodyMetricsHeightError(
+    value.heightCm,
+    heightUnit === 'cm' ? 'METRIC' : 'IMPERIAL',
+  );
+  const weightError = bodyMetricsWeightError(
+    value.weightKg,
+    weightUnit === 'kg' ? 'METRIC' : 'IMPERIAL',
+  );
   const canPreview =
     value.age !== null &&
     value.heightCm !== null &&
@@ -277,7 +294,9 @@ export function StepMetrics({ value, onChange, goal }: StepMetricsProps) {
     value.age > 0 &&
     value.heightCm > 0 &&
     value.weightKg > 0 &&
-    ageError === null;
+    ageError === null &&
+    heightError === null &&
+    weightError === null;
 
   const preview = canPreview
     ? previewCalorieTarget(
@@ -408,11 +427,13 @@ export function StepMetrics({ value, onChange, goal }: StepMetricsProps) {
               type="number"
               inputMode="decimal"
               aria-label="Height in centimetres"
-              min={50}
-              max={280}
+              min={MIN_HEIGHT_CM}
+              max={MAX_HEIGHT_CM}
               placeholder="e.g. 175"
               value={localHeightCm}
               onChange={(e) => handleHeightCmChange(e.target.value)}
+              aria-invalid={heightError !== null}
+              aria-describedby={heightError !== null ? 'height-error' : undefined}
               className={inputCls}
             />
           ) : (
@@ -428,6 +449,8 @@ export function StepMetrics({ value, onChange, goal }: StepMetricsProps) {
                   placeholder="ft"
                   value={localFeet}
                   onChange={(e) => handleFeetChange(e.target.value)}
+                  aria-invalid={heightError !== null}
+                  aria-describedby={heightError !== null ? 'height-error' : undefined}
                   className={inputCls}
                 />
                 <p className="text-xs text-muted-foreground">feet</p>
@@ -442,11 +465,18 @@ export function StepMetrics({ value, onChange, goal }: StepMetricsProps) {
                   placeholder="in"
                   value={localInches}
                   onChange={(e) => handleInchesChange(e.target.value)}
+                  aria-invalid={heightError !== null}
+                  aria-describedby={heightError !== null ? 'height-error' : undefined}
                   className={inputCls}
                 />
                 <p className="text-xs text-muted-foreground">inches</p>
               </div>
             </div>
+          )}
+          {heightError !== null && (
+            <p id="height-error" role="alert" className="text-xs text-destructive">
+              {heightError}
+            </p>
           )}
         </div>
 
@@ -480,13 +510,20 @@ export function StepMetrics({ value, onChange, goal }: StepMetricsProps) {
             type="number"
             inputMode="decimal"
             aria-label={`Weight in ${weightUnit === 'kg' ? 'kilograms' : 'pounds'}`}
-            min={20}
-            max={500}
+            min={MIN_WEIGHT_KG}
+            max={MAX_WEIGHT_KG}
             placeholder={weightUnit === 'kg' ? 'e.g. 75' : 'e.g. 165'}
             value={localWeight}
             onChange={(e) => handleWeightChange(e.target.value)}
+            aria-invalid={weightError !== null}
+            aria-describedby={weightError !== null ? 'weight-error' : undefined}
             className={inputCls}
           />
+          {weightError !== null && (
+            <p id="weight-error" role="alert" className="text-xs text-destructive">
+              {weightError}
+            </p>
+          )}
         </div>
 
         {unitSwitchNotice && (
@@ -582,6 +619,10 @@ export function StepMetrics({ value, onChange, goal }: StepMetricsProps) {
           </>
         ) : ageError !== null ? (
           <p className="text-sm text-muted-foreground">{ageError}</p>
+        ) : heightError !== null || weightError !== null ? (
+          <p className="text-sm text-muted-foreground">
+            Fix your height and weight to see your estimated daily calorie target.
+          </p>
         ) : (
           <p className="text-sm text-muted-foreground">
             Fill in your age, height, and weight to see your estimated daily calorie target.

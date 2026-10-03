@@ -302,6 +302,7 @@ export default function PreferencesScreen() {
                 weightKg: data?.chefProfile?.weightKg ?? null,
                 activityLevel: (data?.chefProfile?.activityLevel as ActivityLevel | null) ?? null,
               }}
+              units={data?.chefProfile?.preferredUnits ?? 'METRIC'}
               onSave={saveGoalBody}
               isSaving={goalBodyMutation.isPending}
               isSaved={goalBodyMutation.isSuccess}

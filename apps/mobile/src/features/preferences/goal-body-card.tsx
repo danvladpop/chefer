@@ -1,15 +1,25 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { View } from 'react-native';
 import { skipToken } from '@tanstack/react-query';
-import { bodyMetricsAgeError, MAX_BODY_METRICS_AGE, MIN_BODY_METRICS_AGE } from '@chefer/types';
+import {
+  isPlausibleHeightCm,
+  isPlausibleWeightKg,
+  MAX_BODY_METRICS_AGE,
+  MIN_BODY_METRICS_AGE,
+} from '@chefer/types';
 import { Button, Card, Text } from '@chefer/ui-mobile';
-import { lifterProteinNote } from '@chefer/utils';
+import {
+  bodyFieldTexts,
+  heightCmFromText,
+  lifterProteinNote,
+  weightKgFromText,
+} from '@chefer/utils';
 import { trpc } from '../../lib/trpc';
 import { HEALTH_DECLINED_BODY_NOTICE } from '../privacy/copy';
 import { HealthDeclinedNotice } from '../privacy/health-notices';
 import { useHealthConsent } from '../privacy/use-health-consent';
 import { GoalStep } from './components/goal-step';
-import { MetricsStep } from './components/metrics-step';
+import { metricsFieldErrors, MetricsStep } from './components/metrics-step';
 import type { ActivityLevel, BiologicalSex, Goal, MetricsValue } from './types';
 
 export interface GoalBodyInitialData {
@@ -36,6 +46,12 @@ export interface GoalBodyCardProps {
   isSaving: boolean;
   isSaved: boolean;
   errorMessage?: string | null;
+  /**
+   * The unit system height and weight are typed in (the saved preference).
+   * Imperial shows feet + inches and pounds; the stored values stay cm / kg.
+   * Defaults to metric (UX-ONB-05).
+   */
+  units?: 'METRIC' | 'IMPERIAL';
 }
 
 /**
@@ -45,7 +61,7 @@ export interface GoalBodyCardProps {
  * 2,000 kcal default. Port of the goal + metrics steps web's onboarding
  * wizard uses for its free tier, and web's PreferencesForm premium goal/
  * metrics sections (apps/web/src/features/preferences/components/preferences-form.tsx),
- * minus the unit toggles (mobile v1).
+ * with height and weight typed in the saved units (feet + inches, or cm; lb or kg).
  */
 export function GoalBodyCard({
   initial,
@@ -53,6 +69,7 @@ export function GoalBodyCard({
   isSaving,
   isSaved,
   errorMessage,
+  units = 'METRIC',
 }: GoalBodyCardProps) {
   const [goal, setGoal] = useState<Goal | null>(initial.goal);
   const [metrics, setMetrics] = useState<MetricsValue>({
@@ -62,9 +79,11 @@ export function GoalBodyCard({
     weightKg: initial.weightKg,
     activityLevel: initial.activityLevel,
   });
+  const initialTexts = bodyFieldTexts(initial, units);
   const [ageText, setAgeText] = useState(initial.age?.toString() ?? '');
-  const [heightText, setHeightText] = useState(initial.heightCm?.toString() ?? '');
-  const [weightText, setWeightText] = useState(initial.weightKg?.toString() ?? '');
+  const [heightText, setHeightText] = useState(initialTexts.heightText);
+  const [inchesText, setInchesText] = useState(initialTexts.inchesText);
+  const [weightText, setWeightText] = useState(initialTexts.weightText);
   const [loaded, setLoaded] = useState(false);
   // T-26.2: goal + body metrics are health information — asked once, on the first save.
   const { requestHealthConsent, healthConsentSheet } = useHealthConsent();
@@ -107,12 +126,28 @@ export function GoalBodyCard({
       weightKg: initial.weightKg,
       activityLevel: initial.activityLevel,
     });
+    const texts = bodyFieldTexts(initial, units);
     setAgeText(initial.age?.toString() ?? '');
-    setHeightText(initial.heightCm?.toString() ?? '');
-    setWeightText(initial.weightKg?.toString() ?? '');
+    setHeightText(texts.heightText);
+    setInchesText(texts.inchesText);
+    setWeightText(texts.weightText);
     setLoaded(true);
     // eslint-disable-next-line react-hooks/exhaustive-deps -- run once per server payload, see comment above
   }, [initial]);
+
+  // The saved units can arrive (or change) after the fields were filled: show
+  // the same stored height and weight in the new unit instead of re-reading
+  // the typed digits as the wrong one.
+  const lastUnits = useRef(units);
+  useEffect(() => {
+    if (lastUnits.current === units) return;
+    lastUnits.current = units;
+    const texts = bodyFieldTexts(metrics, units);
+    setHeightText(texts.heightText);
+    setInchesText(texts.inchesText);
+    setWeightText(texts.weightText);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- re-format only when the units change
+  }, [units]);
 
   // Lifter protein (audit follow-up): the server applies the dashboard's
   // rules, so a lifter's preview shows their bodyweight protein and why.
@@ -124,11 +159,9 @@ export function GoalBodyCard({
     metrics.age >= MIN_BODY_METRICS_AGE &&
     metrics.age <= MAX_BODY_METRICS_AGE &&
     metrics.heightCm !== null &&
-    metrics.heightCm > 0 &&
-    metrics.heightCm <= 300 &&
+    isPlausibleHeightCm(metrics.heightCm) &&
     metrics.weightKg !== null &&
-    metrics.weightKg > 0 &&
-    metrics.weightKg <= 500
+    isPlausibleWeightKg(metrics.weightKg)
       ? {
           goal,
           biologicalSex: metrics.biologicalSex,
@@ -154,27 +187,32 @@ export function GoalBodyCard({
   }
   function handleHeightText(raw: string) {
     setHeightText(raw);
-    const n = parseFloat(raw.replace(',', '.'));
-    setMetrics((m) => ({ ...m, heightCm: raw === '' || isNaN(n) ? null : n }));
+    setMetrics((m) => ({ ...m, heightCm: heightCmFromText(raw, inchesText, units) }));
+  }
+  function handleInchesText(raw: string) {
+    setInchesText(raw);
+    setMetrics((m) => ({ ...m, heightCm: heightCmFromText(heightText, raw, units) }));
   }
   function handleWeightText(raw: string) {
     setWeightText(raw);
-    const n = parseFloat(raw.replace(',', '.'));
-    setMetrics((m) => ({ ...m, weightKg: raw === '' || isNaN(n) ? null : n }));
+    setMetrics((m) => ({ ...m, weightKg: weightKgFromText(raw, units) }));
   }
 
-  // R-02: an age under 16 (or over 110) is never sent; Save stays disabled
-  // until it is fixed or cleared. The message itself shows under the Age field.
-  const ageError = bodyMetricsAgeError(metrics.age);
+  // R-02 / UX-ONB-05: an age under 16 (or over 110) and a height or weight
+  // outside the plausible range are never sent; Save stays disabled until they
+  // are fixed or cleared. The messages show under the fields.
+  const hasFieldError = Object.values(metricsFieldErrors(metrics, units)).some((e) => e !== null);
 
   function handleSave() {
-    if (ageError !== null) return;
+    if (hasFieldError) return;
     const payload: GoalBodySavePayload = {
       ...(goal !== null && { goal }),
       ...(metrics.biologicalSex !== null && { biologicalSex: metrics.biologicalSex }),
       ...(metrics.age !== null && { age: metrics.age }),
-      ...(metrics.heightCm !== null && metrics.heightCm > 0 && { heightCm: metrics.heightCm }),
-      ...(metrics.weightKg !== null && metrics.weightKg > 0 && { weightKg: metrics.weightKg }),
+      ...(metrics.heightCm !== null &&
+        isPlausibleHeightCm(metrics.heightCm) && { heightCm: metrics.heightCm }),
+      ...(metrics.weightKg !== null &&
+        isPlausibleWeightKg(metrics.weightKg) && { weightKg: metrics.weightKg }),
       ...(metrics.activityLevel !== null && { activityLevel: metrics.activityLevel }),
     };
     setDeclined(false);
@@ -215,16 +253,19 @@ export function GoalBodyCard({
         lifterProtein={lifterProtein}
         ageText={ageText}
         heightText={heightText}
+        heightInchesText={inchesText}
         weightText={weightText}
         onAgeText={handleAgeText}
         onHeightText={handleHeightText}
+        onHeightInchesText={handleInchesText}
         onWeightText={handleWeightText}
+        units={units}
       />
 
       <Button
         testID="prefs-save-goal-body"
         loading={isSaving}
-        disabled={ageError !== null}
+        disabled={hasFieldError}
         onPress={handleSave}
       >
         {isSaved && !dirty ? 'Saved ✓' : 'Save goal & body'}

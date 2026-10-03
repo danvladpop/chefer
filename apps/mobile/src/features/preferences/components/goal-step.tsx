@@ -1,6 +1,6 @@
 import { Pressable, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { Text } from '@chefer/ui-mobile';
+import { colors, Text } from '@chefer/ui-mobile';
 import { cn, WELLNESS_COPY } from '@chefer/utils';
 import { ONBOARDING_COPY } from '../../onboarding/copy';
 import { GOALS, type Goal } from '../types';
@@ -61,7 +61,7 @@ export function GoalStep({
             testID="goal-good-food"
             selected={goodFood}
             onPress={() => onGoodFood?.()}
-            icon="🍽️"
+            icon="restaurant-outline"
             label={ONBOARDING_COPY.goodFoodTitle}
             description={ONBOARDING_COPY.goodFoodDetail}
           />
@@ -101,7 +101,11 @@ export function GoalStep({
                 <Ionicons name="checkmark" size={12} color="#fff" />
               </View>
             )}
-            <Text className="text-3xl">🍽️</Text>
+            <Ionicons
+              name="restaurant-outline"
+              size={32}
+              color={goodFood ? colors.primary : colors.mutedForeground}
+            />
             <Text
               className={cn(
                 'text-center text-sm font-semibold',
@@ -134,7 +138,11 @@ export function GoalStep({
                   <Ionicons name="checkmark" size={12} color="#fff" />
                 </View>
               )}
-              <Text className="text-3xl">{g.icon}</Text>
+              <Ionicons
+                name={g.icon}
+                size={32}
+                color={selected ? colors.primary : colors.mutedForeground}
+              />
               <Text
                 className={cn(
                   'text-center text-sm font-semibold',

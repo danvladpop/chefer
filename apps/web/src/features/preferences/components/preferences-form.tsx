@@ -8,7 +8,15 @@ import { useHealthConsent } from '@/features/privacy/use-health-consent';
 import { SafetyReviewCard } from '@/features/safety/components/SafetyReviewCard';
 import { capture } from '@/lib/analytics';
 import { trpc } from '@/lib/trpc';
-import { bodyMetricsAgeError, HEALTH_CONSENT_COPY, type DisplayCurrency } from '@chefer/types';
+import {
+  bodyMetricsAgeError,
+  bodyMetricsHeightError,
+  bodyMetricsWeightError,
+  HEALTH_CONSENT_COPY,
+  isPlausibleHeightCm,
+  isPlausibleWeightKg,
+  type DisplayCurrency,
+} from '@chefer/types';
 import { Toast } from '@chefer/ui';
 import {
   fromEur,
@@ -166,7 +174,12 @@ export function PreferencesForm({
     // R-02: no body metrics under 16 — the server would reject it anyway, but
     // say so here, before the consent sheet, and keep everything else unsaved
     // until the age is fixed or cleared.
-    const ageError = isPremium ? bodyMetricsAgeError(data.age) : null;
+    // UX-ONB-05: the same for a height or weight outside the plausible range.
+    const ageError = isPremium
+      ? (bodyMetricsAgeError(data.age) ??
+        bodyMetricsHeightError(data.heightCm) ??
+        bodyMetricsWeightError(data.weightKg))
+      : null;
     if (ageError !== null) {
       setToast({ message: ageError, type: 'error' });
       return;
@@ -232,10 +245,10 @@ export function PreferencesForm({
             bodyMetricsAgeError(data.age) === null && { age: data.age }),
           ...(includeHealth &&
             data.heightCm !== null &&
-            data.heightCm > 0 && { heightCm: data.heightCm }),
+            isPlausibleHeightCm(data.heightCm) && { heightCm: data.heightCm }),
           ...(includeHealth &&
             data.weightKg !== null &&
-            data.weightKg > 0 && { weightKg: data.weightKg }),
+            isPlausibleWeightKg(data.weightKg) && { weightKg: data.weightKg }),
           ...(includeHealth &&
             data.activityLevel !== null && { activityLevel: data.activityLevel }),
           cuisinePreferences: data.cuisinePreferences,
