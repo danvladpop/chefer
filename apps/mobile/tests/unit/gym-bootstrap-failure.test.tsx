@@ -87,7 +87,10 @@ describe('Create from an empty search', () => {
     await user.type(screen.getByTestId('exercises-search'), 'T-bar row');
     await user.press(await screen.findByTestId('exercises-empty-create-from-search'));
 
-    expect(router.push).toHaveBeenCalledWith('/gym/exercise-form?name=T-bar%20row');
+    expect(router.push).toHaveBeenCalledWith({
+      pathname: '/gym/exercise-form',
+      params: { name: 'T-bar row' },
+    });
   });
 
   it('the picker offers it only when asked to, and closes first', async () => {
@@ -110,7 +113,10 @@ describe('Create from an empty search', () => {
     await user.press(await screen.findByTestId('exercise-picker-create-from-search'));
 
     expect(onClose).toHaveBeenCalled();
-    expect(router.push).toHaveBeenCalledWith('/gym/exercise-form?name=T-bar');
+    expect(router.push).toHaveBeenCalledWith({
+      pathname: '/gym/exercise-form',
+      params: { name: 'T-bar' },
+    });
   });
 
   it('the picker does not offer it by default', async () => {
@@ -125,12 +131,13 @@ describe('Create from an empty search', () => {
     expect(screen.queryByTestId('exercise-picker-create-from-search')).toBeNull();
   });
 
-  it('createExerciseHref trims, caps at 60 characters and encodes', () => {
-    expect(createExerciseHref('  ')).toBe('/gym/exercise-form');
-    expect(createExerciseHref(' a&b ')).toBe('/gym/exercise-form?name=a%26b');
-    expect(decodeURIComponent(createExerciseHref('x'.repeat(80)).split('=')[1] ?? '')).toHaveLength(
-      60,
-    );
+  it('createExerciseHref trims and caps at 60 characters (typed route object)', () => {
+    expect(createExerciseHref('  ')).toEqual({ pathname: '/gym/exercise-form' });
+    expect(createExerciseHref(' a&b ')).toEqual({
+      pathname: '/gym/exercise-form',
+      params: { name: 'a&b' },
+    });
+    expect(createExerciseHref('x'.repeat(80)).params?.name).toHaveLength(60);
   });
 });
 
