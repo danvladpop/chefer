@@ -50,6 +50,7 @@ import type { SafetyPickerHandle } from '../safety/safety-picker';
 import { ONBOARDING_COPY } from './copy';
 import { HowYouCookStep, type HowYouCookStepValue } from './how-you-cook-step';
 import { JobsStep } from './jobs-step';
+import { NudgeStep } from './nudge-step';
 import {
   clearOnboardingDraft,
   readOnboardingDraft,
@@ -169,6 +170,9 @@ export function OnboardingWizard() {
   const [saving, setSaving] = useState(false);
   const savingRef = useRef(false);
   const [leaveSheetOpen, setLeaveSheetOpen] = useState(false);
+  // UX-PO-08: once everything is saved, the last question (a nudge opt-in) shows
+  // before the wizard leaves; this is where it goes next. Null = not asking.
+  const [afterNudge, setAfterNudge] = useState<(() => void) | null>(null);
   const safetyPickerRef = useRef<SafetyPickerHandle>(null);
   // Set once the setup is finished or skipped: the draft is gone for good and
   // the autosave below must not write it back while the screen unmounts.
@@ -399,12 +403,14 @@ export function OnboardingWizard() {
   useFocusEffect(
     useCallback(() => {
       const subscription = BackHandler.addEventListener('hardwareBackPress', () => {
-        if (step > 0) setStep((s) => s - 1);
+        // The nudge question comes after the save: BACK is "not now", not a step back.
+        if (afterNudge) afterNudge();
+        else if (step > 0) setStep((s) => s - 1);
         else setLeaveSheetOpen(true);
         return true;
       });
       return () => subscription.remove();
-    }, [step]),
+    }, [step, afterNudge]),
   );
 
   if (savedPrefs.isError && !savedPrefs.data) {
@@ -427,6 +433,8 @@ export function OnboardingWizard() {
       </Screen>
     );
   }
+
+  if (afterNudge) return <NudgeStep onDone={afterNudge} />;
 
   // UX-ONB-08: the step list follows what is selected NOW (`jobs`, pre-filled
   // from the saved answer), never a stale copy of the previously saved jobs.
@@ -617,20 +625,23 @@ export function OnboardingWizard() {
       void utils.preferences.invalidate();
       void utils.dashboard.invalidate();
 
-      if (hasTrain) {
-        // Train + food (AC3/AC9): a first week generates in the background
-        // while the gym wizard opens pre-filled at step 2 (T-03.4 — the
-        // days/pre-fill handling itself is L-GYM's setup-wizard, see the
-        // final report).
-        generateFirstWeek();
-        setMode('gym');
-        router.replace('/today');
-        const days = [...trainingWeekdays].sort((a, b) => a - b).join(',');
-        router.push(`/gym/setup?from=onboarding${days ? `&days=${days}` : ''}`);
-        return;
-      }
       generateFirstWeek();
-      goToDashboard();
+      const leave = () => {
+        if (hasTrain) {
+          // Train + food (AC3/AC9): a first week generates in the background
+          // while the gym wizard opens pre-filled at step 2 (T-03.4 — the
+          // days/pre-fill handling itself is L-GYM's setup-wizard, see the
+          // final report).
+          setMode('gym');
+          router.replace('/today');
+          const days = [...trainingWeekdays].sort((a, b) => a - b).join(',');
+          router.push(`/gym/setup?from=onboarding${days ? `&days=${days}` : ''}`);
+          return;
+        }
+        goToDashboard();
+      };
+      // UX-PO-08: the last question — an opt-in nudge — comes before leaving.
+      setAfterNudge(() => leave);
     } catch (err) {
       // UX-ONB-09: never swallow — whichever step failed, say so and let the
       // user tap Finish again (every step is idempotent).
