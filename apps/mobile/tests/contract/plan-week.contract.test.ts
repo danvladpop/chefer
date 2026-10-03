@@ -137,9 +137,16 @@ describe('tracker.deleteCustomMeal — entryId vs index (UX-FOOD-17)', () => {
 describe('off-plan logged recipes are editable and removable (UX-FOOD-03)', () => {
   it('edits the portion by entryId, then deletes the entry', async () => {
     const date = localDateStr(addDays(new Date(), -1)); // yesterday, still this/last week
-    // A recipe that is NOT on the plan for that day: take one from next week's plan.
-    const offPlan = nextWeek.days.flatMap((d) => d.meals)[0]?.recipe;
-    if (!offPlan) throw new Error('expected a meal in next week');
+    // A recipe that is NOT on the plan for that day: take one from next week's plan that
+    // yesterday's plan doesn't also hold (the curated pool is small, so the two weeks can
+    // share recipes — picking the first one blindly made this test flaky).
+    const before = await client.tracker.getDay.query({ date });
+    const plannedThatDay = new Set(before.plannedMeals.map((m) => m.recipeId));
+    const offPlan = nextWeek.days
+      .flatMap((d) => d.meals)
+      .map((m) => m.recipe)
+      .find((r) => r && !plannedThatDay.has(r.id));
+    if (!offPlan) throw new Error('expected a next-week meal that is not planned that day');
     await client.tracker.logRecipe.mutate({
       date,
       recipeId: offPlan.id,
