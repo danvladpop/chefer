@@ -38,180 +38,180 @@
 
 Updated by each work package in `docs/backlog-2026-10/` (each WP edits only its own rows). Status is one of fixed, partially fixed, deferred or open.
 
-| ID         | Sev | Status          | WP            | PR            | Notes                                                                                                                         |
-| ---------- | --- | --------------- | ------------- | ------------- | ----------------------------------------------------------------------------------------------------------------------------- |
-| UX-ACC-01  | S0  | fixed           | WP-01         | #106          | Picker `flush()` on every Save (mobile + web)                                                                                 |
-| UX-ACC-02  | S0  | fixed           | WP-01         | #106          | One `signOut()`; cache cleared on `setToken`                                                                                  |
-| UX-ACC-03  | S1  | fixed           | WP-01         | #106          | Error + retry; never seeds from a failed load                                                                                 |
-| UX-ACC-04  | S2  | open            | WP-09         |               |                                                                                                                               |
-| UX-ACC-05  | S2  | fixed           | WP-03         | #109          | Jobs: ScrollView, back row, unsaved guard (+ WP-02 ErrorState)                                                                |
-| UX-ACC-06  | S2  | open            | WP-09         |               |                                                                                                                               |
-| UX-ACC-07  | S2  | open            | WP-09         |               |                                                                                                                               |
-| UX-ACC-08  | S2  | open            | WP-09 + Owner |               | JS part in the WP; native part in the owner native batch                                                                      |
-| UX-ACC-09  | S2  | open            | WP-09         |               |                                                                                                                               |
-| UX-ACC-10  | S2  | fixed           | WP-02         | #108          | One 401 path → signOut + "session expired"                                                                                    |
-| UX-ACC-11  | S2  | open            | WP-09         |               |                                                                                                                               |
-| UX-ACC-12  | S2  | fixed           | WP-01         | #106          | Sign-out and deletion clear reminders + gym KV                                                                                |
-| UX-ACC-13  | S2  | open            | WP-09         |               |                                                                                                                               |
-| UX-ACC-14  | S3  | open            | WP-09         |               |                                                                                                                               |
-| UX-ACC-15  | S3  | open            | WP-09         |               |                                                                                                                               |
-| UX-ACC-16  | S3  | open            | WP-09         |               |                                                                                                                               |
-| UX-ACC-17  | S3  | fixed           | WP-01         | #106          | No password in the draft; cleared on sign-out                                                                                 |
-| UX-ACC-18  | S3  | open            | WP-09         |               |                                                                                                                               |
-| UX-ACC-19  | S3  | open            | WP-09         |               |                                                                                                                               |
-| UX-ACC-20  | S3  | fixed           | WP-02         | #108          | NotificationsOffRow after a refusal                                                                                           |
-| UX-ACC-21  | S3  | open            | WP-09         |               |                                                                                                                               |
-| UX-ACC-22  | S3  | open            | WP-09         |               |                                                                                                                               |
-| UX-ACC-23  | S3  | open            | WP-09         |               |                                                                                                                               |
-| UX-ACC-24  | S3  | open            | WP-09         |               |                                                                                                                               |
-| UX-ACC-25  | S3  | fixed           | WP-03         | #109          | Feedback scrolls into view; Send disabled when empty                                                                          |
-| UX-ACC-26  | S3  | fixed           | WP-03         | #109          | Delete-account field + persist-taps footer (test)                                                                             |
-| UX-ACC-27  | S3  | fixed           | WP-04         | #107          | min-w-0 / w-full on the clipped card rows (incl. gym export)                                                                  |
-| UX-ONB-01  | S1  | fixed           | WP-01         | #106          | BACK steps back; KV draft resumes; empty jobs → wizard                                                                        |
-| UX-ONB-02  | S1  | open            | Owner         |               |                                                                                                                               |
-| UX-ONB-03  | S2  | fixed           | WP-03         | #109          | Consent sheet ✕/backdrop/BACK = cancel, selections kept                                                                       |
-| UX-ONB-04  | S2  | open            | WP-09         |               |                                                                                                                               |
-| UX-ONB-05  | S2  | open            | WP-09         |               |                                                                                                                               |
-| UX-ONB-06  | S2  | fixed           | WP-03         | #109          | One NumericReturnBar per field, Next/Done chaining                                                                            |
-| UX-ONB-07  | S2  | fixed           | WP-03         | #109          | Wizard keyboard-aware with sticky Continue                                                                                    |
-| UX-ONB-08  | S2  | fixed           | WP-01         | #106          | Saved jobs pre-fill; rounded metrics                                                                                          |
-| UX-ONB-09  | S2  | fixed           | WP-02         | #108          | One saving flag; plain error                                                                                                  |
-| UX-ONB-10  | S3  | open            | WP-09         |               |                                                                                                                               |
-| UX-FOOD-01 | S1  | fixed           | WP-01         | #106          | Ticks derive from server data, optimistic + rollback                                                                          |
-| UX-FOOD-02 | S1  | fixed           | WP-01         | #106          | `planForDate` at every call site                                                                                              |
-| UX-FOOD-03 | S1  | fixed           | WP-01         | #106          | Off-plan rows editable (`tracker.updateRecipeEntry`)                                                                          |
-| UX-FOOD-04 | S1  | fixed           | WP-02         | #108          | Inline StarRating; hidden once rated                                                                                          |
-| UX-FOOD-05 | S1  | fixed           | WP-02         | #108          | Pill = eaten + planned vs target; amber "Over by N"                                                                           |
-| UX-FOOD-06 | S1  | fixed           | WP-01         | #106          | Failed writes revert and say why                                                                                              |
-| UX-FOOD-07 | S1  | fixed           | WP-01         | #106          | `useKeyboardInset` pads the composer                                                                                          |
-| UX-FOOD-08 | S2  | partially fixed | WP-03         | #109          | Today scrolls the weight field clear; Log accessory + dedupe deferred to WP-10 follow-up                                      |
-| UX-FOOD-09 | S2  | fixed           | WP-02         | #108          | Debounced search, states, gram clamp                                                                                          |
-| UX-FOOD-10 | S2  | partially fixed | WP-03         | #109          | Quick-add fields scroll clear; first invalid field focused; clear-on-change deferred                                          |
-| UX-FOOD-11 | S2  | fixed           | WP-10         | #110          | Optional unknownMacros flag (numbers kept for 1.0.1); sanity check skips unknowns                                             |
-| UX-FOOD-12 | S2  | fixed           | WP-10         | #110          | Prefix/word-start/alias ranking, recipe usage, limit + Show more                                                              |
-| UX-FOOD-13 | S2  | fixed           | WP-10         | #110          | Refresh spinner only on a user pull                                                                                           |
-| UX-FOOD-14 | S2  | fixed           | WP-10         | #110          | No first-run notice; 25 kcal/5 g threshold; Keep confirms                                                                     |
-| UX-FOOD-15 | S2  | fixed           | WP-10         | #110          | "Logged ✓ · Undo" held 2 s                                                                                                    |
-| UX-FOOD-16 | S2  | fixed           | WP-03         | #109          | Keyboard.dismiss on every Sheet close path                                                                                    |
-| UX-FOOD-17 | S2  | fixed           | WP-01         | #106          | Optional `entryId` (index still accepted)                                                                                     |
-| UX-FOOD-18 | S2  | fixed           | WP-10         | #110          | Tonight Swap deep-links this week; Plan rolls over at midnight                                                                |
-| UX-FOOD-19 | S2  | fixed           | WP-10 + WP-12 | #110, PR_WP12 | Gym Today uses the same selectTodaysSession                                                                                   |
-| UX-FOOD-20 | S2  | fixed           | WP-10         | #110          | Axes from 0, logged = kcal > 0, 7/28/90 range                                                                                 |
-| UX-FOOD-21 | S2  | fixed           | WP-10         | #110          | Thread per day, action chips + Undo, Stop, folding, starters, friendly errors (mock AI)                                       |
-| UX-FOOD-22 | S2  | deferred        | WP-10         | #110          | Not reproduced on the Pixel_8 cold start; suspected MO-06 mount animation (owner call to init at target)                      |
-| UX-FOOD-23 | S3  | fixed           | WP-10         | #110          | keepPreviousData                                                                                                              |
-| UX-FOOD-24 | S3  | fixed           | WP-04         | #107          | Short caption inside the ring, 2 lines, capped at 1.3×                                                                        |
-| UX-FOOD-25 | S3  | fixed           | WP-10         | #110          | One "Also eaten" list by meal, copy fixes, (g) labels, local reset time                                                       |
-| UX-FOOD-26 | S3  | fixed           | WP-10         | #110          | Photo, 2-line name, editable kcal, Undo, 30 s timeout                                                                         |
-| UX-FOOD-27 | S3  | fixed           | WP-10         | #110          | SVG sparkline with start → end                                                                                                |
-| UX-FOOD-28 | S3  | fixed           | WP-10         | #110          | One consent sheet per list; weight card survives a failed summary                                                             |
-| UX-PLAN-01 | S1  | fixed           | WP-01         | #106          | Past days and eaten slots kept on regenerate                                                                                  |
-| UX-PLAN-02 | S1  | fixed           | WP-01         | #106          | Slot portion = eater only; Shop scales (owner data fix OA-10)                                                                 |
-| UX-PLAN-03 | S1  | fixed           | WP-01         | #106          | Busy confirm; quota error shown                                                                                               |
-| UX-PLAN-04 | S2  | fixed           | WP-10         | #110          | Undo restores the previous pin state (optional pinned)                                                                        |
-| UX-PLAN-05 | S2  | fixed           | WP-10         | #110          | Slot-ranked picker, one safety header, kcal · protein · min                                                                   |
-| UX-PLAN-06 | S2  | fixed           | WP-01         | #106          | "Not paleo: contains quinoa"                                                                                                  |
-| UX-PLAN-07 | S2  | fixed           | WP-10         | #110          | Range + days covered; next-week copy; mid-week window explained                                                               |
-| UX-PLAN-08 | S2  | open            | WP-07         |               |                                                                                                                               |
-| UX-PLAN-09 | S2  | partially fixed | WP-01 + WP-07 | #106          | Wrong week fixed here; opt-in UX in WP-07                                                                                     |
-| UX-PLAN-10 | S2  | partially fixed | WP-03         | #109          | My weeks keyboard-aware; rename Cancel/counter deferred                                                                       |
-| UX-PLAN-11 | S2  | fixed           | WP-10         | #110          | "Use this week again" into this/next week; Eaten marks on history                                                             |
-| UX-PLAN-12 | S2  | partially fixed | WP-10         | #110          | Read-only household summary, "N checks passed"; kid age bands need a schema decision                                          |
-| UX-PLAN-13 | S3  | fixed           | WP-04         | #107          | Badge row wraps                                                                                                               |
-| UX-PLAN-14 | S3  | fixed           | WP-02         | #108          | Pin/Undo failures snackbar; pull to refresh                                                                                   |
-| UX-PLAN-15 | S3  | fixed           | WP-10         | #110          | "My weeks" / "Past weeks" copy                                                                                                |
-| UX-SHOP-01 | S2  | fixed           | WP-11         | #112          | Add box parses imperial (parseQuantityLine)                                                                                   |
-| UX-SHOP-02 | S2  | fixed           | WP-02 + WP-11 | #108, #112    | Errors + Undo (WP-02); remembered aisles, optimistic offline insert (WP-11)                                                   |
-| UX-SHOP-03 | S2  | fixed           | WP-11         | #112          | Shop-size rounding, eggs in Dairy & Eggs, whole-unit prices, "For N" from days covered                                        |
-| UX-SHOP-04 | S2  | fixed           | WP-11         | #112          | Merge on catalog slug with unit normalisation, one price                                                                      |
-| UX-SHOP-05 | S2  | partially fixed | WP-11         | #112          | Remove/edit/Undo on every tier, user units; "use by" date needs a schema column (deferred)                                    |
-| UX-SHOP-06 | S2  | fixed           | WP-11         | #112          | Persisted food reads with 7-day maxAge; wiped on sign-out                                                                     |
-| UX-SHOP-07 | S3  | fixed           | WP-11         | #112          | Inline amount errors, 44 pt chips with state                                                                                  |
-| UX-REC-01  | S1  | fixed           | WP-01         | #106          | Ingredient-based paleo/keto/vegan checks; "Tagged … (not verified)"                                                           |
-| UX-REC-02  | S1  | fixed           | WP-01         | #106          | `portionsFor`: 2× + ½ + 1 = 3½                                                                                                |
-| UX-REC-03  | S2  | fixed           | WP-02         | #108          | Error vs not-found; Retry                                                                                                     |
-| UX-REC-04  | S2  | fixed           | WP-11         | #112          | Soft delete + restore, ⋯ menu (Edit, Duplicate, Share, Delete + Undo); web Duplicate in parity backlog                        |
-| UX-REC-05  | S2  | fixed           | WP-11         | #112          | Infinite cookbook; Saved-tab cursor bug fixed                                                                                 |
-| UX-REC-06  | S2  | fixed           | WP-03         | #109          | Unsaved guard on import while a preview exists                                                                                |
-| UX-REC-07  | S2  | fixed           | WP-11         | #112          | Source link, replace to the new recipe, spoon units kept                                                                      |
-| UX-REC-08  | S2  | fixed           | WP-11         | #112          | Add to my week, add ingredients to the list, native Share (web: Share only, parity backlog)                                   |
-| UX-REC-09  | S2  | fixed           | WP-11         | #112          | Empty Discover explains its filters                                                                                           |
-| UX-REC-10  | S2  | fixed           | WP-11         | #112          | Image placeholder, pinned header                                                                                              |
-| UX-REC-11  | S2  | fixed           | WP-11         | #112          | Quantity sanitising, "Cooking for 2 (recipe makes 1)"                                                                         |
-| UX-REC-12  | S2  | fixed           | WP-11         | #112          | Save blocked while the photo uploads                                                                                          |
-| UX-REC-13  | S3  | fixed           | WP-11         | #112          | Compact rows with source/date meta                                                                                            |
-| UX-REC-14  | S3  | partially fixed | WP-11         | #112          | "Cheferized" only when real; piece weights need a catalog-pipeline change                                                     |
-| UX-REC-15  | S3  | fixed           | WP-11         | #112          | Editable review for link and text import (mobile; web in parity backlog)                                                      |
-| UX-COOK-01 | S2  | fixed           | WP-11         | #112          | Screen-level timers (endsAt), header chips, haptic + local notification                                                       |
-| UX-COOK-02 | S2  | fixed           | WP-03         | #109          | BACK closes ingredients, then confirms past step 1; step/ticks persist                                                        |
-| UX-COOK-03 | S2  | fixed           | WP-02         | #108          | Error state; no-steps recipes open on ingredients                                                                             |
-| UX-COOK-04 | S2  | fixed           | WP-11         | #112          | Scaled amounts per step; meal-slot chooser + Undo on log                                                                      |
-| UX-COOK-05 | S3  | fixed           | WP-11         | #112          | Servings passed in, 44 pt stepper, shared max 20                                                                              |
-| UX-GYM-01  | S1  | fixed           | WP-01         | #106          | Keypad clamps + 2× confirm; parked workouts surfaced; inline setup checks. "Add set" cap deferred to WP-12                    |
-| UX-GYM-02  | S1  | fixed           | WP-01         | #106          | Resume / Finish & start / Discard & start                                                                                     |
-| UX-GYM-03  | S1  | fixed           | WP-01         | #106          | BACK steps back via `useUnsavedGuard`                                                                                         |
-| UX-GYM-04  | S1  | fixed           | WP-02         | #108          | Reminders follow the OS permission; Open Settings                                                                             |
-| UX-GYM-05  | S1  | fixed           | WP-01         | #106          | Setup defaults to preferred units; no gym→food overwrite of Imperial                                                          |
-| UX-GYM-06  | S1  | fixed           | WP-01         | #106          | End today deletes a same-day pause                                                                                            |
-| UX-GYM-07  | S1  | fixed           | WP-01         | #106          | Subset-sum plates; remainder shown                                                                                            |
-| UX-GYM-08  | S1  | fixed           | WP-02         | #108          | No layout transition on the chip container (Android re-checked)                                                               |
-| UX-GYM-09  | S2  | fixed           | WP-12         | PR_WP12       | Alert scheduled at rest start; countdown on Resume/Today; TalkBack start/10 s/end only                                        |
-| UX-GYM-10  | S2  | partially fixed | WP-12 + Owner | PR_WP12       | JS: scheduled at rest start. Measured on Pixel_8: still ~2 min late (180 s rest → ~306 s) → native exact alarm (native batch) |
-| UX-GYM-11  | S2  | fixed           | WP-02         | #108          | Allow opens Settings when denied                                                                                              |
-| UX-GYM-12  | S2  | fixed           | WP-12         | PR_WP12       | No missed days before setup; first week pro-rated                                                                             |
-| UX-GYM-13  | S2  | fixed           | WP-12         | PR_WP12       | "See <month>" opens the recap (needs ≥ 2 sessions)                                                                            |
-| UX-GYM-14  | S2  | fixed           | WP-12         | PR_WP12       | Template preview; Create vs Create and switch                                                                                 |
-| UX-GYM-15  | S2  | fixed           | WP-12         | PR_WP12       | Archive menu + active-routine confirm; Today keeps history                                                                    |
-| UX-GYM-16  | S2  | fixed           | WP-12         | PR_WP12       | Pause start choice, explainer, human dates, upcoming pause                                                                    |
-| UX-GYM-17  | S2  | fixed           | WP-11         | #112          | Relative strength divides by body weight (never raw kg)                                                                       |
-| UX-GYM-18  | S2  | fixed           | WP-12         | PR_WP12       | Rep-range edit carries the known weight; no first-session PR in the summary                                                   |
-| UX-GYM-19  | S2  | fixed           | WP-11         | #112          | Per-hand loads say "each"                                                                                                     |
-| UX-GYM-20  | S2  | fixed           | WP-12         | PR_WP12       | Pill derives from the route group                                                                                             |
-| UX-GYM-21  | S2  | fixed           | WP-02         | #108          | Field errors, labels, caps, Create "<query>"                                                                                  |
-| UX-GYM-22  | S2  | fixed           | WP-02         | #108          | Optimistic saves with rollback; ConfirmSheet archives                                                                         |
-| UX-GYM-23  | S2  | fixed           | WP-02         | #108          | Ack for an older copy keeps the newer edit                                                                                    |
-| UX-GYM-24  | S2  | fixed           | WP-02         | #108          | Gym screens show Retry / needs a connection                                                                                   |
-| UX-GYM-25  | S2  | fixed           | WP-02         | #108          | Park after 3 server failures; "N waiting · Sync now"                                                                          |
-| UX-GYM-26  | S2  | fixed           | WP-03         | #109          | Guard on log/edit modes; drafts persist per mode                                                                              |
-| UX-GYM-27  | S2  | fixed           | WP-12         | PR_WP12       | formatLoad gets loadType everywhere                                                                                           |
-| UX-GYM-28  | S2  | fixed           | WP-12         | PR_WP12       | Target sheet shares the Adjust fields                                                                                         |
-| UX-GYM-29  | S2  | fixed           | WP-12         | PR_WP12       | History tab param, week-strip labels, useIsOnline                                                                             |
-| UX-GYM-30  | S3  | fixed           | WP-12         | PR_WP12       | Setup scrolls to top per step                                                                                                 |
-| UX-GYM-31  | S3  | fixed           | WP-12         | PR_WP12       | One selectTodaysSession for gym and food Today                                                                                |
-| UX-GYM-32  | S3  | fixed           | WP-12         | PR_WP12       | Edited weekday in the notice                                                                                                  |
-| UX-GYM-33  | S3  | fixed           | WP-12         | PR_WP12       | Top-5 stack, nice ticks, history probe, PR rule                                                                               |
-| UX-GYM-34  | S3  | partially fixed | WP-12         | PR_WP12       | Intl dates, keys, Done bars, recap Retry, Archived exercises + restore; archived routines restore deferred                    |
-| UX-GYM-35  | S3  | fixed           | WP-03         | #109          | Exercise note keyboard-aware with a Done footer                                                                               |
-| UX-SOC-01  | S2  | open            | Owner         |               | Following flag stays off (D-6)                                                                                                |
-| UX-SOC-02  | S3  | open            | Owner         |               | Following flag stays off (D-6)                                                                                                |
-| UX-SOC-03  | S3  | open            | Owner         |               | Following flag stays off (D-6)                                                                                                |
-| UX-X-01    | S1  | fixed           | WP-01         | #106          | `useUnsavedGuard` (`usePreventRemove`) blocks iOS swipe                                                                       |
-| UX-X-02    | S2  | fixed           | WP-01         | #106          | Sheet uses one keyboard mechanism                                                                                             |
-| UX-X-03    | S2  | fixed           | WP-03         | #109          | Sheets drag down from grabber/header (PanResponder + Reanimated, MO-02)                                                       |
-| UX-X-04    | S2  | fixed           | WP-03         | #109          | persist-taps default + guard test                                                                                             |
-| UX-X-05    | S2  | fixed           | WP-03         | #109          | Keyboard-aware scroll on Preferences, Household, More                                                                         |
-| UX-X-06    | S2  | fixed           | WP-01 + WP-02 | #106, #108    | Gym setup + keypad (WP-01); Zod-JSON mapping in userFacingErrorMessage + remaining screens (WP-02)                            |
-| UX-X-07    | S2  | open            | Owner         |               |                                                                                                                               |
-| UX-X-08    | S2  | fixed           | WP-04         | #107          | Caps 1.6×/2.0×; inputs min-h-11; chips wrap; XL device pass fixes (switch, ring, logger, set row)                             |
-| UX-X-09    | S2  | partially fixed | WP-04         | #107          | Primitives labelled + TextInput guard test; 10 allow-listed screens left for WP-03/WP-09                                      |
-| UX-X-10    | S2  | fixed           | WP-04         | #107          | Thumb offset computed in the worklet from shared width                                                                        |
-| UX-X-11    | S2  | fixed           | WP-03         | #109          | Gym mode persists only once Gym is set up                                                                                     |
-| UX-X-12    | S3  | fixed           | WP-02         | #108          | Failed loads show ErrorState + Retry (food/account)                                                                           |
-| UX-X-13    | S3  | fixed           | WP-02 + WP-12 | #108, PR_WP12 | All confirms are ConfirmSheet (last two gym ones in WP-12)                                                                    |
-| UX-X-14    | S3  | fixed           | WP-04         | #107          | Type floor 14/19 + 16/22; no text below 12 px on mobile or web                                                                |
-| UX-X-15    | S3  | fixed           | WP-11         | #112          | Device-locale formatters replace hard-coded en-GB/en-US                                                                       |
-| UX-X-16    | S3  | fixed           | WP-03         | #109          | Undo 10 s, pauses while touched, 300 ms tap shield                                                                            |
-| UX-X-17    | S3  | fixed           | WP-03 + WP-12 | #109, PR_WP12 | SearchField everywhere incl. gym Exercises                                                                                    |
-| UX-PO-01   | S1  | open            | Owner         |               |                                                                                                                               |
-| UX-PO-02   | S1  | open            | WP-13         |               |                                                                                                                               |
-| UX-PO-03   | S1  | open            | Owner         |               |                                                                                                                               |
-| UX-PO-04   | S1  | open            | Owner         |               |                                                                                                                               |
-| UX-PO-05   | S2  | open            | WP-13         |               |                                                                                                                               |
-| UX-PO-06   | S2  | open            | WP-14         |               |                                                                                                                               |
-| UX-PO-07   | S2  | open            | Owner         |               |                                                                                                                               |
-| UX-PO-08   | S2  | open            | WP-13 + Owner |               | JS part in the WP; native part in the owner native batch                                                                      |
-| UX-PO-09   | S2  | open            | Owner         |               |                                                                                                                               |
-| UX-PO-10   | S3  | open            | WP-13         |               |                                                                                                                               |
+| ID         | Sev | Status          | WP            | PR         | Notes                                                                                                                         |
+| ---------- | --- | --------------- | ------------- | ---------- | ----------------------------------------------------------------------------------------------------------------------------- |
+| UX-ACC-01  | S0  | fixed           | WP-01         | #106       | Picker `flush()` on every Save (mobile + web)                                                                                 |
+| UX-ACC-02  | S0  | fixed           | WP-01         | #106       | One `signOut()`; cache cleared on `setToken`                                                                                  |
+| UX-ACC-03  | S1  | fixed           | WP-01         | #106       | Error + retry; never seeds from a failed load                                                                                 |
+| UX-ACC-04  | S2  | open            | WP-09         |            |                                                                                                                               |
+| UX-ACC-05  | S2  | fixed           | WP-03         | #109       | Jobs: ScrollView, back row, unsaved guard (+ WP-02 ErrorState)                                                                |
+| UX-ACC-06  | S2  | open            | WP-09         |            |                                                                                                                               |
+| UX-ACC-07  | S2  | open            | WP-09         |            |                                                                                                                               |
+| UX-ACC-08  | S2  | open            | WP-09 + Owner |            | JS part in the WP; native part in the owner native batch                                                                      |
+| UX-ACC-09  | S2  | open            | WP-09         |            |                                                                                                                               |
+| UX-ACC-10  | S2  | fixed           | WP-02         | #108       | One 401 path → signOut + "session expired"                                                                                    |
+| UX-ACC-11  | S2  | open            | WP-09         |            |                                                                                                                               |
+| UX-ACC-12  | S2  | fixed           | WP-01         | #106       | Sign-out and deletion clear reminders + gym KV                                                                                |
+| UX-ACC-13  | S2  | open            | WP-09         |            |                                                                                                                               |
+| UX-ACC-14  | S3  | open            | WP-09         |            |                                                                                                                               |
+| UX-ACC-15  | S3  | open            | WP-09         |            |                                                                                                                               |
+| UX-ACC-16  | S3  | open            | WP-09         |            |                                                                                                                               |
+| UX-ACC-17  | S3  | fixed           | WP-01         | #106       | No password in the draft; cleared on sign-out                                                                                 |
+| UX-ACC-18  | S3  | open            | WP-09         |            |                                                                                                                               |
+| UX-ACC-19  | S3  | open            | WP-09         |            |                                                                                                                               |
+| UX-ACC-20  | S3  | fixed           | WP-02         | #108       | NotificationsOffRow after a refusal                                                                                           |
+| UX-ACC-21  | S3  | open            | WP-09         |            |                                                                                                                               |
+| UX-ACC-22  | S3  | open            | WP-09         |            |                                                                                                                               |
+| UX-ACC-23  | S3  | open            | WP-09         |            |                                                                                                                               |
+| UX-ACC-24  | S3  | open            | WP-09         |            |                                                                                                                               |
+| UX-ACC-25  | S3  | fixed           | WP-03         | #109       | Feedback scrolls into view; Send disabled when empty                                                                          |
+| UX-ACC-26  | S3  | fixed           | WP-03         | #109       | Delete-account field + persist-taps footer (test)                                                                             |
+| UX-ACC-27  | S3  | fixed           | WP-04         | #107       | min-w-0 / w-full on the clipped card rows (incl. gym export)                                                                  |
+| UX-ONB-01  | S1  | fixed           | WP-01         | #106       | BACK steps back; KV draft resumes; empty jobs → wizard                                                                        |
+| UX-ONB-02  | S1  | open            | Owner         |            |                                                                                                                               |
+| UX-ONB-03  | S2  | fixed           | WP-03         | #109       | Consent sheet ✕/backdrop/BACK = cancel, selections kept                                                                       |
+| UX-ONB-04  | S2  | open            | WP-09         |            |                                                                                                                               |
+| UX-ONB-05  | S2  | open            | WP-09         |            |                                                                                                                               |
+| UX-ONB-06  | S2  | fixed           | WP-03         | #109       | One NumericReturnBar per field, Next/Done chaining                                                                            |
+| UX-ONB-07  | S2  | fixed           | WP-03         | #109       | Wizard keyboard-aware with sticky Continue                                                                                    |
+| UX-ONB-08  | S2  | fixed           | WP-01         | #106       | Saved jobs pre-fill; rounded metrics                                                                                          |
+| UX-ONB-09  | S2  | fixed           | WP-02         | #108       | One saving flag; plain error                                                                                                  |
+| UX-ONB-10  | S3  | open            | WP-09         |            |                                                                                                                               |
+| UX-FOOD-01 | S1  | fixed           | WP-01         | #106       | Ticks derive from server data, optimistic + rollback                                                                          |
+| UX-FOOD-02 | S1  | fixed           | WP-01         | #106       | `planForDate` at every call site                                                                                              |
+| UX-FOOD-03 | S1  | fixed           | WP-01         | #106       | Off-plan rows editable (`tracker.updateRecipeEntry`)                                                                          |
+| UX-FOOD-04 | S1  | fixed           | WP-02         | #108       | Inline StarRating; hidden once rated                                                                                          |
+| UX-FOOD-05 | S1  | fixed           | WP-02         | #108       | Pill = eaten + planned vs target; amber "Over by N"                                                                           |
+| UX-FOOD-06 | S1  | fixed           | WP-01         | #106       | Failed writes revert and say why                                                                                              |
+| UX-FOOD-07 | S1  | fixed           | WP-01         | #106       | `useKeyboardInset` pads the composer                                                                                          |
+| UX-FOOD-08 | S2  | partially fixed | WP-03         | #109       | Today scrolls the weight field clear; Log accessory + dedupe deferred to WP-10 follow-up                                      |
+| UX-FOOD-09 | S2  | fixed           | WP-02         | #108       | Debounced search, states, gram clamp                                                                                          |
+| UX-FOOD-10 | S2  | partially fixed | WP-03         | #109       | Quick-add fields scroll clear; first invalid field focused; clear-on-change deferred                                          |
+| UX-FOOD-11 | S2  | fixed           | WP-10         | #110       | Optional unknownMacros flag (numbers kept for 1.0.1); sanity check skips unknowns                                             |
+| UX-FOOD-12 | S2  | fixed           | WP-10         | #110       | Prefix/word-start/alias ranking, recipe usage, limit + Show more                                                              |
+| UX-FOOD-13 | S2  | fixed           | WP-10         | #110       | Refresh spinner only on a user pull                                                                                           |
+| UX-FOOD-14 | S2  | fixed           | WP-10         | #110       | No first-run notice; 25 kcal/5 g threshold; Keep confirms                                                                     |
+| UX-FOOD-15 | S2  | fixed           | WP-10         | #110       | "Logged ✓ · Undo" held 2 s                                                                                                    |
+| UX-FOOD-16 | S2  | fixed           | WP-03         | #109       | Keyboard.dismiss on every Sheet close path                                                                                    |
+| UX-FOOD-17 | S2  | fixed           | WP-01         | #106       | Optional `entryId` (index still accepted)                                                                                     |
+| UX-FOOD-18 | S2  | fixed           | WP-10         | #110       | Tonight Swap deep-links this week; Plan rolls over at midnight                                                                |
+| UX-FOOD-19 | S2  | fixed           | WP-10 + WP-12 | #110, #113 | Gym Today uses the same selectTodaysSession                                                                                   |
+| UX-FOOD-20 | S2  | fixed           | WP-10         | #110       | Axes from 0, logged = kcal > 0, 7/28/90 range                                                                                 |
+| UX-FOOD-21 | S2  | fixed           | WP-10         | #110       | Thread per day, action chips + Undo, Stop, folding, starters, friendly errors (mock AI)                                       |
+| UX-FOOD-22 | S2  | deferred        | WP-10         | #110       | Not reproduced on the Pixel_8 cold start; suspected MO-06 mount animation (owner call to init at target)                      |
+| UX-FOOD-23 | S3  | fixed           | WP-10         | #110       | keepPreviousData                                                                                                              |
+| UX-FOOD-24 | S3  | fixed           | WP-04         | #107       | Short caption inside the ring, 2 lines, capped at 1.3×                                                                        |
+| UX-FOOD-25 | S3  | fixed           | WP-10         | #110       | One "Also eaten" list by meal, copy fixes, (g) labels, local reset time                                                       |
+| UX-FOOD-26 | S3  | fixed           | WP-10         | #110       | Photo, 2-line name, editable kcal, Undo, 30 s timeout                                                                         |
+| UX-FOOD-27 | S3  | fixed           | WP-10         | #110       | SVG sparkline with start → end                                                                                                |
+| UX-FOOD-28 | S3  | fixed           | WP-10         | #110       | One consent sheet per list; weight card survives a failed summary                                                             |
+| UX-PLAN-01 | S1  | fixed           | WP-01         | #106       | Past days and eaten slots kept on regenerate                                                                                  |
+| UX-PLAN-02 | S1  | fixed           | WP-01         | #106       | Slot portion = eater only; Shop scales (owner data fix OA-10)                                                                 |
+| UX-PLAN-03 | S1  | fixed           | WP-01         | #106       | Busy confirm; quota error shown                                                                                               |
+| UX-PLAN-04 | S2  | fixed           | WP-10         | #110       | Undo restores the previous pin state (optional pinned)                                                                        |
+| UX-PLAN-05 | S2  | fixed           | WP-10         | #110       | Slot-ranked picker, one safety header, kcal · protein · min                                                                   |
+| UX-PLAN-06 | S2  | fixed           | WP-01         | #106       | "Not paleo: contains quinoa"                                                                                                  |
+| UX-PLAN-07 | S2  | fixed           | WP-10         | #110       | Range + days covered; next-week copy; mid-week window explained                                                               |
+| UX-PLAN-08 | S2  | open            | WP-07         |            |                                                                                                                               |
+| UX-PLAN-09 | S2  | partially fixed | WP-01 + WP-07 | #106       | Wrong week fixed here; opt-in UX in WP-07                                                                                     |
+| UX-PLAN-10 | S2  | partially fixed | WP-03         | #109       | My weeks keyboard-aware; rename Cancel/counter deferred                                                                       |
+| UX-PLAN-11 | S2  | fixed           | WP-10         | #110       | "Use this week again" into this/next week; Eaten marks on history                                                             |
+| UX-PLAN-12 | S2  | partially fixed | WP-10         | #110       | Read-only household summary, "N checks passed"; kid age bands need a schema decision                                          |
+| UX-PLAN-13 | S3  | fixed           | WP-04         | #107       | Badge row wraps                                                                                                               |
+| UX-PLAN-14 | S3  | fixed           | WP-02         | #108       | Pin/Undo failures snackbar; pull to refresh                                                                                   |
+| UX-PLAN-15 | S3  | fixed           | WP-10         | #110       | "My weeks" / "Past weeks" copy                                                                                                |
+| UX-SHOP-01 | S2  | fixed           | WP-11         | #112       | Add box parses imperial (parseQuantityLine)                                                                                   |
+| UX-SHOP-02 | S2  | fixed           | WP-02 + WP-11 | #108, #112 | Errors + Undo (WP-02); remembered aisles, optimistic offline insert (WP-11)                                                   |
+| UX-SHOP-03 | S2  | fixed           | WP-11         | #112       | Shop-size rounding, eggs in Dairy & Eggs, whole-unit prices, "For N" from days covered                                        |
+| UX-SHOP-04 | S2  | fixed           | WP-11         | #112       | Merge on catalog slug with unit normalisation, one price                                                                      |
+| UX-SHOP-05 | S2  | partially fixed | WP-11         | #112       | Remove/edit/Undo on every tier, user units; "use by" date needs a schema column (deferred)                                    |
+| UX-SHOP-06 | S2  | fixed           | WP-11         | #112       | Persisted food reads with 7-day maxAge; wiped on sign-out                                                                     |
+| UX-SHOP-07 | S3  | fixed           | WP-11         | #112       | Inline amount errors, 44 pt chips with state                                                                                  |
+| UX-REC-01  | S1  | fixed           | WP-01         | #106       | Ingredient-based paleo/keto/vegan checks; "Tagged … (not verified)"                                                           |
+| UX-REC-02  | S1  | fixed           | WP-01         | #106       | `portionsFor`: 2× + ½ + 1 = 3½                                                                                                |
+| UX-REC-03  | S2  | fixed           | WP-02         | #108       | Error vs not-found; Retry                                                                                                     |
+| UX-REC-04  | S2  | fixed           | WP-11         | #112       | Soft delete + restore, ⋯ menu (Edit, Duplicate, Share, Delete + Undo); web Duplicate in parity backlog                        |
+| UX-REC-05  | S2  | fixed           | WP-11         | #112       | Infinite cookbook; Saved-tab cursor bug fixed                                                                                 |
+| UX-REC-06  | S2  | fixed           | WP-03         | #109       | Unsaved guard on import while a preview exists                                                                                |
+| UX-REC-07  | S2  | fixed           | WP-11         | #112       | Source link, replace to the new recipe, spoon units kept                                                                      |
+| UX-REC-08  | S2  | fixed           | WP-11         | #112       | Add to my week, add ingredients to the list, native Share (web: Share only, parity backlog)                                   |
+| UX-REC-09  | S2  | fixed           | WP-11         | #112       | Empty Discover explains its filters                                                                                           |
+| UX-REC-10  | S2  | fixed           | WP-11         | #112       | Image placeholder, pinned header                                                                                              |
+| UX-REC-11  | S2  | fixed           | WP-11         | #112       | Quantity sanitising, "Cooking for 2 (recipe makes 1)"                                                                         |
+| UX-REC-12  | S2  | fixed           | WP-11         | #112       | Save blocked while the photo uploads                                                                                          |
+| UX-REC-13  | S3  | fixed           | WP-11         | #112       | Compact rows with source/date meta                                                                                            |
+| UX-REC-14  | S3  | partially fixed | WP-11         | #112       | "Cheferized" only when real; piece weights need a catalog-pipeline change                                                     |
+| UX-REC-15  | S3  | fixed           | WP-11         | #112       | Editable review for link and text import (mobile; web in parity backlog)                                                      |
+| UX-COOK-01 | S2  | fixed           | WP-11         | #112       | Screen-level timers (endsAt), header chips, haptic + local notification                                                       |
+| UX-COOK-02 | S2  | fixed           | WP-03         | #109       | BACK closes ingredients, then confirms past step 1; step/ticks persist                                                        |
+| UX-COOK-03 | S2  | fixed           | WP-02         | #108       | Error state; no-steps recipes open on ingredients                                                                             |
+| UX-COOK-04 | S2  | fixed           | WP-11         | #112       | Scaled amounts per step; meal-slot chooser + Undo on log                                                                      |
+| UX-COOK-05 | S3  | fixed           | WP-11         | #112       | Servings passed in, 44 pt stepper, shared max 20                                                                              |
+| UX-GYM-01  | S1  | fixed           | WP-01         | #106       | Keypad clamps + 2× confirm; parked workouts surfaced; inline setup checks. "Add set" cap deferred to WP-12                    |
+| UX-GYM-02  | S1  | fixed           | WP-01         | #106       | Resume / Finish & start / Discard & start                                                                                     |
+| UX-GYM-03  | S1  | fixed           | WP-01         | #106       | BACK steps back via `useUnsavedGuard`                                                                                         |
+| UX-GYM-04  | S1  | fixed           | WP-02         | #108       | Reminders follow the OS permission; Open Settings                                                                             |
+| UX-GYM-05  | S1  | fixed           | WP-01         | #106       | Setup defaults to preferred units; no gym→food overwrite of Imperial                                                          |
+| UX-GYM-06  | S1  | fixed           | WP-01         | #106       | End today deletes a same-day pause                                                                                            |
+| UX-GYM-07  | S1  | fixed           | WP-01         | #106       | Subset-sum plates; remainder shown                                                                                            |
+| UX-GYM-08  | S1  | fixed           | WP-02         | #108       | No layout transition on the chip container (Android re-checked)                                                               |
+| UX-GYM-09  | S2  | fixed           | WP-12         | #113       | Alert scheduled at rest start; countdown on Resume/Today; TalkBack start/10 s/end only                                        |
+| UX-GYM-10  | S2  | partially fixed | WP-12 + Owner | #113       | JS: scheduled at rest start. Measured on Pixel_8: still ~2 min late (180 s rest → ~306 s) → native exact alarm (native batch) |
+| UX-GYM-11  | S2  | fixed           | WP-02         | #108       | Allow opens Settings when denied                                                                                              |
+| UX-GYM-12  | S2  | fixed           | WP-12         | #113       | No missed days before setup; first week pro-rated                                                                             |
+| UX-GYM-13  | S2  | fixed           | WP-12         | #113       | "See <month>" opens the recap (needs ≥ 2 sessions)                                                                            |
+| UX-GYM-14  | S2  | fixed           | WP-12         | #113       | Template preview; Create vs Create and switch                                                                                 |
+| UX-GYM-15  | S2  | fixed           | WP-12         | #113       | Archive menu + active-routine confirm; Today keeps history                                                                    |
+| UX-GYM-16  | S2  | fixed           | WP-12         | #113       | Pause start choice, explainer, human dates, upcoming pause                                                                    |
+| UX-GYM-17  | S2  | fixed           | WP-11         | #112       | Relative strength divides by body weight (never raw kg)                                                                       |
+| UX-GYM-18  | S2  | fixed           | WP-12         | #113       | Rep-range edit carries the known weight; no first-session PR in the summary                                                   |
+| UX-GYM-19  | S2  | fixed           | WP-11         | #112       | Per-hand loads say "each"                                                                                                     |
+| UX-GYM-20  | S2  | fixed           | WP-12         | #113       | Pill derives from the route group                                                                                             |
+| UX-GYM-21  | S2  | fixed           | WP-02         | #108       | Field errors, labels, caps, Create "<query>"                                                                                  |
+| UX-GYM-22  | S2  | fixed           | WP-02         | #108       | Optimistic saves with rollback; ConfirmSheet archives                                                                         |
+| UX-GYM-23  | S2  | fixed           | WP-02         | #108       | Ack for an older copy keeps the newer edit                                                                                    |
+| UX-GYM-24  | S2  | fixed           | WP-02         | #108       | Gym screens show Retry / needs a connection                                                                                   |
+| UX-GYM-25  | S2  | fixed           | WP-02         | #108       | Park after 3 server failures; "N waiting · Sync now"                                                                          |
+| UX-GYM-26  | S2  | fixed           | WP-03         | #109       | Guard on log/edit modes; drafts persist per mode                                                                              |
+| UX-GYM-27  | S2  | fixed           | WP-12         | #113       | formatLoad gets loadType everywhere                                                                                           |
+| UX-GYM-28  | S2  | fixed           | WP-12         | #113       | Target sheet shares the Adjust fields                                                                                         |
+| UX-GYM-29  | S2  | fixed           | WP-12         | #113       | History tab param, week-strip labels, useIsOnline                                                                             |
+| UX-GYM-30  | S3  | fixed           | WP-12         | #113       | Setup scrolls to top per step                                                                                                 |
+| UX-GYM-31  | S3  | fixed           | WP-12         | #113       | One selectTodaysSession for gym and food Today                                                                                |
+| UX-GYM-32  | S3  | fixed           | WP-12         | #113       | Edited weekday in the notice                                                                                                  |
+| UX-GYM-33  | S3  | fixed           | WP-12         | #113       | Top-5 stack, nice ticks, history probe, PR rule                                                                               |
+| UX-GYM-34  | S3  | partially fixed | WP-12         | #113       | Intl dates, keys, Done bars, recap Retry, Archived exercises + restore; archived routines restore deferred                    |
+| UX-GYM-35  | S3  | fixed           | WP-03         | #109       | Exercise note keyboard-aware with a Done footer                                                                               |
+| UX-SOC-01  | S2  | open            | Owner         |            | Following flag stays off (D-6)                                                                                                |
+| UX-SOC-02  | S3  | open            | Owner         |            | Following flag stays off (D-6)                                                                                                |
+| UX-SOC-03  | S3  | open            | Owner         |            | Following flag stays off (D-6)                                                                                                |
+| UX-X-01    | S1  | fixed           | WP-01         | #106       | `useUnsavedGuard` (`usePreventRemove`) blocks iOS swipe                                                                       |
+| UX-X-02    | S2  | fixed           | WP-01         | #106       | Sheet uses one keyboard mechanism                                                                                             |
+| UX-X-03    | S2  | fixed           | WP-03         | #109       | Sheets drag down from grabber/header (PanResponder + Reanimated, MO-02)                                                       |
+| UX-X-04    | S2  | fixed           | WP-03         | #109       | persist-taps default + guard test                                                                                             |
+| UX-X-05    | S2  | fixed           | WP-03         | #109       | Keyboard-aware scroll on Preferences, Household, More                                                                         |
+| UX-X-06    | S2  | fixed           | WP-01 + WP-02 | #106, #108 | Gym setup + keypad (WP-01); Zod-JSON mapping in userFacingErrorMessage + remaining screens (WP-02)                            |
+| UX-X-07    | S2  | open            | Owner         |            |                                                                                                                               |
+| UX-X-08    | S2  | fixed           | WP-04         | #107       | Caps 1.6×/2.0×; inputs min-h-11; chips wrap; XL device pass fixes (switch, ring, logger, set row)                             |
+| UX-X-09    | S2  | partially fixed | WP-04         | #107       | Primitives labelled + TextInput guard test; 10 allow-listed screens left for WP-03/WP-09                                      |
+| UX-X-10    | S2  | fixed           | WP-04         | #107       | Thumb offset computed in the worklet from shared width                                                                        |
+| UX-X-11    | S2  | fixed           | WP-03         | #109       | Gym mode persists only once Gym is set up                                                                                     |
+| UX-X-12    | S3  | fixed           | WP-02         | #108       | Failed loads show ErrorState + Retry (food/account)                                                                           |
+| UX-X-13    | S3  | fixed           | WP-02 + WP-12 | #108, #113 | All confirms are ConfirmSheet (last two gym ones in WP-12)                                                                    |
+| UX-X-14    | S3  | fixed           | WP-04         | #107       | Type floor 14/19 + 16/22; no text below 12 px on mobile or web                                                                |
+| UX-X-15    | S3  | fixed           | WP-11         | #112       | Device-locale formatters replace hard-coded en-GB/en-US                                                                       |
+| UX-X-16    | S3  | fixed           | WP-03         | #109       | Undo 10 s, pauses while touched, 300 ms tap shield                                                                            |
+| UX-X-17    | S3  | fixed           | WP-03 + WP-12 | #109, #113 | SearchField everywhere incl. gym Exercises                                                                                    |
+| UX-PO-01   | S1  | open            | Owner         |            |                                                                                                                               |
+| UX-PO-02   | S1  | open            | WP-13         |            |                                                                                                                               |
+| UX-PO-03   | S1  | open            | Owner         |            |                                                                                                                               |
+| UX-PO-04   | S1  | open            | Owner         |            |                                                                                                                               |
+| UX-PO-05   | S2  | open            | WP-13         |            |                                                                                                                               |
+| UX-PO-06   | S2  | open            | WP-14         |            |                                                                                                                               |
+| UX-PO-07   | S2  | open            | Owner         |            |                                                                                                                               |
+| UX-PO-08   | S2  | open            | WP-13 + Owner |            | JS part in the WP; native part in the owner native batch                                                                      |
+| UX-PO-09   | S2  | open            | Owner         |            |                                                                                                                               |
+| UX-PO-10   | S3  | open            | WP-13         |            |                                                                                                                               |
 
 ### Coverage matrix
 
