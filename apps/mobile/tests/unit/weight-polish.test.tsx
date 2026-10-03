@@ -1,6 +1,7 @@
 import { View as MockView } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { render, screen, userEvent } from '@testing-library/react-native';
+import { formatDate } from '@chefer/utils';
 import { WeightEntriesList } from '../../src/features/coach/weight-entries-list';
 import { WeightSparkline } from '../../src/features/coach/weight-sparkline';
 
@@ -77,8 +78,9 @@ describe('WeightSparkline (UX-FOOD-27)', () => {
     expect(screen.getByTestId('weight-sparkline')).toHaveAccessibleName(
       'Weight over the last 30 days: 78.4 → 70.9 kg',
     );
-    expect(screen.getByText(/^10 Sep/)).toBeOnTheScreen();
-    expect(screen.getByText(/^15 Sep/)).toBeOnTheScreen();
+    // Axis dates follow the device locale (UX-X-15).
+    expect(screen.getByText(formatDate(entries[0]!.recordedAt, 'short'))).toBeOnTheScreen();
+    expect(screen.getByText(formatDate(entries.at(-1)!.recordedAt, 'short'))).toBeOnTheScreen();
   });
 
   it('shows values in the user’s unit', async () => {

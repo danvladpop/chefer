@@ -22,6 +22,7 @@ import {
   formatBodyWeight,
   formatDate,
   formatKcal,
+  formatNumber,
   isLoggedDay,
   localDateStr,
   PROGRESS_RANGES,
@@ -304,7 +305,7 @@ export default function ProgressScreen() {
                   reference={{ y: target, label: 'Target' }}
                   yFloor={0}
                   niceTicks
-                  formatY={(v) => v.toLocaleString('en-GB')}
+                  formatY={(v) => formatNumber(v)}
                   height={200}
                 />
               )}
