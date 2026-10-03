@@ -562,6 +562,7 @@ export {
   type PremiumPitchOptions,
 } from './premium-pitch';
 export { tagConflicts, type RecipeTagConflict } from './recipe-tags';
+export { recipeShareText, type ActionRecipe } from './recipe-share';
 export {
   formatFractionalQuantity,
   formatScaledQuantity,
@@ -570,6 +571,7 @@ export {
 } from './scaled-quantity';
 export {
   parseQuantity,
+  sanitizeQuantityInput,
   recipeMissingFields,
   firstIncompleteIngredientLineIndex,
   missingSummary,

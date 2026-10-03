@@ -108,6 +108,9 @@ export async function isRecipeVisibleTo(
   repo: Pick<IMealPlanRepository, 'isRecipeInUserPlans'> = mealPlanRepository,
   social: RecipeSocialDeps = defaultRecipeSocialDeps,
 ): Promise<boolean> {
+  // UX-REC-04: a soft-deleted recipe opens only from a plan slot that still
+  // holds it (the tombstone) — no list, favourite, copy or share reaches it.
+  if (recipe.deletedAt != null) return repo.isRecipeInUserPlans(userId, recipe.id);
   if (isRecipeOpenTo(recipe, userId)) return true;
   if (await repo.isRecipeInUserPlans(userId, recipe.id)) return true;
   return isSociallyVisible(userId, recipe, social);

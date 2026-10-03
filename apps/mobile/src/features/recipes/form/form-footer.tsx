@@ -9,6 +9,8 @@ export interface FormFooterProps {
   offline: boolean;
   saving: boolean;
   saveError: string | null;
+  /** UX-REC-12: a photo is still uploading — Save waits for it. */
+  photoUploading?: boolean;
   onPress: () => void;
 }
 
@@ -25,17 +27,20 @@ export function FormFooter({
   offline,
   saving,
   saveError,
+  photoUploading = false,
   onPress,
 }: FormFooterProps) {
   const label = offline
     ? recipeFormCopy.buttons.needsConnection
-    : saving
-      ? isEdit
-        ? recipeFormCopy.buttons.saving
-        : recipeFormCopy.buttons.creating
-      : isEdit
-        ? recipeFormCopy.buttons.save
-        : recipeFormCopy.buttons.create;
+    : photoUploading
+      ? recipeFormCopy.buttons.uploadingPhoto
+      : saving
+        ? isEdit
+          ? recipeFormCopy.buttons.saving
+          : recipeFormCopy.buttons.creating
+        : isEdit
+          ? recipeFormCopy.buttons.save
+          : recipeFormCopy.buttons.create;
 
   return (
     <View className="gap-2 border-t border-border bg-background px-4 pb-2 pt-3">
@@ -49,10 +54,20 @@ export function FormFooter({
           <Text className="text-sm text-red-600">{saveError}</Text>
         </Card>
       ) : null}
-      <Button testID="rf-save" loading={saving} disabled={offline} onPress={onPress}>
+      <Button
+        testID="rf-save"
+        loading={saving}
+        disabled={offline || photoUploading}
+        onPress={onPress}
+      >
         {label}
       </Button>
-      {!offline && missingText ? (
+      {photoUploading ? (
+        <Text testID="rf-photo-wait" variant="muted" className="text-center text-xs">
+          {recipeFormCopy.photo.waitingToSave}
+        </Text>
+      ) : null}
+      {!offline && !photoUploading && missingText ? (
         <Text testID="rf-missing" variant="muted" className="text-center text-xs">
           {missingText}
         </Text>

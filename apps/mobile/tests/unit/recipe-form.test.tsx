@@ -112,7 +112,7 @@ function mockSearchRow(r: MockRow) {
   };
 }
 
-let mockParams: { id?: string } = {};
+let mockParams: { id?: string; duplicateOf?: string } = {};
 let mockExisting: unknown = null;
 let mockExistingLoading = false;
 let mockExistingError = false;
@@ -135,6 +135,7 @@ const mockPreventRemove: { prevent: boolean; callback: PreventRemoveCallback | n
 };
 const mockDispatch = jest.fn();
 const mockBack = jest.fn();
+const mockReplace = jest.fn();
 const mockGoBack = jest.fn();
 
 // R-10: the custom-ingredient sheet inside the form asks for AI consent before
@@ -148,6 +149,9 @@ jest.mock('expo-router', () => ({
   router: {
     back: () => {
       mockBack();
+    },
+    replace: (...args: unknown[]) => {
+      mockReplace(...args);
     },
   },
   useLocalSearchParams: () => mockParams,
@@ -704,5 +708,82 @@ describe('RecipeFormScreen — catalog lines and computed nutrition (P9)', () =>
         { name: 'Four-spice mix', quantity: 1, unit: 'pinch', ingredientId: 'spice-id' },
       ]);
     });
+  });
+});
+
+describe('RecipeFormScreen — quantity input (UX-REC-11)', () => {
+  it('drops letters from the amount box instead of keeping "60rolled oats"', async () => {
+    await renderScreen();
+    await fireEvent.changeText(screen.getByTestId('rf-ingredient-qty-0'), '60rolled oats');
+    expect(String(screen.getByTestId('rf-ingredient-qty-0').props.value).trim()).toBe('60');
+    await fireEvent.changeText(screen.getByTestId('rf-ingredient-qty-0'), '1/2');
+    expect(screen.getByTestId('rf-ingredient-qty-0').props.value).toBe('1/2');
+  });
+
+  it('opens the decimal pad', async () => {
+    await renderScreen();
+    expect(screen.getByTestId('rf-ingredient-qty-0').props.keyboardType).toBe('decimal-pad');
+  });
+});
+
+describe('RecipeFormScreen — duplicate (UX-REC-04)', () => {
+  const original = {
+    id: 'r1',
+    name: 'Bread',
+    description: 'Crusty white bread',
+    cuisineType: 'French',
+    prepTimeMins: 15,
+    cookTimeMins: 30,
+    servings: 4,
+    nutritionInfo: { calories: 200, protein: 8, carbs: 30, fat: 4, fiber: 3 },
+    nutritionStatus: 'COMPUTED',
+    ingredients: [{ name: 'flour', quantity: 500, unit: 'g' }],
+    lines: [
+      {
+        position: 0,
+        ingredientId: 'flour-id',
+        rawName: 'flour',
+        quantity: 500,
+        unit: 'g',
+        grams: 500,
+        note: null,
+        optional: false,
+      },
+    ],
+    instructions: ['Mix', 'Bake'],
+    dietaryTags: ['vegetarian'],
+    imageUrl: null,
+  };
+
+  beforeEach(() => {
+    mockParams = { duplicateOf: 'r1' };
+    mockExisting = original;
+  });
+
+  it('opens prefilled as "Copy of …" under the duplicate title', async () => {
+    await renderScreen();
+    expect(screen.getByTestId('recipe-form-title')).toHaveTextContent('Duplicate recipe');
+    expect(screen.getByTestId('rf-name-input').props.value).toBe('Copy of Bread');
+    expect(screen.getByTestId('rf-ingredient-qty-0').props.value).toBe('500');
+  });
+
+  it('saves as a NEW recipe (create, not update) and lands on it', async () => {
+    await renderScreen();
+    await fireEvent.press(screen.getByTestId('rf-save'));
+    expect(mockUpdate).not.toHaveBeenCalled();
+    expect(mockCreate).toHaveBeenCalledTimes(1);
+    const payload = (mockCreate.mock.calls[0] as [RecipePayload])[0];
+    expect(payload.name).toBe('Copy of Bread');
+    expect(payload.recipeId).toBeUndefined();
+    expect(mockReplace).toHaveBeenCalledWith({
+      pathname: '/recipe/[id]',
+      params: { id: 'new-recipe' },
+    });
+    expect(mockBack).not.toHaveBeenCalled();
+  });
+
+  it('an untouched duplicate never asks to discard', async () => {
+    await renderScreen();
+    expect(mockPreventRemove.prevent).toBe(false);
   });
 });

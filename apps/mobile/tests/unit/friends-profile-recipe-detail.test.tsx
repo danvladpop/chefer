@@ -70,18 +70,16 @@ describe('recipe detail', () => {
   it('a plain recipe shows none of the Following additions', async () => {
     await renderDetail(detailHandlers(recipe({ sourceUrl: SOURCE })));
     expect(await screen.findByTestId('recipe-name')).toBeTruthy();
-    for (const id of [
-      'recipe-by',
-      'recipe-from',
-      'recipe-source',
-      'recipe-hidden-banner',
-      'recipe-add-to-week',
-    ]) {
+    for (const id of ['recipe-by', 'recipe-from', 'recipe-hidden-banner']) {
       expect(screen.queryByTestId(id)).toBeNull();
     }
-    // The overflow still opens the safety report directly.
+    // UX-REC-07: an imported recipe always shows where it came from.
+    expect(screen.getByTestId('recipe-source')).toBeTruthy();
+    // UX-REC-08: Add to my week is offered on every recipe.
+    expect(screen.getByTestId('recipe-add-to-week')).toBeTruthy();
+    // ⋯ is a menu now (UX-REC-04/08), with the safety report one of its items.
     expect(screen.getByTestId('recipe-report-overflow').props.accessibilityLabel).toBe(
-      'Report a safety problem',
+      'More options',
     );
   });
 
@@ -151,7 +149,6 @@ describe('recipe detail', () => {
     );
     expect(await screen.findByText('From Carol')).toBeTruthy();
     expect(screen.getByText('Source: seed-recipes.example.com')).toBeTruthy();
-    expect(screen.queryByTestId('recipe-add-to-week')).toBeNull();
   });
 
   it('a copy whose original is gone reads From another Chefer cook', async () => {

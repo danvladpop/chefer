@@ -69,7 +69,12 @@ type RecipeWithPeople = Awaited<
  * they surface only as the optional `creator`/`origin` keys, so a row for a
  * user who never used Following has exactly the pre-Following key set (INV-8).
  */
-type FollowingColumns = 'originRecipeId' | 'originCreatorId' | 'hiddenAt' | 'hiddenReason';
+type FollowingColumns =
+  | 'originRecipeId'
+  | 'originCreatorId'
+  | 'hiddenAt'
+  | 'hiddenReason'
+  | 'deletedAt';
 
 /** A `recipe.list` row: the recipe as before, plus the optional attribution keys. */
 export type RecipeListRow = Omit<Recipe, FollowingColumns> &
@@ -107,6 +112,8 @@ function toListRow(
     originCreatorId: _originCreatorId,
     hiddenAt: _hiddenAt,
     hiddenReason: _hiddenReason,
+    // UX-REC-04: listed rows are never deleted — the column stays server-side.
+    deletedAt: _deletedAt,
     ...base
   } = row;
   const { creator: creatorDto, origin } = recipeAttribution(
@@ -376,6 +383,26 @@ export class RecipeService {
       { lines: prepared.lines, nutrition: prepared.nutrition },
     );
     return { ...recipe, lines: prepared.report };
+  }
+
+  /**
+   * UX-REC-04: soft-deletes the user's own recipe. NOT_FOUND when it isn't
+   * theirs (or is already deleted) — same answer, so ids can't be probed.
+   * Idempotent for the client: the deleted recipe's id is returned for Undo.
+   */
+  async deleteMine(userId: string, recipeId: string): Promise<{ recipeId: string }> {
+    if (!(await favouriteRecipeRepository.softDeleteManualRecipe(userId, recipeId))) {
+      throw new TRPCError({ code: 'NOT_FOUND', message: 'Recipe not found.' });
+    }
+    return { recipeId };
+  }
+
+  /** The Undo of `deleteMine`: brings the user's deleted recipe back. */
+  async restoreMine(userId: string, recipeId: string): Promise<{ recipeId: string }> {
+    if (!(await favouriteRecipeRepository.restoreManualRecipe(userId, recipeId))) {
+      throw new TRPCError({ code: 'NOT_FOUND', message: 'Recipe not found.' });
+    }
+    return { recipeId };
   }
 
   async toggleFavourite(userId: string, recipeId: string): Promise<{ isSaved: boolean }> {

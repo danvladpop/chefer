@@ -216,6 +216,11 @@ export interface RecipeDto {
   origin?: RecipeAttribution['origin'];
   hidden?: RecipeAttribution['hidden'];
   sourceUrl?: string;
+  /**
+   * UX-REC-04 (`mealPlan.getRecipe` only): the owner deleted this recipe but a
+   * plan slot still holds it — shown as a tombstone. Omitted when live.
+   */
+  deleted?: true;
 }
 
 export type AddRecipeToWeekInput = z.infer<typeof addRecipeToWeekInputSchema>;
@@ -2256,6 +2261,7 @@ export class MealPlanService {
       ...decorateRecipeDto(rowToRecipeDto(row), rowToRecipeData(row), ctx),
       ...attribution,
       ...(row.sourceUrl && { sourceUrl: row.sourceUrl }),
+      ...(row.deletedAt != null && { deleted: true as const }),
       ...(nutritionLines.length > 0 && { nutritionLines }),
     };
   }

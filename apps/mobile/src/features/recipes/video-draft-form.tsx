@@ -31,10 +31,12 @@ import { pickedFromRef, type CatalogRef, type PickedIngredient } from '../ingred
 import { IngredientPickerField } from '../ingredients/ingredient-picker-field';
 import { useComputedNutrition } from '../ingredients/use-computed-nutrition';
 
-// Video import review form — port of web's VideoDraftForm. The AI reads the
-// video's words into a draft; the user corrects it, fills what the video did
-// not say ("Not found — please add"), then saves through importSave. The
-// shared videoDraftProblems validates, so web, mobile and the API agree.
+// Import review form — port of web's VideoDraftForm. The AI reads the video's
+// words (or, UX-REC-15, a link's page or pasted text) into a draft; the user
+// corrects it, fills what the source did not say ("Not found — please add"),
+// then saves through importSave. The shared videoDraftProblems validates, so
+// web, mobile and the API agree. Link and text imports pass the chosen variant
+// as the draft with no `notFound` / `transcriptSource`: same form, same checks.
 //
 // plan-ingredient-catalog §6.2/§10: each ingredient row's name is the catalog
 // picker. Lines the resolver matched start linked; the rest show its
@@ -45,6 +47,18 @@ import { useComputedNutrition } from '../ingredients/use-computed-nutrition';
 
 export type VideoImportPreview = RouterOutputs['recipe']['importVideoPreview'];
 export type VideoDraftRecipe = VideoImportPreview['draft'];
+/**
+ * What the form needs to start: the draft, the resolver's answer per line and
+ * the safety verdict. The video-only parts are optional, so a link/text import
+ * (no transcript, nothing "not found") feeds the same form.
+ */
+export type DraftReviewSource = Pick<VideoImportPreview, 'draft' | 'resolution' | 'safety'> &
+  Partial<
+    Pick<
+      VideoImportPreview,
+      'notFound' | 'unverifiedQuantities' | 'assumptions' | 'transcriptSource'
+    >
+  >;
 /** The reviewed draft as importSave takes it: lines may carry their catalog id. */
 export type VideoSaveRecipe = Omit<VideoDraftRecipe, 'ingredients'> & {
   ingredients: (VideoDraftRecipe['ingredients'][number] & { ingredientId?: string })[];
@@ -66,7 +80,7 @@ function unitOptions(ingredient: PickedIngredient): SelectOption[] {
 }
 
 /** The resolver's answer for each draft line → the row's starting link. */
-function initialLinks(preview: VideoImportPreview): RowLink[] {
+function initialLinks(preview: DraftReviewSource): RowLink[] {
   const rows = Math.max(preview.draft.ingredients.length, 1);
   return Array.from({ length: rows }, (_, i) => {
     const r = preview.resolution.at(i);
@@ -88,8 +102,11 @@ export function VideoDraftForm({
   nameError = null,
   onBack,
   onSave,
+  saveLabel = 'Save recipe',
 }: {
-  preview: VideoImportPreview;
+  preview: DraftReviewSource;
+  /** The primary button's label. */
+  saveLabel?: string;
   saving: boolean;
   saveError: string | null;
   /** A server rejection of the name (Following word filter, `data.textRejected`), shown under the field. */
@@ -100,8 +117,10 @@ export function VideoDraftForm({
   const [form, setForm] = useState<VideoDraftFormValues>(() => videoDraftToForm(preview.draft));
   const [touched, setTouched] = useState<Partial<Record<VideoDraftField, boolean>>>({});
   const [problems, setProblems] = useState<string[]>([]);
+  const notFound = preview.notFound ?? [];
+  const assumptions = preview.assumptions ?? [];
   const [unheard, setUnheard] = useState<boolean[]>(() =>
-    preview.draft.ingredients.map((_, i) => preview.unverifiedQuantities.includes(i)),
+    preview.draft.ingredients.map((_, i) => (preview.unverifiedQuantities ?? []).includes(i)),
   );
   const [links, setLinks] = useState<RowLink[]>(() => initialLinks(preview));
   const [pendingSave, setPendingSave] = useState<VideoSaveRecipe | null>(null);
@@ -116,7 +135,7 @@ export function VideoDraftForm({
     Number(form.servings) || 1,
   );
 
-  const flagged = (field: VideoDraftField) => preview.notFound.includes(field);
+  const flagged = (field: VideoDraftField) => notFound.includes(field);
   const update = (patch: Partial<VideoDraftFormValues>, field?: VideoDraftField) => {
     setForm((f) => ({ ...f, ...patch }));
     if (field) setTouched((t) => ({ ...t, [field]: true }));
@@ -184,7 +203,9 @@ export function VideoDraftForm({
               {VIDEO_IMPORT_COPY.checkTitle}
             </Text>
             <Text className="mt-0.5 text-xs text-amber-900">
-              {VIDEO_IMPORT_COPY.checkBody[preview.transcriptSource]}
+              {preview.transcriptSource
+                ? VIDEO_IMPORT_COPY.checkBody[preview.transcriptSource]
+                : 'We read this from your link or text. Check the amounts and steps, and fix anything that looks off before you save.'}
             </Text>
           </View>
         </View>
@@ -420,10 +441,10 @@ export function VideoDraftForm({
         </Button>
       </View>
 
-      {preview.assumptions.length > 0 && (
+      {assumptions.length > 0 && (
         <Card className="bg-gray-50">
           <Text className="text-xs font-semibold text-gray-600">What we guessed</Text>
-          {preview.assumptions.map((a) => (
+          {assumptions.map((a) => (
             <Text key={a} className="mt-0.5 text-xs text-gray-600">
               • {a}
             </Text>
@@ -460,7 +481,7 @@ export function VideoDraftForm({
       )}
 
       <Button testID="video-draft-save" loading={saving} onPress={handleSave}>
-        Save recipe
+        {saveLabel}
       </Button>
       <Button variant="ghost" onPress={onBack}>
         <Text variant="muted" className="text-xs">

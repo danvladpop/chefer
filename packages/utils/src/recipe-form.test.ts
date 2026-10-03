@@ -4,6 +4,7 @@ import {
   missingSummary,
   parseQuantity,
   recipeMissingFields,
+  sanitizeQuantityInput,
 } from './recipe-form';
 
 describe('recipeMissingFields (T-40.1, D-19)', () => {
@@ -141,5 +142,24 @@ describe('parseQuantity (T-BUG-O3 C3, AC 6)', () => {
     expect(parseQuantity('   ')).toBe(0);
     expect(parseQuantity('abc')).toBe(0);
     expect(parseQuantity('-5')).toBe(0);
+  });
+});
+
+describe('sanitizeQuantityInput (UX-REC-11)', () => {
+  it('drops letters typed or pasted into an amount box', () => {
+    // a trailing space stays: "1 " is mid-way through typing "1 1/2"
+    expect(sanitizeQuantityInput('60rolled oats').trim()).toBe('60');
+    expect(sanitizeQuantityInput('abc')).toBe('');
+  });
+
+  it('keeps every shape parseQuantity accepts', () => {
+    for (const ok of ['200', '1.5', '0,5', '1/2', '1 1/2', '½', '1½']) {
+      expect(sanitizeQuantityInput(ok)).toBe(ok);
+    }
+  });
+
+  it('collapses spaces, trims the start and caps the length', () => {
+    expect(sanitizeQuantityInput('  1   1/2')).toBe('1 1/2');
+    expect(sanitizeQuantityInput('1234567890')).toBe('12345678');
   });
 });
