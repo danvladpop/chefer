@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Linking, Switch, View } from 'react-native';
+import { Switch, View } from 'react-native';
 import { Button, Card, Text } from '@chefer/ui-mobile';
 import {
   getAnalyticsConsent,
@@ -7,8 +7,8 @@ import {
   setAnalyticsConsent,
   track,
 } from '../../lib/analytics';
-import { getWebUrl } from '../../lib/api-url';
 import { trpc } from '../../lib/trpc';
+import { openLegal } from '../legal/open-legal';
 
 // ─── Usage analytics (T-12.3, §5.10) ───────────────────────────────────────────
 // Two switches, matching web's AnalyticsConsentCard: "Send anonymous usage
@@ -93,11 +93,7 @@ function AnalyticsConsentSwitches() {
         <Text variant="muted" className="text-xs">
           Applies to this phone.
         </Text>
-        <Button
-          variant="ghost"
-          size="sm"
-          onPress={() => void Linking.openURL(getWebUrl('/privacy#analytics'))}
-        >
+        <Button variant="ghost" size="sm" onPress={() => openLegal('privacy', 'analytics')}>
           Privacy policy
         </Button>
       </View>

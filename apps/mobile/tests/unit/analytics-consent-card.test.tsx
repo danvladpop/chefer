@@ -5,6 +5,15 @@ import { AnalyticsConsentCard } from '../../src/features/profile/analytics-conse
 // my account" (default off, disabled while anonymous is off). Every change
 // is logged server-side via privacy.recordAnalyticsConsent (T-39.2).
 
+const mockPush = jest.fn();
+jest.mock('expo-router', () => ({
+  router: {
+    push: (...args: unknown[]) => {
+      mockPush(...args);
+    },
+  },
+}));
+
 let mockConsent = { anonymous: true, linked: false };
 const mockSetConsent = jest.fn((next: Partial<typeof mockConsent>) => {
   mockConsent =
@@ -39,6 +48,7 @@ beforeEach(() => {
   mockSetConsent.mockClear();
   mockRecordConsentMutate.mockClear();
   mockTrack.mockClear();
+  mockPush.mockClear();
 });
 
 describe('mobile AnalyticsConsentCard', () => {
@@ -47,6 +57,12 @@ describe('mobile AnalyticsConsentCard', () => {
     await render(<AnalyticsConsentCard />);
     expect(screen.queryByTestId('profile-analytics-consent')).toBeNull();
     expect(screen.queryByTestId('profile-analytics-anonymous-switch')).toBeNull();
+  });
+
+  it('opens the Privacy Policy in the app, at its analytics section (UX-ACC-19)', async () => {
+    await render(<AnalyticsConsentCard />);
+    await fireEvent.press(screen.getByText('Privacy policy'));
+    expect(mockPush).toHaveBeenCalledWith('/legal/privacy?anchor=analytics');
   });
 
   it('defaults to anonymous on, linked off', async () => {

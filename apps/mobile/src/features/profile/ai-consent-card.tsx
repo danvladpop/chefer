@@ -1,10 +1,10 @@
-import { Linking, Switch, View } from 'react-native';
+import { Switch, View } from 'react-native';
 import { AI_CONSENT_COPY } from '@chefer/types';
 import { Button, Card, Text } from '@chefer/ui-mobile';
 import { aiConsentToggleOn } from '@chefer/utils';
-import { getWebUrl } from '../../lib/api-url';
 import { trpc } from '../../lib/trpc';
 import { useAiProviderDisclosure } from '../ai-consent/use-ai-providers';
+import { openLegal } from '../legal/open-legal';
 
 // AI & your data (App Store 5.1.2(i)) — the standing control for the consent
 // the AI guard asks for before the first AI action. Off = the next AI action
@@ -51,11 +51,7 @@ export function AiConsentCard() {
       <Text variant="muted" className="text-xs" testID="profile-ai-consent-coach-note">
         {AI_CONSENT_COPY.coachReviewNote}
       </Text>
-      <Button
-        variant="ghost"
-        size="sm"
-        onPress={() => void Linking.openURL(getWebUrl(AI_CONSENT_COPY.privacyPath))}
-      >
+      <Button variant="ghost" size="sm" onPress={() => openLegal('privacy')}>
         {AI_CONSENT_COPY.privacyLabel}
       </Button>
       {(grant.isError || revoke.isError) && (

@@ -30,7 +30,7 @@ function Harness() {
       <Pressable testID="sign-out" onPress={signOut.request}>
         <Text>Sign out</Text>
       </Pressable>
-      {signOut.warningSheet}
+      {signOut.confirmSheet}
     </>
   );
 }
@@ -51,11 +51,24 @@ beforeEach(() => {
 });
 
 describe('useSignOut — unsynced workout warning (UX-ACC-12)', () => {
-  it('signs out straight away when nothing would be lost', async () => {
+  it('asks first even when nothing would be lost, and signs out only on "Sign out" (UX-ACC-19)', async () => {
     await renderHarness();
     await fireEvent.press(screen.getByTestId('sign-out'));
+    expect(mockLogoutMutate).not.toHaveBeenCalled();
+    expect(await screen.findByTestId('so-warning-body')).toHaveTextContent(
+      'You can sign back in any time.',
+    );
+    expect(screen.getByText('Sign out of Chefer?')).toBeOnTheScreen();
+
+    await fireEvent.press(screen.getByTestId('so-warning-confirm'));
     expect(mockLogoutMutate).toHaveBeenCalledTimes(1);
-    expect(screen.queryByTestId('so-warning-body')).toBeNull();
+  });
+
+  it('"Cancel" on the plain confirm keeps the session', async () => {
+    await renderHarness();
+    await fireEvent.press(screen.getByTestId('sign-out'));
+    await fireEvent.press(await screen.findByTestId('so-warning-cancel'));
+    expect(mockLogoutMutate).not.toHaveBeenCalled();
   });
 
   it('warns first when a workout is in progress, and signs out only after "Sign out anyway"', async () => {
