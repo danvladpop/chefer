@@ -12,14 +12,25 @@ const SAFE_AREA_METRICS = {
 };
 
 jest.mock('expo-router', () => ({
-  router: { push: jest.fn() },
+  router: { push: jest.fn(), back: jest.fn(), replace: jest.fn(), canGoBack: jest.fn(() => true) },
+}));
+
+// Whether the gym profile exists (UX-ACC-04: food-only users get a CTA, not dead rows).
+let mockGymBootstrap: { isSuccess: boolean; data?: { profile: object | null } } = {
+  isSuccess: true,
+  data: { profile: {} },
+};
+jest.mock('../../src/features/gym/use-gym-bootstrap', () => ({
+  useGymBootstrap: () => mockGymBootstrap,
 }));
 
 jest.mock('../../src/lib/auth-store', () => ({
   clearToken: jest.fn().mockResolvedValue(undefined),
 }));
 
-const { router } = jest.requireMock<{ router: { push: jest.Mock } }>('expo-router');
+const { router } = jest.requireMock<{
+  router: { push: jest.Mock; back: jest.Mock; replace: jest.Mock; canGoBack: jest.Mock };
+}>('expo-router');
 
 function renderSettings(queryClient: QueryClient) {
   // No request is actually completed in these tests — the mutation fires
@@ -44,6 +55,10 @@ function makeClient() {
 
 beforeEach(() => {
   router.push.mockClear();
+  router.back.mockClear();
+  router.replace.mockClear();
+  router.canGoBack.mockReturnValue(true);
+  mockGymBootstrap = { isSuccess: true, data: { profile: {} } };
 });
 
 describe('SettingsScreen (T-00.9, PAT-9 §2.9)', () => {
@@ -68,10 +83,80 @@ describe('SettingsScreen (T-00.9, PAT-9 §2.9)', () => {
     expect(router.push).toHaveBeenCalledWith('/household');
 
     await user.press(screen.getByTestId('settings-training-days'));
-    expect(router.push).toHaveBeenCalledWith('/gym/settings');
+    expect(router.push).toHaveBeenCalledWith('/gym/settings?section=reminders');
 
     await user.press(screen.getByTestId('settings-workout-history'));
-    expect(router.push).toHaveBeenCalledWith('/stats');
+    expect(router.push).toHaveBeenCalledWith('/stats?tab=history');
+  });
+
+  it('UX-ACC-04: rows land on the card they name, via ?section= anchors', async () => {
+    const user = userEvent.setup();
+    await renderSettings(makeClient());
+    const expected: Record<string, string> = {
+      'settings-goal-body': '/preferences?section=goal-body',
+      'settings-targets': '/preferences?section=targets',
+      'settings-safety': '/preferences?section=safety',
+      'settings-money-units': '/preferences?section=display',
+      'settings-budget': '/preferences?section=budget',
+      'settings-auto-plan': '/preferences?section=auto-plan',
+      'settings-pause': '/gym/settings?section=pause',
+      'settings-gym-units': '/gym/settings?section=units',
+      'settings-export': '/gym/settings?section=export',
+      'settings-plan-premium': '/profile?section=plan',
+      // Emails used to open Profile, which has no email controls.
+      'settings-emails': '/preferences?section=weekly-updates',
+      'settings-notifications': '/preferences?section=weekly-updates',
+      'settings-privacy': '/profile?section=privacy',
+      'settings-account-data': '/profile?section=account',
+    };
+    for (const [testID, href] of Object.entries(expected)) {
+      router.push.mockClear();
+      await user.press(screen.getByTestId(testID));
+      expect(router.push).toHaveBeenCalledWith(href);
+    }
+  });
+
+  it('UX-ACC-04: has a back control (Settings was the only stack screen without one)', async () => {
+    const user = userEvent.setup();
+    await renderSettings(makeClient());
+    await user.press(screen.getByTestId('settings-back'));
+    expect(router.back).toHaveBeenCalledTimes(1);
+  });
+
+  it('back falls back to Today when there is nothing to go back to', async () => {
+    router.canGoBack.mockReturnValue(false);
+    const user = userEvent.setup();
+    await renderSettings(makeClient());
+    await user.press(screen.getByTestId('settings-back'));
+    expect(router.back).not.toHaveBeenCalled();
+    expect(router.replace).toHaveBeenCalledWith('/');
+  });
+
+  it('UX-ACC-04: a food-only user gets "Set up training", not five dead rows', async () => {
+    mockGymBootstrap = { isSuccess: true, data: { profile: null } };
+    const user = userEvent.setup();
+    await renderSettings(makeClient());
+    expect(screen.queryByTestId('settings-training-days')).toBeNull();
+    expect(screen.queryByTestId('settings-pause')).toBeNull();
+    await user.press(screen.getByTestId('settings-set-up-training'));
+    expect(router.push).toHaveBeenCalledWith('/gym/setup');
+  });
+
+  it('keeps the Training rows while the gym profile has not loaded', async () => {
+    mockGymBootstrap = { isSuccess: false };
+    await renderSettings(makeClient());
+    expect(screen.getByTestId('settings-training-days')).toBeTruthy();
+    expect(screen.queryByTestId('settings-set-up-training')).toBeNull();
+  });
+
+  it('UX-ACC-04 / UX-ACC-19: Legal rows open the in-app pages; the version is shown', async () => {
+    const user = userEvent.setup();
+    await renderSettings(makeClient());
+    await user.press(screen.getByTestId('settings-terms'));
+    expect(router.push).toHaveBeenCalledWith('/legal/terms');
+    await user.press(screen.getByTestId('settings-privacy-policy'));
+    expect(router.push).toHaveBeenCalledWith('/legal/privacy');
+    expect(screen.getByTestId('settings-version')).toHaveTextContent(/^Version/);
   });
 
   it('sign out asks for confirmation before signing out (no confirmation was P06-M47)', async () => {

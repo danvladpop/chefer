@@ -20,6 +20,7 @@ jest.mock('../../src/features/premium/use-premium-pitch', () => ({
 }));
 
 jest.mock('expo-router', () => ({
+  useLocalSearchParams: () => ({}),
   router: { back: jest.fn(), push: jest.fn() },
 }));
 

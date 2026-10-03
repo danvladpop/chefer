@@ -41,7 +41,10 @@ jest.mock('../../src/lib/analytics', () => ({
     mockTrack(...a);
   },
 }));
-jest.mock('expo-router', () => ({ router: { back: jest.fn(), push: jest.fn() } }));
+jest.mock('expo-router', () => ({
+  router: { back: jest.fn(), push: jest.fn() },
+  useLocalSearchParams: () => ({}),
+}));
 jest.mock('@chefer/ui-mobile', () => ({
   ...jest.requireActual<Record<string, unknown>>('@chefer/ui-mobile'),
   useSnackbar: () => ({ show: mockShow }),
