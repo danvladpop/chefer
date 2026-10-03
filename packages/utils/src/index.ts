@@ -624,6 +624,14 @@ export {
   userFacingErrorMessage,
 } from './user-facing-error';
 export type { UserFacingErrorOptions, ValidationIssueLike } from './user-facing-error';
+export {
+  DEFAULT_PROGRESS_RANGE,
+  evenLabelIndices,
+  isLoggedDay,
+  PROGRESS_RANGES,
+  type ProgressRange,
+} from './progress-days';
+export { chatActionsTrailer, splitChatActions } from './chat-actions';
 export { getQueryState, isNotFoundError } from './query-state';
 export type { QueryState, QueryStateInput } from './query-state';
 export { shouldNotifyMutationError } from './mutation-errors';
