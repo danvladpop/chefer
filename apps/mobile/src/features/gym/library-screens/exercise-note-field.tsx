@@ -1,5 +1,5 @@
 import { useRef } from 'react';
-import { type TextInput } from 'react-native';
+import type { TextInput } from 'react-native';
 import { Input, useScrollFieldIntoView } from '@chefer/ui-mobile';
 
 // UX-GYM-35: the personal note on the exercise detail screen used to sit under

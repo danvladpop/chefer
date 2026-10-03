@@ -148,7 +148,8 @@ describe('Cook mode back navigation (UX-COOK-02)', () => {
   });
 
   it('Android hardware BACK with the panel open closes it and does not exit', async () => {
-    const handlers: (() => boolean | null | undefined)[] = [];
+    type BackListener = Parameters<typeof BackHandler.addEventListener>[1];
+    const handlers: BackListener[] = [];
     jest.spyOn(BackHandler, 'addEventListener').mockImplementation((_event, handler) => {
       handlers.push(handler);
       return { remove: jest.fn() };
@@ -158,7 +159,7 @@ describe('Cook mode back navigation (UX-COOK-02)', () => {
     const handler = handlers[handlers.length - 1];
     let consumed: boolean | null | undefined;
     await act(() => {
-      consumed = handler?.();
+      consumed = handler?.({ type: 'hardwareBackPress', timeStamp: 0 });
     });
     expect(consumed).toBe(true);
     expect(screen.queryByText('Ingredients')).toBeNull();

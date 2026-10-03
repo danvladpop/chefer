@@ -409,7 +409,9 @@ describe('SetupWizard', () => {
 
       const bars = screen.getAllByTestId(/^gym-setup-weights-return-/);
       expect(bars).toHaveLength(inputs.length);
-      const labels = bars.map((bar) => within(bar).getByText(/^(Next|Done)$/).props.children);
+      const labels = bars.map((bar) =>
+        String(within(bar).getByText(/^(Next|Done)$/).props.children),
+      );
       expect(labels).toEqual(inputs.map((_, i) => (i === inputs.length - 1 ? 'Done' : 'Next')));
       // No bar is shared: the old single `gym-setup-weights-return` is gone.
       expect(screen.queryByTestId('gym-setup-weights-return')).toBeNull();
