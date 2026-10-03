@@ -1,3 +1,5 @@
+import { formatKcal } from './format';
+
 // ─── Tracker quick add (F4, all tiers) ────────────────────────────────────────
 // One parser for the manual quick-add form, mirroring the API's
 // tracker.logCustomMeal bounds, so an out-of-range number is explained inline
@@ -24,6 +26,8 @@ export interface QuickAddInput {
   fat?: string | undefined;
 }
 
+export type QuickAddMacroKey = 'protein' | 'carbs' | 'fat';
+
 export interface QuickAddEntry {
   name: string;
   mealType: QuickAddMealType;
@@ -31,6 +35,13 @@ export interface QuickAddEntry {
   protein: number;
   carbs: number;
   fat: number;
+  /**
+   * UX-FOOD-11: macros the user left blank. They are stored as 0 g (older
+   * clients read plain numbers) but flagged here so the day's rows and the
+   * edit sheet can tell "unknown" from "0 g", and the sanity check skips them.
+   * Absent when every macro was entered.
+   */
+  unknownMacros?: QuickAddMacroKey[];
 }
 
 export type QuickAddErrors = Partial<Record<'name' | 'kcal' | 'protein' | 'carbs' | 'fat', string>>;
@@ -38,6 +49,12 @@ export type QuickAddErrors = Partial<Record<'name' | 'kcal' | 'protein' | 'carbs
 export type QuickAddParseResult =
   | { ok: true; entry: QuickAddEntry }
   | { ok: false; errors: QuickAddErrors };
+
+export const QUICK_ADD_MACRO_KEYS = [
+  'protein',
+  'carbs',
+  'fat',
+] as const satisfies readonly QuickAddMacroKey[];
 
 const NUMBER_RE = /^\d+([.,]\d+)?$/;
 
@@ -78,14 +95,25 @@ export function parseQuickAdd(input: QuickAddInput): QuickAddParseResult {
   }
 
   const macros = { protein: 0, carbs: 0, fat: 0 };
-  for (const key of ['protein', 'carbs', 'fat'] as const) {
+  const unknownMacros: QuickAddMacroKey[] = [];
+  for (const key of QUICK_ADD_MACRO_KEYS) {
+    if ((input[key] ?? '').trim() === '') unknownMacros.push(key);
     const parsed = parseAmount(input[key], QUICK_ADD_LIMITS[key], 'g', false);
     if ('error' in parsed) errors[key] = parsed.error;
     else macros[key] = Math.round(parsed.value * 10) / 10;
   }
 
   if (Object.keys(errors).length > 0) return { ok: false, errors };
-  return { ok: true, entry: { name, mealType: input.mealType, kcal: kcalValue, ...macros } };
+  return {
+    ok: true,
+    entry: {
+      name,
+      mealType: input.mealType,
+      kcal: kcalValue,
+      ...macros,
+      ...(unknownMacros.length > 0 && { unknownMacros }),
+    },
+  };
 }
 
 // ─── Macro sanity check (bug B-39, T-19.5) ─────────────────────────────────────
@@ -116,12 +144,16 @@ export interface MacroSanityResult {
  * Checks a logged/edited entry's macros against its stated calories using the
  * 4/4/9 rule, ±25% tolerance. Entries with no macros at all (quick add is
  * calories-only by default) are always fine — there's nothing to disagree.
+ * UX-FOOD-11: so are entries with ANY macro left blank (`unknownMacros`) —
+ * calories + protein alone can't be compared to a 4/4/9 total, and counting
+ * the blanks as 0 g used to flag "400 kcal, 20 g protein" as a typo.
  */
 export function checkMacroSanity(entry: {
   kcal: number;
   protein: number;
   carbs: number;
   fat: number;
+  unknownMacros?: readonly QuickAddMacroKey[] | undefined;
 }): MacroSanityResult {
   const impliedKcal = Math.round(
     entry.protein * KCAL_PER_G.protein +
@@ -129,7 +161,8 @@ export function checkMacroSanity(entry: {
       entry.fat * KCAL_PER_G.fat,
   );
   const noMacros = entry.protein === 0 && entry.carbs === 0 && entry.fat === 0;
-  if (noMacros || entry.kcal < MACRO_SANITY_MIN_KCAL) {
+  const partial = (entry.unknownMacros?.length ?? 0) > 0;
+  if (noMacros || partial || entry.kcal < MACRO_SANITY_MIN_KCAL) {
     return { ok: true, impliedKcal, message: null };
   }
   const diff = Math.abs(entry.kcal - impliedKcal) / entry.kcal;
@@ -137,7 +170,7 @@ export function checkMacroSanity(entry: {
   return {
     ok: false,
     impliedKcal,
-    message: `These don't add up: ${entry.kcal.toLocaleString('en-US')} kcal logged, but the macros add up to ${impliedKcal.toLocaleString('en-US')} kcal.`,
+    message: `These don't add up: ${formatKcal(entry.kcal)} kcal logged, but the macros add up to ${formatKcal(impliedKcal)} kcal.`,
   };
 }
 
@@ -148,4 +181,38 @@ export function checkMacroSanity(entry: {
  */
 export function formatQuickAddGrams(grams: number): string {
   return grams < 10 ? grams.toFixed(1).replace(/\.0$/, '.0') : String(Math.round(grams));
+}
+
+// ─── Ingredient grams (UX-FOOD-09) ────────────────────────────────────────────
+// 99,999 g of banana previewed "88999 kcal" and the server (kcal ≤ 5000) just
+// rejected it. The grams field is clamped to what one entry can hold.
+
+/** Hard ceiling for one ingredient entry, whatever its density. */
+export const INGREDIENT_GRAMS_MAX = 5000;
+
+type Per100g = { calories: number; protein: number; carbs: number; fat: number };
+
+/** Most grams one log entry can hold: every macro and the kcal stay within QUICK_ADD_LIMITS. */
+export function maxIngredientGrams(per100g: Per100g): number {
+  const caps = [
+    [per100g.calories, QUICK_ADD_LIMITS.kcal],
+    [per100g.protein, QUICK_ADD_LIMITS.protein],
+    [per100g.carbs, QUICK_ADD_LIMITS.carbs],
+    [per100g.fat, QUICK_ADD_LIMITS.fat],
+  ] as const;
+  let max = INGREDIENT_GRAMS_MAX;
+  for (const [per100, limit] of caps) {
+    if (per100 > 0) max = Math.min(max, Math.floor((limit / per100) * 100));
+  }
+  return Math.max(max, 1);
+}
+
+/** Parses the grams field ("100", "7,5") and clamps it to `[0, maxIngredientGrams]`. */
+export function clampIngredientGrams(
+  text: string,
+  per100g: Per100g,
+): { grams: number; clamped: boolean; max: number } {
+  const max = maxIngredientGrams(per100g);
+  const parsed = Math.max(0, Math.round(Number(text.replace(',', '.')) || 0));
+  return { grams: Math.min(parsed, max), clamped: parsed > max, max };
 }

@@ -97,6 +97,65 @@ describe('SessionDetailScreen', () => {
     expect(screen.queryByText('Set 3')).toBeNull();
   });
 
+  // UX-GYM-27 / UX-GYM-34: bodyweight and assisted loads read right, the date is
+  // not an ISO string, and a lift that appears twice does not clash on its key.
+  it('formats bodyweight/assisted loads with the exercise load type and shows an Intl date', async () => {
+    const errorSpy = jest.spyOn(console, 'error').mockImplementation(() => undefined);
+    const bootstrap = makeBootstrap({
+      library: [
+        { ...makeExercise('dip', 'Dip'), loadType: 'BODYWEIGHT_PLUS' },
+        { ...makeExercise('pullup', 'Assisted Pull-up'), loadType: 'ASSISTED' },
+        { ...makeExercise('pushup', 'Push-up'), loadType: 'BODYWEIGHT' },
+      ],
+      recentSessions: [
+        {
+          ...session,
+          exercises: [
+            {
+              exerciseId: 'pushup',
+              skipped: false,
+              lastSetRir: null,
+              sets: [{ weightKg: 0, reps: 12, isWarmup: false, completed: true }],
+            },
+            {
+              exerciseId: 'pullup',
+              skipped: false,
+              lastSetRir: null,
+              sets: [{ weightKg: 25, reps: 8, isWarmup: false, completed: true }],
+            },
+            {
+              exerciseId: 'dip',
+              skipped: false,
+              lastSetRir: null,
+              sets: [{ weightKg: 10, reps: 6, isWarmup: false, completed: true }],
+            },
+            // The same lift twice in one session (two entries) — duplicate keys before.
+            {
+              exerciseId: 'dip',
+              skipped: false,
+              lastSetRir: null,
+              sets: [{ weightKg: 0, reps: 5, isWarmup: false, completed: true }],
+            },
+          ],
+        },
+      ],
+    });
+    const queryClient = makeGymQueryClient();
+    queryClient.setQueryData(gymBootstrapQueryKey, bootstrap);
+    await renderWithGym(<SessionDetailScreen sessionId="session-1" />, queryClient);
+
+    await screen.findByTestId('gym-session-detail');
+    expect(screen.getByText(/BW × 12/)).toBeTruthy();
+    expect(screen.getByText(/25 kg assist × 8/)).toBeTruthy();
+    expect(screen.getByText(/BW \+ 10 kg × 6/)).toBeTruthy();
+    expect(screen.queryByText(/0 kg × 12/)).toBeNull();
+    // "Sep 10, 2026" (device locale), never the ISO "2026-09-10".
+    expect(screen.queryByText(/2026-09-10/)).toBeNull();
+    expect(screen.getByText(/Sep.*10.*2026|10.*Sep.*2026/)).toBeTruthy();
+    const keyWarnings = errorSpy.mock.calls.filter((c) => String(c[0]).includes('same key'));
+    expect(keyWarnings).toHaveLength(0);
+  });
+
   it('shows a not-found state offline for an unknown session', async () => {
     const bootstrap = makeBootstrap({ recentSessions: [] });
     const queryClient = makeGymQueryClient();

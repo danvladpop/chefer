@@ -22,12 +22,15 @@ import {
   type SessionSupersetSlot,
 } from '@chefer/utils';
 import { useFlags } from '../../../hooks/use-flags';
+import { captureGymEvent } from '../analytics';
 import { SUPERSET_COPY, SupersetSheet } from '../components/superset-sheet';
+import { openCreateExercise } from '../library/create-exercise-href';
 import { ExercisePicker } from '../library/exercise-picker';
 import { useActiveSessionPausedAt } from '../offline/active-session-store';
 import { localDate, newId } from '../offline/ids';
 import { dispatchWorkout, getResumableSession, useActiveWorkout } from '../use-active-workout';
 import { useGymBootstrap } from '../use-gym-bootstrap';
+import { EXERCISE_CAP_REASON, isAtExerciseCap } from './caps';
 import { ExerciseCard, type WorkoutContext, type WorkoutSheetRequest } from './exercise-card';
 import { rememberFinished } from './finished-store';
 import { NumberSheet } from './number-sheet';
@@ -119,6 +122,7 @@ export function WorkoutScreen() {
   const [ungroupAlsoRoutine, setUngroupAlsoRoutine] = useState(false);
   const snackbar = useSnackbar();
   const [finishing, setFinishing] = useState(false);
+  const [restBarHeight, setRestBarHeight] = useState(0);
   const [notice, setNotice] = useState<string | null>(null);
   const [moveUnstarted, setMoveUnstarted] = useState(true);
   const isActive = session !== null;
@@ -431,6 +435,17 @@ export function WorkoutScreen() {
       try {
         const doc = await finish(carryOverExerciseIds);
         if (doc) {
+          captureGymEvent('workout_finished', {
+            durationMin: Math.round(
+              (Date.parse(doc.finishedAt ?? doc.startedAt) - Date.parse(doc.startedAt)) / 60000,
+            ),
+            sets: doc.exercises.reduce(
+              (n, se) =>
+                n + (se.skipped ? 0 : se.sets.filter((s) => !s.isWarmup && s.completedAt).length),
+              0,
+            ),
+            kind: doc.routineDayId ? 'planned' : 'freestyle',
+          });
           rememberFinished(doc);
           router.replace({ pathname: '/gym/summary/[id]', params: { id: doc.id } });
           return;
@@ -677,6 +692,9 @@ export function WorkoutScreen() {
       : !online
         ? 'Changing your routine needs a connection. This swap applies to today only.'
         : null;
+  // WP-04: a freestyle session (no routine) or an exercise outside the routine
+  // has no "routine" to change, so Swap skips the scope page ("Just today").
+  const swapAsksScope = session.routineId !== null && Boolean(contentSe?.routineExerciseId);
   const unticked = planned - done;
   // Skipped exercises can't join a superset; ones added mid-workout can.
   const pickable = exercises.filter((se) => !se.skipped);
@@ -694,7 +712,7 @@ export function WorkoutScreen() {
           <Ionicons name="chevron-down" size={22} color="#374151" />
         </Pressable>
         <View className="min-w-0 flex-1">
-          <Text testID="workout-title" numberOfLines={1} className="text-base font-semibold">
+          <Text testID="workout-title" numberOfLines={2} className="text-lg font-semibold">
             {session.name}
           </Text>
           <View className="flex-row items-center gap-2">
@@ -708,7 +726,14 @@ export function WorkoutScreen() {
             </Text>
           </View>
         </View>
-        <Button testID="workout-finish" onPress={onFinishPress} loading={finishing}>
+        {/* WP-04: one size up (lg) — pressed with sweaty hands; px-5 keeps the header slim. */}
+        <Button
+          testID="workout-finish"
+          size="lg"
+          className="px-5"
+          onPress={onFinishPress}
+          loading={finishing}
+        >
           Finish
         </Button>
       </View>
@@ -726,7 +751,8 @@ export function WorkoutScreen() {
         testID="workout-list"
         keyboardShouldPersistTaps="handled"
         contentContainerClassName="gap-3 px-2 pt-3"
-        contentContainerStyle={{ paddingBottom: 160 }}
+        // UX-GYM-34: pad by the rest bar's real height, not a guess.
+        contentContainerStyle={{ paddingBottom: 32 + restBarHeight }}
       >
         {exercises.length === 0 ? (
           <Text variant="muted" className="px-2 py-6 text-center">
@@ -764,7 +790,7 @@ export function WorkoutScreen() {
             >
               <View className="h-4 w-1 rounded-full bg-violet-500" />
               <Text className="text-sm font-semibold text-violet-800">Superset {slot.label}</Text>
-              <Text variant="muted" className="min-w-0 flex-1 text-xs" numberOfLines={1}>
+              <Text variant="muted" className="min-w-0 flex-1 text-xs" numberOfLines={2}>
                 {restSec} s rest after each round
               </Text>
               <Pressable
@@ -784,10 +810,20 @@ export function WorkoutScreen() {
           testID="workout-add-exercise"
           variant="outline"
           size="lg"
+          disabled={isAtExerciseCap(exercises.length)}
           onPress={() => openSheet({ kind: 'picker', mode: 'add', seId: null, scope: 'today' })}
         >
           + Add exercise
         </Button>
+        {isAtExerciseCap(exercises.length) ? (
+          <Text
+            testID="workout-add-exercise-reason"
+            variant="muted"
+            className="text-center text-sm"
+          >
+            {EXERCISE_CAP_REASON}
+          </Text>
+        ) : null}
         <Button
           testID="workout-superset"
           variant="outline"
@@ -825,7 +861,7 @@ export function WorkoutScreen() {
         </Button>
       </ScrollView>
 
-      <RestTimerBar />
+      <RestTimerBar onHeightChange={setRestBarHeight} />
 
       {/* ── Sheets ── */}
       <ExerciseMenuSheet
@@ -837,9 +873,11 @@ export function WorkoutScreen() {
         isFirst={contentIndex === 0}
         isLast={contentIndex === exercises.length - 1}
         routineBlockedReason={routineBlockedReason}
+        swapAsksScope={swapAsksScope}
         history={contentSe ? exerciseHistory(contentSe.exerciseId, prior, 5) : []}
         unit={unit}
         loadType={contentMeta?.loadType ?? 'WEIGHTED'}
+        perHand={contentMeta?.perHand ?? false}
         onSwap={(scope) => {
           if (contentSe) openSheet({ kind: 'picker', mode: 'swap', seId: contentSe.id, scope });
         }}
@@ -993,6 +1031,7 @@ export function WorkoutScreen() {
         }
         excludeIds={contentSe && content?.kind === 'picker' ? [contentSe.exerciseId] : undefined}
         showCardioFilter={cardioLogging}
+        onCreateFromSearch={openCreateExercise}
         testID="workout-picker"
       />
       <ConfirmSheet

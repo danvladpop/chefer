@@ -118,6 +118,63 @@ describe('recipe.getSafetyChecks — the detail-surface Checked line (T-02.3)', 
   });
 });
 
+describe('EU-14 allergens (UX-ACC-06) — a "Mustard" allergy is stored, shown and enforced', () => {
+  it('round-trips through preferences, the table, a recipe check and a generated plan', async () => {
+    await client.preferences.updateSafety.mutate({
+      allergies: ['Mustard', 'Molluscs'],
+      dietaryRestrictions: [],
+      dislikedIngredients: [],
+    });
+
+    // Stored as typed, recognised (not a "note" awaiting review).
+    const prefs = await client.preferences.get.query();
+    expect(prefs.dietaryPreferences?.allergies).toEqual(['Mustard', 'Molluscs']);
+    const table = await client.safety.getTable.query();
+    expect(table.needsReview).toBe(false);
+    const you = table.people.find((p) => p.who === 'you');
+    expect(you?.items).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ id: 'mustard', label: 'Mustard', kind: 'allergy' }),
+        expect.objectContaining({ id: 'molluscs', label: 'Molluscs', kind: 'allergy' }),
+      ]),
+    );
+    expect(you?.notes).toEqual([]);
+
+    // A recipe holding mustard conflicts; a mussel-free prawn recipe does not trip Molluscs.
+    const mustardRecipe = await client.recipe.create.mutate({
+      name: `Mustard glazed carrots ${Date.now()}`,
+      ingredients: [{ name: 'Dijon mustard', quantity: 20, unit: 'g' }],
+    });
+    const prawnRecipe = await client.recipe.create.mutate({
+      name: `Garlic prawns ${Date.now()}`,
+      ingredients: [{ name: 'king prawns', quantity: 200, unit: 'g' }],
+    });
+    const mustardChecks = await client.recipe.getSafetyChecks.query({ recipeId: mustardRecipe.id });
+    expect(mustardChecks.safetyChecks?.conflicts).toContain('Mustard');
+    const prawnChecks = await client.recipe.getSafetyChecks.query({ recipeId: prawnRecipe.id });
+    expect(prawnChecks.safetyChecks?.conflicts ?? []).not.toContain('Molluscs');
+
+    // The generated plan carries the rule and serves nothing that conflicts.
+    const generated = await client.mealPlan.generate.mutate({ weekOffset: 2 });
+    expect(generated.tableSafety?.people.find((p) => p.who === 'you')?.items).toContainEqual(
+      expect.objectContaining({ label: 'Mustard', kind: 'allergy' }),
+    );
+    const meals = generated.days.flatMap((d) => d.meals);
+    expect(meals.length).toBeGreaterThan(0);
+    for (const meal of meals) {
+      expect(meal.recipe.safetyChecks?.conflicts ?? []).toEqual([]);
+      const names = meal.recipe.ingredients.map((i) => i.name.toLowerCase()).join(' ');
+      expect(names).not.toMatch(/mustard|dijon/);
+    }
+
+    await client.preferences.updateSafety.mutate({
+      allergies: [],
+      dietaryRestrictions: [],
+      dislikedIngredients: [],
+    });
+  }, 30_000);
+});
+
 describe('Plan/Replace/Shop surfaces (wave 2, L-SAFE2, T-02.1) — the same table, everywhere', () => {
   it('mealPlan.generate/getForWeek, recipe.listHiddenCount and shoppingList.getForWeek all carry the same table', async () => {
     // A dairy allergy: the free curated pool has plenty of dairy-free meals

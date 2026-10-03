@@ -30,10 +30,7 @@ appId: dev.chefer.app.dev
     centerElement: true
 - tapOn:
     id: 'logout-button'
-# Only shown when A has unsynced workouts.
-- tapOn:
-    text: 'Sign out anyway'
-    optional: true
+- runFlow: common/confirm-sign-out.yaml
 - extendedWaitUntil:
     visible:
       id: 'login-title'

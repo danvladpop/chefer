@@ -21,6 +21,8 @@ export interface SessionSetView {
 }
 
 export interface SessionExerciseView {
+  /** The session-exercise id (full doc only) — the list key when a lift appears twice. */
+  id?: string;
   exerciseId: string;
   skipped: boolean;
   /** Rir (0-3) from the summary, or the doc schema's plain validated number — same range. */
@@ -69,6 +71,7 @@ export function viewFromDoc(doc: WorkoutSessionDoc): SessionView {
     isDeload: doc.isDeload,
     notes: doc.notes,
     exercises: doc.exercises.map((ex) => ({
+      id: ex.id,
       exerciseId: ex.exerciseId,
       skipped: ex.skipped,
       lastSetRir: ex.lastSetRir,

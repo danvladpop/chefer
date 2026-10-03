@@ -6,6 +6,7 @@ import { Sheet } from '@chefer/ui';
 import {
   dinnersFromPlan,
   weekdayShortName,
+  weekRelationLabel,
   type ShareListScope,
   type UnitSystem,
 } from '@chefer/utils';
@@ -58,7 +59,10 @@ export function ShareListDialog({
 
   // The planned dinners come from the same week's plan; only fetched when opened.
   const { data: plan } = trpc.mealPlan.getForWeek.useQuery({ weekOffset }, { enabled: open });
-  const dinners = useMemo(() => (plan ? dinnersFromPlan(plan.days, weekdayShortName) : []), [plan]);
+  const dinners = useMemo(
+    () => (plan ? dinnersFromPlan(plan.days, weekdayShortName, fromDayOfWeek) : []),
+    [plan, fromDayOfWeek],
+  );
 
   useEffect(() => {
     if (open) {
@@ -91,6 +95,7 @@ export function ShareListDialog({
       withAmounts: prefs.withAmounts,
       withDinners: prefs.withDinners && dinners.length > 0,
       dinners,
+      weekOffset,
       unitSystem,
       shareUrl: window.location.origin,
     });
@@ -164,7 +169,7 @@ export function ShareListDialog({
           </label>
           {dinners.length > 0 && (
             <label className="flex min-h-11 items-center justify-between gap-3 text-sm text-gray-800">
-              Add this week’s dinners
+              Add {weekRelationLabel(weekOffset)}’s dinners
               <input
                 type="checkbox"
                 data-testid="share-list-dinners"

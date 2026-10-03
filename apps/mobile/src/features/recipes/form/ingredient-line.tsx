@@ -10,7 +10,12 @@ import {
   useScrollFieldIntoView,
   type SelectOption,
 } from '@chefer/ui-mobile';
-import { ingredientUnitGroups, parseQuantity, unitForPickedIngredient } from '@chefer/utils';
+import {
+  ingredientUnitGroups,
+  parseQuantity,
+  sanitizeQuantityInput,
+  unitForPickedIngredient,
+} from '@chefer/utils';
 import { SwipeToRemove } from '../../../components/swipe-to-remove';
 import {
   pickedFromRef,
@@ -135,7 +140,7 @@ export const IngredientLine = forwardRef<TextInput, IngredientLineProps>(functio
               ref={setQtyRef}
               testID={`rf-ingredient-qty-${index}`}
               value={line.quantity}
-              onChangeText={(v) => onChange({ quantity: v })}
+              onChangeText={(v) => onChange({ quantity: sanitizeQuantityInput(v) })}
               onFocus={() => {
                 setQtyFocused(true);
                 scrollFieldIntoView(qtyInputRef.current);

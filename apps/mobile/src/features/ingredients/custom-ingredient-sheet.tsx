@@ -136,6 +136,7 @@ export function CustomIngredientSheet({
   }, [visible, initialName]);
 
   const createMutation = trpc.ingredients.createCustom.useMutation({
+    meta: { silent: true },
     onSuccess: (row) => {
       const picked = pickedFromSearchRow(row);
       if (picked) onCreated(picked);
@@ -147,6 +148,7 @@ export function CustomIngredientSheet({
     },
   });
   const estimateMutation = trpc.ingredients.estimateNutrition.useMutation({
+    meta: { silent: true },
     onSuccess: (est) => {
       if (!est) return;
       setMacros({

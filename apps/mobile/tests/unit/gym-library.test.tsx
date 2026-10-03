@@ -156,4 +156,47 @@ describe('ExercisesTab', () => {
     await user.press(await screen.findByTestId('exercises-item-bench'));
     expect(router.push).toHaveBeenCalledWith('/gym/exercise/bench');
   });
+
+  // UX-GYM-34: an archived custom exercise has a clear way back.
+  it('lists archived custom exercises under "Archived" with a working Restore', async () => {
+    const user = userEvent.setup();
+    const archivedCurl = exercise({
+      id: 'old-curl',
+      name: 'Old Curl',
+      ownerId: 'user-1',
+      archived: true,
+    });
+    const queryClient = makeGymQueryClient();
+    queryClient.setQueryData(
+      gymBootstrapQueryKey,
+      makeBootstrap({ library: [...LIBRARY, archivedCurl] }),
+    );
+    await renderWithGym(<ExercisesTab />, queryClient);
+    await screen.findByTestId('exercises-item-bench');
+
+    // Never mixed into the main list; collapsed until asked for.
+    expect(screen.queryByTestId('exercises-item-old-curl')).toBeNull();
+    expect(screen.getByText('Archived (1)')).toBeTruthy();
+    expect(screen.queryByTestId('exercises-archived-restore-old-curl')).toBeNull();
+
+    await user.press(screen.getByTestId('exercises-archived-toggle'));
+    expect(screen.getByText('Old Curl')).toBeTruthy();
+
+    await user.press(screen.getByTestId('exercises-archived-restore-old-curl'));
+    await waitFor(() =>
+      expect(
+        (global.fetch as jest.Mock).mock.calls.some(([url]) =>
+          String(url).includes('gym.library.restoreCustom'),
+        ),
+      ).toBe(true),
+    );
+  });
+
+  it('shows no Archived section when nothing is archived', async () => {
+    const queryClient = makeGymQueryClient();
+    queryClient.setQueryData(gymBootstrapQueryKey, makeBootstrap({ library: LIBRARY }));
+    await renderWithGym(<ExercisesTab />, queryClient);
+    await screen.findByTestId('exercises-item-bench');
+    expect(screen.queryByTestId('exercises-archived')).toBeNull();
+  });
 });

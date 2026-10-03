@@ -1,13 +1,18 @@
 import { ScrollView, View } from 'react-native';
-import Animated, { FadeIn, FadeOut, LinearTransition } from 'react-native-reanimated';
+import Animated, { FadeIn, FadeOut } from 'react-native-reanimated';
 import { duration } from '@chefer/tokens';
 import { useReducedMotion } from '@chefer/ui-mobile';
 
 // UX-05 amendment A3 (T-05.A3.1, AC19-22): the Exercises tab and swap sheet
 // each show their filter chips as separate horizontal rows normally, but
 // collapse to a single strip while the keyboard is up (use-keyboard-visible)
-// so >= 5 results stay visible above it. MO-05 (expand/collapse) + a FLIP
-// re-layout as rows merge/split; `base` timing, instant under reduced motion.
+// so >= 5 results stay visible above it. MO-05 (expand/collapse): rows fade
+// in/out, instant under reduced motion.
+//
+// UX-GYM-08: the chip container deliberately has NO `layout={LinearTransition}`.
+// On Android that layout animation drew the chip block ~100 px up, over the
+// search box (it survived a cold relaunch, and a tap on the search selected
+// "Chest"). The rows swap instantly; only their opacity animates.
 
 export interface CollapsibleChipFiltersProps {
   /** True while the keyboard covers the screen — collapses every row into one strip. */
@@ -19,12 +24,11 @@ export interface CollapsibleChipFiltersProps {
 
 export function CollapsibleChipFilters({ collapsed, rows, testID }: CollapsibleChipFiltersProps) {
   const reducedMotion = useReducedMotion();
-  const layoutMs = reducedMotion ? 0 : duration.base;
   const fadeMs = reducedMotion ? 0 : duration.fast;
 
   if (collapsed) {
     return (
-      <Animated.View testID={testID} layout={LinearTransition.duration(layoutMs)}>
+      <View testID={testID}>
         <ScrollView
           horizontal
           showsHorizontalScrollIndicator={false}
@@ -42,12 +46,12 @@ export function CollapsibleChipFilters({ collapsed, rows, testID }: CollapsibleC
             </Animated.View>
           ))}
         </ScrollView>
-      </Animated.View>
+      </View>
     );
   }
 
   return (
-    <Animated.View testID={testID} layout={LinearTransition.duration(layoutMs)} className="gap-2">
+    <View testID={testID} className="gap-2">
       {rows.map((row, i) => (
         <Animated.View
           key={i}
@@ -65,6 +69,6 @@ export function CollapsibleChipFilters({ collapsed, rows, testID }: CollapsibleC
           </ScrollView>
         </Animated.View>
       ))}
-    </Animated.View>
+    </View>
   );
 }

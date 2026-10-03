@@ -306,6 +306,43 @@ describe('NewRecipePage photo upload (T-BUG-O1)', () => {
   });
 });
 
+describe('NewRecipePage photo upload gates Save (UX-REC-12)', () => {
+  it('disables Save with a reason while the photo uploads, then re-enables it', async () => {
+    let finish: (url: string) => void = () => undefined;
+    vi.mocked(uploadImage).mockReturnValueOnce(
+      new Promise<string>((resolve) => (finish = resolve)),
+    );
+    render(<NewRecipePage />);
+    const save = screen.getByRole('button', { name: /save recipe/i });
+    expect(save).toHaveProperty('disabled', false);
+
+    fireEvent.change(screen.getByLabelText(/upload from device/i), {
+      target: { files: [new File(['x'], 'photo.jpg', { type: 'image/jpeg' })] },
+    });
+    const waiting = await screen.findByRole('button', { name: /uploading photo/i });
+    expect(waiting).toHaveProperty('disabled', true);
+
+    finish('https://cdn.example.com/p.jpg');
+    await waitFor(() =>
+      expect(screen.getByRole('button', { name: /save recipe/i })).toHaveProperty(
+        'disabled',
+        false,
+      ),
+    );
+  });
+});
+
+describe('Quantity input (UX-REC-11)', () => {
+  it('drops letters typed or pasted into an amount box', () => {
+    render(<NewRecipePage />);
+    const qty = screen.getAllByLabelText(/Amount for ingredient 1/)[0] as HTMLInputElement;
+    fireEvent.change(qty, { target: { value: '60rolled oats' } });
+    expect(qty.value.trim()).toBe('60');
+    fireEvent.change(qty, { target: { value: '1/2' } });
+    expect(qty.value).toBe('1/2');
+  });
+});
+
 describe('EditRecipePage accessibility', () => {
   it('names every control and the back link', () => {
     render(<EditRecipePage />);

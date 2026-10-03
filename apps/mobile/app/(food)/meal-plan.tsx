@@ -1,8 +1,15 @@
-import { useEffect, useState } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, Switch, View } from 'react-native';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import {
+  ActivityIndicator,
+  Pressable,
+  RefreshControl,
+  ScrollView,
+  Switch,
+  View,
+} from 'react-native';
 import Animated, { FadeIn } from 'react-native-reanimated';
 import { Ionicons } from '@expo/vector-icons';
-import { router, useIsFocused } from 'expo-router';
+import { router, useIsFocused, useLocalSearchParams } from 'expo-router';
 import { PLAN_TAILORING_POLL_MS } from '@chefer/types';
 import {
   Button,
@@ -21,12 +28,15 @@ import {
   cn,
   defaultWeekOffset,
   dinnersFromPlan,
+  formatDateRange,
+  formatKcal,
   formatMoney,
   formatPriceRange,
   getWeekStartDate,
   isTailoringRunning,
   PLAN_TAILORING_COPY,
   planButtonLabel,
+  planCostCoverageLabel,
   planShapeSummary,
   SAFETY_COPY,
   sumPlanDay,
@@ -55,6 +65,7 @@ import {
   TrainingDayHeader,
   TrainingExplainSheet,
 } from '../../src/features/meal-plan/training-day-header';
+import { useDayRollover } from '../../src/features/meal-plan/use-day-rollover';
 import { useTailoringWatch } from '../../src/features/meal-plan/use-tailoring-watch';
 import { WeekSummarySheet, type DaySummary } from '../../src/features/meal-plan/week-summary-sheet';
 import { PlanMissSheet } from '../../src/features/nutrition/plan-miss-sheet';
@@ -64,6 +75,7 @@ import { RebalanceBanner } from '../../src/features/tracker/rebalance-banner';
 import { useCurrency } from '../../src/hooks/use-currency';
 import { useHousehold } from '../../src/hooks/use-household';
 import { useIsPremium } from '../../src/hooks/use-is-premium';
+import { trackPlanGenerated } from '../../src/lib/analytics-events';
 import { trpc } from '../../src/lib/trpc';
 
 // Plan tab — port of apps/web (dashboard)/meal-plan/page.tsx (M2-2), which
@@ -82,19 +94,65 @@ function getTodayDayIndex(): number {
   return jsDay === 0 ? 6 : jsDay - 1;
 }
 
+/** A route param as a whole number within [min, max], else null. */
+function intParam(value: string | string[] | undefined, min: number, max: number): number | null {
+  const raw = Array.isArray(value) ? value[0] : value;
+  if (raw === undefined || raw.trim() === '') return null;
+  const n = Number(raw);
+  return Number.isInteger(n) && n >= min && n <= max ? n : null;
+}
+
 function formatWeekLabel(weekStart: Date): string {
   const end = new Date(weekStart);
   end.setDate(end.getDate() + 6);
-  const opts: Intl.DateTimeFormatOptions = { month: 'short', day: 'numeric' };
-  return `${weekStart.toLocaleDateString('en-GB', opts)} – ${end.toLocaleDateString('en-GB', opts)}`;
+  return formatDateRange(weekStart, end, 'short');
 }
 
 export default function MealPlanScreen() {
   // T-08.1 (UX-08 AC1): Plan and Shop both default to next week from Friday
   // 15:00 to Sunday 23:59 local, else this week — the same `defaultWeekOffset`
   // shared with the Shop tab (@chefer/utils).
-  const [weekOffset, setWeekOffset] = useState<number>(() => defaultWeekOffset(new Date()));
-  const [selectedDay, setSelectedDay] = useState(getTodayDayIndex());
+  //
+  // UX-FOOD-18: a deep link (Today's Tonight "Swap") names the week and day it
+  // means — `week=0&day=<0-6>&swap=dinner` — so it never lands on next week on a
+  // Friday or Saturday evening. `at` is a timestamp that makes a repeat of the
+  // same link count as a new one.
+  const params = useLocalSearchParams<{
+    week?: string;
+    day?: string;
+    swap?: string;
+    at?: string;
+  }>();
+  const [weekOffset, setWeekOffset] = useState<number>(
+    () => intParam(params.week, MIN_OFFSET, MAX_OFFSET) ?? defaultWeekOffset(new Date()),
+  );
+  const [selectedDay, setSelectedDay] = useState(
+    () => intParam(params.day, 0, 6) ?? getTodayDayIndex(),
+  );
+  // A deep-linked "replace this meal" waiting for its plan to load.
+  const [pendingSwap, setPendingSwap] = useState<MealType | null>(null);
+  // UX-FOOD-18: after midnight Today is a new day — reselect it (and the
+  // default week) instead of keeping yesterday.
+  const { markChecked } = useDayRollover(() => {
+    setSelectedDay(getTodayDayIndex());
+    setWeekOffset(defaultWeekOffset(new Date()));
+  });
+  const linkKey = `${params.week ?? ''}|${params.day ?? ''}|${params.swap ?? ''}|${params.at ?? ''}`;
+  const appliedLinkKey = useRef<string | null>(null);
+  useEffect(() => {
+    if (appliedLinkKey.current === linkKey) return;
+    const first = appliedLinkKey.current === null;
+    appliedLinkKey.current = linkKey;
+    const week = intParam(params.week, MIN_OFFSET, MAX_OFFSET);
+    const dayParam = intParam(params.day, 0, 6);
+    // The first pass already seeded the state above; later links re-seed it.
+    if (week !== null && !first) setWeekOffset(week);
+    if (dayParam !== null && !first) setSelectedDay(dayParam);
+    if (week !== null || dayParam !== null) markChecked();
+    if (params.swap === 'breakfast' || params.swap === 'lunch' || params.swap === 'dinner') {
+      setPendingSwap(params.swap);
+    }
+  }, [linkKey, params.week, params.day, params.swap, markChecked]);
   const [leftovers, setLeftovers] = useState(false);
   const [poolExhaustedMessage, setPoolExhaustedMessage] = useState<string | null>(null);
   const [personalisation, setPersonalisation] = useState<{
@@ -164,6 +222,7 @@ export default function MealPlanScreen() {
     data: plan,
     isLoading,
     isError,
+    isRefetching,
     refetch,
   } = trpc.mealPlan.getForWeek.useQuery(
     { weekOffset },
@@ -205,14 +264,24 @@ export default function MealPlanScreen() {
   // recipes and portions) — a fresh copy of the old plan, not a flag flip
   // (meal-plan.service.ts `restore`).
   const restoreMutation = trpc.mealPlan.restore.useMutation({
+    meta: { silent: true },
     onSuccess: (data) => {
       utils.mealPlan.getForWeek.setData({ weekOffset }, data);
       invalidateDerived();
       if (__DEV__) console.warn('[analytics stub] regenerate_undone');
     },
+    // UX-PLAN-14: the Undo snackbar has already gone, so a failed restore
+    // must say so — and offer the retry the user just tried to make.
+    onError: (err, vars) =>
+      showSnackbar({
+        message: `Couldn't bring your previous week back. ${userFacingErrorMessage(err)}`,
+        actionLabel: 'Try again',
+        onAction: () => restoreMutation.mutate(vars),
+      }),
   });
 
   const generateMutation = trpc.mealPlan.generate.useMutation({
+    meta: { silent: true },
     onMutate: () => {
       setPoolExhaustedMessage(null);
       setPersonalisation(null);
@@ -234,11 +303,12 @@ export default function MealPlanScreen() {
       // T-08.3 (UX-08 §3): only a regeneration (a previous plan existed for
       // this week) gets the "New week planned" snackbar + Undo.
       const { previousPlanId } = data;
+      const keptCount =
+        previousPlanId && data.droppedPinned !== undefined
+          ? Math.max(0, pinnedBeforeRegenerate - data.droppedPinned)
+          : 0;
+      trackPlanGenerated(data, keptCount);
       if (previousPlanId) {
-        const keptCount =
-          data.droppedPinned !== undefined
-            ? Math.max(0, pinnedBeforeRegenerate - data.droppedPinned)
-            : 0;
         const keptNote = keptCount > 0 ? ` Kept ${keptCount} of your picks.` : '';
         showSnackbar({
           message: `New week planned.${keptNote}`,
@@ -256,7 +326,7 @@ export default function MealPlanScreen() {
         // orchestrator wires it, with no crash meanwhile.
         const cause = (err.data as { poolExhausted?: { message?: string } } | undefined)
           ?.poolExhausted;
-        setPoolExhaustedMessage(cause?.message ?? err.message);
+        setPoolExhaustedMessage(cause?.message ?? userFacingErrorMessage(err));
       }
     },
   });
@@ -284,6 +354,7 @@ export default function MealPlanScreen() {
   // "Tailor the rest" (PARTIAL/FAILED): re-queues only the untailored days —
   // no new plan-generation quota. Consent-gated like any premium AI call.
   const resumeTailoringMutation = trpc.mealPlan.resumeTailoring.useMutation({
+    meta: { silent: true },
     onSuccess: (data) => {
       utils.mealPlan.getForWeek.setData({ weekOffset }, data);
     },
@@ -310,10 +381,15 @@ export default function MealPlanScreen() {
   };
 
   const pinMutation = trpc.mealPlan.setSlotPinned.useMutation({
+    meta: { silent: true },
     onSuccess: () => void refetch(),
+    // UX-PLAN-14: a failed pin must not look like nothing happened.
+    onError: (err) =>
+      showSnackbar({ message: `Couldn't update that pin. ${userFacingErrorMessage(err)}` }),
   });
 
   const swapMutation = trpc.mealPlan.swapRecipe.useMutation({
+    meta: { silent: true },
     onSuccess: () => {
       setPickerTarget(null);
       void refetch();
@@ -322,6 +398,7 @@ export default function MealPlanScreen() {
   });
 
   const replaceMutation = trpc.mealPlan.replaceRecipe.useMutation({
+    meta: { silent: true },
     onSuccess: () => {
       setPickerTarget(null);
       void refetch();
@@ -334,6 +411,7 @@ export default function MealPlanScreen() {
   // settings instead, which changes the whole week's shape rather than
   // adding this one day. setData (not refetch), same reasoning as generate.
   const planDayMutation = trpc.mealPlan.planDay.useMutation({
+    meta: { silent: true },
     onSuccess: (data) => {
       utils.mealPlan.getForWeek.setData({ weekOffset }, data);
       invalidateDerived();
@@ -351,9 +429,12 @@ export default function MealPlanScreen() {
   // swap ships as commit + Undo, no preview) — call `replaceRecipe` back to
   // the id that was in the slot. `target` is captured at click time so the
   // snackbar action still works after the picker closes.
+  // UX-PLAN-04: `replaceRecipe` pins the slot by default; Undo sends back the
+  // slot's PREVIOUS state so the restored dish isn't left as "Your pick".
   const undoSwap = (
     target: { mealType: MealType; slotIndex: number },
     previousRecipeId: string,
+    previousPinned = false,
   ) => {
     if (!plan) return;
     replaceMutation.mutate({
@@ -362,6 +443,7 @@ export default function MealPlanScreen() {
       mealType: target.mealType,
       slotIndex: target.slotIndex,
       recipeId: previousRecipeId,
+      pinned: previousPinned,
     });
   };
 
@@ -386,7 +468,27 @@ export default function MealPlanScreen() {
 
   const weekLabel = formatWeekLabel(getWeekStartDate(weekOffset));
   const day = plan?.days.find((d) => d.dayOfWeek === selectedDay);
-  const meals = day?.meals ?? [];
+  const meals = useMemo(() => day?.meals ?? [], [day]);
+  // UX-FOOD-18: open the replace picker for the deep-linked meal once its
+  // day is on screen. A missing meal (nothing planned) just drops the link.
+  useEffect(() => {
+    if (pendingSwap === null || isLoading) return;
+    if (isError || !plan) {
+      setPendingSwap(null);
+      return;
+    }
+    const slotIndex = meals.findIndex((m) => m.type === pendingSwap);
+    const meal = meals[slotIndex];
+    if (meal) {
+      setPickerTarget({
+        mealType: pendingSwap,
+        slotIndex,
+        mealName: meal.recipe.name,
+        recipeId: meal.recipe.id,
+      });
+    }
+    setPendingSwap(null);
+  }, [pendingSwap, isLoading, isError, plan, meals]);
   const weekCost = plan?.estimatedCost?.totalEur ?? null;
   // Portions the cost is sized for — premium households only (P2-3).
   const costPortions = plan?.estimatedCost?.portions ?? null;
@@ -496,7 +598,7 @@ export default function MealPlanScreen() {
             <Text
               maxFontSizeMultiplier={DENSE_MAX_FONT_SCALE}
               className={cn(
-                'text-[12px] font-semibold uppercase',
+                'text-xs font-semibold uppercase',
                 isPast ? 'text-gray-500' : weekOffset === 0 ? 'text-primary' : 'text-blue-600',
               )}
             >
@@ -704,7 +806,10 @@ export default function MealPlanScreen() {
                 {weekCost !== null
                   ? `≈ ${formatPriceRange(weekCost, currency) ?? formatMoney(weekCost, currency)}`
                   : 'Cost estimate unavailable'}
-                {' · Mon–Sun'}
+                {/* UX-PLAN-07: name the days the estimate covers — a plan made
+                    mid-week prices only the days left, so this week and next
+                    week are not comparable otherwise. */}
+                {` · ${planCostCoverageLabel(plan.shoppingFromDay)}`}
                 {costPortions !== null
                   ? ` · ${costPortions} portion${costPortions === 1 ? '' : 's'}`
                   : memberCount > 0
@@ -730,7 +835,13 @@ export default function MealPlanScreen() {
             </Text>
           )}
 
-          <ScrollView contentContainerClassName="gap-3 px-4 py-2 pb-8">
+          <ScrollView
+            testID="plan-day-scroll"
+            contentContainerClassName="gap-3 px-4 py-2 pb-8"
+            refreshControl={
+              <RefreshControl refreshing={isRefetching} onRefresh={() => void refetch()} />
+            }
+          >
             {/* A log elsewhere swapped future meals — say which, offer undo */}
             <RebalanceBanner planId={plan.planId} onUndone={() => void refetch()} />
 
@@ -759,8 +870,8 @@ export default function MealPlanScreen() {
             {replanNeeded && (
               <View testID="plan-replan-banner" className="gap-1 rounded-xl bg-blue-50 px-3 py-2">
                 <Text className="text-sm text-blue-800">
-                  This week was planned for {plannedKcal.toLocaleString('en-GB')} kcal. Re-plan with{' '}
-                  {liveKcal.toLocaleString('en-GB')} kcal?
+                  This week was planned for {formatKcal(plannedKcal)} kcal. Re-plan with{' '}
+                  {formatKcal(liveKcal)} kcal?
                 </Text>
                 <View className="flex-row gap-2">
                   <Pressable
@@ -1023,12 +1134,12 @@ export default function MealPlanScreen() {
                 },
                 {
                   onSuccess: (data) => {
-                    const { previousRecipeId } = data;
+                    const { previousRecipeId, previousPinned } = data;
                     showSnackbar({
                       message: `Swapped to ${data.name}${portion !== 1 ? ` · ${portion}× portion` : ''}`,
                       actionLabel: previousRecipeId ? 'Undo' : undefined,
                       onAction: previousRecipeId
-                        ? () => undoSwap(target, previousRecipeId)
+                        ? () => undoSwap(target, previousRecipeId, previousPinned === true)
                         : undefined,
                     });
                   },
@@ -1051,12 +1162,12 @@ export default function MealPlanScreen() {
                         {
                           // T-08.6 (Q-6): commit + Undo, no preview.
                           onSuccess: (data) => {
-                            const { previousRecipeId } = data;
+                            const { previousRecipeId, previousPinned } = data;
                             showSnackbar({
                               message: `Swapped to ${data.name}`,
                               actionLabel: previousRecipeId ? 'Undo' : undefined,
                               onAction: previousRecipeId
-                                ? () => undoSwap(target, previousRecipeId)
+                                ? () => undoSwap(target, previousRecipeId, previousPinned === true)
                                 : undefined,
                             });
                           },
@@ -1086,6 +1197,8 @@ export default function MealPlanScreen() {
             })}
             dinners={dinnersFromPlan(plan.days, weekdayShortName)}
             weekCostEur={weekCost}
+            weekOffset={weekOffset}
+            shoppingFromDay={plan.shoppingFromDay}
             currency={currency}
             isPast={isPast}
             isPremium={isPremium === true}

@@ -1,5 +1,5 @@
 import { useRef, useState } from 'react';
-import { Linking, View, type TextInput } from 'react-native';
+import { View, type TextInput } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import {
@@ -24,8 +24,8 @@ import {
 } from '@chefer/ui-mobile';
 import { cn } from '@chefer/utils';
 import { track } from '../../../lib/analytics';
-import { getWebUrl } from '../../../lib/api-url';
 import { trpc } from '../../../lib/trpc';
+import { openLegal } from '../../legal/open-legal';
 import { textRejectedOf } from '../api/friends-errors';
 import { useIsOnline } from '../api/use-is-online';
 import { FriendsScreenHeader } from '../components/friends-screen-header';
@@ -107,7 +107,7 @@ function VisibilityCard({
 
 function IntroForm({ me, onActivated }: FriendsIntroProps) {
   const utils = trpc.useUtils();
-  const activate = trpc.friends.activate.useMutation();
+  const activate = trpc.friends.activate.useMutation({ meta: { silent: true } });
   const online = useIsOnline();
   const scrollIntoView = useScrollFieldIntoView();
   const lastRef = useRef<TextInput>(null);
@@ -333,7 +333,7 @@ function IntroForm({ me, onActivated }: FriendsIntroProps) {
           testID="friends-intro-policy"
           accessibilityRole="link"
           accessibilityLabel={FRIENDS_COPY.intro.policy}
-          onPress={() => void Linking.openURL(getWebUrl('/privacy'))}
+          onPress={() => openLegal('privacy')}
           className="min-h-11 flex-row items-center gap-1 self-start"
         >
           <Text className="text-sm font-medium text-primary">{FRIENDS_COPY.intro.policy}</Text>

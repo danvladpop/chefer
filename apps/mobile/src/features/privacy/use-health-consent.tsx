@@ -26,8 +26,10 @@ import { setHealthConsentDeclined } from './health-declined-store';
 // Consent on record (or nothing health-related to store) → `run` fires
 // immediately. Otherwise the sheet opens: "Allow and save" grants consent
 // (privacy.grantHealthConsent) and runs the save once the sheet is fully gone;
-// "Don't save it" (or ✕ / Android back) runs `onDeclined` and stores NOTHING
-// health-related. Under HEALTH_CONSENT_ENFORCE=declared the server also rejects
+// "Don't save it" runs `onDeclined` and stores NOTHING health-related. ✕, the
+// backdrop and Android BACK are a CANCEL, not a decline (UX-ONB-03): the sheet
+// closes, nothing is saved and nothing is cleared, so the user keeps what they
+// picked and can save again. Under HEALTH_CONSENT_ENFORCE=declared the server also rejects
 // an un-consented health write from this client (api level >= 4).
 
 export interface RequestHealthConsentOptions {
@@ -56,6 +58,7 @@ export function useHealthConsent(): HealthConsentApi {
   const declineOnExit = useRef<(() => void) | null>(null);
 
   const grant = trpc.privacy.grantHealthConsent.useMutation({
+    meta: { silent: true },
     onSuccess: ({ healthDataConsentAt }) => {
       utils.user.me.setData(undefined, (prev) => (prev ? { ...prev, healthDataConsentAt } : prev));
     },
@@ -117,6 +120,15 @@ export function useHealthConsent(): HealthConsentApi {
     setOpen(false);
   }, []);
 
+  // ✕ / backdrop / Android BACK: close without answering. Neither `run` nor
+  // `onDeclined` fires, and the consent question stays open for the next save.
+  const cancel = useCallback(() => {
+    pending.current = null;
+    runOnExit.current = null;
+    declineOnExit.current = null;
+    setOpen(false);
+  }, []);
+
   // Callbacks run once the sheet is fully gone, so they may present another
   // Modal (the AI consent sheet) or navigate.
   const onExited = useCallback(() => {
@@ -135,6 +147,7 @@ export function useHealthConsent(): HealthConsentApi {
       saveFailed={grant.isError}
       onAllow={allow}
       onDecline={decline}
+      onCancel={cancel}
       onExited={onExited}
     />
   );

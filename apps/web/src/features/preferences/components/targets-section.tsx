@@ -7,6 +7,8 @@ import { trpc } from '@/lib/trpc';
 import { skipToken } from '@tanstack/react-query';
 import {
   bodyMetricsAgeError,
+  isPlausibleHeightCm,
+  isPlausibleWeightKg,
   MAX_BODY_METRICS_AGE,
   MIN_BODY_METRICS_AGE,
   MINOR_NO_DEFICIT_NOTE,
@@ -61,6 +63,8 @@ function computePreviewTargets(data: PreviewFormData) {
   // Shared with the API and mobile (@chefer/utils calorie-target.ts): no
   // deficit under 18, sex-specific floor (App Review R-02).
   if (bodyMetricsAgeError(data.age) !== null) return null;
+  // UX-ONB-05: no estimate from an implausible height or weight.
+  if (!isPlausibleHeightCm(data.heightCm) || !isPlausibleWeightKg(data.weightKg)) return null;
   const { tdee } = computeBmrTdee(
     data.weightKg,
     data.heightCm,
@@ -134,11 +138,9 @@ export function TargetsSection({ isPremium, data, onChange }: TargetsSectionProp
     data.age >= MIN_BODY_METRICS_AGE &&
     data.age <= MAX_BODY_METRICS_AGE &&
     data.heightCm !== null &&
-    data.heightCm > 0 &&
-    data.heightCm <= 300 &&
+    isPlausibleHeightCm(data.heightCm) &&
     data.weightKg !== null &&
-    data.weightKg > 0 &&
-    data.weightKg <= 500 &&
+    isPlausibleWeightKg(data.weightKg) &&
     data.activityLevel !== null
       ? {
           goal: data.goal,

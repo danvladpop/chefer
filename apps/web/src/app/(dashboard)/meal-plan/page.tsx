@@ -65,12 +65,15 @@ import { ErrorState, Sheet, Toast } from '@chefer/ui';
 import {
   aiConsentRequiredFor,
   defaultWeekOffset,
+  formatDateRange,
+  formatKcal,
   formatMoney,
   formatPriceRange,
   getWeekStartDate,
   isTailoringRunning,
   perPortionCost,
   planButtonLabel,
+  planCostCoverageLabel,
   planShapeSummary,
   regenerateConfirmBody,
   SAFETY_COPY,
@@ -80,6 +83,8 @@ import {
   toDisplayCurrency,
   trainingDaysChip,
   trainingKindLabel,
+  userFacingErrorMessage,
+  weekRelationLabel,
   WELLNESS_COPY,
 } from '@chefer/utils';
 import MealPlanLoading from './loading';
@@ -96,8 +101,7 @@ function formatWeekLabel(weekStartDate: Date): string {
   const start = new Date(weekStartDate);
   const end = new Date(weekStartDate);
   end.setDate(end.getDate() + 6);
-  const opts: Intl.DateTimeFormatOptions = { month: 'short', day: 'numeric' };
-  return `${start.toLocaleDateString('en-GB', opts)} – ${end.toLocaleDateString('en-GB', opts)}`;
+  return formatDateRange(start, end, 'short');
 }
 
 /** Returns 0=Monday … 6=Sunday for today, matching dayOfWeek in the plan. */
@@ -321,6 +325,7 @@ export default function MealPlanPage() {
   });
 
   const generateMutation = trpc.mealPlan.generate.useMutation({
+    meta: { silent: true },
     onMutate: () => {
       setIsGenerating(true);
       setPoolExhausted(null);
@@ -374,7 +379,7 @@ export default function MealPlanPage() {
       } else {
         setGenerateError(
           err.data?.code === 'TOO_MANY_REQUESTS'
-            ? err.message
+            ? userFacingErrorMessage(err)
             : "We couldn't generate your plan just now. Please try again in a moment.",
         );
       }
@@ -471,8 +476,9 @@ export default function MealPlanPage() {
     void utils.dashboard.invalidate();
   });
   const resumeTailoringMutation = trpc.mealPlan.resumeTailoring.useMutation({
+    meta: { silent: true },
     onSuccess: () => void refetch(),
-    onError: (err) => setToast({ message: err.message }),
+    onError: (err) => setToast({ message: userFacingErrorMessage(err) }),
   });
   const resumeTailoring = () => {
     if (!plan) return;
@@ -485,11 +491,13 @@ export default function MealPlanPage() {
   // T-08.5/T-08.6 Undo: replaceRecipe back to `previousRecipeId` — used by
   // the swap/replace toast's Undo action (the sheet itself is closed by then).
   const replaceMutation = trpc.mealPlan.replaceRecipe.useMutation({
+    meta: { silent: true },
     onSuccess: () => void refetch(),
   });
 
   const [planningDay, setPlanningDay] = useState<number | null>(null);
   const planDayMutation = trpc.mealPlan.planDay.useMutation({
+    meta: { silent: true },
     onMutate: (input) => setPlanningDay(input.dayOfWeek),
     onSettled: () => setPlanningDay(null),
     onSuccess: (_data, input) => {
@@ -497,7 +505,7 @@ export default function MealPlanPage() {
       void refetch();
       setToast({ message: `${DAY_NAMES[selectedDay]} planned.` });
     },
-    onError: (err) => setToast({ message: err.message }),
+    onError: (err) => setToast({ message: userFacingErrorMessage(err) }),
   });
 
   // ?generate=1 (dashboard's "Generate My Week", prod-followups #9): start
@@ -630,10 +638,12 @@ export default function MealPlanPage() {
                 ? 'border-amber-300 bg-amber-50 text-amber-800'
                 : 'border-emerald-200 bg-emerald-50 text-emerald-700'
             }`}
-            title="Estimated ingredient cost for the whole week"
+            title={`Estimated ingredient cost for ${weekRelationLabel(weekOffset)}, ${planCostCoverageLabel(plan?.shoppingFromDay)}`}
           >
+            {/* UX-PLAN-07: the week that is open, and the days it covers. */}
             <Wallet className="h-3 w-3" aria-hidden="true" />≈{' '}
-            {formatPriceRange(weekCost, currency) ?? formatMoney(weekCost, currency)} this week
+            {formatPriceRange(weekCost, currency) ?? formatMoney(weekCost, currency)} ·{' '}
+            {weekRelationLabel(weekOffset)} · {planCostCoverageLabel(plan?.shoppingFromDay)}
             {perPortion !== null && costPortions !== null && (
               <span className="font-normal opacity-80">
                 · {formatMoney(perPortion, currency)}/portion · {costPortions} portions
@@ -854,8 +864,8 @@ export default function MealPlanPage() {
           className="mx-4 mb-2 flex flex-col gap-2 rounded-xl border border-gray-200 bg-white px-4 py-3 sm:mx-6 sm:flex-row sm:items-center sm:justify-between sm:gap-3"
         >
           <p className="text-sm text-gray-800">
-            This week was planned for {(plan.calorieTarget ?? 0).toLocaleString('en-US')} kcal.
-            Re-plan with {targetsView.effective.dailyCalorieTarget.toLocaleString('en-US')} kcal?
+            This week was planned for {formatKcal(plan.calorieTarget ?? 0)} kcal. Re-plan with{' '}
+            {formatKcal(targetsView.effective.dailyCalorieTarget)} kcal?
           </p>
           <div className="flex gap-2">
             <button
@@ -1141,7 +1151,7 @@ export default function MealPlanPage() {
                       <div className="flex flex-col items-center gap-1 rounded-xl border border-dashed bg-gray-50 p-2 text-center">
                         <p
                           data-testid={`plan-day-unplanned-${day.dayOfWeek}`}
-                          className="text-[11px] leading-tight text-gray-500"
+                          className="text-xs leading-tight text-gray-500"
                         >
                           Not planned
                         </p>
@@ -1256,7 +1266,12 @@ export default function MealPlanPage() {
       <ReplaceMealSheet
         target={replaceTarget}
         onClose={() => setReplaceTarget(null)}
-        onChanged={({ recipeName, previousRecipeId, target }: ReplaceMealResult) => {
+        onChanged={({
+          recipeName,
+          previousRecipeId,
+          previousPinned,
+          target,
+        }: ReplaceMealResult) => {
           setToast({
             message: `Swapped to ${recipeName}`,
             ...(previousRecipeId && {
@@ -1269,6 +1284,8 @@ export default function MealPlanPage() {
                     mealType: target.mealType as 'breakfast' | 'lunch' | 'dinner' | 'snack',
                     slotIndex: target.slotIndex,
                     recipeId: previousRecipeId,
+                    // UX-PLAN-04: restore the slot's previous pin state.
+                    pinned: previousPinned === true,
                   }),
               },
             }),

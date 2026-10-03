@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, View } from 'react-native';
+import { ActivityIndicator, Pressable, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { PLAN_FEATURES } from '@chefer/types';
@@ -7,15 +7,25 @@ import {
   Button,
   Card,
   ConfirmSheet,
+  ErrorState,
+  KeyboardAwareScrollView,
   PressableScale,
   Screen,
   Text,
+  useQueryState,
   useSnackbar,
 } from '@chefer/ui-mobile';
-import { cn, downgradeLosses, PREMIUM_PITCH_COPY } from '@chefer/utils';
+import {
+  cn,
+  dailyAllowanceResetTime,
+  downgradeLosses,
+  PREMIUM_PITCH_COPY,
+  userFacingErrorMessage,
+} from '@chefer/utils';
 import { openPremium } from '../src/features/premium/open-premium';
 import { usePremiumPitch } from '../src/features/premium/use-premium-pitch';
 import { PrivacySection } from '../src/features/privacy/privacy-section';
+import { SectionAnchor, useSectionTitle } from '../src/features/settings/section-anchor';
 import { track } from '../src/lib/analytics';
 import { trpc } from '../src/lib/trpc';
 
@@ -91,7 +101,11 @@ function HouseholdRow() {
 }
 
 export default function ProfileScreen() {
-  const { data: user } = trpc.user.me.useQuery();
+  // UX-ACC-04: opened from a Settings row (`?section=`), the title is the row's.
+  const title = useSectionTitle('Profile');
+  const userQuery = trpc.user.me.useQuery();
+  const { data: user } = userQuery;
+  const { state: userState, retry: retryUser } = useQueryState(userQuery);
   const { data: usage, isLoading } = trpc.profile.getAiUsage.useQuery();
   const utils = trpc.useUtils();
 
@@ -102,6 +116,7 @@ export default function ProfileScreen() {
   const snackbar = useSnackbar();
   const [confirmingDowngrade, setConfirmingDowngrade] = useState(false);
   const downgradeMutation = trpc.user.downgradePlan.useMutation({
+    meta: { silent: true },
     onSuccess: () => {
       track('downgrade_completed', {});
       invalidateUser();
@@ -145,102 +160,117 @@ export default function ProfileScreen() {
           <Ionicons name="arrow-back" size={20} color="#1f2937" />
         </Pressable>
         <Text testID="profile-title" variant="title">
-          Profile
+          {title}
         </Text>
       </View>
 
-      <ScrollView contentContainerClassName="gap-4 px-4 pb-8">
+      {/* Keyboard-aware, so a `?section=` anchor can scroll its card into view. */}
+      <KeyboardAwareScrollView contentContainerClassName="gap-4 px-4 pb-8">
+        {/* UX-X-12: a failed load is not a name of "—" and an empty profile. */}
+        {userState === 'error' && (
+          <ErrorState
+            testID="profile-load-error"
+            title="Couldn't load your profile"
+            onRetry={retryUser}
+          />
+        )}
+
         {/* User card */}
-        <Card testID="profile-user-card" className="flex-row items-center gap-4">
-          <View className="h-14 w-14 items-center justify-center rounded-full bg-accent">
-            <Text className="text-2xl font-bold text-primary">
-              {displayName.charAt(0).toUpperCase()}
-            </Text>
-          </View>
-          <View className="min-w-0 flex-1">
-            <Text className="font-semibold text-gray-900">{displayName}</Text>
-            <Text numberOfLines={1} variant="muted" className="text-sm">
-              {user?.email}
-            </Text>
-            <View className="mt-1 flex-row gap-1.5">
-              {/* R-15: "USER" means nothing to a person; staff roles only. */}
-              {user && (user.role === 'ADMIN' || user.role === 'MODERATOR') ? (
-                <View testID="profile-role-badge" className="rounded-full bg-gray-100 px-2 py-0.5">
-                  <Text className="text-[12px] font-medium uppercase text-gray-500">
-                    {user.role}
-                  </Text>
-                </View>
-              ) : null}
-              <View
-                className={cn(
-                  'rounded-full px-2 py-0.5',
-                  isPremiumTier ? 'bg-amber-500' : 'bg-gray-100',
-                )}
-              >
-                <Text
+        {userState !== 'error' && (
+          <Card testID="profile-user-card" className="flex-row items-center gap-4">
+            <View className="h-14 w-14 items-center justify-center rounded-full bg-accent">
+              <Text className="text-2xl font-bold text-primary">
+                {displayName.charAt(0).toUpperCase()}
+              </Text>
+            </View>
+            <View className="min-w-0 flex-1">
+              <Text className="font-semibold text-gray-900">{displayName}</Text>
+              <Text numberOfLines={1} variant="muted" className="text-sm">
+                {user?.email}
+              </Text>
+              <View className="mt-1 flex-row gap-1.5">
+                {/* R-15: "USER" means nothing to a person; staff roles only. */}
+                {user && (user.role === 'ADMIN' || user.role === 'MODERATOR') ? (
+                  <View
+                    testID="profile-role-badge"
+                    className="rounded-full bg-gray-100 px-2 py-0.5"
+                  >
+                    <Text className="text-xs font-medium uppercase text-gray-500">{user.role}</Text>
+                  </View>
+                ) : null}
+                <View
                   className={cn(
-                    'text-[12px] font-medium uppercase',
-                    isPremiumTier ? 'text-white' : 'text-gray-500',
+                    'rounded-full px-2 py-0.5',
+                    isPremiumTier ? 'bg-amber-500' : 'bg-gray-100',
                   )}
                 >
-                  {isPremiumTier ? 'Premium' : 'Free plan'}
-                </Text>
+                  <Text
+                    className={cn(
+                      'text-xs font-medium uppercase',
+                      isPremiumTier ? 'text-white' : 'text-gray-500',
+                    )}
+                  >
+                    {isPremiumTier ? 'Premium' : 'Free plan'}
+                  </Text>
+                </View>
               </View>
             </View>
-          </View>
-        </Card>
+          </Card>
+        )}
 
         <HouseholdRow />
 
         {/* Plan & Premium (T-10.3). Admins have Premium access without a plan card. */}
         {user && user.role !== 'ADMIN' && (
-          <Card
-            testID="profile-plan"
-            className={cn(!isPremiumTier && 'border-primary/20 bg-accent')}
-          >
-            <Text testID="profile-plan-title" className="font-semibold text-primary">
-              {isPremiumTier
-                ? PREMIUM_PITCH_COPY.planPremiumTitle
-                : PREMIUM_PITCH_COPY.planFreeTitle}
-            </Text>
-            {isPremiumTier ? (
-              <>
-                <Text className="mt-0.5 text-xs font-semibold uppercase tracking-widest text-primary/80">
-                  {PREMIUM_PITCH_COPY.planPremiumNote}
-                </Text>
-                <Text className="mt-3 text-xs font-semibold text-gray-700">
-                  {PREMIUM_PITCH_COPY.planWhatYouHave}
-                </Text>
-                <View testID="profile-plan-have" className="mt-1 gap-1">
-                  {[...pitch.bullets, ...pitch.alsoIncluded].map((line) => (
-                    <View key={line} className="flex-row items-start gap-2">
-                      <Ionicons name="checkmark" size={14} color="#944a00" />
-                      <Text className="min-w-0 flex-1 text-xs text-gray-700">{line}</Text>
-                    </View>
-                  ))}
-                </View>
-                <Button
-                  testID="profile-downgrade"
-                  variant="ghost"
-                  className="mt-2 self-start"
-                  onPress={() => setConfirmingDowngrade(true)}
-                >
-                  <Text variant="muted" className="text-xs">
-                    {PREMIUM_PITCH_COPY.switchBackToFree}
+          <SectionAnchor id="plan">
+            <Card
+              testID="profile-plan"
+              className={cn(!isPremiumTier && 'border-primary/20 bg-accent')}
+            >
+              <Text testID="profile-plan-title" className="font-semibold text-primary">
+                {isPremiumTier
+                  ? PREMIUM_PITCH_COPY.planPremiumTitle
+                  : PREMIUM_PITCH_COPY.planFreeTitle}
+              </Text>
+              {isPremiumTier ? (
+                <>
+                  <Text className="mt-0.5 text-xs font-semibold uppercase tracking-widest text-primary/80">
+                    {PREMIUM_PITCH_COPY.planPremiumNote}
                   </Text>
-                </Button>
-              </>
-            ) : (
-              <>
-                <Text className="mb-3 mt-1 text-xs text-primary/80">
-                  {PREMIUM_PITCH_COPY.planFreeBody}
-                </Text>
-                <Button testID="profile-upgrade" onPress={() => openPremium('profile')}>
-                  {PREMIUM_PITCH_COPY.seeWhatPremiumAdds}
-                </Button>
-              </>
-            )}
-          </Card>
+                  <Text className="mt-3 text-xs font-semibold text-gray-700">
+                    {PREMIUM_PITCH_COPY.planWhatYouHave}
+                  </Text>
+                  <View testID="profile-plan-have" className="mt-1 gap-1">
+                    {[...pitch.bullets, ...pitch.alsoIncluded].map((line) => (
+                      <View key={line} className="flex-row items-start gap-2">
+                        <Ionicons name="checkmark" size={14} color="#944a00" />
+                        <Text className="min-w-0 flex-1 text-xs text-gray-700">{line}</Text>
+                      </View>
+                    ))}
+                  </View>
+                  <Button
+                    testID="profile-downgrade"
+                    variant="ghost"
+                    className="mt-2 self-start"
+                    onPress={() => setConfirmingDowngrade(true)}
+                  >
+                    <Text variant="muted" className="text-xs">
+                      {PREMIUM_PITCH_COPY.switchBackToFree}
+                    </Text>
+                  </Button>
+                </>
+              ) : (
+                <>
+                  <Text className="mb-3 mt-1 text-xs text-primary/80">
+                    {PREMIUM_PITCH_COPY.planFreeBody}
+                  </Text>
+                  <Button testID="profile-upgrade" onPress={() => openPremium('profile')}>
+                    {PREMIUM_PITCH_COPY.seeWhatPremiumAdds}
+                  </Button>
+                </>
+              )}
+            </Card>
+          </SectionAnchor>
         )}
 
         {/* Daily AI allowances — product quotas only (vendor telemetry is admin-only).
@@ -253,7 +283,7 @@ export default function ProfileScreen() {
           <Card testID="profile-usage">
             <Text variant="heading">{PREMIUM_PITCH_COPY.allowancesTitle}</Text>
             <Text variant="muted" className="text-xs">
-              Allowances reset at midnight UTC.
+              Allowances reset at {dailyAllowanceResetTime()} your time.
             </Text>
             {(() => {
               const tier = isPremiumTier ? 'premium' : 'free';
@@ -326,17 +356,24 @@ export default function ProfileScreen() {
         ) : null}
         {/* T-39.4: AI & your data, Usage analytics, Consent history, Gym
             settings, Download my data / Delete account — all in one section. */}
-        <PrivacySection />
-      </ScrollView>
+        <SectionAnchor id="privacy">
+          <PrivacySection />
+        </SectionAnchor>
+      </KeyboardAwareScrollView>
       <ConfirmSheet
         testID="downgrade-confirm"
         visible={confirmingDowngrade}
-        onClose={() => setConfirmingDowngrade(false)}
+        onClose={() => {
+          setConfirmingDowngrade(false);
+          downgradeMutation.reset();
+        }}
         title={PREMIUM_PITCH_COPY.downgradeTitle}
         body={downgradeBody}
         confirmLabel={PREMIUM_PITCH_COPY.downgradeConfirm}
         cancelLabel={PREMIUM_PITCH_COPY.downgradeCancel}
         destructive
+        busy={downgradeMutation.isPending}
+        error={downgradeMutation.isError ? userFacingErrorMessage(downgradeMutation.error) : null}
         onConfirm={() => downgradeMutation.mutate()}
       />
     </Screen>

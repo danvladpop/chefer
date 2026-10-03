@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { CONTRACT_CONSENT, makeContractClient, uniqueEmail } from './client';
 
 // NOTE: auth.register/login are rate-limited to 10 per 15 min per IP — this
-// suite spends 2 of those per run. Keep new auth calls out of other suites.
+// suite spends 3 of those per run. Keep new auth calls out of other suites.
 
 describe('mobile auth contract', () => {
   it('register → Bearer auth → logout lifecycle', async () => {
@@ -25,6 +25,14 @@ describe('mobile auth contract', () => {
     // superjson must hydrate the expiry as a real Date
     expect(session.expires).toBeInstanceOf(Date);
     expect(session.expires.getTime()).toBeGreaterThan(Date.now());
+
+    // UX-ACC-07: a trailing space (keyboard suggestion, autofill) is trimmed
+    // by the shared email schema instead of being "Invalid email address".
+    const trimmed = await client.auth.login.mutate({
+      email: `${email} `,
+      password: 'Contract@123!',
+    });
+    expect(trimmed.email).toBe(email);
 
     // 2. Bearer token authenticates protected procedures
     setToken(session.token);

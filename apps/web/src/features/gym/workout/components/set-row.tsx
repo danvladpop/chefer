@@ -107,7 +107,7 @@ export const SetRow = memo(function SetRow({
           <Stepper
             label="weight"
             value={formatLoadNumber(set.weightKg, unit)}
-            valueLabel={`${formatLoad(set.weightKg, unit, loadType)}${barbell ? ', open plate calculator' : ''}`}
+            valueLabel={`${formatLoad(set.weightKg, unit, loadType, { each: meta?.perHand })}${barbell ? ', open plate calculator' : ''}`}
             // Owner dogfood 2026-09-30 (mobile parity): pull-ups, chin-ups
             // and dips step through belt loads even with the dip-belt
             // setting off, so added weight can always be logged.

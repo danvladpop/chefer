@@ -2,11 +2,13 @@
 
 import Link from 'next/link';
 import { use, useState } from 'react';
+import { UseWeekAgainSheet } from '@/features/history/components/UseWeekAgainSheet';
 import { DayView } from '@/features/meal-plan/components/day-view';
 import { MealCard } from '@/features/meal-plan/components/MealCard';
 import { trpc } from '@/lib/trpc';
 import { format } from 'date-fns';
-import { ArrowLeft } from 'lucide-react';
+import { ArrowLeft, BookmarkPlus, RotateCcw } from 'lucide-react';
+import { defaultSavedWeekName, userFacingErrorMessage } from '@chefer/utils';
 
 const DAY_LABELS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 
@@ -15,6 +17,14 @@ export default function HistoryPlanPage({ params }: { params: Promise<{ planId: 
   // Local state is enough here: unlike the planner there is no week param to
   // stay in sync with, and this is a read-only view.
   const [selectedDay, setSelectedDay] = useState(0);
+  const [useAgainOpen, setUseAgainOpen] = useState(false);
+  const [savedName, setSavedName] = useState<string | null>(null);
+
+  // UX-PLAN-11: keep this week as one of the (max 4) saved weeks.
+  const saveAsWeek = trpc.mealPlan.saveAsTemplate.useMutation({
+    meta: { silent: true },
+    onSuccess: (saved) => setSavedName(saved.name),
+  });
 
   const { data: plan, isLoading } = trpc.mealPlan.getById.useQuery(
     { planId },
@@ -74,6 +84,47 @@ export default function HistoryPlanPage({ params }: { params: Promise<{ planId: 
         <h1 className="text-xl font-bold">Week of {format(weekStart, 'dd MMM yyyy')}</h1>
       </div>
 
+      {/* UX-PLAN-11: a past week can be cooked again, or kept as a saved week. */}
+      <div className="mb-4 flex flex-wrap items-center gap-2">
+        <button
+          type="button"
+          data-testid="history-plan-use-again"
+          onClick={() => setUseAgainOpen(true)}
+          className="flex min-h-11 items-center gap-1.5 rounded-xl border border-orange-300 px-4 text-sm font-medium text-orange-600 transition hover:bg-orange-50"
+        >
+          <RotateCcw className="h-4 w-4" aria-hidden="true" />
+          Use this week again
+        </button>
+        <button
+          type="button"
+          data-testid="history-plan-save-week"
+          disabled={saveAsWeek.isPending || savedName !== null}
+          onClick={() =>
+            saveAsWeek.mutate({ planId: plan.planId, name: defaultSavedWeekName(weekStart) })
+          }
+          className="flex min-h-11 items-center gap-1.5 rounded-xl border border-neutral-200 px-4 text-sm font-medium text-neutral-700 transition hover:bg-neutral-50 disabled:opacity-60"
+        >
+          <BookmarkPlus className="h-4 w-4" aria-hidden="true" />
+          Save as a week
+        </button>
+        {savedName && (
+          <p role="status" className="text-xs text-emerald-700">
+            Saved as “{savedName}” in My weeks.
+          </p>
+        )}
+        {saveAsWeek.error && (
+          <p role="alert" className="text-xs text-red-600">
+            {userFacingErrorMessage(saveAsWeek.error)}
+          </p>
+        )}
+      </div>
+      <UseWeekAgainSheet
+        planId={plan.planId}
+        weekLabel={format(weekStart, 'dd MMM')}
+        open={useAgainOpen}
+        onClose={() => setUseAgainOpen(false)}
+      />
+
       {/* Mobile: one day at a time, same component the planner uses */}
       <div className="lg:hidden">
         <DayView
@@ -119,6 +170,7 @@ export default function HistoryPlanPage({ params }: { params: Promise<{ planId: 
                         slotIndex={slotIndex}
                         leftoverLabel={slot.leftoverOf}
                         portion={slot.portion}
+                        eaten={dayPlan.loggedRecipeIds?.includes(slot.recipe.id) === true}
                         readOnly
                       />
                     </div>

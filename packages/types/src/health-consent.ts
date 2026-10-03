@@ -70,10 +70,10 @@ export const HEALTH_CONSENT_COPY = {
   withdrawError: 'Couldn’t delete your health information. Please try again.',
 } as const;
 
-/** Fills `{date}` in `rowAllowed`. */
+/** Fills `{date}` in `rowAllowed`, in the device's own date format (UX-X-15). */
 export function healthConsentAllowedLine(date: Date | string): string {
   const d = typeof date === 'string' ? new Date(date) : date;
-  const formatted = d.toLocaleDateString('en-GB', {
+  const formatted = d.toLocaleDateString(undefined, {
     day: 'numeric',
     month: 'short',
     year: 'numeric',

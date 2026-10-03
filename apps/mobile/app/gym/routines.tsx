@@ -1,20 +1,29 @@
-import { useState } from 'react';
-import { ActivityIndicator, Alert, Pressable, ScrollView, View } from 'react-native';
+import { useMemo, useRef, useState } from 'react';
+import { ActivityIndicator, Pressable, ScrollView, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useQueryClient } from '@tanstack/react-query';
 import { router } from 'expo-router';
-import type { RoutineListItemDto, TemplateSummaryDto } from '@chefer/types';
+import type { GymBootstrap, RoutineListItemDto, TemplateSummaryDto } from '@chefer/types';
 import {
   Badge,
   Button,
   Card,
+  ConfirmSheet,
   EmptyState,
+  ErrorState,
   Input,
   Screen,
   Sheet,
   Stepper,
   Text,
+  useQueryState,
+  useSnackbar,
 } from '@chefer/ui-mobile';
+import { userFacingErrorMessage } from '@chefer/utils';
 import { useIsOnline } from '../../src/features/gym/routine/use-online';
+import { buildTemplatePreview } from '../../src/features/gym/setup/template-preview';
+import { gymBootstrapQueryKey } from '../../src/features/gym/use-gym-bootstrap';
+import { useSaveGymProfile } from '../../src/features/gym/use-save-gym-profile';
 import { trpc } from '../../src/lib/trpc';
 
 // My routines (gym_plan.md §1.3 "Routine tab" routine switcher): create from
@@ -23,14 +32,12 @@ import { trpc } from '../../src/lib/trpc';
 function RoutineRow({
   routine,
   onSetActive,
-  onDuplicate,
-  onArchive,
+  onMore,
   disabled,
 }: {
   routine: RoutineListItemDto;
   onSetActive: () => void;
-  onDuplicate: () => void;
-  onArchive: () => void;
+  onMore: () => void;
   disabled: boolean;
 }) {
   return (
@@ -57,7 +64,7 @@ function RoutineRow({
           ) : null}
         </View>
       </View>
-      <View className="mt-3 flex-row flex-wrap gap-2">
+      <View className="mt-3 flex-row items-center gap-2">
         {!routine.isActive ? (
           <Button
             testID={`routine-list-item-${routine.id}-set-active`}
@@ -69,26 +76,18 @@ function RoutineRow({
             Set active
           </Button>
         ) : null}
-        <Button
-          testID={`routine-list-item-${routine.id}-duplicate`}
-          size="sm"
-          variant="outline"
+        {/* UX-GYM-15: Archive (and Duplicate) live in a ⋯ menu, so the destructive
+            action is no longer one slip away from "Set active". */}
+        <Pressable
+          testID={`routine-list-item-${routine.id}-more`}
+          accessibilityRole="button"
+          accessibilityLabel={`More actions for ${routine.name}`}
           disabled={disabled}
-          onPress={onDuplicate}
+          onPress={onMore}
+          className="ml-auto h-11 w-11 items-center justify-center rounded-full bg-gray-100"
         >
-          Duplicate
-        </Button>
-        {!routine.archived ? (
-          <Button
-            testID={`routine-list-item-${routine.id}-archive`}
-            size="sm"
-            variant="destructive"
-            disabled={disabled}
-            onPress={onArchive}
-          >
-            Archive
-          </Button>
-        ) : null}
+          <Ionicons name="ellipsis-horizontal" size={20} color="#374151" />
+        </Pressable>
       </View>
     </Card>
   );
@@ -96,11 +95,11 @@ function RoutineRow({
 
 function TemplateRow({
   template,
-  onCreate,
+  onPreview,
   disabled,
 }: {
   template: TemplateSummaryDto;
-  onCreate: () => void;
+  onPreview: () => void;
   disabled: boolean;
 }) {
   return (
@@ -117,14 +116,78 @@ function TemplateRow({
         {template.description}
       </Text>
       <Button
-        testID={`gym-routines-template-${template.key}-create`}
+        testID={`gym-routines-template-${template.key}-preview`}
         size="sm"
+        variant="outline"
         className="mt-2 self-start"
         disabled={disabled}
-        onPress={onCreate}
+        onPress={onPreview}
       >
-        Create
+        Preview
       </Button>
+    </View>
+  );
+}
+
+/** UX-GYM-14: what a template contains, day by day, before it is created. */
+function TemplatePreviewBody({
+  template,
+  currentGoal,
+  hasActive,
+  preview,
+}: {
+  template: TemplateSummaryDto;
+  currentGoal: number | null;
+  hasActive: boolean;
+  preview: ReturnType<typeof buildTemplatePreview> | null;
+}) {
+  return (
+    <View className="gap-3" testID="gym-routines-template-preview">
+      <Text variant="muted" className="text-sm">
+        {template.daysPerWeek}×/week · {template.description}
+      </Text>
+      {hasActive ? (
+        <Text testID="gym-routines-template-preview-switch-note" className="text-sm">
+          {currentGoal !== null && currentGoal !== template.daysPerWeek
+            ? `“Create and switch” makes this your active routine and changes your weekly goal from ${String(currentGoal)} to ${String(template.daysPerWeek)}. “Create” keeps your current routine active.`
+            : '“Create and switch” makes this your active routine. “Create” keeps your current routine active.'}
+        </Text>
+      ) : null}
+      {preview ? (
+        preview.days.map((day, i) => (
+          <Card
+            key={`${day.name}-${String(i)}`}
+            testID={`gym-routines-template-preview-day-${String(i)}`}
+            className="gap-1"
+          >
+            <View className="flex-row items-center justify-between gap-2">
+              <Text className="min-w-0 flex-1 font-semibold" numberOfLines={1}>
+                {day.name}
+              </Text>
+              <Text variant="muted" className="text-xs">
+                ~{day.estimatedMin} min
+              </Text>
+            </View>
+            {day.exercises.map((ex) => (
+              <View key={ex.exerciseId} className="flex-row items-center justify-between gap-2">
+                <Text className="min-w-0 flex-1 text-sm" numberOfLines={1}>
+                  {ex.name}
+                </Text>
+                <Text variant="muted" className="text-xs">
+                  {ex.sets} ×{' '}
+                  {ex.repMin === ex.repMax
+                    ? ex.repMin
+                    : `${String(ex.repMin)}-${String(ex.repMax)}`}
+                </Text>
+              </View>
+            ))}
+          </Card>
+        ))
+      ) : (
+        <Text variant="muted" testID="gym-routines-template-preview-unavailable">
+          The day-by-day preview isn’t available for this program.
+        </Text>
+      )}
     </View>
   );
 }
@@ -136,9 +199,23 @@ export default function GymRoutinesScreen() {
   const templatesQuery = trpc.gym.routine.templates.useQuery(undefined, { enabled: false });
 
   const [templateSheetOpen, setTemplateSheetOpen] = useState(false);
+  // UX-GYM-14: the template being previewed (inside the template sheet).
+  const [previewKey, setPreviewKey] = useState<string | null>(null);
   const [blankSheetOpen, setBlankSheetOpen] = useState(false);
   const [blankName, setBlankName] = useState('');
   const [blankDays, setBlankDays] = useState(3);
+  // UX-GYM-22 / X-13: archive is confirmed in a ConfirmSheet (not a native
+  // Alert) so a failure shows in the sheet instead of vanishing.
+  const [archiveTarget, setArchiveTarget] = useState<RoutineListItemDto | null>(null);
+  // UX-GYM-15: Duplicate / Archive live in a ⋯ menu per routine.
+  const [menuTarget, setMenuTarget] = useState<RoutineListItemDto | null>(null);
+  const afterMenuExit = useRef<(() => void) | null>(null);
+  const listState = useQueryState(listQuery);
+  const snackbar = useSnackbar();
+  const queryClient = useQueryClient();
+  // The weekly goal follows the routine you switch to (UX-GYM-14); a failure shows
+  // through the default mutation snackbar.
+  const saveProfile = useSaveGymProfile();
 
   const invalidateAll = () => {
     void utils.gym.routine.list.invalidate();
@@ -147,11 +224,36 @@ export default function GymRoutinesScreen() {
 
   const setActiveMutation = trpc.gym.routine.setActive.useMutation({ onSuccess: invalidateAll });
   const duplicateMutation = trpc.gym.routine.duplicate.useMutation({ onSuccess: invalidateAll });
-  const archiveMutation = trpc.gym.routine.archive.useMutation({ onSuccess: invalidateAll });
-  const createFromTemplateMutation = trpc.gym.routine.createFromTemplate.useMutation({
+  const archiveMutation = trpc.gym.routine.archive.useMutation({
     onSuccess: () => {
       invalidateAll();
+      setArchiveTarget(null);
+    },
+    // The ConfirmSheet shows the failure itself.
+    meta: { silent: true },
+  });
+  const createFromTemplateMutation = trpc.gym.routine.createFromTemplate.useMutation({
+    onSuccess: (created, variables) => {
+      invalidateAll();
       setTemplateSheetOpen(false);
+      setPreviewKey(null);
+      if (!variables.setActive) {
+        snackbar.show({ message: `Created “${created.name}”. Your active routine is unchanged.` });
+        return;
+      }
+      const goal = (templatesQuery.data ?? []).find(
+        (t) => t.key === variables.templateKey,
+      )?.daysPerWeek;
+      const current =
+        queryClient.getQueryData<GymBootstrap>(gymBootstrapQueryKey)?.profile?.weeklyGoal;
+      if (goal !== undefined && current !== undefined && goal !== current) {
+        saveProfile.mutate({ weeklyGoal: goal });
+        snackbar.show({
+          message: `Switched to “${created.name}”. Weekly goal is now ${String(goal)}.`,
+        });
+      } else {
+        snackbar.show({ message: `Switched to “${created.name}”.` });
+      }
     },
   });
   const createBlankMutation = trpc.gym.routine.createBlank.useMutation({
@@ -167,20 +269,31 @@ export default function GymRoutinesScreen() {
     setActiveMutation.isPending || duplicateMutation.isPending || archiveMutation.isPending;
 
   const openTemplateSheet = () => {
+    setPreviewKey(null);
     setTemplateSheetOpen(true);
     void templatesQuery.refetch();
   };
 
   const confirmArchive = (routine: RoutineListItemDto) => {
-    Alert.alert('Archive this routine?', `"${routine.name}" will move out of your active list.`, [
-      { text: 'Cancel', style: 'cancel' },
-      {
-        text: 'Archive',
-        style: 'destructive',
-        onPress: () => archiveMutation.mutate({ id: routine.id }),
-      },
-    ]);
+    archiveMutation.reset();
+    setArchiveTarget(routine);
   };
+
+  const previewTemplate = (templatesQuery.data ?? []).find((t) => t.key === previewKey) ?? null;
+  const profile = queryClient.getQueryData<GymBootstrap>(gymBootstrapQueryKey)?.profile ?? null;
+  const preview = useMemo(() => {
+    if (!previewTemplate) return null;
+    try {
+      return buildTemplatePreview(
+        previewTemplate.key,
+        profile?.equipmentAccess ?? 'FULL_GYM',
+        profile?.experience ?? 'INTERMEDIATE',
+      );
+    } catch {
+      return null;
+    }
+  }, [previewTemplate, profile?.equipmentAccess, profile?.experience]);
+  const hasActive = (listQuery.data ?? []).some((r) => r.isActive && !r.archived);
 
   return (
     <Screen className="px-0" edges={['top', 'bottom', 'left', 'right']}>
@@ -229,7 +342,14 @@ export default function GymRoutinesScreen() {
           </Button>
         </View>
 
-        {listQuery.isPending ? (
+        {listState.state === 'error' ? (
+          // UX-GYM-24: a failed load is an error with Retry, never "No routines yet".
+          <ErrorState
+            testID="gym-routines-error"
+            title="Couldn’t load your routines"
+            onRetry={listState.retry}
+          />
+        ) : listQuery.isPending && listQuery.fetchStatus !== 'paused' ? (
           <ActivityIndicator testID="gym-routines-loading" />
         ) : listQuery.data && listQuery.data.length > 0 ? (
           <View className="gap-3">
@@ -239,8 +359,7 @@ export default function GymRoutinesScreen() {
                 routine={routine}
                 disabled={!isOnline || busy}
                 onSetActive={() => setActiveMutation.mutate({ id: routine.id })}
-                onDuplicate={() => duplicateMutation.mutate({ id: routine.id })}
-                onArchive={() => confirmArchive(routine)}
+                onMore={() => setMenuTarget(routine)}
               />
             ))}
           </View>
@@ -258,12 +377,133 @@ export default function GymRoutinesScreen() {
       </ScrollView>
 
       <Sheet
-        visible={templateSheetOpen}
-        onClose={() => setTemplateSheetOpen(false)}
-        title="Choose a template"
-        testID="gym-routines-template-sheet"
+        visible={menuTarget !== null}
+        onClose={() => setMenuTarget(null)}
+        onExited={() => {
+          const next = afterMenuExit.current;
+          afterMenuExit.current = null;
+          next?.();
+        }}
+        title={menuTarget?.name ?? 'Routine'}
+        testID="gym-routines-menu-sheet"
       >
-        {templatesQuery.isFetching ? (
+        <View>
+          <Pressable
+            testID="gym-routines-menu-duplicate"
+            accessibilityRole="button"
+            onPress={() => {
+              const target = menuTarget;
+              setMenuTarget(null);
+              if (target) duplicateMutation.mutate({ id: target.id });
+            }}
+            className="min-h-12 justify-center border-b border-border px-1 py-2 active:bg-muted"
+          >
+            <Text className="text-base font-medium">Duplicate</Text>
+          </Pressable>
+          {menuTarget && !menuTarget.archived ? (
+            <Pressable
+              testID="gym-routines-menu-archive"
+              accessibilityRole="button"
+              onPress={() => {
+                const target = menuTarget;
+                // The confirm opens once this sheet has exited (iOS can't present
+                // one sheet over a dismissing one).
+                afterMenuExit.current = () => confirmArchive(target);
+                setMenuTarget(null);
+              }}
+              className="min-h-12 justify-center px-1 py-2 active:bg-muted"
+            >
+              <Text className="text-base font-medium text-destructive">Archive</Text>
+            </Pressable>
+          ) : null}
+        </View>
+      </Sheet>
+
+      <ConfirmSheet
+        visible={archiveTarget !== null}
+        onClose={() => setArchiveTarget(null)}
+        title={archiveTarget?.isActive ? 'Archive your active routine?' : 'Archive this routine?'}
+        body={
+          archiveTarget?.isActive
+            ? `“${archiveTarget.name}” is your active routine. Today will have no workout to start until you set another routine active. Your history is kept.`
+            : `"${archiveTarget?.name ?? 'This routine'}" will move out of your active list.`
+        }
+        confirmLabel="Archive"
+        cancelLabel="Cancel"
+        destructive
+        busy={archiveMutation.isPending}
+        error={archiveMutation.error ? userFacingErrorMessage(archiveMutation.error) : null}
+        onConfirm={() => {
+          if (archiveTarget) archiveMutation.mutate({ id: archiveTarget.id });
+        }}
+        testID="gym-routines-archive-confirm"
+      />
+
+      <Sheet
+        visible={templateSheetOpen}
+        onClose={() => {
+          setTemplateSheetOpen(false);
+          setPreviewKey(null);
+        }}
+        title={previewTemplate ? previewTemplate.name : 'Choose a template'}
+        testID="gym-routines-template-sheet"
+        footer={
+          previewTemplate ? (
+            <View className="gap-2">
+              <Button
+                testID="gym-routines-template-create-switch"
+                loading={
+                  createFromTemplateMutation.isPending &&
+                  createFromTemplateMutation.variables.setActive === true
+                }
+                disabled={createFromTemplateMutation.isPending}
+                onPress={() =>
+                  createFromTemplateMutation.mutate({
+                    templateKey: previewTemplate.key,
+                    setActive: true,
+                  })
+                }
+              >
+                {hasActive ? 'Create and switch' : 'Create'}
+              </Button>
+              {hasActive ? (
+                <Button
+                  testID="gym-routines-template-create"
+                  variant="outline"
+                  loading={
+                    createFromTemplateMutation.isPending &&
+                    createFromTemplateMutation.variables.setActive === false
+                  }
+                  disabled={createFromTemplateMutation.isPending}
+                  onPress={() =>
+                    createFromTemplateMutation.mutate({
+                      templateKey: previewTemplate.key,
+                      setActive: false,
+                    })
+                  }
+                >
+                  Create
+                </Button>
+              ) : null}
+              <Button
+                testID="gym-routines-template-back"
+                variant="ghost"
+                onPress={() => setPreviewKey(null)}
+              >
+                All templates
+              </Button>
+            </View>
+          ) : undefined
+        }
+      >
+        {previewTemplate ? (
+          <TemplatePreviewBody
+            template={previewTemplate}
+            currentGoal={profile?.weeklyGoal ?? null}
+            hasActive={hasActive}
+            preview={preview}
+          />
+        ) : templatesQuery.isFetching ? (
           <ActivityIndicator testID="gym-routines-template-loading" />
         ) : (
           (templatesQuery.data ?? []).map((template) => (
@@ -271,9 +511,7 @@ export default function GymRoutinesScreen() {
               key={template.key}
               template={template}
               disabled={createFromTemplateMutation.isPending}
-              onCreate={() =>
-                createFromTemplateMutation.mutate({ templateKey: template.key, setActive: true })
-              }
+              onPreview={() => setPreviewKey(template.key)}
             />
           ))
         )}

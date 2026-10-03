@@ -38,6 +38,11 @@ export function PostUpgradeActivation() {
     enabled: open,
   });
 
+  // UX-ACC-13: with no plan yet the first step is "Plan my week", not a regenerate.
+  const { data: activePlan } = trpc.mealPlan.getActive.useQuery(undefined, {
+    enabled: open,
+  });
+
   useEffect(() => {
     const maybeOpen = () => {
       const raw = sessionStorage.getItem(ACTIVATION_FLAG);
@@ -56,7 +61,11 @@ export function PostUpgradeActivation() {
 
   // Until hasProfile loads, assume a profile: hiding the goal step for a
   // moment beats flashing a link that bounces back to the dashboard.
-  const steps = activationSteps(source, hasProfile ?? true);
+  const steps = activationSteps(
+    source,
+    hasProfile ?? true,
+    activePlan === undefined ? undefined : activePlan !== null,
+  );
   const first = steps[0];
 
   return (

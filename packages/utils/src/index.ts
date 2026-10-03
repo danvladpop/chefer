@@ -1,5 +1,56 @@
 export { cn } from './cn';
+export {
+  bodyFieldTexts,
+  cmToFtIn,
+  ftInToCm,
+  heightCmFromText,
+  heightValueForInference,
+  parseBodyNumber,
+  splitInches,
+  weightKgFromText,
+  type BodyFieldTexts,
+} from './body-input';
 export { formatQuantity, systemForWeightUnit, weightUnitForSystem, type UnitSystem } from './units';
+// ─── One units + formatting system (WP-11, audit §6.4, UX-X-15) ──────────────
+export {
+  MASS_TO_G,
+  VOLUME_TO_ML,
+  addItemPlaceholder,
+  normalizeUnit,
+  PANTRY_QUANTITY_MAX,
+  parseCustomItemInput,
+  parsePantryQuantity,
+  parseQuantityLine,
+  type PantryQuantityResult,
+  unitFamily,
+  unitOptionsFor,
+  type ParsedQuantity,
+  type UnitFamily,
+} from './quantity';
+export {
+  deviceLocale,
+  formatApproxPrice,
+  formatDate,
+  formatDateRange,
+  formatKcal,
+  formatNumber,
+  formatQty,
+  type DateStyle,
+  type FormatDateOptions,
+} from './format';
+export {
+  mergeCitrusLines,
+  roundToPurchasable,
+  type CitrusLine,
+  type PurchasableLine,
+} from './purchasable';
+export {
+  MAX_WEEKLY_BUDGET_EUR,
+  parseWeeklyBudget,
+  weeklyBudgetCap,
+  weeklyBudgetCapLabel,
+  type BudgetInput,
+} from './budget';
 export {
   EUR_EXCHANGE_RATES,
   EUR_EXCHANGE_RATES_AS_OF,
@@ -28,7 +79,7 @@ export {
 } from './locale';
 
 export {
-  formatDate,
+  formatDatePattern,
   formatRelativeTime,
   formatRelativeTo,
   formatIso,
@@ -76,6 +127,7 @@ export {
   isDeficitBlockedForAge,
   isMinorAge,
   previewCalorieTarget,
+  previewTargetKcalFromBasics,
 } from './calorie-target';
 
 export {
@@ -234,18 +286,55 @@ export {
   customEntryChipLabel,
   customEntryRows,
   customEntryTotals,
+  copyDayMessage,
+  dailyAllowanceResetTime,
+  entryUnknownMacros,
+  groupByMeal,
+  HERO_LOGGED_HOLD_MS,
+  SCAN_REQUEST_TIMEOUT_MS,
+  SCAN_TIMEOUT_MESSAGE,
   type CustomEntryRow,
   type LoggedMealEntryLike,
 } from './tracker';
 
 export { portionsFor, tableBreakdown, type Portions, type PortionsInput } from './portions';
-export { defaultCookServings, finishMealCopy, guessMealType, parseStepDuration } from './cook-mode';
+export {
+  clampCookServings,
+  cookTimerRemaining,
+  cookTimerStatus,
+  defaultCookServings,
+  finishMealCopy,
+  formatCookTimer,
+  guessMealType,
+  isCookTimer,
+  matchStepIngredients,
+  MAX_COOK_SERVINGS,
+  newCookTimer,
+  parseServingsParam,
+  parseStepDuration,
+  pauseCookTimer,
+  resetCookTimer,
+  startCookTimer,
+  stepIngredientAmounts,
+  type CookIngredient,
+  type CookTimer,
+  type CookTimerStatus,
+  type StepAmount,
+} from './cook-mode';
 export {
   buildPickerSections,
   filterReplaceCandidates,
+  inferMealTypeFromName,
+  pickerRowMeta,
+  pickerSafetyHeader,
+  pickerSafetyHeaderText,
+  rankForSlot,
+  recipeMealTypeHint,
+  slotFitRank,
   type FilterReplaceCandidatesOptions,
   type PickerSection,
   type ReplaceCandidateLike,
+  type SlotMealType,
 } from './recipe-picker';
 export * from './gym';
 export {
@@ -265,16 +354,21 @@ export {
 } from './weight';
 export {
   KCAL_PER_G,
+  INGREDIENT_GRAMS_MAX,
   MACRO_SANITY_TOLERANCE,
   QUICK_ADD_LIMITS,
+  QUICK_ADD_MACRO_KEYS,
   QUICK_ADD_MEAL_TYPES,
   checkMacroSanity,
+  clampIngredientGrams,
   formatQuickAddGrams,
+  maxIngredientGrams,
   parseQuickAdd,
   type MacroSanityResult,
   type QuickAddEntry,
   type QuickAddErrors,
   type QuickAddInput,
+  type QuickAddMacroKey,
   type QuickAddMealType,
   type QuickAddParseResult,
 } from './quick-add';
@@ -292,9 +386,21 @@ export {
 export { RATING_LABELS, composeNotesWithLikedBy, parseLikedBy, stripLikedBy } from './rating';
 export { shoppingWindowLabel } from './shopping-window';
 export {
+  defaultSavedWeekName,
+  dinnersHeadingFor,
+  planCostCoverageLabel,
+  weekRangeLabel,
+  weekRelationLabel,
+  weekRelationTitle,
+} from './plan-week-copy';
+export {
   dayNutritionCaption,
+  dayStatus,
   PLAN_STATUS_LABEL,
   planStatus,
+  remainingPlannedKcal,
+  type DayStatus,
+  type DayStatusResult,
   type PlanStatus,
 } from './day-nutrition';
 export {
@@ -398,8 +504,10 @@ export {
 } from './feedback';
 export {
   ACTIVATION_STEP_COPY,
+  PLAN_WEEK_STEP_COPY,
   SOURCE_FEATURE_PRIORITY,
   activationIntro,
+  activationStepCopy,
   activationStepKeys,
   type ActivationStepCopy,
   type ActivationStepKey,
@@ -469,6 +577,7 @@ export {
 export {
   isValidPlanShape,
   planButtonLabel,
+  householdTableSummary,
   planShapeSummary,
   resolvePlanDays,
   resolvePlanSlots,
@@ -555,6 +664,7 @@ export {
   type PremiumPitchOptions,
 } from './premium-pitch';
 export { tagConflicts, type RecipeTagConflict } from './recipe-tags';
+export { recipeShareText, type ActionRecipe } from './recipe-share';
 export {
   formatFractionalQuantity,
   formatScaledQuantity,
@@ -563,6 +673,7 @@ export {
 } from './scaled-quantity';
 export {
   parseQuantity,
+  sanitizeQuantityInput,
   recipeMissingFields,
   firstIncompleteIngredientLineIndex,
   missingSummary,
@@ -610,8 +721,33 @@ export {
   SERVER_ERROR_MESSAGE,
   isNetworkError,
   isServerError,
+  VALIDATION_ERROR_MESSAGE,
+  describeValidationIssues,
+  humaniseFieldPath,
+  parseIssuesFromMessage,
   userFacingErrorMessage,
 } from './user-facing-error';
+export type { UserFacingErrorOptions, ValidationIssueLike } from './user-facing-error';
+export {
+  DEFAULT_PROGRESS_RANGE,
+  evenLabelIndices,
+  isLoggedDay,
+  PROGRESS_RANGES,
+  type ProgressRange,
+} from './progress-days';
+export { chatActionsTrailer, splitChatActions } from './chat-actions';
+export {
+  CHAT_NOT_SENT_MESSAGE,
+  CHAT_SESSION_EXPIRED_MESSAGE,
+  CHAT_SLOW_DOWN_MESSAGE,
+  CHEF_BUSY_MESSAGE,
+  CHEF_UNAVAILABLE_MESSAGE,
+  chatFailureMessage,
+} from './chat-errors';
+export { getQueryState, isNotFoundError } from './query-state';
+export type { QueryState, QueryStateInput } from './query-state';
+export { shouldNotifyMutationError } from './mutation-errors';
+export type { MutationMetaShape } from './mutation-errors';
 export {
   plannedRowKey,
   sumLogged,

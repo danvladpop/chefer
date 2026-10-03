@@ -34,6 +34,12 @@ export interface LoggedMealEntry {
   protein: number;
   carbs: number;
   fat: number;
+  /**
+   * UX-FOOD-11: macros of a custom entry the user left blank. The numbers
+   * above stay plain 0 (shipped clients read them as numbers; a null would
+   * crash them) — this additive flag says they are unknown, not zero.
+   */
+  unknownMacros?: ('protein' | 'carbs' | 'fat')[] | undefined;
 }
 
 export interface UpsertDailyLogData {

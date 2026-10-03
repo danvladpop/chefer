@@ -62,6 +62,8 @@ export const RECENT_SESSION_DAYS = 84; // 12 weeks
 export const COMEBACK_AFTER_DAYS = 8;
 /** The monthly recap is offered during the first days of a month. */
 export const RECAP_OFFER_DAYS = 7;
+/** UX-GYM-13: a month with fewer sessions than this has nothing worth a recap card. */
+export const RECAP_MIN_SESSIONS = 2;
 
 export class GymBootstrapService {
   constructor(
@@ -148,6 +150,7 @@ export class GymBootstrapService {
       streak,
       offers: this.offers(ctx, progressions, allWeeks, sessionDates, today),
       activePause: this.activePause(pauses, today),
+      upcomingPause: this.upcomingPause(pauses, today),
       carryOver: ctx.profileRow ? readCarryOver(ctx.profileRow.carryOver) : [],
       bodyweightKg: latestWeight?.weightKg ?? null,
       olderBests: summarizeBests(olderRows.map((r) => toSessionSummary(toSessionDoc(r)))),
@@ -193,7 +196,8 @@ export class GymBootstrapService {
    * - deload   engine shouldOfferDeload, once per week, unless a deload is running
    * - stall    an exercise whose engine decision is STALL_SUGGEST_SWAP
    * - comeback the last session is more than COMEBACK_AFTER_DAYS ago
-   * - recap    first RECAP_OFFER_DAYS days of a month, when last month had sessions
+   * - recap    first RECAP_OFFER_DAYS days of a month, when last month had at least
+   *            RECAP_MIN_SESSIONS sessions
    */
   private offers(
     ctx: GymUserContext,
@@ -257,7 +261,7 @@ export class GymBootstrapService {
     const prevMonth = previousMonth(today);
     if (
       Number(today.slice(8, 10)) <= RECAP_OFFER_DAYS &&
-      sessionDates.some((d) => d.startsWith(prevMonth))
+      sessionDates.filter((d) => d.startsWith(prevMonth)).length >= RECAP_MIN_SESSIONS
     ) {
       push({
         kind: 'recap',
@@ -273,6 +277,16 @@ export class GymBootstrapService {
   /** The pause covering `today` (device-local), if any — lets a client end it directly. */
   private activePause(pauses: TrainingPause[], today: string): ActivePauseDto | null {
     const row = pauses.find((p) => p.startDate <= today && today <= p.endDate);
+    return row
+      ? { id: row.id, startDate: row.startDate, endDate: row.endDate, reason: row.reason }
+      : null;
+  }
+
+  /** The soonest pause that starts after `today`, if any (UX-GYM-16: a start choice). */
+  private upcomingPause(pauses: TrainingPause[], today: string): ActivePauseDto | null {
+    const row = pauses
+      .filter((p) => p.startDate > today)
+      .sort((a, b) => a.startDate.localeCompare(b.startDate))[0];
     return row
       ? { id: row.id, startDate: row.startDate, endDate: row.endDate, reason: row.reason }
       : null;

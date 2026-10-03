@@ -3,6 +3,7 @@ import { View } from 'react-native';
 import { Button, Input, SegmentedControl, Sheet, Text, useSnackbar } from '@chefer/ui-mobile';
 import {
   checkMacroSanity,
+  entryUnknownMacros,
   formatQuickAddGrams,
   QUICK_ADD_MEAL_TYPES,
   userFacingErrorMessage,
@@ -41,6 +42,7 @@ interface CustomEntrySnapshot {
   protein: number;
   carbs: number;
   fat: number;
+  unknownMacros?: ('protein' | 'carbs' | 'fat')[];
 }
 
 export interface EditEntrySheetProps {
@@ -83,15 +85,18 @@ export function EditEntrySheet({
         : 'snack',
     );
     setKcal(String(entry.kcal));
+    // UX-FOOD-11: a macro the entry never had shows blank, not "0.0".
+    const unknown = entryUnknownMacros(entry);
     setMacros({
-      protein: formatQuickAddGrams(entry.protein),
-      carbs: formatQuickAddGrams(entry.carbs),
-      fat: formatQuickAddGrams(entry.fat),
+      protein: unknown.includes('protein') ? '' : formatQuickAddGrams(entry.protein),
+      carbs: unknown.includes('carbs') ? '' : formatQuickAddGrams(entry.carbs),
+      fat: unknown.includes('fat') ? '' : formatQuickAddGrams(entry.fat),
     });
     setSanityOverridden(false);
   }, [entry]);
 
   const updateMutation = trpc.tracker.updateCustomMeal.useMutation({
+    meta: { silent: true },
     onSuccess: () => {
       invalidateDayQueries(utils, date);
       snackbar.show({ message: 'Changes saved', tone: 'success' });
@@ -99,10 +104,11 @@ export function EditEntrySheet({
       onClose();
     },
   });
-  const deleteMutation = trpc.tracker.deleteCustomMeal.useMutation();
+  const deleteMutation = trpc.tracker.deleteCustomMeal.useMutation({ meta: { silent: true } });
   // UX-FOOD-06: a failed restore (the Undo) says so, and either way the day
   // is re-read so the screen shows what the server holds.
   const restoreMutation = trpc.tracker.restoreCustomMeal.useMutation({
+    meta: { silent: true },
     onError: (error) =>
       snackbar.show({ message: `Couldn't bring that back. ${userFacingErrorMessage(error)}` }),
     onSettled: () => invalidateDayQueries(utils, date),
@@ -117,13 +123,18 @@ export function EditEntrySheet({
     carbs: Math.max(0, Number(macros.carbs.replace(',', '.')) || 0),
     fat: Math.max(0, Number(macros.fat.replace(',', '.')) || 0),
   };
-  const sanity = sanityOverridden ? null : checkMacroSanity({ kcal: kcalNumber, ...macroNumbers });
+  // Blank macros are unknown, not 0 g (UX-FOOD-11): they are stored as 0, flagged,
+  // and never trip the "don't add up" check.
+  const unknownMacros = MACROS.filter(({ key }) => macros[key].trim() === '').map(({ key }) => key);
+  const sanity = sanityOverridden
+    ? null
+    : checkMacroSanity({ kcal: kcalNumber, ...macroNumbers, unknownMacros });
   const canSave =
     !!entryId && name.trim().length > 0 && kcalNumber > 0 && !updateMutation.isPending;
 
   const save = () => {
     if (!canSave || !entryId) return;
-    if (sanity?.message) return; // Fix / Log anyway gates the submit
+    if (sanity?.message) return; // the sanity line's Save anyway gates the submit
     updateMutation.mutate({
       date,
       entryId,
@@ -134,6 +145,7 @@ export function EditEntrySheet({
       protein: macroNumbers.protein,
       carbs: macroNumbers.carbs,
       fat: macroNumbers.fat,
+      unknownMacros,
     });
   };
 
@@ -151,6 +163,7 @@ export function EditEntrySheet({
       protein: entry.protein,
       carbs: entry.carbs,
       fat: entry.fat,
+      ...(entry.unknownMacros && { unknownMacros: [...entry.unknownMacros] }),
     };
     onClose();
     deleteMutation.mutate(
@@ -193,7 +206,7 @@ export function EditEntrySheet({
                 size="sm"
                 onPress={() => setSanityOverridden(true)}
               >
-                Log anyway
+                Save anyway
               </Button>
             </View>
           )}
@@ -252,13 +265,15 @@ export function EditEntrySheet({
       </View>
 
       <View className="gap-1">
-        <Text className="text-xs font-medium text-gray-600">Macros (grams)</Text>
+        <Text className="text-xs font-medium text-gray-600">Macros (optional, grams)</Text>
         <View className="flex-row gap-2">
           {MACROS.map(({ key, label }) => (
             <View key={key} className="min-w-0 flex-1 gap-1">
+              <Text className="text-xs font-medium text-gray-600">{label} (g)</Text>
               <Input
                 testID={`edit-entry-${key}`}
                 accessibilityLabel={`${label} grams`}
+                placeholder="–"
                 value={macros[key]}
                 keyboardType="decimal-pad"
                 onChangeText={(text) => {

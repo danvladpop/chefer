@@ -12,8 +12,23 @@ import {
 } from '@/features/privacy/components/HealthDeclinedNotice';
 import { useHealthConsent } from '@/features/privacy/use-health-consent';
 import { trpc } from '@/lib/trpc';
-import { bodyMetricsAgeError, type OnboardingJob } from '@chefer/types';
-import { aiConsentRequiredFor, onboardingProgress, onboardingSteps } from '@chefer/utils';
+import {
+  bodyMetricsAgeError,
+  bodyMetricsHeightError,
+  bodyMetricsWeightError,
+  isPlausibleHeightCm,
+  isPlausibleWeightKg,
+  type OnboardingJob,
+} from '@chefer/types';
+import {
+  aiConsentRequiredFor,
+  defaultsForRegion,
+  detectRegion,
+  onboardingProgress,
+  onboardingSteps,
+  previewTargetKcalFromBasics,
+  userFacingErrorMessage,
+} from '@chefer/utils';
 import { EMPTY_WIZARD_DATA, type Goal, type WizardData } from '../types';
 import { StepCuisine } from './step-cuisine';
 import { StepDiet, type StepDietHandle } from './step-diet';
@@ -39,6 +54,19 @@ const EMPTY_HOW_YOU_COOK: HowYouCookStepValue = {
   units: 'METRIC',
   autoPlanWeekly: false,
 };
+
+/**
+ * UX-ONB-04: the device region picks the starting units and currency ONCE, in
+ * the wizard's initial state. The How-you-cook step used to apply it in an
+ * effect every time it mounted, so going Back and forward again overwrote the
+ * user's own pick with the region's.
+ */
+function initialHowYouCook(): HowYouCookStepValue {
+  const { preferredUnits, currency } = defaultsForRegion(
+    detectRegion(typeof navigator === 'undefined' ? [] : navigator.languages),
+  );
+  return { ...EMPTY_HOW_YOU_COOK, units: preferredUnits, currency };
+}
 
 function stepTitle(key: string): string {
   switch (key) {
@@ -90,10 +118,12 @@ export function OnboardingWizard({
   const [jobs, setJobs] = useState<OnboardingJob[]>(askJobs ? [] : initialJobs);
   const [trainingWeekdays, setTrainingWeekdays] = useState<number[]>([]);
   const [trainingDayKinds, setTrainingDayKinds] = useState<Record<number, TrainingDayKind>>({});
-  const [howYouCook, setHowYouCook] = useState<HowYouCookStepValue>(EMPTY_HOW_YOU_COOK);
+  const [howYouCook, setHowYouCook] = useState<HowYouCookStepValue>(initialHowYouCook);
   const [goodFood, setGoodFood] = useState(false);
   const [step, setStep] = useState(1);
   const [error, setError] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+  const savingRef = useRef(false);
   const [data, setData] = useState<WizardData>(initialData);
 
   const steps = onboardingSteps({
@@ -108,18 +138,27 @@ export function OnboardingWizard({
   const stepKey = steps[step - 1] ?? steps[steps.length - 1] ?? 'jobs';
 
   const setJobsMutation = trpc.preferences.setJobs.useMutation({
-    onError: (err) => setError(err.message),
+    meta: { silent: true },
+    onError: (err) => setError(userFacingErrorMessage(err)),
   });
-  const setDayKindsMutation = trpc.training.setDayKinds.useMutation();
-  const setShapeMutation = trpc.mealPlan.setShape.useMutation();
-  const setDisplayPrefsMutation = trpc.preferences.setDisplayPreferences.useMutation();
+  // UX-ONB-09: every save mutation reports through the wizard's own error
+  // line (saveAll's catch), so none of them raises the default toast too.
+  const setDayKindsMutation = trpc.training.setDayKinds.useMutation({ meta: { silent: true } });
+  const setShapeMutation = trpc.mealPlan.setShape.useMutation({ meta: { silent: true } });
+  const setDisplayPrefsMutation = trpc.preferences.setDisplayPreferences.useMutation({
+    meta: { silent: true },
+  });
   const safetyMutation = trpc.preferences.updateSafety.useMutation({
-    onError: (err) => setError(err.message),
+    meta: { silent: true },
+    onError: (err) => setError(userFacingErrorMessage(err)),
   });
   const profileBasicsMutation = trpc.preferences.saveProfileBasics.useMutation({
-    onError: (err) => setError(err.message),
+    meta: { silent: true },
+    onError: (err) => setError(userFacingErrorMessage(err)),
   });
-  const updateTargetsMutation = trpc.preferences.updateTargets.useMutation();
+  const updateTargetsMutation = trpc.preferences.updateTargets.useMutation({
+    meta: { silent: true },
+  });
   // R-18: the first week generates in the background AFTER the wizard has
   // navigated away, so the dashboard cached at navigation time says "nothing
   // planned". Invalidate everything that reads the plan when generation lands.
@@ -140,8 +179,15 @@ export function OnboardingWizard({
 
   function canContinue(): boolean {
     if (stepKey === 'jobs') return jobs.length > 0;
-    // R-02: an age under 16 blocks the body-metrics step until fixed or cleared.
-    if (stepKey === 'metrics') return bodyMetricsAgeError(data.age) === null;
+    // R-02 / UX-ONB-05: an age under 16, or a height/weight outside the plausible
+    // range, blocks the body-metrics step until fixed or cleared.
+    if (stepKey === 'metrics') {
+      return (
+        bodyMetricsAgeError(data.age) === null &&
+        bodyMetricsHeightError(data.heightCm) === null &&
+        bodyMetricsWeightError(data.weightKg) === null
+      );
+    }
     return true; // every later step is independently optional
   }
 
@@ -193,8 +239,11 @@ export function OnboardingWizard({
       ...(!goodFood && data.goal !== null && { goal: data.goal }),
       ...(data.biologicalSex !== null && { biologicalSex: data.biologicalSex }),
       ...(data.age !== null && bodyMetricsAgeError(data.age) === null && { age: data.age }),
-      ...(data.heightCm !== null && data.heightCm > 0 && { heightCm: data.heightCm }),
-      ...(data.weightKg !== null && data.weightKg > 0 && { weightKg: data.weightKg }),
+      // UX-ONB-05: only plausible values are stored ("1,80" must not save 1.8 cm).
+      ...(data.heightCm !== null &&
+        isPlausibleHeightCm(data.heightCm) && { heightCm: data.heightCm }),
+      ...(data.weightKg !== null &&
+        isPlausibleWeightKg(data.weightKg) && { weightKg: data.weightKg }),
       ...(data.activityLevel !== null && { activityLevel: data.activityLevel }),
     };
   }
@@ -216,6 +265,7 @@ export function OnboardingWizard({
    * OTHER answer is still saved and the health fields are left out (AC2).
    */
   function handleFinish(diet: DietAnswers = dietNow) {
+    if (savingRef.current) return;
     setError(null);
     requestHealthConsent(() => void saveAll(true, diet), {
       hasHealthData: hasTerms(diet) || Object.keys(buildBasics()).length > 0,
@@ -227,6 +277,9 @@ export function OnboardingWizard({
   }
 
   async function saveAll(includeHealth: boolean, diet: DietAnswers) {
+    if (savingRef.current) return;
+    savingRef.current = true;
+    setSaving(true);
     setError(null);
     try {
       await setJobsMutation.mutateAsync({
@@ -269,8 +322,13 @@ export function OnboardingWizard({
       }
       generateFirstWeek();
       router.push('/dashboard');
-    } catch {
-      // onError already surfaced the message.
+    } catch (err) {
+      // UX-ONB-09: never swallow — whichever step failed, say so and let the
+      // user press Finish again (every step is idempotent).
+      setError(userFacingErrorMessage(err));
+    } finally {
+      savingRef.current = false;
+      setSaving(false);
     }
   }
 
@@ -344,7 +402,10 @@ export function OnboardingWizard({
 
   const progress = onboardingProgress(steps, step - 1);
   const progressPct = progress.percent ?? 0;
+  // One flag for the whole multi-step save: the individual pending flags drop
+  // between the awaits, which let a second Finish press start a second save.
   const isSubmitting =
+    saving ||
     setJobsMutation.isPending ||
     safetyMutation.isPending ||
     profileBasicsMutation.isPending ||
@@ -383,7 +444,10 @@ export function OnboardingWizard({
       <div className="flex-1 px-4 py-6 sm:py-10">
         <div className="mx-auto max-w-2xl">
           {error && (
-            <div className="mb-6 rounded-md bg-destructive/10 px-4 py-3 text-sm text-destructive">
+            <div
+              role="alert"
+              className="mb-6 rounded-md bg-destructive/10 px-4 py-3 text-sm text-destructive"
+            >
               {error}
             </div>
           )}
@@ -501,7 +565,11 @@ export function OnboardingWizard({
             </div>
           )}
 
-          {stepKey === 'targets' && <TargetsCard />}
+          {stepKey === 'targets' && (
+            <TargetsCard
+              previewKcal={previewTargetKcalFromBasics(data, goodFood ? null : data.goal)}
+            />
+          )}
 
           {stepKey === 'cuisine' && (
             <StepCuisine

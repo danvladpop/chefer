@@ -1,9 +1,10 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest';
-import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { EXERCISE_BY_ID, type WorkoutSessionDoc } from '@chefer/types';
 import { resumeSummary } from '@chefer/utils';
+import { skipRest, startRest } from '../workout/rest-timer';
 import { ResumeBanner } from './ResumeBanner';
 
 // T-36.A1.3 (UX-36 A1, AC9): the web Resume banner shows the elapsed time,
@@ -132,5 +133,25 @@ describe('ResumeBanner (web)', () => {
     );
     expect(screen.getByText(/^LOGGING /)).toBeInTheDocument();
     expect(screen.queryByTestId('gym-resume-elapsed')).toBeNull();
+  });
+
+  // UX-GYM-09: the running rest stays visible when the logger is left.
+  it('shows the running rest countdown and hides it when the rest ends', () => {
+    render(
+      <ResumeBanner
+        session={doc(1, 0, TODAY)}
+        bootstrap={bootstrap}
+        today={TODAY}
+        onResume={vi.fn()}
+      />,
+    );
+    expect(screen.queryByTestId('gym-resume-rest')).toBeNull();
+
+    act(() => startRest(90, 'se1'));
+    expect(screen.getByTestId('gym-resume-rest')).toHaveTextContent(/Rest 1:[23]\d|Rest 1:30/);
+    expect(screen.getByTestId('gym-resume-rest')).not.toHaveAttribute('aria-live');
+
+    act(() => skipRest());
+    expect(screen.queryByTestId('gym-resume-rest')).toBeNull();
   });
 });

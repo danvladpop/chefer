@@ -15,6 +15,9 @@ jest.mock('../../src/lib/trpc', () => ({
       logRecipe: {
         useMutation: () => ({ mutate: jest.fn(), isPending: false, isError: false }),
       },
+      unlogRecipe: {
+        useMutation: () => ({ mutate: jest.fn(), isPending: false, isError: false }),
+      },
     },
   },
 }));

@@ -1,6 +1,6 @@
-import { useState } from 'react';
-import { View } from 'react-native';
-import { Button, Input, Text } from '@chefer/ui-mobile';
+import { useId, useState } from 'react';
+import { Keyboard, View } from 'react-native';
+import { Button, Input, NumericReturnBar, Text } from '@chefer/ui-mobile';
 import { parseBodyWeight, userFacingErrorMessage } from '@chefer/utils';
 import { useUnitSystem } from '../../../hooks/use-unit-system';
 import { trpc } from '../../../lib/trpc';
@@ -13,6 +13,8 @@ import { useHealthConsent } from '../../privacy/use-health-consent';
 export function LogWeightPrompt({ testID = 'log-weight-prompt' }: { testID?: string }) {
   // Typed in the user's unit (backlog P2-6) — sent as kg.
   const system = useUnitSystem();
+  // UX-GYM-34: the decimal pad has no Return key on iOS — give it a Done bar.
+  const barId = `log-weight-numeric-bar-${useId()}`;
   const [value, setValue] = useState('');
   const [error, setError] = useState<string | null>(null);
   const utils = trpc.useUtils();
@@ -28,6 +30,8 @@ export function LogWeightPrompt({ testID = 'log-weight-prompt' }: { testID?: str
       void utils.tracker.weightHistory.invalidate();
     },
     onError: (err) => setError(userFacingErrorMessage(err)),
+    // Shown inline under the field — no default snackbar.
+    meta: { silent: true },
   });
 
   const submit = () => {
@@ -60,6 +64,7 @@ export function LogWeightPrompt({ testID = 'log-weight-prompt' }: { testID?: str
           }}
           onSubmitEditing={submit}
           keyboardType="decimal-pad"
+          inputAccessoryViewID={barId}
           placeholder={`Weight (${system === 'IMPERIAL' ? 'lb' : 'kg'})`}
           className="w-32"
         />
@@ -71,6 +76,12 @@ export function LogWeightPrompt({ testID = 'log-weight-prompt' }: { testID?: str
           Log your weight
         </Button>
       </View>
+      <NumericReturnBar
+        nativeID={barId}
+        testID={`${testID}-numeric-bar`}
+        label="Done"
+        onPress={() => Keyboard.dismiss()}
+      />
       {error && (
         <Text testID={`${testID}-error`} className="text-xs text-red-600">
           {error}

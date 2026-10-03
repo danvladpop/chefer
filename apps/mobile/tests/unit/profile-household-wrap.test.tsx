@@ -20,6 +20,7 @@ jest.mock('../../src/features/premium/use-premium-pitch', () => ({
 }));
 
 jest.mock('expo-router', () => ({
+  useLocalSearchParams: () => ({}),
   router: { back: jest.fn(), push: jest.fn() },
 }));
 
@@ -42,7 +43,9 @@ jest.mock('../../src/lib/trpc', () => ({
         }),
       },
       upgradePlan: { useMutation: () => ({ mutate: jest.fn(), isPending: false }) },
-      downgradePlan: { useMutation: () => ({ mutate: jest.fn(), isPending: false }) },
+      downgradePlan: {
+        useMutation: () => ({ mutate: jest.fn(), reset: jest.fn(), isPending: false }),
+      },
     },
     profile: {
       getAiUsage: { useQuery: () => ({ data: undefined, isLoading: false }) },

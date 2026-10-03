@@ -1,6 +1,6 @@
-import { Alert, Linking } from 'react-native';
+import { Alert, Keyboard, Linking } from 'react-native';
 import { onlineManager } from '@tanstack/react-query';
-import { screen, userEvent, waitFor } from '@testing-library/react-native';
+import { fireEvent, screen, userEvent, waitFor } from '@testing-library/react-native';
 import type { ExerciseDto, SessionSummaryDto } from '@chefer/types';
 import { ExerciseDetailScreen } from '../../src/features/gym/library-screens/exercise-detail-screen';
 import { getExerciseNote } from '../../src/features/gym/library-screens/exercise-notes';
@@ -99,6 +99,48 @@ describe('ExerciseDetailScreen', () => {
     expect(screen.queryByTestId('exercise-detail-blurb')).toBeNull();
   });
 
+  // UX-GYM-33: the history chart is captioned and dated, the load types read
+  // right, "Last 1 sessions" is singular and dates are not ISO strings.
+  it('your history: caption, dated chart ends, load types, singular label, Intl dates', async () => {
+    const assisted: ExerciseDto = {
+      ...makeExercise('assist-pullup', 'Assisted Pull-up'),
+      loadType: 'ASSISTED',
+    };
+    const one: SessionSummaryDto = {
+      id: uuid(1),
+      name: 'Pull Day',
+      routineDayId: null,
+      status: 'COMPLETED',
+      localDate: '2026-09-10',
+      startedAt: '2026-09-10T08:00:00.000Z',
+      finishedAt: '2026-09-10T08:45:00.000Z',
+      isDeload: false,
+      exercises: [
+        {
+          exerciseId: 'assist-pullup',
+          skipped: false,
+          lastSetRir: 1,
+          sets: [{ weightKg: 25, reps: 8, isWarmup: false, completed: true }],
+        },
+      ],
+    };
+    const queryClient = makeGymQueryClient();
+    queryClient.setQueryData(
+      gymBootstrapQueryKey,
+      makeBootstrap({ library: [assisted], recentSessions: [one] }),
+    );
+    await renderWithGym(<ExerciseDetailScreen exerciseId="assist-pullup" />, queryClient);
+
+    expect(await screen.findByTestId('exercise-detail-e1rm-caption')).toHaveTextContent(
+      /Estimated 1-rep max/,
+    );
+    expect(screen.getByTestId('exercise-detail-best-sets')).toHaveTextContent(/25 kg assist × 8/);
+    expect(screen.getByText('Last session')).toBeTruthy();
+    expect(screen.queryByText(/Last 1 sessions/)).toBeNull();
+    expect(screen.queryByText('2026-09-10')).toBeNull();
+    expect(screen.queryByText(/2026-09-10/)).toBeNull();
+  });
+
   it('shows the embedded player when online', async () => {
     const user = userEvent.setup();
     const queryClient = makeGymQueryClient();
@@ -192,11 +234,12 @@ describe('ExerciseDetailScreen', () => {
     await renderWithGym(<ExerciseDetailScreen exerciseId="my-curl" />, queryClient);
 
     await user.press(await screen.findByTestId('exercise-detail-archive'));
-    expect(Alert.alert).toHaveBeenCalledWith(
-      'Archive this exercise?',
-      expect.any(String),
-      expect.any(Array),
+    // X-13: a ConfirmSheet (with busy / error states), not a native Alert.
+    expect(Alert.alert).not.toHaveBeenCalled();
+    expect(await screen.findByTestId('exercise-detail-archive-confirm-body')).toHaveTextContent(
+      /stays in past sessions/,
     );
+    expect(screen.getByTestId('exercise-detail-archive-confirm-confirm')).toBeOnTheScreen();
   });
 
   it('lists recent sessions for this exercise and opens one on tap', async () => {
@@ -241,5 +284,29 @@ describe('ExerciseDetailScreen', () => {
     await user.type(note, 'Keep elbows tucked');
 
     await waitFor(() => expect(getExerciseNote('bench')).toBe('Keep elbows tucked'));
+  });
+
+  // WP-03 lane C (UX-GYM-35): the note is keyboard-aware — it grows, scrolls
+  // itself clear on focus, and a sticky Done bar appears while it is focused.
+  it('keeps the note keyboard-aware: multiline, labelled, sticky Done while focused', async () => {
+    const user = userEvent.setup();
+    const queryClient = makeGymQueryClient();
+    queryClient.setQueryData(gymBootstrapQueryKey, makeBootstrap({ library: [withVideo()] }));
+    await renderWithGym(<ExerciseDetailScreen exerciseId="bench" />, queryClient);
+
+    const note = await screen.findByTestId('exercise-detail-note');
+    expect(note.props.multiline).toBe(true);
+    expect(note.props.accessibilityLabel).toBe('Your notes');
+    expect(screen.queryByTestId('exercise-detail-note-done')).toBeNull();
+
+    await fireEvent(note, 'focus');
+    const done = await screen.findByTestId('exercise-detail-note-done');
+    const dismiss = jest.spyOn(Keyboard, 'dismiss').mockImplementation(() => undefined);
+    await user.press(done);
+    expect(dismiss).toHaveBeenCalled();
+
+    await fireEvent(note, 'blur');
+    expect(screen.queryByTestId('exercise-detail-note-done')).toBeNull();
+    dismiss.mockRestore();
   });
 });

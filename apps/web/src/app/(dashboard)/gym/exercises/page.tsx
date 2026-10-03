@@ -2,9 +2,12 @@
 
 import Link from 'next/link';
 import { useMemo, useState } from 'react';
+import { ArchivedExercises } from '@/features/gym/library/ArchivedExercises';
+import { canOfferCreate, createExerciseHref } from '@/features/gym/library/create-exercise-href';
 import { ExerciseCard } from '@/features/gym/library/ExerciseCard';
 import { FilterChip } from '@/features/gym/library/FilterChip';
 import {
+  archivedCustomExercises,
   DEFAULT_LIBRARY_FILTERS,
   EQUIPMENT_OPTIONS,
   filterExercises,
@@ -14,6 +17,7 @@ import {
 import { useGymBootstrap } from '@/features/gym/use-gym-bootstrap';
 import { useHasMounted } from '@/hooks/useHasMounted';
 import { Plus, Search } from 'lucide-react';
+import { ErrorState } from '@chefer/ui';
 
 function ExercisesSkeleton() {
   return (
@@ -27,12 +31,17 @@ function ExercisesSkeleton() {
 
 export default function GymExercisesPage() {
   const hasMounted = useHasMounted();
-  const { data: bootstrap, isLoading } = useGymBootstrap();
+  const { data: bootstrap, isLoading, isError, refetch, isRefetching } = useGymBootstrap();
   const [filters, setFilters] = useState<LibraryFilters>(DEFAULT_LIBRARY_FILTERS);
 
   const results = useMemo(
     () => filterExercises(bootstrap?.library ?? [], filters),
     [bootstrap?.library, filters],
+  );
+
+  const archived = useMemo(
+    () => archivedCustomExercises(bootstrap?.library ?? [], filters.query),
+    [bootstrap?.library, filters.query],
   );
 
   const setQuery = (query: string) => setFilters((f) => ({ ...f, query }));
@@ -120,12 +129,32 @@ export default function GymExercisesPage() {
 
       {isLoading ? (
         <ExercisesSkeleton />
+      ) : isError && !bootstrap ? (
+        // UX-GYM-24: a failed load is an error with Retry, never "No exercises match".
+        <div data-testid="gym-exercises-error">
+          <ErrorState
+            title="Couldn’t load the exercises"
+            onRetry={() => void refetch()}
+            retrying={isRefetching}
+          />
+        </div>
       ) : results.length === 0 ? (
         <div className="rounded-2xl border bg-white p-8 text-center text-sm text-neutral-500">
           No exercises match. Try another search, or{' '}
-          <Link href="/gym/exercises/new" className="text-[#944a00] hover:underline">
-            create a custom one
-          </Link>
+          {/* UX-GYM-21: nothing matched — offer to create it, pre-filled. */}
+          {canOfferCreate(filters.query) && !filters.mineOnly ? (
+            <Link
+              href={createExerciseHref(filters.query)}
+              data-testid="exercises-empty-create-from-search"
+              className="font-medium text-[#944a00] hover:underline"
+            >
+              {`create “${filters.query.trim()}”`}
+            </Link>
+          ) : (
+            <Link href="/gym/exercises/new" className="text-[#944a00] hover:underline">
+              create a custom one
+            </Link>
+          )}
           .
         </div>
       ) : (
@@ -135,6 +164,8 @@ export default function GymExercisesPage() {
           ))}
         </div>
       )}
+
+      <ArchivedExercises rows={archived} />
     </div>
   );
 }

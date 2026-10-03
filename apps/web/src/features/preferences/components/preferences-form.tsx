@@ -8,9 +8,23 @@ import { useHealthConsent } from '@/features/privacy/use-health-consent';
 import { SafetyReviewCard } from '@/features/safety/components/SafetyReviewCard';
 import { capture } from '@/lib/analytics';
 import { trpc } from '@/lib/trpc';
-import { bodyMetricsAgeError, HEALTH_CONSENT_COPY, type DisplayCurrency } from '@chefer/types';
+import {
+  bodyMetricsAgeError,
+  bodyMetricsHeightError,
+  bodyMetricsWeightError,
+  HEALTH_CONSENT_COPY,
+  isPlausibleHeightCm,
+  isPlausibleWeightKg,
+  type DisplayCurrency,
+} from '@chefer/types';
 import { Toast } from '@chefer/ui';
-import { fromEur, toDisplayCurrency, toEur } from '@chefer/utils';
+import {
+  fromEur,
+  parseWeeklyBudget,
+  toDisplayCurrency,
+  toEur,
+  userFacingErrorMessage,
+} from '@chefer/utils';
 import type { ChefProfileData, DietaryPreferencesData } from '../types';
 import { BudgetSection } from './budget-section';
 import { HouseholdSection } from './household-section';
@@ -95,12 +109,14 @@ export function PreferencesForm({
 
   // Safety (allergies/restrictions/dislikes) and display units/currency save
   // through free procedures; everything else is premium-only updateTargets.
-  const safetyMutation = trpc.preferences.updateSafety.useMutation();
+  const safetyMutation = trpc.preferences.updateSafety.useMutation({ meta: { silent: true } });
   // UX-ACC-01: a term typed in "Something else?" but never added with "Add" is
   // flushed into the saved value on Save instead of being dropped.
   const safetyPickerRef = useRef<StepDietHandle>(null);
-  const displayMutation = trpc.preferences.setDisplayPreferences.useMutation();
-  const targetsMutation = trpc.preferences.updateTargets.useMutation();
+  const displayMutation = trpc.preferences.setDisplayPreferences.useMutation({
+    meta: { silent: true },
+  });
+  const targetsMutation = trpc.preferences.updateTargets.useMutation({ meta: { silent: true } });
   const isSaving =
     safetyMutation.isPending || displayMutation.isPending || targetsMutation.isPending;
 
@@ -116,6 +132,8 @@ export function PreferencesForm({
     // recipe pages) via preferences.get — refresh those caches immediately
     void utils.preferences.get.invalidate();
     void utils.dashboard.invalidate();
+    // UX-ACC-21: the suggested targets follow the goal and body just saved.
+    void utils.targets.invalidate();
     void utils.mealPlan.invalidate();
     // A unit change also moves the gym's kg/lb (one preference, P2-6).
     if (data.preferredUnits !== initialUnits) void utils.gym.invalidate();
@@ -156,7 +174,12 @@ export function PreferencesForm({
     // R-02: no body metrics under 16 — the server would reject it anyway, but
     // say so here, before the consent sheet, and keep everything else unsaved
     // until the age is fixed or cleared.
-    const ageError = isPremium ? bodyMetricsAgeError(data.age) : null;
+    // UX-ONB-05: the same for a height or weight outside the plausible range.
+    const ageError = isPremium
+      ? (bodyMetricsAgeError(data.age) ??
+        bodyMetricsHeightError(data.heightCm) ??
+        bodyMetricsWeightError(data.weightKg))
+      : null;
     if (ageError !== null) {
       setToast({ message: ageError, type: 'error' });
       return;
@@ -195,6 +218,12 @@ export function PreferencesForm({
     safety: { dietaryRestrictions: string[]; allergies: string[]; dislikedIngredients: string[] },
   ) {
     if (isSaving) return;
+    // UX-ACC-23: a bad budget is shown inline and nothing is saved.
+    const budget = parseWeeklyBudget(data.weeklyBudget, data.deliveryCurrency);
+    if (isPremium && budget.kind === 'error') {
+      setToast({ message: budget.message, type: 'error' });
+      return;
+    }
     try {
       if (includeHealth) {
         await safetyMutation.mutateAsync(safety);
@@ -216,24 +245,22 @@ export function PreferencesForm({
             bodyMetricsAgeError(data.age) === null && { age: data.age }),
           ...(includeHealth &&
             data.heightCm !== null &&
-            data.heightCm > 0 && { heightCm: data.heightCm }),
+            isPlausibleHeightCm(data.heightCm) && { heightCm: data.heightCm }),
           ...(includeHealth &&
             data.weightKg !== null &&
-            data.weightKg > 0 && { weightKg: data.weightKg }),
+            isPlausibleWeightKg(data.weightKg) && { weightKg: data.weightKg }),
           ...(includeHealth &&
             data.activityLevel !== null && { activityLevel: data.activityLevel }),
           cuisinePreferences: data.cuisinePreferences,
           mealsPerDay: data.mealsPerDay,
           deliveryAddress: data.deliveryAddress || null,
-          weeklyBudgetEur: data.weeklyBudget.trim()
-            ? Math.min(2000, toEur(Number(data.weeklyBudget), data.deliveryCurrency))
-            : null,
+          weeklyBudgetEur: budget.kind === 'ok' ? budget.eur : null,
         });
       }
       onSaved(!includeHealth);
     } catch (err) {
       setToast({
-        message: err instanceof Error ? err.message : 'Failed to save preferences.',
+        message: userFacingErrorMessage(err, 'Failed to save preferences.'),
         type: 'error',
       });
     }

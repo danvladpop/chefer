@@ -30,6 +30,7 @@ import { trpc } from '@/lib/trpc';
 import { uploadImage } from '@/lib/upload-image';
 import { ArrowLeft, Plus, Sparkles, Trash2, Upload, X } from 'lucide-react';
 import { CUISINE_PRESETS } from '@chefer/types';
+import { userFacingErrorMessage } from '@chefer/utils';
 
 // ─── Presets (T-40.6: CUISINE_PRESETS moved to @chefer/types, shared with mobile) ──
 
@@ -128,7 +129,7 @@ export default function NewRecipePage() {
       setImageUrl(url);
       setImageSource('upload');
     } catch (err) {
-      setUploadError(err instanceof Error ? err.message : 'Upload failed');
+      setUploadError(userFacingErrorMessage(err, 'Upload failed'));
     } finally {
       setUploading(false);
     }
@@ -136,6 +137,7 @@ export default function NewRecipePage() {
 
   // ── Mutation ───────────────────────────────────────────────────────────────
   const createMutation = trpc.recipe.create.useMutation({
+    meta: { silent: true },
     onSuccess: () => {
       router.push('/recipes?tab=my');
     },
@@ -563,7 +565,7 @@ export default function NewRecipePage() {
               role="alert"
               className="mb-3 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600"
             >
-              {createMutation.error.message}
+              {userFacingErrorMessage(createMutation.error)}
             </p>
           )}
 
@@ -576,10 +578,15 @@ export default function NewRecipePage() {
             </Link>
             <button
               type="submit"
-              disabled={createMutation.isPending}
+              // UX-REC-12: a Save mid-upload would store the recipe without its photo.
+              disabled={createMutation.isPending || uploading}
               className="flex min-h-11 items-center justify-center rounded-xl bg-[#944a00] px-6 text-sm font-semibold text-white transition-colors hover:bg-[#7a3d00] disabled:opacity-60"
             >
-              {createMutation.isPending ? 'Saving…' : 'Save Recipe'}
+              {createMutation.isPending
+                ? 'Saving…'
+                : uploading
+                  ? 'Uploading photo…'
+                  : 'Save Recipe'}
             </button>
           </div>
         </div>

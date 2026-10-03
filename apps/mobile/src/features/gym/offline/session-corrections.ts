@@ -346,7 +346,9 @@ export async function saveEditedSession(args: {
       ? {
           sessionId: doc.id,
           kind: 'edit',
-          localDate: original.localDate,
+          // UX-GYM-32: the edited date — the user may have moved the session to
+          // another day, and "Because you edited Tuesday's sets" must name that one.
+          localDate: doc.localDate,
           before: snapshotTargets(before.progressions, touchedExerciseIds(original, doc)),
           syncedAt: null,
         }

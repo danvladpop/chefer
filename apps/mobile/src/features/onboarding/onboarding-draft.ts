@@ -51,6 +51,8 @@ export const onboardingDraftSchema = z.object({
     .catch(null),
   ageText: z.string().catch(''),
   heightText: z.string().catch(''),
+  // UX-ONB-05: the inches beside imperial feet. Absent in drafts written by 1.0.1.
+  inchesText: z.string().optional().catch(undefined),
   weightText: z.string().catch(''),
   safety: z
     .object({

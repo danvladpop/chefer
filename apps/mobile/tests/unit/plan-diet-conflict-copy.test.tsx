@@ -93,8 +93,8 @@ describe('diet conflict copy', () => {
         }}
       />,
     );
-    // Only the verified rule counts: "Checked for 1", not 2.
-    expect(screen.getByText('Checked for 1')).toBeOnTheScreen();
-    expect(screen.queryByText('Checked for 2')).toBeNull();
+    // Only the verified rule counts: "1 check passed", not 2.
+    expect(screen.getByText('1 check passed')).toBeOnTheScreen();
+    expect(screen.queryByText('2 checks passed')).toBeNull();
   });
 });

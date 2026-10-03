@@ -191,6 +191,13 @@ export interface RecipeDto {
    */
   previousRecipeId?: string;
   /**
+   * UX-PLAN-04: on the same responses, whether the slot that was replaced was
+   * pinned ("Your pick"). Undo passes it back as `replaceRecipe.pinned` so an
+   * undone swap no longer leaves the restored dish pinned. Present (true)
+   * only when the slot WAS pinned; additive.
+   */
+  previousPinned?: boolean;
+  /**
    * §2.2, T-02.1: which of the table's safety rules this recipe passes/fails
    * — the plan-surface `Checked` chip / conflict line. Present only when the
    * table has rules (SafetyService.check's caller only attaches it then, so
@@ -216,6 +223,11 @@ export interface RecipeDto {
   origin?: RecipeAttribution['origin'];
   hidden?: RecipeAttribution['hidden'];
   sourceUrl?: string;
+  /**
+   * UX-REC-04 (`mealPlan.getRecipe` only): the owner deleted this recipe but a
+   * plan slot still holds it — shown as a tombstone. Omitted when live.
+   */
+  deleted?: true;
 }
 
 export type AddRecipeToWeekInput = z.infer<typeof addRecipeToWeekInputSchema>;
@@ -263,6 +275,12 @@ export interface MealSlotDto {
 export interface DayPlanDto {
   dayOfWeek: number;
   meals: MealSlotDto[];
+  /**
+   * UX-PLAN-11: ids of the recipes the user logged as eaten on this day.
+   * Only `getById` (the past-week view) fills it, so a past week can show what
+   * was actually eaten next to what was planned. Additive; absent = none.
+   */
+  loggedRecipeIds?: string[];
   /**
    * P1-1: grams the day's portioned protein falls short of the user's target,
    * present only when meaningfully short (under 90% and ≥ 10 g). Clients show
@@ -2256,6 +2274,7 @@ export class MealPlanService {
       ...decorateRecipeDto(rowToRecipeDto(row), rowToRecipeData(row), ctx),
       ...attribution,
       ...(row.sourceUrl && { sourceUrl: row.sourceUrl }),
+      ...(row.deletedAt != null && { deleted: true as const }),
       ...(nutritionLines.length > 0 && { nutritionLines }),
     };
   }
@@ -2325,6 +2344,7 @@ export class MealPlanService {
     // Find the current recipe name in the plan day
     const slot = slotAt(plan, dayOfWeek, slotIndex);
     const previousRecipeId = slot?.recipeId;
+    const previousPinned = slot?.pinned === true;
     const currentRecipe = slot ? await this.repo.findRecipeById(slot.recipeId) : null;
 
     // Call AI swap (catalog slugs, no nutrition — plan-ingredient-catalog §6.3)
@@ -2425,6 +2445,7 @@ export class MealPlanService {
       // T-08.6: the default this wave is commit + Undo (no preview) — the
       // client offers Undo by calling `replaceRecipe` back to this id.
       ...(previousRecipeId && { previousRecipeId }),
+      ...(previousRecipeId && previousPinned && { previousPinned }),
     };
   }
 
@@ -2487,6 +2508,7 @@ export class MealPlanService {
         ctx,
       ),
       ...(slot?.recipeId && { previousRecipeId: slot.recipeId }),
+      ...(slot?.recipeId && slot.pinned === true && { previousPinned: true }),
     };
   }
 
@@ -2511,6 +2533,12 @@ export class MealPlanService {
     recipeId: string,
     requestedSlotIndex?: number,
     acknowledgeConflict?: boolean,
+    /**
+     * UX-PLAN-04: whether the slot becomes "Your pick". Default true (a manual
+     * Replace is a deliberate choice); Undo passes the PREVIOUS pinned state so
+     * a swap that is undone doesn't leave the slot pinned.
+     */
+    pinned = true,
   ): Promise<RecipeDto> {
     const plan = await this.repo.findByIdForUser(userId, planId);
     if (!plan) {
@@ -2557,12 +2585,15 @@ export class MealPlanService {
       recipe.id,
       keepPortion !== 1 ? keepPortion : undefined,
       slotIndex ?? undefined,
-      true,
+      pinned,
     );
 
     return {
       ...decorateRecipeDto(rowToRecipeDto(recipe), rowToRecipeData(recipe), ctx),
       ...(previousRecipeId && previousRecipeId !== recipe.id && { previousRecipeId }),
+      ...(previousRecipeId &&
+        previousRecipeId !== recipe.id &&
+        currentSlot?.pinned === true && { previousPinned: true }),
     };
   }
 
@@ -3101,7 +3132,13 @@ export class MealPlanService {
     });
   }
 
-  async restore(userId: string, planId: string): Promise<WeekPlanDto> {
+  /**
+   * Brings a plan back as a fresh copy. By default into its own week (the
+   * original behaviour: Undo after Regenerate relies on it); with `weekOffset`
+   * into this (0) or next (1) week instead — "Use this week again" (UX-PLAN-11),
+   * since a past week could only ever be restored into its own past week.
+   */
+  async restore(userId: string, planId: string, weekOffset?: 0 | 1): Promise<WeekPlanDto> {
     // Ownership check via a single indexed lookup (previously a 100-row scan)
     const target = await this.repo.findByIdForUser(userId, planId);
     if (!target) {
@@ -3121,12 +3158,15 @@ export class MealPlanService {
       dayOfWeek: d.dayOfWeek,
       meals: d.meals as PlanMealSlotJson[],
     }));
+    const intoOtherWeek = weekOffset !== undefined;
     const restored = await this.repo.createPlan({
       userId,
-      weekStartDate: target.weekStartDate,
+      weekStartDate: intoOtherWeek ? getMondayOfWeek(weekOffset) : target.weekStartDate,
       days,
       recipeIds: [...new Set(days.flatMap((d) => d.meals.map((m) => m.recipeId)))],
-      carryShoppingFromPlanId: target.id,
+      // Ticks belong to the week they were made in; a copy for another week
+      // inherits from whatever plan it replaces there instead.
+      ...(!intoOtherWeek && { carryShoppingFromPlanId: target.id }),
     });
 
     return this.assemblePlanDto({ ...restored, days: target.days }, userId);
@@ -3137,7 +3177,47 @@ export class MealPlanService {
     if (!plan) {
       throw new TRPCError({ code: 'NOT_FOUND', message: 'Plan not found.' });
     }
-    return this.assemblePlanDto(plan, userId, view);
+    const dto = await this.assemblePlanDto(plan, userId, view);
+    return this.withLoggedMeals(userId, plan.weekStartDate, dto);
+  }
+
+  /**
+   * UX-PLAN-11: marks, per day, which planned recipes were logged as eaten —
+   * the past-week view shows what happened, not only what was planned. A
+   * failed log read just leaves the plan as it is.
+   */
+  private async withLoggedMeals(
+    userId: string,
+    weekStartDate: Date,
+    dto: WeekPlanDto,
+  ): Promise<WeekPlanDto> {
+    try {
+      const logged = await Promise.all(
+        dto.days.map(async (d) => {
+          // `weekStartDate` is the Monday at LOCAL midnight; a log is keyed by the
+          // local calendar day at UTC midnight — so build it from the local parts.
+          const date = new Date(
+            Date.UTC(
+              weekStartDate.getFullYear(),
+              weekStartDate.getMonth(),
+              weekStartDate.getDate() + d.dayOfWeek,
+            ),
+          );
+          return [d.dayOfWeek, await this.tailoringRepo.findLoggedRecipeIds(userId, date)] as const;
+        }),
+      );
+      const byDay = new Map(logged);
+      return {
+        ...dto,
+        days: dto.days.map((d) => {
+          const ids = [...new Set(byDay.get(d.dayOfWeek) ?? [])];
+          return ids.length > 0 ? { ...d, loggedRecipeIds: ids } : d;
+        }),
+      };
+    } catch (err) {
+      console.warn('[meal-plan] could not read the log for the past-week view', err);
+      return dto;
+    }
   }
 }
 

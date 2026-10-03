@@ -22,8 +22,17 @@ vi.mock('@/lib/recipe-image', () => ({ getRecipeImageProps: () => ({ src: '/x.jp
 vi.mock('@/features/safety/components/CheckedForChip', () => ({
   CheckedForChip: () => null,
 }));
+let mockExisting: { rating: number; notes: string | null } | null = null;
+vi.mock('@/features/recipe/components/StarRatingWidget', () => ({
+  StarRatingWidget: ({ recipeId }: { recipeId: string }) => (
+    <div data-testid="star-rating-widget" data-recipe={recipeId} />
+  ),
+}));
 vi.mock('@/lib/trpc', () => ({
   trpc: {
+    recipe: {
+      getMyRating: { useQuery: () => ({ data: mockExisting, isLoading: false }) },
+    },
     useUtils: () => ({
       dashboard: { summary: { invalidate: vi.fn() } },
       tracker: { getDay: { invalidate: vi.fn() }, weeklySummary: { invalidate: vi.fn() } },
@@ -36,7 +45,10 @@ vi.mock('@/lib/trpc', () => ({
   },
 }));
 
-afterEach(cleanup);
+afterEach(() => {
+  cleanup();
+  mockExisting = null;
+});
 
 const meal = {
   planId: 'plan-1',
@@ -57,11 +69,21 @@ const meal = {
 };
 
 describe('TonightCard — Swap (T-04.7 delta)', () => {
-  it('without onSwap, Swap is a plain link to /meal-plan', () => {
-    render(<TonightCard meal={meal} showNutrition={false} onLogged={vi.fn()} />);
-    const swap = screen.getByTestId('tonight-swap');
-    expect(swap.tagName).toBe('A');
-    expect(swap.getAttribute('href')).toBe('/meal-plan');
+  // UX-FOOD-18: on Friday/Saturday evenings Plan defaults to NEXT week, so the
+  // link names this week and today's weekday (Monday = 0).
+  it.each([
+    ['Friday evening', new Date(2026, 8, 4, 19, 0), 4],
+    ['Sunday evening', new Date(2026, 8, 6, 19, 0), 6],
+  ])('without onSwap, Swap links to THIS week and today (%s)', (_name, now, day) => {
+    vi.useFakeTimers({ now });
+    try {
+      render(<TonightCard meal={meal} showNutrition={false} onLogged={vi.fn()} />);
+      const swap = screen.getByTestId('tonight-swap');
+      expect(swap.tagName).toBe('A');
+      expect(swap.getAttribute('href')).toBe(`/meal-plan?week=0&day=${day}`);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it('with onSwap, Swap is a button that fires it instead of navigating', () => {
@@ -72,5 +94,24 @@ describe('TonightCard — Swap (T-04.7 delta)', () => {
 
     fireEvent.click(swap);
     expect(onSwap).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('TonightCard — Rate it (UX-FOOD-04)', () => {
+  const done = { ...meal, done: true };
+
+  it('opens the rating widget inline and drops the link', () => {
+    render(<TonightCard meal={done} showNutrition={false} onLogged={vi.fn()} />);
+    expect(screen.queryByTestId('star-rating-widget')).toBeNull();
+    fireEvent.click(screen.getByTestId('tonight-rate-it'));
+    expect(screen.getByTestId('star-rating-widget').getAttribute('data-recipe')).toBe('recipe-1');
+    expect(screen.queryByTestId('tonight-rate-it')).toBeNull();
+  });
+
+  it('shows no link once the dinner has a rating', () => {
+    mockExisting = { rating: 4, notes: null };
+    render(<TonightCard meal={done} showNutrition={false} onLogged={vi.fn()} />);
+    expect(screen.getByTestId('tonight-card-done')).toBeTruthy();
+    expect(screen.queryByTestId('tonight-rate-it')).toBeNull();
   });
 });

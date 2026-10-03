@@ -1,22 +1,46 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { TextInput } from 'react-native';
-import { Button, Card, Text } from '@chefer/ui-mobile';
+import { Button, Card, Text, useScrollFieldIntoView } from '@chefer/ui-mobile';
 import { cn, FEEDBACK_MAX_LENGTH, feedbackCounter, userFacingErrorMessage } from '@chefer/utils';
 import { trpc } from '../../lib/trpc';
+import { buildFeedbackContext, useFeedbackRoute } from './feedback-context';
 
 // Beta feedback — mobile counterpart of web's FeedbackDialog (M2-10). The
 // field is labelled and counts against the API's 2,000-character cap
 // (F-PROF-2-2): it used to stop silently — or, here, fail on send.
-export function FeedbackCard() {
-  const [message, setMessage] = useState('');
+// UX-PO-05: each submission carries the build, OS and current screen. `bare`
+// drops the card chrome + heading so the form can live inside a Sheet (the
+// Gym-mode entry); `onSent` lets that host close itself.
+export function FeedbackCard({
+  bare = false,
+  initialMessage = '',
+  onSent,
+}: {
+  bare?: boolean;
+  initialMessage?: string;
+  onSent?: () => void;
+} = {}) {
+  const [message, setMessage] = useState(initialMessage);
+  const route = useFeedbackRoute();
   const submitMutation = trpc.feedback.submit.useMutation({
-    onSuccess: () => setMessage(''),
+    meta: { silent: true },
+    onSuccess: () => {
+      setMessage('');
+      onSent?.();
+    },
   });
   const counter = feedbackCounter(message.length);
+  // UX-ACC-25: on focus the field scrolls clear of the keyboard (no-op outside
+  // a KeyboardAwareScrollView), keeping Send reachable right below it.
+  const inputRef = useRef<TextInput>(null);
+  const scrollFieldIntoView = useScrollFieldIntoView();
 
   return (
-    <Card testID="feedback-card" className="gap-2">
-      <Text variant="heading">Feedback</Text>
+    <Card
+      testID="feedback-card"
+      className={cn('gap-2', bare && 'border-0 bg-transparent p-0 shadow-none')}
+    >
+      {bare ? null : <Text variant="heading">Feedback</Text>}
       <Text variant="muted" className="text-xs">
         Something broken, confusing, or missing? Tell us — it goes straight to the team.
       </Text>
@@ -25,6 +49,8 @@ export function FeedbackCard() {
       </Text>
       <TextInput
         testID="feedback-input"
+        ref={inputRef}
+        onFocus={() => scrollFieldIntoView(inputRef.current)}
         value={message}
         onChangeText={setMessage}
         maxLength={FEEDBACK_MAX_LENGTH}
@@ -54,10 +80,12 @@ export function FeedbackCard() {
       <Button
         testID="feedback-submit"
         variant="outline"
+        // UX-ACC-25: an empty Send used to do nothing, silently.
+        disabled={!message.trim() || submitMutation.isPending}
         loading={submitMutation.isPending}
         onPress={() => {
           if (message.trim()) {
-            submitMutation.mutate({ message: message.trim(), path: 'mobile/more' });
+            submitMutation.mutate({ message: message.trim(), ...buildFeedbackContext(route) });
           }
         }}
       >

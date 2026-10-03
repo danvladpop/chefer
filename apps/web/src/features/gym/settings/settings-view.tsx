@@ -6,8 +6,20 @@ import { capture } from '@/lib/analytics';
 import { trpc } from '@/lib/trpc';
 import { AlertTriangle, ArrowLeft, Copy, PauseCircle, RotateCw, Trash2 } from 'lucide-react';
 import type { ActivePauseDto, GymProfileDto, WeightUnit } from '@chefer/types';
-import { Button, Input, Sheet } from '@chefer/ui';
-import { addDaysLocal, cn, formatLoadNumber, unitLabel, WELLNESS_COPY } from '@chefer/utils';
+import { Button, ErrorState, Input, Sheet } from '@chefer/ui';
+import {
+  cn,
+  formatLoadNumber,
+  PAUSE_EXPLAINER,
+  PAUSE_START_CHOICES,
+  pauseEndDate,
+  pauseStartDate,
+  pauseSummaryLine,
+  unitLabel,
+  userFacingErrorMessage,
+  WELLNESS_COPY,
+  type PauseStartChoice,
+} from '@chefer/utils';
 import { shortDate } from '../shared/format';
 import { CardLabel, GymCard, GymSkeleton } from '../shared/gym-card';
 import { Stepper } from '../shared/stepper';
@@ -21,6 +33,7 @@ import {
   plateChoices,
   type InventoryDraft,
 } from './inventory';
+import { useSaveGymProfile } from './use-save-gym-profile';
 
 // ─── Gym settings (gym_plan.md §5.1 settings) ─────────────────────────────────
 // Units, weekly goal, equipment inventory, reminders (stored only — the web
@@ -28,7 +41,7 @@ import {
 // outbox's "needs attention" entries (Copy / Retry / Discard).
 
 export function SettingsView() {
-  const { data, today, ready } = useGymData();
+  const { data, today, ready, isError, refetch } = useGymData();
   const status = useOutboxStatus();
 
   return (
@@ -51,7 +64,10 @@ export function SettingsView() {
           </p>
         )}
 
-        {!ready || !data ? (
+        {isError ? (
+          // UX-GYM-24: a failed load is an error with Retry, never an endless skeleton.
+          <ErrorState title="Couldn’t load your settings" onRetry={() => void refetch()} />
+        ) : !ready || !data ? (
           <GymSkeleton rows={3} />
         ) : !data.profile ? (
           <GymCard>
@@ -67,6 +83,7 @@ export function SettingsView() {
             today={today}
             paused={data.weeks[data.weeks.length - 1]?.status === 'paused'}
             activePause={data.activePause}
+            upcomingPause={data.upcomingPause ?? null}
           />
         )}
       </div>
@@ -79,20 +96,20 @@ function ProfileSettings({
   today,
   paused,
   activePause,
+  upcomingPause,
 }: {
   profile: GymProfileDto;
   today: string;
   paused: boolean;
   activePause: ActivePauseDto | null;
+  upcomingPause: ActivePauseDto | null;
 }) {
-  const utils = trpc.useUtils();
   const unit = profile.unit;
   const [saved, setSaved] = useState<string | null>(null);
-  const save = trpc.gym.profile.save.useMutation({
-    onSuccess: () => {
-      void utils.gym.bootstrap.invalidate();
-      // A kg/lb switch is also the global unit preference (P2-6).
-      void utils.preferences.get.invalidate();
+  // UX-GYM-22: optimistic — the screen shows the new value at once and rolls
+  // back (with the error below) if the save fails.
+  const save = useSaveGymProfile({
+    onSaved: () => {
       setSaved('Saved');
       setTimeout(() => setSaved(null), 2500);
     },
@@ -216,7 +233,7 @@ function ProfileSettings({
         </div>
 
         <label className="mt-4 block text-sm font-medium text-gray-800" htmlFor="gym-dumbbells">
-          Dumbbells ({unitLabel(unit)}, comma separated)
+          Dumbbells ({unitLabel(unit)} each, comma separated)
         </label>
         <textarea
           id="gym-dumbbells"
@@ -296,7 +313,12 @@ function ProfileSettings({
         </div>
       </GymCard>
 
-      <PauseCard today={today} paused={paused} activePause={activePause} />
+      <PauseCard
+        today={today}
+        paused={paused}
+        activePause={activePause}
+        upcomingPause={upcomingPause}
+      />
 
       {/* Advisory disclaimer (2026-10-02), always visible on gym settings. */}
       <p
@@ -354,16 +376,23 @@ function PauseCard({
   today,
   paused,
   activePause,
+  upcomingPause,
 }: {
   today: string;
   paused: boolean;
   activePause: ActivePauseDto | null;
+  upcomingPause: ActivePauseDto | null;
 }) {
   const utils = trpc.useUtils();
   const [weeks, setWeeks] = useState(1);
+  const [startChoice, setStartChoice] = useState<PauseStartChoice>('today');
+  // UX-GYM-16: a pause that starts later is shown (and cancellable) like a running one.
+  const shownPause = activePause ?? upcomingPause;
+  const startDate = today ? pauseStartDate(startChoice, today) : '';
   const [reason, setReason] = useState<(typeof PAUSE_REASONS)[number]['value']>('vacation');
 
   const create = trpc.gym.pause.create.useMutation({
+    meta: { silent: true },
     onSuccess: () => {
       capture('training_paused', { weeks, reason });
       void utils.gym.bootstrap.invalidate();
@@ -376,25 +405,22 @@ function PauseCard({
   return (
     <GymCard>
       <CardLabel>Pause training</CardLabel>
-      <p className="mt-1 text-xs text-gray-500">
-        Vacation, illness or injury: a pause freezes your streak, and weights ease back in when you
-        return.
-      </p>
+      <p className="mt-1 text-xs text-gray-500">{PAUSE_EXPLAINER}</p>
 
-      {activePause ? (
+      {shownPause ? (
         <div className="mt-3 flex flex-wrap items-center justify-between gap-3 rounded-xl bg-sky-50 px-3 py-2">
           <p className="flex items-center gap-1.5 text-sm text-sky-800">
             <PauseCircle className="h-4 w-4 shrink-0" aria-hidden="true" />
-            Paused until {shortDate(activePause.endDate)}
+            {pauseSummaryLine(shownPause, today)}
           </p>
           <Button
             variant="outline"
             size="sm"
             className="min-h-11"
             disabled={end.isPending}
-            onClick={() => end.mutate({ id: activePause.id })}
+            onClick={() => end.mutate({ id: shownPause.id })}
           >
-            End pause now
+            {activePause ? 'End pause now' : 'Cancel pause'}
           </Button>
         </div>
       ) : paused ? (
@@ -403,7 +429,25 @@ function PauseCard({
         </p>
       ) : (
         <>
-          <div className="mt-3 flex flex-wrap gap-1.5" role="group" aria-label="Pause length">
+          <div className="mt-3 flex flex-wrap gap-1.5" role="group" aria-label="Pause starts">
+            {PAUSE_START_CHOICES.map((c) => (
+              <button
+                key={c.value}
+                type="button"
+                aria-pressed={startChoice === c.value}
+                onClick={() => setStartChoice(c.value)}
+                className={cn(
+                  'min-h-11 rounded-full border px-4 text-sm font-medium',
+                  startChoice === c.value
+                    ? 'border-[#944a00] bg-[#fff3e8] text-[#944a00]'
+                    : 'bg-white text-gray-600 hover:bg-gray-50',
+                )}
+              >
+                {c.label}
+              </button>
+            ))}
+          </div>
+          <div className="mt-2 flex flex-wrap gap-1.5" role="group" aria-label="Pause length">
             {[1, 2, 3, 4].map((w) => (
               <button
                 key={w}
@@ -439,14 +483,22 @@ function PauseCard({
               </button>
             ))}
           </div>
+          {startDate && (
+            <p className="mt-2 text-xs text-gray-500">
+              {pauseSummaryLine(
+                { startDate, endDate: pauseEndDate(startDate, weeks), reason: null },
+                today,
+              ).replace('Paused through', 'Pauses through')}
+            </p>
+          )}
           <div className="mt-3 flex justify-end">
             <Button
               variant="outline"
               disabled={create.isPending || !today}
               onClick={() =>
                 create.mutate({
-                  startDate: today,
-                  endDate: addDaysLocal(today, weeks * 7 - 1),
+                  startDate,
+                  endDate: pauseEndDate(startDate, weeks),
                   reason,
                 })
               }
@@ -456,7 +508,7 @@ function PauseCard({
           </div>
           {create.isError && (
             <p role="alert" className="mt-2 text-xs text-red-600">
-              {create.error.message}
+              {userFacingErrorMessage(create.error)}
             </p>
           )}
         </>

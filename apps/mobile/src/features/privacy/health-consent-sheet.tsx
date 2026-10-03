@@ -14,7 +14,10 @@ export interface HealthConsentSheetProps {
   saving: boolean;
   saveFailed: boolean;
   onAllow: () => void;
+  /** "Don't save it" — the one explicit decline. */
   onDecline: () => void;
+  /** ✕, backdrop or Android BACK: close without answering (UX-ONB-03). Defaults to `onDecline`. */
+  onCancel?: () => void;
   onExited?: () => void;
 }
 
@@ -31,12 +34,13 @@ export function HealthConsentSheet({
   saveFailed,
   onAllow,
   onDecline,
+  onCancel,
   onExited,
 }: HealthConsentSheetProps) {
   return (
     <Sheet
       visible={visible}
-      onClose={onDecline}
+      onClose={onCancel ?? onDecline}
       {...(onExited && { onExited })}
       eyebrow={HEALTH_CONSENT_COPY.eyebrow}
       title={HEALTH_CONSENT_COPY.title}

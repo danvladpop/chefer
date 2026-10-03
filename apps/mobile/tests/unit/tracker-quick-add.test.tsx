@@ -1,3 +1,4 @@
+import { TextInput } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { act, render, screen, userEvent } from '@testing-library/react-native';
 import { QuickAddSheet } from '../../src/features/tracker/quick-add-sheet';
@@ -14,6 +15,12 @@ const mockSnackbarShow = jest.fn();
 let mockRecents: unknown[] = [];
 let mockRecipes: unknown[] = [];
 let mockIngredients: unknown[] = [];
+const mockSearchState = { isFetching: false, isError: false };
+const mockRefetch = jest.fn();
+const mockLogRecipeState: { isError: boolean; error: { message: string } | null } = {
+  isError: false,
+  error: null,
+};
 
 const mockLogCustomState: {
   isPending: boolean;
@@ -45,8 +52,14 @@ jest.mock('../../src/lib/trpc', () => ({
       },
       dashboard: { summary: { invalidate: jest.fn() } },
     }),
-    recipe: { list: { useQuery: () => ({ data: mockRecipes }) } },
-    ingredients: { search: { useQuery: () => ({ data: mockIngredients }) } },
+    recipe: {
+      list: { useQuery: () => ({ data: mockRecipes, refetch: mockRefetch, ...mockSearchState }) },
+    },
+    ingredients: {
+      search: {
+        useQuery: () => ({ data: mockIngredients, refetch: mockRefetch, ...mockSearchState }),
+      },
+    },
     tracker: {
       recents: { useQuery: () => ({ data: mockRecents }) },
       logRecipe: {
@@ -55,7 +68,9 @@ jest.mock('../../src/lib/trpc', () => ({
             mockLogRecipe(vars);
             opts.onSuccess?.({ log: {}, rebalance }, vars);
           },
+          ...mockLogRecipeState,
           isPending: false,
+          reset: jest.fn(),
         }),
       },
       logCustomMeal: {
@@ -102,6 +117,10 @@ beforeEach(() => {
   mockRecents = [];
   mockRecipes = [];
   mockIngredients = [];
+  mockSearchState.isFetching = false;
+  mockSearchState.isError = false;
+  mockLogRecipeState.isError = false;
+  mockLogRecipeState.error = null;
 });
 
 describe('QuickAddSheet — search-first (T-19.1)', () => {
@@ -232,6 +251,68 @@ describe('QuickAddSheet — search-first (T-19.1)', () => {
     );
   });
 
+  // UX-FOOD-09
+  it('clamps absurd grams instead of previewing 88,999 kcal', async () => {
+    mockIngredients = [
+      {
+        name: 'banana',
+        displayName: 'Banana',
+        imageUrl: null,
+        hasMacros: true,
+        isCustom: false,
+        per100g: { calories: 89, protein: 1.1, carbs: 23, fat: 0.3 },
+      },
+    ];
+    const user = userEvent.setup();
+    await renderSheet();
+    await user.type(screen.getByTestId('log-sheet-search'), 'banana');
+    await user.press(screen.getByText('Banana'));
+    await user.clear(screen.getByTestId('log-sheet-grams-input-banana'));
+    await user.type(screen.getByTestId('log-sheet-grams-input-banana'), '99999');
+    expect(screen.getByTestId('log-sheet-grams-input-banana')).toHaveDisplayValue('4347');
+    expect(screen.getByTestId('log-sheet-grams-max-banana')).toBeOnTheScreen();
+    expect(screen.getByTestId('log-sheet-grams-live-kcal-banana')).toHaveTextContent(/^3869 kcal/);
+    await user.press(screen.getByTestId('log-sheet-grams-log-banana'));
+    expect(mockLogCustom).toHaveBeenCalledWith(expect.objectContaining({ kcal: 3869 }));
+  });
+
+  it('shows "Searching…" while a first search loads', async () => {
+    mockSearchState.isFetching = true;
+    const user = userEvent.setup();
+    await renderSheet();
+    await user.type(screen.getByTestId('log-sheet-search'), 'zzz');
+    expect(screen.getByTestId('log-sheet-searching')).toBeOnTheScreen();
+  });
+
+  it('offers "enter calories yourself" when nothing matches', async () => {
+    const user = userEvent.setup();
+    await renderSheet();
+    await user.type(screen.getByTestId('log-sheet-search'), 'zzz');
+    // The debounce has to settle before "no matches" is claimed.
+    expect(await screen.findByTestId('log-sheet-no-matches')).toBeOnTheScreen();
+    expect(screen.getByText(/No matches/)).toBeOnTheScreen();
+    await user.press(screen.getByTestId('log-sheet-no-matches'));
+    expect(screen.getByTestId('quick-add-name')).toHaveDisplayValue('zzz');
+  });
+
+  it('shows a Retry when the search fails instead of an empty list', async () => {
+    mockSearchState.isError = true;
+    const user = userEvent.setup();
+    await renderSheet();
+    await user.type(screen.getByTestId('log-sheet-search'), 'rice');
+    expect(screen.getByTestId('log-sheet-search-error')).toBeOnTheScreen();
+    expect(screen.queryByTestId('log-sheet-no-matches')).toBeNull();
+    await user.press(screen.getByTestId('log-sheet-search-retry'));
+    expect(mockRefetch).toHaveBeenCalled();
+  });
+
+  it('shows a failed log in the search view (not only in the manual form)', async () => {
+    mockLogRecipeState.isError = true;
+    mockLogRecipeState.error = { message: 'Recipe not found.' };
+    await renderSheet();
+    expect(screen.getByTestId('log-sheet-api-error')).toHaveTextContent(/Recipe not found/);
+  });
+
   it('B-29/AC6: never shows a barcode or branded-product affordance', async () => {
     await renderSheet();
     expect(screen.queryByText(/barcode/i)).not.toBeOnTheScreen();
@@ -247,6 +328,27 @@ describe('QuickAddSheet — Enter calories yourself (fallback, T-19.1)', () => {
     expect(mockLogCustom).not.toHaveBeenCalled();
     expect(screen.getByTestId('quick-add-name-error')).toHaveTextContent('Name what you ate.');
     expect(screen.getByTestId('quick-add-kcal-error')).toHaveTextContent('Enter the calories.');
+  });
+
+  // UX-FOOD-10: with the keyboard up an error can sit off-screen and Log looks
+  // dead — a failed submit focuses (and so scrolls to) the first invalid field.
+  it('focuses the first invalid field when Log is refused', async () => {
+    const focused: (string | undefined)[] = [];
+    const user = userEvent.setup();
+    await renderSheet();
+    await goToManual(user);
+    const proto = TextInput.prototype as unknown as { focus: () => void };
+    jest.spyOn(proto, 'focus').mockImplementation(function (this: unknown) {
+      focused.push((this as { props?: { testID?: string } }).props?.testID);
+    });
+    await user.press(screen.getByTestId('quick-add-submit'));
+    expect(focused).toEqual(['quick-add-name']);
+
+    await user.type(screen.getByTestId('quick-add-name'), 'Pizza');
+    focused.length = 0;
+    await user.press(screen.getByTestId('quick-add-submit'));
+    expect(focused).toEqual(['quick-add-kcal']);
+    jest.restoreAllMocks();
   });
 
   it('refuses out-of-range numbers inline', async () => {
@@ -281,6 +383,8 @@ describe('QuickAddSheet — Enter calories yourself (fallback, T-19.1)', () => {
       protein: 0,
       carbs: 50,
       fat: 18.5,
+      // UX-FOOD-11: the blank protein is unknown, not a typed 0 g
+      unknownMacros: ['protein'],
     });
   });
 
@@ -292,6 +396,8 @@ describe('QuickAddSheet — Enter calories yourself (fallback, T-19.1)', () => {
     await user.type(screen.getByTestId('quick-add-name'), 'Mystery shake');
     await user.type(screen.getByTestId('quick-add-kcal'), '100');
     await user.type(screen.getByTestId('quick-add-protein'), '500');
+    await user.type(screen.getByTestId('quick-add-carbs'), '0');
+    await user.type(screen.getByTestId('quick-add-fat'), '0');
     expect(
       screen.getByText("These don't add up: 100 kcal logged, but the macros add up to 2,000 kcal."),
     ).toBeOnTheScreen();
@@ -306,12 +412,45 @@ describe('QuickAddSheet — Enter calories yourself (fallback, T-19.1)', () => {
     await user.type(screen.getByTestId('quick-add-name'), 'Mystery shake');
     await user.type(screen.getByTestId('quick-add-kcal'), '100');
     await user.type(screen.getByTestId('quick-add-protein'), '500');
+    await user.type(screen.getByTestId('quick-add-carbs'), '0');
+    await user.type(screen.getByTestId('quick-add-fat'), '0');
     await user.press(screen.getByTestId('quick-add-sanity-log-anyway'));
     expect(screen.queryByTestId('quick-add-sanity')).not.toBeOnTheScreen();
     await user.press(screen.getByTestId('quick-add-submit'));
     expect(mockLogCustom).toHaveBeenCalledWith(
       expect.objectContaining({ kcal: 100, protein: 500 }),
     );
+  });
+
+  // UX-FOOD-11: calories + protein only used to count the blanks as 0 g and flag
+  // "don't add up", greying out Log.
+  it('UX-FOOD-11: partial macros skip the sanity check, keep Log enabled and flag the blanks', async () => {
+    const user = userEvent.setup();
+    await renderSheet();
+    await goToManual(user);
+    await user.type(screen.getByTestId('quick-add-name'), 'Soup');
+    await user.type(screen.getByTestId('quick-add-kcal'), '400');
+    await user.type(screen.getByTestId('quick-add-protein'), '20');
+    expect(screen.queryByTestId('quick-add-sanity')).not.toBeOnTheScreen();
+    expect(screen.getByTestId('quick-add-submit')).toBeEnabled();
+    await user.press(screen.getByTestId('quick-add-submit'));
+    expect(mockLogCustom).toHaveBeenCalledWith(
+      expect.objectContaining({
+        protein: 20,
+        carbs: 0,
+        fat: 0,
+        unknownMacros: ['carbs', 'fat'],
+      }),
+    );
+  });
+
+  it('UX-FOOD-25: every macro field has a visible label with its unit', async () => {
+    const user = userEvent.setup();
+    await renderSheet();
+    await goToManual(user);
+    expect(screen.getByText('Protein (g)')).toBeOnTheScreen();
+    expect(screen.getByText('Carbs (g)')).toBeOnTheScreen();
+    expect(screen.getByText('Fat (g)')).toBeOnTheScreen();
   });
 
   it('a real meal (macros roughly matching kcal) never shows the sanity line', async () => {

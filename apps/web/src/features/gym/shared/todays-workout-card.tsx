@@ -3,7 +3,8 @@
 import { useMemo } from 'react';
 import { useAppMode } from '@/features/nav/mode-context';
 import { ChevronRight, Dumbbell } from 'lucide-react';
-import { collectPrs } from '@chefer/utils';
+import { collectPrs, selectTodaysSession } from '@chefer/utils';
+import { localDate } from '../use-gym-bootstrap';
 import { useGymData } from './use-gym-data';
 import { WeekRing } from './week-ring';
 
@@ -29,18 +30,35 @@ export function TodaysWorkoutCard() {
   }
 
   const hasProfile = data.profile !== null;
+  // UX-FOOD-19: the Plan names the routine day pinned to today's weekday, so a
+  // pinned day beats the rotation's "next" here too (one shared selector).
+  const session = today
+    ? selectTodaysSession({
+        bootstrap: data,
+        today,
+        since: data.profile?.setupCompletedAt
+          ? localDate(new Date(data.profile.setupCompletedAt))
+          : null,
+      })
+    : { kind: 'none' as const };
+  const pinnedDay =
+    session.kind === 'planned' && session.dayId !== data.nextWorkout?.dayId
+      ? data.activeRoutine?.days.find((d) => d.id === session.dayId)
+      : undefined;
   const title = !hasProfile
     ? 'Start strength training'
     : todays.done
       ? `Done ✓${todays.prs > 0 ? ` · ${todays.prs} PR${todays.prs === 1 ? '' : 's'}` : ''}`
-      : (data.nextWorkout?.dayName ?? 'Freestyle workout');
+      : (pinnedDay?.name ?? data.nextWorkout?.dayName ?? 'Freestyle workout');
   const subtitle = !hasProfile
     ? 'A 90-second setup picks a program for you.'
     : todays.done
       ? `Next: ${data.nextWorkout?.dayName ?? '—'}`
-      : data.nextWorkout
-        ? `${data.nextWorkout.exercises.length} exercises · ~${data.nextWorkout.estimatedMin} min`
-        : 'No active routine';
+      : pinnedDay
+        ? `${pinnedDay.exercises.length} exercises`
+        : data.nextWorkout
+          ? `${data.nextWorkout.exercises.length} exercises · ~${data.nextWorkout.estimatedMin} min`
+          : 'No active routine';
 
   return (
     <button

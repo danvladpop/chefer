@@ -187,22 +187,62 @@ const FISH_PATTERNS = [
   '\\bsea bass',
 ];
 
-const SHELLFISH_PATTERNS = [
+// UX-ACC-06: EU-14 names crustaceans and molluscs separately. SHELLFISH_PATTERNS
+// stays the union (the stored "Shellfish" allergy keeps its full coverage).
+const CRUSTACEAN_PATTERNS = [
   '\\bshrimp',
   '\\bprawn',
   '\\bcrab',
   '\\blobster',
+  '\\bcrayfish',
+  '\\bcrawfish',
+  '\\blangoustine',
+  '\\bkrill',
+];
+
+const MOLLUSC_PATTERNS = [
   '\\bmussel',
   '\\bclam',
   '\\boyster',
   '\\bscallop',
   '\\bsquid',
   '\\bcalamari',
+  '\\boctopus',
+  '\\bcuttlefish',
+  '\\bwhelk',
+  '\\bcockle',
+  '\\babalone',
+  '\\bsnail',
+  '\\bescargot',
 ];
+
+const SHELLFISH_PATTERNS = [...CRUSTACEAN_PATTERNS, ...MOLLUSC_PATTERNS];
 
 const SOY_PATTERNS = ['\\bsoy', '\\btofu', '\\bedamame', '\\btempeh', '\\bmiso'];
 
 const SESAME_PATTERNS = ['\\bsesame', '\\btahini', '\\bhummus'];
+
+// UX-ACC-06: the remaining EU-14 allergens. Over-blocking is acceptable.
+const CELERY_PATTERNS = ['\\bceler(?:y|iac)'];
+
+const MUSTARD_PATTERNS = ['\\bmustard', '\\bdijon', '\\bpiccalilli'];
+
+const LUPIN_PATTERNS = ['\\blupin', '\\blupini'];
+
+// Sulphites are mostly an additive, not an ingredient name: match the word
+// itself plus the foods that reliably carry them (wine, vinegars, dried fruit).
+const SULPHITE_PATTERNS = [
+  '\\bsul(?:ph|f)ites?',
+  '\\bmetabisul(?:ph|f)ite',
+  '\\bwine\\b',
+  '\\bvinegar',
+  '\\bbalsamic',
+  '\\bdried apricot',
+  '\\bdried fruit',
+  '\\braisin',
+  '\\bsultana',
+  '\\bprune',
+];
 
 const MEAT_PATTERNS = [
   '\\bchicken',
@@ -310,6 +350,14 @@ const ALLERGEN_PATTERNS: Record<string, string[]> = {
   shellfish: SHELLFISH_PATTERNS,
   seafood: [...FISH_PATTERNS, ...SHELLFISH_PATTERNS],
   sesame: SESAME_PATTERNS,
+  crustacean: CRUSTACEAN_PATTERNS,
+  mollusc: MOLLUSC_PATTERNS,
+  mollusk: MOLLUSC_PATTERNS,
+  celery: CELERY_PATTERNS,
+  mustard: MUSTARD_PATTERNS,
+  lupin: LUPIN_PATTERNS,
+  sulphite: SULPHITE_PATTERNS,
+  sulfite: SULPHITE_PATTERNS,
 };
 
 // bug B-04: dislike categories expand the same way allergies do.
@@ -341,6 +389,12 @@ const PATTERN_SETS: Record<string, string[]> = {
   FISH_PATTERNS,
   SHELLFISH_PATTERNS,
   SESAME_PATTERNS,
+  CRUSTACEAN_PATTERNS,
+  MOLLUSC_PATTERNS,
+  CELERY_PATTERNS,
+  MUSTARD_PATTERNS,
+  LUPIN_PATTERNS,
+  SULPHITE_PATTERNS,
   RED_MEAT_PATTERNS,
   MUSHROOM_PATTERNS,
   LEAFY_GREENS_PATTERNS,

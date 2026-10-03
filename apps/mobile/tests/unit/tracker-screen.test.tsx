@@ -17,6 +17,7 @@ const mockRecordRebalance = jest.fn();
 const mockSnackbarShow = jest.fn();
 // Audit P2-4 follow-up: per-test training-day fields on the getDay payload.
 let mockDayExtras: Record<string, unknown> = {};
+let mockCopiedIds: string[] = ['c1', 'c2'];
 
 // ─── A tiny stand-in for the server and react-query's cache ────────────────────
 // `mockServer` is the database; `mockCache` is what `tracker.getDay` returns.
@@ -31,6 +32,7 @@ type MockDay = Record<string, unknown> & {
 let mockServer: MockDay;
 let mockCache: MockDay;
 let mockFailWrites = false;
+let mockCopyDayError: Error | null = null;
 const mockListeners = new Set<() => void>();
 const mockSetCache = (next: MockDay) => {
   mockCache = next;
@@ -193,9 +195,12 @@ jest.mock('../../src/lib/trpc', () => {
           useMutation: () => ({
             mutate: (vars: unknown, callbacks?: { onSuccess?: (data: unknown) => void }) => {
               mockCopyDay(vars);
-              callbacks?.onSuccess?.({ log: {}, copiedEntryIds: ['c1', 'c2'], rebalance });
+              callbacks?.onSuccess?.({ log: {}, copiedEntryIds: mockCopiedIds, rebalance });
             },
+            reset: jest.fn(),
             isPending: false,
+            isError: mockCopyDayError !== null,
+            error: mockCopyDayError,
           }),
         },
         deleteEntries: {
@@ -306,7 +311,9 @@ async function renderTracker() {
 beforeEach(() => {
   jest.clearAllMocks();
   mockDayExtras = {};
+  mockCopiedIds = ['c1', 'c2'];
   mockFailWrites = false;
+  mockCopyDayError = null;
   mockListeners.clear();
 });
 
@@ -457,6 +464,27 @@ describe('TrackerScreen — one-save model (bug B-23, T-19.4)', () => {
 });
 
 describe('TrackerScreen — copy a day (T-19.3)', () => {
+  // UX-FOOD-25: "Copied 1 entries" / "Copied 0 entries".
+  it('UX-FOOD-25: pluralises the confirmation and never says "Copied 0 entries"', async () => {
+    const user = userEvent.setup();
+    mockCopiedIds = ['c1'];
+    await renderTracker();
+    await user.press(screen.getByTestId('tracker-copy-day'));
+    await user.press(screen.getByTestId('tracker-copy-day-confirm-confirm'));
+    expect(mockSnackbarShow).toHaveBeenLastCalledWith(
+      expect.objectContaining({ message: 'Copied 1 entry' }),
+    );
+
+    mockCopiedIds = [];
+    await user.press(screen.getByTestId('tracker-copy-day'));
+    await user.press(screen.getByTestId('tracker-copy-day-confirm-confirm'));
+    const [last] = mockSnackbarShow.mock.calls.at(-1) as [
+      { message: string; actionLabel?: string },
+    ];
+    expect(last.message).toMatch(/^Nothing to copy from/);
+    expect(last.actionLabel).toBeUndefined();
+  });
+
   it('confirms, then copies the previous day onto this one, with an Undo', async () => {
     const user = userEvent.setup();
     await renderTracker();
@@ -477,6 +505,81 @@ describe('TrackerScreen — copy a day (T-19.3)', () => {
       expect(mockDeleteEntries).toHaveBeenCalledWith(
         expect.objectContaining({ entryIds: ['c1', 'c2'] }),
       ),
+    );
+  });
+});
+
+describe('TrackerScreen — copy a day failing (UX-X-13)', () => {
+  it('keeps the confirm sheet open with the reason instead of closing silently', async () => {
+    mockCopyDayError = new Error('Something went wrong. Please try again.');
+    const user = userEvent.setup();
+    await renderTracker();
+    await user.press(screen.getByTestId('tracker-copy-day'));
+    expect(screen.getByTestId('tracker-copy-day-confirm-error')).toHaveTextContent(
+      "Couldn't copy the day. Something went wrong. Please try again.",
+    );
+    expect(screen.getByTestId('tracker-copy-day-confirm-confirm')).toBeOnTheScreen();
+  });
+});
+
+// UX-FOOD-25: off-plan recipes and custom entries were two stacked "Also eaten"
+// sections that lost the meal slot (and the custom rows sat under the Snap card).
+describe('TrackerScreen — one "Also eaten" list grouped by meal (UX-FOOD-25)', () => {
+  const offPlan = {
+    entryId: 'o1',
+    recipeId: 'pad-thai',
+    mealType: 'dinner',
+    portionMultiplier: 1,
+    kcal: 603,
+    protein: 20,
+    carbs: 80,
+    fat: 20,
+  };
+  const shake = {
+    entryId: 'e1',
+    custom: { name: 'Protein shake', estimatedBy: 'manual' },
+    mealType: 'snack',
+    portionMultiplier: 1,
+    kcal: 180,
+    protein: 30,
+    carbs: 5,
+    fat: 2,
+  };
+  const toast = {
+    entryId: 'e2',
+    custom: { name: 'Toast', estimatedBy: 'manual' },
+    mealType: 'breakfast',
+    portionMultiplier: 1,
+    kcal: 150,
+    protein: 5,
+    carbs: 25,
+    fat: 3,
+  };
+
+  it('renders a single header with a group per meal, in day order, above the log buttons', async () => {
+    mockDayExtras = {
+      plannedMeals: [],
+      hasActivePlan: true,
+      offPlanLogged: [{ ...offPlan, recipeName: 'Tofu Pad Thai' }],
+      log: {
+        loggedMeals: [offPlan, shake, toast],
+        totalKcal: 933,
+        totalProtein: 55,
+        totalCarbs: 110,
+        totalFat: 25,
+      },
+    };
+    await renderTracker();
+    expect(screen.getAllByText('Also eaten')).toHaveLength(1);
+    expect(screen.getByTestId('tracker-also-eaten-breakfast')).toBeOnTheScreen();
+    expect(screen.getByTestId('tracker-also-eaten-dinner')).toBeOnTheScreen();
+    expect(screen.getByTestId('tracker-also-eaten-snack')).toBeOnTheScreen();
+    // the custom rows are inside their meal's group, not in a second section
+    expect(screen.getByTestId('tracker-also-eaten-breakfast')).toContainElement(
+      screen.getByTestId('tracker-custom-2'),
+    );
+    expect(screen.getByTestId('tracker-also-eaten-dinner')).toContainElement(
+      screen.getByTestId('tracker-off-plan-o1'),
     );
   });
 });

@@ -7,6 +7,7 @@ import {
   Badge,
   Button,
   ConfirmSheet,
+  EmptyState,
   Input,
   KeyboardAwareScrollView,
   Screen,
@@ -15,6 +16,7 @@ import {
   useScrollFieldIntoView,
 } from '@chefer/ui-mobile';
 import { userFacingErrorMessage, validateRoutine, volumeByGroup } from '@chefer/utils';
+import { openCreateExercise } from '../../src/features/gym/library/create-exercise-href';
 import { ExercisePicker } from '../../src/features/gym/library/exercise-picker';
 import { newId } from '../../src/features/gym/offline/ids';
 import {
@@ -67,7 +69,8 @@ export default function GymRoutineEditorScreen() {
     { id: routineId },
     { enabled: routineId !== '', staleTime: 0 },
   );
-  const saveMutation = trpc.gym.routine.save.useMutation();
+  // The editor shows a failed save itself (conflict sheet / alert) — no default snackbar.
+  const saveMutation = trpc.gym.routine.save.useMutation({ meta: { silent: true } });
 
   const [draft, setDraft] = useState<RoutineDraft>(EMPTY_DRAFT);
   const [baseline, setBaseline] = useState<RoutineDraft | null>(null);
@@ -155,6 +158,30 @@ export default function GymRoutineEditorScreen() {
     ? (lookup(swapExercise.exerciseId)?.swapGroup ?? null)
     : null;
 
+  // UX-GYM-24: offline with nothing cached is "needs a connection", a failed load
+  // has Retry — neither is an endless spinner.
+  if (routineQuery.isPending && routineQuery.fetchStatus === 'paused') {
+    return (
+      <Screen className="px-0" edges={['top', 'bottom', 'left', 'right']}>
+        <View className="flex-1 items-center justify-center gap-3 px-6">
+          <EmptyState
+            testID="gym-routine-editor-offline"
+            title="Needs a connection"
+            description="Reconnect to edit this routine."
+            action={{
+              label: 'Try again',
+              onPress: () => void routineQuery.refetch(),
+              testID: 'gym-routine-editor-offline-retry',
+            }}
+          />
+          <Button testID="gym-routine-editor-back" variant="outline" onPress={() => router.back()}>
+            Back
+          </Button>
+        </View>
+      </Screen>
+    );
+  }
+
   if (routineQuery.isPending) {
     return (
       <Screen className="px-0" edges={['top', 'bottom', 'left', 'right']}>
@@ -175,7 +202,10 @@ export default function GymRoutineEditorScreen() {
           <Text variant="muted" className="text-center">
             {userFacingErrorMessage(routineQuery.error)}
           </Text>
-          <Button testID="gym-routine-editor-back" onPress={() => router.back()}>
+          <Button testID="gym-routine-editor-retry" onPress={() => void routineQuery.refetch()}>
+            Try again
+          </Button>
+          <Button testID="gym-routine-editor-back" variant="outline" onPress={() => router.back()}>
             Back
           </Button>
         </View>
@@ -274,6 +304,7 @@ export default function GymRoutineEditorScreen() {
 
       <ExercisePicker
         testID="gym-routine-editor-picker"
+        onCreateFromSearch={openCreateExercise}
         visible={picker !== null}
         onClose={() => setPicker(null)}
         library={library}

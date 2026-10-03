@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { BackHandler, ScrollView, View } from 'react-native';
+import { ScrollView, View } from 'react-native';
 import { useQueryClient } from '@tanstack/react-query';
-import { router, useFocusEffect } from 'expo-router';
+import { router } from 'expo-router';
 import type { ExerciseDto, Rir } from '@chefer/types';
 import {
   Button,
@@ -20,12 +20,15 @@ import {
   toSessionSummary,
 } from '@chefer/utils';
 import { useFlags } from '../../../hooks/use-flags';
+import { useUnsavedGuard } from '../../../lib/use-unsaved-guard';
 import { captureGymEvent } from '../analytics';
+import { openCreateExercise } from '../library/create-exercise-href';
 import { ExercisePicker } from '../library/exercise-picker';
 import { newId } from '../offline/ids';
 import { deleteSessionWithUndo, saveEditedSession } from '../offline/session-corrections';
 import { saveLoggedSession } from '../use-active-workout';
 import { useGymBootstrap } from '../use-gym-bootstrap';
+import { EXERCISE_CAP_REASON, isAtExerciseCap } from './caps';
 import { EditSessionHeader } from './edit-session-header';
 import { ExerciseCard, type WorkoutContext, type WorkoutSheetRequest } from './exercise-card';
 import { NumberSheet } from './number-sheet';
@@ -66,7 +69,6 @@ import { ExerciseMenuSheet, TechniqueSheet } from './workout-sheets';
 type SheetState =
   | WorkoutSheetRequest
   | { kind: 'picker'; mode: 'replace' | 'add'; seId: string | null }
-  | { kind: 'discard' }
   | { kind: 'nothing' };
 
 /** iOS can't present a Modal while another is still dismissing. */
@@ -103,6 +105,32 @@ function SessionEditor({ edit, mode }: { edit: EditSession; mode: 'edit' | 'log'
   useEffect(() => {
     dirtyRef.current = dirty;
   }, [dirty]);
+
+  // UX-GYM-26: leaving with unsaved work asks first — Cancel, the iOS swipe and
+  // Android BACK all go through this one guard (the swipe is disabled while
+  // dirty). The draft itself is kept on disk (`session-draft-store.ts`), so a
+  // crash or a "Discard" is the only way it is lost.
+  const guard = useUnsavedGuard(dirty, {
+    title: logging ? 'Discard this workout?' : 'Discard your edits?',
+    message: logging ? 'Nothing will be saved.' : 'Your workout stays as it was.',
+    discardLabel: logging ? 'Discard' : 'Discard edits',
+    keepLabel: 'Keep editing',
+  });
+  const { release: releaseGuard } = guard;
+  const { discardDraft } = edit;
+  /** A deliberate exit (saved, deleted, discarded): forget the draft, lift the guard, go. */
+  const exit = useCallback(() => {
+    discardDraft();
+    releaseGuard();
+    leave();
+  }, [discardDraft, releaseGuard]);
+
+  // A draft from an earlier, unsaved visit was brought back: say so once.
+  const restored = ready?.restored ?? false;
+  const showSnackbar = snackbar.show;
+  useEffect(() => {
+    if (restored) showSnackbar({ message: 'Restored your unsaved changes.' });
+  }, [restored, showSnackbar]);
 
   // ── Derived, memoised context ──────────────────────────────────────────────
   const unit = unitOf(bootstrap);
@@ -310,7 +338,7 @@ function SessionEditor({ edit, mode }: { edit: EditSession; mode: 'edit' | 'log'
         await saveLoggedSession(queryClient, doc, isCardio);
         haptics.success();
         snackbar.show({ message: 'Workout logged', tone: 'success' });
-        leave();
+        exit();
       } finally {
         setSaving(false);
       }
@@ -329,22 +357,21 @@ function SessionEditor({ edit, mode }: { edit: EditSession; mode: 'edit' | 'log'
       await saveEditedSession({ queryClient, original: ready.original, draft: doc });
       haptics.success();
       snackbar.show({ message: 'Workout updated', tone: 'success' });
-      leave();
+      exit();
     } finally {
       setSaving(false);
     }
-  }, [getDraft, isCardio, logging, openSheet, queryClient, ready, snackbar]);
+  }, [exit, getDraft, isCardio, logging, openSheet, queryClient, ready, snackbar]);
 
-  const onCancel = useCallback(() => {
-    if (dirtyRef.current) openSheet({ kind: 'discard' });
-    else leave();
-  }, [openSheet]);
+  // Cancel just leaves: while there are unsaved edits the guard holds the
+  // navigation and opens its confirm (`guard.sheetProps`, rendered below).
+  const onCancel = useCallback(() => leave(), []);
 
-  const onDiscard = useCallback(() => {
-    closeSheet();
+  const onConfirmDiscard = useCallback(() => {
     if (!logging) captureGymEvent('session_edit_discarded', {});
-    leave();
-  }, [closeSheet, logging]);
+    discardDraft();
+    guard.sheetProps.onConfirm();
+  }, [discardDraft, guard.sheetProps, logging]);
 
   const onDeleteInstead = useCallback(() => {
     closeSheet();
@@ -356,19 +383,8 @@ function SessionEditor({ edit, mode }: { edit: EditSession; mode: 'edit' | 'log'
       source: 'detail',
       show: snackbar.show,
     });
-    leave();
-  }, [closeSheet, queryClient, ready, snackbar.show]);
-
-  // Android hardware back never drops edits by accident.
-  useFocusEffect(
-    useCallback(() => {
-      const sub = BackHandler.addEventListener('hardwareBackPress', () => {
-        onCancel();
-        return true;
-      });
-      return () => sub.remove();
-    }, [onCancel]),
-  );
+    exit();
+  }, [closeSheet, exit, queryClient, ready, snackbar.show]);
 
   // ── Picker (Replace / Add) ─────────────────────────────────────────────────
   const onPick = useCallback(
@@ -507,10 +523,20 @@ function SessionEditor({ edit, mode }: { edit: EditSession; mode: 'edit' | 'log'
           testID="edit-session-add-exercise"
           variant="outline"
           size="lg"
+          disabled={isAtExerciseCap(exercises.length)}
           onPress={() => openSheet({ kind: 'picker', mode: 'add', seId: null })}
         >
           + Add exercise
         </Button>
+        {isAtExerciseCap(exercises.length) ? (
+          <Text
+            testID="edit-session-add-exercise-reason"
+            variant="muted"
+            className="text-center text-sm"
+          >
+            {EXERCISE_CAP_REASON}
+          </Text>
+        ) : null}
       </ScrollView>
 
       {/* ── Sheets ── */}
@@ -594,18 +620,13 @@ function SessionEditor({ edit, mode }: { edit: EditSession; mode: 'edit' | 'log'
         preferSwapGroup={replacing ? contentMeta?.swapGroup : null}
         excludeIds={replacing && contentSe ? [contentSe.exerciseId] : undefined}
         showCardioFilter={cardioLogging && !replacing}
+        onCreateFromSearch={openCreateExercise}
         testID="edit-session-picker"
       />
       <ConfirmSheet
-        visible={active?.kind === 'discard'}
-        onClose={closeSheet}
         testID="edit-session-discard-sheet"
-        title={logging ? 'Discard this workout?' : 'Discard your edits?'}
-        body={logging ? 'Nothing will be saved.' : 'Your workout stays as it was.'}
-        confirmLabel={logging ? 'Discard' : 'Discard edits'}
-        cancelLabel="Keep editing"
-        destructive
-        onConfirm={onDiscard}
+        {...guard.sheetProps}
+        onConfirm={onConfirmDiscard}
       />
       <ConfirmSheet
         visible={active?.kind === 'nothing'}

@@ -11,6 +11,7 @@ import {
   type Prisma,
 } from '@chefer/database';
 import { LABEL_DEPENDENT_INGREDIENTS, type TableSafety, type UserProfile } from '@chefer/types';
+import { roundToPurchasable } from '@chefer/utils';
 import { toFriendlyAiError } from '../../lib/ai/friendly-error.js';
 import { aiService } from '../../lib/ai/index.js';
 import type { Ingredient } from '../../lib/ai/types.js';
@@ -38,6 +39,7 @@ import {
   formatLineQuantity,
   tidyListItems,
 } from './aggregate.js';
+import { customItemKey } from './custom-item-key.js';
 
 export interface ShoppingListItemForWeek {
   key: string;
@@ -194,10 +196,6 @@ export function carryCheckedKeys(
   return [...new Set([...carried, ...customTicked])];
 }
 
-function customItemKey(planId: string, name: string, unit: string): string {
-  return `${planId}-custom-${name.toLowerCase().trim().replace(/\s+/g, '-')}-${unit.toLowerCase().trim()}`;
-}
-
 /**
  * T-01.9/T-02.1: flags list lines that need a certified product for a
  * gluten-free member's table — the same label-dependent ingredient list
@@ -332,10 +330,17 @@ export class ShoppingListService {
       if (hit.haveQuantity <= 0) return item;
       const remaining = need - hit.haveQuantity;
       const priceFactor = need > 0 ? remaining / need : 1;
+      // Still a shopping-sized amount: 2 avocados − 1.2 in the pantry is 1, not 0.8.
+      const toBuy = roundToPurchasable({
+        name: item.ingredientName,
+        quantity: remaining,
+        unit: item.unit,
+      });
       return {
         ...item,
         haveQuantity: round(hit.haveQuantity),
-        quantity: formatLineQuantity(remaining),
+        quantity: formatLineQuantity(toBuy.quantity),
+        unit: toBuy.unit,
         ...(item.estimatedPriceEur !== null && {
           estimatedPriceEur: round(item.estimatedPriceEur * priceFactor),
         }),
@@ -395,6 +400,7 @@ export class ShoppingListService {
             quantity: ing.quantity * factor,
             unit: ing.unit,
             recipeId: slot.recipeId,
+            slug: ing.slug,
           }));
         }),
       ),
@@ -786,6 +792,7 @@ export class ShoppingListService {
             quantity: ing.quantity * factor,
             unit: ing.unit,
             recipeId: slot.recipeId,
+            slug: ing.slug,
           }));
         }),
       ),

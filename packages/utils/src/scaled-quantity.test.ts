@@ -47,6 +47,14 @@ describe('formatScaledQuantity (bug B-52)', () => {
     expect(formatScaledQuantity(1, 'tsp', 1.5, 'IMPERIAL')).toBe('1½ tsp');
   });
 
+  it('UX-REC-07: keeps spoon units in a metric display instead of converting to ml', () => {
+    expect(formatScaledQuantity(1, 'tbsp', 1.5, 'METRIC')).toBe('1½ tbsp');
+    expect(formatScaledQuantity(2, 'teaspoons', 1, 'METRIC')).toBe('2 tsp');
+    expect(formatScaledQuantity(1, 'Tablespoon', 2, 'IMPERIAL')).toBe('2 tbsp');
+    // other volumes still convert
+    expect(formatScaledQuantity(1, 'cup', 1, 'METRIC')).toBe('240 ml');
+  });
+
   it('a loose kitchen unit (pinch) scales without decimal noise', () => {
     expect(formatScaledQuantity(1, 'pinch', 1.5, 'METRIC')).toBe('1½ pinch');
   });

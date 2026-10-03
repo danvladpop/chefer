@@ -1,28 +1,46 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, BackHandler, Pressable, ScrollView, View } from 'react-native';
+import { ActivityIndicator, BackHandler, Pressable, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { router, useFocusEffect } from 'expo-router';
 import type { OnboardingJob } from '@chefer/types';
-import { bodyMetricsAgeError, LB_PER_KG } from '@chefer/types';
-import { Button, ConfirmSheet, ErrorState, Screen, Text } from '@chefer/ui-mobile';
+import { bodyMetricsAgeError, isPlausibleHeightCm, isPlausibleWeightKg } from '@chefer/types';
+import {
+  Button,
+  colors,
+  ConfirmSheet,
+  ErrorState,
+  KeyboardAwareScrollView,
+  Screen,
+  Text,
+} from '@chefer/ui-mobile';
 import {
   aiConsentRequiredFor,
+  bodyFieldTexts,
+  defaultsForRegion,
+  detectRegion,
+  heightCmFromText,
+  heightValueForInference,
   inferUnitsFromInput,
   inToCm,
   onboardingProgress,
   onboardingSteps,
+  parseBodyNumber,
+  previewTargetKcalFromBasics,
+  toDisplayCurrency,
   userFacingErrorMessage,
+  weightKgFromText,
   type OnboardingStepKey,
 } from '@chefer/utils';
 import { useIsPremium } from '../../hooks/use-is-premium';
+import { trackOnboardingCompleted, trackPlanGenerated } from '../../lib/analytics-events';
 import { getToken } from '../../lib/auth-store';
 import { trpc } from '../../lib/trpc';
 import { useAiConsent } from '../ai-consent/ai-consent-provider';
 import { setMode } from '../gym/mode-store';
-import { HouseholdEditor } from '../household/household-editor';
+import { HouseholdEditor, type HouseholdEditorHandle } from '../household/household-editor';
 import { CuisineStep, type CuisineStepValue } from '../preferences/components/cuisine-step';
 import { GoalStep } from '../preferences/components/goal-step';
-import { MetricsStep } from '../preferences/components/metrics-step';
+import { metricsFieldErrors, MetricsStep } from '../preferences/components/metrics-step';
 import { SafetyStep } from '../preferences/components/safety-step';
 import { TargetsCard } from '../preferences/targets-card';
 import { GOALS, type Goal, type MetricsValue, type SafetyValue } from '../preferences/types';
@@ -33,6 +51,7 @@ import type { SafetyPickerHandle } from '../safety/safety-picker';
 import { ONBOARDING_COPY } from './copy';
 import { HowYouCookStep, type HowYouCookStepValue } from './how-you-cook-step';
 import { JobsStep } from './jobs-step';
+import { NudgeStep } from './nudge-step';
 import {
   clearOnboardingDraft,
   readOnboardingDraft,
@@ -98,6 +117,17 @@ const EMPTY_HOW_YOU_COOK: HowYouCookStepValue = {
   autoPlanWeekly: false,
 };
 
+/**
+ * UX-ONB-04: the device region picks the starting units and currency ONCE, in
+ * the wizard's initial state. The How-you-cook step used to apply it in an
+ * effect every time it mounted, so going Back and forward again flipped a
+ * metric user's choice (and the body metrics typed after it) to the region's.
+ */
+function initialHowYouCook(): HowYouCookStepValue {
+  const { preferredUnits, currency } = defaultsForRegion(detectRegion());
+  return { ...EMPTY_HOW_YOU_COOK, units: preferredUnits, currency };
+}
+
 /** UX-ONB-08: a stored 86.1825503 kg reads "86.2" (one decimal, the precision the fields take). */
 function roundForDisplay(value: number): number {
   return Math.round(value * 10) / 10;
@@ -138,7 +168,12 @@ export function OnboardingWizard() {
   const [draft] = useState(() => readOnboardingDraft(getToken()));
   const [step, setStep] = useState(draft?.step ?? 0);
   const [error, setError] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+  const savingRef = useRef(false);
   const [leaveSheetOpen, setLeaveSheetOpen] = useState(false);
+  // UX-PO-08: once everything is saved, the last question (a nudge opt-in) shows
+  // before the wizard leaves; this is where it goes next. Null = not asking.
+  const [afterNudge, setAfterNudge] = useState<(() => void) | null>(null);
   const safetyPickerRef = useRef<SafetyPickerHandle>(null);
   // Set once the setup is finished or skipped: the draft is gone for good and
   // the autosave below must not write it back while the screen unmounts.
@@ -155,22 +190,41 @@ export function OnboardingWizard() {
     draft?.trainingDayKinds ?? {},
   );
   const [howYouCook, setHowYouCook] = useState<HowYouCookStepValue>(
-    draft?.howYouCook ?? EMPTY_HOW_YOU_COOK,
+    () => draft?.howYouCook ?? initialHowYouCook(),
   );
   // §2.4, T-03.8 (bug B-43): set when a typed height/weight didn't fit the
   // current units and the metrics step auto-switched — `from` is the unit
   // Undo restores. `howYouCook.units` is the single units source the whole
   // wizard shares (How you cook and Body metrics), even on a Track-only
   // chain where How you cook never renders.
+  // The notice also snapshots the height texts as they were, so Undo restores
+  // exactly what was typed (UX-ONB-05: imperial height is feet + inches).
   const [unitSwitchNotice, setUnitSwitchNotice] = useState<{
     from: 'METRIC' | 'IMPERIAL';
+    heightText: string;
+    inchesText: string;
   } | null>(null);
   const [goodFood, setGoodFood] = useState(draft?.goodFood ?? false);
   const [goal, setGoal] = useState<Goal | null>(knownGoal(draft?.goal));
   const [metrics, setMetrics] = useState<MetricsValue>(draft?.metrics ?? EMPTY_METRICS);
   const [ageText, setAgeText] = useState(draft?.ageText ?? '');
-  const [heightText, setHeightText] = useState(draft?.heightText ?? '');
-  const [weightText, setWeightText] = useState(draft?.weightText ?? '');
+  // UX-ONB-05: imperial height is feet (`heightText`) + inches (`inchesText`).
+  // A draft saved before that (no `inchesText`) holds ONE total-inches figure
+  // under imperial units, so its fields are rebuilt from the stored cm instead.
+  const [draftTexts] = useState(() => {
+    if (!draft) return null;
+    if (draft.inchesText === undefined && draft.howYouCook?.units === 'IMPERIAL' && draft.metrics) {
+      return { ...bodyFieldTexts(draft.metrics, 'IMPERIAL'), weightText: draft.weightText };
+    }
+    return {
+      heightText: draft.heightText,
+      inchesText: draft.inchesText ?? '',
+      weightText: draft.weightText,
+    };
+  });
+  const [heightText, setHeightText] = useState(draftTexts?.heightText ?? '');
+  const [inchesText, setInchesText] = useState(draftTexts?.inchesText ?? '');
+  const [weightText, setWeightText] = useState(draftTexts?.weightText ?? '');
   const [safety, setSafety] = useState<SafetyValue>(draft?.safety ?? EMPTY_SAFETY);
   const [cuisine, setCuisine] = useState<CuisineStepValue>(
     draft?.cuisine ?? { cuisinePreferences: [], mealsPerDay: 3 },
@@ -193,6 +247,18 @@ export function OnboardingWizard() {
     hydrated.current = true;
     persistDraft.current = saved.jobs.length === 0;
     const profile = saved.chefProfile;
+    // A wizard re-opened after setup starts from the units and currency the
+    // user already chose, not the device region (UX-ONB-04). A first-time
+    // setup keeps the region default picked in the initial state.
+    let units = howYouCook.units;
+    if (profile && saved.jobs.length > 0) {
+      units = profile.preferredUnits;
+      setHowYouCook((h) => ({
+        ...h,
+        units,
+        currency: toDisplayCurrency(profile.deliveryCurrency),
+      }));
+    }
     const diet = saved.dietaryPreferences;
     // UX-ONB-08: pre-fill the saved jobs so the steps are built from them (and
     // Continue on the first step re-saves them) instead of an empty answer.
@@ -210,8 +276,10 @@ export function OnboardingWizard() {
         activityLevel: profile.activityLevel ?? null,
       });
       setAgeText(profile.age != null ? String(profile.age) : '');
-      setHeightText(heightCm != null ? String(heightCm) : '');
-      setWeightText(weightKg != null ? String(weightKg) : '');
+      const texts = bodyFieldTexts({ heightCm, weightKg }, units);
+      setHeightText(texts.heightText);
+      setInchesText(texts.inchesText);
+      setWeightText(texts.weightText);
     }
     if (diet) {
       setSafety({
@@ -224,7 +292,29 @@ export function OnboardingWizard() {
         mealsPerDay: diet.mealsPerDay,
       });
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- hydrate once per saved payload; the starting units are read once
   }, [savedPrefs.data]);
+
+  // The units flip on their own when typed digits fit the other system (below),
+  // and the field texts are re-read right there. A units change from anywhere
+  // ELSE (the How-you-cook chips, hydration) leaves the typed texts reading in
+  // the wrong unit, so they are re-formatted from the stored cm / kg. This ref
+  // marks the former so it is not re-formatted a second time.
+  const unitsTextsHandled = useRef(false);
+  const lastUnits = useRef(howYouCook.units);
+  useEffect(() => {
+    if (lastUnits.current === howYouCook.units) return;
+    lastUnits.current = howYouCook.units;
+    if (unitsTextsHandled.current) {
+      unitsTextsHandled.current = false;
+      return;
+    }
+    const texts = bodyFieldTexts(metrics, howYouCook.units);
+    setHeightText(texts.heightText);
+    setInchesText(texts.inchesText);
+    setWeightText(texts.weightText);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- re-format only when the units change
+  }, [howYouCook.units]);
 
   // UX-ONB-01: the gate must not bounce the user straight back into the wizard
   // from the layout once they have been here this launch (see onboarding-gate).
@@ -245,6 +335,7 @@ export function OnboardingWizard() {
     metrics,
     ageText,
     heightText,
+    inchesText,
     weightText,
     safety,
     cuisine,
@@ -257,30 +348,44 @@ export function OnboardingWizard() {
   }, [draftSnapshot]);
 
   /** The setup is over (finished or skipped): the draft must not resume it again. */
-  function finishSetup() {
+  function finishSetup(completedJobs: readonly string[] = jobs) {
+    // WP-13: once per onboarding — finish, train-only continue and "just looking" all end here.
+    if (!finished.current) {
+      trackOnboardingCompleted(completedJobs, [...new Set(Object.values(trainingDayKinds))]);
+    }
     finished.current = true;
     clearOnboardingDraft();
   }
 
   const setJobsMutation = trpc.preferences.setJobs.useMutation({
+    meta: { silent: true },
     onError: (err) => setError(userFacingErrorMessage(err)),
   });
-  const setDayKindsMutation = trpc.training.setDayKinds.useMutation();
-  const setShapeMutation = trpc.mealPlan.setShape.useMutation();
-  const setDisplayPrefsMutation = trpc.preferences.setDisplayPreferences.useMutation();
+  // UX-ONB-09: every save mutation reports through the wizard's own error
+  // line (saveAll's catch), so none of them raises the default snackbar too.
+  const setDayKindsMutation = trpc.training.setDayKinds.useMutation({ meta: { silent: true } });
+  const setShapeMutation = trpc.mealPlan.setShape.useMutation({ meta: { silent: true } });
+  const setDisplayPrefsMutation = trpc.preferences.setDisplayPreferences.useMutation({
+    meta: { silent: true },
+  });
   const safetyMutation = trpc.preferences.updateSafety.useMutation({
+    meta: { silent: true },
     onError: (err) => setError(userFacingErrorMessage(err)),
   });
   const profileBasicsMutation = trpc.preferences.saveProfileBasics.useMutation({
+    meta: { silent: true },
     onError: (err) => setError(userFacingErrorMessage(err)),
   });
-  const updateTargetsMutation = trpc.preferences.updateTargets.useMutation();
+  const updateTargetsMutation = trpc.preferences.updateTargets.useMutation({
+    meta: { silent: true },
+  });
   // R-18: the first week generates in the background AFTER onboarding has
   // already navigated to Today, so the dashboard cached at navigation time
   // says "nothing planned". Invalidate everything that reads the plan when the
   // generation lands (success or failure). These are mutation-level callbacks,
   // so they still fire after the wizard has unmounted.
   const generateMutation = trpc.mealPlan.generate.useMutation({
+    onSuccess: (data) => trackPlanGenerated(data, 0),
     onSettled: () => {
       void utils.mealPlan.invalidate();
       void utils.dashboard.invalidate();
@@ -288,23 +393,15 @@ export function OnboardingWizard() {
     },
   });
 
-  // Bug (UX-03): the ScrollView is one persistent instance across every
-  // step, so a step reached scrolled down (e.g. How you cook, which needs
-  // scrolling to reach the auto-plan toggle) carried that offset straight
-  // into the next step. The content visually snapped back on its own a
-  // beat later, but a tap delivered before that correction lands on
-  // whatever the stale offset put under it — on the goal step this meant
-  // the very first Continue tap after How you cook could miss "Lose
-  // Weight" entirely and silently leave `goal` at null, which then
-  // silently dropped the whole `targets` step for Train + a numeric goal
-  // (03 UX-03 flow table). Reset to the top on every step change instead.
-  // Keyed on `step` (not `stepKey`) so this hook can sit above the loading/
-  // error early returns below, where `steps`/`stepKey` aren't computed yet
-  // — hooks can't follow a conditional return.
-  const scrollRef = useRef<ScrollView>(null);
-  useEffect(() => {
-    scrollRef.current?.scrollTo({ y: 0, animated: false });
-  }, [step]);
+  // Bug (UX-03): a step reached scrolled down (e.g. How you cook, which needs
+  // scrolling to reach the auto-plan toggle) must not carry that offset into
+  // the next step — a tap delivered before the correction lands on whatever
+  // the stale offset put under it (on the goal step the first Continue could
+  // miss "Lose Weight" and silently leave `goal` at null). The scroll view is
+  // keyed on `step` below, so every step starts at the top (UX-ONB-07 moved
+  // the wizard onto `KeyboardAwareScrollView`, which has no imperative ref).
+  // UX-ONB-07: the table step's editor, asked before Continue leaves it.
+  const householdRef = useRef<HouseholdEditorHandle>(null);
 
   // UX-ONB-01: Android hardware BACK steps back one question (first step: asks
   // before leaving). Focus-scoped, so it never swallows BACK on a screen pushed
@@ -312,12 +409,14 @@ export function OnboardingWizard() {
   useFocusEffect(
     useCallback(() => {
       const subscription = BackHandler.addEventListener('hardwareBackPress', () => {
-        if (step > 0) setStep((s) => s - 1);
+        // The nudge question comes after the save: BACK is "not now", not a step back.
+        if (afterNudge) afterNudge();
+        else if (step > 0) setStep((s) => s - 1);
         else setLeaveSheetOpen(true);
         return true;
       });
       return () => subscription.remove();
-    }, [step]),
+    }, [step, afterNudge]),
   );
 
   if (savedPrefs.isError && !savedPrefs.data) {
@@ -336,10 +435,12 @@ export function OnboardingWizard() {
   if (isPremium === undefined || savedPrefs.isLoading) {
     return (
       <Screen edges={['top', 'bottom', 'left', 'right']} className="items-center justify-center">
-        <ActivityIndicator size="large" color="#944a00" />
+        <ActivityIndicator size="large" color={colors.primary} />
       </Screen>
     );
   }
+
+  if (afterNudge) return <NudgeStep onDone={afterNudge} />;
 
   // UX-ONB-08: the step list follows what is selected NOW (`jobs`, pre-filled
   // from the saved answer), never a stale copy of the previously saved jobs.
@@ -355,7 +456,10 @@ export function OnboardingWizard() {
   const stepKey: OnboardingStepKey = steps[Math.min(step, totalSteps - 1)] ?? 'diet';
   const progress = onboardingProgress(steps, step);
   const progressPct = progress.percent ?? 0;
+  // One flag for the whole multi-step save: the individual mutations' pending
+  // flags drop between the awaits, which let a second Finish tap start a second save.
   const isSubmitting =
+    saving ||
     setJobsMutation.isPending ||
     safetyMutation.isPending ||
     profileBasicsMutation.isPending ||
@@ -369,24 +473,19 @@ export function OnboardingWizard() {
     setMetrics((m) => ({ ...m, age: raw === '' || isNaN(n) ? null : n }));
   }
 
-  /** Raw typed text -> a number in whatever `units` currently means, or null. */
-  function parseTyped(raw: string): number | null {
-    const n = parseFloat(raw.replace(',', '.'));
-    return raw === '' || isNaN(n) ? null : n;
-  }
-
   /**
-   * §2.4, T-03.8 (bug B-43, AC11): after either field changes, check whether
-   * the two typed values (read fresh from state, in the CURRENT units) fit
-   * the other system far better — if so, switch `howYouCook.units` for the
-   * whole wizard and re-interpret the SAME typed digits under the new unit
-   * (170 stays "170" but now means 170 cm, not 170 in), so the stored
-   * heightCm/weightKg are never briefly nonsense mid-switch.
+   * §2.4, T-03.8 (bug B-43, AC11): after a height or weight field changes,
+   * check whether the typed values (in the CURRENT units) fit the other system
+   * far better — if so, switch `howYouCook.units` for the whole wizard and
+   * re-interpret the SAME typed digits under the new unit (170 stays "170" but
+   * now means 170 cm, not 170 in), so the stored heightCm/weightKg are never
+   * briefly nonsense mid-switch. Imperial height is feet + inches (UX-ONB-05):
+   * going imperial splits the typed total inches into the two fields.
    */
-  function checkUnitSwitch(heightRaw: string, weightRaw: string) {
+  function checkUnitSwitch(heightRaw: string, inchesRaw: string, weightRaw: string) {
     const currentUnits = howYouCook.units;
-    const heightVal = parseTyped(heightRaw);
-    const weightVal = parseTyped(weightRaw);
+    const heightVal = heightValueForInference(heightRaw, inchesRaw, currentUnits);
+    const weightVal = parseBodyNumber(weightRaw);
     const result = inferUnitsFromInput({
       heightValue: heightVal,
       weightValue: weightVal,
@@ -394,57 +493,53 @@ export function OnboardingWizard() {
     });
     if (!result.shouldSwitch) return;
     const next = result.suggestedUnits;
+    let nextHeight = heightRaw;
+    let nextInches = '';
+    if (next === 'IMPERIAL' && heightVal !== null) {
+      const texts = bodyFieldTexts({ heightCm: inToCm(heightVal), weightKg: null }, 'IMPERIAL');
+      nextHeight = texts.heightText;
+      nextInches = texts.inchesText;
+    }
+    unitsTextsHandled.current = true;
     setHowYouCook((h) => ({ ...h, units: next }));
+    setHeightText(nextHeight);
+    setInchesText(nextInches);
     setMetrics((m) => ({
       ...m,
-      ...(heightVal !== null && { heightCm: next === 'IMPERIAL' ? inToCm(heightVal) : heightVal }),
-      ...(weightVal !== null && {
-        weightKg: next === 'IMPERIAL' ? weightVal / LB_PER_KG : weightVal,
-      }),
+      ...(heightVal !== null && { heightCm: heightCmFromText(nextHeight, nextInches, next) }),
+      ...(weightVal !== null && { weightKg: weightKgFromText(weightRaw, next) }),
     }));
-    setUnitSwitchNotice({ from: currentUnits });
-  }
-
-  function heightWeightToMetric(
-    typed: number | null,
-    units: 'METRIC' | 'IMPERIAL',
-    kind: 'height' | 'weight',
-  ) {
-    if (typed === null) return null;
-    if (units !== 'IMPERIAL') return typed;
-    return kind === 'height' ? inToCm(typed) : typed / LB_PER_KG;
+    setUnitSwitchNotice({ from: currentUnits, heightText: heightRaw, inchesText: inchesRaw });
   }
 
   function handleHeightText(raw: string) {
     setHeightText(raw);
-    const typed = parseTyped(raw);
-    setMetrics((m) => ({
-      ...m,
-      heightCm: heightWeightToMetric(typed, howYouCook.units, 'height'),
-    }));
-    checkUnitSwitch(raw, weightText);
+    setMetrics((m) => ({ ...m, heightCm: heightCmFromText(raw, inchesText, howYouCook.units) }));
+    checkUnitSwitch(raw, inchesText, weightText);
+  }
+  function handleInchesText(raw: string) {
+    setInchesText(raw);
+    setMetrics((m) => ({ ...m, heightCm: heightCmFromText(heightText, raw, howYouCook.units) }));
+    checkUnitSwitch(heightText, raw, weightText);
   }
   function handleWeightText(raw: string) {
     setWeightText(raw);
-    const typed = parseTyped(raw);
-    setMetrics((m) => ({
-      ...m,
-      weightKg: heightWeightToMetric(typed, howYouCook.units, 'weight'),
-    }));
-    checkUnitSwitch(heightText, raw);
+    setMetrics((m) => ({ ...m, weightKg: weightKgFromText(raw, howYouCook.units) }));
+    checkUnitSwitch(heightText, inchesText, raw);
   }
 
-  /** Reverts the units switch and re-interprets the same typed digits under the old unit. */
+  /** Reverts the units switch and restores the height as it was typed under the old unit. */
   function undoUnitSwitch() {
     if (!unitSwitchNotice) return;
-    const revert = unitSwitchNotice.from;
-    setHowYouCook((h) => ({ ...h, units: revert }));
-    const heightVal = parseTyped(heightText);
-    const weightVal = parseTyped(weightText);
+    const { from, heightText: prevHeight, inchesText: prevInches } = unitSwitchNotice;
+    unitsTextsHandled.current = true;
+    setHowYouCook((h) => ({ ...h, units: from }));
+    setHeightText(prevHeight);
+    setInchesText(prevInches);
     setMetrics((m) => ({
       ...m,
-      ...(heightVal !== null && { heightCm: heightWeightToMetric(heightVal, revert, 'height') }),
-      ...(weightVal !== null && { weightKg: heightWeightToMetric(weightVal, revert, 'weight') }),
+      heightCm: heightCmFromText(prevHeight, prevInches, from) ?? m.heightCm,
+      weightKg: weightKgFromText(weightText, from) ?? m.weightKg,
     }));
     setUnitSwitchNotice(null);
   }
@@ -466,8 +561,11 @@ export function OnboardingWizard() {
       ...(metrics.biologicalSex !== null && { biologicalSex: metrics.biologicalSex }),
       ...(metrics.age !== null &&
         bodyMetricsAgeError(metrics.age) === null && { age: metrics.age }),
-      ...(metrics.heightCm !== null && metrics.heightCm > 0 && { heightCm: metrics.heightCm }),
-      ...(metrics.weightKg !== null && metrics.weightKg > 0 && { weightKg: metrics.weightKg }),
+      // UX-ONB-05: only plausible values are stored ("1,80" must not save 1.8 cm).
+      ...(metrics.heightCm !== null &&
+        isPlausibleHeightCm(metrics.heightCm) && { heightCm: metrics.heightCm }),
+      ...(metrics.weightKg !== null &&
+        isPlausibleWeightKg(metrics.weightKg) && { weightKg: metrics.weightKg }),
       ...(metrics.activityLevel !== null && { activityLevel: metrics.activityLevel }),
     };
   }
@@ -479,6 +577,7 @@ export function OnboardingWizard() {
    * the health fields are left out (AC2).
    */
   function handleFinish(safetyNow: SafetyValue = safety) {
+    if (savingRef.current) return;
     setError(null);
     requestHealthConsent(() => void saveAll(true, safetyNow), {
       hasHealthData: hasAnySafetyTerm(safetyNow) || Object.keys(buildBasics()).length > 0,
@@ -490,6 +589,9 @@ export function OnboardingWizard() {
   }
 
   async function saveAll(includeHealth: boolean, safetyNow: SafetyValue) {
+    if (savingRef.current) return;
+    savingRef.current = true;
+    setSaving(true);
     setError(null);
     try {
       await setJobsMutation.mutateAsync({
@@ -529,22 +631,30 @@ export function OnboardingWizard() {
       void utils.preferences.invalidate();
       void utils.dashboard.invalidate();
 
-      if (hasTrain) {
-        // Train + food (AC3/AC9): a first week generates in the background
-        // while the gym wizard opens pre-filled at step 2 (T-03.4 — the
-        // days/pre-fill handling itself is L-GYM's setup-wizard, see the
-        // final report).
-        generateFirstWeek();
-        setMode('gym');
-        router.replace('/today');
-        const days = [...trainingWeekdays].sort((a, b) => a - b).join(',');
-        router.push(`/gym/setup?from=onboarding${days ? `&days=${days}` : ''}`);
-        return;
-      }
       generateFirstWeek();
-      goToDashboard();
-    } catch {
-      // onError already surfaced the message for the mutations that set one.
+      const leave = () => {
+        if (hasTrain) {
+          // Train + food (AC3/AC9): a first week generates in the background
+          // while the gym wizard opens pre-filled at step 2 (T-03.4 — the
+          // days/pre-fill handling itself is L-GYM's setup-wizard, see the
+          // final report).
+          setMode('gym');
+          router.replace('/today');
+          const days = [...trainingWeekdays].sort((a, b) => a - b).join(',');
+          router.push(`/gym/setup?from=onboarding${days ? `&days=${days}` : ''}`);
+          return;
+        }
+        goToDashboard();
+      };
+      // UX-PO-08: the last question — an opt-in nudge — comes before leaving.
+      setAfterNudge(() => leave);
+    } catch (err) {
+      // UX-ONB-09: never swallow — whichever step failed, say so and let the
+      // user tap Finish again (every step is idempotent).
+      setError(userFacingErrorMessage(err));
+    } finally {
+      savingRef.current = false;
+      setSaving(false);
     }
   }
 
@@ -576,7 +686,7 @@ export function OnboardingWizard() {
         { jobs: ['PLAN_MEALS'] },
         {
           onSuccess: () => {
-            finishSetup();
+            finishSetup(['PLAN_MEALS']);
             void utils.preferences.invalidate();
             goToDashboard();
           },
@@ -611,6 +721,13 @@ export function OnboardingWizard() {
     setError(null);
     if (stepKey === 'jobs') {
       void handleJobsContinue();
+      return;
+    }
+    // UX-ONB-07: a name typed into "Add someone" but never added is added first
+    // (through the normal save, health consent included), then the wizard moves
+    // on. If the add fails or is cancelled the step stays and shows why.
+    if (stepKey === 'table' && householdRef.current?.hasPending()) {
+      householdRef.current.addPending(() => advance());
       return;
     }
     // T-26.2: ask when leaving the step that holds health information, so the
@@ -651,6 +768,7 @@ export function OnboardingWizard() {
             });
             setAgeText('');
             setHeightText('');
+            setInchesText('');
             setWeightText('');
           }
           setHealthDeclined('body');
@@ -680,11 +798,15 @@ export function OnboardingWizard() {
         goal={goodFood ? null : goal}
         ageText={ageText}
         heightText={heightText}
+        heightInchesText={inchesText}
         weightText={weightText}
         onAgeText={handleAgeText}
         onHeightText={handleHeightText}
+        onHeightInchesText={handleInchesText}
         onWeightText={handleWeightText}
         units={howYouCook.units}
+        // UX-ONB-06: Done on the last field (weight) is Continue.
+        onSubmit={handleContinue}
       />
       {unitSwitchNotice && (
         <View
@@ -725,9 +847,9 @@ export function OnboardingWizard() {
       <View className="gap-3">
         <Text variant="muted" className="text-sm">
           Add the people you cook for. Their allergies and restrictions apply to every plan — free.
-          You can change this any time from Profile → Household.
+          You can change this any time from Settings → Household.
         </Text>
-        <HouseholdEditor variant="onboarding" />
+        <HouseholdEditor variant="onboarding" handleRef={householdRef} />
       </View>
     );
   } else if (stepKey === 'diet') {
@@ -742,7 +864,9 @@ export function OnboardingWizard() {
   } else if (stepKey === 'cuisine') {
     content = <CuisineStep value={cuisine} onChange={setCuisine} />;
   } else if (stepKey === 'targets') {
-    content = <TargetsCard />;
+    content = (
+      <TargetsCard previewKcal={previewTargetKcalFromBasics(metrics, goodFood ? null : goal)} />
+    );
   } else if (stepKey === 'goal') {
     content = (
       <View className="gap-3">
@@ -784,9 +908,10 @@ export function OnboardingWizard() {
       ? jobs.length > 0
       : stepKey === 'goal'
         ? goodFood || true // goal is always optional past the jobs step
-        : // R-02: an age under 16 blocks the body-metrics step until fixed or cleared.
+        : // R-02 / UX-ONB-05: an age under 16, or a height/weight outside the plausible
+          // range, blocks the body-metrics step until fixed or cleared.
           stepKey === 'metrics'
-          ? bodyMetricsAgeError(metrics.age) === null
+          ? Object.values(metricsFieldErrors(metrics, howYouCook.units)).every((e) => e === null)
           : true;
 
   return (
@@ -800,7 +925,7 @@ export function OnboardingWizard() {
           onPress={handleBack}
           className="h-11 w-11 items-center justify-center"
         >
-          <Ionicons name="arrow-back" size={20} color="#1f2937" />
+          <Ionicons name="arrow-back" size={20} color={colors.foreground} />
         </Pressable>
         <View className="flex-1">
           <Text variant="muted" className="text-xs">
@@ -828,10 +953,43 @@ export function OnboardingWizard() {
         <View className="h-full rounded-full bg-primary" style={{ width: `${progressPct}%` }} />
       </View>
 
-      <ScrollView
-        ref={scrollRef}
+      {/* UX-ONB-07: Continue is the scroll view's sticky footer, so it rises with
+          the keyboard instead of hiding under it on every step with a field. */}
+      <KeyboardAwareScrollView
+        key={step}
+        testID="onboarding-scroll"
         contentContainerClassName="gap-4 px-4 py-3 pb-8"
-        keyboardShouldPersistTaps="handled"
+        footer={
+          <View className="gap-2 border-t border-border bg-background px-4 pb-2 pt-3">
+            <Button
+              testID="onboarding-continue"
+              loading={isSubmitting}
+              disabled={!canContinue || isSubmitting}
+              onPress={handleContinue}
+            >
+              {stepKey === 'jobs'
+                ? `Continue — ${jobs.length} selected`
+                : step === totalSteps - 1
+                  ? hasTrain
+                    ? ONBOARDING_COPY.finishTrainFood
+                    : ONBOARDING_COPY.finishFood
+                  : 'Continue'}
+            </Button>
+            {stepKey === 'jobs' && (
+              <Pressable
+                testID="onboarding-skip"
+                accessibilityRole="button"
+                onPress={handleSkip}
+                disabled={isSubmitting}
+                className="h-11 items-center justify-center"
+              >
+                <Text className="text-sm font-semibold text-primary">
+                  {ONBOARDING_COPY.continueSkip}
+                </Text>
+              </Pressable>
+            )}
+          </View>
+        }
       >
         {content}
         {error && (
@@ -839,38 +997,7 @@ export function OnboardingWizard() {
             <Text className="text-sm text-red-600">{error}</Text>
           </View>
         )}
-      </ScrollView>
-
-      {/* Primary Continue button — bottom, thumb reach */}
-      <View className="gap-2 border-t border-border px-4 pb-2 pt-3">
-        <Button
-          testID="onboarding-continue"
-          loading={isSubmitting}
-          disabled={!canContinue || isSubmitting}
-          onPress={handleContinue}
-        >
-          {stepKey === 'jobs'
-            ? `Continue — ${jobs.length} selected`
-            : step === totalSteps - 1
-              ? hasTrain
-                ? ONBOARDING_COPY.finishTrainFood
-                : ONBOARDING_COPY.finishFood
-              : 'Continue'}
-        </Button>
-        {stepKey === 'jobs' && (
-          <Pressable
-            testID="onboarding-skip"
-            accessibilityRole="button"
-            onPress={handleSkip}
-            disabled={isSubmitting}
-            className="h-11 items-center justify-center"
-          >
-            <Text className="text-sm font-semibold text-primary">
-              {ONBOARDING_COPY.continueSkip}
-            </Text>
-          </Pressable>
-        )}
-      </View>
+      </KeyboardAwareScrollView>
       {healthConsentSheet}
       <ConfirmSheet
         testID="onboarding-leave-confirm"

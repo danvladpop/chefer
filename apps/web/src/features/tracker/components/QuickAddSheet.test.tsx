@@ -13,6 +13,9 @@ const m = vi.hoisted(() => ({
   recents: [] as unknown[],
   recipes: [] as unknown[],
   ingredients: [] as unknown[],
+  search: { isFetching: false, isError: false },
+  refetch: vi.fn(),
+  logRecipeState: { isError: false, error: null as { message: string } | null },
   logCustomState: { isPending: false, isError: false, error: null as { message: string } | null },
   invalidate: {
     getDay: vi.fn(),
@@ -37,8 +40,12 @@ vi.mock('@/lib/trpc', () => ({
       },
       dashboard: { summary: { invalidate: m.invalidate.dashboardSummary } },
     }),
-    recipe: { list: { useQuery: () => ({ data: m.recipes }) } },
-    ingredients: { search: { useQuery: () => ({ data: m.ingredients }) } },
+    recipe: {
+      list: { useQuery: () => ({ data: m.recipes, refetch: m.refetch, ...m.search }) },
+    },
+    ingredients: {
+      search: { useQuery: () => ({ data: m.ingredients, refetch: m.refetch, ...m.search }) },
+    },
     tracker: {
       recents: { useQuery: () => ({ data: m.recents }) },
       logRecipe: {
@@ -47,6 +54,7 @@ vi.mock('@/lib/trpc', () => ({
             m.logRecipe(vars);
             opts.onSuccess?.({ log: {}, rebalance }, vars);
           },
+          ...m.logRecipeState,
           isPending: false,
         }),
       },
@@ -82,6 +90,10 @@ beforeEach(() => {
   m.recents = [];
   m.recipes = [];
   m.ingredients = [];
+  m.search.isFetching = false;
+  m.search.isError = false;
+  m.logRecipeState.isError = false;
+  m.logRecipeState.error = null;
   m.logCustomState.isPending = false;
   m.logCustomState.isError = false;
   m.logCustomState.error = null;
@@ -167,6 +179,64 @@ describe('QuickAddSheet — search-first (T-19.1)', () => {
     );
   });
 
+  // UX-FOOD-09
+  it('clamps absurd grams instead of previewing 88,999 kcal', () => {
+    m.ingredients = [
+      {
+        name: 'banana',
+        displayName: 'Banana',
+        imageUrl: null,
+        hasMacros: true,
+        isCustom: false,
+        per100g: { calories: 89, protein: 1.1, carbs: 23, fat: 0.3 },
+      },
+    ];
+    renderSheet();
+    fireEvent.change(screen.getByTestId('log-sheet-search'), { target: { value: 'banana' } });
+    fireEvent.click(screen.getByText('Banana'));
+    const input = screen.getByTestId<HTMLInputElement>('log-sheet-grams-input-banana');
+    fireEvent.change(input, { target: { value: '99999' } });
+    expect(input.value).toBe('4347');
+    expect(screen.getByTestId('log-sheet-grams-max-banana')).toBeTruthy();
+    expect(screen.getByTestId('log-sheet-grams-live-kcal-banana').textContent).toMatch(
+      /^3869 kcal/,
+    );
+    fireEvent.click(screen.getByTestId('log-sheet-grams-log-banana'));
+    expect(m.logCustom).toHaveBeenCalledWith(expect.objectContaining({ kcal: 3869 }));
+  });
+
+  it('shows "Searching…" while a first search loads', () => {
+    m.search.isFetching = true;
+    renderSheet();
+    fireEvent.change(screen.getByTestId('log-sheet-search'), { target: { value: 'zzz' } });
+    expect(screen.getByTestId('log-sheet-searching')).toBeTruthy();
+  });
+
+  it('offers "enter calories yourself" when nothing matches, once the debounce settles', async () => {
+    renderSheet();
+    fireEvent.change(screen.getByTestId('log-sheet-search'), { target: { value: 'zzz' } });
+    expect(screen.queryByTestId('log-sheet-no-matches')).toBeNull();
+    fireEvent.click(await screen.findByTestId('log-sheet-no-matches'));
+    expect(screen.getByTestId<HTMLInputElement>('quick-add-name').value).toBe('zzz');
+  });
+
+  it('shows a Retry when the search fails instead of an empty list', () => {
+    m.search.isError = true;
+    renderSheet();
+    fireEvent.change(screen.getByTestId('log-sheet-search'), { target: { value: 'rice' } });
+    expect(screen.getByTestId('log-sheet-search-error')).toBeTruthy();
+    expect(screen.queryByTestId('log-sheet-no-matches')).toBeNull();
+    fireEvent.click(screen.getByTestId('log-sheet-search-retry'));
+    expect(m.refetch).toHaveBeenCalled();
+  });
+
+  it('shows a failed log in the search view', () => {
+    m.logRecipeState.isError = true;
+    m.logRecipeState.error = { message: 'Recipe not found.' };
+    renderSheet();
+    expect(screen.getByTestId('log-sheet-api-error').textContent).toMatch(/Recipe not found/);
+  });
+
   it('B-29/AC6: never shows a barcode or branded-product affordance', () => {
     renderSheet();
     expect(screen.queryByText(/barcode/i)).toBeNull();
@@ -215,6 +285,8 @@ describe('QuickAddSheet — Enter calories yourself (fallback, T-19.1)', () => {
       protein: 0,
       carbs: 50,
       fat: 18.5,
+      // UX-FOOD-11: the blank protein is unknown, not a typed 0 g
+      unknownMacros: ['protein'],
     });
   });
 
@@ -225,6 +297,8 @@ describe('QuickAddSheet — Enter calories yourself (fallback, T-19.1)', () => {
     fireEvent.change(screen.getByTestId('quick-add-name'), { target: { value: 'Mystery shake' } });
     fireEvent.change(screen.getByTestId('quick-add-kcal'), { target: { value: '100' } });
     fireEvent.change(screen.getByTestId('quick-add-protein'), { target: { value: '500' } });
+    fireEvent.change(screen.getByTestId('quick-add-carbs'), { target: { value: '0' } });
+    fireEvent.change(screen.getByTestId('quick-add-fat'), { target: { value: '0' } });
     expect(screen.getByTestId('quick-add-sanity').textContent).toContain(
       "These don't add up: 100 kcal logged, but the macros add up to 2,000 kcal.",
     );
@@ -238,10 +312,37 @@ describe('QuickAddSheet — Enter calories yourself (fallback, T-19.1)', () => {
     fireEvent.change(screen.getByTestId('quick-add-name'), { target: { value: 'Mystery shake' } });
     fireEvent.change(screen.getByTestId('quick-add-kcal'), { target: { value: '100' } });
     fireEvent.change(screen.getByTestId('quick-add-protein'), { target: { value: '500' } });
+    fireEvent.change(screen.getByTestId('quick-add-carbs'), { target: { value: '0' } });
+    fireEvent.change(screen.getByTestId('quick-add-fat'), { target: { value: '0' } });
     fireEvent.click(screen.getByTestId('quick-add-sanity-log-anyway'));
     expect(screen.queryByTestId('quick-add-sanity')).toBeNull();
     fireEvent.click(screen.getByTestId('quick-add-submit'));
     expect(m.logCustom).toHaveBeenCalledWith(expect.objectContaining({ kcal: 100, protein: 500 }));
+  });
+
+  // UX-FOOD-11: calories + protein only used to count the blanks as 0 g and
+  // flag "don't add up", greying out Log.
+  it('UX-FOOD-11: partial macros skip the sanity check, keep Log enabled and flag the blanks', () => {
+    renderSheet();
+    goToManual();
+    fireEvent.change(screen.getByTestId('quick-add-name'), { target: { value: 'Soup' } });
+    fireEvent.change(screen.getByTestId('quick-add-kcal'), { target: { value: '400' } });
+    fireEvent.change(screen.getByTestId('quick-add-protein'), { target: { value: '20' } });
+    expect(screen.queryByTestId('quick-add-sanity')).toBeNull();
+    const submit = screen.getByTestId('quick-add-submit');
+    expect((submit as HTMLButtonElement).disabled).toBe(false);
+    fireEvent.click(submit);
+    expect(m.logCustom).toHaveBeenCalledWith(
+      expect.objectContaining({ protein: 20, carbs: 0, fat: 0, unknownMacros: ['carbs', 'fat'] }),
+    );
+  });
+
+  it('UX-FOOD-25: every macro field has a visible label with its unit', () => {
+    renderSheet();
+    goToManual();
+    expect(screen.getByText('Protein (g)')).toBeTruthy();
+    expect(screen.getByText('Carbs (g)')).toBeTruthy();
+    expect(screen.getByText('Fat (g)')).toBeTruthy();
   });
 
   it('shows the API error', () => {

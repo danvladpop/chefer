@@ -1,9 +1,16 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Image, Pressable, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { Button, Card, Text } from '@chefer/ui-mobile';
-import { formatPortion, localDateStr, slotPortion, userFacingErrorMessage } from '@chefer/utils';
+import {
+  formatPortion,
+  HERO_LOGGED_HOLD_MS,
+  localDateStr,
+  slotPortion,
+  userFacingErrorMessage,
+} from '@chefer/utils';
+import { trackMealLogged } from '../../../lib/analytics-events';
 import { getRecipeImageUrl } from '../../../lib/recipe-image';
 import { trpc, type RouterOutputs } from '../../../lib/trpc';
 import { recordRebalance } from '../../tracker/rebalance-store';
@@ -16,20 +23,65 @@ import { MealTypeBadge } from './meal-type-badge';
 
 type HeroMeal = NonNullable<RouterOutputs['dashboard']['summary']['nextMeal']>;
 
-export function HeroMealCard({ meal, isTomorrow }: { meal: HeroMeal; isTomorrow: boolean }) {
+export function HeroMealCard({
+  meal: nextMeal,
+  isTomorrow,
+}: {
+  meal: HeroMeal;
+  isTomorrow: boolean;
+}) {
   const utils = trpc.useUtils();
   const [lastLogged, setLastLogged] = useState<string | null>(null);
+  // UX-FOOD-15: the summary refetch moves the card to the NEXT meal under the
+  // thumb (a double tap logged dinner at 11 am), so the meal just logged is
+  // held as a disabled "Logged ✓ · Undo" for HERO_LOGGED_HOLD_MS first.
+  const [held, setHeld] = useState<HeroMeal | null>(null);
+  const holdTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const meal = held ?? nextMeal;
+
+  const clearHold = () => {
+    if (holdTimer.current) clearTimeout(holdTimer.current);
+    holdTimer.current = null;
+    setHeld(null);
+  };
+  useEffect(
+    () => () => {
+      if (holdTimer.current) clearTimeout(holdTimer.current);
+    },
+    [],
+  );
+
+  const refreshDay = () => {
+    void utils.dashboard.summary.invalidate();
+    void utils.tracker.getDay.invalidate();
+    void utils.tracker.weeklySummary.invalidate();
+  };
 
   const logMutation = trpc.tracker.logRecipe.useMutation({
+    meta: { silent: true },
     onSuccess: (result) => {
+      trackMealLogged('planned', meal.mealType);
       // A premium log can rebalance the week — same hand-off as the tracker.
       recordRebalance(result.rebalance);
       setLastLogged(meal.recipe.name);
-      void utils.dashboard.summary.invalidate();
-      void utils.tracker.getDay.invalidate();
-      void utils.tracker.weeklySummary.invalidate();
+      // Hold the card on this meal (the one that was tapped), then let the
+      // refetched summary move it on.
+      if (holdTimer.current) clearTimeout(holdTimer.current);
+      setHeld(meal);
+      holdTimer.current = setTimeout(clearHold, HERO_LOGGED_HOLD_MS);
+      refreshDay();
     },
   });
+
+  const undoMutation = trpc.tracker.unlogRecipe.useMutation({
+    meta: { silent: true },
+    onSuccess: () => {
+      setLastLogged(null);
+      clearHold();
+      refreshDay();
+    },
+  });
+  const holding = held !== null;
 
   // P1-1: a portioned plan slot opens, cooks and logs at its portion (kcal
   // is already scaled to it). logRecipe takes 0.5–2×, like the tracker.
@@ -58,7 +110,7 @@ export function HeroMealCard({ meal, isTomorrow }: { meal: HeroMeal; isTomorrow:
         <View className="gap-2 px-4 pt-4">
           <View className="flex-row flex-wrap gap-2">
             <View className="self-start rounded-full bg-primary px-2.5 py-0.5">
-              <Text className="text-[12px] font-semibold uppercase text-primary-foreground">
+              <Text className="text-xs font-semibold uppercase text-primary-foreground">
                 {isTomorrow ? 'Tomorrow' : 'Next Meal'}
               </Text>
             </View>
@@ -95,8 +147,10 @@ export function HeroMealCard({ meal, isTomorrow }: { meal: HeroMeal; isTomorrow:
           <>
             <Button
               testID="today-ate-this"
+              size="lg"
               className="flex-1"
               loading={logMutation.isPending}
+              disabled={holding || logMutation.isPending}
               onPress={() =>
                 logMutation.mutate({
                   date: localDateStr(),
@@ -109,13 +163,23 @@ export function HeroMealCard({ meal, isTomorrow }: { meal: HeroMeal; isTomorrow:
                 })
               }
             >
-              I ate this
+              {holding ? 'Logged ✓' : 'I ate this'}
             </Button>
             <Button
-              testID="today-cook-it"
+              testID={holding ? 'today-undo-logged' : 'today-cook-it'}
               variant="outline"
               className="flex-1"
-              onPress={() =>
+              loading={undoMutation.isPending}
+              onPress={() => {
+                if (holding) {
+                  undoMutation.mutate({
+                    date: localDateStr(),
+                    recipeId: meal.recipe.id,
+                    mealType: meal.mealType,
+                    ...(meal.slotIndex !== undefined && { slotIndex: meal.slotIndex }),
+                  });
+                  return;
+                }
                 router.push({
                   pathname: '/cook/[id]',
                   params: {
@@ -123,10 +187,10 @@ export function HeroMealCard({ meal, isTomorrow }: { meal: HeroMeal; isTomorrow:
                     meal: meal.mealType,
                     ...(portion !== undefined && { portion: String(portion) }),
                   },
-                })
-              }
+                });
+              }}
             >
-              Cook it
+              {holding ? 'Undo' : 'Cook it'}
             </Button>
           </>
         )}

@@ -15,10 +15,12 @@ export const ingredientsRouter = router({
       z.object({
         query: z.string().min(1).max(60),
         category: ingredientCategorySchema.optional(),
+        // "Show more" (UX-FOOD-12) — additive; older clients get the default 12.
+        limit: z.number().int().min(1).max(40).optional(),
       }),
     )
     .query(async ({ ctx, input }) => {
-      return ingredientsService.search(ctx.user.id, input.query, 12, {
+      return ingredientsService.search(ctx.user.id, input.query, input.limit ?? 12, {
         category: input.category,
       });
     }),

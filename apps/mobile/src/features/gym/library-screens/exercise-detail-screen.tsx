@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { Alert, Pressable, ScrollView, View } from 'react-native';
+import { Keyboard, Pressable, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { HIDDEN_EXERCISE_IMAGE_IDS, MUSCLE_LABELS } from '@chefer/types';
@@ -8,17 +8,28 @@ import {
   Button,
   Card,
   CardTitle,
+  ConfirmSheet,
   EmptyState,
-  Input,
+  ErrorState,
+  KeyboardAwareScrollView,
   LineChart,
   Screen,
+  showSnackbar,
   Text,
 } from '@chefer/ui-mobile';
-import { formatLoad } from '@chefer/utils';
+import {
+  formatLoad,
+  formatLocalDateLong,
+  isNotFoundError,
+  lastSessionsLabel,
+  userFacingErrorMessage,
+} from '@chefer/utils';
 import { trpc } from '../../../lib/trpc';
+import { GymBootstrapUnavailable, useGymBootstrapLoad } from '../components/gym-bootstrap-state';
 import { exerciseImageUrl } from '../library/exercise-image';
 import { localBestSets, localE1rmSeries, localRepPrTable } from '../stats/local-engine';
 import { useGymBootstrap } from '../use-gym-bootstrap';
+import { ExerciseNoteField } from './exercise-note-field';
 import { getExerciseNote, setExerciseNote } from './exercise-notes';
 import { ExerciseVideoSheet } from './exercise-video-sheet';
 import { useIsOnline } from './online-status';
@@ -32,30 +43,69 @@ import { StackBackButton } from './stack-back-button';
 
 const HISTORY_LIMIT = 5;
 
+/** First and last point's date under the chart, e.g. "3 Aug 2026" … "24 Sep 2026". */
+function chartDateLabels(localDates: readonly string[]): { x: number; label: string }[] {
+  const first = localDates[0];
+  const last = localDates[localDates.length - 1];
+  if (first === undefined || last === undefined) return [];
+  const labels = [{ x: Date.parse(first), label: formatLocalDateLong(first) }];
+  if (last !== first) labels.push({ x: Date.parse(last), label: formatLocalDateLong(last) });
+  return labels;
+}
+
 export function ExerciseDetailScreen({ exerciseId }: { exerciseId: string }) {
-  const { data: bootstrap, isLoading } = useGymBootstrap();
+  const bootstrapQuery = useGymBootstrap();
+  const bootstrap = bootstrapQuery.data;
+  // UX-GYM-24: a failed load is an error with Retry, not "Loading…" or "not found".
+  const bootstrapLoad = useGymBootstrapLoad(bootstrapQuery);
+  const [archiveConfirmOpen, setArchiveConfirmOpen] = useState(false);
   const online = useIsOnline();
   const utils = trpc.useUtils();
   const [videoVisible, setVideoVisible] = useState(false);
   const [note, setNote] = useState(() => getExerciseNote(exerciseId));
+  const [noteFocused, setNoteFocused] = useState(false);
 
   const cachedExercise = bootstrap?.library.find((e) => e.id === exerciseId);
-  const { data: fetchedExercise } = trpc.gym.library.get.useQuery(
+  const fetchedQuery = trpc.gym.library.get.useQuery(
     { id: exerciseId },
     { enabled: !cachedExercise && online },
   );
+  const fetchedExercise = fetchedQuery.data;
   const exercise = cachedExercise ?? fetchedExercise;
 
   const archiveMutation = trpc.gym.library.archiveCustom.useMutation({
     onSuccess: () => {
       void utils.gym.bootstrap.invalidate();
+      setArchiveConfirmOpen(false);
       router.back();
+      // UX-GYM-34: archiving can be undone — here for 10 s, and from the
+      // Exercises tab's "Archived" section afterwards. Imperative client: this
+      // screen is gone by the time the action is tapped.
+      const name = exercise?.name ?? 'Exercise';
+      showSnackbar({
+        message: `Archived “${name}”.`,
+        actionLabel: 'Undo',
+        onAction: () => {
+          utils.client.gym.library.restoreCustom
+            .mutate({ id: exerciseId })
+            .then(() => utils.gym.bootstrap.invalidate())
+            .catch((err: unknown) => showSnackbar({ message: userFacingErrorMessage(err) }));
+        },
+      });
     },
+    // The ConfirmSheet shows the failure itself — no default snackbar.
+    meta: { silent: true },
   });
 
   const sessions = useMemo(() => bootstrap?.recentSessions ?? [], [bootstrap]);
-  const e1rmSeries = useMemo(() => localE1rmSeries(sessions, exerciseId), [sessions, exerciseId]);
-  const bestSets = useMemo(() => localBestSets(sessions, exerciseId, 3), [sessions, exerciseId]);
+  const e1rmSeries = useMemo(
+    () => localE1rmSeries(sessions, exerciseId, bootstrap?.olderBests),
+    [sessions, exerciseId, bootstrap?.olderBests],
+  );
+  const bestSets = useMemo(
+    () => localBestSets(sessions, exerciseId, 3, bootstrap?.olderBests),
+    [sessions, exerciseId, bootstrap?.olderBests],
+  );
   const repPrTable = useMemo(() => localRepPrTable(sessions, exerciseId), [sessions, exerciseId]);
   const lastSessions = useMemo(
     () =>
@@ -72,19 +122,11 @@ export function ExerciseDetailScreen({ exerciseId }: { exerciseId: string }) {
     setExerciseNote(exerciseId, value);
   };
 
+  // UX-GYM-22 / X-13: confirmed in a ConfirmSheet (not a native Alert), so a
+  // failed archive is shown in the sheet rather than lost.
   const onArchive = () => {
-    Alert.alert(
-      'Archive this exercise?',
-      'It stays in past sessions but won’t show up when adding exercises.',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Archive',
-          style: 'destructive',
-          onPress: () => archiveMutation.mutate({ id: exerciseId }),
-        },
-      ],
-    );
+    archiveMutation.reset();
+    setArchiveConfirmOpen(true);
   };
 
   if (!exercise) {
@@ -97,8 +139,21 @@ export function ExerciseDetailScreen({ exerciseId }: { exerciseId: string }) {
           <Text testID="gym-exercise-title" variant="title" className="mb-2">
             Exercise
           </Text>
-          {isLoading ? (
+          {bootstrapLoad.load === 'loading' || fetchedQuery.isLoading ? (
             <Text variant="muted">Loading…</Text>
+          ) : bootstrapLoad.load === 'error' || bootstrapLoad.load === 'offline' ? (
+            <GymBootstrapUnavailable
+              load={bootstrapLoad.load}
+              onRetry={bootstrapLoad.retry}
+              testID="exercise-detail"
+              what="this exercise"
+            />
+          ) : fetchedQuery.isError && !isNotFoundError(fetchedQuery.error) ? (
+            <ErrorState
+              testID="exercise-detail-error"
+              title="Couldn’t load this exercise"
+              onRetry={() => void fetchedQuery.refetch()}
+            />
           ) : (
             <EmptyState
               testID="exercise-detail-not-found"
@@ -118,7 +173,25 @@ export function ExerciseDetailScreen({ exerciseId }: { exerciseId: string }) {
 
   return (
     <Screen className="px-0" edges={['top', 'bottom', 'left', 'right']}>
-      <ScrollView contentContainerClassName="gap-4 px-4 pb-8 pt-2" testID="gym-exercise-detail">
+      {/* UX-GYM-35: keyboard-aware, with a sticky "Done" bar while the note is
+          being typed (the note autosaves; Done just puts the keyboard away). */}
+      <KeyboardAwareScrollView
+        contentContainerClassName="gap-4 px-4 pb-8 pt-2"
+        testID="gym-exercise-detail"
+        footer={
+          noteFocused ? (
+            <View className="border-t border-border bg-background px-4 py-2">
+              <Button
+                testID="exercise-detail-note-done"
+                variant="outline"
+                onPress={() => Keyboard.dismiss()}
+              >
+                Done
+              </Button>
+            </View>
+          ) : undefined
+        }
+      >
         <View className="flex-row items-center gap-3">
           <StackBackButton testID="gym-exercise-title-back" />
         </View>
@@ -216,6 +289,10 @@ export function ExerciseDetailScreen({ exerciseId }: { exerciseId: string }) {
             Your history
           </Text>
 
+          {/* UX-GYM-33: the chart says what it plots and where it starts and ends. */}
+          <Text testID="exercise-detail-e1rm-caption" variant="muted" className="mb-1 text-xs">
+            Estimated 1-rep max over time
+          </Text>
           <LineChart
             testID="exercise-detail-e1rm-chart"
             data={e1rmSeries.points.map((p) => ({
@@ -224,6 +301,9 @@ export function ExerciseDetailScreen({ exerciseId }: { exerciseId: string }) {
               highlight: p.isPr,
             }))}
             trend={e1rmSeries.trend}
+            niceTicks
+            xLabels={chartDateLabels(e1rmSeries.points.map((p) => p.localDate))}
+            accessibilityLabel={`Estimated 1-rep max for ${exercise.name}`}
             formatY={(v) => formatLoad(v, unit)}
             emptyLabel="Log this exercise to see your trend"
           />
@@ -234,11 +314,12 @@ export function ExerciseDetailScreen({ exerciseId }: { exerciseId: string }) {
               {bestSets.map((set, i) => (
                 <View key={i} className="mb-1 flex-row items-center justify-between">
                   <Text>
-                    {formatLoad(set.weightKg, unit)} × {set.reps}
+                    {formatLoad(set.weightKg, unit, exercise.loadType, { each: exercise.perHand })}{' '}
+                    × {set.reps}
                   </Text>
                   <View className="flex-row items-center gap-2">
                     {set.isPr ? <Badge variant="warning">PR</Badge> : null}
-                    <Text variant="muted">{set.localDate}</Text>
+                    <Text variant="muted">{formatLocalDateLong(set.localDate)}</Text>
                   </View>
                 </View>
               ))}
@@ -250,9 +331,11 @@ export function ExerciseDetailScreen({ exerciseId }: { exerciseId: string }) {
               <CardTitle>Best reps at each weight</CardTitle>
               {repPrTable.map((row, i) => (
                 <View key={i} className="mb-1 flex-row items-center justify-between">
-                  <Text>{formatLoad(row.weightKg, unit)}</Text>
+                  <Text>
+                    {formatLoad(row.weightKg, unit, exercise.loadType, { each: exercise.perHand })}
+                  </Text>
                   <Text>{row.reps} reps</Text>
-                  <Text variant="muted">{row.localDate}</Text>
+                  <Text variant="muted">{formatLocalDateLong(row.localDate)}</Text>
                 </View>
               ))}
             </Card>
@@ -261,7 +344,7 @@ export function ExerciseDetailScreen({ exerciseId }: { exerciseId: string }) {
           {lastSessions.length > 0 ? (
             <View className="mt-3">
               <Text variant="label" className="mb-1">
-                Last {lastSessions.length} sessions
+                {lastSessionsLabel(lastSessions.length)}
               </Text>
               {lastSessions.map((session) => (
                 <Pressable
@@ -271,7 +354,7 @@ export function ExerciseDetailScreen({ exerciseId }: { exerciseId: string }) {
                   onPress={() => router.push(`/gym/session/${session.id}`)}
                   className="min-h-11 flex-row items-center justify-between border-b border-border py-2"
                 >
-                  <Text>{session.localDate}</Text>
+                  <Text>{formatLocalDateLong(session.localDate)}</Text>
                   <Text variant="muted">{session.name}</Text>
                 </Pressable>
               ))}
@@ -286,13 +369,10 @@ export function ExerciseDetailScreen({ exerciseId }: { exerciseId: string }) {
             <Text variant="label" className="mb-1">
               Your notes
             </Text>
-            <Input
-              testID="exercise-detail-note"
+            <ExerciseNoteField
               value={note}
               onChangeText={onSaveNote}
-              placeholder="A personal cue or reminder…"
-              multiline
-              className="min-h-11 py-2"
+              onFocusChange={setNoteFocused}
             />
           </View>
         </View>
@@ -306,7 +386,20 @@ export function ExerciseDetailScreen({ exerciseId }: { exerciseId: string }) {
             channel={exercise.videoChannel}
           />
         ) : null}
-      </ScrollView>
+      </KeyboardAwareScrollView>
+      <ConfirmSheet
+        visible={archiveConfirmOpen}
+        onClose={() => setArchiveConfirmOpen(false)}
+        title="Archive this exercise?"
+        body="It stays in past sessions but won’t show up when adding exercises."
+        confirmLabel="Archive"
+        cancelLabel="Cancel"
+        destructive
+        busy={archiveMutation.isPending}
+        error={archiveMutation.error ? userFacingErrorMessage(archiveMutation.error) : null}
+        onConfirm={() => archiveMutation.mutate({ id: exerciseId })}
+        testID="exercise-detail-archive-confirm"
+      />
     </Screen>
   );
 }

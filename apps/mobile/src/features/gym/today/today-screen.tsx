@@ -1,12 +1,5 @@
 import { useCallback, useState } from 'react';
-import {
-  ActivityIndicator,
-  Pressable,
-  RefreshControl,
-  Text as RNText,
-  ScrollView,
-  View,
-} from 'react-native';
+import { Pressable, RefreshControl, Text as RNText, ScrollView, View } from 'react-native';
 import { onlineManager, useQueryClient } from '@tanstack/react-query';
 import { router, useFocusEffect } from 'expo-router';
 import type { GymBootstrap, GymOffer, NextWorkoutDto } from '@chefer/types';
@@ -21,23 +14,26 @@ import {
   useSnackbar,
 } from '@chefer/ui-mobile';
 import {
-  buildNextWorkout,
   cn,
   doneTodayCard,
-  equipmentProfileOf,
   missedPlannedDays,
-  progressionKey,
+  monthNameOf,
+  pauseSummaryLine,
+  proRatedWeekGoal,
+  selectTodaysSession,
   shortVersionOfWorkout,
   supersetRuns,
   supersetSlot,
   todayStatus,
   weekStartOf,
-  type ProgressionEntry,
 } from '@chefer/utils';
 import { trpc } from '../../../lib/trpc';
 import { captureGymEvent } from '../analytics';
 import { ExerciseNameLink } from '../components/exercise-name-link';
+import { GymBootstrapUnavailable, useGymBootstrapLoad } from '../components/gym-bootstrap-state';
 import { ModeSwitch } from '../components/mode-switch';
+import { OutboxWaitingCard } from '../components/outbox-waiting-card';
+import { useIsOnline } from '../library-screens/online-status';
 import { useActiveSessionPausedAt } from '../offline/active-session-store';
 import { localDate } from '../offline/ids';
 import { useOutboxStatus } from '../offline/outbox';
@@ -59,6 +55,9 @@ import {
   formatStreakLine,
   formatTarget,
   pickOffer,
+  setupLocalDate,
+  weekStripDayLabel,
+  workoutForDay,
   type WeekStripDay,
 } from './today-helpers';
 import { useTimedRefresh } from './use-timed-refresh';
@@ -73,16 +72,19 @@ import { useTimedRefresh } from './use-timed-refresh';
 
 const WEEKDAY_LABELS = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
 
-function WeekStrip({ days }: { days: WeekStripDay[] }) {
+function WeekStrip({ days, today }: { days: WeekStripDay[]; today: string }) {
   return (
     <View testID="gym-today-week-strip" className="flex-row justify-between">
       {days.map((day, i) => (
         <View
           key={day.localDate}
           testID={`gym-today-week-strip-${day.weekday}`}
+          // UX-GYM-29: the dot is colour-only, so each day reads as one label.
+          accessible
+          accessibilityLabel={weekStripDayLabel(day, today)}
           className="items-center gap-1"
         >
-          <Text variant="muted" className="text-[12px]">
+          <Text variant="muted" className="text-xs" importantForAccessibility="no">
             {WEEKDAY_LABELS[i]}
           </Text>
           <View
@@ -101,9 +103,12 @@ function WeekStrip({ days }: { days: WeekStripDay[] }) {
 
 export function TodayScreen() {
   const queryClient = useQueryClient();
+  // UX-GYM-29: online-only buttons re-render when connectivity changes.
+  const online = useIsOnline();
   useGymReminders();
   const bootstrapQuery = useGymBootstrap();
   const bootstrap = bootstrapQuery.data;
+  const bootstrapLoad = useGymBootstrapLoad(bootstrapQuery);
   const activeWorkout = useActiveWorkout();
   const pausedAt = useActiveSessionPausedAt();
   const outboxStatus = useOutboxStatus();
@@ -215,30 +220,9 @@ export function TodayScreen() {
   // day — the user could never actually start it. Finishing the session
   // advances the rotation from this day either way.
   const startDay = (dayId: string) => {
-    if (!bootstrap?.activeRoutine || !bootstrap.profile) return;
-    if (bootstrap.nextWorkout?.dayId === dayId) {
-      // The server-built workout already carries "From last time" exercises.
-      startPlanned(bootstrap.nextWorkout);
-      return;
-    }
-    const progressions = new Map<string, ProgressionEntry>(
-      bootstrap.progressions.map((p) => [
-        progressionKey(p.exerciseId, p.repBucket),
-        { state: p.state, override: p.override },
-      ]),
-    );
-    const workout = buildNextWorkout({
-      routine: bootstrap.activeRoutine,
-      dayId,
-      lookup: libraryLookup(bootstrap),
-      progressions,
-      profile: equipmentProfileOf(bootstrap.profile),
-      facts: { experience: bootstrap.profile.experience, ageYears: null },
-      today: localDate(),
-      recentSessions: bootstrap.recentSessions,
-      isDeload: false,
-    });
-    startPlanned(workout);
+    if (!bootstrap) return;
+    const workout = workoutForDay(bootstrap, dayId, localDate());
+    if (workout) startPlanned(workout);
   };
 
   const handlePickDay = (dayId: string) => {
@@ -294,33 +278,25 @@ export function TodayScreen() {
 
   const header = (
     <View className="gap-1">
-      <ModeSwitch />
+      <ModeSwitch mode="gym" />
       <Text testID="gym-today-title" variant="title" className="mt-1">
         Today
       </Text>
     </View>
   );
 
-  if (!bootstrap) {
+  // UX-GYM-24: a failed first load shows Retry (not an endless spinner); with
+  // no connection and no cache, "needs a connection".
+  if (!bootstrap || bootstrapLoad.load !== 'data') {
     return (
       <Screen className="px-0">
         <View className="gap-4 px-4 pt-3">{header}</View>
-        {bootstrapQuery.fetchStatus === 'paused' ? (
-          <EmptyState
-            testID="gym-today-empty-offline"
-            title="Needs a connection"
-            description="Your first sync with the gym needs a connection. Reconnect and try again."
-            action={{
-              label: 'Try again',
-              onPress: () => void bootstrapQuery.refetch(),
-              testID: 'gym-today-retry',
-            }}
-          />
-        ) : (
-          <View className="flex-1 items-center justify-center" testID="gym-today-loading">
-            <ActivityIndicator size="large" color="#944a00" />
-          </View>
-        )}
+        <GymBootstrapUnavailable
+          load={bootstrapLoad.load === 'data' ? 'loading' : bootstrapLoad.load}
+          onRetry={bootstrapLoad.retry}
+          testID="gym-today"
+          what="your training"
+        />
       </Screen>
     );
   }
@@ -344,34 +320,66 @@ export function TodayScreen() {
   }
 
   if (!bootstrap.activeRoutine) {
+    // UX-GYM-15: archiving the active routine must not hide the history — Recent
+    // workouts and "Log a workout you already did" stay (they need no routine).
     return (
       <Screen className="px-0">
-        <View className="gap-4 px-4 pt-3">{header}</View>
-        <EmptyState
-          testID="gym-today-empty-routine"
-          title="No active routine"
-          description="Pick or build a routine to see today's workout."
-          action={{
-            label: 'Go to Routine',
-            onPress: () => router.push('/routine'),
-            testID: 'gym-today-routine-cta',
-          }}
-        />
+        <ScrollView contentContainerClassName="gap-4 px-4 py-4">
+          {header}
+          <EmptyState
+            testID="gym-today-empty-routine"
+            title="No active routine"
+            description="Pick or build a routine to see today's workout."
+            action={{
+              label: 'Go to Routine',
+              onPress: () => router.push('/routine'),
+              testID: 'gym-today-routine-cta',
+            }}
+          />
+          <LogPastWorkoutAction bootstrap={bootstrap} />
+          <RecentWorkouts bootstrap={bootstrap} />
+        </ScrollView>
       </Screen>
     );
   }
 
   const today = localDate();
   const weekStrip = computeWeekStrip(bootstrap, today);
-  const { streak, nextWorkout, activeRoutine, profile } = bootstrap;
-  const goalMet = streak.thisWeekGoal > 0 && streak.thisWeekSessions >= streak.thisWeekGoal;
-  const ringProgress = streak.thisWeekGoal > 0 ? streak.thisWeekSessions / streak.thisWeekGoal : 0;
+  const { streak, nextWorkout: rotationNext, activeRoutine, profile } = bootstrap;
+  // UX-GYM-12: planned days before setup are never "missed", and the first
+  // week's goal is pro-rated to the days left ("0 of 4" on a Friday sign-up).
+  const since = setupLocalDate(profile.setupCompletedAt);
+  const weekGoal =
+    streak.thisWeekGoal > 0
+      ? proRatedWeekGoal({ goal: streak.thisWeekGoal, today, setupDate: since })
+      : 0;
+  const goalMet = weekGoal > 0 && streak.thisWeekSessions >= weekGoal;
+  const ringProgress = weekGoal > 0 ? Math.min(1, streak.thisWeekSessions / weekGoal) : 0;
   // Bug B-15: `nextWorkout` always reflects the rotation's next day, which
   // advances the instant Finish runs — `todayStatus` stops Gym Today
   // offering it, with a Start button, on the day it was just finished.
-  const status = todayStatus({ bootstrap, today });
+  const status = todayStatus({ bootstrap, today, since });
+  // UX-GYM-31: the SAME selector the Food Today card and the Plan use, so a day
+  // pinned to today's weekday is named here too (not just the rotation's next).
+  const todays = selectTodaysSession({ bootstrap, today, since });
+  const nextWorkout =
+    todays.kind === 'planned' ? workoutForDay(bootstrap, todays.dayId, today) : rotationNext;
+  // The overdue line ("Planned for Monday") belongs to the rotation's next day;
+  // when a different day is pinned to today, that one is shown instead.
+  const overdueFrom =
+    status.kind === 'training' && nextWorkout?.dayId === rotationNext?.dayId
+      ? status.overdueFrom
+      : undefined;
+  const overdueShown = overdueFrom !== undefined;
   const doneCard = status.kind === 'done' ? doneTodayCard({ bootstrap, today }) : null;
   const offer = pickOffer(bootstrap.offers);
+  // UX-GYM-13: the recap card used to be dismiss-only; it opens that month's recap.
+  const recapMonthKey = offer?.kind === 'recap' ? offer.data?.month : null;
+  const recapMonthName = typeof recapMonthKey === 'string' ? monthNameOf(recapMonthKey) : null;
+  const recapMonth =
+    typeof recapMonthKey === 'string' && recapMonthName
+      ? { month: recapMonthKey, name: recapMonthName }
+      : null;
   const sortedDays = [...activeRoutine.days].sort((a, b) => a.position - b.position);
 
   // T-04.8 (UX-04 §7): a planned day earlier this week that never happened —
@@ -389,7 +397,13 @@ export function TodayScreen() {
     activeRoutine,
     recentSessions: bootstrap.recentSessions,
     today,
-  }).filter((d) => d.dayId !== nextWorkout?.dayId && !isMissedDayDismissed(weekStart, d.dayId));
+    since,
+  }).filter(
+    (d) =>
+      d.dayId !== nextWorkout?.dayId &&
+      !(overdueShown && d.dayId === rotationNext?.dayId) &&
+      !isMissedDayDismissed(weekStart, d.dayId),
+  );
   const firstMissed = missed[0] ?? null;
   const doneToday = status.kind === 'done';
 
@@ -439,25 +453,25 @@ export function TodayScreen() {
         )}
 
         <Card className="gap-3">
-          <WeekStrip days={weekStrip} />
+          <WeekStrip days={weekStrip} today={today} />
           <View className="flex-row items-center gap-3">
             <ProgressRing
               progress={ringProgress}
               size={56}
               testID="gym-today-week-ring"
-              accessibilityLabel={`${streak.thisWeekSessions} of ${streak.thisWeekGoal} this week`}
+              accessibilityLabel={`${streak.thisWeekSessions} of ${weekGoal} this week`}
             >
               <Text className="text-xs font-semibold">
-                {goalMet ? '✓' : `${streak.thisWeekSessions}/${streak.thisWeekGoal}`}
+                {goalMet ? '✓' : `${streak.thisWeekSessions}/${weekGoal}`}
               </Text>
             </ProgressRing>
             <View className="min-w-0 flex-1">
               <Text className="text-sm font-medium">
                 {goalMet
                   ? `Weekly goal met · ${streak.thisWeekSessions} ${streak.thisWeekSessions === 1 ? 'session' : 'sessions'}`
-                  : `${streak.thisWeekSessions} of ${streak.thisWeekGoal} this week`}
+                  : `${streak.thisWeekSessions} of ${weekGoal} this week`}
               </Text>
-              <Text testID="gym-today-streak" variant="muted" className="text-xs">
+              <Text testID="gym-today-streak" variant="muted" className="text-sm">
                 {formatStreakLine(streak)}
               </Text>
             </View>
@@ -468,11 +482,11 @@ export function TodayScreen() {
             onPress={() => setHowThisWorksVisible(true)}
             className="min-h-11 justify-center self-start"
           >
-            <Text className="text-xs font-medium text-primary">How this works</Text>
+            <Text className="text-sm font-medium text-primary">How this works</Text>
           </Pressable>
         </Card>
 
-        {!bootstrap.activePause && firstMissed ? (
+        {!bootstrap.activePause && firstMissed && !overdueShown ? (
           <Card testID="gym-today-missed" className="gap-2">
             <Text className="font-semibold">Still time this week</Text>
             <Text variant="muted" className="text-sm">
@@ -484,7 +498,7 @@ export function TodayScreen() {
               <Button
                 testID="gym-today-missed-primary"
                 size="sm"
-                disabled={doneToday && !onlineManager.isOnline()}
+                disabled={doneToday && !online}
                 loading={setNextDayMutation.isPending}
                 onPress={() => handleMissedPrimary(firstMissed)}
               >
@@ -506,7 +520,7 @@ export function TodayScreen() {
           <Card testID="gym-today-paused" className="gap-2">
             <Text className="font-semibold">Training paused</Text>
             <Text variant="muted" className="text-sm">
-              {`Resumes ${bootstrap.activePause.endDate}${bootstrap.activePause.reason ? ` · ${bootstrap.activePause.reason}` : ''}`}
+              {pauseSummaryLine(bootstrap.activePause, today)}
             </Text>
             <Button
               testID="gym-today-end-pause"
@@ -553,7 +567,7 @@ export function TodayScreen() {
               </Text>
             </Pressable>
           </Card>
-        ) : status.kind === 'rest' && nextWorkout ? (
+        ) : status.kind === 'rest' && todays.kind !== 'planned' && nextWorkout ? (
           <Card testID="gym-today-rest" className="gap-2">
             <Text className="font-semibold">Rest day</Text>
             <Text variant="muted" className="text-sm">
@@ -585,9 +599,9 @@ export function TodayScreen() {
                 ~{shownWorkout.estimatedMin} min
               </Text>
             </View>
-            {status.kind === 'training' && status.overdueFrom !== undefined ? (
+            {overdueFrom !== undefined ? (
               <Text testID="gym-today-overdue" variant="muted" className="-mt-2 text-xs">
-                {`Planned for ${weekdayLabel(status.overdueFrom)} — today works just as well.`}
+                {`Planned for ${weekdayLabel(overdueFrom)} — today works just as well.`}
               </Text>
             ) : null}
             <View className="gap-1.5">
@@ -610,7 +624,7 @@ export function TodayScreen() {
                           <Text
                             variant="muted"
                             className="min-w-0 flex-1 text-xs"
-                            numberOfLines={1}
+                            numberOfLines={2}
                           >
                             {lastRest ?? ex.restSec} s rest after each round
                           </Text>
@@ -627,7 +641,7 @@ export function TodayScreen() {
                             <View className="rounded bg-violet-100 px-1 py-0.5">
                               <RNText
                                 testID={`gym-today-next-up-${ex.routineExerciseId}-superset`}
-                                className="text-[12px] font-bold text-violet-800"
+                                className="text-xs font-bold text-violet-800"
                               >
                                 {slot.label}
                                 {slot.position + 1}
@@ -638,12 +652,14 @@ export function TodayScreen() {
                             testID={`gym-today-next-up-${ex.routineExerciseId}-name`}
                             exerciseId={ex.exerciseId}
                             name={libraryLookup(bootstrap)(ex.exerciseId)?.name ?? ex.exerciseId}
-                            numberOfLines={1}
+                            numberOfLines={2}
                             className="flex-1"
-                            textClassName="text-sm"
+                            textClassName="text-base"
                           />
                         </View>
-                        <Text variant="muted" className="text-xs">
+                        {/* WP-04: the target may wrap at large OS text, so it is
+                            capped instead of squeezing the name to nothing. */}
+                        <Text variant="muted" className="max-w-[40%] shrink-0 text-right text-sm">
                           {formatTarget(ex, bootstrap, profile.unit)}
                         </Text>
                       </View>
@@ -661,8 +677,10 @@ export function TodayScreen() {
                   : null
               }
             />
+            {/* WP-04: Start workout and Freestyle are the busy-hands primaries → lg. */}
             <Button
               testID="gym-today-start"
+              size="lg"
               onPress={() => startPlanned(shownWorkout, short.carryOverExerciseIds)}
             >
               Start workout
@@ -682,21 +700,21 @@ export function TodayScreen() {
               <Pressable
                 testID="gym-today-skip"
                 accessibilityRole="button"
-                disabled={!onlineManager.isOnline()}
+                disabled={!online}
                 onPress={handleSkip}
                 className="min-h-11 justify-center disabled:opacity-40"
               >
                 <Text className="text-sm font-medium text-primary">Skip this day</Text>
               </Pressable>
-              <Pressable
-                testID="gym-today-freestyle"
-                accessibilityRole="button"
-                onPress={startFreestyle}
-                className="min-h-11 justify-center"
-              >
-                <Text className="text-sm font-medium text-primary">Freestyle workout</Text>
-              </Pressable>
             </View>
+            <Button
+              testID="gym-today-freestyle"
+              size="lg"
+              variant="outline"
+              onPress={startFreestyle}
+            >
+              Freestyle workout
+            </Button>
           </Card>
         ) : (
           <EmptyState
@@ -728,6 +746,17 @@ export function TodayScreen() {
                   Take it
                 </Button>
               )}
+              {offer.kind === 'recap' && recapMonth ? (
+                <Button
+                  testID="gym-today-offer-recap"
+                  size="sm"
+                  onPress={() =>
+                    router.push({ pathname: '/stats', params: { month: recapMonth.month } })
+                  }
+                >
+                  {`See ${recapMonth.name}`}
+                </Button>
+              ) : null}
               <Button
                 testID="gym-today-offer-dismiss"
                 size="sm"
@@ -780,18 +809,8 @@ export function TodayScreen() {
           </Card>
         ))}
 
-        {outboxStatus.parked.length === 0 && outboxStatus.pending > 0 && (
-          <Pressable
-            testID="gym-today-outbox"
-            accessibilityRole="button"
-            onPress={() => router.push('/gym/settings')}
-            className="min-h-11 justify-center rounded-lg bg-muted px-4 py-3"
-          >
-            <Text className="text-xs text-muted-foreground">
-              {`${outboxStatus.pending} workout${outboxStatus.pending === 1 ? '' : 's'} waiting to sync`}
-            </Text>
-          </Pressable>
-        )}
+        {/* UX-GYM-25: how many are waiting, why the last try failed, Sync now. */}
+        <OutboxWaitingCard status={outboxStatus} testID="gym-today-outbox" />
       </ScrollView>
 
       {activeWorkout.session ? (

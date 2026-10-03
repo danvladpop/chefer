@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { trpc } from '@/lib/trpc';
 import { Sheet } from '@chefer/ui';
+import { formatKcal, userFacingErrorMessage } from '@chefer/utils';
 import { canOfferSnack, missDirection, scaleFactorFor } from '../plan-miss';
 import { aboutKcal } from './DayRecapBar';
 
@@ -53,9 +54,11 @@ export function PlanMissSheet({
   const [preview, setPreview] = useState<Preview | null>(null);
 
   const previewMutation = trpc.mealPlan.scaleDay.useMutation({
+    meta: { silent: true },
     onSuccess: (data) => setPreview({ kcal: data.kcal, protein: data.protein }),
   });
   const applyMutation = trpc.mealPlan.scaleDay.useMutation({
+    meta: { silent: true },
     onSuccess: () => {
       void utils.mealPlan.invalidate();
       void utils.shoppingList.invalidate();
@@ -86,7 +89,7 @@ export function PlanMissSheet({
       open={open}
       onClose={onClose}
       title={`${aboutKcal(kcal - target)} ${direction} target`}
-      description={`${dayName}: planned ${kcal.toLocaleString('en-US')} kcal, target ${target.toLocaleString('en-US')} kcal`}
+      description={`${dayName}: planned ${formatKcal(kcal)} kcal, target ${formatKcal(target)} kcal`}
       size="sm"
     >
       <div className="flex flex-col gap-2 px-5 pb-5" data-testid="plan-miss-sheet">
@@ -106,7 +109,7 @@ export function PlanMissSheet({
             </span>
             <span className="text-xs text-gray-600">
               {preview
-                ? `Brings the day to about ${preview.kcal.toLocaleString('en-US')} kcal · ${preview.protein} g protein`
+                ? `Brings the day to about ${formatKcal(preview.kcal)} kcal · ${preview.protein} g protein`
                 : previewMutation.isError
                   ? 'Adjusts every meal on this day'
                   : 'Checking the numbers…'}
@@ -133,9 +136,10 @@ export function PlanMissSheet({
         </button>
         {(applyMutation.isError || previewMutation.isError) && (
           <p role="alert" className="text-xs text-red-600">
-            {applyMutation.error?.message ??
-              previewMutation.error?.message ??
-              'Could not change the portions. Try again.'}
+            {userFacingErrorMessage(
+              applyMutation.error ?? previewMutation.error,
+              'Could not change the portions. Try again.',
+            )}
           </p>
         )}
       </div>

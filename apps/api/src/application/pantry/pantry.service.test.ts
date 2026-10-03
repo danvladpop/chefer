@@ -80,6 +80,92 @@ describe('PantryService', () => {
     vi.clearAllMocks();
   });
 
+  // ── Remove / edit / undo for every tier (UX-SHOP-05) ───────────────────────
+
+  it('removeItem deletes the row and hands it back so the client can offer Undo', async () => {
+    const row = pantryRow('rice', { quantity: 800 });
+    const repo = makeRepo([row]);
+    vi.mocked(repo.findByIds).mockResolvedValue([row]);
+    const service = new PantryService(repo, makePlanRepo());
+    const removed = await service.removeItem('u1', row.id);
+    expect(repo.deleteById).toHaveBeenCalledWith('u1', row.id);
+    expect(removed).toMatchObject({ ingredientName: 'rice', quantity: 800, unit: 'g' });
+  });
+
+  it('removeItem of a row that is already gone is a no-op, not an error', async () => {
+    const repo = makeRepo();
+    const service = new PantryService(repo, makePlanRepo());
+    await expect(service.removeItem('u1', 'nope')).resolves.toBeNull();
+  });
+
+  it('updateItem changes the amount in place, keeping the source', async () => {
+    const row = pantryRow('rice', { source: 'MANUAL' });
+    const repo = makeRepo([row]);
+    vi.mocked(repo.findByIds).mockResolvedValue([row]);
+    const service = new PantryService(repo, makePlanRepo());
+    await service.updateItem('u1', row.id, { quantity: 250, unit: 'g' });
+    expect(repo.deleteById).not.toHaveBeenCalled();
+    expect(repo.upsert).toHaveBeenCalledWith({
+      userId: 'u1',
+      ingredientName: 'rice',
+      quantity: 250,
+      unit: 'g',
+      source: 'MANUAL',
+    });
+  });
+
+  it('updateItem moves the row when the unit changes (the unique key includes the unit)', async () => {
+    const row = pantryRow('rice');
+    const repo = makeRepo([row]);
+    vi.mocked(repo.findByIds).mockResolvedValue([row]);
+    const service = new PantryService(repo, makePlanRepo());
+    await service.updateItem('u1', row.id, { quantity: 1, unit: 'lb' });
+    expect(repo.deleteById).toHaveBeenCalledWith('u1', row.id);
+    expect(repo.upsert).toHaveBeenCalledWith(expect.objectContaining({ quantity: 1, unit: 'lb' }));
+  });
+
+  it('updateItem with a null amount is the "some" state, but zero or negative is refused', async () => {
+    const row = pantryRow('rice');
+    const repo = makeRepo([row]);
+    vi.mocked(repo.findByIds).mockResolvedValue([row]);
+    const service = new PantryService(repo, makePlanRepo());
+    await service.updateItem('u1', row.id, { quantity: null, unit: 'g' });
+    expect(repo.upsert).toHaveBeenCalledWith(expect.objectContaining({ quantity: 0 }));
+    await expect(service.updateItem('u1', row.id, { quantity: -5, unit: 'g' })).rejects.toThrow(
+      /above zero/,
+    );
+    await expect(service.updateItem('u1', row.id, { quantity: 0, unit: 'g' })).rejects.toThrow(
+      /above zero/,
+    );
+  });
+
+  it('updateItem on a missing row is NOT_FOUND', async () => {
+    const service = new PantryService(makeRepo(), makePlanRepo());
+    await expect(
+      service.updateItem('u1', 'nope', { quantity: 1, unit: 'g' }),
+    ).rejects.toMatchObject({
+      code: 'NOT_FOUND',
+    });
+  });
+
+  it('restoreItem puts a removed row back (Undo) with its source', async () => {
+    const repo = makeRepo();
+    const service = new PantryService(repo, makePlanRepo());
+    await service.restoreItem('u1', {
+      ingredientName: ' Rice ',
+      quantity: 800,
+      unit: 'g',
+      source: 'PURCHASE',
+    });
+    expect(repo.upsert).toHaveBeenCalledWith({
+      userId: 'u1',
+      ingredientName: 'rice',
+      quantity: 800,
+      unit: 'g',
+      source: 'PURCHASE',
+    });
+  });
+
   // ── Seeding from check-offs ────────────────────────────────────────────────
 
   it('seedFromPurchases upserts checked items as PURCHASE with normalized names', async () => {

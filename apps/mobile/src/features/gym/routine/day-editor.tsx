@@ -1,12 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import {
-  Alert,
-  Pressable,
-  Text as RNText,
-  useWindowDimensions,
-  View,
-  type TextInput,
-} from 'react-native';
+import { Pressable, Text as RNText, useWindowDimensions, View, type TextInput } from 'react-native';
 import Animated, { FadeIn, FadeOut, LinearTransition } from 'react-native-reanimated';
 import { Ionicons } from '@expo/vector-icons';
 import { elevation } from '@chefer/tokens';
@@ -14,6 +7,7 @@ import type { ExerciseMeta } from '@chefer/types';
 import {
   Button,
   Card,
+  ConfirmSheet,
   Input,
   Sheet,
   Text,
@@ -433,6 +427,9 @@ export function DayEditor({
   const [expandedKey, setExpandedKey] = useState<string | null>(null);
   const [menuKey, setMenuKey] = useState<string | null>(null);
   const [dayMenuOpen, setDayMenuOpen] = useState(false);
+  // UX-X-13: "Delete day" confirms in a ConfirmSheet that opens once the menu
+  // sheet has exited (iOS can't present one sheet over a dismissing one).
+  const [deleteDayOpen, setDeleteDayOpen] = useState(false);
   // plan-library-supersets S2: the visible "Superset" pick sheet.
   const [supersetOpen, setSupersetOpen] = useState(false);
   // iOS refuses to present a Modal (the exercise picker) or an Alert while
@@ -733,24 +730,27 @@ export function DayEditor({
             label="Delete day"
             destructive
             onPress={() => {
-              afterSheetExit.current = () =>
-                Alert.alert(
-                  'Delete this day?',
-                  `"${day.name}" and its exercises will be removed.`,
-                  [
-                    { text: 'Cancel', style: 'cancel' },
-                    {
-                      text: 'Delete',
-                      style: 'destructive',
-                      onPress: () => dispatch({ type: 'deleteDay', dayKey: day.key }),
-                    },
-                  ],
-                );
+              afterSheetExit.current = () => setDeleteDayOpen(true);
               setDayMenuOpen(false);
             }}
           />
         </View>
       </Sheet>
+
+      <ConfirmSheet
+        visible={deleteDayOpen}
+        onClose={() => setDeleteDayOpen(false)}
+        title="Delete this day?"
+        body={`"${day.name}" and its exercises will be removed.`}
+        confirmLabel="Delete"
+        cancelLabel="Cancel"
+        destructive
+        onConfirm={() => {
+          setDeleteDayOpen(false);
+          dispatch({ type: 'deleteDay', dayKey: day.key });
+        }}
+        testID={`${testIDBase}-delete-confirm`}
+      />
     </Card>
   );
 }

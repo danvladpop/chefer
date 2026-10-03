@@ -323,7 +323,7 @@ export function StepDiet({ value, onChange, ref, onPendingChange }: StepDietProp
                   handleAdd();
                 }
               }}
-              placeholder="e.g. aubergine"
+              placeholder={SAFETY_COPY.somethingElsePlaceholder}
               className="min-w-0 flex-1 rounded-md border border-input bg-background px-3 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
             />
             <button

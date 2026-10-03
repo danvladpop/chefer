@@ -19,19 +19,24 @@ import {
   SegmentedControl,
   Text,
   useScrollFieldIntoView,
+  useSnackbar,
 } from '@chefer/ui-mobile';
 import {
   checkedForListHeaderText,
   cn,
   defaultWeekOffset,
+  deviceLocale,
+  formatApproxPrice,
+  formatDate,
   formatMoney,
   formatPriceRange,
-  formatQuantity,
   getWeekStartDate,
   isConvertedCurrency,
   labelCaveatCompactText,
+  parseCustomItemInput,
   perPortionCost,
   shoppingWindowLabel,
+  userFacingErrorMessage,
 } from '@chefer/utils';
 import { useAiConsent } from '../../src/features/ai-consent/ai-consent-provider';
 import { ModeSwitch } from '../../src/features/gym/components/mode-switch';
@@ -42,12 +47,20 @@ import { LockedFeatureCard } from '../../src/features/premium/locked-feature-car
 import { LabelCaveat } from '../../src/features/safety/label-caveat';
 import { CATEGORY_LABELS, CATEGORY_ORDER } from '../../src/features/shopping-list/categories';
 import { CategoryHeader } from '../../src/features/shopping-list/category-header';
-import { parseCustomItemInput } from '../../src/features/shopping-list/parse-custom-item';
+import {
+  isAisleExpanded,
+  loadExpandedAisles,
+  saveExpandedAisles,
+  type ExpandedAisles,
+} from '../../src/features/shopping-list/expanded-store';
+import { isPendingItem, withPendingItems } from '../../src/features/shopping-list/pending-item';
 import { ShareListSheet } from '../../src/features/shopping-list/share-list-sheet';
 import { useCurrency } from '../../src/hooks/use-currency';
 import { useHousehold } from '../../src/hooks/use-household';
+import { useIsOnline } from '../../src/hooks/use-is-online';
 import { useIsPremium } from '../../src/hooks/use-is-premium';
-import { useUnitSystem } from '../../src/hooks/use-unit-system';
+import { useUnits } from '../../src/hooks/use-units';
+import { track } from '../../src/lib/analytics';
 import { trpc } from '../../src/lib/trpc';
 
 // Shop tab — port of apps/web (dashboard)/shopping-list/page.tsx (M2-5).
@@ -73,15 +86,18 @@ export default function ShoppingListScreen() {
   // T-08.1 (UX-08 AC1): same default as Plan — next week Fri 15:00–Sun,
   // else this week — so Plan and Shop always agree on which week opens.
   const [weekOffset, setWeekOffset] = useState<number>(() => defaultWeekOffset(new Date()));
-  const [expandedCategories, setExpandedCategories] = useState<Record<string, boolean>>({});
+  // UX-SHOP-02: aisles are open by default and the choice is remembered.
+  const [expandedAisles, setExpandedAisles] = useState<ExpandedAisles>(loadExpandedAisles);
   const [newItemText, setNewItemText] = useState('');
   const isPremium = useIsPremium();
   const { memberCount, tablePortions } = useHousehold();
   const [shareOpen, setShareOpen] = useState(false);
-  const unitSystem = useUnitSystem();
+  const units = useUnits();
+  const online = useIsOnline();
   // Prices are EUR estimates; shown in the user's currency (backlog P2-6).
   const currency = useCurrency();
   const utils = trpc.useUtils();
+  const snackbar = useSnackbar();
 
   const weekStart = getWeekStartDate(weekOffset);
 
@@ -114,6 +130,15 @@ export default function ShoppingListScreen() {
     // eslint-disable-next-line react-hooks/exhaustive-deps -- fire once per load, not on every render
   }, [weekList?.planId, weekList?.weekStartDate, isLoading, weekOffset]);
 
+  // WP-13: one `list_opened` per visit, once the list has loaded with items
+  // (not per week switch or refetch — the funnel counts opens, not re-renders).
+  const listOpenedTracked = useRef(false);
+  useEffect(() => {
+    if (listOpenedTracked.current || !weekList?.hasPlan) return;
+    listOpenedTracked.current = true;
+    track('list_opened', { itemCount: weekList.items.length });
+  }, [weekList]);
+
   // Optimistic per-key toggle (P1-5) — same cache surgery as web: flip
   // immediately, per-key server semantics merge concurrent devices.
   const toggleMutation = trpc.shoppingList.toggleItems.useMutation({
@@ -144,15 +169,66 @@ export default function ShoppingListScreen() {
     },
   });
 
+  // UX-SHOP-02: the new row shows up at once, marked "Not saved yet" until the
+  // server answers (offline, the mutation waits and the row stays) — so there
+  // is no empty feeling that gets the same item typed twice.
   const addItemMutation = trpc.shoppingList.addCustomItems.useMutation({
-    onSuccess: () => {
+    onMutate: async ({ items: added }) => {
+      await utils.shoppingList.getForWeek.cancel({ weekOffset });
+      const previous = utils.shoppingList.getForWeek.getData({ weekOffset });
+      utils.shoppingList.getForWeek.setData({ weekOffset }, (old) =>
+        old ? withPendingItems(old, added, String(Date.now())) : old,
+      );
       setNewItemText('');
-      void utils.shoppingList.getForWeek.invalidate({ weekOffset });
+      return { previous };
     },
+    onError: (_err, vars, context) => {
+      if (context?.previous) {
+        utils.shoppingList.getForWeek.setData({ weekOffset }, context.previous);
+      }
+      // Give the text back so a failed add is one tap from a retry.
+      setNewItemText(vars.items.map((i) => i.name).join(', '));
+    },
+    onSettled: () => void utils.shoppingList.getForWeek.invalidate({ weekOffset }),
+  });
+  // UX-SHOP-02: "Removed · Undo". Undo re-adds the item through its own
+  // mutation (not `addItemMutation`, whose success clears the add-item field).
+  const undoRemoveMutation = trpc.shoppingList.addCustomItems.useMutation({
+    meta: { silent: true },
+    onSuccess: () => void utils.shoppingList.getForWeek.invalidate({ weekOffset }),
+    onError: (err) =>
+      snackbar.show({ message: `Couldn't put it back. ${userFacingErrorMessage(err)}` }),
   });
   const removeItemMutation = trpc.shoppingList.removeCustomItem.useMutation({
     onSuccess: () => void utils.shoppingList.getForWeek.invalidate({ weekOffset }),
   });
+  const removeCustomItem = (
+    planId: string,
+    item: { key: string; ingredientName: string; quantity: string; unit: string },
+  ) => {
+    const quantity = parseFloat(item.quantity);
+    removeItemMutation.mutate(
+      { planId, key: item.key },
+      {
+        onSuccess: () =>
+          snackbar.show({
+            message: `Removed ${item.ingredientName}`,
+            actionLabel: 'Undo',
+            onAction: () =>
+              undoRemoveMutation.mutate({
+                planId,
+                items: [
+                  {
+                    name: item.ingredientName,
+                    ...(quantity > 0 && quantity <= 999 ? { quantity } : {}),
+                    ...(item.unit ? { unit: item.unit } : {}),
+                  },
+                ],
+              }),
+          }),
+      },
+    );
+  };
   const markOutMutation = trpc.pantry.markOutOfStock.useMutation({
     onSuccess: () => {
       void utils.shoppingList.getForWeek.invalidate();
@@ -162,6 +238,7 @@ export default function ShoppingListScreen() {
   // Sends the plan's ingredients to the AI — ask first (App Store 5.1.2(i)).
   const requestAiConsent = useAiConsent();
   const regenerateMutation = trpc.shoppingList.regenerate.useMutation({
+    meta: { silent: true },
     onSuccess: (data) => {
       utils.shoppingList.getForWeek.setData({ weekOffset }, data);
     },
@@ -179,7 +256,11 @@ export default function ShoppingListScreen() {
   })).filter((g) => g.items.length > 0);
 
   const toggleCategory = useCallback((cat: string) => {
-    setExpandedCategories((prev) => ({ ...prev, [cat]: !(prev[cat] ?? false) }));
+    setExpandedAisles((prev) => {
+      const next = { ...prev, [cat]: !isAisleExpanded(prev, cat) };
+      saveExpandedAisles(next);
+      return next;
+    });
   }, []);
 
   const toggleItem = (key: string) => {
@@ -199,7 +280,7 @@ export default function ShoppingListScreen() {
 
   const handleAddItem = () => {
     const parsed = parseCustomItemInput(newItemText);
-    if (!parsed.name || !weekList?.planId || addItemMutation.isPending) {
+    if (!parsed.name || !weekList?.planId) {
       return;
     }
     addItemMutation.mutate({ planId: weekList.planId, items: [parsed] });
@@ -278,7 +359,7 @@ export default function ShoppingListScreen() {
               Shop
             </Text>
             <Text variant="muted" className="text-xs">
-              Week of {weekStart.toLocaleDateString('en-GB', { day: 'numeric', month: 'long' })}
+              Week of {formatDate(weekStart, 'long')}
               {items.length > 0 ? ` · ${checkedCount}/${items.length} done` : ''}
               {/* A plan made mid-week lists only the remaining days (audit F-PM-3) */}
               {shoppingWindowLabel(weekList?.fromDayOfWeek)
@@ -331,6 +412,20 @@ export default function ShoppingListScreen() {
           </View>
         </View>
 
+        {/* UX-SHOP-02: say so when changes are waiting for a connection. */}
+        {!online && (
+          <View
+            testID="shop-offline-pill"
+            accessibilityLiveRegion="polite"
+            className="flex-row items-center gap-1.5 self-start rounded-full border border-amber-200 bg-amber-50 px-3 py-1"
+          >
+            <Ionicons name="cloud-offline-outline" size={13} color="#b45309" />
+            <Text className="text-xs font-medium text-amber-800">
+              Offline · changes sync when you&apos;re back
+            </Text>
+          </View>
+        )}
+
         {/* T-02.1/T-02.4: the table has rules, so this list's items were
             checked against them (PAT-2, UX-02 §3). */}
         {weekList?.tableSafety?.hasRules && (
@@ -357,8 +452,12 @@ export default function ShoppingListScreen() {
             >
               <Text testID="shopping-total" className="text-xs font-medium text-gray-600">
                 Est. total{' '}
-                {formatPriceRange(weekList.estimatedTotalEur, currency) ??
-                  `~${formatMoney(weekList.estimatedTotalEur, currency)}`}
+                {formatPriceRange(weekList.estimatedTotalEur, currency, deviceLocale()) ??
+                  `~${formatApproxPrice(weekList.estimatedTotalEur, currency)}`}
+                {/* UX-PLAN-07: the total covers the same days as the list. */}
+                {shoppingWindowLabel(weekList.fromDayOfWeek)
+                  ? ` · ${shoppingWindowLabel(weekList.fromDayOfWeek)}`
+                  : ''}
               </Text>
             </View>
             {/* Who the quantities are for (P2-3, F-PM-5): a premium
@@ -367,7 +466,7 @@ export default function ShoppingListScreen() {
               <View className="rounded-full border border-primary/20 bg-accent px-3 py-1">
                 <Text testID="shopping-portions" className="text-xs font-medium text-primary">
                   For {weekList.portions} portions
-                  {` · ~${formatMoney(
+                  {` · ~${formatApproxPrice(
                     perPortionCost(weekList.estimatedTotalEur, weekList.portions) ?? 0,
                     currency,
                   )} each`}
@@ -461,7 +560,8 @@ export default function ShoppingListScreen() {
                 onChangeText={setNewItemText}
                 onFocus={() => scrollFieldIntoView(addItemInputRef.current)}
                 onSubmitEditing={handleAddItem}
-                placeholder="Add item… e.g. 2 kg flour"
+                placeholder={units.addItemPlaceholder}
+                accessibilityLabel="Add an item to your shopping list"
                 placeholderTextColor="#9ca3af"
                 returnKeyType="done"
                 className="h-11 flex-1 rounded-md border border-input bg-background px-3 text-base text-foreground"
@@ -471,7 +571,6 @@ export default function ShoppingListScreen() {
                 accessibilityRole="button"
                 accessibilityLabel="Add item"
                 onPress={handleAddItem}
-                disabled={addItemMutation.isPending}
                 className="h-11 w-11 items-center justify-center rounded-md bg-primary"
               >
                 <Ionicons name="add" size={22} color="white" />
@@ -480,7 +579,7 @@ export default function ShoppingListScreen() {
 
             {/* Category groups */}
             {grouped.map(({ category, label, items: catItems }) => {
-              const isExpanded = expandedCategories[category] ?? false;
+              const isExpanded = isAisleExpanded(expandedAisles, category);
               const catDone = catItems.filter((i) => checkedItems.includes(i.key)).length;
               return (
                 <View key={category}>
@@ -497,8 +596,9 @@ export default function ShoppingListScreen() {
                     <View className="gap-2">
                       {catItems.map((item) => {
                         const isChecked = checkedItems.includes(item.key);
+                        const pending = isPendingItem(item);
                         const quantityLabel = Number.isFinite(Number(item.quantity))
-                          ? formatQuantity(Number(item.quantity), item.unit, unitSystem)
+                          ? units.qty(Number(item.quantity), item.unit)
                           : `${item.quantity} ${item.unit}`;
                         return (
                           <View
@@ -516,7 +616,8 @@ export default function ShoppingListScreen() {
                             <Pressable
                               testID={`item-${item.key}`}
                               accessibilityRole="button"
-                              accessibilityState={{ checked: isChecked }}
+                              accessibilityState={{ checked: isChecked, disabled: pending }}
+                              disabled={pending}
                               onPress={() => toggleItem(item.key)}
                               className="min-h-11 min-w-0 flex-1 flex-row items-center gap-3 p-2"
                             >
@@ -538,7 +639,7 @@ export default function ShoppingListScreen() {
                                   </Text>
                                   {item.pantryCovered && (
                                     <View className="rounded-full bg-emerald-100 px-2 py-0.5">
-                                      <Text className="text-[12px] font-semibold uppercase text-emerald-700">
+                                      <Text className="text-xs font-semibold uppercase text-emerald-700">
                                         Have it
                                       </Text>
                                     </View>
@@ -557,8 +658,9 @@ export default function ShoppingListScreen() {
                                 <Text numberOfLines={1} className="text-xs text-gray-500">
                                   {quantityLabel}
                                   {item.estimatedPriceEur != null &&
-                                    ` · ~${formatMoney(item.estimatedPriceEur, currency)}`}
+                                    ` · ~${formatApproxPrice(item.estimatedPriceEur, currency)}`}
                                   {item.pantryCovered && ' · in your kitchen'}
+                                  {pending && (online ? ' · Saving…' : ' · Not saved yet')}
                                 </Text>
                               </View>
                               <View
@@ -584,17 +686,14 @@ export default function ShoppingListScreen() {
                               >
                                 <Ionicons name="refresh-outline" size={18} color="#059669" />
                               </Pressable>
-                            ) : item.isCustom ? (
+                            ) : item.isCustom && !pending ? (
                               <Pressable
                                 accessibilityRole="button"
                                 accessibilityLabel={`Remove ${item.ingredientName}`}
                                 disabled={removeItemMutation.isPending}
                                 onPress={() => {
                                   if (weekList.planId) {
-                                    removeItemMutation.mutate({
-                                      planId: weekList.planId,
-                                      key: item.key,
-                                    });
+                                    removeCustomItem(weekList.planId, item);
                                   }
                                 }}
                                 className="h-11 w-11 items-center justify-center"

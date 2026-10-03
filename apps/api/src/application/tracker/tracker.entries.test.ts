@@ -484,3 +484,76 @@ describe('trackerService.updateRecipeEntry (UX-FOOD-03 — off-plan rows are edi
     ).rejects.toMatchObject({ code: 'NOT_FOUND' });
   });
 });
+
+// UX-FOOD-11: blank macros are stored as 0 g but flagged unknown (additive —
+// shipped clients keep reading plain numbers).
+describe('trackerService unknownMacros (UX-FOOD-11)', () => {
+  it('logCustomMeal stores the flag next to the zeroed macros, and omits it when empty', async () => {
+    mockMutateDay([]);
+    const base = {
+      name: 'Soup',
+      estimatedBy: 'manual' as const,
+      mealType: 'lunch',
+      kcal: 400,
+      protein: 20,
+      carbs: 0,
+      fat: 0,
+    };
+    const partial = await trackerService.logCustomMeal(FREE_USER, '2026-09-27', {
+      ...base,
+      unknownMacros: ['carbs', 'fat'],
+    });
+    const [stored] = partial.log.loggedMeals as unknown as LoggedMealEntry[];
+    expect(stored).toMatchObject({
+      protein: 20,
+      carbs: 0,
+      fat: 0,
+      unknownMacros: ['carbs', 'fat'],
+    });
+
+    const full = await trackerService.logCustomMeal(FREE_USER, '2026-09-27', base);
+    const [plain] = full.log.loggedMeals as unknown as LoggedMealEntry[];
+    expect(plain).not.toHaveProperty('unknownMacros');
+  });
+
+  it('updateCustomMeal replaces the flag, clears it with [] and keeps it when omitted', async () => {
+    const edit = { kcal: 300, protein: 10, carbs: 40, fat: 8 };
+    mockMutateDay([customEntry({ unknownMacros: ['fat'] })]);
+    const kept = await trackerService.updateCustomMeal('u1', '2026-09-27', 'e1', edit);
+    expect((kept.loggedMeals as unknown as LoggedMealEntry[])[0]!.unknownMacros).toEqual(['fat']);
+
+    mockMutateDay([customEntry({ unknownMacros: ['fat'] })]);
+    const cleared = await trackerService.updateCustomMeal('u1', '2026-09-27', 'e1', {
+      ...edit,
+      unknownMacros: [],
+    });
+    expect((cleared.loggedMeals as unknown as LoggedMealEntry[])[0]).not.toHaveProperty(
+      'unknownMacros',
+    );
+
+    mockMutateDay([customEntry()]);
+    const set = await trackerService.updateCustomMeal('u1', '2026-09-27', 'e1', {
+      ...edit,
+      unknownMacros: ['carbs'],
+    });
+    expect((set.loggedMeals as unknown as LoggedMealEntry[])[0]!.unknownMacros).toEqual(['carbs']);
+  });
+
+  it('recents carries the flag so "log again" does not turn unknown into a typed 0', async () => {
+    vi.mocked(dailyLogRepository.findLastN).mockResolvedValue([
+      {
+        id: 'l1',
+        userId: 'u1',
+        date: new Date('2026-09-26T00:00:00Z'),
+        loggedMeals: [customEntry({ unknownMacros: ['carbs', 'fat'] })] as never,
+        totalKcal: 0,
+        totalProtein: 0,
+        totalCarbs: 0,
+        totalFat: 0,
+        updatedAt: new Date(),
+      },
+    ]);
+    const [recent] = await trackerService.recents('u1');
+    expect(recent?.unknownMacros).toEqual(['carbs', 'fat']);
+  });
+});

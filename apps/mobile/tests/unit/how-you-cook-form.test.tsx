@@ -70,4 +70,27 @@ describe('HowYouCookForm', () => {
     await fireEvent.press(screen.getByTestId('how-you-cook-for-2'));
     expect(onChange).toHaveBeenCalledWith({ ...baseShape, cookingFor: 2 });
   });
+
+  // UX-PLAN-12: a household of 3 read "Cooking for: Just me".
+  it('with household members, "Cooking for" is a read-only "You + 2" with Edit table', async () => {
+    await render(
+      <HowYouCookForm
+        shape={{ ...baseShape, cookingFor: 1 }}
+        householdMembers={[{ name: 'Mia' }, { name: 'Noah' }]}
+        onChange={jest.fn()}
+      />,
+    );
+    expect(screen.getByTestId('how-you-cook-household-summary')).toHaveTextContent(
+      /You \+ 2.*Mia, Noah/,
+    );
+    expect(screen.getByLabelText('Edit table')).toBeOnTheScreen();
+    expect(screen.queryByTestId('how-you-cook-cooking-for')).not.toBeOnTheScreen();
+    expect(screen.getByTestId('how-you-cook-summary')).toHaveTextContent(/cooking for 3/);
+  });
+
+  it('without members it keeps the Just me / Two of us choice', async () => {
+    await render(<HowYouCookForm shape={baseShape} householdMembers={[]} onChange={jest.fn()} />);
+    expect(screen.getByTestId('how-you-cook-cooking-for')).toBeOnTheScreen();
+    expect(screen.queryByTestId('how-you-cook-household-summary')).not.toBeOnTheScreen();
+  });
 });

@@ -2,7 +2,13 @@ import { useEffect, useMemo } from 'react';
 import { onlineManager, useQueryClient } from '@tanstack/react-query';
 import type { GymBootstrap, WeightUnit } from '@chefer/types';
 import { ChangeNoticeCard, useSnackbar } from '@chefer/ui-mobile';
-import { formatLoad, snapshotTargets, targetDiff, type TargetDiffRow } from '@chefer/utils';
+import {
+  formatDate,
+  formatLoad,
+  snapshotTargets,
+  targetDiff,
+  type TargetDiffRow,
+} from '@chefer/utils';
 import { trpc } from '../../../lib/trpc';
 import { captureGymEvent } from '../analytics';
 import {
@@ -23,7 +29,7 @@ import { gymBootstrapQueryKey, libraryLookup } from '../use-gym-bootstrap';
 const MAX_ROWS = 3;
 
 function weekdayName(localDate: string): string {
-  return new Date(`${localDate}T00:00:00`).toLocaleDateString('en-US', { weekday: 'long' });
+  return formatDate(new Date(`${localDate}T00:00:00`), 'weekday-long');
 }
 
 /** "62.5 kg" when the weight moved, else the rep target ("10 reps"). */
@@ -58,7 +64,8 @@ export function TargetChangeNotice({
   const notice = useTargetNotice();
   const snackbar = useSnackbar();
   const queryClient = useQueryClient();
-  const setOverride = trpc.gym.progression.setOverride.useMutation();
+  // The card shows its own failure snackbar below — no second default one.
+  const setOverride = trpc.gym.progression.setOverride.useMutation({ meta: { silent: true } });
   const rows = useMemo(
     () => (notice ? noticeRows(notice, bootstrap, dataUpdatedAt) : null),
     [notice, bootstrap, dataUpdatedAt],

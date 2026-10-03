@@ -1,8 +1,8 @@
 import { useEffect, useImperativeHandle, useState, type Ref } from 'react';
-import { Pressable, TextInput, View } from 'react-native';
+import { Pressable, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { findSafetyTaxonomyEntry, safetyTaxonomyEntriesByGroup } from '@chefer/types';
-import { ChipGroup, Text } from '@chefer/ui-mobile';
+import { ChipGroup, Input, Text } from '@chefer/ui-mobile';
 import {
   applySafetyTerm,
   BASE_DIET_IDS,
@@ -243,16 +243,17 @@ export function SafetyPicker({
           SOMETHING ELSE?
         </Text>
         <View className="flex-row gap-2">
-          <TextInput
+          {/* `Input` scrolls itself clear of the keyboard inside a keyboard-aware
+              scroll view or Sheet (UX-ONB-07: Android hid this field). */}
+          <Input
             testID={`${testIDPrefix}-something-else-input`}
             value={somethingElse}
             onChangeText={setSomethingElse}
             onSubmitEditing={() => handleAdd()}
-            placeholder="e.g. aubergine"
-            placeholderTextColor="#9ca3af"
+            placeholder={SAFETY_COPY.somethingElsePlaceholder}
             returnKeyType="done"
             accessibilityLabel="Something else"
-            className="h-11 flex-1 rounded-md border border-input bg-background px-3 text-base text-foreground"
+            className="flex-1"
           />
           <Pressable
             testID={`${testIDPrefix}-something-else-add`}

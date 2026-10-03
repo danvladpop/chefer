@@ -21,7 +21,7 @@ const LINK_CLASSES =
 
 export function UnsubscribeView() {
   const token = useSearchParams().get('token') ?? '';
-  const mutation = trpc.notifications.unsubscribe.useMutation();
+  const mutation = trpc.notifications.unsubscribe.useMutation({ meta: { silent: true } });
   const started = useRef(false);
 
   useEffect(() => {

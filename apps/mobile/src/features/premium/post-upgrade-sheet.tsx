@@ -22,6 +22,7 @@ export const ACTIVATION_HREFS: Record<ActivationStepKey, Href> = {
   household: '/household',
   regenerate: '/meal-plan',
   cheferize: '/import-recipe',
+  snap: '/tracker',
 };
 
 export function PostUpgradeSheet({

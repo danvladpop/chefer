@@ -51,6 +51,7 @@ export const SAFETY_COPY_KEYS = [
   'conditionChooseGoal',
   'conditionOk',
   'excludeLabelDependentLabel',
+  'somethingElsePlaceholder',
 ] as const;
 export type SafetyCopyKey = (typeof SAFETY_COPY_KEYS)[number];
 
@@ -95,6 +96,8 @@ export const SAFETY_COPY: Record<SafetyCopyKey, string> = {
   conditionChooseGoal: 'Choose a goal',
   conditionOk: 'OK',
   excludeLabelDependentLabel: 'Leave out recipes that need a certified gluten-free product',
+  // UX-ACC-06: an example the checker really understands ("aubergine" was not one).
+  somethingElsePlaceholder: 'e.g. walnuts or coeliac',
 } as const;
 
 // ─── Dynamic builders (interpolate data, never a bare guarantee word) ──────────
@@ -110,9 +113,13 @@ export function checkedForLineText(checks: readonly CheckedRuleLike[]): string {
   return `Checked for ${rules}`;
 }
 
-/** `Checked for 3` — the compact card/row chip. */
+/**
+ * `3 checks passed` — the compact card/row chip. It used to read `Checked for
+ * 3`, which people took for a head count (UX-PLAN-12); the spelled-out rules
+ * stay in the chip's a11y label and the "Checked for …" line.
+ */
 export function checkedForChipText(count: number): string {
-  return `Checked for ${count}`;
+  return `${count} check${count === 1 ? '' : 's'} passed`;
 }
 
 /** `Checked for tree nuts, fish and vegetarian` — the chip's a11y label. */

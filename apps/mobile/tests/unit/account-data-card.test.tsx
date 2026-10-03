@@ -1,7 +1,8 @@
-import { Keyboard } from 'react-native';
+import { Keyboard, type TextInput } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react-native';
+import { Input } from '@chefer/ui-mobile';
 import { AccountDataCard } from '../../src/features/profile/account-data-card';
 
 const metrics = {
@@ -13,7 +14,9 @@ const metrics = {
 // shared through shareExportFile, confirmed with the "Your export is ready."
 // snackbar — not an unnamed text blob in the share sheet.
 
-const mockShareExportFile = jest.fn((_filename: string, _contents: string) => Promise.resolve());
+const mockShareExportFile = jest.fn(
+  (_filename: string, _contents: string): Promise<boolean> => Promise.resolve(true),
+);
 const mockShow = jest.fn();
 const mockExportFetch = jest.fn(() => Promise.resolve({ user: { id: 'u1' } }));
 const mockDeleteMutate = jest.fn();
@@ -47,16 +50,29 @@ const mockSignOut = jest.fn((_options?: { reason?: string }) => Promise.resolve(
 jest.mock('../../src/lib/sign-out', () => ({
   signOut: (options?: { reason?: string }) => mockSignOut(options),
 }));
-let mockDeleteOptions: { onSuccess?: () => Promise<void> } | undefined;
+let mockDeleteOptions: { onSuccess?: () => Promise<void>; onError?: () => void } | undefined;
+let mockDeleteState: { isError: boolean; error: Error | null } = { isError: false, error: null };
+const mockDeleteReset = jest.fn();
+const mockMarkAccountDeleted = jest.fn();
+jest.mock('../../src/features/auth/account-deleted-notice', () => ({
+  markAccountDeleted: (): void => {
+    mockMarkAccountDeleted();
+  },
+}));
 
 jest.mock('../../src/lib/trpc', () => ({
   trpc: {
     useUtils: () => ({ user: { exportData: { fetch: mockExportFetch } } }),
     user: {
       deleteSelf: {
-        useMutation: (options?: { onSuccess?: () => Promise<void> }) => {
+        useMutation: (options?: { onSuccess?: () => Promise<void>; onError?: () => void }) => {
           mockDeleteOptions = options;
-          return { mutate: mockDeleteMutate, isPending: false };
+          return {
+            mutate: mockDeleteMutate,
+            reset: mockDeleteReset,
+            isPending: false,
+            ...mockDeleteState,
+          };
         },
       },
     },
@@ -78,6 +94,9 @@ beforeEach(() => {
   mockDeleteMutate.mockClear();
   mockSignOut.mockClear();
   mockResetMutate.mockClear();
+  mockMarkAccountDeleted.mockClear();
+  mockDeleteReset.mockClear();
+  mockDeleteState = { isError: false, error: null };
   mockResetState = { isSuccess: false, isPending: false };
   queryClient = new QueryClient();
 });
@@ -102,6 +121,17 @@ describe('mobile AccountDataCard export (T-39.5)', () => {
     const [filename] = mockShareExportFile.mock.calls.at(0) ?? [];
     expect(filename).toMatch(/^chefer-export-\d{4}-\d{2}-\d{2}\.json$/);
     expect(mockShow).toHaveBeenCalledWith({ message: 'Your export is ready.', tone: 'success' });
+  });
+
+  it('UX-ACC-22: a cancelled share sheet gets no "ready" snackbar and no error', async () => {
+    mockShareExportFile.mockResolvedValueOnce(false);
+    await renderCard();
+
+    await fireEvent.press(screen.getByText('Export my data'));
+
+    await waitFor(() => expect(mockShareExportFile).toHaveBeenCalledTimes(1));
+    expect(mockShow).not.toHaveBeenCalled();
+    expect(screen.queryByText(/Couldn't prepare your data/)).toBeNull();
   });
 
   it('shows an error and no snackbar when the export fetch fails', async () => {
@@ -137,6 +167,39 @@ describe('mobile DeleteAccountSheet (App Review R-03 / R-17 / R-24)', () => {
     expect(mockDeleteMutate).toHaveBeenCalledWith({ password: 'Secret1!', confirm: 'DELETE' });
   });
 
+  it('UX-ACC-26: with the keyboard up, the first press on Cancel closes the sheet', async () => {
+    await openSheet();
+    // The password keyboard is up: Cancel lives in the persist-taps footer, so
+    // the tap reaches the button instead of only dismissing the keyboard.
+    await fireEvent(screen.getByTestId('delete-account-password'), 'focus');
+    expect(screen.getByTestId('delete-account-footer').props.keyboardShouldPersistTaps).toBe(
+      'handled',
+    );
+    await fireEvent.changeText(screen.getByTestId('delete-account-password'), 'Secret1!');
+    await fireEvent.press(screen.getByTestId('delete-account-cancel'));
+    await waitFor(() => expect(screen.queryByTestId('delete-account-password')).toBeNull());
+    expect(mockDeleteMutate).not.toHaveBeenCalled();
+  });
+
+  it('UX-ACC-26: the DELETE field scrolls itself clear of the keyboard inside the sheet', async () => {
+    // Every `Input` measures itself against the sheet body on focus; spy on the
+    // mock TextInput prototype to see it (a bare TextInput would not).
+    const holder: { node: TextInput | null } = { node: null };
+    await render(
+      <Input
+        ref={(n) => {
+          holder.node = n;
+        }}
+      />,
+    );
+    const proto = Object.getPrototypeOf(holder.node) as TextInput;
+    const measure = jest.spyOn(proto, 'measureLayout').mockImplementation(() => undefined);
+    await openSheet();
+    await fireEvent(screen.getByTestId('delete-account-confirm-text'), 'focus');
+    expect(measure).toHaveBeenCalled();
+    measure.mockRestore();
+  });
+
   it('UX-ACC-12: a deleted account leaves through signOut() and lands on the auth screen', async () => {
     const { router } = jest.requireMock<{ router: { replace: jest.Mock } }>('expo-router');
     router.replace.mockClear();
@@ -144,6 +207,39 @@ describe('mobile DeleteAccountSheet (App Review R-03 / R-17 / R-24)', () => {
     await mockDeleteOptions?.onSuccess?.();
     expect(mockSignOut).toHaveBeenCalledWith({ reason: 'account-deleted' });
     expect(router.replace).toHaveBeenCalledWith('/(auth)');
+  });
+
+  it('UX-ACC-11: a wrong password shows its error right under the password field and refocuses it', async () => {
+    mockDeleteState = { isError: true, error: new Error('Incorrect password') };
+    const holder: { node: TextInput | null } = { node: null };
+    await render(
+      <Input
+        ref={(n) => {
+          holder.node = n;
+        }}
+      />,
+    );
+    const proto = Object.getPrototypeOf(holder.node) as TextInput;
+    const focus = jest.spyOn(proto, 'focus').mockImplementation(() => undefined);
+    await openSheet();
+    mockDeleteOptions?.onError?.();
+
+    expect(screen.getByTestId('delete-account-error')).toHaveTextContent('Incorrect password');
+    expect(focus).toHaveBeenCalled();
+    focus.mockRestore();
+  });
+
+  it('UX-ACC-11: editing the password clears the stale error', async () => {
+    mockDeleteState = { isError: true, error: new Error('Incorrect password') };
+    await openSheet();
+    await fireEvent.changeText(screen.getByTestId('delete-account-password'), 'x');
+    expect(mockDeleteReset).toHaveBeenCalled();
+  });
+
+  it('UX-ACC-11: marks the one-time "deleted" notice before signing out', async () => {
+    await renderCard();
+    await mockDeleteOptions?.onSuccess?.();
+    expect(mockMarkAccountDeleted).toHaveBeenCalledTimes(1);
   });
 
   it('R-03: the DELETE field shows Done and dismisses the keyboard on submit', async () => {

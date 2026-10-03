@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { trpc } from '@/lib/trpc';
 import { Search, ShieldAlert } from 'lucide-react';
+import { userFacingErrorMessage } from '@chefer/utils';
 
 // ─── Admin: user & tier management (PW-2) ─────────────────────────────────────
 // The soft paywall's "DB flag that can be changed" without SSH-ing into prod
@@ -30,6 +31,7 @@ export default function AdminUsersPage() {
 
   const utils = trpc.useUtils();
   const setTier = trpc.user.setPlanTier.useMutation({
+    meta: { silent: true },
     onSuccess: () => void utils.user.list.invalidate(),
   });
 
@@ -127,7 +129,9 @@ export default function AdminUsersPage() {
           )}
         </div>
       )}
-      {setTier.isError && <p className="mt-3 text-sm text-red-600">{setTier.error.message}</p>}
+      {setTier.isError && (
+        <p className="mt-3 text-sm text-red-600">{userFacingErrorMessage(setTier.error)}</p>
+      )}
     </div>
   );
 }

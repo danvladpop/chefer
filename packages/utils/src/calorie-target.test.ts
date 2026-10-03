@@ -6,6 +6,7 @@ import {
   goalAdjustmentKcal,
   isDeficitBlockedForAge,
   previewCalorieTarget,
+  previewTargetKcalFromBasics,
 } from './calorie-target';
 
 // The App Review repro: female, 13, 152 cm, 44 kg, sedentary, lose weight.
@@ -120,5 +121,31 @@ describe('previewCalorieTarget', () => {
     expect(previewCalorieTarget(...args, 'LOSE_WEIGHT').target).toBe(
       computeCalorieTarget(...args, 'LOSE_WEIGHT'),
     );
+  });
+});
+
+describe('previewTargetKcalFromBasics (UX-FOOD-14)', () => {
+  const adult = {
+    age: 30,
+    heightCm: 180,
+    weightKg: 80,
+    activityLevel: 'MODERATELY_ACTIVE',
+    biologicalSex: 'MALE',
+  };
+
+  it('matches the target the planner computes for the same metrics', () => {
+    expect(previewTargetKcalFromBasics(adult, 'LOSE_WEIGHT')).toBe(
+      computeCalorieTarget(80, 180, 30, 'MODERATELY_ACTIVE', 'MALE', 'LOSE_WEIGHT'),
+    );
+  });
+
+  it('is null until age, height and weight are all entered', () => {
+    expect(previewTargetKcalFromBasics({ ...adult, weightKg: null })).toBeNull();
+    expect(previewTargetKcalFromBasics({ ...adult, age: null })).toBeNull();
+    expect(previewTargetKcalFromBasics({ ...adult, heightCm: 0 })).toBeNull();
+  });
+
+  it('is null for an age below the minimum (no estimate at all)', () => {
+    expect(previewTargetKcalFromBasics({ ...adult, age: 12 })).toBeNull();
   });
 });

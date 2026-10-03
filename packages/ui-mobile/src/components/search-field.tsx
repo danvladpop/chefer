@@ -16,6 +16,16 @@ export const SEARCH_TARGET_PT = 44;
 /** `onDebouncedChange` waits this long after the last keystroke (UX §3.1). */
 export const SEARCH_DEBOUNCE_MS = 250;
 
+/**
+ * UX-X-17: spread onto the FlatList / SectionList / ScrollView that shows a
+ * search field's results — scrolling the list dismisses the keyboard, and a
+ * tap on a result still lands while it is up.
+ */
+export const SEARCH_LIST_PROPS = {
+  keyboardDismissMode: 'on-drag',
+  keyboardShouldPersistTaps: 'handled',
+} as const;
+
 export interface SearchFieldProps extends Omit<
   TextInputProps,
   'accessibilityLabel' | 'value' | 'defaultValue'
@@ -36,7 +46,8 @@ export interface SearchFieldProps extends Omit<
 
 /**
  * 44 pt pill search input: leading magnifier, trailing clear `×` with its own
- * 44 × 44 pt hit area. Return key is `search`; autocorrect is off. The icons
+ * 44 × 44 pt hit area. Return key is `search`; autocorrect is off. Pair it
+ * with `{...SEARCH_LIST_PROPS}` on the results list. The icons
  * are drawn with react-native-svg — the kit has no icon dependency.
  */
 export const SearchField = forwardRef<TextInput, SearchFieldProps>(function SearchField(
@@ -111,7 +122,7 @@ export const SearchField = forwardRef<TextInput, SearchFieldProps>(function Sear
       testID={testID ? `${testID}-field` : undefined}
       style={{ minHeight: SEARCH_TARGET_PT }}
       className={cn(
-        'h-11 flex-row items-center rounded-full border border-input bg-background pl-3',
+        'min-h-11 flex-row items-center rounded-full border border-input bg-background pl-3',
         !editable && 'opacity-50',
         className,
       )}
@@ -137,7 +148,7 @@ export const SearchField = forwardRef<TextInput, SearchFieldProps>(function Sear
         autoCorrect={false}
         autoCapitalize="words"
         placeholderTextColor="#9ca3af"
-        className="h-full min-w-0 flex-1 px-2 text-base text-foreground"
+        className="min-w-0 flex-1 px-2 py-2 text-base text-foreground"
         {...props}
       />
       {text.length > 0 && editable ? (

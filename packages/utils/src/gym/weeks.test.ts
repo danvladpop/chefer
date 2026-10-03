@@ -8,6 +8,8 @@ import {
   addDaysLocal,
   daysBetweenLocal,
   goalForWeek,
+  monthNameOf,
+  proRatedWeekGoal,
   settleWeeks,
   streakWeeksLabel,
   summarizeWeeks,
@@ -424,5 +426,33 @@ describe('streakWeeksLabel (T-36.4: never "0-week streak")', () => {
 
   it('uses the plural count otherwise', () => {
     expect(streakWeeksLabel(7)).toBe('7-week streak');
+  });
+});
+
+// UX-GYM-12: "0 of 4 this week" with two days left is a goal nobody can reach.
+describe('proRatedWeekGoal', () => {
+  it('pro-rates the goal in the setup week to the days left (setup day through Sunday)', () => {
+    // 2026-09-12 is a Saturday: two days left (Sat, Sun).
+    expect(proRatedWeekGoal({ goal: 4, today: '2026-09-12', setupDate: '2026-09-12' })).toBe(2);
+    // Setup Wednesday → five days left, so a goal of 4 stands.
+    expect(proRatedWeekGoal({ goal: 4, today: '2026-09-10', setupDate: '2026-09-09' })).toBe(4);
+  });
+
+  it('never goes below 1 (set up on a Sunday)', () => {
+    expect(proRatedWeekGoal({ goal: 4, today: '2026-09-13', setupDate: '2026-09-13' })).toBe(1);
+  });
+
+  it('keeps the full goal in later weeks and when the setup date is unknown', () => {
+    expect(proRatedWeekGoal({ goal: 4, today: '2026-09-21', setupDate: '2026-09-12' })).toBe(4);
+    expect(proRatedWeekGoal({ goal: 4, today: '2026-09-12', setupDate: null })).toBe(4);
+  });
+});
+
+describe('monthNameOf (UX-GYM-13)', () => {
+  it('names a YYYY-MM month and rejects anything else', () => {
+    expect(monthNameOf('2026-09')).toBe('September');
+    expect(monthNameOf('2026-12')).toBe('December');
+    expect(monthNameOf('2026-13')).toBeNull();
+    expect(monthNameOf('September')).toBeNull();
   });
 });

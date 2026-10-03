@@ -129,6 +129,45 @@ describe('search', () => {
     });
   });
 
+  // UX-FOOD-12: "chicken" used to rank Egg (alias "chicken egg") and schmaltz
+  // above the chicken cuts, because a shorter ALIAS beat a longer name.
+  it('ranks name-prefix and commonness first and demotes alias-only matches', async () => {
+    const chicken = fakeCatalog([
+      catalogRow('egg', 'egg-whole-raw', ['egg', 'chicken egg'], { name: 'Egg, whole, raw' }),
+      catalogRow('fat', 'chicken-fat', ['chicken fat', 'schmaltz'], {
+        name: 'Chicken fat (schmaltz)',
+      }),
+      catalogRow('breast', 'chicken-breast-raw', ['chicken breast', 'chicken fillet'], {
+        name: 'Chicken breast, skinless, raw',
+      }),
+      catalogRow('whole', 'chicken-whole', ['whole chicken', 'chicken'], {
+        name: 'Whole chicken (meat and skin), raw',
+      }),
+      catalogRow('roast', 'roast-chicken', ['roast chicken', 'chicken roast'], {
+        name: 'Roast chicken (meat and skin)',
+      }),
+    ]);
+    const uses: Record<string, number> = { breast: 40, fat: 1, egg: 90, whole: 5 };
+    const counted = {
+      ...chicken,
+      searchByAlias: async (...args: Parameters<FakeCatalog['searchByAlias']>) =>
+        (await chicken.searchByAlias(...args)).map((h) => ({
+          ...h,
+          uses: uses[h.ingredient.id] ?? 0,
+        })),
+    };
+    const svc = new IngredientsService(counted, new IngredientResolver(counted), nutrition);
+    // the exact alias first, then name-prefix by usage, name word-start, alias-only (egg) last
+    expect((await svc.search('alice', 'chicken')).map((r) => r.id)).toEqual([
+      'whole',
+      'breast',
+      'fat',
+      'roast',
+      'egg',
+    ]);
+    expect((await svc.search('alice', 'chicken', 2)).map((r) => r.id)).toEqual(['whole', 'breast']);
+  });
+
   it('includes the caller’s private rows, never another user’s (I4)', async () => {
     expect((await service.search('alice', 'skyr')).map((r) => r.id)).toEqual(['askyr']);
     expect((await service.search('bob', 'skyr')).map((r) => r.id)).toEqual([]);

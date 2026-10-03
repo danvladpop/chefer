@@ -1,5 +1,6 @@
 'use client';
 
+import Image from 'next/image';
 import { useEffect, useRef, useState } from 'react';
 import { useAiConsent } from '@/features/ai-consent/AiConsentProvider';
 import { UpgradeButton } from '@/features/premium/components/UpgradeButton';
@@ -7,6 +8,7 @@ import { capture } from '@/lib/analytics';
 import { trpc } from '@/lib/trpc';
 import { Camera, Loader2, Sparkles } from 'lucide-react';
 import { Sheet } from '@chefer/ui';
+import { userFacingErrorMessage } from '@chefer/utils';
 import { handleRebalanceResult } from '../lib/rebalance-storage';
 import {
   scanMealPhoto,
@@ -34,13 +36,24 @@ interface ScanMealButtonProps {
   isPremium: boolean | undefined;
   /** Called after a confirmed log so the page can refetch the day. */
   onLogged: () => void;
+  /**
+   * Called with the new entry's id after a confirmed log (UX-FOOD-26), so the
+   * page can confirm with an Undo toast. Absent from older servers' answers.
+   */
+  onLoggedEntry?: (entry: { entryId: string; name: string }) => void;
 }
 
-export function ScanMealButton({ date, isPremium, onLogged }: ScanMealButtonProps) {
+export function ScanMealButton({ date, isPremium, onLogged, onLoggedEntry }: ScanMealButtonProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [scanning, setScanning] = useState(false);
   const [scanError, setScanError] = useState<string | null>(null);
   const [estimate, setEstimate] = useState<MealPhotoEstimate | null>(null);
+  // UX-FOOD-26: the scanned photo, shown on the confirm sheet.
+  const [photoUrl, setPhotoUrl] = useState<string | null>(null);
+  useEffect(() => {
+    if (!photoUrl) return;
+    return () => URL.revokeObjectURL(photoUrl);
+  }, [photoUrl]);
   const [demoOpen, setDemoOpen] = useState(false);
 
   // Editable confirm-sheet fields, seeded from the estimate.
@@ -52,11 +65,14 @@ export function ScanMealButton({ date, isPremium, onLogged }: ScanMealButtonProp
   const [fat, setFat] = useState(0);
 
   const logMutation = trpc.tracker.logCustomMeal.useMutation({
-    onSuccess: (data) => {
+    meta: { silent: true },
+    onSuccess: (data, variables) => {
       capture('meal_scanned', { confirmed: true });
       handleRebalanceResult(data.rebalance);
       setEstimate(null);
+      setPhotoUrl(null);
       onLogged();
+      if (data.entryId) onLoggedEntry?.({ entryId: data.entryId, name: variables.name });
     },
   });
 
@@ -88,6 +104,7 @@ export function ScanMealButton({ date, isPremium, onLogged }: ScanMealButtonProp
     setScanError(null);
     try {
       const result = await scanMealPhoto(file);
+      setPhotoUrl(URL.createObjectURL(file));
       setEstimate(result);
       setName(result.dishName);
       setKcal(result.kcal);
@@ -99,7 +116,7 @@ export function ScanMealButton({ date, isPremium, onLogged }: ScanMealButtonProp
         capture('upgrade_prompt_shown', { source: 'snap-scan' });
         setDemoOpen(true);
       } else {
-        setScanError(err instanceof Error ? err.message : 'Scan failed. Please try again.');
+        setScanError(userFacingErrorMessage(err, 'Scan failed. Please try again.'));
       }
     } finally {
       setScanning(false);
@@ -110,6 +127,7 @@ export function ScanMealButton({ date, isPremium, onLogged }: ScanMealButtonProp
   const discardEstimate = () => {
     capture('meal_scanned', { confirmed: false });
     setEstimate(null);
+    setPhotoUrl(null);
   };
 
   const numberField = (
@@ -190,15 +208,26 @@ export function ScanMealButton({ date, isPremium, onLogged }: ScanMealButtonProp
       >
         {estimate && (
           <div className="space-y-4 px-5 pb-4">
-            <div className="flex flex-wrap items-center gap-2">
-              <span
-                className={`rounded-full px-2 py-0.5 text-xs font-semibold uppercase ${CONFIDENCE_STYLE[estimate.confidence].cls}`}
-              >
-                {CONFIDENCE_STYLE[estimate.confidence].label}
-              </span>
-              <span className="min-w-0 flex-1 text-xs text-neutral-500">
-                {estimate.portionNote}
-              </span>
+            <div className="flex items-start gap-3">
+              {photoUrl && (
+                <Image
+                  src={photoUrl}
+                  alt="The photo you scanned"
+                  width={64}
+                  height={64}
+                  unoptimized
+                  data-testid="scan-photo"
+                  className="h-16 w-16 shrink-0 rounded-xl object-cover"
+                />
+              )}
+              <div className="flex min-w-0 flex-1 flex-col gap-1">
+                <span
+                  className={`self-start rounded-full px-2 py-0.5 text-xs font-semibold uppercase ${CONFIDENCE_STYLE[estimate.confidence].cls}`}
+                >
+                  {CONFIDENCE_STYLE[estimate.confidence].label}
+                </span>
+                <span className="min-w-0 text-xs text-neutral-500">{estimate.portionNote}</span>
+              </div>
             </div>
 
             <label className="flex flex-col gap-1 text-xs font-medium text-neutral-600">
@@ -234,7 +263,7 @@ export function ScanMealButton({ date, isPremium, onLogged }: ScanMealButtonProp
             </div>
 
             {logMutation.isError && (
-              <p className="text-xs text-red-600">{logMutation.error.message}</p>
+              <p className="text-xs text-red-600">{userFacingErrorMessage(logMutation.error)}</p>
             )}
           </div>
         )}

@@ -7,6 +7,7 @@
 import type {
   E1rmPointDto,
   E1rmSeriesDto,
+  ExerciseBest,
   ExerciseDto,
   RepPrRowDto,
   SessionSummaryDto,
@@ -27,11 +28,13 @@ const TREND_WINDOW = 3;
 export function localE1rmSeries(
   sessions: readonly SessionSummaryDto[],
   exerciseId: string,
+  /** Bootstrap `olderBests`, so a lift older than the window is not a fake PR. */
+  olderBests?: Record<string, ExerciseBest>,
 ): E1rmSeriesDto {
+  // UX-GYM-33: the same rule as the workout summary and History — a session is
+  // a PR when ANY kind (weight / reps / e1RM) was beaten, against all-time bests.
   const prSessionIds = new Set(
-    collectPrs([...sessions], exerciseId)
-      .filter((pr) => pr.kind === 'e1rm')
-      .map((pr) => pr.sessionId),
+    collectPrs([...sessions], exerciseId, olderBests).map((pr) => pr.sessionId),
   );
   const points: E1rmPointDto[] = [];
   for (const session of completedAsc([...sessions])) {
@@ -85,8 +88,9 @@ export function localBestSets(
   sessions: readonly SessionSummaryDto[],
   exerciseId: string,
   limit = 5,
+  olderBests?: Record<string, ExerciseBest>,
 ): E1rmPointDto[] {
-  return localE1rmSeries(sessions, exerciseId)
+  return localE1rmSeries(sessions, exerciseId, olderBests)
     .points.slice()
     .sort((a, b) => b.e1rmKg - a.e1rmKg)
     .slice(0, limit);

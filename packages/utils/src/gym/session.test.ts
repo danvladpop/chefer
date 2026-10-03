@@ -297,6 +297,46 @@ describe('missedPlannedDays (T-04.8, UX-04 §7)', () => {
   });
 });
 
+// UX-GYM-12: a brand-new user is never scolded for planned days BEFORE setup.
+describe('setup date (UX-GYM-12)', () => {
+  const WEDNESDAY = '2026-09-09';
+  const SINCE_WED = '2026-09-09'; // set up on Wednesday; Monday's Upper predates it
+
+  it('missedPlannedDays ignores a planned day earlier than the setup date', () => {
+    expect(
+      missedPlannedDays({
+        activeRoutine: ROUTINE,
+        recentSessions: [],
+        today: '2026-09-10',
+        since: SINCE_WED,
+      }),
+    ).toEqual([]);
+  });
+
+  it('missedPlannedDays still flags a planned day on/after the setup date', () => {
+    expect(
+      missedPlannedDays({
+        activeRoutine: ROUTINE,
+        recentSessions: [],
+        today: '2026-09-10',
+        since: '2026-09-07',
+      }),
+    ).toEqual([{ dayId: 'dA', dayName: 'Upper', weekday: 0 }]);
+  });
+
+  it('todayStatus: a pinned day that passed before setup is due today, not overdue or "rest"', () => {
+    // Monday's Upper is next; set up Tuesday night → Wednesday it is simply training.
+    const boot = bootstrapFor(WEDNESDAY);
+    expect(todayStatus({ bootstrap: boot, today: WEDNESDAY })).toEqual({
+      kind: 'training',
+      overdueFrom: 0,
+    });
+    expect(todayStatus({ bootstrap: boot, today: WEDNESDAY, since: SINCE_WED })).toEqual({
+      kind: 'training',
+    });
+  });
+});
+
 describe('doneTodayCard (T-05.9)', () => {
   const MONDAY = '2026-09-07';
   const PRIOR_MONDAY = '2026-08-31';
@@ -535,6 +575,36 @@ describe('buildNextWorkout', () => {
     expect(bench?.notes).toBe('Seat 4');
     expect(db?.suggestion).toMatchObject({ weightKg: 14, reasonCode: 'START_CALIBRATING' });
     expect(lateral?.suggestion).toMatchObject({ weightKg: 10, reasonCode: 'USER_OVERRIDE' });
+  });
+
+  // UX-GYM-18: bench was set up at 80 kg in the 6-8 bucket; the routine now says 10-12.
+  it('a rep range with no progression yet carries the known weight from the same exercise', () => {
+    const edited: RoutineDto = {
+      ...ROUTINE,
+      days: ROUTINE.days.map((d) => ({
+        ...d,
+        exercises: d.exercises.map((e) =>
+          e.exerciseId === 'barbell-bench-press' ? { ...e, repMin: 10, repMax: 12 } : e,
+        ),
+      })),
+    };
+    const carried = buildNextWorkout({
+      routine: edited,
+      dayId: 'dA',
+      lookup,
+      progressions,
+      profile: KG_PROFILE,
+      facts,
+      today: '2026-09-15',
+      recentSessions: recent,
+      isDeload: false,
+    });
+    const bench = carried.exercises.find((e) => e.exerciseId === 'barbell-bench-press');
+    expect(bench?.repBucket).toBe('10-12');
+    // Lighter than 80 kg for 10 reps, but nowhere near the 30 kg starting guess.
+    expect(bench?.suggestion.weightKg).toBeGreaterThan(60);
+    expect(bench?.suggestion.weightKg).toBeLessThan(80);
+    expect(bench?.suggestion.reasonCode).toBe('START');
   });
 
   it('ramps the first exercise of a movement pattern, then a single feeler', () => {

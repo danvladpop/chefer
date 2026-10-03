@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef } from 'react';
 import { Text, View } from 'react-native';
 import Animated, { useAnimatedStyle, useSharedValue, withSpring } from 'react-native-reanimated';
 import { cva, type VariantProps } from 'class-variance-authority';
@@ -11,6 +11,9 @@ import { DENSE_MAX_FONT_SCALE } from './text';
 import { colors } from './theme';
 
 // Every segment keeps a 44pt hit area; `sm`/`xs` only shrink the visual.
+/** Text-scale cap for the compact (xs) header switch. */
+export const COMPACT_MAX_FONT_SCALE = 1.3;
+
 const segmentTextVariants = cva('font-medium', {
   variants: {
     size: {
@@ -27,7 +30,29 @@ const segmentTextVariants = cva('font-medium', {
 });
 
 /** Inner padding of the track (p-1) — the sliding thumb is inset by it. */
-const TRACK_PADDING = 4;
+export const TRACK_PADDING = 4;
+
+/**
+ * Where the thumb sits for a (possibly fractional, mid-spring) `position`
+ * index. A pure worklet: it runs on the UI thread from SHARED values (track
+ * width, option count, animated index), so it never depends on a JS-side
+ * number captured when the style was created. UX-X-10: the old code captured
+ * `maxX`/`segmentWidth` at mount (both 0 before the first layout) and, on
+ * Android, the thumb kept drawing under option 0 while `value` was index 1.
+ * The offset is clamped so the spring's ~6% overshoot never pokes out of the
+ * track; before the first layout (`trackWidth` 0) the thumb has no width.
+ */
+export function thumbMetrics(
+  trackWidth: number,
+  count: number,
+  position: number,
+): { width: number; offset: number } {
+  'worklet';
+  if (trackWidth <= 0 || count <= 0) return { width: 0, offset: 0 };
+  const width = (trackWidth - TRACK_PADDING * 2) / count;
+  const maxOffset = (count - 1) * width;
+  return { width, offset: Math.min(maxOffset, Math.max(0, position * width)) };
+}
 
 // The selected "thumb" is ONE absolutely-positioned view that slides between
 // segments (Reanimated, spring `snappy` on the UI thread — MO-14; it jumps
@@ -77,33 +102,34 @@ export function SegmentedControl<T extends string>({
   testID,
   accessibilityLabel,
 }: SegmentedControlProps<T>) {
-  const [trackWidth, setTrackWidth] = useState(0);
   const index = Math.max(
     0,
     options.findIndex((o) => o.value === value),
   );
-  const segmentWidth =
-    trackWidth > 0 ? (trackWidth - TRACK_PADDING * 2) / Math.max(options.length, 1) : 0;
   const reduced = useReducedMotion();
-  const translateX = useSharedValue(0);
-  // The spring overshoots ~6%: clamp so the thumb never pokes out of the track.
-  const maxX = Math.max(0, (options.length - 1) * segmentWidth);
-  const thumbStyle = useAnimatedStyle(() => ({
-    transform: [{ translateX: Math.min(maxX, Math.max(0, translateX.get())) }],
-  }));
+  // Shared values, read inside the worklet (UX-X-10): the measured track
+  // width, the option count and the (animated) selected index. `position`
+  // starts AT the selected index, so the first layout draws the thumb in
+  // place instead of sliding in from option 0.
+  const trackWidth = useSharedValue(0);
+  const count = useSharedValue(options.length);
+  const position = useSharedValue(index);
+  const thumbStyle = useAnimatedStyle(() => {
+    const { width, offset } = thumbMetrics(trackWidth.get(), count.get(), position.get());
+    return { width, opacity: width > 0 ? 1 : 0, transform: [{ translateX: offset }] };
+  });
   const placed = useRef(false);
 
   useEffect(() => {
-    if (segmentWidth <= 0) return;
-    const target = index * segmentWidth;
+    count.set(options.length);
     if (!placed.current || reduced) {
-      // First layout: jump into place, don't animate from the left edge.
-      translateX.set(target);
+      // First render / reduced motion: jump into place.
+      position.set(index);
       placed.current = true;
       return;
     }
-    translateX.set(withSpring(target, springs.snappy));
-  }, [index, segmentWidth, translateX, reduced]);
+    position.set(withSpring(index, springs.snappy));
+  }, [index, options.length, reduced, count, position]);
 
   const compact = size === 'xs';
 
@@ -112,15 +138,10 @@ export function SegmentedControl<T extends string>({
       testID={testID}
       accessibilityRole="tablist"
       accessibilityLabel={accessibilityLabel}
-      onLayout={(e) => setTrackWidth(e.nativeEvent.layout.width)}
+      onLayout={(e) => trackWidth.set(e.nativeEvent.layout.width)}
       className={cn('flex-row rounded-lg bg-muted p-1', className)}
     >
-      {segmentWidth > 0 ? (
-        <Animated.View
-          pointerEvents="none"
-          style={[THUMB_STYLE, { width: segmentWidth }, thumbStyle]}
-        />
-      ) : null}
+      <Animated.View pointerEvents="none" style={[THUMB_STYLE, thumbStyle]} />
       {options.map((option) => {
         const selected = option.value === value;
         return (
@@ -138,14 +159,22 @@ export function SegmentedControl<T extends string>({
                 onChange(option.value);
               }
             }}
+            // Large OS text: labels wrap to two lines rather than break
+            // mid-word (X-08); the compact size stays on one. No
+            // adjustsFontSizeToFit: on the new architecture it measured the
+            // compact Food | Gym switch once and stuck at a tiny size (WP-04
+            // device pass, iOS 26.5).
             className={cn(
-              'flex-1 items-center justify-center rounded-md px-3',
-              compact ? 'h-8' : 'min-h-11',
+              'flex-1 items-center justify-center rounded-md',
+              compact ? 'min-h-8 px-2' : 'min-h-11 px-3 py-1',
             )}
           >
             <Text
-              className={segmentTextVariants({ size, selected })}
-              maxFontSizeMultiplier={DENSE_MAX_FONT_SCALE}
+              className={cn(segmentTextVariants({ size, selected }), 'text-center')}
+              // The compact (xs) size is header chrome in a fixed-width track
+              // (the Food | Gym switch): cap it lower so it never truncates to "F…".
+              maxFontSizeMultiplier={compact ? COMPACT_MAX_FONT_SCALE : DENSE_MAX_FONT_SCALE}
+              numberOfLines={compact ? 1 : 2}
             >
               {option.label}
             </Text>

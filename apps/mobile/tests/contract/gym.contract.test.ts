@@ -139,6 +139,40 @@ describe('gym storage + sync (no engine needed)', () => {
     for (const url of bench?.images ?? []) expect(url.startsWith('/static/exercises/')).toBe(true);
   });
 
+  // UX-GYM-34: archiving a custom exercise can be undone (additive procedure).
+  it('restoreCustom un-archives an own custom exercise; curated rows are NOT_FOUND', async () => {
+    const created = await client.gym.library.createCustom.mutate({
+      name: `Contract Curl ${randomUUID().slice(0, 8)}`,
+      category: 'ISOLATION',
+      equipment: 'DUMBBELL',
+      loadType: 'WEIGHTED',
+      primaryMuscles: ['biceps'],
+      secondaryMuscles: [],
+      repMin: 8,
+      repMax: 12,
+      restSec: 90,
+      isTimed: false,
+      cues: [],
+    });
+    await client.gym.library.archiveCustom.mutate({ id: created.id });
+    const archived = (await client.gym.library.list.query()).find((e) => e.id === created.id);
+    expect(archived?.archived).toBe(true);
+
+    await expect(client.gym.library.restoreCustom.mutate({ id: created.id })).resolves.toEqual({
+      ok: true,
+    });
+    const restored = (await client.gym.library.list.query()).find((e) => e.id === created.id);
+    expect(restored?.archived).toBe(false);
+    // Idempotent for a row that is not archived.
+    await expect(client.gym.library.restoreCustom.mutate({ id: created.id })).resolves.toEqual({
+      ok: true,
+    });
+
+    await expect(
+      client.gym.library.restoreCustom.mutate({ id: 'barbell-bench-press' }),
+    ).rejects.toMatchObject({ data: { code: 'NOT_FOUND' } });
+  });
+
   it('upsertMany is idempotent, last-write-wins, and round-trips the document', async () => {
     const doc = freestyleDoc();
 

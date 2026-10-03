@@ -5,6 +5,7 @@ import { createMemoryKvBackend, kv, setKvBackendForTests } from '../../src/featu
 import {
   ONBOARDING_DRAFT_KEY,
   readOnboardingDraft,
+  writeOnboardingDraft,
 } from '../../src/features/onboarding/onboarding-draft';
 import { OnboardingWizard } from '../../src/features/onboarding/onboarding-wizard';
 
@@ -75,6 +76,7 @@ jest.mock('../../src/lib/trpc', () => ({
       setDisplayPreferences: { useMutation: () => ({ mutateAsync: jest.fn(), isPending: false }) },
     },
     training: { setDayKinds: { useMutation: () => ({ mutateAsync: jest.fn() }) } },
+    household: { list: { useQuery: () => ({ data: [] }) } },
     mealPlan: {
       setShape: { useMutation: () => ({ mutateAsync: jest.fn(), isPending: false }) },
       getShape: { useQuery: () => ({ data: undefined }) },
@@ -253,7 +255,12 @@ describe('hydration from what is saved (UX-ONB-08, UX-ACC-02)', () => {
 
   it('shows saved body metrics rounded to one decimal', async () => {
     mockSaved = {
-      chefProfile: { heightCm: 180.0000001, weightKg: 86.1825503, trainingWeekdays: [] },
+      chefProfile: {
+        heightCm: 180.0000001,
+        weightKg: 86.1825503,
+        trainingWeekdays: [],
+        preferredUnits: 'METRIC',
+      },
       dietaryPreferences: null,
       jobs: ['PLAN_MEALS'],
     };
@@ -267,6 +274,57 @@ describe('hydration from what is saved (UX-ONB-08, UX-ACC-02)', () => {
     expect(screen.getByDisplayValue('86.2')).toBeOnTheScreen();
     expect(screen.getByDisplayValue('180')).toBeOnTheScreen();
     expect(screen.queryByDisplayValue('86.1825503')).toBeNull();
+  });
+
+  it('a re-opened setup shows the saved height and weight in the saved imperial units (UX-ONB-05)', async () => {
+    mockSaved = {
+      chefProfile: {
+        heightCm: 177.8,
+        weightKg: 75,
+        trainingWeekdays: [],
+        preferredUnits: 'IMPERIAL',
+      },
+      dietaryPreferences: null,
+      jobs: ['PLAN_MEALS'],
+    };
+    await render(wizard());
+    for (let i = 0; i < 4; i++) {
+      await fireEvent.press(screen.getByTestId('onboarding-continue'));
+      await screen.findByTestId('onboarding-title');
+    }
+    await waitFor(() => expect(screen.getByTestId('onboarding-title')).toHaveTextContent(/Body/));
+    expect(screen.getByTestId('metrics-height')).toHaveDisplayValue('5');
+    expect(screen.getByTestId('metrics-height-in')).toHaveDisplayValue('10');
+    expect(screen.getByTestId('metrics-weight')).toHaveDisplayValue('165.3');
+  });
+
+  it('a draft written before feet + inches existed (one total-inches field) is rebuilt from the stored cm', async () => {
+    writeOnboardingDraft('token-A', {
+      step: 4,
+      jobs: ['PLAN_MEALS'],
+      trainingWeekdays: [],
+      trainingDayKinds: {},
+      howYouCook: { shape: null, currency: 'USD', units: 'IMPERIAL', autoPlanWeekly: false },
+      goodFood: false,
+      goal: null,
+      metrics: {
+        biologicalSex: null,
+        age: null,
+        heightCm: 175.3,
+        weightKg: 74.8,
+        activityLevel: null,
+      },
+      ageText: '',
+      heightText: '69', // 1.0.1: total inches
+      weightText: '165',
+      safety: null,
+      cuisine: null,
+    });
+    await render(wizard());
+    await waitFor(() => expect(screen.getByTestId('metrics-height-in')).toBeTruthy());
+    expect(screen.getByTestId('metrics-height')).toHaveDisplayValue('5');
+    expect(screen.getByTestId('metrics-height-in')).toHaveDisplayValue('9');
+    expect(screen.getByTestId('metrics-weight')).toHaveDisplayValue('165');
   });
 });
 

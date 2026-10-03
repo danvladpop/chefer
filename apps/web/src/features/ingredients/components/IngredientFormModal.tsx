@@ -13,7 +13,7 @@ import { uploadImage } from '@/lib/upload-image';
 import { Sparkles, Upload } from 'lucide-react';
 import { INGREDIENT_CATEGORIES, type IngredientCategory } from '@chefer/types';
 import { cn, pressControl, Sheet } from '@chefer/ui';
-import { INGREDIENT_CATEGORY_LABELS } from '@chefer/utils';
+import { INGREDIENT_CATEGORY_LABELS, userFacingErrorMessage } from '@chefer/utils';
 
 // ─── Private ingredient sheet (plan-ingredient-catalog §8.1, D5, D7) ─────────
 // Create: a private ingredient from the package label — the five core values
@@ -100,6 +100,7 @@ export function IngredientFormModal(props: CreateProps | EditProps) {
   const [checkingConflict, setCheckingConflict] = useState(false);
 
   const createMutation = trpc.ingredients.createCustom.useMutation({
+    meta: { silent: true },
     onSuccess: (row) => {
       if (props.mode === 'create') props.onSaved(pickedFromSearch(row));
     },
@@ -116,6 +117,7 @@ export function IngredientFormModal(props: CreateProps | EditProps) {
     },
   });
   const updateMutation = trpc.ingredients.update.useMutation({
+    meta: { silent: true },
     onSuccess: () => {
       if (props.mode === 'edit') props.onSaved();
     },
@@ -128,6 +130,7 @@ export function IngredientFormModal(props: CreateProps | EditProps) {
 
   // D5: the optional pre-fill is labelled and editable; the stored source stays USER.
   const estimateMutation = trpc.ingredients.estimateNutrition.useMutation({
+    meta: { silent: true },
     onSuccess: (est) => {
       if (!est) return;
       setMacros({
@@ -150,7 +153,7 @@ export function IngredientFormModal(props: CreateProps | EditProps) {
       setImageUrl(await uploadImage(file));
       setGenerateAiImage(false);
     } catch (err) {
-      setUploadError(err instanceof Error ? err.message : 'Upload failed');
+      setUploadError(userFacingErrorMessage(err, 'Upload failed'));
     } finally {
       setUploading(false);
     }
@@ -414,7 +417,9 @@ export function IngredientFormModal(props: CreateProps | EditProps) {
                 </button>
               </div>
               {estimateMutation.isError && (
-                <p className="mb-1 text-xs text-red-600">{estimateMutation.error.message}</p>
+                <p className="mb-1 text-xs text-red-600">
+                  {userFacingErrorMessage(estimateMutation.error)}
+                </p>
               )}
               {estimateMutation.isSuccess && estimateMutation.data !== null && (
                 <p className="mb-1 text-xs text-amber-900">
@@ -585,7 +590,7 @@ export function IngredientFormModal(props: CreateProps | EditProps) {
 
         {mutation.isError && mutation.error.data?.code !== 'CONFLICT' && (
           <p role="alert" className="text-sm text-red-600">
-            {mutation.error.message}
+            {userFacingErrorMessage(mutation.error)}
           </p>
         )}
       </div>

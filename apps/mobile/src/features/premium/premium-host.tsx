@@ -1,8 +1,14 @@
 import { useEffect, useId, useRef, useState } from 'react';
 import { router } from 'expo-router';
 import type { PremiumSource } from '@chefer/types';
-import { ACTIVATION_STEP_COPY, activationStepKeys, userFacingErrorMessage } from '@chefer/utils';
+import {
+  activationStepCopy,
+  activationStepKeys,
+  defaultWeekOffset,
+  userFacingErrorMessage,
+} from '@chefer/utils';
 import { track } from '../../lib/analytics';
+import { trackPlanGenerated } from '../../lib/analytics-events';
 import { trpc } from '../../lib/trpc';
 import { useAiConsent } from '../ai-consent/ai-consent-provider';
 import { closePremium, registerPremiumHost, usePremiumStore } from './open-premium';
@@ -30,6 +36,11 @@ function PremiumOffer({ source }: { source: string | null }) {
   const { data: hasProfile } = trpc.preferences.hasProfile.useQuery(undefined, {
     enabled: open,
   });
+  // UX-ACC-13: is there a week to regenerate? (`null` = no plan yet.)
+  const { data: currentPlan } = trpc.mealPlan.getForWeek.useQuery(
+    { weekOffset: defaultWeekOffset(new Date()) },
+    { enabled: open, staleTime: 60_000, retry: false },
+  );
   const { data: members = [] } = trpc.household.list.useQuery(undefined, {
     enabled: open,
     staleTime: 60_000,
@@ -42,7 +53,9 @@ function PremiumOffer({ source }: { source: string | null }) {
   // "Not now" sends nothing), then opens Plan.
   const requestAiConsent = useAiConsent();
   const generate = trpc.mealPlan.generate.useMutation({
-    onSuccess: () => {
+    meta: { silent: true },
+    onSuccess: (data) => {
+      trackPlanGenerated(data, 0);
       void utils.mealPlan.invalidate();
       void utils.shoppingList.invalidate();
       closePremium();
@@ -52,6 +65,7 @@ function PremiumOffer({ source }: { source: string | null }) {
   });
 
   const upgrade = trpc.user.upgradePlan.useMutation({
+    meta: { silent: true },
     onSuccess: () => {
       if (shownSource) {
         track('upgrade_completed', { source: shownSource as PremiumSource, job: pitch.job });
@@ -84,24 +98,36 @@ function PremiumOffer({ source }: { source: string | null }) {
   const firstStep = activationStepKeys(shownSource, hasProfile ?? true)[0];
   const tableSize = members.length + 1;
   const scaleWeek = pitch.job === 'household' && members.length > 0;
+  // UX-ACC-13: the CTA follows what the user came for. Snap goes to the
+  // tracker (where the camera/photo picker lives); with no plan "Plan my
+  // week" builds one right here; only a user who HAS a plan sees a regenerate.
+  const hasPlan = currentPlan === undefined ? undefined : currentPlan !== null;
+  const planWeek = firstStep === 'regenerate' && hasPlan === false;
+  const generateWeek = (weekOffset: number) => {
+    setActionError(null);
+    requestAiConsent('meal-plan', () => generate.mutate({ weekOffset, keepPinned: true }));
+  };
   const successAction = scaleWeek
     ? {
         label: `Scale next week to ${tableSize} portions`,
         loading: generate.isPending,
-        onPress: () => {
-          setActionError(null);
-          requestAiConsent('meal-plan', () => generate.mutate({ weekOffset: 1, keepPinned: true }));
-        },
+        onPress: () => generateWeek(1),
       }
-    : firstStep
+    : planWeek
       ? {
-          label: ACTIVATION_STEP_COPY[firstStep].title,
-          onPress: () => {
-            closePremium();
-            router.push(ACTIVATION_HREFS[firstStep]);
-          },
+          label: activationStepCopy('regenerate', { hasPlan: false }).title,
+          loading: generate.isPending,
+          onPress: () => generateWeek(defaultWeekOffset(new Date())),
         }
-      : null;
+      : firstStep
+        ? {
+            label: activationStepCopy(firstStep, hasPlan === undefined ? {} : { hasPlan }).title,
+            onPress: () => {
+              closePremium();
+              router.push(ACTIVATION_HREFS[firstStep]);
+            },
+          }
+        : null;
 
   return (
     <PremiumSheet

@@ -126,3 +126,35 @@ describe('NutritionSummary (MO-06)', () => {
     expect(fill?.className).not.toContain('transition-all');
   });
 });
+
+describe('NutritionSummary — status pill (UX-FOOD-05)', () => {
+  it('says how far over the target the day already is, never "on track"', () => {
+    render(
+      <NutritionSummary
+        nutrition={{ ...base, dailyCalorieTarget: 1701, plannedKcal: 1700, eatenKcal: 2572 }}
+        remainingPlannedKcal={759}
+      />,
+    );
+    expect(screen.getByTestId('nutrition-status')).toHaveTextContent('Over by 871 kcal');
+  });
+
+  it('warns the day is heading over when a planned meal tips it', () => {
+    render(
+      <NutritionSummary
+        nutrition={{ ...base, dailyCalorieTarget: 1701, plannedKcal: 2400, eatenKcal: 1672 }}
+        remainingPlannedKcal={759}
+      />,
+    );
+    expect(screen.getByTestId('nutrition-status')).toHaveTextContent('Heading over');
+  });
+
+  it('is on track when eaten plus remaining lands near the target', () => {
+    render(
+      <NutritionSummary
+        nutrition={{ ...base, plannedKcal: 2400, eatenKcal: 1000 }}
+        remainingPlannedKcal={1400}
+      />,
+    );
+    expect(screen.getByTestId('nutrition-status')).toHaveTextContent('On track');
+  });
+});

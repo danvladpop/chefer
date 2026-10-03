@@ -34,7 +34,9 @@ import {
   weightUnitForSystem,
   WELLNESS_COPY,
 } from '@chefer/utils';
+import { NotificationsOffRow } from '../../../components/notifications-off-row';
 import { trpc } from '../../../lib/trpc';
+import { refreshNotificationPermission } from '../../../lib/use-notification-permission';
 import { useUnsavedGuard } from '../../../lib/use-unsaved-guard';
 import { captureGymEvent } from '../analytics';
 import { ExerciseNameLink } from '../components/exercise-name-link';
@@ -57,7 +59,12 @@ import {
 
 const TOTAL_STEPS = 7;
 const WEEKDAY_LABELS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
-const WEIGHTS_ACCESSORY_ID = 'gym-setup-weights-return';
+/**
+ * One accessory bar PER weight field (audit §6.1 root cause 4 / ONB-06): one
+ * `inputAccessoryViewID` shared by every field, with a label that changes
+ * (Next -> Done), breaks the numeric "Next" bar on iOS.
+ */
+const weightsAccessoryId = (exerciseId: string): string => `gym-setup-weights-bar-${exerciseId}`;
 
 function ProgressDots({ step }: { step: number }) {
   return (
@@ -154,6 +161,9 @@ export function SetupWizard() {
   }, [prefs.isLoading, prefs.isFetching, prefs.data]);
   const [weekdays, setWeekdays] = useState<number[]>(initialWeekdays);
   const [reminderEnabled, setReminderEnabled] = useState(false);
+  // UX-GYM-04: the OS refused the permission ask — the switch stays "No
+  // reminder" and a notice points to Settings instead of pretending.
+  const [reminderRefused, setReminderRefused] = useState(false);
   const [reminderHour, setReminderHour] = useState(7);
   const [reminderMinute, setReminderMinute] = useState(0);
   const [overrideKey, setOverrideKey] = useState<string | null>(null);
@@ -204,9 +214,9 @@ export function SetupWizard() {
 
   // Starting weights (dogfood #2): the keyboard used to cover whichever
   // field you were typing into. `decimal-pad` has no Return key on iOS, so
-  // `WEIGHTS_ACCESSORY_ID` pairs every field here with one shared
-  // NumericReturnBar for "Next" / "Done"; on Android the IME already renders
-  // one for `returnKeyType`, and `inputAccessoryViewID` is simply ignored.
+  // `weightsAccessoryId` gives every field here its own NumericReturnBar
+  // ("Next", or "Done" on the last); on Android the IME already renders one
+  // for `returnKeyType`, and `inputAccessoryViewID` is simply ignored.
   const weightsChain = useFieldChain(exercises.length);
   const scrollFieldIntoView = useScrollFieldIntoView();
 
@@ -231,6 +241,8 @@ export function SetupWizard() {
       guardRef.current?.release();
       router.replace('/today');
     },
+    // The wizard renders the failure at the bottom of the last step.
+    meta: { silent: true },
   });
 
   const guard = useUnsavedGuard(!completeSetupMutation.isSuccess, {
@@ -330,7 +342,11 @@ export function SetupWizard() {
         <View className="w-11" />
       </View>
 
+      {/* UX-GYM-30: keyed by step so each page opens at the top — "Starting
+          weights" used to inherit the previous page's scroll offset. */}
       <KeyboardAwareScrollView
+        key={`step-${String(step)}`}
+        testID="gym-setup-scroll"
         contentContainerClassName="gap-5 px-4 py-4"
         footer={
           <View className="gap-2 border-t border-border px-4 pb-2 pt-3">
@@ -560,11 +576,27 @@ export function SetupWizard() {
                 onChange={(v) => {
                   const enabled = v[0] === 'on';
                   setReminderEnabled(enabled);
+                  setReminderRefused(false);
                   // "Want a reminder?" is a direct user action — ask here,
-                  // never on cold start (gym_plan.md §6.5).
-                  if (enabled) void ensureGymReminderPermission();
+                  // never on cold start (gym_plan.md §6.5). UX-GYM-04: if the
+                  // OS says no, the choice goes back to "No reminder".
+                  if (enabled) {
+                    void ensureGymReminderPermission().then((granted) => {
+                      refreshNotificationPermission();
+                      if (!granted) {
+                        setReminderEnabled(false);
+                        setReminderRefused(true);
+                      }
+                    });
+                  }
                 }}
               />
+              {reminderRefused && (
+                <NotificationsOffRow
+                  testID="gym-setup-notifications-off"
+                  message="Reminders are off for Chefer"
+                />
+              )}
               {reminderEnabled && (
                 <View className="flex-row items-center gap-3">
                   <Stepper
@@ -810,7 +842,7 @@ export function SetupWizard() {
                         aria-invalid={weightErrors[ex.exerciseId] !== undefined}
                         keyboardType="decimal-pad"
                         inputAccessoryViewID={
-                          Platform.OS === 'ios' ? WEIGHTS_ACCESSORY_ID : undefined
+                          Platform.OS === 'ios' ? weightsAccessoryId(ex.exerciseId) : undefined
                         }
                         placeholder={unitLabel(unit)}
                         value={knownWeights[ex.exerciseId] ?? ''}
@@ -824,6 +856,12 @@ export function SetupWizard() {
                         {unitLabel(unit)}
                       </Text>
                     </View>
+                    <NumericReturnBar
+                      nativeID={weightsAccessoryId(ex.exerciseId)}
+                      label={i === exercises.length - 1 ? 'Done' : 'Next'}
+                      onPress={() => weightsChain.focusNext(i)}
+                      testID={`gym-setup-weights-return-${ex.exerciseId}`}
+                    />
                     {weightErrors[ex.exerciseId] ? (
                       <Text
                         testID={`gym-setup-weight-error-${ex.exerciseId}`}
@@ -837,14 +875,6 @@ export function SetupWizard() {
                 ))}
               </View>
             )}
-            {weightsChoice === 'know' && exercises.length > 0 ? (
-              <NumericReturnBar
-                nativeID={WEIGHTS_ACCESSORY_ID}
-                label={weightsChain.isLastFocused ? 'Done' : 'Next'}
-                onPress={() => weightsChain.focusNext()}
-                testID="gym-setup-weights-return"
-              />
-            ) : null}
           </View>
         )}
 

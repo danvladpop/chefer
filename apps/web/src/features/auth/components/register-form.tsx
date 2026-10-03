@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { useForm } from 'react-hook-form';
@@ -16,7 +17,12 @@ const registerSchema = z
   .object({
     firstName: z.string().min(1, 'First name is required').max(50),
     lastName: z.string().min(1, 'Last name is required').max(50),
-    email: z.string().min(1, 'Email is required').email('Please enter a valid email address'),
+    // UX-ACC-07: trimmed before validation (autofill / suggestions append a space).
+    email: z
+      .string()
+      .trim()
+      .min(1, 'Email is required')
+      .email('Please enter a valid email address'),
     password: z.string().min(8, 'Password must be at least 8 characters').max(100),
     confirmPassword: z.string().min(1, 'Please confirm your password'),
     // T-39.1 / T-26.5: real checkboxes that must be ticked before submit —
@@ -39,9 +45,11 @@ export function RegisterForm() {
   const router = useRouter();
   const queryClient = useQueryClient();
   const [serverError, setServerError] = useState<string | null>(null);
+  const [accountExists, setAccountExists] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
 
   const registerMutation = trpc.auth.register.useMutation({
+    meta: { silent: true },
     onSuccess: () => {
       // Same as login: drop anything cached for a previously signed-in account.
       queryClient.clear();
@@ -50,6 +58,8 @@ export function RegisterForm() {
     },
     onError: (err) => {
       setServerError(userFacingErrorMessage(err, 'Registration failed. Please try again.'));
+      // UX-ACC-15: "already exists" is not a dead end — offer Sign in / Reset.
+      setAccountExists(err.data?.code === 'CONFLICT');
     },
   });
 
@@ -78,16 +88,20 @@ export function RegisterForm() {
   // field itself changes, so editing `password` after a mismatch left a
   // stale error even once the two matched again. Re-check confirmPassword
   // whenever password changes, once confirmPassword has something to compare.
+  // UX-ACC-16: ...and also when the confirmation itself changes while the
+  // error is showing, so a stale mismatch can never sit under equal values.
   const password = watch('password');
+  const confirm = watch('confirmPassword');
   useEffect(() => {
-    if (getValues('confirmPassword')) {
+    if (getValues('confirmPassword') && errors.confirmPassword) {
       void trigger('confirmPassword');
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [password]);
+  }, [password, confirm]);
 
   const onSubmit = (data: RegisterFormValues) => {
     setServerError(null);
+    setAccountExists(false);
     // Location defaults (P2-6): the browser's region seeds units + currency.
     const region = detectRegion(typeof navigator === 'undefined' ? [] : navigator.languages);
     registerMutation.mutate({
@@ -112,6 +126,22 @@ export function RegisterForm() {
           role="alert"
         >
           {serverError}
+          {accountExists && (
+            <p className="mt-2 flex flex-wrap gap-x-4">
+              <Link
+                href="/login"
+                className="touch-target relative font-medium underline underline-offset-4"
+              >
+                Sign in instead
+              </Link>
+              <Link
+                href="/forgot-password"
+                className="touch-target relative font-medium underline underline-offset-4"
+              >
+                Reset your password
+              </Link>
+            </p>
+          )}
         </div>
       )}
 
@@ -186,7 +216,12 @@ export function RegisterForm() {
           placeholder="you@example.com"
           aria-invalid={errors.email ? 'true' : undefined}
           aria-describedby={errors.email ? 'email-error' : undefined}
-          {...register('email')}
+          {...register('email', {
+            onChange: () => {
+              setServerError(null);
+              setAccountExists(false);
+            },
+          })}
         />
         {errors.email && (
           <p id="email-error" className="text-sm text-destructive" role="alert">

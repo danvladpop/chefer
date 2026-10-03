@@ -5,6 +5,7 @@ import type {
   PlanTrainingDay,
   WeekGlanceDay,
 } from '@chefer/types';
+import { formatNumber } from './format';
 import {
   hasTrainingDayBump,
   isRunKind,
@@ -165,7 +166,7 @@ export interface TrainingDayHeaderCopy {
   a11yLabel: string;
 }
 
-const fmt = (n: number): string => n.toLocaleString('en-US');
+const fmt = (n: number): string => formatNumber(n);
 
 /**
  * The plan's training-day header for one day. Non-goal users (bump zero, or
@@ -253,6 +254,18 @@ export function trainingExplainCopy(input: {
     rows.push({
       label: 'Rest-day target',
       value: `${fmt(basis.restKcal)} kcal · ${basis.restProteinG} g protein`,
+    });
+  }
+  // UX-FOOD-19: right under the rest-day figure, the number the day is really
+  // held to — otherwise the sheet quotes only the rest-day target on a
+  // training day. Only when the bump is applied (a preview is not the target).
+  const withTarget = days.find((d) => d.applied && d.kcalBonus > 0 && d.targetKcal !== undefined);
+  if (withTarget?.targetKcal !== undefined) {
+    rows.push({
+      label: 'Training-day target',
+      value: `${fmt(withTarget.targetKcal)} kcal${
+        withTarget.targetProteinG !== undefined ? ` · ${withTarget.targetProteinG} g protein` : ''
+      }`,
     });
   }
   const first = (list: readonly PlanTrainingDay[]) => list[0];

@@ -11,6 +11,7 @@ import { cn, explain, explainInputs, formatLoad } from '@chefer/utils';
 import { ExerciseImage } from '../components/exercise-image';
 import { ExerciseVideoSheet } from '../library-screens/exercise-video-sheet';
 import { exerciseImageUrl } from '../library/exercise-image';
+import { isAtSetCap, SET_CAP_REASON } from './caps';
 import type { ExerciseHistoryEntry } from './workout-model';
 
 // Sheets opened from an exercise card. They live once at screen level (not one
@@ -187,9 +188,17 @@ export interface ExerciseMenuProps {
   isLast: boolean;
   /** null = "Update routine" is available; otherwise the sentence explaining why not. */
   routineBlockedReason: string | null;
+  /**
+   * WP-04 (feedback 2): false for a freestyle session (no routine) or an
+   * exercise that isn't a routine slot — there is nothing to ask, so Swap
+   * goes straight to the picker as "Just today". Default true (scope page).
+   */
+  swapAsksScope?: boolean;
   history: ExerciseHistoryEntry[];
   unit: WeightUnit;
   loadType: ExerciseDto['loadType'];
+  /** UX-GYM-19: dumbbell / kettlebell loads read "20 kg each". */
+  perHand?: boolean;
   onSwap: (scope: SwapScope) => void;
   onSkip: () => void;
   onAddSet: () => void;
@@ -241,7 +250,7 @@ function MenuRow({
         {label}
       </Text>
       {hint ? (
-        <Text variant="muted" className="text-xs">
+        <Text variant="muted" className="text-sm">
           {hint}
         </Text>
       ) : null}
@@ -251,6 +260,7 @@ function MenuRow({
 
 export function ExerciseMenuSheet(props: ExerciseMenuProps) {
   const { visible, onClose, exercise, name, isFirst, isLast, routineBlockedReason } = props;
+  const swapAsksScope = props.swapAsksScope ?? true;
   // Log mode (a new past workout) is edit mode where every listed set counts.
   const logging = props.mode === 'log';
   const editing = props.mode === 'edit' || logging;
@@ -295,7 +305,11 @@ export function ExerciseMenuSheet(props: ExerciseMenuProps) {
             </>
           ) : (
             <>
-              <MenuRow testID="menu-swap" label="Swap exercise" onPress={() => setPage('swap')} />
+              <MenuRow
+                testID="menu-swap"
+                label="Swap exercise"
+                onPress={() => (swapAsksScope ? setPage('swap') : props.onSwap('today'))}
+              />
               <MenuRow
                 testID="menu-skip"
                 label={exercise.skipped ? 'Unskip exercise' : 'Skip exercise'}
@@ -313,7 +327,13 @@ export function ExerciseMenuSheet(props: ExerciseMenuProps) {
               />
             </>
           )}
-          <MenuRow testID="menu-add-set" label="Add set" onPress={props.onAddSet} />
+          <MenuRow
+            testID="menu-add-set"
+            label="Add set"
+            hint={isAtSetCap(exercise.sets.length) ? SET_CAP_REASON : undefined}
+            disabled={isAtSetCap(exercise.sets.length)}
+            onPress={props.onAddSet}
+          />
           <MenuRow
             testID="menu-remove-set"
             label="Remove last set"
@@ -395,6 +415,7 @@ export function ExerciseMenuSheet(props: ExerciseMenuProps) {
         <View className="gap-3">
           <TextInput
             testID="menu-note-input"
+            accessibilityLabel="Exercise note"
             value={note}
             onChangeText={setNote}
             placeholder="Seat height, grip, a cue…"
@@ -432,7 +453,7 @@ export function ExerciseMenuSheet(props: ExerciseMenuProps) {
                     .map((s) =>
                       props.loadType === 'BODYWEIGHT'
                         ? String(s.reps)
-                        : `${formatLoad(s.weightKg, props.unit, props.loadType)} × ${s.reps}`,
+                        : `${formatLoad(s.weightKg, props.unit, props.loadType, { each: props.perHand })} × ${s.reps}`,
                     )
                     .join(', ')}
                   {h.lastSetRir !== null

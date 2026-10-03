@@ -86,6 +86,7 @@ export function mutationResult(overrides: Record<string, unknown> = {}) {
     isSuccess: false,
     isError: false,
     error: null,
+    reset: jest.fn(),
     ...overrides,
   };
 }

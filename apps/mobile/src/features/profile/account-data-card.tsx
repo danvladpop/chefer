@@ -1,12 +1,13 @@
 import { useRef, useState } from 'react';
-import { Keyboard, Pressable, TextInput, View } from 'react-native';
+import { Keyboard, Pressable, View, type TextInput } from 'react-native';
 import { router } from 'expo-router';
 import { ACCOUNT_DELETION_COPY as COPY } from '@chefer/types';
-import { Button, Card, PasswordInput, Sheet, Text, useSnackbar } from '@chefer/ui-mobile';
+import { Button, Card, Input, PasswordInput, Sheet, Text, useSnackbar } from '@chefer/ui-mobile';
 import { userFacingErrorMessage } from '@chefer/utils';
 import { shareExportFile } from '../../lib/share-file';
 import { signOut } from '../../lib/sign-out';
 import { trpc } from '../../lib/trpc';
+import { markAccountDeleted } from '../auth/account-deleted-notice';
 
 // Mirrors apps/web/src/features/profile/components/AccountDataCard.tsx.
 // In-app export and account deletion (audit P0-6): both app stores require
@@ -30,8 +31,9 @@ export function AccountDataCard() {
     setExportError(null);
     try {
       const data = await utils.user.exportData.fetch();
-      await shareExportFile(exportFilename(), JSON.stringify(data, null, 2));
-      show({ message: 'Your export is ready.', tone: 'success' });
+      const shared = await shareExportFile(exportFilename(), JSON.stringify(data, null, 2));
+      // UX-ACC-22: only when the share sheet was actually used — a cancel is silence.
+      if (shared) show({ message: 'Your export is ready.', tone: 'success' });
     } catch {
       setExportError("Couldn't prepare your data. Please try again.");
     } finally {
@@ -40,9 +42,10 @@ export function AccountDataCard() {
   }
 
   return (
-    <Card testID="profile-your-data">
-      <Text className="font-semibold text-gray-900">Your data</Text>
-      <Text variant="muted" className="mt-1 text-sm">
+    <Card testID="profile-your-data" className="min-w-0">
+      <Text className="w-full min-w-0 font-semibold text-gray-900">Your data</Text>
+      {/* UX-ACC-27: full-width + min-w-0 so iOS wraps instead of clipping mid-word. */}
+      <Text testID="profile-your-data-copy" variant="muted" className="mt-1 w-full min-w-0 text-sm">
         Export everything Chefer stores about you, or delete your account for good.
       </Text>
       <View className="mt-3 gap-2">
@@ -68,11 +71,18 @@ function DeleteAccountSheet({ visible, onClose }: { visible: boolean; onClose: (
   const [password, setPassword] = useState('');
   const [confirmText, setConfirmText] = useState('');
   const confirmRef = useRef<TextInput>(null);
+  const passwordRef = useRef<TextInput>(null);
   const deleteMutation = trpc.user.deleteSelf.useMutation({
+    meta: { silent: true },
+    // UX-ACC-11: the error renders under the password field (below the fold of
+    // the sheet it went unseen) and the field takes focus for the retry.
+    onError: () => passwordRef.current?.focus(),
     // The server already revoked every session. Drop the local one — and every
     // cached query, the gym data and reminders on this phone (UX-ACC-12) —
     // through the one sign-out, then back to the auth screen.
     onSuccess: async () => {
+      // UX-ACC-11: the sign-in screen confirms it once.
+      markAccountDeleted();
       await signOut({ reason: 'account-deleted' });
       router.replace('/(auth)');
     },
@@ -82,7 +92,7 @@ function DeleteAccountSheet({ visible, onClose }: { visible: boolean; onClose: (
   // forgot the password asks for the link here, for their own address.
   const me = trpc.auth.me.useQuery(undefined, { staleTime: 5 * 60_000 });
   const email = me.data?.email ?? null;
-  const resetMutation = trpc.auth.requestPasswordReset.useMutation();
+  const resetMutation = trpc.auth.requestPasswordReset.useMutation({ meta: { silent: true } });
   const ready = password.length > 0 && confirmText.trim().toUpperCase() === COPY.confirmWord;
 
   // R-17: iOS offers "Save Password?" when a secure field that still holds
@@ -124,7 +134,7 @@ function DeleteAccountSheet({ visible, onClose }: { visible: boolean; onClose: (
           >
             {COPY.submit}
           </Button>
-          <Button variant="outline" size="lg" onPress={close}>
+          <Button testID="delete-account-cancel" variant="outline" size="lg" onPress={close}>
             {COPY.cancel}
           </Button>
         </View>
@@ -146,6 +156,7 @@ function DeleteAccountSheet({ visible, onClose }: { visible: boolean; onClose: (
         </View>
         <Text className="text-sm font-medium text-gray-800">{COPY.passwordLabel}</Text>
         <PasswordInput
+          ref={passwordRef}
           testID="delete-account-password"
           accessibilityLabel={COPY.passwordLabel}
           // R-17: this is a confirmation field for an account that is about to
@@ -157,8 +168,20 @@ function DeleteAccountSheet({ visible, onClose }: { visible: boolean; onClose: (
           submitBehavior="submit"
           onSubmitEditing={() => confirmRef.current?.focus()}
           value={password}
-          onChangeText={setPassword}
+          onChangeText={(text) => {
+            if (deleteMutation.isError) deleteMutation.reset();
+            setPassword(text);
+          }}
         />
+        {deleteMutation.isError && (
+          <Text
+            testID="delete-account-error"
+            accessibilityRole="alert"
+            className="text-sm text-red-700"
+          >
+            {userFacingErrorMessage(deleteMutation.error)}
+          </Text>
+        )}
         {email ? (
           resetMutation.isSuccess ? (
             <Text testID="delete-account-reset-sent" className="text-sm text-gray-700">
@@ -184,7 +207,10 @@ function DeleteAccountSheet({ visible, onClose }: { visible: boolean; onClose: (
           </Text>
         )}
         <Text className="text-sm font-medium text-gray-800">{COPY.confirmLabel}</Text>
-        <TextInput
+        {/* UX-ACC-26: `Input` scrolls itself clear of the keyboard inside the
+            Sheet; the footer buttons sit in the sheet's persist-taps footer, so
+            the first tap on Cancel / Delete lands even with the keyboard up. */}
+        <Input
           ref={confirmRef}
           testID="delete-account-confirm-text"
           accessibilityLabel={COPY.confirmLabel}
@@ -196,13 +222,7 @@ function DeleteAccountSheet({ visible, onClose }: { visible: boolean; onClose: (
           onSubmitEditing={() => Keyboard.dismiss()}
           value={confirmText}
           onChangeText={onConfirmTextChange}
-          className="min-h-11 rounded-lg border border-gray-300 px-3 text-base"
         />
-        {deleteMutation.isError && (
-          <Text className="text-sm text-red-700">
-            {userFacingErrorMessage(deleteMutation.error)}
-          </Text>
-        )}
       </View>
     </Sheet>
   );

@@ -159,7 +159,7 @@ export const ExerciseCard = memo(function ExerciseCard({
               ) : (
                 <>
                   {done}/{working.length} sets ·{' '}
-                  {prescriptionText(p, unit, meta?.loadType, meta?.isTimed)}
+                  {prescriptionText(p, unit, meta?.loadType, meta?.isTimed, meta?.perHand)}
                 </>
               )}
             </span>

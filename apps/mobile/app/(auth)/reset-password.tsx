@@ -8,7 +8,10 @@ import { router, useLocalSearchParams } from 'expo-router';
 import { Button, Card, PasswordInput, Text, useScrollFieldIntoView } from '@chefer/ui-mobile';
 import { userFacingErrorMessage } from '@chefer/utils';
 import { AuthField, AuthScreen, backToLogin } from '../../src/features/auth/auth-screen';
+import { isResetLinkInvalidError } from '../../src/features/auth/errors';
+import { NEW_PASSWORD_FIELD_PROPS } from '../../src/features/auth/password-fields';
 import { resetPasswordSchema, type ResetPasswordFormValues } from '../../src/features/auth/schemas';
+import { useConfirmPasswordError } from '../../src/features/auth/use-confirm-password';
 import { trpc } from '../../src/lib/trpc';
 
 // F-M-AUTH-3-1 — port of web /reset-password. Reached by deep link
@@ -17,22 +20,36 @@ import { trpc } from '../../src/lib/trpc';
 // Like the web form there is no manual token entry: without a token the
 // screen points back to requesting a new link.
 
+type ResetStage = 'form' | 'done' | 'invalid-link';
+
 export default function ResetPasswordScreen() {
   const { token } = useLocalSearchParams<{ token?: string | string[] }>();
   // A repeated query param arrives as an array — take the first.
   const resetToken = (Array.isArray(token) ? token[0] : token)?.trim() ?? '';
+  // UX-ACC-09: the heading follows the stage — the success card used to sit
+  // under "Choose a new password", and a dead link under the same title.
+  const [stage, setStage] = useState<ResetStage>('form');
+  const linkProblem = !resetToken || stage === 'invalid-link';
 
   return (
     <AuthScreen testID="reset-password-scroll">
       <Text variant="title" testID="reset-password-title">
-        Choose a new password
+        {stage === 'done'
+          ? 'Password changed'
+          : linkProblem
+            ? 'This link no longer works'
+            : 'Choose a new password'}
       </Text>
-      <Text variant="muted">This link works once and expires an hour after it was requested</Text>
-      {resetToken ? (
-        <ResetPasswordForm token={resetToken} />
-      ) : (
+      {stage === 'form' && !linkProblem && (
+        <Text variant="muted">This link works once and expires an hour after it was requested</Text>
+      )}
+      {linkProblem ? (
         <Card className="gap-3" testID="reset-password-missing-token">
-          <Text className="text-center">This screen needs the link from your reset email.</Text>
+          <Text className="text-center">
+            {resetToken
+              ? 'This reset link is invalid or has expired. Request a new one.'
+              : 'This screen needs the link from your reset email.'}
+          </Text>
           <Button
             variant="outline"
             testID="reset-password-request-new"
@@ -41,12 +58,20 @@ export default function ResetPasswordScreen() {
             Request a new reset link
           </Button>
         </Card>
+      ) : (
+        <ResetPasswordForm token={resetToken} onStage={setStage} />
       )}
     </AuthScreen>
   );
 }
 
-function ResetPasswordForm({ token }: { token: string }) {
+function ResetPasswordForm({
+  token,
+  onStage,
+}: {
+  token: string;
+  onStage: (stage: ResetStage) => void;
+}) {
   const passwordRef = useRef<TextInput>(null);
   const confirmRef = useRef<TextInput>(null);
   const scrollFieldIntoView = useScrollFieldIntoView();
@@ -56,6 +81,8 @@ function ResetPasswordForm({ token }: { token: string }) {
   const {
     control,
     handleSubmit,
+    watch,
+    trigger,
     formState: { errors },
   } = useForm<ResetPasswordFormValues>({
     resolver: zodResolver(resetPasswordSchema),
@@ -64,10 +91,26 @@ function ResetPasswordForm({ token }: { token: string }) {
 
   // Success also deletes every session for the account (all devices signed out).
   const reset = trpc.auth.resetPassword.useMutation({
-    onSuccess: () => setDone(true),
+    meta: { silent: true },
+    onSuccess: () => {
+      setDone(true);
+      onStage('done');
+    },
+    // UX-ACC-09: an expired / used token is a dead end for this form — swap it
+    // for the "request a new link" card instead of a line of plain text.
+    onError: (error) => {
+      if (isResetLinkInvalidError(error)) onStage('invalid-link');
+    },
   });
 
-  const onSubmit = handleSubmit((values) => reset.mutate({ token, password: values.password }));
+  // UX-ACC-16: never show a stale "Passwords do not match".
+  const confirmError = useConfirmPasswordError(watch, trigger, errors);
+
+  const onSubmit = handleSubmit((values) => {
+    // UX-ACC-18: no second submit from the keyboard while one is in flight.
+    if (reset.isPending) return;
+    reset.mutate({ token, password: values.password });
+  });
 
   if (done) {
     return (
@@ -97,9 +140,7 @@ function ResetPasswordForm({ token }: { token: string }) {
               testID="reset-password-password"
               revealed={revealed}
               onRevealedChange={setRevealed}
-              // Same Automatic Strong Password opt-out as register.tsx.
-              autoComplete="off"
-              textContentType="oneTimeCode"
+              {...NEW_PASSWORD_FIELD_PROPS}
               returnKeyType="next"
               submitBehavior="submit"
               editable={!reset.isPending}
@@ -115,7 +156,7 @@ function ResetPasswordForm({ token }: { token: string }) {
 
       <AuthField
         label="Confirm new password"
-        error={errors.confirmPassword?.message}
+        error={confirmError}
         errorTestID="reset-password-confirm-error"
       >
         <Controller
@@ -127,8 +168,7 @@ function ResetPasswordForm({ token }: { token: string }) {
               testID="reset-password-confirm"
               revealed={revealed}
               hideToggle
-              autoComplete="off"
-              textContentType="oneTimeCode"
+              {...NEW_PASSWORD_FIELD_PROPS}
               returnKeyType="go"
               editable={!reset.isPending}
               onSubmitEditing={() => void onSubmit()}

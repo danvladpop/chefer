@@ -21,6 +21,34 @@ const jobsStore = createExternalStore<OnboardingJob[]>(() => {
   return Array.isArray(raw) ? (raw as OnboardingJob[]) : [];
 });
 
+// PO-10 (T-04.3 row 4): today's training state, from the gym bootstrap. Dated
+// so a value cached yesterday is never read as today's.
+const TRAINING_KEY = 'landing.training';
+
+export type CachedTrainingState = {
+  /** The device-local date this was computed for. */
+  date: string;
+  /** Today is one of the user's planned (pinned) training weekdays, and not paused. */
+  isTrainingDay: boolean;
+  /** A workout was already completed today. */
+  workoutDone: boolean;
+  /** Reminder time as decimal hours (e.g. 17.5), when reminders are on. */
+  reminderHour?: number | undefined;
+};
+
+const trainingStore = createExternalStore<CachedTrainingState | null>(() => {
+  const raw = kv.getJSON(TRAINING_KEY);
+  if (typeof raw !== 'object' || raw === null) return null;
+  const { date, isTrainingDay, workoutDone, reminderHour } = raw as Partial<CachedTrainingState>;
+  if (typeof date !== 'string') return null;
+  return {
+    date,
+    isTrainingDay: isTrainingDay === true,
+    workoutDone: workoutDone === true,
+    ...(typeof reminderHour === 'number' && { reminderHour }),
+  };
+});
+
 const hasGymProfileStore = createExternalStore<boolean>(
   () => kv.getString(HAS_GYM_PROFILE_KEY) === '1',
 );
@@ -44,8 +72,29 @@ export function setCachedHasGymProfile(value: boolean): void {
   hasGymProfileStore.set(value);
 }
 
+/** The cached training state, only if it was computed for `today` (a local YYYY-MM-DD). */
+export function getCachedTrainingState(today: string): CachedTrainingState | null {
+  const cached = trainingStore.get();
+  return cached?.date === today ? cached : null;
+}
+
+export function setCachedTrainingState(state: CachedTrainingState): void {
+  const current = trainingStore.get();
+  if (
+    current?.date === state.date &&
+    current.isTrainingDay === state.isTrainingDay &&
+    current.workoutDone === state.workoutDone &&
+    current.reminderHour === state.reminderHour
+  ) {
+    return; // unchanged: no KV write on every bootstrap refetch
+  }
+  kv.setJSON(TRAINING_KEY, state);
+  trainingStore.set(state);
+}
+
 /** Test seam: forget cached values so the next read hits the KV store. */
 export function resetLandingCacheForTests(): void {
   jobsStore.reset();
   hasGymProfileStore.reset();
+  trainingStore.reset();
 }

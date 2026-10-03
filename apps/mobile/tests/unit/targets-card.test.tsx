@@ -6,11 +6,14 @@ import { TargetsCard } from '../../src/features/preferences/targets-card';
 
 const mockSet = jest.fn();
 const mockInvalidate = jest.fn();
+const mockRefetch = jest.fn();
+let mockGetFailed = false;
 let mockGetData:
   | {
       targetMode: 'SUGGESTED' | 'OWN';
       effective: { dailyCalorieTarget: number; proteinG: number; carbsG: number; fatG: number };
       suggested: { dailyCalorieTarget: number; proteinG: number; carbsG: number; fatG: number };
+      inputs?: { weightKg: number | null };
       custom: {
         kcal: number | null;
         proteinG: number | null;
@@ -33,7 +36,14 @@ jest.mock('../../src/lib/trpc', () => ({
       dashboard: { summary: { invalidate: mockInvalidate } },
     }),
     targets: {
-      get: { useQuery: () => ({ data: mockGetData, isLoading: !mockGetData }) },
+      get: {
+        useQuery: () => ({
+          data: mockGetData,
+          isLoading: !mockGetData && !mockGetFailed,
+          isError: mockGetFailed && !mockGetData,
+          refetch: mockRefetch,
+        }),
+      },
       set: {
         useMutation: (opts?: { onSuccess?: () => void; onError?: (e: Error) => void }) => ({
           mutate: (input: unknown) => {
@@ -57,6 +67,7 @@ const SUGGESTED_DATA = {
 beforeEach(() => {
   jest.clearAllMocks();
   mockGetData = SUGGESTED_DATA;
+  mockGetFailed = false;
   mockSetMutationState.isPending = false;
   mockSetMutationState.isSuccess = false;
 });
@@ -117,5 +128,62 @@ describe('TargetsCard', () => {
     await user.type(screen.getByTestId('targets-kcal'), '5');
 
     expect(screen.getByTestId('targets-save')).toHaveTextContent('Save targets');
+  });
+});
+
+// UX-X-12: a failed load is not "Loading…" forever.
+describe('TargetsCard — failed load (UX-X-12)', () => {
+  it('shows an error with Try again, and Try again refetches', async () => {
+    mockGetData = undefined;
+    mockGetFailed = true;
+    const user = userEvent.setup();
+    await render(<TargetsCard />);
+    expect(screen.getByTestId('targets-card-error')).toBeOnTheScreen();
+    expect(screen.queryByText('Loading…')).toBeNull();
+    await user.press(screen.getByTestId('targets-card-error-retry'));
+    expect(mockRefetch).toHaveBeenCalled();
+  });
+
+  it('still says Loading… while the first load is in flight', async () => {
+    mockGetData = undefined;
+    await render(<TargetsCard />);
+    expect(screen.getByText('Loading…')).toBeOnTheScreen();
+    expect(screen.queryByTestId('targets-card-error')).toBeNull();
+  });
+
+  // UX-FOOD-14: the onboarding targets step showed the 2,000 kcal default
+  // because the metrics are only saved when setup finishes.
+  describe('previewKcal (onboarding, UX-FOOD-14)', () => {
+    const DEFAULTS = {
+      ...SUGGESTED_DATA,
+      effective: { dailyCalorieTarget: 2000, proteinG: 125, carbsG: 225, fatG: 67 },
+      suggested: { dailyCalorieTarget: 2000, proteinG: 125, carbsG: 225, fatG: 67 },
+      inputs: { weightKg: null },
+    };
+
+    it('shows the number computed from the metrics entered, not the default', async () => {
+      mockGetData = DEFAULTS;
+      await render(<TargetsCard previewKcal={1492} />);
+      expect(screen.getByTestId('targets-suggested-kcal')).toHaveTextContent('1,492 kcal');
+      expect(screen.queryByText(/2,000 kcal/)).toBeNull();
+    });
+
+    it('prefills My own from the preview with macros scaled to fit it', async () => {
+      mockGetData = DEFAULTS;
+      const user = userEvent.setup();
+      await render(<TargetsCard previewKcal={1500} />);
+      await user.press(screen.getByTestId('targets-mode-own'));
+      expect(screen.getByTestId('targets-kcal').props.value).toBe('1500');
+      // 2000 -> 1500 kcal is x0.75
+      expect(screen.getByTestId('targets-protein').props.value).toBe('94');
+      expect(screen.getByTestId('targets-carbs').props.value).toBe('169');
+      expect(screen.getByTestId('targets-fat').props.value).toBe('50');
+    });
+
+    it('ignores the preview once the server knows the body (settings, later visits)', async () => {
+      mockGetData = { ...DEFAULTS, inputs: { weightKg: 80 } };
+      await render(<TargetsCard previewKcal={1492} />);
+      expect(screen.getByTestId('targets-suggested-kcal')).toHaveTextContent('2,000 kcal');
+    });
   });
 });

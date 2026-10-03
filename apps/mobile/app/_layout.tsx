@@ -5,6 +5,7 @@ import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { Snackbar } from '@chefer/ui-mobile';
 import { AiConsentHost, AiConsentProvider } from '../src/features/ai-consent/ai-consent-provider';
+import { markSessionExpired, setUnauthorizedHandler } from '../src/features/auth/session-expired';
 import { TermsReacceptSheet } from '../src/features/auth/terms-reaccept-sheet';
 import { useSession } from '../src/features/auth/use-session';
 import { installQueryConnectivity } from '../src/features/gym/offline/connectivity';
@@ -13,6 +14,8 @@ import {
   applyGymQueryDefaults,
   createGymPersistOptions,
 } from '../src/features/gym/offline/query-persistence';
+import { ForegroundLandingHost } from '../src/features/navigation/foreground-landing-host';
+import { FoodNudgeHost } from '../src/features/notifications/use-food-nudges';
 import { useNotificationLinks } from '../src/features/notifications/use-notification-links';
 import { PremiumHost } from '../src/features/premium/premium-host';
 import { HealthConsentLaunchPrompt } from '../src/features/privacy/health-consent-launch-prompt';
@@ -41,12 +44,20 @@ track('app_opened', {});
 // Catches render errors in every route; see root-error-boundary.tsx.
 export { RootErrorBoundary as ErrorBoundary } from '../src/components/root-error-boundary';
 
+// UX-ACC-02 / UX-ACC-10: every 401 — tRPC, the chat stream, photo upload and
+// scan alike — runs the full sign-out and leaves a "session expired" note for
+// the sign-in screen. The user did not choose to leave, so unsynced gym
+// workouts are kept for the next login.
+function endExpiredSession() {
+  // A 401 with nobody signed in (wrong password) is not an expired session.
+  if (getToken() === null) return;
+  markSessionExpired();
+  void signOut({ reason: 'session-expired' });
+}
+setUnauthorizedHandler(endExpiredSession);
+
 function createAppQueryClient() {
-  // UX-ACC-02: a 401 runs the full sign-out; the user did not choose to leave,
-  // so unsynced gym workouts are kept for the next login.
-  const client = makeQueryClient({
-    onUnauthorized: () => void signOut({ reason: 'session-expired' }),
-  });
+  const client = makeQueryClient({ onUnauthorized: endExpiredSession });
   applyGymQueryDefaults(client);
   return client;
 }
@@ -140,6 +151,10 @@ export default function RootLayout() {
               <Stack.Screen name="legal/[doc]" />
             </Stack>
             <AiConsentHost />
+            {/* UX-PO-08: keeps the opt-in dinner / plan-Sunday nudges scheduled. */}
+            <FoodNudgeHost signedIn={token !== null} />
+            {/* UX-PO-10: after 30 min in the background, a foreground re-lands (food/gym). */}
+            <ForegroundLandingHost signedIn={token !== null} />
             {/* UX-26, Q-7 (pending counsel): data saved before health consent existed
                 is kept; the signed-in user is asked once per launch. */}
             <HealthConsentLaunchPrompt signedIn={token !== null} />

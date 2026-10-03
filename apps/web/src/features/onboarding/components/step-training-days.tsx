@@ -18,16 +18,23 @@ const KIND_OPTIONS: { value: TrainingDayKind; label: string }[] = [
   { value: 'long_run', label: 'Long run' },
 ];
 
+/** "0 days a week", "1 day a week" (UX-ONB-10: it used to read "1 days"). */
+export function trainingDaysCountLabel(count: number): string {
+  return `${count} ${count === 1 ? 'day' : 'days'} a week`;
+}
+
 function Chip({
   selected,
   onClick,
   children,
   testId,
+  className,
 }: {
   selected: boolean;
   onClick: () => void;
   children: React.ReactNode;
   testId?: string;
+  className?: string;
 }) {
   return (
     <button
@@ -40,6 +47,7 @@ function Chip({
         selected
           ? 'border-[#944a00] bg-[#944a00] text-white'
           : 'border-gray-200 bg-white text-gray-700 hover:bg-gray-50',
+        className,
       )}
     >
       {children}
@@ -82,10 +90,13 @@ export function StepTrainingDays({
         </p>
       </div>
 
-      <div className="flex flex-wrap justify-center gap-2">
+      {/* UX-ONB-10: 4 + 3 on a phone, one row of 7 from `sm` — a wrapping flex row
+          left "Sun" alone on a second line. */}
+      <div className="grid grid-cols-4 gap-2 sm:flex sm:flex-wrap sm:justify-center">
         {WEEKDAY_LABELS.map((label, value) => (
           <Chip
             key={value}
+            className="sm:min-w-14"
             testId={`training-days-${value}`}
             selected={weekdays.includes(value)}
             onClick={() =>
@@ -101,13 +112,13 @@ export function StepTrainingDays({
         ))}
       </div>
       <p data-testid="training-days-count" className="text-center text-sm text-muted-foreground">
-        {weekdays.length} days a week
+        {trainingDaysCountLabel(weekdays.length)}
       </p>
 
       {sorted.length > 0 && (
         <div className="space-y-3 border-t border-border pt-4">
           <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
-            Do you also run or ride?
+            Are any of these days a run?
           </p>
           {sorted.map((weekday) => (
             <div key={weekday} className="flex items-center justify-between gap-3">

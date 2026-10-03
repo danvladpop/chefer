@@ -1,8 +1,17 @@
 import { useState } from 'react';
-import { ActivityIndicator, Alert, Pressable, ScrollView, TextInput, View } from 'react-native';
+import { ActivityIndicator, Pressable, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
-import { Button, Card, ErrorState, Screen, Text } from '@chefer/ui-mobile';
+import {
+  Button,
+  Card,
+  ConfirmSheet,
+  ErrorState,
+  Input,
+  KeyboardAwareScrollView,
+  Screen,
+  Text,
+} from '@chefer/ui-mobile';
 import { userFacingErrorMessage } from '@chefer/utils';
 import { PastWeeksSection } from '../src/features/history/past-weeks-section';
 import { trpc } from '../src/lib/trpc';
@@ -19,6 +28,13 @@ export default function MyWeeksScreen() {
   const [saveName, setSaveName] = useState('');
   const [renamingId, setRenamingId] = useState<string | null>(null);
   const [renameValue, setRenameValue] = useState('');
+  // UX-X-13: delete/follow confirm in a ConfirmSheet (busy + inline error),
+  // not a native Alert that dismisses before the server answers.
+  const [confirming, setConfirming] = useState<{
+    kind: 'delete' | 'follow';
+    templateId: string;
+    name: string;
+  } | null>(null);
 
   const utils = trpc.useUtils();
   const { data: templates, isLoading, isError, refetch } = trpc.mealPlan.listTemplates.useQuery();
@@ -34,20 +50,34 @@ export default function MyWeeksScreen() {
   };
 
   const saveMutation = trpc.mealPlan.saveAsTemplate.useMutation({
+    meta: { silent: true },
     onSuccess: () => {
       setSaveName('');
       invalidate();
     },
   });
-  const followMutation = trpc.mealPlan.followTemplate.useMutation({ onSuccess: invalidate });
+  const followMutation = trpc.mealPlan.followTemplate.useMutation({
+    meta: { silent: true },
+    onSuccess: () => {
+      setConfirming(null);
+      invalidate();
+    },
+  });
   const unfollowMutation = trpc.mealPlan.unfollowTemplate.useMutation({ onSuccess: invalidate });
   const renameMutation = trpc.mealPlan.renameTemplate.useMutation({
+    meta: { silent: true },
     onSuccess: () => {
       setRenamingId(null);
       invalidate();
     },
   });
-  const deleteMutation = trpc.mealPlan.deleteTemplate.useMutation({ onSuccess: invalidate });
+  const deleteMutation = trpc.mealPlan.deleteTemplate.useMutation({
+    meta: { silent: true },
+    onSuccess: () => {
+      setConfirming(null);
+      invalidate();
+    },
+  });
 
   const atCap = (templates?.length ?? 0) >= MAX_TEMPLATES;
   const busy =
@@ -64,25 +94,16 @@ export default function MyWeeksScreen() {
     null;
 
   const confirmDelete = (templateId: string, name: string) => {
-    Alert.alert('Delete this week?', `"${name}" will be removed from your saved weeks.`, [
-      { text: 'Cancel', style: 'cancel' },
-      {
-        text: 'Delete',
-        style: 'destructive',
-        onPress: () => deleteMutation.mutate({ templateId }),
-      },
-    ]);
+    deleteMutation.reset();
+    setConfirming({ kind: 'delete', templateId, name });
   };
 
   const confirmFollow = (templateId: string, name: string) => {
-    Alert.alert('Follow this week?', `"${name}" replaces this week's plan and continues weekly.`, [
-      { text: 'Cancel', style: 'cancel' },
-      {
-        text: 'Follow',
-        onPress: () => followMutation.mutate({ templateId, weekOffset: 0 }),
-      },
-    ]);
+    followMutation.reset();
+    setConfirming({ kind: 'follow', templateId, name });
   };
+
+  const confirmMutation = confirming?.kind === 'delete' ? deleteMutation : followMutation;
 
   return (
     <Screen className="px-0">
@@ -107,7 +128,11 @@ export default function MyWeeksScreen() {
         </View>
       </View>
 
-      <ScrollView contentContainerClassName="gap-3 px-4 py-2 pb-8">
+      {/* UX-PLAN-10: keyboard-aware, taps on Save / OK land on the first press. */}
+      <KeyboardAwareScrollView
+        testID="my-weeks-scroll"
+        contentContainerClassName="gap-3 px-4 py-2 pb-8"
+      >
         <Text variant="muted" className="text-sm">
           Save a week you like and reuse it. The week you follow repeats each week until you switch.
         </Text>
@@ -125,14 +150,15 @@ export default function MyWeeksScreen() {
             </Text>
           ) : (
             <View className="flex-row items-center gap-2">
-              <TextInput
+              <Input
                 testID="my-weeks-save-name"
+                accessibilityLabel="Name for this week"
                 value={saveName}
                 onChangeText={setSaveName}
                 placeholder="Name it, e.g. Mediterranean week"
                 placeholderTextColor="#9ca3af"
                 maxLength={40}
-                className="h-11 min-w-0 flex-1 rounded-xl border border-input bg-background px-3 text-base text-foreground"
+                className="min-w-0 flex-1 rounded-xl"
               />
               <Button
                 testID="my-weeks-save"
@@ -179,12 +205,14 @@ export default function MyWeeksScreen() {
               <View className="flex-row items-center justify-between gap-2">
                 {renamingId === t.id ? (
                   <View className="min-w-0 flex-1 flex-row items-center gap-2">
-                    <TextInput
+                    <Input
+                      testID="my-weeks-rename-input"
+                      accessibilityLabel="Week name"
                       value={renameValue}
                       onChangeText={setRenameValue}
                       autoFocus
                       maxLength={40}
-                      className="h-11 min-w-0 flex-1 rounded-xl border border-input bg-background px-3 text-base text-foreground"
+                      className="min-w-0 flex-1 rounded-xl"
                     />
                     <Button
                       size="sm"
@@ -255,7 +283,31 @@ export default function MyWeeksScreen() {
         )}
 
         <PastWeeksSection />
-      </ScrollView>
+      </KeyboardAwareScrollView>
+      <ConfirmSheet
+        testID="my-weeks-confirm"
+        visible={confirming !== null}
+        onClose={() => setConfirming(null)}
+        title={confirming?.kind === 'delete' ? 'Delete this week?' : 'Follow this week?'}
+        body={
+          confirming?.kind === 'delete'
+            ? `"${confirming.name}" will be removed from your saved weeks.`
+            : `"${confirming?.name ?? ''}" replaces this week's plan and continues weekly.`
+        }
+        confirmLabel={confirming?.kind === 'delete' ? 'Delete' : 'Follow'}
+        cancelLabel="Cancel"
+        destructive={confirming?.kind === 'delete'}
+        busy={confirmMutation.isPending}
+        error={confirmMutation.isError ? userFacingErrorMessage(confirmMutation.error) : null}
+        onConfirm={() => {
+          if (!confirming) return;
+          if (confirming.kind === 'delete') {
+            deleteMutation.mutate({ templateId: confirming.templateId });
+          } else {
+            followMutation.mutate({ templateId: confirming.templateId, weekOffset: 0 });
+          }
+        }}
+      />
     </Screen>
   );
 }

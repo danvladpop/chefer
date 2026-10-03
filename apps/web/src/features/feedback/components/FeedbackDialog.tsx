@@ -7,10 +7,12 @@ import { trpc } from '@/lib/trpc';
 import { MessageSquare } from 'lucide-react';
 import { Button, Sheet } from '@chefer/ui';
 import { cn, FEEDBACK_MAX_LENGTH, feedbackCounter } from '@chefer/utils';
+import { webFeedbackContext } from '../feedback-context';
 
 // ─── Beta feedback dialog (ux-fixes-plan.md 1.6) ─────────────────────────────
 // The review's biggest beta gap: no way for a tester to tell us anything.
-// One textarea, one button; the current path is attached automatically.
+// One textarea, one button; the current path, browser/OS and build are attached
+// automatically (UX-PO-05).
 
 /** Mirrors the API's `feedback.submit` message limit (shared with mobile). */
 export { FEEDBACK_MAX_LENGTH };
@@ -25,6 +27,7 @@ export function FeedbackDialog({ open, onClose }: { open: boolean; onClose: () =
   const nearLimit = counter.tone !== 'normal';
 
   const submitMutation = trpc.feedback.submit.useMutation({
+    meta: { silent: true },
     onSuccess: () => {
       capture('feedback_submitted', { path: pathname });
       setSent(true);
@@ -53,7 +56,13 @@ export function FeedbackDialog({ open, onClose }: { open: boolean; onClose: () =
           <Button
             className="w-full"
             disabled={message.trim().length === 0 || submitMutation.isPending}
-            onClick={() => submitMutation.mutate({ message, path: pathname ?? undefined })}
+            onClick={() =>
+              submitMutation.mutate({
+                message,
+                path: pathname ?? undefined,
+                ...webFeedbackContext(pathname, navigator.userAgent),
+              })
+            }
           >
             {submitMutation.isPending ? 'Sending…' : 'Send feedback'}
           </Button>

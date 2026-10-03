@@ -18,10 +18,12 @@ module.exports = {
       // Mobile type ramp, one step up from Tailwind's web defaults (dogfood
       // #10: "controls and text too small on the phone"). Anchored to Apple's
       // HIG sizes — body 17, callout 15, footnote 13 — so every text-* class
-      // across the app scales together; web keeps its own defaults.
+      // across the app scales together; web keeps its own defaults. WP-04: xs/sm
+      // raised again (13/15 -> 14/16) — the 12–13px secondary text was the
+      // "trainer couldn't read it without glasses" complaint (2026-10-02).
       fontSize: {
-        xs: ['13px', { lineHeight: '18px' }],
-        sm: ['15px', { lineHeight: '21px' }],
+        xs: ['14px', { lineHeight: '19px' }],
+        sm: ['16px', { lineHeight: '22px' }],
         base: ['17px', { lineHeight: '24px' }],
         lg: ['19px', { lineHeight: '26px' }],
         xl: ['21px', { lineHeight: '28px' }],

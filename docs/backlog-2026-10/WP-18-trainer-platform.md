@@ -66,9 +66,24 @@ it touches only docs, the deploy ignores it. **Stop for owner sign-off** before 
 
 ## Phase 1: MVP build
 
-This is defined by the signed-off spec. Follow the operating rules: Sonnet lanes (max 3), additive schema and API with
-an API-level claim, web + mobile, tests, the full ladder, iOS + one Android emulator, one PR (or one per slice, if the
-spec says so).
+This is defined by the signed-off spec ([`docs/trainer-platform/spec.md`](../trainer-platform/spec.md), Phase 0 output,
+2026-10-03). Follow the operating rules: Sonnet lanes (max 3), additive schema and API with an API-level claim, web +
+mobile, tests, the full ladder, iOS + one Android emulator, one PR (or one per slice, if the spec says so).
+
+**Proposed Phase 1 (pending owner sign-off, spec §9):**
+
+- **Order:** WP-05 (class check-in) ships first, on its own. Phase 1 lane A starts once WP-05's schema is merged.
+- **Before building:** the 4-week manual trial with the tester's trainer (spec §8), or building in parallel with it.
+- **MVP:** trainer tools turned on in web Settings; groups with an invite link and a consent screen; publish the week
+  (from a routine day or as a class-style list, with "Copy last week"); a "This week from <trainer>" card on gym Today
+  (check in, or start a copy); and a web dashboard with attendance, effort and last loads, showing only what the member
+  shares.
+- **Data:** additive tables `TrainerProfile`, `CoachingGroup`, `CoachingMember`, `PublishedSession`; nullable
+  `publishedSessionId` on `WorkoutSession` and `ClassCheckIn`; `ConsentKind.COACHING_SHARING`; API level 6, claimed in
+  the coordination file when Phase 1 starts.
+- **Lanes:** A data + API; B trainer web (`/coach`); C member mobile + web. Acceptance and tests are in spec §7.
+- **Not in the MVP:** food or targets from the trainer, messaging, payments, push, trainer-defined exercises, a trainer
+  directory, and AI.
 
 ## Kickoff prompt (Phase 0)
 

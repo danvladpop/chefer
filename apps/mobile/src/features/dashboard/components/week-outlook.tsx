@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Image, Pressable, ScrollView, View } from 'react-native';
 import type { WeekGlanceDay } from '@chefer/types';
 import { Card, Text } from '@chefer/ui-mobile';
-import { cn } from '@chefer/utils';
+import { cn, formatDate } from '@chefer/utils';
 import { getRecipeImageUrl } from '../../../lib/recipe-image';
 import type { RouterOutputs } from '../../../lib/trpc';
 import { MealTypeBadge } from './meal-type-badge';
@@ -32,7 +32,7 @@ export function WeekOutlook({
     const date = new Date(today);
     date.setDate(today.getDate() - todayIdx + i);
     return {
-      label: date.toLocaleDateString('en-US', { weekday: 'short' }),
+      label: formatDate(date, 'weekday'),
       num: date.getDate(),
       idx: i,
       hasMeals: weekPlan.some((wp) => wp.dayOfWeek === i && wp.meals.length > 0),
@@ -80,7 +80,7 @@ export function WeekOutlook({
                 >
                   <Text
                     className={cn(
-                      'text-[12px] font-semibold uppercase',
+                      'text-xs font-semibold uppercase',
                       isToday ? 'text-primary-foreground' : 'text-gray-600',
                     )}
                   >

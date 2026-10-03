@@ -5,6 +5,11 @@ import {
   AiConsentHost,
   AiConsentProvider,
 } from '../../src/features/ai-consent/ai-consent-provider';
+import {
+  NO_FOOD_NUDGES,
+  readFoodNudgePrefs,
+  writeFoodNudgePrefs,
+} from '../../src/features/notifications/food-nudges';
 import { OnboardingWizard } from '../../src/features/onboarding/onboarding-wizard';
 
 // UX-03 AC7 (rev 2, delta rule 3): finishing a food path auto-generates the
@@ -60,6 +65,13 @@ jest.mock('expo-router', () => {
 });
 jest.mock('../../src/features/gym/mode-store', () => ({ setMode: jest.fn() }));
 
+// UX-PO-08: the nudge question's switches ask the OS through this.
+let mockNotificationsAllowed = true;
+jest.mock('../../src/features/gym/reminders/permission', () => ({
+  ensureGymReminderPermission: () => Promise.resolve(mockNotificationsAllowed),
+  hasGymReminderPermission: () => Promise.resolve(mockNotificationsAllowed),
+}));
+
 let mockUser: { aiDataConsentAt: Date | null } | undefined;
 const mockGrant = jest.fn();
 const mockGenerate = jest.fn();
@@ -110,6 +122,7 @@ jest.mock('../../src/lib/trpc', () => ({
       setDisplayPreferences: { useMutation: () => ({ mutateAsync: jest.fn(), isPending: false }) },
     },
     training: { setDayKinds: { useMutation: () => ({ mutateAsync: jest.fn() }) } },
+    household: { list: { useQuery: () => ({ data: [] }) } },
     mealPlan: {
       setShape: { useMutation: () => ({ mutateAsync: jest.fn(), isPending: false }) },
       getShape: { useQuery: () => ({ data: SHAPE }) },
@@ -172,10 +185,19 @@ async function driveToFinish() {
   throw new Error('driveToFinish: never reached the finish button within 10 steps');
 }
 
+/** UX-PO-08: the last question comes after the save; answering it leaves the wizard. */
+async function finishNudgeQuestion() {
+  const user = userEvent.setup();
+  await waitFor(() => expect(screen.getByTestId('onboarding-nudge-done')).toBeTruthy());
+  await user.press(screen.getByTestId('onboarding-nudge-done'));
+}
+
 beforeEach(() => {
   jest.clearAllMocks();
   mockIsPremium = false;
   mockUser = { aiDataConsentAt: null };
+  mockNotificationsAllowed = true;
+  writeFoodNudgePrefs(NO_FOOD_NUDGES);
 });
 
 beforeAll(() => {
@@ -192,6 +214,7 @@ describe('Onboarding AC7 — AI consent before the first-week generate', () => {
 
     await waitFor(() => expect(mockGenerate).toHaveBeenCalledWith({ weekOffset: 0 }));
     expect(screen.queryByTestId('ai-consent-allow')).toBeNull();
+    await finishNudgeQuestion();
     expect(mockReplace).toHaveBeenCalledWith('/(food)');
   });
 
@@ -217,6 +240,7 @@ describe('Onboarding AC7 — AI consent before the first-week generate', () => {
     await waitFor(() => expect(screen.getByTestId('ai-consent-not-now')).toBeTruthy());
     expect(mockGenerate).not.toHaveBeenCalled();
     // Finishing onboarding itself doesn't wait on the consent decision.
+    await finishNudgeQuestion();
     expect(mockReplace).toHaveBeenCalledWith('/(food)');
 
     await fireEvent.press(screen.getByTestId('ai-consent-not-now'));
@@ -234,5 +258,48 @@ describe('Onboarding AC7 — AI consent before the first-week generate', () => {
 
     expect(mockGrant).toHaveBeenCalledTimes(1);
     await waitFor(() => expect(mockGenerate).toHaveBeenCalledWith({ weekOffset: 0 }));
+  });
+});
+
+describe('Onboarding — the nudge opt-in question (UX-PO-08)', () => {
+  it('asks once, after the save: nothing leaves the wizard until it is answered', async () => {
+    await renderWizard();
+    await driveToFinish();
+
+    await waitFor(() => expect(screen.getByTestId('onboarding-nudge-title')).toBeTruthy());
+    expect(screen.getByText('Want a nudge to log dinner or plan Sunday?')).toBeTruthy();
+    expect(mockReplace).not.toHaveBeenCalled();
+    // Both switches start off; with neither on the button says so.
+    expect(readFoodNudgePrefs()).toEqual({ dinner: false, planSunday: false });
+    expect(screen.getByText('Not now')).toBeTruthy();
+
+    await finishNudgeQuestion();
+    expect(mockReplace).toHaveBeenCalledWith('/(food)');
+    expect(readFoodNudgePrefs()).toEqual({ dinner: false, planSunday: false });
+  });
+
+  it('turning a switch on stores only that choice', async () => {
+    await renderWizard();
+    await driveToFinish();
+    await waitFor(() => expect(screen.getByTestId('onboarding-nudge-dinner')).toBeTruthy());
+
+    await fireEvent(screen.getByTestId('onboarding-nudge-dinner'), 'valueChange', true);
+    await waitFor(() => expect(readFoodNudgePrefs()).toEqual({ dinner: true, planSunday: false }));
+    expect(screen.getByText('Done')).toBeTruthy();
+
+    await finishNudgeQuestion();
+    expect(mockReplace).toHaveBeenCalledWith('/(food)');
+  });
+
+  it('a refused OS permission leaves the switch off and says why', async () => {
+    mockNotificationsAllowed = false;
+    await renderWizard();
+    await driveToFinish();
+    await waitFor(() => expect(screen.getByTestId('onboarding-nudge-plan')).toBeTruthy());
+
+    await fireEvent(screen.getByTestId('onboarding-nudge-plan'), 'valueChange', true);
+    await waitFor(() => expect(screen.getByTestId('onboarding-nudge-off')).toBeTruthy());
+    expect(readFoodNudgePrefs()).toEqual({ dinner: false, planSunday: false });
+    expect(screen.getByText('Not now')).toBeTruthy();
   });
 });

@@ -1,6 +1,5 @@
 import { useMemo, useState } from 'react';
 import { Pressable, View } from 'react-native';
-import { onlineManager } from '@tanstack/react-query';
 import { router } from 'expo-router';
 import type { GymBootstrap, SessionSummaryDto } from '@chefer/types';
 import { Button, Text } from '@chefer/ui-mobile';
@@ -11,6 +10,7 @@ import {
   sessionRowAccessibilityActions,
   useSessionActions,
 } from '../history/use-session-actions';
+import { useIsOnline } from '../library-screens/online-status';
 import { localDate } from '../offline/ids';
 
 // UX-36 amendment A2 (T-36.A2.1, O-10/O-11): the `Recent` section on Gym
@@ -35,6 +35,7 @@ export interface RecentWorkoutsProps {
 
 export function RecentWorkouts({ bootstrap, testID = 'gym-today-recent' }: RecentWorkoutsProps) {
   const utils = trpc.useUtils();
+  const online = useIsOnline();
   const actions = useSessionActions({ bootstrap, source: 'recent', testIDPrefix: testID });
   const today = localDate();
   const cached = useMemo(
@@ -66,7 +67,7 @@ export function RecentWorkouts({ bootstrap, testID = 'gym-today-recent' }: Recen
       setVisibleCount((v) => Math.min(INLINE_CAP, v + PAGE_SIZE));
       return;
     }
-    if (!onlineManager.isOnline()) {
+    if (!online) {
       setLoadError(true);
       return;
     }
@@ -148,9 +149,7 @@ export function RecentWorkouts({ bootstrap, testID = 'gym-today-recent' }: Recen
 
       {loadError ? (
         <Text testID={`${testID}-error`} variant="muted" className="text-xs">
-          {onlineManager.isOnline()
-            ? "Couldn't load older workouts."
-            : 'Connect to load older workouts.'}{' '}
+          {online ? "Couldn't load older workouts." : 'Connect to load older workouts.'}{' '}
           <Text className="text-primary" onPress={handleShowMore}>
             Try again
           </Text>

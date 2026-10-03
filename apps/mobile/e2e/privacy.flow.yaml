@@ -25,6 +25,7 @@ appId: dev.chefer.app.dev
           centerElement: true
       - tapOn:
           id: 'logout-button'
+      - runFlow: common/confirm-sign-out.yaml
 - extendedWaitUntil:
     visible:
       id: 'welcome-title'
@@ -187,6 +188,7 @@ appId: dev.chefer.app.dev
     centerElement: true
 - tapOn:
     id: 'logout-button'
+- runFlow: common/confirm-sign-out.yaml
 # Signing out lands on Welcome or straight on Sign in, depending on history.
 - extendedWaitUntil:
     notVisible:

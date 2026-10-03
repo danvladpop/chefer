@@ -107,7 +107,11 @@ export function createTrpcPreferencesMock() {
         mealPlan: { invalidate: jest.fn() },
         dashboard: { invalidate: jest.fn(), summary: { invalidate: jest.fn() } },
         user: { me: { setData: jest.fn(), invalidate: jest.fn() } },
-        targets: { get: { invalidate: jest.fn() }, changes: { invalidate: jest.fn() } },
+        targets: {
+          invalidate: jest.fn(),
+          get: { invalidate: jest.fn() },
+          changes: { invalidate: jest.fn() },
+        },
         tracker: { getDay: { invalidate: jest.fn() } },
       })),
     },

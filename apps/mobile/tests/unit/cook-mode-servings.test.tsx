@@ -11,11 +11,16 @@ let mockParams: Record<string, string> = { id: 'r1' };
 let mockMembers: { name: string; portionFactor: number }[] | null = null;
 let mockCookingFor: number | null = null;
 
+jest.mock('expo-notifications', () => ({}));
 jest.mock('expo-keep-awake', () => ({ useKeepAwake: jest.fn() }));
 jest.mock('expo-router', () => ({
   router: { push: jest.fn(), back: jest.fn() },
   useLocalSearchParams: () => mockParams,
+  // The unsaved-work guard (UX-COOK-02) reads navigation state.
+  useNavigation: () => ({ dispatch: jest.fn(), goBack: jest.fn() }),
+  useIsFocused: () => true,
 }));
+jest.mock('expo-router/react-navigation', () => ({ usePreventRemove: jest.fn() }));
 jest.mock('../../src/hooks/use-household', () => ({
   useHousehold: () => ({
     memberCount: mockMembers?.length ?? 0,
@@ -53,6 +58,7 @@ jest.mock('../../src/lib/trpc', () => ({
     },
     tracker: {
       logRecipe: { useMutation: () => ({ mutate: jest.fn(), isPending: false, isError: false }) },
+      unlogRecipe: { useMutation: () => ({ mutate: jest.fn(), isPending: false, isError: false }) },
     },
   },
 }));

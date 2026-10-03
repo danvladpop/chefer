@@ -1,4 +1,4 @@
-import { Fragment, useRef, useState } from 'react';
+import { Fragment, useImperativeHandle, useRef, useState, type Ref } from 'react';
 import { ActivityIndicator, Pressable, Switch, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { findSafetyTaxonomyEntry, HOUSEHOLD_PORTION_OPTIONS } from '@chefer/types';
@@ -111,6 +111,7 @@ function YouCard() {
   };
 
   const saveMutation = trpc.preferences.updateSafety.useMutation({
+    meta: { silent: true },
     onSuccess: () => {
       setSheetOpen(false);
       void utils.preferences.get.invalidate();
@@ -214,7 +215,29 @@ function YouCard() {
   );
 }
 
-export function HouseholdEditor({ variant = 'screen' }: { variant?: 'screen' | 'onboarding' }) {
+/**
+ * What the onboarding wizard needs from the editor before it moves on
+ * (UX-ONB-07): a name typed into "Add someone" but never added with the
+ * button must not be dropped by Continue.
+ */
+export type HouseholdEditorHandle = {
+  /** True while the form holds a typed, un-added name (and is not editing someone). */
+  hasPending: () => boolean;
+  /**
+   * Adds the typed name through the normal save path (health consent included)
+   * and calls `onAdded` once it is saved. If the save fails, is cancelled or is
+   * blocked, `onAdded` never runs — the form stays and shows why.
+   */
+  addPending: (onAdded: () => void) => void;
+};
+
+export function HouseholdEditor({
+  variant = 'screen',
+  handleRef,
+}: {
+  variant?: 'screen' | 'onboarding';
+  handleRef?: Ref<HouseholdEditorHandle>;
+}) {
   const { limit, isPremium } = useEntitlement('householdMembers');
   const list = trpc.household.list.useQuery();
   const members = list.data ?? [];
@@ -257,18 +280,21 @@ export function HouseholdEditor({ variant = 'screen' }: { variant?: 'screen' | '
     setEditing(null);
   };
   const addMutation = trpc.household.add.useMutation({
+    meta: { silent: true },
     onSuccess: () => {
       resetForm();
       invalidate();
     },
   });
   const updateMutation = trpc.household.update.useMutation({
+    meta: { silent: true },
     onSuccess: () => {
       resetForm();
       invalidate();
     },
   });
   const removeMutation = trpc.household.remove.useMutation({
+    meta: { silent: true },
     onSuccess: () => {
       setConfirmingId(null);
       invalidate();
@@ -310,14 +336,18 @@ export function HouseholdEditor({ variant = 'screen' }: { variant?: 'screen' | '
     });
   };
 
-  const handleSave = () => {
+  const handleSave = (onSaved?: () => void) => {
     if (!name.trim() || isSaving || atCap) {
       return;
     }
     const base = { name: name.trim(), portionFactor, isKid };
     const save = (payload: typeof base & Partial<SafetyPickerValue>) => {
       if (editing) {
-        updateMutation.mutate({ id: editing.id, ...payload });
+        const update = { id: editing.id, ...payload };
+        if (onSaved) updateMutation.mutate(update, { onSuccess: onSaved });
+        else updateMutation.mutate(update);
+      } else if (onSaved) {
+        addMutation.mutate(payload, { onSuccess: onSaved });
       } else {
         addMutation.mutate(payload);
       }
@@ -338,6 +368,12 @@ export function HouseholdEditor({ variant = 'screen' }: { variant?: 'screen' | '
       },
     });
   };
+
+  // UX-ONB-07: the wizard's Continue asks before it leaves the table step.
+  useImperativeHandle(handleRef, () => ({
+    hasPending: () => editing === null && name.trim().length > 0 && !atCap,
+    addPending: (onAdded) => handleSave(onAdded),
+  }));
 
   // Table summary (UX-02, CI-41): "{n} at the table · we'll check for …".
   const peopleCount = members.length + 1; // + you
@@ -455,7 +491,7 @@ export function HouseholdEditor({ variant = 'screen' }: { variant?: 'screen' | '
             testID="household-add"
             loading={isSaving}
             disabled={!name.trim()}
-            onPress={handleSave}
+            onPress={() => handleSave()}
           >
             {editing ? 'Save changes' : 'Add to my table'}
           </Button>

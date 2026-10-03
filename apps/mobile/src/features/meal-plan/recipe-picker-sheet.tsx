@@ -1,8 +1,15 @@
 import { useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Image, Pressable, SectionList, TextInput, View } from 'react-native';
+import { ActivityIndicator, Image, Pressable, SectionList, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { Button, Sheet, Text } from '@chefer/ui-mobile';
-import { buildPickerSections, filterReplaceCandidates, verifiedLabels } from '@chefer/utils';
+import { Button, ErrorState, SEARCH_LIST_PROPS, SearchField, Sheet, Text } from '@chefer/ui-mobile';
+import {
+  buildPickerSections,
+  filterReplaceCandidates,
+  pickerRowMeta,
+  pickerSafetyHeader,
+  pickerSafetyHeaderText,
+  verifiedLabels,
+} from '@chefer/utils';
 import { getRecipeImageUrl } from '../../lib/recipe-image';
 import { trpc } from '../../lib/trpc';
 import { AiConsentHost } from '../ai-consent/ai-consent-provider';
@@ -37,6 +44,18 @@ interface RecipePickerSheetProps {
   onSelect: (recipeId: string, acknowledgeConflict?: boolean) => void;
   onAiSwap?: () => void;
   onClose: () => void;
+}
+
+/** The `slotType` list input for a slot type string, or nothing for an unknown one. */
+function pickerSlotType(
+  slotType: string | undefined,
+): { slotType: 'breakfast' | 'lunch' | 'dinner' | 'snack' } | Record<string, never> {
+  return slotType === 'breakfast' ||
+    slotType === 'lunch' ||
+    slotType === 'dinner' ||
+    slotType === 'snack'
+    ? { slotType }
+    : {};
 }
 
 export function RecipePickerSheet({
@@ -78,6 +97,11 @@ export function RecipePickerSheet({
     if (debounceRef.current) {
       clearTimeout(debounceRef.current);
     }
+    // UX-X-17: the clear × (and an emptied field) shows the full list at once.
+    if (value === '') {
+      setDebouncedSearch('');
+      return;
+    }
     debounceRef.current = setTimeout(() => setDebouncedSearch(value), 300);
   };
 
@@ -87,12 +111,15 @@ export function RecipePickerSheet({
   // be able to pick one and see the "Use anyway" offer (T-00.11). The
   // broader/curated list is safety-filtered: never suggest someone else's
   // unsafe dish.
+  // UX-PLAN-05: `slotType` makes the server list the recipes that fit this
+  // slot first (Lunch used to lead with breakfasts).
+  const slotHint = pickerSlotType(slotType);
   const mineQuery = trpc.recipe.list.useQuery(
-    { search: searchInput, myRecipesOnly: true, limit: 20 },
+    { search: searchInput, myRecipesOnly: true, limit: 20, ...slotHint },
     { enabled: visible },
   );
   const allQuery = trpc.recipe.list.useQuery(
-    { search: searchInput, limit: 30, forTable: true },
+    { search: searchInput, limit: 30, forTable: true, ...slotHint },
     { enabled: visible },
   );
   // T-02.5/AC7: how many of the (safety-filtered) `allQuery` results this
@@ -107,8 +134,22 @@ export function RecipePickerSheet({
   const filterOpts = { excludeRecipeId, slotType };
   const mineFiltered = mineQuery.data && filterReplaceCandidates(mineQuery.data, filterOpts);
   const allFiltered = allQuery.data && filterReplaceCandidates(allQuery.data, filterOpts);
-  const sections = buildPickerSections(mineFiltered, allFiltered);
+  const sections = buildPickerSections(mineFiltered, allFiltered, slotType);
+  // UX-PLAN-05: the safety check is said once, in the header — not as the same
+  // pill on every row. Only a row that passed fewer rules keeps its own chip.
+  const safetyHeader = pickerSafetyHeader(
+    (allFiltered ?? []).map((r) => ({ id: r.id, verified: verifiedLabels(r.safetyChecks) })),
+  );
+  const safetyHeaderText = pickerSafetyHeaderText(safetyHeader.labels);
   const isLoading = mineQuery.isLoading || allQuery.isLoading;
+  // UX-X-12: nothing to show because a load FAILED is not "No recipes match".
+  const loadFailed =
+    (mineQuery.isError && mineQuery.data === undefined) ||
+    (allQuery.isError && allQuery.data === undefined);
+  const retryLoad = () => {
+    if (mineQuery.isError) void mineQuery.refetch();
+    if (allQuery.isError) void allQuery.refetch();
+  };
   const isOwnAttempt = Boolean(
     lastAttemptedId && mineQuery.data?.some((r) => r.id === lastAttemptedId),
   );
@@ -140,15 +181,25 @@ export function RecipePickerSheet({
         />
       )}
 
+      {safetyHeaderText && (
+        <View
+          testID="picker-checked-header"
+          accessibilityLabel={safetyHeaderText}
+          className="flex-row items-center gap-1.5 pb-2"
+        >
+          <Ionicons name="shield-checkmark-outline" size={14} color="#944a00" />
+          <Text className="min-w-0 flex-1 text-sm text-gray-600">{safetyHeaderText}</Text>
+        </View>
+      )}
+
       {/* Search */}
       <View className="pb-2">
-        <TextInput
+        <SearchField
           testID="picker-search"
+          accessibilityLabel="Search recipes"
           value={search}
           onChangeText={handleSearch}
           placeholder="Search recipes…"
-          placeholderTextColor="#9ca3af"
-          className="h-11 rounded-xl border border-input bg-background px-4 text-base text-foreground"
         />
       </View>
 
@@ -174,6 +225,13 @@ export function RecipePickerSheet({
         <View className="items-center py-10">
           <ActivityIndicator size="large" color="#944a00" />
         </View>
+      ) : sections.length === 0 && loadFailed ? (
+        <ErrorState
+          testID="picker-load-error"
+          title="Couldn't load recipes"
+          onRetry={retryLoad}
+          className="py-6"
+        />
       ) : sections.length === 0 ? (
         <View className="items-center py-10">
           <Text variant="muted">No recipes match your search.</Text>
@@ -181,8 +239,9 @@ export function RecipePickerSheet({
       ) : (
         <SectionList
           sections={sections}
+          {...SEARCH_LIST_PROPS}
+          testID="picker-list"
           keyExtractor={(recipe) => recipe.id}
-          keyboardShouldPersistTaps="handled"
           stickySectionHeadersEnabled={false}
           className="grow-0"
           contentContainerClassName="pb-2"
@@ -192,7 +251,7 @@ export function RecipePickerSheet({
             </Text>
           )}
           renderItem={({ item: recipe }) => {
-            const n = recipe.nutritionInfo as { calories: number };
+            const n = recipe.nutritionInfo as { calories: number; protein?: number };
             return (
               <Pressable
                 testID={`picker-recipe-${recipe.id}`}
@@ -211,18 +270,23 @@ export function RecipePickerSheet({
                   resizeMode="cover"
                 />
                 <View className="min-w-0 flex-1">
-                  <Text numberOfLines={1} className="text-sm font-medium text-gray-900">
+                  <Text numberOfLines={2} className="text-sm font-medium text-gray-900">
                     {recipe.name}
                   </Text>
-                  <View className="flex-row items-center gap-1">
-                    <Text className="text-xs text-gray-500">{n.calories} kcal</Text>
+                  <View className="flex-row flex-wrap items-center gap-x-1">
+                    <Text
+                      testID={`picker-recipe-${recipe.id}-meta`}
+                      className="text-xs text-gray-500"
+                    >
+                      {pickerRowMeta({ ...recipe, nutritionInfo: n })}
+                    </Text>
                     <NutritionStatusTag status={recipe.nutritionStatus} />
                   </View>
                 </View>
-                {/* T-02.4: this row's own checked rules, next to the favourite
-                    heart — dislikes are already excluded server-side, so no
-                    dislike chip belongs here. */}
-                {verifiedLabels(recipe.safetyChecks).length > 0 && (
+                {/* T-02.4 → UX-PLAN-05: the shared check lives in the header;
+                    a row keeps a chip only when it passed fewer rules than
+                    the rest. Dislikes are excluded server-side. */}
+                {safetyHeader.partialIds.has(recipe.id) && (
                   <CheckedForChip
                     testID={`picker-recipe-${recipe.id}-checked`}
                     labels={verifiedLabels(recipe.safetyChecks)}

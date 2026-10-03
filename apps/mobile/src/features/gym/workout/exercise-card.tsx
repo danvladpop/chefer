@@ -1,5 +1,5 @@
 import { memo, useMemo, useState } from 'react';
-import { Pressable, Text as RNText, View } from 'react-native';
+import { Pressable, Text as RNText, useWindowDimensions, View } from 'react-native';
 import {
   HIDDEN_EXERCISE_IMAGE_IDS,
   RIR_VALUES,
@@ -16,6 +16,7 @@ import { Chip, Text } from '@chefer/ui-mobile';
 import { cn, explain, formatLoadNumber, unitLabel } from '@chefer/utils';
 import { ExerciseImage } from '../components/exercise-image';
 import { exerciseImageUrl } from '../library/exercise-image';
+import { isAtSetCap, SET_CAP_REASON } from './caps';
 import { CardioEntry } from './cardio-entry';
 import { SetRow, type SetRowHandlers } from './set-row';
 import {
@@ -112,7 +113,12 @@ function ExerciseCardImpl({
   ctx,
 }: ExerciseCardProps) {
   const base = `exercise-${index}`;
+  const atSetCap = isAtSetCap(se.sets.length);
   const meta = ctx.lookup(se.exerciseId);
+  // WP-04 device pass: at large OS text the suggestion squeezed to one word per
+  // line between the chip and "Why?" — stack it under them instead.
+  const { fontScale } = useWindowDimensions();
+  const stackSuggestion = fontScale > 1.2;
   const [showWarmups, setShowWarmups] = useState(false);
   const [rirOpen, setRirOpen] = useState<boolean | null>(null);
 
@@ -201,17 +207,17 @@ function ExerciseCardImpl({
             <Text
               testID={`${base}-name`}
               numberOfLines={2}
-              className="min-w-0 flex-1 text-base font-semibold"
+              className="min-w-0 flex-1 text-lg font-semibold"
             >
               {meta.name}
             </Text>
           </View>
-          <Text testID={`${base}-progress`} variant="muted" numberOfLines={1}>
+          <Text testID={`${base}-progress`} variant="muted" numberOfLines={2}>
             {se.skipped ? 'Skipped' : subtitle}
             {pr ? ' · PR' : ''}
           </Text>
           {lastNote && !editing ? (
-            <Text testID={`${base}-last-note`} variant="muted" numberOfLines={1}>
+            <Text testID={`${base}-last-note`} variant="muted" numberOfLines={2}>
               Last time: {lastNote}
             </Text>
           ) : null}
@@ -261,15 +267,25 @@ function ExerciseCardImpl({
       ) : expanded ? (
         <View className="gap-2 px-2 pb-3">
           {editing ? null : (
-            <View className="flex-row items-start gap-2 rounded-xl bg-accent p-2">
+            <View
+              testID={`${base}-suggestion-row`}
+              className={cn(
+                'gap-2 rounded-xl bg-accent p-2',
+                stackSuggestion ? 'flex-row flex-wrap items-center' : 'flex-row items-start',
+              )}
+            >
               <View className="rounded-md bg-card px-2 py-1">
                 <RNText testID={`${base}-direction`} className="text-xs font-bold text-primary">
                   {bannerChip(se.prescription, ctx.unit)}
                 </RNText>
               </View>
-              <Text testID={`${base}-suggestion`} className="min-w-0 flex-1 text-sm">
-                {sentence}
-              </Text>
+              {stackSuggestion ? (
+                <View className="flex-1" />
+              ) : (
+                <Text testID={`${base}-suggestion`} className="min-w-0 flex-1 text-sm">
+                  {sentence}
+                </Text>
+              )}
               <Pressable
                 testID={`${base}-why`}
                 accessibilityRole="button"
@@ -279,6 +295,11 @@ function ExerciseCardImpl({
               >
                 <Text className="text-sm font-semibold text-primary">Why?</Text>
               </Pressable>
+              {stackSuggestion ? (
+                <Text testID={`${base}-suggestion`} className="w-full min-w-0 text-sm">
+                  {sentence}
+                </Text>
+              ) : null}
             </View>
           )}
 
@@ -417,14 +438,34 @@ function ExerciseCardImpl({
             </Text>
           ) : null}
 
-          <Pressable
-            testID={`${base}-add-set`}
-            accessibilityRole="button"
-            onPress={() => ctx.onAddSet(se.id)}
-            className="min-h-11 items-center justify-center rounded-lg border border-dashed border-border"
-          >
-            <Text className="text-sm font-medium text-primary">+ Add set</Text>
-          </Pressable>
+          {/* UX-GYM-01: the schema allows 20 sets per exercise — past that a
+              workout can never sync, so the button says why it is disabled. */}
+          {atSetCap ? (
+            <View
+              testID={`${base}-add-set`}
+              accessible
+              accessibilityRole="button"
+              accessibilityState={{ disabled: true }}
+              accessibilityLabel={`Add set, unavailable. ${SET_CAP_REASON}`}
+              className="min-h-12 items-center justify-center rounded-lg border border-dashed border-border px-3 py-2 opacity-60"
+            >
+              <Text variant="muted" className="text-base font-medium">
+                + Add set
+              </Text>
+              <Text testID={`${base}-add-set-reason`} variant="muted" className="text-sm">
+                {SET_CAP_REASON}
+              </Text>
+            </View>
+          ) : (
+            <Pressable
+              testID={`${base}-add-set`}
+              accessibilityRole="button"
+              onPress={() => ctx.onAddSet(se.id)}
+              className="min-h-12 items-center justify-center rounded-lg border border-dashed border-border"
+            >
+              <Text className="text-base font-medium text-primary">+ Add set</Text>
+            </Pressable>
+          )}
         </View>
       ) : null}
     </View>

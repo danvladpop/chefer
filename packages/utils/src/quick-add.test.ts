@@ -1,11 +1,25 @@
 import { describe, expect, it } from 'vitest';
-import { checkMacroSanity, formatQuickAddGrams, parseQuickAdd } from './quick-add';
+import {
+  checkMacroSanity,
+  clampIngredientGrams,
+  formatQuickAddGrams,
+  maxIngredientGrams,
+  parseQuickAdd,
+} from './quick-add';
 
 describe('parseQuickAdd', () => {
-  it('accepts name + kcal, defaulting macros to 0', () => {
+  it('accepts name + kcal, storing 0 g and flagging every macro unknown', () => {
     expect(parseQuickAdd({ name: '  Birthday cake ', mealType: 'snack', kcal: '350' })).toEqual({
       ok: true,
-      entry: { name: 'Birthday cake', mealType: 'snack', kcal: 350, protein: 0, carbs: 0, fat: 0 },
+      entry: {
+        name: 'Birthday cake',
+        mealType: 'snack',
+        kcal: 350,
+        protein: 0,
+        carbs: 0,
+        fat: 0,
+        unknownMacros: ['protein', 'carbs', 'fat'],
+      },
     });
   });
 
@@ -100,6 +114,49 @@ describe('checkMacroSanity', () => {
   });
 });
 
+// UX-FOOD-11: partial macros are unknown, not 0 g, and never trip the check.
+describe('partial macros (UX-FOOD-11)', () => {
+  it('flags the blank macros as unknown and keeps the typed ones', () => {
+    const result = parseQuickAdd({ name: 'Soup', mealType: 'lunch', kcal: '400', protein: '20' });
+    expect(result).toMatchObject({
+      ok: true,
+      entry: { protein: 20, carbs: 0, fat: 0, unknownMacros: ['carbs', 'fat'] },
+    });
+  });
+
+  it('has no unknownMacros when every macro is typed, even a typed 0', () => {
+    const result = parseQuickAdd({
+      name: 'Tea',
+      mealType: 'snack',
+      kcal: '40',
+      protein: '0',
+      carbs: '9',
+      fat: '0',
+    });
+    expect(result.ok && result.entry).not.toHaveProperty('unknownMacros');
+  });
+
+  it('skips the sanity check when any macro is blank (calories + protein only)', () => {
+    // 400 kcal with 20 g protein would imply 80 kcal if the blanks counted as 0
+    expect(checkMacroSanity({ kcal: 400, protein: 20, carbs: 0, fat: 0 }).ok).toBe(false);
+    expect(
+      checkMacroSanity({
+        kcal: 400,
+        protein: 20,
+        carbs: 0,
+        fat: 0,
+        unknownMacros: ['carbs', 'fat'],
+      }),
+    ).toMatchObject({ ok: true, message: null });
+  });
+
+  it('still checks a fully entered entry that does not add up', () => {
+    expect(
+      checkMacroSanity({ kcal: 100, protein: 50, carbs: 50, fat: 50, unknownMacros: [] }).ok,
+    ).toBe(false);
+  });
+});
+
 describe('formatQuickAddGrams', () => {
   it('shows one decimal below 10 g', () => {
     expect(formatQuickAddGrams(7.5)).toBe('7.5');
@@ -109,5 +166,31 @@ describe('formatQuickAddGrams', () => {
   it('rounds to whole grams at or above 10 g', () => {
     expect(formatQuickAddGrams(10)).toBe('10');
     expect(formatQuickAddGrams(23.6)).toBe('24');
+  });
+});
+
+describe('ingredient grams (UX-FOOD-09)', () => {
+  const banana = { calories: 89, protein: 1.1, carbs: 23, fat: 0.3 };
+
+  it('keeps a log entry within the server limits', () => {
+    // kcal alone would allow 5,617 g, but carbs (1000 g max / 23 per 100 g) stop at 4,347 g.
+    expect(maxIngredientGrams(banana)).toBe(4347);
+    expect(maxIngredientGrams({ calories: 10, protein: 0, carbs: 0, fat: 0 })).toBe(5000);
+    // Olive oil: 884 kcal / 100 g -> 565 g is the most one entry can hold.
+    expect(maxIngredientGrams({ calories: 884, protein: 0, carbs: 0, fat: 100 })).toBe(500);
+  });
+
+  it('clamps 99,999 g of banana instead of previewing 88,999 kcal', () => {
+    expect(clampIngredientGrams('99999', banana)).toEqual({
+      grams: 4347,
+      clamped: true,
+      max: 4347,
+    });
+  });
+
+  it('parses commas and junk, and never goes negative', () => {
+    expect(clampIngredientGrams('7,5', banana)).toMatchObject({ grams: 8, clamped: false });
+    expect(clampIngredientGrams('abc', banana).grams).toBe(0);
+    expect(clampIngredientGrams('-20', banana).grams).toBe(0);
   });
 });

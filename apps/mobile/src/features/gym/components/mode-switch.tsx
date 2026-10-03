@@ -1,13 +1,22 @@
+import { useEffect } from 'react';
 import { Pressable, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { onlineManager, useQueryClient } from '@tanstack/react-query';
-import { router, usePathname } from 'expo-router';
+import { router, useSegments } from 'expo-router';
 import type { GymBootstrap } from '@chefer/types';
 import { SegmentedControl } from '@chefer/ui-mobile';
 import { cn } from '@chefer/utils';
 import { HeaderAvatar } from '../../../components/header-avatar';
 import { trpc } from '../../../lib/trpc';
-import { getMode, setMode, type AppMode } from '../mode-store';
+import {
+  commitPendingGymMode,
+  deferGymMode,
+  getMode,
+  hasChosenMode,
+  restoreMode,
+  setMode,
+  type AppMode,
+} from '../mode-store';
 import { gymBootstrapQueryKey, gymBootstrapQueryOptions } from '../use-gym-bootstrap';
 
 const OPTIONS = [
@@ -18,14 +27,17 @@ const OPTIONS = [
 /** Wait at most this long for a first bootstrap before giving up on the setup check. */
 const SETUP_CHECK_TIMEOUT_MS = 4000;
 
-// Gym tab-group root routes (no `/gym` prefix — see app/(gym)/_layout.tsx).
-// Every deeper gym screen lives under `/gym/*` (setup, settings, exercise,
-// session, summary…), which the prefix check below already covers.
-const GYM_ROOT_ROUTES = new Set(['/today', '/routine', '/exercises', '/stats']);
-
-/** Bug B-14: the pill must reflect the route you're actually looking at, not the last-picked (and possibly stale) persisted mode. */
-function routeMode(pathname: string): AppMode {
-  return pathname.startsWith('/gym') || GYM_ROOT_ROUTES.has(pathname) ? 'gym' : 'food';
+/**
+ * UX-GYM-20: the pill is derived from the route GROUP, not the pathname. The
+ * pathname flickered to a Food-looking value on Gym tabs (Stats after "All
+ * history", Exercises after a relaunch), so the pill said "Food" on Gym
+ * screens. The first segment is `(gym)` for the Gym tabs and `gym` for every
+ * deeper Gym stack screen (setup, settings, exercise, session, summary…);
+ * anything else is Food. Bug B-14 still holds: never the persisted mode.
+ */
+export function modeFromSegments(segments: readonly string[]): AppMode {
+  const first = segments[0];
+  return first === '(gym)' || first === 'gym' ? 'gym' : 'food';
 }
 
 /**
@@ -34,9 +46,22 @@ function routeMode(pathname: string): AppMode {
  * per the persisted bootstrap, fetched once if nothing is cached — opens
  * Setup on top of Today, so backing out of setup lands on Today.
  */
-export function ModeSwitch({ className }: { className?: string }) {
-  const pathname = usePathname();
-  const mode = routeMode(pathname);
+export function ModeSwitch({ className, mode }: { className?: string; mode?: AppMode }) {
+  // Gym-only screens pass `gym` so the pill never depends on route state
+  // (UX-GYM-20); the rest read the route group.
+  return mode ? (
+    <ModeSwitchBody className={className} mode={mode} />
+  ) : (
+    <RouteDerivedModeSwitch className={className} />
+  );
+}
+
+function RouteDerivedModeSwitch({ className }: { className?: string }) {
+  const segments = useSegments();
+  return <ModeSwitchBody className={className} mode={modeFromSegments(segments)} />;
+}
+
+function ModeSwitchBody({ className, mode }: { className?: string; mode: AppMode }) {
   const queryClient = useQueryClient();
   const utils = trpc.useUtils();
 
@@ -60,7 +85,20 @@ export function ModeSwitch({ className }: { className?: string }) {
     return bootstrap?.profile === null;
   };
 
+  // UX-X-11: a Gym switch that was waiting for setup is recorded the moment
+  // the gym profile exists (setup finished on top of Today, which keeps this
+  // pill mounted).
+  useEffect(() => {
+    const cache = queryClient.getQueryCache();
+    return cache.subscribe(() => {
+      const bootstrap = queryClient.getQueryData<GymBootstrap>(gymBootstrapQueryKey);
+      if (bootstrap) commitPendingGymMode(bootstrap.profile !== null);
+    });
+  }, [queryClient]);
+
   const onChange = (next: AppMode) => {
+    // What was persisted before this tap (null = never chose, lands by jobs).
+    const previous = hasChosenMode() ? getMode() : null;
     setMode(next);
     if (next === 'food') {
       // Explicit group: bare '/' also matches the guarded (auth)/index and
@@ -71,7 +109,14 @@ export function ModeSwitch({ className }: { className?: string }) {
     router.replace('/today');
     void needsSetup().then((setup) => {
       // The user may have switched back while we waited.
-      if (setup && getMode() === 'gym') router.push('/gym/setup');
+      if (!setup || getMode() !== 'gym') return;
+      // UX-X-11: Gym is not set up, so this tap must not become the persisted
+      // landing — a food-only user who only peeked would reopen on "Set up your
+      // training" every launch. Put the previous choice back; it is recorded
+      // once setup completes.
+      restoreMode(previous);
+      deferGymMode();
+      router.push('/gym/setup');
     });
   };
 
@@ -91,7 +136,7 @@ export function ModeSwitch({ className }: { className?: string }) {
         options={OPTIONS}
         value={mode}
         onChange={onChange}
-        className="w-36"
+        className="min-w-36"
       />
       <View className="flex-row items-center">
         <Pressable

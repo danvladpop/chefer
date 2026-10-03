@@ -139,7 +139,7 @@ type RecipesInput = { userId: string; limit: number; search?: string };
 function useRecipeHeart(input: RecipesInput): (recipe: FriendRecipeCard) => void {
   const utils = trpc.useUtils();
   const snackbar = useSnackbar();
-  const toggle = trpc.recipe.toggleFavourite.useMutation();
+  const toggle = trpc.recipe.toggleFavourite.useMutation({ meta: { silent: true } });
 
   const flip = (recipeId: string, to: boolean) =>
     utils.friends.recipes.setInfiniteData(input, (old) =>

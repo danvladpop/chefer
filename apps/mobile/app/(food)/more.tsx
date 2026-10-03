@@ -1,12 +1,13 @@
 import { useState } from 'react';
-import { Linking, Pressable, ScrollView, View } from 'react-native';
+import { Linking, Pressable, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { router, type Href } from 'expo-router';
 import { FRIENDS_COPY } from '@chefer/types';
-import { Button, CountPill, Screen, Text } from '@chefer/ui-mobile';
+import { Button, CountPill, KeyboardAwareScrollView, Screen, Text } from '@chefer/ui-mobile';
 import { FeedbackCard } from '../../src/features/feedback/feedback-card';
 import { useFriendsBadge } from '../../src/features/friends/api/use-friends-badge';
 import { ModeSwitch } from '../../src/features/gym/components/mode-switch';
+import { openLegal } from '../../src/features/legal/open-legal';
 import { useSignOut } from '../../src/features/settings/use-sign-out';
 import { track } from '../../src/lib/analytics';
 import { getWebUrl } from '../../src/lib/api-url';
@@ -27,7 +28,8 @@ const ITEMS: MoreItem[] = [
   { href: '/chat', label: 'AI Chef', icon: 'chatbubble-ellipses-outline', testID: 'more-ai chef' },
   { href: '/progress', label: 'Progress', icon: 'stats-chart-outline', testID: 'more-progress' },
   { href: '/my-weeks', label: 'My weeks', icon: 'repeat-outline', testID: 'more-my-weeks' },
-  { href: '/household', label: 'Household', icon: 'people-outline', testID: 'more-household' },
+  // UX-ACC-19: Household is a home, Following is people — two different icons.
+  { href: '/household', label: 'Household', icon: 'home-outline', testID: 'more-household' },
   { href: '/profile', label: 'Profile', icon: 'person-outline', testID: 'more-profile' },
   // T-00.9: "Preferences" renamed to "Settings" and points to the new hub —
   // the individual preference cards are still reachable from there.
@@ -68,7 +70,8 @@ export default function MoreScreen() {
       <Text variant="title" className="px-4">
         More
       </Text>
-      <ScrollView contentContainerClassName="gap-4 px-4 pb-8">
+      {/* UX-X-05 / UX-ACC-25: the feedback field and its Send button stay clear of the keyboard. */}
+      <KeyboardAwareScrollView testID="more-scroll" contentContainerClassName="gap-4 px-4 pb-8">
         <View className="overflow-hidden rounded-2xl border border-border bg-card">
           {items.map((item, i) => {
             const isFollowing = item === FOLLOWING_ITEM;
@@ -105,18 +108,21 @@ export default function MoreScreen() {
 
         <FeedbackCard />
 
-        {/* Legal pages — both app stores require them in the app (F-M-PROF-1-1). */}
+        {/* Legal pages — both app stores require them in the app (F-M-PROF-1-1);
+            they open in-app like everywhere else (UX-ACC-19). Support is the website. */}
         <View className="flex-row justify-center gap-6">
           <Pressable
             accessibilityRole="link"
-            onPress={() => void Linking.openURL(getWebUrl('/terms'))}
+            testID="more-terms"
+            onPress={() => openLegal('terms')}
             className="min-h-11 justify-center"
           >
             <Text className="text-sm text-gray-500 underline">Terms</Text>
           </Pressable>
           <Pressable
             accessibilityRole="link"
-            onPress={() => void Linking.openURL(getWebUrl('/privacy'))}
+            testID="more-privacy"
+            onPress={() => openLegal('privacy')}
             className="min-h-11 justify-center"
           >
             <Text className="text-sm text-gray-500 underline">Privacy</Text>
@@ -139,7 +145,7 @@ export default function MoreScreen() {
         >
           Sign out
         </Button>
-        {signOut.warningSheet}
+        {signOut.confirmSheet}
 
         {/* R-15: users see "Version 1.0.1"; the full build/OTA line (variant,
             update id) is for support — long-press to reveal it. */}
@@ -154,7 +160,7 @@ export default function MoreScreen() {
             {showBuildDetails ? CURRENT_BUILD : CURRENT_VERSION_LABEL}
           </Text>
         </Pressable>
-      </ScrollView>
+      </KeyboardAwareScrollView>
     </Screen>
   );
 }

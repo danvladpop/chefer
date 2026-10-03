@@ -270,6 +270,11 @@ describe('units and display', () => {
     expect(formatLoad(unitToKg(135, 'LB'), 'LB')).toBe('135 lb');
     expect(formatLoad(0, 'KG', 'BODYWEIGHT')).toBe('BW');
     expect(formatLoad(10, 'KG', 'BODYWEIGHT_PLUS')).toBe('BW + 10 kg');
+    // UX-GYM-19: per-hand loads say "each", in the user's unit.
+    expect(formatLoad(20, 'KG', 'WEIGHTED', { each: true })).toBe('20 kg each');
+    expect(formatLoad(unitToKg(50, 'LB'), 'LB', 'WEIGHTED', { each: true })).toBe('50 lb each');
+    expect(formatLoad(20, 'KG', 'WEIGHTED', { each: false })).toBe('20 kg');
+    expect(formatLoad(0, 'KG', 'WEIGHTED', { each: true })).toBe('0 kg');
     expect(formatLoad(25, 'KG', 'ASSISTED')).toBe('25 kg assist');
     expect(formatLoad(0, 'KG', 'ASSISTED')).toBe('BW');
   });

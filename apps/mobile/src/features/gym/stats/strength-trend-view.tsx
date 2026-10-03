@@ -11,20 +11,22 @@ import {
   SegmentedControl,
   Text,
 } from '@chefer/ui-mobile';
-import { formatLoad, GLOSSARY, kgToUnit, unitLabel } from '@chefer/utils';
+import {
+  bodyweightOn,
+  formatLoad,
+  formatLocalDateLong,
+  formatRelativeStrength,
+  GLOSSARY,
+  kgToUnit,
+  relativeStrength as relativeStrengthRatio,
+  unitLabel,
+} from '@chefer/utils';
 import { GlossaryTerm } from '../../../components/glossary-term';
 import { trpc } from '../../../lib/trpc';
 import { useIsOnline } from '../library-screens/online-status';
 import { ExercisePicker } from '../library/exercise-picker';
 import { localE1rmSeries, topCompoundsByFrequency } from './local-engine';
 import { LogWeightPrompt } from './log-weight-prompt';
-
-/** "24 Sep 2026" for the tapped-point / latest-point caption. */
-function longDate(localDate: string): string {
-  const d = new Date(`${localDate}T00:00:00`);
-  if (Number.isNaN(d.getTime())) return localDate;
-  return d.toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' });
-}
 
 // (a) Strength trend (gym_plan.md §1.3 Stats #1): e1RM line for a picked lift,
 // defaulting to the top 3 compounds by frequency, with a range selector, PR
@@ -39,18 +41,6 @@ const RANGE_OPTIONS: { value: StatsRange; label: string }[] = [
 /** Range longer than the bootstrap's ~12-week `recentSessions` window needs the API series. */
 function needsApiSeries(range: StatsRange): boolean {
   return range !== '3m';
-}
-
-function nearestBodyweightKg(
-  points: readonly { localDate: string; weightKg: number }[],
-  localDate: string,
-  fallback: number | null,
-): number | null {
-  let best: number | null = null;
-  for (const p of points) {
-    if (p.localDate <= localDate) best = p.weightKg;
-  }
-  return best ?? fallback;
 }
 
 export function StrengthTrendView({ bootstrap }: { bootstrap: GymBootstrap }) {
@@ -73,31 +63,42 @@ export function StrengthTrendView({ bootstrap }: { bootstrap: GymBootstrap }) {
   );
   const bodyweightQuery = trpc.gym.stats.bodyweight.useQuery(
     { range },
-    { enabled: online && showBodyweight },
+    { enabled: online && (showBodyweight || relativeStrength) },
   );
 
   const series: E1rmSeriesDto | undefined = exercise
     ? needsApiSeries(range) && apiSeries.data
       ? apiSeries.data
-      : localE1rmSeries(bootstrap.recentSessions, exercise.id)
+      : localE1rmSeries(bootstrap.recentSessions, exercise.id, bootstrap.olderBests)
     : undefined;
+
+  // UX-GYM-17: the weight from onboarding / preferences stands in until the
+  // first weigh-in, so "× body weight" never plots the raw kg e1RM.
+  const profileQuery = trpc.preferences.get.useQuery();
+  const knownBodyweightKg =
+    bootstrap.bodyweightKg ?? profileQuery.data?.chefProfile?.weightKg ?? null;
+  const hasAnyBodyweight = (knownBodyweightKg ?? 0) > 0;
 
   const bodyweightPoints = useMemo(() => bodyweightQuery.data ?? [], [bodyweightQuery.data]);
   const unit = bootstrap.profile?.unit ?? 'KG';
 
   const chartData = useMemo(() => {
     if (!series) return [];
-    return series.points.map((p) => {
-      const bw = relativeStrength
-        ? nearestBodyweightKg(bodyweightPoints, p.localDate, bootstrap.bodyweightKg)
-        : null;
-      return {
-        x: Date.parse(p.localDate),
-        y: relativeStrength && bw ? p.e1rmKg / bw : p.e1rmKg,
-        highlight: p.isPr,
-      };
-    });
-  }, [series, relativeStrength, bodyweightPoints, bootstrap.bodyweightKg]);
+    const out: { x: number; y: number; highlight: boolean }[] = [];
+    for (const p of series.points) {
+      let y = p.e1rmKg;
+      if (relativeStrength) {
+        const ratio = relativeStrengthRatio(
+          p.e1rmKg,
+          bodyweightOn(bodyweightPoints, p.localDate, knownBodyweightKg),
+        );
+        if (ratio === null) continue; // no weight to divide by: leave the point off
+        y = ratio;
+      }
+      out.push({ x: Date.parse(p.localDate), y, highlight: p.isPr });
+    }
+    return out;
+  }, [series, relativeStrength, bodyweightPoints, knownBodyweightKg]);
 
   const trend = useMemo(() => {
     if (!series || relativeStrength) return undefined;
@@ -182,7 +183,8 @@ export function StrengthTrendView({ bootstrap }: { bootstrap: GymBootstrap }) {
         data={chartData}
         trend={trend}
         secondary={secondary}
-        formatY={(v) => (relativeStrength ? v.toFixed(2) : formatLoad(v, unit))}
+        niceTicks={!secondary}
+        formatY={(v) => (relativeStrength ? formatRelativeStrength(v) : formatLoad(v, unit))}
         emptyLabel="No sessions with this exercise yet"
       />
 
@@ -191,8 +193,9 @@ export function StrengthTrendView({ bootstrap }: { bootstrap: GymBootstrap }) {
           latest point (usually the one someone wants) until it does. */}
       {latestPoint ? (
         <Text testID="stats-strength-point-detail" variant="muted" className="mt-1 text-xs">
-          {longDate(latestPoint.localDate)} · {formatLoad(latestPoint.weightKg, unit)} ×{' '}
-          {latestPoint.reps} → e1RM {formatLoad(latestPoint.e1rmKg, unit)}
+          {formatLocalDateLong(latestPoint.localDate)} ·{' '}
+          {formatLoad(latestPoint.weightKg, unit, exercise?.loadType)} × {latestPoint.reps} → e1RM{' '}
+          {formatLoad(latestPoint.e1rmKg, unit)}
         </Text>
       ) : null}
 
@@ -205,15 +208,27 @@ export function StrengthTrendView({ bootstrap }: { bootstrap: GymBootstrap }) {
         />
         <Chip
           testID="stats-strength-relative-toggle"
-          label="Strength per kg of body weight"
+          label="Strength ÷ body weight"
+          accessibilityHint="Shows your estimated 1-rep max as a multiple of your body weight"
           selected={relativeStrength}
+          disabled={!hasAnyBodyweight}
           onPress={() => setRelativeStrength((v) => !v)}
         />
       </View>
 
-      {(showBodyweight || relativeStrength) && bootstrap.bodyweightKg === null ? (
-        <LogWeightPrompt testID="stats-strength-log-weight" />
+      {!hasAnyBodyweight ? (
+        <Text testID="stats-strength-relative-disabled" variant="muted" className="mt-2 text-xs">
+          Log your weight below to compare your strength with your body weight.
+        </Text>
       ) : null}
+
+      {relativeStrength ? (
+        <Text testID="stats-strength-relative-note" variant="muted" className="mt-2 text-xs">
+          Estimated 1-rep max divided by your body weight at the time (× body weight).
+        </Text>
+      ) : null}
+
+      {!hasAnyBodyweight ? <LogWeightPrompt testID="stats-strength-log-weight" /> : null}
 
       <ExercisePicker
         visible={pickerOpen}

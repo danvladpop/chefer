@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { formatNumber } from './format';
 import {
   buildPlanTrainingDays,
   buildPremiumChanges,
@@ -133,7 +134,7 @@ describe('copy', () => {
   it('the lift header shows title, target and bonus (spec wireframe)', () => {
     const h = trainingDayHeaderCopy(must(lifted));
     expect(h.title).toBe('Training day · Upper A');
-    expect(h.targetLine).toMatch(/^Target today [\d,]+ kcal · \d+ g protein$/);
+    expect(h.targetLine).toMatch(/^Target today [\d.,\u00a0\u202f]+ kcal · \d+ g protein$/);
     expect(h.bonusLine).toMatch(/^\(\+\d+ kcal, \+\d+ g protein for training\)$/);
     expect(h.a11yLabel).toContain('Explains why.');
   });
@@ -184,11 +185,25 @@ describe('copy', () => {
     expect(e.sentence).toMatch(/^You train on Mon, Wed and Fri\. On those days Chefer adds about/);
     expect(e.rows.map((r) => r.label)).toEqual([
       'Rest-day target',
+      'Training-day target',
       'Training bonus',
       'Protein basis (1.8 g per kg, because you train)',
     ]);
     expect(e.footnote).toBe('Change your training days in Gym settings.');
     expect(e.actionLabel).toBe('Change training days');
+  });
+
+  it('UX-FOOD-19: quotes the training-day target next to the rest-day one, only when applied', () => {
+    const basis = { restKcal: 2500, restProteinG: 144, proteinGPerKg: 1.8, bodyweightKg: 80 };
+    const applied = buildPlanTrainingDays({ ...input, days: week({ 0: lift() }) });
+    const row = trainingExplainCopy({ days: applied, basis }).rows.find(
+      (r) => r.label === 'Training-day target',
+    );
+    expect(row?.value).toMatch(/^2,\d{3} kcal · \d+ g protein$/);
+    const preview = buildPlanTrainingDays({ ...input, access: false, days: week({ 0: lift() }) });
+    expect(trainingExplainCopy({ days: preview, basis }).rows.map((r) => r.label)).not.toContain(
+      'Training-day target',
+    );
   });
 
   it('a free user without the flag is told what Premium adds, not that it was added', () => {
@@ -233,7 +248,9 @@ describe('buildPremiumChanges (T-10.7)', () => {
     // Q-3: run days never raise targets, so there is no run line.
     expect(r.lines.some((l) => l.includes('long run'))).toBe(false);
     expect(r.lines).toContain('2 of your favourites made it into the week');
-    expect(r.lines[r.lines.length - 1]).toMatch(/^Meets your 2,500 kcal target on \d of 7 days$/);
+    expect(r.lines[r.lines.length - 1]).toBe(
+      `Meets your ${formatNumber(2500)} kcal target on ${r.targetHits} of 7 days`,
+    );
     expect(r.targetHits + r.missDays).toBe(7);
     expect(r.misses.some((m) => m.dayOfWeek === 1 && m.deltaKcal < 0)).toBe(true);
   });
@@ -249,7 +266,7 @@ describe('buildPremiumChanges (T-10.7)', () => {
       pinCount: 0,
       tolerance: 0.15,
     });
-    expect(r.lines).toEqual(['Meets your 2,500 kcal target on 7 of 7 days']);
+    expect(r.lines).toEqual([`Meets your ${formatNumber(2500)} kcal target on 7 of 7 days`]);
     expect(r.missDays).toBe(0);
   });
 });
