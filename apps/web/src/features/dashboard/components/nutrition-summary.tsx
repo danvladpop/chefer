@@ -5,7 +5,7 @@ import type { RouterOutputs } from '@/lib/trpc';
 import { ChevronRight } from 'lucide-react';
 import { overTargetColor } from '@chefer/tokens';
 import { CountUp, ProgressBar, progressOf, ProgressRing } from '@chefer/ui';
-import { cn, dayNutritionCaption, PLAN_STATUS_LABEL, planStatus } from '@chefer/utils';
+import { cn, dayNutritionCaption, dayStatus } from '@chefer/utils';
 import { TrainingDayNote } from './training-day-note';
 
 // ─── Nutrition summary ────────────────────────────────────────────────────────
@@ -22,6 +22,8 @@ interface NutritionSummaryProps {
   className?: string;
   /** §2.11, T-35.5: the ring's label — "Your target" (OWN) vs "Suggested" (SUGGESTED). Omitted while unknown. */
   targetMode?: 'SUGGESTED' | 'OWN' | undefined;
+  /** Planned meals still to eat today (UX-FOOD-05). Unknown → the plan minus what was eaten. */
+  remainingPlannedKcal?: number | undefined;
 }
 
 export function NutritionSummary({
@@ -29,6 +31,7 @@ export function NutritionSummary({
   nextMealName,
   className,
   targetMode,
+  remainingPlannedKcal,
 }: NutritionSummaryProps) {
   // Premium lifters on a training day get the bumped targets (audit P2-4);
   // everyone else keeps the base targets the older fields carry.
@@ -41,7 +44,13 @@ export function NutritionSummary({
   // The ring shows what was EATEN today (audit F-DASH-1-2: it showed planned
   // food — "540 remaining" with 6,070 kcal logged). The chip judges the plan
   // (three-state honesty, review P-2) via the shared rules in @chefer/utils.
-  const targetStatus = planStatus(n.plannedKcal, target.dailyCalorieTarget);
+  // UX-FOOD-05: the pill looks at eaten + what is still planned vs the target,
+  // not the plan alone — it used to stay green 871 kcal over.
+  const { status: targetStatus, label: statusLabel } = dayStatus(
+    n.eatenKcal,
+    remainingPlannedKcal ?? Math.max(n.plannedKcal - n.eatenKcal, 0),
+    target.dailyCalorieTarget,
+  );
 
   return (
     <div
@@ -52,15 +61,17 @@ export function NutritionSummary({
       <div className="mb-4 flex items-center justify-between gap-2">
         <p className="text-xs font-semibold uppercase tracking-widest text-gray-500">Today</p>
         <span
+          data-testid="nutrition-status"
           className={cn(
             'shrink-0 rounded-full px-2.5 py-0.5 text-xs font-bold uppercase',
-            targetStatus === 'over' && 'bg-red-100 text-red-700',
-            targetStatus === 'under' && 'bg-amber-100 text-amber-700',
+            targetStatus === 'over' && 'bg-amber-100 text-amber-800',
+            targetStatus === 'heading_over' && 'bg-amber-50 text-amber-800',
+            targetStatus === 'under' && 'bg-gray-100 text-gray-600',
             targetStatus === 'on' && 'bg-emerald-100 text-emerald-700',
             targetStatus === 'none' && 'bg-gray-100 text-gray-600',
           )}
         >
-          {PLAN_STATUS_LABEL[targetStatus]}
+          {statusLabel}
         </span>
       </div>
 
@@ -90,7 +101,10 @@ export function NutritionSummary({
             {dayNutritionCaption(n.eatenKcal, n.plannedKcal, target.dailyCalorieTarget)}
           </p>
           {targetMode && (
-            <p data-testid="target-mode-label" className="text-center text-[11px] text-gray-400">
+            <p
+              data-testid="target-mode-label"
+              className="text-center text-xs text-muted-foreground"
+            >
               {targetMode === 'OWN' ? 'Your target' : 'Suggested'}
             </p>
           )}

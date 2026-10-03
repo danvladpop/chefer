@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Image, Pressable, SectionList, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { Button, SEARCH_LIST_PROPS, SearchField, Sheet, Text } from '@chefer/ui-mobile';
+import { Button, ErrorState, SEARCH_LIST_PROPS, SearchField, Sheet, Text } from '@chefer/ui-mobile';
 import { buildPickerSections, filterReplaceCandidates, verifiedLabels } from '@chefer/utils';
 import { getRecipeImageUrl } from '../../lib/recipe-image';
 import { trpc } from '../../lib/trpc';
@@ -114,6 +114,14 @@ export function RecipePickerSheet({
   const allFiltered = allQuery.data && filterReplaceCandidates(allQuery.data, filterOpts);
   const sections = buildPickerSections(mineFiltered, allFiltered);
   const isLoading = mineQuery.isLoading || allQuery.isLoading;
+  // UX-X-12: nothing to show because a load FAILED is not "No recipes match".
+  const loadFailed =
+    (mineQuery.isError && mineQuery.data === undefined) ||
+    (allQuery.isError && allQuery.data === undefined);
+  const retryLoad = () => {
+    if (mineQuery.isError) void mineQuery.refetch();
+    if (allQuery.isError) void allQuery.refetch();
+  };
   const isOwnAttempt = Boolean(
     lastAttemptedId && mineQuery.data?.some((r) => r.id === lastAttemptedId),
   );
@@ -178,6 +186,13 @@ export function RecipePickerSheet({
         <View className="items-center py-10">
           <ActivityIndicator size="large" color="#944a00" />
         </View>
+      ) : sections.length === 0 && loadFailed ? (
+        <ErrorState
+          testID="picker-load-error"
+          title="Couldn't load recipes"
+          onRetry={retryLoad}
+          className="py-6"
+        />
       ) : sections.length === 0 ? (
         <View className="items-center py-10">
           <Text variant="muted">No recipes match your search.</Text>

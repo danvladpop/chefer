@@ -19,7 +19,7 @@ export function useBlock(): {
 } {
   const queryClient = useQueryClient();
   const utils = trpc.useUtils();
-  const mutation = trpc.friends.block.useMutation();
+  const mutation = trpc.friends.block.useMutation({ meta: { silent: true } });
   return {
     block: async (userId) => {
       try {
@@ -42,7 +42,7 @@ export function useUnblock(): {
 } {
   const queryClient = useQueryClient();
   const utils = trpc.useUtils();
-  const mutation = trpc.friends.unblock.useMutation();
+  const mutation = trpc.friends.unblock.useMutation({ meta: { silent: true } });
   return {
     unblock: async (userId) => {
       try {

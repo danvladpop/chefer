@@ -1,7 +1,7 @@
 import { useState } from 'react';
-import { Alert, Keyboard, Pressable, TextInput, View } from 'react-native';
+import { Keyboard, Pressable, TextInput, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { NumericReturnBar, Text } from '@chefer/ui-mobile';
+import { ConfirmSheet, NumericReturnBar, Text } from '@chefer/ui-mobile';
 import {
   bodyWeightInUnit,
   formatBodyWeight,
@@ -29,6 +29,8 @@ function EntryRow({ entry, system }: { entry: Entry; system: UnitSystem }) {
   const weightLabel = formatBodyWeight(entry.weightKg, system);
   const [value, setValue] = useState(shown);
   const [error, setError] = useState<string | null>(null);
+  // UX-X-13: confirm-to-delete is a ConfirmSheet (busy + the failure inside it).
+  const [confirmingDelete, setConfirmingDelete] = useState(false);
   const utils = trpc.useUtils();
   // T-26.2: correcting a weigh-in stores health information too.
   const { requestHealthConsent, healthConsentSheet } = useHealthConsent();
@@ -39,6 +41,7 @@ function EntryRow({ entry, system }: { entry: Entry; system: UnitSystem }) {
     void utils.gym.bootstrap.invalidate();
   };
   const update = trpc.tracker.updateWeight.useMutation({
+    meta: { silent: true },
     onSuccess: () => {
       setEditing(false);
       invalidate();
@@ -46,7 +49,11 @@ function EntryRow({ entry, system }: { entry: Entry; system: UnitSystem }) {
     onError: (err) => setError(userFacingErrorMessage(err)),
   });
   const remove = trpc.tracker.deleteWeight.useMutation({
-    onSuccess: invalidate,
+    meta: { silent: true },
+    onSuccess: () => {
+      setConfirmingDelete(false);
+      invalidate();
+    },
     onError: (err) => setError(userFacingErrorMessage(err)),
   });
 
@@ -68,11 +75,10 @@ function EntryRow({ entry, system }: { entry: Entry; system: UnitSystem }) {
     });
   };
 
-  const confirmDelete = () =>
-    Alert.alert('Delete weigh-in?', `${weightLabel} on ${dateLabel}`, [
-      { text: 'Keep', style: 'cancel' },
-      { text: 'Delete', style: 'destructive', onPress: () => remove.mutate({ id: entry.id }) },
-    ]);
+  const confirmDelete = () => {
+    setError(null);
+    setConfirmingDelete(true);
+  };
 
   return (
     <View testID={`weight-entry-${entry.id}`} className="py-1">
@@ -131,6 +137,19 @@ function EntryRow({ entry, system }: { entry: Entry; system: UnitSystem }) {
         />
       )}
       {error && <Text className="text-xs text-red-600">{error}</Text>}
+      <ConfirmSheet
+        testID={`weight-entry-${entry.id}-delete-confirm`}
+        visible={confirmingDelete}
+        onClose={() => setConfirmingDelete(false)}
+        title="Delete weigh-in?"
+        body={`${weightLabel} on ${dateLabel}`}
+        confirmLabel="Delete"
+        cancelLabel="Keep"
+        destructive
+        busy={remove.isPending}
+        error={confirmingDelete ? error : null}
+        onConfirm={() => remove.mutate({ id: entry.id })}
+      />
       {healthConsentSheet}
     </View>
   );

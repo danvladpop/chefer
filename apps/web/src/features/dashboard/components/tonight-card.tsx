@@ -3,12 +3,13 @@
 import Image from 'next/image';
 import Link from 'next/link';
 import { useState } from 'react';
+import { StarRatingWidget } from '@/features/recipe/components/StarRatingWidget';
 import { CheckedForChip } from '@/features/safety/components/CheckedForChip';
 import { handleRebalanceResult } from '@/features/tracker/lib/rebalance-storage';
 import { getRecipeImageProps } from '@/lib/recipe-image';
 import { trpc, type RouterOutputs } from '@/lib/trpc';
 import { Check, ChefHat, Repeat } from 'lucide-react';
-import { localDateStr, slotPortion, verifiedLabels } from '@chefer/utils';
+import { localDateStr, slotPortion, userFacingErrorMessage, verifiedLabels } from '@chefer/utils';
 
 // ─── Tonight card (UX-04 §3, T-04.7) ────────────────────────────────────────────
 // Web parity of mobile's tonight-card.tsx — today's DINNER slot specifically,
@@ -36,8 +37,16 @@ export function TonightCard({
   onSwap?: () => void;
 }) {
   const utils = trpc.useUtils();
-  const [rated, setRated] = useState(false);
+  // UX-FOOD-04: "Rate it" opens the real rating widget inline (the one cook
+  // mode and recipe detail use); the link is gone once a rating exists.
+  const [rateOpen, setRateOpen] = useState(false);
+  const myRating = trpc.recipe.getMyRating.useQuery(
+    { recipeId: meal.recipe.id },
+    { enabled: meal.done },
+  );
+  const canRate = !myRating.isLoading && !myRating.data;
   const logMutation = trpc.tracker.logRecipe.useMutation({
+    meta: { silent: true },
     onSuccess: (result) => {
       handleRebalanceResult(result.rebalance);
       void utils.dashboard.summary.invalidate();
@@ -51,21 +60,30 @@ export function TonightCard({
     return (
       <div
         data-testid="tonight-card-done"
-        className="flex items-center gap-2.5 rounded-2xl border bg-white px-4 py-3 shadow-sm"
+        className="flex flex-col gap-3 rounded-2xl border bg-white px-4 py-3 shadow-sm"
       >
-        <Check className="h-4 w-4 shrink-0 text-emerald-600" aria-hidden="true" />
-        <p className="min-w-0 flex-1 truncate text-sm font-medium text-gray-800">
-          Dinner done · {meal.recipe.name}
-        </p>
-        {!rated && (
-          <button
-            type="button"
-            data-testid="tonight-rate-it"
-            onClick={() => setRated(true)}
-            className="shrink-0 text-xs font-semibold text-[#944a00] hover:underline"
-          >
-            Rate it
-          </button>
+        <div className="flex items-center gap-2.5">
+          <Check className="h-4 w-4 shrink-0 text-emerald-600" aria-hidden="true" />
+          <p className="min-w-0 flex-1 truncate text-sm font-medium text-gray-800">
+            Dinner done · {meal.recipe.name}
+          </p>
+          {canRate && !rateOpen && (
+            <button
+              type="button"
+              data-testid="tonight-rate-it"
+              onClick={() => setRateOpen(true)}
+              className="flex min-h-11 shrink-0 items-center px-2 text-xs font-semibold text-[#944a00] hover:underline"
+            >
+              Rate it
+            </button>
+          )}
+        </div>
+        {rateOpen && (
+          <StarRatingWidget
+            recipeId={meal.recipe.id}
+            initialRating={myRating.data?.rating}
+            initialNotes={myRating.data?.notes}
+          />
         )}
       </div>
     );
@@ -167,7 +185,7 @@ export function TonightCard({
       )}
       {logMutation.isError && (
         <p role="alert" className="border-t px-4 py-2.5 text-xs text-red-600 sm:px-5">
-          Couldn&apos;t log it: {logMutation.error.message}
+          Couldn&apos;t log it: {userFacingErrorMessage(logMutation.error)}
         </p>
       )}
     </div>

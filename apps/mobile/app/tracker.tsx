@@ -27,6 +27,7 @@ import { QuickAddSheet } from '../src/features/tracker/quick-add-sheet';
 import { RebalanceBanner } from '../src/features/tracker/rebalance-banner';
 import { recordRebalance } from '../src/features/tracker/rebalance-store';
 import { ScanMealCard } from '../src/features/tracker/scan-meal-card';
+import { TrackerTick } from '../src/features/tracker/tracker-tick';
 import { useTrackerWrites } from '../src/features/tracker/use-tracker-writes';
 import { getRecipeImageUrl } from '../src/lib/recipe-image';
 import { trpc } from '../src/lib/trpc';
@@ -136,7 +137,7 @@ export default function TrackerScreen() {
     restoreCustom: restoreCustomMutation,
     updateRecipeEntry: updateRecipeEntryMutation,
   } = useTrackerWrites(dateStr);
-  const copyDayMutation = trpc.tracker.copyDay.useMutation();
+  const copyDayMutation = trpc.tracker.copyDay.useMutation({ meta: { silent: true } });
 
   const planned = (data?.plannedMeals ?? []).map((m, i) => ({ ...m, key: keyOf(m, i) }));
   type PlannedRow = (typeof planned)[number];
@@ -255,10 +256,6 @@ export default function TrackerScreen() {
                 : undefined,
           });
         },
-        onError: (error) => {
-          setCopyDayOpen(false);
-          snackbar.show({ message: `Couldn't copy the day. ${userFacingErrorMessage(error)}` });
-        },
       },
     );
   };
@@ -328,7 +325,10 @@ export default function TrackerScreen() {
           testID="tracker-copy-day"
           accessibilityRole="button"
           accessibilityLabel={`Copy ${copyLabel} to ${isToday ? 'today' : 'this day'}`}
-          onPress={() => setCopyDayOpen(true)}
+          onPress={() => {
+            copyDayMutation.reset();
+            setCopyDayOpen(true);
+          }}
           className="h-11 w-11 items-center justify-center"
         >
           <Ionicons name="copy-outline" size={20} color="#6b7280" />
@@ -471,7 +471,7 @@ export default function TrackerScreen() {
                       accessibilityRole="button"
                       accessibilityState={{ checked: isChecked }}
                       onPress={() => toggleMeal(meal)}
-                      className="flex-row items-center gap-3"
+                      className="min-h-12 flex-row items-center gap-3"
                     >
                       <Image
                         source={{ uri: getRecipeImageUrl(meal.imageUrl) }}
@@ -492,14 +492,7 @@ export default function TrackerScreen() {
                             ` · plan ${formatPortion(planPortionOf(meal))}`}
                         </Text>
                       </View>
-                      <View
-                        className={cn(
-                          'h-6 w-6 items-center justify-center rounded-full border-2',
-                          isChecked ? 'border-primary bg-primary' : 'border-gray-300',
-                        )}
-                      >
-                        {isChecked && <Ionicons name="checkmark" size={14} color="white" />}
-                      </View>
+                      <TrackerTick testID={`tracker-tick-${meal.mealType}`} checked={isChecked} />
                     </Pressable>
 
                     {isChecked && (
@@ -510,7 +503,7 @@ export default function TrackerScreen() {
                             accessibilityRole="button"
                             onPress={() => setPortion(meal, p)}
                             className={cn(
-                              'h-9 flex-1 items-center justify-center rounded-lg border',
+                              'min-h-11 flex-1 items-center justify-center rounded-lg border',
                               portion === p
                                 ? 'border-primary bg-primary'
                                 : 'border-border bg-white',
@@ -621,7 +614,7 @@ export default function TrackerScreen() {
                         {row.name}
                       </Text>
                       <View className="rounded-full bg-gray-100 px-2 py-0.5">
-                        <Text className="text-[12px] text-gray-500">
+                        <Text className="text-xs text-gray-500">
                           {customEntryChipLabel(row.estimatedBy)}
                         </Text>
                       </View>
@@ -709,6 +702,14 @@ export default function TrackerScreen() {
         }
         cancelLabel="Cancel"
         onConfirm={confirmCopyDay}
+        // UX-X-13: a failed copy stays in the sheet with the reason (and a
+        // retry) instead of closing and flashing a snackbar.
+        busy={copyDayMutation.isPending}
+        error={
+          copyDayMutation.isError
+            ? `Couldn't copy the day. ${userFacingErrorMessage(copyDayMutation.error)}`
+            : null
+        }
         testID="tracker-copy-day-confirm"
       />
     </Screen>

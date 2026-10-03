@@ -5,7 +5,10 @@ import { useState } from 'react';
 import { UpgradeButton } from '@/features/premium/components/UpgradeButton';
 import { useEntitlement } from '@/hooks/useEntitlement';
 import { trpc } from '@/lib/trpc';
+import { useQueryState } from '@/lib/use-query-state';
 import { ClipboardCheck, Lock, Plus, Refrigerator, Trash2 } from 'lucide-react';
+import { ErrorState } from '@chefer/ui';
+import { userFacingErrorMessage } from '@chefer/utils';
 import { PantryCheckBanner } from './PantryCheckBanner';
 
 // ─── Shop → "In my kitchen" (F3 Zero-Waste Kitchen; P2-8) ───────────────────
@@ -34,7 +37,9 @@ export function PantryPanel() {
   // Show the upsell only once we KNOW the account is free — while the user
   // is loading neither the upsell nor the premium controls render.
   const locked = isPremium === false;
-  const { data, isLoading } = trpc.pantry.list.useQuery(undefined, { staleTime: 30_000 });
+  const pantryQuery = trpc.pantry.list.useQuery(undefined, { staleTime: 30_000 });
+  const { data } = pantryQuery;
+  const { state: loadState, retry } = useQueryState(pantryQuery);
   const utils = trpc.useUtils();
   const [checkOpen, setCheckOpen] = useState(false);
 
@@ -47,6 +52,7 @@ export function PantryPanel() {
     void utils.shoppingList.getForWeek.invalidate();
   };
   const addMutation = trpc.pantry.addItem.useMutation({
+    meta: { silent: true },
     onSuccess: () => {
       setName('');
       setQuantity('');
@@ -165,15 +171,20 @@ export function PantryPanel() {
         </div>
       )}
       {addMutation.isError && (
-        <p className="mb-3 text-sm text-red-600">{addMutation.error.message}</p>
+        <p className="mb-3 text-sm text-red-600">{userFacingErrorMessage(addMutation.error)}</p>
       )}
 
       {/* Item list */}
-      {isLoading ? (
+      {loadState === 'loading' ? (
         <div className="space-y-2">
           {[1, 2, 3, 4].map((i) => (
             <div key={i} className="h-14 animate-pulse rounded-xl bg-neutral-100" />
           ))}
+        </div>
+      ) : loadState === 'error' ? (
+        // UX-X-12: a failed load is not an empty kitchen.
+        <div data-testid="pantry-load-error">
+          <ErrorState title="Couldn't load your kitchen" onRetry={retry} />
         </div>
       ) : items.length === 0 ? (
         <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-neutral-200 py-16 text-center">

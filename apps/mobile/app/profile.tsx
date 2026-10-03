@@ -7,12 +7,14 @@ import {
   Button,
   Card,
   ConfirmSheet,
+  ErrorState,
   PressableScale,
   Screen,
   Text,
+  useQueryState,
   useSnackbar,
 } from '@chefer/ui-mobile';
-import { cn, downgradeLosses, PREMIUM_PITCH_COPY } from '@chefer/utils';
+import { cn, downgradeLosses, PREMIUM_PITCH_COPY, userFacingErrorMessage } from '@chefer/utils';
 import { openPremium } from '../src/features/premium/open-premium';
 import { usePremiumPitch } from '../src/features/premium/use-premium-pitch';
 import { PrivacySection } from '../src/features/privacy/privacy-section';
@@ -91,7 +93,9 @@ function HouseholdRow() {
 }
 
 export default function ProfileScreen() {
-  const { data: user } = trpc.user.me.useQuery();
+  const userQuery = trpc.user.me.useQuery();
+  const { data: user } = userQuery;
+  const { state: userState, retry: retryUser } = useQueryState(userQuery);
   const { data: usage, isLoading } = trpc.profile.getAiUsage.useQuery();
   const utils = trpc.useUtils();
 
@@ -102,6 +106,7 @@ export default function ProfileScreen() {
   const snackbar = useSnackbar();
   const [confirmingDowngrade, setConfirmingDowngrade] = useState(false);
   const downgradeMutation = trpc.user.downgradePlan.useMutation({
+    meta: { silent: true },
     onSuccess: () => {
       track('downgrade_completed', {});
       invalidateUser();
@@ -150,45 +155,57 @@ export default function ProfileScreen() {
       </View>
 
       <ScrollView contentContainerClassName="gap-4 px-4 pb-8">
+        {/* UX-X-12: a failed load is not a name of "—" and an empty profile. */}
+        {userState === 'error' && (
+          <ErrorState
+            testID="profile-load-error"
+            title="Couldn't load your profile"
+            onRetry={retryUser}
+          />
+        )}
+
         {/* User card */}
-        <Card testID="profile-user-card" className="flex-row items-center gap-4">
-          <View className="h-14 w-14 items-center justify-center rounded-full bg-accent">
-            <Text className="text-2xl font-bold text-primary">
-              {displayName.charAt(0).toUpperCase()}
-            </Text>
-          </View>
-          <View className="min-w-0 flex-1">
-            <Text className="font-semibold text-gray-900">{displayName}</Text>
-            <Text numberOfLines={1} variant="muted" className="text-sm">
-              {user?.email}
-            </Text>
-            <View className="mt-1 flex-row gap-1.5">
-              {/* R-15: "USER" means nothing to a person; staff roles only. */}
-              {user && (user.role === 'ADMIN' || user.role === 'MODERATOR') ? (
-                <View testID="profile-role-badge" className="rounded-full bg-gray-100 px-2 py-0.5">
-                  <Text className="text-[12px] font-medium uppercase text-gray-500">
-                    {user.role}
-                  </Text>
-                </View>
-              ) : null}
-              <View
-                className={cn(
-                  'rounded-full px-2 py-0.5',
-                  isPremiumTier ? 'bg-amber-500' : 'bg-gray-100',
-                )}
-              >
-                <Text
+        {userState !== 'error' && (
+          <Card testID="profile-user-card" className="flex-row items-center gap-4">
+            <View className="h-14 w-14 items-center justify-center rounded-full bg-accent">
+              <Text className="text-2xl font-bold text-primary">
+                {displayName.charAt(0).toUpperCase()}
+              </Text>
+            </View>
+            <View className="min-w-0 flex-1">
+              <Text className="font-semibold text-gray-900">{displayName}</Text>
+              <Text numberOfLines={1} variant="muted" className="text-sm">
+                {user?.email}
+              </Text>
+              <View className="mt-1 flex-row gap-1.5">
+                {/* R-15: "USER" means nothing to a person; staff roles only. */}
+                {user && (user.role === 'ADMIN' || user.role === 'MODERATOR') ? (
+                  <View
+                    testID="profile-role-badge"
+                    className="rounded-full bg-gray-100 px-2 py-0.5"
+                  >
+                    <Text className="text-xs font-medium uppercase text-gray-500">{user.role}</Text>
+                  </View>
+                ) : null}
+                <View
                   className={cn(
-                    'text-[12px] font-medium uppercase',
-                    isPremiumTier ? 'text-white' : 'text-gray-500',
+                    'rounded-full px-2 py-0.5',
+                    isPremiumTier ? 'bg-amber-500' : 'bg-gray-100',
                   )}
                 >
-                  {isPremiumTier ? 'Premium' : 'Free plan'}
-                </Text>
+                  <Text
+                    className={cn(
+                      'text-xs font-medium uppercase',
+                      isPremiumTier ? 'text-white' : 'text-gray-500',
+                    )}
+                  >
+                    {isPremiumTier ? 'Premium' : 'Free plan'}
+                  </Text>
+                </View>
               </View>
             </View>
-          </View>
-        </Card>
+          </Card>
+        )}
 
         <HouseholdRow />
 
@@ -331,12 +348,17 @@ export default function ProfileScreen() {
       <ConfirmSheet
         testID="downgrade-confirm"
         visible={confirmingDowngrade}
-        onClose={() => setConfirmingDowngrade(false)}
+        onClose={() => {
+          setConfirmingDowngrade(false);
+          downgradeMutation.reset();
+        }}
         title={PREMIUM_PITCH_COPY.downgradeTitle}
         body={downgradeBody}
         confirmLabel={PREMIUM_PITCH_COPY.downgradeConfirm}
         cancelLabel={PREMIUM_PITCH_COPY.downgradeCancel}
         destructive
+        busy={downgradeMutation.isPending}
+        error={downgradeMutation.isError ? userFacingErrorMessage(downgradeMutation.error) : null}
         onConfirm={() => downgradeMutation.mutate()}
       />
     </Screen>

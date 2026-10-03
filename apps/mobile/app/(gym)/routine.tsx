@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { ActivityIndicator, ScrollView, View } from 'react-native';
+import { ScrollView, View } from 'react-native';
 import { router } from 'expo-router';
 import {
   TEMPLATE_BY_KEY,
@@ -9,6 +9,10 @@ import {
 } from '@chefer/types';
 import { Badge, Button, EmptyState, Screen, Text } from '@chefer/ui-mobile';
 import { formatLoad, repBucket, validateRoutine, volumeByGroup } from '@chefer/utils';
+import {
+  GymBootstrapUnavailable,
+  useGymBootstrapLoad,
+} from '../../src/features/gym/components/gym-bootstrap-state';
 import { ModeSwitch } from '../../src/features/gym/components/mode-switch';
 import { DayCardView } from '../../src/features/gym/routine/day-card-view';
 import { dismissHint, getDismissedHints } from '../../src/features/gym/routine/hints-storage';
@@ -96,6 +100,7 @@ function DayCard({
 
 export default function RoutineScreen() {
   const bootstrap = useGymBootstrap();
+  const bootstrapLoad = useGymBootstrapLoad(bootstrap);
   const isOnline = useIsOnline();
   const utils = trpc.useUtils();
   const [overrideTarget, setOverrideTarget] = useState<OverrideTarget | null>(null);
@@ -142,15 +147,13 @@ export default function RoutineScreen() {
           <Text testID="gym-routine-title" variant="title">
             Routine
           </Text>
-          {bootstrap.isFetching ? (
-            <ActivityIndicator testID="gym-routine-loading" />
-          ) : (
-            <EmptyState
-              testID="gym-routine-offline-empty"
-              title="Needs a connection"
-              description="Your routine will load once you're back online."
-            />
-          )}
+          {/* UX-GYM-24: a failed load has Retry; offline with no cache says so. */}
+          <GymBootstrapUnavailable
+            load={bootstrapLoad.load === 'data' ? 'loading' : bootstrapLoad.load}
+            onRetry={bootstrapLoad.retry}
+            testID="gym-routine"
+            what="your routine"
+          />
         </ScrollView>
       </Screen>
     );

@@ -2,7 +2,16 @@ import { useMemo, useSyncExternalStore } from 'react';
 import { Pressable, Text as RNText, ScrollView, View } from 'react-native';
 import { router } from 'expo-router';
 import type { SessionSummaryDto, WorkoutSessionDoc } from '@chefer/types';
-import { Badge, Button, Card, CardTitle, EmptyState, Screen, Text } from '@chefer/ui-mobile';
+import {
+  Badge,
+  Button,
+  Card,
+  CardTitle,
+  EmptyState,
+  ErrorState,
+  Screen,
+  Text,
+} from '@chefer/ui-mobile';
 import {
   cn,
   distanceUnitFor,
@@ -10,12 +19,14 @@ import {
   formatDistance,
   formatDurationMinutes,
   formatLoad,
+  isNotFoundError,
   isStrengthTrackingType,
   toSessionSummary,
   trackingTypeOf,
   weekdayDateLabel,
 } from '@chefer/utils';
 import { trpc } from '../../../lib/trpc';
+import { useGymBootstrapLoad } from '../components/gym-bootstrap-state';
 import { useIsOnline } from '../library-screens/online-status';
 import { StackBackButton } from '../library-screens/stack-back-button';
 import { outbox } from '../offline/outbox';
@@ -39,14 +50,15 @@ function usePendingDoc(sessionId: string): WorkoutSessionDoc | null {
 
 export function SessionDetailScreen({ sessionId }: { sessionId: string }) {
   const online = useIsOnline();
-  const { data: bootstrap, isLoading: bootstrapLoading } = useGymBootstrap();
+  const bootstrapQuery = useGymBootstrap();
+  const bootstrap = bootstrapQuery.data;
+  const bootstrapLoad = useGymBootstrapLoad(bootstrapQuery);
   const pending = usePendingDoc(sessionId);
 
   const summary = bootstrap?.recentSessions.find((s) => s.id === sessionId);
-  const { data: fullDoc, isLoading: docLoading } = trpc.gym.session.get.useQuery(
-    { id: sessionId },
-    { enabled: online },
-  );
+  const docQuery = trpc.gym.session.get.useQuery({ id: sessionId }, { enabled: online });
+
+  const fullDoc = docQuery.data;
 
   const view: SessionView | undefined = useMemo(() => {
     if (pending) return pending.status === 'COMPLETED' ? viewFromDoc(pending) : undefined;
@@ -84,8 +96,19 @@ export function SessionDetailScreen({ sessionId }: { sessionId: string }) {
           <Text testID="gym-session-title" variant="title" className="mb-2">
             Session
           </Text>
-          {bootstrapLoading || docLoading ? (
+          {bootstrapLoad.load === 'loading' || docQuery.isLoading ? (
             <Text variant="muted">Loading…</Text>
+          ) : bootstrapLoad.load === 'error' ||
+            (docQuery.isError && !isNotFoundError(docQuery.error)) ? (
+            // UX-GYM-24: a failed load has Retry; it is not "Session not found".
+            <ErrorState
+              testID="session-detail-error"
+              title="Couldn’t load this session"
+              onRetry={() => {
+                bootstrapLoad.retry();
+                if (online) void docQuery.refetch();
+              }}
+            />
           ) : (
             <EmptyState
               testID="session-detail-not-found"

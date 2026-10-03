@@ -328,8 +328,14 @@ export default function RecipeFormScreen() {
     snackbar.show({ message: recipeFormCopy.save.saved, tone: 'success' });
     router.back();
   };
-  const createMutation = trpc.recipe.create.useMutation({ onSuccess: onDone });
-  const updateMutation = trpc.recipe.update.useMutation({ onSuccess: onDone });
+  const createMutation = trpc.recipe.create.useMutation({
+    meta: { silent: true },
+    onSuccess: onDone,
+  });
+  const updateMutation = trpc.recipe.update.useMutation({
+    meta: { silent: true },
+    onSuccess: onDone,
+  });
   const mutation = isEdit ? updateMutation : createMutation;
   // Following (PRD §9.4): a shared recipe whose name/description trips the
   // word filter comes back BAD_REQUEST + `data.textRejected: 'recipe'`. Show

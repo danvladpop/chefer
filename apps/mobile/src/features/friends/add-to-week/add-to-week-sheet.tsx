@@ -68,7 +68,7 @@ export function AddToWeekSheet({
 
   const week = trpc.mealPlan.getForWeek.useQuery({ weekOffset }, { retry: false });
   const shape = trpc.mealPlan.getShape.useQuery(undefined, { staleTime: 60_000 });
-  const add = trpc.friends.addRecipeToWeek.useMutation();
+  const add = trpc.friends.addRecipeToWeek.useMutation({ meta: { silent: true } });
 
   const plan = week.data;
   const rows = plan ? slotRows(plan, day, shape.data?.slots ?? []) : [];

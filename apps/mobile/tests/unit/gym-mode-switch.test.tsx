@@ -89,6 +89,13 @@ beforeEach(() => {
 });
 
 describe('ModeSwitch', () => {
+  it('large text: the switch grows with its labels instead of truncating them (WP-04)', async () => {
+    await renderSwitch(makeClient());
+    const cls = String(screen.getByTestId('mode-switch').props.className);
+    expect(cls).toMatch(/\bmin-w-36\b/);
+    expect(cls).not.toMatch(/(^|\s)w-36\b/);
+  });
+
   it('switches to Gym Today and persists the mode', async () => {
     const user = userEvent.setup();
     const queryClient = makeClient();

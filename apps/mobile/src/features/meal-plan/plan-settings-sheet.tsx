@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { ActivityIndicator, Pressable, Switch, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import type { PlanShape } from '@chefer/types';
-import { Button, colors, Sheet, Text } from '@chefer/ui-mobile';
+import { Button, colors, ErrorState, Sheet, Text, useQueryState } from '@chefer/ui-mobile';
 import { PREMIUM_PITCH_COPY, userFacingErrorMessage } from '@chefer/utils';
 import { trpc } from '../../lib/trpc';
 import { openPremium } from '../premium/open-premium';
@@ -44,9 +44,11 @@ export function PlanSettingsSheet({
   onSaved,
   fitTraining,
 }: PlanSettingsSheetProps) {
-  const { data, isLoading } = trpc.mealPlan.getShape.useQuery(undefined, { enabled: visible });
+  const shapeQuery = trpc.mealPlan.getShape.useQuery(undefined, { enabled: visible });
+  const { data } = shapeQuery;
+  const { state: loadState, retry } = useQueryState(shapeQuery);
   const [draft, setDraft] = useState<(PlanShape & { leftovers: boolean }) | null>(null);
-  const setShapeMutation = trpc.mealPlan.setShape.useMutation();
+  const setShapeMutation = trpc.mealPlan.setShape.useMutation({ meta: { silent: true } });
 
   // Start every open from the server's current shape — a stale local draft
   // from a previous open (or a change saved elsewhere) would silently
@@ -88,7 +90,14 @@ export function PlanSettingsSheet({
         </Button>
       }
     >
-      {isLoading || !draft ? (
+      {loadState === 'error' ? (
+        // UX-X-12: a failed load is not a spinner forever.
+        <ErrorState
+          testID="plan-settings-load-error"
+          title="Couldn't load your plan settings"
+          onRetry={retry}
+        />
+      ) : !draft ? (
         <View className="items-center py-10">
           <ActivityIndicator size="large" color="#944a00" />
         </View>

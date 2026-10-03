@@ -113,7 +113,12 @@ function announce(message: string, actionLabel?: string): void {
   }
 }
 
-function showSnackbar(options: SnackbarOptions): void {
+/**
+ * The same call as `useSnackbar().show`, for code outside React (the query
+ * client's default mutation-error handler). Needs the `<Snackbar />` host
+ * mounted at the root.
+ */
+export function showSnackbar(options: SnackbarOptions): void {
   const durationMs =
     options.durationMs ?? (options.actionLabel ? WITH_ACTION_DURATION_MS : DEFAULT_DURATION_MS);
   state = {

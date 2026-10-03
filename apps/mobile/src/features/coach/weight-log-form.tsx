@@ -36,6 +36,7 @@ export function WeightLogForm({ placeholder, label }: { placeholder?: string; la
   const [declined, setDeclined] = useState(false);
 
   const logWeight = trpc.tracker.logWeight.useMutation({
+    meta: { silent: true },
     onSuccess: () => {
       setSaved(true);
       setValue('');

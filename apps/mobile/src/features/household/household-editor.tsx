@@ -111,6 +111,7 @@ function YouCard() {
   };
 
   const saveMutation = trpc.preferences.updateSafety.useMutation({
+    meta: { silent: true },
     onSuccess: () => {
       setSheetOpen(false);
       void utils.preferences.get.invalidate();
@@ -279,18 +280,21 @@ export function HouseholdEditor({
     setEditing(null);
   };
   const addMutation = trpc.household.add.useMutation({
+    meta: { silent: true },
     onSuccess: () => {
       resetForm();
       invalidate();
     },
   });
   const updateMutation = trpc.household.update.useMutation({
+    meta: { silent: true },
     onSuccess: () => {
       resetForm();
       invalidate();
     },
   });
   const removeMutation = trpc.household.remove.useMutation({
+    meta: { silent: true },
     onSuccess: () => {
       setConfirmingId(null);
       invalidate();

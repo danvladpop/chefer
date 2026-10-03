@@ -10,6 +10,7 @@ import {
   bodyWeightInUnit,
   formatBodyWeight,
   parseBodyWeight,
+  userFacingErrorMessage,
   type UnitSystem,
 } from '@chefer/utils';
 
@@ -37,15 +38,17 @@ function EntryRow({ entry, system }: { entry: Entry; system: UnitSystem }) {
     void utils.gym.bootstrap.invalidate();
   };
   const update = trpc.tracker.updateWeight.useMutation({
+    meta: { silent: true },
     onSuccess: () => {
       setMode('view');
       invalidate();
     },
-    onError: (err) => setError(err.message),
+    onError: (err) => setError(userFacingErrorMessage(err)),
   });
   const remove = trpc.tracker.deleteWeight.useMutation({
+    meta: { silent: true },
     onSuccess: invalidate,
-    onError: (err) => setError(err.message),
+    onError: (err) => setError(userFacingErrorMessage(err)),
   });
 
   const dateLabel = format(new Date(entry.recordedAt), 'EEE d MMM');

@@ -20,7 +20,7 @@ export function useReport(): {
 } {
   const queryClient = useQueryClient();
   const utils = trpc.useUtils();
-  const mutation = trpc.friends.report.useMutation();
+  const mutation = trpc.friends.report.useMutation({ meta: { silent: true } });
   return {
     report: async (input) => {
       try {

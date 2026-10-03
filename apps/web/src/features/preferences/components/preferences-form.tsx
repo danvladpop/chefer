@@ -10,7 +10,7 @@ import { capture } from '@/lib/analytics';
 import { trpc } from '@/lib/trpc';
 import { bodyMetricsAgeError, HEALTH_CONSENT_COPY, type DisplayCurrency } from '@chefer/types';
 import { Toast } from '@chefer/ui';
-import { fromEur, toDisplayCurrency, toEur } from '@chefer/utils';
+import { fromEur, toDisplayCurrency, toEur, userFacingErrorMessage } from '@chefer/utils';
 import type { ChefProfileData, DietaryPreferencesData } from '../types';
 import { BudgetSection } from './budget-section';
 import { HouseholdSection } from './household-section';
@@ -95,12 +95,14 @@ export function PreferencesForm({
 
   // Safety (allergies/restrictions/dislikes) and display units/currency save
   // through free procedures; everything else is premium-only updateTargets.
-  const safetyMutation = trpc.preferences.updateSafety.useMutation();
+  const safetyMutation = trpc.preferences.updateSafety.useMutation({ meta: { silent: true } });
   // UX-ACC-01: a term typed in "Something else?" but never added with "Add" is
   // flushed into the saved value on Save instead of being dropped.
   const safetyPickerRef = useRef<StepDietHandle>(null);
-  const displayMutation = trpc.preferences.setDisplayPreferences.useMutation();
-  const targetsMutation = trpc.preferences.updateTargets.useMutation();
+  const displayMutation = trpc.preferences.setDisplayPreferences.useMutation({
+    meta: { silent: true },
+  });
+  const targetsMutation = trpc.preferences.updateTargets.useMutation({ meta: { silent: true } });
   const isSaving =
     safetyMutation.isPending || displayMutation.isPending || targetsMutation.isPending;
 
@@ -233,7 +235,7 @@ export function PreferencesForm({
       onSaved(!includeHealth);
     } catch (err) {
       setToast({
-        message: err instanceof Error ? err.message : 'Failed to save preferences.',
+        message: userFacingErrorMessage(err, 'Failed to save preferences.'),
         type: 'error',
       });
     }

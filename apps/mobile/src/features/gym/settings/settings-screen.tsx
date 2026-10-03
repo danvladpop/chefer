@@ -3,7 +3,7 @@ import { Keyboard, Platform, Pressable, View, type TextInput } from 'react-nativ
 import { Ionicons } from '@expo/vector-icons';
 import { useQueryClient } from '@tanstack/react-query';
 import { router } from 'expo-router';
-import type { DayKind, GymBootstrap, WeightUnit } from '@chefer/types';
+import type { DayKind, WeightUnit } from '@chefer/types';
 import {
   Button,
   Card,
@@ -28,14 +28,22 @@ import {
   weekStartOf,
   WELLNESS_COPY,
 } from '@chefer/utils';
+import { NotificationsOffRow } from '../../../components/notifications-off-row';
 import { useFlags } from '../../../hooks/use-flags';
 import { trpc } from '../../../lib/trpc';
+import {
+  refreshNotificationPermission,
+  useNotificationPermission,
+} from '../../../lib/use-notification-permission';
+import { GymBootstrapUnavailable, useGymBootstrapLoad } from '../components/gym-bootstrap-state';
+import { OutboxWaitingCard } from '../components/outbox-waiting-card';
 import { GymExportRow } from '../export/export-row';
 import { localDate } from '../offline/ids';
 import { outbox, useOutboxStatus } from '../offline/outbox';
 import { ensureGymReminderPermission } from '../reminders/permission';
 import { WEEKDAY_SHORT_LABELS, weekdayLabel } from '../routine/weekday';
 import { gymBootstrapQueryKey, useGymBootstrap } from '../use-gym-bootstrap';
+import { useSaveGymProfile } from '../use-save-gym-profile';
 
 // T-06.9: the weekday-kind row's picker options (`lift` is routine-derived,
 // never user-settable — see `training-days.service.ts`).
@@ -192,7 +200,9 @@ function WeightListEditor({
 
 export function GymSettingsScreen() {
   const queryClient = useQueryClient();
-  const { data: bootstrap } = useGymBootstrap();
+  const bootstrapQuery = useGymBootstrap();
+  const { data: bootstrap } = bootstrapQuery;
+  const bootstrapLoad = useGymBootstrapLoad(bootstrapQuery);
   const { cardioLogging } = useFlags();
   const outboxStatus = useOutboxStatus();
   const [pauseSheetVisible, setPauseSheetVisible] = useState(false);
@@ -202,6 +212,10 @@ export function GymSettingsScreen() {
   );
   const [confirmingDiscardId, setConfirmingDiscardId] = useState<string | null>(null);
   const [kindSheetWeekday, setKindSheetWeekday] = useState<number | null>(null);
+  // UX-GYM-04: what the OS says about notifications, so "On" is never shown
+  // while nothing can fire. `reminderBlocked` remembers a just-refused ask.
+  const notificationPermission = useNotificationPermission();
+  const [reminderBlocked, setReminderBlocked] = useState(false);
   // Hooks run unconditionally (before the "no profile yet" early return), so
   // these read the reminder time via optional chaining rather than after a
   // `bootstrap.profile` guard.
@@ -213,15 +227,8 @@ export function GymSettingsScreen() {
   );
 
   const utils = trpc.useUtils();
-  const saveMutation = trpc.gym.profile.save.useMutation({
-    onSuccess: (profile, input) => {
-      queryClient.setQueryData(gymBootstrapQueryKey, (prev: GymBootstrap | undefined) =>
-        prev ? { ...prev, profile } : prev,
-      );
-      // A kg/lb switch is also the global unit preference (P2-6).
-      if (input.unit !== undefined) void utils.preferences.get.invalidate();
-    },
-  });
+  // UX-GYM-22: optimistic with rollback; a failure shows the default snackbar.
+  const saveMutation = useSaveGymProfile();
   const pauseCreateMutation = trpc.gym.pause.create.useMutation({
     onSuccess: () => {
       setPauseSheetVisible(false);
@@ -236,6 +243,26 @@ export function GymSettingsScreen() {
   const setDayKindsMutation = trpc.training.setDayKinds.useMutation({
     onSuccess: (data) => utils.training.getDayKinds.setData(undefined, data),
   });
+
+  if (bootstrapLoad.load !== 'data') {
+    // UX-GYM-24: a failed or offline first load is not "set up your training".
+    return (
+      <Screen className="px-0" edges={['top', 'bottom', 'left', 'right']}>
+        <View className="flex-row items-center gap-3 px-4 pt-2">
+          <BackButton />
+          <Text testID="gym-settings-title" variant="title">
+            Gym settings
+          </Text>
+        </View>
+        <GymBootstrapUnavailable
+          load={bootstrapLoad.load}
+          onRetry={bootstrapLoad.retry}
+          testID="gym-settings"
+          what="your gym settings"
+        />
+      </Screen>
+    );
+  }
 
   if (!bootstrap?.profile) {
     return (
@@ -272,15 +299,35 @@ export function GymSettingsScreen() {
       .filter((w): w is number => w !== null),
   );
   const dayKinds = dayKindsQuery.data ?? {};
+  // The OS answer beats the saved preference: denied means reminders are Off.
+  const remindersDenied = notificationPermission === 'denied';
+  const remindersOn = profile.reminderEnabled && !remindersDenied;
+  // `reminderBlocked` covers the moment right after a refused prompt, before the
+  // OS answer is re-read; a later grant (back from Settings) clears the row.
+  const showNotificationsOff =
+    notificationPermission !== 'granted' &&
+    (reminderBlocked || (remindersDenied && profile.reminderEnabled));
 
   const saveReminder = (enabled: boolean, hour: number, minute: number) => {
+    const save = (on: boolean) =>
+      saveMutation.mutate({
+        reminderEnabled: on,
+        reminderTime: on ? `${pad(hour)}:${pad(minute)}` : null,
+      });
+    if (!enabled) {
+      setReminderBlocked(false);
+      save(false);
+      return;
+    }
     // Ask for notification permission right here — a direct user action on
-    // the toggle — never on cold start (gym_plan.md §6.5). A denial still
-    // saves the preference; useGymReminders() simply won't schedule anything.
-    if (enabled) void ensureGymReminderPermission();
-    saveMutation.mutate({
-      reminderEnabled: enabled,
-      reminderTime: enabled ? `${pad(hour)}:${pad(minute)}` : null,
+    // the toggle — never on cold start (gym_plan.md §6.5). UX-GYM-04: wait for
+    // the answer; on a refusal the switch goes Off and the row below points to
+    // Settings, instead of saving "On" for reminders that can never fire.
+    void ensureGymReminderPermission().then((granted) => {
+      refreshNotificationPermission();
+      setReminderBlocked(!granted);
+      // Refused while it was already off: nothing to change on the server.
+      if (granted || profile.reminderEnabled) save(granted);
     });
   };
 
@@ -465,7 +512,7 @@ export function GymSettingsScreen() {
                       className="min-h-11 min-w-11 items-center justify-center gap-0.5 rounded-lg px-1 disabled:opacity-60"
                     >
                       <Text className="text-xs font-semibold">{label}</Text>
-                      <Text variant="muted" className="text-[10px]">
+                      <Text variant="muted" className="text-xs">
                         {kind ? DAY_KIND_SHORT[kind] : '—'}
                       </Text>
                     </Pressable>
@@ -482,10 +529,16 @@ export function GymSettingsScreen() {
                 { value: 'off' as const, label: 'Off', testID: 'gym-settings-reminder-off' },
                 { value: 'on' as const, label: 'On', testID: 'gym-settings-reminder-on' },
               ]}
-              value={[profile.reminderEnabled ? 'on' : 'off']}
+              value={[remindersOn ? 'on' : 'off']}
               onChange={(v) => saveReminder(v[0] === 'on', reminderHour, reminderMinute)}
             />
-            {profile.reminderEnabled && (
+            {showNotificationsOff && (
+              <NotificationsOffRow
+                testID="gym-settings-notifications-off"
+                message="Reminders are off for Chefer"
+              />
+            )}
+            {remindersOn && (
               <View className="flex-row items-center gap-3">
                 <Stepper
                   testID="gym-settings-reminder-hour"
@@ -639,6 +692,8 @@ export function GymSettingsScreen() {
         )}
 
         <GymExportRow />
+
+        <OutboxWaitingCard status={outboxStatus} testID="gym-settings-outbox" />
 
         <View className="gap-1">
           <SectionTitle>Last sync</SectionTitle>

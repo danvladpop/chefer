@@ -18,8 +18,14 @@ export function AiConsentCard() {
   const providers = useAiProviderDisclosure();
   const onSaved = ({ aiDataConsentAt }: { aiDataConsentAt: Date | null }) =>
     utils.user.me.setData(undefined, (prev) => (prev ? { ...prev, aiDataConsentAt } : prev));
-  const grant = trpc.user.grantAiDataConsent.useMutation({ onSuccess: onSaved });
-  const revoke = trpc.user.revokeAiDataConsent.useMutation({ onSuccess: onSaved });
+  const grant = trpc.user.grantAiDataConsent.useMutation({
+    meta: { silent: true },
+    onSuccess: onSaved,
+  });
+  const revoke = trpc.user.revokeAiDataConsent.useMutation({
+    meta: { silent: true },
+    onSuccess: onSaved,
+  });
   const busy = grant.isPending || revoke.isPending;
   const enabled = Boolean(user?.aiDataConsentAt);
 

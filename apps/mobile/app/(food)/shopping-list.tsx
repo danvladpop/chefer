@@ -19,6 +19,7 @@ import {
   SegmentedControl,
   Text,
   useScrollFieldIntoView,
+  useSnackbar,
 } from '@chefer/ui-mobile';
 import {
   checkedForListHeaderText,
@@ -32,6 +33,7 @@ import {
   labelCaveatCompactText,
   perPortionCost,
   shoppingWindowLabel,
+  userFacingErrorMessage,
 } from '@chefer/utils';
 import { useAiConsent } from '../../src/features/ai-consent/ai-consent-provider';
 import { ModeSwitch } from '../../src/features/gym/components/mode-switch';
@@ -82,6 +84,7 @@ export default function ShoppingListScreen() {
   // Prices are EUR estimates; shown in the user's currency (backlog P2-6).
   const currency = useCurrency();
   const utils = trpc.useUtils();
+  const snackbar = useSnackbar();
 
   const weekStart = getWeekStartDate(weekOffset);
 
@@ -150,9 +153,44 @@ export default function ShoppingListScreen() {
       void utils.shoppingList.getForWeek.invalidate({ weekOffset });
     },
   });
+  // UX-SHOP-02: "Removed · Undo". Undo re-adds the item through its own
+  // mutation (not `addItemMutation`, whose success clears the add-item field).
+  const undoRemoveMutation = trpc.shoppingList.addCustomItems.useMutation({
+    meta: { silent: true },
+    onSuccess: () => void utils.shoppingList.getForWeek.invalidate({ weekOffset }),
+    onError: (err) =>
+      snackbar.show({ message: `Couldn't put it back. ${userFacingErrorMessage(err)}` }),
+  });
   const removeItemMutation = trpc.shoppingList.removeCustomItem.useMutation({
     onSuccess: () => void utils.shoppingList.getForWeek.invalidate({ weekOffset }),
   });
+  const removeCustomItem = (
+    planId: string,
+    item: { key: string; ingredientName: string; quantity: string; unit: string },
+  ) => {
+    const quantity = parseFloat(item.quantity);
+    removeItemMutation.mutate(
+      { planId, key: item.key },
+      {
+        onSuccess: () =>
+          snackbar.show({
+            message: `Removed ${item.ingredientName}`,
+            actionLabel: 'Undo',
+            onAction: () =>
+              undoRemoveMutation.mutate({
+                planId,
+                items: [
+                  {
+                    name: item.ingredientName,
+                    ...(quantity > 0 && quantity <= 999 ? { quantity } : {}),
+                    ...(item.unit ? { unit: item.unit } : {}),
+                  },
+                ],
+              }),
+          }),
+      },
+    );
+  };
   const markOutMutation = trpc.pantry.markOutOfStock.useMutation({
     onSuccess: () => {
       void utils.shoppingList.getForWeek.invalidate();
@@ -162,6 +200,7 @@ export default function ShoppingListScreen() {
   // Sends the plan's ingredients to the AI — ask first (App Store 5.1.2(i)).
   const requestAiConsent = useAiConsent();
   const regenerateMutation = trpc.shoppingList.regenerate.useMutation({
+    meta: { silent: true },
     onSuccess: (data) => {
       utils.shoppingList.getForWeek.setData({ weekOffset }, data);
     },
@@ -538,7 +577,7 @@ export default function ShoppingListScreen() {
                                   </Text>
                                   {item.pantryCovered && (
                                     <View className="rounded-full bg-emerald-100 px-2 py-0.5">
-                                      <Text className="text-[12px] font-semibold uppercase text-emerald-700">
+                                      <Text className="text-xs font-semibold uppercase text-emerald-700">
                                         Have it
                                       </Text>
                                     </View>
@@ -591,10 +630,7 @@ export default function ShoppingListScreen() {
                                 disabled={removeItemMutation.isPending}
                                 onPress={() => {
                                   if (weekList.planId) {
-                                    removeItemMutation.mutate({
-                                      planId: weekList.planId,
-                                      key: item.key,
-                                    });
+                                    removeCustomItem(weekList.planId, item);
                                   }
                                 }}
                                 className="h-11 w-11 items-center justify-center"

@@ -265,11 +265,14 @@ export {
 } from './weight';
 export {
   KCAL_PER_G,
+  INGREDIENT_GRAMS_MAX,
   MACRO_SANITY_TOLERANCE,
   QUICK_ADD_LIMITS,
   QUICK_ADD_MEAL_TYPES,
   checkMacroSanity,
+  clampIngredientGrams,
   formatQuickAddGrams,
+  maxIngredientGrams,
   parseQuickAdd,
   type MacroSanityResult,
   type QuickAddEntry,
@@ -293,8 +296,12 @@ export { RATING_LABELS, composeNotesWithLikedBy, parseLikedBy, stripLikedBy } fr
 export { shoppingWindowLabel } from './shopping-window';
 export {
   dayNutritionCaption,
+  dayStatus,
   PLAN_STATUS_LABEL,
   planStatus,
+  remainingPlannedKcal,
+  type DayStatus,
+  type DayStatusResult,
   type PlanStatus,
 } from './day-nutrition';
 export {
@@ -610,8 +617,17 @@ export {
   SERVER_ERROR_MESSAGE,
   isNetworkError,
   isServerError,
+  VALIDATION_ERROR_MESSAGE,
+  describeValidationIssues,
+  humaniseFieldPath,
+  parseIssuesFromMessage,
   userFacingErrorMessage,
 } from './user-facing-error';
+export type { UserFacingErrorOptions, ValidationIssueLike } from './user-facing-error';
+export { getQueryState, isNotFoundError } from './query-state';
+export type { QueryState, QueryStateInput } from './query-state';
+export { shouldNotifyMutationError } from './mutation-errors';
+export type { MutationMetaShape } from './mutation-errors';
 export {
   plannedRowKey,
   sumLogged,

@@ -107,7 +107,7 @@ function VisibilityCard({
 
 function IntroForm({ me, onActivated }: FriendsIntroProps) {
   const utils = trpc.useUtils();
-  const activate = trpc.friends.activate.useMutation();
+  const activate = trpc.friends.activate.useMutation({ meta: { silent: true } });
   const online = useIsOnline();
   const scrollIntoView = useScrollFieldIntoView();
   const lastRef = useRef<TextInput>(null);

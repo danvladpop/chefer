@@ -38,7 +38,7 @@ export function RebalanceBanner({ planId, onUndone }: RebalanceBannerProps) {
   const [undoing, setUndoing] = useState(false);
   const [undoError, setUndoError] = useState(false);
 
-  const replaceMutation = trpc.mealPlan.replaceRecipe.useMutation();
+  const replaceMutation = trpc.mealPlan.replaceRecipe.useMutation({ meta: { silent: true } });
 
   // localStorage only exists post-mount; the hydration render must match SSR.
   // Logging surfaces re-read when a log on this page stores new swaps.

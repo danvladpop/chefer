@@ -144,6 +144,7 @@ export default function ImportRecipeScreen() {
   });
 
   const previewMutation = trpc.recipe.importPreview.useMutation({
+    meta: { silent: true },
     onSuccess: (data) => {
       setPreview(data);
       setPicks({ original: {}, adapted: {} });
@@ -151,9 +152,11 @@ export default function ImportRecipeScreen() {
     },
   });
   const videoPreviewMutation = trpc.recipe.importVideoPreview.useMutation({
+    meta: { silent: true },
     onSuccess: (data) => setVideoPreview(data),
   });
   const saveMutation = trpc.recipe.importSave.useMutation({
+    meta: { silent: true },
     onSuccess: () => {
       void utils.recipe.list.invalidate();
       guard.release();
@@ -423,7 +426,7 @@ export default function ImportRecipeScreen() {
             </Button>
             {previewError && (
               <Card testID="import-error" className="border-red-200 bg-red-50">
-                <Text className="text-sm text-red-600">{previewError.message}</Text>
+                <Text className="text-sm text-red-600">{userFacingErrorMessage(previewError)}</Text>
               </Card>
             )}
           </>

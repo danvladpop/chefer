@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { checkMacroSanity, formatQuickAddGrams, parseQuickAdd } from './quick-add';
+import {
+  checkMacroSanity,
+  clampIngredientGrams,
+  formatQuickAddGrams,
+  maxIngredientGrams,
+  parseQuickAdd,
+} from './quick-add';
 
 describe('parseQuickAdd', () => {
   it('accepts name + kcal, defaulting macros to 0', () => {
@@ -109,5 +115,31 @@ describe('formatQuickAddGrams', () => {
   it('rounds to whole grams at or above 10 g', () => {
     expect(formatQuickAddGrams(10)).toBe('10');
     expect(formatQuickAddGrams(23.6)).toBe('24');
+  });
+});
+
+describe('ingredient grams (UX-FOOD-09)', () => {
+  const banana = { calories: 89, protein: 1.1, carbs: 23, fat: 0.3 };
+
+  it('keeps a log entry within the server limits', () => {
+    // kcal alone would allow 5,617 g, but carbs (1000 g max / 23 per 100 g) stop at 4,347 g.
+    expect(maxIngredientGrams(banana)).toBe(4347);
+    expect(maxIngredientGrams({ calories: 10, protein: 0, carbs: 0, fat: 0 })).toBe(5000);
+    // Olive oil: 884 kcal / 100 g -> 565 g is the most one entry can hold.
+    expect(maxIngredientGrams({ calories: 884, protein: 0, carbs: 0, fat: 100 })).toBe(500);
+  });
+
+  it('clamps 99,999 g of banana instead of previewing 88,999 kcal', () => {
+    expect(clampIngredientGrams('99999', banana)).toEqual({
+      grams: 4347,
+      clamped: true,
+      max: 4347,
+    });
+  });
+
+  it('parses commas and junk, and never goes negative', () => {
+    expect(clampIngredientGrams('7,5', banana)).toMatchObject({ grams: 8, clamped: false });
+    expect(clampIngredientGrams('abc', banana).grams).toBe(0);
+    expect(clampIngredientGrams('-20', banana).grams).toBe(0);
   });
 });

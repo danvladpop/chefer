@@ -35,7 +35,8 @@ export type RoutineEdit = (base: RoutineDto) => RoutineDoc | null;
  */
 export function useRoutineEdit(): (edit: RoutineEdit) => Promise<RoutineSwapResult> {
   const queryClient = useQueryClient();
-  const save = trpc.gym.routine.save.useMutation();
+  // The caller turns 'failed' into its own notice (ROUTINE_*_NOTICE) — no default snackbar.
+  const save = trpc.gym.routine.save.useMutation({ meta: { silent: true } });
   const { mutateAsync } = save;
 
   return useCallback(

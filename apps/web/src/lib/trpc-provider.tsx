@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { QueryClientProvider } from '@tanstack/react-query';
 import { httpBatchLink, loggerLink } from '@trpc/client';
 import superjson from 'superjson';
+import { AppToastHost } from './app-toast';
 import { makeQueryClient, trpc } from './trpc';
 
 let browserQueryClient: ReturnType<typeof makeQueryClient> | undefined;
@@ -70,6 +71,7 @@ export function TRPCProvider({ children }: { children: React.ReactNode }) {
     <QueryClientProvider client={queryClient}>
       <trpc.Provider client={trpcClient} queryClient={queryClient}>
         {children}
+        <AppToastHost />
       </trpc.Provider>
     </QueryClientProvider>
   );

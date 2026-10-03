@@ -102,12 +102,14 @@ export default function PreferencesScreen() {
   }, [data, safetyLoaded]);
 
   const safetyMutation = trpc.preferences.updateSafety.useMutation({
+    meta: { silent: true },
     onSuccess: () => {
       void utils.preferences.get.invalidate();
       void utils.mealPlan.invalidate();
     },
   });
   const displayMutation = trpc.preferences.setDisplayPreferences.useMutation({
+    meta: { silent: true },
     onSuccess: (_result, input) => {
       // The typed budget keeps its value in the new currency.
       if (input.currency && input.currency !== savedCurrency) {
@@ -122,9 +124,11 @@ export default function PreferencesScreen() {
     },
   });
   const targetsMutation = trpc.preferences.updateTargets.useMutation({
+    meta: { silent: true },
     onSuccess: () => void utils.preferences.get.invalidate(),
   });
   const goalBodyMutation = trpc.preferences.saveProfileBasics.useMutation({
+    meta: { silent: true },
     onSuccess: () => {
       void utils.preferences.get.invalidate();
       void utils.dashboard.invalidate();

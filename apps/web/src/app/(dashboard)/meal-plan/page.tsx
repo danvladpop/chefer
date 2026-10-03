@@ -80,6 +80,7 @@ import {
   toDisplayCurrency,
   trainingDaysChip,
   trainingKindLabel,
+  userFacingErrorMessage,
   WELLNESS_COPY,
 } from '@chefer/utils';
 import MealPlanLoading from './loading';
@@ -321,6 +322,7 @@ export default function MealPlanPage() {
   });
 
   const generateMutation = trpc.mealPlan.generate.useMutation({
+    meta: { silent: true },
     onMutate: () => {
       setIsGenerating(true);
       setPoolExhausted(null);
@@ -374,7 +376,7 @@ export default function MealPlanPage() {
       } else {
         setGenerateError(
           err.data?.code === 'TOO_MANY_REQUESTS'
-            ? err.message
+            ? userFacingErrorMessage(err)
             : "We couldn't generate your plan just now. Please try again in a moment.",
         );
       }
@@ -471,8 +473,9 @@ export default function MealPlanPage() {
     void utils.dashboard.invalidate();
   });
   const resumeTailoringMutation = trpc.mealPlan.resumeTailoring.useMutation({
+    meta: { silent: true },
     onSuccess: () => void refetch(),
-    onError: (err) => setToast({ message: err.message }),
+    onError: (err) => setToast({ message: userFacingErrorMessage(err) }),
   });
   const resumeTailoring = () => {
     if (!plan) return;
@@ -485,11 +488,13 @@ export default function MealPlanPage() {
   // T-08.5/T-08.6 Undo: replaceRecipe back to `previousRecipeId` — used by
   // the swap/replace toast's Undo action (the sheet itself is closed by then).
   const replaceMutation = trpc.mealPlan.replaceRecipe.useMutation({
+    meta: { silent: true },
     onSuccess: () => void refetch(),
   });
 
   const [planningDay, setPlanningDay] = useState<number | null>(null);
   const planDayMutation = trpc.mealPlan.planDay.useMutation({
+    meta: { silent: true },
     onMutate: (input) => setPlanningDay(input.dayOfWeek),
     onSettled: () => setPlanningDay(null),
     onSuccess: (_data, input) => {
@@ -497,7 +502,7 @@ export default function MealPlanPage() {
       void refetch();
       setToast({ message: `${DAY_NAMES[selectedDay]} planned.` });
     },
-    onError: (err) => setToast({ message: err.message }),
+    onError: (err) => setToast({ message: userFacingErrorMessage(err) }),
   });
 
   // ?generate=1 (dashboard's "Generate My Week", prod-followups #9): start
@@ -1141,7 +1146,7 @@ export default function MealPlanPage() {
                       <div className="flex flex-col items-center gap-1 rounded-xl border border-dashed bg-gray-50 p-2 text-center">
                         <p
                           data-testid={`plan-day-unplanned-${day.dayOfWeek}`}
-                          className="text-[11px] leading-tight text-gray-500"
+                          className="text-xs leading-tight text-gray-500"
                         >
                           Not planned
                         </p>

@@ -5,6 +5,7 @@
 
 import { AI_CONSENT_REQUIRED_REASON } from '@chefer/types';
 import { notifyAiConsentRequired } from '@chefer/utils';
+import { reportUnauthorized, SESSION_EXPIRED_MESSAGE } from '../features/auth/session-expired';
 
 export interface ChatMessageInput {
   role: 'user' | 'assistant';
@@ -50,6 +51,13 @@ export async function streamChat({
     body: JSON.stringify({ messages }),
     ...(signal ? { signal } : {}),
   });
+
+  if (res.status === 401) {
+    // UX-ACC-10: same as a tRPC 401 — end the session and explain, instead of
+    // surfacing the server's bare "Unauthorized".
+    reportUnauthorized();
+    throw new Error(SESSION_EXPIRED_MESSAGE);
+  }
 
   if (!res.ok) {
     let message = `Chat failed (${res.status})`;

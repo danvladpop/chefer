@@ -15,6 +15,8 @@ const RECIPE = {
 };
 
 let mockSearch = '';
+let mockQuery: Record<string, unknown> = {};
+const mockRefetch = vi.fn();
 let mockMembers: { name: string; portionFactor: number }[] | null = null;
 let mockCookingFor: number | null = null;
 const mockLogRecipe = vi.fn();
@@ -32,6 +34,12 @@ vi.mock('next/link', () => ({
 vi.mock('@chefer/ui', () => ({
   Drawer: ({ open, children }: { open: boolean; children: React.ReactNode }) =>
     open ? <div role="dialog">{children}</div> : null,
+  ErrorState: ({ title, onRetry }: { title?: string; onRetry?: () => void }) => (
+    <div role="alert">
+      <p>{title}</p>
+      <button onClick={onRetry}>Try again</button>
+    </div>
+  ),
 }));
 vi.mock('@/features/recipe/components/StarRatingWidget', () => ({
   StarRatingWidget: () => null,
@@ -45,7 +53,9 @@ vi.mock('@/lib/trpc', () => ({
   trpc: {
     useUtils: () => ({}),
     mealPlan: {
-      getRecipe: { useQuery: () => ({ data: RECIPE, isLoading: false }) },
+      getRecipe: {
+        useQuery: () => ({ data: RECIPE, isLoading: false, refetch: mockRefetch, ...mockQuery }),
+      },
     },
     tracker: {
       logRecipe: {
@@ -58,6 +68,7 @@ vi.mock('@/lib/trpc', () => ({
 afterEach(() => {
   cleanup();
   mockSearch = '';
+  mockQuery = {};
   mockMembers = null;
   mockCookingFor = null;
   mockLogRecipe.mockReset();
@@ -194,5 +205,42 @@ describe('CookMode — table servings (UX-REC-02, UX-PLAN-02)', () => {
     key('ArrowRight');
     fireEvent.click(screen.getByText('Made it! Log this meal'));
     expect(mockLogRecipe).toHaveBeenCalledWith(expect.objectContaining({ portionMultiplier: 1 }));
+  });
+});
+
+// UX-COOK-03: a failed load is not a spinner forever; a recipe without steps is not "Step 1 of 0".
+describe('CookMode load states (UX-COOK-03)', () => {
+  it('a failed load shows an error with Try again and a Close link, not a spinner', () => {
+    mockQuery = {
+      data: undefined,
+      isLoading: false,
+      isError: true,
+      error: { data: { httpStatus: 500 } },
+    };
+    render(<CookMode recipeId="r1" />);
+    expect(screen.getByTestId('cook-load-error')).toBeTruthy();
+    expect(screen.getByTestId('cook-error-close').getAttribute('href')).toBe('/recipes');
+    fireEvent.click(screen.getByRole('button', { name: 'Try again' }));
+    expect(mockRefetch).toHaveBeenCalled();
+  });
+
+  it('a real NOT_FOUND keeps its copy', () => {
+    mockQuery = {
+      data: undefined,
+      isLoading: false,
+      isError: true,
+      error: { data: { code: 'NOT_FOUND', httpStatus: 404 } },
+    };
+    render(<CookMode recipeId="r1" />);
+    expect(screen.getByTestId('cook-not-found')).toBeTruthy();
+    expect(screen.queryByTestId('cook-load-error')).toBeNull();
+  });
+
+  it('a recipe with no steps says so instead of "Step 1 of 0"', () => {
+    mockQuery = { data: { ...RECIPE, instructions: [] } };
+    render(<CookMode recipeId="r1" />);
+    expect(screen.getByTestId('cook-no-steps')).toBeTruthy();
+    expect(screen.queryByText(/Step \d+ of 0/)).toBeNull();
+    expect(screen.getByRole('button', { name: /Finish/ })).toBeTruthy();
   });
 });

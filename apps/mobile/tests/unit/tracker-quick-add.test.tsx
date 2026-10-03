@@ -15,6 +15,12 @@ const mockSnackbarShow = jest.fn();
 let mockRecents: unknown[] = [];
 let mockRecipes: unknown[] = [];
 let mockIngredients: unknown[] = [];
+const mockSearchState = { isFetching: false, isError: false };
+const mockRefetch = jest.fn();
+const mockLogRecipeState: { isError: boolean; error: { message: string } | null } = {
+  isError: false,
+  error: null,
+};
 
 const mockLogCustomState: {
   isPending: boolean;
@@ -46,8 +52,14 @@ jest.mock('../../src/lib/trpc', () => ({
       },
       dashboard: { summary: { invalidate: jest.fn() } },
     }),
-    recipe: { list: { useQuery: () => ({ data: mockRecipes }) } },
-    ingredients: { search: { useQuery: () => ({ data: mockIngredients }) } },
+    recipe: {
+      list: { useQuery: () => ({ data: mockRecipes, refetch: mockRefetch, ...mockSearchState }) },
+    },
+    ingredients: {
+      search: {
+        useQuery: () => ({ data: mockIngredients, refetch: mockRefetch, ...mockSearchState }),
+      },
+    },
     tracker: {
       recents: { useQuery: () => ({ data: mockRecents }) },
       logRecipe: {
@@ -56,7 +68,9 @@ jest.mock('../../src/lib/trpc', () => ({
             mockLogRecipe(vars);
             opts.onSuccess?.({ log: {}, rebalance }, vars);
           },
+          ...mockLogRecipeState,
           isPending: false,
+          reset: jest.fn(),
         }),
       },
       logCustomMeal: {
@@ -103,6 +117,10 @@ beforeEach(() => {
   mockRecents = [];
   mockRecipes = [];
   mockIngredients = [];
+  mockSearchState.isFetching = false;
+  mockSearchState.isError = false;
+  mockLogRecipeState.isError = false;
+  mockLogRecipeState.error = null;
 });
 
 describe('QuickAddSheet — search-first (T-19.1)', () => {
@@ -231,6 +249,68 @@ describe('QuickAddSheet — search-first (T-19.1)', () => {
         fat: 4.5,
       }),
     );
+  });
+
+  // UX-FOOD-09
+  it('clamps absurd grams instead of previewing 88,999 kcal', async () => {
+    mockIngredients = [
+      {
+        name: 'banana',
+        displayName: 'Banana',
+        imageUrl: null,
+        hasMacros: true,
+        isCustom: false,
+        per100g: { calories: 89, protein: 1.1, carbs: 23, fat: 0.3 },
+      },
+    ];
+    const user = userEvent.setup();
+    await renderSheet();
+    await user.type(screen.getByTestId('log-sheet-search'), 'banana');
+    await user.press(screen.getByText('Banana'));
+    await user.clear(screen.getByTestId('log-sheet-grams-input-banana'));
+    await user.type(screen.getByTestId('log-sheet-grams-input-banana'), '99999');
+    expect(screen.getByTestId('log-sheet-grams-input-banana')).toHaveDisplayValue('4347');
+    expect(screen.getByTestId('log-sheet-grams-max-banana')).toBeOnTheScreen();
+    expect(screen.getByTestId('log-sheet-grams-live-kcal-banana')).toHaveTextContent(/^3869 kcal/);
+    await user.press(screen.getByTestId('log-sheet-grams-log-banana'));
+    expect(mockLogCustom).toHaveBeenCalledWith(expect.objectContaining({ kcal: 3869 }));
+  });
+
+  it('shows "Searching…" while a first search loads', async () => {
+    mockSearchState.isFetching = true;
+    const user = userEvent.setup();
+    await renderSheet();
+    await user.type(screen.getByTestId('log-sheet-search'), 'zzz');
+    expect(screen.getByTestId('log-sheet-searching')).toBeOnTheScreen();
+  });
+
+  it('offers "enter calories yourself" when nothing matches', async () => {
+    const user = userEvent.setup();
+    await renderSheet();
+    await user.type(screen.getByTestId('log-sheet-search'), 'zzz');
+    // The debounce has to settle before "no matches" is claimed.
+    expect(await screen.findByTestId('log-sheet-no-matches')).toBeOnTheScreen();
+    expect(screen.getByText(/No matches/)).toBeOnTheScreen();
+    await user.press(screen.getByTestId('log-sheet-no-matches'));
+    expect(screen.getByTestId('quick-add-name')).toHaveDisplayValue('zzz');
+  });
+
+  it('shows a Retry when the search fails instead of an empty list', async () => {
+    mockSearchState.isError = true;
+    const user = userEvent.setup();
+    await renderSheet();
+    await user.type(screen.getByTestId('log-sheet-search'), 'rice');
+    expect(screen.getByTestId('log-sheet-search-error')).toBeOnTheScreen();
+    expect(screen.queryByTestId('log-sheet-no-matches')).toBeNull();
+    await user.press(screen.getByTestId('log-sheet-search-retry'));
+    expect(mockRefetch).toHaveBeenCalled();
+  });
+
+  it('shows a failed log in the search view (not only in the manual form)', async () => {
+    mockLogRecipeState.isError = true;
+    mockLogRecipeState.error = { message: 'Recipe not found.' };
+    await renderSheet();
+    expect(screen.getByTestId('log-sheet-api-error')).toHaveTextContent(/Recipe not found/);
   });
 
   it('B-29/AC6: never shows a barcode or branded-product affordance', async () => {

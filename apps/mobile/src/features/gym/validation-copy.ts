@@ -1,5 +1,14 @@
 import { GYM_MAX_REPS, GYM_MAX_WEIGHT_KG, type WeightUnit } from '@chefer/types';
-import { formatLoadNumber, kgToUnit, unitLabel, userFacingErrorMessage } from '@chefer/utils';
+import {
+  formatLoadNumber,
+  kgToUnit,
+  parseIssuesFromMessage as sharedParseIssues,
+  unitLabel,
+  userFacingErrorMessage,
+  type ValidationIssueLike,
+} from '@chefer/utils';
+
+export type { ValidationIssueLike };
 
 // UX-GYM-01 / UX-X-06 (gym part): a server or schema validation failure must
 // never reach the user as `[{"code":"too_big","maximum":1000,…}]`. These
@@ -8,14 +17,6 @@ import { formatLoadNumber, kgToUnit, unitLabel, userFacingErrorMessage } from '@
 
 export const GENERIC_VALIDATION_MESSAGE =
   'Some values are out of range. Check the numbers you entered and try again.';
-
-export interface ValidationIssueLike {
-  code?: unknown;
-  path?: unknown;
-  maximum?: unknown;
-  minimum?: unknown;
-  message?: unknown;
-}
 
 const WEIGHT_LIMIT = `${formatLoadNumber(GYM_MAX_WEIGHT_KG, 'KG')} kg (${formatLoadNumber(GYM_MAX_WEIGHT_KG, 'LB')} lb)`;
 
@@ -43,26 +44,8 @@ export function describeValidationIssues(issues: readonly ValidationIssueLike[])
   return GENERIC_VALIDATION_MESSAGE;
 }
 
-function asIssues(value: unknown[]): ValidationIssueLike[] {
-  return value.filter((i): i is ValidationIssueLike => i !== null && typeof i === 'object');
-}
-
-/** Zod issues serialised in a message (`[{"code":…}]`), or null when it isn't. */
-export function parseIssuesFromMessage(message: string): ValidationIssueLike[] | null {
-  const trimmed = message.trim();
-  if (!trimmed.startsWith('[') && !trimmed.startsWith('{')) return null;
-  try {
-    const parsed: unknown = JSON.parse(trimmed);
-    if (Array.isArray(parsed)) return asIssues(parsed);
-    if (parsed !== null && typeof parsed === 'object' && 'issues' in parsed) {
-      const { issues } = parsed;
-      if (Array.isArray(issues)) return asIssues(issues);
-    }
-    return [];
-  } catch {
-    return /"code"\s*:/.test(trimmed) ? [] : null;
-  }
-}
+/** Zod issues serialised in a message (`[{"code":…}]`), or null when it isn't. Shared parser. */
+export const parseIssuesFromMessage = sharedParseIssues;
 
 /** A raw server/validation message → text safe to show; plain prose passes through. */
 export function friendlyValidationMessage(message: string): string {
@@ -70,9 +53,9 @@ export function friendlyValidationMessage(message: string): string {
   return issues === null ? message : describeValidationIssues(issues);
 }
 
-/** `userFacingErrorMessage` plus the Zod-JSON guard (gym screens use this). */
+/** `userFacingErrorMessage` with the gym's per-field limit copy for Zod issues. */
 export function gymErrorMessage(error: unknown): string {
-  return friendlyValidationMessage(userFacingErrorMessage(error));
+  return userFacingErrorMessage(error, undefined, { describeIssues: describeValidationIssues });
 }
 
 /** Inline check of a "starting weight" field typed in the display unit. */

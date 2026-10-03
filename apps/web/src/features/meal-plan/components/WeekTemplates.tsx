@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { trpc } from '@/lib/trpc';
 import { BookmarkPlus, Check, Pencil, Repeat, Trash2 } from 'lucide-react';
+import { userFacingErrorMessage } from '@chefer/utils';
 
 // My Weeks — up to 4 saved weeks (mirror of apps/mobile/app/my-weeks.tsx).
 // Lives on the My weeks page (/my-weeks) above the past weeks (P2-8).
@@ -32,20 +33,28 @@ export function WeekTemplates({
   };
 
   const saveMutation = trpc.mealPlan.saveAsTemplate.useMutation({
+    meta: { silent: true },
     onSuccess: () => {
       setSaveName('');
       invalidate();
     },
   });
-  const followMutation = trpc.mealPlan.followTemplate.useMutation({ onSuccess: invalidate });
+  const followMutation = trpc.mealPlan.followTemplate.useMutation({
+    meta: { silent: true },
+    onSuccess: invalidate,
+  });
   const unfollowMutation = trpc.mealPlan.unfollowTemplate.useMutation({ onSuccess: invalidate });
   const renameMutation = trpc.mealPlan.renameTemplate.useMutation({
+    meta: { silent: true },
     onSuccess: () => {
       setRenamingId(null);
       invalidate();
     },
   });
-  const deleteMutation = trpc.mealPlan.deleteTemplate.useMutation({ onSuccess: invalidate });
+  const deleteMutation = trpc.mealPlan.deleteTemplate.useMutation({
+    meta: { silent: true },
+    onSuccess: invalidate,
+  });
 
   const atCap = (templates?.length ?? 0) >= MAX_TEMPLATES;
   const busy =
@@ -55,11 +64,9 @@ export function WeekTemplates({
     renameMutation.isPending ||
     deleteMutation.isPending;
   const error =
-    saveMutation.error?.message ??
-    followMutation.error?.message ??
-    renameMutation.error?.message ??
-    deleteMutation.error?.message ??
-    null;
+    [saveMutation, followMutation, renameMutation, deleteMutation]
+      .map((m) => (m.error ? userFacingErrorMessage(m.error) : undefined))
+      .find((message) => message !== undefined) ?? null;
 
   // Nothing to show a brand-new user who has neither a plan nor templates.
   if (!showWhenEmpty && !currentPlanId && (templates?.length ?? 0) === 0) {

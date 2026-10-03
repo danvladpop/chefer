@@ -67,6 +67,7 @@ export function StarRating({
 
   const utils = trpc.useUtils();
   const rateMutation = trpc.recipe.rate.useMutation({
+    meta: { silent: true },
     onSuccess: (data) => {
       setSelected(data.rating);
       setNotes(stripLikedBy(data.notes));

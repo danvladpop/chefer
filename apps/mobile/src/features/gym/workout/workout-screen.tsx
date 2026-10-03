@@ -23,6 +23,7 @@ import {
 } from '@chefer/utils';
 import { useFlags } from '../../../hooks/use-flags';
 import { SUPERSET_COPY, SupersetSheet } from '../components/superset-sheet';
+import { openCreateExercise } from '../library/create-exercise-href';
 import { ExercisePicker } from '../library/exercise-picker';
 import { useActiveSessionPausedAt } from '../offline/active-session-store';
 import { localDate, newId } from '../offline/ids';
@@ -677,6 +678,9 @@ export function WorkoutScreen() {
       : !online
         ? 'Changing your routine needs a connection. This swap applies to today only.'
         : null;
+  // WP-04: a freestyle session (no routine) or an exercise outside the routine
+  // has no "routine" to change, so Swap skips the scope page ("Just today").
+  const swapAsksScope = session.routineId !== null && Boolean(contentSe?.routineExerciseId);
   const unticked = planned - done;
   // Skipped exercises can't join a superset; ones added mid-workout can.
   const pickable = exercises.filter((se) => !se.skipped);
@@ -694,7 +698,7 @@ export function WorkoutScreen() {
           <Ionicons name="chevron-down" size={22} color="#374151" />
         </Pressable>
         <View className="min-w-0 flex-1">
-          <Text testID="workout-title" numberOfLines={1} className="text-base font-semibold">
+          <Text testID="workout-title" numberOfLines={2} className="text-lg font-semibold">
             {session.name}
           </Text>
           <View className="flex-row items-center gap-2">
@@ -708,7 +712,14 @@ export function WorkoutScreen() {
             </Text>
           </View>
         </View>
-        <Button testID="workout-finish" onPress={onFinishPress} loading={finishing}>
+        {/* WP-04: one size up (lg) — pressed with sweaty hands; px-5 keeps the header slim. */}
+        <Button
+          testID="workout-finish"
+          size="lg"
+          className="px-5"
+          onPress={onFinishPress}
+          loading={finishing}
+        >
           Finish
         </Button>
       </View>
@@ -764,7 +775,7 @@ export function WorkoutScreen() {
             >
               <View className="h-4 w-1 rounded-full bg-violet-500" />
               <Text className="text-sm font-semibold text-violet-800">Superset {slot.label}</Text>
-              <Text variant="muted" className="min-w-0 flex-1 text-xs" numberOfLines={1}>
+              <Text variant="muted" className="min-w-0 flex-1 text-xs" numberOfLines={2}>
                 {restSec} s rest after each round
               </Text>
               <Pressable
@@ -837,6 +848,7 @@ export function WorkoutScreen() {
         isFirst={contentIndex === 0}
         isLast={contentIndex === exercises.length - 1}
         routineBlockedReason={routineBlockedReason}
+        swapAsksScope={swapAsksScope}
         history={contentSe ? exerciseHistory(contentSe.exerciseId, prior, 5) : []}
         unit={unit}
         loadType={contentMeta?.loadType ?? 'WEIGHTED'}
@@ -993,6 +1005,7 @@ export function WorkoutScreen() {
         }
         excludeIds={contentSe && content?.kind === 'picker' ? [contentSe.exerciseId] : undefined}
         showCardioFilter={cardioLogging}
+        onCreateFromSearch={openCreateExercise}
         testID="workout-picker"
       />
       <ConfirmSheet

@@ -107,6 +107,7 @@ export function SetupWizard() {
 
   const saveProfile = trpc.gym.profile.save.useMutation();
   const complete = trpc.gym.profile.completeSetup.useMutation({
+    meta: { silent: true },
     onSuccess: async (bootstrap) => {
       utils.gym.bootstrap.setData({ today: localDate() }, bootstrap);
       // The setup unit became the global unit preference (P2-6).

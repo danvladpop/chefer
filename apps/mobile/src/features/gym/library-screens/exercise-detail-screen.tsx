@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { Alert, Keyboard, Pressable, View } from 'react-native';
+import { Keyboard, Pressable, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { HIDDEN_EXERCISE_IMAGE_IDS, MUSCLE_LABELS } from '@chefer/types';
@@ -8,14 +8,17 @@ import {
   Button,
   Card,
   CardTitle,
+  ConfirmSheet,
   EmptyState,
+  ErrorState,
   KeyboardAwareScrollView,
   LineChart,
   Screen,
   Text,
 } from '@chefer/ui-mobile';
-import { formatLoad } from '@chefer/utils';
+import { formatLoad, isNotFoundError, userFacingErrorMessage } from '@chefer/utils';
 import { trpc } from '../../../lib/trpc';
+import { GymBootstrapUnavailable, useGymBootstrapLoad } from '../components/gym-bootstrap-state';
 import { exerciseImageUrl } from '../library/exercise-image';
 import { localBestSets, localE1rmSeries, localRepPrTable } from '../stats/local-engine';
 import { useGymBootstrap } from '../use-gym-bootstrap';
@@ -34,7 +37,11 @@ import { StackBackButton } from './stack-back-button';
 const HISTORY_LIMIT = 5;
 
 export function ExerciseDetailScreen({ exerciseId }: { exerciseId: string }) {
-  const { data: bootstrap, isLoading } = useGymBootstrap();
+  const bootstrapQuery = useGymBootstrap();
+  const bootstrap = bootstrapQuery.data;
+  // UX-GYM-24: a failed load is an error with Retry, not "Loading…" or "not found".
+  const bootstrapLoad = useGymBootstrapLoad(bootstrapQuery);
+  const [archiveConfirmOpen, setArchiveConfirmOpen] = useState(false);
   const online = useIsOnline();
   const utils = trpc.useUtils();
   const [videoVisible, setVideoVisible] = useState(false);
@@ -42,17 +49,21 @@ export function ExerciseDetailScreen({ exerciseId }: { exerciseId: string }) {
   const [noteFocused, setNoteFocused] = useState(false);
 
   const cachedExercise = bootstrap?.library.find((e) => e.id === exerciseId);
-  const { data: fetchedExercise } = trpc.gym.library.get.useQuery(
+  const fetchedQuery = trpc.gym.library.get.useQuery(
     { id: exerciseId },
     { enabled: !cachedExercise && online },
   );
+  const fetchedExercise = fetchedQuery.data;
   const exercise = cachedExercise ?? fetchedExercise;
 
   const archiveMutation = trpc.gym.library.archiveCustom.useMutation({
     onSuccess: () => {
       void utils.gym.bootstrap.invalidate();
+      setArchiveConfirmOpen(false);
       router.back();
     },
+    // The ConfirmSheet shows the failure itself — no default snackbar.
+    meta: { silent: true },
   });
 
   const sessions = useMemo(() => bootstrap?.recentSessions ?? [], [bootstrap]);
@@ -74,19 +85,11 @@ export function ExerciseDetailScreen({ exerciseId }: { exerciseId: string }) {
     setExerciseNote(exerciseId, value);
   };
 
+  // UX-GYM-22 / X-13: confirmed in a ConfirmSheet (not a native Alert), so a
+  // failed archive is shown in the sheet rather than lost.
   const onArchive = () => {
-    Alert.alert(
-      'Archive this exercise?',
-      'It stays in past sessions but won’t show up when adding exercises.',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Archive',
-          style: 'destructive',
-          onPress: () => archiveMutation.mutate({ id: exerciseId }),
-        },
-      ],
-    );
+    archiveMutation.reset();
+    setArchiveConfirmOpen(true);
   };
 
   if (!exercise) {
@@ -99,8 +102,21 @@ export function ExerciseDetailScreen({ exerciseId }: { exerciseId: string }) {
           <Text testID="gym-exercise-title" variant="title" className="mb-2">
             Exercise
           </Text>
-          {isLoading ? (
+          {bootstrapLoad.load === 'loading' || fetchedQuery.isLoading ? (
             <Text variant="muted">Loading…</Text>
+          ) : bootstrapLoad.load === 'error' || bootstrapLoad.load === 'offline' ? (
+            <GymBootstrapUnavailable
+              load={bootstrapLoad.load}
+              onRetry={bootstrapLoad.retry}
+              testID="exercise-detail"
+              what="this exercise"
+            />
+          ) : fetchedQuery.isError && !isNotFoundError(fetchedQuery.error) ? (
+            <ErrorState
+              testID="exercise-detail-error"
+              title="Couldn’t load this exercise"
+              onRetry={() => void fetchedQuery.refetch()}
+            />
           ) : (
             <EmptyState
               testID="exercise-detail-not-found"
@@ -324,6 +340,19 @@ export function ExerciseDetailScreen({ exerciseId }: { exerciseId: string }) {
           />
         ) : null}
       </KeyboardAwareScrollView>
+      <ConfirmSheet
+        visible={archiveConfirmOpen}
+        onClose={() => setArchiveConfirmOpen(false)}
+        title="Archive this exercise?"
+        body="It stays in past sessions but won’t show up when adding exercises."
+        confirmLabel="Archive"
+        cancelLabel="Cancel"
+        destructive
+        busy={archiveMutation.isPending}
+        error={archiveMutation.error ? userFacingErrorMessage(archiveMutation.error) : null}
+        onConfirm={() => archiveMutation.mutate({ id: exerciseId })}
+        testID="exercise-detail-archive-confirm"
+      />
     </Screen>
   );
 }

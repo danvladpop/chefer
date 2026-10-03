@@ -37,6 +37,12 @@ export {
 export { EmptyState, type EmptyStateProps } from './components/empty-state';
 export { CountPill, countPillText, type CountPillProps } from './components/count-pill';
 export { ErrorState, type ErrorStateProps } from './components/error-state';
+export { QueryStateView, type QueryStateViewProps } from './components/query-state-view';
+export {
+  useQueryState,
+  type QueryStateSource,
+  type UseQueryStateResult,
+} from './hooks/use-query-state';
 export { Input, type InputProps } from './components/input';
 export {
   KeyboardAwareScrollView,
@@ -58,6 +64,7 @@ export { ProgressRing, type ProgressRingProps } from './components/progress-ring
 export { Screen, type ScreenProps } from './components/screen';
 export {
   SegmentedControl,
+  thumbMetrics,
   type SegmentedControlProps,
   type SegmentedOption,
 } from './components/segmented-control';
@@ -92,6 +99,7 @@ export {
   SNACKBAR_TAP_SHIELD_MS,
   resetSnackbarForTests,
   setSnackbarTabBarHeight,
+  showSnackbar,
   useSnackbar,
   type SnackbarOptions,
   type SnackbarProps,
@@ -119,7 +127,12 @@ export {
   type FieldChainBinding,
   type UseFieldChainResult,
 } from './components/use-field-chain';
-export { ValueStepper, valueFontSize, type ValueStepperProps } from './components/value-stepper';
+export {
+  ValueStepper,
+  VALUE_MAX_FONT_SCALE,
+  valueFontSize,
+  type ValueStepperProps,
+} from './components/value-stepper';
 export { chartPalette, colors } from './components/theme';
 // Charts (react-native-svg)
 export {

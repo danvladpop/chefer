@@ -80,7 +80,7 @@ export function WeekOutlook({
                 >
                   <Text
                     className={cn(
-                      'text-[12px] font-semibold uppercase',
+                      'text-xs font-semibold uppercase',
                       isToday ? 'text-primary-foreground' : 'text-gray-600',
                     )}
                   >

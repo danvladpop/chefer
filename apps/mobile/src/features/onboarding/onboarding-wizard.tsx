@@ -145,6 +145,8 @@ export function OnboardingWizard() {
   const [draft] = useState(() => readOnboardingDraft(getToken()));
   const [step, setStep] = useState(draft?.step ?? 0);
   const [error, setError] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+  const savingRef = useRef(false);
   const [leaveSheetOpen, setLeaveSheetOpen] = useState(false);
   const safetyPickerRef = useRef<SafetyPickerHandle>(null);
   // Set once the setup is finished or skipped: the draft is gone for good and
@@ -270,18 +272,27 @@ export function OnboardingWizard() {
   }
 
   const setJobsMutation = trpc.preferences.setJobs.useMutation({
+    meta: { silent: true },
     onError: (err) => setError(userFacingErrorMessage(err)),
   });
-  const setDayKindsMutation = trpc.training.setDayKinds.useMutation();
-  const setShapeMutation = trpc.mealPlan.setShape.useMutation();
-  const setDisplayPrefsMutation = trpc.preferences.setDisplayPreferences.useMutation();
+  // UX-ONB-09: every save mutation reports through the wizard's own error
+  // line (saveAll's catch), so none of them raises the default snackbar too.
+  const setDayKindsMutation = trpc.training.setDayKinds.useMutation({ meta: { silent: true } });
+  const setShapeMutation = trpc.mealPlan.setShape.useMutation({ meta: { silent: true } });
+  const setDisplayPrefsMutation = trpc.preferences.setDisplayPreferences.useMutation({
+    meta: { silent: true },
+  });
   const safetyMutation = trpc.preferences.updateSafety.useMutation({
+    meta: { silent: true },
     onError: (err) => setError(userFacingErrorMessage(err)),
   });
   const profileBasicsMutation = trpc.preferences.saveProfileBasics.useMutation({
+    meta: { silent: true },
     onError: (err) => setError(userFacingErrorMessage(err)),
   });
-  const updateTargetsMutation = trpc.preferences.updateTargets.useMutation();
+  const updateTargetsMutation = trpc.preferences.updateTargets.useMutation({
+    meta: { silent: true },
+  });
   // R-18: the first week generates in the background AFTER onboarding has
   // already navigated to Today, so the dashboard cached at navigation time
   // says "nothing planned". Invalidate everything that reads the plan when the
@@ -354,7 +365,10 @@ export function OnboardingWizard() {
   const stepKey: OnboardingStepKey = steps[Math.min(step, totalSteps - 1)] ?? 'diet';
   const progress = onboardingProgress(steps, step);
   const progressPct = progress.percent ?? 0;
+  // One flag for the whole multi-step save: the individual mutations' pending
+  // flags drop between the awaits, which let a second Finish tap start a second save.
   const isSubmitting =
+    saving ||
     setJobsMutation.isPending ||
     safetyMutation.isPending ||
     profileBasicsMutation.isPending ||
@@ -478,6 +492,7 @@ export function OnboardingWizard() {
    * the health fields are left out (AC2).
    */
   function handleFinish(safetyNow: SafetyValue = safety) {
+    if (savingRef.current) return;
     setError(null);
     requestHealthConsent(() => void saveAll(true, safetyNow), {
       hasHealthData: hasAnySafetyTerm(safetyNow) || Object.keys(buildBasics()).length > 0,
@@ -489,6 +504,9 @@ export function OnboardingWizard() {
   }
 
   async function saveAll(includeHealth: boolean, safetyNow: SafetyValue) {
+    if (savingRef.current) return;
+    savingRef.current = true;
+    setSaving(true);
     setError(null);
     try {
       await setJobsMutation.mutateAsync({
@@ -542,8 +560,13 @@ export function OnboardingWizard() {
       }
       generateFirstWeek();
       goToDashboard();
-    } catch {
-      // onError already surfaced the message for the mutations that set one.
+    } catch (err) {
+      // UX-ONB-09: never swallow — whichever step failed, say so and let the
+      // user tap Finish again (every step is idempotent).
+      setError(userFacingErrorMessage(err));
+    } finally {
+      savingRef.current = false;
+      setSaving(false);
     }
   }
 

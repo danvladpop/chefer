@@ -22,7 +22,13 @@ import {
 } from 'lucide-react';
 import { VIDEO_IMPORT_COPY } from '@chefer/types';
 import { Sheet } from '@chefer/ui';
-import { cn, isSupportedVideoUrl, PREMIUM_PITCH_COPY, premiumPitchFor } from '@chefer/utils';
+import {
+  cn,
+  isSupportedVideoUrl,
+  PREMIUM_PITCH_COPY,
+  premiumPitchFor,
+  userFacingErrorMessage,
+} from '@chefer/utils';
 import { useLiveNutrition, type LiveNutrition } from '../hooks/useLiveNutrition';
 import { rowsFromImport, toSaveLines, type LineRow } from '../lib/recipe-lines';
 import { NutritionPreview } from './NutritionPreview';
@@ -93,6 +99,7 @@ export function ImportRecipeSheet({ open, onClose }: { open: boolean; onClose: (
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const previewMutation = trpc.recipe.importPreview.useMutation({
+    meta: { silent: true },
     onSuccess: (data) => {
       capture('recipe_imported', { via: data.via });
       if (isPremium === false) capture('teaser_engaged', { feature: 'import' });
@@ -108,6 +115,7 @@ export function ImportRecipeSheet({ open, onClose }: { open: boolean; onClose: (
   });
 
   const videoPreviewMutation = trpc.recipe.importVideoPreview.useMutation({
+    meta: { silent: true },
     onSuccess: (data) => {
       capture('recipe_imported', { via: 'video' });
       setVideoPreview(data);
@@ -115,6 +123,7 @@ export function ImportRecipeSheet({ open, onClose }: { open: boolean; onClose: (
   });
 
   const saveMutation = trpc.recipe.importSave.useMutation({
+    meta: { silent: true },
     onSuccess: (recipe) => {
       if (variant === 'adapted') capture('recipe_cheferized');
       void utils.recipe.list.invalidate();
@@ -298,7 +307,9 @@ export function ImportRecipeSheet({ open, onClose }: { open: boolean; onClose: (
         <VideoDraftForm
           preview={videoPreview}
           saving={saveMutation.isPending}
-          saveError={saveMutation.error?.message ?? null}
+          saveError={
+            (saveMutation.error ? userFacingErrorMessage(saveMutation.error) : undefined) ?? null
+          }
           onBack={reset}
           onSave={handleVideoSave}
         />
@@ -323,7 +334,11 @@ export function ImportRecipeSheet({ open, onClose }: { open: boolean; onClose: (
             setAcceptPartial(accept);
             setMatchError(null);
           }}
-          saveError={matchError ?? saveMutation.error?.message ?? null}
+          saveError={
+            matchError ??
+            (saveMutation.error ? userFacingErrorMessage(saveMutation.error) : undefined) ??
+            null
+          }
         />
       ) : (
         <div>
@@ -440,7 +455,9 @@ export function ImportRecipeSheet({ open, onClose }: { open: boolean; onClose: (
             </div>
           )}
 
-          {previewError && <p className="mt-3 text-sm text-red-600">{previewError.message}</p>}
+          {previewError && (
+            <p className="mt-3 text-sm text-red-600">{userFacingErrorMessage(previewError)}</p>
+          )}
         </div>
       )}
     </Sheet>

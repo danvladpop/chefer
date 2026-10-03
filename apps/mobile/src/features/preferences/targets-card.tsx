@@ -1,6 +1,14 @@
 import { useEffect, useState } from 'react';
 import { View } from 'react-native';
-import { Button, Card, Input, SegmentedControl, Text } from '@chefer/ui-mobile';
+import {
+  Button,
+  Card,
+  ErrorState,
+  Input,
+  SegmentedControl,
+  Text,
+  useQueryState,
+} from '@chefer/ui-mobile';
 import { userFacingErrorMessage } from '@chefer/utils';
 import { trpc } from '../../lib/trpc';
 import { useNumericChain } from './use-numeric-chain';
@@ -28,7 +36,9 @@ function parseIntOrNull(text: string): number | null {
 
 export function TargetsCard() {
   const utils = trpc.useUtils();
-  const { data, isLoading } = trpc.targets.get.useQuery();
+  const targetsQuery = trpc.targets.get.useQuery();
+  const { data } = targetsQuery;
+  const { state: loadState, retry } = useQueryState(targetsQuery);
 
   const [mode, setMode] = useState<'SUGGESTED' | 'OWN'>('SUGGESTED');
   const [kcalText, setKcalText] = useState('');
@@ -67,6 +77,7 @@ export function TargetsCard() {
   }, [data, loaded]);
 
   const setMutation = trpc.targets.set.useMutation({
+    meta: { silent: true },
     onSuccess: () => {
       void utils.targets.get.invalidate();
       void utils.targets.changes.invalidate();
@@ -107,7 +118,21 @@ export function TargetsCard() {
     });
   };
 
-  if (isLoading || !data) {
+  // UX-X-12: a failed load is not "Loading…" forever — say so and offer Retry.
+  if (loadState === 'error') {
+    return (
+      <Card testID="targets-card" className="gap-2">
+        <Text variant="heading">Your targets</Text>
+        <ErrorState
+          testID="targets-card-error"
+          title="Couldn't load your targets"
+          onRetry={retry}
+          className="py-4"
+        />
+      </Card>
+    );
+  }
+  if (!data) {
     return (
       <Card testID="targets-card" className="gap-2">
         <Text variant="heading">Your targets</Text>

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Pressable, View } from 'react-native';
+import { Linking, Pressable, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { haptics, Text } from '@chefer/ui-mobile';
 import {
@@ -9,6 +9,7 @@ import {
   hasShownRestPermissionRationale,
   markRestPermissionRationaleShown,
   REST_ADJUST_STEP_SEC,
+  restPermissionNeedsSettings,
   skipRest,
   useRestRemaining,
 } from '../rest-timer';
@@ -42,7 +43,12 @@ function useRestPermissionRationale(active: boolean): {
     visible,
     onAllow: () => {
       setVisible(false);
-      void ensureRestNotificationPermission();
+      // UX-GYM-11: already denied (or asked this session) → the OS won't show
+      // its prompt again, so send the user to Settings instead of doing nothing.
+      void restPermissionNeedsSettings().then((needsSettings) => {
+        if (needsSettings) void Linking.openSettings();
+        else void ensureRestNotificationPermission();
+      });
     },
     onClose: () => setVisible(false),
   };
@@ -139,12 +145,12 @@ function TimerButton({
       accessibilityRole="button"
       accessibilityLabel={a11y}
       onPress={onPress}
-      className={`h-12 min-w-14 items-center justify-center rounded-xl px-3 active:opacity-70 ${
+      className={`min-h-[52px] min-w-14 items-center justify-center rounded-xl px-3 active:opacity-70 ${
         primary ? 'bg-primary' : 'bg-muted'
       }`}
     >
       <Text
-        className={`text-base font-semibold ${primary ? 'text-primary-foreground' : 'text-foreground'}`}
+        className={`text-lg font-semibold ${primary ? 'text-primary-foreground' : 'text-foreground'}`}
       >
         {label}
       </Text>

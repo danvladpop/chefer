@@ -3,7 +3,15 @@ import { ActivityIndicator, Pressable, ScrollView, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import type { OnboardingJob } from '@chefer/types';
-import { Button, ConfirmSheet, Screen, Text, useSnackbar } from '@chefer/ui-mobile';
+import {
+  Button,
+  ConfirmSheet,
+  ErrorState,
+  Screen,
+  Text,
+  useQueryState,
+  useSnackbar,
+} from '@chefer/ui-mobile';
 import { setMode } from '../../src/features/gym/mode-store';
 import { JobsStep } from '../../src/features/onboarding/jobs-step';
 import { trpc } from '../../src/lib/trpc';
@@ -23,7 +31,9 @@ import { useUnsavedGuard } from '../../src/lib/use-unsaved-guard';
 export default function SettingsJobsScreen() {
   const utils = trpc.useUtils();
   const snackbar = useSnackbar();
-  const { data, isLoading } = trpc.preferences.get.useQuery();
+  const prefsQuery = trpc.preferences.get.useQuery();
+  const { data } = prefsQuery;
+  const { state: loadState, retry } = useQueryState(prefsQuery);
   const [jobs, setJobs] = useState<OnboardingJob[] | null>(null);
   const [originalJobs, setOriginalJobs] = useState<OnboardingJob[]>([]);
 
@@ -76,7 +86,20 @@ export default function SettingsJobsScreen() {
     },
   });
 
-  if (isLoading || jobs === null) {
+  // UX-X-12: a failed load is not a spinner forever.
+  if (loadState === 'error') {
+    return (
+      <Screen edges={['top', 'bottom', 'left', 'right']} className="justify-center">
+        <ErrorState
+          testID="settings-jobs-load-error"
+          title="Couldn't load your settings"
+          onRetry={retry}
+        />
+      </Screen>
+    );
+  }
+
+  if (jobs === null) {
     return (
       <Screen edges={['top', 'bottom', 'left', 'right']} className="items-center justify-center">
         <ActivityIndicator size="large" color="#944a00" />

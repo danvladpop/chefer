@@ -4,6 +4,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { Button, Chip, Input, SegmentedControl, Sheet, Text, useSnackbar } from '@chefer/ui-mobile';
 import {
   checkMacroSanity,
+  clampIngredientGrams,
   defaultMealSlot,
   formatPortion,
   formatQuickAddGrams,
@@ -68,6 +69,7 @@ const MACROS = [
 ] as const;
 
 const GRAM_CHIPS = [50, 100, 150, 200];
+const SEARCH_DEBOUNCE_MS = 250;
 const RECIPE_PORTIONS = [0.5, 0.75, 1, 1.5, 2];
 
 type SheetView = 'search' | 'manual';
@@ -112,6 +114,7 @@ export function QuickAddSheet({
   );
   const [expandedKey, setExpandedKey] = useState<string | null>(null);
   const [gramsText, setGramsText] = useState('100');
+  const [gramsCapped, setGramsCapped] = useState(false);
   const [portion, setPortion] = useState(1);
 
   // Manual "Enter calories yourself" form state (the old sheet, verbatim).
@@ -133,6 +136,7 @@ export function QuickAddSheet({
     setQuery('');
     setExpandedKey(null);
     setGramsText('100');
+    setGramsCapped(false);
     setPortion(1);
     setName('');
     setKcal('');
@@ -152,15 +156,26 @@ export function QuickAddSheet({
   const trimmedQuery = query.trim();
   const searching = trimmedQuery.length > 0;
 
+  // UX-FOOD-09: 250 ms debounce for the server groups, and the previous
+  // results stay on screen while the next ones load (no flicker).
+  const [debouncedQuery, setDebouncedQuery] = useState('');
+  useEffect(() => {
+    const timer = setTimeout(() => setDebouncedQuery(trimmedQuery), SEARCH_DEBOUNCE_MS);
+    return () => clearTimeout(timer);
+  }, [trimmedQuery]);
+
   const recentsQuery = trpc.tracker.recents.useQuery({ limit: 15 }, { enabled: visible });
   const recipesQuery = trpc.recipe.list.useQuery(
-    { search: trimmedQuery, myRecipesOnly: true, limit: 5 },
-    { enabled: visible && searching },
+    { search: debouncedQuery, myRecipesOnly: true, limit: 5 },
+    { enabled: visible && debouncedQuery.length > 0, placeholderData: (previous) => previous },
   );
   const ingredientsQuery = trpc.ingredients.search.useQuery(
-    { query: trimmedQuery },
-    { enabled: visible && trimmedQuery.length > 1 },
+    { query: debouncedQuery },
+    { enabled: visible && debouncedQuery.length > 1, placeholderData: (previous) => previous },
   );
+  const searchSettling =
+    debouncedQuery !== trimmedQuery || recipesQuery.isFetching || ingredientsQuery.isFetching;
+  const searchFailed = recipesQuery.isError || ingredientsQuery.isError;
 
   const recents = useMemo(() => {
     const all = recentsQuery.data ?? [];
@@ -175,6 +190,12 @@ export function QuickAddSheet({
     return plannedMeals.filter((m) => m.recipeName.toLowerCase().includes(q));
   }, [plannedMeals, searching, trimmedQuery]);
 
+  const hasSearchResults =
+    recents.length > 0 ||
+    planRows.length > 0 ||
+    (recipesQuery.data?.length ?? 0) > 0 ||
+    (ingredientsQuery.data?.length ?? 0) > 0;
+
   const onLoggedCommon = (
     data: RouterOutputs['tracker']['logRecipe'] | RouterOutputs['tracker']['logCustomMeal'],
     message: string,
@@ -186,10 +207,14 @@ export function QuickAddSheet({
     onClose();
   };
 
+  // Both mutations render their failure inline (search view and manual form),
+  // so neither raises the default snackbar (behind the sheet's modal).
   const logRecipeMutation = trpc.tracker.logRecipe.useMutation({
+    meta: { silent: true },
     onSuccess: (data, vars) => onLoggedCommon(data, `Logged ${vars.mealType}`),
   });
   const logCustomMutation = trpc.tracker.logCustomMeal.useMutation({
+    meta: { silent: true },
     onSuccess: (data, vars) => onLoggedCommon(data, `Logged ${vars.name}`),
   });
 
@@ -301,8 +326,17 @@ export function QuickAddSheet({
     </Text>
   );
 
-  const gramsNumber = Math.max(0, Math.round(Number(gramsText.replace(',', '.')) || 0));
   const expandedIngredient = ingredientsQuery.data?.find((i) => i.name === expandedKey);
+  // UX-FOOD-09: grams are clamped to what one entry can hold (server: kcal ≤ 5000).
+  const gramsInfo = expandedIngredient?.per100g
+    ? clampIngredientGrams(gramsText, expandedIngredient.per100g)
+    : null;
+  const gramsNumber = gramsInfo?.grams ?? 0;
+  const onGramsChange = (text: string, per100g: NonNullable<IngredientSearchRow['per100g']>) => {
+    const info = clampIngredientGrams(text, per100g);
+    setGramsCapped(info.clamped);
+    setGramsText(info.clamped ? String(info.max) : text);
+  };
   const expandedIngredientLive =
     expandedIngredient?.per100g && gramsNumber > 0
       ? scaleFromPer100g(expandedIngredient.per100g, gramsNumber)
@@ -379,6 +413,19 @@ export function QuickAddSheet({
             placeholder="What did you eat?"
             returnKeyType="search"
           />
+
+          {(logRecipeMutation.isError || logCustomMutation.isError) && (
+            <Text
+              testID="log-sheet-api-error"
+              accessibilityLiveRegion="polite"
+              className="text-sm text-red-600"
+            >
+              {"Couldn't log that: "}
+              {userFacingErrorMessage(
+                logRecipeMutation.isError ? logRecipeMutation.error : logCustomMutation.error,
+              )}
+            </Text>
+          )}
 
           {recents.length > 0 && (
             <View className="gap-1.5">
@@ -570,6 +617,7 @@ export function QuickAddSheet({
                       onPress={() => {
                         setExpandedKey(isOpen ? null : key);
                         setGramsText('100');
+                        setGramsCapped(false);
                       }}
                       className="flex-row items-center gap-3"
                     >
@@ -605,7 +653,10 @@ export function QuickAddSheet({
                               testID={`log-sheet-grams-${key}-${g}`}
                               label={`${g} g`}
                               selected={gramsNumber === g}
-                              onPress={() => setGramsText(String(g))}
+                              onPress={() => {
+                                setGramsText(String(g));
+                                setGramsCapped(false);
+                              }}
                             />
                           ))}
                         </View>
@@ -614,7 +665,9 @@ export function QuickAddSheet({
                             testID={`log-sheet-grams-input-${key}`}
                             accessibilityLabel={`Grams of ${ingredient.displayName}`}
                             value={gramsText}
-                            onChangeText={setGramsText}
+                            onChangeText={(text) => {
+                              if (ingredient.per100g) onGramsChange(text, ingredient.per100g);
+                            }}
                             keyboardType="number-pad"
                             className="min-w-0 flex-1"
                           />
@@ -629,6 +682,14 @@ export function QuickAddSheet({
                             ? `${expandedIngredientLive.kcal} kcal · ${expandedIngredientLive.protein}g P`
                             : '—'}
                         </Text>
+                        {gramsCapped && gramsInfo && (
+                          <Text
+                            testID={`log-sheet-grams-max-${key}`}
+                            className="text-xs text-amber-700"
+                          >
+                            One entry holds up to {gramsInfo.max.toLocaleString('en-US')} g.
+                          </Text>
+                        )}
                         <Button
                           testID={`log-sheet-grams-log-${key}`}
                           size="sm"
@@ -644,6 +705,43 @@ export function QuickAddSheet({
                 );
               })}
             </View>
+          )}
+
+          {searching && searchFailed && (
+            <View testID="log-sheet-search-error" className="gap-1 rounded-xl bg-amber-50 p-3">
+              <Text className="text-sm text-amber-800">
+                Couldn&apos;t search just now. Check your connection and try again.
+              </Text>
+              <Pressable
+                testID="log-sheet-search-retry"
+                accessibilityRole="button"
+                onPress={() => {
+                  void recipesQuery.refetch();
+                  void ingredientsQuery.refetch();
+                }}
+                className="min-h-11 justify-center self-start"
+              >
+                <Text className="text-sm font-semibold text-primary">Retry</Text>
+              </Pressable>
+            </View>
+          )}
+          {searching && !searchFailed && !hasSearchResults && searchSettling && (
+            <Text testID="log-sheet-searching" className="py-2 text-sm text-gray-500">
+              Searching…
+            </Text>
+          )}
+          {searching && !searchFailed && !hasSearchResults && !searchSettling && (
+            <Pressable
+              testID="log-sheet-no-matches"
+              accessibilityRole="button"
+              onPress={startManual}
+              className="min-h-11 justify-center py-2"
+            >
+              <Text className="text-sm text-gray-600">
+                No matches —{' '}
+                <Text className="font-semibold text-primary">enter calories yourself</Text>
+              </Text>
+            </Pressable>
           )}
 
           <View className="mt-1 flex-row flex-wrap gap-3 border-t border-border pt-3">

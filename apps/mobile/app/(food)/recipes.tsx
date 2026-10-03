@@ -343,7 +343,7 @@ export default function RecipesScreen() {
                 <View className="gap-1.5 p-4">
                   <View className="flex-row flex-wrap gap-1.5">
                     <View className="self-start rounded-full bg-accent px-2 py-0.5">
-                      <Text className="text-[12px] font-medium uppercase tracking-wide text-primary">
+                      <Text className="text-xs font-medium uppercase tracking-wide text-primary">
                         {recipe.cuisineType}
                       </Text>
                     </View>
@@ -352,7 +352,7 @@ export default function RecipesScreen() {
                         testID={`recipe-card-${recipe.id}-from`}
                         className="self-start rounded-full bg-gray-100 px-2 py-0.5"
                       >
-                        <Text className="text-[12px] text-gray-700">{fromLabel}</Text>
+                        <Text className="text-xs text-gray-700">{fromLabel}</Text>
                       </View>
                     ) : null}
                   </View>
@@ -384,7 +384,7 @@ export default function RecipesScreen() {
                       ] as const
                     ).map(([label, value]) => (
                       <View key={label} className="rounded-full bg-gray-100 px-2 py-0.5">
-                        <Text className="text-[12px] text-gray-500">
+                        <Text className="text-xs text-gray-500">
                           {label} {value}g
                         </Text>
                       </View>
