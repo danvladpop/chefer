@@ -24,6 +24,8 @@ let mockUser = {
   planTier: 'FREE',
 };
 let mockUsage: Record<string, unknown> | undefined;
+let mockUserFailed = false;
+const mockUserRefetch = jest.fn();
 let mockMembers: { name: string }[] = [];
 
 jest.mock('../../src/features/privacy/privacy-section', () => ({ PrivacySection: () => null }));
@@ -51,7 +53,13 @@ jest.mock('../../src/lib/trpc', () => ({
       auth: { me: { invalidate: jest.fn() } },
     }),
     user: {
-      me: { useQuery: () => ({ data: mockUser }) },
+      me: {
+        useQuery: () => ({
+          data: mockUserFailed ? undefined : mockUser,
+          isError: mockUserFailed,
+          refetch: mockUserRefetch,
+        }),
+      },
       downgradePlan: {
         useMutation: (opts: typeof downgradeOpts) => {
           downgradeOpts = opts;
@@ -97,6 +105,19 @@ beforeEach(() => {
   };
   mockUsage = usage();
   mockMembers = [];
+  mockUserFailed = false;
+});
+
+describe('Profile › failed load (UX-X-12)', () => {
+  it('shows an error with Try again instead of a name of "—"', async () => {
+    mockUserFailed = true;
+    const user = userEvent.setup();
+    await renderProfile();
+    expect(screen.getByTestId('profile-load-error')).toBeOnTheScreen();
+    expect(screen.queryByTestId('profile-user-card')).toBeNull();
+    await user.press(screen.getByTestId('profile-load-error-retry'));
+    expect(mockUserRefetch).toHaveBeenCalled();
+  });
 });
 
 describe('Profile › role badge (R-15)', () => {

@@ -1,3 +1,4 @@
+import { isNetworkError, isServerError } from '@chefer/utils';
 import { trpc } from '../../../lib/trpc';
 
 // ─── Following: availability gate (implementation-plan §8) ────────────────────
@@ -19,6 +20,14 @@ export type FriendsAvailability = {
   enabled: boolean;
   /** First answer still in flight (treat as off; don't render a placeholder). */
   isLoading: boolean;
+  /**
+   * UX-X-12: the check itself could not be made (offline, 5xx) — NOT an
+   * answer. A route gate says "couldn't load" with Retry for this, instead of
+   * "isn't available" (which a 4xx — old API, signed out — still gets).
+   */
+  unreachable: boolean;
+  /** Asks again (the gate's Retry). */
+  retry: () => void;
 };
 
 export function useFriendsAvailability(): FriendsAvailability {
@@ -30,5 +39,12 @@ export function useFriendsAvailability(): FriendsAvailability {
   return {
     enabled: query.data?.enabled === true && !query.isError,
     isLoading: query.isLoading,
+    unreachable:
+      query.isError &&
+      query.data === undefined &&
+      (isNetworkError(query.error) || isServerError(query.error)),
+    retry: () => {
+      void query.refetch();
+    },
   };
 }
