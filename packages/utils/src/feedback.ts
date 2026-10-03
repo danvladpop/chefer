@@ -1,3 +1,5 @@
+import { formatNumber } from './format';
+
 // ─── Beta feedback limits (audit F-PROF-2-2) ──────────────────────────────────
 // Shared by web's FeedbackDialog and mobile's feedback card so both stop at
 // the same cap and show the same counter. Mirrors the API's `feedback.submit`
@@ -18,7 +20,7 @@ export interface FeedbackCounter {
   remaining: number;
 }
 
-const fmt = (n: number): string => n.toLocaleString('en-US');
+const fmt = (n: number): string => formatNumber(n);
 
 /** The live counter under the feedback textarea. */
 export function feedbackCounter(length: number): FeedbackCounter {

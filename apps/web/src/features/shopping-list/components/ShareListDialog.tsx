@@ -58,7 +58,10 @@ export function ShareListDialog({
 
   // The planned dinners come from the same week's plan; only fetched when opened.
   const { data: plan } = trpc.mealPlan.getForWeek.useQuery({ weekOffset }, { enabled: open });
-  const dinners = useMemo(() => (plan ? dinnersFromPlan(plan.days, weekdayShortName) : []), [plan]);
+  const dinners = useMemo(
+    () => (plan ? dinnersFromPlan(plan.days, weekdayShortName, fromDayOfWeek) : []),
+    [plan, fromDayOfWeek],
+  );
 
   useEffect(() => {
     if (open) {

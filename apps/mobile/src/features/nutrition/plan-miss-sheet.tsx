@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, View } from 'react-native';
 import { Button, Sheet, Text } from '@chefer/ui-mobile';
-import { userFacingErrorMessage } from '@chefer/utils';
+import { formatKcal, userFacingErrorMessage } from '@chefer/utils';
 import { trpc } from '../../lib/trpc';
 
 // ─── PlanMissSheet (§2.11, T-11.3) ─────────────────────────────────────────────
@@ -117,8 +117,8 @@ export function PlanMissSheet({
     >
       <Text variant="muted" className="text-sm">
         {calorieTarget
-          ? `${dayName} is planned at ${kcal.toLocaleString('en-GB')} kcal against a target of ${calorieTarget.toLocaleString('en-GB')}. You can leave it as it is.`
-          : `${dayName} is planned at ${kcal.toLocaleString('en-GB')} kcal. You can leave it as it is.`}
+          ? `${dayName} is planned at ${formatKcal(kcal)} kcal against a target of ${formatKcal(calorieTarget)}. You can leave it as it is.`
+          : `${dayName} is planned at ${formatKcal(kcal)} kcal. You can leave it as it is.`}
       </Text>
 
       <View className="gap-3 pb-2">
@@ -137,7 +137,7 @@ export function PlanMissSheet({
               <ActivityIndicator size="small" />
             ) : preview ? (
               <Text testID="plan-miss-preview" variant="muted" className="text-xs">
-                {`Would be ${preview.kcal.toLocaleString('en-GB')} kcal · ${preview.protein} g protein`}
+                {`Would be ${formatKcal(preview.kcal)} kcal · ${preview.protein} g protein`}
               </Text>
             ) : previewMutation.isError ? (
               <Text variant="muted" className="text-xs">

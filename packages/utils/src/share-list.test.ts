@@ -191,6 +191,14 @@ describe('dinnersFromPlan / formatDinnersForSharing', () => {
     ]);
   });
 
+  it('a mid-week list counts only the dinners it covers (UX-SHOP-03: "Fri–Sun · For 7 dinners")', () => {
+    expect(dinnersFromPlan(days, label, 1)).toEqual([
+      { dayLabel: 'Tue', recipeName: 'Pasta Primavera' },
+    ]);
+    expect(dinnersFromPlan(days, label, 0)).toHaveLength(2);
+    expect(dinnersFromPlan(days, label, null)).toHaveLength(2);
+  });
+
   it('formats a heading, one line per day and the app pointer', () => {
     expect(formatDinnersForSharing(dinnersFromPlan(days, label), 'https://chefer.app')).toBe(
       [

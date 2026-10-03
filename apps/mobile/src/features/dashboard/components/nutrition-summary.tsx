@@ -9,7 +9,7 @@ import {
   ProgressRing,
   Text,
 } from '@chefer/ui-mobile';
-import { cn, dayNutritionCaption, dayStatus } from '@chefer/utils';
+import { cn, dayNutritionCaption, dayStatus, formatKcal } from '@chefer/utils';
 import type { RouterOutputs } from '../../../lib/trpc';
 import { TrainingDayNote } from './training-day-note';
 
@@ -117,7 +117,7 @@ export function NutritionSummary({
       <View className="mb-4 items-center gap-2">
         <ProgressRing
           testID="calorie-ring"
-          accessibilityLabel={`${n.eatenKcal.toLocaleString('en-US')} of ${target.dailyCalorieTarget.toLocaleString('en-US')} kcal eaten today`}
+          accessibilityLabel={`${formatKcal(n.eatenKcal)} of ${formatKcal(target.dailyCalorieTarget)} kcal eaten today`}
           progress={calories}
           size={RING_SIZE}
           strokeWidth={RING_STROKE}
@@ -139,7 +139,7 @@ export function NutritionSummary({
             style={{ maxWidth: RING_INNER_WIDTH }}
             className="text-center text-xs text-muted-foreground"
           >
-            of {target.dailyCalorieTarget.toLocaleString('en-US')} kcal
+            of {formatKcal(target.dailyCalorieTarget)} kcal
           </Text>
         </ProgressRing>
         <Text testID="calorie-remaining" className="text-center text-xs text-gray-500">

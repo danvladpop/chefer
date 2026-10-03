@@ -25,10 +25,13 @@ export function priceRange(pointEur: number | null | undefined): PriceRange | nu
 export function formatPriceRange(
   pointEur: number | null | undefined,
   currency: DisplayCurrency,
+  /** Device locale for the digits (UX-X-15); default keeps the currency's own convention. */
+  locale?: string,
 ): string | null {
   const range = priceRange(pointEur);
   if (!range) return null;
-  const low = formatMoney(range.lowEur, currency, { decimals: 0 });
-  const high = formatMoney(range.highEur, currency, { decimals: 0 });
+  const options = { decimals: 0, ...(locale !== undefined && { locale }) };
+  const low = formatMoney(range.lowEur, currency, options);
+  const high = formatMoney(range.highEur, currency, options);
   return `${low}–${high}`;
 }

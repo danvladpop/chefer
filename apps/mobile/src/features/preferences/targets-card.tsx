@@ -9,7 +9,7 @@ import {
   Text,
   useQueryState,
 } from '@chefer/ui-mobile';
-import { userFacingErrorMessage } from '@chefer/utils';
+import { formatKcal, userFacingErrorMessage } from '@chefer/utils';
 import { trpc } from '../../lib/trpc';
 import { useNumericChain } from './use-numeric-chain';
 
@@ -165,7 +165,7 @@ export function TargetsCard() {
       {mode === 'SUGGESTED' ? (
         <View className="gap-1 rounded-lg bg-accent p-3">
           <Text className="text-2xl font-bold text-primary">
-            {data.suggested.dailyCalorieTarget.toLocaleString('en-US')} kcal
+            {formatKcal(data.suggested.dailyCalorieTarget)} kcal
           </Text>
           <Text variant="muted" className="text-xs">
             {data.suggested.proteinG}g protein · {data.suggested.carbsG}g carbs ·{' '}

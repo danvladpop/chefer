@@ -1,5 +1,6 @@
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { render, screen, userEvent } from '@testing-library/react-native';
+import { formatDate, formatKcal } from '@chefer/utils';
 import HistoryPlanScreen from '../../app/history/[planId]';
 import HistoryScreen from '../../app/history/index';
 import { PastWeeksSection } from '../../src/features/history/past-weeks-section';
@@ -120,12 +121,16 @@ beforeEach(() => {
 describe('HistoryPlanScreen (detail)', () => {
   it('shows the week and the selected day’s meals in meal order', async () => {
     await renderWithSafeArea(<HistoryPlanScreen />);
-    expect(screen.getByTestId('history-plan-title')).toHaveTextContent(/Week of 7 Sept? 2026/);
+    expect(screen.getByTestId('history-plan-title')).toHaveTextContent(
+      `Week of ${formatDate(new Date('2026-09-07T00:00:00'), 'medium')}`,
+    );
     const names = screen
       .getAllByText(/Overnight Oats|Lentil Curry/)
       .map((n) => (n.props as { children: unknown }).children);
     expect(names).toEqual(['Overnight Oats', 'Lentil Curry']);
-    expect(screen.getByTestId('history-day-kcal')).toHaveTextContent(/1,000 kcal/);
+    expect(screen.getByTestId('history-day-kcal')).toHaveTextContent(
+      new RegExp(`${formatKcal(1000)} kcal`),
+    );
   });
 
   it('switches days and opens a meal’s recipe', async () => {
@@ -148,7 +153,14 @@ describe('HistoryPlanScreen (detail)', () => {
     await renderWithSafeArea(<HistoryPlanScreen />);
     await user.press(screen.getByTestId('history-plan-restore'));
     expect(mockRestoreMutate).not.toHaveBeenCalled();
-    expect(screen.getByTestId('restore-confirm-body')).toHaveTextContent(/week of 7 Sept?/);
+    expect(screen.getByTestId('restore-confirm-body')).toHaveTextContent(
+      new RegExp(
+        `week of ${formatDate(new Date('2026-09-07T00:00:00'), 'short')}`.replace(
+          /[.*+?^${}()|[\]\\]/g,
+          '\\$&',
+        ),
+      ),
+    );
 
     await user.press(screen.getByTestId('restore-confirm-cancel'));
     expect(mockRestoreMutate).not.toHaveBeenCalled();

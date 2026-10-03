@@ -61,6 +61,7 @@ export async function estimatePlanCostEur(
           quantity: ing.quantity * factor,
           unit: ing.unit,
           recipeId: m.recipe.id ?? '',
+          slug: ing.slug,
         }));
       }),
     ),

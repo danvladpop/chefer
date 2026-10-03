@@ -5,6 +5,7 @@ import { ConfirmSheet, NumericReturnBar, Text } from '@chefer/ui-mobile';
 import {
   bodyWeightInUnit,
   formatBodyWeight,
+  formatDate,
   parseBodyWeight,
   userFacingErrorMessage,
   type UnitSystem,
@@ -57,11 +58,7 @@ function EntryRow({ entry, system }: { entry: Entry; system: UnitSystem }) {
     onError: (err) => setError(userFacingErrorMessage(err)),
   });
 
-  const dateLabel = new Date(entry.recordedAt).toLocaleDateString('en-GB', {
-    weekday: 'short',
-    day: 'numeric',
-    month: 'short',
-  });
+  const dateLabel = formatDate(new Date(entry.recordedAt), 'weekday-short');
 
   const save = () => {
     const parsed = parseBodyWeight(value, system);

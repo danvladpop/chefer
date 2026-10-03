@@ -1,3 +1,5 @@
+import { formatKcal } from './format';
+
 // ─── Home "Today" nutrition (audit F-DASH-1-2) ────────────────────────────────
 // The home ring used to show PLANNED food: "540 remaining · Under target"
 // while 6,070 kcal had actually been logged. It now shows what was eaten
@@ -28,11 +30,8 @@ export function dayNutritionCaption(
 ): string {
   const left = Math.max(targetKcal - eatenKcal, 0);
   const over = eatenKcal - targetKcal;
-  const leftPart =
-    over > 0 ? `${over.toLocaleString('en-US')} over` : `${left.toLocaleString('en-US')} left`;
-  return plannedKcal > 0
-    ? `${plannedKcal.toLocaleString('en-US')} planned · ${leftPart}`
-    : leftPart;
+  const leftPart = over > 0 ? `${formatKcal(over)} over` : `${formatKcal(left)} left`;
+  return plannedKcal > 0 ? `${formatKcal(plannedKcal)} planned · ${leftPart}` : leftPart;
 }
 
 // ─── Today's status (UX-FOOD-05) ──────────────────────────────────────────────
@@ -77,7 +76,7 @@ export function dayStatus(
     const overByKcal = eaten - target;
     return {
       status: 'over',
-      label: `Over by ${overByKcal.toLocaleString('en-US')} kcal`,
+      label: `Over by ${formatKcal(overByKcal)} kcal`,
       overByKcal,
     };
   }

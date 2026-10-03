@@ -71,7 +71,8 @@ const CATEGORY_KEYWORDS: Record<string, GroceryCategory> = {
   beef: 'proteins',
   salmon: 'proteins',
   tuna: 'proteins',
-  egg: 'proteins',
+  // UX-SHOP-03: eggs sit with the dairy shelf in the shop ("Dairy & Eggs").
+  egg: 'dairy',
   tofu: 'proteins',
   shrimp: 'proteins',
   turkey: 'proteins',

@@ -11,6 +11,7 @@ import {
   type Prisma,
 } from '@chefer/database';
 import { LABEL_DEPENDENT_INGREDIENTS, type TableSafety, type UserProfile } from '@chefer/types';
+import { roundToPurchasable } from '@chefer/utils';
 import { toFriendlyAiError } from '../../lib/ai/friendly-error.js';
 import { aiService } from '../../lib/ai/index.js';
 import type { Ingredient } from '../../lib/ai/types.js';
@@ -332,10 +333,17 @@ export class ShoppingListService {
       if (hit.haveQuantity <= 0) return item;
       const remaining = need - hit.haveQuantity;
       const priceFactor = need > 0 ? remaining / need : 1;
+      // Still a shopping-sized amount: 2 avocados − 1.2 in the pantry is 1, not 0.8.
+      const toBuy = roundToPurchasable({
+        name: item.ingredientName,
+        quantity: remaining,
+        unit: item.unit,
+      });
       return {
         ...item,
         haveQuantity: round(hit.haveQuantity),
-        quantity: formatLineQuantity(remaining),
+        quantity: formatLineQuantity(toBuy.quantity),
+        unit: toBuy.unit,
         ...(item.estimatedPriceEur !== null && {
           estimatedPriceEur: round(item.estimatedPriceEur * priceFactor),
         }),
@@ -395,6 +403,7 @@ export class ShoppingListService {
             quantity: ing.quantity * factor,
             unit: ing.unit,
             recipeId: slot.recipeId,
+            slug: ing.slug,
           }));
         }),
       ),
@@ -786,6 +795,7 @@ export class ShoppingListService {
             quantity: ing.quantity * factor,
             unit: ing.unit,
             recipeId: slot.recipeId,
+            slug: ing.slug,
           }));
         }),
       ),

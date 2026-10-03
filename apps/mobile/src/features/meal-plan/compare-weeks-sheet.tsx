@@ -1,6 +1,6 @@
 import { ActivityIndicator, View } from 'react-native';
 import { Sheet, Text } from '@chefer/ui-mobile';
-import { sumPlanDay, weekdayLongName } from '@chefer/utils';
+import { formatKcal, sumPlanDay, weekdayLongName } from '@chefer/utils';
 import { trpc } from '../../lib/trpc';
 
 // The compare sheet behind `What Premium changed`: the free week the
@@ -33,7 +33,7 @@ export function compareRows(before: WeekLike | null | undefined, after: WeekLike
 }
 
 const cell = (t: { kcal: number; protein: number } | null): string =>
-  t ? `${t.kcal.toLocaleString('en-GB')} kcal · ${t.protein} g` : '—';
+  t ? `${formatKcal(t.kcal)} kcal · ${t.protein} g` : '—';
 
 export function CompareWeeksSheet({
   visible,

@@ -68,7 +68,7 @@ beforeEach(() => {
 async function removeFlour(handlers: Handlers) {
   const user = userEvent.setup();
   const view = await renderWithTrpc(<ShoppingListScreen />, handlers, testQueryClient());
-  await user.press(await screen.findByTestId('category-other'));
+  // Aisles are open by default (UX-SHOP-02), so the row is already there.
   await user.press(await screen.findByLabelText('Remove Flour'));
   return { user, ...view };
 }
