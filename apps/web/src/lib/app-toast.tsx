@@ -14,6 +14,8 @@ export interface AppToast {
   message: string;
   type: 'success' | 'error';
   durationMs: number;
+  /** Optional inline action ("Undo"). */
+  action?: { label: string; onClick: () => void };
 }
 
 let current: AppToast | null = null;
@@ -25,12 +27,14 @@ export function showAppToast(options: {
   message: string;
   type?: 'success' | 'error';
   durationMs?: number;
+  action?: { label: string; onClick: () => void };
 }): void {
   current = {
     id: ++nextId,
     message: options.message,
     type: options.type ?? 'error',
     durationMs: options.durationMs ?? 6000,
+    ...(options.action && { action: options.action }),
   };
   notify();
 }
@@ -66,6 +70,15 @@ export function AppToastHost() {
       type={toast.type}
       duration={toast.durationMs}
       onClose={() => dismiss(toast.id)}
+      {...(toast.action && {
+        action: {
+          label: toast.action.label,
+          onClick: () => {
+            toast.action?.onClick();
+            dismiss(toast.id);
+          },
+        },
+      })}
     />
   );
 }
