@@ -2971,6 +2971,24 @@ streaks, no red "missed" markers.
   **End pause** button (`gym.pause.end`) regardless of which device started
   it — the web's earlier "only pauses created in this browser" workaround
   (localStorage bookkeeping) is gone.
+- **Pause start choice (UX-GYM-16, WP-12 B):** a pause starts Today, Tomorrow or
+  next Monday (`pauseStartDate`, `@chefer/utils`) and lasts 1–4 whole weeks; the end
+  date is the **last paused day** (inclusive), so copy reads "Paused through Thu 8
+  Oct · Vacation" (`pauseSummaryLine`), never the raw ISO date or enum. A pause that
+  has not started yet is `GymBootstrap.upcomingPause` (additive, optional; same
+  shape as `activePause`), shown in settings with **Cancel pause** (`gym.pause.end`
+  deletes a pause that has not begun).
+- **Switching routines (UX-GYM-14/15, mobile My routines):** a template is previewed
+  day by day before it is created; **Create** keeps the active routine, **Create and
+  switch** activates it and sets the weekly goal to the template's days/week
+  (`gym.profile.save`). Archiving the active routine is confirmed with copy that says
+  Today will have no workout; Today then still shows Recent workouts and "Log a
+  workout you already did".
+- **Rep-range edits (UX-GYM-18):** a rep bucket with no progression yet starts from
+  the same exercise's other bucket (`carriedWeightKg`, Epley e1RM re-estimate)
+  instead of the starting guess; an exercise's first-ever session is a baseline and
+  is not counted as a PR on the finish summary (the PR timeline still lists it as
+  "First logged").
 - **Reminders (mobile only, local `expo-notifications`, G4-A):** one
   notification per planned weekday over the next 14 days at the profile's
   `reminderTime`, skipping a day already trained or inside a pause, plus at

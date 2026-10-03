@@ -333,19 +333,25 @@ export function TodayScreen() {
   }
 
   if (!bootstrap.activeRoutine) {
+    // UX-GYM-15: archiving the active routine must not hide the history — Recent
+    // workouts and "Log a workout you already did" stay (they need no routine).
     return (
       <Screen className="px-0">
-        <View className="gap-4 px-4 pt-3">{header}</View>
-        <EmptyState
-          testID="gym-today-empty-routine"
-          title="No active routine"
-          description="Pick or build a routine to see today's workout."
-          action={{
-            label: 'Go to Routine',
-            onPress: () => router.push('/routine'),
-            testID: 'gym-today-routine-cta',
-          }}
-        />
+        <ScrollView contentContainerClassName="gap-4 px-4 py-4">
+          {header}
+          <EmptyState
+            testID="gym-today-empty-routine"
+            title="No active routine"
+            description="Pick or build a routine to see today's workout."
+            action={{
+              label: 'Go to Routine',
+              onPress: () => router.push('/routine'),
+              testID: 'gym-today-routine-cta',
+            }}
+          />
+          <LogPastWorkoutAction bootstrap={bootstrap} />
+          <RecentWorkouts bootstrap={bootstrap} />
+        </ScrollView>
       </Screen>
     );
   }

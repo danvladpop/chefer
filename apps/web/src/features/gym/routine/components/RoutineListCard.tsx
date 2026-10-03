@@ -21,9 +21,11 @@ export function RoutineListCard({
   busy = false,
 }: RoutineListCardProps) {
   const handleArchive = () => {
-    if (
-      window.confirm(`Archive "${routine.name}"? You can still see it, but it won't show up here.`)
-    ) {
+    // UX-GYM-15: archiving the ACTIVE routine leaves Today without a workout to start.
+    const message = routine.isActive
+      ? `"${routine.name}" is your active routine. Today will have no workout to start until you set another routine active. Your history is kept. Archive it?`
+      : `Archive "${routine.name}"? You can still see it, but it won't show up here.`;
+    if (window.confirm(message)) {
       onArchive();
     }
   };

@@ -250,7 +250,7 @@ describe('GymSettingsScreen — units and pause', () => {
   });
 
   it('UX-GYM-16: "Next Monday" starts on the coming Monday', async () => {
-    const mutate = jest.fn();
+    const mutate = jest.fn<undefined, [{ startDate: string }]>();
     trpc.gym.pause.create.useMutation.mockReturnValue(mutationResult({ mutate }));
     const queryClient = makeClient();
     queryClient.setQueryData(gymBootstrapQueryKey, makeBootstrap());
@@ -260,7 +260,8 @@ describe('GymSettingsScreen — units and pause', () => {
     await user.press(screen.getByTestId('gym-settings-pause-start'));
     await user.press(screen.getByTestId('gym-settings-pause-starting-monday'));
     await user.press(screen.getByTestId('gym-settings-pause-confirm'));
-    const input = mutate.mock.calls[0]?.[0] as { startDate: string };
+    const input = mutate.mock.calls[0]?.[0];
+    if (!input) throw new Error('pause.create was not called');
     expect(weekdayOf(input.startDate)).toBe(0);
     expect(input.startDate > localDate()).toBe(true);
   });
