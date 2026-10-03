@@ -119,6 +119,15 @@ export interface IFavouriteRecipeRepository {
     lines?: ManualRecipeLines,
   ): Promise<Recipe>;
   findManualRecipeById(userId: string, recipeId: string): Promise<Recipe | null>;
+  /**
+   * UX-REC-04: soft-deletes the user's own MANUAL recipe (`deletedAt = now`).
+   * Returns false when there is no live recipe of theirs to delete. Their
+   * favourite rows for it go with it; slots in existing plans keep resolving
+   * the row (a tombstone) so a plan never breaks.
+   */
+  softDeleteManualRecipe(userId: string, recipeId: string): Promise<boolean>;
+  /** The Undo of `softDeleteManualRecipe`. False when the user has no deleted recipe by that id. */
+  restoreManualRecipe(userId: string, recipeId: string): Promise<boolean>;
 }
 
 // ─── Implementation ───────────────────────────────────────────────────────────
@@ -162,7 +171,7 @@ function manualCreateData(
 export class FavouriteRecipeRepository implements IFavouriteRecipeRepository {
   async findByUserId(userId: string, limit = 4): Promise<FavouriteRecipeWithRecipe[]> {
     return prisma.favouriteRecipe.findMany({
-      where: { userId },
+      where: { userId, recipe: { deletedAt: null } },
       include: { recipe: true },
       orderBy: { savedAt: 'desc' },
       take: limit,
@@ -193,7 +202,7 @@ export class FavouriteRecipeRepository implements IFavouriteRecipeRepository {
   /** Favourites the user pinned for their next generated plan (P1-1). */
   async findPinnedForNextPlan(userId: string): Promise<FavouriteRecipeWithRecipe[]> {
     return prisma.favouriteRecipe.findMany({
-      where: { userId, useInNextPlan: true },
+      where: { userId, useInNextPlan: true, recipe: { deletedAt: null } },
       include: { recipe: true },
       orderBy: { savedAt: 'desc' },
     });
@@ -265,12 +274,15 @@ export class FavouriteRecipeRepository implements IFavouriteRecipeRepository {
         ? [{ creatorId: { in: visibleCreatorIds }, originRecipeId: null }]
         : []),
     ];
+    // UX-REC-04: a soft-deleted recipe is in no list.
+    const notDeleted = { deletedAt: null } as const;
 
     if (myRecipesOnly) {
       return prisma.recipe.findMany({
         where: {
           creatorId: userId,
           source: RecipeSource.MANUAL,
+          ...notDeleted,
           ...(search ? { name: { contains: search, mode: 'insensitive' } } : {}),
         },
         include: RECIPE_PEOPLE,
@@ -286,6 +298,7 @@ export class FavouriteRecipeRepository implements IFavouriteRecipeRepository {
           userId,
           recipe: {
             OR: favouriteRecipeVisible,
+            ...notDeleted,
             ...(search ? { name: { contains: search, mode: 'insensitive' as const } } : {}),
           },
         },
@@ -314,7 +327,7 @@ export class FavouriteRecipeRepository implements IFavouriteRecipeRepository {
         select: { days: { select: { meals: true } } },
       }),
       prisma.recipe.findMany({
-        where: { creatorId: userId, source: RecipeSource.MANUAL, ...searchFilter },
+        where: { creatorId: userId, source: RecipeSource.MANUAL, ...notDeleted, ...searchFilter },
         include: RECIPE_PEOPLE,
         orderBy: { createdAt: 'desc' },
         take: 200,
@@ -322,7 +335,7 @@ export class FavouriteRecipeRepository implements IFavouriteRecipeRepository {
       prisma.favouriteRecipe.findMany({
         where: {
           userId,
-          recipe: { OR: favouriteRecipeVisible, ...searchFilter },
+          recipe: { OR: favouriteRecipeVisible, ...notDeleted, ...searchFilter },
         },
         include: { recipe: { include: RECIPE_PEOPLE } },
         orderBy: { savedAt: 'desc' as const },
@@ -340,7 +353,7 @@ export class FavouriteRecipeRepository implements IFavouriteRecipeRepository {
     const planRecipes =
       planRecipeIds.size > 0
         ? await prisma.recipe.findMany({
-            where: { id: { in: [...planRecipeIds] }, ...searchFilter },
+            where: { id: { in: [...planRecipeIds] }, ...notDeleted, ...searchFilter },
             include: RECIPE_PEOPLE,
             take: 200,
           })
@@ -391,6 +404,7 @@ export class FavouriteRecipeRepository implements IFavouriteRecipeRepository {
                 creatorId: viewerId,
                 originRecipeId: source.id,
                 source: RecipeSource.MANUAL,
+                deletedAt: null,
               },
               orderBy: { createdAt: 'asc' },
             });
@@ -440,8 +454,34 @@ export class FavouriteRecipeRepository implements IFavouriteRecipeRepository {
    */
   async findManualRecipeById(userId: string, recipeId: string): Promise<Recipe | null> {
     return prisma.recipe.findFirst({
-      where: { id: recipeId, creatorId: userId, source: RecipeSource.MANUAL },
+      where: { id: recipeId, creatorId: userId, source: RecipeSource.MANUAL, deletedAt: null },
     });
+  }
+
+  async softDeleteManualRecipe(userId: string, recipeId: string): Promise<boolean> {
+    return prisma.$transaction(async (tx: Prisma.TransactionClient) => {
+      const res = await tx.recipe.updateMany({
+        where: { id: recipeId, creatorId: userId, source: RecipeSource.MANUAL, deletedAt: null },
+        data: { deletedAt: new Date() },
+      });
+      if (res.count === 0) return false;
+      // The owner's own hearts/pins go; plan slots are left alone (tombstone).
+      await tx.favouriteRecipe.deleteMany({ where: { userId, recipeId } });
+      return true;
+    });
+  }
+
+  async restoreManualRecipe(userId: string, recipeId: string): Promise<boolean> {
+    const res = await prisma.recipe.updateMany({
+      where: {
+        id: recipeId,
+        creatorId: userId,
+        source: RecipeSource.MANUAL,
+        deletedAt: { not: null },
+      },
+      data: { deletedAt: null },
+    });
+    return res.count > 0;
   }
 
   /**
@@ -455,7 +495,7 @@ export class FavouriteRecipeRepository implements IFavouriteRecipeRepository {
   ): Promise<Recipe> {
     // Verify ownership before updating
     const existing = await prisma.recipe.findFirst({
-      where: { id: recipeId, creatorId: userId, source: RecipeSource.MANUAL },
+      where: { id: recipeId, creatorId: userId, source: RecipeSource.MANUAL, deletedAt: null },
     });
     if (!existing) {
       throw new Error('Recipe not found or not owned by user.');

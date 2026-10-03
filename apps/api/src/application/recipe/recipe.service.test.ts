@@ -19,7 +19,11 @@ const {
   updateManualRecipe,
   isSaved,
   save,
+  softDeleteManualRecipe,
+  restoreManualRecipe,
 } = vi.hoisted(() => ({
+  softDeleteManualRecipe: vi.fn(),
+  restoreManualRecipe: vi.fn(),
   findFavourite: vi.fn(),
   findManualRecipeById: vi.fn(),
   createManualRecipe: vi.fn(),
@@ -70,6 +74,8 @@ vi.mock('@chefer/database', async (importOriginal) => {
       updateManualRecipe,
       isSaved,
       save,
+      softDeleteManualRecipe,
+      restoreManualRecipe,
     },
     dietaryPreferencesRepository: { findByUserId },
     householdMemberRepository: { findByUserId: findHouseholdByUserId },
@@ -109,6 +115,8 @@ beforeEach(() => {
   }));
   isSaved.mockReset().mockResolvedValue(false);
   save.mockReset().mockResolvedValue({});
+  softDeleteManualRecipe.mockReset().mockResolvedValue(true);
+  restoreManualRecipe.mockReset().mockResolvedValue(true);
 });
 
 // ─── Fixtures ─────────────────────────────────────────────────────────────────
@@ -610,5 +618,26 @@ describe("RecipeService hearting a followed creator's recipe (FR-17.2)", () => {
       code: 'NOT_FOUND',
     });
     expect(save).not.toHaveBeenCalled();
+  });
+});
+
+describe('RecipeService.deleteMine / restoreMine — UX-REC-04', () => {
+  it('soft-deletes the caller’s own recipe and returns its id for Undo', async () => {
+    const service = new RecipeService();
+    await expect(service.deleteMine('u1', 'mine')).resolves.toEqual({ recipeId: 'mine' });
+    expect(softDeleteManualRecipe).toHaveBeenCalledWith('u1', 'mine');
+  });
+
+  it('answers NOT_FOUND (never a 500) for someone else’s or an already-deleted recipe', async () => {
+    softDeleteManualRecipe.mockResolvedValue(false);
+    const service = new RecipeService();
+    await expect(service.deleteMine('u1', 'theirs')).rejects.toMatchObject({ code: 'NOT_FOUND' });
+  });
+
+  it('restores a deleted recipe for Undo, NOT_FOUND when there is none', async () => {
+    const service = new RecipeService();
+    await expect(service.restoreMine('u1', 'mine')).resolves.toEqual({ recipeId: 'mine' });
+    restoreManualRecipe.mockResolvedValue(false);
+    await expect(service.restoreMine('u1', 'mine')).rejects.toMatchObject({ code: 'NOT_FOUND' });
   });
 });

@@ -191,6 +191,25 @@ export const recipeRouter = router({
     }),
 
   /**
+   * UX-REC-04: soft-deletes one of the caller's own recipes (additive — a
+   * `deletedAt` column, nothing is removed). Hidden from lists, pickers, pins
+   * and sharing; slots in existing plans keep resolving it as a tombstone
+   * (`mealPlan.getRecipe` adds `deleted: true`). Undo is `restoreMine`.
+   */
+  deleteMine: protectedProcedure
+    .input(z.object({ recipeId: z.string().min(1) }))
+    .mutation(async ({ ctx, input }) => {
+      return recipeService.deleteMine(ctx.user.id, input.recipeId);
+    }),
+
+  /** The Undo of `deleteMine`. */
+  restoreMine: protectedProcedure
+    .input(z.object({ recipeId: z.string().min(1) }))
+    .mutation(async ({ ctx, input }) => {
+      return recipeService.restoreMine(ctx.user.id, input.recipeId);
+    }),
+
+  /**
    * Checks whether a recipe is saved by the current user.
    */
   isSaved: protectedProcedure

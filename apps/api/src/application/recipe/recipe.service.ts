@@ -378,6 +378,26 @@ export class RecipeService {
     return { ...recipe, lines: prepared.report };
   }
 
+  /**
+   * UX-REC-04: soft-deletes the user's own recipe. NOT_FOUND when it isn't
+   * theirs (or is already deleted) — same answer, so ids can't be probed.
+   * Idempotent for the client: the deleted recipe's id is returned for Undo.
+   */
+  async deleteMine(userId: string, recipeId: string): Promise<{ recipeId: string }> {
+    if (!(await favouriteRecipeRepository.softDeleteManualRecipe(userId, recipeId))) {
+      throw new TRPCError({ code: 'NOT_FOUND', message: 'Recipe not found.' });
+    }
+    return { recipeId };
+  }
+
+  /** The Undo of `deleteMine`: brings the user's deleted recipe back. */
+  async restoreMine(userId: string, recipeId: string): Promise<{ recipeId: string }> {
+    if (!(await favouriteRecipeRepository.restoreManualRecipe(userId, recipeId))) {
+      throw new TRPCError({ code: 'NOT_FOUND', message: 'Recipe not found.' });
+    }
+    return { recipeId };
+  }
+
   async toggleFavourite(userId: string, recipeId: string): Promise<{ isSaved: boolean }> {
     const isSaved = await favouriteRecipeRepository.isSaved(userId, recipeId);
     if (isSaved) {
