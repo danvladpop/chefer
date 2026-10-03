@@ -31,6 +31,7 @@ type MockDay = Record<string, unknown> & {
 let mockServer: MockDay;
 let mockCache: MockDay;
 let mockFailWrites = false;
+let mockCopyDayError: Error | null = null;
 const mockListeners = new Set<() => void>();
 const mockSetCache = (next: MockDay) => {
   mockCache = next;
@@ -195,7 +196,10 @@ jest.mock('../../src/lib/trpc', () => {
               mockCopyDay(vars);
               callbacks?.onSuccess?.({ log: {}, copiedEntryIds: ['c1', 'c2'], rebalance });
             },
+            reset: jest.fn(),
             isPending: false,
+            isError: mockCopyDayError !== null,
+            error: mockCopyDayError,
           }),
         },
         deleteEntries: {
@@ -307,6 +311,7 @@ beforeEach(() => {
   jest.clearAllMocks();
   mockDayExtras = {};
   mockFailWrites = false;
+  mockCopyDayError = null;
   mockListeners.clear();
 });
 
@@ -478,6 +483,19 @@ describe('TrackerScreen — copy a day (T-19.3)', () => {
         expect.objectContaining({ entryIds: ['c1', 'c2'] }),
       ),
     );
+  });
+});
+
+describe('TrackerScreen — copy a day failing (UX-X-13)', () => {
+  it('keeps the confirm sheet open with the reason instead of closing silently', async () => {
+    mockCopyDayError = new Error('Something went wrong. Please try again.');
+    const user = userEvent.setup();
+    await renderTracker();
+    await user.press(screen.getByTestId('tracker-copy-day'));
+    expect(screen.getByTestId('tracker-copy-day-confirm-error')).toHaveTextContent(
+      "Couldn't copy the day. Something went wrong. Please try again.",
+    );
+    expect(screen.getByTestId('tracker-copy-day-confirm-confirm')).toBeOnTheScreen();
   });
 });
 
