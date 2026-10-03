@@ -7,7 +7,14 @@ import { trpc } from '@/lib/trpc';
 import { AlertTriangle, ArrowLeft, Copy, PauseCircle, RotateCw, Trash2 } from 'lucide-react';
 import type { ActivePauseDto, GymProfileDto, WeightUnit } from '@chefer/types';
 import { Button, Input, Sheet } from '@chefer/ui';
-import { addDaysLocal, cn, formatLoadNumber, unitLabel, WELLNESS_COPY } from '@chefer/utils';
+import {
+  addDaysLocal,
+  cn,
+  formatLoadNumber,
+  unitLabel,
+  userFacingErrorMessage,
+  WELLNESS_COPY,
+} from '@chefer/utils';
 import { shortDate } from '../shared/format';
 import { CardLabel, GymCard, GymSkeleton } from '../shared/gym-card';
 import { Stepper } from '../shared/stepper';
@@ -458,7 +465,7 @@ function PauseCard({
           </div>
           {create.isError && (
             <p role="alert" className="mt-2 text-xs text-red-600">
-              {create.error.message}
+              {userFacingErrorMessage(create.error)}
             </p>
           )}
         </>
