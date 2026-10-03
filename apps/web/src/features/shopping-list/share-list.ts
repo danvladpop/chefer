@@ -1,4 +1,5 @@
 import {
+  dinnersHeadingFor,
   formatListForSharing,
   shareableItems,
   shareListSubtitle,
@@ -101,6 +102,8 @@ export function buildShopShareText(input: {
   withAmounts: boolean;
   withDinners: boolean;
   dinners: readonly ShareDinner[];
+  /** Which week the list is for — heads the dinners block (UX-PLAN-07); absent = this week. */
+  weekOffset?: number | undefined;
   unitSystem: UnitSystem;
   shareUrl?: string | undefined;
 }): string {
@@ -116,6 +119,9 @@ export function buildShopShareText(input: {
       units: input.unitSystem === 'IMPERIAL' ? 'imperial' : 'metric',
       withDinners: input.withDinners,
       dinners: input.dinners,
+      ...(input.weekOffset !== undefined && {
+        dinnersHeading: dinnersHeadingFor(input.weekOffset),
+      }),
       title: shareListTitle({
         weekStart: input.weekStart,
         ...(input.fromDayOfWeek !== undefined && { fromDayOfWeek: input.fromDayOfWeek }),

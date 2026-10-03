@@ -59,6 +59,8 @@ export interface PlanDay {
   meals: MealSlot[];
   /** P1-1: grams short of the protein target, when meaningfully short. */
   proteinGapG?: number;
+  /** UX-PLAN-11: ids of the recipes logged as eaten that day (past-week view only). */
+  loggedRecipeIds?: string[];
   /**
    * §T-07.2/T-07.6: false when this day is outside the chosen plan shape
    * (`meals` is `[]`) — recomputed from the CURRENT stored shape on every
@@ -350,6 +352,7 @@ export function DayView({
                   leftoverLabel={slot.leftoverOf}
                   portion={slot.portion}
                   pinned={slot.pinned}
+                  eaten={day?.loggedRecipeIds?.includes(slot.recipe.id) === true}
                   onReplace={
                     onReplaceMeal
                       ? () => onReplaceMeal(slot.type, slot.recipe.name, slotIndex, slot.recipe.id)

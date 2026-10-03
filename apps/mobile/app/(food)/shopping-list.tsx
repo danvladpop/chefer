@@ -398,6 +398,10 @@ export default function ShoppingListScreen() {
                 Est. total{' '}
                 {formatPriceRange(weekList.estimatedTotalEur, currency) ??
                   `~${formatMoney(weekList.estimatedTotalEur, currency)}`}
+                {/* UX-PLAN-07: the total covers the same days as the list. */}
+                {shoppingWindowLabel(weekList.fromDayOfWeek)
+                  ? ` · ${shoppingWindowLabel(weekList.fromDayOfWeek)}`
+                  : ''}
               </Text>
             </View>
             {/* Who the quantities are for (P2-3, F-PM-5): a premium

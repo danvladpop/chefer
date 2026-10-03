@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  householdTableSummary,
   isValidPlanShape,
   planButtonLabel,
   planShapeSummary,
@@ -88,5 +89,33 @@ describe('planButtonLabel (UX-07 AC3)', () => {
     expect(planButtonLabel({ slots: ['breakfast', 'dinner'], days: [0, 1, 2] })).toBe(
       'Plan my week',
     );
+  });
+});
+
+describe('household table (UX-PLAN-12)', () => {
+  const shape = {
+    slots: ['dinner'],
+    days: [0, 1],
+    timeCapMins: null,
+    weekendNoLimit: false,
+    cookingFor: 1,
+  } as const;
+
+  it('summarises the table as "You + n" with the names', () => {
+    expect(householdTableSummary([])).toBeNull();
+    expect(householdTableSummary([{ name: 'Mia' }, { name: 'Noah' }])).toEqual({
+      text: 'You + 2',
+      names: 'Mia, Noah',
+    });
+    expect(householdTableSummary(['A', 'B', 'C', 'D', 'E'].map((name) => ({ name })))).toEqual({
+      text: 'You + 5',
+      names: 'A, B, C +2',
+    });
+  });
+
+  it('"cooking for" follows the table, not a stale "Just me"', () => {
+    expect(planShapeSummary(shape as never)).toContain('cooking for 1');
+    expect(planShapeSummary(shape as never, 3)).toContain('cooking for 3');
+    expect(planShapeSummary(shape as never, 1)).toContain('cooking for 1');
   });
 });

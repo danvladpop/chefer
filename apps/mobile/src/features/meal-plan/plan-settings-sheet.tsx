@@ -45,6 +45,11 @@ export function PlanSettingsSheet({
   fitTraining,
 }: PlanSettingsSheetProps) {
   const shapeQuery = trpc.mealPlan.getShape.useQuery(undefined, { enabled: visible });
+  // UX-PLAN-12: a household's "Cooking for" is read-only, from the table.
+  const householdQuery = trpc.household.list.useQuery(undefined, {
+    enabled: visible,
+    staleTime: 60_000,
+  });
   const { data } = shapeQuery;
   const { state: loadState, retry } = useQueryState(shapeQuery);
   const [draft, setDraft] = useState<(PlanShape & { leftovers: boolean }) | null>(null);
@@ -103,7 +108,11 @@ export function PlanSettingsSheet({
         </View>
       ) : (
         <View className="gap-5 pb-2">
-          <HowYouCookForm shape={draft} onChange={(shape) => setDraft({ ...draft, ...shape })} />
+          <HowYouCookForm
+            shape={draft}
+            householdMembers={householdQuery.data}
+            onChange={(shape) => setDraft({ ...draft, ...shape })}
+          />
 
           {(isPremium || fitTraining) && (
             <View className="gap-2 border-t border-border pt-4">

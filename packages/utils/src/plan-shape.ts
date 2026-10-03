@@ -35,17 +35,38 @@ export function isValidPlanShape(shape: unknown): shape is PlanShape {
  * A one-line human summary, e.g. "Breakfast, lunch, dinner · every day" or
  * "Lunch, dinner · Mon–Fri · 30 min or less · cooking for 2".
  */
-export function planShapeSummary(shape: PlanShape): string {
+export function planShapeSummary(shape: PlanShape, tableSize?: number | null): string {
   const slots = shape.slots.map((slot) => SLOT_LABEL[slot]).join(', ');
   const days = daysLabel(shape.days);
   const parts = [slots, days];
   if (shape.timeCapMins != null) {
     parts.push(`${shape.timeCapMins} min or less${shape.weekendNoLimit ? ' (weekdays)' : ''}`);
   }
-  if (shape.cookingFor != null) {
-    parts.push(`cooking for ${shape.cookingFor}`);
+  // UX-PLAN-12: with household members the table (you + them) is who the week
+  // is for — the stored "Just me / Two of us" is only the fallback without one.
+  const table = tableSize != null && tableSize >= 2 ? tableSize : shape.cookingFor;
+  if (table != null) {
+    parts.push(`cooking for ${table}`);
   }
   return parts.join(' · ');
+}
+
+/**
+ * UX-PLAN-12: the read-only "Cooking for" line when the household has members
+ * — `You + 2` — and who they are (`Mia, Noah`; more than three: `Mia, Noah, Ava +2`).
+ * Null when it is just the user.
+ */
+export function householdTableSummary(
+  members: readonly { name: string }[],
+): { text: string; names: string } | null {
+  if (members.length === 0) return null;
+  const names = members.map((m) => m.name.trim()).filter(Boolean);
+  const shown = names.slice(0, 3).join(', ');
+  const rest = names.length - 3;
+  return {
+    text: `You + ${members.length}`,
+    names: rest > 0 ? `${shown} +${rest}` : shown,
+  };
 }
 
 const MEAL_WORD_PLURAL: Readonly<Record<PlanSlot, string>> = {

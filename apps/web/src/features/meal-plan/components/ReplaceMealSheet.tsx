@@ -7,13 +7,17 @@ import { CheckedForChip } from '@/features/safety/components/CheckedForChip';
 import { FilteredForLine } from '@/features/safety/components/FilteredForLine';
 import { useIsPremium } from '@/hooks/useIsPremium';
 import { trpc } from '@/lib/trpc';
-import { Heart, Wand2 } from 'lucide-react';
+import { Heart, ShieldCheck, Wand2 } from 'lucide-react';
 import { ErrorState, Sheet } from '@chefer/ui';
 import {
   buildPickerSections,
   filterReplaceCandidates,
+  pickerRowMeta,
+  pickerSafetyHeader,
+  pickerSafetyHeaderText,
   userFacingErrorMessage,
   verifiedLabels,
+  type SlotMealType,
 } from '@chefer/utils';
 
 // Replace one meal slot — web port of the mobile RecipePickerSheet (parity
@@ -41,6 +45,8 @@ export interface ReplaceMealResult {
   recipeName: string;
   /** T-08.5/T-08.6: present unless there was nothing to undo to. */
   previousRecipeId?: string;
+  /** UX-PLAN-04: the replaced slot was pinned — Undo must restore that, not pin it. */
+  previousPinned?: boolean;
 }
 
 export function ReplaceMealSheet({
@@ -80,12 +86,22 @@ export function ReplaceMealSheet({
   // be able to pick one and see the "Use anyway" offer (T-00.11). The
   // broader/curated list is safety-filtered: never suggest someone else's
   // unsafe dish.
+  // UX-PLAN-05: `slotType` makes the server list the recipes that fit this
+  // slot first (Lunch used to lead with breakfasts).
+  const slotKind = target?.mealType;
+  const slotHint: { slotType?: SlotMealType } =
+    slotKind === 'breakfast' ||
+    slotKind === 'lunch' ||
+    slotKind === 'dinner' ||
+    slotKind === 'snack'
+      ? { slotType: slotKind }
+      : {};
   const mineQuery = trpc.recipe.list.useQuery(
-    { search: searchInput, myRecipesOnly: true, limit: 20 },
+    { search: searchInput, myRecipesOnly: true, limit: 20, ...slotHint },
     { enabled: open },
   );
   const allQuery = trpc.recipe.list.useQuery(
-    { search: searchInput, limit: 30, forTable: true },
+    { search: searchInput, limit: 30, forTable: true, ...slotHint },
     { enabled: open },
   );
   // T-02.5/AC7: how many `all` results the table's safety filter hid —
@@ -104,15 +120,25 @@ export function ReplaceMealSheet({
     void utils.tracker.invalidate();
     void utils.shoppingList.invalidate();
   };
-  const notifyChanged = (target: ReplaceTarget, recipeName: string, previousRecipeId?: string) => {
-    onChanged?.({ target, recipeName, ...(previousRecipeId && { previousRecipeId }) });
+  const notifyChanged = (
+    target: ReplaceTarget,
+    recipeName: string,
+    previousRecipeId?: string,
+    previousPinned?: boolean,
+  ) => {
+    onChanged?.({
+      target,
+      recipeName,
+      ...(previousRecipeId && { previousRecipeId }),
+      ...(previousPinned && { previousPinned }),
+    });
   };
   const replaceMutation = trpc.mealPlan.replaceRecipe.useMutation({
     meta: { silent: true },
     onSuccess: (data) => {
       invalidate();
       onClose();
-      if (target) notifyChanged(target, data.name, data.previousRecipeId);
+      if (target) notifyChanged(target, data.name, data.previousRecipeId, data.previousPinned);
     },
   });
   const requestAiConsent = useAiConsent();
@@ -121,7 +147,7 @@ export function ReplaceMealSheet({
     onSuccess: (data) => {
       invalidate();
       onClose();
-      if (target) notifyChanged(target, data.name, data.previousRecipeId);
+      if (target) notifyChanged(target, data.name, data.previousRecipeId, data.previousPinned);
     },
   });
 
@@ -136,7 +162,13 @@ export function ReplaceMealSheet({
   };
   const mineFiltered = mineQuery.data && filterReplaceCandidates(mineQuery.data, filterOpts);
   const allFiltered = allQuery.data && filterReplaceCandidates(allQuery.data, filterOpts);
-  const sections = buildPickerSections(mineFiltered, allFiltered);
+  const sections = buildPickerSections(mineFiltered, allFiltered, target?.mealType);
+  // UX-PLAN-05: the safety check is said once, in the header — not as the same
+  // pill on every row. Only a row that passed fewer rules keeps its own chip.
+  const safetyHeader = pickerSafetyHeader(
+    (allFiltered ?? []).map((r) => ({ id: r.id, verified: verifiedLabels(r.safetyChecks) })),
+  );
+  const safetyHeaderText = pickerSafetyHeaderText(safetyHeader.labels);
   const isLoading = mineQuery.isLoading || allQuery.isLoading;
   // UX-X-12: nothing to show because a load FAILED is not "No recipes match".
   const loadFailed =
@@ -231,6 +263,16 @@ export function ReplaceMealSheet({
           </div>
         )}
 
+        {safetyHeaderText && (
+          <p
+            data-testid="picker-checked-header"
+            className="flex items-center gap-1.5 text-sm text-gray-600"
+          >
+            <ShieldCheck className="h-3.5 w-3.5 shrink-0 text-[#944a00]" aria-hidden="true" />
+            <span className="min-w-0">{safetyHeaderText}</span>
+          </p>
+        )}
+
         {/* T-02.5/AC7: how many `forTable` results the safety filter hid. */}
         {hiddenQuery.data && hiddenQuery.data.hiddenCount > 0 && (
           <FilteredForLine
@@ -260,7 +302,7 @@ export function ReplaceMealSheet({
                 </h3>
                 <ul className="flex flex-col gap-2">
                   {section.data.map((recipe) => {
-                    const n = recipe.nutritionInfo as { calories: number };
+                    const n = recipe.nutritionInfo as { calories: number; protein?: number };
                     return (
                       <li key={recipe.id}>
                         <button
@@ -295,10 +337,15 @@ export function ReplaceMealSheet({
                             />
                           </div>
                           <div className="min-w-0 flex-1">
-                            <p className="truncate text-sm font-medium text-gray-900">
+                            <p className="line-clamp-2 text-sm font-medium text-gray-900">
                               {recipe.name}
                             </p>
-                            <p className="text-xs text-gray-500">{n.calories} kcal</p>
+                            <p
+                              data-testid={`picker-recipe-${recipe.id}-meta`}
+                              className="text-xs text-gray-500"
+                            >
+                              {pickerRowMeta({ ...recipe, nutritionInfo: n })}
+                            </p>
                           </div>
                           {recipe.isFavourite && (
                             <Heart
@@ -306,7 +353,7 @@ export function ReplaceMealSheet({
                               aria-hidden="true"
                             />
                           )}
-                          {isAllSection && (
+                          {isAllSection && safetyHeader.partialIds.has(recipe.id) && (
                             <CheckedForChip labels={verifiedLabels(recipe.safetyChecks)} />
                           )}
                         </button>

@@ -27,7 +27,8 @@ describe('safety-copy builders', () => {
   });
 
   it('checkedForChipText is the compact count', () => {
-    expect(checkedForChipText(3)).toBe('Checked for 3');
+    expect(checkedForChipText(3)).toBe('3 checks passed');
+    expect(checkedForChipText(1)).toBe('1 check passed');
   });
 
   it('checkedForChipA11yLabel spells the rules out', () => {

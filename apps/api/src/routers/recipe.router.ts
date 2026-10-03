@@ -68,6 +68,11 @@ export const recipeRouter = router({
          * it keep today's unfiltered list.
          */
         forTable: z.boolean().optional(),
+        /**
+         * UX-PLAN-05: the meal slot the list is for (the Replace picker) —
+         * recipes that fit it are listed first. Optional; additive.
+         */
+        slotType: z.enum(['breakfast', 'lunch', 'dinner', 'snack']).optional(),
       }),
     )
     .query(async ({ ctx, input }) => {

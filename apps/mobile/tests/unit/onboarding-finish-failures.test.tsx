@@ -71,6 +71,7 @@ jest.mock('../../src/lib/trpc', () => ({
       },
     },
     training: { setDayKinds: { useMutation: () => ({ mutateAsync: jest.fn() }) } },
+    household: { list: { useQuery: () => ({ data: [] }) } },
     mealPlan: {
       setShape: { useMutation: () => ({ mutateAsync: mockSetShape, isPending: false }) },
       getShape: { useQuery: () => ({ data: SHAPE }) },
