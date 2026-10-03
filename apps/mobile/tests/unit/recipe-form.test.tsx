@@ -124,9 +124,18 @@ const mockCreate = jest.fn();
 const mockUpdate = jest.fn();
 const mockCreateCustomIngredient = jest.fn();
 const mockInvalidate = { list: jest.fn(), getMyRecipe: jest.fn(), mealPlanGetRecipe: jest.fn() };
-const mockAddListener = jest.fn((_event: string, _cb: (e: unknown) => void) => () => undefined);
+// UX-X-01: the form guards leaving through React Navigation's usePreventRemove
+// (it also disables the iOS swipe). The mock records the latest (prevent,
+// callback) pair, so a test can assert the swipe is blocked while dirty and
+// then fire the blocked removal.
+type PreventRemoveCallback = (options: { data: { action: unknown } }) => void;
+const mockPreventRemove: { prevent: boolean; callback: PreventRemoveCallback | null } = {
+  prevent: false,
+  callback: null,
+};
 const mockDispatch = jest.fn();
 const mockBack = jest.fn();
+const mockGoBack = jest.fn();
 
 // R-10: the custom-ingredient sheet inside the form asks for AI consent before
 // "Fill in for me"; the guard is a pass-through here.
@@ -142,7 +151,15 @@ jest.mock('expo-router', () => ({
     },
   },
   useLocalSearchParams: () => mockParams,
-  useNavigation: () => ({ addListener: mockAddListener, dispatch: mockDispatch }),
+  useNavigation: () => ({ dispatch: mockDispatch, goBack: mockGoBack }),
+  useIsFocused: () => true,
+}));
+
+jest.mock('expo-router/react-navigation', () => ({
+  usePreventRemove: (prevent: boolean, callback: PreventRemoveCallback) => {
+    mockPreventRemove.prevent = prevent;
+    mockPreventRemove.callback = callback;
+  },
 }));
 
 jest.mock('../../src/lib/trpc', () => ({
@@ -468,21 +485,37 @@ describe('RecipeFormScreen — discard changes (AC9)', () => {
     await renderScreen();
     await fireEvent.changeText(screen.getByTestId('rf-name-input'), 'Something typed');
 
-    expect(mockAddListener).toHaveBeenCalledWith('beforeRemove', expect.any(Function));
-    const listener = mockAddListener.mock.calls.at(-1)?.[1] as (e: unknown) => void;
-    const fakeEvent = {
-      preventDefault: jest.fn(),
-      data: { action: { type: 'GO_BACK' } },
-    };
+    // The guard is armed (this is what disables the iOS swipe-back).
+    expect(mockPreventRemove.prevent).toBe(true);
     await act(() => {
-      listener(fakeEvent);
+      mockPreventRemove.callback?.({ data: { action: { type: 'GO_BACK' } } });
     });
 
-    expect(fakeEvent.preventDefault).toHaveBeenCalled();
     await waitFor(() => expect(screen.getByText('Discard your changes?')).toBeOnTheScreen());
+    expect(mockDispatch).not.toHaveBeenCalled();
 
     await fireEvent.press(screen.getByText('Discard'));
-    expect(mockDispatch).toHaveBeenCalledWith({ type: 'GO_BACK' });
+    await waitFor(() => expect(mockDispatch).toHaveBeenCalledWith({ type: 'GO_BACK' }));
+  });
+
+  it('"Keep editing" leaves the screen and its edits where they are (UX-X-01)', async () => {
+    await renderScreen();
+    await fireEvent.changeText(screen.getByTestId('rf-name-input'), 'Something typed');
+    await act(() => {
+      mockPreventRemove.callback?.({ data: { action: { type: 'GO_BACK' } } });
+    });
+    await waitFor(() => expect(screen.getByText('Discard your changes?')).toBeOnTheScreen());
+
+    await fireEvent.press(screen.getByText('Keep editing'));
+    expect(mockDispatch).not.toHaveBeenCalled();
+    expect(mockGoBack).not.toHaveBeenCalled();
+    expect(screen.getByTestId('rf-name-input')).toHaveProp('value', 'Something typed');
+    expect(mockPreventRemove.prevent).toBe(true);
+  });
+
+  it('a pristine form never arms the guard (nothing to lose, swipe stays enabled)', async () => {
+    await renderScreen();
+    expect(mockPreventRemove.prevent).toBe(false);
   });
 });
 
@@ -648,12 +681,7 @@ describe('RecipeFormScreen — catalog lines and computed nutrition (P9)', () =>
 
     it('linking lines on open is not an edit: leaving untouched never asks to discard', async () => {
       await renderScreen();
-      const listener = mockAddListener.mock.calls.at(-1)?.[1] as (e: unknown) => void;
-      const fakeEvent = { preventDefault: jest.fn(), data: { action: { type: 'GO_BACK' } } };
-      await act(() => {
-        listener(fakeEvent);
-      });
-      expect(fakeEvent.preventDefault).not.toHaveBeenCalled();
+      expect(mockPreventRemove.prevent).toBe(false);
     });
 
     it('a suggestion chip links the line, and the save sends every catalog id', async () => {

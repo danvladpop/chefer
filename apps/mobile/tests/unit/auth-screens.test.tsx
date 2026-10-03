@@ -5,7 +5,7 @@ import ForgotPasswordScreen from '../../app/(auth)/forgot-password';
 import LoginScreen from '../../app/(auth)/login';
 import RegisterScreen from '../../app/(auth)/register';
 import ResetPasswordScreen from '../../app/(auth)/reset-password';
-import { clearRegisterDraft } from '../../src/features/auth/register-draft';
+import { clearRegisterDraft, getRegisterDraft } from '../../src/features/auth/register-draft';
 import type { createTrpcAuthMock } from './auth-trpc-mock';
 import { mutationResult } from './auth-trpc-mock';
 
@@ -125,6 +125,45 @@ async function checkConsentBoxes(user: ReturnType<typeof userEvent.setup>) {
   await user.press(screen.getByTestId('register-accept-terms'));
   await user.press(screen.getByTestId('register-age-confirm'));
 }
+
+describe('Register draft (T-39.1, UX-ACC-17)', () => {
+  it('survives a legal-page round trip for the email and name, but NEVER the passwords', async () => {
+    const user = userEvent.setup();
+    const first = await renderWithSafeArea(<RegisterScreen />);
+    await user.type(screen.getByTestId('register-email'), 'ana@example.com');
+    await user.type(screen.getByTestId('register-password'), 'Password123!');
+    await user.type(screen.getByTestId('register-confirm-password'), 'Password123!');
+    expect(getRegisterDraft()?.email).toBe('ana@example.com');
+    expect(getRegisterDraft()).not.toHaveProperty('password');
+    expect(getRegisterDraft()).not.toHaveProperty('confirmPassword');
+    await first.unmount();
+
+    // The next mount (back from the legal screen — or the next person at the form).
+    await renderWithSafeArea(<RegisterScreen />);
+    expect(screen.getByTestId('register-email').props.value).toBe('ana@example.com');
+    expect(screen.getByTestId('register-password').props.value).toBe('');
+    expect(screen.getByTestId('register-confirm-password').props.value).toBe('');
+  });
+
+  it('drops the whole draft after a successful registration', async () => {
+    let onSuccess: ((data: { session: { token: string } | null }) => Promise<void>) | undefined;
+    const mutate = jest.fn(() => onSuccess?.({ session: null }));
+    trpc.auth.register.useMutation.mockImplementation((opts: { onSuccess: typeof onSuccess }) => {
+      onSuccess = opts.onSuccess;
+      return mutationResult({ mutate });
+    });
+    const user = userEvent.setup();
+    await renderWithSafeArea(<RegisterScreen />);
+    await user.type(screen.getByTestId('register-email'), 'ana@example.com');
+    await user.type(screen.getByTestId('register-password'), 'Password123!');
+    await user.type(screen.getByTestId('register-confirm-password'), 'Password123!');
+    await checkConsentBoxes(user);
+    await user.press(screen.getByTestId('register-submit'));
+
+    await waitFor(() => expect(mutate).toHaveBeenCalled());
+    expect(getRegisterDraft()).toBeNull();
+  });
+});
 
 describe('Register', () => {
   it('requires both consent boxes before the API is ever called (T-39.1, T-26.5)', async () => {

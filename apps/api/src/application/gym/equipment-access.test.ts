@@ -35,7 +35,7 @@ const service = new GymProfileService(
   vi.fn(),
   { recompute: vi.fn() },
   { findForUser: vi.fn() },
-  { upsert: vi.fn() },
+  { upsert: vi.fn(), findByUserId: vi.fn() },
 );
 
 describe('equipment answer is respected (F-GYM-2-1)', () => {

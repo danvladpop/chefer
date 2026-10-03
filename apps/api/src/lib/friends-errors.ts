@@ -105,12 +105,37 @@ export function textRejectedError(field: TextRejectedField): TRPCError {
   });
 }
 
-/** FORBIDDEN, worded like `mealPlan.replaceRecipe`'s UNSAFE_FOR_TABLE rejection. */
-export function unsafeForTableError(issues: readonly string[]): TRPCError {
+/**
+ * What the table-safety rejection says (UX-PLAN-06): an allergen "contains"
+ * something, a diet is something the dish IS NOT. `diets` are the issue labels
+ * that are dietary restrictions; `ingredients` name what broke each one when
+ * known. The "UNSAFE_FOR_TABLE:" prefix is the contract clients match on.
+ */
+export interface UnsafeForTableContext {
+  diets?: readonly string[];
+  ingredients?: Readonly<Record<string, readonly string[]>>;
+}
+
+export function unsafeForTableMessage(
+  issues: readonly string[],
+  context: UnsafeForTableContext = {},
+): string {
   const first = issues[0] ?? 'an ingredient';
+  if (context.diets?.includes(first)) {
+    const named = (context.ingredients?.[first] ?? []).slice(0, 3).join(', ');
+    return `UNSAFE_FOR_TABLE: this recipe isn't ${first.toLowerCase()}${named ? ` (it contains ${named})` : ''}, which conflicts with a diet set for your table.`;
+  }
+  return `UNSAFE_FOR_TABLE: this recipe contains ${first}, which conflicts with an allergy or dietary restriction set for your table.`;
+}
+
+/** FORBIDDEN, worded like `mealPlan.replaceRecipe`'s UNSAFE_FOR_TABLE rejection. */
+export function unsafeForTableError(
+  issues: readonly string[],
+  context: UnsafeForTableContext = {},
+): TRPCError {
   return new TRPCError({
     code: 'FORBIDDEN',
-    message: `UNSAFE_FOR_TABLE: this recipe contains ${first}, which conflicts with an allergy or dietary restriction set for your table.`,
+    message: unsafeForTableMessage(issues, context),
     cause: new UnsafeForTableCause(issues),
   });
 }

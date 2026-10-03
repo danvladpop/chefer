@@ -68,6 +68,29 @@ appId: dev.chefer.app.dev
           text: 'Not Now'
           optional: true
 
+# UX-ONB-01 (WP-01): an account with no saved jobs is routed back into the
+# onboarding wizard once per launch — the seed accounts have none, so answer
+# "Just looking around" (saves PLAN_MEALS, which ends the redirect).
+# A resumed draft can reopen on a later step: walk back to the jobs step first.
+- extendedWaitUntil:
+    visible:
+      id: 'onboarding-title'
+    timeout: 8000
+    optional: true
+- repeat:
+    times: 6
+    while:
+      visible:
+        id: 'onboarding-back'
+      notVisible:
+        id: 'onboarding-skip'
+    commands:
+      - tapOn:
+          id: 'onboarding-back'
+- tapOn:
+    id: 'onboarding-skip'
+    optional: true
+
 # Persisted Gym mode (gym_plan.md D3) opens Gym Today — switch back to Food so
 # food flows find the Home tab. (Wait for a tab root first: a sign-in above
 # may still be navigating.)

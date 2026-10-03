@@ -23,8 +23,32 @@ export const safetyChecksSchema = z.object({
    * (stock, curry powder, soy sauce…) but don't exclude by default (bug B-47).
    */
   labelCaveats: z.array(z.object({ ingredient: z.string(), rule: z.string() })).optional(),
+  /**
+   * UX-REC-01 (additive): the subset of `checked` that passed on the recipe's
+   * stored diet TAG alone — nothing in its ingredients could verify the diet.
+   * `checked` keeps its meaning for 1.0.1 clients ("passed"); newer clients
+   * render these as "Tagged paleo (not verified)", never "Checked".
+   */
+  taggedOnly: z.array(safetyCheckedItemSchema).optional(),
+  /**
+   * UX-REC-01/UX-PLAN-06 (additive): why each entry of `conflicts` failed, so
+   * the copy can say "Not paleo: contains quinoa" instead of "Contains Paleo".
+   */
+  conflictDetails: z
+    .array(
+      z.object({
+        label: z.string(),
+        kind: z.enum(['allergy', 'diet', 'dislike']),
+        /** The recipe's ingredients that broke the rule (empty when unknown). */
+        ingredients: z.array(z.string()),
+        /** A limit rather than an ingredient broke it ("22 g net carbs per serving"). */
+        reason: z.string().optional(),
+      }),
+    )
+    .optional(),
 });
 export type SafetyChecks = z.infer<typeof safetyChecksSchema>;
+export type SafetyConflictDetail = NonNullable<SafetyChecks['conflictDetails']>[number];
 
 export const tableSafetyPersonSchema = z.object({
   who: z.string(),

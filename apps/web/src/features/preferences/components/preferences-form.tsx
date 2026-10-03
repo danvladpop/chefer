@@ -1,7 +1,8 @@
 'use client';
 
 import { useRouter } from 'next/navigation';
-import { useState } from 'react';
+import { useRef, useState } from 'react';
+import type { StepDietHandle } from '@/features/onboarding/components/step-diet';
 import type { ActivityLevel, BiologicalSex, Goal } from '@/features/onboarding/types';
 import { useHealthConsent } from '@/features/privacy/use-health-consent';
 import { SafetyReviewCard } from '@/features/safety/components/SafetyReviewCard';
@@ -95,6 +96,9 @@ export function PreferencesForm({
   // Safety (allergies/restrictions/dislikes) and display units/currency save
   // through free procedures; everything else is premium-only updateTargets.
   const safetyMutation = trpc.preferences.updateSafety.useMutation();
+  // UX-ACC-01: a term typed in "Something else?" but never added with "Add" is
+  // flushed into the saved value on Save instead of being dropped.
+  const safetyPickerRef = useRef<StepDietHandle>(null);
   const displayMutation = trpc.preferences.setDisplayPreferences.useMutation();
   const targetsMutation = trpc.preferences.updateTargets.useMutation();
   const isSaving =
@@ -157,8 +161,20 @@ export function PreferencesForm({
       setToast({ message: ageError, type: 'error' });
       return;
     }
+    // null = a typed term still needs a Keep/Remove choice: don't save yet.
+    const safety = safetyPickerRef.current
+      ? safetyPickerRef.current.flush()
+      : {
+          dietaryRestrictions: data.dietaryRestrictions,
+          allergies: data.allergies,
+          dislikedIngredients: data.dislikedIngredients,
+        };
+    if (safety === null) return;
     const hasSafetyTerms =
-      data.allergies.length + data.dietaryRestrictions.length + data.dislikedIngredients.length > 0;
+      safety.allergies.length +
+        safety.dietaryRestrictions.length +
+        safety.dislikedIngredients.length >
+      0;
     const hasBodyData =
       isPremium &&
       (data.goal !== null ||
@@ -167,22 +183,21 @@ export function PreferencesForm({
         (data.heightCm !== null && data.heightCm > 0) ||
         (data.weightKg !== null && data.weightKg > 0) ||
         data.activityLevel !== null);
-    requestHealthConsent(() => void save(true), {
+    requestHealthConsent(() => void save(true, safety), {
       hasHealthData: hasSafetyTerms || hasBodyData,
       // "Don't save it": every other field is still saved, nothing health-related is sent.
-      onDeclined: () => void save(false),
+      onDeclined: () => void save(false, safety),
     });
   }
 
-  async function save(includeHealth: boolean) {
+  async function save(
+    includeHealth: boolean,
+    safety: { dietaryRestrictions: string[]; allergies: string[]; dislikedIngredients: string[] },
+  ) {
     if (isSaving) return;
     try {
       if (includeHealth) {
-        await safetyMutation.mutateAsync({
-          dietaryRestrictions: data.dietaryRestrictions,
-          allergies: data.allergies,
-          dislikedIngredients: data.dislikedIngredients,
-        });
+        await safetyMutation.mutateAsync(safety);
       }
       // Units + currency are free on every tier (audit F-DASH-3-2).
       if (data.preferredUnits !== initialUnits || data.deliveryCurrency !== initialCurrency) {
@@ -233,6 +248,7 @@ export function PreferencesForm({
         {/* Diet & restrictions — the safety section, free for every account.
             Rendered first so free users see their editable section on top. */}
         <SafetySection
+          ref={safetyPickerRef}
           value={{
             dietaryRestrictions: data.dietaryRestrictions,
             allergies: data.allergies,

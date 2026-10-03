@@ -49,3 +49,43 @@ describe('CheckedForLine (UX-02 T-02.2/T-02.3)', () => {
     expect(screen.getByLabelText(/Opens details\.$/)).toBeTruthy();
   });
 });
+
+describe('CheckedForLine — tag-only passes (UX-REC-01)', () => {
+  it('never says "Checked" for a pass that rests on the tag alone', async () => {
+    await render(
+      <CheckedForLine
+        testID="checked"
+        checks={{
+          checked: [
+            { label: 'Vegetarian', who: 'you' },
+            { label: 'Paleo', who: 'you' },
+          ],
+          taggedOnly: [{ label: 'Paleo', who: 'you' }],
+          unchecked: [],
+        }}
+      />,
+    );
+    expect(screen.getByTestId('checked-text')).toHaveTextContent('Checked for Vegetarian (you)');
+    expect(screen.getByTestId('checked-tagged-only')).toHaveTextContent(
+      'Tagged paleo (not verified)',
+    );
+    expect(screen.queryByText(/Checked for .*Paleo/)).toBeNull();
+  });
+
+  it('shows only the tagged line when nothing was verified', async () => {
+    await render(
+      <CheckedForLine
+        testID="checked"
+        checks={{
+          checked: [{ label: 'Keto', who: 'you' }],
+          taggedOnly: [{ label: 'Keto', who: 'you' }],
+          unchecked: [],
+        }}
+      />,
+    );
+    expect(screen.queryByTestId('checked-text')).toBeNull();
+    expect(screen.getByTestId('checked-tagged-only')).toHaveTextContent(
+      'Tagged keto (not verified)',
+    );
+  });
+});

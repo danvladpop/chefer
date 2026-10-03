@@ -9,7 +9,7 @@ import { useIsPremium } from '@/hooks/useIsPremium';
 import { trpc } from '@/lib/trpc';
 import { Heart, Wand2 } from 'lucide-react';
 import { Sheet } from '@chefer/ui';
-import { buildPickerSections, filterReplaceCandidates } from '@chefer/utils';
+import { buildPickerSections, filterReplaceCandidates, verifiedLabels } from '@chefer/utils';
 
 // Replace one meal slot — web port of the mobile RecipePickerSheet (parity
 // backlog 2026-09-23; T-08.9/T-08.10 undo + filter parity). Primary action:
@@ -287,9 +287,7 @@ export function ReplaceMealSheet({
                             />
                           )}
                           {isAllSection && (
-                            <CheckedForChip
-                              labels={recipe.safetyChecks?.checked.map((c) => c.label) ?? []}
-                            />
+                            <CheckedForChip labels={verifiedLabels(recipe.safetyChecks)} />
                           )}
                         </button>
                       </li>

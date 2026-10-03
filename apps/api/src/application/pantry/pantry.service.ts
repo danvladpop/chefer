@@ -8,7 +8,6 @@ import {
   type PantryItem,
 } from '@chefer/database';
 import type { UserProfile } from '@chefer/types';
-import { slotPortion } from '@chefer/utils';
 import type { Ingredient } from '../../lib/ai/index.js';
 import { CURATED_POOL_BY_TYPE } from '../../lib/curated-recipes/index.js';
 import { hasFeature } from '../../lib/entitlements.js';
@@ -17,7 +16,10 @@ import {
   normalizeIngredientName,
   visibleToUser,
 } from '../../lib/ingredient-prices/index.js';
+import { planForThisWeek } from '../meal-plan/plan-for-date.js';
+import { planShapeService } from '../meal-plan/plan-shape.service.js';
 import { safetyService, type SafetyService } from '../safety/safety.service.js';
+import { slotShopFactor } from '../shared/household-scale.js';
 import { buildPantryMatcher, rankRecipesByPantry } from './pantry-match.js';
 import { isStapleIngredient } from './staples.js';
 
@@ -217,7 +219,7 @@ export class PantryService {
     for (const recipe of this.safety.filter(curatedCandidates, ctx)) {
       candidates.set(recipe.name, { name: recipe.name, ingredients: recipe.ingredients });
     }
-    const activePlan = await this.planRepo.findActiveWithDays(user.id);
+    const activePlan = await planForThisWeek(this.planRepo, user.id);
     if (activePlan) {
       type MealSlotJson = { type: string; recipeId: string };
       const ids = [
@@ -267,6 +269,10 @@ export class PantryService {
     const matcher = buildPantryMatcher(pantry.map((p) => p.ingredientName));
 
     type MealSlotJson = { type: string; recipeId: string; portion?: number };
+    // The savings are what the pantry covers of the whole shop: the slot's
+    // eater portion plus "two of us" (UX-PLAN-02).
+    const { cookingFor } = await planShapeService.getShape(userId);
+    const table = { members: [], cookingFor };
     const ids = [
       ...new Set(plan.days.flatMap((d) => (d.meals as MealSlotJson[]).map((m) => m.recipeId))),
     ];
@@ -280,7 +286,7 @@ export class PantryService {
       for (const slot of day.meals as MealSlotJson[]) {
         const recipe = recipeMap.get(slot.recipeId);
         if (!recipe) continue;
-        const portion = slotPortion(slot.portion); // P1-1 portioned slots
+        const portion = slotShopFactor(slot.portion, null, table); // P1-1 portioned slots
         for (const ing of recipe.ingredients as unknown as Ingredient[]) {
           const key = `${normalizeIngredientName(ing.name)}|${ing.unit.toLowerCase().trim()}`;
           const quantity = ing.quantity * portion;

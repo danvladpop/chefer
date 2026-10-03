@@ -1,7 +1,7 @@
 'use client';
 
 import { useRouter } from 'next/navigation';
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { useAiConsent } from '@/features/ai-consent/AiConsentProvider';
 import { HouseholdSection } from '@/features/preferences/components/household-section';
 import { TargetsCard } from '@/features/preferences/components/TargetsCard';
@@ -16,7 +16,7 @@ import { bodyMetricsAgeError, type OnboardingJob } from '@chefer/types';
 import { aiConsentRequiredFor, onboardingProgress, onboardingSteps } from '@chefer/utils';
 import { EMPTY_WIZARD_DATA, type Goal, type WizardData } from '../types';
 import { StepCuisine } from './step-cuisine';
-import { StepDiet } from './step-diet';
+import { StepDiet, type StepDietHandle } from './step-diet';
 import { StepGoal } from './step-goal';
 import { StepHowYouCook, type HowYouCookStepValue } from './step-how-you-cook';
 import { StepJobs } from './step-jobs';
@@ -198,26 +198,35 @@ export function OnboardingWizard({
       ...(data.activityLevel !== null && { activityLevel: data.activityLevel }),
     };
   }
-  const hasSafetyTerms =
-    data.allergies.length + data.dietaryRestrictions.length + data.dislikedIngredients.length > 0;
+  const dietNow = {
+    dietaryRestrictions: data.dietaryRestrictions,
+    allergies: data.allergies,
+    dislikedIngredients: data.dislikedIngredients,
+  };
+  type DietAnswers = typeof dietNow;
+  const hasTerms = (diet: DietAnswers) =>
+    diet.allergies.length + diet.dietaryRestrictions.length + diet.dislikedIngredients.length > 0;
+  // UX-ACC-01: a term typed in "Something else?" but never added with "Add" is
+  // flushed into the answers when the diet step is left.
+  const dietPickerRef = useRef<StepDietHandle>(null);
 
   /**
    * Finish = save everything. Health fields go through the health consent
    * guard: allowed (or already on record) → saved; "Don't save it" → every
    * OTHER answer is still saved and the health fields are left out (AC2).
    */
-  function handleFinish() {
+  function handleFinish(diet: DietAnswers = dietNow) {
     setError(null);
-    requestHealthConsent(() => void saveAll(true), {
-      hasHealthData: hasSafetyTerms || Object.keys(buildBasics()).length > 0,
+    requestHealthConsent(() => void saveAll(true, diet), {
+      hasHealthData: hasTerms(diet) || Object.keys(buildBasics()).length > 0,
       onDeclined: () => {
         setHealthDeclined('diet');
-        void saveAll(false);
+        void saveAll(false, diet);
       },
     });
   }
 
-  async function saveAll(includeHealth: boolean) {
+  async function saveAll(includeHealth: boolean, diet: DietAnswers) {
     setError(null);
     try {
       await setJobsMutation.mutateAsync({
@@ -237,11 +246,7 @@ export function OnboardingWizard({
       }
       // With health left out (declined) nothing health-related is sent at all.
       if (includeHealth) {
-        await safetyMutation.mutateAsync({
-          dietaryRestrictions: data.dietaryRestrictions,
-          allergies: data.allergies,
-          dislikedIngredients: data.dislikedIngredients,
-        });
+        await safetyMutation.mutateAsync(diet);
         const basics = buildBasics();
         if (Object.keys(basics).length > 0) {
           await profileBasicsMutation.mutateAsync(basics);
@@ -279,8 +284,15 @@ export function OnboardingWizard({
     // sheet appears where the user just typed it. "Don't save it" discards that
     // step's health fields (never sent) and keeps the step open with an amber
     // notice — Continue again moves on.
-    if (stepKey === 'diet' && hasSafetyTerms) {
-      requestHealthConsent(advance, {
+    let diet = dietNow;
+    if (stepKey === 'diet') {
+      // null = a typed term still needs a Keep/Remove choice: stay on the step.
+      const flushed = dietPickerRef.current ? dietPickerRef.current.flush() : dietNow;
+      if (flushed === null) return;
+      diet = flushed;
+    }
+    if (stepKey === 'diet' && hasTerms(diet)) {
+      requestHealthConsent(() => advance(diet), {
         onDeclined: () => {
           setData((d) => ({
             ...d,
@@ -300,7 +312,7 @@ export function OnboardingWizard({
           (v) => v !== null,
         ));
     if (bodyStepHasData) {
-      requestHealthConsent(advance, {
+      requestHealthConsent(() => advance(), {
         onDeclined: () => {
           setData((d) =>
             stepKey === 'goal'
@@ -319,14 +331,14 @@ export function OnboardingWizard({
       });
       return;
     }
-    advance();
+    advance(diet);
   }
 
-  function advance() {
+  function advance(diet: DietAnswers = dietNow) {
     if (step < totalSteps) {
       setStep((s) => s + 1);
     } else {
-      handleFinish();
+      handleFinish(diet);
     }
   }
 
@@ -410,6 +422,7 @@ export function OnboardingWizard({
 
           {stepKey === 'diet' && (
             <StepDiet
+              ref={dietPickerRef}
               value={{
                 dietaryRestrictions: data.dietaryRestrictions,
                 allergies: data.allergies,

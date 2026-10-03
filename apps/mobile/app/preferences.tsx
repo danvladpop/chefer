@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, TextInput, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
@@ -28,6 +28,7 @@ import { openPremium } from '../src/features/premium/open-premium';
 import { HealthDeclinedNotice } from '../src/features/privacy/health-notices';
 import { useHealthConsent } from '../src/features/privacy/use-health-consent';
 import { MigrationCard } from '../src/features/safety/migration-card';
+import type { SafetyPickerHandle } from '../src/features/safety/safety-picker';
 import { useIsPremium } from '../src/hooks/use-is-premium';
 import { trpc } from '../src/lib/trpc';
 
@@ -62,6 +63,10 @@ export default function PreferencesScreen() {
     dislikedIngredients: [],
   });
   const [safetyLoaded, setSafetyLoaded] = useState(false);
+  // UX-ACC-01: a term typed in "Something else?" but never added with "+" is
+  // flushed into the value on Save (and counts as an unsaved edit meanwhile).
+  const safetyPickerRef = useRef<SafetyPickerHandle>(null);
+  const [safetyTermPending, setSafetyTermPending] = useState(false);
 
   // ── Units & currency (free) + budget (premium) ─────────────────────────────
   const savedCurrency = toDisplayCurrency(data?.chefProfile?.deliveryCurrency);
@@ -129,7 +134,8 @@ export default function PreferencesScreen() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [safetyMutation.isSuccess, safetyLoaded]);
   const safetyDirty =
-    savedSafety !== null && JSON.stringify(savedSafety) !== JSON.stringify(safety);
+    safetyTermPending ||
+    (savedSafety !== null && JSON.stringify(savedSafety) !== JSON.stringify(safety));
 
   const [savedDisplay, setSavedDisplay] = useState<{
     units: 'METRIC' | 'IMPERIAL';
@@ -150,13 +156,16 @@ export default function PreferencesScreen() {
   const budgetDirty = savedBudget !== null && savedBudget !== budget;
 
   const saveSafety = () => {
+    // null = a typed term still needs a Keep/Remove choice: don't save yet.
+    const toSave = safetyPickerRef.current ? safetyPickerRef.current.flush() : safety;
+    if (toSave === null) return;
     setSafetyDeclined(false);
-    requestHealthConsent(() => safetyMutation.mutate(safety), {
+    requestHealthConsent(() => safetyMutation.mutate(toSave), {
       // Clearing every list stores nothing health-related — no consent needed.
       hasHealthData:
-        safety.allergies.length +
-          safety.dietaryRestrictions.length +
-          safety.dislikedIngredients.length >
+        toSave.allergies.length +
+          toSave.dietaryRestrictions.length +
+          toSave.dislikedIngredients.length >
         0,
       // "Don't save it": nothing health-related is stored; say what that means.
       onDeclined: () => setSafetyDeclined(true),
@@ -225,7 +234,13 @@ export default function PreferencesScreen() {
           {/* Safety — free for every account (P1-2) */}
           <Card testID="preferences-safety" className="gap-4">
             <Text variant="heading">Food safety</Text>
-            <SafetyStep value={safety} onChange={setSafety} testIDPrefix="prefs" />
+            <SafetyStep
+              ref={safetyPickerRef}
+              value={safety}
+              onChange={setSafety}
+              onPendingChange={setSafetyTermPending}
+              testIDPrefix="prefs"
+            />
             <Button
               testID="prefs-save-safety"
               loading={safetyMutation.isPending}

@@ -86,6 +86,8 @@ vi.mock('@chefer/database', async (importOriginal) => {
       cancelRunningForWeek: vi.fn().mockResolvedValue(0),
       create: vi.fn(),
       findCheckedKeys: vi.fn().mockResolvedValue([]),
+      // UX-PLAN-01: recipe ids logged today (regenerate keeps eaten slots).
+      findLoggedRecipeIds: vi.fn().mockResolvedValue([]),
       findUserGate: vi.fn().mockResolvedValue(null),
       saveProgress: vi.fn(),
     },
@@ -371,6 +373,10 @@ describe('MealPlanService.generate', () => {
   });
 
   it('T-07.4: keepPinned preserves a pinned slot from the replaced plan and reports drops', async () => {
+    // Monday is "today" (nothing logged), so no day of the week is past and
+    // the old plan's Monday is regenerated, not kept (UX-PLAN-01).
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date(2026, 7, 17, 10, 0, 0));
     const repo = makeRepo();
     repo.findForWeek.mockResolvedValue({
       id: 'old-plan',
@@ -432,6 +438,7 @@ describe('MealPlanService.generate', () => {
     const lunch = monday.meals.find((m) => m.type === 'lunch')!;
     expect(lunch.recipe.id).not.toBe('peanut-dish');
     expect(plan.droppedPinned).toBe(1);
+    vi.useRealTimers();
   });
 
   it('premium: passes allergies, restrictions and the LIVE calorie target to the AI', async () => {
@@ -822,6 +829,7 @@ describe('MealPlanService — household context (F2)', () => {
     const { estimatePlanCostEur } = await import('../shared/plan-cost.js');
     expect(vi.mocked(estimatePlanCostEur).mock.calls.at(-1)?.[1]).toEqual({
       portions: 2,
+      table: { members: [{ portionFactor: 0.5 }], cookingFor: null },
       userId: 'user1',
     });
     expect(result.planId).toBeDefined();
@@ -981,6 +989,7 @@ describe('MealPlanService.getForWeek carry-forward', () => {
     await service.getForWeek('u1', 0, { householdScaling: true });
     expect(vi.mocked(estimatePlanCostEur).mock.calls.at(-1)?.[1]).toEqual({
       portions: 3,
+      table: { members: [{ portionFactor: 1 }, { portionFactor: 0.5 }], cookingFor: null },
       userId: 'u1',
     });
 
@@ -988,6 +997,7 @@ describe('MealPlanService.getForWeek carry-forward', () => {
     await service.getForWeek('u1', 0);
     expect(vi.mocked(estimatePlanCostEur).mock.calls.at(-1)?.[1]).toEqual({
       portions: null,
+      table: null,
       userId: 'u1',
     });
   });
@@ -3179,5 +3189,132 @@ describe('MealPlanService — Following (PRD §13, FR-17, INV-5)', () => {
         expect(dto).not.toHaveProperty(k);
       expect(people).not.toHaveBeenCalled();
     });
+  });
+});
+
+// ─── UX-PLAN-01: regenerate keeps what already happened ───────────────────────
+
+describe('MealPlanService.generate — mid-week regenerate keeps past days and eaten meals (UX-PLAN-01)', () => {
+  const WEDNESDAY = new Date(2026, 8, 30, 10, 0, 0); // Mon 28 Sep is index 0, Wed is 2
+
+  const row = (id: string) => ({
+    id,
+    name: `Old ${id}`,
+    description: 'd',
+    ingredients: [],
+    instructions: ['step'],
+    nutritionInfo: { calories: 400, protein: 20, carbs: 40, fat: 10, fiber: 5 },
+    cuisineType: 'generic',
+    dietaryTags: [],
+    prepTimeMins: 10,
+    cookTimeMins: 10,
+    servings: 1,
+    imageUrl: null,
+  });
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(WEDNESDAY);
+    vi.mocked(dietaryPreferencesRepository.findByUserId).mockResolvedValue(null);
+    vi.mocked(chefProfileRepository.findByUserId).mockResolvedValue(CHEF_PROFILE as never);
+    vi.mocked(mealPlanTailoringRepository.findLoggedRecipeIds).mockResolvedValue([]);
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  function repoWithExistingWeek() {
+    const repo = makeRepo();
+    repo.findForWeek.mockResolvedValue({
+      id: 'old-plan',
+      days: [
+        { dayOfWeek: 0, meals: [{ type: 'dinner', recipeId: 'old-mon-dinner' }] },
+        { dayOfWeek: 1, meals: [{ type: 'lunch', recipeId: 'old-tue-lunch', portion: 1.5 }] },
+        {
+          dayOfWeek: 2,
+          meals: [
+            { type: 'lunch', recipeId: 'old-wed-lunch' },
+            { type: 'dinner', recipeId: 'old-wed-dinner' },
+          ],
+        },
+        { dayOfWeek: 3, meals: [{ type: 'dinner', recipeId: 'old-thu-dinner' }] },
+      ],
+    });
+    repo.findRecipesByIds.mockImplementation(async (ids: string[]) =>
+      ids.filter((id) => id.startsWith('old-')).map(row),
+    );
+    return repo;
+  }
+
+  it("keeps every past day verbatim and today's logged dinner; replaces the rest", async () => {
+    const repo = repoWithExistingWeek();
+    vi.mocked(mealPlanTailoringRepository.findLoggedRecipeIds).mockResolvedValue([
+      'old-wed-dinner',
+    ]);
+    const service = new MealPlanService(repo);
+
+    const plan = await service.generate('user1', 0, false);
+
+    const day = (d: number) => plan.days.find((x) => x.dayOfWeek === d)!;
+    // Past days: exactly the old meals, nothing from the new generation.
+    expect(day(0).meals.map((m) => m.recipe.id)).toEqual(['old-mon-dinner']);
+    expect(day(1).meals.map((m) => m.recipe.id)).toEqual(['old-tue-lunch']);
+    expect(day(1).meals[0]!.portion).toBe(1.5);
+    // Today: the eaten dinner stays, and there is no second dinner.
+    const wed = day(2).meals;
+    expect(wed.filter((m) => m.type === 'dinner').map((m) => m.recipe.id)).toEqual([
+      'old-wed-dinner',
+    ]);
+    // The uneaten lunch is regenerated.
+    expect(wed.find((m) => m.type === 'lunch')?.recipe.id).not.toBe('old-wed-lunch');
+    // Future days are new.
+    expect(day(3).meals.some((m) => m.recipe.id === 'old-thu-dinner')).toBe(false);
+    expect(day(3).meals.length).toBeGreaterThan(0);
+
+    // What is stored matches what is returned.
+    const stored = repo.createPlan.mock.calls[0]![0] as {
+      days: { dayOfWeek: number; meals: { recipeId: string }[] }[];
+      recipeIds: string[];
+    };
+    expect(stored.days.find((d) => d.dayOfWeek === 0)!.meals.map((m) => m.recipeId)).toEqual([
+      'old-mon-dinner',
+    ]);
+    expect(stored.recipeIds).toContain('old-wed-dinner');
+  });
+
+  it('with nothing logged today, only the past days are kept', async () => {
+    const repo = repoWithExistingWeek();
+    const service = new MealPlanService(repo);
+
+    const plan = await service.generate('user1', 0, false);
+
+    const wed = plan.days.find((x) => x.dayOfWeek === 2)!.meals;
+    expect(wed.some((m) => m.recipe.id.startsWith('old-'))).toBe(false);
+    expect(plan.days.find((x) => x.dayOfWeek === 0)!.meals[0]!.recipe.id).toBe('old-mon-dinner');
+  });
+
+  it('next week has nothing to keep', async () => {
+    const repo = repoWithExistingWeek();
+    const service = new MealPlanService(repo);
+
+    const plan = await service.generate('user1', 1, false);
+
+    const ids = plan.days.flatMap((d) => d.meals.map((m) => m.recipe.id));
+    expect(ids.some((id) => id.startsWith('old-'))).toBe(false);
+  });
+
+  it('keeps all of today when the log cannot be read (never replaces a possibly eaten meal)', async () => {
+    const repo = repoWithExistingWeek();
+    vi.mocked(mealPlanTailoringRepository.findLoggedRecipeIds).mockRejectedValue(
+      new Error('db down'),
+    );
+    const service = new MealPlanService(repo);
+
+    const plan = await service.generate('user1', 0, false);
+
+    const wed = plan.days.find((x) => x.dayOfWeek === 2)!.meals.map((m) => m.recipe.id);
+    expect(wed).toEqual(expect.arrayContaining(['old-wed-lunch', 'old-wed-dinner']));
   });
 });

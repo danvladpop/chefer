@@ -4,6 +4,11 @@
 // SecureStore) cache of the in-progress form values — just enough to survive
 // a register → legal → back round trip, never persisted to disk and cleared
 // once registration succeeds.
+//
+// UX-ACC-17: passwords are NEVER kept here. A draft that outlived its owner
+// (an abandoned sign-up, a sign-out) pre-filled the next person's form with
+// the previous password; now only the non-secret fields round-trip, and the
+// draft is also cleared on unmount-after-success and by `signOut()`.
 
 import type { RegisterFormValues } from './schemas';
 
@@ -14,7 +19,9 @@ export function getRegisterDraft(): Partial<RegisterFormValues> | null {
 }
 
 export function setRegisterDraft(values: Partial<RegisterFormValues>): void {
-  draft = values;
+  // Destructured out on purpose: new secret fields must be opted IN, not leak by spread.
+  const { password: _password, confirmPassword: _confirmPassword, ...safe } = values;
+  draft = safe;
 }
 
 export function clearRegisterDraft(): void {

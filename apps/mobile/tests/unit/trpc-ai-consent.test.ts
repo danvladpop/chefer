@@ -7,6 +7,7 @@ import { makeQueryClient } from '../../src/lib/trpc';
 
 jest.mock('../../src/lib/auth-store', () => ({
   clearToken: jest.fn(),
+  bindSessionQueryClient: jest.fn(),
   getToken: () => null,
 }));
 

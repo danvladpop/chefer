@@ -165,3 +165,28 @@ describe('PreferencesForm — macro preview', () => {
     expect(screen.queryByTestId('preferences-lifter-note')).toBeNull();
   });
 });
+
+// UX-ACC-01: a term typed in "Something else?" but never added with "Add" must
+// be in what "Save preferences" stores.
+describe('PreferencesForm — typed-but-unadded safety term (UX-ACC-01)', () => {
+  it('stores "sesame" together with the ticked allergies', async () => {
+    render(<PreferencesForm chefProfile={profile} dietaryPreferences={null} isPremium={false} />);
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Peanuts' }));
+    fireEvent.change(screen.getByLabelText('Something else?'), { target: { value: 'sesame' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Save preferences' }));
+
+    await waitFor(() => expect(m.safety).toHaveBeenCalled());
+    const [payload] = m.safety.mock.calls[0] as [{ allergies: string[] }];
+    expect(payload.allergies).toEqual(expect.arrayContaining(['Peanuts', 'Sesame']));
+  });
+
+  it('does not save while a typed term still needs a Keep/Remove choice', async () => {
+    render(<PreferencesForm chefProfile={profile} dietaryPreferences={null} isPremium={false} />);
+    fireEvent.change(screen.getByLabelText('Something else?'), { target: { value: 'zzqqxx' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Save preferences' }));
+
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    expect(m.safety).not.toHaveBeenCalled();
+    expect(screen.getByTestId('safety-save-blocked')).toBeTruthy();
+  });
+});

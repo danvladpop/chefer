@@ -72,6 +72,7 @@ import {
   perPortionCost,
   planButtonLabel,
   planShapeSummary,
+  regenerateConfirmBody,
   SAFETY_COPY,
   sumPlanDay,
   tailoringDayLabel,
@@ -388,10 +389,14 @@ export default function MealPlanPage() {
     leftovers?: true;
     keepPinned?: boolean;
     fitTrainingDays?: boolean;
-  }) =>
+  }) => {
+    // UX-PLAN-03: one generation at a time — a second click used to send a
+    // second request and burn the last free generation.
+    if (generateMutation.isPending) return;
     requestAiConsent('meal-plan', () => generateMutation.mutate(input), {
       usesAi: aiConsentRequiredFor('meal-plan', isPremium),
     });
+  };
 
   // Premium sends the training-day switch explicitly; free never does.
   const fitTrainingInput = isPremium ? { fitTrainingDays: fitTraining } : {};
@@ -418,6 +423,7 @@ export default function MealPlanPage() {
 
   // Visible under the week nav — always asks first (UX-08 §3).
   const openRegenerateConfirm = () => {
+    setGenerateError(null); // a previous failure's message doesn't greet the new ask
     setKeepPicks(true);
     setPinnedBeforeRegenerate(pinnedCount);
     setRegenerateConfirmOpen(true);
@@ -1276,7 +1282,8 @@ export default function MealPlanPage() {
         open={regenerateConfirmOpen}
         onClose={() => setRegenerateConfirmOpen(false)}
         title={`Regenerate ${weekOffset === 0 ? 'this week' : 'next week'}?`}
-        description={`This replaces the ${plannedMealsCount} planned meal${plannedMealsCount === 1 ? '' : 's'}.`}
+        // UX-PLAN-01: this week keeps past days and logged meals — say so.
+        description={regenerateConfirmBody(weekOffset, plannedMealsCount)}
         size="sm"
         footer={
           <div className="flex w-full gap-2">
@@ -1290,6 +1297,8 @@ export default function MealPlanPage() {
             <button
               type="button"
               data-testid="regenerate-confirm-submit"
+              disabled={generateMutation.isPending}
+              aria-busy={generateMutation.isPending}
               onClick={() =>
                 generateWithConsent({
                   weekOffset,
@@ -1298,14 +1307,29 @@ export default function MealPlanPage() {
                   keepPinned: keepPicks,
                 })
               }
-              className="flex h-11 flex-1 items-center justify-center rounded-xl bg-[#944a00] text-sm font-semibold text-white hover:bg-[#7a3d00]"
+              className="flex h-11 flex-1 items-center justify-center rounded-xl bg-[#944a00] text-sm font-semibold text-white hover:bg-[#7a3d00] disabled:opacity-60"
             >
-              {weekOffset === 0 ? 'Regenerate this week' : 'Regenerate next week'}
+              {generateMutation.isPending
+                ? 'Regenerating…'
+                : weekOffset === 0
+                  ? 'Regenerate this week'
+                  : 'Regenerate next week'}
             </button>
           </div>
         }
       >
         <div className="px-5 pb-4">
+          {/* UX-PLAN-03: why it failed (the free-quota message included) shows
+              here, where the user is looking, not only behind the sheet. */}
+          {generateError && (
+            <p
+              role="alert"
+              data-testid="regenerate-confirm-error"
+              className="mb-3 text-sm text-red-600"
+            >
+              {generateError}
+            </p>
+          )}
           {pinnedCount > 0 && (
             <label className="flex min-h-11 items-center justify-between gap-3 text-sm text-gray-700">
               Keep the {pinnedCount} meal{pinnedCount === 1 ? '' : 's'} you chose

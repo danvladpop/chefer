@@ -8,6 +8,7 @@ import {
   cn,
   defaultCookServings,
   finishMealCopy,
+  formatFractionalQuantity,
   formatPortion,
   formatScaledQuantity,
   guessMealType,
@@ -15,6 +16,7 @@ import {
   localDateStr,
   parseStepDuration,
   slotPortion,
+  tableBreakdown,
   userFacingErrorMessage,
 } from '@chefer/utils';
 import { AllergenWarningBanner } from '../../src/features/recipes/allergen-warning';
@@ -23,6 +25,7 @@ import { CheckedForLine } from '../../src/features/safety/checked-for-line';
 import { LabelCaveat } from '../../src/features/safety/label-caveat';
 import { RebalanceBanner } from '../../src/features/tracker/rebalance-banner';
 import { recordRebalance } from '../../src/features/tracker/rebalance-store';
+import { useCookingFor } from '../../src/hooks/use-cooking-for';
 import { useHousehold } from '../../src/hooks/use-household';
 import { useUnitSystem } from '../../src/hooks/use-unit-system';
 import { trpc } from '../../src/lib/trpc';
@@ -128,7 +131,8 @@ export default function CookModeScreen() {
   const safetyChecks = safetyData?.safetyChecks ?? null;
   const utils = trpc.useUtils();
   // Premium households cook for the whole table (null otherwise).
-  const { portionSum } = useHousehold();
+  const { scaledMembers } = useHousehold();
+  const cookingFor = useCookingFor();
   const [servings, setServings] = useState<number | null>(null);
 
   const [step, setStep] = useState(0);
@@ -172,7 +176,8 @@ export default function CookModeScreen() {
   }
 
   const baseServings = recipe.servings || 1;
-  const selectedServings = servings ?? defaultCookServings(baseServings, portionSum, planPortion);
+  const selectedServings =
+    servings ?? defaultCookServings(baseServings, scaledMembers, planPortion, cookingFor);
   const scale = selectedServings / baseServings;
 
   const totalSteps = recipe.instructions.length;
@@ -215,7 +220,11 @@ export default function CookModeScreen() {
       </View>
 
       {/* Allergen conflicts stay visible while cooking (F-REC-2-3) */}
-      <AllergenWarningBanner warnings={recipe.allergenWarnings} className="mx-4 mb-2" />
+      <AllergenWarningBanner
+        warnings={recipe.allergenWarnings}
+        details={safetyChecks?.conflictDetails}
+        className="mx-4 mb-2"
+      />
 
       {/* Progress bar */}
       <View className="mx-4 mb-2 h-1.5 overflow-hidden rounded-full bg-gray-100">
@@ -243,10 +252,10 @@ export default function CookModeScreen() {
               </Pressable>
               <Text
                 testID="cook-servings"
-                accessibilityLabel={`${selectedServings} servings`}
+                accessibilityLabel={`${formatFractionalQuantity(selectedServings)} servings`}
                 className="min-w-[28px] px-1 text-center text-sm font-semibold text-gray-800"
               >
-                {selectedServings}
+                {formatFractionalQuantity(selectedServings)}
               </Text>
               <Pressable
                 testID="cook-servings-inc"
@@ -259,13 +268,12 @@ export default function CookModeScreen() {
               </Pressable>
             </View>
           </View>
-          {portionSum !== null && (
+          {scaledMembers !== null && (
             <Text testID="cook-table-portions" variant="muted" className="text-xs">
-              Sized for your table of {portionSum} portions
-              {planPortion !== 1 ? ` × your plan's ${formatPortion(planPortion)} portion` : ''}.
+              Sized for your table: {tableBreakdown(planPortion, scaledMembers)}.
             </Text>
           )}
-          {portionSum === null && planPortion !== 1 && (
+          {scaledMembers === null && planPortion !== 1 && (
             <Text testID="cook-plan-portion" variant="muted" className="text-xs">
               Set for your plan&apos;s {formatPortion(planPortion)} portion.
             </Text>

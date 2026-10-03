@@ -12,6 +12,7 @@ import {
 import type { UserProfile } from '@chefer/types';
 import { lifterProteinGPerKg } from '@chefer/utils';
 import { hasFeature } from '../../lib/entitlements.js';
+import { planForThisWeek } from '../meal-plan/plan-for-date.js';
 import { pantryService } from '../pantry/pantry.service.js';
 import { computeBmrTdee, resolveDailyTargets } from '../preferences/preferences.service.js';
 import { targetsService, type TargetsService } from '../targets/targets.service.js';
@@ -364,10 +365,10 @@ export class CoachService {
     };
   }
 
-  /** Dish names on the user's active plan — flavour for the review prose. */
+  /** Dish names on the user's plan for the current week — flavour for the review prose. */
   private async loadWeekDishNames(userId: string): Promise<string[]> {
     try {
-      const plan = await mealPlanRepository.findActiveWithDays(userId);
+      const plan = await planForThisWeek(mealPlanRepository, userId);
       if (!plan) return [];
       const slots = plan.days.flatMap((d) => d.meals as { type: string; recipeId: string }[]);
       const ids = [...new Set(slots.map((s) => s.recipeId))].slice(0, 10);

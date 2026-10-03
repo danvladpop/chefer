@@ -1,8 +1,8 @@
-import { Fragment, useState } from 'react';
+import { Fragment, useRef, useState } from 'react';
 import { ActivityIndicator, Pressable, Switch, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { findSafetyTaxonomyEntry, HOUSEHOLD_PORTION_OPTIONS } from '@chefer/types';
-import { Button, Card, Input, PressableScale, Sheet, Text } from '@chefer/ui-mobile';
+import { Button, Card, ErrorState, Input, PressableScale, Sheet, Text } from '@chefer/ui-mobile';
 import {
   allergiesAndDietForText,
   classifySafetyValue,
@@ -10,6 +10,7 @@ import {
   householdPortionSum,
   memberSummaryLine,
   tableSummaryLine,
+  userFacingErrorMessage,
   type HouseholdGhostKind,
   type SafetyPickerValue,
 } from '@chefer/utils';
@@ -18,7 +19,7 @@ import { trpc } from '../../lib/trpc';
 import { openPremium } from '../premium/open-premium';
 import { HealthDeclinedNotice } from '../privacy/health-notices';
 import { useHealthConsent } from '../privacy/use-health-consent';
-import { SafetyPicker } from '../safety/safety-picker';
+import { SafetyPicker, type SafetyPickerHandle } from '../safety/safety-picker';
 import { HouseholdGhost } from './household-ghost';
 
 // Household editor (F2, backlog P2-3) — port of web's household-section.
@@ -89,14 +90,20 @@ function memberCardSummary(m: {
 
 /** "You" card — always first (UX-01). Own safety, saved through preferences.updateSafety. */
 function YouCard() {
-  const { data } = trpc.preferences.get.useQuery();
+  const { data, isError, refetch } = trpc.preferences.get.useQuery();
   const utils = trpc.useUtils();
   const [sheetOpen, setSheetOpen] = useState(false);
   const [draft, setDraft] = useState<SafetyPickerValue>(EMPTY_SAFETY);
+  // UX-ACC-01: flushes a typed-but-unadded "Something else?" term before Save.
+  const pickerRef = useRef<SafetyPickerHandle>(null);
   // T-26.2: your own allergies/diets are health information — asked once, on the first save.
   const { requestHealthConsent, healthConsentSheet } = useHealthConsent();
   const [declined, setDeclined] = useState(false);
 
+  // UX-ACC-03: "You" is only editable once the saved preferences have loaded —
+  // an editor seeded from a failed load would save empty lists over the real
+  // allergies (updateSafety replaces them).
+  const loaded = data !== undefined;
   const ownSafety: SafetyPickerValue = {
     dietaryRestrictions: data?.dietaryPreferences?.dietaryRestrictions ?? [],
     allergies: data?.dietaryPreferences?.allergies ?? [],
@@ -110,6 +117,34 @@ function YouCard() {
       void utils.mealPlan.invalidate();
     },
   });
+
+  if (!loaded) {
+    return (
+      <View
+        testID="household-you-unavailable"
+        className="flex-row items-center gap-3 rounded-xl border border-border bg-card p-3"
+      >
+        <View className="min-w-0 flex-1">
+          <Text className="text-sm font-medium text-gray-800">You</Text>
+          <Text className="text-xs text-gray-500">
+            {isError
+              ? 'Couldn’t load your allergies and diet. Nothing has been changed.'
+              : 'Loading your allergies and diet…'}
+          </Text>
+        </View>
+        {isError && (
+          <Button
+            testID="household-you-retry"
+            variant="outline"
+            size="sm"
+            onPress={() => void refetch()}
+          >
+            Retry
+          </Button>
+        )}
+      </View>
+    );
+  }
 
   return (
     <>
@@ -141,12 +176,15 @@ function YouCard() {
             testID="household-you-save"
             loading={saveMutation.isPending}
             onPress={() => {
+              // null = a typed term still needs a Keep/Remove choice: don't save yet.
+              const toSave = pickerRef.current ? pickerRef.current.flush() : draft;
+              if (toSave === null) return;
               setDeclined(false);
-              requestHealthConsent(() => saveMutation.mutate(draft), {
+              requestHealthConsent(() => saveMutation.mutate(toSave), {
                 hasHealthData:
-                  draft.allergies.length +
-                    draft.dietaryRestrictions.length +
-                    draft.dislikedIngredients.length >
+                  toSave.allergies.length +
+                    toSave.dietaryRestrictions.length +
+                    toSave.dislikedIngredients.length >
                   0,
                 // "Don't save it": nothing is stored; the sheet stays open with the notice.
                 onDeclined: () => setDeclined(true),
@@ -157,7 +195,17 @@ function YouCard() {
           </Button>
         }
       >
-        <SafetyPicker value={draft} onChange={setDraft} testIDPrefix="household-you" />
+        <SafetyPicker
+          ref={pickerRef}
+          value={draft}
+          onChange={setDraft}
+          testIDPrefix="household-you"
+        />
+        {saveMutation.isError && (
+          <Text testID="household-you-error" className="text-xs text-red-600">
+            {userFacingErrorMessage(saveMutation.error)}
+          </Text>
+        )}
         {declined && <HealthDeclinedNotice testID="household-you-declined" />}
         {/* Nested in the open Sheet: iOS can't present a Modal over a presenting one. */}
         {healthConsentSheet}
@@ -168,7 +216,12 @@ function YouCard() {
 
 export function HouseholdEditor({ variant = 'screen' }: { variant?: 'screen' | 'onboarding' }) {
   const { limit, isPremium } = useEntitlement('householdMembers');
-  const { data: members = [], isLoading } = trpc.household.list.useQuery();
+  const list = trpc.household.list.useQuery();
+  const members = list.data ?? [];
+  const isLoading = list.isLoading;
+  // UX-ACC-03: a failed load must not look like "Just you at the table" — the
+  // editor shows an error with Retry instead and never builds on missing data.
+  const listFailed = list.isError && list.data === undefined;
   const { data: table } = trpc.safety.getTable.useQuery();
   const utils = trpc.useUtils();
 
@@ -177,6 +230,8 @@ export function HouseholdEditor({ variant = 'screen' }: { variant?: 'screen' | '
   const [isKid, setIsKid] = useState(false);
   const [memberSafety, setMemberSafety] = useState<SafetyPickerValue>(EMPTY_SAFETY);
   const [memberSafetySheetOpen, setMemberSafetySheetOpen] = useState(false);
+  // UX-ACC-01: flushes a typed-but-unadded "Something else?" term on Done/close.
+  const memberPickerRef = useRef<SafetyPickerHandle>(null);
   const [confirmingId, setConfirmingId] = useState<string | null>(null);
   /** The member being edited in the form; null = the form adds someone. */
   const [editing, setEditing] = useState<Member | null>(null);
@@ -226,6 +281,13 @@ export function HouseholdEditor({ variant = 'screen' }: { variant?: 'screen' | '
   const showGhost = variant === 'screen' && isPremium === false && members.length === 0;
   const isSaving = addMutation.isPending || updateMutation.isPending;
   const saveError = editing ? updateMutation.error : addMutation.error;
+
+  /** Done / dismiss on the member sheet: commit the typed term first, stay open if it needs a choice. */
+  const closeMemberSafetySheet = () => {
+    const flushed = memberPickerRef.current ? memberPickerRef.current.flush() : memberSafety;
+    if (flushed === null) return;
+    setMemberSafetySheetOpen(false);
+  };
 
   const applyPreset = (kind: HouseholdGhostKind) => {
     setPortionFactor(PRESETS[kind].portionFactor);
@@ -404,7 +466,11 @@ export function HouseholdEditor({ variant = 'screen' }: { variant?: 'screen' | '
           )}
         </>
       )}
-      {saveError && <Text className="text-xs text-red-600">{saveError.message}</Text>}
+      {saveError && (
+        <Text testID="household-save-error" className="text-xs text-red-600">
+          {userFacingErrorMessage(saveError)}
+        </Text>
+      )}
       {safetyDeclined && <HealthDeclinedNotice testID="household-member-declined" />}
     </Card>
   );
@@ -418,6 +484,14 @@ export function HouseholdEditor({ variant = 'screen' }: { variant?: 'screen' | '
       {/* Members */}
       {isLoading ? (
         <ActivityIndicator color="#944a00" />
+      ) : listFailed ? (
+        <ErrorState
+          testID="household-load-error"
+          title="Couldn’t load your household"
+          description="Nothing has been changed. Check your connection and try again."
+          icon={<Ionicons name="cloud-offline-outline" size={40} color="#9ca3af" />}
+          onRetry={() => void list.refetch()}
+        />
       ) : members.length === 0 ? (
         variant === 'screen' &&
         (showGhost && ghostKind ? (
@@ -551,24 +625,29 @@ export function HouseholdEditor({ variant = 'screen' }: { variant?: 'screen' | '
         </Card>
       )}
 
-      {/* Add someone — every tier (editing happens under the member) */}
-      {!editing && formCard}
+      {removeMutation.isError && (
+        <Text testID="household-remove-error" className="text-xs text-red-600">
+          {userFacingErrorMessage(removeMutation.error)}
+        </Text>
+      )}
+
+      {/* Add someone — every tier (editing happens under the member). Hidden while the
+          list failed to load: the table size (and the member cap) is unknown. */}
+      {!editing && !listFailed && formCard}
 
       <Sheet
         visible={memberSafetySheetOpen}
-        onClose={() => setMemberSafetySheetOpen(false)}
+        onClose={closeMemberSafetySheet}
         title={allergiesAndDietForText(name.trim() || 'this person')}
         testID="household-member-safety-sheet"
         footer={
-          <Button
-            testID="household-member-safety-done"
-            onPress={() => setMemberSafetySheetOpen(false)}
-          >
+          <Button testID="household-member-safety-done" onPress={closeMemberSafetySheet}>
             Done
           </Button>
         }
       >
         <SafetyPicker
+          ref={memberPickerRef}
           value={memberSafety}
           onChange={setMemberSafety}
           testIDPrefix="household-member"

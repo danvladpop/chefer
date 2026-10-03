@@ -10,6 +10,8 @@ export interface KvBackend {
   getItemSync(key: string): string | null;
   setItemSync(key: string, value: string): void;
   removeItemSync(key: string): unknown;
+  /** Every stored key (sign-out wipes the user's keys by scanning, never by a hand-kept list). */
+  getAllKeysSync(): string[];
   getItemAsync(key: string): Promise<string | null>;
   setItemAsync(key: string, value: string): Promise<void>;
   removeItemAsync(key: string): Promise<unknown>;
@@ -27,6 +29,7 @@ export function createMemoryKvBackend(): KvBackend {
       map.set(key, value);
     },
     removeItemSync: (key) => map.delete(key),
+    getAllKeysSync: () => [...map.keys()],
     getItemAsync: (key) => Promise.resolve(map.get(key) ?? null),
     setItemAsync: (key, value) => {
       map.set(key, value);
@@ -99,6 +102,10 @@ export const kv = {
   },
   remove(key: string): void {
     getKvBackend().removeItemSync(key);
+  },
+  /** Every stored key (UX-ACC-02: sign-out scans instead of trusting a key list). */
+  keys(): string[] {
+    return getKvBackend().getAllKeysSync();
   },
 };
 

@@ -206,3 +206,81 @@ describe('Plan/Replace/Shop surfaces (wave 2, L-SAFE2, T-02.1) — the same tabl
     }
   }, 30_000);
 });
+
+describe('diet checks read the ingredients (UX-REC-01, UX-PLAN-06) — additive fields only', () => {
+  const UNRESOLVABLE = 'contract-only mystery paste';
+
+  it('plain oats are vegetarian (verified), not paleo, and the conflict names the grain', async () => {
+    await client.preferences.updateSafety.mutate({
+      allergies: [],
+      dietaryRestrictions: ['Vegetarian', 'Paleo'],
+      dislikedIngredients: [],
+    });
+    const oats = await client.recipe.create.mutate({
+      name: `Plain oats ${Date.now()}`,
+      ingredients: [{ name: 'rolled oats', quantity: 60, unit: 'g' }],
+    });
+
+    const { safetyChecks } = await client.recipe.getSafetyChecks.query({ recipeId: oats.id });
+    // Old fields keep their meaning…
+    expect(safetyChecks?.checked).toEqual([{ label: 'Vegetarian', who: 'you' }]);
+    expect(safetyChecks?.conflicts).toEqual(['Paleo']);
+    // …and the new optional ones explain them.
+    expect(safetyChecks?.taggedOnly).toBeUndefined();
+    expect(safetyChecks?.conflictDetails).toEqual([
+      { label: 'Paleo', kind: 'diet', ingredients: ['rolled oats'] },
+    ]);
+  });
+
+  it('a quinoa salad tagged paleo is a conflict, never "Checked for Paleo"', async () => {
+    const salad = await client.recipe.create.mutate({
+      name: `Quinoa salad ${Date.now()}`,
+      ingredients: [
+        { name: 'quinoa', quantity: 80, unit: 'g' },
+        { name: 'black beans', quantity: 100, unit: 'g' },
+      ],
+      dietaryTags: ['vegetarian', 'paleo'],
+    });
+    const { safetyChecks } = await client.recipe.getSafetyChecks.query({ recipeId: salad.id });
+    expect(safetyChecks?.conflicts).toEqual(['Paleo']);
+    expect(safetyChecks?.checked.map((c) => c.label)).toEqual(['Vegetarian']);
+    expect(safetyChecks?.conflictDetails?.[0]?.ingredients).toEqual(
+      expect.arrayContaining(['quinoa', 'black beans']),
+    );
+  });
+
+  it('a keto tag with nothing to verify it passes as taggedOnly (and stays in `checked` for old apps)', async () => {
+    await client.preferences.updateSafety.mutate({
+      allergies: [],
+      dietaryRestrictions: ['Keto'],
+      dislikedIngredients: [],
+    });
+    const tagged = await client.recipe.create.mutate({
+      name: `Tagged keto ${Date.now()}`,
+      ingredients: [{ name: UNRESOLVABLE, quantity: 100, unit: 'g' }],
+      dietaryTags: ['keto'],
+    });
+    const { safetyChecks } = await client.recipe.getSafetyChecks.query({ recipeId: tagged.id });
+    expect(safetyChecks?.checked).toEqual([{ label: 'Keto', who: 'you' }]);
+    expect(safetyChecks?.taggedOnly).toEqual([{ label: 'Keto', who: 'you' }]);
+    expect(safetyChecks?.conflicts).toEqual([]);
+  });
+
+  it('a keto recipe over the net-carb limit is a conflict with its reason', async () => {
+    const heavy = await client.recipe.create.mutate({
+      name: `Carby keto ${Date.now()}`,
+      ingredients: [{ name: UNRESOLVABLE, quantity: 100, unit: 'g' }],
+      nutritionInfo: { calories: 700, protein: 30, carbs: 110, fat: 20, fiber: 6 },
+      dietaryTags: ['keto'],
+    });
+    const { safetyChecks } = await client.recipe.getSafetyChecks.query({ recipeId: heavy.id });
+    expect(safetyChecks?.conflicts).toEqual(['Keto']);
+    expect(safetyChecks?.conflictDetails?.[0]?.reason).toBe('104 g net carbs per serving');
+
+    await client.preferences.updateSafety.mutate({
+      allergies: [],
+      dietaryRestrictions: [],
+      dislikedIngredients: [],
+    });
+  });
+});

@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
-  KeyboardAvoidingView,
   Modal,
   Platform,
   Pressable,
@@ -23,6 +22,7 @@ import { duration, springs, timing } from '../motion/motion';
 import { useReducedMotion } from '../motion/use-reduced-motion';
 import { KeyboardPersistFooter } from './keyboard-persist-footer';
 import { Text } from './text';
+import { useKeyboardInset } from './use-keyboard-inset';
 
 export interface SheetProps {
   visible: boolean;
@@ -66,14 +66,17 @@ const REOPEN_CHECK_MS = 120;
  * movement. Drag-to-dismiss waits for react-native-gesture-handler (native
  * dependency, next store build).
  *
- * `behavior="padding"` on both platforms (gym dogfood #2): Expo SDK 57 makes
- * edge-to-edge mandatory on Android, and under edge-to-edge the
- * `windowSoftInputMode="adjustResize"` this app otherwise relies on (Expo's
- * `android.softwareKeyboardLayoutMode` default) no longer resizes the window
- * for the keyboard — `undefined` here would leave Android with nothing
- * pushing the sheet's fields above it. See `KeyboardAwareScrollView` for the
- * full explanation; it applies here too since a `Modal`'s content sits
- * outside the normal Android resize path either way.
+ * Keyboard (UX-X-02, one mechanism on both platforms): the Modal's wrapper
+ * takes `useKeyboardInset()` as its bottom padding, which lifts the whole
+ * panel (body and pinned footer) clear of the keyboard and shrinks its
+ * `maxHeight` so the body scrolls. There is deliberately NO
+ * `KeyboardAvoidingView` and NO `automaticallyAdjustKeyboardInsets`: on iOS
+ * the two stacked and scrolled fields (and the Meal selector) out of view,
+ * and under Android's mandatory edge-to-edge (Expo SDK 57) the window does
+ * not resize for the keyboard at all, so the inset hook is the only thing
+ * that works there. The hook already subtracts the bottom safe-area, which
+ * the panel's own bottom padding gives back, so content ends flush above the
+ * keyboard.
  */
 export function Sheet({
   visible,
@@ -94,6 +97,7 @@ export function Sheet({
 
   // `mounted` keeps the Modal up while the exit animation runs.
   const [mounted, setMounted] = useState(visible);
+  const { inset: keyboardInset } = useKeyboardInset({ enabled: mounted });
   const scrim = useSharedValue(0);
   const panel = useSharedValue(0);
   // Off-screen by default so nothing flashes before the first layout.
@@ -215,7 +219,11 @@ export function Sheet({
       statusBarTranslucent
       testID={testID}
     >
-      <KeyboardAvoidingView behavior="padding" className="flex-1 justify-end">
+      <View
+        testID={testID ? `${testID}-keyboard-inset` : undefined}
+        className="flex-1 justify-end"
+        style={{ paddingBottom: keyboardInset }}
+      >
         <Animated.View style={[StyleSheet.absoluteFill, styles.scrim, scrimStyle]}>
           <Pressable
             accessibilityRole="button"
@@ -262,8 +270,8 @@ export function Sheet({
             </View>
             {scrollable ? (
               <ScrollView
+                testID={testID ? `${testID}-scroll` : undefined}
                 keyboardShouldPersistTaps="handled"
-                automaticallyAdjustKeyboardInsets={Platform.OS === 'ios'}
                 contentContainerClassName="gap-3 px-4 pb-4"
                 className="shrink"
               >
@@ -284,7 +292,7 @@ export function Sheet({
             ) : null}
           </View>
         </Animated.View>
-      </KeyboardAvoidingView>
+      </View>
     </Modal>
   );
 }

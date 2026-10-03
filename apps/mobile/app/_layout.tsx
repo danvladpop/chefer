@@ -20,6 +20,7 @@ import { initAnalytics, track } from '../src/lib/analytics';
 import { getTrpcUrl } from '../src/lib/api-url';
 import { getToken } from '../src/lib/auth-store';
 import { CURRENT_BUILD } from '../src/lib/current-build';
+import { signOut } from '../src/lib/sign-out';
 import { makeQueryClient, trpc } from '../src/lib/trpc';
 import { buildTrpcLinks } from '../src/lib/trpc-links';
 
@@ -41,7 +42,11 @@ track('app_opened', {});
 export { RootErrorBoundary as ErrorBoundary } from '../src/components/root-error-boundary';
 
 function createAppQueryClient() {
-  const client = makeQueryClient();
+  // UX-ACC-02: a 401 runs the full sign-out; the user did not choose to leave,
+  // so unsynced gym workouts are kept for the next login.
+  const client = makeQueryClient({
+    onUnauthorized: () => void signOut({ reason: 'session-expired' }),
+  });
   applyGymQueryDefaults(client);
   return client;
 }

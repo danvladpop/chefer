@@ -63,9 +63,13 @@ export function retimeDraft(
   });
 }
 
-/** The outbox's copy of a session, when an earlier correction hasn't synced yet. */
+/**
+ * The outbox's copy of a session, when an earlier correction hasn't synced yet
+ * — or a PARKED one (UX-GYM-01): a workout the server rejected must be
+ * editable, and saving the corrected doc un-parks it.
+ */
 function pendingDoc(id: string): WorkoutSessionDoc | null {
-  const entry = outbox.getState().entries.find((e) => e.doc.id === id && !e.parkedReason);
+  const entry = outbox.getState().entries.find((e) => e.doc.id === id);
   return entry?.doc ?? null;
 }
 

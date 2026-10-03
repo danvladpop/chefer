@@ -37,10 +37,15 @@ jest.mock('expo-router', () => {
   // jest-hoist), so React/RN come from a lazy require instead of a
   // top-of-file import.
   // eslint-disable-next-line @typescript-eslint/no-require-imports -- see comment above
-  const { createElement } = require('react') as typeof import('react');
+  const { createElement, useEffect } = require('react') as typeof import('react');
   // eslint-disable-next-line @typescript-eslint/no-require-imports -- see comment above
   const { Pressable } = require('react-native') as typeof import('react-native');
   return {
+    // UX-ONB-01: the wizard registers its BACK handler with useFocusEffect; the
+    // screen is always focused here, so run the effect on mount.
+    useFocusEffect: (effect: () => (() => void) | undefined): void => {
+      useEffect(effect, [effect]);
+    },
     router: { replace: jest.fn(), push: jest.fn(), back: jest.fn() },
     Link: ({ children, testID }: { children: React.ReactNode; testID?: string }) =>
       createElement(Pressable, { testID }, children),

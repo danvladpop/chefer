@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Image, Pressable, View } from 'react-native';
 import { router } from 'expo-router';
 import { Button, Card, Text } from '@chefer/ui-mobile';
-import { localDateStr, slotPortion, userFacingErrorMessage } from '@chefer/utils';
+import { localDateStr, slotPortion, userFacingErrorMessage, verifiedLabels } from '@chefer/utils';
 import { getRecipeImageUrl } from '../../../lib/recipe-image';
 import { trpc, type RouterOutputs } from '../../../lib/trpc';
 import { CheckedForChip } from '../../safety/checked-for-chip';
@@ -89,10 +89,10 @@ export function TonightCard({
                 Tonight · Dinner
               </Text>
             </View>
-            {meal.safetyChecks && meal.safetyChecks.checked.length > 0 && (
+            {verifiedLabels(meal.safetyChecks).length > 0 && (
               <CheckedForChip
                 testID="tonight-checked-for"
-                labels={meal.safetyChecks.checked.map((c) => c.label)}
+                labels={verifiedLabels(meal.safetyChecks)}
               />
             )}
           </View>

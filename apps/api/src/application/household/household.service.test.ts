@@ -1,7 +1,8 @@
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { UserProfile } from '@chefer/types';
 import type { RecipeData } from '../../lib/ai/types.js';
 import { filterSafeRecipes } from '../../lib/curated-recipes/safety.js';
+import { planShapeService } from '../meal-plan/plan-shape.service.js';
 import {
   computeHouseholdContext,
   derivedServingSize,
@@ -10,6 +11,10 @@ import {
   mergeHouseholdSafety,
   type HouseholdMemberSafety,
 } from './household.service.js';
+
+vi.mock('../meal-plan/plan-shape.service.js', () => ({
+  planShapeService: { getShape: vi.fn() },
+}));
 
 // ─── Fixtures ─────────────────────────────────────────────────────────────────
 
@@ -252,6 +257,43 @@ describe('HouseholdService.scalingPortions', () => {
   it('premium without members has nothing to scale', async () => {
     const service = new HouseholdService(makeRepo(0, []));
     expect(await service.scalingPortions(premiumUser)).toBeNull();
+  });
+});
+
+describe('HouseholdService.scalingTable (UX-PLAN-02, UX-REC-02)', () => {
+  const table = [
+    { name: 'Maria', portionFactor: 1 },
+    { name: 'Sam', portionFactor: 0.5 },
+  ];
+  const shape = (cookingFor: 1 | 2 | null) =>
+    vi.mocked(planShapeService.getShape).mockResolvedValue({ cookingFor } as never);
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('premium with members: the members, plus the cooking-for setting', async () => {
+    shape(2);
+    const service = new HouseholdService(makeRepo(2, table));
+    expect(await service.scalingTable(premiumUser)).toEqual({
+      members: [{ portionFactor: 1 }, { portionFactor: 0.5 }],
+      cookingFor: 2,
+    });
+  });
+
+  it('free + "two of us": no members scale, but the table is still two', async () => {
+    shape(2);
+    const repo = makeRepo(2, table);
+    const service = new HouseholdService(repo);
+    expect(await service.scalingTable(freeUser)).toEqual({ members: [], cookingFor: 2 });
+    expect(repo.findByUserId).not.toHaveBeenCalled();
+  });
+
+  it('solo with "just me": nothing beyond the eater\'s own portion', async () => {
+    shape(1);
+    expect(await new HouseholdService(makeRepo(0, [])).scalingTable(premiumUser)).toBeNull();
+    shape(null);
+    expect(await new HouseholdService(makeRepo(2, table)).scalingTable(freeUser)).toBeNull();
   });
 });
 

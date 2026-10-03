@@ -1,5 +1,5 @@
 import { SafeAreaProvider } from 'react-native-safe-area-context';
-import { render, screen, userEvent } from '@testing-library/react-native';
+import { act, render, screen, userEvent, waitFor } from '@testing-library/react-native';
 import TrackerScreen from '../../app/tracker';
 
 // T-19.1–T-19.4 (UX-19): the search-first Log sheet, edit/undo and the
@@ -12,10 +12,80 @@ const mockCopyDay = jest.fn();
 const mockDeleteEntries = jest.fn();
 const mockDeleteCustom = jest.fn();
 const mockRestoreCustom = jest.fn();
+const mockUpdateRecipeEntry = jest.fn();
 const mockRecordRebalance = jest.fn();
 const mockSnackbarShow = jest.fn();
 // Audit P2-4 follow-up: per-test training-day fields on the getDay payload.
 let mockDayExtras: Record<string, unknown> = {};
+
+// ─── A tiny stand-in for the server and react-query's cache ────────────────────
+// `mockServer` is the database; `mockCache` is what `tracker.getDay` returns.
+// Optimistic edits (`setData`) change only the cache; `invalidate` re-reads the
+// server — exactly the shape the screen relies on (UX-FOOD-01/06).
+type MockEntry = Record<string, unknown> & { entryId?: string; recipeId?: string };
+type MockDay = Record<string, unknown> & {
+  plannedMeals: Record<string, unknown>[];
+  offPlanLogged: Record<string, unknown>[];
+  log: { loggedMeals: MockEntry[] } | null;
+};
+let mockServer: MockDay;
+let mockCache: MockDay;
+let mockFailWrites = false;
+const mockListeners = new Set<() => void>();
+const mockSetCache = (next: MockDay) => {
+  mockCache = next;
+  mockListeners.forEach((l) => l());
+};
+const mockSubscribe = (l: () => void) => {
+  mockListeners.add(l);
+  return () => {
+    mockListeners.delete(l);
+  };
+};
+let mockEntrySeq = 0;
+const mockStore = (loggedMeals: MockEntry[]) => {
+  const sum = (k: string) => loggedMeals.reduce((t, m) => t + Number(m[k] ?? 0), 0);
+  mockServer = {
+    ...mockServer,
+    log: loggedMeals.length
+      ? {
+          loggedMeals,
+          totalKcal: sum('kcal'),
+          totalProtein: sum('protein'),
+          totalCarbs: sum('carbs'),
+          totalFat: sum('fat'),
+        }
+      : null,
+  } as MockDay;
+};
+/** A mutation hook that behaves like react-query's: onMutate → server → onSuccess/onError → onSettled. */
+function mockMutation(serverWrite: (vars: never) => unknown) {
+  return (opts: Record<string, ((...args: unknown[]) => unknown) | undefined> = {}) => ({
+    isPending: false,
+    isError: false,
+    error: null,
+    reset: jest.fn(),
+    mutate: (
+      vars: never,
+      callbacks: Record<string, ((...args: unknown[]) => unknown) | undefined> = {},
+    ) => {
+      void (async () => {
+        const context = await opts.onMutate?.(vars);
+        try {
+          if (mockFailWrites) throw new Error('Network request failed');
+          const result = serverWrite(vars);
+          await opts.onSuccess?.(result, vars, context);
+          callbacks.onSuccess?.(result, vars, context);
+        } catch (error) {
+          opts.onError?.(error, vars, context);
+          callbacks.onError?.(error, vars, context);
+        } finally {
+          opts.onSettled?.(undefined, null, vars, context);
+        }
+      })();
+    },
+  });
+}
 
 jest.mock('expo-router', () => ({ router: { back: jest.fn(), push: jest.fn() } }));
 jest.mock('../../src/features/tracker/scan-meal-card', () => ({ ScanMealCard: () => null }));
@@ -40,142 +110,192 @@ jest.mock('@chefer/ui-mobile', () => {
   };
 });
 
-jest.mock('../../src/lib/trpc', () => ({
-  trpc: {
-    useUtils: () => ({
+jest.mock('../../src/lib/trpc', () => {
+  // eslint-disable-next-line @typescript-eslint/no-require-imports -- jest.mock factories can't use imports
+  const { useSyncExternalStore } = require('react') as typeof import('react');
+  return {
+    trpc: {
+      useUtils: () => ({
+        tracker: {
+          getDay: {
+            cancel: () => Promise.resolve(),
+            getData: () => mockCache,
+            setData: (_input: unknown, next: MockDay | ((prev: MockDay) => MockDay)) =>
+              mockSetCache(typeof next === 'function' ? next(mockCache) : next),
+            // A refetch: the cache catches up with the server.
+            invalidate: () => {
+              mockSetCache(mockServer);
+              return Promise.resolve();
+            },
+          },
+          weeklySummary: { invalidate: jest.fn() },
+          monthlySummary: { invalidate: jest.fn() },
+          recents: { invalidate: jest.fn() },
+        },
+        dashboard: { summary: { invalidate: jest.fn() } },
+        targets: { changes: { invalidate: jest.fn() }, get: { invalidate: jest.fn() } },
+      }),
+      // §2.11 — ChangeNoticeCard/TargetExplainSheet's queries, not under test here.
+      targets: {
+        changes: { useQuery: () => ({ data: [] }) },
+        get: { useQuery: () => ({ data: undefined }) },
+        acknowledgeChange: { useMutation: () => ({ mutate: jest.fn(), isPending: false }) },
+      },
+      recipe: { list: { useQuery: () => ({ data: [] }) } },
+      ingredients: { search: { useQuery: () => ({ data: [] }) } },
       tracker: {
-        getDay: { invalidate: jest.fn() },
-        weeklySummary: { invalidate: jest.fn() },
-        monthlySummary: { invalidate: jest.fn() },
-        recents: { invalidate: jest.fn() },
-      },
-      dashboard: { summary: { invalidate: jest.fn() } },
-      targets: { changes: { invalidate: jest.fn() }, get: { invalidate: jest.fn() } },
-    }),
-    // §2.11 — ChangeNoticeCard/TargetExplainSheet's queries, not under test here.
-    targets: {
-      changes: { useQuery: () => ({ data: [] }) },
-      get: { useQuery: () => ({ data: undefined }) },
-      acknowledgeChange: { useMutation: () => ({ mutate: jest.fn(), isPending: false }) },
-    },
-    recipe: { list: { useQuery: () => ({ data: [] }) } },
-    ingredients: { search: { useQuery: () => ({ data: [] }) } },
-    tracker: {
-      getDay: {
-        useQuery: () => ({
-          data: {
-            log: null,
-            offPlanLogged: [],
-            targets: { dailyCalorieTarget: 2000, proteinG: 125, carbsG: 225, fatG: 65 },
-            plannedMeals: [
-              {
-                recipeId: 'r1',
-                recipeName: 'Overnight Oats',
-                mealType: 'breakfast',
-                imageUrl: null,
-                kcal: 400,
-                protein: 20,
-                carbs: 50,
-                fat: 10,
-              },
-              {
-                // P1-1: a curated slot sized to 1¼× of the recipe
-                recipeId: 'r2',
-                recipeName: 'Chicken Rice Bowl',
-                mealType: 'lunch',
-                imageUrl: null,
-                kcal: 600,
-                protein: 40,
-                carbs: 60,
-                fat: 20,
-                portion: 1.25,
-              },
-            ],
-            // Last, so a test can replace plannedMeals / log too.
-            ...mockDayExtras,
-          },
-          isLoading: false,
-          isError: false,
-          refetch: jest.fn(),
-        }),
-      },
-      recents: { useQuery: () => ({ data: [] }) },
-      logRecipe: {
-        useMutation: (opts: { onSuccess?: (data: unknown, vars: unknown) => void }) => ({
-          mutate: (vars: unknown) => {
+        getDay: {
+          useQuery: () => ({
+            data: useSyncExternalStore(mockSubscribe, () => mockCache),
+            isLoading: false,
+            isError: false,
+            refetch: jest.fn(),
+          }),
+        },
+        recents: { useQuery: () => ({ data: [] }) },
+        logRecipe: {
+          useMutation: mockMutation((vars: Record<string, unknown>) => {
             mockLogRecipe(vars);
-            opts.onSuccess?.({ log: {}, rebalance }, vars);
-          },
-          isPending: false,
-        }),
-      },
-      unlogRecipe: {
-        useMutation: (opts: { onSuccess?: () => void }) => ({
-          mutate: (vars: unknown) => {
+            const planned = mockServer.plannedMeals.find((m) => m.recipeId === vars.recipeId);
+            const p = Number(vars.portionMultiplier ?? 1);
+            const rest = (mockServer.log?.loggedMeals ?? []).filter(
+              (m) => !(m.recipeId === vars.recipeId && m.mealType === vars.mealType),
+            );
+            mockStore([
+              ...rest,
+              {
+                entryId: `srv-${(mockEntrySeq += 1)}`,
+                recipeId: vars.recipeId as string,
+                mealType: vars.mealType,
+                ...(vars.slotIndex !== undefined && { slotIndex: vars.slotIndex }),
+                portionMultiplier: p,
+                kcal: Math.round(Number(planned?.kcal ?? 0) * p),
+                protein: Number(planned?.protein ?? 0) * p,
+                carbs: Number(planned?.carbs ?? 0) * p,
+                fat: Number(planned?.fat ?? 0) * p,
+              },
+            ]);
+            return { log: {}, rebalance };
+          }),
+        },
+        unlogRecipe: {
+          useMutation: mockMutation((vars: Record<string, unknown>) => {
             mockUnlogRecipe(vars);
-            opts.onSuccess?.();
-          },
-          isPending: false,
-        }),
-      },
-      copyDay: {
-        useMutation: () => ({
-          mutate: (vars: unknown, callbacks?: { onSuccess?: (data: unknown) => void }) => {
-            mockCopyDay(vars);
-            callbacks?.onSuccess?.({ log: {}, copiedEntryIds: ['c1', 'c2'], rebalance });
-          },
-          isPending: false,
-        }),
-      },
-      deleteEntries: {
-        useMutation: (opts: { onSuccess?: () => void }) => ({
-          mutate: (vars: unknown) => {
+            mockStore(
+              (mockServer.log?.loggedMeals ?? []).filter(
+                (m) => !(m.recipeId === vars.recipeId && m.mealType === vars.mealType),
+              ),
+            );
+            return {};
+          }),
+        },
+        copyDay: {
+          useMutation: () => ({
+            mutate: (vars: unknown, callbacks?: { onSuccess?: (data: unknown) => void }) => {
+              mockCopyDay(vars);
+              callbacks?.onSuccess?.({ log: {}, copiedEntryIds: ['c1', 'c2'], rebalance });
+            },
+            isPending: false,
+          }),
+        },
+        deleteEntries: {
+          useMutation: mockMutation((vars: { entryIds: string[] }) => {
             mockDeleteEntries(vars);
-            opts.onSuccess?.();
-          },
-          isPending: false,
-        }),
-      },
-      deleteCustomMeal: {
-        useMutation: () => ({
-          mutate: (vars: unknown, callbacks?: { onSuccess?: () => void }) => {
+            mockStore(
+              (mockServer.log?.loggedMeals ?? []).filter(
+                (m) => !m.entryId || !vars.entryIds.includes(m.entryId),
+              ),
+            );
+            mockServer = {
+              ...mockServer,
+              offPlanLogged: mockServer.offPlanLogged.filter(
+                (o) => !vars.entryIds.includes(o.entryId as string),
+              ),
+            };
+            return {};
+          }),
+        },
+        deleteCustomMeal: {
+          useMutation: mockMutation((vars: { entryId?: string; entryIndex?: number }) => {
             mockDeleteCustom(vars);
-            callbacks?.onSuccess?.();
-          },
-          isPending: false,
-        }),
-      },
-      restoreCustomMeal: {
-        useMutation: (opts: { onSuccess?: () => void }) => ({
-          mutate: (vars: unknown) => {
+            mockStore(
+              (mockServer.log?.loggedMeals ?? []).filter((m, i) =>
+                vars.entryId ? m.entryId !== vars.entryId : i !== vars.entryIndex,
+              ),
+            );
+            return {};
+          }),
+        },
+        restoreCustomMeal: {
+          useMutation: mockMutation((vars: { entry: MockEntry }) => {
             mockRestoreCustom(vars);
-            opts.onSuccess?.();
-          },
-          isPending: false,
-        }),
-      },
-      updateCustomMeal: {
-        useMutation: () => ({ mutate: jest.fn(), isPending: false, isError: false, error: null }),
-      },
-      logCustomMeal: {
-        useMutation: () => ({
-          mutate: jest.fn(),
-          reset: jest.fn(),
-          isPending: false,
-          isError: false,
-          error: null,
-        }),
+            mockStore([...(mockServer.log?.loggedMeals ?? []), vars.entry]);
+            return {};
+          }),
+        },
+        updateRecipeEntry: {
+          useMutation: mockMutation((vars: Record<string, unknown>) => {
+            mockUpdateRecipeEntry(vars);
+            return {};
+          }),
+        },
+        updateCustomMeal: {
+          useMutation: () => ({ mutate: jest.fn(), isPending: false, isError: false, error: null }),
+        },
+        logCustomMeal: {
+          useMutation: () => ({
+            mutate: jest.fn(),
+            reset: jest.fn(),
+            isPending: false,
+            isError: false,
+            error: null,
+          }),
+        },
       },
     },
-  },
-}));
+  };
+});
 
 const metrics = {
   frame: { x: 0, y: 0, width: 390, height: 844 },
   insets: { top: 47, left: 0, right: 0, bottom: 34 },
 };
 
+const baseDay = (): MockDay => ({
+  log: null,
+  offPlanLogged: [],
+  targets: { dailyCalorieTarget: 2000, proteinG: 125, carbsG: 225, fatG: 65 },
+  plannedMeals: [
+    {
+      recipeId: 'r1',
+      recipeName: 'Overnight Oats',
+      mealType: 'breakfast',
+      imageUrl: null,
+      kcal: 400,
+      protein: 20,
+      carbs: 50,
+      fat: 10,
+    },
+    {
+      // P1-1: a curated slot sized to 1¼× of the recipe
+      recipeId: 'r2',
+      recipeName: 'Chicken Rice Bowl',
+      mealType: 'lunch',
+      imageUrl: null,
+      kcal: 600,
+      protein: 40,
+      carbs: 60,
+      fat: 20,
+      portion: 1.25,
+    },
+  ],
+  // Last, so a test can replace plannedMeals / log too.
+  ...mockDayExtras,
+});
+
 async function renderTracker() {
+  mockServer = baseDay();
+  mockCache = mockServer;
   await render(
     <SafeAreaProvider initialMetrics={metrics}>
       <TrackerScreen />
@@ -186,6 +306,8 @@ async function renderTracker() {
 beforeEach(() => {
   jest.clearAllMocks();
   mockDayExtras = {};
+  mockFailWrites = false;
+  mockListeners.clear();
 });
 
 const trainingDay = (applied: boolean) => ({
@@ -253,19 +375,23 @@ describe('TrackerScreen — one-save model (bug B-23, T-19.4)', () => {
     const user = userEvent.setup();
     await renderTracker();
     await user.press(screen.getByTestId('tracker-meal-breakfast'));
-    expect(mockLogRecipe).toHaveBeenCalledWith(
-      expect.objectContaining({
-        // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment -- jest matchers/mocks are typed any
-        date: expect.any(String),
-        recipeId: 'r1',
-        mealType: 'breakfast',
-        portionMultiplier: 1,
-      }),
+    await waitFor(() =>
+      expect(mockLogRecipe).toHaveBeenCalledWith(
+        expect.objectContaining({
+          // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment -- jest matchers/mocks are typed any
+          date: expect.any(String),
+          recipeId: 'r1',
+          mealType: 'breakfast',
+          portionMultiplier: 1,
+        }),
+      ),
+    );
+    await waitFor(() =>
+      expect(mockSnackbarShow).toHaveBeenCalledWith(
+        expect.objectContaining({ message: 'Logged breakfast', actionLabel: 'Undo' }),
+      ),
     );
     expect(mockRecordRebalance).toHaveBeenCalledWith(rebalance);
-    expect(mockSnackbarShow).toHaveBeenCalledWith(
-      expect.objectContaining({ message: 'Logged breakfast', actionLabel: 'Undo' }),
-    );
   });
 
   it('bug B-23: unticking a logged planned meal removes it immediately, no separate save', async () => {
@@ -292,8 +418,10 @@ describe('TrackerScreen — one-save model (bug B-23, T-19.4)', () => {
     const user = userEvent.setup();
     await renderTracker();
     await user.press(screen.getByTestId('tracker-meal-breakfast'));
-    expect(mockUnlogRecipe).toHaveBeenCalledWith(
-      expect.objectContaining({ recipeId: 'r1', mealType: 'breakfast' }),
+    await waitFor(() =>
+      expect(mockUnlogRecipe).toHaveBeenCalledWith(
+        expect.objectContaining({ recipeId: 'r1', mealType: 'breakfast' }),
+      ),
     );
   });
 
@@ -302,8 +430,10 @@ describe('TrackerScreen — one-save model (bug B-23, T-19.4)', () => {
     await renderTracker();
     expect(screen.getByText(/750 kcal · plan 1¼×/)).toBeOnTheScreen();
     await user.press(screen.getByTestId('tracker-meal-lunch'));
-    expect(mockLogRecipe).toHaveBeenCalledWith(
-      expect.objectContaining({ recipeId: 'r2', portionMultiplier: 1.25 }),
+    await waitFor(() =>
+      expect(mockLogRecipe).toHaveBeenCalledWith(
+        expect.objectContaining({ recipeId: 'r2', portionMultiplier: 1.25 }),
+      ),
     );
   });
 
@@ -339,10 +469,14 @@ describe('TrackerScreen — copy a day (T-19.3)', () => {
     expect(mockSnackbarShow).toHaveBeenCalledWith(
       expect.objectContaining({ message: 'Copied 2 entries', actionLabel: 'Undo' }),
     );
-    // eslint-disable-next-line @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access -- jest matchers/mocks are typed any
-    mockSnackbarShow.mock.calls[0]?.[0]?.onAction?.();
-    expect(mockDeleteEntries).toHaveBeenCalledWith(
-      expect.objectContaining({ entryIds: ['c1', 'c2'] }),
+    await act(() => {
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access -- jest matchers/mocks are typed any
+      mockSnackbarShow.mock.calls[0]?.[0]?.onAction?.();
+    });
+    await waitFor(() =>
+      expect(mockDeleteEntries).toHaveBeenCalledWith(
+        expect.objectContaining({ entryIds: ['c1', 'c2'] }),
+      ),
     );
   });
 });
@@ -380,32 +514,64 @@ describe('TrackerScreen — edit/undo a custom entry (bug B-34, T-19.2)', () => 
     expect(screen.getByTestId('edit-entry-name')).toHaveProp('value', 'Protein shake');
   });
 
-  it('the bin deletes immediately and offers Undo that restores it exactly (AC2)', async () => {
+  it('the bin deletes immediately by entryId and offers Undo that restores it exactly (AC2)', async () => {
     mockDayExtras = withCustomEntry;
     const user = userEvent.setup();
     await renderTracker();
     await user.press(screen.getByLabelText('Delete Protein shake'));
-    // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment -- jest matchers/mocks are typed any
-    expect(mockDeleteCustom).toHaveBeenCalledWith({ date: expect.any(String), entryIndex: 0 });
-    expect(mockSnackbarShow).toHaveBeenCalledWith(
-      expect.objectContaining({ message: 'Deleted Protein shake', actionLabel: 'Undo' }),
-    );
-    // eslint-disable-next-line @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access -- jest matchers/mocks are typed any
-    mockSnackbarShow.mock.calls[0]?.[0]?.onAction?.();
-    expect(mockRestoreCustom).toHaveBeenCalledWith({
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment -- jest matchers/mocks are typed any
-      date: expect.any(String),
-      entry: {
+    // UX-FOOD-17: the stable id is sent, with the index only as the old fallback.
+    await waitFor(() =>
+      expect(mockDeleteCustom).toHaveBeenCalledWith({
+        // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment -- jest matchers/mocks are typed any
+        date: expect.any(String),
         entryId: 'e1',
-        custom: { name: 'Protein shake', estimatedBy: 'manual' },
-        mealType: 'snack',
-        portionMultiplier: 1,
-        kcal: 180,
-        protein: 30,
-        carbs: 5,
-        fat: 2,
-      },
+        entryIndex: 0,
+      }),
+    );
+    await waitFor(() =>
+      expect(mockSnackbarShow).toHaveBeenCalledWith(
+        expect.objectContaining({ message: 'Deleted Protein shake', actionLabel: 'Undo' }),
+      ),
+    );
+    expect(screen.queryByTestId('tracker-custom-0')).not.toBeOnTheScreen();
+    await act(() => {
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access -- jest matchers/mocks are typed any
+      mockSnackbarShow.mock.calls[0]?.[0]?.onAction?.();
     });
+    await waitFor(() =>
+      expect(mockRestoreCustom).toHaveBeenCalledWith({
+        // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment -- jest matchers/mocks are typed any
+        date: expect.any(String),
+        entry: {
+          entryId: 'e1',
+          custom: { name: 'Protein shake', estimatedBy: 'manual' },
+          mealType: 'snack',
+          portionMultiplier: 1,
+          kcal: 180,
+          protein: 30,
+          carbs: 5,
+          fat: 2,
+        },
+      }),
+    );
+    // The restored row is back on screen.
+    await waitFor(() => expect(screen.getByTestId('tracker-custom-0')).toBeOnTheScreen());
+  });
+
+  it('a failed delete puts the entry back and says why (UX-FOOD-06)', async () => {
+    mockDayExtras = withCustomEntry;
+    mockFailWrites = true;
+    const user = userEvent.setup();
+    await renderTracker();
+    await user.press(screen.getByLabelText('Delete Protein shake'));
+    await waitFor(() =>
+      expect(mockSnackbarShow).toHaveBeenCalledWith(errorSnackbar("Couldn't delete that entry.")),
+    );
+    expect(screen.getByTestId('tracker-custom-0')).toBeOnTheScreen();
+    // Not the green "Deleted … · Undo" success.
+    expect(mockSnackbarShow).not.toHaveBeenCalledWith(
+      expect.objectContaining({ message: 'Deleted Protein shake' }),
+    );
   });
 });
 
@@ -446,9 +612,11 @@ describe('TrackerScreen — two identical snacks', () => {
     const [, secondSnack] = screen.getAllByTestId('tracker-meal-snack');
     if (!secondSnack) throw new Error('expected two snack rows');
     await user.press(secondSnack);
-    expect(ticks()).toEqual([false, true]);
-    expect(mockLogRecipe).toHaveBeenCalledWith(
-      expect.objectContaining({ recipeId: 'yog', slotIndex: 3 }),
+    await waitFor(() => expect(ticks()).toEqual([false, true]));
+    await waitFor(() =>
+      expect(mockLogRecipe).toHaveBeenCalledWith(
+        expect.objectContaining({ recipeId: 'yog', slotIndex: 3 }),
+      ),
     );
   });
 
@@ -480,5 +648,233 @@ describe('TrackerScreen — two identical snacks', () => {
     };
     await renderTracker();
     expect(ticks()).toEqual([true, false]);
+  });
+});
+
+// ─── UX-FOOD-01 / UX-FOOD-06: ticks follow the server, failures revert ─────────
+
+/** A snackbar error: exactly `{ message }`, the message starting with `start`. */
+const errorSnackbar = (start: string) => ({
+  // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment -- jest matchers are typed any
+  message: expect.stringContaining(start),
+});
+const tickOf = (testID: string): boolean | undefined =>
+  (screen.getByTestId(testID).props as { accessibilityState?: { checked?: boolean } })
+    .accessibilityState?.checked;
+const snackbarCall = (message: string) =>
+  (mockSnackbarShow.mock.calls as [{ message: string; onAction?: () => void }][])
+    .map((c) => c[0])
+    .find((c) => c.message === message);
+
+describe('TrackerScreen — ticks follow the server (UX-FOOD-01)', () => {
+  it('Undo unticks the row and takes the meal out of the totals', async () => {
+    const user = userEvent.setup();
+    await renderTracker();
+    await user.press(screen.getByTestId('tracker-meal-breakfast'));
+    await waitFor(() => expect(snackbarCall('Logged breakfast')).toBeDefined());
+    expect(tickOf('tracker-meal-breakfast')).toBe(true);
+    expect(screen.getByText('400 / 2000')).toBeOnTheScreen();
+
+    await act(() => {
+      snackbarCall('Logged breakfast')?.onAction?.();
+    });
+    await waitFor(() => expect(tickOf('tracker-meal-breakfast')).toBe(false));
+    expect(screen.getByText('0 / 2000')).toBeOnTheScreen();
+    expect(mockUnlogRecipe).toHaveBeenCalledWith(
+      expect.objectContaining({ recipeId: 'r1', mealType: 'breakfast' }),
+    );
+  });
+
+  it('"Removed … Undo" ticks the row again', async () => {
+    mockDayExtras = {
+      log: {
+        loggedMeals: [
+          {
+            entryId: 'e1',
+            recipeId: 'r1',
+            mealType: 'breakfast',
+            portionMultiplier: 1,
+            kcal: 400,
+            protein: 20,
+            carbs: 50,
+            fat: 10,
+          },
+        ],
+        totalKcal: 400,
+        totalProtein: 20,
+        totalCarbs: 50,
+        totalFat: 10,
+      },
+    };
+    const user = userEvent.setup();
+    await renderTracker();
+    expect(tickOf('tracker-meal-breakfast')).toBe(true);
+    mockServer = { ...mockServer, log: mockCache.log }; // the fake server holds the same log
+    await user.press(screen.getByTestId('tracker-meal-breakfast'));
+    await waitFor(() => expect(snackbarCall('Removed breakfast')).toBeDefined());
+    expect(tickOf('tracker-meal-breakfast')).toBe(false);
+
+    await act(() => {
+      snackbarCall('Removed breakfast')?.onAction?.();
+    });
+    await waitFor(() => expect(tickOf('tracker-meal-breakfast')).toBe(true));
+  });
+
+  it('a meal logged elsewhere (Today, the Log sheet) shows ticked without a remount', async () => {
+    await renderTracker();
+    expect(tickOf('tracker-meal-lunch')).toBe(false);
+    // Another surface logs lunch; the day query refetches.
+    await act(() => {
+      mockSetCache({
+        ...mockCache,
+        log: {
+          loggedMeals: [
+            {
+              entryId: 'other',
+              recipeId: 'r2',
+              mealType: 'lunch',
+              portionMultiplier: 1.25,
+              kcal: 750,
+              protein: 50,
+              carbs: 75,
+              fat: 25,
+            },
+          ],
+        },
+      });
+    });
+    expect(tickOf('tracker-meal-lunch')).toBe(true);
+    expect(screen.getByText('750 / 2000')).toBeOnTheScreen();
+  });
+});
+
+describe('TrackerScreen — failed writes revert and say so (UX-FOOD-06)', () => {
+  it('a failed tick unticks the row, shows the reason, and never shows "Logged"', async () => {
+    mockFailWrites = true;
+    const user = userEvent.setup();
+    await renderTracker();
+    await user.press(screen.getByTestId('tracker-meal-breakfast'));
+    await waitFor(() =>
+      expect(mockSnackbarShow).toHaveBeenCalledWith(errorSnackbar("Couldn't log breakfast.")),
+    );
+    // The friendly network line, not the raw transport error.
+    expect(
+      snackbarCall(
+        "Couldn't log breakfast. Can't reach Chefer right now. Check your connection and try again.",
+      ),
+    ).toBeDefined();
+    expect(tickOf('tracker-meal-breakfast')).toBe(false);
+    expect(screen.getByText('0 / 2000')).toBeOnTheScreen();
+    expect(snackbarCall('Logged breakfast')).toBeUndefined();
+  });
+
+  it('a failed untick keeps the row ticked', async () => {
+    mockDayExtras = {
+      log: {
+        loggedMeals: [
+          {
+            entryId: 'e1',
+            recipeId: 'r1',
+            mealType: 'breakfast',
+            portionMultiplier: 1,
+            kcal: 400,
+            protein: 20,
+            carbs: 50,
+            fat: 10,
+          },
+        ],
+        totalKcal: 400,
+        totalProtein: 20,
+        totalCarbs: 50,
+        totalFat: 10,
+      },
+    };
+    mockFailWrites = true;
+    const user = userEvent.setup();
+    await renderTracker();
+    await user.press(screen.getByTestId('tracker-meal-breakfast'));
+    await waitFor(() =>
+      expect(mockSnackbarShow).toHaveBeenCalledWith(errorSnackbar("Couldn't remove breakfast.")),
+    );
+    expect(tickOf('tracker-meal-breakfast')).toBe(true);
+    expect(snackbarCall('Removed breakfast')).toBeUndefined();
+  });
+});
+
+// ─── UX-FOOD-03: off-plan rows are editable and removable ──────────────────────
+
+describe('TrackerScreen — "Also eaten" recipe rows (UX-FOOD-03)', () => {
+  const offPlanEntry = {
+    entryId: 'o1',
+    recipeId: 'pad-thai',
+    mealType: 'dinner',
+    portionMultiplier: 1,
+    kcal: 603,
+    protein: 20,
+    carbs: 80,
+    fat: 20,
+  };
+  const withOffPlan = {
+    plannedMeals: [],
+    hasActivePlan: true,
+    offPlanLogged: [{ ...offPlanEntry, recipeName: 'Tofu Pad Thai' }],
+    log: {
+      loggedMeals: [offPlanEntry],
+      totalKcal: 603,
+      totalProtein: 20,
+      totalCarbs: 80,
+      totalFat: 20,
+    },
+  };
+
+  it('tapping the row opens an editor, and Save sends the new portion by entryId', async () => {
+    mockDayExtras = withOffPlan;
+    const user = userEvent.setup();
+    await renderTracker();
+    await user.press(screen.getByTestId('tracker-off-plan-o1'));
+    expect(screen.getByTestId('edit-recipe-entry-sheet-title')).toHaveTextContent('Edit meal');
+    await user.press(screen.getByTestId('edit-recipe-entry-portion-2'));
+    await user.press(screen.getByTestId('edit-recipe-entry-save'));
+    await waitFor(() =>
+      expect(mockUpdateRecipeEntry).toHaveBeenCalledWith({
+        // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment -- jest matchers/mocks are typed any
+        date: expect.any(String),
+        entryId: 'o1',
+        portionMultiplier: 2,
+        mealType: 'dinner',
+      }),
+    );
+  });
+
+  it('the bin removes it with Undo, and the totals follow', async () => {
+    mockDayExtras = withOffPlan;
+    const user = userEvent.setup();
+    await renderTracker();
+    expect(screen.getByText('603 / 2000')).toBeOnTheScreen();
+    await user.press(screen.getByLabelText('Delete Tofu Pad Thai'));
+    await waitFor(() =>
+      expect(mockDeleteEntries).toHaveBeenCalledWith({
+        // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment -- jest matchers/mocks are typed any
+        date: expect.any(String),
+        entryIds: ['o1'],
+      }),
+    );
+    await waitFor(() => expect(snackbarCall('Deleted Tofu Pad Thai')).toBeDefined());
+    expect(screen.queryByTestId('tracker-off-plan-o1')).not.toBeOnTheScreen();
+    expect(screen.getByText('0 / 2000')).toBeOnTheScreen();
+
+    await act(() => {
+      snackbarCall('Deleted Tofu Pad Thai')?.onAction?.();
+    });
+    // Undo re-logs the same recipe, meal and portion.
+    await waitFor(() =>
+      expect(mockLogRecipe).toHaveBeenCalledWith(
+        expect.objectContaining({
+          recipeId: 'pad-thai',
+          mealType: 'dinner',
+          portionMultiplier: 1,
+        }),
+      ),
+    );
   });
 });

@@ -50,6 +50,7 @@ import { LogPastWorkoutAction } from './log-past-workout';
 import { dismissMissedDay, isMissedDayDismissed } from './missed-day-dismissed';
 import { RecentWorkouts } from './recent-workouts';
 import { ResumeCard } from './resume-card';
+import { StartConflictSheet } from './start-conflict-sheet';
 import { TargetChangeNotice } from './target-change-notice';
 import { getTimeToday, setTimeToday } from './time-today';
 import { TimeTodayChips } from './time-today-chips';
@@ -143,16 +144,57 @@ export function TodayScreen() {
     onSuccess: () => void queryClient.invalidateQueries({ queryKey: gymBootstrapQueryKey }),
   });
   const pauseEndMutation = trpc.gym.pause.end.useMutation({
-    onSuccess: () => void queryClient.invalidateQueries({ queryKey: gymBootstrapQueryKey }),
+    // UX-GYM-06: drop the pause card at once; the refetch below confirms it
+    // (or restores it on an error).
+    onMutate: () =>
+      queryClient.setQueryData(gymBootstrapQueryKey, (prev: GymBootstrap | undefined) =>
+        prev ? { ...prev, activePause: null } : prev,
+      ),
+    onSettled: () => void queryClient.invalidateQueries({ queryKey: gymBootstrapQueryKey }),
   });
 
-  const startPlanned = (workout: NextWorkoutDto, carryOverExerciseIds?: string[]) => {
-    activeWorkout.start({
-      kind: 'planned',
-      workout,
-      ...(carryOverExerciseIds?.length ? { carryOverExerciseIds } : {}),
-    });
+  // UX-GYM-02: `startWorkout` hands back the EXISTING session when one is in
+  // progress, so a start tap used to land in the old workout with no word. Any
+  // start while one is open parks here and the sheet asks: Resume / Finish & start
+  // / Discard & start.
+  const [pendingStart, setPendingStart] = useState<{
+    targetName: string;
+    run: () => void;
+  } | null>(null);
+  const guardStart = (targetName: string, run: () => void) => {
+    if (activeWorkout.isActive) setPendingStart({ targetName, run });
+    else run();
+  };
+  const handleConflictResume = () => {
+    setPendingStart(null);
+    activeWorkout.resume();
     router.push('/gym/workout');
+  };
+  const handleConflictFinishAndStart = async () => {
+    const run = pendingStart?.run;
+    setPendingStart(null);
+    if (!run) return;
+    const finished = await activeWorkout.finish();
+    if (finished) snackbar.show({ message: `${finished.name} finished.` });
+    run();
+  };
+  const handleConflictDiscardAndStart = () => {
+    const run = pendingStart?.run;
+    setPendingStart(null);
+    if (!run) return;
+    activeWorkout.discard();
+    run();
+  };
+
+  const startPlanned = (workout: NextWorkoutDto, carryOverExerciseIds?: string[]) => {
+    guardStart(workout.dayName, () => {
+      activeWorkout.start({
+        kind: 'planned',
+        workout,
+        ...(carryOverExerciseIds?.length ? { carryOverExerciseIds } : {}),
+      });
+      router.push('/gym/workout');
+    });
   };
 
   const handleTimeTodayChange = (minutes: number | null) => {
@@ -162,8 +204,10 @@ export function TodayScreen() {
   };
 
   const startFreestyle = () => {
-    activeWorkout.start({ kind: 'freestyle' });
-    router.push('/gym/workout');
+    guardStart('a freestyle workout', () => {
+      activeWorkout.start({ kind: 'freestyle' });
+      router.push('/gym/workout');
+    });
   };
 
   // Starts `dayId` now. Used to only move the server's rotation pointer when
@@ -328,7 +372,6 @@ export function TodayScreen() {
   const status = todayStatus({ bootstrap, today });
   const doneCard = status.kind === 'done' ? doneTodayCard({ bootstrap, today }) : null;
   const offer = pickOffer(bootstrap.offers);
-  const showOutbox = outboxStatus.pending > 0 || outboxStatus.parked.length > 0;
   const sortedDays = [...activeRoutine.days].sort((a, b) => a.position - b.position);
 
   // T-04.8 (UX-04 §7): a planned day earlier this week that never happened —
@@ -705,7 +748,43 @@ export function TodayScreen() {
 
         <RecentWorkouts bootstrap={bootstrap} />
 
-        {showOutbox && (
+        {/* UX-GYM-01: a workout the server rejected (or that failed local
+            validation) used to sit parked behind a grey "1 item needs
+            attention" line while Today still said "Done". Say what is wrong
+            and let the user fix the set. */}
+        {outboxStatus.parked.map((entry) => (
+          <Card
+            key={entry.doc.id}
+            testID={`gym-today-parked-${entry.doc.id}`}
+            className="gap-2 border border-amber-300 bg-amber-50"
+          >
+            <Text className="font-semibold text-amber-900">{`${entry.doc.name} didn't save`}</Text>
+            <Text testID={`gym-today-parked-${entry.doc.id}-reason`} className="text-sm">
+              {entry.parkedReason}
+            </Text>
+            <View className="flex-row gap-2">
+              {entry.doc.status === 'COMPLETED' ? (
+                <Button
+                  testID={`gym-today-parked-${entry.doc.id}-fix`}
+                  size="sm"
+                  onPress={() => router.push(`/gym/workout?edit=${entry.doc.id}`)}
+                >
+                  Fix it
+                </Button>
+              ) : null}
+              <Button
+                testID={`gym-today-parked-${entry.doc.id}-details`}
+                size="sm"
+                variant="outline"
+                onPress={() => router.push('/gym/settings')}
+              >
+                Retry or discard
+              </Button>
+            </View>
+          </Card>
+        ))}
+
+        {outboxStatus.parked.length === 0 && outboxStatus.pending > 0 && (
           <Pressable
             testID="gym-today-outbox"
             accessibilityRole="button"
@@ -713,13 +792,23 @@ export function TodayScreen() {
             className="min-h-11 justify-center rounded-lg bg-muted px-4 py-3"
           >
             <Text className="text-xs text-muted-foreground">
-              {outboxStatus.parked.length > 0
-                ? `${outboxStatus.parked.length} item${outboxStatus.parked.length === 1 ? '' : 's'} need attention`
-                : `${outboxStatus.pending} workout${outboxStatus.pending === 1 ? '' : 's'} waiting to sync`}
+              {`${outboxStatus.pending} workout${outboxStatus.pending === 1 ? '' : 's'} waiting to sync`}
             </Text>
           </Pressable>
         )}
       </ScrollView>
+
+      {activeWorkout.session ? (
+        <StartConflictSheet
+          visible={pendingStart !== null}
+          onClose={() => setPendingStart(null)}
+          session={activeWorkout.session}
+          targetName={pendingStart?.targetName ?? 'a new workout'}
+          onResume={handleConflictResume}
+          onFinishAndStart={() => void handleConflictFinishAndStart()}
+          onDiscardAndStart={handleConflictDiscardAndStart}
+        />
+      ) : null}
 
       <Sheet
         visible={dayPickerVisible}

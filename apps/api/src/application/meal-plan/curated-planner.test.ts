@@ -286,20 +286,21 @@ describe('planCuratedWeek — shape (§2.3, T-07.2)', () => {
     expect(sunday.meals).toHaveLength(1);
   });
 
-  it('"cooking for 2" sets every planned slot to portion 2', () => {
-    const shape: CuratedShapeOptions = { slots: ['breakfast', 'lunch', 'dinner'], cookingFor: 2 };
-    const week = planCuratedWeek(pools(), targets, seeded(), shape);
-    for (const day of week) {
-      for (const meal of day.meals) expect(meal.portion).toBe(2);
-    }
+  it('"two of us" leaves the eater\'s calorie-driven portions and kcal untouched (UX-PLAN-02)', () => {
+    const slots = ['breakfast', 'lunch', 'dinner'] as const;
+    const solo = planCuratedWeek(pools(), targets, seeded(), { slots, cookingFor: 1 });
+    const two = planCuratedWeek(pools(), targets, seeded(), { slots, cookingFor: 2 });
+    expect(two.map((d) => d.meals.map((m) => m.portion))).toEqual(
+      solo.map((d) => d.meals.map((m) => m.portion)),
+    );
+    expect(two.map((d) => d.kcal)).toEqual(solo.map((d) => d.kcal));
+    // …and no slot is blanket-doubled the way the old override did.
+    expect(two.some((d) => d.meals.some((m) => m.portion !== 2))).toBe(true);
   });
 
   it('"just me" (cookingFor 1 or absent) keeps the calorie-driven portion', () => {
     const shape: CuratedShapeOptions = { slots: ['breakfast', 'lunch', 'dinner'], cookingFor: 1 };
     const week = planCuratedWeek(pools(), targets, seeded(), shape);
-    // The same fixture pool at this target already lands close to 1x
-    // (see the "keeps portions at 1x" test above) — cookingFor: 1 must not
-    // force every slot to 2x the way cookingFor: 2 does.
     expect(week.some((d) => d.meals.some((m) => m.portion !== 2))).toBe(true);
   });
 
