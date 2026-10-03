@@ -152,3 +152,40 @@ describe('OnboardingWizard — jobs step (§2.4, T-03.6)', () => {
     expect(typeof opts?.onSuccess).toBe('function');
   });
 });
+
+// UX-ONB-04: the device region picks the starting units once, in the wizard's
+// initial state — re-mounting How you cook (Back, then forward) used to put the
+// region's pick back over the user's own.
+describe('OnboardingWizard — region default is applied once (UX-ONB-04)', () => {
+  async function goToHowYouCook() {
+    render(<OnboardingWizard isPremium={false} />);
+    fireEvent.click(screen.getByTestId('onboarding-job-PLAN_MEALS'));
+    fireEvent.click(screen.getByTestId('onboarding-continue')); // jobs -> diet
+    await waitFor(() => expect(screen.getByTestId('onboarding-title').textContent).toMatch(/Diet/));
+    fireEvent.click(screen.getByTestId('onboarding-continue')); // diet -> how you cook
+    await waitFor(() => expect(screen.getByTestId('how-you-cook-units-imperial')).toBeTruthy());
+  }
+
+  it('starts from the device region, and a metric pick survives Back and forward', async () => {
+    vi.spyOn(navigator, 'languages', 'get').mockReturnValue(['en-US']);
+    await goToHowYouCook();
+    expect(screen.getByTestId('how-you-cook-units-imperial').getAttribute('aria-pressed')).toBe(
+      'true',
+    );
+
+    fireEvent.click(screen.getByTestId('how-you-cook-units-metric'));
+    fireEvent.click(screen.getByTestId('onboarding-continue')); // -> goal
+    await waitFor(() =>
+      expect(screen.getByTestId('onboarding-title').textContent).toMatch(/goal/i),
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'Back' })); // -> how you cook
+    await waitFor(() => expect(screen.getByTestId('how-you-cook-units-metric')).toBeTruthy());
+
+    expect(screen.getByTestId('how-you-cook-units-metric').getAttribute('aria-pressed')).toBe(
+      'true',
+    );
+    expect(screen.getByTestId('how-you-cook-units-imperial').getAttribute('aria-pressed')).toBe(
+      'false',
+    );
+  });
+});

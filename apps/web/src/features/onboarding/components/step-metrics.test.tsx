@@ -65,3 +65,36 @@ describe('StepMetrics — age rules (R-02)', () => {
     expect(screen.getByText(/− 500 for your goal/)).toBeTruthy();
   });
 });
+
+// UX-ONB-05: plausibility bounds for height and weight.
+describe('StepMetrics — height and weight bounds (UX-ONB-05)', () => {
+  const OK = {
+    biologicalSex: 'FEMALE' as const,
+    age: 30,
+    heightCm: 170,
+    weightKg: 70,
+    activityLevel: 'SEDENTARY' as const,
+  };
+
+  it('shows no error and the estimate for plausible values', () => {
+    render(<StepMetrics value={OK} onChange={vi.fn()} goal="MAINTAIN" />);
+    expect(screen.queryByRole('alert')).toBeNull();
+    expect(screen.getByText(/Estimated daily calorie target/)).toBeTruthy();
+  });
+
+  it('flags "1,80" cm (1.8), hides the estimate', () => {
+    render(<StepMetrics value={{ ...OK, heightCm: 1.8 }} onChange={vi.fn()} />);
+    expect(screen.getByRole('alert').textContent).toBe('Enter a height between 100 and 250 cm.');
+    expect(screen.getByLabelText('Height in centimetres').getAttribute('aria-invalid')).toBe(
+      'true',
+    );
+    expect(screen.queryByText(/Estimated daily calorie target/)).toBeNull();
+    expect(screen.getByText(/Fix your height and weight/)).toBeTruthy();
+  });
+
+  it('flags an 8 kg weight', () => {
+    render(<StepMetrics value={{ ...OK, weightKg: 8 }} onChange={vi.fn()} />);
+    expect(screen.getByRole('alert').textContent).toBe('Enter a weight between 20 and 400 kg.');
+    expect(screen.queryByText(/Estimated daily calorie target/)).toBeNull();
+  });
+});
