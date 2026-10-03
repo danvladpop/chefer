@@ -1,8 +1,17 @@
 import { useState } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, TextInput, View } from 'react-native';
+import { ActivityIndicator, Pressable, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
-import { Button, Card, ConfirmSheet, ErrorState, Screen, Text } from '@chefer/ui-mobile';
+import {
+  Button,
+  Card,
+  ConfirmSheet,
+  ErrorState,
+  Input,
+  KeyboardAwareScrollView,
+  Screen,
+  Text,
+} from '@chefer/ui-mobile';
 import { userFacingErrorMessage } from '@chefer/utils';
 import { PastWeeksSection } from '../src/features/history/past-weeks-section';
 import { trpc } from '../src/lib/trpc';
@@ -119,7 +128,11 @@ export default function MyWeeksScreen() {
         </View>
       </View>
 
-      <ScrollView contentContainerClassName="gap-3 px-4 py-2 pb-8">
+      {/* UX-PLAN-10: keyboard-aware, taps on Save / OK land on the first press. */}
+      <KeyboardAwareScrollView
+        testID="my-weeks-scroll"
+        contentContainerClassName="gap-3 px-4 py-2 pb-8"
+      >
         <Text variant="muted" className="text-sm">
           Save a week you like and reuse it. The week you follow repeats each week until you switch.
         </Text>
@@ -137,14 +150,15 @@ export default function MyWeeksScreen() {
             </Text>
           ) : (
             <View className="flex-row items-center gap-2">
-              <TextInput
+              <Input
                 testID="my-weeks-save-name"
+                accessibilityLabel="Name for this week"
                 value={saveName}
                 onChangeText={setSaveName}
                 placeholder="Name it, e.g. Mediterranean week"
                 placeholderTextColor="#9ca3af"
                 maxLength={40}
-                className="h-11 min-w-0 flex-1 rounded-xl border border-input bg-background px-3 text-base text-foreground"
+                className="min-w-0 flex-1 rounded-xl"
               />
               <Button
                 testID="my-weeks-save"
@@ -191,12 +205,14 @@ export default function MyWeeksScreen() {
               <View className="flex-row items-center justify-between gap-2">
                 {renamingId === t.id ? (
                   <View className="min-w-0 flex-1 flex-row items-center gap-2">
-                    <TextInput
+                    <Input
+                      testID="my-weeks-rename-input"
+                      accessibilityLabel="Week name"
                       value={renameValue}
                       onChangeText={setRenameValue}
                       autoFocus
                       maxLength={40}
-                      className="h-11 min-w-0 flex-1 rounded-xl border border-input bg-background px-3 text-base text-foreground"
+                      className="min-w-0 flex-1 rounded-xl"
                     />
                     <Button
                       size="sm"
@@ -267,7 +283,7 @@ export default function MyWeeksScreen() {
         )}
 
         <PastWeeksSection />
-      </ScrollView>
+      </KeyboardAwareScrollView>
       <ConfirmSheet
         testID="my-weeks-confirm"
         visible={confirming !== null}

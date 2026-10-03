@@ -1,7 +1,7 @@
-import { Pressable, ScrollView, View } from 'react-native';
+import { Pressable, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
-import { Screen, Text } from '@chefer/ui-mobile';
+import { KeyboardAwareScrollView, Screen, Text } from '@chefer/ui-mobile';
 import { HouseholdEditor } from '../src/features/household/household-editor';
 
 // Household (F2, backlog P2-3) — port of web's preferences household-section.
@@ -27,13 +27,17 @@ export default function HouseholdScreen() {
         </Text>
       </View>
 
-      <ScrollView contentContainerClassName="gap-4 px-4 pb-8" keyboardShouldPersistTaps="handled">
+      {/* UX-X-05: the name field and "Add to household" stay clear of the keyboard. */}
+      <KeyboardAwareScrollView
+        testID="household-scroll"
+        contentContainerClassName="gap-4 px-4 pb-8"
+      >
         <Text variant="muted" className="text-sm">
           Who eats with you? Everyone&apos;s allergies and restrictions apply to every plan, free.
           With Premium, portions, the shopping list and the week cost scale to your whole table.
         </Text>
         <HouseholdEditor />
-      </ScrollView>
+      </KeyboardAwareScrollView>
     </Screen>
   );
 }

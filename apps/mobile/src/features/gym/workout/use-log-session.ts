@@ -15,6 +15,12 @@ import { newId, nowIso } from '../offline/ids';
 import { localInstant } from '../reminders/schedule';
 import { FREESTYLE_NAME } from '../use-active-workout';
 import { libraryLookup, useGymBootstrap } from '../use-gym-bootstrap';
+import {
+  clearSessionDraft,
+  loadSessionDraft,
+  logDraftTarget,
+  saveSessionDraft,
+} from './session-draft-store';
 import { retimeDraft, type EditSession, type EditSessionState } from './use-edit-session';
 
 // Log mode's draft (owner dogfood 2026-09-30): "Log a workout you already did"
@@ -106,24 +112,42 @@ export function useLogSession(params: LogSessionParams): EditSession {
   const [original, setOriginal] = useState<WorkoutSessionDoc | null>(null);
   const [draft, setDraft] = useState<WorkoutSessionDoc | null>(null);
   const draftRef = useRef<WorkoutSessionDoc | null>(null);
+  const originalRef = useRef<WorkoutSessionDoc | null>(null);
+  const [restored, setRestored] = useState(false);
   const { date, dayId } = params;
+  const target = logDraftTarget(date, dayId);
 
   // Build once: a bootstrap refetch while the user is logging must not reset the draft.
   useEffect(() => {
     if (original !== null || !bootstrap) return;
-    const built = buildLogDraft(bootstrap, { date, dayId });
+    // UX-GYM-26: a log left unsaved for this day comes back as it was. Its own
+    // starting point is restored with it, so "dirty" (and the leave guard)
+    // still mean "different from a fresh log".
+    const saved = loadSessionDraft('log', target);
+    const built = saved?.original ?? buildLogDraft(bootstrap, { date, dayId });
+    const start = saved?.draft ?? built;
+    originalRef.current = built;
     setOriginal(built);
-    setDraft(built);
-    draftRef.current = built;
-  }, [bootstrap, date, dayId, original]);
+    setDraft(start);
+    setRestored(saved !== null);
+    draftRef.current = start;
+  }, [bootstrap, date, dayId, original, target]);
 
-  const apply = useCallback((fn: (doc: WorkoutSessionDoc) => WorkoutSessionDoc) => {
-    const current = draftRef.current;
-    if (!current) return;
-    const next = fn(current);
-    draftRef.current = next;
-    setDraft(next);
-  }, []);
+  const apply = useCallback(
+    (fn: (doc: WorkoutSessionDoc) => WorkoutSessionDoc) => {
+      const current = draftRef.current;
+      if (!current) return;
+      const next = fn(current);
+      draftRef.current = next;
+      setDraft(next);
+      const base = originalRef.current;
+      if (base && hasEdits(base, next)) saveSessionDraft('log', target, base, next);
+      else clearSessionDraft('log', target);
+    },
+    [target],
+  );
+
+  const discardDraft = useCallback(() => clearSessionDraft('log', target), [target]);
 
   const dispatch = useCallback<EditSession['dispatch']>(
     (action, options) => {
@@ -148,8 +172,8 @@ export function useLogSession(params: LogSessionParams): EditSession {
   // Until the (persisted) bootstrap is there, there's nothing to build from.
   const state: EditSessionState =
     original && draft
-      ? { status: 'ready', original, draft, dirty: hasEdits(original, draft) }
+      ? { status: 'ready', original, draft, dirty: hasEdits(original, draft), restored }
       : { status: 'loading' };
 
-  return { state, getDraft, dispatch, replaceExercise, retime };
+  return { state, getDraft, dispatch, replaceExercise, retime, discardDraft };
 }

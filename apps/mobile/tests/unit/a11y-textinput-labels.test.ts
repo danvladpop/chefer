@@ -19,14 +19,10 @@ const SCANNED = ['apps/mobile/app', 'apps/mobile/src', 'packages/ui-mobile/src']
  * (or switch to the kit's `Input` / `SearchField`, which default theirs).
  */
 const ALLOW_LIST: readonly string[] = [
-  'apps/mobile/app/(food)/recipes.tsx',
   'apps/mobile/app/(food)/shopping-list.tsx',
   'apps/mobile/app/chat.tsx',
   'apps/mobile/app/import-recipe.tsx',
-  'apps/mobile/app/my-weeks.tsx',
-  'apps/mobile/app/preferences.tsx',
   'apps/mobile/app/recipe-form.tsx',
-  'apps/mobile/src/features/meal-plan/recipe-picker-sheet.tsx',
   'apps/mobile/src/features/pantry/pantry-panel.tsx',
   'apps/mobile/src/features/preferences/components/metrics-step.tsx',
 ];

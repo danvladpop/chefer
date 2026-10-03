@@ -16,6 +16,16 @@ export const SEARCH_TARGET_PT = 44;
 /** `onDebouncedChange` waits this long after the last keystroke (UX §3.1). */
 export const SEARCH_DEBOUNCE_MS = 250;
 
+/**
+ * UX-X-17: spread onto the FlatList / SectionList / ScrollView that shows a
+ * search field's results — scrolling the list dismisses the keyboard, and a
+ * tap on a result still lands while it is up.
+ */
+export const SEARCH_LIST_PROPS = {
+  keyboardDismissMode: 'on-drag',
+  keyboardShouldPersistTaps: 'handled',
+} as const;
+
 export interface SearchFieldProps extends Omit<
   TextInputProps,
   'accessibilityLabel' | 'value' | 'defaultValue'
@@ -36,7 +46,8 @@ export interface SearchFieldProps extends Omit<
 
 /**
  * 44 pt pill search input: leading magnifier, trailing clear `×` with its own
- * 44 × 44 pt hit area. Return key is `search`; autocorrect is off. The icons
+ * 44 × 44 pt hit area. Return key is `search`; autocorrect is off. Pair it
+ * with `{...SEARCH_LIST_PROPS}` on the results list. The icons
  * are drawn with react-native-svg — the kit has no icon dependency.
  */
 export const SearchField = forwardRef<TextInput, SearchFieldProps>(function SearchField(

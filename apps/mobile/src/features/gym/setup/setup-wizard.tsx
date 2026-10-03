@@ -59,7 +59,12 @@ import {
 
 const TOTAL_STEPS = 7;
 const WEEKDAY_LABELS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
-const WEIGHTS_ACCESSORY_ID = 'gym-setup-weights-return';
+/**
+ * One accessory bar PER weight field (audit §6.1 root cause 4 / ONB-06): one
+ * `inputAccessoryViewID` shared by every field, with a label that changes
+ * (Next -> Done), breaks the numeric "Next" bar on iOS.
+ */
+const weightsAccessoryId = (exerciseId: string): string => `gym-setup-weights-bar-${exerciseId}`;
 
 function ProgressDots({ step }: { step: number }) {
   return (
@@ -209,9 +214,9 @@ export function SetupWizard() {
 
   // Starting weights (dogfood #2): the keyboard used to cover whichever
   // field you were typing into. `decimal-pad` has no Return key on iOS, so
-  // `WEIGHTS_ACCESSORY_ID` pairs every field here with one shared
-  // NumericReturnBar for "Next" / "Done"; on Android the IME already renders
-  // one for `returnKeyType`, and `inputAccessoryViewID` is simply ignored.
+  // `weightsAccessoryId` gives every field here its own NumericReturnBar
+  // ("Next", or "Done" on the last); on Android the IME already renders one
+  // for `returnKeyType`, and `inputAccessoryViewID` is simply ignored.
   const weightsChain = useFieldChain(exercises.length);
   const scrollFieldIntoView = useScrollFieldIntoView();
 
@@ -833,7 +838,7 @@ export function SetupWizard() {
                         aria-invalid={weightErrors[ex.exerciseId] !== undefined}
                         keyboardType="decimal-pad"
                         inputAccessoryViewID={
-                          Platform.OS === 'ios' ? WEIGHTS_ACCESSORY_ID : undefined
+                          Platform.OS === 'ios' ? weightsAccessoryId(ex.exerciseId) : undefined
                         }
                         placeholder={unitLabel(unit)}
                         value={knownWeights[ex.exerciseId] ?? ''}
@@ -847,6 +852,12 @@ export function SetupWizard() {
                         {unitLabel(unit)}
                       </Text>
                     </View>
+                    <NumericReturnBar
+                      nativeID={weightsAccessoryId(ex.exerciseId)}
+                      label={i === exercises.length - 1 ? 'Done' : 'Next'}
+                      onPress={() => weightsChain.focusNext(i)}
+                      testID={`gym-setup-weights-return-${ex.exerciseId}`}
+                    />
                     {weightErrors[ex.exerciseId] ? (
                       <Text
                         testID={`gym-setup-weight-error-${ex.exerciseId}`}
@@ -860,14 +871,6 @@ export function SetupWizard() {
                 ))}
               </View>
             )}
-            {weightsChoice === 'know' && exercises.length > 0 ? (
-              <NumericReturnBar
-                nativeID={WEIGHTS_ACCESSORY_ID}
-                label={weightsChain.isLastFocused ? 'Done' : 'Next'}
-                onPress={() => weightsChain.focusNext()}
-                testID="gym-setup-weights-return"
-              />
-            ) : null}
           </View>
         )}
 

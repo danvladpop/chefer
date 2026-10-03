@@ -12,7 +12,13 @@ const ZOD_WITH_FIELD =
 
 let mockPreviewError: Error | null = null;
 
-jest.mock('expo-router', () => ({ router: { push: jest.fn(), back: jest.fn() } }));
+jest.mock('expo-router', () => ({
+  router: { push: jest.fn(), back: jest.fn() },
+  useNavigation: () => ({ dispatch: jest.fn(), goBack: jest.fn() }),
+  useIsFocused: () => true,
+  useFocusEffect: () => undefined,
+}));
+jest.mock('expo-router/react-navigation', () => ({ usePreventRemove: () => undefined }));
 jest.mock('../../src/features/premium/open-premium', () => ({ openPremium: jest.fn() }));
 jest.mock('../../src/hooks/use-is-premium', () => ({ useIsPremium: () => true }));
 jest.mock('../../src/features/ai-consent/ai-consent-provider', () => ({

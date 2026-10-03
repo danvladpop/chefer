@@ -1,3 +1,4 @@
+import { TextInput } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { act, render, screen, userEvent } from '@testing-library/react-native';
 import { QuickAddSheet } from '../../src/features/tracker/quick-add-sheet';
@@ -327,6 +328,27 @@ describe('QuickAddSheet — Enter calories yourself (fallback, T-19.1)', () => {
     expect(mockLogCustom).not.toHaveBeenCalled();
     expect(screen.getByTestId('quick-add-name-error')).toHaveTextContent('Name what you ate.');
     expect(screen.getByTestId('quick-add-kcal-error')).toHaveTextContent('Enter the calories.');
+  });
+
+  // UX-FOOD-10: with the keyboard up an error can sit off-screen and Log looks
+  // dead — a failed submit focuses (and so scrolls to) the first invalid field.
+  it('focuses the first invalid field when Log is refused', async () => {
+    const focused: (string | undefined)[] = [];
+    const user = userEvent.setup();
+    await renderSheet();
+    await goToManual(user);
+    const proto = TextInput.prototype as unknown as { focus: () => void };
+    jest.spyOn(proto, 'focus').mockImplementation(function (this: unknown) {
+      focused.push((this as { props?: { testID?: string } }).props?.testID);
+    });
+    await user.press(screen.getByTestId('quick-add-submit'));
+    expect(focused).toEqual(['quick-add-name']);
+
+    await user.type(screen.getByTestId('quick-add-name'), 'Pizza');
+    focused.length = 0;
+    await user.press(screen.getByTestId('quick-add-submit'));
+    expect(focused).toEqual(['quick-add-kcal']);
+    jest.restoreAllMocks();
   });
 
   it('refuses out-of-range numbers inline', async () => {

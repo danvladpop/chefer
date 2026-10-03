@@ -1,14 +1,9 @@
 import { Pressable, TextInput, View } from 'react-native';
 import { bodyMetricsAgeError, MINOR_NO_DEFICIT_NOTE } from '@chefer/types';
-import {
-  Card,
-  NumericReturnBar,
-  Text,
-  useFieldChain,
-  useScrollFieldIntoView,
-} from '@chefer/ui-mobile';
+import { Card, Text, useScrollFieldIntoView } from '@chefer/ui-mobile';
 import { cn, previewCalorieTarget, WELLNESS_COPY } from '@chefer/utils';
 import { ACTIVITY_OPTIONS, type Goal, type MetricsValue } from '../types';
+import { useNumericChain } from '../use-numeric-chain';
 import { OptionRow } from './option-row';
 
 /**
@@ -73,10 +68,13 @@ export interface MetricsStepProps {
    * onboarding wizard always passes it; other callers are unaffected).
    */
   units?: 'METRIC' | 'IMPERIAL';
+  /**
+   * Runs when "Done" is pressed on the last field (weight), after the keyboard
+   * closes — the wizard passes its Continue so Age → Next → Next → Done moves
+   * on (UX-ONB-06). Unset: Done just closes the keyboard.
+   */
+  onSubmit?: () => void;
 }
-
-/** iOS accessory bar id shared by the three numeric fields below (T-21.5). */
-const NUMERIC_BAR_ID = 'metrics-step-numeric-bar';
 
 /**
  * Body metrics — port of apps/web/src/features/onboarding/components/step-metrics.tsx.
@@ -98,6 +96,7 @@ export function MetricsStep({
   onHeightText,
   onWeightText,
   units = 'METRIC',
+  onSubmit,
 }: MetricsStepProps) {
   const preview = computeCaloriePreview(value, goal);
   const ageError = bodyMetricsAgeError(value.age);
@@ -108,7 +107,9 @@ export function MetricsStep({
   // T-21.5 (CI-14, PAT-11): Return/accessory-bar chains Age → Height →
   // Weight, and each field scrolls clear of the keyboard on focus (a no-op
   // outside a KeyboardAwareScrollView, so this is safe wherever it renders).
-  const chain = useFieldChain(3);
+  // UX-ONB-06: one accessory bar per field (a shared id with a changing label
+  // left a dead bar on iOS), Next → Next → Done.
+  const chain = useNumericChain('metrics-step', 3, onSubmit);
   const scrollFieldIntoView = useScrollFieldIntoView();
 
   return (
@@ -155,7 +156,6 @@ export function MetricsStep({
           <TextInput
             testID="metrics-age"
             {...chain.bind(0, { onFocus: scrollFieldIntoView })}
-            inputAccessoryViewID={NUMERIC_BAR_ID}
             value={ageText}
             onChangeText={onAgeText}
             keyboardType="number-pad"
@@ -175,7 +175,6 @@ export function MetricsStep({
           <TextInput
             testID="metrics-height"
             {...chain.bind(1, { onFocus: scrollFieldIntoView })}
-            inputAccessoryViewID={NUMERIC_BAR_ID}
             value={heightText}
             onChangeText={onHeightText}
             keyboardType="decimal-pad"
@@ -189,7 +188,6 @@ export function MetricsStep({
           <TextInput
             testID="metrics-weight"
             {...chain.bind(2, { onFocus: scrollFieldIntoView })}
-            inputAccessoryViewID={NUMERIC_BAR_ID}
             value={weightText}
             onChangeText={onWeightText}
             keyboardType="decimal-pad"
@@ -210,12 +208,7 @@ export function MetricsStep({
         </Text>
       )}
 
-      <NumericReturnBar
-        nativeID={NUMERIC_BAR_ID}
-        testID="metrics-numeric-bar"
-        label={chain.isLastFocused ? 'Done' : 'Next'}
-        onPress={() => chain.focusNext()}
-      />
+      {chain.bars}
 
       {/* Activity level */}
       <View className="gap-1.5">

@@ -42,6 +42,7 @@ import {
 } from '../src/features/recipes/video-draft-form';
 import { useIsPremium } from '../src/hooks/use-is-premium';
 import { trpc, type RouterOutputs } from '../src/lib/trpc';
+import { useUnsavedGuard } from '../src/lib/use-unsaved-guard';
 
 // Recipe import (F5 Cheferize) — port of web's ImportRecipeSheet (wave-2b).
 // Sources: URL, pasted text and a video link. Photo import lands with M3-2's
@@ -132,6 +133,16 @@ export default function ImportRecipeScreen() {
   });
   const [confirmPartial, setConfirmPartial] = useState(false);
 
+  // UX-REC-06: a finished AI preview (link/text or video) is work the user paid
+  // a request for — BACK, the header arrow or the iOS swipe ask before it is
+  // thrown away. "Start over" clears the preview, which lifts the guard.
+  const guard = useUnsavedGuard(preview !== null || videoPreview !== null, {
+    title: 'Discard this import?',
+    message: 'The recipe preview will be lost and you will need to import it again.',
+    discardLabel: 'Discard',
+    keepLabel: 'Keep reviewing',
+  });
+
   const previewMutation = trpc.recipe.importPreview.useMutation({
     meta: { silent: true },
     onSuccess: (data) => {
@@ -148,6 +159,7 @@ export default function ImportRecipeScreen() {
     meta: { silent: true },
     onSuccess: () => {
       void utils.recipe.list.invalidate();
+      guard.release();
       router.back();
     },
   });
@@ -519,6 +531,7 @@ export default function ImportRecipeScreen() {
         )}
       </KeyboardAwareScrollView>
 
+      <ConfirmSheet testID="import-discard" {...guard.sheetProps} />
       <ConfirmSheet
         testID="import-save-partial"
         visible={confirmPartial}

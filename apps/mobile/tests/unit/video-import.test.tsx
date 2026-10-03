@@ -1,5 +1,5 @@
 import { SafeAreaProvider } from 'react-native-safe-area-context';
-import { fireEvent, render, screen } from '@testing-library/react-native';
+import { act, fireEvent, render, screen } from '@testing-library/react-native';
 import { router } from 'expo-router';
 import ImportRecipeScreen from '../../app/import-recipe';
 import { openPremium } from '../../src/features/premium/open-premium';
@@ -17,7 +17,27 @@ const mockSaveMutate = jest.fn();
 const mockIsPremium = jest.fn<boolean | undefined, []>(() => true);
 let mockVideoPreview: VideoImportPreview | null = null;
 
-jest.mock('expo-router', () => ({ router: { push: jest.fn(), back: jest.fn() } }));
+// The unsaved-work guard (UX-REC-06) reads navigation state: the mock records
+// the latest (prevent, callback) pair — `prevent === true` is what also
+// disables the iOS swipe-back.
+type PreventCallback = (options: { data: { action: unknown } }) => void;
+const mockPrevent: { value: boolean; callback: PreventCallback | null } = {
+  value: false,
+  callback: null,
+};
+const mockDispatch = jest.fn();
+const mockGoBack = jest.fn();
+jest.mock('expo-router', () => ({
+  router: { push: jest.fn(), back: jest.fn() },
+  useNavigation: () => ({ dispatch: mockDispatch, goBack: mockGoBack }),
+  useIsFocused: () => true,
+}));
+jest.mock('expo-router/react-navigation', () => ({
+  usePreventRemove: (prevent: boolean, callback: PreventCallback) => {
+    mockPrevent.value = prevent;
+    mockPrevent.callback = callback;
+  },
+}));
 jest.mock('../../src/features/premium/open-premium', () => ({ openPremium: jest.fn() }));
 jest.mock('../../src/hooks/use-is-premium', () => ({ useIsPremium: () => mockIsPremium() }));
 jest.mock('../../src/features/ai-consent/ai-consent-provider', () => ({
@@ -120,6 +140,10 @@ function preview(overrides: Partial<VideoImportPreview> = {}): VideoImportPrevie
 }
 
 beforeEach(() => {
+  mockPrevent.value = false;
+  mockPrevent.callback = null;
+  mockDispatch.mockClear();
+  mockGoBack.mockClear();
   mockVideoMutate.mockClear();
   mockSaveMutate.mockClear();
   mockIsPremium.mockReturnValue(true);
@@ -234,6 +258,59 @@ describe('Import screen — video source', () => {
     mockIsPremium.mockReturnValue(true);
     await renderScreen();
     expect(screen.queryByTestId('import-locked')).toBeNull();
+  });
+});
+
+// UX-REC-06 (WP-03): a finished preview is not thrown away by BACK / swipe.
+describe('Import screen — unsaved-preview guard (UX-REC-06)', () => {
+  async function openPreview() {
+    mockVideoPreview = preview();
+    await renderScreen();
+    await fireEvent.press(screen.getByTestId('import-tab-video'));
+    await fireEvent.changeText(
+      screen.getByTestId('import-video-url'),
+      'https://youtu.be/abcdef123',
+    );
+    await fireEvent.press(screen.getByTestId('import-preview'));
+    expect(screen.getByTestId('video-draft-form')).toBeTruthy();
+  }
+
+  const pressBack = async () => {
+    await act(() => {
+      mockPrevent.callback?.({ data: { action: { type: 'GO_BACK' } } });
+    });
+  };
+
+  it('does not prevent leaving while no preview exists', async () => {
+    await renderScreen();
+    expect(mockPrevent.value).toBe(false);
+  });
+
+  it('prevents removal (and the iOS swipe) while a preview exists, and BACK asks first', async () => {
+    await openPreview();
+    expect(mockPrevent.value).toBe(true);
+    expect(screen.queryByText('Discard this import?')).toBeNull();
+
+    await pressBack();
+    expect(screen.getByText('Discard this import?')).toBeTruthy();
+    // "Keep reviewing" keeps the preview on screen and leaves nothing replayed.
+    await fireEvent.press(screen.getByTestId('import-discard-cancel'));
+    expect(screen.getByTestId('video-draft-form')).toBeTruthy();
+    expect(mockDispatch).not.toHaveBeenCalled();
+    expect(mockGoBack).not.toHaveBeenCalled();
+  });
+
+  it('"Discard" lets the blocked navigation through', async () => {
+    await openPreview();
+    await pressBack();
+    await fireEvent.press(screen.getByTestId('import-discard-confirm'));
+    expect(mockDispatch).toHaveBeenCalledWith({ type: 'GO_BACK' });
+  });
+
+  it('"Start over" clears the preview and lifts the guard', async () => {
+    await openPreview();
+    await fireEvent.press(screen.getByText('Start over'));
+    expect(mockPrevent.value).toBe(false);
   });
 });
 
