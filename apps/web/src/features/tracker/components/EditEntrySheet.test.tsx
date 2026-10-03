@@ -130,7 +130,32 @@ describe('EditEntrySheet (bug B-34, T-19.2)', () => {
       protein: 30,
       carbs: 5,
       fat: 2,
+      unknownMacros: [],
     });
+  });
+
+  // UX-FOOD-11: a macro the entry never had shows blank (not "0.0") and stays
+  // unknown when saved; the sanity check ignores it.
+  it('UX-FOOD-11: shows unknown macros blank and saves them as unknown', () => {
+    renderSheet({ kcal: 400, protein: 20, carbs: 0, fat: 0, unknownMacros: ['carbs', 'fat'] });
+    expect(screen.getByTestId('edit-entry-protein')).toHaveProperty('value', '20');
+    expect(screen.getByTestId('edit-entry-carbs')).toHaveProperty('value', '');
+    expect(screen.getByTestId('edit-entry-fat')).toHaveProperty('value', '');
+    expect(screen.queryByTestId('edit-entry-sanity')).toBeNull();
+    fireEvent.click(screen.getByTestId('edit-entry-save'));
+    expect(m.update).toHaveBeenCalledWith(
+      expect.objectContaining({ protein: 20, carbs: 0, fat: 0, unknownMacros: ['carbs', 'fat'] }),
+    );
+  });
+
+  it('UX-FOOD-11: a calories-only entry from before the flag reads as all-unknown', () => {
+    renderSheet({ kcal: 350, protein: 0, carbs: 0, fat: 0 });
+    expect(screen.getByTestId('edit-entry-protein')).toHaveProperty('value', '');
+  });
+
+  it('UX-FOOD-11: the sanity gate says "Save anyway", not "Log anyway"', () => {
+    renderSheet({ kcal: 100, protein: 500, carbs: 0, fat: 0 });
+    expect(screen.getByTestId('edit-entry-sanity-log-anyway').textContent).toBe('Save anyway');
   });
 
   it('on save success shows "Changes saved" and closes', () => {

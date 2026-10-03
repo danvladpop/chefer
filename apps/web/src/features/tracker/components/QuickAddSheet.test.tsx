@@ -285,6 +285,8 @@ describe('QuickAddSheet — Enter calories yourself (fallback, T-19.1)', () => {
       protein: 0,
       carbs: 50,
       fat: 18.5,
+      // UX-FOOD-11: the blank protein is unknown, not a typed 0 g
+      unknownMacros: ['protein'],
     });
   });
 
@@ -295,6 +297,8 @@ describe('QuickAddSheet — Enter calories yourself (fallback, T-19.1)', () => {
     fireEvent.change(screen.getByTestId('quick-add-name'), { target: { value: 'Mystery shake' } });
     fireEvent.change(screen.getByTestId('quick-add-kcal'), { target: { value: '100' } });
     fireEvent.change(screen.getByTestId('quick-add-protein'), { target: { value: '500' } });
+    fireEvent.change(screen.getByTestId('quick-add-carbs'), { target: { value: '0' } });
+    fireEvent.change(screen.getByTestId('quick-add-fat'), { target: { value: '0' } });
     expect(screen.getByTestId('quick-add-sanity').textContent).toContain(
       "These don't add up: 100 kcal logged, but the macros add up to 2,000 kcal.",
     );
@@ -308,10 +312,37 @@ describe('QuickAddSheet — Enter calories yourself (fallback, T-19.1)', () => {
     fireEvent.change(screen.getByTestId('quick-add-name'), { target: { value: 'Mystery shake' } });
     fireEvent.change(screen.getByTestId('quick-add-kcal'), { target: { value: '100' } });
     fireEvent.change(screen.getByTestId('quick-add-protein'), { target: { value: '500' } });
+    fireEvent.change(screen.getByTestId('quick-add-carbs'), { target: { value: '0' } });
+    fireEvent.change(screen.getByTestId('quick-add-fat'), { target: { value: '0' } });
     fireEvent.click(screen.getByTestId('quick-add-sanity-log-anyway'));
     expect(screen.queryByTestId('quick-add-sanity')).toBeNull();
     fireEvent.click(screen.getByTestId('quick-add-submit'));
     expect(m.logCustom).toHaveBeenCalledWith(expect.objectContaining({ kcal: 100, protein: 500 }));
+  });
+
+  // UX-FOOD-11: calories + protein only used to count the blanks as 0 g and
+  // flag "don't add up", greying out Log.
+  it('UX-FOOD-11: partial macros skip the sanity check, keep Log enabled and flag the blanks', () => {
+    renderSheet();
+    goToManual();
+    fireEvent.change(screen.getByTestId('quick-add-name'), { target: { value: 'Soup' } });
+    fireEvent.change(screen.getByTestId('quick-add-kcal'), { target: { value: '400' } });
+    fireEvent.change(screen.getByTestId('quick-add-protein'), { target: { value: '20' } });
+    expect(screen.queryByTestId('quick-add-sanity')).toBeNull();
+    const submit = screen.getByTestId('quick-add-submit') as HTMLButtonElement;
+    expect(submit.disabled).toBe(false);
+    fireEvent.click(submit);
+    expect(m.logCustom).toHaveBeenCalledWith(
+      expect.objectContaining({ protein: 20, carbs: 0, fat: 0, unknownMacros: ['carbs', 'fat'] }),
+    );
+  });
+
+  it('UX-FOOD-25: every macro field has a visible label with its unit', () => {
+    renderSheet();
+    goToManual();
+    expect(screen.getByText('Protein (g)')).toBeTruthy();
+    expect(screen.getByText('Carbs (g)')).toBeTruthy();
+    expect(screen.getByText('Fat (g)')).toBeTruthy();
   });
 
   it('shows the API error', () => {

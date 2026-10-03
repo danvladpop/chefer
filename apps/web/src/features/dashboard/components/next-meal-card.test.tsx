@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { HERO_LOGGED_HOLD_MS } from '@chefer/utils';
 import { NextMealCard } from './next-meal-card';
 
 // P2-2: Today logs the planned meal in one tap through tracker.logRecipe.
@@ -9,6 +10,8 @@ const mocks = vi.hoisted(() => ({
   mutate: vi.fn(),
   invalidateSummary: vi.fn(),
   onSuccess: undefined as undefined | ((data: { rebalance: null }) => void),
+  undo: vi.fn(),
+  onUndoSuccess: undefined as undefined | (() => void),
 }));
 
 vi.mock('next/image', () => ({
@@ -35,6 +38,12 @@ vi.mock('@/lib/trpc', () => ({
         useMutation: (opts: { onSuccess: (data: { rebalance: null }) => void }) => {
           mocks.onSuccess = opts.onSuccess;
           return { mutate: mocks.mutate, isPending: false, isError: false, error: null };
+        },
+      },
+      unlogRecipe: {
+        useMutation: (opts: { onSuccess: () => void }) => {
+          mocks.onUndoSuccess = opts.onSuccess;
+          return { mutate: mocks.undo, isPending: false, isError: false, error: null };
         },
       },
     },
@@ -105,5 +114,56 @@ describe('NextMealCard', () => {
     render(<NextMealCard meal={MEAL} isTomorrow />);
     expect(screen.queryByTestId('today-ate-this')).toBeNull();
     expect(screen.getByText('Tomorrow')).toBeTruthy();
+  });
+
+  // UX-FOOD-15: the card used to advance to the next meal under the pointer, so
+  // a double tap logged dinner at 11 am.
+  describe('"Logged ✓ · Undo" hold (UX-FOOD-15)', () => {
+    beforeEach(() => {
+      vi.useFakeTimers();
+    });
+    afterEach(() => {
+      vi.useRealTimers();
+    });
+
+    const logged = () => {
+      render(<NextMealCard meal={MEAL} isTomorrow={false} />);
+      act(() => mocks.onSuccess?.({ rebalance: null }));
+    };
+
+    it('shows a disabled "Logged ✓" with Undo, and a second tap logs nothing', () => {
+      logged();
+      const ate = screen.getByTestId('today-ate-this') as HTMLButtonElement;
+      expect(ate.textContent).toContain('Logged ✓');
+      expect(ate.disabled).toBe(true);
+      expect(screen.getByTestId('today-undo-logged').textContent).toBe('Undo');
+      fireEvent.click(ate);
+      expect(mocks.mutate).not.toHaveBeenCalled();
+    });
+
+    it('releases after about two seconds', () => {
+      logged();
+      act(() => {
+        vi.advanceTimersByTime(HERO_LOGGED_HOLD_MS + 50);
+      });
+      const ate = screen.getByTestId('today-ate-this') as HTMLButtonElement;
+      expect(ate.textContent).toContain('I ate this');
+      expect(ate.disabled).toBe(false);
+      expect(screen.queryByTestId('today-undo-logged')).toBeNull();
+    });
+
+    it('Undo un-logs exactly that meal slot and releases the card', () => {
+      render(
+        <NextMealCard meal={{ ...MEAL, mealType: 'snack', slotIndex: 3 }} isTomorrow={false} />,
+      );
+      act(() => mocks.onSuccess?.({ rebalance: null }));
+      fireEvent.click(screen.getByTestId('today-undo-logged'));
+      expect(mocks.undo).toHaveBeenCalledWith(
+        expect.objectContaining({ recipeId: 'curry', mealType: 'snack', slotIndex: 3 }),
+      );
+      act(() => mocks.onUndoSuccess?.());
+      expect(screen.getByTestId('today-ate-this').textContent).toContain('I ate this');
+      expect(screen.queryByTestId('today-logged-status')).toBeNull();
+    });
   });
 });

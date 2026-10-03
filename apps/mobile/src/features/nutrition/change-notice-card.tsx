@@ -1,6 +1,8 @@
+import { useState } from 'react';
 import { View } from 'react-native';
 import type { TargetChangeField, TargetChangeReason } from '@chefer/types';
-import { Button, Card, Text } from '@chefer/ui-mobile';
+import { Button, Card, ConfirmSheet, Text, useSnackbar } from '@chefer/ui-mobile';
+import { userFacingErrorMessage } from '@chefer/utils';
 import { trpc } from '../../lib/trpc';
 
 // ─── ChangeNoticeCard (§2.11, T-11.1/T-11.5) ────────────────────────────────────
@@ -34,15 +36,28 @@ function fieldLine(f: TargetChangeField): string {
 
 export function ChangeNoticeCard() {
   const utils = trpc.useUtils();
+  const snackbar = useSnackbar();
   const { data: changes } = trpc.targets.changes.useQuery();
   const change = changes?.[0];
+  // UX-FOOD-14: "Keep" on an already-applied change fixes the targets at the
+  // old numbers (it switches the user to "My own"), so it asks first.
+  const [confirmKeepOpen, setConfirmKeepOpen] = useState(false);
 
   const acknowledge = trpc.targets.acknowledgeChange.useMutation({
-    onSuccess: () => {
+    // The confirm sheet shows a failed Keep itself.
+    meta: { silent: true },
+    onSuccess: (_result, variables) => {
       void utils.targets.changes.invalidate();
       void utils.targets.get.invalidate();
       void utils.tracker.getDay.invalidate();
       void utils.dashboard.summary.invalidate();
+      if (confirmKeepOpen && variables.keep) {
+        setConfirmKeepOpen(false);
+        snackbar.show({
+          message: 'Your targets are fixed now. Switch back to Suggested in Preferences any time.',
+          tone: 'success',
+        });
+      }
     },
   });
 
@@ -85,8 +100,12 @@ export function ChangeNoticeCard() {
           testID="change-notice-keep"
           variant="outline"
           className="flex-1"
-          loading={acknowledge.isPending && acknowledge.variables.keep}
-          onPress={() => acknowledge.mutate({ id: change.id, keep: true })}
+          loading={acknowledge.isPending && acknowledge.variables.keep && !confirmKeepOpen}
+          onPress={() =>
+            isSuggested
+              ? acknowledge.mutate({ id: change.id, keep: true })
+              : setConfirmKeepOpen(true)
+          }
         >
           {keepLabel}
         </Button>
@@ -99,6 +118,22 @@ export function ChangeNoticeCard() {
           {useLabel}
         </Button>
       </View>
+      <ConfirmSheet
+        visible={confirmKeepOpen}
+        onClose={() => setConfirmKeepOpen(false)}
+        title={kcalField ? `Keep ${kcalField.before} kcal?` : 'Keep your old targets?'}
+        body="Your targets will stay at these numbers and stop following your profile. You can switch back to Suggested in Preferences any time."
+        confirmLabel="Keep my numbers"
+        cancelLabel="Cancel"
+        onConfirm={() => acknowledge.mutate({ id: change.id, keep: true })}
+        busy={acknowledge.isPending}
+        error={
+          acknowledge.isError
+            ? `Couldn't keep your targets. ${userFacingErrorMessage(acknowledge.error)}`
+            : null
+        }
+        testID="change-notice-keep-confirm"
+      />
     </Card>
   );
 }

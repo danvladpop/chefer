@@ -135,7 +135,46 @@ describe('EditEntrySheet (bug B-34, T-19.2)', () => {
       protein: 30,
       carbs: 5,
       fat: 2,
+      unknownMacros: [],
     });
+  });
+
+  // UX-FOOD-11: a macro the entry never had shows blank (not "0.0") and stays
+  // unknown when saved; the sanity check ignores it.
+  it('UX-FOOD-11: shows unknown macros blank and saves them as unknown', async () => {
+    const user = userEvent.setup();
+    await renderSheet({
+      kcal: 400,
+      protein: 20,
+      carbs: 0,
+      fat: 0,
+      unknownMacros: ['carbs', 'fat'],
+    });
+    expect(screen.getByTestId('edit-entry-protein')).toHaveProp('value', '20');
+    expect(screen.getByTestId('edit-entry-carbs')).toHaveProp('value', '');
+    expect(screen.getByTestId('edit-entry-fat')).toHaveProp('value', '');
+    expect(screen.queryByTestId('edit-entry-sanity')).not.toBeOnTheScreen();
+    await user.press(screen.getByTestId('edit-entry-save'));
+    expect(mockUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({ protein: 20, carbs: 0, fat: 0, unknownMacros: ['carbs', 'fat'] }),
+    );
+  });
+
+  it('UX-FOOD-11: a calories-only entry from before the flag reads as all-unknown', async () => {
+    await renderSheet({ kcal: 350, protein: 0, carbs: 0, fat: 0 });
+    expect(screen.getByTestId('edit-entry-protein')).toHaveProp('value', '');
+  });
+
+  it('UX-FOOD-11: the sanity gate says "Save anyway", not "Log anyway"', async () => {
+    await renderSheet({ kcal: 100, protein: 500, carbs: 0, fat: 0 });
+    expect(screen.getByTestId('edit-entry-sanity-log-anyway')).toHaveTextContent('Save anyway');
+  });
+
+  it('UX-FOOD-25: every macro field has a visible label with its unit', async () => {
+    await renderSheet();
+    expect(screen.getByText('Protein (g)')).toBeOnTheScreen();
+    expect(screen.getByText('Carbs (g)')).toBeOnTheScreen();
+    expect(screen.getByText('Fat (g)')).toBeOnTheScreen();
   });
 
   it('on save success shows "Changes saved" and closes', async () => {

@@ -1,4 +1,5 @@
 import { act, render, screen, userEvent } from '@testing-library/react-native';
+import { HERO_LOGGED_HOLD_MS } from '@chefer/utils';
 import { HeroMealCard } from '../../src/features/dashboard/components/hero-meal-card';
 
 // P2-2: Today's next meal logs in one tap through tracker.logRecipe, then
@@ -9,6 +10,8 @@ const mockInvalidate = jest.fn();
 const mockPush = jest.fn();
 const mockRecordRebalance = jest.fn();
 const mockMutation: { onSuccess?: (data: { rebalance: null }) => void } = {};
+const mockUndo = jest.fn();
+const mockUndoMutation: { onSuccess?: () => void } = {};
 
 jest.mock('expo-router', () => ({
   router: {
@@ -36,6 +39,12 @@ jest.mock('../../src/lib/trpc', () => ({
         useMutation: (opts: { onSuccess?: (data: { rebalance: null }) => void }) => {
           mockMutation.onSuccess = opts.onSuccess;
           return { mutate: mockMutate, isPending: false, isError: false, error: null };
+        },
+      },
+      unlogRecipe: {
+        useMutation: (opts: { onSuccess?: () => void }) => {
+          mockUndoMutation.onSuccess = opts.onSuccess;
+          return { mutate: mockUndo, isPending: false, isError: false, error: null };
         },
       },
     },
@@ -130,5 +139,69 @@ describe('HeroMealCard (Today)', () => {
     await render(<HeroMealCard meal={MEAL} isTomorrow />);
     expect(screen.queryByTestId('today-ate-this')).toBeNull();
     expect(screen.getByText('Tomorrow')).toBeOnTheScreen();
+  });
+
+  // UX-FOOD-15: the card used to advance to the next meal under the thumb, so a
+  // double tap logged dinner at 11 am.
+  describe('"Logged ✓ · Undo" hold (UX-FOOD-15)', () => {
+    const logged = async () => {
+      await render(<HeroMealCard meal={MEAL} isTomorrow={false} />);
+      await act(() => {
+        mockMutation.onSuccess?.({ rebalance: null });
+        return Promise.resolve();
+      });
+    };
+
+    beforeEach(() => jest.useFakeTimers());
+    afterEach(() => jest.useRealTimers());
+
+    it('swaps the button for a disabled "Logged ✓" with Undo, and a second tap logs nothing', async () => {
+      const user = userEvent.setup({ advanceTimers: jest.advanceTimersByTime });
+      await logged();
+
+      expect(screen.getByTestId('today-ate-this')).toHaveTextContent('Logged ✓');
+      expect(screen.getByTestId('today-ate-this')).toBeDisabled();
+      expect(screen.getByTestId('today-undo-logged')).toHaveTextContent('Undo');
+
+      await user.press(screen.getByTestId('today-ate-this'));
+      expect(mockMutate).not.toHaveBeenCalled();
+    });
+
+    it('releases after about two seconds and offers "I ate this" again', async () => {
+      await logged();
+      expect(screen.getByTestId('today-ate-this')).toBeDisabled();
+
+      await act(() => {
+        jest.advanceTimersByTime(HERO_LOGGED_HOLD_MS + 50);
+        return Promise.resolve();
+      });
+
+      expect(screen.getByTestId('today-ate-this')).toHaveTextContent('I ate this');
+      expect(screen.getByTestId('today-ate-this')).not.toBeDisabled();
+      expect(screen.getByTestId('today-cook-it')).toBeOnTheScreen();
+    });
+
+    it('Undo un-logs exactly that meal slot and releases the card', async () => {
+      const user = userEvent.setup({ advanceTimers: jest.advanceTimersByTime });
+      await render(
+        <HeroMealCard meal={{ ...MEAL, mealType: 'snack', slotIndex: 3 }} isTomorrow={false} />,
+      );
+      await act(() => {
+        mockMutation.onSuccess?.({ rebalance: null });
+        return Promise.resolve();
+      });
+
+      await user.press(screen.getByTestId('today-undo-logged'));
+      expect(mockUndo).toHaveBeenCalledWith(
+        expect.objectContaining({ recipeId: 'curry', mealType: 'snack', slotIndex: 3 }),
+      );
+
+      await act(() => {
+        mockUndoMutation.onSuccess?.();
+        return Promise.resolve();
+      });
+      expect(screen.getByTestId('today-ate-this')).toHaveTextContent('I ate this');
+      expect(screen.queryByText('Logged Lentil Curry.')).toBeNull();
+    });
   });
 });

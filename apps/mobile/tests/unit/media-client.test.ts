@@ -1,4 +1,4 @@
-import { onAiConsentRequired } from '@chefer/utils';
+import { onAiConsentRequired, SCAN_REQUEST_TIMEOUT_MS, SCAN_TIMEOUT_MESSAGE } from '@chefer/utils';
 import { setUnauthorizedHandler } from '../../src/features/auth/session-expired';
 import {
   PHOTO_TOO_BIG_MESSAGE,
@@ -258,5 +258,52 @@ describe('R-10 scanMealPhoto — server-side AI consent rejection', () => {
     ).rejects.toThrow();
     expect(listener).not.toHaveBeenCalled();
     off();
+  });
+});
+
+// UX-FOOD-26: the scan request used to have no timeout.
+describe('scanMealPhoto timeout (UX-FOOD-26)', () => {
+  afterEach(() => jest.useRealTimers());
+
+  it('gives up after the timeout with a plain sentence and aborts the request', async () => {
+    jest.useFakeTimers();
+    let signal: AbortSignal | undefined;
+    const hangingFetch = ((_url: string, init?: RequestInit) => {
+      signal = init?.signal ?? undefined;
+      return new Promise<Response>((_resolve, reject) => {
+        init?.signal?.addEventListener('abort', () => reject(new Error('aborted')));
+      });
+    }) as unknown as typeof fetch;
+
+    const scan = scanMealPhoto(
+      { fetchImpl: hangingFetch, apiBaseUrl: 'http://api.test', getToken: () => 't' },
+      new Uint8Array([1, 2, 3]),
+      'image/jpeg',
+    );
+    const assertion = expect(scan).rejects.toThrow(SCAN_TIMEOUT_MESSAGE);
+    await jest.advanceTimersByTimeAsync(SCAN_REQUEST_TIMEOUT_MS + 10);
+    await assertion;
+    expect(signal?.aborted).toBe(true);
+  });
+
+  it('still returns the estimate when the server answers in time', async () => {
+    const estimate = {
+      dishName: 'Soup',
+      confidence: 'med',
+      kcal: 200,
+      protein: 10,
+      carbs: 20,
+      fat: 5,
+      portionNote: 'a bowl',
+    };
+    const fetchImpl = (() =>
+      Promise.resolve(jsonResponse(200, { estimate }))) as unknown as typeof fetch;
+    await expect(
+      scanMealPhoto(
+        { fetchImpl, apiBaseUrl: 'http://api.test', getToken: () => 't' },
+        new Uint8Array([1]),
+        'image/jpeg',
+      ),
+    ).resolves.toEqual(estimate);
   });
 });

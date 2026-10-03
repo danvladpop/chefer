@@ -17,6 +17,7 @@ import {
   aiConsentRequiredFor,
   onboardingProgress,
   onboardingSteps,
+  previewTargetKcalFromBasics,
   userFacingErrorMessage,
 } from '@chefer/utils';
 import { EMPTY_WIZARD_DATA, type Goal, type WizardData } from '../types';
@@ -532,7 +533,11 @@ export function OnboardingWizard({
             </div>
           )}
 
-          {stepKey === 'targets' && <TargetsCard />}
+          {stepKey === 'targets' && (
+            <TargetsCard
+              previewKcal={previewTargetKcalFromBasics(data, goodFood ? null : data.goal)}
+            />
+          )}
 
           {stepKey === 'cuisine' && (
             <StepCuisine

@@ -361,6 +361,8 @@ describe('QuickAddSheet — Enter calories yourself (fallback, T-19.1)', () => {
       protein: 0,
       carbs: 50,
       fat: 18.5,
+      // UX-FOOD-11: the blank protein is unknown, not a typed 0 g
+      unknownMacros: ['protein'],
     });
   });
 
@@ -372,6 +374,8 @@ describe('QuickAddSheet — Enter calories yourself (fallback, T-19.1)', () => {
     await user.type(screen.getByTestId('quick-add-name'), 'Mystery shake');
     await user.type(screen.getByTestId('quick-add-kcal'), '100');
     await user.type(screen.getByTestId('quick-add-protein'), '500');
+    await user.type(screen.getByTestId('quick-add-carbs'), '0');
+    await user.type(screen.getByTestId('quick-add-fat'), '0');
     expect(
       screen.getByText("These don't add up: 100 kcal logged, but the macros add up to 2,000 kcal."),
     ).toBeOnTheScreen();
@@ -386,12 +390,45 @@ describe('QuickAddSheet — Enter calories yourself (fallback, T-19.1)', () => {
     await user.type(screen.getByTestId('quick-add-name'), 'Mystery shake');
     await user.type(screen.getByTestId('quick-add-kcal'), '100');
     await user.type(screen.getByTestId('quick-add-protein'), '500');
+    await user.type(screen.getByTestId('quick-add-carbs'), '0');
+    await user.type(screen.getByTestId('quick-add-fat'), '0');
     await user.press(screen.getByTestId('quick-add-sanity-log-anyway'));
     expect(screen.queryByTestId('quick-add-sanity')).not.toBeOnTheScreen();
     await user.press(screen.getByTestId('quick-add-submit'));
     expect(mockLogCustom).toHaveBeenCalledWith(
       expect.objectContaining({ kcal: 100, protein: 500 }),
     );
+  });
+
+  // UX-FOOD-11: calories + protein only used to count the blanks as 0 g and flag
+  // "don't add up", greying out Log.
+  it('UX-FOOD-11: partial macros skip the sanity check, keep Log enabled and flag the blanks', async () => {
+    const user = userEvent.setup();
+    await renderSheet();
+    await goToManual(user);
+    await user.type(screen.getByTestId('quick-add-name'), 'Soup');
+    await user.type(screen.getByTestId('quick-add-kcal'), '400');
+    await user.type(screen.getByTestId('quick-add-protein'), '20');
+    expect(screen.queryByTestId('quick-add-sanity')).not.toBeOnTheScreen();
+    expect(screen.getByTestId('quick-add-submit')).toBeEnabled();
+    await user.press(screen.getByTestId('quick-add-submit'));
+    expect(mockLogCustom).toHaveBeenCalledWith(
+      expect.objectContaining({
+        protein: 20,
+        carbs: 0,
+        fat: 0,
+        unknownMacros: ['carbs', 'fat'],
+      }),
+    );
+  });
+
+  it('UX-FOOD-25: every macro field has a visible label with its unit', async () => {
+    const user = userEvent.setup();
+    await renderSheet();
+    await goToManual(user);
+    expect(screen.getByText('Protein (g)')).toBeOnTheScreen();
+    expect(screen.getByText('Carbs (g)')).toBeOnTheScreen();
+    expect(screen.getByText('Fat (g)')).toBeOnTheScreen();
   });
 
   it('a real meal (macros roughly matching kcal) never shows the sanity line', async () => {

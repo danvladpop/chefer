@@ -3,7 +3,11 @@
 // their image/* content-type, session cookie included.
 
 import { AI_CONSENT_REQUIRED_REASON } from '@chefer/types';
-import { notifyAiConsentRequired } from '@chefer/utils';
+import {
+  notifyAiConsentRequired,
+  SCAN_REQUEST_TIMEOUT_MS,
+  SCAN_TIMEOUT_MESSAGE,
+} from '@chefer/utils';
 
 const API_URL = process.env['NEXT_PUBLIC_API_URL'];
 if (!API_URL) throw new Error('NEXT_PUBLIC_API_URL is not set');
@@ -81,24 +85,34 @@ export async function scanMealPhoto(file: File): Promise<MealPhotoEstimate> {
     throw new Error(PHOTO_TOO_BIG_MESSAGE);
   }
 
+  // UX-FOOD-26: the vision estimate used to wait forever on a bad connection.
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), SCAN_REQUEST_TIMEOUT_MS);
   let res: Response;
-  try {
-    res = await fetch(`${API_URL}/api/scan-meal`, {
-      method: 'POST',
-      credentials: 'include',
-      headers: { 'content-type': file.type },
-      body: file,
-    });
-  } catch {
-    throw scanErrorFrom(null, null);
-  }
-
-  const data = (await res.json().catch(() => null)) as {
+  let data: {
     estimate?: MealPhotoEstimate;
     error?: string | { code?: string; message?: string };
     upgradeRequired?: boolean;
     reason?: string;
   } | null;
+  try {
+    try {
+      res = await fetch(`${API_URL}/api/scan-meal`, {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'content-type': file.type },
+        body: file,
+        signal: controller.signal,
+      });
+    } catch {
+      if (controller.signal.aborted) throw new Error(SCAN_TIMEOUT_MESSAGE);
+      throw scanErrorFrom(null, null);
+    }
+    data = (await res.json().catch(() => null)) as typeof data;
+    if (controller.signal.aborted) throw new Error(SCAN_TIMEOUT_MESSAGE);
+  } finally {
+    clearTimeout(timer);
+  }
 
   if (res.status === 403 && data?.upgradeRequired) {
     const message = typeof data.error === 'string' ? data.error : undefined;

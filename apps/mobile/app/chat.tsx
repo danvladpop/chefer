@@ -4,7 +4,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { fetch as expoFetch } from 'expo/fetch';
 import { Card, Screen, Text, useKeyboardInset } from '@chefer/ui-mobile';
-import { cn, userFacingErrorMessage, WELLNESS_COPY } from '@chefer/utils';
+import { cn, dailyAllowanceResetTime, userFacingErrorMessage, WELLNESS_COPY } from '@chefer/utils';
 import { useAiConsent } from '../src/features/ai-consent/ai-consent-provider';
 import { LockedChatPreview } from '../src/features/chat/locked-chat-preview';
 import { openPremium } from '../src/features/premium/open-premium';
@@ -193,7 +193,8 @@ export default function ChatScreen() {
               You&apos;ve used today&apos;s chat messages
             </Text>
             <Text className="mt-1 text-xs text-primary/80">
-              Premium raises the daily limit. Allowances reset at midnight UTC.
+              Premium raises the daily limit. Allowances reset at {dailyAllowanceResetTime()} your
+              time.
             </Text>
             <Pressable
               testID="chat-quota-upgrade"
