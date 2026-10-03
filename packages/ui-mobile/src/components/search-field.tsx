@@ -111,7 +111,7 @@ export const SearchField = forwardRef<TextInput, SearchFieldProps>(function Sear
       testID={testID ? `${testID}-field` : undefined}
       style={{ minHeight: SEARCH_TARGET_PT }}
       className={cn(
-        'h-11 flex-row items-center rounded-full border border-input bg-background pl-3',
+        'min-h-11 flex-row items-center rounded-full border border-input bg-background pl-3',
         !editable && 'opacity-50',
         className,
       )}
@@ -137,7 +137,7 @@ export const SearchField = forwardRef<TextInput, SearchFieldProps>(function Sear
         autoCorrect={false}
         autoCapitalize="words"
         placeholderTextColor="#9ca3af"
-        className="h-full min-w-0 flex-1 px-2 text-base text-foreground"
+        className="min-w-0 flex-1 px-2 py-2 text-base text-foreground"
         {...props}
       />
       {text.length > 0 && editable ? (

@@ -27,6 +27,7 @@ import { QuickAddSheet } from '../src/features/tracker/quick-add-sheet';
 import { RebalanceBanner } from '../src/features/tracker/rebalance-banner';
 import { recordRebalance } from '../src/features/tracker/rebalance-store';
 import { ScanMealCard } from '../src/features/tracker/scan-meal-card';
+import { TrackerTick } from '../src/features/tracker/tracker-tick';
 import { useTrackerWrites } from '../src/features/tracker/use-tracker-writes';
 import { getRecipeImageUrl } from '../src/lib/recipe-image';
 import { trpc } from '../src/lib/trpc';
@@ -471,7 +472,7 @@ export default function TrackerScreen() {
                       accessibilityRole="button"
                       accessibilityState={{ checked: isChecked }}
                       onPress={() => toggleMeal(meal)}
-                      className="flex-row items-center gap-3"
+                      className="min-h-12 flex-row items-center gap-3"
                     >
                       <Image
                         source={{ uri: getRecipeImageUrl(meal.imageUrl) }}
@@ -492,14 +493,7 @@ export default function TrackerScreen() {
                             ` · plan ${formatPortion(planPortionOf(meal))}`}
                         </Text>
                       </View>
-                      <View
-                        className={cn(
-                          'h-6 w-6 items-center justify-center rounded-full border-2',
-                          isChecked ? 'border-primary bg-primary' : 'border-gray-300',
-                        )}
-                      >
-                        {isChecked && <Ionicons name="checkmark" size={14} color="white" />}
-                      </View>
+                      <TrackerTick testID={`tracker-tick-${meal.mealType}`} checked={isChecked} />
                     </Pressable>
 
                     {isChecked && (
@@ -510,7 +504,7 @@ export default function TrackerScreen() {
                             accessibilityRole="button"
                             onPress={() => setPortion(meal, p)}
                             className={cn(
-                              'h-9 flex-1 items-center justify-center rounded-lg border',
+                              'min-h-11 flex-1 items-center justify-center rounded-lg border',
                               portion === p
                                 ? 'border-primary bg-primary'
                                 : 'border-border bg-white',
@@ -621,7 +615,7 @@ export default function TrackerScreen() {
                         {row.name}
                       </Text>
                       <View className="rounded-full bg-gray-100 px-2 py-0.5">
-                        <Text className="text-[12px] text-gray-500">
+                        <Text className="text-xs text-gray-500">
                           {customEntryChipLabel(row.estimatedBy)}
                         </Text>
                       </View>

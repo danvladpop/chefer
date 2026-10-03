@@ -69,7 +69,7 @@ export function ChangeNoticeCard() {
       data-testid="change-notice-card"
       className="mb-6 rounded-2xl border-2 border-amber-300 bg-amber-50 p-5"
     >
-      <span className="inline-block rounded-full bg-amber-200 px-2 py-0.5 text-[11px] font-semibold uppercase text-amber-900">
+      <span className="inline-block rounded-full bg-amber-200 px-2 py-0.5 text-xs font-semibold uppercase text-amber-900">
         {badgeLabel}
       </span>
       <p className="mt-2 text-sm font-semibold text-neutral-900">

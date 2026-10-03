@@ -1,5 +1,11 @@
+import * as ReactNative from 'react-native';
 import { render, screen, within } from '@testing-library/react-native';
-import { valueFontSize, ValueStepper } from '@chefer/ui-mobile';
+import {
+  DENSE_MAX_FONT_SCALE,
+  VALUE_MAX_FONT_SCALE,
+  valueFontSize,
+  ValueStepper,
+} from '@chefer/ui-mobile';
 
 // T-BUG-O2 (O-07): `adjustsFontSizeToFit` measured its shrink factor against
 // a row's width at that render's measure time and, on the new architecture,
@@ -21,20 +27,20 @@ function fontSizeOf(rowTestID: string, display: string): number | undefined {
 }
 
 describe('T-BUG-O2 valueFontSize', () => {
-  it('is 17pt for four characters or fewer', () => {
-    expect(valueFontSize('60')).toBe(17);
-    expect(valueFontSize('1:30')).toBe(17); // mm:ss rest/tempo value, 4 chars
-    expect(valueFontSize('')).toBe(17);
+  it('is 20pt for four characters or fewer', () => {
+    expect(valueFontSize('60')).toBe(20);
+    expect(valueFontSize('1:30')).toBe(20); // mm:ss rest/tempo value, 4 chars
+    expect(valueFontSize('')).toBe(20);
   });
 
-  it('is 15pt for exactly five characters', () => {
-    expect(valueFontSize('102.5')).toBe(15); // kg with a decimal, 5 chars
-    expect(valueFontSize('12345')).toBe(15);
+  it('is 17pt for exactly five characters', () => {
+    expect(valueFontSize('102.5')).toBe(17); // kg with a decimal, 5 chars
+    expect(valueFontSize('12345')).toBe(17);
   });
 
-  it('is 13pt for six characters or more', () => {
-    expect(valueFontSize('1000.5')).toBe(13);
-    expect(valueFontSize('123456789')).toBe(13);
+  it('is 14pt for six characters or more', () => {
+    expect(valueFontSize('1000.5')).toBe(14);
+    expect(valueFontSize('123456789')).toBe(14);
   });
 });
 
@@ -58,15 +64,16 @@ describe('T-BUG-O2 ValueStepper — identical values render identical font sizes
     );
 
     const fontSizes = ['row1', 'row2', 'row3'].map((testID) => fontSizeOf(testID, '102.5'));
-    expect(fontSizes).toEqual([15, 15, 15]);
+    expect(fontSizes).toEqual([17, 17, 17]);
     expect(new Set(fontSizes).size).toBe(1);
 
     for (const testID of ['row1', 'row2', 'row3']) {
       const value = within(screen.getByTestId(testID)).getByText('102.5');
       expect(value.props.adjustsFontSizeToFit).toBeUndefined();
-      // The Dynamic Type cap (CLAUDE.md dense-control convention) still
-      // applies — only the auto-shrink-on-measure mechanism is gone.
-      expect(value.props.maxFontSizeMultiplier).toBe(1.3);
+      // A Dynamic Type cap still applies (the value's own, tighter one: it is
+      // already 20pt in a fixed-width cell) — only the auto-shrink-on-measure
+      // mechanism is gone.
+      expect(value.props.maxFontSizeMultiplier).toBe(VALUE_MAX_FONT_SCALE);
     }
   });
 
@@ -116,8 +123,8 @@ describe('T-BUG-O2 ValueStepper — identical values render identical font sizes
 
     // Edit row "a" to a shorter value — "b" must be completely unaffected.
     await rerender(rows(60, false));
-    expect(fontSizeOf('a', '60')).toBe(17); // 2 chars
-    expect(fontSizeOf('b', '102.5')).toBe(15); // unaffected by "a"'s edit
+    expect(fontSizeOf('a', '60')).toBe(20); // 2 chars
+    expect(fontSizeOf('b', '102.5')).toBe(17); // unaffected by "a"'s edit
 
     // Edit row "a" back to the original value — both match again.
     await rerender(rows(102.5, false));
@@ -150,15 +157,15 @@ describe('UX-05 A1 grouped ValueStepper variant', () => {
     );
     const { rerender } = await render(rows(55, false));
     expect([fontSizeOf('a', '55'), fontSizeOf('b', '55'), fontSizeOf('c', '55')]).toEqual([
-      17, 17, 17,
+      20, 20, 20,
     ]);
     await rerender(rows(55, true)); // tick
     expect([fontSizeOf('a', '55'), fontSizeOf('b', '55'), fontSizeOf('c', '55')]).toEqual([
-      17, 17, 17,
+      20, 20, 20,
     ]);
     await rerender(rows(55, false)); // untick
     expect([fontSizeOf('a', '55'), fontSizeOf('b', '55'), fontSizeOf('c', '55')]).toEqual([
-      17, 17, 17,
+      20, 20, 20,
     ]);
   });
 
@@ -179,9 +186,9 @@ describe('UX-05 A1 grouped ValueStepper variant', () => {
     const caption = within(row).getByText('kg');
     const minus = within(row).getByText('−');
     const plus = within(row).getByText('+');
-    expect(caption.props.maxFontSizeMultiplier).toBe(1.3);
-    expect(minus.props.maxFontSizeMultiplier).toBe(1.3);
-    expect(plus.props.maxFontSizeMultiplier).toBe(1.3);
+    expect(caption.props.maxFontSizeMultiplier).toBe(DENSE_MAX_FONT_SCALE);
+    expect(minus.props.maxFontSizeMultiplier).toBe(DENSE_MAX_FONT_SCALE);
+    expect(plus.props.maxFontSizeMultiplier).toBe(DENSE_MAX_FONT_SCALE);
   });
 
   it('the plain variant is unchanged (no shared container class)', async () => {
@@ -198,5 +205,41 @@ describe('UX-05 A1 grouped ValueStepper variant', () => {
     );
     const row = screen.getByTestId('plain');
     expect(String(row.props.className ?? '')).not.toMatch(/bg-muted/);
+  });
+});
+
+describe('ValueStepper at large OS text (WP-04 device pass)', () => {
+  function renderStepper() {
+    return render(
+      <ValueStepper
+        testID="w"
+        value={62.5}
+        next={noopNext}
+        onChange={jest.fn()}
+        format={(v) => String(v)}
+        caption="kg"
+        name="Weight"
+      />,
+    );
+  }
+
+  it('keeps 44 pt −/+ at default size', async () => {
+    const dims = jest
+      .spyOn(ReactNative.Dimensions, 'get')
+      .mockReturnValue({ width: 402, height: 874, scale: 3, fontScale: 1 });
+    await renderStepper();
+    // (PressableScale's className is compiled away under Jest — hitSlop shows the mode.)
+    expect(screen.getByTestId('w-inc').props.hitSlop).toEqual({ top: 4, bottom: 4 });
+    dims.mockRestore();
+  });
+
+  it('narrows the −/+ visual to 36 pt above 1.2x and keeps a 44 pt hit area via hitSlop', async () => {
+    const dims = jest
+      .spyOn(ReactNative.Dimensions, 'get')
+      .mockReturnValue({ width: 402, height: 874, scale: 3, fontScale: 1.6 });
+    await renderStepper();
+    const inc = screen.getByTestId('w-inc');
+    expect(inc.props.hitSlop).toMatchObject({ left: 4, right: 4 });
+    dims.mockRestore();
   });
 });

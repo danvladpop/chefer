@@ -40,9 +40,10 @@ export function AccountDataCard() {
   }
 
   return (
-    <Card testID="profile-your-data">
-      <Text className="font-semibold text-gray-900">Your data</Text>
-      <Text variant="muted" className="mt-1 text-sm">
+    <Card testID="profile-your-data" className="min-w-0">
+      <Text className="w-full min-w-0 font-semibold text-gray-900">Your data</Text>
+      {/* UX-ACC-27: full-width + min-w-0 so iOS wraps instead of clipping mid-word. */}
+      <Text testID="profile-your-data-copy" variant="muted" className="mt-1 w-full min-w-0 text-sm">
         Export everything Chefer stores about you, or delete your account for good.
       </Text>
       <View className="mt-3 gap-2">

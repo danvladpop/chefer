@@ -80,8 +80,8 @@ function EmailDefaultsNoticeCard({
   busy: boolean;
 }) {
   return (
-    <View testID="prefs-email-defaults-notice" className="gap-2 rounded-lg bg-amber-50 p-3">
-      <Text className="text-sm text-amber-900">
+    <View testID="prefs-email-defaults-notice" className="min-w-0 gap-2 rounded-lg bg-amber-50 p-3">
+      <Text className="w-full min-w-0 text-sm text-amber-900">
         We&apos;ve changed how emails work: they&apos;re now off unless you turn them on. Yours are
         still on.
       </Text>
@@ -237,14 +237,14 @@ export function WeeklyUpdatesCard() {
             />
           ))}
           {!prefsQuery.data.emailConfirmed && (
-            <View className="mt-1 gap-2 rounded-lg bg-amber-50 p-3">
-              <Text className="text-sm text-amber-900">
+            <View className="mt-1 min-w-0 gap-2 rounded-lg bg-amber-50 p-3">
+              <Text className="w-full min-w-0 text-sm text-amber-900">
                 Confirm your email address to start getting these.
               </Text>
               {resend.isSuccess ? (
                 <Text
                   testID="prefs-weekly-email-sent"
-                  className="text-sm font-medium text-amber-900"
+                  className="w-full min-w-0 text-sm font-medium text-amber-900"
                 >
                   {resend.data.alreadyConfirmed
                     ? 'Your address is already confirmed.'

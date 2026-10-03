@@ -58,7 +58,7 @@ export function HeroMealCard({ meal, isTomorrow }: { meal: HeroMeal; isTomorrow:
         <View className="gap-2 px-4 pt-4">
           <View className="flex-row flex-wrap gap-2">
             <View className="self-start rounded-full bg-primary px-2.5 py-0.5">
-              <Text className="text-[12px] font-semibold uppercase text-primary-foreground">
+              <Text className="text-xs font-semibold uppercase text-primary-foreground">
                 {isTomorrow ? 'Tomorrow' : 'Next Meal'}
               </Text>
             </View>
@@ -95,6 +95,7 @@ export function HeroMealCard({ meal, isTomorrow }: { meal: HeroMeal; isTomorrow:
           <>
             <Button
               testID="today-ate-this"
+              size="lg"
               className="flex-1"
               loading={logMutation.isPending}
               onPress={() =>
