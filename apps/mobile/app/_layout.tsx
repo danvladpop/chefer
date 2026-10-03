@@ -14,6 +14,7 @@ import {
   applyGymQueryDefaults,
   createGymPersistOptions,
 } from '../src/features/gym/offline/query-persistence';
+import { ForegroundLandingHost } from '../src/features/navigation/foreground-landing-host';
 import { useNotificationLinks } from '../src/features/notifications/use-notification-links';
 import { PremiumHost } from '../src/features/premium/premium-host';
 import { HealthConsentLaunchPrompt } from '../src/features/privacy/health-consent-launch-prompt';
@@ -149,6 +150,8 @@ export default function RootLayout() {
               <Stack.Screen name="legal/[doc]" />
             </Stack>
             <AiConsentHost />
+            {/* UX-PO-10: after 30 min in the background, a foreground re-lands (food/gym). */}
+            <ForegroundLandingHost signedIn={token !== null} />
             {/* UX-26, Q-7 (pending counsel): data saved before health consent existed
                 is kept; the signed-in user is asked once per launch. */}
             <HealthConsentLaunchPrompt signedIn={token !== null} />

@@ -32,6 +32,7 @@ const mockPrevent: { value: boolean; callback: PreventRemoveCallback | null } = 
   callback: null,
 };
 jest.mock('expo-router', () => ({
+  usePathname: () => '/more',
   useLocalSearchParams: () => ({}),
   router: { back: jest.fn(), push: jest.fn(), replace: jest.fn() },
   useNavigation: () => ({ dispatch: jest.fn(), goBack: jest.fn() }),
