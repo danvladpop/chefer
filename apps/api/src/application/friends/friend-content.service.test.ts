@@ -463,6 +463,7 @@ const meta = (id: string, trackingType: ExerciseTrackingType) => ({
   name: id,
   ownerId: null,
   trackingType,
+  perHand: false,
 });
 
 function session(
