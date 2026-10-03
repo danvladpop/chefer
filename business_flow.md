@@ -1113,6 +1113,31 @@ All displayed quantities (shopping list + recipe pages) are converted to the
 user's preferred unit system (ChefProfile.preferredUnits, set in Preferences):
 METRIC shows g/kg/ml/l (cups -> ml), IMPERIAL shows oz/lb/fl oz/cups.
 
+**Shop-sized lines and one units system (WP-11, audit §6.4, UX-SHOP-01..07).**
+- The derived list now merges citrus zest + juice into whole lemons/limes,
+  groups on the catalog slug (else the base name) with size words (large,
+  medium, each) read as `pieces`, and rounds every line to what goes in the
+  basket: 0.8 avocado -> 1, 5.5 cloves -> 6, "Onion 3.2 oz" -> 1, 252 g ->
+  260 g. Eggs sit in "Dairy & Eggs". The sums behind the planner's cost chip
+  use the same lines.
+- "Add item" reads the user's own units: `2 lb chicken thighs` becomes 2 lb of
+  "chicken thighs" (`parseQuantityLine`), the placeholder teaches lb to an
+  imperial user. A new item shows at once, marked "Saving..." (offline: "Not
+  saved yet", plus an offline pill) and the server's answer replaces it.
+- Aisles open by default and the choice is remembered on the device. Prices
+  are shown as whole units ("~EUR 7", "<EUR 1"), never to the cent. The share
+  sheet counts only the dinners the (mid-week) list covers.
+- On the phone, the Shop list, the week's plan, a recipe (cook mode) and the
+  user's units survive a cold start offline (7-day cache).
+- Pantry ("In my kitchen"): every tier can remove a row ("Removed - Undo"),
+  edit its amount/unit, and sees quantities in their units; the amount box
+  refuses text and non-positive numbers (empty = "some"). Adding by hand and
+  the weekly confirm stay premium. Not done: a "use by" date (needs a schema
+  column).
+- Dates and numbers everywhere follow the device locale (`formatDate`,
+  `formatKcal`, `formatQty`).
+
+
 All displayed prices (shopping-list lines + total, pantry savings, the
 meal-plan week cost / per-person / over-budget copy, the ingredient browser)
 are EUR estimates converted to ChefProfile.deliveryCurrency by formatMoney in
