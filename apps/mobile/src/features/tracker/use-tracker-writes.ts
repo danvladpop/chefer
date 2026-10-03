@@ -8,6 +8,7 @@ import {
   withRecipeUnlogged,
   type DayEntry,
 } from '@chefer/utils';
+import { trackMealLogged } from '../../lib/analytics-events';
 import { trpc, type RouterOutputs } from '../../lib/trpc';
 import { invalidateDayQueries } from './invalidate';
 import { recordRebalance } from './rebalance-store';
@@ -75,7 +76,11 @@ export function useTrackerWrites(dateStr: string) {
         };
         return withRecipeLogged(day, entry);
       }),
-    onSuccess: (result) => recordRebalance(result.rebalance),
+    onSuccess: (result, vars) => {
+      // The tracker only ticks planned rows (WP-13).
+      trackMealLogged('planned', vars.mealType);
+      recordRebalance(result.rebalance);
+    },
     onError: (error, vars, snapshot) => {
       rollback(snapshot);
       failed(`Couldn't log ${vars.mealType}.`, error);

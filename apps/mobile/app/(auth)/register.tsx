@@ -23,6 +23,7 @@ import {
 } from '../../src/features/auth/register-draft';
 import { registerSchema, type RegisterFormValues } from '../../src/features/auth/schemas';
 import { useConfirmPasswordError } from '../../src/features/auth/use-confirm-password';
+import { track } from '../../src/lib/analytics';
 import { setToken } from '../../src/lib/auth-store';
 import { trpc } from '../../src/lib/trpc';
 
@@ -85,6 +86,7 @@ function RegisterForm() {
   const register = trpc.auth.register.useMutation({
     meta: { silent: true },
     onSuccess: async (data) => {
+      track('signup_completed', {});
       clearRegisterDraft();
       if (data.session) {
         // Dogfood feedback #9: guide new accounts through onboarding instead

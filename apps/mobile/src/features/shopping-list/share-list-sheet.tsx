@@ -3,6 +3,7 @@ import { Pressable, Share, Switch, View } from 'react-native';
 import { Button, colors, Sheet, Text, useSnackbar } from '@chefer/ui-mobile';
 import { cn, dinnersFromPlan, weekdayShortName, weekRelationLabel } from '@chefer/utils';
 import { useUnitSystem } from '../../hooks/use-unit-system';
+import { track } from '../../lib/analytics';
 import { getWebUrl } from '../../lib/api-url';
 import { trpc } from '../../lib/trpc';
 import {
@@ -157,6 +158,7 @@ export function ShareListSheet({
       });
       const result = await Share.share({ message });
       if (result.action === Share.sharedAction) {
+        track('list_shared', { scope });
         snackbar.show({ message: 'List ready to send.', tone: 'success' });
         onClose();
       }
