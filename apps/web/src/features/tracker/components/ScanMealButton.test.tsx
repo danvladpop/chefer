@@ -32,7 +32,7 @@ vi.mock('@/features/premium/components/UpgradeButton', () => ({ UpgradeButton: (
 vi.mock('@/lib/analytics', () => ({ capture: vi.fn() }));
 vi.mock('../lib/rebalance-storage', () => ({ handleRebalanceResult: vi.fn() }));
 vi.mock('../lib/scan-client', () => ({
-  scanMealPhoto: (...args: unknown[]) => m.scan(...args),
+  scanMealPhoto: (...args: unknown[]): unknown => m.scan(...args),
   ScanUpgradeRequiredError: class ScanUpgradeRequiredError extends Error {},
 }));
 vi.mock('@/lib/trpc', () => ({
@@ -75,9 +75,10 @@ async function scanOnePhoto(onLoggedEntry?: (e: { entryId: string; name: string 
       {...(onLoggedEntry && { onLoggedEntry })}
     />,
   );
-  const input = container.querySelector('input[type="file"]') as HTMLInputElement;
+  const input = container.querySelector('input[type="file"]');
+  if (!input) throw new Error('expected the hidden file input');
   const file = new File([new Uint8Array(4)], 'meal.jpg', { type: 'image/jpeg' });
-  await act(async () => {
+  act(() => {
     fireEvent.change(input, { target: { files: [file] } });
   });
   await waitFor(() => expect(screen.getByText('Log this meal?')).toBeTruthy());

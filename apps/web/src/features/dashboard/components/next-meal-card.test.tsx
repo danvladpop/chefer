@@ -133,7 +133,7 @@ describe('NextMealCard', () => {
 
     it('shows a disabled "Logged ✓" with Undo, and a second tap logs nothing', () => {
       logged();
-      const ate = screen.getByTestId('today-ate-this') as HTMLButtonElement;
+      const ate = screen.getByTestId('today-ate-this');
       expect(ate.textContent).toContain('Logged ✓');
       expect(ate.disabled).toBe(true);
       expect(screen.getByTestId('today-undo-logged').textContent).toBe('Undo');
@@ -146,7 +146,7 @@ describe('NextMealCard', () => {
       act(() => {
         vi.advanceTimersByTime(HERO_LOGGED_HOLD_MS + 50);
       });
-      const ate = screen.getByTestId('today-ate-this') as HTMLButtonElement;
+      const ate = screen.getByTestId('today-ate-this');
       expect(ate.textContent).toContain('I ate this');
       expect(ate.disabled).toBe(false);
       expect(screen.queryByTestId('today-undo-logged')).toBeNull();

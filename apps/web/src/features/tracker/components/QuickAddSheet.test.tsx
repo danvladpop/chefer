@@ -329,7 +329,7 @@ describe('QuickAddSheet — Enter calories yourself (fallback, T-19.1)', () => {
     fireEvent.change(screen.getByTestId('quick-add-kcal'), { target: { value: '400' } });
     fireEvent.change(screen.getByTestId('quick-add-protein'), { target: { value: '20' } });
     expect(screen.queryByTestId('quick-add-sanity')).toBeNull();
-    const submit = screen.getByTestId('quick-add-submit') as HTMLButtonElement;
+    const submit = screen.getByTestId('quick-add-submit');
     expect(submit.disabled).toBe(false);
     fireEvent.click(submit);
     expect(m.logCustom).toHaveBeenCalledWith(
