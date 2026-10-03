@@ -10,6 +10,7 @@ import { useCookingFor } from '@/hooks/useCookingFor';
 import { useHousehold } from '@/hooks/useHousehold';
 import { useUnitSystem } from '@/hooks/useUnitSystem';
 import { capture } from '@/lib/analytics';
+import { trackMealLogged } from '@/lib/analytics-events';
 import { trpc } from '@/lib/trpc';
 import { useQueryState } from '@/lib/use-query-state';
 import {
@@ -171,6 +172,14 @@ export function CookMode({ recipeId }: { recipeId: string }) {
 
   const [step, setStep] = useState(0);
   const [finished, setFinished] = useState(false);
+  // UX-PO-02: once per cook, whichever control ends it (Next on the last step,
+  // the swipe or the arrow key all land on the finish screen).
+  const finishedTracked = useRef(false);
+  useEffect(() => {
+    if (!finished || finishedTracked.current) return;
+    finishedTracked.current = true;
+    capture('cook_finished', {});
+  }, [finished]);
   // UX-COOK-05: the recipe page's chosen servings, when it passed any.
   const [servings, setServings] = useState<number | null>(() =>
     parseServingsParam(searchParams.get('servings')),
@@ -245,6 +254,8 @@ export function CookMode({ recipeId }: { recipeId: string }) {
       setLogged(true);
       setLoggedAs({ date: variables.date, slot });
       capture('meal_cooked', { mealType: slot });
+      // UX-PO-02: opened from a plan slot (`meal` param) = planned, else a quick log.
+      trackMealLogged(isMealSlot(mealParam) ? 'planned' : 'quick', variables.mealType);
       // F4: a cook-mode log can trigger a week rebalance too — hand the swaps
       // off to the meal-plan banner (with undo).
       handleRebalanceResult(result.rebalance);

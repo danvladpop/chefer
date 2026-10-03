@@ -1,4 +1,5 @@
 // @vitest-environment jsdom
+import { capture } from '@/lib/analytics';
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { TonightCard } from './tonight-card';
@@ -17,11 +18,15 @@ vi.mock('next/link', () => ({
     </a>
   ),
 }));
+vi.mock('@/lib/analytics', () => ({ capture: vi.fn() }));
 vi.mock('@/features/tracker/lib/rebalance-storage', () => ({ handleRebalanceResult: vi.fn() }));
 vi.mock('@/lib/recipe-image', () => ({ getRecipeImageProps: () => ({ src: '/x.jpg' }) }));
 vi.mock('@/features/safety/components/CheckedForChip', () => ({
   CheckedForChip: () => null,
 }));
+let mockLogOptions: {
+  onSuccess?: (data: { rebalance: null }, vars: { mealType: string }) => void;
+} = {};
 let mockExisting: { rating: number; notes: string | null } | null = null;
 vi.mock('@/features/recipe/components/StarRatingWidget', () => ({
   StarRatingWidget: ({ recipeId }: { recipeId: string }) => (
@@ -39,7 +44,12 @@ vi.mock('@/lib/trpc', () => ({
     }),
     tracker: {
       logRecipe: {
-        useMutation: () => ({ mutate: vi.fn(), isPending: false, isError: false, error: null }),
+        useMutation: (opts: {
+          onSuccess?: (data: { rebalance: null }, vars: { mealType: string }) => void;
+        }) => {
+          mockLogOptions = opts;
+          return { mutate: vi.fn(), isPending: false, isError: false, error: null };
+        },
       },
     },
   },
@@ -67,6 +77,14 @@ const meal = {
     cookTimeMins: 20,
   },
 };
+
+describe('TonightCard analytics (UX-PO-02)', () => {
+  it('a logged dinner fires meal_logged as planned', () => {
+    render(<TonightCard meal={meal} showNutrition={false} onLogged={vi.fn()} />);
+    mockLogOptions.onSuccess?.({ rebalance: null }, { mealType: 'dinner' });
+    expect(capture).toHaveBeenCalledWith('meal_logged', { source: 'planned', mealType: 'dinner' });
+  });
+});
 
 describe('TonightCard — Swap (T-04.7 delta)', () => {
   // UX-FOOD-18: on Friday/Saturday evenings Plan defaults to NEXT week, so the

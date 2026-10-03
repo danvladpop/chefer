@@ -1,4 +1,5 @@
 // @vitest-environment jsdom
+import { capture } from '@/lib/analytics';
 import { AppToastHost, resetAppToastForTests } from '@/lib/app-toast';
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -128,6 +129,18 @@ function renderPage() {
     </>,
   );
 }
+
+describe('Shop: funnel (UX-PO-02)', () => {
+  it('fires list_opened once per visit, with the item count, not on re-renders', async () => {
+    const { rerender } = render(<ShoppingListPage />);
+    await screen.findByLabelText('Remove Flour from the list');
+    const opened = () => vi.mocked(capture).mock.calls.filter(([event]) => event === 'list_opened');
+    expect(opened()).toHaveLength(1);
+    expect(opened()[0]?.[1]).toEqual({ itemCount: 1 });
+    rerender(<ShoppingListPage />);
+    expect(opened()).toHaveLength(1);
+  });
+});
 
 describe('Shop: removing a custom item (UX-SHOP-02)', () => {
   it('says "Removed" with Undo, and Undo re-adds the item', async () => {

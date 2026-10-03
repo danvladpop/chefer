@@ -1,4 +1,5 @@
 // @vitest-environment jsdom
+import { capture } from '@/lib/analytics';
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { CookMode } from './cook-mode';
@@ -90,6 +91,7 @@ vi.mock('@/lib/trpc', () => ({
 
 afterEach(() => {
   cleanup();
+  vi.mocked(capture).mockClear();
   mockSearch = '';
   mockQuery = {};
   mockMembers = null;
@@ -396,5 +398,44 @@ describe('CookMode log slot chooser and Undo (UX-COOK-04)', () => {
       expect.objectContaining({ recipeId: 'r1', mealType: 'lunch' }),
     );
     expect(screen.getByTestId('cook-slot')).toBeTruthy();
+  });
+});
+
+// UX-PO-02: the beta funnel — a finished cook and the source of the logged meal.
+describe('CookMode analytics (UX-PO-02)', () => {
+  it('fires cook_finished once when the finish screen is reached, however it is reached', () => {
+    render(<CookMode recipeId="r1" />);
+    key('ArrowRight');
+    key('ArrowRight');
+    expect(capture).not.toHaveBeenCalledWith('cook_finished', expect.anything());
+    key('ArrowRight');
+    expect(capture).toHaveBeenCalledWith('cook_finished', {});
+    // Back to the steps and finish again: still one finished cook.
+    fireEvent.click(screen.getByRole('button', { name: /back to the steps|steps/i }));
+    key('ArrowRight');
+    const finished = vi.mocked(capture).mock.calls.filter(([event]) => event === 'cook_finished');
+    expect(finished).toHaveLength(1);
+  });
+
+  it('logs the meal as planned when opened from a plan slot, quick otherwise', () => {
+    mockSearch = 'meal=lunch';
+    mockLogSucceeds = true;
+    const { unmount } = render(<CookMode recipeId="r1" />);
+    key('ArrowRight');
+    key('ArrowRight');
+    key('ArrowRight');
+    fireEvent.click(screen.getByText('Made it! Log this meal'));
+    expect(capture).toHaveBeenCalledWith('meal_logged', { source: 'planned', mealType: 'lunch' });
+    unmount();
+
+    vi.mocked(capture).mockClear();
+    mockSearch = '';
+    render(<CookMode recipeId="r1" />);
+    key('ArrowRight');
+    key('ArrowRight');
+    key('ArrowRight');
+    fireEvent.click(screen.getByText('Made it! Log this meal'));
+    const logged = vi.mocked(capture).mock.calls.find(([event]) => event === 'meal_logged');
+    expect(logged?.[1]).toMatchObject({ source: 'quick' });
   });
 });

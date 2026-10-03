@@ -1463,6 +1463,12 @@ Duplicate (a prefilled new recipe named "Copy of …") and Delete. Delete asks f
 the recipe leaves your cookbook, lists, favourites, pins and Following, and a snackbar offers Undo for 10 seconds
 (`recipe.restoreMine`). Plan slots that already hold it keep showing it (a tombstone: `mealPlan.getRecipe` answers
 `deleted: true`), so no week ever breaks; an old app that opens the id from elsewhere gets "Recipe not found", never an error.
+On the **web** recipe page the same actions are buttons in the action row (not a ⋯ menu): **Add to my week** (`AddToWeekSheet`: this
+week, next week from Thursday; day buttons with past days disabled; one row per planned meal, "Add here" or "Replace" with an inline
+confirm; a table-safety conflict shows "Use anyway"; "Make a plan" when the week has none; success toast with Undo through
+`recipe.undoAddToWeek`), **Add ingredients to list** (`shoppingList.addCustomItems` in chunks of 20, scaled to the servings stepper;
+"Make a plan first" with no plan), **Duplicate** (opens `/recipes/new?duplicateOf=<id>`, prefilled as "Copy of …", and lands on the new
+recipe) and Share/Edit/Delete. The pure rules live in `@chefer/utils` (`add-to-week`, `recipe-actions`), shared with the phone.
 
 ### 10.1 Training-aware nutrition (audit P2-4)
 
@@ -2118,7 +2124,13 @@ data, unless the user ticks "Save with incomplete nutrition" (`acceptPartial: tr
 The old "calorie estimate uncertain" banner is gone. The video draft form (§16.1) uses
 the same editor and the same rule.
 
-**Preview before Save (owner dogfood 2026-09-30, web + mobile):** under the Original /
+**Editable review (UX-REC-15, web + mobile):** a link, pasted text or photo is reviewed in the same
+editable form as a video draft (web `VideoDraftForm` fed a `DraftReviewSource`; mobile `VideoDraftForm`): pick
+the version (Original or Cheferized — switching restarts the review), then fix the name, servings, times,
+amounts, units, matches and steps inline. Save sends the chosen `variant` and `acceptPartial`. This replaces the
+read-only "Preview before Save" below on web.
+
+**Preview before Save (owner dogfood 2026-09-30, web + mobile; superseded by the editable review above on web):** under the Original /
 Cheferized cards, the chosen version is shown in full — name, description, servings,
 times, kcal/macros, EVERY ingredient and EVERY step (mobile
 `features/recipes/imported-recipe-preview.tsx`, web `FullRecipePreview` in

@@ -127,6 +127,15 @@ export default function ShoppingListPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps -- fire once per load, not on every render
   }, [weekList?.planId, weekList?.weekStartDate, listLoading, weekOffset]);
 
+  // UX-PO-02: one `list_opened` per visit, once the list has loaded with a plan
+  // (not per week switch or refetch — the funnel counts opens, not re-renders).
+  const listOpenedTracked = useRef(false);
+  useEffect(() => {
+    if (listOpenedTracked.current || !weekList?.hasPlan) return;
+    listOpenedTracked.current = true;
+    capture('list_opened', { itemCount: weekList.items.length });
+  }, [weekList]);
+
   // T-10.4 (D-7): the household first-week line reads the plan's flag; only a
   // free user with a plan can be on that week, so nobody else pays for the query.
   const { data: weekPlan } = trpc.mealPlan.getForWeek.useQuery(

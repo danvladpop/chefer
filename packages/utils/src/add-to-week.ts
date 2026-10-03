@@ -1,0 +1,150 @@
+import { FRIENDS_COPY } from '@chefer/types';
+import { getWeekStartDate } from './week-default';
+
+// ─── Add to my week: the client-side rules (UX §9.5, PRD FR-17.4) ─────────────
+// Pure, so the sheet's rules are testable without rendering, and shared by the
+// phone's and the web's picker (UX-REC-08 on web):
+//   • this week always; next week only from Thursday on (viewer's local time);
+//   • past days of this week are disabled;
+//   • one row per meal slot of the chosen day — a filled slot is `Replace`
+//     (one row per meal in it), an empty one is `Add here`.
+// Weekdays are Mon-first (0 = Monday … 6 = Sunday), as in the plan.
+
+export type AddToWeekMealType = 'breakfast' | 'lunch' | 'dinner' | 'snack';
+export const ADD_TO_WEEK_MEAL_ORDER: readonly AddToWeekMealType[] = [
+  'breakfast',
+  'lunch',
+  'dinner',
+  'snack',
+];
+
+/** Thursday (Mon-first index 3). */
+export const NEXT_WEEK_FROM_WEEKDAY = 3;
+
+/** Today's Mon-first weekday in the viewer's local time. */
+export function localWeekday(now: Date = new Date()): number {
+  return (now.getDay() + 6) % 7;
+}
+
+export function canPickNextWeek(now: Date = new Date()): boolean {
+  return localWeekday(now) >= NEXT_WEEK_FROM_WEEKDAY;
+}
+
+export function isPastDay(weekOffset: number, dayOfWeek: number, now: Date = new Date()): boolean {
+  return weekOffset === 0 && dayOfWeek < localWeekday(now);
+}
+
+/** Today for this week, Monday for next week. */
+export function defaultDay(weekOffset: number, now: Date = new Date()): number {
+  return weekOffset === 0 ? localWeekday(now) : 0;
+}
+
+/** The day of the month of `dayOfWeek` in that week (`Tue 29`). */
+export function dayOfMonth(weekOffset: number, dayOfWeek: number, now: Date = new Date()): number {
+  const d = getWeekStartDate(weekOffset, now);
+  d.setDate(d.getDate() + dayOfWeek);
+  return d.getDate();
+}
+
+export type AddToWeekSlotRow = {
+  key: string;
+  mealType: AddToWeekMealType;
+  mode: 'add' | 'replace';
+  /** Index in `day.meals` (the API's slot index) for a replace. */
+  slotIndex: number | null;
+  /** The meal currently there (a replace). */
+  currentName: string | null;
+};
+
+type PlanForSlots = {
+  days: readonly {
+    dayOfWeek: number;
+    meals: readonly { type: string; recipe: { name: string } }[];
+  }[];
+};
+
+function isMealType(value: string): value is AddToWeekMealType {
+  return (ADD_TO_WEEK_MEAL_ORDER as readonly string[]).includes(value);
+}
+
+/**
+ * The rows for one day: every slot type the viewer plans (`getShape.slots`)
+ * plus any type already on that day, in meal order.
+ */
+export function addToWeekSlotRows(
+  plan: PlanForSlots,
+  dayOfWeek: number,
+  shapeSlots: readonly string[],
+): AddToWeekSlotRow[] {
+  const meals = plan.days.find((d) => d.dayOfWeek === dayOfWeek)?.meals ?? [];
+  const types = new Set<AddToWeekMealType>();
+  for (const t of shapeSlots) if (isMealType(t)) types.add(t);
+  for (const m of meals) if (isMealType(m.type)) types.add(m.type);
+  const rows: AddToWeekSlotRow[] = [];
+  for (const type of ADD_TO_WEEK_MEAL_ORDER) {
+    if (!types.has(type)) continue;
+    const filled = meals.map((m, index) => ({ m, index })).filter(({ m }) => m.type === type);
+    if (filled.length === 0) {
+      rows.push({
+        key: `${type}-add`,
+        mealType: type,
+        mode: 'add',
+        slotIndex: null,
+        currentName: null,
+      });
+      continue;
+    }
+    for (const { m, index } of filled) {
+      rows.push({
+        key: `${type}-${index}`,
+        mealType: type,
+        mode: 'replace',
+        slotIndex: index,
+        currentName: m.recipe.name,
+      });
+    }
+  }
+  return rows;
+}
+
+// ─── Reading `recipe.addToWeek` / `friends.addRecipeToWeek` failures ──────────
+
+export type AddToWeekFailure =
+  | { kind: 'conflict'; message: string; canAcknowledge: boolean }
+  | { kind: 'noPlan' }
+  | { kind: 'error' };
+
+function messageOf(error: unknown): string {
+  return typeof error === 'object' && error !== null && 'message' in error
+    ? String(error.message)
+    : '';
+}
+
+/** The `data.unsafeForTable` the API copies onto a safety-conflict error, if any. */
+function unsafeForTableOf(error: unknown): { issues: string[] } | null {
+  if (typeof error !== 'object' || error === null || !('data' in error)) return null;
+  const { data } = error;
+  if (typeof data !== 'object' || data === null || !('unsafeForTable' in data)) return null;
+  const value = data.unsafeForTable;
+  return typeof value === 'object' && value !== null ? { issues: [] } : null;
+}
+
+/**
+ * A safety conflict with the viewer's table → the conflict line (+ `Use
+ * anyway` when the server will honour `acknowledgeConflict`, i.e. it sent
+ * `data.unsafeForTable`); no plan for that week → the `Make a plan` state;
+ * anything else → a generic retry line.
+ */
+export function readAddToWeekFailure(error: unknown): AddToWeekFailure {
+  const unsafe = unsafeForTableOf(error);
+  const message = messageOf(error);
+  if (unsafe || message.startsWith('UNSAFE_FOR_TABLE')) {
+    return {
+      kind: 'conflict',
+      message: message.replace(/^UNSAFE_FOR_TABLE:\s*/, ''),
+      canAcknowledge: Boolean(unsafe),
+    };
+  }
+  if (message === FRIENDS_COPY.addToWeek.noPlan) return { kind: 'noPlan' };
+  return { kind: 'error' };
+}

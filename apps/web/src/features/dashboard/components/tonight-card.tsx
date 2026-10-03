@@ -6,6 +6,7 @@ import { useState } from 'react';
 import { StarRatingWidget } from '@/features/recipe/components/StarRatingWidget';
 import { CheckedForChip } from '@/features/safety/components/CheckedForChip';
 import { handleRebalanceResult } from '@/features/tracker/lib/rebalance-storage';
+import { trackMealLogged } from '@/lib/analytics-events';
 import { getRecipeImageProps } from '@/lib/recipe-image';
 import { trpc, type RouterOutputs } from '@/lib/trpc';
 import { Check, ChefHat, Repeat } from 'lucide-react';
@@ -53,7 +54,9 @@ export function TonightCard({
   const canRate = !myRating.isLoading && !myRating.data;
   const logMutation = trpc.tracker.logRecipe.useMutation({
     meta: { silent: true },
-    onSuccess: (result) => {
+    onSuccess: (result, variables) => {
+      // UX-PO-02: Tonight ticks the planned dinner.
+      trackMealLogged('planned', variables.mealType);
       handleRebalanceResult(result.rebalance);
       void utils.dashboard.summary.invalidate();
       void utils.tracker.getDay.invalidate();

@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
+import { trackMealLogged } from '@/lib/analytics-events';
 import { trpc, type RouterOutputs } from '@/lib/trpc';
 import { ChevronDown, ChevronUp, Plus, Search } from 'lucide-react';
 import { Sheet } from '@chefer/ui';
@@ -166,14 +167,34 @@ export function QuickAddSheet({ date, onLogged, plannedMeals = [] }: QuickAddShe
     setOpen(false);
   };
 
+  // UX-PO-02: a planned row is `planned`; anything else logged into a meal type
+  // the day's plan already has a meal for is `replaced`; the rest is `quick`.
+  const plannedRowPending = useRef(false);
+  const quickAddSource = (vars: { mealType: string }, fromPlanRow: boolean) =>
+    fromPlanRow
+      ? 'planned'
+      : plannedMeals.some((m) => m.mealType === vars.mealType)
+        ? 'replaced'
+        : 'quick';
+
   // Both mutations render their failure inline (search view and manual form).
   const logRecipeMutation = trpc.tracker.logRecipe.useMutation({
     meta: { silent: true },
-    onSuccess: onLoggedCommon,
+    onSuccess: (data, vars) => {
+      trackMealLogged(quickAddSource(vars, plannedRowPending.current), vars.mealType);
+      plannedRowPending.current = false;
+      onLoggedCommon(data);
+    },
+    onError: () => {
+      plannedRowPending.current = false;
+    },
   });
   const logCustomMutation = trpc.tracker.logCustomMeal.useMutation({
     meta: { silent: true },
-    onSuccess: onLoggedCommon,
+    onSuccess: (data, vars) => {
+      trackMealLogged(quickAddSource(vars, false), vars.mealType);
+      onLoggedCommon(data);
+    },
   });
   const isPending = logRecipeMutation.isPending || logCustomMutation.isPending;
 
@@ -216,6 +237,7 @@ export function QuickAddSheet({ date, onLogged, plannedMeals = [] }: QuickAddShe
 
   const logPlannedRow = (meal: PlannedLogMeal, chosenPortion: number) => {
     if (isPending) return;
+    plannedRowPending.current = true;
     logRecipeMutation.mutate({
       date,
       recipeId: meal.recipeId,

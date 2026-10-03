@@ -1,8 +1,8 @@
 'use client';
 
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
-import { useId, useState } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
+import { useEffect, useId, useState } from 'react';
 import { NutritionPreview } from '@/features/recipes/components/NutritionPreview';
 import {
   Field,
@@ -17,6 +17,7 @@ import {
   RecipeLinesEditor,
 } from '@/features/recipes/components/RecipeLinesEditor';
 import { useLiveNutrition } from '@/features/recipes/hooks/useLiveNutrition';
+import { useRecipeFormLines } from '@/features/recipes/hooks/useRecipeFormLines';
 import {
   errorIdFor,
   fieldErrorProps,
@@ -51,6 +52,10 @@ const DIETARY_TAG_PRESETS = [
 
 export default function NewRecipePage() {
   const router = useRouter();
+  // `?duplicateOf=` opens the form prefilled from one of your recipes (UX-REC-04
+  // Duplicate), saved as a copy named "Copy of …" — same as the phone's recipe form.
+  const duplicateOf = useSearchParams().get('duplicateOf') ?? '';
+  const isDuplicate = duplicateOf.length > 0;
 
   // Stable ids so every control has a real <label htmlFor> / aria-describedby
   // target (F-X-5-1, F-REC-3-7).
@@ -97,6 +102,51 @@ export default function NewRecipePage() {
 
   const { errors, clear: clearError, report: reportErrors } = useRecipeFormErrors();
 
+  // ── Duplicate: prefill from the source recipe once, after a fresh fetch ────
+  const {
+    data: source,
+    isLoading: loadingSource,
+    isError: sourceError,
+    isFetchedAfterMount,
+    isFetching,
+    refetch: refetchSource,
+  } = trpc.recipe.getMyRecipe.useQuery(
+    { recipeId: duplicateOf },
+    { enabled: isDuplicate, retry: false, refetchOnMount: 'always' },
+  );
+  const [prefilled, setPrefilled] = useState(false);
+  const [linesHydrated, setLinesHydrated] = useState(false);
+  useEffect(() => {
+    if (!isDuplicate || !source || prefilled || !isFetchedAfterMount || isFetching) return;
+    setName(`Copy of ${source.name}`.slice(0, 120));
+    // Placeholders an import fills in are blanks here, not real values.
+    setDescription(source.description === 'Imported recipe.' ? '' : source.description);
+    if (source.cuisineType && source.cuisineType !== 'International') {
+      if ((CUISINE_PRESETS as readonly string[]).includes(source.cuisineType)) {
+        setCuisineChip(source.cuisineType);
+      } else {
+        setCuisineCustom(source.cuisineType);
+        setUseCustomCuisine(true);
+      }
+    }
+    setPrepTimeMins(source.prepTimeMins > 0 ? String(source.prepTimeMins) : '');
+    setCookTimeMins(source.cookTimeMins > 0 ? String(source.cookTimeMins) : '');
+    setServings(String(Math.max(1, source.servings)));
+    setTags([...source.dietaryTags]);
+    setImageUrl(source.imageUrl ?? null);
+    setInstructions(source.instructions.length > 0 ? [...source.instructions] : ['']);
+    setPrefilled(true);
+  }, [isDuplicate, source, prefilled, isFetchedAfterMount, isFetching]);
+  const sourceRows = useRecipeFormLines(
+    isDuplicate ? source : undefined,
+    isFetchedAfterMount && !isFetching,
+  );
+  useEffect(() => {
+    if (!isDuplicate || linesHydrated || !sourceRows) return;
+    setLines(sourceRows);
+    setLinesHydrated(true);
+  }, [isDuplicate, linesHydrated, sourceRows]);
+
   const cuisineType = useCustomCuisine ? cuisineCustom.trim() : (cuisineChip ?? '');
 
   // Nutrition is never typed on web any more: the live preview runs the
@@ -138,8 +188,9 @@ export default function NewRecipePage() {
   // ── Mutation ───────────────────────────────────────────────────────────────
   const createMutation = trpc.recipe.create.useMutation({
     meta: { silent: true },
-    onSuccess: () => {
-      router.push('/recipes?tab=my');
+    onSuccess: (created) => {
+      // A duplicate lands on the new recipe, not back on the list.
+      router.push(isDuplicate ? `/recipes/${created.id}` : '/recipes?tab=my');
     },
   });
 
@@ -217,6 +268,45 @@ export default function NewRecipePage() {
 
   // ─── Render ─────────────────────────────────────────────────────────────────
 
+  if (isDuplicate && sourceError) {
+    return (
+      <div
+        data-testid="recipe-duplicate-error"
+        className="mx-auto max-w-2xl px-4 py-6 text-center sm:px-6 sm:py-8"
+      >
+        <p className="text-gray-500">
+          Couldn&apos;t load that recipe. It may have been deleted, or you may not own it.
+        </p>
+        <div className="mt-4 flex items-center justify-center gap-4">
+          <button
+            type="button"
+            onClick={() => void refetchSource()}
+            className="inline-flex min-h-11 items-center text-sm text-[#944a00] hover:underline"
+          >
+            Try again
+          </button>
+          <Link
+            href="/recipes?tab=my"
+            className="inline-flex min-h-11 items-center text-sm text-[#944a00] hover:underline"
+          >
+            ← Back to My Recipes
+          </Link>
+        </div>
+      </div>
+    );
+  }
+
+  if (isDuplicate && (loadingSource || !prefilled || !linesHydrated)) {
+    return (
+      <div className="mx-auto max-w-2xl px-4 py-6 sm:px-6 sm:py-8">
+        <div className="animate-pulse space-y-4" data-testid="recipe-duplicate-loading">
+          <div className="h-8 w-48 rounded bg-gray-100" />
+          <div className="h-64 rounded-2xl bg-gray-100" />
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="mx-auto max-w-2xl px-4 py-6 sm:px-6 sm:py-8">
       {/* Header */}
@@ -232,7 +322,9 @@ export default function NewRecipePage() {
           <p className="text-xs font-semibold uppercase tracking-widest text-gray-500">
             My Recipes
           </p>
-          <h1 className="font-serif text-2xl font-bold text-gray-900">Create Recipe</h1>
+          <h1 className="font-serif text-2xl font-bold text-gray-900">
+            {isDuplicate ? 'Duplicate Recipe' : 'Create Recipe'}
+          </h1>
         </div>
       </div>
       <RequiredLegend />
