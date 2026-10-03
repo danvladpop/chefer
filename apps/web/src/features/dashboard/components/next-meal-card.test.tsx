@@ -135,7 +135,7 @@ describe('NextMealCard', () => {
       logged();
       const ate = screen.getByTestId('today-ate-this');
       expect(ate.textContent).toContain('Logged ✓');
-      expect(ate.disabled).toBe(true);
+      expect((ate as HTMLButtonElement).disabled).toBe(true);
       expect(screen.getByTestId('today-undo-logged').textContent).toBe('Undo');
       fireEvent.click(ate);
       expect(mocks.mutate).not.toHaveBeenCalled();
@@ -148,7 +148,7 @@ describe('NextMealCard', () => {
       });
       const ate = screen.getByTestId('today-ate-this');
       expect(ate.textContent).toContain('I ate this');
-      expect(ate.disabled).toBe(false);
+      expect((ate as HTMLButtonElement).disabled).toBe(false);
       expect(screen.queryByTestId('today-undo-logged')).toBeNull();
     });
 
