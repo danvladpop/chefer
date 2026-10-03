@@ -57,6 +57,7 @@ function setup() {
     replaceDocument: vi.fn(),
     setActive: vi.fn(),
     archive: vi.fn(),
+    restore: vi.fn(),
     setNextDay: vi.fn(),
   } satisfies IRoutineRepository;
   const exerciseRepo = {
@@ -207,5 +208,49 @@ describe('RoutineService other operations', () => {
   it('templates lists every program template', () => {
     const { service } = setup();
     expect(service.templates().length).toBeGreaterThanOrEqual(8);
+  });
+});
+
+describe('RoutineService.restore (UX-GYM-34)', () => {
+  const T0 = new Date('2026-09-01T00:00:00Z');
+
+  it('un-archives an archived routine without activating it', async () => {
+    const { service, repo } = setup();
+    repo.findByIdForUser.mockResolvedValue(routineRow({ archivedAt: T0, isActive: false }));
+    repo.restore.mockResolvedValue(true);
+
+    await expect(service.restore(USER, 'r1')).resolves.toEqual({ ok: true });
+    expect(repo.restore).toHaveBeenCalledWith(USER, 'r1');
+    expect(repo.setActive).not.toHaveBeenCalled();
+  });
+
+  it('is idempotent for a routine that is not archived', async () => {
+    const { service, repo } = setup();
+    repo.findByIdForUser.mockResolvedValue(routineRow({ archivedAt: null }));
+
+    await expect(service.restore(USER, 'r1')).resolves.toEqual({ ok: true });
+    expect(repo.restore).not.toHaveBeenCalled();
+  });
+
+  it("is NOT_FOUND for a routine that is not the user's", async () => {
+    const { service, repo } = setup();
+    repo.findByIdForUser.mockResolvedValue(null);
+
+    await expect(service.restore(USER, 'nope')).rejects.toMatchObject({ code: 'NOT_FOUND' });
+    expect(repo.restore).not.toHaveBeenCalled();
+  });
+
+  it('refuses when 30 unarchived routines already exist', async () => {
+    const { service, repo } = setup();
+    repo.findByIdForUser.mockResolvedValue(routineRow({ archivedAt: T0 }));
+    repo.listForUser.mockResolvedValue(
+      Array.from({ length: 30 }, (_, i) => ({
+        ...routineRow({ id: `x${i}` }),
+        _count: { days: 1 },
+      })),
+    );
+
+    await expect(service.restore(USER, 'r1')).rejects.toMatchObject({ code: 'BAD_REQUEST' });
+    expect(repo.restore).not.toHaveBeenCalled();
   });
 });

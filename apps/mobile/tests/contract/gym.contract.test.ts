@@ -173,6 +173,30 @@ describe('gym storage + sync (no engine needed)', () => {
     ).rejects.toMatchObject({ data: { code: 'NOT_FOUND' } });
   });
 
+  it('routine.restore un-archives an own routine without activating it', async () => {
+    const blank = await client.gym.routine.createBlank.mutate({
+      name: 'Contract archived',
+      days: 1,
+    });
+    await client.gym.routine.archive.mutate({ id: blank.id });
+    const archived = (await client.gym.routine.list.query()).find((r) => r.id === blank.id);
+    expect(archived?.archived).toBe(true);
+
+    await expect(client.gym.routine.restore.mutate({ id: blank.id })).resolves.toEqual({
+      ok: true,
+    });
+    const restored = (await client.gym.routine.list.query()).find((r) => r.id === blank.id);
+    expect(restored).toMatchObject({ archived: false, isActive: false });
+    // Idempotent for a routine that is not archived.
+    await expect(client.gym.routine.restore.mutate({ id: blank.id })).resolves.toEqual({
+      ok: true,
+    });
+
+    await expect(client.gym.routine.restore.mutate({ id: randomUUID() })).rejects.toMatchObject({
+      data: { code: 'NOT_FOUND' },
+    });
+  });
+
   it('upsertMany is idempotent, last-write-wins, and round-trips the document', async () => {
     const doc = freestyleDoc();
 

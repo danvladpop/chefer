@@ -27,6 +27,10 @@ export const gymRoutineRouter = router({
   archive: protectedProcedure
     .input(idInput)
     .mutation(({ ctx, input }) => routineService.archive(ctx.user.id, input.id)),
+  /** UX-GYM-34: undo `archive` (the routine comes back inactive). */
+  restore: protectedProcedure
+    .input(idInput)
+    .mutation(({ ctx, input }) => routineService.restore(ctx.user.id, input.id)),
   setActive: protectedProcedure
     .input(idInput)
     .mutation(({ ctx, input }) => routineService.setActive(ctx.user.id, input.id)),

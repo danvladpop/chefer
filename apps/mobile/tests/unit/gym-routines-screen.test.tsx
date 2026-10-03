@@ -33,6 +33,8 @@ const mockCreateFromTemplate: { options?: MutationOptions; mutate: jest.Mock } =
 };
 const mockSaveProfile = jest.fn();
 const mockDuplicate = jest.fn();
+const mockSetActive = jest.fn();
+const mockRestore = jest.fn();
 
 jest.mock('../../src/lib/trpc', () => {
   const noop = () => ({ mutate: jest.fn(), isPending: false, error: null, reset: jest.fn() });
@@ -72,7 +74,22 @@ jest.mock('../../src/lib/trpc', () => {
               refetch: jest.fn(),
             }),
           },
-          setActive: { useMutation: noop },
+          setActive: {
+            useMutation: () => ({
+              mutate: (...args: unknown[]) => mockSetActive(...args) as unknown,
+              isPending: false,
+              error: null,
+              reset: jest.fn(),
+            }),
+          },
+          restore: {
+            useMutation: () => ({
+              mutate: (...args: unknown[]) => mockRestore(...args) as unknown,
+              isPending: false,
+              error: null,
+              reset: jest.fn(),
+            }),
+          },
           duplicate: {
             useMutation: () => ({
               mutate: (...args: unknown[]) => mockDuplicate(...args) as unknown,
@@ -118,6 +135,12 @@ const ROUTINE: RoutineListItemDto = {
 const METRICS = {
   frame: { x: 0, y: 0, width: 390, height: 844 },
   insets: { top: 0, left: 0, right: 0, bottom: 0 },
+};
+const ARCHIVED_ROUTINE: RoutineListItemDto = {
+  ...ROUTINE,
+  id: 'r3',
+  name: 'Old Split',
+  archived: true,
 };
 const ACTIVE_ROUTINE: RoutineListItemDto = {
   ...ROUTINE,
@@ -285,6 +308,75 @@ describe('My routines', () => {
       await waitFor(() =>
         expect(screen.getByTestId('snackbar-message')).toHaveTextContent(/Weekly goal is now 3/),
       );
+    });
+  });
+
+  describe('Archived routines (UX-GYM-34)', () => {
+    it('lists archived routines in their own collapsed section, not the main list', async () => {
+      mockListQuery.mockReturnValue({
+        data: [ROUTINE, ARCHIVED_ROUTINE],
+        isPending: false,
+        isError: false,
+        fetchStatus: 'idle',
+        refetch: jest.fn(),
+      });
+      const user = userEvent.setup();
+      await renderScreen();
+
+      expect(screen.getByTestId('routine-list-item-r1')).toBeOnTheScreen();
+      expect(screen.queryByTestId('routine-list-item-r3')).toBeNull();
+      expect(screen.getByTestId('routines-archived-toggle')).toHaveTextContent(/Archived \(1\)/);
+      expect(screen.queryByTestId('routines-archived-item-r3')).toBeNull();
+
+      await user.press(screen.getByTestId('routines-archived-toggle'));
+      expect(screen.getByTestId('routines-archived-item-r3')).toHaveTextContent(/Old Split/);
+    });
+
+    it('Restore calls gym.routine.restore for that routine', async () => {
+      mockListQuery.mockReturnValue({
+        data: [ROUTINE, ARCHIVED_ROUTINE],
+        isPending: false,
+        isError: false,
+        fetchStatus: 'idle',
+        refetch: jest.fn(),
+      });
+      const user = userEvent.setup();
+      await renderScreen();
+      await user.press(screen.getByTestId('routines-archived-toggle'));
+      await user.press(screen.getByTestId('routines-archived-restore-r3'));
+
+      expect(mockRestore).toHaveBeenCalledWith({ id: 'r3' });
+    });
+
+    it('there is no section when nothing is archived', async () => {
+      await renderScreen();
+      expect(screen.queryByTestId('routines-archived')).toBeNull();
+    });
+
+    it('archiving offers Undo, which restores a non-active routine', async () => {
+      const user = userEvent.setup();
+      await renderScreen();
+      await openArchiveConfirm(user, 'r1');
+      mockArchive.options?.onSuccess?.({ ok: true }, { id: 'r1' });
+
+      await waitFor(() =>
+        expect(screen.getByTestId('snackbar-message')).toHaveTextContent('Archived “Upper Lower”.'),
+      );
+      await user.press(screen.getByTestId('snackbar-action'));
+      expect(mockRestore).toHaveBeenCalledWith({ id: 'r1' });
+      expect(mockSetActive).not.toHaveBeenCalled();
+    });
+
+    it('Undo on an archived ACTIVE routine makes it active again', async () => {
+      const user = userEvent.setup();
+      await renderScreen();
+      await openArchiveConfirm(user, 'r2');
+      mockArchive.options?.onSuccess?.({ ok: true }, { id: 'r2' });
+
+      await waitFor(() => expect(screen.getByTestId('snackbar-action')).toBeOnTheScreen());
+      await user.press(screen.getByTestId('snackbar-action'));
+      expect(mockSetActive).toHaveBeenCalledWith({ id: 'r2' });
+      expect(mockRestore).not.toHaveBeenCalled();
     });
   });
 
