@@ -191,7 +191,7 @@ describe('SegmentedControl thumb (UX-X-10)', () => {
     expect(style.transform[0]?.translateX).toBeCloseTo(segment);
   });
 
-  it('labels wrap/shrink instead of clipping, and segments are tabs with state', async () => {
+  it('labels wrap instead of clipping (never auto-shrink), and segments are tabs with state', async () => {
     await render(
       <SegmentedControl testID="seg" value="b" onChange={jest.fn()} options={options} />,
     );
@@ -201,8 +201,9 @@ describe('SegmentedControl thumb (UX-X-10)', () => {
     expect(screen.getByTestId('seg-a').props.accessibilityState).toEqual({ selected: false });
     const label = screen.getByText('Gym');
     expect(label.props.numberOfLines).toBe(2);
-    expect(label.props.adjustsFontSizeToFit).toBe(true);
-    expect(label.props.minimumFontScale).toBe(0.8);
+    // adjustsFontSizeToFit stuck the compact Food | Gym switch at a tiny size on
+    // the new architecture — the labels must never auto-shrink.
+    expect(label.props.adjustsFontSizeToFit).toBeUndefined();
     expect(label.props.maxFontSizeMultiplier).toBe(DENSE_MAX_FONT_SCALE);
   });
 });

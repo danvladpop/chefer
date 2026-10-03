@@ -156,8 +156,11 @@ export function SegmentedControl<T extends string>({
                 onChange(option.value);
               }
             }}
-            // Large OS text: labels wrap to two lines, then shrink up to 20%
-            // rather than break mid-word (X-08); the compact size stays on one.
+            // Large OS text: labels wrap to two lines rather than break
+            // mid-word (X-08); the compact size stays on one. No
+            // adjustsFontSizeToFit: on the new architecture it measured the
+            // compact Food | Gym switch once and stuck at a tiny size (WP-04
+            // device pass, iOS 26.5).
             className={cn(
               'flex-1 items-center justify-center rounded-md px-3',
               compact ? 'min-h-8' : 'min-h-11 py-1',
@@ -167,8 +170,6 @@ export function SegmentedControl<T extends string>({
               className={cn(segmentTextVariants({ size, selected }), 'text-center')}
               maxFontSizeMultiplier={DENSE_MAX_FONT_SCALE}
               numberOfLines={compact ? 1 : 2}
-              adjustsFontSizeToFit
-              minimumFontScale={0.8}
             >
               {option.label}
             </Text>
