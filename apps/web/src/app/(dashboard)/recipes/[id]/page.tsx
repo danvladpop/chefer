@@ -26,6 +26,7 @@ import {
   ArrowLeft,
   ChefHat,
   Clock,
+  Copy,
   Flag,
   Flame,
   Heart,
@@ -506,6 +507,18 @@ export default function RecipeDetailPage({ params }: RecipePageProps) {
             >
               <Pencil className="h-3.5 w-3.5" />
               Edit
+            </Link>
+          ) : null}
+
+          {/* UX-REC-04: Duplicate opens the create form prefilled as "Copy of …". */}
+          {savedData?.canEdit ? (
+            <Link
+              href={`/recipes/new?duplicateOf=${encodeURIComponent(id)}`}
+              data-testid="recipe-duplicate"
+              className="flex min-h-11 items-center gap-1.5 rounded-xl border border-gray-200 bg-white px-3 py-2 text-xs font-medium text-gray-600 shadow-sm hover:border-[#944a00]/30 hover:text-[#944a00]"
+            >
+              <Copy className="h-3.5 w-3.5" />
+              Duplicate
             </Link>
           ) : null}
 

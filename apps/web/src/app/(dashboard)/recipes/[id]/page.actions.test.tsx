@@ -27,8 +27,18 @@ const m = vi.hoisted(
 );
 
 vi.mock('next/link', () => ({
-  default: ({ href, children }: { href: string; children: React.ReactNode }) => (
-    <a href={href}>{children}</a>
+  default: ({
+    href,
+    children,
+    ...rest
+  }: {
+    href: string;
+    children: React.ReactNode;
+    'data-testid'?: string;
+  }) => (
+    <a href={href} {...rest}>
+      {children}
+    </a>
   ),
 }));
 vi.mock('next/image', () => ({
@@ -157,6 +167,21 @@ describe('Recipe detail: delete (UX-REC-04)', () => {
       name: 'Lentil soup',
     });
     expect(m.push).toHaveBeenCalledWith('/recipes');
+  });
+});
+
+describe('Recipe detail: duplicate (UX-REC-04)', () => {
+  it('the owner gets Duplicate, which opens the create form for this recipe', async () => {
+    await renderPage();
+    const link = await screen.findByTestId('recipe-duplicate');
+    expect(link.getAttribute('href')).toBe('/recipes/new?duplicateOf=r1');
+  });
+
+  it("someone else's recipe has no Duplicate", async () => {
+    m.canEdit = false;
+    await renderPage();
+    expect(await screen.findByTestId('recipe-share')).toBeTruthy();
+    expect(screen.queryByTestId('recipe-duplicate')).toBeNull();
   });
 });
 
