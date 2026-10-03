@@ -27,7 +27,9 @@ import * as FileSystem from 'expo-file-system/legacy';
 // needs the newer binary.
 //
 // The snackbar confirmation ("Your export is ready.") is the caller's job —
-// this helper only resolves once the OS share sheet has been presented.
+// this helper resolves once the OS share sheet has been presented, with `false`
+// when the user cancelled it (iOS reports `dismissedAction`; UX-ACC-22: a
+// cancelled share is not "ready").
 
 type SharingModule = typeof import('expo-sharing');
 
@@ -49,7 +51,7 @@ export async function shareExportFile(
   filename: string,
   contents: string,
   mimeType: string = JSON_MIME,
-): Promise<void> {
+): Promise<boolean> {
   const isIos = Platform.OS === 'ios';
   if (isIos || (Platform.OS === 'android' && canShareFiles())) {
     try {
@@ -58,7 +60,8 @@ export async function shareExportFile(
         encoding: FileSystem.EncodingType.UTF8,
       });
       if (isIos) {
-        await Share.share({ url: uri, title: filename });
+        const result = await Share.share({ url: uri, title: filename });
+        return result.action !== Share.dismissedAction;
       } else {
         // Inline require so the module (whose import throws on an older
         // binary) only loads once canShareFiles() has confirmed it is there.
@@ -70,11 +73,12 @@ export async function shareExportFile(
           UTI: UTI_BY_MIME[mimeType],
         });
       }
-      return;
+      return true;
     } catch {
       // Falls through to the text share below — better an unnamed export
       // than none at all.
     }
   }
-  await Share.share({ title: filename, message: contents });
+  const result = await Share.share({ title: filename, message: contents });
+  return result.action !== Share.dismissedAction;
 }

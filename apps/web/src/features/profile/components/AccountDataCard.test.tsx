@@ -8,11 +8,29 @@ import { AccountDataCard } from './AccountDataCard';
 
 const mockExportData = vi.hoisted(() => vi.fn());
 const mockResetMutate = vi.hoisted(() => vi.fn());
+const mockDeleteState = vi.hoisted(() => ({
+  isError: false,
+  error: null as Error | null,
+  onSuccess: undefined as (() => void) | undefined,
+}));
 
 vi.mock('@/lib/trpc', () => ({
   trpc: {
     useUtils: () => ({ user: { exportData: { fetch: mockExportData } } }),
-    user: { deleteSelf: { useMutation: () => ({ mutate: vi.fn(), isPending: false }) } },
+    user: {
+      deleteSelf: {
+        useMutation: (opts?: { onSuccess?: () => void }) => {
+          mockDeleteState.onSuccess = opts?.onSuccess;
+          return {
+            mutate: vi.fn(),
+            reset: vi.fn(),
+            isPending: false,
+            isError: mockDeleteState.isError,
+            error: mockDeleteState.error,
+          };
+        },
+      },
+    },
     auth: {
       me: { useQuery: () => ({ data: { email: 'alice@chefer.dev' } }) },
       requestPasswordReset: {
@@ -108,5 +126,30 @@ describe('AccountDataCard delete sheet (R-24)', () => {
     fireEvent.click(screen.getByText('Delete account'));
     fireEvent.click(screen.getByTestId('delete-account-forgot-password'));
     expect(mockResetMutate).toHaveBeenCalledWith({ email: 'alice@chefer.dev' });
+  });
+
+  it('UX-ACC-11: the wrong-password error renders right under the password field', () => {
+    mockDeleteState.isError = true;
+    mockDeleteState.error = new Error('Incorrect password');
+    render(<AccountDataCard />);
+    fireEvent.click(screen.getByText('Delete account'));
+
+    const error = screen.getByTestId('delete-account-error');
+    expect(error.textContent).toBe('Incorrect password');
+    const password = document.querySelector('input[type="password"]');
+    expect(password?.getAttribute('aria-describedby')).toBe('delete-account-error');
+    // Directly after the password label, before the DELETE field.
+    expect(error.previousElementSibling?.querySelector('input[type="password"]')).toBe(password);
+    mockDeleteState.isError = false;
+    mockDeleteState.error = null;
+  });
+
+  it('UX-ACC-11: lands on sign-in with the one-time deleted notice flag', () => {
+    const assign = vi.fn();
+    vi.stubGlobal('location', { ...window.location, assign });
+    render(<AccountDataCard />);
+    fireEvent.click(screen.getByText('Delete account'));
+    mockDeleteState.onSuccess?.();
+    expect(assign).toHaveBeenCalledWith('/login?deleted=1');
   });
 });

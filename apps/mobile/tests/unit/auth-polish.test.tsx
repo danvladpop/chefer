@@ -9,6 +9,11 @@ import {
 import LoginScreen from '../../app/(auth)/login';
 import RegisterScreen from '../../app/(auth)/register';
 import ResetPasswordScreen from '../../app/(auth)/reset-password';
+import {
+  ACCOUNT_DELETED_NOTICE,
+  clearAccountDeletedNotice,
+  markAccountDeleted,
+} from '../../src/features/auth/account-deleted-notice';
 import { clearEmailHint, setEmailHint } from '../../src/features/auth/email-hint';
 import { newPasswordFieldProps } from '../../src/features/auth/password-fields';
 import { clearRegisterDraft } from '../../src/features/auth/register-draft';
@@ -192,6 +197,24 @@ describe('Login', () => {
     );
     expect(screen.getByTestId('login-password').props.value).toBe('');
     expect(screen.getByTestId('login-password').props.secureTextEntry).toBe(true);
+  });
+});
+
+describe('Login deleted-account notice (UX-ACC-11)', () => {
+  it('confirms the deletion once, and not on a normal visit', async () => {
+    clearAccountDeletedNotice();
+    const first = await renderWithSafeArea(<LoginScreen />);
+    expect(screen.queryByTestId('login-account-deleted')).toBeNull();
+    await first.unmount();
+
+    await act(async () => markAccountDeleted());
+    const second = await renderWithSafeArea(<LoginScreen />);
+    expect(screen.getByTestId('login-account-deleted')).toHaveTextContent(ACCOUNT_DELETED_NOTICE);
+
+    // Leaving the screen (blur → effect cleanup) spends the notice.
+    await second.unmount();
+    await renderWithSafeArea(<LoginScreen />);
+    expect(screen.queryByTestId('login-account-deleted')).toBeNull();
   });
 });
 

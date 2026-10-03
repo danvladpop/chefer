@@ -13,7 +13,7 @@ export const metadata: Metadata = {
 export default async function LoginPage({
   searchParams,
 }: {
-  searchParams: Promise<{ from?: string | string[] }>;
+  searchParams: Promise<{ from?: string | string[]; deleted?: string | string[] }>;
 }) {
   // Validate the session rather than trusting the cookie's presence — a stale
   // cookie must still land on the form so the user can sign in again.
@@ -22,8 +22,10 @@ export default async function LoginPage({
   }
   // UX-ACC-10: the only thing that adds `?from=` is the 401 handler
   // (lib/trpc.ts), so its presence means an expired session sent them here.
-  const { from } = await searchParams;
+  const { from, deleted } = await searchParams;
   const sessionExpired = from !== undefined;
+  // UX-ACC-11: the account-deletion card sends users here with `?deleted=1`.
+  const accountDeleted = deleted !== undefined;
 
   return (
     <div className="flex min-h-dvh flex-col items-center px-4 py-8 sm:py-12">
@@ -48,7 +50,7 @@ export default async function LoginPage({
 
         {/* Login Form Card */}
         <div className="rounded-xl border bg-card p-6 shadow-sm sm:p-8">
-          <LoginForm sessionExpired={sessionExpired} />
+          <LoginForm sessionExpired={sessionExpired} accountDeleted={accountDeleted} />
         </div>
 
         {/* Footer Links */}

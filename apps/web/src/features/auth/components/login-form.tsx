@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { trpc } from '@/lib/trpc';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -22,11 +22,23 @@ const loginSchema = z.object({
 
 type LoginFormValues = z.infer<typeof loginSchema>;
 
-export function LoginForm({ sessionExpired = false }: { sessionExpired?: boolean }) {
+export function LoginForm({
+  sessionExpired = false,
+  accountDeleted = false,
+}: {
+  sessionExpired?: boolean;
+  accountDeleted?: boolean;
+}) {
   const router = useRouter();
   const queryClient = useQueryClient();
   const [serverError, setServerError] = useState<string | null>(null);
   const [showPassword, setShowPassword] = useState(false);
+  // UX-ACC-11: show the deletion confirmation once — strip `?deleted=1` so a
+  // refresh or a later visit does not repeat it.
+  const [showDeleted] = useState(accountDeleted);
+  useEffect(() => {
+    if (accountDeleted) window.history.replaceState(null, '', '/login');
+  }, [accountDeleted]);
 
   const loginMutation = trpc.auth.login.useMutation({
     meta: { silent: true },
@@ -67,6 +79,16 @@ export function LoginForm({ sessionExpired = false }: { sessionExpired?: boolean
 
   return (
     <form onSubmit={handleSubmit(onSubmit)} noValidate className="space-y-5">
+      {showDeleted && (
+        <div
+          data-testid="login-account-deleted"
+          role="status"
+          className="rounded-md border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-800"
+        >
+          Your account and data have been deleted.
+        </div>
+      )}
+
       {/* UX-ACC-10: say why the user is here when a 401 ended their session. */}
       {sessionExpired && !serverError && (
         <div

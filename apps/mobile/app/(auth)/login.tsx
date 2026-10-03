@@ -5,6 +5,12 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { Link, router, useFocusEffect } from 'expo-router';
 import { Button, Input, PasswordInput, Text, useScrollFieldIntoView } from '@chefer/ui-mobile';
 import { userFacingErrorMessage } from '@chefer/utils';
+import {
+  ACCOUNT_DELETED_NOTICE,
+  clearAccountDeletedNotice,
+  isAccountDeletedNoticeVisible,
+  subscribeAccountDeletedNotice,
+} from '../../src/features/auth/account-deleted-notice';
 import { AuthField, AuthScreen } from '../../src/features/auth/auth-screen';
 import { AUTH_COPY } from '../../src/features/auth/copy';
 import { takeEmailHint } from '../../src/features/auth/email-hint';
@@ -37,6 +43,11 @@ function LoginForm() {
   const { hasSignedInBefore } = useSession();
   // UX-ACC-10: say why the user is here when a 401 ended their session.
   const sessionExpired = useSyncExternalStore(subscribeSessionExpired, isSessionExpired);
+  // UX-ACC-11: one-time confirmation after the account was deleted.
+  const accountDeleted = useSyncExternalStore(
+    subscribeAccountDeletedNotice,
+    isAccountDeletedNoticeVisible,
+  );
 
   // UX-ACC-09: coming back to this screen (from "Go to sign in" after a reset,
   // or "Sign in" on an existing-account notice) must not show the previous
@@ -67,6 +78,7 @@ function LoginForm() {
         // Flips the root layout's auth gate straight into (food) (or Gym Today).
         await setToken(data.session.token);
         clearSessionExpired();
+        clearAccountDeletedNotice();
       }
     },
   });
@@ -80,6 +92,8 @@ function LoginForm() {
       const hint = takeEmailHint();
       if (hint && !getValues('email')) setValue('email', hint);
       login.reset();
+      // UX-ACC-11: the deletion notice is shown once — gone when this screen is left.
+      return () => clearAccountDeletedNotice();
       // `login.reset` is a stable function; only a focus should re-run this.
       // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [setValue, getValues]),
@@ -99,6 +113,15 @@ function LoginForm() {
 
   return (
     <>
+      {accountDeleted && (
+        <View
+          testID="login-account-deleted"
+          accessibilityRole="alert"
+          className="rounded-md bg-green-50 px-3 py-2"
+        >
+          <Text className="text-sm text-green-800">{ACCOUNT_DELETED_NOTICE}</Text>
+        </View>
+      )}
       {sessionExpired && (
         <View
           testID="login-session-expired"

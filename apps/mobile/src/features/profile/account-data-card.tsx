@@ -7,6 +7,7 @@ import { userFacingErrorMessage } from '@chefer/utils';
 import { shareExportFile } from '../../lib/share-file';
 import { signOut } from '../../lib/sign-out';
 import { trpc } from '../../lib/trpc';
+import { markAccountDeleted } from '../auth/account-deleted-notice';
 
 // Mirrors apps/web/src/features/profile/components/AccountDataCard.tsx.
 // In-app export and account deletion (audit P0-6): both app stores require
@@ -30,8 +31,9 @@ export function AccountDataCard() {
     setExportError(null);
     try {
       const data = await utils.user.exportData.fetch();
-      await shareExportFile(exportFilename(), JSON.stringify(data, null, 2));
-      show({ message: 'Your export is ready.', tone: 'success' });
+      const shared = await shareExportFile(exportFilename(), JSON.stringify(data, null, 2));
+      // UX-ACC-22: only when the share sheet was actually used — a cancel is silence.
+      if (shared !== false) show({ message: 'Your export is ready.', tone: 'success' });
     } catch {
       setExportError("Couldn't prepare your data. Please try again.");
     } finally {
@@ -69,12 +71,18 @@ function DeleteAccountSheet({ visible, onClose }: { visible: boolean; onClose: (
   const [password, setPassword] = useState('');
   const [confirmText, setConfirmText] = useState('');
   const confirmRef = useRef<TextInput>(null);
+  const passwordRef = useRef<TextInput>(null);
   const deleteMutation = trpc.user.deleteSelf.useMutation({
     meta: { silent: true },
+    // UX-ACC-11: the error renders under the password field (below the fold of
+    // the sheet it went unseen) and the field takes focus for the retry.
+    onError: () => passwordRef.current?.focus(),
     // The server already revoked every session. Drop the local one — and every
     // cached query, the gym data and reminders on this phone (UX-ACC-12) —
     // through the one sign-out, then back to the auth screen.
     onSuccess: async () => {
+      // UX-ACC-11: the sign-in screen confirms it once.
+      markAccountDeleted();
       await signOut({ reason: 'account-deleted' });
       router.replace('/(auth)');
     },
@@ -148,6 +156,7 @@ function DeleteAccountSheet({ visible, onClose }: { visible: boolean; onClose: (
         </View>
         <Text className="text-sm font-medium text-gray-800">{COPY.passwordLabel}</Text>
         <PasswordInput
+          ref={passwordRef}
           testID="delete-account-password"
           accessibilityLabel={COPY.passwordLabel}
           // R-17: this is a confirmation field for an account that is about to
@@ -159,8 +168,20 @@ function DeleteAccountSheet({ visible, onClose }: { visible: boolean; onClose: (
           submitBehavior="submit"
           onSubmitEditing={() => confirmRef.current?.focus()}
           value={password}
-          onChangeText={setPassword}
+          onChangeText={(text) => {
+            if (deleteMutation.isError) deleteMutation.reset();
+            setPassword(text);
+          }}
         />
+        {deleteMutation.isError && (
+          <Text
+            testID="delete-account-error"
+            accessibilityRole="alert"
+            className="text-sm text-red-700"
+          >
+            {userFacingErrorMessage(deleteMutation.error)}
+          </Text>
+        )}
         {email ? (
           resetMutation.isSuccess ? (
             <Text testID="delete-account-reset-sent" className="text-sm text-gray-700">
@@ -202,11 +223,6 @@ function DeleteAccountSheet({ visible, onClose }: { visible: boolean; onClose: (
           value={confirmText}
           onChangeText={onConfirmTextChange}
         />
-        {deleteMutation.isError && (
-          <Text className="text-sm text-red-700">
-            {userFacingErrorMessage(deleteMutation.error)}
-          </Text>
-        )}
       </View>
     </Sheet>
   );
