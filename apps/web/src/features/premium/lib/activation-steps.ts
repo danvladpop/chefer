@@ -1,5 +1,5 @@
 import {
-  ACTIVATION_STEP_COPY,
+  activationStepCopy,
   activationStepKeys,
   type ActivationStepCopy,
   type ActivationStepKey,
@@ -30,15 +30,22 @@ const HREFS: Record<ActivationStepKey, string> = {
   household: '/preferences#household',
   regenerate: '/meal-plan?generate=1',
   cheferize: '/recipes?import=1',
+  snap: '/tracker',
 };
 
 /**
  * Up to three steps: the upgrade source's own first, then the defaults;
- * "Set your goal" disappears once the user has a profile.
+ * "Set your goal" disappears once the user has a profile. `hasPlan === false`
+ * (UX-ACC-13) turns "Regenerate this week" into "Plan my week" — the same
+ * `?generate=1` link, which builds the week on arrival.
  */
-export function activationSteps(source: string | null, hasProfile: boolean): ActivationStep[] {
+export function activationSteps(
+  source: string | null,
+  hasProfile: boolean,
+  hasPlan?: boolean,
+): ActivationStep[] {
   return activationStepKeys(source, hasProfile).map((key) => ({
-    ...ACTIVATION_STEP_COPY[key],
+    ...activationStepCopy(key, hasPlan === undefined ? {} : { hasPlan }),
     href: HREFS[key],
   }));
 }

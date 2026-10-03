@@ -1,9 +1,9 @@
-import { Image, Linking, View } from 'react-native';
+import { Image, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { Button, colors, Screen, Text } from '@chefer/ui-mobile';
 import { AUTH_COPY } from '../../src/features/auth/copy';
-import { getWebUrl } from '../../src/lib/api-url';
+import { openLegal } from '../../src/features/legal/open-legal';
 
 // UX-25 (T-25.1): the first screen a fresh install ever sees (CI-09 — a
 // device that has never signed in landed on "Welcome back / Sign in" with no
@@ -76,7 +76,7 @@ export default function WelcomeScreen() {
           <Text
             accessibilityRole="link"
             className="text-xs text-primary underline"
-            onPress={() => void Linking.openURL(getWebUrl('/terms'))}
+            onPress={() => openLegal('terms')}
           >
             Terms
           </Text>
@@ -84,7 +84,7 @@ export default function WelcomeScreen() {
           <Text
             accessibilityRole="link"
             className="text-xs text-primary underline"
-            onPress={() => void Linking.openURL(getWebUrl('/privacy'))}
+            onPress={() => openLegal('privacy')}
           >
             Privacy Policy
           </Text>

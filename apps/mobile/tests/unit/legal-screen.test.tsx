@@ -7,12 +7,13 @@ import LegalDocScreen from '../../app/legal/[doc]';
 // it opens in the system browser.
 
 let mockDoc = 'privacy';
+let mockAnchor: string | undefined;
 let mockWebViewProps: Record<string, unknown> = {};
 
 jest.mock('@expo/vector-icons', () => ({ Ionicons: () => null }));
 jest.mock('expo-router', () => ({
   router: { back: jest.fn() },
-  useLocalSearchParams: () => ({ doc: mockDoc }),
+  useLocalSearchParams: () => ({ doc: mockDoc, anchor: mockAnchor }),
 }));
 jest.mock('react-native-webview', () => {
   const RN = jest.requireActual<typeof import('react-native')>('react-native');
@@ -32,6 +33,7 @@ let openURLSpy: jest.SpyInstance;
 
 beforeEach(() => {
   mockDoc = 'privacy';
+  mockAnchor = undefined;
   mockWebViewProps = {};
   openURLSpy = jest.spyOn(Linking, 'openURL').mockResolvedValue(true);
 });
@@ -96,5 +98,31 @@ describe('LegalDocScreen web view', () => {
     await user.press(screen.getByTestId('legal-retry'));
     expect(screen.getByTestId('legal-webview')).toBeOnTheScreen();
     expect(screen.queryByTestId('legal-error')).toBeNull();
+  });
+});
+
+describe('LegalDocScreen routing (UX-ACC-19)', () => {
+  it('an unknown /legal/<x> is "page not found", not a silent Terms', async () => {
+    mockDoc = 'cookies';
+    await renderLegal();
+    expect(screen.getByTestId('legal-not-found')).toBeOnTheScreen();
+    expect(screen.queryByTestId('legal-webview')).toBeNull();
+  });
+
+  it('opens the page at a #section when asked, while the guard stays on the bare page', async () => {
+    mockDoc = 'privacy';
+    mockAnchor = 'analytics';
+    await renderLegal();
+    expect(mockWebViewProps.source).toEqual({ uri: 'https://chefer.test/privacy#analytics' });
+    const shouldLoad = mockWebViewProps.onShouldStartLoadWithRequest as Handler;
+    expect(shouldLoad({ url: 'https://chefer.test/privacy#retention' })).toBe(true);
+    expect(shouldLoad({ url: 'https://chefer.test/terms' })).toBe(false);
+  });
+
+  it('ignores a malformed anchor', async () => {
+    mockDoc = 'terms';
+    mockAnchor = '../login';
+    await renderLegal();
+    expect(mockWebViewProps.source).toEqual({ uri: 'https://chefer.test/terms' });
   });
 });

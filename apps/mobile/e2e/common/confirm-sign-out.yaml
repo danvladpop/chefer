@@ -1,0 +1,12 @@
+# Taps through the "Sign out of Chefer?" confirm that More → Sign out opens
+# (UX-ACC-19). Call right after tapping `logout-button`. The same button reads
+# "Sign out", or "Sign out anyway" when this phone holds workouts that never
+# synced — one id covers both.
+appId: dev.chefer.app.dev
+---
+- extendedWaitUntil:
+    visible:
+      id: 'more-sign-out-confirm-confirm'
+    timeout: 5000
+- tapOn:
+    id: 'more-sign-out-confirm-confirm'
