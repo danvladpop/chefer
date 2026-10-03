@@ -12,7 +12,13 @@ const mockPreviewMutate = jest.fn();
 const mockSaveMutate = jest.fn();
 let mockPreviewData: unknown = null;
 
-jest.mock('expo-router', () => ({ router: { push: jest.fn(), back: jest.fn() } }));
+jest.mock('expo-router', () => ({
+  router: { push: jest.fn(), back: jest.fn() },
+  // The unsaved-work guard (UX-REC-06) reads navigation state.
+  useNavigation: () => ({ dispatch: jest.fn(), goBack: jest.fn() }),
+  useIsFocused: () => true,
+}));
+jest.mock('expo-router/react-navigation', () => ({ usePreventRemove: jest.fn() }));
 jest.mock('../../src/features/premium/open-premium', () => ({ openPremium: jest.fn() }));
 jest.mock('../../src/features/premium/premium-host', () => ({ PremiumHost: () => null }));
 jest.mock('../../src/hooks/use-is-premium', () => ({ useIsPremium: () => true }));

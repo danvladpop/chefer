@@ -1,7 +1,7 @@
 import { BackHandler } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { act, render, screen, userEvent, waitFor } from '@testing-library/react-native';
+import { act, render, screen, userEvent, waitFor, within } from '@testing-library/react-native';
 import type { CompleteSetupInput } from '@chefer/types';
 import { defaultUnitFromLocale } from '../../src/features/gym/setup/locale-unit';
 import { SetupWizard } from '../../src/features/gym/setup/setup-wizard';
@@ -393,6 +393,26 @@ describe('SetupWizard', () => {
       await renderWizard();
       await openWeights(user);
       expect(screen.getByTestId('gym-setup-next')).toBeEnabled();
+    });
+
+    // WP-03 lane C (ONB-06, audit §6.1 root cause 4): one NumericReturnBar per
+    // field, each bound to its own input; "Next" on all but the last, "Done" last.
+    it('gives every weight field its own accessory bar: Next, then Done on the last', async () => {
+      const user = userEvent.setup();
+      await renderWizard();
+      await openWeights(user);
+      const inputs = screen.getAllByPlaceholderText('kg');
+      expect(inputs.length).toBeGreaterThan(1);
+      const ids = inputs.map((input) => String(input.props.inputAccessoryViewID));
+      expect(new Set(ids).size).toBe(inputs.length);
+      ids.forEach((id) => expect(id).toMatch(/^gym-setup-weights-bar-/));
+
+      const bars = screen.getAllByTestId(/^gym-setup-weights-return-/);
+      expect(bars).toHaveLength(inputs.length);
+      const labels = bars.map((bar) => within(bar).getByText(/^(Next|Done)$/).props.children);
+      expect(labels).toEqual(inputs.map((_, i) => (i === inputs.length - 1 ? 'Done' : 'Next')));
+      // No bar is shared: the old single `gym-setup-weights-return` is gone.
+      expect(screen.queryByTestId('gym-setup-weights-return')).toBeNull();
     });
   });
 
