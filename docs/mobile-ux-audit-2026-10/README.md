@@ -38,180 +38,180 @@
 
 Updated by each work package in `docs/backlog-2026-10/` (each WP edits only its own rows). Status is one of fixed, partially fixed, deferred or open.
 
-| ID         | Sev | Status          | WP            | PR      | Notes                                                                                                      |
-| ---------- | --- | --------------- | ------------- | ------- | ---------------------------------------------------------------------------------------------------------- |
-| UX-ACC-01  | S0  | fixed           | WP-01         | #106    | Picker `flush()` on every Save (mobile + web)                                                              |
-| UX-ACC-02  | S0  | fixed           | WP-01         | #106    | One `signOut()`; cache cleared on `setToken`                                                               |
-| UX-ACC-03  | S1  | fixed           | WP-01         | #106    | Error + retry; never seeds from a failed load                                                              |
-| UX-ACC-04  | S2  | open            | WP-09         |         |                                                                                                            |
-| UX-ACC-05  | S2  | open            | WP-03         |         |                                                                                                            |
-| UX-ACC-06  | S2  | open            | WP-09         |         |                                                                                                            |
-| UX-ACC-07  | S2  | open            | WP-09         |         |                                                                                                            |
-| UX-ACC-08  | S2  | open            | WP-09 + Owner |         | JS part in the WP; native part in the owner native batch                                                   |
-| UX-ACC-09  | S2  | open            | WP-09         |         |                                                                                                            |
-| UX-ACC-10  | S2  | open            | WP-02         |         |                                                                                                            |
-| UX-ACC-11  | S2  | open            | WP-09         |         |                                                                                                            |
-| UX-ACC-12  | S2  | fixed           | WP-01         | #106    | Sign-out and deletion clear reminders + gym KV                                                             |
-| UX-ACC-13  | S2  | open            | WP-09         |         |                                                                                                            |
-| UX-ACC-14  | S3  | open            | WP-09         |         |                                                                                                            |
-| UX-ACC-15  | S3  | open            | WP-09         |         |                                                                                                            |
-| UX-ACC-16  | S3  | open            | WP-09         |         |                                                                                                            |
-| UX-ACC-17  | S3  | fixed           | WP-01         | #106    | No password in the draft; cleared on sign-out                                                              |
-| UX-ACC-18  | S3  | open            | WP-09         |         |                                                                                                            |
-| UX-ACC-19  | S3  | open            | WP-09         |         |                                                                                                            |
-| UX-ACC-20  | S3  | open            | WP-02         |         |                                                                                                            |
-| UX-ACC-21  | S3  | open            | WP-09         |         |                                                                                                            |
-| UX-ACC-22  | S3  | open            | WP-09         |         |                                                                                                            |
-| UX-ACC-23  | S3  | open            | WP-09         |         |                                                                                                            |
-| UX-ACC-24  | S3  | open            | WP-09         |         |                                                                                                            |
-| UX-ACC-25  | S3  | open            | WP-03         |         |                                                                                                            |
-| UX-ACC-26  | S3  | open            | WP-03         |         |                                                                                                            |
-| UX-ACC-27  | S3  | open            | WP-04         |         |                                                                                                            |
-| UX-ONB-01  | S1  | fixed           | WP-01         | #106    | BACK steps back; KV draft resumes; empty jobs → wizard                                                     |
-| UX-ONB-02  | S1  | open            | Owner         |         |                                                                                                            |
-| UX-ONB-03  | S2  | open            | WP-03         |         |                                                                                                            |
-| UX-ONB-04  | S2  | open            | WP-09         |         |                                                                                                            |
-| UX-ONB-05  | S2  | open            | WP-09         |         |                                                                                                            |
-| UX-ONB-06  | S2  | open            | WP-03         |         |                                                                                                            |
-| UX-ONB-07  | S2  | open            | WP-03         |         |                                                                                                            |
-| UX-ONB-08  | S2  | fixed           | WP-01         | #106    | Saved jobs pre-fill; rounded metrics                                                                       |
-| UX-ONB-09  | S2  | open            | WP-02         |         |                                                                                                            |
-| UX-ONB-10  | S3  | open            | WP-09         |         |                                                                                                            |
-| UX-FOOD-01 | S1  | fixed           | WP-01         | #106    | Ticks derive from server data, optimistic + rollback                                                       |
-| UX-FOOD-02 | S1  | fixed           | WP-01         | #106    | `planForDate` at every call site                                                                           |
-| UX-FOOD-03 | S1  | fixed           | WP-01         | #106    | Off-plan rows editable (`tracker.updateRecipeEntry`)                                                       |
-| UX-FOOD-04 | S1  | open            | WP-02         |         |                                                                                                            |
-| UX-FOOD-05 | S1  | open            | WP-02         |         |                                                                                                            |
-| UX-FOOD-06 | S1  | fixed           | WP-01         | #106    | Failed writes revert and say why                                                                           |
-| UX-FOOD-07 | S1  | fixed           | WP-01         | #106    | `useKeyboardInset` pads the composer                                                                       |
-| UX-FOOD-08 | S2  | open            | WP-03         |         |                                                                                                            |
-| UX-FOOD-09 | S2  | open            | WP-02         |         |                                                                                                            |
-| UX-FOOD-10 | S2  | open            | WP-03         |         |                                                                                                            |
-| UX-FOOD-11 | S2  | open            | WP-10         |         |                                                                                                            |
-| UX-FOOD-12 | S2  | open            | WP-10         |         |                                                                                                            |
-| UX-FOOD-13 | S2  | open            | WP-10         |         |                                                                                                            |
-| UX-FOOD-14 | S2  | open            | WP-10         |         |                                                                                                            |
-| UX-FOOD-15 | S2  | open            | WP-10         |         |                                                                                                            |
-| UX-FOOD-16 | S2  | open            | WP-03         |         |                                                                                                            |
-| UX-FOOD-17 | S2  | fixed           | WP-01         | #106    | Optional `entryId` (index still accepted)                                                                  |
-| UX-FOOD-18 | S2  | open            | WP-10         |         |                                                                                                            |
-| UX-FOOD-19 | S2  | open            | WP-10         |         |                                                                                                            |
-| UX-FOOD-20 | S2  | open            | WP-10         |         |                                                                                                            |
-| UX-FOOD-21 | S2  | open            | WP-10         |         |                                                                                                            |
-| UX-FOOD-22 | S2  | open            | WP-10         |         |                                                                                                            |
-| UX-FOOD-23 | S3  | open            | WP-10         |         |                                                                                                            |
-| UX-FOOD-24 | S3  | open            | WP-04         |         |                                                                                                            |
-| UX-FOOD-25 | S3  | open            | WP-10         |         |                                                                                                            |
-| UX-FOOD-26 | S3  | open            | WP-10         |         |                                                                                                            |
-| UX-FOOD-27 | S3  | open            | WP-10         |         |                                                                                                            |
-| UX-FOOD-28 | S3  | open            | WP-10         |         |                                                                                                            |
-| UX-PLAN-01 | S1  | fixed           | WP-01         | #106    | Past days and eaten slots kept on regenerate                                                               |
-| UX-PLAN-02 | S1  | fixed           | WP-01         | #106    | Slot portion = eater only; Shop scales (owner data fix OA-10)                                              |
-| UX-PLAN-03 | S1  | fixed           | WP-01         | #106    | Busy confirm; quota error shown                                                                            |
-| UX-PLAN-04 | S2  | open            | WP-10         |         |                                                                                                            |
-| UX-PLAN-05 | S2  | open            | WP-10         |         |                                                                                                            |
-| UX-PLAN-06 | S2  | fixed           | WP-01         | #106    | "Not paleo: contains quinoa"                                                                               |
-| UX-PLAN-07 | S2  | open            | WP-10         |         |                                                                                                            |
-| UX-PLAN-08 | S2  | open            | WP-07         |         |                                                                                                            |
-| UX-PLAN-09 | S2  | partially fixed | WP-01 + WP-07 | #106    | Wrong week fixed here; opt-in UX in WP-07                                                                  |
-| UX-PLAN-10 | S2  | open            | WP-03         |         |                                                                                                            |
-| UX-PLAN-11 | S2  | open            | WP-10         |         |                                                                                                            |
-| UX-PLAN-12 | S2  | open            | WP-10         |         |                                                                                                            |
-| UX-PLAN-13 | S3  | open            | WP-04         |         |                                                                                                            |
-| UX-PLAN-14 | S3  | open            | WP-02         |         |                                                                                                            |
-| UX-PLAN-15 | S3  | open            | WP-10         |         |                                                                                                            |
-| UX-SHOP-01 | S2  | open            | WP-11         |         |                                                                                                            |
-| UX-SHOP-02 | S2  | open            | WP-02 + WP-11 |         | Errors in WP-02; the rest in WP-11                                                                         |
-| UX-SHOP-03 | S2  | open            | WP-11         |         |                                                                                                            |
-| UX-SHOP-04 | S2  | open            | WP-11         |         |                                                                                                            |
-| UX-SHOP-05 | S2  | open            | WP-11         |         |                                                                                                            |
-| UX-SHOP-06 | S2  | open            | WP-11         |         |                                                                                                            |
-| UX-SHOP-07 | S3  | open            | WP-11         |         |                                                                                                            |
-| UX-REC-01  | S1  | fixed           | WP-01         | #106    | Ingredient-based paleo/keto/vegan checks; "Tagged … (not verified)"                                        |
-| UX-REC-02  | S1  | fixed           | WP-01         | #106    | `portionsFor`: 2× + ½ + 1 = 3½                                                                             |
-| UX-REC-03  | S2  | open            | WP-02         |         |                                                                                                            |
-| UX-REC-04  | S2  | open            | WP-11         |         |                                                                                                            |
-| UX-REC-05  | S2  | open            | WP-11         |         |                                                                                                            |
-| UX-REC-06  | S2  | open            | WP-03         |         |                                                                                                            |
-| UX-REC-07  | S2  | open            | WP-11         |         |                                                                                                            |
-| UX-REC-08  | S2  | open            | WP-11         |         |                                                                                                            |
-| UX-REC-09  | S2  | open            | WP-11         |         |                                                                                                            |
-| UX-REC-10  | S2  | open            | WP-11         |         |                                                                                                            |
-| UX-REC-11  | S2  | open            | WP-11         |         |                                                                                                            |
-| UX-REC-12  | S2  | open            | WP-11         |         |                                                                                                            |
-| UX-REC-13  | S3  | open            | WP-11         |         |                                                                                                            |
-| UX-REC-14  | S3  | open            | WP-11         |         |                                                                                                            |
-| UX-REC-15  | S3  | open            | WP-11         |         |                                                                                                            |
-| UX-COOK-01 | S2  | open            | WP-11         |         |                                                                                                            |
-| UX-COOK-02 | S2  | open            | WP-03         |         |                                                                                                            |
-| UX-COOK-03 | S2  | open            | WP-02         |         |                                                                                                            |
-| UX-COOK-04 | S2  | open            | WP-11         |         |                                                                                                            |
-| UX-COOK-05 | S3  | open            | WP-11         |         |                                                                                                            |
-| UX-GYM-01  | S1  | fixed           | WP-01         | #106    | Keypad clamps + 2× confirm; parked workouts surfaced; inline setup checks. "Add set" cap deferred to WP-12 |
-| UX-GYM-02  | S1  | fixed           | WP-01         | #106    | Resume / Finish & start / Discard & start                                                                  |
-| UX-GYM-03  | S1  | fixed           | WP-01         | #106    | BACK steps back via `useUnsavedGuard`                                                                      |
-| UX-GYM-04  | S1  | open            | WP-02         |         |                                                                                                            |
-| UX-GYM-05  | S1  | fixed           | WP-01         | #106    | Setup defaults to preferred units; no gym→food overwrite of Imperial                                       |
-| UX-GYM-06  | S1  | fixed           | WP-01         | #106    | End today deletes a same-day pause                                                                         |
-| UX-GYM-07  | S1  | fixed           | WP-01         | #106    | Subset-sum plates; remainder shown                                                                         |
-| UX-GYM-08  | S1  | open            | WP-02         |         |                                                                                                            |
-| UX-GYM-09  | S2  | open            | WP-12         |         |                                                                                                            |
-| UX-GYM-10  | S2  | open            | WP-12 + Owner |         | JS part in the WP; native part in the owner native batch                                                   |
-| UX-GYM-11  | S2  | open            | WP-02         |         |                                                                                                            |
-| UX-GYM-12  | S2  | open            | WP-12         |         |                                                                                                            |
-| UX-GYM-13  | S2  | open            | WP-12         |         |                                                                                                            |
-| UX-GYM-14  | S2  | open            | WP-12         |         |                                                                                                            |
-| UX-GYM-15  | S2  | open            | WP-12         |         |                                                                                                            |
-| UX-GYM-16  | S2  | open            | WP-12         |         |                                                                                                            |
-| UX-GYM-17  | S2  | open            | WP-11         |         |                                                                                                            |
-| UX-GYM-18  | S2  | open            | WP-12         |         |                                                                                                            |
-| UX-GYM-19  | S2  | open            | WP-11         |         |                                                                                                            |
-| UX-GYM-20  | S2  | open            | WP-12         |         |                                                                                                            |
-| UX-GYM-21  | S2  | open            | WP-02         |         |                                                                                                            |
-| UX-GYM-22  | S2  | open            | WP-02         |         |                                                                                                            |
-| UX-GYM-23  | S2  | open            | WP-02         |         |                                                                                                            |
-| UX-GYM-24  | S2  | open            | WP-02         |         |                                                                                                            |
-| UX-GYM-25  | S2  | open            | WP-02         |         |                                                                                                            |
-| UX-GYM-26  | S2  | open            | WP-03         |         |                                                                                                            |
-| UX-GYM-27  | S2  | open            | WP-12         |         |                                                                                                            |
-| UX-GYM-28  | S2  | open            | WP-12         |         |                                                                                                            |
-| UX-GYM-29  | S2  | open            | WP-12         |         |                                                                                                            |
-| UX-GYM-30  | S3  | open            | WP-12         |         |                                                                                                            |
-| UX-GYM-31  | S3  | open            | WP-12         |         |                                                                                                            |
-| UX-GYM-32  | S3  | open            | WP-12         |         |                                                                                                            |
-| UX-GYM-33  | S3  | open            | WP-12         |         |                                                                                                            |
-| UX-GYM-34  | S3  | open            | WP-12         |         |                                                                                                            |
-| UX-GYM-35  | S3  | open            | WP-03         |         |                                                                                                            |
-| UX-SOC-01  | S2  | open            | Owner         |         | Following flag stays off (D-6)                                                                             |
-| UX-SOC-02  | S3  | open            | Owner         |         | Following flag stays off (D-6)                                                                             |
-| UX-SOC-03  | S3  | open            | Owner         |         | Following flag stays off (D-6)                                                                             |
-| UX-X-01    | S1  | fixed           | WP-01         | #106    | `useUnsavedGuard` (`usePreventRemove`) blocks iOS swipe                                                    |
-| UX-X-02    | S2  | fixed           | WP-01         | #106    | Sheet uses one keyboard mechanism                                                                          |
-| UX-X-03    | S2  | open            | WP-03         |         |                                                                                                            |
-| UX-X-04    | S2  | open            | WP-03         |         |                                                                                                            |
-| UX-X-05    | S2  | open            | WP-03         |         |                                                                                                            |
-| UX-X-06    | S2  | partially fixed | WP-01 + WP-02 | #106    | Gym setup + keypad fixed here; the rest in WP-02                                                           |
-| UX-X-07    | S2  | open            | Owner         |         |                                                                                                            |
-| UX-X-08    | S2  | open            | WP-04         |         |                                                                                                            |
-| UX-X-09    | S2  | open            | WP-04         |         |                                                                                                            |
-| UX-X-10    | S2  | open            | WP-04         |         |                                                                                                            |
-| UX-X-11    | S2  | open            | WP-03         |         |                                                                                                            |
-| UX-X-12    | S3  | open            | WP-02         |         |                                                                                                            |
-| UX-X-13    | S3  | open            | WP-02         |         |                                                                                                            |
-| UX-X-14    | S3  | open            | WP-04         |         |                                                                                                            |
-| UX-X-15    | S3  | open            | WP-11         |         |                                                                                                            |
-| UX-X-16    | S3  | open            | WP-03         |         |                                                                                                            |
-| UX-X-17    | S3  | open            | WP-03         |         |                                                                                                            |
-| UX-PO-01   | S1  | open            | Owner         |         |                                                                                                            |
-| UX-PO-02   | S1  | open            | WP-13         |         |                                                                                                            |
-| UX-PO-03   | S1  | open            | Owner         |         |                                                                                                            |
-| UX-PO-04   | S1  | open            | Owner         |         |                                                                                                            |
-| UX-PO-05   | S2  | open            | WP-13         |         |                                                                                                            |
-| UX-PO-06   | S2  | fixed           | WP-14         | PR_WP14 | Pool 64 → 105: 15 Romanian staples + 26 gap-fill; coverage test per diet × slot                            |
-| UX-PO-07   | S2  | open            | Owner         |         |                                                                                                            |
-| UX-PO-08   | S2  | open            | WP-13 + Owner |         | JS part in the WP; native part in the owner native batch                                                   |
-| UX-PO-09   | S2  | open            | Owner         |         |                                                                                                            |
-| UX-PO-10   | S3  | open            | WP-13         |         |                                                                                                            |
+| ID         | Sev | Status          | WP            | PR   | Notes                                                                                                      |
+| ---------- | --- | --------------- | ------------- | ---- | ---------------------------------------------------------------------------------------------------------- |
+| UX-ACC-01  | S0  | fixed           | WP-01         | #106 | Picker `flush()` on every Save (mobile + web)                                                              |
+| UX-ACC-02  | S0  | fixed           | WP-01         | #106 | One `signOut()`; cache cleared on `setToken`                                                               |
+| UX-ACC-03  | S1  | fixed           | WP-01         | #106 | Error + retry; never seeds from a failed load                                                              |
+| UX-ACC-04  | S2  | open            | WP-09         |      |                                                                                                            |
+| UX-ACC-05  | S2  | open            | WP-03         |      |                                                                                                            |
+| UX-ACC-06  | S2  | open            | WP-09         |      |                                                                                                            |
+| UX-ACC-07  | S2  | open            | WP-09         |      |                                                                                                            |
+| UX-ACC-08  | S2  | open            | WP-09 + Owner |      | JS part in the WP; native part in the owner native batch                                                   |
+| UX-ACC-09  | S2  | open            | WP-09         |      |                                                                                                            |
+| UX-ACC-10  | S2  | open            | WP-02         |      |                                                                                                            |
+| UX-ACC-11  | S2  | open            | WP-09         |      |                                                                                                            |
+| UX-ACC-12  | S2  | fixed           | WP-01         | #106 | Sign-out and deletion clear reminders + gym KV                                                             |
+| UX-ACC-13  | S2  | open            | WP-09         |      |                                                                                                            |
+| UX-ACC-14  | S3  | open            | WP-09         |      |                                                                                                            |
+| UX-ACC-15  | S3  | open            | WP-09         |      |                                                                                                            |
+| UX-ACC-16  | S3  | open            | WP-09         |      |                                                                                                            |
+| UX-ACC-17  | S3  | fixed           | WP-01         | #106 | No password in the draft; cleared on sign-out                                                              |
+| UX-ACC-18  | S3  | open            | WP-09         |      |                                                                                                            |
+| UX-ACC-19  | S3  | open            | WP-09         |      |                                                                                                            |
+| UX-ACC-20  | S3  | open            | WP-02         |      |                                                                                                            |
+| UX-ACC-21  | S3  | open            | WP-09         |      |                                                                                                            |
+| UX-ACC-22  | S3  | open            | WP-09         |      |                                                                                                            |
+| UX-ACC-23  | S3  | open            | WP-09         |      |                                                                                                            |
+| UX-ACC-24  | S3  | open            | WP-09         |      |                                                                                                            |
+| UX-ACC-25  | S3  | open            | WP-03         |      |                                                                                                            |
+| UX-ACC-26  | S3  | open            | WP-03         |      |                                                                                                            |
+| UX-ACC-27  | S3  | open            | WP-04         |      |                                                                                                            |
+| UX-ONB-01  | S1  | fixed           | WP-01         | #106 | BACK steps back; KV draft resumes; empty jobs → wizard                                                     |
+| UX-ONB-02  | S1  | open            | Owner         |      |                                                                                                            |
+| UX-ONB-03  | S2  | open            | WP-03         |      |                                                                                                            |
+| UX-ONB-04  | S2  | open            | WP-09         |      |                                                                                                            |
+| UX-ONB-05  | S2  | open            | WP-09         |      |                                                                                                            |
+| UX-ONB-06  | S2  | open            | WP-03         |      |                                                                                                            |
+| UX-ONB-07  | S2  | open            | WP-03         |      |                                                                                                            |
+| UX-ONB-08  | S2  | fixed           | WP-01         | #106 | Saved jobs pre-fill; rounded metrics                                                                       |
+| UX-ONB-09  | S2  | open            | WP-02         |      |                                                                                                            |
+| UX-ONB-10  | S3  | open            | WP-09         |      |                                                                                                            |
+| UX-FOOD-01 | S1  | fixed           | WP-01         | #106 | Ticks derive from server data, optimistic + rollback                                                       |
+| UX-FOOD-02 | S1  | fixed           | WP-01         | #106 | `planForDate` at every call site                                                                           |
+| UX-FOOD-03 | S1  | fixed           | WP-01         | #106 | Off-plan rows editable (`tracker.updateRecipeEntry`)                                                       |
+| UX-FOOD-04 | S1  | open            | WP-02         |      |                                                                                                            |
+| UX-FOOD-05 | S1  | open            | WP-02         |      |                                                                                                            |
+| UX-FOOD-06 | S1  | fixed           | WP-01         | #106 | Failed writes revert and say why                                                                           |
+| UX-FOOD-07 | S1  | fixed           | WP-01         | #106 | `useKeyboardInset` pads the composer                                                                       |
+| UX-FOOD-08 | S2  | open            | WP-03         |      |                                                                                                            |
+| UX-FOOD-09 | S2  | open            | WP-02         |      |                                                                                                            |
+| UX-FOOD-10 | S2  | open            | WP-03         |      |                                                                                                            |
+| UX-FOOD-11 | S2  | open            | WP-10         |      |                                                                                                            |
+| UX-FOOD-12 | S2  | open            | WP-10         |      |                                                                                                            |
+| UX-FOOD-13 | S2  | open            | WP-10         |      |                                                                                                            |
+| UX-FOOD-14 | S2  | open            | WP-10         |      |                                                                                                            |
+| UX-FOOD-15 | S2  | open            | WP-10         |      |                                                                                                            |
+| UX-FOOD-16 | S2  | open            | WP-03         |      |                                                                                                            |
+| UX-FOOD-17 | S2  | fixed           | WP-01         | #106 | Optional `entryId` (index still accepted)                                                                  |
+| UX-FOOD-18 | S2  | open            | WP-10         |      |                                                                                                            |
+| UX-FOOD-19 | S2  | open            | WP-10         |      |                                                                                                            |
+| UX-FOOD-20 | S2  | open            | WP-10         |      |                                                                                                            |
+| UX-FOOD-21 | S2  | open            | WP-10         |      |                                                                                                            |
+| UX-FOOD-22 | S2  | open            | WP-10         |      |                                                                                                            |
+| UX-FOOD-23 | S3  | open            | WP-10         |      |                                                                                                            |
+| UX-FOOD-24 | S3  | open            | WP-04         |      |                                                                                                            |
+| UX-FOOD-25 | S3  | open            | WP-10         |      |                                                                                                            |
+| UX-FOOD-26 | S3  | open            | WP-10         |      |                                                                                                            |
+| UX-FOOD-27 | S3  | open            | WP-10         |      |                                                                                                            |
+| UX-FOOD-28 | S3  | open            | WP-10         |      |                                                                                                            |
+| UX-PLAN-01 | S1  | fixed           | WP-01         | #106 | Past days and eaten slots kept on regenerate                                                               |
+| UX-PLAN-02 | S1  | fixed           | WP-01         | #106 | Slot portion = eater only; Shop scales (owner data fix OA-10)                                              |
+| UX-PLAN-03 | S1  | fixed           | WP-01         | #106 | Busy confirm; quota error shown                                                                            |
+| UX-PLAN-04 | S2  | open            | WP-10         |      |                                                                                                            |
+| UX-PLAN-05 | S2  | open            | WP-10         |      |                                                                                                            |
+| UX-PLAN-06 | S2  | fixed           | WP-01         | #106 | "Not paleo: contains quinoa"                                                                               |
+| UX-PLAN-07 | S2  | open            | WP-10         |      |                                                                                                            |
+| UX-PLAN-08 | S2  | open            | WP-07         |      |                                                                                                            |
+| UX-PLAN-09 | S2  | partially fixed | WP-01 + WP-07 | #106 | Wrong week fixed here; opt-in UX in WP-07                                                                  |
+| UX-PLAN-10 | S2  | open            | WP-03         |      |                                                                                                            |
+| UX-PLAN-11 | S2  | open            | WP-10         |      |                                                                                                            |
+| UX-PLAN-12 | S2  | open            | WP-10         |      |                                                                                                            |
+| UX-PLAN-13 | S3  | open            | WP-04         |      |                                                                                                            |
+| UX-PLAN-14 | S3  | open            | WP-02         |      |                                                                                                            |
+| UX-PLAN-15 | S3  | open            | WP-10         |      |                                                                                                            |
+| UX-SHOP-01 | S2  | open            | WP-11         |      |                                                                                                            |
+| UX-SHOP-02 | S2  | open            | WP-02 + WP-11 |      | Errors in WP-02; the rest in WP-11                                                                         |
+| UX-SHOP-03 | S2  | open            | WP-11         |      |                                                                                                            |
+| UX-SHOP-04 | S2  | open            | WP-11         |      |                                                                                                            |
+| UX-SHOP-05 | S2  | open            | WP-11         |      |                                                                                                            |
+| UX-SHOP-06 | S2  | open            | WP-11         |      |                                                                                                            |
+| UX-SHOP-07 | S3  | open            | WP-11         |      |                                                                                                            |
+| UX-REC-01  | S1  | fixed           | WP-01         | #106 | Ingredient-based paleo/keto/vegan checks; "Tagged … (not verified)"                                        |
+| UX-REC-02  | S1  | fixed           | WP-01         | #106 | `portionsFor`: 2× + ½ + 1 = 3½                                                                             |
+| UX-REC-03  | S2  | open            | WP-02         |      |                                                                                                            |
+| UX-REC-04  | S2  | open            | WP-11         |      |                                                                                                            |
+| UX-REC-05  | S2  | open            | WP-11         |      |                                                                                                            |
+| UX-REC-06  | S2  | open            | WP-03         |      |                                                                                                            |
+| UX-REC-07  | S2  | open            | WP-11         |      |                                                                                                            |
+| UX-REC-08  | S2  | open            | WP-11         |      |                                                                                                            |
+| UX-REC-09  | S2  | open            | WP-11         |      |                                                                                                            |
+| UX-REC-10  | S2  | open            | WP-11         |      |                                                                                                            |
+| UX-REC-11  | S2  | open            | WP-11         |      |                                                                                                            |
+| UX-REC-12  | S2  | open            | WP-11         |      |                                                                                                            |
+| UX-REC-13  | S3  | open            | WP-11         |      |                                                                                                            |
+| UX-REC-14  | S3  | open            | WP-11         |      |                                                                                                            |
+| UX-REC-15  | S3  | open            | WP-11         |      |                                                                                                            |
+| UX-COOK-01 | S2  | open            | WP-11         |      |                                                                                                            |
+| UX-COOK-02 | S2  | open            | WP-03         |      |                                                                                                            |
+| UX-COOK-03 | S2  | open            | WP-02         |      |                                                                                                            |
+| UX-COOK-04 | S2  | open            | WP-11         |      |                                                                                                            |
+| UX-COOK-05 | S3  | open            | WP-11         |      |                                                                                                            |
+| UX-GYM-01  | S1  | fixed           | WP-01         | #106 | Keypad clamps + 2× confirm; parked workouts surfaced; inline setup checks. "Add set" cap deferred to WP-12 |
+| UX-GYM-02  | S1  | fixed           | WP-01         | #106 | Resume / Finish & start / Discard & start                                                                  |
+| UX-GYM-03  | S1  | fixed           | WP-01         | #106 | BACK steps back via `useUnsavedGuard`                                                                      |
+| UX-GYM-04  | S1  | open            | WP-02         |      |                                                                                                            |
+| UX-GYM-05  | S1  | fixed           | WP-01         | #106 | Setup defaults to preferred units; no gym→food overwrite of Imperial                                       |
+| UX-GYM-06  | S1  | fixed           | WP-01         | #106 | End today deletes a same-day pause                                                                         |
+| UX-GYM-07  | S1  | fixed           | WP-01         | #106 | Subset-sum plates; remainder shown                                                                         |
+| UX-GYM-08  | S1  | open            | WP-02         |      |                                                                                                            |
+| UX-GYM-09  | S2  | open            | WP-12         |      |                                                                                                            |
+| UX-GYM-10  | S2  | open            | WP-12 + Owner |      | JS part in the WP; native part in the owner native batch                                                   |
+| UX-GYM-11  | S2  | open            | WP-02         |      |                                                                                                            |
+| UX-GYM-12  | S2  | open            | WP-12         |      |                                                                                                            |
+| UX-GYM-13  | S2  | open            | WP-12         |      |                                                                                                            |
+| UX-GYM-14  | S2  | open            | WP-12         |      |                                                                                                            |
+| UX-GYM-15  | S2  | open            | WP-12         |      |                                                                                                            |
+| UX-GYM-16  | S2  | open            | WP-12         |      |                                                                                                            |
+| UX-GYM-17  | S2  | open            | WP-11         |      |                                                                                                            |
+| UX-GYM-18  | S2  | open            | WP-12         |      |                                                                                                            |
+| UX-GYM-19  | S2  | open            | WP-11         |      |                                                                                                            |
+| UX-GYM-20  | S2  | open            | WP-12         |      |                                                                                                            |
+| UX-GYM-21  | S2  | open            | WP-02         |      |                                                                                                            |
+| UX-GYM-22  | S2  | open            | WP-02         |      |                                                                                                            |
+| UX-GYM-23  | S2  | open            | WP-02         |      |                                                                                                            |
+| UX-GYM-24  | S2  | open            | WP-02         |      |                                                                                                            |
+| UX-GYM-25  | S2  | open            | WP-02         |      |                                                                                                            |
+| UX-GYM-26  | S2  | open            | WP-03         |      |                                                                                                            |
+| UX-GYM-27  | S2  | open            | WP-12         |      |                                                                                                            |
+| UX-GYM-28  | S2  | open            | WP-12         |      |                                                                                                            |
+| UX-GYM-29  | S2  | open            | WP-12         |      |                                                                                                            |
+| UX-GYM-30  | S3  | open            | WP-12         |      |                                                                                                            |
+| UX-GYM-31  | S3  | open            | WP-12         |      |                                                                                                            |
+| UX-GYM-32  | S3  | open            | WP-12         |      |                                                                                                            |
+| UX-GYM-33  | S3  | open            | WP-12         |      |                                                                                                            |
+| UX-GYM-34  | S3  | open            | WP-12         |      |                                                                                                            |
+| UX-GYM-35  | S3  | open            | WP-03         |      |                                                                                                            |
+| UX-SOC-01  | S2  | open            | Owner         |      | Following flag stays off (D-6)                                                                             |
+| UX-SOC-02  | S3  | open            | Owner         |      | Following flag stays off (D-6)                                                                             |
+| UX-SOC-03  | S3  | open            | Owner         |      | Following flag stays off (D-6)                                                                             |
+| UX-X-01    | S1  | fixed           | WP-01         | #106 | `useUnsavedGuard` (`usePreventRemove`) blocks iOS swipe                                                    |
+| UX-X-02    | S2  | fixed           | WP-01         | #106 | Sheet uses one keyboard mechanism                                                                          |
+| UX-X-03    | S2  | open            | WP-03         |      |                                                                                                            |
+| UX-X-04    | S2  | open            | WP-03         |      |                                                                                                            |
+| UX-X-05    | S2  | open            | WP-03         |      |                                                                                                            |
+| UX-X-06    | S2  | partially fixed | WP-01 + WP-02 | #106 | Gym setup + keypad fixed here; the rest in WP-02                                                           |
+| UX-X-07    | S2  | open            | Owner         |      |                                                                                                            |
+| UX-X-08    | S2  | open            | WP-04         |      |                                                                                                            |
+| UX-X-09    | S2  | open            | WP-04         |      |                                                                                                            |
+| UX-X-10    | S2  | open            | WP-04         |      |                                                                                                            |
+| UX-X-11    | S2  | open            | WP-03         |      |                                                                                                            |
+| UX-X-12    | S3  | open            | WP-02         |      |                                                                                                            |
+| UX-X-13    | S3  | open            | WP-02         |      |                                                                                                            |
+| UX-X-14    | S3  | open            | WP-04         |      |                                                                                                            |
+| UX-X-15    | S3  | open            | WP-11         |      |                                                                                                            |
+| UX-X-16    | S3  | open            | WP-03         |      |                                                                                                            |
+| UX-X-17    | S3  | open            | WP-03         |      |                                                                                                            |
+| UX-PO-01   | S1  | open            | Owner         |      |                                                                                                            |
+| UX-PO-02   | S1  | open            | WP-13         |      |                                                                                                            |
+| UX-PO-03   | S1  | open            | Owner         |      |                                                                                                            |
+| UX-PO-04   | S1  | open            | Owner         |      |                                                                                                            |
+| UX-PO-05   | S2  | open            | WP-13         |      |                                                                                                            |
+| UX-PO-06   | S2  | fixed           | WP-14         | #114 | Pool 64 → 105: 15 Romanian staples + 26 gap-fill; coverage test per diet × slot                            |
+| UX-PO-07   | S2  | open            | Owner         |      |                                                                                                            |
+| UX-PO-08   | S2  | open            | WP-13 + Owner |      | JS part in the WP; native part in the owner native batch                                                   |
+| UX-PO-09   | S2  | open            | Owner         |      |                                                                                                            |
+| UX-PO-10   | S3  | open            | WP-13         |      |                                                                                                            |
 
 ### Coverage matrix
 
