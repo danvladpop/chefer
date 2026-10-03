@@ -41,8 +41,12 @@ const PIECE_GRAMS: Readonly<Record<string, number>> = {
   'garlic bulb': 50,
 };
 
-/** Above this many whole items a line stays a weight ("2 kg potatoes", not "12 potatoes"). */
-const MAX_PIECES_FROM_WEIGHT = 12;
+/**
+ * Above this many whole items a line stays a weight ("900 g tomatoes", not "8
+ * tomatoes"): a fractional item is the nonsense worth fixing ("Onion 3.2 oz"),
+ * a big weight is what the recipe actually measured.
+ */
+const MAX_PIECES_FROM_WEIGHT = 3;
 
 /** Units that are a count of things: always a whole number, never fewer than one. */
 const COUNT_UNITS = new Set([

@@ -7,13 +7,31 @@
 // three times (tbsp / tsp / ml), "Egg" and "Eggs" were separate, and water,
 // ice cubes and "salt and pepper — to taste" were listed and priced.
 
-import { ingredientBaseKey } from '@chefer/utils';
+import {
+  ingredientBaseKey,
+  mergeCitrusLines,
+  normalizeUnit,
+  roundToPurchasable,
+  slugToKey,
+  unitFamily,
+} from '@chefer/utils';
+
+// Unit vocabulary (aliases, size words → "piece", mass/volume factors) lives in
+// @chefer/utils `quantity.ts` — one copy for the API, Shop and Pantry
+// (WP-11, UX-SHOP-04). Re-exported for the existing importers.
+export { normalizeUnit };
 
 export interface IngredientLine {
   name: string;
   quantity: number;
   unit: string;
   recipeId: string;
+  /**
+   * The catalog row this line is (recipe `slug`, plan-ingredient-catalog §6.2).
+   * When present it is the merge identity — "Egg" and "Eggs" are one row — and
+   * the free-text name only decides the display wording (UX-SHOP-04).
+   */
+  slug?: string | undefined;
 }
 
 export interface ShoppingLine {
@@ -26,63 +44,6 @@ export interface ShoppingLine {
   recipeIds: string[];
 }
 
-// Mass → grams, volume → millilitres.
-const MASS: Record<string, number> = { g: 1, kg: 1000, oz: 28.35, lb: 453.6 };
-const VOLUME: Record<string, number> = { ml: 1, l: 1000, tsp: 5, tbsp: 15, cup: 240 };
-
-const UNIT_ALIASES: Record<string, string> = {
-  gram: 'g',
-  grams: 'g',
-  kilogram: 'kg',
-  kilograms: 'kg',
-  kgs: 'kg',
-  ounce: 'oz',
-  ounces: 'oz',
-  lbs: 'lb',
-  pound: 'lb',
-  pounds: 'lb',
-  millilitre: 'ml',
-  milliliter: 'ml',
-  millilitres: 'ml',
-  milliliters: 'ml',
-  litre: 'l',
-  liter: 'l',
-  litres: 'l',
-  liters: 'l',
-  teaspoon: 'tsp',
-  teaspoons: 'tsp',
-  tablespoon: 'tbsp',
-  tablespoons: 'tbsp',
-  tbsps: 'tbsp',
-  tsps: 'tsp',
-  cups: 'cup',
-  pieces: 'piece',
-  pcs: 'piece',
-  pc: 'piece',
-  cloves: 'clove',
-  slices: 'slice',
-  cans: 'can',
-  bunches: 'bunch',
-  handfuls: 'handful',
-  sprigs: 'sprig',
-  stalks: 'stalk',
-  pinches: 'pinch',
-};
-
-/** "Tbsp", "cups, chopped", "g (dry)" → "tbsp", "cup", "g". */
-export function normalizeUnit(unit: string): string {
-  const key = unit.toLowerCase().trim();
-  const stripped = key.split(/[,(]/)[0]?.trim() ?? '';
-  const base = stripped.length > 0 ? stripped : key;
-  return UNIT_ALIASES[base] ?? base;
-}
-
-function unitFamily(unit: string): { family: 'mass' | 'volume'; factor: number } | null {
-  if (unit in MASS) return { family: 'mass', factor: MASS[unit] ?? 1 };
-  if (unit in VOLUME) return { family: 'volume', factor: VOLUME[unit] ?? 1 };
-  return null;
-}
-
 /**
  * The grouping identity of an ingredient name: the shared catalog base key
  * (@chefer/utils `ingredientBaseKey`: no parentheticals or trailing prep, no
@@ -91,6 +52,11 @@ function unitFamily(unit: string): { family: 'mass' | 'volume'; factor: number }
  */
 export function canonicalIngredientName(name: string): string {
   return ingredientBaseKey(name) || name.toLowerCase().trim();
+}
+
+/** Merge identity of a recipe line: the catalog slug when it has one, else the name's base key. */
+function lineIdentity(line: { name: string; slug?: string | undefined }): string {
+  return line.slug ? slugToKey(line.slug) : canonicalIngredientName(line.name);
 }
 
 const ALWAYS_SKIPPED = new Set([
@@ -195,15 +161,16 @@ export function aggregateIngredientLines(lines: IngredientLine[]): ShoppingLine[
     recipeIds: Set<string>;
     // per normalized unit: summed quantity (in that unit)
     byUnit: Map<string, number>;
-    // per normalized unit: the first original spelling ("pieces", "cloves")
-    spelling: Map<string, string>;
+    // per normalized unit: every original spelling ("pieces", "large", "cloves")
+    spelling: Map<string, string[]>;
   };
   const groups = new Map<string, Group>();
 
-  for (const line of lines) {
+  // Zest + juice of one fruit are lemons, not two ml lines (UX-SHOP-03).
+  for (const line of mergeCitrusLines(lines)) {
     if (!Number.isFinite(line.quantity) || line.quantity < 0) continue;
     if (isSkippedLine(line.name, line.unit)) continue;
-    const canonical = canonicalIngredientName(line.name);
+    const canonical = lineIdentity(line);
     const unit = normalizeUnit(line.unit);
     const family = unitFamily(unit);
     const unitKey = family ? family.family : unit;
@@ -225,7 +192,10 @@ export function aggregateIngredientLines(lines: IngredientLine[]): ShoppingLine[
     group.rawKeys.add(`${line.name.toLowerCase().trim()}|${line.unit.toLowerCase().trim()}`);
     group.recipeIds.add(line.recipeId);
     group.byUnit.set(unit, (group.byUnit.get(unit) ?? 0) + line.quantity);
-    if (!group.spelling.has(unit)) group.spelling.set(unit, line.unit.trim());
+    const spellings = group.spelling.get(unit) ?? [];
+    const spelling = line.unit.trim();
+    if (!spellings.includes(spelling)) spellings.push(spelling);
+    group.spelling.set(unit, spellings);
   }
 
   return [...groups.values()].map((group) => {
@@ -240,7 +210,10 @@ export function aggregateIngredientLines(lines: IngredientLine[]): ShoppingLine[
       // Nothing converted: keep the recipe's own wording ("2 cloves", not
       // "2 clove").
       const [only, sum] = units[0]!;
-      unit = group.spelling.get(only) ?? only;
+      const spellings = group.spelling.get(only) ?? [];
+      // One spelling is the recipe's own wording; several ("4 pcs" + "4 large")
+      // collapse to the plain unit so the merged line doesn't pick a winner.
+      unit = spellings.length === 1 ? (spellings[0] ?? only) : only === 'piece' ? 'pcs' : only;
       quantity = sum;
     } else {
       // Mixed units within one family: sum in the base unit, then express
@@ -264,11 +237,14 @@ export function aggregateIngredientLines(lines: IngredientLine[]): ShoppingLine[
     const keyPart =
       group.rawKeys.size === 1 && onlyRawKey ? onlyRawKey : `${group.canonical}|${group.unitKey}`;
 
+    // What goes in the basket: whole items, shelf-sized weights (UX-SHOP-03).
+    const buy = roundToPurchasable({ name: displayName, quantity: round1(quantity), unit });
+
     return {
       keyPart,
       name: displayName,
-      quantity: round1(quantity),
-      unit,
+      quantity: buy.quantity,
+      unit: buy.unit,
       recipeIds: [...group.recipeIds],
     };
   });
@@ -306,7 +282,7 @@ export function tidyListItems<T extends ListItemLike>(items: T[]): T[] {
     else groups.set(groupKey, [item]);
   }
   return [...groups.values()].map((group) => {
-    if (group.length === 1) return group[0]!;
+    if (group.length === 1) return roundListItem(group[0]!);
     const [merged] = aggregateIngredientLines(
       group.map((item) => ({
         name: item.ingredientName,
@@ -324,4 +300,13 @@ export function tidyListItems<T extends ListItemLike>(items: T[]): T[] {
       unit: merged.unit,
     };
   });
+}
+
+/** An AI-built row gets the same shopping-sized quantity the derived list does (UX-SHOP-03). */
+function roundListItem<T extends ListItemLike>(item: T): T {
+  const quantity = parseFloat(item.quantity);
+  if (!Number.isFinite(quantity)) return item;
+  const buy = roundToPurchasable({ name: item.ingredientName, quantity, unit: item.unit });
+  if (buy.quantity === quantity && buy.unit === item.unit) return item;
+  return { ...item, quantity: formatLineQuantity(buy.quantity), unit: buy.unit };
 }

@@ -42,6 +42,10 @@ describe('roundToPurchasable (UX-SHOP-03)', () => {
       quantity: 2.5,
       unit: 'kg',
     });
+    expect(roundToPurchasable({ name: 'Tomato', quantity: 900, unit: 'g' })).toMatchObject({
+      quantity: 900,
+      unit: 'g',
+    });
   });
 
   it('rounds a weight up to a step the shelf offers', () => {
