@@ -7,6 +7,7 @@ import { useAiConsent } from '@/features/ai-consent/AiConsentProvider';
 import { UpgradeButton } from '@/features/premium/components/UpgradeButton';
 import { AiGeneratedChip } from '@/features/privacy/components/AiGeneratedChip';
 import { StarRatingWidget } from '@/features/recipe/components/StarRatingWidget';
+import { AddToWeekSheet, type AddToWeekResult } from '@/features/recipes/components/AddToWeekSheet';
 import { AllergenWarningBanner } from '@/features/recipes/components/AllergenWarning';
 import { RecipeDetailImage } from '@/features/recipes/components/RecipeDetailImage';
 import { RecipeImage } from '@/features/recipes/components/RecipeImage';
@@ -24,6 +25,7 @@ import { capture } from '@/lib/analytics';
 import { trpc } from '@/lib/trpc';
 import {
   ArrowLeft,
+  CalendarPlus,
   ChefHat,
   Clock,
   Copy,
@@ -31,6 +33,7 @@ import {
   Flame,
   Heart,
   Library,
+  ListPlus,
   Pencil,
   Pin,
   RefreshCw,
@@ -39,9 +42,11 @@ import {
   Trash2,
   Users,
 } from 'lucide-react';
+import { FRIENDS_COPY } from '@chefer/types';
 import { ErrorState, Sheet, Toast } from '@chefer/ui';
 import {
   aiConsentRequiredFor,
+  chunkShoppingLines,
   clampCookServings,
   defaultCookServings,
   formatFractionalQuantity,
@@ -52,10 +57,12 @@ import {
   recipeShareText,
   reportSentSnackbarText,
   scaleNutrition,
+  shoppingLinesFor,
   slotPortion,
   sourceDomainOf,
   tableBreakdown,
   userFacingErrorMessage,
+  weekdayShortName,
 } from '@chefer/utils';
 
 // Swap-undo handoff (review F-2): the swap navigates to the NEW recipe's page,
@@ -177,6 +184,14 @@ export default function RecipeDetailPage({ params }: RecipePageProps) {
   // UX-REC-04: owner Delete (soft) + Share.
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [shareToast, setShareToast] = useState<string | null>(null);
+  // UX-REC-08: Add to my week (with Undo) and Add ingredients to the shopping list.
+  const [addToWeekOpen, setAddToWeekOpen] = useState(false);
+  const [weekToast, setWeekToast] = useState<{
+    message: string;
+    type: 'success' | 'error';
+    undo?: () => void;
+  } | null>(null);
+  const [addingToList, setAddingToList] = useState(false);
 
   const utils = trpc.useUtils();
 
@@ -191,6 +206,9 @@ export default function RecipeDetailPage({ params }: RecipePageProps) {
       router.push('/recipes');
     },
   });
+
+  const undoAddToWeek = trpc.recipe.undoAddToWeek.useMutation({ meta: { silent: true } });
+  const addShopping = trpc.shoppingList.addCustomItems.useMutation({ meta: { silent: true } });
 
   const toggleFav = trpc.recipe.toggleFavourite.useMutation({
     onSuccess: () => {
@@ -373,6 +391,68 @@ export default function RecipeDetailPage({ params }: RecipePageProps) {
   const totalTime = recipe.prepTimeMins + recipe.cookTimeMins;
   const { nutritionInfo: n } = recipe;
 
+  /** "Added to Tue lunch" with Undo, which restores a replaced slot too. */
+  const onAddedToWeek = (result: AddToWeekResult) => {
+    setWeekToast({
+      message: FRIENDS_COPY.addToWeek.done(weekdayShortName(result.dayOfWeek), result.mealType),
+      type: 'success',
+      undo: () => {
+        setWeekToast(null);
+        undoAddToWeek.mutate(
+          {
+            planId: result.planId,
+            dayOfWeek: result.dayOfWeek,
+            mealType: result.mealType,
+            slotIndex: result.slotIndex,
+            addedRecipeId: result.addedRecipeId,
+            ...(result.previousRecipeId ? { previousRecipeId: result.previousRecipeId } : {}),
+            ...(result.previousPinned !== undefined
+              ? { previousPinned: result.previousPinned }
+              : {}),
+          },
+          {
+            onSuccess: () => {
+              void utils.mealPlan.getForWeek.invalidate();
+              void utils.dashboard.summary.invalidate();
+            },
+            onError: () => setWeekToast({ message: FRIENDS_COPY.relation.error, type: 'error' }),
+          },
+        );
+      },
+    });
+  };
+
+  /** Adds the ingredients (scaled to the stepper) to this week's shopping list. */
+  const addToShoppingList = async () => {
+    setAddingToList(true);
+    try {
+      const plan = await utils.mealPlan.getForWeek.fetch({ weekOffset: 0 });
+      if (!plan) {
+        setWeekToast({
+          message: 'Make a plan first, then add ingredients to its list.',
+          type: 'error',
+        });
+        return;
+      }
+      const lines = shoppingLinesFor(recipe.ingredients, selectedServings, recipe.servings);
+      for (const items of chunkShoppingLines(lines)) {
+        await addShopping.mutateAsync({ planId: plan.planId, items });
+      }
+      void utils.shoppingList.getForWeek.invalidate();
+      setWeekToast({
+        message: `Added ${lines.length} ingredient${lines.length === 1 ? '' : 's'} to your shopping list`,
+        type: 'success',
+      });
+    } catch (error) {
+      setWeekToast({
+        message: userFacingErrorMessage(error, 'Couldn’t add them to the list. Try again.'),
+        type: 'error',
+      });
+    } finally {
+      setAddingToList(false);
+    }
+  };
+
   return (
     <div className="mx-auto max-w-3xl px-4 py-6 sm:px-6 sm:py-8">
       {/* Back link + context label row */}
@@ -509,6 +589,29 @@ export default function RecipeDetailPage({ params }: RecipePageProps) {
               Edit
             </Link>
           ) : null}
+
+          {/* UX-REC-08: any recipe can go on your week or its ingredients on the list. */}
+          {!recipe.deleted ? (
+            <button
+              type="button"
+              data-testid="recipe-add-to-week"
+              onClick={() => setAddToWeekOpen(true)}
+              className="flex min-h-11 items-center gap-1.5 rounded-xl border border-gray-200 bg-white px-3 py-2 text-xs font-medium text-gray-600 shadow-sm hover:border-[#944a00]/30 hover:text-[#944a00]"
+            >
+              <CalendarPlus className="h-3.5 w-3.5" />
+              Add to my week
+            </button>
+          ) : null}
+          <button
+            type="button"
+            data-testid="recipe-add-to-list"
+            disabled={addingToList}
+            onClick={() => void addToShoppingList()}
+            className="flex min-h-11 items-center gap-1.5 rounded-xl border border-gray-200 bg-white px-3 py-2 text-xs font-medium text-gray-600 shadow-sm hover:border-[#944a00]/30 hover:text-[#944a00] disabled:opacity-60"
+          >
+            <ListPlus className="h-3.5 w-3.5" />
+            {addingToList ? 'Adding…' : 'Add ingredients to list'}
+          </button>
 
           {/* UX-REC-04: Duplicate opens the create form prefilled as "Copy of …". */}
           {savedData?.canEdit ? (
@@ -886,6 +989,21 @@ export default function RecipeDetailPage({ params }: RecipePageProps) {
         ) : null}
       </Sheet>
       {shareToast ? <Toast message={shareToast} onClose={() => setShareToast(null)} /> : null}
+      {weekToast ? (
+        <Toast
+          message={weekToast.message}
+          type={weekToast.type}
+          duration={weekToast.undo ? 10_000 : 4_000}
+          onClose={() => setWeekToast(null)}
+          {...(weekToast.undo ? { action: { label: 'Undo', onClick: weekToast.undo } } : {})}
+        />
+      ) : null}
+      <AddToWeekSheet
+        open={addToWeekOpen}
+        onClose={() => setAddToWeekOpen(false)}
+        recipe={{ id, name: recipe.name, kcal: n.calories }}
+        onAdded={onAddedToWeek}
+      />
       <ReportSafetySheet
         open={reportOpen}
         onClose={() => setReportOpen(false)}
