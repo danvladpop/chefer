@@ -28,10 +28,14 @@ jest.mock('../../src/lib/trpc', () => {
 });
 jest.mock('expo-router', () => {
   // eslint-disable-next-line @typescript-eslint/no-require-imports -- jest.mock factories can't reference imports
-  const { createElement } = require('react') as typeof import('react');
+  const { createElement, useEffect } = require('react') as typeof import('react');
   // eslint-disable-next-line @typescript-eslint/no-require-imports -- see above
   const { Pressable } = require('react-native') as typeof import('react-native');
   return {
+    // The screen is always focused here: run the focus effect on mount.
+    useFocusEffect: (effect: () => (() => void) | undefined): void => {
+      useEffect(effect, [effect]);
+    },
     router: { replace: jest.fn(), push: jest.fn(), back: jest.fn(), dismissTo: jest.fn() },
     useLocalSearchParams: jest.fn(() => ({})),
     Link: ({ children, testID }: { children: React.ReactNode; testID?: string }) =>

@@ -250,7 +250,7 @@ export function SafetyPicker({
             value={somethingElse}
             onChangeText={setSomethingElse}
             onSubmitEditing={() => handleAdd()}
-            placeholder="e.g. aubergine"
+            placeholder={SAFETY_COPY.somethingElsePlaceholder}
             returnKeyType="done"
             accessibilityLabel="Something else"
             className="flex-1"

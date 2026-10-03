@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { trpc } from '@/lib/trpc';
 import { Download, Trash2 } from 'lucide-react';
 import { ACCOUNT_DELETION_COPY as COPY } from '@chefer/types';
@@ -80,12 +80,17 @@ export function AccountDataCard() {
 function DeleteAccountSheet({ open, onClose }: { open: boolean; onClose: () => void }) {
   const [password, setPassword] = useState('');
   const [confirmText, setConfirmText] = useState('');
+  const passwordRef = useRef<HTMLInputElement>(null);
   const deleteMutation = trpc.user.deleteSelf.useMutation({
     meta: { silent: true },
     // The session is gone with the account — a full navigation clears every
-    // cached query.
-    onSuccess: () => window.location.assign('/'),
+    // cached query. UX-ACC-11: it lands on sign-in, which confirms the deletion
+    // once (`?deleted=1`).
+    onSuccess: () => window.location.assign('/login?deleted=1'),
+    // UX-ACC-11: the wrong-password error sits under the field; focus it for the retry.
+    onError: () => passwordRef.current?.focus(),
   });
+
   // R-24 (parity with mobile): deleting needs the password, so a signed-in
   // user who forgot it asks for a reset link for their own address right here.
   const me = trpc.auth.me.useQuery(undefined, { staleTime: 5 * 60_000 });
@@ -127,13 +132,29 @@ function DeleteAccountSheet({ open, onClose }: { open: boolean; onClose: () => v
         <label className="block text-sm font-medium text-gray-800">
           {COPY.passwordLabel}
           <input
+            ref={passwordRef}
             type="password"
             autoComplete="off"
             value={password}
-            onChange={(e) => setPassword(e.target.value)}
+            aria-invalid={deleteMutation.isError ? 'true' : undefined}
+            aria-describedby={deleteMutation.isError ? 'delete-account-error' : undefined}
+            onChange={(e) => {
+              if (deleteMutation.isError) deleteMutation.reset();
+              setPassword(e.target.value);
+            }}
             className="mt-1 block min-h-11 w-full rounded-lg border border-gray-300 px-3"
           />
         </label>
+        {deleteMutation.isError && (
+          <p
+            id="delete-account-error"
+            role="alert"
+            data-testid="delete-account-error"
+            className="text-sm text-red-700"
+          >
+            {userFacingErrorMessage(deleteMutation.error)}
+          </p>
+        )}
         {email &&
           (resetMutation.isSuccess ? (
             <p
@@ -168,11 +189,6 @@ function DeleteAccountSheet({ open, onClose }: { open: boolean; onClose: () => v
             className="mt-1 block min-h-11 w-full rounded-lg border border-gray-300 px-3"
           />
         </label>
-        {deleteMutation.isError && (
-          <p role="alert" className="text-sm text-red-700">
-            {userFacingErrorMessage(deleteMutation.error)}
-          </p>
-        )}
       </div>
     </Sheet>
   );

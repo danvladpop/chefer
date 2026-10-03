@@ -10,7 +10,13 @@ import { capture } from '@/lib/analytics';
 import { trpc } from '@/lib/trpc';
 import { bodyMetricsAgeError, HEALTH_CONSENT_COPY, type DisplayCurrency } from '@chefer/types';
 import { Toast } from '@chefer/ui';
-import { fromEur, toDisplayCurrency, toEur, userFacingErrorMessage } from '@chefer/utils';
+import {
+  fromEur,
+  parseWeeklyBudget,
+  toDisplayCurrency,
+  toEur,
+  userFacingErrorMessage,
+} from '@chefer/utils';
 import type { ChefProfileData, DietaryPreferencesData } from '../types';
 import { BudgetSection } from './budget-section';
 import { HouseholdSection } from './household-section';
@@ -118,6 +124,8 @@ export function PreferencesForm({
     // recipe pages) via preferences.get — refresh those caches immediately
     void utils.preferences.get.invalidate();
     void utils.dashboard.invalidate();
+    // UX-ACC-21: the suggested targets follow the goal and body just saved.
+    void utils.targets.invalidate();
     void utils.mealPlan.invalidate();
     // A unit change also moves the gym's kg/lb (one preference, P2-6).
     if (data.preferredUnits !== initialUnits) void utils.gym.invalidate();
@@ -197,6 +205,12 @@ export function PreferencesForm({
     safety: { dietaryRestrictions: string[]; allergies: string[]; dislikedIngredients: string[] },
   ) {
     if (isSaving) return;
+    // UX-ACC-23: a bad budget is shown inline and nothing is saved.
+    const budget = parseWeeklyBudget(data.weeklyBudget, data.deliveryCurrency);
+    if (isPremium && budget.kind === 'error') {
+      setToast({ message: budget.message, type: 'error' });
+      return;
+    }
     try {
       if (includeHealth) {
         await safetyMutation.mutateAsync(safety);
@@ -227,9 +241,7 @@ export function PreferencesForm({
           cuisinePreferences: data.cuisinePreferences,
           mealsPerDay: data.mealsPerDay,
           deliveryAddress: data.deliveryAddress || null,
-          weeklyBudgetEur: data.weeklyBudget.trim()
-            ? Math.min(2000, toEur(Number(data.weeklyBudget), data.deliveryCurrency))
-            : null,
+          weeklyBudgetEur: budget.kind === 'ok' ? budget.eur : null,
         });
       }
       onSaved(!includeHealth);

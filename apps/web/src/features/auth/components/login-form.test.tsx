@@ -29,3 +29,19 @@ describe('LoginForm session-expired notice (UX-ACC-10)', () => {
     expect(screen.queryByTestId('login-session-expired')).toBeNull();
   });
 });
+
+describe('LoginForm deleted-account notice (UX-ACC-11)', () => {
+  it('confirms the deletion once and strips the query string', () => {
+    const replaceState = vi.spyOn(window.history, 'replaceState');
+    render(<LoginForm accountDeleted />);
+    expect(screen.getByTestId('login-account-deleted').textContent).toMatch(
+      /account and data have been deleted/i,
+    );
+    expect(replaceState).toHaveBeenCalledWith(null, '', '/login');
+  });
+
+  it('shows nothing otherwise', () => {
+    render(<LoginForm />);
+    expect(screen.queryByTestId('login-account-deleted')).toBeNull();
+  });
+});
