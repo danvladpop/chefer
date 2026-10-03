@@ -7,6 +7,7 @@ import { localDate } from '../offline/ids';
 import { libraryLookup } from '../use-gym-bootstrap';
 import { ElapsedTime } from '../workout/rest-timer-bar';
 import { formatClock, supersetsOf } from '../workout/workout-model';
+import { RestCountdown } from './rest-countdown';
 
 // UX-36 amendment A1 (T-36.A1.1, O-09): the Resume card, replacing the old
 // "Resume workout / [Resume]" banner. Built entirely on `resumeSummary()` —
@@ -139,6 +140,9 @@ export function ResumeCard({
           </>
         )}
       </View>
+
+      {/* UX-GYM-09: the rest timer stays visible while the workout is minimised. */}
+      <RestCountdown testID={`${testID}-rest`} className="mt-2" />
 
       <View className="mt-3 flex-row flex-wrap items-center gap-x-4 gap-y-2">
         <Button
