@@ -110,9 +110,13 @@ export function checkedForLineText(checks: readonly CheckedRuleLike[]): string {
   return `Checked for ${rules}`;
 }
 
-/** `Checked for 3` — the compact card/row chip. */
+/**
+ * `3 checks passed` — the compact card/row chip. It used to read `Checked for
+ * 3`, which people took for a head count (UX-PLAN-12); the spelled-out rules
+ * stay in the chip's a11y label and the "Checked for …" line.
+ */
 export function checkedForChipText(count: number): string {
-  return `Checked for ${count}`;
+  return `${count} check${count === 1 ? '' : 's'} passed`;
 }
 
 /** `Checked for tree nuts, fish and vegetarian` — the chip's a11y label. */

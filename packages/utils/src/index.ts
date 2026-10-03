@@ -243,9 +243,17 @@ export { defaultCookServings, finishMealCopy, guessMealType, parseStepDuration }
 export {
   buildPickerSections,
   filterReplaceCandidates,
+  inferMealTypeFromName,
+  pickerRowMeta,
+  pickerSafetyHeader,
+  pickerSafetyHeaderText,
+  rankForSlot,
+  recipeMealTypeHint,
+  slotFitRank,
   type FilterReplaceCandidatesOptions,
   type PickerSection,
   type ReplaceCandidateLike,
+  type SlotMealType,
 } from './recipe-picker';
 export * from './gym';
 export {
@@ -294,6 +302,14 @@ export {
 } from './rebalance';
 export { RATING_LABELS, composeNotesWithLikedBy, parseLikedBy, stripLikedBy } from './rating';
 export { shoppingWindowLabel } from './shopping-window';
+export {
+  defaultSavedWeekName,
+  dinnersHeadingFor,
+  planCostCoverageLabel,
+  weekRangeLabel,
+  weekRelationLabel,
+  weekRelationTitle,
+} from './plan-week-copy';
 export {
   dayNutritionCaption,
   dayStatus,
@@ -476,6 +492,7 @@ export {
 export {
   isValidPlanShape,
   planButtonLabel,
+  householdTableSummary,
   planShapeSummary,
   resolvePlanDays,
   resolvePlanSlots,
