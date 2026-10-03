@@ -133,6 +133,7 @@ export function WeeklyUpdatesCard() {
     (prefsQuery.data?.weekReady === true || prefsQuery.data?.weeklyRecap === true);
 
   const save = trpc.notifications.setEmailPreferences.useMutation({
+    meta: { silent: true },
     onSuccess: (res) => setEmail({ weekReady: res.weekReady, weeklyRecap: res.weeklyRecap }),
     // Roll back only the switch that failed.
     onError: (_err, vars) =>
@@ -145,7 +146,7 @@ export function WeeklyUpdatesCard() {
           : prev,
       ),
   });
-  const resend = trpc.notifications.resendConfirmation.useMutation();
+  const resend = trpc.notifications.resendConfirmation.useMutation({ meta: { silent: true } });
 
   const [phoneOn, setPhoneOn] = useState(false);
   const [phoneBusy, setPhoneBusy] = useState(false);

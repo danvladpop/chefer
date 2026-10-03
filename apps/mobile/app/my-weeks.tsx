@@ -34,20 +34,28 @@ export default function MyWeeksScreen() {
   };
 
   const saveMutation = trpc.mealPlan.saveAsTemplate.useMutation({
+    meta: { silent: true },
     onSuccess: () => {
       setSaveName('');
       invalidate();
     },
   });
-  const followMutation = trpc.mealPlan.followTemplate.useMutation({ onSuccess: invalidate });
+  const followMutation = trpc.mealPlan.followTemplate.useMutation({
+    meta: { silent: true },
+    onSuccess: invalidate,
+  });
   const unfollowMutation = trpc.mealPlan.unfollowTemplate.useMutation({ onSuccess: invalidate });
   const renameMutation = trpc.mealPlan.renameTemplate.useMutation({
+    meta: { silent: true },
     onSuccess: () => {
       setRenamingId(null);
       invalidate();
     },
   });
-  const deleteMutation = trpc.mealPlan.deleteTemplate.useMutation({ onSuccess: invalidate });
+  const deleteMutation = trpc.mealPlan.deleteTemplate.useMutation({
+    meta: { silent: true },
+    onSuccess: invalidate,
+  });
 
   const atCap = (templates?.length ?? 0) >= MAX_TEMPLATES;
   const busy =

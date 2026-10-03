@@ -30,7 +30,7 @@ export function RebalanceBanner({ planId, onUndone, className }: RebalanceBanner
   const [undoError, setUndoError] = useState(false);
 
   const utils = trpc.useUtils();
-  const replaceMutation = trpc.mealPlan.replaceRecipe.useMutation();
+  const replaceMutation = trpc.mealPlan.replaceRecipe.useMutation({ meta: { silent: true } });
 
   if (!pending || !isPendingFresh(pending) || (planId !== undefined && pending.planId !== planId)) {
     return null;

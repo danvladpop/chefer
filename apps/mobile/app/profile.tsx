@@ -102,6 +102,7 @@ export default function ProfileScreen() {
   const snackbar = useSnackbar();
   const [confirmingDowngrade, setConfirmingDowngrade] = useState(false);
   const downgradeMutation = trpc.user.downgradePlan.useMutation({
+    meta: { silent: true },
     onSuccess: () => {
       track('downgrade_completed', {});
       invalidateUser();

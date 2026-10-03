@@ -21,6 +21,7 @@ export function HeroMealCard({ meal, isTomorrow }: { meal: HeroMeal; isTomorrow:
   const [lastLogged, setLastLogged] = useState<string | null>(null);
 
   const logMutation = trpc.tracker.logRecipe.useMutation({
+    meta: { silent: true },
     onSuccess: (result) => {
       // A premium log can rebalance the week — same hand-off as the tracker.
       recordRebalance(result.rebalance);

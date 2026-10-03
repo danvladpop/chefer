@@ -39,6 +39,7 @@ function EntryRow({ entry, system }: { entry: Entry; system: UnitSystem }) {
     void utils.gym.bootstrap.invalidate();
   };
   const update = trpc.tracker.updateWeight.useMutation({
+    meta: { silent: true },
     onSuccess: () => {
       setEditing(false);
       invalidate();
@@ -46,6 +47,7 @@ function EntryRow({ entry, system }: { entry: Entry; system: UnitSystem }) {
     onError: (err) => setError(userFacingErrorMessage(err)),
   });
   const remove = trpc.tracker.deleteWeight.useMutation({
+    meta: { silent: true },
     onSuccess: invalidate,
     onError: (err) => setError(userFacingErrorMessage(err)),
   });

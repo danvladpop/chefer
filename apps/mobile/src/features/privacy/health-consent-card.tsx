@@ -25,6 +25,7 @@ export function HealthConsentCard() {
   const [confirming, setConfirming] = useState(false);
 
   const withdraw = trpc.privacy.withdrawHealthData.useMutation({
+    meta: { silent: true },
     onSuccess: () => {
       track('health_consent_withdrawn', {});
       setConfirming(false);

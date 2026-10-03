@@ -64,6 +64,7 @@ export function PantryPanel({
     void utils.shoppingList.getForWeek.invalidate();
   };
   const addMutation = trpc.pantry.addItem.useMutation({
+    meta: { silent: true },
     onSuccess: () => {
       setName('');
       setQuantity('');

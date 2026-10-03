@@ -213,6 +213,7 @@ export default function MealPlanScreen() {
   });
 
   const generateMutation = trpc.mealPlan.generate.useMutation({
+    meta: { silent: true },
     onMutate: () => {
       setPoolExhaustedMessage(null);
       setPersonalisation(null);
@@ -284,6 +285,7 @@ export default function MealPlanScreen() {
   // "Tailor the rest" (PARTIAL/FAILED): re-queues only the untailored days —
   // no new plan-generation quota. Consent-gated like any premium AI call.
   const resumeTailoringMutation = trpc.mealPlan.resumeTailoring.useMutation({
+    meta: { silent: true },
     onSuccess: (data) => {
       utils.mealPlan.getForWeek.setData({ weekOffset }, data);
     },
@@ -314,6 +316,7 @@ export default function MealPlanScreen() {
   });
 
   const swapMutation = trpc.mealPlan.swapRecipe.useMutation({
+    meta: { silent: true },
     onSuccess: () => {
       setPickerTarget(null);
       void refetch();
@@ -322,6 +325,7 @@ export default function MealPlanScreen() {
   });
 
   const replaceMutation = trpc.mealPlan.replaceRecipe.useMutation({
+    meta: { silent: true },
     onSuccess: () => {
       setPickerTarget(null);
       void refetch();
@@ -334,6 +338,7 @@ export default function MealPlanScreen() {
   // settings instead, which changes the whole week's shape rather than
   // adding this one day. setData (not refetch), same reasoning as generate.
   const planDayMutation = trpc.mealPlan.planDay.useMutation({
+    meta: { silent: true },
     onSuccess: (data) => {
       utils.mealPlan.getForWeek.setData({ weekOffset }, data);
       invalidateDerived();

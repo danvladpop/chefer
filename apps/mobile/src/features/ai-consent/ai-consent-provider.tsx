@@ -96,6 +96,7 @@ export function AiConsentProvider({
   const runOnExit = useRef<(() => void) | null>(null);
 
   const grant = trpc.user.grantAiDataConsent.useMutation({
+    meta: { silent: true },
     onSuccess: ({ aiDataConsentAt }) => {
       utils.user.me.setData(undefined, (prev) => (prev ? { ...prev, aiDataConsentAt } : prev));
     },

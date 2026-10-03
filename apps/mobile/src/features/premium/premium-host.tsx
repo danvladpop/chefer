@@ -42,6 +42,7 @@ function PremiumOffer({ source }: { source: string | null }) {
   // "Not now" sends nothing), then opens Plan.
   const requestAiConsent = useAiConsent();
   const generate = trpc.mealPlan.generate.useMutation({
+    meta: { silent: true },
     onSuccess: () => {
       void utils.mealPlan.invalidate();
       void utils.shoppingList.invalidate();
@@ -52,6 +53,7 @@ function PremiumOffer({ source }: { source: string | null }) {
   });
 
   const upgrade = trpc.user.upgradePlan.useMutation({
+    meta: { silent: true },
     onSuccess: () => {
       if (shownSource) {
         track('upgrade_completed', { source: shownSource as PremiumSource, job: pitch.job });

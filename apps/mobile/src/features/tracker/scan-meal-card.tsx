@@ -114,6 +114,7 @@ function SnapCard({ date, onLogged }: { date: string; onLogged: () => void }) {
 
   const utils = trpc.useUtils();
   const logMutation = trpc.tracker.logCustomMeal.useMutation({
+    meta: { silent: true },
     onSuccess: (data) => {
       recordRebalance(data.rebalance);
       // Bug B-44: Today used to lag the tracker by ~8s after a snap log —

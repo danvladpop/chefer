@@ -99,6 +99,7 @@ function RegisterForm() {
   }, [password]);
 
   const register = trpc.auth.register.useMutation({
+    meta: { silent: true },
     onSuccess: async (data) => {
       clearRegisterDraft();
       if (data.session) {

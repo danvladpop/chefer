@@ -15,7 +15,7 @@ import type { SuggestionRowData } from './suggestion-row';
 export function useDismissSuggestion(): (person: SuggestionRowData) => Promise<void> {
   const queryClient = useQueryClient();
   const utils = trpc.useUtils();
-  const mutation = trpc.friends.dismissSuggestion.useMutation();
+  const mutation = trpc.friends.dismissSuggestion.useMutation({ meta: { silent: true } });
   const snackbar = useSnackbar();
 
   const dismiss = async (person: SuggestionRowData): Promise<void> => {

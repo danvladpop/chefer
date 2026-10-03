@@ -133,6 +133,7 @@ export default function ImportRecipeScreen() {
   const [confirmPartial, setConfirmPartial] = useState(false);
 
   const previewMutation = trpc.recipe.importPreview.useMutation({
+    meta: { silent: true },
     onSuccess: (data) => {
       setPreview(data);
       setPicks({ original: {}, adapted: {} });
@@ -140,9 +141,11 @@ export default function ImportRecipeScreen() {
     },
   });
   const videoPreviewMutation = trpc.recipe.importVideoPreview.useMutation({
+    meta: { silent: true },
     onSuccess: (data) => setVideoPreview(data),
   });
   const saveMutation = trpc.recipe.importSave.useMutation({
+    meta: { silent: true },
     onSuccess: () => {
       void utils.recipe.list.invalidate();
       router.back();

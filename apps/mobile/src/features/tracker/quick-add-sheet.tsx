@@ -184,6 +184,7 @@ export function QuickAddSheet({
     onSuccess: (data, vars) => onLoggedCommon(data, `Logged ${vars.mealType}`),
   });
   const logCustomMutation = trpc.tracker.logCustomMeal.useMutation({
+    meta: { silent: true },
     onSuccess: (data, vars) => onLoggedCommon(data, `Logged ${vars.name}`),
   });
 

@@ -21,7 +21,7 @@ export function useRemoveFollower(): {
 } {
   const queryClient = useQueryClient();
   const utils = trpc.useUtils();
-  const mutation = trpc.friends.removeFollower.useMutation();
+  const mutation = trpc.friends.removeFollower.useMutation({ meta: { silent: true } });
   return {
     removeFollower: async (userId) => {
       const snapshot = mergeSnapshots(

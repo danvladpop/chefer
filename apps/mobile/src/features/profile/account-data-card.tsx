@@ -69,6 +69,7 @@ function DeleteAccountSheet({ visible, onClose }: { visible: boolean; onClose: (
   const [confirmText, setConfirmText] = useState('');
   const confirmRef = useRef<TextInput>(null);
   const deleteMutation = trpc.user.deleteSelf.useMutation({
+    meta: { silent: true },
     // The server already revoked every session. Drop the local one — and every
     // cached query, the gym data and reminders on this phone (UX-ACC-12) —
     // through the one sign-out, then back to the auth screen.
@@ -82,7 +83,7 @@ function DeleteAccountSheet({ visible, onClose }: { visible: boolean; onClose: (
   // forgot the password asks for the link here, for their own address.
   const me = trpc.auth.me.useQuery(undefined, { staleTime: 5 * 60_000 });
   const email = me.data?.email ?? null;
-  const resetMutation = trpc.auth.requestPasswordReset.useMutation();
+  const resetMutation = trpc.auth.requestPasswordReset.useMutation({ meta: { silent: true } });
   const ready = password.length > 0 && confirmText.trim().toUpperCase() === COPY.confirmWord;
 
   // R-17: iOS offers "Save Password?" when a secure field that still holds
