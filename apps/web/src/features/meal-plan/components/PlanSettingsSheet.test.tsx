@@ -24,6 +24,7 @@ const mocks = vi.hoisted(() => {
     ),
     shapeData: state.shapeData,
     shapeFailed: false,
+    members: [] as { name: string }[],
     refetch: vi.fn(),
   };
 });
@@ -31,6 +32,7 @@ const LEGACY_SHAPE = mocks.LEGACY_SHAPE;
 
 vi.mock('@/lib/trpc', () => ({
   trpc: {
+    household: { list: { useQuery: () => ({ data: mocks.members }) } },
     mealPlan: {
       getShape: {
         useQuery: () => ({
@@ -63,6 +65,7 @@ beforeEach(() => {
   mocks.setShapeMutate.mockClear();
   mocks.shapeData = LEGACY_SHAPE;
   mocks.shapeFailed = false;
+  mocks.members = [];
   mocks.refetch.mockClear();
 });
 afterEach(cleanup);
@@ -237,5 +240,37 @@ describe('PlanSettingsSheet — failed load', () => {
     expect(screen.getByTestId('plan-settings-load-error')).toBeTruthy();
     fireEvent.click(screen.getByRole('button', { name: 'Try again' }));
     expect(mocks.refetch).toHaveBeenCalled();
+  });
+});
+
+describe('PlanSettingsSheet — Cooking for with a household (UX-PLAN-12)', () => {
+  const sheet = () => (
+    <PlanSettingsSheet
+      open
+      onClose={vi.fn()}
+      hasPlan={false}
+      weekLabel="this week"
+      isPremium={false}
+      onSaved={vi.fn()}
+    />
+  );
+
+  it('shows a read-only "You + 2" with Edit table instead of Just me / Two of us', () => {
+    mocks.members = [{ name: 'Mia' }, { name: 'Noah' }];
+    render(sheet());
+    expect(screen.getByTestId('plan-settings-household-summary').textContent).toMatch(
+      /You \+ 2.*Mia, Noah/,
+    );
+    expect(screen.getByTestId('plan-settings-household-summary-edit').textContent).toBe(
+      'Edit table',
+    );
+    expect(screen.queryByTestId('plan-settings-for-1')).toBeNull();
+    expect(screen.getByTestId('plan-settings-summary').textContent).toMatch(/cooking for 3/);
+  });
+
+  it('keeps the choice when there are no members', () => {
+    render(sheet());
+    expect(screen.getByTestId('plan-settings-for-1')).toBeTruthy();
+    expect(screen.queryByTestId('plan-settings-household-summary')).toBeNull();
   });
 });

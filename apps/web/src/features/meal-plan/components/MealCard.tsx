@@ -3,7 +3,7 @@ import { AiGeneratedChip } from '@/features/privacy/components/AiGeneratedChip';
 import { AllergenWarningChip } from '@/features/recipes/components/AllergenWarning';
 import { RecipeImage, type ImageStatusType } from '@/features/recipes/components/RecipeImage';
 import { CheckedForChip } from '@/features/safety/components/CheckedForChip';
-import { ArrowLeftRight, Bookmark, Clock } from 'lucide-react';
+import { ArrowLeftRight, Bookmark, CheckCircle2, Clock } from 'lucide-react';
 import {
   formatPortion,
   scaleNutrition,
@@ -77,6 +77,8 @@ interface MealCardProps {
   pinned?: boolean | undefined;
   /** Toggles `pinned` on this slot (hidden when absent/readOnly). */
   onTogglePin?: (() => void) | undefined;
+  /** UX-PLAN-11: the past-week view marks a meal the user logged as eaten. */
+  eaten?: boolean | undefined;
 }
 
 const MEAL_TYPE_LABELS: Record<string, string> = {
@@ -108,6 +110,7 @@ export function MealCard({
   onReplace,
   pinned = false,
   onTogglePin,
+  eaten = false,
 }: MealCardProps) {
   // Cards are Links — the replace/pin buttons live inside, so stop navigation.
   const replaceButton = (extraClass: string) =>
@@ -152,6 +155,15 @@ export function MealCard({
     >
       <Bookmark className="h-2.5 w-2.5" aria-hidden="true" fill="currentColor" />
       Your pick
+    </span>
+  ) : null;
+  const eatenBadge = eaten ? (
+    <span
+      data-testid={`plan-meal-${mealType}-eaten`}
+      className="ml-1 inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-semibold text-emerald-700"
+    >
+      <CheckCircle2 className="h-2.5 w-2.5" aria-hidden="true" />
+      Eaten
     </span>
   ) : null;
   const totalTime = recipe.prepTimeMins + recipe.cookTimeMins;
@@ -209,6 +221,7 @@ export function MealCard({
             )}
             {portionBadge && <span className="ml-1">{portionBadge}</span>}
             {pinBadge}
+            {eatenBadge}
             <p className="mt-1 line-clamp-2 text-sm font-semibold leading-snug text-gray-900">
               {recipe.name}
             </p>
@@ -291,6 +304,15 @@ export function MealCard({
             className="truncate text-xs"
           />
         </div>
+        {eaten && (
+          <span
+            data-testid={`plan-meal-${mealType}-eaten`}
+            className="absolute right-2 top-2 inline-flex items-center gap-1 rounded-full bg-emerald-100/90 px-2 py-0.5 text-xs font-semibold text-emerald-700 backdrop-blur-sm"
+          >
+            <CheckCircle2 className="h-2.5 w-2.5" aria-hidden="true" />
+            Eaten
+          </span>
+        )}
         {leftoverLabel && (
           <span className="absolute bottom-2 left-2 rounded-full bg-emerald-100/90 px-2 py-0.5 text-xs font-semibold text-emerald-800 backdrop-blur-sm">
             Leftovers · {leftoverLabel.slice(0, 3)}

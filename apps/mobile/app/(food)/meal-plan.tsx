@@ -34,6 +34,7 @@ import {
   isTailoringRunning,
   PLAN_TAILORING_COPY,
   planButtonLabel,
+  planCostCoverageLabel,
   planShapeSummary,
   SAFETY_COPY,
   sumPlanDay,
@@ -377,9 +378,12 @@ export default function MealPlanScreen() {
   // swap ships as commit + Undo, no preview) — call `replaceRecipe` back to
   // the id that was in the slot. `target` is captured at click time so the
   // snackbar action still works after the picker closes.
+  // UX-PLAN-04: `replaceRecipe` pins the slot by default; Undo sends back the
+  // slot's PREVIOUS state so the restored dish isn't left as "Your pick".
   const undoSwap = (
     target: { mealType: MealType; slotIndex: number },
     previousRecipeId: string,
+    previousPinned = false,
   ) => {
     if (!plan) return;
     replaceMutation.mutate({
@@ -388,6 +392,7 @@ export default function MealPlanScreen() {
       mealType: target.mealType,
       slotIndex: target.slotIndex,
       recipeId: previousRecipeId,
+      pinned: previousPinned,
     });
   };
 
@@ -730,7 +735,10 @@ export default function MealPlanScreen() {
                 {weekCost !== null
                   ? `≈ ${formatPriceRange(weekCost, currency) ?? formatMoney(weekCost, currency)}`
                   : 'Cost estimate unavailable'}
-                {' · Mon–Sun'}
+                {/* UX-PLAN-07: name the days the estimate covers — a plan made
+                    mid-week prices only the days left, so this week and next
+                    week are not comparable otherwise. */}
+                {` · ${planCostCoverageLabel(plan.shoppingFromDay)}`}
                 {costPortions !== null
                   ? ` · ${costPortions} portion${costPortions === 1 ? '' : 's'}`
                   : memberCount > 0
@@ -1055,12 +1063,12 @@ export default function MealPlanScreen() {
                 },
                 {
                   onSuccess: (data) => {
-                    const { previousRecipeId } = data;
+                    const { previousRecipeId, previousPinned } = data;
                     showSnackbar({
                       message: `Swapped to ${data.name}${portion !== 1 ? ` · ${portion}× portion` : ''}`,
                       actionLabel: previousRecipeId ? 'Undo' : undefined,
                       onAction: previousRecipeId
-                        ? () => undoSwap(target, previousRecipeId)
+                        ? () => undoSwap(target, previousRecipeId, previousPinned === true)
                         : undefined,
                     });
                   },
@@ -1083,12 +1091,12 @@ export default function MealPlanScreen() {
                         {
                           // T-08.6 (Q-6): commit + Undo, no preview.
                           onSuccess: (data) => {
-                            const { previousRecipeId } = data;
+                            const { previousRecipeId, previousPinned } = data;
                             showSnackbar({
                               message: `Swapped to ${data.name}`,
                               actionLabel: previousRecipeId ? 'Undo' : undefined,
                               onAction: previousRecipeId
-                                ? () => undoSwap(target, previousRecipeId)
+                                ? () => undoSwap(target, previousRecipeId, previousPinned === true)
                                 : undefined,
                             });
                           },
@@ -1118,6 +1126,8 @@ export default function MealPlanScreen() {
             })}
             dinners={dinnersFromPlan(plan.days, weekdayShortName)}
             weekCostEur={weekCost}
+            weekOffset={weekOffset}
+            shoppingFromDay={plan.shoppingFromDay}
             currency={currency}
             isPast={isPast}
             isPremium={isPremium === true}

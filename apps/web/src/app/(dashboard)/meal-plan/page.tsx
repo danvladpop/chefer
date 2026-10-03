@@ -71,6 +71,7 @@ import {
   isTailoringRunning,
   perPortionCost,
   planButtonLabel,
+  planCostCoverageLabel,
   planShapeSummary,
   regenerateConfirmBody,
   SAFETY_COPY,
@@ -81,6 +82,7 @@ import {
   trainingDaysChip,
   trainingKindLabel,
   userFacingErrorMessage,
+  weekRelationLabel,
   WELLNESS_COPY,
 } from '@chefer/utils';
 import MealPlanLoading from './loading';
@@ -635,10 +637,12 @@ export default function MealPlanPage() {
                 ? 'border-amber-300 bg-amber-50 text-amber-800'
                 : 'border-emerald-200 bg-emerald-50 text-emerald-700'
             }`}
-            title="Estimated ingredient cost for the whole week"
+            title={`Estimated ingredient cost for ${weekRelationLabel(weekOffset)}, ${planCostCoverageLabel(plan?.shoppingFromDay)}`}
           >
+            {/* UX-PLAN-07: the week that is open, and the days it covers. */}
             <Wallet className="h-3 w-3" aria-hidden="true" />≈{' '}
-            {formatPriceRange(weekCost, currency) ?? formatMoney(weekCost, currency)} this week
+            {formatPriceRange(weekCost, currency) ?? formatMoney(weekCost, currency)} ·{' '}
+            {weekRelationLabel(weekOffset)} · {planCostCoverageLabel(plan?.shoppingFromDay)}
             {perPortion !== null && costPortions !== null && (
               <span className="font-normal opacity-80">
                 · {formatMoney(perPortion, currency)}/portion · {costPortions} portions
@@ -1261,7 +1265,12 @@ export default function MealPlanPage() {
       <ReplaceMealSheet
         target={replaceTarget}
         onClose={() => setReplaceTarget(null)}
-        onChanged={({ recipeName, previousRecipeId, target }: ReplaceMealResult) => {
+        onChanged={({
+          recipeName,
+          previousRecipeId,
+          previousPinned,
+          target,
+        }: ReplaceMealResult) => {
           setToast({
             message: `Swapped to ${recipeName}`,
             ...(previousRecipeId && {
@@ -1274,6 +1283,8 @@ export default function MealPlanPage() {
                     mealType: target.mealType as 'breakfast' | 'lunch' | 'dinner' | 'snack',
                     slotIndex: target.slotIndex,
                     recipeId: previousRecipeId,
+                    // UX-PLAN-04: restore the slot's previous pin state.
+                    pinned: previousPinned === true,
                   }),
               },
             }),

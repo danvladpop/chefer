@@ -910,7 +910,13 @@ persona-study wave 1, `feat/ux-now/plan-mobile`).** `app/(food)/meal-plan.tsx`
   `mealPlan.setSlotPinned`; a pinned slot shows a "Your pick" badge
   (`plan-meal-card.tsx`).
 * **Undoable Replace/AI swap.** Both show a "Swapped to X" snackbar with
-  `Undo` back to `previousRecipeId`.
+  `Undo` back to `previousRecipeId`. UX-PLAN-04: Undo sends `pinned:
+previousPinned` so the restored dish keeps the slot's old pin state
+  (`replaceRecipe` pins by default; an undone swap used to leave "Your pick").
+  UX-PLAN-05: the picker asks `recipe.list` for the slot (`slotType`), states
+  the safety check once in a header ("Suggestions checked for …" — only a row
+  that passed fewer rules keeps its own chip), shows "kcal · g protein · min"
+  and allows two-line names.
 * **Replace picker filter (bug B-50).** `recipe-picker-sheet.tsx` narrows
   candidates with `filterReplaceCandidates` (`@chefer/utils/recipe-
 picker.ts`) — a pure stand-in for the server-side, safety-aware
@@ -1033,8 +1039,13 @@ column and reaching Sunday meant scrolling sideways through the whole week. The
 single-day view is a different information architecture, not a scaled-down grid.
 `/history/[planId]` renders the same component in read-only mode. Mobile has
 the same read-only detail (`app/history/[planId].tsx`: day chips, meals open the
-recipe) and adds Restore there; on both mobile screens Restore asks first
-(`ConfirmSheet`) and only the row being restored shows a spinner.
+recipe) and adds "Use this week again" there. UX-PLAN-11: a past week used to be
+restorable only into its own (past) week; "Use this week again" (web and mobile,
+My weeks cards and the detail page) asks THIS or NEXT week
+(`mealPlan.restore({ planId, weekOffset })`), only the row being copied shows a
+spinner, "Save as a week" keeps it as a My weeks template, and the read-only
+view marks meals the user logged as "Eaten" (`getById` `loggedRecipeIds`).
+UX-PLAN-15: the screen's copy says "My weeks", not "History".
 
 ### Meal swap
 
