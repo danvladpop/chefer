@@ -28,6 +28,8 @@ import {
   cn,
   defaultWeekOffset,
   dinnersFromPlan,
+  formatDateRange,
+  formatKcal,
   formatMoney,
   formatPriceRange,
   getWeekStartDate,
@@ -92,8 +94,7 @@ function getTodayDayIndex(): number {
 function formatWeekLabel(weekStart: Date): string {
   const end = new Date(weekStart);
   end.setDate(end.getDate() + 6);
-  const opts: Intl.DateTimeFormatOptions = { month: 'short', day: 'numeric' };
-  return `${weekStart.toLocaleDateString('en-GB', opts)} – ${end.toLocaleDateString('en-GB', opts)}`;
+  return formatDateRange(weekStart, end, 'short');
 }
 
 export default function MealPlanScreen() {
@@ -791,8 +792,8 @@ export default function MealPlanScreen() {
             {replanNeeded && (
               <View testID="plan-replan-banner" className="gap-1 rounded-xl bg-blue-50 px-3 py-2">
                 <Text className="text-sm text-blue-800">
-                  This week was planned for {plannedKcal.toLocaleString('en-GB')} kcal. Re-plan with{' '}
-                  {liveKcal.toLocaleString('en-GB')} kcal?
+                  This week was planned for {formatKcal(plannedKcal)} kcal. Re-plan with{' '}
+                  {formatKcal(liveKcal)} kcal?
                 </Text>
                 <View className="flex-row gap-2">
                   <Pressable

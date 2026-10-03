@@ -1,7 +1,7 @@
 import { Pressable, TextInput, View } from 'react-native';
 import { bodyMetricsAgeError, MINOR_NO_DEFICIT_NOTE } from '@chefer/types';
 import { Card, Text, useScrollFieldIntoView } from '@chefer/ui-mobile';
-import { cn, previewCalorieTarget, WELLNESS_COPY } from '@chefer/utils';
+import { cn, formatKcal, formatNumber, previewCalorieTarget, WELLNESS_COPY } from '@chefer/utils';
 import { ACTIVITY_OPTIONS, type Goal, type MetricsValue } from '../types';
 import { useNumericChain } from '../use-numeric-chain';
 import { OptionRow } from './option-row';
@@ -240,12 +240,10 @@ export function MetricsStep({
             <Text variant="muted" className="text-xs">
               Estimated daily calorie target
             </Text>
-            <Text className="text-3xl font-bold text-primary">
-              {preview.target.toLocaleString('en-US')}
-            </Text>
+            <Text className="text-3xl font-bold text-primary">{formatNumber(preview.target)}</Text>
             <Text variant="muted" className="text-center text-xs">
               {goal
-                ? `kcal / day · ${preview.maintenance.toLocaleString('en-US')} maintenance`
+                ? `kcal / day · ${formatKcal(preview.maintenance)} maintenance`
                 : 'kcal / day · Mifflin-St Jeor estimate'}
             </Text>
             {preview.deficitBlocked && (

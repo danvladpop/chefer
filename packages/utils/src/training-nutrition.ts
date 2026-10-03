@@ -5,6 +5,7 @@ import type {
   TrainingDayNutrition,
   TrainingDayReason,
 } from '@chefer/types';
+import { formatKcal } from './format';
 
 // ─── Training-aware nutrition (audit P2-4, gym_plan.md D11 follow-up) ─────────
 // Deterministic rules that connect the gym to the food side. No AI.
@@ -316,7 +317,7 @@ export function trainingDayLine(t: {
   proteinBonus: number;
   kind?: DayKind | null | undefined;
 }): string {
-  const kcal = t.kcalBonus.toLocaleString('en-US');
+  const kcal = formatKcal(t.kcalBonus);
   if (t.kind === 'long_run') return `Long run day · +${kcal} kcal, mostly carbs`;
   if (t.kind === 'run') return `Run day · +${kcal} kcal, mostly carbs`;
   return `Training day · +${kcal} kcal, +${t.proteinBonus} g protein`;

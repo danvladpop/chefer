@@ -95,6 +95,8 @@ export type DateStyle =
   | 'weekday-short'
   /** "Saturday, 3 October" */
   | 'weekday-long-date'
+  /** "Saturday, 3 Oct" */
+  | 'weekday-long-short'
   /** "Oct" */
   | 'month'
   /** "3 Oct 2026, 14:30" */
@@ -109,6 +111,7 @@ const DATE_OPTIONS: Readonly<Record<DateStyle, Intl.DateTimeFormatOptions>> = {
   'weekday-long': { weekday: 'long' },
   'weekday-short': { weekday: 'short', day: 'numeric', month: 'short' },
   'weekday-long-date': { weekday: 'long', day: 'numeric', month: 'long' },
+  'weekday-long-short': { weekday: 'long', day: 'numeric', month: 'short' },
   month: { month: 'short' },
   datetime: { day: 'numeric', month: 'short', year: 'numeric', hour: 'numeric', minute: '2-digit' },
 };

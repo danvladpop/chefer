@@ -29,7 +29,7 @@ import { format, parseISO } from 'date-fns';
 import { ArrowRight, Sparkles, UtensilsCrossed } from 'lucide-react';
 import { Line, LineChart, ReferenceLine, ResponsiveContainer, Tooltip, XAxis } from 'recharts';
 import { ErrorState } from '@chefer/ui';
-import { localDateStr, remainingPlannedKcal } from '@chefer/utils';
+import { formatDate, localDateStr, remainingPlannedKcal } from '@chefer/utils';
 
 // ─── Meal type colours ─────────────────────────────────────────────────────────
 
@@ -148,7 +148,7 @@ export default function DashboardPage() {
     const date = new Date(today);
     date.setDate(today.getDate() - todayIdx + i);
     return {
-      label: date.toLocaleDateString('en-US', { weekday: 'short' }),
+      label: formatDate(date, 'weekday'),
       num: date.getDate(),
       idx: i,
       hasMeals: d.weekPlan.some((wp) => wp.dayOfWeek === i && wp.meals.length > 0),

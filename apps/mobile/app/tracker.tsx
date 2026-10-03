@@ -7,6 +7,7 @@ import {
   cn,
   customEntryChipLabel,
   customEntryRows,
+  formatDate,
   formatPortion,
   localDateStr,
   plannedRowKey,
@@ -71,7 +72,7 @@ function addDays(d: Date, delta: number): Date {
 function relativeDayLabel(from: Date, to: Date): string {
   const diffDays = Math.round((to.getTime() - from.getTime()) / (24 * 60 * 60 * 1000));
   if (diffDays === 1) return 'yesterday';
-  return from.toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' });
+  return formatDate(from, 'weekday-short');
 }
 
 function TargetBar({ label, value, target }: { label: string; value: number; target: number }) {
@@ -347,13 +348,7 @@ export default function TrackerScreen() {
           <Ionicons name="chevron-back" size={18} color="#6b7280" />
         </Pressable>
         <Text className="text-sm font-medium text-gray-700">
-          {isToday
-            ? 'Today'
-            : selectedDate.toLocaleDateString('en-GB', {
-                weekday: 'long',
-                day: 'numeric',
-                month: 'short',
-              })}
+          {isToday ? 'Today' : formatDate(selectedDate, 'weekday-long-short')}
         </Text>
         <Pressable
           testID="tracker-next-day"

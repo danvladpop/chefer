@@ -1,5 +1,5 @@
 import { ChevronRight } from 'lucide-react';
-import { cn, sumPlanDay } from '@chefer/utils';
+import { cn, formatKcal, sumPlanDay } from '@chefer/utils';
 
 interface NutritionInfo {
   calories: number;
@@ -42,7 +42,7 @@ const TARGET_BAND = 0.15;
 
 /** "About 300 kcal" — rounded to 10 so the status never reads falsely precise. */
 export function aboutKcal(n: number): string {
-  return `About ${(Math.round(Math.abs(n) / 10) * 10).toLocaleString('en-US')} kcal`;
+  return `About ${formatKcal(Math.round(Math.abs(n) / 10) * 10)} kcal`;
 }
 
 function StatusLine({

@@ -15,6 +15,8 @@ import {
   bodyWeightInUnit,
   cn,
   formatBodyWeight,
+  formatDate,
+  formatKcal,
   weightChangeTone,
   type WeightChangeTone,
 } from '@chefer/utils';
@@ -49,7 +51,7 @@ const TONE_SUFFIX: Record<WeightChangeTone, string> = {
 /** "2026-09-26" → "26 Sep", read as a local calendar day (no UTC shift). */
 function shortDate(value: string | Date): string {
   const date = typeof value === 'string' ? new Date(`${value}T00:00:00`) : value;
-  return date.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
+  return formatDate(date, 'short');
 }
 
 function SectionLabel({ children }: { children: string }) {
@@ -205,7 +207,7 @@ export default function ProgressScreen() {
             icon="trending-up-outline"
             iconColor="#3b82f6"
             label="Avg kcal"
-            value={avgKcal > 0 ? avgKcal.toLocaleString('en-GB') : '—'}
+            value={avgKcal > 0 ? formatKcal(avgKcal) : '—'}
           />
           <StatTile
             testID="progress-stat-vs-target"
