@@ -168,7 +168,9 @@ describe('Login', () => {
     await user.type(screen.getByTestId('login-email'), 'ana@example.com');
     await user.type(screen.getByTestId('login-password'), 'wrong-password');
 
-    await act(async () => handlers.onError?.(new Error('Invalid email or password')));
+    await act(() => {
+      handlers.onError?.(new Error('Invalid email or password'));
+    });
 
     expect(screen.getByTestId('login-password').props.value).toBe('');
     expect(screen.getByTestId('login-email').props.value).toBe('ana@example.com');
@@ -207,7 +209,9 @@ describe('Login deleted-account notice (UX-ACC-11)', () => {
     expect(screen.queryByTestId('login-account-deleted')).toBeNull();
     await first.unmount();
 
-    await act(async () => markAccountDeleted());
+    await act(() => {
+      markAccountDeleted();
+    });
     const second = await renderWithSafeArea(<LoginScreen />);
     expect(screen.getByTestId('login-account-deleted')).toHaveTextContent(ACCOUNT_DELETED_NOTICE);
 
@@ -320,7 +324,9 @@ describe('Reset password', () => {
       name: 'TRPCClientError',
       data: { code: 'BAD_REQUEST' },
     });
-    await act(async () => handlers.onError?.(error));
+    await act(() => {
+      handlers.onError?.(error);
+    });
 
     expect(screen.getByTestId('reset-password-missing-token')).toHaveTextContent(
       /invalid or has expired/,
@@ -336,7 +342,9 @@ describe('Reset password', () => {
     const { handlers } = captureMutation(trpc.auth.resetPassword);
     await renderWithSafeArea(<ResetPasswordScreen />);
 
-    await act(async () => handlers.onError?.(new Error('Too many requests')));
+    await act(() => {
+      handlers.onError?.(new Error('Too many requests'));
+    });
 
     expect(screen.getByTestId('reset-password-password')).toBeTruthy();
   });
@@ -346,7 +354,9 @@ describe('Reset password', () => {
     const { handlers } = captureMutation(trpc.auth.resetPassword);
     await renderWithSafeArea(<ResetPasswordScreen />);
 
-    await act(async () => handlers.onSuccess?.({ success: true }));
+    await act(() => {
+      handlers.onSuccess?.({ success: true });
+    });
 
     expect(screen.getByTestId('reset-password-title')).toHaveTextContent('Password changed');
     expect(screen.getByTestId('reset-password-done')).toBeTruthy();

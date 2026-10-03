@@ -33,7 +33,7 @@ export function AccountDataCard() {
       const data = await utils.user.exportData.fetch();
       const shared = await shareExportFile(exportFilename(), JSON.stringify(data, null, 2));
       // UX-ACC-22: only when the share sheet was actually used — a cancel is silence.
-      if (shared !== false) show({ message: 'Your export is ready.', tone: 'success' });
+      if (shared) show({ message: 'Your export is ready.', tone: 'success' });
     } catch {
       setExportError("Couldn't prepare your data. Please try again.");
     } finally {

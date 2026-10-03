@@ -72,13 +72,13 @@ describe('RegisterForm', () => {
 
   it('offers Sign in / Reset when the account exists, and drops them when the email changes (UX-ACC-15)', async () => {
     render(<RegisterForm />);
-    await act(async () =>
+    act(() => {
       captured.register.onError?.(
         Object.assign(new Error('An account with this email already exists'), {
           data: { code: 'CONFLICT' },
         }),
-      ),
-    );
+      );
+    });
 
     expect(screen.getByRole('link', { name: 'Sign in instead' }).getAttribute('href')).toBe(
       '/login',
@@ -93,13 +93,13 @@ describe('RegisterForm', () => {
 });
 
 describe('ResetPasswordForm', () => {
-  it('swaps to a request-a-new-link card when the link is dead (UX-ACC-09)', async () => {
+  it('swaps to a request-a-new-link card when the link is dead (UX-ACC-09)', () => {
     render(<ResetPasswordForm />);
     expect(screen.getByRole('heading', { name: 'Choose a new password' })).toBeTruthy();
 
-    await act(async () =>
-      captured.reset.onError?.(Object.assign(new Error(RESET_LINK_INVALID_MESSAGE), {})),
-    );
+    act(() => {
+      captured.reset.onError?.(Object.assign(new Error(RESET_LINK_INVALID_MESSAGE), {}));
+    });
 
     expect(screen.getByRole('heading', { name: 'This link no longer works' })).toBeTruthy();
     expect(
@@ -108,9 +108,11 @@ describe('ResetPasswordForm', () => {
     expect(screen.queryByLabelText(/new password/i)).toBeNull();
   });
 
-  it('retitles once the password is changed (UX-ACC-09)', async () => {
+  it('retitles once the password is changed (UX-ACC-09)', () => {
     render(<ResetPasswordForm />);
-    await act(async () => captured.reset.onSuccess?.({ success: true }));
+    act(() => {
+      captured.reset.onSuccess?.({ success: true });
+    });
     expect(screen.getByRole('heading', { name: 'Password changed' })).toBeTruthy();
   });
 

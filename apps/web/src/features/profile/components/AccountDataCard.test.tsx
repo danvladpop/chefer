@@ -146,7 +146,7 @@ describe('AccountDataCard delete sheet (R-24)', () => {
 
   it('UX-ACC-11: lands on sign-in with the one-time deleted notice flag', () => {
     const assign = vi.fn();
-    vi.stubGlobal('location', { ...window.location, assign });
+    vi.stubGlobal('location', { assign });
     render(<AccountDataCard />);
     fireEvent.click(screen.getByText('Delete account'));
     mockDeleteState.onSuccess?.();

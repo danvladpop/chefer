@@ -42,8 +42,14 @@ const utilsFake = {
   preferences: { get: { invalidate: jest.fn() }, invalidate: jest.fn() },
   gym: { invalidate: jest.fn() },
   mealPlan: { invalidate: jest.fn() },
-  dashboard: { invalidate: jest.fn() },
-  targets: { invalidate: jest.fn() },
+  dashboard: { invalidate: jest.fn(), summary: { invalidate: jest.fn() } },
+  targets: {
+    invalidate: jest.fn(),
+    get: { invalidate: jest.fn() },
+    changes: { invalidate: jest.fn() },
+  },
+  user: { me: { setData: jest.fn(), invalidate: jest.fn() } },
+  tracker: { getDay: { invalidate: jest.fn() } },
 };
 
 beforeEach(() => {
@@ -82,7 +88,9 @@ describe('Goal & body save (UX-ACC-21)', () => {
     );
     await renderScreen();
 
-    await act(async () => onSuccess?.());
+    await act(() => {
+      onSuccess?.();
+    });
 
     expect(utilsFake.targets.invalidate).toHaveBeenCalled();
     expect(utilsFake.dashboard.invalidate).toHaveBeenCalled();

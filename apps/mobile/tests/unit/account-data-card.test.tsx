@@ -15,8 +15,7 @@ const metrics = {
 // snackbar — not an unnamed text blob in the share sheet.
 
 const mockShareExportFile = jest.fn(
-  (_filename: string, _contents: string): Promise<boolean | undefined> =>
-    Promise.resolve(undefined),
+  (_filename: string, _contents: string): Promise<boolean> => Promise.resolve(true),
 );
 const mockShow = jest.fn();
 const mockExportFetch = jest.fn(() => Promise.resolve({ user: { id: 'u1' } }));
@@ -56,7 +55,9 @@ let mockDeleteState: { isError: boolean; error: Error | null } = { isError: fals
 const mockDeleteReset = jest.fn();
 const mockMarkAccountDeleted = jest.fn();
 jest.mock('../../src/features/auth/account-deleted-notice', () => ({
-  markAccountDeleted: () => mockMarkAccountDeleted(),
+  markAccountDeleted: (): void => {
+    mockMarkAccountDeleted();
+  },
 }));
 
 jest.mock('../../src/lib/trpc', () => ({
@@ -221,7 +222,7 @@ describe('mobile DeleteAccountSheet (App Review R-03 / R-17 / R-24)', () => {
     const proto = Object.getPrototypeOf(holder.node) as TextInput;
     const focus = jest.spyOn(proto, 'focus').mockImplementation(() => undefined);
     await openSheet();
-    await mockDeleteOptions?.onError?.();
+    mockDeleteOptions?.onError?.();
 
     expect(screen.getByTestId('delete-account-error')).toHaveTextContent('Incorrect password');
     expect(focus).toHaveBeenCalled();
