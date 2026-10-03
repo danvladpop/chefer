@@ -1778,7 +1778,7 @@ B-34/B-46 (T-00.11): `replaceRecipe` runs the picked recipe through `findSafetyI
 
 - **In memory.** Every fixture line carries its catalog `slug`, plus optional `note` and `optional`. `computed-nutrition.ts` computes each recipe with the shared engine from the committed `catalog.json` (`readCatalogFile`, no database), and `CURATED_POOL_BY_TYPE` serves those numbers. The curated planner, rebalance and Discover therefore read computed values; the fixtures' own `nutritionInfo` is only used by the mock AI provider.
 - **In the database.** `ensureCuratedRecipes` then gives every curated row its catalog lines and computed nutrition through `RecipeLineRepository.writeLines`. The fixture is authoritative for CURATED rows; rows already matching are skipped, compared field by field because jsonb reorders keys. If the catalog isn't synced into that database yet, it warns and retries on the next process.
-- **The gate.** `curated-nutrition.test.ts` requires all 64 recipes to be COMPUTED, with every slug present in the catalog.
+- **The gate.** `curated-nutrition.test.ts` requires all 105 curated recipes (64 original + 15 Romanian staples + 26 diet gap-fill, WP-14) to be COMPUTED, with every slug present in the catalog. `curated-coverage.test.ts` fails if a common diet drops below 10 breakfasts, 10 lunches and 14 dinners.
 - **Fixture changes made with this:**
   - "salt and black pepper" and the mixed-berry lines were split;
   - units were moved to portions that exist (an avocado as `piece`, not `medium`), and prep words moved to `note`;
