@@ -170,7 +170,10 @@ export default function GymHistoryDetailPage() {
                     <p className="mb-1.5 text-xs text-neutral-400">
                       Warm-up:{' '}
                       {warmups
-                        .map((s) => `${formatLoad(s.weightKg, unit, meta?.loadType)}×${s.reps}`)
+                        .map(
+                          (s) =>
+                            `${formatLoad(s.weightKg, unit, meta?.loadType, { each: meta?.perHand })}×${s.reps}`,
+                        )
                         .join(', ')}
                     </p>
                   )}
@@ -184,7 +187,8 @@ export default function GymHistoryDetailPage() {
                             : 'bg-neutral-50 text-neutral-300 line-through'
                         }`}
                       >
-                        {formatLoad(set.weightKg, unit, meta?.loadType)} × {set.reps}
+                        {formatLoad(set.weightKg, unit, meta?.loadType, { each: meta?.perHand })} ×{' '}
+                        {set.reps}
                         {i === working.length - 1 && ex.lastSetRir !== null && (
                           <span className="ml-1 text-xs text-neutral-400">
                             ({RIR_LABEL[ex.lastSetRir]})

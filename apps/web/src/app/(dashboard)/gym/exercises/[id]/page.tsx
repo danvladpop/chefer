@@ -286,7 +286,9 @@ export default function GymExerciseDetailPage() {
                   {repPrs.map((row) => (
                     <tr key={row.weightKg} className="border-t border-neutral-100">
                       <td className="py-1.5 font-medium text-neutral-900">
-                        {formatLoad(row.weightKg, unit, exercise.loadType)}
+                        {formatLoad(row.weightKg, unit, exercise.loadType, {
+                          each: exercise.perHand,
+                        })}
                       </td>
                       <td className="py-1.5 text-neutral-700">{row.reps}</td>
                       <td className="py-1.5 text-neutral-500">
@@ -319,7 +321,8 @@ export default function GymExerciseDetailPage() {
                         <span className="min-w-0 flex-1 truncate text-right text-neutral-700">
                           {working
                             .map(
-                              (s) => `${formatLoad(s.weightKg, unit, exercise.loadType)}×${s.reps}`,
+                              (s) =>
+                                `${formatLoad(s.weightKg, unit, exercise.loadType, { each: exercise.perHand })}×${s.reps}`,
                             )
                             .join(', ') || 'No sets logged'}
                         </span>

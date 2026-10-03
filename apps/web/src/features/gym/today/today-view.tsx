@@ -397,7 +397,13 @@ export function NextUpCard({
                   </span>
                 </span>
                 <span className="shrink-0 text-xs tabular-nums text-gray-500">
-                  {prescriptionText(ex.suggestion, unit, meta?.loadType, meta?.isTimed)}
+                  {prescriptionText(
+                    ex.suggestion,
+                    unit,
+                    meta?.loadType,
+                    meta?.isTimed,
+                    meta?.perHand,
+                  )}
                 </span>
               </div>
             </li>

@@ -26,6 +26,7 @@ const row = (
     originCreatorId: null,
     hiddenAt: null,
     hiddenReason: null,
+    deletedAt: null,
     ...over,
   }) as Recipe;
 
@@ -199,5 +200,26 @@ describe('recipeAttribution', () => {
     expect(recipeAttribution('me', row('MANUAL', 'me'), {}, { friendsOn: true })).toEqual({});
     expect(recipeAttribution('me', row('AI', null), {}, { friendsOn: true })).toEqual({});
     expect(recipeAttribution('me', row('CURATED', null), {}, { friendsOn: true })).toEqual({});
+  });
+});
+
+describe('isRecipeVisibleTo — soft-deleted recipes (UX-REC-04)', () => {
+  const deleted = (over: Partial<Recipe> = {}) =>
+    row('MANUAL', 'u1', { deletedAt: new Date('2026-10-03'), ...over });
+
+  it('hides a deleted own recipe that sits in no plan', async () => {
+    const repo = repoWith(deleted(), false);
+    expect(await findRecipeVisibleTo('u1', 'r1', repo, CLOSED)).toBeNull();
+  });
+
+  it('still resolves it as a tombstone while a plan slot holds it', async () => {
+    const repo = repoWith(deleted(), true);
+    expect(await findRecipeVisibleTo('u1', 'r1', repo, CLOSED)).not.toBeNull();
+  });
+
+  it('never opens a deleted original to a follower', async () => {
+    const repo = repoWith(deleted(), false);
+    const social = socialWith({ enabled: true, access: 'visible' });
+    expect(await findRecipeVisibleTo('u2', 'r1', repo, social)).toBeNull();
   });
 });

@@ -1,5 +1,38 @@
 export { cn } from './cn';
 export { formatQuantity, systemForWeightUnit, weightUnitForSystem, type UnitSystem } from './units';
+// ─── One units + formatting system (WP-11, audit §6.4, UX-X-15) ──────────────
+export {
+  MASS_TO_G,
+  VOLUME_TO_ML,
+  addItemPlaceholder,
+  normalizeUnit,
+  PANTRY_QUANTITY_MAX,
+  parseCustomItemInput,
+  parsePantryQuantity,
+  parseQuantityLine,
+  type PantryQuantityResult,
+  unitFamily,
+  unitOptionsFor,
+  type ParsedQuantity,
+  type UnitFamily,
+} from './quantity';
+export {
+  deviceLocale,
+  formatApproxPrice,
+  formatDate,
+  formatDateRange,
+  formatKcal,
+  formatNumber,
+  formatQty,
+  type DateStyle,
+  type FormatDateOptions,
+} from './format';
+export {
+  mergeCitrusLines,
+  roundToPurchasable,
+  type CitrusLine,
+  type PurchasableLine,
+} from './purchasable';
 export {
   EUR_EXCHANGE_RATES,
   EUR_EXCHANGE_RATES_AS_OF,
@@ -28,7 +61,7 @@ export {
 } from './locale';
 
 export {
-  formatDate,
+  formatDatePattern,
   formatRelativeTime,
   formatRelativeTo,
   formatIso,
@@ -247,7 +280,29 @@ export {
 } from './tracker';
 
 export { portionsFor, tableBreakdown, type Portions, type PortionsInput } from './portions';
-export { defaultCookServings, finishMealCopy, guessMealType, parseStepDuration } from './cook-mode';
+export {
+  clampCookServings,
+  cookTimerRemaining,
+  cookTimerStatus,
+  defaultCookServings,
+  finishMealCopy,
+  formatCookTimer,
+  guessMealType,
+  isCookTimer,
+  matchStepIngredients,
+  MAX_COOK_SERVINGS,
+  newCookTimer,
+  parseServingsParam,
+  parseStepDuration,
+  pauseCookTimer,
+  resetCookTimer,
+  startCookTimer,
+  stepIngredientAmounts,
+  type CookIngredient,
+  type CookTimer,
+  type CookTimerStatus,
+  type StepAmount,
+} from './cook-mode';
 export {
   buildPickerSections,
   filterReplaceCandidates,
@@ -589,6 +644,7 @@ export {
   type PremiumPitchOptions,
 } from './premium-pitch';
 export { tagConflicts, type RecipeTagConflict } from './recipe-tags';
+export { recipeShareText, type ActionRecipe } from './recipe-share';
 export {
   formatFractionalQuantity,
   formatScaledQuantity,
@@ -597,6 +653,7 @@ export {
 } from './scaled-quantity';
 export {
   parseQuantity,
+  sanitizeQuantityInput,
   recipeMissingFields,
   firstIncompleteIngredientLineIndex,
   missingSummary,

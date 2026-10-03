@@ -229,7 +229,8 @@ export function SessionDetailScreen({ sessionId }: { sessionId: string }) {
                       >
                         <Text variant={set.isWarmup ? 'muted' : 'default'}>{label}</Text>
                         <Text variant={set.isWarmup ? 'muted' : 'default'}>
-                          {formatLoad(set.weightKg, unit, meta?.loadType)} × {set.reps}
+                          {formatLoad(set.weightKg, unit, meta?.loadType, { each: meta?.perHand })}{' '}
+                          × {set.reps}
                           {!set.completed ? ' (not done)' : ''}
                         </Text>
                       </View>

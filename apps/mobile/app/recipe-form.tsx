@@ -186,8 +186,14 @@ function lineErrorFor(state: LineState): string | undefined {
 }
 
 export default function RecipeFormScreen() {
-  const { id } = useLocalSearchParams<{ id?: string }>();
+  // `?id=` edits that recipe; `?duplicateOf=` opens a new recipe prefilled from
+  // one of yours (UX-REC-04 Duplicate), saved as a copy named "Copy of …".
+  const { id, duplicateOf } = useLocalSearchParams<{ id?: string; duplicateOf?: string }>();
   const isEdit = typeof id === 'string' && id.length > 0;
+  const isDuplicate = !isEdit && typeof duplicateOf === 'string' && duplicateOf.length > 0;
+  /** Whether the form starts from a stored recipe (edit or duplicate). */
+  const fromExisting = isEdit || isDuplicate;
+  const sourceId = isEdit ? id : isDuplicate ? duplicateOf : '';
   const utils = trpc.useUtils();
   const snackbar = useSnackbar();
   const scrollFieldIntoView = useScrollFieldIntoView();
@@ -202,8 +208,8 @@ export default function RecipeFormScreen() {
     isFetching,
     refetch: refetchExisting,
   } = trpc.recipe.getMyRecipe.useQuery(
-    { recipeId: id ?? '' },
-    { enabled: isEdit, refetchOnMount: 'always' },
+    { recipeId: sourceId },
+    { enabled: fromExisting, refetchOnMount: 'always' },
   );
 
   const [name, setName] = useState('');
@@ -219,6 +225,8 @@ export default function RecipeFormScreen() {
   const [imageUrl, setImageUrl] = useState('');
   const [prefilled, setPrefilled] = useState(false);
   const [attemptedSave, setAttemptedSave] = useState(false);
+  // UX-REC-12: Save waits while a photo is still uploading.
+  const [photoUploading, setPhotoUploading] = useState(false);
 
   const nameInputRef = useRef<TextInput>(null);
   const ingredientQtyRefs = useRef<(TextInput | null)[]>([]);
@@ -240,10 +248,10 @@ export default function RecipeFormScreen() {
   // Capture the baseline once — on mount for create, once prefill lands for edit.
   useEffect(() => {
     if (baselineRef.current) return;
-    if (isEdit && !prefilled) return;
+    if (fromExisting && !prefilled) return;
     baselineRef.current = snapshot();
     // eslint-disable-next-line react-hooks/exhaustive-deps -- baseline is captured once, deliberately
-  }, [isEdit, prefilled]);
+  }, [fromExisting, prefilled]);
 
   const currentSnapshot = useRef<FormSnapshot | null>(null);
   currentSnapshot.current = snapshot();
@@ -268,7 +276,7 @@ export default function RecipeFormScreen() {
     if (!existing || prefilled || !isFetchedAfterMount || isFetching) {
       return;
     }
-    setName(existing.name);
+    setName(isDuplicate ? `Copy of ${existing.name}`.slice(0, 120) : existing.name);
     setDescription(existing.description === 'Imported recipe.' ? '' : existing.description);
     setCuisineType(existing.cuisineType === 'International' ? null : existing.cuisineType);
     const prep = existing.prepTimeMins > 0 ? String(existing.prepTimeMins) : '';
@@ -285,7 +293,7 @@ export default function RecipeFormScreen() {
     // The section opens on edit only if it already has something in it.
     setMoreDetailsOpen(Boolean(existing.description) || prep !== '' || cook !== '');
     setPrefilled(true);
-  }, [existing, prefilled, isFetchedAfterMount, isFetching]);
+  }, [existing, prefilled, isFetchedAfterMount, isFetching, isDuplicate]);
 
   // Legacy lines (no stored catalog link): ask the resolver once, after prefill.
   const toResolve = ingredients.filter((l) => l.resolving);
@@ -315,7 +323,7 @@ export default function RecipeFormScreen() {
     }
   }, [resolveQuery.isError]);
 
-  const onDone = () => {
+  const onDone = (created?: { id: string }) => {
     guard.release();
     // T-BUG-O3 C1: invalidate every query this same recipe could be read
     // through, not just recipe.list — otherwise a stale getMyRecipe/
@@ -326,15 +334,20 @@ export default function RecipeFormScreen() {
       void utils.mealPlan.getRecipe.invalidate({ recipeId: id });
     }
     snackbar.show({ message: recipeFormCopy.save.saved, tone: 'success' });
+    // A duplicate lands on the new recipe (replacing this form), not back on the original.
+    if (isDuplicate && created) {
+      router.replace({ pathname: '/recipe/[id]', params: { id: created.id } });
+      return;
+    }
     router.back();
   };
   const createMutation = trpc.recipe.create.useMutation({
     meta: { silent: true },
-    onSuccess: onDone,
+    onSuccess: (created) => onDone(created),
   });
   const updateMutation = trpc.recipe.update.useMutation({
     meta: { silent: true },
-    onSuccess: onDone,
+    onSuccess: () => onDone(),
   });
   const mutation = isEdit ? updateMutation : createMutation;
   // Following (PRD §9.4): a shared recipe whose name/description trips the
@@ -375,7 +388,7 @@ export default function RecipeFormScreen() {
   const conflicts = tagConflicts(validIngredients, dietTags);
 
   const save = () => {
-    if (mutation.isPending || offline) return;
+    if (mutation.isPending || offline || photoUploading) return;
     setAttemptedSave(true);
     if (!canSave) {
       haptics.error();
@@ -484,7 +497,7 @@ export default function RecipeFormScreen() {
 
   // T-BUG-O3 C5: a load error (deleted recipe, stale list) used to render a
   // blank "Edit Recipe" form with a disabled button — now an explicit state.
-  if (isEdit && loadError) {
+  if (fromExisting && loadError) {
     return (
       <Screen edges={['top', 'bottom', 'left', 'right']}>
         <ErrorState
@@ -498,7 +511,7 @@ export default function RecipeFormScreen() {
   }
 
   // PAT-8 skeleton instead of a full-screen spinner while an edit loads.
-  if (isEdit && (loadingExisting || !prefilled)) {
+  if (fromExisting && (loadingExisting || !prefilled)) {
     return (
       <Screen edges={['top', 'bottom', 'left', 'right']} className="px-0" testID="rf-skeleton">
         <View className="flex-row items-center gap-3 px-4 py-3">
@@ -528,7 +541,11 @@ export default function RecipeFormScreen() {
         </Pressable>
         <View>
           <Text testID="recipe-form-title" variant="title">
-            {isEdit ? recipeFormCopy.titles.edit : recipeFormCopy.titles.create}
+            {isEdit
+              ? recipeFormCopy.titles.edit
+              : isDuplicate
+                ? recipeFormCopy.titles.duplicate
+                : recipeFormCopy.titles.create}
           </Text>
           <Text variant="muted" className="text-xs">
             {recipeFormCopy.titles.legend}
@@ -545,6 +562,7 @@ export default function RecipeFormScreen() {
             missingText={missingText}
             offline={offline}
             saving={mutation.isPending}
+            photoUploading={photoUploading}
             saveError={
               mutation.isError && !textRejected
                 ? friendlySaveError(userFacingErrorMessage(mutation.error))
@@ -675,7 +693,12 @@ export default function RecipeFormScreen() {
         {/* Photo */}
         <View className="gap-2">
           <Text variant="heading">{recipeFormCopy.fields.photo}</Text>
-          <PhotoField imageUrl={imageUrl} onChange={setImageUrl} disabled={offline} />
+          <PhotoField
+            imageUrl={imageUrl}
+            onChange={setImageUrl}
+            onUploadingChange={setPhotoUploading}
+            disabled={offline}
+          />
         </View>
 
         {/* Nutrition per serving — computed from the linked ingredients

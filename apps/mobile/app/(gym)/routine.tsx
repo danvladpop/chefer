@@ -81,8 +81,11 @@ function DayCard({
                 detail: (
                   <View className="flex-row items-center gap-2">
                     <Text variant="muted" className="min-w-0 flex-1 text-xs" numberOfLines={1}>
-                      Next: {formatLoad(progression.suggestion.weightKg, unit, meta.loadType)} ×{' '}
-                      {progression.suggestion.reps.join('/')}
+                      Next:{' '}
+                      {formatLoad(progression.suggestion.weightKg, unit, meta.loadType, {
+                        each: meta.perHand,
+                      })}{' '}
+                      × {progression.suggestion.reps.join('/')}
                     </Text>
                     {progression.override ? (
                       <Badge testID={`routine-exercise-${ex.id}-edited`} variant="secondary">

@@ -22,7 +22,7 @@ import { useLocalStorage } from '@/hooks/use-local-storage';
 import { useCurrency } from '@/hooks/useCurrency';
 import { useHousehold } from '@/hooks/useHousehold';
 import { useIsPremium } from '@/hooks/useIsPremium';
-import { useUnitSystem } from '@/hooks/useUnitSystem';
+import { useUnits } from '@/hooks/useUnits';
 import { capture } from '@/lib/analytics';
 import { showAppToast } from '@/lib/app-toast';
 import { trpc } from '@/lib/trpc';
@@ -47,12 +47,14 @@ import { ErrorState, pressCard, pressControl, pressTransition, Sheet, useMenu } 
 import {
   checkedForListHeaderText,
   defaultWeekOffset,
-  formatMoney,
+  deviceLocale,
+  formatApproxPrice,
+  formatDate,
   formatPriceRange,
-  formatQuantity,
   getWeekStartDate,
   isConvertedCurrency,
   labelCaveatCompactText,
+  parseCustomItemInput,
   perPortionCost,
   shoppingWindowLabel,
   userFacingErrorMessage,
@@ -73,31 +75,9 @@ const PRINT_STYLES = `
 const FALLBACK_IMAGE =
   'https://images.unsplash.com/photo-1490645935967-10de6ba17061?w=120&h=120&fit=crop&q=80';
 
-// Bug B-32 (T-BUG-32): a bare number with no unit word used to fall through
-// with no `unit` at all, and the pantry/list UI then defaulted THAT to
-// "pcs" — "paneer 225" rendered as "paneer 225 pcs". Nobody buys 225 pieces
-// of a kitchen ingredient in one line; a number this large with no unit word
-// is a weight, so it's inferred as grams instead. Mirrors
-// apps/mobile/src/features/shopping-list/parse-custom-item.ts.
-const LARGE_BARE_NUMBER_UNIT_THRESHOLD = 20;
-
-/**
- * "2 kg flour" → {quantity: 2, unit: 'kg', name: 'flour'}; plain text is a
- * name-only item (quantity defaults server-side). "225 paneer" → unit
- * inferred as grams (bug B-32) rather than left to default to "pcs".
- */
-function parseCustomItemInput(raw: string): { name: string; quantity?: number; unit?: string } {
-  const match = /^(\d+(?:[.,]\d+)?)\s*(g|kg|ml|l|pcs|x)?\s+(.+)$/i.exec(raw.trim());
-  if (!match) return { name: raw.trim() };
-  const quantity = parseFloat((match[1] ?? '1').replace(',', '.'));
-  const unit =
-    match[2]?.toLowerCase() ?? (quantity > LARGE_BARE_NUMBER_UNIT_THRESHOLD ? 'g' : undefined);
-  return {
-    name: (match[3] ?? '').trim(),
-    quantity,
-    ...(unit && { unit }),
-  };
-}
+const EXPANDED_STORAGE_KEY = 'chefer.shopping-expanded.v2';
+/** Rows added optimistically carry this key prefix until the server answers (UX-SHOP-02). */
+const PENDING_KEY_PREFIX = 'pending:';
 
 export default function ShoppingListPage() {
   // Shop = "To buy" / "In my kitchen" (P2-8): ?view=kitchen shows the pantry.
@@ -117,7 +97,7 @@ export default function ShoppingListPage() {
   const [shareOpen, setShareOpen] = useState(false);
   const isPremium = useIsPremium();
   const { memberCount } = useHousehold();
-  const unitSystem = useUnitSystem();
+  const units = useUnits();
   // Prices are EUR estimates; shown in the user's currency (backlog P2-6).
   const currency = useCurrency();
 
@@ -185,25 +165,25 @@ export default function ShoppingListPage() {
   const checkedItems = weekList?.checkedKeys ?? [];
   const checkedCount = checkedItems.filter((key) => items.some((i) => i.key === key)).length;
 
-  // Collapsible categories (review F-3): a 97-item wall is intimidating —
-  // collapsed groups with "N items · M done" read like aisles. Expansion
-  // persists for the session so the list stays as you left it in the store.
+  // Collapsible aisles (review F-3, UX-SHOP-02): open by default — the list is
+  // what the page is for — and the choice is remembered on this device
+  // (localStorage, not the session), so the list stays as you left it.
   const [expandedCategories, setExpandedCategories] = useState<Record<string, boolean>>({});
   useEffect(() => {
     try {
-      const raw = sessionStorage.getItem('chefer.shopping-expanded');
+      const raw = localStorage.getItem(EXPANDED_STORAGE_KEY);
       if (raw) setExpandedCategories(JSON.parse(raw) as Record<string, boolean>);
     } catch {
-      // Ignore malformed storage — default (collapsed) wins.
+      // Ignore malformed storage — the default (open) wins.
     }
   }, []);
   const toggleCategory = useCallback((cat: string) => {
     setExpandedCategories((prev) => {
-      const next = { ...prev, [cat]: !prev[cat] };
+      const next = { ...prev, [cat]: !(prev[cat] ?? true) };
       try {
-        sessionStorage.setItem('chefer.shopping-expanded', JSON.stringify(next));
+        localStorage.setItem(EXPANDED_STORAGE_KEY, JSON.stringify(next));
       } catch {
-        // Storage full/blocked — expansion just won't persist.
+        // Storage full/blocked — the choice just won't persist.
       }
       return next;
     });
@@ -251,12 +231,45 @@ export default function ShoppingListPage() {
 
   // Custom items (the chat's addToShoppingList tool writes the same overlay)
   const [newItemText, setNewItemText] = useState('');
+  // UX-SHOP-02: the new row shows at once ("Saving…") and the box clears; the
+  // server's answer replaces it, a failure rolls it back and returns the text.
   const addItemMutation = trpc.shoppingList.addCustomItems.useMutation({
-    onSuccess: () => {
-      capture('shopping_list_item_added', { via: 'manual' });
+    onMutate: async ({ items: added }) => {
+      await utils.shoppingList.getForWeek.cancel({ weekOffset });
+      const previous = utils.shoppingList.getForWeek.getData({ weekOffset });
+      const nonce = String(Date.now());
+      utils.shoppingList.getForWeek.setData({ weekOffset }, (old) =>
+        old
+          ? {
+              ...old,
+              items: [
+                ...old.items,
+                ...added.map((input, index) => ({
+                  key: `${PENDING_KEY_PREFIX}${nonce}-${index}`,
+                  ingredientName: input.name.charAt(0).toUpperCase() + input.name.slice(1),
+                  quantity: String(input.quantity ?? 1),
+                  unit: input.unit ?? 'pcs',
+                  category: 'other' as const,
+                  recipeNames: [],
+                  imageUrl: '',
+                  estimatedPriceEur: null,
+                  isCustom: true,
+                })),
+              ],
+            }
+          : old,
+      );
       setNewItemText('');
-      void utils.shoppingList.getForWeek.invalidate({ weekOffset });
+      return { previous };
     },
+    onSuccess: () => capture('shopping_list_item_added', { via: 'manual' }),
+    onError: (_err, vars, context) => {
+      if (context?.previous) {
+        utils.shoppingList.getForWeek.setData({ weekOffset }, context.previous);
+      }
+      setNewItemText(vars.items.map((i) => i.name).join(', '));
+    },
+    onSettled: () => void utils.shoppingList.getForWeek.invalidate({ weekOffset }),
   });
   // UX-SHOP-02: "Removed · Undo" — Undo re-adds through its own mutation (not
   // `addItemMutation`, whose success clears the add-item field).
@@ -313,7 +326,7 @@ export default function ShoppingListPage() {
 
   const handleAddItem = () => {
     const parsed = parseCustomItemInput(newItemText);
-    if (!parsed.name || !weekList?.planId || addItemMutation.isPending) return;
+    if (!parsed.name || !weekList?.planId) return;
     addItemMutation.mutate({ planId: weekList.planId, items: [parsed] });
   };
 
@@ -381,8 +394,7 @@ export default function ShoppingListPage() {
 
       {/* Print-only header */}
       <div className="shopping-list-print-header">
-        Chefer Shopping List — Week of{' '}
-        {weekStart.toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })}
+        Chefer Shopping List — Week of {formatDate(weekStart, 'full')}
       </div>
 
       {/* Page header */}
@@ -533,8 +545,8 @@ export default function ShoppingListPage() {
             className="whitespace-nowrap rounded-full border border-neutral-200 bg-neutral-50 px-3 py-1 text-xs font-medium text-neutral-600"
           >
             Est. total{' '}
-            {formatPriceRange(weekList.estimatedTotalEur, currency) ??
-              `~${formatMoney(weekList.estimatedTotalEur, currency)}`}
+            {formatPriceRange(weekList.estimatedTotalEur, currency, deviceLocale()) ??
+              `~${formatApproxPrice(weekList.estimatedTotalEur, currency)}`}
             {/* UX-PLAN-07: the total covers the same days as the list. */}
             {shoppingWindowLabel(weekList.fromDayOfWeek)
               ? ` · ${shoppingWindowLabel(weekList.fromDayOfWeek)}`
@@ -560,7 +572,7 @@ export default function ShoppingListPage() {
           >
             For {weekList.portions} portions
             {weekList.estimatedTotalEur != null &&
-              ` · ~${formatMoney(
+              ` · ~${formatApproxPrice(
                 perPortionCost(weekList.estimatedTotalEur, weekList.portions) ?? 0,
                 currency,
               )} each`}
@@ -686,15 +698,14 @@ export default function ShoppingListPage() {
                   handleAddItem();
                 }
               }}
-              placeholder="Add an item… e.g. 2 kg flour"
+              placeholder={units.addItemPlaceholder}
               aria-label="Add an item to the shopping list"
-              disabled={addItemMutation.isPending}
               className="min-h-11 min-w-0 flex-1 rounded-xl border border-neutral-200 px-3 py-2 text-base focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary disabled:opacity-50 sm:text-sm"
             />
             <button
               type="button"
               onClick={handleAddItem}
-              disabled={!newItemText.trim() || addItemMutation.isPending}
+              disabled={!newItemText.trim()}
               aria-label="Add item to shopping list"
               className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-neutral-200 text-neutral-600 hover:bg-neutral-50 disabled:opacity-40 ${pressControl}`}
             >
@@ -703,7 +714,7 @@ export default function ShoppingListPage() {
           </div>
 
           {grouped.map(({ category, label, items: catItems }) => {
-            const isExpanded = expandedCategories[category] ?? false;
+            const isExpanded = expandedCategories[category] ?? true;
             const catDone = catItems.filter((i) => checkedItems.includes(i.key)).length;
             return (
               <section key={category}>
@@ -738,7 +749,7 @@ export default function ShoppingListPage() {
                       const isChecked = checkedItems.includes(item.key);
                       const itemImageUrl = item.imageUrl;
                       const quantityLabel = Number.isFinite(Number(item.quantity))
-                        ? formatQuantity(Number(item.quantity), item.unit, unitSystem)
+                        ? units.qty(Number(item.quantity), item.unit)
                         : `${item.quantity} ${item.unit}`;
                       return (
                         // Exactly two targets per row. Previously the whole card
@@ -797,12 +808,10 @@ export default function ShoppingListPage() {
                                     remaining (need − have) amount to buy. */}
                                 {item.haveQuantity != null ? (
                                   <span data-testid={`shopping-item-coverage-${item.key}`}>
-                                    You have{' '}
-                                    {formatQuantity(item.haveQuantity, item.unit, unitSystem)} of{' '}
-                                    {formatQuantity(
+                                    You have {units.qty(item.haveQuantity, item.unit)} of{' '}
+                                    {units.qty(
                                       item.haveQuantity + Number(item.quantity),
                                       item.unit,
-                                      unitSystem,
                                     )}{' '}
                                     · Buy {quantityLabel}
                                   </span>
@@ -813,8 +822,11 @@ export default function ShoppingListPage() {
                                   <span
                                     className={`ml-2 font-medium ${item.pantryCovered ? 'line-through opacity-60' : ''}`}
                                   >
-                                    ~{formatMoney(item.estimatedPriceEur, currency)}
+                                    ~{formatApproxPrice(item.estimatedPriceEur, currency)}
                                   </span>
+                                )}
+                                {item.key.startsWith(PENDING_KEY_PREFIX) && (
+                                  <span className="ml-2 text-neutral-400">Saving…</span>
                                 )}
                                 {item.pantryCovered && (
                                   <span className="ml-2 text-emerald-600">in your kitchen</span>
@@ -911,7 +923,7 @@ export default function ShoppingListPage() {
         weekStart={weekStart}
         fromDayOfWeek={weekList?.fromDayOfWeek}
         portions={weekList?.portions}
-        unitSystem={unitSystem}
+        unitSystem={units.system}
       />
 
       {/* Item detail — bottom sheet on phones, centred dialog at sm+ */}

@@ -150,9 +150,79 @@ export class PantryService {
     return toDto(item);
   }
 
-  /** Removes one row by id (premium — pantry page delete). */
-  async removeItem(userId: string, id: string): Promise<void> {
+  /**
+   * Removes one row by id — every tier (UX-SHOP-05: the free "In my kitchen"
+   * list could only grow while remove was premium-only). Returns the removed
+   * row so the client can offer Undo (`restoreItem`).
+   */
+  async removeItem(userId: string, id: string): Promise<PantryItemDto | null> {
+    const [row] = await this.repo.findByIds(userId, [id]);
     await this.repo.deleteById(userId, id);
+    return row ? toDto(row) : null;
+  }
+
+  /**
+   * Edits a row's amount and unit (UX-SHOP-05). `quantity: null` is the
+   * "some" state; a number must be positive. A unit change moves the row
+   * (the unique key includes the unit), keeping its source.
+   */
+  async updateItem(
+    userId: string,
+    id: string,
+    input: { quantity: number | null; unit: string },
+  ): Promise<PantryItemDto> {
+    if (input.quantity !== null && !(input.quantity > 0)) {
+      throw new TRPCError({
+        code: 'BAD_REQUEST',
+        message: 'Enter an amount above zero, or leave it empty for "some".',
+      });
+    }
+    const [row] = await this.repo.findByIds(userId, [id]);
+    if (!row)
+      throw new TRPCError({ code: 'NOT_FOUND', message: 'That item is gone from your kitchen.' });
+    const unit = input.unit.toLowerCase().trim() || 'pcs';
+    if (unit !== row.unit) await this.repo.deleteById(userId, id);
+    const saved = await this.repo.upsert({
+      userId,
+      ingredientName: row.ingredientName,
+      quantity: input.quantity ?? 0,
+      unit,
+      source: row.source === 'MANUAL' ? 'MANUAL' : 'PURCHASE',
+    });
+    return toDto(saved);
+  }
+
+  /**
+   * Undo for a removal: puts the row back as it was (any tier — removing is
+   * open to every tier, so taking it back must be too).
+   */
+  async restoreItem(
+    userId: string,
+    input: {
+      ingredientName: string;
+      quantity?: number | undefined;
+      unit: string;
+      source: 'PURCHASE' | 'MANUAL';
+    },
+  ): Promise<PantryItemDto> {
+    const name = normalizeIngredientName(input.ingredientName);
+    if (name.length === 0) {
+      throw new TRPCError({ code: 'BAD_REQUEST', message: 'Give the ingredient a name.' });
+    }
+    if ((await this.repo.countByUser(userId)) >= MAX_PANTRY_ITEMS) {
+      throw new TRPCError({
+        code: 'PRECONDITION_FAILED',
+        message: `Your kitchen already tracks ${MAX_PANTRY_ITEMS} items — clear some first.`,
+      });
+    }
+    const item = await this.repo.upsert({
+      userId,
+      ingredientName: name,
+      quantity: input.quantity != null && input.quantity > 0 ? input.quantity : 0,
+      unit: input.unit.toLowerCase().trim() || 'pcs',
+      source: input.source,
+    });
+    return toDto(item);
   }
 
   /**

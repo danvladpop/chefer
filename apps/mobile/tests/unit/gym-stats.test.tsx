@@ -162,6 +162,37 @@ describe('Stats empty states', () => {
     expect(await screen.findByTestId('stats-strength-log-weight')).toBeTruthy();
   });
 
+  it('UX-GYM-17: "× body weight" is off, with a reason, when no weight is known anywhere', async () => {
+    const bootstrap = makeBootstrap({
+      library: [bench],
+      recentSessions: SESSIONS,
+      bodyweightKg: null,
+    });
+    await renderWithGym(<StrengthTrendView bootstrap={bootstrap} />, makeGymQueryClient());
+
+    const toggle = await screen.findByTestId('stats-strength-relative-toggle');
+    expect(toggle).toBeDisabled();
+    expect(screen.getByTestId('stats-strength-relative-disabled')).toBeTruthy();
+  });
+
+  it('UX-GYM-17: with a weight known, the ratio view is labelled and never the raw kg', async () => {
+    const user = userEvent.setup();
+    const bootstrap = makeBootstrap({
+      library: [bench],
+      recentSessions: SESSIONS,
+      bodyweightKg: 80,
+    });
+    await renderWithGym(<StrengthTrendView bootstrap={bootstrap} />, makeGymQueryClient());
+
+    const toggle = await screen.findByTestId('stats-strength-relative-toggle');
+    expect(toggle).toBeEnabled();
+    await user.press(toggle);
+    expect(await screen.findByTestId('stats-strength-relative-note')).toHaveTextContent(
+      /× body weight/,
+    );
+    expect(screen.queryByTestId('stats-strength-relative-disabled')).toBeNull();
+  });
+
   it('UX-GYM-34: the Stats tab has no empty "More" placeholder', async () => {
     const queryClient = makeGymQueryClient();
     queryClient.setQueryData(

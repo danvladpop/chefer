@@ -4,11 +4,13 @@ import Link from 'next/link';
 import { useState } from 'react';
 import { UpgradeButton } from '@/features/premium/components/UpgradeButton';
 import { useEntitlement } from '@/hooks/useEntitlement';
-import { trpc } from '@/lib/trpc';
+import { useUnits } from '@/hooks/useUnits';
+import { showAppToast } from '@/lib/app-toast';
+import { trpc, type RouterOutputs } from '@/lib/trpc';
 import { useQueryState } from '@/lib/use-query-state';
-import { ClipboardCheck, Lock, Plus, Refrigerator, Trash2 } from 'lucide-react';
-import { ErrorState } from '@chefer/ui';
-import { userFacingErrorMessage } from '@chefer/utils';
+import { ClipboardCheck, Lock, Pencil, Plus, Refrigerator, Trash2 } from 'lucide-react';
+import { ErrorState, Sheet } from '@chefer/ui';
+import { parsePantryQuantity, userFacingErrorMessage } from '@chefer/utils';
 import { PantryCheckBanner } from './PantryCheckBanner';
 
 // ─── Shop → "In my kitchen" (F3 Zero-Waste Kitchen; P2-8) ───────────────────
@@ -16,10 +18,12 @@ import { PantryCheckBanner } from './PantryCheckBanner';
 // to /shopping-list?view=kitchen). What Chefer knows the user has. Rows arrive from shopping-list check-offs
 // (PURCHASE) or manual adds (MANUAL); oldest items list first — those are the
 // ones generation tries to use up. Free tier sees the page READ-ONLY with the
-// upsell (§6.4, source `pantry`); management (add / remove / weekly confirm)
-// is premium.
+// upsell (§6.4, source `pantry`); adding by hand and the weekly confirm are
+// premium. WP-11 (UX-SHOP-05/07): removing, editing and Undo are open to every
+// tier (the free list used to only grow), the amount is validated instead of
+// silently becoming "some left", and quantities / units follow the user's units.
 
-const UNIT_OPTIONS = ['pcs', 'g', 'kg', 'ml', 'l', 'pack', 'can', 'bunch'];
+type PantryRow = RouterOutputs['pantry']['list']['items'][number];
 
 function ageLabel(updatedAt: Date | string): string {
   const days = Math.max(
@@ -30,6 +34,115 @@ function ageLabel(updatedAt: Date | string): string {
   if (days === 1) return 'yesterday';
   if (days < 14) return `${days} days ago`;
   return `${Math.floor(days / 7)} weeks ago`;
+}
+
+/** Edit an existing row's amount and unit (UX-SHOP-05). Free tier included. */
+function EditPantrySheet({
+  item,
+  unitOptions,
+  onClose,
+}: {
+  item: PantryRow | null;
+  unitOptions: readonly string[];
+  onClose: () => void;
+}) {
+  const utils = trpc.useUtils();
+  const [quantity, setQuantity] = useState('');
+  const [unit, setUnit] = useState('pcs');
+  const [problem, setProblem] = useState<string | null>(null);
+  const [seen, setSeen] = useState<string | null>(null);
+  if (item && item.id !== seen) {
+    setSeen(item.id);
+    setQuantity(item.quantity != null ? String(item.quantity) : '');
+    setUnit(item.unit);
+    setProblem(null);
+  }
+
+  const updateMutation = trpc.pantry.updateItem.useMutation({
+    meta: { silent: true },
+    onSuccess: () => {
+      void utils.pantry.list.invalidate();
+      void utils.shoppingList.getForWeek.invalidate();
+      onClose();
+    },
+  });
+
+  const save = () => {
+    if (!item || updateMutation.isPending) return;
+    const parsed = parsePantryQuantity(quantity);
+    if (parsed.kind === 'invalid') {
+      setProblem(parsed.message);
+      return;
+    }
+    setProblem(null);
+    updateMutation.mutate({
+      id: item.id,
+      quantity: parsed.kind === 'amount' ? parsed.value : null,
+      unit,
+    });
+  };
+
+  // The row's own unit first, so a stored "g" stays pickable for an imperial user.
+  const options = item ? [...new Set([item.unit, ...unitOptions])] : [];
+  const error =
+    problem ?? (updateMutation.isError ? userFacingErrorMessage(updateMutation.error) : null);
+
+  return (
+    <Sheet
+      open={item !== null}
+      onClose={onClose}
+      title={item ? `Edit ${item.ingredientName}` : 'Edit'}
+      size="sm"
+      footer={
+        <button
+          type="button"
+          onClick={save}
+          disabled={updateMutation.isPending}
+          className="min-h-11 w-full rounded-xl bg-primary px-5 py-2.5 text-sm font-medium text-white transition hover:bg-primary/90 disabled:opacity-50"
+        >
+          Save
+        </button>
+      }
+    >
+      <div className="space-y-3 px-5 pb-4">
+        <label className="block text-xs font-medium text-neutral-600" htmlFor="pantry-edit-qty">
+          Amount (leave empty for “some”)
+        </label>
+        <div className="flex gap-2">
+          <input
+            id="pantry-edit-qty"
+            value={quantity}
+            onChange={(e) => {
+              setQuantity(e.target.value);
+              setProblem(null);
+            }}
+            inputMode="decimal"
+            placeholder="some"
+            aria-invalid={error !== null}
+            aria-describedby={error ? 'pantry-edit-error' : undefined}
+            className="min-h-11 min-w-0 flex-1 rounded-xl border border-neutral-200 px-3 py-2 text-base focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary sm:text-sm"
+          />
+          <select
+            value={unit}
+            onChange={(e) => setUnit(e.target.value)}
+            aria-label="Unit"
+            className="min-h-11 w-24 shrink-0 rounded-xl border border-neutral-200 px-2 py-2 text-base focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary sm:text-sm"
+          >
+            {options.map((u) => (
+              <option key={u} value={u}>
+                {u}
+              </option>
+            ))}
+          </select>
+        </div>
+        {error && (
+          <p id="pantry-edit-error" role="alert" className="text-sm text-red-600">
+            {error}
+          </p>
+        )}
+      </div>
+    </Sheet>
+  );
 }
 
 export function PantryPanel() {
@@ -43,9 +156,12 @@ export function PantryPanel() {
   const utils = trpc.useUtils();
   const [checkOpen, setCheckOpen] = useState(false);
 
+  const units = useUnits();
   const [name, setName] = useState('');
   const [quantity, setQuantity] = useState('');
+  const [quantityProblem, setQuantityProblem] = useState<string | null>(null);
   const [unit, setUnit] = useState('pcs');
+  const [editing, setEditing] = useState<PantryRow | null>(null);
 
   const invalidate = () => {
     void utils.pantry.list.invalidate();
@@ -59,14 +175,48 @@ export function PantryPanel() {
       invalidate();
     },
   });
-  const removeMutation = trpc.pantry.removeItem.useMutation({ onSuccess: invalidate });
+  // UX-SHOP-05: "Removed · Undo". Undo goes through `restoreItem`, which every
+  // tier may call (a free user can remove, so a free user can take it back).
+  const restoreMutation = trpc.pantry.restoreItem.useMutation({
+    meta: { silent: true },
+    onSuccess: invalidate,
+    onError: (err) =>
+      showAppToast({ message: `Couldn't put it back. ${userFacingErrorMessage(err)}` }),
+  });
+  const removeMutation = trpc.pantry.removeItem.useMutation({
+    onSuccess: (result) => {
+      invalidate();
+      const removed = result.removed;
+      if (!removed) return;
+      showAppToast({
+        message: `Removed ${removed.ingredientName}`,
+        type: 'success',
+        action: {
+          label: 'Undo',
+          onClick: () =>
+            restoreMutation.mutate({
+              ingredientName: removed.ingredientName,
+              ...(removed.quantity != null ? { quantity: removed.quantity } : {}),
+              unit: removed.unit,
+              source: removed.source === 'MANUAL' ? 'MANUAL' : 'PURCHASE',
+            }),
+        },
+      });
+    },
+  });
 
   const handleAdd = () => {
     if (!name.trim() || addMutation.isPending) return;
-    const qty = parseFloat(quantity.replace(',', '.'));
+    // UX-SHOP-05/07: "abc" and "-5" are refused, not saved as "some left".
+    const parsed = parsePantryQuantity(quantity);
+    if (parsed.kind === 'invalid') {
+      setQuantityProblem(parsed.message);
+      return;
+    }
+    setQuantityProblem(null);
     addMutation.mutate({
       name: name.trim(),
-      ...(Number.isFinite(qty) && qty > 0 ? { quantity: qty } : {}),
+      ...(parsed.kind === 'amount' ? { quantity: parsed.value } : {}),
       unit,
     });
   };
@@ -139,10 +289,15 @@ export function PantryPanel() {
           />
           <input
             value={quantity}
-            onChange={(e) => setQuantity(e.target.value)}
+            onChange={(e) => {
+              setQuantity(e.target.value);
+              setQuantityProblem(null);
+            }}
             inputMode="decimal"
             placeholder="Qty"
             aria-label="Quantity (optional)"
+            aria-invalid={quantityProblem !== null}
+            aria-describedby={quantityProblem ? 'pantry-add-error' : undefined}
             disabled={addMutation.isPending}
             className="min-h-11 w-16 rounded-xl border border-neutral-200 px-2 py-2 text-base focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary disabled:opacity-50 sm:text-sm"
           />
@@ -153,7 +308,7 @@ export function PantryPanel() {
             disabled={addMutation.isPending}
             className="min-h-11 w-20 shrink-0 rounded-xl border border-neutral-200 px-2 py-2 text-base focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary disabled:opacity-50 sm:text-sm"
           >
-            {UNIT_OPTIONS.map((u) => (
+            {units.unitOptions.map((u) => (
               <option key={u} value={u}>
                 {u}
               </option>
@@ -170,8 +325,11 @@ export function PantryPanel() {
           </button>
         </div>
       )}
-      {addMutation.isError && (
-        <p className="mb-3 text-sm text-red-600">{userFacingErrorMessage(addMutation.error)}</p>
+      {(quantityProblem ??
+        (addMutation.isError ? userFacingErrorMessage(addMutation.error) : null)) && (
+        <p id="pantry-add-error" role="alert" className="mb-3 text-sm text-red-600">
+          {quantityProblem ?? userFacingErrorMessage(addMutation.error)}
+        </p>
       )}
 
       {/* Item list */}
@@ -214,24 +372,30 @@ export function PantryPanel() {
                     {item.ingredientName}
                   </p>
                   <p className="truncate text-xs text-neutral-500">
-                    {item.quantity != null ? `${item.quantity} ${item.unit}` : 'some left'}
+                    {item.quantity != null ? units.qty(item.quantity, item.unit) : 'some left'}
                     <span className="ml-2">
                       {item.source === 'PURCHASE' ? 'bought' : 'added'} {ageLabel(item.updatedAt)}
                     </span>
                   </p>
                 </div>
               </div>
-              {enabled && (
-                <button
-                  type="button"
-                  onClick={() => removeMutation.mutate({ id: item.id })}
-                  disabled={removeMutation.isPending}
-                  aria-label={`Remove ${item.ingredientName} from your kitchen`}
-                  className="mr-1 flex h-11 w-11 shrink-0 items-center justify-center rounded-lg text-neutral-300 transition hover:bg-red-50 hover:text-red-500 disabled:opacity-50"
-                >
-                  <Trash2 className="h-4 w-4" />
-                </button>
-              )}
+              <button
+                type="button"
+                onClick={() => setEditing(item)}
+                aria-label={`Edit ${item.ingredientName}`}
+                className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg text-neutral-300 transition hover:bg-neutral-50 hover:text-neutral-600"
+              >
+                <Pencil className="h-4 w-4" />
+              </button>
+              <button
+                type="button"
+                onClick={() => removeMutation.mutate({ id: item.id })}
+                disabled={removeMutation.isPending}
+                aria-label={`Remove ${item.ingredientName} from your kitchen`}
+                className="mr-1 flex h-11 w-11 shrink-0 items-center justify-center rounded-lg text-neutral-300 transition hover:bg-red-50 hover:text-red-500 disabled:opacity-50"
+              >
+                <Trash2 className="h-4 w-4" />
+              </button>
             </div>
           ))}
           <p className="pt-2 text-xs text-neutral-500">
@@ -240,6 +404,12 @@ export function PantryPanel() {
           </p>
         </div>
       )}
+
+      <EditPantrySheet
+        item={editing}
+        unitOptions={units.unitOptions}
+        onClose={() => setEditing(null)}
+      />
     </div>
   );
 }

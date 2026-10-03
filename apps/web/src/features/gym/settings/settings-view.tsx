@@ -233,7 +233,7 @@ function ProfileSettings({
         </div>
 
         <label className="mt-4 block text-sm font-medium text-gray-800" htmlFor="gym-dumbbells">
-          Dumbbells ({unitLabel(unit)}, comma separated)
+          Dumbbells ({unitLabel(unit)} each, comma separated)
         </label>
         <textarea
           id="gym-dumbbells"

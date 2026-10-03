@@ -1,7 +1,7 @@
 import { Pressable, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { colors, Text } from '@chefer/ui-mobile';
-import { sumPlanDay } from '@chefer/utils';
+import { formatKcal, sumPlanDay } from '@chefer/utils';
 
 // Day totals for the Plan tab — port of web's DayRecapBar. Each slot counts at
 // its portion (P1-1), the calorie status uses the same ±15% band as web, and a
@@ -26,8 +26,8 @@ export function planDayStatus(input: {
     const delta = kcal - calorieTarget;
     if (Math.abs(delta) / calorieTarget > TARGET_BAND) {
       return delta < 0
-        ? `About ${Math.abs(delta).toLocaleString('en-GB')} kcal under this day’s target`
-        : `About ${delta.toLocaleString('en-GB')} kcal over this day’s target`;
+        ? `About ${formatKcal(Math.abs(delta))} kcal under this day’s target`
+        : `About ${formatKcal(delta)} kcal over this day’s target`;
     }
   }
   if (proteinGapG !== undefined && proteinGapG > 0) {
@@ -58,7 +58,7 @@ export function PlanDayTotals({
       <View className="flex-row flex-wrap items-center gap-x-3 gap-y-1">
         <Text className="text-xs font-semibold uppercase text-gray-500">Day total</Text>
         <Text testID={`${testID}-kcal`} className="text-sm font-bold text-primary">
-          {totals.kcal.toLocaleString('en-GB')} kcal
+          {formatKcal(totals.kcal)} kcal
         </Text>
         <Text className="text-xs text-gray-500">
           P {totals.protein}g · C {totals.carbs}g · F {totals.fat}g

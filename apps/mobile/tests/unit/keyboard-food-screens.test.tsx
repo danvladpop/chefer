@@ -48,6 +48,16 @@ const mockRecipeListQuery = jest.fn((..._args: unknown[]) => ({
   isError: false,
   refetch: jest.fn(),
 }));
+// The cookbook pages with useInfiniteQuery (UX-REC-05); the Replace picker still reads list.useQuery.
+const mockRecipeInfiniteQuery = jest.fn((..._args: unknown[]) => ({
+  data: { pages: [mockRecipes], pageParams: [undefined] },
+  isLoading: false,
+  isError: false,
+  hasNextPage: false,
+  isFetchingNextPage: false,
+  fetchNextPage: jest.fn(),
+  refetch: jest.fn(),
+}));
 const mutation = () => ({ mutate: jest.fn(), isPending: false, error: null, reset: jest.fn() });
 
 jest.mock('expo-router', () => ({
@@ -90,7 +100,14 @@ jest.mock('../../src/lib/trpc', () => ({
         bootstrap: { invalidate: jest.fn() },
       },
       recipe: {
-        list: { cancel: jest.fn(), getData: jest.fn(), setData: jest.fn(), invalidate: jest.fn() },
+        list: {
+          cancel: jest.fn(),
+          getData: jest.fn(),
+          setData: jest.fn(),
+          getInfiniteData: jest.fn(),
+          setInfiniteData: jest.fn(),
+          invalidate: jest.fn(),
+        },
         discover: { invalidate: jest.fn() },
       },
     }),
@@ -108,7 +125,10 @@ jest.mock('../../src/lib/trpc', () => ({
       logWeight: { useMutation: mutation },
     },
     recipe: {
-      list: { useQuery: (...args: unknown[]) => mockRecipeListQuery(...args) },
+      list: {
+        useQuery: (...args: unknown[]) => mockRecipeListQuery(...args),
+        useInfiniteQuery: (...args: unknown[]) => mockRecipeInfiniteQuery(...args),
+      },
       listHiddenCount: { useQuery: () => ({ data: undefined }) },
       discover: { useQuery: () => ({ data: [], isLoading: false, isError: false }) },
       discoverHiddenCount: { useQuery: () => ({ data: undefined }) },
@@ -253,14 +273,14 @@ describe('Cookbook search (UX-X-17)', () => {
     await act(() => {
       jest.advanceTimersByTime(300);
     });
-    expect(mockRecipeListQuery).toHaveBeenLastCalledWith(
+    expect(mockRecipeInfiniteQuery).toHaveBeenLastCalledWith(
       expect.objectContaining({ search: 'curry' }),
       expect.anything(),
     );
 
     await fireEvent.press(screen.getByLabelText('Clear search'));
     expect(screen.getByTestId('recipes-search').props.value).toBe('');
-    expect(mockRecipeListQuery).toHaveBeenLastCalledWith(
+    expect(mockRecipeInfiniteQuery).toHaveBeenLastCalledWith(
       expect.objectContaining({ search: undefined }),
       expect.anything(),
     );

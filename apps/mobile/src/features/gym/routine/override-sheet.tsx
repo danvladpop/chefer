@@ -99,7 +99,7 @@ export function OverrideSheet({
         {override ? (
           <Text testID={`${testID}-edited`} variant="muted">
             Currently edited. Engine suggestion:{' '}
-            {formatLoad(suggestion.weightKg, unit, exercise.loadType)}.
+            {formatLoad(suggestion.weightKg, unit, exercise.loadType, { each: exercise.perHand })}.
           </Text>
         ) : null}
         <TargetFields

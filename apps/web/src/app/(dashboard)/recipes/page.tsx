@@ -5,11 +5,15 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { useEffect, useRef, useState } from 'react';
 import { ImportRecipeSheet } from '@/features/recipes/components/ImportRecipeSheet';
 import { RecipeImage, type ImageStatusType } from '@/features/recipes/components/RecipeImage';
+import {
+  takeRecipeDeleteUndo,
+  type RecipeDeleteUndo,
+} from '@/features/recipes/lib/recipe-delete-undo';
 import { FilteredForLine } from '@/features/safety/components/FilteredForLine';
 import { WhatWeCheckSheet } from '@/features/safety/components/WhatWeCheckSheet';
 import { trpc } from '@/lib/trpc';
 import { Clock, Compass, Flame, Heart, Link2, Pencil, Plus, Search } from 'lucide-react';
-import { ErrorState } from '@chefer/ui';
+import { ErrorState, Toast } from '@chefer/ui';
 import { cn } from '@chefer/utils';
 
 // ─── Cookbook (P2-8, PM review §5) ────────────────────────────────────────────
@@ -18,6 +22,17 @@ import { cn } from '@chefer/utils';
 // and their household — with meal-type and time filters (recipe.discover).
 
 type Tab = 'all' | 'saved' | 'my' | 'discover';
+
+// UX-REC-05: the list pages through the API's cursor (the last row's id) with
+// a "Load more" button, and each tab says what it holds — "My Recipes" is what
+// you wrote or imported, so the AI dishes your plans made live under "All".
+const PAGE_SIZE = 30;
+const TAB_CAPTIONS: Record<Tab, string> = {
+  all: 'Everything from your plans, your own recipes and your favourites.',
+  saved: 'Recipes you have hearted.',
+  my: 'Recipes you wrote or imported. Dishes from your plans are under All.',
+  discover: 'Curated dishes, already filtered for you and your household.',
+};
 
 const TABS = [
   { key: 'all', label: 'All' },
@@ -91,15 +106,16 @@ export default function RecipesPage() {
     search: debouncedSearch || undefined,
     savedOnly: tab === 'saved',
     myRecipesOnly: tab === 'my',
-    limit: 30,
+    limit: PAGE_SIZE,
   };
-  const {
-    data: recipes,
-    isLoading,
-    isError,
-    isRefetching,
-    refetch,
-  } = trpc.recipe.list.useQuery(listInput, { enabled: tab !== 'discover' });
+  const list = trpc.recipe.list.useInfiniteQuery(listInput, {
+    enabled: tab !== 'discover',
+    // The cursor is the id of the last row; a short page is the last one.
+    getNextPageParam: (lastPage) =>
+      lastPage.length >= PAGE_SIZE ? lastPage.at(-1)?.id : undefined,
+  });
+  const recipes = list.data?.pages.flat();
+  const { isLoading, isError, isRefetching, refetch } = list;
   const discover = trpc.recipe.discover.useQuery(
     {
       search: debouncedSearch || undefined,
@@ -130,18 +146,38 @@ export default function RecipesPage() {
     // Optimistic: flip the heart immediately, reconcile with the server after.
     onMutate: async ({ recipeId }) => {
       await utils.recipe.list.cancel(listInput);
-      const previous = utils.recipe.list.getData(listInput);
-      utils.recipe.list.setData(listInput, (old) =>
-        old?.map((r) => (r.id === recipeId ? { ...r, isFavourite: !r.isFavourite } : r)),
+      const previous = utils.recipe.list.getInfiniteData(listInput);
+      utils.recipe.list.setInfiniteData(listInput, (old) =>
+        old
+          ? {
+              ...old,
+              pages: old.pages.map((page) =>
+                page.map((r) => (r.id === recipeId ? { ...r, isFavourite: !r.isFavourite } : r)),
+              ),
+            }
+          : old,
       );
       return { previous };
     },
     onError: (_err, _vars, context) => {
-      if (context?.previous) utils.recipe.list.setData(listInput, context.previous);
+      if (context?.previous) utils.recipe.list.setInfiniteData(listInput, context.previous);
     },
     onSettled: () => {
       void utils.recipe.list.invalidate();
       void utils.recipe.discover.invalidate();
+    },
+  });
+
+  // UX-REC-04: the recipe page deleted something and sent us here — offer Undo.
+  const [deleted, setDeleted] = useState<RecipeDeleteUndo | null>(null);
+  useEffect(() => {
+    setDeleted(takeRecipeDeleteUndo());
+  }, []);
+  const restore = trpc.recipe.restoreMine.useMutation({
+    meta: { silent: true },
+    onSuccess: () => {
+      void utils.recipe.list.invalidate();
+      void utils.mealPlan.getForWeek.invalidate();
     },
   });
 
@@ -201,6 +237,10 @@ export default function RecipesPage() {
           </button>
         ))}
       </div>
+
+      <p data-testid="recipes-tab-caption" className="-mt-2 mb-4 text-xs text-gray-500">
+        {TAB_CAPTIONS[tab]}
+      </p>
 
       {/* Search */}
       <div className="relative mb-6">
@@ -279,7 +319,14 @@ export default function RecipesPage() {
           retrying={tab === 'discover' ? discover.isRefetching : isRefetching}
         />
       ) : !cards || cards.length === 0 ? (
-        <EmptyState tab={tab} searching={debouncedSearch.length > 0} onTab={handleTabChange} />
+        <EmptyState
+          tab={tab}
+          searching={debouncedSearch.length > 0}
+          filtered={mealFilter !== null || quickOnly}
+          hidden={tab === 'discover' ? discoverMeta.data : undefined}
+          onShowRules={() => setWhatWeCheckOpen(true)}
+          onTab={handleTabChange}
+        />
       ) : (
         <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
           {cards.map((recipe) => {
@@ -361,6 +408,34 @@ export default function RecipesPage() {
           })}
         </div>
       )}
+      {tab !== 'discover' && list.hasNextPage ? (
+        <div className="mt-6 flex justify-center">
+          <button
+            type="button"
+            data-testid="recipes-load-more"
+            onClick={() => void list.fetchNextPage()}
+            disabled={list.isFetchingNextPage}
+            className="min-h-11 rounded-xl border border-[#944a00]/30 bg-white px-6 text-sm font-semibold text-[#944a00] hover:bg-[#fff3e8] disabled:opacity-60"
+          >
+            {list.isFetchingNextPage ? 'Loading…' : 'Load more recipes'}
+          </button>
+        </div>
+      ) : null}
+      {deleted ? (
+        <Toast
+          message={`Deleted “${deleted.name}”`}
+          duration={10_000}
+          onClose={() => setDeleted(null)}
+          action={{
+            label: restore.isPending ? 'Restoring…' : 'Undo',
+            onClick: () => {
+              if (restore.isPending) return;
+              restore.mutate({ recipeId: deleted.recipeId });
+              setDeleted(null);
+            },
+          }}
+        />
+      ) : null}
       {table && (
         <WhatWeCheckSheet
           open={whatWeCheckOpen}
@@ -385,21 +460,53 @@ function Chip({ label, value }: { label: string; value: number }) {
 function EmptyState({
   tab,
   searching,
+  filtered,
+  hidden,
+  onShowRules,
   onTab,
 }: {
   tab: Tab;
   searching: boolean;
+  /** A Discover meal / time filter is on. */
+  filtered: boolean;
+  /** Discover's hidden-by-safety count and active rule labels. */
+  hidden?: { hiddenCount: number; filteredFor: string[] } | undefined;
+  onShowRules: () => void;
   onTab: (tab: Tab) => void;
 }) {
+  // UX-REC-09: with no search or filter set, an empty Discover means the diet
+  // filters removed everything — say so, with a way to the settings.
+  if (tab === 'discover' && !searching && !filtered && hidden && hidden.hiddenCount > 0) {
+    return (
+      <div
+        data-testid="discover-empty-diets"
+        className="flex flex-col items-center gap-3 rounded-2xl border border-dashed bg-gray-50 px-4 py-16 text-center"
+      >
+        <Compass className="h-10 w-10 text-gray-300" aria-hidden="true" />
+        <p className="font-medium text-gray-700">Your diet settings hide every dish</p>
+        <FilteredForLine
+          filters={hidden.filteredFor.join(' + ')}
+          hiddenCount={hidden.hiddenCount}
+          onOpenSheet={onShowRules}
+        />
+        <Link
+          href="/preferences"
+          className="inline-flex min-h-11 items-center rounded-xl border border-[#944a00]/30 px-5 text-sm font-semibold text-[#944a00] hover:bg-[#fff3e8]"
+        >
+          Review your diet settings
+        </Link>
+      </div>
+    );
+  }
   if (tab === 'discover') {
     return (
       <div className="flex flex-col items-center gap-3 rounded-2xl border border-dashed bg-gray-50 px-4 py-16 text-center">
         <Compass className="h-10 w-10 text-gray-300" aria-hidden="true" />
         <p className="font-medium text-gray-700">No dishes match</p>
         <p className="text-sm text-gray-500">
-          {searching
+          {searching || filtered
             ? 'Try another word, or clear the filters.'
-            : 'Nothing in the collection fits these filters and your allergies.'}
+            : 'Check back soon — new dishes are added.'}
         </p>
       </div>
     );

@@ -1,5 +1,5 @@
 import { useRef, useState } from 'react';
-import { ActivityIndicator, FlatList, Image, Pressable, ScrollView, View } from 'react-native';
+import { ActivityIndicator, FlatList, Pressable, ScrollView, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Link, router } from 'expo-router';
 import { FRIENDS_COPY } from '@chefer/types';
@@ -15,9 +15,10 @@ import {
 import { cn } from '@chefer/utils';
 import { ModeSwitch } from '../../src/features/gym/components/mode-switch';
 import { NutritionStatusTag } from '../../src/features/ingredients/nutrition-provenance';
+import { recipeCardMeta } from '../../src/features/recipes/recipe-actions';
+import { RecipeImage } from '../../src/features/recipes/recipe-image';
 import { FilteredForLine } from '../../src/features/safety/filtered-for-line';
 import { WhatWeCheckSheet } from '../../src/features/safety/what-we-check-sheet';
-import { getRecipeImageUrl } from '../../src/lib/recipe-image';
 import { trpc } from '../../src/lib/trpc';
 
 // Cookbook tab (was Recipes) — port of apps/web (dashboard)/recipes/page.tsx
@@ -25,7 +26,24 @@ import { trpc } from '../../src/lib/trpc';
 // the user and their household (recipe.discover), with meal-type and time
 // filters — the old tab only listed past-plan recipes (F-REC-1-4).
 
+// UX-REC-05: the cookbook pages with `useInfiniteQuery` over the API's cursor
+// (the id of the last row), and each tab says what it holds — "Mine" is what
+// you wrote or imported, so the AI dishes your plans made live under "All".
+//
+// UX-REC-13: a card is a compact row (a 112 pt thumbnail beside the text),
+// not a 395 pt tower, and carries its source or date so duplicates can be
+// told apart. UX-REC-10: a failed thumbnail becomes a placeholder.
+
 type Tab = 'all' | 'saved' | 'my' | 'discover';
+
+const PAGE_SIZE = 30;
+
+const TAB_CAPTIONS: Record<Tab, string> = {
+  all: 'Everything from your plans, your own recipes and your favourites.',
+  saved: 'Recipes you have hearted.',
+  my: 'Recipes you wrote or imported. Dishes from your plans are under All.',
+  discover: 'Curated dishes, already filtered for you and your household.',
+};
 
 const TABS = [
   { key: 'all', label: 'All' },
@@ -60,6 +78,9 @@ interface CardRecipe {
   creator?: { firstName: string };
   /** Following: my copy of someone's recipe (`recipe.list` only). */
   origin?: { creatorFirstName: string | null };
+  /** `recipe.list` rows: when it was added and where it was imported from. */
+  createdAt?: Date | string;
+  sourceUrl?: string | null;
 }
 
 /** `From {first}` for another person's recipe or my copy of one; null otherwise. */
@@ -108,9 +129,14 @@ export default function RecipesScreen() {
     search: debouncedSearch || undefined,
     savedOnly: tab === 'saved',
     myRecipesOnly: tab === 'my',
-    limit: 30,
+    limit: PAGE_SIZE,
   };
-  const list = trpc.recipe.list.useQuery(listInput, { enabled: tab !== 'discover' });
+  const list = trpc.recipe.list.useInfiniteQuery(listInput, {
+    enabled: tab !== 'discover',
+    // The API's cursor is the id of the last row of the page; a short page is the last.
+    getNextPageParam: (lastPage) =>
+      lastPage.length >= PAGE_SIZE ? lastPage.at(-1)?.id : undefined,
+  });
   const discover = trpc.recipe.discover.useQuery(
     {
       search: debouncedSearch || undefined,
@@ -119,9 +145,9 @@ export default function RecipesScreen() {
     },
     { enabled: tab === 'discover', staleTime: 60_000 },
   );
-  const active = tab === 'discover' ? discover : list;
-  const recipes: CardRecipe[] | undefined = active.data;
-  const { isLoading, isError, refetch } = active;
+  const listRows = list.data?.pages.flat();
+  const recipes: CardRecipe[] | undefined = tab === 'discover' ? discover.data : listRows;
+  const { isLoading, isError, refetch } = tab === 'discover' ? discover : list;
 
   // T-02.5/T-01.4: Discover says what it filtered — a separate, additive
   // query so the array `discover` itself returns is unaffected.
@@ -141,15 +167,22 @@ export default function RecipesScreen() {
     // Optimistic: flip the heart immediately, reconcile after (same as web).
     onMutate: async ({ recipeId }) => {
       await utils.recipe.list.cancel(listInput);
-      const previous = utils.recipe.list.getData(listInput);
-      utils.recipe.list.setData(listInput, (old) =>
-        old?.map((r) => (r.id === recipeId ? { ...r, isFavourite: !r.isFavourite } : r)),
+      const previous = utils.recipe.list.getInfiniteData(listInput);
+      utils.recipe.list.setInfiniteData(listInput, (old) =>
+        old
+          ? {
+              ...old,
+              pages: old.pages.map((page) =>
+                page.map((r) => (r.id === recipeId ? { ...r, isFavourite: !r.isFavourite } : r)),
+              ),
+            }
+          : old,
       );
       return { previous };
     },
     onError: (_err, _vars, context) => {
       if (context?.previous) {
-        utils.recipe.list.setData(listInput, context.previous);
+        utils.recipe.list.setInfiniteData(listInput, context.previous);
       }
     },
     onSettled: () => {
@@ -219,6 +252,10 @@ export default function RecipesScreen() {
           ))}
         </View>
 
+        <Text testID="recipes-tab-caption" variant="muted" className="text-xs">
+          {TAB_CAPTIONS[tab]}
+        </Text>
+
         {/* Search */}
         <SearchField
           testID="recipes-search"
@@ -271,6 +308,9 @@ export default function RecipesScreen() {
         <EmptyState
           tab={tab}
           searching={debouncedSearch.trim().length > 0}
+          filtered={mealFilter !== null || quickOnly}
+          hidden={tab === 'discover' ? discoverMeta.data : undefined}
+          onShowRules={() => setWhatWeCheckOpen(true)}
           onDiscover={() => changeTab('discover')}
         />
       ) : (
@@ -279,7 +319,7 @@ export default function RecipesScreen() {
           testID="recipes-list"
           data={recipes}
           keyExtractor={(r) => r.id}
-          contentContainerClassName="gap-4 px-4 py-3"
+          contentContainerClassName="gap-3 px-4 py-3"
           ListHeaderComponent={
             tab === 'discover' && discoverMeta.data && discoverMeta.data.hiddenCount > 0 ? (
               <FilteredForLine
@@ -290,8 +330,30 @@ export default function RecipesScreen() {
               />
             ) : null
           }
+          onEndReached={() => {
+            if (tab !== 'discover' && list.hasNextPage && !list.isFetchingNextPage) {
+              void list.fetchNextPage();
+            }
+          }}
+          onEndReachedThreshold={0.6}
+          ListFooterComponent={
+            tab !== 'discover' && list.isFetchingNextPage ? (
+              <View testID="recipes-loading-more" className="items-center py-4">
+                <ActivityIndicator color="#944a00" />
+              </View>
+            ) : tab !== 'discover' && list.isError && list.hasNextPage ? (
+              <Button
+                testID="recipes-load-more-retry"
+                variant="outline"
+                onPress={() => void list.fetchNextPage()}
+              >
+                Couldn&apos;t load more. Try again
+              </Button>
+            ) : null
+          }
           renderItem={({ item: recipe }) => {
             const fromLabel = fromChipLabel(recipe);
+            const meta = recipeCardMeta(recipe);
             const n = recipe.nutritionInfo as {
               calories: number;
               protein: number;
@@ -302,48 +364,22 @@ export default function RecipesScreen() {
               <Pressable
                 testID={`recipe-card-${recipe.id}`}
                 accessibilityRole="button"
+                accessibilityLabel={recipe.name}
                 onPress={() => router.push({ pathname: '/recipe/[id]', params: { id: recipe.id } })}
-                className="overflow-hidden rounded-2xl border border-border bg-card"
+                className="min-h-28 flex-row overflow-hidden rounded-2xl border border-border bg-card"
               >
-                <View className="relative">
-                  <Image
-                    source={{ uri: getRecipeImageUrl(recipe.imageUrl) }}
-                    className="h-40 w-full"
-                    resizeMode="cover"
-                  />
-                  <View className="absolute right-2 top-2 flex-row gap-1.5">
-                    {tab === 'my' && (
-                      <Pressable
-                        accessibilityRole="button"
-                        accessibilityLabel="Edit recipe"
-                        onPress={() =>
-                          router.push({ pathname: '/recipe-form', params: { id: recipe.id } })
-                        }
-                        className="h-11 w-11 items-center justify-center rounded-full bg-white/90"
-                      >
-                        <Ionicons name="pencil" size={18} color="#944a00" />
-                      </Pressable>
-                    )}
-                    <Pressable
-                      accessibilityRole="button"
-                      accessibilityLabel={
-                        recipe.isFavourite ? 'Remove from favourites' : 'Save to favourites'
-                      }
-                      onPress={() => toggleFav.mutate({ recipeId: recipe.id })}
-                      className="h-11 w-11 items-center justify-center rounded-full bg-white/90"
-                    >
-                      <Ionicons
-                        name={recipe.isFavourite ? 'heart' : 'heart-outline'}
-                        size={20}
-                        color={recipe.isFavourite ? '#944a00' : '#6b7280'}
-                      />
-                    </Pressable>
-                  </View>
-                </View>
-                <View className="gap-1.5 p-4">
+                <RecipeImage
+                  testID={`recipe-card-${recipe.id}-image`}
+                  imageUrl={recipe.imageUrl}
+                  className="h-28 w-28"
+                />
+                <View className="min-w-0 flex-1 gap-1 py-2.5 pl-3 pr-14">
                   <View className="flex-row flex-wrap gap-1.5">
                     <View className="self-start rounded-full bg-accent px-2 py-0.5">
-                      <Text className="text-xs font-medium uppercase tracking-wide text-primary">
+                      <Text
+                        numberOfLines={1}
+                        className="text-xs font-medium uppercase tracking-wide text-primary"
+                      >
                         {recipe.cuisineType}
                       </Text>
                     </View>
@@ -356,10 +392,10 @@ export default function RecipesScreen() {
                       </View>
                     ) : null}
                   </View>
-                  <Text numberOfLines={1} className="font-semibold text-gray-900">
+                  <Text numberOfLines={2} className="font-semibold text-gray-900">
                     {recipe.name}
                   </Text>
-                  <View className="flex-row items-center gap-3">
+                  <View className="flex-row flex-wrap items-center gap-x-3 gap-y-0.5">
                     <View className="flex-row items-center gap-1">
                       <Ionicons name="time-outline" size={12} color="#6b7280" />
                       <Text className="text-xs text-gray-500">
@@ -374,22 +410,47 @@ export default function RecipesScreen() {
                         testID={`recipe-card-status-${recipe.id}`}
                       />
                     </View>
+                    <Text className="text-xs text-gray-500">
+                      P {n.protein}g · C {n.carbs}g · F {n.fat}g
+                    </Text>
                   </View>
-                  <View className="flex-row gap-1.5">
-                    {(
-                      [
-                        ['P', n.protein],
-                        ['C', n.carbs],
-                        ['F', n.fat],
-                      ] as const
-                    ).map(([label, value]) => (
-                      <View key={label} className="rounded-full bg-gray-100 px-2 py-0.5">
-                        <Text className="text-xs text-gray-500">
-                          {label} {value}g
-                        </Text>
-                      </View>
-                    ))}
-                  </View>
+                  {meta ? (
+                    <Text
+                      testID={`recipe-card-${recipe.id}-meta`}
+                      numberOfLines={1}
+                      className="text-xs text-gray-500"
+                    >
+                      {meta}
+                    </Text>
+                  ) : null}
+                </View>
+                <View className="absolute right-1 top-1 gap-0.5">
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel={
+                      recipe.isFavourite ? 'Remove from favourites' : 'Save to favourites'
+                    }
+                    onPress={() => toggleFav.mutate({ recipeId: recipe.id })}
+                    className="h-11 w-11 items-center justify-center"
+                  >
+                    <Ionicons
+                      name={recipe.isFavourite ? 'heart' : 'heart-outline'}
+                      size={22}
+                      color={recipe.isFavourite ? '#944a00' : '#6b7280'}
+                    />
+                  </Pressable>
+                  {tab === 'my' && (
+                    <Pressable
+                      accessibilityRole="button"
+                      accessibilityLabel="Edit recipe"
+                      onPress={() =>
+                        router.push({ pathname: '/recipe-form', params: { id: recipe.id } })
+                      }
+                      className="h-11 w-11 items-center justify-center"
+                    >
+                      <Ionicons name="pencil" size={18} color="#944a00" />
+                    </Pressable>
+                  )}
                 </View>
               </Pressable>
             );
@@ -418,12 +479,47 @@ export default function RecipesScreen() {
 function EmptyState({
   tab,
   searching,
+  filtered,
+  hidden,
+  onShowRules,
   onDiscover,
 }: {
   tab: Tab;
   searching: boolean;
+  /** A Discover meal / time filter is on. */
+  filtered: boolean;
+  /** Discover's hidden-by-safety count and active rule labels. */
+  hidden?: { hiddenCount: number; filteredFor: string[] } | undefined;
+  onShowRules: () => void;
   onDiscover: () => void;
 }) {
+  // UX-REC-09: with no search or filter set, an empty Discover means the
+  // diet filters removed everything — say so, with a way to the settings.
+  if (tab === 'discover' && !searching && !filtered && hidden && hidden.hiddenCount > 0) {
+    return (
+      <View
+        testID="recipes-empty"
+        className="mx-4 items-center gap-2 rounded-2xl border border-dashed border-border bg-gray-50 px-4 py-12"
+      >
+        <Ionicons name="compass-outline" size={40} color="#d1d5db" />
+        <Text className="font-medium text-gray-700">Your diet settings hide every dish</Text>
+        <FilteredForLine
+          testID="discover-empty-filtered-for"
+          filters={hidden.filteredFor.join(' + ')}
+          hiddenCount={hidden.hiddenCount}
+          onPress={onShowRules}
+        />
+        <Button
+          testID="discover-empty-diets"
+          variant="outline"
+          onPress={() => router.push('/preferences')}
+        >
+          Review your diet settings
+        </Button>
+      </View>
+    );
+  }
+
   if (searching) {
     return (
       <View
@@ -449,7 +545,7 @@ function EmptyState({
           <Ionicons name="compass-outline" size={40} color="#d1d5db" />
           <Text className="mt-3 font-medium text-gray-700">No dishes match</Text>
           <Text variant="muted" className="mt-1 px-6 text-center text-sm">
-            Try clearing the filters.
+            {filtered ? 'Try clearing the filters.' : 'Check back soon — new dishes are added.'}
           </Text>
         </>
       ) : tab === 'saved' ? (

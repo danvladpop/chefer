@@ -120,33 +120,33 @@ Updated by each work package in `docs/backlog-2026-10/` (each WP edits only its 
 | UX-PLAN-13 | S3  | fixed           | WP-04         | #107       | Badge row wraps                                                                                            |
 | UX-PLAN-14 | S3  | fixed           | WP-02         | #108       | Pin/Undo failures snackbar; pull to refresh                                                                |
 | UX-PLAN-15 | S3  | fixed           | WP-10         | #110       | "My weeks" / "Past weeks" copy                                                                             |
-| UX-SHOP-01 | S2  | open            | WP-11         |            |                                                                                                            |
-| UX-SHOP-02 | S2  | partially fixed | WP-02 + WP-11 | #108       | Errors + Undo fixed here; the rest in WP-11                                                                |
-| UX-SHOP-03 | S2  | open            | WP-11         |            |                                                                                                            |
-| UX-SHOP-04 | S2  | open            | WP-11         |            |                                                                                                            |
-| UX-SHOP-05 | S2  | open            | WP-11         |            |                                                                                                            |
-| UX-SHOP-06 | S2  | open            | WP-11         |            |                                                                                                            |
-| UX-SHOP-07 | S3  | open            | WP-11         |            |                                                                                                            |
+| UX-SHOP-01 | S2  | fixed           | WP-11         | #112       | Add box parses imperial (parseQuantityLine)                                                                |
+| UX-SHOP-02 | S2  | fixed           | WP-02 + WP-11 | #108, #112 | Errors + Undo (WP-02); remembered aisles, optimistic offline insert (WP-11)                                |
+| UX-SHOP-03 | S2  | fixed           | WP-11         | #112       | Shop-size rounding, eggs in Dairy & Eggs, whole-unit prices, "For N" from days covered                     |
+| UX-SHOP-04 | S2  | fixed           | WP-11         | #112       | Merge on catalog slug with unit normalisation, one price                                                   |
+| UX-SHOP-05 | S2  | partially fixed | WP-11         | #112       | Remove/edit/Undo on every tier, user units; "use by" date needs a schema column (deferred)                 |
+| UX-SHOP-06 | S2  | fixed           | WP-11         | #112       | Persisted food reads with 7-day maxAge; wiped on sign-out                                                  |
+| UX-SHOP-07 | S3  | fixed           | WP-11         | #112       | Inline amount errors, 44 pt chips with state                                                               |
 | UX-REC-01  | S1  | fixed           | WP-01         | #106       | Ingredient-based paleo/keto/vegan checks; "Tagged … (not verified)"                                        |
 | UX-REC-02  | S1  | fixed           | WP-01         | #106       | `portionsFor`: 2× + ½ + 1 = 3½                                                                             |
 | UX-REC-03  | S2  | fixed           | WP-02         | #108       | Error vs not-found; Retry                                                                                  |
-| UX-REC-04  | S2  | open            | WP-11         |            |                                                                                                            |
-| UX-REC-05  | S2  | open            | WP-11         |            |                                                                                                            |
+| UX-REC-04  | S2  | fixed           | WP-11         | #112       | Soft delete + restore, ⋯ menu (Edit, Duplicate, Share, Delete + Undo); web Duplicate in parity backlog     |
+| UX-REC-05  | S2  | fixed           | WP-11         | #112       | Infinite cookbook; Saved-tab cursor bug fixed                                                              |
 | UX-REC-06  | S2  | fixed           | WP-03         | #109       | Unsaved guard on import while a preview exists                                                             |
-| UX-REC-07  | S2  | open            | WP-11         |            |                                                                                                            |
-| UX-REC-08  | S2  | open            | WP-11         |            |                                                                                                            |
-| UX-REC-09  | S2  | open            | WP-11         |            |                                                                                                            |
-| UX-REC-10  | S2  | open            | WP-11         |            |                                                                                                            |
-| UX-REC-11  | S2  | open            | WP-11         |            |                                                                                                            |
-| UX-REC-12  | S2  | open            | WP-11         |            |                                                                                                            |
-| UX-REC-13  | S3  | open            | WP-11         |            |                                                                                                            |
-| UX-REC-14  | S3  | open            | WP-11         |            |                                                                                                            |
-| UX-REC-15  | S3  | open            | WP-11         |            |                                                                                                            |
-| UX-COOK-01 | S2  | open            | WP-11         |            |                                                                                                            |
+| UX-REC-07  | S2  | fixed           | WP-11         | #112       | Source link, replace to the new recipe, spoon units kept                                                   |
+| UX-REC-08  | S2  | fixed           | WP-11         | #112       | Add to my week, add ingredients to the list, native Share (web: Share only, parity backlog)                |
+| UX-REC-09  | S2  | fixed           | WP-11         | #112       | Empty Discover explains its filters                                                                        |
+| UX-REC-10  | S2  | fixed           | WP-11         | #112       | Image placeholder, pinned header                                                                           |
+| UX-REC-11  | S2  | fixed           | WP-11         | #112       | Quantity sanitising, "Cooking for 2 (recipe makes 1)"                                                      |
+| UX-REC-12  | S2  | fixed           | WP-11         | #112       | Save blocked while the photo uploads                                                                       |
+| UX-REC-13  | S3  | fixed           | WP-11         | #112       | Compact rows with source/date meta                                                                         |
+| UX-REC-14  | S3  | partially fixed | WP-11         | #112       | "Cheferized" only when real; piece weights need a catalog-pipeline change                                  |
+| UX-REC-15  | S3  | fixed           | WP-11         | #112       | Editable review for link and text import (mobile; web in parity backlog)                                   |
+| UX-COOK-01 | S2  | fixed           | WP-11         | #112       | Screen-level timers (endsAt), header chips, haptic + local notification                                    |
 | UX-COOK-02 | S2  | fixed           | WP-03         | #109       | BACK closes ingredients, then confirms past step 1; step/ticks persist                                     |
 | UX-COOK-03 | S2  | fixed           | WP-02         | #108       | Error state; no-steps recipes open on ingredients                                                          |
-| UX-COOK-04 | S2  | open            | WP-11         |            |                                                                                                            |
-| UX-COOK-05 | S3  | open            | WP-11         |            |                                                                                                            |
+| UX-COOK-04 | S2  | fixed           | WP-11         | #112       | Scaled amounts per step; meal-slot chooser + Undo on log                                                   |
+| UX-COOK-05 | S3  | fixed           | WP-11         | #112       | Servings passed in, 44 pt stepper, shared max 20                                                           |
 | UX-GYM-01  | S1  | fixed           | WP-01         | #106       | Keypad clamps + 2× confirm; parked workouts surfaced; inline setup checks. "Add set" cap deferred to WP-12 |
 | UX-GYM-02  | S1  | fixed           | WP-01         | #106       | Resume / Finish & start / Discard & start                                                                  |
 | UX-GYM-03  | S1  | fixed           | WP-01         | #106       | BACK steps back via `useUnsavedGuard`                                                                      |
@@ -163,9 +163,9 @@ Updated by each work package in `docs/backlog-2026-10/` (each WP edits only its 
 | UX-GYM-14  | S2  | open            | WP-12         |            |                                                                                                            |
 | UX-GYM-15  | S2  | open            | WP-12         |            |                                                                                                            |
 | UX-GYM-16  | S2  | open            | WP-12         |            |                                                                                                            |
-| UX-GYM-17  | S2  | open            | WP-11         |            |                                                                                                            |
+| UX-GYM-17  | S2  | fixed           | WP-11         | #112       | Relative strength divides by body weight (never raw kg)                                                    |
 | UX-GYM-18  | S2  | open            | WP-12         |            |                                                                                                            |
-| UX-GYM-19  | S2  | open            | WP-11         |            |                                                                                                            |
+| UX-GYM-19  | S2  | fixed           | WP-11         | #112       | Per-hand loads say "each"                                                                                  |
 | UX-GYM-20  | S2  | open            | WP-12         |            |                                                                                                            |
 | UX-GYM-21  | S2  | fixed           | WP-02         | #108       | Field errors, labels, caps, Create "<query>"                                                               |
 | UX-GYM-22  | S2  | fixed           | WP-02         | #108       | Optimistic saves with rollback; ConfirmSheet archives                                                      |
@@ -199,7 +199,7 @@ Updated by each work package in `docs/backlog-2026-10/` (each WP edits only its 
 | UX-X-12    | S3  | fixed           | WP-02         | #108       | Failed loads show ErrorState + Retry (food/account)                                                        |
 | UX-X-13    | S3  | partially fixed | WP-02         | #108       | Confirms migrated to ConfirmSheet; 2 gym confirms (delete day, large export) left for WP-12                |
 | UX-X-14    | S3  | fixed           | WP-04         | #107       | Type floor 14/19 + 16/22; no text below 12 px on mobile or web                                             |
-| UX-X-15    | S3  | open            | WP-11         |            |                                                                                                            |
+| UX-X-15    | S3  | fixed           | WP-11         | #112       | Device-locale formatters replace hard-coded en-GB/en-US                                                    |
 | UX-X-16    | S3  | fixed           | WP-03         | #109       | Undo 10 s, pauses while touched, 300 ms tap shield                                                         |
 | UX-X-17    | S3  | partially fixed | WP-03         | #109       | SearchField + on-drag dismiss on Cookbook and Replace picker; gym Exercises in WP-12                       |
 | UX-PO-01   | S1  | open            | Owner         |            |                                                                                                            |

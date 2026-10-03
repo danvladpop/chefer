@@ -512,15 +512,29 @@ export function unitLabel(unit: WeightUnit): string {
   return unit === 'LB' ? 'lb' : 'kg';
 }
 
-/** "62.5 kg", "135 lb", "BW + 10 kg", "BW", "25 kg assist". */
+/**
+ * UX-GYM-19: a dumbbell / kettlebell number is the weight of ONE implement
+ * ("20 kg each"), never the pair — a bare "20 kg" next to a 20 kg barbell reads
+ * as the same load. Pass the exercise's `perHand` flag as `opts.each`.
+ *
+ * Load maths (documented here once): every figure that uses a load — e1RM, PRs,
+ * progression targets — takes it exactly as logged, i.e. ONE dumbbell's weight,
+ * never doubled for the pair, so a dumbbell press and a barbell press are not
+ * silently compared on different bases. Weekly volume counts sets (fractional
+ * per muscle), not kilograms, so it is unaffected.
+ */
+export const PER_HAND_SUFFIX = 'each';
+
+/** "62.5 kg", "135 lb", "BW + 10 kg", "BW", "25 kg assist", "20 kg each". */
 export function formatLoad(
   kg: number,
   unit: WeightUnit,
   loadType: 'WEIGHTED' | 'BODYWEIGHT' | 'BODYWEIGHT_PLUS' | 'ASSISTED' = 'WEIGHTED',
+  opts: { each?: boolean | undefined } = {},
 ): string {
   const text = `${formatLoadNumber(kg, unit)} ${unitLabel(unit)}`;
   if (loadType === 'WEIGHTED') {
-    return text;
+    return opts.each && kg > KG_EPS ? `${text} ${PER_HAND_SUFFIX}` : text;
   }
   if (kg <= KG_EPS) {
     return 'BW';

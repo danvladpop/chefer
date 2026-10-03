@@ -865,6 +865,7 @@ export function WorkoutScreen() {
         history={contentSe ? exerciseHistory(contentSe.exerciseId, prior, 5) : []}
         unit={unit}
         loadType={contentMeta?.loadType ?? 'WEIGHTED'}
+        perHand={contentMeta?.perHand ?? false}
         onSwap={(scope) => {
           if (contentSe) openSheet({ kind: 'picker', mode: 'swap', seId: contentSe.id, scope });
         }}

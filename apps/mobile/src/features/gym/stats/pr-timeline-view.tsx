@@ -84,6 +84,9 @@ export function PrTimelineView({ bootstrap }: { bootstrap: GymBootstrap }) {
                   pr.weightKg,
                   bootstrap.profile?.unit ?? 'KG',
                   byId.get(pr.exerciseId)?.loadType,
+                  {
+                    each: byId.get(pr.exerciseId)?.perHand,
+                  },
                 )}{' '}
                 × {pr.reps}
               </Text>

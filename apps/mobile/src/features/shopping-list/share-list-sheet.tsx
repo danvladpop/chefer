@@ -121,8 +121,8 @@ export function ShareListSheet({
     { staleTime: 60_000, enabled: visible },
   );
   const dinners = useMemo(
-    () => dinnersFromPlan(plan.data?.days ?? [], weekdayShortName),
-    [plan.data?.days],
+    () => dinnersFromPlan(plan.data?.days ?? [], weekdayShortName, fromDayOfWeek),
+    [plan.data?.days, fromDayOfWeek],
   );
 
   const counts = useMemo(() => shareCounts(toShareItems(items, checkedKeys)), [items, checkedKeys]);

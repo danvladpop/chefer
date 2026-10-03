@@ -1,3 +1,5 @@
+import { formatKcal } from './format';
+
 // ─── Tracker quick add (F4, all tiers) ────────────────────────────────────────
 // One parser for the manual quick-add form, mirroring the API's
 // tracker.logCustomMeal bounds, so an out-of-range number is explained inline
@@ -168,7 +170,7 @@ export function checkMacroSanity(entry: {
   return {
     ok: false,
     impliedKcal,
-    message: `These don't add up: ${entry.kcal.toLocaleString('en-US')} kcal logged, but the macros add up to ${impliedKcal.toLocaleString('en-US')} kcal.`,
+    message: `These don't add up: ${formatKcal(entry.kcal)} kcal logged, but the macros add up to ${formatKcal(impliedKcal)} kcal.`,
   };
 }
 

@@ -15,6 +15,7 @@ import {
 import {
   cn,
   currencySymbol,
+  formatKcal,
   fromEur,
   toDisplayCurrency,
   toEur,
@@ -242,8 +243,7 @@ export default function PreferencesScreen() {
           {isPremium === true && data?.chefProfile?.dailyCalorieTarget != null && (
             <View className="self-start rounded-lg border border-primary/30 bg-accent px-4 py-2">
               <Text className="text-sm font-medium text-primary">
-                {data.chefProfile.dailyCalorieTarget.toLocaleString('en-US')} kcal / day — current
-                target
+                {formatKcal(data.chefProfile.dailyCalorieTarget)} kcal / day — current target
               </Text>
             </View>
           )}

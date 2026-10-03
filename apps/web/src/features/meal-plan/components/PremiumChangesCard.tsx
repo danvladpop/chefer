@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { trpc } from '@/lib/trpc';
 import { Sparkles, X } from 'lucide-react';
 import { Sheet } from '@chefer/ui';
-import { sumPlanDay } from '@chefer/utils';
+import { formatKcal, sumPlanDay } from '@chefer/utils';
 import { dismissChanges, isChangesDismissed, missLines, type PlanMiss } from '../plan-miss';
 
 // ─── What Premium changed (UX-10 §8, T-10.7) ───────────────────────────────────
@@ -143,7 +143,7 @@ function CompareDialog({
     { enabled: open, staleTime: 60_000 },
   );
   const cell = (t: { kcal: number; protein: number }) =>
-    t.kcal > 0 ? `${t.kcal.toLocaleString('en-US')} kcal · ${t.protein} g` : 'Not planned';
+    t.kcal > 0 ? `${formatKcal(t.kcal)} kcal · ${t.protein} g` : 'Not planned';
 
   return (
     <Sheet
