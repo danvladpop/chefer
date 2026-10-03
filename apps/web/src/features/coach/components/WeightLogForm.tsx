@@ -8,23 +8,44 @@ import {
 import { useHealthConsent } from '@/features/privacy/use-health-consent';
 import { useUnitSystem } from '@/hooks/useUnitSystem';
 import { capture } from '@/lib/analytics';
+import { showAppToast } from '@/lib/app-toast';
 import { trpc } from '@/lib/trpc';
-import { cn, parseBodyWeight, userFacingErrorMessage } from '@chefer/utils';
+import { cn, formatBodyWeight, parseBodyWeight, userFacingErrorMessage } from '@chefer/utils';
 
 // One weigh-in form for the dashboard card, /progress and the gym stats
 // prompt (audit F-DASH-3-1, F-TRK-1-7). It used to be three copies of a bare
 // input + button outside any <form>: Enter did nothing, 1000 kg saved, and 0
 // or −5 was a silent no-op. Validation mirrors the API via the shared parser.
 // The field takes the user's unit (lb for IMPERIAL, backlog P2-6) and sends kg.
+//
+// UX-FOOD-08 (mirrors the phone's WeightLogForm): Enter logs; a logged weight
+// clears from the field and a "Logged 79.4 kg · Undo" toast offers to delete
+// it; the same weight typed again on the same day as the newest entry is a
+// duplicate weigh-in and is ignored with "Already logged … today".
+
+const SAME_WEIGHT_KG = 0.05;
+/** The Undo toast stays up as long as the phone's snackbar (10 s). */
+const UNDO_TOAST_MS = 10_000;
+
+function isSameDay(a: Date, b: Date): boolean {
+  return (
+    a.getFullYear() === b.getFullYear() &&
+    a.getMonth() === b.getMonth() &&
+    a.getDate() === b.getDate()
+  );
+}
 
 export function WeightLogForm({
   placeholder,
   label,
   inputClassName,
+  lastEntry,
 }: {
   placeholder?: string;
   label?: string;
   inputClassName?: string;
+  /** The newest weigh-in on record, for the same-value-same-day dedupe. */
+  lastEntry?: { weightKg: number; recordedAt: Date | string } | null;
 }) {
   const system = useUnitSystem();
   const imperial = system === 'IMPERIAL';
@@ -38,14 +59,32 @@ export function WeightLogForm({
 
   const logWeight = trpc.tracker.logWeight.useMutation({
     meta: { silent: true },
-    onSuccess: () => {
+    onSuccess: (entry, variables) => {
       capture('weight_logged');
       setSaved(true);
       setValue('');
       setTimeout(() => setSaved(false), 3000);
-      void utils.tracker.weightHistory.invalidate();
-      void utils.gym.stats.bodyweight.invalidate();
-      void utils.gym.bootstrap.invalidate();
+      const refresh = () => {
+        void utils.tracker.weightHistory.invalidate();
+        void utils.gym.stats.bodyweight.invalidate();
+        void utils.gym.bootstrap.invalidate();
+      };
+      refresh();
+      showAppToast({
+        message: `Logged ${formatBodyWeight(variables.weightKg, system)}`,
+        type: 'success',
+        durationMs: UNDO_TOAST_MS,
+        action: {
+          label: 'Undo',
+          onClick: () => {
+            // Imperative client: the card may be gone by the time Undo is clicked.
+            utils.client.tracker.deleteWeight
+              .mutate({ id: entry.id })
+              .then(refresh)
+              .catch((err: unknown) => showAppToast({ message: userFacingErrorMessage(err) }));
+          },
+        },
+      });
     },
     onError: (err) => setError(userFacingErrorMessage(err)),
   });
@@ -59,6 +98,18 @@ export function WeightLogForm({
     }
     setError(null);
     setDeclined(false);
+    if (
+      lastEntry &&
+      isSameDay(new Date(lastEntry.recordedAt), new Date()) &&
+      Math.abs(lastEntry.weightKg - parsed.kg) < SAME_WEIGHT_KG
+    ) {
+      setValue('');
+      showAppToast({
+        message: `Already logged ${formatBodyWeight(parsed.kg, system)} today`,
+        type: 'success',
+      });
+      return;
+    }
     // "Don't save it": nothing is stored; the typed value stays in the field.
     requestHealthConsent(() => logWeight.mutate({ weightKg: parsed.kg }), {
       onDeclined: () => setDeclined(true),
