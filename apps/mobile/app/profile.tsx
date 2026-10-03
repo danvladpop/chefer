@@ -184,9 +184,7 @@ export default function ProfileScreen() {
                     testID="profile-role-badge"
                     className="rounded-full bg-gray-100 px-2 py-0.5"
                   >
-                    <Text className="text-[12px] font-medium uppercase text-gray-500">
-                      {user.role}
-                    </Text>
+                    <Text className="text-xs font-medium uppercase text-gray-500">{user.role}</Text>
                   </View>
                 ) : null}
                 <View
@@ -197,7 +195,7 @@ export default function ProfileScreen() {
                 >
                   <Text
                     className={cn(
-                      'text-[12px] font-medium uppercase',
+                      'text-xs font-medium uppercase',
                       isPremiumTier ? 'text-white' : 'text-gray-500',
                     )}
                   >

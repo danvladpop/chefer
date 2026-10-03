@@ -474,10 +474,54 @@ describe('WorkoutScreen — exercise menu', () => {
     expect(currentDoc().exercises[0]).toEqual(before);
   });
 
-  it('"Update routine" on a swap is disabled with a reason when the exercise has no routine slot', async () => {
+  // WP-04 (feedback 2): a freestyle session has no routine, so Swap asks nothing.
+  it('freestyle session: Swap opens the picker directly — no "today / my routine" page', async () => {
     const user = userEvent.setup();
     await renderWorkout(activeDoc());
+    expect(currentDoc().routineId).toBeNull();
     await user.press(screen.getByTestId('exercise-0-menu'));
+    await user.press(screen.getByTestId('menu-swap'));
+    expect(await screen.findByTestId('workout-picker-title')).toHaveTextContent('Swap for');
+    expect(screen.queryByTestId('menu-swap-today')).toBeNull();
+    expect(screen.queryByTestId('menu-swap-routine')).toBeNull();
+  });
+
+  it('routine session, exercise outside the routine (added mid-workout): Swap opens the picker directly', async () => {
+    const user = userEvent.setup();
+    const doc = supersetDoc();
+    await renderWorkout(
+      {
+        ...doc,
+        routineId: 'routine-1',
+        exercises: doc.exercises.map((se) =>
+          se.id === 'row-se' ? { ...se, routineExerciseId: null } : se,
+        ),
+      },
+      makeBootstrap({ activeRoutine: supersetRoutine() }),
+    );
+    await user.press(screen.getByTestId('exercise-2-menu'));
+    await user.press(screen.getByTestId('menu-swap'));
+    expect(await screen.findByTestId('workout-picker-title')).toHaveTextContent('Swap for');
+    expect(screen.queryByTestId('menu-swap-today')).toBeNull();
+  });
+
+  it('routine session, routine exercise: Swap still shows the scope page', async () => {
+    const user = userEvent.setup();
+    await renderWorkout(
+      { ...supersetDoc(), routineId: 'routine-1' },
+      makeBootstrap({ activeRoutine: supersetRoutine() }),
+    );
+    await user.press(screen.getByTestId('exercise-2-menu'));
+    await user.press(screen.getByTestId('menu-swap'));
+    expect(screen.getByTestId('menu-swap-today')).toBeOnTheScreen();
+    expect(screen.getByTestId('menu-swap-routine')).toBeEnabled();
+    expect(screen.queryByTestId('workout-picker-title')).toBeNull();
+  });
+
+  it('routine session but no active routine to update: the scope page keeps its reason', async () => {
+    const user = userEvent.setup();
+    await renderWorkout({ ...supersetDoc(), routineId: 'routine-1' }, makeBootstrap());
+    await user.press(screen.getByTestId('exercise-2-menu'));
     await user.press(screen.getByTestId('menu-swap'));
     expect(screen.getByTestId('menu-swap-routine')).toBeDisabled();
     expect(screen.getByTestId('menu-swap-routine-blocked')).toHaveTextContent(/today only/);

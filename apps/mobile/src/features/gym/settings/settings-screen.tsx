@@ -512,7 +512,7 @@ export function GymSettingsScreen() {
                       className="min-h-11 min-w-11 items-center justify-center gap-0.5 rounded-lg px-1 disabled:opacity-60"
                     >
                       <Text className="text-xs font-semibold">{label}</Text>
-                      <Text variant="muted" className="text-[10px]">
+                      <Text variant="muted" className="text-xs">
                         {kind ? DAY_KIND_SHORT[kind] : '—'}
                       </Text>
                     </Pressable>

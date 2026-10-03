@@ -69,7 +69,7 @@ export function ChangeNoticeCard() {
     <Card testID="change-notice-card" className="gap-3 border-2 border-amber-300 bg-amber-50">
       <View className="flex-row items-center gap-2">
         <View className="rounded-full bg-amber-200 px-2 py-0.5">
-          <Text className="text-[11px] font-semibold uppercase text-amber-900">{badgeLabel}</Text>
+          <Text className="text-xs font-semibold uppercase text-amber-900">{badgeLabel}</Text>
         </View>
       </View>
       <Text className="text-sm font-semibold text-gray-900">{REASON_HEADING[reason]}</Text>

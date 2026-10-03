@@ -24,6 +24,10 @@ type Nutrition = RouterOutputs['dashboard']['summary']['nutrition'];
 
 const RING_SIZE = 128;
 const RING_STROKE = 12;
+// The widest a caption can be inside the ring without touching the stroke.
+/** The caption sits inside a fixed 128 pt ring, so it scales less than body text. */
+export const RING_CAPTION_MAX_FONT_SCALE = 1.3;
+export const RING_INNER_WIDTH = RING_SIZE - 2 * RING_STROKE - 16;
 
 function MacroBar({
   label,
@@ -100,7 +104,7 @@ export function NutritionSummary({
         <View className={cn('rounded-full px-2.5 py-0.5', statusStyle.bg)}>
           <Text
             testID="nutrition-status"
-            className={cn('text-[12px] font-bold uppercase', statusStyle.text)}
+            className={cn('text-xs font-bold uppercase', statusStyle.text)}
           >
             {statusLabel}
           </Text>
@@ -124,15 +128,25 @@ export function NutritionSummary({
             value={n.eatenKcal}
             className="text-xl font-bold text-gray-900"
           />
-          <Text className="text-[12px] text-gray-500">
-            of {target.dailyCalorieTarget.toLocaleString('en-US')} kcal eaten
+          {/* UX-FOOD-24: "of 1,701 kcal eaten" ran into the stroke at 390 pt and
+              larger text. Short caption ("eaten" lives in the ring's accessible
+              name and the CountUp), held inside the ring's inner circle; wraps at large text (no
+              adjustsFontSizeToFit — it sticks small on the new architecture). */}
+          <Text
+            testID="calorie-ring-caption"
+            numberOfLines={2}
+            maxFontSizeMultiplier={RING_CAPTION_MAX_FONT_SCALE}
+            style={{ maxWidth: RING_INNER_WIDTH }}
+            className="text-center text-xs text-muted-foreground"
+          >
+            of {target.dailyCalorieTarget.toLocaleString('en-US')} kcal
           </Text>
         </ProgressRing>
         <Text testID="calorie-remaining" className="text-center text-xs text-gray-500">
           {dayNutritionCaption(n.eatenKcal, n.plannedKcal, target.dailyCalorieTarget)}
         </Text>
         {targetMode && (
-          <Text testID="target-mode-label" className="text-center text-[11px] text-gray-400">
+          <Text testID="target-mode-label" className="text-center text-xs text-muted-foreground">
             {targetMode === 'OWN' ? 'Your target' : 'Suggested'}
           </Text>
         )}

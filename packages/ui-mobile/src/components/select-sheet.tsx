@@ -67,13 +67,16 @@ export function SelectField<T extends string = string>({
         accessibilityHint="Opens a list to choose from"
         onPress={() => setOpen(true)}
         className={cn(
-          'h-11 flex-row items-center justify-between rounded-md border border-input bg-background px-3',
+          'min-h-11 flex-row items-center justify-between gap-2 rounded-md border border-input bg-background px-3 py-2',
           error && 'border-destructive',
         )}
       >
         <Text
-          className={cn('text-base', displayLabel ? 'text-foreground' : 'text-muted-foreground')}
-          numberOfLines={1}
+          className={cn(
+            'min-w-0 flex-1 text-base',
+            displayLabel ? 'text-foreground' : 'text-muted-foreground',
+          )}
+          numberOfLines={2}
         >
           {displayLabel ?? placeholder}
         </Text>
@@ -294,9 +297,9 @@ function OtherInput({
       onChangeText={onChangeText}
       placeholder={placeholder}
       placeholderTextColor="#9ca3af"
-      accessibilityLabel={accessibilityLabel}
+      accessibilityLabel={accessibilityLabel ?? placeholder}
       autoFocus={!placeholder}
-      className="h-11 rounded-md border border-input bg-background px-3 text-base text-foreground"
+      className="min-h-11 rounded-md border border-input bg-background px-3 py-2 text-base text-foreground"
     />
   );
 }

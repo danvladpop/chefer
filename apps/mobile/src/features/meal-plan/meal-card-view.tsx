@@ -70,7 +70,12 @@ export function MealCardView({
       )}
       <View className="min-w-0 flex-1 justify-between p-3">
         <View className="gap-1">
-          <View className="flex-row items-center gap-2">
+          {/* UX-PLAN-13: the eyebrow + badges wrap instead of "Your pick" being
+              cut by the portion chip. */}
+          <View
+            testID={`${testID}-badges`}
+            className="min-w-0 flex-row flex-wrap items-center gap-x-2 gap-y-1"
+          >
             <MealTypeBadge mealType={mealType} />
             {badges}
           </View>

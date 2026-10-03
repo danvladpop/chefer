@@ -62,9 +62,9 @@ export function GymExportRow() {
   };
 
   return (
-    <Card testID="gym-settings-export" className="gap-2">
+    <Card testID="gym-settings-export" className="min-w-0 gap-2">
       <Text className="font-medium">Export training data</Text>
-      <Text variant="muted" className="text-xs">
+      <Text testID="gym-settings-export-copy" variant="muted" className="w-full min-w-0 text-xs">
         Every set you&apos;ve logged, as a CSV you can open in a spreadsheet. Large histories export
         best from chefer.duckdns.org.
       </Text>

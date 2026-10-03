@@ -66,7 +66,7 @@ Updated by each work package in `docs/backlog-2026-10/` (each WP edits only its 
 | UX-ACC-24  | S3  | open            | WP-09         |               |                                                                                                            |
 | UX-ACC-25  | S3  | open            | WP-03         |               |                                                                                                            |
 | UX-ACC-26  | S3  | open            | WP-03         |               |                                                                                                            |
-| UX-ACC-27  | S3  | open            | WP-04         |               |                                                                                                            |
+| UX-ACC-27  | S3  | fixed           | WP-04         | #107          | min-w-0 / w-full on the clipped card rows (incl. gym export)                                               |
 | UX-ONB-01  | S1  | fixed           | WP-01         | #106          | BACK steps back; KV draft resumes; empty jobs → wizard                                                     |
 | UX-ONB-02  | S1  | open            | Owner         |               |                                                                                                            |
 | UX-ONB-03  | S2  | open            | WP-03         |               |                                                                                                            |
@@ -100,7 +100,7 @@ Updated by each work package in `docs/backlog-2026-10/` (each WP edits only its 
 | UX-FOOD-21 | S2  | open            | WP-10         |               |                                                                                                            |
 | UX-FOOD-22 | S2  | open            | WP-10         |               |                                                                                                            |
 | UX-FOOD-23 | S3  | open            | WP-10         |               |                                                                                                            |
-| UX-FOOD-24 | S3  | open            | WP-04         |               |                                                                                                            |
+| UX-FOOD-24 | S3  | fixed           | WP-04         | #107          | Short caption inside the ring, 2 lines, capped at 1.3×                                                     |
 | UX-FOOD-25 | S3  | open            | WP-10         |               |                                                                                                            |
 | UX-FOOD-26 | S3  | open            | WP-10         |               |                                                                                                            |
 | UX-FOOD-27 | S3  | open            | WP-10         |               |                                                                                                            |
@@ -117,7 +117,7 @@ Updated by each work package in `docs/backlog-2026-10/` (each WP edits only its 
 | UX-PLAN-10 | S2  | open            | WP-03         |               |                                                                                                            |
 | UX-PLAN-11 | S2  | open            | WP-10         |               |                                                                                                            |
 | UX-PLAN-12 | S2  | open            | WP-10         |               |                                                                                                            |
-| UX-PLAN-13 | S3  | open            | WP-04         |               |                                                                                                            |
+| UX-PLAN-13 | S3  | fixed           | WP-04         | #107          | Badge row wraps                                                                                            |
 | UX-PLAN-14 | S3  | fixed           | WP-02         | PR_WP02       | Pin/Undo failures snackbar; pull to refresh                                                                |
 | UX-PLAN-15 | S3  | open            | WP-10         |               |                                                                                                            |
 | UX-SHOP-01 | S2  | open            | WP-11         |               |                                                                                                            |
@@ -192,13 +192,13 @@ Updated by each work package in `docs/backlog-2026-10/` (each WP edits only its 
 | UX-X-05    | S2  | open            | WP-03         |               |                                                                                                            |
 | UX-X-06    | S2  | fixed           | WP-01 + WP-02 | #106, PR_WP02 | Gym setup + keypad (WP-01); Zod-JSON mapping in userFacingErrorMessage + remaining screens (WP-02)         |
 | UX-X-07    | S2  | open            | Owner         |               |                                                                                                            |
-| UX-X-08    | S2  | open            | WP-04         |               |                                                                                                            |
-| UX-X-09    | S2  | open            | WP-04         |               |                                                                                                            |
-| UX-X-10    | S2  | open            | WP-04         |               |                                                                                                            |
+| UX-X-08    | S2  | fixed           | WP-04         | #107          | Caps 1.6×/2.0×; inputs min-h-11; chips wrap; XL device pass fixes (switch, ring, logger, set row)          |
+| UX-X-09    | S2  | partially fixed | WP-04         | #107          | Primitives labelled + TextInput guard test; 10 allow-listed screens left for WP-03/WP-09                   |
+| UX-X-10    | S2  | fixed           | WP-04         | #107          | Thumb offset computed in the worklet from shared width                                                     |
 | UX-X-11    | S2  | open            | WP-03         |               |                                                                                                            |
 | UX-X-12    | S3  | fixed           | WP-02         | PR_WP02       | Failed loads show ErrorState + Retry (food/account)                                                        |
 | UX-X-13    | S3  | partially fixed | WP-02         | PR_WP02       | Confirms migrated to ConfirmSheet; 2 gym confirms (delete day, large export) left for WP-12                |
-| UX-X-14    | S3  | open            | WP-04         |               |                                                                                                            |
+| UX-X-14    | S3  | fixed           | WP-04         | #107          | Type floor 14/19 + 16/22; no text below 12 px on mobile or web                                             |
 | UX-X-15    | S3  | open            | WP-11         |               |                                                                                                            |
 | UX-X-16    | S3  | open            | WP-03         |               |                                                                                                            |
 | UX-X-17    | S3  | open            | WP-03         |               |                                                                                                            |

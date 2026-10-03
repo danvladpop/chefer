@@ -98,4 +98,13 @@ describe('GymExportRow', () => {
     await waitFor(() => expect(mockShareExportFile).toHaveBeenCalledTimes(1));
     expect(alertSpy).not.toHaveBeenCalled();
   });
+  it('UX-ACC-27: the copy wraps instead of clipping the domain mid-word', async () => {
+    await render(<GymExportRow />);
+    const copy = String(screen.getByTestId('gym-settings-export-copy').props.className);
+    expect(copy).toMatch(/\bw-full\b/);
+    expect(copy).toMatch(/\bmin-w-0\b/);
+    expect(String(screen.getByTestId('gym-settings-export').props.className)).toMatch(
+      /\bmin-w-0\b/,
+    );
+  });
 });

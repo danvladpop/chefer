@@ -77,7 +77,7 @@ function WeekStrip({ days }: { days: WeekStripDay[] }) {
           testID={`gym-today-week-strip-${day.weekday}`}
           className="items-center gap-1"
         >
-          <Text variant="muted" className="text-[12px]">
+          <Text variant="muted" className="text-xs">
             {WEEKDAY_LABELS[i]}
           </Text>
           <View
@@ -445,7 +445,7 @@ export function TodayScreen() {
                   ? `Weekly goal met · ${streak.thisWeekSessions} ${streak.thisWeekSessions === 1 ? 'session' : 'sessions'}`
                   : `${streak.thisWeekSessions} of ${streak.thisWeekGoal} this week`}
               </Text>
-              <Text testID="gym-today-streak" variant="muted" className="text-xs">
+              <Text testID="gym-today-streak" variant="muted" className="text-sm">
                 {formatStreakLine(streak)}
               </Text>
             </View>
@@ -456,7 +456,7 @@ export function TodayScreen() {
             onPress={() => setHowThisWorksVisible(true)}
             className="min-h-11 justify-center self-start"
           >
-            <Text className="text-xs font-medium text-primary">How this works</Text>
+            <Text className="text-sm font-medium text-primary">How this works</Text>
           </Pressable>
         </Card>
 
@@ -598,7 +598,7 @@ export function TodayScreen() {
                           <Text
                             variant="muted"
                             className="min-w-0 flex-1 text-xs"
-                            numberOfLines={1}
+                            numberOfLines={2}
                           >
                             {lastRest ?? ex.restSec} s rest after each round
                           </Text>
@@ -615,7 +615,7 @@ export function TodayScreen() {
                             <View className="rounded bg-violet-100 px-1 py-0.5">
                               <RNText
                                 testID={`gym-today-next-up-${ex.routineExerciseId}-superset`}
-                                className="text-[12px] font-bold text-violet-800"
+                                className="text-xs font-bold text-violet-800"
                               >
                                 {slot.label}
                                 {slot.position + 1}
@@ -626,12 +626,14 @@ export function TodayScreen() {
                             testID={`gym-today-next-up-${ex.routineExerciseId}-name`}
                             exerciseId={ex.exerciseId}
                             name={libraryLookup(bootstrap)(ex.exerciseId)?.name ?? ex.exerciseId}
-                            numberOfLines={1}
+                            numberOfLines={2}
                             className="flex-1"
-                            textClassName="text-sm"
+                            textClassName="text-base"
                           />
                         </View>
-                        <Text variant="muted" className="text-xs">
+                        {/* WP-04: the target may wrap at large OS text, so it is
+                            capped instead of squeezing the name to nothing. */}
+                        <Text variant="muted" className="max-w-[40%] shrink-0 text-right text-sm">
                           {formatTarget(ex, bootstrap, profile.unit)}
                         </Text>
                       </View>
@@ -649,8 +651,10 @@ export function TodayScreen() {
                   : null
               }
             />
+            {/* WP-04: Start workout and Freestyle are the busy-hands primaries → lg. */}
             <Button
               testID="gym-today-start"
+              size="lg"
               onPress={() => startPlanned(shownWorkout, short.carryOverExerciseIds)}
             >
               Start workout
@@ -676,15 +680,15 @@ export function TodayScreen() {
               >
                 <Text className="text-sm font-medium text-primary">Skip this day</Text>
               </Pressable>
-              <Pressable
-                testID="gym-today-freestyle"
-                accessibilityRole="button"
-                onPress={startFreestyle}
-                className="min-h-11 justify-center"
-              >
-                <Text className="text-sm font-medium text-primary">Freestyle workout</Text>
-              </Pressable>
             </View>
+            <Button
+              testID="gym-today-freestyle"
+              size="lg"
+              variant="outline"
+              onPress={startFreestyle}
+            >
+              Freestyle workout
+            </Button>
           </Card>
         ) : (
           <EmptyState

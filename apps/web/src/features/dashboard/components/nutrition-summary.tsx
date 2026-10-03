@@ -101,7 +101,10 @@ export function NutritionSummary({
             {dayNutritionCaption(n.eatenKcal, n.plannedKcal, target.dailyCalorieTarget)}
           </p>
           {targetMode && (
-            <p data-testid="target-mode-label" className="text-center text-[11px] text-gray-400">
+            <p
+              data-testid="target-mode-label"
+              className="text-center text-xs text-muted-foreground"
+            >
               {targetMode === 'OWN' ? 'Your target' : 'Suggested'}
             </p>
           )}

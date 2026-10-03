@@ -577,7 +577,7 @@ export default function ShoppingListScreen() {
                                   </Text>
                                   {item.pantryCovered && (
                                     <View className="rounded-full bg-emerald-100 px-2 py-0.5">
-                                      <Text className="text-[12px] font-semibold uppercase text-emerald-700">
+                                      <Text className="text-xs font-semibold uppercase text-emerald-700">
                                         Have it
                                       </Text>
                                     </View>

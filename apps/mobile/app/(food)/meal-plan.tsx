@@ -522,7 +522,7 @@ export default function MealPlanScreen() {
             <Text
               maxFontSizeMultiplier={DENSE_MAX_FONT_SCALE}
               className={cn(
-                'text-[12px] font-semibold uppercase',
+                'text-xs font-semibold uppercase',
                 isPast ? 'text-gray-500' : weekOffset === 0 ? 'text-primary' : 'text-blue-600',
               )}
             >

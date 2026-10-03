@@ -145,12 +145,12 @@ function TimerButton({
       accessibilityRole="button"
       accessibilityLabel={a11y}
       onPress={onPress}
-      className={`h-12 min-w-14 items-center justify-center rounded-xl px-3 active:opacity-70 ${
+      className={`min-h-[52px] min-w-14 items-center justify-center rounded-xl px-3 active:opacity-70 ${
         primary ? 'bg-primary' : 'bg-muted'
       }`}
     >
       <Text
-        className={`text-base font-semibold ${primary ? 'text-primary-foreground' : 'text-foreground'}`}
+        className={`text-lg font-semibold ${primary ? 'text-primary-foreground' : 'text-foreground'}`}
       >
         {label}
       </Text>
