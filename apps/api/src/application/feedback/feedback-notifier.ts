@@ -1,6 +1,4 @@
-import { emailService } from '../../lib/email/index.js';
 import type { IEmailService } from '../../lib/email/types.js';
-import { env } from '../../lib/env.js';
 
 // ─── Feedback notification (UX-PO-05) ─────────────────────────────────────────
 // Every submission is mailed to the owner through the EXISTING email path
