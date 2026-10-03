@@ -244,4 +244,10 @@ describe('ProgressScreen (UX-FOOD-20, UX-FOOD-28)', () => {
     await user.press(screen.getByTestId('progress-macros-open-tracker'));
     expect(router.push).toHaveBeenCalledWith('/tracker');
   });
+
+  it('stat labels wrap instead of clipping ("Days logg…")', async () => {
+    await renderScreen();
+    const label = screen.getByText('Days logged');
+    expect(label.props.numberOfLines).toBe(2);
+  });
 });

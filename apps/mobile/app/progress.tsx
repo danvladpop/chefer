@@ -91,7 +91,7 @@ function StatTile({
     <Card className="min-w-0 flex-1 gap-1 p-3">
       <View className="flex-row items-center gap-1">
         <Ionicons name={icon} size={14} color={iconColor} />
-        <Text numberOfLines={1} className="min-w-0 flex-1 text-xs text-gray-500">
+        <Text numberOfLines={2} className="min-w-0 flex-1 text-xs text-muted-foreground">
           {label}
         </Text>
       </View>
