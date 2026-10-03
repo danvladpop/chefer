@@ -21,6 +21,7 @@ import {
   ROMANIAN_LUNCH_POOL,
 } from './romanian-pool.js';
 import { filterSafeRecipes, hasSafetyPrefs, type SafetyPrefs } from './safety.js';
+import { VARIETY_BREAKFAST_POOL, VARIETY_DINNER_POOL, VARIETY_LUNCH_POOL } from './variety-pool.js';
 
 export {
   deriveDietTags,
@@ -62,6 +63,7 @@ export const CURATED_POOL_BY_TYPE: Record<MealType, RecipeData[]> = {
     ...SWAP_BREAKFAST_POOL,
     ...EXTRA_BREAKFAST_POOL,
     ...ROMANIAN_BREAKFAST_POOL,
+    ...VARIETY_BREAKFAST_POOL,
   ].map(curated),
   lunch: [
     R.chickenCaesarSalad,
@@ -70,6 +72,7 @@ export const CURATED_POOL_BY_TYPE: Record<MealType, RecipeData[]> = {
     ...SWAP_LUNCH_POOL,
     ...EXTRA_LUNCH_POOL,
     ...ROMANIAN_LUNCH_POOL,
+    ...VARIETY_LUNCH_POOL,
   ].map(curated),
   dinner: [
     R.herbSalmon,
@@ -79,6 +82,7 @@ export const CURATED_POOL_BY_TYPE: Record<MealType, RecipeData[]> = {
     ...SWAP_DINNER_POOL,
     ...EXTRA_DINNER_POOL,
     ...ROMANIAN_DINNER_POOL,
+    ...VARIETY_DINNER_POOL,
   ].map(curated),
   snack: [
     R.appleAlmondButter,
