@@ -47,4 +47,14 @@ describe('withBodyweight', () => {
     const result = withBodyweight(points, weights);
     expect(result[0]?.bodyweightKg).toBe(78);
   });
+
+  it('falls back to the profile weight when no weigh-in was ever logged (UX-GYM-17)', () => {
+    const result = withBodyweight([e1rm('2026-01-01', 100)], [], 80);
+    expect(result[0]?.bodyweightKg).toBe(80);
+    expect(result[0]?.relative).toBe(1.25);
+  });
+
+  it('never returns the raw kg as the ratio when no weight is known at all', () => {
+    expect(withBodyweight([e1rm('2026-01-01', 100)], [])[0]?.relative).toBeNull();
+  });
 });

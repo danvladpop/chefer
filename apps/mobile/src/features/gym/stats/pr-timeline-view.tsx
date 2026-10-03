@@ -80,7 +80,10 @@ export function PrTimelineView({ bootstrap }: { bootstrap: GymBootstrap }) {
             </View>
             <View className="flex-row items-center gap-2">
               <Text>
-                {formatLoad(pr.weightKg, bootstrap.profile?.unit ?? 'KG')} × {pr.reps}
+                {formatLoad(pr.weightKg, bootstrap.profile?.unit ?? 'KG', 'WEIGHTED', {
+                  each: byId.get(pr.exerciseId)?.perHand,
+                })}{' '}
+                × {pr.reps}
               </Text>
               {/* T-05.6 (UX-05 F): the first-ever logged set is its own kind
                   of milestone — a bare "e1RM PR" badge would read oddly for

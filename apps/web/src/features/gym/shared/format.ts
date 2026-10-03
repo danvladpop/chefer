@@ -17,8 +17,9 @@ export function prescriptionText(
   unit: WeightUnit,
   loadType: LoadType = 'WEIGHTED',
   timed = false,
+  perHand = false,
 ): string {
-  const load = formatLoad(s.weightKg, unit, loadType);
+  const load = formatLoad(s.weightKg, unit, loadType, { each: perHand });
   const base = `${s.sets} × ${repsText(s.reps, timed)}`;
   return loadType === 'BODYWEIGHT' && s.weightKg <= 0 ? base : `${base} @ ${load}`;
 }

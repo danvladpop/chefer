@@ -149,7 +149,12 @@ export default function GymHistoryDetailPage() {
                   {warmups.length > 0 && (
                     <p className="mb-1.5 text-xs text-neutral-400">
                       Warm-up:{' '}
-                      {warmups.map((s) => `${formatLoad(s.weightKg, unit)}×${s.reps}`).join(', ')}
+                      {warmups
+                        .map(
+                          (s) =>
+                            `${formatLoad(s.weightKg, unit, 'WEIGHTED', { each: meta?.perHand })}×${s.reps}`,
+                        )
+                        .join(', ')}
                     </p>
                   )}
                   <div className="flex flex-wrap gap-1.5">
@@ -162,7 +167,8 @@ export default function GymHistoryDetailPage() {
                             : 'bg-neutral-50 text-neutral-300 line-through'
                         }`}
                       >
-                        {formatLoad(set.weightKg, unit)} × {set.reps}
+                        {formatLoad(set.weightKg, unit, 'WEIGHTED', { each: meta?.perHand })} ×{' '}
+                        {set.reps}
                         {i === working.length - 1 && ex.lastSetRir !== null && (
                           <span className="ml-1 text-xs text-neutral-400">
                             ({RIR_LABEL[ex.lastSetRir]})

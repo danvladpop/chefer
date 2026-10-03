@@ -20,6 +20,8 @@ export function PrTimeline({ library, unit }: { library: ExerciseDto[]; unit: We
     limit: 50,
   });
   const byId = new Map(library.map((e) => [e.id, e.name]));
+  // UX-GYM-19: dumbbell / kettlebell loads read "20 kg each".
+  const perHandIds = new Set(library.filter((e) => e.perHand).map((e) => e.id));
 
   return (
     <div className="rounded-2xl border bg-white p-4 shadow-sm sm:p-5">
@@ -69,7 +71,10 @@ export function PrTimeline({ library, unit }: { library: ExerciseDto[]; unit: We
                         kind of milestone — a bare "e1RM PR" label would read
                         oddly for a lift with nothing prior to beat. */}
                     {pr.isFirst ? 'First logged' : KIND_LABEL[pr.kind]} ·{' '}
-                    {formatLoad(pr.weightKg, unit)} × {pr.reps}
+                    {formatLoad(pr.weightKg, unit, 'WEIGHTED', {
+                      each: perHandIds.has(pr.exerciseId),
+                    })}{' '}
+                    × {pr.reps}
                     {pr.e1rmKg !== null ? ` · e1RM ${formatLoad(pr.e1rmKg, unit)}` : ''}
                   </p>
                 </div>

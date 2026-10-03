@@ -61,6 +61,8 @@ function weightCaption(meta: ExerciseMeta, unit: WeightUnit): string {
   if (meta.loadType === 'BODYWEIGHT_PLUS' || meta.equipment === 'BODYWEIGHT') {
     return `+${unitLabel(unit)}`;
   }
+  // UX-GYM-19: one dumbbell's weight, not the pair.
+  if (meta.perHand) return `${unitLabel(unit)} each`;
   return unitLabel(unit);
 }
 
@@ -108,7 +110,7 @@ function SetRowImpl({
   const openReps = useCallback(() => onOpenReps(seId, set.id), [onOpenReps, seId, set.id]);
   const longPress = useCallback(() => onLongPress(seId, set.id), [onLongPress, seId, set.id]);
 
-  const loadText = formatLoad(set.weightKg, unit, meta.loadType);
+  const loadText = formatLoad(set.weightKg, unit, meta.loadType, { each: meta.perHand });
   const summary = `${label}: ${loadText}, ${set.reps} ${repsCaption}`;
   const lastText = last
     ? `Last ${weightMode === 'none' ? '' : `${formatLoadNumber(last.weightKg, unit)} × `}${last.reps}${timed ? ' s' : ''}`
