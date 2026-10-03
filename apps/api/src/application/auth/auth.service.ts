@@ -2,7 +2,7 @@ import { TRPCError } from '@trpc/server';
 import bcrypt from 'bcryptjs';
 import type { Response } from 'express';
 import { ConsentKind, prisma } from '@chefer/database';
-import type { AuthResult, MobileSession } from '@chefer/types';
+import { ACCOUNT_EXISTS_MESSAGE, type AuthResult, type MobileSession } from '@chefer/types';
 import { defaultsForRegion } from '@chefer/utils';
 import { consentService } from '../privacy/consent.service.js';
 
@@ -95,7 +95,7 @@ export class AuthService {
     if (existing) {
       throw new TRPCError({
         code: 'CONFLICT',
-        message: 'An account with this email already exists',
+        message: ACCOUNT_EXISTS_MESSAGE,
       });
     }
 

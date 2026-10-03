@@ -11,7 +11,8 @@ import { z } from 'zod';
 import { userFacingErrorMessage } from '@chefer/utils';
 
 const loginSchema = z.object({
-  email: z.string().min(1, 'Email is required').email('Please enter a valid email address'),
+  // UX-ACC-07: trimmed before validation (autofill / suggestions append a space).
+  email: z.string().trim().min(1, 'Email is required').email('Please enter a valid email address'),
   password: z
     .string()
     .min(1, 'Password is required')
@@ -39,12 +40,16 @@ export function LoginForm({ sessionExpired = false }: { sessionExpired?: boolean
     },
     onError: (err) => {
       setServerError(userFacingErrorMessage(err, 'Invalid email or password'));
+      // UX-ACC-08: a wrong password must not stay in the field for the browser
+      // or a password manager to offer saving.
+      setValue('password', '');
     },
   });
 
   const {
     register,
     handleSubmit,
+    setValue,
     formState: { errors },
   } = useForm<LoginFormValues>({
     resolver: zodResolver(loginSchema),
@@ -101,7 +106,7 @@ export function LoginForm({ sessionExpired = false }: { sessionExpired?: boolean
           placeholder="you@example.com"
           aria-invalid={errors.email ? 'true' : undefined}
           aria-describedby={errors.email ? 'email-error' : undefined}
-          {...register('email')}
+          {...register('email', { onChange: () => setServerError(null) })}
         />
         {errors.email && (
           <p id="email-error" className="text-sm text-destructive" role="alert">
@@ -136,7 +141,7 @@ export function LoginForm({ sessionExpired = false }: { sessionExpired?: boolean
             placeholder="••••••••"
             aria-invalid={errors.password ? 'true' : undefined}
             aria-describedby={errors.password ? 'password-error' : undefined}
-            {...register('password')}
+            {...register('password', { onChange: () => setServerError(null) })}
           />
           <button
             type="button"

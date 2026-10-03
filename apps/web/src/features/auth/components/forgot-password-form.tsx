@@ -8,7 +8,8 @@ import { z } from 'zod';
 import { userFacingErrorMessage } from '@chefer/utils';
 
 const forgotSchema = z.object({
-  email: z.string().min(1, 'Email is required').email('Please enter a valid email address'),
+  // UX-ACC-07: trimmed before validation.
+  email: z.string().trim().min(1, 'Email is required').email('Please enter a valid email address'),
 });
 
 type ForgotFormValues = z.infer<typeof forgotSchema>;
