@@ -129,14 +129,30 @@ describe('TonightCard "Swap" (UX-FOOD-18)', () => {
     ['Sunday evening', new Date(2026, 8, 6, 19, 0), '6'],
     ['Wednesday evening', new Date(2026, 8, 2, 19, 0), '2'],
   ])('%s: opens THIS week, today, with the dinner swap requested', async (_name, now, day) => {
-    jest.useFakeTimers({ now, doNotFake: ['setTimeout', 'clearTimeout', 'setInterval'] });
+    jest.useFakeTimers({
+      now,
+      doNotFake: [
+        'setTimeout',
+        'clearTimeout',
+        'setInterval',
+        'clearInterval',
+        'setImmediate',
+        'clearImmediate',
+        'nextTick',
+        'queueMicrotask',
+        'requestAnimationFrame',
+        'cancelAnimationFrame',
+        'performance',
+      ],
+    });
     const { router } = jest.requireMock<{ router: { push: jest.Mock } }>('expo-router');
     const user = userEvent.setup({ advanceTimers: jest.advanceTimersByTime });
     await render(<TonightCard meal={meal(false) as never} showNutrition onLogged={jest.fn()} />);
     await user.press(screen.getByTestId('tonight-swap'));
-    expect(router.push).toHaveBeenCalledWith({
+    const [target] = router.push.mock.calls.at(-1) as [{ pathname: string; params: object }];
+    expect(target).toMatchObject({
       pathname: '/(food)/meal-plan',
-      params: expect.objectContaining({ week: '0', day, swap: 'dinner' }),
+      params: { week: '0', day, swap: 'dinner' },
     });
   });
 

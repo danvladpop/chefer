@@ -7,7 +7,7 @@ import ProgressScreen from '../../app/progress';
 // (F-TRK-4-1). A failed load is an error, never an empty history (F-X-3-1).
 
 const mockMonthly = jest.fn<unknown, []>();
-const mockMonthlyInput = jest.fn<void, [unknown]>();
+const mockMonthlyInput = jest.fn<unknown, [unknown]>();
 const mockWeights = jest.fn<unknown, []>();
 const mockPreferences = jest.fn<unknown, []>();
 const mockLogMutate = jest.fn();
@@ -208,16 +208,14 @@ describe('ProgressScreen (UX-FOOD-20, UX-FOOD-28)', () => {
   it('asks for the window the user picks, anchored on their local date', async () => {
     const user = userEvent.setup();
     await renderScreen();
-    expect(mockMonthlyInput).toHaveBeenLastCalledWith(
-      expect.objectContaining({
-        days: 28,
-        localDate: expect.stringMatching(/^\d{4}-\d{2}-\d{2}$/),
-      }),
-    );
+    const lastInput = () =>
+      mockMonthlyInput.mock.calls.at(-1)?.[0] as { days: number; localDate: string };
+    expect(lastInput().days).toBe(28);
+    expect(lastInput().localDate).toMatch(/^\d{4}-\d{2}-\d{2}$/);
     await user.press(screen.getByTestId('progress-range-7'));
-    expect(mockMonthlyInput).toHaveBeenLastCalledWith(expect.objectContaining({ days: 7 }));
+    expect(lastInput().days).toBe(7);
     await user.press(screen.getByTestId('progress-range-90'));
-    expect(mockMonthlyInput).toHaveBeenLastCalledWith(expect.objectContaining({ days: 90 }));
+    expect(lastInput().days).toBe(90);
   });
 
   it('titles the charts with the window actually served', async () => {

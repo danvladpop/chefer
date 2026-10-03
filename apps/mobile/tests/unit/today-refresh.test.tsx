@@ -75,18 +75,18 @@ describe('Today: pull to refresh (UX-FOOD-13)', () => {
     await waitFor(() => expect(screen.getByTestId('home-title')).toBeOnTheScreen());
 
     // The focus effect (and any other refetch) is in flight: nothing spins.
-    await act(async () => {
+    await act(() => {
       void queryClient.refetchQueries();
     });
     expect(queryClient.isFetching()).toBeGreaterThan(0);
     expect(refresh().refreshing).toBe(false);
 
     // A user pull does spin it, until the refetch settles.
-    await act(async () => {
+    await act(() => {
       refresh().onRefresh();
     });
     expect(refresh().refreshing).toBe(true);
-    await act(async () => {
+    await act(() => {
       release?.();
     });
     await waitFor(() => expect(refresh().refreshing).toBe(false));

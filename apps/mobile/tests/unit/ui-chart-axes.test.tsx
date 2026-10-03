@@ -11,10 +11,10 @@ function svgTexts(): string[] {
   const walk = (node: JsonElement | string) => {
     if (typeof node === 'string') return;
     if (node.type === 'RNSVGText') out.push(JSON.stringify(node.children));
-    node.children?.forEach(walk);
+    node.children.forEach(walk);
   };
   const root = screen.toJSON();
-  if (root) walk(root as JsonElement);
+  if (root) walk(root);
   return out;
 }
 
