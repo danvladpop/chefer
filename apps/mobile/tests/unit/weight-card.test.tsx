@@ -1,6 +1,7 @@
 import { Keyboard } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
-import { render, screen, userEvent } from '@testing-library/react-native';
+import { act, render, screen, userEvent } from '@testing-library/react-native';
+import { resetSnackbarForTests, Snackbar } from '@chefer/ui-mobile';
 import { WeightCard } from '../../src/features/coach/weight-card';
 
 // Audit F-DASH-3-1: weigh-ins are validated with the shared parser and can be
@@ -10,7 +11,14 @@ const mockLogMutate = jest.fn();
 const mockUpdateMutate = jest.fn();
 const mockDeleteMutate = jest.fn();
 const mockInvalidate = jest.fn();
+const mockDeleteClient = jest.fn((_input: { id: string }) => Promise.resolve({ success: true }));
 let mockUnits: 'METRIC' | 'IMPERIAL' = 'METRIC';
+let mockLogOptions: {
+  onSuccess?: (entry: { id: string }, variables: { weightKg: number }) => void;
+} = {};
+// The newest weigh-in on record: "today" unless a test says otherwise.
+let mockLatestAt = new Date('2026-09-21T08:00:00Z');
+let mockLatestKg = 1000;
 
 // T-26.2: these tests are about the save itself — the health-consent guard is
 // covered in health-consent.test.tsx, so here consent is always on record.
@@ -30,6 +38,7 @@ jest.mock('../../src/lib/trpc', () => ({
       },
     },
     useUtils: () => ({
+      client: { tracker: { deleteWeight: { mutate: mockDeleteClient } } },
       tracker: { weightHistory: { invalidate: mockInvalidate } },
       gym: {
         stats: { bodyweight: { invalidate: mockInvalidate } },
@@ -41,12 +50,17 @@ jest.mock('../../src/lib/trpc', () => ({
         useQuery: () => ({
           data: [
             { id: 'w1', weightKg: 80, recordedAt: new Date('2026-09-20T08:00:00Z') },
-            { id: 'w2', weightKg: 1000, recordedAt: new Date('2026-09-21T08:00:00Z') },
+            { id: 'w2', weightKg: mockLatestKg, recordedAt: mockLatestAt },
           ],
           refetch: jest.fn(),
         }),
       },
-      logWeight: { useMutation: () => ({ mutate: mockLogMutate, isPending: false, error: null }) },
+      logWeight: {
+        useMutation: (options: typeof mockLogOptions) => {
+          mockLogOptions = options;
+          return { mutate: mockLogMutate, isPending: false, error: null };
+        },
+      },
       updateWeight: { useMutation: () => ({ mutate: mockUpdateMutate, isPending: false }) },
       deleteWeight: { useMutation: () => ({ mutate: mockDeleteMutate, isPending: false }) },
     },
@@ -64,7 +78,10 @@ const { router } = jest.requireMock<{ router: { push: jest.Mock } }>('expo-route
 
 beforeEach(() => {
   jest.clearAllMocks();
+  resetSnackbarForTests();
   mockUnits = 'METRIC';
+  mockLatestAt = new Date('2026-09-21T08:00:00Z');
+  mockLatestKg = 1000;
 });
 
 describe('WeightCard', () => {
@@ -123,7 +140,7 @@ describe('WeightCard', () => {
   });
 
   // R-21: iOS's decimal-pad has no Done key — the shared accessory bar adds one.
-  it('gives the weight field and the entry editor a Done key that dismisses the keyboard', async () => {
+  it('gives the weight field a Log key and the entry editor a Done key', async () => {
     const dismiss = jest.spyOn(Keyboard, 'dismiss');
     const user = userEvent.setup();
     await render(
@@ -134,9 +151,17 @@ describe('WeightCard', () => {
     const input = screen.getByTestId('weight-input');
     const barId = input.props.inputAccessoryViewID as string;
     expect(barId).toBeTruthy();
+    // UX-FOOD-08: the weight field's accessory saves ("Log") and closes the
+    // keyboard; an empty field shows the error and keeps the keyboard up.
     const bar = screen.getByTestId('weight-numeric-bar');
-    expect(bar).toHaveTextContent('Done');
+    expect(bar).toHaveTextContent('Log');
     await user.press(bar);
+    expect(mockLogMutate).not.toHaveBeenCalled();
+    expect(dismiss).not.toHaveBeenCalled();
+    expect(screen.getByTestId('weight-error')).toHaveTextContent(/Enter your weight/);
+    await user.type(input, '79.4');
+    await user.press(bar);
+    expect(mockLogMutate).toHaveBeenCalledWith({ weightKg: 79.4 });
     expect(dismiss).toHaveBeenCalled();
 
     dismiss.mockClear();
@@ -145,6 +170,63 @@ describe('WeightCard', () => {
     expect(screen.getByTestId('weight-entry-w2-input').props.inputAccessoryViewID).toBeTruthy();
     await user.press(screen.getByTestId('weight-entry-w2-numeric-bar'));
     expect(dismiss).toHaveBeenCalled();
+  });
+
+  // UX-FOOD-08: a logged weight leaves the field, with an Undo for 10 s.
+  it('clears the field after a log and offers Logged · Undo', async () => {
+    const user = userEvent.setup();
+    await render(
+      <SafeAreaProvider initialMetrics={METRICS}>
+        <WeightCard />
+        <Snackbar />
+      </SafeAreaProvider>,
+    );
+    await user.type(screen.getByTestId('weight-input'), '79.4');
+    await user.press(screen.getByTestId('weight-save'));
+    await act(async () => {
+      mockLogOptions.onSuccess?.({ id: 'new1' }, { weightKg: 79.4 });
+    });
+    expect(screen.getByTestId('weight-input')).toHaveDisplayValue('');
+    expect(screen.getByTestId('snackbar-message')).toHaveTextContent('Logged 79.4 kg');
+    await user.press(screen.getByTestId('snackbar-action'));
+    expect(mockDeleteClient).toHaveBeenCalledWith({ id: 'new1' });
+  });
+
+  it('ignores the same weight logged again on the same day, but not on another day', async () => {
+    mockLatestAt = new Date();
+    mockLatestKg = 79.4;
+    const user = userEvent.setup();
+    await render(
+      <SafeAreaProvider initialMetrics={METRICS}>
+        <WeightCard />
+        <Snackbar />
+      </SafeAreaProvider>,
+    );
+    await user.type(screen.getByTestId('weight-input'), '79,4');
+    await user.press(screen.getByTestId('weight-save'));
+    expect(mockLogMutate).not.toHaveBeenCalled();
+    expect(screen.getByTestId('snackbar-message')).toHaveTextContent(
+      'Already logged 79.4 kg today',
+    );
+    expect(screen.getByTestId('weight-input')).toHaveDisplayValue('');
+    // A different value on the same day is a real second weigh-in.
+    await user.type(screen.getByTestId('weight-input'), '79.9');
+    await user.press(screen.getByTestId('weight-save'));
+    expect(mockLogMutate).toHaveBeenCalledWith({ weightKg: 79.9 });
+  });
+
+  it('logs the same weight again when the last entry is from another day', async () => {
+    mockLatestAt = new Date('2026-09-01T08:00:00Z');
+    mockLatestKg = 79.4;
+    const user = userEvent.setup();
+    await render(
+      <SafeAreaProvider initialMetrics={METRICS}>
+        <WeightCard />
+      </SafeAreaProvider>,
+    );
+    await user.type(screen.getByTestId('weight-input'), '79.4');
+    await user.press(screen.getByTestId('weight-save'));
+    expect(mockLogMutate).toHaveBeenCalledWith({ weightKg: 79.4 });
   });
 
   it('links to the Progress screen', async () => {

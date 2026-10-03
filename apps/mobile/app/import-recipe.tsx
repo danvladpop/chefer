@@ -318,7 +318,7 @@ export default function ImportRecipeScreen() {
                   keyboardType="url"
                   placeholder={VIDEO_IMPORT_COPY.urlPlaceholder}
                   placeholderTextColor="#9ca3af"
-                  className="h-11 rounded-md border border-input bg-background px-3 text-base text-foreground"
+                  className="min-h-11 py-2 rounded-md border border-input bg-background px-3 text-base text-foreground"
                 />
                 {videoUrlInvalid && (
                   <Text testID="import-video-invalid" className="text-sm text-red-600">
@@ -332,6 +332,7 @@ export default function ImportRecipeScreen() {
             ) : tab === 'url' ? (
               <TextInput
                 testID="import-url"
+                accessibilityLabel="Recipe link"
                 value={url}
                 onChangeText={(v) => {
                   // bug B-17: pasting a video link into the plain Link tab
@@ -350,11 +351,12 @@ export default function ImportRecipeScreen() {
                 keyboardType="url"
                 placeholder="https://example.com/best-lasagna"
                 placeholderTextColor="#9ca3af"
-                className="h-11 rounded-md border border-input bg-background px-3 text-base text-foreground"
+                className="min-h-11 py-2 rounded-md border border-input bg-background px-3 text-base text-foreground"
               />
             ) : (
               <TextInput
                 testID="import-text"
+                accessibilityLabel="Recipe text"
                 value={text}
                 onChangeText={setText}
                 multiline

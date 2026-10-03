@@ -205,7 +205,7 @@ export function MetricsStep({
             accessibilityHint={ageError ?? undefined}
             aria-invalid={ageError !== null}
             className={cn(
-              'h-11 rounded-md border bg-background px-3 text-base text-foreground',
+              'min-h-11 py-2 rounded-md border bg-background px-3 text-base text-foreground',
               ageError !== null ? 'border-red-600' : 'border-input',
             )}
           />
@@ -225,7 +225,7 @@ export function MetricsStep({
               accessibilityHint={errors.height ?? undefined}
               aria-invalid={errors.height !== null}
               className={cn(
-                'h-11 min-w-0 flex-1 rounded-md border bg-background px-3 text-base text-foreground',
+                'min-h-11 py-2 min-w-0 flex-1 rounded-md border bg-background px-3 text-base text-foreground',
                 errors.height !== null ? 'border-red-600' : 'border-input',
               )}
             />
@@ -242,7 +242,7 @@ export function MetricsStep({
                 accessibilityHint={errors.height ?? undefined}
                 aria-invalid={errors.height !== null}
                 className={cn(
-                  'h-11 min-w-0 flex-1 rounded-md border bg-background px-3 text-base text-foreground',
+                  'min-h-11 py-2 min-w-0 flex-1 rounded-md border bg-background px-3 text-base text-foreground',
                   errors.height !== null ? 'border-red-600' : 'border-input',
                 )}
               />
@@ -263,7 +263,7 @@ export function MetricsStep({
             accessibilityHint={errors.weight ?? undefined}
             aria-invalid={errors.weight !== null}
             className={cn(
-              'h-11 rounded-md border bg-background px-3 text-base text-foreground',
+              'min-h-11 py-2 rounded-md border bg-background px-3 text-base text-foreground',
               errors.weight !== null ? 'border-red-600' : 'border-input',
             )}
           />

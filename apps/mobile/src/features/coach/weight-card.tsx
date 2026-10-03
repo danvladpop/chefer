@@ -59,6 +59,7 @@ export function WeightCard() {
 
       {/* Shared parser (audit F-DASH-3-1) lives in the form. */}
       <WeightLogForm
+        lastEntry={latest ?? null}
         {...(latest && { placeholder: `Today: ${formatBodyWeight(latest.weightKg, system)}?` })}
       />
       <View className="mt-1 flex-row items-center justify-between">

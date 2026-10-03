@@ -97,7 +97,7 @@ function EntryRow({
             inputAccessoryViewID={barId}
             keyboardType="decimal-pad"
             accessibilityLabel={`Weight on ${dateLabel} in ${system === 'IMPERIAL' ? 'pounds' : 'kilograms'}`}
-            className="h-11 flex-1 rounded-md border border-input bg-background px-3 text-base text-foreground"
+            className="min-h-11 py-2 flex-1 rounded-md border border-input bg-background px-3 text-base text-foreground"
           />
         ) : (
           <Text className="flex-1 text-sm font-semibold text-gray-900">{weightLabel}</Text>

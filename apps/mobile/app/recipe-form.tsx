@@ -92,18 +92,19 @@ function friendlySaveError(message: string): string {
 
 const NameInput = forwardRef<
   TextInput,
-  { value: string; onChangeText: (v: string) => void; placeholder: string }
->(function NameInput({ value, onChangeText, placeholder }, ref) {
+  { value: string; onChangeText: (v: string) => void; placeholder: string; label: string }
+>(function NameInput({ value, onChangeText, placeholder, label }, ref) {
   return (
     <TextInput
       ref={ref}
       testID="rf-name-input"
+      accessibilityLabel={label}
       value={value}
       onChangeText={onChangeText}
       placeholder={placeholder}
       placeholderTextColor="#9ca3af"
       returnKeyType="next"
-      className="h-11 rounded-md border border-input bg-background px-3 text-base text-foreground"
+      className="min-h-11 py-2 rounded-md border border-input bg-background px-3 text-base text-foreground"
     />
   );
 });
@@ -118,6 +119,7 @@ function DescriptionInput({
   return (
     <TextInput
       testID="rf-description"
+      accessibilityLabel={recipeFormCopy.fields.description}
       value={value}
       onChangeText={onChangeText}
       placeholder="What makes it special? (optional)"
@@ -132,20 +134,23 @@ function TimeInput({
   value,
   onChangeText,
   testID,
+  label,
 }: {
   value: string;
   onChangeText: (v: string) => void;
   testID: string;
+  label: string;
 }) {
   return (
     <TextInput
       testID={testID}
+      accessibilityLabel={label}
       value={value}
       onChangeText={onChangeText}
       placeholder="optional"
       placeholderTextColor="#9ca3af"
       keyboardType="number-pad"
-      className="h-11 rounded-md border border-input bg-background px-3 text-base text-foreground"
+      className="min-h-11 py-2 rounded-md border border-input bg-background px-3 text-base text-foreground"
     />
   );
 }
@@ -589,6 +594,7 @@ export default function RecipeFormScreen() {
             value={name}
             onChangeText={setName}
             placeholder={recipeFormCopy.fields.namePlaceholder}
+            label={recipeFormCopy.fields.name}
           />
         </FormField>
 
@@ -738,10 +744,20 @@ export default function RecipeFormScreen() {
               </FormField>
               <View className="flex-row gap-2">
                 <FormField label={recipeFormCopy.fields.prepTimeMins} testID="rf-prep-field">
-                  <TimeInput value={prepTime} onChangeText={setPrepTime} testID="rf-prep" />
+                  <TimeInput
+                    value={prepTime}
+                    onChangeText={setPrepTime}
+                    testID="rf-prep"
+                    label={recipeFormCopy.fields.prepTimeMins}
+                  />
                 </FormField>
                 <FormField label={recipeFormCopy.fields.cookTimeMins} testID="rf-cook-field">
-                  <TimeInput value={cookTime} onChangeText={setCookTime} testID="rf-cook" />
+                  <TimeInput
+                    value={cookTime}
+                    onChangeText={setCookTime}
+                    testID="rf-cook"
+                    label={recipeFormCopy.fields.cookTimeMins}
+                  />
                 </FormField>
               </View>
             </View>
