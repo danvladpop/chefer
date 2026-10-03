@@ -4,9 +4,10 @@ import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import { UpgradeButton } from '@/features/premium/components/UpgradeButton';
 import { trpc } from '@/lib/trpc';
+import { useQueryState } from '@/lib/use-query-state';
 import { Lock } from 'lucide-react';
 import type { PlanShape, PlanSlot } from '@chefer/types';
-import { Sheet } from '@chefer/ui';
+import { ErrorState, Sheet } from '@chefer/ui';
 import { cn, planShapeSummary, userFacingErrorMessage } from '@chefer/utils';
 
 // ─── Plan settings (T-07.6 web parity of the mobile HowYouCookForm /
@@ -93,7 +94,9 @@ export function PlanSettingsSheet({
   fitTrainingDays = true,
   onFitTrainingDaysChange,
 }: PlanSettingsSheetProps) {
-  const { data, isLoading } = trpc.mealPlan.getShape.useQuery(undefined, { enabled: open });
+  const shapeQuery = trpc.mealPlan.getShape.useQuery(undefined, { enabled: open });
+  const { data } = shapeQuery;
+  const { state: loadState, retry } = useQueryState(shapeQuery);
   const [draft, setDraft] = useState<DraftShape | null>(null);
   const setShapeMutation = trpc.mealPlan.setShape.useMutation({ meta: { silent: true } });
 
@@ -144,7 +147,12 @@ export function PlanSettingsSheet({
       }
     >
       <div className="px-5 pb-4">
-        {isLoading || !draft ? (
+        {loadState === 'error' ? (
+          // UX-X-12: a failed load is not a spinner forever.
+          <div data-testid="plan-settings-load-error">
+            <ErrorState title="Couldn't load your plan settings" onRetry={retry} />
+          </div>
+        ) : !draft ? (
           <div className="flex items-center justify-center py-10">
             <div className="h-6 w-6 animate-spin rounded-full border-4 border-[#944a00]/20 border-t-[#944a00]" />
           </div>

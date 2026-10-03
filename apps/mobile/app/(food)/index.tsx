@@ -9,7 +9,7 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Link, router, useFocusEffect } from 'expo-router';
-import { Button, Card, Screen, Text } from '@chefer/ui-mobile';
+import { Button, Card, ErrorState, Screen, Text } from '@chefer/ui-mobile';
 import { localDateStr, remainingPlannedKcal } from '@chefer/utils';
 import { ChefReviewBanner } from '../../src/features/coach/chef-review-banner';
 import { WeightCard } from '../../src/features/coach/weight-card';
@@ -106,16 +106,12 @@ export default function HomeScreen() {
       <Screen>
         {/* Offline in the gym: the switch must work even when food data can't load. */}
         <ModeSwitch className="mt-3" />
-        <View className="flex-1 items-center justify-center gap-2">
-          <Text variant="muted">Couldn&apos;t load your dashboard.</Text>
-          <Pressable
-            accessibilityRole="button"
-            onPress={() => void refetch()}
-            className="min-h-11 justify-center px-4"
-          >
-            <Text className="font-semibold text-primary">Try again</Text>
-          </Pressable>
-        </View>
+        <ErrorState
+          testID="today-load-error"
+          title="Couldn't load your dashboard"
+          icon={<Ionicons name="cloud-offline-outline" size={40} color="#9ca3af" />}
+          onRetry={() => void refetch()}
+        />
       </Screen>
     );
   }

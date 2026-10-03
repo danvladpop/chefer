@@ -21,7 +21,9 @@ const mocks = vi.hoisted(() => {
     setShapeMutate: vi.fn((_input: unknown, opts?: { onSuccess?: (saved: unknown) => void }) =>
       opts?.onSuccess?.(LEGACY_SHAPE),
     ),
-    shapeData: LEGACY_SHAPE,
+    shapeData: LEGACY_SHAPE as typeof LEGACY_SHAPE | undefined,
+    shapeFailed: false,
+    refetch: vi.fn(),
   };
 });
 const LEGACY_SHAPE = mocks.LEGACY_SHAPE;
@@ -29,7 +31,14 @@ const LEGACY_SHAPE = mocks.LEGACY_SHAPE;
 vi.mock('@/lib/trpc', () => ({
   trpc: {
     mealPlan: {
-      getShape: { useQuery: () => ({ data: mocks.shapeData, isLoading: false }) },
+      getShape: {
+        useQuery: () => ({
+          data: mocks.shapeData,
+          isLoading: false,
+          isError: mocks.shapeFailed && !mocks.shapeData,
+          refetch: mocks.refetch,
+        }),
+      },
       setShape: {
         useMutation: () => ({
           mutate: mocks.setShapeMutate,
@@ -52,6 +61,8 @@ vi.mock('@/features/premium/components/UpgradeButton', () => ({
 beforeEach(() => {
   mocks.setShapeMutate.mockClear();
   mocks.shapeData = LEGACY_SHAPE;
+  mocks.shapeFailed = false;
+  mocks.refetch.mockClear();
 });
 afterEach(cleanup);
 
@@ -204,5 +215,26 @@ describe('PlanSettingsSheet', () => {
     const sw = screen.getByRole('switch', { name: 'Fit meals to my training days' });
     expect((sw as HTMLInputElement).disabled).toBe(true);
     expect(screen.getByRole('button', { name: 'See what Premium adds' })).toBeTruthy();
+  });
+});
+
+// UX-X-12: a failed load is not a spinner forever.
+describe('PlanSettingsSheet — failed load', () => {
+  it('shows an error with Try again instead of a spinner', () => {
+    mocks.shapeData = undefined;
+    mocks.shapeFailed = true;
+    render(
+      <PlanSettingsSheet
+        open
+        onClose={vi.fn()}
+        hasPlan={false}
+        weekLabel="this week"
+        isPremium={false}
+        onSaved={vi.fn()}
+      />,
+    );
+    expect(screen.getByTestId('plan-settings-load-error')).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: 'Try again' }));
+    expect(mocks.refetch).toHaveBeenCalled();
   });
 });

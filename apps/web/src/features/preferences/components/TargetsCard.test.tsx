@@ -27,11 +27,15 @@ const m = vi.hoisted(() => {
     set: ReturnType<typeof vi.fn>;
     invalidate: ReturnType<typeof vi.fn>;
     getData: TargetsGetData | undefined;
+    getFailed: boolean;
+    refetch: ReturnType<typeof vi.fn>;
     setState: SetMutationState;
   } = {
     set: vi.fn(),
     invalidate: vi.fn(),
     getData: undefined,
+    getFailed: false,
+    refetch: vi.fn(),
     setState: { isPending: false, isSuccess: false, error: null },
   };
   return state;
@@ -45,7 +49,14 @@ vi.mock('@/lib/trpc', () => ({
       dashboard: { summary: { invalidate: m.invalidate } },
     }),
     targets: {
-      get: { useQuery: () => ({ data: m.getData, isLoading: !m.getData }) },
+      get: {
+        useQuery: () => ({
+          data: m.getData,
+          isLoading: !m.getData && !m.getFailed,
+          isError: m.getFailed && !m.getData,
+          refetch: m.refetch,
+        }),
+      },
       set: {
         useMutation: (opts?: { onSuccess?: () => void; onError?: (e: Error) => void }) => ({
           mutate: (input: unknown) => {
@@ -70,6 +81,7 @@ afterEach(cleanup);
 beforeEach(() => {
   vi.clearAllMocks();
   m.getData = SUGGESTED_DATA;
+  m.getFailed = false;
   m.setState = { isPending: false, isSuccess: false, error: null };
 });
 
@@ -104,5 +116,25 @@ describe('TargetsCard', () => {
     expect(m.set).toHaveBeenCalledWith(
       expect.objectContaining({ targetMode: 'OWN', kcal: 2500, proteinG: 150 }),
     );
+  });
+});
+
+// UX-X-12: a failed load is not "Loading…" forever.
+describe('TargetsCard — failed load (UX-X-12)', () => {
+  it('shows an error with Try again, and Try again refetches', () => {
+    m.getData = undefined;
+    m.getFailed = true;
+    render(<TargetsCard />);
+    expect(screen.getByTestId('targets-card-error')).toBeTruthy();
+    expect(screen.queryByText('Loading…')).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'Try again' }));
+    expect(m.refetch).toHaveBeenCalled();
+  });
+
+  it('still says Loading… while the first load is in flight', () => {
+    m.getData = undefined;
+    render(<TargetsCard />);
+    expect(screen.getByText('Loading…')).toBeTruthy();
+    expect(screen.queryByTestId('targets-card-error')).toBeNull();
   });
 });

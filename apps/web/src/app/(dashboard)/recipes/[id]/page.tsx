@@ -35,13 +35,14 @@ import {
   Search,
   Users,
 } from 'lucide-react';
-import { Sheet, Toast } from '@chefer/ui';
+import { ErrorState, Sheet, Toast } from '@chefer/ui';
 import {
   aiConsentRequiredFor,
   defaultCookServings,
   formatFractionalQuantity,
   formatPortion,
   formatQuantity,
+  isNotFoundError,
   labelCaveatLineText,
   reportSentSnackbarText,
   scaleNutrition,
@@ -150,7 +151,8 @@ export default function RecipeDetailPage({ params }: RecipePageProps) {
   const mealLabel = meal ? meal.charAt(0).toUpperCase() + meal.slice(1) : '';
   const contextLabel = dayLabel && mealLabel ? `${mealLabel} · ${dayLabel}` : '';
 
-  const { data: recipe, isLoading, isError } = trpc.mealPlan.getRecipe.useQuery({ recipeId: id });
+  const recipeQuery = trpc.mealPlan.getRecipe.useQuery({ recipeId: id });
+  const { data: recipe, isLoading, isError } = recipeQuery;
   const { data: savedData } = trpc.recipe.isSaved.useQuery({ recipeId: id });
   const { data: myRating } = trpc.recipe.getMyRating.useQuery({ recipeId: id });
   // T-02.3: a separate, additive query (mealPlan.getRecipe is another
@@ -276,9 +278,35 @@ export default function RecipeDetailPage({ params }: RecipePageProps) {
     );
   }
 
+  // UX-REC-03: a failed LOAD is not "Recipe not found" — only a real
+  // NOT_FOUND says that. Everything else offers Try again.
+  if (isError && !recipe && !isNotFoundError(recipeQuery.error)) {
+    return (
+      <div
+        data-testid="recipe-load-error"
+        className="mx-auto max-w-3xl px-4 py-6 sm:px-6 sm:py-8 text-center"
+      >
+        <ErrorState
+          title="Couldn't load this recipe"
+          onRetry={() => void recipeQuery.refetch()}
+          retrying={recipeQuery.isRefetching}
+        />
+        <Link
+          href={backHref}
+          className="mt-4 inline-flex min-h-11 items-center text-sm text-[#944a00] hover:underline"
+        >
+          {backLabel}
+        </Link>
+      </div>
+    );
+  }
+
   if (isError || !recipe) {
     return (
-      <div className="mx-auto max-w-3xl px-4 py-6 sm:px-6 sm:py-8 text-center">
+      <div
+        data-testid="recipe-not-found"
+        className="mx-auto max-w-3xl px-4 py-6 sm:px-6 sm:py-8 text-center"
+      >
         <p className="text-gray-500">Recipe not found.</p>
         <Link
           href={backHref}
