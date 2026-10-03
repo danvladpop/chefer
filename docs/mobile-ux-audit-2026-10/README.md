@@ -87,39 +87,39 @@ Updated by each work package in `docs/backlog-2026-10/` (each WP edits only its 
 | UX-FOOD-08 | S2  | open            | WP-03         |            |                                                                                                            |
 | UX-FOOD-09 | S2  | fixed           | WP-02         | #108       | Debounced search, states, gram clamp                                                                       |
 | UX-FOOD-10 | S2  | open            | WP-03         |            |                                                                                                            |
-| UX-FOOD-11 | S2  | open            | WP-10         |            |                                                                                                            |
-| UX-FOOD-12 | S2  | open            | WP-10         |            |                                                                                                            |
-| UX-FOOD-13 | S2  | open            | WP-10         |            |                                                                                                            |
-| UX-FOOD-14 | S2  | open            | WP-10         |            |                                                                                                            |
-| UX-FOOD-15 | S2  | open            | WP-10         |            |                                                                                                            |
+| UX-FOOD-11 | S2  | fixed           | WP-10         | PR_WP10    | Optional unknownMacros flag (numbers kept for 1.0.1); sanity check skips unknowns                          |
+| UX-FOOD-12 | S2  | fixed           | WP-10         | PR_WP10    | Prefix/word-start/alias ranking, recipe usage, limit + Show more                                           |
+| UX-FOOD-13 | S2  | fixed           | WP-10         | PR_WP10    | Refresh spinner only on a user pull                                                                        |
+| UX-FOOD-14 | S2  | fixed           | WP-10         | PR_WP10    | No first-run notice; 25 kcal/5 g threshold; Keep confirms                                                  |
+| UX-FOOD-15 | S2  | fixed           | WP-10         | PR_WP10    | "Logged ✓ · Undo" held 2 s                                                                                 |
 | UX-FOOD-16 | S2  | open            | WP-03         |            |                                                                                                            |
 | UX-FOOD-17 | S2  | fixed           | WP-01         | #106       | Optional `entryId` (index still accepted)                                                                  |
-| UX-FOOD-18 | S2  | open            | WP-10         |            |                                                                                                            |
-| UX-FOOD-19 | S2  | open            | WP-10         |            |                                                                                                            |
-| UX-FOOD-20 | S2  | open            | WP-10         |            |                                                                                                            |
-| UX-FOOD-21 | S2  | open            | WP-10         |            |                                                                                                            |
-| UX-FOOD-22 | S2  | open            | WP-10         |            |                                                                                                            |
-| UX-FOOD-23 | S3  | open            | WP-10         |            |                                                                                                            |
+| UX-FOOD-18 | S2  | fixed           | WP-10         | PR_WP10    | Tonight Swap deep-links this week; Plan rolls over at midnight                                             |
+| UX-FOOD-19 | S2  | partially fixed | WP-10         | PR_WP10    | Shared selectTodaysSession on Today (mobile + web); gym Today still uses the rotation (WP-12)              |
+| UX-FOOD-20 | S2  | fixed           | WP-10         | PR_WP10    | Axes from 0, logged = kcal > 0, 7/28/90 range                                                              |
+| UX-FOOD-21 | S2  | fixed           | WP-10         | PR_WP10    | Thread per day, action chips + Undo, Stop, folding, starters, friendly errors (mock AI)                    |
+| UX-FOOD-22 | S2  | deferred        | WP-10         | PR_WP10    | Not reproduced on the Pixel_8 cold start; suspected MO-06 mount animation (owner call to init at target)   |
+| UX-FOOD-23 | S3  | fixed           | WP-10         | PR_WP10    | keepPreviousData                                                                                           |
 | UX-FOOD-24 | S3  | fixed           | WP-04         | #107       | Short caption inside the ring, 2 lines, capped at 1.3×                                                     |
-| UX-FOOD-25 | S3  | open            | WP-10         |            |                                                                                                            |
-| UX-FOOD-26 | S3  | open            | WP-10         |            |                                                                                                            |
-| UX-FOOD-27 | S3  | open            | WP-10         |            |                                                                                                            |
-| UX-FOOD-28 | S3  | open            | WP-10         |            |                                                                                                            |
+| UX-FOOD-25 | S3  | fixed           | WP-10         | PR_WP10    | One "Also eaten" list by meal, copy fixes, (g) labels, local reset time                                    |
+| UX-FOOD-26 | S3  | fixed           | WP-10         | PR_WP10    | Photo, 2-line name, editable kcal, Undo, 30 s timeout                                                      |
+| UX-FOOD-27 | S3  | fixed           | WP-10         | PR_WP10    | SVG sparkline with start → end                                                                             |
+| UX-FOOD-28 | S3  | fixed           | WP-10         | PR_WP10    | One consent sheet per list; weight card survives a failed summary                                          |
 | UX-PLAN-01 | S1  | fixed           | WP-01         | #106       | Past days and eaten slots kept on regenerate                                                               |
 | UX-PLAN-02 | S1  | fixed           | WP-01         | #106       | Slot portion = eater only; Shop scales (owner data fix OA-10)                                              |
 | UX-PLAN-03 | S1  | fixed           | WP-01         | #106       | Busy confirm; quota error shown                                                                            |
-| UX-PLAN-04 | S2  | open            | WP-10         |            |                                                                                                            |
-| UX-PLAN-05 | S2  | open            | WP-10         |            |                                                                                                            |
+| UX-PLAN-04 | S2  | fixed           | WP-10         | PR_WP10    | Undo restores the previous pin state (optional pinned)                                                     |
+| UX-PLAN-05 | S2  | fixed           | WP-10         | PR_WP10    | Slot-ranked picker, one safety header, kcal · protein · min                                                |
 | UX-PLAN-06 | S2  | fixed           | WP-01         | #106       | "Not paleo: contains quinoa"                                                                               |
-| UX-PLAN-07 | S2  | open            | WP-10         |            |                                                                                                            |
+| UX-PLAN-07 | S2  | fixed           | WP-10         | PR_WP10    | Range + days covered; next-week copy; mid-week window explained                                            |
 | UX-PLAN-08 | S2  | open            | WP-07         |            |                                                                                                            |
 | UX-PLAN-09 | S2  | partially fixed | WP-01 + WP-07 | #106       | Wrong week fixed here; opt-in UX in WP-07                                                                  |
 | UX-PLAN-10 | S2  | open            | WP-03         |            |                                                                                                            |
-| UX-PLAN-11 | S2  | open            | WP-10         |            |                                                                                                            |
-| UX-PLAN-12 | S2  | open            | WP-10         |            |                                                                                                            |
+| UX-PLAN-11 | S2  | fixed           | WP-10         | PR_WP10    | "Use this week again" into this/next week; Eaten marks on history                                          |
+| UX-PLAN-12 | S2  | partially fixed | WP-10         | PR_WP10    | Read-only household summary, "N checks passed"; kid age bands need a schema decision                       |
 | UX-PLAN-13 | S3  | fixed           | WP-04         | #107       | Badge row wraps                                                                                            |
 | UX-PLAN-14 | S3  | fixed           | WP-02         | #108       | Pin/Undo failures snackbar; pull to refresh                                                                |
-| UX-PLAN-15 | S3  | open            | WP-10         |            |                                                                                                            |
+| UX-PLAN-15 | S3  | fixed           | WP-10         | PR_WP10    | "My weeks" / "Past weeks" copy                                                                             |
 | UX-SHOP-01 | S2  | open            | WP-11         |            |                                                                                                            |
 | UX-SHOP-02 | S2  | partially fixed | WP-02 + WP-11 | #108       | Errors + Undo fixed here; the rest in WP-11                                                                |
 | UX-SHOP-03 | S2  | open            | WP-11         |            |                                                                                                            |
