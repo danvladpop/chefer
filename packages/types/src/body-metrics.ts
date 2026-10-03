@@ -45,3 +45,66 @@ export function bodyMetricsAgeError(age: number | null | undefined): string | nu
   if (age > MAX_BODY_METRICS_AGE) return `Enter an age of ${MAX_BODY_METRICS_AGE} or under.`;
   return null;
 }
+
+// ─── Height / weight plausibility (UX-ONB-05) ──────────────────────────────────
+// "1,80" used to save `heightCm: 1.8` and an 8 kg weight produced a calorie
+// target. These bounds are the one place every form checks typed values
+// against — onboarding, Preferences and web. The API inputs already reject
+// non-positive values and anything above 300 cm / 500 kg; they stay that wide
+// on purpose (app builds already in the field send whatever their form let
+// through), so these bounds are enforced where the value is typed.
+
+/** Shortest height accepted from a form, in centimetres. */
+export const MIN_HEIGHT_CM = 100;
+/** Tallest height accepted from a form, in centimetres. */
+export const MAX_HEIGHT_CM = 250;
+/** Lightest body weight accepted from a form, in kilograms. */
+export const MIN_WEIGHT_KG = 20;
+/** Heaviest body weight accepted from a form, in kilograms. */
+export const MAX_WEIGHT_KG = 400;
+
+const CM_PER_INCH = 2.54;
+const POUNDS_PER_KG = 2.2046226218;
+
+export type BodyUnits = 'METRIC' | 'IMPERIAL';
+
+/** True when `cm` is a plausible adult height (inclusive bounds). */
+export function isPlausibleHeightCm(cm: number): boolean {
+  return Number.isFinite(cm) && cm >= MIN_HEIGHT_CM && cm <= MAX_HEIGHT_CM;
+}
+
+/** True when `kg` is a plausible adult body weight (inclusive bounds). */
+export function isPlausibleWeightKg(kg: number): boolean {
+  return Number.isFinite(kg) && kg >= MIN_WEIGHT_KG && kg <= MAX_WEIGHT_KG;
+}
+
+/**
+ * Form-side check for height: null when empty or plausible, otherwise the
+ * message for under the field, phrased in the unit the user is typing in.
+ */
+export function bodyMetricsHeightError(
+  cm: number | null | undefined,
+  units: BodyUnits = 'METRIC',
+): string | null {
+  if (cm === null || cm === undefined || Number.isNaN(cm)) return null;
+  if (isPlausibleHeightCm(cm)) return null;
+  if (units === 'IMPERIAL') {
+    const lo = Math.ceil(MIN_HEIGHT_CM / CM_PER_INCH);
+    const hi = Math.floor(MAX_HEIGHT_CM / CM_PER_INCH);
+    return `Enter a height between ${Math.floor(lo / 12)} ft ${lo % 12} in and ${Math.floor(hi / 12)} ft ${hi % 12} in.`;
+  }
+  return `Enter a height between ${MIN_HEIGHT_CM} and ${MAX_HEIGHT_CM} cm.`;
+}
+
+/** Form-side check for weight — see {@link bodyMetricsHeightError}. */
+export function bodyMetricsWeightError(
+  kg: number | null | undefined,
+  units: BodyUnits = 'METRIC',
+): string | null {
+  if (kg === null || kg === undefined || Number.isNaN(kg)) return null;
+  if (isPlausibleWeightKg(kg)) return null;
+  if (units === 'IMPERIAL') {
+    return `Enter a weight between ${Math.ceil(MIN_WEIGHT_KG * POUNDS_PER_KG)} and ${Math.floor(MAX_WEIGHT_KG * POUNDS_PER_KG)} lb.`;
+  }
+  return `Enter a weight between ${MIN_WEIGHT_KG} and ${MAX_WEIGHT_KG} kg.`;
+}

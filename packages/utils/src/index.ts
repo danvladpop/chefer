@@ -1,4 +1,15 @@
 export { cn } from './cn';
+export {
+  bodyFieldTexts,
+  cmToFtIn,
+  ftInToCm,
+  heightCmFromText,
+  heightValueForInference,
+  parseBodyNumber,
+  splitInches,
+  weightKgFromText,
+  type BodyFieldTexts,
+} from './body-input';
 export { formatQuantity, systemForWeightUnit, weightUnitForSystem, type UnitSystem } from './units';
 // ─── One units + formatting system (WP-11, audit §6.4, UX-X-15) ──────────────
 export {
