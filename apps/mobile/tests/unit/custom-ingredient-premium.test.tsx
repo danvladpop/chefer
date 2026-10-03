@@ -34,7 +34,10 @@ jest.mock('../../src/lib/trpc', () => {
         hasProfile: { useQuery: () => ({ data: true }) },
       },
       household: { list: { useQuery: () => ({ data: [] }) } },
-      mealPlan: { generate: { useMutation: () => idle } },
+      mealPlan: {
+        generate: { useMutation: () => idle },
+        getForWeek: { useQuery: () => ({ data: null }) },
+      },
       user: { upgradePlan: { useMutation: () => idle } },
       ingredients: {
         createCustom: { useMutation: () => idle },

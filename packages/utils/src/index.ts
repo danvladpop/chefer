@@ -486,8 +486,10 @@ export {
 } from './feedback';
 export {
   ACTIVATION_STEP_COPY,
+  PLAN_WEEK_STEP_COPY,
   SOURCE_FEATURE_PRIORITY,
   activationIntro,
+  activationStepCopy,
   activationStepKeys,
   type ActivationStepCopy,
   type ActivationStepKey,

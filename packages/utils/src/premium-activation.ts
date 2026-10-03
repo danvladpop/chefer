@@ -28,7 +28,7 @@ export const SOURCE_FEATURE_PRIORITY: Partial<Record<string, PlanFeatureKey[]>> 
   'training-day': ['trainingNutrition', 'aiMealPlans'],
 };
 
-export type ActivationStepKey = 'profile' | 'household' | 'regenerate' | 'cheferize';
+export type ActivationStepKey = 'profile' | 'household' | 'regenerate' | 'cheferize' | 'snap';
 
 export interface ActivationStepCopy {
   key: ActivationStepKey;
@@ -57,13 +57,42 @@ export const ACTIVATION_STEP_COPY: Record<ActivationStepKey, ActivationStepCopy>
     title: 'Cheferize a favourite recipe',
     detail: 'Paste any link — the chef adapts it to your goals.',
   },
+  snap: {
+    key: 'snap',
+    title: 'Snap your next meal',
+    detail: 'Photograph a plate and the chef logs its calories and macros.',
+  },
 };
+
+/**
+ * UX-ACC-13: "Regenerate this week" only makes sense when there is a week to
+ * replace. With no plan the same step is "Plan my week" — a first build, not a
+ * destructive redo.
+ */
+export const PLAN_WEEK_STEP_COPY: ActivationStepCopy = {
+  key: 'regenerate',
+  title: 'Plan my week',
+  detail: 'The chef builds your first week around your goal and preferences.',
+};
+
+/**
+ * The copy for a step. `hasPlan === false` (loaded, and there is none) turns
+ * Regenerate into Plan my week; an unknown plan keeps the default copy.
+ */
+export function activationStepCopy(
+  key: ActivationStepKey,
+  opts: { hasPlan?: boolean } = {},
+): ActivationStepCopy {
+  if (key === 'regenerate' && opts.hasPlan === false) return PLAN_WEEK_STEP_COPY;
+  return ACTIVATION_STEP_COPY[key];
+}
 
 /** Which activation step answers each premium perk. */
 const STEP_FOR_FEATURE: Partial<Record<PlanFeatureKey, ActivationStepKey>> = {
   householdPlans: 'household',
   profilePersonalisation: 'profile',
   adaptiveCoaching: 'profile',
+  photoLogging: 'snap',
   aiMealPlans: 'regenerate',
   weeklyAutoGeneration: 'regenerate',
   budgetAwarePlanning: 'regenerate',
