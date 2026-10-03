@@ -20,6 +20,7 @@ jest.mock('../../src/features/premium/open-premium', () => ({
   },
 }));
 jest.mock('expo-router', () => ({
+  usePathname: () => '/more',
   router: {
     push: (...args: unknown[]) => {
       mockPush(...args);
@@ -71,6 +72,20 @@ describe('FeedbackCard (F-PROF-2-2)', () => {
 
     await user.type(input, 'Great app');
     expect(screen.getByTestId('feedback-counter')).toHaveTextContent('9 / 2,000');
+  });
+
+  it('attaches the build, OS and current screen to each submission (UX-PO-05)', async () => {
+    await render(<FeedbackCard />);
+    await fireEvent.changeText(screen.getByTestId('feedback-input'), '  Rest timer is silent ');
+    await fireEvent.press(screen.getByTestId('feedback-submit'));
+    expect(mockSubmit).toHaveBeenCalledTimes(1);
+    const [sent] = mockSubmit.mock.calls[0] as [
+      { message: string; build: string; os: string; route: string },
+    ];
+    expect(sent.message).toBe('Rest timer is silent');
+    expect(sent.build).toContain('Chefer');
+    expect(sent.os).toMatch(/^(iOS|Android API) /);
+    expect(sent.route).toBe('/more');
   });
 
   it('says when the limit is reached', async () => {
