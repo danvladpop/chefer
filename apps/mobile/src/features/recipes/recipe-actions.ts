@@ -1,4 +1,4 @@
-import { formatScaledQuantity, isUnscalableUnit, sourceDomainOf } from '@chefer/utils';
+import { isUnscalableUnit, sourceDomainOf } from '@chefer/utils';
 
 // UX-REC-08 / UX-REC-13: the pure parts of the recipe page's ⋯ menu and the
 // cookbook rows — the lines sent to the shopping list and a row's source/date

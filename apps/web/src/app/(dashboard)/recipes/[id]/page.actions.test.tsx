@@ -9,13 +9,22 @@ import RecipeDetailPage from './page';
 // source link on every import, spoon units kept in a metric display, and the
 // servings note.
 
-const m = vi.hoisted(() => ({
-  recipe: {} as Record<string, unknown>,
-  canEdit: true,
-  push: vi.fn(),
-  deleteMutate: vi.fn(),
-  deleteOptions: {} as { onSuccess?: () => void },
-}));
+interface Shared {
+  recipe: Record<string, unknown>;
+  canEdit: boolean;
+  push: ReturnType<typeof vi.fn>;
+  deleteMutate: ReturnType<typeof vi.fn>;
+  deleteOptions: { onSuccess?: () => void };
+}
+const m = vi.hoisted(
+  (): Shared => ({
+    recipe: {},
+    canEdit: true,
+    push: vi.fn(),
+    deleteMutate: vi.fn(),
+    deleteOptions: {},
+  }),
+);
 
 vi.mock('next/link', () => ({
   default: ({ href, children }: { href: string; children: React.ReactNode }) => (
