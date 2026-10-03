@@ -18,7 +18,8 @@ export async function readNotificationPermission(): Promise<NotificationPermissi
     if (current.granted) return 'granted';
     // The enum's values are the plain strings; comparing as text keeps this
     // working against the module mocks in tests.
-    return String(current.status) === 'denied' ? 'denied' : 'undetermined';
+    const status: string = current.status;
+    return status === 'denied' ? 'denied' : 'undetermined';
   } catch {
     return 'undetermined';
   }
