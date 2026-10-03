@@ -20,6 +20,12 @@ jest.mock('../../src/features/notifications/weekly-notifications', () => ({
   cancelWeeklyNotifications: jest.fn(),
 }));
 
+let mockNotificationPermission: 'granted' | 'denied' | 'undetermined' = 'undetermined';
+jest.mock('../../src/lib/use-notification-permission', () => ({
+  useNotificationPermission: () => mockNotificationPermission,
+  refreshNotificationPermission: jest.fn(),
+}));
+
 const { trpc } =
   jest.requireMock<ReturnType<typeof createTrpcPreferencesMock>>('../../src/lib/trpc');
 const permission = jest.requireMock<{ ensureGymReminderPermission: jest.Mock }>(
@@ -56,6 +62,7 @@ function withEmailDefaultsNoticeAt(emailDefaultsNoticeAt: string | null) {
 
 beforeEach(() => {
   jest.clearAllMocks();
+  mockNotificationPermission = 'undetermined';
   weekly.areWeeklyNotificationsOn.mockResolvedValue(false);
   weekly.scheduleWeeklyNotifications.mockResolvedValue(true);
   weekly.cancelWeeklyNotifications.mockResolvedValue(undefined);
@@ -99,6 +106,23 @@ describe('WeeklyUpdatesCard', () => {
     );
     expect(weekly.scheduleWeeklyNotifications).not.toHaveBeenCalled();
     expect(screen.getByTestId('prefs-weekly-push-switch').props.value).toBe(false);
+  });
+
+  // §6.8: with notifications denied in the OS, "On" would be a lie.
+  it('notifications denied in the OS: the switch reads off and an Open Settings row shows', async () => {
+    mockNotificationPermission = 'denied';
+    weekly.areWeeklyNotificationsOn.mockResolvedValue(true);
+    await render(<WeeklyUpdatesCard />);
+    await waitFor(() => expect(weekly.areWeeklyNotificationsOn).toHaveBeenCalled());
+    expect(screen.getByTestId('prefs-weekly-push-switch').props.value).toBe(false);
+    expect(screen.getByTestId('prefs-weekly-push-off')).toBeTruthy();
+    expect(screen.getByTestId('prefs-weekly-push-off-open-settings')).toBeTruthy();
+  });
+
+  it('notifications allowed: no Off row', async () => {
+    mockNotificationPermission = 'granted';
+    await render(<WeeklyUpdatesCard />);
+    expect(screen.queryByTestId('prefs-weekly-push-off')).toBeNull();
   });
 
   it('turning it off cancels', async () => {
