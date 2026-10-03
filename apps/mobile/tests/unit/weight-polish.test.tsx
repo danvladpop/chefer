@@ -70,6 +70,19 @@ describe('WeightEntriesList consent (UX-FOOD-28)', () => {
   });
 });
 
+describe('WeightEntriesList dates (UX-X-15)', () => {
+  it('keeps a locale date on one line at its own width', async () => {
+    await render(
+      <SafeAreaProvider initialMetrics={METRICS}>
+        <WeightEntriesList entries={entries} />
+      </SafeAreaProvider>,
+    );
+    const date = screen.getByTestId('weight-entry-w0-date');
+    expect(date.props.numberOfLines).toBe(1);
+    expect(date.props.className).not.toMatch(/(^| )w-24( |$)/);
+  });
+});
+
 describe('WeightSparkline (UX-FOOD-27)', () => {
   it('spells out the start and end values and draws a line, not blocks', async () => {
     await render(<WeightSparkline entries={entries} system="METRIC" />);
