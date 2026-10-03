@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useEffect, useState } from 'react';
+import { useEffect } from 'react';
 import { HouseholdTableSummary } from '@/features/meal-plan/components/HouseholdTableSummary';
 import { trpc } from '@/lib/trpc';
 import {
@@ -10,18 +10,14 @@ import {
   type PlanShape,
   type PlanSlot,
 } from '@chefer/types';
-import {
-  cn,
-  defaultsForRegion,
-  detectRegion,
-  householdTableSummary,
-  planShapeSummary,
-} from '@chefer/utils';
+import { cn, householdTableSummary, planShapeSummary } from '@chefer/utils';
 
 // ─── Step: How you cook (UX-07 §1, T-03.6) ─────────────────────────────────────
 // Web parity of mobile's how-you-cook-step.tsx. Reuses the same fieldsets as
 // PlanSettingsSheet (mealPlan.getShape/setShape), plus currency/units
-// (pre-selected from the device region, CI-24) and the once-only "Plan my
+// (pre-selected from the device region, CI-24 — by the wizard's initial state,
+// UX-ONB-04, never by this step, so going Back and forward keeps the user's
+// pick) and the once-only "Plan my
 // next week automatically every Sunday?" switch (T-03.9, default off).
 
 export type DraftShape = PlanShape & { leftovers: boolean };
@@ -97,21 +93,12 @@ export function StepHowYouCook({
     staleTime: 60_000,
   });
   const table = householdTableSummary(householdMembers ?? []);
-  const [regionApplied, setRegionApplied] = useState(false);
 
   useEffect(() => {
     if (!data) return;
     onChange((prev) => (prev.shape ? prev : { ...prev, shape: data }));
     // eslint-disable-next-line react-hooks/exhaustive-deps -- hydrate once
   }, [data]);
-
-  useEffect(() => {
-    if (regionApplied) return;
-    setRegionApplied(true);
-    const { preferredUnits, currency } = defaultsForRegion(detectRegion());
-    onChange((prev) => ({ ...prev, units: preferredUnits, currency }));
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- run once
-  }, []);
 
   if (!value.shape) {
     return (

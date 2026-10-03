@@ -1,6 +1,6 @@
 import { Pressable, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { Text } from '@chefer/ui-mobile';
+import { colors, Text } from '@chefer/ui-mobile';
 import { cn } from '@chefer/utils';
 
 /** Shared selectable row — goal list, activity level, biological sex, etc. */
@@ -14,7 +14,7 @@ export function OptionRow({
 }: {
   selected: boolean;
   onPress: () => void;
-  icon?: string;
+  icon?: keyof typeof Ionicons.glyphMap;
   label: string;
   description?: string;
   testID?: string;
@@ -30,7 +30,13 @@ export function OptionRow({
         selected ? 'border-primary bg-accent' : 'border-border bg-card',
       )}
     >
-      {icon && <Text className="text-xl">{icon}</Text>}
+      {icon && (
+        <Ionicons
+          name={icon}
+          size={22}
+          color={selected ? colors.primary : colors.mutedForeground}
+        />
+      )}
       <View className="min-w-0 flex-1">
         <Text className={cn('text-sm font-semibold', selected ? 'text-primary' : 'text-gray-800')}>
           {label}
@@ -41,7 +47,7 @@ export function OptionRow({
           </Text>
         )}
       </View>
-      {selected && <Ionicons name="checkmark-circle" size={20} color="#944a00" />}
+      {selected && <Ionicons name="checkmark-circle" size={20} color={colors.primary} />}
     </Pressable>
   );
 }

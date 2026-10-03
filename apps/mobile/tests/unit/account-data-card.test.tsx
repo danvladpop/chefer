@@ -14,7 +14,9 @@ const metrics = {
 // shared through shareExportFile, confirmed with the "Your export is ready."
 // snackbar — not an unnamed text blob in the share sheet.
 
-const mockShareExportFile = jest.fn((_filename: string, _contents: string) => Promise.resolve());
+const mockShareExportFile = jest.fn(
+  (_filename: string, _contents: string): Promise<boolean> => Promise.resolve(true),
+);
 const mockShow = jest.fn();
 const mockExportFetch = jest.fn(() => Promise.resolve({ user: { id: 'u1' } }));
 const mockDeleteMutate = jest.fn();
@@ -48,16 +50,29 @@ const mockSignOut = jest.fn((_options?: { reason?: string }) => Promise.resolve(
 jest.mock('../../src/lib/sign-out', () => ({
   signOut: (options?: { reason?: string }) => mockSignOut(options),
 }));
-let mockDeleteOptions: { onSuccess?: () => Promise<void> } | undefined;
+let mockDeleteOptions: { onSuccess?: () => Promise<void>; onError?: () => void } | undefined;
+let mockDeleteState: { isError: boolean; error: Error | null } = { isError: false, error: null };
+const mockDeleteReset = jest.fn();
+const mockMarkAccountDeleted = jest.fn();
+jest.mock('../../src/features/auth/account-deleted-notice', () => ({
+  markAccountDeleted: (): void => {
+    mockMarkAccountDeleted();
+  },
+}));
 
 jest.mock('../../src/lib/trpc', () => ({
   trpc: {
     useUtils: () => ({ user: { exportData: { fetch: mockExportFetch } } }),
     user: {
       deleteSelf: {
-        useMutation: (options?: { onSuccess?: () => Promise<void> }) => {
+        useMutation: (options?: { onSuccess?: () => Promise<void>; onError?: () => void }) => {
           mockDeleteOptions = options;
-          return { mutate: mockDeleteMutate, isPending: false };
+          return {
+            mutate: mockDeleteMutate,
+            reset: mockDeleteReset,
+            isPending: false,
+            ...mockDeleteState,
+          };
         },
       },
     },
@@ -79,6 +94,9 @@ beforeEach(() => {
   mockDeleteMutate.mockClear();
   mockSignOut.mockClear();
   mockResetMutate.mockClear();
+  mockMarkAccountDeleted.mockClear();
+  mockDeleteReset.mockClear();
+  mockDeleteState = { isError: false, error: null };
   mockResetState = { isSuccess: false, isPending: false };
   queryClient = new QueryClient();
 });
@@ -103,6 +121,17 @@ describe('mobile AccountDataCard export (T-39.5)', () => {
     const [filename] = mockShareExportFile.mock.calls.at(0) ?? [];
     expect(filename).toMatch(/^chefer-export-\d{4}-\d{2}-\d{2}\.json$/);
     expect(mockShow).toHaveBeenCalledWith({ message: 'Your export is ready.', tone: 'success' });
+  });
+
+  it('UX-ACC-22: a cancelled share sheet gets no "ready" snackbar and no error', async () => {
+    mockShareExportFile.mockResolvedValueOnce(false);
+    await renderCard();
+
+    await fireEvent.press(screen.getByText('Export my data'));
+
+    await waitFor(() => expect(mockShareExportFile).toHaveBeenCalledTimes(1));
+    expect(mockShow).not.toHaveBeenCalled();
+    expect(screen.queryByText(/Couldn't prepare your data/)).toBeNull();
   });
 
   it('shows an error and no snackbar when the export fetch fails', async () => {
@@ -178,6 +207,39 @@ describe('mobile DeleteAccountSheet (App Review R-03 / R-17 / R-24)', () => {
     await mockDeleteOptions?.onSuccess?.();
     expect(mockSignOut).toHaveBeenCalledWith({ reason: 'account-deleted' });
     expect(router.replace).toHaveBeenCalledWith('/(auth)');
+  });
+
+  it('UX-ACC-11: a wrong password shows its error right under the password field and refocuses it', async () => {
+    mockDeleteState = { isError: true, error: new Error('Incorrect password') };
+    const holder: { node: TextInput | null } = { node: null };
+    await render(
+      <Input
+        ref={(n) => {
+          holder.node = n;
+        }}
+      />,
+    );
+    const proto = Object.getPrototypeOf(holder.node) as TextInput;
+    const focus = jest.spyOn(proto, 'focus').mockImplementation(() => undefined);
+    await openSheet();
+    mockDeleteOptions?.onError?.();
+
+    expect(screen.getByTestId('delete-account-error')).toHaveTextContent('Incorrect password');
+    expect(focus).toHaveBeenCalled();
+    focus.mockRestore();
+  });
+
+  it('UX-ACC-11: editing the password clears the stale error', async () => {
+    mockDeleteState = { isError: true, error: new Error('Incorrect password') };
+    await openSheet();
+    await fireEvent.changeText(screen.getByTestId('delete-account-password'), 'x');
+    expect(mockDeleteReset).toHaveBeenCalled();
+  });
+
+  it('UX-ACC-11: marks the one-time "deleted" notice before signing out', async () => {
+    await renderCard();
+    await mockDeleteOptions?.onSuccess?.();
+    expect(mockMarkAccountDeleted).toHaveBeenCalledTimes(1);
   });
 
   it('R-03: the DELETE field shows Done and dismisses the keyboard on submit', async () => {

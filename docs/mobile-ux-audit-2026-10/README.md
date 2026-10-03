@@ -43,40 +43,40 @@ Updated by each work package in `docs/backlog-2026-10/` (each WP edits only its 
 | UX-ACC-01  | S0  | fixed           | WP-01         | #106       | Picker `flush()` on every Save (mobile + web)                                                                                 |
 | UX-ACC-02  | S0  | fixed           | WP-01         | #106       | One `signOut()`; cache cleared on `setToken`                                                                                  |
 | UX-ACC-03  | S1  | fixed           | WP-01         | #106       | Error + retry; never seeds from a failed load                                                                                 |
-| UX-ACC-04  | S2  | open            | WP-09         |            |                                                                                                                               |
+| UX-ACC-04  | S2  | fixed           | WP-09         | #115       | Hub with back, ?section= anchors that scroll and highlight, Notifications/Legal/Account rows, Set up training                 |
 | UX-ACC-05  | S2  | fixed           | WP-03         | #109       | Jobs: ScrollView, back row, unsaved guard (+ WP-02 ErrorState)                                                                |
-| UX-ACC-06  | S2  | open            | WP-09         |            |                                                                                                                               |
-| UX-ACC-07  | S2  | open            | WP-09         |            |                                                                                                                               |
-| UX-ACC-08  | S2  | open            | WP-09 + Owner |            | JS part in the WP; native part in the owner native batch                                                                      |
-| UX-ACC-09  | S2  | open            | WP-09         |            |                                                                                                                               |
+| UX-ACC-06  | S2  | fixed           | WP-09         | #115       | EU-14: mustard, celery, lupin, sulphites, molluscs, crustaceans (old clients keep unknown labels as notes)                    |
+| UX-ACC-07  | S2  | fixed           | WP-09         | #115       | Shared trimmed email schema on client + API                                                                                   |
+| UX-ACC-08  | S2  | partially fixed | WP-09 + Owner | #115       | newPassword content types, password cleared after a failed sign-in; webcredentials domain is native (batch)                   |
+| UX-ACC-09  | S2  | fixed           | WP-09         | #115       | Dead reset link card, stage-aware title, login reset on focus                                                                 |
 | UX-ACC-10  | S2  | fixed           | WP-02         | #108       | One 401 path → signOut + "session expired"                                                                                    |
-| UX-ACC-11  | S2  | open            | WP-09         |            |                                                                                                                               |
+| UX-ACC-11  | S2  | fixed           | WP-09         | #115       | Error under the field + one-time "deleted" notice                                                                             |
 | UX-ACC-12  | S2  | fixed           | WP-01         | #106       | Sign-out and deletion clear reminders + gym KV                                                                                |
-| UX-ACC-13  | S2  | open            | WP-09         |            |                                                                                                                               |
-| UX-ACC-14  | S3  | open            | WP-09         |            |                                                                                                                               |
-| UX-ACC-15  | S3  | open            | WP-09         |            |                                                                                                                               |
-| UX-ACC-16  | S3  | open            | WP-09         |            |                                                                                                                               |
+| UX-ACC-13  | S2  | partially fixed | WP-09         | #115       | Source-aware CTA ("Plan my week"); Snap opens the tracker, not the picker                                                     |
+| UX-ACC-14  | S3  | fixed           | WP-09         | #115       | Top-aligned auth forms                                                                                                        |
+| UX-ACC-15  | S3  | fixed           | WP-09         | #115       | "Account exists" offers Sign in + Reset                                                                                       |
+| UX-ACC-16  | S3  | fixed           | WP-09         | #115       | Mismatch message re-checks live                                                                                               |
 | UX-ACC-17  | S3  | fixed           | WP-01         | #106       | No password in the draft; cleared on sign-out                                                                                 |
-| UX-ACC-18  | S3  | open            | WP-09         |            |                                                                                                                               |
-| UX-ACC-19  | S3  | open            | WP-09         |            |                                                                                                                               |
+| UX-ACC-18  | S3  | fixed           | WP-09         | #115       | Submit guarded while pending                                                                                                  |
+| UX-ACC-19  | S3  | fixed           | WP-09         | #115       | In-app /legal/\*, sign-out confirm, distinct Household icon                                                                   |
 | UX-ACC-20  | S3  | fixed           | WP-02         | #108       | NotificationsOffRow after a refusal                                                                                           |
-| UX-ACC-21  | S3  | open            | WP-09         |            |                                                                                                                               |
-| UX-ACC-22  | S3  | open            | WP-09         |            |                                                                                                                               |
-| UX-ACC-23  | S3  | open            | WP-09         |            |                                                                                                                               |
-| UX-ACC-24  | S3  | open            | WP-09         |            |                                                                                                                               |
+| UX-ACC-21  | S3  | fixed           | WP-09         | #115       | Goal & body save refreshes targets + dashboard                                                                                |
+| UX-ACC-22  | S3  | fixed           | WP-09         | #115       | "Export ready" only when shared                                                                                               |
+| UX-ACC-23  | S3  | fixed           | WP-09         | #115       | Budget validation with the cap shown                                                                                          |
+| UX-ACC-24  | S3  | fixed           | WP-09         | #115       | Premium copy says "above"                                                                                                     |
 | UX-ACC-25  | S3  | fixed           | WP-03         | #109       | Feedback scrolls into view; Send disabled when empty                                                                          |
 | UX-ACC-26  | S3  | fixed           | WP-03         | #109       | Delete-account field + persist-taps footer (test)                                                                             |
 | UX-ACC-27  | S3  | fixed           | WP-04         | #107       | min-w-0 / w-full on the clipped card rows (incl. gym export)                                                                  |
 | UX-ONB-01  | S1  | fixed           | WP-01         | #106       | BACK steps back; KV draft resumes; empty jobs → wizard                                                                        |
 | UX-ONB-02  | S1  | open            | Owner         |            |                                                                                                                               |
 | UX-ONB-03  | S2  | fixed           | WP-03         | #109       | Consent sheet ✕/backdrop/BACK = cancel, selections kept                                                                       |
-| UX-ONB-04  | S2  | open            | WP-09         |            |                                                                                                                               |
-| UX-ONB-05  | S2  | open            | WP-09         |            |                                                                                                                               |
+| UX-ONB-04  | S2  | fixed           | WP-09         | #115       | Region default once, in the initial state                                                                                     |
+| UX-ONB-05  | S2  | fixed           | WP-09         | #115       | ft + in height; shared plausibility bounds (client-side)                                                                      |
 | UX-ONB-06  | S2  | fixed           | WP-03         | #109       | One NumericReturnBar per field, Next/Done chaining                                                                            |
 | UX-ONB-07  | S2  | fixed           | WP-03         | #109       | Wizard keyboard-aware with sticky Continue                                                                                    |
 | UX-ONB-08  | S2  | fixed           | WP-01         | #106       | Saved jobs pre-fill; rounded metrics                                                                                          |
 | UX-ONB-09  | S2  | fixed           | WP-02         | #108       | One saving flag; plain error                                                                                                  |
-| UX-ONB-10  | S3  | open            | WP-09         |            |                                                                                                                               |
+| UX-ONB-10  | S3  | fixed           | WP-09         | #115       | Plurals, run copy, tokens, Ionicons, weekday chips                                                                            |
 | UX-FOOD-01 | S1  | fixed           | WP-01         | #106       | Ticks derive from server data, optimistic + rollback                                                                          |
 | UX-FOOD-02 | S1  | fixed           | WP-01         | #106       | `planForDate` at every call site                                                                                              |
 | UX-FOOD-03 | S1  | fixed           | WP-01         | #106       | Off-plan rows editable (`tracker.updateRecipeEntry`)                                                                          |

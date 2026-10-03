@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { regionCodeSchema } from '@chefer/types';
+import { authEmailSchema, regionCodeSchema } from '@chefer/types';
 import { authService } from '../application/auth/auth.service.js';
 import { passwordResetService } from '../application/auth/password-reset.service.js';
 import { emailPreferencesService } from '../application/notifications/email-preferences.service.js';
@@ -10,7 +10,7 @@ import { publicProcedure, router } from '../lib/trpc.js';
 // ─── Schemas ──────────────────────────────────────────────────────────────────
 
 const registerSchema = z.object({
-  email: z.string().min(1, 'Email is required').email('Invalid email address'),
+  email: authEmailSchema,
   password: z
     .string()
     .min(8, 'Password must be at least 8 characters')
@@ -37,7 +37,7 @@ const registerSchema = z.object({
 });
 
 const loginSchema = z.object({
-  email: z.string().min(1, 'Email is required').email('Invalid email address'),
+  email: authEmailSchema,
   password: z.string().min(1, 'Password is required'),
 });
 
@@ -75,7 +75,7 @@ export const authRouter = router({
    * more tightly, per target address (mailbox-bombing protection).
    */
   requestPasswordReset: publicProcedure
-    .input(z.object({ email: z.string().email('Invalid email address') }))
+    .input(z.object({ email: authEmailSchema }))
     .mutation(async ({ input, ctx }) => {
       assertWithinRateLimit('pwreset.ip', ctx.ipAddress, 5, 15 * 60 * 1000);
       assertWithinRateLimit('pwreset.email', input.email.toLowerCase(), 3, 60 * 60 * 1000);

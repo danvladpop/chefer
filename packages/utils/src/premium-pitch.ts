@@ -37,7 +37,7 @@ export const PREMIUM_PITCH_COPY = {
   alsoIncluded: 'Also included',
   dailyAllowanceSuffix: '(daily allowance)',
   termsHeading: 'INCLUDED',
-  termsBody: 'Premium is included at no cost. Turning it on unlocks every feature below.',
+  termsBody: 'Premium is included at no cost. Turning it on unlocks everything listed above.',
   turnOn: 'Turn on Premium',
   notNow: 'Not now',
   successTitle: 'Premium is on',

@@ -24,6 +24,7 @@ appId: dev.chefer.app.dev
           centerElement: true
       - tapOn:
           id: 'logout-button'
+      - runFlow: common/confirm-sign-out.yaml
 - extendedWaitUntil:
     visible:
       id: 'login-title'

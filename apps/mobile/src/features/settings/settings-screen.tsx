@@ -1,82 +1,115 @@
-import { useState } from 'react';
 import { Pressable, ScrollView, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { router, type Href } from 'expo-router';
 import { FRIENDS_COPY } from '@chefer/types';
-import { ConfirmSheet, Screen, Text } from '@chefer/ui-mobile';
+import { Button, Screen, Text } from '@chefer/ui-mobile';
 import { WELLNESS_COPY } from '@chefer/utils';
 import { track } from '../../lib/analytics';
+import { CURRENT_VERSION_LABEL } from '../../lib/current-build';
 import { useFriendsAvailability } from '../friends/api/use-friends-availability';
-import { unsyncedWorkoutsText, useSignOut } from './use-sign-out';
+import { useGymBootstrap } from '../gym/use-gym-bootstrap';
+import { legalHref } from '../legal/legal-docs';
+import { useSignOut } from './use-sign-out';
 
-// ─── Settings hub (T-00.9, PAT-9 §2.9) ─────────────────────────────────────────
-// One Settings entry from both modes (the ModeSwitch gear). Every row below
-// points at an EXISTING screen — several rows share a destination because
-// the anchor/card the settings map describes there (targets card, jobs
-// editor, training-day kinds, Emails/Privacy sections…) is wave-1 work
-// (UX-03, UX-35, UX-06, UX-39); this wave only wires the hub shell so no
-// lane needs to touch navigation again to add its row.
+// ─── Settings hub (T-00.9, PAT-9 §2.9; UX-ACC-04, UX-ACC-19) ───────────────────
+// One Settings entry from both modes (the ModeSwitch gear). Every row opens the
+// screen that really holds the setting, and — where a screen holds several —
+// with `?section=<id>` so it scrolls to and tints the right card and titles
+// itself after the row (section-anchor.tsx). Rows that share a card say so on
+// purpose: "Emails" and "Notifications" both live in Weekly updates (the
+// phone switch and the email switches are one card).
 
 interface SettingsRow {
   label: string;
   testID: string;
   href: Href;
-  destructive?: boolean;
   onOpen?: () => void;
 }
 
 interface SettingsGroup {
   title: string;
   rows: SettingsRow[];
+  /** Shows the "Set up training" call to action instead of the rows. */
+  setUpCta?: boolean;
 }
 
-const GROUPS: SettingsGroup[] = [
+const YOU_GROUP: SettingsGroup = {
+  title: 'You',
+  rows: [
+    { label: 'What you use Chefer for', testID: 'settings-jobs', href: '/settings/jobs' },
+    {
+      label: 'Goal & body',
+      testID: 'settings-goal-body',
+      href: '/preferences?section=goal-body',
+    },
+    { label: 'Your targets', testID: 'settings-targets', href: '/preferences?section=targets' },
+  ],
+};
+
+// "How you cook" is gone: its three questions (who you cook for, units and
+// currency, budget) are the Household, Money & units and Weekly budget rows.
+const FOOD_GROUP: SettingsGroup = {
+  title: 'Food',
+  rows: [
+    { label: 'Allergies & diets', testID: 'settings-safety', href: '/preferences?section=safety' },
+    { label: 'Household', testID: 'settings-household', href: '/household' },
+    {
+      label: 'Money & units',
+      testID: 'settings-money-units',
+      href: '/preferences?section=display',
+    },
+    { label: 'Weekly budget', testID: 'settings-budget', href: '/preferences?section=budget' },
+    {
+      label: 'Plan my week automatically',
+      testID: 'settings-auto-plan',
+      href: '/preferences?section=auto-plan',
+    },
+  ],
+};
+
+const TRAINING_GROUP: SettingsGroup = {
+  title: 'Training',
+  rows: [
+    {
+      label: 'Training days & reminders',
+      testID: 'settings-training-days',
+      href: '/gym/settings?section=reminders',
+    },
+    { label: 'Pause training', testID: 'settings-pause', href: '/gym/settings?section=pause' },
+    {
+      label: 'Units, equipment & weekly goal',
+      testID: 'settings-gym-units',
+      href: '/gym/settings?section=units',
+    },
+    // The History segment of the Stats tab (a completed-sessions list).
+    { label: 'Workout history', testID: 'settings-workout-history', href: '/stats?tab=history' },
+    { label: 'Export workouts', testID: 'settings-export', href: '/gym/settings?section=export' },
+  ],
+};
+
+const ACCOUNT_ROWS: SettingsRow[] = [
+  { label: 'Plan & Premium', testID: 'settings-plan-premium', href: '/profile?section=plan' },
+  { label: 'Emails', testID: 'settings-emails', href: '/preferences?section=weekly-updates' },
   {
-    title: 'You',
-    rows: [
-      { label: 'What you use Chefer for', testID: 'settings-jobs', href: '/settings/jobs' },
-      { label: 'Goal & body', testID: 'settings-goal-body', href: '/preferences' },
-      { label: 'Your targets', testID: 'settings-targets', href: '/preferences' },
-    ],
+    label: 'Notifications',
+    testID: 'settings-notifications',
+    href: '/preferences?section=weekly-updates',
   },
+  { label: 'Privacy & data', testID: 'settings-privacy', href: '/profile?section=privacy' },
   {
-    title: 'Food',
-    rows: [
-      { label: 'Allergies & diets', testID: 'settings-safety', href: '/preferences' },
-      { label: 'How you cook', testID: 'settings-how-you-cook', href: '/preferences' },
-      { label: 'Household', testID: 'settings-household', href: '/household' },
-      { label: 'Money & units', testID: 'settings-money-units', href: '/preferences' },
-      { label: 'Weekly budget', testID: 'settings-budget', href: '/preferences' },
-      { label: 'Plan my week automatically', testID: 'settings-auto-plan', href: '/preferences' },
-    ],
-  },
-  {
-    title: 'Training',
-    rows: [
-      {
-        label: 'Training days & reminders',
-        testID: 'settings-training-days',
-        href: '/gym/settings',
-      },
-      { label: 'Pause training', testID: 'settings-pause', href: '/gym/settings' },
-      {
-        label: 'Units, equipment & weekly goal',
-        testID: 'settings-gym-units',
-        href: '/gym/settings',
-      },
-      { label: 'Workout history', testID: 'settings-workout-history', href: '/stats' },
-      { label: 'Export workouts', testID: 'settings-export', href: '/gym/settings' },
-    ],
-  },
-  {
-    title: 'Account',
-    rows: [
-      { label: 'Plan & Premium', testID: 'settings-plan-premium', href: '/profile' },
-      { label: 'Emails', testID: 'settings-emails', href: '/profile' },
-      { label: 'Privacy & data', testID: 'settings-privacy', href: '/profile' },
-    ],
+    label: 'Download or delete my data',
+    testID: 'settings-account-data',
+    href: '/profile?section=account',
   },
 ];
+
+const LEGAL_GROUP: SettingsGroup = {
+  title: 'Legal',
+  rows: [
+    { label: 'Terms of Service', testID: 'settings-terms', href: legalHref('terms') },
+    { label: 'Privacy Policy', testID: 'settings-privacy-policy', href: legalHref('privacy') },
+  ],
+};
 
 // Following (docs/friends/ux-design.md §2.1): the first Account row, and Gym
 // mode's way in (Gym has no More tab). Only while `friends.availability` says
@@ -88,11 +121,19 @@ const FOLLOWING_ROW: SettingsRow = {
   onOpen: () => track('friends_opened', { source: 'settings' }),
 };
 
-function groupsFor(friendsAvailable: boolean): SettingsGroup[] {
-  if (!friendsAvailable) return GROUPS;
-  return GROUPS.map((group) =>
-    group.title === 'Account' ? { ...group, rows: [FOLLOWING_ROW, ...group.rows] } : group,
-  );
+function groupsFor(friendsAvailable: boolean, hasTraining: boolean): SettingsGroup[] {
+  return [
+    YOU_GROUP,
+    FOOD_GROUP,
+    // UX-ACC-04: five training rows that all open "Set up your training first"
+    // are one "Set up training" action until training is set up.
+    hasTraining ? TRAINING_GROUP : { title: 'Training', rows: [], setUpCta: true },
+    {
+      title: 'Account',
+      rows: friendsAvailable ? [FOLLOWING_ROW, ...ACCOUNT_ROWS] : ACCOUNT_ROWS,
+    },
+    LEGAL_GROUP,
+  ];
 }
 
 function GroupTitle({ children }: { children: string }) {
@@ -141,22 +182,53 @@ function SettingsRowItem({
   );
 }
 
+function TrainingSetupCta() {
+  return (
+    <View testID="settings-training-setup" className="gap-2 p-4">
+      <Text className="text-sm font-medium text-gray-800">Training isn’t set up yet</Text>
+      <Text variant="muted" className="text-sm">
+        Choose your training days, units and equipment to start logging workouts. Everything else in
+        Chefer works without it.
+      </Text>
+      <Button testID="settings-set-up-training" onPress={() => router.push('/gym/setup')}>
+        Set up training
+      </Button>
+    </View>
+  );
+}
+
 export function SettingsScreen() {
-  const [signOutVisible, setSignOutVisible] = useState(false);
   const { enabled: friendsAvailable } = useFriendsAvailability();
-  const groups = groupsFor(friendsAvailable);
-  const signOut = useSignOut('settings-sign-out-warning');
+  // Only a *loaded* "no gym profile" swaps the Training rows for the CTA — a
+  // slow or failed load keeps the rows rather than flashing a setup prompt.
+  const bootstrap = useGymBootstrap();
+  const trainingSetUp = !(bootstrap.isSuccess && !bootstrap.data.profile);
+  const groups = groupsFor(friendsAvailable, trainingSetUp);
+  const signOut = useSignOut('settings-sign-out-confirm');
 
   return (
     <Screen className="gap-2 px-0">
-      <Text variant="title" className="px-4">
-        Settings
-      </Text>
+      {/* UX-ACC-04: Settings was the one stack screen with no back control. */}
+      <View className="flex-row items-center gap-3 px-4">
+        <Pressable
+          testID="settings-back"
+          accessibilityRole="button"
+          accessibilityLabel="Back"
+          onPress={() => (router.canGoBack() ? router.back() : router.replace('/'))}
+          className="h-11 w-11 items-center justify-center"
+        >
+          <Ionicons name="arrow-back" size={20} color="#1f2937" />
+        </Pressable>
+        <Text testID="settings-title" variant="title">
+          Settings
+        </Text>
+      </View>
       <ScrollView contentContainerClassName="gap-2 pb-8">
         {groups.map((group) => (
           <View key={group.title}>
             <GroupTitle>{group.title}</GroupTitle>
             <View className="mx-4 overflow-hidden rounded-2xl border border-border bg-card">
+              {group.setUpCta && <TrainingSetupCta />}
               {group.rows.map((row, i) => (
                 <SettingsRowItem
                   key={row.testID}
@@ -175,7 +247,7 @@ export function SettingsScreen() {
                   testID="settings-sign-out"
                   isFirst={false}
                   destructive
-                  onPress={() => setSignOutVisible(true)}
+                  onPress={signOut.request}
                 />
               )}
             </View>
@@ -185,27 +257,12 @@ export function SettingsScreen() {
         <Text testID="settings-about-disclaimer" variant="muted" className="px-4 text-xs">
           {WELLNESS_COPY.aboutMedicalDisclaimer}
         </Text>
+        <Text testID="settings-version" variant="muted" className="px-4 text-center text-xs">
+          {CURRENT_VERSION_LABEL}
+        </Text>
       </ScrollView>
 
-      <ConfirmSheet
-        testID="settings-sign-out-confirm"
-        visible={signOutVisible}
-        onClose={() => setSignOutVisible(false)}
-        title="Sign out of Chefer?"
-        // UX-ACC-12: workouts that exist only on this phone are deleted by signing out.
-        body={
-          signOut.unsynced > 0
-            ? unsyncedWorkoutsText(signOut.unsynced)
-            : 'You can sign back in any time.'
-        }
-        confirmLabel={signOut.unsynced > 0 ? 'Sign out anyway' : 'Sign out'}
-        cancelLabel="Cancel"
-        destructive
-        onConfirm={() => {
-          setSignOutVisible(false);
-          signOut.proceed();
-        }}
-      />
+      {signOut.confirmSheet}
     </Screen>
   );
 }

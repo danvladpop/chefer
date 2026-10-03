@@ -51,6 +51,7 @@ export const SAFETY_COPY_KEYS = [
   'conditionChooseGoal',
   'conditionOk',
   'excludeLabelDependentLabel',
+  'somethingElsePlaceholder',
 ] as const;
 export type SafetyCopyKey = (typeof SAFETY_COPY_KEYS)[number];
 
@@ -95,6 +96,8 @@ export const SAFETY_COPY: Record<SafetyCopyKey, string> = {
   conditionChooseGoal: 'Choose a goal',
   conditionOk: 'OK',
   excludeLabelDependentLabel: 'Leave out recipes that need a certified gluten-free product',
+  // UX-ACC-06: an example the checker really understands ("aubergine" was not one).
+  somethingElsePlaceholder: 'e.g. walnuts or coeliac',
 } as const;
 
 // ─── Dynamic builders (interpolate data, never a bare guarantee word) ──────────

@@ -77,6 +77,7 @@ appId: dev.chefer.app.dev
           centerElement: true
       - tapOn:
           id: 'logout-button'
+      - runFlow: common/confirm-sign-out.yaml
 
 # ── UX-25 (T-25.1): a device that has NEVER signed in lands on Welcome, not
 # Sign in — `hasSignedInBefore` lives in SecureStore, so this only shows on a
@@ -185,6 +186,7 @@ appId: dev.chefer.app.dev
     centerElement: true
 - tapOn:
     id: 'logout-button'
+- runFlow: common/confirm-sign-out.yaml
 - extendedWaitUntil:
     visible:
       id: 'login-title'
@@ -231,6 +233,7 @@ appId: dev.chefer.app.dev
     centerElement: true
 - tapOn:
     id: 'logout-button'
+- runFlow: common/confirm-sign-out.yaml
 - extendedWaitUntil:
     visible:
       id: 'login-title'

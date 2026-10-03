@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { trpc } from '@/lib/trpc';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -11,7 +11,8 @@ import { z } from 'zod';
 import { userFacingErrorMessage } from '@chefer/utils';
 
 const loginSchema = z.object({
-  email: z.string().min(1, 'Email is required').email('Please enter a valid email address'),
+  // UX-ACC-07: trimmed before validation (autofill / suggestions append a space).
+  email: z.string().trim().min(1, 'Email is required').email('Please enter a valid email address'),
   password: z
     .string()
     .min(1, 'Password is required')
@@ -21,11 +22,23 @@ const loginSchema = z.object({
 
 type LoginFormValues = z.infer<typeof loginSchema>;
 
-export function LoginForm({ sessionExpired = false }: { sessionExpired?: boolean }) {
+export function LoginForm({
+  sessionExpired = false,
+  accountDeleted = false,
+}: {
+  sessionExpired?: boolean;
+  accountDeleted?: boolean;
+}) {
   const router = useRouter();
   const queryClient = useQueryClient();
   const [serverError, setServerError] = useState<string | null>(null);
   const [showPassword, setShowPassword] = useState(false);
+  // UX-ACC-11: show the deletion confirmation once — strip `?deleted=1` so a
+  // refresh or a later visit does not repeat it.
+  const [showDeleted] = useState(accountDeleted);
+  useEffect(() => {
+    if (accountDeleted) window.history.replaceState(null, '', '/login');
+  }, [accountDeleted]);
 
   const loginMutation = trpc.auth.login.useMutation({
     meta: { silent: true },
@@ -39,12 +52,16 @@ export function LoginForm({ sessionExpired = false }: { sessionExpired?: boolean
     },
     onError: (err) => {
       setServerError(userFacingErrorMessage(err, 'Invalid email or password'));
+      // UX-ACC-08: a wrong password must not stay in the field for the browser
+      // or a password manager to offer saving.
+      setValue('password', '');
     },
   });
 
   const {
     register,
     handleSubmit,
+    setValue,
     formState: { errors },
   } = useForm<LoginFormValues>({
     resolver: zodResolver(loginSchema),
@@ -62,6 +79,16 @@ export function LoginForm({ sessionExpired = false }: { sessionExpired?: boolean
 
   return (
     <form onSubmit={handleSubmit(onSubmit)} noValidate className="space-y-5">
+      {showDeleted && (
+        <div
+          data-testid="login-account-deleted"
+          role="status"
+          className="rounded-md border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-800"
+        >
+          Your account and data have been deleted.
+        </div>
+      )}
+
       {/* UX-ACC-10: say why the user is here when a 401 ended their session. */}
       {sessionExpired && !serverError && (
         <div
@@ -101,7 +128,7 @@ export function LoginForm({ sessionExpired = false }: { sessionExpired?: boolean
           placeholder="you@example.com"
           aria-invalid={errors.email ? 'true' : undefined}
           aria-describedby={errors.email ? 'email-error' : undefined}
-          {...register('email')}
+          {...register('email', { onChange: () => setServerError(null) })}
         />
         {errors.email && (
           <p id="email-error" className="text-sm text-destructive" role="alert">
@@ -136,7 +163,7 @@ export function LoginForm({ sessionExpired = false }: { sessionExpired?: boolean
             placeholder="••••••••"
             aria-invalid={errors.password ? 'true' : undefined}
             aria-describedby={errors.password ? 'password-error' : undefined}
-            {...register('password')}
+            {...register('password', { onChange: () => setServerError(null) })}
           />
           <button
             type="button"

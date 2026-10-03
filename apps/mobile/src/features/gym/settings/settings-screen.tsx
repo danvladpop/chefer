@@ -41,6 +41,7 @@ import {
   refreshNotificationPermission,
   useNotificationPermission,
 } from '../../../lib/use-notification-permission';
+import { SectionAnchor, useSectionTitle } from '../../settings/section-anchor';
 import { GymBootstrapUnavailable, useGymBootstrapLoad } from '../components/gym-bootstrap-state';
 import { OutboxWaitingCard } from '../components/outbox-waiting-card';
 import { GymExportRow } from '../export/export-row';
@@ -205,6 +206,8 @@ function WeightListEditor({
 }
 
 export function GymSettingsScreen() {
+  // UX-ACC-04: opened from a Settings row (`?section=`), the title is the row's.
+  const title = useSectionTitle('Gym settings');
   const queryClient = useQueryClient();
   const bootstrapQuery = useGymBootstrap();
   const { data: bootstrap } = bootstrapQuery;
@@ -358,12 +361,12 @@ export function GymSettingsScreen() {
       <View className="flex-row items-center gap-3 px-4 pt-2">
         <BackButton />
         <Text testID="gym-settings-title" variant="title">
-          Gym settings
+          {title}
         </Text>
       </View>
 
       <KeyboardAwareScrollView contentContainerClassName="gap-5 px-4 py-4">
-        <View className="gap-2">
+        <SectionAnchor id="units" className="gap-2">
           <SectionTitle>Units</SectionTitle>
           <ChipGroup
             testID="gym-settings-unit"
@@ -380,7 +383,7 @@ export function GymSettingsScreen() {
           <Text variant="muted" className="text-xs">
             Also switches recipes, shopping lists and your body weight.
           </Text>
-        </View>
+        </SectionAnchor>
 
         {cardioLogging ? (
           <View className="gap-2">
@@ -500,7 +503,7 @@ export function GymSettingsScreen() {
           </Card>
         </View>
 
-        <View className="gap-2">
+        <SectionAnchor id="reminders" className="gap-2">
           <SectionTitle>Training days & reminders</SectionTitle>
           <Card className="gap-3">
             <View className="gap-1.5">
@@ -605,9 +608,9 @@ export function GymSettingsScreen() {
               />
             </View>
           </Card>
-        </View>
+        </SectionAnchor>
 
-        <View className="gap-2">
+        <SectionAnchor id="pause" className="gap-2">
           <SectionTitle>Pause training</SectionTitle>
           <Card className="gap-2">
             {shownPause ? (
@@ -638,7 +641,7 @@ export function GymSettingsScreen() {
               </Button>
             )}
           </Card>
-        </View>
+        </SectionAnchor>
 
         {outboxStatus.parked.length > 0 && (
           <View className="gap-2">
@@ -701,7 +704,9 @@ export function GymSettingsScreen() {
           </View>
         )}
 
-        <GymExportRow />
+        <SectionAnchor id="export">
+          <GymExportRow />
+        </SectionAnchor>
 
         <OutboxWaitingCard status={outboxStatus} testID="gym-settings-outbox" />
 

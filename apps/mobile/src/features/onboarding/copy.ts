@@ -63,7 +63,7 @@ export const ONBOARDING_COPY: Record<OnboardingCopyKey, string> = {
   trainingDaysHelper:
     'We’ll plan more food on these days and remind you to train. You can change them any time.',
   trainingDaysNotSure: 'Not sure yet',
-  trainingDaysRunQuestion: 'Do you also run or ride?',
+  trainingDaysRunQuestion: 'Are any of these days a run?',
   currencyHelper: 'We guessed from your phone’s region — change it if it’s wrong.',
   unitsSwitchedToMetric: 'Switched to metric because you entered cm and kg.',
   unitsSwitchedToImperial: 'Switched to imperial because you entered ft and lb.',

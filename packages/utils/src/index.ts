@@ -1,4 +1,15 @@
 export { cn } from './cn';
+export {
+  bodyFieldTexts,
+  cmToFtIn,
+  ftInToCm,
+  heightCmFromText,
+  heightValueForInference,
+  parseBodyNumber,
+  splitInches,
+  weightKgFromText,
+  type BodyFieldTexts,
+} from './body-input';
 export { formatQuantity, systemForWeightUnit, weightUnitForSystem, type UnitSystem } from './units';
 // ─── One units + formatting system (WP-11, audit §6.4, UX-X-15) ──────────────
 export {
@@ -33,6 +44,13 @@ export {
   type CitrusLine,
   type PurchasableLine,
 } from './purchasable';
+export {
+  MAX_WEEKLY_BUDGET_EUR,
+  parseWeeklyBudget,
+  weeklyBudgetCap,
+  weeklyBudgetCapLabel,
+  type BudgetInput,
+} from './budget';
 export {
   EUR_EXCHANGE_RATES,
   EUR_EXCHANGE_RATES_AS_OF,
@@ -486,8 +504,10 @@ export {
 } from './feedback';
 export {
   ACTIVATION_STEP_COPY,
+  PLAN_WEEK_STEP_COPY,
   SOURCE_FEATURE_PRIORITY,
   activationIntro,
+  activationStepCopy,
   activationStepKeys,
   type ActivationStepCopy,
   type ActivationStepKey,

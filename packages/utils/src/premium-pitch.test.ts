@@ -150,7 +150,7 @@ describe('terms and forbidden copy (rules 1 and 2)', () => {
       const { terms } = premiumPitchFor(source);
       expect(terms.heading).toBe('INCLUDED');
       expect(terms.body).toBe(
-        'Premium is included at no cost. Turning it on unlocks every feature below.',
+        'Premium is included at no cost. Turning it on unlocks everything listed above.',
       );
     }
   });

@@ -22,7 +22,6 @@ const ALLOW_LIST: readonly string[] = [
   'apps/mobile/app/chat.tsx',
   'apps/mobile/app/import-recipe.tsx',
   'apps/mobile/app/recipe-form.tsx',
-  'apps/mobile/src/features/preferences/components/metrics-step.tsx',
 ];
 
 const LABEL_ATTR = /(^|\s)(accessibilityLabel|aria-label|accessibilityLabelledBy|aria-labelledby)=/;

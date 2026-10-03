@@ -1,5 +1,4 @@
 import type { Metadata } from 'next';
-import Link from 'next/link';
 import { Suspense } from 'react';
 import { ResetPasswordForm } from '@/features/auth/components/reset-password-form';
 
@@ -12,33 +11,15 @@ export const metadata: Metadata = {
 export default function ResetPasswordPage() {
   return (
     <div className="flex min-h-dvh flex-col items-center px-4 py-8 sm:py-12">
-      {/* my-auto (not justify-center on the parent): auto margins collapse to 0
+      {/* sm:my-auto (UX-ACC-14: top-aligned on phones so fields do not jump as errors
+          appear; not justify-center on the parent): auto margins collapse to 0
           when the card overflows a short phone viewport, keeping the top reachable. */}
-      <div className="my-auto w-full max-w-md space-y-8">
-        <div className="text-center">
-          <Link
-            href="/"
-            className="inline-flex min-h-11 items-center gap-2 font-serif text-2xl font-semibold text-[#944a00]"
-          >
-            <span className="text-3xl" aria-hidden="true">
-              🍽️
-            </span>
-            <span>Chefer</span>
-          </Link>
-          <h1 className="mt-4 font-serif text-2xl font-semibold tracking-tight">
-            Choose a new password
-          </h1>
-          <p className="mt-2 text-sm text-muted-foreground">
-            This link works once and expires an hour after it was requested
-          </p>
-        </div>
-
-        <div className="rounded-xl border bg-card p-6 shadow-sm sm:p-8">
-          {/* useSearchParams requires a Suspense boundary in production builds */}
-          <Suspense fallback={null}>
-            <ResetPasswordForm />
-          </Suspense>
-        </div>
+      <div className="w-full max-w-md space-y-8 sm:my-auto">
+        {/* The form owns the logo + heading + card (UX-ACC-09: the heading follows
+            the stage); useSearchParams requires a Suspense boundary in production builds */}
+        <Suspense fallback={null}>
+          <ResetPasswordForm />
+        </Suspense>
       </div>
     </div>
   );

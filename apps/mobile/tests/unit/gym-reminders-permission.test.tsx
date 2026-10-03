@@ -20,6 +20,7 @@ jest.mock('../../src/lib/trpc', () => {
   return mock.createTrpcGymMock();
 });
 jest.mock('expo-router', () => ({
+  useLocalSearchParams: () => ({}),
   router: { replace: jest.fn(), back: jest.fn(), canGoBack: jest.fn(() => true), push: jest.fn() },
 }));
 jest.mock('expo-notifications', () => ({

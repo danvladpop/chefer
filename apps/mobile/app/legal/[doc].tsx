@@ -3,7 +3,13 @@ import { ActivityIndicator, Linking, Pressable, View } from 'react-native';
 import WebView from 'react-native-webview';
 import { Ionicons } from '@expo/vector-icons';
 import { router, useLocalSearchParams } from 'expo-router';
-import { Button, colors, Screen, Text } from '@chefer/ui-mobile';
+import { Button, colors, EmptyState, Screen, Text } from '@chefer/ui-mobile';
+import {
+  LEGAL_TITLES,
+  legalAnchorFor,
+  legalDocFor,
+  legalWebPath,
+} from '../../src/features/legal/legal-docs';
 import { getWebUrl } from '../../src/lib/api-url';
 import { shouldLoadLegalUrl } from '../../src/lib/webview-guard';
 
@@ -19,16 +25,18 @@ import { shouldLoadLegalUrl } from '../../src/lib/webview-guard';
 // outside sites, mailto: — opens in the system browser and is cancelled here,
 // so this can never be used to browse the website inside the app.
 
-const TITLES: Record<string, string> = {
-  terms: 'Terms of Service',
-  privacy: 'Privacy Policy',
-};
+// UX-ACC-19: only `terms` and `privacy` exist; any other `/legal/<x>` is a
+// "page not found" (it used to show Terms). `?anchor=analytics` opens a
+// `#section` of the page — the guard stays pinned to the page itself.
 
 export default function LegalDocScreen() {
-  const { doc } = useLocalSearchParams<{ doc: string }>();
-  const path = doc === 'privacy' ? '/privacy' : '/terms';
-  const title = TITLES[doc] ?? 'Legal';
-  const pageUrl = getWebUrl(path);
+  const params = useLocalSearchParams<{ doc: string; anchor?: string }>();
+  const doc = legalDocFor(params.doc);
+  const anchor = legalAnchorFor(params.anchor);
+  const title = doc ? LEGAL_TITLES[doc] : 'Legal';
+  // The guard compares against the bare page; the WebView opens at the anchor.
+  const pageUrl = getWebUrl(legalWebPath(doc ?? 'terms'));
+  const sourceUrl = anchor ? `${pageUrl}#${anchor}` : pageUrl;
   const [loading, setLoading] = useState(true);
   // Bumping the key remounts the WebView, which is how "Try again" reloads it.
   const [attempt, setAttempt] = useState(0);
@@ -50,7 +58,30 @@ export default function LegalDocScreen() {
           {title}
         </Text>
       </View>
-      {failed ? (
+      {doc === null ? (
+        <View testID="legal-not-found" className="flex-1 justify-center">
+          <EmptyState
+            title="We couldn’t find that page"
+            description="The Terms of Service and the Privacy Policy are the documents that live here."
+          />
+          <View className="gap-2 px-6">
+            <Button
+              testID="legal-open-terms"
+              variant="outline"
+              onPress={() => router.replace('/legal/terms')}
+            >
+              Read the Terms of Service
+            </Button>
+            <Button
+              testID="legal-open-privacy"
+              variant="outline"
+              onPress={() => router.replace('/legal/privacy')}
+            >
+              Read the Privacy Policy
+            </Button>
+          </View>
+        </View>
+      ) : failed ? (
         <View testID="legal-error" className="flex-1 items-center justify-center gap-3 px-6">
           <Text variant="muted" className="text-center">
             Couldn’t load this page. Check your connection and try again.
@@ -72,7 +103,7 @@ export default function LegalDocScreen() {
           <WebView
             key={attempt}
             testID="legal-webview"
-            source={{ uri: pageUrl }}
+            source={{ uri: sourceUrl }}
             setSupportMultipleWindows={false}
             onShouldStartLoadWithRequest={(req) => {
               const allowed = shouldLoadLegalUrl(req.url, pageUrl);

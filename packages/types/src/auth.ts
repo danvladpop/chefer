@@ -7,10 +7,28 @@ import { z } from 'zod';
 export const PASSWORD_MIN_LENGTH = 8;
 export const PASSWORD_MAX_LENGTH = 100;
 
+/**
+ * UX-ACC-07: trimmed BEFORE validation — a keyboard suggestion or autofill
+ * often appends an invisible trailing space, which must not read as an
+ * "Invalid email address". The API inputs use the same schema, so a client
+ * that does not trim is still accepted.
+ */
 export const authEmailSchema = z
   .string()
+  .trim()
   .min(1, 'Email is required')
   .email('Invalid email address');
+
+/**
+ * What the API says when a password-reset token is unknown, used or expired
+ * (BAD_REQUEST). Shared so the clients can recognise it (UX-ACC-09) and swap
+ * the form for a "request a new link" card.
+ */
+export const RESET_LINK_INVALID_MESSAGE =
+  'This reset link is invalid or has expired. Request a new one.';
+
+/** The API's CONFLICT message for a registered address (UX-ACC-15). */
+export const ACCOUNT_EXISTS_MESSAGE = 'An account with this email already exists';
 
 /** A password being chosen (register, reset) — the API's length rules. */
 export const newPasswordSchema = z

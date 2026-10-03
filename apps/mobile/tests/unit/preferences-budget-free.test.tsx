@@ -23,6 +23,7 @@ jest.mock('../../src/lib/trpc', () => {
   return mock.createTrpcPreferencesMock();
 });
 jest.mock('expo-router', () => ({
+  useLocalSearchParams: () => ({}),
   router: { back: jest.fn(), push: jest.fn(), replace: jest.fn() },
 }));
 

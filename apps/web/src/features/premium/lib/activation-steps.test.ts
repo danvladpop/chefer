@@ -38,4 +38,23 @@ describe('activationSteps (F-PREM-1-5, F-PM-9)', () => {
     expect(steps.find((s) => s.key === 'regenerate')?.href).toBe('/meal-plan?generate=1');
     expect(steps.find((s) => s.key === 'cheferize')?.href).toBe('/recipes?import=1');
   });
+
+  it('Snap leads with a tracker link, not a regenerate (UX-ACC-13)', () => {
+    expect(activationSteps('snap-scan', true)[0]).toMatchObject({
+      key: 'snap',
+      href: '/tracker',
+      title: 'Snap your next meal',
+    });
+  });
+
+  it('with no plan the regenerate step reads "Plan my week" and still builds on arrival', () => {
+    const step = activationSteps('meal-plan-banner', true, false).find(
+      (s) => s.key === 'regenerate',
+    );
+    expect(step).toMatchObject({ title: 'Plan my week', href: '/meal-plan?generate=1' });
+    const withPlan = activationSteps('meal-plan-banner', true, true).find(
+      (s) => s.key === 'regenerate',
+    );
+    expect(withPlan?.title).toBe('Regenerate this week');
+  });
 });

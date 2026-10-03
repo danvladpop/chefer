@@ -3,6 +3,10 @@ import {
   ADULT_AGE,
   bodyMetricsAgeError,
   bodyMetricsAgeSchema,
+  bodyMetricsHeightError,
+  bodyMetricsWeightError,
+  isPlausibleHeightCm,
+  isPlausibleWeightKg,
   isValidBodyMetricsAge,
   MIN_AGE_MESSAGE,
   MIN_BODY_METRICS_AGE,
@@ -60,5 +64,38 @@ describe('bodyMetricsAgeError', () => {
 
   it('flags an age above the maximum', () => {
     expect(bodyMetricsAgeError(150)).toBe('Enter an age of 110 or under.');
+  });
+});
+
+// UX-ONB-05: plausibility bounds shared by every height/weight form.
+describe('height and weight plausibility bounds', () => {
+  it('accepts 100-250 cm and 20-400 kg, bounds included', () => {
+    for (const cm of [100, 177.8, 250]) expect(isPlausibleHeightCm(cm)).toBe(true);
+    for (const kg of [20, 75, 400]) expect(isPlausibleWeightKg(kg)).toBe(true);
+  });
+
+  it('rejects the "1,80" typo and an 8 kg weight', () => {
+    expect(isPlausibleHeightCm(1.8)).toBe(false);
+    expect(isPlausibleHeightCm(251)).toBe(false);
+    expect(isPlausibleWeightKg(8)).toBe(false);
+    expect(isPlausibleWeightKg(401)).toBe(false);
+    expect(isPlausibleHeightCm(Number.NaN)).toBe(false);
+  });
+
+  it('gives no message for empty or plausible values', () => {
+    expect(bodyMetricsHeightError(null)).toBeNull();
+    expect(bodyMetricsHeightError(undefined)).toBeNull();
+    expect(bodyMetricsHeightError(175)).toBeNull();
+    expect(bodyMetricsWeightError(null)).toBeNull();
+    expect(bodyMetricsWeightError(75)).toBeNull();
+  });
+
+  it('words the message in the unit being typed', () => {
+    expect(bodyMetricsHeightError(1.8)).toBe('Enter a height between 100 and 250 cm.');
+    expect(bodyMetricsHeightError(1.8, 'IMPERIAL')).toBe(
+      'Enter a height between 3 ft 4 in and 8 ft 2 in.',
+    );
+    expect(bodyMetricsWeightError(8)).toBe('Enter a weight between 20 and 400 kg.');
+    expect(bodyMetricsWeightError(8, 'IMPERIAL')).toBe('Enter a weight between 45 and 881 lb.');
   });
 });

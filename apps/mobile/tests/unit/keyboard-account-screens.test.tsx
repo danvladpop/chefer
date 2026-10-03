@@ -32,6 +32,7 @@ const mockPrevent: { value: boolean; callback: PreventRemoveCallback | null } = 
   callback: null,
 };
 jest.mock('expo-router', () => ({
+  useLocalSearchParams: () => ({}),
   router: { back: jest.fn(), push: jest.fn(), replace: jest.fn() },
   useNavigation: () => ({ dispatch: jest.fn(), goBack: jest.fn() }),
   useIsFocused: () => true,
@@ -56,7 +57,7 @@ jest.mock('../../src/features/friends/api/use-friends-badge', () => ({
   useFriendsBadge: () => ({ available: false, badgeCount: 0 }),
 }));
 jest.mock('../../src/features/settings/use-sign-out', () => ({
-  useSignOut: () => ({ request: jest.fn(), isPending: false, warningSheet: null }),
+  useSignOut: () => ({ request: jest.fn(), isPending: false, confirmSheet: null }),
 }));
 jest.mock('../../src/features/household/household-editor', () => ({
   HouseholdEditor: () => {
