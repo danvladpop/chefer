@@ -1,8 +1,22 @@
 'use client';
 
 import Link from 'next/link';
+import { useSearchParams } from 'next/navigation';
+import { Suspense } from 'react';
+import { EXERCISE_NAME_MAX } from '@/features/gym/library/exercise-form-errors';
 import { ExerciseForm } from '@/features/gym/library/ExerciseForm';
 import { ArrowLeft } from 'lucide-react';
+
+/** UX-GYM-21: `?name=` pre-fills the form from a search that found nothing. */
+function NewExerciseForm() {
+  const name = useSearchParams().get('name');
+  return (
+    <ExerciseForm
+      mode="create"
+      {...(name ? { initialName: name.slice(0, EXERCISE_NAME_MAX) } : {})}
+    />
+  );
+}
 
 export default function NewCustomExercisePage() {
   return (
@@ -23,7 +37,9 @@ export default function NewCustomExercisePage() {
           Only you will see this exercise. No media — your own cues are optional.
         </p>
       </div>
-      <ExerciseForm mode="create" />
+      <Suspense fallback={null}>
+        <NewExerciseForm />
+      </Suspense>
     </div>
   );
 }

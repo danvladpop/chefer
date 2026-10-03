@@ -33,6 +33,7 @@ import { ExerciseNameLink } from '../components/exercise-name-link';
 import { GymBootstrapUnavailable, useGymBootstrapLoad } from '../components/gym-bootstrap-state';
 import { ModeSwitch } from '../components/mode-switch';
 import { OutboxWaitingCard } from '../components/outbox-waiting-card';
+import { useIsOnline } from '../library-screens/online-status';
 import { useActiveSessionPausedAt } from '../offline/active-session-store';
 import { localDate } from '../offline/ids';
 import { useOutboxStatus } from '../offline/outbox';
@@ -55,6 +56,7 @@ import {
   formatTarget,
   pickOffer,
   setupLocalDate,
+  weekStripDayLabel,
   workoutForDay,
   type WeekStripDay,
 } from './today-helpers';
@@ -70,16 +72,19 @@ import { useTimedRefresh } from './use-timed-refresh';
 
 const WEEKDAY_LABELS = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
 
-function WeekStrip({ days }: { days: WeekStripDay[] }) {
+function WeekStrip({ days, today }: { days: WeekStripDay[]; today: string }) {
   return (
     <View testID="gym-today-week-strip" className="flex-row justify-between">
       {days.map((day, i) => (
         <View
           key={day.localDate}
           testID={`gym-today-week-strip-${day.weekday}`}
+          // UX-GYM-29: the dot is colour-only, so each day reads as one label.
+          accessible
+          accessibilityLabel={weekStripDayLabel(day, today)}
           className="items-center gap-1"
         >
-          <Text variant="muted" className="text-xs">
+          <Text variant="muted" className="text-xs" importantForAccessibility="no">
             {WEEKDAY_LABELS[i]}
           </Text>
           <View
@@ -98,6 +103,8 @@ function WeekStrip({ days }: { days: WeekStripDay[] }) {
 
 export function TodayScreen() {
   const queryClient = useQueryClient();
+  // UX-GYM-29: online-only buttons re-render when connectivity changes.
+  const online = useIsOnline();
   useGymReminders();
   const bootstrapQuery = useGymBootstrap();
   const bootstrap = bootstrapQuery.data;
@@ -446,7 +453,7 @@ export function TodayScreen() {
         )}
 
         <Card className="gap-3">
-          <WeekStrip days={weekStrip} />
+          <WeekStrip days={weekStrip} today={today} />
           <View className="flex-row items-center gap-3">
             <ProgressRing
               progress={ringProgress}
@@ -491,7 +498,7 @@ export function TodayScreen() {
               <Button
                 testID="gym-today-missed-primary"
                 size="sm"
-                disabled={doneToday && !onlineManager.isOnline()}
+                disabled={doneToday && !online}
                 loading={setNextDayMutation.isPending}
                 onPress={() => handleMissedPrimary(firstMissed)}
               >
@@ -693,7 +700,7 @@ export function TodayScreen() {
               <Pressable
                 testID="gym-today-skip"
                 accessibilityRole="button"
-                disabled={!onlineManager.isOnline()}
+                disabled={!online}
                 onPress={handleSkip}
                 className="min-h-11 justify-center disabled:opacity-40"
               >

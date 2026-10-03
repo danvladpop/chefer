@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import type { GymBootstrap } from '@chefer/types';
-import { Button, Card, CardTitle, EmptyState, Text } from '@chefer/ui-mobile';
+import { Button, Card, CardTitle, EmptyState, ErrorState, Text } from '@chefer/ui-mobile';
 import { formatLoad, VOLUME_GROUP_LABELS } from '@chefer/utils';
 import { trpc } from '../../../lib/trpc';
 import { useIsOnline } from '../library-screens/online-status';
@@ -15,6 +15,17 @@ import { LogWeightPrompt } from './log-weight-prompt';
 
 function currentMonth(): string {
   return localDate().slice(0, 7);
+}
+
+/** "September 2026" from "2026-09" (never the raw YYYY-MM). */
+function monthLabel(month: string): string {
+  const [y, m] = month.split('-').map(Number);
+  if (!y || !m) return month;
+  return new Date(Date.UTC(y, m - 1, 1)).toLocaleDateString(undefined, {
+    month: 'long',
+    year: 'numeric',
+    timeZone: 'UTC',
+  });
 }
 
 function shiftMonth(month: string, delta: number): string {
@@ -54,7 +65,9 @@ export function MonthlyRecapView({
           >
             <Ionicons name="chevron-back" size={18} color="#374151" />
           </Button>
-          <Text variant="muted">{month}</Text>
+          <Text testID="stats-recap-month" variant="muted">
+            {monthLabel(month)}
+          </Text>
           <Button
             testID="stats-recap-next"
             size="icon"
@@ -76,6 +89,13 @@ export function MonthlyRecapView({
         />
       ) : recap.isLoading ? (
         <Text variant="muted">Loading…</Text>
+      ) : recap.isError && !recap.data ? (
+        // UX-GYM-34: a failed load is an error with Retry, not "No data for this month".
+        <ErrorState
+          testID="stats-monthly-recap-error"
+          title="Couldn’t load this month’s recap"
+          onRetry={() => void recap.refetch()}
+        />
       ) : !recap.data ? (
         <EmptyState testID="stats-monthly-recap-empty" title="No data for this month yet" />
       ) : (

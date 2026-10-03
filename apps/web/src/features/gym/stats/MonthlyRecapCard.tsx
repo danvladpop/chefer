@@ -5,6 +5,7 @@ import { trpc } from '@/lib/trpc';
 import { format, parse } from 'date-fns';
 import { ChevronLeft, ChevronRight, TrendingUp } from 'lucide-react';
 import type { ExerciseDto, VolumeGroup, WeightUnit } from '@chefer/types';
+import { ErrorState } from '@chefer/ui';
 import { formatLoad, VOLUME_GROUP_LABELS } from '@chefer/utils';
 
 // Stats tab #5 (gym_plan.md §1.3, research §4.2 #9): a regular reflection
@@ -34,7 +35,9 @@ export function MonthlyRecapCard({
     setMonth(initialMonth);
     cardRef.current?.scrollIntoView({ block: 'start' });
   }, [initialMonth]);
-  const { data, isLoading } = trpc.gym.stats.monthlyRecap.useQuery({ month });
+  const { data, isLoading, isError, refetch, isRefetching } = trpc.gym.stats.monthlyRecap.useQuery({
+    month,
+  });
   const byId = new Map(library.map((e) => [e.id, e.name]));
 
   const monthLabel = format(parse(month, 'yyyy-MM', new Date()), 'MMMM yyyy');
@@ -76,6 +79,14 @@ export function MonthlyRecapCard({
 
       {isLoading ? (
         <div className="h-40 animate-pulse rounded-xl bg-neutral-100" />
+      ) : isError && !data ? (
+        // UX-GYM-34: a failed load is an error with Retry, not "No sessions yet".
+        <ErrorState
+          title="Couldn’t load this month’s recap"
+          onRetry={() => void refetch()}
+          retrying={isRefetching}
+          className="py-6"
+        />
       ) : !data || data.sessions === 0 ? (
         <p className="py-6 text-center text-sm text-neutral-500">
           No sessions in {monthLabel} yet.

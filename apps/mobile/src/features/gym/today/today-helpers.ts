@@ -56,6 +56,22 @@ export function computeWeekStrip(bootstrap: GymBootstrap, today: string): WeekSt
   });
 }
 
+const WEEKDAY_NAMES = [
+  'Monday',
+  'Tuesday',
+  'Wednesday',
+  'Thursday',
+  'Friday',
+  'Saturday',
+  'Sunday',
+];
+
+/** UX-GYM-29: "Monday, done" / "Thursday, planned, today" — the strip dot is colour-only. */
+export function weekStripDayLabel(day: WeekStripDay, today: string): string {
+  const state = day.status === 'done' ? 'done' : day.status === 'planned' ? 'planned' : 'rest day';
+  return `${WEEKDAY_NAMES[day.weekday]}, ${state}${day.localDate === today ? ', today' : ''}`;
+}
+
 /** "7-week streak" (+ a flex-week note when one was just spent — never guilt copy). */
 export function formatStreakLine(streak: StreakInfo): string {
   const weeks = streakWeeksLabel(streak.current);

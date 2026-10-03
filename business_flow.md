@@ -3150,6 +3150,27 @@ Weekly sets per muscle (mobile only — web's chart shows one group at a time):
   above the keyboard. Search inputs carry a real accessible label, a 4.5:1
   placeholder (`#4b5563`, not the default gray-400) and a clear (✕) button
   once there's a query.
+- **Archived exercises + stats polish (WP-12 lane C, UX-GYM-27/29/33/34, mobile + web):**
+  an archived custom exercise is listed under a collapsible "Archived (N)"
+  section at the bottom of the Exercises tab with a **Restore** button
+  (`gym.library.restoreCustom`; there is no Delete — sessions reference the
+  row), and archiving offers an Undo toast/snackbar. A search with no result
+  offers "Create “<query>”", opening the custom-exercise form pre-filled
+  (web: `/gym/exercises/new?name=…`). One **PR rule** everywhere — a session is a
+  PR when ANY kind (weight, reps or e1RM) is beaten against all-time bests
+  (`collectPrs`): the workout summary, History rows, the e1RM chart's PR dots
+  (mobile local engine and `gym.stats.e1rm`) all agree. History's "Load more"
+  only shows when a one-row probe past the cached window finds an older
+  session. Loads render by exercise load type (`BW`, `BW + 10 kg`,
+  `25 kg assist`) in session detail, exercise detail and the PR timeline;
+  dates are Intl-formatted (`formatLocalDateLong`), never ISO; "Last 1
+  sessions" reads "Last session". The muscle-volume stack shows the top 5
+  groups plus the selected one (distinct colours) and folds the rest into
+  "Other"; bar-chart axes use round ticks. A failed load shows an error with
+  Retry (never "not found", "No exercises match" or an endless skeleton) on
+  the web Exercises, Stats, History, exercise-detail and settings pages, and
+  the monthly recap. Web gym settings save optimistically
+  (`use-save-gym-profile.ts`), rolling back only the failed fields.
 - **Library staples (T-05.10, UX-05 A5):** `incline-barbell-bench-press`
   (searchable by "incline bench"; shares the `incline-press` swap group,
   sorted before the dumbbell version) and `back-extension` (`BODYWEIGHT_PLUS`

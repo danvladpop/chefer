@@ -75,7 +75,12 @@ function useRestAnnouncements(active: boolean, remainingSec: number): void {
   }, [active, remainingSec]);
 }
 
-export function RestTimerBar() {
+/**
+ * UX-GYM-34: `onHeightChange` reports the bar's real height (0 when no rest is
+ * running) so the workout list pads by exactly that much and "Finish workout"
+ * is never left under the bar, whatever the font scale or safe-area inset.
+ */
+export function RestTimerBar({ onHeightChange }: { onHeightChange?: (height: number) => void }) {
   const insets = useSafeAreaInsets();
   const { remainingSec, state } = useRestRemaining(() => {
     haptics.warning();
@@ -83,6 +88,10 @@ export function RestTimerBar() {
   });
   useRestAnnouncements(state !== null, remainingSec);
   const rationale = useRestPermissionRationale(state !== null);
+  const resting = state !== null;
+  useEffect(() => {
+    if (!resting) onHeightChange?.(0);
+  }, [resting, onHeightChange]);
   if (!state) {
     // The rationale sheet can still be open right as the rest ends (rare,
     // but the user should get to answer it either way).
@@ -101,6 +110,7 @@ export function RestTimerBar() {
       testID="rest-timer"
       className="absolute bottom-0 left-0 right-0 border-t border-border bg-card"
       style={{ paddingBottom: Math.max(insets.bottom, 8) }}
+      onLayout={(e) => onHeightChange?.(Math.ceil(e.nativeEvent.layout.height))}
     >
       <View className="h-1 bg-muted">
         <View

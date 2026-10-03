@@ -121,6 +121,7 @@ export function WorkoutScreen() {
   const [ungroupAlsoRoutine, setUngroupAlsoRoutine] = useState(false);
   const snackbar = useSnackbar();
   const [finishing, setFinishing] = useState(false);
+  const [restBarHeight, setRestBarHeight] = useState(0);
   const [notice, setNotice] = useState<string | null>(null);
   const [moveUnstarted, setMoveUnstarted] = useState(true);
   const isActive = session !== null;
@@ -738,7 +739,8 @@ export function WorkoutScreen() {
         testID="workout-list"
         keyboardShouldPersistTaps="handled"
         contentContainerClassName="gap-3 px-2 pt-3"
-        contentContainerStyle={{ paddingBottom: 160 }}
+        // UX-GYM-34: pad by the rest bar's real height, not a guess.
+        contentContainerStyle={{ paddingBottom: 32 + restBarHeight }}
       >
         {exercises.length === 0 ? (
           <Text variant="muted" className="px-2 py-6 text-center">
@@ -847,7 +849,7 @@ export function WorkoutScreen() {
         </Button>
       </ScrollView>
 
-      <RestTimerBar />
+      <RestTimerBar onHeightChange={setRestBarHeight} />
 
       {/* ── Sheets ── */}
       <ExerciseMenuSheet

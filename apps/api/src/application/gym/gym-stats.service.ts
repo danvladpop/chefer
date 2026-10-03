@@ -87,13 +87,12 @@ export class GymStatsService {
     today: string = serverToday(),
   ): Promise<E1rmSeriesDto> {
     const summaries = await this.summaries(userId, { exerciseIds: [exerciseId] });
-    let runningMax = -Infinity;
+    // UX-GYM-33: one PR rule everywhere — a session is a PR when ANY kind (weight,
+    // reps or e1RM) was beaten, exactly as the workout summary and History decide
+    // it (`collectPrs`). The first-ever session counts too (T-05.6, UX-05 F).
+    const prSessionIds = new Set(collectPrs(summaries, exerciseId).map((r) => r.sessionId));
     const all: E1rmPointDto[] = sessionBests(summaries, exerciseId).map(({ session, best }) => {
-      // T-05.6 (UX-05 F): the first session's own e1RM is the running max
-      // too — it beats "nothing", so it counts as a PR (previously excluded
-      // by requiring a real prior runningMax to compare against).
-      const isPr = best.e1rmKg > runningMax;
-      runningMax = Math.max(runningMax, best.e1rmKg);
+      const isPr = prSessionIds.has(session.id);
       return {
         localDate: session.localDate,
         sessionId: session.id,

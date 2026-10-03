@@ -1,7 +1,7 @@
-import { useEffect, useState } from 'react';
-import { Pressable, View } from 'react-native';
+import { useEffect, useId, useState } from 'react';
+import { Keyboard, Pressable, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { Input, Text } from '@chefer/ui-mobile';
+import { Input, NumericReturnBar, Text } from '@chefer/ui-mobile';
 import { addDaysLocal, cn, weekdayDateLabel } from '@chefer/utils';
 
 // The `When` of a past workout (owner dogfood 2026-09-30): a day and how long
@@ -73,6 +73,7 @@ export function SessionWhenFields({
   testID,
   className,
 }: SessionWhenFieldsProps) {
+  const barId = `${testID}-numeric-bar-${useId()}`;
   // The text is local so the field can be cleared while typing; only a valid
   // number reaches the parent.
   const [text, setText] = useState(String(durationMin));
@@ -128,6 +129,7 @@ export function SessionWhenFields({
             accessibilityLabelledBy={`${testID}-duration-label`}
             aria-invalid={invalid}
             keyboardType="number-pad"
+            inputAccessoryViewID={barId}
             returnKeyType="done"
             value={text}
             onChangeText={onChangeText}
@@ -139,6 +141,13 @@ export function SessionWhenFields({
           />
           <Text variant="muted">min</Text>
         </View>
+        {/* UX-GYM-34: the number pad has no Return key on iOS. */}
+        <NumericReturnBar
+          nativeID={barId}
+          testID={`${testID}-numeric-bar`}
+          label="Done"
+          onPress={() => Keyboard.dismiss()}
+        />
       </View>
     </View>
   );

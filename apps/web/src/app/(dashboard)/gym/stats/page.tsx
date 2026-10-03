@@ -10,6 +10,7 @@ import { PrTimeline } from '@/features/gym/stats/PrTimeline';
 import { StrengthTrendChart } from '@/features/gym/stats/StrengthTrendChart';
 import { useGymBootstrap } from '@/features/gym/use-gym-bootstrap';
 import { useHasMounted } from '@/hooks/useHasMounted';
+import { ErrorState } from '@chefer/ui';
 
 function StatsSkeleton() {
   return (
@@ -31,7 +32,7 @@ function readMonthParam(): string | undefined {
 
 export default function GymStatsPage() {
   const hasMounted = useHasMounted();
-  const { data: bootstrap, isLoading } = useGymBootstrap();
+  const { data: bootstrap, isLoading, isError, refetch, isRefetching } = useGymBootstrap();
 
   const experience = bootstrap?.profile?.experience ?? 'INTERMEDIATE';
   const unit = bootstrap?.profile?.unit ?? 'KG';
@@ -40,6 +41,19 @@ export default function GymStatsPage() {
     () => topCompoundsByFrequency(bootstrap?.recentSessions ?? [], bootstrap?.library ?? []),
     [bootstrap?.recentSessions, bootstrap?.library],
   );
+
+  // UX-GYM-24: a failed load is an error with Retry, never an endless skeleton.
+  if (hasMounted && isError && !bootstrap) {
+    return (
+      <div className="mx-auto max-w-6xl px-4 py-6 sm:py-8" data-testid="gym-stats-error">
+        <ErrorState
+          title="Couldn’t load your stats"
+          onRetry={() => void refetch()}
+          retrying={isRefetching}
+        />
+      </div>
+    );
+  }
 
   if (!hasMounted || isLoading || !bootstrap) {
     return (

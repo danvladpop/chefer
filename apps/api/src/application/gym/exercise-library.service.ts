@@ -140,6 +140,23 @@ export class ExerciseLibraryService {
     return { ok: true };
   }
 
+  /**
+   * UX-GYM-34: undo `archiveCustom`. Idempotent for a row that is not archived;
+   * respects the same cap as `createCustom`, since a restored row counts again.
+   */
+  async restoreCustom(userId: string, id: string): Promise<{ ok: true }> {
+    const row = await this.findOwned(userId, id);
+    if (row.archivedAt === null) return { ok: true };
+    if ((await this.repo.countCustom(userId)) >= MAX_CUSTOM_EXERCISES) {
+      throw new TRPCError({
+        code: 'BAD_REQUEST',
+        message: `You can have up to ${MAX_CUSTOM_EXERCISES} custom exercises. Archive one first.`,
+      });
+    }
+    await this.repo.restore(id);
+    return { ok: true };
+  }
+
   private async findVisible(userId: string, id: string): Promise<Exercise> {
     const row = await this.repo.findById(id);
     if (!row || (row.ownerId !== null && row.ownerId !== userId)) {

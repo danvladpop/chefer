@@ -63,6 +63,7 @@ beforeEach(() => {
     gym: { session: { list: { fetch: fetchMock } } },
   });
   jest.spyOn(onlineManager, 'isOnline').mockReturnValue(true);
+  trpc.gym.session.list.useQuery.mockReturnValue({ data: undefined });
 });
 
 describe('HistoryView', () => {
@@ -109,6 +110,31 @@ describe('HistoryView', () => {
       limit: 10,
     });
     expect(screen.queryByTestId('gym-history-load-more')).not.toBeOnTheScreen();
+  });
+
+  // UX-GYM-33: no "Load more" when the probe past the cached window finds nothing.
+  it('hides Load more when the older-sessions probe finds nothing', async () => {
+    const cached: SessionSummaryDto[] = [session({ id: 's1' })];
+    trpc.gym.session.list.useQuery.mockReturnValue({
+      data: { items: [], nextCursor: null },
+    });
+    await render(<HistoryView bootstrap={makeBootstrap({ recentSessions: cached })} />);
+    expect(screen.getByTestId('gym-history-row-s1')).toBeOnTheScreen();
+    expect(screen.queryByTestId('gym-history-load-more')).not.toBeOnTheScreen();
+    expect(trpc.gym.session.list.useQuery).toHaveBeenCalledWith(
+      { cursor: `${cached[0]?.startedAt}|${cached[0]?.id}`, limit: 1 },
+      { enabled: true },
+    );
+  });
+
+  it('keeps Load more when the probe finds an older session', async () => {
+    trpc.gym.session.list.useQuery.mockReturnValue({
+      data: { items: [session({ id: 'older' })], nextCursor: null },
+    });
+    await render(
+      <HistoryView bootstrap={makeBootstrap({ recentSessions: [session({ id: 's1' })] })} />,
+    );
+    expect(screen.getByTestId('gym-history-load-more')).toBeOnTheScreen();
   });
 
   it('shows "Connect to load older workouts." offline once the cache is exhausted', async () => {

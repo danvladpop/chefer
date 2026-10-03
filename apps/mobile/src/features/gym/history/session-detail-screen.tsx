@@ -19,6 +19,7 @@ import {
   formatDistance,
   formatDurationMinutes,
   formatLoad,
+  formatLocalDateLong,
   isNotFoundError,
   isStrengthTrackingType,
   toSessionSummary,
@@ -134,7 +135,7 @@ export function SessionDetailScreen({ sessionId }: { sessionId: string }) {
               {view.name}
             </Text>
             <Text variant="muted">
-              {view.localDate}
+              {formatLocalDateLong(view.localDate)}
               {duration !== null ? ` · ${duration} min` : ''}
               {view.isDeload ? ' · Deload' : ''}
             </Text>
@@ -169,7 +170,7 @@ export function SessionDetailScreen({ sessionId }: { sessionId: string }) {
           </Card>
         ) : null}
 
-        {view.exercises.map((exercise) => {
+        {view.exercises.map((exercise, exerciseIndex) => {
           const meta = libraryLookup.get(exercise.exerciseId);
           // T-42.3: a cardio exercise's one "set" is time/distance/effort,
           // never weightKg × reps (which would read "0 kg × 0" otherwise).
@@ -179,7 +180,9 @@ export function SessionDetailScreen({ sessionId }: { sessionId: string }) {
             : null;
           return (
             <Card
-              key={exercise.exerciseId}
+              // UX-GYM-34: a lift can appear twice in one session — key on the
+              // session-exercise id (summary-only views fall back to the position).
+              key={exercise.id ?? `${exercise.exerciseId}-${exerciseIndex}`}
               testID={`session-detail-exercise-${exercise.exerciseId}`}
             >
               <View className="mb-2 flex-row items-center justify-between">
@@ -226,7 +229,7 @@ export function SessionDetailScreen({ sessionId }: { sessionId: string }) {
                       >
                         <Text variant={set.isWarmup ? 'muted' : 'default'}>{label}</Text>
                         <Text variant={set.isWarmup ? 'muted' : 'default'}>
-                          {formatLoad(set.weightKg, unit)} × {set.reps}
+                          {formatLoad(set.weightKg, unit, meta?.loadType)} × {set.reps}
                           {!set.completed ? ' (not done)' : ''}
                         </Text>
                       </View>

@@ -6,7 +6,7 @@ import { capture } from '@/lib/analytics';
 import { trpc } from '@/lib/trpc';
 import { AlertTriangle, ArrowLeft, Copy, PauseCircle, RotateCw, Trash2 } from 'lucide-react';
 import type { ActivePauseDto, GymProfileDto, WeightUnit } from '@chefer/types';
-import { Button, Input, Sheet } from '@chefer/ui';
+import { Button, ErrorState, Input, Sheet } from '@chefer/ui';
 import {
   cn,
   formatLoadNumber,
@@ -33,6 +33,7 @@ import {
   plateChoices,
   type InventoryDraft,
 } from './inventory';
+import { useSaveGymProfile } from './use-save-gym-profile';
 
 // ─── Gym settings (gym_plan.md §5.1 settings) ─────────────────────────────────
 // Units, weekly goal, equipment inventory, reminders (stored only — the web
@@ -40,7 +41,7 @@ import {
 // outbox's "needs attention" entries (Copy / Retry / Discard).
 
 export function SettingsView() {
-  const { data, today, ready } = useGymData();
+  const { data, today, ready, isError, refetch } = useGymData();
   const status = useOutboxStatus();
 
   return (
@@ -63,7 +64,10 @@ export function SettingsView() {
           </p>
         )}
 
-        {!ready || !data ? (
+        {isError ? (
+          // UX-GYM-24: a failed load is an error with Retry, never an endless skeleton.
+          <ErrorState title="Couldn’t load your settings" onRetry={() => void refetch()} />
+        ) : !ready || !data ? (
           <GymSkeleton rows={3} />
         ) : !data.profile ? (
           <GymCard>
@@ -100,15 +104,12 @@ function ProfileSettings({
   activePause: ActivePauseDto | null;
   upcomingPause: ActivePauseDto | null;
 }) {
-  const utils = trpc.useUtils();
   const unit = profile.unit;
   const [saved, setSaved] = useState<string | null>(null);
-  const save = trpc.gym.profile.save.useMutation({
-    meta: { silent: true },
-    onSuccess: () => {
-      void utils.gym.bootstrap.invalidate();
-      // A kg/lb switch is also the global unit preference (P2-6).
-      void utils.preferences.get.invalidate();
+  // UX-GYM-22: optimistic — the screen shows the new value at once and rolls
+  // back (with the error below) if the save fails.
+  const save = useSaveGymProfile({
+    onSaved: () => {
       setSaved('Saved');
       setTimeout(() => setSaved(null), 2500);
     },
