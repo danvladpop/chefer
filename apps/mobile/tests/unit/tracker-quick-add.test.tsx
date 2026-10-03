@@ -351,6 +351,30 @@ describe('QuickAddSheet — Enter calories yourself (fallback, T-19.1)', () => {
     jest.restoreAllMocks();
   });
 
+  // UX-FOOD-10: an error goes as soon as its own field is edited — not before,
+  // and not for the other fields.
+  it('clears a field error as soon as that field is edited', async () => {
+    const user = userEvent.setup();
+    await renderSheet();
+    await goToManual(user);
+    await user.type(screen.getByTestId('quick-add-protein'), '900');
+    await user.press(screen.getByTestId('quick-add-submit'));
+    expect(screen.getByTestId('quick-add-name-error')).toBeOnTheScreen();
+    expect(screen.getByTestId('quick-add-kcal-error')).toBeOnTheScreen();
+    expect(screen.getByTestId('quick-add-protein-error')).toBeOnTheScreen();
+
+    await user.type(screen.getByTestId('quick-add-name'), 'P');
+    expect(screen.queryByTestId('quick-add-name-error')).not.toBeOnTheScreen();
+    expect(screen.getByTestId('quick-add-kcal-error')).toBeOnTheScreen();
+
+    await user.type(screen.getByTestId('quick-add-kcal'), '3');
+    expect(screen.queryByTestId('quick-add-kcal-error')).not.toBeOnTheScreen();
+    expect(screen.getByTestId('quick-add-protein-error')).toBeOnTheScreen();
+
+    await user.type(screen.getByTestId('quick-add-protein'), '0');
+    expect(screen.queryByTestId('quick-add-protein-error')).not.toBeOnTheScreen();
+  });
+
   it('refuses out-of-range numbers inline', async () => {
     const user = userEvent.setup();
     await renderSheet();

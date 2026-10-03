@@ -135,6 +135,20 @@ describe('workout-format', () => {
     expect(topSetLine(bodyweight, kg)).toBe('BW + 10 kg × 6');
   });
 
+  // UX-GYM-19: dumbbell weights are per dumbbell.
+  it('UX-GYM-19: a catalog dumbbell exercise reads "kg each"; a barbell one does not', () => {
+    const dumbbell: FriendWorkoutDto['exercises'][number] = {
+      exerciseId: 'dumbbell-bench-press',
+      name: 'Dumbbell Bench Press',
+      isCustom: false,
+      trackingType: 'WEIGHT_REPS',
+      sets: [{ weightKg: 30, reps: 8 }],
+    };
+    expect(setLines(dumbbell, kg)).toEqual(['30 kg each × 8']);
+    expect(topSetLine({ ...dumbbell, exerciseId: 'barbell-bench-press' }, kg)).toBe('30 kg × 8');
+    expect(topSetLine({ ...dumbbell, isCustom: true }, kg)).toBe('30 kg × 8');
+  });
+
   it('an exercise with no sets has no line', () => {
     expect(topSetLine({ ...bodyweight, sets: [] }, kg)).toBe('');
   });

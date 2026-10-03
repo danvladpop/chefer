@@ -1,4 +1,4 @@
-import type { ExerciseTrackingType, FriendWorkoutDto } from '@chefer/types';
+import { EXERCISE_BY_ID, type ExerciseTrackingType, type FriendWorkoutDto } from '@chefer/types';
 import {
   distanceUnitFor,
   formatDistance,
@@ -23,6 +23,15 @@ export function isStrength(exercise: Pick<Exercise, 'trackingType'>): boolean {
   return isStrengthTrackingType(exercise.trackingType as ExerciseTrackingType);
 }
 
+/**
+ * UX-GYM-19: a dumbbell / kettlebell set reads "20 kg each". The friend DTO
+ * carries no `perHand` flag, so this knows the catalog's exercises; a friend's
+ * custom exercise stays a bare weight until the DTO grows the field.
+ */
+function isPerHand(exercise: Pick<Exercise, 'exerciseId' | 'isCustom'>): boolean {
+  return !exercise.isCustom && EXERCISE_BY_ID.get(exercise.exerciseId)?.perHand === true;
+}
+
 function strengthLine(exercise: Exercise, set: WorkoutSet, units: ViewerUnits): string {
   const load =
     exercise.trackingType === 'BODYWEIGHT_REPS'
@@ -31,7 +40,7 @@ function strengthLine(exercise: Exercise, set: WorkoutSet, units: ViewerUnits): 
           units.weight,
           set.weightKg > KG_EPS ? 'BODYWEIGHT_PLUS' : 'BODYWEIGHT',
         )
-      : formatLoad(set.weightKg, units.weight);
+      : formatLoad(set.weightKg, units.weight, 'WEIGHTED', { each: isPerHand(exercise) });
   return `${load} × ${set.reps}`;
 }
 

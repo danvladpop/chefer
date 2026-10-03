@@ -2,6 +2,9 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { render, screen } from '@testing-library/react-native';
 import { WeekSummarySheet } from '../../src/features/meal-plan/week-summary-sheet';
 
+// openLegal (the AI consent sheet's Privacy link) pulls in expo-router.
+jest.mock('expo-router', () => ({ router: { push: jest.fn() } }));
+
 const metrics = {
   frame: { x: 0, y: 0, width: 390, height: 844 },
   insets: { top: 47, left: 0, right: 0, bottom: 34 },

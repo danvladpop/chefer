@@ -419,7 +419,10 @@ export default function ProgressScreen() {
           )}
 
           <View className="mt-3">
-            <WeightLogForm placeholder={system === 'IMPERIAL' ? '160.5' : '72.5'} />
+            <WeightLogForm
+              lastEntry={weights.at(-1) ?? null}
+              placeholder={system === 'IMPERIAL' ? '160.5' : '72.5'}
+            />
           </View>
           {weights.length > 0 && <WeightEntriesList entries={weights} />}
         </Card>

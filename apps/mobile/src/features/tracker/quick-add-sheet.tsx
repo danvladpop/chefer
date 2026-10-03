@@ -137,6 +137,12 @@ export function QuickAddSheet({
   const [macros, setMacros] = useState({ protein: '', carbs: '', fat: '' });
   const [errors, setErrors] = useState<QuickAddErrors>({});
   const [sanityOverridden, setSanityOverridden] = useState(false);
+  // UX-FOOD-10: a field's error goes the moment that field is edited.
+  const clearError = (key: keyof QuickAddErrors) =>
+    setErrors((prev) => {
+      if (!(key in prev)) return prev;
+      return Object.fromEntries(Object.entries(prev).filter(([k]) => k !== key));
+    });
 
   const reset = () => {
     setView('search');
@@ -701,7 +707,7 @@ export function QuickAddSheet({
                             keyboardType="number-pad"
                             className="min-w-0 flex-1"
                           />
-                          <Text className="text-sm text-gray-400">g</Text>
+                          <Text className="text-sm text-muted-foreground">g</Text>
                         </View>
                         <Text
                           testID={`log-sheet-grams-live-kcal-${key}`}
@@ -838,6 +844,7 @@ export function QuickAddSheet({
               returnKeyType="next"
               onChangeText={(text) => {
                 setName(text);
+                clearError('name');
                 setSanityOverridden(false);
               }}
             />
@@ -872,11 +879,12 @@ export function QuickAddSheet({
                 keyboardType="number-pad"
                 onChangeText={(text) => {
                   setKcal(text);
+                  clearError('kcal');
                   setSanityOverridden(false);
                 }}
                 className="min-w-0 flex-1"
               />
-              <Text className="text-sm text-gray-400">kcal</Text>
+              <Text className="text-sm text-muted-foreground">kcal</Text>
             </View>
             {errors.kcal && (
               <Text testID="quick-add-kcal-error" className="text-xs text-red-600">
@@ -900,6 +908,7 @@ export function QuickAddSheet({
                     keyboardType="decimal-pad"
                     onChangeText={(text) => {
                       setMacros((prev) => ({ ...prev, [key]: text }));
+                      clearError(key);
                       setSanityOverridden(false);
                     }}
                   />

@@ -8,7 +8,7 @@ import {
   useRef,
   useState,
 } from 'react';
-import { Linking, View } from 'react-native';
+import { View } from 'react-native';
 import { AI_CONSENT_COPY, AI_CONSENT_FEATURE_DATA, type AiConsentFeature } from '@chefer/types';
 import { Button, Sheet, Text } from '@chefer/ui-mobile';
 import {
@@ -17,8 +17,8 @@ import {
   needsAiDataConsent,
   onAiConsentRequired,
 } from '@chefer/utils';
-import { getWebUrl } from '../../lib/api-url';
 import { trpc } from '../../lib/trpc';
+import { openLegal } from '../legal/open-legal';
 import { useAiProviderDisclosure } from './use-ai-providers';
 
 // ─── AI data consent gate (App Store 5.1.2(i)) ───────────────────────────────
@@ -59,6 +59,8 @@ interface ConsentState {
   saveFailed: boolean;
   allow: () => void;
   dismiss: () => void;
+  /** Closes the sheet, then opens Privacy in the app (a route pushed under a Modal would sit behind it). */
+  openPrivacy: () => void;
   onExited: () => void;
 }
 
@@ -94,6 +96,7 @@ export function AiConsentProvider({
   const [hosts, setHosts] = useState<string[]>([]);
   const pendingRun = useRef<(() => void) | null>(null);
   const runOnExit = useRef<(() => void) | null>(null);
+  const openPrivacyOnExit = useRef(false);
 
   const grant = trpc.user.grantAiDataConsent.useMutation({
     meta: { silent: true },
@@ -166,10 +169,23 @@ export function AiConsentProvider({
     setOpen(false);
   }, []);
 
+  // The link closes the sheet like "Not now" (nothing is sent), then reads
+  // the policy in the app once the Modal is gone.
+  const openPrivacy = useCallback(() => {
+    openPrivacyOnExit.current = true;
+    pendingRun.current = null;
+    runOnExit.current = null;
+    setOpen(false);
+  }, []);
+
   const onExited = useCallback(() => {
     const run = runOnExit.current;
     runOnExit.current = null;
     run?.();
+    if (openPrivacyOnExit.current) {
+      openPrivacyOnExit.current = false;
+      openLegal('privacy');
+    }
   }, []);
 
   const value = useMemo<ConsentState>(
@@ -183,6 +199,7 @@ export function AiConsentProvider({
       saveFailed: grant.isError,
       allow,
       dismiss,
+      openPrivacy,
       onExited,
     }),
     [
@@ -195,6 +212,7 @@ export function AiConsentProvider({
       grant.isError,
       allow,
       dismiss,
+      openPrivacy,
       onExited,
     ],
   );
@@ -257,11 +275,7 @@ function AiConsentSheet({ state }: { state: ConsentState }) {
       <Text variant="muted" className="text-sm">
         {AI_CONSENT_COPY.control}
       </Text>
-      <Button
-        testID="ai-consent-privacy"
-        variant="ghost"
-        onPress={() => void Linking.openURL(getWebUrl(AI_CONSENT_COPY.privacyPath))}
-      >
+      <Button testID="ai-consent-privacy" variant="ghost" onPress={state.openPrivacy}>
         {AI_CONSENT_COPY.privacyLabel}
       </Button>
       {state.saveFailed && (

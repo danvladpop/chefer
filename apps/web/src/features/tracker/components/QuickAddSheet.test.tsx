@@ -265,6 +265,28 @@ describe('QuickAddSheet — Enter calories yourself (fallback, T-19.1)', () => {
     expect(screen.getByTestId('quick-add-kcal-error').textContent).toBe('Enter the calories.');
   });
 
+  // UX-FOOD-10: an error goes as soon as its own field is edited.
+  it('clears a field error as soon as that field is edited', () => {
+    renderSheet();
+    goToManual();
+    fireEvent.change(screen.getByTestId('quick-add-protein'), { target: { value: '900' } });
+    fireEvent.click(screen.getByTestId('quick-add-submit'));
+    expect(screen.getByTestId('quick-add-name-error')).toBeTruthy();
+    expect(screen.getByTestId('quick-add-kcal-error')).toBeTruthy();
+    expect(screen.getByTestId('quick-add-protein-error')).toBeTruthy();
+
+    fireEvent.change(screen.getByTestId('quick-add-name'), { target: { value: 'P' } });
+    expect(screen.queryByTestId('quick-add-name-error')).toBeNull();
+    expect(screen.getByTestId('quick-add-kcal-error')).toBeTruthy();
+
+    fireEvent.change(screen.getByTestId('quick-add-kcal'), { target: { value: '3' } });
+    expect(screen.queryByTestId('quick-add-kcal-error')).toBeNull();
+    expect(screen.getByTestId('quick-add-protein-error')).toBeTruthy();
+
+    fireEvent.change(screen.getByTestId('quick-add-protein'), { target: { value: '0' } });
+    expect(screen.queryByTestId('quick-add-protein-error')).toBeNull();
+  });
+
   it('logs name, chosen meal, kcal and macros that pass the sanity check', () => {
     renderSheet();
     goToManual();

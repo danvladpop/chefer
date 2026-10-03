@@ -564,7 +564,7 @@ export default function ShoppingListScreen() {
                 accessibilityLabel="Add an item to your shopping list"
                 placeholderTextColor="#9ca3af"
                 returnKeyType="done"
-                className="h-11 flex-1 rounded-md border border-input bg-background px-3 text-base text-foreground"
+                className="min-h-11 py-2 flex-1 rounded-md border border-input bg-background px-3 text-base text-foreground"
               />
               <Pressable
                 testID="add-item-submit"

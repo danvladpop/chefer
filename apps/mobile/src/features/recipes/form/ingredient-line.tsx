@@ -151,7 +151,7 @@ export const IngredientLine = forwardRef<TextInput, IngredientLineProps>(functio
               placeholder="200 or ½"
               placeholderTextColor="#9ca3af"
               accessibilityLabel={`Quantity for ingredient ${index + 1}`}
-              className="h-11 rounded-md border border-input bg-background px-2 text-center text-base text-foreground"
+              className="min-h-11 py-2 rounded-md border border-input bg-background px-2 text-center text-base text-foreground"
             />
           </View>
           <View className="w-[88px]">
