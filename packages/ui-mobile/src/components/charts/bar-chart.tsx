@@ -6,7 +6,7 @@ import Svg, { G, Line, Rect, Text as SvgText } from 'react-native-svg';
 import { cn } from '@chefer/utils';
 import { Text } from '../text';
 import { chartPalette, colors } from '../theme';
-import { defaultFormat, linearScale, useChartWidth } from './chart-utils';
+import { clampLabelCentre, defaultFormat, linearScale, useChartWidth } from './chart-utils';
 
 export interface BarSegment {
   /** Series key — stable across bars so colours line up. */
@@ -156,7 +156,7 @@ export function BarChart({
                 })}
                 {i % every === 0 ? (
                   <SvgText
-                    x={left + barWidth / 2}
+                    x={clampLabelCentre(left + barWidth / 2, bar.label, width)}
                     y={height - 4}
                     fontSize={10}
                     fill={colors.mutedForeground}

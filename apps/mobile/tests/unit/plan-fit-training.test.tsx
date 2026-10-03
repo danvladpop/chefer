@@ -32,6 +32,7 @@ const shape = {
 };
 jest.mock('../../src/lib/trpc', () => ({
   trpc: {
+    household: { list: { useQuery: () => ({ data: [] }) } },
     mealPlan: {
       getShape: { useQuery: () => ({ data: shape, isLoading: false }) },
       setShape: {

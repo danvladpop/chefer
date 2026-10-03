@@ -1,4 +1,5 @@
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
+import { SCAN_REQUEST_TIMEOUT_MS, SCAN_TIMEOUT_MESSAGE } from '@chefer/utils';
 
 // T-BUG-O1 (O-18): scanMealPhoto used to do `new Error(data.error)` where
 // `error` can be `{ code, message }` from Express's global handler, which
@@ -96,5 +97,32 @@ describe('T-BUG-O1 scanMealPhoto error sentences', () => {
     vi.stubGlobal('fetch', fetchMock);
 
     await expect(scanMealPhoto(fileOfSize(1024))).rejects.toThrow(SOMETHING_WRONG);
+  });
+});
+
+// UX-FOOD-26: the scan request used to have no timeout.
+describe('scanMealPhoto timeout (UX-FOOD-26)', () => {
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it('gives up after 30 seconds with a plain sentence and aborts the request', async () => {
+    vi.useFakeTimers();
+    let signal: AbortSignal | undefined;
+    vi.stubGlobal(
+      'fetch',
+      vi.fn((_url: string, init?: RequestInit) => {
+        signal = init?.signal ?? undefined;
+        return new Promise<Response>((_resolve, reject) => {
+          init?.signal?.addEventListener('abort', () => reject(new Error('aborted')));
+        });
+      }),
+    );
+
+    const scan = scanMealPhoto(fileOfSize(1024));
+    const assertion = expect(scan).rejects.toThrow(SCAN_TIMEOUT_MESSAGE);
+    await vi.advanceTimersByTimeAsync(SCAN_REQUEST_TIMEOUT_MS + 10);
+    await assertion;
+    expect(signal?.aborted).toBe(true);
   });
 });

@@ -547,6 +547,10 @@ export default function ShoppingListPage() {
             Est. total{' '}
             {formatPriceRange(weekList.estimatedTotalEur, currency, deviceLocale()) ??
               `~${formatApproxPrice(weekList.estimatedTotalEur, currency)}`}
+            {/* UX-PLAN-07: the total covers the same days as the list. */}
+            {shoppingWindowLabel(weekList.fromDayOfWeek)
+              ? ` · ${shoppingWindowLabel(weekList.fromDayOfWeek)}`
+              : ''}
           </span>
         )}
 

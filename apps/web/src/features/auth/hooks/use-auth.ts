@@ -2,6 +2,7 @@
 
 import { useRouter } from 'next/navigation';
 import { useEffect } from 'react';
+import { clearThread } from '@/features/chat/thread-storage';
 import { identifyUser, resetAnalytics } from '@/lib/analytics';
 import { trpc } from '@/lib/trpc';
 import { useQueryClient } from '@tanstack/react-query';
@@ -36,6 +37,8 @@ export function useAuth() {
       // Drop every cached query — the singleton query cache would otherwise
       // keep serving this account's data to whoever signs in next.
       queryClient.clear();
+      // UX-FOOD-21: and the AI Chef thread kept in this tab.
+      clearThread();
       router.push('/login');
       router.refresh();
     },

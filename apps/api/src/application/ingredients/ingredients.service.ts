@@ -253,12 +253,21 @@ function toDetail(row: CatalogIngredientRow, userId: string | null): CatalogIngr
   };
 }
 
-/** Search rank of one alias hit: exact, prefix, word-start, substring. */
-function aliasRank(alias: string, key: string): number {
+/**
+ * Search rank of one alias hit (UX-FOOD-12): an exact alias or exact name
+ * first, then the ROW'S NAME starting with the query ("chicken" → "Chicken
+ * breast, raw"), then the name containing it as a word, and only then
+ * alias-only matches — prefix, word-start, substring — so "chicken" no longer
+ * ranks "Egg" (alias "chicken egg") above the chicken cuts.
+ */
+function searchRank(alias: string, displayName: string, key: string): number {
   if (alias === key) return 0;
-  if (alias.startsWith(key)) return 1;
-  if (alias.includes(` ${key}`)) return 2;
-  return 3;
+  const name = normalizeIngredientKey(displayName);
+  if (name === key || name.startsWith(key)) return 1;
+  if (name.includes(` ${key}`)) return 2;
+  if (alias.startsWith(key)) return 3;
+  if (alias.includes(` ${key}`)) return 4;
+  return 5;
 }
 
 // ─── Service ──────────────────────────────────────────────────────────────────
@@ -285,8 +294,9 @@ export class IngredientsService {
 
   /**
    * Searches the catalog (plan §9): global rows + the user's private rows,
-   * matched on any alias, diacritic-free. Ranked exact → prefix → word-start →
-   * substring, the user's own rows first within a rank. The legacy fields keep
+   * matched on any alias, diacritic-free. Ranked exact → name-prefix → name
+   * word-start → alias-only matches (UX-FOOD-12), the user's own rows first
+   * within a rank, then the most-used (commonness) row. The legacy fields keep
    * their meaning: `name` is the alias the query matched, so an old client
    * that writes it into a free-text line resolves back to this row.
    */
@@ -304,18 +314,23 @@ export class IngredientsService {
       category: opts.category,
       limit: limit * 8,
     });
-    const byId = new Map<string, { row: CatalogIngredientRow; rank: number; alias: string }>();
-    for (const { alias, ingredient } of hits) {
-      const r = aliasRank(alias, key);
+    const byId = new Map<
+      string,
+      { row: CatalogIngredientRow; rank: number; alias: string; uses: number }
+    >();
+    for (const { alias, ingredient, uses } of hits) {
+      const r = searchRank(alias, ingredient.name, key);
       const cur = byId.get(ingredient.id);
       if (!cur || r < cur.rank || (r === cur.rank && alias.length < cur.alias.length))
-        byId.set(ingredient.id, { row: ingredient, rank: r, alias });
+        byId.set(ingredient.id, { row: ingredient, rank: r, alias, uses: uses ?? 0 });
     }
     const ranked = [...byId.values()]
       .sort(
         (a, b) =>
           a.rank - b.rank ||
           Number(b.row.ownerId === userId) - Number(a.row.ownerId === userId) ||
+          // commonness: the row recipes actually use comes first
+          b.uses - a.uses ||
           a.alias.length - b.alias.length ||
           a.row.name.localeCompare(b.row.name),
       )

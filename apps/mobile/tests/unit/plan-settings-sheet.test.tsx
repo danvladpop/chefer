@@ -31,6 +31,7 @@ let mockMutate: jest.Mock;
 
 jest.mock('../../src/lib/trpc', () => ({
   trpc: {
+    household: { list: { useQuery: () => ({ data: [] }) } },
     mealPlan: {
       getShape: {
         useQuery: (_input: unknown, opts?: { enabled?: boolean }) =>

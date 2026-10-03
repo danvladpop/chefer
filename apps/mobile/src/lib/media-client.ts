@@ -5,7 +5,11 @@
 // scan-client.ts / upload-image.ts transport).
 
 import { AI_CONSENT_REQUIRED_REASON } from '@chefer/types';
-import { notifyAiConsentRequired } from '@chefer/utils';
+import {
+  notifyAiConsentRequired,
+  SCAN_REQUEST_TIMEOUT_MS,
+  SCAN_TIMEOUT_MESSAGE,
+} from '@chefer/utils';
 import { reportUnauthorized } from '../features/auth/session-expired';
 
 export type ImageMime = 'image/jpeg' | 'image/png' | 'image/webp' | 'image/heic';
@@ -116,23 +120,33 @@ export async function scanMealPhoto(
     throw new Error(PHOTO_TOO_BIG_MESSAGE);
   }
 
+  // UX-FOOD-26: the vision estimate used to wait forever on a bad connection.
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), SCAN_REQUEST_TIMEOUT_MS);
   let res: Response;
-  try {
-    res = await fetchImpl(`${apiBaseUrl}/api/scan-meal`, {
-      method: 'POST',
-      headers: authHeaders(getToken, mime),
-      body: bytes as unknown as BodyInit,
-    });
-  } catch {
-    throw uploadErrorFrom(null, null, bytes.length);
-  }
-
-  const data = (await res.json().catch(() => null)) as {
+  let data: {
     estimate?: MealPhotoEstimate;
     error?: string | { code?: string; message?: string };
     upgradeRequired?: boolean;
     reason?: string;
   } | null;
+  try {
+    try {
+      res = await fetchImpl(`${apiBaseUrl}/api/scan-meal`, {
+        method: 'POST',
+        headers: authHeaders(getToken, mime),
+        body: bytes as unknown as BodyInit,
+        signal: controller.signal,
+      });
+    } catch {
+      if (controller.signal.aborted) throw new Error(SCAN_TIMEOUT_MESSAGE);
+      throw uploadErrorFrom(null, null, bytes.length);
+    }
+    data = (await res.json().catch(() => null)) as typeof data;
+    if (controller.signal.aborted) throw new Error(SCAN_TIMEOUT_MESSAGE);
+  } finally {
+    clearTimeout(timer);
+  }
 
   if (res.status === 403 && data?.upgradeRequired) {
     const message = typeof data.error === 'string' ? data.error : undefined;

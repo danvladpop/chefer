@@ -2,25 +2,33 @@ import { useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { router, useLocalSearchParams } from 'expo-router';
-import { Button, Card, EmptyState, ErrorState, Screen, Text } from '@chefer/ui-mobile';
-import { cn, formatDate, formatKcal, sumPlanDay } from '@chefer/utils';
+import { Button, Card, EmptyState, ErrorState, Screen, Text, useSnackbar } from '@chefer/ui-mobile';
+import {
+  cn,
+  defaultSavedWeekName,
+  formatDate,
+  formatKcal,
+  sumPlanDay,
+  userFacingErrorMessage,
+} from '@chefer/utils';
 import { useRestorePlan } from '../../src/features/history/use-restore-plan';
 import { PlanMealCard } from '../../src/features/meal-plan/plan-meal-card';
 import { trpc } from '../../src/lib/trpc';
 
-// History plan detail — port of apps/web (dashboard)/history/[planId]
+// Past-week detail — port of apps/web (dashboard)/history/[planId]
 // (audit F-M-PAR-1). Read-only, one day at a time like web's phone layout;
-// tapping a meal opens the recipe. Addition over web: Restore (behind the same
-// confirm as the list), since this is where you decide a week is worth
-// bringing back. The list passes `status` so an ACTIVE week hides Restore —
-// getById doesn't carry it.
+// tapping a meal opens the recipe. UX-PLAN-11: meals the user logged are
+// marked "Eaten" (the view shows what happened, not only the plan), and this
+// is where you decide a week is worth bringing back — "Use this week again"
+// (into this or next week) or "Save as a week" (a My weeks template).
 
 const DAY_LABELS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 const MEAL_ORDER = ['breakfast', 'lunch', 'dinner', 'snack'];
 
 export default function HistoryPlanScreen() {
-  const { planId, status } = useLocalSearchParams<{ planId: string; status?: string }>();
+  const { planId } = useLocalSearchParams<{ planId: string; status?: string }>();
   const [selectedDay, setSelectedDay] = useState(0);
+  const snackbar = useSnackbar();
 
   const {
     data: plan,
@@ -30,8 +38,16 @@ export default function HistoryPlanScreen() {
     refetch,
   } = trpc.mealPlan.getById.useQuery({ planId }, { staleTime: 60_000, retry: false });
 
-  // Back to the list, which now shows the restored copy as ACTIVE.
+  // Back to My weeks once the copy lands (it is now that week's plan).
   const restore = useRestorePlan({ onRestored: () => router.back() });
+
+  // UX-PLAN-11: keep this week as one of the (max 4) saved weeks.
+  const saveAsWeek = trpc.mealPlan.saveAsTemplate.useMutation({
+    meta: { silent: true },
+    onSuccess: (saved) =>
+      snackbar.show({ message: `Saved as “${saved.name}” in My weeks.`, tone: 'success' }),
+    onError: (err) => snackbar.show({ message: userFacingErrorMessage(err) }),
+  });
 
   const weekStart = plan ? new Date(plan.weekStartDate) : null;
   const weekLabel = weekStart ? formatDate(weekStart, 'short') : undefined;
@@ -41,7 +57,6 @@ export default function HistoryPlanScreen() {
   );
   // Each slot at its portion (P1-1) — the same sum as the Plan tab and web.
   const dayKcal = sumPlanDay(meals).kcal;
-  const canRestore = plan != null && status !== 'ACTIVE';
 
   return (
     <Screen edges={['top', 'bottom', 'left', 'right']} className="px-0">
@@ -83,8 +98,8 @@ export default function HistoryPlanScreen() {
           <EmptyState
             testID="history-plan-not-found"
             title="Plan not found"
-            description="It may have been removed. Your other weeks are still in History."
-            action={{ label: 'Back to History', onPress: () => router.back() }}
+            description="It may have been removed. Your other weeks are still in My weeks."
+            action={{ label: 'Back to My weeks', onPress: () => router.back() }}
           />
         )
       ) : (
@@ -156,29 +171,39 @@ export default function HistoryPlanScreen() {
                     key={`${meal.type}-${i}`}
                     testID={`history-meal-${meal.type}`}
                     meal={meal}
+                    eaten={day?.loggedRecipeIds?.includes(meal.recipe.id) === true}
                   />
                 ))}
               </>
             )}
           </ScrollView>
 
-          {canRestore && (
-            <View className="gap-1 border-t border-border px-4 pb-2 pt-3">
-              {restore.errorFor(plan.planId) && (
-                <Text testID="history-plan-restore-error" className="text-xs text-red-600">
-                  {restore.errorFor(plan.planId)}
-                </Text>
-              )}
-              <Button
-                testID="history-plan-restore"
-                variant="outline"
-                loading={restore.pendingPlanId === plan.planId}
-                onPress={() => restore.requestRestore(plan.planId, weekLabel ?? '')}
-              >
-                Restore this week
-              </Button>
-            </View>
-          )}
+          <View className="gap-2 border-t border-border px-4 pb-2 pt-3">
+            {restore.errorFor(plan.planId) && (
+              <Text testID="history-plan-restore-error" className="text-xs text-red-600">
+                {restore.errorFor(plan.planId)}
+              </Text>
+            )}
+            <Button
+              testID="history-plan-restore"
+              variant="outline"
+              loading={restore.pendingPlanId === plan.planId}
+              onPress={() => restore.requestRestore(plan.planId, weekLabel ?? '')}
+            >
+              Use this week again
+            </Button>
+            <Button
+              testID="history-plan-save-week"
+              variant="ghost"
+              loading={saveAsWeek.isPending}
+              onPress={() =>
+                weekStart &&
+                saveAsWeek.mutate({ planId: plan.planId, name: defaultSavedWeekName(weekStart) })
+              }
+            >
+              Save as a week
+            </Button>
+          </View>
           {restore.sheet}
         </>
       )}

@@ -255,6 +255,12 @@ export const mealPlanRouter = router({
          * today's rejection with no bypass.
          */
         acknowledgeConflict: z.boolean().optional(),
+        /**
+         * UX-PLAN-04: whether the slot becomes "Your pick" (default true).
+         * Undo sends the previous state (`previousPinned` on the swap response,
+         * absent = false) so an undone swap doesn't leave the slot pinned.
+         */
+        pinned: z.boolean().optional(),
       }),
     )
     .mutation(async ({ ctx, input }) => {
@@ -266,6 +272,7 @@ export const mealPlanRouter = router({
         input.recipeId,
         input.slotIndex,
         input.acknowledgeConflict,
+        input.pinned,
       );
     }),
 
@@ -329,9 +336,19 @@ export const mealPlanRouter = router({
     }),
 
   restore: protectedProcedure
-    .input(z.object({ planId: z.string().min(1) }))
+    .input(
+      z.object({
+        planId: z.string().min(1),
+        /**
+         * UX-PLAN-11: bring the plan back into this (0) or next (1) week instead
+         * of its own. Optional and additive — omitted keeps today's behaviour
+         * (Undo after Regenerate relies on it).
+         */
+        weekOffset: z.union([z.literal(0), z.literal(1)]).optional(),
+      }),
+    )
     .mutation(async ({ ctx, input }) => {
-      return mealPlanService.restore(ctx.user.id, input.planId);
+      return mealPlanService.restore(ctx.user.id, input.planId, input.weekOffset);
     }),
 
   getById: protectedProcedure

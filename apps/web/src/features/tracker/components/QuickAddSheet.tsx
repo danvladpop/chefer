@@ -56,6 +56,10 @@ const MEAL_OPTIONS = QUICK_ADD_MEAL_TYPES.map((v) => ({
 }));
 const GRAM_CHIPS = [50, 100, 150, 200];
 const SEARCH_DEBOUNCE_MS = 250;
+// UX-FOOD-12: the ingredient group asks for the server's default page first,
+// and "Show more" asks for a longer one.
+const INGREDIENT_PAGE = 12;
+const INGREDIENT_PAGE_MAX = 36;
 const RECIPE_PORTIONS = [0.5, 0.75, 1, 1.5, 2];
 
 function toQuickAddMealType(mealType: string): QuickAddMealType {
@@ -81,6 +85,7 @@ export function QuickAddSheet({ date, onLogged, plannedMeals = [] }: QuickAddShe
   const [open, setOpen] = useState(false);
   const [view, setView] = useState<'search' | 'manual'>('search');
   const [query, setQuery] = useState('');
+  const [ingredientLimit, setIngredientLimit] = useState(INGREDIENT_PAGE);
   const [mealType, setMealType] = useState<QuickAddMealType>(() =>
     defaultMealSlot(new Date().getHours()),
   );
@@ -113,7 +118,7 @@ export function QuickAddSheet({ date, onLogged, plannedMeals = [] }: QuickAddShe
     { enabled: open && debouncedQuery.length > 0, placeholderData: (previous) => previous },
   );
   const ingredientsQuery = trpc.ingredients.search.useQuery(
-    { query: debouncedQuery },
+    { query: debouncedQuery, ...(ingredientLimit > INGREDIENT_PAGE && { limit: ingredientLimit }) },
     { enabled: open && debouncedQuery.length > 1, placeholderData: (previous) => previous },
   );
   const searchSettling =
@@ -123,6 +128,7 @@ export function QuickAddSheet({ date, onLogged, plannedMeals = [] }: QuickAddShe
   const reset = () => {
     setView('search');
     setQuery('');
+    setIngredientLimit(INGREDIENT_PAGE);
     setExpandedKey(null);
     setGramsText('100');
     setGramsCapped(false);
@@ -198,6 +204,7 @@ export function QuickAddSheet({ date, onLogged, plannedMeals = [] }: QuickAddShe
       protein: recent.protein,
       carbs: recent.carbs,
       fat: recent.fat,
+      ...(recent.unknownMacros && { unknownMacros: recent.unknownMacros }),
     });
   };
 
@@ -350,6 +357,7 @@ export function QuickAddSheet({ date, onLogged, plannedMeals = [] }: QuickAddShe
                 value={query}
                 onChange={(e) => {
                   setQuery(e.target.value);
+                  setIngredientLimit(INGREDIENT_PAGE);
                   setExpandedKey(null);
                 }}
                 placeholder="What did you eat?"
@@ -647,6 +655,17 @@ export function QuickAddSheet({ date, onLogged, plannedMeals = [] }: QuickAddShe
                     </div>
                   );
                 })}
+                {(ingredientsQuery.data?.length ?? 0) >= ingredientLimit &&
+                  ingredientLimit < INGREDIENT_PAGE_MAX && (
+                    <button
+                      type="button"
+                      data-testid="log-sheet-ingredients-more"
+                      onClick={() => setIngredientLimit(INGREDIENT_PAGE_MAX)}
+                      className="min-h-11 w-full text-sm font-semibold text-[#944a00] hover:underline"
+                    >
+                      Show more
+                    </button>
+                  )}
               </div>
             )}
 
@@ -780,7 +799,7 @@ export function QuickAddSheet({ date, onLogged, plannedMeals = [] }: QuickAddShe
                   key={k}
                   className="flex min-w-0 flex-1 flex-col gap-1 text-xs font-medium text-neutral-600"
                 >
-                  {k.charAt(0).toUpperCase() + k.slice(1)}
+                  {k.charAt(0).toUpperCase() + k.slice(1)} (g)
                   <input
                     type="number"
                     inputMode="decimal"

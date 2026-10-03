@@ -1,7 +1,7 @@
 import { Pressable, View } from 'react-native';
 import { router } from 'expo-router';
 import { Button, Card, Text } from '@chefer/ui-mobile';
-import { resumeSummary, todayStatus } from '@chefer/utils';
+import { resumeSummary, selectTodaysSession, todayStatus } from '@chefer/utils';
 import { setMode } from '../mode-store';
 import { useActiveSessionPausedAt } from '../offline/active-session-store';
 import { localDate } from '../offline/ids';
@@ -10,6 +10,7 @@ import { weekdayLabel } from '../routine/weekday';
 import { useActiveWorkout } from '../use-active-workout';
 import { libraryLookup, useGymBootstrap } from '../use-gym-bootstrap';
 import { supersetsOf } from '../workout/workout-model';
+import { workoutForDay } from './today-helpers';
 
 // "Today's workout" dashboard card (UX-04 §5 "Workout card on Food Today",
 // T-04.6): a link from Food into Gym. It reads only the persisted bootstrap —
@@ -94,7 +95,13 @@ export function TodaysWorkoutCard() {
   }
 
   const status = todayStatus({ bootstrap, today });
-  const { nextWorkout } = bootstrap;
+  // UX-FOOD-19: the Plan names the routine day pinned to today's weekday, so a
+  // pinned day beats the rotation's "next" here too (one shared selector).
+  const session = selectTodaysSession({ bootstrap, today });
+  const nextWorkout =
+    session.kind === 'planned'
+      ? workoutForDay(bootstrap, session.dayId, today)
+      : bootstrap.nextWorkout;
 
   if (status.kind === 'done') {
     return (
@@ -111,7 +118,7 @@ export function TodaysWorkoutCard() {
     );
   }
 
-  if (status.kind === 'rest') {
+  if (status.kind === 'rest' && session.kind !== 'planned') {
     return (
       <Card testID="todays-workout-card" className="gap-1">
         <Text className="text-xs font-semibold uppercase tracking-widest text-gray-500">

@@ -8,10 +8,18 @@ import {
 } from './quick-add';
 
 describe('parseQuickAdd', () => {
-  it('accepts name + kcal, defaulting macros to 0', () => {
+  it('accepts name + kcal, storing 0 g and flagging every macro unknown', () => {
     expect(parseQuickAdd({ name: '  Birthday cake ', mealType: 'snack', kcal: '350' })).toEqual({
       ok: true,
-      entry: { name: 'Birthday cake', mealType: 'snack', kcal: 350, protein: 0, carbs: 0, fat: 0 },
+      entry: {
+        name: 'Birthday cake',
+        mealType: 'snack',
+        kcal: 350,
+        protein: 0,
+        carbs: 0,
+        fat: 0,
+        unknownMacros: ['protein', 'carbs', 'fat'],
+      },
     });
   });
 
@@ -103,6 +111,49 @@ describe('checkMacroSanity', () => {
     expect(checkMacroSanity({ kcal: 500, protein: 50, carbs: 30, fat: 20 }).ok).toBe(true);
     // stated 400, implied 500 -> diff 25% exactly, still ok (<=)
     expect(checkMacroSanity({ kcal: 400, protein: 50, carbs: 30, fat: 20 }).ok).toBe(true);
+  });
+});
+
+// UX-FOOD-11: partial macros are unknown, not 0 g, and never trip the check.
+describe('partial macros (UX-FOOD-11)', () => {
+  it('flags the blank macros as unknown and keeps the typed ones', () => {
+    const result = parseQuickAdd({ name: 'Soup', mealType: 'lunch', kcal: '400', protein: '20' });
+    expect(result).toMatchObject({
+      ok: true,
+      entry: { protein: 20, carbs: 0, fat: 0, unknownMacros: ['carbs', 'fat'] },
+    });
+  });
+
+  it('has no unknownMacros when every macro is typed, even a typed 0', () => {
+    const result = parseQuickAdd({
+      name: 'Tea',
+      mealType: 'snack',
+      kcal: '40',
+      protein: '0',
+      carbs: '9',
+      fat: '0',
+    });
+    expect(result.ok && result.entry).not.toHaveProperty('unknownMacros');
+  });
+
+  it('skips the sanity check when any macro is blank (calories + protein only)', () => {
+    // 400 kcal with 20 g protein would imply 80 kcal if the blanks counted as 0
+    expect(checkMacroSanity({ kcal: 400, protein: 20, carbs: 0, fat: 0 }).ok).toBe(false);
+    expect(
+      checkMacroSanity({
+        kcal: 400,
+        protein: 20,
+        carbs: 0,
+        fat: 0,
+        unknownMacros: ['carbs', 'fat'],
+      }),
+    ).toMatchObject({ ok: true, message: null });
+  });
+
+  it('still checks a fully entered entry that does not add up', () => {
+    expect(
+      checkMacroSanity({ kcal: 100, protein: 50, carbs: 50, fat: 50, unknownMacros: [] }).ok,
+    ).toBe(false);
   });
 });
 

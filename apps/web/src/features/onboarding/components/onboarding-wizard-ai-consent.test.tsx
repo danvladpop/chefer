@@ -67,6 +67,7 @@ vi.mock('@/lib/trpc', () => {
         setDisplayPreferences: { useMutation: mutation(() => Promise.resolve({})) },
       },
       training: { setDayKinds: { useMutation: mutation(() => Promise.resolve({})) } },
+      household: { list: { useQuery: () => ({ data: [] }) } },
       mealPlan: {
         setShape: { useMutation: mutation(() => Promise.resolve({})) },
         getShape: {

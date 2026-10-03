@@ -14,6 +14,12 @@ import { recordRebalance } from '../../tracker/rebalance-store';
 // 56 pt done row after cook mode/logging (AC3); kcal and "I ate this" only
 // for goal/tracking users (B-31, `showNutrition`).
 
+/** 0 = Monday … 6 = Sunday, the Plan tab's day index. */
+function mondayFirstDayIndex(now: Date = new Date()): number {
+  const jsDay = now.getDay();
+  return jsDay === 0 ? 6 : jsDay - 1;
+}
+
 type Tonight = NonNullable<RouterOutputs['dashboard']['summary']['tonight']>;
 
 export function TonightCard({
@@ -53,7 +59,19 @@ export function TonightCard({
       pathname: '/cook/[id]',
       params: { id: meal.recipe.id, meal: meal.mealType },
     });
-  const openSwap = () => router.push('/(food)/meal-plan');
+  // UX-FOOD-18: Plan opens on NEXT week on Friday/Saturday evenings, which is
+  // not tonight's dinner. Name this week and today's weekday explicitly, and
+  // ask Plan to open the dinner's replace picker (`at` = a fresh link).
+  const openSwap = () =>
+    router.push({
+      pathname: '/(food)/meal-plan',
+      params: {
+        week: '0',
+        day: String(mondayFirstDayIndex()),
+        swap: 'dinner',
+        at: String(Date.now()),
+      },
+    });
 
   if (meal.done) {
     return (

@@ -2,7 +2,7 @@
 
 import Image from 'next/image';
 import Link from 'next/link';
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { handleRebalanceResult } from '@/features/tracker/lib/rebalance-storage';
 import { capture } from '@/lib/analytics';
 import { getRecipeImageProps } from '@/lib/recipe-image';
@@ -11,6 +11,7 @@ import { ArrowRight, Check, ChefHat, Clock, Flame } from 'lucide-react';
 import {
   cn,
   formatPortion,
+  HERO_LOGGED_HOLD_MS,
   localDateStr,
   slotPortion,
   userFacingErrorMessage,
@@ -37,9 +38,33 @@ interface NextMealCardProps {
   isTomorrow: boolean;
 }
 
-export function NextMealCard({ meal, isTomorrow }: NextMealCardProps) {
+export function NextMealCard({ meal: nextMeal, isTomorrow }: NextMealCardProps) {
   const utils = trpc.useUtils();
   const [lastLogged, setLastLogged] = useState<string | null>(null);
+  // UX-FOOD-15: the summary refetch moves the card to the NEXT meal under the
+  // pointer (a double tap logged dinner at 11 am), so the meal just logged is
+  // held as a disabled "Logged ✓ · Undo" for HERO_LOGGED_HOLD_MS first.
+  const [held, setHeld] = useState<HeroMeal | null>(null);
+  const holdTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const meal = held ?? nextMeal;
+
+  const clearHold = () => {
+    if (holdTimer.current) clearTimeout(holdTimer.current);
+    holdTimer.current = null;
+    setHeld(null);
+  };
+  useEffect(
+    () => () => {
+      if (holdTimer.current) clearTimeout(holdTimer.current);
+    },
+    [],
+  );
+
+  const refreshDay = () => {
+    void utils.dashboard.summary.invalidate();
+    void utils.tracker.getDay.invalidate();
+    void utils.tracker.weeklySummary.invalidate();
+  };
 
   const logMutation = trpc.tracker.logRecipe.useMutation({
     meta: { silent: true },
@@ -48,11 +73,22 @@ export function NextMealCard({ meal, isTomorrow }: NextMealCardProps) {
       // A premium log can rebalance the week — same hand-off as the tracker.
       handleRebalanceResult(result.rebalance);
       setLastLogged(meal.recipe.name);
-      void utils.dashboard.summary.invalidate();
-      void utils.tracker.getDay.invalidate();
-      void utils.tracker.weeklySummary.invalidate();
+      if (holdTimer.current) clearTimeout(holdTimer.current);
+      setHeld(meal);
+      holdTimer.current = setTimeout(clearHold, HERO_LOGGED_HOLD_MS);
+      refreshDay();
     },
   });
+
+  const undoMutation = trpc.tracker.unlogRecipe.useMutation({
+    meta: { silent: true },
+    onSuccess: () => {
+      setLastLogged(null);
+      clearHold();
+      refreshDay();
+    },
+  });
+  const holding = held !== null;
 
   const totalMins = meal.recipe.prepTimeMins + (meal.recipe.cookTimeMins ?? 0);
   // P1-1: a plan slot may carry a portion (kcal is already scaled to it); the
@@ -140,19 +176,38 @@ export function NextMealCard({ meal, isTomorrow }: NextMealCardProps) {
                     portionMultiplier: Math.min(2, Math.max(0.5, slotPortion(portion))),
                   })
                 }
-                disabled={logMutation.isPending}
+                disabled={logMutation.isPending || holding}
                 className="flex min-h-11 items-center justify-center gap-1.5 rounded-full bg-[#944a00] px-4 text-sm font-semibold text-white hover:bg-[#7a3d00] disabled:opacity-60"
               >
                 <Check className="h-4 w-4" aria-hidden="true" />
-                {logMutation.isPending ? 'Logging…' : 'I ate this'}
+                {logMutation.isPending ? 'Logging…' : holding ? 'Logged ✓' : 'I ate this'}
               </button>
-              <Link
-                href={cookHref}
-                className="flex min-h-11 items-center justify-center gap-1.5 rounded-full border border-[#944a00]/30 px-4 text-sm font-semibold text-[#944a00] hover:bg-[#fff3e8]"
-              >
-                <ChefHat className="h-4 w-4" aria-hidden="true" />
-                Cook it
-              </Link>
+              {holding ? (
+                <button
+                  type="button"
+                  data-testid="today-undo-logged"
+                  disabled={undoMutation.isPending}
+                  onClick={() =>
+                    undoMutation.mutate({
+                      date: localDateStr(),
+                      recipeId: meal.recipe.id,
+                      mealType: meal.mealType,
+                      ...(meal.slotIndex !== undefined && { slotIndex: meal.slotIndex }),
+                    })
+                  }
+                  className="flex min-h-11 items-center justify-center gap-1.5 rounded-full border border-[#944a00]/30 px-4 text-sm font-semibold text-[#944a00] hover:bg-[#fff3e8] disabled:opacity-60"
+                >
+                  Undo
+                </button>
+              ) : (
+                <Link
+                  href={cookHref}
+                  className="flex min-h-11 items-center justify-center gap-1.5 rounded-full border border-[#944a00]/30 px-4 text-sm font-semibold text-[#944a00] hover:bg-[#fff3e8]"
+                >
+                  <ChefHat className="h-4 w-4" aria-hidden="true" />
+                  Cook it
+                </Link>
+              )}
             </div>
           )}
         </div>

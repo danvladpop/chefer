@@ -25,6 +25,45 @@ export function paddedExtent(values: readonly number[], padRatio = 0.08): Extent
   return { min, max };
 }
 
+/** 1, 2, 5 × 10ⁿ at or above `raw`: the step a human would pick for an axis. */
+function niceStep(raw: number): number {
+  const magnitude = 10 ** Math.floor(Math.log10(raw));
+  const fraction = raw / magnitude;
+  const nice = fraction <= 1 ? 1 : fraction <= 2 ? 2 : fraction <= 5 ? 5 : 10;
+  return nice * magnitude;
+}
+
+/**
+ * UX-FOOD-20: widen `extent` to round bounds and return the round gridline
+ * values between them (0 / 1,000 / 2,000 / 3,000 instead of -149.6 / 1,126 /
+ * 2,400). Aims for about `count` ticks; the returned extent contains the input.
+ */
+export function niceTicks(extent: Extent, count = 4): Extent & { ticks: number[] } {
+  const span = extent.max - extent.min;
+  if (!(span > 0) || count < 2) return { ...extent, ticks: [extent.min, extent.max] };
+  const step = niceStep(span / (count - 1));
+  const min = Math.floor(extent.min / step + 1e-9) * step;
+  const max = Math.ceil(extent.max / step - 1e-9) * step;
+  const ticks: number[] = [];
+  for (let v = min; v <= max + step / 2; v += step) ticks.push(Math.round(v / step) * step);
+  return { min, max, ticks };
+}
+
+/**
+ * Anchor for an x-axis label centred on `centre`: the centre when the label
+ * fits, else pushed in so its text never runs off either edge of the chart
+ * (the last label used to be clipped).
+ */
+export function clampLabelCentre(
+  centre: number,
+  label: string,
+  chartWidth: number,
+  glyphWidth = 6,
+): number {
+  const half = (label.length * glyphWidth) / 2;
+  return Math.min(Math.max(centre, half), Math.max(half, chartWidth - half));
+}
+
 /** Maps [domain.min, domain.max] onto [from, to]. A zero-width domain maps to the midpoint. */
 export function linearScale(domain: Extent, from: number, to: number): (value: number) => number {
   const span = domain.max - domain.min;

@@ -50,6 +50,10 @@ export interface HowYouCookStepProps {
 
 export function HowYouCookStep({ value, onChange, isPremium }: HowYouCookStepProps) {
   const { data } = trpc.mealPlan.getShape.useQuery();
+  // UX-PLAN-12: a household's "Cooking for" is read-only, from the table.
+  const { data: householdMembers } = trpc.household.list.useQuery(undefined, {
+    staleTime: 60_000,
+  });
   const [regionApplied, setRegionApplied] = useState(false);
 
   // Hydrate the plan shape from the server once; pre-select currency/units
@@ -85,6 +89,7 @@ export function HowYouCookStep({ value, onChange, isPremium }: HowYouCookStepPro
     <View className="gap-5">
       <HowYouCookForm
         shape={shape}
+        householdMembers={householdMembers}
         onChange={(next) => onChange({ ...value, shape: { ...shape, ...next } })}
       />
 

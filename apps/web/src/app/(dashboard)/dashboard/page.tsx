@@ -25,6 +25,7 @@ import { useIsPremium } from '@/hooks/useIsPremium';
 import { capture } from '@/lib/analytics';
 import { getRecipeImageProps } from '@/lib/recipe-image';
 import { trpc } from '@/lib/trpc';
+import { keepPreviousData } from '@tanstack/react-query';
 import { format, parseISO } from 'date-fns';
 import { ArrowRight, Sparkles, UtensilsCrossed } from 'lucide-react';
 import { Line, LineChart, ReferenceLine, ResponsiveContainer, Tooltip, XAxis } from 'recharts';
@@ -56,11 +57,16 @@ function momentFor(hour: number): Moment {
 // "I ate this", quick add / scan, and "Full day" into the full tracker.
 export default function DashboardPage() {
   // The device's own day and hour decide "today" and the next meal (F-DASH-1-1).
-  const { data, isLoading, isError, isRefetching, refetch } = trpc.dashboard.summary.useQuery({
-    localDate: localDateStr(),
-    localHour: new Date().getHours(),
-    include: ['tonight', 'tomorrow', 'shopDue', 'safetyChecks'],
-  });
+  // UX-FOOD-23: the hour is part of the query key; keep the previous dashboard
+  // on screen while the new hour's summary loads instead of a skeleton.
+  const { data, isLoading, isError, isRefetching, refetch } = trpc.dashboard.summary.useQuery(
+    {
+      localDate: localDateStr(),
+      localHour: new Date().getHours(),
+      include: ['tonight', 'tomorrow', 'shopDue', 'safetyChecks'],
+    },
+    { placeholderData: keepPreviousData },
+  );
   const { data: weekSummary } = trpc.tracker.weeklySummary.useQuery(undefined, {
     staleTime: 60_000,
   });

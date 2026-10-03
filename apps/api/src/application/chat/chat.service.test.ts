@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { prisma } from '@chefer/database';
 import type { UserProfile } from '@chefer/types';
+import { splitChatActions } from '@chefer/utils';
 import { mealPlanService } from '../meal-plan/meal-plan.service.js';
 import { ChatService, localDateInZone, localDayIndexInZone } from './chat.service.js';
 
@@ -352,6 +353,104 @@ describe('ChatService', () => {
       { name: 'flour' },
     ]);
     expect(result).toContain('Oat milk');
+  });
+
+  // UX-FOOD-21: an opted-in client gets what the tools did as a trailer after
+  // the text, so the app can show "View / Undo" chips; everyone else gets the
+  // bare stream, byte for byte.
+  describe('action trailer (UX-FOOD-21)', () => {
+    async function readAll(stream: ReadableStream): Promise<string> {
+      const reader = stream.getReader();
+      const decoder = new TextDecoder();
+      let out = '';
+      for (;;) {
+        const { done, value } = await reader.read();
+        if (done) return out;
+        out += typeof value === 'string' ? value : decoder.decode(value as Uint8Array);
+      }
+    }
+    const textStream = (text: string) =>
+      new ReadableStream({
+        start(controller) {
+          controller.enqueue(new TextEncoder().encode(text));
+          controller.close();
+        },
+      });
+
+    it('appends the swap the tool performed, with the id to undo to', async () => {
+      const { aiService } = await import('../../lib/ai/index.js');
+      vi.mocked(mealPlanService.getActive).mockResolvedValue(PLAN);
+      vi.mocked(mealPlanService.swapRecipe).mockResolvedValueOnce({
+        name: 'Grilled Halloumi Bowl',
+        nutritionInfo: { calories: 520, protein: 28, carbs: 40, fat: 26, fiber: 5 },
+        previousRecipeId: 'r-Falafel Pita',
+      } as never);
+      vi.mocked(aiService.chat).mockImplementationOnce(async (_messages, context) => {
+        await context.tools!.swapMeal({ dayOfWeek: todayIdx, mealType: 'lunch' });
+        return textStream('Done.');
+      });
+
+      const stream = await service.chat(
+        user({ planTier: 'PREMIUM' }),
+        [{ role: 'user', content: 'swap my lunch' }],
+        { withActions: true },
+      );
+      const { text, actions } = splitChatActions(await readAll(stream));
+      expect(text).toBe('Done.');
+      expect(actions).toEqual([
+        expect.objectContaining({
+          kind: 'swap',
+          planId: 'plan1',
+          dayOfWeek: todayIdx,
+          mealType: 'lunch',
+          slotIndex: 1,
+          previousRecipeId: 'r-Falafel Pita',
+        }),
+      ]);
+    });
+
+    it('reports the shopping-list keys so the app can remove them again', async () => {
+      const { aiService } = await import('../../lib/ai/index.js');
+      vi.mocked(mealPlanService.getActive).mockResolvedValue(PLAN);
+      vi.mocked(aiService.chat).mockImplementationOnce(async (_messages, context) => {
+        await context.tools!.addToShoppingList({ items: [{ name: 'Oat milk', unit: 'l' }] });
+        return textStream('Added.');
+      });
+      const stream = await service.chat(
+        user({ planTier: 'PREMIUM' }),
+        [{ role: 'user', content: 'add oat milk' }],
+        { withActions: true },
+      );
+      const { actions } = splitChatActions(await readAll(stream));
+      expect(actions).toEqual([
+        expect.objectContaining({ kind: 'shopping', keys: ['plan1-custom-oat-milk-l'] }),
+      ]);
+    });
+
+    it('a client that did not opt in gets the plain stream, no trailer', async () => {
+      const { aiService } = await import('../../lib/ai/index.js');
+      vi.mocked(mealPlanService.getActive).mockResolvedValue(PLAN);
+      vi.mocked(aiService.chat).mockImplementationOnce(async (_messages, context) => {
+        await context.tools!.swapMeal({ dayOfWeek: todayIdx, mealType: 'lunch' });
+        return textStream('Done.');
+      });
+      const stream = await service.chat(user({ planTier: 'PREMIUM' }), [
+        { role: 'user', content: 'swap my lunch' },
+      ]);
+      expect(await readAll(stream)).toBe('Done.');
+    });
+
+    it('an opted-in reply with no actions has no trailer either', async () => {
+      const { aiService } = await import('../../lib/ai/index.js');
+      vi.mocked(mealPlanService.getActive).mockResolvedValue(PLAN);
+      vi.mocked(aiService.chat).mockImplementationOnce(async () => textStream('Just chatting.'));
+      const stream = await service.chat(
+        user({ planTier: 'PREMIUM' }),
+        [{ role: 'user', content: 'hi' }],
+        { withActions: true },
+      );
+      expect(await readAll(stream)).toBe('Just chatting.');
+    });
   });
 
   it('addToShoppingList without an active plan does not touch the service', async () => {

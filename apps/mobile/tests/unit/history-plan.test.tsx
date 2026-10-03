@@ -12,6 +12,7 @@ const mockGetById = jest.fn<unknown, []>();
 const mockList = jest.fn<unknown, []>();
 const mockRestore = jest.fn<unknown, [{ onSuccess?: () => void }]>();
 const mockRestoreMutate = jest.fn();
+const mockSaveMutate = jest.fn();
 const mockParams = jest.fn<unknown, []>();
 
 jest.mock('../../src/lib/trpc', () => ({
@@ -27,6 +28,9 @@ jest.mock('../../src/lib/trpc', () => ({
       list: { useQuery: () => mockList() },
       restore: {
         useMutation: (opts: { onSuccess?: () => void }) => mockRestore(opts),
+      },
+      saveAsTemplate: {
+        useMutation: () => ({ mutate: mockSaveMutate, isPending: false }),
       },
     },
   },
@@ -148,26 +152,47 @@ describe('HistoryPlanScreen (detail)', () => {
     expect(screen.getByText('No meals planned for this day.')).toBeOnTheScreen();
   });
 
-  it('restores only after confirming', async () => {
+  it('"Use this week again" asks which week, then copies into it (UX-PLAN-11)', async () => {
     const user = userEvent.setup();
     await renderWithSafeArea(<HistoryPlanScreen />);
     await user.press(screen.getByTestId('history-plan-restore'));
     expect(mockRestoreMutate).not.toHaveBeenCalled();
-    expect(screen.getByTestId('restore-confirm-body')).toHaveTextContent(
-      new RegExp(
-        `week of ${formatDate(new Date('2026-09-07T00:00:00'), 'short')}`.replace(
-          /[.*+?^${}()|[\]\\]/g,
-          '\\$&',
-        ),
-      ),
-    );
+    // UX-PLAN-15: the replaced plan "stays in My weeks" — History was merged into it.
+    expect(screen.getByTestId('use-again-body')).toHaveTextContent(/stays in My weeks/);
+    expect(screen.getByTestId('use-again-this-week')).toHaveTextContent(/^This week \(/);
+    expect(screen.getByTestId('use-again-next-week')).toHaveTextContent(/^Next week \(/);
 
-    await user.press(screen.getByTestId('restore-confirm-cancel'));
+    await user.press(screen.getByTestId('use-again-cancel'));
     expect(mockRestoreMutate).not.toHaveBeenCalled();
 
     await user.press(screen.getByTestId('history-plan-restore'));
-    await user.press(screen.getByTestId('restore-confirm-confirm'));
-    expect(mockRestoreMutate).toHaveBeenCalledWith({ planId: 'p1' });
+    await user.press(screen.getByTestId('use-again-next-week'));
+    expect(mockRestoreMutate).toHaveBeenCalledWith({ planId: 'p1', weekOffset: 1 });
+
+    await user.press(screen.getByTestId('history-plan-restore'));
+    await user.press(screen.getByTestId('use-again-this-week'));
+    expect(mockRestoreMutate).toHaveBeenLastCalledWith({ planId: 'p1', weekOffset: 0 });
+  });
+
+  it('"Save as a week" saves it under a default name (UX-PLAN-11)', async () => {
+    const user = userEvent.setup();
+    await renderWithSafeArea(<HistoryPlanScreen />);
+    await user.press(screen.getByTestId('history-plan-save-week'));
+    expect(mockSaveMutate).toHaveBeenCalledWith({ planId: 'p1', name: 'Week of 7 Sep' });
+  });
+
+  it('marks the meals that were logged as eaten (UX-PLAN-11)', async () => {
+    mockGetById.mockReturnValue(
+      query({
+        data: {
+          ...plan,
+          days: [{ ...plan.days[0], loggedRecipeIds: ['r1'] }, plan.days[1]],
+        },
+      }),
+    );
+    await renderWithSafeArea(<HistoryPlanScreen />);
+    expect(screen.getByTestId('history-meal-breakfast-eaten')).toBeOnTheScreen();
+    expect(screen.queryByTestId('history-meal-dinner-eaten')).not.toBeOnTheScreen();
   });
 
   it('goes back to History once the restore lands', async () => {
@@ -176,16 +201,19 @@ describe('HistoryPlanScreen (detail)', () => {
     expect(router.back).toHaveBeenCalled();
   });
 
-  it('hides Restore for the active week', async () => {
+  it('offers "Use this week again" for any past week, even one that was never replaced', async () => {
     mockParams.mockReturnValue({ planId: 'p1', status: 'ACTIVE' });
     await renderWithSafeArea(<HistoryPlanScreen />);
-    expect(screen.queryByTestId('history-plan-restore')).not.toBeOnTheScreen();
+    expect(screen.getByTestId('history-plan-restore')).toBeOnTheScreen();
   });
 
   it('says "not found" for a missing plan but offers a retry for a failed load', async () => {
     mockGetById.mockReturnValue(query({ isError: true, error: { data: { code: 'NOT_FOUND' } } }));
     const { unmount } = await renderWithSafeArea(<HistoryPlanScreen />);
     expect(screen.getByTestId('history-plan-not-found')).toBeOnTheScreen();
+    // UX-PLAN-15: no leftover "History" copy after the merge into My weeks.
+    expect(screen.getByText('Back to My weeks')).toBeOnTheScreen();
+    expect(screen.queryByText(/History/)).not.toBeOnTheScreen();
     await unmount();
 
     const refetch = jest.fn();
@@ -234,13 +262,13 @@ describe('History list → My weeks (P2-8)', () => {
     });
   });
 
-  it('asks before restoring', async () => {
+  it('asks which week before copying', async () => {
     const user = userEvent.setup();
     await renderWithSafeArea(<PastWeeksSection />);
     await user.press(screen.getByTestId('past-week-restore-p2'));
     expect(mockRestoreMutate).not.toHaveBeenCalled();
-    await user.press(screen.getByTestId('restore-confirm-confirm'));
-    expect(mockRestoreMutate).toHaveBeenCalledWith({ planId: 'p2' });
+    await user.press(screen.getByTestId('use-again-this-week'));
+    expect(mockRestoreMutate).toHaveBeenCalledWith({ planId: 'p2', weekOffset: 0 });
   });
 
   it('spins only the row being restored', async () => {

@@ -34,7 +34,16 @@ function parseIntOrNull(text: string): number | null {
   return Number.isFinite(n) ? n : null;
 }
 
-export function TargetsCard() {
+export interface TargetsCardProps {
+  /**
+   * UX-FOOD-14 (onboarding): the calorie target the body metrics ENTERED so far
+   * give. They are only saved when setup finishes, so until then the server
+   * still resolves the 2,000 kcal default — show this number instead.
+   */
+  previewKcal?: number | null | undefined;
+}
+
+export function TargetsCard({ previewKcal }: TargetsCardProps = {}) {
   const utils = trpc.useUtils();
   const targetsQuery = trpc.targets.get.useQuery();
   const { data } = targetsQuery;
@@ -66,15 +75,33 @@ export function TargetsCard() {
       savedSnapshot.carbsText !== carbsText ||
       savedSnapshot.fatText !== fatText);
 
+  // The server has no body metrics yet (onboarding) but the user has entered
+  // some: the suggested number is the one computed from those, not the default.
+  const fromEntered =
+    typeof previewKcal === 'number' && !!data && !data.custom.kcal && data.inputs.weightKg === null;
+
   useEffect(() => {
     if (!data || loaded) return;
     setMode(data.targetMode);
-    setKcalText(String(data.custom.kcal ?? data.effective.dailyCalorieTarget));
-    setProteinText(String(data.custom.proteinG ?? data.effective.proteinG));
-    setCarbsText(String(data.custom.carbsG ?? data.effective.carbsG));
-    setFatText(String(data.custom.fatG ?? data.effective.fatG));
+    // Macros scale with the calories so an own target prefilled from the
+    // preview still passes the server's 4/4/9 fit check.
+    const ratio =
+      fromEntered && previewKcal ? previewKcal / (data.effective.dailyCalorieTarget || 1) : 1;
+    const scaled = (grams: number) => String(Math.round(grams * ratio));
+    setKcalText(
+      String(data.custom.kcal ?? (fromEntered ? previewKcal : data.effective.dailyCalorieTarget)),
+    );
+    setProteinText(
+      data.custom.proteinG !== null
+        ? String(data.custom.proteinG)
+        : scaled(data.effective.proteinG),
+    );
+    setCarbsText(
+      data.custom.carbsG !== null ? String(data.custom.carbsG) : scaled(data.effective.carbsG),
+    );
+    setFatText(data.custom.fatG !== null ? String(data.custom.fatG) : scaled(data.effective.fatG));
     setLoaded(true);
-  }, [data, loaded]);
+  }, [data, loaded, fromEntered, previewKcal]);
 
   const setMutation = trpc.targets.set.useMutation({
     meta: { silent: true },
@@ -164,12 +191,16 @@ export function TargetsCard() {
 
       {mode === 'SUGGESTED' ? (
         <View className="gap-1 rounded-lg bg-accent p-3">
-          <Text className="text-2xl font-bold text-primary">
-            {formatKcal(data.suggested.dailyCalorieTarget)} kcal
+          <Text testID="targets-suggested-kcal" className="text-2xl font-bold text-primary">
+            {formatKcal(
+              fromEntered && previewKcal ? previewKcal : data.suggested.dailyCalorieTarget,
+            )}{' '}
+            kcal
           </Text>
           <Text variant="muted" className="text-xs">
-            {data.suggested.proteinG}g protein · {data.suggested.carbsG}g carbs ·{' '}
-            {data.suggested.fatG}g fat
+            {fromEntered
+              ? 'Worked out from the details you entered. Your macros are set when you finish.'
+              : `${data.suggested.proteinG}g protein · ${data.suggested.carbsG}g carbs · ${data.suggested.fatG}g fat`}
           </Text>
         </View>
       ) : (

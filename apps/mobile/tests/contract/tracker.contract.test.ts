@@ -223,6 +223,106 @@ describe('tracker.logRecipe / unlogRecipe (bug B-23, T-19.4 — the one-save mod
   });
 });
 
+// WP-10 lane A: additive fields. Older clients ignore them; new clients rely on them.
+describe('tracker.logCustomMeal — entryId + unknownMacros (UX-FOOD-26, UX-FOOD-11)', () => {
+  it('returns the new entry id and stores the unknown-macro flag next to plain numbers', async () => {
+    const result = await client.tracker.logCustomMeal.mutate({
+      date: TEST_DATE,
+      name: 'Contract partial macros',
+      estimatedBy: 'manual',
+      mealType: 'lunch',
+      kcal: 400,
+      protein: 20,
+      carbs: 0,
+      fat: 0,
+      unknownMacros: ['carbs', 'fat'],
+    });
+    expect(typeof result.entryId).toBe('string');
+
+    const day = await client.tracker.getDay.query({ date: TEST_DATE });
+    const entry = day.log?.loggedMeals.find((m) => m.entryId === result.entryId);
+    // numbers stay plain numbers (shipped 1.0.1 clients read them as such)
+    expect(entry).toMatchObject({ protein: 20, carbs: 0, fat: 0 });
+    expect(entry?.unknownMacros).toEqual(['carbs', 'fat']);
+
+    // Undo (Snap-to-Log's snackbar) deletes exactly that entry by id
+    await client.tracker.deleteCustomMeal.mutate({ date: TEST_DATE, entryId: result.entryId });
+    const after = await client.tracker.getDay.query({ date: TEST_DATE });
+    expect(after.log?.loggedMeals.some((m) => m.entryId === result.entryId)).toBe(false);
+  });
+
+  it('an old-style call without the flag still works and stores none', async () => {
+    const result = await client.tracker.logCustomMeal.mutate({
+      date: TEST_DATE,
+      name: 'Contract plain macros',
+      estimatedBy: 'manual',
+      mealType: 'lunch',
+      kcal: 300,
+      protein: 10,
+      carbs: 30,
+      fat: 8,
+    });
+    const day = await client.tracker.getDay.query({ date: TEST_DATE });
+    const entry = day.log?.loggedMeals.find((m) => m.entryId === result.entryId);
+    expect(entry).toBeTruthy();
+    expect(entry).not.toHaveProperty('unknownMacros');
+  });
+
+  it('updateCustomMeal replaces the flag, and [] clears it', async () => {
+    const { entryId } = await client.tracker.logCustomMeal.mutate({
+      date: TEST_DATE,
+      name: 'Contract flag edit',
+      estimatedBy: 'manual',
+      mealType: 'snack',
+      kcal: 200,
+      protein: 10,
+      carbs: 0,
+      fat: 0,
+      unknownMacros: ['carbs', 'fat'],
+    });
+    await client.tracker.updateCustomMeal.mutate({
+      date: TEST_DATE,
+      entryId,
+      kcal: 200,
+      protein: 10,
+      carbs: 20,
+      fat: 5,
+      unknownMacros: [],
+    });
+    const day = await client.tracker.getDay.query({ date: TEST_DATE });
+    const entry = day.log?.loggedMeals.find((m) => m.entryId === entryId);
+    expect(entry).toMatchObject({ carbs: 20, fat: 5 });
+    expect(entry).not.toHaveProperty('unknownMacros');
+  });
+});
+
+describe('ingredients.search — ranking and limit (UX-FOOD-12)', () => {
+  it('ranks names that start with the query before alias-only matches', async () => {
+    const results = await client.ingredients.search.query({ query: 'chicken' });
+    if (results.length < 3) {
+      console.warn('[tracker.contract] catalog too small to check ranking for "chicken"');
+      return;
+    }
+    const nameHit = (r: { displayName: string }) => r.displayName.toLowerCase().includes('chicken');
+    // once an alias-only row (display name without "chicken") appears, no
+    // name match may follow it
+    const firstAliasOnly = results.findIndex((r) => !nameHit(r));
+    if (firstAliasOnly !== -1) {
+      expect(results.slice(firstAliasOnly).some(nameHit)).toBe(false);
+    }
+    // the plain cut a user means is on the first page
+    expect(results.some((r) => /chicken breast/i.test(r.displayName))).toBe(true);
+  });
+
+  it('"Show more" asks for a longer page; the default stays 12', async () => {
+    const first = await client.ingredients.search.query({ query: 'chicken' });
+    const more = await client.ingredients.search.query({ query: 'chicken', limit: 36 });
+    expect(first.length).toBeLessThanOrEqual(12);
+    expect(more.length).toBeGreaterThanOrEqual(first.length);
+    expect(more.length).toBeLessThanOrEqual(36);
+  });
+});
+
 describe('ingredients.search — per100g (T-19.1, T-BUG-X7)', () => {
   it('rows carry per100g macros (or null) and never a barcode/brand field (B-29, AC6)', async () => {
     const results = await client.ingredients.search.query({ query: 'chicken' });

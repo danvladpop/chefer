@@ -5,10 +5,12 @@ import { router } from 'expo-router';
 import { ConfirmSheet, ErrorState, Screen, Text, useSnackbar } from '@chefer/ui-mobile';
 import {
   cn,
+  copyDayMessage,
   customEntryChipLabel,
   customEntryRows,
   formatDate,
   formatPortion,
+  groupByMeal,
   localDateStr,
   plannedRowKey,
   slotPortion,
@@ -226,6 +228,7 @@ export default function TrackerScreen() {
                       protein: row.protein,
                       carbs: row.carbs,
                       fat: row.fat,
+                      ...(row.unknownMacros && { unknownMacros: [...row.unknownMacros] }),
                     },
                   })
               : undefined,
@@ -248,7 +251,7 @@ export default function TrackerScreen() {
           invalidateDayQueries(utils); // both the source and target dates
           setCopyDayOpen(false);
           snackbar.show({
-            message: `Copied ${result.copiedEntryIds.length} entries`,
+            message: copyDayMessage(result.copiedEntryIds.length, copyLabel),
             actionLabel: result.copiedEntryIds.length > 0 ? 'Undo' : undefined,
             onAction:
               result.copiedEntryIds.length > 0
@@ -292,6 +295,14 @@ export default function TrackerScreen() {
   };
 
   const customRows = customEntryRows(data?.log?.loggedMeals ?? []);
+
+  // UX-FOOD-25: off-plan recipes and custom entries are ONE "Also eaten" list,
+  // grouped under the meal they belong to (they were two stacked sections
+  // with the same header, and the custom rows sat under the Snap upsell).
+  const alsoEaten = groupByMeal([
+    ...offPlanLogged.map((m) => ({ kind: 'recipe' as const, mealType: m.mealType, m })),
+    ...customRows.map((row) => ({ kind: 'custom' as const, mealType: row.mealType, row })),
+  ]);
 
   const checked = (key: string) => ticks[key]?.checked ?? false;
   const portionOf = (m: { key: string; portion?: number }): PortionKey =>
@@ -522,6 +533,106 @@ export default function TrackerScreen() {
             </View>
           )}
 
+          {/* Also eaten — off-plan recipes (F-PM-1: logged, then left today's
+              plan) and custom entries (scans + quick adds), one list grouped
+              by meal. Tap to edit, bin to delete with Undo (UX-FOOD-03,
+              bug B-34, T-19.2, UX-FOOD-25). */}
+          {alsoEaten.length > 0 && (
+            <View testID="tracker-also-eaten" className="gap-2">
+              <Text
+                accessibilityRole="header"
+                className="text-xs font-semibold uppercase tracking-widest text-gray-500"
+              >
+                Also eaten
+              </Text>
+              {alsoEaten.map((group) => (
+                <View
+                  key={group.mealType}
+                  testID={`tracker-also-eaten-${group.mealType}`}
+                  className="gap-2"
+                >
+                  <MealTypeBadge mealType={group.mealType} />
+                  {group.rows.map((item) =>
+                    item.kind === 'recipe' ? (
+                      <Pressable
+                        key={item.m.entryId ?? `${item.m.recipeId}:${item.m.mealType}`}
+                        testID={`tracker-off-plan-${item.m.entryId ?? item.m.recipeId}`}
+                        accessibilityRole="button"
+                        accessibilityLabel={`Edit ${item.m.recipeName}`}
+                        disabled={!item.m.entryId}
+                        onPress={() => setEditingRecipeEntryId(item.m.entryId ?? null)}
+                        className="flex-row items-center gap-3 rounded-xl border border-border bg-card p-3"
+                      >
+                        <View className="min-w-0 flex-1">
+                          <Text numberOfLines={1} className="text-sm font-medium text-gray-800">
+                            {item.m.recipeName}
+                          </Text>
+                          <Text className="text-xs text-gray-500">
+                            {Math.round(item.m.kcal)} kcal
+                            {(item.m.portionMultiplier ?? 1) !== 1 &&
+                              ` · ${formatPortion(item.m.portionMultiplier ?? 1)}`}
+                          </Text>
+                        </View>
+                        {item.m.entryId && (
+                          <Pressable
+                            accessibilityRole="button"
+                            accessibilityLabel={`Delete ${item.m.recipeName}`}
+                            disabled={deleteEntriesMutation.isPending}
+                            onPress={(e) => {
+                              e.stopPropagation();
+                              deleteOffPlanEntry(item.m);
+                            }}
+                            className="h-11 w-11 items-center justify-center"
+                          >
+                            <Ionicons name="trash-outline" size={18} color="#9ca3af" />
+                          </Pressable>
+                        )}
+                      </Pressable>
+                    ) : (
+                      <Pressable
+                        key={item.row.entryIndex}
+                        testID={`tracker-custom-${item.row.entryIndex}`}
+                        accessibilityRole="button"
+                        accessibilityLabel={`Edit ${item.row.name}`}
+                        onPress={() => setEditingEntry(item.row)}
+                        className="flex-row items-center gap-3 rounded-xl border border-border bg-card p-3"
+                      >
+                        <View className="min-w-0 flex-1">
+                          <View className="flex-row items-center gap-2">
+                            <Text
+                              numberOfLines={1}
+                              className="shrink text-sm font-medium text-gray-800"
+                            >
+                              {item.row.name}
+                            </Text>
+                            <View className="rounded-full bg-gray-100 px-2 py-0.5">
+                              <Text className="text-xs text-gray-500">
+                                {customEntryChipLabel(item.row.estimatedBy)}
+                              </Text>
+                            </View>
+                          </View>
+                          <Text className="text-xs text-gray-500">{item.row.kcal} kcal</Text>
+                        </View>
+                        <Pressable
+                          accessibilityRole="button"
+                          accessibilityLabel={`Delete ${item.row.name}`}
+                          disabled={deleteCustomMutation.isPending}
+                          onPress={(e) => {
+                            e.stopPropagation();
+                            deleteCustomEntry(item.row);
+                          }}
+                          className="h-11 w-11 items-center justify-center"
+                        >
+                          <Ionicons name="trash-outline" size={18} color="#9ca3af" />
+                        </Pressable>
+                      </Pressable>
+                    ),
+                  )}
+                </View>
+              ))}
+            </View>
+          )}
+
           {/* Log something (T-19.1) — search-first sheet, any day, for
               off-plan food or a repeat from Recent. */}
           <Pressable
@@ -537,100 +648,6 @@ export default function TrackerScreen() {
           {/* Snap-to-Log (F4 / M3-2) — today only; past days are typed by hand */}
           {isToday && (
             <ScanMealCard date={dateStr} onLogged={() => invalidateDayQueries(utils, dateStr)} />
-          )}
-
-          {/* Off-plan meals (F-PM-1): logged recipes that have since left
-              today's plan (regenerate or swap). Kept and counted — and, like
-              custom entries, tap to edit and bin to delete with Undo
-              (UX-FOOD-03). */}
-          {offPlanLogged.length > 0 && (
-            <View testID="tracker-off-plan" className="gap-2">
-              <Text className="text-xs font-semibold uppercase tracking-widest text-gray-500">
-                Also eaten
-              </Text>
-              {offPlanLogged.map((m) => (
-                <Pressable
-                  key={m.entryId ?? `${m.recipeId}:${m.mealType}`}
-                  testID={`tracker-off-plan-${m.entryId ?? m.recipeId}`}
-                  accessibilityRole="button"
-                  accessibilityLabel={`Edit ${m.recipeName}`}
-                  disabled={!m.entryId}
-                  onPress={() => setEditingRecipeEntryId(m.entryId ?? null)}
-                  className="flex-row items-center gap-3 rounded-xl border border-border bg-card p-3"
-                >
-                  <View className="min-w-0 flex-1">
-                    <Text numberOfLines={1} className="text-sm font-medium text-gray-800">
-                      {m.recipeName}
-                    </Text>
-                    <Text className="text-xs text-gray-500">
-                      {m.mealType} · {Math.round(m.kcal)} kcal
-                      {(m.portionMultiplier ?? 1) !== 1 &&
-                        ` · ${formatPortion(m.portionMultiplier ?? 1)}`}
-                    </Text>
-                  </View>
-                  {m.entryId && (
-                    <Pressable
-                      accessibilityRole="button"
-                      accessibilityLabel={`Delete ${m.recipeName}`}
-                      disabled={deleteEntriesMutation.isPending}
-                      onPress={(e) => {
-                        e.stopPropagation();
-                        deleteOffPlanEntry(m);
-                      }}
-                      className="h-11 w-11 items-center justify-center"
-                    >
-                      <Ionicons name="trash-outline" size={18} color="#9ca3af" />
-                    </Pressable>
-                  )}
-                </Pressable>
-              ))}
-            </View>
-          )}
-
-          {/* Custom entries (scans + quick adds) — tap to edit, bin to delete
-              (bug B-34, T-19.2): both are immediate + an Undo snackbar. */}
-          {customRows.length > 0 && (
-            <View className="gap-2">
-              <Text className="text-xs font-semibold uppercase tracking-widest text-gray-500">
-                Also eaten
-              </Text>
-              {customRows.map((row) => (
-                <Pressable
-                  key={row.entryIndex}
-                  testID={`tracker-custom-${row.entryIndex}`}
-                  accessibilityRole="button"
-                  accessibilityLabel={`Edit ${row.name}`}
-                  onPress={() => setEditingEntry(row)}
-                  className="flex-row items-center gap-3 rounded-xl border border-border bg-card p-3"
-                >
-                  <View className="min-w-0 flex-1">
-                    <View className="flex-row items-center gap-2">
-                      <Text numberOfLines={1} className="shrink text-sm font-medium text-gray-800">
-                        {row.name}
-                      </Text>
-                      <View className="rounded-full bg-gray-100 px-2 py-0.5">
-                        <Text className="text-xs text-gray-500">
-                          {customEntryChipLabel(row.estimatedBy)}
-                        </Text>
-                      </View>
-                    </View>
-                    <Text className="text-xs text-gray-500">{row.kcal} kcal</Text>
-                  </View>
-                  <Pressable
-                    accessibilityRole="button"
-                    accessibilityLabel={`Delete ${row.name}`}
-                    disabled={deleteCustomMutation.isPending}
-                    onPress={(e) => {
-                      e.stopPropagation();
-                      deleteCustomEntry(row);
-                    }}
-                    className="h-11 w-11 items-center justify-center"
-                  >
-                    <Ionicons name="trash-outline" size={18} color="#9ca3af" />
-                  </Pressable>
-                </Pressable>
-              ))}
-            </View>
           )}
         </ScrollView>
       )}

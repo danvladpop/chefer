@@ -143,6 +143,42 @@ const recipe = (over: Partial<Recipe> & { id: string; name: string }): Recipe =>
     ...over,
   }) as unknown as Recipe;
 
+describe('RecipeService.list({ slotType }) — UX-PLAN-05', () => {
+  it('ranks recipes that fit the slot first, before cutting to the limit', async () => {
+    findAllRecipesForUser.mockResolvedValue([
+      recipe({ id: 'b1', name: 'Overnight Oats' }),
+      recipe({ id: 'b2', name: 'Pancakes' }),
+      recipe({ id: 'u1', name: 'Grandma special' }),
+      recipe({ id: 'l1', name: 'Quinoa Bowl' }),
+    ]);
+    const service = new RecipeService();
+    const rows = await service.list('u1', { slotType: 'lunch', limit: 3 });
+    expect(rows.map((r) => r.id)).toEqual(['l1', 'u1', 'b1']);
+    // The repo is asked for a wider window than the page, so a lunch past the first page still ranks.
+    expect(findAllRecipesForUser.mock.calls[0]?.[1]).toMatchObject({ limit: 200 });
+  });
+
+  it('tags curated recipes with their real meal type', async () => {
+    findAllRecipesForUser.mockResolvedValue([
+      recipe({ id: 'curated-fix-r-002', name: 'Avocado Toast with Poached Eggs' }),
+    ]);
+    const service = new RecipeService();
+    const [row] = await service.list('u1', { slotType: 'breakfast' });
+    expect(row?.mealType).toBe('breakfast');
+  });
+
+  it('leaves the list untouched without a slotType (old clients)', async () => {
+    findAllRecipesForUser.mockResolvedValue([
+      recipe({ id: 'b1', name: 'Overnight Oats' }),
+      recipe({ id: 'l1', name: 'Quinoa Bowl' }),
+    ]);
+    const service = new RecipeService();
+    const rows = await service.list('u1', {});
+    expect(rows.map((r) => r.id)).toEqual(['b1', 'l1']);
+    expect(rows[0]).not.toHaveProperty('mealType');
+  });
+});
+
 describe('RecipeService.list({ forTable }) — B-34/B-46, T-00.11', () => {
   it('keeps the unfiltered list when forTable is omitted (old clients)', async () => {
     findAllRecipesForUser.mockResolvedValue([recipe({ id: 'r-egg', name: 'Egg Fried Rice' })]);

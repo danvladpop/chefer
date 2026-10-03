@@ -111,7 +111,14 @@ export function NutritionSummary({
         </View>
       </View>
 
-      {n.trainingDay ? <TrainingDayNote t={n.trainingDay} /> : null}
+      {n.trainingDay ? (
+        // The base fields are the rest-day targets; the sheet adds the day's bump (UX-FOOD-19).
+        <TrainingDayNote
+          t={n.trainingDay}
+          restKcal={n.dailyCalorieTarget}
+          restProteinG={n.protein.targetG}
+        />
+      ) : null}
 
       {/* Calorie ring — stacked above the macros, like web's phone layout. */}
       <View className="mb-4 items-center gap-2">

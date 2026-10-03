@@ -101,18 +101,16 @@ export function PastWeeksSection() {
                 >
                   View week
                 </Button>
-                {plan.status !== 'ACTIVE' && (
-                  <Button
-                    testID={`past-week-restore-${plan.id}`}
-                    variant="outline"
-                    className="flex-1"
-                    loading={restore.pendingPlanId === plan.id}
-                    disabled={restore.pendingPlanId !== null}
-                    onPress={() => restore.requestRestore(plan.id, weekLabel)}
-                  >
-                    Restore
-                  </Button>
-                )}
+                <Button
+                  testID={`past-week-restore-${plan.id}`}
+                  variant="outline"
+                  className="flex-1"
+                  loading={restore.pendingPlanId === plan.id}
+                  disabled={restore.pendingPlanId !== null}
+                  onPress={() => restore.requestRestore(plan.id, weekLabel)}
+                >
+                  Use again
+                </Button>
               </View>
             </Card>
           );

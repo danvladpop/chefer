@@ -212,4 +212,10 @@ describe('dinnersFromPlan / formatDinnersForSharing', () => {
       ].join('\n'),
     );
   });
+
+  it('heads next week’s dinners as next week’s (UX-PLAN-07)', () => {
+    expect(
+      formatDinnersForSharing(dinnersFromPlan(days, label), undefined, 'Next week’s dinners'),
+    ).toMatch(/^Next week’s dinners\nMon: Chicken Stir-fry/);
+  });
 });

@@ -2,7 +2,7 @@ import { Switch, View } from 'react-native';
 import { Link } from 'expo-router';
 import type { PlanShape } from '@chefer/types';
 import { ChipGroup, SegmentedControl, Text } from '@chefer/ui-mobile';
-import { planShapeSummary } from '@chefer/utils';
+import { householdTableSummary, planShapeSummary } from '@chefer/utils';
 
 // HOW YOU COOK (UX-07 §1) — one form used in three places: onboarding
 // (UX-03), Settings › How you cook, and the Plan's own "Plan settings"
@@ -39,11 +39,23 @@ const COOKING_FOR_OPTIONS = [
 export interface HowYouCookFormProps {
   shape: PlanShape;
   onChange: (shape: PlanShape) => void;
+  /**
+   * UX-PLAN-12: the household's members. With any, "Cooking for" is a
+   * read-only "You + 2 — Edit table" (the table decides, not a stale "Just me");
+   * without, the Just me / Two of us choice.
+   */
+  householdMembers?: readonly { name: string }[] | undefined;
   /** ⚖ D-7 recommended option: `householdPlans` gates 3+, not "Two of us". */
   testID?: string;
 }
 
-export function HowYouCookForm({ shape, onChange, testID = 'how-you-cook' }: HowYouCookFormProps) {
+export function HowYouCookForm({
+  shape,
+  onChange,
+  householdMembers,
+  testID = 'how-you-cook',
+}: HowYouCookFormProps) {
+  const table = householdTableSummary(householdMembers ?? []);
   const timeCapValue = shape.timeCapMins == null ? 'none' : String(shape.timeCapMins);
 
   return (
@@ -110,23 +122,50 @@ export function HowYouCookForm({ shape, onChange, testID = 'how-you-cook' }: How
         <Text className="text-xs font-semibold uppercase tracking-widest text-gray-500">
           Cooking for
         </Text>
-        <SegmentedControl
-          testID={`${testID}-cooking-for`}
-          accessibilityLabel="Cooking for"
-          options={COOKING_FOR_OPTIONS}
-          value={shape.cookingFor == null ? '1' : String(shape.cookingFor)}
-          onChange={(value) => onChange({ ...shape, cookingFor: Number(value) as 1 | 2 })}
-        />
-        <Link href="/household" testID={`${testID}-household-link`}>
-          <Text className="text-xs font-semibold text-primary">
-            Household of 3+? Set up your table ›
-          </Text>
-        </Link>
+        {table ? (
+          <View
+            testID={`${testID}-household-summary`}
+            className="min-h-11 flex-row items-center justify-between gap-3 rounded-xl border border-border px-3 py-2"
+          >
+            <View className="min-w-0 flex-1">
+              <Text className="text-sm font-medium text-gray-900">{table.text}</Text>
+              {table.names ? (
+                <Text numberOfLines={1} variant="muted" className="text-xs">
+                  {table.names}
+                </Text>
+              ) : null}
+            </View>
+            <Link
+              href="/household"
+              testID={`${testID}-household-link`}
+              accessibilityRole="link"
+              accessibilityLabel="Edit table"
+              className="min-h-11 justify-center"
+            >
+              <Text className="text-sm font-semibold text-primary">Edit table</Text>
+            </Link>
+          </View>
+        ) : (
+          <>
+            <SegmentedControl
+              testID={`${testID}-cooking-for`}
+              accessibilityLabel="Cooking for"
+              options={COOKING_FOR_OPTIONS}
+              value={shape.cookingFor == null ? '1' : String(shape.cookingFor)}
+              onChange={(value) => onChange({ ...shape, cookingFor: Number(value) as 1 | 2 })}
+            />
+            <Link href="/household" testID={`${testID}-household-link`}>
+              <Text className="text-xs font-semibold text-primary">
+                Household of 3+? Set up your table ›
+              </Text>
+            </Link>
+          </>
+        )}
       </View>
 
       <View className="rounded-xl bg-gray-50 px-3 py-2.5" accessibilityLiveRegion="polite">
         <Text testID={`${testID}-summary`} className="text-sm text-gray-700">
-          {planShapeSummary(shape)}
+          {planShapeSummary(shape, table ? (householdMembers?.length ?? 0) + 1 : null)}
         </Text>
       </View>
     </View>

@@ -12,7 +12,7 @@ import {
 } from '@chefer/utils';
 import { useUnitSystem } from '../../hooks/use-unit-system';
 import { trpc } from '../../lib/trpc';
-import { useHealthConsent } from '../privacy/use-health-consent';
+import { useHealthConsent, type RequestHealthConsent } from '../privacy/use-health-consent';
 
 // Correct or remove weigh-ins (audit F-DASH-3-1) — mobile counterpart of web
 // features/coach/WeightEntriesList. Hosted on /progress (as on web) and, for
@@ -20,7 +20,15 @@ import { useHealthConsent } from '../privacy/use-health-consent';
 
 type Entry = { id: string; weightKg: number; recordedAt: Date };
 
-function EntryRow({ entry, system }: { entry: Entry; system: UnitSystem }) {
+function EntryRow({
+  entry,
+  system,
+  requestHealthConsent,
+}: {
+  entry: Entry;
+  system: UnitSystem;
+  requestHealthConsent: RequestHealthConsent;
+}) {
   const [editing, setEditing] = useState(false);
   // R-21: iOS's decimal-pad has no Done key — the shared accessory bar gives it
   // one (unique per row so the native ids never collide).
@@ -33,8 +41,6 @@ function EntryRow({ entry, system }: { entry: Entry; system: UnitSystem }) {
   // UX-X-13: confirm-to-delete is a ConfirmSheet (busy + the failure inside it).
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   const utils = trpc.useUtils();
-  // T-26.2: correcting a weigh-in stores health information too.
-  const { requestHealthConsent, healthConsentSheet } = useHealthConsent();
 
   const invalidate = () => {
     void utils.tracker.weightHistory.invalidate();
@@ -147,7 +153,6 @@ function EntryRow({ entry, system }: { entry: Entry; system: UnitSystem }) {
         error={confirmingDelete ? error : null}
         onConfirm={() => remove.mutate({ id: entry.id })}
       />
-      {healthConsentSheet}
     </View>
   );
 }
@@ -156,11 +161,21 @@ function EntryRow({ entry, system }: { entry: Entry; system: UnitSystem }) {
 export function WeightEntriesList({ entries }: { entries: Entry[] }) {
   const system = useUnitSystem();
   const newestFirst = [...entries].reverse();
+  // T-26.2: correcting a weigh-in stores health information too. UX-FOOD-28:
+  // ONE consent sheet for the whole list — a Modal per row meant dozens of
+  // mounted Modals (and two could open at once).
+  const { requestHealthConsent, healthConsentSheet } = useHealthConsent();
   return (
     <View testID="weight-entries" className="mt-2 border-t border-border pt-2">
       {newestFirst.map((entry) => (
-        <EntryRow key={entry.id} entry={entry} system={system} />
+        <EntryRow
+          key={entry.id}
+          entry={entry}
+          system={system}
+          requestHealthConsent={requestHealthConsent}
+        />
       ))}
+      {healthConsentSheet}
     </View>
   );
 }

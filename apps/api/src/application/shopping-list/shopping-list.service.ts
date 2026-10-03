@@ -39,6 +39,7 @@ import {
   formatLineQuantity,
   tidyListItems,
 } from './aggregate.js';
+import { customItemKey } from './custom-item-key.js';
 
 export interface ShoppingListItemForWeek {
   key: string;
@@ -193,10 +194,6 @@ export function carryCheckedKeys(
     .filter((i) => i.isCustom && ticked.has(i.key))
     .map((i) => i.key);
   return [...new Set([...carried, ...customTicked])];
-}
-
-function customItemKey(planId: string, name: string, unit: string): string {
-  return `${planId}-custom-${name.toLowerCase().trim().replace(/\s+/g, '-')}-${unit.toLowerCase().trim()}`;
 }
 
 /**

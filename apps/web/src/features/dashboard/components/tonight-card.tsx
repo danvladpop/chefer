@@ -18,6 +18,12 @@ import { localDateStr, slotPortion, userFacingErrorMessage, verifiedLabels } fro
 
 type Tonight = NonNullable<RouterOutputs['dashboard']['summary']['tonight']>;
 
+/** 0 = Monday … 6 = Sunday, the Plan page's `day` index. */
+function todayPlanDay(now: Date = new Date()): number {
+  const jsDay = now.getDay();
+  return jsDay === 0 ? 6 : jsDay - 1;
+}
+
 export function TonightCard({
   meal,
   showNutrition,
@@ -153,7 +159,9 @@ export function TonightCard({
               </button>
             ) : (
               <Link
-                href="/meal-plan"
+                // UX-FOOD-18: Plan opens on NEXT week on Friday/Saturday evenings;
+                // name this week and today's weekday so Swap lands on tonight.
+                href={`/meal-plan?week=0&day=${todayPlanDay()}`}
                 data-testid="tonight-swap"
                 className="flex min-h-11 items-center justify-center gap-1.5 rounded-full border border-[#944a00]/30 px-4 text-sm font-semibold text-[#944a00] hover:bg-[#fff3e8]"
               >

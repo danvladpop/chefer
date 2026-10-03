@@ -109,6 +109,7 @@ export {
   isDeficitBlockedForAge,
   isMinorAge,
   previewCalorieTarget,
+  previewTargetKcalFromBasics,
 } from './calorie-target';
 
 export {
@@ -267,6 +268,13 @@ export {
   customEntryChipLabel,
   customEntryRows,
   customEntryTotals,
+  copyDayMessage,
+  dailyAllowanceResetTime,
+  entryUnknownMacros,
+  groupByMeal,
+  HERO_LOGGED_HOLD_MS,
+  SCAN_REQUEST_TIMEOUT_MS,
+  SCAN_TIMEOUT_MESSAGE,
   type CustomEntryRow,
   type LoggedMealEntryLike,
 } from './tracker';
@@ -298,9 +306,17 @@ export {
 export {
   buildPickerSections,
   filterReplaceCandidates,
+  inferMealTypeFromName,
+  pickerRowMeta,
+  pickerSafetyHeader,
+  pickerSafetyHeaderText,
+  rankForSlot,
+  recipeMealTypeHint,
+  slotFitRank,
   type FilterReplaceCandidatesOptions,
   type PickerSection,
   type ReplaceCandidateLike,
+  type SlotMealType,
 } from './recipe-picker';
 export * from './gym';
 export {
@@ -323,6 +339,7 @@ export {
   INGREDIENT_GRAMS_MAX,
   MACRO_SANITY_TOLERANCE,
   QUICK_ADD_LIMITS,
+  QUICK_ADD_MACRO_KEYS,
   QUICK_ADD_MEAL_TYPES,
   checkMacroSanity,
   clampIngredientGrams,
@@ -333,6 +350,7 @@ export {
   type QuickAddEntry,
   type QuickAddErrors,
   type QuickAddInput,
+  type QuickAddMacroKey,
   type QuickAddMealType,
   type QuickAddParseResult,
 } from './quick-add';
@@ -349,6 +367,14 @@ export {
 } from './rebalance';
 export { RATING_LABELS, composeNotesWithLikedBy, parseLikedBy, stripLikedBy } from './rating';
 export { shoppingWindowLabel } from './shopping-window';
+export {
+  defaultSavedWeekName,
+  dinnersHeadingFor,
+  planCostCoverageLabel,
+  weekRangeLabel,
+  weekRelationLabel,
+  weekRelationTitle,
+} from './plan-week-copy';
 export {
   dayNutritionCaption,
   dayStatus,
@@ -531,6 +557,7 @@ export {
 export {
   isValidPlanShape,
   planButtonLabel,
+  householdTableSummary,
   planShapeSummary,
   resolvePlanDays,
   resolvePlanSlots,
@@ -681,6 +708,22 @@ export {
   userFacingErrorMessage,
 } from './user-facing-error';
 export type { UserFacingErrorOptions, ValidationIssueLike } from './user-facing-error';
+export {
+  DEFAULT_PROGRESS_RANGE,
+  evenLabelIndices,
+  isLoggedDay,
+  PROGRESS_RANGES,
+  type ProgressRange,
+} from './progress-days';
+export { chatActionsTrailer, splitChatActions } from './chat-actions';
+export {
+  CHAT_NOT_SENT_MESSAGE,
+  CHAT_SESSION_EXPIRED_MESSAGE,
+  CHAT_SLOW_DOWN_MESSAGE,
+  CHEF_BUSY_MESSAGE,
+  CHEF_UNAVAILABLE_MESSAGE,
+  chatFailureMessage,
+} from './chat-errors';
 export { getQueryState, isNotFoundError } from './query-state';
 export type { QueryState, QueryStateInput } from './query-state';
 export { shouldNotifyMutationError } from './mutation-errors';

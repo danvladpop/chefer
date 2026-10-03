@@ -139,6 +139,8 @@ export interface RecentTrackerEntry {
   protein: number;
   carbs: number;
   fat: number;
+  /** UX-FOOD-11: macros the entry left blank (stored as 0 g). */
+  unknownMacros?: ('protein' | 'carbs' | 'fat')[];
   estimatedBy?: 'vision' | 'manual';
   portionMultiplier?: number;
   count: number;
@@ -430,12 +432,17 @@ export const trackerService = {
       protein: number;
       carbs: number;
       fat: number;
+      unknownMacros?: ('protein' | 'carbs' | 'fat')[] | undefined;
     },
-  ): Promise<{ log: DailyLog; rebalance: RebalanceResult | null }> {
+  ): Promise<{ log: DailyLog; rebalance: RebalanceResult | null; entryId: string }> {
+    // The new row's id is minted here so the client can offer an exact Undo
+    // (UX-FOOD-26) — additive: older clients ignore the extra field.
+    const entryId = newEntryId();
     // Atomic append — parallel adds no longer overwrite each other (F-TRK-1-2).
     const log = await dailyLogRepository.mutateDay(user.id, dayDate(dateStr), (stored) => [
       ...stored,
       {
+        entryId,
         custom: { name: entry.name, estimatedBy: entry.estimatedBy },
         mealType: entry.mealType,
         portionMultiplier: 1,
@@ -443,10 +450,13 @@ export const trackerService = {
         protein: entry.protein,
         carbs: entry.carbs,
         fat: entry.fat,
+        ...(entry.unknownMacros && entry.unknownMacros.length > 0
+          ? { unknownMacros: entry.unknownMacros }
+          : {}),
       },
     ]);
     const rebalance = await this.maybeRebalance(user);
-    return { log, rebalance };
+    return { log, rebalance, entryId };
   },
 
   /**
@@ -493,6 +503,7 @@ export const trackerService = {
       protein: number;
       carbs: number;
       fat: number;
+      unknownMacros?: ('protein' | 'carbs' | 'fat')[] | undefined;
     },
   ): Promise<DailyLog> {
     return dailyLogRepository.mutateDay(userId, dayDate(dateStr), (stored) => {
@@ -513,6 +524,12 @@ export const trackerService = {
         carbs: updates.carbs,
         fat: updates.fat,
       };
+      // UX-FOOD-11: an explicit list replaces the flag, [] clears it; omitted
+      // (older clients) keeps whatever the entry had.
+      if (updates.unknownMacros !== undefined) {
+        if (updates.unknownMacros.length > 0) next.unknownMacros = updates.unknownMacros;
+        else delete next.unknownMacros;
+      }
       return stored.map((m, i) => (i === index ? next : m));
     });
   },
@@ -641,6 +658,7 @@ export const trackerService = {
         protein: a.protein,
         carbs: a.carbs,
         fat: a.fat,
+        ...(a.unknownMacros && { unknownMacros: a.unknownMacros }),
         ...(a.estimatedBy && { estimatedBy: a.estimatedBy }),
         ...(a.portionMultiplier !== undefined && { portionMultiplier: a.portionMultiplier }),
         count: a.count,

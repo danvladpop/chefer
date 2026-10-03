@@ -14,7 +14,13 @@ import {
   useQueryState,
   useSnackbar,
 } from '@chefer/ui-mobile';
-import { cn, downgradeLosses, PREMIUM_PITCH_COPY, userFacingErrorMessage } from '@chefer/utils';
+import {
+  cn,
+  dailyAllowanceResetTime,
+  downgradeLosses,
+  PREMIUM_PITCH_COPY,
+  userFacingErrorMessage,
+} from '@chefer/utils';
 import { openPremium } from '../src/features/premium/open-premium';
 import { usePremiumPitch } from '../src/features/premium/use-premium-pitch';
 import { PrivacySection } from '../src/features/privacy/privacy-section';
@@ -270,7 +276,7 @@ export default function ProfileScreen() {
           <Card testID="profile-usage">
             <Text variant="heading">{PREMIUM_PITCH_COPY.allowancesTitle}</Text>
             <Text variant="muted" className="text-xs">
-              Allowances reset at midnight UTC.
+              Allowances reset at {dailyAllowanceResetTime()} your time.
             </Text>
             {(() => {
               const tier = isPremiumTier ? 'premium' : 'free';
