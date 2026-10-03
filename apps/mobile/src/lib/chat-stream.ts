@@ -3,13 +3,29 @@
 // tests pass Node's global fetch. Both stream the same wire format: plain
 // text chunks, with X-Chat-Quota-Exhausted: 1 signalling the quota gate.
 
-import { AI_CONSENT_REQUIRED_REASON } from '@chefer/types';
+import { AI_CONSENT_REQUIRED_REASON, CHAT_ACTIONS_HEADER } from '@chefer/types';
 import { notifyAiConsentRequired } from '@chefer/utils';
 import { reportUnauthorized, SESSION_EXPIRED_MESSAGE } from '../features/auth/session-expired';
 
 export interface ChatMessageInput {
   role: 'user' | 'assistant';
   content: string;
+}
+
+/**
+ * A chat request the server refused or failed. `status` lets the screen pick
+ * friendly copy; `serverMessage` is set only when the server sent its own
+ * sentence (a JSON `error`), never for the "Chat failed (502)" fallback.
+ */
+export class ChatStreamError extends Error {
+  readonly status: number;
+  readonly serverMessage: string | null;
+  constructor(status: number, serverMessage: string | null) {
+    super(serverMessage ?? `Chat failed (${status})`);
+    this.name = 'ChatStreamError';
+    this.status = status;
+    this.serverMessage = serverMessage;
+  }
 }
 
 export interface StreamChatOptions {
@@ -46,6 +62,9 @@ export async function streamChat({
     headers: {
       'content-type': 'application/json',
       'x-chefer-client': 'mobile',
+      // UX-FOOD-21: ask for what the chef's tools did, appended after the text
+      // (split off with `splitChatActions`). Older servers ignore the header.
+      [CHAT_ACTIONS_HEADER]: '1',
       ...(token ? { authorization: `Bearer ${token}` } : {}),
     },
     body: JSON.stringify({ messages }),
@@ -60,11 +79,11 @@ export async function streamChat({
   }
 
   if (!res.ok) {
-    let message = `Chat failed (${res.status})`;
+    let serverMessage: string | null = null;
     try {
       const data = (await res.json()) as { error?: string; reason?: string };
       if (data.error) {
-        message = data.error;
+        serverMessage = data.error;
       }
       // R-10: the server has no AI consent on record — reopen the sheet.
       if (res.status === 403 && data.reason === AI_CONSENT_REQUIRED_REASON) {
@@ -73,7 +92,7 @@ export async function streamChat({
     } catch {
       // Non-JSON error body — keep the status message.
     }
-    throw new Error(message);
+    throw new ChatStreamError(res.status, serverMessage);
   }
 
   const quotaExhausted = res.headers.get('x-chat-quota-exhausted') === '1';

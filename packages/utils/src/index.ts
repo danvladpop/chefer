@@ -632,6 +632,14 @@ export {
   type ProgressRange,
 } from './progress-days';
 export { chatActionsTrailer, splitChatActions } from './chat-actions';
+export {
+  CHAT_NOT_SENT_MESSAGE,
+  CHAT_SESSION_EXPIRED_MESSAGE,
+  CHAT_SLOW_DOWN_MESSAGE,
+  CHEF_BUSY_MESSAGE,
+  CHEF_UNAVAILABLE_MESSAGE,
+  chatFailureMessage,
+} from './chat-errors';
 export { getQueryState, isNotFoundError } from './query-state';
 export type { QueryState, QueryStateInput } from './query-state';
 export { shouldNotifyMutationError } from './mutation-errors';

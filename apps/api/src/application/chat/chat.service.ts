@@ -1,5 +1,6 @@
 import { chefProfileRepository, dailyLogRepository, mealRatingRepository } from '@chefer/database';
-import type { UserProfile } from '@chefer/types';
+import type { ChatAction, UserProfile } from '@chefer/types';
+import { chatActionsTrailer } from '@chefer/utils';
 import { isAiCapacityFailure } from '../../lib/ai/friendly-error.js';
 import { aiService } from '../../lib/ai/index.js';
 import type { ChatContext, ChatMessage, ChatTools } from '../../lib/ai/index.js';
@@ -11,6 +12,7 @@ import { pantryService } from '../pantry/pantry.service.js';
 import { resolveDailyTargets } from '../preferences/preferences.service.js';
 import { recipeImportService } from '../recipe-import/recipe-import.service.js';
 import { safetyService } from '../safety/safety.service.js';
+import { customItemKey } from '../shopping-list/custom-item-key.js';
 import { shoppingListService } from '../shopping-list/shopping-list.service.js';
 import { trackerService } from '../tracker/tracker.service.js';
 import { trainingNutritionService } from '../training-nutrition/training-nutrition.service.js';
@@ -21,6 +23,7 @@ import { trainingNutritionService } from '../training-nutrition/training-nutriti
 // safety prefs, recent ratings), and the model can act through tools —
 // swapping a meal actually swaps it in the plan.
 
+const SWAP_MEAL_TYPES = ['breakfast', 'lunch', 'dinner', 'snack'] as const;
 const DAY_NAMES = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
 
 /** "first", "second", … for the swap confirmation (two-snack days). */
@@ -71,6 +74,31 @@ export function localDayIndexInZone(
 /** UTC-midnight `Date` that keys the user's local calendar day (DailyLog's row key convention). */
 function localDayKey(timeZone: string | null | undefined, now: Date = new Date()): Date {
   return new Date(`${localDateInZone(timeZone, now)}T00:00:00.000Z`);
+}
+
+/**
+ * UX-FOOD-21: passes the model's stream through untouched, then appends the
+ * actions the tools performed (only for a client that opted in, and only when
+ * there were any).
+ */
+function withActionTrailer(stream: ReadableStream, actions: readonly ChatAction[]): ReadableStream {
+  const reader = stream.getReader();
+  const encoder = new TextEncoder();
+  return new ReadableStream({
+    async pull(controller) {
+      const { done, value } = (await reader.read()) as { done: boolean; value?: unknown };
+      if (done) {
+        const trailer = chatActionsTrailer(actions);
+        if (trailer) controller.enqueue(encoder.encode(trailer));
+        controller.close();
+        return;
+      }
+      controller.enqueue(value);
+    },
+    cancel(reason) {
+      return reader.cancel(reason);
+    },
+  });
 }
 
 export class ChatService {
@@ -160,7 +188,11 @@ export class ChatService {
   }
 
   /** Tool handlers over the real services — the chat can DO things (P1-4). */
-  private buildTools(user: UserProfile, plan: WeekPlanDto | null): ChatTools {
+  private buildTools(
+    user: UserProfile,
+    plan: WeekPlanDto | null,
+    actions: ChatAction[] = [],
+  ): ChatTools {
     return {
       swapMeal: async ({ dayOfWeek, mealType, occurrence }) => {
         if (!plan) return 'No active meal plan to swap in — generate a plan first.';
@@ -202,6 +234,18 @@ export class ChatService {
             throw err;
           });
         const label = ofType.length > 1 ? `${ordinal(occurrence ?? 1)} ${mealType}` : mealType;
+        const swappedType = SWAP_MEAL_TYPES.find((t) => t === mealType);
+        if (swappedType) {
+          actions.push({
+            kind: 'swap',
+            label: `Swapped ${DAY_NAMES[dayOfWeek]}'s ${label} for ${swapped.name}`,
+            planId: plan.planId,
+            dayOfWeek,
+            mealType: swappedType,
+            slotIndex: slotIndex ?? ofType[0]?.index ?? 0,
+            ...(swapped.previousRecipeId && { previousRecipeId: swapped.previousRecipeId }),
+          });
+        }
         return `Swapped ${DAY_NAMES[dayOfWeek]}'s ${label}${before ? ` (${before})` : ''} for "${swapped.name}" (${swapped.nutritionInfo.calories} kcal, ${swapped.nutritionInfo.protein}g protein). The meal plan is updated.`;
       },
 
@@ -220,6 +264,12 @@ export class ChatService {
           .slice(0, 20);
         if (cleaned.length === 0) return 'No valid items given.';
         const { added } = await shoppingListService.addCustomItems(user.id, plan.planId, cleaned);
+        actions.push({
+          kind: 'shopping',
+          label: `Added to your shopping list: ${added.join(', ')}`,
+          planId: plan.planId,
+          keys: cleaned.map((i) => customItemKey(plan.planId, i.name, i.unit ?? 'pcs')),
+        });
         return `Added to this week's shopping list: ${added.join(', ')}. The user can see and remove them on the Shopping List page.`;
       },
 
@@ -271,6 +321,13 @@ export class ChatService {
           carbs: clampMacro(carbs, 1000),
           fat: clampMacro(fat, 500),
         });
+        actions.push({
+          kind: 'logged',
+          label: `Logged ${cleanName} (${Math.round(kcal)} kcal)`,
+          date: today,
+          name: cleanName,
+          kcal: Math.round(kcal),
+        });
         const rebalanceNote = rebalance?.rebalanced
           ? ` I also adjusted ${rebalance.swaps.length} upcoming meal${rebalance.swaps.length > 1 ? 's' : ''} to keep the week on track — the meal plan shows the change (with undo).`
           : '';
@@ -290,6 +347,11 @@ export class ChatService {
             variant: useAdapted ? 'adapted' : 'original',
             sourceUrl: preview.sourceUrl,
             ogImageUrl: preview.ogImageUrl,
+          });
+          actions.push({
+            kind: 'imported',
+            label: `Imported ${saved.name}`,
+            recipeId: saved.id,
           });
           const changeNote = useAdapted
             ? ` Cheferized with ${preview.changes.length} adaptation(s): ${preview.changes
@@ -334,7 +396,11 @@ export class ChatService {
    * Returns the response text stream. The CHAT AiCallLog row is written up
    * front so the quota counts attempts, not just successes.
    */
-  async chat(user: UserProfile, messages: ChatMessage[]): Promise<ReadableStream> {
+  async chat(
+    user: UserProfile,
+    messages: ChatMessage[],
+    options: { withActions?: boolean } = {},
+  ): Promise<ReadableStream> {
     // Atomic reservation up front — the quota counts attempts (parallel
     // sends used to get 7 of 5 through — audit F-REC-4-2 family). A capacity
     // failure (every provider busy or out of free quota) is refunded: that
@@ -344,13 +410,16 @@ export class ChatService {
     const plan = await mealPlanService.getActive(user.id);
     const contextSummary = await this.buildContextSummary(user, plan);
 
+    // UX-FOOD-21: what the tools did this turn, for the "View / Undo" chips.
+    const actions: ChatAction[] = [];
     const context: ChatContext = {
       userId: user.id,
       contextSummary,
-      tools: this.buildTools(user, plan),
+      tools: this.buildTools(user, plan, actions),
     };
     try {
-      return await aiService.chat(messages, context);
+      const stream = await aiService.chat(messages, context);
+      return options.withActions ? withActionTrailer(stream, actions) : stream;
     } catch (err) {
       if (isAiCapacityFailure(err)) await reservation.release();
       throw err;
