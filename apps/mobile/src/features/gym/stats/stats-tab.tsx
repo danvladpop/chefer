@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { ScrollView, View } from 'react-native';
 import { useLocalSearchParams } from 'expo-router';
-import { Card, Chip, Screen, Text } from '@chefer/ui-mobile';
+import { Chip, Screen, Text } from '@chefer/ui-mobile';
 import { GymBootstrapUnavailable, useGymBootstrapLoad } from '../components/gym-bootstrap-state';
 import { ModeSwitch } from '../components/mode-switch';
 import { useGymBootstrap } from '../use-gym-bootstrap';
@@ -12,10 +12,9 @@ import { MuscleVolumeView } from './muscle-volume-view';
 import { PrTimelineView } from './pr-timeline-view';
 import { StrengthTrendView } from './strength-trend-view';
 
-// Stats tab (gym_plan.md §1.3): 5 default views — strength trend, weekly sets
-// per muscle, consistency, PR timeline, monthly recap — with everything else
-// (research §6.2: at most 3–5 lifts and one volume chart by default) behind
-// "More". A `History` segment (T-36.5) swaps the whole scroll for a
+// Stats tab (gym_plan.md §1.3): 5 views — strength trend, weekly sets per
+// muscle, consistency, PR timeline, monthly recap (UX-GYM-34: the empty "More"
+// placeholder is gone — add a view here when there is one). A `History` segment (T-36.5) swaps the whole scroll for a
 // week-grouped list of every completed session — Gym Today's `Recent`
 // section's `All history` link opens straight into it via `?tab=history`.
 
@@ -26,7 +25,6 @@ export function StatsTab() {
   const bootstrap = bootstrapQuery.data;
   // UX-GYM-24: a failed load is an error with Retry, never "Loading…" forever.
   const { load, retry } = useGymBootstrapLoad(bootstrapQuery);
-  const [moreOpen, setMoreOpen] = useState(false);
   const { tab, month } = useLocalSearchParams<{ tab?: string; month?: string }>();
   const [segment, setSegment] = useState<'overview' | 'history'>(
     tab === 'history' ? 'history' : 'overview',
@@ -40,6 +38,11 @@ export function StatsTab() {
   useEffect(() => {
     if (recapMonth) setSegment('overview');
   }, [recapMonth]);
+  // UX-GYM-29: the tab stays mounted, so "All history" from Today must move the
+  // segment when the param changes, not only on first mount.
+  useEffect(() => {
+    if (tab === 'history') setSegment('history');
+  }, [tab]);
   useEffect(() => {
     if (recapMonth && recapLaidOut && recapY.current !== null) {
       scrollRef.current?.scrollTo({ y: Math.max(0, recapY.current - 8), animated: true });
@@ -99,24 +102,6 @@ export function StatsTab() {
           >
             <MonthlyRecapView bootstrap={bootstrap} initialMonth={recapMonth} />
           </View>
-
-          <Chip
-            testID="gym-stats-more-toggle"
-            label={moreOpen ? 'Hide more' : 'More'}
-            selected={moreOpen}
-            onPress={() => setMoreOpen((v) => !v)}
-          />
-          {moreOpen ? (
-            <Card testID="gym-stats-more">
-              <Text variant="muted">
-                {/* T-BUG-42 (B-42, audit 21.17): this used to cite our own planning doc
-                    ("research §6.1/§6.2") — internal spec language a user has no way
-                    to look up. Say what it means instead. */}
-                That&apos;s everything for now — the 5 views above are the ones that actually help
-                you train better. More views land here as they&apos;re added.
-              </Text>
-            </Card>
-          ) : null}
         </ScrollView>
       )}
     </Screen>

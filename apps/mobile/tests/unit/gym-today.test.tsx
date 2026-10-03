@@ -1,7 +1,7 @@
 import { Platform } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { onlineManager, QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { render, screen, userEvent, waitFor, within } from '@testing-library/react-native';
+import { act, render, screen, userEvent, waitFor, within } from '@testing-library/react-native';
 import type { GymOffer, NextWorkoutDto, RoutineDto, SessionSummaryDto } from '@chefer/types';
 import { resetSnackbarForTests, Snackbar } from '@chefer/ui-mobile';
 import { weekdayOf } from '@chefer/utils';
@@ -177,6 +177,44 @@ describe('TodayScreen', () => {
 
     await user.press(screen.getByTestId('gym-today-start'));
     expect(router.push).toHaveBeenCalledWith('/gym/workout');
+  });
+
+  // UX-GYM-29: the week strip's dots are colour-only, so each day carries a label.
+  it('the week strip reads "Monday, planned, today" to a screen reader', async () => {
+    const queryClient = makeClient();
+    queryClient.setQueryData(
+      gymBootstrapQueryKey,
+      makeBootstrap({ activeRoutine: ROUTINE, nextWorkout: NEXT_WORKOUT }),
+    );
+    await renderToday(queryClient);
+
+    expect(screen.getByTestId('gym-today-week-strip-0').props.accessibilityLabel).toBe(
+      'Monday, planned, today',
+    );
+    expect(screen.getByTestId('gym-today-week-strip-5').props.accessibilityLabel).toMatch(
+      /^Saturday, /,
+    );
+  });
+
+  // UX-GYM-29: online-only buttons follow connectivity live, not just on mount.
+  it('"Skip this day" re-enables when the connection comes back', async () => {
+    const queryClient = makeClient();
+    queryClient.setQueryData(
+      gymBootstrapQueryKey,
+      makeBootstrap({ activeRoutine: ROUTINE, nextWorkout: NEXT_WORKOUT }),
+    );
+    onlineManager.setOnline(false);
+    try {
+      await renderToday(queryClient);
+      expect(screen.getByTestId('gym-today-skip')).toBeDisabled();
+      await act(() => {
+        onlineManager.setOnline(true);
+        return Promise.resolve();
+      });
+      expect(screen.getByTestId('gym-today-skip')).toBeEnabled();
+    } finally {
+      onlineManager.setOnline(true);
+    }
   });
 
   // WP-04 (feedback 1): the busy-hands primaries are the large (48 pt) button,

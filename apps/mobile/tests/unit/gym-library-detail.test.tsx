@@ -99,6 +99,48 @@ describe('ExerciseDetailScreen', () => {
     expect(screen.queryByTestId('exercise-detail-blurb')).toBeNull();
   });
 
+  // UX-GYM-33: the history chart is captioned and dated, the load types read
+  // right, "Last 1 sessions" is singular and dates are not ISO strings.
+  it('your history: caption, dated chart ends, load types, singular label, Intl dates', async () => {
+    const assisted: ExerciseDto = {
+      ...makeExercise('assist-pullup', 'Assisted Pull-up'),
+      loadType: 'ASSISTED',
+    };
+    const one: SessionSummaryDto = {
+      id: uuid(1),
+      name: 'Pull Day',
+      routineDayId: null,
+      status: 'COMPLETED',
+      localDate: '2026-09-10',
+      startedAt: '2026-09-10T08:00:00.000Z',
+      finishedAt: '2026-09-10T08:45:00.000Z',
+      isDeload: false,
+      exercises: [
+        {
+          exerciseId: 'assist-pullup',
+          skipped: false,
+          lastSetRir: 1,
+          sets: [{ weightKg: 25, reps: 8, isWarmup: false, completed: true }],
+        },
+      ],
+    };
+    const queryClient = makeGymQueryClient();
+    queryClient.setQueryData(
+      gymBootstrapQueryKey,
+      makeBootstrap({ library: [assisted], recentSessions: [one] }),
+    );
+    await renderWithGym(<ExerciseDetailScreen exerciseId="assist-pullup" />, queryClient);
+
+    expect(await screen.findByTestId('exercise-detail-e1rm-caption')).toHaveTextContent(
+      /Estimated 1-rep max/,
+    );
+    expect(screen.getByTestId('exercise-detail-best-sets')).toHaveTextContent(/25 kg assist × 8/);
+    expect(screen.getByText('Last session')).toBeTruthy();
+    expect(screen.queryByText(/Last 1 sessions/)).toBeNull();
+    expect(screen.queryByText('2026-09-10')).toBeNull();
+    expect(screen.queryByText(/2026-09-10/)).toBeNull();
+  });
+
   it('shows the embedded player when online', async () => {
     const user = userEvent.setup();
     const queryClient = makeGymQueryClient();

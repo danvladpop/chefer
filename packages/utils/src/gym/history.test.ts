@@ -1,7 +1,7 @@
 // T-36.5 (Stats › History): week-grouped session history.
 import { describe, expect, it } from 'vitest';
 import type { SessionSummaryDto } from '@chefer/types';
-import { groupSessionsByWeek } from './history';
+import { formatLocalDateLong, groupSessionsByWeek, lastSessionsLabel } from './history';
 
 function session(id: string, localDate: string): SessionSummaryDto {
   return {
@@ -47,5 +47,24 @@ describe('groupSessionsByWeek', () => {
       session('c', '2026-09-09'),
     ]);
     expect(groups.map((g) => g.weekStart)).toEqual(['2026-09-07', '2026-08-31', '2026-09-07']);
+  });
+});
+
+describe('formatLocalDateLong', () => {
+  it('formats a local date without shifting the day', () => {
+    expect(formatLocalDateLong('2026-09-24', 'en-US')).toBe('Sep 24, 2026');
+    expect(formatLocalDateLong('2026-01-01', 'en-US')).toBe('Jan 1, 2026');
+  });
+
+  it('returns anything that is not a local date unchanged', () => {
+    expect(formatLocalDateLong('not-a-date')).toBe('not-a-date');
+    expect(formatLocalDateLong('2026-09-24T10:00:00Z')).toBe('2026-09-24T10:00:00Z');
+  });
+});
+
+describe('lastSessionsLabel', () => {
+  it('is singular for one session', () => {
+    expect(lastSessionsLabel(1)).toBe('Last session');
+    expect(lastSessionsLabel(5)).toBe('Last 5 sessions');
   });
 });

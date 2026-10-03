@@ -47,6 +47,8 @@ export function createTrpcGymMock() {
           clearOverride: { useMutation: jest.fn() },
         },
         pause: { create: { useMutation: jest.fn() }, end: { useMutation: jest.fn() } },
+        // Stats › History probes for older sessions (UX-GYM-33) — no data by default.
+        session: { list: { useQuery: jest.fn(() => ({ data: undefined })) } },
       },
       // T-06.9: weekday kinds — gym settings' "Training days & reminders" row.
       training: {
