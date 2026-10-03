@@ -137,6 +137,14 @@ export function QuickAddSheet({
   const [macros, setMacros] = useState({ protein: '', carbs: '', fat: '' });
   const [errors, setErrors] = useState<QuickAddErrors>({});
   const [sanityOverridden, setSanityOverridden] = useState(false);
+  // UX-FOOD-10: a field's error goes the moment that field is edited.
+  const clearError = (key: keyof QuickAddErrors) =>
+    setErrors((prev) => {
+      if (!(key in prev)) return prev;
+      const next = { ...prev };
+      delete next[key];
+      return next;
+    });
 
   const reset = () => {
     setView('search');
@@ -838,6 +846,7 @@ export function QuickAddSheet({
               returnKeyType="next"
               onChangeText={(text) => {
                 setName(text);
+                clearError('name');
                 setSanityOverridden(false);
               }}
             />
@@ -872,6 +881,7 @@ export function QuickAddSheet({
                 keyboardType="number-pad"
                 onChangeText={(text) => {
                   setKcal(text);
+                  clearError('kcal');
                   setSanityOverridden(false);
                 }}
                 className="min-w-0 flex-1"
@@ -900,6 +910,7 @@ export function QuickAddSheet({
                     keyboardType="decimal-pad"
                     onChangeText={(text) => {
                       setMacros((prev) => ({ ...prev, [key]: text }));
+                      clearError(key);
                       setSanityOverridden(false);
                     }}
                   />

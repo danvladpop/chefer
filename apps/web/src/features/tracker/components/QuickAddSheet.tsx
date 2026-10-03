@@ -99,6 +99,14 @@ export function QuickAddSheet({ date, onLogged, plannedMeals = [] }: QuickAddShe
   const [macros, setMacros] = useState({ protein: '', carbs: '', fat: '' });
   const [errors, setErrors] = useState<QuickAddErrors>({});
   const [sanityOverridden, setSanityOverridden] = useState(false);
+  // UX-FOOD-10: a field's error goes the moment that field is edited.
+  const clearError = (key: keyof QuickAddErrors) =>
+    setErrors((prev) => {
+      if (!(key in prev)) return prev;
+      const next = { ...prev };
+      delete next[key];
+      return next;
+    });
   const kcalRef = useRef<HTMLInputElement>(null);
 
   const trimmedQuery = query.trim();
@@ -746,6 +754,7 @@ export function QuickAddSheet({ date, onLogged, plannedMeals = [] }: QuickAddShe
                 placeholder="e.g. Slice of birthday cake"
                 onChange={(e) => {
                   setName(e.target.value);
+                  clearError('name');
                   setSanityOverridden(false);
                 }}
                 className="min-h-11 w-full rounded-xl border border-neutral-200 px-3 text-sm text-neutral-900"
@@ -781,6 +790,7 @@ export function QuickAddSheet({ date, onLogged, plannedMeals = [] }: QuickAddShe
                   placeholder="350"
                   onChange={(e) => {
                     setKcal(e.target.value);
+                    clearError('kcal');
                     setSanityOverridden(false);
                   }}
                   className="min-h-11 w-full min-w-0 rounded-xl border border-neutral-200 px-3 text-sm text-neutral-900"
@@ -807,6 +817,7 @@ export function QuickAddSheet({ date, onLogged, plannedMeals = [] }: QuickAddShe
                     value={macros[k]}
                     onChange={(e) => {
                       setMacros((prev) => ({ ...prev, [k]: e.target.value }));
+                      clearError(k);
                       setSanityOverridden(false);
                     }}
                     className="min-h-11 w-full min-w-0 rounded-xl border border-neutral-200 px-3 text-sm text-neutral-900"
