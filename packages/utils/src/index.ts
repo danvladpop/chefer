@@ -610,8 +610,17 @@ export {
   SERVER_ERROR_MESSAGE,
   isNetworkError,
   isServerError,
+  VALIDATION_ERROR_MESSAGE,
+  describeValidationIssues,
+  humaniseFieldPath,
+  parseIssuesFromMessage,
   userFacingErrorMessage,
 } from './user-facing-error';
+export type { UserFacingErrorOptions, ValidationIssueLike } from './user-facing-error';
+export { getQueryState, isNotFoundError } from './query-state';
+export type { QueryState, QueryStateInput } from './query-state';
+export { shouldNotifyMutationError } from './mutation-errors';
+export type { MutationMetaShape } from './mutation-errors';
 export {
   plannedRowKey,
   sumLogged,
