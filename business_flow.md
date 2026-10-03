@@ -3018,6 +3018,24 @@ streaks, no red "missed" markers.
   **End pause** button (`gym.pause.end`) regardless of which device started
   it — the web's earlier "only pauses created in this browser" workaround
   (localStorage bookkeeping) is gone.
+- **Pause start choice (UX-GYM-16, WP-12 B):** a pause starts Today, Tomorrow or
+  next Monday (`pauseStartDate`, `@chefer/utils`) and lasts 1–4 whole weeks; the end
+  date is the **last paused day** (inclusive), so copy reads "Paused through Thu 8
+  Oct · Vacation" (`pauseSummaryLine`), never the raw ISO date or enum. A pause that
+  has not started yet is `GymBootstrap.upcomingPause` (additive, optional; same
+  shape as `activePause`), shown in settings with **Cancel pause** (`gym.pause.end`
+  deletes a pause that has not begun).
+- **Switching routines (UX-GYM-14/15, mobile My routines):** a template is previewed
+  day by day before it is created; **Create** keeps the active routine, **Create and
+  switch** activates it and sets the weekly goal to the template's days/week
+  (`gym.profile.save`). Archiving the active routine is confirmed with copy that says
+  Today will have no workout; Today then still shows Recent workouts and "Log a
+  workout you already did".
+- **Rep-range edits (UX-GYM-18):** a rep bucket with no progression yet starts from
+  the same exercise's other bucket (`carriedWeightKg`, Epley e1RM re-estimate)
+  instead of the starting guess; an exercise's first-ever session is a baseline and
+  is not counted as a PR on the finish summary (the PR timeline still lists it as
+  "First logged").
 - **Reminders (mobile only, local `expo-notifications`, G4-A):** one
   notification per planned weekday over the next 14 days at the profile's
   `reminderTime`, skipping a day already trained or inside a pause, plus at
@@ -3071,6 +3089,27 @@ your rest is over, even with the phone locked?` / `Allow notifications` /
   `Not now`) shown once, in context, the first time a rest actually begins
   (`workout/rest-timer-bar.tsx`) — never cold, never more than once per
   device.
+- **Rest timer, Today and recap polish (WP-12 lane A, UX-GYM-09/10/12/13/20/31):**
+  - _Rest timer:_ the "Rest is over" local notification is scheduled when a rest
+    STARTS (and re-scheduled on ±15 s, cancelled on skip/finish) by `rest-timer.ts`
+    (`syncNotification`, serialised, one alert per `endsAt`), not when the app
+    backgrounds. The countdown (`Rest m:ss`) also shows on the Gym Today Resume
+    card, the Food Today resume line (mobile) and the web Resume banner, so
+    minimising the workout never hides it. A screen reader hears the rest at start,
+    at 10 s and at the end (`nextRestAnnouncement` + `announceForAccessibility`);
+    the ticking text is no longer a live region. Exact Android alarms
+    (`USE_EXACT_ALARM`) are native and still open.
+  - _Gym Today:_ planned days dated before `profile.setupCompletedAt` are never
+    "missed" (`missedPlannedDays`/`todayStatus` take `since`), the first week's goal
+    is pro-rated to the days left (`proRatedWeekGoal`, display only), "Still time
+    this week" never shows beside the overdue card, and the main card names
+    `selectTodaysSession` — the same day the Food Today card and the Plan use.
+  - _Monthly recap card:_ the server offers it only for a month with at least 2
+    sessions (`RECAP_MIN_SESSIONS`); the card has a primary `See {Month}` button that
+    opens Stats (`/stats?month=YYYY-MM` on mobile, `/gym/stats?month=` on web) with
+    that month selected and the recap scrolled into view.
+  - _Mode pill:_ the Food | Gym pill derives from the route GROUP (`useSegments`),
+    and Gym-only screens pass `mode="gym"`; it no longer says Food on Gym tabs.
 - **Streak repair — "Log a workout you already did" (mobile + web, G4-A;
   was "Log a past workout"):**
   - **Mobile (owner dogfood 2026-09-30): log mode, no timer.** One sheet —
@@ -3158,6 +3197,27 @@ Weekly sets per muscle (mobile only — web's chart shows one group at a time):
   above the keyboard. Search inputs carry a real accessible label, a 4.5:1
   placeholder (`#4b5563`, not the default gray-400) and a clear (✕) button
   once there's a query.
+- **Archived exercises + stats polish (WP-12 lane C, UX-GYM-27/29/33/34, mobile + web):**
+  an archived custom exercise is listed under a collapsible "Archived (N)"
+  section at the bottom of the Exercises tab with a **Restore** button
+  (`gym.library.restoreCustom`; there is no Delete — sessions reference the
+  row), and archiving offers an Undo toast/snackbar. A search with no result
+  offers "Create “<query>”", opening the custom-exercise form pre-filled
+  (web: `/gym/exercises/new?name=…`). One **PR rule** everywhere — a session is a
+  PR when ANY kind (weight, reps or e1RM) is beaten against all-time bests
+  (`collectPrs`): the workout summary, History rows, the e1RM chart's PR dots
+  (mobile local engine and `gym.stats.e1rm`) all agree. History's "Load more"
+  only shows when a one-row probe past the cached window finds an older
+  session. Loads render by exercise load type (`BW`, `BW + 10 kg`,
+  `25 kg assist`) in session detail, exercise detail and the PR timeline;
+  dates are Intl-formatted (`formatLocalDateLong`), never ISO; "Last 1
+  sessions" reads "Last session". The muscle-volume stack shows the top 5
+  groups plus the selected one (distinct colours) and folds the rest into
+  "Other"; bar-chart axes use round ticks. A failed load shows an error with
+  Retry (never "not found", "No exercises match" or an endless skeleton) on
+  the web Exercises, Stats, History, exercise-detail and settings pages, and
+  the monthly recap. Web gym settings save optimistically
+  (`use-save-gym-profile.ts`), rolling back only the failed fields.
 - **Library staples (T-05.10, UX-05 A5):** `incline-barbell-bench-press`
   (searchable by "incline bench"; shares the `incline-press` swap group,
   sorted before the dumbbell version) and `back-extension` (`BODYWEIGHT_PLUS`

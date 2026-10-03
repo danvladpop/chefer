@@ -19,14 +19,20 @@ import {
   useScrollFieldIntoView,
 } from '@chefer/ui-mobile';
 import {
-  addDaysLocal,
   formatLoadNumber,
   kgToUnit,
+  PAUSE_EXPLAINER,
+  PAUSE_START_CHOICES,
+  pauseEndDate,
+  pauseStartDate,
+  pauseSummaryLine,
   SESSION_LENGTH_OPTIONS,
   unitLabel,
   unitToKg,
+  weekdayDateLabel,
   weekStartOf,
   WELLNESS_COPY,
+  type PauseStartChoice,
 } from '@chefer/utils';
 import { NotificationsOffRow } from '../../../components/notifications-off-row';
 import { useFlags } from '../../../hooks/use-flags';
@@ -210,6 +216,7 @@ export function GymSettingsScreen() {
   const outboxStatus = useOutboxStatus();
   const [pauseSheetVisible, setPauseSheetVisible] = useState(false);
   const [pauseWeeks, setPauseWeeks] = useState(1);
+  const [pauseStart, setPauseStart] = useState<PauseStartChoice>('today');
   const [pauseReason, setPauseReason] = useState<(typeof PAUSE_REASONS)[number]['value'] | null>(
     null,
   );
@@ -294,6 +301,9 @@ export function GymSettingsScreen() {
     (w) => w.weekStart === weekStartOf(today) && w.status === 'paused',
   );
   const activePause = bootstrap.activePause;
+  // UX-GYM-16: a pause that starts later (tomorrow / next Monday) is shown — and can be
+  // cancelled — here too, so the user never sees "Pause training" while one is booked.
+  const shownPause = activePause ?? bootstrap.upcomingPause ?? null;
   // T-06.9: a weekday with a planned routine day is always `lift`, read-only
   // here — the routine editor is the only place that changes it.
   const liftWeekdays = new Set(
@@ -335,8 +345,8 @@ export function GymSettingsScreen() {
   };
 
   const confirmPause = () => {
-    const startDate = today;
-    const endDate = addDaysLocal(startDate, pauseWeeks * 7 - 1);
+    const startDate = pauseStartDate(pauseStart, today);
+    const endDate = pauseEndDate(startDate, pauseWeeks);
     pauseCreateMutation.mutate({ startDate, endDate, reason: pauseReason });
   };
 
@@ -603,18 +613,18 @@ export function GymSettingsScreen() {
         <SectionAnchor id="pause" className="gap-2">
           <SectionTitle>Pause training</SectionTitle>
           <Card className="gap-2">
-            {activePause ? (
+            {shownPause ? (
               <View className="gap-2">
                 <Text testID="gym-settings-paused-note" variant="muted">
-                  Paused until {activePause.endDate}.
+                  {pauseSummaryLine(shownPause, today)}
                 </Text>
                 <Button
                   testID="gym-settings-pause-end"
                   variant="outline"
                   loading={pauseEndMutation.isPending}
-                  onPress={() => pauseEndMutation.mutate({ id: activePause.id })}
+                  onPress={() => pauseEndMutation.mutate({ id: shownPause.id })}
                 >
-                  End pause now
+                  {activePause ? 'End pause now' : 'Cancel pause'}
                 </Button>
               </View>
             ) : isPausedThisWeek ? (
@@ -732,6 +742,21 @@ export function GymSettingsScreen() {
           </Button>
         }
       >
+        <Text testID="gym-settings-pause-explainer" variant="muted">
+          {PAUSE_EXPLAINER}
+        </Text>
+        <View className="gap-2">
+          <Text variant="label">Starting</Text>
+          <ChipGroup
+            testID="gym-settings-pause-starting"
+            options={PAUSE_START_CHOICES.map((c) => ({
+              ...c,
+              testID: `gym-settings-pause-starting-${c.value}`,
+            }))}
+            value={[pauseStart]}
+            onChange={(v) => setPauseStart(v[0] ?? 'today')}
+          />
+        </View>
         <View className="gap-2">
           <Text variant="label">How many weeks?</Text>
           <Stepper
@@ -757,6 +782,9 @@ export function GymSettingsScreen() {
             onChange={(v) => setPauseReason(v[0] ?? null)}
           />
         </View>
+        <Text testID="gym-settings-pause-range" className="text-sm font-medium">
+          {`${weekdayDateLabel(pauseStartDate(pauseStart, today))} – ${weekdayDateLabel(pauseEndDate(pauseStartDate(pauseStart, today), pauseWeeks))}`}
+        </Text>
       </Sheet>
 
       <Sheet

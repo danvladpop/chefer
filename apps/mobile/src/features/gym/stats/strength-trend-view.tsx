@@ -14,6 +14,7 @@ import {
 import {
   bodyweightOn,
   formatLoad,
+  formatLocalDateLong,
   formatRelativeStrength,
   GLOSSARY,
   kgToUnit,
@@ -26,13 +27,6 @@ import { useIsOnline } from '../library-screens/online-status';
 import { ExercisePicker } from '../library/exercise-picker';
 import { localE1rmSeries, topCompoundsByFrequency } from './local-engine';
 import { LogWeightPrompt } from './log-weight-prompt';
-
-/** "24 Sep 2026" for the tapped-point / latest-point caption. */
-function longDate(localDate: string): string {
-  const d = new Date(`${localDate}T00:00:00`);
-  if (Number.isNaN(d.getTime())) return localDate;
-  return d.toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' });
-}
 
 // (a) Strength trend (gym_plan.md §1.3 Stats #1): e1RM line for a picked lift,
 // defaulting to the top 3 compounds by frequency, with a range selector, PR
@@ -75,7 +69,7 @@ export function StrengthTrendView({ bootstrap }: { bootstrap: GymBootstrap }) {
   const series: E1rmSeriesDto | undefined = exercise
     ? needsApiSeries(range) && apiSeries.data
       ? apiSeries.data
-      : localE1rmSeries(bootstrap.recentSessions, exercise.id)
+      : localE1rmSeries(bootstrap.recentSessions, exercise.id, bootstrap.olderBests)
     : undefined;
 
   // UX-GYM-17: the weight from onboarding / preferences stands in until the
@@ -189,6 +183,7 @@ export function StrengthTrendView({ bootstrap }: { bootstrap: GymBootstrap }) {
         data={chartData}
         trend={trend}
         secondary={secondary}
+        niceTicks={!secondary}
         formatY={(v) => (relativeStrength ? formatRelativeStrength(v) : formatLoad(v, unit))}
         emptyLabel="No sessions with this exercise yet"
       />
@@ -198,8 +193,9 @@ export function StrengthTrendView({ bootstrap }: { bootstrap: GymBootstrap }) {
           latest point (usually the one someone wants) until it does. */}
       {latestPoint ? (
         <Text testID="stats-strength-point-detail" variant="muted" className="mt-1 text-xs">
-          {longDate(latestPoint.localDate)} · {formatLoad(latestPoint.weightKg, unit)} ×{' '}
-          {latestPoint.reps} → e1RM {formatLoad(latestPoint.e1rmKg, unit)}
+          {formatLocalDateLong(latestPoint.localDate)} ·{' '}
+          {formatLoad(latestPoint.weightKg, unit, exercise?.loadType)} × {latestPoint.reps} → e1RM{' '}
+          {formatLoad(latestPoint.e1rmKg, unit)}
         </Text>
       ) : null}
 

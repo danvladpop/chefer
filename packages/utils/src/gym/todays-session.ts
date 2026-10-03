@@ -25,8 +25,10 @@ export type TodaysSession =
 export function selectTodaysSession(input: {
   bootstrap: Pick<GymBootstrap, 'recentSessions' | 'nextWorkout' | 'activeRoutine'>;
   today: string;
+  /** UX-GYM-12: device-local setup date — see `todayStatus`. */
+  since?: string | null | undefined;
 }): TodaysSession {
-  const { bootstrap, today } = input;
+  const { bootstrap, today, since } = input;
   const done = bootstrap.recentSessions.find(
     (s) => s.status === 'COMPLETED' && s.localDate === today,
   );
@@ -38,7 +40,7 @@ export function selectTodaysSession(input: {
     .find((d) => d.plannedWeekday === todayWeekday);
   if (pinned) return { kind: 'planned', dayId: pinned.id, dayName: pinned.name };
 
-  const status = todayStatus({ bootstrap, today });
+  const status = todayStatus({ bootstrap, today, since });
   const next = bootstrap.nextWorkout;
   if (status.kind === 'training' && next) {
     return {

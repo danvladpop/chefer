@@ -1,6 +1,5 @@
 import { useMemo, useState } from 'react';
 import { Pressable, View } from 'react-native';
-import { onlineManager } from '@tanstack/react-query';
 import { router } from 'expo-router';
 import type { GymBootstrap, SessionSummaryDto } from '@chefer/types';
 import { Button, EmptyState, Text } from '@chefer/ui-mobile';
@@ -11,6 +10,7 @@ import {
   sessionRowAccessibilityActions,
   useSessionActions,
 } from '../history/use-session-actions';
+import { useIsOnline } from '../library-screens/online-status';
 
 // T-36.5 (bug B-41's home): Stats › History — every completed session,
 // week-grouped, newest first. First page from the cached
@@ -48,6 +48,7 @@ export interface HistoryViewProps {
 
 export function HistoryView({ bootstrap, testID = 'gym-history' }: HistoryViewProps) {
   const utils = trpc.useUtils();
+  const online = useIsOnline();
   const actions = useSessionActions({ bootstrap, source: 'history', testIDPrefix: testID });
   const cached = useMemo(
     () => bootstrap.recentSessions.filter((s) => s.status === 'COMPLETED'),
@@ -64,6 +65,14 @@ export function HistoryView({ bootstrap, testID = 'gym-history' }: HistoryViewPr
     () => new Set(collectPrs(combined, undefined, bootstrap.olderBests).map((r) => r.sessionId)),
     [combined, bootstrap.olderBests],
   );
+  // UX-GYM-33: "Load more" only shows when something older exists. One cheap
+  // probe past the cached window tells us (offline, we can't know, so it stays).
+  const lastCached = cached.at(-1);
+  const olderProbe = trpc.gym.session.list.useQuery(
+    { cursor: lastCached ? cursorOf(lastCached) : undefined, limit: 1 },
+    { enabled: online && cached.length > 0 },
+  );
+  const nothingOlder = olderProbe.data?.items.length === 0;
 
   if (combined.length === 0) {
     return (
@@ -77,7 +86,7 @@ export function HistoryView({ bootstrap, testID = 'gym-history' }: HistoryViewPr
 
   const shown = combined.slice(0, visibleCount);
   const groups = groupSessionsByWeek(shown);
-  const hasMore = visibleCount < cached.length || !exhaustedOnline;
+  const hasMore = visibleCount < cached.length || (!exhaustedOnline && !nothingOlder);
 
   const handleLoadMore = async () => {
     setLoadError(false);
@@ -85,7 +94,7 @@ export function HistoryView({ bootstrap, testID = 'gym-history' }: HistoryViewPr
       setVisibleCount((v) => v + PAGE_SIZE);
       return;
     }
-    if (!onlineManager.isOnline()) {
+    if (!online) {
       setLoadError(true);
       return;
     }
@@ -157,9 +166,7 @@ export function HistoryView({ bootstrap, testID = 'gym-history' }: HistoryViewPr
 
       {loadError ? (
         <Text testID={`${testID}-error`} variant="muted" className="text-xs">
-          {onlineManager.isOnline()
-            ? "Couldn't load older workouts."
-            : 'Connect to load older workouts.'}{' '}
+          {online ? "Couldn't load older workouts." : 'Connect to load older workouts.'}{' '}
           <Text className="text-primary" onPress={() => void handleLoadMore()}>
             Try again
           </Text>

@@ -3,7 +3,16 @@ import { FlatList, Pressable, View } from 'react-native';
 import { Image } from 'expo-image';
 import { router } from 'expo-router';
 import { HIDDEN_EXERCISE_IMAGE_IDS, MUSCLE_LABELS } from '@chefer/types';
-import { Button, Chip, ChipGroup, EmptyState, Input, Screen, Text } from '@chefer/ui-mobile';
+import {
+  Button,
+  Chip,
+  ChipGroup,
+  EmptyState,
+  Screen,
+  SEARCH_LIST_PROPS,
+  SearchField,
+  Text,
+} from '@chefer/ui-mobile';
 import { useFlags } from '../../../hooks/use-flags';
 import { ExerciseImage } from '../components/exercise-image';
 import { GymBootstrapUnavailable, useGymBootstrapLoad } from '../components/gym-bootstrap-state';
@@ -14,6 +23,7 @@ import { exerciseImageUrl } from '../library/exercise-image';
 import type { PickerFilter } from '../library/exercise-picker';
 import { useKeyboardVisible } from '../library/use-keyboard-visible';
 import { useGymBootstrap } from '../use-gym-bootstrap';
+import { archivedCustomExercises, ArchivedExercises } from './archived-exercises';
 import {
   EQUIPMENT_FILTERS,
   filterExercisesForTab,
@@ -49,6 +59,8 @@ export function ExercisesTab() {
     [library, query, group, equipment, mineOnly],
   );
 
+  const archived = useMemo(() => archivedCustomExercises(library, query), [library, query]);
+
   const prefetched = useRef(false);
   useEffect(() => {
     if (prefetched.current || !bootstrap?.activeRoutine) return;
@@ -73,7 +85,7 @@ export function ExercisesTab() {
   return (
     <Screen className="px-0" testID="gym-exercises-screen">
       <View className="gap-3 px-4 pb-2 pt-2">
-        <ModeSwitch />
+        <ModeSwitch mode="gym" />
         <View className="flex-row items-center justify-between gap-3">
           <Text testID="gym-exercises-title" variant="title">
             Exercises
@@ -87,29 +99,14 @@ export function ExercisesTab() {
             + Custom
           </Button>
         </View>
-        <View className="relative justify-center">
-          <Input
-            testID="exercises-search"
-            value={query}
-            onChangeText={setQuery}
-            placeholder="Search exercises"
-            placeholderTextColor="#4b5563"
-            autoCorrect={false}
-            accessibilityLabel="Search exercises"
-            className={query ? 'pr-11' : undefined}
-          />
-          {query ? (
-            <Pressable
-              testID="exercises-search-clear"
-              accessibilityRole="button"
-              accessibilityLabel="Clear search"
-              onPress={() => setQuery('')}
-              className="absolute right-1 h-11 w-11 items-center justify-center"
-            >
-              <Text className="text-lg text-muted-foreground">✕</Text>
-            </Pressable>
-          ) : null}
-        </View>
+        {/* UX-X-17: the shared 44 pt SearchField (testIDs unchanged). */}
+        <SearchField
+          testID="exercises-search"
+          value={query}
+          onChangeText={setQuery}
+          placeholder="Search exercises"
+          accessibilityLabel="Search exercises"
+        />
         {/* T-05.A3.1 (AC19-22): two rows normally — 24 wrapping chips pushed
             the results below the keyboard (found by e2e/gym-library,
             2026-09-25) — collapsed to one strip while the keyboard is up, so
@@ -151,8 +148,7 @@ export function ExercisesTab() {
         testID="exercises-list"
         data={rows}
         keyExtractor={(e) => e.id}
-        keyboardShouldPersistTaps="handled"
-        keyboardDismissMode="on-drag"
+        {...SEARCH_LIST_PROPS}
         initialNumToRender={14}
         contentContainerStyle={{ paddingBottom: 24 }}
         renderItem={({ item }) => {
@@ -188,6 +184,7 @@ export function ExercisesTab() {
             </Pressable>
           );
         }}
+        ListFooterComponent={<ArchivedExercises rows={archived} />}
         ListEmptyComponent={
           load !== 'data' ? (
             <GymBootstrapUnavailable

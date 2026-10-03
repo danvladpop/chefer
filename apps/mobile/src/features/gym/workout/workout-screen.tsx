@@ -29,6 +29,7 @@ import { useActiveSessionPausedAt } from '../offline/active-session-store';
 import { localDate, newId } from '../offline/ids';
 import { dispatchWorkout, getResumableSession, useActiveWorkout } from '../use-active-workout';
 import { useGymBootstrap } from '../use-gym-bootstrap';
+import { EXERCISE_CAP_REASON, isAtExerciseCap } from './caps';
 import { ExerciseCard, type WorkoutContext, type WorkoutSheetRequest } from './exercise-card';
 import { rememberFinished } from './finished-store';
 import { NumberSheet } from './number-sheet';
@@ -120,6 +121,7 @@ export function WorkoutScreen() {
   const [ungroupAlsoRoutine, setUngroupAlsoRoutine] = useState(false);
   const snackbar = useSnackbar();
   const [finishing, setFinishing] = useState(false);
+  const [restBarHeight, setRestBarHeight] = useState(0);
   const [notice, setNotice] = useState<string | null>(null);
   const [moveUnstarted, setMoveUnstarted] = useState(true);
   const isActive = session !== null;
@@ -737,7 +739,8 @@ export function WorkoutScreen() {
         testID="workout-list"
         keyboardShouldPersistTaps="handled"
         contentContainerClassName="gap-3 px-2 pt-3"
-        contentContainerStyle={{ paddingBottom: 160 }}
+        // UX-GYM-34: pad by the rest bar's real height, not a guess.
+        contentContainerStyle={{ paddingBottom: 32 + restBarHeight }}
       >
         {exercises.length === 0 ? (
           <Text variant="muted" className="px-2 py-6 text-center">
@@ -795,10 +798,20 @@ export function WorkoutScreen() {
           testID="workout-add-exercise"
           variant="outline"
           size="lg"
+          disabled={isAtExerciseCap(exercises.length)}
           onPress={() => openSheet({ kind: 'picker', mode: 'add', seId: null, scope: 'today' })}
         >
           + Add exercise
         </Button>
+        {isAtExerciseCap(exercises.length) ? (
+          <Text
+            testID="workout-add-exercise-reason"
+            variant="muted"
+            className="text-center text-sm"
+          >
+            {EXERCISE_CAP_REASON}
+          </Text>
+        ) : null}
         <Button
           testID="workout-superset"
           variant="outline"
@@ -836,7 +849,7 @@ export function WorkoutScreen() {
         </Button>
       </ScrollView>
 
-      <RestTimerBar />
+      <RestTimerBar onHeightChange={setRestBarHeight} />
 
       {/* ── Sheets ── */}
       <ExerciseMenuSheet

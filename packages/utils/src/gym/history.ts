@@ -25,3 +25,29 @@ export function groupSessionsByWeek(sessions: readonly SessionSummaryDto[]): His
   }
   return groups;
 }
+
+const LOCAL_DATE = /^(\d{4})-(\d{2})-(\d{2})$/;
+
+/**
+ * "24 Sep 2026" in the device's locale from a `YYYY-MM-DD` local date — never an
+ * ISO string in the UI (UX-GYM-33/34). Built in UTC so the day never shifts with
+ * the timezone; anything that is not a local date comes back unchanged.
+ */
+export function formatLocalDateLong(localDate: string, locale?: string): string {
+  const m = LOCAL_DATE.exec(localDate);
+  if (!m) return localDate;
+  const d = new Date(Date.UTC(Number(m[1]), Number(m[2]) - 1, Number(m[3])));
+  if (Number.isNaN(d.getTime())) return localDate;
+  return d.toLocaleDateString(locale, {
+    day: 'numeric',
+    month: 'short',
+    year: 'numeric',
+    timeZone: 'UTC',
+  });
+}
+
+/** "Last session" / "Last 3 sessions" — never "Last 1 sessions"; "Last sessions" for none. */
+export function lastSessionsLabel(count: number): string {
+  if (count <= 0) return 'Last sessions';
+  return count === 1 ? 'Last session' : `Last ${count} sessions`;
+}

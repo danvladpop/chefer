@@ -2,7 +2,7 @@
 import { describe, expect, it } from 'vitest';
 import type { Rir, SessionSummaryDto } from '@chefer/types';
 import { bestE1rm, e1rmConfidence, epley } from './e1rm';
-import { collectPrs, detectPrs, summarizeBests } from './prs';
+import { collectPrs, detectPrs, hasPriorExposure, summarizeBests } from './prs';
 import { KG_PROFILE, slotFor } from './test-fixtures';
 import { warmupSets } from './warmups';
 
@@ -179,6 +179,25 @@ describe('PRs (research §4.2 #8)', () => {
   ];
   const detect = (weightKg: number, reps: number, rir: number | null = null) =>
     detectPrs({ exerciseId: 'barbell-bench-press', history, candidate: { weightKg, reps, rir } });
+
+  // UX-GYM-18: the finish summary and live badge skip an exercise's first-ever
+  // session (a baseline); this is the check they share.
+  it('hasPriorExposure: only a real, counted earlier working set makes a baseline', () => {
+    const has = (exerciseId: string, h = history) => hasPriorExposure({ exerciseId, history: h });
+    expect(has('barbell-bench-press')).toBe(true);
+    expect(has('lat-pulldown')).toBe(true);
+    // Skipped and discarded sessions never count, and an unseen exercise is a first.
+    expect(has('barbell-bench-press', history.slice(1))).toBe(false);
+    expect(has('barbell-row')).toBe(false);
+    // An all-time record from older sessions (bootstrap olderBests) also counts.
+    expect(
+      hasPriorExposure({
+        exerciseId: 'barbell-row',
+        history: [],
+        best: { maxWeightKg: 60, maxE1rmKg: 75, frontier: [[60, 8]] },
+      }),
+    ).toBe(true);
+  });
 
   // T-05.6 (UX-05 F): the first-ever logged set counts as a PR too — there is
   // nothing to beat, but an empty best is still a legitimate baseline.

@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { Pressable, ScrollView, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useQueryClient } from '@tanstack/react-query';
@@ -13,14 +13,12 @@ import {
   Screen,
   Sheet,
   Text,
-  ValueStepper,
 } from '@chefer/ui-mobile';
 import { cn, formatLoad, localDateStr, postWorkoutProteinG } from '@chefer/utils';
 import { trpc } from '../../../lib/trpc';
 import { ExerciseNameLink } from '../components/exercise-name-link';
 import { gymBootstrapQueryKey, useGymBootstrap } from '../use-gym-bootstrap';
 import { getFinished } from './finished-store';
-import { NumberSheet } from './number-sheet';
 import {
   nextTimeRows,
   sessionPrs,
@@ -28,6 +26,7 @@ import {
   summaryFromRecent,
   type NextTimeRow,
 } from './summary-model';
+import { TargetFields, TargetKeypad, type TargetEditing } from './target-fields';
 import { useIsOnline } from './use-is-online';
 import {
   DIRECTION_ICON,
@@ -35,10 +34,7 @@ import {
   equipmentOf,
   fallbackMeta,
   formatDuration,
-  loggingProfile,
-  nextLoad,
   unitOf,
-  weightModeOf,
 } from './workout-model';
 
 // Finish screen (gym_plan.md §1.1: the loop closes here). Shows what the
@@ -380,28 +376,12 @@ function AdjustSheet({
   const [weightKg, setWeightKg] = useState(s.weightKg);
   const [repsFirst, setRepsFirst] = useState(firstRep);
   const [error, setError] = useState<string | null>(null);
-  // T-05.4 (CI-31): typed entry — tapping the value opens the same keypad
-  // (with a plate calculator for barbells) the live logger uses, so reaching
-  // 150 kg from 40 kg takes at most 5 taps instead of ~44 ± presses.
-  const [editing, setEditing] = useState<'weight' | 'reps' | null>(null);
+  // T-05.4 (CI-31) / UX-GYM-28: the weight/reps fields — with typed entry through
+  // the live logger's keypad — are the shared TargetFields (also the Routine tab's sheet).
+  const [editing, setEditing] = useState<TargetEditing>(null);
   const reps = s.reps.map((r) => Math.max(1, r + (repsFirst - firstRep)));
   // The sheet shows its own error line — no default snackbar.
   const mutation = trpc.gym.progression.setOverride.useMutation({ meta: { silent: true } });
-
-  const nextWeight = useCallback(
-    (kg: number, direction: 1 | -1) => nextLoad(kg, direction, meta, profile),
-    [meta, profile],
-  );
-  const nextReps = useCallback(
-    (r: number, direction: 1 | -1) =>
-      Math.min(meta.isTimed ? 3600 : 100, Math.max(1, r + direction)),
-    [meta.isTimed],
-  );
-  const formatWeight = useCallback(
-    (kg: number) => formatLoad(kg, unit, meta.loadType, { each: meta.perHand }),
-    [unit, meta.loadType, meta.perHand],
-  );
-  const formatReps = useCallback((r: number) => String(r), []);
 
   const save = () => {
     setError(null);
@@ -448,35 +428,18 @@ function AdjustSheet({
         <Text variant="muted">
           Your target wins over the suggestion, for the next session only.
         </Text>
-        <View className="gap-1">
-          <Text variant="label">Weight</Text>
-          <ValueStepper
-            testID="adjust-weight"
-            name="Weight"
-            value={weightKg}
-            next={nextWeight}
-            onChange={setWeightKg}
-            format={formatWeight}
-            caption=""
-            onPressValue={() => setEditing('weight')}
-          />
-        </View>
-        <View className="gap-1">
-          <Text variant="label">{meta.isTimed ? 'Seconds' : 'Reps'} on the first set</Text>
-          <ValueStepper
-            testID="adjust-reps"
-            name={meta.isTimed ? 'Seconds' : 'Reps'}
-            value={repsFirst}
-            next={nextReps}
-            onChange={setRepsFirst}
-            format={formatReps}
-            caption=""
-            onPressValue={() => setEditing('reps')}
-          />
-          <Text testID="adjust-reps-all" variant="muted">
-            All sets: {reps.join(' / ')}
-          </Text>
-        </View>
+        <TargetFields
+          testID="adjust"
+          meta={meta}
+          unit={unit}
+          profile={profile}
+          weightKg={weightKg}
+          onWeightKg={setWeightKg}
+          repsFirst={repsFirst}
+          onRepsFirst={setRepsFirst}
+          allReps={reps}
+          onEdit={setEditing}
+        />
         {!online ? <Text variant="muted">Adjusting targets needs a connection.</Text> : null}
         {error ? (
           <Text testID="adjust-sheet-error" className="text-sm text-destructive">
@@ -484,23 +447,16 @@ function AdjustSheet({
           </Text>
         ) : null}
       </Sheet>
-      <NumberSheet
-        key={editing ?? 'closed'}
-        visible={editing !== null}
+      <TargetKeypad
+        editing={editing}
         onClose={() => setEditing(null)}
-        kind={editing === 'reps' ? 'reps' : 'weight'}
-        value={editing === 'reps' ? repsFirst : weightKg}
-        title={`${meta.name} · ${editing === 'reps' ? (meta.isTimed ? 'Seconds' : 'Reps') : 'Weight'}`}
-        unit={unit}
         meta={meta}
-        profile={loggingProfile(meta, profile)}
-        showPlates={editing === 'weight' && weightModeOf(meta, profile) === 'plates'}
-        timed={meta.isTimed}
-        onSubmit={(value) => {
-          if (editing === 'reps') setRepsFirst(value);
-          else setWeightKg(value);
-          setEditing(null);
-        }}
+        unit={unit}
+        profile={profile}
+        weightKg={weightKg}
+        onWeightKg={setWeightKg}
+        repsFirst={repsFirst}
+        onRepsFirst={setRepsFirst}
       />
     </>
   );

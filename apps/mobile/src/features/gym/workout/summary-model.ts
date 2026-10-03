@@ -77,8 +77,10 @@ export function sessionPrs(
 ): PersonalRecord[] {
   const others = recent.filter((s) => s.id !== view.id);
   const self: SessionSummaryDto = { ...view.summary, status: 'COMPLETED' };
+  // UX-GYM-18: an exercise's first-ever session is a baseline, not a PR — it is
+  // not celebrated here (the PR timeline still lists it as "First logged").
   return collectPrs([...others, self], undefined, olderBests).filter(
-    (pr) => pr.sessionId === view.id,
+    (pr) => pr.sessionId === view.id && !pr.isFirst,
   );
 }
 

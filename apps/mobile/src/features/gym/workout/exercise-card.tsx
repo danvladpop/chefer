@@ -16,6 +16,7 @@ import { Chip, Text } from '@chefer/ui-mobile';
 import { cn, explain, formatLoadNumber, unitLabel } from '@chefer/utils';
 import { ExerciseImage } from '../components/exercise-image';
 import { exerciseImageUrl } from '../library/exercise-image';
+import { isAtSetCap, SET_CAP_REASON } from './caps';
 import { CardioEntry } from './cardio-entry';
 import { SetRow, type SetRowHandlers } from './set-row';
 import {
@@ -112,6 +113,7 @@ function ExerciseCardImpl({
   ctx,
 }: ExerciseCardProps) {
   const base = `exercise-${index}`;
+  const atSetCap = isAtSetCap(se.sets.length);
   const meta = ctx.lookup(se.exerciseId);
   // WP-04 device pass: at large OS text the suggestion squeezed to one word per
   // line between the chip and "Why?" — stack it under them instead.
@@ -436,14 +438,34 @@ function ExerciseCardImpl({
             </Text>
           ) : null}
 
-          <Pressable
-            testID={`${base}-add-set`}
-            accessibilityRole="button"
-            onPress={() => ctx.onAddSet(se.id)}
-            className="min-h-12 items-center justify-center rounded-lg border border-dashed border-border"
-          >
-            <Text className="text-base font-medium text-primary">+ Add set</Text>
-          </Pressable>
+          {/* UX-GYM-01: the schema allows 20 sets per exercise — past that a
+              workout can never sync, so the button says why it is disabled. */}
+          {atSetCap ? (
+            <View
+              testID={`${base}-add-set`}
+              accessible
+              accessibilityRole="button"
+              accessibilityState={{ disabled: true }}
+              accessibilityLabel={`Add set, unavailable. ${SET_CAP_REASON}`}
+              className="min-h-12 items-center justify-center rounded-lg border border-dashed border-border px-3 py-2 opacity-60"
+            >
+              <Text variant="muted" className="text-base font-medium">
+                + Add set
+              </Text>
+              <Text testID={`${base}-add-set-reason`} variant="muted" className="text-sm">
+                {SET_CAP_REASON}
+              </Text>
+            </View>
+          ) : (
+            <Pressable
+              testID={`${base}-add-set`}
+              accessibilityRole="button"
+              onPress={() => ctx.onAddSet(se.id)}
+              className="min-h-12 items-center justify-center rounded-lg border border-dashed border-border"
+            >
+              <Text className="text-base font-medium text-primary">+ Add set</Text>
+            </Pressable>
+          )}
         </View>
       ) : null}
     </View>

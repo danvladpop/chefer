@@ -7,13 +7,20 @@ import { ExerciseE1rmChart } from '@/features/gym/library/ExerciseE1rmChart';
 import { ExerciseNoteEditor } from '@/features/gym/library/ExerciseNoteEditor';
 import { PhotoCrossfade } from '@/features/gym/library/PhotoCrossfade';
 import { VideoEmbed } from '@/features/gym/library/VideoEmbed';
+import { showGymToast } from '@/features/gym/shared/gym-toast';
 import { exerciseImageUrl, useGymBootstrap } from '@/features/gym/use-gym-bootstrap';
 import { useHasMounted } from '@/hooks/useHasMounted';
 import { trpc } from '@/lib/trpc';
 import { format, parseISO } from 'date-fns';
 import { ArrowLeft, Pencil, Trash2 } from 'lucide-react';
 import { HIDDEN_EXERCISE_IMAGE_IDS, MUSCLE_LABELS } from '@chefer/types';
-import { formatLoad } from '@chefer/utils';
+import { ErrorState } from '@chefer/ui';
+import {
+  formatLoad,
+  isNotFoundError,
+  lastSessionsLabel,
+  userFacingErrorMessage,
+} from '@chefer/utils';
 
 function SectionCard({ title, children }: { title: string; children: React.ReactNode }) {
   return (
@@ -33,7 +40,13 @@ export default function GymExerciseDetailPage() {
   const hasMounted = useHasMounted();
   const [confirmingArchive, setConfirmingArchive] = useState(false);
 
-  const { data: exercise, isLoading, error } = trpc.gym.library.get.useQuery({ id });
+  const {
+    data: exercise,
+    isLoading,
+    error,
+    refetch,
+    isRefetching,
+  } = trpc.gym.library.get.useQuery({ id });
   const { data: bootstrap } = useGymBootstrap();
   const { data: repPrs } = trpc.gym.stats.repPrs.useQuery(
     { exerciseId: id },
@@ -46,6 +59,23 @@ export default function GymExerciseDetailPage() {
       void utils.gym.bootstrap.invalidate();
       void utils.gym.library.invalidate();
       router.push('/gym/exercises');
+      // UX-GYM-34: archiving can be undone — here for a few seconds, and from the
+      // Exercises page's "Archived" section afterwards.
+      const name = exercise?.name ?? 'Exercise';
+      showGymToast({
+        message: `Archived “${name}”.`,
+        actionLabel: 'Undo',
+        onAction: () => {
+          utils.client.gym.library.restoreCustom
+            .mutate({ id })
+            .then(() =>
+              Promise.all([utils.gym.bootstrap.invalidate(), utils.gym.library.invalidate()]),
+            )
+            .catch((err: unknown) =>
+              showGymToast({ message: userFacingErrorMessage(err), type: 'error' }),
+            );
+        },
+      });
     },
   });
 
@@ -58,6 +88,19 @@ export default function GymExerciseDetailPage() {
     return (
       <div className="mx-auto max-w-4xl px-4 py-6 sm:py-8">
         <div className="h-64 animate-pulse rounded-2xl bg-neutral-100" />
+      </div>
+    );
+  }
+
+  // UX-GYM-24: a failed load has Retry — only a real NOT_FOUND says "not found".
+  if (error && !isNotFoundError(error)) {
+    return (
+      <div className="mx-auto max-w-4xl px-4 py-10" data-testid="gym-exercise-error">
+        <ErrorState
+          title="Couldn’t load this exercise"
+          onRetry={() => void refetch()}
+          retrying={isRefetching}
+        />
       </div>
     );
   }
@@ -243,7 +286,9 @@ export default function GymExerciseDetailPage() {
                   {repPrs.map((row) => (
                     <tr key={row.weightKg} className="border-t border-neutral-100">
                       <td className="py-1.5 font-medium text-neutral-900">
-                        {formatLoad(row.weightKg, unit, 'WEIGHTED', { each: exercise.perHand })}
+                        {formatLoad(row.weightKg, unit, exercise.loadType, {
+                          each: exercise.perHand,
+                        })}
                       </td>
                       <td className="py-1.5 text-neutral-700">{row.reps}</td>
                       <td className="py-1.5 text-neutral-500">
@@ -256,7 +301,7 @@ export default function GymExerciseDetailPage() {
             )}
           </SectionCard>
 
-          <SectionCard title="Last sessions">
+          <SectionCard title={lastSessionsLabel(recentSessions.length)}>
             {recentSessions.length === 0 ? (
               <p className="text-sm text-neutral-500">No sessions with this exercise yet.</p>
             ) : (
@@ -277,7 +322,7 @@ export default function GymExerciseDetailPage() {
                           {working
                             .map(
                               (s) =>
-                                `${formatLoad(s.weightKg, unit, 'WEIGHTED', { each: exercise.perHand })}×${s.reps}`,
+                                `${formatLoad(s.weightKg, unit, exercise.loadType, { each: exercise.perHand })}×${s.reps}`,
                             )
                             .join(', ') || 'No sets logged'}
                         </span>

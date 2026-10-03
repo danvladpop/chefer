@@ -1,6 +1,8 @@
 import { Alert } from 'react-native';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react-native';
 import { GymExportRow } from '../../src/features/gym/export/export-row';
+import { safeAreaMetrics } from './gym-workout-helpers';
 
 // T-39.5 (UX-39 AC5): the gym CSV goes through the shared shareExportFile
 // helper as a named text/csv file (real filename from gym.export.csv) on both
@@ -42,7 +44,11 @@ afterEach(() => {
 describe('GymExportRow', () => {
   it('shares the CSV as a named text/csv file through the helper', async () => {
     mockFetch.mockResolvedValue({ filename: 'chefer-gym-2026-09-30.csv', csv: csvWithRows(3) });
-    await render(<GymExportRow />);
+    await render(
+      <SafeAreaProvider initialMetrics={safeAreaMetrics}>
+        <GymExportRow />
+      </SafeAreaProvider>,
+    );
 
     await fireEvent.press(screen.getByTestId('gym-settings-export-button'));
 
@@ -54,27 +60,50 @@ describe('GymExportRow', () => {
     );
   });
 
-  it('asks before sharing a large export, and shares on "Share anyway"', async () => {
+  it('asks in a ConfirmSheet (not a native Alert) before a large export, and shares on "Share anyway"', async () => {
     const alertSpy = jest.spyOn(Alert, 'alert').mockImplementation(() => undefined);
     mockFetch.mockResolvedValue({ filename: 'big.csv', csv: csvWithRows(2001) });
-    await render(<GymExportRow />);
+    await render(
+      <SafeAreaProvider initialMetrics={safeAreaMetrics}>
+        <GymExportRow />
+      </SafeAreaProvider>,
+    );
 
     await fireEvent.press(screen.getByTestId('gym-settings-export-button'));
 
-    await waitFor(() => expect(alertSpy).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(screen.getByTestId('gym-settings-export-large-body')).toBeTruthy());
+    expect(alertSpy).not.toHaveBeenCalled();
     expect(mockShareExportFile).not.toHaveBeenCalled();
-    const buttons = alertSpy.mock.calls[0]?.[2] ?? [];
-    buttons.find((b) => b.text === 'Share anyway')?.onPress?.();
+    await fireEvent.press(screen.getByTestId('gym-settings-export-large-confirm'));
 
     await waitFor(() =>
       expect(mockShareExportFile).toHaveBeenCalledWith('big.csv', csvWithRows(2001), 'text/csv'),
     );
   });
 
+  it('Cancel on the large-export sheet shares nothing', async () => {
+    mockFetch.mockResolvedValue({ filename: 'big.csv', csv: csvWithRows(2001) });
+    await render(
+      <SafeAreaProvider initialMetrics={safeAreaMetrics}>
+        <GymExportRow />
+      </SafeAreaProvider>,
+    );
+    await fireEvent.press(screen.getByTestId('gym-settings-export-button'));
+    await waitFor(() =>
+      expect(screen.getByTestId('gym-settings-export-large-cancel')).toBeTruthy(),
+    );
+    await fireEvent.press(screen.getByTestId('gym-settings-export-large-cancel'));
+    expect(mockShareExportFile).not.toHaveBeenCalled();
+  });
+
   it('shows the export-failed alert when the fetch fails', async () => {
     const alertSpy = jest.spyOn(Alert, 'alert').mockImplementation(() => undefined);
     mockFetch.mockRejectedValue(new Error('network'));
-    await render(<GymExportRow />);
+    await render(
+      <SafeAreaProvider initialMetrics={safeAreaMetrics}>
+        <GymExportRow />
+      </SafeAreaProvider>,
+    );
 
     await fireEvent.press(screen.getByTestId('gym-settings-export-button'));
 
@@ -91,7 +120,11 @@ describe('GymExportRow', () => {
     const alertSpy = jest.spyOn(Alert, 'alert').mockImplementation(() => undefined);
     mockFetch.mockResolvedValue({ filename: 'a.csv', csv: csvWithRows(1) });
     mockShareExportFile.mockRejectedValueOnce(new Error('dismissed'));
-    await render(<GymExportRow />);
+    await render(
+      <SafeAreaProvider initialMetrics={safeAreaMetrics}>
+        <GymExportRow />
+      </SafeAreaProvider>,
+    );
 
     await fireEvent.press(screen.getByTestId('gym-settings-export-button'));
 
@@ -99,7 +132,11 @@ describe('GymExportRow', () => {
     expect(alertSpy).not.toHaveBeenCalled();
   });
   it('UX-ACC-27: the copy wraps instead of clipping the domain mid-word', async () => {
-    await render(<GymExportRow />);
+    await render(
+      <SafeAreaProvider initialMetrics={safeAreaMetrics}>
+        <GymExportRow />
+      </SafeAreaProvider>,
+    );
     const copy = String(screen.getByTestId('gym-settings-export-copy').props.className);
     expect(copy).toMatch(/\bw-full\b/);
     expect(copy).toMatch(/\bmin-w-0\b/);

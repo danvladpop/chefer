@@ -26,12 +26,29 @@ const GROUPS = Object.keys(VOLUME_GROUPS) as VolumeGroup[];
 // such as Forearms have no weekly-set landmarks).
 const VOLUME_GROUP_FILTERS = GROUPS.map((g) => ({ value: g, label: VOLUME_GROUP_LABELS[g] }));
 
-// T-05.6 (UX-05 F, CI-36): a fixed colour per muscle group, computed once so
-// it drives both the stacked bars (`seriesColors`) and the legend below them
-// — nothing in the stack is left to decode by memory or trial and error.
-const SERIES_COLORS: Record<VolumeGroup, string> = Object.fromEntries(
-  GROUPS.map((g, i) => [g, chartPalette[i % chartPalette.length] ?? colors.primary]),
-) as Record<VolumeGroup, string>;
+// UX-GYM-33: the palette has 6 colours but there are 12 muscle groups, so the
+// old fixed map gave two muscles the same colour. The stack now shows the top 5
+// groups (plus the selected one) in distinct colours and folds the rest into a
+// neutral "Other" — the legend only lists what the bars actually use.
+const TOP_GROUPS = 5;
+const OTHER_KEY = 'other';
+
+export function pickStackGroups(
+  weeks: readonly MuscleVolumeWeekDto[],
+  selected: VolumeGroup,
+): VolumeGroup[] {
+  const totals = new Map<VolumeGroup, number>(GROUPS.map((g) => [g, 0]));
+  for (const w of weeks) {
+    for (const g of GROUPS) totals.set(g, (totals.get(g) ?? 0) + (w.sets[g] ?? 0));
+  }
+  const ranked = GROUPS.filter((g) => (totals.get(g) ?? 0) > 0)
+    .sort((a, b) => (totals.get(b) ?? 0) - (totals.get(a) ?? 0))
+    .slice(0, TOP_GROUPS);
+  const shown = new Set<VolumeGroup>(ranked);
+  shown.add(selected);
+  // Keep the library's group order so the stack reads the same week to week.
+  return GROUPS.filter((g) => shown.has(g));
+}
 
 function shortLabel(weekStart: string): string {
   const d = new Date(`${weekStart}T00:00:00`);
@@ -54,10 +71,32 @@ export function MuscleVolumeView({ bootstrap }: { bootstrap: GymBootstrap }) {
   const experience = bootstrap.profile?.experience ?? 'BEGINNER';
   const landmark = landmarkFor(group, experience);
 
-  const data = weeks.slice(-WEEKS).map((w) => ({
+  const windowWeeks = weeks.slice(-WEEKS);
+  const stackGroups = pickStackGroups(windowWeeks, group);
+  const seriesColors: Record<string, string> = Object.fromEntries(
+    stackGroups.map((g, i) => [g, chartPalette[i % chartPalette.length] ?? colors.primary]),
+  );
+  seriesColors[OTHER_KEY] = colors.mutedForeground;
+  const hasOther = windowWeeks.some((w) =>
+    GROUPS.some((g) => !stackGroups.includes(g) && (w.sets[g] ?? 0) > 0),
+  );
+  const data = windowWeeks.map((w) => ({
     label: shortLabel(w.weekStart),
-    segments: GROUPS.map((g) => ({ key: g, value: w.sets[g] ?? 0 })),
+    segments: [
+      ...stackGroups.map((g) => ({ key: g, value: w.sets[g] ?? 0 })),
+      {
+        key: OTHER_KEY,
+        value: GROUPS.filter((g) => !stackGroups.includes(g)).reduce(
+          (n, g) => n + (w.sets[g] ?? 0),
+          0,
+        ),
+      },
+    ],
   }));
+  const legend = [
+    ...stackGroups.map((g) => ({ key: g, label: VOLUME_GROUP_LABELS[g] })),
+    ...(hasOther ? [{ key: OTHER_KEY, label: 'Other' }] : []),
+  ];
 
   return (
     <Card testID="stats-muscle-volume">
@@ -72,7 +111,7 @@ export function MuscleVolumeView({ bootstrap }: { bootstrap: GymBootstrap }) {
       <BarChart
         testID="stats-muscle-volume-chart"
         data={data}
-        seriesColors={SERIES_COLORS}
+        seriesColors={seriesColors}
         band={{ min: landmark.productiveMin, max: landmark.productiveMax }}
         emptyLabel="No completed sessions yet"
       />
@@ -82,14 +121,14 @@ export function MuscleVolumeView({ bootstrap }: { bootstrap: GymBootstrap }) {
         testID="stats-muscle-volume-legend"
         className="mt-2 flex-row flex-wrap gap-x-3 gap-y-1.5"
       >
-        {GROUPS.map((g) => (
-          <View key={g} className="flex-row items-center gap-1.5">
+        {legend.map((item) => (
+          <View key={item.key} className="flex-row items-center gap-1.5">
             <View
               className="h-2.5 w-2.5 rounded-full"
-              style={{ backgroundColor: SERIES_COLORS[g] }}
+              style={{ backgroundColor: seriesColors[item.key] }}
             />
             <Text variant="muted" className="text-xs">
-              {VOLUME_GROUP_LABELS[g]}
+              {item.label}
             </Text>
           </View>
         ))}

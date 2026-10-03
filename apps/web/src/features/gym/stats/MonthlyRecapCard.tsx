@@ -1,10 +1,11 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { trpc } from '@/lib/trpc';
 import { format, parse } from 'date-fns';
 import { ChevronLeft, ChevronRight, TrendingUp } from 'lucide-react';
 import type { ExerciseDto, VolumeGroup, WeightUnit } from '@chefer/types';
+import { ErrorState } from '@chefer/ui';
 import { formatLoad, VOLUME_GROUP_LABELS } from '@chefer/utils';
 
 // Stats tab #5 (gym_plan.md §1.3, research §4.2 #9): a regular reflection
@@ -17,16 +18,37 @@ function shiftMonth(month: string, delta: number): string {
   return `${Math.floor(total / 12)}-${String((total % 12) + 1).padStart(2, '0')}`;
 }
 
-export function MonthlyRecapCard({ library, unit }: { library: ExerciseDto[]; unit: WeightUnit }) {
-  const [month, setMonth] = useState(() => format(new Date(), 'yyyy-MM'));
-  const { data, isLoading } = trpc.gym.stats.monthlyRecap.useQuery({ month });
+export function MonthlyRecapCard({
+  library,
+  unit,
+  initialMonth,
+}: {
+  library: ExerciseDto[];
+  unit: WeightUnit;
+  /** UX-GYM-13: a month deep-linked from Today's recap card (`?month=YYYY-MM`). */
+  initialMonth?: string | undefined;
+}) {
+  const [month, setMonth] = useState(() => initialMonth ?? format(new Date(), 'yyyy-MM'));
+  const cardRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!initialMonth) return;
+    setMonth(initialMonth);
+    cardRef.current?.scrollIntoView({ block: 'start' });
+  }, [initialMonth]);
+  const { data, isLoading, isError, refetch, isRefetching } = trpc.gym.stats.monthlyRecap.useQuery({
+    month,
+  });
   const byId = new Map(library.map((e) => [e.id, e.name]));
 
   const monthLabel = format(parse(month, 'yyyy-MM', new Date()), 'MMMM yyyy');
   const isCurrentMonth = month === format(new Date(), 'yyyy-MM');
 
   return (
-    <div className="rounded-2xl border bg-white p-4 shadow-sm sm:p-5">
+    <div
+      ref={cardRef}
+      data-testid="gym-monthly-recap"
+      className="scroll-mt-20 rounded-2xl border bg-white p-4 shadow-sm sm:p-5"
+    >
       <div className="mb-3 flex items-center justify-between gap-2">
         <p className="text-xs font-semibold uppercase tracking-widest text-neutral-500">
           Monthly recap
@@ -57,6 +79,14 @@ export function MonthlyRecapCard({ library, unit }: { library: ExerciseDto[]; un
 
       {isLoading ? (
         <div className="h-40 animate-pulse rounded-xl bg-neutral-100" />
+      ) : isError && !data ? (
+        // UX-GYM-34: a failed load is an error with Retry, not "No sessions yet".
+        <ErrorState
+          title="Couldn’t load this month’s recap"
+          onRetry={() => void refetch()}
+          retrying={isRefetching}
+          className="py-6"
+        />
       ) : !data || data.sessions === 0 ? (
         <p className="py-6 text-center text-sm text-neutral-500">
           No sessions in {monthLabel} yet.

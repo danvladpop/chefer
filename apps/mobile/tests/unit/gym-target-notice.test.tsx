@@ -3,13 +3,17 @@ import { render, screen, userEvent, waitFor } from '@testing-library/react-nativ
 import type { ProgressionDto, Suggestion } from '@chefer/types';
 import { resetSnackbarForTests } from '@chefer/ui-mobile';
 import { createMemoryKvBackend, setKvBackendForTests } from '../../src/features/gym/offline/kv';
+import { outbox } from '../../src/features/gym/offline/outbox';
+import { resetGymOwnerForTests, setGymOwner } from '../../src/features/gym/offline/owner';
 import {
   getTargetNotice,
   resetSessionCorrectionsForTests,
+  saveEditedSession,
   setTargetNotice,
 } from '../../src/features/gym/offline/session-corrections';
 import { TargetChangeNotice } from '../../src/features/gym/today/target-change-notice';
-import { makeBootstrap, makeExercise } from './gym-fixtures';
+import { gymBootstrapQueryKey } from '../../src/features/gym/use-gym-bootstrap';
+import { makeBootstrap, makeDoc, makeExercise } from './gym-fixtures';
 import { mutationResult } from './gym-trpc-mock';
 
 // UX-44 (T-44.4, PAT-14, AC2): "Next time changed after your edit" — the card
@@ -90,6 +94,10 @@ beforeEach(() => {
   setKvBackendForTests(createMemoryKvBackend());
   resetSessionCorrectionsForTests();
   resetSnackbarForTests();
+  resetGymOwnerForTests();
+  outbox.reload();
+  outbox.configure(null);
+  setGymOwner('user-a');
   mutateAsync.mockClear();
   trpc.gym.progression.setOverride.useMutation.mockReturnValue(mutationResult({ mutateAsync }));
   jest.spyOn(onlineManager, 'isOnline').mockReturnValue(true);
@@ -155,5 +163,22 @@ describe('TargetChangeNotice', () => {
     await renderNotice();
     expect(screen.queryByTestId('gym-today-target-notice')).toBeNull();
     expect(getTargetNotice()).toBeNull();
+  });
+});
+
+describe('saveEditedSession notice', () => {
+  it('UX-GYM-32: the notice carries the EDITED date, not the session’s old one', async () => {
+    // The shared tRPC fake has no `gym.session.get`; the query key only needs its path.
+    Object.assign(trpc.gym, {
+      session: { get: { _def: () => ({ path: ['gym', 'session', 'get'] }) } },
+    });
+    const original = makeDoc(1, { localDate: '2026-09-22' });
+    const draft = { ...original, localDate: '2026-09-24' };
+    const queryClient = new QueryClient();
+    queryClient.setQueryData(gymBootstrapQueryKey, makeBootstrap({}));
+
+    await saveEditedSession({ queryClient, original, draft });
+
+    expect(getTargetNotice()?.localDate).toBe('2026-09-24');
   });
 });

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { ExerciseDto } from '@chefer/types';
-import { DEFAULT_LIBRARY_FILTERS, filterExercises } from './filters';
+import { archivedCustomExercises, DEFAULT_LIBRARY_FILTERS, filterExercises } from './filters';
 
 function exercise(overrides: Partial<ExerciseDto> = {}): ExerciseDto {
   return {
@@ -113,5 +113,22 @@ describe('filterExercises', () => {
       mineOnly: true,
     });
     expect(result.map((e) => e.id)).toEqual(['my-curl']);
+  });
+});
+
+describe('archivedCustomExercises (UX-GYM-34)', () => {
+  const library: ExerciseDto[] = [
+    exercise({ id: 'a', ownerId: 'u', name: 'Zed Curl', archived: true }),
+    exercise({ id: 'b', ownerId: 'u', name: 'Alpha Row', archived: true }),
+    exercise({ id: 'c', ownerId: 'u', name: 'Live Custom', archived: false }),
+    exercise({ id: 'd', ownerId: null, name: 'Curated retired', archived: true }),
+  ];
+
+  it('returns only archived custom exercises, A–Z', () => {
+    expect(archivedCustomExercises(library).map((e) => e.id)).toEqual(['b', 'a']);
+  });
+
+  it('narrows by the search text', () => {
+    expect(archivedCustomExercises(library, ' curl ').map((e) => e.id)).toEqual(['a']);
   });
 });

@@ -20,8 +20,11 @@ import type { GymOffer, NextWorkoutDto, WeightUnit } from '@chefer/types';
 import { Button } from '@chefer/ui';
 import {
   cn,
+  monthNameOf,
   nextDayIdAfter,
   pickOffer,
+  proRatedWeekGoal,
+  selectTodaysSession,
   streakWeeksLabel,
   supersetSlot,
   type ExerciseLookup,
@@ -33,6 +36,7 @@ import { SyncIndicator } from '../shared/sync-indicator';
 import { useGymData } from '../shared/use-gym-data';
 import { WeekRing } from '../shared/week-ring';
 import { weekDays, WeekStrip } from '../shared/week-strip';
+import { localDate } from '../use-gym-bootstrap';
 import { useActiveWorkout } from '../workout/use-active-workout';
 import { HowThisWorksSheet } from './HowThisWorksSheet';
 import {
@@ -96,7 +100,19 @@ export function TodayView() {
   }
 
   const routine = data.activeRoutine;
-  const next = data.nextWorkout;
+  const rotationNext = data.nextWorkout;
+  // UX-GYM-12: the first week's goal is pro-rated to the days left.
+  const setupDate = data.profile?.setupCompletedAt
+    ? localDate(new Date(data.profile.setupCompletedAt))
+    : null;
+  // UX-GYM-31: the SAME selector the food dashboard card and the Plan use, so a
+  // day pinned to today's weekday is named here too, not only the rotation's next.
+  const todays = selectTodaysSession({ bootstrap: data, today, since: setupDate });
+  const next =
+    todays.kind === 'planned' && todays.dayId !== rotationNext?.dayId
+      ? (buildBackfillWorkout(data, todays.dayId, today) ?? rotationNext)
+      : rotationNext;
+  const weekGoal = proRatedWeekGoal({ goal: data.streak.thisWeekGoal, today, setupDate });
   const days = weekDays(data, today);
   const doneToday = data.recentSessions.some(
     (s) => s.status === 'COMPLETED' && s.localDate === today,
@@ -242,10 +258,10 @@ export function TodayView() {
               How this works
             </button>
             <div className="mt-4 flex items-center gap-4">
-              <WeekRing done={data.streak.thisWeekSessions} goal={data.streak.thisWeekGoal} />
+              <WeekRing done={data.streak.thisWeekSessions} goal={weekGoal} />
               <div className="min-w-0 text-sm">
                 <p className="font-semibold text-gray-900">
-                  {data.streak.thisWeekSessions} of {data.streak.thisWeekGoal} this week
+                  {data.streak.thisWeekSessions} of {weekGoal} this week
                 </p>
                 <p className="flex items-center gap-1 text-xs text-gray-500">
                   <Flame className="h-3.5 w-3.5 shrink-0 text-[#944a00]" aria-hidden="true" />
@@ -419,12 +435,16 @@ export function NextUpCard({
   );
 }
 
-function OfferCard({ offer }: { offer: GymOffer }) {
+export function OfferCard({ offer }: { offer: GymOffer }) {
   const utils = trpc.useUtils();
   const done = () => void utils.gym.bootstrap.invalidate();
   const dismiss = trpc.gym.progression.dismissOffer.useMutation({ onSuccess: done });
   const deload = trpc.gym.progression.startDeload.useMutation({ onSuccess: done });
   const busy = dismiss.isPending || deload.isPending;
+  const monthKey = offer.kind === 'recap' ? offer.data?.['month'] : null;
+  const monthName = typeof monthKey === 'string' ? monthNameOf(monthKey) : null;
+  const recapMonth =
+    typeof monthKey === 'string' && monthName ? { month: monthKey, name: monthName } : null;
 
   return (
     <GymCard
@@ -440,8 +460,11 @@ function OfferCard({ offer }: { offer: GymOffer }) {
       </div>
       <div className="mt-3 flex flex-wrap justify-end gap-2">
         {offer.kind === 'recap' && (
-          <Button asChild variant="outline" size="sm" className="min-h-11">
-            <Link href="/gym/stats">See your month</Link>
+          <Button asChild size="sm" className="min-h-11" data-testid="gym-offer-recap-open">
+            {/* UX-GYM-13: opens THAT month's recap, not just the Stats page. */}
+            <Link href={recapMonth ? `/gym/stats?month=${recapMonth.month}` : '/gym/stats'}>
+              {recapMonth ? `See ${recapMonth.name}` : 'See your month'}
+            </Link>
           </Button>
         )}
         <Button

@@ -149,6 +149,18 @@ describe('SetupWizard', () => {
     expect(kg).toBeLessThan(61.5);
   });
 
+  it('UX-GYM-30: each step gets a fresh scroll view, so it opens at the top', async () => {
+    trpc.gym.profile.completeSetup.useMutation.mockReturnValue(mutationResult());
+    const user = userEvent.setup();
+    await renderWizard();
+    const first = screen.getByTestId('gym-setup-scroll');
+    await user.press(screen.getByTestId('gym-setup-next')); // 1 → 2
+    const second = screen.getByTestId('gym-setup-scroll');
+    expect(second).not.toBe(first);
+    await user.press(screen.getByTestId('gym-setup-next')); // 2 → 3
+    expect(screen.getByTestId('gym-setup-scroll')).not.toBe(second);
+  });
+
   it('T-36.6: "How long can a session usually be?" is sent as sessionLengthMins (75+ → 75)', async () => {
     const mutate = jest.fn();
     trpc.gym.profile.completeSetup.useMutation.mockReturnValue(mutationResult({ mutate }));

@@ -14,9 +14,16 @@ import {
   KeyboardAwareScrollView,
   LineChart,
   Screen,
+  showSnackbar,
   Text,
 } from '@chefer/ui-mobile';
-import { formatLoad, isNotFoundError, userFacingErrorMessage } from '@chefer/utils';
+import {
+  formatLoad,
+  formatLocalDateLong,
+  isNotFoundError,
+  lastSessionsLabel,
+  userFacingErrorMessage,
+} from '@chefer/utils';
 import { trpc } from '../../../lib/trpc';
 import { GymBootstrapUnavailable, useGymBootstrapLoad } from '../components/gym-bootstrap-state';
 import { exerciseImageUrl } from '../library/exercise-image';
@@ -35,6 +42,16 @@ import { StackBackButton } from './stack-back-button';
 // edit/archive.
 
 const HISTORY_LIMIT = 5;
+
+/** First and last point's date under the chart, e.g. "3 Aug 2026" … "24 Sep 2026". */
+function chartDateLabels(localDates: readonly string[]): { x: number; label: string }[] {
+  const first = localDates[0];
+  const last = localDates[localDates.length - 1];
+  if (first === undefined || last === undefined) return [];
+  const labels = [{ x: Date.parse(first), label: formatLocalDateLong(first) }];
+  if (last !== first) labels.push({ x: Date.parse(last), label: formatLocalDateLong(last) });
+  return labels;
+}
 
 export function ExerciseDetailScreen({ exerciseId }: { exerciseId: string }) {
   const bootstrapQuery = useGymBootstrap();
@@ -61,14 +78,34 @@ export function ExerciseDetailScreen({ exerciseId }: { exerciseId: string }) {
       void utils.gym.bootstrap.invalidate();
       setArchiveConfirmOpen(false);
       router.back();
+      // UX-GYM-34: archiving can be undone — here for 10 s, and from the
+      // Exercises tab's "Archived" section afterwards. Imperative client: this
+      // screen is gone by the time the action is tapped.
+      const name = exercise?.name ?? 'Exercise';
+      showSnackbar({
+        message: `Archived “${name}”.`,
+        actionLabel: 'Undo',
+        onAction: () => {
+          utils.client.gym.library.restoreCustom
+            .mutate({ id: exerciseId })
+            .then(() => utils.gym.bootstrap.invalidate())
+            .catch((err: unknown) => showSnackbar({ message: userFacingErrorMessage(err) }));
+        },
+      });
     },
     // The ConfirmSheet shows the failure itself — no default snackbar.
     meta: { silent: true },
   });
 
   const sessions = useMemo(() => bootstrap?.recentSessions ?? [], [bootstrap]);
-  const e1rmSeries = useMemo(() => localE1rmSeries(sessions, exerciseId), [sessions, exerciseId]);
-  const bestSets = useMemo(() => localBestSets(sessions, exerciseId, 3), [sessions, exerciseId]);
+  const e1rmSeries = useMemo(
+    () => localE1rmSeries(sessions, exerciseId, bootstrap?.olderBests),
+    [sessions, exerciseId, bootstrap?.olderBests],
+  );
+  const bestSets = useMemo(
+    () => localBestSets(sessions, exerciseId, 3, bootstrap?.olderBests),
+    [sessions, exerciseId, bootstrap?.olderBests],
+  );
   const repPrTable = useMemo(() => localRepPrTable(sessions, exerciseId), [sessions, exerciseId]);
   const lastSessions = useMemo(
     () =>
@@ -252,6 +289,10 @@ export function ExerciseDetailScreen({ exerciseId }: { exerciseId: string }) {
             Your history
           </Text>
 
+          {/* UX-GYM-33: the chart says what it plots and where it starts and ends. */}
+          <Text testID="exercise-detail-e1rm-caption" variant="muted" className="mb-1 text-xs">
+            Estimated 1-rep max over time
+          </Text>
           <LineChart
             testID="exercise-detail-e1rm-chart"
             data={e1rmSeries.points.map((p) => ({
@@ -260,6 +301,9 @@ export function ExerciseDetailScreen({ exerciseId }: { exerciseId: string }) {
               highlight: p.isPr,
             }))}
             trend={e1rmSeries.trend}
+            niceTicks
+            xLabels={chartDateLabels(e1rmSeries.points.map((p) => p.localDate))}
+            accessibilityLabel={`Estimated 1-rep max for ${exercise.name}`}
             formatY={(v) => formatLoad(v, unit)}
             emptyLabel="Log this exercise to see your trend"
           />
@@ -270,12 +314,12 @@ export function ExerciseDetailScreen({ exerciseId }: { exerciseId: string }) {
               {bestSets.map((set, i) => (
                 <View key={i} className="mb-1 flex-row items-center justify-between">
                   <Text>
-                    {formatLoad(set.weightKg, unit, 'WEIGHTED', { each: exercise.perHand })} ×{' '}
-                    {set.reps}
+                    {formatLoad(set.weightKg, unit, exercise.loadType, { each: exercise.perHand })}{' '}
+                    × {set.reps}
                   </Text>
                   <View className="flex-row items-center gap-2">
                     {set.isPr ? <Badge variant="warning">PR</Badge> : null}
-                    <Text variant="muted">{set.localDate}</Text>
+                    <Text variant="muted">{formatLocalDateLong(set.localDate)}</Text>
                   </View>
                 </View>
               ))}
@@ -288,10 +332,10 @@ export function ExerciseDetailScreen({ exerciseId }: { exerciseId: string }) {
               {repPrTable.map((row, i) => (
                 <View key={i} className="mb-1 flex-row items-center justify-between">
                   <Text>
-                    {formatLoad(row.weightKg, unit, 'WEIGHTED', { each: exercise.perHand })}
+                    {formatLoad(row.weightKg, unit, exercise.loadType, { each: exercise.perHand })}
                   </Text>
                   <Text>{row.reps} reps</Text>
-                  <Text variant="muted">{row.localDate}</Text>
+                  <Text variant="muted">{formatLocalDateLong(row.localDate)}</Text>
                 </View>
               ))}
             </Card>
@@ -300,7 +344,7 @@ export function ExerciseDetailScreen({ exerciseId }: { exerciseId: string }) {
           {lastSessions.length > 0 ? (
             <View className="mt-3">
               <Text variant="label" className="mb-1">
-                Last {lastSessions.length} sessions
+                {lastSessionsLabel(lastSessions.length)}
               </Text>
               {lastSessions.map((session) => (
                 <Pressable
@@ -310,7 +354,7 @@ export function ExerciseDetailScreen({ exerciseId }: { exerciseId: string }) {
                   onPress={() => router.push(`/gym/session/${session.id}`)}
                   className="min-h-11 flex-row items-center justify-between border-b border-border py-2"
                 >
-                  <Text>{session.localDate}</Text>
+                  <Text>{formatLocalDateLong(session.localDate)}</Text>
                   <Text variant="muted">{session.name}</Text>
                 </Pressable>
               ))}

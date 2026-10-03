@@ -16,6 +16,7 @@ import {
   weekStartOf,
   type ProgressionEntry,
 } from '@chefer/utils';
+import { localDate } from '../offline/ids';
 import { libraryLookup } from '../use-gym-bootstrap';
 
 // Pure helpers for the Today tab (gym_plan.md §1.3 "Today tab", §1.4 habit
@@ -53,6 +54,22 @@ export function computeWeekStrip(bootstrap: GymBootstrap, today: string): WeekSt
         : 'neutral';
     return { weekday, localDate, status };
   });
+}
+
+const WEEKDAY_NAMES = [
+  'Monday',
+  'Tuesday',
+  'Wednesday',
+  'Thursday',
+  'Friday',
+  'Saturday',
+  'Sunday',
+];
+
+/** UX-GYM-29: "Monday, done" / "Thursday, planned, today" — the strip dot is colour-only. */
+export function weekStripDayLabel(day: WeekStripDay, today: string): string {
+  const state = day.status === 'done' ? 'done' : day.status === 'planned' ? 'planned' : 'rest day';
+  return `${WEEKDAY_NAMES[day.weekday]}, ${state}${day.localDate === today ? ', today' : ''}`;
 }
 
 /** "7-week streak" (+ a flex-week note when one was just spent — never guilt copy). */
@@ -113,4 +130,15 @@ export function workoutForDay(
     recentSessions: bootstrap.recentSessions,
     isDeload: false,
   });
+}
+
+/**
+ * UX-GYM-12: the device-local date training was set up (`setupCompletedAt` is
+ * an instant), or null when unknown. Planned days before it are never "missed"
+ * and the first week's goal is pro-rated from it.
+ */
+export function setupLocalDate(setupCompletedAt: string | null | undefined): string | null {
+  if (!setupCompletedAt) return null;
+  const at = new Date(setupCompletedAt);
+  return Number.isNaN(at.getTime()) ? null : localDate(at);
 }
