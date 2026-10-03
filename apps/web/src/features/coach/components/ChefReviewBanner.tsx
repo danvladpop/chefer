@@ -9,7 +9,7 @@ import { trpc } from '@/lib/trpc';
 import { ChefHat, Lock, TrendingDown, TrendingUp } from 'lucide-react';
 import { AI_REVIEW_A11Y_LABEL } from '@chefer/types';
 import { Sheet } from '@chefer/ui';
-import { formatWeightTrend } from '@chefer/utils';
+import { formatDate, formatWeightTrend } from '@chefer/utils';
 
 // ─── Weekly chef review banner (F1, coach) ────────────────────────────────────
 // The upgraded Monday banner: shows while the latest review is fresh (the API
@@ -140,10 +140,7 @@ export function ChefReviewBanner() {
         open={sheetOpen}
         onClose={() => setSheetOpen(false)}
         title="Your chef's weekly review"
-        description={`Week of ${new Date(r.weekStart).toLocaleDateString('en-US', {
-          month: 'long',
-          day: 'numeric',
-        })}`}
+        description={`Week of ${formatDate(new Date(r.weekStart), 'long')}`}
         size="md"
       >
         <div className="px-5 pb-5">

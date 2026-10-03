@@ -1,3 +1,5 @@
+import { formatKcal } from '@chefer/utils';
+
 // ─── Plan miss + re-plan helpers (UX-11 T-11.3) ────────────────────────────────
 // Pure rules behind the plan-miss sheet and the re-plan banner, kept out of the
 // components so they are unit-tested on their own.
@@ -87,7 +89,7 @@ function missLine(group: readonly PlanMiss[], word: 'under' | 'over'): string | 
   const mean = group.reduce((sum, m) => sum + Math.abs(m.deltaKcal), 0) / group.length;
   const about = Math.max(10, Math.round(mean / 10) * 10);
   const days = joinNames(group.map((m) => SHORT[m.dayOfWeek] ?? String(m.dayOfWeek)));
-  return `${days} ${group.length === 1 ? 'is' : 'are'} about ${about.toLocaleString('en-US')} kcal ${word}`;
+  return `${days} ${group.length === 1 ? 'is' : 'are'} about ${formatKcal(about)} kcal ${word}`;
 }
 
 /** `Thu and Sat are about 300 kcal under` — one line per direction, in weekday order. */

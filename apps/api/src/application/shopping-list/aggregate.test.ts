@@ -4,6 +4,7 @@ import {
   canonicalIngredientName,
   coveredQuantity,
   isSkippedLine,
+  tidyListItems,
   type IngredientLine,
 } from './aggregate.js';
 
@@ -59,8 +60,8 @@ describe('aggregateIngredientLines (audit F-SHOP-1-1 real list)', () => {
     ]);
     const oil = byName(out, 'Olive oil');
     expect(oil).toHaveLength(1);
-    // 202.5 + 10 + 25 = 237.5 ml → 15.8 tbsp
-    expect(oil[0]).toMatchObject({ quantity: 15.8, unit: 'tbsp' });
+    // 202.5 + 10 + 25 = 237.5 ml → 15.8 tbsp, bought as a whole 16
+    expect(oil[0]).toMatchObject({ quantity: 16, unit: 'tbsp' });
     expect(oil[0]!.recipeIds.sort()).toEqual(['r1', 'r2', 'r3']);
   });
 
@@ -116,6 +117,60 @@ describe('aggregateIngredientLines (audit F-SHOP-1-1 real list)', () => {
     expect(out).toEqual([
       expect.objectContaining({ name: 'Canned chickpeas', quantity: 400, unit: 'g' }),
     ]);
+  });
+});
+
+describe('shop-sized lines (WP-11, UX-SHOP-03/04)', () => {
+  it('merges "Egg · 4 pcs" and "Eggs · 4 large" into one line', () => {
+    const out = aggregateIngredientLines([line('Egg', 4, 'pcs'), line('Eggs', 4, 'large', 'r2')]);
+    expect(out).toHaveLength(1);
+    expect(out[0]).toMatchObject({ name: 'Egg', quantity: 8, unit: 'pcs' });
+  });
+
+  it('merges on the catalog slug when both lines carry it, whatever they are called', () => {
+    const out = aggregateIngredientLines([
+      { ...line('Scallions', 2, 'pcs'), slug: 'spring-onion' },
+      { ...line('Green onions', 3, 'pcs', 'r2'), slug: 'spring-onion' },
+    ]);
+    expect(out).toHaveLength(1);
+    expect(out[0]).toMatchObject({ quantity: 5 });
+  });
+
+  it('rounds counts up to whole items', () => {
+    const [avocado] = aggregateIngredientLines([line('Avocado', 0.8, 'piece')]);
+    expect(avocado).toMatchObject({ quantity: 1 });
+    const [garlic] = aggregateIngredientLines([line('Garlic', 5.5, 'cloves')]);
+    expect(garlic).toMatchObject({ quantity: 6, unit: 'cloves' });
+  });
+
+  it('turns a sliver of whole produce written as a weight into a count', () => {
+    const [onion] = aggregateIngredientLines([line('Onion', 90, 'g')]);
+    expect(onion).toMatchObject({ quantity: 1, unit: 'pcs' });
+  });
+
+  it('merges lemon zest and juice into whole lemons', () => {
+    const out = aggregateIngredientLines([
+      line('Lemon zest', 27, 'ml'),
+      line('Lemon juice', 27, 'ml'),
+      line('Lemon', 1, 'medium', 'r2'),
+    ]);
+    expect(out).toHaveLength(1);
+    // 27 ml zest = 1.8 lemons (zest and juice share fruit), + 1 lemon → 3
+    expect(out[0]).toMatchObject({ name: 'Lemon', quantity: 3 });
+  });
+
+  it('rounds a weight up to a step the shelf offers', () => {
+    const [chicken] = aggregateIngredientLines([line('Chicken breast', 252.4, 'g')]);
+    expect(chicken).toMatchObject({ quantity: 260, unit: 'g' });
+  });
+});
+
+describe('tidyListItems rounds AI rows too', () => {
+  it('rounds a lone row up to a whole item', () => {
+    const [row] = tidyListItems([
+      { key: 'a', ingredientName: 'Avocado', quantity: '0.8', unit: 'pcs' },
+    ]);
+    expect(row).toMatchObject({ quantity: '1' });
   });
 });
 

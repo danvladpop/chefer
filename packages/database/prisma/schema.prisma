@@ -429,6 +429,8 @@ model Recipe {
   /// Automatic moderation (PRD §9): hidden from everyone but the creator; existing hearts and copies keep working.
   hiddenAt        DateTime?
   hiddenReason    RecipeHiddenReason?
+  /// UX-REC-04: the owner's soft delete (`recipe.deleteMine`). Hidden from lists, pickers, pins and sharing; slots in the owner's existing plans keep resolving it (a tombstone). Null = live.
+  deletedAt       DateTime?
 
   originRecipe  Recipe?  @relation("RecipeCopies", fields: [originRecipeId], references: [id], onDelete: SetNull)
   copies        Recipe[] @relation("RecipeCopies")

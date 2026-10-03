@@ -2,7 +2,7 @@ import { ActivityIndicator, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { Button, Card, ErrorState, Text } from '@chefer/ui-mobile';
-import { cn, pastWeeks } from '@chefer/utils';
+import { cn, formatDate, pastWeeks } from '@chefer/utils';
 import { trpc } from '../../lib/trpc';
 import { useRestorePlan } from './use-restore-plan';
 
@@ -57,13 +57,12 @@ export function PastWeeksSection() {
           const weekStart = new Date(plan.weekStartDate);
           const weekEnd = new Date(plan.weekEndDate);
           const status = STATUS_STYLES[plan.status] ?? STATUS_STYLES.ARCHIVED;
-          const opts = { month: 'short', day: 'numeric' } as const;
-          const weekLabel = weekStart.toLocaleDateString('en-GB', opts);
+          const weekLabel = formatDate(weekStart, 'short');
           return (
             <Card key={plan.id} testID={`past-week-${plan.id}`} className="gap-2">
               <View className="flex-row items-center justify-between gap-2">
                 <Text className="min-w-0 flex-1 text-sm font-semibold text-gray-900">
-                  {weekLabel} – {weekEnd.toLocaleDateString('en-GB', opts)}
+                  {weekLabel} – {formatDate(weekEnd, 'short')}
                 </Text>
                 {/* Only a replaced week needs a badge; "ACTIVE" on every past
                     week read as if the week were still running. */}

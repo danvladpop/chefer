@@ -18,6 +18,7 @@ const mockPrevent: { value: boolean; callback: PreventCallback | null } = {
 const mockDispatch = jest.fn();
 const mockGoBack = jest.fn();
 
+jest.mock('expo-notifications', () => ({}));
 jest.mock('expo-keep-awake', () => ({ useKeepAwake: jest.fn() }));
 jest.mock('expo-router', () => ({
   router: { push: jest.fn(), back: jest.fn() },
@@ -68,6 +69,7 @@ jest.mock('../../src/lib/trpc', () => ({
     recipe: { getSafetyChecks: { useQuery: () => ({ data: { safetyChecks: null } }) } },
     tracker: {
       logRecipe: { useMutation: () => ({ mutate: jest.fn(), isPending: false, isError: false }) },
+      unlogRecipe: { useMutation: () => ({ mutate: jest.fn(), isPending: false, isError: false }) },
     },
   },
 }));

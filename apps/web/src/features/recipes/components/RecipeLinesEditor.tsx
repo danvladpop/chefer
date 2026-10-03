@@ -6,7 +6,7 @@ import type { PickedIngredient } from '@/features/ingredients/lib/picked-ingredi
 import { Plus, Search, Trash2 } from 'lucide-react';
 import type { LineProblem } from '@chefer/types';
 import { cn, pressControl } from '@chefer/ui';
-import { lineProblemCopy, pickerUnitOptions } from '@chefer/utils';
+import { lineProblemCopy, pickerUnitOptions, sanitizeQuantityInput } from '@chefer/utils';
 import {
   isBlankRow,
   isCompleteRow,
@@ -122,7 +122,10 @@ export function RecipeLinesEditor({
                     autoComplete="off"
                     value={row.quantity}
                     onChange={(e) => {
-                      update(row.key, (r) => ({ ...r, quantity: e.target.value }));
+                      update(row.key, (r) => ({
+                        ...r,
+                        quantity: sanitizeQuantityInput(e.target.value),
+                      }));
                       onQuantityEdited?.(row);
                     }}
                     placeholder="Qty"

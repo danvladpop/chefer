@@ -8,6 +8,7 @@ import {
   checkMacroSanity,
   clampIngredientGrams,
   defaultMealSlot,
+  formatNumber,
   formatPortion,
   formatQuickAddGrams,
   parseQuickAdd,
@@ -637,7 +638,7 @@ export function QuickAddSheet({ date, onLogged, plannedMeals = [] }: QuickAddShe
                               data-testid={`log-sheet-grams-max-${key}`}
                               className="text-xs text-amber-700"
                             >
-                              One entry holds up to {gramsInfo.max.toLocaleString('en-US')} g.
+                              One entry holds up to {formatNumber(gramsInfo.max)} g.
                             </p>
                           )}
                           <button

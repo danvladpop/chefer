@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { dayNutritionCaption, dayStatus, planStatus, remainingPlannedKcal } from './day-nutrition';
+import { formatKcal } from './format';
 
 describe('home Today nutrition (audit F-DASH-1-2)', () => {
   it('judges the plan, not what was eaten', () => {
@@ -9,9 +10,13 @@ describe('home Today nutrition (audit F-DASH-1-2)', () => {
     expect(planStatus(0, 2000)).toBe('none');
   });
   it('captions eaten vs target with the plan alongside', () => {
-    expect(dayNutritionCaption(800, 1870, 2000)).toBe('1,870 planned · 1,200 left');
-    expect(dayNutritionCaption(6070, 1870, 2000)).toBe('1,870 planned · 4,070 over');
-    expect(dayNutritionCaption(0, 0, 2000)).toBe('2,000 left');
+    expect(dayNutritionCaption(800, 1870, 2000)).toBe(
+      `${formatKcal(1870)} planned · ${formatKcal(1200)} left`,
+    );
+    expect(dayNutritionCaption(6070, 1870, 2000)).toBe(
+      `${formatKcal(1870)} planned · ${formatKcal(4070)} over`,
+    );
+    expect(dayNutritionCaption(0, 0, 2000)).toBe(`${formatKcal(2000)} left`);
   });
 });
 

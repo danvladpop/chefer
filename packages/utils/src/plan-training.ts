@@ -5,6 +5,7 @@ import type {
   PlanTrainingDay,
   WeekGlanceDay,
 } from '@chefer/types';
+import { formatNumber } from './format';
 import {
   hasTrainingDayBump,
   isRunKind,
@@ -165,7 +166,7 @@ export interface TrainingDayHeaderCopy {
   a11yLabel: string;
 }
 
-const fmt = (n: number): string => n.toLocaleString('en-US');
+const fmt = (n: number): string => formatNumber(n);
 
 /**
  * The plan's training-day header for one day. Non-goal users (bump zero, or

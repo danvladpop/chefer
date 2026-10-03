@@ -3,7 +3,7 @@ import { Pressable, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { AI_REVIEW_A11Y_LABEL } from '@chefer/types';
 import { Card, ExplainSheet, Text } from '@chefer/ui-mobile';
-import { formatWeightTrend } from '@chefer/utils';
+import { formatKcal, formatWeightTrend } from '@chefer/utils';
 import { AiGeneratedChip } from '../../components/ai-generated-chip';
 import { useUnitSystem } from '../../hooks/use-unit-system';
 import { trpc } from '../../lib/trpc';
@@ -30,7 +30,7 @@ function loggedDaysOf7(r: Review): number {
 
 function reviewExplainSentence(r: Review): string {
   const days = loggedDaysOf7(r);
-  const base = `Your chef looked at the last 7 days: you logged ${days} of them, averaging ${r.avgDailyKcal.toLocaleString('en-US')} kcal on those days.`;
+  const base = `Your chef looked at the last 7 days: you logged ${days} of them, averaging ${formatKcal(r.avgDailyKcal)} kcal on those days.`;
   if (r.adjustmentKcal === 0) return base;
   const sign = r.adjustmentKcal > 0 ? '+' : '';
   return `${base} Your daily budget moved by ${sign}${r.adjustmentKcal} kcal, one small step per review and only when at least half your days were logged.`;
@@ -39,7 +39,7 @@ function reviewExplainSentence(r: Review): string {
 function reviewExplainRows(r: Review, trend: string | null): { label: string; value: string }[] {
   const rows = [
     { label: 'Days logged', value: `${loggedDaysOf7(r)} of 7 (${r.adherencePct} %)` },
-    { label: 'Average on logged days', value: `${r.avgDailyKcal.toLocaleString('en-US')} kcal` },
+    { label: 'Average on logged days', value: `${formatKcal(r.avgDailyKcal)} kcal` },
   ];
   if (trend) rows.push({ label: 'Weight trend', value: trend });
   if (r.adjustmentKcal !== 0) {

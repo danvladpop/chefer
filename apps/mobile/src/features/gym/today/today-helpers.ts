@@ -76,7 +76,9 @@ export function formatTarget(
   unit: WeightUnit,
 ): string {
   const meta = libraryLookup(bootstrap)(exercise.exerciseId);
-  const load = formatLoad(exercise.suggestion.weightKg, unit, meta?.loadType ?? 'WEIGHTED');
+  const load = formatLoad(exercise.suggestion.weightKg, unit, meta?.loadType ?? 'WEIGHTED', {
+    each: meta?.perHand ?? false,
+  });
   return `${exercise.sets} × ${repsLabel(exercise.suggestion.reps)} @ ${load}`;
 }
 

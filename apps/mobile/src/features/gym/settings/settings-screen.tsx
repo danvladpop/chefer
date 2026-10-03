@@ -429,7 +429,7 @@ export function GymSettingsScreen() {
               />
             </View>
             <View className="gap-2">
-              <Text variant="label">Dumbbells you have</Text>
+              <Text variant="label">Dumbbells you have (weight of one dumbbell)</Text>
               <WeightListEditor
                 testID="gym-settings-dumbbells"
                 valuesKg={profile.dumbbellsKg}

@@ -31,6 +31,7 @@ function sharedWhere(ownerId: string): Prisma.RecipeWhereInput {
     source: RecipeSource.MANUAL,
     originRecipeId: null,
     hiddenAt: null,
+    deletedAt: null,
   };
 }
 

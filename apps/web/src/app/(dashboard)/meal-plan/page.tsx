@@ -65,6 +65,8 @@ import { ErrorState, Sheet, Toast } from '@chefer/ui';
 import {
   aiConsentRequiredFor,
   defaultWeekOffset,
+  formatDateRange,
+  formatKcal,
   formatMoney,
   formatPriceRange,
   getWeekStartDate,
@@ -99,8 +101,7 @@ function formatWeekLabel(weekStartDate: Date): string {
   const start = new Date(weekStartDate);
   const end = new Date(weekStartDate);
   end.setDate(end.getDate() + 6);
-  const opts: Intl.DateTimeFormatOptions = { month: 'short', day: 'numeric' };
-  return `${start.toLocaleDateString('en-GB', opts)} – ${end.toLocaleDateString('en-GB', opts)}`;
+  return formatDateRange(start, end, 'short');
 }
 
 /** Returns 0=Monday … 6=Sunday for today, matching dayOfWeek in the plan. */
@@ -863,8 +864,8 @@ export default function MealPlanPage() {
           className="mx-4 mb-2 flex flex-col gap-2 rounded-xl border border-gray-200 bg-white px-4 py-3 sm:mx-6 sm:flex-row sm:items-center sm:justify-between sm:gap-3"
         >
           <p className="text-sm text-gray-800">
-            This week was planned for {(plan.calorieTarget ?? 0).toLocaleString('en-US')} kcal.
-            Re-plan with {targetsView.effective.dailyCalorieTarget.toLocaleString('en-US')} kcal?
+            This week was planned for {formatKcal(plan.calorieTarget ?? 0)} kcal. Re-plan with{' '}
+            {formatKcal(targetsView.effective.dailyCalorieTarget)} kcal?
           </p>
           <div className="flex gap-2">
             <button

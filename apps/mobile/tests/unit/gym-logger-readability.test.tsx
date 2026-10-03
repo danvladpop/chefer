@@ -1,5 +1,6 @@
 import * as ReactNative from 'react-native';
 import { render, screen } from '@testing-library/react-native';
+import type { ExerciseDto } from '@chefer/types';
 import { ExerciseCard, type WorkoutContext } from '../../src/features/gym/workout/exercise-card';
 import { SetRow, type SetRowHandlers } from '../../src/features/gym/workout/set-row';
 import { makeExercise, profile } from './gym-fixtures';
@@ -88,6 +89,48 @@ describe('SetRow readability (WP-04)', () => {
   it('a bodyweight set shows its "BW" value at text-xl', async () => {
     await renderRow('none', false);
     expect(String(screen.getByTestId('row-weight-value').props.className)).toContain('text-xl');
+  });
+});
+
+describe('SetRow per-hand loads (UX-GYM-19)', () => {
+  const dumbbell = {
+    ...makeExercise('db-press', 'Dumbbell Press'),
+    equipment: 'DUMBBELL' as const,
+  };
+
+  async function renderRow(meta: ExerciseDto, unit: 'KG' | 'LB' = 'KG') {
+    await render(
+      <SetRow
+        seId={SE_ID}
+        set={setDoc()}
+        label="Set 1"
+        last={null}
+        meta={meta}
+        profile={profile}
+        unit={unit}
+        weightMode="plates"
+        prKind={null}
+        handlers={handlers}
+        testID="row"
+      />,
+    );
+  }
+
+  it('a dumbbell set says "kg each" on the stepper and in the spoken summary', async () => {
+    await renderRow({ ...dumbbell, perHand: true });
+    expect(screen.getByText('kg each')).toBeOnTheScreen();
+    expect(screen.getByTestId('row-check').props.accessibilityLabel).toMatch(/kg each/);
+  });
+
+  it("follows the user's unit", async () => {
+    await renderRow({ ...dumbbell, perHand: true }, 'LB');
+    expect(screen.getByText('lb each')).toBeOnTheScreen();
+  });
+
+  it('a barbell set stays a plain "kg"', async () => {
+    await renderRow(bench);
+    expect(screen.queryByText('kg each')).toBeNull();
+    expect(screen.getByText('kg')).toBeOnTheScreen();
   });
 });
 

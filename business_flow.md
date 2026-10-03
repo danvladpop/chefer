@@ -1124,6 +1124,31 @@ All displayed quantities (shopping list + recipe pages) are converted to the
 user's preferred unit system (ChefProfile.preferredUnits, set in Preferences):
 METRIC shows g/kg/ml/l (cups -> ml), IMPERIAL shows oz/lb/fl oz/cups.
 
+**Shop-sized lines and one units system (WP-11, audit §6.4, UX-SHOP-01..07).**
+- The derived list now merges citrus zest + juice into whole lemons/limes,
+  groups on the catalog slug (else the base name) with size words (large,
+  medium, each) read as `pieces`, and rounds every line to what goes in the
+  basket: 0.8 avocado -> 1, 5.5 cloves -> 6, "Onion 3.2 oz" -> 1, 252 g ->
+  260 g. Eggs sit in "Dairy & Eggs". The sums behind the planner's cost chip
+  use the same lines.
+- "Add item" reads the user's own units: `2 lb chicken thighs` becomes 2 lb of
+  "chicken thighs" (`parseQuantityLine`), the placeholder teaches lb to an
+  imperial user. A new item shows at once, marked "Saving..." (offline: "Not
+  saved yet", plus an offline pill) and the server's answer replaces it.
+- Aisles open by default and the choice is remembered on the device. Prices
+  are shown as whole units ("~EUR 7", "<EUR 1"), never to the cent. The share
+  sheet counts only the dinners the (mid-week) list covers.
+- On the phone, the Shop list, the week's plan, a recipe (cook mode) and the
+  user's units survive a cold start offline (7-day cache).
+- Pantry ("In my kitchen"): every tier can remove a row ("Removed - Undo"),
+  edit its amount/unit, and sees quantities in their units; the amount box
+  refuses text and non-positive numbers (empty = "some"). Adding by hand and
+  the weekly confirm stay premium. Not done: a "use by" date (needs a schema
+  column).
+- Dates and numbers everywhere follow the device locale (`formatDate`,
+  `formatKcal`, `formatQty`).
+
+
 All displayed prices (shopping-list lines + total, pantry savings, the
 meal-plan week cost / per-person / over-budget copy, the ingredient browser)
 are EUR estimates converted to ChefProfile.deliveryCurrency by formatMoney in
@@ -1408,6 +1433,20 @@ Plan/Shop/Today used to answer "what's my plan" four different ways: `mealPlan.g
   for the inline "Still have these?" banner.
 - **My weeks**: saved weeks + past weeks (see §9 "Week templates").
 - **Ingredients** left the nav; `/ingredients` still works by URL.
+
+**Cookbook tabs and paging (UX-REC-05, WP-11).** All = recipes from your plans, your own recipes and your favourites;
+Saved = hearted; Mine = recipes you wrote or imported (the AI dishes your plans made are under All, and each tab says so in
+a one-line caption); Discover = the curated pool, safety-filtered. The first three page with the API's cursor (the last row's
+id): the app loads the next page when the list ends, the web cookbook has a "Load more" button. An empty Discover with no
+filter set means the diet filters hid every dish: it says so and links to the diet settings (UX-REC-09).
+
+**Recipe menu, delete and Undo (UX-REC-04/08, WP-11).** The ⋯ on a recipe opens a menu: Add to my week (any recipe, no
+Following needed: `recipe.addToWeek`, with an Undo snackbar), Add ingredients to the shopping list (this week's list, scaled to
+the servings stepper), Share (native share sheet; web: share sheet or clipboard). On your own recipe it also offers Edit,
+Duplicate (a prefilled new recipe named "Copy of …") and Delete. Delete asks first, then **soft-deletes** (`recipe.deleteMine`):
+the recipe leaves your cookbook, lists, favourites, pins and Following, and a snackbar offers Undo for 10 seconds
+(`recipe.restoreMine`). Plan slots that already hold it keep showing it (a tombstone: `mealPlan.getRecipe` answers
+`deleted: true`), so no week ever breaks; an old app that opens the id from elsewhere gets "Recipe not found", never an error.
 
 ### 10.1 Training-aware nutrition (audit P2-4)
 
@@ -2121,6 +2160,12 @@ and computed nutrition since P9 — see "Mobile: catalog lines" in §31):
   └─ Save → recipe.importSave { variant: 'original', sourceUrl, ogImageUrl }
        (same save path; allergen conflicts are shown as a warning on the form)
 ```
+
+**One review form for every source (UX-REC-15/14/07, WP-11).** On mobile, link and text imports now review in this same
+editable form (seeded with the version you pick: Original, or Cheferized when the adaptation changed something and is safe;
+with nothing to choose, "Cheferized for you" is a note), instead of a read-only preview. Saving opens the new recipe
+(`router.replace`), and the recipe page always shows a source link back to the page or video it came from. A scaled recipe
+keeps spoon units ("1½ tbsp", never "22 ml"). (The web import sheet keeps its read-only link/text review for now.)
 
 Errors the user can see: not a supported link; private / login-only video; video not
 found; video site refused us (YouTube bot check, rate limit); longer than 10 minutes;

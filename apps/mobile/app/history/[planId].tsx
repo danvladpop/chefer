@@ -3,7 +3,14 @@ import { ActivityIndicator, Pressable, ScrollView, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { router, useLocalSearchParams } from 'expo-router';
 import { Button, Card, EmptyState, ErrorState, Screen, Text, useSnackbar } from '@chefer/ui-mobile';
-import { cn, defaultSavedWeekName, sumPlanDay, userFacingErrorMessage } from '@chefer/utils';
+import {
+  cn,
+  defaultSavedWeekName,
+  formatDate,
+  formatKcal,
+  sumPlanDay,
+  userFacingErrorMessage,
+} from '@chefer/utils';
 import { useRestorePlan } from '../../src/features/history/use-restore-plan';
 import { PlanMealCard } from '../../src/features/meal-plan/plan-meal-card';
 import { trpc } from '../../src/lib/trpc';
@@ -43,7 +50,7 @@ export default function HistoryPlanScreen() {
   });
 
   const weekStart = plan ? new Date(plan.weekStartDate) : null;
-  const weekLabel = weekStart?.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
+  const weekLabel = weekStart ? formatDate(weekStart, 'short') : undefined;
   const day = plan?.days.find((d) => d.dayOfWeek === selectedDay);
   const meals = [...(day?.meals ?? [])].sort(
     (a, b) => MEAL_ORDER.indexOf(a.type) - MEAL_ORDER.indexOf(b.type),
@@ -68,13 +75,7 @@ export default function HistoryPlanScreen() {
             Read-only view
           </Text>
           <Text testID="history-plan-title" variant="title" numberOfLines={1}>
-            {weekStart
-              ? `Week of ${weekStart.toLocaleDateString('en-GB', {
-                  day: 'numeric',
-                  month: 'short',
-                  year: 'numeric',
-                })}`
-              : 'Past week'}
+            {weekStart ? `Week of ${formatDate(weekStart, 'medium')}` : 'Past week'}
           </Text>
         </View>
       </View>
@@ -116,11 +117,7 @@ export default function HistoryPlanScreen() {
                   testID={`history-day-${i}`}
                   accessibilityRole="button"
                   accessibilityState={{ selected: isSelected }}
-                  accessibilityLabel={date.toLocaleDateString('en-GB', {
-                    weekday: 'long',
-                    day: 'numeric',
-                    month: 'long',
-                  })}
+                  accessibilityLabel={formatDate(date, 'weekday-long-date')}
                   onPress={() => setSelectedDay(i)}
                   className={cn(
                     'h-14 w-11 items-center justify-center gap-0.5 rounded-xl',
@@ -162,7 +159,7 @@ export default function HistoryPlanScreen() {
             ) : (
               <>
                 <Text testID="history-day-kcal" className="text-xs text-gray-500">
-                  Day total · {dayKcal.toLocaleString('en-GB')} kcal
+                  Day total · {formatKcal(dayKcal)} kcal
                 </Text>
                 {day?.proteinGapG !== undefined && (
                   <Text testID="history-day-protein-gap" className="text-xs text-amber-800">

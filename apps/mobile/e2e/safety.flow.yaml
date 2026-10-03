@@ -162,6 +162,9 @@ appId: dev.chefer.app.dev
           id: 'what-we-check-sheet-close'
 - tapOn:
     id: 'recipe-report-overflow'
+# UX-REC-04/08: ⋯ is a menu now — the safety report is one of its items.
+- tapOn:
+    id: 'recipe-overflow-safety'
 - extendedWaitUntil:
     visible:
       id: 'report-safety-sheet-title'

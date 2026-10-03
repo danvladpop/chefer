@@ -36,3 +36,5 @@ export * from './tracking';
 export * from './cardio';
 // Correcting a past session: delete preview + target-change diff (T-44.2/T-44.4).
 export * from './session-edit';
+// Relative strength (e1RM ÷ body weight) with a profile-weight fallback (UX-GYM-17).
+export * from './relative-strength';

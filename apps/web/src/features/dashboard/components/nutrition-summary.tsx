@@ -5,7 +5,7 @@ import type { RouterOutputs } from '@/lib/trpc';
 import { ChevronRight } from 'lucide-react';
 import { overTargetColor } from '@chefer/tokens';
 import { CountUp, ProgressBar, progressOf, ProgressRing } from '@chefer/ui';
-import { cn, dayNutritionCaption, dayStatus } from '@chefer/utils';
+import { cn, dayNutritionCaption, dayStatus, formatKcal } from '@chefer/utils';
 import { TrainingDayNote } from './training-day-note';
 
 // ─── Nutrition summary ────────────────────────────────────────────────────────
@@ -94,7 +94,7 @@ export function NutritionSummary({
           >
             <CountUp value={n.eatenKcal} className="text-xl font-bold text-gray-900" />
             <span className="max-w-[88px] text-center text-xs leading-tight text-gray-500">
-              of {target.dailyCalorieTarget.toLocaleString('en-US')} kcal eaten
+              of {formatKcal(target.dailyCalorieTarget)} kcal eaten
             </span>
           </ProgressRing>
           <p className="text-center text-xs text-gray-500">

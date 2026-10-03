@@ -270,7 +270,8 @@ export function ExerciseDetailScreen({ exerciseId }: { exerciseId: string }) {
               {bestSets.map((set, i) => (
                 <View key={i} className="mb-1 flex-row items-center justify-between">
                   <Text>
-                    {formatLoad(set.weightKg, unit)} × {set.reps}
+                    {formatLoad(set.weightKg, unit, 'WEIGHTED', { each: exercise.perHand })} ×{' '}
+                    {set.reps}
                   </Text>
                   <View className="flex-row items-center gap-2">
                     {set.isPr ? <Badge variant="warning">PR</Badge> : null}
@@ -286,7 +287,9 @@ export function ExerciseDetailScreen({ exerciseId }: { exerciseId: string }) {
               <CardTitle>Best reps at each weight</CardTitle>
               {repPrTable.map((row, i) => (
                 <View key={i} className="mb-1 flex-row items-center justify-between">
-                  <Text>{formatLoad(row.weightKg, unit)}</Text>
+                  <Text>
+                    {formatLoad(row.weightKg, unit, 'WEIGHTED', { each: exercise.perHand })}
+                  </Text>
                   <Text>{row.reps} reps</Text>
                   <Text variant="muted">{row.localDate}</Text>
                 </View>

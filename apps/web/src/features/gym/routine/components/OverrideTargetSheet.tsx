@@ -11,6 +11,8 @@ export interface OverrideTargetSheetTarget {
   repBucket: string;
   exerciseName: string;
   loadType: ExerciseLoadType;
+  /** UX-GYM-19: dumbbell / kettlebell targets read "20 kg each". */
+  perHand?: boolean;
   isTimed: boolean;
   suggestion: Suggestion;
   override: ProgressionOverride | null;
@@ -53,7 +55,9 @@ export function OverrideTargetSheet({
 
   const sets = active?.reps.length ?? suggestion.sets;
   const unitLabel = unit === 'LB' ? 'lb' : 'kg';
-  const suggestedText = formatLoad(suggestion.weightKg, unit, target.loadType);
+  const suggestedText = formatLoad(suggestion.weightKg, unit, target.loadType, {
+    each: target.perHand,
+  });
 
   const handleSave = () => {
     const payload = buildOverridePayload({
