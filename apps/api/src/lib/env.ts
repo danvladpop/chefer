@@ -145,6 +145,9 @@ const envSchema = z.object({
   // weekly emails stop 50 short of it — that headroom is kept for
   // password-reset and confirmation emails.
   EMAIL_DAILY_CAP: z.preprocess(emptyAsUnset, z.coerce.number().int().positive().optional()),
+  // PO-05: where each beta-feedback submission is mailed (through the
+  // EMAIL_PROVIDER transport above). Unset = no notification (the row is still stored).
+  FEEDBACK_NOTIFY_EMAIL: z.preprocess(emptyAsUnset, z.string().email().optional()),
   // Base URL used in emailed links (reset password, etc.)
   APP_URL: z.string().url().default('http://localhost:3000'),
   // Signs the weekly-email unsubscribe and email-confirmation links (audit
