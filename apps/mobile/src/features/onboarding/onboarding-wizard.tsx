@@ -32,6 +32,7 @@ import {
   type OnboardingStepKey,
 } from '@chefer/utils';
 import { useIsPremium } from '../../hooks/use-is-premium';
+import { trackOnboardingCompleted, trackPlanGenerated } from '../../lib/analytics-events';
 import { getToken } from '../../lib/auth-store';
 import { trpc } from '../../lib/trpc';
 import { useAiConsent } from '../ai-consent/ai-consent-provider';
@@ -343,7 +344,11 @@ export function OnboardingWizard() {
   }, [draftSnapshot]);
 
   /** The setup is over (finished or skipped): the draft must not resume it again. */
-  function finishSetup() {
+  function finishSetup(completedJobs: readonly string[] = jobs) {
+    // WP-13: once per onboarding — finish, train-only continue and "just looking" all end here.
+    if (!finished.current) {
+      trackOnboardingCompleted(completedJobs, [...new Set(Object.values(trainingDayKinds))]);
+    }
     finished.current = true;
     clearOnboardingDraft();
   }
@@ -376,6 +381,7 @@ export function OnboardingWizard() {
   // generation lands (success or failure). These are mutation-level callbacks,
   // so they still fire after the wizard has unmounted.
   const generateMutation = trpc.mealPlan.generate.useMutation({
+    onSuccess: (data) => trackPlanGenerated(data, 0),
     onSettled: () => {
       void utils.mealPlan.invalidate();
       void utils.dashboard.invalidate();
@@ -669,7 +675,7 @@ export function OnboardingWizard() {
         { jobs: ['PLAN_MEALS'] },
         {
           onSuccess: () => {
-            finishSetup();
+            finishSetup(['PLAN_MEALS']);
             void utils.preferences.invalidate();
             goToDashboard();
           },

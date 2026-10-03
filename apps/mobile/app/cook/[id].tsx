@@ -48,6 +48,8 @@ import { recordRebalance } from '../../src/features/tracker/rebalance-store';
 import { useCookingFor } from '../../src/hooks/use-cooking-for';
 import { useHousehold } from '../../src/hooks/use-household';
 import { useUnits } from '../../src/hooks/use-units';
+import { track } from '../../src/lib/analytics';
+import { trackMealLogged } from '../../src/lib/analytics-events';
 import { trpc } from '../../src/lib/trpc';
 import { useUnsavedGuard } from '../../src/lib/use-unsaved-guard';
 
@@ -205,6 +207,11 @@ export default function CookModeScreen() {
     initialSession.notifications ?? {},
   );
 
+  // WP-13: once per cook, whichever button ends it (finish or "no steps" finish).
+  useEffect(() => {
+    if (finished) track('cook_finished', {});
+  }, [finished]);
+
   useEffect(() => {
     if (finished) return;
     saveCookSession(id, {
@@ -241,6 +248,8 @@ export default function CookModeScreen() {
   const upsertDay = trpc.tracker.logRecipe.useMutation({
     meta: { silent: true },
     onSuccess: (result, variables) => {
+      // WP-13: opened from a plan slot (`meal` param) = planned, else a quick log.
+      trackMealLogged(isMealSlot(meal) ? 'planned' : 'quick', variables.mealType);
       setLogged(true);
       setLoggedAs({ date: variables.date, slot });
       recordRebalance(result.rebalance);

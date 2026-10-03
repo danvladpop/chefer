@@ -13,6 +13,7 @@ import {
   userFacingErrorMessage,
 } from '@chefer/utils';
 import { useEntitlement } from '../../hooks/use-entitlement';
+import { trackMealLogged } from '../../lib/analytics-events';
 import { getApiBaseUrl } from '../../lib/api-url';
 import { getToken } from '../../lib/auth-store';
 import {
@@ -156,6 +157,7 @@ function SnapCard({ date, onLogged }: { date: string; onLogged: () => void }) {
   const logMutation = trpc.tracker.logCustomMeal.useMutation({
     meta: { silent: true },
     onSuccess: (data, variables) => {
+      trackMealLogged('snap', variables.mealType);
       recordRebalance(data.rebalance);
       // Bug B-44: Today used to lag the tracker by ~8s after a snap log —
       // this mutation invalidated nothing, so the dashboard ring only caught

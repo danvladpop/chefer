@@ -16,6 +16,7 @@ import {
   type QuickAddErrors,
   type QuickAddMealType,
 } from '@chefer/utils';
+import { trackMealLogged } from '../../lib/analytics-events';
 import { getRecipeImageUrl } from '../../lib/recipe-image';
 import { trpc, type RouterOutputs } from '../../lib/trpc';
 import { NutritionStatusTag } from '../ingredients/nutrition-provenance';
@@ -216,13 +217,32 @@ export function QuickAddSheet({
 
   // Both mutations render their failure inline (search view and manual form),
   // so neither raises the default snackbar (behind the sheet's modal).
+  // WP-13: a planned row is `planned`; anything else logged into a meal type
+  // the day's plan already has a meal for is `replaced`; the rest is `quick`.
+  const quickAddSource = (vars: { mealType: string }, fromPlanRow: boolean) =>
+    fromPlanRow
+      ? 'planned'
+      : plannedMeals.some((m) => m.mealType === vars.mealType)
+        ? 'replaced'
+        : 'quick';
+  const plannedRowPending = useRef(false);
   const logRecipeMutation = trpc.tracker.logRecipe.useMutation({
     meta: { silent: true },
-    onSuccess: (data, vars) => onLoggedCommon(data, `Logged ${vars.mealType}`),
+    onSuccess: (data, vars) => {
+      trackMealLogged(quickAddSource(vars, plannedRowPending.current), vars.mealType);
+      plannedRowPending.current = false;
+      onLoggedCommon(data, `Logged ${vars.mealType}`);
+    },
+    onError: () => {
+      plannedRowPending.current = false;
+    },
   });
   const logCustomMutation = trpc.tracker.logCustomMeal.useMutation({
     meta: { silent: true },
-    onSuccess: (data, vars) => onLoggedCommon(data, `Logged ${vars.name}`),
+    onSuccess: (data, vars) => {
+      trackMealLogged(quickAddSource(vars, false), vars.mealType);
+      onLoggedCommon(data, `Logged ${vars.name}`);
+    },
   });
 
   const isPending = logRecipeMutation.isPending || logCustomMutation.isPending;
@@ -253,6 +273,7 @@ export function QuickAddSheet({
 
   const logPlannedRow = (meal: PlannedLogMeal, chosenPortion: number) => {
     if (isPending) return;
+    plannedRowPending.current = true;
     logRecipeMutation.mutate({
       date,
       recipeId: meal.recipeId,

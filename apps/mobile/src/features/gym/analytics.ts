@@ -26,9 +26,12 @@ export interface GymEventMap {
   workout_finished: {
     durationMin: number;
     sets: number;
-    prs: number;
-    edited: boolean;
+    /** Not known at Finish on mobile (PRs are computed on the summary screen) — omitted there. */
+    prs?: number;
+    edited?: boolean;
     offline?: boolean;
+    /** WP-13: a routine day (`planned`) or an ad-hoc session (`freestyle`). */
+    kind?: 'planned' | 'freestyle';
   };
   suggestion_overridden: { reasonCode: ReasonCode; direction: 'up' | 'down' | 'same' };
   routine_edited: { kind: string };

@@ -8,6 +8,7 @@ import {
   userFacingErrorMessage,
 } from '@chefer/utils';
 import { track } from '../../lib/analytics';
+import { trackPlanGenerated } from '../../lib/analytics-events';
 import { trpc } from '../../lib/trpc';
 import { useAiConsent } from '../ai-consent/ai-consent-provider';
 import { closePremium, registerPremiumHost, usePremiumStore } from './open-premium';
@@ -53,7 +54,8 @@ function PremiumOffer({ source }: { source: string | null }) {
   const requestAiConsent = useAiConsent();
   const generate = trpc.mealPlan.generate.useMutation({
     meta: { silent: true },
-    onSuccess: () => {
+    onSuccess: (data) => {
+      trackPlanGenerated(data, 0);
       void utils.mealPlan.invalidate();
       void utils.shoppingList.invalidate();
       closePremium();

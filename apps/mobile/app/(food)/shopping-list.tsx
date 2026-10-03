@@ -60,6 +60,7 @@ import { useHousehold } from '../../src/hooks/use-household';
 import { useIsOnline } from '../../src/hooks/use-is-online';
 import { useIsPremium } from '../../src/hooks/use-is-premium';
 import { useUnits } from '../../src/hooks/use-units';
+import { track } from '../../src/lib/analytics';
 import { trpc } from '../../src/lib/trpc';
 
 // Shop tab — port of apps/web (dashboard)/shopping-list/page.tsx (M2-5).
@@ -128,6 +129,15 @@ export default function ShoppingListScreen() {
     if (__DEV__) console.warn('[analytics stub] plan_shown', { surface: 'shop', weekMatches });
     // eslint-disable-next-line react-hooks/exhaustive-deps -- fire once per load, not on every render
   }, [weekList?.planId, weekList?.weekStartDate, isLoading, weekOffset]);
+
+  // WP-13: one `list_opened` per visit, once the list has loaded with items
+  // (not per week switch or refetch — the funnel counts opens, not re-renders).
+  const listOpenedTracked = useRef(false);
+  useEffect(() => {
+    if (listOpenedTracked.current || !weekList?.hasPlan) return;
+    listOpenedTracked.current = true;
+    track('list_opened', { itemCount: weekList.items.length });
+  }, [weekList]);
 
   // Optimistic per-key toggle (P1-5) — same cache surgery as web: flip
   // immediately, per-key server semantics merge concurrent devices.

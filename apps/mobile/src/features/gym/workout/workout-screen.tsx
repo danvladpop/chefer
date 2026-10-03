@@ -22,6 +22,7 @@ import {
   type SessionSupersetSlot,
 } from '@chefer/utils';
 import { useFlags } from '../../../hooks/use-flags';
+import { captureGymEvent } from '../analytics';
 import { SUPERSET_COPY, SupersetSheet } from '../components/superset-sheet';
 import { openCreateExercise } from '../library/create-exercise-href';
 import { ExercisePicker } from '../library/exercise-picker';
@@ -434,6 +435,17 @@ export function WorkoutScreen() {
       try {
         const doc = await finish(carryOverExerciseIds);
         if (doc) {
+          captureGymEvent('workout_finished', {
+            durationMin: Math.round(
+              (Date.parse(doc.finishedAt ?? doc.startedAt) - Date.parse(doc.startedAt)) / 60000,
+            ),
+            sets: doc.exercises.reduce(
+              (n, se) =>
+                n + (se.skipped ? 0 : se.sets.filter((s) => !s.isWarmup && s.completedAt).length),
+              0,
+            ),
+            kind: doc.routineDayId ? 'planned' : 'freestyle',
+          });
           rememberFinished(doc);
           router.replace({ pathname: '/gym/summary/[id]', params: { id: doc.id } });
           return;

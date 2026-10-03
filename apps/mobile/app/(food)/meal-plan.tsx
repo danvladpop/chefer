@@ -75,6 +75,7 @@ import { RebalanceBanner } from '../../src/features/tracker/rebalance-banner';
 import { useCurrency } from '../../src/hooks/use-currency';
 import { useHousehold } from '../../src/hooks/use-household';
 import { useIsPremium } from '../../src/hooks/use-is-premium';
+import { trackPlanGenerated } from '../../src/lib/analytics-events';
 import { trpc } from '../../src/lib/trpc';
 
 // Plan tab — port of apps/web (dashboard)/meal-plan/page.tsx (M2-2), which
@@ -302,11 +303,12 @@ export default function MealPlanScreen() {
       // T-08.3 (UX-08 §3): only a regeneration (a previous plan existed for
       // this week) gets the "New week planned" snackbar + Undo.
       const { previousPlanId } = data;
+      const keptCount =
+        previousPlanId && data.droppedPinned !== undefined
+          ? Math.max(0, pinnedBeforeRegenerate - data.droppedPinned)
+          : 0;
+      trackPlanGenerated(data, keptCount);
       if (previousPlanId) {
-        const keptCount =
-          data.droppedPinned !== undefined
-            ? Math.max(0, pinnedBeforeRegenerate - data.droppedPinned)
-            : 0;
         const keptNote = keptCount > 0 ? ` Kept ${keptCount} of your picks.` : '';
         showSnackbar({
           message: `New week planned.${keptNote}`,
