@@ -6,7 +6,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { act, render, screen, userEvent, waitFor } from '@testing-library/react-native';
 import { httpBatchLink } from '@trpc/client';
 import superjson from 'superjson';
-import { ModeSwitch } from '../../src/features/gym/components/mode-switch';
+import { modeFromSegments, ModeSwitch } from '../../src/features/gym/components/mode-switch';
 import {
   getMode,
   hasChosenMode,
@@ -51,6 +51,26 @@ jest.mock('expo-router', () => {
         };
       }, []);
       return path;
+    },
+    // The real hook returns the route SEGMENTS; the group is the first one. Gym
+    // tab roots live in `(gym)`, deeper Gym screens under `gym/`, the Food tab
+    // roots in `(food)`, and root-level screens (history, profile…) by name.
+    useSegments: () => {
+      const [path, setLocalPath] = mockUseState(currentPath);
+      mockUseEffect(() => {
+        const listener = () => setLocalPath(currentPath);
+        listeners.add(listener);
+        return () => {
+          listeners.delete(listener);
+        };
+      }, []);
+      const parts = path.split('/').filter(Boolean);
+      const GYM_TABS = ['today', 'routine', 'exercises', 'stats'];
+      const FOOD_TABS = ['meal-plan', 'recipes', 'shopping-list', 'more'];
+      if (parts[0] && GYM_TABS.includes(parts[0])) return ['(gym)', ...parts];
+      if (parts.length === 0) return ['(food)'];
+      if (parts[0] && FOOD_TABS.includes(parts[0])) return ['(food)', ...parts];
+      return parts;
     },
     __setPathname: setPath,
   };
@@ -258,6 +278,42 @@ describe('ModeSwitch', () => {
       await renderSwitch(makeClient());
 
       expect(screen.getByTestId('mode-switch-food')).toBeSelected();
+    });
+  });
+
+  describe('UX-GYM-20: the pill follows the route group, not the pathname', () => {
+    it.each(['/today', '/routine', '/exercises', '/stats'])(
+      'shows Gym on the Gym tab root %s',
+      async (path) => {
+        __setPathname(path);
+        await renderSwitch(makeClient());
+        expect(screen.getByTestId('mode-switch-gym')).toBeSelected();
+      },
+    );
+
+    it('a Gym screen that passes mode="gym" stays on Gym whatever the route says', async () => {
+      __setPathname('/'); // a stale, Food-looking route
+      const client = makeClient();
+      const trpcClient = trpc.createClient({
+        links: [httpBatchLink({ url: 'http://127.0.0.1:9/trpc', transformer: superjson })],
+      });
+      await render(
+        <trpc.Provider client={trpcClient} queryClient={client}>
+          <QueryClientProvider client={client}>
+            <ModeSwitch mode="gym" />
+          </QueryClientProvider>
+        </trpc.Provider>,
+      );
+      expect(screen.getByTestId('mode-switch-gym')).toBeSelected();
+      expect(screen.getByTestId('mode-switch-food')).not.toBeSelected();
+    });
+
+    it('modeFromSegments maps the groups', () => {
+      expect(modeFromSegments(['(gym)', 'stats'])).toBe('gym');
+      expect(modeFromSegments(['gym', 'settings'])).toBe('gym');
+      expect(modeFromSegments(['(food)'])).toBe('food');
+      expect(modeFromSegments(['history'])).toBe('food');
+      expect(modeFromSegments([])).toBe('food');
     });
   });
 

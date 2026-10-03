@@ -28,6 +28,7 @@ import { newId } from '../offline/ids';
 import { deleteSessionWithUndo, saveEditedSession } from '../offline/session-corrections';
 import { saveLoggedSession } from '../use-active-workout';
 import { useGymBootstrap } from '../use-gym-bootstrap';
+import { EXERCISE_CAP_REASON, isAtExerciseCap } from './caps';
 import { EditSessionHeader } from './edit-session-header';
 import { ExerciseCard, type WorkoutContext, type WorkoutSheetRequest } from './exercise-card';
 import { NumberSheet } from './number-sheet';
@@ -522,10 +523,20 @@ function SessionEditor({ edit, mode }: { edit: EditSession; mode: 'edit' | 'log'
           testID="edit-session-add-exercise"
           variant="outline"
           size="lg"
+          disabled={isAtExerciseCap(exercises.length)}
           onPress={() => openSheet({ kind: 'picker', mode: 'add', seId: null })}
         >
           + Add exercise
         </Button>
+        {isAtExerciseCap(exercises.length) ? (
+          <Text
+            testID="edit-session-add-exercise-reason"
+            variant="muted"
+            className="text-center text-sm"
+          >
+            {EXERCISE_CAP_REASON}
+          </Text>
+        ) : null}
       </ScrollView>
 
       {/* ── Sheets ── */}

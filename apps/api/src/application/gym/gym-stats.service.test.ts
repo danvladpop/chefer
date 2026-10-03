@@ -96,8 +96,23 @@ beforeEach(() => {
   });
 });
 
+/** A PersonalRecord stub — only `sessionId` matters to the e1rm series. */
+function pr(sessionDate: string, kind: 'weight' | 'reps' | 'e1rm' = 'e1rm') {
+  return {
+    exerciseId: 'bench',
+    kind,
+    weightKg: 100,
+    reps: 5,
+    e1rmKg: null,
+    localDate: sessionDate,
+    sessionId: `s-${sessionDate}`,
+    isFirst: false,
+  };
+}
+
 describe('GymStatsService', () => {
   it('e1rm: PR flags use all history, the range trims output, trend = rolling max of 3', async () => {
+    vi.mocked(collectPrs).mockReturnValue([pr('2026-08-15'), pr('2026-09-15')]);
     const { service } = setup([
       summary('2026-01-10', 100), // outside 3m
       summary('2026-08-01', 90),
@@ -122,11 +137,28 @@ describe('GymStatsService', () => {
   // T-05.6 (UX-05 F): the very first logged session for an exercise counts
   // as a PR — it beats "nothing", which used to leave it unflagged.
   it('e1rm: the first-ever session is flagged as a PR too', async () => {
+    vi.mocked(collectPrs).mockReturnValue([pr('2026-09-01'), pr('2026-09-08')]);
     const { service } = setup([summary('2026-09-01', 60), summary('2026-09-08', 65)]);
 
     const s = await service.e1rm(USER, 'bench', 'all', '2026-09-24');
 
     expect(s.points.map((p) => p.isPr)).toEqual([true, true]);
+  });
+
+  // UX-GYM-33: the chart uses the same rule as the workout summary and History —
+  // a weight or rep PR counts, not only an e1RM one.
+  it('e1rm: a weight or rep PR (not an e1RM one) is flagged too', async () => {
+    vi.mocked(collectPrs).mockReturnValue([pr('2026-09-08', 'weight'), pr('2026-09-15', 'reps')]);
+    const { service } = setup([
+      summary('2026-09-01', 100),
+      summary('2026-09-08', 105),
+      summary('2026-09-15', 100),
+    ]);
+
+    const s = await service.e1rm(USER, 'bench', 'all', '2026-09-24');
+
+    expect(collectPrs).toHaveBeenCalledWith(expect.any(Array), 'bench');
+    expect(s.points.map((p) => p.isPr)).toEqual([false, true, true]);
   });
 
   it('repPrs keeps the heaviest completed working set per rep count', async () => {

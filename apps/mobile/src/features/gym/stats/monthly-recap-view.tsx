@@ -1,8 +1,8 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import type { GymBootstrap } from '@chefer/types';
-import { Button, Card, CardTitle, EmptyState, Text } from '@chefer/ui-mobile';
+import { Button, Card, CardTitle, EmptyState, ErrorState, Text } from '@chefer/ui-mobile';
 import { formatLoad, VOLUME_GROUP_LABELS } from '@chefer/utils';
 import { trpc } from '../../../lib/trpc';
 import { useIsOnline } from '../library-screens/online-status';
@@ -17,15 +17,36 @@ function currentMonth(): string {
   return localDate().slice(0, 7);
 }
 
+/** "September 2026" from "2026-09" (never the raw YYYY-MM). */
+function monthLabel(month: string): string {
+  const [y, m] = month.split('-').map(Number);
+  if (!y || !m) return month;
+  return new Date(Date.UTC(y, m - 1, 1)).toLocaleDateString(undefined, {
+    month: 'long',
+    year: 'numeric',
+    timeZone: 'UTC',
+  });
+}
+
 function shiftMonth(month: string, delta: number): string {
   const [y, m] = month.split('-').map(Number);
   const d = new Date(Date.UTC(y ?? 2026, (m ?? 1) - 1 + delta, 1));
   return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}`;
 }
 
-export function MonthlyRecapView({ bootstrap }: { bootstrap: GymBootstrap }) {
+export function MonthlyRecapView({
+  bootstrap,
+  initialMonth,
+}: {
+  bootstrap: GymBootstrap;
+  /** UX-GYM-13: a month deep-linked from Today's recap card (YYYY-MM). */
+  initialMonth?: string | undefined;
+}) {
   const online = useIsOnline();
-  const [month, setMonth] = useState(currentMonth);
+  const [month, setMonth] = useState(initialMonth ?? currentMonth);
+  useEffect(() => {
+    if (initialMonth) setMonth(initialMonth);
+  }, [initialMonth]);
   const recap = trpc.gym.stats.monthlyRecap.useQuery({ month }, { enabled: online });
   const byId = useMemo(() => new Map(bootstrap.library.map((e) => [e.id, e])), [bootstrap.library]);
   const unit = bootstrap.profile?.unit ?? 'KG';
@@ -44,7 +65,9 @@ export function MonthlyRecapView({ bootstrap }: { bootstrap: GymBootstrap }) {
           >
             <Ionicons name="chevron-back" size={18} color="#374151" />
           </Button>
-          <Text variant="muted">{month}</Text>
+          <Text testID="stats-recap-month" variant="muted">
+            {monthLabel(month)}
+          </Text>
           <Button
             testID="stats-recap-next"
             size="icon"
@@ -66,6 +89,13 @@ export function MonthlyRecapView({ bootstrap }: { bootstrap: GymBootstrap }) {
         />
       ) : recap.isLoading ? (
         <Text variant="muted">Loading…</Text>
+      ) : recap.isError && !recap.data ? (
+        // UX-GYM-34: a failed load is an error with Retry, not "No data for this month".
+        <ErrorState
+          testID="stats-monthly-recap-error"
+          title="Couldn’t load this month’s recap"
+          onRetry={() => void recap.refetch()}
+        />
       ) : !recap.data ? (
         <EmptyState testID="stats-monthly-recap-empty" title="No data for this month yet" />
       ) : (

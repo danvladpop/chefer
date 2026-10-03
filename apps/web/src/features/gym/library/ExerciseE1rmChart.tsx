@@ -2,8 +2,10 @@
 
 import { useState } from 'react';
 import { trpc } from '@/lib/trpc';
+import { format, parseISO } from 'date-fns';
 import { Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import type { StatsRange } from '@chefer/types';
+import { ErrorState } from '@chefer/ui';
 
 // Exercise detail's "Your history" e1RM mini-chart (gym_plan.md §1.3 Exercises
 // tab). A lean, single-lift version of the stats tab's strength trend — no
@@ -23,10 +25,15 @@ function PrDot(props: { cx?: number; cy?: number; payload?: { isPr?: boolean } }
 
 export function ExerciseE1rmChart({ exerciseId }: { exerciseId: string }) {
   const [range, setRange] = useState<StatsRange>('3m');
-  const { data, isLoading } = trpc.gym.stats.e1rm.useQuery({ exerciseId, range });
+  const { data, isLoading, isError, refetch, isRefetching } = trpc.gym.stats.e1rm.useQuery({
+    exerciseId,
+    range,
+  });
 
   const rows = (data?.points ?? []).map((p) => ({
-    date: p.localDate.slice(5),
+    // UX-GYM-33: "10 Sep", never the ISO tail "09-10".
+    date: format(parseISO(p.localDate), 'd MMM'),
+    fullDate: format(parseISO(p.localDate), 'd MMM yyyy'),
     e1rm: p.e1rmKg,
     isPr: p.isPr,
   }));
@@ -35,7 +42,7 @@ export function ExerciseE1rmChart({ exerciseId }: { exerciseId: string }) {
     <div className="rounded-2xl border bg-white p-4 shadow-sm">
       <div className="mb-2 flex items-center justify-between">
         <p className="text-xs font-semibold uppercase tracking-widest text-neutral-500">
-          e1RM trend
+          Estimated 1-rep max
         </p>
         <div
           role="group"
@@ -59,6 +66,13 @@ export function ExerciseE1rmChart({ exerciseId }: { exerciseId: string }) {
       </div>
       {isLoading ? (
         <div className="h-40 animate-pulse rounded-xl bg-neutral-100" />
+      ) : isError && !data ? (
+        <ErrorState
+          title="Couldn’t load your trend"
+          onRetry={() => void refetch()}
+          retrying={isRefetching}
+          className="py-6"
+        />
       ) : rows.length === 0 ? (
         <div className="flex h-40 items-center justify-center text-center text-sm text-neutral-500">
           No completed sets yet.
@@ -80,7 +94,12 @@ export function ExerciseE1rmChart({ exerciseId }: { exerciseId: string }) {
               width={36}
               domain={['auto', 'auto']}
             />
-            <Tooltip formatter={(val) => [`${String(val)} kg e1RM`]} />
+            <Tooltip
+              formatter={(val) => [`${String(val)} kg e1RM`]}
+              labelFormatter={(label) =>
+                rows.find((r) => r.date === label)?.fullDate ?? String(label)
+              }
+            />
             <Line
               type="monotone"
               dataKey="e1rm"

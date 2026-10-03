@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import { useMemo, useState } from 'react';
 import { Search, X } from 'lucide-react';
 import {
@@ -11,6 +12,7 @@ import {
 } from '@chefer/types';
 import { Input, Sheet } from '@chefer/ui';
 import { cn, exerciseMatchesFilterGroup, LIBRARY_FILTER_GROUP_LABELS } from '@chefer/utils';
+import { canOfferCreate, createExerciseHref } from '../library/create-exercise-href';
 import { ExerciseImage } from '../library/ExerciseImage';
 import { exerciseImageUrl } from '../use-gym-bootstrap';
 import { isCardioExercise } from './cardio';
@@ -162,6 +164,16 @@ export function ExercisePickerSheet({
         {rows.length === 0 && (
           <li className="px-5 py-8 text-center text-sm text-gray-500">
             No exercises match. Try another search.
+            {/* UX-GYM-21: nothing matched — offer to create it, pre-filled. */}
+            {canOfferCreate(query) ? (
+              <Link
+                href={createExerciseHref(query)}
+                data-testid="exercise-picker-create-from-search"
+                className="mt-3 flex min-h-11 items-center justify-center font-medium text-[#944a00] hover:underline"
+              >
+                {`Create “${query.trim()}”`}
+              </Link>
+            ) : null}
           </li>
         )}
       </ul>

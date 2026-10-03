@@ -1,5 +1,5 @@
 import { useReducer } from 'react';
-import { Platform } from 'react-native';
+import { Alert, Platform } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { render, screen, userEvent, waitFor } from '@testing-library/react-native';
 import type { RoutineDto } from '@chefer/types';
@@ -235,6 +235,29 @@ describe('routine editor exercise cards', () => {
     await user.press(screen.getByTestId(`${dayBase}-day-menu`));
     expect(screen.getByTestId(`${dayBase}-menu-duplicate`)).toBeTruthy();
     expect(screen.getByTestId(`${dayBase}-menu-delete`)).toBeTruthy();
+  });
+
+  it('"Delete day" confirms in a ConfirmSheet (not a native Alert) after the menu exits', async () => {
+    const alert = jest.spyOn(Alert, 'alert');
+    const user = userEvent.setup();
+    await render(<Harness />);
+
+    await user.press(screen.getByTestId(`${dayBase}-day-menu`));
+    // Android's path: the sheet unmounting runs onExited (iOS's onDismiss is not
+    // fired by the test renderer).
+    const platform = jest.replaceProperty(Platform, 'OS', 'android');
+    await user.press(screen.getByTestId(`${dayBase}-menu-delete`));
+    await waitFor(() =>
+      expect(screen.getByTestId(`${dayBase}-delete-confirm-body`)).toHaveTextContent(
+        /"Upper" and its exercises will be removed/,
+      ),
+    );
+    platform.restore();
+    expect(alert).not.toHaveBeenCalled();
+    expect(latest?.days).toHaveLength(1);
+
+    await user.press(screen.getByTestId(`${dayBase}-delete-confirm-confirm`));
+    expect(latest?.days).toHaveLength(0);
   });
 
   // plan-library-supersets S2: a visible "Superset" action per day → pick

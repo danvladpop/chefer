@@ -55,6 +55,15 @@ export function HistoryList({ data }: { data: GymBootstrap }) {
     [combined, data.olderBests],
   );
 
+  // UX-GYM-33: "Load more" only shows when something older exists. One cheap
+  // probe past the cached window tells us.
+  const lastCached = cached.at(-1);
+  const olderProbe = trpc.gym.session.list.useQuery(
+    { ...(lastCached ? { cursor: cursorOf(lastCached) } : {}), limit: 1 },
+    { enabled: cached.length > 0 },
+  );
+  const nothingOlder = olderProbe.data?.items.length === 0;
+
   if (combined.length === 0) {
     return (
       <GymCard className="text-center" data-testid="gym-history-empty">
@@ -65,7 +74,7 @@ export function HistoryList({ data }: { data: GymBootstrap }) {
   }
 
   const groups = groupSessionsByWeek(combined.slice(0, visibleCount));
-  const hasMore = visibleCount < cached.length || !exhaustedOnline;
+  const hasMore = visibleCount < cached.length || (!exhaustedOnline && !nothingOlder);
 
   const loadMore = async () => {
     setLoadError(null);

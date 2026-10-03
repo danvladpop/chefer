@@ -22,6 +22,7 @@ import { useIsOnline } from '../../src/features/gym/routine/use-online';
 import { weekdayLabel } from '../../src/features/gym/routine/weekday';
 import { WeeklyBalanceCard } from '../../src/features/gym/routine/weekly-balance';
 import { libraryLookup, useGymBootstrap } from '../../src/features/gym/use-gym-bootstrap';
+import { equipmentOf } from '../../src/features/gym/workout/workout-model';
 import { trpc } from '../../src/lib/trpc';
 
 // Routine tab (gym_plan.md §1.3 "Routine tab"): the active routine's days,
@@ -146,7 +147,7 @@ export default function RoutineScreen() {
     return (
       <Screen className="px-0">
         <ScrollView contentContainerClassName="gap-4 px-4 py-4">
-          <ModeSwitch />
+          <ModeSwitch mode="gym" />
           <Text testID="gym-routine-title" variant="title">
             Routine
           </Text>
@@ -165,7 +166,7 @@ export default function RoutineScreen() {
   return (
     <Screen className="px-0">
       <ScrollView contentContainerClassName="gap-4 px-4 py-4">
-        <ModeSwitch />
+        <ModeSwitch mode="gym" />
         <Text testID="gym-routine-title" variant="title">
           Routine
         </Text>
@@ -254,6 +255,7 @@ export default function RoutineScreen() {
           unit={unit}
           repBucket={overrideTarget.progression.repBucket}
           progression={overrideTarget.progression}
+          profile={equipmentOf(data)}
           saving={setOverride.isPending || clearOverride.isPending}
           onSave={(payload: SetOverrideInput) => setOverride.mutate(payload)}
           onReset={() =>

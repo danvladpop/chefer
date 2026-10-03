@@ -100,4 +100,15 @@ describe('selectTodaysSession', () => {
       kind: 'none',
     });
   });
+
+  // UX-GYM-12: set up on Tuesday → Monday's Upper was never missed; it is simply due.
+  it('treats a pinned day that passed before setup as due today, not overdue', () => {
+    expect(
+      selectTodaysSession({
+        bootstrap: boot(next('dA', 'Upper')),
+        today: TUESDAY,
+        since: TUESDAY,
+      }),
+    ).toEqual({ kind: 'rotation', dayId: 'dA', dayName: 'Upper' });
+  });
 });
