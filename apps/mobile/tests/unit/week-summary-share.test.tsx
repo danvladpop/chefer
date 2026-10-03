@@ -4,6 +4,9 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react-nativ
 import { weekdayShortName } from '@chefer/utils';
 import { WeekSummarySheet } from '../../src/features/meal-plan/week-summary-sheet';
 
+// openLegal (the AI consent sheet's Privacy link) pulls in expo-router.
+jest.mock('expo-router', () => ({ router: { push: jest.fn() } }));
+
 // T-13.2 (Plan half) + T-06.4: the week summary shares the dinners as plain
 // text and marks training days.
 

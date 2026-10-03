@@ -15,6 +15,15 @@ import {
 let mockUser: { aiDataConsentAt: Date | null } | undefined;
 let mockProviders: { primary: string; backups: string[] } | undefined;
 const mockGrant = jest.fn();
+const mockPush = jest.fn();
+
+jest.mock('expo-router', () => ({
+  router: {
+    push: (href: string) => {
+      mockPush(href);
+    },
+  },
+}));
 
 jest.mock('../../src/lib/trpc', () => ({
   trpc: {
@@ -108,6 +117,21 @@ describe('AI data consent gate', () => {
     await userEvent.setup().press(screen.getByTestId('ai-consent-allow'));
     expect(mockGrant).toHaveBeenCalledTimes(1);
     expect(action).not.toHaveBeenCalled();
+  });
+
+  // The consent sheet is a Modal: a pushed route would open behind it, so the
+  // Privacy link closes the sheet first and opens the in-app page once it is
+  // gone. It counts as "Not now": nothing is sent, the action is dropped.
+  it('Privacy link closes the sheet, then opens Privacy in the app (no browser)', async () => {
+    const user = userEvent.setup();
+    await renderGate();
+    await user.press(screen.getByTestId('ai-action'));
+    await user.press(screen.getByTestId('ai-consent-privacy'));
+    expect(screen.queryByTestId('ai-consent-allow')).toBeNull();
+    expect(mockPush).toHaveBeenCalledWith('/legal/privacy');
+    expect(mockPush).toHaveBeenCalledTimes(1);
+    expect(action).not.toHaveBeenCalled();
+    expect(mockGrant).not.toHaveBeenCalled();
   });
 
   it('runs straight away when consent is on record', async () => {

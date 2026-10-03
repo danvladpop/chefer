@@ -22,6 +22,7 @@ import {
   formatBodyWeight,
   formatDate,
   formatKcal,
+  formatNumber,
   isLoggedDay,
   localDateStr,
   PROGRESS_RANGES,
@@ -304,7 +305,7 @@ export default function ProgressScreen() {
                   reference={{ y: target, label: 'Target' }}
                   yFloor={0}
                   niceTicks
-                  formatY={(v) => v.toLocaleString('en-GB')}
+                  formatY={(v) => formatNumber(v)}
                   height={200}
                 />
               )}
@@ -419,7 +420,10 @@ export default function ProgressScreen() {
           )}
 
           <View className="mt-3">
-            <WeightLogForm placeholder={system === 'IMPERIAL' ? '160.5' : '72.5'} />
+            <WeightLogForm
+              lastEntry={weights.at(-1) ?? null}
+              placeholder={system === 'IMPERIAL' ? '160.5' : '72.5'}
+            />
           </View>
           {weights.length > 0 && <WeightEntriesList entries={weights} />}
         </Card>

@@ -1,4 +1,5 @@
 // @vitest-environment jsdom
+import { capture } from '@/lib/analytics';
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ScanMealButton } from './ScanMealButton';
@@ -83,6 +84,14 @@ async function scanOnePhoto(onLoggedEntry?: (e: { entryId: string; name: string 
   });
   await waitFor(() => expect(screen.getByText('Log this meal?')).toBeTruthy());
 }
+
+describe('ScanMealButton analytics (UX-PO-02)', () => {
+  it('a confirmed scan fires meal_logged as snap, with the meal type', async () => {
+    await scanOnePhoto();
+    act(() => m.onSuccess?.({ rebalance: null }, { name: 'Grilled chicken', mealType: 'lunch' }));
+    expect(capture).toHaveBeenCalledWith('meal_logged', { source: 'snap', mealType: 'lunch' });
+  });
+});
 
 describe('ScanMealButton result sheet (UX-FOOD-26)', () => {
   it('shows the photo that was scanned', async () => {

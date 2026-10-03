@@ -1,4 +1,5 @@
 // @vitest-environment jsdom
+import { capture } from '@/lib/analytics';
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { RESET_LINK_INVALID_MESSAGE } from '@chefer/types';
@@ -23,6 +24,7 @@ vi.mock('next/navigation', () => ({
   useRouter: () => ({ push: vi.fn(), refresh: vi.fn() }),
   useSearchParams: () => new URLSearchParams(token ? `token=${token}` : ''),
 }));
+vi.mock('@/lib/analytics', () => ({ capture: vi.fn() }));
 vi.mock('@tanstack/react-query', () => ({ useQueryClient: () => ({ clear: vi.fn() }) }));
 vi.mock('@/lib/trpc', () => ({
   trpc: {
@@ -50,6 +52,18 @@ afterEach(() => {
 });
 
 describe('RegisterForm', () => {
+  it('fires signup_completed (a count, no identity) when registering succeeds (UX-PO-02)', () => {
+    render(<RegisterForm />);
+    act(() => captured.register.onSuccess?.({}));
+    expect(capture).toHaveBeenCalledWith('signup_completed', {});
+  });
+
+  it('does not fire signup_completed when registering fails', () => {
+    render(<RegisterForm />);
+    act(() => captured.register.onError?.(new Error('nope')));
+    expect(capture).not.toHaveBeenCalled();
+  });
+
   it('sends a trailing-space email trimmed (UX-ACC-07)', async () => {
     render(<RegisterForm />);
     fireEvent.change(screen.getByLabelText(/first name/i), { target: { value: 'Ana' } });

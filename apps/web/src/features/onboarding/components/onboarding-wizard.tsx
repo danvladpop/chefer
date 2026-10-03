@@ -11,6 +11,7 @@ import {
   HealthDeclinedNotice,
 } from '@/features/privacy/components/HealthDeclinedNotice';
 import { useHealthConsent } from '@/features/privacy/use-health-consent';
+import { trackOnboardingCompleted } from '@/lib/analytics-events';
 import { trpc } from '@/lib/trpc';
 import {
   bodyMetricsAgeError,
@@ -124,6 +125,14 @@ export function OnboardingWizard({
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const savingRef = useRef(false);
+  // UX-PO-02: `onboarding_completed` fires once — Finish, a train-only Continue and
+  // "Just looking around" all end the setup here.
+  const completedTracked = useRef(false);
+  function trackCompleted(completedJobs: readonly string[]) {
+    if (completedTracked.current) return;
+    completedTracked.current = true;
+    trackOnboardingCompleted(completedJobs, [...new Set(Object.values(trainingDayKinds))]);
+  }
   const [data, setData] = useState<WizardData>(initialData);
 
   const steps = onboardingSteps({
@@ -200,6 +209,7 @@ export function OnboardingWizard({
     }
     const trainOnly = jobs.length === 1 && jobs[0] === 'TRAIN';
     if (trainOnly) {
+      trackCompleted(jobs);
       router.push('/gym/setup');
       return;
     }
@@ -215,6 +225,7 @@ export function OnboardingWizard({
         { jobs: ['PLAN_MEALS'] },
         {
           onSuccess: () => {
+            trackCompleted(['PLAN_MEALS']);
             void utils.preferences.invalidate();
             router.push('/dashboard');
           },
@@ -313,6 +324,7 @@ export function OnboardingWizard({
       }
       void utils.preferences.invalidate();
       void utils.dashboard.invalidate();
+      trackCompleted(jobs);
 
       if (hasTrain) {
         generateFirstWeek();

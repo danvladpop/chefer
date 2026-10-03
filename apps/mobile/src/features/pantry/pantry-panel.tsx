@@ -342,7 +342,7 @@ export function PantryPanel({
               placeholder="Add something you have… e.g. rice"
               placeholderTextColor="#9ca3af"
               editable={!addMutation.isPending}
-              className="h-11 flex-1 rounded-md border border-input bg-background px-3 text-base text-foreground"
+              className="min-h-11 py-2 flex-1 rounded-md border border-input bg-background px-3 text-base text-foreground"
             />
             <TextInput
               ref={quantityInputRef}
@@ -359,7 +359,7 @@ export function PantryPanel({
               placeholder="Qty"
               placeholderTextColor="#9ca3af"
               editable={!addMutation.isPending}
-              className="h-11 w-16 rounded-md border border-input bg-background px-2 text-center text-base text-foreground"
+              className="min-h-11 py-2 w-16 rounded-md border border-input bg-background px-2 text-center text-base text-foreground"
             />
           </View>
           <View className="flex-row items-center gap-1.5">

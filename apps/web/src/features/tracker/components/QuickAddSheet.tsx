@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
+import { trackMealLogged } from '@/lib/analytics-events';
 import { trpc, type RouterOutputs } from '@/lib/trpc';
 import { ChevronDown, ChevronUp, Plus, Search } from 'lucide-react';
 import { Sheet } from '@chefer/ui';
@@ -99,6 +100,12 @@ export function QuickAddSheet({ date, onLogged, plannedMeals = [] }: QuickAddShe
   const [macros, setMacros] = useState({ protein: '', carbs: '', fat: '' });
   const [errors, setErrors] = useState<QuickAddErrors>({});
   const [sanityOverridden, setSanityOverridden] = useState(false);
+  // UX-FOOD-10: a field's error goes the moment that field is edited.
+  const clearError = (key: keyof QuickAddErrors) =>
+    setErrors((prev) => {
+      if (!(key in prev)) return prev;
+      return Object.fromEntries(Object.entries(prev).filter(([k]) => k !== key));
+    });
   const kcalRef = useRef<HTMLInputElement>(null);
 
   const trimmedQuery = query.trim();
@@ -160,14 +167,34 @@ export function QuickAddSheet({ date, onLogged, plannedMeals = [] }: QuickAddShe
     setOpen(false);
   };
 
+  // UX-PO-02: a planned row is `planned`; anything else logged into a meal type
+  // the day's plan already has a meal for is `replaced`; the rest is `quick`.
+  const plannedRowPending = useRef(false);
+  const quickAddSource = (vars: { mealType: string }, fromPlanRow: boolean) =>
+    fromPlanRow
+      ? 'planned'
+      : plannedMeals.some((m) => m.mealType === vars.mealType)
+        ? 'replaced'
+        : 'quick';
+
   // Both mutations render their failure inline (search view and manual form).
   const logRecipeMutation = trpc.tracker.logRecipe.useMutation({
     meta: { silent: true },
-    onSuccess: onLoggedCommon,
+    onSuccess: (data, vars) => {
+      trackMealLogged(quickAddSource(vars, plannedRowPending.current), vars.mealType);
+      plannedRowPending.current = false;
+      onLoggedCommon(data);
+    },
+    onError: () => {
+      plannedRowPending.current = false;
+    },
   });
   const logCustomMutation = trpc.tracker.logCustomMeal.useMutation({
     meta: { silent: true },
-    onSuccess: onLoggedCommon,
+    onSuccess: (data, vars) => {
+      trackMealLogged(quickAddSource(vars, false), vars.mealType);
+      onLoggedCommon(data);
+    },
   });
   const isPending = logRecipeMutation.isPending || logCustomMutation.isPending;
 
@@ -210,6 +237,7 @@ export function QuickAddSheet({ date, onLogged, plannedMeals = [] }: QuickAddShe
 
   const logPlannedRow = (meal: PlannedLogMeal, chosenPortion: number) => {
     if (isPending) return;
+    plannedRowPending.current = true;
     logRecipeMutation.mutate({
       date,
       recipeId: meal.recipeId,
@@ -746,6 +774,7 @@ export function QuickAddSheet({ date, onLogged, plannedMeals = [] }: QuickAddShe
                 placeholder="e.g. Slice of birthday cake"
                 onChange={(e) => {
                   setName(e.target.value);
+                  clearError('name');
                   setSanityOverridden(false);
                 }}
                 className="min-h-11 w-full rounded-xl border border-neutral-200 px-3 text-sm text-neutral-900"
@@ -781,6 +810,7 @@ export function QuickAddSheet({ date, onLogged, plannedMeals = [] }: QuickAddShe
                   placeholder="350"
                   onChange={(e) => {
                     setKcal(e.target.value);
+                    clearError('kcal');
                     setSanityOverridden(false);
                   }}
                   className="min-h-11 w-full min-w-0 rounded-xl border border-neutral-200 px-3 text-sm text-neutral-900"
@@ -807,6 +837,7 @@ export function QuickAddSheet({ date, onLogged, plannedMeals = [] }: QuickAddShe
                     value={macros[k]}
                     onChange={(e) => {
                       setMacros((prev) => ({ ...prev, [k]: e.target.value }));
+                      clearError(k);
                       setSanityOverridden(false);
                     }}
                     className="min-h-11 w-full min-w-0 rounded-xl border border-neutral-200 px-3 text-sm text-neutral-900"

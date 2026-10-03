@@ -217,7 +217,8 @@ describe('PremiumHost', () => {
     expect(screen.getByText('Snap your next meal')).toBeOnTheScreen();
     expect(screen.queryByText('Regenerate this week')).toBeNull();
     await user.press(screen.getByTestId('premium-sheet-action'));
-    expect(mockPush).toHaveBeenCalledWith('/tracker');
+    // ... and opens the photo picker on arrival (`snap=1`).
+    expect(mockPush).toHaveBeenCalledWith({ pathname: '/tracker', params: { snap: '1' } });
     expect(mockGenerate).not.toHaveBeenCalled();
   });
 

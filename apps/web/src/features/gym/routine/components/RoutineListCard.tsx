@@ -24,7 +24,7 @@ export function RoutineListCard({
     // UX-GYM-15: archiving the ACTIVE routine leaves Today without a workout to start.
     const message = routine.isActive
       ? `"${routine.name}" is your active routine. Today will have no workout to start until you set another routine active. Your history is kept. Archive it?`
-      : `Archive "${routine.name}"? You can still see it, but it won't show up here.`;
+      : `Archive "${routine.name}"? It moves to Archived, where you can restore it.`;
     if (window.confirm(message)) {
       onArchive();
     }

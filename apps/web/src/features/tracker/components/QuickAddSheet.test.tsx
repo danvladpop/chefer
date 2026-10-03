@@ -1,4 +1,5 @@
 // @vitest-environment jsdom
+import { capture } from '@/lib/analytics';
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { QuickAddSheet } from './QuickAddSheet';
@@ -28,6 +29,7 @@ const m = vi.hoisted(() => ({
 
 const rebalance = { rebalanced: false, swaps: [], projectedDeviation: 0, planId: 'p' };
 
+vi.mock('@/lib/analytics', () => ({ capture: vi.fn() }));
 vi.mock('../lib/rebalance-storage', () => ({ handleRebalanceResult: vi.fn() }));
 vi.mock('@/lib/trpc', () => ({
   trpc: {
@@ -265,6 +267,28 @@ describe('QuickAddSheet — Enter calories yourself (fallback, T-19.1)', () => {
     expect(screen.getByTestId('quick-add-kcal-error').textContent).toBe('Enter the calories.');
   });
 
+  // UX-FOOD-10: an error goes as soon as its own field is edited.
+  it('clears a field error as soon as that field is edited', () => {
+    renderSheet();
+    goToManual();
+    fireEvent.change(screen.getByTestId('quick-add-protein'), { target: { value: '900' } });
+    fireEvent.click(screen.getByTestId('quick-add-submit'));
+    expect(screen.getByTestId('quick-add-name-error')).toBeTruthy();
+    expect(screen.getByTestId('quick-add-kcal-error')).toBeTruthy();
+    expect(screen.getByTestId('quick-add-protein-error')).toBeTruthy();
+
+    fireEvent.change(screen.getByTestId('quick-add-name'), { target: { value: 'P' } });
+    expect(screen.queryByTestId('quick-add-name-error')).toBeNull();
+    expect(screen.getByTestId('quick-add-kcal-error')).toBeTruthy();
+
+    fireEvent.change(screen.getByTestId('quick-add-kcal'), { target: { value: '3' } });
+    expect(screen.queryByTestId('quick-add-kcal-error')).toBeNull();
+    expect(screen.getByTestId('quick-add-protein-error')).toBeTruthy();
+
+    fireEvent.change(screen.getByTestId('quick-add-protein'), { target: { value: '0' } });
+    expect(screen.queryByTestId('quick-add-protein-error')).toBeNull();
+  });
+
   it('logs name, chosen meal, kcal and macros that pass the sanity check', () => {
     renderSheet();
     goToManual();
@@ -353,5 +377,57 @@ describe('QuickAddSheet — Enter calories yourself (fallback, T-19.1)', () => {
     expect(screen.getByTestId('quick-add-api-error').textContent).toBe(
       "You can't log a future day",
     );
+  });
+});
+
+// UX-PO-02: where a logged meal came from, by the same rules as the phone — a
+// planned row is `planned`; another meal into a type the plan already has is
+// `replaced`; everything else is `quick`.
+describe('QuickAddSheet analytics (UX-PO-02)', () => {
+  const PLANNED = {
+    recipeId: 'r2',
+    recipeName: 'Lentil curry',
+    mealType: 'dinner',
+    imageUrl: null,
+    kcal: 540,
+    protein: 25,
+    carbs: 60,
+    fat: 15,
+    slotIndex: 2,
+  };
+  const recent = (mealType: string) => ({
+    key: 'recipe:r1',
+    recipeId: 'r1',
+    name: 'Protein shake',
+    imageUrl: null,
+    mealType,
+    kcal: 180,
+    protein: 30,
+    carbs: 5,
+    fat: 2,
+    portionMultiplier: 1,
+    count: 4,
+    lastLoggedAt: '2026-09-25',
+  });
+
+  it('a planned row logs as planned', () => {
+    renderSheet([PLANNED]);
+    fireEvent.click(screen.getByText('Lentil curry'));
+    fireEvent.click(screen.getByTestId('log-sheet-plan-log-plan:2'));
+    expect(capture).toHaveBeenCalledWith('meal_logged', { source: 'planned', mealType: 'dinner' });
+  });
+
+  it('a recent logged into a type the plan already has is replaced', () => {
+    m.recents = [recent('dinner')];
+    renderSheet([PLANNED]);
+    fireEvent.click(screen.getByTestId('log-sheet-recent-add-recipe:r1'));
+    expect(capture).toHaveBeenCalledWith('meal_logged', { source: 'replaced', mealType: 'dinner' });
+  });
+
+  it('a recent into an unplanned type is quick, and a planned flag does not leak to the next log', () => {
+    m.recents = [recent('snack')];
+    renderSheet([PLANNED]);
+    fireEvent.click(screen.getByTestId('log-sheet-recent-add-recipe:r1'));
+    expect(capture).toHaveBeenLastCalledWith('meal_logged', { source: 'quick', mealType: 'snack' });
   });
 });

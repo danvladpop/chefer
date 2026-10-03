@@ -1,4 +1,5 @@
 // @vitest-environment jsdom
+import { capture } from '@/lib/analytics';
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { OnboardingWizard } from './onboarding-wizard';
@@ -150,6 +151,30 @@ describe('OnboardingWizard — jobs step (§2.4, T-03.6)', () => {
     ];
     expect(input).toEqual({ jobs: ['PLAN_MEALS'] });
     expect(typeof opts?.onSuccess).toBe('function');
+  });
+
+  // UX-PO-02: every way out of the setup counts once as onboarding_completed.
+  it('Train only fires onboarding_completed with its job', async () => {
+    render(<OnboardingWizard isPremium={false} />);
+    fireEvent.click(screen.getByTestId('onboarding-job-TRAIN'));
+    fireEvent.click(screen.getByTestId('onboarding-continue'));
+    await waitFor(() => expect(m.push).toHaveBeenCalledWith('/gym/setup'));
+    expect(capture).toHaveBeenCalledWith('onboarding_completed', { jobs: ['TRAIN'] });
+  });
+
+  it('"Just looking around" fires onboarding_completed with PLAN_MEALS', async () => {
+    render(<OnboardingWizard isPremium={false} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Just looking around' }));
+    await waitFor(() => expect(m.push).toHaveBeenCalledWith('/dashboard'));
+    expect(capture).toHaveBeenCalledWith('onboarding_completed', { jobs: ['PLAN_MEALS'] });
+  });
+
+  it('does not fire when moving on to the food steps', async () => {
+    render(<OnboardingWizard isPremium={false} />);
+    fireEvent.click(screen.getByTestId('onboarding-job-HOUSEHOLD'));
+    fireEvent.click(screen.getByTestId('onboarding-continue'));
+    await screen.findByRole('heading', { name: "Who's at your table?" });
+    expect(capture).not.toHaveBeenCalledWith('onboarding_completed', expect.anything());
   });
 });
 

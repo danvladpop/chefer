@@ -81,6 +81,7 @@ export function WeightCard() {
       {/* Quick entry */}
       <div className="mt-3">
         <WeightLogForm
+          lastEntry={latest ?? null}
           {...(todayEntry && {
             placeholder: `Logged today: ${formatBodyWeight(todayEntry.weightKg, system)}`,
           })}

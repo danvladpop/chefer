@@ -7,6 +7,9 @@ import { LockedFeatureCard } from '../../src/features/premium/locked-feature-car
 import { openPremium } from '../../src/features/premium/open-premium';
 import { PremiumSheet, type PremiumSheetProps } from '../../src/features/premium/premium-sheet';
 
+// openLegal (the AI consent sheet's Privacy link) pulls in expo-router.
+jest.mock('expo-router', () => ({ router: { push: jest.fn() } }));
+
 // PAT-3 / UX-10 (T-10.2): the job-led premium sheet and the lock card. The
 // sheet is presentational — PremiumHost (premium-host.test.tsx) feeds it the
 // pitch for a source. Guards AC1 (job headline), AC2 (the included-at-no-cost terms

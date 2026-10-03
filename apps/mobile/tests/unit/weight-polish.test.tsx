@@ -1,6 +1,7 @@
 import { View as MockView } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { render, screen, userEvent } from '@testing-library/react-native';
+import { formatDate } from '@chefer/utils';
 import { WeightEntriesList } from '../../src/features/coach/weight-entries-list';
 import { WeightSparkline } from '../../src/features/coach/weight-sparkline';
 
@@ -69,6 +70,19 @@ describe('WeightEntriesList consent (UX-FOOD-28)', () => {
   });
 });
 
+describe('WeightEntriesList dates (UX-X-15)', () => {
+  it('keeps a locale date on one line at its own width', async () => {
+    await render(
+      <SafeAreaProvider initialMetrics={METRICS}>
+        <WeightEntriesList entries={entries} />
+      </SafeAreaProvider>,
+    );
+    const date = screen.getByTestId('weight-entry-w0-date');
+    expect(date.props.numberOfLines).toBe(1);
+    expect(date.props.className).not.toMatch(/(^| )w-24( |$)/);
+  });
+});
+
 describe('WeightSparkline (UX-FOOD-27)', () => {
   it('spells out the start and end values and draws a line, not blocks', async () => {
     await render(<WeightSparkline entries={entries} system="METRIC" />);
@@ -77,8 +91,13 @@ describe('WeightSparkline (UX-FOOD-27)', () => {
     expect(screen.getByTestId('weight-sparkline')).toHaveAccessibleName(
       'Weight over the last 30 days: 78.4 → 70.9 kg',
     );
-    expect(screen.getByText(/^10 Sep/)).toBeOnTheScreen();
-    expect(screen.getByText(/^15 Sep/)).toBeOnTheScreen();
+    // Axis dates follow the device locale (UX-X-15).
+    expect(
+      screen.getByText(formatDate(new Date('2026-09-10T08:00:00Z'), 'short')),
+    ).toBeOnTheScreen();
+    expect(
+      screen.getByText(formatDate(new Date('2026-09-15T08:00:00Z'), 'short')),
+    ).toBeOnTheScreen();
   });
 
   it('shows values in the user’s unit', async () => {

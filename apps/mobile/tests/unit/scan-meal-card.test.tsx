@@ -93,6 +93,32 @@ async function renderCard() {
 }
 
 describe('ScanMealCard', () => {
+  // UX-ACC-13: the post-upgrade "Snap your next meal" CTA lands on the tracker
+  // with `snap=1` — the picker opens by itself, behind AI consent, exactly once.
+  it('UX-ACC-13: autoPick opens the photo library once, after consent', async () => {
+    jest.mocked(ImagePicker.launchImageLibraryAsync).mockResolvedValue({
+      canceled: true,
+    } as never);
+    const onAutoPicked = jest.fn();
+    const { rerender } = await render(
+      <ScanMealCard date="2026-09-27" onLogged={onLogged} autoPick onAutoPicked={onAutoPicked} />,
+    );
+    expect(mockRequestAiConsent).toHaveBeenCalledWith('meal-scan', expect.any(Function));
+    expect(ImagePicker.launchImageLibraryAsync).toHaveBeenCalledTimes(1);
+    expect(onAutoPicked).toHaveBeenCalledTimes(1);
+    // A re-render with the param still set does not reopen the picker.
+    await rerender(
+      <ScanMealCard date="2026-09-27" onLogged={onLogged} autoPick onAutoPicked={onAutoPicked} />,
+    );
+    expect(ImagePicker.launchImageLibraryAsync).toHaveBeenCalledTimes(1);
+  });
+
+  it('UX-ACC-13: without autoPick nothing opens by itself', async () => {
+    await renderCard();
+    expect(ImagePicker.launchImageLibraryAsync).not.toHaveBeenCalled();
+    expect(mockRequestAiConsent).not.toHaveBeenCalled();
+  });
+
   it('bug B-37: a denied camera permission shows a muted notice with a way out', async () => {
     jest.mocked(ImagePicker.requestCameraPermissionsAsync).mockResolvedValue({
       granted: false,

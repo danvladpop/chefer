@@ -5,6 +5,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useAiConsent } from '@/features/ai-consent/AiConsentProvider';
 import { UpgradeButton } from '@/features/premium/components/UpgradeButton';
 import { capture } from '@/lib/analytics';
+import { trackMealLogged } from '@/lib/analytics-events';
 import { trpc } from '@/lib/trpc';
 import { Camera, Loader2, Sparkles } from 'lucide-react';
 import { Sheet } from '@chefer/ui';
@@ -68,6 +69,8 @@ export function ScanMealButton({ date, isPremium, onLogged, onLoggedEntry }: Sca
     meta: { silent: true },
     onSuccess: (data, variables) => {
       capture('meal_scanned', { confirmed: true });
+      // UX-PO-02: a photo scan, confirmed and logged.
+      trackMealLogged('snap', variables.mealType);
       handleRebalanceResult(data.rebalance);
       setEstimate(null);
       setPhotoUrl(null);

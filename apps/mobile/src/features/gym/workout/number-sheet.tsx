@@ -11,6 +11,7 @@ import { Button, Sheet, Text } from '@chefer/ui-mobile';
 import {
   formatLoadNumber,
   kgToUnit,
+  PER_HAND_SUFFIX,
   platesPerSide,
   roundToAchievable,
   sameKg,
@@ -103,8 +104,16 @@ function applyKey(
   return Number.parseFloat(next) > max ? current : next;
 }
 
-function formatPrevious(kind: 'weight' | 'reps', value: number, unit: WeightUnit): string {
-  return kind === 'weight' ? `${formatLoadNumber(value, unit)} ${unitLabel(unit)}` : String(value);
+// UX-GYM-19: a dumbbell / kettlebell number is ONE implement — say "each".
+function formatPrevious(
+  kind: 'weight' | 'reps',
+  value: number,
+  unit: WeightUnit,
+  each: boolean,
+): string {
+  return kind === 'weight'
+    ? `${formatLoadNumber(value, unit)} ${unitLabel(unit)}${each ? ` ${PER_HAND_SUFFIX}` : ''}`
+    : String(value);
 }
 
 export interface NumberSheetProps {
@@ -159,7 +168,12 @@ export function NumberSheet(props: NumberSheetProps) {
     commit();
   };
 
-  const suffix = kind === 'weight' ? unitLabel(unit) : timed ? 's' : 'reps';
+  const suffix =
+    kind === 'weight'
+      ? `${unitLabel(unit)}${meta?.perHand ? ` ${PER_HAND_SUFFIX}` : ''}`
+      : timed
+        ? 's'
+        : 'reps';
 
   return (
     <Sheet
@@ -198,7 +212,7 @@ export function NumberSheet(props: NumberSheetProps) {
 
       {confirmingJump ? (
         <Text testID="number-sheet-jump-warning" className="text-center text-sm text-amber-800">
-          {`That is more than ${JUMP_CONFIRM_FACTOR}× the last ${formatPrevious(kind, value, unit)}. Is it right?`}
+          {`That is more than ${JUMP_CONFIRM_FACTOR}× the last ${formatPrevious(kind, value, unit, meta?.perHand === true)}. Is it right?`}
         </Text>
       ) : null}
 

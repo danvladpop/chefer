@@ -535,7 +535,7 @@ export default function CookModeScreen() {
                 <Text
                   className={cn(
                     'flex-1 text-base',
-                    isChecked ? 'text-gray-400 line-through' : 'text-gray-800',
+                    isChecked ? 'text-muted-foreground line-through' : 'text-gray-800',
                   )}
                 >
                   {formatScaledQuantity(ing.quantity, ing.unit, scale, unitSystem)} {ing.name}

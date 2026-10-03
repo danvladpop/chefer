@@ -15,6 +15,8 @@ interface Shared {
   push: ReturnType<typeof vi.fn>;
   deleteMutate: ReturnType<typeof vi.fn>;
   deleteOptions: { onSuccess?: () => void };
+  fetchWeek: ReturnType<typeof vi.fn>;
+  addItems: ReturnType<typeof vi.fn>;
 }
 const m = vi.hoisted(
   (): Shared => ({
@@ -23,12 +25,24 @@ const m = vi.hoisted(
     push: vi.fn(),
     deleteMutate: vi.fn(),
     deleteOptions: {},
+    fetchWeek: vi.fn(),
+    addItems: vi.fn(),
   }),
 );
 
 vi.mock('next/link', () => ({
-  default: ({ href, children }: { href: string; children: React.ReactNode }) => (
-    <a href={href}>{children}</a>
+  default: ({
+    href,
+    children,
+    ...rest
+  }: {
+    href: string;
+    children: React.ReactNode;
+    'data-testid'?: string;
+  }) => (
+    <a href={href} {...rest}>
+      {children}
+    </a>
   ),
 }));
 vi.mock('next/image', () => ({
@@ -78,8 +92,12 @@ vi.mock('@/lib/trpc', () => {
             return { data: undefined, isLoading: false, isError: false, refetch: vi.fn() };
           };
         }
+        if (prop === 'fetch' && name === 'utils.mealPlan.getForWeek') return m.fetchWeek;
         if (prop === 'useMutation') {
           return (options: { onSuccess?: () => void } = {}) => {
+            if (name === 'shoppingList.addCustomItems') {
+              return { mutateAsync: m.addItems, isPending: false };
+            }
             if (name === 'recipe.deleteMine') {
               m.deleteOptions = options;
               return { mutate: m.deleteMutate, isPending: false, isError: false, reset: vi.fn() };
@@ -157,6 +175,75 @@ describe('Recipe detail: delete (UX-REC-04)', () => {
       name: 'Lentil soup',
     });
     expect(m.push).toHaveBeenCalledWith('/recipes');
+  });
+});
+
+describe('Recipe detail: add to week and shopping list (UX-REC-08)', () => {
+  it('offers Add to my week on every recipe, not only your own', async () => {
+    m.canEdit = false;
+    await renderPage();
+    fireEvent.click(await screen.findByTestId('recipe-add-to-week'));
+    expect(await screen.findByTestId('add-to-week-sheet')).toBeTruthy();
+  });
+
+  it('adds the ingredients, scaled to the servings shown, to this week’s list', async () => {
+    m.fetchWeek.mockResolvedValue({ planId: 'plan-1' });
+    m.addItems.mockResolvedValue(undefined);
+    await renderPage();
+    fireEvent.click(await screen.findByLabelText('Increase servings'));
+    await act(async () => {
+      fireEvent.click(screen.getByTestId('recipe-add-to-list'));
+      await Promise.resolve();
+    });
+    expect(m.fetchWeek).toHaveBeenCalledWith({ weekOffset: 0 });
+    expect(m.addItems).toHaveBeenCalledWith({
+      planId: 'plan-1',
+      items: [
+        { name: 'Red lentils', quantity: 300, unit: 'g' },
+        { name: 'Olive oil', quantity: 2, unit: 'tbsp' },
+      ],
+    });
+    expect(await screen.findByText('Added 2 ingredients to your shopping list')).toBeTruthy();
+  });
+
+  it('says "Make a plan first" when there is no plan and adds nothing', async () => {
+    m.fetchWeek.mockResolvedValue(null);
+    await renderPage();
+    await act(async () => {
+      fireEvent.click(await screen.findByTestId('recipe-add-to-list'));
+      await Promise.resolve();
+    });
+    expect(m.addItems).not.toHaveBeenCalled();
+    expect(
+      await screen.findByText('Make a plan first, then add ingredients to its list.'),
+    ).toBeTruthy();
+  });
+
+  it('a failed add says so and keeps the button usable', async () => {
+    m.fetchWeek.mockResolvedValue({ planId: 'plan-1' });
+    m.addItems.mockRejectedValue(new Error(''));
+    await renderPage();
+    await act(async () => {
+      fireEvent.click(await screen.findByTestId('recipe-add-to-list'));
+      await Promise.resolve();
+    });
+    expect(await screen.findByText(/Couldn.t add them to the list/)).toBeTruthy();
+    expect(screen.getByTestId<HTMLButtonElement>('recipe-add-to-list').disabled).toBe(false);
+  });
+});
+
+describe('Recipe detail: duplicate (UX-REC-04)', () => {
+  it('the owner gets Duplicate, which opens the create form for this recipe', async () => {
+    await renderPage();
+    const link = await screen.findByTestId('recipe-duplicate');
+    expect(link.getAttribute('href')).toBe('/recipes/new?duplicateOf=r1');
+  });
+
+  it("someone else's recipe has no Duplicate", async () => {
+    m.canEdit = false;
+    await renderPage();
+    expect(await screen.findByTestId('recipe-share')).toBeTruthy();
+    expect(screen.queryByTestId('recipe-duplicate')).toBeNull();
   });
 });
 

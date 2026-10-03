@@ -342,6 +342,7 @@ export default function ChatScreen() {
           <View className="flex-row items-end gap-2 border-t border-border px-4 py-3">
             <TextInput
               testID="chat-input"
+              accessibilityLabel="Message the chef"
               value={draft}
               onChangeText={setDraft}
               placeholder="Message the chef…"
