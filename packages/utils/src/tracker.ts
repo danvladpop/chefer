@@ -154,3 +154,20 @@ export function dailyAllowanceResetTime(now: Date = new Date()): string {
   reset.setUTCHours(24, 0, 0, 0);
   return reset.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
 }
+
+/**
+ * UX-FOOD-15: after Today's "I ate this" the summary refetch swaps the hero to
+ * the NEXT meal under the user's thumb, so a second tap logged dinner at 11 am.
+ * The logged meal stays on screen as a disabled "Logged ✓ · Undo" this long
+ * before the card moves on (web and mobile hold the same time).
+ */
+export const HERO_LOGGED_HOLD_MS = 2000;
+
+/**
+ * UX-FOOD-26: how long Snap-to-Log waits for the vision estimate before it
+ * gives up and says so (the request used to hang with no timeout).
+ */
+export const SCAN_REQUEST_TIMEOUT_MS = 30_000;
+
+export const SCAN_TIMEOUT_MESSAGE =
+  'That took too long. Check your connection and try again, or choose a clearer photo.';

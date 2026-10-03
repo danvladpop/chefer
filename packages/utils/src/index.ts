@@ -76,6 +76,7 @@ export {
   isDeficitBlockedForAge,
   isMinorAge,
   previewCalorieTarget,
+  previewTargetKcalFromBasics,
 } from './calorie-target';
 
 export {
@@ -238,6 +239,9 @@ export {
   dailyAllowanceResetTime,
   entryUnknownMacros,
   groupByMeal,
+  HERO_LOGGED_HOLD_MS,
+  SCAN_REQUEST_TIMEOUT_MS,
+  SCAN_TIMEOUT_MESSAGE,
   type CustomEntryRow,
   type LoggedMealEntryLike,
 } from './tracker';

@@ -434,11 +434,15 @@ export const trackerService = {
       fat: number;
       unknownMacros?: ('protein' | 'carbs' | 'fat')[] | undefined;
     },
-  ): Promise<{ log: DailyLog; rebalance: RebalanceResult | null }> {
+  ): Promise<{ log: DailyLog; rebalance: RebalanceResult | null; entryId: string }> {
+    // The new row's id is minted here so the client can offer an exact Undo
+    // (UX-FOOD-26) — additive: older clients ignore the extra field.
+    const entryId = newEntryId();
     // Atomic append — parallel adds no longer overwrite each other (F-TRK-1-2).
     const log = await dailyLogRepository.mutateDay(user.id, dayDate(dateStr), (stored) => [
       ...stored,
       {
+        entryId,
         custom: { name: entry.name, estimatedBy: entry.estimatedBy },
         mealType: entry.mealType,
         portionMultiplier: 1,
@@ -452,7 +456,7 @@ export const trackerService = {
       },
     ]);
     const rebalance = await this.maybeRebalance(user);
-    return { log, rebalance };
+    return { log, rebalance, entryId };
   },
 
   /**
