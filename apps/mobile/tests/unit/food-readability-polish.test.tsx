@@ -147,6 +147,7 @@ describe('UX-FOOD-24 ring caption', () => {
     expect(caption).not.toHaveTextContent(/eaten/);
     expect(caption.props.numberOfLines).toBe(2);
     expect(caption.props.adjustsFontSizeToFit).toBeUndefined();
+    expect(caption.props.maxFontSizeMultiplier).toBe(1.3);
     expect(caption).toHaveStyle({ maxWidth: RING_INNER_WIDTH });
     // Inner circle = 128 − 2×12 stroke; the caption keeps a margin inside it.
     expect(RING_INNER_WIDTH).toBeLessThan(128 - 2 * 12);

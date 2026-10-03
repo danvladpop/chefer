@@ -208,6 +208,21 @@ describe('SegmentedControl thumb (UX-X-10)', () => {
   });
 });
 
+describe('SegmentedControl compact (header switch)', () => {
+  it('caps the xs label scale so the Food | Gym switch never truncates', async () => {
+    const options = [
+      { value: 'a', label: 'Food' },
+      { value: 'b', label: 'Gym' },
+    ];
+    await render(
+      <SegmentedControl testID="seg" size="xs" value="a" onChange={jest.fn()} options={options} />,
+    );
+    const label = screen.getByText('Gym');
+    expect(label.props.numberOfLines).toBe(1);
+    expect(label.props.maxFontSizeMultiplier).toBe(1.3);
+  });
+});
+
 describe('Button lg (busy hands)', () => {
   it('lg is a 48pt min-h size and its label steps up to text-base', async () => {
     expect(buttonVariants({ size: 'lg' })).toMatch(/\bmin-h-12\b/);

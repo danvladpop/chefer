@@ -25,6 +25,8 @@ type Nutrition = RouterOutputs['dashboard']['summary']['nutrition'];
 const RING_SIZE = 128;
 const RING_STROKE = 12;
 // The widest a caption can be inside the ring without touching the stroke.
+/** The caption sits inside a fixed 128 pt ring, so it scales less than body text. */
+export const RING_CAPTION_MAX_FONT_SCALE = 1.3;
 export const RING_INNER_WIDTH = RING_SIZE - 2 * RING_STROKE - 16;
 
 function MacroBar({
@@ -122,6 +124,7 @@ export function NutritionSummary({
           <Text
             testID="calorie-ring-caption"
             numberOfLines={2}
+            maxFontSizeMultiplier={RING_CAPTION_MAX_FONT_SCALE}
             style={{ maxWidth: RING_INNER_WIDTH }}
             className="text-center text-xs text-muted-foreground"
           >

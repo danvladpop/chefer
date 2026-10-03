@@ -1,3 +1,4 @@
+import * as ReactNative from 'react-native';
 import { render, screen } from '@testing-library/react-native';
 import { ExerciseCard, type WorkoutContext } from '../../src/features/gym/workout/exercise-card';
 import { SetRow, type SetRowHandlers } from '../../src/features/gym/workout/set-row';
@@ -116,5 +117,36 @@ describe('ExerciseCard readability (WP-04)', () => {
     expect(String(screen.getByTestId('exercise-0-add-set').props.className)).toMatch(
       /\bmin-h-12\b/,
     );
+  });
+  it('large OS text: the suggestion stacks under the chip and "Why?" instead of one word per line', async () => {
+    const dims = jest
+      .spyOn(ReactNative, 'useWindowDimensions')
+      .mockReturnValue({ width: 390, height: 844, scale: 3, fontScale: 1.6 });
+    const doc = activeDoc();
+    const se = doc.exercises[0];
+    if (!se) throw new Error('fixture exercise');
+    const ctx: WorkoutContext = {
+      unit: 'KG',
+      profile,
+      lookup: () => bench,
+      prior: [],
+      handlers,
+      onSheet: jest.fn(),
+      onToggle: jest.fn(),
+      onRir: jest.fn(),
+      onRirDismiss: jest.fn(),
+      onSkip: jest.fn(),
+      onAddSet: jest.fn(),
+      onLayoutY: jest.fn(),
+      onLogCardio: jest.fn(),
+    };
+    await render(<ExerciseCard exercise={se} index={0} expanded isCurrent ctx={ctx} />);
+    const suggestion = screen.getByTestId('exercise-0-suggestion');
+    expect(String(suggestion.props.className)).toMatch(/\bw-full\b/);
+    expect(String(suggestion.props.className)).not.toMatch(/\bflex-1\b/);
+    expect(String(screen.getByTestId('exercise-0-suggestion-row').props.className)).toMatch(
+      /\bflex-wrap\b/,
+    );
+    dims.mockRestore();
   });
 });

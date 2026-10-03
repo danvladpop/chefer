@@ -11,6 +11,9 @@ import { DENSE_MAX_FONT_SCALE } from './text';
 import { colors } from './theme';
 
 // Every segment keeps a 44pt hit area; `sm`/`xs` only shrink the visual.
+/** Text-scale cap for the compact (xs) header switch. */
+export const COMPACT_MAX_FONT_SCALE = 1.3;
+
 const segmentTextVariants = cva('font-medium', {
   variants: {
     size: {
@@ -162,13 +165,15 @@ export function SegmentedControl<T extends string>({
             // compact Food | Gym switch once and stuck at a tiny size (WP-04
             // device pass, iOS 26.5).
             className={cn(
-              'flex-1 items-center justify-center rounded-md px-3',
-              compact ? 'min-h-8' : 'min-h-11 py-1',
+              'flex-1 items-center justify-center rounded-md',
+              compact ? 'min-h-8 px-2' : 'min-h-11 px-3 py-1',
             )}
           >
             <Text
               className={cn(segmentTextVariants({ size, selected }), 'text-center')}
-              maxFontSizeMultiplier={DENSE_MAX_FONT_SCALE}
+              // The compact (xs) size is header chrome in a fixed-width track
+              // (the Food | Gym switch): cap it lower so it never truncates to "F…".
+              maxFontSizeMultiplier={compact ? COMPACT_MAX_FONT_SCALE : DENSE_MAX_FONT_SCALE}
               numberOfLines={compact ? 1 : 2}
             >
               {option.label}
