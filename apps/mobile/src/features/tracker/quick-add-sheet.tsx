@@ -69,6 +69,10 @@ const MACROS = [
 ] as const;
 
 const GRAM_CHIPS = [50, 100, 150, 200];
+// UX-FOOD-12: the ingredient group asks for the server's default page first,
+// and "Show more" asks for a longer one.
+const INGREDIENT_PAGE = 12;
+const INGREDIENT_PAGE_MAX = 36;
 const SEARCH_DEBOUNCE_MS = 250;
 const RECIPE_PORTIONS = [0.5, 0.75, 1, 1.5, 2];
 
@@ -116,6 +120,7 @@ export function QuickAddSheet({
   const [gramsText, setGramsText] = useState('100');
   const [gramsCapped, setGramsCapped] = useState(false);
   const [portion, setPortion] = useState(1);
+  const [ingredientLimit, setIngredientLimit] = useState(INGREDIENT_PAGE);
 
   // Manual "Enter calories yourself" form state (the old sheet, verbatim).
   const [name, setName] = useState('');
@@ -132,6 +137,7 @@ export function QuickAddSheet({
     setGramsText('100');
     setGramsCapped(false);
     setPortion(1);
+    setIngredientLimit(INGREDIENT_PAGE);
     setName('');
     setKcal('');
     setMacros({ protein: '', carbs: '', fat: '' });
@@ -164,7 +170,7 @@ export function QuickAddSheet({
     { enabled: visible && debouncedQuery.length > 0, placeholderData: (previous) => previous },
   );
   const ingredientsQuery = trpc.ingredients.search.useQuery(
-    { query: debouncedQuery },
+    { query: debouncedQuery, ...(ingredientLimit > INGREDIENT_PAGE && { limit: ingredientLimit }) },
     { enabled: visible && debouncedQuery.length > 1, placeholderData: (previous) => previous },
   );
   const searchSettling =
@@ -234,6 +240,7 @@ export function QuickAddSheet({
       protein: recent.protein,
       carbs: recent.carbs,
       fat: recent.fat,
+      ...(recent.unknownMacros && { unknownMacros: recent.unknownMacros }),
     });
   };
 
@@ -393,6 +400,7 @@ export function QuickAddSheet({
             onChangeText={(text) => {
               setQuery(text);
               setExpandedKey(null);
+              setIngredientLimit(INGREDIENT_PAGE);
             }}
             placeholder="What did you eat?"
             returnKeyType="search"
@@ -688,6 +696,18 @@ export function QuickAddSheet({
                   </View>
                 );
               })}
+              {(ingredientsQuery.data?.length ?? 0) >= ingredientLimit &&
+                ingredientLimit < INGREDIENT_PAGE_MAX && (
+                  <Pressable
+                    testID="log-sheet-ingredients-more"
+                    accessibilityRole="button"
+                    accessibilityLabel="Show more ingredients"
+                    onPress={() => setIngredientLimit(INGREDIENT_PAGE_MAX)}
+                    className="min-h-11 items-center justify-center"
+                  >
+                    <Text className="text-sm font-semibold text-primary">Show more</Text>
+                  </Pressable>
+                )}
             </View>
           )}
 
@@ -831,11 +851,12 @@ export function QuickAddSheet({
             <View className="flex-row gap-2">
               {MACROS.map(({ key, label }) => (
                 <View key={key} className="min-w-0 flex-1 gap-1">
+                  <Text className="text-xs font-medium text-gray-600">{label} (g)</Text>
                   <Input
                     testID={`quick-add-${key}`}
                     accessibilityLabel={`${label} grams`}
                     value={macros[key]}
-                    placeholder={label}
+                    placeholder="–"
                     keyboardType="decimal-pad"
                     onChangeText={(text) => {
                       setMacros((prev) => ({ ...prev, [key]: text }));

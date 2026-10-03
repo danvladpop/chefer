@@ -24,6 +24,8 @@ export interface QuickAddInput {
   fat?: string | undefined;
 }
 
+export type QuickAddMacroKey = 'protein' | 'carbs' | 'fat';
+
 export interface QuickAddEntry {
   name: string;
   mealType: QuickAddMealType;
@@ -31,6 +33,13 @@ export interface QuickAddEntry {
   protein: number;
   carbs: number;
   fat: number;
+  /**
+   * UX-FOOD-11: macros the user left blank. They are stored as 0 g (older
+   * clients read plain numbers) but flagged here so the day's rows and the
+   * edit sheet can tell "unknown" from "0 g", and the sanity check skips them.
+   * Absent when every macro was entered.
+   */
+  unknownMacros?: QuickAddMacroKey[];
 }
 
 export type QuickAddErrors = Partial<Record<'name' | 'kcal' | 'protein' | 'carbs' | 'fat', string>>;
@@ -38,6 +47,12 @@ export type QuickAddErrors = Partial<Record<'name' | 'kcal' | 'protein' | 'carbs
 export type QuickAddParseResult =
   | { ok: true; entry: QuickAddEntry }
   | { ok: false; errors: QuickAddErrors };
+
+export const QUICK_ADD_MACRO_KEYS = [
+  'protein',
+  'carbs',
+  'fat',
+] as const satisfies readonly QuickAddMacroKey[];
 
 const NUMBER_RE = /^\d+([.,]\d+)?$/;
 
@@ -78,14 +93,25 @@ export function parseQuickAdd(input: QuickAddInput): QuickAddParseResult {
   }
 
   const macros = { protein: 0, carbs: 0, fat: 0 };
-  for (const key of ['protein', 'carbs', 'fat'] as const) {
+  const unknownMacros: QuickAddMacroKey[] = [];
+  for (const key of QUICK_ADD_MACRO_KEYS) {
+    if ((input[key] ?? '').trim() === '') unknownMacros.push(key);
     const parsed = parseAmount(input[key], QUICK_ADD_LIMITS[key], 'g', false);
     if ('error' in parsed) errors[key] = parsed.error;
     else macros[key] = Math.round(parsed.value * 10) / 10;
   }
 
   if (Object.keys(errors).length > 0) return { ok: false, errors };
-  return { ok: true, entry: { name, mealType: input.mealType, kcal: kcalValue, ...macros } };
+  return {
+    ok: true,
+    entry: {
+      name,
+      mealType: input.mealType,
+      kcal: kcalValue,
+      ...macros,
+      ...(unknownMacros.length > 0 && { unknownMacros }),
+    },
+  };
 }
 
 // ─── Macro sanity check (bug B-39, T-19.5) ─────────────────────────────────────
@@ -116,12 +142,16 @@ export interface MacroSanityResult {
  * Checks a logged/edited entry's macros against its stated calories using the
  * 4/4/9 rule, ±25% tolerance. Entries with no macros at all (quick add is
  * calories-only by default) are always fine — there's nothing to disagree.
+ * UX-FOOD-11: so are entries with ANY macro left blank (`unknownMacros`) —
+ * calories + protein alone can't be compared to a 4/4/9 total, and counting
+ * the blanks as 0 g used to flag "400 kcal, 20 g protein" as a typo.
  */
 export function checkMacroSanity(entry: {
   kcal: number;
   protein: number;
   carbs: number;
   fat: number;
+  unknownMacros?: readonly QuickAddMacroKey[] | undefined;
 }): MacroSanityResult {
   const impliedKcal = Math.round(
     entry.protein * KCAL_PER_G.protein +
@@ -129,7 +159,8 @@ export function checkMacroSanity(entry: {
       entry.fat * KCAL_PER_G.fat,
   );
   const noMacros = entry.protein === 0 && entry.carbs === 0 && entry.fat === 0;
-  if (noMacros || entry.kcal < MACRO_SANITY_MIN_KCAL) {
+  const partial = (entry.unknownMacros?.length ?? 0) > 0;
+  if (noMacros || partial || entry.kcal < MACRO_SANITY_MIN_KCAL) {
     return { ok: true, impliedKcal, message: null };
   }
   const diff = Math.abs(entry.kcal - impliedKcal) / entry.kcal;

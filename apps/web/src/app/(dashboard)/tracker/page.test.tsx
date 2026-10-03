@@ -43,6 +43,7 @@ const m = vi.hoisted(() => {
     failWrites: boolean;
     listeners: Set<() => void>;
     seq: number;
+    copiedIds: string[];
   } = {
     day: undefined,
     server: undefined,
@@ -50,6 +51,7 @@ const m = vi.hoisted(() => {
     failWrites: false,
     listeners: new Set(),
     seq: 0,
+    copiedIds: ['c1', 'c2'],
   };
   return {
     logRecipe: vi.fn(),
@@ -224,7 +226,7 @@ vi.mock('@/lib/trpc', () => ({
         useMutation: () => ({
           mutate: (vars: unknown, callbacks?: { onSuccess?: (data: unknown) => void }) => {
             m.copyDay(vars);
-            callbacks?.onSuccess?.({ log: {}, copiedEntryIds: ['c1', 'c2'], rebalance });
+            callbacks?.onSuccess?.({ log: {}, copiedEntryIds: m.state.copiedIds, rebalance });
           },
           isPending: false,
         }),
@@ -361,6 +363,28 @@ describe('Tracker — one-save model (bug B-23, T-19.4)', () => {
 });
 
 describe('Tracker — copy a day (T-19.3)', () => {
+  afterEach(() => {
+    m.state.copiedIds = ['c1', 'c2'];
+  });
+
+  // UX-FOOD-25: "Copied 1 entries" / "Copied 0 entries".
+  it('UX-FOOD-25: pluralises the confirmation and never says "Copied 0 entries"', () => {
+    day(null);
+    m.state.copiedIds = ['c1'];
+    render(<TrackerPage />);
+    fireEvent.click(screen.getByTestId('tracker-copy-day'));
+    fireEvent.click(screen.getByTestId('tracker-copy-day-confirm'));
+    expect(screen.getByText('Copied 1 entry')).toBeTruthy();
+    cleanup();
+
+    m.state.copiedIds = [];
+    render(<TrackerPage />);
+    fireEvent.click(screen.getByTestId('tracker-copy-day'));
+    fireEvent.click(screen.getByTestId('tracker-copy-day-confirm'));
+    expect(screen.getByText(/Nothing to copy from/)).toBeTruthy();
+    expect(screen.queryByText(/Copied 0/)).toBeNull();
+  });
+
   it('confirms, then copies the previous day onto this one', async () => {
     day(null);
     render(<TrackerPage />);
@@ -376,6 +400,59 @@ describe('Tracker — copy a day (T-19.3)', () => {
         expect.objectContaining({ entryIds: ['c1', 'c2'] }),
       ),
     );
+  });
+});
+
+// UX-FOOD-25: off-plan recipes and custom entries were two stacked "Also eaten"
+// sections that lost the meal slot.
+describe('Tracker — one "Also eaten" list grouped by meal (UX-FOOD-25)', () => {
+  const offPlan = {
+    entryId: 'o1',
+    recipeId: 'pad-thai',
+    mealType: 'dinner',
+    portionMultiplier: 1,
+    kcal: 603,
+    protein: 20,
+    carbs: 80,
+    fat: 20,
+  };
+  const shake = {
+    entryId: 'e1',
+    custom: { name: 'Protein shake', estimatedBy: 'manual' },
+    mealType: 'snack',
+    portionMultiplier: 1,
+    kcal: 180,
+    protein: 30,
+    carbs: 5,
+    fat: 2,
+  };
+  const toast = {
+    entryId: 'e2',
+    custom: { name: 'Toast', estimatedBy: 'manual' },
+    mealType: 'breakfast',
+    portionMultiplier: 1,
+    kcal: 150,
+    protein: 5,
+    carbs: 25,
+    fat: 3,
+  };
+
+  it('renders a single header with a group per meal, in day order', () => {
+    day([offPlan, shake, toast], {
+      plannedMeals: [],
+      hasActivePlan: true,
+      offPlanLogged: [{ ...offPlan, recipeName: 'Tofu Pad Thai' }],
+    });
+    render(<TrackerPage />);
+    expect(screen.getAllByText('Also eaten')).toHaveLength(1);
+    const groups = screen
+      .getAllByTestId(/^tracker-also-eaten-/)
+      .map((el) => el.getAttribute('data-testid'));
+    expect(groups).toEqual([
+      'tracker-also-eaten-breakfast',
+      'tracker-also-eaten-dinner',
+      'tracker-also-eaten-snack',
+    ]);
   });
 });
 

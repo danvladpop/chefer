@@ -25,7 +25,9 @@ import { addDays, format } from 'date-fns';
 import { ChevronLeft, ChevronRight, Copy, Flame, Info, Trash2 } from 'lucide-react';
 import { ErrorState, Sheet, Toast } from '@chefer/ui';
 import {
+  copyDayMessage,
   formatPortion,
+  groupByMeal,
   localDateStr,
   plannedRowKey,
   slotPortion,
@@ -177,6 +179,13 @@ export default function TrackerPage() {
   // Rendered rows (F4): custom entries with their delete-target index into
   // the FULL loggedMeals array preserved.
   const customRows = customEntryRows(data?.log?.loggedMeals ?? []);
+  // UX-FOOD-25: off-plan recipes and custom entries are ONE "Also eaten" list,
+  // grouped under the meal they belong to (they were two stacked sections
+  // with the same header).
+  const alsoEaten = groupByMeal([
+    ...offPlanLogged.map((m) => ({ kind: 'recipe' as const, mealType: m.mealType, m })),
+    ...customRows.map((row) => ({ kind: 'custom' as const, mealType: row.mealType, row })),
+  ]);
 
   const deleteCustomEntry = (row: CustomEntryRow) => {
     if (deleteCustomMutation.isPending) return;
@@ -206,6 +215,7 @@ export default function TrackerPage() {
                         protein: row.protein,
                         carbs: row.carbs,
                         fat: row.fat,
+                        ...(row.unknownMacros && { unknownMacros: [...row.unknownMacros] }),
                       },
                     }),
                 }
@@ -257,7 +267,7 @@ export default function TrackerPage() {
           setCopyDayOpen(false);
           invalidateDayQueries(utils); // both the source and target dates
           showToast(
-            `Copied ${result.copiedEntryIds.length} entries`,
+            copyDayMessage(result.copiedEntryIds.length, copyLabel),
             result.copiedEntryIds.length > 0
               ? {
                   label: 'Undo',
@@ -384,7 +394,17 @@ export default function TrackerPage() {
           {/* Snap-to-Log (F4): photo scan (premium; demo for free) + the
               search-first Log sheet — the honesty tools for off-plan food. */}
           <div className="mb-6 flex flex-wrap gap-2">
-            <ScanMealButton date={dateStr} isPremium={isPremium} onLogged={() => void refetch()} />
+            <ScanMealButton
+              date={dateStr}
+              isPremium={isPremium}
+              onLogged={() => void refetch()}
+              onLoggedEntry={({ entryId, name }) =>
+                showToast(`Logged ${name}`, {
+                  label: 'Undo',
+                  onClick: () => deleteCustomMutation.mutate({ date: dateStr, entryId }),
+                })
+              }
+            />
             <QuickAddSheet
               date={dateStr}
               onLogged={() => void refetch()}
@@ -577,118 +597,108 @@ export default function TrackerPage() {
             </div>
           )}
 
-          {/* Off-plan meals (F-PM-1): logged recipes that have since left
-              today's plan (regenerate or swap). Kept and counted — and, like
-              custom entries, tap to edit and bin to delete with Undo
-              (UX-FOOD-03). */}
-          {offPlanLogged.length > 0 && (
-            <div className="mb-6" data-testid="tracker-off-plan">
-              <p className="mb-2 text-xs font-semibold uppercase tracking-widest text-neutral-500">
+          {/* Also eaten — off-plan recipes (F-PM-1: logged, then left today's
+              plan) and custom entries (F4: photo scans + quick adds), one
+              list grouped by meal. Tap to edit, bin to delete with Undo
+              (UX-FOOD-03, bug B-34, T-19.2, UX-FOOD-25). */}
+          {alsoEaten.length > 0 && (
+            <div className="mb-6" data-testid="tracker-also-eaten">
+              <h2 className="mb-2 text-xs font-semibold uppercase tracking-widest text-neutral-500">
                 Also eaten
-              </p>
-              <div className="space-y-3">
-                {offPlanLogged.map((m) => (
-                  <div
-                    key={m.entryId ?? `${m.recipeId}:${m.mealType}`}
-                    className="flex items-center gap-3 rounded-2xl border border-neutral-200 bg-white p-3"
-                  >
-                    <button
-                      type="button"
-                      data-testid={`tracker-off-plan-${m.entryId ?? m.recipeId}`}
-                      aria-label={`Edit ${m.recipeName}`}
-                      disabled={!m.entryId}
-                      onClick={() => setEditingRecipeEntryId(m.entryId ?? null)}
-                      className="flex min-w-0 flex-1 flex-col gap-1 rounded-xl text-left hover:bg-neutral-50 disabled:cursor-default disabled:hover:bg-transparent"
-                    >
-                      <span
-                        className={`self-start rounded-full px-2 py-0.5 text-xs font-semibold uppercase ${MEAL_COLOURS[m.mealType] ?? 'bg-gray-100 text-gray-600'}`}
-                      >
-                        {m.mealType}
-                      </span>
-                      <span className="min-w-0 truncate text-sm font-medium text-neutral-800">
-                        {m.recipeName}
-                      </span>
-                      <span className="text-xs text-neutral-500">
-                        {Math.round(m.kcal)} kcal · {Math.round(m.protein)}g P ·{' '}
-                        {Math.round(m.carbs)}g C · {Math.round(m.fat)}g F
-                        {(m.portionMultiplier ?? 1) !== 1 &&
-                          ` · ${formatPortion(m.portionMultiplier ?? 1)}`}
-                      </span>
-                    </button>
-                    {m.entryId && (
-                      <button
-                        type="button"
-                        aria-label={`Delete ${m.recipeName}`}
-                        disabled={deleteEntriesMutation.isPending}
-                        onClick={() => deleteOffPlanEntry(m)}
-                        className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl text-neutral-400 transition hover:bg-red-50 hover:text-red-600"
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </button>
-                    )}
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* Custom entries (F4): photo scans + quick-adds. Tap to edit
-              (bug B-34, T-19.2); the bin deletes immediately with Undo. */}
-          {customRows.length > 0 && (
-            <div className="mb-6">
-              <p className="mb-2 text-xs font-semibold uppercase tracking-widest text-neutral-500">
-                Also eaten
-              </p>
-              <div className="space-y-3">
-                {customRows.map((row) => (
-                  <button
-                    type="button"
-                    key={row.entryIndex}
-                    data-testid={`tracker-custom-${row.entryIndex}`}
-                    onClick={() => setEditingEntry(row)}
-                    className="flex w-full items-center gap-3 rounded-2xl border border-neutral-200 bg-white p-3 text-left hover:bg-neutral-50"
-                  >
-                    <div className="flex min-w-0 flex-1 flex-col gap-1">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <span
-                          className={`rounded-full px-2 py-0.5 text-xs font-semibold uppercase ${MEAL_COLOURS[row.mealType] ?? 'bg-gray-100 text-gray-600'}`}
-                        >
-                          {row.mealType}
-                        </span>
-                        <span className="rounded-full bg-neutral-100 px-2 py-0.5 text-xs font-semibold uppercase text-neutral-600">
-                          {customEntryChipLabel(row.estimatedBy)}
-                        </span>
-                      </div>
-                      <p className="min-w-0 truncate text-sm font-medium text-neutral-800">
-                        {row.name}
-                      </p>
-                      <p className="text-xs text-neutral-500">
-                        {row.kcal} kcal
-                        {row.protein > 0 || row.carbs > 0 || row.fat > 0
-                          ? ` · ${Math.round(row.protein)}g P · ${Math.round(row.carbs)}g C · ${Math.round(row.fat)}g F`
-                          : ''}
-                      </p>
-                    </div>
+              </h2>
+              <div className="space-y-4">
+                {alsoEaten.map((group) => (
+                  <div key={group.mealType} data-testid={`tracker-also-eaten-${group.mealType}`}>
                     <span
-                      role="button"
-                      tabIndex={0}
-                      aria-label={`Delete ${row.name}`}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        deleteCustomEntry(row);
-                      }}
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter' || e.key === ' ') {
-                          e.preventDefault();
-                          e.stopPropagation();
-                          deleteCustomEntry(row);
-                        }
-                      }}
-                      className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl text-neutral-400 transition hover:bg-red-50 hover:text-red-600"
+                      className={`mb-2 inline-block rounded-full px-2 py-0.5 text-xs font-semibold uppercase ${MEAL_COLOURS[group.mealType] ?? 'bg-gray-100 text-gray-600'}`}
                     >
-                      <Trash2 className="h-4 w-4" />
+                      {group.mealType}
                     </span>
-                  </button>
+                    <div className="space-y-3">
+                      {group.rows.map((item) =>
+                        item.kind === 'recipe' ? (
+                          <div
+                            key={item.m.entryId ?? `${item.m.recipeId}:${item.m.mealType}`}
+                            className="flex items-center gap-3 rounded-2xl border border-neutral-200 bg-white p-3"
+                          >
+                            <button
+                              type="button"
+                              data-testid={`tracker-off-plan-${item.m.entryId ?? item.m.recipeId}`}
+                              aria-label={`Edit ${item.m.recipeName}`}
+                              disabled={!item.m.entryId}
+                              onClick={() => setEditingRecipeEntryId(item.m.entryId ?? null)}
+                              className="flex min-w-0 flex-1 flex-col gap-1 rounded-xl text-left hover:bg-neutral-50 disabled:cursor-default disabled:hover:bg-transparent"
+                            >
+                              <span className="min-w-0 truncate text-sm font-medium text-neutral-800">
+                                {item.m.recipeName}
+                              </span>
+                              <span className="text-xs text-neutral-500">
+                                {Math.round(item.m.kcal)} kcal · {Math.round(item.m.protein)}g P ·{' '}
+                                {Math.round(item.m.carbs)}g C · {Math.round(item.m.fat)}g F
+                                {(item.m.portionMultiplier ?? 1) !== 1 &&
+                                  ` · ${formatPortion(item.m.portionMultiplier ?? 1)}`}
+                              </span>
+                            </button>
+                            {item.m.entryId && (
+                              <button
+                                type="button"
+                                aria-label={`Delete ${item.m.recipeName}`}
+                                disabled={deleteEntriesMutation.isPending}
+                                onClick={() => deleteOffPlanEntry(item.m)}
+                                className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl text-neutral-400 transition hover:bg-red-50 hover:text-red-600"
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </button>
+                            )}
+                          </div>
+                        ) : (
+                          <button
+                            type="button"
+                            key={item.row.entryIndex}
+                            data-testid={`tracker-custom-${item.row.entryIndex}`}
+                            onClick={() => setEditingEntry(item.row)}
+                            className="flex w-full items-center gap-3 rounded-2xl border border-neutral-200 bg-white p-3 text-left hover:bg-neutral-50"
+                          >
+                            <div className="flex min-w-0 flex-1 flex-col gap-1">
+                              <div className="flex flex-wrap items-center gap-2">
+                                <span className="rounded-full bg-neutral-100 px-2 py-0.5 text-xs font-semibold uppercase text-neutral-600">
+                                  {customEntryChipLabel(item.row.estimatedBy)}
+                                </span>
+                              </div>
+                              <p className="min-w-0 truncate text-sm font-medium text-neutral-800">
+                                {item.row.name}
+                              </p>
+                              <p className="text-xs text-neutral-500">
+                                {item.row.kcal} kcal
+                                {item.row.protein > 0 || item.row.carbs > 0 || item.row.fat > 0
+                                  ? ` · ${Math.round(item.row.protein)}g P · ${Math.round(item.row.carbs)}g C · ${Math.round(item.row.fat)}g F`
+                                  : ''}
+                              </p>
+                            </div>
+                            <span
+                              role="button"
+                              tabIndex={0}
+                              aria-label={`Delete ${item.row.name}`}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                deleteCustomEntry(item.row);
+                              }}
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter' || e.key === ' ') {
+                                  e.preventDefault();
+                                  e.stopPropagation();
+                                  deleteCustomEntry(item.row);
+                                }
+                              }}
+                              className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl text-neutral-400 transition hover:bg-red-50 hover:text-red-600"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </span>
+                          </button>
+                        ),
+                      )}
+                    </div>
+                  </div>
                 ))}
               </div>
             </div>

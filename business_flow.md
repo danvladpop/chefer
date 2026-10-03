@@ -4028,6 +4028,17 @@ tracker.updateCustomMeal({ date, entryId, name?, estimatedBy?, mealType?,
      entryId answers NOT_FOUND; those are edited by re-ticking a portion)
      and replaces its fields in one mutateDay transaction
 
+  WP-10 A (additive, older clients ignore all of it):
+  - `logCustomMeal` / `updateCustomMeal` / `restoreCustomMeal` take an optional
+    `unknownMacros: ('protein'|'carbs'|'fat')[]` — macros the user left blank
+    (UX-FOOD-11). They are stored as plain 0 g (shipped 1.0.1 clients read
+    numbers) with the flag next to them; `checkMacroSanity` skips an entry with
+    any unknown macro, the edit sheet shows them blank, `recents` carries the
+    flag. On update an explicit list replaces it, `[]` clears it, absent keeps it.
+  - `logCustomMeal` mints the entry's `entryId` and returns it next to
+    `{ log, rebalance }`, so Snap-to-Log's "Logged … Undo" snackbar deletes
+    exactly that entry (UX-FOOD-26).
+
 tracker.deleteCustomMeal({ date, entryId?, entryIndex? })    [F4, UX-FOOD-17]
   └─ by stable entryId when the client has one (wins over the index; a stale
      id is NOT_FOUND instead of deleting whatever moved into that position),
@@ -4098,6 +4109,36 @@ so the Log sheet's grams row can show a live kcal as the user picks
 50/100/150/200 g. Fixed alongside (T-BUG-X7): `search()` now goes through
 `ingredientPriceRepository.searchCatalog` instead of querying `prisma`
 directly.
+
+**Ingredient search ranking (UX-FOOD-12).** Rank = exact alias → the row's NAME
+starts with the query → name has the query as a word → alias-only matches
+(prefix, word-start, substring); within a rank the user's own rows, then the row
+most used by recipes (`searchByAlias` returns `uses`), then the shortest alias.
+So "chicken" lists the chicken cuts before Egg (alias "chicken egg") or schmaltz.
+`ingredients.search` takes an optional `limit` (1-40, default 12): the Log sheet's
+"Show more" asks for 36.
+
+**Target-change notices (UX-FOOD-14).** `targets.detectAndRecordChange` writes
+no notice when the previous snapshot had no body metrics and the new one does
+(finishing onboarding is setup, not a weigh-in), nor when no changed field moved
+by at least 25 kcal / 5 g (rounding wobble) — the snapshot still advances. "Keep"
+on an already-applied change fixes the targets as "My own", so both clients ask
+first (confirm sheet). The onboarding targets step previews the calories from
+the metrics entered so far (`previewTargetKcalFromBasics`), not the 2,000 default.
+
+**Today hero "I ate this" (UX-FOOD-15).** After a log the card holds the meal
+just logged as a disabled "Logged ✓" + Undo (`unlogRecipe`) for
+`HERO_LOGGED_HOLD_MS` (2 s) before the refetched summary moves it on.
+
+**Snap result (UX-FOOD-26).** The confirm card shows the photo, a 2-line dish
+name and editable calories (macros scale with them); the request times out after
+`SCAN_REQUEST_TIMEOUT_MS` (30 s); a successful log shows a snackbar/toast with Undo.
+
+**Tracker polish (UX-FOOD-25).** Off-plan recipes and custom entries are one
+"Also eaten" list grouped by meal (`groupByMeal`), above the Snap upsell on
+mobile; copy-day says "Copied 1 entry" / "Nothing to copy from yesterday"
+(`copyDayMessage`); macro fields carry visible "(g)" labels; the allowance reset
+line shows the local clock time of 00:00 UTC (`dailyAllowanceResetTime`).
 
 **Search-first Log sheet (T-19.1, both platforms).** `quick-add-sheet.tsx` /
 web `QuickAddSheet.tsx` open on a search field with **Recent** (one tap re-logs

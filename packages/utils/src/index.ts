@@ -76,6 +76,7 @@ export {
   isDeficitBlockedForAge,
   isMinorAge,
   previewCalorieTarget,
+  previewTargetKcalFromBasics,
 } from './calorie-target';
 
 export {
@@ -234,6 +235,13 @@ export {
   customEntryChipLabel,
   customEntryRows,
   customEntryTotals,
+  copyDayMessage,
+  dailyAllowanceResetTime,
+  entryUnknownMacros,
+  groupByMeal,
+  HERO_LOGGED_HOLD_MS,
+  SCAN_REQUEST_TIMEOUT_MS,
+  SCAN_TIMEOUT_MESSAGE,
   type CustomEntryRow,
   type LoggedMealEntryLike,
 } from './tracker';
@@ -268,6 +276,7 @@ export {
   INGREDIENT_GRAMS_MAX,
   MACRO_SANITY_TOLERANCE,
   QUICK_ADD_LIMITS,
+  QUICK_ADD_MACRO_KEYS,
   QUICK_ADD_MEAL_TYPES,
   checkMacroSanity,
   clampIngredientGrams,
@@ -278,6 +287,7 @@ export {
   type QuickAddEntry,
   type QuickAddErrors,
   type QuickAddInput,
+  type QuickAddMacroKey,
   type QuickAddMealType,
   type QuickAddParseResult,
 } from './quick-add';

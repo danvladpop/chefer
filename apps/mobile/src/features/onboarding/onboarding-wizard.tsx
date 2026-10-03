@@ -11,6 +11,7 @@ import {
   inToCm,
   onboardingProgress,
   onboardingSteps,
+  previewTargetKcalFromBasics,
   userFacingErrorMessage,
   type OnboardingStepKey,
 } from '@chefer/utils';
@@ -765,7 +766,9 @@ export function OnboardingWizard() {
   } else if (stepKey === 'cuisine') {
     content = <CuisineStep value={cuisine} onChange={setCuisine} />;
   } else if (stepKey === 'targets') {
-    content = <TargetsCard />;
+    content = (
+      <TargetsCard previewKcal={previewTargetKcalFromBasics(metrics, goodFood ? null : goal)} />
+    );
   } else if (stepKey === 'goal') {
     content = (
       <View className="gap-3">
