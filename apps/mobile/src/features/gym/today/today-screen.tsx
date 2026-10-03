@@ -19,6 +19,7 @@ import {
   doneTodayCard,
   equipmentProfileOf,
   missedPlannedDays,
+  pauseSummaryLine,
   progressionKey,
   shortVersionOfWorkout,
   supersetRuns,
@@ -494,7 +495,7 @@ export function TodayScreen() {
           <Card testID="gym-today-paused" className="gap-2">
             <Text className="font-semibold">Training paused</Text>
             <Text variant="muted" className="text-sm">
-              {`Resumes ${bootstrap.activePause.endDate}${bootstrap.activePause.reason ? ` · ${bootstrap.activePause.reason}` : ''}`}
+              {pauseSummaryLine(bootstrap.activePause, today)}
             </Text>
             <Button
               testID="gym-today-end-pause"

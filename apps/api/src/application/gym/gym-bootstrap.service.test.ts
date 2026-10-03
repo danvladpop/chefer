@@ -273,6 +273,15 @@ describe('GymBootstrapService.get', () => {
     });
     const b3 = await future.service.get(USER, { today: TODAY });
     expect(b3.activePause).toBeNull();
+    // UX-GYM-16: a pause that has not started yet is surfaced separately, so a
+    // client can show (and cancel) it instead of offering to create a second one.
+    expect(b3.upcomingPause).toEqual({
+      id: 'p2',
+      startDate: '2026-10-01',
+      endDate: '2026-10-14',
+      reason: 'vacation',
+    });
+    expect(b.upcomingPause).toBeNull();
   });
 
   it('T-36.3: passes GymProfile.carryOver into buildNextWorkout and the bootstrap', async () => {

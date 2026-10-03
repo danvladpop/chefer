@@ -148,6 +148,7 @@ export class GymBootstrapService {
       streak,
       offers: this.offers(ctx, progressions, allWeeks, sessionDates, today),
       activePause: this.activePause(pauses, today),
+      upcomingPause: this.upcomingPause(pauses, today),
       carryOver: ctx.profileRow ? readCarryOver(ctx.profileRow.carryOver) : [],
       bodyweightKg: latestWeight?.weightKg ?? null,
       olderBests: summarizeBests(olderRows.map((r) => toSessionSummary(toSessionDoc(r)))),
@@ -273,6 +274,16 @@ export class GymBootstrapService {
   /** The pause covering `today` (device-local), if any — lets a client end it directly. */
   private activePause(pauses: TrainingPause[], today: string): ActivePauseDto | null {
     const row = pauses.find((p) => p.startDate <= today && today <= p.endDate);
+    return row
+      ? { id: row.id, startDate: row.startDate, endDate: row.endDate, reason: row.reason }
+      : null;
+  }
+
+  /** The soonest pause that starts after `today`, if any (UX-GYM-16: a start choice). */
+  private upcomingPause(pauses: TrainingPause[], today: string): ActivePauseDto | null {
+    const row = pauses
+      .filter((p) => p.startDate > today)
+      .sort((a, b) => a.startDate.localeCompare(b.startDate))[0];
     return row
       ? { id: row.id, startDate: row.startDate, endDate: row.endDate, reason: row.reason }
       : null;

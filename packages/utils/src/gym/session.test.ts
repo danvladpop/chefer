@@ -537,6 +537,36 @@ describe('buildNextWorkout', () => {
     expect(lateral?.suggestion).toMatchObject({ weightKg: 10, reasonCode: 'USER_OVERRIDE' });
   });
 
+  // UX-GYM-18: bench was set up at 80 kg in the 6-8 bucket; the routine now says 10-12.
+  it('a rep range with no progression yet carries the known weight from the same exercise', () => {
+    const edited: RoutineDto = {
+      ...ROUTINE,
+      days: ROUTINE.days.map((d) => ({
+        ...d,
+        exercises: d.exercises.map((e) =>
+          e.exerciseId === 'barbell-bench-press' ? { ...e, repMin: 10, repMax: 12 } : e,
+        ),
+      })),
+    };
+    const carried = buildNextWorkout({
+      routine: edited,
+      dayId: 'dA',
+      lookup,
+      progressions,
+      profile: KG_PROFILE,
+      facts,
+      today: '2026-09-15',
+      recentSessions: recent,
+      isDeload: false,
+    });
+    const bench = carried.exercises.find((e) => e.exerciseId === 'barbell-bench-press');
+    expect(bench?.repBucket).toBe('10-12');
+    // Lighter than 80 kg for 10 reps, but nowhere near the 30 kg starting guess.
+    expect(bench?.suggestion.weightKg).toBeGreaterThan(60);
+    expect(bench?.suggestion.weightKg).toBeLessThan(80);
+    expect(bench?.suggestion.reasonCode).toBe('START');
+  });
+
   it('ramps the first exercise of a movement pattern, then a single feeler', () => {
     const [bench, db] = workout.exercises;
     expect(bench?.warmups).toEqual([

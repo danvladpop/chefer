@@ -245,6 +245,12 @@ export interface GymBootstrap {
   offers: GymOffer[];
   /** The pause covering `today`, or null — additive field, see gym_plan.md §1.4 / §9.2. */
   activePause: ActivePauseDto | null;
+  /**
+   * The next pause that has not started yet (UX-GYM-16: a pause can begin
+   * tomorrow / next Monday), or null. Additive and optional — older servers and
+   * cached bootstraps omit it; clients treat absent as null.
+   */
+  upcomingPause?: ActivePauseDto | null;
   /** `GymProfile.carryOver` (T-36.3) — additive; already folded into `nextWorkout`. */
   carryOver: CarryOverList;
   /** Latest known bodyweight (kg) from the nutrition weight log. */

@@ -436,8 +436,11 @@ describe('TodayScreen', () => {
       await renderToday(queryClient);
 
       expect(screen.getByTestId('gym-today-paused')).toBeOnTheScreen();
-      expect(screen.getByTestId('gym-today-paused')).toHaveTextContent(/2026-10-04/);
-      expect(screen.getByTestId('gym-today-paused')).toHaveTextContent(/vacation/);
+      // UX-GYM-16: a human date and a reason label — never "2026-10-04" / "vacation".
+      expect(screen.getByTestId('gym-today-paused')).toHaveTextContent(
+        /Paused through Sun 4 Oct · Vacation/,
+      );
+      expect(screen.getByTestId('gym-today-paused')).not.toHaveTextContent(/2026-10-04|Resumes/);
       expect(screen.queryByTestId('gym-today-next-up')).not.toBeOnTheScreen();
 
       await user.press(screen.getByTestId('gym-today-end-pause'));
