@@ -257,7 +257,7 @@ export default function MealPlanScreen() {
         // orchestrator wires it, with no crash meanwhile.
         const cause = (err.data as { poolExhausted?: { message?: string } } | undefined)
           ?.poolExhausted;
-        setPoolExhaustedMessage(cause?.message ?? err.message);
+        setPoolExhaustedMessage(cause?.message ?? userFacingErrorMessage(err));
       }
     },
   });

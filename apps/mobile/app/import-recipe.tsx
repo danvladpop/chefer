@@ -414,7 +414,7 @@ export default function ImportRecipeScreen() {
             </Button>
             {previewError && (
               <Card testID="import-error" className="border-red-200 bg-red-50">
-                <Text className="text-sm text-red-600">{previewError.message}</Text>
+                <Text className="text-sm text-red-600">{userFacingErrorMessage(previewError)}</Text>
               </Card>
             )}
           </>
