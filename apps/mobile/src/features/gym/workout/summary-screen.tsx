@@ -383,7 +383,8 @@ function AdjustSheet({
   // 150 kg from 40 kg takes at most 5 taps instead of ~44 ± presses.
   const [editing, setEditing] = useState<'weight' | 'reps' | null>(null);
   const reps = s.reps.map((r) => Math.max(1, r + (repsFirst - firstRep)));
-  const mutation = trpc.gym.progression.setOverride.useMutation();
+  // The sheet shows its own error line — no default snackbar.
+  const mutation = trpc.gym.progression.setOverride.useMutation({ meta: { silent: true } });
 
   const nextWeight = useCallback(
     (kg: number, direction: 1 | -1) => nextLoad(kg, direction, meta, profile),

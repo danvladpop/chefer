@@ -37,11 +37,29 @@ const EQUIPMENT_LABELS: Record<string, string> = {
   KETTLEBELL: 'Kettlebell',
   BAND: 'Band',
   ASSISTED: 'Assisted',
+  // UX-GYM-21: the cardio equipment showed as raw enum text (TREADMILL, SKI_ERG).
+  TREADMILL: 'Treadmill',
+  BIKE: 'Bike',
+  ROWER: 'Rower',
+  ELLIPTICAL: 'Elliptical',
+  STAIR_CLIMBER: 'Stair climber',
+  SKI_ERG: 'Ski erg',
+  ASSAULT_BIKE: 'Assault bike',
+  JUMP_ROPE: 'Jump rope',
+  POOL: 'Pool',
+  OUTDOOR: 'Outdoor',
 };
+
+/** A human label for an equipment value; never the raw enum text. */
+export function equipmentLabel(value: string): string {
+  return (
+    EQUIPMENT_LABELS[value] ?? value.charAt(0) + value.slice(1).toLowerCase().replace(/_/g, ' ')
+  );
+}
 
 export const EQUIPMENT_FILTERS: { value: string; label: string }[] = Object.values(
   ExerciseEquipment,
-).map((value) => ({ value, label: EQUIPMENT_LABELS[value] ?? value }));
+).map((value) => ({ value, label: equipmentLabel(value) }));
 
 export interface ExercisesTabFilters {
   query: string;

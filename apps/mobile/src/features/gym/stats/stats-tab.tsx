@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { ScrollView, View } from 'react-native';
 import { useLocalSearchParams } from 'expo-router';
 import { Card, Chip, Screen, Text } from '@chefer/ui-mobile';
+import { GymBootstrapUnavailable, useGymBootstrapLoad } from '../components/gym-bootstrap-state';
 import { ModeSwitch } from '../components/mode-switch';
 import { useGymBootstrap } from '../use-gym-bootstrap';
 import { ConsistencyView } from './consistency-view';
@@ -19,7 +20,10 @@ import { StrengthTrendView } from './strength-trend-view';
 // section's `All history` link opens straight into it via `?tab=history`.
 
 export function StatsTab() {
-  const { data: bootstrap, isLoading } = useGymBootstrap();
+  const bootstrapQuery = useGymBootstrap();
+  const bootstrap = bootstrapQuery.data;
+  // UX-GYM-24: a failed load is an error with Retry, never "Loading…" forever.
+  const { load, retry } = useGymBootstrapLoad(bootstrapQuery);
   const [moreOpen, setMoreOpen] = useState(false);
   const { tab } = useLocalSearchParams<{ tab?: string }>();
   const [segment, setSegment] = useState<'overview' | 'history'>(
@@ -49,10 +53,13 @@ export function StatsTab() {
         </View>
       </View>
 
-      {isLoading || !bootstrap ? (
-        <Text variant="muted" className="px-4">
-          Loading…
-        </Text>
+      {!bootstrap || load !== 'data' ? (
+        <GymBootstrapUnavailable
+          load={load === 'data' ? 'loading' : load}
+          onRetry={retry}
+          testID="gym-stats"
+          what="your stats"
+        />
       ) : segment === 'history' ? (
         <ScrollView contentContainerClassName="gap-4 px-4 pb-8" testID="gym-stats-history-scroll">
           <HistoryView bootstrap={bootstrap} />

@@ -7,7 +7,7 @@ import {
   type ExerciseDto,
   type LibraryFilterGroup,
 } from '@chefer/types';
-import { ChipGroup, Sheet, Text } from '@chefer/ui-mobile';
+import { Button, ChipGroup, Sheet, Text } from '@chefer/ui-mobile';
 import {
   cn,
   exerciseMatchesFilterGroup,
@@ -16,6 +16,7 @@ import {
   trackingTypeOf,
 } from '@chefer/utils';
 import { ExerciseImage } from '../components/exercise-image';
+import { useIsOnline } from '../library-screens/online-status';
 import { CollapsibleChipFilters } from './collapsible-chip-filters';
 import { exerciseImageUrl } from './exercise-image';
 import { useKeyboardVisible } from './use-keyboard-visible';
@@ -35,6 +36,13 @@ export interface ExercisePickerProps {
   excludeIds?: readonly string[];
   /** T-42.3: show a "Cardio" filter chip first (behind cardioLogging — the caller decides). */
   showCardioFilter?: boolean;
+  /**
+   * UX-GYM-21: when nothing matches the search, offer `Create "<query>"` (online
+   * only — custom exercises are created on the server). The picker closes
+   * itself first, then calls this with the searched name; the caller opens the
+   * form (`openCreateExercise`). Omit for pickers that only choose existing lifts.
+   */
+  onCreateFromSearch?: (name: string) => void;
   testID?: string;
 }
 
@@ -78,8 +86,10 @@ export function ExercisePicker({
   preferSwapGroup,
   excludeIds,
   showCardioFilter = false,
+  onCreateFromSearch,
   testID = 'exercise-picker',
 }: ExercisePickerProps) {
+  const online = useIsOnline();
   const [query, setQuery] = useState('');
   const [group, setGroup] = useState<PickerFilter | null>(null);
   const keyboardVisible = useKeyboardVisible();
@@ -180,9 +190,23 @@ export function ExercisePicker({
           );
         }}
         ListEmptyComponent={
-          <Text variant="muted" className="px-4 py-6 text-center">
-            No exercises match. Try another search.
-          </Text>
+          <View className="items-center gap-3 px-4 py-6">
+            <Text variant="muted" className="text-center">
+              No exercises match. Try another search.
+            </Text>
+            {onCreateFromSearch && online && query.trim().length >= 2 ? (
+              <Button
+                testID={`${testID}-create-from-search`}
+                variant="outline"
+                onPress={() => {
+                  onClose();
+                  onCreateFromSearch(query.trim());
+                }}
+              >
+                {`Create “${query.trim()}”`}
+              </Button>
+            ) : null}
+          </View>
         }
       />
     </Sheet>

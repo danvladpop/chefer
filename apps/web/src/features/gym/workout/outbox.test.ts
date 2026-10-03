@@ -303,3 +303,113 @@ describe('web outbox — hold / Undo / stale (UX-44, T-44.5)', () => {
     expect(onSynced).toHaveBeenCalledWith([tomb.id]);
   });
 });
+
+// UX-GYM-23 (WP-02): an ack for an older copy must not drop a newer edit that
+// was queued while the upload was in flight. Mirrors the phone's outbox test.
+describe('web outbox — ack for an older copy (UX-GYM-23)', () => {
+  const NEWER = '2026-09-24T10:05:00.000Z';
+
+  it('keeps the newer entry when the older copy is acked, then sends it next', async () => {
+    const { box } = setup();
+    const older = finishedDoc();
+    const newer = { ...older, clientUpdatedAt: NEWER, notes: 'edited while uploading' };
+    let release: (docs: WorkoutSessionDoc[]) => void = () => undefined;
+    const first = new Promise<SyncResultDto[]>((resolve) => {
+      release = (docs) => resolve(docs.map((d) => ({ id: d.id, status: 'applied' as const })));
+    });
+    const send = vi
+      .fn<Parameters<SendDocs>, ReturnType<SendDocs>>()
+      .mockReturnValueOnce(first)
+      .mockImplementation((docs) =>
+        Promise.resolve(docs.map((d) => ({ id: d.id, status: 'applied' as const }))),
+      );
+    box.configure({ send });
+    box.enqueue(older);
+
+    const flushing = box.flush({ force: true });
+    box.enqueue(newer); // queued while the first request is in flight
+    release([older]);
+    await flushing;
+
+    expect(send).toHaveBeenCalledTimes(2);
+    expect(send.mock.calls[1]?.[0][0]?.clientUpdatedAt).toBe(NEWER);
+    expect(box.getState().entries).toHaveLength(0);
+  });
+
+  it('does not drop the newer entry even if sending it fails afterwards', async () => {
+    const { box } = setup();
+    const older = finishedDoc();
+    const newer = { ...older, clientUpdatedAt: NEWER };
+    let release: (docs: WorkoutSessionDoc[]) => void = () => undefined;
+    const first = new Promise<SyncResultDto[]>((resolve) => {
+      release = (docs) => resolve(docs.map((d) => ({ id: d.id, status: 'applied' as const })));
+    });
+    const send = vi
+      .fn<Parameters<SendDocs>, ReturnType<SendDocs>>()
+      .mockReturnValueOnce(first)
+      .mockRejectedValue(new TypeError('Failed to fetch'));
+    box.configure({ send });
+    box.enqueue(older);
+
+    const flushing = box.flush({ force: true });
+    box.enqueue(newer);
+    release([older]);
+    await flushing;
+
+    const [entry] = box.getState().entries;
+    expect(entry?.doc.clientUpdatedAt).toBe(NEWER);
+    expect(entry?.parkedReason).toBeUndefined();
+  });
+});
+
+// UX-GYM-25 (WP-02): a workout the server keeps failing on is isolated and
+// parked after a few rounds so it cannot block the others.
+describe('web outbox — a failing item is parked (UX-GYM-25)', () => {
+  const serverDown = () => Object.assign(new Error('boom'), { data: { httpStatus: 500 } });
+
+  it('after 3 failed rounds sends one by one, delivers the rest and parks the failing one', async () => {
+    const { box, advance } = setup();
+    const bad = finishedDoc();
+    const send = vi.fn<Parameters<SendDocs>, ReturnType<SendDocs>>((docs) =>
+      docs.some((d) => d.id === bad.id)
+        ? Promise.reject(serverDown())
+        : Promise.resolve(docs.map((d) => ({ id: d.id, status: 'applied' as const }))),
+    );
+    box.configure({ send });
+    box.enqueue(bad);
+    box.enqueue(finishedDoc());
+    box.enqueue(finishedDoc());
+
+    for (let round = 1; round <= 2; round++) {
+      expect((await box.flush({ force: true })).status).toBe('error');
+      expect(box.getState().entries.every((e) => !e.parkedReason)).toBe(true);
+      advance(60_000);
+    }
+    expect(box.getState().entries).toHaveLength(3);
+
+    const third = await box.flush({ force: true });
+    expect(third).toMatchObject({ applied: 2, parked: 1 });
+    expect(box.getState().entries.map((e) => e.doc.id)).toEqual([bad.id]);
+    expect(box.getState().entries[0]?.parkedReason).toContain("couldn't save");
+    expect(box.getState()).toMatchObject({ failures: 0, nextAttemptAt: null });
+  });
+
+  it('does not park anything while the whole server is down, or on network errors', async () => {
+    const { box } = setup();
+    box.configure({
+      send: vi.fn<Parameters<SendDocs>, ReturnType<SendDocs>>(() => Promise.reject(serverDown())),
+    });
+    box.enqueue(finishedDoc());
+    box.enqueue(finishedDoc());
+    for (let i = 0; i < 5; i++) await box.flush({ force: true });
+    expect(box.getState().entries.every((e) => !e.parkedReason)).toBe(true);
+
+    box.configure({
+      send: vi.fn<Parameters<SendDocs>, ReturnType<SendDocs>>(() =>
+        Promise.reject(new TypeError('Failed to fetch')),
+      ),
+    });
+    for (let i = 0; i < 5; i++) await box.flush({ force: true });
+    expect(box.getState().entries.every((e) => !e.parkedReason)).toBe(true);
+  });
+});

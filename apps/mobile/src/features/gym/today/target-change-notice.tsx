@@ -58,7 +58,8 @@ export function TargetChangeNotice({
   const notice = useTargetNotice();
   const snackbar = useSnackbar();
   const queryClient = useQueryClient();
-  const setOverride = trpc.gym.progression.setOverride.useMutation();
+  // The card shows its own failure snackbar below — no second default one.
+  const setOverride = trpc.gym.progression.setOverride.useMutation({ meta: { silent: true } });
   const rows = useMemo(
     () => (notice ? noticeRows(notice, bootstrap, dataUpdatedAt) : null),
     [notice, bootstrap, dataUpdatedAt],
