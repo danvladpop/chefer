@@ -6,8 +6,10 @@ import { HIDDEN_EXERCISE_IMAGE_IDS, MUSCLE_LABELS } from '@chefer/types';
 import { Button, Chip, ChipGroup, EmptyState, Input, Screen, Text } from '@chefer/ui-mobile';
 import { useFlags } from '../../../hooks/use-flags';
 import { ExerciseImage } from '../components/exercise-image';
+import { GymBootstrapUnavailable, useGymBootstrapLoad } from '../components/gym-bootstrap-state';
 import { ModeSwitch } from '../components/mode-switch';
 import { CollapsibleChipFilters } from '../library/collapsible-chip-filters';
+import { createExerciseHref } from '../library/create-exercise-href';
 import { exerciseImageUrl } from '../library/exercise-image';
 import type { PickerFilter } from '../library/exercise-picker';
 import { useKeyboardVisible } from '../library/use-keyboard-visible';
@@ -26,7 +28,10 @@ import {
 const PREFETCH_DELAY_MS = 300;
 
 export function ExercisesTab() {
-  const { data: bootstrap, isLoading } = useGymBootstrap();
+  const bootstrapQuery = useGymBootstrap();
+  const bootstrap = bootstrapQuery.data;
+  // UX-GYM-24: a failed or offline first load must not read as "No exercises match".
+  const { load, retry } = useGymBootstrapLoad(bootstrapQuery);
   const { cardioLogging } = useFlags();
   const [query, setQuery] = useState('');
   const [group, setGroup] = useState<PickerFilter | null>(null);
@@ -184,10 +189,13 @@ export function ExercisesTab() {
           );
         }}
         ListEmptyComponent={
-          isLoading ? (
-            <Text variant="muted" className="px-4 py-6 text-center">
-              Loading exercises…
-            </Text>
+          load !== 'data' ? (
+            <GymBootstrapUnavailable
+              load={load}
+              onRetry={retry}
+              testID="exercises"
+              what="the exercises"
+            />
           ) : (
             <EmptyState
               testID="exercises-empty"
@@ -198,13 +206,20 @@ export function ExercisesTab() {
                   : 'Try another search or clear a filter.'
               }
               action={
-                mineOnly
+                query.trim().length >= 2 && !mineOnly
                   ? {
-                      label: 'Create custom exercise',
-                      testID: 'exercises-empty-create',
-                      onPress: () => router.push('/gym/exercise-form'),
+                      // UX-GYM-21: nothing matched — offer to create it.
+                      label: `Create “${query.trim()}”`,
+                      testID: 'exercises-empty-create-from-search',
+                      onPress: () => router.push(createExerciseHref(query)),
                     }
-                  : undefined
+                  : mineOnly
+                    ? {
+                        label: 'Create custom exercise',
+                        testID: 'exercises-empty-create',
+                        onPress: () => router.push('/gym/exercise-form'),
+                      }
+                    : undefined
               }
             />
           )

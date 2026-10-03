@@ -28,6 +28,8 @@ export function LogWeightPrompt({ testID = 'log-weight-prompt' }: { testID?: str
       void utils.tracker.weightHistory.invalidate();
     },
     onError: (err) => setError(userFacingErrorMessage(err)),
+    // Shown inline under the field — no default snackbar.
+    meta: { silent: true },
   });
 
   const submit = () => {

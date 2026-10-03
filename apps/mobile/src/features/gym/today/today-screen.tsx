@@ -1,12 +1,5 @@
 import { useCallback, useState } from 'react';
-import {
-  ActivityIndicator,
-  Pressable,
-  RefreshControl,
-  Text as RNText,
-  ScrollView,
-  View,
-} from 'react-native';
+import { Pressable, RefreshControl, Text as RNText, ScrollView, View } from 'react-native';
 import { onlineManager, useQueryClient } from '@tanstack/react-query';
 import { router, useFocusEffect } from 'expo-router';
 import type { GymBootstrap, GymOffer, NextWorkoutDto } from '@chefer/types';
@@ -37,7 +30,9 @@ import {
 import { trpc } from '../../../lib/trpc';
 import { captureGymEvent } from '../analytics';
 import { ExerciseNameLink } from '../components/exercise-name-link';
+import { GymBootstrapUnavailable, useGymBootstrapLoad } from '../components/gym-bootstrap-state';
 import { ModeSwitch } from '../components/mode-switch';
+import { OutboxWaitingCard } from '../components/outbox-waiting-card';
 import { useActiveSessionPausedAt } from '../offline/active-session-store';
 import { localDate } from '../offline/ids';
 import { useOutboxStatus } from '../offline/outbox';
@@ -104,6 +99,7 @@ export function TodayScreen() {
   useGymReminders();
   const bootstrapQuery = useGymBootstrap();
   const bootstrap = bootstrapQuery.data;
+  const bootstrapLoad = useGymBootstrapLoad(bootstrapQuery);
   const activeWorkout = useActiveWorkout();
   const pausedAt = useActiveSessionPausedAt();
   const outboxStatus = useOutboxStatus();
@@ -301,26 +297,18 @@ export function TodayScreen() {
     </View>
   );
 
-  if (!bootstrap) {
+  // UX-GYM-24: a failed first load shows Retry (not an endless spinner); with
+  // no connection and no cache, "needs a connection".
+  if (!bootstrap || bootstrapLoad.load !== 'data') {
     return (
       <Screen className="px-0">
         <View className="gap-4 px-4 pt-3">{header}</View>
-        {bootstrapQuery.fetchStatus === 'paused' ? (
-          <EmptyState
-            testID="gym-today-empty-offline"
-            title="Needs a connection"
-            description="Your first sync with the gym needs a connection. Reconnect and try again."
-            action={{
-              label: 'Try again',
-              onPress: () => void bootstrapQuery.refetch(),
-              testID: 'gym-today-retry',
-            }}
-          />
-        ) : (
-          <View className="flex-1 items-center justify-center" testID="gym-today-loading">
-            <ActivityIndicator size="large" color="#944a00" />
-          </View>
-        )}
+        <GymBootstrapUnavailable
+          load={bootstrapLoad.load === 'data' ? 'loading' : bootstrapLoad.load}
+          onRetry={bootstrapLoad.retry}
+          testID="gym-today"
+          what="your training"
+        />
       </Screen>
     );
   }
@@ -780,18 +768,8 @@ export function TodayScreen() {
           </Card>
         ))}
 
-        {outboxStatus.parked.length === 0 && outboxStatus.pending > 0 && (
-          <Pressable
-            testID="gym-today-outbox"
-            accessibilityRole="button"
-            onPress={() => router.push('/gym/settings')}
-            className="min-h-11 justify-center rounded-lg bg-muted px-4 py-3"
-          >
-            <Text className="text-xs text-muted-foreground">
-              {`${outboxStatus.pending} workout${outboxStatus.pending === 1 ? '' : 's'} waiting to sync`}
-            </Text>
-          </Pressable>
-        )}
+        {/* UX-GYM-25: how many are waiting, why the last try failed, Sync now. */}
+        <OutboxWaitingCard status={outboxStatus} testID="gym-today-outbox" />
       </ScrollView>
 
       {activeWorkout.session ? (

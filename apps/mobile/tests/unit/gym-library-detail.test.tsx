@@ -192,11 +192,12 @@ describe('ExerciseDetailScreen', () => {
     await renderWithGym(<ExerciseDetailScreen exerciseId="my-curl" />, queryClient);
 
     await user.press(await screen.findByTestId('exercise-detail-archive'));
-    expect(Alert.alert).toHaveBeenCalledWith(
-      'Archive this exercise?',
-      expect.any(String),
-      expect.any(Array),
+    // X-13: a ConfirmSheet (with busy / error states), not a native Alert.
+    expect(Alert.alert).not.toHaveBeenCalled();
+    expect(await screen.findByTestId('exercise-detail-archive-confirm-body')).toHaveTextContent(
+      /stays in past sessions/,
     );
+    expect(screen.getByTestId('exercise-detail-archive-confirm-confirm')).toBeOnTheScreen();
   });
 
   it('lists recent sessions for this exercise and opens one on tap', async () => {

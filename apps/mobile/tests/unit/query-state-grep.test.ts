@@ -16,7 +16,6 @@ const ALLOWED: string[] = [
   // Query screens still to convert (lanes B / C of WP-02).
   'src/features/preferences/targets-card.tsx: isLoading || !data',
   'src/features/meal-plan/plan-settings-sheet.tsx: isLoading || !draft',
-  'src/features/gym/stats/stats-tab.tsx: isLoading || !bootstrap',
   // Not a query: `isPending` is a mutation's flag guarding a missing argument.
   'src/features/tracker/quick-add-sheet.tsx: isPending || !ingredient',
 ];

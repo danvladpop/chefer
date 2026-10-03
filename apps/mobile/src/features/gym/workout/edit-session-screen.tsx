@@ -21,6 +21,7 @@ import {
 } from '@chefer/utils';
 import { useFlags } from '../../../hooks/use-flags';
 import { captureGymEvent } from '../analytics';
+import { openCreateExercise } from '../library/create-exercise-href';
 import { ExercisePicker } from '../library/exercise-picker';
 import { newId } from '../offline/ids';
 import { deleteSessionWithUndo, saveEditedSession } from '../offline/session-corrections';
@@ -594,6 +595,7 @@ function SessionEditor({ edit, mode }: { edit: EditSession; mode: 'edit' | 'log'
         preferSwapGroup={replacing ? contentMeta?.swapGroup : null}
         excludeIds={replacing && contentSe ? [contentSe.exerciseId] : undefined}
         showCardioFilter={cardioLogging && !replacing}
+        onCreateFromSearch={openCreateExercise}
         testID="edit-session-picker"
       />
       <ConfirmSheet
