@@ -26,6 +26,7 @@ import {
   isNotFoundError,
   labelCaveatLineText,
   parseNutritionStatus,
+  recipeShareText,
   scaleNutrition,
   slotPortion,
   tableBreakdown,
@@ -41,11 +42,7 @@ import {
   nutritionStatusBadge,
 } from '../../src/features/ingredients/nutrition-provenance';
 import { AllergenWarningBanner } from '../../src/features/recipes/allergen-warning';
-import {
-  chunkShoppingLines,
-  recipeShareText,
-  shoppingLinesFor,
-} from '../../src/features/recipes/recipe-actions';
+import { chunkShoppingLines, shoppingLinesFor } from '../../src/features/recipes/recipe-actions';
 import { RecipeImage } from '../../src/features/recipes/recipe-image';
 import { StarRating } from '../../src/features/recipes/star-rating';
 import { CheckedForLine } from '../../src/features/safety/checked-for-line';

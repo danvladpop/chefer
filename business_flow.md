@@ -1382,6 +1382,20 @@ Plan/Shop/Today used to answer "what's my plan" four different ways: `mealPlan.g
 - **My weeks**: saved weeks + past weeks (see §9 "Week templates").
 - **Ingredients** left the nav; `/ingredients` still works by URL.
 
+**Cookbook tabs and paging (UX-REC-05, WP-11).** All = recipes from your plans, your own recipes and your favourites;
+Saved = hearted; Mine = recipes you wrote or imported (the AI dishes your plans made are under All, and each tab says so in
+a one-line caption); Discover = the curated pool, safety-filtered. The first three page with the API's cursor (the last row's
+id): the app loads the next page when the list ends, the web cookbook has a "Load more" button. An empty Discover with no
+filter set means the diet filters hid every dish: it says so and links to the diet settings (UX-REC-09).
+
+**Recipe menu, delete and Undo (UX-REC-04/08, WP-11).** The ⋯ on a recipe opens a menu: Add to my week (any recipe, no
+Following needed: `recipe.addToWeek`, with an Undo snackbar), Add ingredients to the shopping list (this week's list, scaled to
+the servings stepper), Share (native share sheet; web: share sheet or clipboard). On your own recipe it also offers Edit,
+Duplicate (a prefilled new recipe named "Copy of …") and Delete. Delete asks first, then **soft-deletes** (`recipe.deleteMine`):
+the recipe leaves your cookbook, lists, favourites, pins and Following, and a snackbar offers Undo for 10 seconds
+(`recipe.restoreMine`). Plan slots that already hold it keep showing it (a tombstone: `mealPlan.getRecipe` answers
+`deleted: true`), so no week ever breaks; an old app that opens the id from elsewhere gets "Recipe not found", never an error.
+
 ### 10.1 Training-aware nutrition (audit P2-4)
 
 Connects the gym to the food side with deterministic rules (no AI call).
@@ -2071,6 +2085,12 @@ and computed nutrition since P9 — see "Mobile: catalog lines" in §31):
   └─ Save → recipe.importSave { variant: 'original', sourceUrl, ogImageUrl }
        (same save path; allergen conflicts are shown as a warning on the form)
 ```
+
+**One review form for every source (UX-REC-15/14/07, WP-11).** On mobile, link and text imports now review in this same
+editable form (seeded with the version you pick: Original, or Cheferized when the adaptation changed something and is safe;
+with nothing to choose, "Cheferized for you" is a note), instead of a read-only preview. Saving opens the new recipe
+(`router.replace`), and the recipe page always shows a source link back to the page or video it came from. A scaled recipe
+keeps spoon units ("1½ tbsp", never "22 ml"). (The web import sheet keeps its read-only link/text review for now.)
 
 Errors the user can see: not a supported link; private / login-only video; video not
 found; video site refused us (YouTube bot check, rate limit); longer than 10 minutes;

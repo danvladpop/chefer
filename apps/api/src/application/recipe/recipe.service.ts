@@ -69,7 +69,12 @@ type RecipeWithPeople = Awaited<
  * they surface only as the optional `creator`/`origin` keys, so a row for a
  * user who never used Following has exactly the pre-Following key set (INV-8).
  */
-type FollowingColumns = 'originRecipeId' | 'originCreatorId' | 'hiddenAt' | 'hiddenReason';
+type FollowingColumns =
+  | 'originRecipeId'
+  | 'originCreatorId'
+  | 'hiddenAt'
+  | 'hiddenReason'
+  | 'deletedAt';
 
 /** A `recipe.list` row: the recipe as before, plus the optional attribution keys. */
 export type RecipeListRow = Omit<Recipe, FollowingColumns> &
@@ -107,6 +112,8 @@ function toListRow(
     originCreatorId: _originCreatorId,
     hiddenAt: _hiddenAt,
     hiddenReason: _hiddenReason,
+    // UX-REC-04: listed rows are never deleted — the column stays server-side.
+    deletedAt: _deletedAt,
     ...base
   } = row;
   const { creator: creatorDto, origin } = recipeAttribution(

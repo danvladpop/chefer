@@ -562,6 +562,7 @@ export {
   type PremiumPitchOptions,
 } from './premium-pitch';
 export { tagConflicts, type RecipeTagConflict } from './recipe-tags';
+export { recipeShareText, type ActionRecipe } from './recipe-share';
 export {
   formatFractionalQuantity,
   formatScaledQuantity,

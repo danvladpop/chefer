@@ -392,6 +392,7 @@ const repoRow = (
   originCreatorId: null,
   hiddenAt: null,
   hiddenReason: null,
+  deletedAt: null,
   creator: null,
   originCreator: null,
   ...over,

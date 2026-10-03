@@ -578,10 +578,15 @@ export default function NewRecipePage() {
             </Link>
             <button
               type="submit"
-              disabled={createMutation.isPending}
+              // UX-REC-12: a Save mid-upload would store the recipe without its photo.
+              disabled={createMutation.isPending || uploading}
               className="flex min-h-11 items-center justify-center rounded-xl bg-[#944a00] px-6 text-sm font-semibold text-white transition-colors hover:bg-[#7a3d00] disabled:opacity-60"
             >
-              {createMutation.isPending ? 'Saving…' : 'Save Recipe'}
+              {createMutation.isPending
+                ? 'Saving…'
+                : uploading
+                  ? 'Uploading photo…'
+                  : 'Save Recipe'}
             </button>
           </div>
         </div>
