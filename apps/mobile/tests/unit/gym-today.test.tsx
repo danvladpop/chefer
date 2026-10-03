@@ -475,8 +475,11 @@ describe('TodayScreen', () => {
       await renderToday(queryClient);
 
       expect(screen.getByTestId('gym-today-paused')).toBeOnTheScreen();
-      expect(screen.getByTestId('gym-today-paused')).toHaveTextContent(/2026-10-04/);
-      expect(screen.getByTestId('gym-today-paused')).toHaveTextContent(/vacation/);
+      // UX-GYM-16: a human date and a reason label — never "2026-10-04" / "vacation".
+      expect(screen.getByTestId('gym-today-paused')).toHaveTextContent(
+        /Paused through Sun 4 Oct · Vacation/,
+      );
+      expect(screen.getByTestId('gym-today-paused')).not.toHaveTextContent(/2026-10-04|Resumes/);
       expect(screen.queryByTestId('gym-today-next-up')).not.toBeOnTheScreen();
 
       await user.press(screen.getByTestId('gym-today-end-pause'));
@@ -569,6 +572,23 @@ describe('TodayScreen', () => {
         ...overrides,
       };
     }
+
+    it('UX-GYM-15: with no active routine, Recent workouts and "Log a workout you already did" stay', async () => {
+      const queryClient = makeClient();
+      queryClient.setQueryData(
+        gymBootstrapQueryKey,
+        makeBootstrap({
+          activeRoutine: null,
+          nextWorkout: null,
+          recentSessions: [todaySession()],
+        }),
+      );
+      await renderToday(queryClient);
+
+      expect(screen.getByTestId('gym-today-empty-routine')).toBeOnTheScreen();
+      expect(screen.getByTestId('gym-today-recent')).toBeOnTheScreen();
+      expect(screen.getByTestId('gym-today-log-past')).toBeOnTheScreen();
+    });
 
     it('shows "Done today" (no Start) once a session finished today, even on a training weekday', async () => {
       const user = userEvent.setup();

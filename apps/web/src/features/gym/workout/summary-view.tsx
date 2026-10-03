@@ -27,6 +27,7 @@ import {
   cn,
   explain,
   formatLoad,
+  hasPriorExposure,
   isHarder,
   kgToUnit,
   localDateStr,
@@ -110,7 +111,17 @@ export function SummaryView({ id }: { id: string }) {
     ),
   );
   const prior = data.recentSessions.filter((s) => s.id !== doc.id && s.startedAt < doc.startedAt);
-  const prs = livePrs(doc, prior, data.olderBests);
+  // UX-GYM-18: an exercise's first-ever session is a baseline, not a record — it is
+  // not counted or celebrated here (the live badge and the PR timeline keep it).
+  const prs = new Map(
+    [...livePrs(doc, prior, data.olderBests)].filter(([seId]) => {
+      const exerciseId = doc.exercises.find((se) => se.id === seId)?.exerciseId;
+      return (
+        exerciseId !== undefined &&
+        hasPriorExposure({ exerciseId, history: prior, best: data.olderBests?.[exerciseId] })
+      );
+    }),
+  );
   const inventory = profile ?? FALLBACK_PROFILE;
 
   return (

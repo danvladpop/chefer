@@ -36,3 +36,5 @@ export * from './tracking';
 export * from './cardio';
 // Correcting a past session: delete preview + target-change diff (T-44.2/T-44.4).
 export * from './session-edit';
+// Pause training: start choices, reason labels and human dates (UX-GYM-16).
+export * from './pause-copy';

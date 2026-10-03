@@ -1,14 +1,17 @@
 import { useEffect, useState } from 'react';
 import { View } from 'react-native';
-import type { ExerciseMeta, ProgressionDto, WeightUnit } from '@chefer/types';
-import { Button, Sheet, Stepper, Text } from '@chefer/ui-mobile';
-import { formatLoad, kgToUnit } from '@chefer/utils';
+import type { EquipmentProfile, ExerciseMeta, ProgressionDto, WeightUnit } from '@chefer/types';
+import { Button, Sheet, Text } from '@chefer/ui-mobile';
+import { formatLoad } from '@chefer/utils';
+import { TargetFields, TargetKeypad, type TargetEditing } from '../workout/target-fields';
+import { FALLBACK_EQUIPMENT } from '../workout/workout-model';
 import { buildOverridePayload, type SetOverrideInput } from './override-payload';
 
-// Next-session target override (D5c, gym_plan.md §1.3 "Routine tab"): weight
-// and reps steppers in the user's unit, "Save target" / "Reset to
-// suggestion". One rep target applies to every working set — the same
-// simplification the setOverride API makes (an array, all equal here).
+// Next-session target override (D5c, gym_plan.md §1.3 "Routine tab"): the same
+// weight/reps editor as the summary's Adjust sheet (UX-GYM-28 — equipment-aware
+// steps, tap a value to type it), "Save target" / "Reset to suggestion". One
+// rep target applies to every working set — the same simplification the
+// setOverride API makes (an array, all equal here).
 
 export interface OverrideSheetProps {
   visible: boolean;
@@ -17,14 +20,12 @@ export interface OverrideSheetProps {
   unit: WeightUnit;
   repBucket: string;
   progression: ProgressionDto;
+  /** Bar/plate/dumbbell inventory for the weight steps; a generic gym when omitted. */
+  profile?: EquipmentProfile;
   onSave: (payload: SetOverrideInput) => void;
   onReset: () => void;
   saving?: boolean;
   testID?: string;
-}
-
-function weightStep(unit: WeightUnit): number {
-  return unit === 'LB' ? 5 : 2.5;
 }
 
 export function OverrideSheet({
@@ -34,6 +35,7 @@ export function OverrideSheet({
   unit,
   repBucket,
   progression,
+  profile = FALLBACK_EQUIPMENT,
   onSave,
   onReset,
   saving = false,
@@ -43,84 +45,87 @@ export function OverrideSheet({
   const baseWeightKg = override?.weightKg ?? suggestion.weightKg;
   const baseReps = override?.reps[0] ?? suggestion.reps[0] ?? exercise.repMin;
 
-  const [weight, setWeight] = useState(() => kgToUnit(baseWeightKg, unit));
+  // Weight is held in kg (the unit the API stores) — the fields format it in `unit`.
+  const [weightKg, setWeightKg] = useState(baseWeightKg);
   const [reps, setReps] = useState(baseReps);
+  const [editing, setEditing] = useState<TargetEditing>(null);
 
   useEffect(() => {
     if (!visible) return;
-    setWeight(kgToUnit(baseWeightKg, unit));
+    setWeightKg(baseWeightKg);
     setReps(baseReps);
-  }, [visible, baseWeightKg, baseReps, unit]);
+  }, [visible, baseWeightKg, baseReps]);
 
   return (
-    <Sheet
-      visible={visible}
-      onClose={onClose}
-      title={`Next target: ${exercise.name}`}
-      testID={testID}
-      footer={
-        <View className="flex-row gap-2">
-          <Button
-            testID={`${testID}-reset`}
-            variant="outline"
-            className="flex-1"
-            disabled={!override || saving}
-            onPress={onReset}
-          >
-            Reset to suggestion
-          </Button>
-          <Button
-            testID={`${testID}-save`}
-            className="flex-1"
-            loading={saving}
-            onPress={() =>
-              onSave(
-                buildOverridePayload({
-                  exerciseId: exercise.id,
-                  repBucket,
-                  unit,
-                  weightDisplay: weight,
-                  repsDisplay: reps,
-                  sets: suggestion.sets,
-                }),
-              )
-            }
-          >
-            Save target
-          </Button>
-        </View>
-      }
-    >
-      {override ? (
-        <Text testID={`${testID}-edited`} variant="muted">
-          Currently edited. Engine suggestion:{' '}
-          {formatLoad(suggestion.weightKg, unit, exercise.loadType)}.
-        </Text>
-      ) : null}
-      <View className="flex-row items-center justify-between py-2">
-        <Text variant="label">Weight</Text>
-        <Stepper
-          testID={`${testID}-weight`}
-          accessibilityLabel="Weight"
-          value={weight}
-          onChange={setWeight}
-          step={weightStep(unit)}
-          min={0}
-          format={(v) => `${v} ${unit === 'LB' ? 'lb' : 'kg'}`}
+    <>
+      <Sheet
+        visible={visible}
+        onClose={onClose}
+        title={`Next target: ${exercise.name}`}
+        testID={testID}
+        footer={
+          <View className="flex-row gap-2">
+            <Button
+              testID={`${testID}-reset`}
+              variant="outline"
+              className="flex-1"
+              disabled={!override || saving}
+              onPress={onReset}
+            >
+              Reset to suggestion
+            </Button>
+            <Button
+              testID={`${testID}-save`}
+              className="flex-1"
+              loading={saving}
+              onPress={() =>
+                onSave(
+                  buildOverridePayload({
+                    exerciseId: exercise.id,
+                    repBucket,
+                    unit: 'KG',
+                    weightDisplay: weightKg,
+                    repsDisplay: reps,
+                    sets: suggestion.sets,
+                  }),
+                )
+              }
+            >
+              Save target
+            </Button>
+          </View>
+        }
+      >
+        {override ? (
+          <Text testID={`${testID}-edited`} variant="muted">
+            Currently edited. Engine suggestion:{' '}
+            {formatLoad(suggestion.weightKg, unit, exercise.loadType)}.
+          </Text>
+        ) : null}
+        <TargetFields
+          testID={testID}
+          meta={exercise}
+          unit={unit}
+          profile={profile}
+          weightKg={weightKg}
+          onWeightKg={setWeightKg}
+          repsFirst={reps}
+          onRepsFirst={setReps}
+          allReps={Array.from({ length: Math.max(1, Math.round(suggestion.sets)) }, () => reps)}
+          onEdit={setEditing}
         />
-      </View>
-      <View className="flex-row items-center justify-between py-2">
-        <Text variant="label">{exercise.isTimed ? 'Seconds' : 'Reps'}</Text>
-        <Stepper
-          testID={`${testID}-reps`}
-          accessibilityLabel={exercise.isTimed ? 'Seconds' : 'Reps'}
-          value={reps}
-          onChange={setReps}
-          step={1}
-          min={1}
-          max={999}
-        />
-      </View>
-    </Sheet>
+      </Sheet>
+      <TargetKeypad
+        editing={editing}
+        onClose={() => setEditing(null)}
+        meta={exercise}
+        unit={unit}
+        profile={profile}
+        weightKg={weightKg}
+        onWeightKg={setWeightKg}
+        repsFirst={reps}
+        onRepsFirst={setReps}
+      />
+    </>
   );
 }

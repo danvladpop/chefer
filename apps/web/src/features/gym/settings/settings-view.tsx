@@ -8,12 +8,17 @@ import { AlertTriangle, ArrowLeft, Copy, PauseCircle, RotateCw, Trash2 } from 'l
 import type { ActivePauseDto, GymProfileDto, WeightUnit } from '@chefer/types';
 import { Button, Input, Sheet } from '@chefer/ui';
 import {
-  addDaysLocal,
   cn,
   formatLoadNumber,
+  PAUSE_EXPLAINER,
+  PAUSE_START_CHOICES,
+  pauseEndDate,
+  pauseStartDate,
+  pauseSummaryLine,
   unitLabel,
   userFacingErrorMessage,
   WELLNESS_COPY,
+  type PauseStartChoice,
 } from '@chefer/utils';
 import { shortDate } from '../shared/format';
 import { CardLabel, GymCard, GymSkeleton } from '../shared/gym-card';
@@ -74,6 +79,7 @@ export function SettingsView() {
             today={today}
             paused={data.weeks[data.weeks.length - 1]?.status === 'paused'}
             activePause={data.activePause}
+            upcomingPause={data.upcomingPause ?? null}
           />
         )}
       </div>
@@ -86,11 +92,13 @@ function ProfileSettings({
   today,
   paused,
   activePause,
+  upcomingPause,
 }: {
   profile: GymProfileDto;
   today: string;
   paused: boolean;
   activePause: ActivePauseDto | null;
+  upcomingPause: ActivePauseDto | null;
 }) {
   const utils = trpc.useUtils();
   const unit = profile.unit;
@@ -304,7 +312,12 @@ function ProfileSettings({
         </div>
       </GymCard>
 
-      <PauseCard today={today} paused={paused} activePause={activePause} />
+      <PauseCard
+        today={today}
+        paused={paused}
+        activePause={activePause}
+        upcomingPause={upcomingPause}
+      />
 
       {/* Advisory disclaimer (2026-10-02), always visible on gym settings. */}
       <p
@@ -362,13 +375,19 @@ function PauseCard({
   today,
   paused,
   activePause,
+  upcomingPause,
 }: {
   today: string;
   paused: boolean;
   activePause: ActivePauseDto | null;
+  upcomingPause: ActivePauseDto | null;
 }) {
   const utils = trpc.useUtils();
   const [weeks, setWeeks] = useState(1);
+  const [startChoice, setStartChoice] = useState<PauseStartChoice>('today');
+  // UX-GYM-16: a pause that starts later is shown (and cancellable) like a running one.
+  const shownPause = activePause ?? upcomingPause;
+  const startDate = today ? pauseStartDate(startChoice, today) : '';
   const [reason, setReason] = useState<(typeof PAUSE_REASONS)[number]['value']>('vacation');
 
   const create = trpc.gym.pause.create.useMutation({
@@ -385,25 +404,22 @@ function PauseCard({
   return (
     <GymCard>
       <CardLabel>Pause training</CardLabel>
-      <p className="mt-1 text-xs text-gray-500">
-        Vacation, illness or injury: a pause freezes your streak, and weights ease back in when you
-        return.
-      </p>
+      <p className="mt-1 text-xs text-gray-500">{PAUSE_EXPLAINER}</p>
 
-      {activePause ? (
+      {shownPause ? (
         <div className="mt-3 flex flex-wrap items-center justify-between gap-3 rounded-xl bg-sky-50 px-3 py-2">
           <p className="flex items-center gap-1.5 text-sm text-sky-800">
             <PauseCircle className="h-4 w-4 shrink-0" aria-hidden="true" />
-            Paused until {shortDate(activePause.endDate)}
+            {pauseSummaryLine(shownPause, today)}
           </p>
           <Button
             variant="outline"
             size="sm"
             className="min-h-11"
             disabled={end.isPending}
-            onClick={() => end.mutate({ id: activePause.id })}
+            onClick={() => end.mutate({ id: shownPause.id })}
           >
-            End pause now
+            {activePause ? 'End pause now' : 'Cancel pause'}
           </Button>
         </div>
       ) : paused ? (
@@ -412,7 +428,25 @@ function PauseCard({
         </p>
       ) : (
         <>
-          <div className="mt-3 flex flex-wrap gap-1.5" role="group" aria-label="Pause length">
+          <div className="mt-3 flex flex-wrap gap-1.5" role="group" aria-label="Pause starts">
+            {PAUSE_START_CHOICES.map((c) => (
+              <button
+                key={c.value}
+                type="button"
+                aria-pressed={startChoice === c.value}
+                onClick={() => setStartChoice(c.value)}
+                className={cn(
+                  'min-h-11 rounded-full border px-4 text-sm font-medium',
+                  startChoice === c.value
+                    ? 'border-[#944a00] bg-[#fff3e8] text-[#944a00]'
+                    : 'bg-white text-gray-600 hover:bg-gray-50',
+                )}
+              >
+                {c.label}
+              </button>
+            ))}
+          </div>
+          <div className="mt-2 flex flex-wrap gap-1.5" role="group" aria-label="Pause length">
             {[1, 2, 3, 4].map((w) => (
               <button
                 key={w}
@@ -448,14 +482,22 @@ function PauseCard({
               </button>
             ))}
           </div>
+          {startDate && (
+            <p className="mt-2 text-xs text-gray-500">
+              {pauseSummaryLine(
+                { startDate, endDate: pauseEndDate(startDate, weeks), reason: null },
+                today,
+              ).replace('Paused through', 'Pauses through')}
+            </p>
+          )}
           <div className="mt-3 flex justify-end">
             <Button
               variant="outline"
               disabled={create.isPending || !today}
               onClick={() =>
                 create.mutate({
-                  startDate: today,
-                  endDate: addDaysLocal(today, weeks * 7 - 1),
+                  startDate,
+                  endDate: pauseEndDate(startDate, weeks),
                   reason,
                 })
               }

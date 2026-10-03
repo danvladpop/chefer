@@ -342,7 +342,11 @@ export function SetupWizard() {
         <View className="w-11" />
       </View>
 
+      {/* UX-GYM-30: keyed by step so each page opens at the top — "Starting
+          weights" used to inherit the previous page's scroll offset. */}
       <KeyboardAwareScrollView
+        key={`step-${String(step)}`}
+        testID="gym-setup-scroll"
         contentContainerClassName="gap-5 px-4 py-4"
         footer={
           <View className="gap-2 border-t border-border px-4 pb-2 pt-3">

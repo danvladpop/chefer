@@ -15,7 +15,15 @@ import {
   StickyNote,
   Trash2,
 } from 'lucide-react';
-import type { ExerciseDto, PrKind, Rir, SessionSetDoc, WorkoutSessionDoc } from '@chefer/types';
+import {
+  GYM_MAX_EXERCISES_PER_SESSION,
+  GYM_MAX_SETS_PER_EXERCISE,
+  type ExerciseDto,
+  type PrKind,
+  type Rir,
+  type SessionSetDoc,
+  type WorkoutSessionDoc,
+} from '@chefer/types';
 import { Button, pressControl, Sheet, Toast } from '@chefer/ui';
 import {
   cn,
@@ -358,6 +366,10 @@ export function WorkoutView() {
   };
 
   const actionsSe = exercises.find((e) => e.id === actionsFor) ?? null;
+  // UX-GYM-01: the session schema allows 30 exercises and 20 sets each — past that a
+  // finished workout can never sync, so the buttons stop there and say why.
+  const atExerciseCap = exercises.length >= GYM_MAX_EXERCISES_PER_SESSION;
+  const exerciseCapReason = `Max ${String(GYM_MAX_EXERCISES_PER_SESSION)} exercises per workout.`;
   const noteSe = noteFor === 'session' ? null : (exercises.find((e) => e.id === noteFor) ?? null);
 
   return (
@@ -427,11 +439,15 @@ export function WorkoutView() {
             variant="outline"
             className="mt-3 min-h-11 w-full"
             onClick={() => setPicker({ kind: 'add' })}
-            disabled={!canPrescribe}
+            disabled={!canPrescribe || atExerciseCap}
+            title={atExerciseCap ? exerciseCapReason : undefined}
           >
             <Plus aria-hidden="true" />
             Add exercise
           </Button>
+          {atExerciseCap && (
+            <p className="mt-1 text-center text-xs text-gray-500">{exerciseCapReason}</p>
+          )}
           <Button
             variant="outline"
             className="mt-2 min-h-11 w-full"
@@ -496,7 +512,8 @@ export function WorkoutView() {
               variant="outline"
               className="min-h-11 min-w-0"
               onClick={() => setPicker({ kind: 'add' })}
-              disabled={!canPrescribe}
+              disabled={!canPrescribe || atExerciseCap}
+              title={atExerciseCap ? exerciseCapReason : undefined}
             >
               <Plus aria-hidden="true" />
               Add exercise
@@ -596,6 +613,12 @@ export function WorkoutView() {
             <ActionItem
               icon={Plus}
               label="Add set"
+              disabled={actionsSe.sets.length >= GYM_MAX_SETS_PER_EXERCISE}
+              hint={
+                actionsSe.sets.length >= GYM_MAX_SETS_PER_EXERCISE
+                  ? `Max ${String(GYM_MAX_SETS_PER_EXERCISE)} sets per exercise.`
+                  : undefined
+              }
               onClick={() => {
                 act({ type: 'addSet', seId: actionsSe.id, newSetId: newId() });
                 setActionsFor(null);
@@ -1032,11 +1055,14 @@ function ActionItem({
   label,
   onClick,
   disabled = false,
+  hint,
 }: {
   icon: typeof Plus;
   label: string;
   onClick: () => void;
   disabled?: boolean;
+  /** Why it is unavailable, shown under the label. */
+  hint?: string | undefined;
 }) {
   return (
     <li>
@@ -1047,7 +1073,10 @@ function ActionItem({
         className="flex min-h-12 w-full items-center gap-3 rounded-xl px-3 text-left text-sm text-gray-800 hover:bg-gray-100 disabled:opacity-40"
       >
         <Icon className="h-4 w-4 shrink-0 text-gray-500" aria-hidden="true" />
-        {label}
+        <span className="min-w-0">
+          {label}
+          {hint && <span className="block text-xs text-gray-500">{hint}</span>}
+        </span>
       </button>
     </li>
   );

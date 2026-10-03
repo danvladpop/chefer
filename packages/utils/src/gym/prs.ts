@@ -153,6 +153,29 @@ export function detectPrs(input: {
 }
 
 /**
+ * Whether this exercise has any earlier logged working set (UX-GYM-18). The
+ * first-ever session is a baseline, not a record: the live badge and the
+ * finish summary skip it, while the PR timeline keeps listing it as "First
+ * logged" (`PersonalRecord.isFirst`, T-05.6).
+ */
+export function hasPriorExposure(input: {
+  exerciseId: string;
+  /** Prior completed sessions (any order). */
+  history: SessionSummaryDto[];
+  /** All-time record from sessions outside `history` (bootstrap `olderBests`). */
+  best?: ExerciseBest | undefined;
+}): boolean {
+  if (input.best) return true;
+  return input.history.some(
+    (s) =>
+      s.status === 'COMPLETED' &&
+      s.exercises.some(
+        (ex) => ex.exerciseId === input.exerciseId && !ex.skipped && workingSets(ex).length > 0,
+      ),
+  );
+}
+
+/**
  * Every PR ever set, in date order (for the PR timeline and recap): at most one
  * record per exercise per session — the highest-ranked kind any of its sets
  * beat, compared with all earlier sessions.

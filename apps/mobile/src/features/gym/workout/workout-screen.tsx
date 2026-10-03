@@ -29,6 +29,7 @@ import { useActiveSessionPausedAt } from '../offline/active-session-store';
 import { localDate, newId } from '../offline/ids';
 import { dispatchWorkout, getResumableSession, useActiveWorkout } from '../use-active-workout';
 import { useGymBootstrap } from '../use-gym-bootstrap';
+import { EXERCISE_CAP_REASON, isAtExerciseCap } from './caps';
 import { ExerciseCard, type WorkoutContext, type WorkoutSheetRequest } from './exercise-card';
 import { rememberFinished } from './finished-store';
 import { NumberSheet } from './number-sheet';
@@ -795,10 +796,20 @@ export function WorkoutScreen() {
           testID="workout-add-exercise"
           variant="outline"
           size="lg"
+          disabled={isAtExerciseCap(exercises.length)}
           onPress={() => openSheet({ kind: 'picker', mode: 'add', seId: null, scope: 'today' })}
         >
           + Add exercise
         </Button>
+        {isAtExerciseCap(exercises.length) ? (
+          <Text
+            testID="workout-add-exercise-reason"
+            variant="muted"
+            className="text-center text-sm"
+          >
+            {EXERCISE_CAP_REASON}
+          </Text>
+        ) : null}
         <Button
           testID="workout-superset"
           variant="outline"

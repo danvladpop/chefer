@@ -24,7 +24,14 @@ import type {
 import { nextCarryOver } from './carry-over';
 import { deloadContinues } from './deload';
 import { durationMinutes } from './duration';
-import { applyExposure, initialState, prescribe, progressionKey, repBucket } from './progression';
+import {
+  applyExposure,
+  carriedWeightKg,
+  initialState,
+  prescribe,
+  progressionKey,
+  repBucket,
+} from './progression';
 import { collectPrs } from './prs';
 import type { ExerciseLookup } from './volume';
 import { warmupSets } from './warmups';
@@ -329,6 +336,21 @@ interface BuildExerciseInput {
   isFirstForPattern: boolean;
 }
 
+/** The progression states of the same exercise under OTHER rep buckets (UX-GYM-18). */
+function siblingStates(
+  progressions: ReadonlyMap<string, ProgressionEntry>,
+  exerciseId: string,
+  bucket: string,
+): ProgressionState[] {
+  const own = progressionKey(exerciseId, bucket);
+  const prefix = progressionKey(exerciseId, '');
+  const out: ProgressionState[] = [];
+  for (const [key, entry] of progressions) {
+    if (key !== own && key.startsWith(prefix)) out.push(entry.state);
+  }
+  return out;
+}
+
 /** One routine exercise's prescription + warm-ups + last-time column. */
 function buildExercise(input: BuildExerciseInput): NextWorkoutExerciseDto | null {
   const { re, lookup, profile, facts } = input;
@@ -344,7 +366,17 @@ function buildExercise(input: BuildExerciseInput): NextWorkoutExerciseDto | null
   };
   const bucket = repBucket(re.repMin, re.repMax);
   const entry = input.progressions.get(progressionKey(re.exerciseId, bucket));
-  const state = entry?.state ?? initialState({ slot, profile, experience: facts.experience });
+  const state =
+    entry?.state ??
+    initialState({
+      slot,
+      profile,
+      experience: facts.experience,
+      knownWeightKg: carriedWeightKg({
+        slot,
+        siblings: siblingStates(input.progressions, re.exerciseId, bucket),
+      }),
+    });
   const suggestion = prescribe({
     slot,
     state,
@@ -642,7 +674,18 @@ export function applyFinishedSession(input: {
         restSec: se.restSec,
       };
       const prior =
-        existing?.state ?? initialState({ slot, profile, experience: facts.experience });
+        existing?.state ??
+        initialState({
+          slot,
+          profile,
+          experience: facts.experience,
+          knownWeightKg: carriedWeightKg({
+            slot,
+            siblings: progressions
+              .filter((p) => p.exerciseId === exerciseId && p.repBucket !== bucket)
+              .map((p) => p.state),
+          }),
+        });
       const state = applyExposure({
         slot,
         state: prior,

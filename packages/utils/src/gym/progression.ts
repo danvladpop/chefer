@@ -291,6 +291,41 @@ function makeSuggestion(
   };
 }
 
+/**
+ * UX-GYM-18: the weight to start a NEW rep range (bucket) from, carried over
+ * from the same exercise's other bucket(s) instead of discarding it — editing a
+ * routine's 8-12 to 6-10 used to turn a known 40 kg into "Starting guess: 25 kg".
+ * The sibling's next prescription (weight × target reps at its own RIR) is
+ * re-estimated for this slot's first target through the Epley e1RM, so a
+ * heavier range gets a heavier weight. Returns null when there is nothing
+ * trustworthy to carry (a bare starting guess, or a bodyweight/assisted/timed
+ * exercise), and the caller falls back to the research §1.7 guess.
+ */
+export function carriedWeightKg(input: {
+  slot: ExerciseSlot;
+  siblings: readonly ProgressionState[];
+}): number | null {
+  const { slot } = input;
+  if (!canCalibrate(slot)) {
+    return null;
+  }
+  const trusted = input.siblings.filter(
+    (st) => st.next.weightKg > 0 && st.next.inputs['startingGuess'] !== true,
+  );
+  // The sibling worked on most recently wins; one with no exposure yet (a
+  // known weight from setup) ranks last.
+  const sibling = [...trusted].sort((a, b) =>
+    (b.lastExposureDate ?? '').localeCompare(a.lastExposureDate ?? ''),
+  )[0];
+  if (!sibling) {
+    return null;
+  }
+  const fromRepMin = numberInput(sibling.next.inputs, 'repMin') ?? 1;
+  const fromReps = sibling.next.reps[0] ?? fromRepMin;
+  const e1rm = sibling.next.weightKg * (1 + (fromReps + slot.targetRir) / 30);
+  return e1rm / (1 + (slot.repMin + slot.targetRir) / 30);
+}
+
 /** Starting state: known weight → no calibration; otherwise starting guess (research §1.7). */
 export function initialState(input: {
   slot: ExerciseSlot;
