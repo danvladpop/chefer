@@ -1,9 +1,17 @@
 import { useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, TextInput, View } from 'react-native';
+import { ActivityIndicator, Pressable, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { DISPLAY_CURRENCIES, type DisplayCurrency } from '@chefer/types';
-import { Button, Card, ErrorState, Screen, Text } from '@chefer/ui-mobile';
+import {
+  Button,
+  Card,
+  ErrorState,
+  Input,
+  KeyboardAwareScrollView,
+  Screen,
+  Text,
+} from '@chefer/ui-mobile';
 import {
   cn,
   currencySymbol,
@@ -23,6 +31,7 @@ import type {
   Goal,
   SafetyValue,
 } from '../src/features/preferences/types';
+import { useNumericChain } from '../src/features/preferences/use-numeric-chain';
 import { WeeklyUpdatesCard } from '../src/features/preferences/weekly-updates-card';
 import { openPremium } from '../src/features/premium/open-premium';
 import { HealthDeclinedNotice } from '../src/features/privacy/health-notices';
@@ -73,6 +82,8 @@ export default function PreferencesScreen() {
   const [units, setUnits] = useState<'METRIC' | 'IMPERIAL'>('METRIC');
   const [currency, setCurrency] = useState<DisplayCurrency>('EUR');
   const [budget, setBudget] = useState('');
+  // UX-X-05: the budget pad gets its own "Done" bar (number pads have no Return on iOS).
+  const budgetNumeric = useNumericChain('prefs-budget', 1);
 
   useEffect(() => {
     if (!data || safetyLoaded) {
@@ -214,7 +225,12 @@ export default function PreferencesScreen() {
           onRetry={() => void refetch()}
         />
       ) : (
-        <ScrollView contentContainerClassName="gap-4 px-4 pb-8" keyboardShouldPersistTaps="handled">
+        // UX-X-05: keyboard-aware, so the budget field and the Save button under
+        // it (and the targets fields) scroll clear of the keyboard.
+        <KeyboardAwareScrollView
+          testID="preferences-scroll"
+          contentContainerClassName="gap-4 px-4 pb-8"
+        >
           <Text variant="muted" className="text-sm">
             Your allergies and dietary restrictions apply to every plan — free or premium.
           </Text>
@@ -395,19 +411,18 @@ export default function PreferencesScreen() {
               <Text variant="label">
                 Weekly ingredient budget ({currencySymbol(savedCurrency)}, optional)
               </Text>
-              <TextInput
+              <Input
                 testID="prefs-budget"
+                {...budgetNumeric.bind(0)}
+                accessibilityLabel="Weekly ingredient budget"
                 value={budget}
                 onChangeText={isPremium === true ? setBudget : undefined}
                 editable={isPremium === true}
                 keyboardType="decimal-pad"
                 placeholder="e.g. 60"
-                placeholderTextColor="#9ca3af"
-                className={cn(
-                  'h-11 rounded-md border border-input bg-background px-3 text-base text-foreground',
-                  isPremium === false && 'bg-gray-100 text-gray-400',
-                )}
+                className={cn(isPremium === false && 'bg-gray-100 text-gray-400')}
               />
+              {budgetNumeric.bars}
             </View>
             {isPremium === false ? (
               <View className="flex-row items-center gap-1.5">
@@ -440,7 +455,7 @@ export default function PreferencesScreen() {
               </Text>
             )}
           </Card>
-        </ScrollView>
+        </KeyboardAwareScrollView>
       )}
       {healthConsentSheet}
     </Screen>

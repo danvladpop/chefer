@@ -3,13 +3,14 @@
 // `mock*`, so these can be used below without an inline require().
 import { useEffect as mockUseEffect, useState as mockUseState } from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { render, screen, userEvent, waitFor } from '@testing-library/react-native';
+import { act, render, screen, userEvent, waitFor } from '@testing-library/react-native';
 import { httpBatchLink } from '@trpc/client';
 import superjson from 'superjson';
 import { ModeSwitch } from '../../src/features/gym/components/mode-switch';
 import {
   getMode,
   hasChosenMode,
+  hasPendingGymMode,
   resetModeForTests,
   setMode,
 } from '../../src/features/gym/mode-store';
@@ -144,6 +145,86 @@ describe('ModeSwitch', () => {
     expect(router.replace).toHaveBeenCalledWith('/(food)');
     expect(hasChosenMode()).toBe(true);
     expect(landingSurfaceSync()).toBe('food');
+  });
+
+  // UX-X-11: the mode is persisted only once that side is set up. A food-only
+  // user who taps Gym just to look must not reopen on "Set up your training".
+  describe('UX-X-11: the Gym choice is persisted only once Gym is set up', () => {
+    it('peeking at an un-set-up Gym leaves the persisted choice untouched (lands by jobs)', async () => {
+      const user = userEvent.setup();
+      setCachedJobs(['PLAN_MEALS']);
+      const queryClient = makeClient();
+      queryClient.setQueryData(gymBootstrapQueryKey, makeBootstrap({ profile: null }));
+      await renderSwitch(queryClient);
+
+      await user.press(screen.getByTestId('mode-switch-gym'));
+      await waitFor(() => expect(router.push).toHaveBeenCalledWith('/gym/setup'));
+
+      expect(hasChosenMode()).toBe(false);
+      expect(getMode()).toBe('food');
+      expect(landingSurfaceSync()).toBe('food');
+    });
+
+    it('keeps an earlier explicit Food choice', async () => {
+      const user = userEvent.setup();
+      setMode('food');
+      const queryClient = makeClient();
+      queryClient.setQueryData(gymBootstrapQueryKey, makeBootstrap({ profile: null }));
+      await renderSwitch(queryClient);
+
+      await user.press(screen.getByTestId('mode-switch-gym'));
+      await waitFor(() => expect(router.push).toHaveBeenCalledWith('/gym/setup'));
+
+      expect(hasChosenMode()).toBe(true);
+      expect(getMode()).toBe('food');
+    });
+
+    it('records Gym the moment setup completes (the profile appears)', async () => {
+      const user = userEvent.setup();
+      const queryClient = makeClient();
+      queryClient.setQueryData(gymBootstrapQueryKey, makeBootstrap({ profile: null }));
+      await renderSwitch(queryClient);
+
+      await user.press(screen.getByTestId('mode-switch-gym'));
+      await waitFor(() => expect(router.push).toHaveBeenCalledWith('/gym/setup'));
+      expect(hasPendingGymMode()).toBe(true);
+      expect(hasChosenMode()).toBe(false);
+
+      await act(() => {
+        queryClient.setQueryData(gymBootstrapQueryKey, makeBootstrap());
+      });
+      expect(getMode()).toBe('gym');
+      expect(hasChosenMode()).toBe(true);
+      expect(hasPendingGymMode()).toBe(false);
+    });
+
+    it('switching back to Food drops the pending Gym choice, so setup finishing later does not flip it', async () => {
+      const user = userEvent.setup();
+      const queryClient = makeClient();
+      queryClient.setQueryData(gymBootstrapQueryKey, makeBootstrap({ profile: null }));
+      await renderSwitch(queryClient);
+
+      await user.press(screen.getByTestId('mode-switch-gym'));
+      await waitFor(() => expect(router.push).toHaveBeenCalledWith('/gym/setup'));
+      await user.press(screen.getByTestId('mode-switch-food'));
+      expect(hasPendingGymMode()).toBe(false);
+
+      await act(() => {
+        queryClient.setQueryData(gymBootstrapQueryKey, makeBootstrap());
+      });
+      expect(getMode()).toBe('food');
+    });
+
+    it('a set-up Gym is still persisted at once', async () => {
+      const user = userEvent.setup();
+      const queryClient = makeClient();
+      queryClient.setQueryData(gymBootstrapQueryKey, makeBootstrap());
+      await renderSwitch(queryClient);
+
+      await user.press(screen.getByTestId('mode-switch-gym'));
+      expect(getMode()).toBe('gym');
+      expect(hasChosenMode()).toBe(true);
+    });
   });
 
   describe('bug B-14: the pill reflects the route, not the persisted mode', () => {

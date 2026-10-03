@@ -1,6 +1,6 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { TextInput } from 'react-native';
-import { Button, Card, Text } from '@chefer/ui-mobile';
+import { Button, Card, Text, useScrollFieldIntoView } from '@chefer/ui-mobile';
 import { cn, FEEDBACK_MAX_LENGTH, feedbackCounter, userFacingErrorMessage } from '@chefer/utils';
 import { trpc } from '../../lib/trpc';
 
@@ -13,6 +13,10 @@ export function FeedbackCard() {
     onSuccess: () => setMessage(''),
   });
   const counter = feedbackCounter(message.length);
+  // UX-ACC-25: on focus the field scrolls clear of the keyboard (no-op outside
+  // a KeyboardAwareScrollView), keeping Send reachable right below it.
+  const inputRef = useRef<TextInput>(null);
+  const scrollFieldIntoView = useScrollFieldIntoView();
 
   return (
     <Card testID="feedback-card" className="gap-2">
@@ -25,6 +29,8 @@ export function FeedbackCard() {
       </Text>
       <TextInput
         testID="feedback-input"
+        ref={inputRef}
+        onFocus={() => scrollFieldIntoView(inputRef.current)}
         value={message}
         onChangeText={setMessage}
         maxLength={FEEDBACK_MAX_LENGTH}
@@ -54,6 +60,8 @@ export function FeedbackCard() {
       <Button
         testID="feedback-submit"
         variant="outline"
+        // UX-ACC-25: an empty Send used to do nothing, silently.
+        disabled={!message.trim() || submitMutation.isPending}
         loading={submitMutation.isPending}
         onPress={() => {
           if (message.trim()) {

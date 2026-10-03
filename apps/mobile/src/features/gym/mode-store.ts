@@ -22,12 +22,50 @@ export function getMode(): AppMode {
 }
 
 export function setMode(mode: AppMode): void {
+  // Any explicit choice supersedes a Gym switch that was waiting for setup.
+  pendingGymSwitch = false;
   // Written even when unchanged: the KV entry also records THAT the user has
   // chosen (`hasChosenMode`) — 'food' is the default, so tapping Food on a
   // jobs-based Gym landing must still persist (owner dogfood 2026-09-30).
   if (modeStore.get() === mode && kv.getString(KV_KEYS.mode) === mode) return;
   kv.setString(KV_KEYS.mode, mode);
   modeStore.set(mode);
+}
+
+// ── Mode follows setup (UX-X-11) ──────────────────────────────────────────────
+// A food-only user who taps Gym just to look lands on "Set up your training";
+// persisting that peek reopened Gym on every cold start. The switch only
+// PERSISTS once Gym is actually set up: until then the previous choice (or
+// "never chose", which lands by jobs) is restored, and the intent is kept in
+// memory so the choice is recorded the moment setup completes.
+
+let pendingGymSwitch = false;
+
+/** Puts the persisted choice back to `previous` (null = the user had never chosen). */
+export function restoreMode(previous: AppMode | null): void {
+  if (previous === null) {
+    kv.remove(KV_KEYS.mode);
+    modeStore.reset();
+    return;
+  }
+  kv.setString(KV_KEYS.mode, previous);
+  modeStore.set(previous);
+}
+
+/** The user asked for Gym but it is not set up: remember it, persist once setup completes. */
+export function deferGymMode(): void {
+  pendingGymSwitch = true;
+}
+
+/** Call whenever the gym profile's existence is known: records the deferred Gym choice once it exists. */
+export function commitPendingGymMode(hasGymProfile: boolean): void {
+  if (!pendingGymSwitch || !hasGymProfile) return;
+  setMode('gym'); // clears the pending flag
+}
+
+/** Test seam. */
+export function hasPendingGymMode(): boolean {
+  return pendingGymSwitch;
 }
 
 /** Whether the user (or a flow they started) has ever picked a mode on this device. */
@@ -43,6 +81,7 @@ export function useMode(): AppMode {
 
 /** Test seam: forget the cached value so the next read hits the KV store. */
 export function resetModeForTests(): void {
+  pendingGymSwitch = false;
   modeStore.reset();
 }
 

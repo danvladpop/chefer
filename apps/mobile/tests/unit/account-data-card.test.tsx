@@ -1,7 +1,8 @@
-import { Keyboard } from 'react-native';
+import { Keyboard, type TextInput } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react-native';
+import { Input } from '@chefer/ui-mobile';
 import { AccountDataCard } from '../../src/features/profile/account-data-card';
 
 const metrics = {
@@ -135,6 +136,39 @@ describe('mobile DeleteAccountSheet (App Review R-03 / R-17 / R-24)', () => {
 
     expect(mockDeleteMutate).toHaveBeenCalledTimes(1);
     expect(mockDeleteMutate).toHaveBeenCalledWith({ password: 'Secret1!', confirm: 'DELETE' });
+  });
+
+  it('UX-ACC-26: with the keyboard up, the first press on Cancel closes the sheet', async () => {
+    await openSheet();
+    // The password keyboard is up: Cancel lives in the persist-taps footer, so
+    // the tap reaches the button instead of only dismissing the keyboard.
+    await fireEvent(screen.getByTestId('delete-account-password'), 'focus');
+    expect(screen.getByTestId('delete-account-footer').props.keyboardShouldPersistTaps).toBe(
+      'handled',
+    );
+    await fireEvent.changeText(screen.getByTestId('delete-account-password'), 'Secret1!');
+    await fireEvent.press(screen.getByTestId('delete-account-cancel'));
+    await waitFor(() => expect(screen.queryByTestId('delete-account-password')).toBeNull());
+    expect(mockDeleteMutate).not.toHaveBeenCalled();
+  });
+
+  it('UX-ACC-26: the DELETE field scrolls itself clear of the keyboard inside the sheet', async () => {
+    // Every `Input` measures itself against the sheet body on focus; spy on the
+    // mock TextInput prototype to see it (a bare TextInput would not).
+    const holder: { node: TextInput | null } = { node: null };
+    await render(
+      <Input
+        ref={(n) => {
+          holder.node = n;
+        }}
+      />,
+    );
+    const proto = Object.getPrototypeOf(holder.node) as TextInput;
+    const measure = jest.spyOn(proto, 'measureLayout').mockImplementation(() => undefined);
+    await openSheet();
+    await fireEvent(screen.getByTestId('delete-account-confirm-text'), 'focus');
+    expect(measure).toHaveBeenCalled();
+    measure.mockRestore();
   });
 
   it('UX-ACC-12: a deleted account leaves through signOut() and lands on the auth screen', async () => {
