@@ -1,5 +1,6 @@
 import { TRPCError } from '@trpc/server';
 import { Router, type Request, type Response } from 'express';
+import { CHAT_ACTIONS_HEADER } from '@chefer/types';
 import { isHealthTopic, isSafetyTopic } from '@chefer/utils';
 import { chatService } from '../application/chat/chat.service.js';
 import { rejectWithoutAiConsent } from '../lib/ai-consent-gate.js';
@@ -77,7 +78,10 @@ chatRouter.post(
 
     let stream: ReadableStream;
     try {
-      stream = await chatService.chat(user, messages);
+      // UX-FOOD-21: only a client that asks gets the action trailer.
+      stream = await chatService.chat(user, messages, {
+        withActions: req.header(CHAT_ACTIONS_HEADER) === '1',
+      });
     } catch (err) {
       // FORBIDDEN = chat is premium-only for this tier (per-user AI, owner
       // decision 2026-09-25). It rides the same 200 + quota-header path so

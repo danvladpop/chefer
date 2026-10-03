@@ -126,6 +126,7 @@ export {
   type BarDatum,
   type BarSegment,
 } from './components/charts/bar-chart';
+export { clampLabelCentre, niceTicks } from './components/charts/chart-utils';
 export {
   LineChart,
   type LineChartProps,

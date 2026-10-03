@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Pressable,
@@ -9,7 +9,7 @@ import {
 } from 'react-native';
 import Animated, { FadeIn } from 'react-native-reanimated';
 import { Ionicons } from '@expo/vector-icons';
-import { router, useIsFocused } from 'expo-router';
+import { router, useIsFocused, useLocalSearchParams } from 'expo-router';
 import { PLAN_TAILORING_POLL_MS } from '@chefer/types';
 import {
   Button,
@@ -63,6 +63,7 @@ import {
   TrainingDayHeader,
   TrainingExplainSheet,
 } from '../../src/features/meal-plan/training-day-header';
+import { useDayRollover } from '../../src/features/meal-plan/use-day-rollover';
 import { useTailoringWatch } from '../../src/features/meal-plan/use-tailoring-watch';
 import { WeekSummarySheet, type DaySummary } from '../../src/features/meal-plan/week-summary-sheet';
 import { PlanMissSheet } from '../../src/features/nutrition/plan-miss-sheet';
@@ -90,6 +91,14 @@ function getTodayDayIndex(): number {
   return jsDay === 0 ? 6 : jsDay - 1;
 }
 
+/** A route param as a whole number within [min, max], else null. */
+function intParam(value: string | string[] | undefined, min: number, max: number): number | null {
+  const raw = Array.isArray(value) ? value[0] : value;
+  if (raw === undefined || raw.trim() === '') return null;
+  const n = Number(raw);
+  return Number.isInteger(n) && n >= min && n <= max ? n : null;
+}
+
 function formatWeekLabel(weekStart: Date): string {
   const end = new Date(weekStart);
   end.setDate(end.getDate() + 6);
@@ -101,8 +110,47 @@ export default function MealPlanScreen() {
   // T-08.1 (UX-08 AC1): Plan and Shop both default to next week from Friday
   // 15:00 to Sunday 23:59 local, else this week — the same `defaultWeekOffset`
   // shared with the Shop tab (@chefer/utils).
-  const [weekOffset, setWeekOffset] = useState<number>(() => defaultWeekOffset(new Date()));
-  const [selectedDay, setSelectedDay] = useState(getTodayDayIndex());
+  //
+  // UX-FOOD-18: a deep link (Today's Tonight "Swap") names the week and day it
+  // means — `week=0&day=<0-6>&swap=dinner` — so it never lands on next week on a
+  // Friday or Saturday evening. `at` is a timestamp that makes a repeat of the
+  // same link count as a new one.
+  const params = useLocalSearchParams<{
+    week?: string;
+    day?: string;
+    swap?: string;
+    at?: string;
+  }>();
+  const [weekOffset, setWeekOffset] = useState<number>(
+    () => intParam(params.week, MIN_OFFSET, MAX_OFFSET) ?? defaultWeekOffset(new Date()),
+  );
+  const [selectedDay, setSelectedDay] = useState(
+    () => intParam(params.day, 0, 6) ?? getTodayDayIndex(),
+  );
+  // A deep-linked "replace this meal" waiting for its plan to load.
+  const [pendingSwap, setPendingSwap] = useState<MealType | null>(null);
+  // UX-FOOD-18: after midnight Today is a new day — reselect it (and the
+  // default week) instead of keeping yesterday.
+  const { markChecked } = useDayRollover(() => {
+    setSelectedDay(getTodayDayIndex());
+    setWeekOffset(defaultWeekOffset(new Date()));
+  });
+  const linkKey = `${params.week ?? ''}|${params.day ?? ''}|${params.swap ?? ''}|${params.at ?? ''}`;
+  const appliedLinkKey = useRef<string | null>(null);
+  useEffect(() => {
+    if (appliedLinkKey.current === linkKey) return;
+    const first = appliedLinkKey.current === null;
+    appliedLinkKey.current = linkKey;
+    const week = intParam(params.week, MIN_OFFSET, MAX_OFFSET);
+    const dayParam = intParam(params.day, 0, 6);
+    // The first pass already seeded the state above; later links re-seed it.
+    if (week !== null && !first) setWeekOffset(week);
+    if (dayParam !== null && !first) setSelectedDay(dayParam);
+    if (week !== null || dayParam !== null) markChecked();
+    if (params.swap === 'breakfast' || params.swap === 'lunch' || params.swap === 'dinner') {
+      setPendingSwap(params.swap);
+    }
+  }, [linkKey, params.week, params.day, params.swap, markChecked]);
   const [leftovers, setLeftovers] = useState(false);
   const [poolExhaustedMessage, setPoolExhaustedMessage] = useState<string | null>(null);
   const [personalisation, setPersonalisation] = useState<{
@@ -417,7 +465,27 @@ export default function MealPlanScreen() {
 
   const weekLabel = formatWeekLabel(getWeekStartDate(weekOffset));
   const day = plan?.days.find((d) => d.dayOfWeek === selectedDay);
-  const meals = day?.meals ?? [];
+  const meals = useMemo(() => day?.meals ?? [], [day]);
+  // UX-FOOD-18: open the replace picker for the deep-linked meal once its
+  // day is on screen. A missing meal (nothing planned) just drops the link.
+  useEffect(() => {
+    if (pendingSwap === null || isLoading) return;
+    if (isError || !plan) {
+      setPendingSwap(null);
+      return;
+    }
+    const slotIndex = meals.findIndex((m) => m.type === pendingSwap);
+    const meal = meals[slotIndex];
+    if (meal) {
+      setPickerTarget({
+        mealType: pendingSwap,
+        slotIndex,
+        mealName: meal.recipe.name,
+        recipeId: meal.recipe.id,
+      });
+    }
+    setPendingSwap(null);
+  }, [pendingSwap, isLoading, isError, plan, meals]);
   const weekCost = plan?.estimatedCost?.totalEur ?? null;
   // Portions the cost is sized for — premium households only (P2-3).
   const costPortions = plan?.estimatedCost?.portions ?? null;

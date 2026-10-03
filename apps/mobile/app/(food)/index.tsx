@@ -8,6 +8,7 @@ import {
   View,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { keepPreviousData } from '@tanstack/react-query';
 import { Link, router, useFocusEffect } from 'expo-router';
 import { Button, Card, ErrorState, Screen, Text } from '@chefer/ui-mobile';
 import { localDateStr, remainingPlannedKcal } from '@chefer/utils';
@@ -25,6 +26,7 @@ import {
 import { WeekOutlook } from '../../src/features/dashboard/components/week-outlook';
 import { ModeSwitch } from '../../src/features/gym/components/mode-switch';
 import { TodaysWorkoutCard } from '../../src/features/gym/today/todays-workout-card';
+import { useTimedRefresh } from '../../src/features/gym/today/use-timed-refresh';
 import { HealthConsentTodayNotice } from '../../src/features/privacy/health-consent-notice';
 import { MigrationCard } from '../../src/features/safety/migration-card';
 import { QuickAddSheet } from '../../src/features/tracker/quick-add-sheet';
@@ -49,16 +51,27 @@ function momentFor(hour: number): Moment {
 // scanning shows the premium Snap-to-log card (no free demo sheet on mobile).
 export default function HomeScreen() {
   // The device's own day and hour decide "today" and the next meal (F-DASH-1-1).
+  // UX-FOOD-23: the hour is part of the query key, so when it rolls over the
+  // key changes. Keep the previous dashboard on screen while the new hour's
+  // summary loads instead of swapping it for a full-screen spinner.
   const {
     data: d,
     isLoading,
     refetch,
-    isRefetching,
-  } = trpc.dashboard.summary.useQuery({
-    localDate: localDateStr(),
-    localHour: new Date().getHours(),
-    include: ['tonight', 'tomorrow', 'shopDue', 'safetyChecks'],
-  });
+  } = trpc.dashboard.summary.useQuery(
+    {
+      localDate: localDateStr(),
+      localHour: new Date().getHours(),
+      include: ['tonight', 'tomorrow', 'shopDue', 'safetyChecks'],
+    },
+    { placeholderData: keepPreviousData },
+  );
+
+  // UX-FOOD-13: the pull-to-refresh spinner follows a user pull only (and drops
+  // after 10 s even if the refetch hangs). Binding it to `isRefetching` left it
+  // stuck, with the list pulled down, whenever a focus refetch ran, e.g. after
+  // coming back from the tracker.
+  const { refreshing, onRefresh } = useTimedRefresh(refetch);
 
   // Tab screens stay mounted, so without this the dashboard shows stale data
   // after the plan changes on another tab (React Query only refetches on
@@ -142,10 +155,9 @@ export default function HomeScreen() {
   return (
     <Screen className="px-0">
       <ScrollView
+        testID="today-scroll"
         contentContainerClassName="gap-4 px-4 py-4"
-        refreshControl={
-          <RefreshControl refreshing={isRefetching} onRefresh={() => void refetch()} />
-        }
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
       >
         <ModeSwitch />
 

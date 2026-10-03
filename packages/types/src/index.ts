@@ -1,4 +1,5 @@
 export * from './auth';
+export * from './chat-actions';
 export * from './plan-features';
 export * from './gym';
 export * from './preferences';

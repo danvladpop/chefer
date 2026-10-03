@@ -7,9 +7,21 @@ import { useIsPremium } from '@/hooks/useIsPremium';
 import { capture } from '@/lib/analytics';
 import { useChat } from '@ai-sdk/react';
 import { TextStreamChatTransport, type UIMessage } from 'ai';
-import { MessageCircle, Send, Sparkles, X } from 'lucide-react';
-import { AI_CONSENT_REQUIRED_HEADER, AI_CONSENT_REQUIRED_MESSAGE } from '@chefer/types';
-import { notifyAiConsentRequired, WELLNESS_COPY } from '@chefer/utils';
+import { MessageCircle, Send, Sparkles, Square, X } from 'lucide-react';
+import {
+  AI_CONSENT_REQUIRED_HEADER,
+  AI_CONSENT_REQUIRED_MESSAGE,
+  CHAT_ACTIONS_HEADER,
+} from '@chefer/types';
+import {
+  chatFailureMessage,
+  localDateStr,
+  notifyAiConsentRequired,
+  splitChatActions,
+  WELLNESS_COPY,
+} from '@chefer/utils';
+import { clearThread, loadThread, saveThread } from '../thread-storage';
+import { ChatActionChips } from './ChatActionChips';
 import { LockedChatPreview } from './LockedChatPreview';
 
 // Showcase what the chat can actually DO with the user's real plan (P1-4).
@@ -19,11 +31,65 @@ const SUGGESTED_PROMPTS = [
   "Scale tonight's dinner for 4 people",
 ];
 
-function getMessageText(m: UIMessage): string {
+/** The raw text parts, including the action trailer an opted-in reply ends with. */
+function getRawMessageText(m: UIMessage): string {
   return m.parts
     .filter((p) => p.type === 'text')
     .map((p) => (p as { type: 'text'; text: string }).text)
     .join('');
+}
+
+/** What to show (the trailer is not prose) and what the chef did. */
+function splitMessage(m: UIMessage) {
+  return splitChatActions(getRawMessageText(m));
+}
+
+function getMessageText(m: UIMessage): string {
+  return splitMessage(m).text;
+}
+
+/** UX-FOOD-21: a chef reply longer than this is folded behind "Show more". */
+const COLLAPSE_AFTER_CHARS = 320;
+
+function MessageText({
+  id,
+  role,
+  text,
+  live,
+}: {
+  id: string;
+  role: UIMessage['role'];
+  text: string;
+  /** The reply still streaming in: never folded. */
+  live: boolean;
+}) {
+  const [expanded, setExpanded] = useState(false);
+  const foldable = role === 'assistant' && !live && text.length > COLLAPSE_AFTER_CHARS;
+  return (
+    <div
+      className={`max-w-[80%] rounded-2xl px-3 py-2 text-sm ${
+        role === 'user' ? 'bg-[#944a00] text-white' : 'bg-neutral-100 text-neutral-800'
+      }`}
+    >
+      <p
+        data-testid={`chat-message-${id}-text`}
+        className={`whitespace-pre-wrap break-words ${foldable && !expanded ? 'line-clamp-6' : ''}`}
+      >
+        {text}
+      </p>
+      {foldable && (
+        <button
+          type="button"
+          data-testid={`chat-message-${id}-toggle`}
+          aria-expanded={expanded}
+          onClick={() => setExpanded((v) => !v)}
+          className="flex min-h-11 items-center text-sm font-semibold text-[#944a00]"
+        >
+          {expanded ? 'Show less' : 'Show more'}
+        </button>
+      )}
+    </div>
+  );
 }
 
 const FOCUSABLE =
@@ -43,6 +109,13 @@ export function ChatWidget() {
   const [announcement, setAnnouncement] = useState('');
 
   const [chatError, setChatError] = useState<string | null>(null);
+  // UX-FOOD-21: the last thread is kept for the rest of the day in this tab, so a
+  // reload does not wipe it. (sessionStorage, not localStorage: a shared
+  // browser must not show one person's chat to the next.)
+  const [stored] = useState(() => loadThread(localDateStr()));
+  const [undone, setUndone] = useState<Record<string, number[]>>(stored.undone);
+  // The last failed request, for friendly copy (the SDK's own error is the raw body).
+  const failureRef = useRef<{ status: number; serverMessage: string | null } | null>(null);
 
   // Over-quota is an upgrade moment, not an error: the API answers the last
   // free message with a 200 text reply plus this header, and the widget swaps
@@ -72,12 +145,25 @@ export function ChatWidget() {
   // R-10: set when the server answered 403 for missing AI consent, so the
   // inline error says what to do instead of "unavailable".
   const consentRefusedRef = useRef(false);
-  const { messages, sendMessage, status } = useChat({
+  const { messages, sendMessage, status, stop, regenerate, setMessages, clearError } = useChat({
+    messages: stored.messages,
     transport: new TextStreamChatTransport({
       api: '/api/chat',
       fetch: async (input: RequestInfo | URL, init?: RequestInit) => {
-        const res = await fetch(input, init);
+        // UX-FOOD-21: ask for what the chef's tools did, appended after the text.
+        const headers = new Headers(init?.headers);
+        headers.set(CHAT_ACTIONS_HEADER, '1');
+        const res = await fetch(input, { ...init, headers });
         consentRefusedRef.current = false;
+        failureRef.current = null;
+        if (!res.ok) {
+          const serverMessage = await res
+            .clone()
+            .json()
+            .then((d: { error?: unknown }) => (typeof d.error === 'string' ? d.error : null))
+            .catch(() => null);
+          failureRef.current = { status: res.status, serverMessage };
+        }
         if (res.headers.get('X-Chat-Quota-Exhausted') === '1') setQuotaExhausted(true);
         // R-10: the server has no AI consent on record — reopen the sheet.
         if (res.status === 403 && res.headers.get(AI_CONSENT_REQUIRED_HEADER) === '1') {
@@ -91,14 +177,19 @@ export function ChatWidget() {
         return res;
       },
     }),
-    onError: () =>
+    onError: (error) =>
       setChatError(
         consentRefusedRef.current
           ? AI_CONSENT_REQUIRED_MESSAGE
-          : 'The chef is unavailable right now — please try again.',
+          : chatFailureMessage({ ...failureRef.current, error }),
       ),
   });
   const isLoading = status === 'submitted' || status === 'streaming';
+
+  // Remember the thread whenever it settles (never mid-stream).
+  useEffect(() => {
+    if (status === 'ready') saveThread(localDateStr(), messages, undone);
+  }, [messages, status, undone]);
 
   // AI data consent (App Store 5.1.2(i)): the first message asks before
   // anything is sent. While the consent sheet is up, the panel's own focus
@@ -196,6 +287,26 @@ export function ChatWidget() {
     });
   };
 
+  const showNewChat = !locked && messages.length > 0 && !isLoading;
+
+  // UX-FOOD-21: resend the question that failed (the SDK keeps it in the thread).
+  const handleRetry = () => {
+    if (isLoading || quotaExhausted) return;
+    requestAiConsent('chat', () => {
+      setChatError(null);
+      clearError();
+      void regenerate();
+    });
+  };
+
+  const handleNewChat = () => {
+    setMessages([]);
+    setUndone({});
+    setChatError(null);
+    clearError();
+    clearThread();
+  };
+
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
@@ -253,11 +364,21 @@ export function ChatWidget() {
                 {WELLNESS_COPY.chatHeaderSubtitle}
               </p>
             </div>
+            {showNewChat && (
+              <button
+                type="button"
+                data-testid="chat-new"
+                onClick={handleNewChat}
+                className="ml-auto flex min-h-11 items-center rounded-lg px-2 text-xs font-semibold text-white/90 hover:bg-white/10"
+              >
+                New chat
+              </button>
+            )}
             <button
               type="button"
               onClick={close}
               aria-label="Close chat"
-              className="-mr-2 ml-auto flex h-11 w-11 items-center justify-center rounded-lg text-white/80 hover:bg-white/10 hover:text-white"
+              className={`-mr-2 flex h-11 w-11 items-center justify-center rounded-lg text-white/80 hover:bg-white/10 hover:text-white ${showNewChat ? '' : 'ml-auto'}`}
             >
               <X className="h-5 w-5" aria-hidden="true" />
             </button>
@@ -287,10 +408,11 @@ export function ChatWidget() {
                 </p>
               </div>
             )}
-            {messages.map((m: UIMessage) => {
-              const text = getMessageText(m);
-              if (!text) return null;
+            {messages.map((m: UIMessage, i: number) => {
+              const { text, actions } = splitMessage(m);
+              if (!text && actions.length === 0) return null;
               const footer = topicFooters[m.id];
+              const live = isLoading && i === messages.length - 1 && m.role === 'assistant';
               return (
                 <div key={m.id} className="flex flex-col gap-1">
                   <div className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}>
@@ -302,16 +424,22 @@ export function ChatWidget() {
                         C
                       </span>
                     )}
-                    <div
-                      className={`max-w-[80%] rounded-2xl px-3 py-2 text-sm ${
-                        m.role === 'user'
-                          ? 'bg-[#944a00] text-white'
-                          : 'bg-neutral-100 text-neutral-800'
-                      }`}
-                    >
-                      {text}
-                    </div>
+                    <MessageText id={m.id} role={m.role} text={text} live={live} />
                   </div>
+                  {actions.length > 0 && (
+                    <ChatActionChips
+                      messageId={m.id}
+                      actions={actions}
+                      undone={undone[m.id] ?? []}
+                      onUndone={(index) =>
+                        setUndone((prev) => ({
+                          ...prev,
+                          [m.id]: [...new Set([...(prev[m.id] ?? []), index])],
+                        }))
+                      }
+                      onNavigate={close}
+                    />
+                  )}
                   {/* UX-22 (T-22.2, AC4): belt-and-braces footer under a
                       flagged reply — the guardrail lives in the prompt
                       (T-00.14); this is the visible reminder, not the control. */}
@@ -336,6 +464,16 @@ export function ChatWidget() {
                 className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800"
               >
                 {chatError}
+                {messages.at(-1)?.role === 'user' && !quotaExhausted && (
+                  <button
+                    type="button"
+                    data-testid="chat-retry"
+                    onClick={handleRetry}
+                    className="mt-1 flex min-h-11 items-center text-sm font-semibold text-[#944a00] underline-offset-2 hover:underline"
+                  >
+                    Try again
+                  </button>
+                )}
               </div>
             )}
             {quotaExhausted && (
@@ -381,15 +519,27 @@ export function ChatWidget() {
               disabled={isLoading || quotaExhausted}
               className="min-w-0 flex-1 rounded-xl border border-neutral-200 px-3 py-2 text-base focus:border-[#944a00] focus:outline-none focus:ring-1 focus:ring-[#944a00] disabled:opacity-50 sm:text-sm"
             />
-            <button
-              type="button"
-              onClick={handleSend}
-              disabled={!inputValue.trim() || isLoading}
-              aria-label="Send message"
-              className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-[#944a00] text-white transition hover:bg-[#7a3d00] disabled:opacity-40"
-            >
-              <Send className="h-4 w-4" aria-hidden="true" />
-            </button>
+            {isLoading ? (
+              <button
+                type="button"
+                onClick={() => void stop()}
+                aria-label="Stop"
+                data-testid="chat-stop"
+                className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-[#944a00] text-white transition hover:bg-[#7a3d00]"
+              >
+                <Square className="h-4 w-4" aria-hidden="true" />
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={handleSend}
+                disabled={!inputValue.trim()}
+                aria-label="Send message"
+                className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-[#944a00] text-white transition hover:bg-[#7a3d00] disabled:opacity-40"
+              >
+                <Send className="h-4 w-4" aria-hidden="true" />
+              </button>
+            )}
           </div>
         </div>
       )}

@@ -114,3 +114,58 @@ describe('TonightCard "Rate it" (UX-FOOD-04)', () => {
     expect(screen.queryByTestId('tonight-rate-it')).toBeNull();
   });
 });
+
+// UX-FOOD-18: on Friday and Saturday evenings Plan opens on NEXT week, so a
+// bare push to Plan never showed tonight's dinner. Swap now names this week,
+// today's weekday and the dinner slot.
+describe('TonightCard "Swap" (UX-FOOD-18)', () => {
+  afterEach(() => jest.useRealTimers());
+
+  it.each([
+    // Friday 19:00 (Plan's default week is next week from Friday 15:00).
+    ['Friday evening', new Date(2026, 8, 4, 19, 0), '4'],
+    ['Saturday evening', new Date(2026, 8, 5, 19, 0), '5'],
+    // Sunday must map to Plan's Monday-first index 6.
+    ['Sunday evening', new Date(2026, 8, 6, 19, 0), '6'],
+    ['Wednesday evening', new Date(2026, 8, 2, 19, 0), '2'],
+  ])('%s: opens THIS week, today, with the dinner swap requested', async (_name, now, day) => {
+    jest.useFakeTimers({
+      now,
+      doNotFake: [
+        'setTimeout',
+        'clearTimeout',
+        'setInterval',
+        'clearInterval',
+        'setImmediate',
+        'clearImmediate',
+        'nextTick',
+        'queueMicrotask',
+        'requestAnimationFrame',
+        'cancelAnimationFrame',
+        'performance',
+      ],
+    });
+    const { router } = jest.requireMock<{ router: { push: jest.Mock } }>('expo-router');
+    const user = userEvent.setup({ advanceTimers: jest.advanceTimersByTime });
+    await render(<TonightCard meal={meal(false) as never} showNutrition onLogged={jest.fn()} />);
+    await user.press(screen.getByTestId('tonight-swap'));
+    const [target] = router.push.mock.calls.at(-1) as [{ pathname: string; params: object }];
+    expect(target).toMatchObject({
+      pathname: '/(food)/meal-plan',
+      params: { week: '0', day, swap: 'dinner' },
+    });
+  });
+
+  it('every press is a fresh link, so a repeat swap reopens the picker', async () => {
+    const { router } = jest.requireMock<{ router: { push: jest.Mock } }>('expo-router');
+    const user = userEvent.setup();
+    await render(<TonightCard meal={meal(false) as never} showNutrition onLogged={jest.fn()} />);
+    await user.press(screen.getByTestId('tonight-swap'));
+    await new Promise((resolve) => setTimeout(resolve, 5));
+    await user.press(screen.getByTestId('tonight-swap'));
+    const [first, second] = router.push.mock.calls.map(
+      (c: [{ params: { at: string } }]) => c[0].params.at,
+    );
+    expect(first).not.toBe(second);
+  });
+});

@@ -262,9 +262,20 @@ export const trackerRouter = router({
       return trackerService.weeklySummary(ctx.user.id, input?.localDate);
     }),
 
+  // UX-FOOD-20: `days` (7–90) lets Progress pick its window; omitted keeps 28.
   monthlySummary: protectedProcedure
-    .input(z.object({ localDate: localDateSchema }).optional())
+    .input(
+      z
+        .object({
+          localDate: localDateSchema,
+          days: z.number().int().min(7).max(90).optional(),
+        })
+        .optional(),
+    )
     .query(async ({ ctx, input }) => {
+      if (input?.days !== undefined && input.days !== 28) {
+        return trackerService.summary(ctx.user.id, input.days, input.localDate);
+      }
       return trackerService.monthlySummary(ctx.user.id, input?.localDate);
     }),
 

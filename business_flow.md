@@ -1328,6 +1328,22 @@ Snap-to-log (B-31), same rule as before, now reading the additive field.
 The ring also shows a **"Your target" / "Suggested"** label
 (`targetMode` from `targets.get`, §2.11, T-35.5).
 
+**Today polish (UX-FOOD-13/18/19/23).** The pull-to-refresh spinner follows a
+user pull only (`useTimedRefresh`), never the focus refetch, and the summary
+query keeps its previous data when the hour changes (`keepPreviousData`, web
+and mobile) instead of swapping the dashboard for a spinner. Tonight's **Swap**
+links Plan with `week=0&day=<Monday-first weekday>&swap=dinner&at=<now>` (web:
+`/meal-plan?week=0&day=N`), so it never opens next week on a Friday or
+Saturday evening; Plan applies those params (`week` -1..1, `day` 0..6, `swap`
+breakfast/lunch/dinner opens that slot's replace picker, `at` makes a repeat
+link a new one) and, after midnight, reselects today and the default week on
+the next focus or foreground (`useDayRollover`). "Today's session" has one
+answer, `selectTodaysSession` (`@chefer/utils`): a session completed today, else
+the routine day pinned to today's weekday (what the Plan marks), else the
+rotation's next day; the Today workout card names and starts that day. The
+training-day Explain sheet quotes the **Training-day target** (rest + bump)
+beside the rest-day one (`trainingExplainCopy`, both platforms).
+
 **Landing (T-04.3).** `landingFor()` (`@chefer/utils`) is a pure function
 over `{ jobs, persistedMode, hasGymProfile, workoutInProgress?,
 isTrainingDayToday?, workoutDoneToday?, localHour?, reminderHour? }`:
@@ -1683,6 +1699,23 @@ a flag on otherwise). Both clients read the header once the response arrives
 and render a fixed footer under that reply: `Not medical advice — check with
 your GP.` or `AI can be wrong about allergens — always check the label.`
 
+**What a reply did, and how it fails (UX-FOOD-21).** A client that sends
+`x-chefer-chat-actions: 1` gets the tools' effects after the reply text: a
+trailer (`CHAT_ACTIONS_MARKER` + a JSON array of `ChatAction`, `@chefer/types`)
+that `splitChatActions` (`@chefer/utils`) separates from the prose. The reply
+then carries a chip per action (swap, shopping-list add, logged meal, import)
+with **View** (the plan day, the list, the tracker, the recipe) and **Undo**
+(`mealPlan.replaceRecipe` back to the previous recipe, `shoppingList.removeCustomItem`
+per key, `tracker.deleteEntries` for the entry the chat created; an import has
+no Undo). Failures read as sentences through `chatFailureMessage` (502 "The chef
+is unavailable right now…", 401 session ended, offline), the unanswered question
+offers "Tap to retry" (mobile) / "Try again" (web), **Stop** aborts the request
+(and leaving the screen does too), replies over about 320 characters fold
+behind "Show more", and an empty premium thread offers starter prompts (the
+free preview's example prompts). The last thread is kept for the rest of the
+calendar day: mobile in the on-device KV store (wiped at sign-out), web in
+`sessionStorage` (this tab only, cleared at logout); "New chat" clears it.
+
 ```
 POST /api/chat (session cookie)
   ├─ resolve user from session (401 without)
@@ -1808,8 +1841,14 @@ the adjusted target must shape next week's budget)
   `tracker.deleteWeight`): both platforms list them on Progress (web
   /progress, mobile `progress` — linked from the card's "See progress" and
   from More); mobile can also expand them inside the dashboard card.
-- Progress (web + mobile): 28-day calories vs target and macro breakdown
-  (`tracker.monthlySummary`), 90-day weight chart (`tracker.weightHistory`)
+- Progress (web + mobile): calories vs target and macro breakdown over a
+  window the user picks, 7 / 28 / 90 days (`tracker.monthlySummary({ localDate,
+  days })`, default 28; UX-FOOD-20). The calorie axis is floored at 0 with round
+  ticks, the x labels are evenly spaced and kept inside the chart, and only
+  days with something logged count (`isLoggedDay`: an emptied day keeps a log
+  row with 0 kcal and no longer inflates "Days logged"). The weight card is
+  rendered outside the calorie summary's error branch, so a failed summary
+  does not hide it (UX-FOOD-28). 90-day weight chart (`tracker.weightHistory`)
   with current weight and change. The change is coloured by goal via the
   shared `weightChangeTone` (`@chefer/utils`): gaining is green for
   GAIN_MUSCLE, losing is green for LOSE_WEIGHT, other goals stay neutral
@@ -4092,7 +4131,7 @@ tracker.deleteEntries({ date, entryIds })                      [T-19.3]
      batch a client already holds ids for. Idempotent: an unmatched id is
      silently ignored.
 
-tracker.weeklySummary / monthlySummary({ localDate? })   [§2.12, T-21.1, B-33]
+tracker.weeklySummary({ localDate? }) / monthlySummary({ localDate?, days? })   [§2.12, T-21.1, B-33; days 7-90: UX-FOOD-20]
   └─ optional localDate anchors the trailing-N-day window on the CLIENT's
      local day instead of the server's UTC one (a user whose local day has
      turned over relative to UTC used to see a window shifted by a day);
