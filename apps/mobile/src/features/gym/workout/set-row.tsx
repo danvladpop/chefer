@@ -219,7 +219,7 @@ function SetRowImpl({
               className={cn(
                 // WP-04: 52 pt visual + hit area (SET_TICK_SIZE) — the control
                 // used with a barbell in hand.
-                'h-[52px] w-[52px] items-center justify-center rounded-full border-2 active:opacity-70',
+                'h-[52px] w-[52px] shrink-0 items-center justify-center rounded-full border-2 active:opacity-70',
                 done ? 'border-emerald-600 bg-emerald-600' : 'border-primary/40 bg-background',
               )}
             >

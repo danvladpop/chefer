@@ -1,5 +1,5 @@
 import { memo, useEffect, useRef } from 'react';
-import { Text, View } from 'react-native';
+import { Text, useWindowDimensions, View } from 'react-native';
 import { cn } from '@chefer/utils';
 import { haptics } from '../motion/haptics';
 import { PressableScale } from '../motion/pressable-scale';
@@ -110,6 +110,7 @@ function ValueStepperImpl({
 
   const grouped = variant === 'grouped';
   const display = format(value);
+  const tight = useWindowDimensions().fontScale > 1.2;
   const button = (direction: 1 | -1) => (
     <PressableScale
       testID={`${testID}-${direction === 1 ? 'inc' : 'dec'}`}
@@ -119,9 +120,12 @@ function ValueStepperImpl({
       onPress={() => nudge(direction)}
       onLongPress={() => startRepeat(direction)}
       onPressOut={stop}
-      hitSlop={{ top: 4, bottom: 4 }}
+      // Large OS text: the value cell grows, so the −/+ visual narrows to 36 pt
+      // and hitSlop keeps the 44 pt target (WP-04 device pass: the set row's
+      // tick was pushed off the card at accessibility-XL).
+      hitSlop={tight ? { top: 4, bottom: 4, left: 4, right: 4 } : { top: 4, bottom: 4 }}
       className={cn(
-        'h-11 w-11 items-center justify-center',
+        tight ? 'h-11 w-9 items-center justify-center' : 'h-11 w-11 items-center justify-center',
         // Grouped: transparent, sits inside the shared container; pressed
         // state is 5% darker (MO-01) instead of its own fill (UX-05 A1).
         grouped ? 'active:bg-black/5' : 'rounded-md bg-muted active:opacity-70',

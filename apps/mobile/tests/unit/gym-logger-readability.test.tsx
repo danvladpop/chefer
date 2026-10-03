@@ -64,6 +64,8 @@ describe('SetRow readability (WP-04)', () => {
     const className = String(tick.props.className);
     expect(className).toContain('h-[52px]');
     expect(className).toContain('w-[52px]');
+    // Never squeezed off the card by the steppers at large text.
+    expect(className).toMatch(/\bshrink-0\b/);
     // No hitSlop shrinking or fixed smaller wrapper: the Pressable is the hit area.
     expect(tick.props.accessibilityRole).toBe('checkbox');
   });

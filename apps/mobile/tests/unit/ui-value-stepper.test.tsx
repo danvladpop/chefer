@@ -1,3 +1,4 @@
+import * as ReactNative from 'react-native';
 import { render, screen, within } from '@testing-library/react-native';
 import {
   DENSE_MAX_FONT_SCALE,
@@ -204,5 +205,41 @@ describe('UX-05 A1 grouped ValueStepper variant', () => {
     );
     const row = screen.getByTestId('plain');
     expect(String(row.props.className ?? '')).not.toMatch(/bg-muted/);
+  });
+});
+
+describe('ValueStepper at large OS text (WP-04 device pass)', () => {
+  function renderStepper() {
+    return render(
+      <ValueStepper
+        testID="w"
+        value={62.5}
+        next={noopNext}
+        onChange={jest.fn()}
+        format={(v) => String(v)}
+        caption="kg"
+        name="Weight"
+      />,
+    );
+  }
+
+  it('keeps 44 pt −/+ at default size', async () => {
+    const dims = jest
+      .spyOn(ReactNative, 'useWindowDimensions')
+      .mockReturnValue({ width: 402, height: 874, scale: 3, fontScale: 1 });
+    await renderStepper();
+    // (PressableScale's className is compiled away under Jest — hitSlop shows the mode.)
+    expect(screen.getByTestId('w-inc').props.hitSlop).toEqual({ top: 4, bottom: 4 });
+    dims.mockRestore();
+  });
+
+  it('narrows the −/+ visual to 36 pt above 1.2x and keeps a 44 pt hit area via hitSlop', async () => {
+    const dims = jest
+      .spyOn(ReactNative, 'useWindowDimensions')
+      .mockReturnValue({ width: 402, height: 874, scale: 3, fontScale: 1.6 });
+    await renderStepper();
+    const inc = screen.getByTestId('w-inc');
+    expect(inc.props.hitSlop).toMatchObject({ left: 4, right: 4 });
+    dims.mockRestore();
   });
 });
