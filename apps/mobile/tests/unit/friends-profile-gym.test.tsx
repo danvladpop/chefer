@@ -146,7 +146,26 @@ describe('workout-format', () => {
     };
     expect(setLines(dumbbell, kg)).toEqual(['30 kg each × 8']);
     expect(topSetLine({ ...dumbbell, exerciseId: 'barbell-bench-press' }, kg)).toBe('30 kg × 8');
+    // An older API sends no flag for a custom exercise: still a bare weight.
     expect(topSetLine({ ...dumbbell, isCustom: true }, kg)).toBe('30 kg × 8');
+  });
+
+  it('UX-GYM-19: the DTO perHand flag makes a friend’s custom exercise read "kg each"', () => {
+    const custom: FriendWorkoutDto['exercises'][number] = {
+      exerciseId: 'custom-db-row',
+      name: 'My one-arm row',
+      isCustom: true,
+      trackingType: 'WEIGHT_REPS',
+      perHand: true,
+      sets: [
+        { weightKg: 30, reps: 8 },
+        { weightKg: 32.5, reps: 6 },
+      ],
+    };
+    expect(setLines(custom, kg)).toEqual(['30 kg each × 8', '32.5 kg each × 6']);
+    expect(topSetLine(custom, { weight: 'LB', distance: 'KM' })).toBe('71.7 lb each × 6');
+    // Viewer-side: the flag is the owner's exercise, not the unit.
+    expect(topSetLine({ ...custom, perHand: false }, kg)).toBe('32.5 kg × 6');
   });
 
   it('an exercise with no sets has no line', () => {

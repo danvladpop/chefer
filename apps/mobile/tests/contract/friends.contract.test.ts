@@ -1,4 +1,7 @@
+import { randomUUID } from 'node:crypto';
 import { describe, expect, it } from 'vitest';
+import type { NextWorkoutExerciseDto, WorkoutSessionDoc } from '@chefer/types';
+import { startSession, workoutReducer } from '@chefer/utils';
 import {
   CONTRACT_PASSWORD,
   createManualRecipe,
@@ -29,6 +32,60 @@ import {
 const CAROL_ID = 'cseedcarol000000000000001';
 const NO_FOLLOWING_MESSAGE =
   'Following is off on this API (friends.availability → enabled: false); set FEATURE_FLAGS=friends to run the friends contract suite';
+
+/** A prescribed strength exercise: 2 working sets of 30 kg × 8, no warm-ups. */
+function strengthExercise(exerciseId: string, position: number): NextWorkoutExerciseDto {
+  return {
+    routineExerciseId: randomUUID(),
+    exerciseId,
+    position,
+    sets: 2,
+    repMin: 8,
+    repMax: 12,
+    targetRir: 2,
+    restSec: 90,
+    supersetGroup: null,
+    notes: null,
+    repBucket: '8-12',
+    suggestion: {
+      kind: 'start',
+      weightKg: 30,
+      reps: [8, 8],
+      sets: 2,
+      reasonCode: 'START',
+      inputs: {},
+      deltaKg: 0,
+      engineVersion: 1,
+    },
+    warmups: [],
+    lastTime: null,
+  };
+}
+
+/** A finished freestyle workout with every set ticked, dated today (the owner is UTC). */
+function finishedWorkout(exercises: NextWorkoutExerciseDto[]): WorkoutSessionDoc {
+  const today = new Date().toISOString().slice(0, 10);
+  const startedAt = `${today}T00:05:00.000Z`;
+  let doc = startSession({
+    id: randomUUID(),
+    newId: randomUUID,
+    now: startedAt,
+    localDate: today,
+    routineId: null,
+    routineDayId: null,
+    name: 'Per-hand contract workout',
+    isDeload: false,
+    exercises,
+  });
+  let minute = 1;
+  const at = () => new Date(Date.parse(startedAt) + minute++ * 60_000).toISOString();
+  for (const se of doc.exercises) {
+    for (const set of se.sets) {
+      doc = workoutReducer(doc, { type: 'completeSet', seId: se.id, setId: set.id, at: at() });
+    }
+  }
+  return workoutReducer(doc, { type: 'finish', at: at() });
+}
 
 const friendsEnabled = await probeFriendsEnabled();
 if (!friendsEnabled) console.warn(`[friends.contract] SKIPPED: ${NO_FOLLOWING_MESSAGE}`);
@@ -402,6 +459,32 @@ describe.skipIf(!friendsEnabled)('friends contract (Following)', () => {
         expect(allKeys.has(key), `workouts DTO has "${key}"`).toBe(false);
       for (const key of allKeys) expect(key).not.toMatch(/heart|^hr|note/);
       expectNoEmail('friends.workouts', sessions);
+    });
+
+    // UX-GYM-19: additive optional `perHand` on a workout exercise, filled from
+    // the exercise itself; omitted (not `false`) for a barbell lift.
+    it('marks a dumbbell exercise perHand: true and leaves a barbell one without the flag', async () => {
+      const owner = await makeUser({ prefix: 'friends-perhand', activate: 'PUBLIC' });
+      const viewer = await makeUser({ prefix: 'friends-perhand-viewer', activate: 'PUBLIC' });
+      const workout = finishedWorkout([
+        strengthExercise('dumbbell-bench-press', 0),
+        strengthExercise('barbell-bench-press', 1),
+      ]);
+      const upload = await owner.api.gym.session.upsertMany.mutate({ docs: [workout] });
+      expect(upload.results[0]?.status).toBe('applied');
+      await viewer.api.friends.follow.mutate({ userId: owner.id });
+
+      const sessions = await viewer.api.friends.workouts.query({ userId: owner.id });
+      const shared = sessions.find((s) => s.id === workout.id);
+      expect(shared, 'the uploaded workout is in the friend window').toBeTruthy();
+      const byId = (id: string) => shared?.exercises.find((e) => e.exerciseId === id);
+      expect(byId('dumbbell-bench-press')?.perHand).toBe(true);
+      expect(byId('barbell-bench-press')).toBeTruthy();
+      expect(byId('barbell-bench-press')).not.toHaveProperty('perHand');
+      expect(byId('dumbbell-bench-press')?.sets).toEqual([
+        { weightKg: 30, reps: 8 },
+        { weightKg: 30, reps: 8 },
+      ]);
     });
   });
 
