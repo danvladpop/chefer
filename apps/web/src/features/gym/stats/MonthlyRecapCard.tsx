@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { trpc } from '@/lib/trpc';
 import { format, parse } from 'date-fns';
 import { ChevronLeft, ChevronRight, TrendingUp } from 'lucide-react';
@@ -17,8 +17,23 @@ function shiftMonth(month: string, delta: number): string {
   return `${Math.floor(total / 12)}-${String((total % 12) + 1).padStart(2, '0')}`;
 }
 
-export function MonthlyRecapCard({ library, unit }: { library: ExerciseDto[]; unit: WeightUnit }) {
-  const [month, setMonth] = useState(() => format(new Date(), 'yyyy-MM'));
+export function MonthlyRecapCard({
+  library,
+  unit,
+  initialMonth,
+}: {
+  library: ExerciseDto[];
+  unit: WeightUnit;
+  /** UX-GYM-13: a month deep-linked from Today's recap card (`?month=YYYY-MM`). */
+  initialMonth?: string | undefined;
+}) {
+  const [month, setMonth] = useState(() => initialMonth ?? format(new Date(), 'yyyy-MM'));
+  const cardRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!initialMonth) return;
+    setMonth(initialMonth);
+    cardRef.current?.scrollIntoView({ block: 'start' });
+  }, [initialMonth]);
   const { data, isLoading } = trpc.gym.stats.monthlyRecap.useQuery({ month });
   const byId = new Map(library.map((e) => [e.id, e.name]));
 
@@ -26,7 +41,11 @@ export function MonthlyRecapCard({ library, unit }: { library: ExerciseDto[]; un
   const isCurrentMonth = month === format(new Date(), 'yyyy-MM');
 
   return (
-    <div className="rounded-2xl border bg-white p-4 shadow-sm sm:p-5">
+    <div
+      ref={cardRef}
+      data-testid="gym-monthly-recap"
+      className="scroll-mt-20 rounded-2xl border bg-white p-4 shadow-sm sm:p-5"
+    >
       <div className="mb-3 flex items-center justify-between gap-2">
         <p className="text-xs font-semibold uppercase tracking-widest text-neutral-500">
           Monthly recap

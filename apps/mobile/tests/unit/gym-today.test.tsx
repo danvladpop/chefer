@@ -129,6 +129,8 @@ function renderToday(queryClient: QueryClient) {
   );
 }
 
+const PROFILE = makeBootstrap().profile!; // eslint-disable-line @typescript-eslint/no-non-null-assertion -- fixture always has a profile
+
 function makeClient() {
   return new QueryClient({ defaultOptions: { queries: { gcTime: Infinity, retry: false } } });
 }
@@ -246,6 +248,7 @@ describe('TodayScreen', () => {
   });
 
   it('shows the rest-week empty state when there is nothing scheduled', async () => {
+    jest.setSystemTime(new Date(2026, 8, 29, 12, 0, 0)); // Tue: no routine day is pinned to it
     const queryClient = makeClient();
     queryClient.setQueryData(
       gymBootstrapQueryKey,
@@ -274,6 +277,42 @@ describe('TodayScreen', () => {
     expect(screen.getByText('Back at it')).toBeOnTheScreen();
     expect(screen.queryByText('Take a deload')).not.toBeOnTheScreen();
     expect(screen.queryByTestId('gym-today-offer-accept')).not.toBeOnTheScreen();
+  });
+
+  // UX-GYM-13: the recap card opens the recap instead of only being dismissable.
+  it('the recap card has a primary "See September" button that opens Stats on that month', async () => {
+    const offers: GymOffer[] = [
+      {
+        kind: 'recap',
+        key: 'recap:2026-09',
+        title: 'Your month in review',
+        body: 'body',
+        data: { month: '2026-09' },
+      },
+    ];
+    const queryClient = makeClient();
+    queryClient.setQueryData(
+      gymBootstrapQueryKey,
+      makeBootstrap({ activeRoutine: ROUTINE, nextWorkout: NEXT_WORKOUT, offers }),
+    );
+    const user = userEvent.setup();
+    await renderToday(queryClient);
+
+    await user.press(screen.getByTestId('gym-today-offer-recap'));
+    expect(screen.getByText('See September')).toBeOnTheScreen();
+    expect(router.push).toHaveBeenCalledWith({ pathname: '/stats', params: { month: '2026-09' } });
+  });
+
+  it('a recap offer without a month stays dismiss-only', async () => {
+    const offers: GymOffer[] = [{ kind: 'recap', key: 'recap-x', title: 'Recap', body: 'body' }];
+    const queryClient = makeClient();
+    queryClient.setQueryData(
+      gymBootstrapQueryKey,
+      makeBootstrap({ activeRoutine: ROUTINE, nextWorkout: NEXT_WORKOUT, offers }),
+    );
+    await renderToday(queryClient);
+    expect(screen.queryByTestId('gym-today-offer-recap')).not.toBeOnTheScreen();
+    expect(screen.getByTestId('gym-today-offer-dismiss')).toBeOnTheScreen();
   });
 
   it('shows the deload offer with an accept action when nothing outranks it', async () => {
@@ -648,6 +687,11 @@ describe('TodayScreen', () => {
       days: ROUTINE.days.map((d) => (d.id === 'd1' ? { ...d, plannedWeekday: missedWeekday } : d)),
     };
 
+    const unpinnedLower: RoutineDto = {
+      ...missedRoutine,
+      days: missedRoutine.days.map((d) => (d.id === 'd2' ? { ...d, plannedWeekday: null } : d)),
+    };
+
     // The rotation has moved past the missed Upper A (e.g. Lower A was done
     // instead), so Lower A is next and Upper A is still owed this week.
     const LOWER_NEXT: NextWorkoutDto = {
@@ -664,7 +708,7 @@ describe('TodayScreen', () => {
       const queryClient = makeClient();
       queryClient.setQueryData(
         gymBootstrapQueryKey,
-        makeBootstrap({ activeRoutine: missedRoutine, nextWorkout: NEXT_WORKOUT }),
+        makeBootstrap({ activeRoutine: unpinnedLower, nextWorkout: NEXT_WORKOUT }),
       );
       await renderToday(queryClient);
 
@@ -672,6 +716,100 @@ describe('TodayScreen', () => {
       expect(screen.queryByTestId('gym-today-rest')).not.toBeOnTheScreen();
       expect(screen.getByTestId('gym-today-next-up')).toHaveTextContent(/Upper A/);
       expect(screen.getByTestId('gym-today-overdue')).toHaveTextContent(/Planned for/);
+    });
+
+    // UX-GYM-12: "Still time" and an overdue card never appear together.
+    it('never shows "Still time" next to the overdue card, even for a second missed day', async () => {
+      const twoMissed: RoutineDto = {
+        ...ROUTINE,
+        days: [
+          { id: 'd1', position: 0, name: 'Upper A', plannedWeekday: 0, exercises: [] }, // Mon (rotation next, overdue)
+          { id: 'd2', position: 1, name: 'Lower A', plannedWeekday: 1, exercises: [] }, // Tue
+          { id: 'd3', position: 2, name: 'Pull', plannedWeekday: 5, exercises: [] }, // Sat
+        ],
+      };
+      const queryClient = makeClient();
+      queryClient.setQueryData(
+        gymBootstrapQueryKey,
+        makeBootstrap({ activeRoutine: twoMissed, nextWorkout: NEXT_WORKOUT }),
+      );
+      await renderToday(queryClient);
+
+      expect(screen.getByTestId('gym-today-overdue')).toBeOnTheScreen();
+      expect(screen.queryByTestId('gym-today-missed')).not.toBeOnTheScreen();
+    });
+
+    // UX-GYM-31: the SAME day the Food Today card names (a pinned day wins).
+    it("names the day pinned to today's weekday, like the Food card, and offers the overdue one", async () => {
+      const queryClient = makeClient();
+      queryClient.setQueryData(
+        gymBootstrapQueryKey,
+        makeBootstrap({ activeRoutine: missedRoutine, nextWorkout: NEXT_WORKOUT }),
+      );
+      await renderToday(queryClient);
+
+      // d2 "Lower A" is pinned to Wednesday (today); d1 "Upper A" is overdue from Tuesday.
+      expect(screen.getByTestId('gym-today-next-up')).toHaveTextContent(/Lower A/);
+      expect(screen.queryByTestId('gym-today-overdue')).not.toBeOnTheScreen();
+      expect(screen.getByTestId('gym-today-missed')).toHaveTextContent(/Upper A/);
+    });
+
+    // UX-GYM-12: you cannot miss a session before you signed up.
+    it('ignores planned days before the setup date and does not call a first-week day overdue', async () => {
+      const queryClient = makeClient();
+      queryClient.setQueryData(
+        gymBootstrapQueryKey,
+        makeBootstrap({
+          activeRoutine: unpinnedLower,
+          nextWorkout: NEXT_WORKOUT,
+          // Set up this Wednesday morning: Tuesday's Upper A predates it.
+          profile: {
+            ...PROFILE,
+            setupCompletedAt: new Date(2026, 8, 30, 9, 0, 0).toISOString(),
+          },
+        }),
+      );
+      await renderToday(queryClient);
+
+      expect(screen.queryByTestId('gym-today-missed')).not.toBeOnTheScreen();
+      expect(screen.queryByTestId('gym-today-overdue')).not.toBeOnTheScreen();
+      expect(screen.queryByTestId('gym-today-rest')).not.toBeOnTheScreen();
+      expect(screen.getByTestId('gym-today-next-up')).toHaveTextContent(/Upper A/);
+    });
+
+    it('pro-rates the first week goal to the days left', async () => {
+      jest.setSystemTime(new Date(2026, 9, 3, 12, 0, 0)); // Sat 3 Oct: two days left
+      const queryClient = makeClient();
+      queryClient.setQueryData(
+        gymBootstrapQueryKey,
+        makeBootstrap({
+          activeRoutine: unpinnedLower,
+          nextWorkout: NEXT_WORKOUT,
+          streak: { current: 0, best: 0, flexTokens: 0, thisWeekSessions: 0, thisWeekGoal: 4 },
+          profile: {
+            ...PROFILE,
+            setupCompletedAt: new Date(2026, 9, 3, 9, 0, 0).toISOString(),
+          },
+        }),
+      );
+      await renderToday(queryClient);
+
+      expect(screen.getByText('0 of 2 this week')).toBeOnTheScreen();
+      expect(screen.queryByText('0 of 4 this week')).not.toBeOnTheScreen();
+    });
+
+    it('keeps the full goal in later weeks', async () => {
+      const queryClient = makeClient();
+      queryClient.setQueryData(
+        gymBootstrapQueryKey,
+        makeBootstrap({
+          activeRoutine: unpinnedLower,
+          nextWorkout: NEXT_WORKOUT,
+          streak: { current: 0, best: 0, flexTokens: 0, thisWeekSessions: 0, thisWeekGoal: 4 },
+        }),
+      );
+      await renderToday(queryClient);
+      expect(screen.getByText('0 of 4 this week')).toBeOnTheScreen();
     });
 
     it('"Do it today" starts the missed day', async () => {

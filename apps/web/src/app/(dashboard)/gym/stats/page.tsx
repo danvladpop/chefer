@@ -21,6 +21,14 @@ function StatsSkeleton() {
   );
 }
 
+const MONTH_PARAM = /^\d{4}-(0[1-9]|1[0-2])$/;
+
+/** UX-GYM-13: `?month=YYYY-MM` from Today's recap card. Read after mount (the page renders only then). */
+function readMonthParam(): string | undefined {
+  const value = new URLSearchParams(window.location.search).get('month');
+  return value && MONTH_PARAM.test(value) ? value : undefined;
+}
+
 export default function GymStatsPage() {
   const hasMounted = useHasMounted();
   const { data: bootstrap, isLoading } = useGymBootstrap();
@@ -65,7 +73,11 @@ export default function GymStatsPage() {
             <MuscleVolumeChart experience={experience} />
             <ConsistencyGrid />
             <PrTimeline library={bootstrap.library} unit={unit} />
-            <MonthlyRecapCard library={bootstrap.library} unit={unit} />
+            <MonthlyRecapCard
+              library={bootstrap.library}
+              unit={unit}
+              initialMonth={readMonthParam()}
+            />
           </div>
         </div>
       )}

@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import type { GymBootstrap } from '@chefer/types';
@@ -23,9 +23,19 @@ function shiftMonth(month: string, delta: number): string {
   return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}`;
 }
 
-export function MonthlyRecapView({ bootstrap }: { bootstrap: GymBootstrap }) {
+export function MonthlyRecapView({
+  bootstrap,
+  initialMonth,
+}: {
+  bootstrap: GymBootstrap;
+  /** UX-GYM-13: a month deep-linked from Today's recap card (YYYY-MM). */
+  initialMonth?: string | undefined;
+}) {
   const online = useIsOnline();
-  const [month, setMonth] = useState(currentMonth);
+  const [month, setMonth] = useState(initialMonth ?? currentMonth);
+  useEffect(() => {
+    if (initialMonth) setMonth(initialMonth);
+  }, [initialMonth]);
   const recap = trpc.gym.stats.monthlyRecap.useQuery({ month }, { enabled: online });
   const byId = useMemo(() => new Map(bootstrap.library.map((e) => [e.id, e])), [bootstrap.library]);
   const unit = bootstrap.profile?.unit ?? 'KG';

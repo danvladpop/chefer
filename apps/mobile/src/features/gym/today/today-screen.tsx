@@ -14,18 +14,17 @@ import {
   useSnackbar,
 } from '@chefer/ui-mobile';
 import {
-  buildNextWorkout,
   cn,
   doneTodayCard,
-  equipmentProfileOf,
   missedPlannedDays,
-  progressionKey,
+  monthNameOf,
+  proRatedWeekGoal,
+  selectTodaysSession,
   shortVersionOfWorkout,
   supersetRuns,
   supersetSlot,
   todayStatus,
   weekStartOf,
-  type ProgressionEntry,
 } from '@chefer/utils';
 import { trpc } from '../../../lib/trpc';
 import { captureGymEvent } from '../analytics';
@@ -54,6 +53,8 @@ import {
   formatStreakLine,
   formatTarget,
   pickOffer,
+  setupLocalDate,
+  workoutForDay,
   type WeekStripDay,
 } from './today-helpers';
 import { useTimedRefresh } from './use-timed-refresh';
@@ -211,30 +212,9 @@ export function TodayScreen() {
   // day — the user could never actually start it. Finishing the session
   // advances the rotation from this day either way.
   const startDay = (dayId: string) => {
-    if (!bootstrap?.activeRoutine || !bootstrap.profile) return;
-    if (bootstrap.nextWorkout?.dayId === dayId) {
-      // The server-built workout already carries "From last time" exercises.
-      startPlanned(bootstrap.nextWorkout);
-      return;
-    }
-    const progressions = new Map<string, ProgressionEntry>(
-      bootstrap.progressions.map((p) => [
-        progressionKey(p.exerciseId, p.repBucket),
-        { state: p.state, override: p.override },
-      ]),
-    );
-    const workout = buildNextWorkout({
-      routine: bootstrap.activeRoutine,
-      dayId,
-      lookup: libraryLookup(bootstrap),
-      progressions,
-      profile: equipmentProfileOf(bootstrap.profile),
-      facts: { experience: bootstrap.profile.experience, ageYears: null },
-      today: localDate(),
-      recentSessions: bootstrap.recentSessions,
-      isDeload: false,
-    });
-    startPlanned(workout);
+    if (!bootstrap) return;
+    const workout = workoutForDay(bootstrap, dayId, localDate());
+    if (workout) startPlanned(workout);
   };
 
   const handlePickDay = (dayId: string) => {
@@ -290,7 +270,7 @@ export function TodayScreen() {
 
   const header = (
     <View className="gap-1">
-      <ModeSwitch />
+      <ModeSwitch mode="gym" />
       <Text testID="gym-today-title" variant="title" className="mt-1">
         Today
       </Text>
@@ -351,15 +331,41 @@ export function TodayScreen() {
 
   const today = localDate();
   const weekStrip = computeWeekStrip(bootstrap, today);
-  const { streak, nextWorkout, activeRoutine, profile } = bootstrap;
-  const goalMet = streak.thisWeekGoal > 0 && streak.thisWeekSessions >= streak.thisWeekGoal;
-  const ringProgress = streak.thisWeekGoal > 0 ? streak.thisWeekSessions / streak.thisWeekGoal : 0;
+  const { streak, nextWorkout: rotationNext, activeRoutine, profile } = bootstrap;
+  // UX-GYM-12: planned days before setup are never "missed", and the first
+  // week's goal is pro-rated to the days left ("0 of 4" on a Friday sign-up).
+  const since = setupLocalDate(profile.setupCompletedAt);
+  const weekGoal =
+    streak.thisWeekGoal > 0
+      ? proRatedWeekGoal({ goal: streak.thisWeekGoal, today, setupDate: since })
+      : 0;
+  const goalMet = weekGoal > 0 && streak.thisWeekSessions >= weekGoal;
+  const ringProgress = weekGoal > 0 ? Math.min(1, streak.thisWeekSessions / weekGoal) : 0;
   // Bug B-15: `nextWorkout` always reflects the rotation's next day, which
   // advances the instant Finish runs — `todayStatus` stops Gym Today
   // offering it, with a Start button, on the day it was just finished.
-  const status = todayStatus({ bootstrap, today });
+  const status = todayStatus({ bootstrap, today, since });
+  // UX-GYM-31: the SAME selector the Food Today card and the Plan use, so a day
+  // pinned to today's weekday is named here too (not just the rotation's next).
+  const todays = selectTodaysSession({ bootstrap, today, since });
+  const nextWorkout =
+    todays.kind === 'planned' ? workoutForDay(bootstrap, todays.dayId, today) : rotationNext;
+  // The overdue line ("Planned for Monday") belongs to the rotation's next day;
+  // when a different day is pinned to today, that one is shown instead.
+  const overdueFrom =
+    status.kind === 'training' && nextWorkout?.dayId === rotationNext?.dayId
+      ? status.overdueFrom
+      : undefined;
+  const overdueShown = overdueFrom !== undefined;
   const doneCard = status.kind === 'done' ? doneTodayCard({ bootstrap, today }) : null;
   const offer = pickOffer(bootstrap.offers);
+  // UX-GYM-13: the recap card used to be dismiss-only; it opens that month's recap.
+  const recapMonthKey = offer?.kind === 'recap' ? offer.data?.month : null;
+  const recapMonthName = typeof recapMonthKey === 'string' ? monthNameOf(recapMonthKey) : null;
+  const recapMonth =
+    typeof recapMonthKey === 'string' && recapMonthName
+      ? { month: recapMonthKey, name: recapMonthName }
+      : null;
   const sortedDays = [...activeRoutine.days].sort((a, b) => a.position - b.position);
 
   // T-04.8 (UX-04 §7): a planned day earlier this week that never happened —
@@ -377,7 +383,13 @@ export function TodayScreen() {
     activeRoutine,
     recentSessions: bootstrap.recentSessions,
     today,
-  }).filter((d) => d.dayId !== nextWorkout?.dayId && !isMissedDayDismissed(weekStart, d.dayId));
+    since,
+  }).filter(
+    (d) =>
+      d.dayId !== nextWorkout?.dayId &&
+      !(overdueShown && d.dayId === rotationNext?.dayId) &&
+      !isMissedDayDismissed(weekStart, d.dayId),
+  );
   const firstMissed = missed[0] ?? null;
   const doneToday = status.kind === 'done';
 
@@ -433,17 +445,17 @@ export function TodayScreen() {
               progress={ringProgress}
               size={56}
               testID="gym-today-week-ring"
-              accessibilityLabel={`${streak.thisWeekSessions} of ${streak.thisWeekGoal} this week`}
+              accessibilityLabel={`${streak.thisWeekSessions} of ${weekGoal} this week`}
             >
               <Text className="text-xs font-semibold">
-                {goalMet ? '✓' : `${streak.thisWeekSessions}/${streak.thisWeekGoal}`}
+                {goalMet ? '✓' : `${streak.thisWeekSessions}/${weekGoal}`}
               </Text>
             </ProgressRing>
             <View className="min-w-0 flex-1">
               <Text className="text-sm font-medium">
                 {goalMet
                   ? `Weekly goal met · ${streak.thisWeekSessions} ${streak.thisWeekSessions === 1 ? 'session' : 'sessions'}`
-                  : `${streak.thisWeekSessions} of ${streak.thisWeekGoal} this week`}
+                  : `${streak.thisWeekSessions} of ${weekGoal} this week`}
               </Text>
               <Text testID="gym-today-streak" variant="muted" className="text-sm">
                 {formatStreakLine(streak)}
@@ -460,7 +472,7 @@ export function TodayScreen() {
           </Pressable>
         </Card>
 
-        {!bootstrap.activePause && firstMissed ? (
+        {!bootstrap.activePause && firstMissed && !overdueShown ? (
           <Card testID="gym-today-missed" className="gap-2">
             <Text className="font-semibold">Still time this week</Text>
             <Text variant="muted" className="text-sm">
@@ -541,7 +553,7 @@ export function TodayScreen() {
               </Text>
             </Pressable>
           </Card>
-        ) : status.kind === 'rest' && nextWorkout ? (
+        ) : status.kind === 'rest' && todays.kind !== 'planned' && nextWorkout ? (
           <Card testID="gym-today-rest" className="gap-2">
             <Text className="font-semibold">Rest day</Text>
             <Text variant="muted" className="text-sm">
@@ -573,9 +585,9 @@ export function TodayScreen() {
                 ~{shownWorkout.estimatedMin} min
               </Text>
             </View>
-            {status.kind === 'training' && status.overdueFrom !== undefined ? (
+            {overdueFrom !== undefined ? (
               <Text testID="gym-today-overdue" variant="muted" className="-mt-2 text-xs">
-                {`Planned for ${weekdayLabel(status.overdueFrom)} — today works just as well.`}
+                {`Planned for ${weekdayLabel(overdueFrom)} — today works just as well.`}
               </Text>
             ) : null}
             <View className="gap-1.5">
@@ -720,6 +732,17 @@ export function TodayScreen() {
                   Take it
                 </Button>
               )}
+              {offer.kind === 'recap' && recapMonth ? (
+                <Button
+                  testID="gym-today-offer-recap"
+                  size="sm"
+                  onPress={() =>
+                    router.push({ pathname: '/stats', params: { month: recapMonth.month } })
+                  }
+                >
+                  {`See ${recapMonth.name}`}
+                </Button>
+              ) : null}
               <Button
                 testID="gym-today-offer-dismiss"
                 size="sm"

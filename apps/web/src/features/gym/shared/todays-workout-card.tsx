@@ -4,6 +4,7 @@ import { useMemo } from 'react';
 import { useAppMode } from '@/features/nav/mode-context';
 import { ChevronRight, Dumbbell } from 'lucide-react';
 import { collectPrs, selectTodaysSession } from '@chefer/utils';
+import { localDate } from '../use-gym-bootstrap';
 import { useGymData } from './use-gym-data';
 import { WeekRing } from './week-ring';
 
@@ -32,7 +33,13 @@ export function TodaysWorkoutCard() {
   // UX-FOOD-19: the Plan names the routine day pinned to today's weekday, so a
   // pinned day beats the rotation's "next" here too (one shared selector).
   const session = today
-    ? selectTodaysSession({ bootstrap: data, today })
+    ? selectTodaysSession({
+        bootstrap: data,
+        today,
+        since: data.profile?.setupCompletedAt
+          ? localDate(new Date(data.profile.setupCompletedAt))
+          : null,
+      })
     : { kind: 'none' as const };
   const pinnedDay =
     session.kind === 'planned' && session.dayId !== data.nextWorkout?.dayId
