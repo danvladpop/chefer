@@ -225,7 +225,7 @@ describe('ValueStepper at large OS text (WP-04 device pass)', () => {
 
   it('keeps 44 pt −/+ at default size', async () => {
     const dims = jest
-      .spyOn(ReactNative, 'useWindowDimensions')
+      .spyOn(ReactNative.Dimensions, 'get')
       .mockReturnValue({ width: 402, height: 874, scale: 3, fontScale: 1 });
     await renderStepper();
     // (PressableScale's className is compiled away under Jest — hitSlop shows the mode.)
@@ -235,7 +235,7 @@ describe('ValueStepper at large OS text (WP-04 device pass)', () => {
 
   it('narrows the −/+ visual to 36 pt above 1.2x and keeps a 44 pt hit area via hitSlop', async () => {
     const dims = jest
-      .spyOn(ReactNative, 'useWindowDimensions')
+      .spyOn(ReactNative.Dimensions, 'get')
       .mockReturnValue({ width: 402, height: 874, scale: 3, fontScale: 1.6 });
     await renderStepper();
     const inc = screen.getByTestId('w-inc');

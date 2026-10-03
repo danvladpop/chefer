@@ -122,7 +122,7 @@ describe('ExerciseCard readability (WP-04)', () => {
   });
   it('large OS text: the suggestion stacks under the chip and "Why?" instead of one word per line', async () => {
     const dims = jest
-      .spyOn(ReactNative, 'useWindowDimensions')
+      .spyOn(ReactNative.Dimensions, 'get')
       .mockReturnValue({ width: 390, height: 844, scale: 3, fontScale: 1.6 });
     const doc = activeDoc();
     const se = doc.exercises[0];
