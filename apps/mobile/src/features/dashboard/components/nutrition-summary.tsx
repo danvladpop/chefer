@@ -9,7 +9,7 @@ import {
   ProgressRing,
   Text,
 } from '@chefer/ui-mobile';
-import { cn, dayNutritionCaption, PLAN_STATUS_LABEL, planStatus } from '@chefer/utils';
+import { cn, dayNutritionCaption, dayStatus } from '@chefer/utils';
 import type { RouterOutputs } from '../../../lib/trpc';
 import { TrainingDayNote } from './training-day-note';
 
@@ -18,7 +18,7 @@ import { TrainingDayNote } from './training-day-note';
 // the MO-06 motion: it animates to what was EATEN today (audit F-DASH-1-2 —
 // it used to show planned food) with a count-up in the centre; past 100% of
 // the target the ring and the macro bars turn amber with an overflow lap /
-// end cap (owner decision 3, 2026-09-25). The chip judges today's plan.
+// end cap (owner decision 3, 2026-09-25). The chip judges eaten + still-planned against the target (UX-FOOD-05).
 
 type Nutrition = RouterOutputs['dashboard']['summary']['nutrition'];
 
@@ -59,8 +59,11 @@ function MacroBar({
 export function NutritionSummary({
   nutrition: n,
   targetMode,
+  remainingPlannedKcal,
 }: {
   nutrition: Nutrition;
+  /** Planned meals still to eat today (UX-FOOD-05). Unknown → the plan minus what was eaten. */
+  remainingPlannedKcal?: number;
   /** §2.11, T-35.5: the ring's label — "Your target" (OWN) vs "Suggested" (SUGGESTED). Omitted while unknown. */
   targetMode?: 'SUGGESTED' | 'OWN';
 }) {
@@ -72,12 +75,20 @@ export function NutritionSummary({
     carbsG: n.carbs.targetG,
     fatG: n.fat.targetG,
   };
-  const status = planStatus(n.plannedKcal, target.dailyCalorieTarget);
+  // UX-FOOD-05: eaten + what is still planned vs the target — not the plan alone.
+  const { status, label: statusLabel } = dayStatus(
+    n.eatenKcal,
+    remainingPlannedKcal ?? Math.max(n.plannedKcal - n.eatenKcal, 0),
+    target.dailyCalorieTarget,
+  );
   const calories = progressOf(n.eatenKcal, target.dailyCalorieTarget);
 
+  // Neutral palette: amber for "past the target" (never red), grey when
+  // there is nothing to judge or room is left.
   const statusStyle = {
-    over: { bg: 'bg-red-100', text: 'text-red-700' },
-    under: { bg: 'bg-amber-100', text: 'text-amber-700' },
+    over: { bg: 'bg-amber-100', text: 'text-amber-800' },
+    heading_over: { bg: 'bg-amber-50', text: 'text-amber-800' },
+    under: { bg: 'bg-gray-100', text: 'text-gray-600' },
     on: { bg: 'bg-emerald-100', text: 'text-emerald-700' },
     none: { bg: 'bg-gray-100', text: 'text-gray-500' },
   }[status];
@@ -91,7 +102,7 @@ export function NutritionSummary({
             testID="nutrition-status"
             className={cn('text-[12px] font-bold uppercase', statusStyle.text)}
           >
-            {PLAN_STATUS_LABEL[status]}
+            {statusLabel}
           </Text>
         </View>
       </View>

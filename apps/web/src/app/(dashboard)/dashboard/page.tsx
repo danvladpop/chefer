@@ -29,7 +29,7 @@ import { format, parseISO } from 'date-fns';
 import { ArrowRight, Sparkles, UtensilsCrossed } from 'lucide-react';
 import { Line, LineChart, ReferenceLine, ResponsiveContainer, Tooltip, XAxis } from 'recharts';
 import { ErrorState } from '@chefer/ui';
-import { localDateStr } from '@chefer/utils';
+import { localDateStr, remainingPlannedKcal } from '@chefer/utils';
 
 // ─── Meal type colours ─────────────────────────────────────────────────────────
 
@@ -238,6 +238,7 @@ export default function DashboardPage() {
           <NutritionSummary
             nutrition={d.nutrition}
             targetMode={targetsData?.targetMode}
+            remainingPlannedKcal={remainingPlannedKcal(d.nextMeal, d.restOfToday)}
             className="xl:hidden"
           />
         )}
@@ -581,6 +582,7 @@ export default function DashboardPage() {
           <NutritionSummary
             nutrition={d.nutrition}
             targetMode={targetsData?.targetMode}
+            remainingPlannedKcal={remainingPlannedKcal(d.nextMeal, d.restOfToday)}
             className="sticky top-6"
           />
         </div>

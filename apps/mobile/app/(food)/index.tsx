@@ -10,7 +10,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { Link, router, useFocusEffect } from 'expo-router';
 import { Button, Card, Screen, Text } from '@chefer/ui-mobile';
-import { localDateStr } from '@chefer/utils';
+import { localDateStr, remainingPlannedKcal } from '@chefer/utils';
 import { ChefReviewBanner } from '../../src/features/coach/chef-review-banner';
 import { WeightCard } from '../../src/features/coach/weight-card';
 import { HeroMealCard } from '../../src/features/dashboard/components/hero-meal-card';
@@ -222,7 +222,11 @@ export default function HomeScreen() {
             B-31 interim (T-00.12): hidden for a goal-less, non-tracking
             user — a ring/target against nothing set is meaningless. */}
         {showNutritionCards && (
-          <NutritionSummary nutrition={d.nutrition} targetMode={targetsData?.targetMode} />
+          <NutritionSummary
+            nutrition={d.nutrition}
+            targetMode={targetsData?.targetMode}
+            remainingPlannedKcal={remainingPlannedKcal(d.nextMeal, d.restOfToday)}
+          />
         )}
 
         {/* Off-plan logging: free quick add + premium Snap-to-log. Quick add
