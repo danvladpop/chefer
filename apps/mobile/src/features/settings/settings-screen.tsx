@@ -16,8 +16,9 @@ import { useSignOut } from './use-sign-out';
 // screen that really holds the setting, and — where a screen holds several —
 // with `?section=<id>` so it scrolls to and tints the right card and titles
 // itself after the row (section-anchor.tsx). Rows that share a card say so on
-// purpose: "Emails" and "Notifications" both live in Weekly updates (the
-// phone switch and the email switches are one card).
+// purpose: "Emails" opens the Weekly updates card; "Notifications" opens its
+// own screen (UX-PO-08), which gathers every reminder — Weekly updates
+// included.
 
 interface SettingsRow {
   label: string;
@@ -93,7 +94,7 @@ const ACCOUNT_ROWS: SettingsRow[] = [
   {
     label: 'Notifications',
     testID: 'settings-notifications',
-    href: '/preferences?section=weekly-updates',
+    href: '/settings/notifications',
   },
   { label: 'Privacy & data', testID: 'settings-privacy', href: '/profile?section=privacy' },
   {

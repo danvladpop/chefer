@@ -3474,6 +3474,30 @@ tap → useNotificationLinks (root layout, signed in only) → router.push(url)
 
 Off by default; unlike email they use the phone's own time zone.
 
+### Food nudges and Settings → Notifications (mobile only, UX-PO-08)
+
+Two more opt-in LOCAL notifications, both off by default, no server field:
+
+- **Log dinner** — 20:30 on evenings when no dinner entry is logged yet. A rolling
+  window of one-shot notifications for the next 7 evenings, re-planned on launch, on
+  foreground, when the choice changes and when today's log gains/loses a dinner
+  (so logging dinner at 19:00 drops tonight's). A user who stops opening the app
+  therefore gets at most a week of nudges. Tap → `/tracker`.
+- **Plan Sunday** — weekly, Sunday 18:30 (the weekly recap owns 18:00). Tap → `/meal-plan`.
+
+The choice is stored in the device KV (`notifications.food-nudges`), asked at the very
+end of onboarding (after the save, before leaving the wizard; skipped for "Just looking
+around" and the Train-only hand-off) and changeable in **Settings → Notifications**,
+which also gathers Weekly updates, the training reminder (a read-only row opening gym
+settings), the rest-timer alert (OS permission status) and shows the standard
+"Off for Chefer" row when the OS denies notifications. Sign-out cancels every nudge
+and wipes the choice. Class reminders get a row when classes ship (WP-05).
+
+```
+onboarding saved → NudgeStep (2 switches) → on: ensureGymReminderPermission → KV write
+FoodNudgeHost (root) ← KV change / foreground / today's tracker.getDay → syncFoodNudges
+```
+
 ### Manual trigger (ops / live verification)
 
 No API procedure. From `apps/api`:
