@@ -3024,6 +3024,27 @@ your rest is over, even with the phone locked?` / `Allow notifications` /
   `Not now`) shown once, in context, the first time a rest actually begins
   (`workout/rest-timer-bar.tsx`) — never cold, never more than once per
   device.
+- **Rest timer, Today and recap polish (WP-12 lane A, UX-GYM-09/10/12/13/20/31):**
+  - _Rest timer:_ the "Rest is over" local notification is scheduled when a rest
+    STARTS (and re-scheduled on ±15 s, cancelled on skip/finish) by `rest-timer.ts`
+    (`syncNotification`, serialised, one alert per `endsAt`), not when the app
+    backgrounds. The countdown (`Rest m:ss`) also shows on the Gym Today Resume
+    card, the Food Today resume line (mobile) and the web Resume banner, so
+    minimising the workout never hides it. A screen reader hears the rest at start,
+    at 10 s and at the end (`nextRestAnnouncement` + `announceForAccessibility`);
+    the ticking text is no longer a live region. Exact Android alarms
+    (`USE_EXACT_ALARM`) are native and still open.
+  - _Gym Today:_ planned days dated before `profile.setupCompletedAt` are never
+    "missed" (`missedPlannedDays`/`todayStatus` take `since`), the first week's goal
+    is pro-rated to the days left (`proRatedWeekGoal`, display only), "Still time
+    this week" never shows beside the overdue card, and the main card names
+    `selectTodaysSession` — the same day the Food Today card and the Plan use.
+  - _Monthly recap card:_ the server offers it only for a month with at least 2
+    sessions (`RECAP_MIN_SESSIONS`); the card has a primary `See {Month}` button that
+    opens Stats (`/stats?month=YYYY-MM` on mobile, `/gym/stats?month=` on web) with
+    that month selected and the recap scrolled into view.
+  - _Mode pill:_ the Food | Gym pill derives from the route GROUP (`useSegments`),
+    and Gym-only screens pass `mode="gym"`; it no longer says Food on Gym tabs.
 - **Streak repair — "Log a workout you already did" (mobile + web, G4-A;
   was "Log a past workout"):**
   - **Mobile (owner dogfood 2026-09-30): log mode, no timer.** One sheet —

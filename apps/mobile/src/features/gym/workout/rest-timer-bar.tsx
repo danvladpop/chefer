@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react';
-import { Linking, Pressable, View } from 'react-native';
+import { useEffect, useRef, useState } from 'react';
+import { AccessibilityInfo, Linking, Pressable, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { haptics, Text } from '@chefer/ui-mobile';
 import {
@@ -8,10 +8,13 @@ import {
   hasRestNotificationPermission,
   hasShownRestPermissionRationale,
   markRestPermissionRationaleShown,
+  nextRestAnnouncement,
   REST_ADJUST_STEP_SEC,
+  REST_OVER_ANNOUNCEMENT,
   restPermissionNeedsSettings,
   skipRest,
   useRestRemaining,
+  type RestAnnounceStage,
 } from '../rest-timer';
 import { RestPermissionSheet } from './rest-permission-sheet';
 import { formatClock } from './workout-model';
@@ -54,9 +57,31 @@ function useRestPermissionRationale(active: boolean): {
   };
 }
 
+/**
+ * UX-GYM-09: a screen reader hears the rest at start, at 10 s left and at the
+ * end — spoken once each through `announceForAccessibility`. The ticking text
+ * is NOT a live region (TalkBack re-read it every second).
+ */
+function useRestAnnouncements(active: boolean, remainingSec: number): void {
+  const stage = useRef<RestAnnounceStage>('idle');
+  useEffect(() => {
+    if (!active) {
+      stage.current = 'idle';
+      return;
+    }
+    const next = nextRestAnnouncement(stage.current, remainingSec);
+    stage.current = next.stage;
+    if (next.message) AccessibilityInfo.announceForAccessibility(next.message);
+  }, [active, remainingSec]);
+}
+
 export function RestTimerBar() {
   const insets = useSafeAreaInsets();
-  const { remainingSec, state } = useRestRemaining(haptics.warning);
+  const { remainingSec, state } = useRestRemaining(() => {
+    haptics.warning();
+    AccessibilityInfo.announceForAccessibility(REST_OVER_ANNOUNCEMENT);
+  });
+  useRestAnnouncements(state !== null, remainingSec);
   const rationale = useRestPermissionRationale(state !== null);
   if (!state) {
     // The rationale sheet can still be open right as the rest ends (rare,
@@ -90,7 +115,6 @@ export function RestTimerBar() {
           </Text>
           <Text
             testID="rest-timer-remaining"
-            accessibilityLiveRegion="polite"
             accessibilityLabel={`Rest, ${remainingSec} seconds left`}
             className="text-2xl font-bold tabular-nums"
           >

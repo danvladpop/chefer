@@ -16,6 +16,7 @@ import {
   weekStartOf,
   type ProgressionEntry,
 } from '@chefer/utils';
+import { localDate } from '../offline/ids';
 import { libraryLookup } from '../use-gym-bootstrap';
 
 // Pure helpers for the Today tab (gym_plan.md §1.3 "Today tab", §1.4 habit
@@ -111,4 +112,15 @@ export function workoutForDay(
     recentSessions: bootstrap.recentSessions,
     isDeload: false,
   });
+}
+
+/**
+ * UX-GYM-12: the device-local date training was set up (`setupCompletedAt` is
+ * an instant), or null when unknown. Planned days before it are never "missed"
+ * and the first week's goal is pro-rated from it.
+ */
+export function setupLocalDate(setupCompletedAt: string | null | undefined): string | null {
+  if (!setupCompletedAt) return null;
+  const at = new Date(setupCompletedAt);
+  return Number.isNaN(at.getTime()) ? null : localDate(at);
 }

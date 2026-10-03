@@ -31,7 +31,7 @@ export function GymPlaceholder({
     >
       <ScrollView contentContainerClassName="gap-4 px-4 py-4">
         {variant === 'tab' ? (
-          <ModeSwitch />
+          <ModeSwitch mode="gym" />
         ) : (
           <Pressable
             testID={`${testID}-back`}

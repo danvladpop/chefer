@@ -73,7 +73,7 @@ export function ExercisesTab() {
   return (
     <Screen className="px-0" testID="gym-exercises-screen">
       <View className="gap-3 px-4 pb-2 pt-2">
-        <ModeSwitch />
+        <ModeSwitch mode="gym" />
         <View className="flex-row items-center justify-between gap-3">
           <Text testID="gym-exercises-title" variant="title">
             Exercises

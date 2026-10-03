@@ -16,10 +16,11 @@ import { makeBootstrap, makeExercise } from './gym-fixtures';
 import { makeGymQueryClient, renderWithGym } from './gym-screen-test-utils';
 
 jest.mock('@expo/vector-icons', () => ({ Ionicons: () => null }));
+let mockSearchParams: Record<string, string> = {};
 jest.mock('expo-router', () => ({
   router: { replace: jest.fn(), push: jest.fn(), back: jest.fn(), canGoBack: () => false },
   usePathname: () => '/stats',
-  useLocalSearchParams: () => ({}),
+  useLocalSearchParams: () => mockSearchParams,
 }));
 
 function session(overrides: Partial<SessionSummaryDto> & { id: string }): SessionSummaryDto {
@@ -171,6 +172,39 @@ describe('Stats empty states', () => {
     expect(more).toBeTruthy();
     expect(screen.queryByText(/§/)).toBeNull();
     expect(screen.queryByText(/research/i)).toBeNull();
+  });
+
+  // UX-GYM-13: Today's "See September" opens Stats with the month pre-selected.
+  it('opens the monthly recap on the month passed in ?month=', async () => {
+    mockSearchParams = { month: '2026-09' };
+    try {
+      const queryClient = makeGymQueryClient();
+      queryClient.setQueryData(
+        gymBootstrapQueryKey,
+        makeBootstrap({ library: [bench], recentSessions: SESSIONS }),
+      );
+      await renderWithGym(<StatsTab />, queryClient);
+
+      const recap = await screen.findByTestId('stats-monthly-recap');
+      expect(recap).toHaveTextContent(/2026-09/);
+    } finally {
+      mockSearchParams = {};
+    }
+  });
+
+  it('ignores a malformed ?month= and shows the current month', async () => {
+    mockSearchParams = { month: 'September' };
+    try {
+      const queryClient = makeGymQueryClient();
+      queryClient.setQueryData(
+        gymBootstrapQueryKey,
+        makeBootstrap({ library: [bench], recentSessions: SESSIONS }),
+      );
+      await renderWithGym(<StatsTab />, queryClient);
+      expect(await screen.findByTestId('stats-monthly-recap')).not.toHaveTextContent(/September/);
+    } finally {
+      mockSearchParams = {};
+    }
   });
 
   it('T-36.5: the History segment lists sessions and hides the overview views', async () => {
