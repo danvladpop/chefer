@@ -8,7 +8,7 @@ import { FilteredForLine } from '@/features/safety/components/FilteredForLine';
 import { useIsPremium } from '@/hooks/useIsPremium';
 import { trpc } from '@/lib/trpc';
 import { Heart, Wand2 } from 'lucide-react';
-import { Sheet } from '@chefer/ui';
+import { ErrorState, Sheet } from '@chefer/ui';
 import {
   buildPickerSections,
   filterReplaceCandidates,
@@ -138,6 +138,14 @@ export function ReplaceMealSheet({
   const allFiltered = allQuery.data && filterReplaceCandidates(allQuery.data, filterOpts);
   const sections = buildPickerSections(mineFiltered, allFiltered);
   const isLoading = mineQuery.isLoading || allQuery.isLoading;
+  // UX-X-12: nothing to show because a load FAILED is not "No recipes match".
+  const loadFailed =
+    (mineQuery.isError && mineQuery.data === undefined) ||
+    (allQuery.isError && allQuery.data === undefined);
+  const retryLoad = () => {
+    if (mineQuery.isError) void mineQuery.refetch();
+    if (allQuery.isError) void allQuery.refetch();
+  };
   // T-00.11 (B-34/B-46): replaceRecipe rejects an unsafe recipe with
   // FORBIDDEN — offer "Use anyway" only for the user's own recipe, the only
   // case the server's acknowledgeConflict honours.
@@ -233,6 +241,10 @@ export function ReplaceMealSheet({
 
         {isLoading ? (
           <p className="py-8 text-center text-sm text-gray-500">Loading recipes…</p>
+        ) : sections.length === 0 && loadFailed ? (
+          <div data-testid="replace-load-error" className="py-4">
+            <ErrorState title="Couldn't load recipes" onRetry={retryLoad} />
+          </div>
         ) : sections.length === 0 ? (
           <p className="py-8 text-center text-sm text-gray-500">No recipes match your search.</p>
         ) : (
