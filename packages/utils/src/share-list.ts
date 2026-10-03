@@ -179,7 +179,9 @@ function dinnersBlock(dinners: readonly ShareDinner[]): string {
 /**
  * The planned dinners of a week as ShareDinner rows, in weekday order: only
  * dinner slots that are actually planned (a dinners-only plan lists every
- * planned slot; a day with no dinner is left out).
+ * planned slot; a day with no dinner is left out). `fromDayOfWeek` (a list
+ * made mid-week covers only the remaining days) drops the days before it, so
+ * "Fri–Sun · For 7 dinners" can't happen (UX-SHOP-03).
  */
 export function dinnersFromPlan(
   days: readonly {
@@ -187,8 +189,11 @@ export function dinnersFromPlan(
     meals: readonly { type: string; recipe: { name: string } }[];
   }[],
   dayLabel: (dayOfWeek: number) => string,
+  fromDayOfWeek?: number | null,
 ): ShareDinner[] {
+  const from = fromDayOfWeek ?? 0;
   return [...days]
+    .filter((d) => d.dayOfWeek >= from)
     .sort((a, b) => a.dayOfWeek - b.dayOfWeek)
     .flatMap((d) =>
       d.meals

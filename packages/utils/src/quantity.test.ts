@@ -3,6 +3,7 @@ import {
   addItemPlaceholder,
   normalizeUnit,
   parseCustomItemInput,
+  parsePantryQuantity,
   parseQuantityLine,
   unitFamily,
   unitOptionsFor,
@@ -103,5 +104,30 @@ describe('unit vocabulary', () => {
     expect(unitOptionsFor('IMPERIAL')).toContain('lb');
     expect(unitOptionsFor('IMPERIAL')).not.toContain('kg');
     expect(unitOptionsFor('METRIC')).toContain('g');
+  });
+});
+
+describe('parsePantryQuantity (UX-SHOP-05/07)', () => {
+  it('an empty box is the "some" state', () => {
+    expect(parsePantryQuantity('')).toEqual({ kind: 'some' });
+    expect(parsePantryQuantity('  ')).toEqual({ kind: 'some' });
+  });
+
+  it('reads numbers, commas and fractions', () => {
+    expect(parsePantryQuantity('250')).toEqual({ kind: 'amount', value: 250 });
+    expect(parsePantryQuantity('1,5')).toEqual({ kind: 'amount', value: 1.5 });
+    expect(parsePantryQuantity('1/2')).toEqual({ kind: 'amount', value: 0.5 });
+    expect(parsePantryQuantity('½')).toEqual({ kind: 'amount', value: 0.5 });
+  });
+
+  it('refuses text, zero and negatives instead of saving "some left"', () => {
+    for (const bad of ['abc', '-5', '0', '5 kg', '1..2']) {
+      expect(parsePantryQuantity(bad).kind).toBe('invalid');
+    }
+  });
+
+  it('refuses more than the API takes', () => {
+    expect(parsePantryQuantity('10000').kind).toBe('invalid');
+    expect(parsePantryQuantity('9999')).toEqual({ kind: 'amount', value: 9999 });
   });
 });

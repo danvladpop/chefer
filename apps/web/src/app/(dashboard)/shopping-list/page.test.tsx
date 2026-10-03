@@ -11,6 +11,9 @@ const m = vi.hoisted(() => ({
   removeMutate: vi.fn(),
   addMutate: vi.fn(),
   addFails: false,
+  units: 'METRIC',
+  extraItems: [] as Record<string, unknown>[],
+  total: 0,
 }));
 
 vi.mock('next/image', () => ({
@@ -38,7 +41,7 @@ vi.mock('@/features/shopping-list/components/ShareListDialog', () => ({
 vi.mock('@/hooks/useCurrency', () => ({ useCurrency: () => 'EUR' }));
 vi.mock('@/hooks/useHousehold', () => ({ useHousehold: () => ({ memberCount: 0 }) }));
 vi.mock('@/hooks/useIsPremium', () => ({ useIsPremium: () => false }));
-vi.mock('@/hooks/useUnitSystem', () => ({ useUnitSystem: () => 'METRIC' }));
+vi.mock('@/hooks/useUnitSystem', () => ({ useUnitSystem: () => m.units }));
 vi.mock('@/lib/analytics', () => ({ capture: vi.fn() }));
 
 const list = {
@@ -72,7 +75,7 @@ vi.mock('@/lib/trpc', () => {
       shoppingList: {
         getForWeek: {
           useQuery: () => ({
-            data: list,
+            data: { ...list, items: [...list.items, ...m.extraItems], estimatedTotalEur: m.total },
             isLoading: false,
             isError: false,
             isRefetching: false,
@@ -109,7 +112,10 @@ vi.mock('@/lib/trpc', () => {
 beforeEach(() => {
   vi.clearAllMocks();
   m.addFails = false;
-  sessionStorage.setItem('chefer.shopping-expanded', JSON.stringify({ other: true }));
+  m.units = 'METRIC';
+  m.extraItems = [];
+  m.total = 0;
+  localStorage.removeItem('chefer.shopping-expanded.v2');
   resetAppToastForTests();
 });
 afterEach(cleanup);
@@ -144,5 +150,71 @@ describe('Shop: removing a custom item (UX-SHOP-02)', () => {
       fireEvent.click(screen.getByRole('button', { name: 'Undo' }));
     });
     expect(await screen.findByText(/Couldn't put it back/)).toBeTruthy();
+  });
+});
+
+describe('Shop: add item in the user’s units (UX-SHOP-01)', () => {
+  it('teaches kg to a metric user and lb to an imperial one', () => {
+    renderPage();
+    expect(screen.getByPlaceholderText(/kg/)).toBeTruthy();
+    cleanup();
+    m.units = 'IMPERIAL';
+    renderPage();
+    expect(screen.getByPlaceholderText(/lb/)).toBeTruthy();
+  });
+
+  it('"2 lb chicken thighs" keeps its unit and the rest of the name', () => {
+    renderPage();
+    fireEvent.change(screen.getByLabelText('Add an item to the shopping list'), {
+      target: { value: '2 lb chicken thighs' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Add item to shopping list' }));
+    expect(m.addMutate).toHaveBeenCalledWith({
+      planId: 'p1',
+      items: [{ name: 'chicken thighs', quantity: 2, unit: 'lb' }],
+    });
+  });
+});
+
+describe('Shop: aisles open and remembered (UX-SHOP-02)', () => {
+  it('starts open, and closing an aisle is remembered on the device', async () => {
+    renderPage();
+    expect(await screen.findByText('Flour')).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { expanded: true }));
+    expect(screen.queryByText('Flour')).toBeNull();
+    expect(JSON.parse(localStorage.getItem('chefer.shopping-expanded.v2') ?? '{}')).toEqual({
+      other: false,
+    });
+  });
+
+  it('an aisle closed last time is still closed', () => {
+    localStorage.setItem('chefer.shopping-expanded.v2', JSON.stringify({ other: false }));
+    renderPage();
+    expect(screen.queryByText('Flour')).toBeNull();
+  });
+});
+
+describe('Shop: numbers you can shop for (UX-SHOP-03)', () => {
+  it('item prices are whole units, never to the cent', async () => {
+    m.extraItems = [
+      {
+        key: 'p1-egg',
+        ingredientName: 'Egg',
+        category: 'other',
+        quantity: '4',
+        unit: 'pcs',
+        estimatedPriceEur: 6.56,
+      },
+    ];
+    renderPage();
+    expect(await screen.findByText(/~€7/)).toBeTruthy();
+    expect(screen.queryByText(/6\.56/)).toBeNull();
+  });
+
+  it('shows quantities in the user’s units', async () => {
+    m.units = 'IMPERIAL';
+    renderPage();
+    // 2 kg of flour is 4.4 lb for an imperial user
+    expect(await screen.findByText(/4\.4 lb/)).toBeTruthy();
   });
 });

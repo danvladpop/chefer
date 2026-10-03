@@ -6,13 +6,21 @@ import {
   Button,
   Card,
   ErrorState,
+  Sheet,
   Text,
   useQueryState,
   useScrollFieldIntoView,
+  useSnackbar,
 } from '@chefer/ui-mobile';
-import { cn, userFacingErrorMessage } from '@chefer/utils';
+import {
+  cn,
+  parsePantryQuantity,
+  userFacingErrorMessage,
+  type PantryQuantityResult,
+} from '@chefer/utils';
 import { useEntitlement } from '../../hooks/use-entitlement';
-import { trpc } from '../../lib/trpc';
+import { useUnits } from '../../hooks/use-units';
+import { trpc, type RouterOutputs } from '../../lib/trpc';
 import { openPremium } from '../premium/open-premium';
 import { PantryCheckBanner } from './pantry-check-banner';
 import { PantryGhostBanner } from './pantry-ghost-banner';
@@ -21,10 +29,154 @@ import { PantryGhostBanner } from './pantry-ghost-banner';
 // features/pantry/components/PantryPanel.tsx. Rendered by the Shop tab's
 // kitchen segment and by the standalone /pantry screen (kept for deep links).
 // Deviation, deliberate: the unit picker is a chip row instead of a <select>.
+// WP-11 (UX-SHOP-05/07): removing, editing and Undo are open to every tier (the
+// free list used to only grow), the amount is validated instead of silently
+// becoming "some left", quantities and unit chips follow the user's units, and
+// the chips are 44 pt with a check mark (not colour alone).
 // Free tier: once check-offs have seeded the kitchen, the upsell becomes the
 // ghost banner with the real count and this week's real savings (F3 §6.4).
 
-const UNIT_OPTIONS = ['pcs', 'g', 'kg', 'ml', 'l', 'pack', 'can', 'bunch'];
+type PantryRow = RouterOutputs['pantry']['list']['items'][number];
+
+/** One unit chip: 44 pt, selected = filled + check mark + `selected` state (UX-SHOP-07). */
+function UnitChip({
+  unit,
+  selected,
+  onPress,
+  disabled,
+}: {
+  unit: string;
+  selected: boolean;
+  onPress: () => void;
+  disabled?: boolean;
+}) {
+  return (
+    <Pressable
+      testID={`pantry-unit-${unit}`}
+      accessibilityRole="button"
+      accessibilityLabel={`Unit ${unit}`}
+      accessibilityState={{ selected, disabled: disabled === true }}
+      disabled={disabled}
+      onPress={onPress}
+      className={cn(
+        'min-h-11 min-w-11 flex-row items-center justify-center gap-1 rounded-full border px-3',
+        selected ? 'border-primary bg-primary' : 'border-border bg-white',
+      )}
+    >
+      {selected && <Ionicons name="checkmark" size={14} color="white" />}
+      <Text
+        className={cn(
+          'text-xs font-medium',
+          selected ? 'text-primary-foreground' : 'text-gray-600',
+        )}
+      >
+        {unit}
+      </Text>
+    </Pressable>
+  );
+}
+
+/** Edit an existing row's amount and unit (UX-SHOP-05). Free tier included. */
+function EditPantrySheet({
+  item,
+  unitOptions,
+  onClose,
+}: {
+  item: PantryRow | null;
+  unitOptions: readonly string[];
+  onClose: () => void;
+}) {
+  const utils = trpc.useUtils();
+  const [quantity, setQuantity] = useState('');
+  const [unit, setUnit] = useState('pcs');
+  const [problem, setProblem] = useState<string | null>(null);
+  const [seen, setSeen] = useState<string | null>(null);
+  if (item && item.id !== seen) {
+    setSeen(item.id);
+    setQuantity(item.quantity != null ? String(item.quantity) : '');
+    setUnit(item.unit);
+    setProblem(null);
+  }
+
+  const updateMutation = trpc.pantry.updateItem.useMutation({
+    meta: { silent: true },
+    onSuccess: () => {
+      void utils.pantry.list.invalidate();
+      void utils.shoppingList.getForWeek.invalidate();
+      onClose();
+    },
+  });
+
+  const save = () => {
+    if (!item || updateMutation.isPending) return;
+    const parsed: PantryQuantityResult = parsePantryQuantity(quantity);
+    if (parsed.kind === 'invalid') {
+      setProblem(parsed.message);
+      return;
+    }
+    setProblem(null);
+    updateMutation.mutate({
+      id: item.id,
+      quantity: parsed.kind === 'amount' ? parsed.value : null,
+      unit,
+    });
+  };
+
+  // The row's own unit first, so a stored "g" stays pickable for an imperial user.
+  const chips = item ? [...new Set([item.unit, ...unitOptions])] : [];
+  const error =
+    problem ?? (updateMutation.isError ? userFacingErrorMessage(updateMutation.error) : null);
+
+  return (
+    <Sheet
+      visible={item !== null}
+      onClose={onClose}
+      title={item ? `Edit ${item.ingredientName}` : 'Edit'}
+      eyebrow="In my kitchen"
+      testID="pantry-edit"
+      footer={
+        <Button testID="pantry-edit-save" loading={updateMutation.isPending} onPress={save}>
+          Save
+        </Button>
+      }
+    >
+      <View className="gap-3">
+        <View className="gap-1">
+          <Text className="text-xs font-medium text-gray-600">Amount (leave empty for “some”)</Text>
+          <TextInput
+            testID="pantry-edit-qty"
+            value={quantity}
+            onChangeText={(text) => {
+              setQuantity(text);
+              setProblem(null);
+            }}
+            keyboardType="decimal-pad"
+            accessibilityLabel="Amount in your kitchen"
+            aria-invalid={error !== null}
+            accessibilityHint={error ?? undefined}
+            placeholder="some"
+            placeholderTextColor="#9ca3af"
+            className="min-h-11 rounded-md border border-input bg-background px-3 py-2 text-base text-foreground"
+          />
+        </View>
+        <View className="flex-row flex-wrap gap-1.5">
+          {chips.map((u) => (
+            <UnitChip key={u} unit={u} selected={unit === u} onPress={() => setUnit(u)} />
+          ))}
+        </View>
+        {error && (
+          <Text
+            testID="pantry-edit-error"
+            accessibilityLiveRegion="polite"
+            className="text-xs text-red-600"
+          >
+            {error}
+          </Text>
+        )}
+      </View>
+    </Sheet>
+  );
+}
 
 function ageLabel(updatedAt: Date | string): string {
   const days = Math.max(
@@ -57,11 +209,15 @@ export function PantryPanel({
   const { data } = pantryQuery;
   const { state: loadState, retry } = useQueryState(pantryQuery);
   const utils = trpc.useUtils();
+  const units = useUnits();
+  const snackbar = useSnackbar();
 
   const [name, setName] = useState('');
   const [quantity, setQuantity] = useState('');
+  const [quantityProblem, setQuantityProblem] = useState<string | null>(null);
   const [unit, setUnit] = useState('pcs');
   const [checkOpen, setCheckOpen] = useState(false);
+  const [editing, setEditing] = useState<PantryRow | null>(null);
   // T-21.5 (CI-14, PAT-11): a no-op unless an ancestor KeyboardAwareScrollView
   // provides it (the Shop tab does; a bare host doesn't need to).
   const nameInputRef = useRef<TextInput>(null);
@@ -80,16 +236,47 @@ export function PantryPanel({
       invalidate();
     },
   });
-  const removeMutation = trpc.pantry.removeItem.useMutation({ onSuccess: invalidate });
+  // UX-SHOP-05: "Removed · Undo". Undo goes through `restoreItem`, which every
+  // tier may call (a free user can remove, so a free user can take it back).
+  const restoreMutation = trpc.pantry.restoreItem.useMutation({
+    meta: { silent: true },
+    onSuccess: invalidate,
+    onError: (err) =>
+      snackbar.show({ message: `Couldn't put it back. ${userFacingErrorMessage(err)}` }),
+  });
+  const removeMutation = trpc.pantry.removeItem.useMutation({
+    onSuccess: (result) => {
+      invalidate();
+      const removed = result.removed;
+      if (!removed) return;
+      snackbar.show({
+        message: `Removed ${removed.ingredientName}`,
+        actionLabel: 'Undo',
+        onAction: () =>
+          restoreMutation.mutate({
+            ingredientName: removed.ingredientName,
+            ...(removed.quantity != null ? { quantity: removed.quantity } : {}),
+            unit: removed.unit,
+            source: removed.source === 'MANUAL' ? 'MANUAL' : 'PURCHASE',
+          }),
+      });
+    },
+  });
 
   const handleAdd = () => {
     if (!name.trim() || addMutation.isPending) {
       return;
     }
-    const qty = parseFloat(quantity.replace(',', '.'));
+    // UX-SHOP-05/07: "abc" and "-5" are refused, not saved as "some left".
+    const parsed = parsePantryQuantity(quantity);
+    if (parsed.kind === 'invalid') {
+      setQuantityProblem(parsed.message);
+      return;
+    }
+    setQuantityProblem(null);
     addMutation.mutate({
       name: name.trim(),
-      ...(Number.isFinite(qty) && qty > 0 ? { quantity: qty } : {}),
+      ...(parsed.kind === 'amount' ? { quantity: parsed.value } : {}),
       unit,
     });
   };
@@ -151,6 +338,7 @@ export function PantryPanel({
               onChangeText={setName}
               onFocus={() => scrollFieldIntoView(nameInputRef.current)}
               onSubmitEditing={handleAdd}
+              accessibilityLabel="Ingredient you have"
               placeholder="Add something you have… e.g. rice"
               placeholderTextColor="#9ca3af"
               editable={!addMutation.isPending}
@@ -160,9 +348,14 @@ export function PantryPanel({
               ref={quantityInputRef}
               testID="pantry-add-qty"
               value={quantity}
-              onChangeText={setQuantity}
+              onChangeText={(text) => {
+                setQuantity(text);
+                setQuantityProblem(null);
+              }}
               onFocus={() => scrollFieldIntoView(quantityInputRef.current)}
               keyboardType="decimal-pad"
+              accessibilityLabel="Amount"
+              aria-invalid={quantityProblem !== null}
               placeholder="Qty"
               placeholderTextColor="#9ca3af"
               editable={!addMutation.isPending}
@@ -175,25 +368,8 @@ export function PantryPanel({
               showsHorizontalScrollIndicator={false}
               contentContainerClassName="gap-1.5"
             >
-              {UNIT_OPTIONS.map((u) => (
-                <Pressable
-                  key={u}
-                  accessibilityRole="button"
-                  onPress={() => setUnit(u)}
-                  className={cn(
-                    'h-9 items-center justify-center rounded-full border px-3',
-                    unit === u ? 'border-primary bg-primary' : 'border-border bg-white',
-                  )}
-                >
-                  <Text
-                    className={cn(
-                      'text-xs font-medium',
-                      unit === u ? 'text-primary-foreground' : 'text-gray-600',
-                    )}
-                  >
-                    {u}
-                  </Text>
-                </Pressable>
+              {units.unitOptions.map((u) => (
+                <UnitChip key={u} unit={u} selected={unit === u} onPress={() => setUnit(u)} />
               ))}
             </ScrollView>
             <Pressable
@@ -210,9 +386,14 @@ export function PantryPanel({
               <Ionicons name="add" size={22} color="white" />
             </Pressable>
           </View>
-          {addMutation.isError && (
-            <Text className="text-xs text-red-600">
-              {userFacingErrorMessage(addMutation.error)}
+          {(quantityProblem ??
+            (addMutation.isError ? userFacingErrorMessage(addMutation.error) : null)) && (
+            <Text
+              testID="pantry-add-error"
+              accessibilityLiveRegion="polite"
+              className="text-xs text-red-600"
+            >
+              {quantityProblem ?? userFacingErrorMessage(addMutation.error)}
             </Text>
           )}
         </View>
@@ -241,32 +422,42 @@ export function PantryPanel({
           {items.map((item) => (
             <View
               key={item.id}
-              className="flex-row items-center gap-3 rounded-xl border border-border bg-card p-3"
+              className="flex-row items-center gap-1 rounded-xl border border-border bg-card"
             >
-              <View className="min-w-0 flex-1">
+              <Pressable
+                testID={`pantry-row-${item.id}`}
+                accessibilityRole="button"
+                accessibilityLabel={`Edit ${item.ingredientName}`}
+                onPress={() => setEditing(item)}
+                className="min-h-11 min-w-0 flex-1 p-3"
+              >
                 <Text numberOfLines={1} className="text-sm font-medium text-gray-800">
                   {item.ingredientName}
                 </Text>
                 <Text className="text-xs text-gray-500">
-                  {item.quantity != null ? `${item.quantity} ${item.unit}` : 'some left'} ·{' '}
+                  {item.quantity != null ? units.qty(item.quantity, item.unit) : 'some left'} ·{' '}
                   {item.source === 'PURCHASE' ? 'bought' : 'added'} {ageLabel(item.updatedAt)}
                 </Text>
-              </View>
-              {enabled && (
-                <Pressable
-                  accessibilityRole="button"
-                  accessibilityLabel={`Remove ${item.ingredientName} from your kitchen`}
-                  disabled={removeMutation.isPending}
-                  onPress={() => removeMutation.mutate({ id: item.id })}
-                  className="h-11 w-11 items-center justify-center"
-                >
-                  <Ionicons name="trash-outline" size={18} color="#9ca3af" />
-                </Pressable>
-              )}
+              </Pressable>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={`Remove ${item.ingredientName} from your kitchen`}
+                disabled={removeMutation.isPending}
+                onPress={() => removeMutation.mutate({ id: item.id })}
+                className="h-11 w-11 items-center justify-center"
+              >
+                <Ionicons name="trash-outline" size={18} color="#9ca3af" />
+              </Pressable>
             </View>
           ))}
         </View>
       )}
+
+      <EditPantrySheet
+        item={editing}
+        unitOptions={units.unitOptions}
+        onClose={() => setEditing(null)}
+      />
     </View>
   );
 }

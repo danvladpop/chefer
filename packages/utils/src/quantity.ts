@@ -219,3 +219,36 @@ export function unitOptionsFor(system: UnitSystem): readonly string[] {
     ? ['pcs', 'lb', 'oz', 'cup', 'fl oz', 'pack', 'can', 'bunch']
     : ['pcs', 'g', 'kg', 'ml', 'l', 'pack', 'can', 'bunch'];
 }
+
+// ─── Pantry amount field (UX-SHOP-05/07) ──────────────────────────────────────
+
+export type PantryQuantityResult =
+  /** Empty box: the ingredient is in the kitchen, the amount is unknown. */
+  { kind: 'some' } | { kind: 'amount'; value: number } | { kind: 'invalid'; message: string };
+
+/** The largest pantry amount the API accepts. */
+export const PANTRY_QUANTITY_MAX = 9999;
+
+/**
+ * Reads the pantry amount box. Empty means "some left" on purpose; anything
+ * else must be a number above zero — "abc" and "-5" used to be saved as
+ * "some left" with no word of warning. Fractions ("1/2", "½") are fine.
+ */
+export function parsePantryQuantity(raw: string): PantryQuantityResult {
+  const text = raw.trim();
+  if (text === '') return { kind: 'some' };
+  const value = new RegExp(`^${QTY_PATTERN}$`).test(text) ? parseLeadingNumber(text) : null;
+  if (value === null || !(value > 0)) {
+    return {
+      kind: 'invalid',
+      message: 'Enter an amount above zero, or leave it empty for "some".',
+    };
+  }
+  if (value > PANTRY_QUANTITY_MAX) {
+    return {
+      kind: 'invalid',
+      message: `That is more than ${PANTRY_QUANTITY_MAX} — check the amount.`,
+    };
+  }
+  return { kind: 'amount', value };
+}
