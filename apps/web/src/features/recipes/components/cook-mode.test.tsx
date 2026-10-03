@@ -20,6 +20,8 @@ const mockRefetch = vi.fn();
 let mockMembers: { name: string; portionFactor: number }[] | null = null;
 let mockCookingFor: number | null = null;
 const mockLogRecipe = vi.fn();
+const mockUnlogRecipe = vi.fn();
+let mockLogSucceeds = false;
 vi.mock('next/navigation', () => ({
   useRouter: () => ({ back: vi.fn(), push: vi.fn() }),
   useSearchParams: () => new URLSearchParams(mockSearch),
@@ -44,6 +46,7 @@ vi.mock('@chefer/ui', () => ({
 vi.mock('@/features/recipe/components/StarRatingWidget', () => ({
   StarRatingWidget: () => null,
 }));
+vi.mock('@/features/meal-plan/components/RebalanceBanner', () => ({ RebalanceBanner: () => null }));
 vi.mock('@/features/tracker/lib/rebalance-storage', () => ({ handleRebalanceResult: vi.fn() }));
 vi.mock('@/hooks/useHousehold', () => ({ useHousehold: () => ({ scaledMembers: mockMembers }) }));
 vi.mock('@/hooks/useCookingFor', () => ({ useCookingFor: () => mockCookingFor }));
@@ -51,7 +54,10 @@ vi.mock('@/hooks/useUnitSystem', () => ({ useUnitSystem: () => 'metric' }));
 vi.mock('@/lib/analytics', () => ({ capture: vi.fn() }));
 vi.mock('@/lib/trpc', () => ({
   trpc: {
-    useUtils: () => ({}),
+    useUtils: () => ({
+      tracker: { getDay: { invalidate: vi.fn() }, weeklySummary: { invalidate: vi.fn() } },
+      dashboard: { summary: { invalidate: vi.fn() } },
+    }),
     mealPlan: {
       getRecipe: {
         useQuery: () => ({ data: RECIPE, isLoading: false, refetch: mockRefetch, ...mockQuery }),
@@ -59,7 +65,24 @@ vi.mock('@/lib/trpc', () => ({
     },
     tracker: {
       logRecipe: {
-        useMutation: () => ({ mutate: mockLogRecipe, isPending: false, isError: false }),
+        useMutation: (opts: { onSuccess?: (r: unknown, v: unknown) => void }) => ({
+          mutate: (input: unknown) => {
+            mockLogRecipe(input);
+            if (mockLogSucceeds) opts.onSuccess?.({ rebalance: null }, input);
+          },
+          isPending: false,
+          isError: false,
+        }),
+      },
+      unlogRecipe: {
+        useMutation: (opts: { onSuccess?: () => void }) => ({
+          mutate: (input: unknown) => {
+            mockUnlogRecipe(input);
+            opts.onSuccess?.();
+          },
+          isPending: false,
+          isError: false,
+        }),
       },
     },
   },
@@ -72,6 +95,9 @@ afterEach(() => {
   mockMembers = null;
   mockCookingFor = null;
   mockLogRecipe.mockReset();
+  mockUnlogRecipe.mockReset();
+  mockLogSucceeds = false;
+  vi.useRealTimers();
 });
 
 const key = (k: string, init: KeyboardEventInit = {}, target: Element | Document = document) =>
@@ -242,5 +268,133 @@ describe('CookMode load states (UX-COOK-03)', () => {
     expect(screen.getByTestId('cook-no-steps')).toBeTruthy();
     expect(screen.queryByText(/Step \d+ of 0/)).toBeNull();
     expect(screen.getByRole('button', { name: /Finish/ })).toBeTruthy();
+  });
+});
+
+// UX-COOK-01 / 04 / 05 (WP-11, web parity with the mobile cook screen).
+describe('CookMode step timers (UX-COOK-01)', () => {
+  const press = (name: string | RegExp) => fireEvent.click(screen.getByRole('button', { name }));
+
+  it('a running timer survives a step change and shows in the header', () => {
+    vi.useFakeTimers({ now: new Date('2026-10-03T12:00:00Z') });
+    render(<CookMode recipeId="r1" />);
+    key('ArrowRight'); // step 2 has the 5 minute timer
+    press('Start timer');
+    act(() => {
+      vi.advanceTimersByTime(30_000);
+    });
+    expect(screen.getByText('4:30')).toBeTruthy();
+
+    key('ArrowRight'); // step 3: no timer here, but it keeps running in the header
+    expect(screen.queryByRole('button', { name: 'Pause timer' })).toBeNull();
+    act(() => {
+      vi.advanceTimersByTime(30_000);
+    });
+    expect(screen.getByTestId('cook-timer-chip-1').textContent).toMatch(/Step 2 · 4:00/);
+
+    fireEvent.click(screen.getByTestId('cook-timer-chip-1'));
+    expect(screen.getByText('Step 2 of 3')).toBeTruthy();
+    expect(screen.getByText('4:00')).toBeTruthy();
+  });
+
+  it('vibrates once at zero and reads Done!', () => {
+    vi.useFakeTimers({ now: new Date('2026-10-03T12:00:00Z') });
+    const vibrate = vi.fn();
+    Object.defineProperty(navigator, 'vibrate', { value: vibrate, configurable: true });
+    render(<CookMode recipeId="r1" />);
+    key('ArrowRight');
+    press('Start timer');
+    act(() => {
+      vi.advanceTimersByTime(300_000 + 1000);
+    });
+    expect(screen.getByText('Done!')).toBeTruthy();
+    expect(vibrate).toHaveBeenCalledTimes(1);
+    act(() => {
+      vi.advanceTimersByTime(5000);
+    });
+    expect(vibrate).toHaveBeenCalledTimes(1);
+  });
+
+  it('pausing keeps what is left and Reset restores the full time', () => {
+    vi.useFakeTimers({ now: new Date('2026-10-03T12:00:00Z') });
+    render(<CookMode recipeId="r1" />);
+    key('ArrowRight');
+    press('Start timer');
+    act(() => {
+      vi.advanceTimersByTime(60_000);
+    });
+    press('Pause timer');
+    act(() => {
+      vi.advanceTimersByTime(60_000);
+    });
+    expect(screen.getByText('4:00')).toBeTruthy();
+    press('Reset timer');
+    expect(screen.getByText('5:00')).toBeTruthy();
+  });
+});
+
+describe('CookMode step amounts and servings (UX-COOK-04, UX-COOK-05)', () => {
+  it("lists the step's ingredients with scaled amounts", () => {
+    render(<CookMode recipeId="r1" />);
+    const card = screen.getByTestId('cook-step-amounts');
+    expect(card.textContent).toMatch(/For 2 servings/);
+    expect(card.textContent).toMatch(/4 piece/);
+    expect(card.textContent).toMatch(/tomato/);
+  });
+
+  it('starts at the servings the recipe page passed, and rescales the amounts', () => {
+    mockSearch = 'servings=6';
+    render(<CookMode recipeId="r1" />);
+    const card = screen.getByTestId('cook-step-amounts');
+    expect(card.textContent).toMatch(/For 6 servings/);
+    expect(card.textContent).toMatch(/12 piece/);
+  });
+
+  it('caps the stepper at 20, the same as the recipe page, with 44 px buttons', () => {
+    mockSearch = 'servings=20';
+    render(<CookMode recipeId="r1" />);
+    const more = screen.getByRole('button', { name: 'More servings' });
+    expect(more.className).toMatch(/\bh-11\b/);
+    expect(more.className).toMatch(/\bw-11\b/);
+    fireEvent.click(more);
+    expect(screen.getAllByText('20').length).toBeGreaterThan(0);
+    expect(screen.queryByText('21')).toBeNull();
+  });
+
+  it('ignores a junk servings param', () => {
+    mockSearch = 'servings=lots';
+    render(<CookMode recipeId="r1" />);
+    expect(screen.getByTestId('cook-step-amounts').textContent).toMatch(/For 2 servings/);
+  });
+});
+
+describe('CookMode log slot chooser and Undo (UX-COOK-04)', () => {
+  const toFinish = () => {
+    key('ArrowRight');
+    key('ArrowRight');
+    key('ArrowRight');
+  };
+
+  it('logs under the slot you pick, not the clock', () => {
+    mockSearch = 'meal=dinner';
+    render(<CookMode recipeId="r1" />);
+    toFinish();
+    fireEvent.click(screen.getByRole('button', { name: 'Snack' }));
+    fireEvent.click(screen.getByText('Made it! Log this meal'));
+    expect(mockLogRecipe).toHaveBeenCalledWith(expect.objectContaining({ mealType: 'snack' }));
+  });
+
+  it('Undo takes the log back and brings the chooser back', () => {
+    mockSearch = 'meal=lunch';
+    mockLogSucceeds = true;
+    render(<CookMode recipeId="r1" />);
+    toFinish();
+    fireEvent.click(screen.getByText('Made it! Log this meal'));
+    expect(screen.getByText(/Logged to today's tracker as lunch/)).toBeTruthy();
+    fireEvent.click(screen.getByTestId('cook-log-undo'));
+    expect(mockUnlogRecipe).toHaveBeenCalledWith(
+      expect.objectContaining({ recipeId: 'r1', mealType: 'lunch' }),
+    );
+    expect(screen.getByTestId('cook-slot')).toBeTruthy();
   });
 });

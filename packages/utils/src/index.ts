@@ -272,7 +272,29 @@ export {
 } from './tracker';
 
 export { portionsFor, tableBreakdown, type Portions, type PortionsInput } from './portions';
-export { defaultCookServings, finishMealCopy, guessMealType, parseStepDuration } from './cook-mode';
+export {
+  clampCookServings,
+  cookTimerRemaining,
+  cookTimerStatus,
+  defaultCookServings,
+  finishMealCopy,
+  formatCookTimer,
+  guessMealType,
+  isCookTimer,
+  matchStepIngredients,
+  MAX_COOK_SERVINGS,
+  newCookTimer,
+  parseServingsParam,
+  parseStepDuration,
+  pauseCookTimer,
+  resetCookTimer,
+  startCookTimer,
+  stepIngredientAmounts,
+  type CookIngredient,
+  type CookTimer,
+  type CookTimerStatus,
+  type StepAmount,
+} from './cook-mode';
 export {
   buildPickerSections,
   filterReplaceCandidates,

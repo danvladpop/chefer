@@ -28,11 +28,15 @@ import {
 } from 'lucide-react';
 import { Drawer, ErrorState } from '@chefer/ui';
 import {
+  clampCookServings,
   defaultCookServings,
+  formatCookTimer,
   formatFractionalQuantity,
   formatQuantity,
   isNotFoundError,
+  parseServingsParam,
   slotPortion,
+  stepIngredientAmounts,
 } from '@chefer/utils';
 import { AllergenWarningBanner } from './AllergenWarning';
 import {
@@ -41,12 +45,27 @@ import {
   parseStepDuration,
   shouldIgnoreCookModeKey,
 } from './cook-mode-utils';
+import { useCookTimers, type CookTimerView } from './use-cook-timers';
 
 // ─── Cook mode (P1-3) ─────────────────────────────────────────────────────────
 // Full-screen, one-instruction-at-a-time stepper: the product finally follows
 // the user into the kitchen. Finishing logs the meal to today's tracker AND
 // opens the star rating — closing the tracking loop and the P1-1
-// personalisation loop in one tap.
+// personalisation loop in one tap. A `servings` query param (the recipe page's
+// stepper, UX-COOK-05) wins over the household default; step timers are
+// absolute `endsAt` stamps held here (UX-COOK-01); each step lists its own
+// ingredient amounts (UX-COOK-04).
+
+const MEAL_SLOTS = [
+  { value: 'breakfast', label: 'Breakfast' },
+  { value: 'lunch', label: 'Lunch' },
+  { value: 'dinner', label: 'Dinner' },
+  { value: 'snack', label: 'Snack' },
+] as const;
+type MealSlot = (typeof MEAL_SLOTS)[number]['value'];
+
+const isMealSlot = (value: string | null | undefined): value is MealSlot =>
+  MEAL_SLOTS.some((slot) => slot.value === value);
 
 function todayIso(): string {
   const now = new Date();
@@ -62,16 +81,20 @@ const KBD_CLS =
 // ── Inline step timer ─────────────────────────────────────────────────────────
 
 function StepTimer({
-  seconds,
+  view,
+  onToggle,
+  onReset,
   shortcutsEnabled,
 }: {
-  seconds: number;
+  view: CookTimerView;
+  onToggle: () => void;
+  onReset: () => void;
   /** Space starts/pauses the timer (off while the ingredients drawer is open). */
   shortcutsEnabled: boolean;
 }) {
-  const [remaining, setRemaining] = useState(seconds);
-  const [running, setRunning] = useState(false);
-  const done = remaining === 0;
+  const { status, remainingSec } = view;
+  const done = status === 'done';
+  const running = status === 'running';
 
   // Space = start/pause (F-REC-6-5). Leaves Space alone on buttons/links,
   // where it natively activates the focused control.
@@ -81,29 +104,11 @@ function StepTimer({
       if (e.key !== ' ' && e.key !== 'Spacebar') return;
       if (shouldIgnoreCookModeKey(e) || isSpaceOwnedByTarget(e)) return;
       e.preventDefault(); // don't scroll the page
-      if (!e.repeat) setRunning((r) => !r);
+      if (!e.repeat) onToggle();
     };
     document.addEventListener('keydown', onKey);
     return () => document.removeEventListener('keydown', onKey);
-  }, [shortcutsEnabled, done]);
-
-  // A new step remounts the timer via key; keep the interval simple.
-  useEffect(() => {
-    if (!running || remaining <= 0) return;
-    const t = setInterval(() => setRemaining((r) => Math.max(0, r - 1)), 1000);
-    return () => clearInterval(t);
-  }, [running, remaining]);
-
-  useEffect(() => {
-    if (remaining === 0 && running) {
-      setRunning(false);
-      // Feature-detect: vibration exists on Android Chrome, not iOS Safari.
-      navigator.vibrate?.([200, 100, 200]);
-    }
-  }, [remaining, running]);
-
-  const mins = Math.floor(remaining / 60);
-  const secs = remaining % 60;
+  }, [shortcutsEnabled, done, onToggle]);
 
   return (
     <div
@@ -117,11 +122,11 @@ function StepTimer({
           done ? 'text-emerald-700' : 'text-[#944a00]'
         }`}
       >
-        {done ? 'Done!' : `${mins}:${String(secs).padStart(2, '0')}`}
+        {done ? 'Done!' : formatCookTimer(remainingSec)}
       </span>
       {!done && (
         <button
-          onClick={() => setRunning((r) => !r)}
+          onClick={onToggle}
           aria-label={running ? 'Pause timer' : 'Start timer'}
           className="flex h-11 w-11 items-center justify-center rounded-full bg-[#944a00] text-white hover:bg-[#7a3d00]"
         >
@@ -129,10 +134,7 @@ function StepTimer({
         </button>
       )}
       <button
-        onClick={() => {
-          setRemaining(seconds);
-          setRunning(false);
-        }}
+        onClick={onReset}
         aria-label="Reset timer"
         className="flex h-11 w-11 items-center justify-center rounded-full border border-gray-200 text-gray-500 hover:bg-gray-50"
       >
@@ -148,7 +150,13 @@ export function CookMode({ recipeId }: { recipeId: string }) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const unitSystem = useUnitSystem();
-  const mealType = searchParams.get('meal') ?? guessMealType();
+  const mealParam = searchParams.get('meal');
+  const guessedSlot = guessMealType();
+  const initialSlot: MealSlot = isMealSlot(mealParam)
+    ? mealParam
+    : isMealSlot(guessedSlot)
+      ? guessedSlot
+      : 'dinner';
   // P1-1: cooking a portioned plan slot starts at that portion and logs it.
   const planPortion = slotPortion(parseFloat(searchParams.get('portion') ?? ''));
 
@@ -163,7 +171,14 @@ export function CookMode({ recipeId }: { recipeId: string }) {
 
   const [step, setStep] = useState(0);
   const [finished, setFinished] = useState(false);
-  const [servings, setServings] = useState<number | null>(null);
+  // UX-COOK-05: the recipe page's chosen servings, when it passed any.
+  const [servings, setServings] = useState<number | null>(() =>
+    parseServingsParam(searchParams.get('servings')),
+  );
+  // UX-COOK-04: the slot "Made it!" files the meal under — chosen, not guessed.
+  const [slot, setSlot] = useState<MealSlot>(initialSlot);
+  const [loggedAs, setLoggedAs] = useState<{ date: string; slot: MealSlot } | null>(null);
+  const cookTimers = useCookTimers(recipeQuery.data?.name ?? '');
   const [checkedIngredients, setCheckedIngredients] = useState<Set<number>>(new Set());
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [logged, setLogged] = useState(false);
@@ -226,12 +241,26 @@ export function CookMode({ recipeId }: { recipeId: string }) {
   const utils = trpc.useUtils();
   const upsertDay = trpc.tracker.logRecipe.useMutation({
     meta: { silent: true },
-    onSuccess: (result) => {
+    onSuccess: (result, variables) => {
       setLogged(true);
-      capture('meal_cooked', { mealType });
+      setLoggedAs({ date: variables.date, slot });
+      capture('meal_cooked', { mealType: slot });
       // F4: a cook-mode log can trigger a week rebalance too — hand the swaps
       // off to the meal-plan banner (with undo).
       handleRebalanceResult(result.rebalance);
+      void utils.tracker.getDay.invalidate();
+      void utils.tracker.weeklySummary.invalidate();
+      void utils.dashboard.summary.invalidate();
+    },
+  });
+
+  // UX-COOK-04: a tap on the wrong slot used to leave a second "lunch" in the
+  // tracker until you found it there — the log can be taken back right here.
+  const undoLog = trpc.tracker.unlogRecipe.useMutation({
+    meta: { silent: true },
+    onSuccess: () => {
+      setLogged(false);
+      setLoggedAs(null);
       void utils.tracker.getDay.invalidate();
       void utils.tracker.weeklySummary.invalidate();
       void utils.dashboard.summary.invalidate();
@@ -268,12 +297,12 @@ export function CookMode({ recipeId }: { recipeId: string }) {
     upsertDay.mutate({
       date: todayIso(),
       recipeId: recipe.id,
-      mealType,
+      mealType: slot,
       // One serving eaten — cooking for 4 doesn't mean you ate 4×. A plan
       // slot sized to 1.5× means you ate 1.5 servings (P1-1).
       portionMultiplier: Math.min(2, Math.max(0.5, planPortion)),
     });
-  }, [recipe, logged, upsertDay, mealType, planPortion]);
+  }, [recipe, logged, upsertDay, slot, planPortion]);
 
   if (recipeState.state === 'error') {
     const notFound = isNotFoundError(recipeQuery.error);
@@ -314,6 +343,8 @@ export function CookMode({ recipeId }: { recipeId: string }) {
   const safeStep = Math.max(0, Math.min(step, totalSteps - 1));
   const instruction = recipe.instructions[safeStep] ?? '';
   const timerSeconds = parseStepDuration(instruction);
+  // UX-COOK-04: the amounts this step uses, scaled to the chosen servings.
+  const stepAmounts = stepIngredientAmounts(instruction, recipe.ingredients, scale, unitSystem);
   const isLastStep = noSteps || safeStep === totalSteps - 1;
 
   // ── Finish screen ──
@@ -327,11 +358,35 @@ export function CookMode({ recipeId }: { recipeId: string }) {
           <h1 className="text-2xl font-bold text-gray-900">Enjoy your {recipe.name}!</h1>
           <p className="mt-1 text-sm text-gray-500">
             {logged
-              ? `Logged to today's tracker as ${mealType}.`
+              ? `Logged to today's tracker as ${loggedAs?.slot ?? slot}.`
               : 'Log it to your tracker and tell the chef what you thought.'}
           </p>
         </div>
 
+        {!logged ? (
+          <div
+            role="group"
+            aria-label="Log it as"
+            data-testid="cook-slot"
+            className="flex flex-wrap justify-center gap-2"
+          >
+            {MEAL_SLOTS.map((option) => (
+              <button
+                key={option.value}
+                type="button"
+                aria-pressed={slot === option.value}
+                onClick={() => setSlot(option.value)}
+                className={`min-h-11 rounded-full border px-4 text-sm font-medium ${
+                  slot === option.value
+                    ? 'border-[#944a00] bg-[#944a00] text-white'
+                    : 'border-gray-200 bg-white text-gray-700 hover:bg-gray-50'
+                }`}
+              >
+                {option.label}
+              </button>
+            ))}
+          </div>
+        ) : null}
         {!logged ? (
           <button
             onClick={logMeal}
@@ -360,6 +415,25 @@ export function CookMode({ recipeId }: { recipeId: string }) {
         )}
         {upsertDay.isError && (
           <p className="text-sm text-red-600">Could not log the meal — try again.</p>
+        )}
+        {logged && loggedAs ? (
+          <button
+            data-testid="cook-log-undo"
+            onClick={() =>
+              undoLog.mutate({
+                date: loggedAs.date,
+                recipeId: recipe.id,
+                mealType: loggedAs.slot,
+              })
+            }
+            disabled={undoLog.isPending}
+            className="flex min-h-11 items-center rounded-xl border border-gray-200 px-4 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+          >
+            Undo
+          </button>
+        ) : null}
+        {undoLog.isError && (
+          <p className="text-sm text-red-600">Could not undo that — try again.</p>
         )}
 
         <div className="flex items-center gap-4 text-sm">
@@ -401,9 +475,9 @@ export function CookMode({ recipeId }: { recipeId: string }) {
         {/* Servings scaler */}
         <div className="flex shrink-0 items-center gap-1 rounded-full border border-gray-200 px-1">
           <button
-            onClick={() => setServings(Math.max(1, selectedServings - 1))}
+            onClick={() => setServings(clampCookServings(selectedServings - 1))}
             aria-label="Fewer servings"
-            className="touch-target relative flex h-11 w-9 items-center justify-center text-gray-500 hover:text-gray-900"
+            className="flex h-11 w-11 items-center justify-center text-gray-500 hover:text-gray-900"
           >
             <Minus className="h-4 w-4" />
           </button>
@@ -411,9 +485,9 @@ export function CookMode({ recipeId }: { recipeId: string }) {
             {formatFractionalQuantity(selectedServings)}
           </span>
           <button
-            onClick={() => setServings(Math.min(20, selectedServings + 1))}
+            onClick={() => setServings(clampCookServings(selectedServings + 1))}
             aria-label="More servings"
-            className="touch-target relative flex h-11 w-9 items-center justify-center text-gray-500 hover:text-gray-900"
+            className="flex h-11 w-11 items-center justify-center text-gray-500 hover:text-gray-900"
           >
             <Plus className="h-4 w-4" />
           </button>
@@ -427,6 +501,42 @@ export function CookMode({ recipeId }: { recipeId: string }) {
           <ListChecks className="h-5 w-5" />
         </button>
       </div>
+
+      {/* UX-COOK-01: every timer that is going (or has finished) stays in
+          view whichever step you are reading; a click jumps to its step. */}
+      {cookTimers.active.length > 0 && (
+        <div data-testid="cook-timer-chips" className="mx-4 mt-3 flex flex-wrap gap-2">
+          {cookTimers.active.map((t) => (
+            <button
+              key={t.step}
+              type="button"
+              data-testid={`cook-timer-chip-${t.step}`}
+              onClick={() => setStep(t.step)}
+              aria-label={
+                t.status === 'done'
+                  ? `Step ${t.step + 1} timer finished. Go to step`
+                  : `Step ${t.step + 1} timer, ${formatCookTimer(t.remainingSec)} ${
+                      t.status === 'paused' ? 'paused' : 'left'
+                    }. Go to step`
+              }
+              className={`flex min-h-11 items-center gap-1.5 rounded-full border px-3 text-sm font-semibold tabular-nums ${
+                t.status === 'done'
+                  ? 'border-emerald-300 bg-emerald-50 text-emerald-700'
+                  : 'border-[#944a00]/30 bg-[#fff3e8] text-[#944a00]'
+              }`}
+            >
+              {t.status === 'done' ? (
+                <Check className="h-4 w-4" aria-hidden="true" />
+              ) : t.status === 'paused' ? (
+                <Pause className="h-4 w-4" aria-hidden="true" />
+              ) : (
+                <Timer className="h-4 w-4" aria-hidden="true" />
+              )}
+              Step {t.step + 1} · {t.status === 'done' ? 'Done!' : formatCookTimer(t.remainingSec)}
+            </button>
+          ))}
+        </div>
+      )}
 
       {/* Allergen conflicts stay visible while cooking (F-REC-2-3) */}
       <AllergenWarningBanner warnings={recipe.allergenWarnings} className="mx-4 mt-3" />
@@ -464,10 +574,30 @@ export function CookMode({ recipeId }: { recipeId: string }) {
             </>
           )}
         </div>
+        {stepAmounts.length > 0 && (
+          <div
+            data-testid="cook-step-amounts"
+            className="mt-6 w-full max-w-md rounded-2xl border bg-gray-50 p-3 text-left"
+          >
+            <p className="mb-1 text-xs font-medium text-gray-600">
+              For {formatFractionalQuantity(selectedServings)}{' '}
+              {selectedServings === 1 ? 'serving' : 'servings'}
+            </p>
+            <ul className="space-y-0.5">
+              {stepAmounts.map((a) => (
+                <li key={a.index} className="flex items-baseline gap-2 text-base text-gray-800">
+                  <strong className="shrink-0">{a.amount}</strong>
+                  <span className="min-w-0">{a.name}</span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
         {timerSeconds !== null && (
           <StepTimer
-            key={`${safeStep}-${timerSeconds}`}
-            seconds={timerSeconds}
+            view={cookTimers.view(safeStep, timerSeconds)}
+            onToggle={() => cookTimers.toggle(safeStep, timerSeconds)}
+            onReset={() => cookTimers.reset(safeStep)}
             shortcutsEnabled={!drawerOpen}
           />
         )}

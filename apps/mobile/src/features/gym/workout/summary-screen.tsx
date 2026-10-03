@@ -172,7 +172,8 @@ export function SummaryScreen({ id }: { id: string }) {
                       textClassName="font-semibold"
                     />
                     <Text variant="muted">
-                      {PR_KIND_LABEL[pr.kind]} · {formatLoad(pr.weightKg, unit, meta.loadType)} ×{' '}
+                      {PR_KIND_LABEL[pr.kind]} ·{' '}
+                      {formatLoad(pr.weightKg, unit, meta.loadType, { each: meta.perHand })} ×{' '}
                       {pr.reps}
                     </Text>
                   </View>
@@ -231,7 +232,8 @@ export function SummaryScreen({ id }: { id: string }) {
                       textClassName="font-semibold"
                     />
                     <Text testID={`summary-next-${i}-target`} variant="muted">
-                      {formatLoad(s.weightKg, unit, meta.loadType)} × {s.reps.join(' / ')}
+                      {formatLoad(s.weightKg, unit, meta.loadType, { each: meta.perHand })} ×{' '}
+                      {s.reps.join(' / ')}
                       {meta.isTimed ? ' s' : ''}
                     </Text>
                   </View>
@@ -396,8 +398,8 @@ function AdjustSheet({
     [meta.isTimed],
   );
   const formatWeight = useCallback(
-    (kg: number) => formatLoad(kg, unit, meta.loadType),
-    [unit, meta.loadType],
+    (kg: number) => formatLoad(kg, unit, meta.loadType, { each: meta.perHand }),
+    [unit, meta.loadType, meta.perHand],
   );
   const formatReps = useCallback((r: number) => String(r), []);
 

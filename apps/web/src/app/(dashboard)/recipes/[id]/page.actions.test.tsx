@@ -195,4 +195,19 @@ describe('Recipe detail: share, source, units (UX-REC-04/07/11)', () => {
     );
     expect(screen.getByTestId('recipe-servings-note').textContent).toMatch(/600 kcal/);
   });
+
+  it('UX-COOK-05: Cook carries the servings chosen here, up to the shared cap of 20', async () => {
+    await renderPage();
+    const cook = () => screen.getByText('Cook').closest('a');
+    await screen.findByText('1 tbsp');
+    expect(cook()?.getAttribute('href')).toBe('/recipes/r1/cook');
+
+    fireEvent.click(screen.getByLabelText('Increase servings'));
+    fireEvent.click(screen.getByLabelText('Increase servings'));
+    expect(cook()?.getAttribute('href')).toBe('/recipes/r1/cook?servings=3');
+
+    for (let i = 0; i < 25; i++) fireEvent.click(screen.getByLabelText('Increase servings'));
+    expect(cook()?.getAttribute('href')).toBe('/recipes/r1/cook?servings=20');
+    expect(screen.getByLabelText('Increase servings').className).toMatch(/\bh-11\b/);
+  });
 });

@@ -74,6 +74,11 @@ export function StrengthTrendChart({
   );
   const bodyweightQuery = trpc.gym.stats.bodyweight.useQuery({ range });
   const bodyweight = bodyweightQuery.data ?? [];
+  // UX-GYM-17: the weight from onboarding / preferences stands in until the
+  // first weigh-in, so the ratio never silently plots the raw kg e1RM.
+  const profileQuery = trpc.preferences.get.useQuery();
+  const profileWeightKg = profileQuery.data?.chefProfile?.weightKg ?? null;
+  const hasAnyBodyweight = bodyweight.length > 0 || (profileWeightKg ?? 0) > 0;
 
   const loading = e1rmQueries.some((q) => q.isLoading) || bodyweightQuery.isLoading;
   const hasAnyData = e1rmQueries.some((q) => (q.data?.points.length ?? 0) > 0);
@@ -83,7 +88,7 @@ export function StrengthTrendChart({
   selectedIds.forEach((id, i) => {
     const series = e1rmQueries[i]?.data;
     if (!series) return;
-    const points = relative ? withBodyweight(series.points, bodyweight) : null;
+    const points = relative ? withBodyweight(series.points, bodyweight, profileWeightKg) : null;
     const prDates = new Set(series.points.filter((p) => p.isPr).map((p) => p.localDate));
     prFlags.set(id, prDates);
     channels.push({
@@ -192,13 +197,11 @@ export function StrengthTrendChart({
           type="checkbox"
           checked={relative}
           onChange={(e) => setRelative(e.target.checked)}
-          disabled={bodyweight.length === 0}
+          disabled={!hasAnyBodyweight}
           className="h-4 w-4 rounded border-neutral-300"
         />
-        Strength per kg of body weight
-        {bodyweight.length === 0 && (
-          <span className="text-neutral-400">— log your weight first</span>
-        )}
+        Strength relative to body weight (× body weight)
+        {!hasAnyBodyweight && <span className="text-neutral-500">— log your weight first</span>}
       </label>
 
       {loading ? (

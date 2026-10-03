@@ -196,6 +196,8 @@ export interface ExerciseMenuProps {
   history: ExerciseHistoryEntry[];
   unit: WeightUnit;
   loadType: ExerciseDto['loadType'];
+  /** UX-GYM-19: dumbbell / kettlebell loads read "20 kg each". */
+  perHand?: boolean;
   onSwap: (scope: SwapScope) => void;
   onSkip: () => void;
   onAddSet: () => void;
@@ -444,7 +446,7 @@ export function ExerciseMenuSheet(props: ExerciseMenuProps) {
                     .map((s) =>
                       props.loadType === 'BODYWEIGHT'
                         ? String(s.reps)
-                        : `${formatLoad(s.weightKg, props.unit, props.loadType)} × ${s.reps}`,
+                        : `${formatLoad(s.weightKg, props.unit, props.loadType, { each: props.perHand })} × ${s.reps}`,
                     )
                     .join(', ')}
                   {h.lastSetRir !== null
