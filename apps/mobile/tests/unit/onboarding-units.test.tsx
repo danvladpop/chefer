@@ -48,6 +48,12 @@ jest.mock('expo-router', () => {
       createElement(Pressable, { testID }, children),
   };
 });
+// UX-ONB-04: pin the device region (a US phone → imperial) so the region default is
+// deterministic whatever locale the test machine has.
+jest.mock('@chefer/utils', () => ({
+  ...jest.requireActual<typeof import('@chefer/utils')>('@chefer/utils'),
+  detectRegion: () => 'US',
+}));
 jest.mock('../../src/features/gym/mode-store', () => ({ setMode: jest.fn() }));
 jest.mock('../../src/hooks/use-is-premium', () => ({ useIsPremium: () => false }));
 jest.mock('../../src/features/ai-consent/ai-consent-provider', () => ({
@@ -100,7 +106,7 @@ jest.mock('../../src/lib/trpc', () => ({
   },
 }));
 
-async function driveToMetrics() {
+async function driveToMetrics(units: 'METRIC' | 'IMPERIAL' = 'IMPERIAL') {
   const user = userEvent.setup();
   await renderWizard();
   await user.press(screen.getByTestId('onboarding-job-PLAN_MEALS'));
@@ -108,8 +114,12 @@ async function driveToMetrics() {
   await waitFor(() => expect(screen.getByTestId('onboarding-continue')).toBeTruthy());
   await user.press(screen.getByTestId('onboarding-continue')); // diet -> how you cook
   await waitFor(() => expect(screen.getByTestId('how-you-cook-units-imperial')).toBeTruthy());
-  // Force Imperial explicitly — deterministic, sidesteps the device-region default.
-  await user.press(screen.getByTestId('how-you-cook-units-imperial'));
+  // Pick the units explicitly — deterministic, whatever the device-region default is.
+  await user.press(
+    screen.getByTestId(
+      units === 'IMPERIAL' ? 'how-you-cook-units-imperial' : 'how-you-cook-units-metric',
+    ),
+  );
   await user.press(screen.getByTestId('onboarding-continue')); // how you cook -> goal
   await waitFor(() => expect(screen.getByTestId('onboarding-continue')).toBeTruthy());
   await user.press(screen.getByTestId('onboarding-continue')); // goal -> metrics
@@ -117,10 +127,11 @@ async function driveToMetrics() {
 }
 
 describe('Onboarding metrics — units follow typed values (bug B-43, AC11)', () => {
-  it('labels the fields in inches/lb once Imperial is picked', async () => {
+  it('labels the fields in feet + inches / lb once Imperial is picked', async () => {
     await driveToMetrics();
-    expect(screen.getByText('Height (in)')).toBeTruthy();
+    expect(screen.getByText('Height (ft, in)')).toBeTruthy();
     expect(screen.getByText('Weight (lb)')).toBeTruthy();
+    expect(screen.getByTestId('metrics-height-in')).toBeTruthy();
   });
 
   it('typing a metric-looking height/weight switches to metric, with the notice + Undo', async () => {
@@ -147,18 +158,115 @@ describe('Onboarding metrics — units follow typed values (bug B-43, AC11)', ()
 
     await fireEvent.press(screen.getByTestId('metrics-units-switch-undo'));
 
-    await waitFor(() => expect(screen.getByText('Height (in)')).toBeTruthy());
+    await waitFor(() => expect(screen.getByText('Height (ft, in)')).toBeTruthy());
     expect(screen.getByText('Weight (lb)')).toBeTruthy();
     expect(screen.queryByTestId('metrics-units-switch-notice')).toBeNull();
+    expect(screen.getByTestId('metrics-height')).toHaveDisplayValue('170');
   });
 
   it('does not switch when the typed values already fit Imperial', async () => {
     await driveToMetrics();
-    await fireEvent.changeText(screen.getByTestId('metrics-height'), '68');
+    await fireEvent.changeText(screen.getByTestId('metrics-height'), '5');
+    await fireEvent.changeText(screen.getByTestId('metrics-height-in'), '8');
     await fireEvent.changeText(screen.getByTestId('metrics-weight'), '160');
 
-    expect(screen.getByText('Height (in)')).toBeTruthy();
+    expect(screen.getByText('Height (ft, in)')).toBeTruthy();
     expect(screen.queryByTestId('metrics-units-switch-notice')).toBeNull();
+  });
+
+  it('metric digits typed into Metric go the other way: 69 "cm" re-reads as 5 ft 9 in', async () => {
+    await driveToMetrics('METRIC');
+    await fireEvent.changeText(screen.getByTestId('metrics-height'), '69');
+    await waitFor(() => expect(screen.getByText('Height (ft, in)')).toBeTruthy());
+    expect(screen.getByTestId('metrics-height')).toHaveDisplayValue('5');
+    expect(screen.getByTestId('metrics-height-in')).toHaveDisplayValue('9');
+  });
+});
+
+// UX-ONB-05: imperial height is feet + inches; implausible values are flagged, never saved.
+describe('Onboarding metrics — ft + in and plausibility bounds (UX-ONB-05)', () => {
+  it('computes the calorie estimate from feet + inches', async () => {
+    await driveToMetrics();
+    await fireEvent.changeText(screen.getByTestId('metrics-age'), '30');
+    await fireEvent.changeText(screen.getByTestId('metrics-height'), '5');
+    await fireEvent.changeText(screen.getByTestId('metrics-height-in'), '10');
+    await fireEvent.changeText(screen.getByTestId('metrics-weight'), '165');
+    expect(screen.getByTestId('metrics-calorie-preview')).toHaveTextContent(
+      /Estimated daily calorie target/,
+    );
+    expect(screen.queryByTestId('metrics-height-error')).toBeNull();
+  });
+
+  it('flags "1,80" cm, hides the estimate and holds Continue back until it is fixed', async () => {
+    await driveToMetrics('METRIC');
+    await fireEvent.changeText(screen.getByTestId('metrics-age'), '30');
+    await fireEvent.changeText(screen.getByTestId('metrics-height'), '1,80');
+    await fireEvent.changeText(screen.getByTestId('metrics-weight'), '75');
+
+    expect(screen.getByTestId('metrics-height-error')).toHaveTextContent(
+      'Enter a height between 100 and 250 cm.',
+    );
+    expect(screen.getByTestId('metrics-calorie-preview')).not.toHaveTextContent(
+      /Estimated daily calorie target/,
+    );
+    expect(screen.getByTestId('onboarding-continue')).toBeDisabled();
+
+    await fireEvent.changeText(screen.getByTestId('metrics-height'), '180');
+    expect(screen.queryByTestId('metrics-height-error')).toBeNull();
+    expect(screen.getByTestId('onboarding-continue')).toBeEnabled();
+  });
+
+  it('flags an 8 kg weight', async () => {
+    await driveToMetrics('METRIC');
+    await fireEvent.changeText(screen.getByTestId('metrics-weight'), '8');
+    expect(screen.getByTestId('metrics-weight-error')).toHaveTextContent(
+      'Enter a weight between 20 and 400 kg.',
+    );
+    expect(screen.getByTestId('onboarding-continue')).toBeDisabled();
+  });
+
+  it('words an out-of-range imperial height in feet and inches', async () => {
+    await driveToMetrics();
+    await fireEvent.changeText(screen.getByTestId('metrics-height'), '2');
+    expect(screen.getByTestId('metrics-height-error')).toHaveTextContent(
+      'Enter a height between 3 ft 4 in and 8 ft 2 in.',
+    );
+  });
+});
+
+// UX-ONB-04: the region default is the wizard's initial state, applied once.
+describe('Onboarding — region default is applied once (UX-ONB-04)', () => {
+  it('a US phone starts imperial; a metric pick survives Back and forward through How you cook', async () => {
+    const user = userEvent.setup();
+    await driveToMetrics('METRIC');
+    expect(screen.getByText('Height (cm)')).toBeTruthy();
+
+    await user.press(screen.getByTestId('onboarding-back')); // metrics -> goal
+    await user.press(screen.getByTestId('onboarding-back')); // goal -> how you cook
+    await waitFor(() => expect(screen.getByTestId('how-you-cook-units-metric')).toBeTruthy());
+    await user.press(screen.getByTestId('onboarding-continue')); // -> goal
+    await user.press(screen.getByTestId('onboarding-continue')); // -> metrics
+    await waitFor(() => expect(screen.getByTestId('metrics-height')).toBeTruthy());
+
+    expect(screen.getByText('Height (cm)')).toBeTruthy();
+    expect(screen.getByText('Weight (kg)')).toBeTruthy();
+  });
+
+  it('changing units after typing re-reads the stored height instead of the typed digits', async () => {
+    const user = userEvent.setup();
+    await driveToMetrics('METRIC');
+    await fireEvent.changeText(screen.getByTestId('metrics-height'), '177.8');
+    await fireEvent.changeText(screen.getByTestId('metrics-weight'), '75');
+    await user.press(screen.getByTestId('onboarding-back'));
+    await user.press(screen.getByTestId('onboarding-back'));
+    await user.press(screen.getByTestId('how-you-cook-units-imperial'));
+    await user.press(screen.getByTestId('onboarding-continue'));
+    await user.press(screen.getByTestId('onboarding-continue'));
+    await waitFor(() => expect(screen.getByTestId('metrics-height-in')).toBeTruthy());
+
+    expect(screen.getByTestId('metrics-height')).toHaveDisplayValue('5');
+    expect(screen.getByTestId('metrics-height-in')).toHaveDisplayValue('10');
+    expect(screen.getByTestId('metrics-weight')).toHaveDisplayValue('165.3');
   });
 });
 

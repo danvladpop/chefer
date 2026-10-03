@@ -1,16 +1,15 @@
-import { useEffect, useState } from 'react';
+import { useEffect } from 'react';
 import { ActivityIndicator, Switch, View } from 'react-native';
 import { DISPLAY_CURRENCIES, type DisplayCurrency, type PlanShape } from '@chefer/types';
-import { ChipGroup, SegmentedControl, Text } from '@chefer/ui-mobile';
-import { defaultsForRegion, detectRegion } from '@chefer/utils';
+import { ChipGroup, colors, SegmentedControl, Text } from '@chefer/ui-mobile';
 import { trpc } from '../../lib/trpc';
 import { HowYouCookForm } from '../meal-plan/how-you-cook-form';
 import { ONBOARDING_COPY } from './copy';
 
 // Step — How you cook (UX-07 §1, wired for onboarding by UX-03/T-03.3). The
 // same HowYouCookForm as Settings and the Plan tab's "Plan settings" sheet,
-// plus currency/units (pre-selected from the device region, CI-24) and the
-// once-only "Plan my next week automatically every Sunday?" switch
+// plus currency/units (pre-selected from the device region, CI-24 — by the
+// wizard's initial state, UX-ONB-04, never by this step) and the once-only "Plan my next week automatically every Sunday?" switch
 // (T-03.9, default off — ⚖ D-13).
 
 const CURRENCY_OPTIONS = DISPLAY_CURRENCIES.map((value) => ({
@@ -24,6 +23,9 @@ const UNITS_OPTIONS = [
   { value: 'IMPERIAL' as const, label: 'Imperial (oz, lb)', testID: 'how-you-cook-units-imperial' },
 ];
 
+// UX-ONB-10: an untinted Switch is the platform's teal on Android.
+const SWITCH_TRACK = { true: colors.primary, false: colors.neutral };
+
 export interface HowYouCookStepValue {
   shape: (PlanShape & { leftovers: boolean }) | null;
   currency: DisplayCurrency;
@@ -35,12 +37,12 @@ export interface HowYouCookStepProps {
   value: HowYouCookStepValue;
   /**
    * Also accepts a functional updater (`setState`-style), same as React's
-   * own `Dispatch<SetStateAction<T>>` — this component runs two independent
-   * mount-time effects (shape hydration, region pre-selection) that must
-   * never clobber each other's write with a stale `value` closure, so both
-   * use the functional form. A caller passing `setHowYouCook` directly
-   * already supports both shapes; a caller passing a plain value-setter
-   * callback needs to accept the updater form too (`(prev) => next`).
+   * own `Dispatch<SetStateAction<T>>` — the mount-time shape hydration must
+   * never clobber a write made in the same commit with a stale `value`
+   * closure, so it uses the functional form. A caller passing
+   * `setHowYouCook` directly already supports both shapes; a caller passing
+   * a plain value-setter callback needs to accept the updater form too
+   * (`(prev) => next`).
    */
   onChange: (
     value: HowYouCookStepValue | ((prev: HowYouCookStepValue) => HowYouCookStepValue),
@@ -54,32 +56,20 @@ export function HowYouCookStep({ value, onChange, isPremium }: HowYouCookStepPro
   const { data: householdMembers } = trpc.household.list.useQuery(undefined, {
     staleTime: 60_000,
   });
-  const [regionApplied, setRegionApplied] = useState(false);
 
-  // Hydrate the plan shape from the server once; pre-select currency/units
-  // from the device region the first time this step is ever shown (the
-  // user can always change either chip — this only sets the starting pick).
-  // Both effects can fire in the same commit (data already cached, mount
-  // effects run in order) — the functional form means neither clobbers the
-  // other's write with a stale `value` closure.
+  // Hydrate the plan shape from the server once. Currency and units are NOT
+  // touched here: the device-region starting pick lives in the wizard's initial
+  // state, so re-mounting this step (Back, then forward) keeps the user's choice.
   useEffect(() => {
     if (!data) return;
     onChange((prev) => (prev.shape ? prev : { ...prev, shape: data }));
     // eslint-disable-next-line react-hooks/exhaustive-deps -- hydrate once
   }, [data]);
 
-  useEffect(() => {
-    if (regionApplied) return;
-    setRegionApplied(true);
-    const { preferredUnits, currency } = defaultsForRegion(detectRegion());
-    onChange((prev) => ({ ...prev, units: preferredUnits, currency }));
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- run once
-  }, []);
-
   if (!value.shape) {
     return (
       <View className="items-center py-10">
-        <ActivityIndicator size="large" color="#944a00" />
+        <ActivityIndicator size="large" color={colors.primary} />
       </View>
     );
   }
@@ -105,6 +95,8 @@ export function HowYouCookStep({ value, onChange, isPremium }: HowYouCookStepPro
             <Switch
               testID="how-you-cook-leftovers"
               value={shape.leftovers}
+              trackColor={SWITCH_TRACK}
+              accessibilityLabel="Cook once, eat twice (leftover lunches)"
               onValueChange={(leftovers) => onChange({ ...value, shape: { ...shape, leftovers } })}
             />
           </View>
@@ -145,6 +137,8 @@ export function HowYouCookStep({ value, onChange, isPremium }: HowYouCookStepPro
           <Switch
             testID="how-you-cook-auto-plan"
             value={value.autoPlanWeekly}
+            trackColor={SWITCH_TRACK}
+            accessibilityLabel={ONBOARDING_COPY.autoPlanQuestion}
             onValueChange={(autoPlanWeekly) => onChange({ ...value, autoPlanWeekly })}
           />
         </View>

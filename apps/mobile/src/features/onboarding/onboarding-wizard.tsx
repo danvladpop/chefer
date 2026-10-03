@@ -3,9 +3,10 @@ import { ActivityIndicator, BackHandler, Pressable, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { router, useFocusEffect } from 'expo-router';
 import type { OnboardingJob } from '@chefer/types';
-import { bodyMetricsAgeError, LB_PER_KG } from '@chefer/types';
+import { bodyMetricsAgeError, isPlausibleHeightCm, isPlausibleWeightKg } from '@chefer/types';
 import {
   Button,
+  colors,
   ConfirmSheet,
   ErrorState,
   KeyboardAwareScrollView,
@@ -14,12 +15,20 @@ import {
 } from '@chefer/ui-mobile';
 import {
   aiConsentRequiredFor,
+  bodyFieldTexts,
+  defaultsForRegion,
+  detectRegion,
+  heightCmFromText,
+  heightValueForInference,
   inferUnitsFromInput,
   inToCm,
   onboardingProgress,
   onboardingSteps,
+  parseBodyNumber,
   previewTargetKcalFromBasics,
+  toDisplayCurrency,
   userFacingErrorMessage,
+  weightKgFromText,
   type OnboardingStepKey,
 } from '@chefer/utils';
 import { useIsPremium } from '../../hooks/use-is-premium';
@@ -30,7 +39,7 @@ import { setMode } from '../gym/mode-store';
 import { HouseholdEditor, type HouseholdEditorHandle } from '../household/household-editor';
 import { CuisineStep, type CuisineStepValue } from '../preferences/components/cuisine-step';
 import { GoalStep } from '../preferences/components/goal-step';
-import { MetricsStep } from '../preferences/components/metrics-step';
+import { metricsFieldErrors, MetricsStep } from '../preferences/components/metrics-step';
 import { SafetyStep } from '../preferences/components/safety-step';
 import { TargetsCard } from '../preferences/targets-card';
 import { GOALS, type Goal, type MetricsValue, type SafetyValue } from '../preferences/types';
@@ -106,6 +115,17 @@ const EMPTY_HOW_YOU_COOK: HowYouCookStepValue = {
   autoPlanWeekly: false,
 };
 
+/**
+ * UX-ONB-04: the device region picks the starting units and currency ONCE, in
+ * the wizard's initial state. The How-you-cook step used to apply it in an
+ * effect every time it mounted, so going Back and forward again flipped a
+ * metric user's choice (and the body metrics typed after it) to the region's.
+ */
+function initialHowYouCook(): HowYouCookStepValue {
+  const { preferredUnits, currency } = defaultsForRegion(detectRegion());
+  return { ...EMPTY_HOW_YOU_COOK, units: preferredUnits, currency };
+}
+
 /** UX-ONB-08: a stored 86.1825503 kg reads "86.2" (one decimal, the precision the fields take). */
 function roundForDisplay(value: number): number {
   return Math.round(value * 10) / 10;
@@ -165,22 +185,41 @@ export function OnboardingWizard() {
     draft?.trainingDayKinds ?? {},
   );
   const [howYouCook, setHowYouCook] = useState<HowYouCookStepValue>(
-    draft?.howYouCook ?? EMPTY_HOW_YOU_COOK,
+    () => draft?.howYouCook ?? initialHowYouCook(),
   );
   // §2.4, T-03.8 (bug B-43): set when a typed height/weight didn't fit the
   // current units and the metrics step auto-switched — `from` is the unit
   // Undo restores. `howYouCook.units` is the single units source the whole
   // wizard shares (How you cook and Body metrics), even on a Track-only
   // chain where How you cook never renders.
+  // The notice also snapshots the height texts as they were, so Undo restores
+  // exactly what was typed (UX-ONB-05: imperial height is feet + inches).
   const [unitSwitchNotice, setUnitSwitchNotice] = useState<{
     from: 'METRIC' | 'IMPERIAL';
+    heightText: string;
+    inchesText: string;
   } | null>(null);
   const [goodFood, setGoodFood] = useState(draft?.goodFood ?? false);
   const [goal, setGoal] = useState<Goal | null>(knownGoal(draft?.goal));
   const [metrics, setMetrics] = useState<MetricsValue>(draft?.metrics ?? EMPTY_METRICS);
   const [ageText, setAgeText] = useState(draft?.ageText ?? '');
-  const [heightText, setHeightText] = useState(draft?.heightText ?? '');
-  const [weightText, setWeightText] = useState(draft?.weightText ?? '');
+  // UX-ONB-05: imperial height is feet (`heightText`) + inches (`inchesText`).
+  // A draft saved before that (no `inchesText`) holds ONE total-inches figure
+  // under imperial units, so its fields are rebuilt from the stored cm instead.
+  const [draftTexts] = useState(() => {
+    if (!draft) return null;
+    if (draft.inchesText === undefined && draft.howYouCook?.units === 'IMPERIAL' && draft.metrics) {
+      return { ...bodyFieldTexts(draft.metrics, 'IMPERIAL'), weightText: draft.weightText };
+    }
+    return {
+      heightText: draft.heightText,
+      inchesText: draft.inchesText ?? '',
+      weightText: draft.weightText,
+    };
+  });
+  const [heightText, setHeightText] = useState(draftTexts?.heightText ?? '');
+  const [inchesText, setInchesText] = useState(draftTexts?.inchesText ?? '');
+  const [weightText, setWeightText] = useState(draftTexts?.weightText ?? '');
   const [safety, setSafety] = useState<SafetyValue>(draft?.safety ?? EMPTY_SAFETY);
   const [cuisine, setCuisine] = useState<CuisineStepValue>(
     draft?.cuisine ?? { cuisinePreferences: [], mealsPerDay: 3 },
@@ -203,6 +242,18 @@ export function OnboardingWizard() {
     hydrated.current = true;
     persistDraft.current = saved.jobs.length === 0;
     const profile = saved.chefProfile;
+    // A wizard re-opened after setup starts from the units and currency the
+    // user already chose, not the device region (UX-ONB-04). A first-time
+    // setup keeps the region default picked in the initial state.
+    let units = howYouCook.units;
+    if (profile && saved.jobs.length > 0) {
+      units = profile.preferredUnits;
+      setHowYouCook((h) => ({
+        ...h,
+        units,
+        currency: toDisplayCurrency(profile.deliveryCurrency),
+      }));
+    }
     const diet = saved.dietaryPreferences;
     // UX-ONB-08: pre-fill the saved jobs so the steps are built from them (and
     // Continue on the first step re-saves them) instead of an empty answer.
@@ -220,8 +271,10 @@ export function OnboardingWizard() {
         activityLevel: profile.activityLevel ?? null,
       });
       setAgeText(profile.age != null ? String(profile.age) : '');
-      setHeightText(heightCm != null ? String(heightCm) : '');
-      setWeightText(weightKg != null ? String(weightKg) : '');
+      const texts = bodyFieldTexts({ heightCm, weightKg }, units);
+      setHeightText(texts.heightText);
+      setInchesText(texts.inchesText);
+      setWeightText(texts.weightText);
     }
     if (diet) {
       setSafety({
@@ -234,7 +287,29 @@ export function OnboardingWizard() {
         mealsPerDay: diet.mealsPerDay,
       });
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- hydrate once per saved payload; the starting units are read once
   }, [savedPrefs.data]);
+
+  // The units flip on their own when typed digits fit the other system (below),
+  // and the field texts are re-read right there. A units change from anywhere
+  // ELSE (the How-you-cook chips, hydration) leaves the typed texts reading in
+  // the wrong unit, so they are re-formatted from the stored cm / kg. This ref
+  // marks the former so it is not re-formatted a second time.
+  const unitsTextsHandled = useRef(false);
+  const lastUnits = useRef(howYouCook.units);
+  useEffect(() => {
+    if (lastUnits.current === howYouCook.units) return;
+    lastUnits.current = howYouCook.units;
+    if (unitsTextsHandled.current) {
+      unitsTextsHandled.current = false;
+      return;
+    }
+    const texts = bodyFieldTexts(metrics, howYouCook.units);
+    setHeightText(texts.heightText);
+    setInchesText(texts.inchesText);
+    setWeightText(texts.weightText);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- re-format only when the units change
+  }, [howYouCook.units]);
 
   // UX-ONB-01: the gate must not bounce the user straight back into the wizard
   // from the layout once they have been here this launch (see onboarding-gate).
@@ -255,6 +330,7 @@ export function OnboardingWizard() {
     metrics,
     ageText,
     heightText,
+    inchesText,
     weightText,
     safety,
     cuisine,
@@ -347,7 +423,7 @@ export function OnboardingWizard() {
   if (isPremium === undefined || savedPrefs.isLoading) {
     return (
       <Screen edges={['top', 'bottom', 'left', 'right']} className="items-center justify-center">
-        <ActivityIndicator size="large" color="#944a00" />
+        <ActivityIndicator size="large" color={colors.primary} />
       </Screen>
     );
   }
@@ -383,24 +459,19 @@ export function OnboardingWizard() {
     setMetrics((m) => ({ ...m, age: raw === '' || isNaN(n) ? null : n }));
   }
 
-  /** Raw typed text -> a number in whatever `units` currently means, or null. */
-  function parseTyped(raw: string): number | null {
-    const n = parseFloat(raw.replace(',', '.'));
-    return raw === '' || isNaN(n) ? null : n;
-  }
-
   /**
-   * §2.4, T-03.8 (bug B-43, AC11): after either field changes, check whether
-   * the two typed values (read fresh from state, in the CURRENT units) fit
-   * the other system far better — if so, switch `howYouCook.units` for the
-   * whole wizard and re-interpret the SAME typed digits under the new unit
-   * (170 stays "170" but now means 170 cm, not 170 in), so the stored
-   * heightCm/weightKg are never briefly nonsense mid-switch.
+   * §2.4, T-03.8 (bug B-43, AC11): after a height or weight field changes,
+   * check whether the typed values (in the CURRENT units) fit the other system
+   * far better — if so, switch `howYouCook.units` for the whole wizard and
+   * re-interpret the SAME typed digits under the new unit (170 stays "170" but
+   * now means 170 cm, not 170 in), so the stored heightCm/weightKg are never
+   * briefly nonsense mid-switch. Imperial height is feet + inches (UX-ONB-05):
+   * going imperial splits the typed total inches into the two fields.
    */
-  function checkUnitSwitch(heightRaw: string, weightRaw: string) {
+  function checkUnitSwitch(heightRaw: string, inchesRaw: string, weightRaw: string) {
     const currentUnits = howYouCook.units;
-    const heightVal = parseTyped(heightRaw);
-    const weightVal = parseTyped(weightRaw);
+    const heightVal = heightValueForInference(heightRaw, inchesRaw, currentUnits);
+    const weightVal = parseBodyNumber(weightRaw);
     const result = inferUnitsFromInput({
       heightValue: heightVal,
       weightValue: weightVal,
@@ -408,57 +479,53 @@ export function OnboardingWizard() {
     });
     if (!result.shouldSwitch) return;
     const next = result.suggestedUnits;
+    let nextHeight = heightRaw;
+    let nextInches = '';
+    if (next === 'IMPERIAL' && heightVal !== null) {
+      const texts = bodyFieldTexts({ heightCm: inToCm(heightVal), weightKg: null }, 'IMPERIAL');
+      nextHeight = texts.heightText;
+      nextInches = texts.inchesText;
+    }
+    unitsTextsHandled.current = true;
     setHowYouCook((h) => ({ ...h, units: next }));
+    setHeightText(nextHeight);
+    setInchesText(nextInches);
     setMetrics((m) => ({
       ...m,
-      ...(heightVal !== null && { heightCm: next === 'IMPERIAL' ? inToCm(heightVal) : heightVal }),
-      ...(weightVal !== null && {
-        weightKg: next === 'IMPERIAL' ? weightVal / LB_PER_KG : weightVal,
-      }),
+      ...(heightVal !== null && { heightCm: heightCmFromText(nextHeight, nextInches, next) }),
+      ...(weightVal !== null && { weightKg: weightKgFromText(weightRaw, next) }),
     }));
-    setUnitSwitchNotice({ from: currentUnits });
-  }
-
-  function heightWeightToMetric(
-    typed: number | null,
-    units: 'METRIC' | 'IMPERIAL',
-    kind: 'height' | 'weight',
-  ) {
-    if (typed === null) return null;
-    if (units !== 'IMPERIAL') return typed;
-    return kind === 'height' ? inToCm(typed) : typed / LB_PER_KG;
+    setUnitSwitchNotice({ from: currentUnits, heightText: heightRaw, inchesText: inchesRaw });
   }
 
   function handleHeightText(raw: string) {
     setHeightText(raw);
-    const typed = parseTyped(raw);
-    setMetrics((m) => ({
-      ...m,
-      heightCm: heightWeightToMetric(typed, howYouCook.units, 'height'),
-    }));
-    checkUnitSwitch(raw, weightText);
+    setMetrics((m) => ({ ...m, heightCm: heightCmFromText(raw, inchesText, howYouCook.units) }));
+    checkUnitSwitch(raw, inchesText, weightText);
+  }
+  function handleInchesText(raw: string) {
+    setInchesText(raw);
+    setMetrics((m) => ({ ...m, heightCm: heightCmFromText(heightText, raw, howYouCook.units) }));
+    checkUnitSwitch(heightText, raw, weightText);
   }
   function handleWeightText(raw: string) {
     setWeightText(raw);
-    const typed = parseTyped(raw);
-    setMetrics((m) => ({
-      ...m,
-      weightKg: heightWeightToMetric(typed, howYouCook.units, 'weight'),
-    }));
-    checkUnitSwitch(heightText, raw);
+    setMetrics((m) => ({ ...m, weightKg: weightKgFromText(raw, howYouCook.units) }));
+    checkUnitSwitch(heightText, inchesText, raw);
   }
 
-  /** Reverts the units switch and re-interprets the same typed digits under the old unit. */
+  /** Reverts the units switch and restores the height as it was typed under the old unit. */
   function undoUnitSwitch() {
     if (!unitSwitchNotice) return;
-    const revert = unitSwitchNotice.from;
-    setHowYouCook((h) => ({ ...h, units: revert }));
-    const heightVal = parseTyped(heightText);
-    const weightVal = parseTyped(weightText);
+    const { from, heightText: prevHeight, inchesText: prevInches } = unitSwitchNotice;
+    unitsTextsHandled.current = true;
+    setHowYouCook((h) => ({ ...h, units: from }));
+    setHeightText(prevHeight);
+    setInchesText(prevInches);
     setMetrics((m) => ({
       ...m,
-      ...(heightVal !== null && { heightCm: heightWeightToMetric(heightVal, revert, 'height') }),
-      ...(weightVal !== null && { weightKg: heightWeightToMetric(weightVal, revert, 'weight') }),
+      heightCm: heightCmFromText(prevHeight, prevInches, from) ?? m.heightCm,
+      weightKg: weightKgFromText(weightText, from) ?? m.weightKg,
     }));
     setUnitSwitchNotice(null);
   }
@@ -480,8 +547,11 @@ export function OnboardingWizard() {
       ...(metrics.biologicalSex !== null && { biologicalSex: metrics.biologicalSex }),
       ...(metrics.age !== null &&
         bodyMetricsAgeError(metrics.age) === null && { age: metrics.age }),
-      ...(metrics.heightCm !== null && metrics.heightCm > 0 && { heightCm: metrics.heightCm }),
-      ...(metrics.weightKg !== null && metrics.weightKg > 0 && { weightKg: metrics.weightKg }),
+      // UX-ONB-05: only plausible values are stored ("1,80" must not save 1.8 cm).
+      ...(metrics.heightCm !== null &&
+        isPlausibleHeightCm(metrics.heightCm) && { heightCm: metrics.heightCm }),
+      ...(metrics.weightKg !== null &&
+        isPlausibleWeightKg(metrics.weightKg) && { weightKg: metrics.weightKg }),
       ...(metrics.activityLevel !== null && { activityLevel: metrics.activityLevel }),
     };
   }
@@ -681,6 +751,7 @@ export function OnboardingWizard() {
             });
             setAgeText('');
             setHeightText('');
+            setInchesText('');
             setWeightText('');
           }
           setHealthDeclined('body');
@@ -710,9 +781,11 @@ export function OnboardingWizard() {
         goal={goodFood ? null : goal}
         ageText={ageText}
         heightText={heightText}
+        heightInchesText={inchesText}
         weightText={weightText}
         onAgeText={handleAgeText}
         onHeightText={handleHeightText}
+        onHeightInchesText={handleInchesText}
         onWeightText={handleWeightText}
         units={howYouCook.units}
         // UX-ONB-06: Done on the last field (weight) is Continue.
@@ -757,7 +830,7 @@ export function OnboardingWizard() {
       <View className="gap-3">
         <Text variant="muted" className="text-sm">
           Add the people you cook for. Their allergies and restrictions apply to every plan — free.
-          You can change this any time from Profile → Household.
+          You can change this any time from Settings → Household.
         </Text>
         <HouseholdEditor variant="onboarding" handleRef={householdRef} />
       </View>
@@ -818,9 +891,10 @@ export function OnboardingWizard() {
       ? jobs.length > 0
       : stepKey === 'goal'
         ? goodFood || true // goal is always optional past the jobs step
-        : // R-02: an age under 16 blocks the body-metrics step until fixed or cleared.
+        : // R-02 / UX-ONB-05: an age under 16, or a height/weight outside the plausible
+          // range, blocks the body-metrics step until fixed or cleared.
           stepKey === 'metrics'
-          ? bodyMetricsAgeError(metrics.age) === null
+          ? Object.values(metricsFieldErrors(metrics, howYouCook.units)).every((e) => e === null)
           : true;
 
   return (
@@ -834,7 +908,7 @@ export function OnboardingWizard() {
           onPress={handleBack}
           className="h-11 w-11 items-center justify-center"
         >
-          <Ionicons name="arrow-back" size={20} color="#1f2937" />
+          <Ionicons name="arrow-back" size={20} color={colors.foreground} />
         </Pressable>
         <View className="flex-1">
           <Text variant="muted" className="text-xs">
