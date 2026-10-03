@@ -46,7 +46,8 @@ export function formatLocalDateLong(localDate: string, locale?: string): string 
   });
 }
 
-/** "Last session" / "Last 3 sessions" — never "Last 1 sessions". */
+/** "Last session" / "Last 3 sessions" — never "Last 1 sessions"; "Last sessions" for none. */
 export function lastSessionsLabel(count: number): string {
+  if (count <= 0) return 'Last sessions';
   return count === 1 ? 'Last session' : `Last ${count} sessions`;
 }

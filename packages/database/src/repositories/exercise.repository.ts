@@ -71,6 +71,8 @@ export interface IExerciseRepository {
   createCustom(id: string, ownerId: string, data: ExerciseWriteData): Promise<Exercise>;
   updateCustom(id: string, data: Partial<ExerciseWriteData>): Promise<Exercise>;
   archive(id: string): Promise<void>;
+  /** Undo `archive` (UX-GYM-34): the row is visible in the library again. */
+  restore(id: string): Promise<void>;
 
   // Curated library maintenance (ensureExerciseLibrary)
   findAllCurated(): Promise<Exercise[]>;
@@ -124,6 +126,10 @@ export class ExerciseRepository implements IExerciseRepository {
 
   async archive(id: string): Promise<void> {
     await prisma.exercise.update({ where: { id }, data: { archivedAt: new Date() } });
+  }
+
+  async restore(id: string): Promise<void> {
+    await prisma.exercise.update({ where: { id }, data: { archivedAt: null } });
   }
 
   async findAllCurated(): Promise<Exercise[]> {

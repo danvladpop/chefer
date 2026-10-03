@@ -23,6 +23,7 @@ import { exerciseImageUrl } from '../library/exercise-image';
 import type { PickerFilter } from '../library/exercise-picker';
 import { useKeyboardVisible } from '../library/use-keyboard-visible';
 import { useGymBootstrap } from '../use-gym-bootstrap';
+import { archivedCustomExercises, ArchivedExercises } from './archived-exercises';
 import {
   EQUIPMENT_FILTERS,
   filterExercisesForTab,
@@ -57,6 +58,8 @@ export function ExercisesTab() {
     () => filterExercisesForTab(library, { query, group, equipment, mineOnly }),
     [library, query, group, equipment, mineOnly],
   );
+
+  const archived = useMemo(() => archivedCustomExercises(library, query), [library, query]);
 
   const prefetched = useRef(false);
   useEffect(() => {
@@ -181,6 +184,7 @@ export function ExercisesTab() {
             </Pressable>
           );
         }}
+        ListFooterComponent={<ArchivedExercises rows={archived} />}
         ListEmptyComponent={
           load !== 'data' ? (
             <GymBootstrapUnavailable

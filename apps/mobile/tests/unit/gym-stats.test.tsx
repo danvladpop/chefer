@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { onlineManager } from '@tanstack/react-query';
 import { act, screen, userEvent } from '@testing-library/react-native';
-import type { ExerciseDto, SessionSummaryDto } from '@chefer/types';
+import type { ExerciseDto, MuscleVolumeWeekDto, SessionSummaryDto } from '@chefer/types';
 import { ConsistencyView } from '../../src/features/gym/stats/consistency-view';
 import {
   localBestSets,
@@ -292,7 +292,7 @@ describe('Stats empty states', () => {
 
 describe('UX-GYM-33/34 stats polish', () => {
   it('pickStackGroups: top 5 by volume plus the selected group, in library order', () => {
-    const weeks = [
+    const weeks: MuscleVolumeWeekDto[] = [
       {
         weekStart: '2026-09-07',
         sets: { chest: 12, back: 10, quads: 9, glutes: 8, biceps: 7, triceps: 6 },

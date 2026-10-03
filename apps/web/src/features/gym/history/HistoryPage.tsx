@@ -2,12 +2,13 @@
 
 import Link from 'next/link';
 import { ArrowLeft } from 'lucide-react';
+import { ErrorState } from '@chefer/ui';
 import { GymSkeleton } from '../shared/gym-card';
 import { useGymData } from '../shared/use-gym-data';
 import { HistoryList } from './HistoryList';
 
 export function HistoryPage() {
-  const { data, ready, isError } = useGymData();
+  const { data, ready, isError, refetch } = useGymData();
   return (
     <div className="mx-auto w-full max-w-2xl px-4 py-6 sm:py-8">
       <Link
@@ -19,9 +20,7 @@ export function HistoryPage() {
       </Link>
       <h1 className="mb-5 font-serif text-2xl font-bold text-neutral-900">Workout history</h1>
       {isError ? (
-        <p className="text-sm text-gray-600">
-          Couldn&apos;t load your workouts. Try again shortly.
-        </p>
+        <ErrorState title="Couldn’t load your workouts" onRetry={() => void refetch()} />
       ) : !ready || !data ? (
         <GymSkeleton rows={3} />
       ) : (

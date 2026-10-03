@@ -72,3 +72,15 @@ export function filterExercises(library: ExerciseDto[], filters: LibraryFilters)
     )
     .sort((a, b) => a.name.localeCompare(b.name));
 }
+
+/**
+ * UX-GYM-34: the user's archived custom exercises (A–Z, narrowed by the search
+ * text) for the "Archived" section — archived rows never show in the main list.
+ */
+export function archivedCustomExercises(library: ExerciseDto[], query = ''): ExerciseDto[] {
+  const q = query.trim().toLowerCase();
+  return library
+    .filter((e) => e.archived && e.ownerId !== null)
+    .filter((e) => q.length === 0 || e.name.toLowerCase().includes(q))
+    .sort((a, b) => a.name.localeCompare(b.name));
+}

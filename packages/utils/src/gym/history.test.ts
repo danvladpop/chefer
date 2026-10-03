@@ -66,5 +66,6 @@ describe('lastSessionsLabel', () => {
   it('is singular for one session', () => {
     expect(lastSessionsLabel(1)).toBe('Last session');
     expect(lastSessionsLabel(5)).toBe('Last 5 sessions');
+    expect(lastSessionsLabel(0)).toBe('Last sessions');
   });
 });

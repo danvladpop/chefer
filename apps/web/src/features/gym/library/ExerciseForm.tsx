@@ -80,9 +80,11 @@ export interface ExerciseFormProps {
   mode: 'create' | 'edit';
   exerciseId?: string;
   initial?: CustomExerciseInput;
+  /** UX-GYM-21: a searched name to pre-fill a new exercise with. */
+  initialName?: string;
 }
 
-export function ExerciseForm({ mode, exerciseId, initial }: ExerciseFormProps) {
+export function ExerciseForm({ mode, exerciseId, initial, initialName }: ExerciseFormProps) {
   const router = useRouter();
   const utils = trpc.useUtils();
   const [serverError, setServerError] = useState<string | null>(null);
@@ -95,7 +97,7 @@ export function ExerciseForm({ mode, exerciseId, initial }: ExerciseFormProps) {
     formState: { errors },
   } = useForm<CustomExerciseInput>({
     resolver: zodResolver(customExerciseInputSchema),
-    defaultValues: initial ?? DEFAULT_VALUES,
+    defaultValues: initial ?? { ...DEFAULT_VALUES, name: initialName ?? DEFAULT_VALUES.name },
   });
 
   const primaryMuscles = watch('primaryMuscles');

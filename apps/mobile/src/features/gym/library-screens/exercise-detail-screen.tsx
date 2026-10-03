@@ -14,6 +14,7 @@ import {
   KeyboardAwareScrollView,
   LineChart,
   Screen,
+  showSnackbar,
   Text,
 } from '@chefer/ui-mobile';
 import {
@@ -77,6 +78,20 @@ export function ExerciseDetailScreen({ exerciseId }: { exerciseId: string }) {
       void utils.gym.bootstrap.invalidate();
       setArchiveConfirmOpen(false);
       router.back();
+      // UX-GYM-34: archiving can be undone — here for 10 s, and from the
+      // Exercises tab's "Archived" section afterwards. Imperative client: this
+      // screen is gone by the time the action is tapped.
+      const name = exercise?.name ?? 'Exercise';
+      showSnackbar({
+        message: `Archived “${name}”.`,
+        actionLabel: 'Undo',
+        onAction: () => {
+          utils.client.gym.library.restoreCustom
+            .mutate({ id: exerciseId })
+            .then(() => utils.gym.bootstrap.invalidate())
+            .catch((err: unknown) => showSnackbar({ message: userFacingErrorMessage(err) }));
+        },
+      });
     },
     // The ConfirmSheet shows the failure itself — no default snackbar.
     meta: { silent: true },
