@@ -12,6 +12,7 @@ import {
   parseQuickAdd,
   QUICK_ADD_LIMITS,
   QUICK_ADD_MEAL_TYPES,
+  userFacingErrorMessage,
   type QuickAddErrors,
   type QuickAddMealType,
 } from '@chefer/utils';
@@ -138,7 +139,10 @@ export function QuickAddSheet({ date, onLogged, plannedMeals = [] }: QuickAddShe
   };
 
   const logRecipeMutation = trpc.tracker.logRecipe.useMutation({ onSuccess: onLoggedCommon });
-  const logCustomMutation = trpc.tracker.logCustomMeal.useMutation({ onSuccess: onLoggedCommon });
+  const logCustomMutation = trpc.tracker.logCustomMeal.useMutation({
+    meta: { silent: true },
+    onSuccess: onLoggedCommon,
+  });
   const isPending = logRecipeMutation.isPending || logCustomMutation.isPending;
 
   const recents = (recentsQuery.data ?? []).filter(
@@ -698,7 +702,7 @@ export function QuickAddSheet({ date, onLogged, plannedMeals = [] }: QuickAddShe
             </div>
             {logCustomMutation.isError && (
               <p data-testid="quick-add-api-error" className="text-xs text-red-600">
-                {logCustomMutation.error.message}
+                {userFacingErrorMessage(logCustomMutation.error)}
               </p>
             )}
           </div>

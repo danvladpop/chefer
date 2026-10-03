@@ -8,7 +8,7 @@ import { handleRebalanceResult } from '@/features/tracker/lib/rebalance-storage'
 import { getRecipeImageProps } from '@/lib/recipe-image';
 import { trpc, type RouterOutputs } from '@/lib/trpc';
 import { Check, ChefHat, Repeat } from 'lucide-react';
-import { localDateStr, slotPortion, verifiedLabels } from '@chefer/utils';
+import { localDateStr, slotPortion, userFacingErrorMessage, verifiedLabels } from '@chefer/utils';
 
 // ─── Tonight card (UX-04 §3, T-04.7) ────────────────────────────────────────────
 // Web parity of mobile's tonight-card.tsx — today's DINNER slot specifically,
@@ -38,6 +38,7 @@ export function TonightCard({
   const utils = trpc.useUtils();
   const [rated, setRated] = useState(false);
   const logMutation = trpc.tracker.logRecipe.useMutation({
+    meta: { silent: true },
     onSuccess: (result) => {
       handleRebalanceResult(result.rebalance);
       void utils.dashboard.summary.invalidate();
@@ -167,7 +168,7 @@ export function TonightCard({
       )}
       {logMutation.isError && (
         <p role="alert" className="border-t px-4 py-2.5 text-xs text-red-600 sm:px-5">
-          Couldn&apos;t log it: {logMutation.error.message}
+          Couldn&apos;t log it: {userFacingErrorMessage(logMutation.error)}
         </p>
       )}
     </div>

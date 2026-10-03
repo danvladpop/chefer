@@ -42,6 +42,7 @@ export function RegisterForm() {
   const [showPassword, setShowPassword] = useState(false);
 
   const registerMutation = trpc.auth.register.useMutation({
+    meta: { silent: true },
     onSuccess: () => {
       // Same as login: drop anything cached for a previously signed-in account.
       queryClient.clear();

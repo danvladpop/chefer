@@ -9,7 +9,12 @@ import { useIsPremium } from '@/hooks/useIsPremium';
 import { trpc } from '@/lib/trpc';
 import { Heart, Wand2 } from 'lucide-react';
 import { Sheet } from '@chefer/ui';
-import { buildPickerSections, filterReplaceCandidates, verifiedLabels } from '@chefer/utils';
+import {
+  buildPickerSections,
+  filterReplaceCandidates,
+  userFacingErrorMessage,
+  verifiedLabels,
+} from '@chefer/utils';
 
 // Replace one meal slot — web port of the mobile RecipePickerSheet (parity
 // backlog 2026-09-23; T-08.9/T-08.10 undo + filter parity). Primary action:
@@ -103,6 +108,7 @@ export function ReplaceMealSheet({
     onChanged?.({ target, recipeName, ...(previousRecipeId && { previousRecipeId }) });
   };
   const replaceMutation = trpc.mealPlan.replaceRecipe.useMutation({
+    meta: { silent: true },
     onSuccess: (data) => {
       invalidate();
       onClose();
@@ -111,6 +117,7 @@ export function ReplaceMealSheet({
   });
   const requestAiConsent = useAiConsent();
   const swapMutation = trpc.mealPlan.swapRecipe.useMutation({
+    meta: { silent: true },
     onSuccess: (data) => {
       invalidate();
       onClose();
@@ -119,7 +126,8 @@ export function ReplaceMealSheet({
   });
 
   const busy = replaceMutation.isPending || swapMutation.isPending;
-  const error = replaceMutation.error?.message ?? swapMutation.error?.message ?? null;
+  const failure = replaceMutation.error ?? swapMutation.error;
+  const error = failure ? userFacingErrorMessage(failure) : null;
   // T-08.10 (bug B-50): never re-offer the meal being replaced; narrow to
   // the slot's type (rows without a `mealType` still pass).
   const filterOpts = {

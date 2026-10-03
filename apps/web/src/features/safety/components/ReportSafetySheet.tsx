@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { trpc } from '@/lib/trpc';
 import { Sheet } from '@chefer/ui';
-import { SAFETY_COPY } from '@chefer/utils';
+import { SAFETY_COPY, userFacingErrorMessage } from '@chefer/utils';
 
 // T-01.5 — report a safety problem (UX-01 (d), AC10). Web parity of the
 // mobile report-sheet.tsx. Sending a report hides the recipe from this
@@ -37,6 +37,7 @@ export function ReportSafetySheet({
   const utils = trpc.useUtils();
 
   const reportMutation = trpc.safety.report.useMutation({
+    meta: { silent: true },
     onSuccess: () => {
       onClose();
       setReason(null);
@@ -67,7 +68,7 @@ export function ReportSafetySheet({
       footer={
         <div className="flex flex-col gap-2">
           {reportMutation.isError && (
-            <p className="text-sm text-red-600">{reportMutation.error.message}</p>
+            <p className="text-sm text-red-600">{userFacingErrorMessage(reportMutation.error)}</p>
           )}
           <button
             type="button"

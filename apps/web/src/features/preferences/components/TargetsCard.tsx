@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { trpc } from '@/lib/trpc';
+import { userFacingErrorMessage } from '@chefer/utils';
 
 // ─── TargetsCard (§2.11, T-35.3) ────────────────────────────────────────────────
 // Web mirror of mobile's targets-card.tsx. Suggested (read-only, computed) or
@@ -55,6 +56,7 @@ export function TargetsCard() {
   }, [data, loaded]);
 
   const setMutation = trpc.targets.set.useMutation({
+    meta: { silent: true },
     onSuccess: () => {
       void utils.targets.get.invalidate();
       void utils.targets.changes.invalidate();
@@ -62,7 +64,7 @@ export function TargetsCard() {
       void utils.tracker.getDay.invalidate();
       setLocalError(null);
     },
-    onError: (err) => setLocalError(err.message),
+    onError: (err) => setLocalError(userFacingErrorMessage(err)),
   });
 
   const save = () => {
@@ -209,9 +211,11 @@ export function TargetsCard() {
             ? 'Saved ✓'
             : 'Save targets'}
       </button>
-      {(localError ?? setMutation.error?.message) && (
+      {(localError ??
+        (setMutation.error ? userFacingErrorMessage(setMutation.error) : undefined)) && (
         <p data-testid="targets-error" className="mt-2 text-xs text-red-600">
-          {localError ?? setMutation.error?.message}
+          {localError ??
+            (setMutation.error ? userFacingErrorMessage(setMutation.error) : undefined)}
         </p>
       )}
     </section>

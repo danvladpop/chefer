@@ -30,6 +30,7 @@ import { trpc } from '@/lib/trpc';
 import { uploadImage } from '@/lib/upload-image';
 import { ArrowLeft, Plus, Sparkles, Trash2, Upload, X } from 'lucide-react';
 import { CUISINE_PRESETS } from '@chefer/types';
+import { userFacingErrorMessage } from '@chefer/utils';
 
 // ─── Presets (T-40.6: CUISINE_PRESETS moved to @chefer/types, shared with mobile) ──
 
@@ -128,7 +129,7 @@ export default function NewRecipePage() {
       setImageUrl(url);
       setImageSource('upload');
     } catch (err) {
-      setUploadError(err instanceof Error ? err.message : 'Upload failed');
+      setUploadError(userFacingErrorMessage(err, 'Upload failed'));
     } finally {
       setUploading(false);
     }
@@ -136,6 +137,7 @@ export default function NewRecipePage() {
 
   // ── Mutation ───────────────────────────────────────────────────────────────
   const createMutation = trpc.recipe.create.useMutation({
+    meta: { silent: true },
     onSuccess: () => {
       router.push('/recipes?tab=my');
     },
@@ -563,7 +565,7 @@ export default function NewRecipePage() {
               role="alert"
               className="mb-3 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600"
             >
-              {createMutation.error.message}
+              {userFacingErrorMessage(createMutation.error)}
             </p>
           )}
 

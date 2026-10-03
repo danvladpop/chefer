@@ -108,6 +108,7 @@ export function ExerciseForm({ mode, exerciseId, initial }: ExerciseFormProps) {
   };
 
   const createMutation = trpc.gym.library.createCustom.useMutation({
+    meta: { silent: true },
     onSuccess: (row) => {
       void utils.gym.bootstrap.invalidate();
       void utils.gym.library.invalidate();
@@ -116,6 +117,7 @@ export function ExerciseForm({ mode, exerciseId, initial }: ExerciseFormProps) {
     onError: (err) => setServerError(err.message),
   });
   const updateMutation = trpc.gym.library.updateCustom.useMutation({
+    meta: { silent: true },
     onSuccess,
     onError: (err) => setServerError(err.message),
   });

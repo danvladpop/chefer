@@ -30,6 +30,7 @@ export function useAuth() {
   }, [user?.id, user?.planTier]);
 
   const logoutMutation = trpc.auth.logout.useMutation({
+    meta: { silent: true },
     onSettled: () => {
       resetAnalytics();
       // Drop every cached query — the singleton query cache would otherwise

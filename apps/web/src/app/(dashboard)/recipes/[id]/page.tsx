@@ -47,6 +47,7 @@ import {
   scaleNutrition,
   slotPortion,
   tableBreakdown,
+  userFacingErrorMessage,
 } from '@chefer/utils';
 
 // Swap-undo handoff (review F-2): the swap navigates to the NEW recipe's page,
@@ -181,6 +182,7 @@ export default function RecipeDetailPage({ params }: RecipePageProps) {
   });
 
   const swapMutation = trpc.mealPlan.swapRecipe.useMutation({
+    meta: { silent: true },
     onSuccess: (newRecipe) => {
       capture('meal_swapped', { tier: isPremium ? 'premium' : 'free' });
       void utils.mealPlan.getForWeek.invalidate();
@@ -226,6 +228,7 @@ export default function RecipeDetailPage({ params }: RecipePageProps) {
   });
 
   const replaceMutation = trpc.mealPlan.replaceRecipe.useMutation({
+    meta: { silent: true },
     onSuccess: (newRecipe) => {
       void utils.mealPlan.getForWeek.invalidate();
       void utils.mealPlan.getActive.invalidate();
@@ -485,7 +488,7 @@ export default function RecipeDetailPage({ params }: RecipePageProps) {
               </button>
               {swapMutation.isError && (
                 <p className="w-full text-center text-xs text-red-500">
-                  {swapMutation.error?.message ?? 'Swap failed. Please try again.'}
+                  {userFacingErrorMessage(swapMutation.error, 'Swap failed. Please try again.')}
                 </p>
               )}
 
@@ -640,7 +643,7 @@ export default function RecipeDetailPage({ params }: RecipePageProps) {
       {swapMutation.isError && (
         <div className="mt-4 flex items-center justify-between rounded-xl bg-red-50 px-4 py-3">
           <p className="text-sm text-red-600">
-            {swapMutation.error?.message ?? 'Failed to swap recipe. Please try again.'}
+            {userFacingErrorMessage(swapMutation.error, 'Failed to swap recipe. Please try again.')}
           </p>
           <button
             onClick={() => swapMutation.reset()}
@@ -655,7 +658,10 @@ export default function RecipeDetailPage({ params }: RecipePageProps) {
       {replaceMutation.isError && (
         <div className="mt-4 flex items-center justify-between rounded-xl bg-red-50 px-4 py-3">
           <p className="text-sm text-red-600">
-            {replaceMutation.error?.message ?? 'Failed to replace recipe. Please try again.'}
+            {userFacingErrorMessage(
+              replaceMutation.error,
+              'Failed to replace recipe. Please try again.',
+            )}
           </p>
           <button
             onClick={() => replaceMutation.reset()}

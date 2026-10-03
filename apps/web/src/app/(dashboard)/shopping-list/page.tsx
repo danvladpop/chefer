@@ -158,6 +158,7 @@ export default function ShoppingListPage() {
   // AI-regenerate mutation — updates the getForWeek cache inline on success
   const requestAiConsent = useAiConsent();
   const regenerateMutation = trpc.shoppingList.regenerate.useMutation({
+    meta: { silent: true },
     onSuccess: (data) => {
       capture('shopping_list_regenerated');
       utils.shoppingList.getForWeek.setData({ weekOffset }, data);

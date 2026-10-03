@@ -111,7 +111,7 @@ describe('makeQueryClient: default mutation error snackbar', () => {
         </QueryClientProvider>
       </SafeAreaProvider>,
     );
-    await act(async () => {
+    await act(() => {
       mutate?.();
     });
     expect(screen.getByTestId('snackbar-message')).toHaveTextContent('Name is already taken');
@@ -136,7 +136,7 @@ describe('makeQueryClient: default mutation error snackbar', () => {
         </QueryClientProvider>
       </SafeAreaProvider>,
     );
-    await act(async () => {
+    await act(() => {
       mutate?.();
     });
     expect(screen.queryByTestId('snackbar')).toBeNull();

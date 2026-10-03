@@ -13,7 +13,12 @@ import {
 import { useHealthConsent } from '@/features/privacy/use-health-consent';
 import { trpc } from '@/lib/trpc';
 import { bodyMetricsAgeError, type OnboardingJob } from '@chefer/types';
-import { aiConsentRequiredFor, onboardingProgress, onboardingSteps } from '@chefer/utils';
+import {
+  aiConsentRequiredFor,
+  onboardingProgress,
+  onboardingSteps,
+  userFacingErrorMessage,
+} from '@chefer/utils';
 import { EMPTY_WIZARD_DATA, type Goal, type WizardData } from '../types';
 import { StepCuisine } from './step-cuisine';
 import { StepDiet, type StepDietHandle } from './step-diet';
@@ -108,16 +113,19 @@ export function OnboardingWizard({
   const stepKey = steps[step - 1] ?? steps[steps.length - 1] ?? 'jobs';
 
   const setJobsMutation = trpc.preferences.setJobs.useMutation({
-    onError: (err) => setError(err.message),
+    meta: { silent: true },
+    onError: (err) => setError(userFacingErrorMessage(err)),
   });
   const setDayKindsMutation = trpc.training.setDayKinds.useMutation();
   const setShapeMutation = trpc.mealPlan.setShape.useMutation();
   const setDisplayPrefsMutation = trpc.preferences.setDisplayPreferences.useMutation();
   const safetyMutation = trpc.preferences.updateSafety.useMutation({
-    onError: (err) => setError(err.message),
+    meta: { silent: true },
+    onError: (err) => setError(userFacingErrorMessage(err)),
   });
   const profileBasicsMutation = trpc.preferences.saveProfileBasics.useMutation({
-    onError: (err) => setError(err.message),
+    meta: { silent: true },
+    onError: (err) => setError(userFacingErrorMessage(err)),
   });
   const updateTargetsMutation = trpc.preferences.updateTargets.useMutation();
   // R-18: the first week generates in the background AFTER the wizard has

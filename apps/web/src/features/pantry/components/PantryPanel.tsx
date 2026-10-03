@@ -6,6 +6,7 @@ import { UpgradeButton } from '@/features/premium/components/UpgradeButton';
 import { useEntitlement } from '@/hooks/useEntitlement';
 import { trpc } from '@/lib/trpc';
 import { ClipboardCheck, Lock, Plus, Refrigerator, Trash2 } from 'lucide-react';
+import { userFacingErrorMessage } from '@chefer/utils';
 import { PantryCheckBanner } from './PantryCheckBanner';
 
 // ─── Shop → "In my kitchen" (F3 Zero-Waste Kitchen; P2-8) ───────────────────
@@ -47,6 +48,7 @@ export function PantryPanel() {
     void utils.shoppingList.getForWeek.invalidate();
   };
   const addMutation = trpc.pantry.addItem.useMutation({
+    meta: { silent: true },
     onSuccess: () => {
       setName('');
       setQuantity('');
@@ -165,7 +167,7 @@ export function PantryPanel() {
         </div>
       )}
       {addMutation.isError && (
-        <p className="mb-3 text-sm text-red-600">{addMutation.error.message}</p>
+        <p className="mb-3 text-sm text-red-600">{userFacingErrorMessage(addMutation.error)}</p>
       )}
 
       {/* Item list */}

@@ -65,7 +65,7 @@ describe('useNotificationPermission', () => {
     await waitFor(() => expect(result.current).toBe('denied'));
 
     answer(true, 'granted');
-    await act(async () => {
+    await act(() => {
       appStateHandlers.forEach((handler) => handler('active'));
     });
     await waitFor(() => expect(result.current).toBe('granted'));
@@ -75,7 +75,7 @@ describe('useNotificationPermission', () => {
     answer(false, 'denied');
     await renderHook(() => useNotificationPermission());
     await waitFor(() => expect(Notifications.getPermissionsAsync).toHaveBeenCalledTimes(1));
-    await act(async () => {
+    await act(() => {
       appStateHandlers.forEach((handler) => handler('background'));
     });
     expect(Notifications.getPermissionsAsync).toHaveBeenCalledTimes(1);
@@ -86,7 +86,7 @@ describe('useNotificationPermission', () => {
     const { result } = await renderHook(() => useNotificationPermission());
     await waitFor(() => expect(result.current).toBe('undetermined'));
     answer(false, 'denied');
-    await act(async () => {
+    await act(() => {
       refreshNotificationPermission();
     });
     await waitFor(() => expect(result.current).toBe('denied'));

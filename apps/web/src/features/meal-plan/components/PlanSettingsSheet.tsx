@@ -7,7 +7,7 @@ import { trpc } from '@/lib/trpc';
 import { Lock } from 'lucide-react';
 import type { PlanShape, PlanSlot } from '@chefer/types';
 import { Sheet } from '@chefer/ui';
-import { cn, planShapeSummary } from '@chefer/utils';
+import { cn, planShapeSummary, userFacingErrorMessage } from '@chefer/utils';
 
 // ─── Plan settings (T-07.6 web parity of the mobile HowYouCookForm /
 // plan-settings-sheet.tsx) ──────────────────────────────────────────────────
@@ -95,7 +95,7 @@ export function PlanSettingsSheet({
 }: PlanSettingsSheetProps) {
   const { data, isLoading } = trpc.mealPlan.getShape.useQuery(undefined, { enabled: open });
   const [draft, setDraft] = useState<DraftShape | null>(null);
-  const setShapeMutation = trpc.mealPlan.setShape.useMutation();
+  const setShapeMutation = trpc.mealPlan.setShape.useMutation({ meta: { silent: true } });
 
   // Start every open from the server's current shape — a stale local draft
   // from a previous open (or a change saved elsewhere) would silently
@@ -331,7 +331,7 @@ export function PlanSettingsSheet({
 
             {setShapeMutation.isError && (
               <p className="text-xs text-red-600">
-                {setShapeMutation.error.message || 'Could not save — try again.'}
+                {userFacingErrorMessage(setShapeMutation.error, 'Could not save — try again.')}
               </p>
             )}
           </div>

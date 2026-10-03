@@ -220,6 +220,7 @@ export function CookMode({ recipeId }: { recipeId: string }) {
   // ── "Made it!": append to today's log, then rate ──
   const utils = trpc.useUtils();
   const upsertDay = trpc.tracker.logRecipe.useMutation({
+    meta: { silent: true },
     onSuccess: (result) => {
       setLogged(true);
       capture('meal_cooked', { mealType });

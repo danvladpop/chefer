@@ -26,7 +26,7 @@ export function useRoutineSupersetSave(): (
   build: (routine: RoutineDto) => RoutineDoc | null,
 ) => Promise<boolean> {
   const utils = trpc.useUtils();
-  const { mutateAsync } = trpc.gym.routine.save.useMutation();
+  const { mutateAsync } = trpc.gym.routine.save.useMutation({ meta: { silent: true } });
 
   return useCallback(
     async (routine, build) => {
