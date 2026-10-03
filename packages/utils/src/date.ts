@@ -32,10 +32,12 @@ function toDate(date: DateInput): Date {
 }
 
 /**
- * Formats a date with a given format string.
+ * Formats a date with a date-fns pattern. English-only and fixed-pattern by
+ * design — for machine formats (`formatForInput`). Anything a person reads
+ * goes through `formatDate` in `./format` (device locale, UX-X-15).
  * @default 'MMM dd, yyyy'
  */
-export function formatDate(date: DateInput, formatStr = 'MMM dd, yyyy'): string {
+export function formatDatePattern(date: DateInput, formatStr = 'MMM dd, yyyy'): string {
   const d = toDate(date);
   if (!isValid(d)) {
     return 'Invalid date';
@@ -77,7 +79,7 @@ export function formatIso(date: DateInput): string {
  * Formats a date for display in a datetime-local input.
  */
 export function formatForInput(date: DateInput): string {
-  return formatDate(date, "yyyy-MM-dd'T'HH:mm");
+  return formatDatePattern(date, "yyyy-MM-dd'T'HH:mm");
 }
 
 /**

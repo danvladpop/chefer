@@ -1,5 +1,35 @@
 export { cn } from './cn';
 export { formatQuantity, systemForWeightUnit, weightUnitForSystem, type UnitSystem } from './units';
+// ─── One units + formatting system (WP-11, audit §6.4, UX-X-15) ──────────────
+export {
+  MASS_TO_G,
+  VOLUME_TO_ML,
+  addItemPlaceholder,
+  normalizeUnit,
+  parseCustomItemInput,
+  parseQuantityLine,
+  unitFamily,
+  unitOptionsFor,
+  type ParsedQuantity,
+  type UnitFamily,
+} from './quantity';
+export {
+  deviceLocale,
+  formatApproxPrice,
+  formatDate,
+  formatDateRange,
+  formatKcal,
+  formatNumber,
+  formatQty,
+  type DateStyle,
+  type FormatDateOptions,
+} from './format';
+export {
+  mergeCitrusLines,
+  roundToPurchasable,
+  type CitrusLine,
+  type PurchasableLine,
+} from './purchasable';
 export {
   EUR_EXCHANGE_RATES,
   EUR_EXCHANGE_RATES_AS_OF,
@@ -28,7 +58,7 @@ export {
 } from './locale';
 
 export {
-  formatDate,
+  formatDatePattern,
   formatRelativeTime,
   formatRelativeTo,
   formatIso,

@@ -1,5 +1,5 @@
 import type { TargetInputs } from '@chefer/types';
-import { formatDate } from './date';
+import { formatDate } from './format';
 
 // ─── Explain your targets (§2.11, T-11.2) ──────────────────────────────────────
 // Plain-English sentences for the TargetExplainSheet. Every sentence is a
@@ -34,7 +34,7 @@ export function explainCarbsFatSentence(): string {
 
 /** "You set this on {date}." for a user's own (OWN) target override. */
 export function ownTargetSentence(setOnDate: Date): string {
-  return `You set this on ${formatDate(setOnDate)}.`;
+  return `You set this on ${formatDate(setOnDate, 'medium')}.`;
 }
 
 /** Shown when weight/height/age are missing, so the sheet never invents numbers. */

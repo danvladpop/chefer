@@ -56,6 +56,12 @@ export function toEur(amount: number, currency: DisplayCurrency): number {
 export type FormatMoneyOptions = {
   /** Fraction digits; 2 by default, 0 for whole amounts like budgets. */
   decimals?: number;
+  /**
+   * BCP-47 locale for the digits and symbol placement. Default: the currency's
+   * own convention (en-IE for EUR…); pass the device locale
+   * (`deviceLocale()`) to follow the phone (UX-X-15).
+   */
+  locale?: string;
 };
 
 /** Formats an amount ALREADY in `currency` (no conversion). */
@@ -66,7 +72,7 @@ export function formatCurrencyAmount(
 ): string {
   const decimals = options.decimals ?? 2;
   try {
-    return new Intl.NumberFormat(CURRENCY_LOCALE[currency], {
+    return new Intl.NumberFormat(options.locale ?? CURRENCY_LOCALE[currency], {
       style: 'currency',
       currency,
       minimumFractionDigits: decimals,
