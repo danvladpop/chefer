@@ -52,6 +52,7 @@ export function useTrackerWrites(dateStr: string, showToast: ShowToast) {
   const settle = (): void => invalidateDayQueries(utils, dateStr);
 
   const logRecipe = trpc.tracker.logRecipe.useMutation({
+    meta: { silent: true },
     scope: WRITE_SCOPE,
     onMutate: (vars): Promise<Snapshot> =>
       applyOptimistic((day) => {
@@ -86,6 +87,7 @@ export function useTrackerWrites(dateStr: string, showToast: ShowToast) {
   });
 
   const unlogRecipe = trpc.tracker.unlogRecipe.useMutation({
+    meta: { silent: true },
     scope: WRITE_SCOPE,
     onMutate: (vars): Promise<Snapshot> => applyOptimistic((day) => withRecipeUnlogged(day, vars)),
     onError: (error, vars, snapshot) => {
@@ -96,6 +98,7 @@ export function useTrackerWrites(dateStr: string, showToast: ShowToast) {
   });
 
   const deleteCustom = trpc.tracker.deleteCustomMeal.useMutation({
+    meta: { silent: true },
     scope: WRITE_SCOPE,
     onMutate: (vars): Promise<Snapshot> =>
       applyOptimistic((day) =>
@@ -113,6 +116,7 @@ export function useTrackerWrites(dateStr: string, showToast: ShowToast) {
   });
 
   const deleteEntries = trpc.tracker.deleteEntries.useMutation({
+    meta: { silent: true },
     scope: WRITE_SCOPE,
     onMutate: (vars): Promise<Snapshot> =>
       applyOptimistic((day) => withEntriesRemoved(day, { entryIds: vars.entryIds })),
@@ -124,6 +128,7 @@ export function useTrackerWrites(dateStr: string, showToast: ShowToast) {
   });
 
   const restoreCustom = trpc.tracker.restoreCustomMeal.useMutation({
+    meta: { silent: true },
     scope: WRITE_SCOPE,
     onMutate: (vars): Promise<Snapshot> =>
       applyOptimistic((day) => withEntryRestored(day, vars.entry)),
@@ -135,6 +140,7 @@ export function useTrackerWrites(dateStr: string, showToast: ShowToast) {
   });
 
   const updateRecipeEntry = trpc.tracker.updateRecipeEntry.useMutation({
+    meta: { silent: true },
     scope: WRITE_SCOPE,
     onMutate: (vars): Promise<Snapshot> =>
       applyOptimistic((day) => {

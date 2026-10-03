@@ -332,6 +332,7 @@ function NextTimeRow({
   const [weightKg, setWeightKg] = useState(suggestion?.weightKg ?? 0);
   const [repsDelta, setRepsDelta] = useState(0);
   const save = trpc.gym.progression.setOverride.useMutation({
+    meta: { silent: true },
     onSuccess: () => {
       setEditing(false);
       void utils.gym.bootstrap.invalidate();

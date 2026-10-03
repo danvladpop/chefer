@@ -35,18 +35,20 @@ import {
   Search,
   Users,
 } from 'lucide-react';
-import { Sheet, Toast } from '@chefer/ui';
+import { ErrorState, Sheet, Toast } from '@chefer/ui';
 import {
   aiConsentRequiredFor,
   defaultCookServings,
   formatFractionalQuantity,
   formatPortion,
   formatQuantity,
+  isNotFoundError,
   labelCaveatLineText,
   reportSentSnackbarText,
   scaleNutrition,
   slotPortion,
   tableBreakdown,
+  userFacingErrorMessage,
 } from '@chefer/utils';
 
 // Swap-undo handoff (review F-2): the swap navigates to the NEW recipe's page,
@@ -149,7 +151,8 @@ export default function RecipeDetailPage({ params }: RecipePageProps) {
   const mealLabel = meal ? meal.charAt(0).toUpperCase() + meal.slice(1) : '';
   const contextLabel = dayLabel && mealLabel ? `${mealLabel} · ${dayLabel}` : '';
 
-  const { data: recipe, isLoading, isError } = trpc.mealPlan.getRecipe.useQuery({ recipeId: id });
+  const recipeQuery = trpc.mealPlan.getRecipe.useQuery({ recipeId: id });
+  const { data: recipe, isLoading, isError } = recipeQuery;
   const { data: savedData } = trpc.recipe.isSaved.useQuery({ recipeId: id });
   const { data: myRating } = trpc.recipe.getMyRating.useQuery({ recipeId: id });
   // T-02.3: a separate, additive query (mealPlan.getRecipe is another
@@ -181,6 +184,7 @@ export default function RecipeDetailPage({ params }: RecipePageProps) {
   });
 
   const swapMutation = trpc.mealPlan.swapRecipe.useMutation({
+    meta: { silent: true },
     onSuccess: (newRecipe) => {
       capture('meal_swapped', { tier: isPremium ? 'premium' : 'free' });
       void utils.mealPlan.getForWeek.invalidate();
@@ -226,6 +230,7 @@ export default function RecipeDetailPage({ params }: RecipePageProps) {
   });
 
   const replaceMutation = trpc.mealPlan.replaceRecipe.useMutation({
+    meta: { silent: true },
     onSuccess: (newRecipe) => {
       void utils.mealPlan.getForWeek.invalidate();
       void utils.mealPlan.getActive.invalidate();
@@ -273,9 +278,35 @@ export default function RecipeDetailPage({ params }: RecipePageProps) {
     );
   }
 
+  // UX-REC-03: a failed LOAD is not "Recipe not found" — only a real
+  // NOT_FOUND says that. Everything else offers Try again.
+  if (isError && !recipe && !isNotFoundError(recipeQuery.error)) {
+    return (
+      <div
+        data-testid="recipe-load-error"
+        className="mx-auto max-w-3xl px-4 py-6 sm:px-6 sm:py-8 text-center"
+      >
+        <ErrorState
+          title="Couldn't load this recipe"
+          onRetry={() => void recipeQuery.refetch()}
+          retrying={recipeQuery.isRefetching}
+        />
+        <Link
+          href={backHref}
+          className="mt-4 inline-flex min-h-11 items-center text-sm text-[#944a00] hover:underline"
+        >
+          {backLabel}
+        </Link>
+      </div>
+    );
+  }
+
   if (isError || !recipe) {
     return (
-      <div className="mx-auto max-w-3xl px-4 py-6 sm:px-6 sm:py-8 text-center">
+      <div
+        data-testid="recipe-not-found"
+        className="mx-auto max-w-3xl px-4 py-6 sm:px-6 sm:py-8 text-center"
+      >
         <p className="text-gray-500">Recipe not found.</p>
         <Link
           href={backHref}
@@ -485,7 +516,7 @@ export default function RecipeDetailPage({ params }: RecipePageProps) {
               </button>
               {swapMutation.isError && (
                 <p className="w-full text-center text-xs text-red-500">
-                  {swapMutation.error?.message ?? 'Swap failed. Please try again.'}
+                  {userFacingErrorMessage(swapMutation.error, 'Swap failed. Please try again.')}
                 </p>
               )}
 
@@ -640,7 +671,7 @@ export default function RecipeDetailPage({ params }: RecipePageProps) {
       {swapMutation.isError && (
         <div className="mt-4 flex items-center justify-between rounded-xl bg-red-50 px-4 py-3">
           <p className="text-sm text-red-600">
-            {swapMutation.error?.message ?? 'Failed to swap recipe. Please try again.'}
+            {userFacingErrorMessage(swapMutation.error, 'Failed to swap recipe. Please try again.')}
           </p>
           <button
             onClick={() => swapMutation.reset()}
@@ -655,7 +686,10 @@ export default function RecipeDetailPage({ params }: RecipePageProps) {
       {replaceMutation.isError && (
         <div className="mt-4 flex items-center justify-between rounded-xl bg-red-50 px-4 py-3">
           <p className="text-sm text-red-600">
-            {replaceMutation.error?.message ?? 'Failed to replace recipe. Please try again.'}
+            {userFacingErrorMessage(
+              replaceMutation.error,
+              'Failed to replace recipe. Please try again.',
+            )}
           </p>
           <button
             onClick={() => replaceMutation.reset()}

@@ -2,7 +2,14 @@ import { useRef, useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, TextInput, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import type { DisplayCurrency } from '@chefer/types';
-import { Button, Card, Text, useScrollFieldIntoView } from '@chefer/ui-mobile';
+import {
+  Button,
+  Card,
+  ErrorState,
+  Text,
+  useQueryState,
+  useScrollFieldIntoView,
+} from '@chefer/ui-mobile';
 import { cn, userFacingErrorMessage } from '@chefer/utils';
 import { useEntitlement } from '../../hooks/use-entitlement';
 import { trpc } from '../../lib/trpc';
@@ -46,7 +53,9 @@ export function PantryPanel({
 } = {}) {
   const { enabled, isPremium } = useEntitlement('pantryPlanning');
   const locked = isPremium === false;
-  const { data, isLoading } = trpc.pantry.list.useQuery(undefined, { staleTime: 30_000 });
+  const pantryQuery = trpc.pantry.list.useQuery(undefined, { staleTime: 30_000 });
+  const { data } = pantryQuery;
+  const { state: loadState, retry } = useQueryState(pantryQuery);
   const utils = trpc.useUtils();
 
   const [name, setName] = useState('');
@@ -64,6 +73,7 @@ export function PantryPanel({
     void utils.shoppingList.getForWeek.invalidate();
   };
   const addMutation = trpc.pantry.addItem.useMutation({
+    meta: { silent: true },
     onSuccess: () => {
       setName('');
       setQuantity('');
@@ -209,8 +219,16 @@ export function PantryPanel({
       )}
 
       {/* Item list */}
-      {isLoading ? (
+      {loadState === 'loading' ? (
         <ActivityIndicator color="#944a00" />
+      ) : loadState === 'error' ? (
+        // UX-X-12: a failed load is not an empty kitchen.
+        <ErrorState
+          testID="pantry-load-error"
+          title="Couldn't load your kitchen"
+          onRetry={retry}
+          className="py-6"
+        />
       ) : items.length === 0 ? (
         <Card testID="pantry-empty" className="items-center border-dashed py-10">
           <Ionicons name="file-tray-stacked-outline" size={36} color="#d1d5db" />

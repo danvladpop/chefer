@@ -1,4 +1,5 @@
 import { onAiConsentRequired } from '@chefer/utils';
+import { setUnauthorizedHandler } from '../../src/features/auth/session-expired';
 import {
   PHOTO_TOO_BIG_MESSAGE,
   SCAN_MAX_BYTES,
@@ -58,6 +59,20 @@ describe('T-BUG-O1 uploadErrorFrom', () => {
 
   it('maps a 401 status to the signed-out sentence', () => {
     expect(uploadErrorFrom(401, null, 0).message).toBe('Sign in again to add photos.');
+  });
+
+  // UX-ACC-10: the same 401 also ends the session, like a tRPC 401 does.
+  it('reports a 401 to the shared session-expired handler', () => {
+    const handler = jest.fn();
+    setUnauthorizedHandler(handler);
+    try {
+      uploadErrorFrom(401, null, 0);
+      expect(handler).toHaveBeenCalledTimes(1);
+      uploadErrorFrom(500, null, 0);
+      expect(handler).toHaveBeenCalledTimes(1);
+    } finally {
+      setUnauthorizedHandler(null);
+    }
   });
 
   it('maps a null status (network failure) to the no-connection sentence', () => {

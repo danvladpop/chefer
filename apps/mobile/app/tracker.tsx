@@ -137,7 +137,7 @@ export default function TrackerScreen() {
     restoreCustom: restoreCustomMutation,
     updateRecipeEntry: updateRecipeEntryMutation,
   } = useTrackerWrites(dateStr);
-  const copyDayMutation = trpc.tracker.copyDay.useMutation();
+  const copyDayMutation = trpc.tracker.copyDay.useMutation({ meta: { silent: true } });
 
   const planned = (data?.plannedMeals ?? []).map((m, i) => ({ ...m, key: keyOf(m, i) }));
   type PlannedRow = (typeof planned)[number];
@@ -256,10 +256,6 @@ export default function TrackerScreen() {
                 : undefined,
           });
         },
-        onError: (error) => {
-          setCopyDayOpen(false);
-          snackbar.show({ message: `Couldn't copy the day. ${userFacingErrorMessage(error)}` });
-        },
       },
     );
   };
@@ -329,7 +325,10 @@ export default function TrackerScreen() {
           testID="tracker-copy-day"
           accessibilityRole="button"
           accessibilityLabel={`Copy ${copyLabel} to ${isToday ? 'today' : 'this day'}`}
-          onPress={() => setCopyDayOpen(true)}
+          onPress={() => {
+            copyDayMutation.reset();
+            setCopyDayOpen(true);
+          }}
           className="h-11 w-11 items-center justify-center"
         >
           <Ionicons name="copy-outline" size={20} color="#6b7280" />
@@ -703,6 +702,14 @@ export default function TrackerScreen() {
         }
         cancelLabel="Cancel"
         onConfirm={confirmCopyDay}
+        // UX-X-13: a failed copy stays in the sheet with the reason (and a
+        // retry) instead of closing and flashing a snackbar.
+        busy={copyDayMutation.isPending}
+        error={
+          copyDayMutation.isError
+            ? `Couldn't copy the day. ${userFacingErrorMessage(copyDayMutation.error)}`
+            : null
+        }
         testID="tracker-copy-day-confirm"
       />
     </Screen>

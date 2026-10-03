@@ -4,10 +4,11 @@ import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import { UpgradeButton } from '@/features/premium/components/UpgradeButton';
 import { trpc } from '@/lib/trpc';
+import { useQueryState } from '@/lib/use-query-state';
 import { Lock } from 'lucide-react';
 import type { PlanShape, PlanSlot } from '@chefer/types';
-import { Sheet } from '@chefer/ui';
-import { cn, planShapeSummary } from '@chefer/utils';
+import { ErrorState, Sheet } from '@chefer/ui';
+import { cn, planShapeSummary, userFacingErrorMessage } from '@chefer/utils';
 
 // ─── Plan settings (T-07.6 web parity of the mobile HowYouCookForm /
 // plan-settings-sheet.tsx) ──────────────────────────────────────────────────
@@ -93,9 +94,11 @@ export function PlanSettingsSheet({
   fitTrainingDays = true,
   onFitTrainingDaysChange,
 }: PlanSettingsSheetProps) {
-  const { data, isLoading } = trpc.mealPlan.getShape.useQuery(undefined, { enabled: open });
+  const shapeQuery = trpc.mealPlan.getShape.useQuery(undefined, { enabled: open });
+  const { data } = shapeQuery;
+  const { state: loadState, retry } = useQueryState(shapeQuery);
   const [draft, setDraft] = useState<DraftShape | null>(null);
-  const setShapeMutation = trpc.mealPlan.setShape.useMutation();
+  const setShapeMutation = trpc.mealPlan.setShape.useMutation({ meta: { silent: true } });
 
   // Start every open from the server's current shape — a stale local draft
   // from a previous open (or a change saved elsewhere) would silently
@@ -144,7 +147,12 @@ export function PlanSettingsSheet({
       }
     >
       <div className="px-5 pb-4">
-        {isLoading || !draft ? (
+        {loadState === 'error' ? (
+          // UX-X-12: a failed load is not a spinner forever.
+          <div data-testid="plan-settings-load-error">
+            <ErrorState title="Couldn't load your plan settings" onRetry={retry} />
+          </div>
+        ) : !draft ? (
           <div className="flex items-center justify-center py-10">
             <div className="h-6 w-6 animate-spin rounded-full border-4 border-[#944a00]/20 border-t-[#944a00]" />
           </div>
@@ -331,7 +339,7 @@ export function PlanSettingsSheet({
 
             {setShapeMutation.isError && (
               <p className="text-xs text-red-600">
-                {setShapeMutation.error.message || 'Could not save — try again.'}
+                {userFacingErrorMessage(setShapeMutation.error, 'Could not save — try again.')}
               </p>
             )}
           </div>

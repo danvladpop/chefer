@@ -25,6 +25,7 @@ export function FeedbackDialog({ open, onClose }: { open: boolean; onClose: () =
   const nearLimit = counter.tone !== 'normal';
 
   const submitMutation = trpc.feedback.submit.useMutation({
+    meta: { silent: true },
     onSuccess: () => {
       capture('feedback_submitted', { path: pathname });
       setSent(true);

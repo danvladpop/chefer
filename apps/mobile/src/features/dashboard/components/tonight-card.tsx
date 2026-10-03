@@ -5,6 +5,7 @@ import { Button, Card, Text } from '@chefer/ui-mobile';
 import { localDateStr, slotPortion, userFacingErrorMessage, verifiedLabels } from '@chefer/utils';
 import { getRecipeImageUrl } from '../../../lib/recipe-image';
 import { trpc, type RouterOutputs } from '../../../lib/trpc';
+import { StarRating } from '../../recipes/star-rating';
 import { CheckedForChip } from '../../safety/checked-for-chip';
 import { recordRebalance } from '../../tracker/rebalance-store';
 
@@ -25,8 +26,16 @@ export function TonightCard({
   onLogged: () => void;
 }) {
   const utils = trpc.useUtils();
-  const [rated, setRated] = useState(false);
+  // UX-FOOD-04: "Rate it" opens the real StarRating (the one cook mode's
+  // finish screen uses) inline; the link is gone once a rating exists.
+  const [rateOpen, setRateOpen] = useState(false);
+  const myRating = trpc.recipe.getMyRating.useQuery(
+    { recipeId: meal.recipe.id },
+    { enabled: meal.done },
+  );
+  const canRate = !myRating.isLoading && !myRating.data;
   const logMutation = trpc.tracker.logRecipe.useMutation({
+    meta: { silent: true },
     onSuccess: (result) => {
       recordRebalance(result.rebalance);
       void utils.dashboard.summary.invalidate();
@@ -48,20 +57,30 @@ export function TonightCard({
 
   if (meal.done) {
     return (
-      <Card testID="tonight-card-done" className="flex-row items-center gap-2.5 py-3">
-        <Text className="text-base">✓</Text>
-        <Text className="min-w-0 flex-1 text-sm font-medium text-gray-800" numberOfLines={1}>
-          Dinner done · {meal.recipe.name}
-        </Text>
-        {!rated && (
-          <Pressable
-            testID="tonight-rate-it"
-            accessibilityRole="button"
-            onPress={() => setRated(true)}
-            className="min-h-11 justify-center px-2"
-          >
-            <Text className="text-xs font-semibold text-primary">Rate it</Text>
-          </Pressable>
+      <Card testID="tonight-card-done" className="gap-2 py-3">
+        <View className="flex-row items-center gap-2.5">
+          <Text className="text-base">✓</Text>
+          <Text className="min-w-0 flex-1 text-sm font-medium text-gray-800" numberOfLines={1}>
+            Dinner done · {meal.recipe.name}
+          </Text>
+          {canRate && !rateOpen && (
+            <Pressable
+              testID="tonight-rate-it"
+              accessibilityRole="button"
+              onPress={() => setRateOpen(true)}
+              className="min-h-11 justify-center px-2"
+            >
+              <Text className="text-xs font-semibold text-primary">Rate it</Text>
+            </Pressable>
+          )}
+        </View>
+        {rateOpen && (
+          <StarRating
+            recipeId={meal.recipe.id}
+            title="How was it?"
+            hint="Your rating shapes what the chef cooks up next week."
+            className="border-0 p-0 shadow-none"
+          />
         )}
       </Card>
     );

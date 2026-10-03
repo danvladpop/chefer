@@ -37,6 +37,7 @@ export function ReportSafetySheet({
   const utils = trpc.useUtils();
 
   const reportMutation = trpc.safety.report.useMutation({
+    meta: { silent: true },
     onSuccess: () => {
       onClose();
       setReason([]);

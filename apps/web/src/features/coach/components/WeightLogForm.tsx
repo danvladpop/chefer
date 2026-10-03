@@ -9,7 +9,7 @@ import { useHealthConsent } from '@/features/privacy/use-health-consent';
 import { useUnitSystem } from '@/hooks/useUnitSystem';
 import { capture } from '@/lib/analytics';
 import { trpc } from '@/lib/trpc';
-import { cn, parseBodyWeight } from '@chefer/utils';
+import { cn, parseBodyWeight, userFacingErrorMessage } from '@chefer/utils';
 
 // One weigh-in form for the dashboard card, /progress and the gym stats
 // prompt (audit F-DASH-3-1, F-TRK-1-7). It used to be three copies of a bare
@@ -37,6 +37,7 @@ export function WeightLogForm({
   const [declined, setDeclined] = useState(false);
 
   const logWeight = trpc.tracker.logWeight.useMutation({
+    meta: { silent: true },
     onSuccess: () => {
       capture('weight_logged');
       setSaved(true);
@@ -46,7 +47,7 @@ export function WeightLogForm({
       void utils.gym.stats.bodyweight.invalidate();
       void utils.gym.bootstrap.invalidate();
     },
-    onError: (err) => setError(err.message),
+    onError: (err) => setError(userFacingErrorMessage(err)),
   });
 
   const submit = (e: React.SyntheticEvent) => {

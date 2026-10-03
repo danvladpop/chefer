@@ -1,5 +1,5 @@
 import { useMemo, useRef, useState } from 'react';
-import { Keyboard, View, type TextInput } from 'react-native';
+import { ActivityIndicator, Keyboard, View, type TextInput } from 'react-native';
 import { router } from 'expo-router';
 import {
   customExerciseInputSchema,
@@ -9,12 +9,14 @@ import {
   MUSCLE_LABELS,
   MUSCLES,
   type CustomExerciseInput,
+  type ExerciseDto,
   type Muscle,
 } from '@chefer/types';
 import {
   Button,
   ChipGroup,
   EmptyState,
+  ErrorState,
   Input,
   KeyboardAwareScrollView,
   Screen,
@@ -26,8 +28,19 @@ import {
 import { isTimedFor, trackingTypeOf, userFacingErrorMessage } from '@chefer/utils';
 import { useFlags } from '../../../hooks/use-flags';
 import { trpc } from '../../../lib/trpc';
+import { useGymBootstrapLoad } from '../components/gym-bootstrap-state';
 import { useGymBootstrap } from '../use-gym-bootstrap';
 import { EQUIPMENT_FILTERS } from './exercise-filters';
+import {
+  EXERCISE_CUE_MAX,
+  EXERCISE_NAME_MAX,
+  exerciseFormErrors,
+  MAX_PRIMARY_MUSCLES,
+  MAX_SECONDARY_MUSCLES,
+  type ExerciseFormErrors,
+  type ExerciseFormField,
+} from './exercise-form-errors';
+import { useIsOnline } from './online-status';
 import { StackBackButton } from './stack-back-button';
 
 // Custom exercise form (gym_plan.md §1.3): name, category, equipment, load
@@ -98,46 +111,122 @@ const DEFAULT_STATE: FormState = {
   cues: [],
 };
 
-export function ExerciseFormScreen({ exerciseId }: { exerciseId?: string }) {
-  const isEdit = exerciseId !== undefined;
-  const { data: bootstrap } = useGymBootstrap();
-  const { cardioLogging } = useFlags();
-  const utils = trpc.useUtils();
+function stateFrom(existing: ExerciseDto | undefined, initialName: string): FormState {
+  return existing
+    ? {
+        name: existing.name,
+        category: existing.category,
+        equipment: existing.equipment,
+        loadType: existing.loadType,
+        primaryMuscles: existing.primaryMuscles,
+        secondaryMuscles: existing.secondaryMuscles,
+        repMin: existing.repMin,
+        repMax: existing.repMax,
+        restSec: existing.restSec,
+        trackingType: trackingTypeOf(existing),
+        cues: existing.cues,
+      }
+    : { ...DEFAULT_STATE, name: initialName };
+}
 
+export function ExerciseFormScreen({
+  exerciseId,
+  initialName = '',
+}: {
+  exerciseId?: string;
+  /** UX-GYM-21: a name carried over from an empty search ("Create 'T-bar'"). */
+  initialName?: string;
+}) {
+  const isEdit = exerciseId !== undefined;
+  const bootstrapQuery = useGymBootstrap();
+  const bootstrap = bootstrapQuery.data;
+  const { load, retry } = useGymBootstrapLoad(bootstrapQuery);
   const existing = isEdit ? bootstrap?.library.find((e) => e.id === exerciseId) : undefined;
 
-  const [state, setState] = useState<FormState>(() =>
-    existing
-      ? {
-          name: existing.name,
-          category: existing.category,
-          equipment: existing.equipment,
-          loadType: existing.loadType,
-          primaryMuscles: existing.primaryMuscles,
-          secondaryMuscles: existing.secondaryMuscles,
-          repMin: existing.repMin,
-          repMax: existing.repMax,
-          restSec: existing.restSec,
-          trackingType: trackingTypeOf(existing),
-          cues: existing.cues,
-        }
-      : DEFAULT_STATE,
+  if (isEdit && !existing) {
+    // UX-GYM-21: editing right after creating used to seed the form with the
+    // DEFAULTS (the cached library lacked the new exercise for a moment) and a
+    // save then overwrote it. The form only mounts once the exercise is known;
+    // until then (library still refreshing) this waits, and a failed load
+    // offers Retry instead of "not found".
+    const waiting = load === 'loading' || (load === 'data' && bootstrapQuery.isFetching);
+    return (
+      <Screen className="px-0" edges={['top', 'bottom', 'left', 'right']}>
+        <View className="px-4 pt-2">
+          <StackBackButton testID="gym-exercise-form-title-back" />
+        </View>
+        <View className="flex-1 items-center justify-center px-6">
+          {waiting ? (
+            <ActivityIndicator testID="exercise-form-loading" size="large" color="#944a00" />
+          ) : load === 'error' || load === 'offline' ? (
+            <ErrorState
+              testID="exercise-form-load-error"
+              title="Couldn’t load this exercise"
+              onRetry={retry}
+            />
+          ) : (
+            <EmptyState
+              testID="exercise-form-not-found"
+              title="Exercise not found"
+              description="It may have been archived already."
+            />
+          )}
+        </View>
+      </Screen>
+    );
+  }
+
+  return (
+    <ExerciseForm
+      key={exerciseId ?? 'new'}
+      exerciseId={exerciseId}
+      existing={existing}
+      initialName={initialName}
+    />
   );
-  const [errors, setErrors] = useState<string[]>([]);
+}
+
+function ExerciseForm({
+  exerciseId,
+  existing,
+  initialName,
+}: {
+  exerciseId: string | undefined;
+  existing: ExerciseDto | undefined;
+  initialName: string;
+}) {
+  const isEdit = exerciseId !== undefined;
+  const { cardioLogging } = useFlags();
+  const utils = trpc.useUtils();
+  const online = useIsOnline();
+
+  const [state, setState] = useState<FormState>(() => stateFrom(existing, initialName));
+  // UX-GYM-21: field-level errors, plus one line for a failed save.
+  const [errors, setErrors] = useState<ExerciseFormErrors>({ fields: {}, form: null });
+  const clearError = (field: ExerciseFormField) =>
+    setErrors((prev) => {
+      if (!prev.fields[field]) return prev;
+      return { ...prev, fields: { ...prev.fields, [field]: undefined } };
+    });
+  const setFieldError = (field: ExerciseFormField, message: string) =>
+    setErrors((prev) => ({ ...prev, fields: { ...prev.fields, [field]: message } }));
 
   const createMutation = trpc.gym.library.createCustom.useMutation({
     onSuccess: (created) => {
       void utils.gym.bootstrap.invalidate();
       router.replace(`/gym/exercise/${created.id}`);
     },
-    onError: (err) => setErrors([userFacingErrorMessage(err)]),
+    onError: (err) => setErrors({ fields: {}, form: userFacingErrorMessage(err) }),
+    // The form shows the failure itself — no second snackbar.
+    meta: { silent: true },
   });
   const updateMutation = trpc.gym.library.updateCustom.useMutation({
     onSuccess: () => {
       void utils.gym.bootstrap.invalidate();
       router.back();
     },
-    onError: (err) => setErrors([userFacingErrorMessage(err)]),
+    onError: (err) => setErrors({ fields: {}, form: userFacingErrorMessage(err) }),
+    meta: { silent: true },
   });
   const isSaving = createMutation.isPending || updateMutation.isPending;
 
@@ -186,10 +275,10 @@ export function ExerciseFormScreen({ exerciseId }: { exerciseId?: string }) {
     };
     const result = customExerciseInputSchema.safeParse(input);
     if (!result.success) {
-      setErrors(result.error.issues.map((i) => i.message));
+      setErrors(exerciseFormErrors(result.error.issues));
       return;
     }
-    setErrors([]);
+    setErrors({ fields: {}, form: null });
     if (isEdit && exerciseId) {
       updateMutation.mutate({ id: exerciseId, exercise: result.data });
     } else {
@@ -235,12 +324,19 @@ export function ExerciseFormScreen({ exerciseId }: { exerciseId?: string }) {
             ref={nameRef}
             testID="exercise-form-name"
             value={state.name}
-            onChangeText={(name) => setState((s) => ({ ...s, name }))}
+            onChangeText={(name) => {
+              setState((s) => ({ ...s, name }));
+              clearError('name');
+            }}
             onFocus={() => scrollFieldIntoView(nameRef.current)}
             placeholder="e.g. Cable pull-through"
+            accessibilityLabel="Exercise name"
+            maxLength={EXERCISE_NAME_MAX}
+            aria-invalid={errors.fields.name !== undefined}
             returnKeyType="done"
             onSubmitEditing={() => Keyboard.dismiss()}
           />
+          <FieldError testID="exercise-form-error-name" message={errors.fields.name} />
         </View>
 
         <View>
@@ -297,13 +393,26 @@ export function ExerciseFormScreen({ exerciseId }: { exerciseId?: string }) {
             options={MUSCLE_OPTIONS}
             value={state.primaryMuscles}
             multiple
-            onChange={(primaryMuscles) =>
+            onChange={(primaryMuscles) => {
+              // The schema allows 4; say so instead of silently ignoring the tap.
+              if (primaryMuscles.length > MAX_PRIMARY_MUSCLES) {
+                setFieldError(
+                  'primaryMuscles',
+                  `Pick up to ${String(MAX_PRIMARY_MUSCLES)} primary muscles.`,
+                );
+                return;
+              }
+              clearError('primaryMuscles');
               setState((s) => ({
                 ...s,
                 primaryMuscles,
                 secondaryMuscles: s.secondaryMuscles.filter((m) => !primaryMuscles.includes(m)),
-              }))
-            }
+              }));
+            }}
+          />
+          <FieldError
+            testID="exercise-form-error-primary-muscles"
+            message={errors.fields.primaryMuscles}
           />
         </View>
 
@@ -316,7 +425,21 @@ export function ExerciseFormScreen({ exerciseId }: { exerciseId?: string }) {
             options={secondaryOptions}
             value={state.secondaryMuscles}
             multiple
-            onChange={(secondaryMuscles) => setState((s) => ({ ...s, secondaryMuscles }))}
+            onChange={(secondaryMuscles) => {
+              if (secondaryMuscles.length > MAX_SECONDARY_MUSCLES) {
+                setFieldError(
+                  'secondaryMuscles',
+                  `Pick up to ${String(MAX_SECONDARY_MUSCLES)} secondary muscles.`,
+                );
+                return;
+              }
+              clearError('secondaryMuscles');
+              setState((s) => ({ ...s, secondaryMuscles }));
+            }}
+          />
+          <FieldError
+            testID="exercise-form-error-secondary-muscles"
+            message={errors.fields.secondaryMuscles}
           />
         </View>
 
@@ -344,6 +467,7 @@ export function ExerciseFormScreen({ exerciseId }: { exerciseId?: string }) {
                 onChange={(repMax) => setState((s) => ({ ...s, repMax }))}
               />
             </View>
+            <FieldError testID="exercise-form-error-reps" message={errors.fields.reps} />
           </View>
         </View>
 
@@ -411,8 +535,13 @@ export function ExerciseFormScreen({ exerciseId }: { exerciseId?: string }) {
               <Input
                 testID={`exercise-form-cue-${i}`}
                 value={cue}
-                onChangeText={(text) => setCue(i, text)}
+                onChangeText={(text) => {
+                  setCue(i, text);
+                  clearError('cues');
+                }}
                 placeholder={`Cue ${i + 1}`}
+                accessibilityLabel={`Cue ${i + 1}`}
+                maxLength={EXERCISE_CUE_MAX}
                 className="flex-1"
                 {...cuesChain.bind(i, { onFocus: scrollFieldIntoView })}
               />
@@ -429,20 +558,49 @@ export function ExerciseFormScreen({ exerciseId }: { exerciseId?: string }) {
           ))}
         </View>
 
-        {errors.length > 0 ? (
+        <FieldError testID="exercise-form-error-cues" message={errors.fields.cues} />
+        <FieldError testID="exercise-form-error-rest" message={errors.fields.rest} />
+
+        {errors.form ? (
           <View testID="exercise-form-errors">
-            {errors.map((message, i) => (
-              <Text key={i} className="text-sm text-red-600">
-                {message}
-              </Text>
-            ))}
+            <Text accessibilityRole="alert" className="text-sm text-red-600">
+              {errors.form}
+            </Text>
           </View>
         ) : null}
 
-        <Button testID="exercise-form-submit" loading={isSaving} onPress={onSubmit}>
+        {!online ? (
+          <View testID="exercise-form-offline" className="rounded-lg bg-amber-50 px-3 py-2">
+            <Text className="text-sm text-amber-900">
+              Saving a custom exercise needs a connection. Reconnect to save.
+            </Text>
+          </View>
+        ) : null}
+
+        <Button
+          testID="exercise-form-submit"
+          loading={isSaving}
+          disabled={!online}
+          onPress={onSubmit}
+        >
           {isEdit ? 'Save changes' : 'Create exercise'}
         </Button>
       </KeyboardAwareScrollView>
     </Screen>
+  );
+}
+
+/** A plain-language error under the field it belongs to. */
+function FieldError({ testID, message }: { testID: string; message: string | undefined }) {
+  if (!message) return null;
+  return (
+    <Text
+      testID={testID}
+      accessibilityRole="alert"
+      accessibilityLiveRegion="polite"
+      className="mt-1 text-sm text-red-600"
+    >
+      {message}
+    </Text>
   );
 }

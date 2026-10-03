@@ -42,6 +42,10 @@ jest.mock('../../src/lib/trpc', () => ({
         useMutation: () => ({ mutate: jest.fn(), isPending: false, isError: false, error: null }),
       },
     },
+    recipe: {
+      getMyRating: { useQuery: () => ({ data: null, isLoading: false }) },
+      rate: { useMutation: () => ({ mutate: jest.fn(), isPending: false }) },
+    },
     user: {
       deleteSelf: { useMutation: () => ({ mutate: jest.fn(), isPending: false }) },
     },

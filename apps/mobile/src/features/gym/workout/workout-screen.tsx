@@ -23,6 +23,7 @@ import {
 } from '@chefer/utils';
 import { useFlags } from '../../../hooks/use-flags';
 import { SUPERSET_COPY, SupersetSheet } from '../components/superset-sheet';
+import { openCreateExercise } from '../library/create-exercise-href';
 import { ExercisePicker } from '../library/exercise-picker';
 import { useActiveSessionPausedAt } from '../offline/active-session-store';
 import { localDate, newId } from '../offline/ids';
@@ -1004,6 +1005,7 @@ export function WorkoutScreen() {
         }
         excludeIds={contentSe && content?.kind === 'picker' ? [contentSe.exerciseId] : undefined}
         showCardioFilter={cardioLogging}
+        onCreateFromSearch={openCreateExercise}
         testID="workout-picker"
       />
       <ConfirmSheet

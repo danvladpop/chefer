@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import { AlertTriangle, Check, CloudOff, CloudUpload } from 'lucide-react';
-import { cn } from '@chefer/utils';
+import { cn, isNetworkError } from '@chefer/utils';
 import { outbox, useOutboxStatus } from '../workout/outbox';
 
 function useOnline(): boolean {
@@ -27,6 +27,15 @@ function useOnline(): boolean {
  * waiting to upload (with a retry), or entries that need attention (linking
  * to gym settings, where they can be copied, retried or discarded).
  */
+/**
+ * UX-GYM-25: why the last upload failed, in a few plain words (never the raw
+ * server text). Empty when the last attempt did not fail.
+ */
+export function syncFailureHint(lastError: string | null): string {
+  if (!lastError) return '';
+  return isNetworkError(new Error(lastError)) ? ' · can’t reach Chefer' : ' · server problem';
+}
+
 export function SyncIndicator({ className }: { className?: string }) {
   const status = useOutboxStatus();
   const online = useOnline();
@@ -67,7 +76,7 @@ export function SyncIndicator({ className }: { className?: string }) {
         )}
         {status.isFlushing
           ? 'Uploading…'
-          : `${status.pending} workout${status.pending === 1 ? '' : 's'} waiting to upload${online ? ' · Retry' : ' · offline'}`}
+          : `${status.pending} workout${status.pending === 1 ? '' : 's'} waiting to upload${syncFailureHint(status.lastError)}${online ? ' · Sync now' : ' · offline'}`}
       </button>
     );
   }

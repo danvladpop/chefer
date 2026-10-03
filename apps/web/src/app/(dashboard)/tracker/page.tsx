@@ -117,7 +117,7 @@ export default function TrackerPage() {
     restoreCustom: restoreCustomMutation,
     updateRecipeEntry: updateRecipeEntryMutation,
   } = useTrackerWrites(dateStr, showToast);
-  const copyDayMutation = trpc.tracker.copyDay.useMutation();
+  const copyDayMutation = trpc.tracker.copyDay.useMutation({ meta: { silent: true } });
 
   const planned = (data?.plannedMeals ?? []).map((m, i) => ({ ...m, key: keyOf(m, i) }));
   type PlannedRow = (typeof planned)[number];

@@ -61,6 +61,7 @@ export function AiConsentProvider({ children }: { children: React.ReactNode }) {
   // Kept after close so the copy doesn't change during the exit animation.
   const [feature, setFeature] = useState<AiConsentFeature>('meal-plan');
   const grant = trpc.user.grantAiDataConsent.useMutation({
+    meta: { silent: true },
     onSuccess: ({ aiDataConsentAt }) => {
       utils.user.me.setData(undefined, (prev) => (prev ? { ...prev, aiDataConsentAt } : prev));
     },

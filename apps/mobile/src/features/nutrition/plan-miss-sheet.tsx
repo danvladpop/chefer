@@ -80,9 +80,11 @@ export function PlanMissSheet({
   const [preview, setPreview] = useState<{ kcal: number; protein: number } | null>(null);
 
   const previewMutation = trpc.mealPlan.scaleDay.useMutation({
+    meta: { silent: true },
     onSuccess: (data) => setPreview({ kcal: data.kcal, protein: data.protein }),
   });
   const applyMutation = trpc.mealPlan.scaleDay.useMutation({
+    meta: { silent: true },
     onSuccess: () => {
       onApplied();
       onClose();

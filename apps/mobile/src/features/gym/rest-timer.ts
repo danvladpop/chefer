@@ -154,6 +154,22 @@ export async function hasRestNotificationPermission(): Promise<boolean> {
   }
 }
 
+/**
+ * UX-GYM-11: true when asking again would do nothing — the OS has the
+ * permission denied and won't show its prompt (iOS after one answer, Android
+ * once "don't ask again"), or we already asked in this process. The rationale
+ * sheet's "Allow" then opens the phone's Settings instead of silently closing.
+ */
+export async function restPermissionNeedsSettings(): Promise<boolean> {
+  try {
+    const current = await Notifications.getPermissionsAsync();
+    if (current.granted) return false;
+    return !current.canAskAgain || permissionAsked;
+  } catch {
+    return false;
+  }
+}
+
 const RATIONALE_SHOWN_KEY = KV_KEYS.restPermissionRationaleShown;
 
 /** B-40: the rationale sheet is shown at most once, ever, on this device. */

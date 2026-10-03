@@ -24,6 +24,7 @@ import { useHousehold } from '@/hooks/useHousehold';
 import { useIsPremium } from '@/hooks/useIsPremium';
 import { useUnitSystem } from '@/hooks/useUnitSystem';
 import { capture } from '@/lib/analytics';
+import { showAppToast } from '@/lib/app-toast';
 import { trpc } from '@/lib/trpc';
 import {
   CheckCircle2,
@@ -54,6 +55,7 @@ import {
   labelCaveatCompactText,
   perPortionCost,
   shoppingWindowLabel,
+  userFacingErrorMessage,
 } from '@chefer/utils';
 
 const PRINT_STYLES = `
@@ -158,6 +160,7 @@ export default function ShoppingListPage() {
   // AI-regenerate mutation — updates the getForWeek cache inline on success
   const requestAiConsent = useAiConsent();
   const regenerateMutation = trpc.shoppingList.regenerate.useMutation({
+    meta: { silent: true },
     onSuccess: (data) => {
       capture('shopping_list_regenerated');
       utils.shoppingList.getForWeek.setData({ weekOffset }, data);
@@ -255,9 +258,47 @@ export default function ShoppingListPage() {
       void utils.shoppingList.getForWeek.invalidate({ weekOffset });
     },
   });
+  // UX-SHOP-02: "Removed · Undo" — Undo re-adds through its own mutation (not
+  // `addItemMutation`, whose success clears the add-item field).
+  const undoRemoveMutation = trpc.shoppingList.addCustomItems.useMutation({
+    meta: { silent: true },
+    onSuccess: () => void utils.shoppingList.getForWeek.invalidate({ weekOffset }),
+    onError: (err) =>
+      showAppToast({ message: `Couldn't put it back. ${userFacingErrorMessage(err)}` }),
+  });
   const removeItemMutation = trpc.shoppingList.removeCustomItem.useMutation({
     onSuccess: () => void utils.shoppingList.getForWeek.invalidate({ weekOffset }),
   });
+  const removeCustomItem = (
+    planId: string,
+    item: { key: string; ingredientName: string; quantity: string; unit: string },
+  ) => {
+    const quantity = parseFloat(item.quantity);
+    removeItemMutation.mutate(
+      { planId, key: item.key },
+      {
+        onSuccess: () =>
+          showAppToast({
+            message: `Removed ${item.ingredientName}`,
+            type: 'success',
+            action: {
+              label: 'Undo',
+              onClick: () =>
+                undoRemoveMutation.mutate({
+                  planId,
+                  items: [
+                    {
+                      name: item.ingredientName,
+                      ...(quantity > 0 && quantity <= 999 ? { quantity } : {}),
+                      ...(item.unit ? { unit: item.unit } : {}),
+                    },
+                  ],
+                }),
+            },
+          }),
+      },
+    );
+  };
 
   // F3: one-tap re-add on a "have it" item — clears the pantry row ("I'm out
   // of it"), which puts the item back into the buy list and the total.
@@ -808,11 +849,7 @@ export default function ShoppingListPage() {
                             <button
                               type="button"
                               onClick={() =>
-                                weekList?.planId &&
-                                removeItemMutation.mutate({
-                                  planId: weekList.planId,
-                                  key: item.key,
-                                })
+                                weekList?.planId && removeCustomItem(weekList.planId, item)
                               }
                               disabled={removeItemMutation.isPending}
                               aria-label={`Remove ${item.ingredientName} from the list`}

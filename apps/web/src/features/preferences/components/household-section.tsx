@@ -19,6 +19,7 @@ import {
   householdPortionSum,
   memberSummaryLine,
   tableSummaryLine,
+  userFacingErrorMessage,
   type HouseholdGhostKind,
   type SafetyPickerValue,
 } from '@chefer/utils';
@@ -128,12 +129,16 @@ export function MemberEditorSheet({
     onClose();
   };
   const addMutation = trpc.household.add.useMutation({
+    meta: { silent: true },
     onSuccess: () => {
       capture('household_member_added');
       onSaved();
     },
   });
-  const updateMutation = trpc.household.update.useMutation({ onSuccess: onSaved });
+  const updateMutation = trpc.household.update.useMutation({
+    meta: { silent: true },
+    onSuccess: onSaved,
+  });
   const isSaving = addMutation.isPending || updateMutation.isPending;
   const error = addMutation.error ?? updateMutation.error;
   // T-26.2: a member's allergies/diets are health information — asked once, on the first save.
@@ -195,7 +200,7 @@ export function MemberEditorSheet({
         size="lg"
         footer={
           <div className="flex flex-col gap-2">
-            {error && <p className="text-sm text-red-600">{error.message}</p>}
+            {error && <p className="text-sm text-red-600">{userFacingErrorMessage(error)}</p>}
             {safetyDeclined && <HealthDeclinedNotice testId="household-member-declined" />}
             <button
               onClick={handleSave}

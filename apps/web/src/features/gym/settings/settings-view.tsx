@@ -7,7 +7,14 @@ import { trpc } from '@/lib/trpc';
 import { AlertTriangle, ArrowLeft, Copy, PauseCircle, RotateCw, Trash2 } from 'lucide-react';
 import type { ActivePauseDto, GymProfileDto, WeightUnit } from '@chefer/types';
 import { Button, Input, Sheet } from '@chefer/ui';
-import { addDaysLocal, cn, formatLoadNumber, unitLabel, WELLNESS_COPY } from '@chefer/utils';
+import {
+  addDaysLocal,
+  cn,
+  formatLoadNumber,
+  unitLabel,
+  userFacingErrorMessage,
+  WELLNESS_COPY,
+} from '@chefer/utils';
 import { shortDate } from '../shared/format';
 import { CardLabel, GymCard, GymSkeleton } from '../shared/gym-card';
 import { Stepper } from '../shared/stepper';
@@ -89,6 +96,7 @@ function ProfileSettings({
   const unit = profile.unit;
   const [saved, setSaved] = useState<string | null>(null);
   const save = trpc.gym.profile.save.useMutation({
+    meta: { silent: true },
     onSuccess: () => {
       void utils.gym.bootstrap.invalidate();
       // A kg/lb switch is also the global unit preference (P2-6).
@@ -364,6 +372,7 @@ function PauseCard({
   const [reason, setReason] = useState<(typeof PAUSE_REASONS)[number]['value']>('vacation');
 
   const create = trpc.gym.pause.create.useMutation({
+    meta: { silent: true },
     onSuccess: () => {
       capture('training_paused', { weeks, reason });
       void utils.gym.bootstrap.invalidate();
@@ -456,7 +465,7 @@ function PauseCard({
           </div>
           {create.isError && (
             <p role="alert" className="mt-2 text-xs text-red-600">
-              {create.error.message}
+              {userFacingErrorMessage(create.error)}
             </p>
           )}
         </>

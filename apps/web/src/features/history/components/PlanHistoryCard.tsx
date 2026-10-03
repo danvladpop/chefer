@@ -5,6 +5,7 @@ import { useState } from 'react';
 import { trpc } from '@/lib/trpc';
 import { format } from 'date-fns';
 import { Calendar, ChevronRight, RotateCcw } from 'lucide-react';
+import { userFacingErrorMessage } from '@chefer/utils';
 
 interface PlanHistoryCardProps {
   plan: {
@@ -35,12 +36,13 @@ export function PlanHistoryCard({ plan, onRestored }: PlanHistoryCardProps) {
   const [error, setError] = useState<string | null>(null);
 
   const restoreMutation = trpc.mealPlan.restore.useMutation({
+    meta: { silent: true },
     onSuccess: () => {
       void utils.mealPlan.getActive.invalidate();
       void utils.mealPlan.list.invalidate();
       onRestored?.();
     },
-    onError: (e) => setError(e.message),
+    onError: (e) => setError(userFacingErrorMessage(e)),
   });
 
   const weekStart = new Date(plan.weekStartDate);

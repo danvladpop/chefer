@@ -149,3 +149,37 @@ export function checkMacroSanity(entry: {
 export function formatQuickAddGrams(grams: number): string {
   return grams < 10 ? grams.toFixed(1).replace(/\.0$/, '.0') : String(Math.round(grams));
 }
+
+// ─── Ingredient grams (UX-FOOD-09) ────────────────────────────────────────────
+// 99,999 g of banana previewed "88999 kcal" and the server (kcal ≤ 5000) just
+// rejected it. The grams field is clamped to what one entry can hold.
+
+/** Hard ceiling for one ingredient entry, whatever its density. */
+export const INGREDIENT_GRAMS_MAX = 5000;
+
+type Per100g = { calories: number; protein: number; carbs: number; fat: number };
+
+/** Most grams one log entry can hold: every macro and the kcal stay within QUICK_ADD_LIMITS. */
+export function maxIngredientGrams(per100g: Per100g): number {
+  const caps = [
+    [per100g.calories, QUICK_ADD_LIMITS.kcal],
+    [per100g.protein, QUICK_ADD_LIMITS.protein],
+    [per100g.carbs, QUICK_ADD_LIMITS.carbs],
+    [per100g.fat, QUICK_ADD_LIMITS.fat],
+  ] as const;
+  let max = INGREDIENT_GRAMS_MAX;
+  for (const [per100, limit] of caps) {
+    if (per100 > 0) max = Math.min(max, Math.floor((limit / per100) * 100));
+  }
+  return Math.max(max, 1);
+}
+
+/** Parses the grams field ("100", "7,5") and clamps it to `[0, maxIngredientGrams]`. */
+export function clampIngredientGrams(
+  text: string,
+  per100g: Per100g,
+): { grams: number; clamped: boolean; max: number } {
+  const max = maxIngredientGrams(per100g);
+  const parsed = Math.max(0, Math.round(Number(text.replace(',', '.')) || 0));
+  return { grams: Math.min(parsed, max), clamped: parsed > max, max };
+}

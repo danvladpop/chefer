@@ -17,15 +17,39 @@ const nutrition = (plannedKcal: number, eatenKcal = 0) => ({
 });
 
 describe('NutritionSummary', () => {
-  // The chip judges today's PLAN — same thresholds as web review P-2.
+  // UX-FOOD-05: the chip judges eaten + still-planned vs the target, not the
+  // plan alone. `remainingPlannedKcal` defaults to the plan minus what was eaten.
   it.each([
-    [0, 'Nothing planned'],
-    [1500, 'Plan under target'], // ratio 0.75 < 0.85
-    [1900, 'Plan on track'], // 0.95
-    [2200, 'Plan over target'], // 1.1 > 1.05
-  ])('%i kcal planned → "%s"', async (planned, label) => {
-    await render(<NutritionSummary nutrition={nutrition(planned)} />);
+    [0, 0, 'Nothing planned'],
+    [1500, 0, 'Room for more'], // projected 1500 / 2000 = 0.75 < 0.85
+    [1900, 0, 'On track'], // 0.95
+    [2200, 0, 'Heading over'], // 1.1 > 1.05
+  ])('%i kcal planned, %i eaten → "%s"', async (planned, eaten, label) => {
+    await render(<NutritionSummary nutrition={nutrition(planned, eaten)} />);
     expect(screen.getByTestId('nutrition-status')).toHaveTextContent(label);
+  });
+
+  it('says "Over by 871 kcal" instead of a green pill when the target is already passed', async () => {
+    await render(
+      <NutritionSummary
+        nutrition={{
+          ...nutrition(1700, 2572),
+          dailyCalorieTarget: 1701,
+        }}
+        remainingPlannedKcal={759}
+      />,
+    );
+    expect(screen.getByTestId('nutrition-status')).toHaveTextContent('Over by 871 kcal');
+  });
+
+  it('says "Heading over" when the dinner still planned will tip the day', async () => {
+    await render(
+      <NutritionSummary
+        nutrition={{ ...nutrition(2431, 1672), dailyCalorieTarget: 1701 }}
+        remainingPlannedKcal={759}
+      />,
+    );
+    expect(screen.getByTestId('nutrition-status')).toHaveTextContent('Heading over');
   });
 
   it('shows no target-mode label when it is unknown', async () => {

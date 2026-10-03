@@ -7,11 +7,13 @@ import {
   Avatar,
   Button,
   Card,
+  ErrorState,
   KeyboardAwareScrollView,
   PressableScale,
   Screen,
   Sheet,
   Text,
+  useQueryState,
 } from '@chefer/ui-mobile';
 import {
   cn,
@@ -19,6 +21,7 @@ import {
   formatFractionalQuantity,
   formatPortion,
   formatScaledQuantity,
+  isNotFoundError,
   labelCaveatLineText,
   parseNutritionStatus,
   scaleNutrition,
@@ -76,7 +79,10 @@ export default function RecipeDetailScreen() {
   const planPortion = slotPortion(parseFloat(portion ?? ''));
   const unitSystem = useUnitSystem();
 
-  const { data: recipe, isLoading, isError } = trpc.mealPlan.getRecipe.useQuery({ recipeId: id });
+  const recipeQuery = trpc.mealPlan.getRecipe.useQuery({ recipeId: id });
+  const { data: recipe } = recipeQuery;
+  // UX-REC-03: a failed load is not "not found" — only a real NOT_FOUND says so.
+  const recipeState = useQueryState(recipeQuery);
   const { data: savedData } = trpc.recipe.isSaved.useQuery({ recipeId: id });
   // T-02.3: a separate, additive query (mealPlan.getRecipe is another lane's
   // file this wave) — null when the table has nothing to check or report.
@@ -103,7 +109,7 @@ export default function RecipeDetailScreen() {
   const { scaledMembers } = useHousehold();
   const cookingFor = useCookingFor();
 
-  if (isLoading) {
+  if (recipeState.state === 'loading') {
     return (
       <Screen edges={['top', 'bottom', 'left', 'right']} className="items-center justify-center">
         <ActivityIndicator size="large" color="#944a00" />
@@ -111,13 +117,24 @@ export default function RecipeDetailScreen() {
     );
   }
 
-  if (isError || !recipe) {
+  if (recipeState.state === 'error' || !recipe) {
+    const notFound = recipeState.state === 'error' && isNotFoundError(recipeQuery.error);
     return (
       <Screen
         edges={['top', 'bottom', 'left', 'right']}
         className="items-center justify-center gap-3"
       >
-        <Text variant="muted">Recipe not found.</Text>
+        {notFound ? (
+          <Text testID="recipe-not-found" variant="muted">
+            Recipe not found.
+          </Text>
+        ) : (
+          <ErrorState
+            testID="recipe-load-error"
+            title="Couldn't load this recipe"
+            onRetry={recipeState.retry}
+          />
+        )}
         <Button variant="outline" onPress={() => router.back()}>
           Go back
         </Button>

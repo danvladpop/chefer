@@ -3,7 +3,14 @@ import { ActivityIndicator, Pressable, ScrollView, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useKeepAwake } from 'expo-keep-awake';
 import { router, useLocalSearchParams } from 'expo-router';
-import { Button, KeyboardAwareScrollView, Screen, Text } from '@chefer/ui-mobile';
+import {
+  Button,
+  ErrorState,
+  KeyboardAwareScrollView,
+  Screen,
+  Text,
+  useQueryState,
+} from '@chefer/ui-mobile';
 import {
   cn,
   defaultCookServings,
@@ -12,6 +19,7 @@ import {
   formatPortion,
   formatScaledQuantity,
   guessMealType,
+  isNotFoundError,
   labelCaveatLineText,
   localDateStr,
   parseStepDuration,
@@ -125,7 +133,10 @@ export default function CookModeScreen() {
   const planPortion = slotPortion(parseFloat(portion ?? ''));
   const unitSystem = useUnitSystem();
 
-  const { data: recipe, isLoading } = trpc.mealPlan.getRecipe.useQuery({ recipeId: id });
+  const recipeQuery = trpc.mealPlan.getRecipe.useQuery({ recipeId: id });
+  const { data: recipe } = recipeQuery;
+  // UX-COOK-03: a failed load used to spin forever with no way out.
+  const recipeState = useQueryState(recipeQuery);
   // T-02.3: a separate, additive query — see app/recipe/[id].tsx's comment.
   const { data: safetyData } = trpc.recipe.getSafetyChecks.useQuery({ recipeId: id });
   const safetyChecks = safetyData?.safetyChecks ?? null;
@@ -142,6 +153,7 @@ export default function CookModeScreen() {
   const [showIngredients, setShowIngredients] = useState(false);
 
   const upsertDay = trpc.tracker.logRecipe.useMutation({
+    meta: { silent: true },
     onSuccess: (result) => {
       setLogged(true);
       recordRebalance(result.rebalance);
@@ -167,10 +179,35 @@ export default function CookModeScreen() {
     });
   };
 
-  if (isLoading || !recipe) {
+  if (recipeState.state === 'loading') {
     return (
       <Screen edges={['top', 'bottom', 'left', 'right']} className="items-center justify-center">
         <ActivityIndicator size="large" color="#944a00" />
+      </Screen>
+    );
+  }
+
+  if (recipeState.state === 'error' || !recipe) {
+    const notFound = recipeState.state === 'error' && isNotFoundError(recipeQuery.error);
+    return (
+      <Screen
+        edges={['top', 'bottom', 'left', 'right']}
+        className="items-center justify-center gap-3"
+      >
+        {notFound ? (
+          <Text testID="cook-not-found" variant="muted">
+            Recipe not found.
+          </Text>
+        ) : (
+          <ErrorState
+            testID="cook-load-error"
+            title="Couldn't load this recipe"
+            onRetry={recipeState.retry}
+          />
+        )}
+        <Button testID="cook-error-close" variant="outline" onPress={() => router.back()}>
+          Close
+        </Button>
       </Screen>
     );
   }
@@ -181,7 +218,10 @@ export default function CookModeScreen() {
   const scale = selectedServings / baseServings;
 
   const totalSteps = recipe.instructions.length;
-  const safeStep = Math.min(step, totalSteps - 1);
+  // A recipe with no steps has nothing to page through: start (and stay) on
+  // the ingredient list instead of "Step 0 of 0" and a NaN progress bar.
+  const noSteps = totalSteps === 0;
+  const safeStep = Math.max(0, Math.min(step, totalSteps - 1));
   const stepText = recipe.instructions[safeStep] ?? '';
   const stepDuration = parseStepDuration(stepText);
 
@@ -202,7 +242,7 @@ export default function CookModeScreen() {
           <Text numberOfLines={1} testID="cook-title" variant="heading">
             {recipe.name}
           </Text>
-          {!finished && (
+          {!finished && !noSteps && (
             <Text variant="muted" className="text-xs">
               Step {safeStep + 1} of {totalSteps}
             </Text>
@@ -227,14 +267,16 @@ export default function CookModeScreen() {
       />
 
       {/* Progress bar */}
-      <View className="mx-4 mb-2 h-1.5 overflow-hidden rounded-full bg-gray-100">
-        <View
-          className="h-full rounded-full bg-primary"
-          style={{ width: `${finished ? 100 : ((safeStep + 1) / totalSteps) * 100}%` }}
-        />
-      </View>
+      {noSteps ? null : (
+        <View className="mx-4 mb-2 h-1.5 overflow-hidden rounded-full bg-gray-100">
+          <View
+            className="h-full rounded-full bg-primary"
+            style={{ width: `${finished ? 100 : ((safeStep + 1) / totalSteps) * 100}%` }}
+          />
+        </View>
+      )}
 
-      {showIngredients ? (
+      {showIngredients || (noSteps && !finished) ? (
         /* Ingredient checklist */
         <ScrollView contentContainerClassName="gap-2 px-4 py-3 pb-8">
           <View className="flex-row items-center justify-between gap-2">
@@ -328,9 +370,15 @@ export default function CookModeScreen() {
               </Pressable>
             );
           })}
-          <Button className="mt-2" onPress={() => setShowIngredients(false)}>
-            Back to cooking
-          </Button>
+          {noSteps ? (
+            <Button testID="cook-no-steps-done" className="mt-2" onPress={() => setFinished(true)}>
+              Finish
+            </Button>
+          ) : (
+            <Button className="mt-2" onPress={() => setShowIngredients(false)}>
+              Back to cooking
+            </Button>
+          )}
         </ScrollView>
       ) : finished ? (
         /* Done screen */

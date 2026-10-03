@@ -8,7 +8,13 @@ import { capture } from '@/lib/analytics';
 import { getRecipeImageProps } from '@/lib/recipe-image';
 import { trpc, type RouterOutputs } from '@/lib/trpc';
 import { ArrowRight, Check, ChefHat, Clock, Flame } from 'lucide-react';
-import { cn, formatPortion, localDateStr, slotPortion } from '@chefer/utils';
+import {
+  cn,
+  formatPortion,
+  localDateStr,
+  slotPortion,
+  userFacingErrorMessage,
+} from '@chefer/utils';
 
 // ─── Today: next meal with one-tap "I ate this" (P2-2, F-PM-7 / F-PM-10) ─────
 // Logging a planned meal used to take Home → More → Tracker → ✓ → Save. The
@@ -36,6 +42,7 @@ export function NextMealCard({ meal, isTomorrow }: NextMealCardProps) {
   const [lastLogged, setLastLogged] = useState<string | null>(null);
 
   const logMutation = trpc.tracker.logRecipe.useMutation({
+    meta: { silent: true },
     onSuccess: (result) => {
       capture('meal_logged', { source: 'today', mealType: meal.mealType });
       // A premium log can rebalance the week — same hand-off as the tracker.
@@ -153,7 +160,7 @@ export function NextMealCard({ meal, isTomorrow }: NextMealCardProps) {
 
       {logMutation.isError && (
         <p role="alert" className="border-t px-4 py-2.5 text-xs text-red-600 sm:px-5">
-          Couldn&apos;t log it: {logMutation.error.message}
+          Couldn&apos;t log it: {userFacingErrorMessage(logMutation.error)}
         </p>
       )}
       {lastLogged && !logMutation.isError && (

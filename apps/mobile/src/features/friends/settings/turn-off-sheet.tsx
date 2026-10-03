@@ -45,7 +45,7 @@ export function TurnOffSheet({
 }) {
   const queryClient = useQueryClient();
   const utils = trpc.useUtils();
-  const mutation = trpc.friends.deactivate.useMutation();
+  const mutation = trpc.friends.deactivate.useMutation({ meta: { silent: true } });
   const snackbar = useSnackbar();
 
   return (

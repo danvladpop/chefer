@@ -6,6 +6,7 @@
 
 import { AI_CONSENT_REQUIRED_REASON } from '@chefer/types';
 import { notifyAiConsentRequired } from '@chefer/utils';
+import { reportUnauthorized } from '../features/auth/session-expired';
 
 export type ImageMime = 'image/jpeg' | 'image/png' | 'image/webp' | 'image/heic';
 
@@ -67,6 +68,8 @@ export function uploadErrorFrom(status: number | null, body: unknown, bytes: num
     return new Error(PHOTO_TOO_BIG_MESSAGE);
   }
   if (status === 401) {
+    // UX-ACC-10: a 401 here is an expired session — end it like any other.
+    reportUnauthorized();
     return new Error(SIGNED_OUT_MESSAGE);
   }
   if (status === null) {

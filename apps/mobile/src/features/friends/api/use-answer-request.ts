@@ -24,8 +24,8 @@ export function useAnswerRequest(): {
 } {
   const queryClient = useQueryClient();
   const utils = trpc.useUtils();
-  const acceptMutation = trpc.friends.acceptRequest.useMutation();
-  const declineMutation = trpc.friends.declineRequest.useMutation();
+  const acceptMutation = trpc.friends.acceptRequest.useMutation({ meta: { silent: true } });
+  const declineMutation = trpc.friends.declineRequest.useMutation({ meta: { silent: true } });
 
   const run = async (
     userId: string,

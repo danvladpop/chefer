@@ -34,7 +34,9 @@ import {
   weightUnitForSystem,
   WELLNESS_COPY,
 } from '@chefer/utils';
+import { NotificationsOffRow } from '../../../components/notifications-off-row';
 import { trpc } from '../../../lib/trpc';
+import { refreshNotificationPermission } from '../../../lib/use-notification-permission';
 import { useUnsavedGuard } from '../../../lib/use-unsaved-guard';
 import { captureGymEvent } from '../analytics';
 import { ExerciseNameLink } from '../components/exercise-name-link';
@@ -154,6 +156,9 @@ export function SetupWizard() {
   }, [prefs.isLoading, prefs.isFetching, prefs.data]);
   const [weekdays, setWeekdays] = useState<number[]>(initialWeekdays);
   const [reminderEnabled, setReminderEnabled] = useState(false);
+  // UX-GYM-04: the OS refused the permission ask — the switch stays "No
+  // reminder" and a notice points to Settings instead of pretending.
+  const [reminderRefused, setReminderRefused] = useState(false);
   const [reminderHour, setReminderHour] = useState(7);
   const [reminderMinute, setReminderMinute] = useState(0);
   const [overrideKey, setOverrideKey] = useState<string | null>(null);
@@ -231,6 +236,8 @@ export function SetupWizard() {
       guardRef.current?.release();
       router.replace('/today');
     },
+    // The wizard renders the failure at the bottom of the last step.
+    meta: { silent: true },
   });
 
   const guard = useUnsavedGuard(!completeSetupMutation.isSuccess, {
@@ -560,11 +567,27 @@ export function SetupWizard() {
                 onChange={(v) => {
                   const enabled = v[0] === 'on';
                   setReminderEnabled(enabled);
+                  setReminderRefused(false);
                   // "Want a reminder?" is a direct user action — ask here,
-                  // never on cold start (gym_plan.md §6.5).
-                  if (enabled) void ensureGymReminderPermission();
+                  // never on cold start (gym_plan.md §6.5). UX-GYM-04: if the
+                  // OS says no, the choice goes back to "No reminder".
+                  if (enabled) {
+                    void ensureGymReminderPermission().then((granted) => {
+                      refreshNotificationPermission();
+                      if (!granted) {
+                        setReminderEnabled(false);
+                        setReminderRefused(true);
+                      }
+                    });
+                  }
                 }}
               />
+              {reminderRefused && (
+                <NotificationsOffRow
+                  testID="gym-setup-notifications-off"
+                  message="Reminders are off for Chefer"
+                />
+              )}
               {reminderEnabled && (
                 <View className="flex-row items-center gap-3">
                   <Stepper

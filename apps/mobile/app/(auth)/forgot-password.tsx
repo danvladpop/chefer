@@ -41,6 +41,7 @@ function ForgotPasswordForm() {
   // Always reports success (no account probing) — only rate limits and
   // network failures surface as errors.
   const request = trpc.auth.requestPasswordReset.useMutation({
+    meta: { silent: true },
     onSuccess: () => setSent(true),
   });
 

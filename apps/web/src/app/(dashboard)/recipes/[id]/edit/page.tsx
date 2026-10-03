@@ -29,7 +29,7 @@ import {
 import { newLineRow, toSaveLines, type LineRow } from '@/features/recipes/lib/recipe-lines';
 import { trpc } from '@/lib/trpc';
 import { ArrowLeft, Plus, Trash2 } from 'lucide-react';
-import { normalizeRecipeUnit } from '@chefer/utils';
+import { normalizeRecipeUnit, userFacingErrorMessage } from '@chefer/utils';
 
 // ─── Lines to edit (plan-ingredient-catalog §10) ─────────────────────────────
 // Stored catalog lines come back linked by their ingredientId. A line without
@@ -183,6 +183,7 @@ export default function EditRecipePage() {
   const live = useLiveNutrition(lines, servingsNum);
 
   const updateMutation = trpc.recipe.update.useMutation({
+    meta: { silent: true },
     onSuccess: () => {
       // T-BUG-O3 C1: invalidate every query this recipe could be read
       // through — a stale cache in any of these reverted the previous edit.
@@ -542,7 +543,7 @@ export default function EditRecipePage() {
               role="alert"
               className="mb-3 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600"
             >
-              {updateMutation.error.message}
+              {userFacingErrorMessage(updateMutation.error)}
             </p>
           )}
 

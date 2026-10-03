@@ -53,6 +53,7 @@ export function PantryCheckBanner({ manualOpen = false, onManualClose }: PantryC
   };
 
   const confirmMutation = trpc.pantry.confirmWeekly.useMutation({
+    meta: { silent: true },
     onSuccess: () => {
       void utils.pantry.list.invalidate();
       void utils.shoppingList.getForWeek.invalidate();

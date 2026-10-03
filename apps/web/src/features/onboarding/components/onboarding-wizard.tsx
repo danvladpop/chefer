@@ -13,7 +13,12 @@ import {
 import { useHealthConsent } from '@/features/privacy/use-health-consent';
 import { trpc } from '@/lib/trpc';
 import { bodyMetricsAgeError, type OnboardingJob } from '@chefer/types';
-import { aiConsentRequiredFor, onboardingProgress, onboardingSteps } from '@chefer/utils';
+import {
+  aiConsentRequiredFor,
+  onboardingProgress,
+  onboardingSteps,
+  userFacingErrorMessage,
+} from '@chefer/utils';
 import { EMPTY_WIZARD_DATA, type Goal, type WizardData } from '../types';
 import { StepCuisine } from './step-cuisine';
 import { StepDiet, type StepDietHandle } from './step-diet';
@@ -94,6 +99,8 @@ export function OnboardingWizard({
   const [goodFood, setGoodFood] = useState(false);
   const [step, setStep] = useState(1);
   const [error, setError] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+  const savingRef = useRef(false);
   const [data, setData] = useState<WizardData>(initialData);
 
   const steps = onboardingSteps({
@@ -108,18 +115,27 @@ export function OnboardingWizard({
   const stepKey = steps[step - 1] ?? steps[steps.length - 1] ?? 'jobs';
 
   const setJobsMutation = trpc.preferences.setJobs.useMutation({
-    onError: (err) => setError(err.message),
+    meta: { silent: true },
+    onError: (err) => setError(userFacingErrorMessage(err)),
   });
-  const setDayKindsMutation = trpc.training.setDayKinds.useMutation();
-  const setShapeMutation = trpc.mealPlan.setShape.useMutation();
-  const setDisplayPrefsMutation = trpc.preferences.setDisplayPreferences.useMutation();
+  // UX-ONB-09: every save mutation reports through the wizard's own error
+  // line (saveAll's catch), so none of them raises the default toast too.
+  const setDayKindsMutation = trpc.training.setDayKinds.useMutation({ meta: { silent: true } });
+  const setShapeMutation = trpc.mealPlan.setShape.useMutation({ meta: { silent: true } });
+  const setDisplayPrefsMutation = trpc.preferences.setDisplayPreferences.useMutation({
+    meta: { silent: true },
+  });
   const safetyMutation = trpc.preferences.updateSafety.useMutation({
-    onError: (err) => setError(err.message),
+    meta: { silent: true },
+    onError: (err) => setError(userFacingErrorMessage(err)),
   });
   const profileBasicsMutation = trpc.preferences.saveProfileBasics.useMutation({
-    onError: (err) => setError(err.message),
+    meta: { silent: true },
+    onError: (err) => setError(userFacingErrorMessage(err)),
   });
-  const updateTargetsMutation = trpc.preferences.updateTargets.useMutation();
+  const updateTargetsMutation = trpc.preferences.updateTargets.useMutation({
+    meta: { silent: true },
+  });
   // R-18: the first week generates in the background AFTER the wizard has
   // navigated away, so the dashboard cached at navigation time says "nothing
   // planned". Invalidate everything that reads the plan when generation lands.
@@ -216,6 +232,7 @@ export function OnboardingWizard({
    * OTHER answer is still saved and the health fields are left out (AC2).
    */
   function handleFinish(diet: DietAnswers = dietNow) {
+    if (savingRef.current) return;
     setError(null);
     requestHealthConsent(() => void saveAll(true, diet), {
       hasHealthData: hasTerms(diet) || Object.keys(buildBasics()).length > 0,
@@ -227,6 +244,9 @@ export function OnboardingWizard({
   }
 
   async function saveAll(includeHealth: boolean, diet: DietAnswers) {
+    if (savingRef.current) return;
+    savingRef.current = true;
+    setSaving(true);
     setError(null);
     try {
       await setJobsMutation.mutateAsync({
@@ -269,8 +289,13 @@ export function OnboardingWizard({
       }
       generateFirstWeek();
       router.push('/dashboard');
-    } catch {
-      // onError already surfaced the message.
+    } catch (err) {
+      // UX-ONB-09: never swallow — whichever step failed, say so and let the
+      // user press Finish again (every step is idempotent).
+      setError(userFacingErrorMessage(err));
+    } finally {
+      savingRef.current = false;
+      setSaving(false);
     }
   }
 
@@ -344,7 +369,10 @@ export function OnboardingWizard({
 
   const progress = onboardingProgress(steps, step - 1);
   const progressPct = progress.percent ?? 0;
+  // One flag for the whole multi-step save: the individual pending flags drop
+  // between the awaits, which let a second Finish press start a second save.
   const isSubmitting =
+    saving ||
     setJobsMutation.isPending ||
     safetyMutation.isPending ||
     profileBasicsMutation.isPending ||
@@ -383,7 +411,10 @@ export function OnboardingWizard({
       <div className="flex-1 px-4 py-6 sm:py-10">
         <div className="mx-auto max-w-2xl">
           {error && (
-            <div className="mb-6 rounded-md bg-destructive/10 px-4 py-3 text-sm text-destructive">
+            <div
+              role="alert"
+              className="mb-6 rounded-md bg-destructive/10 px-4 py-3 text-sm text-destructive"
+            >
               {error}
             </div>
           )}

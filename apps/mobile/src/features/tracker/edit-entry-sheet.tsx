@@ -92,6 +92,7 @@ export function EditEntrySheet({
   }, [entry]);
 
   const updateMutation = trpc.tracker.updateCustomMeal.useMutation({
+    meta: { silent: true },
     onSuccess: () => {
       invalidateDayQueries(utils, date);
       snackbar.show({ message: 'Changes saved', tone: 'success' });
@@ -99,10 +100,11 @@ export function EditEntrySheet({
       onClose();
     },
   });
-  const deleteMutation = trpc.tracker.deleteCustomMeal.useMutation();
+  const deleteMutation = trpc.tracker.deleteCustomMeal.useMutation({ meta: { silent: true } });
   // UX-FOOD-06: a failed restore (the Undo) says so, and either way the day
   // is re-read so the screen shows what the server holds.
   const restoreMutation = trpc.tracker.restoreCustomMeal.useMutation({
+    meta: { silent: true },
     onError: (error) =>
       snackbar.show({ message: `Couldn't bring that back. ${userFacingErrorMessage(error)}` }),
     onSettled: () => invalidateDayQueries(utils, date),

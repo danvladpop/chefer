@@ -267,6 +267,13 @@ account's reads. Signing out (More/Settings) warns first when workouts exist onl
 on the phone (outbox entries or a workout in progress); a 401 (`session-expired`)
 keeps the gym outbox, active session and owner so unsynced workouts upload on the
 next login. The register draft never holds passwords.
+**Session expiry (UX-ACC-10, 2026-10).** A 401 from any client path — tRPC, the AI
+Chef stream, photo upload/scan — marks the session expired and runs that same
+`signOut({ reason: 'session-expired' })`; Sign in then says "Your session expired…"
+(web: when the URL carries `?from=`). **Failed writes and loads (WP-02):** every
+mutation without its own error UI shows a plain-language snackbar/toast (a
+`MutationCache.onError` default; `meta: { silent: true }` opts out), and a failed
+load renders an error with Retry instead of "Loading…" or an empty state.
 "Forgot password?" on the form (web and the mobile Sign in screen) starts the
 reset flow (§11). Both platforms' forms have a Show/Hide password toggle; the
 register forms also require a matching confirm-password field (client-side

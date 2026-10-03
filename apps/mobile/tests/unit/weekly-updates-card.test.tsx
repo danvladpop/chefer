@@ -1,3 +1,4 @@
+import { Linking } from 'react-native';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react-native';
 import { WeeklyUpdatesCard } from '../../src/features/preferences/weekly-updates-card';
 import type { createTrpcPreferencesMock } from './preferences-trpc-mock';
@@ -18,6 +19,12 @@ jest.mock('../../src/features/notifications/weekly-notifications', () => ({
   areWeeklyNotificationsOn: jest.fn(),
   scheduleWeeklyNotifications: jest.fn(),
   cancelWeeklyNotifications: jest.fn(),
+}));
+
+let mockNotificationPermission: 'granted' | 'denied' | 'undetermined' = 'undetermined';
+jest.mock('../../src/lib/use-notification-permission', () => ({
+  useNotificationPermission: () => mockNotificationPermission,
+  refreshNotificationPermission: jest.fn(),
 }));
 
 const { trpc } =
@@ -56,6 +63,7 @@ function withEmailDefaultsNoticeAt(emailDefaultsNoticeAt: string | null) {
 
 beforeEach(() => {
   jest.clearAllMocks();
+  mockNotificationPermission = 'undetermined';
   weekly.areWeeklyNotificationsOn.mockResolvedValue(false);
   weekly.scheduleWeeklyNotifications.mockResolvedValue(true);
   weekly.cancelWeeklyNotifications.mockResolvedValue(undefined);
@@ -94,11 +102,32 @@ describe('WeeklyUpdatesCard', () => {
     permission.ensureGymReminderPermission.mockResolvedValue(false);
     await render(<WeeklyUpdatesCard />);
     await fireEvent(screen.getByTestId('prefs-weekly-push-switch'), 'valueChange', true);
+    // UX-ACC-20: the explanation comes with a button that opens Settings.
     await waitFor(() =>
-      expect(screen.getByText(/Turn them on in your phone's Settings/)).toBeTruthy(),
+      expect(screen.getByTestId('prefs-weekly-push-off-open-settings')).toBeTruthy(),
     );
     expect(weekly.scheduleWeeklyNotifications).not.toHaveBeenCalled();
     expect(screen.getByTestId('prefs-weekly-push-switch').props.value).toBe(false);
+    const openSettings = jest.spyOn(Linking, 'openSettings').mockResolvedValue(undefined);
+    await fireEvent.press(screen.getByTestId('prefs-weekly-push-off-open-settings'));
+    expect(openSettings).toHaveBeenCalled();
+  });
+
+  // §6.8: with notifications denied in the OS, "On" would be a lie.
+  it('notifications denied in the OS: the switch reads off and an Open Settings row shows', async () => {
+    mockNotificationPermission = 'denied';
+    weekly.areWeeklyNotificationsOn.mockResolvedValue(true);
+    await render(<WeeklyUpdatesCard />);
+    await waitFor(() => expect(weekly.areWeeklyNotificationsOn).toHaveBeenCalled());
+    expect(screen.getByTestId('prefs-weekly-push-switch').props.value).toBe(false);
+    expect(screen.getByTestId('prefs-weekly-push-off')).toBeTruthy();
+    expect(screen.getByTestId('prefs-weekly-push-off-open-settings')).toBeTruthy();
+  });
+
+  it('notifications allowed: no Off row', async () => {
+    mockNotificationPermission = 'granted';
+    await render(<WeeklyUpdatesCard />);
+    expect(screen.queryByTestId('prefs-weekly-push-off')).toBeNull();
   });
 
   it('turning it off cancels', async () => {

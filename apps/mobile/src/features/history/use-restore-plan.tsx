@@ -16,6 +16,7 @@ export function useRestorePlan({ onRestored }: { onRestored?: () => void } = {})
   const utils = trpc.useUtils();
 
   const mutation = trpc.mealPlan.restore.useMutation({
+    meta: { silent: true },
     onSuccess: () => {
       // The restored copy becomes that week's plan — everything derived from
       // plans (Plan tab, Home, Shop, Tracker) is stale.

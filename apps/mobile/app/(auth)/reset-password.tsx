@@ -64,6 +64,7 @@ function ResetPasswordForm({ token }: { token: string }) {
 
   // Success also deletes every session for the account (all devices signed out).
   const reset = trpc.auth.resetPassword.useMutation({
+    meta: { silent: true },
     onSuccess: () => setDone(true),
   });
 

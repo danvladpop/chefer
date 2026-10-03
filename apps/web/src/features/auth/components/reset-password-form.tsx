@@ -35,6 +35,7 @@ export function ResetPasswordForm() {
   const [done, setDone] = useState(false);
 
   const resetMutation = trpc.auth.resetPassword.useMutation({
+    meta: { silent: true },
     onSuccess: () => setDone(true),
     onError: (err) => setServerError(userFacingErrorMessage(err)),
   });

@@ -23,8 +23,8 @@ export type RelationActions = {
 export function useRelationActions(): RelationActions {
   const queryClient = useQueryClient();
   const utils = trpc.useUtils();
-  const followMutation = trpc.friends.follow.useMutation();
-  const unfollowMutation = trpc.friends.unfollow.useMutation();
+  const followMutation = trpc.friends.follow.useMutation({ meta: { silent: true } });
+  const unfollowMutation = trpc.friends.unfollow.useMutation({ meta: { silent: true } });
 
   const run = async (
     userId: string,
