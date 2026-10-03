@@ -1,4 +1,4 @@
-import { useRef } from 'react';
+import { useRef, useSyncExternalStore } from 'react';
 import { Controller, useForm } from 'react-hook-form';
 import { Pressable, View, type TextInput } from 'react-native';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -8,6 +8,12 @@ import { userFacingErrorMessage } from '@chefer/utils';
 import { AuthField, AuthScreen } from '../../src/features/auth/auth-screen';
 import { AUTH_COPY } from '../../src/features/auth/copy';
 import { loginSchema, type LoginFormValues } from '../../src/features/auth/schemas';
+import {
+  clearSessionExpired,
+  isSessionExpired,
+  SESSION_EXPIRED_NOTICE,
+  subscribeSessionExpired,
+} from '../../src/features/auth/session-expired';
 import { useSession } from '../../src/features/auth/use-session';
 import { setToken } from '../../src/lib/auth-store';
 import { trpc } from '../../src/lib/trpc';
@@ -28,6 +34,8 @@ function LoginForm() {
   // signed in before — reached here by deep link, back navigation from
   // Welcome, or any other path that skips the (auth)/index.tsx gate.
   const { hasSignedInBefore } = useSession();
+  // UX-ACC-10: say why the user is here when a 401 ended their session.
+  const sessionExpired = useSyncExternalStore(subscribeSessionExpired, isSessionExpired);
 
   const {
     control,
@@ -44,6 +52,7 @@ function LoginForm() {
       if (data.session) {
         // Flips the root layout's auth gate straight into (food) (or Gym Today).
         await setToken(data.session.token);
+        clearSessionExpired();
       }
     },
   });
@@ -52,6 +61,15 @@ function LoginForm() {
 
   return (
     <>
+      {sessionExpired && (
+        <View
+          testID="login-session-expired"
+          accessibilityRole="alert"
+          className="rounded-md bg-amber-50 px-3 py-2"
+        >
+          <Text className="text-sm text-amber-800">{SESSION_EXPIRED_NOTICE}</Text>
+        </View>
+      )}
       <Text variant="title" testID="login-title">
         {hasSignedInBefore ? AUTH_COPY.loginTitleReturning : AUTH_COPY.loginTitleFirstTime}
       </Text>

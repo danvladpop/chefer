@@ -1,5 +1,12 @@
 import { useEffect, useState } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, Switch, View } from 'react-native';
+import {
+  ActivityIndicator,
+  Pressable,
+  RefreshControl,
+  ScrollView,
+  Switch,
+  View,
+} from 'react-native';
 import Animated, { FadeIn } from 'react-native-reanimated';
 import { Ionicons } from '@expo/vector-icons';
 import { router, useIsFocused } from 'expo-router';
@@ -164,6 +171,7 @@ export default function MealPlanScreen() {
     data: plan,
     isLoading,
     isError,
+    isRefetching,
     refetch,
   } = trpc.mealPlan.getForWeek.useQuery(
     { weekOffset },
@@ -205,11 +213,20 @@ export default function MealPlanScreen() {
   // recipes and portions) — a fresh copy of the old plan, not a flag flip
   // (meal-plan.service.ts `restore`).
   const restoreMutation = trpc.mealPlan.restore.useMutation({
+    meta: { silent: true },
     onSuccess: (data) => {
       utils.mealPlan.getForWeek.setData({ weekOffset }, data);
       invalidateDerived();
       if (__DEV__) console.warn('[analytics stub] regenerate_undone');
     },
+    // UX-PLAN-14: the Undo snackbar has already gone, so a failed restore
+    // must say so — and offer the retry the user just tried to make.
+    onError: (err, vars) =>
+      showSnackbar({
+        message: `Couldn't bring your previous week back. ${userFacingErrorMessage(err)}`,
+        actionLabel: 'Try again',
+        onAction: () => restoreMutation.mutate(vars),
+      }),
   });
 
   const generateMutation = trpc.mealPlan.generate.useMutation({
@@ -312,7 +329,11 @@ export default function MealPlanScreen() {
   };
 
   const pinMutation = trpc.mealPlan.setSlotPinned.useMutation({
+    meta: { silent: true },
     onSuccess: () => void refetch(),
+    // UX-PLAN-14: a failed pin must not look like nothing happened.
+    onError: (err) =>
+      showSnackbar({ message: `Couldn't update that pin. ${userFacingErrorMessage(err)}` }),
   });
 
   const swapMutation = trpc.mealPlan.swapRecipe.useMutation({
@@ -735,7 +756,13 @@ export default function MealPlanScreen() {
             </Text>
           )}
 
-          <ScrollView contentContainerClassName="gap-3 px-4 py-2 pb-8">
+          <ScrollView
+            testID="plan-day-scroll"
+            contentContainerClassName="gap-3 px-4 py-2 pb-8"
+            refreshControl={
+              <RefreshControl refreshing={isRefetching} onRefresh={() => void refetch()} />
+            }
+          >
             {/* A log elsewhere swapped future meals — say which, offer undo */}
             <RebalanceBanner planId={plan.planId} onUndone={() => void refetch()} />
 

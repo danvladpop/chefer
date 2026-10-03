@@ -6,6 +6,11 @@ import LoginScreen from '../../app/(auth)/login';
 import RegisterScreen from '../../app/(auth)/register';
 import ResetPasswordScreen from '../../app/(auth)/reset-password';
 import { clearRegisterDraft, getRegisterDraft } from '../../src/features/auth/register-draft';
+import {
+  clearSessionExpired,
+  markSessionExpired,
+  SESSION_EXPIRED_NOTICE,
+} from '../../src/features/auth/session-expired';
 import type { createTrpcAuthMock } from './auth-trpc-mock';
 import { mutationResult } from './auth-trpc-mock';
 
@@ -88,6 +93,19 @@ beforeEach(() => {
 });
 
 describe('Login', () => {
+  // UX-ACC-10: a 401 that ended the session says so on the sign-in screen.
+  it('explains an expired session, and not otherwise', async () => {
+    clearSessionExpired();
+    const { unmount } = await renderWithSafeArea(<LoginScreen />);
+    expect(screen.queryByTestId('login-session-expired')).toBeNull();
+    await unmount();
+
+    markSessionExpired();
+    await renderWithSafeArea(<LoginScreen />);
+    expect(screen.getByTestId('login-session-expired')).toHaveTextContent(SESSION_EXPIRED_NOTICE);
+    clearSessionExpired();
+  });
+
   it('sits in a keyboard-aware scroll view (F-M-AUTH-2-1)', async () => {
     await renderWithSafeArea(<LoginScreen />);
     // KeyboardAwareScrollView sets this on its inner ScrollView.

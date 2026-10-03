@@ -6,6 +6,8 @@ import { TargetsCard } from '../../src/features/preferences/targets-card';
 
 const mockSet = jest.fn();
 const mockInvalidate = jest.fn();
+const mockRefetch = jest.fn();
+let mockGetFailed = false;
 let mockGetData:
   | {
       targetMode: 'SUGGESTED' | 'OWN';
@@ -33,7 +35,14 @@ jest.mock('../../src/lib/trpc', () => ({
       dashboard: { summary: { invalidate: mockInvalidate } },
     }),
     targets: {
-      get: { useQuery: () => ({ data: mockGetData, isLoading: !mockGetData }) },
+      get: {
+        useQuery: () => ({
+          data: mockGetData,
+          isLoading: !mockGetData && !mockGetFailed,
+          isError: mockGetFailed && !mockGetData,
+          refetch: mockRefetch,
+        }),
+      },
       set: {
         useMutation: (opts?: { onSuccess?: () => void; onError?: (e: Error) => void }) => ({
           mutate: (input: unknown) => {
@@ -57,6 +66,7 @@ const SUGGESTED_DATA = {
 beforeEach(() => {
   jest.clearAllMocks();
   mockGetData = SUGGESTED_DATA;
+  mockGetFailed = false;
   mockSetMutationState.isPending = false;
   mockSetMutationState.isSuccess = false;
 });
@@ -117,5 +127,26 @@ describe('TargetsCard', () => {
     await user.type(screen.getByTestId('targets-kcal'), '5');
 
     expect(screen.getByTestId('targets-save')).toHaveTextContent('Save targets');
+  });
+});
+
+// UX-X-12: a failed load is not "Loading…" forever.
+describe('TargetsCard — failed load (UX-X-12)', () => {
+  it('shows an error with Try again, and Try again refetches', async () => {
+    mockGetData = undefined;
+    mockGetFailed = true;
+    const user = userEvent.setup();
+    await render(<TargetsCard />);
+    expect(screen.getByTestId('targets-card-error')).toBeOnTheScreen();
+    expect(screen.queryByText('Loading…')).toBeNull();
+    await user.press(screen.getByTestId('targets-card-error-retry'));
+    expect(mockRefetch).toHaveBeenCalled();
+  });
+
+  it('still says Loading… while the first load is in flight', async () => {
+    mockGetData = undefined;
+    await render(<TargetsCard />);
+    expect(screen.getByText('Loading…')).toBeOnTheScreen();
+    expect(screen.queryByTestId('targets-card-error')).toBeNull();
   });
 });

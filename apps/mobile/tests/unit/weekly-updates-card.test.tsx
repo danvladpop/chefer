@@ -1,3 +1,4 @@
+import { Linking } from 'react-native';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react-native';
 import { WeeklyUpdatesCard } from '../../src/features/preferences/weekly-updates-card';
 import type { createTrpcPreferencesMock } from './preferences-trpc-mock';
@@ -101,11 +102,15 @@ describe('WeeklyUpdatesCard', () => {
     permission.ensureGymReminderPermission.mockResolvedValue(false);
     await render(<WeeklyUpdatesCard />);
     await fireEvent(screen.getByTestId('prefs-weekly-push-switch'), 'valueChange', true);
+    // UX-ACC-20: the explanation comes with a button that opens Settings.
     await waitFor(() =>
-      expect(screen.getByText(/Turn them on in your phone's Settings/)).toBeTruthy(),
+      expect(screen.getByTestId('prefs-weekly-push-off-open-settings')).toBeTruthy(),
     );
     expect(weekly.scheduleWeeklyNotifications).not.toHaveBeenCalled();
     expect(screen.getByTestId('prefs-weekly-push-switch').props.value).toBe(false);
+    const openSettings = jest.spyOn(Linking, 'openSettings').mockResolvedValue(undefined);
+    await fireEvent.press(screen.getByTestId('prefs-weekly-push-off-open-settings'));
+    expect(openSettings).toHaveBeenCalled();
   });
 
   // §6.8: with notifications denied in the OS, "On" would be a lie.

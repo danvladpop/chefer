@@ -156,6 +156,9 @@ export function WeeklyUpdatesCard() {
   const [phoneOn, setPhoneOn] = useState(false);
   const [phoneBusy, setPhoneBusy] = useState(false);
   const [phoneNote, setPhoneNote] = useState<string | null>(null);
+  // UX-ACC-20: the user just answered the permission prompt with "no" — show
+  // the Open Settings row right away, without waiting for the OS re-read.
+  const [phoneRefused, setPhoneRefused] = useState(false);
   // §6.8: with notifications denied in the OS the switch must not say "On".
   const notificationPermission = useNotificationPermission();
   const notificationsDenied = notificationPermission === 'denied';
@@ -172,6 +175,7 @@ export function WeeklyUpdatesCard() {
   const togglePhone = async (next: boolean) => {
     setPhoneBusy(true);
     setPhoneNote(null);
+    setPhoneRefused(false);
     try {
       if (!next) {
         await cancelWeeklyNotifications();
@@ -181,7 +185,7 @@ export function WeeklyUpdatesCard() {
       const allowed = await ensureGymReminderPermission();
       refreshNotificationPermission();
       if (!allowed) {
-        setPhoneNote("Notifications are off for Chefer. Turn them on in your phone's Settings.");
+        setPhoneRefused(true);
         setPhoneOn(false);
         return;
       }
@@ -223,11 +227,11 @@ export function WeeklyUpdatesCard() {
           testID="prefs-weekly-push-switch"
           title="Monday plan and Sunday recap"
           description="A notification at 8:00 on Monday and 18:00 on Sunday."
-          value={phoneOn && !notificationsDenied}
+          value={phoneOn && !notificationsDenied && !phoneRefused}
           disabled={phoneBusy}
           onChange={(next) => void togglePhone(next)}
         />
-        {notificationsDenied ? (
+        {notificationsDenied || phoneRefused ? (
           <NotificationsOffRow testID="prefs-weekly-push-off" />
         ) : (
           phoneNote && <Text className="text-xs text-amber-800">{phoneNote}</Text>

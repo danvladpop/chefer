@@ -265,11 +265,14 @@ export {
 } from './weight';
 export {
   KCAL_PER_G,
+  INGREDIENT_GRAMS_MAX,
   MACRO_SANITY_TOLERANCE,
   QUICK_ADD_LIMITS,
   QUICK_ADD_MEAL_TYPES,
   checkMacroSanity,
+  clampIngredientGrams,
   formatQuickAddGrams,
+  maxIngredientGrams,
   parseQuickAdd,
   type MacroSanityResult,
   type QuickAddEntry,
@@ -293,8 +296,12 @@ export { RATING_LABELS, composeNotesWithLikedBy, parseLikedBy, stripLikedBy } fr
 export { shoppingWindowLabel } from './shopping-window';
 export {
   dayNutritionCaption,
+  dayStatus,
   PLAN_STATUS_LABEL,
   planStatus,
+  remainingPlannedKcal,
+  type DayStatus,
+  type DayStatusResult,
   type PlanStatus,
 } from './day-nutrition';
 export {

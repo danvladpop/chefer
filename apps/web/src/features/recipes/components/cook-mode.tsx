@@ -11,6 +11,7 @@ import { useHousehold } from '@/hooks/useHousehold';
 import { useUnitSystem } from '@/hooks/useUnitSystem';
 import { capture } from '@/lib/analytics';
 import { trpc } from '@/lib/trpc';
+import { useQueryState } from '@/lib/use-query-state';
 import {
   Check,
   ChefHat,
@@ -25,11 +26,12 @@ import {
   Timer,
   X,
 } from 'lucide-react';
-import { Drawer } from '@chefer/ui';
+import { Drawer, ErrorState } from '@chefer/ui';
 import {
   defaultCookServings,
   formatFractionalQuantity,
   formatQuantity,
+  isNotFoundError,
   slotPortion,
 } from '@chefer/utils';
 import { AllergenWarningBanner } from './AllergenWarning';
@@ -150,7 +152,10 @@ export function CookMode({ recipeId }: { recipeId: string }) {
   // P1-1: cooking a portioned plan slot starts at that portion and logs it.
   const planPortion = slotPortion(parseFloat(searchParams.get('portion') ?? ''));
 
-  const { data: recipe, isLoading } = trpc.mealPlan.getRecipe.useQuery({ recipeId });
+  const recipeQuery = trpc.mealPlan.getRecipe.useQuery({ recipeId });
+  const { data: recipe } = recipeQuery;
+  // UX-COOK-03: a failed load used to spin forever with no way out.
+  const recipeState = useQueryState(recipeQuery);
   // F2: with household members, cooking defaults to the whole table's
   // portion sum (the same number generation scaled the plan's servings to).
   const { scaledMembers } = useHousehold();
@@ -270,7 +275,30 @@ export function CookMode({ recipeId }: { recipeId: string }) {
     });
   }, [recipe, logged, upsertDay, mealType, planPortion]);
 
-  if (isLoading || !recipe) {
+  if (recipeState.state === 'error') {
+    const notFound = isNotFoundError(recipeQuery.error);
+    return (
+      <div className="flex min-h-dvh flex-col items-center justify-center gap-3 bg-white px-6">
+        {notFound ? (
+          <p data-testid="cook-not-found" className="text-sm text-gray-500">
+            Recipe not found.
+          </p>
+        ) : (
+          <div data-testid="cook-load-error">
+            <ErrorState title="Couldn't load this recipe" onRetry={recipeState.retry} />
+          </div>
+        )}
+        <Link
+          href="/recipes"
+          data-testid="cook-error-close"
+          className="flex min-h-11 items-center px-3 text-sm font-medium text-[#944a00] hover:underline"
+        >
+          Close
+        </Link>
+      </div>
+    );
+  }
+  if (!recipe) {
     return (
       <div className="flex min-h-dvh items-center justify-center bg-white">
         <div className="h-8 w-8 animate-spin rounded-full border-4 border-[#944a00]/20 border-t-[#944a00]" />
@@ -279,11 +307,14 @@ export function CookMode({ recipeId }: { recipeId: string }) {
   }
 
   const totalSteps = recipe.instructions.length;
+  // A recipe with no steps has nothing to page through: no "Step 1 of 0" and
+  // no NaN progress bar — the ingredient drawer is the content.
+  const noSteps = totalSteps === 0;
   // Defensive clamp: batched rapid taps can momentarily overshoot the state.
-  const safeStep = Math.min(step, totalSteps - 1);
+  const safeStep = Math.max(0, Math.min(step, totalSteps - 1));
   const instruction = recipe.instructions[safeStep] ?? '';
   const timerSeconds = parseStepDuration(instruction);
-  const isLastStep = safeStep === totalSteps - 1;
+  const isLastStep = noSteps || safeStep === totalSteps - 1;
 
   // ── Finish screen ──
   if (finished) {
@@ -401,24 +432,37 @@ export function CookMode({ recipeId }: { recipeId: string }) {
       <AllergenWarningBanner warnings={recipe.allergenWarnings} className="mx-4 mt-3" />
 
       {/* Progress */}
-      <div className="h-1.5 bg-gray-100">
-        <div
-          className="h-full bg-[#944a00] transition-all duration-300"
-          style={{ width: `${((safeStep + 1) / totalSteps) * 100}%` }}
-        />
-      </div>
+      {!noSteps && (
+        <div className="h-1.5 bg-gray-100">
+          <div
+            className="h-full bg-[#944a00] transition-all duration-300"
+            style={{ width: `${((safeStep + 1) / totalSteps) * 100}%` }}
+          />
+        </div>
+      )}
 
       {/* The step — large type, one instruction at a time */}
       <div className="flex flex-1 flex-col items-center justify-center px-6 py-8 text-center">
         {/* Announce each step change (button, swipe or keyboard). The timer
             stays outside the live region so its ticking isn't read out. */}
         <div aria-live="polite" aria-atomic="true">
-          <p className="mb-4 text-xs font-semibold uppercase tracking-widest text-gray-500">
-            Step {safeStep + 1} of {totalSteps}
-          </p>
-          <p className="max-w-xl text-2xl font-medium leading-relaxed text-gray-900 sm:text-3xl">
-            {instruction}
-          </p>
+          {noSteps ? (
+            <p
+              data-testid="cook-no-steps"
+              className="max-w-xl text-xl font-medium leading-relaxed text-gray-900"
+            >
+              This recipe has no steps yet. Its ingredients are one tap away.
+            </p>
+          ) : (
+            <>
+              <p className="mb-4 text-xs font-semibold uppercase tracking-widest text-gray-500">
+                Step {safeStep + 1} of {totalSteps}
+              </p>
+              <p className="max-w-xl text-2xl font-medium leading-relaxed text-gray-900 sm:text-3xl">
+                {instruction}
+              </p>
+            </>
+          )}
         </div>
         {timerSeconds !== null && (
           <StepTimer

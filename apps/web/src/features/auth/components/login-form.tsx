@@ -21,7 +21,7 @@ const loginSchema = z.object({
 
 type LoginFormValues = z.infer<typeof loginSchema>;
 
-export function LoginForm() {
+export function LoginForm({ sessionExpired = false }: { sessionExpired?: boolean }) {
   const router = useRouter();
   const queryClient = useQueryClient();
   const [serverError, setServerError] = useState<string | null>(null);
@@ -62,6 +62,17 @@ export function LoginForm() {
 
   return (
     <form onSubmit={handleSubmit(onSubmit)} noValidate className="space-y-5">
+      {/* UX-ACC-10: say why the user is here when a 401 ended their session. */}
+      {sessionExpired && !serverError && (
+        <div
+          data-testid="login-session-expired"
+          role="status"
+          className="rounded-md border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800"
+        >
+          Your session expired, so we signed you out. Sign in to pick up where you left off.
+        </div>
+      )}
+
       {/* Server Error */}
       {serverError && (
         <div

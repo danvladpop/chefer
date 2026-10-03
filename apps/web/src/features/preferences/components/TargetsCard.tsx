@@ -2,6 +2,8 @@
 
 import { useEffect, useState } from 'react';
 import { trpc } from '@/lib/trpc';
+import { useQueryState } from '@/lib/use-query-state';
+import { ErrorState } from '@chefer/ui';
 import { userFacingErrorMessage } from '@chefer/utils';
 
 // ─── TargetsCard (§2.11, T-35.3) ────────────────────────────────────────────────
@@ -19,7 +21,9 @@ function parseIntOrNull(text: string): number | null {
 
 export function TargetsCard() {
   const utils = trpc.useUtils();
-  const { data, isLoading } = trpc.targets.get.useQuery();
+  const targetsQuery = trpc.targets.get.useQuery();
+  const { data } = targetsQuery;
+  const { state: loadState, retry } = useQueryState(targetsQuery);
 
   const [mode, setMode] = useState<'SUGGESTED' | 'OWN'>('SUGGESTED');
   const [kcalText, setKcalText] = useState('');
@@ -97,7 +101,21 @@ export function TargetsCard() {
     });
   };
 
-  if (isLoading || !data) {
+  // UX-X-12: a failed load is not "Loading…" forever — say so and offer Retry.
+  if (loadState === 'error') {
+    return (
+      <section
+        id="own-targets"
+        className="scroll-mt-20 rounded-xl border bg-card p-4 shadow-sm sm:p-6"
+      >
+        <h2 className="text-lg font-semibold">Your targets</h2>
+        <div data-testid="targets-card-error" className="mt-3">
+          <ErrorState title="Couldn't load your targets" onRetry={retry} />
+        </div>
+      </section>
+    );
+  }
+  if (!data) {
     return (
       <section
         id="own-targets"
