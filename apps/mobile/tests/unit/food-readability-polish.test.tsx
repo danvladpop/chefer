@@ -33,6 +33,7 @@ jest.mock('@chefer/ui-mobile', () => {
 jest.mock('expo-router', () => ({ router: { push: jest.fn(), replace: jest.fn() } }));
 jest.mock('../../src/features/tracker/rebalance-store', () => ({ recordRebalance: jest.fn() }));
 jest.mock('../../src/lib/share-file', () => ({ shareExportFile: jest.fn() }));
+jest.mock('../../src/lib/sign-out', () => ({ signOut: jest.fn() }));
 jest.mock('../../src/lib/trpc', () => ({
   trpc: {
     useUtils: () => ({}),
