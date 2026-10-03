@@ -156,7 +156,7 @@ export default function MoreScreen() {
           delayLongPress={600}
           className="min-h-11 items-center justify-center"
         >
-          <Text className="text-center text-xs text-gray-400">
+          <Text className="text-center text-xs text-muted-foreground">
             {showBuildDetails ? CURRENT_BUILD : CURRENT_VERSION_LABEL}
           </Text>
         </Pressable>

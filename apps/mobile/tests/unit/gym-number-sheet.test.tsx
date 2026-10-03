@@ -7,7 +7,7 @@ import {
   NumberSheet,
   type NumberSheetProps,
 } from '../../src/features/gym/workout/number-sheet';
-import { profile } from './gym-fixtures';
+import { makeExercise, profile } from './gym-fixtures';
 
 // UX-GYM-01: the keypad stops at the schema bounds and asks before a value
 // that jumps more than 2x the previous one is saved.
@@ -44,6 +44,29 @@ async function typeDigits(user: ReturnType<typeof userEvent.setup>, digits: stri
     await user.press(screen.getByTestId(`number-sheet-key-${digit}`));
   }
 }
+
+// UX-GYM-19: per-dumbbell weights say "each" on the keypad too.
+describe('per-hand exercises', () => {
+  it('shows "kg each" beside the value and in the jump warning', async () => {
+    const user = userEvent.setup();
+    await renderSheet({
+      value: 10,
+      meta: { ...makeExercise('db-press', 'Dumbbell Press'), perHand: true },
+    });
+    expect(screen.getByTestId('number-sheet-value')).toHaveTextContent('10 kg each');
+    await typeDigits(user, '30');
+    await user.press(screen.getByTestId('number-sheet-save'));
+    expect(screen.getByTestId('number-sheet-jump-warning')).toHaveTextContent('last 10 kg each', {
+      exact: false,
+    });
+  });
+
+  it('leaves a barbell exercise as plain "kg"', async () => {
+    await renderSheet({ value: 10, meta: makeExercise('bench', 'Bench Press') });
+    expect(screen.getByTestId('number-sheet-value')).toHaveTextContent('10 kg');
+    expect(screen.getByTestId('number-sheet-value')).not.toHaveTextContent('each');
+  });
+});
 
 describe('keypad clamp', () => {
   it('ignores a digit that would push the weight past the 1000 kg schema limit', async () => {

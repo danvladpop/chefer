@@ -183,7 +183,7 @@ describe('WeightCard', () => {
     );
     await user.type(screen.getByTestId('weight-input'), '79.4');
     await user.press(screen.getByTestId('weight-save'));
-    await act(async () => {
+    await act(() => {
       mockLogOptions.onSuccess?.({ id: 'new1' }, { weightKg: 79.4 });
     });
     expect(screen.getByTestId('weight-input')).toHaveDisplayValue('');

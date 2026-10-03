@@ -89,7 +89,10 @@ function mockMutation(serverWrite: (vars: never) => unknown) {
   });
 }
 
-jest.mock('expo-router', () => ({ router: { back: jest.fn(), push: jest.fn() } }));
+jest.mock('expo-router', () => ({
+  router: { back: jest.fn(), push: jest.fn(), setParams: jest.fn() },
+  useLocalSearchParams: () => ({}),
+}));
 jest.mock('../../src/features/tracker/scan-meal-card', () => ({ ScanMealCard: () => null }));
 jest.mock('../../src/features/tracker/rebalance-banner', () => {
   // eslint-disable-next-line @typescript-eslint/no-require-imports -- jest.mock factories can't use imports

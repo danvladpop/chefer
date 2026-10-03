@@ -72,7 +72,7 @@ describe('WeekTemplates rename (UX-PLAN-10)', () => {
     fireEvent.click(screen.getByLabelText('Rename Busy week'));
     const input = screen.getByLabelText('New name for Busy week');
     fireEvent.change(input, { target: { value: 'Light week' } });
-    fireEvent.submit(input.closest('form') as HTMLFormElement);
+    fireEvent.submit(input.closest('form')!);
     expect(m.rename).toHaveBeenCalledWith({ templateId: 't1', name: 'Light week' });
   });
 });

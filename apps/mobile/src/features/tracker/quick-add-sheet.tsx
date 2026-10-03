@@ -141,9 +141,7 @@ export function QuickAddSheet({
   const clearError = (key: keyof QuickAddErrors) =>
     setErrors((prev) => {
       if (!(key in prev)) return prev;
-      const next = { ...prev };
-      delete next[key];
-      return next;
+      return Object.fromEntries(Object.entries(prev).filter(([k]) => k !== key));
     });
 
   const reset = () => {
@@ -709,7 +707,7 @@ export function QuickAddSheet({
                             keyboardType="number-pad"
                             className="min-w-0 flex-1"
                           />
-                          <Text className="text-sm text-gray-400">g</Text>
+                          <Text className="text-sm text-muted-foreground">g</Text>
                         </View>
                         <Text
                           testID={`log-sheet-grams-live-kcal-${key}`}
@@ -886,7 +884,7 @@ export function QuickAddSheet({
                 }}
                 className="min-w-0 flex-1"
               />
-              <Text className="text-sm text-gray-400">kcal</Text>
+              <Text className="text-sm text-muted-foreground">kcal</Text>
             </View>
             {errors.kcal && (
               <Text testID="quick-add-kcal-error" className="text-xs text-red-600">

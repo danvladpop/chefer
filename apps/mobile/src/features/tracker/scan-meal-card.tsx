@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Image, Linking, Pressable, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
@@ -68,7 +68,19 @@ export function loggedFromEstimate(
  * a food-job user now sees a taste instead, and a gym-only user still sees
  * nothing.
  */
-export function ScanMealCard(props: { date: string; onLogged: () => void }) {
+export type ScanMealCardProps = {
+  date: string;
+  onLogged: () => void;
+  /**
+   * UX-ACC-13: open the photo picker once, right after the card appears — the
+   * post-upgrade "Snap your next meal" CTA lands here. Asks AI consent first.
+   */
+  autoPick?: boolean;
+  /** Called once when `autoPick` has been acted on (so the caller can drop its route param). */
+  onAutoPicked?: () => void;
+};
+
+export function ScanMealCard(props: ScanMealCardProps) {
   const { enabled } = useEntitlement('mealScansPerDay');
   return enabled ? <SnapCard {...props} /> : <SnapTaste />;
 }
@@ -122,7 +134,7 @@ function SnapTaste() {
   );
 }
 
-function SnapCard({ date, onLogged }: { date: string; onLogged: () => void }) {
+function SnapCard({ date, onLogged, autoPick, onAutoPicked }: ScanMealCardProps) {
   const snackbar = useSnackbar();
   const [scanning, setScanning] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -185,6 +197,16 @@ function SnapCard({ date, onLogged }: { date: string; onLogged: () => void }) {
   const requestAiConsent = useAiConsent();
   const pick = (source: 'camera' | 'library') =>
     requestAiConsent('meal-scan', () => void pickNow(source));
+
+  // UX-ACC-13: arrive from the upgrade CTA → the picker opens by itself, once.
+  const autoPicked = useRef(false);
+  useEffect(() => {
+    if (!autoPick || autoPicked.current) return;
+    autoPicked.current = true;
+    onAutoPicked?.();
+    pick('library');
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- once per arrival
+  }, [autoPick]);
 
   const pickNow = async (source: 'camera' | 'library') => {
     setError(null);
@@ -348,7 +370,7 @@ function SnapCard({ date, onLogged }: { date: string; onLogged: () => void }) {
                 onChangeText={setKcalText}
                 className="min-w-0 flex-1"
               />
-              <Text className="text-sm text-gray-400">kcal</Text>
+              <Text className="text-sm text-muted-foreground">kcal</Text>
             </View>
           </View>
           <Text testID="scan-macros" className="text-sm text-gray-700">

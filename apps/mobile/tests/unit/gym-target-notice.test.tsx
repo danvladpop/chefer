@@ -117,6 +117,22 @@ describe('TargetChangeNotice', () => {
     expect(screen.getByText('Because you edited Tuesday’s sets.')).toBeOnTheScreen();
   });
 
+  // UX-GYM-19: a dumbbell exercise's target is ONE dumbbell.
+  it('UX-GYM-19: a per-hand exercise reads "kg each" in before → after', async () => {
+    seedNotice();
+    const bootstrap = makeBootstrap({
+      library: [{ ...makeExercise('bench', 'Dumbbell Bench Press'), perHand: true }],
+      progressions: [progression('bench', 60)],
+    });
+    await render(
+      <QueryClientProvider client={new QueryClient()}>
+        <TargetChangeNotice bootstrap={bootstrap} dataUpdatedAt={AFTER_SYNC} />
+      </QueryClientProvider>,
+    );
+    expect(screen.getByText('62.5 kg each')).toBeOnTheScreen();
+    expect(screen.getByText('60 kg each')).toBeOnTheScreen();
+  });
+
   it('shows nothing while the correction is still waiting to sync, or before the bootstrap was refetched', async () => {
     seedNotice({ syncedAt: null });
     const first = await renderNotice();

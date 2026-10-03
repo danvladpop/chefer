@@ -1,9 +1,11 @@
-import { useMemo, useState } from 'react';
-import { Linking, View } from 'react-native';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { View } from 'react-native';
+import { usePathname } from 'expo-router';
 import { CURRENT_TERMS_VERSION } from '@chefer/types';
 import { Button, Sheet, Text } from '@chefer/ui-mobile';
-import { getWebUrl } from '../../lib/api-url';
 import { trpc } from '../../lib/trpc';
+import type { LegalDoc } from '../legal/legal-docs';
+import { openLegal } from '../legal/open-legal';
 
 // T-39.1: the re-accept sheet for an existing, signed-in account whose stored
 // Terms/Privacy acceptance predates a document version bump. Reads the
@@ -32,6 +34,25 @@ function isStale(latestVersion: string | null): boolean {
 
 export function TermsReacceptSheet({ signedIn }: { signedIn: boolean }) {
   const [dismissed, setDismissed] = useState(false);
+  // The sheet is a Modal, so a route pushed under it would open BEHIND it:
+  // a link closes the sheet, pushes the in-app page once the Modal is gone,
+  // and the sheet comes back when the reader returns (not dismissed, just
+  // out of the way while reading).
+  const pathname = usePathname();
+  const [reading, setReading] = useState(false);
+  const pendingDoc = useRef<LegalDoc | null>(null);
+  const sawLegal = useRef(false);
+  useEffect(() => {
+    if (pathname.startsWith('/legal')) sawLegal.current = true;
+    else if (sawLegal.current) {
+      sawLegal.current = false;
+      setReading(false);
+    }
+  }, [pathname]);
+  const readDoc = (doc: LegalDoc) => {
+    pendingDoc.current = doc;
+    setReading(true);
+  };
   const { data: history } = trpc.privacy.getConsentHistory.useQuery(undefined, {
     enabled: signedIn,
     staleTime: 5 * 60_000,
@@ -45,13 +66,19 @@ export function TermsReacceptSheet({ signedIn }: { signedIn: boolean }) {
     return terms.length > 0 ? (terms[0]?.documentVersion ?? null) : null;
   }, [history]);
 
-  const visible = signedIn && history !== undefined && isStale(latestTermsVersion) && !dismissed;
+  const visible =
+    signedIn && history !== undefined && isStale(latestTermsVersion) && !dismissed && !reading;
 
   return (
     <Sheet
       testID="terms-reaccept-sheet"
       visible={visible}
       onClose={() => setDismissed(true)}
+      onExited={() => {
+        const doc = pendingDoc.current;
+        pendingDoc.current = null;
+        if (doc) openLegal(doc);
+      }}
       title="Our Terms and Privacy Policy were updated"
     >
       <View className="gap-3">
@@ -60,7 +87,7 @@ export function TermsReacceptSheet({ signedIn }: { signedIn: boolean }) {
           <Text
             accessibilityRole="link"
             className="text-primary underline"
-            onPress={() => void Linking.openURL(getWebUrl('/terms'))}
+            onPress={() => readDoc('terms')}
           >
             Terms
           </Text>{' '}
@@ -68,7 +95,7 @@ export function TermsReacceptSheet({ signedIn }: { signedIn: boolean }) {
           <Text
             accessibilityRole="link"
             className="text-primary underline"
-            onPress={() => void Linking.openURL(getWebUrl('/privacy'))}
+            onPress={() => readDoc('privacy')}
           >
             Privacy Policy
           </Text>{' '}

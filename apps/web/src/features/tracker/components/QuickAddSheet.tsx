@@ -103,9 +103,7 @@ export function QuickAddSheet({ date, onLogged, plannedMeals = [] }: QuickAddShe
   const clearError = (key: keyof QuickAddErrors) =>
     setErrors((prev) => {
       if (!(key in prev)) return prev;
-      const next = { ...prev };
-      delete next[key];
-      return next;
+      return Object.fromEntries(Object.entries(prev).filter(([k]) => k !== key));
     });
   const kcalRef = useRef<HTMLInputElement>(null);
 
