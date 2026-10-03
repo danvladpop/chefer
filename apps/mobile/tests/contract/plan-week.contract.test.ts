@@ -145,7 +145,7 @@ describe('off-plan logged recipes are editable and removable (UX-FOOD-03)', () =
     const offPlan = nextWeek.days
       .flatMap((d) => d.meals)
       .map((m) => m.recipe)
-      .find((r) => r && !plannedThatDay.has(r.id));
+      .find((r) => !plannedThatDay.has(r.id));
     if (!offPlan) throw new Error('expected a next-week meal that is not planned that day');
     await client.tracker.logRecipe.mutate({
       date,
