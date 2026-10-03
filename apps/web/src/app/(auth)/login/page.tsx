@@ -10,12 +10,20 @@ export const metadata: Metadata = {
   robots: { index: false },
 };
 
-export default async function LoginPage() {
+export default async function LoginPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ from?: string | string[] }>;
+}) {
   // Validate the session rather than trusting the cookie's presence — a stale
   // cookie must still land on the form so the user can sign in again.
   if (await getSessionUser()) {
     redirect('/dashboard');
   }
+  // UX-ACC-10: the only thing that adds `?from=` is the 401 handler
+  // (lib/trpc.ts), so its presence means an expired session sent them here.
+  const { from } = await searchParams;
+  const sessionExpired = from !== undefined;
 
   return (
     <div className="flex min-h-dvh flex-col items-center px-4 py-8 sm:py-12">
@@ -39,7 +47,7 @@ export default async function LoginPage() {
 
         {/* Login Form Card */}
         <div className="rounded-xl border bg-card p-6 shadow-sm sm:p-8">
-          <LoginForm />
+          <LoginForm sessionExpired={sessionExpired} />
         </div>
 
         {/* Footer Links */}

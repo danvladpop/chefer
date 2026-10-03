@@ -1,4 +1,8 @@
 import { onAiConsentRequired } from '@chefer/utils';
+import {
+  SESSION_EXPIRED_MESSAGE,
+  setUnauthorizedHandler,
+} from '../../src/features/auth/session-expired';
 import { streamChat } from '../../src/lib/chat-stream';
 
 // R-10: /api/chat answers 403 { error, reason: 'AI_CONSENT_REQUIRED' } when the
@@ -40,5 +44,19 @@ describe('streamChat — AI consent rejection', () => {
     await expect(streamChat({ ...base, fetchImpl })).rejects.toThrow('The chef is down');
     expect(listener).not.toHaveBeenCalled();
     off();
+  });
+});
+
+// UX-ACC-10: a 401 from the chat stream ends the session like a tRPC 401 and
+// reads as a session problem, not as the server's bare "Unauthorized".
+describe('streamChat — expired session', () => {
+  afterEach(() => setUnauthorizedHandler(null));
+
+  it('reports the 401 to the shared handler and throws the session-expired sentence', async () => {
+    const handler = jest.fn();
+    setUnauthorizedHandler(handler);
+    const fetchImpl = jest.fn().mockResolvedValue(jsonResponse(401, { error: 'Unauthorized' }));
+    await expect(streamChat({ ...base, fetchImpl })).rejects.toThrow(SESSION_EXPIRED_MESSAGE);
+    expect(handler).toHaveBeenCalledTimes(1);
   });
 });
