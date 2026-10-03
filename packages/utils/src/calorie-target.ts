@@ -1,4 +1,4 @@
-import { ADULT_AGE } from '@chefer/types';
+import { ADULT_AGE, bodyMetricsAgeError } from '@chefer/types';
 
 // ─── Shared calorie-target calculation (App Review R-02, Guideline 1.4.1) ───────
 // ONE implementation of Mifflin-St Jeor + goal adjustment + safety rules, used
@@ -120,4 +120,34 @@ export function previewCalorieTarget(
     deficitBlocked: isDeficitBlockedForAge(goal, age),
     flooredAt: raw < floor ? floor : null,
   };
+}
+
+/**
+ * The calorie target the metrics ENTERED so far would give, or null while any
+ * of age / height / weight is missing or the age is out of range (UX-FOOD-14).
+ * The onboarding targets step uses it: those metrics are only saved when setup
+ * finishes, so the server still resolves the 2,000 kcal default at that point.
+ */
+export function previewTargetKcalFromBasics(
+  basics: {
+    age: number | null;
+    heightCm: number | null;
+    weightKg: number | null;
+    activityLevel?: string | null | undefined;
+    biologicalSex?: string | null | undefined;
+  },
+  goal?: string | null,
+): number | null {
+  const { age, heightCm, weightKg } = basics;
+  if (age === null || heightCm === null || weightKg === null) return null;
+  if (age <= 0 || heightCm <= 0 || weightKg <= 0) return null;
+  if (bodyMetricsAgeError(age) !== null) return null;
+  return previewCalorieTarget(
+    weightKg,
+    heightCm,
+    age,
+    basics.activityLevel,
+    basics.biologicalSex,
+    goal,
+  ).target;
 }

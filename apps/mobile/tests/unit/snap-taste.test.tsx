@@ -28,6 +28,9 @@ jest.mock('../../src/lib/trpc', () => ({
       logCustomMeal: {
         useMutation: () => ({ isPending: false, isError: false, error: null, mutate: jest.fn() }),
       },
+      deleteCustomMeal: {
+        useMutation: () => ({ isPending: false, mutate: jest.fn() }),
+      },
     },
   },
 }));

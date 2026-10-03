@@ -58,6 +58,12 @@ const localDateSchema = calendarDateSchema.optional();
 
 // A full custom-entry snapshot, for restoreCustomMeal's Undo (T-19.2, B-34):
 // the client sends back exactly what it had before deleting.
+// UX-FOOD-11: macros the client left blank (stored as 0 g, flagged unknown).
+const unknownMacrosSchema = z
+  .array(z.enum(['protein', 'carbs', 'fat']))
+  .max(3)
+  .optional();
+
 const customEntrySnapshotSchema = z.object({
   entryId: z.string().min(1).optional(),
   custom: z.object({
@@ -70,6 +76,7 @@ const customEntrySnapshotSchema = z.object({
   protein: z.number().finite().min(0).max(1000),
   carbs: z.number().finite().min(0).max(2000),
   fat: z.number().finite().min(0).max(1000),
+  unknownMacros: unknownMacrosSchema,
 });
 
 export const trackerRouter = router({
@@ -127,6 +134,7 @@ export const trackerRouter = router({
         protein: z.number().min(0).max(500).default(0),
         carbs: z.number().min(0).max(1000).default(0),
         fat: z.number().min(0).max(500).default(0),
+        unknownMacros: unknownMacrosSchema,
       }),
     )
     .mutation(async ({ ctx, input }) => {
@@ -215,6 +223,8 @@ export const trackerRouter = router({
         protein: z.number().finite().min(0).max(1000),
         carbs: z.number().finite().min(0).max(2000),
         fat: z.number().finite().min(0).max(1000),
+        // Present = replace the flag (an empty list clears it); absent = keep it.
+        unknownMacros: unknownMacrosSchema,
       }),
     )
     .mutation(async ({ ctx, input }) => {
@@ -252,9 +262,20 @@ export const trackerRouter = router({
       return trackerService.weeklySummary(ctx.user.id, input?.localDate);
     }),
 
+  // UX-FOOD-20: `days` (7–90) lets Progress pick its window; omitted keeps 28.
   monthlySummary: protectedProcedure
-    .input(z.object({ localDate: localDateSchema }).optional())
+    .input(
+      z
+        .object({
+          localDate: localDateSchema,
+          days: z.number().int().min(7).max(90).optional(),
+        })
+        .optional(),
+    )
     .query(async ({ ctx, input }) => {
+      if (input?.days !== undefined && input.days !== 28) {
+        return trackerService.summary(ctx.user.id, input.days, input.localDate);
+      }
       return trackerService.monthlySummary(ctx.user.id, input?.localDate);
     }),
 

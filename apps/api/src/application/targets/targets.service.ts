@@ -36,6 +36,13 @@ const MACRO_FIT_TOLERANCE = 0.1;
 const SUGGESTED_DRIFT_THRESHOLD = 0.05;
 /** Weight-driven notices are debounced to one per this many days. */
 const WEIGHT_DEBOUNCE_DAYS = 7;
+/**
+ * UX-FOOD-14: a CHANGED notice needs at least one field that moved by this
+ * much. Rounding wobble (a ±1 g macro, a few kcal after a training-day swap)
+ * is not "your targets changed" — the snapshot still advances.
+ */
+const MATERIAL_KCAL = 25;
+const MATERIAL_GRAMS = 5;
 
 export interface SetOwnTargetsInput {
   targetMode: 'OWN' | 'SUGGESTED';
@@ -88,6 +95,24 @@ function fieldsDiff(
     }
   });
   return fields;
+}
+
+/** Whether any changed field moved enough to be worth a notice (UX-FOOD-14). */
+function isMaterialChange(fields: { field: string; before: number; after: number }[]): boolean {
+  return fields.some(
+    (f) =>
+      Math.abs(f.after - f.before) >=
+      (f.field === 'dailyCalorieTarget' ? MATERIAL_KCAL : MATERIAL_GRAMS),
+  );
+}
+
+/**
+ * Whether the snapshot was resolved from real body metrics. Without them the
+ * numbers were the pre-onboarding default (2,000 kcal), so what changed next
+ * is the user finishing setup, not a weigh-in or a goal edit (UX-FOOD-14).
+ */
+function hadBodyMetrics(inputs: TargetInputs): boolean {
+  return !!inputs.weightKg && !!inputs.heightCm && !!inputs.age && !!inputs.activity;
 }
 
 function pctDiff(a: number, b: number): number {
@@ -397,9 +422,15 @@ export class TargetsService {
     }
 
     const isOwn = resolved.source === 'own';
+    // UX-FOOD-14: the user has just entered the body metrics the old numbers
+    // were missing (onboarding). That is them setting up, not a silent change.
+    if (!isOwn && !hadBodyMetrics(prev.inputs) && hadBodyMetrics(resolved.inputs)) {
+      await this.writeSnapshot(userId, resolved);
+      return;
+    }
     if (!isOwn) {
       const fields = fieldsDiff(prev.effective, resolved.effective);
-      if (fields.length > 0) {
+      if (fields.length > 0 && isMaterialChange(fields)) {
         const reason = inferReason(prev.inputs, resolved.inputs);
         const debounced = reason === 'WEIGHT' && (await recentWeightNoticeExists(userId));
         if (!debounced) {
@@ -414,7 +445,7 @@ export class TargetsService {
       if (drift >= SUGGESTED_DRIFT_THRESHOLD) {
         const reason = inferReason(prev.inputs, resolved.inputs);
         const fields = fieldsDiff(prev.suggested, resolved.suggested);
-        if (fields.length > 0) {
+        if (fields.length > 0 && isMaterialChange(fields)) {
           await targetChangeRepository.create({ userId, kind: 'SUGGESTED', reason, fields });
         }
       }

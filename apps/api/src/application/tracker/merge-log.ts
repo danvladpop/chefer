@@ -67,6 +67,7 @@ export interface RecentAggregate {
   protein: number;
   carbs: number;
   fat: number;
+  unknownMacros?: ('protein' | 'carbs' | 'fat')[];
   portionMultiplier?: number;
   /** How many times this was logged in the scanned window. */
   count: number;
@@ -105,6 +106,8 @@ export function aggregateRecents(days: RecentLogDay[], limit = 15): RecentAggreg
         protein: entry.protein,
         carbs: entry.carbs,
         fat: entry.fat,
+        ...(entry.unknownMacros &&
+          entry.unknownMacros.length > 0 && { unknownMacros: entry.unknownMacros }),
         ...(entry.portionMultiplier !== undefined && {
           portionMultiplier: entry.portionMultiplier,
         }),

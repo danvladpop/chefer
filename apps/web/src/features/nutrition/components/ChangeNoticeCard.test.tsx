@@ -67,4 +67,40 @@ describe('ChangeNoticeCard', () => {
     fireEvent.click(screen.getByTestId('change-notice-use-new'));
     expect(m.acknowledge).toHaveBeenCalledWith({ id: 'c2', keep: false });
   });
+
+  // UX-FOOD-14: "Keep" on an applied change switches the user to fixed
+  // targets, so it asks first instead of doing it silently.
+  it('"Keep {n}" on an applied change asks before it fixes the targets', () => {
+    m.changesData = [
+      {
+        id: 'c3',
+        kind: 'CHANGED',
+        reason: 'WEIGHT',
+        fields: [{ field: 'dailyCalorieTarget', before: 2000, after: 1492 }],
+      },
+    ];
+    render(<ChangeNoticeCard />);
+
+    fireEvent.click(screen.getByTestId('change-notice-keep'));
+    expect(m.acknowledge).not.toHaveBeenCalled();
+    expect(screen.getByText('Keep 2000 kcal?')).toBeTruthy();
+
+    fireEvent.click(screen.getByTestId('change-notice-keep-confirm'));
+    expect(m.acknowledge).toHaveBeenCalledWith({ id: 'c3', keep: true });
+  });
+
+  it('a SUGGESTED "Keep mine" only declines a proposal, so it needs no confirmation', () => {
+    m.changesData = [
+      {
+        id: 'c4',
+        kind: 'SUGGESTED',
+        reason: 'COACH',
+        fields: [{ field: 'dailyCalorieTarget', before: 2100, after: 2000 }],
+      },
+    ];
+    render(<ChangeNoticeCard />);
+
+    fireEvent.click(screen.getByTestId('change-notice-keep'));
+    expect(m.acknowledge).toHaveBeenCalledWith({ id: 'c4', keep: true });
+  });
 });

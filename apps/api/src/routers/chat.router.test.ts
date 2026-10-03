@@ -120,3 +120,19 @@ describe('chatRouter — AI-data consent (R-10)', () => {
     expect(chatService.chat).toHaveBeenCalledTimes(1);
   });
 });
+
+describe('chatRouter — action trailer opt-in (UX-FOOD-21)', () => {
+  it('asks the service for actions only when the client sends x-chefer-chat-actions: 1', async () => {
+    const body = JSON.stringify({ messages: [{ role: 'user', content: 'hi' }] });
+    const headers = { 'content-type': 'application/json' };
+    await fetch(`${baseUrl}/api/chat`, { method: 'POST', headers, body });
+    await fetch(`${baseUrl}/api/chat`, {
+      method: 'POST',
+      headers: { ...headers, 'x-chefer-chat-actions': '1' },
+      body,
+    });
+    const calls = vi.mocked(chatService.chat).mock.calls;
+    expect(calls[0]?.[2]).toEqual({ withActions: false });
+    expect(calls[1]?.[2]).toEqual({ withActions: true });
+  });
+});

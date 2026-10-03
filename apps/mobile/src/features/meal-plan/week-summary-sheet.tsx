@@ -4,10 +4,14 @@ import type { DayKind, DisplayCurrency } from '@chefer/types';
 import { Button, colors, DENSE_MAX_FONT_SCALE, Sheet, Text, useSnackbar } from '@chefer/ui-mobile';
 import {
   cn,
+  dinnersHeadingFor,
   formatDinnersForSharing,
   formatMoney,
+  formatPriceRange,
+  planCostCoverageLabel,
   trainingDaysChip,
   trainingGlyph,
+  weekRelationLabel,
   type ShareDinner,
 } from '@chefer/utils';
 import { getWebUrl } from '../../lib/api-url';
@@ -33,6 +37,10 @@ interface WeekSummarySheetProps {
   badge: string;
   days: DaySummary[];
   weekCostEur: number | null;
+  /** Which week is open (0 = this, 1 = next) — the cost and share copy name it (UX-PLAN-07). */
+  weekOffset?: number;
+  /** First day (0 = Mon) the cost estimate covers when the plan was made mid-week. */
+  shoppingFromDay?: number | undefined;
   isPast: boolean;
   isPremium: boolean;
   leftovers: boolean;
@@ -54,6 +62,8 @@ export function WeekSummarySheet({
   badge,
   days,
   weekCostEur,
+  weekOffset = 0,
+  shoppingFromDay,
   isPast,
   isPremium,
   leftovers,
@@ -75,7 +85,7 @@ export function WeekSummarySheet({
     if (dinners.length === 0) return;
     try {
       const result = await Share.share({
-        message: formatDinnersForSharing(dinners, getWebUrl('/')),
+        message: formatDinnersForSharing(dinners, getWebUrl('/'), dinnersHeadingFor(weekOffset)),
       });
       if (result.action !== Share.dismissedAction) {
         showSnackbar({ message: 'List ready to send.', tone: 'success' });
@@ -139,9 +149,11 @@ export function WeekSummarySheet({
           </View>
         )}
         {weekCostEur !== null && (
+          // UX-PLAN-07: a range (never a precise sum), for the week that is
+          // open, over the days it really covers.
           <View className="rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1">
-            <Text className="text-xs font-medium text-emerald-700">
-              ≈ {formatMoney(weekCostEur, currency)} this week
+            <Text testID="week-summary-cost" className="text-xs font-medium text-emerald-700">
+              {`≈ ${formatPriceRange(weekCostEur, currency) ?? formatMoney(weekCostEur, currency)} · ${weekRelationLabel(weekOffset)} · ${planCostCoverageLabel(shoppingFromDay)}`}
             </Text>
           </View>
         )}
@@ -213,7 +225,7 @@ export function WeekSummarySheet({
         disabled={dinners.length === 0}
         onPress={() => void shareDinners()}
       >
-        Share this week’s dinners
+        {`Share ${weekRelationLabel(weekOffset)}’s dinners`}
       </Button>
       {/* Its AI action's consent sheet nests here (iOS can't stack root Modals). */}
       <AiConsentHost />

@@ -2,13 +2,14 @@
 
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
+import { HouseholdTableSummary } from '@/features/meal-plan/components/HouseholdTableSummary';
 import { UpgradeButton } from '@/features/premium/components/UpgradeButton';
 import { trpc } from '@/lib/trpc';
 import { useQueryState } from '@/lib/use-query-state';
 import { Lock } from 'lucide-react';
 import type { PlanShape, PlanSlot } from '@chefer/types';
 import { ErrorState, Sheet } from '@chefer/ui';
-import { cn, planShapeSummary, userFacingErrorMessage } from '@chefer/utils';
+import { cn, householdTableSummary, planShapeSummary, userFacingErrorMessage } from '@chefer/utils';
 
 // ─── Plan settings (T-07.6 web parity of the mobile HowYouCookForm /
 // plan-settings-sheet.tsx) ──────────────────────────────────────────────────
@@ -95,6 +96,12 @@ export function PlanSettingsSheet({
   onFitTrainingDaysChange,
 }: PlanSettingsSheetProps) {
   const shapeQuery = trpc.mealPlan.getShape.useQuery(undefined, { enabled: open });
+  // UX-PLAN-12: a household's "Cooking for" is read-only, from the table.
+  const householdQuery = trpc.household.list.useQuery(undefined, {
+    enabled: open,
+    staleTime: 60_000,
+  });
+  const table = householdTableSummary(householdQuery.data ?? []);
   const { data } = shapeQuery;
   const { state: loadState, retry } = useQueryState(shapeQuery);
   const [draft, setDraft] = useState<DraftShape | null>(null);
@@ -253,29 +260,35 @@ export function PlanSettingsSheet({
               <legend className="text-xs font-semibold uppercase tracking-widest text-gray-500">
                 Cooking for
               </legend>
-              <div role="radiogroup" aria-label="Cooking for" className="flex flex-wrap gap-2">
-                <Chip
-                  testId="plan-settings-for-1"
-                  selected={draft.cookingFor == null || draft.cookingFor === 1}
-                  onClick={() => setDraft({ ...draft, cookingFor: 1 })}
-                >
-                  Just me
-                </Chip>
-                <Chip
-                  testId="plan-settings-for-2"
-                  selected={draft.cookingFor === 2}
-                  onClick={() => setDraft({ ...draft, cookingFor: 2 })}
-                >
-                  Two of us
-                </Chip>
-              </div>
-              <Link
-                href="/preferences#household"
-                data-testid="plan-settings-household-link"
-                className="text-xs font-semibold text-[#944a00] hover:underline"
-              >
-                Household of 3+? Set up your table ›
-              </Link>
+              {table ? (
+                <HouseholdTableSummary table={table} testId="plan-settings-household-summary" />
+              ) : (
+                <>
+                  <div role="radiogroup" aria-label="Cooking for" className="flex flex-wrap gap-2">
+                    <Chip
+                      testId="plan-settings-for-1"
+                      selected={draft.cookingFor == null || draft.cookingFor === 1}
+                      onClick={() => setDraft({ ...draft, cookingFor: 1 })}
+                    >
+                      Just me
+                    </Chip>
+                    <Chip
+                      testId="plan-settings-for-2"
+                      selected={draft.cookingFor === 2}
+                      onClick={() => setDraft({ ...draft, cookingFor: 2 })}
+                    >
+                      Two of us
+                    </Chip>
+                  </div>
+                  <Link
+                    href="/preferences#household"
+                    data-testid="plan-settings-household-link"
+                    className="text-xs font-semibold text-[#944a00] hover:underline"
+                  >
+                    Household of 3+? Set up your table ›
+                  </Link>
+                </>
+              )}
             </fieldset>
 
             <div className="flex flex-col gap-2 border-t border-gray-200 pt-4">
@@ -333,7 +346,7 @@ export function PlanSettingsSheet({
 
             <div aria-live="polite" className="rounded-xl bg-gray-50 px-3 py-2.5">
               <p data-testid="plan-settings-summary" className="text-sm text-gray-700">
-                {planShapeSummary(draft)}
+                {planShapeSummary(draft, table ? (householdQuery.data?.length ?? 0) + 1 : null)}
               </p>
             </div>
 

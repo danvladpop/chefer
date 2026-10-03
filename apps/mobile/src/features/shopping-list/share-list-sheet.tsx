@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Pressable, Share, Switch, View } from 'react-native';
 import { Button, colors, Sheet, Text, useSnackbar } from '@chefer/ui-mobile';
-import { cn, dinnersFromPlan, weekdayShortName } from '@chefer/utils';
+import { cn, dinnersFromPlan, weekdayShortName, weekRelationLabel } from '@chefer/utils';
 import { useUnitSystem } from '../../hooks/use-unit-system';
 import { getWebUrl } from '../../lib/api-url';
 import { trpc } from '../../lib/trpc';
@@ -151,6 +151,7 @@ export function ShareListSheet({
         withAmounts: prefs.withAmounts,
         withDinners: hasDinners && prefs.withDinners,
         dinners,
+        weekOffset,
         unitSystem,
         shareUrl: getWebUrl('/'),
       });
@@ -203,7 +204,7 @@ export function ShareListSheet({
       {hasDinners && (
         <SwitchRow
           testID="share-dinners"
-          label="Add this week’s dinners"
+          label={`Add ${weekRelationLabel(weekOffset)}’s dinners`}
           value={prefs.withDinners}
           onChange={(withDinners) => update({ withDinners })}
         />

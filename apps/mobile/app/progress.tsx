@@ -1,5 +1,7 @@
+import { useState } from 'react';
 import { ActivityIndicator, Pressable, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { keepPreviousData } from '@tanstack/react-query';
 import { router } from 'expo-router';
 import {
   BarChart,
@@ -9,13 +11,20 @@ import {
   KeyboardAwareScrollView,
   LineChart,
   Screen,
+  SegmentedControl,
   Text,
 } from '@chefer/ui-mobile';
 import {
   bodyWeightInUnit,
   cn,
+  DEFAULT_PROGRESS_RANGE,
+  evenLabelIndices,
   formatBodyWeight,
+  isLoggedDay,
+  localDateStr,
+  PROGRESS_RANGES,
   weightChangeTone,
+  type ProgressRange,
   type WeightChangeTone,
 } from '@chefer/utils';
 import { WeightEntriesList } from '../src/features/coach/weight-entries-list';
@@ -33,6 +42,11 @@ const MACRO_COLORS = { protein: '#3b82f6', carbs: '#10b981', fat: '#f59e0b' } as
 const DAY_MS = 86_400_000;
 /** T-11.6: an average or a percentage needs at least this many logged days to mean anything. */
 const MIN_LOGGED_DAYS = 3;
+const RANGE_OPTIONS = PROGRESS_RANGES.map((n) => ({
+  value: String(n),
+  label: `${n} days`,
+  testID: `progress-range-${n}`,
+}));
 
 const TONE_CLASS: Record<WeightChangeTone, string> = {
   positive: 'text-emerald-600',
@@ -77,7 +91,7 @@ function StatTile({
     <Card className="min-w-0 flex-1 gap-1 p-3">
       <View className="flex-row items-center gap-1">
         <Ionicons name={icon} size={14} color={iconColor} />
-        <Text numberOfLines={1} className="min-w-0 flex-1 text-xs text-gray-500">
+        <Text numberOfLines={2} className="min-w-0 flex-1 text-xs text-muted-foreground">
           {label}
         </Text>
       </View>
@@ -89,18 +103,28 @@ function StatTile({
 }
 
 export default function ProgressScreen() {
+  const [range, setRange] = useState<ProgressRange>(DEFAULT_PROGRESS_RANGE);
   const {
     data: monthly,
     isLoading,
     isError,
     refetch,
-  } = trpc.tracker.monthlySummary.useQuery(undefined, { staleTime: 60_000 });
+  } = trpc.tracker.monthlySummary.useQuery(
+    // UX-FOOD-20: the window is the user's to pick (7 / 28 / 90 days), anchored
+    // on their own local "today". Switching keeps the old chart until the new
+    // one arrives, and an older API that ignores `days` still answers 28.
+    { localDate: localDateStr(), days: range },
+    { staleTime: 60_000, placeholderData: keepPreviousData },
+  );
   const weightQuery = trpc.tracker.weightHistory.useQuery({ days: 90 }, { staleTime: 60_000 });
   const { data: preferences } = trpc.preferences.get.useQuery(undefined, { staleTime: 300_000 });
 
   const days = monthly?.days ?? [];
   const target = monthly?.dailyCalorieTarget ?? 2000;
-  const loggedDays = days.filter((d) => d.hasLog);
+  // UX-FOOD-20: a day whose entries were all deleted keeps an empty log row —
+  // only days with something in them count as logged.
+  const loggedDays = days.filter(isLoggedDay);
+  const windowDays = days.length;
   const daysLogged = loggedDays.length;
   const enoughDays = daysLogged >= MIN_LOGGED_DAYS;
   const avgKcal = enoughDays
@@ -109,7 +133,7 @@ export default function ProgressScreen() {
   const diffPct = target > 0 ? Math.round(((avgKcal - target) / target) * 100) : 0;
   const daysToGo = MIN_LOGGED_DAYS - daysLogged;
   // This week = the last 7 days of the window, and again only from >= 3 logged days.
-  const weekLogged = days.slice(-7).filter((d) => d.hasLog);
+  const weekLogged = days.slice(-7).filter(isLoggedDay);
   const weekAvg =
     weekLogged.length >= MIN_LOGGED_DAYS
       ? weekLogged.reduce((s, d) => s + d.totalKcal, 0) / weekLogged.length
@@ -125,14 +149,16 @@ export default function ProgressScreen() {
 
   // x = day index, so unlogged days leave a gap on the axis instead of
   // collapsing the month.
-  const calorieData = days.flatMap((d, i) => (d.hasLog ? [{ x: i, y: d.totalKcal }] : []));
-  const calorieLabels = days
-    .map((d, i) => ({ x: i, label: shortDate(d.date) }))
-    .filter((_, i) => i % 7 === 0 || i === days.length - 1);
+  const calorieData = days.flatMap((d, i) => (isLoggedDay(d) ? [{ x: i, y: d.totalKcal }] : []));
+  // Evenly spaced labels, first and last included (no "21, 27" pair at the end).
+  const calorieLabels = evenLabelIndices(days.length).map((i) => ({
+    x: i,
+    label: shortDate(days[i]?.date ?? ''),
+  }));
 
   const macroData = days.map((d) => ({
     label: shortDate(d.date),
-    segments: d.hasLog
+    segments: isLoggedDay(d)
       ? [
           { key: 'protein', value: Math.round(d.totalProtein) },
           { key: 'carbs', value: Math.round(d.totalCarbs) },
@@ -216,6 +242,14 @@ export default function ProgressScreen() {
           />
         </View>
 
+        <SegmentedControl
+          testID="progress-range"
+          accessibilityLabel="Time range"
+          options={RANGE_OPTIONS}
+          value={String(range)}
+          onChange={(v) => setRange(Number(v) as ProgressRange)}
+        />
+
         {monthly && !enoughDays && (
           <Text testID="progress-more-days" variant="muted" className="text-sm">
             Log {daysToGo} more {daysToGo === 1 ? 'day' : 'days'} to see your average
@@ -243,7 +277,7 @@ export default function ProgressScreen() {
           <>
             {/* Calories vs target */}
             <Card testID="progress-calories">
-              <SectionLabel>Calories — last 28 days</SectionLabel>
+              <SectionLabel>{`Calories — last ${windowDays} days`}</SectionLabel>
               {daysLogged === 0 ? (
                 <View className="h-40 items-center justify-center gap-1">
                   <Text variant="muted" className="text-center text-sm">
@@ -261,11 +295,14 @@ export default function ProgressScreen() {
               ) : (
                 <LineChart
                   testID="progress-calories-chart"
-                  accessibilityLabel={`Calories logged on ${daysLogged} of the last 28 days, average ${avgKcal} against a target of ${target}`}
+                  accessibilityLabel={`Calories logged on ${daysLogged} of the last ${windowDays} days, average ${avgKcal} against a target of ${target}`}
                   data={calorieData}
                   xLabels={calorieLabels}
                   xDomain={{ min: 0, max: Math.max(days.length - 1, 1) }}
                   reference={{ y: target, label: 'Target' }}
+                  yFloor={0}
+                  niceTicks
+                  formatY={(v) => v.toLocaleString('en-GB')}
                   height={200}
                 />
               )}
@@ -273,21 +310,32 @@ export default function ProgressScreen() {
 
             {/* Macro breakdown */}
             <Card testID="progress-macros">
-              <SectionLabel>Macros — last 28 days (g)</SectionLabel>
+              <SectionLabel>{`Macros — last ${windowDays} days (g)`}</SectionLabel>
               {daysLogged === 0 ? (
-                <View className="h-40 items-center justify-center">
-                  <Text variant="muted" className="text-sm">
-                    No log data yet.
+                <View
+                  testID="progress-macros-empty"
+                  className="h-40 items-center justify-center gap-1"
+                >
+                  <Text variant="muted" className="text-center text-sm">
+                    Log a meal to see your protein, carbs and fat here.
                   </Text>
+                  <Pressable
+                    testID="progress-macros-open-tracker"
+                    accessibilityRole="link"
+                    onPress={() => router.push('/tracker')}
+                    className="min-h-11 justify-center px-3"
+                  >
+                    <Text className="text-sm font-medium text-primary">Open Tracker</Text>
+                  </Pressable>
                 </View>
               ) : (
                 <>
                   <BarChart
                     testID="progress-macros-chart"
-                    accessibilityLabel="Daily protein, carbs and fat in grams, last 28 days"
+                    accessibilityLabel={`Daily protein, carbs and fat in grams, last ${windowDays} days`}
                     data={macroData}
                     seriesColors={MACRO_COLORS}
-                    labelEvery={7}
+                    labelEvery={Math.max(1, Math.ceil(windowDays / 4))}
                     height={200}
                   />
                   <View className="mt-2 flex-row justify-center gap-4">
@@ -310,68 +358,69 @@ export default function ProgressScreen() {
                 </>
               )}
             </Card>
-
-            {/* Weight */}
-            <Card testID="progress-weight">
-              <SectionLabel>Weight tracking</SectionLabel>
-
-              {latestWeight != null && (
-                <View className="mb-3 flex-row flex-wrap gap-x-4 gap-y-1">
-                  <Text className="text-sm text-gray-500">
-                    Current:{' '}
-                    <Text testID="progress-weight-current" className="text-sm font-semibold">
-                      {formatBodyWeight(latestWeight, system)}
-                    </Text>
-                  </Text>
-                  {weightDelta != null && Math.abs(weightDelta) >= 0.05 && (
-                    <Text className="text-sm text-gray-500">
-                      Change (90d):{' '}
-                      <Text
-                        testID="progress-weight-change"
-                        // Colour alone doesn't tell a screen reader which way is good.
-                        accessibilityLabel={`${formatBodyWeight(weightDelta, system, { signed: true })}${TONE_SUFFIX[tone]}`}
-                        className={cn('text-sm font-semibold', TONE_CLASS[tone])}
-                      >
-                        {formatBodyWeight(weightDelta, system, { signed: true })}
-                      </Text>
-                    </Text>
-                  )}
-                </View>
-              )}
-
-              {weightQuery.isError && weights.length === 0 ? (
-                <ErrorState
-                  testID="progress-weight-error"
-                  title="Couldn't load your weigh-ins"
-                  onRetry={() => void weightQuery.refetch()}
-                />
-              ) : weightQuery.isLoading ? (
-                <View className="h-40 items-center justify-center">
-                  <ActivityIndicator color={colors.primary} />
-                </View>
-              ) : weights.length > 0 ? (
-                <LineChart
-                  testID="progress-weight-chart"
-                  accessibilityLabel={`Weight over the last 90 days, currently ${latestWeight != null ? formatBodyWeight(latestWeight, system) : ''}`}
-                  data={weightData}
-                  trend={weightData.map((p) => p.y)}
-                  {...(weightLabels && { xLabels: weightLabels })}
-                  color="#10b981"
-                  height={170}
-                />
-              ) : (
-                <Text testID="progress-weight-empty" variant="muted" className="mb-2 text-sm">
-                  No weight entries yet. Log your first entry below.
-                </Text>
-              )}
-
-              <View className="mt-3">
-                <WeightLogForm placeholder={system === 'IMPERIAL' ? '160.5' : '72.5'} />
-              </View>
-              {weights.length > 0 && <WeightEntriesList entries={weights} />}
-            </Card>
           </>
         )}
+
+        {/* Weight */}
+        <Card testID="progress-weight">
+          <SectionLabel>Weight tracking</SectionLabel>
+
+          {latestWeight != null && (
+            <View className="mb-3 flex-row flex-wrap gap-x-4 gap-y-1">
+              <Text className="text-sm text-gray-500">
+                Current:{' '}
+                <Text testID="progress-weight-current" className="text-sm font-semibold">
+                  {formatBodyWeight(latestWeight, system)}
+                </Text>
+              </Text>
+              {weightDelta != null && Math.abs(weightDelta) >= 0.05 && (
+                <Text className="text-sm text-gray-500">
+                  Change (90d):{' '}
+                  <Text
+                    testID="progress-weight-change"
+                    // Colour alone doesn't tell a screen reader which way is good.
+                    accessibilityLabel={`${formatBodyWeight(weightDelta, system, { signed: true })}${TONE_SUFFIX[tone]}`}
+                    className={cn('text-sm font-semibold', TONE_CLASS[tone])}
+                  >
+                    {formatBodyWeight(weightDelta, system, { signed: true })}
+                  </Text>
+                </Text>
+              )}
+            </View>
+          )}
+
+          {weightQuery.isError && weights.length === 0 ? (
+            <ErrorState
+              testID="progress-weight-error"
+              title="Couldn't load your weigh-ins"
+              onRetry={() => void weightQuery.refetch()}
+            />
+          ) : weightQuery.isLoading ? (
+            <View className="h-40 items-center justify-center">
+              <ActivityIndicator color={colors.primary} />
+            </View>
+          ) : weights.length > 0 ? (
+            <LineChart
+              testID="progress-weight-chart"
+              accessibilityLabel={`Weight over the last 90 days, currently ${latestWeight != null ? formatBodyWeight(latestWeight, system) : ''}`}
+              data={weightData}
+              trend={weightData.map((p) => p.y)}
+              {...(weightLabels && { xLabels: weightLabels })}
+              color="#10b981"
+              niceTicks
+              height={170}
+            />
+          ) : (
+            <Text testID="progress-weight-empty" variant="muted" className="mb-2 text-sm">
+              No weight entries yet. Log your first entry below.
+            </Text>
+          )}
+
+          <View className="mt-3">
+            <WeightLogForm placeholder={system === 'IMPERIAL' ? '160.5' : '72.5'} />
+          </View>
+          {weights.length > 0 && <WeightEntriesList entries={weights} />}
+        </Card>
       </KeyboardAwareScrollView>
     </Screen>
   );

@@ -11,7 +11,7 @@ import { useHousehold } from '@/hooks/useHousehold';
 import { trpc } from '@/lib/trpc';
 import { Check, ChevronRight, Users } from 'lucide-react';
 import { PLAN_FEATURES } from '@chefer/types';
-import { PREMIUM_PITCH_COPY, WELLNESS_COPY } from '@chefer/utils';
+import { dailyAllowanceResetTime, PREMIUM_PITCH_COPY, WELLNESS_COPY } from '@chefer/utils';
 
 // ─── Usage bar ────────────────────────────────────────────────────────────────
 
@@ -236,7 +236,9 @@ export default function ProfilePage() {
             title={PREMIUM_PITCH_COPY.allowancesTitle}
             badge={user.planTier === 'PREMIUM' ? 'Premium' : 'Free plan'}
           >
-            <p className="text-xs text-gray-500">Allowances reset at midnight UTC.</p>
+            <p className="text-xs text-gray-500">
+              Allowances reset at {dailyAllowanceResetTime()} your time.
+            </p>
             {(() => {
               const isPremiumTier = user.planTier === 'PREMIUM';
               const tier = isPremiumTier ? 'premium' : 'free';

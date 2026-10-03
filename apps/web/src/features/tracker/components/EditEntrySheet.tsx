@@ -5,6 +5,7 @@ import { trpc, type RouterOutputs } from '@/lib/trpc';
 import { Sheet } from '@chefer/ui';
 import {
   checkMacroSanity,
+  entryUnknownMacros,
   formatQuickAddGrams,
   QUICK_ADD_MEAL_TYPES,
   userFacingErrorMessage,
@@ -33,6 +34,7 @@ interface CustomEntrySnapshot {
   protein: number;
   carbs: number;
   fat: number;
+  unknownMacros?: ('protein' | 'carbs' | 'fat')[];
 }
 
 type DayData = RouterOutputs['tracker']['getDay'];
@@ -95,10 +97,12 @@ export function EditEntrySheet({
         : 'snack',
     );
     setKcal(String(entry.kcal));
+    // UX-FOOD-11: a macro the entry never had shows blank, not "0.0".
+    const unknown = entryUnknownMacros(entry);
     setMacros({
-      protein: formatQuickAddGrams(entry.protein),
-      carbs: formatQuickAddGrams(entry.carbs),
-      fat: formatQuickAddGrams(entry.fat),
+      protein: unknown.includes('protein') ? '' : formatQuickAddGrams(entry.protein),
+      carbs: unknown.includes('carbs') ? '' : formatQuickAddGrams(entry.carbs),
+      fat: unknown.includes('fat') ? '' : formatQuickAddGrams(entry.fat),
     });
     setSanityOverridden(false);
   }, [entry]);
@@ -127,7 +131,12 @@ export function EditEntrySheet({
     carbs: Math.max(0, Number(macros.carbs.replace(',', '.')) || 0),
     fat: Math.max(0, Number(macros.fat.replace(',', '.')) || 0),
   };
-  const sanity = sanityOverridden ? null : checkMacroSanity({ kcal: kcalNumber, ...macroNumbers });
+  // Blank macros are unknown, not 0 g (UX-FOOD-11): stored as 0, flagged, and
+  // never trip the "don't add up" check.
+  const unknownMacros = MACROS.filter((k) => macros[k].trim() === '');
+  const sanity = sanityOverridden
+    ? null
+    : checkMacroSanity({ kcal: kcalNumber, ...macroNumbers, unknownMacros });
   const canSave =
     !!entryId && name.trim().length > 0 && kcalNumber > 0 && !updateMutation.isPending;
 
@@ -143,6 +152,7 @@ export function EditEntrySheet({
       protein: macroNumbers.protein,
       carbs: macroNumbers.carbs,
       fat: macroNumbers.fat,
+      unknownMacros,
     });
   };
 
@@ -158,6 +168,7 @@ export function EditEntrySheet({
       protein: entry.protein,
       carbs: entry.carbs,
       fat: entry.fat,
+      ...(entry.unknownMacros && { unknownMacros: [...entry.unknownMacros] }),
     };
     onClose();
 
@@ -230,7 +241,7 @@ export function EditEntrySheet({
                 onClick={() => setSanityOverridden(true)}
                 className="min-h-11 rounded-lg border border-amber-300 px-3 text-xs font-semibold"
               >
-                Log anyway
+                Save anyway
               </button>
             </div>
           )}
@@ -305,7 +316,7 @@ export function EditEntrySheet({
               key={k}
               className="flex min-w-0 flex-1 flex-col gap-1 text-xs font-medium text-neutral-600"
             >
-              {k.charAt(0).toUpperCase() + k.slice(1)}
+              {k.charAt(0).toUpperCase() + k.slice(1)} (g)
               <input
                 type="number"
                 inputMode="decimal"

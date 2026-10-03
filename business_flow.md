@@ -910,7 +910,13 @@ persona-study wave 1, `feat/ux-now/plan-mobile`).** `app/(food)/meal-plan.tsx`
   `mealPlan.setSlotPinned`; a pinned slot shows a "Your pick" badge
   (`plan-meal-card.tsx`).
 * **Undoable Replace/AI swap.** Both show a "Swapped to X" snackbar with
-  `Undo` back to `previousRecipeId`.
+  `Undo` back to `previousRecipeId`. UX-PLAN-04: Undo sends `pinned:
+previousPinned` so the restored dish keeps the slot's old pin state
+  (`replaceRecipe` pins by default; an undone swap used to leave "Your pick").
+  UX-PLAN-05: the picker asks `recipe.list` for the slot (`slotType`), states
+  the safety check once in a header ("Suggestions checked for …" — only a row
+  that passed fewer rules keeps its own chip), shows "kcal · g protein · min"
+  and allows two-line names.
 * **Replace picker filter (bug B-50).** `recipe-picker-sheet.tsx` narrows
   candidates with `filterReplaceCandidates` (`@chefer/utils/recipe-
 picker.ts`) — a pure stand-in for the server-side, safety-aware
@@ -1033,8 +1039,13 @@ column and reaching Sunday meant scrolling sideways through the whole week. The
 single-day view is a different information architecture, not a scaled-down grid.
 `/history/[planId]` renders the same component in read-only mode. Mobile has
 the same read-only detail (`app/history/[planId].tsx`: day chips, meals open the
-recipe) and adds Restore there; on both mobile screens Restore asks first
-(`ConfirmSheet`) and only the row being restored shows a spinner.
+recipe) and adds "Use this week again" there. UX-PLAN-11: a past week used to be
+restorable only into its own (past) week; "Use this week again" (web and mobile,
+My weeks cards and the detail page) asks THIS or NEXT week
+(`mealPlan.restore({ planId, weekOffset })`), only the row being copied shows a
+spinner, "Save as a week" keeps it as a My weeks template, and the read-only
+view marks meals the user logged as "Eaten" (`getById` `loggedRecipeIds`).
+UX-PLAN-15: the screen's copy says "My weeks", not "History".
 
 ### Meal swap
 
@@ -1316,6 +1327,22 @@ late at night. `ShopDueCard` renders whenever `shopDue` isn't null.
 Snap-to-log (B-31), same rule as before, now reading the additive field.
 The ring also shows a **"Your target" / "Suggested"** label
 (`targetMode` from `targets.get`, §2.11, T-35.5).
+
+**Today polish (UX-FOOD-13/18/19/23).** The pull-to-refresh spinner follows a
+user pull only (`useTimedRefresh`), never the focus refetch, and the summary
+query keeps its previous data when the hour changes (`keepPreviousData`, web
+and mobile) instead of swapping the dashboard for a spinner. Tonight's **Swap**
+links Plan with `week=0&day=<Monday-first weekday>&swap=dinner&at=<now>` (web:
+`/meal-plan?week=0&day=N`), so it never opens next week on a Friday or
+Saturday evening; Plan applies those params (`week` -1..1, `day` 0..6, `swap`
+breakfast/lunch/dinner opens that slot's replace picker, `at` makes a repeat
+link a new one) and, after midnight, reselects today and the default week on
+the next focus or foreground (`useDayRollover`). "Today's session" has one
+answer, `selectTodaysSession` (`@chefer/utils`): a session completed today, else
+the routine day pinned to today's weekday (what the Plan marks), else the
+rotation's next day; the Today workout card names and starts that day. The
+training-day Explain sheet quotes the **Training-day target** (rest + bump)
+beside the rest-day one (`trainingExplainCopy`, both platforms).
 
 **Landing (T-04.3).** `landingFor()` (`@chefer/utils`) is a pure function
 over `{ jobs, persistedMode, hasGymProfile, workoutInProgress?,
@@ -1672,6 +1699,23 @@ a flag on otherwise). Both clients read the header once the response arrives
 and render a fixed footer under that reply: `Not medical advice — check with
 your GP.` or `AI can be wrong about allergens — always check the label.`
 
+**What a reply did, and how it fails (UX-FOOD-21).** A client that sends
+`x-chefer-chat-actions: 1` gets the tools' effects after the reply text: a
+trailer (`CHAT_ACTIONS_MARKER` + a JSON array of `ChatAction`, `@chefer/types`)
+that `splitChatActions` (`@chefer/utils`) separates from the prose. The reply
+then carries a chip per action (swap, shopping-list add, logged meal, import)
+with **View** (the plan day, the list, the tracker, the recipe) and **Undo**
+(`mealPlan.replaceRecipe` back to the previous recipe, `shoppingList.removeCustomItem`
+per key, `tracker.deleteEntries` for the entry the chat created; an import has
+no Undo). Failures read as sentences through `chatFailureMessage` (502 "The chef
+is unavailable right now…", 401 session ended, offline), the unanswered question
+offers "Tap to retry" (mobile) / "Try again" (web), **Stop** aborts the request
+(and leaving the screen does too), replies over about 320 characters fold
+behind "Show more", and an empty premium thread offers starter prompts (the
+free preview's example prompts). The last thread is kept for the rest of the
+calendar day: mobile in the on-device KV store (wiped at sign-out), web in
+`sessionStorage` (this tab only, cleared at logout); "New chat" clears it.
+
 ```
 POST /api/chat (session cookie)
   ├─ resolve user from session (401 without)
@@ -1797,8 +1841,14 @@ the adjusted target must shape next week's budget)
   `tracker.deleteWeight`): both platforms list them on Progress (web
   /progress, mobile `progress` — linked from the card's "See progress" and
   from More); mobile can also expand them inside the dashboard card.
-- Progress (web + mobile): 28-day calories vs target and macro breakdown
-  (`tracker.monthlySummary`), 90-day weight chart (`tracker.weightHistory`)
+- Progress (web + mobile): calories vs target and macro breakdown over a
+  window the user picks, 7 / 28 / 90 days (`tracker.monthlySummary({ localDate,
+  days })`, default 28; UX-FOOD-20). The calorie axis is floored at 0 with round
+  ticks, the x labels are evenly spaced and kept inside the chart, and only
+  days with something logged count (`isLoggedDay`: an emptied day keeps a log
+  row with 0 kcal and no longer inflates "Days logged"). The weight card is
+  rendered outside the calorie summary's error branch, so a failed summary
+  does not hide it (UX-FOOD-28). 90-day weight chart (`tracker.weightHistory`)
   with current weight and change. The change is coloured by goal via the
   shared `weightChangeTone` (`@chefer/utils`): gaining is green for
   GAIN_MUSCLE, losing is green for LOSE_WEIGHT, other goals stay neutral
@@ -4028,6 +4078,17 @@ tracker.updateCustomMeal({ date, entryId, name?, estimatedBy?, mealType?,
      entryId answers NOT_FOUND; those are edited by re-ticking a portion)
      and replaces its fields in one mutateDay transaction
 
+  WP-10 A (additive, older clients ignore all of it):
+  - `logCustomMeal` / `updateCustomMeal` / `restoreCustomMeal` take an optional
+    `unknownMacros: ('protein'|'carbs'|'fat')[]` — macros the user left blank
+    (UX-FOOD-11). They are stored as plain 0 g (shipped 1.0.1 clients read
+    numbers) with the flag next to them; `checkMacroSanity` skips an entry with
+    any unknown macro, the edit sheet shows them blank, `recents` carries the
+    flag. On update an explicit list replaces it, `[]` clears it, absent keeps it.
+  - `logCustomMeal` mints the entry's `entryId` and returns it next to
+    `{ log, rebalance }`, so Snap-to-Log's "Logged … Undo" snackbar deletes
+    exactly that entry (UX-FOOD-26).
+
 tracker.deleteCustomMeal({ date, entryId?, entryIndex? })    [F4, UX-FOOD-17]
   └─ by stable entryId when the client has one (wins over the index; a stale
      id is NOT_FOUND instead of deleting whatever moved into that position),
@@ -4070,7 +4131,7 @@ tracker.deleteEntries({ date, entryIds })                      [T-19.3]
      batch a client already holds ids for. Idempotent: an unmatched id is
      silently ignored.
 
-tracker.weeklySummary / monthlySummary({ localDate? })   [§2.12, T-21.1, B-33]
+tracker.weeklySummary({ localDate? }) / monthlySummary({ localDate?, days? })   [§2.12, T-21.1, B-33; days 7-90: UX-FOOD-20]
   └─ optional localDate anchors the trailing-N-day window on the CLIENT's
      local day instead of the server's UTC one (a user whose local day has
      turned over relative to UTC used to see a window shifted by a day);
@@ -4098,6 +4159,36 @@ so the Log sheet's grams row can show a live kcal as the user picks
 50/100/150/200 g. Fixed alongside (T-BUG-X7): `search()` now goes through
 `ingredientPriceRepository.searchCatalog` instead of querying `prisma`
 directly.
+
+**Ingredient search ranking (UX-FOOD-12).** Rank = exact alias → the row's NAME
+starts with the query → name has the query as a word → alias-only matches
+(prefix, word-start, substring); within a rank the user's own rows, then the row
+most used by recipes (`searchByAlias` returns `uses`), then the shortest alias.
+So "chicken" lists the chicken cuts before Egg (alias "chicken egg") or schmaltz.
+`ingredients.search` takes an optional `limit` (1-40, default 12): the Log sheet's
+"Show more" asks for 36.
+
+**Target-change notices (UX-FOOD-14).** `targets.detectAndRecordChange` writes
+no notice when the previous snapshot had no body metrics and the new one does
+(finishing onboarding is setup, not a weigh-in), nor when no changed field moved
+by at least 25 kcal / 5 g (rounding wobble) — the snapshot still advances. "Keep"
+on an already-applied change fixes the targets as "My own", so both clients ask
+first (confirm sheet). The onboarding targets step previews the calories from
+the metrics entered so far (`previewTargetKcalFromBasics`), not the 2,000 default.
+
+**Today hero "I ate this" (UX-FOOD-15).** After a log the card holds the meal
+just logged as a disabled "Logged ✓" + Undo (`unlogRecipe`) for
+`HERO_LOGGED_HOLD_MS` (2 s) before the refetched summary moves it on.
+
+**Snap result (UX-FOOD-26).** The confirm card shows the photo, a 2-line dish
+name and editable calories (macros scale with them); the request times out after
+`SCAN_REQUEST_TIMEOUT_MS` (30 s); a successful log shows a snackbar/toast with Undo.
+
+**Tracker polish (UX-FOOD-25).** Off-plan recipes and custom entries are one
+"Also eaten" list grouped by meal (`groupByMeal`), above the Snap upsell on
+mobile; copy-day says "Copied 1 entry" / "Nothing to copy from yesterday"
+(`copyDayMessage`); macro fields carry visible "(g)" labels; the allowance reset
+line shows the local clock time of 00:00 UTC (`dailyAllowanceResetTime`).
 
 **Search-first Log sheet (T-19.1, both platforms).** `quick-add-sheet.tsx` /
 web `QuickAddSheet.tsx` open on a search field with **Recent** (one tap re-logs

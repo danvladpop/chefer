@@ -69,11 +69,21 @@ const meal = {
 };
 
 describe('TonightCard — Swap (T-04.7 delta)', () => {
-  it('without onSwap, Swap is a plain link to /meal-plan', () => {
-    render(<TonightCard meal={meal} showNutrition={false} onLogged={vi.fn()} />);
-    const swap = screen.getByTestId('tonight-swap');
-    expect(swap.tagName).toBe('A');
-    expect(swap.getAttribute('href')).toBe('/meal-plan');
+  // UX-FOOD-18: on Friday/Saturday evenings Plan defaults to NEXT week, so the
+  // link names this week and today's weekday (Monday = 0).
+  it.each([
+    ['Friday evening', new Date(2026, 8, 4, 19, 0), 4],
+    ['Sunday evening', new Date(2026, 8, 6, 19, 0), 6],
+  ])('without onSwap, Swap links to THIS week and today (%s)', (_name, now, day) => {
+    vi.useFakeTimers({ now });
+    try {
+      render(<TonightCard meal={meal} showNutrition={false} onLogged={vi.fn()} />);
+      const swap = screen.getByTestId('tonight-swap');
+      expect(swap.tagName).toBe('A');
+      expect(swap.getAttribute('href')).toBe(`/meal-plan?week=0&day=${day}`);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it('with onSwap, Swap is a button that fires it instead of navigating', () => {

@@ -27,6 +27,7 @@ export function PlanMealCard({
   trailing,
   day,
   onReport,
+  eaten = false,
 }: {
   meal: PlanMeal;
   testID: string;
@@ -35,6 +36,8 @@ export function PlanMealCard({
   /** L-SAFE2/T-01.5: long-press "Report a safety problem" (mirrors the recipe
    * detail overflow action) without leaving the plan card. */
   onReport?: (recipeId: string, recipeName: string) => void;
+  /** UX-PLAN-11: the past-week view marks a meal the user logged as eaten. */
+  eaten?: boolean;
 }) {
   // P1-1: the slot may be sized to the day's targets (1½× the recipe).
   const portion = slotPortion(meal.portion);
@@ -66,6 +69,16 @@ export function PlanMealCard({
       {...(onReport ? { onLongPress: () => onReport(meal.recipe.id, meal.recipe.name) } : {})}
       badges={
         <>
+          {eaten && (
+            <View
+              testID={`${testID}-eaten`}
+              accessibilityLabel="Eaten"
+              className="flex-row items-center gap-1 rounded-full bg-emerald-100 px-2 py-0.5"
+            >
+              <Ionicons name="checkmark-circle" size={12} color="#047857" />
+              <Text className="text-xs font-semibold text-emerald-700">Eaten</Text>
+            </View>
+          )}
           {meal.leftoverOf && (
             <View className="rounded-full bg-gray-100 px-2 py-0.5">
               <Text className="text-xs uppercase text-gray-500">Leftovers · {meal.leftoverOf}</Text>
