@@ -512,3 +512,203 @@ describe('gym outbox — correcting a past session (UX-44)', () => {
     expect(ids(outbox)).toEqual([]);
   });
 });
+
+// UX-GYM-23 (WP-02): an ack for an older copy must not drop a newer edit (or a
+// delete) that was queued while the upload was in flight.
+describe('gym outbox — ack for an older copy (UX-GYM-23)', () => {
+  const OLDER = '2026-09-24T09:00:00.000Z';
+  const NEWER = '2026-09-24T09:05:00.000Z';
+
+  function deferredSend() {
+    let release: (docs: WorkoutSessionDoc[]) => void = () => undefined;
+    const first = new Promise<SyncResultDto[]>((resolve) => {
+      release = (docs) => resolve(docs.map((d) => ({ id: d.id, status: 'applied' as const })));
+    });
+    return { first, release };
+  }
+
+  it('keeps the newer entry when the older copy is acked, then sends it next', async () => {
+    const { outbox } = setup();
+    const older = makeDoc(1, { clientUpdatedAt: OLDER });
+    const newer = makeDoc(1, { clientUpdatedAt: NEWER, notes: 'edited while uploading' });
+    const { first, release } = deferredSend();
+    const send = jest
+      .fn<ReturnType<SendDocs>, Parameters<SendDocs>>()
+      .mockReturnValueOnce(first)
+      .mockImplementation((docs) =>
+        Promise.resolve(docs.map((d) => ({ id: d.id, status: 'applied' as const }))),
+      );
+    outbox.configure({ send });
+    outbox.enqueue(older);
+
+    const flushing = outbox.flush({ force: true });
+    outbox.enqueue(newer); // queued while the first request is in flight
+    release([older]);
+    await flushing;
+
+    expect(send).toHaveBeenCalledTimes(2);
+    expect(send.mock.calls[1]?.[0][0]).toMatchObject({ clientUpdatedAt: NEWER });
+    expect(ids(outbox)).toEqual([]);
+  });
+
+  it('does not drop the newer entry even if sending it fails afterwards', async () => {
+    const { outbox } = setup();
+    const older = makeDoc(1, { clientUpdatedAt: OLDER });
+    const newer = makeDoc(1, { clientUpdatedAt: NEWER, notes: 'edited while uploading' });
+    const { first, release } = deferredSend();
+    const send = jest
+      .fn<ReturnType<SendDocs>, Parameters<SendDocs>>()
+      .mockReturnValueOnce(first)
+      .mockRejectedValue(new TypeError('Network request failed'));
+    outbox.configure({ send });
+    outbox.enqueue(older);
+
+    const flushing = outbox.flush({ force: true });
+    outbox.enqueue(newer);
+    release([older]);
+    await flushing;
+
+    // The older ack alone must never have removed the newer copy.
+    expect(ids(outbox)).toEqual([older.id]);
+    expect(outbox.getState().entries[0]?.doc.clientUpdatedAt).toBe(NEWER);
+    expect(outbox.getState().entries[0]?.parkedReason).toBeUndefined();
+  });
+
+  it('a delete queued mid-flight survives the ack of the earlier copy', async () => {
+    const { outbox } = setup();
+    const older = makeDoc(1, { clientUpdatedAt: OLDER });
+    const tombstone = makeDoc(1, { clientUpdatedAt: NEWER, status: 'DISCARDED' });
+    const { first, release } = deferredSend();
+    const send = jest
+      .fn<ReturnType<SendDocs>, Parameters<SendDocs>>()
+      .mockReturnValueOnce(first)
+      .mockRejectedValue(new TypeError('Network request failed'));
+    outbox.configure({ send });
+    outbox.enqueue(older);
+
+    const flushing = outbox.flush({ force: true });
+    outbox.enqueue(tombstone);
+    release([older]);
+    await flushing;
+
+    expect(outbox.getState().entries[0]?.doc.status).toBe('DISCARDED');
+  });
+
+  it('a rejected ack for the older copy does not park the newer one', async () => {
+    const { outbox } = setup();
+    const older = makeDoc(1, { clientUpdatedAt: OLDER });
+    const newer = makeDoc(1, { clientUpdatedAt: NEWER });
+    let release: () => void = () => undefined;
+    const first = new Promise<SyncResultDto[]>((resolve) => {
+      release = () => resolve([{ id: older.id, status: 'rejected', reason: 'old copy invalid' }]);
+    });
+    const send = jest
+      .fn<ReturnType<SendDocs>, Parameters<SendDocs>>()
+      .mockReturnValueOnce(first)
+      .mockRejectedValue(new TypeError('Network request failed'));
+    outbox.configure({ send });
+    outbox.enqueue(older);
+
+    const flushing = outbox.flush({ force: true });
+    outbox.enqueue(newer);
+    release();
+    await flushing;
+
+    expect(outbox.getState().entries[0]?.parkedReason).toBeUndefined();
+  });
+});
+
+// UX-GYM-25 (WP-02): a workout the server keeps failing on is isolated and
+// parked after a few rounds so it cannot block the others.
+describe('gym outbox — a failing item is parked (UX-GYM-25)', () => {
+  const serverDown = () => Object.assign(new Error('boom'), { data: { httpStatus: 500 } });
+
+  /** Server that 500s whenever `bad` is in the request, and applies everything else. */
+  function pickySend(badId: string) {
+    return jest.fn<ReturnType<SendDocs>, Parameters<SendDocs>>((docs) =>
+      docs.some((d) => d.id === badId)
+        ? Promise.reject(serverDown())
+        : Promise.resolve(docs.map((d) => ({ id: d.id, status: 'applied' as const }))),
+    );
+  }
+
+  it('after 3 failed rounds sends one by one, delivers the rest and parks the failing one', async () => {
+    const { outbox, advance } = setup();
+    const bad = makeDoc(1);
+    const send = pickySend(bad.id);
+    outbox.configure({ send });
+    outbox.enqueue(bad);
+    outbox.enqueue(makeDoc(2));
+    outbox.enqueue(makeDoc(3));
+
+    // Rounds 1 and 2: the whole batch fails; nothing is parked, nothing lost.
+    for (let round = 1; round <= 2; round++) {
+      const result = await outbox.flush({ force: true });
+      expect(result.status).toBe('error');
+      expect(outbox.getState().entries.every((e) => !e.parkedReason)).toBe(true);
+      advance(60_000);
+    }
+    expect(outbox.getState().entries).toHaveLength(3);
+
+    // Round 3: the batch fails again, is split, and the others get through.
+    const third = await outbox.flush({ force: true });
+    expect(third).toMatchObject({ applied: 2, parked: 1 });
+    expect(ids(outbox)).toEqual([bad.id]);
+    const parked = outbox.getState().entries[0];
+    expect(parked?.parkedReason).toContain("couldn't save");
+    expect(parked?.lastError).toBe('boom');
+    // The queue is healthy again: no backoff left behind.
+    expect(outbox.getState()).toMatchObject({ failures: 0, nextAttemptAt: null });
+
+    // Parked: never sent automatically; the status the UI reads says so.
+    send.mockClear();
+    expect(await outbox.flush({ force: true })).toMatchObject({ reason: 'empty' });
+    expect(send).not.toHaveBeenCalled();
+    const status = selectOutboxStatus(outbox.getState(), OWNER, false);
+    expect(status).toMatchObject({ pending: 0 });
+    expect(status.parked).toHaveLength(1);
+  });
+
+  it('Retry gives a parked item a fresh set of rounds', async () => {
+    const { outbox } = setup();
+    const bad = makeDoc(1);
+    outbox.configure({ send: pickySend(bad.id) });
+    outbox.enqueue(bad);
+    outbox.enqueue(makeDoc(2));
+    for (let i = 0; i < 3; i++) await outbox.flush({ force: true });
+    expect(outbox.getState().entries[0]?.parkedReason).toBeDefined();
+
+    outbox.configure({ send: acking('applied') });
+    await outbox.retryParked(bad.id);
+    expect(ids(outbox)).toEqual([]);
+  });
+
+  it('does not park anything while the whole server is down (no item got through)', async () => {
+    const { outbox } = setup();
+    outbox.configure({
+      send: jest.fn<ReturnType<SendDocs>, Parameters<SendDocs>>(() => Promise.reject(serverDown())),
+    });
+    outbox.enqueue(makeDoc(1));
+    outbox.enqueue(makeDoc(2));
+    for (let i = 0; i < 5; i++) await outbox.flush({ force: true });
+
+    expect(outbox.getState().entries).toHaveLength(2);
+    expect(outbox.getState().entries.every((e) => !e.parkedReason)).toBe(true);
+    expect(outbox.getState().lastError).toBe('boom');
+  });
+
+  it('network errors never count toward parking', async () => {
+    const { outbox } = setup();
+    outbox.configure({
+      send: jest.fn<ReturnType<SendDocs>, Parameters<SendDocs>>(() =>
+        Promise.reject(new TypeError('Network request failed')),
+      ),
+    });
+    outbox.enqueue(makeDoc(1));
+    outbox.enqueue(makeDoc(2));
+    for (let i = 0; i < 6; i++) await outbox.flush({ force: true });
+
+    expect(outbox.getState().entries.every((e) => !e.parkedReason)).toBe(true);
+    expect(outbox.getState().entries.every((e) => e.serverFailures === undefined)).toBe(true);
+  });
+});
