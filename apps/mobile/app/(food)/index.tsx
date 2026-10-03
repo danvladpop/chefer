@@ -9,7 +9,7 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Link, router, useFocusEffect } from 'expo-router';
-import { Button, Card, Screen, Text } from '@chefer/ui-mobile';
+import { Button, Card, KeyboardAwareScrollView, Screen, Text } from '@chefer/ui-mobile';
 import { localDateStr } from '@chefer/utils';
 import { ChefReviewBanner } from '../../src/features/coach/chef-review-banner';
 import { WeightCard } from '../../src/features/coach/weight-card';
@@ -145,7 +145,11 @@ export default function HomeScreen() {
 
   return (
     <Screen className="px-0">
-      <ScrollView
+      {/* UX-FOOD-08: keyboard-aware, so the weight field and its "+" stay above
+          the keyboard (WeightLogForm scrolls itself into view on focus) and
+          the first tap on "+" lands (keyboardShouldPersistTaps="handled"). */}
+      <KeyboardAwareScrollView
+        testID="today-scroll"
         contentContainerClassName="gap-4 px-4 py-4"
         refreshControl={
           <RefreshControl refreshing={isRefetching} onRefresh={() => void refetch()} />
@@ -342,7 +346,7 @@ export default function HomeScreen() {
             </ScrollView>
           </View>
         )}
-      </ScrollView>
+      </KeyboardAwareScrollView>
 
       <QuickAddSheet
         visible={quickAddOpen}
