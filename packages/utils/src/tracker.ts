@@ -16,6 +16,8 @@ export interface LoggedMealEntryLike {
   protein: number;
   carbs: number;
   fat: number;
+  /** UX-FOOD-11: macros the user left blank (stored as 0 g). */
+  unknownMacros?: readonly ('protein' | 'carbs' | 'fat')[] | undefined;
 }
 
 export interface CustomEntryRow {
@@ -32,6 +34,8 @@ export interface CustomEntryRow {
   protein: number;
   carbs: number;
   fat: number;
+  /** UX-FOOD-11: macros the user left blank (stored as 0 g). */
+  unknownMacros?: readonly ('protein' | 'carbs' | 'fat')[] | undefined;
 }
 
 /**
@@ -53,9 +57,29 @@ export function customEntryRows(loggedMeals: LoggedMealEntryLike[]): CustomEntry
         protein: entry.protein,
         carbs: entry.carbs,
         fat: entry.fat,
+        ...(entry.unknownMacros && entry.unknownMacros.length > 0
+          ? { unknownMacros: entry.unknownMacros }
+          : {}),
       },
     ];
   });
+}
+
+/**
+ * Which macros of a custom entry are unknown rather than 0 g (UX-FOOD-11).
+ * The stored flag wins; an entry from before the flag whose macros are all 0
+ * is a calories-only quick add, so all three are unknown.
+ */
+export function entryUnknownMacros(entry: {
+  protein: number;
+  carbs: number;
+  fat: number;
+  unknownMacros?: readonly ('protein' | 'carbs' | 'fat')[] | undefined;
+}): ('protein' | 'carbs' | 'fat')[] {
+  if (entry.unknownMacros) return [...entry.unknownMacros];
+  return entry.protein === 0 && entry.carbs === 0 && entry.fat === 0
+    ? ['protein', 'carbs', 'fat']
+    : [];
 }
 
 /** Chip copy: vision estimates are honest about being estimates. */
@@ -83,4 +107,50 @@ export function customEntryTotals(loggedMeals: LoggedMealEntryLike[]): {
     }),
     { kcal: 0, protein: 0, carbs: 0, fat: 0 },
   );
+}
+
+// ─── "Also eaten" grouping and copy (UX-FOOD-25) ─────────────────────────────
+
+const MEAL_ORDER = ['breakfast', 'lunch', 'dinner', 'snack'] as const;
+
+/**
+ * Groups rows under their meal slot, in day order (breakfast → snack, then any
+ * unknown meal type), keeping each group's rows in the order given. Off-plan
+ * recipes and custom entries share one "Also eaten" list this way instead of
+ * two stacked sections that lost the meal they belong to.
+ */
+export function groupByMeal<T extends { mealType: string }>(
+  rows: readonly T[],
+): { mealType: string; rows: T[] }[] {
+  const groups = new Map<string, T[]>();
+  for (const row of rows) {
+    const key = row.mealType.toLowerCase();
+    const group = groups.get(key);
+    if (group) group.push(row);
+    else groups.set(key, [row]);
+  }
+  const rank = (meal: string): number => {
+    const i = (MEAL_ORDER as readonly string[]).indexOf(meal);
+    return i === -1 ? MEAL_ORDER.length : i;
+  };
+  return [...groups.entries()]
+    .sort(([a], [b]) => rank(a) - rank(b))
+    .map(([mealType, groupRows]) => ({ mealType, rows: groupRows }));
+}
+
+/** "Copied 1 entry" / "Copied 3 entries" / "Nothing to copy from yesterday". */
+export function copyDayMessage(count: number, fromLabel: string): string {
+  if (count <= 0) return `Nothing to copy from ${fromLabel}`;
+  return `Copied ${count} ${count === 1 ? 'entry' : 'entries'}`;
+}
+
+/**
+ * The device-local clock time of the next 00:00 UTC — when the daily AI
+ * allowances reset ("3:00 AM" in Bucharest, "5:00 PM" in Los Angeles) — so
+ * copy can say when the user's own day rolls over instead of "midnight UTC".
+ */
+export function dailyAllowanceResetTime(now: Date = new Date()): string {
+  const reset = new Date(now);
+  reset.setUTCHours(24, 0, 0, 0);
+  return reset.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
 }

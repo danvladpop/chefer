@@ -72,12 +72,15 @@ export interface IIngredientRepository {
     ownerId: string | null,
     limit: number,
   ): Promise<{ ingredientId: string; score: number }[]>;
-  /** ACTIVE rows with an alias containing `key` (picker search); at most `limit` alias hits. */
+  /**
+   * ACTIVE rows with an alias containing `key` (picker search); at most `limit` alias hits.
+   * `uses` (UX-FOOD-12 commonness) is how many recipe lines point at the row.
+   */
   searchByAlias(
     key: string,
     ownerId: string,
     opts: { category?: IngredientCategory | undefined; limit: number },
-  ): Promise<{ alias: string; ingredient: CatalogIngredientRow }[]>;
+  ): Promise<{ alias: string; ingredient: CatalogIngredientRow; uses?: number }[]>;
   /** The owner's private row with this slug, if any (any status). */
   findPrivateBySlug(ownerId: string, slug: string): Promise<CatalogIngredientRow | null>;
   /** slug → id of the GLOBAL rows with these slugs (any status). */
@@ -263,7 +266,7 @@ export class IngredientRepository implements IIngredientRepository {
     key: string,
     ownerId: string,
     opts: { category?: IngredientCategory | undefined; limit: number },
-  ): Promise<{ alias: string; ingredient: CatalogIngredientRow }[]> {
+  ): Promise<{ alias: string; ingredient: CatalogIngredientRow; uses?: number }[]> {
     if (!key) return [];
     const where = (alias: Prisma.StringFilter): Prisma.IngredientAliasWhereInput => ({
       alias,
@@ -292,10 +295,23 @@ export class IngredientRepository implements IIngredientRepository {
       }),
     ]);
     const seen = new Set<string>();
-    return [...prefix, ...contains].filter((h) => {
+    const hits = [...prefix, ...contains].filter((h) => {
       const k = `${h.ingredient.id}\u0000${h.alias}`;
       return seen.has(k) ? false : (seen.add(k), true);
     });
+    // Commonness (UX-FOOD-12): how many recipe lines use each row, so "chicken
+    // breast" outranks "chicken fat" once both match the name equally well.
+    const ids = [...new Set(hits.map((h) => h.ingredient.id))];
+    const usage =
+      ids.length > 0
+        ? await prisma.recipeIngredient.groupBy({
+            by: ['ingredientId'],
+            where: { ingredientId: { in: ids } },
+            _count: { _all: true },
+          })
+        : [];
+    const uses = new Map(usage.map((u) => [u.ingredientId, u._count._all]));
+    return hits.map((h) => ({ ...h, uses: uses.get(h.ingredient.id) ?? 0 }));
   }
 
   async findGlobalIdsBySlugs(slugs: string[]): Promise<Map<string, string>> {
