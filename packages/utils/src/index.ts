@@ -265,11 +265,14 @@ export {
 } from './weight';
 export {
   KCAL_PER_G,
+  INGREDIENT_GRAMS_MAX,
   MACRO_SANITY_TOLERANCE,
   QUICK_ADD_LIMITS,
   QUICK_ADD_MEAL_TYPES,
   checkMacroSanity,
+  clampIngredientGrams,
   formatQuickAddGrams,
+  maxIngredientGrams,
   parseQuickAdd,
   type MacroSanityResult,
   type QuickAddEntry,

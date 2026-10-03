@@ -6,6 +6,7 @@ import { ChevronDown, ChevronUp, Plus, Search } from 'lucide-react';
 import { Sheet } from '@chefer/ui';
 import {
   checkMacroSanity,
+  clampIngredientGrams,
   defaultMealSlot,
   formatPortion,
   formatQuickAddGrams,
@@ -53,6 +54,7 @@ const MEAL_OPTIONS = QUICK_ADD_MEAL_TYPES.map((v) => ({
   label: v.charAt(0).toUpperCase() + v.slice(1),
 }));
 const GRAM_CHIPS = [50, 100, 150, 200];
+const SEARCH_DEBOUNCE_MS = 250;
 const RECIPE_PORTIONS = [0.5, 0.75, 1, 1.5, 2];
 
 function toQuickAddMealType(mealType: string): QuickAddMealType {
@@ -83,6 +85,7 @@ export function QuickAddSheet({ date, onLogged, plannedMeals = [] }: QuickAddShe
   );
   const [expandedKey, setExpandedKey] = useState<string | null>(null);
   const [gramsText, setGramsText] = useState('100');
+  const [gramsCapped, setGramsCapped] = useState(false);
   const [portion, setPortion] = useState(1);
 
   const [name, setName] = useState('');
@@ -95,21 +98,33 @@ export function QuickAddSheet({ date, onLogged, plannedMeals = [] }: QuickAddShe
   const trimmedQuery = query.trim();
   const searching = trimmedQuery.length > 0;
 
+  // UX-FOOD-09: 250 ms debounce for the server groups; the previous results
+  // stay on screen while the next ones load (no flicker).
+  const [debouncedQuery, setDebouncedQuery] = useState('');
+  useEffect(() => {
+    const timer = setTimeout(() => setDebouncedQuery(trimmedQuery), SEARCH_DEBOUNCE_MS);
+    return () => clearTimeout(timer);
+  }, [trimmedQuery]);
+
   const recentsQuery = trpc.tracker.recents.useQuery({ limit: 15 }, { enabled: open });
   const recipesQuery = trpc.recipe.list.useQuery(
-    { search: trimmedQuery, myRecipesOnly: true, limit: 5 },
-    { enabled: open && searching },
+    { search: debouncedQuery, myRecipesOnly: true, limit: 5 },
+    { enabled: open && debouncedQuery.length > 0, placeholderData: (previous) => previous },
   );
   const ingredientsQuery = trpc.ingredients.search.useQuery(
-    { query: trimmedQuery },
-    { enabled: open && trimmedQuery.length > 1 },
+    { query: debouncedQuery },
+    { enabled: open && debouncedQuery.length > 1, placeholderData: (previous) => previous },
   );
+  const searchSettling =
+    debouncedQuery !== trimmedQuery || recipesQuery.isFetching || ingredientsQuery.isFetching;
+  const searchFailed = recipesQuery.isError || ingredientsQuery.isError;
 
   const reset = () => {
     setView('search');
     setQuery('');
     setExpandedKey(null);
     setGramsText('100');
+    setGramsCapped(false);
     setPortion(1);
     setName('');
     setKcal('');
@@ -138,7 +153,11 @@ export function QuickAddSheet({ date, onLogged, plannedMeals = [] }: QuickAddShe
     setOpen(false);
   };
 
-  const logRecipeMutation = trpc.tracker.logRecipe.useMutation({ onSuccess: onLoggedCommon });
+  // Both mutations render their failure inline (search view and manual form).
+  const logRecipeMutation = trpc.tracker.logRecipe.useMutation({
+    meta: { silent: true },
+    onSuccess: onLoggedCommon,
+  });
   const logCustomMutation = trpc.tracker.logCustomMeal.useMutation({
     meta: { silent: true },
     onSuccess: onLoggedCommon,
@@ -151,6 +170,12 @@ export function QuickAddSheet({ date, onLogged, plannedMeals = [] }: QuickAddShe
   const planRows = plannedMeals.filter(
     (m) => !searching || m.recipeName.toLowerCase().includes(trimmedQuery.toLowerCase()),
   );
+
+  const hasSearchResults =
+    recents.length > 0 ||
+    planRows.length > 0 ||
+    (recipesQuery.data?.length ?? 0) > 0 ||
+    (ingredientsQuery.data?.length ?? 0) > 0;
 
   const logRecentAgain = (recent: NonNullable<typeof recentsQuery.data>[number]) => {
     if (isPending) return;
@@ -221,8 +246,17 @@ export function QuickAddSheet({ date, onLogged, plannedMeals = [] }: QuickAddShe
     logCustomMutation.mutate({ date, estimatedBy: 'manual', ...parsedNow.entry });
   };
 
-  const gramsNumber = Math.max(0, Math.round(Number(gramsText.replace(',', '.')) || 0));
   const expandedIngredient = ingredientsQuery.data?.find((i) => i.name === expandedKey);
+  // UX-FOOD-09: grams are clamped to what one entry can hold (server: kcal ≤ 5000).
+  const gramsInfo = expandedIngredient?.per100g
+    ? clampIngredientGrams(gramsText, expandedIngredient.per100g)
+    : null;
+  const gramsNumber = gramsInfo?.grams ?? 0;
+  const onGramsChange = (text: string, per100g: NonNullable<IngredientSearchRow['per100g']>) => {
+    const info = clampIngredientGrams(text, per100g);
+    setGramsCapped(info.clamped);
+    setGramsText(info.clamped ? String(info.max) : text);
+  };
   const expandedLive =
     expandedIngredient?.per100g && gramsNumber > 0
       ? scaleFromPer100g(expandedIngredient.per100g, gramsNumber)
@@ -322,6 +356,15 @@ export function QuickAddSheet({ date, onLogged, plannedMeals = [] }: QuickAddShe
                 className="min-h-11 w-full rounded-xl border border-neutral-200 py-2 pl-9 pr-3 text-sm text-neutral-900"
               />
             </label>
+
+            {(logRecipeMutation.isError || logCustomMutation.isError) && (
+              <p data-testid="log-sheet-api-error" role="alert" className="text-sm text-red-600">
+                Couldn&apos;t log that:{' '}
+                {userFacingErrorMessage(
+                  logRecipeMutation.isError ? logRecipeMutation.error : logCustomMutation.error,
+                )}
+              </p>
+            )}
 
             {recents.length > 0 && (
               <div className="space-y-1.5">
@@ -518,6 +561,7 @@ export function QuickAddSheet({ date, onLogged, plannedMeals = [] }: QuickAddShe
                         onClick={() => {
                           setExpandedKey(isOpen ? null : key);
                           setGramsText('100');
+                          setGramsCapped(false);
                         }}
                         className="flex w-full items-center gap-3 text-left disabled:opacity-60"
                       >
@@ -546,7 +590,10 @@ export function QuickAddSheet({ date, onLogged, plannedMeals = [] }: QuickAddShe
                                 key={g}
                                 type="button"
                                 data-testid={`log-sheet-grams-${key}-${g}`}
-                                onClick={() => setGramsText(String(g))}
+                                onClick={() => {
+                                  setGramsText(String(g));
+                                  setGramsCapped(false);
+                                }}
                                 className={chipBtn(gramsNumber === g)}
                               >
                                 {g} g
@@ -559,7 +606,11 @@ export function QuickAddSheet({ date, onLogged, plannedMeals = [] }: QuickAddShe
                               data-testid={`log-sheet-grams-input-${key}`}
                               aria-label={`Grams of ${ingredient.displayName}`}
                               value={gramsText}
-                              onChange={(e) => setGramsText(e.target.value)}
+                              onChange={(e) => {
+                                if (ingredient.per100g) {
+                                  onGramsChange(e.target.value, ingredient.per100g);
+                                }
+                              }}
                               className="min-h-11 w-full min-w-0 rounded-lg border border-neutral-200 px-3 text-sm"
                             />
                             <span className="shrink-0 text-sm text-neutral-400">g</span>
@@ -573,6 +624,14 @@ export function QuickAddSheet({ date, onLogged, plannedMeals = [] }: QuickAddShe
                               ? `${expandedLive.kcal} kcal · ${expandedLive.protein}g P`
                               : '—'}
                           </p>
+                          {gramsCapped && gramsInfo && (
+                            <p
+                              data-testid={`log-sheet-grams-max-${key}`}
+                              className="text-xs text-amber-700"
+                            >
+                              One entry holds up to {gramsInfo.max.toLocaleString('en-US')} g.
+                            </p>
+                          )}
                           <button
                             type="button"
                             data-testid={`log-sheet-grams-log-${key}`}
@@ -588,6 +647,46 @@ export function QuickAddSheet({ date, onLogged, plannedMeals = [] }: QuickAddShe
                   );
                 })}
               </div>
+            )}
+
+            {searching && searchFailed && (
+              <div
+                data-testid="log-sheet-search-error"
+                role="alert"
+                className="space-y-1 rounded-xl bg-amber-50 p-3 text-sm text-amber-800"
+              >
+                <p>Couldn&apos;t search just now. Check your connection and try again.</p>
+                <button
+                  type="button"
+                  data-testid="log-sheet-search-retry"
+                  onClick={() => {
+                    void recipesQuery.refetch();
+                    void ingredientsQuery.refetch();
+                  }}
+                  className="min-h-11 text-sm font-semibold text-[#944a00] hover:underline"
+                >
+                  Retry
+                </button>
+              </div>
+            )}
+            {searching && !searchFailed && !hasSearchResults && searchSettling && (
+              <p data-testid="log-sheet-searching" className="py-2 text-sm text-neutral-500">
+                Searching…
+              </p>
+            )}
+            {searching && !searchFailed && !hasSearchResults && !searchSettling && (
+              <button
+                type="button"
+                data-testid="log-sheet-no-matches"
+                onClick={() => {
+                  setView('manual');
+                  setName(trimmedQuery);
+                }}
+                className="min-h-11 py-2 text-left text-sm text-neutral-600"
+              >
+                No matches —{' '}
+                <span className="font-semibold text-[#944a00]">enter calories yourself</span>
+              </button>
             )}
 
             <div className="flex flex-wrap gap-4 border-t border-neutral-100 pt-3">
