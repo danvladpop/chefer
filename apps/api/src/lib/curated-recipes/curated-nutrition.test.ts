@@ -9,8 +9,8 @@ import { CURATED_POOL_BY_TYPE } from './index.js';
 const ALL = Object.values(CURATED_POOL_BY_TYPE).flat();
 
 describe('curated pool nutrition is computed from the catalog', () => {
-  it('has the whole pool (64 recipes)', () => {
-    expect(ALL).toHaveLength(64);
+  it('has the whole pool (90 recipes)', () => {
+    expect(ALL).toHaveLength(90);
   });
 
   it('every line names an existing catalog row by slug', () => {
