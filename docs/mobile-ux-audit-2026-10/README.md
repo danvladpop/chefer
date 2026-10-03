@@ -44,7 +44,7 @@ Updated by each work package in `docs/backlog-2026-10/` (each WP edits only its 
 | UX-ACC-02  | S0  | fixed           | WP-01         | #106       | One `signOut()`; cache cleared on `setToken`                                                               |
 | UX-ACC-03  | S1  | fixed           | WP-01         | #106       | Error + retry; never seeds from a failed load                                                              |
 | UX-ACC-04  | S2  | open            | WP-09         |            |                                                                                                            |
-| UX-ACC-05  | S2  | fixed           | WP-03         | PR_WP03    | Jobs: ScrollView, back row, unsaved guard (+ WP-02 ErrorState)                                             |
+| UX-ACC-05  | S2  | fixed           | WP-03         | #109       | Jobs: ScrollView, back row, unsaved guard (+ WP-02 ErrorState)                                             |
 | UX-ACC-06  | S2  | open            | WP-09         |            |                                                                                                            |
 | UX-ACC-07  | S2  | open            | WP-09         |            |                                                                                                            |
 | UX-ACC-08  | S2  | open            | WP-09 + Owner |            | JS part in the WP; native part in the owner native batch                                                   |
@@ -64,16 +64,16 @@ Updated by each work package in `docs/backlog-2026-10/` (each WP edits only its 
 | UX-ACC-22  | S3  | open            | WP-09         |            |                                                                                                            |
 | UX-ACC-23  | S3  | open            | WP-09         |            |                                                                                                            |
 | UX-ACC-24  | S3  | open            | WP-09         |            |                                                                                                            |
-| UX-ACC-25  | S3  | fixed           | WP-03         | PR_WP03    | Feedback scrolls into view; Send disabled when empty                                                       |
-| UX-ACC-26  | S3  | fixed           | WP-03         | PR_WP03    | Delete-account field + persist-taps footer (test)                                                          |
+| UX-ACC-25  | S3  | fixed           | WP-03         | #109       | Feedback scrolls into view; Send disabled when empty                                                       |
+| UX-ACC-26  | S3  | fixed           | WP-03         | #109       | Delete-account field + persist-taps footer (test)                                                          |
 | UX-ACC-27  | S3  | fixed           | WP-04         | #107       | min-w-0 / w-full on the clipped card rows (incl. gym export)                                               |
 | UX-ONB-01  | S1  | fixed           | WP-01         | #106       | BACK steps back; KV draft resumes; empty jobs → wizard                                                     |
 | UX-ONB-02  | S1  | open            | Owner         |            |                                                                                                            |
-| UX-ONB-03  | S2  | fixed           | WP-03         | PR_WP03    | Consent sheet ✕/backdrop/BACK = cancel, selections kept                                                    |
+| UX-ONB-03  | S2  | fixed           | WP-03         | #109       | Consent sheet ✕/backdrop/BACK = cancel, selections kept                                                    |
 | UX-ONB-04  | S2  | open            | WP-09         |            |                                                                                                            |
 | UX-ONB-05  | S2  | open            | WP-09         |            |                                                                                                            |
-| UX-ONB-06  | S2  | fixed           | WP-03         | PR_WP03    | One NumericReturnBar per field, Next/Done chaining                                                         |
-| UX-ONB-07  | S2  | fixed           | WP-03         | PR_WP03    | Wizard keyboard-aware with sticky Continue                                                                 |
+| UX-ONB-06  | S2  | fixed           | WP-03         | #109       | One NumericReturnBar per field, Next/Done chaining                                                         |
+| UX-ONB-07  | S2  | fixed           | WP-03         | #109       | Wizard keyboard-aware with sticky Continue                                                                 |
 | UX-ONB-08  | S2  | fixed           | WP-01         | #106       | Saved jobs pre-fill; rounded metrics                                                                       |
 | UX-ONB-09  | S2  | fixed           | WP-02         | #108       | One saving flag; plain error                                                                               |
 | UX-ONB-10  | S3  | open            | WP-09         |            |                                                                                                            |
@@ -84,15 +84,15 @@ Updated by each work package in `docs/backlog-2026-10/` (each WP edits only its 
 | UX-FOOD-05 | S1  | fixed           | WP-02         | #108       | Pill = eaten + planned vs target; amber "Over by N"                                                        |
 | UX-FOOD-06 | S1  | fixed           | WP-01         | #106       | Failed writes revert and say why                                                                           |
 | UX-FOOD-07 | S1  | fixed           | WP-01         | #106       | `useKeyboardInset` pads the composer                                                                       |
-| UX-FOOD-08 | S2  | partially fixed | WP-03         | PR_WP03    | Today scrolls the weight field clear; Log accessory + dedupe deferred to WP-10 follow-up                   |
+| UX-FOOD-08 | S2  | partially fixed | WP-03         | #109       | Today scrolls the weight field clear; Log accessory + dedupe deferred to WP-10 follow-up                   |
 | UX-FOOD-09 | S2  | fixed           | WP-02         | #108       | Debounced search, states, gram clamp                                                                       |
-| UX-FOOD-10 | S2  | partially fixed | WP-03         | PR_WP03    | Quick-add fields scroll clear; first invalid field focused; clear-on-change deferred                       |
+| UX-FOOD-10 | S2  | partially fixed | WP-03         | #109       | Quick-add fields scroll clear; first invalid field focused; clear-on-change deferred                       |
 | UX-FOOD-11 | S2  | open            | WP-10         |            |                                                                                                            |
 | UX-FOOD-12 | S2  | open            | WP-10         |            |                                                                                                            |
 | UX-FOOD-13 | S2  | open            | WP-10         |            |                                                                                                            |
 | UX-FOOD-14 | S2  | open            | WP-10         |            |                                                                                                            |
 | UX-FOOD-15 | S2  | open            | WP-10         |            |                                                                                                            |
-| UX-FOOD-16 | S2  | fixed           | WP-03         | PR_WP03    | Keyboard.dismiss on every Sheet close path                                                                 |
+| UX-FOOD-16 | S2  | fixed           | WP-03         | #109       | Keyboard.dismiss on every Sheet close path                                                                 |
 | UX-FOOD-17 | S2  | fixed           | WP-01         | #106       | Optional `entryId` (index still accepted)                                                                  |
 | UX-FOOD-18 | S2  | open            | WP-10         |            |                                                                                                            |
 | UX-FOOD-19 | S2  | open            | WP-10         |            |                                                                                                            |
@@ -114,7 +114,7 @@ Updated by each work package in `docs/backlog-2026-10/` (each WP edits only its 
 | UX-PLAN-07 | S2  | open            | WP-10         |            |                                                                                                            |
 | UX-PLAN-08 | S2  | open            | WP-07         |            |                                                                                                            |
 | UX-PLAN-09 | S2  | partially fixed | WP-01 + WP-07 | #106       | Wrong week fixed here; opt-in UX in WP-07                                                                  |
-| UX-PLAN-10 | S2  | partially fixed | WP-03         | PR_WP03    | My weeks keyboard-aware; rename Cancel/counter deferred                                                    |
+| UX-PLAN-10 | S2  | partially fixed | WP-03         | #109       | My weeks keyboard-aware; rename Cancel/counter deferred                                                    |
 | UX-PLAN-11 | S2  | open            | WP-10         |            |                                                                                                            |
 | UX-PLAN-12 | S2  | open            | WP-10         |            |                                                                                                            |
 | UX-PLAN-13 | S3  | fixed           | WP-04         | #107       | Badge row wraps                                                                                            |
@@ -132,7 +132,7 @@ Updated by each work package in `docs/backlog-2026-10/` (each WP edits only its 
 | UX-REC-03  | S2  | fixed           | WP-02         | #108       | Error vs not-found; Retry                                                                                  |
 | UX-REC-04  | S2  | open            | WP-11         |            |                                                                                                            |
 | UX-REC-05  | S2  | open            | WP-11         |            |                                                                                                            |
-| UX-REC-06  | S2  | fixed           | WP-03         | PR_WP03    | Unsaved guard on import while a preview exists                                                             |
+| UX-REC-06  | S2  | fixed           | WP-03         | #109       | Unsaved guard on import while a preview exists                                                             |
 | UX-REC-07  | S2  | open            | WP-11         |            |                                                                                                            |
 | UX-REC-08  | S2  | open            | WP-11         |            |                                                                                                            |
 | UX-REC-09  | S2  | open            | WP-11         |            |                                                                                                            |
@@ -143,7 +143,7 @@ Updated by each work package in `docs/backlog-2026-10/` (each WP edits only its 
 | UX-REC-14  | S3  | open            | WP-11         |            |                                                                                                            |
 | UX-REC-15  | S3  | open            | WP-11         |            |                                                                                                            |
 | UX-COOK-01 | S2  | open            | WP-11         |            |                                                                                                            |
-| UX-COOK-02 | S2  | fixed           | WP-03         | PR_WP03    | BACK closes ingredients, then confirms past step 1; step/ticks persist                                     |
+| UX-COOK-02 | S2  | fixed           | WP-03         | #109       | BACK closes ingredients, then confirms past step 1; step/ticks persist                                     |
 | UX-COOK-03 | S2  | fixed           | WP-02         | #108       | Error state; no-steps recipes open on ingredients                                                          |
 | UX-COOK-04 | S2  | open            | WP-11         |            |                                                                                                            |
 | UX-COOK-05 | S3  | open            | WP-11         |            |                                                                                                            |
@@ -172,7 +172,7 @@ Updated by each work package in `docs/backlog-2026-10/` (each WP edits only its 
 | UX-GYM-23  | S2  | fixed           | WP-02         | #108       | Ack for an older copy keeps the newer edit                                                                 |
 | UX-GYM-24  | S2  | fixed           | WP-02         | #108       | Gym screens show Retry / needs a connection                                                                |
 | UX-GYM-25  | S2  | fixed           | WP-02         | #108       | Park after 3 server failures; "N waiting · Sync now"                                                       |
-| UX-GYM-26  | S2  | fixed           | WP-03         | PR_WP03    | Guard on log/edit modes; drafts persist per mode                                                           |
+| UX-GYM-26  | S2  | fixed           | WP-03         | #109       | Guard on log/edit modes; drafts persist per mode                                                           |
 | UX-GYM-27  | S2  | open            | WP-12         |            |                                                                                                            |
 | UX-GYM-28  | S2  | open            | WP-12         |            |                                                                                                            |
 | UX-GYM-29  | S2  | open            | WP-12         |            |                                                                                                            |
@@ -181,27 +181,27 @@ Updated by each work package in `docs/backlog-2026-10/` (each WP edits only its 
 | UX-GYM-32  | S3  | open            | WP-12         |            |                                                                                                            |
 | UX-GYM-33  | S3  | open            | WP-12         |            |                                                                                                            |
 | UX-GYM-34  | S3  | open            | WP-12         |            |                                                                                                            |
-| UX-GYM-35  | S3  | fixed           | WP-03         | PR_WP03    | Exercise note keyboard-aware with a Done footer                                                            |
+| UX-GYM-35  | S3  | fixed           | WP-03         | #109       | Exercise note keyboard-aware with a Done footer                                                            |
 | UX-SOC-01  | S2  | open            | Owner         |            | Following flag stays off (D-6)                                                                             |
 | UX-SOC-02  | S3  | open            | Owner         |            | Following flag stays off (D-6)                                                                             |
 | UX-SOC-03  | S3  | open            | Owner         |            | Following flag stays off (D-6)                                                                             |
 | UX-X-01    | S1  | fixed           | WP-01         | #106       | `useUnsavedGuard` (`usePreventRemove`) blocks iOS swipe                                                    |
 | UX-X-02    | S2  | fixed           | WP-01         | #106       | Sheet uses one keyboard mechanism                                                                          |
-| UX-X-03    | S2  | fixed           | WP-03         | PR_WP03    | Sheets drag down from grabber/header (PanResponder + Reanimated, MO-02)                                    |
-| UX-X-04    | S2  | fixed           | WP-03         | PR_WP03    | persist-taps default + guard test                                                                          |
-| UX-X-05    | S2  | fixed           | WP-03         | PR_WP03    | Keyboard-aware scroll on Preferences, Household, More                                                      |
+| UX-X-03    | S2  | fixed           | WP-03         | #109       | Sheets drag down from grabber/header (PanResponder + Reanimated, MO-02)                                    |
+| UX-X-04    | S2  | fixed           | WP-03         | #109       | persist-taps default + guard test                                                                          |
+| UX-X-05    | S2  | fixed           | WP-03         | #109       | Keyboard-aware scroll on Preferences, Household, More                                                      |
 | UX-X-06    | S2  | fixed           | WP-01 + WP-02 | #106, #108 | Gym setup + keypad (WP-01); Zod-JSON mapping in userFacingErrorMessage + remaining screens (WP-02)         |
 | UX-X-07    | S2  | open            | Owner         |            |                                                                                                            |
 | UX-X-08    | S2  | fixed           | WP-04         | #107       | Caps 1.6×/2.0×; inputs min-h-11; chips wrap; XL device pass fixes (switch, ring, logger, set row)          |
 | UX-X-09    | S2  | partially fixed | WP-04         | #107       | Primitives labelled + TextInput guard test; 10 allow-listed screens left for WP-03/WP-09                   |
 | UX-X-10    | S2  | fixed           | WP-04         | #107       | Thumb offset computed in the worklet from shared width                                                     |
-| UX-X-11    | S2  | fixed           | WP-03         | PR_WP03    | Gym mode persists only once Gym is set up                                                                  |
+| UX-X-11    | S2  | fixed           | WP-03         | #109       | Gym mode persists only once Gym is set up                                                                  |
 | UX-X-12    | S3  | fixed           | WP-02         | #108       | Failed loads show ErrorState + Retry (food/account)                                                        |
 | UX-X-13    | S3  | partially fixed | WP-02         | #108       | Confirms migrated to ConfirmSheet; 2 gym confirms (delete day, large export) left for WP-12                |
 | UX-X-14    | S3  | fixed           | WP-04         | #107       | Type floor 14/19 + 16/22; no text below 12 px on mobile or web                                             |
 | UX-X-15    | S3  | open            | WP-11         |            |                                                                                                            |
-| UX-X-16    | S3  | fixed           | WP-03         | PR_WP03    | Undo 10 s, pauses while touched, 300 ms tap shield                                                         |
-| UX-X-17    | S3  | partially fixed | WP-03         | PR_WP03    | SearchField + on-drag dismiss on Cookbook and Replace picker; gym Exercises in WP-12                       |
+| UX-X-16    | S3  | fixed           | WP-03         | #109       | Undo 10 s, pauses while touched, 300 ms tap shield                                                         |
+| UX-X-17    | S3  | partially fixed | WP-03         | #109       | SearchField + on-drag dismiss on Cookbook and Replace picker; gym Exercises in WP-12                       |
 | UX-PO-01   | S1  | open            | Owner         |            |                                                                                                            |
 | UX-PO-02   | S1  | open            | WP-13         |            |                                                                                                            |
 | UX-PO-03   | S1  | open            | Owner         |            |                                                                                                            |
