@@ -1,17 +1,17 @@
 import { useRef, useState } from 'react';
-import {
-  ActivityIndicator,
-  FlatList,
-  Image,
-  Pressable,
-  ScrollView,
-  TextInput,
-  View,
-} from 'react-native';
+import { ActivityIndicator, FlatList, Image, Pressable, ScrollView, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Link, router } from 'expo-router';
 import { FRIENDS_COPY } from '@chefer/types';
-import { Button, Chip, ErrorState, Screen, Text } from '@chefer/ui-mobile';
+import {
+  Button,
+  Chip,
+  ErrorState,
+  Screen,
+  SEARCH_LIST_PROPS,
+  SearchField,
+  Text,
+} from '@chefer/ui-mobile';
 import { cn } from '@chefer/utils';
 import { ModeSwitch } from '../../src/features/gym/components/mode-switch';
 import { NutritionStatusTag } from '../../src/features/ingredients/nutrition-provenance';
@@ -85,6 +85,11 @@ export default function RecipesScreen() {
     setSearch(value);
     if (debounceRef.current) {
       clearTimeout(debounceRef.current);
+    }
+    // UX-X-17: the clear × (and an emptied field) shows the full list at once.
+    if (value === '') {
+      setDebouncedSearch('');
+      return;
     }
     debounceRef.current = setTimeout(() => setDebouncedSearch(value), 300);
   };
@@ -215,13 +220,14 @@ export default function RecipesScreen() {
         </View>
 
         {/* Search */}
-        <TextInput
+        <SearchField
           testID="recipes-search"
+          accessibilityLabel={
+            tab === 'discover' ? 'Search dishes or ingredients' : 'Search recipes'
+          }
           value={search}
           onChangeText={handleSearch}
           placeholder={tab === 'discover' ? 'Search dishes or ingredients…' : 'Search recipes…'}
-          placeholderTextColor="#9ca3af"
-          className="h-11 rounded-xl border border-input bg-background px-4 text-base text-foreground"
         />
 
         {/* Discover filters */}
@@ -269,6 +275,8 @@ export default function RecipesScreen() {
         />
       ) : (
         <FlatList
+          {...SEARCH_LIST_PROPS}
+          testID="recipes-list"
           data={recipes}
           keyExtractor={(r) => r.id}
           contentContainerClassName="gap-4 px-4 py-3"

@@ -42,6 +42,7 @@ export {
   KeyboardAwareScrollView,
   KEYBOARD_AWARE_DEFAULT_MARGIN,
   useScrollFieldIntoView,
+  useScrollFieldIntoViewFor,
   type KeyboardAwareScrollViewProps,
   type ScrollFieldIntoView,
 } from './components/keyboard-aware-scroll-view';
@@ -63,10 +64,22 @@ export {
 export {
   SearchField,
   SEARCH_DEBOUNCE_MS,
+  SEARCH_LIST_PROPS,
   SEARCH_TARGET_PT,
   type SearchFieldProps,
 } from './components/search-field';
 export { Sheet, type SheetProps } from './components/sheet';
+export {
+  SHEET_DISMISS_FRACTION,
+  SHEET_DISMISS_VELOCITY,
+  SHEET_DRAG_ACTIVATION,
+  SHEET_FLICK_MIN_DISTANCE,
+  SHEET_RUBBER_BAND,
+  sheetDragOffset,
+  sheetReleaseAction,
+  shouldStartSheetDrag,
+  type SheetRelease,
+} from './components/sheet-drag';
 export {
   Skeleton,
   SKELETON_CYCLE_MS,
@@ -75,6 +88,8 @@ export {
 } from './components/skeleton';
 export {
   Snackbar,
+  SNACKBAR_MIN_RESUME_MS,
+  SNACKBAR_TAP_SHIELD_MS,
   resetSnackbarForTests,
   setSnackbarTabBarHeight,
   useSnackbar,

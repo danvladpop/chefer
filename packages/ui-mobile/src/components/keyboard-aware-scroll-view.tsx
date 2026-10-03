@@ -6,6 +6,7 @@ import {
   useRef,
   useState,
   type ReactNode,
+  type RefObject,
 } from 'react';
 import {
   Keyboard,
@@ -72,6 +73,39 @@ export function useScrollFieldIntoView(): ScrollFieldIntoView {
   return useContext(ScrollFieldContext);
 }
 
+/**
+ * Builds the `ScrollFieldIntoView` callback for a `ScrollView` ref. Shared by
+ * `KeyboardAwareScrollView` and the `Sheet` body so both hand their fields the
+ * same `useScrollFieldIntoView()` plumbing.
+ */
+export function useScrollFieldIntoViewFor(
+  scrollRef: RefObject<ScrollView | null>,
+): ScrollFieldIntoView {
+  return useCallback<ScrollFieldIntoView>(
+    (field, extraMargin) => {
+      const scrollView = scrollRef.current;
+      if (!field || !scrollView || typeof field.measureLayout !== 'function') return;
+      // Pass the ScrollView's own ref as the measurement ancestor (the
+      // documented `measureLayout` pattern) rather than converting it to a
+      // node handle first — `findNodeHandle` on a composite ref like this
+      // reliably comes back `null` under the RNTL/Fabric-mock test renderer.
+      field.measureLayout(
+        scrollView as unknown as HostInstance,
+        (_x: number, y: number) => {
+          scrollView.scrollTo({
+            y: Math.max(0, y - (extraMargin ?? KEYBOARD_AWARE_DEFAULT_MARGIN)),
+            animated: true,
+          });
+        },
+        () => undefined,
+      );
+    },
+    [scrollRef],
+  );
+}
+
+export { ScrollFieldContext };
+
 export interface KeyboardAwareScrollViewProps extends Omit<ScrollViewProps, 'children'> {
   children: ReactNode;
   /**
@@ -122,24 +156,7 @@ export function KeyboardAwareScrollView({
     };
   }, []);
 
-  const scrollFieldIntoView = useCallback<ScrollFieldIntoView>((field, extraMargin) => {
-    const scrollView = scrollRef.current;
-    if (!field || !scrollView || typeof field.measureLayout !== 'function') return;
-    // Pass the ScrollView's own ref as the measurement ancestor (the
-    // documented `measureLayout` pattern) rather than converting it to a
-    // node handle first — `findNodeHandle` on a composite ref like this
-    // reliably comes back `null` under the RNTL/Fabric-mock test renderer.
-    field.measureLayout(
-      scrollView as unknown as HostInstance,
-      (_x: number, y: number) => {
-        scrollView.scrollTo({
-          y: Math.max(0, y - (extraMargin ?? KEYBOARD_AWARE_DEFAULT_MARGIN)),
-          animated: true,
-        });
-      },
-      () => undefined,
-    );
-  }, []);
+  const scrollFieldIntoView = useScrollFieldIntoViewFor(scrollRef);
 
   return (
     <KeyboardAvoidingView
