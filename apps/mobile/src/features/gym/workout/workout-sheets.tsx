@@ -11,6 +11,7 @@ import { cn, explain, explainInputs, formatLoad } from '@chefer/utils';
 import { ExerciseImage } from '../components/exercise-image';
 import { ExerciseVideoSheet } from '../library-screens/exercise-video-sheet';
 import { exerciseImageUrl } from '../library/exercise-image';
+import { isAtSetCap, SET_CAP_REASON } from './caps';
 import type { ExerciseHistoryEntry } from './workout-model';
 
 // Sheets opened from an exercise card. They live once at screen level (not one
@@ -324,7 +325,13 @@ export function ExerciseMenuSheet(props: ExerciseMenuProps) {
               />
             </>
           )}
-          <MenuRow testID="menu-add-set" label="Add set" onPress={props.onAddSet} />
+          <MenuRow
+            testID="menu-add-set"
+            label="Add set"
+            hint={isAtSetCap(exercise.sets.length) ? SET_CAP_REASON : undefined}
+            disabled={isAtSetCap(exercise.sets.length)}
+            onPress={props.onAddSet}
+          />
           <MenuRow
             testID="menu-remove-set"
             label="Remove last set"

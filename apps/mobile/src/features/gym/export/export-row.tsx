@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Alert } from 'react-native';
-import { Button, Card, Text } from '@chefer/ui-mobile';
+import { Button, Card, ConfirmSheet, Text } from '@chefer/ui-mobile';
 import { CSV_MIME, shareExportFile } from '../../../lib/share-file';
 import { trpc } from '../../../lib/trpc';
 
@@ -27,6 +27,9 @@ function countDataRows(csv: string): number {
 export function GymExportRow() {
   const utils = trpc.useUtils();
   const [status, setStatus] = useState<Status>('idle');
+  // UX-X-13: the large-export prompt is a ConfirmSheet (not a native Alert), so
+  // it matches every other confirm in the app and has an accessible name.
+  const [largeExport, setLargeExport] = useState<{ filename: string; csv: string } | null>(null);
 
   const share = async (filename: string, csv: string) => {
     try {
@@ -43,14 +46,7 @@ export function GymExportRow() {
       const { filename, csv } = await utils.gym.export.csv.fetch();
       setStatus('idle');
       if (countDataRows(csv) > LARGE_EXPORT_ROW_THRESHOLD) {
-        Alert.alert(
-          'Large export',
-          'Large histories export best from chefer.duckdns.org (Gym settings → Export). Share it from here anyway?',
-          [
-            { text: 'Cancel', style: 'cancel' },
-            { text: 'Share anyway', onPress: () => void share(filename, csv) },
-          ],
-        );
+        setLargeExport({ filename, csv });
         return;
       }
       await share(filename, csv);
@@ -77,6 +73,20 @@ export function GymExportRow() {
       >
         Export training data
       </Button>
+      <ConfirmSheet
+        visible={largeExport !== null}
+        onClose={() => setLargeExport(null)}
+        title="Large export"
+        body="Large histories export best from chefer.duckdns.org (Gym settings → Export). Share it from here anyway?"
+        confirmLabel="Share anyway"
+        cancelLabel="Cancel"
+        onConfirm={() => {
+          const pending = largeExport;
+          setLargeExport(null);
+          if (pending) void share(pending.filename, pending.csv);
+        }}
+        testID="gym-settings-export-large"
+      />
     </Card>
   );
 }
