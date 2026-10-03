@@ -10,6 +10,7 @@ import {
   slotPortion,
   userFacingErrorMessage,
 } from '@chefer/utils';
+import { trackMealLogged } from '../../../lib/analytics-events';
 import { getRecipeImageUrl } from '../../../lib/recipe-image';
 import { trpc, type RouterOutputs } from '../../../lib/trpc';
 import { recordRebalance } from '../../tracker/rebalance-store';
@@ -59,6 +60,7 @@ export function HeroMealCard({
   const logMutation = trpc.tracker.logRecipe.useMutation({
     meta: { silent: true },
     onSuccess: (result) => {
+      trackMealLogged('planned', meal.mealType);
       // A premium log can rebalance the week — same hand-off as the tracker.
       recordRebalance(result.rebalance);
       setLastLogged(meal.recipe.name);

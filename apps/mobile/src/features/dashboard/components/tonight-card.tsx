@@ -3,6 +3,7 @@ import { Image, Pressable, View } from 'react-native';
 import { router } from 'expo-router';
 import { Button, Card, Text } from '@chefer/ui-mobile';
 import { localDateStr, slotPortion, userFacingErrorMessage, verifiedLabels } from '@chefer/utils';
+import { trackMealLogged } from '../../../lib/analytics-events';
 import { getRecipeImageUrl } from '../../../lib/recipe-image';
 import { trpc, type RouterOutputs } from '../../../lib/trpc';
 import { StarRating } from '../../recipes/star-rating';
@@ -43,6 +44,7 @@ export function TonightCard({
   const logMutation = trpc.tracker.logRecipe.useMutation({
     meta: { silent: true },
     onSuccess: (result) => {
+      trackMealLogged('planned', meal.mealType);
       recordRebalance(result.rebalance);
       void utils.dashboard.summary.invalidate();
       void utils.tracker.getDay.invalidate();

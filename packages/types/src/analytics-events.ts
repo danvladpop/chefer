@@ -51,17 +51,19 @@ export type AnalyticsPrimitive = number | boolean | readonly (string | number)[]
 type IsBareString<T> = T extends string ? (string extends T ? true : false) : false;
 
 /** `true` iff a single property's type passes the health-data guard. */
-type IsGuardedProp<T> = T extends AnalyticsPrimitive
+type IsGuardedProp<T> = T extends undefined // an optional property's `undefined` carries no data
   ? true
-  : IsBareString<T> extends true
-    ? false
-    : T extends string // a string-literal type/union that isn't bare `string`
-      ? true
-      : false;
+  : T extends AnalyticsPrimitive
+    ? true
+    : IsBareString<T> extends true
+      ? false
+      : T extends string // a string-literal type/union that isn't bare `string`
+        ? true
+        : false;
 
 /** `true` iff every property of one event's shape passes the guard. */
 type EventIsGuarded<E> =
-  E extends Record<string, never> ? true : { [K in keyof E]: IsGuardedProp<E[K]> }[keyof E];
+  E extends Record<string, never> ? true : { [K in keyof E]-?: IsGuardedProp<E[K]> }[keyof E];
 
 /**
  * `true` iff every event in a map passes the guard; `boolean` (never a
@@ -126,8 +128,27 @@ export interface EventMap {
   // ─── L-CONSENT (T-26.2/T-26.4) — counts only ─────────────────────────────────
   health_consent_answered: { allowed: boolean };
   health_consent_withdrawn: Record<string, never>;
-  /** Richer replacement for the wave-0 funnel `meal_logged { source: 'today', mealType: string }`. */
-  meal_logged: { source: 'today' | 'plan' | 'log'; mealType: PlanSlot };
+  /**
+   * Richer replacement for the wave-0 funnel `meal_logged { source: 'today', mealType: string }`.
+   * Web: `today` | `plan` | `log`. Mobile (WP-13): `planned` (a planned slot ticked or
+   * logged from the plan), `replaced` (something else logged for a slot that has a
+   * planned meal), `quick` (quick add: recent, recipe, ingredient or typed), `snap`
+   * (photo scan). `mealType` is omitted when the stored value is not one of the four slots.
+   */
+  meal_logged: {
+    source: 'today' | 'plan' | 'log' | 'planned' | 'replaced' | 'quick' | 'snap';
+    mealType?: PlanSlot;
+  };
+
+  // ─── Beta funnel (WP-13, mobile) — counts and enum values only ──────────────
+  signup_completed: Record<string, never>;
+  /** `jobs` are the chosen onboarding jobs (enum names), `trainingStyles` the distinct training-day kinds. */
+  onboarding_completed: { jobs: readonly string[]; trainingStyles?: readonly string[] };
+  /** Reserved for WP-05 (class check-in) — no call site yet. */
+  class_checked_in: Record<string, never>;
+  list_opened: { itemCount: number };
+  list_shared: { scope: 'whatsLeft' | 'everything' };
+  cook_finished: Record<string, never>;
 
   // ─── Following (PRD §15) — enums, counts and booleans only ───────────────────
   // Never another user's id, a name or a search query.

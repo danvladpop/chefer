@@ -35,7 +35,10 @@ const mockUpgrade = jest.fn();
 const mockInvalidate = jest.fn();
 let upgradeOpts: { onSuccess?: () => void; onError?: () => void } = {};
 const mockGenerate = jest.fn();
-let generateOpts: { onSuccess?: () => void; onError?: (e: Error) => void } = {};
+let generateOpts: {
+  onSuccess?: (data: { days: { meals: unknown[] }[] }) => void;
+  onError?: (e: Error) => void;
+} = {};
 // Consent on record → runs at once; "Not now" → mockConsentAllows = false → nothing runs.
 let mockConsentAllows = true;
 const mockRequestConsent = jest.fn((_feature: string, run: () => void) => {
@@ -197,7 +200,7 @@ describe('PremiumHost', () => {
     expect(mockGenerate).toHaveBeenCalledWith({ weekOffset: 1, keepPinned: true });
 
     await act(() => {
-      generateOpts.onSuccess?.();
+      generateOpts.onSuccess?.({ days: [{ meals: [{}] }] });
     });
     expect(mockPush).toHaveBeenCalledWith('/meal-plan');
   });
@@ -235,7 +238,7 @@ describe('PremiumHost', () => {
     expect(mockGenerate).toHaveBeenCalledWith(expect.objectContaining({ keepPinned: true }));
     expect(mockGenerate).toHaveBeenCalledTimes(1);
     await act(() => {
-      generateOpts.onSuccess?.();
+      generateOpts.onSuccess?.({ days: [{ meals: [{}] }] });
     });
     expect(mockPush).toHaveBeenCalledWith('/meal-plan');
   });

@@ -1380,12 +1380,26 @@ Gym; else a planned training day not yet done from 14:00 (or 2h before
 an earlier reminder) opens Gym; else Food. Mobile's cold start
 (`(food)/_layout.tsx`) calls a synchronous wrapper, `landingSurfaceSync()`,
 fed from a small KV-backed cache (`features/navigation/landing-cache.ts`)
-that a mounted hook keeps fresh from `preferences.get`/`gym.profile.get`
-for the _next_ cold start — this wave only wires the jobs/gym-setup rows
-live; the workout-in-progress and training-day-time rows are implemented
-and unit-tested in `landingFor` itself but not yet fed live gym state. A
-landing never writes the persisted mode, and never re-applies once the
-app is open (no foreground-after-30-minutes listener yet).
+that a mounted hook (`useSyncLandingCache`) keeps fresh for the _next_
+cold start from `preferences.get`, `gym.profile.get` and the persisted gym
+bootstrap (UX-PO-10): jobs, whether gym is set up, and today's training
+state (`training-landing.ts`: a routine day pinned to today's weekday and
+no pause = a planned training day; a session completed today = done; the
+reminder hour). The workout-in-progress row reads the active-session store
+synchronously (a "Save for later" session is parked, not in progress, and
+another account's session never counts) and, like in `landingFor`, wins
+even over an explicit Food choice. An explicit Food/Gym choice still beats
+the jobs and training-day rows, so those two only decide for someone who
+has never switched. A landing never writes the persisted mode.
+
+**Foreground re-landing (UX-PO-10).** After 30 minutes in the background
+(`AppState` `background` → `active`), `ForegroundLandingHost` (root layout,
+signed-in only) re-runs the same decision. It moves the user only from a
+tab root of the _other_ surface (a Food tab when Gym is due, a Gym tab when
+Food is) to `/today` or `/(food)`; anywhere deeper (an active workout, a
+recipe, onboarding, a notification or deep-link target) is an in-flight flow
+and is left alone, and a shorter absence or a transient `inactive` does
+nothing.
 
 ### Today (P2-2) — Home + Tracker in one tab
 
@@ -2394,13 +2408,32 @@ API's 2,000 characters with a live counter ("123 / 2,000", amber in the last 100
 (F-PROF-2-2).
 
 ```
-User → Send feedback → feedback.submit { message, path } → FeedbackService.submit
-     → Feedback row (userId, message ≤2000, path, createdAt)
+User → Send feedback → feedback.submit { message, path?, build?, os?, route? }
+     → FeedbackService.submit → Feedback row (userId, message ≤2000, path, createdAt)
+                              → email to FEEDBACK_NOTIFY_EMAIL (best effort, if set)
 ```
 
-The current route is attached automatically as `path`. On success the client
-fires the `feedback_submitted { path }` PostHog event and thanks the chef.
-Feedback is write-only in-app; the team reads it via Prisma Studio/psql.
+Each submission carries its context (UX-PO-05; additive optional fields, so
+shipped 1.0.1 binaries that send only `message` + `path` keep working). The
+Feedback table has no columns for them, so the service folds the screen, OS
+and build into the existing `path` column as one line, e.g.
+`/gym/workout · iOS 18.2 · Chefer 1.0.1 · production · update 3f2a9c1e`
+(≤400 chars). Mobile sends `CURRENT_BUILD`, `Platform` OS + version and the
+expo-router pathname; web sends `Chefer web`, the browser/OS and the Next
+pathname. On success the web client fires the `feedback_submitted { path }`
+PostHog event and thanks the chef.
+
+Entry points on mobile: the card on the More tab (Food), a "Send feedback"
+row in Gym settings that opens the same form in a sheet (Gym mode), and a
+"Report this" button on the crash screen (`RootErrorBoundary`), which
+pre-fills the error and submits through a standalone tRPC client because the
+boundary renders outside the app's providers.
+
+When `FEEDBACK_NOTIFY_EMAIL` is set, every submission is also mailed to it
+(subject `[Chefer feedback] …`; message, sender email, context) through the
+existing `EMAIL_PROVIDER` transport (console mock in dev). The mail is
+fire-and-forget: a mail failure is logged and never fails the submission.
+Unset = no mail. Feedback is otherwise read via Prisma Studio/psql.
 
 ---
 
@@ -3473,6 +3506,30 @@ tap → useNotificationLinks (root layout, signed in only) → router.push(url)
 ```
 
 Off by default; unlike email they use the phone's own time zone.
+
+### Food nudges and Settings → Notifications (mobile only, UX-PO-08)
+
+Two more opt-in LOCAL notifications, both off by default, no server field:
+
+- **Log dinner** — 20:30 on evenings when no dinner entry is logged yet. A rolling
+  window of one-shot notifications for the next 7 evenings, re-planned on launch, on
+  foreground, when the choice changes and when today's log gains/loses a dinner
+  (so logging dinner at 19:00 drops tonight's). A user who stops opening the app
+  therefore gets at most a week of nudges. Tap → `/tracker`.
+- **Plan Sunday** — weekly, Sunday 18:30 (the weekly recap owns 18:00). Tap → `/meal-plan`.
+
+The choice is stored in the device KV (`notifications.food-nudges`), asked at the very
+end of onboarding (after the save, before leaving the wizard; skipped for "Just looking
+around" and the Train-only hand-off) and changeable in **Settings → Notifications**,
+which also gathers Weekly updates, the training reminder (a read-only row opening gym
+settings), the rest-timer alert (OS permission status) and shows the standard
+"Off for Chefer" row when the OS denies notifications. Sign-out cancels every nudge
+and wipes the choice. Class reminders get a row when classes ship (WP-05).
+
+```
+onboarding saved → NudgeStep (2 switches) → on: ensureGymReminderPermission → KV write
+FoodNudgeHost (root) ← KV change / foreground / today's tracker.getDay → syncFoodNudges
+```
 
 ### Manual trigger (ops / live verification)
 

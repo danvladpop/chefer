@@ -41,6 +41,7 @@ import {
   refreshNotificationPermission,
   useNotificationPermission,
 } from '../../../lib/use-notification-permission';
+import { GymFeedbackRow } from '../../feedback/gym-feedback-row';
 import { SectionAnchor, useSectionTitle } from '../../settings/section-anchor';
 import { GymBootstrapUnavailable, useGymBootstrapLoad } from '../components/gym-bootstrap-state';
 import { OutboxWaitingCard } from '../components/outbox-waiting-card';
@@ -707,6 +708,8 @@ export function GymSettingsScreen() {
         <SectionAnchor id="export">
           <GymExportRow />
         </SectionAnchor>
+
+        <GymFeedbackRow />
 
         <OutboxWaitingCard status={outboxStatus} testID="gym-settings-outbox" />
 

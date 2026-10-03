@@ -12,6 +12,11 @@ import { createMemoryKvBackend, kv, setKvBackendForTests } from '../../src/featu
 import { outbox } from '../../src/features/gym/offline/outbox';
 import { getGymOwner, setGymOwner } from '../../src/features/gym/offline/owner';
 import { getCachedJobs, setCachedJobs } from '../../src/features/navigation/landing-cache';
+import {
+  FOOD_NUDGE_APP_TAG,
+  getFoodNudgePrefs,
+  writeFoodNudgePrefs,
+} from '../../src/features/notifications/food-nudges';
 import { ONBOARDING_DRAFT_KEY } from '../../src/features/onboarding/onboarding-draft';
 import {
   isOnboardingGateHandled,
@@ -56,9 +61,11 @@ jest.mock('../../src/features/gym/reminders/cancel-reminders', () => ({
   },
 }));
 const mockCancelNotification = jest.fn((_id: string) => Promise.resolve());
+// UX-PO-08: what the OS still has scheduled when sign-out runs.
+let mockScheduled: { identifier: string; content: { data: { app: string } } }[] = [];
 jest.mock('expo-notifications', () => ({
   cancelScheduledNotificationAsync: (id: string) => mockCancelNotification(id),
-  getAllScheduledNotificationsAsync: () => Promise.resolve([]),
+  getAllScheduledNotificationsAsync: () => Promise.resolve(mockScheduled),
 }));
 
 /** Every KV key the app writes today, one per feature, plus the two that must survive. */
@@ -87,6 +94,7 @@ const ACCOUNT_KEYS: Record<string, string> = {
   'chefer.rebalance.pending': '{}',
   'plan.dismissed.replan.plan-1': '1',
   [ONBOARDING_DRAFT_KEY]: '{"v":1}',
+  'notifications.food-nudges': '{"dinner":true,"planSunday":true}',
 };
 const DEVICE_KEYS: Record<string, string> = { 'analytics.consent': '{"optedOut":true}' };
 
@@ -100,6 +108,7 @@ beforeEach(async () => {
   events.length = 0;
   mockKvKeysWhenRemindersCancelled = [];
   mockRemindersFail = false;
+  mockScheduled = [];
   mockSecureStore.clear();
   jest.clearAllMocks();
   setKvBackendForTests(createMemoryKvBackend());
@@ -159,6 +168,21 @@ describe('signOut()', () => {
     await signOut();
     expect(mockCancelNotification).toHaveBeenCalledWith('notif-1');
     expect(events).toContain('reminders');
+  });
+
+  it('UX-PO-08: cancels the dinner / plan-Sunday nudges and forgets the stored choice', async () => {
+    writeFoodNudgePrefs({ dinner: true, planSunday: true });
+    mockScheduled = [
+      { identifier: 'nudge-1', content: { data: { app: FOOD_NUDGE_APP_TAG } } },
+      { identifier: 'other-1', content: { data: { app: 'something-else' } } },
+    ];
+
+    await signOut();
+
+    expect(mockCancelNotification).toHaveBeenCalledWith('nudge-1');
+    expect(mockCancelNotification).not.toHaveBeenCalledWith('other-1');
+    // The next account on this phone starts with both off.
+    expect(getFoodNudgePrefs()).toEqual({ dinner: false, planSunday: false });
   });
 
   it('resets the register draft, the pending-onboarding flag and the onboarding gate', async () => {

@@ -41,7 +41,12 @@ export type OnboardingCopyKey =
   | 'leaveTitle'
   | 'leaveBody'
   | 'leaveConfirm'
-  | 'leaveCancel';
+  | 'leaveCancel'
+  | 'nudgeTitle'
+  | 'nudgeQuestion'
+  | 'nudgeHint'
+  | 'nudgeDone'
+  | 'nudgeNotNow';
 
 export const ONBOARDING_COPY: Record<OnboardingCopyKey, string> = {
   jobsTitle: 'What should Chefer help with?',
@@ -75,6 +80,13 @@ export const ONBOARDING_COPY: Record<OnboardingCopyKey, string> = {
   finishTrainFood: 'Next: set up training',
   generatingWeek: 'Planning your week…',
   generatingFailed: 'We couldn’t plan your week just now.',
+  // UX-PO-08: the one opt-in question at the very end of the setup.
+  nudgeTitle: 'One last thing',
+  nudgeQuestion: 'Want a nudge to log dinner or plan Sunday?',
+  nudgeHint:
+    'Both are off unless you turn them on. Change them any time in Settings → Notifications.',
+  nudgeDone: 'Done',
+  nudgeNotNow: 'Not now',
   leaveTitle: 'Leave setup for now?',
   leaveBody:
     'Your allergies and diet are what we check every plan against. Your answers so far are saved — we’ll bring you back here next time you open Chefer.',

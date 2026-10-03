@@ -105,7 +105,8 @@ describe('SettingsScreen (T-00.9, PAT-9 §2.9)', () => {
       'settings-plan-premium': '/profile?section=plan',
       // Emails used to open Profile, which has no email controls.
       'settings-emails': '/preferences?section=weekly-updates',
-      'settings-notifications': '/preferences?section=weekly-updates',
+      // UX-PO-08: Notifications is its own screen, not the Weekly updates card.
+      'settings-notifications': '/settings/notifications',
       'settings-privacy': '/profile?section=privacy',
       'settings-account-data': '/profile?section=account',
     };
