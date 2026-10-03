@@ -305,7 +305,9 @@ export class FavouriteRecipeRepository implements IFavouriteRecipeRepository {
         include: { recipe: { include: RECIPE_PEOPLE } },
         orderBy: { savedAt: 'desc' as const },
         take: limit,
-        ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),
+        // UX-REC-05: the cursor a client sends is the last RECIPE's id (what
+        // the rows it got back carry), so page on the (user, recipe) key.
+        ...(cursor ? { cursor: { userId_recipeId: { userId, recipeId: cursor } }, skip: 1 } : {}),
       };
       const favourites = await prisma.favouriteRecipe.findMany(query);
       return favourites.map((f) => f.recipe);

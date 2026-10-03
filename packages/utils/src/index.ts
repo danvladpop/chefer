@@ -570,6 +570,7 @@ export {
 } from './scaled-quantity';
 export {
   parseQuantity,
+  sanitizeQuantityInput,
   recipeMissingFields,
   firstIncompleteIngredientLineIndex,
   missingSummary,

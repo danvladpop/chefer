@@ -1,19 +1,21 @@
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { fireEvent, render, screen } from '@testing-library/react-native';
+import { router } from 'expo-router';
 import ImportRecipeScreen from '../../app/import-recipe';
 
-// plan-ingredient-catalog §6.2/§10 (P9): the link/text import review. Lines
-// the resolver couldn't match are listed with candidates; the save sends the
-// catalog ids and `acceptPartial` — false when every line computes, true
-// only after "Save with incomplete nutrition?". The old AI macro-check
-// warning is gone.
+// plan-ingredient-catalog §6.2/§10 (P9) + UX-REC-14/15/07: the link/text
+// import review is the SAME editable form as video. Lines the resolver couldn't
+// match are listed with candidates; the save sends the catalog ids and
+// `acceptPartial` — false when every line computes, true only after "Save with
+// incomplete nutrition?". Two real versions get a picker; otherwise
+// "Cheferized for you" is a note. Save replaces this screen with the recipe.
 
 const mockPreviewMutate = jest.fn();
 const mockSaveMutate = jest.fn();
 let mockPreviewData: unknown = null;
 
 jest.mock('expo-router', () => ({
-  router: { push: jest.fn(), back: jest.fn() },
+  router: { push: jest.fn(), back: jest.fn(), replace: jest.fn() },
   // The unsaved-work guard (UX-REC-06) reads navigation state.
   useNavigation: () => ({ dispatch: jest.fn(), goBack: jest.fn() }),
   useIsFocused: () => true,
@@ -74,7 +76,15 @@ jest.mock('../../src/lib/trpc', () => {
           }),
         },
         importVideoPreview: { useMutation: () => idle },
-        importSave: { useMutation: () => ({ ...idle, mutate: mockSaveMutate }) },
+        importSave: {
+          useMutation: (opts: { onSuccess?: (data: unknown) => void }) => ({
+            ...idle,
+            mutate: (input: unknown) => {
+              mockSaveMutate(input);
+              opts.onSuccess?.({ id: 'saved-1' });
+            },
+          }),
+        },
       },
     },
   };
@@ -166,47 +176,128 @@ async function openPreview() {
   await fireEvent.press(screen.getByTestId('import-preview'));
 }
 
-describe('Import review — catalog lines', () => {
+describe('Import review — catalog lines (editable form)', () => {
   it('lists only the unmatched line with its candidates, and no AI macro warning', async () => {
     await openPreview();
-    expect(screen.getByTestId('import-review-line-1')).toBeOnTheScreen();
-    expect(screen.queryByTestId('import-review-line-0')).toBeNull();
-    expect(screen.getByTestId('import-review-line-1-candidate-four-spice-mix')).toBeOnTheScreen();
+    expect(screen.getByTestId('video-draft-form')).toBeOnTheScreen();
+    expect(screen.getByTestId('video-draft-match-1')).toBeOnTheScreen();
+    expect(screen.queryByTestId('video-draft-match-0')).toBeNull();
+    expect(screen.getByTestId('video-draft-candidate-1-four-spice-mix')).toBeOnTheScreen();
     expect(screen.queryByText(/The source claims/)).toBeNull();
-    expect(screen.getByTestId('import-full-preview-status')).toHaveTextContent(
+    expect(screen.getByTestId('video-draft-nutrition-status')).toHaveTextContent(
       'Incomplete — 1 ingredient needs data',
     );
   });
 
   it('saving while incomplete asks first, then sends acceptPartial: true with the known ids', async () => {
     await openPreview();
-    await fireEvent.press(screen.getByTestId('import-save'));
+    await fireEvent.press(screen.getByTestId('video-draft-save'));
     expect(mockSaveMutate).not.toHaveBeenCalled();
     expect(screen.getByText('Save with incomplete nutrition?')).toBeOnTheScreen();
 
     await fireEvent.press(screen.getByText('Save anyway'));
     const [input] = mockSaveMutate.mock.calls[0] as [
-      { acceptPartial: boolean; recipe: { ingredients: { ingredientId?: string }[] } },
+      {
+        acceptPartial: boolean;
+        variant: string;
+        sourceUrl: string;
+        recipe: { ingredients: { ingredientId?: string }[] };
+      },
     ];
     expect(input.acceptPartial).toBe(true);
+    expect(input.variant).toBe('original');
+    expect(input.sourceUrl).toBe('https://example.com/rice');
     expect(input.recipe.ingredients.map((i) => i.ingredientId)).toEqual(['rice-id', undefined]);
   });
 
   it('picking the candidate completes it: the save refuses partial and sends every id', async () => {
     await openPreview();
-    await fireEvent.press(screen.getByTestId('import-review-line-1-candidate-four-spice-mix'));
-    expect(screen.getByTestId('import-review-line-1-matched')).toHaveTextContent(
-      'Matched to Four-spice mix',
-    );
-    expect(screen.getByTestId('import-full-preview-status')).toHaveTextContent(
-      'Computed from 2 ingredients',
+    await fireEvent.press(screen.getByTestId('video-draft-candidate-1-four-spice-mix'));
+    expect(screen.getByTestId('video-draft-nutrition-status')).toHaveTextContent(
+      /^Computed from 2 ingredients/,
     );
 
-    await fireEvent.press(screen.getByTestId('import-save'));
+    await fireEvent.press(screen.getByTestId('video-draft-save'));
     const [input] = mockSaveMutate.mock.calls[0] as [
       { acceptPartial: boolean; recipe: { ingredients: { ingredientId?: string }[] } },
     ];
     expect(input.acceptPartial).toBe(false);
     expect(input.recipe.ingredients.map((i) => i.ingredientId)).toEqual(['rice-id', 'spice-id']);
+  });
+});
+
+describe('Import review — editable everywhere (UX-REC-15)', () => {
+  it('what the user edits is what gets saved', async () => {
+    await openPreview();
+    await fireEvent.press(screen.getByTestId('video-draft-candidate-1-four-spice-mix'));
+    await fireEvent.changeText(screen.getByTestId('video-draft-name'), 'Grandma rice');
+    await fireEvent.changeText(screen.getByTestId('video-draft-step-0'), 'Cook it slowly.');
+    await fireEvent.press(screen.getByTestId('video-draft-save'));
+    const [input] = mockSaveMutate.mock.calls[0] as [
+      { recipe: { name: string; instructions: string[] } },
+    ];
+    expect(input.recipe.name).toBe('Grandma rice');
+    expect(input.recipe.instructions).toEqual(['Cook it slowly.']);
+  });
+
+  it('blocks a save the shared validator rejects (e.g. no steps) instead of sending it', async () => {
+    await openPreview();
+    await fireEvent.press(screen.getByTestId('video-draft-candidate-1-four-spice-mix'));
+    await fireEvent.changeText(screen.getByTestId('video-draft-step-0'), '');
+    await fireEvent.press(screen.getByTestId('video-draft-save'));
+    expect(mockSaveMutate).not.toHaveBeenCalled();
+    expect(screen.getByTestId('video-draft-problems')).toBeOnTheScreen();
+  });
+});
+
+describe('Import review — versions (UX-REC-14)', () => {
+  const adapted = {
+    ...recipe,
+    name: 'Spiced rice (dairy-free)',
+    ingredients: [
+      { name: 'rice', quantity: 200, unit: 'g' },
+      { name: 'grandma spice', quantity: 5, unit: 'g' },
+    ],
+  };
+
+  it('with nothing to adapt, "Cheferized for you" is a note, not a selectable card', async () => {
+    await openPreview();
+    expect(screen.getByTestId('import-no-changes')).toBeOnTheScreen();
+    expect(screen.queryByTestId('import-variant-adapted')).toBeNull();
+    expect(screen.queryByTestId('import-variants')).toBeNull();
+  });
+
+  it('with a real adaptation both versions are selectable, and the adapted one starts selected', async () => {
+    mockPreviewData = {
+      ...(mockPreviewData as object),
+      adapted,
+      changes: [{ type: 'swap', description: 'Swapped butter for olive oil' }],
+    };
+    await openPreview();
+    expect(screen.getByTestId('import-variants')).toBeOnTheScreen();
+    expect(screen.queryByTestId('import-no-changes')).toBeNull();
+    expect(screen.getByTestId('video-draft-name').props.value).toBe('Spiced rice (dairy-free)');
+    expect(screen.getByTestId('import-variant-adapted').props.accessibilityState).toMatchObject({
+      selected: true,
+    });
+
+    await fireEvent.press(screen.getByTestId('import-variant-original'));
+    expect(screen.getByTestId('video-draft-name').props.value).toBe('Spiced rice');
+    await fireEvent.press(screen.getByTestId('video-draft-candidate-1-four-spice-mix'));
+    await fireEvent.press(screen.getByTestId('video-draft-save'));
+    expect((mockSaveMutate.mock.calls[0] as [{ variant: string }])[0].variant).toBe('original');
+  });
+});
+
+describe('Import save lands on the recipe (UX-REC-07)', () => {
+  it('replaces the import screen with the new recipe instead of going back', async () => {
+    await openPreview();
+    await fireEvent.press(screen.getByTestId('video-draft-candidate-1-four-spice-mix'));
+    await fireEvent.press(screen.getByTestId('video-draft-save'));
+    expect(router.replace).toHaveBeenCalledWith({
+      pathname: '/recipe/[id]',
+      params: { id: 'saved-1' },
+    });
+    expect(router.back).not.toHaveBeenCalled();
   });
 });

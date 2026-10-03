@@ -89,6 +89,20 @@ const UNICODE_FRACTIONS: Record<string, number> = {
 };
 
 /**
+ * UX-REC-11: what an amount box may hold — digits, one decimal/fraction
+ * separator style and the kitchen fraction glyphs. A letter (a pasted
+ * "60rolled oats", a hardware keyboard) is dropped instead of being kept and
+ * silently parsed as "no amount". Capped at 8 characters ("1 1/2" fits).
+ */
+export function sanitizeQuantityInput(raw: string): string {
+  return raw
+    .replace(/[^0-9.,/\s¼½¾⅓⅔⅛⅜⅝⅞]/g, '')
+    .replace(/\s+/g, ' ')
+    .replace(/^\s+/, '')
+    .slice(0, 8);
+}
+
+/**
  * Parses a quantity a user might type into an amount field: a plain number
  * ("200"), a comma decimal ("0,5"), a simple fraction ("1/2"), a unicode
  * fraction ("½"), or a mixed number ("1½", "1 1/2"). Returns 0 (never NaN)

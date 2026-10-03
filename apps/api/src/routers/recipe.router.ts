@@ -1,9 +1,25 @@
 import { z } from 'zod';
-import { recipeNutritionSourceSchema } from '@chefer/types';
+import {
+  addRecipeToWeekInputSchema,
+  recipeNutritionSourceSchema,
+  undoAddToWeekInputSchema,
+} from '@chefer/types';
 import { recipeService } from '../application/recipe/recipe.service.js';
 import { buildPollinationsUrl } from '../lib/image-gen/pollinations.js';
 import { buildRecipeImagePrompt } from '../lib/image-gen/prompt.js';
+import { assertWithinRateLimit } from '../lib/rate-limit.js';
 import { protectedProcedure, router } from '../lib/trpc.js';
+
+const HOUR_MS = 60 * 60 * 1000;
+
+/**
+ * MealPlanService, loaded on first use: its import graph reaches the AI
+ * provider setup, which resolves its routes from the env at load (same reason
+ * as routers/friends/recipes.router.ts).
+ */
+async function mealPlans() {
+  return (await import('../application/meal-plan/meal-plan.service.js')).mealPlanService;
+}
 
 // T-40.3 (D-19): the recipe minimum is a name + at least one ingredient line
 // with a name and an amount > 0 — description/instructions/cuisineType are
@@ -207,6 +223,28 @@ export const recipeRouter = router({
     .input(z.object({ recipeId: z.string().min(1) }))
     .mutation(async ({ ctx, input }) => {
       return recipeService.restoreMine(ctx.user.id, input.recipeId);
+    }),
+
+  /**
+   * UX-REC-08: "Add to my week" for ANY recipe the caller may see — their own,
+   * an AI or curated one, a copy — without Following. The same service call
+   * (and result shape) as `friends.addRecipeToWeek`, minus the Following
+   * gate; the recipe-visibility rule still applies inside the service.
+   * Additive.
+   */
+  addToWeek: protectedProcedure
+    .input(addRecipeToWeekInputSchema)
+    .mutation(async ({ ctx, input }) => {
+      assertWithinRateLimit('recipe.addToWeek', ctx.user.id, 120, HOUR_MS);
+      return (await mealPlans()).addRecipeToSlot(ctx.user.id, input);
+    }),
+
+  /** The Undo of `recipe.addToWeek`: pass its result back. A stale Undo is a no-op. */
+  undoAddToWeek: protectedProcedure
+    .input(undoAddToWeekInputSchema)
+    .mutation(async ({ ctx, input }) => {
+      assertWithinRateLimit('recipe.undoAddToWeek', ctx.user.id, 120, HOUR_MS);
+      return (await mealPlans()).undoAddToSlot(ctx.user.id, input);
     }),
 
   /**
