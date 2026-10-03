@@ -140,13 +140,13 @@ describe('UX-FOOD-24 ring caption', () => {
     fat: { planned: 50, targetG: 70, eaten: 20 },
   };
 
-  it('is short, one line, shrinks to fit and stays inside the ring', async () => {
+  it('is short, wraps (never auto-shrinks) and stays inside the ring', async () => {
     await render(<NutritionSummary nutrition={nutrition} />);
     const caption = screen.getByTestId('calorie-ring-caption');
     expect(caption).toHaveTextContent('of 1,701 kcal');
     expect(caption).not.toHaveTextContent(/eaten/);
-    expect(caption.props.numberOfLines).toBe(1);
-    expect(caption.props.adjustsFontSizeToFit).toBe(true);
+    expect(caption.props.numberOfLines).toBe(2);
+    expect(caption.props.adjustsFontSizeToFit).toBeUndefined();
     expect(caption).toHaveStyle({ maxWidth: RING_INNER_WIDTH });
     // Inner circle = 128 − 2×12 stroke; the caption keeps a margin inside it.
     expect(RING_INNER_WIDTH).toBeLessThan(128 - 2 * 12);

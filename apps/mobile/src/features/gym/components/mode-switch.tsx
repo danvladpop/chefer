@@ -91,7 +91,7 @@ export function ModeSwitch({ className }: { className?: string }) {
         options={OPTIONS}
         value={mode}
         onChange={onChange}
-        className="w-36"
+        className="min-w-36"
       />
       <View className="flex-row items-center">
         <Pressable

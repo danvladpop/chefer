@@ -100,8 +100,10 @@ export function ResumeCard({
   return (
     <Card testID={testID} className="border-primary/30 bg-accent">
       <View accessible accessibilityLabel={accessibleSentence(summary)} className="gap-2">
-        <View className="flex-row items-center justify-between">
-          <Text className="text-xs font-semibold tracking-wide text-primary">{eyebrow}</Text>
+        <View className="flex-row items-center justify-between gap-2">
+          <Text className="min-w-0 flex-1 text-xs font-semibold tracking-wide text-primary">
+            {eyebrow}
+          </Text>
           {summary.state === 'active' ? (
             <ElapsedTime testID={`${testID}-elapsed`} startedAt={session.startedAt} />
           ) : summary.state === 'paused' ? (
