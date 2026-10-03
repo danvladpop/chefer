@@ -79,8 +79,12 @@ describe('WeightSparkline (UX-FOOD-27)', () => {
       'Weight over the last 30 days: 78.4 → 70.9 kg',
     );
     // Axis dates follow the device locale (UX-X-15).
-    expect(screen.getByText(formatDate(entries[0]!.recordedAt, 'short'))).toBeOnTheScreen();
-    expect(screen.getByText(formatDate(entries.at(-1)!.recordedAt, 'short'))).toBeOnTheScreen();
+    expect(
+      screen.getByText(formatDate(new Date('2026-09-10T08:00:00Z'), 'short')),
+    ).toBeOnTheScreen();
+    expect(
+      screen.getByText(formatDate(new Date('2026-09-15T08:00:00Z'), 'short')),
+    ).toBeOnTheScreen();
   });
 
   it('shows values in the user’s unit', async () => {
