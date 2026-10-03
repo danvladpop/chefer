@@ -203,15 +203,15 @@ Updated by each work package in `docs/backlog-2026-10/` (each WP edits only its 
 | UX-X-16    | S3  | fixed           | WP-03         | #109       | Undo 10 s, pauses while touched, 300 ms tap shield                                                                                                     |
 | UX-X-17    | S3  | fixed           | WP-03 + WP-12 | #109, #113 | SearchField everywhere incl. gym Exercises                                                                                                             |
 | UX-PO-01   | S1  | open            | Owner         |            |                                                                                                                                                        |
-| UX-PO-02   | S1  | partially fixed | WP-13         | PR_WP13    | Mobile funnel events (consent-gated) + docs/beta-dashboard.sql; a PostHog key + privacy labels are owner steps (OA-2); web event parity in the backlog |
+| UX-PO-02   | S1  | partially fixed | WP-13         | #116       | Mobile funnel events (consent-gated) + docs/beta-dashboard.sql; a PostHog key + privacy labels are owner steps (OA-2); web event parity in the backlog |
 | UX-PO-03   | S1  | open            | Owner         |            |                                                                                                                                                        |
 | UX-PO-04   | S1  | open            | Owner         |            |                                                                                                                                                        |
-| UX-PO-05   | S2  | fixed           | WP-13         | PR_WP13    | Build/OS/route on each submission, Gym entry, "Report this" on the crash screen, owner email (FEEDBACK_NOTIFY_EMAIL)                                   |
+| UX-PO-05   | S2  | fixed           | WP-13         | #116       | Build/OS/route on each submission, Gym entry, "Report this" on the crash screen, owner email (FEEDBACK_NOTIFY_EMAIL)                                   |
 | UX-PO-06   | S2  | open            | WP-14         |            |                                                                                                                                                        |
 | UX-PO-07   | S2  | open            | Owner         |            |                                                                                                                                                        |
-| UX-PO-08   | S2  | partially fixed | WP-13 + Owner | PR_WP13    | Onboarding nudge opt-in, Settings → Notifications, local dinner + Sunday nudges; email-confirm universal link is native (batch)                        |
+| UX-PO-08   | S2  | partially fixed | WP-13 + Owner | #116       | Onboarding nudge opt-in, Settings → Notifications, local dinner + Sunday nudges; email-confirm universal link is native (batch)                        |
 | UX-PO-09   | S2  | open            | Owner         |            |                                                                                                                                                        |
-| UX-PO-10   | S3  | fixed           | WP-13         | PR_WP13    | Landing reads the in-progress workout + training day; re-lands after 30 min in background                                                              |
+| UX-PO-10   | S3  | fixed           | WP-13         | #116       | Landing reads the in-progress workout + training day; re-lands after 30 min in background                                                              |
 
 ### Coverage matrix
 
