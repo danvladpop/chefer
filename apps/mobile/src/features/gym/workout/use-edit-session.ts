@@ -6,6 +6,12 @@ import { nowIso } from '../offline/ids';
 import { outbox } from '../offline/outbox';
 import { localInstant } from '../reminders/schedule';
 import type { WorkoutActionInput } from '../use-active-workout';
+import {
+  clearSessionDraft,
+  editDraftTarget,
+  loadSessionDraft,
+  saveSessionDraft,
+} from './session-draft-store';
 import { useIsOnline } from './use-is-online';
 
 // Edit mode's draft (UX-44, T-44.3): a completed session loaded into a draft
@@ -23,6 +29,8 @@ export type EditSessionState =
       original: WorkoutSessionDoc;
       draft: WorkoutSessionDoc;
       dirty: boolean;
+      /** True when the draft was brought back from an earlier, unsaved visit (UX-GYM-26). */
+      restored: boolean;
     };
 
 export interface EditSession {
@@ -38,6 +46,8 @@ export interface EditSession {
    * stable time of day: the original session's for edit mode, 18:00 for log mode.
    */
   retime: (input: { localDate: string; durationMin: number }) => void;
+  /** Forgets the saved draft (after Save, Discard or Delete) — UX-GYM-26. */
+  discardDraft: () => void;
 }
 
 const pad2 = (n: number) => String(n).padStart(2, '0');
@@ -89,22 +99,44 @@ export function useEditSession(sessionId: string): EditSession {
   const [original, setOriginal] = useState<WorkoutSessionDoc | null>(null);
   const [draft, setDraft] = useState<WorkoutSessionDoc | null>(null);
   const draftRef = useRef<WorkoutSessionDoc | null>(null);
+  const originalRef = useRef<WorkoutSessionDoc | null>(null);
+  const [restored, setRestored] = useState(false);
+  const target = editDraftTarget(sessionId);
 
   // Load once: a refetch that lands while the user is editing must not replace the draft.
   useEffect(() => {
     if (original !== null || source?.status !== 'COMPLETED') return;
+    // UX-GYM-26: an earlier, unsaved visit comes back — unless the session
+    // changed underneath it (a newer version synced), which makes it stale.
+    const saved = loadSessionDraft('edit', target);
+    const usable =
+      saved !== null &&
+      saved.original.id === source.id &&
+      saved.original.clientUpdatedAt === source.clientUpdatedAt;
+    const start = usable ? saved.draft : source;
+    if (saved !== null && !usable) clearSessionDraft('edit', target);
+    originalRef.current = source;
     setOriginal(source);
-    setDraft(source);
-    draftRef.current = source;
-  }, [original, source]);
+    setDraft(start);
+    setRestored(usable);
+    draftRef.current = start;
+  }, [original, source, target]);
 
-  const apply = useCallback((fn: (doc: WorkoutSessionDoc) => WorkoutSessionDoc) => {
-    const current = draftRef.current;
-    if (!current) return;
-    const next = fn(current);
-    draftRef.current = next;
-    setDraft(next);
-  }, []);
+  const apply = useCallback(
+    (fn: (doc: WorkoutSessionDoc) => WorkoutSessionDoc) => {
+      const current = draftRef.current;
+      if (!current) return;
+      const next = fn(current);
+      draftRef.current = next;
+      setDraft(next);
+      const base = originalRef.current;
+      if (base && hasEdits(base, next)) saveSessionDraft('edit', target, base, next);
+      else clearSessionDraft('edit', target);
+    },
+    [target],
+  );
+
+  const discardDraft = useCallback(() => clearSessionDraft('edit', target), [target]);
 
   const dispatch = useCallback<EditSession['dispatch']>(
     (action, options) => {
@@ -132,7 +164,7 @@ export function useEditSession(sessionId: string): EditSession {
 
   let state: EditSessionState;
   if (original && draft) {
-    state = { status: 'ready', original, draft, dirty: hasEdits(original, draft) };
+    state = { status: 'ready', original, draft, dirty: hasEdits(original, draft), restored };
   } else if (source !== null && source.status !== 'COMPLETED') {
     state = { status: 'unavailable', offline: false };
   } else if (query.isLoading && pending === null && online) {
@@ -143,5 +175,5 @@ export function useEditSession(sessionId: string): EditSession {
     state = { status: 'loading' };
   }
 
-  return { state, getDraft, dispatch, replaceExercise, retime };
+  return { state, getDraft, dispatch, replaceExercise, retime, discardDraft };
 }

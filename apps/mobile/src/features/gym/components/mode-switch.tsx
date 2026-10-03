@@ -1,3 +1,4 @@
+import { useEffect } from 'react';
 import { Pressable, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { onlineManager, useQueryClient } from '@tanstack/react-query';
@@ -7,7 +8,15 @@ import { SegmentedControl } from '@chefer/ui-mobile';
 import { cn } from '@chefer/utils';
 import { HeaderAvatar } from '../../../components/header-avatar';
 import { trpc } from '../../../lib/trpc';
-import { getMode, setMode, type AppMode } from '../mode-store';
+import {
+  commitPendingGymMode,
+  deferGymMode,
+  getMode,
+  hasChosenMode,
+  restoreMode,
+  setMode,
+  type AppMode,
+} from '../mode-store';
 import { gymBootstrapQueryKey, gymBootstrapQueryOptions } from '../use-gym-bootstrap';
 
 const OPTIONS = [
@@ -60,7 +69,20 @@ export function ModeSwitch({ className }: { className?: string }) {
     return bootstrap?.profile === null;
   };
 
+  // UX-X-11: a Gym switch that was waiting for setup is recorded the moment
+  // the gym profile exists (setup finished on top of Today, which keeps this
+  // pill mounted).
+  useEffect(() => {
+    const cache = queryClient.getQueryCache();
+    return cache.subscribe(() => {
+      const bootstrap = queryClient.getQueryData<GymBootstrap>(gymBootstrapQueryKey);
+      if (bootstrap) commitPendingGymMode(bootstrap.profile !== null);
+    });
+  }, [queryClient]);
+
   const onChange = (next: AppMode) => {
+    // What was persisted before this tap (null = never chose, lands by jobs).
+    const previous = hasChosenMode() ? getMode() : null;
     setMode(next);
     if (next === 'food') {
       // Explicit group: bare '/' also matches the guarded (auth)/index and
@@ -71,7 +93,14 @@ export function ModeSwitch({ className }: { className?: string }) {
     router.replace('/today');
     void needsSetup().then((setup) => {
       // The user may have switched back while we waited.
-      if (setup && getMode() === 'gym') router.push('/gym/setup');
+      if (!setup || getMode() !== 'gym') return;
+      // UX-X-11: Gym is not set up, so this tap must not become the persisted
+      // landing — a food-only user who only peeked would reopen on "Set up your
+      // training" every launch. Put the previous choice back; it is recorded
+      // once setup completes.
+      restoreMode(previous);
+      deferGymMode();
+      router.push('/gym/setup');
     });
   };
 

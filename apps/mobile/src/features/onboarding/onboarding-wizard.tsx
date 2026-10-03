@@ -1,10 +1,17 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, BackHandler, Pressable, ScrollView, View } from 'react-native';
+import { ActivityIndicator, BackHandler, Pressable, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { router, useFocusEffect } from 'expo-router';
 import type { OnboardingJob } from '@chefer/types';
 import { bodyMetricsAgeError, LB_PER_KG } from '@chefer/types';
-import { Button, ConfirmSheet, ErrorState, Screen, Text } from '@chefer/ui-mobile';
+import {
+  Button,
+  ConfirmSheet,
+  ErrorState,
+  KeyboardAwareScrollView,
+  Screen,
+  Text,
+} from '@chefer/ui-mobile';
 import {
   aiConsentRequiredFor,
   inferUnitsFromInput,
@@ -20,7 +27,7 @@ import { getToken } from '../../lib/auth-store';
 import { trpc } from '../../lib/trpc';
 import { useAiConsent } from '../ai-consent/ai-consent-provider';
 import { setMode } from '../gym/mode-store';
-import { HouseholdEditor } from '../household/household-editor';
+import { HouseholdEditor, type HouseholdEditorHandle } from '../household/household-editor';
 import { CuisineStep, type CuisineStepValue } from '../preferences/components/cuisine-step';
 import { GoalStep } from '../preferences/components/goal-step';
 import { MetricsStep } from '../preferences/components/metrics-step';
@@ -300,23 +307,15 @@ export function OnboardingWizard() {
     },
   });
 
-  // Bug (UX-03): the ScrollView is one persistent instance across every
-  // step, so a step reached scrolled down (e.g. How you cook, which needs
-  // scrolling to reach the auto-plan toggle) carried that offset straight
-  // into the next step. The content visually snapped back on its own a
-  // beat later, but a tap delivered before that correction lands on
-  // whatever the stale offset put under it — on the goal step this meant
-  // the very first Continue tap after How you cook could miss "Lose
-  // Weight" entirely and silently leave `goal` at null, which then
-  // silently dropped the whole `targets` step for Train + a numeric goal
-  // (03 UX-03 flow table). Reset to the top on every step change instead.
-  // Keyed on `step` (not `stepKey`) so this hook can sit above the loading/
-  // error early returns below, where `steps`/`stepKey` aren't computed yet
-  // — hooks can't follow a conditional return.
-  const scrollRef = useRef<ScrollView>(null);
-  useEffect(() => {
-    scrollRef.current?.scrollTo({ y: 0, animated: false });
-  }, [step]);
+  // Bug (UX-03): a step reached scrolled down (e.g. How you cook, which needs
+  // scrolling to reach the auto-plan toggle) must not carry that offset into
+  // the next step — a tap delivered before the correction lands on whatever
+  // the stale offset put under it (on the goal step the first Continue could
+  // miss "Lose Weight" and silently leave `goal` at null). The scroll view is
+  // keyed on `step` below, so every step starts at the top (UX-ONB-07 moved
+  // the wizard onto `KeyboardAwareScrollView`, which has no imperative ref).
+  // UX-ONB-07: the table step's editor, asked before Continue leaves it.
+  const householdRef = useRef<HouseholdEditorHandle>(null);
 
   // UX-ONB-01: Android hardware BACK steps back one question (first step: asks
   // before leaving). Focus-scoped, so it never swallows BACK on a screen pushed
@@ -637,6 +636,13 @@ export function OnboardingWizard() {
       void handleJobsContinue();
       return;
     }
+    // UX-ONB-07: a name typed into "Add someone" but never added is added first
+    // (through the normal save, health consent included), then the wizard moves
+    // on. If the add fails or is cancelled the step stays and shows why.
+    if (stepKey === 'table' && householdRef.current?.hasPending()) {
+      householdRef.current.addPending(() => advance());
+      return;
+    }
     // T-26.2: ask when leaving the step that holds health information, so the
     // sheet appears where the user just typed it. "Don't save it" discards
     // that step's health fields (they are never sent) and keeps the step open
@@ -709,6 +715,8 @@ export function OnboardingWizard() {
         onHeightText={handleHeightText}
         onWeightText={handleWeightText}
         units={howYouCook.units}
+        // UX-ONB-06: Done on the last field (weight) is Continue.
+        onSubmit={handleContinue}
       />
       {unitSwitchNotice && (
         <View
@@ -751,7 +759,7 @@ export function OnboardingWizard() {
           Add the people you cook for. Their allergies and restrictions apply to every plan — free.
           You can change this any time from Profile → Household.
         </Text>
-        <HouseholdEditor variant="onboarding" />
+        <HouseholdEditor variant="onboarding" handleRef={householdRef} />
       </View>
     );
   } else if (stepKey === 'diet') {
@@ -854,10 +862,43 @@ export function OnboardingWizard() {
         <View className="h-full rounded-full bg-primary" style={{ width: `${progressPct}%` }} />
       </View>
 
-      <ScrollView
-        ref={scrollRef}
+      {/* UX-ONB-07: Continue is the scroll view's sticky footer, so it rises with
+          the keyboard instead of hiding under it on every step with a field. */}
+      <KeyboardAwareScrollView
+        key={step}
+        testID="onboarding-scroll"
         contentContainerClassName="gap-4 px-4 py-3 pb-8"
-        keyboardShouldPersistTaps="handled"
+        footer={
+          <View className="gap-2 border-t border-border bg-background px-4 pb-2 pt-3">
+            <Button
+              testID="onboarding-continue"
+              loading={isSubmitting}
+              disabled={!canContinue || isSubmitting}
+              onPress={handleContinue}
+            >
+              {stepKey === 'jobs'
+                ? `Continue — ${jobs.length} selected`
+                : step === totalSteps - 1
+                  ? hasTrain
+                    ? ONBOARDING_COPY.finishTrainFood
+                    : ONBOARDING_COPY.finishFood
+                  : 'Continue'}
+            </Button>
+            {stepKey === 'jobs' && (
+              <Pressable
+                testID="onboarding-skip"
+                accessibilityRole="button"
+                onPress={handleSkip}
+                disabled={isSubmitting}
+                className="h-11 items-center justify-center"
+              >
+                <Text className="text-sm font-semibold text-primary">
+                  {ONBOARDING_COPY.continueSkip}
+                </Text>
+              </Pressable>
+            )}
+          </View>
+        }
       >
         {content}
         {error && (
@@ -865,38 +906,7 @@ export function OnboardingWizard() {
             <Text className="text-sm text-red-600">{error}</Text>
           </View>
         )}
-      </ScrollView>
-
-      {/* Primary Continue button — bottom, thumb reach */}
-      <View className="gap-2 border-t border-border px-4 pb-2 pt-3">
-        <Button
-          testID="onboarding-continue"
-          loading={isSubmitting}
-          disabled={!canContinue || isSubmitting}
-          onPress={handleContinue}
-        >
-          {stepKey === 'jobs'
-            ? `Continue — ${jobs.length} selected`
-            : step === totalSteps - 1
-              ? hasTrain
-                ? ONBOARDING_COPY.finishTrainFood
-                : ONBOARDING_COPY.finishFood
-              : 'Continue'}
-        </Button>
-        {stepKey === 'jobs' && (
-          <Pressable
-            testID="onboarding-skip"
-            accessibilityRole="button"
-            onPress={handleSkip}
-            disabled={isSubmitting}
-            className="h-11 items-center justify-center"
-          >
-            <Text className="text-sm font-semibold text-primary">
-              {ONBOARDING_COPY.continueSkip}
-            </Text>
-          </Pressable>
-        )}
-      </View>
+      </KeyboardAwareScrollView>
       {healthConsentSheet}
       <ConfirmSheet
         testID="onboarding-leave-confirm"

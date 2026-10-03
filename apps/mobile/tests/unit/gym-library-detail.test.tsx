@@ -1,6 +1,6 @@
-import { Alert, Linking } from 'react-native';
+import { Alert, Keyboard, Linking } from 'react-native';
 import { onlineManager } from '@tanstack/react-query';
-import { screen, userEvent, waitFor } from '@testing-library/react-native';
+import { fireEvent, screen, userEvent, waitFor } from '@testing-library/react-native';
 import type { ExerciseDto, SessionSummaryDto } from '@chefer/types';
 import { ExerciseDetailScreen } from '../../src/features/gym/library-screens/exercise-detail-screen';
 import { getExerciseNote } from '../../src/features/gym/library-screens/exercise-notes';
@@ -242,5 +242,29 @@ describe('ExerciseDetailScreen', () => {
     await user.type(note, 'Keep elbows tucked');
 
     await waitFor(() => expect(getExerciseNote('bench')).toBe('Keep elbows tucked'));
+  });
+
+  // WP-03 lane C (UX-GYM-35): the note is keyboard-aware — it grows, scrolls
+  // itself clear on focus, and a sticky Done bar appears while it is focused.
+  it('keeps the note keyboard-aware: multiline, labelled, sticky Done while focused', async () => {
+    const user = userEvent.setup();
+    const queryClient = makeGymQueryClient();
+    queryClient.setQueryData(gymBootstrapQueryKey, makeBootstrap({ library: [withVideo()] }));
+    await renderWithGym(<ExerciseDetailScreen exerciseId="bench" />, queryClient);
+
+    const note = await screen.findByTestId('exercise-detail-note');
+    expect(note.props.multiline).toBe(true);
+    expect(note.props.accessibilityLabel).toBe('Your notes');
+    expect(screen.queryByTestId('exercise-detail-note-done')).toBeNull();
+
+    await fireEvent(note, 'focus');
+    const done = await screen.findByTestId('exercise-detail-note-done');
+    const dismiss = jest.spyOn(Keyboard, 'dismiss').mockImplementation(() => undefined);
+    await user.press(done);
+    expect(dismiss).toHaveBeenCalled();
+
+    await fireEvent(note, 'blur');
+    expect(screen.queryByTestId('exercise-detail-note-done')).toBeNull();
+    dismiss.mockRestore();
   });
 });

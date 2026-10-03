@@ -14,7 +14,11 @@ jest.mock('expo-router', () => ({
   router: { push: jest.fn(), back: jest.fn() },
   useLocalSearchParams: () => ({ id: 'r1' }),
   Link: () => null,
+  useNavigation: () => ({ dispatch: jest.fn(), goBack: jest.fn() }),
+  useIsFocused: () => true,
+  useFocusEffect: () => undefined,
 }));
+jest.mock('expo-router/react-navigation', () => ({ usePreventRemove: () => undefined }));
 jest.mock('../../src/lib/analytics', () => ({ track: jest.fn() }));
 jest.mock('../../src/features/gym/components/mode-switch', () => ({ ModeSwitch: () => null }));
 jest.mock('../../src/features/tracker/rebalance-store', () => ({ recordRebalance: jest.fn() }));

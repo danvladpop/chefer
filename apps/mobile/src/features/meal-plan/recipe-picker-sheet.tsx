@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Image, Pressable, SectionList, TextInput, View } from 'react-native';
+import { ActivityIndicator, Image, Pressable, SectionList, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { Button, ErrorState, Sheet, Text } from '@chefer/ui-mobile';
+import { Button, ErrorState, SEARCH_LIST_PROPS, SearchField, Sheet, Text } from '@chefer/ui-mobile';
 import {
   buildPickerSections,
   filterReplaceCandidates,
@@ -97,6 +97,11 @@ export function RecipePickerSheet({
     if (debounceRef.current) {
       clearTimeout(debounceRef.current);
     }
+    // UX-X-17: the clear × (and an emptied field) shows the full list at once.
+    if (value === '') {
+      setDebouncedSearch('');
+      return;
+    }
     debounceRef.current = setTimeout(() => setDebouncedSearch(value), 300);
   };
 
@@ -189,13 +194,12 @@ export function RecipePickerSheet({
 
       {/* Search */}
       <View className="pb-2">
-        <TextInput
+        <SearchField
           testID="picker-search"
+          accessibilityLabel="Search recipes"
           value={search}
           onChangeText={handleSearch}
           placeholder="Search recipes…"
-          placeholderTextColor="#9ca3af"
-          className="h-11 rounded-xl border border-input bg-background px-4 text-base text-foreground"
         />
       </View>
 
@@ -235,8 +239,9 @@ export function RecipePickerSheet({
       ) : (
         <SectionList
           sections={sections}
+          {...SEARCH_LIST_PROPS}
+          testID="picker-list"
           keyExtractor={(recipe) => recipe.id}
-          keyboardShouldPersistTaps="handled"
           stickySectionHeadersEnabled={false}
           className="grow-0"
           contentContainerClassName="pb-2"

@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Platform, Pressable, Text } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
-import { render, screen, userEvent } from '@testing-library/react-native';
+import { render, screen, userEvent, waitFor } from '@testing-library/react-native';
 import { GoalBodyCard } from '../../src/features/preferences/goal-body-card';
 import { useHealthConsent } from '../../src/features/privacy/use-health-consent';
 
@@ -135,6 +135,34 @@ describe('useHealthConsent', () => {
     expect(save).not.toHaveBeenCalled();
     expect(mockGrant).not.toHaveBeenCalled();
     expect(declined).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('useHealthConsent — ✕ / BACK / backdrop is a cancel (UX-ONB-03)', () => {
+  it('closing the sheet is neither a save nor a decline, so the caller keeps its selections', async () => {
+    await render(wrap(<SaveButton />));
+    const user = userEvent.setup();
+    await user.press(screen.getByTestId('save'));
+    await user.press(screen.getByTestId('health-consent-close'));
+
+    await waitFor(() => expect(screen.queryByTestId('health-consent-allow')).toBeNull());
+    expect(save).not.toHaveBeenCalled();
+    expect(mockGrant).not.toHaveBeenCalled();
+    // `onDeclined` is what clears allergies/diet/dislikes: it must NOT run.
+    expect(declined).not.toHaveBeenCalled();
+  });
+
+  it('asks again on the next save after a cancel, and Allow then saves', async () => {
+    await render(wrap(<SaveButton />));
+    const user = userEvent.setup();
+    await user.press(screen.getByTestId('save'));
+    await user.press(screen.getByTestId('health-consent-close'));
+    await waitFor(() => expect(screen.queryByTestId('health-consent-allow')).toBeNull());
+
+    await user.press(screen.getByTestId('save'));
+    await user.press(screen.getByTestId('health-consent-allow'));
+    expect(save).toHaveBeenCalledTimes(1);
+    expect(declined).not.toHaveBeenCalled();
   });
 });
 

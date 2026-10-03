@@ -11,6 +11,7 @@ import {
 } from '@chefer/ui-mobile';
 import { userFacingErrorMessage } from '@chefer/utils';
 import { trpc } from '../../lib/trpc';
+import { useNumericChain } from './use-numeric-chain';
 
 // ─── TargetsCard (§2.11, T-35.3) ────────────────────────────────────────────────
 // Settings › Preferences "Your targets": Suggested (read-only, from the
@@ -54,6 +55,8 @@ export function TargetsCard({ previewKcal }: TargetsCardProps = {}) {
   const [carbsText, setCarbsText] = useState('');
   const [fatText, setFatText] = useState('');
   const [loaded, setLoaded] = useState(false);
+  // UX-ONB-06: one accessory bar per number field, Calories → Protein → Carbs → Fat.
+  const numeric = useNumericChain('targets', 4);
   const [localError, setLocalError] = useState<string | null>(null);
   // Bug B-38 pattern: "Saved ✓" must not stick past a further edit — snapshot
   // exactly what was sent, captured synchronously at save-click time.
@@ -208,6 +211,7 @@ export function TargetsCard({ previewKcal }: TargetsCardProps = {}) {
               <Text variant="label">Calories</Text>
               <Input
                 testID="targets-kcal"
+                {...numeric.bind(0)}
                 accessibilityLabel="Calories"
                 value={kcalText}
                 onChangeText={setKcalText}
@@ -218,6 +222,7 @@ export function TargetsCard({ previewKcal }: TargetsCardProps = {}) {
               <Text variant="label">Protein (g)</Text>
               <Input
                 testID="targets-protein"
+                {...numeric.bind(1)}
                 accessibilityLabel="Protein grams"
                 value={proteinText}
                 onChangeText={setProteinText}
@@ -230,6 +235,7 @@ export function TargetsCard({ previewKcal }: TargetsCardProps = {}) {
               <Text variant="label">Carbs (g)</Text>
               <Input
                 testID="targets-carbs"
+                {...numeric.bind(2)}
                 accessibilityLabel="Carbs grams"
                 value={carbsText}
                 onChangeText={setCarbsText}
@@ -240,6 +246,7 @@ export function TargetsCard({ previewKcal }: TargetsCardProps = {}) {
               <Text variant="label">Fat (g)</Text>
               <Input
                 testID="targets-fat"
+                {...numeric.bind(3)}
                 accessibilityLabel="Fat grams"
                 value={fatText}
                 onChangeText={setFatText}
@@ -249,6 +256,8 @@ export function TargetsCard({ previewKcal }: TargetsCardProps = {}) {
           </View>
         </View>
       )}
+
+      {numeric.bars}
 
       <Button testID="targets-save" loading={setMutation.isPending} onPress={save}>
         {setMutation.isSuccess && !dirty ? 'Saved ✓' : 'Save targets'}

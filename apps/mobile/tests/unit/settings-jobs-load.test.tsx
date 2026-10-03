@@ -8,7 +8,11 @@ import { testQueryClient } from './friends-profile-fixtures';
 
 jest.mock('expo-router', () => ({
   router: { back: jest.fn(), replace: jest.fn(), push: jest.fn() },
+  useNavigation: () => ({ dispatch: jest.fn(), goBack: jest.fn() }),
+  useIsFocused: () => true,
+  useFocusEffect: () => undefined,
 }));
+jest.mock('expo-router/react-navigation', () => ({ usePreventRemove: () => undefined }));
 jest.mock('../../src/features/gym/mode-store', () => ({ setMode: jest.fn() }));
 
 describe('Settings › jobs: failed load', () => {

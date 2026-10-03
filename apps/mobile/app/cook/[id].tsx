@@ -5,6 +5,7 @@ import { useKeepAwake } from 'expo-keep-awake';
 import { router, useLocalSearchParams } from 'expo-router';
 import {
   Button,
+  ConfirmSheet,
   ErrorState,
   KeyboardAwareScrollView,
   Screen,
@@ -28,6 +29,11 @@ import {
   userFacingErrorMessage,
 } from '@chefer/utils';
 import { AllergenWarningBanner } from '../../src/features/recipes/allergen-warning';
+import {
+  clearCookSession,
+  getCookSession,
+  saveCookSession,
+} from '../../src/features/recipes/cook-session-store';
 import { StarRating } from '../../src/features/recipes/star-rating';
 import { CheckedForLine } from '../../src/features/safety/checked-for-line';
 import { LabelCaveat } from '../../src/features/safety/label-caveat';
@@ -37,6 +43,7 @@ import { useCookingFor } from '../../src/hooks/use-cooking-for';
 import { useHousehold } from '../../src/hooks/use-household';
 import { useUnitSystem } from '../../src/hooks/use-unit-system';
 import { trpc } from '../../src/lib/trpc';
+import { useUnsavedGuard } from '../../src/lib/use-unsaved-guard';
 
 // Cook mode (P1-3) — port of web features/recipes/components/cook-mode.tsx.
 // Step-by-step with inline timers (shared parseStepDuration), screen kept
@@ -146,11 +153,34 @@ export default function CookModeScreen() {
   const cookingFor = useCookingFor();
   const [servings, setServings] = useState<number | null>(null);
 
-  const [step, setStep] = useState(0);
+  // UX-COOK-02: leaving and coming back resumes the step and the ticks.
+  const [step, setStep] = useState(() => getCookSession(id).step);
   const [finished, setFinished] = useState(false);
   const [logged, setLogged] = useState(false);
-  const [checkedIngredients, setCheckedIngredients] = useState<Set<number>>(new Set());
+  const [checkedIngredients, setCheckedIngredients] = useState<Set<number>>(
+    () => new Set(getCookSession(id).checked),
+  );
   const [showIngredients, setShowIngredients] = useState(false);
+
+  useEffect(() => {
+    if (finished) return;
+    saveCookSession(id, { step, checked: [...checkedIngredients] });
+  }, [id, step, checkedIngredients, finished]);
+
+  // UX-COOK-02: BACK (Android), the header ✕ and the iOS swipe close the
+  // ingredients panel first, then ask before leaving mid-recipe. The panel
+  // counts as "dirty" so the iOS swipe is held while it is open.
+  const guard = useUnsavedGuard(!finished && (step > 0 || showIngredients), {
+    onBack: () => {
+      if (!showIngredients) return undefined;
+      setShowIngredients(false);
+      return true;
+    },
+    title: 'Leave cook mode?',
+    message: `You are on step ${step + 1}. Your place and ticked ingredients are kept if you come back to this recipe.`,
+    discardLabel: 'Leave',
+    keepLabel: 'Keep cooking',
+  });
 
   const upsertDay = trpc.tracker.logRecipe.useMutation({
     meta: { silent: true },
@@ -211,6 +241,12 @@ export default function CookModeScreen() {
       </Screen>
     );
   }
+
+  const finishCooking = () => {
+    // Done cooking: the next time this recipe is opened starts from the top.
+    clearCookSession(id);
+    setFinished(true);
+  };
 
   const baseServings = recipe.servings || 1;
   const selectedServings =
@@ -445,15 +481,14 @@ export default function CookModeScreen() {
             <Button
               testID="cook-next"
               className="flex-1"
-              onPress={() =>
-                safeStep >= totalSteps - 1 ? setFinished(true) : setStep((s) => s + 1)
-              }
+              onPress={() => (safeStep >= totalSteps - 1 ? finishCooking() : setStep((s) => s + 1))}
             >
               {safeStep >= totalSteps - 1 ? 'Finish' : 'Next step'}
             </Button>
           </View>
         </View>
       )}
+      <ConfirmSheet testID="cook-leave" {...guard.sheetProps} />
     </Screen>
   );
 }

@@ -1,8 +1,8 @@
 import { useRef, useState } from 'react';
-import { Keyboard, Pressable, TextInput, View } from 'react-native';
+import { Keyboard, Pressable, View, type TextInput } from 'react-native';
 import { router } from 'expo-router';
 import { ACCOUNT_DELETION_COPY as COPY } from '@chefer/types';
-import { Button, Card, PasswordInput, Sheet, Text, useSnackbar } from '@chefer/ui-mobile';
+import { Button, Card, Input, PasswordInput, Sheet, Text, useSnackbar } from '@chefer/ui-mobile';
 import { userFacingErrorMessage } from '@chefer/utils';
 import { shareExportFile } from '../../lib/share-file';
 import { signOut } from '../../lib/sign-out';
@@ -126,7 +126,7 @@ function DeleteAccountSheet({ visible, onClose }: { visible: boolean; onClose: (
           >
             {COPY.submit}
           </Button>
-          <Button variant="outline" size="lg" onPress={close}>
+          <Button testID="delete-account-cancel" variant="outline" size="lg" onPress={close}>
             {COPY.cancel}
           </Button>
         </View>
@@ -186,7 +186,10 @@ function DeleteAccountSheet({ visible, onClose }: { visible: boolean; onClose: (
           </Text>
         )}
         <Text className="text-sm font-medium text-gray-800">{COPY.confirmLabel}</Text>
-        <TextInput
+        {/* UX-ACC-26: `Input` scrolls itself clear of the keyboard inside the
+            Sheet; the footer buttons sit in the sheet's persist-taps footer, so
+            the first tap on Cancel / Delete lands even with the keyboard up. */}
+        <Input
           ref={confirmRef}
           testID="delete-account-confirm-text"
           accessibilityLabel={COPY.confirmLabel}
@@ -198,7 +201,6 @@ function DeleteAccountSheet({ visible, onClose }: { visible: boolean; onClose: (
           onSubmitEditing={() => Keyboard.dismiss()}
           value={confirmText}
           onChangeText={onConfirmTextChange}
-          className="min-h-11 rounded-lg border border-gray-300 px-3 text-base"
         />
         {deleteMutation.isError && (
           <Text className="text-sm text-red-700">

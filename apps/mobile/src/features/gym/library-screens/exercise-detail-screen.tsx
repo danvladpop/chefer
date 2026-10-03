@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { Pressable, ScrollView, View } from 'react-native';
+import { Keyboard, Pressable, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { HIDDEN_EXERCISE_IMAGE_IDS, MUSCLE_LABELS } from '@chefer/types';
@@ -11,7 +11,7 @@ import {
   ConfirmSheet,
   EmptyState,
   ErrorState,
-  Input,
+  KeyboardAwareScrollView,
   LineChart,
   Screen,
   Text,
@@ -22,6 +22,7 @@ import { GymBootstrapUnavailable, useGymBootstrapLoad } from '../components/gym-
 import { exerciseImageUrl } from '../library/exercise-image';
 import { localBestSets, localE1rmSeries, localRepPrTable } from '../stats/local-engine';
 import { useGymBootstrap } from '../use-gym-bootstrap';
+import { ExerciseNoteField } from './exercise-note-field';
 import { getExerciseNote, setExerciseNote } from './exercise-notes';
 import { ExerciseVideoSheet } from './exercise-video-sheet';
 import { useIsOnline } from './online-status';
@@ -45,6 +46,7 @@ export function ExerciseDetailScreen({ exerciseId }: { exerciseId: string }) {
   const utils = trpc.useUtils();
   const [videoVisible, setVideoVisible] = useState(false);
   const [note, setNote] = useState(() => getExerciseNote(exerciseId));
+  const [noteFocused, setNoteFocused] = useState(false);
 
   const cachedExercise = bootstrap?.library.find((e) => e.id === exerciseId);
   const fetchedQuery = trpc.gym.library.get.useQuery(
@@ -134,7 +136,25 @@ export function ExerciseDetailScreen({ exerciseId }: { exerciseId: string }) {
 
   return (
     <Screen className="px-0" edges={['top', 'bottom', 'left', 'right']}>
-      <ScrollView contentContainerClassName="gap-4 px-4 pb-8 pt-2" testID="gym-exercise-detail">
+      {/* UX-GYM-35: keyboard-aware, with a sticky "Done" bar while the note is
+          being typed (the note autosaves; Done just puts the keyboard away). */}
+      <KeyboardAwareScrollView
+        contentContainerClassName="gap-4 px-4 pb-8 pt-2"
+        testID="gym-exercise-detail"
+        footer={
+          noteFocused ? (
+            <View className="border-t border-border bg-background px-4 py-2">
+              <Button
+                testID="exercise-detail-note-done"
+                variant="outline"
+                onPress={() => Keyboard.dismiss()}
+              >
+                Done
+              </Button>
+            </View>
+          ) : undefined
+        }
+      >
         <View className="flex-row items-center gap-3">
           <StackBackButton testID="gym-exercise-title-back" />
         </View>
@@ -302,13 +322,10 @@ export function ExerciseDetailScreen({ exerciseId }: { exerciseId: string }) {
             <Text variant="label" className="mb-1">
               Your notes
             </Text>
-            <Input
-              testID="exercise-detail-note"
+            <ExerciseNoteField
               value={note}
               onChangeText={onSaveNote}
-              placeholder="A personal cue or reminder…"
-              multiline
-              className="min-h-11 py-2"
+              onFocusChange={setNoteFocused}
             />
           </View>
         </View>
@@ -322,7 +339,7 @@ export function ExerciseDetailScreen({ exerciseId }: { exerciseId: string }) {
             channel={exercise.videoChannel}
           />
         ) : null}
-      </ScrollView>
+      </KeyboardAwareScrollView>
       <ConfirmSheet
         visible={archiveConfirmOpen}
         onClose={() => setArchiveConfirmOpen(false)}

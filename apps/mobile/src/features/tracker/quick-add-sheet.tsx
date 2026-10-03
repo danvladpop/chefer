@@ -126,6 +126,12 @@ export function QuickAddSheet({
   const [name, setName] = useState('');
   const [kcal, setKcal] = useState('');
   const kcalInputRef = useRef<TextInput>(null);
+  const nameInputRef = useRef<TextInput>(null);
+  const macroInputRefs = {
+    protein: useRef<TextInput>(null),
+    carbs: useRef<TextInput>(null),
+    fat: useRef<TextInput>(null),
+  };
   const [macros, setMacros] = useState({ protein: '', carbs: '', fat: '' });
   const [errors, setErrors] = useState<QuickAddErrors>({});
   const [sanityOverridden, setSanityOverridden] = useState(false);
@@ -289,6 +295,16 @@ export function QuickAddSheet({
     const parsed = parseQuickAdd({ name, mealType, kcal, ...macros });
     if (!parsed.ok) {
       setErrors(parsed.errors);
+      // UX-FOOD-10: with the keyboard up an error can sit off-screen and Log
+      // looks dead — focus (and so scroll to) the first invalid field.
+      const fieldOrder = [
+        ['name', nameInputRef],
+        ['kcal', kcalInputRef],
+        ['protein', macroInputRefs.protein],
+        ['carbs', macroInputRefs.carbs],
+        ['fat', macroInputRefs.fat],
+      ] as const;
+      fieldOrder.find(([key]) => parsed.errors[key])?.[1].current?.focus();
       return;
     }
     setErrors({});
@@ -792,6 +808,7 @@ export function QuickAddSheet({
             <Text className="text-xs font-medium text-gray-600">What did you eat?</Text>
             <Input
               testID="quick-add-name"
+              ref={nameInputRef}
               accessibilityLabel="What did you eat?"
               value={name}
               maxLength={QUICK_ADD_LIMITS.nameMaxLength}
@@ -854,6 +871,7 @@ export function QuickAddSheet({
                   <Text className="text-xs font-medium text-gray-600">{label} (g)</Text>
                   <Input
                     testID={`quick-add-${key}`}
+                    ref={macroInputRefs[key]}
                     accessibilityLabel={`${label} grams`}
                     value={macros[key]}
                     placeholder="–"

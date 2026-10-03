@@ -1,9 +1,9 @@
 import { useState } from 'react';
-import { Linking, Pressable, ScrollView, View } from 'react-native';
+import { Linking, Pressable, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { router, type Href } from 'expo-router';
 import { FRIENDS_COPY } from '@chefer/types';
-import { Button, CountPill, Screen, Text } from '@chefer/ui-mobile';
+import { Button, CountPill, KeyboardAwareScrollView, Screen, Text } from '@chefer/ui-mobile';
 import { FeedbackCard } from '../../src/features/feedback/feedback-card';
 import { useFriendsBadge } from '../../src/features/friends/api/use-friends-badge';
 import { ModeSwitch } from '../../src/features/gym/components/mode-switch';
@@ -68,7 +68,8 @@ export default function MoreScreen() {
       <Text variant="title" className="px-4">
         More
       </Text>
-      <ScrollView contentContainerClassName="gap-4 px-4 pb-8">
+      {/* UX-X-05 / UX-ACC-25: the feedback field and its Send button stay clear of the keyboard. */}
+      <KeyboardAwareScrollView testID="more-scroll" contentContainerClassName="gap-4 px-4 pb-8">
         <View className="overflow-hidden rounded-2xl border border-border bg-card">
           {items.map((item, i) => {
             const isFollowing = item === FOLLOWING_ITEM;
@@ -154,7 +155,7 @@ export default function MoreScreen() {
             {showBuildDetails ? CURRENT_BUILD : CURRENT_VERSION_LABEL}
           </Text>
         </Pressable>
-      </ScrollView>
+      </KeyboardAwareScrollView>
     </Screen>
   );
 }
