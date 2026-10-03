@@ -17,9 +17,11 @@ import {
   currencySymbol,
   formatKcal,
   fromEur,
+  parseWeeklyBudget,
   toDisplayCurrency,
   toEur,
   userFacingErrorMessage,
+  weeklyBudgetCapLabel,
 } from '@chefer/utils';
 import { AutoPlanToggle } from '../src/features/preferences/auto-plan-toggle';
 import { SafetyStep } from '../src/features/preferences/components/safety-step';
@@ -133,6 +135,9 @@ export default function PreferencesScreen() {
     onSuccess: () => {
       void utils.preferences.get.invalidate();
       void utils.dashboard.invalidate();
+      // UX-ACC-21: "Your targets" on this same screen showed the old number
+      // until the next visit — the goal and body drive the suggested target.
+      void utils.targets.invalidate();
     },
   });
 
@@ -190,12 +195,17 @@ export default function PreferencesScreen() {
 
   const saveDisplay = () => displayMutation.mutate({ preferredUnits: units, currency });
 
+  // UX-ACC-23: blank removes the budget; anything else must be a real amount
+  // within the cap — "abc" no longer erases it and 5000 is no longer stored as 2000.
+  const [budgetError, setBudgetError] = useState<string | null>(null);
   const saveBudget = () => {
-    const parsed = parseFloat(budget.replace(',', '.'));
-    targetsMutation.mutate({
-      weeklyBudgetEur:
-        Number.isFinite(parsed) && parsed > 0 ? Math.min(2000, toEur(parsed, savedCurrency)) : null,
-    });
+    const parsed = parseWeeklyBudget(budget, savedCurrency);
+    if (parsed.kind === 'error') {
+      setBudgetError(parsed.message);
+      return;
+    }
+    setBudgetError(null);
+    targetsMutation.mutate({ weeklyBudgetEur: parsed.kind === 'ok' ? parsed.eur : null });
   };
 
   const saveGoalBody = (payload: GoalBodySavePayload) => goalBodyMutation.mutate(payload);
@@ -420,13 +430,33 @@ export default function PreferencesScreen() {
                 {...budgetNumeric.bind(0)}
                 accessibilityLabel="Weekly ingredient budget"
                 value={budget}
-                onChangeText={isPremium === true ? setBudget : undefined}
+                onChangeText={
+                  isPremium === true
+                    ? (text) => {
+                        setBudget(text);
+                        setBudgetError(null);
+                      }
+                    : undefined
+                }
                 editable={isPremium === true}
                 keyboardType="decimal-pad"
                 placeholder="e.g. 60"
                 className={cn(isPremium === false && 'bg-gray-100 text-gray-400')}
               />
               {budgetNumeric.bars}
+              {budgetError ? (
+                <Text
+                  testID="prefs-budget-error"
+                  accessibilityRole="alert"
+                  className="text-xs text-red-600"
+                >
+                  {budgetError}
+                </Text>
+              ) : (
+                <Text testID="prefs-budget-cap" variant="muted" className="text-xs">
+                  {weeklyBudgetCapLabel(savedCurrency)}. Leave empty for no budget.
+                </Text>
+              )}
             </View>
             {isPremium === false ? (
               <View className="flex-row items-center gap-1.5">

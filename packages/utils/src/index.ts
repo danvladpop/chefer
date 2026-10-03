@@ -34,6 +34,13 @@ export {
   type PurchasableLine,
 } from './purchasable';
 export {
+  MAX_WEEKLY_BUDGET_EUR,
+  parseWeeklyBudget,
+  weeklyBudgetCap,
+  weeklyBudgetCapLabel,
+  type BudgetInput,
+} from './budget';
+export {
   EUR_EXCHANGE_RATES,
   EUR_EXCHANGE_RATES_AS_OF,
   currencySymbol,
