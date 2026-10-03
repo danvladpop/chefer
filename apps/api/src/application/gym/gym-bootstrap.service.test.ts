@@ -218,16 +218,22 @@ describe('GymBootstrapService.get', () => {
 
   it('offers the monthly recap in the first days of a month and honours dismissals', async () => {
     const early = '2026-10-03';
-    const { service } = setup({ dates: ['2026-09-28', '2026-10-01'] });
+    const { service } = setup({ dates: ['2026-09-21', '2026-09-28', '2026-10-01'] });
     const b = await service.get(USER, { today: early });
     expect(b.offers.map((o) => o.key)).toEqual(['recap:2026-09']);
 
     const dismissed = setup({
-      dates: ['2026-09-28', '2026-10-01'],
+      dates: ['2026-09-21', '2026-09-28', '2026-10-01'],
       context: ctx({ offerState: { dismissed: { 'recap:2026-09': '2026-10-02T00:00:00Z' } } }),
     });
     const b2 = await dismissed.service.get(USER, { today: early });
     expect(b2.offers).toEqual([]);
+  });
+
+  it('UX-GYM-13: no recap card for a month with a single session', async () => {
+    const { service } = setup({ dates: ['2026-09-28', '2026-10-01'] });
+    const b = await service.get(USER, { today: '2026-10-03' });
+    expect(b.offers).toEqual([]);
   });
 
   it('offers a deload when the engine says so, unless one is already running', async () => {

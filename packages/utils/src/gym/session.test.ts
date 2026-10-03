@@ -297,6 +297,46 @@ describe('missedPlannedDays (T-04.8, UX-04 §7)', () => {
   });
 });
 
+// UX-GYM-12: a brand-new user is never scolded for planned days BEFORE setup.
+describe('setup date (UX-GYM-12)', () => {
+  const WEDNESDAY = '2026-09-09';
+  const SINCE_WED = '2026-09-09'; // set up on Wednesday; Monday's Upper predates it
+
+  it('missedPlannedDays ignores a planned day earlier than the setup date', () => {
+    expect(
+      missedPlannedDays({
+        activeRoutine: ROUTINE,
+        recentSessions: [],
+        today: '2026-09-10',
+        since: SINCE_WED,
+      }),
+    ).toEqual([]);
+  });
+
+  it('missedPlannedDays still flags a planned day on/after the setup date', () => {
+    expect(
+      missedPlannedDays({
+        activeRoutine: ROUTINE,
+        recentSessions: [],
+        today: '2026-09-10',
+        since: '2026-09-07',
+      }),
+    ).toEqual([{ dayId: 'dA', dayName: 'Upper', weekday: 0 }]);
+  });
+
+  it('todayStatus: a pinned day that passed before setup is due today, not overdue or "rest"', () => {
+    // Monday's Upper is next; set up Tuesday night → Wednesday it is simply training.
+    const boot = bootstrapFor(WEDNESDAY);
+    expect(todayStatus({ bootstrap: boot, today: WEDNESDAY })).toEqual({
+      kind: 'training',
+      overdueFrom: 0,
+    });
+    expect(todayStatus({ bootstrap: boot, today: WEDNESDAY, since: SINCE_WED })).toEqual({
+      kind: 'training',
+    });
+  });
+});
+
 describe('doneTodayCard (T-05.9)', () => {
   const MONDAY = '2026-09-07';
   const PRIOR_MONDAY = '2026-08-31';

@@ -62,6 +62,8 @@ export const RECENT_SESSION_DAYS = 84; // 12 weeks
 export const COMEBACK_AFTER_DAYS = 8;
 /** The monthly recap is offered during the first days of a month. */
 export const RECAP_OFFER_DAYS = 7;
+/** UX-GYM-13: a month with fewer sessions than this has nothing worth a recap card. */
+export const RECAP_MIN_SESSIONS = 2;
 
 export class GymBootstrapService {
   constructor(
@@ -193,7 +195,8 @@ export class GymBootstrapService {
    * - deload   engine shouldOfferDeload, once per week, unless a deload is running
    * - stall    an exercise whose engine decision is STALL_SUGGEST_SWAP
    * - comeback the last session is more than COMEBACK_AFTER_DAYS ago
-   * - recap    first RECAP_OFFER_DAYS days of a month, when last month had sessions
+   * - recap    first RECAP_OFFER_DAYS days of a month, when last month had at least
+   *            RECAP_MIN_SESSIONS sessions
    */
   private offers(
     ctx: GymUserContext,
@@ -257,7 +260,7 @@ export class GymBootstrapService {
     const prevMonth = previousMonth(today);
     if (
       Number(today.slice(8, 10)) <= RECAP_OFFER_DAYS &&
-      sessionDates.some((d) => d.startsWith(prevMonth))
+      sessionDates.filter((d) => d.startsWith(prevMonth)).length >= RECAP_MIN_SESSIONS
     ) {
       push({
         kind: 'recap',
