@@ -162,6 +162,7 @@ export default function ShoppingListScreen() {
   // Sends the plan's ingredients to the AI — ask first (App Store 5.1.2(i)).
   const requestAiConsent = useAiConsent();
   const regenerateMutation = trpc.shoppingList.regenerate.useMutation({
+    meta: { silent: true },
     onSuccess: (data) => {
       utils.shoppingList.getForWeek.setData({ weekOffset }, data);
     },

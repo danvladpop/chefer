@@ -28,6 +28,7 @@ export function LoginForm() {
   const [showPassword, setShowPassword] = useState(false);
 
   const loginMutation = trpc.auth.login.useMutation({
+    meta: { silent: true },
     onSuccess: () => {
       // The query cache is a module-level singleton that survives client-side
       // navigation — without a clear, everything cached for the previous

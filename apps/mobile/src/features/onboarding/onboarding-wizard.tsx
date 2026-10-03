@@ -263,15 +263,18 @@ export function OnboardingWizard() {
   }
 
   const setJobsMutation = trpc.preferences.setJobs.useMutation({
+    meta: { silent: true },
     onError: (err) => setError(userFacingErrorMessage(err)),
   });
   const setDayKindsMutation = trpc.training.setDayKinds.useMutation();
   const setShapeMutation = trpc.mealPlan.setShape.useMutation();
   const setDisplayPrefsMutation = trpc.preferences.setDisplayPreferences.useMutation();
   const safetyMutation = trpc.preferences.updateSafety.useMutation({
+    meta: { silent: true },
     onError: (err) => setError(userFacingErrorMessage(err)),
   });
   const profileBasicsMutation = trpc.preferences.saveProfileBasics.useMutation({
+    meta: { silent: true },
     onError: (err) => setError(userFacingErrorMessage(err)),
   });
   const updateTargetsMutation = trpc.preferences.updateTargets.useMutation();

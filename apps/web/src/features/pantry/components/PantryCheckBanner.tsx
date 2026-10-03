@@ -11,6 +11,7 @@ import {
   PANTRY_CONFIRM_MIN_AGE_DAYS,
   pantryConfirmWeekKey,
   pantryItemsToConfirm,
+  userFacingErrorMessage,
 } from '@chefer/utils';
 
 // ─── "Still have these?" — inline pantry check (F3, audit F-PM-13) ───────────
@@ -60,6 +61,7 @@ export function PantryCheckBanner({
   };
 
   const confirmMutation = trpc.pantry.confirmWeekly.useMutation({
+    meta: { silent: true },
     onSuccess: () => {
       capture('pantry_confirmed');
       void utils.pantry.list.invalidate();
@@ -172,7 +174,9 @@ export function PantryCheckBanner({
                 : 'Done — I still have everything'}
           </button>
           {confirmMutation.isError && (
-            <p className="mt-2 text-xs text-red-600">{confirmMutation.error.message}</p>
+            <p className="mt-2 text-xs text-red-600">
+              {userFacingErrorMessage(confirmMutation.error)}
+            </p>
           )}
         </>
       )}

@@ -1,4 +1,5 @@
-import { Alert, Keyboard } from 'react-native';
+import { Keyboard } from 'react-native';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { render, screen, userEvent } from '@testing-library/react-native';
 import { WeightCard } from '../../src/features/coach/weight-card';
 
@@ -52,6 +53,11 @@ jest.mock('../../src/lib/trpc', () => ({
   },
 }));
 
+const METRICS = {
+  frame: { x: 0, y: 0, width: 390, height: 844 },
+  insets: { top: 47, left: 0, right: 0, bottom: 34 },
+};
+
 jest.mock('expo-router', () => ({ router: { push: jest.fn() } }));
 
 const { router } = jest.requireMock<{ router: { push: jest.Mock } }>('expo-router');
@@ -64,7 +70,11 @@ beforeEach(() => {
 describe('WeightCard', () => {
   it('shows why 1000 kg is refused instead of dropping it silently', async () => {
     const user = userEvent.setup();
-    await render(<WeightCard />);
+    await render(
+      <SafeAreaProvider initialMetrics={METRICS}>
+        <WeightCard />
+      </SafeAreaProvider>,
+    );
     await user.type(screen.getByTestId('weight-input'), '1000');
     await user.press(screen.getByTestId('weight-save'));
     expect(mockLogMutate).not.toHaveBeenCalled();
@@ -73,7 +83,11 @@ describe('WeightCard', () => {
 
   it('logs a comma-decimal weight', async () => {
     const user = userEvent.setup();
-    await render(<WeightCard />);
+    await render(
+      <SafeAreaProvider initialMetrics={METRICS}>
+        <WeightCard />
+      </SafeAreaProvider>,
+    );
     await user.type(screen.getByTestId('weight-input'), '79,4');
     await user.press(screen.getByTestId('weight-save'));
     expect(mockLogMutate).toHaveBeenCalledWith({ weightKg: 79.4 });
@@ -81,7 +95,11 @@ describe('WeightCard', () => {
 
   it('corrects a typo entry in place', async () => {
     const user = userEvent.setup();
-    await render(<WeightCard />);
+    await render(
+      <SafeAreaProvider initialMetrics={METRICS}>
+        <WeightCard />
+      </SafeAreaProvider>,
+    );
     await user.press(screen.getByTestId('weight-entries-toggle'));
     await user.press(screen.getByTestId('weight-entry-w2-edit'));
     await user.clear(screen.getByTestId('weight-entry-w2-input'));
@@ -91,13 +109,16 @@ describe('WeightCard', () => {
   });
 
   it('deletes an entry after confirmation', async () => {
-    const alert = jest.spyOn(Alert, 'alert');
     const user = userEvent.setup();
-    await render(<WeightCard />);
+    await render(
+      <SafeAreaProvider initialMetrics={METRICS}>
+        <WeightCard />
+      </SafeAreaProvider>,
+    );
     await user.press(screen.getByTestId('weight-entries-toggle'));
     await user.press(screen.getByTestId('weight-entry-w2-delete'));
-    const buttons = alert.mock.calls[0]?.[2] ?? [];
-    buttons.find((b) => b.text === 'Delete')?.onPress?.();
+    expect(mockDeleteMutate).not.toHaveBeenCalled();
+    await user.press(screen.getByTestId('weight-entry-w2-delete-confirm-confirm'));
     expect(mockDeleteMutate).toHaveBeenCalledWith({ id: 'w2' });
   });
 
@@ -105,7 +126,11 @@ describe('WeightCard', () => {
   it('gives the weight field and the entry editor a Done key that dismisses the keyboard', async () => {
     const dismiss = jest.spyOn(Keyboard, 'dismiss');
     const user = userEvent.setup();
-    await render(<WeightCard />);
+    await render(
+      <SafeAreaProvider initialMetrics={METRICS}>
+        <WeightCard />
+      </SafeAreaProvider>,
+    );
     const input = screen.getByTestId('weight-input');
     const barId = input.props.inputAccessoryViewID as string;
     expect(barId).toBeTruthy();
@@ -124,7 +149,11 @@ describe('WeightCard', () => {
 
   it('links to the Progress screen', async () => {
     const user = userEvent.setup();
-    await render(<WeightCard />);
+    await render(
+      <SafeAreaProvider initialMetrics={METRICS}>
+        <WeightCard />
+      </SafeAreaProvider>,
+    );
     await user.press(screen.getByTestId('weight-see-progress'));
     expect(router.push).toHaveBeenCalledWith('/progress');
   });
@@ -137,13 +166,21 @@ describe('WeightCard in pounds', () => {
   });
 
   it('shows the latest weigh-in in lb', async () => {
-    await render(<WeightCard />);
+    await render(
+      <SafeAreaProvider initialMetrics={METRICS}>
+        <WeightCard />
+      </SafeAreaProvider>,
+    );
     expect(screen.getByText('2204.6 lb')).toBeOnTheScreen();
   });
 
   it('logs pounds as kg and explains the range in lb', async () => {
     const user = userEvent.setup();
-    await render(<WeightCard />);
+    await render(
+      <SafeAreaProvider initialMetrics={METRICS}>
+        <WeightCard />
+      </SafeAreaProvider>,
+    );
     await user.type(screen.getByTestId('weight-input'), '900');
     await user.press(screen.getByTestId('weight-save'));
     expect(screen.getByTestId('weight-error')).toHaveTextContent(/between 44 and 881 lb/);
@@ -156,7 +193,11 @@ describe('WeightCard in pounds', () => {
 
   it('edits an entry in lb and saves the same kg when untouched', async () => {
     const user = userEvent.setup();
-    await render(<WeightCard />);
+    await render(
+      <SafeAreaProvider initialMetrics={METRICS}>
+        <WeightCard />
+      </SafeAreaProvider>,
+    );
     await user.press(screen.getByTestId('weight-entries-toggle'));
     await user.press(screen.getByTestId('weight-entry-w1-edit'));
     expect(screen.getByTestId('weight-entry-w1-input')).toHaveDisplayValue('176.4');

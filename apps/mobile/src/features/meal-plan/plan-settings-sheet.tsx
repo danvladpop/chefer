@@ -46,7 +46,7 @@ export function PlanSettingsSheet({
 }: PlanSettingsSheetProps) {
   const { data, isLoading } = trpc.mealPlan.getShape.useQuery(undefined, { enabled: visible });
   const [draft, setDraft] = useState<(PlanShape & { leftovers: boolean }) | null>(null);
-  const setShapeMutation = trpc.mealPlan.setShape.useMutation();
+  const setShapeMutation = trpc.mealPlan.setShape.useMutation({ meta: { silent: true } });
 
   // Start every open from the server's current shape — a stale local draft
   // from a previous open (or a change saved elsewhere) would silently

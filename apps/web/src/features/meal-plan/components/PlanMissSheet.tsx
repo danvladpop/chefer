@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { trpc } from '@/lib/trpc';
 import { Sheet } from '@chefer/ui';
+import { userFacingErrorMessage } from '@chefer/utils';
 import { canOfferSnack, missDirection, scaleFactorFor } from '../plan-miss';
 import { aboutKcal } from './DayRecapBar';
 
@@ -53,9 +54,11 @@ export function PlanMissSheet({
   const [preview, setPreview] = useState<Preview | null>(null);
 
   const previewMutation = trpc.mealPlan.scaleDay.useMutation({
+    meta: { silent: true },
     onSuccess: (data) => setPreview({ kcal: data.kcal, protein: data.protein }),
   });
   const applyMutation = trpc.mealPlan.scaleDay.useMutation({
+    meta: { silent: true },
     onSuccess: () => {
       void utils.mealPlan.invalidate();
       void utils.shoppingList.invalidate();
@@ -133,9 +136,10 @@ export function PlanMissSheet({
         </button>
         {(applyMutation.isError || previewMutation.isError) && (
           <p role="alert" className="text-xs text-red-600">
-            {applyMutation.error?.message ??
-              previewMutation.error?.message ??
-              'Could not change the portions. Try again.'}
+            {userFacingErrorMessage(
+              applyMutation.error ?? previewMutation.error,
+              'Could not change the portions. Try again.',
+            )}
           </p>
         )}
       </div>

@@ -4,10 +4,24 @@ import { MutationCache, QueryCache, QueryClient } from '@tanstack/react-query';
 import { createTRPCReact } from '@trpc/react-query';
 import type { inferRouterInputs, inferRouterOutputs } from '@trpc/server';
 import type { AppRouter } from '@chefer/api';
-import { handleAiConsentRequiredError } from '@chefer/utils';
+import {
+  handleAiConsentRequiredError,
+  shouldNotifyMutationError,
+  userFacingErrorMessage,
+  type MutationMetaShape,
+} from '@chefer/utils';
+import { showAppToast } from './app-toast';
 
 // Create the tRPC React client
 export const trpc = createTRPCReact<AppRouter>();
+
+// Types `meta` on every mutation: `{ silent: true }` opts out of the default
+// failure toast (below) for a call site that renders its own error UI.
+declare module '@tanstack/react-query' {
+  interface Register {
+    mutationMeta: MutationMetaShape;
+  }
+}
 
 // Type helpers for inputs and outputs
 export type RouterInputs = inferRouterInputs<AppRouter>;
@@ -53,7 +67,9 @@ function handleUnauthorized(error: unknown): void {
 /**
  * Creates a new QueryClient instance with sensible defaults.
  */
-export function makeQueryClient(): QueryClient {
+export function makeQueryClient(
+  notifyMutationError: (message: string) => void = (message) => showAppToast({ message }),
+): QueryClient {
   return new QueryClient({
     queryCache: new QueryCache({ onError: handleUnauthorized }),
     mutationCache: new MutationCache({
@@ -62,6 +78,11 @@ export function makeQueryClient(): QueryClient {
         // R-10: the server refused an AI action for missing consent → the
         // consent provider reopens its sheet instead of a generic error.
         handleAiConsentRequiredError(error, mutation.options.mutationKey);
+        // WP-02 (audit §6.3): no mutation fails silently. A call site that
+        // shows its own error UI passes `meta: { silent: true }`.
+        if (shouldNotifyMutationError(error, mutation.options.meta)) {
+          notifyMutationError(userFacingErrorMessage(error));
+        }
       },
     }),
     defaultOptions: {

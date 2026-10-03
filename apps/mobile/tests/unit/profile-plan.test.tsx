@@ -11,6 +11,11 @@ const mockDowngrade = jest.fn();
 const mockShow = jest.fn();
 const mockTrack = jest.fn();
 let downgradeOpts: { onSuccess?: () => void } = {};
+let mockDowngradeState: { isPending: boolean; isError: boolean; error: Error | null } = {
+  isPending: false,
+  isError: false,
+  error: null,
+};
 let mockUser = {
   firstName: 'Ana',
   lastName: null,
@@ -50,7 +55,7 @@ jest.mock('../../src/lib/trpc', () => ({
       downgradePlan: {
         useMutation: (opts: typeof downgradeOpts) => {
           downgradeOpts = opts;
-          return { mutate: mockDowngrade, isPending: false };
+          return { mutate: mockDowngrade, reset: jest.fn(), ...mockDowngradeState };
         },
       },
     },
@@ -82,6 +87,7 @@ async function renderProfile() {
 
 beforeEach(() => {
   jest.clearAllMocks();
+  mockDowngradeState = { isPending: false, isError: false, error: null };
   mockUser = {
     firstName: 'Ana',
     lastName: null,
@@ -168,6 +174,28 @@ describe('downgrade summary (AC7)', () => {
     await user.press(screen.getByTestId('downgrade-confirm-cancel'));
     expect(mockDowngrade).not.toHaveBeenCalled();
     expect(screen.getByTestId('profile-plan-title')).toHaveTextContent('Your plan: Premium');
+  });
+
+  // UX-X-13: the sheet shows the spinner while the downgrade runs and the
+  // reason (not silence) when it fails.
+  it('shows the failure inside the sheet and keeps it open', async () => {
+    mockDowngradeState = {
+      isPending: false,
+      isError: true,
+      error: new Error('Something went wrong. Please try again.'),
+    };
+    await open();
+    expect(screen.getByTestId('downgrade-confirm-error')).toHaveTextContent(
+      'Something went wrong. Please try again.',
+    );
+    expect(screen.getByTestId('downgrade-confirm-title')).toBeOnTheScreen();
+  });
+
+  it('does not send a second downgrade while one is running', async () => {
+    mockDowngradeState = { isPending: true, isError: false, error: null };
+    const user = await open();
+    await user.press(screen.getByTestId('downgrade-confirm-confirm'));
+    expect(mockDowngrade).not.toHaveBeenCalled();
   });
 
   it('confirming switches to Free, then says the data is still there', async () => {

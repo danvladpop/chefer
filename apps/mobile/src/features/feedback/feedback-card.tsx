@@ -10,6 +10,7 @@ import { trpc } from '../../lib/trpc';
 export function FeedbackCard() {
   const [message, setMessage] = useState('');
   const submitMutation = trpc.feedback.submit.useMutation({
+    meta: { silent: true },
     onSuccess: () => setMessage(''),
   });
   const counter = feedbackCounter(message.length);

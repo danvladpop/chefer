@@ -104,6 +104,7 @@ export function EditEntrySheet({
   }, [entry]);
 
   const updateMutation = trpc.tracker.updateCustomMeal.useMutation({
+    meta: { silent: true },
     onSuccess: () => {
       invalidateDayQueries(utils, date);
       showToast('Changes saved');
@@ -111,8 +112,9 @@ export function EditEntrySheet({
       onClose();
     },
   });
-  const deleteMutation = trpc.tracker.deleteCustomMeal.useMutation();
+  const deleteMutation = trpc.tracker.deleteCustomMeal.useMutation({ meta: { silent: true } });
   const restoreMutation = trpc.tracker.restoreCustomMeal.useMutation({
+    meta: { silent: true },
     onSuccess: () => invalidateDayQueries(utils, date),
   });
 
@@ -321,7 +323,7 @@ export function EditEntrySheet({
 
         {updateMutation.isError && (
           <p data-testid="edit-entry-api-error" className="text-xs text-red-600">
-            {updateMutation.error.message}
+            {userFacingErrorMessage(updateMutation.error)}
           </p>
         )}
       </div>

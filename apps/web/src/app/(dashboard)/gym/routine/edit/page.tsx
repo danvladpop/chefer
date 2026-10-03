@@ -76,6 +76,7 @@ export default function RoutineEditPage() {
   useUnsavedChangesWarning(isDirty);
 
   const saveMutation = trpc.gym.routine.save.useMutation({
+    meta: { silent: true },
     onSuccess: (saved) => {
       captureGymEvent('routine_edited', { kind: 'save' });
       void utils.gym.bootstrap.invalidate();

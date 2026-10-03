@@ -81,6 +81,7 @@ function DeleteAccountSheet({ open, onClose }: { open: boolean; onClose: () => v
   const [password, setPassword] = useState('');
   const [confirmText, setConfirmText] = useState('');
   const deleteMutation = trpc.user.deleteSelf.useMutation({
+    meta: { silent: true },
     // The session is gone with the account — a full navigation clears every
     // cached query.
     onSuccess: () => window.location.assign('/'),
@@ -89,7 +90,7 @@ function DeleteAccountSheet({ open, onClose }: { open: boolean; onClose: () => v
   // user who forgot it asks for a reset link for their own address right here.
   const me = trpc.auth.me.useQuery(undefined, { staleTime: 5 * 60_000 });
   const email = me.data?.email ?? null;
-  const resetMutation = trpc.auth.requestPasswordReset.useMutation();
+  const resetMutation = trpc.auth.requestPasswordReset.useMutation({ meta: { silent: true } });
   const ready = password.length > 0 && confirmText.trim().toUpperCase() === COPY.confirmWord;
 
   return (

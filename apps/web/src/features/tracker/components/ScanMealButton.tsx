@@ -7,6 +7,7 @@ import { capture } from '@/lib/analytics';
 import { trpc } from '@/lib/trpc';
 import { Camera, Loader2, Sparkles } from 'lucide-react';
 import { Sheet } from '@chefer/ui';
+import { userFacingErrorMessage } from '@chefer/utils';
 import { handleRebalanceResult } from '../lib/rebalance-storage';
 import {
   scanMealPhoto,
@@ -52,6 +53,7 @@ export function ScanMealButton({ date, isPremium, onLogged }: ScanMealButtonProp
   const [fat, setFat] = useState(0);
 
   const logMutation = trpc.tracker.logCustomMeal.useMutation({
+    meta: { silent: true },
     onSuccess: (data) => {
       capture('meal_scanned', { confirmed: true });
       handleRebalanceResult(data.rebalance);
@@ -99,7 +101,7 @@ export function ScanMealButton({ date, isPremium, onLogged }: ScanMealButtonProp
         capture('upgrade_prompt_shown', { source: 'snap-scan' });
         setDemoOpen(true);
       } else {
-        setScanError(err instanceof Error ? err.message : 'Scan failed. Please try again.');
+        setScanError(userFacingErrorMessage(err, 'Scan failed. Please try again.'));
       }
     } finally {
       setScanning(false);
@@ -234,7 +236,7 @@ export function ScanMealButton({ date, isPremium, onLogged }: ScanMealButtonProp
             </div>
 
             {logMutation.isError && (
-              <p className="text-xs text-red-600">{logMutation.error.message}</p>
+              <p className="text-xs text-red-600">{userFacingErrorMessage(logMutation.error)}</p>
             )}
           </div>
         )}

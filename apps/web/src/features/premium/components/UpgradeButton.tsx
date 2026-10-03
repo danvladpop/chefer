@@ -15,7 +15,7 @@ import { trpc } from '@/lib/trpc';
 import { Check, Sparkles } from 'lucide-react';
 import { PLAN_FEATURES, PREMIUM_PERK_KEYS } from '@chefer/types';
 import { Sheet } from '@chefer/ui';
-import { cn, downgradeLosses, PREMIUM_PITCH_COPY } from '@chefer/utils';
+import { cn, downgradeLosses, PREMIUM_PITCH_COPY, userFacingErrorMessage } from '@chefer/utils';
 
 // ─── Upgrade button + confirmation dialog (PW-2) ──────────────────────────────
 // The one shared upgrade surface. Every touchpoint passes a `source` so the
@@ -54,6 +54,7 @@ export function UpgradeButton({
   const router = useRouter();
 
   const upgradeMutation = trpc.user.upgradePlan.useMutation({
+    meta: { silent: true },
     onSuccess: () => {
       capture('upgrade_completed', { source });
       // Post-upgrade activation (review P-8) is shown by the shell-mounted
@@ -255,6 +256,7 @@ export function DowngradeButton({ className }: { className?: string }) {
   });
 
   const downgradeMutation = trpc.user.downgradePlan.useMutation({
+    meta: { silent: true },
     onSuccess: () => {
       capture('downgrade_completed', {});
       void utils.invalidate();
@@ -320,7 +322,7 @@ export function DowngradeButton({ className }: { className?: string }) {
         )}
         {downgradeMutation.isError && (
           <p role="alert" className="mt-3 text-sm text-red-600">
-            {downgradeMutation.error.message}
+            {userFacingErrorMessage(downgradeMutation.error)}
           </p>
         )}
       </Sheet>

@@ -89,6 +89,7 @@ function ProfileSettings({
   const unit = profile.unit;
   const [saved, setSaved] = useState<string | null>(null);
   const save = trpc.gym.profile.save.useMutation({
+    meta: { silent: true },
     onSuccess: () => {
       void utils.gym.bootstrap.invalidate();
       // A kg/lb switch is also the global unit preference (P2-6).
@@ -364,6 +365,7 @@ function PauseCard({
   const [reason, setReason] = useState<(typeof PAUSE_REASONS)[number]['value']>('vacation');
 
   const create = trpc.gym.pause.create.useMutation({
+    meta: { silent: true },
     onSuccess: () => {
       capture('training_paused', { weeks, reason });
       void utils.gym.bootstrap.invalidate();

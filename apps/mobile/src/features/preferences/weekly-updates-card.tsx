@@ -2,7 +2,12 @@ import { useEffect, useState } from 'react';
 import { Switch, View } from 'react-native';
 import { Button, Card, Text } from '@chefer/ui-mobile';
 import { userFacingErrorMessage } from '@chefer/utils';
+import { NotificationsOffRow } from '../../components/notifications-off-row';
 import { trpc } from '../../lib/trpc';
+import {
+  refreshNotificationPermission,
+  useNotificationPermission,
+} from '../../lib/use-notification-permission';
 import { ensureGymReminderPermission } from '../gym/reminders/permission';
 import {
   areWeeklyNotificationsOn,
@@ -133,6 +138,7 @@ export function WeeklyUpdatesCard() {
     (prefsQuery.data?.weekReady === true || prefsQuery.data?.weeklyRecap === true);
 
   const save = trpc.notifications.setEmailPreferences.useMutation({
+    meta: { silent: true },
     onSuccess: (res) => setEmail({ weekReady: res.weekReady, weeklyRecap: res.weeklyRecap }),
     // Roll back only the switch that failed.
     onError: (_err, vars) =>
@@ -145,11 +151,14 @@ export function WeeklyUpdatesCard() {
           : prev,
       ),
   });
-  const resend = trpc.notifications.resendConfirmation.useMutation();
+  const resend = trpc.notifications.resendConfirmation.useMutation({ meta: { silent: true } });
 
   const [phoneOn, setPhoneOn] = useState(false);
   const [phoneBusy, setPhoneBusy] = useState(false);
   const [phoneNote, setPhoneNote] = useState<string | null>(null);
+  // §6.8: with notifications denied in the OS the switch must not say "On".
+  const notificationPermission = useNotificationPermission();
+  const notificationsDenied = notificationPermission === 'denied';
   useEffect(() => {
     let alive = true;
     void areWeeklyNotificationsOn().then((on) => {
@@ -169,7 +178,9 @@ export function WeeklyUpdatesCard() {
         setPhoneOn(false);
         return;
       }
-      if (!(await ensureGymReminderPermission())) {
+      const allowed = await ensureGymReminderPermission();
+      refreshNotificationPermission();
+      if (!allowed) {
         setPhoneNote("Notifications are off for Chefer. Turn them on in your phone's Settings.");
         setPhoneOn(false);
         return;
@@ -212,11 +223,15 @@ export function WeeklyUpdatesCard() {
           testID="prefs-weekly-push-switch"
           title="Monday plan and Sunday recap"
           description="A notification at 8:00 on Monday and 18:00 on Sunday."
-          value={phoneOn}
+          value={phoneOn && !notificationsDenied}
           disabled={phoneBusy}
           onChange={(next) => void togglePhone(next)}
         />
-        {phoneNote && <Text className="text-xs text-amber-800">{phoneNote}</Text>}
+        {notificationsDenied ? (
+          <NotificationsOffRow testID="prefs-weekly-push-off" />
+        ) : (
+          phoneNote && <Text className="text-xs text-amber-800">{phoneNote}</Text>
+        )}
       </View>
 
       {email && prefsQuery.data && (

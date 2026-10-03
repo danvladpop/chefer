@@ -26,6 +26,7 @@ export function useSignOut(testID: string) {
   const [warnOpen, setWarnOpen] = useState(false);
   const unsynced = useSyncExternalStore(subscribeUnsynced, unsyncedGymWorkoutCount);
   const logout = trpc.auth.logout.useMutation({
+    meta: { silent: true },
     // Even if the network call failed, drop the local session — the token may
     // already be dead server-side.
     onSettled: () => signOut({ reason: 'user' }),

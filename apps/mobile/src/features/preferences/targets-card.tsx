@@ -64,6 +64,7 @@ export function TargetsCard() {
   }, [data, loaded]);
 
   const setMutation = trpc.targets.set.useMutation({
+    meta: { silent: true },
     onSuccess: () => {
       void utils.targets.get.invalidate();
       void utils.targets.changes.invalidate();

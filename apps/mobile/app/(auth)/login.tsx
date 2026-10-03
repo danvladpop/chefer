@@ -39,6 +39,7 @@ function LoginForm() {
   });
 
   const login = trpc.auth.login.useMutation({
+    meta: { silent: true },
     onSuccess: async (data) => {
       if (data.session) {
         // Flips the root layout's auth gate straight into (food) (or Gym Today).

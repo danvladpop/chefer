@@ -42,7 +42,9 @@ jest.mock('../../src/lib/trpc', () => ({
         }),
       },
       upgradePlan: { useMutation: () => ({ mutate: jest.fn(), isPending: false }) },
-      downgradePlan: { useMutation: () => ({ mutate: jest.fn(), isPending: false }) },
+      downgradePlan: {
+        useMutation: () => ({ mutate: jest.fn(), reset: jest.fn(), isPending: false }),
+      },
     },
     profile: {
       getAiUsage: { useQuery: () => ({ data: undefined, isLoading: false }) },

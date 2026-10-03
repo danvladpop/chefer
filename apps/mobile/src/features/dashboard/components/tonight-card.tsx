@@ -27,6 +27,7 @@ export function TonightCard({
   const utils = trpc.useUtils();
   const [rated, setRated] = useState(false);
   const logMutation = trpc.tracker.logRecipe.useMutation({
+    meta: { silent: true },
     onSuccess: (result) => {
       recordRebalance(result.rebalance);
       void utils.dashboard.summary.invalidate();

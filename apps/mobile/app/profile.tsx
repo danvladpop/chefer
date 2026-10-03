@@ -12,7 +12,7 @@ import {
   Text,
   useSnackbar,
 } from '@chefer/ui-mobile';
-import { cn, downgradeLosses, PREMIUM_PITCH_COPY } from '@chefer/utils';
+import { cn, downgradeLosses, PREMIUM_PITCH_COPY, userFacingErrorMessage } from '@chefer/utils';
 import { openPremium } from '../src/features/premium/open-premium';
 import { usePremiumPitch } from '../src/features/premium/use-premium-pitch';
 import { PrivacySection } from '../src/features/privacy/privacy-section';
@@ -102,6 +102,7 @@ export default function ProfileScreen() {
   const snackbar = useSnackbar();
   const [confirmingDowngrade, setConfirmingDowngrade] = useState(false);
   const downgradeMutation = trpc.user.downgradePlan.useMutation({
+    meta: { silent: true },
     onSuccess: () => {
       track('downgrade_completed', {});
       invalidateUser();
@@ -331,12 +332,17 @@ export default function ProfileScreen() {
       <ConfirmSheet
         testID="downgrade-confirm"
         visible={confirmingDowngrade}
-        onClose={() => setConfirmingDowngrade(false)}
+        onClose={() => {
+          setConfirmingDowngrade(false);
+          downgradeMutation.reset();
+        }}
         title={PREMIUM_PITCH_COPY.downgradeTitle}
         body={downgradeBody}
         confirmLabel={PREMIUM_PITCH_COPY.downgradeConfirm}
         cancelLabel={PREMIUM_PITCH_COPY.downgradeCancel}
         destructive
+        busy={downgradeMutation.isPending}
+        error={downgradeMutation.isError ? userFacingErrorMessage(downgradeMutation.error) : null}
         onConfirm={() => downgradeMutation.mutate()}
       />
     </Screen>

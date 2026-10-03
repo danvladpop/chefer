@@ -56,6 +56,7 @@ export function useHealthConsent(): HealthConsentApi {
   const declineOnExit = useRef<(() => void) | null>(null);
 
   const grant = trpc.privacy.grantHealthConsent.useMutation({
+    meta: { silent: true },
     onSuccess: ({ healthDataConsentAt }) => {
       utils.user.me.setData(undefined, (prev) => (prev ? { ...prev, healthDataConsentAt } : prev));
     },

@@ -1041,6 +1041,25 @@ React Native component library (NativeWind) for `apps/mobile`. Peer deps: `react
 | `CountPill`                                                                                                                                                                             | **Following (F1.6).** `{ count, max = 9, accessibilityLabel? }` — small `bg-primary` count badge (pending requests, unread Activity). **The cap defaults to `9+`** (`countPillText`); renders nothing at 0 or for a non-finite/negative count. The accessible label defaults to `{count} new` and always reads the real count, never the capped text. Display-only, not a touch target                                                                                                                                                                                                                                                                                                                           |
 | `Button`/`Card`/`Badge`/`Input`/`PasswordInput`/`EmptyState`/`ErrorState`/`ProgressBar`/`ProgressRing`/`SegmentedControl`/`Stepper`/`Text`/`NumericReturnBar`/`KeyboardAwareScrollView` | Pre-existing kit primitives — see the component source for each's own notes                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
 
+**Failure-handling primitives (WP-02, audit §6.3 / §6.8)** — shared by mobile and web:
+
+- **Default mutation-failure message.** `makeQueryClient` (mobile `src/lib/trpc.ts`, web `src/lib/trpc.ts`) installs a
+  `MutationCache.onError` that shows `userFacingErrorMessage(error)` (mobile: snackbar via `showSnackbar`; web: `AppToastHost`
+  mounted in `TRPCProvider`, `src/lib/app-toast.tsx`) unless the mutation carries `meta: { silent: true }` (typed through
+  TanStack's `Register['mutationMeta']`), the error is a 401 (sign-out/redirect takes over) or an AI-consent refusal (the
+  consent sheet reopens). Mutations that render their own error UI must pass `meta: { silent: true }`.
+  Policy lives in `@chefer/utils` (`shouldNotifyMutationError`).
+- **`userFacingErrorMessage`** (`@chefer/utils`) also maps a BAD_REQUEST whose message is Zod issue JSON to
+  "Check the value you entered for <field>." (`weightKg` → "weight"); callers may pass `{ describeIssues }` for their own copy
+  (gym limits). Never render `error.message` directly.
+- **Query state.** `getQueryState` / `isNotFoundError` (`@chefer/utils`), `useQueryState` + `QueryStateView` (`@chefer/ui-mobile`),
+  `useQueryState` (web `src/lib/use-query-state.ts`): `loading | error | empty | data`. A failed load renders `ErrorState` with
+  Retry, never "Loading…" or "not found". `apps/mobile/tests/unit/query-state-grep.test.ts` fails on new `isLoading || !data`.
+- **Notifications permission.** `useNotificationPermission()` (`apps/mobile/src/lib/`) returns `granted | denied | undetermined`
+  and re-checks when the app returns to the foreground; `NotificationsOffRow` (`src/components/`) is the standard
+  "Off for Chefer · Open Settings" row.
+- **Confirms.** Two-button destructive confirms use `ConfirmSheet` (`busy` / `error`), not `Alert.alert`.
+
 **Motion** (`src/motion/`, motion-system.md): `duration`/`springs`/`timing()` from `@chefer/tokens`,
 `PressableScale` (MO-01), `haptics.*`, `useReducedMotion()`, `CountUp`, progress helpers. ui-mobile
 has **no icon dependency** — pass an `Ionicons` (or other) node in; app-level features (e.g.
