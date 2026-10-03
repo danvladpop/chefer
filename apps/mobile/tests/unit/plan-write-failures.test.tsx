@@ -115,7 +115,7 @@ describe('Plan: pin and Undo failures (UX-PLAN-14)', () => {
     const { refreshControl } = screen.getByTestId('plan-day-scroll').props as {
       refreshControl: { props: { onRefresh: () => void } };
     };
-    await act(async () => {
+    await act(() => {
       refreshControl.props.onRefresh();
     });
     await waitFor(() => expect(loads).toBe(2));

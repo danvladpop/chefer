@@ -95,9 +95,7 @@ describe('TonightCard "Rate it" (UX-FOOD-04)', () => {
       mockExisting = { rating: 4, notes: null };
       mockRateSuccess?.({ rating: 4, notes: null });
     });
-    await view.rerender(
-      <TonightCard meal={meal(true) as never} showNutrition onLogged={jest.fn()} />,
-    );
+    await view.rerender(<TonightCard meal={meal(true)} showNutrition onLogged={jest.fn()} />);
     expect(screen.queryByTestId('tonight-rate-it')).toBeNull();
     expect(screen.getByTestId('star-rating-save')).toHaveTextContent('✓ Saved');
   });

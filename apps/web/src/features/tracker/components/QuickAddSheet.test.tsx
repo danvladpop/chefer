@@ -194,7 +194,7 @@ describe('QuickAddSheet — search-first (T-19.1)', () => {
     renderSheet();
     fireEvent.change(screen.getByTestId('log-sheet-search'), { target: { value: 'banana' } });
     fireEvent.click(screen.getByText('Banana'));
-    const input = screen.getByTestId('log-sheet-grams-input-banana') as HTMLInputElement;
+    const input = screen.getByTestId<HTMLInputElement>('log-sheet-grams-input-banana');
     fireEvent.change(input, { target: { value: '99999' } });
     expect(input.value).toBe('4347');
     expect(screen.getByTestId('log-sheet-grams-max-banana')).toBeTruthy();
@@ -217,7 +217,7 @@ describe('QuickAddSheet — search-first (T-19.1)', () => {
     fireEvent.change(screen.getByTestId('log-sheet-search'), { target: { value: 'zzz' } });
     expect(screen.queryByTestId('log-sheet-no-matches')).toBeNull();
     fireEvent.click(await screen.findByTestId('log-sheet-no-matches'));
-    expect((screen.getByTestId('quick-add-name') as HTMLInputElement).value).toBe('zzz');
+    expect(screen.getByTestId<HTMLInputElement>('quick-add-name').value).toBe('zzz');
   });
 
   it('shows a Retry when the search fails instead of an empty list', () => {

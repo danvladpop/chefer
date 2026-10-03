@@ -102,7 +102,7 @@ describe('OnboardingWizard Finish (UX-ONB-09)', () => {
     fireEvent.click(screen.getByTestId('onboarding-continue'));
     expect(await screen.findByText('Could not save your plan shape.')).toBeTruthy();
     expect(m.generate).not.toHaveBeenCalled();
-    expect((screen.getByTestId('onboarding-continue') as HTMLButtonElement).disabled).toBe(false);
+    expect(screen.getByTestId<HTMLButtonElement>('onboarding-continue').disabled).toBe(false);
 
     fireEvent.click(screen.getByTestId('onboarding-continue'));
     await waitFor(() => expect(m.generate).toHaveBeenCalled());
@@ -121,7 +121,7 @@ describe('OnboardingWizard Finish (UX-ONB-09)', () => {
     fireEvent.click(screen.getByTestId('onboarding-continue'));
     await waitFor(() => expect(m.setShape).toHaveBeenCalledTimes(1));
     const jobsSaves = m.setJobs.mock.calls.length;
-    expect((screen.getByTestId('onboarding-continue') as HTMLButtonElement).disabled).toBe(true);
+    expect(screen.getByTestId<HTMLButtonElement>('onboarding-continue').disabled).toBe(true);
     fireEvent.click(screen.getByTestId('onboarding-continue'));
     expect(m.setJobs).toHaveBeenCalledTimes(jobsSaves);
     expect(m.setShape).toHaveBeenCalledTimes(1);

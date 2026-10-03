@@ -7,15 +7,15 @@ import RecipeDetailPage from './page';
 // UX-REC-03 (web parity): a recipe that failed to LOAD is not "Recipe not
 // found". Only a real NOT_FOUND says that; anything else offers Try again.
 
-const m = vi.hoisted(() => ({
-  recipe: { data: undefined, isLoading: false, isError: false, error: null } as {
-    data: unknown;
-    isLoading: boolean;
-    isError: boolean;
-    error: unknown;
-  },
-  refetch: vi.fn(),
-}));
+const m = vi.hoisted(() => {
+  const recipe: { data: unknown; isLoading: boolean; isError: boolean; error: unknown } = {
+    data: undefined,
+    isLoading: false,
+    isError: false,
+    error: null,
+  };
+  return { recipe, refetch: vi.fn() };
+});
 
 vi.mock('next/link', () => ({
   default: ({ href, children }: { href: string; children: React.ReactNode }) => (
@@ -75,6 +75,7 @@ async function renderPage() {
         <RecipeDetailPage params={Promise.resolve({ id: 'r1' })} />
       </Suspense>,
     );
+    await Promise.resolve();
   });
 }
 

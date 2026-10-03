@@ -6,7 +6,7 @@ import { PantryPanel } from './PantryPanel';
 // UX-X-12: a failed pantry load is not an empty kitchen.
 
 const m = vi.hoisted(() => ({
-  query: { data: undefined as unknown, isLoading: false, isError: true },
+  query: { data: undefined, isLoading: false, isError: true },
   refetch: vi.fn(),
 }));
 

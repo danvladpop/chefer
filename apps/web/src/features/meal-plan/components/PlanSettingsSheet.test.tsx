@@ -16,12 +16,13 @@ const mocks = vi.hoisted(() => {
     cookingFor: null,
     leftovers: false,
   };
+  const state: { shapeData: typeof LEGACY_SHAPE | undefined } = { shapeData: LEGACY_SHAPE };
   return {
     LEGACY_SHAPE,
     setShapeMutate: vi.fn((_input: unknown, opts?: { onSuccess?: (saved: unknown) => void }) =>
       opts?.onSuccess?.(LEGACY_SHAPE),
     ),
-    shapeData: LEGACY_SHAPE as typeof LEGACY_SHAPE | undefined,
+    shapeData: state.shapeData,
     shapeFailed: false,
     refetch: vi.fn(),
   };

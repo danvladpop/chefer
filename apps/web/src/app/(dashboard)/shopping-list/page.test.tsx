@@ -140,7 +140,7 @@ describe('Shop: removing a custom item (UX-SHOP-02)', () => {
     m.addFails = true;
     renderPage();
     fireEvent.click(await screen.findByLabelText('Remove Flour from the list'));
-    await act(async () => {
+    act(() => {
       fireEvent.click(screen.getByRole('button', { name: 'Undo' }));
     });
     expect(await screen.findByText(/Couldn't put it back/)).toBeTruthy();

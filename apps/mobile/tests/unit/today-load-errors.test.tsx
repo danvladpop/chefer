@@ -13,7 +13,7 @@ jest.mock('expo-router', () => {
   return {
     router: { push: jest.fn(), replace: jest.fn() },
     Link: ({ children }: { children: React.ReactNode }) => children,
-    useFocusEffect: (effect: () => void) => useEffect(effect, []),
+    useFocusEffect: (effect: () => void) => useEffect(effect, [effect]),
   };
 });
 jest.mock('../../src/features/gym/components/mode-switch', () => ({ ModeSwitch: () => null }));

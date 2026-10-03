@@ -18,7 +18,7 @@ jest.mock('expo-router', () => {
   return {
     router: { push: jest.fn(), replace: jest.fn(), back: jest.fn() },
     Link: ({ children }: { children: React.ReactNode }) => children,
-    useFocusEffect: (effect: () => void) => useEffect(effect, []),
+    useFocusEffect: (effect: () => void) => useEffect(effect, [effect]),
     useIsFocused: () => true,
     useLocalSearchParams: () => ({}),
   };
@@ -37,7 +37,8 @@ jest.mock('../../src/hooks/use-unit-system', () => ({ useUnitSystem: () => 'METR
 jest.mock('../../src/features/premium/open-premium', () => ({ openPremium: jest.fn() }));
 
 /** Every procedure fails, like an API that is stopped. */
-const allDown: Handlers = new Proxy({} as Handlers, {
+const noHandlers: Handlers = {};
+const allDown: Handlers = new Proxy(noHandlers, {
   get: () => () => {
     throw trpcError('INTERNAL_SERVER_ERROR', 500, {}, 'boom');
   },
