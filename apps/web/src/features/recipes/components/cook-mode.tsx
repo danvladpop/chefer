@@ -6,6 +6,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { RebalanceBanner } from '@/features/meal-plan/components/RebalanceBanner';
 import { StarRatingWidget } from '@/features/recipe/components/StarRatingWidget';
 import { handleRebalanceResult } from '@/features/tracker/lib/rebalance-storage';
+import { useCookingFor } from '@/hooks/useCookingFor';
 import { useHousehold } from '@/hooks/useHousehold';
 import { useUnitSystem } from '@/hooks/useUnitSystem';
 import { capture } from '@/lib/analytics';
@@ -25,7 +26,12 @@ import {
   X,
 } from 'lucide-react';
 import { Drawer } from '@chefer/ui';
-import { defaultCookServings, formatQuantity, slotPortion } from '@chefer/utils';
+import {
+  defaultCookServings,
+  formatFractionalQuantity,
+  formatQuantity,
+  slotPortion,
+} from '@chefer/utils';
 import { AllergenWarningBanner } from './AllergenWarning';
 import {
   guessMealType,
@@ -147,7 +153,8 @@ export function CookMode({ recipeId }: { recipeId: string }) {
   const { data: recipe, isLoading } = trpc.mealPlan.getRecipe.useQuery({ recipeId });
   // F2: with household members, cooking defaults to the whole table's
   // portion sum (the same number generation scaled the plan's servings to).
-  const { portionSum } = useHousehold();
+  const { scaledMembers } = useHousehold();
+  const cookingFor = useCookingFor();
 
   const [step, setStep] = useState(0);
   const [finished, setFinished] = useState(false);
@@ -157,7 +164,8 @@ export function CookMode({ recipeId }: { recipeId: string }) {
   const [logged, setLogged] = useState(false);
 
   const baseServings = recipe?.servings ?? 1;
-  const selectedServings = servings ?? defaultCookServings(baseServings, portionSum, planPortion);
+  const selectedServings =
+    servings ?? defaultCookServings(baseServings, scaledMembers, planPortion, cookingFor);
   const scale = selectedServings / baseServings;
 
   // ── Wake lock: the screen must survive a 10-step recipe (feature-detect,
@@ -368,7 +376,7 @@ export function CookMode({ recipeId }: { recipeId: string }) {
             <Minus className="h-4 w-4" />
           </button>
           <span className="min-w-6 text-center text-sm font-semibold text-gray-800">
-            {selectedServings}
+            {formatFractionalQuantity(selectedServings)}
           </span>
           <button
             onClick={() => setServings(Math.min(20, selectedServings + 1))}
@@ -466,7 +474,8 @@ export function CookMode({ recipeId }: { recipeId: string }) {
       >
         <div className="flex items-center justify-between border-b px-4 py-3">
           <p className="text-sm font-semibold text-gray-900">
-            Ingredients · {selectedServings} serving{selectedServings === 1 ? '' : 's'}
+            Ingredients · {formatFractionalQuantity(selectedServings)} serving
+            {selectedServings === 1 ? '' : 's'}
           </p>
           <button
             onClick={() => setDrawerOpen(false)}

@@ -35,10 +35,15 @@ const mockPush = jest.fn();
 const mockReplace = jest.fn();
 jest.mock('expo-router', () => {
   // eslint-disable-next-line @typescript-eslint/no-require-imports -- jest.mock factories can't close over top-of-file imports
-  const { createElement } = require('react') as typeof import('react');
+  const { createElement, useEffect } = require('react') as typeof import('react');
   // eslint-disable-next-line @typescript-eslint/no-require-imports
   const { Pressable } = require('react-native') as typeof import('react-native');
   return {
+    // UX-ONB-01: the wizard registers its BACK handler with useFocusEffect; the
+    // screen is always focused here, so run the effect on mount.
+    useFocusEffect: (effect: () => (() => void) | undefined): void => {
+      useEffect(effect, [effect]);
+    },
     router: {
       push: (href: string): void => {
         mockPush(href);

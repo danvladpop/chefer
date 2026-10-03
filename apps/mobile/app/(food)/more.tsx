@@ -7,11 +7,10 @@ import { Button, CountPill, Screen, Text } from '@chefer/ui-mobile';
 import { FeedbackCard } from '../../src/features/feedback/feedback-card';
 import { useFriendsBadge } from '../../src/features/friends/api/use-friends-badge';
 import { ModeSwitch } from '../../src/features/gym/components/mode-switch';
+import { useSignOut } from '../../src/features/settings/use-sign-out';
 import { track } from '../../src/lib/analytics';
 import { getWebUrl } from '../../src/lib/api-url';
-import { clearToken } from '../../src/lib/auth-store';
 import { CURRENT_BUILD, CURRENT_VERSION_LABEL } from '../../src/lib/current-build';
-import { trpc } from '../../src/lib/trpc';
 
 // Secondary nav hub — the mobile counterpart of web's MobileNavDrawer
 // (SECONDARY_NAV_ITEMS in apps/web/src/features/nav/nav-items.ts). P2-2 /
@@ -61,17 +60,7 @@ export default function MoreScreen() {
   const [showBuildDetails, setShowBuildDetails] = useState(false);
   const { available, badgeCount } = useFriendsBadge();
   const items = withFollowing(available);
-  const utils = trpc.useUtils();
-  const logout = trpc.auth.logout.useMutation({
-    onSettled: async () => {
-      // Even if the network call failed, drop the local session — the token
-      // may already be dead server-side.
-      await clearToken();
-      utils.invalidate().catch(() => {
-        // Cache cleanup only; the auth gate has already routed to login.
-      });
-    },
-  });
+  const signOut = useSignOut('more-sign-out-confirm');
 
   return (
     <Screen className="gap-4 px-0">
@@ -145,11 +134,12 @@ export default function MoreScreen() {
         <Button
           testID="logout-button"
           variant="outline"
-          loading={logout.isPending}
-          onPress={() => logout.mutate()}
+          loading={signOut.isPending}
+          onPress={signOut.request}
         >
           Sign out
         </Button>
+        {signOut.warningSheet}
 
         {/* R-15: users see "Version 1.0.1"; the full build/OTA line (variant,
             update id) is for support — long-press to reveal it. */}

@@ -8,7 +8,8 @@ import {
   type OutboxDeps,
   type SendDocs,
 } from '../../src/features/gym/offline/outbox';
-import { makeDoc } from './gym-fixtures';
+import { GENERIC_VALIDATION_MESSAGE } from '../../src/features/gym/validation-copy';
+import { makeDoc, uuid } from './gym-fixtures';
 
 const OWNER = 'user-a';
 
@@ -168,7 +169,79 @@ describe('gym outbox — flush', () => {
     const result = await outbox.flush();
     expect(result).toMatchObject({ applied: 1, parked: 1 });
     expect(send).toHaveBeenCalledWith([makeDoc(2)]);
-    expect(outbox.getState().entries[0]?.parkedReason).toMatch(/^invalid:/);
+    // UX-GYM-01: plain words, not the Zod message.
+    expect(outbox.getState().entries[0]?.parkedReason).toBe(GENERIC_VALIDATION_MESSAGE);
+  });
+
+  it('parks an implausible weight with a message that names the limit (UX-GYM-01)', async () => {
+    const { outbox } = setup();
+    const send = acking('applied');
+    outbox.configure({ send });
+    const base = makeDoc(1);
+    outbox.enqueue({
+      ...base,
+      exercises: [
+        {
+          id: uuid(2),
+          exerciseId: 'bench',
+          routineExerciseId: null,
+          position: 0,
+          repMin: 8,
+          repMax: 12,
+          targetRir: 2,
+          restSec: 90,
+          skipped: false,
+          swappedFromId: null,
+          lastSetRir: null,
+          notes: null,
+          prescription: {
+            kind: 'start',
+            weightKg: 60,
+            reps: [10],
+            sets: 1,
+            reasonCode: 'START',
+            inputs: {},
+            deltaKg: 0,
+            engineVersion: 1,
+          },
+          sets: [
+            {
+              id: uuid(3),
+              position: 0,
+              weightKg: 1025,
+              reps: 10,
+              isWarmup: false,
+              completedAt: '2026-09-24T08:30:00.000Z',
+            },
+          ],
+        },
+      ],
+    });
+
+    const result = await outbox.flush();
+    expect(result.parked).toBe(1);
+    expect(send).not.toHaveBeenCalled();
+    const parked = selectOutboxStatus(outbox.getState(), OWNER, false).parked[0];
+    expect(parked?.parkedReason).toContain('1000 kg');
+    expect(parked?.parkedReason).not.toMatch(/too_big|\[\{/);
+  });
+
+  it('a server rejection carrying Zod JSON is parked with plain words, raw text kept in lastError', async () => {
+    const { outbox } = setup();
+    const raw = JSON.stringify([
+      { code: 'too_big', maximum: 1000, path: ['docs', 0, 'exercises', 0, 'sets', 0, 'weightKg'] },
+    ]);
+    const badRequest = Object.assign(new Error(raw), {
+      data: { code: 'BAD_REQUEST', httpStatus: 400 },
+    });
+    outbox.configure({ send: jest.fn(() => Promise.reject(badRequest)) });
+    outbox.enqueue(makeDoc(1));
+
+    await outbox.flush();
+    const entry = outbox.getState().entries[0];
+    expect(entry?.parkedReason).toContain('1000 kg');
+    expect(entry?.parkedReason).not.toContain('too_big');
+    expect(entry?.lastError).toBe(raw);
   });
 
   it('isolates the culprit when the server rejects a whole batch as BAD_REQUEST', async () => {

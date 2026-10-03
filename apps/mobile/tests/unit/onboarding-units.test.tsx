@@ -1,5 +1,19 @@
+import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { fireEvent, render, screen, userEvent, waitFor } from '@testing-library/react-native';
 import { OnboardingWizard } from '../../src/features/onboarding/onboarding-wizard';
+
+const SAFE_AREA = {
+  frame: { x: 0, y: 0, width: 390, height: 844 },
+  insets: { top: 0, left: 0, right: 0, bottom: 0 },
+};
+// UX-ONB-01: the wizard's "Leave setup?" sheet reads the safe-area insets.
+function renderWizard() {
+  return render(
+    <SafeAreaProvider initialMetrics={SAFE_AREA}>
+      <OnboardingWizard />
+    </SafeAreaProvider>,
+  );
+}
 
 // §2.4, T-03.8 (bug B-43): units follow typed values. Drives the wizard
 // (food-only: jobs -> diet -> how you cook -> goal -> metrics), forces
@@ -20,10 +34,15 @@ jest.mock('../../src/features/privacy/use-health-consent', () => ({
 
 jest.mock('expo-router', () => {
   // eslint-disable-next-line @typescript-eslint/no-require-imports -- jest.mock factories can't close over top-of-file imports
-  const { createElement } = require('react') as typeof import('react');
+  const { createElement, useEffect } = require('react') as typeof import('react');
   // eslint-disable-next-line @typescript-eslint/no-require-imports
   const { Pressable } = require('react-native') as typeof import('react-native');
   return {
+    // UX-ONB-01: the wizard registers its BACK handler with useFocusEffect; the
+    // screen is always focused here, so run the effect on mount.
+    useFocusEffect: (effect: () => (() => void) | undefined): void => {
+      useEffect(effect, [effect]);
+    },
     router: { push: jest.fn(), replace: jest.fn() },
     Link: ({ children, testID }: { children: React.ReactNode; testID?: string }) =>
       createElement(Pressable, { testID }, children),
@@ -82,7 +101,7 @@ jest.mock('../../src/lib/trpc', () => ({
 
 async function driveToMetrics() {
   const user = userEvent.setup();
-  await render(<OnboardingWizard />);
+  await renderWizard();
   await user.press(screen.getByTestId('onboarding-job-PLAN_MEALS'));
   await user.press(screen.getByTestId('onboarding-continue')); // jobs -> diet
   await waitFor(() => expect(screen.getByTestId('onboarding-continue')).toBeTruthy());

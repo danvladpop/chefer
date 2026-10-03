@@ -15,6 +15,8 @@ const RECIPE = {
 };
 
 let mockSearch = '';
+let mockMembers: { name: string; portionFactor: number }[] | null = null;
+let mockCookingFor: number | null = null;
 const mockLogRecipe = vi.fn();
 vi.mock('next/navigation', () => ({
   useRouter: () => ({ back: vi.fn(), push: vi.fn() }),
@@ -35,7 +37,8 @@ vi.mock('@/features/recipe/components/StarRatingWidget', () => ({
   StarRatingWidget: () => null,
 }));
 vi.mock('@/features/tracker/lib/rebalance-storage', () => ({ handleRebalanceResult: vi.fn() }));
-vi.mock('@/hooks/useHousehold', () => ({ useHousehold: () => ({ portionSum: null }) }));
+vi.mock('@/hooks/useHousehold', () => ({ useHousehold: () => ({ scaledMembers: mockMembers }) }));
+vi.mock('@/hooks/useCookingFor', () => ({ useCookingFor: () => mockCookingFor }));
 vi.mock('@/hooks/useUnitSystem', () => ({ useUnitSystem: () => 'metric' }));
 vi.mock('@/lib/analytics', () => ({ capture: vi.fn() }));
 vi.mock('@/lib/trpc', () => ({
@@ -55,6 +58,8 @@ vi.mock('@/lib/trpc', () => ({
 afterEach(() => {
   cleanup();
   mockSearch = '';
+  mockMembers = null;
+  mockCookingFor = null;
   mockLogRecipe.mockReset();
 });
 
@@ -153,6 +158,37 @@ describe('CookMode — plan portion (audit P1-1)', () => {
   it('logs one serving without a plan portion', () => {
     mockSearch = 'meal=lunch';
     render(<CookMode recipeId="r1" />);
+    key('ArrowRight');
+    key('ArrowRight');
+    key('ArrowRight');
+    fireEvent.click(screen.getByText('Made it! Log this meal'));
+    expect(mockLogRecipe).toHaveBeenCalledWith(expect.objectContaining({ portionMultiplier: 1 }));
+  });
+});
+
+describe('CookMode — table servings (UX-REC-02, UX-PLAN-02)', () => {
+  it('owner 2x + Mia 1/2 + Noah 1 = 3½ servings, not the portion multiplied across the table', () => {
+    mockSearch = 'meal=dinner&portion=2';
+    mockMembers = [
+      { name: 'Mia', portionFactor: 0.5 },
+      { name: 'Noah', portionFactor: 1 },
+    ];
+    render(<CookMode recipeId="r1" />);
+    expect(screen.getByText('3½')).toBeTruthy();
+    // …and "Made it!" still logs the USER's portion only.
+    key('ArrowRight');
+    key('ArrowRight');
+    key('ArrowRight');
+    fireEvent.click(screen.getByText('Made it! Log this meal'));
+    expect(mockLogRecipe).toHaveBeenCalledWith(expect.objectContaining({ portionMultiplier: 2 }));
+  });
+
+  it('"two of us" cooks for two while logging one portion', () => {
+    mockSearch = 'meal=dinner';
+    mockCookingFor = 2;
+    render(<CookMode recipeId="r1" />);
+    // the 2-serving recipe already feeds two
+    expect(screen.getByText('2')).toBeTruthy();
     key('ArrowRight');
     key('ArrowRight');
     key('ArrowRight');

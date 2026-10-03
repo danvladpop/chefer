@@ -41,11 +41,24 @@ jest.mock('expo-router', () => ({
   router: { replace: jest.fn() },
 }));
 
+// UX-ACC-12: deletion leaves through the one sign-out (cache, gym data,
+// reminders, drafts, token) — covered in sign-out.test.ts.
+const mockSignOut = jest.fn((_options?: { reason?: string }) => Promise.resolve());
+jest.mock('../../src/lib/sign-out', () => ({
+  signOut: (options?: { reason?: string }) => mockSignOut(options),
+}));
+let mockDeleteOptions: { onSuccess?: () => Promise<void> } | undefined;
+
 jest.mock('../../src/lib/trpc', () => ({
   trpc: {
     useUtils: () => ({ user: { exportData: { fetch: mockExportFetch } } }),
     user: {
-      deleteSelf: { useMutation: () => ({ mutate: mockDeleteMutate, isPending: false }) },
+      deleteSelf: {
+        useMutation: (options?: { onSuccess?: () => Promise<void> }) => {
+          mockDeleteOptions = options;
+          return { mutate: mockDeleteMutate, isPending: false };
+        },
+      },
     },
     auth: {
       me: { useQuery: () => ({ data: { email: 'alice@chefer.dev' } }) },
@@ -63,6 +76,7 @@ beforeEach(() => {
   mockShow.mockClear();
   mockExportFetch.mockClear();
   mockDeleteMutate.mockClear();
+  mockSignOut.mockClear();
   mockResetMutate.mockClear();
   mockResetState = { isSuccess: false, isPending: false };
   queryClient = new QueryClient();
@@ -121,6 +135,15 @@ describe('mobile DeleteAccountSheet (App Review R-03 / R-17 / R-24)', () => {
 
     expect(mockDeleteMutate).toHaveBeenCalledTimes(1);
     expect(mockDeleteMutate).toHaveBeenCalledWith({ password: 'Secret1!', confirm: 'DELETE' });
+  });
+
+  it('UX-ACC-12: a deleted account leaves through signOut() and lands on the auth screen', async () => {
+    const { router } = jest.requireMock<{ router: { replace: jest.Mock } }>('expo-router');
+    router.replace.mockClear();
+    await renderCard();
+    await mockDeleteOptions?.onSuccess?.();
+    expect(mockSignOut).toHaveBeenCalledWith({ reason: 'account-deleted' });
+    expect(router.replace).toHaveBeenCalledWith('/(auth)');
   });
 
   it('R-03: the DELETE field shows Done and dismisses the keyboard on submit', async () => {

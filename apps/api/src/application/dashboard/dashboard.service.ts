@@ -560,10 +560,11 @@ export class DashboardService {
               dayOfWeek: todayIndex,
               slotIndex: dinnerIndex,
               mealType: hero.mealType,
-              done: isSlotEaten(
-                { type: dinnerSlot.type, recipeId: dinnerSlot.recipeId },
-                loggedToday,
-              ),
+              // UX-PLAN-01: from the same log-based resolution as the hero
+              // card, so a dinner logged before a regenerate stays done.
+              done:
+                resolved.eaten.some((slot) => slot.slotIndex === dinnerIndex) ||
+                isSlotEaten({ type: dinnerSlot.type, recipeId: dinnerSlot.recipeId }, loggedToday),
               recipe: hero.recipe,
             }
           : null;

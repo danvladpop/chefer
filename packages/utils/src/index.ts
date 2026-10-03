@@ -238,6 +238,7 @@ export {
   type LoggedMealEntryLike,
 } from './tracker';
 
+export { portionsFor, tableBreakdown, type Portions, type PortionsInput } from './portions';
 export { defaultCookServings, finishMealCopy, guessMealType, parseStepDuration } from './cook-mode';
 export {
   buildPickerSections,
@@ -438,7 +439,7 @@ export {
   type GlossaryDefinition,
   type GlossaryTermId,
 } from './glossary';
-export { defaultWeekOffset, getWeekStartDate } from './week-default';
+export { defaultWeekOffset, getWeekStartDate, weekStartForDate } from './week-default';
 export { defaultMealSlot } from './meal-slot';
 export {
   canShowNudge,
@@ -473,6 +474,7 @@ export {
   resolvePlanSlots,
 } from './plan-shape';
 export { recogniseSafetyTerm, type SafetyRecogniseOutcome } from './safety-recognise';
+export { applySafetyTerm, keepSafetyTermAsNote, type SafetyTermOutcome } from './safety-add-term';
 export {
   classifySafetyValue,
   serialiseSafetyPickerValue,
@@ -507,6 +509,14 @@ export {
   checkedForChipText,
   checkedForChipA11yLabel,
   cantCheckLine,
+  conflictHeadline,
+  conflictText,
+  splitCheckedByVerification,
+  taggedOnlyLineText,
+  verifiedLabels,
+  warningText,
+  warningsHeadline,
+  type ConflictLike,
   filteredForLineText,
   pickerFooterText,
   checkedForListHeaderText,
@@ -602,3 +612,17 @@ export {
   isServerError,
   userFacingErrorMessage,
 } from './user-facing-error';
+export {
+  plannedRowKey,
+  sumLogged,
+  tickStateFromLog,
+  withEntriesRemoved,
+  withEntryRestored,
+  withRecipeEntryEdited,
+  withRecipeLogged,
+  withRecipeUnlogged,
+  type DayEntry,
+  type DayLike,
+  type OffPlanRowLike,
+} from './tracker-day';
+export { regenerateConfirmBody } from './regenerate-copy';

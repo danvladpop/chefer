@@ -227,6 +227,45 @@ describe('EditSessionScreen', () => {
     expect(send).not.toHaveBeenCalled();
   });
 
+  it('UX-GYM-01: a PARKED (server-rejected) workout opens for editing, and saving the fix un-parks it', async () => {
+    const user = userEvent.setup();
+    const typo = pastDoc();
+    const [first] = typo.exercises;
+    if (!first) throw new Error('expected an exercise');
+    const parkedDoc = {
+      ...typo,
+      exercises: [
+        {
+          ...first,
+          sets: first.sets.map((set, i) => (i === 1 ? { ...set, weightKg: 1025 } : set)),
+        },
+      ],
+    };
+    // Park it the way a rejected upload does (sender first: enqueue kicks a flush).
+    outbox.configure({
+      send: jest.fn(() =>
+        Promise.resolve([{ id: parkedDoc.id, status: 'rejected' as const, reason: 'bad' }]),
+      ),
+    });
+    outbox.enqueue(parkedDoc, { ownerId: 'user-a' });
+    await outbox.flush({ force: true });
+    outbox.configure(null);
+    expect(outbox.getState().entries[0]?.parkedReason).toBeDefined();
+
+    await renderEdit(parkedDoc);
+    expect(await screen.findByTestId('exercise-0-set-2-weight-value')).toHaveTextContent(/1025/);
+    await user.press(screen.getByTestId('exercise-0-set-2-weight-value'));
+    for (const key of ['1', '0', '2', 'dot', '5']) {
+      await user.press(screen.getByTestId(`number-sheet-key-${key}`));
+    }
+    await user.press(screen.getByTestId('number-sheet-save'));
+    await user.press(screen.getByTestId('edit-session-save'));
+
+    const [entry] = outbox.getState().entries;
+    expect(entry?.parkedReason).toBeUndefined();
+    expect(entry?.doc.exercises[0]?.sets[1]?.weightKg).toBe(102.5);
+  });
+
   it('AC5: Replace exercise goes straight to the picker, never offers the routine, and changes this workout only', async () => {
     const user = userEvent.setup();
     const calls: LinkCall[] = [];

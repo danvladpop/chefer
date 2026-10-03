@@ -1,7 +1,7 @@
 import { View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Text } from '@chefer/ui-mobile';
-import { cn } from '@chefer/utils';
+import { cn, conflictHeadline, type ConflictLike } from '@chefer/utils';
 
 // Mirrors apps/web/src/features/recipes/components/AllergenWarning.tsx: shown
 // wherever a recipe conflicts with the viewer's allergies or dietary
@@ -11,13 +11,16 @@ import { cn } from '@chefer/utils';
 /** Full-width banner for the recipe screen and cook mode. */
 export function AllergenWarningBanner({
   warnings,
+  details,
   className,
 }: {
   warnings: string[] | undefined;
+  /** `safetyChecks.conflictDetails` — lets the line say "Not paleo: contains quinoa" (UX-PLAN-06). */
+  details?: readonly ConflictLike[] | null | undefined;
   className?: string;
 }) {
   if (!warnings || warnings.length === 0) return null;
-  const list = warnings.join(', ');
+  const headline = conflictHeadline(warnings, details);
   return (
     <View
       testID="allergen-warning"
@@ -29,7 +32,7 @@ export function AllergenWarningBanner({
     >
       <Ionicons name="warning" size={16} color="#991b1b" style={{ marginTop: 2 }} />
       <Text className="min-w-0 flex-1 text-sm text-red-800">
-        <Text className="text-sm font-semibold text-red-800">Contains {list}.</Text> This recipe
+        <Text className="text-sm font-semibold text-red-800">{headline}.</Text> This recipe
         conflicts with your allergies or diet — check the ingredients or swap it.
       </Text>
     </View>
@@ -37,17 +40,23 @@ export function AllergenWarningBanner({
 }
 
 /** Compact chip for meal cards. */
-export function AllergenWarningChip({ warnings }: { warnings: string[] | undefined }) {
+export function AllergenWarningChip({
+  warnings,
+  details,
+}: {
+  warnings: string[] | undefined;
+  details?: readonly ConflictLike[] | null | undefined;
+}) {
   if (!warnings || warnings.length === 0) return null;
-  const list = warnings.join(', ');
+  const headline = conflictHeadline(warnings, details);
   return (
     <View
-      accessibilityLabel={`Contains ${list}`}
+      accessibilityLabel={headline}
       className="flex-row items-center gap-1 self-start rounded-full bg-red-100 px-2 py-0.5"
     >
       <Ionicons name="warning" size={12} color="#991b1b" />
       <Text numberOfLines={1} className="text-xs font-semibold text-red-800">
-        Contains {list}
+        {headline}
       </Text>
     </View>
   );

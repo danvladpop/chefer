@@ -86,7 +86,10 @@ function setup(existing = null as ReturnType<typeof profileRow> | null) {
       .fn()
       .mockResolvedValue([{ exerciseId: 'barbell-bench-press' }, { exerciseId: 'back-squat' }]),
   };
-  const chefProfiles = { upsert: vi.fn().mockResolvedValue({}) };
+  const chefProfiles = {
+    upsert: vi.fn().mockResolvedValue({}),
+    findByUserId: vi.fn().mockResolvedValue(null),
+  };
   return {
     service: new GymProfileService(
       repo,
@@ -121,6 +124,20 @@ describe('GymProfileService.completeSetup', () => {
     const rerun = setup(profileRow({ unit: 'LB' }));
     await rerun.service.completeSetup(USER, setupInput({ unit: 'LB' }), '2026-09-24');
     expect(rerun.chefProfiles.upsert).not.toHaveBeenCalled();
+  });
+
+  it('setup never flips non-default (IMPERIAL) food units back to metric (UX-GYM-05)', async () => {
+    const { service, chefProfiles } = setup();
+    chefProfiles.findByUserId.mockResolvedValue({ preferredUnits: 'IMPERIAL' });
+    await service.completeSetup(USER, setupInput({ unit: 'KG' }), '2026-09-24');
+    expect(chefProfiles.upsert).not.toHaveBeenCalled();
+  });
+
+  it('setup still moves default (METRIC) food units to imperial when lb is picked', async () => {
+    const { service, chefProfiles } = setup();
+    chefProfiles.findByUserId.mockResolvedValue({ preferredUnits: 'METRIC' });
+    await service.completeSetup(USER, setupInput({ unit: 'LB' }), '2026-09-24');
+    expect(chefProfiles.upsert).toHaveBeenCalledWith(USER, { preferredUnits: 'IMPERIAL' });
   });
 
   it('writes profile + active routine + initial progressions in one repository call', async () => {

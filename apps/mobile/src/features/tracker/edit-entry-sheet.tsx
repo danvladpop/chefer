@@ -100,8 +100,12 @@ export function EditEntrySheet({
     },
   });
   const deleteMutation = trpc.tracker.deleteCustomMeal.useMutation();
+  // UX-FOOD-06: a failed restore (the Undo) says so, and either way the day
+  // is re-read so the screen shows what the server holds.
   const restoreMutation = trpc.tracker.restoreCustomMeal.useMutation({
-    onSuccess: () => invalidateDayQueries(utils, date),
+    onError: (error) =>
+      snackbar.show({ message: `Couldn't bring that back. ${userFacingErrorMessage(error)}` }),
+    onSettled: () => invalidateDayQueries(utils, date),
   });
 
   if (!entry) return null;
@@ -150,7 +154,8 @@ export function EditEntrySheet({
     };
     onClose();
     deleteMutation.mutate(
-      { date, entryIndex: entry.entryIndex },
+      // UX-FOOD-17: by stable id (the index is only the fallback).
+      { date, entryId, entryIndex: entry.entryIndex },
       {
         onSuccess: () => {
           invalidateDayQueries(utils, date);
@@ -161,6 +166,12 @@ export function EditEntrySheet({
             onAction: () => restoreMutation.mutate({ date, entry: snapshot }),
           });
         },
+        // The sheet closes before the server answers; if the delete failed
+        // the row is still there (nothing was removed), so say why.
+        onError: (error) =>
+          snackbar.show({
+            message: `Couldn't delete ${entry.name}. ${userFacingErrorMessage(error)}`,
+          }),
       },
     );
   };

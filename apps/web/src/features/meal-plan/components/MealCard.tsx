@@ -4,7 +4,13 @@ import { AllergenWarningChip } from '@/features/recipes/components/AllergenWarni
 import { RecipeImage, type ImageStatusType } from '@/features/recipes/components/RecipeImage';
 import { CheckedForChip } from '@/features/safety/components/CheckedForChip';
 import { ArrowLeftRight, Bookmark, Clock } from 'lucide-react';
-import { formatPortion, scaleNutrition, slotPortion } from '@chefer/utils';
+import {
+  formatPortion,
+  scaleNutrition,
+  slotPortion,
+  verifiedLabels,
+  type ConflictLike,
+} from '@chefer/utils';
 
 interface NutritionInfo {
   calories: number;
@@ -29,6 +35,8 @@ interface RecipeDto {
     checked: { label: string; who: string }[];
     conflicts: string[];
     unchecked: string[];
+    taggedOnly?: { label: string; who: string }[] | undefined;
+    conflictDetails?: ConflictLike[] | undefined;
     labelCaveats?: { ingredient: string; rule: string }[] | undefined;
   };
 }
@@ -205,11 +213,12 @@ export function MealCard({
               {recipe.name}
             </p>
             <AiGeneratedChip recipe={recipe} className="mt-1" />
-            <AllergenWarningChip warnings={recipe.allergenWarnings} className="mt-1" />
-            <CheckedForChip
-              labels={recipe.safetyChecks?.checked.map((c) => c.label) ?? []}
+            <AllergenWarningChip
+              warnings={recipe.allergenWarnings}
+              details={recipe.safetyChecks?.conflictDetails}
               className="mt-1"
             />
+            <CheckedForChip labels={verifiedLabels(recipe.safetyChecks)} className="mt-1" />
           </div>
 
           <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 text-xs text-gray-600">
@@ -272,9 +281,13 @@ export function MealCard({
           )}
         </span>
         <div className="absolute bottom-2 right-2 flex max-w-[calc(100%-1rem)] flex-col items-end gap-1">
-          <AllergenWarningChip warnings={recipe.allergenWarnings} className="truncate text-xs" />
+          <AllergenWarningChip
+            warnings={recipe.allergenWarnings}
+            details={recipe.safetyChecks?.conflictDetails}
+            className="truncate text-xs"
+          />
           <CheckedForChip
-            labels={recipe.safetyChecks?.checked.map((c) => c.label) ?? []}
+            labels={verifiedLabels(recipe.safetyChecks)}
             className="truncate text-xs"
           />
         </div>

@@ -28,3 +28,18 @@ export function getWeekStartDate(offset: number, now: Date = new Date()): Date {
   monday.setHours(0, 0, 0, 0);
   return monday;
 }
+
+/**
+ * UX-FOOD-02: the Monday (UTC midnight) of the week containing the calendar
+ * day `dateStr` (`YYYY-MM-DD`, the client's LOCAL day). The plan-for-a-date
+ * lookups (tracker, rebalance, coach, pantry, shop) all resolve a plan with
+ * this instead of "the newest ACTIVE plan", which returns next week's plan
+ * once next week has been opened. UTC arithmetic: the date string carries no
+ * time zone, so reading its weekday must not shift with the server's.
+ */
+export function weekStartForDate(dateStr: string): Date {
+  const date = new Date(`${dateStr}T00:00:00Z`);
+  const jsDay = date.getUTCDay(); // 0 = Sunday .. 6 = Saturday
+  date.setUTCDate(date.getUTCDate() - (jsDay === 0 ? 6 : jsDay - 1));
+  return date;
+}

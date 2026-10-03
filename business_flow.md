@@ -147,6 +147,20 @@ free workout log too, not meal planning alone (CI-16/CI-25).
    onboarding screen clears it. An imperative `router.replace` after the awaited
    SecureStore writes used to race the navigator on a fresh install, so the
    first account landed on Today. Every new account now gets the wizard)
+
+   **Resuming an interrupted setup (mobile, UX-ONB-01, 2026-10).** The wizard
+   saves every answer and the current step to the on-device KV (`onboarding.draft`,
+   scoped to a fingerprint of the session token, so another account's answers never
+   match; removed on finish/skip and by `signOut()`). The Food layout
+   (`useOnboardingGate`) sends the sign-in into `/onboarding` once per launch when
+   there is a draft for this session, or when `preferences.get().jobs` is empty
+   (the account never answered "what should Chefer help with?"). Android hardware
+   BACK (and the header arrow) steps back one question; on the first question it
+   asks "Leave setup for now?" — leaving keeps the draft, so the next launch resumes.
+   "Just looking around" saves `PLAN_MEALS`, which ends the nag. The wizard hydrates
+   from `preferences.get` (saved jobs pre-filled, steps built from the current
+   selection, body metrics rounded to 1 decimal) and a typed-but-unadded
+   "Something else?" allergy is added before the diet step is left (UX-ACC-01).
 4. Onboarding step 1 — "What should Chefer help with?" (§2.4, T-03.1/T-03.2,
    rev 2 — mobile only; web still runs the v1 single-intent flow below until
    its own migration lands, T-03.6). A multi-select JobsStep (`Train` /
@@ -240,6 +254,19 @@ Admins can additionally create users via `user.create` (admin-only).
 
 Sessions are DB rows (`sessions` table), not JWTs — resolution is a lookup on
 every request (see §4), and logout / password reset delete the rows.
+
+**Leaving an account on mobile (UX-ACC-02/12/17, 2026-10).** More, Settings,
+account deletion and the 401 handler all run one `signOut()`
+(`apps/mobile/src/lib/sign-out.ts`): cancel in-flight queries → empty the query
+cache → wipe the on-device KV (everything but `analytics.consent`: gym outbox and
+active workout, mode, landing cache, per-exercise notes, plan dismissals, onboarding
+draft …) and reset the in-memory stores that cached it → cancel gym reminders →
+clear the register draft / pending-onboarding / onboarding gate → clear the token
+last. `setToken` also empties the cache, so a sign-in never starts on the previous
+account's reads. Signing out (More/Settings) warns first when workouts exist only
+on the phone (outbox entries or a workout in progress); a 401 (`session-expired`)
+keeps the gym outbox, active session and owner so unsynced workouts upload on the
+next login. The register draft never holds passwords.
 "Forgot password?" on the form (web and the mobile Sign in screen) starts the
 reset flow (§11). Both platforms' forms have a Show/Hide password toggle; the
 register forms also require a matching confirm-password field (client-side
@@ -761,9 +788,14 @@ FREE generation now honours the shape:
   ├─ a time cap filters each meal type's candidates; a recipe whose
   │    prepTimeMins + cookTimeMins is 0 ("unknown") fits any cap but
   │    ranks after known-fast recipes (owner feedback Q-35)
-  ├─ "cooking for 2" sets every planned slot's portion to 2 directly
-  │    (a flat multiplier — separate from the calorie-driven P1-1
-  │    portion, and from premium household scaling)
+  ├─ "cooking for 2" does NOT touch the slot's portion (UX-PLAN-02): a
+  │    slot's `portion` is the EATER's calorie-driven share only — what the
+  │    user eats, logs and counts toward their targets. "Two of us" is a
+  │    TABLE multiplier (a standard second portion) applied by Shop, the
+  │    plan cost, pantry savings and cook mode through the shared
+  │    `portionsFor` (`@chefer/utils`). Plans stored before the fix with
+  │    portion 2 for these users are normalised by the owner-run data fix
+  │    `scripts/data-fixes/2026-10-03-two-of-us-eater-portion.sql` (see "Portions" below)
   ├─ an explicit shape with Snacks off never adds an opportunistic
   │    snack (the legacy/no-shape path still tops up automatically)
   ├─ a day that can't fill a wanted slot reports
@@ -816,6 +848,17 @@ replaced plan's pinned slots onto the new week when the day/slot type still
 exists and the dish still passes the safety filter, and reports how many
 couldn't be kept as `droppedPinned`.
 
+**Regenerate keeps what already happened (UX-PLAN-01).** Regenerating the CURRENT
+week (`weekOffset` 0) keeps every past day exactly as it was and any of today's
+slots whose recipe is already logged (`meal-plan/keep-eaten.ts`; the logged ids
+come from `findLoggedRecipeIds`, and an unreadable log keeps all of today). Only
+today's uneaten slots and the days after it are replaced; a kept slot replaces
+the new slot of its type, so there is never a second dinner. A future week is
+replaced whole. The confirm copy says so (`regenerateConfirmBody`). Today's
+"dinner done" is read from the log, not from the slot's recipe id
+(`resolveTodayMeals`: a recipe logged for a meal type no slot holds any more
+still closes one open slot of that type).
+
 **Regenerate Undo (T-08.3).** Both generation paths return `previousPlanId`
 (the same-week plan the call replaced) so a client can offer `Undo` via the
 existing `mealPlan.restore({ planId: previousPlanId })`. A PREMIUM
@@ -853,6 +896,9 @@ persona-study wave 1, `feat/ux-now/plan-mobile`).** `app/(food)/meal-plan.tsx`
   button sits under the day chips; it opens a `ConfirmSheet` with a "Keep
   the N meals you chose" switch (shown only when pinned picks exist), and
   the success snackbar offers `Undo` → `mealPlan.restore(previousPlanId)`.
+  UX-PLAN-03: while the generation runs the confirm button spins and ignores
+  taps (one generation per confirm), and a failure — the free-quota
+  `TOO_MANY_REQUESTS` message included — shows inside the sheet.
 * **Pin/unpin.** A bookmark toggle next to each meal's Replace action calls
   `mealPlan.setSlotPinned`; a pinned slot shows a "Your pick" badge
   (`plan-meal-card.tsx`).
@@ -2099,15 +2145,29 @@ SCALING — premium only (`householdPlans`)
   │    .servingSize); the legacy setting is never read. Imports adapt to the
   │    same number.
   ├─ shopping list (derived AND the AI-consolidation input): every recipe's
-  │    ingredients × portions / recipe.servings — a single-portion curated
-  │    week ×portions, a recipe already generated for the table ×1 — and the
-  │    list reports `portions`
+  │    ingredients × (the slot's eater portion + Σ member portionFactor) /
+  │    recipe.servings — a single-portion curated week × the table, a recipe
+  │    already generated for the table × that ÷ its servings — and the list
+  │    reports `portions` (= householdPortionSum, unchanged for old apps).
+  │    The table is ADDED to the eater's portion, never multiplied across it
+  │    (UX-REC-02: owner 2× + Mia ½ + Noah 1 = 3½, not ceil(2½) × 2)
   ├─ plan week cost: estimatedCost scaled the same way (chip = list total),
   │    with `portions`
-  └─ recipe page + cook mode default to the table's servings, × the plan
-       slot's portion when opened from the plan (shared
-       `defaultCookServings`; mobile cook mode's ingredient list has the
-       servings stepper)
+  └─ recipe page + cook mode default to the table's servings: the user's
+       plan portion + each member (shared `defaultCookServings` →
+       `portionsFor`; shown as "You 2 · Mia ½ · Noah 1 = 3½"; mobile cook
+       mode's ingredient list has the servings stepper)
+Portions — one helper, three numbers (UX-PLAN-02 / UX-REC-02,
+`portionsFor({ eaterPortion, members, cookingFor, recipeServings })` in
+`@chefer/utils`): `eaterPortion` (what the signed-in user eats and logs — the
+stored slot `portion`), `cookServings` (the whole table), `shopMultiplier`
+(what Shop and the cost chip scale quantities by). Members describe the table
+exactly and win over "cooking for"; with no members "cooking for N" adds N − 1
+standard portions. Nutrition, day totals, "I ate this", rebalance and the
+tracker only ever use the eater's portion. Legacy plans: a one-off data
+migration drops `portion: 2` from slots of users whose "cooking for" is 2
+(their original per-eater portion was never stored, so 1× is the honest value;
+Regenerate recomputes it).
 FREE households: lists, costs and recipe pages stay as written (single
 portion for curated plans) and say so ("sized for 1 portion — Premium scales
 it for your table"). Per-person cost is ALWAYS total ÷ the portions the list
@@ -3546,6 +3606,24 @@ Reporting a recipe (T-01.5):
     └─► recipe.list({forTable:true}) / discover / whatCanIMake never show it again for this user
 ```
 
+**Diets are decided on ingredients, not only tags (UX-REC-01, UX-PLAN-06).**
+`RESTRICTION_RULES` gives paleo a forbidden list (grains, legumes, dairy incl.
+cheeses named without "cheese", refined sugar) and keto a net-carb limit
+(`KETO_MAX_NET_CARBS_G` = 20 g/serving, from the recipe's catalogue-computed
+nutrition; fibre is subtracted only from typed (USER_ENTERED) totals) plus a
+starchy/sugary staple fallback. Two modes: **strict** (the default — stored
+tag AND clean ingredients; the curated pool/generation fail-safe) and
+**`deriveFromIngredients`** (recipes people wrote or imported: an untagged
+recipe passes when its own ingredients verify the diet, so plain oats are
+vegetarian; used by `SafetyService.check`, `findSafetyIssues` for display and
+the Replace/add gates, import, and `recipe.list({forTable})`). A pass that
+rests on the tag alone is reported in the additive `safetyChecks.taggedOnly`
+(still inside `checked` for 1.0.1 apps) and clients say "Tagged paleo (not
+verified)", never "Checked for"; an untagged recipe nothing can verify is
+`unchecked`, not a conflict. `safetyChecks.conflictDetails` (additive) names the
+offending ingredients/limit so copy reads "Not paleo: contains quinoa" instead
+of "Contains Paleo"; `UNSAFE_FOR_TABLE` rejections word diets the same way.
+
 **Dislikes: hard everywhere `SafetyService.filter` runs with its default
 `opts.dislikes: 'hide'`** (generation, the Replace picker's default list,
 `whatCanIMake`); **soft** ("mark") on `recipe.discover` — UX-01's rule that a
@@ -3942,6 +4020,25 @@ tracker.updateCustomMeal({ date, entryId, name?, estimatedBy?, mealType?,
   └─ finds the entry by entryId (must be a custom entry — a planned-recipe
      entryId answers NOT_FOUND; those are edited by re-ticking a portion)
      and replaces its fields in one mutateDay transaction
+
+tracker.deleteCustomMeal({ date, entryId?, entryIndex? })    [F4, UX-FOOD-17]
+  └─ by stable entryId when the client has one (wins over the index; a stale
+     id is NOT_FOUND instead of deleting whatever moved into that position),
+     else by index — 1.0.1 clients only send the index
+
+tracker.updateRecipeEntry({ date, entryId, portionMultiplier?, mealType? })
+                                                              [UX-FOOD-03]
+  └─ edits one logged RECIPE entry — the "Also eaten" rows for recipes that
+     left the plan. Macros are recomputed from the stored recipe × portion.
+     Delete is deleteEntries; its Undo re-logs via logRecipe.
+
+Tracker clients (UX-FOOD-01/06): ticks and totals are derived from the cached
+`tracker.getDay` data on every render (`tickStateFromLog`, `sumLogged` in
+@chefer/utils) — no once-a-day copy in component state. A tap edits that cache
+optimistically, rolls back and shows a plain-words error on failure, and
+re-fetches on settle; writes are serialised (mutation scope), and the "Logged"
+confirmation shows only after the server answered. The day's plan is the plan
+of the date's WEEK (UX-FOOD-02), never the newest ACTIVE plan.
 
 tracker.restoreCustomMeal({ date, entry })                    [T-19.2, B-34]
   └─ the bin's `Undo` snackbar (8 s): the client already holds the exact

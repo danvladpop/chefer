@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { mealPlanRepository, pantryItemRepository, prisma } from '@chefer/database';
 import type { UserProfile } from '@chefer/types';
 import { groceryAIService } from '../../lib/grocery-ai/index.js';
@@ -7,6 +7,17 @@ import { householdService } from '../household/household.service.js';
 import { pantryService } from '../pantry/pantry.service.js';
 import { estimatePlanCostEur } from '../shared/plan-cost.js';
 import { carryCheckedKeys, ShoppingListService } from './shopping-list.service.js';
+
+/** A table of other eaters (member portion factors) and/or a "cooking for" setting. */
+const tableOf = (members: number[], cookingFor: number | null = null) => ({
+  members: members.map((portionFactor) => ({ portionFactor })),
+  cookingFor,
+});
+
+afterEach(() => {
+  vi.mocked(householdService.scalingPortions).mockReset().mockResolvedValue(null);
+  vi.mocked(householdService.scalingTable).mockReset().mockResolvedValue(null);
+});
 
 // ─── Module mocks (style: recipe-import.service.test.ts) ─────────────────────
 
@@ -57,7 +68,10 @@ vi.mock('../pantry/pantry.service.js', () => ({
 // Household scaling is premium + members (household.service.test.ts covers
 // the decision); here each test sets the portions it wants.
 vi.mock('../household/household.service.js', () => ({
-  householdService: { scalingPortions: vi.fn().mockResolvedValue(null) },
+  householdService: {
+    scalingPortions: vi.fn().mockResolvedValue(null),
+    scalingTable: vi.fn().mockResolvedValue(null),
+  },
 }));
 
 // T-01.9/T-02.1: `getForWeek` reads the table once for `tableSafety` +
@@ -301,8 +315,8 @@ describe('ShoppingListService — F3 pantry seeding from check-offs', () => {
   });
 
   it('seeds the quantity the list shows — slot portion × household scale (#38/#40)', async () => {
-    // A 2× slot of a 4-serving recipe for a household of 6 portions:
-    // 600 g × 2 × 6/4 = 1800 g on the list, and in the pantry.
+    // A 2× slot (the eater's share) of a 4-serving recipe for a table of five
+    // more people: 600 g × (2 + 5) / 4 = 1050 g on the list, and in the pantry.
     vi.mocked(mealPlanRepository.findByIdForUser).mockResolvedValue({
       ...PLAN,
       days: [{ ...PLAN.days[0], meals: [{ type: 'dinner', recipeId: 'r1', portion: 2 }] }],
@@ -310,13 +324,14 @@ describe('ShoppingListService — F3 pantry seeding from check-offs', () => {
     vi.mocked(mealPlanRepository.findRecipesByIds).mockResolvedValue([
       { ...RECIPE, servings: 4 },
     ] as never);
-    vi.mocked(householdService.scalingPortions).mockResolvedValueOnce(6).mockResolvedValueOnce(6);
+    vi.mocked(householdService.scalingPortions).mockResolvedValue(6);
+    vi.mocked(householdService.scalingTable).mockResolvedValue(tableOf([1, 1, 1, 1, 1]));
 
     await service.toggleItems(premiumUser, 'plan1', ['plan1-tomato|g'], true);
 
-    expect(householdService.scalingPortions).toHaveBeenCalledWith(premiumUser);
+    expect(householdService.scalingTable).toHaveBeenCalledWith(premiumUser);
     expect(pantryService.seedFromPurchases).toHaveBeenCalledWith('u1', [
-      { name: 'Tomato', quantity: 1800, unit: 'g' },
+      { name: 'Tomato', quantity: 1050, unit: 'g' },
     ]);
 
     // …and it matches the line getForWeek serves for the same plan.
@@ -324,7 +339,7 @@ describe('ShoppingListService — F3 pantry seeding from check-offs', () => {
       await mealPlanRepository.findByIdForUser('u1', 'plan1'),
     );
     const list = await service.getForWeek(premiumUser, 0);
-    expect(list.items.find((i) => i.key === 'plan1-tomato|g')!.quantity).toBe('1800');
+    expect(list.items.find((i) => i.key === 'plan1-tomato|g')!.quantity).toBe('1050');
   });
 
   it('checked keys that match no list item seed nothing', async () => {
@@ -368,8 +383,9 @@ describe('ShoppingListService — store search uses the aggregated list', () => 
   });
 
   it('searches for the list lines (repeats summed, portions and household applied)', async () => {
-    // The same recipe twice in the week, once at 2×, for 6 portions of a
-    // 4-serving recipe: tomato 600 g × (1 + 2) × 6/4 = 2700 g — one line.
+    // The same recipe twice in the week, once at 2×, for a table of five more
+    // people on a 4-serving recipe: tomato 600 g × ((1 + 5) + (2 + 5)) / 4 =
+    // 1950 g — one line.
     const plan = {
       ...PLAN,
       days: [
@@ -386,14 +402,36 @@ describe('ShoppingListService — store search uses the aggregated list', () => 
     vi.mocked(mealPlanRepository.findRecipesByIds).mockResolvedValue([
       { ...RECIPE, servings: 4 },
     ] as never);
-    vi.mocked(householdService.scalingPortions).mockResolvedValueOnce(6);
+    vi.mocked(householdService.scalingPortions).mockResolvedValue(6);
+    vi.mocked(householdService.scalingTable).mockResolvedValue(tableOf([1, 1, 1, 1, 1]));
 
     await service.searchStores(premiumUser, 'plan1');
 
     const input = vi.mocked(groceryAIService.searchNearbyStores).mock.calls[0]![0];
     expect(input.ingredients.filter((i) => i.name === 'Tomato')).toEqual([
-      { name: 'Tomato', quantity: '2700', unit: 'g', category: 'produce' },
+      { name: 'Tomato', quantity: '1950', unit: 'g', category: 'produce' },
     ]);
+  });
+});
+
+describe('ShoppingListService.searchStores — fallback plan (UX-FOOD-02)', () => {
+  const service = new ShoppingListService();
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.mocked(prisma.shoppingList.findUnique).mockResolvedValue(null);
+  });
+
+  it("falls back to THIS week's plan when the planId isn't found, never the newest ACTIVE one", async () => {
+    vi.mocked(mealPlanRepository.findAllByUserId).mockResolvedValue([] as never);
+    vi.mocked(mealPlanRepository.findForWeek).mockResolvedValue(null);
+
+    const result = await service.searchStores(premiumUser, 'gone');
+
+    expect(result.stores).toEqual([]);
+    const [, weekStart] = vi.mocked(mealPlanRepository.findForWeek).mock.calls[0]!;
+    expect(weekStart.getDay()).toBe(1);
+    expect(mealPlanRepository.findActiveWithDays).not.toHaveBeenCalled();
   });
 });
 
@@ -528,6 +566,7 @@ describe('ShoppingListService — household scaling (P2-3, audit F-PM-5)', () =>
       { ...RECIPE, servings: 1 },
     ] as never);
     vi.mocked(householdService.scalingPortions).mockResolvedValue(3);
+    vi.mocked(householdService.scalingTable).mockResolvedValue(tableOf([1, 1]));
 
     const list = await service.getForWeek(premiumUser, 0);
 
@@ -544,6 +583,7 @@ describe('ShoppingListService — household scaling (P2-3, audit F-PM-5)', () =>
       { ...RECIPE, servings: 3 },
     ] as never);
     vi.mocked(householdService.scalingPortions).mockResolvedValue(3);
+    vi.mocked(householdService.scalingTable).mockResolvedValue(tableOf([1, 1]));
 
     const list = await service.getForWeek(premiumUser, 0);
 
@@ -551,7 +591,7 @@ describe('ShoppingListService — household scaling (P2-3, audit F-PM-5)', () =>
     expect(list.estimatedTotalEur).toBe(9);
   });
 
-  it('composes with the P1-1 slot portion: 1.5× slot × 2-portion table = 3× for premium, 1.5× for free', async () => {
+  it('adds the table to the P1-1 slot portion: 1.5× eater + 1 member = 2.5× for premium, 1.5× for free', async () => {
     const portioned = {
       ...PLAN,
       days: [
@@ -569,22 +609,39 @@ describe('ShoppingListService — household scaling (P2-3, audit F-PM-5)', () =>
     vi.mocked(mealPlanRepository.findRecipesByIds).mockResolvedValue([recipe] as never);
     // The plan chip prices the same slots through estimatePlanCostEur.
     const planDays = [{ meals: [{ recipe, portion: 1.5 }] }];
+    const table = tableOf([1]);
 
     vi.mocked(householdService.scalingPortions).mockResolvedValue(2);
+    vi.mocked(householdService.scalingTable).mockResolvedValue(table);
     const premium = await service.getForWeek(premiumUser, 0);
-    expect(premium.items.find((i) => i.ingredientName === 'Tomato')!.quantity).toBe('1800');
-    expect(premium.items.find((i) => i.ingredientName === 'Beef')!.quantity).toBe('900');
-    // (1800 × €0.5 + 900 × €2) / 100 = €27, and the plan chip agrees.
-    expect(premium.estimatedTotalEur).toBe(27);
-    const premiumChip = await estimatePlanCostEur(planDays, { portions: 2 });
+    expect(premium.items.find((i) => i.ingredientName === 'Tomato')!.quantity).toBe('1500');
+    expect(premium.items.find((i) => i.ingredientName === 'Beef')!.quantity).toBe('750');
+    // (1500 × €0.5 + 750 × €2) / 100 = €22.50, and the plan chip agrees.
+    expect(premium.estimatedTotalEur).toBe(22.5);
+    const premiumChip = await estimatePlanCostEur(planDays, { portions: 2, table });
     expect(premiumChip.totalEur).toBe(premium.estimatedTotalEur);
 
     vi.mocked(householdService.scalingPortions).mockResolvedValue(null);
+    vi.mocked(householdService.scalingTable).mockResolvedValue(null);
     const free = await service.getForWeek(freeUser, 0);
     expect(free.items.find((i) => i.ingredientName === 'Tomato')!.quantity).toBe('900');
     expect(free.estimatedTotalEur).toBe(13.5);
     const freeChip = await estimatePlanCostEur(planDays);
     expect(freeChip.totalEur).toBe(free.estimatedTotalEur);
+  });
+
+  it('"two of us" doubles the list while the slot stays the eater\'s (UX-PLAN-02)', async () => {
+    planWithRecipes();
+    vi.mocked(mealPlanRepository.findRecipesByIds).mockResolvedValue([
+      { ...RECIPE, servings: 1 },
+    ] as never);
+    // A free user: no scaling portions, but cooking for 2.
+    vi.mocked(householdService.scalingTable).mockResolvedValue(tableOf([], 2));
+
+    const list = await service.getForWeek(freeUser, 0);
+
+    expect(list.items.find((i) => i.ingredientName === 'Tomato')!.quantity).toBe('1200');
+    expect(list).not.toHaveProperty('portions');
   });
 
   it('free households (and solo users) keep recipes as written, with no portions field', async () => {
@@ -595,7 +652,7 @@ describe('ShoppingListService — household scaling (P2-3, audit F-PM-5)', () =>
 
     const list = await service.getForWeek(freeUser, 0);
 
-    expect(householdService.scalingPortions).toHaveBeenCalledWith(freeUser);
+    expect(householdService.scalingTable).toHaveBeenCalledWith(freeUser);
     expect(list.items.find((i) => i.ingredientName === 'Tomato')!.quantity).toBe('600');
     expect(list).not.toHaveProperty('portions');
   });
