@@ -91,7 +91,14 @@ const RESOLUTION = [
   },
 ];
 
-async function openReview() {
+const ADAPTED = {
+  ...RECIPE,
+  name: 'Chicken in oil (lighter)',
+  ingredients: [{ name: 'chicken breast', quantity: 250, unit: 'g' }],
+};
+const ADAPTED_RESOLUTION = [RESOLUTION[0]];
+
+async function openReview(opts: { adapted?: boolean } = {}) {
   render(<ImportRecipeSheet open onClose={vi.fn()} />);
   fireEvent.click(screen.getByRole('button', { name: /Paste/ }));
   fireEvent.change(screen.getByPlaceholderText(/Paste the whole recipe/), {
@@ -102,20 +109,23 @@ async function openReview() {
   mocks.onPreviewSuccess?.({
     via: 'text',
     original: RECIPE,
-    adapted: RECIPE,
-    changes: [],
+    adapted: opts.adapted ? ADAPTED : RECIPE,
+    changes: opts.adapted ? [{ kind: 'swap', description: 'Used less chicken' }] : [],
     safety: { ok: true, issues: [] },
     macroCheck: {
       status: 'uncertain',
       computedCaloriesPerServing: null,
       statedCaloriesPerServing: 999,
     },
-    sourceUrl: null,
+    sourceUrl: 'https://blog.example.com/chicken',
     ogImageUrl: null,
-    resolution: { original: RESOLUTION, adapted: RESOLUTION },
+    resolution: {
+      original: RESOLUTION,
+      adapted: opts.adapted ? ADAPTED_RESOLUTION : RESOLUTION,
+    },
     nutritionStatus: { original: 'PARTIAL', adapted: 'PARTIAL' },
   });
-  await screen.findByTestId('import-full-preview');
+  await screen.findByTestId('video-draft-form');
 }
 
 describe('ImportRecipeSheet — Cheferize review', () => {
@@ -154,5 +164,65 @@ describe('ImportRecipeSheet — Cheferize review', () => {
       { name: 'chicken breast', quantity: 300, unit: 'g', ingredientId: 'chicken' },
       { name: 'oliv oil', quantity: 1, unit: 'tbsp', ingredientId: 'oil' },
     ]);
+  });
+});
+
+// UX-REC-15 (web twin of the phone's import review): the link/text review is the
+// same editable form as a video draft — choose the version, fix it inline, save.
+describe('ImportRecipeSheet — editable review (UX-REC-15)', () => {
+  it('lets every field be corrected before saving, and saves the edited recipe', async () => {
+    await openReview();
+    fireEvent.change(screen.getByLabelText('Recipe name'), {
+      target: { value: 'Weeknight chicken' },
+    });
+    fireEvent.change(screen.getByLabelText('Servings'), { target: { value: '4' } });
+    fireEvent.change(screen.getByLabelText('Step 1'), {
+      target: { value: 'Roast it for 20 min.' },
+    });
+    fireEvent.click(screen.getByLabelText('Save with incomplete nutrition'));
+    fireEvent.click(screen.getByText('Save original recipe'));
+
+    const sent = mocks.saveMutate.mock.calls[0]?.[0] as {
+      variant: string;
+      sourceUrl: string;
+      recipe: { name: string; servings: number; instructions: string[] };
+    };
+    expect(sent.variant).toBe('original');
+    expect(sent.sourceUrl).toBe('https://blog.example.com/chicken');
+    expect(sent.recipe).toMatchObject({
+      name: 'Weeknight chicken',
+      servings: 4,
+      instructions: ['Roast it for 20 min.'],
+    });
+  });
+
+  it('blocks a save with a problem the form can name (no amount, no name)', async () => {
+    await openReview();
+    fireEvent.change(screen.getByLabelText('Recipe name'), { target: { value: '  ' } });
+    fireEvent.click(screen.getByText('Save original recipe'));
+    expect(mocks.saveMutate).not.toHaveBeenCalled();
+    expect(screen.getByRole('alert').textContent).toMatch(/name/i);
+  });
+
+  it('choosing the Cheferized version reviews and saves THAT version', async () => {
+    await openReview({ adapted: true });
+    // Default is the adapted version when it has changes.
+    expect(screen.getByLabelText('Recipe name')).toHaveProperty(
+      'value',
+      'Chicken in oil (lighter)',
+    );
+    expect(screen.getByText('Switching version restarts the review below.')).toBeTruthy();
+    fireEvent.click(screen.getByText('Save Cheferized recipe'));
+    expect(mocks.saveMutate).toHaveBeenCalledWith(
+      expect.objectContaining({ variant: 'adapted', acceptPartial: false }),
+    );
+  });
+
+  it('switching version restarts the review with that version’s draft', async () => {
+    await openReview({ adapted: true });
+    fireEvent.change(screen.getByLabelText('Recipe name'), { target: { value: 'My edit' } });
+    fireEvent.click(screen.getByText('Original', { selector: 'p' }));
+    expect(screen.getByLabelText('Recipe name')).toHaveProperty('value', 'Chicken in oil');
+    expect(screen.getByText('Save original recipe')).toBeTruthy();
   });
 });

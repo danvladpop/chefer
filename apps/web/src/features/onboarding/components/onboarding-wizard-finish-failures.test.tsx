@@ -1,4 +1,5 @@
 // @vitest-environment jsdom
+import { capture } from '@/lib/analytics';
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { OnboardingWizard } from './onboarding-wizard';
@@ -108,6 +109,22 @@ describe('OnboardingWizard Finish (UX-ONB-09)', () => {
     fireEvent.click(screen.getByTestId('onboarding-continue'));
     await waitFor(() => expect(m.generate).toHaveBeenCalled());
     expect(screen.queryByText('Could not save your plan shape.')).toBeNull();
+  });
+
+  it('UX-PO-02: onboarding_completed fires once, only after the save went through', async () => {
+    m.setShape.mockRejectedValueOnce(new Error('Could not save your plan shape.'));
+    await driveToFinish();
+    fireEvent.click(screen.getByTestId('onboarding-continue'));
+    await screen.findByText('Could not save your plan shape.');
+    expect(capture).not.toHaveBeenCalledWith('onboarding_completed', expect.anything());
+
+    fireEvent.click(screen.getByTestId('onboarding-continue'));
+    await waitFor(() => expect(m.generate).toHaveBeenCalled());
+    const done = vi
+      .mocked(capture)
+      .mock.calls.filter(([event]) => event === 'onboarding_completed');
+    expect(done).toHaveLength(1);
+    expect(done[0]?.[1]).toHaveProperty('jobs');
   });
 
   it('a second press mid-save does not start a second save', async () => {

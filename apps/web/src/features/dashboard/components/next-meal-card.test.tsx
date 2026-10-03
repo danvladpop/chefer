@@ -1,4 +1,5 @@
 // @vitest-environment jsdom
+import { capture } from '@/lib/analytics';
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { HERO_LOGGED_HOLD_MS } from '@chefer/utils';
@@ -68,6 +69,15 @@ beforeEach(() => {
   vi.clearAllMocks();
 });
 afterEach(cleanup);
+
+describe('NextMealCard analytics (UX-PO-02)', () => {
+  it('a logged planned meal fires meal_logged as planned, with its slot', () => {
+    render(<NextMealCard meal={MEAL} isTomorrow={false} />);
+    expect(capture).not.toHaveBeenCalled();
+    act(() => mocks.onSuccess?.({ rebalance: null }));
+    expect(capture).toHaveBeenCalledWith('meal_logged', { source: 'planned', mealType: 'dinner' });
+  });
+});
 
 describe('NextMealCard', () => {
   it('"I ate this" logs the planned recipe for today, one portion', () => {

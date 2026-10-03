@@ -32,7 +32,7 @@ import {
   sessionSupersetKey,
   type SessionSupersetSlot,
 } from '@chefer/utils';
-import { captureGymEvent } from '../analytics';
+import { captureGymEvent, workoutFinishedKind } from '../analytics';
 import { ExercisePickerSheet } from '../shared/exercise-picker-sheet';
 import { GymSkeleton } from '../shared/gym-card';
 import { SupersetSheet } from '../shared/superset-sheet';
@@ -356,6 +356,8 @@ export function WorkoutView() {
       sets: progress.done,
       prs: prCount,
       offline: typeof navigator !== 'undefined' && !navigator.onLine,
+      // UX-PO-02: a routine day (`planned`) or an ad-hoc session (`freestyle`).
+      kind: workoutFinishedKind(finished),
     });
     prs.forEach((pr) => captureGymEvent('pr_achieved', { kind: pr.kind }));
     // Client render + URL update, no navigation: works with no connection

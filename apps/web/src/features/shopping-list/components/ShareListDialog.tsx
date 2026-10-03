@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
+import { capture } from '@/lib/analytics';
 import { trpc } from '@/lib/trpc';
 import { Sheet } from '@chefer/ui';
 import {
@@ -100,6 +101,8 @@ export function ShareListDialog({
       shareUrl: window.location.origin,
     });
     const outcome = await shareOrCopy(text);
+    // UX-PO-02: the list left the app (native share confirmed, or copied to paste).
+    if (outcome === 'shared' || outcome === 'copied') capture('list_shared', { scope });
     if (outcome === 'shared') onClose();
     else if (outcome === 'copied') setStatus('copied');
     else if (outcome === 'failed') setStatus('failed');

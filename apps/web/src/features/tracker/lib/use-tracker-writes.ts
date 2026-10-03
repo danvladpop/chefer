@@ -1,5 +1,6 @@
 'use client';
 
+import { trackMealLogged } from '@/lib/analytics-events';
 import { trpc, type RouterOutputs } from '@/lib/trpc';
 import {
   userFacingErrorMessage,
@@ -78,7 +79,11 @@ export function useTrackerWrites(dateStr: string, showToast: ShowToast) {
         };
         return withRecipeLogged(day, entry);
       }),
-    onSuccess: (result) => handleRebalanceResult(result.rebalance),
+    onSuccess: (result, vars) => {
+      // UX-PO-02: the tracker only ticks planned rows.
+      trackMealLogged('planned', vars.mealType);
+      handleRebalanceResult(result.rebalance);
+    },
     onError: (error, vars, snapshot) => {
       rollback(snapshot);
       failed(`Couldn't log ${vars.mealType}.`, error);

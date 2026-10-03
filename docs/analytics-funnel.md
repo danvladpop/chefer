@@ -65,7 +65,7 @@ Fired from `apps/mobile` through `track()` (so both consent switches and the
 no-key no-op apply unchanged); shapes live in the shared `EventMap`
 (`packages/types/src/analytics-events.ts`, health-data-guarded: counts and
 literal unions only). Call-site helpers: `apps/mobile/src/lib/analytics-events.ts`.
-Web does not fire these yet (see the gaps below).
+Web fires the same events through `apps/web/src/lib/analytics-events.ts` and `capture()` (see "Web" below).
 
 | Event                  | Properties                                          | Fired when                                                                                                                                                                                                                                                                                                                                                                                                    |
 | ---------------------- | --------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -85,10 +85,15 @@ yet. Add both when the feature exists.
 
 Gaps and rules:
 
-- **Web parity gap:** web does not fire `signup_completed`, `onboarding_completed`,
-  `list_opened`, `list_shared`, `cook_finished`, or the new `meal_logged`
-  sources / `workout_finished.kind`. Web `plan_generated` / `meal_logged`
-  still send the older shapes (`tier, weekOffset` / `source: 'today'`).
+- **Web (UX-PO-02 parity):** web fires `signup_completed` (`register-form`), `onboarding_completed`
+  (the wizard's Finish, train-only Continue and "Just looking around", once), `list_opened` (Shop, once per
+  visit once a plan's list has loaded), `list_shared` (the Send-the-list dialog: native share confirmed or
+  copied), `cook_finished` (cook mode's finish screen, once per cook), `workout_finished.kind`
+  (`planned` | `freestyle`) and the new `meal_logged.source` values: `planned` (Today hero, Tonight, tracker
+  tick, plan row in the log sheet, cook mode opened from a slot), `replaced`, `quick` (log sheet, cook mode
+  without a slot) and `snap` (photo scan). The old web `source: 'today'` is retired in favour of `planned`.
+  All go through `capture()`, so the "Send anonymous usage counts" switch applies. Web `plan_generated` still
+  sends the older `tier, weekOffset` shape.
 - **Privacy labels first (OA-2):** the owner must update the App Store privacy
   labels (and the in-app privacy copy) to cover these usage events BEFORE any
   `EXPO_PUBLIC_POSTHOG_KEY` is set in `eas.json` / the deploy workflow. No key

@@ -34,6 +34,23 @@ import { RecipeLinesEditor } from './RecipeLinesEditor';
 export type VideoImportPreviewData = RouterOutputs['recipe']['importVideoPreview'];
 export type VideoDraftRecipe = RouterInputs['recipe']['importSave']['recipe'];
 
+/**
+ * What the form needs to start: the draft, the resolver's answer per line and
+ * the safety verdict (the web twin of the phone's `DraftReviewSource`). The
+ * video-only parts are optional, so a link/text/photo import (UX-REC-15: no
+ * transcript, nothing "not found") feeds the same form, and so does a video.
+ */
+export type DraftReviewSource = Pick<VideoImportPreviewData, 'draft' | 'resolution' | 'safety'> &
+  Partial<
+    Pick<
+      VideoImportPreviewData,
+      'notFound' | 'unverifiedQuantities' | 'assumptions' | 'transcriptSource'
+    >
+  > & { sourceUrl?: string | null };
+
+const LINK_CHECK_BODY =
+  'We read this from your link or text. Check the amounts and steps, and fix anything that looks off before you save.';
+
 function Badge({ tone, children }: { tone: 'missing' | 'check'; children: string }) {
   return (
     <span
@@ -53,13 +70,19 @@ export function VideoDraftForm({
   saveError,
   onBack,
   onSave,
+  saveLabel = 'Save recipe',
 }: {
-  preview: VideoImportPreviewData;
+  preview: DraftReviewSource;
   saving: boolean;
   saveError: string | null;
   onBack: () => void;
   onSave: (recipe: VideoDraftRecipe, opts: { acceptPartial: boolean }) => void;
+  /** The primary button's label. */
+  saveLabel?: string;
 }) {
+  const notFound = preview.notFound ?? [];
+  const unverifiedQuantities = preview.unverifiedQuantities ?? [];
+  const assumptions = preview.assumptions ?? [];
   const [form, setForm] = useState<VideoDraftFormValues>(() => videoDraftToForm(preview.draft));
   const [lines, setLines] = useState<LineRow[]>(() => {
     const rows = rowsFromImport(preview.draft.ingredients, preview.resolution);
@@ -73,13 +96,12 @@ export function VideoDraftForm({
   // Per-row "amount not heard" flags (by row key, so they follow rows as rows
   // are removed); they clear once the user edits that amount.
   const [unheard, setUnheard] = useState<ReadonlySet<string>>(
-    () =>
-      new Set(lines.flatMap((r, i) => (preview.unverifiedQuantities.includes(i) ? [r.key] : []))),
+    () => new Set(lines.flatMap((r, i) => (unverifiedQuantities.includes(i) ? [r.key] : []))),
   );
   const servings = Math.max(1, Math.round(Number(form.servings) || 1));
   const live = useLiveNutrition(lines, servings);
 
-  const flagged = (field: VideoDraftField) => preview.notFound.includes(field);
+  const flagged = (field: VideoDraftField) => notFound.includes(field);
   const update = (patch: Partial<VideoDraftFormValues>, field?: VideoDraftField) => {
     setForm((f) => ({ ...f, ...patch }));
     if (field) setTouched((t) => ({ ...t, [field]: true }));
@@ -126,7 +148,11 @@ export function VideoDraftForm({
         <Info className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
         <div className="min-w-0">
           <p className="font-semibold">{VIDEO_IMPORT_COPY.checkTitle}</p>
-          <p className="mt-0.5 text-xs">{VIDEO_IMPORT_COPY.checkBody[preview.transcriptSource]}</p>
+          <p className="mt-0.5 text-xs">
+            {preview.transcriptSource
+              ? VIDEO_IMPORT_COPY.checkBody[preview.transcriptSource]
+              : LINK_CHECK_BODY}
+          </p>
         </div>
       </div>
 
@@ -273,11 +299,11 @@ export function VideoDraftForm({
         </button>
       </section>
 
-      {preview.assumptions.length > 0 && (
+      {assumptions.length > 0 && (
         <div className="rounded-xl bg-gray-50 p-3">
           <p className="text-xs font-semibold text-gray-600">What we guessed</p>
           <ul className="mt-1 list-disc space-y-0.5 pl-4 text-xs text-gray-600">
-            {preview.assumptions.map((a) => (
+            {assumptions.map((a) => (
               <li key={a}>{a}</li>
             ))}
           </ul>
@@ -305,10 +331,12 @@ export function VideoDraftForm({
         )}
       </section>
 
-      <p className="text-xs text-gray-500">
-        Source: <span className="break-all">{preview.sourceUrl}</span> — saved to your private
-        collection only.
-      </p>
+      {preview.sourceUrl ? (
+        <p className="text-xs text-gray-500">
+          Source: <span className="break-all">{preview.sourceUrl}</span> — saved to your private
+          collection only.
+        </p>
+      ) : null}
 
       <div role="alert" aria-atomic="true">
         {(problems.length > 0 || saveError) && (
@@ -335,7 +363,7 @@ export function VideoDraftForm({
           disabled={saving}
           className="min-h-11 min-w-0 flex-1 rounded-xl bg-[#944a00] px-4 text-sm font-semibold text-white transition-colors hover:bg-[#7a3d00] disabled:opacity-50"
         >
-          {saving ? 'Saving…' : 'Save recipe'}
+          {saving ? 'Saving…' : saveLabel}
         </button>
       </div>
     </div>
