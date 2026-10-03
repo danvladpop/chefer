@@ -143,7 +143,7 @@ export default function RoutineScreen() {
     return (
       <Screen className="px-0">
         <ScrollView contentContainerClassName="gap-4 px-4 py-4">
-          <ModeSwitch />
+          <ModeSwitch mode="gym" />
           <Text testID="gym-routine-title" variant="title">
             Routine
           </Text>
@@ -162,7 +162,7 @@ export default function RoutineScreen() {
   return (
     <Screen className="px-0">
       <ScrollView contentContainerClassName="gap-4 px-4 py-4">
-        <ModeSwitch />
+        <ModeSwitch mode="gym" />
         <Text testID="gym-routine-title" variant="title">
           Routine
         </Text>
