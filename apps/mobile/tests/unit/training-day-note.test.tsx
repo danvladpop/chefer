@@ -75,6 +75,16 @@ describe('TrainingDayNote', () => {
     expect(screen.getByText('Training bonus')).toBeOnTheScreen();
   });
 
+  // UX-FOOD-19: the sheet quoted only the rest-day figure on a training day.
+  it('Why? also quotes the training-day target, rest + the bump (UX-FOOD-19)', async () => {
+    const user = userEvent.setup();
+    await renderNote(lift(), { restKcal: 2300, restProteinG: 140 });
+    await user.press(screen.getByTestId('training-day-why'));
+    expect(await screen.findByText('Training-day target')).toBeOnTheScreen();
+    // 2,300 + 250 kcal, 140 + 32 g protein.
+    expect(screen.getByText('2,550 kcal · 172 g protein')).toBeOnTheScreen();
+  });
+
   it('Why? works without the rest-day target (rows omitted)', async () => {
     const user = userEvent.setup();
     await renderNote(lift());

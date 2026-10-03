@@ -126,6 +126,12 @@ function TrainingWhy({
     carbsBonus: t.carbsBonus ?? 0,
     done: t.reason === 'COMPLETED',
     applied: t.applied,
+    // UX-FOOD-19: the day's real target, so the sheet quotes it beside the rest-day one.
+    ...(t.applied &&
+      view && {
+        targetKcal: view.effective.dailyCalorieTarget + t.kcalBonus,
+        targetProteinG: view.effective.proteinG + t.proteinBonus,
+      }),
   };
   const basis: PlanTrainingBasis | null = view
     ? {

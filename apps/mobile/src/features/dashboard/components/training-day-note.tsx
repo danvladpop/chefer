@@ -65,6 +65,13 @@ export function TrainingDayNote({
     carbsBonus: t.carbsBonus ?? 0,
     done: t.reason === 'COMPLETED',
     applied: t.applied,
+    // UX-FOOD-19: the day's real target, so the sheet quotes it beside the rest-day one.
+    ...(t.applied &&
+      restKcal !== undefined &&
+      restProteinG !== undefined && {
+        targetKcal: restKcal + t.kcalBonus,
+        targetProteinG: restProteinG + t.proteinBonus,
+      }),
   };
   const basis: PlanTrainingBasis | null =
     restKcal !== undefined && restProteinG !== undefined
