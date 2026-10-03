@@ -7,6 +7,7 @@ import ProgressScreen from '../../app/progress';
 // (F-TRK-4-1). A failed load is an error, never an empty history (F-X-3-1).
 
 const mockMonthly = jest.fn<unknown, []>();
+const mockMonthlyInput = jest.fn<void, [unknown]>();
 const mockWeights = jest.fn<unknown, []>();
 const mockPreferences = jest.fn<unknown, []>();
 const mockLogMutate = jest.fn();
@@ -32,7 +33,12 @@ jest.mock('../../src/lib/trpc', () => ({
       },
     }),
     tracker: {
-      monthlySummary: { useQuery: () => mockMonthly() },
+      monthlySummary: {
+        useQuery: (input: unknown) => {
+          mockMonthlyInput(input);
+          return mockMonthly();
+        },
+      },
       weightHistory: { useQuery: () => mockWeights() },
       logWeight: { useMutation: () => ({ mutate: mockLogMutate, isPending: false, error: null }) },
       updateWeight: { useMutation: () => ({ mutate: jest.fn(), isPending: false }) },
@@ -172,5 +178,72 @@ describe('ProgressScreen', () => {
     await renderScreen();
     expect(screen.getByTestId('progress-weight-error')).toBeOnTheScreen();
     expect(screen.queryByTestId('progress-weight-empty')).not.toBeOnTheScreen();
+  });
+});
+
+// UX-FOOD-20: Progress counts days that have something logged, lets the user
+// pick the window, and keeps the weight card when the calorie summary fails.
+describe('ProgressScreen (UX-FOOD-20, UX-FOOD-28)', () => {
+  it('"Days logged" ignores days whose entries were all deleted', async () => {
+    // A day emptied by deleting its entries keeps a log row: hasLog true, 0 kcal.
+    mockMonthly.mockReturnValue(
+      query({
+        data: {
+          dailyCalorieTarget: 2000,
+          days: [
+            { ...day('2026-09-01', 1800) },
+            { ...day('2026-09-02', 2000) },
+            { ...day('2026-09-03', null), hasLog: true },
+            { ...day('2026-09-04', 1900) },
+          ],
+        },
+      }),
+    );
+    await renderScreen();
+    expect(screen.getByTestId('progress-stat-days')).toHaveTextContent('3');
+    // The average is over the three real days, not four.
+    expect(screen.getByTestId('progress-stat-avg')).toHaveTextContent('1,900');
+  });
+
+  it('asks for the window the user picks, anchored on their local date', async () => {
+    const user = userEvent.setup();
+    await renderScreen();
+    expect(mockMonthlyInput).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        days: 28,
+        localDate: expect.stringMatching(/^\d{4}-\d{2}-\d{2}$/),
+      }),
+    );
+    await user.press(screen.getByTestId('progress-range-7'));
+    expect(mockMonthlyInput).toHaveBeenLastCalledWith(expect.objectContaining({ days: 7 }));
+    await user.press(screen.getByTestId('progress-range-90'));
+    expect(mockMonthlyInput).toHaveBeenLastCalledWith(expect.objectContaining({ days: 90 }));
+  });
+
+  it('titles the charts with the window actually served', async () => {
+    mockMonthly.mockReturnValue(
+      query({ data: monthWith([1800, 1700, 1900, 2000, 1600, 1800, 1750]) }),
+    );
+    await renderScreen();
+    expect(screen.getByText('Calories — last 7 days')).toBeOnTheScreen();
+    expect(screen.getByText('Macros — last 7 days (g)')).toBeOnTheScreen();
+  });
+
+  it('keeps the weight card (and its log form) when the calorie summary fails', async () => {
+    mockMonthly.mockReturnValue(query({ isError: true }));
+    await renderScreen();
+    expect(screen.getByTestId('progress-error')).toBeOnTheScreen();
+    expect(screen.getByTestId('progress-weight')).toBeOnTheScreen();
+    expect(screen.getByTestId('progress-weight-chart')).toBeOnTheScreen();
+    expect(screen.getByTestId('weight-input')).toBeOnTheScreen();
+  });
+
+  it('offers the Tracker from the empty macro card too', async () => {
+    mockMonthly.mockReturnValue(query({ data: monthWith([null, null]) }));
+    const user = userEvent.setup();
+    await renderScreen();
+    expect(screen.getByTestId('progress-macros-empty')).toBeOnTheScreen();
+    await user.press(screen.getByTestId('progress-macros-open-tracker'));
+    expect(router.push).toHaveBeenCalledWith('/tracker');
   });
 });

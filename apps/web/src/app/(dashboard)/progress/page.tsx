@@ -1,8 +1,10 @@
 'use client';
 
+import { useState } from 'react';
 import { WeightEntriesList } from '@/features/coach/components/WeightEntriesList';
 import { WeightLogForm } from '@/features/coach/components/WeightLogForm';
 import { trpc } from '@/lib/trpc';
+import { keepPreviousData } from '@tanstack/react-query';
 import { format } from 'date-fns';
 import { Flame, Scale, TrendingUp } from 'lucide-react';
 import {
@@ -21,8 +23,13 @@ import { ErrorState } from '@chefer/ui';
 import {
   bodyWeightInUnit,
   bodyWeightUnit,
+  DEFAULT_PROGRESS_RANGE,
   formatBodyWeight,
+  isLoggedDay,
+  localDateStr,
+  PROGRESS_RANGES,
   weightChangeTone,
+  type ProgressRange,
 } from '@chefer/utils';
 import { hasEnoughDaysForAverage, moreDaysHint } from './average-gate';
 
@@ -49,15 +56,19 @@ export default function ProgressPage() {
   /** Slightly larger than the default, so the point under a fingertip reads. */
   const activeDot = { r: 6 };
 
+  // UX-FOOD-20: the window is the user's to pick (7 / 28 / 90 days), anchored
+  // on their own local "today"; switching keeps the old chart until the new one lands.
+  const [range, setRange] = useState<ProgressRange>(DEFAULT_PROGRESS_RANGE);
   const {
     data: monthly,
     isLoading,
     isError,
     isRefetching,
     refetch,
-  } = trpc.tracker.monthlySummary.useQuery(undefined, {
-    staleTime: 60_000,
-  });
+  } = trpc.tracker.monthlySummary.useQuery(
+    { localDate: localDateStr(), days: range },
+    { staleTime: 60_000, placeholderData: keepPreviousData },
+  );
   const { data: weightHistory } = trpc.tracker.weightHistory.useQuery(
     { days: 90 },
     { staleTime: 60_000 },
@@ -68,11 +79,11 @@ export default function ProgressPage() {
 
   const chartData = (monthly?.days ?? []).map((d) => ({
     date: format(localDate(d.date), 'dd MMM'),
-    logged: d.hasLog ? d.totalKcal : null,
+    logged: isLoggedDay(d) ? d.totalKcal : null,
     target: monthly?.dailyCalorieTarget ?? 2000,
-    protein: d.hasLog ? Math.round(d.totalProtein) : null,
-    carbs: d.hasLog ? Math.round(d.totalCarbs) : null,
-    fat: d.hasLog ? Math.round(d.totalFat) : null,
+    protein: isLoggedDay(d) ? Math.round(d.totalProtein) : null,
+    carbs: isLoggedDay(d) ? Math.round(d.totalCarbs) : null,
+    fat: isLoggedDay(d) ? Math.round(d.totalFat) : null,
   }));
 
   // Stored in kg; charted and labelled in the user's unit (backlog P2-6).
@@ -83,8 +94,11 @@ export default function ProgressPage() {
     weight: bodyWeightInUnit(w.weightKg, system),
   }));
 
-  const daysLogged = (monthly?.days ?? []).filter((d) => d.hasLog).length;
-  const loggedDays = (monthly?.days ?? []).filter((d) => d.hasLog);
+  // A day whose entries were all deleted keeps an empty log row: only days with
+  // something in them count as logged.
+  const loggedDays = (monthly?.days ?? []).filter(isLoggedDay);
+  const daysLogged = loggedDays.length;
+  const windowDays = monthly?.days.length ?? range;
   const avgKcal =
     loggedDays.length > 0
       ? Math.round(loggedDays.reduce((s, d) => s + d.totalKcal, 0) / loggedDays.length)
@@ -140,6 +154,27 @@ export default function ProgressPage() {
         ))}
       </div>
 
+      <div
+        role="group"
+        aria-label="Time range"
+        className="mb-6 inline-flex rounded-xl bg-neutral-100 p-1"
+      >
+        {PROGRESS_RANGES.map((n) => (
+          <button
+            key={n}
+            type="button"
+            data-testid={`progress-range-${n}`}
+            aria-pressed={range === n}
+            onClick={() => setRange(n)}
+            className={`min-h-11 rounded-lg px-4 text-sm font-medium ${
+              range === n ? 'bg-white text-neutral-900 shadow-sm' : 'text-neutral-500'
+            }`}
+          >
+            {n} days
+          </button>
+        ))}
+      </div>
+
       {!isLoading && averageHint && (
         <p data-testid="progress-average-hint" className="-mt-2 mb-6 text-xs text-neutral-500">
           {averageHint}
@@ -168,7 +203,7 @@ export default function ProgressPage() {
           {/* Calorie line chart */}
           <div className="mb-6 rounded-2xl border bg-white p-4 shadow-sm sm:p-5">
             <p className="mb-4 text-xs font-semibold uppercase tracking-widest text-neutral-500">
-              Calories — Last 28 Days
+              {`Calories — Last ${windowDays} Days`}
             </p>
             {daysLogged === 0 ? (
               <div className="flex h-40 items-center justify-center text-sm text-neutral-500">
@@ -192,7 +227,14 @@ export default function ProgressPage() {
                     interval="preserveStartEnd"
                     minTickGap={24}
                   />
-                  <YAxis tick={{ fontSize: 10 }} tickLine={false} axisLine={false} width={40} />
+                  <YAxis
+                    tick={{ fontSize: 10 }}
+                    tickLine={false}
+                    axisLine={false}
+                    width={40}
+                    domain={[0, 'auto']}
+                    allowDecimals={false}
+                  />
                   <Tooltip formatter={(val) => [`${String(val)} kcal`]} />
                   <ReferenceLine
                     y={target}
@@ -218,7 +260,7 @@ export default function ProgressPage() {
           {/* Macro stacked bar chart */}
           <div className="mb-6 rounded-2xl border bg-white p-4 shadow-sm sm:p-5">
             <p className="mb-4 text-xs font-semibold uppercase tracking-widest text-neutral-500">
-              Macros — Last 28 Days (g)
+              {`Macros — Last ${windowDays} Days (g)`}
             </p>
             {daysLogged === 0 ? (
               <div className="flex h-40 items-center justify-center text-sm text-neutral-500">
@@ -235,7 +277,14 @@ export default function ProgressPage() {
                     interval="preserveStartEnd"
                     minTickGap={24}
                   />
-                  <YAxis tick={{ fontSize: 10 }} tickLine={false} axisLine={false} width={30} />
+                  <YAxis
+                    tick={{ fontSize: 10 }}
+                    tickLine={false}
+                    axisLine={false}
+                    width={30}
+                    domain={[0, 'auto']}
+                    allowDecimals={false}
+                  />
                   <Tooltip />
                   <Legend iconSize={8} wrapperStyle={{ fontSize: 10 }} />
                   <Bar dataKey="protein" name="Protein" stackId="a" fill="#3b82f6" />
@@ -245,84 +294,83 @@ export default function ProgressPage() {
               </ResponsiveContainer>
             )}
           </div>
-
-          {/* Weight section */}
-          <div className="mb-6 rounded-2xl border bg-white p-4 shadow-sm sm:p-5">
-            <p className="mb-4 text-xs font-semibold uppercase tracking-widest text-neutral-500">
-              Weight Tracking
-            </p>
-
-            {/* Stats */}
-            {latestWeight != null && (
-              <div className="mb-4 flex gap-4 text-sm">
-                <div>
-                  <span className="text-neutral-500">Current: </span>
-                  <span className="font-semibold">{formatBodyWeight(latestWeight, system)}</span>
-                </div>
-                {firstWeight != null && firstWeight !== latestWeight && (
-                  <div>
-                    <span className="text-neutral-500">Change: </span>
-                    <span
-                      className={`font-semibold ${
-                        weightTone === 'positive'
-                          ? 'text-emerald-600'
-                          : weightTone === 'negative'
-                            ? 'text-red-500'
-                            : 'text-neutral-800'
-                      }`}
-                    >
-                      {weightDelta !== null &&
-                        formatBodyWeight(weightDelta, system, { signed: true })}
-                    </span>
-                  </div>
-                )}
-              </div>
-            )}
-
-            {/* Chart */}
-            {weightData.length > 0 ? (
-              <ResponsiveContainer width="100%" height={160}>
-                <LineChart data={weightData}>
-                  <XAxis
-                    dataKey="date"
-                    tick={{ fontSize: 10 }}
-                    tickLine={false}
-                    axisLine={false}
-                    interval={Math.floor(weightData.length / 6)}
-                  />
-                  <YAxis
-                    tick={{ fontSize: 10 }}
-                    tickLine={false}
-                    axisLine={false}
-                    width={40}
-                    domain={['auto', 'auto']}
-                  />
-                  <Tooltip formatter={(val) => [`${String(val)} ${unit}`]} />
-                  <Line
-                    type="monotone"
-                    dataKey="weight"
-                    stroke="#10b981"
-                    strokeWidth={2}
-                    dot={{ r: 3 }}
-                    activeDot={activeDot}
-                    name={`Weight (${unit})`}
-                  />
-                </LineChart>
-              </ResponsiveContainer>
-            ) : (
-              <p className="mb-4 text-sm text-neutral-500">
-                No weight entries yet. Log your first entry below.
-              </p>
-            )}
-
-            {/* Log weight input */}
-            <div className="mt-4">
-              <WeightLogForm />
-            </div>
-            <WeightEntriesList entries={weightHistory ?? []} />
-          </div>
         </>
       )}
+
+      {/* Weight section */}
+      <div className="mb-6 rounded-2xl border bg-white p-4 shadow-sm sm:p-5">
+        <p className="mb-4 text-xs font-semibold uppercase tracking-widest text-neutral-500">
+          Weight Tracking
+        </p>
+
+        {/* Stats */}
+        {latestWeight != null && (
+          <div className="mb-4 flex gap-4 text-sm">
+            <div>
+              <span className="text-neutral-500">Current: </span>
+              <span className="font-semibold">{formatBodyWeight(latestWeight, system)}</span>
+            </div>
+            {firstWeight != null && firstWeight !== latestWeight && (
+              <div>
+                <span className="text-neutral-500">Change: </span>
+                <span
+                  className={`font-semibold ${
+                    weightTone === 'positive'
+                      ? 'text-emerald-600'
+                      : weightTone === 'negative'
+                        ? 'text-red-500'
+                        : 'text-neutral-800'
+                  }`}
+                >
+                  {weightDelta !== null && formatBodyWeight(weightDelta, system, { signed: true })}
+                </span>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Chart */}
+        {weightData.length > 0 ? (
+          <ResponsiveContainer width="100%" height={160}>
+            <LineChart data={weightData}>
+              <XAxis
+                dataKey="date"
+                tick={{ fontSize: 10 }}
+                tickLine={false}
+                axisLine={false}
+                interval={Math.floor(weightData.length / 6)}
+              />
+              <YAxis
+                tick={{ fontSize: 10 }}
+                tickLine={false}
+                axisLine={false}
+                width={40}
+                domain={['auto', 'auto']}
+              />
+              <Tooltip formatter={(val) => [`${String(val)} ${unit}`]} />
+              <Line
+                type="monotone"
+                dataKey="weight"
+                stroke="#10b981"
+                strokeWidth={2}
+                dot={{ r: 3 }}
+                activeDot={activeDot}
+                name={`Weight (${unit})`}
+              />
+            </LineChart>
+          </ResponsiveContainer>
+        ) : (
+          <p className="mb-4 text-sm text-neutral-500">
+            No weight entries yet. Log your first entry below.
+          </p>
+        )}
+
+        {/* Log weight input */}
+        <div className="mt-4">
+          <WeightLogForm />
+        </div>
+        <WeightEntriesList entries={weightHistory ?? []} />
+      </div>
     </div>
   );
 }
