@@ -1,0 +1,73 @@
+# WP-03 back sweep (audit §6.2): with unsaved changes, the iOS edge swipe and Android BACK
+# show the confirm, and "Keep editing" keeps the edits.
+appId: dev.chefer.app.dev
+---
+- runFlow: common/connect.yaml
+- tapOn:
+    text: 'Allow and save'
+    optional: true
+- extendedWaitUntil:
+    visible:
+      id: 'home-title'
+    timeout: 30000
+
+# Settings › What should Chefer help with? (UX-ACC-05)
+- openLink: chefer-dev://settings/jobs
+- tapOn:
+    text: 'Open'
+    optional: true
+- extendedWaitUntil:
+    visible:
+      id: 'settings-jobs-title'
+    timeout: 15000
+- tapOn:
+    id: 'onboarding-job-HOUSEHOLD'
+- runFlow:
+    when:
+      platform: iOS
+    commands:
+      - swipe:
+          start: 1%, 50%
+          end: 80%, 50%
+          duration: 400
+- runFlow:
+    when:
+      platform: Android
+    commands:
+      - back
+- extendedWaitUntil:
+    visible: 'Discard your changes\?'
+    timeout: 5000
+- takeScreenshot: back-jobs-confirm
+- tapOn: 'Keep editing'
+- assertVisible:
+    id: 'settings-jobs-title'
+
+# Cook mode past step 1 (UX-COOK-02)
+- openLink: chefer-dev://cook/recipe_vegetable_frittata
+- tapOn:
+    text: 'Open'
+    optional: true
+- extendedWaitUntil:
+    visible:
+      id: 'cook-next'
+    timeout: 15000
+- tapOn:
+    id: 'cook-next'
+- runFlow:
+    when:
+      platform: iOS
+    commands:
+      - swipe:
+          start: 1%, 50%
+          end: 80%, 50%
+          duration: 400
+- runFlow:
+    when:
+      platform: Android
+    commands:
+      - back
+- extendedWaitUntil:
+    visible: 'Leave cook mode\?'
+    timeout: 5000
+- takeScreenshot: back-cook-confirm

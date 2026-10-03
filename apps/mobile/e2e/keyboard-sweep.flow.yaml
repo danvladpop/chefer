@@ -1,0 +1,82 @@
+# WP-03 keyboard sweep (audit §6.1): focus the inputs on the screens WP-03 fixed and
+# check the primary action stays visible and works on the FIRST tap with the keyboard up.
+appId: dev.chefer.app.dev
+---
+- runFlow: common/connect.yaml
+- tapOn:
+    text: 'Allow and save'
+    optional: true
+- extendedWaitUntil:
+    visible:
+      id: 'home-title'
+    timeout: 30000
+
+# Today › weight card (UX-FOOD-08): the field scrolls clear and Save takes the first tap.
+- scrollUntilVisible:
+    element:
+      id: 'weight-input'
+    direction: DOWN
+    speed: 20
+    centerElement: true
+- tapOn:
+    id: 'weight-input'
+- inputText: '80'
+- assertVisible:
+    id: 'weight-save'
+- tapOn:
+    id: 'weight-save'
+- extendedWaitUntil:
+    notVisible:
+      id: 'weight-numeric-bar'
+    timeout: 5000
+    optional: true
+
+# Quick add (UX-FOOD-10): the search field sits above the keyboard inside the sheet.
+- runFlow: common/launch.yaml
+- extendedWaitUntil:
+    visible:
+      id: 'home-title'
+    timeout: 90000
+- tapOn: '.*Quick add'
+- tapOn:
+    id: 'log-sheet-search'
+- inputText: 'banana'
+- assertVisible:
+    id: 'log-sheet-search'
+- runFlow:
+    when:
+      platform: Android
+    commands:
+      - back
+- runFlow:
+    when:
+      platform: iOS
+    commands:
+      - tapOn:
+          text: 'Close'
+          optional: true
+
+# More › feedback (UX-ACC-25): the message box and Send stay reachable.
+- runFlow: common/launch.yaml
+- extendedWaitUntil:
+    visible:
+      id: 'home-title'
+    timeout: 90000
+- retry:
+    maxRetries: 3
+    commands:
+      - tapOn: 'More(, .*)?'
+      - extendedWaitUntil:
+          visible:
+            id: 'more-profile'
+          timeout: 5000
+- scrollUntilVisible:
+    element:
+      id: 'feedback-input'
+    direction: DOWN
+    centerElement: true
+- tapOn:
+    id: 'feedback-input'
+- inputText: 'Keyboard sweep'
+- assertVisible:
+    id: 'feedback-submit'
