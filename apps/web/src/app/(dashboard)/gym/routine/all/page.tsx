@@ -3,11 +3,14 @@
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
+import { ArchivedRoutines } from '@/features/gym/routine/components/ArchivedRoutines';
 import { CreateRoutineSheet } from '@/features/gym/routine/components/CreateRoutineSheet';
 import { RoutineListCard } from '@/features/gym/routine/components/RoutineListCard';
+import { showGymToast } from '@/features/gym/shared/gym-toast';
 import { useHasMounted } from '@/hooks/useHasMounted';
 import { trpc } from '@/lib/trpc';
 import { ArrowLeft, Plus } from 'lucide-react';
+import { userFacingErrorMessage } from '@chefer/utils';
 import RoutinesLoading from './loading';
 
 export default function AllRoutinesPage() {
@@ -43,8 +46,30 @@ export default function AllRoutinesPage() {
     },
   });
   const duplicateMutation = trpc.gym.routine.duplicate.useMutation({ onSuccess: invalidateAll });
-  const archiveMutation = trpc.gym.routine.archive.useMutation({ onSuccess: invalidateAll });
   const setActiveMutation = trpc.gym.routine.setActive.useMutation({ onSuccess: invalidateAll });
+  // UX-GYM-34: errors surface as a toast (the archived list can be collapsed).
+  const restoreMutation = trpc.gym.routine.restore.useMutation({
+    meta: { silent: true },
+    onSuccess: invalidateAll,
+    onError: (err) => showGymToast({ message: userFacingErrorMessage(err), type: 'error' }),
+  });
+  const archiveMutation = trpc.gym.routine.archive.useMutation({
+    onSuccess: (_data, variables) => {
+      const archived = routines?.find((r) => r.id === variables.id);
+      invalidateAll();
+      if (!archived) return;
+      // Archiving can be undone for a few seconds, and from "Archived" afterwards.
+      // Undoing the ACTIVE routine makes it active again (setActive also un-archives).
+      showGymToast({
+        message: `Archived “${archived.name}”.`,
+        actionLabel: 'Undo',
+        onAction: () => {
+          if (archived.isActive) setActiveMutation.mutate({ id: archived.id });
+          else restoreMutation.mutate({ id: archived.id });
+        },
+      });
+    },
+  });
 
   const busyId =
     duplicateMutation.variables?.id ??
@@ -52,7 +77,12 @@ export default function AllRoutinesPage() {
     setActiveMutation.variables?.id ??
     null;
   const anyMutationPending =
-    duplicateMutation.isPending || archiveMutation.isPending || setActiveMutation.isPending;
+    duplicateMutation.isPending ||
+    archiveMutation.isPending ||
+    setActiveMutation.isPending ||
+    restoreMutation.isPending;
+  const liveRoutines = (routines ?? []).filter((r) => !r.archived);
+  const archivedRoutines = (routines ?? []).filter((r) => r.archived);
 
   if (!hasMounted || isLoading) return <RoutinesLoading />;
 
@@ -78,7 +108,7 @@ export default function AllRoutinesPage() {
         </button>
       </div>
 
-      {(!routines || routines.length === 0) && (
+      {liveRoutines.length === 0 && (
         <div className="flex flex-1 flex-col items-center justify-center gap-3 text-center">
           <p className="text-sm text-gray-500">No routines yet.</p>
           <button
@@ -92,7 +122,7 @@ export default function AllRoutinesPage() {
       )}
 
       <div className="flex flex-col gap-3">
-        {routines?.map((routine) => (
+        {liveRoutines.map((routine) => (
           <RoutineListCard
             key={routine.id}
             routine={routine}
@@ -103,6 +133,18 @@ export default function AllRoutinesPage() {
           />
         ))}
       </div>
+
+      <ArchivedRoutines
+        rows={archivedRoutines}
+        restoringId={restoreMutation.isPending ? (restoreMutation.variables?.id ?? null) : null}
+        disabled={anyMutationPending}
+        onRestore={(routine) => {
+          restoreMutation.mutate(
+            { id: routine.id },
+            { onSuccess: () => showGymToast({ message: `Restored “${routine.name}”.` }) },
+          );
+        }}
+      />
 
       <CreateRoutineSheet
         open={createOpen}

@@ -162,6 +162,19 @@ export class RoutineService {
     return { ok: true };
   }
 
+  /**
+   * UX-GYM-34: undo `archive`. Idempotent for a routine that is not archived; never
+   * makes it active; respects the same cap as `create*`, since a restored routine
+   * counts again.
+   */
+  async restore(userId: string, id: string): Promise<{ ok: true }> {
+    const row = await this.findOwned(userId, id);
+    if (row.archivedAt === null) return { ok: true };
+    await this.assertRoomForAnother(userId);
+    if (!(await this.repo.restore(userId, id))) throw notFound();
+    return { ok: true };
+  }
+
   /** Makes this the one active routine (unarchiving it if needed). */
   async setActive(userId: string, id: string): Promise<RoutineDto> {
     const row = await this.repo.setActive(userId, id);

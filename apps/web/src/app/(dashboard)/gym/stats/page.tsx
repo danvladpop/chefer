@@ -81,7 +81,11 @@ export default function GymStatsPage() {
         <div className="space-y-4">
           {bootstrap.bodyweightKg === null && <BodyweightPrompt />}
 
-          <StrengthTrendChart library={bootstrap.library} defaultExerciseIds={defaultExerciseIds} />
+          <StrengthTrendChart
+            library={bootstrap.library}
+            defaultExerciseIds={defaultExerciseIds}
+            unit={unit}
+          />
 
           <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
             <MuscleVolumeChart experience={experience} />
