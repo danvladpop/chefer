@@ -21,7 +21,6 @@ import {
   COACHING_COPY,
   COACHING_LIMITS,
   type ClientOverviewDto,
-  type CoachedSetDto,
   type CoachedWorkoutsPageDto,
   type ExerciseHistoryDto,
   type ExerciseTrackingType,
@@ -213,7 +212,7 @@ export class CoachingContentService {
           ? [
               {
                 localDate: s.localDate,
-                sets: e.sets satisfies CoachedSetDto[],
+                sets: e.sets,
                 lastSetRir: e.lastSetRir,
               },
             ]

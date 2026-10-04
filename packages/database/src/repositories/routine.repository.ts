@@ -303,7 +303,10 @@ export class RoutineRepository implements IRoutineRepository {
         row: RoutineExerciseWriteData,
         keptId: string | undefined,
       ): string | null => {
-        if (actor?.path === 'TRAINER') return row.trainerNote?.trim() || null;
+        if (actor?.path === 'TRAINER') {
+          const trimmed = row.trainerNote?.trim();
+          return trimmed === undefined || trimmed === '' ? null : trimmed;
+        }
         // OWNER path (or no actor): the stored note survives, unless the client removed it.
         if (!keptId || cleared.has(keptId)) return null;
         return storedRows.get(keptId)?.trainerNote ?? null;
