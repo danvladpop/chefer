@@ -12,6 +12,7 @@ import {
   Sunrise,
   TrendingUp,
   User,
+  UsersRound,
   type LucideIcon,
 } from 'lucide-react';
 
@@ -94,6 +95,13 @@ export const GYM_SECONDARY_NAV_ITEMS: readonly NavItem[] = [
 ] as const;
 
 /**
+ * Trainer coaching (WP-18): shown in both modes' secondary list (the sidebar's
+ * lower group, the phone's More drawer) only to a user whose trainer tools are
+ * on. Not part of any mode's static list, so it never shows by default.
+ */
+export const TRAINER_NAV_ITEM: NavItem = { href: '/trainer', label: 'Clients', icon: UsersRound };
+
+/**
  * The four destinations that get a permanent slot in the mobile tab bar. The
  * fifth slot is the "More" button, which opens the drawer holding the rest.
  */
@@ -173,15 +181,20 @@ export interface ModeNav {
   secondary: readonly NavItem[];
 }
 
-export function navFor(mode: AppMode): ModeNav {
+export function navFor(mode: AppMode, opts: { trainer?: boolean } = {}): ModeNav {
+  const extra = opts.trainer ? [TRAINER_NAV_ITEM] : [];
   if (mode === 'gym') {
     return {
-      all: [...GYM_NAV_ITEMS, ...GYM_SECONDARY_NAV_ITEMS],
+      all: [...GYM_NAV_ITEMS, ...GYM_SECONDARY_NAV_ITEMS, ...extra],
       primary: GYM_NAV_ITEMS,
-      secondary: GYM_SECONDARY_NAV_ITEMS,
+      secondary: [...GYM_SECONDARY_NAV_ITEMS, ...extra],
     };
   }
-  return { all: FOOD_NAV_ITEMS, primary: PRIMARY_NAV_ITEMS, secondary: SECONDARY_NAV_ITEMS };
+  return {
+    all: [...FOOD_NAV_ITEMS, ...extra],
+    primary: PRIMARY_NAV_ITEMS,
+    secondary: [...SECONDARY_NAV_ITEMS, ...extra],
+  };
 }
 
 /** `document.cookie` assignment string for the mode (1 year, whole site). */

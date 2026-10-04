@@ -27,6 +27,7 @@ import {
 import { Button, pressControl, Sheet, Toast } from '@chefer/ui';
 import {
   cn,
+  repBucket,
   routineWithoutSuperset,
   routineWithSuperset,
   sessionSupersetKey,
@@ -180,6 +181,26 @@ export function WorkoutView() {
     () => new Map((data?.library ?? []).map((e) => [e.id, e] as const)),
     [data?.library],
   );
+  // Trainer coaching (API level 6): the trainer's cue per routine row, and who set a
+  // trainer-set target. Read from the cached bootstrap, never from the session doc,
+  // so nothing coaching-related is ever written into a workout.
+  const trainerNoteByRowId = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const day of data?.activeRoutine?.days ?? []) {
+      for (const row of day.exercises) {
+        if (row.trainerNote) map.set(row.id, row.trainerNote);
+      }
+    }
+    return map;
+  }, [data?.activeRoutine]);
+  const setByNameFor = (se: WorkoutSessionDoc['exercises'][number]): string | null => {
+    if (se.prescription.reasonCode !== 'USER_OVERRIDE') return null;
+    const bucket = repBucket(se.repMin, se.repMax);
+    const progression = data?.progressions.find(
+      (p) => p.exerciseId === se.exerciseId && p.repBucket === bucket,
+    );
+    return progression?.override?.setByName ?? null;
+  };
   const inventory = profile ?? FALLBACK_PROFILE;
   const displayUnit = profile ? unit : inventory.unit;
 
@@ -328,6 +349,9 @@ export function WorkoutView() {
         unit={displayUnit}
         lastTime={lastTimeByExercise.get(se.exerciseId) ?? NO_SETS}
         lastNote={lastNoteByExercise.get(se.exerciseId) ?? null}
+        trainerNote={trainerNoteByRowId.get(se.routineExerciseId ?? '') ?? null}
+        trainerName={data?.coaching?.trainerName ?? null}
+        setByName={setByNameFor(se)}
         prSetId={prs.get(se.id)?.setId ?? null}
         prKind={prs.get(se.id)?.kind ?? null}
         onEditSet={onEditSet}

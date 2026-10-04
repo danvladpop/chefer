@@ -15,6 +15,7 @@ import {
   PRIMARY_NAV_HREFS,
   PRIMARY_NAV_ITEMS,
   SECONDARY_NAV_ITEMS,
+  TRAINER_NAV_ITEM,
 } from './nav-items';
 
 describe('isNavItemActive', () => {
@@ -170,5 +171,29 @@ describe('isFocusRoute', () => {
     expect(isFocusRoute('/recipes/r1')).toBe(false);
     expect(isFocusRoute('/recipes')).toBe(false);
     expect(isFocusRoute(null)).toBe(false);
+  });
+});
+
+describe('trainer nav item (WP-18)', () => {
+  it('is absent by default in both modes', () => {
+    for (const mode of ['food', 'gym'] as const) {
+      expect(navFor(mode).all).not.toContain(TRAINER_NAV_ITEM);
+      expect(navFor(mode).secondary).not.toContain(TRAINER_NAV_ITEM);
+    }
+  });
+
+  it('joins the secondary list (sidebar lower group, phone More) for an active trainer, never the tab bar', () => {
+    for (const mode of ['food', 'gym'] as const) {
+      const nav = navFor(mode, { trainer: true });
+      expect(nav.secondary.at(-1)).toBe(TRAINER_NAV_ITEM);
+      expect(nav.all).toContain(TRAINER_NAV_ITEM);
+      expect(nav.primary).not.toContain(TRAINER_NAV_ITEM);
+    }
+    expect(TRAINER_NAV_ITEM).toMatchObject({ href: '/trainer', label: 'Clients' });
+  });
+
+  it('does not change which mode a trainer route belongs to', () => {
+    expect(deriveMode('/trainer/abc', 'gym')).toBe('gym');
+    expect(deriveMode('/trainer', 'food')).toBe('food');
   });
 });

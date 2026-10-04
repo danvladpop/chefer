@@ -12,6 +12,8 @@ import type {
   RoutineDoc,
   RoutineDto,
   RoutineLike,
+  TrainerRoutineDoc,
+  TrainerRoutineDto,
 } from '@chefer/types';
 import {
   createSuperset,
@@ -35,6 +37,13 @@ export interface DraftExercise {
   restSec: number;
   supersetGroup: string | null;
   notes: string | null;
+  /**
+   * Trainer coaching: the trainer's cue for this exercise. The owner's editor
+   * only ever clears it (`clearTrainerNoteIds`); the trainer's editor writes it
+   * (`toTrainerRoutineDoc`). `undefined`/`null` = no note. Never part of the
+   * owner's `toRoutineDoc`.
+   */
+  trainerNote?: string | null;
 }
 
 export interface DraftDay {
@@ -91,6 +100,45 @@ export function fromRoutineDto(routine: RoutineDto): DraftRoutine {
               restSec: exercise.restSec,
               supersetGroup: exercise.supersetGroup,
               notes: exercise.notes,
+              trainerNote: exercise.trainerNote ?? null,
+            })),
+        ),
+      })),
+  };
+}
+
+/**
+ * The trainer's view of the client's routine (`trainer.client.routine`) as a
+ * draft. The client's own `notes` never reach a trainer, so rows carry null.
+ */
+export function fromTrainerRoutineDto(routine: TrainerRoutineDto): DraftRoutine {
+  return {
+    id: routine.id,
+    name: routine.name,
+    days: routine.days
+      .slice()
+      .sort((a, b) => a.position - b.position)
+      .map((day) => ({
+        key: makeKey('day'),
+        id: day.id,
+        name: day.name,
+        plannedWeekday: day.plannedWeekday,
+        exercises: normalizeSupersets(
+          day.exercises
+            .slice()
+            .sort((a, b) => a.position - b.position)
+            .map((exercise) => ({
+              key: makeKey('ex'),
+              id: exercise.id,
+              exerciseId: exercise.exerciseId,
+              sets: exercise.sets,
+              repMin: exercise.repMin,
+              repMax: exercise.repMax,
+              targetRir: exercise.targetRir,
+              restSec: exercise.restSec,
+              supersetGroup: exercise.supersetGroup,
+              notes: null,
+              trainerNote: exercise.trainerNote,
             })),
         ),
       })),
@@ -152,6 +200,56 @@ export function toRoutineDoc(draft: DraftRoutine): RoutineDoc {
   };
 }
 
+/**
+ * Draft → wire document for `trainer.client.saveRoutine`: the same rows, no
+ * `notes`, plus the trainer's note (trimmed; empty = none).
+ */
+export function toTrainerRoutineDoc(draft: DraftRoutine): TrainerRoutineDoc {
+  return {
+    id: draft.id,
+    name: draft.name,
+    days: draft.days.map((day) => ({
+      ...(day.id ? { id: day.id } : {}),
+      name: day.name,
+      plannedWeekday: day.plannedWeekday,
+      exercises: day.exercises.map((exercise) => {
+        const note = exercise.trainerNote?.trim() ?? '';
+        return {
+          ...(exercise.id ? { id: exercise.id } : {}),
+          exerciseId: exercise.exerciseId,
+          sets: exercise.sets,
+          repMin: exercise.repMin,
+          repMax: exercise.repMax,
+          targetRir: exercise.targetRir,
+          restSec: exercise.restSec,
+          supersetGroup: exercise.supersetGroup,
+          trainerNote: note === '' ? null : note,
+        };
+      }),
+    })),
+  };
+}
+
+/**
+ * Ids of the rows whose trainer note the client removed since `baseline`
+ * (`gym.routine.save` `clearTrainerNoteIds`). Only rows that still exist.
+ */
+export function clearedTrainerNoteIds(draft: DraftRoutine, baseline: DraftRoutine): string[] {
+  const had = new Set<string>();
+  for (const day of baseline.days) {
+    for (const exercise of day.exercises) {
+      if (exercise.id && exercise.trainerNote) had.add(exercise.id);
+    }
+  }
+  const cleared: string[] = [];
+  for (const day of draft.days) {
+    for (const exercise of day.exercises) {
+      if (exercise.id && had.has(exercise.id) && !exercise.trainerNote) cleared.push(exercise.id);
+    }
+  }
+  return cleared;
+}
+
 /** Draft → the minimal shape the volume/validation engine understands. */
 export function toRoutineLike(draft: DraftRoutine): RoutineLike {
   return {
@@ -170,7 +268,15 @@ export function toRoutineLike(draft: DraftRoutine): RoutineLike {
 
 /** Deep-equal-enough check for the dirty flag: compare the would-be save payloads. */
 export function isDraftEqual(a: DraftRoutine, b: DraftRoutine): boolean {
-  return JSON.stringify(toRoutineDoc(a)) === JSON.stringify(toRoutineDoc(b));
+  return (
+    JSON.stringify(toRoutineDoc(a)) === JSON.stringify(toRoutineDoc(b)) &&
+    trainerNoteSignature(a) === trainerNoteSignature(b)
+  );
+}
+
+/** Trainer notes are not in `toRoutineDoc`, but editing or clearing one is a change. */
+function trainerNoteSignature(draft: DraftRoutine): string {
+  return JSON.stringify(draft.days.map((d) => d.exercises.map((e) => e.trainerNote ?? null)));
 }
 
 // ─── Actions ──────────────────────────────────────────────────────────────────
@@ -191,7 +297,10 @@ export type DraftAction =
       dayKey: string;
       exerciseKey: string;
       patch: Partial<
-        Pick<DraftExercise, 'sets' | 'repMin' | 'repMax' | 'targetRir' | 'restSec' | 'notes'>
+        Pick<
+          DraftExercise,
+          'sets' | 'repMin' | 'repMax' | 'targetRir' | 'restSec' | 'notes' | 'trainerNote'
+        >
       >;
     }
   /** Phone arrows: one step, hopping over a neighbouring superset as a whole. */

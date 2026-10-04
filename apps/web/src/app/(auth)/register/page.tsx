@@ -3,6 +3,7 @@ import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { RegisterForm } from '@/features/auth/components/register-form';
 import { getSessionUser } from '@/features/auth/lib/session';
+import { nextQuery, safeNextPath } from '@/features/coaching/lib/next-path';
 
 export const metadata: Metadata = {
   title: 'Create Account',
@@ -10,11 +11,17 @@ export const metadata: Metadata = {
   robots: { index: false },
 };
 
-export default async function RegisterPage() {
+export default async function RegisterPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ next?: string | string[] }>;
+}) {
+  // WP-18: only a coaching join path is honoured (see the login page).
+  const next = safeNextPath((await searchParams).next);
   // Validate the session rather than trusting the cookie's presence — see
   // getSessionUser for why a stale cookie must not bounce to /dashboard.
   if (await getSessionUser()) {
-    redirect('/dashboard');
+    redirect(next ?? '/dashboard');
   }
 
   return (
@@ -50,14 +57,14 @@ export default async function RegisterPage() {
 
         {/* Register Form Card */}
         <div className="rounded-xl border bg-card p-6 shadow-sm sm:p-8">
-          <RegisterForm />
+          <RegisterForm next={next} />
         </div>
 
         {/* Footer Links */}
         <p className="text-center text-sm text-muted-foreground">
           Already have an account?{' '}
           <Link
-            href="/login"
+            href={`/login${nextQuery(next)}`}
             className="touch-target relative font-medium text-primary underline underline-offset-4 hover:text-primary/80"
           >
             Sign in

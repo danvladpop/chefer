@@ -33,6 +33,11 @@ export const APP_ROUTES = [
   '/gym/exercises/barbell-bench-press',
   '/gym/exercises/new',
   '/gym/stats',
+  // Trainer coaching (WP-18): the trainer area (turn-on / clients, or the "not
+  // available" notice while the flag is off) and a join link whose code never
+  // existed (the invite-state copy; the consent screen has its own unit tests).
+  '/trainer',
+  '/coaching/join/ZZZZZZZZZZ',
   // Email-link pages (P2-5): without a token they render the invalid-link state.
   '/unsubscribe',
   '/verify-email',

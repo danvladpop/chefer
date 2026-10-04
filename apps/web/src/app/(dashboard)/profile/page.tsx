@@ -1,12 +1,14 @@
 'use client';
 
 import Link from 'next/link';
+import { YourTrainerCard } from '@/features/coaching/components/YourTrainerCard';
 import { DowngradeButton, UpgradeButton } from '@/features/premium/components/UpgradeButton';
 import { usePremiumPitch } from '@/features/premium/lib/use-premium-pitch';
 import { AccountDataCard } from '@/features/profile/components/AccountDataCard';
 import { AiConsentCard } from '@/features/profile/components/AiConsentCard';
 import { AnalyticsConsentCard } from '@/features/profile/components/AnalyticsConsentCard';
 import { HealthConsentCard } from '@/features/profile/components/HealthConsentCard';
+import { TrainerToolsLink } from '@/features/trainer/components/TrainerToolsLink';
 import { useHousehold } from '@/hooks/useHousehold';
 import { trpc } from '@/lib/trpc';
 import { Check, ChevronRight, Users } from 'lucide-react';
@@ -217,6 +219,12 @@ export default function ProfilePage() {
       </div>
 
       <HouseholdCard />
+
+      {/* WP-18: both render nothing unless coaching is on for this account. */}
+      <div className="mb-6 space-y-4 empty:hidden">
+        <TrainerToolsLink />
+        <YourTrainerCard />
+      </div>
 
       {/* Plan & Premium (T-10.3, T-10.5) — admins are implicitly premium. */}
       {user && user.role !== 'ADMIN' && <PlanCard isPremium={user.planTier === 'PREMIUM'} />}
