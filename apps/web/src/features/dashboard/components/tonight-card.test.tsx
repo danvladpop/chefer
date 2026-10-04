@@ -1,4 +1,5 @@
 // @vitest-environment jsdom
+import { fakeSlotFlow } from '@/features/tracker/lib/slot-flow.fixture';
 import { capture } from '@/lib/analytics';
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -131,5 +132,81 @@ describe('TonightCard — Rate it (UX-FOOD-04)', () => {
     render(<TonightCard meal={done} showNutrition={false} onLogged={vi.fn()} />);
     expect(screen.getByTestId('tonight-card-done')).toBeTruthy();
     expect(screen.queryByTestId('tonight-rate-it')).toBeNull();
+  });
+});
+
+// WP-06: tonight's slot can be replaced or skipped; neither is a failure.
+describe('TonightCard — flexible eating (WP-06)', () => {
+  it('has an overflow next to "I ate this" that acts on the dinner slot', () => {
+    const flow = fakeSlotFlow();
+    render(<TonightCard meal={meal} showNutrition onLogged={vi.fn()} flow={flow} />);
+    expect(screen.getByTestId('tonight-ate-this')).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: 'More actions for Dinner' }));
+    fireEvent.click(screen.getByText('Ate something else'));
+    expect(flow.openAteElse).toHaveBeenCalledWith(
+      expect.objectContaining({ mealType: 'dinner', slotIndex: 0 }),
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'More actions for Dinner' }));
+    fireEvent.click(screen.getByText('Skipped it'));
+    expect(flow.skip).toHaveBeenCalledWith(
+      expect.objectContaining({ mealType: 'dinner', slotIndex: 0 }),
+    );
+  });
+
+  it('has no overflow when nutrition is hidden or there is no flow', () => {
+    render(
+      <TonightCard meal={meal} showNutrition={false} onLogged={vi.fn()} flow={fakeSlotFlow()} />,
+    );
+    expect(screen.queryByRole('button', { name: /More actions/ })).toBeNull();
+    cleanup();
+    render(<TonightCard meal={meal} showNutrition onLogged={vi.fn()} />);
+    expect(screen.queryByRole('button', { name: /More actions/ })).toBeNull();
+  });
+
+  it('a replaced dinner reads "You had: …" with an Undo, and cannot be rated or ticked', () => {
+    const flow = fakeSlotFlow();
+    render(
+      <TonightCard
+        meal={{ ...meal, done: true }}
+        showNutrition
+        onLogged={vi.fn()}
+        flow={flow}
+        slot={{
+          slotIndex: 0,
+          mealType: 'dinner',
+          status: 'replaced',
+          replacedBy: { entryId: 'r1', name: 'Shawarma · normal', kcal: 775, protein: 40 },
+        }}
+      />,
+    );
+    expect(screen.getByTestId('tonight-card-replaced').textContent).toContain(
+      'You had: Shawarma · normal (≈ 775 kcal)',
+    );
+    expect(screen.queryByTestId('tonight-ate-this')).toBeNull();
+    expect(screen.queryByTestId('tonight-rate-it')).toBeNull();
+    fireEvent.click(screen.getByTestId('tonight-undo-replaced'));
+    expect(flow.undoReplacement).toHaveBeenCalledWith(
+      'r1',
+      expect.objectContaining({ mealType: 'dinner', slotIndex: 0 }),
+    );
+  });
+
+  it('a skipped dinner reads "Skipped" (muted, no judgement) with an Undo', () => {
+    const flow = fakeSlotFlow();
+    render(
+      <TonightCard
+        meal={meal}
+        showNutrition
+        onLogged={vi.fn()}
+        flow={flow}
+        slot={{ slotIndex: 0, mealType: 'dinner', status: 'skipped' }}
+      />,
+    );
+    expect(screen.getByTestId('tonight-card-skipped').textContent).toContain('Skipped');
+    expect(screen.queryByTestId('tonight-ate-this')).toBeNull();
+    fireEvent.click(screen.getByTestId('tonight-undo-skip'));
+    expect(flow.unskip).toHaveBeenCalledWith(
+      expect.objectContaining({ mealType: 'dinner', slotIndex: 0 }),
+    );
   });
 });

@@ -115,3 +115,49 @@ describe('ScanMealButton result sheet (UX-FOOD-26)', () => {
     expect(onLoggedEntry).not.toHaveBeenCalled();
   });
 });
+
+// WP-06: "Ate something else" → Snap a photo, pre-targeted at a plan slot.
+describe('ScanMealButton for a plan slot (WP-06)', () => {
+  it("logs the scan against the slot, in the slot's meal, without a meal picker", async () => {
+    const { container } = render(
+      <ScanMealButton
+        date="2026-09-26"
+        isPremium
+        onLogged={vi.fn()}
+        replacesSlot={{ mealType: 'dinner', slotIndex: 2 }}
+      />,
+    );
+    const input = container.querySelector('input[type="file"]');
+    if (!input) throw new Error('expected the hidden file input');
+    const file = new File([new Uint8Array(4)], 'meal.jpg', { type: 'image/jpeg' });
+    act(() => {
+      fireEvent.change(input, { target: { files: [file] } });
+    });
+    await waitFor(() => expect(screen.getByText('Log this meal?')).toBeTruthy());
+    expect(screen.queryByRole('group', { name: 'Meal type' })).toBeNull();
+    fireEvent.click(screen.getByText('Log 520 kcal'));
+    expect(m.mutate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        estimatedBy: 'vision',
+        mealType: 'dinner',
+        replacesSlot: { mealType: 'dinner', slotIndex: 2 },
+      }),
+    );
+  });
+
+  it('can be driven from outside: hideButton and an opener on openRef', () => {
+    const openRef: { current: (() => void) | null } = { current: null };
+    render(
+      <ScanMealButton
+        date="2026-09-26"
+        isPremium
+        onLogged={vi.fn()}
+        hideButton
+        openRef={openRef}
+        replacesSlot={{ mealType: 'dinner', slotIndex: 2 }}
+      />,
+    );
+    expect(screen.queryByText('Scan a meal')).toBeNull();
+    expect(openRef.current).toBeTypeOf('function');
+  });
+});

@@ -18,6 +18,7 @@ import {
   userFacingErrorMessage,
   type QuickAddErrors,
   type QuickAddMealType,
+  type SlotRef,
 } from '@chefer/utils';
 import { invalidateDayQueries } from '../lib/invalidate';
 import { handleRebalanceResult } from '../lib/rebalance-storage';
@@ -49,6 +50,21 @@ interface QuickAddSheetProps {
   onLogged: () => void;
   /** Today's planned meals — the "This week's plan" group. */
   plannedMeals?: PlannedLogMeal[];
+  /**
+   * WP-06 "Ate something else": the plan slot this sheet logs INSTEAD of. Every
+   * entry it writes is a custom entry carrying `replacesSlot` (a recipe from
+   * Recent or search is logged with its numbers, so the planned slot is
+   * replaced rather than a second recipe ticked on it). The meal is the
+   * slot's, so the meal chips and the plan group go.
+   */
+  replacesSlot?: SlotRef | undefined;
+  /** Controlled open state — the slot flow opens this sheet from its own sheet. */
+  open?: boolean | undefined;
+  onOpenChange?: ((open: boolean) => void) | undefined;
+  /** Hide the "Log something" button (controlled use). */
+  hideTrigger?: boolean | undefined;
+  /** After a custom entry is logged: its id and name, for an Undo toast. */
+  onLoggedEntry?: ((entry: { entryId: string; name: string }) => void) | undefined;
 }
 
 const MEAL_OPTIONS = QUICK_ADD_MEAL_TYPES.map((v) => ({
@@ -82,8 +98,25 @@ function scaleFromPer100g(
   };
 }
 
-export function QuickAddSheet({ date, onLogged, plannedMeals = [] }: QuickAddSheetProps) {
-  const [open, setOpen] = useState(false);
+export function QuickAddSheet({
+  date,
+  onLogged,
+  plannedMeals = [],
+  replacesSlot,
+  open: controlledOpen,
+  onOpenChange,
+  hideTrigger = false,
+  onLoggedEntry,
+}: QuickAddSheetProps) {
+  const [innerOpen, setInnerOpen] = useState(false);
+  const open = controlledOpen ?? innerOpen;
+  const setOpen = (next: boolean) => {
+    setInnerOpen(next);
+    onOpenChange?.(next);
+  };
+  /** Adds `replacesSlot` to a custom entry when this sheet is slot-targeted. */
+  const forSlot = <T extends object>(entry: T): T & { replacesSlot?: SlotRef } =>
+    replacesSlot ? { ...entry, replacesSlot } : entry;
   const [view, setView] = useState<'search' | 'manual'>('search');
   const [query, setQuery] = useState('');
   const [ingredientLimit, setIngredientLimit] = useState(INGREDIENT_PAGE);
@@ -148,8 +181,14 @@ export function QuickAddSheet({ date, onLogged, plannedMeals = [] }: QuickAddShe
   };
 
   useEffect(() => {
-    if (open) setMealType(defaultMealSlot(new Date().getHours()));
-    else reset();
+    if (open) {
+      setMealType(
+        replacesSlot
+          ? toQuickAddMealType(replacesSlot.mealType)
+          : defaultMealSlot(new Date().getHours()),
+      );
+    } else reset();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- re-seed only when the sheet opens
   }, [open]);
 
   const utils = trpc.useUtils();
@@ -173,7 +212,7 @@ export function QuickAddSheet({ date, onLogged, plannedMeals = [] }: QuickAddShe
   const quickAddSource = (vars: { mealType: string }, fromPlanRow: boolean) =>
     fromPlanRow
       ? 'planned'
-      : plannedMeals.some((m) => m.mealType === vars.mealType)
+      : replacesSlot || plannedMeals.some((m) => m.mealType === vars.mealType)
         ? 'replaced'
         : 'quick';
 
@@ -194,6 +233,7 @@ export function QuickAddSheet({ date, onLogged, plannedMeals = [] }: QuickAddShe
     onSuccess: (data, vars) => {
       trackMealLogged(quickAddSource(vars, false), vars.mealType);
       onLoggedCommon(data);
+      if (data.entryId) onLoggedEntry?.({ entryId: data.entryId, name: vars.name });
     },
   });
   const isPending = logRecipeMutation.isPending || logCustomMutation.isPending;
@@ -201,9 +241,13 @@ export function QuickAddSheet({ date, onLogged, plannedMeals = [] }: QuickAddShe
   const recents = (recentsQuery.data ?? []).filter(
     (r) => !searching || r.name.toLowerCase().includes(trimmedQuery.toLowerCase()),
   );
-  const planRows = plannedMeals.filter(
-    (m) => !searching || m.recipeName.toLowerCase().includes(trimmedQuery.toLowerCase()),
-  );
+  // The plan group is for ticking the planned meal; a slot-targeted sheet is
+  // for what you had INSTEAD of it.
+  const planRows = replacesSlot
+    ? []
+    : plannedMeals.filter(
+        (m) => !searching || m.recipeName.toLowerCase().includes(trimmedQuery.toLowerCase()),
+      );
 
   const hasSearchResults =
     recents.length > 0 ||
@@ -213,7 +257,7 @@ export function QuickAddSheet({ date, onLogged, plannedMeals = [] }: QuickAddShe
 
   const logRecentAgain = (recent: NonNullable<typeof recentsQuery.data>[number]) => {
     if (isPending) return;
-    if (recent.recipeId) {
+    if (recent.recipeId && !replacesSlot) {
       logRecipeMutation.mutate({
         date,
         recipeId: recent.recipeId,
@@ -222,17 +266,19 @@ export function QuickAddSheet({ date, onLogged, plannedMeals = [] }: QuickAddShe
       });
       return;
     }
-    logCustomMutation.mutate({
-      date,
-      name: recent.name,
-      estimatedBy: recent.estimatedBy ?? 'manual',
-      mealType: toQuickAddMealType(recent.mealType),
-      kcal: recent.kcal,
-      protein: recent.protein,
-      carbs: recent.carbs,
-      fat: recent.fat,
-      ...(recent.unknownMacros && { unknownMacros: recent.unknownMacros }),
-    });
+    logCustomMutation.mutate(
+      forSlot({
+        date,
+        name: recent.name,
+        estimatedBy: recent.estimatedBy ?? 'manual',
+        mealType: toQuickAddMealType(recent.mealType),
+        kcal: recent.kcal,
+        protein: recent.protein,
+        carbs: recent.carbs,
+        fat: recent.fat,
+        ...(recent.unknownMacros && { unknownMacros: recent.unknownMacros }),
+      }),
+    );
   };
 
   const logPlannedRow = (meal: PlannedLogMeal, chosenPortion: number) => {
@@ -247,24 +293,56 @@ export function QuickAddSheet({ date, onLogged, plannedMeals = [] }: QuickAddShe
     });
   };
 
-  const logRecipeRow = (recipeId: string, chosenPortion: number) => {
+  const logRecipeRow = (
+    recipe: { id: string; name: string },
+    perServing: { kcal: number; protein: number; carbs: number; fat: number },
+    chosenPortion: number,
+  ) => {
     if (isPending) return;
-    logRecipeMutation.mutate({ date, recipeId, mealType, portionMultiplier: chosenPortion });
+    if (replacesSlot) {
+      // "Ate something else": the recipe's numbers as a custom entry, so the
+      // planned slot is replaced (logRecipe would tick a second recipe on it).
+      const scale = (v: number, digits: number) => {
+        const f = 10 ** digits;
+        return Math.round(v * chosenPortion * f) / f;
+      };
+      logCustomMutation.mutate(
+        forSlot({
+          date,
+          name: recipe.name,
+          estimatedBy: 'manual' as const,
+          mealType,
+          kcal: scale(perServing.kcal, 0),
+          protein: scale(perServing.protein, 1),
+          carbs: scale(perServing.carbs, 1),
+          fat: scale(perServing.fat, 1),
+        }),
+      );
+      return;
+    }
+    logRecipeMutation.mutate({
+      date,
+      recipeId: recipe.id,
+      mealType,
+      portionMultiplier: chosenPortion,
+    });
   };
 
   const logIngredientRow = (ingredient: IngredientSearchRow, grams: number) => {
     if (isPending || !ingredient.per100g) return;
     const scaled = scaleFromPer100g(ingredient.per100g, grams);
-    logCustomMutation.mutate({
-      date,
-      name: `${ingredient.displayName}, ${formatQuickAddGrams(grams)} g`,
-      estimatedBy: 'manual',
-      mealType,
-      kcal: scaled.kcal,
-      protein: scaled.protein,
-      carbs: scaled.carbs,
-      fat: scaled.fat,
-    });
+    logCustomMutation.mutate(
+      forSlot({
+        date,
+        name: `${ingredient.displayName}, ${formatQuickAddGrams(grams)} g`,
+        estimatedBy: 'manual' as const,
+        mealType,
+        kcal: scaled.kcal,
+        protein: scaled.protein,
+        carbs: scaled.carbs,
+        fat: scaled.fat,
+      }),
+    );
   };
 
   const parsedManual = parseQuickAdd({ name, mealType, kcal, ...macros });
@@ -279,7 +357,7 @@ export function QuickAddSheet({ date, onLogged, plannedMeals = [] }: QuickAddShe
     }
     setErrors({});
     if (!sanityOverridden && checkMacroSanity(parsedNow.entry).message) return;
-    logCustomMutation.mutate({ date, estimatedBy: 'manual', ...parsedNow.entry });
+    logCustomMutation.mutate(forSlot({ date, estimatedBy: 'manual' as const, ...parsedNow.entry }));
   };
 
   const expandedIngredient = ingredientsQuery.data?.find((i) => i.name === expandedKey);
@@ -303,20 +381,28 @@ export function QuickAddSheet({ date, onLogged, plannedMeals = [] }: QuickAddShe
 
   return (
     <>
-      <button
-        type="button"
-        data-testid="tracker-quick-add"
-        onClick={() => setOpen(true)}
-        className="flex min-h-11 flex-1 items-center justify-center gap-2 rounded-2xl border border-neutral-200 bg-white px-3 text-sm font-semibold text-neutral-700 shadow-sm transition hover:bg-neutral-50"
-      >
-        <Plus className="h-4 w-4" />
-        Log something
-      </button>
+      {!hideTrigger && (
+        <button
+          type="button"
+          data-testid="tracker-quick-add"
+          onClick={() => setOpen(true)}
+          className="flex min-h-11 flex-1 items-center justify-center gap-2 rounded-2xl border border-neutral-200 bg-white px-3 text-sm font-semibold text-neutral-700 shadow-sm transition hover:bg-neutral-50"
+        >
+          <Plus className="h-4 w-4" />
+          Log something
+        </button>
+      )}
 
       <Sheet
         open={open}
         onClose={() => setOpen(false)}
-        title={view === 'manual' ? 'Enter calories yourself' : 'Log something'}
+        title={
+          view === 'manual'
+            ? 'Enter calories yourself'
+            : replacesSlot
+              ? 'Ate something else'
+              : 'Log something'
+        }
         size="sm"
         footer={
           view === 'manual' ? (
@@ -362,19 +448,21 @@ export function QuickAddSheet({ date, onLogged, plannedMeals = [] }: QuickAddShe
       >
         {view === 'search' ? (
           <div className="space-y-4 px-5 pb-4">
-            <div className="flex flex-wrap gap-1.5" role="group" aria-label="Meal">
-              {MEAL_OPTIONS.map((o) => (
-                <button
-                  key={o.value}
-                  type="button"
-                  data-testid={`quick-add-meal-${o.value}`}
-                  onClick={() => setMealType(o.value)}
-                  className={chipBtn(mealType === o.value)}
-                >
-                  {o.label}
-                </button>
-              ))}
-            </div>
+            {!replacesSlot && (
+              <div className="flex flex-wrap gap-1.5" role="group" aria-label="Meal">
+                {MEAL_OPTIONS.map((o) => (
+                  <button
+                    key={o.value}
+                    type="button"
+                    data-testid={`quick-add-meal-${o.value}`}
+                    onClick={() => setMealType(o.value)}
+                    className={chipBtn(mealType === o.value)}
+                  >
+                    {o.label}
+                  </button>
+                ))}
+              </div>
+            )}
 
             <label className="relative block">
               <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-neutral-400" />
@@ -566,7 +654,18 @@ export function QuickAddSheet({ date, onLogged, plannedMeals = [] }: QuickAddShe
                           <button
                             type="button"
                             data-testid={`log-sheet-recipe-log-${key}`}
-                            onClick={() => logRecipeRow(recipe.id, portion)}
+                            onClick={() =>
+                              logRecipeRow(
+                                recipe,
+                                {
+                                  kcal: nutrition?.calories ?? 0,
+                                  protein: nutrition?.protein ?? 0,
+                                  carbs: nutrition?.carbs ?? 0,
+                                  fat: nutrition?.fat ?? 0,
+                                },
+                                portion,
+                              )
+                            }
                             className="min-h-11 w-full rounded-lg bg-[#944a00] px-3 text-xs font-semibold text-white"
                           >
                             Log {Math.round(kcalPerServing * portion)} kcal
@@ -762,7 +861,7 @@ export function QuickAddSheet({ date, onLogged, plannedMeals = [] }: QuickAddShe
               ← Back to search
             </button>
             <p className="text-sm text-neutral-500">
-              Ate something off-plan? Log it honestly — name and calories are enough.
+              Name and calories are enough — a rough guess is fine.
             </p>
             <label className="flex flex-col gap-1 text-xs font-medium text-neutral-600">
               What did you eat?
@@ -785,19 +884,21 @@ export function QuickAddSheet({ date, onLogged, plannedMeals = [] }: QuickAddShe
                 </span>
               )}
             </label>
-            <div className="flex flex-wrap gap-1.5" role="group" aria-label="Meal">
-              {MEAL_OPTIONS.map((o) => (
-                <button
-                  key={o.value}
-                  type="button"
-                  data-testid={`quick-add-meal-${o.value}`}
-                  onClick={() => setMealType(o.value)}
-                  className={chipBtn(mealType === o.value)}
-                >
-                  {o.label}
-                </button>
-              ))}
-            </div>
+            {!replacesSlot && (
+              <div className="flex flex-wrap gap-1.5" role="group" aria-label="Meal">
+                {MEAL_OPTIONS.map((o) => (
+                  <button
+                    key={o.value}
+                    type="button"
+                    data-testid={`quick-add-meal-${o.value}`}
+                    onClick={() => setMealType(o.value)}
+                    className={chipBtn(mealType === o.value)}
+                  >
+                    {o.label}
+                  </button>
+                ))}
+              </div>
+            )}
             <label className="flex flex-col gap-1 text-xs font-medium text-neutral-600">
               Roughly how many calories?
               <span className="flex items-center gap-1">

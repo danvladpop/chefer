@@ -10,6 +10,7 @@ import { GenerateOverlay } from '@/features/meal-plan/components/GenerateOverlay
 import { MealCard } from '@/features/meal-plan/components/MealCard';
 import { PlanMissSheet } from '@/features/meal-plan/components/PlanMissSheet';
 import { PlanSettingsSheet } from '@/features/meal-plan/components/PlanSettingsSheet';
+import { PlanSlotShell } from '@/features/meal-plan/components/PlanSlotShell';
 import {
   PremiumChangesCard,
   type PremiumChangesData,
@@ -28,6 +29,7 @@ import {
   TrainingGlyph,
 } from '@/features/meal-plan/components/TrainingDayHeader';
 import { TrainingExplainSheet } from '@/features/meal-plan/components/TrainingExplainSheet';
+import { usePlanDaySlots } from '@/features/meal-plan/hooks/use-plan-day-slots';
 import { useTailoringWatch } from '@/features/meal-plan/hooks/use-tailoring-watch';
 import {
   dismissReplan,
@@ -39,6 +41,7 @@ import { PantryUsageBanner } from '@/features/pantry/components/PantryUsageBanne
 import { UpgradeButton } from '@/features/premium/components/UpgradeButton';
 import { UpgradeNudge } from '@/features/premium/components/UpgradeNudge';
 import type { ImageStatusType } from '@/features/recipes/components/RecipeImage';
+import { SlotActionsHost } from '@/features/tracker/components/SlotActionsHost';
 import { useHasMounted } from '@/hooks/useHasMounted';
 import { useHousehold } from '@/hooks/useHousehold';
 import { useIsPremium } from '@/hooks/useIsPremium';
@@ -71,12 +74,14 @@ import {
   formatPriceRange,
   getWeekStartDate,
   isTailoringRunning,
+  localDateStr,
   perPortionCost,
   planButtonLabel,
   planCostCoverageLabel,
   planShapeSummary,
   regenerateConfirmBody,
   SAFETY_COPY,
+  slotStates,
   sumPlanDay,
   tailoringDayLabel,
   tailoringDayState,
@@ -173,6 +178,22 @@ export default function MealPlanPage() {
 
   const isPast = weekOffset < 0;
   const isCurrent = weekOffset === 0;
+
+  // WP-06: "Ate something else" / "Skipped it" under the slots of a day that
+  // has happened (today, or earlier this week). The phone's day view follows
+  // the selected day; the desktop grid carries today's column.
+  const dayDate = (day: number): string => {
+    const d = getWeekStartDate(weekOffset);
+    d.setDate(d.getDate() + day);
+    return localDateStr(d);
+  };
+  const showToastAction = (message: string, action?: { label: string; onClick: () => void }) =>
+    setToast({ message, ...(action && { action }) });
+  const selectedSlots = usePlanDaySlots(
+    isCurrent && selectedDay <= todayIndex ? dayDate(selectedDay) : null,
+    showToastAction,
+  );
+  const todaySlots = usePlanDaySlots(isCurrent ? dayDate(todayIndex) : null, showToastAction);
 
   const {
     data: plan,
@@ -1050,6 +1071,7 @@ export default function MealPlanPage() {
             trainingDays={plan.trainingDays}
             onOpenTrainingExplain={() => setTrainingExplainOpen(true)}
             onOpenMiss={openMiss}
+            slotUi={isPast ? undefined : selectedSlots.slotUi}
             onTogglePin={
               !isPast
                 ? (mealType, slotIndex, pinned) =>
@@ -1177,7 +1199,7 @@ export default function MealPlanPage() {
                     {/* Meal cards */}
                     {day.meals.map((slot, slotIndex) => {
                       const override = imageOverrides[slot.recipe.id];
-                      return (
+                      const card = (
                         <MealCard
                           key={`${slot.type}-${slotIndex}`}
                           mealType={slot.type}
@@ -1211,6 +1233,30 @@ export default function MealPlanPage() {
                             })
                           }
                         />
+                      );
+                      // WP-06: today's slots carry the flexible-eating overflow.
+                      const ui = isToday ? todaySlots.slotUi : undefined;
+                      if (!ui) return card;
+                      const state = slotStates(
+                        day.meals.map((m, i) => ({
+                          type: m.type,
+                          recipeId: m.recipe.id,
+                          slotIndex: i,
+                        })),
+                        ui.loggedMeals,
+                        ui.skippedSlots,
+                      )[slotIndex];
+                      return (
+                        <PlanSlotShell
+                          key={`${slot.type}-${slotIndex}`}
+                          mealType={slot.type}
+                          slotIndex={slotIndex}
+                          plannedName={slot.recipe.name}
+                          state={state}
+                          flow={ui.flow}
+                        >
+                          {card}
+                        </PlanSlotShell>
                       );
                     })}
 
@@ -1409,6 +1455,13 @@ export default function MealPlanPage() {
           if (plan) openRegenerateConfirm();
         }}
       />
+
+      <SlotActionsHost
+        flow={selectedSlots.flow}
+        date={dayDate(Math.min(selectedDay, todayIndex))}
+        isPremium={isPremium}
+      />
+      <SlotActionsHost flow={todaySlots.flow} date={dayDate(todayIndex)} isPremium={isPremium} />
 
       {toast && (
         <Toast

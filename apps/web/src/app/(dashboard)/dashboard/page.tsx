@@ -8,8 +8,10 @@ import { WeightCard } from '@/features/coach/components/WeightCard';
 import { NextMealCard } from '@/features/dashboard/components/next-meal-card';
 import { NutritionSummary } from '@/features/dashboard/components/nutrition-summary';
 import { ShopDueCard } from '@/features/dashboard/components/shop-due-card';
+import { TodaySlotNotes } from '@/features/dashboard/components/today-slot-notes';
 import { TomorrowCard } from '@/features/dashboard/components/tomorrow-card';
 import { NothingTonightCard, TonightCard } from '@/features/dashboard/components/tonight-card';
+import { weekAverageLine } from '@/features/dashboard/lib/week-average';
 import { TodaysWorkoutCard } from '@/features/gym/shared/todays-workout-card';
 import {
   ReplaceMealSheet,
@@ -21,6 +23,8 @@ import {
 } from '@/features/privacy/components/HealthConsentNudges';
 import { QuickAddSheet } from '@/features/tracker/components/QuickAddSheet';
 import { ScanMealButton } from '@/features/tracker/components/ScanMealButton';
+import { SlotActionsHost } from '@/features/tracker/components/SlotActionsHost';
+import { useSlotActions } from '@/features/tracker/lib/use-slot-actions';
 import { useIsPremium } from '@/hooks/useIsPremium';
 import { capture } from '@/lib/analytics';
 import { getRecipeImageProps } from '@/lib/recipe-image';
@@ -29,7 +33,7 @@ import { keepPreviousData } from '@tanstack/react-query';
 import { format, parseISO } from 'date-fns';
 import { ArrowRight, Sparkles, UtensilsCrossed } from 'lucide-react';
 import { Line, LineChart, ReferenceLine, ResponsiveContainer, Tooltip, XAxis } from 'recharts';
-import { ErrorState } from '@chefer/ui';
+import { ErrorState, Toast } from '@chefer/ui';
 import { formatDate, localDateStr, remainingPlannedKcal } from '@chefer/utils';
 
 // ─── Meal type colours ─────────────────────────────────────────────────────────
@@ -86,6 +90,16 @@ export default function DashboardPage() {
   // T-04.7 delta: Tonight's Swap opens the existing ReplaceMealSheet inline
   // (L-SAFE2's) instead of navigating to the full Plan.
   const [replaceTarget, setReplaceTarget] = useState<ReplaceTarget | null>(null);
+
+  // WP-06: "Ate something else" / "Skipped it" on the hero and Tonight cards,
+  // with an Undo toast (8 s, like the tracker's).
+  const [toast, setToast] = useState<{
+    message: string;
+    action?: { label: string; onClick: () => void };
+  } | null>(null);
+  const slotFlow = useSlotActions(localDateStr(), (message, action) =>
+    setToast({ message, ...(action && { action }) }),
+  );
 
   // Quick add / scan land in today's log: refresh the ring and the spotlight.
   const utils = trpc.useUtils();
@@ -144,6 +158,8 @@ export default function DashboardPage() {
     !showTonightCard && !showTonightDoneRow && !showNothingTonight && !showTomorrowCard
       ? (d.nextMeal ?? d.tomorrowFirstMeal)
       : null;
+  // The slot Tonight's own card already speaks for (WP-06).
+  const tonightShown = showTonightCard || showTonightDoneRow ? d.tonight : null;
   const heroIsTomorrow = !d.nextMeal && d.tomorrowFirstMeal !== null;
 
   // Day‑of‑week labels Mon–Sun
@@ -249,7 +265,7 @@ export default function DashboardPage() {
           />
         )}
 
-        {/* Off-plan logging: free quick add + premium scan (demo for free).
+        {/* Logging outside the plan: free quick add + premium scan (demo for free).
             Quick add stays available to everyone; scan is nutrition-tracking
             gear (B-31 interim). */}
         <div className="flex flex-wrap gap-2" data-testid="today-quick-log">
@@ -267,6 +283,8 @@ export default function DashboardPage() {
             meal={d.tonight}
             showNutrition={showNutritionCards}
             onLogged={onLogged}
+            slot={d.today.slots?.find((s) => s.slotIndex === d.tonight?.slotIndex)}
+            flow={showNutritionCards ? slotFlow : undefined}
             onSwap={() => {
               const tonight = d.tonight;
               if (!tonight) return;
@@ -282,13 +300,28 @@ export default function DashboardPage() {
           />
         )}
         {showNothingTonight && <NothingTonightCard />}
+        {/* WP-06: slots you replaced or skipped today, with an Undo. Tonight's
+            own card carries dinner's when it is on screen. */}
+        {showNutritionCards && d.today.slots && (
+          <TodaySlotNotes
+            flow={slotFlow}
+            slots={d.today.slots.filter(
+              (s) =>
+                s.slotIndex !== tonightShown?.slotIndex || s.mealType !== tonightShown.mealType,
+            )}
+          />
+        )}
         {showTomorrowCard && d.tomorrow && <TomorrowCard meal={d.tomorrow} />}
         {/* Shop-due (T-04.2/T-04.7): tomorrow's unticked shopping-list lines. */}
         {d.shopDue && <ShopDueCard shopDue={d.shopDue} />}
 
         {/* Next meal spotlight — advances past meals already logged today */}
         {heroMeal ? (
-          <NextMealCard meal={heroMeal} isTomorrow={heroIsTomorrow} />
+          <NextMealCard
+            meal={heroMeal}
+            isTomorrow={heroIsTomorrow}
+            flow={showNutritionCards ? slotFlow : undefined}
+          />
         ) : showTonightCard ||
           showTonightDoneRow ||
           showNothingTonight ||
@@ -486,6 +519,13 @@ export default function DashboardPage() {
                 Full Progress →
               </Link>
             </div>
+            {/* Food 2: the weekly average is the number to be pleased with; a
+                single day over or under is just a day. */}
+            {weekAverageLine(weekSummary.days) && (
+              <p data-testid="week-average" className="mb-3 text-sm font-medium text-gray-800">
+                {weekAverageLine(weekSummary.days)}
+              </p>
+            )}
             <ResponsiveContainer width="100%" height={80}>
               <LineChart
                 data={weekSummary.days.map((d) => ({
@@ -597,6 +637,18 @@ export default function DashboardPage() {
       {/* Closes and invalidates dashboard.summary itself on a successful
           replace/AI-swap — Tonight picks up the new recipe automatically. */}
       <ReplaceMealSheet target={replaceTarget} onClose={() => setReplaceTarget(null)} />
+
+      <SlotActionsHost flow={slotFlow} date={localDateStr()} isPremium={isPremium} />
+
+      {toast && (
+        <Toast
+          message={toast.message}
+          onClose={() => setToast(null)}
+          // An Undo toast gets the same 8 s as the tracker's (and mobile's).
+          duration={toast.action ? 8000 : 3000}
+          {...(toast.action && { action: toast.action })}
+        />
+      )}
     </div>
   );
 }
