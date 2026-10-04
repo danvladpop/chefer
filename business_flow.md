@@ -4295,6 +4295,39 @@ tracker.copyDay({ fromDate, toDate })                         [T-19.3]
      (so the header's own Undo can delete exactly the copies, not the
      originals) and no slotIndex (the target day's plan slots differ)
 
+tracker.logCustomMeal({ …, replacesSlot? }) / skipSlot / unskipSlot  [WP-06 flexible eating]
+  Every planned slot can be eaten as planned, swapped for what was actually
+  eaten, or skipped — and the app never judges any of the three.
+  ├─ "Ate something else": logCustomMeal with `replacesSlot { mealType, slotIndex }`.
+  │    The entry is a normal custom entry (so 1.0.1 clients total it and show it
+  │    as "Also eaten") that names its slot; its mealType is forced to the
+  │    slot's. The slot is `replaced`: EATEN with the replacement's numbers,
+  │    its planned recipe leaves the day's planned totals. Logging again for the
+  │    slot swaps the earlier replacement; a recipe ticked for it is dropped;
+  │    a skip on it is cleared. logRecipe for a replaced slot → CONFLICT
+  │    ("You already logged something else for this meal…"). Undo = delete the
+  │    entry (deleteEntries / deleteCustomMeal): the slot is open again.
+  ├─ "Skipped it": skipSlot / unskipSlot edit DailyLog.skippedSlots — a SEPARATE
+  │    list, never an entry, so old clients that iterate entries never see it.
+  │    A skipped slot is neither eaten nor remaining and leaves the planned
+  │    totals. skipSlot on a ticked/replaced slot → CONFLICT; ticking or
+  │    replacing a skipped slot un-skips it. Idempotent both ways.
+  ├─ Status (one rule set, `@chefer/utils` today.ts): planned | eaten | replaced |
+  │    skipped, precedence replaced > eaten > skipped. Clients use
+  │    `slotStates(plannedMeals, loggedMeals, skippedSlots)`; Today reads the
+  │    server's `dashboard.summary.today.slots`. `resolveTodayMeals` treats a
+  │    replaced slot as eaten and drops a skipped one from next/later.
+  ├─ Old clients (no API level needed): the day's entries and totals are exactly
+  │    what they were; a skipped slot just looks unticked on an old tracker; an
+  │    old tracker that taps a replaced slot's tick gets the CONFLICT message.
+  ├─ upsertDay (older clients' save) preserves skips and drops a tick for a
+  │    replaced slot; copyDay copies entries without `replacesSlot` or skips.
+  ├─ maybeRebalance runs after replace and skip like any other log (gating
+  │    unchanged, premium).
+  └─ Eating-out quick estimate (no AI, free): `eatOutEstimates` in
+     `@chefer/utils` eat-out.ts — cuisine × size → kcal/protein RANGE rounded
+     UP ("≈ 700–850 kcal"); clients log the middle via `eatOutLogValues`.
+
 tracker.unlogRecipe({ date, recipeId, mealType, slotIndex? })  [T-19.4, B-23]
   └─ the one-save model's untick: removes exactly the entry logRecipe would
      have written for that slot (matchesRecipeSlot, shared identity rule with

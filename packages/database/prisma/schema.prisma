@@ -599,6 +599,10 @@ model DailyLog {
   totalProtein Float
   totalCarbs   Float
   totalFat     Float
+  // WP-06: plan slots the user skipped that day — [{ mealType, slotIndex }].
+  // Deliberately NOT part of loggedMeals: shipped clients iterate the entries
+  // and sum them, and a skipped meal is not food. Additive, defaults to [].
+  skippedSlots Json     @default("[]")
   updatedAt    DateTime @updatedAt
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)

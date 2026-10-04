@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { dailyLogRepository, mealPlanRepository } from '@chefer/database';
-import type { LoggedMealEntry } from '@chefer/database';
+import type { LoggedMealEntry, SlotRefJson } from '@chefer/database';
 import type { UserProfile } from '@chefer/types';
 import { trackerService } from './tracker.service.js';
 
@@ -22,6 +22,7 @@ vi.mock('@chefer/database', async (importOriginal) => ({
     findByDate: vi.fn(),
     findLastN: vi.fn(),
     mutateDay: vi.fn(),
+    mutateDayState: vi.fn(),
   },
   gymProfileRepository: { findByUserId: vi.fn().mockResolvedValue(null) },
   weightEntryRepository: { findLatest: vi.fn().mockResolvedValue(null) },
@@ -52,22 +53,32 @@ function customEntry(overrides: Partial<LoggedMealEntry> = {}): LoggedMealEntry 
   };
 }
 
-/** Wires dailyLogRepository.mutateDay to actually run `mutate` against `stored`. */
-function mockMutateDay(stored: LoggedMealEntry[]) {
-  vi.mocked(dailyLogRepository.mutateDay).mockImplementation(async (_userId, _date, mutate) => {
-    const next = mutate(stored);
-    return {
-      id: 'log1',
-      userId: 'u1',
-      date: new Date('2026-09-27T00:00:00Z'),
-      loggedMeals: next as never,
-      totalKcal: 0,
-      totalProtein: 0,
-      totalCarbs: 0,
-      totalFat: 0,
-      updatedAt: new Date(),
-    };
+/**
+ * Wires dailyLogRepository.mutateDay AND mutateDayState to actually run
+ * `mutate` against `stored` (and `skipped`, for the state variant).
+ */
+function mockMutateDay(stored: LoggedMealEntry[], skipped: SlotRefJson[] = []) {
+  const row = (next: LoggedMealEntry[], skippedSlots: SlotRefJson[]) => ({
+    id: 'log1',
+    userId: 'u1',
+    date: new Date('2026-09-27T00:00:00Z'),
+    loggedMeals: next as never,
+    skippedSlots: skippedSlots as never,
+    totalKcal: 0,
+    totalProtein: 0,
+    totalCarbs: 0,
+    totalFat: 0,
+    updatedAt: new Date(),
   });
+  vi.mocked(dailyLogRepository.mutateDay).mockImplementation(async (_userId, _date, mutate) =>
+    row(mutate(stored), skipped),
+  );
+  vi.mocked(dailyLogRepository.mutateDayState).mockImplementation(
+    async (_userId, _date, mutate) => {
+      const next = mutate({ entries: stored, skippedSlots: skipped });
+      return row(next.entries, next.skippedSlots);
+    },
+  );
 }
 
 describe('trackerService.updateCustomMeal (bug B-34, T-19.2)', () => {
@@ -174,6 +185,7 @@ describe('trackerService.copyDay (T-19.3)', () => {
         },
         customEntry({ entryId: 'old-2' }),
       ] as never,
+      skippedSlots: [],
       totalKcal: 500,
       totalProtein: 20,
       totalCarbs: 60,
@@ -546,6 +558,7 @@ describe('trackerService unknownMacros (UX-FOOD-11)', () => {
         userId: 'u1',
         date: new Date('2026-09-26T00:00:00Z'),
         loggedMeals: [customEntry({ unknownMacros: ['carbs', 'fat'] })] as never,
+        skippedSlots: [],
         totalKcal: 0,
         totalProtein: 0,
         totalCarbs: 0,

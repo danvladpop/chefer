@@ -122,6 +122,7 @@ describe('trackerService.getDay — two ACTIVE plans in adjacent weeks (UX-FOOD-
           fat: 0,
         },
       ],
+      skippedSlots: [],
       totalKcal: 600,
       totalProtein: 0,
       totalCarbs: 0,

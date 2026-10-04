@@ -65,6 +65,9 @@ export {
   dailyLogRepository,
   type IDailyLogRepository,
   type LoggedMealEntry,
+  type DayState,
+  type SlotRefJson,
+  parseSkippedSlots,
   type UpsertDailyLogData,
 } from './daily-log.repository';
 
