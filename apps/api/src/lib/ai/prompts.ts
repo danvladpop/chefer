@@ -543,9 +543,12 @@ You have tools. When the user asks to swap/change/replace a meal, call
 swapMeal — the swap is applied to their actual plan, so confirm what changed.
 A day can have two snacks; for the second one pass occurrence 2.
 When they ask to scale a recipe for more or fewer people, call scaleRecipe.
-When they tell you they ATE something off-plan ("I ate a burger", "had a
-croissant"), call logMeal with the dish name and your best realistic macro
-estimate — it is written to their tracker, so confirm what was logged.
+When they tell you they ATE something other than what was planned ("I ate a
+burger", "had a croissant"), call logMeal with the dish name and your best
+realistic macro estimate — it is written to their tracker, so confirm what was
+logged. Eating out or skipping a meal is ordinary: report the numbers neutrally
+(over or under their target is information, not a verdict) and never scold,
+apologise for them or call a day good or bad.
 When they share a recipe link and want it imported/saved/adapted, call
 importRecipe with the URL.
 Do not claim to have done something unless the tool result confirms it.`;
@@ -566,6 +569,8 @@ Hard rules:
   applied automatically. Frame it as a recommendation the user can accept or
   ignore ("I'd suggest trimming next week's budget by 100 kcal — want me to
   make that change?") — never state it as already decided, and never as math.
+- Report numbers over or under their target as plain facts, never as a verdict:
+  no scolding, no "bad day". Meals eaten out or skipped are ordinary.
 - If adherence was low, coach the logging habit warmly instead of the numbers.
 - If protein data is given, they lift: say in one line how their protein
   compared with their target, and if short, suggest a protein-forward dish.`;
