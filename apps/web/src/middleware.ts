@@ -16,6 +16,8 @@ const PROTECTED_ROUTES = [
   '/admin',
   '/premium',
   '/gym',
+  '/trainer',
+  '/coaching',
 ];
 
 export function middleware(request: NextRequest) {
@@ -33,7 +35,9 @@ export function middleware(request: NextRequest) {
   if (!session?.value) {
     const url = request.nextUrl.clone();
     url.pathname = '/login';
-    url.searchParams.set('from', pathname);
+    // A coaching invite link: sign in (or register) and come straight back to it.
+    // `next` is not `from`: `from` means "your session expired" on the login page.
+    url.searchParams.set(pathname.startsWith('/coaching/join/') ? 'next' : 'from', pathname);
     return NextResponse.redirect(url);
   }
 
@@ -57,5 +61,7 @@ export const config = {
     '/profile/:path*',
     '/premium/:path*',
     '/gym/:path*',
+    '/trainer/:path*',
+    '/coaching/:path*',
   ],
 };

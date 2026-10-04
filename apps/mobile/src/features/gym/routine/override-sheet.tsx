@@ -19,7 +19,14 @@ export interface OverrideSheetProps {
   exercise: ExerciseMeta;
   unit: WeightUnit;
   repBucket: string;
-  progression: ProgressionDto;
+  /** The suggestion and the pending target; the trainer's editor builds it from `NextTargetDto`. */
+  progression: Pick<ProgressionDto, 'suggestion' | 'override'>;
+  /** Trainer coaching: replaces the "Currently edited" line, e.g. "Applies the next time Maria does Back squat (6–8 reps)." */
+  description?: string;
+  /** Trainer coaching: the reset button's label (default "Reset to suggestion"). */
+  resetLabel?: string;
+  /** Trainer coaching: the sheet title (default "Next target: <exercise>"). */
+  title?: string;
   /** Bar/plate/dumbbell inventory for the weight steps; a generic gym when omitted. */
   profile?: EquipmentProfile;
   onSave: (payload: SetOverrideInput) => void;
@@ -35,6 +42,9 @@ export function OverrideSheet({
   unit,
   repBucket,
   progression,
+  description,
+  resetLabel = 'Reset to suggestion',
+  title,
   profile = FALLBACK_EQUIPMENT,
   onSave,
   onReset,
@@ -61,7 +71,7 @@ export function OverrideSheet({
       <Sheet
         visible={visible}
         onClose={onClose}
-        title={`Next target: ${exercise.name}`}
+        title={title ?? `Next target: ${exercise.name}`}
         testID={testID}
         footer={
           <View className="flex-row gap-2">
@@ -72,7 +82,7 @@ export function OverrideSheet({
               disabled={!override || saving}
               onPress={onReset}
             >
-              Reset to suggestion
+              {resetLabel}
             </Button>
             <Button
               testID={`${testID}-save`}
@@ -96,7 +106,12 @@ export function OverrideSheet({
           </View>
         }
       >
-        {override ? (
+        {description ? (
+          <Text testID={`${testID}-description`} variant="muted">
+            {description}
+          </Text>
+        ) : null}
+        {override && !description ? (
           <Text testID={`${testID}-edited`} variant="muted">
             Currently edited. Engine suggestion:{' '}
             {formatLoad(suggestion.weightKg, unit, exercise.loadType, { each: exercise.perHand })}.

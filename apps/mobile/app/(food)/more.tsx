@@ -2,13 +2,14 @@ import { useState } from 'react';
 import { Linking, Pressable, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { router, type Href } from 'expo-router';
-import { FRIENDS_COPY } from '@chefer/types';
+import { COACHING_COPY, FRIENDS_COPY } from '@chefer/types';
 import { Button, CountPill, KeyboardAwareScrollView, Screen, Text } from '@chefer/ui-mobile';
 import { FeedbackCard } from '../../src/features/feedback/feedback-card';
 import { useFriendsBadge } from '../../src/features/friends/api/use-friends-badge';
 import { ModeSwitch } from '../../src/features/gym/components/mode-switch';
 import { openLegal } from '../../src/features/legal/open-legal';
 import { useSignOut } from '../../src/features/settings/use-sign-out';
+import { useCoachingAvailability } from '../../src/features/trainer/api/use-coaching-availability';
 import { track } from '../../src/lib/analytics';
 import { getWebUrl } from '../../src/lib/api-url';
 import { CURRENT_BUILD, CURRENT_VERSION_LABEL } from '../../src/lib/current-build';
@@ -52,16 +53,38 @@ const FOLLOWING_ITEM: MoreItem = {
   testID: 'more-friends',
 };
 
-function withFollowing(available: boolean): MoreItem[] {
-  if (!available) return ITEMS;
+// Trainer coaching (WP-18, spec §2.3 / §2.1): right below Following. "Your trainer" for anyone while
+// `coaching.availability` says enabled; "Trainer tools" only for users who may be a trainer. With the
+// flag off neither row exists and nothing but `availability` is queried.
+const YOUR_TRAINER_ITEM: MoreItem = {
+  href: '/coaching',
+  label: COACHING_COPY.yourTrainer.title,
+  icon: 'person-circle-outline',
+  testID: 'more-your-trainer',
+};
+const TRAINER_TOOLS_ITEM: MoreItem = {
+  href: '/trainer',
+  label: COACHING_COPY.trainer.title,
+  icon: 'clipboard-outline',
+  testID: 'more-trainer-tools',
+};
+
+function withExtras(following: boolean, yourTrainer: boolean, trainerTools: boolean): MoreItem[] {
+  const extras = [
+    ...(following ? [FOLLOWING_ITEM] : []),
+    ...(yourTrainer ? [YOUR_TRAINER_ITEM] : []),
+    ...(trainerTools ? [TRAINER_TOOLS_ITEM] : []),
+  ];
+  if (extras.length === 0) return ITEMS;
   const at = ITEMS.findIndex((item) => item.testID === 'more-profile') + 1;
-  return [...ITEMS.slice(0, at), FOLLOWING_ITEM, ...ITEMS.slice(at)];
+  return [...ITEMS.slice(0, at), ...extras, ...ITEMS.slice(at)];
 }
 
 export default function MoreScreen() {
   const [showBuildDetails, setShowBuildDetails] = useState(false);
   const { available, badgeCount } = useFriendsBadge();
-  const items = withFollowing(available);
+  const coaching = useCoachingAvailability();
+  const items = withExtras(available, coaching.enabled, coaching.canBeTrainer);
   const signOut = useSignOut('more-sign-out-confirm');
 
   return (

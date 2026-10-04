@@ -1,21 +1,33 @@
 import { useMemo, useState } from 'react';
-import { ScrollView, View } from 'react-native';
+import { Alert, ScrollView, View } from 'react-native';
 import { router } from 'expo-router';
 import {
+  COACHING_COPY,
+  FALLBACK_TRAINER_NAME,
   TEMPLATE_BY_KEY,
   type ExerciseMeta,
   type ProgressionDto,
   type RoutineDayDto,
+  type RoutineDto,
 } from '@chefer/types';
 import { Badge, Button, EmptyState, Screen, Text } from '@chefer/ui-mobile';
-import { formatLoad, repBucket, validateRoutine, volumeByGroup } from '@chefer/utils';
+import {
+  formatLoad,
+  repBucket,
+  userFacingErrorMessage,
+  validateRoutine,
+  volumeByGroup,
+} from '@chefer/utils';
+import { useMarkRoutineSeen } from '../../src/features/coaching/seen-markers';
 import {
   GymBootstrapUnavailable,
   useGymBootstrapLoad,
 } from '../../src/features/gym/components/gym-bootstrap-state';
 import { ModeSwitch } from '../../src/features/gym/components/mode-switch';
+import { ChangedByLine, TrainerNoteLine } from '../../src/features/gym/routine/attribution';
 import { DayCardView } from '../../src/features/gym/routine/day-card-view';
 import { dismissHint, getDismissedHints } from '../../src/features/gym/routine/hints-storage';
+import { draftToRoutineDoc, routineDtoToDraft } from '../../src/features/gym/routine/mapping';
 import type { SetOverrideInput } from '../../src/features/gym/routine/override-payload';
 import { OverrideSheet } from '../../src/features/gym/routine/override-sheet';
 import { useIsOnline } from '../../src/features/gym/routine/use-online';
@@ -42,7 +54,12 @@ function DayCard({
   progressions,
   unit,
   onOverridePress,
+  trainerName,
+  onRemoveNote,
 }: {
+  trainerName: string;
+  /** Trainer coaching: the client clears a trainer note (the note itself is never editable here). */
+  onRemoveNote: ((rowId: string) => void) | undefined;
   day: RoutineDayDto;
   isNext: boolean;
   lookup: (id: string) => ExerciseMeta | undefined;
@@ -75,6 +92,28 @@ function DayCard({
           summary: `${ex.sets} × ${ex.repMin}–${ex.repMax}`,
           supersetGroup: ex.supersetGroup,
           restSec: ex.restSec,
+          ...(ex.lastEditedByOther || ex.trainerNote
+            ? {
+                extra: (
+                  <View className="min-w-0 gap-0.5 pb-1 pl-1">
+                    {ex.lastEditedByOther ? (
+                      <ChangedByLine
+                        testID={`routine-exercise-${ex.id}-changed-by`}
+                        stamp={ex.lastEditedByOther}
+                      />
+                    ) : null}
+                    {ex.trainerNote ? (
+                      <TrainerNoteLine
+                        testID={`routine-exercise-${ex.id}-trainer-note`}
+                        trainer={trainerName}
+                        note={ex.trainerNote}
+                        {...(onRemoveNote ? { onRemove: () => onRemoveNote(ex.id) } : {})}
+                      />
+                    ) : null}
+                  </View>
+                ),
+              }
+            : {}),
           ...(meta && progression
             ? {
                 onPress: () => onOverridePress({ exercise: meta, progression }),
@@ -89,7 +128,9 @@ function DayCard({
                     </Text>
                     {progression.override ? (
                       <Badge testID={`routine-exercise-${ex.id}-edited`} variant="secondary">
-                        Edited
+                        {progression.override.setByName
+                          ? COACHING_COPY.stamps.setBy(progression.override.setByName)
+                          : 'Edited'}
                       </Badge>
                     ) : null}
                   </View>
@@ -123,8 +164,31 @@ export default function RoutineScreen() {
     },
   });
 
+  // Trainer coaching: the client clears a trainer note with a normal version-checked save that names it.
+  // Imperative (not a mutation hook) so an uncoached user's screen carries no extra hook.
+  const [removingNote, setRemovingNote] = useState(false);
+  const removeNote = (routine: RoutineDto, rowId: string) => {
+    setRemovingNote(true);
+    utils.client.gym.routine.save
+      .mutate({
+        routine: draftToRoutineDoc(routineDtoToDraft(routine)),
+        expectedVersion: routine.version,
+        clearTrainerNoteIds: [rowId],
+      })
+      .catch((error: unknown) => {
+        Alert.alert('Could not remove the note', userFacingErrorMessage(error));
+      })
+      .finally(() => {
+        setRemovingNote(false);
+        void utils.gym.bootstrap.invalidate();
+      });
+  };
+
   const data = bootstrap.data;
   const routine = data?.activeRoutine ?? null;
+  // WP-18: opening the Routine tab counts as seeing the trainer's change (Today's notice goes away).
+  useMarkRoutineSeen(routine?.id ?? null, routine?.lastEditedByOther?.at ?? null);
+  const trainerName = data?.coaching?.trainerName ?? FALLBACK_TRAINER_NAME;
   const lookup = useMemo(() => (data ? libraryLookup(data) : () => undefined), [data]);
   const unit = data?.profile?.unit ?? 'KG';
 
@@ -200,6 +264,13 @@ export default function RoutineScreen() {
                 <Text variant="muted" className="text-sm">
                   Weekly goal: {data.profile?.weeklyGoal ?? routine.days.length} sessions
                 </Text>
+                {routine.lastEditedByOther ? (
+                  <ChangedByLine
+                    routine
+                    testID="gym-routine-changed-by"
+                    stamp={routine.lastEditedByOther}
+                  />
+                ) : null}
               </View>
               <Button
                 testID="gym-routine-edit"
@@ -220,6 +291,10 @@ export default function RoutineScreen() {
                 progressions={data.progressions}
                 unit={unit}
                 onOverridePress={setOverrideTarget}
+                trainerName={trainerName}
+                onRemoveNote={
+                  isOnline && !removingNote ? (rowId) => removeNote(routine, rowId) : undefined
+                }
               />
             ))}
 

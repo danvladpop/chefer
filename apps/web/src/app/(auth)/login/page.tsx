@@ -3,6 +3,7 @@ import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { LoginForm } from '@/features/auth/components/login-form';
 import { getSessionUser } from '@/features/auth/lib/session';
+import { nextQuery, safeNextPath } from '@/features/coaching/lib/next-path';
 
 export const metadata: Metadata = {
   title: 'Sign In',
@@ -13,16 +14,24 @@ export const metadata: Metadata = {
 export default async function LoginPage({
   searchParams,
 }: {
-  searchParams: Promise<{ from?: string | string[]; deleted?: string | string[] }>;
+  searchParams: Promise<{
+    from?: string | string[];
+    deleted?: string | string[];
+    next?: string | string[];
+  }>;
 }) {
+  // WP-18: an invite link sends signed-out visitors here with `?next=` (only a
+  // coaching join path is honoured) and they return to it after signing in.
+  const params = await searchParams;
+  const next = safeNextPath(params.next);
   // Validate the session rather than trusting the cookie's presence — a stale
   // cookie must still land on the form so the user can sign in again.
   if (await getSessionUser()) {
-    redirect('/dashboard');
+    redirect(next ?? '/dashboard');
   }
   // UX-ACC-10: the only thing that adds `?from=` is the 401 handler
   // (lib/trpc.ts), so its presence means an expired session sent them here.
-  const { from, deleted } = await searchParams;
+  const { from, deleted } = params;
   const sessionExpired = from !== undefined;
   // UX-ACC-11: the account-deletion card sends users here with `?deleted=1`.
   const accountDeleted = deleted !== undefined;
@@ -50,14 +59,14 @@ export default async function LoginPage({
 
         {/* Login Form Card */}
         <div className="rounded-xl border bg-card p-6 shadow-sm sm:p-8">
-          <LoginForm sessionExpired={sessionExpired} accountDeleted={accountDeleted} />
+          <LoginForm sessionExpired={sessionExpired} accountDeleted={accountDeleted} next={next} />
         </div>
 
         {/* Footer Links */}
         <p className="text-center text-sm text-muted-foreground">
           Don&apos;t have an account?{' '}
           <Link
-            href="/register"
+            href={`/register${nextQuery(next)}`}
             className="touch-target relative font-medium text-primary underline underline-offset-4 hover:text-primary/80"
           >
             Sign up

@@ -94,6 +94,8 @@ export function routineRow(over: Partial<RoutineWithDays> = {}): RoutineWithDays
     archivedAt: null,
     createdAt: T0,
     updatedAt: T0,
+    lastEditedById: null,
+    lastEditedAt: null,
     days: [
       {
         id: 'day-a',
@@ -114,6 +116,9 @@ export function routineRow(over: Partial<RoutineWithDays> = {}): RoutineWithDays
             restSec: 180,
             supersetGroup: null,
             notes: null,
+            trainerNote: null,
+            lastEditedById: null,
+            lastEditedAt: null,
           },
         ],
       },
@@ -136,6 +141,9 @@ export function routineRow(over: Partial<RoutineWithDays> = {}): RoutineWithDays
             restSec: 180,
             supersetGroup: null,
             notes: null,
+            trainerNote: null,
+            lastEditedById: null,
+            lastEditedAt: null,
           },
         ],
       },

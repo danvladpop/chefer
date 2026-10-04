@@ -10,6 +10,8 @@ import {
 } from '@chefer/types';
 import { NextUpCard, OfferCard } from './today-view';
 
+// WP-18: the coaching lines have their own tests (CoachingNotices.test.tsx).
+vi.mock('@/features/coaching/components/CoachingNotices', () => ({ CoachingNotices: () => null }));
 vi.mock('@/lib/trpc', () => {
   const mutation = { mutate: vi.fn(), isPending: false };
   return {

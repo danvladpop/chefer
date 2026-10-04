@@ -137,6 +137,10 @@ enum ConsentKind {
   // Following (docs/friends/implementation-plan.md §2.1): turn-on, visibility
   // and targets-sharing consent; withdrawn on Turn off (PRD FD-14).
   SOCIAL_SHARING
+  // Trainer coaching (docs/trainer-platform/spec.md §5.2): written on join
+  // (granted) and on leave / remove / trainer tools off (withdrawn), with the
+  // CoachingLink id in `contextId`. Filtered out for clients below API level 6.
+  COACHING_SHARING
 }
 
 enum AiCallType {
@@ -245,6 +249,17 @@ model User {
   // Ingredient catalog (docs/plan-ingredient-catalog.md §3): the user's private ingredients
   privateIngredients Ingredient[]
   ingredientNotices  IngredientNotice[]
+
+  // Trainer coaching (docs/trainer-platform/spec.md §5)
+  trainerProfile         TrainerProfile?
+  coachingInvitesMade    CoachingInvite[]  @relation("InvitesMade")
+  coachingInvitesUsed    CoachingInvite[]  @relation("InvitesUsed")
+  coachingAsTrainer      CoachingLink[]    @relation("CoachingAsTrainer")
+  coachingAsClient       CoachingLink[]    @relation("CoachingAsClient")
+  coachingNotesWritten   CoachingNote[]    @relation("CoachingNotesWritten")
+  coachingNotesAbout     CoachingNote[]    @relation("CoachingNotesAbout")
+  routinesEdited         Routine[]         @relation("RoutineEditedBy")
+  routineExercisesEdited RoutineExercise[] @relation("RoutineExerciseEditedBy")
 
   @@index([email])
   @@map("users")
@@ -691,6 +706,9 @@ model ConsentEvent {
   providers       String[]    @default([])
   documentVersion String?
   source          String // "web" | "mobile" | "migration"
+  // Which relationship the consent named: the CoachingLink id for
+  // COACHING_SHARING events (spec §5.2). Null for every other kind.
+  contextId       String?
   createdAt       DateTime    @default(now())
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -1290,19 +1308,26 @@ model GymProfile {
 }
 
 model Routine {
-  id          String    @id @default(cuid())
-  userId      String
-  name        String
-  templateKey String?
-  isActive    Boolean   @default(false)
-  nextDayId   String? // rotation pointer
-  version     Int       @default(1) // optimistic concurrency for document saves
-  archivedAt  DateTime?
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
+  id             String    @id @default(cuid())
+  userId         String
+  name           String
+  templateKey    String?
+  isActive       Boolean   @default(false)
+  nextDayId      String? // rotation pointer
+  version        Int       @default(1) // optimistic concurrency for document saves
+  archivedAt     DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+  // Edit attribution (trainer coaching, spec §5.3): who last SAVED the document
+  // (owner or trainer) and when. NOT updatedAt, which also moves on rotation
+  // (setNextDay) and setActive. SetNull when that user is deleted: a stamp with
+  // lastEditedAt set and no editor reads "Changed by your trainer".
+  lastEditedById String?
+  lastEditedAt   DateTime?
 
-  user User         @relation(fields: [userId], references: [id], onDelete: Cascade)
-  days RoutineDay[]
+  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  lastEditedBy User?        @relation("RoutineEditedBy", fields: [lastEditedById], references: [id], onDelete: SetNull)
+  days         RoutineDay[]
 
   @@index([userId, isActive])
   @@map("routines")
@@ -1323,20 +1348,26 @@ model RoutineDay {
 }
 
 model RoutineExercise {
-  id            String  @id @default(cuid())
-  dayId         String
-  exerciseId    String
-  position      Int
-  sets          Int
-  repMin        Int
-  repMax        Int
-  targetRir     Int     @default(2)
-  restSec       Int
-  supersetGroup String?
-  notes         String?
+  id             String    @id @default(cuid())
+  dayId          String
+  exerciseId     String
+  position       Int
+  sets           Int
+  repMin         Int
+  repMax         Int
+  targetRir      Int       @default(2)
+  restSec        Int
+  supersetGroup  String?
+  notes          String? // the OWNER's own note; never shown to or written by a trainer
+  // Trainer coaching (spec §5.2/§5.3): a short cue the client sees (max 200),
+  // written only by the trainer path; the client can clear it, not edit it.
+  trainerNote    String?
+  lastEditedById String? // who last changed THIS row (diff-based)
+  lastEditedAt   DateTime?
 
-  day      RoutineDay @relation(fields: [dayId], references: [id], onDelete: Cascade)
-  exercise Exercise   @relation(fields: [exerciseId], references: [id])
+  day          RoutineDay @relation(fields: [dayId], references: [id], onDelete: Cascade)
+  exercise     Exercise   @relation(fields: [exerciseId], references: [id])
+  lastEditedBy User?      @relation("RoutineExerciseEditedBy", fields: [lastEditedById], references: [id], onDelete: SetNull)
 
   @@index([dayId])
   @@map("routine_exercises")
@@ -1619,4 +1650,91 @@ model Notification {
   @@index([userId, createdAt])
   @@index([userId, readAt])
   @@map("notifications")
+}
+
+// ─── Trainer coaching (docs/trainer-platform/spec.md §5.1) ───────────────────
+// Additive only. A trainer coaches individual clients: edits the client's own
+// active routine, adds per-exercise notes, sets next-session targets, sees
+// completed workouts and adherence. The app stores NO client health data; the
+// private note is opaque text.
+
+/// One row = the user turned trainer tools on. No row = cannot invite or coach.
+model TrainerProfile {
+  userId      String    @id
+  displayName String // shown to clients ("Ana"); word-filtered like Following names
+  activatedAt DateTime  @default(now())
+  disabledAt  DateTime? // turned off: every link ENDED, invites revoked
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("trainer_profiles")
+}
+
+/// Single-use invite. The code is the only secret: 10 chars, Crockford base32, from crypto random.
+model CoachingInvite {
+  code      String    @id
+  trainerId String
+  label     String? // trainer-private ("Maria, Tue/Thu"), max 60
+  createdAt DateTime  @default(now())
+  expiresAt DateTime // createdAt + 14 days
+  usedAt    DateTime?
+  usedById  String? // client who joined with it; SetNull on delete
+  revokedAt DateTime?
+
+  trainer User  @relation("InvitesMade", fields: [trainerId], references: [id], onDelete: Cascade)
+  usedBy  User? @relation("InvitesUsed", fields: [usedById], references: [id], onDelete: SetNull)
+
+  @@index([trainerId, createdAt])
+  @@map("coaching_invites")
+}
+
+enum CoachingLinkStatus {
+  ACTIVE
+  ENDED
+}
+
+/// SYSTEM = trainer tools off, account deleted, flag cleanup
+enum CoachingEndedBy {
+  CLIENT
+  TRAINER
+  SYSTEM
+}
+
+/// The trainer <-> client relationship. Access is decided ONLY from ACTIVE rows (spec §8.1).
+/// The migration adds a raw-SQL partial unique index (one ACTIVE link per client):
+///   CREATE UNIQUE INDEX coaching_links_one_active_trainer ON coaching_links ("clientId") WHERE status = 'ACTIVE';
+model CoachingLink {
+  id           String             @id @default(cuid())
+  trainerId    String
+  clientId     String
+  status       CoachingLinkStatus @default(ACTIVE)
+  inviteCode   String? // provenance, no FK (invites are pruned)
+  trainerLabel String? // copied from the invite, trainer-private
+  startedAt    DateTime           @default(now())
+  endedAt      DateTime?
+  endedBy      CoachingEndedBy?
+
+  trainer User @relation("CoachingAsTrainer", fields: [trainerId], references: [id], onDelete: Cascade)
+  client  User @relation("CoachingAsClient", fields: [clientId], references: [id], onDelete: Cascade)
+
+  @@index([trainerId, status])
+  @@index([clientId, status])
+  @@map("coaching_links")
+}
+
+/// The trainer's private note about one client. Never shown to the client, never
+/// parsed, searched, analysed or sent to AI. Keyed by the PAIR (not the link), so a
+/// client who leaves and comes back within 30 days gets the same note back.
+model CoachingNote {
+  trainerId String
+  clientId  String
+  body      String // max 4000
+  updatedAt DateTime  @updatedAt
+  hiddenAt  DateTime? // set when the link ends; the maintenance worker deletes rows hidden > 30 days
+
+  trainer User @relation("CoachingNotesWritten", fields: [trainerId], references: [id], onDelete: Cascade)
+  client  User @relation("CoachingNotesAbout", fields: [clientId], references: [id], onDelete: Cascade)
+
+  @@id([trainerId, clientId])
+  @@map("coaching_notes")
 }

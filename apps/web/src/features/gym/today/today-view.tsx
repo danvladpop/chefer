@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
+import { CoachingNotices } from '@/features/coaching/components/CoachingNotices';
 import { capture } from '@/lib/analytics';
 import { trpc } from '@/lib/trpc';
 import {
@@ -176,6 +177,8 @@ export function TodayView() {
           onResume={() => router.push('/gym/workout')}
         />
       )}
+
+      <CoachingNotices routine={data.activeRoutine} />
 
       <div className="flex flex-col gap-4 lg:grid lg:grid-cols-[minmax(0,1fr)_20rem] lg:items-start lg:gap-6">
         {/* Left: what to do today */}

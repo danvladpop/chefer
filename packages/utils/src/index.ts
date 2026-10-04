@@ -337,6 +337,7 @@ export {
   type SlotMealType,
 } from './recipe-picker';
 export * from './gym';
+export * from './coaching';
 export {
   BODY_WEIGHT_KG_MIN,
   BODY_WEIGHT_KG_MAX,

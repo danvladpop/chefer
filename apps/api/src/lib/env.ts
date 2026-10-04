@@ -210,6 +210,37 @@ const envSchema = z.object({
         ),
     ),
 
+  // Trainer coaching dark launch (docs/trainer-platform/spec.md §11): comma-
+  // separated EMAIL ADDRESSES (case-insensitive). COACHING_ALLOWLIST gets the
+  // coaching feature while the `coaching` flag is off; TRAINER_ALLOWLIST decides
+  // who may turn trainer tools on during the beta (invite-only, Q-1). `*` means
+  // everyone. Empty (the default) = nobody. Read through lib/coaching-middleware.ts,
+  // never directly.
+  COACHING_ALLOWLIST: z
+    .string()
+    .default('')
+    .transform(
+      (val) =>
+        new Set(
+          val
+            .split(',')
+            .map((e) => e.trim().toLowerCase())
+            .filter((e) => e.length > 0),
+        ),
+    ),
+  TRAINER_ALLOWLIST: z
+    .string()
+    .default('')
+    .transform(
+      (val) =>
+        new Set(
+          val
+            .split(',')
+            .map((e) => e.trim().toLowerCase())
+            .filter((e) => e.length > 0),
+        ),
+    ),
+
   // Health-data consent enforcement (§2.8, T-26.1). `off` records nothing;
   // `declared` rejects un-consented health writes only from clients that
   // declare `x-chefer-api-level >= 1`; `all` rejects from every client. Old

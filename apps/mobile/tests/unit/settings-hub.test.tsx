@@ -24,6 +24,12 @@ jest.mock('../../src/features/gym/use-gym-bootstrap', () => ({
   useGymBootstrap: () => mockGymBootstrap,
 }));
 
+// WP-18: the Account rows "Your trainer" / "Trainer tools" follow `coaching.availability` (off by default).
+let mockCoaching = { enabled: false, canBeTrainer: false };
+jest.mock('../../src/features/trainer/api/use-coaching-availability', () => ({
+  useCoachingAvailability: () => mockCoaching,
+}));
+
 jest.mock('../../src/lib/auth-store', () => ({
   clearToken: jest.fn().mockResolvedValue(undefined),
 }));
@@ -59,6 +65,7 @@ beforeEach(() => {
   router.replace.mockClear();
   router.canGoBack.mockReturnValue(true);
   mockGymBootstrap = { isSuccess: true, data: { profile: {} } };
+  mockCoaching = { enabled: false, canBeTrainer: false };
 });
 
 describe('SettingsScreen (T-00.9, PAT-9 §2.9)', () => {
@@ -169,5 +176,30 @@ describe('SettingsScreen (T-00.9, PAT-9 §2.9)', () => {
 
     await user.press(screen.getByTestId('settings-sign-out-confirm-cancel'));
     expect(screen.queryByTestId('settings-sign-out-confirm-body')).toBeNull();
+  });
+});
+
+describe('SettingsScreen: trainer coaching rows (WP-18)', () => {
+  it('flag off: neither "Your trainer" nor "Trainer tools" exists', async () => {
+    await renderSettings(makeClient());
+    expect(screen.queryByTestId('settings-your-trainer')).toBeNull();
+    expect(screen.queryByTestId('settings-trainer-tools')).toBeNull();
+  });
+
+  it('coaching on: "Your trainer" → /coaching, but "Trainer tools" only for a user who may coach', async () => {
+    mockCoaching = { enabled: true, canBeTrainer: false };
+    const user = userEvent.setup();
+    await renderSettings(makeClient());
+    expect(screen.queryByTestId('settings-trainer-tools')).toBeNull();
+    await user.press(screen.getByTestId('settings-your-trainer'));
+    expect(router.push).toHaveBeenCalledWith('/coaching');
+  });
+
+  it('a user who may coach gets "Trainer tools" → /trainer (Gym mode has no More tab)', async () => {
+    mockCoaching = { enabled: true, canBeTrainer: true };
+    const user = userEvent.setup();
+    await renderSettings(makeClient());
+    await user.press(screen.getByTestId('settings-trainer-tools'));
+    expect(router.push).toHaveBeenCalledWith('/trainer');
   });
 });

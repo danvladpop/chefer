@@ -112,8 +112,8 @@ describe('query persistence filter', () => {
     expect(shouldPersistQuery({ queryKey: gymBootstrapQueryKey, state: { status: 'error' } })).toBe(
       false,
     );
-    // T-42.3: bumped to 2 — the client moved to x-chefer-api-level 3.
-    expect(GYM_CACHE_BUSTER).toBe(`${ENGINE_VERSION}:2`);
+    // T-42.3: bumped to 2 (x-chefer-api-level 3); WP-18: to 3 (level 6, coaching fields).
+    expect(GYM_CACHE_BUSTER).toBe(`${ENGINE_VERSION}:3`);
   });
 
   it('uses an input-free bootstrap key (a date in the key would miss the cache every morning)', () => {

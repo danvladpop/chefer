@@ -89,6 +89,9 @@ export {
   type RoutineExerciseWriteData,
   type RoutineListRow,
   type ReplaceRoutineResult,
+  type ReplaceDocumentActor,
+  type StampDoc,
+  type StampDiff,
   WorkoutSessionRepository,
   workoutSessionRepository,
   type IWorkoutSessionRepository,
@@ -206,6 +209,33 @@ export {
   friendRecipeRepository,
   type IFriendRecipeRepository,
   type ListSharedRecipesOptions,
+  // Trainer coaching (docs/trainer-platform/spec.md §5)
+  TrainerProfileRepository,
+  trainerProfileRepository,
+  type ITrainerProfileRepository,
+  type DeactivateTrainerData,
+  CoachingInviteRepository,
+  coachingInviteRepository,
+  type ICoachingInviteRepository,
+  type CreateInviteData,
+  CoachingLinkRepository,
+  coachingLinkRepository,
+  type ICoachingLinkRepository,
+  type ActiveLinkWithClient,
+  type ClientNameRow,
+  type JoinLinkData,
+  type JoinLinkResult,
+  type EndLinkData,
+  CoachingNoteRepository,
+  coachingNoteRepository,
+  type ICoachingNoteRepository,
+  CoachingContentRepository,
+  coachingContentRepository,
+  type ICoachingContentRepository,
+  type CoachedExerciseMeta,
+  type CoachedSessionRow,
+  type CoachedSessionCursor,
+  type ActiveRoutineStamp,
 } from './repositories/index';
 
 // Ingredient catalog validators (docs/plan-ingredient-catalog.md §4.5) — pure, no I/O
@@ -294,6 +324,11 @@ export type {
   UserReport,
   ModerationLog,
   Notification,
+  // Trainer coaching (docs/trainer-platform/spec.md §5.1)
+  TrainerProfile,
+  CoachingInvite,
+  CoachingLink,
+  CoachingNote,
   // Ingredient catalog (docs/plan-ingredient-catalog.md §3)
   Ingredient,
   IngredientAlias,
@@ -329,4 +364,7 @@ export {
   ReportReason,
   RecipeHiddenReason,
   ModerationAction,
+  // Trainer coaching
+  CoachingLinkStatus,
+  CoachingEndedBy,
 } from '@prisma/client';

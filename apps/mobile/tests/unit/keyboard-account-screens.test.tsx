@@ -57,6 +57,10 @@ jest.mock('../../src/features/gym/components/mode-switch', () => ({ ModeSwitch: 
 jest.mock('../../src/features/friends/api/use-friends-badge', () => ({
   useFriendsBadge: () => ({ available: false, badgeCount: 0 }),
 }));
+// WP-18: More's coaching rows follow `coaching.availability`; off here.
+jest.mock('../../src/features/trainer/api/use-coaching-availability', () => ({
+  useCoachingAvailability: () => ({ enabled: false, canBeTrainer: false }),
+}));
 jest.mock('../../src/features/settings/use-sign-out', () => ({
   useSignOut: () => ({ request: jest.fn(), isPending: false, confirmSheet: null }),
 }));

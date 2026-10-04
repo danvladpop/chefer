@@ -1,0 +1,137 @@
+# Trainer coaching, client side (WP-18 lane D, spec §2.3, §2.6): a `runScript` setup registers a trainer
+# ("Ana", tools on, one OPEN invite) and a client with gym setup done; the flow signs in as the client,
+# opens the invite link (chefer-dev:///coaching/join/<code>), reads the consent screen, joins, lands on
+# "You're coached by Ana", opens Your trainer, and leaves.
+#
+# Needs: the dev app on a booted simulator/emulator, Metro up, the local API up with coaching on
+# (FEATURE_FLAGS=coaching TRAINER_ALLOWLIST=*) — pass `-e API_URL=http://localhost:<port>` when the API
+# is not on :3001. Costs 2 registers + 1 login of the per-IP auth budget. Local only (the orchestrator
+# runs it).
+appId: dev.chefer.app.dev
+env:
+  API_URL: http://localhost:3001
+---
+- runScript: scripts/coaching-join-setup.js
+- runFlow: common/connect.yaml
+
+# Whoever is signed in, sign out — this flow signs in as the new client.
+- extendedWaitUntil:
+    visible:
+      id: 'home-title'
+    timeout: 30000
+    optional: true
+- runFlow:
+    when:
+      visible:
+        id: 'home-title'
+    commands:
+      - tapOn: 'More(, .*)?'
+      - scrollUntilVisible:
+          element:
+            id: 'logout-button'
+          direction: DOWN
+          centerElement: true
+      - tapOn:
+          id: 'logout-button'
+      - runFlow: common/confirm-sign-out.yaml
+- extendedWaitUntil:
+    visible:
+      id: 'welcome-title'
+    timeout: 10000
+    optional: true
+- runFlow:
+    when:
+      visible:
+        id: 'welcome-title'
+    commands:
+      - tapOn:
+          id: 'welcome-sign-in'
+
+# ── Sign in as the client ────────────────────────────────────────────────────
+- extendedWaitUntil:
+    visible:
+      id: 'login-title'
+    timeout: 30000
+- tapOn:
+    id: 'login-email'
+- inputText: ${output.cEmail}
+- tapOn:
+    id: 'login-password'
+- inputText: ${output.cPassword}
+- runFlow:
+    when:
+      platform: Android
+    commands:
+      - hideKeyboard
+- tapOn:
+    id: 'login-submit'
+    optional: true
+- extendedWaitUntil:
+    visible: 'Not Now'
+    timeout: 5000
+    optional: true
+- tapOn:
+    text: 'Not Now'
+    optional: true
+- extendedWaitUntil:
+    visible:
+      id: 'onboarding-skip'
+    timeout: 15000
+    optional: true
+- tapOn:
+    id: 'onboarding-skip'
+    optional: true
+- extendedWaitUntil:
+    visible:
+      id: 'home-title'
+    timeout: 15000
+
+# ── The invite link → consent screen ─────────────────────────────────────────
+- openLink: chefer-dev:///coaching/join/${output.code}
+- extendedWaitUntil:
+    visible: 'Open'
+    timeout: 3000
+    optional: true
+- tapOn:
+    text: 'Open'
+    optional: true
+- extendedWaitUntil:
+    visible:
+      id: 'coaching-consent'
+    timeout: 20000
+- assertVisible: 'Ana wants to coach you in Chefer.'
+- assertVisible: 'Ana will see:'
+- assertVisible: 'Ana will never see:'
+# The consent text is long: the button sits below the fold on a phone.
+- scrollUntilVisible:
+    element:
+      id: 'coaching-consent-allow'
+    direction: DOWN
+    centerElement: true
+- takeScreenshot: coaching-consent
+
+# ── Join ──────────────────────────────────────────────────────────────────────
+- tapOn:
+    id: 'coaching-consent-allow'
+- extendedWaitUntil:
+    visible:
+      id: 'coaching-joined-title'
+    timeout: 20000
+- assertVisible: 'You’re coached by Ana'
+
+# ── Your trainer → Leave ──────────────────────────────────────────────────────
+- tapOn:
+    id: 'coaching-joined-your-trainer'
+- extendedWaitUntil:
+    visible:
+      id: 'your-trainer'
+    timeout: 15000
+- assertVisible: 'Coached by Ana since.*'
+- tapOn:
+    id: 'your-trainer-leave'
+- assertVisible: 'Leave Ana?'
+- tapOn:
+    id: 'your-trainer-leave-confirm-confirm'
+- extendedWaitUntil:
+    visible: 'You don’t have a trainer in Chefer.'
+    timeout: 15000

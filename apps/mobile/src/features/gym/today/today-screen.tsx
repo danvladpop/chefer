@@ -28,6 +28,7 @@ import {
   weekStartOf,
 } from '@chefer/utils';
 import { trpc } from '../../../lib/trpc';
+import { CoachingNotices } from '../../coaching/notices/coaching-notices';
 import { captureGymEvent } from '../analytics';
 import { ExerciseNameLink } from '../components/exercise-name-link';
 import { GymBootstrapUnavailable, useGymBootstrapLoad } from '../components/gym-bootstrap-state';
@@ -304,7 +305,10 @@ export function TodayScreen() {
   if (!bootstrap.profile) {
     return (
       <Screen className="px-0">
-        <View className="gap-4 px-4 pt-3">{header}</View>
+        <View className="gap-4 px-4 pt-3">
+          {header}
+          <CoachingNotices bootstrap={bootstrap} />
+        </View>
         <EmptyState
           testID="gym-today-empty-setup"
           title="Set up your training"
@@ -326,6 +330,7 @@ export function TodayScreen() {
       <Screen className="px-0">
         <ScrollView contentContainerClassName="gap-4 px-4 py-4">
           {header}
+          <CoachingNotices bootstrap={bootstrap} />
           <EmptyState
             testID="gym-today-empty-routine"
             title="No active routine"
@@ -444,6 +449,9 @@ export function TodayScreen() {
         }
       >
         {header}
+
+        {/* WP-18: "Ana updated your routine", "stopped coaching you", "carry on joining" (flag-gated). */}
+        <CoachingNotices bootstrap={bootstrap} />
 
         {/* UX-44 (T-44.4, PAT-14): targets that moved after a correction synced. */}
         <TargetChangeNotice bootstrap={bootstrap} dataUpdatedAt={bootstrapQuery.dataUpdatedAt} />

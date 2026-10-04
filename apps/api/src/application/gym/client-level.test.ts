@@ -39,8 +39,13 @@ describe('renderableTrackingTypes', () => {
     expect(renderableTrackingTypes(4)).toEqual(renderableTrackingTypes(3));
   });
 
-  it('level 5 adds INTERVALS on top of level 3', () => {
-    expect(renderableTrackingTypes(5)).toEqual([
+  it('level 5 and 6 (coaching) do NOT render INTERVALS: no bundle implements it yet', () => {
+    expect(renderableTrackingTypes(5)).toEqual(renderableTrackingTypes(3));
+    expect(renderableTrackingTypes(6)).toEqual(renderableTrackingTypes(3));
+  });
+
+  it('level 7 adds INTERVALS on top of level 3', () => {
+    expect(renderableTrackingTypes(7)).toEqual([
       'WEIGHT_REPS',
       'BODYWEIGHT_REPS',
       'DURATION',
@@ -95,9 +100,11 @@ describe('isTrackingTypeRenderable', () => {
     expect(isTrackingTypeRenderable('DURATION_DISTANCE', 3)).toBe(true);
   });
 
-  it('INTERVALS is not renderable below level 5', () => {
+  it('INTERVALS is not renderable below level 7', () => {
     expect(isTrackingTypeRenderable('INTERVALS', 4)).toBe(false);
-    expect(isTrackingTypeRenderable('INTERVALS', 5)).toBe(true);
+    expect(isTrackingTypeRenderable('INTERVALS', 5)).toBe(false);
+    expect(isTrackingTypeRenderable('INTERVALS', 6)).toBe(false);
+    expect(isTrackingTypeRenderable('INTERVALS', 7)).toBe(true);
   });
 
   it('DURATION (a timed hold) is renderable at every level, incl. 0', () => {

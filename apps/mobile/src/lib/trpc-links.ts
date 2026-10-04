@@ -2,6 +2,7 @@
 // contract tests (Node) exercise the exact link stack the app ships.
 import { httpBatchLink, loggerLink } from '@trpc/client';
 import superjson from 'superjson';
+import { COACHING_API_LEVEL } from '@chefer/types';
 
 export interface TrpcLinkOptions {
   /** Full tRPC endpoint URL, e.g. http://localhost:3001/trpc */
@@ -33,7 +34,12 @@ export function buildAuthHeaders(getToken: () => string | null): Record<string, 
     // from it (installed binaries at <= 3 never are). Same number as
     // HEALTH_CONSENT_API_LEVEL (@chefer/types) — the shared counter's next
     // unclaimed value (gym W5's intervals must take 5, see client-level.ts).
-    'x-chefer-api-level': '4',
+    // Bumped to 6 for WP-18 trainer coaching (COACHING_API_LEVEL): level 6 is the first to render the
+    // trainer's stamps and notes on the routine, "Set by Ana", the named conflict dialog and the
+    // COACHING_SHARING consent-history label, so the API only sends those fields from level >= 6 (an
+    // installed 1.0.1 binary at 4 never gets them). Levels are cumulative: this bundle implements 5
+    // vacuously (INTERVALS moved to 7, see client-level.ts).
+    'x-chefer-api-level': String(COACHING_API_LEVEL),
     ...(token ? { authorization: `Bearer ${token}` } : {}),
   };
 }

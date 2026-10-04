@@ -41,6 +41,7 @@
 33. [Health Information Consent Flow](#33-health-information-consent-flow-ux-26-t-261t-264-wave-3)
 34. [Following: Follow, See, Save](#34-following-follow-see-save-docsfriends-f1d)
 35. [Automatic Moderation](#35-automatic-moderation-following-prd-9-q-f-13-f1d)
+36. [Trainer Coaching (1:1)](#36-trainer-coaching-11-docstrainer-platform-wp-18)
 
 ---
 
@@ -352,6 +353,10 @@ Health writes (`preferences.updateSafety/setup/saveProfileBasics/updateTargets`,
 rejects. `declared`: an un-consented write is rejected (`PRECONDITION_FAILED` / `HEALTH_CONSENT_REQUIRED`) only from a
 client sending `x-chefer-api-level >= 4`; a request WITHOUT the header (installed binary) is always accepted. See
 §33 and `infrastructure.md` §9.
+
+> **Trainer coaching (WP-18) adds one more access path:** a trainer reaches a client's routine, workouts and adherence only
+> through an `ACTIVE` coaching link and `CoachingAccessService` (§36.9, `infrastructure.md` §9 "Trainer coaching
+> authorization"). Ending a link takes effect on the trainer's very next request: there is no cached access.
 
 ## 5. View User Profile Flow
 
@@ -5030,3 +5035,162 @@ From `apps/api`, with `pnpm exec tsx --env-file=.env src/scripts/<name>.ts …`:
   account the owner registered in the app as PUBLIC with `featured: true` (idempotent; refuses a forced-private account).
 
 There is deliberately no API procedure, screen or queue for either. Nothing depends on them.
+
+---
+
+## 36. Trainer Coaching (1:1) (`docs/trainer-platform/`, WP-18)
+
+> **Status:** API implemented and **dark**: every `trainer.*` / `coaching.*` procedure sits behind the `coaching` flag or
+> `COACHING_ALLOWLIST`, and turning trainer tools on needs `TRAINER_ALLOWLIST` during the beta (`infrastructure.md` §8, §9, §10).
+> Web and mobile screens ship in the same program (trainer tools on both; the client's join page and "Your trainer" on both). Source of
+> truth: `docs/trainer-platform/spec.md` (and `phase-1-plan.md`). Every consent, attribution and error string is `COACHING_COPY`
+> (`@chefer/types`). **Nothing here stores client health data**: the trainer's private note is opaque text.
+
+A trainer coaches **individual clients**. A client joins with an invite link and an explicit consent screen. The trainer can then
+edit the client's own active routine, leave a short note on an exercise, set weights and reps for the next session, and see the
+client's completed workouts and adherence. There is no chat, no comments and no payment (free during the beta). One trainer per
+client; the client can leave at any time and keeps the routine.
+
+### 36.1 Turn on trainer tools
+
+```
+Profile → Trainer tools                (shown when coaching.availability → { enabled, canBeTrainer: true })
+  └─ "Turn on" { displayName }  → trainer.activate
+        ├─ not on TRAINER_ALLOWLIST (Q-1)            → FORBIDDEN
+        ├─ name fails the word filter, or "Chefer…"  → BAD_REQUEST (the text is never echoed)
+        └─ TrainerProfile upserted (a former trainer who turns tools back on keeps the same row)      idempotent
+  trainer.status → { canActivate, active, displayName }       (any user may ask; a non-trainer calling trainer.* is
+                                                                FORBIDDEN with data.reason = 'TRAINER_TOOLS_OFF')
+Turn off → trainer.deactivate: ONE transaction — every ACTIVE link ENDED (endedBy SYSTEM) with a withdrawn
+COACHING_SHARING event on each client's log, private notes hidden, open invites revoked, profile disabledAt.
+```
+
+### 36.2 Invite a client
+
+```
+Clients → Invite a client → trainer.invites.create { label? }
+  ├─ max 20 open invites; none once the trainer has 50 active clients; 50 per day
+  └─ code = 10 chars of Crockford base32 from crypto random; expires in 14 days; url = APP_URL/coaching/join/<code>
+trainer.invites.list → the last 30 days with state OPEN | USED | EXPIRED | REVOKED
+trainer.invites.revoke { code }  (a used, revoked or foreign invite is NOT_FOUND)
+The trainer shares the link however they like (RN Share sheet on mobile, navigator.share or copy on web).
+```
+
+### 36.3 The client joins (web or mobile)
+
+```
+Link → web page "Open in the Chefer app" (chefer://coaching/join/<code>) | "Continue on the web"; signed-out users sign in first
+coaching.previewInvite { code }  (30/h)  → { state, trainerName, currentTrainerName, needsGymSetup }
+  state OK | EXPIRED | USED | REVOKED | SELF | ALREADY_YOURS | NOT_FOUND   — the trainer's name only for OK / ALREADY_YOURS;
+  an open invite of a trainer who turned tools off reads REVOKED
+  needsGymSetup → the existing gym setup runs first (the engine needs the equipment and plates), then back to the link
+Consent screen (COACHING_COPY.consent, the same words on both platforms):
+  Ana will see: active routine · completed workouts (sets, weights, reps, last-set effort, dates) from the last 4 weeks and from now
+                on · which planned days you trained or missed, and pause DATES only
+  Ana can: change the routine (and notes on exercises) and set weights and reps for the next session; the client sees what changed
+  Ana can keep private notes you won't see · Ana will never see food, body weight, targets, your workout notes, heart rate or
+  calorie estimates, age or profile · "One trainer at a time. Leave whenever you want"
+  already coached by Ion → "You'll stop being coached by Ion" and the button reads "Switch to Ana"
+"Allow and join" → coaching.join { code }  (10/h)
+  ONE transaction (CoachingLinkRepository.join): claim the invite (single use) · end the client's other ACTIVE link (endedBy CLIENT,
+  withdrawn event, that note hidden) · create the link · record COACHING_SHARING granted (documentVersion = LEGAL_VERSIONS.privacy,
+  contextId = the new link id) · restore a hidden private note of the same pair
+  errors: BAD_REQUEST (invite not valid / trainer at 50 clients) · PRECONDITION_FAILED (no gym setup) · BAD_REQUEST (your own invite)
+  already coached by this trainer → no-op, returns the status
+  two joins racing for one client: the partial unique index lets one win; the loser re-reads once (a switch) → exactly one ACTIVE link
+```
+
+**Mobile client side (lane D):** the invite page's "Open in the Chefer app" opens `coaching/join/<code>`. Signed out → "Join your trainer" with
+Sign in / Create account; the code is remembered and the app returns to the invite after sign-in (and after onboarding for a new account).
+`needsGymSetup` → "Set up training" opens the existing setup and Gym Today then shows "Carry on joining your trainer" (dismissible). After
+joining: "You're coached by Ana" with Open my routine / Your trainer. More and Settings carry the rows "Your trainer" (Leave with a confirm) and,
+for allowlisted trainers, "Trainer tools". Gym Today shows one line per event: "Ana updated your routine · 2 Oct" (until the Routine tab is
+opened on this device), "Ana stopped coaching you" (30 days, dismissible). The workout logger shows the trainer's cue under the exercise name
+and "Set by Ana" on a trainer-set target. The app sends API level 6, so all of this appears only on updated apps; an installed 1.0.1 (level 4)
+keeps working unchanged (§36.9).
+
+### 36.4 What the trainer sees and does
+
+```
+trainer.clients.list { today? }   one row per ACTIVE client: name, since, label, last workout, this week "2 / 3", quiet days,
+                                  "Routine changed by Maria · 3 Oct" (the CLIENT saved last, after the link started)
+trainer.client.overview { clientId, today }   adherence (8 weeks, 14-day strip) + the last 5 workouts
+trainer.client.workouts / exerciseHistory     completed workouts, newest first, keyset-paged; the last 8 times of one exercise
+   Window: from 28 DAYS BEFORE the link started (Q-2). Only COMPLETED sessions; no session or exercise notes, calories, heart rate or
+   anything derived from body weight; pause DATES only. Cardio types are filtered by the trainer's own client level.
+trainer.client.routine { clientId, today? }   the client's ACTIVE routine: trainer notes, "Changed by Maria" only for what the client
+   changed after the link started, and per strength row the NEXT-SESSION panel: the app's suggestion, the pending target with who set
+   it (TRAINER / CLIENT), and when the exercise was last logged
+```
+
+### 36.5 Editing the routine (two editors, one routine)
+
+```
+trainer.client.saveRoutine { clientId, routine, expectedVersion }
+  ├─ the client's routine must be the ACTIVE one (a client who switched routine → PRECONDITION_FAILED)
+  ├─ exercises: every id must exist for the client; only CURATED exercises may be ADDED — a custom exercise of the client's already in
+  │    the routine can stay but cannot be added again (BAD_REQUEST otherwise)
+  ├─ RoutineRepository.replaceDocument(clientId, …, { actorId: trainer, path: 'TRAINER', diff }) in the version-checked transaction:
+  │    rows the save CHANGED get lastEditedById/At = the trainer; the routine too when anything changed; trainerNote is written;
+  │    the client's own `notes` is never touched (kept as stored, null on new rows)
+  └─ stale expectedVersion → CONFLICT { kind: 'routine', current: RoutineDto } — the editors' existing "Keep mine / Use the other
+       version" dialog; from the trainer's side `lastEditedByOther` names the client and the client's notes are blanked
+The client's own save (gym.routine.save, every app version) goes through the same diff: its changed rows are stamped with the client,
+and a full-document save from an OLD app keeps the trainer's notes (it never writes trainerNote; clearTrainerNoteIds removes some).
+A row is "changed" when it is new, moved to another day, or exercise / sets / reps / RIR / rest / trainer note / superset partners differ;
+a pure reorder is not a change. The client sees "Ana changed your routine · 2 Oct" and "Changed by Ana" on exactly those rows
+(level >= 6); nothing on rows the trainer did not touch. A trainer's account deleted later reads "your trainer".
+trainer.client.createRoutine: only when the client has NO active routine — creates and activates one in the client's account (stamped).
+A workout already started keeps its own snapshot; a trainer edit applies from the next workout.
+```
+
+### 36.6 Next-session targets
+
+```
+trainer.client.setNextTarget { clientId, exerciseId, repBucket, weightKg, reps[] }
+  = the existing D5c override (ExerciseProgression.override) with setById = the trainer. The exercise must be a strength exercise in
+  the client's active routine with a row in that rep bucket ("Applies the next time Maria does Back squat (6–8 reps)").
+  The progression STATE is never touched; the engine continues from what was lifted.
+  It reaches every client version through gym.bootstrap.progressions (level >= 6 adds override.setByName → "Set by Ana"; older apps apply
+  it and say "You set this target yourself").
+  Consumed ONCE: when an exposure newer than override.at is logged (server recompute, or the phone's own fold offline). A session done
+  offline BEFORE the target was set does not consume it when it syncs later. The trainer then sees "Last done <date>".
+trainer.client.clearNextTarget: "Reset to app suggestion". Either side can set or clear; the last write wins and is attributed.
+```
+
+### 36.7 Private note
+
+```
+trainer.client.note / saveNote { clientId, body (<= 4000) }   one note per (trainer, client), autosaved, empty = delete
+  Opaque text: never parsed, filtered, logged, put in analytics, sent to AI or returned to the client; the router input is not
+  logged, a failed write is rethrown without its cause, and Sentry drops the request body of saveNote.
+  Hidden when the link ends (not readable), deleted 30 days later, restored if the same pair links again (Q-6).
+```
+
+### 36.8 Ending
+
+```
+Client "Leave" (coaching.leave) · trainer "Remove client" (trainer.clients.remove) · trainer turns tools off — each in one transaction:
+  link ENDED (endedBy CLIENT | TRAINER | SYSTEM) · withdrawn COACHING_SHARING event on the CLIENT's log with contextId = the link ·
+  the private note hidden. The trainer loses access at once (NOT_FOUND on the very next request) and the client disappears from the list.
+The client keeps the routine, the trainer's exercise notes and any pending target (they can clear them). After a removal or a tools-off
+the client's coaching.status carries stopped { trainerName, at } for 30 days: "Ana stopped coaching you" (Q-5).
+Account deletion of either side cascades the coaching rows; edit stamps pointing at a deleted trainer become "Changed by your trainer".
+Retention (COACHING_RETENTION, recommended defaults — counsel to confirm, Q-6): ENDED links 24 months; invites 30 days after expiry;
+hidden notes 30 days. CoachingMaintenanceWorker enforces it once per UTC day.
+```
+
+### 36.9 Authorization, consent and old apps
+
+- **Access** (`infrastructure.md` §9): flag or `COACHING_ALLOWLIST` → active `TrainerProfile` → not yourself → an `ACTIVE` link. One
+  uniform `NOT_FOUND` "This client isn't available" for every denial; `FORBIDDEN` + `reason: 'TRAINER_TOOLS_OFF'` only when the caller
+  has no active trainer profile. The access matrix is tested through the router for every `trainer.client.*` procedure.
+- **Consent:** explicit (GDPR Art. 9(2)(a) with 6(1)(a)); every grant and end is a `COACHING_SHARING` event with the link as
+  `contextId`; withdrawal is one tap and immediate. The trainer is an independent controller for their coaching relationship and
+  their private notes (counsel to confirm, Q-7); the client's data export does not include the trainer's notes about them by default.
+  Policy text and the DPIA addendum (`docs/trainer-platform/dpia-addendum.md`) must be live before the flag goes beyond the allowlists.
+- **Old apps (API level < 6, e.g. the 1.0.1 binaries):** every new field is stripped (nothing coaching-related is queried), the
+  `COACHING_SHARING` rows are not sent in the consent history, a trainer's target is still applied, their own routine saves keep the
+  trainer's notes. Trainer tools there are web only. All procedures are new names; nothing was renamed, removed or tightened.
+- **Deleting the account** (§24): the user row cascades links, invites, notes and the trainer profile; the export (§28) gains a
+  `coaching` section (your trainers and clients by display name, your invites, your own private notes).
