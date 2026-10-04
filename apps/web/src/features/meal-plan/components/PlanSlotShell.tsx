@@ -1,6 +1,7 @@
 'use client';
 
 import type { ReactNode } from 'react';
+import { useNumbersMode } from '@/features/numbers-mode/numbers-mode';
 import { SlotActionsMenu } from '@/features/tracker/components/SlotActionsMenu';
 import { SKIPPED_LABEL, youHadLine } from '@/features/tracker/lib/slot-copy';
 import { slotTargetOf, type SlotFlow } from '@/features/tracker/lib/use-slot-actions';
@@ -38,6 +39,7 @@ export function PlanSlotShell({
   flow,
   children,
 }: PlanSlotShellProps) {
+  const { proteinOnly } = useNumbersMode(); // WP-08
   const slot = slotTargetOf(mealType, slotIndex);
   const status = state?.status ?? 'planned';
   const muted = status === 'replaced' || status === 'skipped';
@@ -57,7 +59,12 @@ export function PlanSlotShell({
             className="min-w-0 flex-1 py-2 text-xs text-gray-700"
           >
             {state?.status === 'replaced' && state.entry.custom
-              ? youHadLine(state.entry.custom.name, state.entry.kcal)
+              ? youHadLine(
+                  state.entry.custom.name,
+                  state.entry.kcal,
+                  state.entry.protein,
+                  proteinOnly,
+                )
               : SKIPPED_LABEL}
           </p>
           {(status === 'skipped' || entryId) && (

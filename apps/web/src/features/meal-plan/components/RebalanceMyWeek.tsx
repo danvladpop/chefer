@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { useNumbersMode } from '@/features/numbers-mode/numbers-mode';
 import { dismissRebalanceOffer } from '@/features/tracker/lib/rebalance-storage';
 import { trpc } from '@/lib/trpc';
 import { CheckCircle2, Wand2 } from 'lucide-react';
@@ -44,6 +45,7 @@ export function RebalanceMyWeekButton({
 }
 
 function RebalanceMyWeekSheet({ planId, onClose }: { planId: string; onClose: () => void }) {
+  const { proteinOnly } = useNumbersMode(); // WP-08
   const query = trpc.mealPlan.previewRebalance.useQuery(
     { planId, localDate: localDateStr() },
     { retry: false, staleTime: 0, refetchOnMount: 'always' },
@@ -85,7 +87,9 @@ function RebalanceMyWeekSheet({ planId, onClose }: { planId: string; onClose: ()
               />
               <span className="min-w-0">
                 <span className="block font-semibold">Your week is on track</span>
-                Calories and protein are close to your targets, so there is nothing to change.
+                {proteinOnly
+                  ? 'Your protein is close to your target, so there is nothing to change.'
+                  : 'Calories and protein are close to your targets, so there is nothing to change.'}
               </span>
             </p>
             <button

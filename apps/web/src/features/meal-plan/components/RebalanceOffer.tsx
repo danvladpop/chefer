@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { useNumbersMode } from '@/features/numbers-mode/numbers-mode';
 import {
   dismissRebalanceOffer,
   handleRebalanceResult,
@@ -14,7 +15,10 @@ import {
   cn,
   describeProteinSnack,
   describeRebalanceSwap,
+  describeSnackProteinOnly,
+  describeSwapProteinOnly,
   localDateStr,
+  proteinOnlyHeadline,
   userFacingErrorMessage,
 } from '@chefer/utils';
 
@@ -31,8 +35,9 @@ type MealTypeName = (typeof MEAL_TYPES)[number];
 const isMealType = (v: string): v is MealTypeName => (MEAL_TYPES as readonly string[]).includes(v);
 
 /** The one-line "Sunday dinner → X (+28 g protein)" for a swap (B-11). */
-export const swapLine = (swap: RebalanceSwapLike): string =>
-  swap.explanation ?? describeRebalanceSwap(swap);
+export const swapLine = (swap: RebalanceSwapLike, proteinOnly = false): string =>
+  // WP-08: the server's own explanation may quote kcal, so protein-only never uses it.
+  proteinOnly ? describeSwapProteinOnly(swap) : (swap.explanation ?? describeRebalanceSwap(swap));
 
 interface ApplyState {
   applying: boolean;
@@ -119,6 +124,9 @@ export function RebalanceOfferView({
   className,
 }: RebalanceOfferViewProps) {
   const [expanded, setExpanded] = useState(defaultExpanded);
+  // WP-08: protein-only mode shows the protein change only, never a calorie figure.
+  const { proteinOnly } = useNumbersMode();
+  const headline = proteinOnly ? proteinOnlyHeadline(preview.headline) : preview.headline;
   const count = preview.swaps.length;
   const hasSwaps = count > 0;
   const hasSnacks = preview.snacks.length > 0;
@@ -139,7 +147,7 @@ export function RebalanceOfferView({
         <Wand2 className="mt-0.5 h-4 w-4 shrink-0 text-[#944a00]" aria-hidden="true" />
         <div className="min-w-0 flex-1">
           <p className="text-sm font-semibold text-neutral-900">
-            {preview.headline || 'I can rebalance the rest of your week.'}
+            {headline || 'I can rebalance the rest of your week.'}
           </p>
           <p className="mt-0.5 text-sm text-neutral-700">
             {hasSwaps
@@ -158,7 +166,7 @@ export function RebalanceOfferView({
                   key={`${swap.dayOfWeek}-${swap.mealType}-${swap.slotIndex ?? ''}`}
                   className="min-w-0 rounded-xl bg-white/70 px-3 py-2 text-sm text-neutral-800"
                 >
-                  {swapLine(swap)}
+                  {swapLine(swap, proteinOnly)}
                 </li>
               ))}
             </ul>
@@ -174,7 +182,7 @@ export function RebalanceOfferView({
                     key={snack.id}
                     className="min-w-0 rounded-xl bg-white/70 px-3 py-2 text-sm text-neutral-800"
                   >
-                    {describeProteinSnack(snack)}
+                    {proteinOnly ? describeSnackProteinOnly(snack) : describeProteinSnack(snack)}
                   </li>
                 ))}
               </ul>
