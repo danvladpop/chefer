@@ -47,7 +47,7 @@ Nothing on the gym side uses AI. Every item above is plain rules and data.
 | 2   | **Neutral copy:** drop "off-plan" and "log it honestly"; praise weekly averages, not perfect days      | **Shipped (WP-06):** neutral copy on mobile, web and AI prompts; weekly average praised                        | S      |
 | 3   | **Week rebalance that balances protein too**, free (it uses no AI)                                     | **Shipped (WP-07):** free for everyone, protein-aware, preview before apply                                    | M      |
 | 4   | **"How do you eat" setting:** Full plan · Plan what I cook · Just guide me · No numbers                | Parts exist (B-07, B-35)                                                                                       | M–L    |
-| 5   | **Light modes:** protein only (about 1.6 g per kg) or a plate guide                                    | Own targets planned (B-35)                                                                                     | M      |
+| 5   | **Light modes:** protein only (about 1.6 g per kg) or a plate guide                                    | **Protein only shipped (WP-08):** one protein number on Today, tracker, plan and review; plate guide later     | M      |
 
 For your wife's segment, protein only (5) probably matters more than a full plan. Revisit its place after the interviews. Cycle tracking is out of scope.
 

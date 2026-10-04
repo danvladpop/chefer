@@ -3,6 +3,7 @@
 import Image from 'next/image';
 import Link from 'next/link';
 import { useEffect, useRef, useState } from 'react';
+import { useNumbersMode } from '@/features/numbers-mode/numbers-mode';
 import { SlotActionsMenu } from '@/features/tracker/components/SlotActionsMenu';
 import {
   handleRebalanceOutcome,
@@ -50,6 +51,7 @@ interface NextMealCardProps {
 
 export function NextMealCard({ meal: nextMeal, isTomorrow, flow }: NextMealCardProps) {
   const utils = trpc.useUtils();
+  const { proteinOnly } = useNumbersMode();
   const [lastLogged, setLastLogged] = useState<string | null>(null);
   // UX-FOOD-15: the summary refetch moves the card to the NEXT meal under the
   // pointer (a double tap logged dinner at 11 am), so the meal just logged is
@@ -105,6 +107,11 @@ export function NextMealCard({ meal: nextMeal, isTomorrow, flow }: NextMealCardP
   // P1-1: a plan slot may carry a portion (kcal is already scaled to it); the
   // recipe and cook mode open at that portion, and "I ate this" logs it.
   const portion = meal.portion;
+  const mealSizeLine = proteinOnly
+    ? portion !== undefined
+      ? formatPortion(portion)
+      : null
+    : `${meal.recipe.kcal} kcal${portion !== undefined ? ` · ${formatPortion(portion)}` : ''}`;
   const recipeHref = `/recipes/${meal.recipe.id}${portion !== undefined ? `?portion=${portion}` : ''}`;
   const cookHref = `/recipes/${meal.recipe.id}/cook?meal=${meal.mealType}${portion !== undefined ? `&portion=${portion}` : ''}`;
 
@@ -155,11 +162,13 @@ export function NextMealCard({ meal: nextMeal, isTomorrow, flow }: NextMealCardP
                 <Clock className="h-3.5 w-3.5" aria-hidden="true" />
                 {totalMins} min
               </span>
-              <span className="flex items-center gap-1 text-xs text-gray-500">
-                <Flame className="h-3.5 w-3.5 text-[#944a00]" aria-hidden="true" />
-                {meal.recipe.kcal} kcal
-                {portion !== undefined && ` · ${formatPortion(portion)}`}
-              </span>
+              {/* WP-08: protein-only mode shows no kcal on the card. */}
+              {mealSizeLine && (
+                <span className="flex items-center gap-1 text-xs text-gray-500">
+                  <Flame className="h-3.5 w-3.5 text-[#944a00]" aria-hidden="true" />
+                  {mealSizeLine}
+                </span>
+              )}
             </div>
           </div>
 

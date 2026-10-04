@@ -833,3 +833,30 @@ export {
   WEEKLY_AVERAGE_MIN_DAYS,
   type WeekDay,
 } from './weekly-average';
+
+// ─── Protein-only mode (WP-08, D-5) ──────────────────────────────────────────
+export {
+  DEFAULT_PROTEIN_MEALS,
+  PROTEIN_REFERENCE_G_PER_KG,
+  PROTEIN_REFERENCE_TOLERANCE,
+  buildProteinGuide,
+  explainProteinTarget,
+} from './protein-guide';
+
+// ─── Protein-only mode copy (WP-08), shared by mobile and web ────────────────
+export {
+  NUMBERS_MODE_COPY,
+  PROTEIN_ONLY_KCAL_PER_PROTEIN_G,
+  describeSnackProteinOnly,
+  describeSwapProteinOnly,
+  estimateKcalFromProtein,
+  nutritionLabel,
+  proteinAverageText,
+  proteinLabel,
+  proteinOnlyHeadline,
+  proteinOnlyOfferCopy,
+  proteinOnlyTrainingExplain,
+  proteinOnlyTrainingHeader,
+  proteinRingLabel,
+  withoutKcalLines,
+} from './numbers-mode-copy';

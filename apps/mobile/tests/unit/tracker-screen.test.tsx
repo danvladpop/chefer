@@ -1300,3 +1300,157 @@ describe('TrackerScreen — flexible eating (WP-06)', () => {
     expect(screen.queryByTestId('tracker-weekly-average')).not.toBeOnTheScreen();
   });
 });
+
+// ─── WP-08 protein-only mode: no kcal anywhere on the Tracker ───────────────────
+describe('TrackerScreen — protein-only mode (WP-08)', () => {
+  const proteinOnlyDay = (extra: Record<string, unknown> = {}) => ({
+    numbersMode: 'PROTEIN_ONLY',
+    proteinGuide: {
+      proteinG: 125,
+      meals: 3,
+      perMealG: 41.7,
+      lowG: 35,
+      highG: 45,
+      label: '35–45 g per meal',
+    },
+    ...extra,
+  });
+  const logged = (loggedMeals: Record<string, unknown>[]) => ({
+    log: {
+      loggedMeals,
+      totalKcal: 800,
+      totalProtein: 52,
+      totalCarbs: 0,
+      totalFat: 0,
+    },
+  });
+
+  it('shows protein totals, the per-meal guide and protein per row — no calories, carbs or fat', async () => {
+    mockWeekDays = [
+      { date: '2000-01-01', totalKcal: 1600, totalProtein: 110, hasLog: true },
+      { date: '2000-01-02', totalKcal: 1680, totalProtein: 114, hasLog: true },
+    ];
+    mockDayExtras = proteinOnlyDay(
+      logged([
+        {
+          entryId: 'c-1',
+          custom: { name: 'Protein bar', estimatedBy: 'manual' },
+          mealType: 'snack',
+          portionMultiplier: 1,
+          kcal: 250,
+          protein: 22,
+          carbs: 0,
+          fat: 0,
+        },
+      ]),
+    );
+    await renderTracker();
+    // Totals: protein only.
+    expect(screen.getByText('Protein (g)')).toBeOnTheScreen();
+    expect(screen.queryByText('Calories')).not.toBeOnTheScreen();
+    expect(screen.queryByText('Carbs (g)')).not.toBeOnTheScreen();
+    expect(screen.queryByText('Fat (g)')).not.toBeOnTheScreen();
+    expect(screen.getByTestId('tracker-protein-guide')).toHaveTextContent('35–45 g per meal');
+    expect(screen.getByTestId('tracker-weekly-average')).toHaveTextContent(
+      'This week you averaged 112 g protein a day',
+    );
+    // Rows: planned (at their portion) and custom.
+    expect(screen.getByText('20 g protein')).toBeOnTheScreen();
+    expect(screen.getByText('22 g protein')).toBeOnTheScreen();
+    expect(screen.getByText(/^50 g protein/)).toBeOnTheScreen();
+    // Nothing on the screen says kcal or calories.
+    expect(screen.queryByText(/kcal|calori/i)).not.toBeOnTheScreen();
+  });
+
+  it('a replaced slot says what you had with its protein, not its calories', async () => {
+    mockDayExtras = proteinOnlyDay(
+      logged([
+        {
+          entryId: 'rep-1',
+          custom: { name: 'Shawarma · normal', estimatedBy: 'manual' },
+          mealType: 'breakfast',
+          replacesSlot: { mealType: 'breakfast', slotIndex: 0 },
+          portionMultiplier: 1,
+          kcal: 775,
+          protein: 40,
+          carbs: 0,
+          fat: 0,
+        },
+      ]),
+    );
+    await renderTracker();
+    expect(screen.getByTestId('tracker-slot-replaced-0-text')).toHaveTextContent(
+      'You had: Shawarma · normal (≈ 40 g protein)',
+    );
+    expect(screen.queryByText(/kcal|calori/i)).not.toBeOnTheScreen();
+  });
+
+  it('"Ate something else" asks protein first: the estimate is a protein range, calories hidden', async () => {
+    mockDayExtras = proteinOnlyDay();
+    const user = userEvent.setup();
+    await renderTracker();
+    await user.press(screen.getByTestId('tracker-slot-actions-0'));
+    await user.press(screen.getByTestId('slot-action-ate-else'));
+    await user.press(screen.getByTestId('ate-else-cuisine-shawarma'));
+    const estimate = screen.getByTestId('ate-else-estimate');
+    expect(estimate).toHaveTextContent(/≈ \d+–\d+ g protein/);
+    expect(estimate).not.toHaveTextContent(/kcal/);
+    // It still logs the middle of the range (kcal rides along for the plan's own balancing).
+    await user.press(screen.getByTestId('ate-else-log-it'));
+    await waitFor(() =>
+      expect(mockLogCustom).toHaveBeenCalledWith(
+        expect.objectContaining({
+          protein: expect.any(Number) as number,
+          kcal: expect.any(Number) as number,
+          replacesSlot: { mealType: 'breakfast', slotIndex: 0 },
+        }),
+      ),
+    );
+  });
+
+  it('quick add asks for protein first and estimates the calories the plan balances on', async () => {
+    mockDayExtras = proteinOnlyDay();
+    const user = userEvent.setup();
+    await renderTracker();
+    await user.press(screen.getByTestId('tracker-quick-add'));
+    await user.press(screen.getByTestId('log-sheet-manual'));
+    expect(screen.getByTestId('log-sheet-title')).toHaveTextContent('Enter protein yourself');
+    expect(screen.queryByTestId('quick-add-kcal')).not.toBeOnTheScreen();
+    expect(screen.queryByTestId('quick-add-carbs')).not.toBeOnTheScreen();
+
+    await user.type(screen.getByTestId('quick-add-name'), 'Protein shake');
+    // Protein is required.
+    await user.press(screen.getByTestId('quick-add-submit'));
+    expect(screen.getByTestId('quick-add-protein-error')).toHaveTextContent(/protein in grams/i);
+    expect(mockLogCustom).not.toHaveBeenCalled();
+
+    await user.type(screen.getByTestId('quick-add-protein'), '30');
+    await user.press(screen.getByTestId('quick-add-submit'));
+    await waitFor(() =>
+      expect(mockLogCustom).toHaveBeenCalledWith(
+        expect.objectContaining({
+          name: 'Protein shake',
+          protein: 30,
+          kcal: 480, // ~16 kcal per gram of protein
+          estimatedBy: 'manual',
+          unknownMacros: ['carbs', 'fat'],
+        }),
+      ),
+    );
+  });
+
+  it('switching back to the full numbers restores calories, carbs and fat', async () => {
+    mockDayExtras = { numbersMode: 'FULL' };
+    await renderTracker();
+    expect(screen.getByText('Calories')).toBeOnTheScreen();
+    expect(screen.getByText('Carbs (g)')).toBeOnTheScreen();
+    expect(screen.getByText('Fat (g)')).toBeOnTheScreen();
+    expect(screen.getByText(/400 kcal/)).toBeOnTheScreen();
+  });
+
+  it('NONE (reserved for WP-16) reads as the full numbers', async () => {
+    mockDayExtras = { numbersMode: 'NONE' };
+    await renderTracker();
+    expect(screen.getByText('Calories')).toBeOnTheScreen();
+  });
+});

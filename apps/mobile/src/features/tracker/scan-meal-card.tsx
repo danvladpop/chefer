@@ -8,6 +8,7 @@ import {
   cn,
   defaultMealSlot,
   PREMIUM_PITCH_COPY,
+  proteinLabel,
   QUICK_ADD_LIMITS,
   showSnapTaste,
   userFacingErrorMessage,
@@ -25,6 +26,7 @@ import {
 import { photoPickerOptions, preparePhoto } from '../../lib/prepare-photo';
 import { trpc } from '../../lib/trpc';
 import { useAiConsent } from '../ai-consent/ai-consent-provider';
+import { useNumbersMode } from '../numbers-mode/numbers-mode';
 import { openPremium } from '../premium/open-premium';
 import { invalidateDayQueries } from './invalidate';
 import { REBALANCE_PREVIEW, recordRebalanceOutcome } from './rebalance-offer-store';
@@ -143,6 +145,8 @@ function SnapTaste() {
 
 function SnapCard({ date, onLogged, autoPick, onAutoPicked, replacesSlot }: ScanMealCardProps) {
   const snackbar = useSnackbar();
+  // WP-08: protein-only mode confirms the estimated protein, with no calorie field.
+  const { proteinOnly } = useNumbersMode();
   const [scanning, setScanning] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [upgradeNeeded, setUpgradeNeeded] = useState(false);
@@ -366,23 +370,31 @@ function SnapCard({ date, onLogged, autoPick, onAutoPicked, replacesSlot }: Scan
           <Text variant="muted" className="text-xs">
             {estimate.portionNote}
           </Text>
-          <View className="gap-1">
-            <Text className="text-xs font-medium text-gray-600">Calories</Text>
-            <View className="flex-row items-center gap-2">
-              <Input
-                testID="scan-kcal"
-                accessibilityLabel="Calories"
-                value={kcalText}
-                keyboardType="number-pad"
-                onChangeText={setKcalText}
-                className="min-w-0 flex-1"
-              />
-              <Text className="text-sm text-muted-foreground">kcal</Text>
-            </View>
-          </View>
-          <Text testID="scan-macros" className="text-sm text-gray-700">
-            {logged.protein}g P · {logged.carbs}g C · {logged.fat}g F
-          </Text>
+          {proteinOnly ? (
+            <Text testID="scan-protein" className="text-sm font-semibold text-gray-800">
+              {`≈ ${proteinLabel(logged.protein)}`}
+            </Text>
+          ) : (
+            <>
+              <View className="gap-1">
+                <Text className="text-xs font-medium text-gray-600">Calories</Text>
+                <View className="flex-row items-center gap-2">
+                  <Input
+                    testID="scan-kcal"
+                    accessibilityLabel="Calories"
+                    value={kcalText}
+                    keyboardType="number-pad"
+                    onChangeText={setKcalText}
+                    className="min-w-0 flex-1"
+                  />
+                  <Text className="text-sm text-muted-foreground">kcal</Text>
+                </View>
+              </View>
+              <Text testID="scan-macros" className="text-sm text-gray-700">
+                {logged.protein}g P · {logged.carbs}g C · {logged.fat}g F
+              </Text>
+            </>
+          )}
           {!replacesSlot && (
             <View className="flex-row gap-1.5">
               {MEAL_TYPES.map((t) => (
@@ -443,7 +455,7 @@ function SnapCard({ date, onLogged, autoPick, onAutoPicked, replacesSlot }: Scan
                 })
               }
             >
-              {`Log ${logged.kcal} kcal`}
+              {proteinOnly ? 'Log it' : `Log ${logged.kcal} kcal`}
             </Button>
           </View>
           {logMutation.isError && (

@@ -9,9 +9,12 @@ import {
   type LoggedMealEntry,
   type TargetChange,
 } from '@chefer/database';
+import { parseStoredNumbersMode } from '@chefer/types';
 import type {
+  NumbersMode,
   NutritionTargets,
   OnboardingJob,
+  ProteinGuide,
   RefuelSnackDto,
   SafetyChecks,
   TrainingDayNutrition,
@@ -19,6 +22,7 @@ import type {
   WeekGlanceDay,
 } from '@chefer/types';
 import {
+  buildProteinGuide,
   buildWeekGlance,
   effectiveJobs,
   isSlotEaten,
@@ -275,6 +279,14 @@ export interface DashboardSummary {
    * the same goal-or-tracks derivation. Additive.
    */
   showNutrition: boolean;
+  /**
+   * WP-08: the stored numbers mode (`FULL` when never set; clients map NONE
+   * to FULL via `effectiveNumbersMode` until WP-16) and the per-meal protein
+   * guide for today's planned meals (3 when no plan), so protein-only Today
+   * renders without another round trip. Additive: older clients ignore both.
+   */
+  numbersMode: NumbersMode;
+  proteinGuide: ProteinGuide;
 }
 
 // ─── Meal type schedules ───────────────────────────────────────────────────────
@@ -391,6 +403,8 @@ export class DashboardService {
     // §2.4, T-04.1: an explicit override (Settings toggle) always wins, in
     // either direction, over the goal/tracks derivation above.
     const showNutrition = chefProfile?.showNutritionOnToday ?? showNutritionCards;
+    // WP-08: protein-only mode hints.
+    const numbersMode = parseStoredNumbersMode(chefProfile?.numbersMode) ?? 'FULL';
     // §2.4, T-03.1/T-04.1: the jobs every jobs-aware Today surface reads.
     const jobs = effectiveJobs({
       jobs: chefProfile?.onboardingJobs ?? [],
@@ -441,6 +455,7 @@ export class DashboardService {
         training,
         showNutritionCards,
         showNutrition,
+        numbersMode,
         jobs,
         include,
         trainingExtras,
@@ -712,6 +727,8 @@ export class DashboardService {
       weekReady,
       showNutritionCards,
       showNutrition,
+      numbersMode,
+      proteinGuide: buildProteinGuide(targets.proteinG, todayMeals.length),
       recentFavourites: favourites.map((f) => ({
         id: f.recipe.id,
         name: f.recipe.name,
@@ -861,6 +878,7 @@ export class DashboardService {
     training: TrainingDayResult | null,
     showNutritionCards: boolean,
     showNutrition: boolean,
+    numbersMode: NumbersMode,
     jobs: OnboardingJob[],
     include: Set<DashboardIncludeOption>,
     trainingExtras: Pick<DashboardSummary, 'weekGlance' | 'refuelSnacks'>,
@@ -887,6 +905,8 @@ export class DashboardService {
       weekReady: null,
       showNutritionCards,
       showNutrition,
+      numbersMode,
+      proteinGuide: buildProteinGuide(targets.proteinG, 0),
       recentFavourites: favourites.map((f) => ({
         id: f.recipe.id,
         name: f.recipe.name,

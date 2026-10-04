@@ -11,6 +11,7 @@ import {
   trainingGlyph,
   weekdayLongName,
 } from '@chefer/utils';
+import { useNumbersMode } from '../../numbers-mode/numbers-mode';
 
 /**
  * Training-aware nutrition (audit P2-4), mirrors web's TrainingDayNote and is
@@ -42,9 +43,31 @@ export function TrainingDayNote({
   const [explainOpen, setExplainOpen] = useState(false);
   // Mounted on first open and kept, so the sheet still plays its exit motion.
   const [explainMounted, setExplainMounted] = useState(false);
+  const { proteinOnly } = useNumbersMode();
   if (!t.isTrainingDay) return null;
   const kind = t.kind ?? 'lift';
   const isRun = kind !== 'lift';
+  // WP-08: protein-only shows the protein bump of a lifting day and nothing else
+  // (a run day's bump is carbs and calories; its Why? sheet is all calories).
+  if (proteinOnly) {
+    if (isRun) return null;
+    return (
+      <View
+        testID="training-day"
+        className={cn('mb-4 rounded-xl bg-accent px-3 py-2.5', className)}
+      >
+        <View className="flex-row items-center gap-1.5">
+          <Ionicons name={trainingGlyph(kind)} size={16} color={colors.primary} />
+          <Text
+            testID="training-day-line"
+            className="min-w-0 flex-1 text-xs font-semibold text-primary"
+          >
+            {`Training day · +${t.proteinBonus} g protein`}
+          </Text>
+        </View>
+      </View>
+    );
+  }
   const workout = t.workoutName ?? 'Your workout';
   const when = t.reason === 'COMPLETED' ? 'done' : isToday ? 'today' : 'planned';
   const day = isToday ? 'today' : 'this day';

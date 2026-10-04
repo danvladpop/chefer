@@ -5,13 +5,17 @@ import { Button, colors, Text } from '@chefer/ui-mobile';
 import {
   cn,
   describeProteinSnack,
+  describeSnackProteinOnly,
   localDateStr,
+  proteinOnlyHeadline,
+  proteinOnlyOfferCopy,
   rebalanceOfferCopy,
   userFacingErrorMessage,
   type RebalancePreviewLike,
   type RebalanceSwapLike,
 } from '@chefer/utils';
 import { trpc } from '../../lib/trpc';
+import { useNumbersMode } from '../numbers-mode/numbers-mode';
 import { clearRebalanceOffer, setRebalanceOffer, useRebalanceOffer } from './rebalance-offer-store';
 import { isMealType, recordRebalance } from './rebalance-store';
 
@@ -24,17 +28,21 @@ import { isMealType, recordRebalance } from './rebalance-store';
 // beside it). Buttons are PressableScale-based (MO-01); the card itself does
 // not animate, so reduced motion has nothing to respect.
 
-const kcalProtein = (kcal: number | undefined, proteinG: number | undefined): string | null => {
+const kcalProtein = (
+  kcal: number | undefined,
+  proteinG: number | undefined,
+  proteinOnly: boolean,
+): string | null => {
   const parts: string[] = [];
-  if (kcal !== undefined) parts.push(`${Math.round(kcal)} kcal`);
+  if (kcal !== undefined && !proteinOnly) parts.push(`${Math.round(kcal)} kcal`);
   if (proteinG !== undefined) parts.push(`${Math.round(proteinG)} g protein`);
   return parts.length > 0 ? parts.join(' · ') : null;
 };
 
 /** "Replaces Lentil soup (320 kcal · 14 g protein) with Chicken bowl (610 kcal · 42 g protein)". */
-function swapDetail(swap: RebalanceSwapLike): string {
-  const was = kcalProtein(swap.previousKcal, swap.previousProteinG);
-  const now = kcalProtein(swap.newKcal, swap.newProteinG);
+function swapDetail(swap: RebalanceSwapLike, proteinOnly: boolean): string {
+  const was = kcalProtein(swap.previousKcal, swap.previousProteinG, proteinOnly);
+  const now = kcalProtein(swap.newKcal, swap.newProteinG, proteinOnly);
   const from = `${swap.previousRecipeName ?? 'the planned meal'}${was ? ` (${was})` : ''}`;
   const to = `${swap.newRecipeName ?? 'a different dish'}${now ? ` (${now})` : ''}`;
   return `Replaces ${from} with ${to}`;
@@ -64,6 +72,9 @@ function OfferCard({
 }: Omit<RebalanceOfferProps, 'planId'> & { offer: RebalancePreviewLike }) {
   const [expanded, setExpanded] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
+  // WP-08: protein-only mode shows the protein change only, never a calorie figure.
+  const { proteinOnly } = useNumbersMode();
+  const headline = proteinOnly ? proteinOnlyHeadline(offer.headline) : offer.headline;
   const utils = trpc.useUtils();
   const applyMutation = trpc.mealPlan.applyRebalance.useMutation({ meta: { silent: true } });
   const canApply = offer.swaps.length > 0;
@@ -113,14 +124,14 @@ function OfferCard({
         <Ionicons name="color-wand-outline" size={18} color={colors.primary} />
         <View className="min-w-0 flex-1 gap-1">
           <Text className="text-sm font-semibold text-gray-900">Rebalance your week?</Text>
-          {offer.headline !== '' && (
+          {headline !== '' && (
             <Text testID="rebalance-offer-headline" className="text-sm text-gray-800">
-              {offer.headline}
+              {headline}
             </Text>
           )}
           {canApply && (
             <Text testID="rebalance-offer-text" className="text-sm text-gray-800">
-              {rebalanceOfferCopy(offer)}
+              {proteinOnly ? proteinOnlyOfferCopy(offer.swaps) : rebalanceOfferCopy(offer)}
             </Text>
           )}
           {offer.snacks.length > 0 && (
@@ -130,7 +141,7 @@ function OfferCard({
               </Text>
               {offer.snacks.map((snack) => (
                 <Text key={snack.id} className="text-sm text-gray-700">
-                  {`• ${describeProteinSnack(snack)}`}
+                  {`• ${proteinOnly ? describeSnackProteinOnly(snack) : describeProteinSnack(snack)}`}
                 </Text>
               ))}
             </View>
@@ -142,7 +153,7 @@ function OfferCard({
                 testID={`rebalance-offer-detail-${i}`}
                 className="text-xs text-gray-600"
               >
-                {swapDetail(swap)}
+                {swapDetail(swap, proteinOnly)}
               </Text>
             ))}
           {notice !== null && (

@@ -7,8 +7,15 @@ import {
   weightEntryRepository,
 } from '@chefer/database';
 import type { DailyLog, LoggedMealEntry, SlotRefJson } from '@chefer/database';
-import type { NutritionTargets, TrainingDayNutrition, UserProfile } from '@chefer/types';
-import { localDateStr, slotPortion } from '@chefer/utils';
+import { parseStoredNumbersMode } from '@chefer/types';
+import type {
+  NumbersMode,
+  NutritionTargets,
+  ProteinGuide,
+  TrainingDayNutrition,
+  UserProfile,
+} from '@chefer/types';
+import { buildProteinGuide, localDateStr, slotPortion } from '@chefer/utils';
 import { hasFeature } from '../../lib/entitlements.js';
 import { planForDate, planForThisWeek } from '../meal-plan/plan-for-date.js';
 import {
@@ -129,6 +136,13 @@ export interface DayTrackerData {
    * entries carrying `replacesSlot`.
    */
   skippedSlots?: SlotRefJson[];
+  /**
+   * WP-08: the stored numbers mode (`FULL` when never set) and the per-meal
+   * protein guide for this day's planned meals (3 when no plan), so a
+   * protein-only client renders without another round trip. Additive.
+   */
+  numbersMode?: NumbersMode;
+  proteinGuide?: ProteinGuide;
   targets: {
     dailyCalorieTarget: number;
     proteinG: number;
@@ -347,6 +361,8 @@ export const trackerService = {
           }
         : null,
       skippedSlots,
+      numbersMode: parseStoredNumbersMode(profile?.numbersMode) ?? 'FULL',
+      proteinGuide: buildProteinGuide(proteinG, plannedMeals.length),
       targets: { dailyCalorieTarget, proteinG, carbsG, fatG },
       ...trainingDayFields(training),
     };
