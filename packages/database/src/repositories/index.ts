@@ -212,6 +212,15 @@ export {
   type RecordConsentEventData,
 } from './consent-event.repository';
 
+export {
+  AuthIdentityRepository,
+  authIdentityRepository,
+  type IAuthIdentityRepository,
+  type IdentityWithUser,
+  type CreateIdentityData,
+  type UpdateIdentityData,
+} from './auth-identity.repository';
+
 // ─── Following (docs/friends/implementation-plan.md §2.4) ──────────────────────
 
 export {

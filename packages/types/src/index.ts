@@ -24,6 +24,7 @@ export * from './friends';
 export * from './friends-copy';
 export * from './nutrition';
 export * from './ingredient-catalog-copy';
+export * from './social-auth';
 
 // ─── Enums ───────────────────────────────────────────────────────────────────
 

@@ -1,11 +1,18 @@
 import { z } from 'zod';
-import { authEmailSchema, regionCodeSchema } from '@chefer/types';
+import {
+  authEmailSchema,
+  linkIdentityInputSchema,
+  regionCodeSchema,
+  socialSignInInputSchema,
+  unlinkIdentityInputSchema,
+} from '@chefer/types';
 import { authService } from '../application/auth/auth.service.js';
 import { passwordResetService } from '../application/auth/password-reset.service.js';
+import { socialAuthService } from '../application/auth/social-auth.service.js';
 import { emailPreferencesService } from '../application/notifications/email-preferences.service.js';
 import { env } from '../lib/env.js';
 import { assertWithinRateLimit } from '../lib/rate-limit.js';
-import { publicProcedure, router } from '../lib/trpc.js';
+import { protectedProcedure, publicProcedure, router } from '../lib/trpc.js';
 
 // ─── Schemas ──────────────────────────────────────────────────────────────────
 
@@ -111,4 +118,42 @@ export const authRouter = router({
   me: publicProcedure.query(({ ctx }) => {
     return ctx.user ?? null;
   }),
+
+  // ─── Sign in with Google / Apple (WP-22) ────────────────────────────────────
+
+  /**
+   * Which providers this server is configured for, and the client ids the
+   * SDKs need. Public + cheap: clients hide the buttons when `enabled` is false.
+   */
+  socialAvailability: publicProcedure.query(() => socialAuthService.availability()),
+
+  /**
+   * Sign in (or sign up) with a Google/Apple ID token. Returns exactly what
+   * `login` returns for the client (session cookie for web; `session` in the
+   * body for mobile) plus `isNewUser` / `linkedExistingAccount`. A NEW account
+   * needs `acceptLegal: true`. Rate-limited like login.
+   */
+  socialSignIn: publicProcedure.input(socialSignInInputSchema).mutation(async ({ input, ctx }) => {
+    assertWithinRateLimit('auth.social', ctx.ipAddress, AUTH_ATTEMPTS_MAX, AUTH_WINDOW_MS);
+    return socialAuthService.signIn(input, ctx.res, {
+      includeSession: ctx.isMobileClient,
+      consentSource: ctx.isMobileClient ? 'mobile' : 'web',
+    });
+  }),
+
+  /** The caller's connected sign-in methods and whether they have a password. */
+  linkedIdentities: protectedProcedure.query(({ ctx }) =>
+    socialAuthService.listIdentities(ctx.user.id),
+  ),
+
+  /** Connects another Google/Apple account to the signed-in user. */
+  linkIdentity: protectedProcedure.input(linkIdentityInputSchema).mutation(({ input, ctx }) => {
+    assertWithinRateLimit('auth.social.link', ctx.user.id, AUTH_ATTEMPTS_MAX, AUTH_WINDOW_MS);
+    return socialAuthService.link(ctx.user.id, input);
+  }),
+
+  /** Disconnects a provider. Refused when it is the only way to sign in. */
+  unlinkIdentity: protectedProcedure
+    .input(unlinkIdentityInputSchema)
+    .mutation(({ input, ctx }) => socialAuthService.unlink(ctx.user.id, input)),
 });

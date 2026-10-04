@@ -3,6 +3,7 @@ import { consentEventRepository, prisma } from '@chefer/database';
 import { displayNameOf } from '@chefer/utils';
 import { posthogAdmin } from '../../infrastructure/analytics/posthog-admin.js';
 import { deleteUploadedFiles } from '../../lib/uploads/uploaded-files.js';
+import { socialAuthService } from '../auth/social-auth.service.js';
 import { emailPreferencesService } from '../notifications/email-preferences.service.js';
 
 // ─── Account data: export and self-deletion (audit P0-6, T-39.5) ─────────────
@@ -150,6 +151,7 @@ export async function exportAccountData(userId: string): Promise<Record<string, 
     consentEvents,
     emailPreferences,
     aiCallLog,
+    signInMethods,
   ] = await Promise.all([
     prisma.user.findUnique({
       where: { id: userId },
@@ -197,6 +199,12 @@ export async function exportAccountData(userId: string): Promise<Record<string, 
       select: { callType: true, provider: true, createdAt: true },
       orderBy: { createdAt: 'desc' },
     }),
+    // WP-22: which providers are connected (never subjects or tokens).
+    prisma.authIdentity.findMany({
+      where,
+      select: { provider: true, email: true, createdAt: true },
+      orderBy: { createdAt: 'asc' },
+    }),
   ]);
   if (!user) throw new TRPCError({ code: 'NOT_FOUND', message: 'User not found' });
 
@@ -234,6 +242,7 @@ export async function exportAccountData(userId: string): Promise<Record<string, 
     },
     feedback,
     social,
+    signInMethods,
     privacy: {
       consentHistory: consentEvents,
       emailPreferences,
@@ -280,7 +289,7 @@ export async function deleteAccount(userId: string): Promise<void> {
   if (!user) throw new TRPCError({ code: 'NOT_FOUND', message: 'User not found' });
   const plans = await prisma.mealPlan.findMany({ where: { userId }, select: { id: true } });
   const planIds = plans.map((p) => p.id);
-  const [ownRecipes, ownIngredients, linkedAnalytics] = await Promise.all([
+  const [ownRecipes, ownIngredients, linkedAnalytics, identities] = await Promise.all([
     prisma.recipe.findMany({
       where: { creatorId: userId, source: 'MANUAL' },
       select: { imageUrl: true },
@@ -290,6 +299,9 @@ export async function deleteAccount(userId: string): Promise<void> {
     // away with the user row, so this is the last chance to know whether
     // this account ever linked analytics to itself.
     consentEventRepository.findLatestByKind(userId, 'ANALYTICS_LINKED'),
+    // WP-22: the auth_identities rows cascade with the user — read them (and
+    // their stored Apple refresh tokens) now to revoke the grants after the commit.
+    socialAuthService.identitiesForDeletion(userId),
   ]);
 
   await prisma.$transaction([
@@ -310,6 +322,10 @@ export async function deleteAccount(userId: string): Promise<void> {
     ...ownRecipes.map((r) => r.imageUrl),
     ...ownIngredients.map((i) => i.imageUrl),
   ]);
+
+  // WP-22 / App Store 5.1.1(v): revoke the Sign in with Apple grant(s), best
+  // effort (logged on failure; never reverts the deletion).
+  await socialAuthService.revokeAppleGrants(identities);
 
   // T-12.5: best-effort, after the commit — never blocks or reverts the
   // account deletion itself. A no-op (logged) when never linked, or when

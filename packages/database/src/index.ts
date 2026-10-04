@@ -162,6 +162,13 @@ export {
   consentEventRepository,
   type IConsentEventRepository,
   type RecordConsentEventData,
+  // Sign in with Google / Apple (WP-22)
+  AuthIdentityRepository,
+  authIdentityRepository,
+  type IAuthIdentityRepository,
+  type IdentityWithUser,
+  type CreateIdentityData,
+  type UpdateIdentityData,
   // Following (docs/friends/implementation-plan.md §2.4)
   SocialProfileRepository,
   socialProfileRepository,
@@ -261,6 +268,7 @@ export {
 export type {
   User,
   Account,
+  AuthIdentity,
   Session,
   Post,
   Tag,

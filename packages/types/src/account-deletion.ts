@@ -20,6 +20,14 @@ export const ACCOUNT_DELETION_COPY = {
   resetSending: 'Sending…',
   resetSentTo: 'We sent a reset link to',
   resetSentHint: 'It expires in one hour. Reset your password, then come back to delete.',
+  // WP-22: accounts that sign in with Google/Apple only have no password to
+  // type — they confirm with a fresh sign-in from that provider instead.
+  reauthTitle: 'Confirm it’s you',
+  reauthHint: 'Sign in with the account you use for Chefer, and your account will be deleted.',
+  reauthTypeFirst: 'Type DELETE below first.',
+  reauthApple: 'Confirm with Apple and delete',
+  reauthUnavailable:
+    'This browser can’t confirm with your connected account. Use the Chefer app, or set a password with a reset email below, then come back.',
   confirmLabel: 'Type DELETE to confirm',
   confirmWord: 'DELETE',
   submit: 'Delete my account',
