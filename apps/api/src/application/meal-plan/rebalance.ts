@@ -6,6 +6,8 @@ import {
 } from '@chefer/database';
 import type { LoggedMealEntry } from '@chefer/database';
 import {
+  addDaysLocal,
+  dateOnlyKey,
   describeRebalanceSwap,
   describeWeekGap,
   isLossGoal,
@@ -17,6 +19,7 @@ import {
   slotPortion,
   slotStates,
   weekStartForDate,
+  weekStartOf,
   type RebalanceReason,
 } from '@chefer/utils';
 import type { MealType, RecipeData } from '../../lib/ai/types.js';
@@ -400,9 +403,7 @@ function dayIndexOf(dateStr: string): number {
 }
 
 function addDays(dateStr: string, days: number): string {
-  const d = new Date(`${dateStr}T00:00:00Z`);
-  d.setUTCDate(d.getUTCDate() + days);
-  return d.toISOString().slice(0, 10);
+  return addDaysLocal(dateStr, days);
 }
 
 type CuratedPools = Record<MealType, RecipeData[]>;
@@ -472,9 +473,9 @@ async function evaluateWeek(
   const weeklyTargetProteinG = targets.proteinG * 7;
 
   // Monday…today of the week being rebalanced.
-  const monday = weekStartForDate(todayStr).toISOString().slice(0, 10);
+  const monday = weekStartOf(todayStr);
   const weekDates = new Set(Array.from({ length: todayIndex + 1 }, (_, i) => addDays(monday, i)));
-  const dateOf = (log: { date: Date }) => log.date.toISOString().slice(0, 10);
+  const dateOf = (log: { date: Date }) => dateOnlyKey(log.date);
   const weekLogs = recentLogs.filter((log) => weekDates.has(dateOf(log)));
   const consumedKcal = sumBy(weekLogs, (log) => log.totalKcal);
   const consumedProteinG = sumBy(weekLogs, (log) => log.totalProtein);
