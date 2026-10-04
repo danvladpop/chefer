@@ -13,11 +13,13 @@ import {
   formatEatOutKcal,
   formatEatOutProtein,
   formatKcal,
+  proteinLabel,
   type EatOutCuisine,
   type EatOutSize,
   type SlotRef,
 } from '@chefer/utils';
 import { trpc } from '../../lib/trpc';
+import { useNumbersMode } from '../numbers-mode/numbers-mode';
 import { ScanMealCard } from './scan-meal-card';
 import type { ReplaceInput } from './use-slot-actions';
 
@@ -59,6 +61,8 @@ export function AteSomethingElseBody({
   /** A Snap log landed. */
   onScanned: () => void;
 }) {
+  // WP-08: protein-only mode asks protein first and never shows a calorie figure.
+  const { proteinOnly } = useNumbersMode();
   const [cuisine, setCuisine] = useState<EatOutCuisine | null>(null);
   const [size, setSize] = useState<EatOutSize>('normal');
   const recents = trpc.tracker.recents.useQuery({ limit: 15 }, { enabled: visible });
@@ -124,7 +128,9 @@ export function AteSomethingElseBody({
           className="text-sm font-semibold text-gray-800"
         >
           {estimate
-            ? `${formatEatOutKcal(estimate)} · ${formatEatOutProtein(estimate)}`
+            ? proteinOnly
+              ? formatEatOutProtein(estimate)
+              : `${formatEatOutKcal(estimate)} · ${formatEatOutProtein(estimate)}`
             : 'Pick what you had for a rough estimate.'}
         </Text>
         <Button testID="ate-else-log-it" disabled={!estimate} onPress={logEstimate}>
@@ -140,7 +146,11 @@ export function AteSomethingElseBody({
               key={r.key}
               testID={`ate-else-recent-${r.key}`}
               accessibilityRole="button"
-              accessibilityLabel={`Log ${r.name}, about ${formatKcal(r.kcal)} kilocalories, as what you had`}
+              accessibilityLabel={
+                proteinOnly
+                  ? `Log ${r.name}, about ${proteinLabel(r.protein)}, as what you had`
+                  : `Log ${r.name}, about ${formatKcal(r.kcal)} kilocalories, as what you had`
+              }
               onPress={() =>
                 onReplace({
                   slot,
@@ -158,7 +168,9 @@ export function AteSomethingElseBody({
               <Text numberOfLines={1} className="min-w-0 flex-1 text-sm font-medium text-gray-800">
                 {r.name}
               </Text>
-              <Text className="text-xs text-gray-500">≈ {formatKcal(r.kcal)} kcal</Text>
+              <Text className="text-xs text-gray-500">
+                {proteinOnly ? `≈ ${proteinLabel(r.protein)}` : `≈ ${formatKcal(r.kcal)} kcal`}
+              </Text>
             </Pressable>
           ))}
         </View>

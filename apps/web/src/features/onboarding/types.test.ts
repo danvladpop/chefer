@@ -73,3 +73,23 @@ describe('savedIntent (P2-3)', () => {
     ).toBeNull();
   });
 });
+
+describe('wizardDataFromPreferences — numbers mode (WP-08)', () => {
+  const prefs = (numbersMode?: string | null) => ({
+    chefProfile: null,
+    dietaryPreferences: null,
+    ...(numbersMode !== undefined && { numbersMode }),
+  });
+
+  it('starts on the full numbers, and reads a saved "Just protein"', () => {
+    expect(EMPTY_WIZARD_DATA.numbersMode).toBe('FULL');
+    expect(wizardDataFromPreferences(prefs()).numbersMode).toBe('FULL');
+    expect(wizardDataFromPreferences(prefs('PROTEIN_ONLY')).numbersMode).toBe('PROTEIN_ONLY');
+  });
+
+  it('reads NONE (reserved for WP-16) and anything unknown as the full numbers', () => {
+    expect(wizardDataFromPreferences(prefs('NONE')).numbersMode).toBe('FULL');
+    expect(wizardDataFromPreferences(prefs('whatever')).numbersMode).toBe('FULL');
+    expect(wizardDataFromPreferences(prefs(null)).numbersMode).toBe('FULL');
+  });
+});

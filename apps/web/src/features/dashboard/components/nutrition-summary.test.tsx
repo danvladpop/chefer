@@ -54,14 +54,12 @@ describe('NutritionSummary — training day (audit P2-4)', () => {
     expect(screen.queryByRole('button', { name: 'Upgrade' })).toBeNull();
   });
 
-  it('free: the same line locked, base targets kept, upgrade one tap away', () => {
+  it('not applied (older API): base targets kept, and no premium copy or upgrade (WP-07)', () => {
     render(<NutritionSummary nutrition={{ ...base, trainingDay: trainingDay(false) }} />);
     expect(screen.getByText('Training day · +250 kcal, +32 g protein')).toBeTruthy();
-    expect(screen.getByText(/Premium adds this/)).toBeTruthy();
+    expect(screen.queryByText(/Premium/)).toBeNull();
     expect(screen.getByText('of 2,500 kcal eaten')).toBeTruthy();
-    expect(screen.getByRole('button', { name: 'Upgrade' }).getAttribute('data-source')).toBe(
-      'training-day',
-    );
+    expect(screen.queryByRole('button', { name: 'Upgrade' })).toBeNull();
   });
 
   it('rest day: no line', () => {

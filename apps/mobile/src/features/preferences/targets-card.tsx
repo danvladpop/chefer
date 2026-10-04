@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { View } from 'react-native';
+import { Pressable, View } from 'react-native';
 import {
   Button,
   Card,
@@ -11,6 +11,9 @@ import {
 } from '@chefer/ui-mobile';
 import { formatKcal, userFacingErrorMessage } from '@chefer/utils';
 import { trpc } from '../../lib/trpc';
+import { useNumbersMode } from '../numbers-mode/numbers-mode';
+import { ProteinWhySheet } from '../nutrition/protein-why-sheet';
+import { NumbersSettingsSection } from './numbers-settings-section';
 import { useNumericChain } from './use-numeric-chain';
 
 // ─── TargetsCard (§2.11, T-35.3) ────────────────────────────────────────────────
@@ -41,10 +44,23 @@ export interface TargetsCardProps {
    * still resolves the 2,000 kcal default — show this number instead.
    */
   previewKcal?: number | null | undefined;
+  /**
+   * WP-08: Preferences passes the stored numbers mode and the resolved "show
+   * nutrition on Today", which merges that setting and the older Today toggle
+   * into this one card. Omitted in onboarding, which asks the question on its
+   * goal step.
+   */
+  numbersSettings?:
+    | { numbersMode: string | null | undefined; showNutritionOnToday: boolean }
+    | undefined;
 }
 
-export function TargetsCard({ previewKcal }: TargetsCardProps = {}) {
+export function TargetsCard({ previewKcal, numbersSettings }: TargetsCardProps = {}) {
   const utils = trpc.useUtils();
+  const { proteinOnly } = useNumbersMode();
+  const [whyOpen, setWhyOpen] = useState(false);
+  // Mounted on first open and kept, so the sheet still plays its exit motion.
+  const [whyMounted, setWhyMounted] = useState(false);
   const targetsQuery = trpc.targets.get.useQuery();
   const { data } = targetsQuery;
   const { state: loadState, retry } = useQueryState(targetsQuery);
@@ -145,11 +161,19 @@ export function TargetsCard({ previewKcal }: TargetsCardProps = {}) {
     });
   };
 
+  const numbersSection = numbersSettings ? (
+    <NumbersSettingsSection
+      initialMode={numbersSettings.numbersMode}
+      initialShowNutrition={numbersSettings.showNutritionOnToday}
+    />
+  ) : null;
+
   // UX-X-12: a failed load is not "Loading…" forever — say so and offer Retry.
   if (loadState === 'error') {
     return (
       <Card testID="targets-card" className="gap-2">
         <Text variant="heading">Your targets</Text>
+        {numbersSection}
         <ErrorState
           testID="targets-card-error"
           title="Couldn't load your targets"
@@ -163,6 +187,7 @@ export function TargetsCard({ previewKcal }: TargetsCardProps = {}) {
     return (
       <Card testID="targets-card" className="gap-2">
         <Text variant="heading">Your targets</Text>
+        {numbersSection}
         <Text variant="muted" className="text-xs">
           Loading…
         </Text>
@@ -180,6 +205,8 @@ export function TargetsCard({ previewKcal }: TargetsCardProps = {}) {
         </Text>
       </View>
 
+      {numbersSection}
+
       <SegmentedControl
         size="sm"
         options={MODE_OPTIONS}
@@ -190,19 +217,53 @@ export function TargetsCard({ previewKcal }: TargetsCardProps = {}) {
       />
 
       {mode === 'SUGGESTED' ? (
-        <View className="gap-1 rounded-lg bg-accent p-3">
-          <Text testID="targets-suggested-kcal" className="text-2xl font-bold text-primary">
-            {formatKcal(
-              fromEntered && previewKcal ? previewKcal : data.suggested.dailyCalorieTarget,
-            )}{' '}
-            kcal
-          </Text>
-          <Text variant="muted" className="text-xs">
-            {fromEntered
-              ? 'Worked out from the details you entered. Your macros are set when you finish.'
-              : `${data.suggested.proteinG}g protein · ${data.suggested.carbsG}g carbs · ${data.suggested.fatG}g fat`}
-          </Text>
-        </View>
+        proteinOnly ? (
+          // WP-08: protein-only mode shows the one number, and why it is that number.
+          <View className="gap-1 rounded-lg bg-accent p-3">
+            {fromEntered ? (
+              <Text variant="muted" className="text-xs">
+                Your protein is set from your weight and goal when you finish.
+              </Text>
+            ) : (
+              <>
+                <Text
+                  testID="targets-suggested-protein"
+                  className="text-2xl font-bold text-primary"
+                >
+                  {data.effective.proteinG} g protein a day
+                </Text>
+                <Pressable
+                  testID="targets-protein-why"
+                  accessibilityRole="button"
+                  accessibilityLabel="Why this protein number?"
+                  onPress={() => {
+                    setWhyMounted(true);
+                    setWhyOpen(true);
+                  }}
+                  className="min-h-11 justify-center self-start"
+                >
+                  <Text className="text-xs font-semibold text-primary">
+                    Why this protein number?
+                  </Text>
+                </Pressable>
+              </>
+            )}
+          </View>
+        ) : (
+          <View className="gap-1 rounded-lg bg-accent p-3">
+            <Text testID="targets-suggested-kcal" className="text-2xl font-bold text-primary">
+              {formatKcal(
+                fromEntered && previewKcal ? previewKcal : data.suggested.dailyCalorieTarget,
+              )}{' '}
+              kcal
+            </Text>
+            <Text variant="muted" className="text-xs">
+              {fromEntered
+                ? 'Worked out from the details you entered. Your macros are set when you finish.'
+                : `${data.suggested.proteinG}g protein · ${data.suggested.carbsG}g carbs · ${data.suggested.fatG}g fat`}
+            </Text>
+          </View>
+        )
       ) : (
         <View className="gap-3">
           <View className="flex-row gap-2">
@@ -267,6 +328,13 @@ export function TargetsCard({ previewKcal }: TargetsCardProps = {}) {
           {localError ??
             (setMutation.error ? userFacingErrorMessage(setMutation.error) : undefined)}
         </Text>
+      )}
+      {whyMounted && (
+        <ProteinWhySheet
+          visible={whyOpen}
+          onClose={() => setWhyOpen(false)}
+          why={data.proteinWhy}
+        />
       )}
     </Card>
   );

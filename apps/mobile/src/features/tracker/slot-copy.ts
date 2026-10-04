@@ -1,4 +1,9 @@
-import { formatKcal, QUICK_ADD_MEAL_TYPES, type QuickAddMealType } from '@chefer/utils';
+import {
+  formatKcal,
+  proteinLabel,
+  QUICK_ADD_MEAL_TYPES,
+  type QuickAddMealType,
+} from '@chefer/utils';
 
 // Copy and small formatters for the planned-slot actions (WP-06 "Flexible
 // eating"): "Ate something else" and "Skipped it". Neutral on purpose — a
@@ -31,9 +36,22 @@ export function moreActionsLabel(mealType: string): string {
   return `More actions for ${mealLabel(mealType)}`;
 }
 
-/** "You had: Shawarma · normal (≈ 650 kcal)" — what stands in for a replaced slot. */
-export function youHadText(entry: { custom?: { name: string } | undefined; kcal: number }): string {
-  return `You had: ${entry.custom?.name ?? 'Something else'} (≈ ${formatKcal(entry.kcal)} kcal)`;
+/**
+ * "You had: Shawarma · normal (≈ 650 kcal)" — what stands in for a replaced
+ * slot. Protein-only mode (WP-08) says "(≈ 40 g protein)" instead, and just
+ * the name when the protein is not known.
+ */
+export function youHadText(
+  entry: { custom?: { name: string } | undefined; kcal: number; protein?: number | undefined },
+  proteinOnly = false,
+): string {
+  const name = entry.custom?.name ?? 'Something else';
+  if (proteinOnly) {
+    return entry.protein === undefined
+      ? `You had: ${name}`
+      : `You had: ${name} (≈ ${proteinLabel(entry.protein)})`;
+  }
+  return `You had: ${name} (≈ ${formatKcal(entry.kcal)} kcal)`;
 }
 
 /** The snackbar after logging a replacement. */

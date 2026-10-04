@@ -32,7 +32,12 @@ jest.mock('../../src/features/privacy/health-consent-notice', () => ({
 }));
 jest.mock('../../src/features/tracker/scan-meal-card', () => ({ ScanMealCard: () => null }));
 jest.mock('../../src/features/safety/checked-for-chip', () => ({ CheckedForChip: () => null }));
-jest.mock('../../src/features/tracker/rebalance-store', () => ({ recordRebalance: jest.fn() }));
+jest.mock('../../src/features/tracker/rebalance-store', () => ({
+  ...jest.requireActual<typeof import('../../src/features/tracker/rebalance-store')>(
+    '../../src/features/tracker/rebalance-store',
+  ),
+  recordRebalance: jest.fn(),
+}));
 
 const TODAY = localDateStr();
 const rebalance = { rebalanced: false, swaps: [], projectedDeviation: 0, planId: 'p' };
@@ -191,7 +196,12 @@ describe('Today — overflow on the hero card (WP-06)', () => {
     await user.press(screen.getByTestId('today-slot-actions'));
     await user.press(screen.getByTestId('slot-action-skip'));
     await waitFor(() => expect(call(api, 'skipSlot')).toHaveLength(1));
-    expect(call(api, 'skipSlot')[0]).toEqual({ date: TODAY, mealType: 'lunch', slotIndex: 1 });
+    expect(call(api, 'skipSlot')[0]).toEqual({
+      date: TODAY,
+      mealType: 'lunch',
+      slotIndex: 1,
+      rebalanceMode: 'preview',
+    });
     expect(await screen.findByText('Lunch skipped')).toBeOnTheScreen();
     await user.press(screen.getByText('Undo'));
     await waitFor(() => expect(call(api, 'unskipSlot')).toHaveLength(1));

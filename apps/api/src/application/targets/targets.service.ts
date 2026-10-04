@@ -7,12 +7,16 @@ import {
   type TargetChange,
 } from '@chefer/database';
 import type {
+  NumbersMode,
   NutritionTargets,
+  ProteinWhy,
   TargetChangeReason,
   TargetInputs,
   TargetsView,
   UserProfile,
 } from '@chefer/types';
+import { parseStoredNumbersMode } from '@chefer/types';
+import { explainProteinTarget } from '@chefer/utils';
 import { isPremiumUser } from '../../lib/entitlements.js';
 import { isFlagEnabled } from '../../lib/flags.js';
 import { resolveTargets, type ResolveTargetsProfile } from '../preferences/preferences.service.js';
@@ -58,6 +62,10 @@ export interface SetOwnTargetsInput {
 export interface TargetsGetResult extends TargetsView {
   targetMode: 'OWN' | 'SUGGESTED';
   addTrainingBonus: boolean;
+  /** WP-08: the stored numbers mode (`FULL` when never set). Additive. */
+  numbersMode: NumbersMode;
+  /** WP-08: data for the "Why this protein number?" sheet. Additive. */
+  proteinWhy: ProteinWhy;
   custom: {
     kcal: number | null;
     proteinG: number | null;
@@ -161,6 +169,8 @@ export class TargetsService {
       ...resolved,
       targetMode: profile?.targetMode === 'OWN' ? 'OWN' : 'SUGGESTED',
       addTrainingBonus: profile?.addTrainingBonus ?? true,
+      numbersMode: parseStoredNumbersMode(profile?.numbersMode) ?? 'FULL',
+      proteinWhy: explainProteinTarget(resolved),
       custom: {
         kcal: profile?.customKcal ?? null,
         proteinG: profile?.customProteinG ?? null,

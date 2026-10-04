@@ -5,10 +5,6 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { TrainingDayNutrition } from '@chefer/types';
 import { TrainingDayNote } from './training-day-note';
 
-vi.mock('@/features/premium/components/UpgradeButton', () => ({
-  UpgradeButton: ({ source }: { source: string }) => <button data-source={source}>Upgrade</button>,
-}));
-
 vi.mock('@/lib/trpc', () => ({
   trpc: {
     targets: {
@@ -47,15 +43,16 @@ describe('TrainingDayNote on the tracker', () => {
     expect(screen.queryByText(/today/)).toBeNull();
   });
 
-  it('another day, free: locked with the upgrade', () => {
+  it('another day, not applied (older API): the line stays, no premium copy or upgrade', () => {
     render(<TrainingDayNote t={t(false)} isToday={false} />);
-    expect(screen.getByText(/Premium adds this to this day's targets/)).toBeTruthy();
-    expect(screen.getByRole('button', { name: 'Upgrade' })).toBeTruthy();
+    expect(screen.getByText('Training day · +280 kcal, +32 g protein')).toBeTruthy();
+    expect(screen.queryByText(/Premium/)).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Upgrade' })).toBeNull();
   });
 });
 
-// T-06.8: the applied state is the same for premium and for free with the
-// server flag on; the locked variant shows only when the bump is not applied.
+// T-06.8 / WP-07: training-day targets are free, so the applied state is the
+// same for everyone; nothing here ever sells the bump as premium.
 describe('TrainingDayNote applied state (T-06.8)', () => {
   it('shows the glyph line, the protein sentence and a Why? button', () => {
     render(<TrainingDayNote t={t(true)} />);
@@ -86,10 +83,11 @@ describe('TrainingDayNote applied state (T-06.8)', () => {
     );
   });
 
-  it('locked only when not applied: no Why?, upgrade shown', () => {
+  it('not applied: no Why?, and no upgrade (WP-07: free for everyone)', () => {
     render(<TrainingDayNote t={t(false)} />);
     expect(screen.queryByRole('button', { name: 'Why?' })).toBeNull();
-    expect(screen.getByRole('button', { name: 'Upgrade' })).toBeTruthy();
+    expect(screen.queryByRole('button', { name: 'Upgrade' })).toBeNull();
+    expect(screen.queryByText(/Premium/)).toBeNull();
   });
 
   it('another day without a date offers no Why? (it would name the wrong weekday)', () => {

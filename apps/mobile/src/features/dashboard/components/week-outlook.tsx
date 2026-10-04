@@ -5,6 +5,7 @@ import { Card, Text } from '@chefer/ui-mobile';
 import { cn, formatDate } from '@chefer/utils';
 import { getRecipeImageUrl } from '../../../lib/recipe-image';
 import type { RouterOutputs } from '../../../lib/trpc';
+import { useNumbersMode } from '../../numbers-mode/numbers-mode';
 import { MealTypeBadge } from './meal-type-badge';
 import { WeekGlance } from './week-glance';
 
@@ -24,6 +25,8 @@ export function WeekOutlook({
   weekGlance?: WeekGlanceDay[] | undefined;
 }) {
   const [selectedDayIdx, setSelectedDayIdx] = useState<number | null>(null);
+  // WP-08: the plan's meal rows show no kcal in protein-only mode.
+  const { proteinOnly } = useNumbersMode();
 
   const today = new Date();
   const jsDay = today.getDay();
@@ -136,7 +139,9 @@ export function WeekOutlook({
                       {meal.recipeName}
                     </Text>
                   </View>
-                  {meal.kcal > 0 && <Text className="text-xs text-gray-500">{meal.kcal} kcal</Text>}
+                  {meal.kcal > 0 && !proteinOnly && (
+                    <Text className="text-xs text-gray-500">{meal.kcal} kcal</Text>
+                  )}
                 </View>
               ))}
             </View>

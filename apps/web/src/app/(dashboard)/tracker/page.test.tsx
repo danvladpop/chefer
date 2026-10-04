@@ -153,7 +153,10 @@ vi.mock('@/features/nutrition/components/TargetExplainSheet', () => ({
 }));
 vi.mock('@/features/tracker/components/QuickAddSheet', () => ({ QuickAddSheet: () => null }));
 vi.mock('@/features/tracker/components/ScanMealButton', () => ({ ScanMealButton: () => null }));
-vi.mock('@/features/tracker/lib/rebalance-storage', () => ({ handleRebalanceResult: vi.fn() }));
+vi.mock('@/features/tracker/lib/rebalance-storage', () => ({
+  handleRebalanceOutcome: vi.fn(),
+  REBALANCE_PREVIEW: { rebalanceMode: 'preview' },
+}));
 vi.mock('@/hooks/useIsPremium', () => ({ useIsPremium: () => false }));
 vi.mock('@/lib/recipe-image', () => ({ getRecipeImageProps: () => ({ src: '/x.jpg' }) }));
 vi.mock('@/lib/trpc', () => ({
@@ -418,7 +421,12 @@ describe('Tracker — one-save model (bug B-23, T-19.4)', () => {
     fireEvent.click(firstSnack);
     await waitFor(() =>
       expect(m.logRecipe).toHaveBeenCalledWith(
-        expect.objectContaining({ recipeId: 'yogurt', mealType: 'snack', slotIndex: 1 }),
+        expect.objectContaining({
+          recipeId: 'yogurt',
+          mealType: 'snack',
+          slotIndex: 1,
+          rebalanceMode: 'preview', // WP-07: offer first, never a silent rebalance
+        }),
       ),
     );
   });
@@ -466,7 +474,10 @@ describe('Tracker — copy a day (T-19.3)', () => {
     fireEvent.click(screen.getByTestId('tracker-copy-day'));
     fireEvent.click(screen.getByTestId('tracker-copy-day-confirm'));
     expect(m.copyDay).toHaveBeenCalledWith(
-      expect.objectContaining({ toDate: expect.any(String) as string }),
+      expect.objectContaining({
+        toDate: expect.any(String) as string,
+        rebalanceMode: 'preview',
+      }),
     );
     expect(screen.getByText('Copied 2 entries')).toBeTruthy();
     fireEvent.click(screen.getByText('Undo'));
@@ -908,6 +919,7 @@ describe('Tracker — flexible eating (WP-06)', () => {
         fat: 0,
         unknownMacros: ['carbs', 'fat'],
         replacesSlot: { mealType: 'dinner', slotIndex: 0 },
+        rebalanceMode: 'preview',
       }),
     );
     // The slot reads what you had, can't be ticked again, and is not repeated under "Also eaten".
@@ -1004,6 +1016,8 @@ describe('Tracker — flexible eating (WP-06)', () => {
         date: expect.any(String) as string,
         mealType: 'lunch',
         slotIndex: 1,
+        // WP-07: the log write asks for an offer, never a silent rebalance.
+        rebalanceMode: 'preview',
       }),
     );
     await waitFor(() =>
@@ -1127,5 +1141,152 @@ describe('Tracker — flexible eating (WP-06)', () => {
     expect(screen.getByRole('group', { name: 'What did you have?' })).toBeTruthy();
     expect(screen.getByRole('group', { name: 'How much?' })).toBeTruthy();
     expect(screen.getByRole('tablist', { name: 'How to log it' })).toBeTruthy();
+  });
+});
+
+// ─── WP-08: protein-only mode ──────────────────────────────────────────────────
+describe('Tracker — protein-only mode (WP-08)', () => {
+  const dinner = {
+    recipeId: 'curry',
+    mealType: 'dinner',
+    recipeName: 'Chicken Curry',
+    imageUrl: null,
+    kcal: 600,
+    protein: 40,
+    carbs: 50,
+    fat: 20,
+    slotIndex: 0,
+  };
+  const lunch = {
+    ...dinner,
+    recipeId: 'salad',
+    mealType: 'lunch',
+    recipeName: 'Greek Salad',
+    slotIndex: 1,
+  };
+  const tofu = {
+    entryId: 'o1',
+    recipeId: 'pad-thai',
+    mealType: 'dinner',
+    portionMultiplier: 1,
+    kcal: 540,
+    protein: 22,
+    carbs: 70,
+    fat: 18,
+  };
+  const cake = {
+    entryId: 'c1',
+    custom: { name: 'Birthday cake', estimatedBy: 'manual' },
+    mealType: 'snack',
+    portionMultiplier: 1,
+    kcal: 420,
+    protein: 6,
+    carbs: 60,
+    fat: 16,
+  };
+  const guide = {
+    proteinG: 125,
+    meals: 3,
+    perMealG: 41.7,
+    lowG: 35,
+    highG: 45,
+    label: '35–45 g per meal',
+  };
+  const loggedDinner = {
+    recipeId: 'curry',
+    mealType: 'dinner',
+    slotIndex: 0,
+    portionMultiplier: 1,
+    kcal: 600,
+    protein: 40,
+    carbs: 50,
+    fat: 20,
+  };
+
+  const proteinDay = (mode: string | null) =>
+    day([loggedDinner, cake], {
+      plannedMeals: [dinner, lunch],
+      numbersMode: mode,
+      proteinGuide: guide,
+      offPlanLogged: [{ ...tofu, recipeName: 'Tofu Pad Thai' }],
+    });
+
+  beforeEach(() => {
+    window.localStorage.clear();
+  });
+
+  it('shows protein, never kcal: totals, planned rows, also-eaten rows and the per-meal guide', () => {
+    proteinDay('PROTEIN_ONLY');
+    render(<TrackerPage />);
+    expect(document.body.textContent).not.toMatch(/kcal|calorie/i);
+    // The day's total is protein against the protein target.
+    expect(screen.getByText(/46 \/ 125 g protein/)).toBeTruthy();
+    expect(screen.getByTestId('tracker-protein-guide').textContent).toBe('35–45 g per meal');
+    // Planned rows show their protein at the portion.
+    expect(screen.getAllByText('40 g protein').length).toBeGreaterThan(0);
+    // Custom entries too.
+    expect(screen.getByText('6 g protein')).toBeTruthy();
+    // Carbs and fat bars are gone.
+    expect(screen.queryByText('Carbs')).toBeNull();
+    expect(screen.queryByText('Fat')).toBeNull();
+  });
+
+  it('switching back to the full numbers restores every kcal figure', () => {
+    proteinDay('PROTEIN_ONLY');
+    render(<TrackerPage />);
+    expect(document.body.textContent).not.toMatch(/kcal/i);
+    act(() => setCache({ ...(m.state.cache as Day), numbersMode: 'FULL' }));
+    expect(document.body.textContent).toMatch(/\/ 2,000 kcal/);
+    expect(screen.getByText('Calories')).toBeTruthy();
+    expect(screen.queryByTestId('tracker-protein-guide')).toBeNull();
+    act(() => setCache({ ...(m.state.cache as Day), numbersMode: null }));
+    expect(document.body.textContent).toMatch(/\/ 2,000 kcal/);
+  });
+
+  it('NONE is reserved (WP-16) and reads as the full numbers', () => {
+    proteinDay('NONE');
+    render(<TrackerPage />);
+    expect(document.body.textContent).toMatch(/\/ 2,000 kcal/);
+  });
+
+  it('"Ate something else" shows the protein range only, and still logs the slot', async () => {
+    day(null, { plannedMeals: [dinner], numbersMode: 'PROTEIN_ONLY', proteinGuide: guide });
+    render(<TrackerPage />);
+    fireEvent.click(screen.getByRole('button', { name: 'More actions for Dinner' }));
+    fireEvent.click(screen.getByTestId('slot-action-ate-else'));
+    fireEvent.click(screen.getByTestId('ate-else-cuisine-pizza'));
+    const range = screen.getByTestId('ate-else-range').textContent ?? '';
+    expect(range).toMatch(/g protein/);
+    expect(range).not.toMatch(/kcal/i);
+    expect(document.body.textContent).not.toMatch(/kcal/i);
+    fireEvent.click(screen.getByTestId('ate-else-log'));
+    await waitFor(() => expect(m.logCustom).toHaveBeenCalledTimes(1));
+    // The plan balances on calories underneath: the entry still carries them.
+    expect(m.logCustom).toHaveBeenCalledWith(
+      expect.objectContaining({ replacesSlot: { mealType: 'dinner', slotIndex: 0 } }),
+    );
+  });
+
+  it('a replaced slot reads "You had: …" with its protein', () => {
+    day(
+      [
+        {
+          ...cake,
+          entryId: 'r1',
+          mealType: 'dinner',
+          replacesSlot: { mealType: 'dinner', slotIndex: 0 },
+          protein: 40,
+          kcal: 775,
+        },
+      ],
+      {
+        plannedMeals: [dinner],
+        numbersMode: 'PROTEIN_ONLY',
+      },
+    );
+    render(<TrackerPage />);
+    expect(screen.getByTestId('tracker-slot-note-0').textContent).toBe(
+      'You had: Birthday cake (≈ 40 g protein)',
+    );
   });
 });

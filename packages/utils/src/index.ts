@@ -373,15 +373,29 @@ export {
   type QuickAddParseResult,
 } from './quick-add';
 export {
+  LOSS_PROTEIN_KCAL_INCREASE_CAP,
+  REBALANCE_MIN_PROTEIN_SWAP_G,
+  REBALANCE_PROTEIN_TRIGGER_FRACTION,
+  REBALANCE_PROTEIN_TRIGGER_G,
   REBALANCE_UNDO_EXPIRY_MS,
+  capProteinScaleFactor,
+  describeProteinSnack,
+  describeRebalanceSwap,
+  describeWeekGap,
+  isLossGoal,
   isPendingFresh,
   mergePendingRebalance,
   parsePendingRebalance,
   rebalanceBannerCopy,
+  rebalanceOfferCopy,
   undoOperations,
   type PendingRebalance,
+  type RebalancePreviewLike,
+  type RebalanceReason,
   type RebalanceResultLike,
+  type RebalanceSnackLike,
   type RebalanceSwapLike,
+  type WeekGapLike,
 } from './rebalance';
 export { RATING_LABELS, composeNotesWithLikedBy, parseLikedBy, stripLikedBy } from './rating';
 export { shoppingWindowLabel } from './shopping-window';
@@ -825,3 +839,30 @@ export {
   WEEKLY_AVERAGE_MIN_DAYS,
   type WeekDay,
 } from './weekly-average';
+
+// ─── Protein-only mode (WP-08, D-5) ──────────────────────────────────────────
+export {
+  DEFAULT_PROTEIN_MEALS,
+  PROTEIN_REFERENCE_G_PER_KG,
+  PROTEIN_REFERENCE_TOLERANCE,
+  buildProteinGuide,
+  explainProteinTarget,
+} from './protein-guide';
+
+// ─── Protein-only mode copy (WP-08), shared by mobile and web ────────────────
+export {
+  NUMBERS_MODE_COPY,
+  PROTEIN_ONLY_KCAL_PER_PROTEIN_G,
+  describeSnackProteinOnly,
+  describeSwapProteinOnly,
+  estimateKcalFromProtein,
+  nutritionLabel,
+  proteinAverageText,
+  proteinLabel,
+  proteinOnlyHeadline,
+  proteinOnlyOfferCopy,
+  proteinOnlyTrainingExplain,
+  proteinOnlyTrainingHeader,
+  proteinRingLabel,
+  withoutKcalLines,
+} from './numbers-mode-copy';

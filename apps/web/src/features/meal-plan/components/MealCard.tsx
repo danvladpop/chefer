@@ -1,4 +1,7 @@
+'use client';
+
 import Link from 'next/link';
+import { useNumbersMode } from '@/features/numbers-mode/numbers-mode';
 import { AiGeneratedChip } from '@/features/privacy/components/AiGeneratedChip';
 import { AllergenWarningChip } from '@/features/recipes/components/AllergenWarning';
 import { RecipeImage, type ImageStatusType } from '@/features/recipes/components/RecipeImage';
@@ -112,6 +115,8 @@ export function MealCard({
   onTogglePin,
   eaten = false,
 }: MealCardProps) {
+  // WP-08: protein-only mode shows protein per meal instead of kcal (the plan still balances kcal).
+  const { proteinOnly } = useNumbersMode();
   // Cards are Links — the replace/pin buttons live inside, so stop navigation.
   const replaceButton = (extraClass: string) =>
     onReplace && !readOnly ? (
@@ -239,10 +244,21 @@ export function MealCard({
               <Clock className="h-3 w-3" aria-hidden="true" />
               {totalTime} min
             </span>
-            <span className="font-medium text-gray-800">{n.calories} kcal</span>
-            <span className="text-gray-500">
-              P {n.protein}g · C {n.carbs}g · F {n.fat}g
-            </span>
+            {proteinOnly ? (
+              <span
+                data-testid={`plan-meal-${mealType}-protein`}
+                className="font-medium text-gray-800"
+              >
+                {n.protein} g protein
+              </span>
+            ) : (
+              <>
+                <span className="font-medium text-gray-800">{n.calories} kcal</span>
+                <span className="text-gray-500">
+                  P {n.protein}g · C {n.carbs}g · F {n.fat}g
+                </span>
+              </>
+            )}
           </div>
         </div>
         {(replaceButton('') ?? pinButton('')) && (
@@ -343,23 +359,27 @@ export function MealCard({
               <Clock className="h-3 w-3" aria-hidden="true" />
               {totalTime} min
             </span>
-            <span className="font-medium text-gray-700">{n.calories} kcal</span>
+            {!proteinOnly && <span className="font-medium text-gray-700">{n.calories} kcal</span>}
           </div>
 
-          {/* Macros stacked — compact, right-aligned */}
+          {/* Macros stacked — compact, right-aligned (WP-08: protein only in protein-only mode) */}
           <div className="space-y-px text-right text-xs leading-tight">
             <div>
               <span className="text-blue-500">P </span>
               <span className="font-medium text-gray-700">{n.protein}g</span>
             </div>
-            <div>
-              <span className="text-amber-500">C </span>
-              <span className="font-medium text-gray-700">{n.carbs}g</span>
-            </div>
-            <div>
-              <span className="text-green-500">F </span>
-              <span className="font-medium text-gray-700">{n.fat}g</span>
-            </div>
+            {!proteinOnly && (
+              <>
+                <div>
+                  <span className="text-amber-500">C </span>
+                  <span className="font-medium text-gray-700">{n.carbs}g</span>
+                </div>
+                <div>
+                  <span className="text-green-500">F </span>
+                  <span className="font-medium text-gray-700">{n.fat}g</span>
+                </div>
+              </>
+            )}
           </div>
         </div>
       </div>

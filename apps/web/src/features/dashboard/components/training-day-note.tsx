@@ -2,18 +2,19 @@
 
 import { useState } from 'react';
 import { TrainingExplainSheet } from '@/features/meal-plan/components/TrainingExplainSheet';
-import { UpgradeButton } from '@/features/premium/components/UpgradeButton';
+import { useNumbersMode } from '@/features/numbers-mode/numbers-mode';
 import { trpc } from '@/lib/trpc';
-import { Dumbbell, Footprints, Lock } from 'lucide-react';
+import { Dumbbell, Footprints } from 'lucide-react';
 import type { PlanTrainingBasis, PlanTrainingDay, TrainingDayNutrition } from '@chefer/types';
 import { cn, trainingDayLine, trainingGlyph } from '@chefer/utils';
 
 /**
  * Training-aware nutrition (audit P2-4, UX-06 T-06.8): the line on a training
- * day, shared by Today (nutrition summary) and the tracker. When the bump is
- * applied (premium, or free while the server flag is on) it shows the glyph,
- * the bonus and a `Why?` button that opens the explain dialog; when it is not
- * applied the same numbers are locked with the upgrade one tap away.
+ * day, shared by Today (nutrition summary) and the tracker. Training-day
+ * targets are free for everyone (WP-07): an applied bump shows the glyph, the
+ * bonus and a `Why?` button that opens the explain dialog. When the server
+ * does not apply it (an older API) the line stays as information only — never
+ * an upsell.
  *
  * `isToday` = false on the tracker's other days: the copy then says "this
  * day" instead of "today". `date` names the weekday for the explain dialog;
@@ -31,9 +32,28 @@ export function TrainingDayNote({
   className?: string;
 }) {
   const [whyOpen, setWhyOpen] = useState(false);
+  const { proteinOnly } = useNumbersMode();
   if (!t.isTrainingDay) return null;
   const kind = t.kind ?? 'lift';
   const isRun = trainingGlyph(kind) === 'walk-outline';
+  // WP-08: protein-only shows the protein bump of a lifting day and nothing else
+  // (a run day's bump is carbs and calories; its Why? sheet is all calories).
+  if (proteinOnly) {
+    if (isRun) return null;
+    return (
+      <div
+        data-testid="training-day"
+        className={cn('mb-4 rounded-xl bg-[#fff3e8] px-3 py-2.5', className)}
+      >
+        <p className="flex items-center gap-1.5 text-xs font-semibold text-[#944a00]">
+          <Dumbbell className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+          <span className="min-w-0" data-testid="training-day-line">
+            {`Training day · +${t.proteinBonus} g protein`}
+          </span>
+        </p>
+      </div>
+    );
+  }
   const Glyph = isRun ? Footprints : Dumbbell;
   const workout = t.workoutName ?? 'Your workout';
   const when = t.reason === 'COMPLETED' ? 'done' : isToday ? 'today' : 'planned';
@@ -57,7 +77,7 @@ export function TrainingDayNote({
         <Glyph className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
         <span className="min-w-0">{trainingDayLine(t)}</span>
       </p>
-      {t.applied ? (
+      {t.applied && (
         <div className="mt-0.5 flex flex-wrap items-center justify-between gap-x-2">
           <p className="min-w-0 text-xs text-[#944a00]/80">
             {isRun
@@ -73,14 +93,6 @@ export function TrainingDayNote({
               Why?
             </button>
           )}
-        </div>
-      ) : (
-        <div className="mt-1.5 flex flex-wrap items-center justify-between gap-2">
-          <span className="flex min-w-0 items-center gap-1 text-xs text-gray-600">
-            <Lock className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
-            Premium adds this to {addedTo}&apos;s targets
-          </span>
-          <UpgradeButton source="training-day" />
         </div>
       )}
       {whyOpen && explainDate && (

@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { dailyLogRepository, mealPlanRepository } from '@chefer/database';
 import type { UserProfile } from '@chefer/types';
-import { rebalanceWeek } from '../meal-plan/rebalance.js';
+import { previewRebalance, rebalanceWeek } from '../meal-plan/rebalance.js';
 import { trackerService } from './tracker.service.js';
 
 // UX-FOOD-02 / UX-PLAN-09: the tracker and the post-log rebalance used to read
@@ -42,6 +42,7 @@ vi.mock('@chefer/database', async (importOriginal) => ({
 
 vi.mock('../meal-plan/rebalance.js', () => ({
   rebalanceWeek: vi.fn().mockResolvedValue({ rebalanced: false, swaps: [], projectedDeviation: 0 }),
+  previewRebalance: vi.fn().mockResolvedValue(null),
 }));
 
 const RECIPES = [
@@ -165,8 +166,64 @@ describe('trackerService.maybeRebalance — acts on the current week (UX-PLAN-09
     expect(rebalanceWeek).not.toHaveBeenCalled();
   });
 
-  it('free users are never rebalanced', async () => {
+  it('free users are rebalanced too (WP-07: weekRebalance is free, no AI)', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date(2026, 9, 2, 10, 0, 0)); // Friday 2 Oct 2026
     await trackerService.maybeRebalance(user('FREE'));
+    expect(rebalanceWeek).toHaveBeenCalledWith('u1', 'plan-this-week');
+  });
+});
+
+describe('trackerService.rebalanceOutcome — preview before apply (WP-07, UX-PLAN-09)', () => {
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  const friday = () => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date(2026, 9, 2, 10, 0, 0)); // Friday 2 Oct 2026
+  };
+
+  it("old clients (no opt-in): applies at once, and the response has today's shape exactly", async () => {
+    friday();
+    const applied = {
+      rebalanced: true,
+      swaps: [{ dayOfWeek: 5, mealType: 'dinner', previousRecipeId: 'a', newRecipeId: 'b' }],
+      projectedDeviation: 0.2,
+      planId: 'plan-this-week',
+    };
+    vi.mocked(rebalanceWeek).mockResolvedValueOnce(applied);
+    const outcome = await trackerService.rebalanceOutcome(user('FREE'));
+    expect(outcome).toEqual({ rebalance: applied }); // no `rebalancePreview` key
+    expect(previewRebalance).not.toHaveBeenCalled();
+  });
+
+  it('new clients (preview): nothing is applied, the swaps come back as a preview', async () => {
+    friday();
+    const preview = { planId: 'plan-this-week', swaps: [], headline: '', snacks: [], week: {} };
+    vi.mocked(previewRebalance).mockResolvedValueOnce(preview as never);
+    const outcome = await trackerService.rebalanceOutcome(user('FREE'), 'preview', '2026-10-02');
+    expect(outcome).toEqual({ rebalance: null, rebalancePreview: preview });
     expect(rebalanceWeek).not.toHaveBeenCalled();
+    expect(previewRebalance).toHaveBeenCalledWith('u1', 'plan-this-week', {
+      localDate: '2026-10-02',
+    });
+  });
+
+  it("anchors a preview on the client's day when it is already ahead of the server's", async () => {
+    friday();
+    await trackerService.rebalanceOutcome(user('FREE'), 'preview', '2026-10-03');
+    expect(previewRebalance).toHaveBeenCalledWith('u1', expect.any(String), {
+      localDate: '2026-10-03',
+    });
+  });
+
+  it('a failing preview never fails the log: null preview, no throw', async () => {
+    friday();
+    vi.mocked(previewRebalance).mockRejectedValueOnce(new Error('boom'));
+    const errors = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    const outcome = await trackerService.rebalanceOutcome(user('FREE'), 'preview');
+    expect(outcome).toEqual({ rebalance: null, rebalancePreview: null });
+    errors.mockRestore();
   });
 });

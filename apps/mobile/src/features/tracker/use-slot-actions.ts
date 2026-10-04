@@ -12,7 +12,7 @@ import {
 import { trackMealLogged } from '../../lib/analytics-events';
 import { trpc, type RouterOutputs } from '../../lib/trpc';
 import { invalidateDayQueries } from './invalidate';
-import { recordRebalance } from './rebalance-store';
+import { REBALANCE_PREVIEW, recordRebalanceOutcome } from './rebalance-offer-store';
 import { replacedMessage, skippedMessage, toLogMealType } from './slot-copy';
 import { WRITE_SCOPE } from './use-tracker-writes';
 
@@ -167,6 +167,7 @@ export function useSlotActions(dateStr: string) {
     logCustom.mutate(
       {
         date: dateStr,
+        ...REBALANCE_PREVIEW,
         name: input.name,
         estimatedBy: input.estimatedBy,
         mealType: toLogMealType(input.slot.mealType),
@@ -181,7 +182,7 @@ export function useSlotActions(dateStr: string) {
       {
         onSuccess: (result) => {
           trackMealLogged('replaced', input.slot.mealType);
-          recordRebalance(result.rebalance);
+          recordRebalanceOutcome(result);
           onLogged?.();
           confirmReplaced(input.name, input.slot.mealType, result.entryId);
         },
@@ -254,10 +255,15 @@ export function useSlotActions(dateStr: string) {
   /** "Skipped it": the slot is neither eaten nor remaining; Undo puts it back. */
   const skipSlot = (slot: SlotRef): void => {
     skipMutation.mutate(
-      { date: dateStr, mealType: slot.mealType, slotIndex: slot.slotIndex },
+      {
+        date: dateStr,
+        mealType: slot.mealType,
+        slotIndex: slot.slotIndex,
+        ...REBALANCE_PREVIEW,
+      },
       {
         onSuccess: (result) => {
-          recordRebalance(result.rebalance);
+          recordRebalanceOutcome(result);
           snackbar.show({
             message: skippedMessage(slot.mealType),
             actionLabel: 'Undo',
