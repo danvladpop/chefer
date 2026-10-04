@@ -192,6 +192,49 @@ afterEach(() => {
 });
 
 describe('GymHistoryDetailPage', () => {
+  // WP-20: "Cycling class · 45 min · ~400 kcal (from your watch)".
+  it('reads a quick-logged activity as one line with the kcal source', () => {
+    const at = '2026-09-22T17:00:00.000Z';
+    const doc = mixedDoc();
+    const [bench] = doc.exercises;
+    if (!bench) throw new Error('fixture has no exercise');
+    m.doc = {
+      ...doc,
+      name: 'Cycling class',
+      finishedAt: '2026-09-22T17:45:00.000Z',
+      startedAt: at,
+      exercises: [
+        {
+          ...bench,
+          id: 'se-spin',
+          exerciseId: 'spin-class',
+          position: 0,
+          lastSetRir: null,
+          sets: [
+            {
+              id: 's1',
+              position: 0,
+              weightKg: 0,
+              reps: 0,
+              isWarmup: false,
+              completedAt: at,
+              durationSec: 2700,
+              intensityRpe: 7,
+              caloriesKcal: 400,
+            },
+          ],
+        },
+      ],
+    };
+    m.library = [exercise('spin-class')];
+    render(<GymHistoryDetailPage />);
+    expect(screen.getByTestId('gym-history-activity')).toHaveTextContent(
+      'Cycling class · 45 min · ~400 kcal (from your watch)',
+    );
+    expect(screen.getByText('Effort: Hard')).toBeInTheDocument();
+    expect(screen.queryByText(/kg/)).toBeNull();
+  });
+
   it('T-42.5: a cardio exercise reads time · distance · effort, never "0 kg × 0"', () => {
     render(<GymHistoryDetailPage />);
     expect(screen.getByText('60 kg × 8')).toBeInTheDocument();

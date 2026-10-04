@@ -40,3 +40,5 @@ export * from './session-edit';
 export * from './pause-copy';
 // Relative strength (e1RM ÷ body weight) with a profile-weight fallback (UX-GYM-17).
 export * from './relative-strength';
+// Activity quick-log (WP-20): record a class done elsewhere; record-only kcal.
+export * from './activity-log';

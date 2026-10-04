@@ -1484,7 +1484,7 @@ a goal, and a known bodyweight (latest `WeightEntry`, else
 | Rule              | Value                                                                                                                                                                                                          | Tier                                                                                                                                        |
 | ----------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
 | Base protein      | by goal: **GAIN_MUSCLE 1.8 g/kg**, **LOSE_WEIGHT 2.0 g/kg** (keeps muscle in a deficit), **MAINTAIN / EAT_HEALTHIER 1.6 g/kg** — replaces the goal's % split; carbs absorb the difference so kcal is unchanged | every tier — `resolveDailyTargets(profile, lifterBodyweightKg)` in dashboard, tracker, chat context, coach review and both generation paths |
-| Training day      | a workout **completed** that day (any day), else a routine day **planned** for that weekday outside a training pause                                                                                           | —                                                                                                                                           |
+| Training day      | a workout **completed** that day (any day — **not** a quick-logged activity, WP-20), else a routine day **planned** for that weekday outside a training pause                                                  | —                                                                                                                                           |
 | Training-day bump | GAIN_MUSCLE only (a cut keeps its deficit): protein to **2.2 g/kg** (+0.4 g/kg), kcal **+10%** of the base (rounded to 10, clamped 150–300); kcal not covered by protein → carbs; fat unchanged                | **premium** applies it; **free** sees the same numbers locked (upgrade source `training-day`)                                               |
 | Post-workout meal | **~0.4 g/kg** protein, rounded to 5 g, 20–45 g (30 g without a bodyweight)                                                                                                                                     | every tier                                                                                                                                  |
 | Premium AI week   | the routine's training weekdays + the bump go into the generation prompt (`buildTrainingDaysSection`), and the ±15%/±20% validation judges those days against the bumped targets                               | premium                                                                                                                                     |
@@ -2764,6 +2764,66 @@ connection) spun forever. `useTimedRefresh()`
 (`src/features/gym/today/use-timed-refresh.ts`) decouples the two — the
 spinner always drops after 10 s, whether or not the refetch itself ever
 settles.
+
+### Log an activity (WP-20, owner decision 2026-10-04)
+
+A class is not a trainer feature: **any** gym user can quickly record something
+they did elsewhere — "45 min cycling class, 400 kcal burnt" — as done. It is
+**record only**: the calories never raise the day's food target ("no eating
+back"), never feed the meal planner or a rebalance.
+
+- **Where.** `Log an activity` is a quiet text link beside "Log a workout you
+  already did" on Gym Today (also when no routine is active), and at the top of
+  History (mobile Stats › History, web `/gym/history`). Never next to — or
+  instead of — `Start`.
+- **The sheet** (mobile `today/log-activity-sheet.tsx`, web
+  `today/log-activity-sheet.tsx`; copy and rules come from `@chefer/utils`
+  `activity-log.ts`, so the two cannot drift): activity chips — Cycling class,
+  Pilates, Yoga, HIIT / bootcamp, Zumba / dance, Swimming, Running, Walking,
+  Other (+ a free-text name) — then a duration (chips 15/30/45/60/90 or any
+  1–180 min), the date (today by default; back to Monday of last week, never the
+  future), **Calories burnt (optional)** — "From your watch or the machine" —
+  and **Effort (optional)** Easy / Moderate / Hard (RPE 3/5/7; the phone also
+  has the exact 1–10). Common case: three taps inside the sheet — activity,
+  duration, Save. Errors are plain sentences (`validateActivityLog`), never raw
+  Zod.
+- **Storage — the existing gym model, no new procedure.** A finished
+  `WorkoutSession` (`COMPLETED`, `routineId`/`routineDayId` null, named after the
+  chip or the typed name) with ONE session exercise whose catalogue row is a
+  `DURATION` cardio entry (`ACTIVITY_PRESETS` in
+  `packages/types/src/gym/activity-log.ts`: `spin-class`, `pilates-class`,
+  `yoga-class`, `hiit-class`, `dance-class`, `swimming`, `running`, `walking`,
+  `other-activity`) and one ticked set: `durationSec`, optional `caloriesKcal`,
+  optional `intensityRpe`, `weightKg 0`, `reps 0`. `buildActivityLogDoc()` builds
+  it; it goes through the same offline outbox and `gym.session.upsertMany` as any
+  finished workout (works offline, retries idempotently) and is folded into the
+  cached bootstrap at once (`saveLoggedSession` on the phone, `saveActivityLog`
+  on web).
+- **Counts as a training day for the WEEK, not for today's workout.** It is a
+  finished session, so the weekly goal ring, week strip and streak count it (a
+  class is training). But it does **not** make Gym Today say `Done today` (Start
+  stays), and it never advances the rotation (freestyle: no `routineDayId`).
+  `isActivityLogSession()` (no routine day + every exercise is an activity entry)
+  is the single test, used by `todayStatus`, `doneTodayCard`,
+  `selectTodaysSession` and the web Today/dashboard cards.
+- **Not a training day for nutrition.** `trainingNutritionService` drops activity
+  sessions from the "completed workout that day" lookup (`trainingDayFor`,
+  `trainingWeek`), so a logged class neither marks the plan week nor applies the
+  lift bump — and `caloriesKcal` is not read anywhere on the food side.
+  Contract-tested against the real API (`activity-log.contract.test.ts`: targets,
+  ring and training-day flag identical before/after; a real workout the same day
+  is the control that flips it).
+- **Display.** Recent / History rows read `45 min · ~400 kcal` (never "1 sets");
+  the session detail reads `Cycling class · 45 min · ~400 kcal (from your watch)`
+  plus the effort. Strength PRs / e1RM / volume are untouched (a cardio set has
+  `reps 0`, no progression is folded for a non-strength exercise — the offline
+  fold now skips it too).
+- **Old apps.** `DURATION` is renderable at every API level (client-level.ts), so
+  a 1.0.1 app (level 4) and older apps read the session back in the legacy cardio
+  shape and receive the new library rows; an unknown exercise would fall back to
+  the session name. Health-consent gating is unchanged: `gym.session.upsertMany`
+  is not a consent-gated procedure (the kcal is a gym-set field like the other
+  cardio fields).
 
 ### Correcting a past workout (UX-44, T-44.1–T-44.5, D-21 a: any past session)
 

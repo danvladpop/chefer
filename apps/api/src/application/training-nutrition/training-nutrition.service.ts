@@ -21,6 +21,7 @@ import {
   buildPlanTrainingDays,
   buildTrainingDayNutrition,
   hasTrainingDayBump,
+  isActivityLogSession,
   isLifter,
   LIFTER_PROTEIN_G_PER_KG,
   lifterProteinGPerKg,
@@ -237,6 +238,20 @@ export class TrainingNutritionService {
     return this.bumpFlag();
   }
 
+  /**
+   * Completed sessions that make a day a training day. WP-20: a quick-logged
+   * activity ("45 min cycling class, 400 kcal") is record-only — it must not
+   * make the day a lift day, so it can never raise the food target; its kcal
+   * is never read here at all ("no eating back").
+   */
+  private async completedWorkouts(
+    userId: string,
+    range: { fromLocalDate: string; toLocalDate: string },
+  ) {
+    const sessions = await this.sessionRepo.findCompleted(userId, range);
+    return sessions.filter((s) => !isActivityLogSession(s));
+  }
+
   /** The active routine's days with their planned weekday (Monday = 0). */
   async trainingSchedule(userId: string): Promise<ScheduledDay[]> {
     const routine = await this.routineRepo.findActive(userId);
@@ -256,7 +271,7 @@ export class TrainingNutritionService {
   ): Promise<ResolvedTrainingDay> {
     const [scheduled, completed, pauses, kinds] = await Promise.all([
       this.trainingSchedule(userId),
-      this.sessionRepo.findCompleted(userId, { fromLocalDate: localDate, toLocalDate: localDate }),
+      this.completedWorkouts(userId, { fromLocalDate: localDate, toLocalDate: localDate }),
       this.pauseRepo.listForUser(userId),
       this.kindsService.getDayKinds(userId),
     ]);
@@ -336,7 +351,7 @@ export class TrainingNutritionService {
         this.loadLifter(userId, profile),
         this.bumpFlag(),
         this.trainingSchedule(userId),
-        this.sessionRepo.findCompleted(userId, { fromLocalDate: from, toLocalDate: to }),
+        this.completedWorkouts(userId, { fromLocalDate: from, toLocalDate: to }),
         this.pauseRepo.listForUser(userId),
         this.kindsService.getDayKinds(userId),
       ]);

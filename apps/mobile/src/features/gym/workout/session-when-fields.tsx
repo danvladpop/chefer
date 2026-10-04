@@ -50,6 +50,49 @@ function StepButton({
   );
 }
 
+export interface DateStepperProps {
+  localDate: string;
+  /** Earliest pickable day (inclusive). */
+  minDate: string;
+  /** Latest pickable day (inclusive) — today. */
+  today: string;
+  onChangeDate: (localDate: string) => void;
+  testID: string;
+}
+
+/** The ‹ date › stepper on its own (also used by the activity quick-log sheet). */
+export function DateStepper({ localDate, minDate, today, onChangeDate, testID }: DateStepperProps) {
+  return (
+    <View className="gap-1">
+      <Text variant="label">Date</Text>
+      <View className="min-h-12 flex-row items-center rounded-xl bg-muted px-1">
+        <StepButton
+          testID={`${testID}-date-prev`}
+          label="Previous day"
+          icon="chevron-back"
+          disabled={localDate <= minDate}
+          onPress={() => onChangeDate(addDaysLocal(localDate, -1))}
+        />
+        <Text
+          testID={`${testID}-date`}
+          accessibilityLiveRegion="polite"
+          className="min-w-0 flex-1 text-center text-base font-semibold"
+          numberOfLines={1}
+        >
+          {whenDateLabel(localDate, today)}
+        </Text>
+        <StepButton
+          testID={`${testID}-date-next`}
+          label="Next day"
+          icon="chevron-forward"
+          disabled={localDate >= today}
+          onPress={() => onChangeDate(addDaysLocal(localDate, 1))}
+        />
+      </View>
+    </View>
+  );
+}
+
 export interface SessionWhenFieldsProps {
   localDate: string;
   durationMin: number;
@@ -91,33 +134,13 @@ export function SessionWhenFields({
 
   return (
     <View className={cn('gap-3', className)}>
-      <View className="gap-1">
-        <Text variant="label">Date</Text>
-        <View className="min-h-12 flex-row items-center rounded-xl bg-muted px-1">
-          <StepButton
-            testID={`${testID}-date-prev`}
-            label="Previous day"
-            icon="chevron-back"
-            disabled={localDate <= minDate}
-            onPress={() => onChangeDate(addDaysLocal(localDate, -1))}
-          />
-          <Text
-            testID={`${testID}-date`}
-            accessibilityLiveRegion="polite"
-            className="min-w-0 flex-1 text-center text-base font-semibold"
-            numberOfLines={1}
-          >
-            {whenDateLabel(localDate, today)}
-          </Text>
-          <StepButton
-            testID={`${testID}-date-next`}
-            label="Next day"
-            icon="chevron-forward"
-            disabled={localDate >= today}
-            onPress={() => onChangeDate(addDaysLocal(localDate, 1))}
-          />
-        </View>
-      </View>
+      <DateStepper
+        localDate={localDate}
+        minDate={minDate}
+        today={today}
+        onChangeDate={onChangeDate}
+        testID={testID}
+      />
       <View className="gap-1">
         <Text variant="label" nativeID={`${testID}-duration-label`}>
           Duration

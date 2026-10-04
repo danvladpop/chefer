@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { describe, expect, it } from 'vitest';
+import { ACTIVITY_LOG_EXERCISE_IDS, ACTIVITY_PRESETS } from './activity-log';
 import { CARDIO_CATALOG_BY_ID, CARDIO_EXERCISE_IDS } from './cardio-catalog';
 import { EXERCISE_BY_ID, EXERCISE_CATALOG, HIDDEN_EXERCISE_IMAGE_IDS } from './exercise-catalog';
 import { EXERCISE_CONTENT } from './exercise-content';
@@ -120,8 +121,9 @@ describe('home variants (audit F-GYM-2-1)', () => {
     // 77 + 2 library-staple additions (T-05.10, UX-05 A5): incline-barbell-
     // bench-press and back-extension. + 12 cardio entries (T-42.1).
     // + cable-biceps-curl (owner request 2026-10-02). + 91 library-expansion
-    // rows (plan-library-supersets.md L1, 2026-10-02).
-    expect(EXERCISE_CATALOG).toHaveLength(183);
+    // rows (plan-library-supersets.md L1, 2026-10-02). + 8 quick-log
+    // activities (WP-20, 2026-10-04).
+    expect(EXERCISE_CATALOG).toHaveLength(191);
     for (const id of HOME_VARIANTS) {
       const e = EXERCISE_BY_ID.get(id);
       expect(e, id).toBeDefined();
@@ -291,11 +293,14 @@ describe('cardio catalog (T-42.1)', () => {
     'ROWER',
     'ELLIPTICAL',
     'STAIR_CLIMBER',
+    // WP-20 quick-log activities.
+    'BODYWEIGHT',
+    'POOL',
   ]);
 
-  it('has exactly 12 entries this wave, every one DURATION or DURATION_DISTANCE', () => {
+  it('has exactly 20 entries (12 W2 + 8 WP-20 activities), every one DURATION or DURATION_DISTANCE', () => {
     const cardio = EXERCISE_CATALOG.filter(isCardio);
-    expect(cardio).toHaveLength(12);
+    expect(cardio).toHaveLength(20);
     for (const e of cardio) {
       expect(['DURATION', 'DURATION_DISTANCE'], e.id).toContain(e.trackingType);
       expect(CARDIO_EQUIPMENT.has(e.equipment), e.id).toBe(true);
@@ -313,6 +318,27 @@ describe('cardio catalog (T-42.1)', () => {
       expect(entry.metHigh, entry.exerciseId).toBeGreaterThanOrEqual(entry.metLow);
       expect(entry.metrics.length, entry.exerciseId).toBeGreaterThan(0);
     }
+  });
+});
+
+describe('activity quick-log presets (WP-20)', () => {
+  it('maps every chip to a DURATION cardio catalogue entry (renders on every shipped client)', () => {
+    expect(ACTIVITY_PRESETS.map((p) => p.key).at(-1)).toBe('other');
+    expect(new Set(ACTIVITY_PRESETS.map((p) => p.key)).size).toBe(ACTIVITY_PRESETS.length);
+    for (const p of ACTIVITY_PRESETS) {
+      const e = EXERCISE_BY_ID.get(p.exerciseId);
+      expect(e, p.key).toBeDefined();
+      expect(e?.trackingType, p.key).toBe('DURATION');
+      expect(CARDIO_EXERCISE_IDS.has(p.exerciseId), p.key).toBe(true);
+      expect(p.sessionName.length, p.key).toBeGreaterThan(0);
+      expect(p.sessionName.length, p.key).toBeLessThanOrEqual(80);
+    }
+  });
+
+  it('keeps the activity id set in step with the presets', () => {
+    expect([...ACTIVITY_LOG_EXERCISE_IDS].sort()).toEqual(
+      ACTIVITY_PRESETS.map((p) => p.exerciseId).sort(),
+    );
   });
 });
 
