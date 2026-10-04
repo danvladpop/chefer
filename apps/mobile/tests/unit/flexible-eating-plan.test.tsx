@@ -167,7 +167,12 @@ describe('Plan day — overflow on a planned slot (WP-06)', () => {
     await user.press(await screen.findByTestId('plan-slot-actions-1'));
     await user.press(screen.getByTestId('slot-action-skip'));
     await waitFor(() => expect(seen.skipSlot).toHaveLength(1));
-    expect(seen.skipSlot?.[0]).toEqual({ date: WEDNESDAY, mealType: 'dinner', slotIndex: 1 });
+    expect(seen.skipSlot?.[0]).toEqual({
+      date: WEDNESDAY,
+      mealType: 'dinner',
+      slotIndex: 1,
+      rebalanceMode: 'preview',
+    });
   });
 
   it('a later day has no overflow and its log is never read', async () => {

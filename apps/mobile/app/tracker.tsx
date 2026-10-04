@@ -31,7 +31,11 @@ import { EditRecipeEntrySheet } from '../src/features/tracker/edit-recipe-entry-
 import { invalidateDayQueries } from '../src/features/tracker/invalidate';
 import { QuickAddSheet } from '../src/features/tracker/quick-add-sheet';
 import { RebalanceBanner } from '../src/features/tracker/rebalance-banner';
-import { recordRebalance } from '../src/features/tracker/rebalance-store';
+import { RebalanceOffer } from '../src/features/tracker/rebalance-offer';
+import {
+  REBALANCE_PREVIEW,
+  recordRebalanceOutcome,
+} from '../src/features/tracker/rebalance-offer-store';
 import { ScanMealCard } from '../src/features/tracker/scan-meal-card';
 import { SlotOverflowButton, SlotStatusLine } from '../src/features/tracker/slot-controls';
 import { SLOT_COPY, youHadText } from '../src/features/tracker/slot-copy';
@@ -183,6 +187,7 @@ export default function TrackerScreen() {
     logRecipeMutation.mutate(
       {
         date: dateStr,
+        ...REBALANCE_PREVIEW,
         recipeId: meal.recipeId,
         mealType: meal.mealType,
         portionMultiplier,
@@ -279,10 +284,10 @@ export default function TrackerScreen() {
 
   const confirmCopyDay = () => {
     copyDayMutation.mutate(
-      { fromDate: copyFromDateStr, toDate: dateStr },
+      { fromDate: copyFromDateStr, toDate: dateStr, ...REBALANCE_PREVIEW },
       {
         onSuccess: (result) => {
-          recordRebalance(result.rebalance);
+          recordRebalanceOutcome(result);
           invalidateDayQueries(utils); // both the source and target dates
           setCopyDayOpen(false);
           snackbar.show({
@@ -319,6 +324,7 @@ export default function TrackerScreen() {
             onAction: () =>
               logRecipeMutation.mutate({
                 date: dateStr,
+                ...REBALANCE_PREVIEW,
                 recipeId: row.recipeId,
                 mealType: row.mealType,
                 portionMultiplier: row.portionMultiplier ?? 1,
@@ -428,7 +434,8 @@ export default function TrackerScreen() {
           contentContainerClassName="gap-4 px-4 py-2 pb-8"
           keyboardShouldPersistTaps="handled"
         >
-          {/* Premium week rebalance triggered by a log on this screen */}
+          {/* A log on this screen can offer to rebalance the week (free, WP-07) */}
+          <RebalanceOffer />
           <RebalanceBanner />
 
           {/* Target change notice (§2.11, T-11.1/T-11.5) — never a silent change */}

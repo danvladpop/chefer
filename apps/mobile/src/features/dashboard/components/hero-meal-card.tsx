@@ -13,7 +13,7 @@ import {
 import { trackMealLogged } from '../../../lib/analytics-events';
 import { getRecipeImageUrl } from '../../../lib/recipe-image';
 import { trpc, type RouterOutputs } from '../../../lib/trpc';
-import { recordRebalance } from '../../tracker/rebalance-store';
+import { REBALANCE_PREVIEW, recordRebalanceOutcome } from '../../tracker/rebalance-offer-store';
 import { SlotOverflowButton } from '../../tracker/slot-controls';
 import { MealTypeBadge } from './meal-type-badge';
 
@@ -68,8 +68,8 @@ export function HeroMealCard({
     meta: { silent: true },
     onSuccess: (result) => {
       trackMealLogged('planned', meal.mealType);
-      // A premium log can rebalance the week — same hand-off as the tracker.
-      recordRebalance(result.rebalance);
+      // A log can offer to rebalance the week — same hand-off as the tracker.
+      recordRebalanceOutcome(result);
       setLastLogged(meal.recipe.name);
       // Hold the card on this meal (the one that was tapped), then let the
       // refetched summary move it on.
@@ -161,6 +161,7 @@ export function HeroMealCard({
               onPress={() =>
                 logMutation.mutate({
                   date: localDateStr(),
+                  ...REBALANCE_PREVIEW,
                   recipeId: meal.recipe.id,
                   mealType: meal.mealType,
                   // The plan slot, so the second of two identical snacks

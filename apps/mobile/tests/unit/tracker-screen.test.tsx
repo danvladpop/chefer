@@ -399,7 +399,7 @@ const trainingDay = (applied: boolean) => ({
 });
 
 describe('TrackerScreen — training-day targets (audit P2-4)', () => {
-  it('premium: the line shows and the bars use the bumped targets, like Today', async () => {
+  it('the line shows and the bars use the bumped targets, like Today (free for everyone)', async () => {
     mockDayExtras = {
       trainingDay: trainingDay(true),
       adjustedTargets: { dailyCalorieTarget: 2200, proteinG: 157, carbsG: 267, fatG: 65 },
@@ -413,13 +413,13 @@ describe('TrackerScreen — training-day targets (audit P2-4)', () => {
     expect(screen.queryByTestId('training-day-upgrade')).not.toBeOnTheScreen();
   });
 
-  it('free: the same line locked, base targets kept', async () => {
+  it('an unapplied bump (older API) shows no lock or upgrade: training targets are free', async () => {
     mockDayExtras = { trainingDay: trainingDay(false) };
     await renderTracker();
     expect(screen.getByTestId('training-day-line')).toHaveTextContent(
       'Training day · +200 kcal, +32 g protein',
     );
-    expect(screen.getByTestId('training-day-upgrade')).toBeOnTheScreen();
+    expect(screen.queryByTestId('training-day-upgrade')).not.toBeOnTheScreen();
     expect(screen.getByText('0 / 2000')).toBeOnTheScreen();
     expect(screen.getByText('0 / 125')).toBeOnTheScreen();
   });
@@ -461,6 +461,8 @@ describe('TrackerScreen — one-save model (bug B-23, T-19.4)', () => {
           recipeId: 'r1',
           mealType: 'breakfast',
           portionMultiplier: 1,
+          // WP-07: a log asks for a preview, never a silent rebalance.
+          rebalanceMode: 'preview',
         }),
       ),
     );

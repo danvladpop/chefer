@@ -27,7 +27,7 @@ import { trpc } from '../../lib/trpc';
 import { useAiConsent } from '../ai-consent/ai-consent-provider';
 import { openPremium } from '../premium/open-premium';
 import { invalidateDayQueries } from './invalidate';
-import { recordRebalance } from './rebalance-store';
+import { REBALANCE_PREVIEW, recordRebalanceOutcome } from './rebalance-offer-store';
 import { toLogMealType } from './slot-copy';
 
 // Snap-to-Log (F4 / M3-2) — mobile counterpart of web's ScanMealButton.
@@ -177,7 +177,7 @@ function SnapCard({ date, onLogged, autoPick, onAutoPicked, replacesSlot }: Scan
     meta: { silent: true },
     onSuccess: (data, variables) => {
       trackMealLogged('snap', variables.mealType);
-      recordRebalance(data.rebalance);
+      recordRebalanceOutcome(data);
       // Bug B-44: Today used to lag the tracker by ~8s after a snap log —
       // this mutation invalidated nothing, so the dashboard ring only caught
       // up on its own stale-time refetch.
@@ -426,6 +426,7 @@ function SnapCard({ date, onLogged, autoPick, onAutoPicked, replacesSlot }: Scan
               onPress={() =>
                 logMutation.mutate({
                   date,
+                  ...REBALANCE_PREVIEW,
                   name: estimate.dishName || 'Scanned meal',
                   estimatedBy: 'vision',
                   mealType: replacesSlot ? toLogMealType(replacesSlot.mealType) : mealType,
