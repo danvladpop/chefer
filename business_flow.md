@@ -2234,11 +2234,20 @@ Entry points (≤ 2 taps from Profile / "You", PM review §5)
 Members (household.* — protected, EVERY tier, cap householdMembers = 5)
   ├─ household.list — member chips with per-member safety summary
   ├─ household.add — { name, portionFactor 0.25–3 (0.5 kid … 1.5 big eater),
-  │    isKid, allergies[], dietaryRestrictions[], dislikedIngredients[] }
+  │    isKid, ageBand? (kids only), allergies[], dietaryRestrictions[],
+  │    dislikedIngredients[] }
   │    count + insert in one SERIALIZABLE transaction (F-ONB-3-1: parallel
   │    adds can no longer pass the cap); `household_member_added` on save
   ├─ household.update / household.remove — ownership-scoped; removing asks
   │    to confirm first (F-ONB-3-2)
+  ├─ Kid age band (UX-PLAN-12, optional, web + mobile editors): when "kid" is on,
+  │    "Age" chips 1–3 / 4–8 / 9–13 / 14–17 appear. Picking one PRE-FILLS the
+  │    portion (½ / ¾ / 1 / 1¼ — EFSA energy needs by age relative to a ~2,000
+  │    kcal adult); the user can still change it, tapping the chip again clears
+  │    it. `portionFactor` stays the only number planning, servings and the
+  │    shopping list read — the band is display + a suggestion. The member row
+  │    shows it ("Kid · 4–8" on mobile, "4–8 · ¾ portion" on web). Un-marking
+  │    someone as a kid clears the band; 1.0.1 clients never send it.
   └─ quick chips on an empty household: "+ add your partner" / "+ add a kid"
        ├─ premium: open the editor pre-filled (kid = ½ portion, isKid)
        └─ free: the §6.4 ghost reflects the chip tapped (F-PM-12) — the kid

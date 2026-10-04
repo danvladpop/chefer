@@ -200,6 +200,50 @@ describe('HouseholdEditor', () => {
     expect(mockAdd).not.toHaveBeenCalled();
   });
 
+  it('UX-PLAN-12: age chips appear for a kid only, pre-fill the portion and are sent with the member', async () => {
+    const user = userEvent.setup();
+    await renderEditor(<HouseholdEditor />);
+
+    // Not a kid yet: no age chips.
+    expect(screen.queryByTestId('household-age-group')).toBeNull();
+
+    await user.press(screen.getByTestId('household-preset-kid'));
+    expect(screen.getByTestId('household-age-group')).toBeOnTheScreen();
+    await user.type(screen.getByTestId('household-name'), 'Ana');
+    await user.press(screen.getByTestId('household-age-TEEN'));
+    expect(screen.getByTestId('household-age-TEEN').props.accessibilityState).toMatchObject({
+      selected: true,
+    });
+    expect(screen.getByTestId('household-age-TEEN').props.accessibilityLabel).toBe('Age 14–17');
+    // The portion is pre-filled but stays adjustable.
+    expect(screen.getByTestId('household-portion-1.25').props.accessibilityState).toMatchObject({
+      selected: true,
+    });
+    await user.press(screen.getByTestId('household-portion-1'));
+    await user.press(screen.getByTestId('household-add'));
+
+    expect(mockAdd).toHaveBeenCalledWith(
+      expect.objectContaining({ name: 'Ana', isKid: true, ageBand: 'TEEN', portionFactor: 1 }),
+    );
+  });
+
+  it('UX-PLAN-12: shows the stored band on the member and can clear it', async () => {
+    mockMembers = [{ ...sam, ageBand: 'CHILD' }];
+    const user = userEvent.setup();
+    await renderEditor(<HouseholdEditor />);
+    expect(screen.getByText('Kid · 4–8')).toBeOnTheScreen();
+
+    await user.press(screen.getByTestId('household-edit-m1'));
+    expect(screen.getByTestId('household-age-CHILD').props.accessibilityState).toMatchObject({
+      selected: true,
+    });
+    await user.press(screen.getByTestId('household-age-CHILD')); // tap again = none
+    await user.press(screen.getByTestId('household-add'));
+    expect(mockUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({ id: 'm1', isKid: true, ageBand: null }),
+    );
+  });
+
   it('cancelling an edit returns the form to "Add someone"', async () => {
     mockMembers = [sam];
     const user = userEvent.setup();
