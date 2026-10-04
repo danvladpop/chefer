@@ -16,7 +16,7 @@ import {
   type SlotRef,
 } from '@chefer/utils';
 import { invalidateDayQueries } from './invalidate';
-import { handleRebalanceResult } from './rebalance-storage';
+import { handleRebalanceOutcome } from './rebalance-storage';
 
 // Every write the tracker makes to a day (UX-FOOD-01, UX-FOOD-06) — the web
 // twin of apps/mobile/src/features/tracker/use-tracker-writes.ts.
@@ -86,7 +86,7 @@ export function useTrackerWrites(dateStr: string, showToast: ShowToast) {
     onSuccess: (result, vars) => {
       // UX-PO-02: the tracker only ticks planned rows.
       trackMealLogged('planned', vars.mealType);
-      handleRebalanceResult(result.rebalance);
+      handleRebalanceOutcome(result);
     },
     onError: (error, vars, snapshot) => {
       rollback(snapshot);
@@ -199,7 +199,7 @@ export function useTrackerWrites(dateStr: string, showToast: ShowToast) {
       }),
     onSuccess: (result, vars) => {
       trackMealLogged('replaced', vars.mealType);
-      handleRebalanceResult(result.rebalance);
+      handleRebalanceOutcome(result);
     },
     onError: (error, _vars, snapshot) => {
       rollback(snapshot);
@@ -216,7 +216,7 @@ export function useTrackerWrites(dateStr: string, showToast: ShowToast) {
       applyOptimistic((day) =>
         withSlotSkipped(day, { mealType: vars.mealType, slotIndex: vars.slotIndex }),
       ),
-    onSuccess: (result) => handleRebalanceResult(result.rebalance),
+    onSuccess: (result) => handleRebalanceOutcome(result),
     onError: (error, _vars, snapshot) => {
       rollback(snapshot);
       failed("Couldn't skip that.", error);

@@ -21,7 +21,7 @@ import {
   type SlotRef,
 } from '@chefer/utils';
 import { invalidateDayQueries } from '../lib/invalidate';
-import { handleRebalanceResult } from '../lib/rebalance-storage';
+import { handleRebalanceOutcome, REBALANCE_PREVIEW } from '../lib/rebalance-storage';
 
 // ─── Search-first Log sheet (T-19.1, UX-19) ────────────────────────────────────
 // Web counterpart of mobile's quick-add-sheet.tsx. Recent → This week's plan →
@@ -115,8 +115,13 @@ export function QuickAddSheet({
     onOpenChange?.(next);
   };
   /** Adds `replacesSlot` to a custom entry when this sheet is slot-targeted. */
-  const forSlot = <T extends object>(entry: T): T & { replacesSlot?: SlotRef } =>
-    replacesSlot ? { ...entry, replacesSlot } : entry;
+  // Every log write also asks for an offer instead of a silent rebalance (WP-07).
+  const forSlot = <T extends object>(
+    entry: T,
+  ): T & { replacesSlot?: SlotRef; rebalanceMode: 'preview' } =>
+    replacesSlot
+      ? { ...entry, replacesSlot, ...REBALANCE_PREVIEW }
+      : { ...entry, ...REBALANCE_PREVIEW };
   const [view, setView] = useState<'search' | 'manual'>('search');
   const [query, setQuery] = useState('');
   const [ingredientLimit, setIngredientLimit] = useState(INGREDIENT_PAGE);
@@ -196,7 +201,7 @@ export function QuickAddSheet({
   const onLoggedCommon = (
     data: RouterOutputs['tracker']['logRecipe'] | RouterOutputs['tracker']['logCustomMeal'],
   ) => {
-    handleRebalanceResult(data.rebalance);
+    handleRebalanceOutcome(data);
     // Recent (AC1) — and the weekly/monthly summaries, dashboard ring — must
     // reflect this log the next time the sheet (or those surfaces) opens, not
     // after the query's 60s staleTime. onLogged() alone only refetches
@@ -259,6 +264,7 @@ export function QuickAddSheet({
     if (isPending) return;
     if (recent.recipeId && !replacesSlot) {
       logRecipeMutation.mutate({
+        ...REBALANCE_PREVIEW,
         date,
         recipeId: recent.recipeId,
         mealType: recent.mealType,
@@ -285,6 +291,7 @@ export function QuickAddSheet({
     if (isPending) return;
     plannedRowPending.current = true;
     logRecipeMutation.mutate({
+      ...REBALANCE_PREVIEW,
       date,
       recipeId: meal.recipeId,
       mealType: meal.mealType,
@@ -321,6 +328,7 @@ export function QuickAddSheet({
       return;
     }
     logRecipeMutation.mutate({
+      ...REBALANCE_PREVIEW,
       date,
       recipeId: recipe.id,
       mealType,

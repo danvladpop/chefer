@@ -74,6 +74,11 @@ import { PlanMissSheet } from '../../src/features/nutrition/plan-miss-sheet';
 import { openPremium } from '../../src/features/premium/open-premium';
 import { ReportSafetySheet } from '../../src/features/safety/report-sheet';
 import { RebalanceBanner } from '../../src/features/tracker/rebalance-banner';
+import {
+  RebalanceMyWeek,
+  RebalanceOffer,
+  useRebalanceCheck,
+} from '../../src/features/tracker/rebalance-offer';
 import { SlotOverflowButton, SlotStatusLine } from '../../src/features/tracker/slot-controls';
 import { SLOT_COPY, youHadText } from '../../src/features/tracker/slot-copy';
 import { useSlotFlow } from '../../src/features/tracker/slot-flow';
@@ -243,6 +248,8 @@ export default function MealPlanScreen() {
   const trainingDays = plan?.trainingDays ?? [];
   const hasTrainingDays = trainingDays.length > 0;
   const fitTrainingDays = fitTrainingPref ?? true;
+  // WP-07: "Rebalance my week" and the miss sheet's protein route share one check.
+  const rebalanceCheck = useRebalanceCheck(plan?.planId);
 
   // Everything derived from the plan lives on other (kept-mounted) tabs —
   // invalidate it all after any plan mutation so Home/Shop don't go stale.
@@ -874,6 +881,11 @@ export default function MealPlanScreen() {
           >
             {/* A log elsewhere swapped future meals — say which, offer undo */}
             <RebalanceBanner planId={plan.planId} onUndone={() => void refetch()} />
+            {/* WP-07: a log offered a rebalance (preview first), or ask for one here. */}
+            <RebalanceOffer planId={plan.planId} onApplied={() => void refetch()} />
+            {!isPast && weekOffset === 0 && (
+              <RebalanceMyWeek planId={plan.planId} controller={rebalanceCheck} />
+            )}
 
             {/* T-06.7: this week was built around the routine's training days. */}
             {builtAroundTraining && (
@@ -1354,6 +1366,7 @@ export default function MealPlanScreen() {
               invalidateDerived();
             }}
             onAddSnack={() => router.push('/tracker')}
+            onRebalance={() => void rebalanceCheck.check()}
           />
 
           <CompareWeeksSheet

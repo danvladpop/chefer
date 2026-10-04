@@ -44,7 +44,11 @@ import { StarRating } from '../../src/features/recipes/star-rating';
 import { CheckedForLine } from '../../src/features/safety/checked-for-line';
 import { LabelCaveat } from '../../src/features/safety/label-caveat';
 import { RebalanceBanner } from '../../src/features/tracker/rebalance-banner';
-import { recordRebalance } from '../../src/features/tracker/rebalance-store';
+import { RebalanceOffer } from '../../src/features/tracker/rebalance-offer';
+import {
+  REBALANCE_PREVIEW,
+  recordRebalanceOutcome,
+} from '../../src/features/tracker/rebalance-offer-store';
 import { useCookingFor } from '../../src/hooks/use-cooking-for';
 import { useHousehold } from '../../src/hooks/use-household';
 import { useUnits } from '../../src/hooks/use-units';
@@ -56,7 +60,7 @@ import { useUnsavedGuard } from '../../src/lib/use-unsaved-guard';
 // Cook mode (P1-3) — port of web features/recipes/components/cook-mode.tsx.
 // Step-by-step with inline timers (shared parseStepDuration), screen kept
 // awake, ingredient checklist, and finish → tracker log (same append
-// semantics as web) → star rating. A premium week rebalance triggered by the
+// semantics as web) → star rating. A week rebalance offered by the
 // log shows its banner + undo right here on the finish screen. Servings
 // start at a premium household's table portions (P2-3), multiplied by the
 // plan slot's portion when opened from the plan (P1-1) — same as web. A
@@ -252,7 +256,7 @@ export default function CookModeScreen() {
       trackMealLogged(isMealSlot(meal) ? 'planned' : 'quick', variables.mealType);
       setLogged(true);
       setLoggedAs({ date: variables.date, slot });
-      recordRebalance(result.rebalance);
+      recordRebalanceOutcome(result);
       void utils.tracker.getDay.invalidate();
       void utils.tracker.weeklySummary.invalidate();
       void utils.dashboard.summary.invalidate();
@@ -280,6 +284,7 @@ export default function CookModeScreen() {
     // tap can't double-log (F-PM-1, F-M-TRK-1-1).
     upsertDay.mutate({
       date: todayIso(),
+      ...REBALANCE_PREVIEW,
       recipeId: recipe.id,
       mealType: slot,
       // One serving eaten — cooking for 4 doesn't mean you ate 4×. A plan
@@ -620,6 +625,7 @@ export default function CookModeScreen() {
           ) : null}
           {logged && (
             <>
+              <RebalanceOffer className="self-stretch" />
               <RebalanceBanner className="self-stretch" />
               {/* Ratings feed next week's generation (P1-1) — say so. */}
               <StarRating

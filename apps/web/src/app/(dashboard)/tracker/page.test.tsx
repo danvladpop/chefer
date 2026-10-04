@@ -153,7 +153,10 @@ vi.mock('@/features/nutrition/components/TargetExplainSheet', () => ({
 }));
 vi.mock('@/features/tracker/components/QuickAddSheet', () => ({ QuickAddSheet: () => null }));
 vi.mock('@/features/tracker/components/ScanMealButton', () => ({ ScanMealButton: () => null }));
-vi.mock('@/features/tracker/lib/rebalance-storage', () => ({ handleRebalanceResult: vi.fn() }));
+vi.mock('@/features/tracker/lib/rebalance-storage', () => ({
+  handleRebalanceOutcome: vi.fn(),
+  REBALANCE_PREVIEW: { rebalanceMode: 'preview' },
+}));
 vi.mock('@/hooks/useIsPremium', () => ({ useIsPremium: () => false }));
 vi.mock('@/lib/recipe-image', () => ({ getRecipeImageProps: () => ({ src: '/x.jpg' }) }));
 vi.mock('@/lib/trpc', () => ({
@@ -418,7 +421,12 @@ describe('Tracker — one-save model (bug B-23, T-19.4)', () => {
     fireEvent.click(firstSnack);
     await waitFor(() =>
       expect(m.logRecipe).toHaveBeenCalledWith(
-        expect.objectContaining({ recipeId: 'yogurt', mealType: 'snack', slotIndex: 1 }),
+        expect.objectContaining({
+          recipeId: 'yogurt',
+          mealType: 'snack',
+          slotIndex: 1,
+          rebalanceMode: 'preview', // WP-07: offer first, never a silent rebalance
+        }),
       ),
     );
   });
@@ -466,7 +474,10 @@ describe('Tracker — copy a day (T-19.3)', () => {
     fireEvent.click(screen.getByTestId('tracker-copy-day'));
     fireEvent.click(screen.getByTestId('tracker-copy-day-confirm'));
     expect(m.copyDay).toHaveBeenCalledWith(
-      expect.objectContaining({ toDate: expect.any(String) as string }),
+      expect.objectContaining({
+        toDate: expect.any(String) as string,
+        rebalanceMode: 'preview',
+      }),
     );
     expect(screen.getByText('Copied 2 entries')).toBeTruthy();
     fireEvent.click(screen.getByText('Undo'));
@@ -908,6 +919,7 @@ describe('Tracker — flexible eating (WP-06)', () => {
         fat: 0,
         unknownMacros: ['carbs', 'fat'],
         replacesSlot: { mealType: 'dinner', slotIndex: 0 },
+        rebalanceMode: 'preview',
       }),
     );
     // The slot reads what you had, can't be ticked again, and is not repeated under "Also eaten".
@@ -1004,6 +1016,8 @@ describe('Tracker — flexible eating (WP-06)', () => {
         date: expect.any(String) as string,
         mealType: 'lunch',
         slotIndex: 1,
+        // WP-07: the log write asks for an offer, never a silent rebalance.
+        rebalanceMode: 'preview',
       }),
     );
     await waitFor(() =>

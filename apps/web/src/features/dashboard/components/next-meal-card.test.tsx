@@ -26,7 +26,10 @@ vi.mock('next/link', () => ({
     </a>
   ),
 }));
-vi.mock('@/features/tracker/lib/rebalance-storage', () => ({ handleRebalanceResult: vi.fn() }));
+vi.mock('@/features/tracker/lib/rebalance-storage', () => ({
+  handleRebalanceOutcome: vi.fn(),
+  REBALANCE_PREVIEW: { rebalanceMode: 'preview' },
+}));
 vi.mock('@/lib/analytics', () => ({ capture: vi.fn() }));
 vi.mock('@/lib/recipe-image', () => ({ getRecipeImageProps: () => ({ src: '/x.jpg' }) }));
 vi.mock('@/lib/trpc', () => ({
@@ -86,6 +89,8 @@ describe('NextMealCard', () => {
     fireEvent.click(screen.getByTestId('today-ate-this'));
     const [args] = mocks.mutate.mock.calls[0] as [Record<string, unknown>];
     expect(args).toMatchObject({ recipeId: 'curry', mealType: 'dinner', portionMultiplier: 1 });
+    // WP-07: the log write asks for a rebalance offer, never a silent rebalance.
+    expect(args).toMatchObject({ rebalanceMode: 'preview' });
     expect(String(args['date'])).toMatch(/^\d{4}-\d{2}-\d{2}$/);
   });
 

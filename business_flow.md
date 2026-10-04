@@ -1485,7 +1485,7 @@ a goal, and a known bodyweight (latest `WeightEntry`, else
 | ----------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
 | Base protein      | by goal: **GAIN_MUSCLE 1.8 g/kg**, **LOSE_WEIGHT 2.0 g/kg** (keeps muscle in a deficit), **MAINTAIN / EAT_HEALTHIER 1.6 g/kg** — replaces the goal's % split; carbs absorb the difference so kcal is unchanged | every tier — `resolveDailyTargets(profile, lifterBodyweightKg)` in dashboard, tracker, chat context, coach review and both generation paths |
 | Training day      | a workout **completed** that day (any day), else a routine day **planned** for that weekday outside a training pause                                                                                           | —                                                                                                                                           |
-| Training-day bump | GAIN_MUSCLE only (a cut keeps its deficit): protein to **2.2 g/kg** (+0.4 g/kg), kcal **+10%** of the base (rounded to 10, clamped 150–300); kcal not covered by protein → carbs; fat unchanged                | **premium** applies it; **free** sees the same numbers locked (upgrade source `training-day`)                                               |
+| Training-day bump | GAIN_MUSCLE only (a cut keeps its deficit): protein to **2.2 g/kg** (+0.4 g/kg), kcal **+10%** of the base (rounded to 10, clamped 150–300); kcal not covered by protein → carbs; fat unchanged                | **every tier** applies it (free since WP-07: no AI)                                                                                         |
 | Post-workout meal | **~0.4 g/kg** protein, rounded to 5 g, 20–45 g (30 g without a bodyweight)                                                                                                                                     | every tier                                                                                                                                  |
 | Premium AI week   | the routine's training weekdays + the bump go into the generation prompt (`buildTrainingDaysSection`), and the ±15%/±20% validation judges those days against the bumped targets                               | premium                                                                                                                                     |
 | Free curated week | training weekdays weigh the protein shortfall double in `planCuratedWeek`, so those days pick the higher-protein combinations (usually dinner); no kcal bump                                                   | free                                                                                                                                        |
@@ -1552,13 +1552,14 @@ protein targets (owner decision Q-3, 2026-09-30 — no widening to other goals,
 no run-day numbers). A long run still adds an evening-before carb snack idea
 on the previous day.
 
-**Free vs premium (D-2).** The bump on Today, the tracker and the plan's day
-targets is gated by `trainingDayTargets` (premium) OR the flag
-`trainingBumpFree` (free). Flag off → a free user sees the same numbers as a
-locked preview and the target does not move. `trainingNutrition` (premium)
-means "Fit meals to my training days" — the AI/curated week is built around
-the lift days; the switch is in the Plan settings sheet and is sent as
-`generate.fitTrainingDays`.
+**Free vs premium (WP-07, "Premium is for heavy AI only").** Training-day
+nutrition uses no AI, so the bump on Today, the tracker and the plan's day
+targets is **free for every tier** (`trainingDayTargets` and `trainingNutrition`
+are `free: true`; the old `trainingBumpFree` flag is redundant and kept only
+until it is removed). What stays premium is the AI-built week: "Fit meals to my
+training days" in the Plan settings sheet (`generate.fitTrainingDays`) runs
+through `aiMealPlans`. A free GAIN_MUSCLE lifter with a training day today sees
+the applied targets, not a locked preview.
 
 **Plan (web + mobile).** Day chips carry a barbell (lift) or walk (run) glyph
 on exactly the training weekdays; the day view gets a header (`Training day ·
@@ -1569,9 +1570,9 @@ training days`); a user whose goal gets no bump sees the marker and title but
 no kcal. The week summary shows `3 training days`. The day before a long run
 shows the pre-run snack idea.
 
-**Today.** `training-day-note` renders the applied state for free (flag on)
-and premium with a `Why?` link; the locked variant only when the bump is not
-applied. For users who train, the week outlook becomes the week glance: seven
+**Today.** `training-day-note` renders the applied state for every tier with a
+`Why?` link; the locked variant only shows when the server did not apply the
+bump (never for tier reasons since WP-07). For users who train, the week outlook becomes the week glance: seven
 equal columns (Mon–Sun, never a scroll), each with the meal count and a
 barbell / walk glyph (filled = done, outline = planned, never red).
 `dashboard.summary.refuelSnacks` carries two allergy-safe snacks for the gym
@@ -1930,8 +1931,9 @@ matching mobile's `progress.tsx` `shortDate`, which already did this.
 
 Photo logging + week rebalance (premium*plan.md W1-B). The honesty principle:
 logging off-plan food is FREE (manual quick-add, chat "I ate this"); the
-\_vision* scan and the automatic week rebalance are premium
-(`PLAN_FEATURES.photoLogging`, `mealScansPerDay: 10`).
+\_vision* scan is premium (`PLAN_FEATURES.photoLogging`, `mealScansPerDay: 10`).
+**Since WP-07 the week rebalance is free** (`PLAN_FEATURES.weekRebalance`, no AI —
+"Premium is for heavy AI only") and shows a preview before it changes anything.
 
 ### Photo scan (premium)
 
@@ -2028,35 +2030,89 @@ no-active-plan empty state are §30.
   `upgrade_prompt_shown { source: 'snap-scan' }` + `teaser_engaged
 { feature: 'snap' }` (§6.4 merchandising).
 
-### Week rebalance (premium)
+### Week rebalance (free, protein-aware, preview before apply — WP-07)
 
 After ANY log write (tracker save, quick-add, photo scan, chat logMeal,
-cook-mode "Made it!"), `TrackerService.maybeRebalance` runs for users with
-`photoLogging` access:
+cook-mode "Made it!", skip), `TrackerService.rebalanceOutcome` runs for every
+user (`weekRebalance`, free + premium). There are two deliveries:
+
+- **Old clients (no opt-in, e.g. app 1.0.1):** exactly as before — the swaps are
+  applied at once and returned in the log response's `rebalance`; the banner
+  offers Undo.
+- **New clients (`rebalanceMode: 'preview'` on the log):** nothing is applied.
+  The response carries `rebalance: null` and `rebalancePreview`; the client shows
+  "I can rebalance the rest of your week: Sunday dinner → Chicken bowl (+28 g
+  protein)" with **Preview · Apply · Not now**. Apply calls
+  `mealPlan.applyRebalance` with the swaps it was shown; the result has the same
+  shape as an auto rebalance, so Undo is unchanged. Plan can ask at any time with
+  `mealPlan.previewRebalance`.
 
 ```
-rebalanceWeek(userId, activePlanId)   [application/meal-plan/rebalance.ts]
+rebalanceWeek / previewRebalance(userId, planId)   [application/meal-plan/rebalance.ts]
   ├─ only the CURRENT week's plan; Sunday → no-op (no future days)
-  ├─ projection = Σ logged kcal Mon…today + Σ planned kcal for days AFTER today
-  ├─ |projection − 7×dailyTarget| ≤ 15% → no-op ("week is on track")
-  └─ else: greedy-swap up to 2 FUTURE slots for closer-calorie alternatives
-       from the safety-filtered curated pool (deterministic, no AI call);
-       stops early when back within 15% or no swap improves ≥2% of target
-       → applies via mealPlanRepository.updateDayMeal
-       → returns { rebalanced, swaps[previous↔new pairs], planId }
+  ├─ projection (kcal AND protein) = Σ logged Mon…today
+  │     + today's slots still to eat (planned; a replaced slot is eaten with the
+  │       replacement's numbers, a skipped slot is neither — WP-06 slot rules)
+  │     + Σ planned for days AFTER today
+  ├─ kcal off by > 15% of 7×dailyTarget  → calorie swaps (auto and preview)
+  ├─ protein short by ≥ max(30 g, 2%)     → protein swaps (preview only; an
+  │     auto rebalance never rewrites the week for protein alone)
+  └─ greedy-swap up to 2 FUTURE, un-pinned slots from the safety-filtered curated
+       pool (deterministic, NO AI): a swap scores on the kcal gap and the protein
+       gap it closes; a protein swap may not leave the kcal tolerance, and on a
+       weight-loss goal protein fixes add at most 10% of one day's calories
+       (never "Bigger portions (+503 kcal)"); when swaps cannot close a protein
+       gap the preview also lists safe protein snacks
 ```
 
-The client hands the swap pairs to localStorage
+Every swap carries a one-line explanation (`describeRebalanceSwap`, shared by
+mobile and web): "Sunday dinner → Chicken bowl (+28 g protein, −60 kcal)".
+
+**Web.** Every log write on web (tracker tick / copy day / skip / "Ate
+something else", quick add, photo scan, Today's "I ate this" and Tonight card,
+cook-mode "Made it!") sends `rebalanceMode: 'preview'` (`REBALANCE_PREVIEW` in
+`features/tracker/lib/rebalance-storage.ts`). A non-null `rebalancePreview` is
+parked in localStorage as an **offer** (`handleRebalanceOutcome`; a later log
+that finds nothing to offer retires it; it expires after 6 h) and
+`RebalanceBanner` renders it as `RebalanceOfferCard` on the tracker, Today,
+cook mode and the plan: the headline ("You're 36 g short on protein this
+week."), one line saying how many coming meals would change, and
+**Preview · Apply · Not now**, with the actions stacked UNDER the text so a
+320 px screen never squeezes them. **Preview** expands each swap's one-line
+explanation (`explanation ?? describeRebalanceSwap`) and any protein snacks.
+**Apply** calls `mealPlan.applyRebalance` with exactly the swaps shown, then
+feeds the result to `handleRebalanceResult` (the Undo hand-off below) and
+refetches the plan; if the week moved on (`rebalanced: false`) it says "Those
+meals have changed since, so nothing was swapped." **Not now** only discards
+the offer: no mutation, no Undo. The plan page has a **Rebalance my week**
+button (current week) that opens a sheet backed by `mealPlan.previewRebalance`
+and shows the same offer with the list open, or "Your week is on track" when the
+query returns `null`.
+
+The client hands the swap pairs of an APPLIED rebalance to localStorage
 (`features/tracker/lib/rebalance-storage.ts`), MERGED with any still-pending
 swaps (`@chefer/utils` `mergePendingRebalance` — a second rebalance used to
 erase the first one's undo, F-TRK-3-2). The banner ("I adjusted Thursday
 dinner to keep your week on track") shows where the log happened (tracker,
-cook-mode finish) and on the meal-plan page, with one-tap
-**undo**, which replays `mealPlan.replaceRecipe(previousRecipeId)` per swap.
+Today, cook-mode finish) and on the meal-plan page, with one-tap
+**undo**, which replays `mealPlan.replaceRecipe(previousRecipeId, pinned: false)`
+per swap (a rebalance only ever swaps un-pinned slots, so an undone slot does not
+become "Your pick").
 Undo is per-device and expires after 24 h — nothing about the swap pairs is
 stored server-side (wave-0 schema freeze). Analytics: `week_rebalanced` fires
-on the client when a log's response carries an applied rebalance. Failures in
+on the client when an applied rebalance is recorded. Failures in
 the rebalance path never fail the log save itself.
+
+**Plan-miss sheet (UX-PLAN-08, web + mobile).** On a weight-loss goal "Bigger
+portions" is held to +10 % (`capProteinScaleFactor`, "Held to +10% on your
+weight-loss goal"), and a protein gap is answered first with "Add a protein
+snack" instead of a large kcal increase; other goals keep the full step.
+
+**Premium copy (WP-07).** The week rebalance and training-day targets are not
+sold anywhere on web: no `/premium` card or "free equivalent" label for
+`trainingNutrition`, no locked "Premium adds this" line on Today / the tracker
+(`training-day-note` is information only when the server does not apply the
+bump), and the photo-scan pitch sells the scan alone.
 
 **Mobile** (P1-7, 2026-09-26): every logging surface (tracker Save Day, quick
 add, photo scan, cook-mode log) feeds the response's `rebalance` into
@@ -2067,9 +2123,8 @@ swapped twice keeps its original recipe for undo, a slot swapped back drops
 out; another plan or a stale hand-off is replaced) — so a second rebalance no
 longer destroys the first one's undo (audit F-TRK-3-2). The banner with Undo
 / Dismiss renders **where the log happened** (tracker, cook-mode finish) and
-on the Plan tab (filtered to the displayed plan). Web still overwrites and
-shows the banner only on the meal-plan page — reverse row in
-`mobile_parity_backlog.md`.
+on the Plan tab (filtered to the displayed plan). Web does the same (merge,
+banner on every logging surface and the plan).
 
 Routing: Caddy sends `/api/scan-meal` to the API in production; a Next.js
 rewrite proxies it in dev.

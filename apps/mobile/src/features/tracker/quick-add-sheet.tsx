@@ -22,7 +22,7 @@ import { getRecipeImageUrl } from '../../lib/recipe-image';
 import { trpc, type RouterOutputs } from '../../lib/trpc';
 import { NutritionStatusTag } from '../ingredients/nutrition-provenance';
 import { invalidateDayQueries } from './invalidate';
-import { recordRebalance } from './rebalance-store';
+import { REBALANCE_PREVIEW, recordRebalanceOutcome } from './rebalance-offer-store';
 import { mealLabel, SLOT_COPY } from './slot-copy';
 
 type IngredientSearchRow = RouterOutputs['ingredients']['search'][number];
@@ -236,7 +236,7 @@ export function QuickAddSheet({
     message: string,
     loggedName: string,
   ) => {
-    recordRebalance(data.rebalance);
+    recordRebalanceOutcome(data);
     invalidateDayQueries(utils, date);
     onLogged();
     if (targetSlot && onSlotLogged && 'entryId' in data) {
@@ -296,6 +296,7 @@ export function QuickAddSheet({
     if (recent.recipeId && !targetSlot) {
       logRecipeMutation.mutate({
         date,
+        ...REBALANCE_PREVIEW,
         recipeId: recent.recipeId,
         mealType: recent.mealType,
         portionMultiplier: recent.portionMultiplier ?? 1,
@@ -304,6 +305,7 @@ export function QuickAddSheet({
     }
     logCustomMutation.mutate({
       date,
+      ...REBALANCE_PREVIEW,
       name: recent.name,
       estimatedBy: recent.estimatedBy ?? 'manual',
       ...slotFields(recent.mealType),
@@ -320,6 +322,7 @@ export function QuickAddSheet({
     plannedRowPending.current = true;
     logRecipeMutation.mutate({
       date,
+      ...REBALANCE_PREVIEW,
       recipeId: meal.recipeId,
       mealType: meal.mealType,
       portionMultiplier: chosenPortion,
@@ -337,6 +340,7 @@ export function QuickAddSheet({
       // Replacing a slot: a custom entry with the recipe's numbers at this portion.
       logCustomMutation.mutate({
         date,
+        ...REBALANCE_PREVIEW,
         name: recipe.name,
         estimatedBy: 'manual',
         ...slotFields(mealType),
@@ -349,6 +353,7 @@ export function QuickAddSheet({
     }
     logRecipeMutation.mutate({
       date,
+      ...REBALANCE_PREVIEW,
       recipeId: recipe.id,
       mealType,
       portionMultiplier: chosenPortion,
@@ -360,6 +365,7 @@ export function QuickAddSheet({
     const scaled = scaleFromPer100g(ingredient.per100g, grams);
     logCustomMutation.mutate({
       date,
+      ...REBALANCE_PREVIEW,
       name: `${ingredient.displayName}, ${formatQuickAddGrams(grams)} g`,
       estimatedBy: 'manual',
       ...slotFields(mealType),
@@ -406,6 +412,7 @@ export function QuickAddSheet({
     }
     logCustomMutation.mutate({
       date,
+      ...REBALANCE_PREVIEW,
       estimatedBy: 'manual',
       ...parsed.entry,
       ...slotFields(parsed.entry.mealType),

@@ -4,6 +4,7 @@ import {
   isPendingFresh,
   mergePendingRebalance,
   type PendingRebalance,
+  type RebalancePreviewLike,
   type RebalanceResultLike,
 } from '@chefer/utils';
 import { capture } from '../../../lib/analytics';
@@ -24,9 +25,18 @@ export {
   rebalanceBannerCopy,
   undoOperations,
   type PendingRebalance,
+  type RebalancePreviewLike,
   type RebalanceResultLike,
   type RebalanceSwapLike,
 } from '@chefer/utils';
+
+/**
+ * WP-07 (UX-PLAN-09): every log write sends this so the server returns an
+ * offer (`rebalancePreview`) instead of silently rewriting future meals.
+ * Spread it into the mutation input: `mutate({ ...REBALANCE_PREVIEW, ... })`.
+ * Shipped clients that omit it keep the old auto-apply behaviour.
+ */
+export const REBALANCE_PREVIEW = { rebalanceMode: 'preview' } as const;
 
 const STORAGE_KEY = 'chefer.rebalance.pending';
 
@@ -84,4 +94,97 @@ export function handleRebalanceResult(result: RebalanceResultLike | null | undef
   } catch {
     /* banner just won't show — the swaps themselves are already applied */
   }
+}
+
+// ─── Pending OFFER (WP-07, UX-PLAN-09) ────────────────────────────────────────
+// A log in preview mode changes nothing: the server answers with the swaps it
+// WOULD make. The logging surface parks that offer here (the log may happen on
+// Today, the tracker or in cook mode; the banner that shows it lives on the
+// tracker, cook mode and the plan), and applying it goes through
+// mealPlan.applyRebalance → handleRebalanceResult → the usual Undo hand-off.
+
+const OFFER_KEY = 'chefer.rebalance.offer';
+
+/** An offer is a snapshot of one moment of the week: stale after a few hours. */
+export const REBALANCE_OFFER_EXPIRY_MS = 6 * 60 * 60 * 1000;
+
+export interface PendingRebalanceOffer {
+  preview: RebalancePreviewLike;
+  createdAt: number; // epoch ms
+}
+
+export function clearRebalanceOffer(): void {
+  try {
+    window.localStorage.removeItem(OFFER_KEY);
+  } catch {
+    /* private mode etc. */
+  }
+}
+
+/** Retires the offer (applied or "Not now") and tells mounted banners to re-read. */
+export function dismissRebalanceOffer(): void {
+  clearRebalanceOffer();
+  try {
+    window.dispatchEvent(new Event(REBALANCE_EVENT));
+  } catch {
+    /* no window (SSR) — nothing is mounted either */
+  }
+}
+
+export function readRebalanceOffer(now: number = Date.now()): PendingRebalanceOffer | null {
+  try {
+    const raw = window.localStorage.getItem(OFFER_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as Partial<PendingRebalanceOffer>;
+    const preview = parsed.preview;
+    if (
+      !preview ||
+      typeof preview.planId !== 'string' ||
+      !Array.isArray(preview.swaps) ||
+      preview.swaps.length === 0 ||
+      typeof parsed.createdAt !== 'number'
+    ) {
+      return null;
+    }
+    if (now - parsed.createdAt >= REBALANCE_OFFER_EXPIRY_MS) {
+      clearRebalanceOffer();
+      return null;
+    }
+    return { preview, createdAt: parsed.createdAt };
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Parks the preview a log write returned. `null` = the server found nothing
+ * to offer now (the week is on track), which also retires an older offer;
+ * `undefined` = an API that does not preview, so nothing changes.
+ */
+export function handleRebalancePreview(preview: RebalancePreviewLike | null | undefined): void {
+  if (preview === undefined) return;
+  try {
+    if (preview && preview.swaps.length > 0) {
+      const offer: PendingRebalanceOffer = { preview, createdAt: Date.now() };
+      window.localStorage.setItem(OFFER_KEY, JSON.stringify(offer));
+    } else {
+      clearRebalanceOffer();
+    }
+    window.dispatchEvent(new Event(REBALANCE_EVENT));
+  } catch {
+    /* the offer just won't show — nothing was changed */
+  }
+}
+
+/** What every log write returns about the week: an applied result, an offer, or neither. */
+export interface RebalanceOutcome {
+  rebalance?: RebalanceResultLike | null | undefined;
+  rebalancePreview?: RebalancePreviewLike | null | undefined;
+}
+
+/** One call for every logging surface: hands off whichever of the two came back. */
+export function handleRebalanceOutcome(outcome: RebalanceOutcome | null | undefined): void {
+  if (!outcome) return;
+  handleRebalanceResult(outcome.rebalance);
+  handleRebalancePreview(outcome.rebalancePreview);
 }

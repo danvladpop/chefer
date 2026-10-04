@@ -111,4 +111,53 @@ describe('PlanMissSheet', () => {
     expect(onClose).toHaveBeenCalled();
     expect(m.mutate).not.toHaveBeenCalledWith(expect.objectContaining({ apply: true }));
   });
+
+  // UX-PLAN-08 (WP-07): never "Bigger portions (+503 kcal)" on a weight-loss goal.
+  describe('weight-loss goal (UX-PLAN-08)', () => {
+    it('caps the portion step at +10 %, and says so', () => {
+      render(<PlanMissSheet {...base} kcal={1600} target={2000} goal="LOSE_WEIGHT" />);
+      // 1600 → 2000 would be ×1.25; a loss goal gets ×1.1.
+      expect(m.mutate).toHaveBeenCalledWith({
+        planId: 'p1',
+        dayOfWeek: 2,
+        factor: 1.1,
+        apply: false,
+      });
+      expect(m.mutate).not.toHaveBeenCalledWith(expect.objectContaining({ factor: 1.25 }));
+      expect(screen.getByRole('button', { name: /Slightly bigger portions/ })).toBeTruthy();
+      expect(screen.getByRole('dialog').textContent).toContain('Held to +10%');
+      fireEvent.click(screen.getByTestId('plan-miss-portions'));
+      expect(m.mutate).toHaveBeenLastCalledWith({
+        planId: 'p1',
+        dayOfWeek: 2,
+        factor: 1.1,
+        apply: true,
+      });
+    });
+
+    it('answers a protein gap with a protein snack, offered first', () => {
+      const onAddSnack = vi.fn();
+      render(
+        <PlanMissSheet {...base} goal="LOSE_WEIGHT" proteinGapG={36} onAddSnack={onAddSnack} />,
+      );
+      const options = Array.from(
+        screen.getByTestId('plan-miss-sheet').querySelectorAll('button'),
+      ).map((b) => b.textContent);
+      expect(options[0]).toContain('Add a protein snack');
+      expect(options.findIndex((t) => t.includes('portions'))).toBeGreaterThan(0);
+      fireEvent.click(screen.getByRole('button', { name: /Add a protein snack/ }));
+      expect(onAddSnack).toHaveBeenCalled();
+    });
+
+    it('without a protein gap a loss goal still gets no plain snack', () => {
+      render(<PlanMissSheet {...base} goal="LOSE_WEIGHT" onAddSnack={vi.fn()} />);
+      expect(screen.queryByRole('button', { name: /snack/i })).toBeNull();
+    });
+
+    it('other goals keep the full step', () => {
+      render(<PlanMissSheet {...base} goal="MAINTAIN" />);
+      expect(m.mutate).toHaveBeenCalledWith(expect.objectContaining({ factor: 1.25 }));
+      expect(screen.getByRole('button', { name: /^Bigger portions/ })).toBeTruthy();
+    });
+  });
 });

@@ -58,10 +58,11 @@ import {
 //   refuelSnacks    → the curated refuel snacks, safety-filtered (T-06.3)
 //
 // The bump's gate (T-06.1, D-2): a caller passes `access` = the viewer's
-// `trainingDayTargets` entitlement; this service ORs the server flag
-// `trainingBumpFree` onto it, so free users get the bump when the owner flips
-// the flag and every caller (dashboard, tracker) agrees. The same flag widens
-// which goals get which kinds (Q-3, `hasTrainingDayBump`). Off by default.
+// `trainingDayTargets` entitlement. Since WP-07 ("Premium is for heavy AI
+// only") that key is FREE, so every tier gets the lift bump. This service still
+// ORs the server flag `trainingBumpFree` onto it: the flag is now redundant for
+// who gets the bump and only still widens which goals get which kinds (Q-3,
+// `hasTrainingDayBump`); remove it with its env entry in a later cleanup.
 
 export interface LifterContext {
   /**

@@ -1,7 +1,12 @@
 import { useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, View } from 'react-native';
 import { Button, Sheet, Text } from '@chefer/ui-mobile';
-import { formatKcal, userFacingErrorMessage } from '@chefer/utils';
+import {
+  capProteinScaleFactor,
+  formatKcal,
+  isLossGoal,
+  userFacingErrorMessage,
+} from '@chefer/utils';
 import { trpc } from '../../lib/trpc';
 
 // ─── PlanMissSheet (§2.11, T-11.3) ─────────────────────────────────────────────
@@ -9,7 +14,9 @@ import { trpc } from '../../lib/trpc';
 // honest choices, none pushed: scale the day's portions (previewed through
 // `mealPlan.scaleDay` apply=false, committed with apply=true), add a snack
 // (never offered on a LOSE_WEIGHT goal, nor when the goal is still loading),
-// or keep the day as it is.
+// or keep the day as it is. A protein-gap fix on a weight-loss goal is capped
+// at +10 % of the day (UX-PLAN-08: never "Bigger portions (+503 kcal)") and the
+// sheet points at a higher-protein swap or snack instead (WP-07).
 
 /** The server's scaleDay bounds. */
 const MIN_FACTOR = 0.75;
@@ -36,6 +43,8 @@ export interface PlanMissSheetProps {
   onApplied: () => void;
   /** `Add a snack` — the caller opens its snack flow. */
   onAddSnack: () => void;
+  /** `Find a higher-protein swap` (loss goal, protein gap) — the caller runs the week rebalance check. */
+  onRebalance?: () => void;
 }
 
 /** The portion factor that would land the day on target, or null when nothing useful. */
@@ -44,15 +53,23 @@ export function missScaleFactor(input: {
   protein: number;
   calorieTarget: number | undefined;
   proteinGapG: number | undefined;
+  /** The user's goal: a loss goal caps a protein-driven increase (UX-PLAN-08). */
+  goal?: string | null | undefined;
 }): number | null {
-  const { kcal, protein, calorieTarget, proteinGapG } = input;
+  const { kcal, protein, calorieTarget, proteinGapG, goal } = input;
   let raw: number | null = null;
+  let proteinDriven = false;
   if (calorieTarget && kcal > 0 && Math.abs(kcal - calorieTarget) / calorieTarget > 0.15) {
     raw = calorieTarget / kcal;
   } else if (proteinGapG && proteinGapG > 0 && protein > 0) {
     raw = (protein + proteinGapG) / protein;
+    proteinDriven = true;
   }
   if (raw === null) return null;
+  if (proteinDriven) {
+    // The server's bounds first, then the loss-goal cap (null = nothing left worth offering).
+    return capProteinScaleFactor(Math.min(MAX_FACTOR, Math.max(MIN_FACTOR, raw)), goal);
+  }
   const clamped = Math.min(MAX_FACTOR, Math.max(MIN_FACTOR, raw));
   const factor = Math.round(clamped * 100) / 100;
   return Math.abs(factor - 1) < 0.03 ? null : factor;
@@ -71,11 +88,17 @@ export function PlanMissSheet({
   goal,
   onApplied,
   onAddSnack,
+  onRebalance,
 }: PlanMissSheetProps) {
   const factor = useMemo(
-    () => missScaleFactor({ kcal, protein, calorieTarget, proteinGapG }),
-    [kcal, protein, calorieTarget, proteinGapG],
+    () => missScaleFactor({ kcal, protein, calorieTarget, proteinGapG, goal }),
+    [kcal, protein, calorieTarget, proteinGapG, goal],
   );
+  // A protein-driven miss on a loss goal: bigger portions are capped, so lead
+  // with the higher-protein routes instead.
+  const calorieMiss =
+    !!calorieTarget && kcal > 0 && Math.abs(kcal - calorieTarget) / calorieTarget > 0.15;
+  const lossProteinGap = isLossGoal(goal) && !calorieMiss && !!proteinGapG && proteinGapG > 0;
   const under = calorieTarget ? kcal < calorieTarget : true;
   const [preview, setPreview] = useState<{ kcal: number; protein: number } | null>(null);
 
@@ -122,6 +145,25 @@ export function PlanMissSheet({
       </Text>
 
       <View className="gap-3 pb-2">
+        {lossProteinGap && (
+          <View className="gap-1">
+            <Text testID="plan-miss-protein-hint" variant="muted" className="text-sm">
+              A higher-protein swap or a protein snack closes this gap without many extra calories.
+            </Text>
+            {onRebalance && (
+              <Button
+                testID="plan-miss-rebalance"
+                variant="outline"
+                onPress={() => {
+                  onClose();
+                  onRebalance();
+                }}
+              >
+                Find a higher-protein swap
+              </Button>
+            )}
+          </View>
+        )}
         {factor !== null && (
           <View className="gap-1">
             <Button

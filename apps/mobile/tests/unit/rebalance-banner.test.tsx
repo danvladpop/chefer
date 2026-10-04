@@ -93,12 +93,14 @@ describe('RebalanceBanner', () => {
       dayOfWeek: 3,
       mealType: 'dinner',
       recipeId: 'prev-thu',
+      pinned: false,
     });
     expect(mockReplace).toHaveBeenCalledWith({
       planId: 'plan-1',
       dayOfWeek: 4,
       mealType: 'lunch',
       recipeId: 'prev-fri',
+      pinned: false,
     });
     expect(screen.queryByTestId('rebalance-banner')).not.toBeOnTheScreen();
     expect(kv.getJSON(STORAGE_KEY)).toBeNull();
@@ -121,6 +123,7 @@ describe('RebalanceBanner', () => {
       mealType: 'snack',
       slotIndex: 3,
       recipeId: 'snack-1',
+      pinned: false,
     });
     expect(mockReplace).toHaveBeenCalledWith({
       planId: 'plan-1',
@@ -128,6 +131,7 @@ describe('RebalanceBanner', () => {
       mealType: 'snack',
       slotIndex: 4,
       recipeId: 'snack-2',
+      pinned: false,
     });
   });
 

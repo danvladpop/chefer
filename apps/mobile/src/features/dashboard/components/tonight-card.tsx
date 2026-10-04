@@ -8,7 +8,7 @@ import { getRecipeImageUrl } from '../../../lib/recipe-image';
 import { trpc, type RouterOutputs } from '../../../lib/trpc';
 import { StarRating } from '../../recipes/star-rating';
 import { CheckedForChip } from '../../safety/checked-for-chip';
-import { recordRebalance } from '../../tracker/rebalance-store';
+import { REBALANCE_PREVIEW, recordRebalanceOutcome } from '../../tracker/rebalance-offer-store';
 import { SlotOverflowButton, SlotStatusLine } from '../../tracker/slot-controls';
 import { SLOT_COPY, youHadText } from '../../tracker/slot-copy';
 
@@ -58,7 +58,7 @@ export function TonightCard({
     meta: { silent: true },
     onSuccess: (result) => {
       trackMealLogged('planned', meal.mealType);
-      recordRebalance(result.rebalance);
+      recordRebalanceOutcome(result);
       void utils.dashboard.summary.invalidate();
       void utils.tracker.getDay.invalidate();
       void utils.tracker.weeklySummary.invalidate();
@@ -200,6 +200,7 @@ export function TonightCard({
             onPress={() =>
               logMutation.mutate({
                 date: localDateStr(),
+                ...REBALANCE_PREVIEW,
                 recipeId: meal.recipe.id,
                 mealType: meal.mealType,
                 slotIndex: meal.slotIndex,

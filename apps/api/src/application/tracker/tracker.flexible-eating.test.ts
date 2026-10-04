@@ -274,13 +274,13 @@ describe('skipSlot / unskipSlot ("Skipped it")', () => {
     });
   });
 
-  it('runs the rebalance hook after a skip (premium only)', async () => {
+  it('runs the rebalance hook after a skip, for every tier (WP-07)', async () => {
     wireDay([]);
     await trackerService.skipSlot(user('PREMIUM'), DATE, LUNCH);
     expect(rebalanceWeek).toHaveBeenCalledTimes(1);
     vi.mocked(rebalanceWeek).mockClear();
     await trackerService.skipSlot(user('FREE'), DATE, LUNCH);
-    expect(rebalanceWeek).not.toHaveBeenCalled();
+    expect(rebalanceWeek).toHaveBeenCalledTimes(1);
   });
 
   it('unskip removes it and is a no-op when it is not skipped', async () => {

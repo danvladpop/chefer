@@ -32,6 +32,8 @@ import { useTimedRefresh } from '../../src/features/gym/today/use-timed-refresh'
 import { HealthConsentTodayNotice } from '../../src/features/privacy/health-consent-notice';
 import { MigrationCard } from '../../src/features/safety/migration-card';
 import { QuickAddSheet } from '../../src/features/tracker/quick-add-sheet';
+import { RebalanceBanner } from '../../src/features/tracker/rebalance-banner';
+import { RebalanceOffer } from '../../src/features/tracker/rebalance-offer';
 import { ScanMealCard } from '../../src/features/tracker/scan-meal-card';
 import { useSlotFlow } from '../../src/features/tracker/slot-flow';
 import { useIsPremium } from '../../src/hooks/use-is-premium';
@@ -331,6 +333,9 @@ export default function HomeScreen() {
           onRemoveReplacement={slotFlow.actions.removeReplacementById}
           onUndoSkip={slotFlow.actions.unskipSlot}
         />
+        {/* WP-07: a log here can offer to rebalance the week (free); Undo follows an Apply. */}
+        <RebalanceOffer onApplied={() => void refetch()} />
+        <RebalanceBanner onUndone={() => void refetch()} />
         {!heroMeal &&
           !showTonightCard &&
           !showTonightDoneRow &&

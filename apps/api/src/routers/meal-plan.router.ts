@@ -2,6 +2,7 @@ import { z } from 'zod';
 import { planShapeSchema } from '@chefer/types';
 import { mealPlanService } from '../application/meal-plan/meal-plan.service.js';
 import { planShapeService } from '../application/meal-plan/plan-shape.service.js';
+import { rebalanceService } from '../application/meal-plan/rebalance.service.js';
 import { hasFeature, isPremiumUser } from '../lib/entitlements.js';
 import { env } from '../lib/env.js';
 import { reserveAiSwap, reservePlanGeneration } from '../lib/quotas.js';
@@ -26,6 +27,15 @@ const planView = (user: Parameters<typeof hasFeature>[0]) => ({
 // and additive: shipped mobile builds omit it and get the first slot of
 // `mealType`, as before. When sent, the slot must be of `mealType`.
 const slotIndexSchema = z.number().int().min(0).max(20).optional();
+
+// The client's local calendar day, YYYY-MM-DD.
+const calendarDateInputSchema = z
+  .string()
+  .regex(/^\d{4}-\d{2}-\d{2}$/)
+  .refine((d) => {
+    const parsed = new Date(`${d}T00:00:00Z`);
+    return !Number.isNaN(parsed.getTime()) && parsed.toISOString().slice(0, 10) === d;
+  }, 'Not a real calendar date');
 
 // ─── Router ───────────────────────────────────────────────────────────────────
 
@@ -274,6 +284,61 @@ export const mealPlanRouter = router({
         input.acknowledgeConflict,
         input.pinned,
       );
+    }),
+
+  // ─── Week rebalance (WP-07, UX-PLAN-09) — all tiers, no AI ──────────────────
+
+  /**
+   * What a week rebalance WOULD do, without doing it: up to two swaps from
+   * the user's safe curated pool, each with a one-line `explanation`, a
+   * `headline` for the week's gap and protein `snacks` when swaps cannot close
+   * a protein gap. `null` = nothing to offer. Also what Plan's "Rebalance my
+   * week" shows. `localDate` = the client's local today.
+   */
+  previewRebalance: protectedProcedure
+    .input(
+      z
+        .object({
+          planId: z.string().min(1).optional(),
+          localDate: calendarDateInputSchema.optional(),
+        })
+        .optional(),
+    )
+    .query(async ({ ctx, input }) => {
+      return rebalanceService.preview(ctx.user, {
+        planId: input?.planId,
+        localDate: input?.localDate,
+      });
+    }),
+
+  /**
+   * Applies the swaps the user accepted in a preview. Stale or unsafe swaps
+   * are skipped (never an error), so a preview that went out of date cannot
+   * rewrite a week the user has changed. Returns the same shape as a log's
+   * `rebalance` (swaps with `previousRecipeId`/`slotIndex`), so Undo through
+   * `replaceRecipe` is unchanged.
+   */
+  applyRebalance: protectedProcedure
+    .input(
+      z.object({
+        planId: z.string().min(1),
+        swaps: z
+          .array(
+            z.object({
+              dayOfWeek: z.number().int().min(0).max(6),
+              mealType: z.enum(['breakfast', 'lunch', 'dinner', 'snack']),
+              slotIndex: slotIndexSchema,
+              previousRecipeId: z.string().min(1),
+              newRecipeId: z.string().min(1),
+            }),
+          )
+          .min(1)
+          .max(6),
+        localDate: calendarDateInputSchema.optional(),
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      return rebalanceService.apply(ctx.user, input);
     }),
 
   // ─── Week templates ("My weeks") — all tiers, no AI ─────────────────────────
