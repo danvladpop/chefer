@@ -5,6 +5,7 @@ import { ZodError } from 'zod';
 import type { UserProfile } from '@chefer/types';
 import { AiConsentRequiredCause, assertAiConsent } from './ai-consent-gate.js';
 import { runWithAiCallContext } from './ai/call-context.js';
+import { TrainerToolsOffCause } from './coaching-errors.js';
 import { ConflictCause } from './conflict.js';
 import { isPremiumUser } from './entitlements.js';
 import {
@@ -68,8 +69,13 @@ const t = initTRPC.context<Context>().create({
         healthConsentRequired: error.cause instanceof HealthConsentRequiredCause,
         // R-10: an AI action from a user with no AI-data consent on record
         // (lib/ai-consent-gate.ts). Additive — `null` on every other error.
+        // WP-18: the same slot carries 'TRAINER_TOOLS_OFF' (lib/coaching-errors.ts).
         reason:
-          error.cause instanceof AiConsentRequiredCause ? ('AI_CONSENT_REQUIRED' as const) : null,
+          error.cause instanceof AiConsentRequiredCause
+            ? ('AI_CONSENT_REQUIRED' as const)
+            : error.cause instanceof TrainerToolsOffCause
+              ? ('TRAINER_TOOLS_OFF' as const)
+              : null,
         // T-10.4: the free curated pool can't cover this plan (lib/pool-exhausted.ts).
         poolExhausted:
           error.cause instanceof PoolExhaustedCause

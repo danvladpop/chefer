@@ -604,6 +604,8 @@ describe('routine', () => {
       archivedAt: null,
       createdAt: new Date(),
       updatedAt: new Date(),
+      lastEditedById: null,
+      lastEditedAt: null,
       days: [
         {
           id: 'cd',
@@ -627,6 +629,9 @@ describe('routine', () => {
             restSec: 90,
             supersetGroup: null,
             notes: 'private',
+            trainerNote: null,
+            lastEditedById: null,
+            lastEditedAt: null,
             exercise: meta(t, t),
           })),
         },

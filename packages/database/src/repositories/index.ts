@@ -309,3 +309,35 @@ export {
   ingredientNoticeRepository,
   type IIngredientNoticeRepository,
 } from './ingredient-notice.repository';
+
+// Trainer coaching (docs/trainer-platform/spec.md §5)
+export {
+  TrainerProfileRepository,
+  trainerProfileRepository,
+  type ITrainerProfileRepository,
+  type DeactivateTrainerData,
+} from './trainer-profile.repository';
+
+export {
+  CoachingInviteRepository,
+  coachingInviteRepository,
+  type ICoachingInviteRepository,
+  type CreateInviteData,
+} from './coaching-invite.repository';
+
+export {
+  CoachingLinkRepository,
+  coachingLinkRepository,
+  type ICoachingLinkRepository,
+  type ActiveLinkWithClient,
+  type ClientNameRow,
+  type JoinLinkData,
+  type JoinLinkResult,
+  type EndLinkData,
+} from './coaching-link.repository';
+
+export {
+  CoachingNoteRepository,
+  coachingNoteRepository,
+  type ICoachingNoteRepository,
+} from './coaching-note.repository';
