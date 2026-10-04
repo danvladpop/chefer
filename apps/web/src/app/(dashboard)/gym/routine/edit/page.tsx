@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { ChangedByLine, TrainerNoteLine } from '@/features/coaching/components/RoutineAttribution';
 import { captureGymEvent } from '@/features/gym/analytics';
 import { ConflictDialog } from '@/features/gym/routine/components/ConflictDialog';
 import { DesktopEditorBoard } from '@/features/gym/routine/components/DesktopEditorBoard';
@@ -11,12 +12,14 @@ import { PhoneEditorList } from '@/features/gym/routine/components/PhoneEditorLi
 import { WeeklyBalancePanel } from '@/features/gym/routine/components/WeeklyBalancePanel';
 import { keepMineExpectedVersion, resolveTheirsDraft } from '@/features/gym/routine/conflict';
 import {
+  clearedTrainerNoteIds,
   draftReducer,
   fromRoutineDto,
   isDraftEqual,
   toRoutineDoc,
   toRoutineLike,
   type DraftAction,
+  type DraftExercise,
   type DraftRoutine,
 } from '@/features/gym/routine/draft';
 import { useEditorShortcuts } from '@/features/gym/routine/use-editor-shortcuts';
@@ -29,7 +32,7 @@ import { libraryLookup, useGymBootstrap } from '@/features/gym/use-gym-bootstrap
 import { useHasMounted } from '@/hooks/useHasMounted';
 import { trpc } from '@/lib/trpc';
 import { ArrowLeft } from 'lucide-react';
-import { TEMPLATE_BY_KEY, type RoutineDto } from '@chefer/types';
+import { TEMPLATE_BY_KEY, type LastEditedByOtherDto, type RoutineDto } from '@chefer/types';
 import {
   supersetSlot,
   userFacingErrorMessage,
@@ -105,9 +108,52 @@ export default function RoutineEditPage() {
 
   const handleSave = useCallback(() => {
     if (!draft || version === null) return;
-    saveMutation.mutate({ routine: toRoutineDoc(draft), expectedVersion: version });
+    // Trainer coaching: the client can remove a trainer note but not rewrite it.
+    const cleared = baseline ? clearedTrainerNoteIds(draft, baseline) : [];
+    saveMutation.mutate({
+      routine: toRoutineDoc(draft),
+      expectedVersion: version,
+      ...(cleared.length > 0 ? { clearTrainerNoteIds: cleared } : {}),
+    });
     // eslint-disable-next-line react-hooks/exhaustive-deps -- mutate is stable per tRPC
-  }, [draft, version]);
+  }, [draft, baseline, version]);
+
+  // Trainer coaching (API level 6): "Changed by Ana · 2 Oct" on exactly the rows the
+  // trainer changed, and the trainer's cue with its Remove button.
+  const trainerName = bootstrap?.coaching?.trainerName ?? null;
+  const stampByRowId = useMemo(() => {
+    const map = new Map<string, LastEditedByOtherDto>();
+    for (const day of routine?.days ?? []) {
+      for (const row of day.exercises) {
+        if (row.lastEditedByOther) map.set(row.id, row.lastEditedByOther);
+      }
+    }
+    return map;
+  }, [routine]);
+  const renderAttribution = (dayKey: string, exercise: DraftExercise) => {
+    const stamp = exercise.id ? stampByRowId.get(exercise.id) : undefined;
+    const note = exercise.trainerNote;
+    if (!stamp && !note) return null;
+    return (
+      <div className="mt-1 flex min-w-0 flex-col gap-1">
+        {stamp && <ChangedByLine name={stamp.name} at={stamp.at} />}
+        {note && (
+          <TrainerNoteLine
+            trainerName={stamp?.name ?? trainerName ?? 'Your trainer'}
+            note={note}
+            onRemove={() =>
+              dispatch({
+                type: 'update_exercise',
+                dayKey,
+                exerciseKey: exercise.key,
+                patch: { trainerNote: null },
+              })
+            }
+          />
+        )}
+      </div>
+    );
+  };
 
   useEditorShortcuts({ onSave: handleSave, enabled: draft !== null });
 
@@ -231,6 +277,7 @@ export default function RoutineEditPage() {
           onOpenPicker={setPickerDayKey}
           onOpenSuperset={setSupersetDayKey}
           onSwap={(dayKey, exerciseKey) => setSwapTarget({ dayKey, exerciseKey })}
+          renderAttribution={renderAttribution}
         />
         <WeeklyBalancePanel
           routineId={draft.id}
@@ -249,6 +296,7 @@ export default function RoutineEditPage() {
         onOpenPicker={setPickerDayKey}
         onOpenSuperset={setSupersetDayKey}
         onSwap={(dayKey, exerciseKey) => setSwapTarget({ dayKey, exerciseKey })}
+        renderAttribution={renderAttribution}
       />
       <div className="lg:hidden">
         <WeeklyBalancePanel routineId={draft.id} volume={volume} hints={hints} />
@@ -295,6 +343,7 @@ export default function RoutineEditPage() {
       <ConflictDialog
         open={conflictCurrent !== null}
         saving={saveMutation.isPending}
+        changedBy={conflictCurrent?.lastEditedByOther?.name ?? null}
         onUseTheirs={() => {
           if (!conflictCurrent) return;
           const resolved = resolveTheirsDraft(conflictCurrent);
@@ -302,12 +351,19 @@ export default function RoutineEditPage() {
           setBaseline(resolved.baseline);
           setVersion(resolved.version);
           setConflictCurrent(null);
+          // The stamps ("Changed by Ana") come from the stored routine: refresh them.
+          void utils.gym.routine.get.invalidate({ id: conflictCurrent.id });
         }}
         onKeepMine={() => {
           if (!conflictCurrent) return;
           const expectedVersion = keepMineExpectedVersion(conflictCurrent);
+          const cleared = baseline ? clearedTrainerNoteIds(draft, baseline) : [];
           setConflictCurrent(null);
-          saveMutation.mutate({ routine: toRoutineDoc(draft), expectedVersion });
+          saveMutation.mutate({
+            routine: toRoutineDoc(draft),
+            expectedVersion,
+            ...(cleared.length > 0 ? { clearTrainerNoteIds: cleared } : {}),
+          });
         }}
       />
     </div>

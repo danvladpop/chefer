@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { QueryClientProvider } from '@tanstack/react-query';
 import { httpBatchLink, loggerLink } from '@trpc/client';
 import superjson from 'superjson';
+import { COACHING_API_LEVEL } from '@chefer/types';
 import { AppToastHost } from './app-toast';
 import { makeQueryClient, trpc } from './trpc';
 
@@ -59,7 +60,11 @@ export function TRPCProvider({ children }: { children: React.ReactNode }) {
               // (history, summary); it still never logs or picks them.
               // 4 (T-26.2/T-26.3, L-CONSENT): the web shows the health consent
               // sheet before any health save — see mobile trpc-links.ts.
-              'x-chefer-api-level': '4',
+              // 6 (WP-18, trainer coaching): the web shows trainer stamps and notes
+              // on the routine, "Set by Ana", the named conflict dialog and the
+              // coaching consent rows. Levels are cumulative; INTERVALS is 7 and
+              // not implemented here. Web is always the latest client.
+              'x-chefer-api-level': String(COACHING_API_LEVEL),
             };
           },
         }),

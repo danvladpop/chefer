@@ -1,7 +1,9 @@
 'use client';
 
 import Link from 'next/link';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+import { formatShortDay } from '@/features/coaching/lib/dates';
+import { markRoutineSeen } from '@/features/coaching/lib/routine-seen';
 import { DayCard } from '@/features/gym/routine/components/DayCard';
 import {
   OverrideTargetSheet,
@@ -12,7 +14,7 @@ import { libraryLookup, useGymBootstrap } from '@/features/gym/use-gym-bootstrap
 import { useHasMounted } from '@/hooks/useHasMounted';
 import { trpc } from '@/lib/trpc';
 import { ListChecks } from 'lucide-react';
-import { TEMPLATE_BY_KEY, type ProgressionDto } from '@chefer/types';
+import { COACHING_COPY, TEMPLATE_BY_KEY, type ProgressionDto } from '@chefer/types';
 import { progressionKey, validateRoutine, volumeByGroup } from '@chefer/utils';
 import RoutineLoading from './loading';
 
@@ -62,6 +64,12 @@ export default function RoutinePage() {
     [routine, lookup, experience, suppressLowVolume],
   );
 
+  // Opening the routine clears Gym Today's "Ana updated your routine" line.
+  const changedAt = routine?.lastEditedByOther?.at ?? null;
+  useEffect(() => {
+    if (routine && changedAt) markRoutineSeen(routine.id, changedAt);
+  }, [routine, changedAt]);
+
   if (!hasMounted || isLoading) return <RoutineLoading />;
 
   if (!routine) {
@@ -95,6 +103,14 @@ export default function RoutinePage() {
           <h1 className="truncate font-serif text-xl font-semibold text-gray-900">
             {routine.name}
           </h1>
+          {routine.lastEditedByOther && (
+            <p className="text-sm font-medium text-amber-800" data-testid="routine-changed-by">
+              {COACHING_COPY.stamps.routineChanged(
+                routine.lastEditedByOther.name,
+                formatShortDay(routine.lastEditedByOther.at),
+              )}
+            </p>
+          )}
           {bootstrap?.profile?.weeklyGoal && (
             <p className="text-sm text-gray-500">
               {bootstrap.profile.weeklyGoal} sessions / week goal
@@ -128,6 +144,7 @@ export default function RoutinePage() {
               lookup={lookup}
               progressionByKey={progressionByKey}
               onOpenOverride={setOverrideTarget}
+              trainerName={bootstrap?.coaching?.trainerName ?? null}
             />
           ))}
         </div>

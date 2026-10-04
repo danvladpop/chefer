@@ -1,6 +1,12 @@
 'use client';
 
-import type { ProgressionDto, RoutineDayDto, WeightUnit } from '@chefer/types';
+import { ChangedByLine, TrainerNoteLine } from '@/features/coaching/components/RoutineAttribution';
+import {
+  COACHING_COPY,
+  type ProgressionDto,
+  type RoutineDayDto,
+  type WeightUnit,
+} from '@chefer/types';
 import { Badge } from '@chefer/ui';
 import {
   cn,
@@ -23,6 +29,8 @@ export interface DayCardProps {
   lookup: ExerciseLookup;
   progressionByKey: Map<string, ProgressionDto>;
   onOpenOverride: (target: OverrideTargetSheetTarget) => void;
+  /** Trainer coaching: the client's trainer, so a note reads "Ana: knees out". */
+  trainerName?: string | null;
 }
 
 export function DayCard({
@@ -32,6 +40,7 @@ export function DayCard({
   lookup,
   progressionByKey,
   onOpenOverride,
+  trainerName = null,
 }: DayCardProps) {
   const durationMin = estimateDurationMin(day, lookup);
 
@@ -91,6 +100,20 @@ export function DayCard({
                   <p className="text-xs text-gray-400">
                     {exercise.sets} × {exercise.repMin}–{exercise.repMax}
                   </p>
+                  {exercise.lastEditedByOther && (
+                    <ChangedByLine
+                      name={exercise.lastEditedByOther.name}
+                      at={exercise.lastEditedByOther.at}
+                    />
+                  )}
+                  {exercise.trainerNote && (
+                    <div className="mt-1">
+                      <TrainerNoteLine
+                        trainerName={trainerName ?? COACHING_COPY.yourTrainer.title}
+                        note={exercise.trainerNote}
+                      />
+                    </div>
+                  )}
                 </div>
                 {suggestion && meta ? (
                   <button
@@ -113,7 +136,9 @@ export function DayCard({
                     {suggestion.reps[0] ?? exercise.repMin}
                     {edited && (
                       <Badge variant="secondary" className="ml-0.5">
-                        Edited
+                        {progression?.override?.setByName
+                          ? COACHING_COPY.stamps.setBy(progression.override.setByName)
+                          : 'Edited'}
                       </Badge>
                     )}
                   </button>
