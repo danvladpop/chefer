@@ -71,7 +71,7 @@ export function NutritionSummary({
   /** §2.11, T-35.5: the ring's label — "Your target" (OWN) vs "Suggested" (SUGGESTED). Omitted while unknown. */
   targetMode?: 'SUGGESTED' | 'OWN';
 }) {
-  // Premium lifters on a training day get the bumped targets (audit P2-4);
+  // Lifters on a training day get the bumped targets, free for everyone (audit P2-4, WP-07);
   // everyone else keeps the base targets the older fields carry.
   const target = n.adjustedTargets ?? {
     dailyCalorieTarget: n.dailyCalorieTarget,
