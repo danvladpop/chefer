@@ -3089,7 +3089,10 @@ streaks, no red "missed" markers.
   the same exercise's other bucket (`carriedWeightKg`, Epley e1RM re-estimate)
   instead of the starting guess; an exercise's first-ever session is a baseline and
   is not counted as a PR on the finish summary (the PR timeline still lists it as
-  "First logged").
+  "First logged"). The live in-workout badge and its success haptic follow the
+  same rule (owner decision 2026-10-04): with no earlier history for the exercise
+  the set is a plain tick — one shared `detectLivePrs` in `@chefer/utils` backs
+  both the web and mobile live badge, and the summary reads the same result.
 - **Reminders (mobile only, local `expo-notifications`, G4-A):** one
   notification per planned weekday over the next 14 days at the profile's
   `reminderTime`, skipping a day already trained or inside a pause, plus at
