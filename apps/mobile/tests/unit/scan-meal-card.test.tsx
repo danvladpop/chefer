@@ -229,6 +229,33 @@ describe('ScanMealCard', () => {
       );
     });
 
+    // WP-06 "Ate something else" → Snap: the estimate replaces the slot, which decides the meal.
+    it("aimed at a plan slot, logs the estimate as that slot's replacement with no meal picker", async () => {
+      jest.mocked(ImagePicker.launchImageLibraryAsync).mockResolvedValue({
+        canceled: false,
+        assets: [{ uri: 'file:///meal.jpg', base64: 'AA==', mimeType: 'image/jpeg' }],
+      } as never);
+      mockScan.mockResolvedValue(ESTIMATE);
+      const user = userEvent.setup();
+      await render(
+        <ScanMealCard
+          date="2026-09-27"
+          onLogged={onLogged}
+          replacesSlot={{ mealType: 'dinner', slotIndex: 2 }}
+        />,
+      );
+      await user.press(screen.getByTestId('scan-library'));
+      await user.press(await screen.findByTestId('scan-log'));
+      expect(screen.queryByText('breakfast')).toBeNull();
+      expect(mockMutate).toHaveBeenCalledWith(
+        expect.objectContaining({
+          estimatedBy: 'vision',
+          mealType: 'dinner',
+          replacesSlot: { mealType: 'dinner', slotIndex: 2 },
+        }),
+      );
+    });
+
     it('cannot log zero calories', async () => {
       const user = await scanOnePhoto();
       await user.clear(screen.getByTestId('scan-kcal'));

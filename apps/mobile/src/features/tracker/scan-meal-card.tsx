@@ -11,6 +11,7 @@ import {
   QUICK_ADD_LIMITS,
   showSnapTaste,
   userFacingErrorMessage,
+  type SlotRef,
 } from '@chefer/utils';
 import { useEntitlement } from '../../hooks/use-entitlement';
 import { trackMealLogged } from '../../lib/analytics-events';
@@ -27,6 +28,7 @@ import { useAiConsent } from '../ai-consent/ai-consent-provider';
 import { openPremium } from '../premium/open-premium';
 import { invalidateDayQueries } from './invalidate';
 import { recordRebalance } from './rebalance-store';
+import { toLogMealType } from './slot-copy';
 
 // Snap-to-Log (F4 / M3-2) — mobile counterpart of web's ScanMealButton.
 // Camera or library → vision estimate → confirm card → logCustomMeal.
@@ -78,6 +80,11 @@ export type ScanMealCardProps = {
   autoPick?: boolean;
   /** Called once when `autoPick` has been acted on (so the caller can drop its route param). */
   onAutoPicked?: () => void;
+  /**
+   * WP-06 "Ate something else" → Snap: the photo's estimate REPLACES this plan
+   * slot (`replacesSlot`), and the slot decides the meal (no meal picker).
+   */
+  replacesSlot?: SlotRef;
 };
 
 export function ScanMealCard(props: ScanMealCardProps) {
@@ -134,7 +141,7 @@ function SnapTaste() {
   );
 }
 
-function SnapCard({ date, onLogged, autoPick, onAutoPicked }: ScanMealCardProps) {
+function SnapCard({ date, onLogged, autoPick, onAutoPicked, replacesSlot }: ScanMealCardProps) {
   const snackbar = useSnackbar();
   const [scanning, setScanning] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -376,28 +383,30 @@ function SnapCard({ date, onLogged, autoPick, onAutoPicked }: ScanMealCardProps)
           <Text testID="scan-macros" className="text-sm text-gray-700">
             {logged.protein}g P · {logged.carbs}g C · {logged.fat}g F
           </Text>
-          <View className="flex-row gap-1.5">
-            {MEAL_TYPES.map((t) => (
-              <Pressable
-                key={t}
-                accessibilityRole="button"
-                onPress={() => setMealType(t)}
-                className={cn(
-                  'h-9 flex-1 items-center justify-center rounded-lg border',
-                  mealType === t ? 'border-primary bg-primary' : 'border-border bg-white',
-                )}
-              >
-                <Text
+          {!replacesSlot && (
+            <View className="flex-row gap-1.5">
+              {MEAL_TYPES.map((t) => (
+                <Pressable
+                  key={t}
+                  accessibilityRole="button"
+                  onPress={() => setMealType(t)}
                   className={cn(
-                    'text-xs font-medium capitalize',
-                    mealType === t ? 'text-primary-foreground' : 'text-gray-600',
+                    'h-9 flex-1 items-center justify-center rounded-lg border',
+                    mealType === t ? 'border-primary bg-primary' : 'border-border bg-white',
                   )}
                 >
-                  {t}
-                </Text>
-              </Pressable>
-            ))}
-          </View>
+                  <Text
+                    className={cn(
+                      'text-xs font-medium capitalize',
+                      mealType === t ? 'text-primary-foreground' : 'text-gray-600',
+                    )}
+                  >
+                    {t}
+                  </Text>
+                </Pressable>
+              ))}
+            </View>
+          )}
           <View className="flex-row gap-2">
             <Button
               variant="outline"
@@ -419,7 +428,13 @@ function SnapCard({ date, onLogged, autoPick, onAutoPicked }: ScanMealCardProps)
                   date,
                   name: estimate.dishName || 'Scanned meal',
                   estimatedBy: 'vision',
-                  mealType,
+                  mealType: replacesSlot ? toLogMealType(replacesSlot.mealType) : mealType,
+                  ...(replacesSlot && {
+                    replacesSlot: {
+                      mealType: replacesSlot.mealType,
+                      slotIndex: replacesSlot.slotIndex,
+                    },
+                  }),
                   kcal: logged.kcal,
                   protein: logged.protein,
                   carbs: logged.carbs,

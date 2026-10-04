@@ -14,6 +14,7 @@ import { trackMealLogged } from '../../../lib/analytics-events';
 import { getRecipeImageUrl } from '../../../lib/recipe-image';
 import { trpc, type RouterOutputs } from '../../../lib/trpc';
 import { recordRebalance } from '../../tracker/rebalance-store';
+import { SlotOverflowButton } from '../../tracker/slot-controls';
 import { MealTypeBadge } from './meal-type-badge';
 
 // Today's next meal (P2-2) — mobile twin of web's NextMealCard. "I ate this"
@@ -26,9 +27,15 @@ type HeroMeal = NonNullable<RouterOutputs['dashboard']['summary']['nextMeal']>;
 export function HeroMealCard({
   meal: nextMeal,
   isTomorrow,
+  onSlotActions,
 }: {
   meal: HeroMeal;
   isTomorrow: boolean;
+  /**
+   * WP-06: opens the slot's actions ("Ate something else", "Skipped it") — the
+   * overflow next to "I ate this". Omitted → no overflow (tomorrow's card).
+   */
+  onSlotActions?: ((meal: HeroMeal) => void) | undefined;
 }) {
   const utils = trpc.useUtils();
   const [lastLogged, setLastLogged] = useState<string | null>(null);
@@ -192,6 +199,14 @@ export function HeroMealCard({
             >
               {holding ? 'Undo' : 'Cook it'}
             </Button>
+            {onSlotActions && !holding && (
+              <SlotOverflowButton
+                testID="today-slot-actions"
+                mealType={meal.mealType}
+                onPress={() => onSlotActions(meal)}
+                className="self-center"
+              />
+            )}
           </>
         )}
       </View>
