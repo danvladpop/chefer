@@ -8,6 +8,7 @@ import {
   userFacingErrorMessage,
 } from '@chefer/utils';
 import { trpc } from '../../lib/trpc';
+import { useNumbersMode } from '../numbers-mode/numbers-mode';
 
 // ─── PlanMissSheet (§2.11, T-11.3) ─────────────────────────────────────────────
 // What to do about a planned day that lands under or over its target. Three
@@ -90,16 +91,20 @@ export function PlanMissSheet({
   onAddSnack,
   onRebalance,
 }: PlanMissSheetProps) {
+  // WP-08: protein-only mode only ever judges a day by its protein (a calorie
+  // miss is not offered), and states no calorie figure.
+  const { proteinOnly } = useNumbersMode();
+  const judgedTarget = proteinOnly ? undefined : calorieTarget;
   const factor = useMemo(
-    () => missScaleFactor({ kcal, protein, calorieTarget, proteinGapG, goal }),
-    [kcal, protein, calorieTarget, proteinGapG, goal],
+    () => missScaleFactor({ kcal, protein, calorieTarget: judgedTarget, proteinGapG, goal }),
+    [kcal, protein, judgedTarget, proteinGapG, goal],
   );
   // A protein-driven miss on a loss goal: bigger portions are capped, so lead
   // with the higher-protein routes instead.
   const calorieMiss =
-    !!calorieTarget && kcal > 0 && Math.abs(kcal - calorieTarget) / calorieTarget > 0.15;
+    !!judgedTarget && kcal > 0 && Math.abs(kcal - judgedTarget) / judgedTarget > 0.15;
   const lossProteinGap = isLossGoal(goal) && !calorieMiss && !!proteinGapG && proteinGapG > 0;
-  const under = calorieTarget ? kcal < calorieTarget : true;
+  const under = judgedTarget ? kcal < judgedTarget : true;
   const [preview, setPreview] = useState<{ kcal: number; protein: number } | null>(null);
 
   const previewMutation = trpc.mealPlan.scaleDay.useMutation({
@@ -139,9 +144,13 @@ export function PlanMissSheet({
       testID="plan-miss-sheet"
     >
       <Text variant="muted" className="text-sm">
-        {calorieTarget
-          ? `${dayName} is planned at ${formatKcal(kcal)} kcal against a target of ${formatKcal(calorieTarget)}. You can leave it as it is.`
-          : `${dayName} is planned at ${formatKcal(kcal)} kcal. You can leave it as it is.`}
+        {proteinOnly
+          ? proteinGapG && proteinGapG > 0
+            ? `${dayName} is about ${proteinGapG} g short on protein. You can leave it as it is.`
+            : `${dayName} is planned at ${protein} g protein. You can leave it as it is.`
+          : calorieTarget
+            ? `${dayName} is planned at ${formatKcal(kcal)} kcal against a target of ${formatKcal(calorieTarget)}. You can leave it as it is.`
+            : `${dayName} is planned at ${formatKcal(kcal)} kcal. You can leave it as it is.`}
       </Text>
 
       <View className="gap-3 pb-2">
@@ -179,7 +188,9 @@ export function PlanMissSheet({
               <ActivityIndicator size="small" />
             ) : preview ? (
               <Text testID="plan-miss-preview" variant="muted" className="text-xs">
-                {`Would be ${formatKcal(preview.kcal)} kcal · ${preview.protein} g protein`}
+                {proteinOnly
+                  ? `Would be ${preview.protein} g protein`
+                  : `Would be ${formatKcal(preview.kcal)} kcal · ${preview.protein} g protein`}
               </Text>
             ) : previewMutation.isError ? (
               <Text variant="muted" className="text-xs">

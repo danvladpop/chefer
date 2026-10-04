@@ -1,6 +1,7 @@
 import { View } from 'react-native';
 import { Card } from '@chefer/ui-mobile';
 import type { RouterOutputs } from '../../../lib/trpc';
+import { useNumbersMode } from '../../numbers-mode/numbers-mode';
 import { SlotStatusLine } from '../../tracker/slot-controls';
 import { SLOT_COPY, youHadText } from '../../tracker/slot-copy';
 import { MealTypeBadge } from './meal-type-badge';
@@ -23,6 +24,7 @@ export function TodaySlotNotes({
   onRemoveReplacement: (entryId: string) => void;
   onUndoSkip: (slot: { mealType: string; slotIndex: number }) => void;
 }) {
+  const { proteinOnly } = useNumbersMode();
   const rows = slots.filter((s) => s.status === 'replaced' || s.status === 'skipped');
   if (rows.length === 0) return null;
   return (
@@ -46,7 +48,14 @@ export function TodaySlotNotes({
                 testID={testID}
                 text={
                   replacedBy
-                    ? youHadText({ custom: { name: replacedBy.name }, kcal: replacedBy.kcal })
+                    ? youHadText(
+                        {
+                          custom: { name: replacedBy.name },
+                          kcal: replacedBy.kcal,
+                          protein: replacedBy.protein,
+                        },
+                        proteinOnly,
+                      )
                     : 'You had something else'
                 }
                 actionLabel={entryId ? SLOT_COPY.remove : undefined}

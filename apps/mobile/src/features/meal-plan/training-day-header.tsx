@@ -10,6 +10,11 @@ import {
   trainingExplainCopy,
   trainingGlyph,
 } from '@chefer/utils';
+import { useNumbersMode } from '../numbers-mode/numbers-mode';
+import {
+  proteinOnlyTrainingExplain,
+  proteinOnlyTrainingHeader,
+} from '../numbers-mode/numbers-mode-copy';
 
 // ─── Training days on the Plan tab (UX-06, T-06.4) ─────────────────────────────
 // The day header above a training day's meals, its Explain sheet (PAT-1) and
@@ -29,7 +34,11 @@ export function TrainingDayHeader({
   onPress: () => void;
   testID?: string;
 }) {
-  const copy = trainingDayHeaderCopy(day, { isToday });
+  // WP-08: protein-only mode shows the protein bump of a lifting day, never calories.
+  const { proteinOnly } = useNumbersMode();
+  const copy = proteinOnly
+    ? proteinOnlyTrainingHeader(day)
+    : trainingDayHeaderCopy(day, { isToday });
   return (
     <Pressable
       testID={testID}
@@ -86,7 +95,10 @@ export function TrainingExplainSheet({
   days: readonly PlanTrainingDay[];
   basis: PlanTrainingBasis | null;
 }) {
-  const copy = trainingExplainCopy({ days, basis });
+  const { proteinOnly } = useNumbersMode();
+  const copy = proteinOnly
+    ? proteinOnlyTrainingExplain({ days, basis })
+    : trainingExplainCopy({ days, basis });
   return (
     <ExplainSheet
       visible={visible}

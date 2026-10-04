@@ -4,6 +4,7 @@ import { router } from 'expo-router';
 import { Button, Card, ErrorState, Text } from '@chefer/ui-mobile';
 import { cn, formatDate, pastWeeks } from '@chefer/utils';
 import { trpc } from '../../lib/trpc';
+import { useNumbersMode } from '../numbers-mode/numbers-mode';
 import { useRestorePlan } from './use-restore-plan';
 
 // Past weeks on My weeks (P2-8) — History folded into My weeks, as on web.
@@ -27,6 +28,7 @@ export function PastWeeksSection() {
     refetch,
   } = trpc.mealPlan.list.useQuery({ limit: HISTORY_LIMIT, offset: 0 }, { staleTime: 30_000 });
   const restore = useRestorePlan();
+  const { proteinOnly } = useNumbersMode(); // WP-08: protein-only mode shows protein, never kcal
   const weeks = pastWeeks(plans);
 
   return (
@@ -80,8 +82,9 @@ export function PastWeeksSection() {
               )}
 
               <Text className="text-xs text-gray-500">
-                {plan.macroSummary.avgKcal} kcal avg · {plan.macroSummary.avgProtein}g P ·{' '}
-                {plan.macroSummary.avgCarbs}g C · {plan.macroSummary.avgFat}g F
+                {proteinOnly
+                  ? `${plan.macroSummary.avgProtein} g protein avg`
+                  : `${plan.macroSummary.avgKcal} kcal avg · ${plan.macroSummary.avgProtein}g P · ${plan.macroSummary.avgCarbs}g C · ${plan.macroSummary.avgFat}g F`}
               </Text>
 
               {restore.errorFor(plan.id) && (

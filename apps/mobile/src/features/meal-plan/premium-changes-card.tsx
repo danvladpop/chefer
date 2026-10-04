@@ -2,6 +2,8 @@ import { Pressable, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Button, Card, colors, Text } from '@chefer/ui-mobile';
 import { joinDayNames, weekdayShortName } from '@chefer/utils';
+import { useNumbersMode } from '../numbers-mode/numbers-mode';
+import { withoutKcalLines } from '../numbers-mode/numbers-mode-copy';
 
 // ─── What Premium changed (UX-10 §8, T-10.7) ───────────────────────────────────
 // One-time card above the day view, straight after a premium regeneration. The
@@ -49,7 +51,12 @@ export function PremiumChangesCard({
   onCompare: () => void;
   onDismiss: () => void;
 }) {
-  const misses = changes.misses ?? [];
+  // WP-08: protein-only mode drops the server's calorie lines and the calorie-miss line (and its Fix it).
+  const { proteinOnly } = useNumbersMode();
+  const misses = proteinOnly ? [] : (changes.misses ?? []);
+  const lines = proteinOnly
+    ? changes.lines.filter((line) => withoutKcalLines(line) !== '')
+    : changes.lines;
   const miss = missLine(misses);
   const firstMiss = misses[0];
   return (
@@ -69,7 +76,7 @@ export function PremiumChangesCard({
         </Pressable>
       </View>
       <View className="gap-1">
-        {changes.lines.map((line) => (
+        {lines.map((line) => (
           <View key={line} className="flex-row items-start gap-2">
             <Text className="text-sm text-primary">•</Text>
             <Text className="min-w-0 flex-1 text-sm text-gray-700">{line}</Text>

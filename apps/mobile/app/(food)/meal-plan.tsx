@@ -70,6 +70,7 @@ import {
 import { useDayRollover } from '../../src/features/meal-plan/use-day-rollover';
 import { useTailoringWatch } from '../../src/features/meal-plan/use-tailoring-watch';
 import { WeekSummarySheet, type DaySummary } from '../../src/features/meal-plan/week-summary-sheet';
+import { useNumbersMode } from '../../src/features/numbers-mode/numbers-mode';
 import { PlanMissSheet } from '../../src/features/nutrition/plan-miss-sheet';
 import { openPremium } from '../../src/features/premium/open-premium';
 import { ReportSafetySheet } from '../../src/features/safety/report-sheet';
@@ -506,6 +507,8 @@ export default function MealPlanScreen() {
   const costPortions = plan?.estimatedCost?.portions ?? null;
   // Costs are EUR estimates; shown in the user's currency (backlog P2-6).
   const currency = useCurrency();
+  // WP-08: protein-only mode shows protein, never kcal, on the plan's cards, totals and sheets.
+  const { proteinOnly } = useNumbersMode();
 
   // T-07.3/T-07.5: the "how you cook" shape names the empty-week job and
   // feeds the Plan settings sheet — same query everywhere (onboarding,
@@ -912,8 +915,9 @@ export default function MealPlanScreen() {
             {replanNeeded && (
               <View testID="plan-replan-banner" className="gap-1 rounded-xl bg-blue-50 px-3 py-2">
                 <Text className="text-sm text-blue-800">
-                  This week was planned for {formatKcal(plannedKcal)} kcal. Re-plan with{' '}
-                  {formatKcal(liveKcal)} kcal?
+                  {proteinOnly
+                    ? 'Your targets have changed since this week was planned. Re-plan to match them?'
+                    : `This week was planned for ${formatKcal(plannedKcal)} kcal. Re-plan with ${formatKcal(liveKcal)} kcal?`}
                 </Text>
                 <View className="flex-row gap-2">
                   <Pressable
@@ -1078,7 +1082,7 @@ export default function MealPlanScreen() {
                         slotState?.status === 'replaced' ? (
                           <SlotStatusLine
                             testID={`plan-slot-replaced-${slotIndex}`}
-                            text={youHadText(slotState.entry)}
+                            text={youHadText(slotState.entry, proteinOnly)}
                             actionLabel={slotState.entry.entryId ? SLOT_COPY.remove : undefined}
                             onAction={() => {
                               const entry = slotState.entry;
@@ -1283,6 +1287,7 @@ export default function MealPlanScreen() {
                 dayIndex: i,
                 mealsCount: dayMeals.length,
                 totalKcal: sumPlanDay(dayMeals).kcal,
+                totalProtein: sumPlanDay(dayMeals).protein,
                 isToday: todayIndex === i,
                 training: trainingDays.find((t) => t.dayOfWeek === i),
               };

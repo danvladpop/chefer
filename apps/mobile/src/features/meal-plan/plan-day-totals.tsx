@@ -2,6 +2,7 @@ import { Pressable, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { colors, Text } from '@chefer/ui-mobile';
 import { formatKcal, sumPlanDay } from '@chefer/utils';
+import { useNumbersMode } from '../numbers-mode/numbers-mode';
 
 // Day totals for the Plan tab — port of web's DayRecapBar. Each slot counts at
 // its portion (P1-1), the calorie status uses the same ±15% band as web, and a
@@ -50,19 +51,33 @@ export function PlanDayTotals({
   onOpenStatus?: (() => void) | undefined;
   testID?: string;
 }) {
+  // WP-08: protein-only mode shows the day's protein and only a protein shortfall.
+  const { proteinOnly } = useNumbersMode();
   const totals = sumPlanDay(meals);
-  const status = planDayStatus({ kcal: totals.kcal, calorieTarget, proteinGapG });
+  const status = planDayStatus({
+    kcal: totals.kcal,
+    calorieTarget: proteinOnly ? undefined : calorieTarget,
+    proteinGapG,
+  });
 
   return (
     <View testID={testID} className="gap-1 rounded-xl bg-gray-50 px-3 py-2">
       <View className="flex-row flex-wrap items-center gap-x-3 gap-y-1">
         <Text className="text-xs font-semibold uppercase text-gray-500">Day total</Text>
-        <Text testID={`${testID}-kcal`} className="text-sm font-bold text-primary">
-          {formatKcal(totals.kcal)} kcal
-        </Text>
-        <Text className="text-xs text-gray-500">
-          P {totals.protein}g · C {totals.carbs}g · F {totals.fat}g
-        </Text>
+        {proteinOnly ? (
+          <Text testID={`${testID}-protein`} className="text-sm font-bold text-primary">
+            {totals.protein} g protein
+          </Text>
+        ) : (
+          <>
+            <Text testID={`${testID}-kcal`} className="text-sm font-bold text-primary">
+              {formatKcal(totals.kcal)} kcal
+            </Text>
+            <Text className="text-xs text-gray-500">
+              P {totals.protein}g · C {totals.carbs}g · F {totals.fat}g
+            </Text>
+          </>
+        )}
       </View>
       {status !== null &&
         (onOpenStatus ? (
