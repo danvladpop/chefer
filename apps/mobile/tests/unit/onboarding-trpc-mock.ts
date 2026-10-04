@@ -24,6 +24,8 @@ export function createTrpcOnboardingMock() {
         setJobs: { useMutation: jest.fn(() => mutationResult()) },
         setDisplayPreferences: { useMutation: jest.fn(() => mutationResult()) },
         updateTargets: { useMutation: jest.fn(() => mutationResult()) },
+        // WP-08: "Just protein" is saved at Finish.
+        setNumbersMode: { useMutation: jest.fn(() => mutationResult()) },
       },
       // "Who's at your table?" (P2-3) renders the household editor.
       household: {

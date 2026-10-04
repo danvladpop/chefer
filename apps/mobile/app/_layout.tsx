@@ -17,6 +17,7 @@ import {
 import { ForegroundLandingHost } from '../src/features/navigation/foreground-landing-host';
 import { FoodNudgeHost } from '../src/features/notifications/use-food-nudges';
 import { useNotificationLinks } from '../src/features/notifications/use-notification-links';
+import { NumbersModeHost } from '../src/features/numbers-mode/numbers-mode';
 import { PremiumHost } from '../src/features/premium/premium-host';
 import { HealthConsentLaunchPrompt } from '../src/features/privacy/health-consent-launch-prompt';
 import { initAnalytics, track } from '../src/lib/analytics';
@@ -94,62 +95,65 @@ export default function RootLayout() {
             {/* Dark icons: the app is light-only (dark mode deferred) — "auto" drew
               white icons on a white screen when the phone is in dark mode. */}
             <StatusBar style="dark" />
-            <Stack screenOptions={{ headerShown: false }}>
-              <Stack.Protected guard={token !== null}>
-                {/* Food / Gym mode (gym_plan.md D3): two tab groups at the root;
+            {/* WP-08: one numbers-mode source (protein-only) for every screen below. */}
+            <NumbersModeHost signedIn={token !== null}>
+              <Stack screenOptions={{ headerShown: false }}>
+                <Stack.Protected guard={token !== null}>
+                  {/* Food / Gym mode (gym_plan.md D3): two tab groups at the root;
                 the persisted mode picks which one "/" opens. */}
-                <Stack.Screen name="(food)" />
-                <Stack.Screen name="(gym)" />
-                <Stack.Screen name="recipe/[id]" />
-                <Stack.Screen name="tracker" />
-                <Stack.Screen name="pantry" />
-                <Stack.Screen name="profile" />
-                <Stack.Screen name="preferences" />
-                <Stack.Screen name="settings/index" />
-                <Stack.Screen name="chat" />
-                <Stack.Screen name="history/index" />
-                <Stack.Screen name="history/[planId]" />
-                <Stack.Screen name="progress" />
-                <Stack.Screen name="onboarding" />
-                <Stack.Screen name="cook/[id]" />
-                <Stack.Screen name="import-recipe" />
-                <Stack.Screen name="household" />
-                <Stack.Screen name="my-weeks" />
-                <Stack.Screen name="recipe-form" />
-                {/* Gym stack routes (placeholders until wave G2 fills them). */}
-                <Stack.Screen name="gym/setup" />
-                <Stack.Screen
-                  name="gym/workout"
-                  // A card, not a fullScreenModal: safe-area insets read 0 inside iOS native
-                  // modals, which put the header + Finish under the status bar.
-                  options={{ animation: 'slide_from_bottom', gestureEnabled: false }}
-                />
-                <Stack.Screen name="gym/summary/[id]" options={{ gestureEnabled: false }} />
-                <Stack.Screen name="gym/session/[id]" />
-                <Stack.Screen name="gym/routine-editor" />
-                <Stack.Screen name="gym/routines" />
-                <Stack.Screen name="gym/exercise/[id]" />
-                <Stack.Screen name="gym/exercise-form" />
-                <Stack.Screen name="gym/settings" />
-                {/* Following (code name `friends`, docs/friends/ux-design.md §2.2).
+                  <Stack.Screen name="(food)" />
+                  <Stack.Screen name="(gym)" />
+                  <Stack.Screen name="recipe/[id]" />
+                  <Stack.Screen name="tracker" />
+                  <Stack.Screen name="pantry" />
+                  <Stack.Screen name="profile" />
+                  <Stack.Screen name="preferences" />
+                  <Stack.Screen name="settings/index" />
+                  <Stack.Screen name="chat" />
+                  <Stack.Screen name="history/index" />
+                  <Stack.Screen name="history/[planId]" />
+                  <Stack.Screen name="progress" />
+                  <Stack.Screen name="onboarding" />
+                  <Stack.Screen name="cook/[id]" />
+                  <Stack.Screen name="import-recipe" />
+                  <Stack.Screen name="household" />
+                  <Stack.Screen name="my-weeks" />
+                  <Stack.Screen name="recipe-form" />
+                  {/* Gym stack routes (placeholders until wave G2 fills them). */}
+                  <Stack.Screen name="gym/setup" />
+                  <Stack.Screen
+                    name="gym/workout"
+                    // A card, not a fullScreenModal: safe-area insets read 0 inside iOS native
+                    // modals, which put the header + Finish under the status bar.
+                    options={{ animation: 'slide_from_bottom', gestureEnabled: false }}
+                  />
+                  <Stack.Screen name="gym/summary/[id]" options={{ gestureEnabled: false }} />
+                  <Stack.Screen name="gym/session/[id]" />
+                  <Stack.Screen name="gym/routine-editor" />
+                  <Stack.Screen name="gym/routines" />
+                  <Stack.Screen name="gym/exercise/[id]" />
+                  <Stack.Screen name="gym/exercise-form" />
+                  <Stack.Screen name="gym/settings" />
+                  {/* Following (code name `friends`, docs/friends/ux-design.md §2.2).
                     Every screen gates itself on `friends.availability`
                     (FriendsGate): reached while the feature is off, it shows
                     "Following isn’t available right now." */}
-                <Stack.Screen name="friends/index" />
-                <Stack.Screen name="friends/requests" />
-                <Stack.Screen name="friends/activity" />
-                <Stack.Screen name="friends/settings" />
-                <Stack.Screen name="friends/blocked" />
-                <Stack.Screen name="friends/suggestions" />
-                <Stack.Screen name="friends/[userId]" />
-              </Stack.Protected>
-              <Stack.Protected guard={token === null}>
-                <Stack.Screen name="(auth)" />
-              </Stack.Protected>
-              {/* T-39.1: the in-app legal screen — unguarded, reachable both
+                  <Stack.Screen name="friends/index" />
+                  <Stack.Screen name="friends/requests" />
+                  <Stack.Screen name="friends/activity" />
+                  <Stack.Screen name="friends/settings" />
+                  <Stack.Screen name="friends/blocked" />
+                  <Stack.Screen name="friends/suggestions" />
+                  <Stack.Screen name="friends/[userId]" />
+                </Stack.Protected>
+                <Stack.Protected guard={token === null}>
+                  <Stack.Screen name="(auth)" />
+                </Stack.Protected>
+                {/* T-39.1: the in-app legal screen — unguarded, reachable both
                   from Register (signed out) and Settings/More (signed in). */}
-              <Stack.Screen name="legal/[doc]" />
-            </Stack>
+                <Stack.Screen name="legal/[doc]" />
+              </Stack>
+            </NumbersModeHost>
             <AiConsentHost />
             {/* UX-PO-08: keeps the opt-in dinner / plan-Sunday nudges scheduled. */}
             <FoodNudgeHost signedIn={token !== null} />

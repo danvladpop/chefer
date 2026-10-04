@@ -20,7 +20,10 @@ vi.mock('next/link', () => ({
   ),
 }));
 vi.mock('@/lib/analytics', () => ({ capture: vi.fn() }));
-vi.mock('@/features/tracker/lib/rebalance-storage', () => ({ handleRebalanceResult: vi.fn() }));
+vi.mock('@/features/tracker/lib/rebalance-storage', () => ({
+  handleRebalanceOutcome: vi.fn(),
+  REBALANCE_PREVIEW: { rebalanceMode: 'preview' },
+}));
 vi.mock('@/lib/recipe-image', () => ({ getRecipeImageProps: () => ({ src: '/x.jpg' }) }));
 vi.mock('@/features/safety/components/CheckedForChip', () => ({
   CheckedForChip: () => null,
@@ -28,6 +31,7 @@ vi.mock('@/features/safety/components/CheckedForChip', () => ({
 let mockLogOptions: {
   onSuccess?: (data: { rebalance: null }, vars: { mealType: string }) => void;
 } = {};
+const mockMutate = vi.fn();
 let mockExisting: { rating: number; notes: string | null } | null = null;
 vi.mock('@/features/recipe/components/StarRatingWidget', () => ({
   StarRatingWidget: ({ recipeId }: { recipeId: string }) => (
@@ -49,7 +53,7 @@ vi.mock('@/lib/trpc', () => ({
           onSuccess?: (data: { rebalance: null }, vars: { mealType: string }) => void;
         }) => {
           mockLogOptions = opts;
-          return { mutate: vi.fn(), isPending: false, isError: false, error: null };
+          return { mutate: mockMutate, isPending: false, isError: false, error: null };
         },
       },
     },
@@ -78,6 +82,16 @@ const meal = {
     cookTimeMins: 20,
   },
 };
+
+describe('TonightCard log write (WP-07)', () => {
+  it('"I ate this" asks for a rebalance offer, never a silent rebalance', () => {
+    render(<TonightCard meal={meal} showNutrition onLogged={vi.fn()} />);
+    fireEvent.click(screen.getByTestId('tonight-ate-this'));
+    expect(mockMutate).toHaveBeenCalledWith(
+      expect.objectContaining({ recipeId: 'recipe-1', rebalanceMode: 'preview' }),
+    );
+  });
+});
 
 describe('TonightCard analytics (UX-PO-02)', () => {
   it('a logged dinner fires meal_logged as planned', () => {

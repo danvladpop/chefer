@@ -1,4 +1,5 @@
 import { View } from 'react-native';
+import type { ProteinGuide } from '@chefer/types';
 import {
   Card,
   colors,
@@ -9,8 +10,16 @@ import {
   ProgressRing,
   Text,
 } from '@chefer/ui-mobile';
-import { cn, dayNutritionCaption, dayStatus, formatKcal } from '@chefer/utils';
+import {
+  cn,
+  dayNutritionCaption,
+  dayStatus,
+  formatKcal,
+  formatNumber,
+  proteinRingLabel,
+} from '@chefer/utils';
 import type { RouterOutputs } from '../../../lib/trpc';
+import { useNumbersMode } from '../../numbers-mode/numbers-mode';
 import { TrainingDayNote } from './training-day-note';
 
 // Port of apps/web/src/features/dashboard/components/nutrition-summary.tsx.
@@ -60,18 +69,103 @@ function MacroBar({
   );
 }
 
+/**
+ * WP-08 protein-only Today: the ring is a PROTEIN ring ("72 of 120 g protein")
+ * with the per-meal guide under it. No kcal caption, no macro bars. The week
+ * is still balanced on calories underneath; this card just never says so.
+ * MO-06 motion as the calorie ring (same primitives).
+ */
+function ProteinSummary({
+  nutrition: n,
+  targetMode,
+  proteinGuide,
+}: {
+  nutrition: Nutrition;
+  targetMode?: 'SUGGESTED' | 'OWN' | undefined;
+  proteinGuide?: ProteinGuide | undefined;
+}) {
+  const targetG = n.adjustedTargets?.proteinG ?? n.protein.targetG;
+  const eatenG = Math.round(n.protein.eaten);
+  const progress = progressOf(eatenG, targetG);
+  const leftG = Math.max(Math.round(targetG) - eatenG, 0);
+  // Neutral palette: reaching the goal is green, otherwise just what is left.
+  const reached = targetG > 0 && eatenG >= targetG;
+  const chip = reached
+    ? { text: 'Protein goal reached', bg: 'bg-emerald-100', fg: 'text-emerald-700' }
+    : eatenG === 0
+      ? { text: 'Nothing logged yet', bg: 'bg-gray-100', fg: 'text-gray-500' }
+      : { text: `${leftG} g to go`, bg: 'bg-gray-100', fg: 'text-gray-600' };
+
+  return (
+    <Card testID="nutrition-summary">
+      <View className="mb-4 flex-row items-center justify-between gap-2">
+        <Text className="text-xs font-semibold uppercase tracking-widest text-gray-500">Today</Text>
+        <View className={cn('rounded-full px-2.5 py-0.5', chip.bg)}>
+          <Text testID="nutrition-status" className={cn('text-xs font-bold uppercase', chip.fg)}>
+            {chip.text}
+          </Text>
+        </View>
+      </View>
+
+      {n.trainingDay ? <TrainingDayNote t={n.trainingDay} /> : null}
+
+      <View className="items-center gap-2">
+        <ProgressRing
+          testID="protein-ring"
+          accessibilityLabel={`${proteinRingLabel(eatenG, targetG)} eaten today`}
+          progress={progress}
+          size={RING_SIZE}
+          strokeWidth={RING_STROKE}
+        >
+          <CountUp
+            testID="protein-count"
+            value={eatenG}
+            className="text-xl font-bold text-gray-900"
+          />
+          <Text
+            testID="protein-ring-caption"
+            numberOfLines={2}
+            maxFontSizeMultiplier={RING_CAPTION_MAX_FONT_SCALE}
+            style={{ maxWidth: RING_INNER_WIDTH }}
+            className="text-center text-xs text-muted-foreground"
+          >
+            of {formatNumber(Math.round(targetG))} g protein
+          </Text>
+        </ProgressRing>
+        {proteinGuide && (
+          <Text testID="protein-guide" className="text-center text-xs text-gray-600">
+            {proteinGuide.label}
+          </Text>
+        )}
+        {targetMode && (
+          <Text testID="target-mode-label" className="text-center text-xs text-muted-foreground">
+            {targetMode === 'OWN' ? 'Your target' : 'Suggested'}
+          </Text>
+        )}
+      </View>
+    </Card>
+  );
+}
+
 export function NutritionSummary({
   nutrition: n,
   targetMode,
   remainingPlannedKcal,
+  proteinGuide,
 }: {
   nutrition: Nutrition;
+  /** WP-08: the per-meal protein guide ("30–40 g per meal"), shown in protein-only mode. */
+  proteinGuide?: ProteinGuide | undefined;
   /** Planned meals still to eat today (UX-FOOD-05). Unknown → the plan minus what was eaten. */
   remainingPlannedKcal?: number;
   /** §2.11, T-35.5: the ring's label — "Your target" (OWN) vs "Suggested" (SUGGESTED). Omitted while unknown. */
   targetMode?: 'SUGGESTED' | 'OWN';
 }) {
-  // Premium lifters on a training day get the bumped targets (audit P2-4);
+  const { proteinOnly } = useNumbersMode();
+  if (proteinOnly) {
+    return <ProteinSummary nutrition={n} targetMode={targetMode} proteinGuide={proteinGuide} />;
+  }
+  // Lifters on a training day get the bumped targets, free for everyone (audit P2-4, WP-07);
   // everyone else keeps the base targets the older fields carry.
   const target = n.adjustedTargets ?? {
     dailyCalorieTarget: n.dailyCalorieTarget,

@@ -13,6 +13,7 @@ import {
 } from '@chefer/utils';
 import { useRestorePlan } from '../../src/features/history/use-restore-plan';
 import { PlanMealCard } from '../../src/features/meal-plan/plan-meal-card';
+import { useNumbersMode } from '../../src/features/numbers-mode/numbers-mode';
 import { trpc } from '../../src/lib/trpc';
 
 // Past-week detail — port of apps/web (dashboard)/history/[planId]
@@ -28,6 +29,8 @@ const MEAL_ORDER = ['breakfast', 'lunch', 'dinner', 'snack'];
 export default function HistoryPlanScreen() {
   const { planId } = useLocalSearchParams<{ planId: string; status?: string }>();
   const [selectedDay, setSelectedDay] = useState(0);
+  // WP-08: protein-only mode shows protein, never kcal, for a past week too.
+  const { proteinOnly } = useNumbersMode();
   const snackbar = useSnackbar();
 
   const {
@@ -56,7 +59,8 @@ export default function HistoryPlanScreen() {
     (a, b) => MEAL_ORDER.indexOf(a.type) - MEAL_ORDER.indexOf(b.type),
   );
   // Each slot at its portion (P1-1) — the same sum as the Plan tab and web.
-  const dayKcal = sumPlanDay(meals).kcal;
+  const dayTotals = sumPlanDay(meals);
+  const dayKcal = dayTotals.kcal;
 
   return (
     <Screen edges={['top', 'bottom', 'left', 'right']} className="px-0">
@@ -159,7 +163,9 @@ export default function HistoryPlanScreen() {
             ) : (
               <>
                 <Text testID="history-day-kcal" className="text-xs text-gray-500">
-                  Day total · {formatKcal(dayKcal)} kcal
+                  {proteinOnly
+                    ? `Day total · ${dayTotals.protein} g protein`
+                    : `Day total · ${formatKcal(dayKcal)} kcal`}
                 </Text>
                 {day?.proteinGapG !== undefined && (
                   <Text testID="history-day-protein-gap" className="text-xs text-amber-800">

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { containsForbiddenPhrase } from '@chefer/eslint-config/rules/no-forbidden-copy';
-import { PLAN_FEATURES, PREMIUM_JOB_IDS, PREMIUM_SOURCES } from '@chefer/types';
+import { PLAN_FEATURES, PREMIUM_JOB_IDS, PREMIUM_PERK_KEYS, PREMIUM_SOURCES } from '@chefer/types';
 import {
   allPitchStrings,
   downgradeLosses,
@@ -93,11 +93,20 @@ describe('gym-first default for Train users (D-11)', () => {
     }
   });
 
-  it('retires the training bump bullet when the flag makes it free', () => {
-    const on = premiumPitchFor('training-day', { flags: { trainingBumpFree: true } });
-    const off = premiumPitchFor('training-day', { flags: {} });
-    expect(on.bullets.some((t) => t.includes('More calories and protein'))).toBe(false);
-    expect(off.bullets.some((t) => t.includes('More calories and protein'))).toBe(true);
+  it('never sells training-day targets or week rebalance as Premium (WP-07: no AI, free)', () => {
+    expect(PLAN_FEATURES.trainingDayTargets.free).toBe(true);
+    expect(PLAN_FEATURES.trainingNutrition.free).toBe(true);
+    expect(PLAN_FEATURES.weekRebalance.free).toBe(true);
+    for (const flags of [{}, { trainingBumpFree: true }]) {
+      for (const source of ['training-day', 'training-week', 'snap-scan']) {
+        const pitch = premiumPitchFor(source, { flags });
+        for (const line of [...pitch.bullets, ...pitch.alsoIncluded]) {
+          expect(line).not.toMatch(/more calories and protein|rebalanc/i);
+        }
+      }
+    }
+    expect(PREMIUM_PERK_KEYS).not.toContain('weekRebalance');
+    expect(PREMIUM_PERK_KEYS).not.toContain('trainingNutrition');
   });
 });
 

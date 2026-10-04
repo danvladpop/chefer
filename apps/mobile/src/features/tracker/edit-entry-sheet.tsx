@@ -11,6 +11,7 @@ import {
   type QuickAddMealType,
 } from '@chefer/utils';
 import { trpc } from '../../lib/trpc';
+import { useNumbersMode } from '../numbers-mode/numbers-mode';
 import { useNumericChain } from '../preferences/use-numeric-chain';
 import { invalidateDayQueries } from './invalidate';
 
@@ -66,6 +67,8 @@ export function EditEntrySheet({
 }: EditEntrySheetProps) {
   const snackbar = useSnackbar();
   const utils = trpc.useUtils();
+  // WP-08: protein-only mode edits protein; calories and the other macros keep their stored values.
+  const { proteinOnly } = useNumbersMode();
 
   const [name, setName] = useState('');
   const [mealType, setMealType] = useState<QuickAddMealType>('snack');
@@ -76,8 +79,9 @@ export function EditEntrySheet({
     fat: '',
   });
   const [sanityOverridden, setSanityOverridden] = useState(false);
-  // name → kcal → protein → carbs → fat: Next on each, Done on the last.
-  const numbers = useNumericChain('edit-entry', 1 + MACROS.length);
+  // name → kcal → protein → carbs → fat (full), or name → protein (protein-only): Next on
+  // each, Done on the last.
+  const numbers = useNumericChain('edit-entry', proteinOnly ? 1 : 1 + MACROS.length);
 
   useEffect(() => {
     if (!entry) return;
@@ -129,9 +133,10 @@ export function EditEntrySheet({
   // Blank macros are unknown, not 0 g (UX-FOOD-11): they are stored as 0, flagged,
   // and never trip the "don't add up" check.
   const unknownMacros = MACROS.filter(({ key }) => macros[key].trim() === '').map(({ key }) => key);
-  const sanity = sanityOverridden
-    ? null
-    : checkMacroSanity({ kcal: kcalNumber, ...macroNumbers, unknownMacros });
+  const sanity =
+    sanityOverridden || proteinOnly
+      ? null
+      : checkMacroSanity({ kcal: kcalNumber, ...macroNumbers, unknownMacros });
   const canSave =
     !!entryId && name.trim().length > 0 && kcalNumber > 0 && !updateMutation.isPending;
 
@@ -252,47 +257,70 @@ export function EditEntrySheet({
         />
       </View>
 
-      <View className="gap-1">
-        <Text className="text-xs font-medium text-gray-600">Calories</Text>
-        <View className="flex-row items-center gap-2">
-          <Input
-            testID="edit-entry-kcal"
-            accessibilityLabel="Calories"
-            value={kcal}
-            keyboardType="number-pad"
-            onChangeText={(text) => {
-              setKcal(text);
-              setSanityOverridden(false);
-            }}
-            className="min-w-0 flex-1"
-            {...numbers.bind(0)}
-          />
-          <Text className="text-sm text-muted-foreground">kcal</Text>
-        </View>
-      </View>
-
-      <View className="gap-1">
-        <Text className="text-xs font-medium text-gray-600">Macros (optional, grams)</Text>
-        <View className="flex-row gap-2">
-          {MACROS.map(({ key, label }, index) => (
-            <View key={key} className="min-w-0 flex-1 gap-1">
-              <Text className="text-xs font-medium text-gray-600">{label} (g)</Text>
+      {proteinOnly ? (
+        <>
+          <View className="gap-1">
+            <Text className="text-xs font-medium text-gray-600">Protein (g)</Text>
+            <View className="flex-row items-center gap-2">
               <Input
-                testID={`edit-entry-${key}`}
-                accessibilityLabel={`${label} grams`}
+                testID="edit-entry-protein"
+                accessibilityLabel="Protein grams"
                 placeholder="–"
-                value={macros[key]}
+                value={macros.protein}
                 keyboardType="decimal-pad"
+                onChangeText={(text) => setMacros((prev) => ({ ...prev, protein: text }))}
+                className="min-w-0 flex-1"
+                {...numbers.bind(0)}
+              />
+              <Text className="text-sm text-muted-foreground">g</Text>
+            </View>
+          </View>
+        </>
+      ) : (
+        <>
+          <View className="gap-1">
+            <Text className="text-xs font-medium text-gray-600">Calories</Text>
+            <View className="flex-row items-center gap-2">
+              <Input
+                testID="edit-entry-kcal"
+                accessibilityLabel="Calories"
+                value={kcal}
+                keyboardType="number-pad"
                 onChangeText={(text) => {
-                  setMacros((prev) => ({ ...prev, [key]: text }));
+                  setKcal(text);
                   setSanityOverridden(false);
                 }}
-                {...numbers.bind(index + 1)}
+                className="min-w-0 flex-1"
+                {...numbers.bind(0)}
               />
+              <Text className="text-sm text-muted-foreground">kcal</Text>
             </View>
-          ))}
-        </View>
-      </View>
+          </View>
+
+          <View className="gap-1">
+            <Text className="text-xs font-medium text-gray-600">Macros (optional, grams)</Text>
+            <View className="flex-row gap-2">
+              {MACROS.map(({ key, label }, index) => (
+                <View key={key} className="min-w-0 flex-1 gap-1">
+                  <Text className="text-xs font-medium text-gray-600">{label} (g)</Text>
+                  <Input
+                    testID={`edit-entry-${key}`}
+                    accessibilityLabel={`${label} grams`}
+                    placeholder="–"
+                    value={macros[key]}
+                    keyboardType="decimal-pad"
+                    onChangeText={(text) => {
+                      setMacros((prev) => ({ ...prev, [key]: text }));
+                      setSanityOverridden(false);
+                    }}
+                    {...numbers.bind(index + 1)}
+                  />
+                </View>
+              ))}
+            </View>
+          </View>
+        </>
+      )}
 
       {numbers.bars}
 

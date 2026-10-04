@@ -14,6 +14,7 @@ import { getRecipeImageUrl } from '../../lib/recipe-image';
 import { trpc } from '../../lib/trpc';
 import { AiConsentHost } from '../ai-consent/ai-consent-provider';
 import { NutritionStatusTag } from '../ingredients/nutrition-provenance';
+import { useNumbersMode } from '../numbers-mode/numbers-mode';
 import { CheckedForChip } from '../safety/checked-for-chip';
 import { FilteredForLine } from '../safety/filtered-for-line';
 
@@ -70,6 +71,7 @@ export function RecipePickerSheet({
   onAiSwap,
   onClose,
 }: RecipePickerSheetProps) {
+  const { proteinOnly } = useNumbersMode();
   // Keep the title through the exit animation (the caller clears mealName on close).
   const [shownName, setShownName] = useState(mealName);
   useEffect(() => {
@@ -278,7 +280,11 @@ export function RecipePickerSheet({
                       testID={`picker-recipe-${recipe.id}-meta`}
                       className="text-xs text-gray-500"
                     >
-                      {pickerRowMeta({ ...recipe, nutritionInfo: n })}
+                      {pickerRowMeta({
+                        ...recipe,
+                        // WP-08: protein-only mode lists protein, never kcal.
+                        nutritionInfo: proteinOnly ? { protein: n.protein ?? null } : n,
+                      })}
                     </Text>
                     <NutritionStatusTag status={recipe.nutritionStatus} />
                   </View>

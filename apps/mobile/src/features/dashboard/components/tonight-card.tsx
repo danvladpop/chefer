@@ -6,9 +6,10 @@ import { localDateStr, slotPortion, userFacingErrorMessage, verifiedLabels } fro
 import { trackMealLogged } from '../../../lib/analytics-events';
 import { getRecipeImageUrl } from '../../../lib/recipe-image';
 import { trpc, type RouterOutputs } from '../../../lib/trpc';
+import { useNumbersMode } from '../../numbers-mode/numbers-mode';
 import { StarRating } from '../../recipes/star-rating';
 import { CheckedForChip } from '../../safety/checked-for-chip';
-import { recordRebalance } from '../../tracker/rebalance-store';
+import { REBALANCE_PREVIEW, recordRebalanceOutcome } from '../../tracker/rebalance-offer-store';
 import { SlotOverflowButton, SlotStatusLine } from '../../tracker/slot-controls';
 import { SLOT_COPY, youHadText } from '../../tracker/slot-copy';
 
@@ -27,7 +28,13 @@ type Tonight = NonNullable<RouterOutputs['dashboard']['summary']['tonight']>;
 
 /** WP-06: what became of tonight's dinner slot, from `dashboard.summary` `today.slots`. */
 export type TonightSlot =
-  | { status: 'replaced'; name: string; kcal: number; onRemove?: (() => void) | undefined }
+  | {
+      status: 'replaced';
+      name: string;
+      kcal: number;
+      protein?: number | undefined;
+      onRemove?: (() => void) | undefined;
+    }
   | { status: 'skipped'; onUndo: () => void };
 
 export function TonightCard({
@@ -46,6 +53,8 @@ export function TonightCard({
   onSlotActions?: (() => void) | undefined;
 }) {
   const utils = trpc.useUtils();
+  // WP-08: protein-only mode shows no kcal on the card.
+  const { proteinOnly } = useNumbersMode();
   // UX-FOOD-04: "Rate it" opens the real StarRating (the one cook mode's
   // finish screen uses) inline; the link is gone once a rating exists.
   const [rateOpen, setRateOpen] = useState(false);
@@ -58,7 +67,7 @@ export function TonightCard({
     meta: { silent: true },
     onSuccess: (result) => {
       trackMealLogged('planned', meal.mealType);
-      recordRebalance(result.rebalance);
+      recordRebalanceOutcome(result);
       void utils.dashboard.summary.invalidate();
       void utils.tracker.getDay.invalidate();
       void utils.tracker.weeklySummary.invalidate();
@@ -109,7 +118,7 @@ export function TonightCard({
         <Card testID="tonight-card-done" className="py-1">
           <SlotStatusLine
             testID="tonight-replaced"
-            text={`Dinner done · ${youHadText({ custom: { name: slot.name }, kcal: slot.kcal })}`}
+            text={`Dinner done · ${youHadText({ custom: { name: slot.name }, kcal: slot.kcal, protein: slot.protein }, proteinOnly)}`}
             actionLabel={slot.onRemove ? SLOT_COPY.remove : undefined}
             onAction={slot.onRemove}
           />
@@ -179,7 +188,7 @@ export function TonightCard({
           <Text className="text-xs text-gray-500">
             {meal.recipe.prepTimeMins + (meal.recipe.cookTimeMins ?? 0)} min · for{' '}
             {meal.recipe.servings}
-            {showNutrition ? ` · ${meal.recipe.kcal} kcal` : ''}
+            {showNutrition && !proteinOnly ? ` · ${meal.recipe.kcal} kcal` : ''}
           </Text>
         </View>
       </Pressable>
@@ -200,6 +209,7 @@ export function TonightCard({
             onPress={() =>
               logMutation.mutate({
                 date: localDateStr(),
+                ...REBALANCE_PREVIEW,
                 recipeId: meal.recipe.id,
                 mealType: meal.mealType,
                 slotIndex: meal.slotIndex,

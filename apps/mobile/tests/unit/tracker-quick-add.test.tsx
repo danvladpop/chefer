@@ -1,6 +1,7 @@
 import { Keyboard, TextInput } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { act, fireEvent, render, screen, userEvent } from '@testing-library/react-native';
+import { NumbersModeProvider } from '../../src/features/numbers-mode/numbers-mode';
 import { QuickAddSheet } from '../../src/features/tracker/quick-add-sheet';
 import { focusedFields, resetFocusedFields } from './keyboard-test-utils';
 
@@ -154,6 +155,7 @@ describe('QuickAddSheet — search-first (T-19.1)', () => {
     await user.press(screen.getByTestId('log-sheet-recent-add-recipe:r1'));
     expect(mockLogRecipe).toHaveBeenCalledWith({
       date: '2026-09-26',
+      rebalanceMode: 'preview',
       recipeId: 'r1',
       mealType: 'snack',
       portionMultiplier: 1,
@@ -185,6 +187,7 @@ describe('QuickAddSheet — search-first (T-19.1)', () => {
     await user.press(screen.getByTestId('log-sheet-recent-add-custom:toast'));
     expect(mockLogCustom).toHaveBeenCalledWith({
       date: '2026-09-26',
+      rebalanceMode: 'preview',
       name: 'Toast',
       estimatedBy: 'manual',
       mealType: 'breakfast',
@@ -401,6 +404,7 @@ describe('QuickAddSheet — Enter calories yourself (fallback, T-19.1)', () => {
     await user.press(screen.getByTestId('quick-add-submit'));
     expect(mockLogCustom).toHaveBeenCalledWith({
       date: '2026-09-26',
+      rebalanceMode: 'preview',
       estimatedBy: 'manual',
       name: 'Birthday cake',
       mealType: 'dinner',
@@ -581,5 +585,27 @@ describe('QuickAddSheet — keyboard (tester feedback 2026-10-04)', () => {
     expect(screen.getByTestId('quick-add-protein').props.keyboardType).toBe('decimal-pad');
     expect(screen.getByTestId('quick-add-kcal').props.inputAccessoryViewID).toBeTruthy();
     expect(screen.getByTestId('quick-add-fat').props.inputAccessoryViewID).toBeTruthy();
+  });
+
+  it('protein-only: name hands focus to protein, which is the last field and closes the keyboard', async () => {
+    const user = userEvent.setup();
+    await render(
+      <SafeAreaProvider initialMetrics={metrics}>
+        <NumbersModeProvider mode="PROTEIN_ONLY">
+          <QuickAddSheet visible date="2026-09-26" onClose={onClose} onLogged={onLogged} />
+        </NumbersModeProvider>
+      </SafeAreaProvider>,
+    );
+    await goToManual(user);
+    expect(screen.queryByTestId('quick-add-kcal')).not.toBeOnTheScreen();
+    expect(screen.getByTestId('quick-add-protein').props.returnKeyType).toBe('done');
+    expect(screen.getByTestId('quick-add-protein').props.inputAccessoryViewID).toBeTruthy();
+
+    resetFocusedFields();
+    await fireEvent(screen.getByTestId('quick-add-name'), 'submitEditing');
+    expect(focusedFields()).toEqual(['quick-add-protein']);
+    expect(dismiss).not.toHaveBeenCalled();
+    await fireEvent(screen.getByTestId('quick-add-protein'), 'submitEditing');
+    expect(dismiss).toHaveBeenCalledTimes(1);
   });
 });

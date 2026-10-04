@@ -36,6 +36,8 @@ export interface UpsertChefProfileData {
   )[];
   trainingWeekdays?: number[];
   showNutritionOnToday?: boolean | null;
+  /** WP-08: 'FULL' | 'PROTEIN_ONLY' | 'NONE' (null = FULL). */
+  numbersMode?: string | null;
   /** Weekday -> DayKind ('lift' | 'run' | 'long_run' | 'rest'), e.g. `{ "5": "long_run" }`. */
   trainingDayKinds?: Prisma.InputJsonValue;
   timeZone?: string | null;

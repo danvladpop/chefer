@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { useAiConsent } from '@/features/ai-consent/AiConsentProvider';
+import { useNumbersMode } from '@/features/numbers-mode/numbers-mode';
 import { RecipeImage } from '@/features/recipes/components/RecipeImage';
 import { CheckedForChip } from '@/features/safety/components/CheckedForChip';
 import { FilteredForLine } from '@/features/safety/components/FilteredForLine';
@@ -59,6 +60,7 @@ export function ReplaceMealSheet({
   /** Fired after a successful replace/AI-swap — lets the caller offer Undo. */
   onChanged?: (result: ReplaceMealResult) => void;
 }) {
+  const { proteinOnly } = useNumbersMode(); // WP-08
   const [search, setSearch] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -344,7 +346,11 @@ export function ReplaceMealSheet({
                               data-testid={`picker-recipe-${recipe.id}-meta`}
                               className="text-xs text-gray-500"
                             >
-                              {pickerRowMeta({ ...recipe, nutritionInfo: n })}
+                              {pickerRowMeta({
+                                ...recipe,
+                                // WP-08: protein-only mode lists protein, never kcal.
+                                nutritionInfo: proteinOnly ? { protein: n.protein ?? null } : n,
+                              })}
                             </p>
                           </div>
                           {recipe.isFavourite && (

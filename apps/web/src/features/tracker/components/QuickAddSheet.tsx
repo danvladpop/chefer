@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
+import { useNumbersMode } from '@/features/numbers-mode/numbers-mode';
 import { trackMealLogged } from '@/lib/analytics-events';
 import { trpc, type RouterOutputs } from '@/lib/trpc';
 import { ChevronDown, ChevronUp, Plus, Search } from 'lucide-react';
@@ -9,10 +10,13 @@ import {
   checkMacroSanity,
   clampIngredientGrams,
   defaultMealSlot,
+  estimateKcalFromProtein,
   formatNumber,
   formatPortion,
   formatQuickAddGrams,
+  nutritionLabel,
   parseQuickAdd,
+  proteinLabel,
   QUICK_ADD_LIMITS,
   QUICK_ADD_MEAL_TYPES,
   userFacingErrorMessage,
@@ -21,7 +25,7 @@ import {
   type SlotRef,
 } from '@chefer/utils';
 import { invalidateDayQueries } from '../lib/invalidate';
-import { handleRebalanceResult } from '../lib/rebalance-storage';
+import { handleRebalanceOutcome, REBALANCE_PREVIEW } from '../lib/rebalance-storage';
 
 // ─── Search-first Log sheet (T-19.1, UX-19) ────────────────────────────────────
 // Web counterpart of mobile's quick-add-sheet.tsx. Recent → This week's plan →
@@ -108,6 +112,8 @@ export function QuickAddSheet({
   hideTrigger = false,
   onLoggedEntry,
 }: QuickAddSheetProps) {
+  // WP-08: protein-only mode asks protein first and shows no calorie figure.
+  const { proteinOnly } = useNumbersMode();
   const [innerOpen, setInnerOpen] = useState(false);
   const open = controlledOpen ?? innerOpen;
   const setOpen = (next: boolean) => {
@@ -115,8 +121,13 @@ export function QuickAddSheet({
     onOpenChange?.(next);
   };
   /** Adds `replacesSlot` to a custom entry when this sheet is slot-targeted. */
-  const forSlot = <T extends object>(entry: T): T & { replacesSlot?: SlotRef } =>
-    replacesSlot ? { ...entry, replacesSlot } : entry;
+  // Every log write also asks for an offer instead of a silent rebalance (WP-07).
+  const forSlot = <T extends object>(
+    entry: T,
+  ): T & { replacesSlot?: SlotRef; rebalanceMode: 'preview' } =>
+    replacesSlot
+      ? { ...entry, replacesSlot, ...REBALANCE_PREVIEW }
+      : { ...entry, ...REBALANCE_PREVIEW };
   const [view, setView] = useState<'search' | 'manual'>('search');
   const [query, setQuery] = useState('');
   const [ingredientLimit, setIngredientLimit] = useState(INGREDIENT_PAGE);
@@ -196,7 +207,7 @@ export function QuickAddSheet({
   const onLoggedCommon = (
     data: RouterOutputs['tracker']['logRecipe'] | RouterOutputs['tracker']['logCustomMeal'],
   ) => {
-    handleRebalanceResult(data.rebalance);
+    handleRebalanceOutcome(data);
     // Recent (AC1) — and the weekly/monthly summaries, dashboard ring — must
     // reflect this log the next time the sheet (or those surfaces) opens, not
     // after the query's 60s staleTime. onLogged() alone only refetches
@@ -259,6 +270,7 @@ export function QuickAddSheet({
     if (isPending) return;
     if (recent.recipeId && !replacesSlot) {
       logRecipeMutation.mutate({
+        ...REBALANCE_PREVIEW,
         date,
         recipeId: recent.recipeId,
         mealType: recent.mealType,
@@ -285,6 +297,7 @@ export function QuickAddSheet({
     if (isPending) return;
     plannedRowPending.current = true;
     logRecipeMutation.mutate({
+      ...REBALANCE_PREVIEW,
       date,
       recipeId: meal.recipeId,
       mealType: meal.mealType,
@@ -321,6 +334,7 @@ export function QuickAddSheet({
       return;
     }
     logRecipeMutation.mutate({
+      ...REBALANCE_PREVIEW,
       date,
       recipeId: recipe.id,
       mealType,
@@ -345,12 +359,35 @@ export function QuickAddSheet({
     );
   };
 
-  const parsedManual = parseQuickAdd({ name, mealType, kcal, ...macros });
-  const sanity = parsedManual.ok && !sanityOverridden ? checkMacroSanity(parsedManual.entry) : null;
+  // WP-08: protein is the one required number in protein-only mode; the kcal the
+  // plan balances on is estimated from it (same rule as the app).
+  const parseManual = () => {
+    const proteinGrams = Number(macros.protein.replace(',', '.'));
+    const proteinOk = Number.isFinite(proteinGrams) && proteinGrams > 0;
+    const parsed = parseQuickAdd({
+      name,
+      mealType,
+      kcal: proteinOnly ? String(estimateKcalFromProtein(proteinOk ? proteinGrams : 0)) : kcal,
+      ...(proteinOnly ? { protein: macros.protein } : macros),
+    });
+    return { parsed, proteinOk };
+  };
+  const parsedManual = parseManual().parsed;
+  // Protein-only has no calories to compare the macros against.
+  const sanity =
+    !proteinOnly && parsedManual.ok && !sanityOverridden
+      ? checkMacroSanity(parsedManual.entry)
+      : null;
 
   const submitManual = () => {
     if (isPending) return;
-    const parsedNow = parseQuickAdd({ name, mealType, kcal, ...macros });
+    const { parsed: parsedNow, proteinOk } = parseManual();
+    if (proteinOnly && !proteinOk) {
+      const rest: QuickAddErrors = parsedNow.ok ? {} : { ...parsedNow.errors };
+      delete rest.kcal; // protein-only has no calories field to show it on
+      setErrors({ ...rest, protein: 'Enter the protein in grams.' });
+      return;
+    }
     if (!parsedNow.ok) {
       setErrors(parsedNow.errors);
       return;
@@ -398,7 +435,9 @@ export function QuickAddSheet({
         onClose={() => setOpen(false)}
         title={
           view === 'manual'
-            ? 'Enter calories yourself'
+            ? proteinOnly
+              ? 'Enter protein yourself'
+              : 'Enter calories yourself'
             : replacesSlot
               ? 'Ate something else'
               : 'Log something'
@@ -503,12 +542,16 @@ export function QuickAddSheet({
                   >
                     <div className="min-w-0 flex-1">
                       <p className="truncate text-sm font-medium text-neutral-800">{r.name}</p>
-                      <p className="text-xs text-neutral-500">{Math.round(r.kcal)} kcal</p>
+                      <p className="text-xs text-neutral-500">{nutritionLabel(r, proteinOnly)}</p>
                     </div>
                     <button
                       type="button"
                       data-testid={`log-sheet-recent-add-${r.key}`}
-                      aria-label={`Log ${r.name} again, ${Math.round(r.kcal)} kilocalories`}
+                      aria-label={
+                        proteinOnly
+                          ? `Log ${r.name} again, ${proteinLabel(r.protein)}`
+                          : `Log ${r.name} again, ${Math.round(r.kcal)} kilocalories`
+                      }
                       disabled={isPending}
                       onClick={() => logRecentAgain(r)}
                       className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-[#944a00] hover:bg-[#fff2e2]"
@@ -546,7 +589,7 @@ export function QuickAddSheet({
                             {m.recipeName}
                           </p>
                           <p className="text-xs text-neutral-500">
-                            1 portion · {Math.round(m.kcal)} kcal
+                            1 portion · {nutritionLabel(m, proteinOnly)}
                           </p>
                         </div>
                         {isOpen ? (
@@ -580,7 +623,11 @@ export function QuickAddSheet({
                             onClick={() => logPlannedRow(m, portion)}
                             className="min-h-11 w-full rounded-lg bg-[#944a00] px-3 text-xs font-semibold text-white"
                           >
-                            Log {Math.round(m.kcal * portion)} kcal
+                            Log{' '}
+                            {nutritionLabel(
+                              { kcal: m.kcal * portion, protein: m.protein * portion },
+                              proteinOnly,
+                            )}
                           </button>
                         </div>
                       )}
@@ -623,7 +670,11 @@ export function QuickAddSheet({
                             {recipe.name}
                           </p>
                           <p className="text-xs text-neutral-500">
-                            1 portion · {Math.round(kcalPerServing)} kcal
+                            1 portion ·{' '}
+                            {nutritionLabel(
+                              { kcal: kcalPerServing, protein: nutrition?.protein ?? 0 },
+                              proteinOnly,
+                            )}
                           </p>
                         </div>
                         {isOpen ? (
@@ -668,7 +719,14 @@ export function QuickAddSheet({
                             }
                             className="min-h-11 w-full rounded-lg bg-[#944a00] px-3 text-xs font-semibold text-white"
                           >
-                            Log {Math.round(kcalPerServing * portion)} kcal
+                            Log{' '}
+                            {nutritionLabel(
+                              {
+                                kcal: kcalPerServing * portion,
+                                protein: (nutrition?.protein ?? 0) * portion,
+                              },
+                              proteinOnly,
+                            )}
                           </button>
                         </div>
                       )}
@@ -707,7 +765,9 @@ export function QuickAddSheet({
                           </p>
                           <p className="text-xs text-neutral-500">
                             {ingredient.per100g
-                              ? `${Math.round(ingredient.per100g.calories)} kcal / 100 g`
+                              ? proteinOnly
+                                ? `${Math.round(ingredient.per100g.protein)} g protein / 100 g`
+                                : `${Math.round(ingredient.per100g.calories)} kcal / 100 g`
                               : 'No nutrition data yet'}
                           </p>
                         </div>
@@ -757,7 +817,9 @@ export function QuickAddSheet({
                             className="text-xs text-neutral-500"
                           >
                             {expandedIngredient === ingredient && expandedLive
-                              ? `${expandedLive.kcal} kcal · ${expandedLive.protein}g P`
+                              ? proteinOnly
+                                ? `${expandedLive.protein} g protein`
+                                : `${expandedLive.kcal} kcal · ${expandedLive.protein}g P`
                               : '—'}
                           </p>
                           {gramsCapped && gramsInfo && (
@@ -832,7 +894,9 @@ export function QuickAddSheet({
                 className="min-h-11 py-2 text-left text-sm text-neutral-600"
               >
                 No matches —{' '}
-                <span className="font-semibold text-[#944a00]">enter calories yourself</span>
+                <span className="font-semibold text-[#944a00]">
+                  {proteinOnly ? 'enter protein yourself' : 'enter calories yourself'}
+                </span>
               </button>
             )}
 
@@ -846,7 +910,7 @@ export function QuickAddSheet({
                 }}
                 className="min-h-11 text-sm font-semibold text-[#944a00] hover:underline"
               >
-                Enter calories yourself
+                {proteinOnly ? 'Enter protein yourself' : 'Enter calories yourself'}
               </button>
             </div>
           </div>
@@ -861,7 +925,9 @@ export function QuickAddSheet({
               ← Back to search
             </button>
             <p className="text-sm text-neutral-500">
-              Name and calories are enough — a rough guess is fine.
+              {proteinOnly
+                ? 'Name and protein are enough — a rough guess is fine.'
+                : 'Name and calories are enough — a rough guess is fine.'}
             </p>
             <label className="flex flex-col gap-1 text-xs font-medium text-neutral-600">
               What did you eat?
@@ -899,58 +965,86 @@ export function QuickAddSheet({
                 ))}
               </div>
             )}
-            <label className="flex flex-col gap-1 text-xs font-medium text-neutral-600">
-              Roughly how many calories?
-              <span className="flex items-center gap-1">
-                <input
-                  type="number"
-                  inputMode="numeric"
-                  data-testid="quick-add-kcal"
-                  ref={kcalRef}
-                  value={kcal}
-                  placeholder="350"
-                  onChange={(e) => {
-                    setKcal(e.target.value);
-                    clearError('kcal');
-                    setSanityOverridden(false);
-                  }}
-                  className="min-h-11 w-full min-w-0 rounded-xl border border-neutral-200 px-3 text-sm text-neutral-900"
-                />
-                <span className="shrink-0 text-neutral-400">kcal</span>
-              </span>
-              {errors.kcal && (
-                <span data-testid="quick-add-kcal-error" className="text-xs text-red-600">
-                  {errors.kcal}
-                </span>
-              )}
-            </label>
-            <div className="flex gap-2">
-              {(['protein', 'carbs', 'fat'] as const).map((k) => (
-                <label
-                  key={k}
-                  className="flex min-w-0 flex-1 flex-col gap-1 text-xs font-medium text-neutral-600"
-                >
-                  {k.charAt(0).toUpperCase() + k.slice(1)} (g)
+            {proteinOnly ? (
+              <label className="flex flex-col gap-1 text-xs font-medium text-neutral-600">
+                Roughly how many grams of protein?
+                <span className="flex items-center gap-1">
                   <input
                     type="number"
                     inputMode="decimal"
-                    data-testid={`quick-add-${k}`}
-                    value={macros[k]}
+                    data-testid="quick-add-protein"
+                    value={macros.protein}
+                    placeholder="30"
                     onChange={(e) => {
-                      setMacros((prev) => ({ ...prev, [k]: e.target.value }));
-                      clearError(k);
-                      setSanityOverridden(false);
+                      setMacros((prev) => ({ ...prev, protein: e.target.value }));
+                      clearError('protein');
                     }}
                     className="min-h-11 w-full min-w-0 rounded-xl border border-neutral-200 px-3 text-sm text-neutral-900"
                   />
-                  {errors[k] && (
-                    <span data-testid={`quick-add-${k}-error`} className="text-xs text-red-600">
-                      {errors[k]}
+                  <span className="shrink-0 text-neutral-400">g</span>
+                </span>
+                {errors.protein && (
+                  <span data-testid="quick-add-protein-error" className="text-xs text-red-600">
+                    {errors.protein}
+                  </span>
+                )}
+              </label>
+            ) : (
+              <>
+                <label className="flex flex-col gap-1 text-xs font-medium text-neutral-600">
+                  Roughly how many calories?
+                  <span className="flex items-center gap-1">
+                    <input
+                      type="number"
+                      inputMode="numeric"
+                      data-testid="quick-add-kcal"
+                      ref={kcalRef}
+                      value={kcal}
+                      placeholder="350"
+                      onChange={(e) => {
+                        setKcal(e.target.value);
+                        clearError('kcal');
+                        setSanityOverridden(false);
+                      }}
+                      className="min-h-11 w-full min-w-0 rounded-xl border border-neutral-200 px-3 text-sm text-neutral-900"
+                    />
+                    <span className="shrink-0 text-neutral-400">kcal</span>
+                  </span>
+                  {errors.kcal && (
+                    <span data-testid="quick-add-kcal-error" className="text-xs text-red-600">
+                      {errors.kcal}
                     </span>
                   )}
                 </label>
-              ))}
-            </div>
+                <div className="flex gap-2">
+                  {(['protein', 'carbs', 'fat'] as const).map((k) => (
+                    <label
+                      key={k}
+                      className="flex min-w-0 flex-1 flex-col gap-1 text-xs font-medium text-neutral-600"
+                    >
+                      {k.charAt(0).toUpperCase() + k.slice(1)} (g)
+                      <input
+                        type="number"
+                        inputMode="decimal"
+                        data-testid={`quick-add-${k}`}
+                        value={macros[k]}
+                        onChange={(e) => {
+                          setMacros((prev) => ({ ...prev, [k]: e.target.value }));
+                          clearError(k);
+                          setSanityOverridden(false);
+                        }}
+                        className="min-h-11 w-full min-w-0 rounded-xl border border-neutral-200 px-3 text-sm text-neutral-900"
+                      />
+                      {errors[k] && (
+                        <span data-testid={`quick-add-${k}-error`} className="text-xs text-red-600">
+                          {errors[k]}
+                        </span>
+                      )}
+                    </label>
+                  ))}
+                </div>
+              </>
+            )}
             {logCustomMutation.isError && (
               <p data-testid="quick-add-api-error" className="text-xs text-red-600">
                 {userFacingErrorMessage(logCustomMutation.error)}
