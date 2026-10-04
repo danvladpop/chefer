@@ -13,6 +13,8 @@ import {
   Text,
 } from '@chefer/ui-mobile';
 import {
+  activityFacts,
+  activitySummaryLine,
   cn,
   distanceUnitFor,
   effortLabelForRpe,
@@ -20,6 +22,7 @@ import {
   formatDurationMinutes,
   formatLoad,
   formatLocalDateLong,
+  isActivityLogSession,
   isNotFoundError,
   isStrengthTrackingType,
   toSessionSummary,
@@ -124,6 +127,13 @@ export function SessionDetailScreen({ sessionId }: { sessionId: string }) {
 
   const duration = sessionDurationMin(view);
   const unit = bootstrap?.profile?.unit ?? 'KG';
+  const isActivity = isActivityLogSession({
+    routineDayId: view.routineDayId ?? null,
+    exercises: view.exercises,
+  });
+  const activityEffort = isActivity
+    ? view.exercises.flatMap((e) => e.sets).find((s) => s.intensityRpe !== undefined)?.intensityRpe
+    : undefined;
 
   return (
     <Screen className="px-0" edges={['top', 'bottom', 'left', 'right']}>
@@ -170,7 +180,22 @@ export function SessionDetailScreen({ sessionId }: { sessionId: string }) {
           </Card>
         ) : null}
 
-        {view.exercises.map((exercise, exerciseIndex) => {
+        {/* WP-20: a quick-logged activity reads "Cycling class · 45 min · ~400 kcal (from your
+            watch)" — one line, no sets table (the unknown-exercise fallback is the session name). */}
+        {isActivity ? (
+          <Card testID="session-detail-activity" className="gap-1">
+            <Text className="font-medium">
+              {activitySummaryLine(view.name, activityFacts(view))}
+            </Text>
+            {activityEffort !== undefined ? (
+              <Text variant="muted">
+                {`Effort: ${effortLabelForRpe(activityEffort) ?? `RPE ${activityEffort}`}`}
+              </Text>
+            ) : null}
+          </Card>
+        ) : null}
+
+        {(isActivity ? [] : view.exercises).map((exercise, exerciseIndex) => {
           const meta = libraryLookup.get(exercise.exerciseId);
           // T-42.3: a cardio exercise's one "set" is time/distance/effort,
           // never weightKg × reps (which would read "0 kg × 0" otherwise).
@@ -186,7 +211,9 @@ export function SessionDetailScreen({ sessionId }: { sessionId: string }) {
               testID={`session-detail-exercise-${exercise.exerciseId}`}
             >
               <View className="mb-2 flex-row items-center justify-between">
-                <CardTitle className="mb-0">{meta?.name ?? exercise.exerciseId}</CardTitle>
+                <CardTitle className="mb-0">
+                  {meta?.name ?? (view.exercises.length === 1 ? view.name : exercise.exerciseId)}
+                </CardTitle>
                 {exercise.skipped ? <Badge variant="secondary">Skipped</Badge> : null}
               </View>
               {!exercise.skipped && cardio
@@ -201,6 +228,9 @@ export function SessionDetailScreen({ sessionId }: { sessionId: string }) {
                           : ''}
                         {set.intensityRpe !== undefined
                           ? ` · ${effortLabelForRpe(set.intensityRpe) ?? `RPE ${set.intensityRpe}`}`
+                          : ''}
+                        {set.caloriesKcal !== undefined
+                          ? ` · ~${Math.round(set.caloriesKcal)} kcal`
                           : ''}
                         {!set.completed ? ' (not logged)' : ''}
                       </Text>

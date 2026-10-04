@@ -123,6 +123,39 @@ describe('RecentWorkouts (web)', () => {
     expect(screen.queryByText(TODAY)).toBeNull();
   });
 
+  // WP-20: a quick-logged activity reads "45 min · ~400 kcal", never "1 sets".
+  it('shows an activity row as minutes and kcal instead of a set count', () => {
+    const activity = session('act1', {
+      name: 'Cycling class',
+      startedAt: `${TODAY}T17:00:00.000Z`,
+      finishedAt: `${TODAY}T17:45:00.000Z`,
+      exercises: [
+        {
+          exerciseId: 'spin-class',
+          skipped: false,
+          lastSetRir: null,
+          sets: [
+            {
+              weightKg: 0,
+              reps: 0,
+              isWarmup: false,
+              completed: true,
+              durationSec: 2700,
+              caloriesKcal: 400,
+            },
+          ],
+        },
+      ],
+    });
+    render(<RecentWorkouts data={bootstrap([activity])} today={TODAY} />);
+    const row = screen.getByTestId('gym-recent-row-act1');
+    expect(row).toHaveTextContent('45 min · ~400 kcal');
+    expect(row).not.toHaveTextContent(/sets/);
+    expect(
+      screen.getByRole('link', { name: /45 minutes, about 400 kilocalories/ }),
+    ).toBeInTheDocument();
+  });
+
   it('Show more adds 5 from the cache, then pages the cursor online', async () => {
     const sessions = Array.from({ length: 4 }, (_, i) =>
       session(`c${i}`, { startedAt: `${TODAY}T0${i}:00:00.000Z` }),

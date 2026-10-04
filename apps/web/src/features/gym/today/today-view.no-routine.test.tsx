@@ -66,6 +66,8 @@ describe('TodayView with no active routine', () => {
     expect(screen.getByTestId('gym-log-past-workout')).toHaveTextContent(
       'Log a workout you already did',
     );
+    // WP-20: "Log an activity" sits beside it (no routine needed).
+    expect(screen.getByTestId('gym-log-activity')).toHaveTextContent('Log an activity');
     expect(screen.getByTestId('recent-workouts')).toBeInTheDocument();
   });
 });

@@ -20,6 +20,7 @@ import type { GymOffer, NextWorkoutDto, WeightUnit } from '@chefer/types';
 import { Button } from '@chefer/ui';
 import {
   cn,
+  isActivityLogSession,
   monthNameOf,
   nextDayIdAfter,
   pickOffer,
@@ -39,6 +40,7 @@ import { weekDays, WeekStrip } from '../shared/week-strip';
 import { localDate } from '../use-gym-bootstrap';
 import { useActiveWorkout } from '../workout/use-active-workout';
 import { HowThisWorksSheet } from './HowThisWorksSheet';
+import { LogActivitySheet } from './log-activity-sheet';
 import {
   backfillDateFor,
   buildBackfillWorkout,
@@ -61,6 +63,7 @@ export function TodayView() {
   const utils = trpc.useUtils();
   const [pickOpen, setPickOpen] = useState(false);
   const [backfillOpen, setBackfillOpen] = useState(false);
+  const [activityOpen, setActivityOpen] = useState(false);
   const [howOpen, setHowOpen] = useState(false);
 
   // First visit without a gym profile → the setup flow (gym_plan.md §1.3).
@@ -114,8 +117,9 @@ export function TodayView() {
       : rotationNext;
   const weekGoal = proRatedWeekGoal({ goal: data.streak.thisWeekGoal, today, setupDate });
   const days = weekDays(data, today);
+  // WP-20: a quick-logged activity does not make today's workout "done".
   const doneToday = data.recentSessions.some(
-    (s) => s.status === 'COMPLETED' && s.localDate === today,
+    (s) => s.status === 'COMPLETED' && s.localDate === today && !isActivityLogSession(s),
   );
   const currentWeek = data.weeks[data.weeks.length - 1];
   const paused = currentWeek?.status === 'paused';
@@ -223,14 +227,25 @@ export function TodayView() {
             </Button>
           </GymCard>
 
-          <button
-            type="button"
-            data-testid="gym-log-past-workout"
-            onClick={() => setBackfillOpen(true)}
-            className="min-h-11 self-start text-sm font-medium text-[#944a00] hover:underline"
-          >
-            Log a workout you already did
-          </button>
+          {/* Two quiet text links — neither competes with Start. */}
+          <div className="flex flex-wrap items-center gap-x-6">
+            <button
+              type="button"
+              data-testid="gym-log-past-workout"
+              onClick={() => setBackfillOpen(true)}
+              className="min-h-11 text-sm font-medium text-[#944a00] hover:underline"
+            >
+              Log a workout you already did
+            </button>
+            <button
+              type="button"
+              data-testid="gym-log-activity"
+              onClick={() => setActivityOpen(true)}
+              className="min-h-11 text-sm font-medium text-[#944a00] hover:underline"
+            >
+              Log an activity
+            </button>
+          </div>
 
           {/* UX-36 A2 (T-36.A2.2): grouped Recent list replaces the single "Last session" link. */}
           <RecentWorkouts data={data} today={today} />
@@ -300,6 +315,8 @@ export function TodayView() {
       )}
 
       <HowThisWorksSheet open={howOpen} onClose={() => setHowOpen(false)} />
+
+      <LogActivitySheet open={activityOpen} onClose={() => setActivityOpen(false)} />
 
       <LogPastWorkoutSheet
         open={backfillOpen}

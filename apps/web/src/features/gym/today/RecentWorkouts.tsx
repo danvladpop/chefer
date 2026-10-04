@@ -5,7 +5,7 @@ import { useMemo, useState } from 'react';
 import { trpc } from '@/lib/trpc';
 import type { GymBootstrap, SessionSummaryDto } from '@chefer/types';
 import { Button } from '@chefer/ui';
-import { collectPrs, groupRecentSessions } from '@chefer/utils';
+import { collectPrs, groupRecentSessions, sessionStatsText } from '@chefer/utils';
 import { SessionOptionsMenu } from '../history/SessionOptionsMenu';
 import { useDeleteWorkout } from '../history/use-delete-workout';
 import { CardLabel } from '../shared/gym-card';
@@ -101,7 +101,9 @@ export function RecentWorkouts({ data, today }: { data: GymBootstrap; today: str
           <ul className="space-y-1.5">
             {group.rows.map((row) => {
               const showTime = group.rows.length >= 2;
-              const detail = `${row.durationMin} min · ${row.workingSets} sets${row.hasPr ? ' · PR' : ''}`;
+              // WP-20: an activity reads "45 min · ~400 kcal", never "1 sets".
+              const stats = sessionStatsText(row);
+              const detail = stats.text;
               const session = combined.find((s) => s.id === row.id);
               return (
                 <li
@@ -111,7 +113,7 @@ export function RecentWorkouts({ data, today }: { data: GymBootstrap; today: str
                 >
                   <Link
                     href={`/gym/history/${row.id}`}
-                    aria-label={`${row.name}, ${group.heading}${showTime ? ` at ${row.startTime}` : ''}, ${row.durationMin} minutes, ${row.workingSets} sets${row.hasPr ? ', personal record' : ''}`}
+                    aria-label={`${row.name}, ${group.heading}${showTime ? ` at ${row.startTime}` : ''}, ${stats.spoken}`}
                     className="flex min-h-11 min-w-0 flex-1 items-center justify-between gap-2 rounded-xl py-3 pl-4 pr-1 hover:bg-gray-50"
                   >
                     <span className="min-w-0">

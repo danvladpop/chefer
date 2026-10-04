@@ -9,7 +9,12 @@ function service(opts: {
   setupCompletedAt?: Date | null;
   latestWeightKg?: number | null;
   days?: { plannedWeekday: number | null; name: string }[];
-  completed?: { localDate: string; name: string }[];
+  completed?: {
+    localDate: string;
+    name: string;
+    routineDayId?: string | null;
+    exercises?: { exerciseId: string; sets?: { caloriesKcal?: number | null }[] }[];
+  }[];
   pauses?: { startDate: string; endDate: string }[];
   kinds?: Record<string, 'lift' | 'run' | 'long_run' | 'rest'>;
   /** The `trainingBumpFree` flag (D-2 / Q-3): off unless a test opts in. */
@@ -30,7 +35,18 @@ function service(opts: {
   const routineRepo = {
     findActive: vi.fn().mockResolvedValue(opts.days ? { days: opts.days } : null),
   };
-  const sessionRepo = { findCompleted: vi.fn().mockResolvedValue(opts.completed ?? []) };
+  // The real repo returns routineDayId + exercises on every row (WP-20 reads
+  // them to tell a quick-logged activity from a workout); a bare fixture is a
+  // plain strength session.
+  const sessionRepo = {
+    findCompleted: vi.fn().mockResolvedValue(
+      (opts.completed ?? []).map((c) => ({
+        routineDayId: null,
+        exercises: [{ exerciseId: 'barbell-bench-press', sets: [] }],
+        ...c,
+      })),
+    ),
+  };
   const pauseRepo = { listForUser: vi.fn().mockResolvedValue(opts.pauses ?? []) };
   const kindsService = { getDayKinds: vi.fn().mockResolvedValue(opts.kinds ?? {}) };
   const svc = new TrainingNutritionService(
@@ -366,5 +382,65 @@ describe('TrainingNutritionService.refuelSnacks (T-06.3, AC4)', () => {
   it('a soy allergy drops edamame; a table can leave fewer than two', () => {
     const soy = svc.refuelSnacks({ ...none, allergies: ['soy'] }, 20).map((s) => s.id);
     expect(soy).not.toContain('edamame');
+  });
+});
+
+// WP-20 (owner decision 2026-10-04): a quick-logged activity is RECORD ONLY — its
+// kcal never raises the food target and the day is not a "training day".
+describe('TrainingNutritionService — quick-logged activities are record only (WP-20)', () => {
+  const RAW = {
+    goal: 'GAIN_MUSCLE',
+    biologicalSex: 'MALE',
+    age: 30,
+    heightCm: 180,
+    weightKg: 80,
+    activityLevel: 'MODERATELY_ACTIVE',
+  };
+  const profile = RAW as never;
+  const lifter = { setupCompletedAt: new Date(), latestWeightKg: 80 };
+  // Tuesday: no routine day is planned for it.
+  const tuesday = { localDate: '2026-09-29', weekday: 1 };
+  const days = [{ plannedWeekday: 0, name: 'Upper A' }];
+  const activity = {
+    localDate: '2026-09-29',
+    name: 'Cycling class',
+    routineDayId: null,
+    exercises: [{ exerciseId: 'spin-class', sets: [{ caloriesKcal: 900 }] }],
+  };
+
+  it('an activity on a rest day does not make it a training day', async () => {
+    const { svc } = service({ days, completed: [activity] });
+    expect(await svc.trainingDayFor('u1', '2026-09-29', 1)).toEqual({
+      isTrainingDay: false,
+      reason: null,
+      workoutName: null,
+      kind: null,
+    });
+  });
+
+  it('the targets are identical with or without the activity, however many kcal it carries', async () => {
+    const without = service({ ...lifter, days, widened: true });
+    const withActivity = service({ ...lifter, days, widened: true, completed: [activity] });
+    const a = await without.svc.targetsForDay('u1', profile, tuesday, true);
+    const b = await withActivity.svc.targetsForDay('u1', profile, tuesday, true);
+    expect(b).toEqual(a);
+    expect(b.training?.adjustedTargets ?? null).toBeNull();
+    expect(b.training?.trainingDay.isTrainingDay ?? false).toBe(false);
+  });
+
+  it('a planned lift day stays a lift day, and a real workout the same day still counts', async () => {
+    const planned = service({ days, completed: [{ ...activity, localDate: '2026-09-28' }] });
+    expect((await planned.svc.trainingDayFor('u1', '2026-09-28', 0)).reason).toBe('SCHEDULED');
+    const workout = service({
+      days,
+      completed: [activity, { localDate: '2026-09-29', name: 'Freestyle' }],
+    });
+    expect((await workout.svc.trainingDayFor('u1', '2026-09-29', 1)).reason).toBe('COMPLETED');
+  });
+
+  it('the plan week does not mark an activity day as a training day', async () => {
+    const { svc } = service({ ...lifter, days, completed: [activity], widened: true });
+    const { trainingDays } = await svc.trainingWeek('u1', profile, new Date(2026, 8, 28), true);
+    expect(trainingDays.map((d) => d.dayOfWeek)).toEqual([0]);
   });
 });

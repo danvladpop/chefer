@@ -3,7 +3,7 @@ import { Pressable, View } from 'react-native';
 import { router } from 'expo-router';
 import type { GymBootstrap, SessionSummaryDto } from '@chefer/types';
 import { Button, Text } from '@chefer/ui-mobile';
-import { collectPrs, groupRecentSessions } from '@chefer/utils';
+import { collectPrs, groupRecentSessions, sessionStatsText } from '@chefer/utils';
 import { trpc } from '../../../lib/trpc';
 import {
   SessionOptionsButton,
@@ -108,8 +108,10 @@ export function RecentWorkouts({ bootstrap, testID = 'gym-today-recent' }: Recen
           </Text>
           {group.rows.map((row) => {
             const showTime = group.rows.length >= 2;
-            const detail = `${row.durationMin} min · ${row.workingSets} sets${row.hasPr ? ' · PR' : ''}`;
-            const a11yLabel = `${row.name}, ${group.heading}${showTime ? ` at ${row.startTime}` : ''}, ${row.durationMin} minutes, ${row.workingSets} sets${row.hasPr ? ', personal record' : ''}`;
+            // WP-20: an activity reads "45 min · ~400 kcal", never "1 sets".
+            const stats = sessionStatsText(row);
+            const detail = stats.text;
+            const a11yLabel = `${row.name}, ${group.heading}${showTime ? ` at ${row.startTime}` : ''}, ${stats.spoken}`;
             const session = combined.find((s) => s.id === row.id);
             return (
               <View

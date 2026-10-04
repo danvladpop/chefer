@@ -119,6 +119,39 @@ describe('RecentWorkouts', () => {
     expect(screen.queryByText(YESTERDAY)).not.toBeOnTheScreen();
   });
 
+  // WP-20: a quick-logged activity reads "45 min · ~400 kcal", not "1 sets".
+  it('shows an activity row as minutes and kcal instead of a set count', async () => {
+    const activity = session({
+      id: 'act1',
+      name: 'Cycling class',
+      startedAt: `${today}T17:00:00.000Z`,
+      finishedAt: `${today}T17:45:00.000Z`,
+      exercises: [
+        {
+          exerciseId: 'spin-class',
+          skipped: false,
+          lastSetRir: null,
+          sets: [
+            {
+              weightKg: 0,
+              reps: 0,
+              isWarmup: false,
+              completed: true,
+              durationSec: 2700,
+              caloriesKcal: 400,
+            },
+          ],
+        },
+      ],
+    });
+    await render(<RecentWorkouts bootstrap={makeBootstrap({ recentSessions: [activity] })} />);
+
+    const row = screen.getByTestId('gym-today-recent-row-act1');
+    expect(row).toHaveTextContent(/45 min · ~400 kcal/);
+    expect(row).not.toHaveTextContent(/sets/);
+    expect(row.props.accessibilityLabel).toMatch(/45 minutes, about 400 kilocalories/);
+  });
+
   it('shows a PR badge on a row that beat a prior best', async () => {
     // T-05.6 (UX-05 F): the very first logged set for an exercise now
     // counts as a PR too, so s0 (the earliest) also gets the badge — s1
