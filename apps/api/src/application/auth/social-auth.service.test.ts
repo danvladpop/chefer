@@ -681,6 +681,15 @@ describe('linked identities: list / link / unlink', () => {
     ).rejects.toMatchObject({ code: 'CONFLICT', message: SOCIAL_AUTH_MESSAGES.identityTaken });
   });
 
+  it('a bad provider token while linking is BAD_REQUEST, never UNAUTHORIZED (clients sign out on 401)', async () => {
+    const user = await signedUpWithGoogle();
+    const idToken = await keys.signWithForeignKey('GOOGLE', { sub: 'x', aud: GOOGLE_AUD });
+    await expect(service.link(user.id, { provider: 'GOOGLE', idToken })).rejects.toMatchObject({
+      code: 'BAD_REQUEST',
+      message: SOCIAL_AUTH_MESSAGES.invalidToken,
+    });
+  });
+
   it('refuses a second, different account of the same provider', async () => {
     const user = await signedUpWithGoogle();
     await expect(

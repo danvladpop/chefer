@@ -172,7 +172,7 @@ export class SocialAuthService {
   }
 
   async link(userId: string, input: LinkIdentityInput): Promise<LinkedIdentities> {
-    const verified = await this.verify(input);
+    const verified = await this.verify(input, { invalidCode: 'BAD_REQUEST' });
     const { repo } = this.deps;
     const known = await repo.findByProviderSubject(verified.provider, verified.subject);
     if (known) {
@@ -267,15 +267,25 @@ export class SocialAuthService {
 
   private async verify(
     credential: SocialCredential,
-    options?: { maxTokenAgeSeconds?: number },
+    options?: { maxTokenAgeSeconds?: number; invalidCode?: 'UNAUTHORIZED' | 'BAD_REQUEST' },
   ): Promise<VerifiedIdentity> {
     if (!isProviderEnabled(this.deps.config(), credential.provider)) throw unavailable();
     try {
-      return await this.deps.verifier.verify(credential, options);
+      return await this.deps.verifier.verify(
+        credential,
+        options?.maxTokenAgeSeconds === undefined
+          ? {}
+          : { maxTokenAgeSeconds: options.maxTokenAgeSeconds },
+      );
     } catch (err) {
       if (err instanceof SocialTokenError) {
         logger.info({ provider: credential.provider, reason: err.reason }, 'social token rejected');
-        throw new TRPCError({ code: 'UNAUTHORIZED', message: SOCIAL_AUTH_MESSAGES.invalidToken });
+        // A signed-in caller (link) must never get UNAUTHORIZED for a bad PROVIDER
+        // token: clients treat 401 as "your Chefer session ended" and sign out.
+        throw new TRPCError({
+          code: options?.invalidCode ?? 'UNAUTHORIZED',
+          message: SOCIAL_AUTH_MESSAGES.invalidToken,
+        });
       }
       throw err;
     }
