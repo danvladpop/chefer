@@ -23,6 +23,7 @@ import { trpc } from '../src/lib/trpc';
 // /my-weeks page. Reached from More and from the Plan tab.
 
 const MAX_TEMPLATES = 4;
+const NAME_MAX = 40;
 
 export default function MyWeeksScreen() {
   const [saveName, setSaveName] = useState('');
@@ -93,6 +94,17 @@ export default function MyWeeksScreen() {
     (deleteMutation.error ? userFacingErrorMessage(deleteMutation.error) : undefined) ??
     null;
 
+  const submitRename = (templateId: string) => {
+    if (!renameValue.trim() || busy) return;
+    renameMutation.mutate({ templateId, name: renameValue.trim() });
+  };
+
+  // UX-PLAN-10: rename can be abandoned — drop the draft and any error it left.
+  const cancelRename = () => {
+    renameMutation.reset();
+    setRenamingId(null);
+  };
+
   const confirmDelete = (templateId: string, name: string) => {
     deleteMutation.reset();
     setConfirming({ kind: 'delete', templateId, name });
@@ -157,7 +169,7 @@ export default function MyWeeksScreen() {
                 onChangeText={setSaveName}
                 placeholder="Name it, e.g. Mediterranean week"
                 placeholderTextColor="#9ca3af"
-                maxLength={40}
+                maxLength={NAME_MAX}
                 className="min-w-0 flex-1 rounded-xl"
               />
               <Button
@@ -204,25 +216,47 @@ export default function MyWeeksScreen() {
             <Card key={t.id} testID={`my-weeks-card-${t.id}`} className="gap-2">
               <View className="flex-row items-center justify-between gap-2">
                 {renamingId === t.id ? (
-                  <View className="min-w-0 flex-1 flex-row items-center gap-2">
+                  <View className="min-w-0 flex-1 gap-2">
                     <Input
                       testID="my-weeks-rename-input"
                       accessibilityLabel="Week name"
                       value={renameValue}
                       onChangeText={setRenameValue}
+                      onSubmitEditing={() => submitRename(t.id)}
+                      returnKeyType="done"
                       autoFocus
-                      maxLength={40}
+                      maxLength={NAME_MAX}
                       className="min-w-0 flex-1 rounded-xl"
                     />
-                    <Button
-                      size="sm"
-                      disabled={!renameValue.trim() || busy}
-                      onPress={() =>
-                        renameMutation.mutate({ templateId: t.id, name: renameValue.trim() })
-                      }
-                    >
-                      OK
-                    </Button>
+                    <View className="flex-row items-center justify-between gap-2">
+                      {/* UX-PLAN-10: the 40-character cap is visible, not a silent truncation. */}
+                      <Text
+                        testID="my-weeks-rename-count"
+                        variant="muted"
+                        className="text-xs"
+                        accessibilityLabel={`${renameValue.length} of ${NAME_MAX} characters`}
+                      >
+                        {renameValue.length}/{NAME_MAX}
+                      </Text>
+                      <View className="flex-row items-center gap-2">
+                        <Button
+                          testID="my-weeks-rename-cancel"
+                          variant="outline"
+                          size="sm"
+                          onPress={cancelRename}
+                        >
+                          Cancel
+                        </Button>
+                        <Button
+                          testID="my-weeks-rename-save"
+                          size="sm"
+                          disabled={!renameValue.trim() || busy}
+                          onPress={() => submitRename(t.id)}
+                        >
+                          OK
+                        </Button>
+                      </View>
+                    </View>
                   </View>
                 ) : (
                   <>

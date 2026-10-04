@@ -86,7 +86,14 @@ function EntryRow({
   return (
     <View testID={`weight-entry-${entry.id}`} className="py-1">
       <View className="flex-row items-center gap-2">
-        <Text className="w-24 text-sm text-gray-500">{dateLabel}</Text>
+        {/* Locale dates vary in length ("Tue, 22 Sep"): size to the label, never wrap (UX-X-15). */}
+        <Text
+          testID={`weight-entry-${entry.id}-date`}
+          numberOfLines={1}
+          className="min-w-24 shrink-0 text-sm text-gray-500"
+        >
+          {dateLabel}
+        </Text>
         {editing ? (
           <TextInput
             testID={`weight-entry-${entry.id}-input`}
@@ -97,10 +104,10 @@ function EntryRow({
             inputAccessoryViewID={barId}
             keyboardType="decimal-pad"
             accessibilityLabel={`Weight on ${dateLabel} in ${system === 'IMPERIAL' ? 'pounds' : 'kilograms'}`}
-            className="h-11 flex-1 rounded-md border border-input bg-background px-3 text-base text-foreground"
+            className="min-h-11 py-2 flex-1 rounded-md border border-input bg-background px-3 text-base text-foreground"
           />
         ) : (
-          <Text className="flex-1 text-sm font-semibold text-gray-900">{weightLabel}</Text>
+          <Text className="min-w-0 flex-1 text-sm font-semibold text-gray-900">{weightLabel}</Text>
         )}
         <Pressable
           testID={`weight-entry-${entry.id}-${editing ? 'save' : 'edit'}`}

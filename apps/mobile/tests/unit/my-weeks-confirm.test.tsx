@@ -9,6 +9,7 @@ import MyWeeksScreen from '../../app/my-weeks';
 
 const mockDelete = jest.fn();
 const mockFollow = jest.fn();
+const mockRename = jest.fn();
 let mockDeleteState: { isPending: boolean; isError: boolean; error: Error | null } = {
   isPending: false,
   isError: false,
@@ -53,7 +54,7 @@ jest.mock('../../src/lib/trpc', () => {
         saveAsTemplate: { useMutation: () => ({ ...idle, mutate: jest.fn() }) },
         followTemplate: { useMutation: () => ({ ...idle, mutate: mockFollow }) },
         unfollowTemplate: { useMutation: () => ({ ...idle, mutate: jest.fn() }) },
-        renameTemplate: { useMutation: () => ({ ...idle, mutate: jest.fn() }) },
+        renameTemplate: { useMutation: () => ({ ...idle, mutate: mockRename }) },
         deleteTemplate: {
           useMutation: () => ({ ...idle, ...mockDeleteState, mutate: mockDelete }),
         },
@@ -114,5 +115,37 @@ describe('My Weeks confirms (UX-X-13)', () => {
     expect(screen.getByTestId('my-weeks-confirm-title')).toHaveTextContent('Follow this week?');
     await user.press(screen.getByTestId('my-weeks-confirm-confirm'));
     expect(mockFollow).toHaveBeenCalledWith({ templateId: 't1', weekOffset: 0 });
+  });
+});
+
+// UX-PLAN-10: rename can be cancelled, shows the 40-character cap and saves on
+// the keyboard's Done.
+describe('My Weeks rename (UX-PLAN-10)', () => {
+  it('shows a 40-character counter and Cancel leaves the name untouched', async () => {
+    const user = userEvent.setup();
+    await renderScreen();
+    await user.press(screen.getByLabelText('Rename Busy week'));
+    expect(screen.getByTestId('my-weeks-rename-count')).toHaveTextContent('9/40');
+    expect(screen.getByTestId('my-weeks-rename-input').props.maxLength).toBe(40);
+    await user.type(screen.getByTestId('my-weeks-rename-input'), '!');
+    expect(screen.getByTestId('my-weeks-rename-count')).toHaveTextContent('10/40');
+    await user.press(screen.getByTestId('my-weeks-rename-cancel'));
+    expect(screen.queryByTestId('my-weeks-rename-input')).not.toBeOnTheScreen();
+    expect(screen.getByText('Busy week')).toBeOnTheScreen();
+    expect(mockRename).not.toHaveBeenCalled();
+  });
+
+  it('saves on the keyboard Done key and on OK', async () => {
+    const user = userEvent.setup();
+    await renderScreen();
+    await user.press(screen.getByLabelText('Rename Busy week'));
+    await user.clear(screen.getByTestId('my-weeks-rename-input'));
+    await user.type(screen.getByTestId('my-weeks-rename-input'), 'Light week', {
+      submitEditing: true,
+    });
+    expect(mockRename).toHaveBeenCalledWith({ templateId: 't1', name: 'Light week' });
+    mockRename.mockClear();
+    await user.press(screen.getByTestId('my-weeks-rename-save'));
+    expect(mockRename).toHaveBeenCalledWith({ templateId: 't1', name: 'Light week' });
   });
 });

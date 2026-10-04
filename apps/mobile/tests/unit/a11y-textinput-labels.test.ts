@@ -12,17 +12,12 @@ const REPO = join(__dirname, '..', '..', '..', '..');
 const SCANNED = ['apps/mobile/app', 'apps/mobile/src', 'packages/ui-mobile/src'];
 
 /**
- * Raw TextInputs that predate this guard and live in files owned by other
- * work packages — fix in WP-03/WP-09 then
- * delete the entry; the test also fails on a STALE entry so the list can only
- * shrink. Entries are file paths (any line). Fix = add `accessibilityLabel`
- * (or switch to the kit's `Input` / `SearchField`, which default theirs).
+ * Raw TextInputs that predate this guard. Now empty (UX-X-09 closed); the
+ * test also fails on a STALE entry so the list can only shrink. Entries are
+ * file paths (any line). Fix = add `accessibilityLabel` (or switch to the
+ * kit's `Input` / `SearchField`, which default theirs).
  */
-const ALLOW_LIST: readonly string[] = [
-  'apps/mobile/app/chat.tsx',
-  'apps/mobile/app/import-recipe.tsx',
-  'apps/mobile/app/recipe-form.tsx',
-];
+const ALLOW_LIST: readonly string[] = [];
 
 const LABEL_ATTR = /(^|\s)(accessibilityLabel|aria-label|accessibilityLabelledBy|aria-labelledby)=/;
 

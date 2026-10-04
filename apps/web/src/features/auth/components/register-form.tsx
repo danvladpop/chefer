@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { useForm } from 'react-hook-form';
+import { capture } from '@/lib/analytics';
 import { trpc } from '@/lib/trpc';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useQueryClient } from '@tanstack/react-query';
@@ -51,6 +52,8 @@ export function RegisterForm() {
   const registerMutation = trpc.auth.register.useMutation({
     meta: { silent: true },
     onSuccess: () => {
+      // UX-PO-02: a count, no identity — the visitor is still anonymous here.
+      capture('signup_completed', {});
       // Same as login: drop anything cached for a previously signed-in account.
       queryClient.clear();
       router.push('/onboarding');

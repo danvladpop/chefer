@@ -666,6 +666,26 @@ export {
 export { tagConflicts, type RecipeTagConflict } from './recipe-tags';
 export { recipeShareText, type ActionRecipe } from './recipe-share';
 export {
+  chunkShoppingLines,
+  SHOPPING_CHUNK,
+  shoppingLinesFor,
+  type ShoppingLine,
+} from './recipe-actions';
+export {
+  ADD_TO_WEEK_MEAL_ORDER,
+  addToWeekSlotRows,
+  canPickNextWeek,
+  dayOfMonth,
+  defaultDay,
+  isPastDay,
+  localWeekday,
+  NEXT_WEEK_FROM_WEEKDAY,
+  readAddToWeekFailure,
+  type AddToWeekFailure,
+  type AddToWeekMealType,
+  type AddToWeekSlotRow,
+} from './add-to-week';
+export {
   formatFractionalQuantity,
   formatScaledQuantity,
   formatServingsPair,

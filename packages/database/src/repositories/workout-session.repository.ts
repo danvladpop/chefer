@@ -18,7 +18,10 @@ export type SessionExerciseWithSets = SessionExercise & { sets: SessionSet[] };
 export type SessionWithChildren = WorkoutSession & { exercises: SessionExerciseWithSets[] };
 
 /** The exercise columns another user's workout view may read (Following, plan §5). */
-export type SessionExerciseMeta = Pick<Exercise, 'id' | 'name' | 'ownerId' | 'trackingType'>;
+export type SessionExerciseMeta = Pick<
+  Exercise,
+  'id' | 'name' | 'ownerId' | 'trackingType' | 'perHand'
+>;
 export type CompletedSessionWithExerciseMeta = WorkoutSession & {
   exercises: (SessionExercise & { sets: SessionSet[]; exercise: SessionExerciseMeta })[];
 };
@@ -364,7 +367,9 @@ export class WorkoutSessionRepository implements IWorkoutSessionRepository {
         exercises: {
           orderBy: { position: 'asc' },
           include: {
-            exercise: { select: { id: true, name: true, ownerId: true, trackingType: true } },
+            exercise: {
+              select: { id: true, name: true, ownerId: true, trackingType: true, perHand: true },
+            },
             sets: {
               where: { completedAt: { not: null }, isWarmup: false },
               orderBy: { position: 'asc' },

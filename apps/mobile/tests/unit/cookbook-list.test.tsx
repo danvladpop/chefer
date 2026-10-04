@@ -1,5 +1,6 @@
 import { Platform } from 'react-native';
 import { fireEvent, screen, userEvent, waitFor } from '@testing-library/react-native';
+import { formatDate } from '@chefer/utils';
 import RecipesScreen from '../../app/(food)/recipes';
 import { recipeCardMeta } from '../../src/features/recipes/recipe-actions';
 import { renderWithTrpc, type Handlers } from './friends-core-harness';
@@ -106,7 +107,9 @@ describe('cookbook rows (UX-REC-13, UX-REC-10)', () => {
     );
     await screen.findByText('Recipe a');
     expect(screen.getByTestId('recipe-card-a-meta')).toHaveTextContent(/^From example\.com/);
-    expect(screen.getByTestId('recipe-card-b-meta')).toHaveTextContent(/^Added 3 Sep/);
+    expect(screen.getByTestId('recipe-card-b-meta')).toHaveTextContent(
+      `Added ${formatDate(new Date(2026, 8, 3), 'short')}`,
+    );
   });
 
   it('a thumbnail that fails to load becomes a placeholder', async () => {
@@ -125,14 +128,21 @@ describe('cookbook rows (UX-REC-13, UX-REC-10)', () => {
 
 describe('recipeCardMeta', () => {
   const now = new Date(2026, 9, 3);
+  // Dates follow the device locale (UX-X-15), so compare against the shared formatter.
   it('adds the year only when it is not this one', () => {
-    expect(recipeCardMeta({ createdAt: new Date(2025, 11, 24) }, now)).toBe('Added 24 Dec 2025');
-    expect(recipeCardMeta({ createdAt: new Date(2026, 0, 2) }, now)).toBe('Added 2 Jan');
+    const lastYear = new Date(2025, 11, 24);
+    const thisYear = new Date(2026, 0, 2);
+    expect(recipeCardMeta({ createdAt: lastYear }, now)).toBe(
+      `Added ${formatDate(lastYear, 'medium')}`,
+    );
+    expect(recipeCardMeta({ createdAt: thisYear }, now)).toBe(
+      `Added ${formatDate(thisYear, 'short')}`,
+    );
   });
   it('combines source and date, and is null with neither', () => {
     expect(
       recipeCardMeta({ sourceUrl: 'https://a.com/x', createdAt: new Date(2026, 0, 2) }, now),
-    ).toBe('From a.com · 2 Jan');
+    ).toBe(`From a.com · ${formatDate(new Date(2026, 0, 2), 'short')}`);
     expect(recipeCardMeta({}, now)).toBeNull();
   });
 });

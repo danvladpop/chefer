@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { View, type LayoutChangeEvent } from 'react-native';
 import Svg, { Circle, Polyline } from 'react-native-svg';
 import { colors, Text } from '@chefer/ui-mobile';
-import { bodyWeightInUnit, bodyWeightUnit, type UnitSystem } from '@chefer/utils';
+import { bodyWeightInUnit, bodyWeightUnit, formatDate, type UnitSystem } from '@chefer/utils';
 
 // UX-FOOD-27: the Today weight card used to draw a bar per weigh-in whose
 // heights were clamped to 20-100 %, so any two weights looked like two flat
@@ -16,7 +16,7 @@ const DAY_MS = 86_400_000;
 type Point = { weightKg: number; recordedAt: Date | string };
 
 function dayLabel(value: Date | string): string {
-  return new Date(value).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
+  return formatDate(value, 'short');
 }
 
 export function WeightSparkline({

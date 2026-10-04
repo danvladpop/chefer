@@ -260,7 +260,7 @@ export function EditEntrySheet({
             }}
             className="min-w-0 flex-1"
           />
-          <Text className="text-sm text-gray-400">kcal</Text>
+          <Text className="text-sm text-muted-foreground">kcal</Text>
         </View>
       </View>
 

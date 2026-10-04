@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { ActivityIndicator, Image, Pressable, ScrollView, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { router } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 import { ConfirmSheet, ErrorState, Screen, Text, useSnackbar } from '@chefer/ui-mobile';
 import {
   cn,
@@ -95,6 +95,9 @@ function TargetBar({ label, value, target }: { label: string; value: number; tar
 }
 
 export default function TrackerScreen() {
+  // UX-ACC-13: `?snap=1` (the post-upgrade "Snap your next meal" CTA) opens the
+  // photo picker as soon as the Snap card is there.
+  const { snap } = useLocalSearchParams<{ snap?: string }>();
   const snackbar = useSnackbar();
   const utils = trpc.useUtils();
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
@@ -647,7 +650,12 @@ export default function TrackerScreen() {
 
           {/* Snap-to-Log (F4 / M3-2) — today only; past days are typed by hand */}
           {isToday && (
-            <ScanMealCard date={dateStr} onLogged={() => invalidateDayQueries(utils, dateStr)} />
+            <ScanMealCard
+              date={dateStr}
+              onLogged={() => invalidateDayQueries(utils, dateStr)}
+              autoPick={snap === '1'}
+              onAutoPicked={() => router.setParams({ snap: undefined })}
+            />
           )}
         </ScrollView>
       )}

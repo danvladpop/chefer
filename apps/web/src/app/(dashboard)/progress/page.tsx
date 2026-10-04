@@ -367,7 +367,7 @@ export default function ProgressPage() {
 
         {/* Log weight input */}
         <div className="mt-4">
-          <WeightLogForm />
+          <WeightLogForm lastEntry={weightHistory?.[weightHistory.length - 1] ?? null} />
         </div>
         <WeightEntriesList entries={weightHistory ?? []} />
       </div>

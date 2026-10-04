@@ -13,7 +13,8 @@ import {
   XAxis,
   YAxis,
 } from 'recharts';
-import type { ExerciseDto, StatsRange } from '@chefer/types';
+import type { ExerciseDto, StatsRange, WeightUnit } from '@chefer/types';
+import { strengthAxisLabel, toChartWeight } from './chart-units';
 import { mergeByDate, type NamedChannel } from './merge-series';
 import { withBodyweight } from './relative-strength';
 
@@ -56,9 +57,12 @@ function PrDot(props: {
 export function StrengthTrendChart({
   library,
   defaultExerciseIds,
+  unit = 'KG',
 }: {
   library: ExerciseDto[];
   defaultExerciseIds: string[];
+  /** The user's weight unit: the e1RM and bodyweight series plot (and are labelled) in it. */
+  unit?: WeightUnit;
 }) {
   const [selectedIds, setSelectedIds] = useState<string[]>(defaultExerciseIds);
   const [range, setRange] = useState<StatsRange>('3m');
@@ -95,14 +99,17 @@ export function StrengthTrendChart({
       key: id,
       points: series.points.map((p, idx) => ({
         localDate: p.localDate,
-        value: relative ? (points?.[idx]?.relative ?? null) : p.e1rmKg,
+        value: relative ? (points?.[idx]?.relative ?? null) : toChartWeight(p.e1rmKg, unit),
       })),
     });
   });
   if (!relative) {
     channels.push({
       key: '__bodyweight',
-      points: bodyweight.map((b) => ({ localDate: b.localDate, value: b.weightKg })),
+      points: bodyweight.map((b) => ({
+        localDate: b.localDate,
+        value: toChartWeight(b.weightKg, unit),
+      })),
     });
   }
 
@@ -229,7 +236,7 @@ export function StrengthTrendChart({
               width={40}
               domain={['auto', 'auto']}
               label={{
-                value: relative ? '× bodyweight' : 'e1RM (kg)',
+                value: strengthAxisLabel(unit, relative),
                 angle: -90,
                 position: 'insideLeft',
                 fontSize: 10,

@@ -20,6 +20,7 @@ import {
   useSnackbar,
 } from '@chefer/ui-mobile';
 import { userFacingErrorMessage } from '@chefer/utils';
+import { ArchivedRoutines } from '../../src/features/gym/routine/archived-routines';
 import { useIsOnline } from '../../src/features/gym/routine/use-online';
 import { buildTemplatePreview } from '../../src/features/gym/setup/template-preview';
 import { gymBootstrapQueryKey } from '../../src/features/gym/use-gym-bootstrap';
@@ -27,7 +28,8 @@ import { useSaveGymProfile } from '../../src/features/gym/use-save-gym-profile';
 import { trpc } from '../../src/lib/trpc';
 
 // My routines (gym_plan.md §1.3 "Routine tab" routine switcher): create from
-// a template or from scratch, set active, duplicate, archive. All online-only.
+// a template or from scratch, set active, duplicate, archive (Undo for 10 s, and an
+// "Archived" section with Restore afterwards). All online-only.
 
 function RoutineRow({
   routine,
@@ -55,11 +57,6 @@ function RoutineRow({
           {routine.isActive ? (
             <Badge testID={`routine-list-item-${routine.id}-active`} variant="success">
               Active
-            </Badge>
-          ) : null}
-          {routine.archived ? (
-            <Badge testID={`routine-list-item-${routine.id}-archived`} variant="secondary">
-              Archived
             </Badge>
           ) : null}
         </View>
@@ -224,10 +221,24 @@ export default function GymRoutinesScreen() {
 
   const setActiveMutation = trpc.gym.routine.setActive.useMutation({ onSuccess: invalidateAll });
   const duplicateMutation = trpc.gym.routine.duplicate.useMutation({ onSuccess: invalidateAll });
+  // UX-GYM-34: a failed restore reaches the user through the default mutation snackbar.
+  const restoreMutation = trpc.gym.routine.restore.useMutation({ onSuccess: invalidateAll });
   const archiveMutation = trpc.gym.routine.archive.useMutation({
     onSuccess: () => {
       invalidateAll();
+      const archived = archiveTarget;
       setArchiveTarget(null);
+      if (!archived) return;
+      // Archiving can be undone for 10 s, and from the "Archived" section afterwards.
+      // Undoing the ACTIVE routine makes it active again (setActive also un-archives).
+      snackbar.show({
+        message: `Archived “${archived.name}”.`,
+        actionLabel: 'Undo',
+        onAction: () => {
+          if (archived.isActive) setActiveMutation.mutate({ id: archived.id });
+          else restoreMutation.mutate({ id: archived.id });
+        },
+      });
     },
     // The ConfirmSheet shows the failure itself.
     meta: { silent: true },
@@ -266,7 +277,10 @@ export default function GymRoutinesScreen() {
   });
 
   const busy =
-    setActiveMutation.isPending || duplicateMutation.isPending || archiveMutation.isPending;
+    setActiveMutation.isPending ||
+    duplicateMutation.isPending ||
+    archiveMutation.isPending ||
+    restoreMutation.isPending;
 
   const openTemplateSheet = () => {
     setPreviewKey(null);
@@ -294,6 +308,8 @@ export default function GymRoutinesScreen() {
     }
   }, [previewTemplate, profile?.equipmentAccess, profile?.experience]);
   const hasActive = (listQuery.data ?? []).some((r) => r.isActive && !r.archived);
+  const liveRoutines = (listQuery.data ?? []).filter((r) => !r.archived);
+  const archivedRoutines = (listQuery.data ?? []).filter((r) => r.archived);
 
   return (
     <Screen className="px-0" edges={['top', 'bottom', 'left', 'right']}>
@@ -351,9 +367,9 @@ export default function GymRoutinesScreen() {
           />
         ) : listQuery.isPending && listQuery.fetchStatus !== 'paused' ? (
           <ActivityIndicator testID="gym-routines-loading" />
-        ) : listQuery.data && listQuery.data.length > 0 ? (
+        ) : liveRoutines.length > 0 ? (
           <View className="gap-3">
-            {listQuery.data.map((routine) => (
+            {liveRoutines.map((routine) => (
               <RoutineRow
                 key={routine.id}
                 routine={routine}
@@ -374,6 +390,14 @@ export default function GymRoutinesScreen() {
             }
           />
         )}
+        {archivedRoutines.length > 0 ? (
+          <ArchivedRoutines
+            rows={archivedRoutines}
+            restoringId={restoreMutation.isPending ? restoreMutation.variables.id : null}
+            disabled={!isOnline || busy}
+            onRestore={(routine) => restoreMutation.mutate({ id: routine.id })}
+          />
+        ) : null}
       </ScrollView>
 
       <Sheet

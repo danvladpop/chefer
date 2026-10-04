@@ -4,7 +4,7 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { useEffect, useRef, useState } from 'react';
 import { handleRebalanceResult } from '@/features/tracker/lib/rebalance-storage';
-import { capture } from '@/lib/analytics';
+import { trackMealLogged } from '@/lib/analytics-events';
 import { getRecipeImageProps } from '@/lib/recipe-image';
 import { trpc, type RouterOutputs } from '@/lib/trpc';
 import { ArrowRight, Check, ChefHat, Clock, Flame } from 'lucide-react';
@@ -69,7 +69,8 @@ export function NextMealCard({ meal: nextMeal, isTomorrow }: NextMealCardProps) 
   const logMutation = trpc.tracker.logRecipe.useMutation({
     meta: { silent: true },
     onSuccess: (result) => {
-      capture('meal_logged', { source: 'today', mealType: meal.mealType });
+      // UX-PO-02: the Today hero ticks a planned meal.
+      trackMealLogged('planned', meal.mealType);
       // A premium log can rebalance the week — same hand-off as the tracker.
       handleRebalanceResult(result.rebalance);
       setLastLogged(meal.recipe.name);

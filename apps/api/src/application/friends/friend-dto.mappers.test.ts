@@ -173,6 +173,7 @@ const exerciseMeta = (id: string, trackingType: ExerciseTrackingType, ownerId: s
   name: `Exercise ${id}`,
   ownerId,
   trackingType,
+  perHand: false,
 });
 
 function fullRoutine(): FriendRoutineRow {
@@ -538,6 +539,21 @@ describe('friend DTO key sets (INV-2)', () => {
     }
     expect(dto.durationMin).toBe(65);
     expect(dto.startedAt).toBe('2026-09-29T08:00:00.000Z');
+  });
+
+  // UX-GYM-19: the friend's per-hand lift reads "30 kg each" on the viewer's phone.
+  it('FriendWorkoutDto carries perHand from the exercise (catalog or custom); omitted when false', () => {
+    const session = fullSession();
+    const bySlug = (id: string) => session.exercises.find((e) => e.exerciseId === id)!;
+    bySlug('squat').exercise.perHand = true; // a catalog exercise
+    bySlug('plank').exercise.perHand = true;
+    bySlug('plank').exercise.ownerId = OWNER; // a custom exercise
+    const dto = toFriendWorkoutDto(session, ALL_TYPES);
+    const byId = (id: string) => dto.exercises.find((e) => e.exerciseId === id)!;
+    expect(byId('squat').perHand).toBe(true);
+    expect(byId('plank')).toMatchObject({ isCustom: true, perHand: true });
+    expect(byId('run')).not.toHaveProperty('perHand');
+    expect(JSON.parse(JSON.stringify(byId('run')))).not.toHaveProperty('perHand');
   });
 
   it('workouts skip skipped exercises, warm-up-only exercises, warm-ups and unticked sets', () => {

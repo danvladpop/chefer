@@ -218,6 +218,8 @@ export interface FriendWorkoutDto {
     name: string;
     isCustom: boolean;
     trackingType: string;
+    /** UX-GYM-19: a dumbbell / kettlebell load is per hand ("30 kg each"). Omitted when false; additive. */
+    perHand?: boolean;
     sets: { weightKg: number; reps: number; durationSec?: number; distanceM?: number }[];
   }[];
 }

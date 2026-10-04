@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { trpc } from '@/lib/trpc';
-import { BookmarkPlus, Check, Pencil, Repeat, Trash2 } from 'lucide-react';
+import { BookmarkPlus, Check, Pencil, Repeat, Trash2, X } from 'lucide-react';
 import { userFacingErrorMessage } from '@chefer/utils';
 
 // My Weeks — up to 4 saved weeks (mirror of apps/mobile/app/my-weeks.tsx).
@@ -11,6 +11,7 @@ import { userFacingErrorMessage } from '@chefer/utils';
 // weeks carry it forward), rename, delete. Every tier: no AI involved.
 
 const MAX_TEMPLATES = 4;
+const NAME_MAX = 40;
 
 export function WeekTemplates({
   currentPlanId,
@@ -108,7 +109,7 @@ export function WeekTemplates({
             onChange={(e) => setSaveName(e.target.value)}
             placeholder="Name this week, e.g. Mediterranean week"
             aria-label="Name for this saved week"
-            maxLength={40}
+            maxLength={NAME_MAX}
             className="h-11 min-w-0 flex-1 rounded-lg border px-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#944a00]"
           />
           <button
@@ -139,7 +140,7 @@ export function WeekTemplates({
             <li key={t.id} className="rounded-xl border p-3">
               {renamingId === t.id ? (
                 <form
-                  className="mb-2 flex items-center gap-2"
+                  className="mb-2"
                   onSubmit={(e) => {
                     e.preventDefault();
                     if (renameValue.trim() && !busy) {
@@ -147,22 +148,40 @@ export function WeekTemplates({
                     }
                   }}
                 >
-                  <input
-                    value={renameValue}
-                    onChange={(e) => setRenameValue(e.target.value)}
-                    autoFocus
-                    aria-label={`New name for ${t.name}`}
-                    maxLength={40}
-                    className="h-11 min-w-0 flex-1 rounded-lg border px-3 text-sm"
-                  />
-                  <button
-                    type="submit"
-                    disabled={!renameValue.trim() || busy}
-                    aria-label="Confirm rename"
-                    className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg border hover:bg-gray-50"
-                  >
-                    <Check className="h-4 w-4" aria-hidden="true" />
-                  </button>
+                  <div className="flex items-center gap-2">
+                    <input
+                      value={renameValue}
+                      onChange={(e) => setRenameValue(e.target.value)}
+                      autoFocus
+                      aria-label={`New name for ${t.name}`}
+                      maxLength={NAME_MAX}
+                      className="h-11 min-w-0 flex-1 rounded-lg border px-3 text-sm"
+                    />
+                    <button
+                      type="submit"
+                      disabled={!renameValue.trim() || busy}
+                      aria-label="Confirm rename"
+                      className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg border hover:bg-gray-50"
+                    >
+                      <Check className="h-4 w-4" aria-hidden="true" />
+                    </button>
+                    {/* UX-PLAN-10: rename can be abandoned. */}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        renameMutation.reset();
+                        setRenamingId(null);
+                      }}
+                      aria-label="Cancel rename"
+                      className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg border hover:bg-gray-50"
+                    >
+                      <X className="h-4 w-4" aria-hidden="true" />
+                    </button>
+                  </div>
+                  {/* UX-PLAN-10: the cap is visible, not a silent truncation. */}
+                  <p data-testid="rename-count" className="mt-1 text-right text-xs text-gray-500">
+                    {renameValue.length}/{NAME_MAX}
+                  </p>
                 </form>
               ) : (
                 <div className="mb-1 flex items-start justify-between gap-2">

@@ -56,8 +56,8 @@ export function TargetFields({
     [meta],
   );
   const formatWeight = useCallback(
-    (kg: number) => formatLoad(kg, unit, meta.loadType),
-    [unit, meta.loadType],
+    (kg: number) => formatLoad(kg, unit, meta.loadType, { each: meta.perHand }),
+    [unit, meta.loadType, meta.perHand],
   );
   const formatReps = useCallback((r: number) => String(r), []);
   const repsLabel = meta.isTimed ? 'Seconds' : 'Reps';

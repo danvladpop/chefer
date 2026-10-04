@@ -1,4 +1,5 @@
 // @vitest-environment jsdom
+import { capture } from '@/lib/analytics';
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ShareListDialog, type ShareListDialogProps } from './ShareListDialog';
@@ -7,6 +8,8 @@ import { ShareListDialog, type ShareListDialogProps } from './ShareListDialog';
 // vs the Copy list fallback, remembered choice, dinners only when planned.
 
 const m = vi.hoisted((): { plan: unknown } => ({ plan: undefined }));
+
+vi.mock('@/lib/analytics', () => ({ capture: vi.fn() }));
 
 vi.mock('@/lib/trpc', () => ({
   trpc: {
@@ -42,6 +45,7 @@ const setNav = (nav: { share?: unknown; clipboard?: unknown }) => {
 };
 
 beforeEach(() => {
+  vi.mocked(capture).mockClear();
   m.plan = undefined;
   setNav({});
 });
@@ -119,5 +123,44 @@ describe('ShareListDialog', () => {
     await waitFor(() => expect(share).toHaveBeenCalledOnce());
     expect(share.mock.calls[0]?.[0].text).toContain('Rice, 2 pcs');
     await waitFor(() => expect(onClose).toHaveBeenCalled());
+  });
+});
+
+// UX-PO-02: `list_shared` counts a list that left the app, with the scope sent.
+describe('ShareListDialog analytics (UX-PO-02)', () => {
+  it('fires list_shared with the scope after a native share', async () => {
+    const share = vi.fn<[{ text: string }], Promise<void>>().mockResolvedValue(undefined);
+    setNav({ share });
+    render(<ShareListDialog {...props({ checkedKeys: ['a'] })} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Share…' }));
+    await waitFor(() =>
+      expect(capture).toHaveBeenCalledWith('list_shared', { scope: 'whatsLeft' }),
+    );
+  });
+
+  it('fires list_shared after a copy, with "everything" when nothing is ticked', async () => {
+    setNav({ clipboard: { writeText: vi.fn().mockResolvedValue(undefined) } });
+    render(<ShareListDialog {...props()} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Copy list' }));
+    await waitFor(() =>
+      expect(capture).toHaveBeenCalledWith('list_shared', { scope: 'everything' }),
+    );
+  });
+
+  it('does not fire when the share sheet is dismissed or the copy fails', async () => {
+    const share = vi
+      .fn<[{ text: string }], Promise<void>>()
+      .mockRejectedValue(new DOMException('dismissed', 'AbortError'));
+    setNav({ share });
+    const { unmount } = render(<ShareListDialog {...props()} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Share…' }));
+    await waitFor(() => expect(share).toHaveBeenCalledOnce());
+    unmount();
+
+    setNav({ clipboard: { writeText: vi.fn().mockRejectedValue(new Error('denied')) } });
+    render(<ShareListDialog {...props()} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Copy list' }));
+    await waitFor(() => expect(screen.getByRole('status').textContent).toMatch(/Couldn’t share/));
+    expect(capture).not.toHaveBeenCalled();
   });
 });

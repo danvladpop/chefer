@@ -103,12 +103,24 @@ function todaySession(): SessionSummaryDto {
   };
 }
 
+// Pinned clock: the card reads the real clock, and "rest day" needs a pinned
+// weekday that is still AHEAD of today this week (a pin already behind us reads
+// as overdue → training), so the suite used to fail on Sundays. Local noon on
+// Wed 7 Oct 2026 keeps the weekday stable in every timezone. `advanceTimers`
+// keeps react-query, animations and `setTimeout` working.
+const NOW = new Date(2026, 9, 7, 12, 0, 0);
+
 beforeEach(() => {
   jest.clearAllMocks();
+  jest.useFakeTimers({ now: NOW, advanceTimers: true });
   setKvBackendForTests(createMemoryKvBackend());
   resetModeForTests();
   activeSessionStore.clear();
   resetRestTimerForTests();
+});
+
+afterEach(() => {
+  jest.useRealTimers();
 });
 
 describe('TodaysWorkoutCard', () => {
@@ -178,7 +190,9 @@ describe('TodaysWorkoutCard', () => {
 
   it('rest day: "Rest day · Next: …", a Train anyway link instead of Start', async () => {
     const user = userEvent.setup();
-    const restWeekday = (weekdayOf(localDate()) + 1) % 7;
+    // Wed is weekday 2, so Thu (3) is still ahead this week — a genuine rest day.
+    expect(weekdayOf(localDate())).toBe(2);
+    const restWeekday = weekdayOf(localDate()) + 1;
     const queryClient = makeClient();
     queryClient.setQueryData(
       gymBootstrapQueryKey,
