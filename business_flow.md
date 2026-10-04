@@ -5091,7 +5091,8 @@ Consent screen (COACHING_COPY.consent, the same words on both platforms):
   Ana can keep private notes you won't see · Ana will never see food, body weight, targets, your workout notes, heart rate or
   calorie estimates, age or profile · "One trainer at a time. Leave whenever you want"
   already coached by Ion → "You'll stop being coached by Ion" and the button reads "Switch to Ana"
-"Allow and join" → coaching.join { code }  (10/h)
+"Allow and join" → coaching.join { code, localDate }  (10/h; localDate = the device's local day → CoachingLink.startedOn,
+  which opens the trainer's 28-day window; ignored when more than a day from the server's UTC date)
   ONE transaction (CoachingLinkRepository.join): claim the invite (single use) · end the client's other ACTIVE link (endedBy CLIENT,
   withdrawn event, that note hidden) · create the link · record COACHING_SHARING granted (documentVersion = LEGAL_VERSIONS.privacy,
   contextId = the new link id) · restore a hidden private note of the same pair

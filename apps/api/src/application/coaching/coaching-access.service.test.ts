@@ -49,6 +49,7 @@ function setup(world: World) {
     inviteCode: null,
     trainerLabel: null,
     startedAt: new Date('2026-10-02T00:00:00Z'),
+    startedOn: null,
     endedAt: null,
     endedBy: null,
   };

@@ -57,6 +57,16 @@ describe('invite codes', () => {
     expect(joinInputSchema.parse({ code: 'ABCDEFGHJK', source: 'mobile' }).source).toBe('mobile');
     expect(joinInputSchema.safeParse({ code: 'ABCDEFGHJK', source: 'tv' }).success).toBe(false);
   });
+
+  it('localDate is optional and must be YYYY-MM-DD', () => {
+    expect(joinInputSchema.parse({ code: 'ABCDEFGHJK' }).localDate).toBeUndefined();
+    expect(joinInputSchema.parse({ code: 'ABCDEFGHJK', localDate: '2026-10-04' }).localDate).toBe(
+      '2026-10-04',
+    );
+    for (const bad of ['', '2026-10-4', '04/10/2026', '2026-10-04T23:30:00Z', 'today']) {
+      expect(joinInputSchema.safeParse({ code: 'ABCDEFGHJK', localDate: bad }).success).toBe(false);
+    }
+  });
 });
 
 describe('inputs', () => {

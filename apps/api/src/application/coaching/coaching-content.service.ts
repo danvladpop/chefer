@@ -52,6 +52,7 @@ import {
 } from '../gym/progression.service.js';
 import type { CoachingAccess } from './coaching-access.service.js';
 import {
+  linkStartDay,
   toCoachedWorkoutDto,
   toRoutineDtoForTrainer,
   toTrainerRoutineDto,
@@ -90,11 +91,10 @@ const defaultDeps: CoachingContentDeps = {
 };
 
 /** First local date the trainer may see: 28 days before the link started. */
-export function workoutWindowStart(link: Pick<CoachingLink, 'startedAt'>): string {
-  return addDaysLocal(
-    link.startedAt.toISOString().slice(0, 10),
-    -COACHING_LIMITS.workoutWindowDays,
-  );
+export function workoutWindowStart(
+  link: Pick<CoachingLink, 'startedAt'> & Partial<Pick<CoachingLink, 'startedOn'>>,
+): string {
+  return addDaysLocal(linkStartDay(link), -COACHING_LIMITS.workoutWindowDays);
 }
 
 /** Goal history the way the gym engine derives it (see gym-context `summarizeUserWeeks`). */

@@ -38,6 +38,7 @@ const link = (trainerId: string): CoachingLink => ({
   inviteCode: null,
   trainerLabel: null,
   startedAt: NOW,
+  startedOn: null,
   endedAt: null,
   endedBy: null,
 });

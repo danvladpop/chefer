@@ -104,7 +104,7 @@ describe.skipIf(false)('trainer coaching (WP-18)', () => {
       currentTrainerName: null,
       needsGymSetup: false,
     });
-    const status = await client.api.coaching.join.mutate({ code });
+    const status = await client.api.coaching.join.mutate({ code, localDate: TODAY });
     expect(status.trainer?.name).toBe('Ana');
     expect(status.stopped).toBeNull();
 
@@ -505,6 +505,33 @@ describe.skipIf(false)('trainer coaching (WP-18)', () => {
     // Trainer tools can be turned on again.
     await t.api.trainer.activate.mutate({ displayName: 'Ana' });
     expect(await t.api.trainer.clients.list.query()).toEqual([]);
+  });
+
+  it("anchors the quiet-days count on the client's local join date, not the server's UTC day", async () => {
+    if (!enabled) return;
+    const t = await makeCoachUser({ prefix: 'coach-startedon' });
+    const c = await makeCoachUser({ prefix: 'coach-startedon-client', gymSetup: true });
+    const inv = await trainerWithInvite(t);
+    // A client east of UTC (e.g. Bucharest after 21:00) is already on tomorrow's date.
+    const utcDay = new Date().toISOString().slice(0, 10);
+    const ahead = new Date(`${utcDay}T00:00:00Z`);
+    ahead.setUTCDate(ahead.getUTCDate() + 1);
+    const joinedOn = ahead.toISOString().slice(0, 10);
+    await c.api.coaching.join.mutate({ code: inv.code, localDate: joinedOn });
+    const later = new Date(ahead);
+    later.setUTCDate(later.getUTCDate() + 3);
+    const [row] = await t.api.trainer.clients.list.query({
+      today: later.toISOString().slice(0, 10),
+    });
+    // 3 quiet days since the client's own join date; the UTC day would say 4.
+    expect(row).toMatchObject({ clientId: c.id, lastWorkoutDate: null, inactiveDays: 3 });
+
+    // A localDate more than a day off is ignored (falls back to the UTC day), never an error.
+    const c2 = await makeCoachUser({ prefix: 'coach-startedon-far', gymSetup: true });
+    const inv2 = await t.api.trainer.invites.create.mutate({});
+    await c2.api.coaching.join.mutate({ code: inv2.code, localDate: '2001-01-01' });
+    const rows = await t.api.trainer.clients.list.query({ today: utcDay });
+    expect(rows.find((r) => r.clientId === c2.id)?.inactiveDays).toBe(0);
   });
 
   it('createRoutine only works for a client with no active routine', async () => {

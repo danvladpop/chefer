@@ -4,7 +4,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { COACHING_COPY, type InvitePreviewDto } from '@chefer/types';
 import { Button, ErrorState, Screen, Text } from '@chefer/ui-mobile';
-import { isNetworkError, isServerError, userFacingErrorMessage } from '@chefer/utils';
+import { isNetworkError, isServerError, localDateStr, userFacingErrorMessage } from '@chefer/utils';
 import { getToken, subscribe as subscribeToken } from '../../../lib/auth-store';
 import { trpc } from '../../../lib/trpc';
 import { useIsOnline } from '../../gym/workout/use-is-online';
@@ -259,7 +259,8 @@ function JoinFlow({ code }: { code: string }) {
         error={error}
         onAllow={() => {
           setError(null);
-          join.mutate({ code });
+          // The device-local day anchors the trainer's 4-week window (not the server's UTC day).
+          join.mutate({ code, localDate: localDateStr() });
         }}
         onDecline={() => {
           clearPendingJoin();

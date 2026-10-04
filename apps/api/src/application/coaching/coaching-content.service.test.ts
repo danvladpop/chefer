@@ -179,6 +179,16 @@ describe('workoutWindowStart / goalHistoryOf', () => {
     expect(COACHING_LIMITS.workoutWindowDays).toBe(28);
   });
 
+  it('anchors on the client-local start day: a join after 21:00 in Romania does not widen the window', () => {
+    // 22:30 UTC on 7 Oct is 01:30 on 8 Oct in Bucharest: the 28 days start on 10 Sep, not 9 Sep.
+    const link = {
+      startedAt: new Date('2026-10-07T22:30:00Z'),
+      startedOn: '2026-10-08',
+    } as CoachingLink;
+    expect(workoutWindowStart(link)).toBe('2026-09-10');
+    expect(workoutWindowStart({ startedAt: link.startedAt, startedOn: null })).toBe('2026-09-09');
+  });
+
   it('goal history: the stored one, else the profile goal from the first week', () => {
     expect(goalHistoryOf(null, '2026-09-07')).toEqual([{ fromWeek: '2026-09-07', goal: 3 }]);
     expect(

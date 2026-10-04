@@ -1711,6 +1711,7 @@ model CoachingLink {
   inviteCode   String? // provenance, no FK (invites are pruned)
   trainerLabel String? // copied from the invite, trainer-private
   startedAt    DateTime           @default(now())
+  startedOn    String? // the client's device-local YYYY-MM-DD at join; null on links that predate it or joins without `localDate`
   endedAt      DateTime?
   endedBy      CoachingEndedBy?
 

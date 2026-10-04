@@ -6,7 +6,7 @@ import { useEffect, useState } from 'react';
 import { trpc } from '@/lib/trpc';
 import { COACHING_COPY, type InvitePreviewDto } from '@chefer/types';
 import { Button } from '@chefer/ui';
-import { userFacingErrorMessage } from '@chefer/utils';
+import { localDateStr, userFacingErrorMessage } from '@chefer/utils';
 import { clearPendingJoin, rememberPendingJoin } from '../lib/pending-join';
 import { ConsentScreen } from './ConsentScreen';
 
@@ -175,7 +175,8 @@ export function JoinFlow({ code }: { code: string }) {
           error={error}
           onAllow={() => {
             setError(null);
-            join.mutate({ code, source: 'web' });
+            // The browser's local day anchors the trainer's 4-week window (not the server's UTC day).
+            join.mutate({ code, source: 'web', localDate: localDateStr() });
           }}
           onDecline={() => router.push('/gym')}
         />

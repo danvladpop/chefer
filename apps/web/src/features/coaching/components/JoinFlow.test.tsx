@@ -4,6 +4,7 @@ import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { InvitePreviewDto } from '@chefer/types';
 import { COACHING_COPY } from '@chefer/types';
+import { localDateStr } from '@chefer/utils';
 import { JoinFlow } from './JoinFlow';
 
 const m = vi.hoisted(
@@ -108,7 +109,11 @@ describe('JoinFlow', () => {
       screen.getByRole('heading', { level: 1, name: COACHING_COPY.consent.title('Ana') }),
     ).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: COACHING_COPY.consent.allow }));
-    expect(m.join).toHaveBeenCalledWith({ code: 'ABCD234567', source: 'web' });
+    expect(m.join).toHaveBeenCalledWith({
+      code: 'ABCD234567',
+      source: 'web',
+      localDate: localDateStr(),
+    });
   });
 
   it('Not now leaves without joining', () => {

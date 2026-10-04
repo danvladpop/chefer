@@ -61,7 +61,7 @@ describe('the shipped client at level 6', () => {
       currentTrainerName: null,
       needsGymSetup: false,
     });
-    const status = await api.coaching.join.mutate({ code: sloppy });
+    const status = await api.coaching.join.mutate({ code: sloppy, localDate: TODAY });
     expect(status.trainer?.name).toBe('Ana');
     expect(typeof status.trainer?.since).toBe('string');
 

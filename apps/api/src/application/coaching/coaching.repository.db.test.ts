@@ -43,13 +43,14 @@ async function makeInvite(trainerId: string, code: string): Promise<string> {
   return code;
 }
 
-const join = (code: string, clientId: string) =>
+const join = (code: string, clientId: string, startedOn: string | null = null) =>
   coachingLinkRepository.join({
     code,
     clientId,
     source: 'web',
     documentVersion: PRIVACY,
     maxActiveClients: 50,
+    startedOn,
     now: new Date(),
   });
 
@@ -107,8 +108,9 @@ describe.skipIf(!enabled)('coaching repositories (real database)', () => {
     const client = await makeUser('joiner');
     const other = await makeUser('late');
     const code = await makeInvite(trainerA, `J${RUN}`.toUpperCase().slice(0, 10).padEnd(10, '1'));
-    const out = await join(code, client);
+    const out = await join(code, client, '2026-10-08');
     if (out.status !== 'joined') throw new Error(`expected joined, got ${out.status}`);
+    expect(out.link.startedOn).toBe('2026-10-08');
     const events = await prisma.consentEvent.findMany({
       where: { userId: client, kind: 'COACHING_SHARING' },
     });

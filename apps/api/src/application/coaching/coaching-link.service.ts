@@ -30,7 +30,7 @@ import {
 } from '@chefer/utils';
 import { clientUnavailableError } from '../../lib/coaching-errors.js';
 import { readGoalHistory, serverToday } from '../gym/mappers.js';
-import { inviteStateOf } from './coaching-dto.mappers.js';
+import { inviteStateOf, linkStartDay, resolveStartedOn } from './coaching-dto.mappers.js';
 
 // ─── Trainer coaching: links (spec §2.3, §2.7, §7.2, §7.3) ────────────────────
 // join / leave / remove are single transactions in CoachingLinkRepository: the
@@ -67,9 +67,15 @@ export class CoachingLinkService {
   /**
    * `coaching.join`: validates the invite, needs a finished gym setup (the engine
    * needs the equipment and plates), then one transaction (see
-   * CoachingLinkRepository.join). Joining the trainer you already have is a no-op.
+   * CoachingLinkRepository.join). `localDate` is the client's device-local date,
+   * stored as the link's `startedOn` (see `linkStartDay`). Joining the trainer you already have is a no-op.
    */
-  async join(clientId: string, code: string, source: CoachingSource): Promise<CoachingStatusDto> {
+  async join(
+    clientId: string,
+    code: string,
+    source: CoachingSource,
+    localDate?: string,
+  ): Promise<CoachingStatusDto> {
     const now = this.deps.now();
     const invite = await this.deps.invites.find(code);
     if (!invite) throw invalidInvite();
@@ -97,6 +103,7 @@ export class CoachingLinkService {
         source,
         documentVersion: LEGAL_VERSIONS.privacy,
         maxActiveClients: COACHING_LIMITS.maxActiveClients,
+        startedOn: resolveStartedOn(localDate, now),
         now,
       });
       if (result.status === 'joined') return this.status(clientId);
@@ -207,10 +214,7 @@ export class CoachingLinkService {
               : profile.weeklyGoal
             : 0,
         },
-        inactiveDays: Math.max(
-          0,
-          daysBetweenLocal(lastWorkoutDate ?? link.startedAt.toISOString().slice(0, 10), day),
-        ),
+        inactiveDays: Math.max(0, daysBetweenLocal(lastWorkoutDate ?? linkStartDay(link), day)),
         routineChangedByClientAt: changedByClientAt(link, stamp),
       };
     });

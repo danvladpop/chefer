@@ -40,6 +40,7 @@ const link = (over: Partial<CoachingLink> = {}): CoachingLink => ({
   inviteCode: 'ABCDEFGHJK',
   trainerLabel: null,
   startedAt: new Date('2026-10-01T09:00:00Z'),
+  startedOn: null,
   endedAt: null,
   endedBy: null,
   ...over,
@@ -120,6 +121,7 @@ describe('join', () => {
       source: 'mobile',
       documentVersion: LEGAL_VERSIONS.privacy,
       maxActiveClients: COACHING_LIMITS.maxActiveClients,
+      startedOn: null,
       now: NOW,
     });
     expect(status).toEqual({
@@ -198,6 +200,23 @@ describe('join', () => {
     await service.join(CLIENT, 'ABCDEFGHJK', 'web');
     expect(links.join).toHaveBeenCalledTimes(2);
   });
+
+  it("stores the client's device-local date as startedOn", async () => {
+    const { service, links } = setup();
+    links.findActiveForClient.mockResolvedValueOnce(null).mockResolvedValue(link());
+    await service.join(CLIENT, 'ABCDEFGHJK', 'mobile', '2026-10-08'); // Romania, 00:30 on the 8th
+    expect(links.join).toHaveBeenCalledWith(expect.objectContaining({ startedOn: '2026-10-08' }));
+  });
+
+  it.each(['2026-10-05', '2026-10-09', '2026-02-31', '2026-13-45'])(
+    'ignores an implausible localDate (%s): the join still works, startedOn stays null',
+    async (bad) => {
+      const { service, links } = setup();
+      links.findActiveForClient.mockResolvedValueOnce(null).mockResolvedValue(link());
+      await service.join(CLIENT, 'ABCDEFGHJK', 'mobile', bad);
+      expect(links.join).toHaveBeenCalledWith(expect.objectContaining({ startedOn: null }));
+    },
+  );
 
   it('loses the race twice: CONFLICT', async () => {
     const { service } = setup({ joinResult: [{ status: 'conflict' }, { status: 'conflict' }] });
@@ -312,6 +331,16 @@ describe('listClients', () => {
     links.listActiveForTrainer.mockResolvedValue([row()]);
     const [out] = await service.listClients(TRAINER, '2026-10-08');
     expect(out).toMatchObject({ lastWorkoutDate: null, inactiveDays: 7, week: { sessions: 0 } });
+  });
+
+  it('quiet days count from the client-local start day, not the UTC day of startedAt', async () => {
+    const { service, links } = setup();
+    // 23:30 UTC on 1 Oct is already 2 Oct in Romania.
+    links.listActiveForTrainer.mockResolvedValue([
+      row({ startedAt: new Date('2026-10-01T23:30:00Z'), startedOn: '2026-10-02' }),
+    ]);
+    const [out] = await service.listClients(TRAINER, '2026-10-08');
+    expect(out).toMatchObject({ lastWorkoutDate: null, inactiveDays: 6 });
   });
 
   it('flags "Routine changed by <client>" only when the CLIENT saved last, after the link started', async () => {

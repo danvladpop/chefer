@@ -42,7 +42,7 @@ export const coachingRouter = router({
   }),
   join: coachingProcedure.input(joinInputSchema).mutation(({ ctx, input }) => {
     assertWithinRateLimit('coaching.join', ctx.user.id, COACHING_LIMITS.joinPerHour, HOUR_MS);
-    return coachingLinkService.join(ctx.user.id, input.code, sourceOf(ctx));
+    return coachingLinkService.join(ctx.user.id, input.code, sourceOf(ctx), input.localDate);
   }),
   status: coachingProcedure.query(({ ctx }) => coachingLinkService.status(ctx.user.id)),
   leave: coachingProcedure

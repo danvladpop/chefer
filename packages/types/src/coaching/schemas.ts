@@ -162,5 +162,12 @@ export const previewInviteInputSchema = z.object({ code: inviteCodeSchema });
 export const joinInputSchema = z.object({
   code: inviteCodeSchema,
   source: coachingSourceSchema.optional(),
+  /**
+   * The client's device-local date at join (`YYYY-MM-DD`). It anchors the
+   * trainer's 28-day workout window to the client's own calendar day. The API
+   * ignores a value more than a day away from its own UTC date (no real time
+   * zone is further off); omitted = the UTC day of the join.
+   */
+  localDate: localDateSchema.optional(),
 });
 export const leaveInputSchema = z.object({ source: coachingSourceSchema.optional() }).optional();

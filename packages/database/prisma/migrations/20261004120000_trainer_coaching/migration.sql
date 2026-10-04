@@ -52,6 +52,7 @@ CREATE TABLE "coaching_links" (
     "inviteCode" TEXT,
     "trainerLabel" TEXT,
     "startedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "startedOn" TEXT,
     "endedAt" TIMESTAMP(3),
     "endedBy" "CoachingEndedBy",
 

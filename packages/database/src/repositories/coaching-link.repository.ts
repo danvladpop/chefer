@@ -26,6 +26,8 @@ export interface JoinLinkData {
   documentVersion: string;
   /** The trainer's active-client cap, checked inside the transaction. */
   maxActiveClients: number;
+  /** The client's device-local date (YYYY-MM-DD) at join, stored as `CoachingLink.startedOn`; null = unknown. */
+  startedOn: string | null;
   now: Date;
 }
 
@@ -177,6 +179,7 @@ export class CoachingLinkRepository implements ICoachingLinkRepository {
             inviteCode: invite.code,
             trainerLabel: invite.label,
             startedAt: data.now,
+            startedOn: data.startedOn,
           },
         });
         await tx.consentEvent.create({

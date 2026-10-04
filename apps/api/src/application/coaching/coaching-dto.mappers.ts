@@ -1,6 +1,7 @@
 import type {
   CoachedSessionRow,
   CoachingInvite,
+  CoachingLink,
   Exercise,
   RoutineWithDays,
 } from '@chefer/database';
@@ -17,7 +18,8 @@ import {
   type RoutineDto,
   type TrainerRoutineDto,
 } from '@chefer/types';
-import { toExerciseMeta, toRoutineDto } from '../gym/mappers.js';
+import { addDaysLocal, daysBetweenLocal } from '@chefer/utils';
+import { serverToday, toExerciseMeta, toRoutineDto } from '../gym/mappers.js';
 
 // ─── Trainer coaching: row → DTO mappers (spec §7.2, INV-2 pattern) ───────────
 // Every `trainer.*` / `coaching.*` response about a client is built ONLY here,
@@ -26,6 +28,38 @@ import { toExerciseMeta, toRoutineDto } from '../gym/mappers.js';
 // rate, in-progress or discarded sessions, anything derived from body weight,
 // pause reasons, the client's own routine-exercise `notes`.
 // coaching-dto.mappers.test.ts snapshots the deep key set.
+
+// ─── The link's start day ─────────────────────────────────────────────────────
+
+/**
+ * The value stored as `CoachingLink.startedOn` for a join: the client's
+ * device-local date when it is plausible (a real time zone is never more than a
+ * day away from the UTC date), else null. Normalised, so `2026-02-31` cannot be
+ * stored as written.
+ */
+export function resolveStartedOn(localDate: string | undefined, now: Date): string | null {
+  if (!localDate) return null;
+  try {
+    if (Math.abs(daysBetweenLocal(serverToday(now), localDate)) > 1) return null;
+    return addDaysLocal(localDate, 0);
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * The calendar day a link started, in the CLIENT's time zone. It anchors the
+ * trainer's 28-day window and the "quiet since joining" count, so it must not
+ * be the server's UTC day (a client joining after 21:00 in Romania would get a
+ * window one day too wide). Links without a stored `startedOn` (joined before
+ * the column, or by a client that sent no `localDate`) fall back to the UTC day
+ * of `startedAt`: the best the server can know, off by at most one day.
+ */
+export function linkStartDay(
+  link: Pick<CoachingLink, 'startedAt'> & Partial<Pick<CoachingLink, 'startedOn'>>,
+): string {
+  return link.startedOn ?? serverToday(link.startedAt);
+}
 
 // ─── Workouts ─────────────────────────────────────────────────────────────────
 
