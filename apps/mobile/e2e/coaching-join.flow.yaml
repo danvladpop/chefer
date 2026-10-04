@@ -102,8 +102,13 @@ env:
 - assertVisible: 'Ana wants to coach you in Chefer.'
 - assertVisible: 'Ana will see:'
 - assertVisible: 'Ana will never see:'
-- assertVisible:
-    id: 'coaching-consent-allow'
+# The consent text is long: the button sits below the fold on a phone.
+- scrollUntilVisible:
+    element:
+      id: 'coaching-consent-allow'
+    direction: DOWN
+    centerElement: true
+- takeScreenshot: coaching-consent
 
 # ── Join ──────────────────────────────────────────────────────────────────────
 - tapOn:
