@@ -33,7 +33,9 @@ services:
   # catalog (packages/database/data/ingredients/catalog.json → ingredients,
   # aliases, portions; docs/plan-ingredient-catalog.md §4.4 step 7), before the
   # API starts. Both steps run on every deploy and are idempotent, so schema and
-  # catalog changes ship automatically; either failing fails the deploy. Reuses
+  # catalog changes ship automatically; either failing fails the deploy. Between
+  # the two, prisma/ensure-indexes.sql re-creates the partial indexes db push
+  # can't express (WP-18 one-active-trainer). Reuses
   # the API image, which has the Prisma CLI and tsx available.
   migrate:
     # Images are built in CI and pulled from GHCR. The build: block stays as an
@@ -46,7 +48,7 @@ services:
     restart: 'no'
     env_file:
       - .env.production
-    command: sh -c "cd packages/database && npx prisma db push --skip-generate && npx tsx src/catalog/sync-cli.ts"
+    command: sh -c "cd packages/database && npx prisma db push --skip-generate && npx prisma db execute --schema prisma/schema.prisma --file prisma/ensure-indexes.sql && npx tsx src/catalog/sync-cli.ts"
     depends_on:
       postgres:
         condition: service_healthy

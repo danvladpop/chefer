@@ -99,10 +99,18 @@ describe('coaching.* (client side)', () => {
     const log = (await client.api.privacy.getConsentHistory.query()).filter(
       (e) => e.kind === 'COACHING_SHARING',
     );
-    // newest first: grant B, withdraw A, grant A
-    expect(log.map((e) => e.granted)).toEqual([true, false, true]);
-    expect(log[1]?.contextId).toBe(log[2]?.contextId);
-    expect(log[0]?.contextId).not.toBe(log[2]?.contextId);
+    // Newest first. "Withdraw A" and "grant B" are written in one transaction with
+    // the same timestamp, so their relative order isn't defined — only that both
+    // come after "grant A".
+    expect(log).toHaveLength(3);
+    const grantA = log[2];
+    expect(grantA?.granted).toBe(true);
+    const latest = log.slice(0, 2);
+    const withdrawA = latest.find((e) => !e.granted);
+    const grantB = latest.find((e) => e.granted);
+    expect(withdrawA?.contextId).toBe(grantA?.contextId);
+    expect(grantB?.contextId).toBeDefined();
+    expect(grantB?.contextId).not.toBe(grantA?.contextId);
   });
 
   it('two joins racing for one client leave exactly one active trainer', async () => {

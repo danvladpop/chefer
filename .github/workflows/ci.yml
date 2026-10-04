@@ -283,8 +283,11 @@ jobs:
       # 100 requests/min limiter returns 429s once the suite grows.
       RATE_LIMIT_MAX: '3000'
       AUTH_RATE_LIMIT_MAX: '200'
-      # Following ships dark; turn it on so friends.contract.test.ts runs (it skips itself when off).
-      FEATURE_FLAGS: 'friends'
+      # Following and trainer coaching ship dark; turn them on so friends.* and
+      # coaching/trainer contract suites run (they skip themselves when off).
+      FEATURE_FLAGS: 'friends,coaching'
+      # WP-18: anyone may turn on trainer tools in CI (e-mail allowlist, '*' = all).
+      TRAINER_ALLOWLIST: '*'
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -304,7 +307,7 @@ jobs:
       - name: Setup test database
         # ingredients:sync loads the global catalog, as every deploy does
         # after db push (docker-compose.deploy.yml migrate).
-        run: pnpm db:push && pnpm ingredients:sync && pnpm db:seed
+        run: pnpm db:push && pnpm --filter @chefer/database db:ensure-indexes && pnpm ingredients:sync && pnpm db:seed
 
       - name: Start API
         run: |
@@ -404,7 +407,7 @@ jobs:
         run: pnpm --filter @chefer/e2e exec playwright install --with-deps chromium
 
       - name: Setup test database
-        run: pnpm db:push && pnpm ingredients:sync
+        run: pnpm db:push && pnpm --filter @chefer/database db:ensure-indexes && pnpm ingredients:sync
 
       - name: Build
         run: pnpm build
