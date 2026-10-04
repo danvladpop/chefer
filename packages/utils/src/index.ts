@@ -833,3 +833,12 @@ export {
   WEEKLY_AVERAGE_MIN_DAYS,
   type WeekDay,
 } from './weekly-average';
+
+// ─── Protein-only mode (WP-08, D-5) ──────────────────────────────────────────
+export {
+  DEFAULT_PROTEIN_MEALS,
+  PROTEIN_REFERENCE_G_PER_KG,
+  PROTEIN_REFERENCE_TOLERANCE,
+  buildProteinGuide,
+  explainProteinTarget,
+} from './protein-guide';

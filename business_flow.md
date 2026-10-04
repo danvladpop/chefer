@@ -1438,6 +1438,16 @@ Plan/Shop/Today used to answer "what's my plan" four different ways: `mealPlan.g
 
 `dashboard.summary.showNutritionCards` is `true` when `chefProfile.goal` is set **or** the user already tracks (logged on ≥ 3 of the last 7 days, rev 2 — a tracker keeps the ring even goal-less). A goal-less, non-tracking user gets `false`, and both clients hide `NutritionSummary` (the ring), `WeightCard`, the "Complete your profile" nudge and Snap-to-log — a ring and a weight chart against a target nobody set was meaningless, and the profile nudge and Snap-to-log both assume the same thing. Quick add stays available to everyone (it needs no goal). No schema field yet — the flag is derived fresh on every call; wave 1 persists the equivalent choice in `ChefProfile.showNutritionOnToday`.
 
+### Protein-only mode: one number, protein (WP-08, owner decision D-5)
+
+A user who does not want to count calories picks "Just protein" (`preferences.setNumbersMode({ numbersMode: 'PROTEIN_ONLY' })`; `FULL` switches back, `NONE` is reserved for WP-16). The mode is `ChefProfile.numbersMode` (null = `FULL`) and changes **presentation only**: targets, the plan generator and the rebalance keep balancing kcal underneath, so nothing is recomputed when the mode flips. It is independent of `showNutritionOnToday` (older builds keep calling `setHomeDisplay`; the new clients show both choices in one card).
+
+- **What the API hands the client.** `preferences.get.numbersMode`, `dashboard.summary.{numbersMode, proteinGuide}`, `tracker.getDay.{numbersMode, proteinGuide}` and `targets.get.{numbersMode, proteinWhy}`, all additive. Clients render `effectiveNumbersMode(numbersMode)` from `@chefer/types`, which maps null/`NONE` to `FULL` until WP-16.
+- **The protein number** is always the effective protein target from `resolveTargets` (own override, lifter rule or goal split). Today's ring reads "72 of 120 g protein"; macro bars and the kcal caption are hidden.
+- **Per-meal guide** (`buildProteinGuide`, `@chefer/utils`): target ÷ planned meals (3 when nothing is planned), shown as a 10 g range aligned to 5 g and centred on the per-meal figure ("30–40 g per meal").
+- **"Why this number?"** (`explainProteinTarget`): the research default is 1.6 g per kg of body weight. When the user's effective target is not within 0.1 g/kg of that, `proteinWhy` names it (own override, the training-focused goal rule, or the goal's calorie split) with a plain sentence and the 1.6 g/kg figure for their weight.
+- **Old clients (1.0.1)** ignore the new fields and keep full numbers; no API gating, no existing field changes shape.
+
 ### Cookbook, Shop, My weeks (P2-8)
 
 - **Cookbook** (was Recipes): All (past-plan recipes) / Saved / My Recipes /
