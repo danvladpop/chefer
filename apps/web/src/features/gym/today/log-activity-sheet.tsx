@@ -246,7 +246,11 @@ function ActivityForm({ onDone }: { onDone: () => void }) {
             placeholder="400"
             value={kcalText}
             aria-invalid={shown.calories !== undefined}
-            aria-describedby="log-activity-kcal-hint"
+            aria-describedby={
+              shown.calories
+                ? 'log-activity-kcal-hint log-activity-kcal-error'
+                : 'log-activity-kcal-hint'
+            }
             onChange={(e) => setKcalText(digitsOnly(e.target.value, 4))}
           />
           <span className="text-sm text-gray-500">kcal (up to {ACTIVITY_MAX_KCAL})</span>

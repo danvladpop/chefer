@@ -27,7 +27,7 @@ vi.mock('../shared/gym-toast', () => ({ showGymToast: toast }));
 beforeEach(() => {
   vi.clearAllMocks();
   // jsdom has no scrolling; the Sheet's scroll lock calls it on unmount.
-  window.scrollTo = vi.fn();
+  vi.spyOn(window, 'scrollTo').mockImplementation(() => undefined);
 });
 afterEach(cleanup);
 
