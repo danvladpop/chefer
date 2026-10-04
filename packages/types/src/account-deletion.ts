@@ -26,6 +26,7 @@ export const ACCOUNT_DELETION_COPY = {
   reauthHint: 'Sign in with the account you use for Chefer, and your account will be deleted.',
   reauthTypeFirst: 'Type DELETE below first.',
   reauthApple: 'Confirm with Apple and delete',
+  reauthGoogle: 'Confirm with Google and delete',
   reauthUnavailable:
     'This browser can’t confirm with your connected account. Use the Chefer app, or set a password with a reset email below, then come back.',
   confirmLabel: 'Type DELETE to confirm',

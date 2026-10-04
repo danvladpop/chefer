@@ -28,6 +28,9 @@ let mockUserFailed = false;
 const mockUserRefetch = jest.fn();
 let mockMembers: { name: string }[] = [];
 
+jest.mock('../../src/features/profile/sign-in-methods-card', () => ({
+  SignInMethodsCard: () => null,
+}));
 jest.mock('../../src/features/privacy/privacy-section', () => ({ PrivacySection: () => null }));
 jest.mock('../../src/features/premium/open-premium', () => ({ openPremium: jest.fn() }));
 jest.mock('../../src/features/premium/use-premium-pitch', () => ({

@@ -9,6 +9,10 @@ export function createTrpcOnboardingMock() {
         me: { useQuery: jest.fn() },
         register: { useMutation: jest.fn() },
         login: { useMutation: jest.fn() },
+        // WP-22: the Continue with Apple / Google block reads these. Plain
+        // functions (not jest.fn) so a resetAllMocks cannot blank them.
+        socialAvailability: { useQuery: () => ({ data: undefined }) },
+        socialSignIn: { useMutation: () => ({ mutate: () => undefined, isPending: false }) },
       },
       preferences: {
         get: {

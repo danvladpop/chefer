@@ -88,7 +88,10 @@ function mockMutation(hook: { useMutation: jest.Mock }, data: unknown = { succes
 beforeEach(() => {
   jest.clearAllMocks();
   useLocalSearchParams.mockReturnValue({});
-  for (const hook of Object.values(trpc.auth)) hook.useMutation.mockReturnValue(mutationResult());
+  for (const hook of Object.values(trpc.auth)) {
+    // WP-22: socialAvailability is a query (its plain-function mock is kept).
+    if (jest.isMockFunction(hook.useMutation)) hook.useMutation.mockReturnValue(mutationResult());
+  }
   // T-39.1: `register-draft.ts` is a deliberately module-scoped (not
   // per-render) cache so the in-app legal screen round trip keeps the form's
   // values — which means it also survives across tests in this file unless

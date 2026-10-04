@@ -1,8 +1,9 @@
-import { Image, View } from 'react-native';
+import { Image, ScrollView, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { Button, colors, Screen, Text } from '@chefer/ui-mobile';
 import { AUTH_COPY } from '../../src/features/auth/copy';
+import { SocialSignIn, useHasSocialProviders } from '../../src/features/auth/social/social-sign-in';
 import { openLegal } from '../../src/features/legal/open-legal';
 
 // UX-25 (T-25.1): the first screen a fresh install ever sees (CI-09 — a
@@ -28,9 +29,18 @@ const FEATURES: FeatureRow[] = [
 ];
 
 export default function WelcomeScreen() {
+  // WP-22: with Apple/Google buttons on screen, their consent line (which also
+  // covers the 16+ confirmation) replaces the plain legal footer.
+  const hasSocial = useHasSocialProviders();
   return (
     <Screen edges={['top', 'bottom', 'left', 'right']} className="justify-between gap-6 py-6">
-      <View className="flex-1 items-center justify-center gap-6">
+      {/* WP-22: the Apple/Google buttons grew the bottom block, so on a small
+          phone the pitch scrolls instead of being squeezed. */}
+      <ScrollView
+        className="flex-1"
+        contentContainerClassName="flex-grow items-center justify-center gap-6"
+        showsVerticalScrollIndicator={false}
+      >
         <Image
           // Metro's static-asset require, not a CommonJS module import — the
           // codebase has no `*.png` ambient module declaration for an ESM
@@ -61,7 +71,7 @@ export default function WelcomeScreen() {
             </View>
           ))}
         </View>
-      </View>
+      </ScrollView>
 
       <View className="gap-3">
         <Button testID="welcome-create-account" onPress={() => router.push('/register')}>
@@ -71,25 +81,29 @@ export default function WelcomeScreen() {
           {AUTH_COPY.welcomeHaveAccount}
         </Button>
 
-        <Text variant="muted" className="text-center text-xs">
-          {AUTH_COPY.welcomeLegalFooter}{' '}
-          <Text
-            accessibilityRole="link"
-            className="text-xs text-primary underline"
-            onPress={() => openLegal('terms')}
-          >
-            Terms
+        <SocialSignIn />
+
+        {!hasSocial && (
+          <Text variant="muted" className="text-center text-xs">
+            {AUTH_COPY.welcomeLegalFooter}{' '}
+            <Text
+              accessibilityRole="link"
+              className="text-xs text-primary underline"
+              onPress={() => openLegal('terms')}
+            >
+              Terms
+            </Text>
+            {' and '}
+            <Text
+              accessibilityRole="link"
+              className="text-xs text-primary underline"
+              onPress={() => openLegal('privacy')}
+            >
+              Privacy Policy
+            </Text>
+            .
           </Text>
-          {' and '}
-          <Text
-            accessibilityRole="link"
-            className="text-xs text-primary underline"
-            onPress={() => openLegal('privacy')}
-          >
-            Privacy Policy
-          </Text>
-          .
-        </Text>
+        )}
       </View>
     </Screen>
   );

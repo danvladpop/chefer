@@ -25,6 +25,7 @@ import {
 import { openPremium } from '../src/features/premium/open-premium';
 import { usePremiumPitch } from '../src/features/premium/use-premium-pitch';
 import { PrivacySection } from '../src/features/privacy/privacy-section';
+import { SignInMethodsCard } from '../src/features/profile/sign-in-methods-card';
 import { SectionAnchor, useSectionTitle } from '../src/features/settings/section-anchor';
 import { track } from '../src/lib/analytics';
 import { trpc } from '../src/lib/trpc';
@@ -354,6 +355,8 @@ export default function ProfileScreen() {
             </Text>
           </Card>
         ) : null}
+        {/* WP-22: connected Google/Apple accounts (hidden when there is nothing to show). */}
+        <SignInMethodsCard />
         {/* T-39.4: AI & your data, Usage analytics, Consent history, Gym
             settings, Download my data / Delete account — all in one section. */}
         <SectionAnchor id="privacy">

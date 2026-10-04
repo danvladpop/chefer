@@ -463,6 +463,40 @@ API, Maestro E2E in `e2e/`).
   `prepare-photo.ts`), so the same JS still runs on a binary built before it — Android then
   falls back to the titled text share. `react-native-gesture-handler` is **not** a direct
   dependency (transitive only; swipe-to-remove is PanResponder-based, Q-17)
+- **Sign in with Google / Apple (WP-22, native release 2).** Two new native modules, so this needs a **new binary**
+  and changes the runtime fingerprint (§11): `expo-apple-authentication` (`~57.0.2`; Apple's own `AppleAuthenticationButton`,
+  iOS only) and `@react-native-google-signin/google-signin` (`^16.1.5`; native Google sheet via Credential Manager /
+  GoogleSignIn-iOS, ships an Expo config plugin — chosen over `expo-auth-session` + `expo-web-browser`, which would open a
+  browser tab, cannot return an ID token without the implicit/PKCE dance, and is not the experience App Review expects).
+  Code in `src/features/auth/social/`: `native-modules.ts` loads both inside try/catch (`require` is guarded — the Google
+  package reads its native constants at import time and throws on a binary without it; Apple's `isAvailableAsync()` must
+  also be true), so the JS bundle **never crashes on an older binary** — the button is just hidden;
+  `social-providers.ts` (`resolveSocialProviders`: a button shows only when `auth.socialAvailability` enables the provider
+  AND the module is present AND the binary was built for it (`extra.socialSignIn` from `app.config.js`) AND the platform
+  allows it — Apple never on Android; Google on iOS needs `iosClientId` + the URL scheme in the binary, on Android the
+  **web** client id (it is what makes Google return an ID token; the Android client id only binds the SHA-1 in Google
+  Cloud)); `social-credentials.ts` (nonce = 16 random bytes hex via `expo-crypto`, provider gets `sha256(raw)` as
+  lowercase hex, the API gets `raw`; Apple: scopes FULL_NAME+EMAIL, `identityToken`, `authorizationCode`, name only when
+  Apple sends it; Google: ID token only — the library's original API has no nonce parameter and the API checks a nonce
+  only when the token carries one — then `GoogleSignin.signOut()` so the next attempt shows the account chooser);
+  `use-social-sign-in.ts` (always sends `acceptLegal: true`, `acceptedTermsVersion`, `region`; session handling mirrors
+  email login/registration: new user → `requestOnboarding()` BEFORE `setToken` (R-18b), existing → `setToken`;
+  `setToken` clears the query cache); `social-errors.ts` (cancel = silence; `UNAUTHORIZED` from `socialSignIn` = the plain
+  "couldn't verify" message, **never** the session-expired path — the 401 handler only acts when a token exists);
+  `social-sign-in.tsx` (the block on Welcome, Sign in and Create account: Apple button, white Google button with the
+  four-colour G, "By continuing you agree to the Terms and Privacy Policy and confirm you are 16 or older."). Profile gets
+  **Sign-in methods** (`src/features/profile/sign-in-methods-card.tsx`: `auth.linkedIdentities`, connect =
+  fresh provider sign-in → `auth.linkIdentity`, disconnect = `auth.unlinkIdentity` (the server refuses the last method),
+  "Email me a link to set a password" when `hasPassword` is false); the delete-account sheet
+  (`profile/account-data-card.tsx`) asks OAuth-only accounts for a fresh provider sign-in (`reauth`) instead of a password.
+  `lib/trpc-links.ts` redacts `idToken`/`authorizationCode`/`nonce` in dev logs.
+  **Build-time config** (`app.config.js`, all optional — a missing value never fails a build): production variant adds the
+  `expo-apple-authentication` plugin (entitlement `com.apple.developer.applesignin`) and `ios.associatedDomains =
+['webcredentials:<host of EXPO_PUBLIC_API_URL>']`; the **dev variant** gets neither (its bundle id is not in the
+  association file, and a free personal team cannot sign those capabilities) unless `ENABLE_APPLE_SIGN_IN=1` (paid team);
+  `GOOGLE_IOS_URL_SCHEME` (or `GOOGLE_IOS_CLIENT_ID`, from which it is derived) registers the reversed iOS client id as a
+  URL scheme through the Google plugin. `extra.socialSignIn = { apple, googleIos }` tells the UI what the binary can do.
+  Android needs no build-time value (package `dev.chefer.app`; the SHA-1/256 live in Google Cloud / Play Console).
 - **Monorepo:** `metro.config.js` watches the workspace root so `@chefer/types`,
   `@chefer/utils`, `@chefer/tokens` and `@chefer/ui-mobile` (raw-TS exports) resolve
   (Jest maps them to source in `jest.config.js`); `@chefer/ui` and
@@ -3263,9 +3297,14 @@ asks `auth.socialAvailability` at runtime. The mobile app needs a **new native b
 
 1. OAuth client ID, type **Web application** → `GOOGLE_CLIENT_ID_WEB`; Authorized JavaScript origins = the production origin
    (and `http://localhost:3000` for dev). No redirect URI is needed (Google Identity Services button).
-2. OAuth client ID, type **iOS**, bundle id `com.popdan.chefer` → `GOOGLE_CLIENT_ID_IOS` (the app also needs its reversed
-   client id URL scheme — lane B's config plugin).
+2. OAuth client ID, type **iOS**, bundle id `com.popdan.chefer` → `GOOGLE_CLIENT_ID_IOS`. The same client's **reversed
+   client id** (`com.googleusercontent.apps.<id>`, shown in the console as "iOS URL scheme") is the mobile build-time
+   value `GOOGLE_IOS_URL_SCHEME` (see "Mobile build" below).
 3. OAuth client ID, type **Android**, package `dev.chefer.app` + the SHA-1 of the signing certificate → `GOOGLE_CLIENT_ID_ANDROID`.
+   Register **every** certificate the app is signed with: the Play **app signing** key (Play Console → App integrity),
+   the upload key and the local release keystore's SHA-1 (`keytool -list -v -keystore <file>`); add the SHA-256 too
+   where asked. A missing fingerprint shows up as Google's `DEVELOPER_ERROR` ("couldn't finish signing in") on that build only.
+   The Android app signs in with the **web** client id (`GOOGLE_CLIENT_ID_WEB`), so that one must be set for Android to show the button.
 4. Publish the consent screen to **Production** (otherwise only test users can sign in).
 
 **Apple** (developer.apple.com → Certificates, Identifiers & Profiles; team `45TS85YK89`):
@@ -3280,10 +3319,29 @@ asks `auth.socialAvailability` at runtime. The mobile app needs a **new native b
 4. App Store Connect: nothing extra, but App Review expects Sign in with Apple whenever Google login is offered and checks
    that deleting the account revokes the Apple token (done server-side on delete).
 
+**Mobile build (WP-22, a NEW native binary — iOS and Android).** Owner steps, in order:
+
+1. Do the Google (web + iOS + Android clients, consent screen in Production) and Apple (App ID capability, Services ID, key)
+   steps above and set the API env vars; the app hides a button until the API reports the provider as configured.
+2. Apple Developer → Identifiers → `com.popdan.chefer`: **Sign in with Apple** AND **Associated Domains** capabilities on
+   (EAS syncs capabilities from the entitlements on `eas build`; a local Xcode build with `-allowProvisioningUpdates` does it
+   too, with the paid team `45TS85YK89`).
+3. Export the Google iOS scheme for **every** place that builds or publishes: `GOOGLE_IOS_URL_SCHEME=com.googleusercontent.apps.<id>`
+   in `apps/mobile/.env` (local `pnpm mobile:release:*`), in `eas.json` → `build.production.env` (EAS cloud builds), and as the
+   repo **variable** `GOOGLE_IOS_URL_SCHEME` (CI "Mobile OTA update" job). It is part of the native fingerprint — a mismatch
+   means OTA updates silently stop reaching the new binary (like `EXPO_APPLE_TEAM_ID`). No value = the build still succeeds,
+   Google stays hidden on iOS and Apple works.
+4. Build iOS (`eas build --profile production --platform ios`, then submit) and Android (`pnpm mobile:release:android` / store
+   build), then compare `npx expo-updates runtimeversion:resolve` with what `pnpm mobile:update` prints. The 1.0.1 binaries do not
+   have the modules: they keep working, without the buttons, and cannot receive this JS over the air (different runtime).
+5. App Review notes: Sign in with Apple is offered next to Google (guideline 4.8), the app deletes accounts in-app and revokes
+   the Apple token server-side (5.1.1(v)); the review demo account keeps working with email + password.
+
 **Password managers (native apps):** put the production Android signing fingerprint(s) in `ANDROID_CERT_SHA256`
 (Play Console → App integrity → App signing; add the upload key too). The iOS association needs no setting (team and bundle
-id are constants in `lib/well-known/well-known.ts`) but the app build must declare the **Associated Domains** entitlement
-`webcredentials:<production domain>` (lane B / native build). Verify with
+id are constants in `lib/well-known/well-known.ts`); the **production** app build declares the Associated Domains
+entitlement `webcredentials:<host of EXPO_PUBLIC_API_URL>` automatically (`app.config.js`; the dev variant's bundle id
+`dev.chefer.app.dev` is not in the association file, so it does not declare it). Verify with
 `curl -i https://<domain>/.well-known/apple-app-site-association` (200, `application/json`, no redirect).
 
 ### Sending email from Gmail (runbook)
@@ -3352,14 +3410,17 @@ or a Google Workspace account (2,000/day).
 Validated by Zod in `apps/mobile/src/lib/env.ts`. `EXPO_PUBLIC_*` vars are
 inlined at bundle time by Expo.
 
-| Variable                   | Required | Default                                                            | Description                                                                                                                                                         |
-| -------------------------- | -------- | ------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `EXPO_PUBLIC_API_URL`      | No       | iOS sim: http://localhost:3001 · Android emu: http://10.0.2.2:3001 | API base URL. **Physical devices must set this** to the host's LAN address                                                                                          |
-| `EXPO_PUBLIC_SENTRY_DSN`   | No       | —                                                                  | Sentry error reporting (disabled when unset; wiring lands with plan task M1-6)                                                                                      |
-| `EXPO_PUBLIC_POSTHOG_KEY`  | No       | —                                                                  | **NEW (T-12.2)** — PostHog project key for the pure-JS analytics transport (`lib/analytics-transport.ts`). Unset = no-op: nothing is queued, no `fetch` ever fires  |
-| `EXPO_PUBLIC_POSTHOG_HOST` | No       | —                                                                  | **NEW (T-12.2)** — must be `https://eu.i.posthog.com` (rev 2 D24, EU only) when set; `env.ts` fails validation otherwise                                            |
-| `EXPO_APPLE_TEAM_ID`       | No       | —                                                                  | Apple team for signing local device builds (`expo run:ios --device`); read by `app.config.js`, not the app — simulator and EAS builds don't need it                 |
-| `APP_VARIANT`              | No       | `development`                                                      | Build-time only, set by the scripts, not in `.env`: `development` \| `production` (§4.3). `production` refuses to build unless `EXPO_PUBLIC_API_URL` is `https://…` |
+| Variable                   | Required | Default                                                            | Description                                                                                                                                                                                                                                                                                                                                |
+| -------------------------- | -------- | ------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `EXPO_PUBLIC_API_URL`      | No       | iOS sim: http://localhost:3001 · Android emu: http://10.0.2.2:3001 | API base URL. **Physical devices must set this** to the host's LAN address                                                                                                                                                                                                                                                                 |
+| `EXPO_PUBLIC_SENTRY_DSN`   | No       | —                                                                  | Sentry error reporting (disabled when unset; wiring lands with plan task M1-6)                                                                                                                                                                                                                                                             |
+| `EXPO_PUBLIC_POSTHOG_KEY`  | No       | —                                                                  | **NEW (T-12.2)** — PostHog project key for the pure-JS analytics transport (`lib/analytics-transport.ts`). Unset = no-op: nothing is queued, no `fetch` ever fires                                                                                                                                                                         |
+| `EXPO_PUBLIC_POSTHOG_HOST` | No       | —                                                                  | **NEW (T-12.2)** — must be `https://eu.i.posthog.com` (rev 2 D24, EU only) when set; `env.ts` fails validation otherwise                                                                                                                                                                                                                   |
+| `EXPO_APPLE_TEAM_ID`       | No       | —                                                                  | Apple team for signing local device builds (`expo run:ios --device`); read by `app.config.js`, not the app — simulator and EAS builds don't need it                                                                                                                                                                                        |
+| `GOOGLE_IOS_URL_SCHEME`    | No       | —                                                                  | **NEW (WP-22)** — build-time only: reversed iOS OAuth client id (`com.googleusercontent.apps.<id>`); registered as an iOS URL scheme by the Google sign-in plugin. Unset = no plugin, Google hidden on iOS. Part of the native fingerprint: same value for builds and OTA publishes (`apps/mobile/.env`, `eas.json` env, CI repo variable) |
+| `GOOGLE_IOS_CLIENT_ID`     | No       | —                                                                  | **NEW (WP-22)** — build-time alternative to the above (`<id>.apps.googleusercontent.com`); the scheme is derived from it                                                                                                                                                                                                                   |
+| `ENABLE_APPLE_SIGN_IN`     | No       | —                                                                  | **NEW (WP-22)** — `1` adds the Sign in with Apple entitlement to a development build (production always has it); needs the paid Apple team                                                                                                                                                                                                 |
+| `APP_VARIANT`              | No       | `development`                                                      | Build-time only, set by the scripts, not in `.env`: `development` \| `production` (§4.3). `production` refuses to build unless `EXPO_PUBLIC_API_URL` is `https://…`                                                                                                                                                                        |
 
 ### `packages/database/.env`
 
@@ -3429,6 +3490,15 @@ account needed. All scripts live in `apps/mobile/scripts/`, export
   After installing, check that the build's runtime equals what `pnpm mobile:update` prints (the
   script refuses to publish otherwise; `ALLOW_RUNTIME_MISMATCH=1` overrides). Worked sequence:
   `business_flow.md` §20.
+
+- **Native release 2 (WP-22): Sign in with Google / Apple.** Adds `expo-apple-authentication` and
+  `@react-native-google-signin/google-signin` (+ the Sign in with Apple entitlement and the Associated Domains
+  capability in production builds, and the Google iOS URL scheme when `GOOGLE_IOS_URL_SCHEME` is set). Like release 1 it
+  changes the runtime fingerprint on purpose: every OTA published after this merges targets only binaries built after it,
+  and the 1.0.1 store binaries keep their current JS (they lack the native modules; the new JS also hides the buttons
+  there, should it ever run on one). A new binary is required — bump `version` if it ships as a new store version. The
+  fingerprint covers the config plugins and `ios.associatedDomains`, so build and publish with the same
+  `GOOGLE_IOS_URL_SCHEME` / `EXPO_PUBLIC_API_URL` / `EXPO_APPLE_TEAM_ID` (see the runbook in §10).
 
 - **API compatibility:** web/API deploy on push to master; an OTA update
   goes live when published. Publish only after the API it depends on is
@@ -3679,16 +3749,17 @@ pulls. `infrastructure/scripts/deploy-local-build.sh` keeps the build-on-VM path
 
 **Required repo configuration**
 
-| Kind     | Name                                          | Value                                                                                                                  |
-| -------- | --------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------- |
-| Secret   | `DEPLOY_HOST`                                 | VM public IP                                                                                                           |
-| Secret   | `DEPLOY_USER`                                 | `ubuntu`                                                                                                               |
-| Secret   | `DEPLOY_SSH_KEY`                              | private half of a **dedicated** deploy keypair                                                                         |
-| Variable | `NEXT_PUBLIC_API_URL` / `NEXT_PUBLIC_APP_URL` | `https://chefer.duckdns.org`                                                                                           |
-| Variable | `NEXT_PUBLIC_APP_NAME`                        | `Chefer`                                                                                                               |
-| Variable | `DEPLOYMENT_URL`                              | `https://chefer.duckdns.org`                                                                                           |
-| Secret   | `EXPO_TOKEN`                                  | expo.dev → Account settings → Access tokens (robot/personal token with access to `@cheferoni/chefer`) — mobile OTA job |
-| Variable | `EXPO_APPLE_TEAM_ID`                          | `45P674Q3CW` (free Apple ID team; same as `apps/mobile/.env`) — mobile OTA job                                         |
+| Kind     | Name                                          | Value                                                                                                                          |
+| -------- | --------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
+| Secret   | `DEPLOY_HOST`                                 | VM public IP                                                                                                                   |
+| Secret   | `DEPLOY_USER`                                 | `ubuntu`                                                                                                                       |
+| Secret   | `DEPLOY_SSH_KEY`                              | private half of a **dedicated** deploy keypair                                                                                 |
+| Variable | `NEXT_PUBLIC_API_URL` / `NEXT_PUBLIC_APP_URL` | `https://chefer.duckdns.org`                                                                                                   |
+| Variable | `NEXT_PUBLIC_APP_NAME`                        | `Chefer`                                                                                                                       |
+| Variable | `DEPLOYMENT_URL`                              | `https://chefer.duckdns.org`                                                                                                   |
+| Secret   | `EXPO_TOKEN`                                  | expo.dev → Account settings → Access tokens (robot/personal token with access to `@cheferoni/chefer`) — mobile OTA job         |
+| Variable | `EXPO_APPLE_TEAM_ID`                          | `45P674Q3CW` (free Apple ID team; same as `apps/mobile/.env`) — mobile OTA job                                                 |
+| Variable | `GOOGLE_IOS_URL_SCHEME` (optional, WP-22)     | `com.googleusercontent.apps.<id>` — must equal the value the store binary was built with (native fingerprint) — mobile OTA job |
 
 `NEXT_PUBLIC_*` are baked into the web bundle at build time — changing them requires a rebuild
 (updating `.env.production` on the VM alone has no effect on the client bundle). Application
