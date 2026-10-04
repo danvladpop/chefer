@@ -9,6 +9,12 @@
 // row id, kept only for rows that existed before this edit, so `save` can
 // preserve session links (gym_plan.md §5.4 / routineExerciseDocSchema).
 
+import type { LastEditedByOtherDto } from '@chefer/types';
+
+/** Trainer coaching (level 6+): who last changed a row / the routine, and when.
+ * Display only — never sent back on save. */
+export type EditStamp = LastEditedByOtherDto;
+
 export interface RoutineExerciseDraft {
   key: string;
   id?: string;
@@ -20,6 +26,11 @@ export interface RoutineExerciseDraft {
   restSec: number;
   supersetGroup: string | null;
   notes: string | null;
+  /** Trainer coaching: the trainer's cue for this exercise. The trainer's editor writes it, the client's
+   * editor can only clear it (`gym.routine.save` `clearTrainerNoteIds`). Absent below API level 6. */
+  trainerNote?: string | null;
+  /** Trainer coaching: this row was last changed by the other person (display only). */
+  lastEditedByOther?: EditStamp;
 }
 
 export interface RoutineDayDraft {
@@ -36,6 +47,8 @@ export interface RoutineDraft {
   /** The version the draft was loaded from — sent back as `expectedVersion`. */
   version: number;
   days: RoutineDayDraft[];
+  /** Trainer coaching: the routine was last saved by the other person (display only). */
+  lastEditedByOther?: EditStamp;
 }
 
 export const MAX_DAYS = 7;

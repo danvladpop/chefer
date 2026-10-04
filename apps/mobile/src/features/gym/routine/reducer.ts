@@ -1,7 +1,7 @@
 // Pure draft reducer for the routine editor (gym_plan.md §5.4). Ids are
 // passed IN (never generated here — same convention as the workout reducer
 // in @chefer/utils), so replaying actions in a test is deterministic.
-import type { ExerciseMeta } from '@chefer/types';
+import { COACHING_LIMITS, type ExerciseMeta } from '@chefer/types';
 import {
   createSuperset,
   defaultTargetRir,
@@ -58,7 +58,9 @@ export type RoutineDraftAction =
   | { type: 'setRepMin'; dayKey: string; exerciseKey: string; repMin: number }
   | { type: 'setRepMax'; dayKey: string; exerciseKey: string; repMax: number }
   | { type: 'setRestSec'; dayKey: string; exerciseKey: string; restSec: number }
-  | { type: 'setTargetRir'; dayKey: string; exerciseKey: string; targetRir: number };
+  | { type: 'setTargetRir'; dayKey: string; exerciseKey: string; targetRir: number }
+  /** Trainer coaching: the trainer edits the cue (clamped, '' = none); the client's "Remove note" passes null. */
+  | { type: 'setTrainerNote'; dayKey: string; exerciseKey: string; note: string | null };
 
 const clamp = (n: number, min: number, max: number) => Math.min(max, Math.max(min, n));
 
@@ -146,11 +148,11 @@ export function routineDraftReducer(draft: RoutineDraft, action: RoutineDraftAct
       if (draft.days.length >= MAX_DAYS) return draft;
       const source = draft.days.find((d) => d.key === action.dayKey);
       if (!source) return draft;
-      const exercises = normalizeSupersets(source.exercises).map((e, i) => ({
-        ...e,
-        key: action.exerciseIds[i] ?? `${action.dayId}-${i}`,
-        id: undefined,
-      }));
+      // A copy is a new row: no server id, and no "changed by" stamp of the original.
+      const exercises = normalizeSupersets(source.exercises).map((e, i) => {
+        const { lastEditedByOther: _stamp, ...rest } = e;
+        return { ...rest, key: action.exerciseIds[i] ?? `${action.dayId}-${i}`, id: undefined };
+      });
       const copy: RoutineDayDraft = {
         key: action.dayId,
         name: `${source.name} (copy)`.slice(0, 40),
@@ -279,6 +281,14 @@ export function routineDraftReducer(draft: RoutineDraft, action: RoutineDraftAct
           ...e,
           targetRir: clamp(Math.round(action.targetRir), MIN_TARGET_RIR, MAX_TARGET_RIR),
         })),
+      );
+
+    case 'setTrainerNote':
+      return updateDay(draft, action.dayKey, (d) =>
+        updateExercise(d, action.exerciseKey, (e) => {
+          const note = action.note?.slice(0, COACHING_LIMITS.trainerNoteMaxChars) ?? '';
+          return { ...e, trainerNote: note === '' ? null : note };
+        }),
       );
 
     default:
