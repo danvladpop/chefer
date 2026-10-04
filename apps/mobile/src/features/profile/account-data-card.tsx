@@ -1,13 +1,21 @@
 import { useRef, useState } from 'react';
 import { Keyboard, Pressable, View, type TextInput } from 'react-native';
 import { router } from 'expo-router';
-import { ACCOUNT_DELETION_COPY as COPY } from '@chefer/types';
+import {
+  ACCOUNT_DELETION_COPY as COPY,
+  SOCIAL_PROVIDER_LABELS,
+  type LinkedIdentity,
+  type SocialProvider,
+} from '@chefer/types';
 import { Button, Card, Input, PasswordInput, Sheet, Text, useSnackbar } from '@chefer/ui-mobile';
 import { userFacingErrorMessage } from '@chefer/utils';
 import { shareExportFile } from '../../lib/share-file';
 import { signOut } from '../../lib/sign-out';
 import { trpc } from '../../lib/trpc';
 import { markAccountDeleted } from '../auth/account-deleted-notice';
+import { socialErrorMessage } from '../auth/social/social-errors';
+import { useSocialProviders } from '../auth/social/social-providers';
+import { requestProviderCredential } from '../auth/social/use-social-sign-in';
 
 // Mirrors apps/web/src/features/profile/components/AccountDataCard.tsx.
 // In-app export and account deletion (audit P0-6): both app stores require
@@ -93,13 +101,23 @@ function DeleteAccountSheet({ visible, onClose }: { visible: boolean; onClose: (
   const me = trpc.auth.me.useQuery(undefined, { staleTime: 5 * 60_000 });
   const email = me.data?.email ?? null;
   const resetMutation = trpc.auth.requestPasswordReset.useMutation({ meta: { silent: true } });
-  const ready = password.length > 0 && confirmText.trim().toUpperCase() === COPY.confirmWord;
+  // WP-22: an account that signs in with Google/Apple only has no password to
+  // type — it confirms with a fresh sign-in from the provider instead (`reauth`).
+  const identities = trpc.auth.linkedIdentities.useQuery(undefined, {
+    staleTime: 30_000,
+    enabled: visible,
+  });
+  const oauthOnly = identities.data?.hasPassword === false;
+  const [reauthError, setReauthError] = useState<string | null>(null);
+  const confirmed = confirmText.trim().toUpperCase() === COPY.confirmWord;
+  const ready = password.length > 0 && confirmed;
 
   // R-17: iOS offers "Save Password?" when a secure field that still holds
   // text leaves the screen. Empty it before the sheet goes away (close, or the
   // delete request — which uses the captured value).
   const close = () => {
     setPassword('');
+    setReauthError(null);
     onClose();
   };
   const submitDelete = () => {
@@ -107,6 +125,23 @@ function DeleteAccountSheet({ visible, onClose }: { visible: boolean; onClose: (
     setPassword('');
     deleteMutation.mutate({ password: typed, confirm: COPY.confirmWord });
   };
+  const submitReauth = (reauth: {
+    provider: SocialProvider;
+    idToken: string;
+    nonce?: string | undefined;
+  }) => {
+    setReauthError(null);
+    deleteMutation.mutate({
+      reauth: {
+        provider: reauth.provider,
+        idToken: reauth.idToken,
+        ...(reauth.nonce ? { nonce: reauth.nonce } : {}),
+      },
+      confirm: COPY.confirmWord,
+    });
+  };
+  const errorLine =
+    reauthError ?? (deleteMutation.isError ? userFacingErrorMessage(deleteMutation.error) : null);
   // R-03: with the keyboard up, the first tap on a footer button only closed
   // the keyboard (the sheet drops as it hides and the press is cancelled). Once
   // DELETE is typed there is nothing left to type, so close the keyboard then —
@@ -124,16 +159,26 @@ function DeleteAccountSheet({ visible, onClose }: { visible: boolean; onClose: (
       testID="delete-account"
       footer={
         <View className="gap-2">
-          <Button
-            testID="delete-account-confirm"
-            variant="destructive"
-            size="lg"
-            disabled={!ready}
-            loading={deleteMutation.isPending}
-            onPress={submitDelete}
-          >
-            {COPY.submit}
-          </Button>
+          {oauthOnly ? (
+            <ReauthButtons
+              identities={identities.data?.identities ?? []}
+              confirmed={confirmed}
+              pending={deleteMutation.isPending}
+              onCredential={submitReauth}
+              onError={setReauthError}
+            />
+          ) : (
+            <Button
+              testID="delete-account-confirm"
+              variant="destructive"
+              size="lg"
+              disabled={!ready}
+              loading={deleteMutation.isPending}
+              onPress={submitDelete}
+            >
+              {COPY.submit}
+            </Button>
+          )}
           <Button testID="delete-account-cancel" variant="outline" size="lg" onPress={close}>
             {COPY.cancel}
           </Button>
@@ -154,32 +199,41 @@ function DeleteAccountSheet({ visible, onClose }: { visible: boolean; onClose: (
             {COPY.backups}
           </Text>
         </View>
-        <Text className="text-sm font-medium text-gray-800">{COPY.passwordLabel}</Text>
-        <PasswordInput
-          ref={passwordRef}
-          testID="delete-account-password"
-          accessibilityLabel={COPY.passwordLabel}
-          // R-17: this is a confirmation field for an account that is about to
-          // disappear — keep iOS from offering to save its password.
-          autoComplete="off"
-          textContentType="oneTimeCode"
-          importantForAutofill="no"
-          returnKeyType="next"
-          submitBehavior="submit"
-          onSubmitEditing={() => confirmRef.current?.focus()}
-          value={password}
-          onChangeText={(text) => {
-            if (deleteMutation.isError) deleteMutation.reset();
-            setPassword(text);
-          }}
-        />
-        {deleteMutation.isError && (
+        {oauthOnly ? (
+          <View testID="delete-account-reauth" className="gap-1">
+            <Text className="text-sm font-medium text-gray-800">{COPY.reauthTitle}</Text>
+            <Text className="text-sm text-gray-700">{COPY.reauthHint}</Text>
+          </View>
+        ) : (
+          <>
+            <Text className="text-sm font-medium text-gray-800">{COPY.passwordLabel}</Text>
+            <PasswordInput
+              ref={passwordRef}
+              testID="delete-account-password"
+              accessibilityLabel={COPY.passwordLabel}
+              // R-17: this is a confirmation field for an account that is about to
+              // disappear — keep iOS from offering to save its password.
+              autoComplete="off"
+              textContentType="oneTimeCode"
+              importantForAutofill="no"
+              returnKeyType="next"
+              submitBehavior="submit"
+              onSubmitEditing={() => confirmRef.current?.focus()}
+              value={password}
+              onChangeText={(text) => {
+                if (deleteMutation.isError) deleteMutation.reset();
+                setPassword(text);
+              }}
+            />
+          </>
+        )}
+        {errorLine && (
           <Text
             testID="delete-account-error"
             accessibilityRole="alert"
             className="text-sm text-red-700"
           >
-            {userFacingErrorMessage(deleteMutation.error)}
+            {errorLine}
           </Text>
         )}
         {email ? (
@@ -227,3 +281,83 @@ function DeleteAccountSheet({ visible, onClose }: { visible: boolean; onClose: (
     </Sheet>
   );
 }
+
+const REAUTH_LABEL: Record<SocialProvider, string> = {
+  APPLE: COPY.reauthApple,
+  GOOGLE: COPY.reauthGoogle,
+};
+
+const REAUTH_KEY: Record<SocialProvider, 'apple' | 'google'> = {
+  APPLE: 'apple',
+  GOOGLE: 'google',
+};
+
+// Footer for an OAuth-only account: one destructive button per connected
+// provider this device can run. Each starts that provider's native sheet again
+// (fresh token, fresh nonce); its `sub` must belong to an identity linked to
+// this account, which the API checks.
+function ReauthButtons({
+  identities,
+  confirmed,
+  pending,
+  onCredential,
+  onError,
+}: {
+  identities: LinkedIdentity[];
+  confirmed: boolean;
+  pending: boolean;
+  onCredential: (reauth: { provider: SocialProvider; idToken: string; nonce?: string }) => void;
+  onError: (message: string | null) => void;
+}) {
+  const providers = useSocialProviders();
+  const [requesting, setRequesting] = useState<SocialProvider | null>(null);
+  const usable = identities.filter((i) => providers[REAUTH_KEY[i.provider]] !== null);
+
+  async function start(provider: SocialProvider) {
+    if (requesting || pending) return;
+    onError(null);
+    setRequesting(provider);
+    try {
+      const { idToken, nonce } = await requestProviderCredential(providers, REAUTH_KEY[provider]);
+      onCredential({ provider, idToken, ...(nonce ? { nonce } : {}) });
+    } catch (err) {
+      onError(socialErrorMessage(err));
+    } finally {
+      setRequesting(null);
+    }
+  }
+
+  if (usable.length === 0) {
+    return (
+      <Text testID="delete-account-reauth-unavailable" className="text-sm text-gray-700">
+        {REAUTH_UNAVAILABLE}
+      </Text>
+    );
+  }
+  return (
+    <>
+      {!confirmed && (
+        <Text testID="delete-account-reauth-type-first" className="text-sm text-gray-700">
+          {COPY.reauthTypeFirst}
+        </Text>
+      )}
+      {usable.map((identity) => (
+        <Button
+          key={identity.provider}
+          testID={`delete-account-reauth-${identity.provider.toLowerCase()}`}
+          variant="destructive"
+          size="lg"
+          accessibilityLabel={`${REAUTH_LABEL[identity.provider]} (${SOCIAL_PROVIDER_LABELS[identity.provider]})`}
+          disabled={!confirmed || pending || requesting !== null}
+          loading={requesting === identity.provider || (pending && requesting === null)}
+          onPress={() => void start(identity.provider)}
+        >
+          {REAUTH_LABEL[identity.provider]}
+        </Button>
+      ))}
+    </>
+  );
+}
+
+const REAUTH_UNAVAILABLE =
+  'We can’t open your connected sign-in on this device. Set a password with the reset email above, then come back to delete.';

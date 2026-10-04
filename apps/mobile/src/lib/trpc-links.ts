@@ -105,6 +105,10 @@ const SECRET_KEYS = new Set([
   'currentpassword',
   'confirmpassword',
   'token',
+  // WP-22: provider credentials (auth.socialSignIn / linkIdentity / deleteSelf reauth).
+  'idtoken',
+  'authorizationcode',
+  'nonce',
 ]);
 
 export const REDACTED = '[redacted]';

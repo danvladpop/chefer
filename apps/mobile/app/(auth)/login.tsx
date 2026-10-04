@@ -21,6 +21,7 @@ import {
   SESSION_EXPIRED_NOTICE,
   subscribeSessionExpired,
 } from '../../src/features/auth/session-expired';
+import { SocialSignIn } from '../../src/features/auth/social/social-sign-in';
 import { useSession } from '../../src/features/auth/use-session';
 import { setToken } from '../../src/lib/auth-store';
 import { trpc } from '../../src/lib/trpc';
@@ -214,6 +215,9 @@ function LoginForm() {
       <Button testID="login-submit" loading={login.isPending} onPress={() => void onSubmit()}>
         Sign in
       </Button>
+
+      {/* WP-22: Continue with Apple / Google (hidden until configured). */}
+      <SocialSignIn />
 
       {hasSignedInBefore ? (
         <View className="flex-row justify-center gap-1">
