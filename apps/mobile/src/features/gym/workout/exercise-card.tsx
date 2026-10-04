@@ -14,8 +14,10 @@ import {
 } from '@chefer/types';
 import { Chip, Text } from '@chefer/ui-mobile';
 import { cn, explain, formatLoadNumber, unitLabel } from '@chefer/utils';
+import type { TrainerLines } from '../../coaching/logger-lines';
 import { ExerciseImage } from '../components/exercise-image';
 import { exerciseImageUrl } from '../library/exercise-image';
+import { TrainerNoteLine } from '../routine/attribution';
 import { isAtSetCap, SET_CAP_REASON } from './caps';
 import { CardioEntry } from './cardio-entry';
 import { SetRow, type SetRowHandlers } from './set-row';
@@ -58,6 +60,11 @@ export interface WorkoutContext {
    * every listed set counts, so the sets have no ✓ and no done count.
    */
   mode?: 'live' | 'edit' | 'log';
+  /**
+   * Trainer coaching (WP-18, level 6+): the trainer's cue under the exercise name and "Set by Ana" on a
+   * trainer-set target. Omitted (null) for an uncoached user — the card is unchanged.
+   */
+  trainer?: TrainerLines | null;
   handlers: SetRowHandlers;
   onSheet: (request: WorkoutSheetRequest) => void;
   onToggle: (seId: string) => void;
@@ -131,7 +138,12 @@ function ExerciseCardImpl({
     () => livePr(se, ctx.prior, ctx.olderBests?.[se.exerciseId]),
     [se, ctx.prior, ctx.olderBests],
   );
-  const sentence = useMemo(() => explain(se.prescription, ctx.unit), [se.prescription, ctx.unit]);
+  const trainerNote = ctx.trainer?.noteFor(se) ?? null;
+  const setBy = ctx.trainer?.setByFor(se) ?? null;
+  const sentence = useMemo(
+    () => explain(se.prescription, ctx.unit, 'today', setBy),
+    [se.prescription, ctx.unit, setBy],
+  );
   const weightMode = weightModeOf(meta, ctx.profile, se.prescription.weightKg > 0);
   const working = workingSets(se);
   const warmups = warmupSetsOf(se);
@@ -216,6 +228,13 @@ function ExerciseCardImpl({
             {se.skipped ? 'Skipped' : subtitle}
             {pr ? ' · PR' : ''}
           </Text>
+          {trainerNote && ctx.trainer ? (
+            <TrainerNoteLine
+              testID={`${base}-trainer-note`}
+              trainer={ctx.trainer.trainerName}
+              note={trainerNote}
+            />
+          ) : null}
           {lastNote && !editing ? (
             <Text testID={`${base}-last-note`} variant="muted" numberOfLines={2}>
               Last time: {lastNote}

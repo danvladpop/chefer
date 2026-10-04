@@ -15,6 +15,9 @@ describe('trainer data is never persisted on the device', () => {
     ['trainer', 'client', 'workouts'],
     ['trainer', 'client', 'note'],
     ['coaching', 'status'],
+    // WP-18 lane D: the client side of coaching is never persisted either.
+    ['coaching', 'availability'],
+    ['coaching', 'previewInvite'],
   ])('%s queries are neither gym keys nor dehydrated', (...path) => {
     const key = [path, { input: { clientId: 'x' }, type: 'query' }];
     expect(isGymQueryKey(key)).toBe(false);

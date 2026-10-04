@@ -8,6 +8,7 @@ import { AiConsentHost, AiConsentProvider } from '../src/features/ai-consent/ai-
 import { markSessionExpired, setUnauthorizedHandler } from '../src/features/auth/session-expired';
 import { TermsReacceptSheet } from '../src/features/auth/terms-reaccept-sheet';
 import { useSession } from '../src/features/auth/use-session';
+import { PendingJoinHost } from '../src/features/coaching/pending-join-host';
 import { installQueryConnectivity } from '../src/features/gym/offline/connectivity';
 import { GymSyncProvider } from '../src/features/gym/offline/gym-sync-provider';
 import {
@@ -142,6 +143,13 @@ export default function RootLayout() {
                 <Stack.Screen name="friends/blocked" />
                 <Stack.Screen name="friends/suggestions" />
                 <Stack.Screen name="friends/[userId]" />
+                {/* Trainer coaching (WP-18). The trainer area sits behind `coaching.availability` + the
+                    trainer allowlist (TrainerGate); Your trainer behind `coaching.availability`. */}
+                <Stack.Screen name="trainer/index" />
+                <Stack.Screen name="trainer/invite" />
+                <Stack.Screen name="trainer/[clientId]/index" />
+                <Stack.Screen name="trainer/[clientId]/routine" />
+                <Stack.Screen name="coaching/index" />
               </Stack.Protected>
               <Stack.Protected guard={token === null}>
                 <Stack.Screen name="(auth)" />
@@ -149,8 +157,13 @@ export default function RootLayout() {
               {/* T-39.1: the in-app legal screen — unguarded, reachable both
                   from Register (signed out) and Settings/More (signed in). */}
               <Stack.Screen name="legal/[doc]" />
+              {/* WP-18: the invite link's route is reachable signed out too — it sends the visitor to
+                  sign in / register and PendingJoinHost brings them back (spec §2.3). */}
+              <Stack.Screen name="coaching/join/[code]" />
             </Stack>
             <AiConsentHost />
+            {/* WP-18: after sign-in, returns to the coaching invite the visitor opened signed out. */}
+            <PendingJoinHost signedIn={token !== null} />
             {/* UX-PO-08: keeps the opt-in dinner / plan-Sunday nudges scheduled. */}
             <FoodNudgeHost signedIn={token !== null} />
             {/* UX-PO-10: after 30 min in the background, a foreground re-lands (food/gym). */}

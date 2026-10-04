@@ -115,7 +115,12 @@ export function nextTimeRows(
       exerciseId: ex.exerciseId,
       progression,
       direction: directionOf(progression.suggestion),
-      sentence: explain(progression.suggestion, unit, 'next'),
+      sentence: explain(
+        progression.suggestion,
+        unit,
+        'next',
+        progression.override?.setByName ?? null,
+      ),
     });
   }
   return rows;
