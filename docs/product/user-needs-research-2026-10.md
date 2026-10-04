@@ -41,13 +41,13 @@ Nothing on the gym side uses AI. Every item above is plain rules and data.
 
 ### Food: what to build, in order
 
-| #   | Change                                                                                                 | Status today                                                 | Effort |
-| --- | ------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------ | ------ |
-| 1   | **"Ate something else" or "Skipped"** on any planned meal: quick estimate, recents, or photo (premium) | Quick add can't replace a planned meal yet; no skipped state | M      |
-| 2   | **Neutral copy:** drop "off-plan" and "log it honestly"; praise weekly averages, not perfect days      | Partly planned (B-31)                                        | S      |
-| 3   | **Week rebalance that balances protein too**, free (it uses no AI)                                     | Kcal only; premium today                                     | M      |
-| 4   | **"How do you eat" setting:** Full plan · Plan what I cook · Just guide me · No numbers                | Parts exist (B-07, B-35)                                     | M–L    |
-| 5   | **Light modes:** protein only (about 1.6 g per kg) or a plate guide                                    | Own targets planned (B-35)                                   | M      |
+| #   | Change                                                                                                 | Status today                                                                                                   | Effort |
+| --- | ------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------- | ------ |
+| 1   | **"Ate something else" or "Skipped"** on any planned meal: quick estimate, recents, or photo (premium) | **Shipped (WP-06):** replace or skip any planned meal on Today, tracker and Plan; rule-based eat-out estimates | M      |
+| 2   | **Neutral copy:** drop "off-plan" and "log it honestly"; praise weekly averages, not perfect days      | **Shipped (WP-06):** neutral copy on mobile, web and AI prompts; weekly average praised                        | S      |
+| 3   | **Week rebalance that balances protein too**, free (it uses no AI)                                     | Kcal only; premium today                                                                                       | M      |
+| 4   | **"How do you eat" setting:** Full plan · Plan what I cook · Just guide me · No numbers                | Parts exist (B-07, B-35)                                                                                       | M–L    |
+| 5   | **Light modes:** protein only (about 1.6 g per kg) or a plate guide                                    | Own targets planned (B-35)                                                                                     | M      |
 
 For your wife's segment, protein only (5) probably matters more than a full plan. Revisit its place after the interviews. Cycle tracking is out of scope.
 
