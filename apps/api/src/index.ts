@@ -26,6 +26,7 @@ import { appRouter } from './routers/index.js';
 import { recipeImagesSseRouter } from './routers/recipe-images-sse.router.js';
 import { scanRouter } from './routers/scan.router.js';
 import { UPLOADS_DIR, uploadsRouter } from './routers/uploads.router.js';
+import { coachingMaintenanceWorker } from './workers/coaching-maintenance.worker.js';
 import { friendsMaintenanceWorker } from './workers/friends-maintenance.worker.js';
 import { ingredientPriceWorker } from './workers/ingredient-price.worker.js';
 import { planTailoringWorker } from './workers/plan-tailoring.worker.js';
@@ -253,6 +254,7 @@ const server = app.listen(env.PORT, env.HOST, () => {
 
   // Following housekeeping + the weekly moderation metrics line (plan §4.6)
   friendsMaintenanceWorker.start();
+  coachingMaintenanceWorker.start();
 
   // Upsert the curated gym exercise library (prod never runs the seed). The
   // gym services also call it lazily, so a failure here only delays it.
@@ -310,6 +312,7 @@ async function gracefulShutdown(signal: string): Promise<void> {
   weeklyPlanWorker.stop();
   weeklyEmailWorker.stop();
   friendsMaintenanceWorker.stop();
+  coachingMaintenanceWorker.stop();
   await planTailoringWorker.stop();
   await recipeImageWorker.stop();
 

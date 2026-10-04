@@ -72,6 +72,12 @@ vi.mock('@chefer/database', async (importOriginal) => {
       trainingPause: { findMany: emptyFindMany() },
       exercise: { findMany: emptyFindMany() },
       aiCallLog: { findMany: emptyFindMany() },
+      // Trainer coaching (WP-18): the export reads these; deleteAccount must NOT
+      // touch them (they cascade / SetNull from users): no delete delegates.
+      trainerProfile: { findUnique: vi.fn(async () => null), findMany: vi.fn(async () => []) },
+      coachingLink: { findMany: emptyFindMany() },
+      coachingInvite: { findMany: emptyFindMany() },
+      coachingNote: { findMany: emptyFindMany() },
       $transaction: vi.fn(),
     },
   };
@@ -621,5 +627,101 @@ describe('exportAccountData social section (PRD FR-22.1)', () => {
     ] as never);
     const social = socialOf(await exportAccountData('u1'));
     expect((social['followers'] as { name: string }[])[0]?.name).toBe('Chefer user');
+  });
+});
+
+// ─── Trainer coaching (WP-18, spec §8.4) ──────────────────────────────────────
+
+describe('deleteAccount and trainer coaching data', () => {
+  it('every coaching table cascades from User, except the pointers that must outlive a deleted user (SetNull)', () => {
+    const expected: Record<string, Record<string, string>> = {
+      TrainerProfile: { user: 'Cascade' },
+      CoachingInvite: { trainer: 'Cascade', usedBy: 'SetNull' },
+      CoachingLink: { trainer: 'Cascade', client: 'Cascade' },
+      CoachingNote: { trainer: 'Cascade', client: 'Cascade' },
+      // A deleted trainer's edit stamps read "Changed by your trainer".
+      Routine: { user: 'Cascade', lastEditedBy: 'SetNull' },
+      RoutineExercise: { lastEditedBy: 'SetNull' },
+    };
+    for (const [model, rules] of Object.entries(expected)) {
+      const byName = new Map(relationFields(model).map((f) => [f.name, f]));
+      for (const [field, onDelete] of Object.entries(rules)) {
+        expect(byName.get(field)?.relationOnDelete, `${model}.${field}`).toBe(onDelete);
+      }
+    }
+  });
+
+  it('adds no explicit coaching deletes: links, invites and notes go with the user row', async () => {
+    vi.mocked(prisma.user.findUnique).mockResolvedValue({ email: 'a@test.dev' } as never);
+    vi.mocked(prisma.mealPlan.findMany).mockResolvedValue([] as never);
+
+    await deleteAccount('u1');
+
+    expect(transactionOps().map((o) => o.op)).not.toContainEqual(
+      expect.stringMatching(/coaching|trainer/i),
+    );
+  });
+});
+
+describe('exportAccountData: coaching section', () => {
+  it('lists trainers and clients by display name only, and leaves other people ids and emails out', async () => {
+    vi.mocked(prisma.user.findUnique).mockResolvedValue({
+      id: 'u1',
+      email: 'me@test.dev',
+    } as never);
+    vi.mocked(prisma.mealPlan.findMany).mockResolvedValue([] as never);
+    vi.mocked(prisma.coachingLink.findMany)
+      .mockResolvedValueOnce([
+        {
+          id: 'l1',
+          trainerId: 'trainer-id',
+          clientId: 'u1',
+          startedAt: new Date('2026-10-01T10:00:00Z'),
+          endedAt: null,
+          endedBy: null,
+        },
+      ] as never)
+      .mockResolvedValueOnce([
+        {
+          id: 'l2',
+          trainerId: 'u1',
+          clientId: 'client-id',
+          trainerLabel: 'Maria, Tue/Thu',
+          startedAt: new Date('2026-10-02T10:00:00Z'),
+          endedAt: null,
+          endedBy: null,
+        },
+      ] as never);
+    vi.mocked(prisma.coachingNote.findMany).mockResolvedValueOnce([
+      {
+        trainerId: 'u1',
+        clientId: 'client-id',
+        body: 'my private note',
+        updatedAt: new Date('2026-10-03T10:00:00Z'),
+        hiddenAt: null,
+      },
+    ] as never);
+    vi.mocked(prisma.user.findMany).mockResolvedValue([
+      { id: 'client-id', firstName: 'Maria', lastName: 'Pop', name: null },
+    ] as never);
+    vi.mocked(prisma.trainerProfile.findMany).mockResolvedValue([
+      { userId: 'trainer-id', displayName: 'Ana' },
+    ] as never);
+
+    const out = (await exportAccountData('u1')) as { coaching: Record<string, unknown> };
+    const coaching = out.coaching as {
+      asClient: { trainers: { trainer: string }[]; trainerNotesAboutYou: unknown[] };
+      asTrainer: { clients: { client: string }[]; privateNotes: { body: string }[] };
+    };
+
+    expect(coaching.asClient.trainers.map((t) => t.trainer)).toEqual(['Ana']);
+    expect(coaching.asTrainer.clients.map((c) => c.client)).toEqual(['Maria Pop']);
+    // Your own notes are yours; the notes ABOUT you are not included by default (Q-7).
+    expect(coaching.asTrainer.privateNotes.map((n) => n.body)).toEqual(['my private note']);
+    expect(coaching.asClient.trainerNotesAboutYou).toEqual([]);
+    const json = JSON.stringify(coaching);
+    expect(json).not.toContain('trainer-id');
+    expect(json).not.toContain('client-id');
+    expect(json).not.toContain('@');
   });
 });

@@ -69,10 +69,16 @@ function setup() {
     findByUserId: vi.fn().mockResolvedValue(null),
   } as unknown as IGymProfileRepository;
   const ensure = vi.fn().mockResolvedValue(undefined);
+  const attribution = {
+    forRoutine: vi.fn(async (_row: unknown, viewerId: string, level: number) =>
+      level >= 6 ? { viewerId, names: new Map([['ctrainer', 'Ana']]) } : undefined,
+    ),
+  };
   return {
-    service: new RoutineService(repo, exerciseRepo, profileRepo, ensure),
+    service: new RoutineService(repo, exerciseRepo, profileRepo, ensure, attribution),
     repo,
     ensure,
+    attribution,
   };
 }
 
@@ -93,6 +99,8 @@ describe('RoutineService.save', () => {
       'r1',
       expect.objectContaining({ name: 'Upper/Lower' }),
       1,
+      // Every save is attributed (spec §5.3): the owner path, stamped with the saver.
+      expect.objectContaining({ actorId: USER, path: 'OWNER' }),
     );
   });
 
@@ -252,5 +260,82 @@ describe('RoutineService.restore (UX-GYM-34)', () => {
 
     await expect(service.restore(USER, 'r1')).rejects.toMatchObject({ code: 'BAD_REQUEST' });
     expect(repo.restore).not.toHaveBeenCalled();
+  });
+});
+
+// ─── Trainer coaching (WP-18, spec §5.3, §7.3, §10) ───────────────────────────
+
+describe('RoutineService.save: attribution and trainer notes', () => {
+  it('stamps the owner as the actor on the OWNER path with the removed-note ids and the diff', async () => {
+    const { service, repo } = setup();
+    repo.replaceDocument.mockResolvedValue({ status: 'ok', routine: routineRow({ version: 2 }) });
+
+    await service.save(USER, doc(), 1, { clearTrainerNoteIds: ['re-bench'] });
+
+    const actor = repo.replaceDocument.mock.calls[0]?.[4] as unknown as {
+      actorId: string;
+      path: string;
+      clearTrainerNoteIds: string[];
+      diff: unknown;
+    };
+    expect(actor).toMatchObject({
+      actorId: USER,
+      path: 'OWNER',
+      clearTrainerNoteIds: ['re-bench'],
+    });
+    expect(typeof actor.diff).toBe('function');
+    // The doc the owner path writes carries no trainerNote at all: an old client's full save keeps the stored ones.
+    const written = repo.replaceDocument.mock.calls[0]?.[2] as unknown as {
+      days: { exercises: object[] }[];
+    };
+    expect(JSON.stringify(written)).not.toContain('trainerNote');
+  });
+
+  it('an old client (no options, level 0) gets the legacy answer; level 6 gets stamps and notes', async () => {
+    const coached = routineRow({
+      version: 2,
+      userId: USER,
+      lastEditedById: 'ctrainer',
+      lastEditedAt: new Date('2026-10-02T08:00:00Z'),
+    });
+    const { service, repo, attribution } = setup();
+    repo.replaceDocument.mockResolvedValue({ status: 'ok', routine: coached });
+
+    const old = await service.save(USER, doc(), 1);
+    expect(old).not.toHaveProperty('lastEditedByOther');
+    expect(attribution.forRoutine).toHaveBeenCalledWith(coached, USER, 0);
+
+    const six = await service.save(USER, doc(), 1, { level: 6 });
+    expect(six.lastEditedByOther).toEqual({ name: 'Ana', at: '2026-10-02T08:00:00.000Z' });
+  });
+
+  it('the CONFLICT payload names the other editor at level 6 and is legacy below it', async () => {
+    const { service, repo } = setup();
+    const current = routineRow({
+      version: 5,
+      lastEditedById: 'ctrainer',
+      lastEditedAt: new Date('2026-10-02T08:00:00Z'),
+    });
+    repo.replaceDocument.mockResolvedValue({ status: 'conflict', current });
+    const payload = async (level: number) => {
+      const err = await service.save(USER, doc(), 3, { level }).catch((e: unknown) => e);
+      return ((err as TRPCError).cause as ConflictCause).payload.current;
+    };
+    expect((await payload(6)).lastEditedByOther?.name).toBe('Ana');
+    expect(await payload(4)).not.toHaveProperty('lastEditedByOther');
+  });
+});
+
+describe('RoutineService reads and level', () => {
+  it('get / setActive / setNextDay pass the raw level through to attribution', async () => {
+    const { service, repo, attribution } = setup();
+    repo.setActive.mockResolvedValue(routineRow());
+    repo.setNextDay.mockResolvedValue(routineRow());
+    await service.get(USER, 'r1', 6);
+    await service.setActive(USER, 'r1', 6);
+    await service.setNextDay(USER, 'r1', 'day-a', 6);
+    expect(attribution.forRoutine.mock.calls.map((c) => c[2])).toEqual([6, 6, 6]);
+    await service.get(USER, 'r1');
+    expect(attribution.forRoutine).toHaveBeenLastCalledWith(expect.anything(), USER, 0);
   });
 });

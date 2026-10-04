@@ -135,6 +135,9 @@ export {
   type RoutineExerciseWriteData,
   type RoutineListRow,
   type ReplaceRoutineResult,
+  type ReplaceDocumentActor,
+  type StampDoc,
+  type StampDiff,
 } from './routine.repository';
 
 export {
@@ -309,3 +312,45 @@ export {
   ingredientNoticeRepository,
   type IIngredientNoticeRepository,
 } from './ingredient-notice.repository';
+
+// Trainer coaching (docs/trainer-platform/spec.md §5)
+export {
+  TrainerProfileRepository,
+  trainerProfileRepository,
+  type ITrainerProfileRepository,
+  type DeactivateTrainerData,
+} from './trainer-profile.repository';
+
+export {
+  CoachingInviteRepository,
+  coachingInviteRepository,
+  type ICoachingInviteRepository,
+  type CreateInviteData,
+} from './coaching-invite.repository';
+
+export {
+  CoachingLinkRepository,
+  coachingLinkRepository,
+  type ICoachingLinkRepository,
+  type ActiveLinkWithClient,
+  type ClientNameRow,
+  type JoinLinkData,
+  type JoinLinkResult,
+  type EndLinkData,
+} from './coaching-link.repository';
+
+export {
+  CoachingNoteRepository,
+  coachingNoteRepository,
+  type ICoachingNoteRepository,
+} from './coaching-note.repository';
+
+export {
+  CoachingContentRepository,
+  coachingContentRepository,
+  type ICoachingContentRepository,
+  type CoachedExerciseMeta,
+  type CoachedSessionRow,
+  type CoachedSessionCursor,
+  type ActiveRoutineStamp,
+} from './coaching-content.repository';

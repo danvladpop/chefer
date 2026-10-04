@@ -6,6 +6,7 @@ import {
   type IChefProfileRepository,
   type IGymProfileRepository,
   type IRoutineRepository,
+  type RoutineWithDays,
 } from '@chefer/database';
 import type {
   EquipmentProfile,
@@ -38,6 +39,12 @@ export interface GymUserContext {
   facts: TrainingProfileFacts;
   offerState: GymOfferState;
   activeRoutine: RoutineDto | null;
+  /**
+   * The stored row behind `activeRoutine` (trainer coaching, level 6+: bootstrap
+   * rebuilds the DTO with edit stamps and trainer notes from it). Optional so
+   * fixtures that predate it keep compiling; the loader always sets it.
+   */
+  activeRoutineRow?: RoutineWithDays | null;
 }
 
 export class GymContextLoader {
@@ -66,6 +73,7 @@ export class GymContextLoader {
       facts: { experience, ageYears: chefProfile?.age ?? null },
       offerState: readOfferState(profileRow?.offerState),
       activeRoutine: routineRow ? toRoutineDto(routineRow) : null,
+      activeRoutineRow: routineRow,
     };
   }
 }

@@ -11,12 +11,13 @@ import {
   type IWorkoutSessionRepository,
   type ProgressionStateWrite,
 } from '@chefer/database';
-import type {
-  ExerciseMeta,
-  Exposure,
-  GymOfferKind,
-  ProgressionDto,
-  ProgressionOverride,
+import {
+  FALLBACK_TRAINER_NAME,
+  type ExerciseMeta,
+  type Exposure,
+  type GymOfferKind,
+  type ProgressionDto,
+  type ProgressionOverride,
 } from '@chefer/types';
 import {
   addDaysLocal,
@@ -28,6 +29,10 @@ import {
   repBucket,
   trackingTypeOf,
 } from '@chefer/utils';
+import {
+  coachingAttributionService,
+  CoachingAttributionService,
+} from '../coaching/coaching-attribution.service.js';
 import {
   gymContextLoader,
   isDeloadActive,
@@ -55,6 +60,36 @@ import {
 
 const MAX_DISMISSED_OFFERS = 100;
 
+/**
+ * The override as a client sees it: `setById` (a user id) is never sent;
+ * `setByName` is, at level 6+, when somebody other than the owner set it.
+ */
+/** What the trainer's next-session panel reads (see `ProgressionService.forCoach`). */
+export interface CoachProgression {
+  exerciseId: string;
+  repBucket: string;
+  /** The engine's suggestion with no target applied. */
+  suggestion: ProgressionDto['suggestion'];
+  /** Device-local date of the last logged exposure, or null. */
+  lastExposureDate: string | null;
+  /** A pending target, with `setById` (who set it: the owner or the trainer). */
+  override: ProgressionOverride | null;
+}
+
+export function toOverrideDto(
+  override: ProgressionOverride | null,
+  ownerId: string,
+  setterNames: ReadonlyMap<string, string> | undefined,
+): ProgressionDto['override'] {
+  if (!override) return null;
+  const { setById, ...rest } = override;
+  const setByName =
+    setterNames && setById && setById !== ownerId
+      ? (setterNames.get(setById) ?? FALLBACK_TRAINER_NAME)
+      : undefined;
+  return { ...rest, ...(setByName !== undefined && { setByName }) };
+}
+
 interface BucketGroup {
   exerciseId: string;
   bucket: string;
@@ -68,6 +103,10 @@ export class ProgressionService {
     private readonly exerciseRepo: IExerciseRepository = exerciseRepository,
     private readonly profileRepo: IGymProfileRepository = gymProfileRepository,
     private readonly contextLoader: Pick<GymContextLoader, 'load'> = gymContextLoader,
+    private readonly attribution: Pick<
+      CoachingAttributionService,
+      'names'
+    > = coachingAttributionService,
   ) {}
 
   /** Re-folds the engine for every rep bucket of the given exercises and persists the states. */
@@ -142,6 +181,8 @@ export class ProgressionService {
     userId: string,
     exerciseIds: string[],
     today: string = serverToday(),
+    level = 0,
+    opts: { ignoreOverrides?: boolean } = {},
   ): Promise<ProgressionDto[]> {
     const ids = [...new Set(exerciseIds)];
     if (ids.length === 0) return [];
@@ -151,7 +192,15 @@ export class ProgressionService {
       this.progressionRepo.findForUser(userId, ids),
     ]);
     const { metas } = lookupFromRows(exerciseRows);
-    const out = this.toDtos(ctx, rows, metas, today);
+    // `ignoreOverrides`: the engine's own suggestion, as if no target had been set
+    // (the trainer's "app suggestion" next to the target they set).
+    const out = this.toDtos(
+      ctx,
+      opts.ignoreOverrides ? rows.map((r) => ({ ...r, override: null })) : rows,
+      metas,
+      today,
+      await this.setterNames(rows, level),
+    );
 
     const covered = new Set(rows.map((r) => r.exerciseId));
     for (const id of ids) {
@@ -187,12 +236,68 @@ export class ProgressionService {
     return out;
   }
 
-  /** Stored rows → DTOs with the engine's prescription for `today`. Shared with bootstrap. */
+  /**
+   * Trainer coaching (`trainer.client.routine`): per (exercise, rep bucket) the
+   * engine's own next-time suggestion (no target applied), the target waiting to
+   * be used with who set it, and when the exercise was last logged. Read-only.
+   */
+  async forCoach(
+    userId: string,
+    exerciseIds: string[],
+    today: string = serverToday(),
+  ): Promise<CoachProgression[]> {
+    const ids = [...new Set(exerciseIds)];
+    if (ids.length === 0) return [];
+    const [rows, dtos] = await Promise.all([
+      this.progressionRepo.findForUser(userId, ids),
+      this.forExercises(userId, ids, today, 0, { ignoreOverrides: true }),
+    ]);
+    const raw = new Map(
+      rows.map((r) => [`${r.exerciseId}|${r.repBucket}`, readOverride(r.override)]),
+    );
+    return dtos.map((d) => {
+      const override = raw.get(`${d.exerciseId}|${d.repBucket}`) ?? null;
+      const lastDone = d.state.lastExposureDate;
+      return {
+        exerciseId: d.exerciseId,
+        repBucket: d.repBucket,
+        suggestion: d.suggestion,
+        lastExposureDate: lastDone,
+        // Only a target still waiting to be used: one older than the last
+        // exposure was consumed (the engine ignores it too).
+        override: override && (lastDone === null || override.at > lastDone) ? override : null,
+      };
+    });
+  }
+
+  /**
+   * Trainer coaching (level >= 6): display names of whoever set the pending
+   * next-session targets in `rows`, other than the owner. Undefined below level
+   * 6 (nothing is queried and `toDtos` emits the legacy shape).
+   */
+  async setterNames(
+    rows: readonly ExerciseProgression[],
+    level: number,
+  ): Promise<ReadonlyMap<string, string> | undefined> {
+    if (!CoachingAttributionService.understandsCoaching(level)) return undefined;
+    const ids = rows.flatMap((row) => {
+      const setBy = readOverride(row.override)?.setById;
+      return setBy && setBy !== row.userId ? [setBy] : [];
+    });
+    return this.attribution.names(ids);
+  }
+
+  /**
+   * Stored rows → DTOs with the engine's prescription for `today`. Shared with
+   * bootstrap. `setterNames` (from `setterNames`, level 6+) adds
+   * `override.setByName` for a target a trainer set; `setById` is never emitted.
+   */
   toDtos(
     ctx: GymUserContext,
     rows: ExerciseProgression[],
     metas: ReadonlyMap<string, ExerciseMeta>,
     today: string,
+    setterNames?: ReadonlyMap<string, string>,
   ): ProgressionDto[] {
     const deload = isDeloadActive(ctx.offerState, today);
     const out: ProgressionDto[] = [];
@@ -206,7 +311,7 @@ export class ProgressionService {
         exerciseId: row.exerciseId,
         repBucket: row.repBucket,
         state,
-        override,
+        override: toOverrideDto(override, row.userId, setterNames),
         suggestion: prescribe({
           slot,
           state,
@@ -221,15 +326,23 @@ export class ProgressionService {
     return out;
   }
 
+  /**
+   * Sets the next-session target (D5c). `opts.setById` records WHO set it
+   * (spec §5.2, §9.2): the owner by default, or the trainer on
+   * `trainer.client.setNextTarget`. Last write wins; `opts.level` is the raw
+   * client API level of whoever receives the returned DTO.
+   */
   async setOverride(
     userId: string,
     input: { exerciseId: string; repBucket: string; weightKg: number; reps: number[] },
+    opts: { setById?: string; level?: number } = {},
   ): Promise<ProgressionDto> {
     await this.ensureRow(userId, input.exerciseId, input.repBucket);
     const override: ProgressionOverride = {
       weightKg: input.weightKg,
       reps: input.reps,
       at: new Date().toISOString(),
+      setById: opts.setById ?? userId,
     };
     await this.progressionRepo.setOverride(
       userId,
@@ -237,18 +350,19 @@ export class ProgressionService {
       input.repBucket,
       toJson(override),
     );
-    return this.one(userId, input.exerciseId, input.repBucket);
+    return this.one(userId, input.exerciseId, input.repBucket, opts.level ?? 0);
   }
 
   async clearOverride(
     userId: string,
     input: { exerciseId: string; repBucket: string },
+    level = 0,
   ): Promise<ProgressionDto> {
     const row = await this.progressionRepo.find(userId, input.exerciseId, input.repBucket);
     if (!row)
       throw new TRPCError({ code: 'NOT_FOUND', message: 'No progression for that exercise.' });
     await this.progressionRepo.setOverride(userId, input.exerciseId, input.repBucket, null);
-    return this.one(userId, input.exerciseId, input.repBucket);
+    return this.one(userId, input.exerciseId, input.repBucket, level);
   }
 
   /** User accepted a deload: every prescription for the next 7 days is a deload (research §1.6). */
@@ -311,14 +425,21 @@ export class ProgressionService {
     ]);
   }
 
-  private async one(userId: string, exerciseId: string, bucket: string): Promise<ProgressionDto> {
+  private async one(
+    userId: string,
+    exerciseId: string,
+    bucket: string,
+    level = 0,
+  ): Promise<ProgressionDto> {
     const [ctx, exerciseRows, row] = await Promise.all([
       this.contextLoader.load(userId),
       this.exerciseRepo.findVisibleByIds(userId, [exerciseId]),
       this.progressionRepo.find(userId, exerciseId, bucket),
     ]);
     const { metas } = lookupFromRows(exerciseRows);
-    const [dto] = row ? this.toDtos(ctx, [row], metas, serverToday()) : [];
+    const [dto] = row
+      ? this.toDtos(ctx, [row], metas, serverToday(), await this.setterNames([row], level))
+      : [];
     if (!dto)
       throw new TRPCError({ code: 'NOT_FOUND', message: 'No progression for that exercise.' });
     return dto;

@@ -189,6 +189,9 @@ function fullRoutine(): FriendRoutineRow {
     restSec: 90,
     supersetGroup: position === 0 ? 'A' : null,
     notes: 'private routine note',
+    trainerNote: null,
+    lastEditedById: null,
+    lastEditedAt: null,
     exercise: exerciseMeta(id, trackingType, id === 'custom-row' ? OWNER : null),
   });
   return {
@@ -202,6 +205,8 @@ function fullRoutine(): FriendRoutineRow {
     archivedAt: null,
     createdAt: new Date(),
     updatedAt: new Date(),
+    lastEditedById: null,
+    lastEditedAt: null,
     days: [
       {
         id: 'cday2',

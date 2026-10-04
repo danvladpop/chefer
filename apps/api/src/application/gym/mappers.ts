@@ -8,6 +8,7 @@ import type {
 import {
   DEFAULT_DUMBBELLS_KG,
   DEFAULT_PLATE_PAIRS_KG,
+  FALLBACK_TRAINER_NAME,
   MUSCLES,
   suggestionSchema,
   type CarryOverList,
@@ -16,6 +17,7 @@ import {
   type ExerciseMeta,
   type GoalHistoryEntry,
   type GymProfileDto,
+  type LastEditedByOtherDto,
   type Muscle,
   type ProgressionOverride,
   type ProgressionState,
@@ -83,7 +85,49 @@ export function lookupFromRows(rows: readonly Exercise[]): {
   return { lookup: (id) => metas.get(id), metas };
 }
 
-export function toRoutineDto(row: RoutineWithDays): RoutineDto {
+/**
+ * Trainer coaching (level >= COACHING_API_LEVEL only): who is looking at the
+ * routine and the display names of the people who edited it. Absent = the legacy
+ * shape (no `trainerNote`, no `lastEditedByOther`), which is what every client
+ * below level 6 gets.
+ */
+export interface RoutineAttribution {
+  /** The viewer: an edit stamp that is theirs is never shown. */
+  viewerId: string;
+  /** Editor user id → display name (trainer display names). A missing id reads "your trainer". */
+  names: ReadonlyMap<string, string>;
+}
+
+/** Ids of everyone other than `viewerId` who last edited the routine or one of its rows. */
+export function otherEditorIds(row: RoutineWithDays, viewerId: string): string[] {
+  const ids = new Set<string>();
+  const add = (id: string | null) => {
+    if (id !== null && id !== viewerId) ids.add(id);
+  };
+  add(row.lastEditedById);
+  for (const d of row.days) for (const e of d.exercises) add(e.lastEditedById);
+  return [...ids];
+}
+
+/**
+ * A stamp is "by someone else" when it carries a time and its editor is not the
+ * viewer. A time with no editor id means the editor's account was deleted
+ * (SetNull), which reads "your trainer".
+ */
+function otherStamp(
+  editorId: string | null,
+  at: Date | null,
+  attribution: RoutineAttribution,
+): LastEditedByOtherDto | undefined {
+  if (at === null || editorId === attribution.viewerId) return undefined;
+  const name = editorId === null ? undefined : attribution.names.get(editorId);
+  return { name: name ?? FALLBACK_TRAINER_NAME, at: at.toISOString() };
+}
+
+export function toRoutineDto(row: RoutineWithDays, attribution?: RoutineAttribution): RoutineDto {
+  const routineStamp = attribution
+    ? otherStamp(row.lastEditedById, row.lastEditedAt, attribution)
+    : undefined;
   return {
     id: row.id,
     name: row.name,
@@ -93,23 +137,33 @@ export function toRoutineDto(row: RoutineWithDays): RoutineDto {
     version: row.version,
     archived: row.archivedAt !== null,
     updatedAt: row.updatedAt.toISOString(),
+    ...(routineStamp && { lastEditedByOther: routineStamp }),
     days: row.days.map((d) => ({
       id: d.id,
       position: d.position,
       name: d.name,
       plannedWeekday: d.plannedWeekday,
-      exercises: d.exercises.map((e) => ({
-        id: e.id,
-        exerciseId: e.exerciseId,
-        position: e.position,
-        sets: e.sets,
-        repMin: e.repMin,
-        repMax: e.repMax,
-        targetRir: e.targetRir,
-        restSec: e.restSec,
-        supersetGroup: e.supersetGroup,
-        notes: e.notes,
-      })),
+      exercises: d.exercises.map((e) => {
+        const stamp = attribution
+          ? otherStamp(e.lastEditedById, e.lastEditedAt, attribution)
+          : undefined;
+        return {
+          id: e.id,
+          exerciseId: e.exerciseId,
+          position: e.position,
+          sets: e.sets,
+          repMin: e.repMin,
+          repMax: e.repMax,
+          targetRir: e.targetRir,
+          restSec: e.restSec,
+          supersetGroup: e.supersetGroup,
+          notes: e.notes,
+          // Level 6+: the trainer's cue and who last changed this row. Omitted
+          // (not null) when absent, so a row nobody coached has the legacy shape.
+          ...(attribution && e.trainerNote !== null && { trainerNote: e.trainerNote }),
+          ...(stamp && { lastEditedByOther: stamp }),
+        };
+      }),
     })),
   };
 }

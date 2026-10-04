@@ -177,6 +177,13 @@ export type RoutineDoc = z.infer<typeof routineDocSchema>;
 export const saveRoutineInputSchema = z.object({
   routine: routineDocSchema,
   expectedVersion: z.number().int().min(1),
+  /**
+   * Trainer coaching (spec §7.3, additive): ids of routine exercises whose
+   * trainer note the client removes with this save. The save never writes
+   * `trainerNote` otherwise, so a full-document save from an older client keeps
+   * the trainer's notes.
+   */
+  clearTrainerNoteIds: z.array(z.string().min(1).max(100)).max(100).optional(),
 });
 
 // ─── Setup, profile, library, progression ────────────────────────────────────

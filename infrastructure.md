@@ -825,6 +825,16 @@ prisma/
 - **Database extension:** it creates `pg_trgm` outside the transaction and only warns if that fails. This is the one raw SQL statement outside migrations, as plan §6.1 specifies.
 - **Tests:** `sync.test.ts` covers the planner. Live runs covered the first sync, an idempotent re-run, a value edit, an alias move, a portion edit, a referenced and an unreferenced removal, a reactivation, and the rejection of an invalid file.
 
+**Trainer coaching repositories (WP-18, spec §5):** `trainer-profile`, `coaching-invite`, `coaching-link`, `coaching-note` and
+`coaching-content` (read-only queries over a client's data) `.repository.ts`, each with an interface. `coaching-link` owns the
+single-transaction `join` / `end` (link row, consent event on the client's log with `contextId`, note hidden or restored) and is the
+backstop for the one-ACTIVE-link partial unique index (a lost race is `{ status: 'conflict' }`);
+`trainer-profile.deactivate` ends every link, hides the notes and revokes the open invites in one transaction.
+`RoutineRepository.replaceDocument` takes an optional `ReplaceDocumentActor` and stamps `lastEditedById` / `lastEditedAt` on the
+rows a save changed (the diff is injected: this package does not depend on `@chefer/utils`); `RoutineCreateData.editedBy` stamps a
+routine a trainer creates. The partial index and the stamping are covered by `apps/api/src/application/coaching/coaching.repository.db.test.ts`,
+a real-database suite that is off unless `COACHING_DB_TEST=1` (CI has no database).
+
 **Tests:** `pnpm --filter @chefer/database test` (vitest, added with the ingredient catalog). The repositories are tested
 with a mocked client; `recipe-line.repository.test.ts` covers the dual write (order, single transaction, joining a
 caller's transaction, `USER_ENTERED` totals).
@@ -867,6 +877,16 @@ Zero-dependency shared types consumed by all packages and apps.
   (status lines "Computed from N ingredients" / "Incomplete — N ingredients need data" / "Entered by you", picker,
   private-ingredient sheet incl. the CONFLICT choice, import review, form errors), `INGREDIENT_CATEGORY_LABELS`,
   `INGREDIENT_PICKER_CATEGORIES` (the picker's chip row) and `NUTRITION_SOURCE_LABELS` (USDA / CIQUAL / Label / Mine).
+
+- Trainer coaching (`docs/trainer-platform/spec.md` §5–§7, WP-18): `coaching/` (**NEW**) — `limits.ts` (`COACHING_API_LEVEL = 6`,
+  `INTERVALS_API_LEVEL = 7`, `COACHING_LIMITS`, `COACHING_RETENTION`: recommended defaults, counsel to confirm), `schemas.ts` (every
+  `trainer.*` / `coaching.*` input: `inviteCodeSchema` + `normalizeInviteCode`, `trainerRoutineDocSchema` = the routine doc with
+  `trainerNote` and no `notes`, next-target inputs on the D5c bounds, `saveNoteInputSchema`), `dto.ts` (`ClientRowDto`,
+  `CoachedWorkoutDto`, `AdherenceDto`, `TrainerRoutineDto`, `NextTargetDto`, `InvitePreviewDto`, `CoachingStatusDto`, …) and `copy.ts`
+  (`COACHING_COPY`: the consent screen, Your trainer, attribution lines, invite states and server messages, the same words on web and
+  mobile; `COACHING_CONSENT_LABELS`; `FALLBACK_TRAINER_NAME`). Gym additions: `RoutineDto.lastEditedByOther`, `RoutineExerciseDto.trainerNote`,
+  `NextWorkoutExerciseDto.trainerNote`, `ProgressionDto.override.setByName`, `GymBootstrap.coaching`, `saveRoutineInputSchema.clearTrainerNoteIds`,
+  `ProgressionOverride.setById`; feature flag `coaching`.
 
 ### 5.3 `@chefer/utils`
 
@@ -916,6 +936,11 @@ Pure, side-effect-free utilities. Dependencies: `clsx`, `tailwind-merge`, `date-
 **Units + formatting (WP-11, audit §6.4, UX-X-15):** `quantity.ts` — `parseQuantityLine("2 lb chicken thighs")` → `{ qty, unit, name }` (lb, oz, cup, tbsp, tsp, fl oz, can, pack, g, kg, ml, l, pcs; fractions; whole-word units), `parseCustomItemInput` (the Shop add box: a bare number above 20 is grams, B-32), `parsePantryQuantity` ("abc"/"-5" refused, empty = "some"), `normalizeUnit`/`unitFamily`, `addItemPlaceholder(system)`, `unitOptionsFor(system)`; `format.ts` — `formatQty`, `formatKcal`, `formatNumber`, `formatDate(date, style, { locale?, timeZone? })`, `formatDateRange`, `formatApproxPrice` (whole currency units, "<€1"), all on the DEVICE locale (`deviceLocale()`; tests pass one) — they replace every hard-coded `en-GB`/`en-US` display format (the gym `Thu 24 Sep` headings keep their fixed English weekday names); `formatPriceRange(point, currency, locale?)` takes the device locale; `purchasable.ts` — `roundToPurchasable`, `mergeCitrusLines`. The old date-fns `formatDate` is now `formatDatePattern` (machine formats only). `useUnits()` (`apps/mobile/src/hooks/use-units.ts`, `apps/web/src/hooks/useUnits.ts`) is the one hook screens use: `{ system, isImperial, qty(), addItemPlaceholder, unitOptions }` over `useUnitSystem()`, whose `preferences.get` read is re-fetched once it is 10 s old (`UNITS_STALE_MS`).
 
 Domain helpers shared by web, mobile and the API (not exhaustive): `today.ts` — `resolveTodayMeals()` / `isSlotEaten()` (the Today next meal skips meals already logged, F-PM-10; `MEAL_ORDER`, `MEAL_WINDOW_END`); `my-weeks.ts` — `pastWeeks()` (My weeks: past weeks only, one card per week, F-PLAN-6-3); `pantry-confirm.ts` — `pantryItemsToConfirm()` / `pantryConfirmWeekKey()` (the inline "Still have these?" banner asks weekly, about items ≥ 3 days old, F-PM-13); `feedback.ts` — `feedbackCounter()` / `FEEDBACK_MAX_LENGTH` (the feedback field's live counter against the API's 2,000-char cap, F-PROF-2-2); `premium-activation.ts` — `activationStepKeys()` / `ACTIVATION_STEP_COPY` / `SOURCE_FEATURE_PRIORITY` (the source-aware "You're premium" sheet, F-PREM-1-5, F-PM-9; each platform maps step keys to its own routes); `household.ts` — `onboardingProgress()` ("Step 1" with no total on the intent question); `cook-mode.ts` — `defaultCookServings(base, members, planPortion, cookingFor)` (the user's plan portion + each member, via `portions.ts`); `portions.ts` — `portionsFor({ eaterPortion, members, cookingFor, recipeServings })` → `{ eaterPortion, cookServings, shopMultiplier, othersServings }` and `tableBreakdown()` ("You 2 · Mia ½ · Noah 1 = 3½"): the ONE answer to "what I eat vs what we cook" (UX-PLAN-02/UX-REC-02); `safety-copy.ts` gains `conflictText()` / `conflictHeadline()` / `warningText()` ("Not paleo: contains quinoa"), `splitCheckedByVerification()` / `verifiedLabels()` / `taggedOnlyLineText()` ("Tagged paleo (not verified)").
+
+**Trainer coaching (WP-18):** `gym/routine-diff.ts` — `diffRoutineDoc(before, after)` (which rows a save changed, for the edit stamps; a
+pure reorder is not a change; superset partners are compared, not letters), `coaching/adherence.ts` — `buildAdherence` (8 weeks against
+the goal and a 14-day strip of planned days from the weekly engine, pause dates only), and `explain` / `explainInputs` take an
+optional setter name ("Set by Ana").
 
 ### 5.4 `@chefer/ui`
 
@@ -1615,6 +1640,40 @@ retry on `P2034`.
 re-joining cannot reset moderation. **Account deletion** cascades everything, including reports and the moderation log,
 because every new table has `onDelete: Cascade` from `User` (`account-data.service.ts` needs no explicit step). The
 `recipes.originRecipeId` / `originCreatorId` links on other people's copies go to `NULL`.
+
+### Trainer coaching schema (WP-18, `docs/trainer-platform/spec.md` §5, additive only)
+
+One additive migration (`packages/database/prisma/migrations/20261004120000_trainer_coaching/`): two enums, four new
+tables, five nullable columns on existing tables, one new `ConsentKind` value, and a raw-SQL partial unique index.
+Nothing is renamed or removed, so installed app binaries keep working. The app stores **no client health data**: the
+trainer's private note is opaque text. Retention numbers are named constants (`COACHING_RETENTION`, `@chefer/types`)
+and are **recommended defaults that counsel must confirm** (spec Q-6/Q-7).
+
+**New enums:** `CoachingLinkStatus` (`ACTIVE`, `ENDED`), `CoachingEndedBy` (`CLIENT`, `TRAINER`, `SYSTEM`; `SYSTEM` =
+trainer tools turned off). **Added value:** `ConsentKind.COACHING_SHARING` (written on join, granted; on leave / remove
+/ trainer off, withdrawn; `ConsentEvent.contextId` = the `CoachingLink` id).
+
+**New models** (all cascade from `User`, except where noted; repositories in §5.1):
+
+| Model (table)                         | Key / relations                                                                                                | Notes                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| ------------------------------------- | -------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `TrainerProfile` (`trainer_profiles`) | `userId` (PK) -> User                                                                                          | `displayName` (word-filtered, shown to clients), `activatedAt`, `disabledAt` (tools off: every link `ENDED`, invites revoked; the row is kept so a former trainer's name still resolves on old "Changed by Ana" stamps)                                                                                                                                                                                                                      |
+| `CoachingInvite` (`coaching_invites`) | `code` (PK, 10 chars Crockford base32 from crypto random); `trainerId` -> User; `usedById` -> User **SetNull** | `label` (trainer-private, max 60), `expiresAt` (created + 14 days), `usedAt`, `revokedAt`. Index `(trainerId, createdAt)`                                                                                                                                                                                                                                                                                                                    |
+| `CoachingLink` (`coaching_links`)     | `id`; `trainerId`, `clientId` -> User; indexes `(trainerId, status)`, `(clientId, status)`                     | `status`, `inviteCode` (provenance, no FK: invites are pruned), `trainerLabel` (copied from the invite), `startedAt`, `endedAt`, `endedBy`. **Raw SQL in the migration:** `CREATE UNIQUE INDEX coaching_links_one_active_trainer ON coaching_links ("clientId") WHERE status = 'ACTIVE'` (Prisma cannot express a partial index; the join transaction ends the old link first, so a switch never trips it and a race has exactly one winner) |
+| `CoachingNote` (`coaching_notes`)     | `(trainerId, clientId)` (PK) -> User, both sides                                                               | `body` (max 4000, opaque), `updatedAt`, `hiddenAt` (set when the link ends; deleted by the worker after 30 days; cleared if the same pair links again)                                                                                                                                                                                                                                                                                       |
+
+**Additive columns:** `Routine.lastEditedById` (-> User **SetNull**) + `lastEditedAt` (who last saved the document;
+**not** `updatedAt`, which also moves on rotation and `setActive`); `RoutineExercise.trainerNote` (max 200, written only
+by the trainer path), `lastEditedById` (-> User **SetNull**) + `lastEditedAt` (diff-based, only rows a save changed);
+`ConsentEvent.contextId`. A stamp with a time and no editor id means the editor's account is gone ("Changed by your
+trainer"). `ProgressionOverride` (the JSON in `ExerciseProgression.override`) gains optional `setById` (absent = the
+owner set it). **Edit attribution is stamps, not a log** (spec §5.3): `RoutineRepository.replaceDocument` takes an
+optional `ReplaceDocumentActor { actorId, path: 'OWNER' | 'TRAINER', clearTrainerNoteIds?, diff }` and stamps inside
+its version-checked transaction using the injected `diffRoutineDoc` (`@chefer/utils`, pure); the OWNER path never
+writes `trainerNote` (except clearing the ids in `clearTrainerNoteIds`), the TRAINER path never writes `notes`.
+
+Production applies it like the other migrations (`prisma migrate deploy`). The dev clone `chefer_wp18` was built with
+`db push`, so there the migration SQL was applied with `prisma db execute`.
 
 ### Recipe soft delete (UX-REC-04, additive only)
 
@@ -2524,6 +2583,51 @@ the `send-weekly-emails.ts` style; neither has an API procedure, UI or queue):
 `friends.block` 30/day, `friends.report` 20/day limits) could be swept away by a bucket with a shorter window and
 silently reset its limiter.
 
+### Trainer coaching services (application layer) — `docs/trainer-platform/spec.md` §5–§9, WP-18
+
+All in `apps/api/src/application/coaching/`; routers are thin (`routers/trainer/*`, `routers/coaching.router.ts`).
+Everything is dark behind the `coaching` flag or `COACHING_ALLOWLIST` (§9, §10). Repositories (interfaces + classes,
+`packages/database/src/repositories/`): `TrainerProfileRepository`, `CoachingInviteRepository`,
+`CoachingLinkRepository` (join / end are single transactions that also write the consent event on the CLIENT's log
+and hide or restore the private note), `CoachingNoteRepository`, `CoachingContentRepository` (read-only queries over
+a client's data: completed workouts with exercise meta, last-workout dates, week counts, gym profiles, routine stamps,
+name columns). `ConsentEventRepository.record` gained `contextId`.
+
+| Service                                                | Does                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| ------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `CoachingAccessService` (`coaching-access.service.ts`) | **THE** authorization point (§9 "Trainer coaching authorization"): `assert(trainer, clientId, scope, memo?)`, one uniform `NOT_FOUND` for every denial; per-request `CoachingAccessMemo`, no cross-request cache. The access matrix tests are the oracle                                                                                                                                                                                                                    |
+| `TrainerProfileService`                                | `status` / `activate` (needs `TRAINER_ALLOWLIST`; word filter and "Chefer" reserved-name check) / `updateProfile` / `deactivate` (one transaction: links ended `SYSTEM` with a withdrawn consent event per client, notes hidden, open invites revoked)                                                                                                                                                                                                                      |
+| `CoachingInviteService`                                | Create (max 20 open, none at 50 clients, 14-day expiry, code from `crypto.randomBytes`, retried on a collision), list (last 30 days, state `OPEN`/`USED`/`EXPIRED`/`REVOKED`), revoke, and `preview` (every state: `OK`, `EXPIRED`, `USED`, `REVOKED`, `SELF`, `ALREADY_YOURS`, `NOT_FOUND`; the trainer name is only disclosed for `OK` and `ALREADY_YOURS`)                                                                                                               |
+| `CoachingLinkService`                                  | `join` (invite checks, finished gym setup required, one transaction, a lost race re-reads once), `status` (+ "stopped coaching you" for 30 days), `leave`, `removeClient`, and `listClients` (batched: this week against the goal, last workout, quiet days, "routine changed by the client")                                                                                                                                                                               |
+| `CoachingContentService`                               | Read-only: `overview` (adherence + last 5 workouts), `workouts` (keyset-paged), `exerciseHistory` (last 8), `routine` (+ the next-session panel per strength row), `routineDto`, `conflictDto`, `nextTarget`. Workouts, adherence and history start **28 days before the link started** (`workoutWindowStart`, Q-2)                                                                                                                                                         |
+| `TrainerRoutineService`                                | The trainer's two write paths: `saveRoutine` (version-checked; only curated exercises may be ADDED, a client's own custom exercise already in the routine may stay but not be added again; supersets normalised; TRAINER path of `replaceDocument`), `createRoutine` (only with no active routine; stamped), `setNextTarget` / `clearNextTarget` (the D5c override with `setById` = the trainer; strength exercise in the active routine, in a bucket one of its rows uses) |
+| `CoachingNoteService`                                  | The private note: `get` / `save` (empty body deletes). Opaque text: never parsed, filtered, logged, analysed or sent to AI; a failed write is rethrown **without its cause** so the body cannot reach the log or Sentry through a Prisma error message; `instrument.ts` `beforeSend` drops the request body of `trainer.client.saveNote`                                                                                                                                    |
+| `CoachingAttributionService`                           | Resolves display names for edit stamps and `setById` for a client at level >= 6 (trainer display names; unknown or deleted = "your trainer"). Used by `RoutineService`, `ProgressionService`, `GymBootstrapService`                                                                                                                                                                                                                                                         |
+| `coaching-dto.mappers.ts`                              | The only place a trainer-facing DTO is built (allow-list, field by field; `coaching-dto.mappers.test.ts` asserts the deep key set from fully populated rows). Excludes session and exercise notes, calories, heart rate, in-progress / discarded sessions, anything derived from body weight, pause reasons, the client's own `notes`                                                                                                                                       |
+
+**Pure code:** `diffRoutineDoc` (`@chefer/utils` `gym/routine-diff.ts`: which rows a save changed; a pure reorder is not a
+change; superset partners are compared, not letters), `buildAdherence` (`@chefer/utils` `coaching/adherence.ts`: 8 weeks
+against the goal + a 14-day strip, pause **dates** only), `explain(…, setBy?)` / `explainInputs(…, setBy?)` ("Set by Ana").
+
+**Gym services changed (additive, all gated on the RAW client API level >= 6):** `RoutineService` (`get` / `save` /
+`setActive` / `setNextDay` take `level`; `save` takes `clearTrainerNoteIds` and stamps every save through
+`diffRoutineDoc`), `ProgressionService` (`setOverride` stamps `setById`; `toDtos` / `forExercises` add
+`override.setByName` and never send `setById`; new `forCoach` for the trainer's panel), `GymBootstrapService` (level 6:
+routine with trainer notes and stamps, `NextWorkoutExerciseDto.trainerNote`, `coaching: { trainerName } | null`),
+`GymContextLoader` (also returns the stored routine row), `client-level.ts` (INTERVALS gate 5 -> 7),
+`PrivacyService.getConsentHistory` / `listMyConsentEvents` (`COACHING_SHARING` rows filtered below level 6),
+`account-data.service.ts` (`exportAccountData` gains a `coaching` section: your trainers and clients by display name,
+your invites, your own private notes; the notes ABOUT a client are not in the client's export by default,
+`COACHING_RETENTION.clientExportIncludesTrainerNotes`, Q-7).
+
+**`CoachingMaintenanceWorker`** (`workers/coaching-maintenance.worker.ts`, started in `index.ts`; hourly tick, work once
+per UTC day, a failed step retries): deletes invites that expired more than 30 days ago, private notes hidden more than
+30 days ago, and `ENDED` links that ended more than 24 months ago (`COACHING_RETENTION`; counsel to confirm). It logs counts
+only.
+
+**Rate limits** (`lib/rate-limit.ts`, in the routers): `coaching.previewInvite` 30/h, `coaching.join` 10/h,
+`trainer.invites.create` 50/day (all per user).
+
 ---
 
 ## 8. tRPC Procedure Map
@@ -2806,6 +2910,51 @@ training? { kind, status: planned|done, workoutName } }`) and `refuelSnacks?`
   client-side: `formatListForSharing` / `formatDinnersForSharing`
   (`@chefer/utils` `share-list.ts`) — no procedure, no AI call.
 
+**Trainer coaching (`trainer.*`, `coaching.*`) — new (WP-18, `docs/trainer-platform/spec.md` §7), dark behind the `coaching`
+flag or `COACHING_ALLOWLIST`; web and mobile.** `coach.*` is Adaptive Chef's weekly review (a different feature), so the
+trainer side is `trainer.*` and the client side `coaching.*`. Routers: `routers/trainer/{index,profile.router,client.router}.ts`,
+`routers/coaching.router.ts`. A denied `trainer.client.*` is always `NOT_FOUND` "This client isn't available";
+coaching off for the caller is `NOT_FOUND`; trainer tools off is `FORBIDDEN` with `error.data.reason = 'TRAINER_TOOLS_OFF'`.
+The input `source` on `join` / `leave` is accepted and ignored (the API derives web/mobile from `x-chefer-client`).
+
+| Procedure                        | Gate (§8 "Middleware Stack")                          | Type     | Input                                                                | Output / notes                                                                                                                                                                                                                                                                                        |
+| -------------------------------- | ----------------------------------------------------- | -------- | -------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `coaching.availability`          | `protectedProcedure` (never gated)                    | Query    | —                                                                    | `{ enabled, canBeTrainer }`: whether any coaching entry point may render                                                                                                                                                                                                                              |
+| `coaching.previewInvite`         | `coachingProcedure`                                   | Query    | `{ code }` (case, spaces, dashes and I/L/O look-alikes normalised)   | `{ state: 'OK' \| 'EXPIRED' \| 'USED' \| 'REVOKED' \| 'SELF' \| 'ALREADY_YOURS' \| 'NOT_FOUND', trainerName \| null, currentTrainerName \| null, needsGymSetup }`. 30/h                                                                                                                               |
+| `coaching.join`                  | `coachingProcedure`                                   | Mutation | `{ code, source? }`                                                  | `CoachingStatusDto`. One transaction: ends the client's other ACTIVE link (`CLIENT`, withdrawn event), creates the link, marks the invite used, records `COACHING_SHARING` granted (`documentVersion = LEGAL_VERSIONS.privacy`, `contextId = link.id`). `PRECONDITION_FAILED` without gym setup. 10/h |
+| `coaching.status`                | `coachingProcedure`                                   | Query    | —                                                                    | `{ trainer: { name, since } \| null, stopped: { trainerName, at } \| null }` (`stopped` = "Ana stopped coaching you", 30 days)                                                                                                                                                                        |
+| `coaching.leave`                 | `coachingProcedure`                                   | Mutation | `{ source? }?`                                                       | `CoachingStatusDto`; the routine, trainer notes and pending targets stay the client's                                                                                                                                                                                                                 |
+| `trainer.status`                 | `coachingProcedure`                                   | Query    | —                                                                    | `{ canActivate, active, displayName \| null }`                                                                                                                                                                                                                                                        |
+| `trainer.activate`               | `coachingProcedure`                                   | Mutation | `{ displayName }` (1-40)                                             | `TrainerStatusDto`; `FORBIDDEN` unless `TRAINER_ALLOWLIST`; word filter                                                                                                                                                                                                                               |
+| `trainer.updateProfile`          | `trainerProcedure`                                    | Mutation | `{ displayName }`                                                    | `TrainerStatusDto`                                                                                                                                                                                                                                                                                    |
+| `trainer.deactivate`             | `trainerProcedure`                                    | Mutation | —                                                                    | `{ ok: true }`; ends every link (`SYSTEM`), revokes invites, hides notes                                                                                                                                                                                                                              |
+| `trainer.invites.list`           | `trainerProcedure`                                    | Query    | —                                                                    | `InviteDto[] { code, url, label, createdAt, expiresAt, state }` (last 30 days); `url` = `APP_URL/coaching/join/<code>`                                                                                                                                                                                |
+| `trainer.invites.create`         | `trainerProcedure`                                    | Mutation | `{ label? }` (<= 60)                                                 | `InviteDto`; max 20 open, none at 50 clients; 50/day                                                                                                                                                                                                                                                  |
+| `trainer.invites.revoke`         | `trainerProcedure`                                    | Mutation | `{ code }`                                                           | `{ ok: true }`; `NOT_FOUND` for a used, revoked or foreign invite                                                                                                                                                                                                                                     |
+| `trainer.clients.list`           | `trainerProcedure`                                    | Query    | `{ today? }?`                                                        | `ClientRowDto[] { clientId, name, since, label, lastWorkoutDate, week: { sessions, goal }, inactiveDays, routineChangedByClientAt }`                                                                                                                                                                  |
+| `trainer.clients.remove`         | `trainerProcedure` + `requireCoachingAccess('write')` | Mutation | `{ clientId }`                                                       | `{ ok: true }`; link ended (`TRAINER`), withdrawn event on the client's log, note hidden                                                                                                                                                                                                              |
+| `trainer.client.overview`        | `… + requireCoachingAccess('read')`                   | Query    | `{ clientId, today }`                                                | `{ client: { name, since }, adherence, recent }` (last 5 workouts)                                                                                                                                                                                                                                    |
+| `trainer.client.workouts`        | `… 'read'`                                            | Query    | `{ clientId, cursor?, limit (<= 20) }`                               | `{ items: CoachedWorkoutDto[], nextCursor }`; from 28 days before the link started                                                                                                                                                                                                                    |
+| `trainer.client.exerciseHistory` | `… 'read'`                                            | Query    | `{ clientId, exerciseId }`                                           | last 8 exposures `{ localDate, sets, lastSetRir }`                                                                                                                                                                                                                                                    |
+| `trainer.client.routine`         | `… 'read'`                                            | Query    | `{ clientId, today? }`                                               | `TrainerRoutineDto \| null`: the client's active routine with `trainerNote`, stamps (only the CLIENT's changes after the link started), and per strength row `next: { repBucket, suggestion, override, lastDoneDate }`                                                                                |
+| `trainer.client.saveRoutine`     | `… 'write'`                                           | Mutation | `{ clientId, routine: TrainerRoutineDoc, expectedVersion }`          | `TrainerRoutineDto`. `CONFLICT` with `error.data.conflict = { kind: 'routine', current: RoutineDto }` exactly like `gym.routine.save` (from the trainer's side: `lastEditedByOther` names the client, the client's `notes` are blanked)                                                               |
+| `trainer.client.createRoutine`   | `… 'write'`                                           | Mutation | `{ clientId, templateKey?, days? }`                                  | `TrainerRoutineDto`; only when the client has no active routine                                                                                                                                                                                                                                       |
+| `trainer.client.setNextTarget`   | `… 'write'`                                           | Mutation | `{ clientId, exerciseId, repBucket, weightKg, reps[] }` (D5c bounds) | `NextTargetDto`; the D5c override with `setById` = the trainer; applied once to the next exposure                                                                                                                                                                                                     |
+| `trainer.client.clearNextTarget` | `… 'write'`                                           | Mutation | `{ clientId, exerciseId, repBucket }`                                | `NextTargetDto`                                                                                                                                                                                                                                                                                       |
+| `trainer.client.note`            | `… requireCoachingAccess('note')`                     | Query    | `{ clientId }`                                                       | `{ body, updatedAt } \| null`                                                                                                                                                                                                                                                                         |
+| `trainer.client.saveNote`        | `… 'note'` (needs the active link to write)           | Mutation | `{ clientId, body (<= 4000) }`                                       | `{ body, updatedAt }`; empty body deletes; never logged                                                                                                                                                                                                                                               |
+
+**Existing procedures that changed for coaching (all additive; fields only for clients at `x-chefer-api-level >= 6`, the RAW
+header, not `effectiveLevel()`):** `gym.bootstrap`, `gym.routine.get` / `save` / `setActive` / `setNextDay`: `RoutineDto`
+gains optional `lastEditedByOther { name, at }`, each row optional `trainerNote` and `lastEditedByOther`;
+`NextWorkoutExerciseDto` gains optional `trainerNote`; `ProgressionDto.override` gains optional `setByName` (the trainer's
+user id is never sent); `GymBootstrap` gains optional `coaching { trainerName } | null` (omitted while coaching is off for
+the user). `gym.routine.save` accepts optional `clearTrainerNoteIds` and never writes `trainerNote` otherwise (an old
+client's full-document save keeps the trainer's notes). `gym.progression.setOverride` stamps `setById` = the caller.
+`privacy.getConsentHistory` / `consentLog` drop `COACHING_SHARING` rows below level 6. `user.exportData` gains `coaching`.
+`profile.flags` gains the key `coaching`. A level-4 client still gets a trainer's next-session target applied (the D5c
+path), worded "You set this target yourself" (accepted gap).
+
 ### Middleware Stack
 
 ```
@@ -2817,9 +2966,12 @@ adminProcedure      → timingMiddleware → isAuthenticated → isAdmin
 friendsProcedure          → protectedProcedure → requireFriendsEnabled        (flag or FRIENDS_ALLOWLIST)
 activeFriendsProcedure    → friendsProcedure → requireActivated               (caller has a SocialProfile)
   .use(requireSocialAccess(scope))  → target visible + scope visible          (scope: header|plan|recipes|workouts)
+coachingProcedure         → protectedProcedure → requireCoachingEnabled       (flag or COACHING_ALLOWLIST; else NOT_FOUND)
+trainerProcedure          → coachingProcedure → requireActiveTrainer          (active TrainerProfile; else FORBIDDEN, reason TRAINER_TOOLS_OFF)
+  .use(requireCoachingAccess(scope)) → an ACTIVE link to input.clientId        (scope: read|write|note; else the uniform NOT_FOUND)
 ```
 
-The three `friends*` bases are in `lib/friends-middleware.ts` (§9 "Following authorization").
+The three `friends*` bases are in `lib/friends-middleware.ts` (§9 "Following authorization"); the two `coaching`/`trainer` bases and `requireCoachingAccess` are in `lib/coaching-middleware.ts` (§9 "Trainer coaching authorization").
 
 `timingMiddleware` runs signed-in requests inside `runWithAiCallContext({ userId, premium })`
 (`lib/ai/call-context.ts`, AsyncLocalStorage); `/api/scan-meal` does the same. It changes no
@@ -2880,27 +3032,29 @@ all, and firing the sheet for the entire existing user base the moment this ship
 the design calls for; it only fires for an account that already went through the new consent
 flow and the document version has since moved past what it recorded.
 
-**Gym client API levels 2–4 (Δ2.1, T-42.0, UX-42, revised 2026-09-28):** `ctx.clientApiLevel`
-gains three more meanings for the gym domain, still the same header/hydration (above) — no new
+**Gym client API levels 2–7 (Δ2.1, T-42.0, UX-42, revised 2026-09-28; 6 and 7 re-numbered 2026-10-04, WP-18):** `ctx.clientApiLevel`
+gains more meanings for the gym domain, still the same header/hydration (above) — no new
 parsing. A level is only ever sent by a bundle that implements it.
 
-| Level | Sent by                                                              | Means the client…                                                                                                                               |
-| ----- | -------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
-| 0     | installed binaries before W0's OTA                                   | knows nothing below                                                                                                                             |
-| 1     | W0+                                                                  | handles the health-consent error (§2.8)                                                                                                         |
-| 2     | wave-1 OTA (T-39.1/T-26.5), incl. the live App Store build 1.0.0 (5) | sign-up consent checkboxes (unrelated to gym) — **renders no cardio**; see the note below                                                       |
-| 3     | W2 L-GYM's OTA (⚖ D-20 b) or W5                                      | renders `trackingType` `DURATION_DISTANCE`/`DISTANCE`, the cardio `SessionSet` fields and the cardio equipment values; logs cardio as one entry |
-| 4     | W3 OTA (L-CONSENT, T-26.3)                                           | shows the health-consent sheet — `HEALTH_CONSENT_ENFORCE=declared` rejects un-consented health writes only from level ≥ 4 (not gym)             |
-| 5     | W5 L-GYMDATA's OTA                                                   | also renders `INTERVALS`, requested exercises (`origin: REQUESTED`, status chips) and routine cardio slots                                      |
+| Level | Sent by                                                              | Means the client…                                                                                                                                                                                                                |
+| ----- | -------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 0     | installed binaries before W0's OTA                                   | knows nothing below                                                                                                                                                                                                              |
+| 1     | W0+                                                                  | handles the health-consent error (§2.8)                                                                                                                                                                                          |
+| 2     | wave-1 OTA (T-39.1/T-26.5), incl. the live App Store build 1.0.0 (5) | sign-up consent checkboxes (unrelated to gym) — **renders no cardio**; see the note below                                                                                                                                        |
+| 3     | W2 L-GYM's OTA (⚖ D-20 b) or W5                                      | renders `trackingType` `DURATION_DISTANCE`/`DISTANCE`, the cardio `SessionSet` fields and the cardio equipment values; logs cardio as one entry                                                                                  |
+| 4     | W3 OTA (L-CONSENT, T-26.3)                                           | shows the health-consent sheet — `HEALTH_CONSENT_ENFORCE=declared` rejects un-consented health writes only from level ≥ 4 (not gym)                                                                                              |
+| 5     | (unused)                                                             | none: INTERVALS was gated here until 2026-10-04, but no bundle implements it yet and levels are cumulative, so a bundle claiming 6 would have claimed INTERVALS support too                                                      |
+| 6     | WP-18 trainer coaching's OTA (`COACHING_API_LEVEL`)                  | shows trainer notes on exercises, "Changed by <trainer>" stamps, "Set by <trainer>" targets, `bootstrap.coaching` and the `COACHING_SHARING` consent-history rows; gated on the RAW level (see "Trainer coaching authorization") |
+| 7     | W5 L-GYMDATA's OTA (`INTERVALS_API_LEVEL`)                           | also renders `INTERVALS`, requested exercises (`origin: REQUESTED`, status chips) and routine cardio slots                                                                                                                       |
 
 `renderableTrackingTypes(level)` (`apps/api/src/application/gym/client-level.ts`, T-42.0) =
 strength types (`WEIGHT_REPS`, `BODYWEIGHT_REPS`) + `DURATION` at every level (a timed exercise —
 plank, carries — already renders on every shipped client) + `DURATION_DISTANCE`/`DISTANCE` at
-level ≥ 3 + `INTERVALS` at level ≥ 5 (moved from 4 on 2026-09-29: wave 3's health consent claimed
-level 4, and the W3 OTA cannot render intervals). **T-42.2 (L-GYM) wired it** into the four read paths
+level ≥ 3 + `INTERVALS` at level ≥ 7 (`INTERVALS_API_LEVEL`; moved from 4 to 5 on 2026-09-29 because wave 3's health consent claimed
+level 4, then to 7 on 2026-10-04 because trainer coaching claimed 6; no shipped bundle sends 5, 6 or 7 yet: web and mobile send `'4'`). **T-42.2 (L-GYM) wired it** into the four read paths
 (`gym.bootstrap`, `gym.library.list`, `gym.session.get`, `gym.session.list` — dropping
 non-renderable library rows and session exercises via `filterExerciseDtosForLevel`/
-`filterSessionExercisesForLevel`). Re-inserting a level < 5 client's stored routine cardio slots
+`filterSessionExercisesForLevel`). Re-inserting a level < 7 client's stored routine cardio slots
 on `gym.routine.save` is still open — routine cardio slots don't exist until W5's S22, so there is
 nothing to re-insert yet. When a client moves up a level, the OTA that bumps it also bumps
 `GYM_CACHE_SCHEMA_VERSION` (mobile `features/gym/offline/query-persistence.ts`) so its persisted
@@ -3014,6 +3168,33 @@ an allow-list DTO built field by field (INV-2). Three layers, none of them an `i
 
 **Resource visibility** (ownership checks inside services, per Architecture Rule 5):
 
+**Trainer coaching authorization (`docs/trainer-platform/spec.md` §8, WP-18).** A client's data is reachable by a trainer only
+through `CoachingAccessService` (`application/coaching/coaching-access.service.ts`); every `trainer.client.*` procedure is
+`trainerProcedure.use(requireCoachingAccess(scope))` (`lib/coaching-middleware.ts`), which reads `clientId` from the raw
+input (a missing or malformed one is `BAD_REQUEST`) and puts the resolved access on `ctx.coachingAccess`.
+
+- **Flags:** `isCoachingEnabledFor(user)` = the `coaching` flag or the user's e-mail on `COACHING_ALLOWLIST`; `canBeTrainer(user)` =
+  that AND the e-mail on `TRAINER_ALLOWLIST` (both comma-separated e-mail lists, case-insensitive, `*` = everyone; §10). The
+  coaching branch of `gym.bootstrap` gates on it too, so the kill switch stops everything at once. `coaching.availability` is
+  the only procedure outside the chain.
+- **Rules, in order** (the access matrix tests are the oracle): 0. coaching is on for the trainer; 1. the trainer has an
+  active `TrainerProfile` (else `FORBIDDEN` + `reason: 'TRAINER_TOOLS_OFF'`, the one non-uniform answer); 2. trainerId is not
+  clientId; 3. an `ACTIVE` `CoachingLink(trainerId, clientId)` exists. Scopes `read` and `write` both need it; `note` needs an
+  active link OR an existing, not-hidden note row (a hidden note is not readable). 4. No cross-request cache, a per-request
+  memo only: ending a link takes effect on the trainer's next request.
+- **One error for every denial:** no link, an `ENDED` link, yourself, a stranger or a random id all throw `NOT_FOUND` "This
+  client isn't available" with the same message and data, never a reason (the INV-3 pattern of Following).
+- **Writes** go only through `TrainerRoutineService` (the routine document and next-session targets), which calls the
+  existing `RoutineRepository.replaceDocument` / `ProgressionService.setOverride` with an actor. The trainer never writes
+  sessions, profile, pauses, rotation or the client's own `notes`.
+- **Consent:** lawful basis is explicit consent (Art. 9(2)(a) with 6(1)(a)), one `COACHING_SHARING` event per grant and per end
+  with `contextId` = the link; `LEGAL_VERSIONS.privacy` is recorded. The privacy policy "Coaching" section and a trainer
+  clause in the terms must be live before the flag goes beyond the allowlists (owner action; `LEGAL_VERSIONS.privacy` bump).
+  DPIA addendum: `docs/trainer-platform/dpia-addendum.md`.
+- **Old clients (spec §10):** every new gym field is gated on `ctx.clientApiLevel >= COACHING_API_LEVEL` (6) and the mappers
+  emit the legacy shape below it (nothing coaching-related is even queried); `COACHING_SHARING` consent rows are filtered
+  out below 6. Rows written before Phase 1 have no stamps and no setter, which reads "the owner".
+
 - **Recipes** — `apps/api/src/application/recipe/recipe-access.ts`. `MANUAL` recipes (written or imported by a user) are private to their creator; `AI` and `CURATED` recipes are open. A recipe already in one of the caller's own plans stays visible whoever made it (`mealPlanRepository.isRecipeInUserPlans`). `mealPlan.getRecipe`, `mealPlan.replaceRecipe`, `recipe.toggleFavourite` (on save), `recipe.toggleUseInNextPlan` (on pin), `recipe.rate` and pinned-favourite placement in `generate` all apply it and answer `NOT_FOUND` for someone else's private recipe; the Saved list never returns one (audit 2026-09-25, F-REC-2-1/F-REC-2-2). Following adds one more way in — the original recipe of someone you follow (see "Following authorization" below).
 - **AI recipe ids are server-minted** — `application/meal-plan/recipe-ids.ts` replaces LLM slug ids with UUIDs before persisting, so a generated recipe can never land on (and inherit the ingredients of) an existing row (F-PLAN-1-1).
 - **Users** — `user.getById` is `adminProcedure`; users read themselves via `user.me` (F-ADM-1-1).
@@ -3077,8 +3258,10 @@ an allow-list DTO built field by field (INV-2). Three layers, none of them an `i
 | `VIDEO_MAX_SECONDS`                               | No                                                                                                                                          | 600                                                             | Longest video the video-link import reads (seconds, max 3600); longer ones are refused before any download                                                                                                                                                                                                                                                                                                                                                    |
 | `VIDEO_MAX_DOWNLOAD_MB`                           | No                                                                                                                                          | 50                                                              | Largest source download yt-dlp may start for the speech step (the mp3 sent to Whisper is ~0.24 MB/min)                                                                                                                                                                                                                                                                                                                                                        |
 | `GROCERY_AI_MOCK_ENABLED`                         | No                                                                                                                                          | true                                                            | Use fixture grocery store data (no Claude call). `false` is the only value that disables the mock. T-BUG-X6/T-00.14: now validated in `env.ts` like every other var — `lib/grocery-ai/index.ts` used to read `process.env` directly                                                                                                                                                                                                                           |
-| `FEATURE_FLAGS`                                   | No                                                                                                                                          | (empty)                                                         | **NEW (§2.9, T-00.8)** — comma list of enabled flag keys (`trainingBumpFree`, `ownTargetsFree`, `householdFirstWeekFree`, `servingsTwoFree`, `budgetFree`, `structuredLinkImportFree`, `cardioLogging`, `friends`; full list in `packages/types/src/feature-flags.ts`). Every flag defaults OFF; exposed by `profile.flags`. Flipping a flag is an env change + restart, no deploy.                                                                           |
+| `FEATURE_FLAGS`                                   | No                                                                                                                                          | (empty)                                                         | **NEW (§2.9, T-00.8)** — comma list of enabled flag keys (`trainingBumpFree`, `ownTargetsFree`, `householdFirstWeekFree`, `servingsTwoFree`, `budgetFree`, `structuredLinkImportFree`, `cardioLogging`, `friends`, `coaching`; full list in `packages/types/src/feature-flags.ts`). Every flag defaults OFF; exposed by `profile.flags`. Flipping a flag is an env change + restart, no deploy.                                                               |
 | `FRIENDS_ALLOWLIST`                               | No                                                                                                                                          | (empty)                                                         | **NEW (Following, F0.3)** — comma-separated user ids who can use Following while the `friends` flag is off. `friends.*` is enabled for a user when `isFriendsEnabledFor(userId) = isFlagEnabled('friends') \|\| allowlist.has(userId)`. Put the owner and test account ids here (`infrastructure/scripts/env.sh`)                                                                                                                                             |
+| `COACHING_ALLOWLIST`                              | No                                                                                                                                          | (empty)                                                         | **NEW (WP-18)** — comma-separated e-mail addresses (case-insensitive, `*` = everyone) who get trainer coaching while the `coaching` flag is off. Read only through `isCoachingEnabledFor` (`lib/coaching-flags.ts`)                                                                                                                                                                                                                                           |
+| `TRAINER_ALLOWLIST`                               | No                                                                                                                                          | (empty)                                                         | **NEW (WP-18, Q-1: invite-only beta)** — comma-separated e-mail addresses (`*` = everyone) who may turn trainer tools on. Needs coaching to be on for them too. Read only through `canBeTrainer`. Production: set both lists, keep the `coaching` flag OFF until counsel and the policy text are done                                                                                                                                                         |
 | `HEALTH_CONSENT_ENFORCE`                          | No                                                                                                                                          | off                                                             | **(§2.8, T-00.8; enforcement built wave 3, T-26.3)** — `off` \| `declared` \| `all`. `off` rejects nothing; `declared` rejects an un-consented health write ONLY from clients declaring `x-chefer-api-level >= 4` (`HEALTH_CONSENT_API_LEVEL`), never a request without the header (installed binaries); `all` rejects every client. Stays `off` in every env file through wave 3 — the flip is wave 4; see `requireHealthConsent` and the rollout note in §9 |
 | `AI_CONSENT_ENFORCE`                              | No                                                                                                                                          | on                                                              | **NEW (R-10, App Store 5.1.2(i))** — `on` \| `off`. `on` (default) refuses a user-triggered AI action from a user with no `aiDataConsentAt` (`AI_CONSENT_REQUIRED`, §9); `off` restores the client-only behaviour (emergency switch). Every shipped client already asks first, so there is no staged rollout                                                                                                                                                  |
 | `POSTHOG_PERSONAL_API_KEY`                        | No                                                                                                                                          | —                                                               | **NEW (T-12.5)** — Personal API key ("Person:Write" scope) used to delete a person's linked analytics events on account deletion. Unset = skip + log (fine for dev, and for any account that never turned on "Link usage to my account")                                                                                                                                                                                                                      |
