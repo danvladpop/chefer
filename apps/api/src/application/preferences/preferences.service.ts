@@ -14,6 +14,7 @@ import {
 import type {
   DisplayCurrency,
   GoalValue,
+  NumbersMode,
   OnboardingIntent,
   OnboardingJob,
   SetDisplayPreferencesInput,
@@ -21,6 +22,7 @@ import type {
   TargetInputs,
   TargetsView,
 } from '@chefer/types';
+import { parseStoredNumbersMode } from '@chefer/types';
 import {
   calorieFloor,
   computeBmrTdee,
@@ -374,6 +376,12 @@ export interface PreferencesDto {
    * since it's read on nearly every screen.
    */
   jobs: OnboardingJob[];
+  /**
+   * WP-08: the stored numbers mode, `FULL` when never set. Additive — the
+   * same value is on `chefProfile.numbersMode` (nullable). Clients render
+   * `effectiveNumbersMode(numbersMode)` (NONE is treated as FULL until WP-16).
+   */
+  numbersMode: NumbersMode;
 }
 
 /**
@@ -461,6 +469,22 @@ export class PreferencesService {
   }
 
   /**
+   * WP-08 "What do you want to keep an eye on?" — free for every tier.
+   * Stores the numbers mode as given (`NONE` is reserved for WP-16 and is
+   * accepted now; clients treat it as FULL via `effectiveNumbersMode`).
+   * Deliberately independent of `showNutritionOnToday`: that flag keeps
+   * its own meaning for older app builds, and the new clients present both
+   * in one card.
+   */
+  async setNumbersMode(
+    userId: string,
+    numbersMode: NumbersMode,
+  ): Promise<{ numbersMode: NumbersMode }> {
+    const profile = await this.chefProfileRepo.upsert(userId, { numbersMode });
+    return { numbersMode: parseStoredNumbersMode(profile.numbersMode) ?? numbersMode };
+  }
+
+  /**
    * A servingSize written by an older app build is the legacy "cooking for
    * N": convert it into household members right away (one people model).
    */
@@ -542,6 +566,7 @@ export class PreferencesService {
         jobs: chefProfile?.onboardingJobs ?? [],
         intent: chefProfile?.onboardingIntent ?? null,
       }),
+      numbersMode: parseStoredNumbersMode(chefProfile?.numbersMode) ?? 'FULL',
     };
   }
 

@@ -3,6 +3,7 @@ export * from './chat-actions';
 export * from './plan-features';
 export * from './gym';
 export * from './preferences';
+export * from './numbers-mode';
 export * from './training-nutrition';
 export * from './household';
 export * from './ai-consent';

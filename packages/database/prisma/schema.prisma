@@ -334,6 +334,9 @@ model ChefProfile {
   trainingWeekdays       Int[]             @default([])
   // Null = derive from goal (bug B-31); explicit true/false overrides it.
   showNutritionOnToday   Boolean?
+  // WP-08: 'FULL' | 'PROTEIN_ONLY' | 'NONE' (numbersModeSchema, @chefer/types).
+  // Null = FULL. A string + Zod enum, so a new mode is never a migration.
+  numbersMode            String?
   // §2.6, rev 2 (UX-06): weekday -> 'lift' | 'run' | 'long_run' | 'rest'
   // (dayKindSchema, @chefer/types). `lift` days come from the routine; the
   // others are set by training.setDayKinds (wave 1).

@@ -1,5 +1,6 @@
 'use client';
 
+import { useNumbersMode } from '@/features/numbers-mode/numbers-mode';
 import { SKIPPED_LABEL, youHadLine } from '@/features/tracker/lib/slot-copy';
 import { mealLabel, slotTargetOf, type SlotFlow } from '@/features/tracker/lib/use-slot-actions';
 import type { RouterOutputs } from '@/lib/trpc';
@@ -12,6 +13,7 @@ import type { RouterOutputs } from '@/lib/trpc';
 type Slot = NonNullable<RouterOutputs['dashboard']['summary']['today']['slots']>[number];
 
 export function TodaySlotNotes({ slots, flow }: { slots: Slot[]; flow: SlotFlow }) {
+  const { proteinOnly } = useNumbersMode();
   const rows = slots.filter((s) => s.status === 'replaced' || s.status === 'skipped');
   if (rows.length === 0) return null;
   return (
@@ -29,7 +31,12 @@ export function TodaySlotNotes({ slots, flow }: { slots: Slot[]; flow: SlotFlow 
               <span className="font-semibold">{mealLabel(s.mealType)}</span>
               {' · '}
               {s.status === 'replaced' && s.replacedBy
-                ? youHadLine(s.replacedBy.name, s.replacedBy.kcal)
+                ? youHadLine(
+                    s.replacedBy.name,
+                    s.replacedBy.kcal,
+                    s.replacedBy.protein,
+                    proteinOnly,
+                  )
                 : SKIPPED_LABEL}
             </p>
             {(s.status === 'skipped' || entryId) && (

@@ -153,6 +153,7 @@ describe('QuickAddSheet — search-first (T-19.1)', () => {
     await user.press(screen.getByTestId('log-sheet-recent-add-recipe:r1'));
     expect(mockLogRecipe).toHaveBeenCalledWith({
       date: '2026-09-26',
+      rebalanceMode: 'preview',
       recipeId: 'r1',
       mealType: 'snack',
       portionMultiplier: 1,
@@ -184,6 +185,7 @@ describe('QuickAddSheet — search-first (T-19.1)', () => {
     await user.press(screen.getByTestId('log-sheet-recent-add-custom:toast'));
     expect(mockLogCustom).toHaveBeenCalledWith({
       date: '2026-09-26',
+      rebalanceMode: 'preview',
       name: 'Toast',
       estimatedBy: 'manual',
       mealType: 'breakfast',
@@ -400,6 +402,7 @@ describe('QuickAddSheet — Enter calories yourself (fallback, T-19.1)', () => {
     await user.press(screen.getByTestId('quick-add-submit'));
     expect(mockLogCustom).toHaveBeenCalledWith({
       date: '2026-09-26',
+      rebalanceMode: 'preview',
       estimatedBy: 'manual',
       name: 'Birthday cake',
       mealType: 'dinner',

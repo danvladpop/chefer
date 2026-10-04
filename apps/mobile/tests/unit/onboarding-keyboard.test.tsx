@@ -67,6 +67,8 @@ jest.mock('../../src/lib/trpc', () => ({
       updateTargets: {
         useMutation: () => ({ mutateAsync: jest.fn(), mutate: jest.fn(), isPending: false }),
       },
+      // WP-08: "Just protein" is saved at Finish.
+      setNumbersMode: { useMutation: () => ({ mutateAsync: jest.fn(), isPending: false }) },
       setDisplayPreferences: {
         useMutation: () => ({ mutateAsync: jest.fn(), mutate: jest.fn(), isPending: false }),
       },

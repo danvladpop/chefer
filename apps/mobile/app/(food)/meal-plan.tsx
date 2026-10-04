@@ -70,10 +70,16 @@ import {
 import { useDayRollover } from '../../src/features/meal-plan/use-day-rollover';
 import { useTailoringWatch } from '../../src/features/meal-plan/use-tailoring-watch';
 import { WeekSummarySheet, type DaySummary } from '../../src/features/meal-plan/week-summary-sheet';
+import { useNumbersMode } from '../../src/features/numbers-mode/numbers-mode';
 import { PlanMissSheet } from '../../src/features/nutrition/plan-miss-sheet';
 import { openPremium } from '../../src/features/premium/open-premium';
 import { ReportSafetySheet } from '../../src/features/safety/report-sheet';
 import { RebalanceBanner } from '../../src/features/tracker/rebalance-banner';
+import {
+  RebalanceMyWeek,
+  RebalanceOffer,
+  useRebalanceCheck,
+} from '../../src/features/tracker/rebalance-offer';
 import { SlotOverflowButton, SlotStatusLine } from '../../src/features/tracker/slot-controls';
 import { SLOT_COPY, youHadText } from '../../src/features/tracker/slot-copy';
 import { useSlotFlow } from '../../src/features/tracker/slot-flow';
@@ -243,6 +249,8 @@ export default function MealPlanScreen() {
   const trainingDays = plan?.trainingDays ?? [];
   const hasTrainingDays = trainingDays.length > 0;
   const fitTrainingDays = fitTrainingPref ?? true;
+  // WP-07: "Rebalance my week" and the miss sheet's protein route share one check.
+  const rebalanceCheck = useRebalanceCheck(plan?.planId);
 
   // Everything derived from the plan lives on other (kept-mounted) tabs —
   // invalidate it all after any plan mutation so Home/Shop don't go stale.
@@ -499,6 +507,8 @@ export default function MealPlanScreen() {
   const costPortions = plan?.estimatedCost?.portions ?? null;
   // Costs are EUR estimates; shown in the user's currency (backlog P2-6).
   const currency = useCurrency();
+  // WP-08: protein-only mode shows protein, never kcal, on the plan's cards, totals and sheets.
+  const { proteinOnly } = useNumbersMode();
 
   // T-07.3/T-07.5: the "how you cook" shape names the empty-week job and
   // feeds the Plan settings sheet — same query everywhere (onboarding,
@@ -874,6 +884,11 @@ export default function MealPlanScreen() {
           >
             {/* A log elsewhere swapped future meals — say which, offer undo */}
             <RebalanceBanner planId={plan.planId} onUndone={() => void refetch()} />
+            {/* WP-07: a log offered a rebalance (preview first), or ask for one here. */}
+            <RebalanceOffer planId={plan.planId} onApplied={() => void refetch()} />
+            {!isPast && weekOffset === 0 && (
+              <RebalanceMyWeek planId={plan.planId} controller={rebalanceCheck} />
+            )}
 
             {/* T-06.7: this week was built around the routine's training days. */}
             {builtAroundTraining && (
@@ -900,8 +915,9 @@ export default function MealPlanScreen() {
             {replanNeeded && (
               <View testID="plan-replan-banner" className="gap-1 rounded-xl bg-blue-50 px-3 py-2">
                 <Text className="text-sm text-blue-800">
-                  This week was planned for {formatKcal(plannedKcal)} kcal. Re-plan with{' '}
-                  {formatKcal(liveKcal)} kcal?
+                  {proteinOnly
+                    ? 'Your targets have changed since this week was planned. Re-plan to match them?'
+                    : `This week was planned for ${formatKcal(plannedKcal)} kcal. Re-plan with ${formatKcal(liveKcal)} kcal?`}
                 </Text>
                 <View className="flex-row gap-2">
                   <Pressable
@@ -1066,7 +1082,7 @@ export default function MealPlanScreen() {
                         slotState?.status === 'replaced' ? (
                           <SlotStatusLine
                             testID={`plan-slot-replaced-${slotIndex}`}
-                            text={youHadText(slotState.entry)}
+                            text={youHadText(slotState.entry, proteinOnly)}
                             actionLabel={slotState.entry.entryId ? SLOT_COPY.remove : undefined}
                             onAction={() => {
                               const entry = slotState.entry;
@@ -1271,6 +1287,7 @@ export default function MealPlanScreen() {
                 dayIndex: i,
                 mealsCount: dayMeals.length,
                 totalKcal: sumPlanDay(dayMeals).kcal,
+                totalProtein: sumPlanDay(dayMeals).protein,
                 isToday: todayIndex === i,
                 training: trainingDays.find((t) => t.dayOfWeek === i),
               };
@@ -1354,6 +1371,7 @@ export default function MealPlanScreen() {
               invalidateDerived();
             }}
             onAddSnack={() => router.push('/tracker')}
+            onRebalance={() => void rebalanceCheck.check()}
           />
 
           <CompareWeeksSheet

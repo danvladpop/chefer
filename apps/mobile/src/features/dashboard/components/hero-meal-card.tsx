@@ -13,7 +13,8 @@ import {
 import { trackMealLogged } from '../../../lib/analytics-events';
 import { getRecipeImageUrl } from '../../../lib/recipe-image';
 import { trpc, type RouterOutputs } from '../../../lib/trpc';
-import { recordRebalance } from '../../tracker/rebalance-store';
+import { useNumbersMode } from '../../numbers-mode/numbers-mode';
+import { REBALANCE_PREVIEW, recordRebalanceOutcome } from '../../tracker/rebalance-offer-store';
 import { SlotOverflowButton } from '../../tracker/slot-controls';
 import { MealTypeBadge } from './meal-type-badge';
 
@@ -38,6 +39,8 @@ export function HeroMealCard({
   onSlotActions?: ((meal: HeroMeal) => void) | undefined;
 }) {
   const utils = trpc.useUtils();
+  // WP-08: protein-only mode shows no kcal on the card.
+  const { proteinOnly } = useNumbersMode();
   const [lastLogged, setLastLogged] = useState<string | null>(null);
   // UX-FOOD-15: the summary refetch moves the card to the NEXT meal under the
   // thumb (a double tap logged dinner at 11 am), so the meal just logged is
@@ -68,8 +71,8 @@ export function HeroMealCard({
     meta: { silent: true },
     onSuccess: (result) => {
       trackMealLogged('planned', meal.mealType);
-      // A premium log can rebalance the week — same hand-off as the tracker.
-      recordRebalance(result.rebalance);
+      // A log can offer to rebalance the week — same hand-off as the tracker.
+      recordRebalanceOutcome(result);
       setLastLogged(meal.recipe.name);
       // Hold the card on this meal (the one that was tapped), then let the
       // refetched summary move it on.
@@ -134,13 +137,20 @@ export function HeroMealCard({
                 {totalMins} min
               </Text>
             </View>
-            <View className="flex-row items-center gap-1">
-              <Ionicons name="flame-outline" size={14} color="#944a00" />
-              <Text className="text-xs text-gray-500">
-                {meal.recipe.kcal} kcal
-                {meal.portion !== undefined && ` · ${formatPortion(meal.portion)} portion`}
-              </Text>
-            </View>
+            {(!proteinOnly || meal.portion !== undefined) && (
+              <View className="flex-row items-center gap-1">
+                <Ionicons name="flame-outline" size={14} color="#944a00" />
+                <Text className="text-xs text-gray-500">
+                  {proteinOnly
+                    ? `${formatPortion(meal.portion ?? 1)} portion`
+                    : `${meal.recipe.kcal} kcal${
+                        meal.portion !== undefined
+                          ? ` · ${formatPortion(meal.portion)} portion`
+                          : ''
+                      }`}
+                </Text>
+              </View>
+            )}
           </View>
         </View>
       </Pressable>
@@ -161,6 +171,7 @@ export function HeroMealCard({
               onPress={() =>
                 logMutation.mutate({
                   date: localDateStr(),
+                  ...REBALANCE_PREVIEW,
                   recipeId: meal.recipe.id,
                   mealType: meal.mealType,
                   // The plan slot, so the second of two identical snacks

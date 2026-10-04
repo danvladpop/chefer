@@ -4,6 +4,7 @@ import { useRef, useState } from 'react';
 import { trpc } from '@/lib/trpc';
 import { QUICK_ADD_MEAL_TYPES, type QuickAddMealType, type SlotRef } from '@chefer/utils';
 import { invalidateDayQueries } from './invalidate';
+import { REBALANCE_PREVIEW } from './rebalance-storage';
 import { useTrackerWrites, type ShowToast } from './use-tracker-writes';
 
 // ─── Flexible eating: "Ate something else" / "Skipped it" (WP-06) ─────────────
@@ -82,7 +83,7 @@ export function useSlotActions(dateStr: string, showToast: ShowToast) {
 
   const skip = (slot: SlotTarget) =>
     writes.skipSlot.mutate(
-      { date: dateStr, mealType: slot.mealType, slotIndex: slot.slotIndex },
+      { ...REBALANCE_PREVIEW, date: dateStr, mealType: slot.mealType, slotIndex: slot.slotIndex },
       {
         onSuccess: () =>
           showToast(`Skipped ${slot.label.toLowerCase()}`, {
@@ -95,6 +96,7 @@ export function useSlotActions(dateStr: string, showToast: ShowToast) {
   const replace = (slot: SlotTarget, input: ReplacementInput) =>
     writes.logReplacement.mutate(
       {
+        ...REBALANCE_PREVIEW,
         date: dateStr,
         name: input.name,
         estimatedBy: input.estimatedBy ?? 'manual',

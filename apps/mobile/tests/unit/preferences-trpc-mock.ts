@@ -30,6 +30,9 @@ export function createTrpcPreferencesMock() {
         updateTargets: { useMutation: jest.fn() },
         saveProfileBasics: { useMutation: jest.fn() },
         setDisplayPreferences: { useMutation: jest.fn() },
+        setNumbersMode: {
+          useMutation: jest.fn(() => ({ mutate: jest.fn(), isPending: false, isError: false })),
+        },
         setHomeDisplay: {
           useMutation: jest.fn(() => ({ mutate: jest.fn(), isPending: false, isError: false })),
         },

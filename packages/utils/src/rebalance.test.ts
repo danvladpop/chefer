@@ -1,9 +1,15 @@
 import { describe, expect, it } from 'vitest';
 import {
+  capProteinScaleFactor,
+  describeProteinSnack,
+  describeRebalanceSwap,
+  describeWeekGap,
+  isLossGoal,
   isPendingFresh,
   mergePendingRebalance,
   parsePendingRebalance,
   rebalanceBannerCopy,
+  rebalanceOfferCopy,
   undoOperations,
   type PendingRebalance,
   type RebalanceResultLike,
@@ -163,5 +169,100 @@ describe('parsePendingRebalance', () => {
     expect(parsePendingRebalance({ planId: 'p', swaps: 'x', createdAt: NOW }, NOW)).toBeNull();
     expect(parsePendingRebalance({ planId: 'p', swaps: [swap()] }, NOW)).toBeNull();
     expect(parsePendingRebalance(pending([swap()], NOW - 25 * HOUR), NOW)).toBeNull();
+  });
+});
+
+describe('describeRebalanceSwap (B-11 one-line explanation)', () => {
+  it('leads with protein for a protein swap', () => {
+    const line = describeRebalanceSwap(
+      swap({
+        dayOfWeek: 6,
+        newRecipeName: 'Chicken bowl',
+        previousProteinG: 20,
+        newProteinG: 48,
+        previousKcal: 700,
+        newKcal: 640,
+        reason: 'protein',
+      }),
+    );
+    expect(line).toBe('Sunday dinner \u2192 Chicken bowl (+28 g protein, \u221260 kcal)');
+  });
+
+  it('leads with kcal for a calorie swap and drops numbers that barely move', () => {
+    const line = describeRebalanceSwap(
+      swap({
+        newRecipeName: 'Light soup',
+        previousProteinG: 30,
+        newProteinG: 32,
+        previousKcal: 900,
+        newKcal: 450,
+        reason: 'calories',
+      }),
+    );
+    expect(line).toBe('Thursday dinner \u2192 Light soup (\u2212450 kcal)');
+  });
+
+  it('falls back to the plain slot line without numbers (older API)', () => {
+    expect(describeRebalanceSwap(swap({ newRecipeName: 'Lentil Curry' }))).toBe(
+      'Thursday dinner \u2192 Lentil Curry',
+    );
+  });
+
+  it('builds the offer sentence, preferring the API explanation', () => {
+    const copy = rebalanceOfferCopy({
+      swaps: [
+        swap({ explanation: 'Sunday dinner \u2192 Chicken bowl (+28 g protein)' }),
+        swap({ dayOfWeek: 5, mealType: 'lunch', newRecipeName: 'Tuna salad' }),
+      ],
+    });
+    expect(copy).toBe(
+      'I can rebalance the rest of your week: Sunday dinner \u2192 Chicken bowl (+28 g protein); Saturday lunch \u2192 Tuna salad.',
+    );
+    expect(rebalanceOfferCopy({ swaps: [] })).toBe('');
+  });
+});
+
+describe('describeWeekGap / describeProteinSnack', () => {
+  it('names the protein gap and the kcal drift', () => {
+    expect(describeWeekGap({ proteinGapG: 36 })).toBe("You're 36 g short on protein this week.");
+    expect(describeWeekGap({ kcalDelta: 620, proteinGapG: 36 })).toBe(
+      "You're about 600 kcal over for the week and 36 g short on protein this week.",
+    );
+    expect(describeWeekGap({ kcalDelta: -40, proteinGapG: 3 })).toBe('');
+  });
+
+  it('describes a snack with its numbers', () => {
+    expect(describeProteinSnack({ id: 'a', name: 'Greek yogurt', proteinG: 17, kcal: 150 })).toBe(
+      'Greek yogurt (+17 g protein, 150 kcal)',
+    );
+  });
+});
+
+describe('capProteinScaleFactor (UX-PLAN-08)', () => {
+  it('holds a loss-goal protein fix to +10 % kcal', () => {
+    expect(capProteinScaleFactor(1.25, 'LOSE_WEIGHT')).toBe(1.1);
+    expect(isLossGoal('LOSE_WEIGHT')).toBe(true);
+  });
+
+  it('leaves other goals and decreases alone', () => {
+    expect(capProteinScaleFactor(1.25, 'GAIN_MUSCLE')).toBe(1.25);
+    expect(capProteinScaleFactor(0.8, 'LOSE_WEIGHT')).toBe(0.8);
+    expect(capProteinScaleFactor(1.25, null)).toBe(1.25);
+  });
+
+  it('returns null when nothing worth offering is left', () => {
+    expect(capProteinScaleFactor(1.02, 'MAINTAIN')).toBeNull();
+  });
+});
+
+describe('undo keeps working with the WP-07 detail fields', () => {
+  it('merges and undoes swaps that carry numbers and an explanation', () => {
+    const detailed = swap({ previousProteinG: 20, newProteinG: 48, reason: 'protein' });
+    const merged = mergePendingRebalance(null, result([detailed]), NOW);
+    expect(merged?.swaps[0]?.reason).toBe('protein');
+    if (!merged) throw new Error('expected a pending rebalance');
+    expect(undoOperations(merged)).toEqual([
+      { planId: 'plan-1', dayOfWeek: 3, mealType: 'dinner', recipeId: 'prev-1' },
+    ]);
   });
 });

@@ -25,7 +25,7 @@ export const SOURCE_FEATURE_PRIORITY: Partial<Record<string, PlanFeatureKey[]>> 
   pantry: ['pantryPlanning', 'budgetAwarePlanning'],
   'post-rating': ['aiMealPlans', 'weeklyAutoGeneration'],
   'monday-nudge': ['weeklyAutoGeneration'],
-  'training-day': ['trainingNutrition', 'aiMealPlans'],
+  'training-day': ['aiMealPlans'],
 };
 
 export type ActivationStepKey = 'profile' | 'household' | 'regenerate' | 'cheferize' | 'snap';

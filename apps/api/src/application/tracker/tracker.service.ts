@@ -7,11 +7,24 @@ import {
   weightEntryRepository,
 } from '@chefer/database';
 import type { DailyLog, LoggedMealEntry, SlotRefJson } from '@chefer/database';
-import type { NutritionTargets, TrainingDayNutrition, UserProfile } from '@chefer/types';
-import { slotPortion } from '@chefer/utils';
+import { parseStoredNumbersMode } from '@chefer/types';
+import type {
+  NumbersMode,
+  NutritionTargets,
+  ProteinGuide,
+  TrainingDayNutrition,
+  UserProfile,
+} from '@chefer/types';
+import { buildProteinGuide, localDateStr, slotPortion } from '@chefer/utils';
 import { hasFeature } from '../../lib/entitlements.js';
 import { planForDate, planForThisWeek } from '../meal-plan/plan-for-date.js';
-import { rebalanceWeek, type RebalanceResult } from '../meal-plan/rebalance.js';
+import {
+  previewRebalance,
+  rebalanceWeek,
+  type RebalanceMode,
+  type RebalancePreview,
+  type RebalanceResult,
+} from '../meal-plan/rebalance.js';
 import { resolveDailyTargets, resolveTargets } from '../preferences/preferences.service.js';
 import { findRecipeVisibleTo } from '../recipe/recipe-access.js';
 import { recipeCopyService } from '../recipe/recipe-copy.service.js';
@@ -35,6 +48,17 @@ import {
 export type { LoggedMealEntry };
 
 // ─── Types ────────────────────────────────────────────────────────────────────
+
+/**
+ * What a log write says about the week rebalance. `rebalance` is today's
+ * field (the swaps already applied, or null) and keeps its shape for shipped
+ * clients. `rebalancePreview` exists only when the client opted in with
+ * `rebalanceMode: 'preview'` (WP-07): the swaps it would make, nothing applied.
+ */
+export type RebalanceOutcome = {
+  rebalance: RebalanceResult | null;
+  rebalancePreview?: RebalancePreview | null;
+};
 
 export interface DayPlanMeal {
   recipeId: string;
@@ -112,6 +136,13 @@ export interface DayTrackerData {
    * entries carrying `replacesSlot`.
    */
   skippedSlots?: SlotRefJson[];
+  /**
+   * WP-08: the stored numbers mode (`FULL` when never set) and the per-meal
+   * protein guide for this day's planned meals (3 when no plan), so a
+   * protein-only client renders without another round trip. Additive.
+   */
+  numbersMode?: NumbersMode;
+  proteinGuide?: ProteinGuide;
   targets: {
     dailyCalorieTarget: number;
     proteinG: number;
@@ -217,7 +248,7 @@ export const trackerService = {
       userId,
       profile,
       { localDate: dateStr, weekday: dayOfWeek },
-      viewer ? hasFeature(viewer, 'trainingNutrition') : false,
+      viewer ? hasFeature(viewer, 'trainingDayTargets') : false,
     );
 
     const plannedMeals: DayPlanMeal[] = [];
@@ -330,6 +361,8 @@ export const trackerService = {
           }
         : null,
       skippedSlots,
+      numbersMode: parseStoredNumbersMode(profile?.numbersMode) ?? 'FULL',
+      proteinGuide: buildProteinGuide(proteinG, plannedMeals.length),
       targets: { dailyCalorieTarget, proteinG, carbsG, fatG },
       ...trainingDayFields(training),
     };
@@ -339,13 +372,13 @@ export const trackerService = {
     user: UserProfile,
     dateStr: string,
     loggedMeals: LoggedMealEntry[],
-  ): Promise<{ log: DailyLog; rebalance: RebalanceResult | null }> {
+    rebalanceMode: RebalanceMode = 'auto',
+  ): Promise<{ log: DailyLog } & RebalanceOutcome> {
     const plannedRecipeIds = await plannedRecipeIdsFor(user.id, dateStr);
     const log = await dailyLogRepository.mutateDay(user.id, dayDate(dateStr), (stored) =>
       mergeLoggedMeals(stored, loggedMeals, plannedRecipeIds),
     );
-    const rebalance = await this.maybeRebalance(user);
-    return { log, rebalance };
+    return { log, ...(await this.rebalanceOutcome(user, rebalanceMode, dateStr)) };
   },
 
   /**
@@ -371,7 +404,8 @@ export const trackerService = {
       portionMultiplier: number;
       slotIndex?: number | undefined;
     },
-  ): Promise<{ log: DailyLog; rebalance: RebalanceResult | null }> {
+    rebalanceMode: RebalanceMode = 'auto',
+  ): Promise<{ log: DailyLog } & RebalanceOutcome> {
     const visible = await findRecipeVisibleTo(user.id, input.recipeId);
     if (!visible) throw new TRPCError({ code: 'NOT_FOUND', message: 'Recipe not found.' });
     const { recipe } = await recipeCopyService.ownedRecipeFor(user.id, visible);
@@ -418,8 +452,7 @@ export const trackerService = {
         };
       },
     );
-    const rebalance = await this.maybeRebalance(user);
-    return { log, rebalance };
+    return { log, ...(await this.rebalanceOutcome(user, rebalanceMode, dateStr)) };
   },
 
   /**
@@ -485,7 +518,8 @@ export const trackerService = {
       unknownMacros?: ('protein' | 'carbs' | 'fat')[] | undefined;
       replacesSlot?: SlotRefJson | undefined;
     },
-  ): Promise<{ log: DailyLog; rebalance: RebalanceResult | null; entryId: string }> {
+    rebalanceMode: RebalanceMode = 'auto',
+  ): Promise<{ log: DailyLog; entryId: string } & RebalanceOutcome> {
     // The new row's id is minted here so the client can offer an exact Undo
     // (UX-FOOD-26) — additive: older clients ignore the extra field.
     const entryId = newEntryId();
@@ -517,8 +551,7 @@ export const trackerService = {
         skippedSlots: replaces ? skippedSlots.filter((s) => !sameSlot(s, replaces)) : skippedSlots,
       }),
     );
-    const rebalance = await this.maybeRebalance(user);
-    return { log, rebalance, entryId };
+    return { log, entryId, ...(await this.rebalanceOutcome(user, rebalanceMode, dateStr)) };
   },
 
   /**
@@ -533,7 +566,8 @@ export const trackerService = {
     user: UserProfile,
     dateStr: string,
     slot: SlotRefJson,
-  ): Promise<{ log: DailyLog; skippedSlots: SlotRefJson[]; rebalance: RebalanceResult | null }> {
+    rebalanceMode: RebalanceMode = 'auto',
+  ): Promise<{ log: DailyLog; skippedSlots: SlotRefJson[] } & RebalanceOutcome> {
     const log = await dailyLogRepository.mutateDayState(
       user.id,
       dayDate(dateStr),
@@ -552,8 +586,11 @@ export const trackerService = {
         };
       },
     );
-    const rebalance = await this.maybeRebalance(user);
-    return { log, skippedSlots: parseSkippedSlots(log.skippedSlots), rebalance };
+    return {
+      log,
+      skippedSlots: parseSkippedSlots(log.skippedSlots),
+      ...(await this.rebalanceOutcome(user, rebalanceMode, dateStr)),
+    };
   },
 
   /** Undo of `skipSlot`. A no-op when the slot is not skipped (a retried Undo). */
@@ -724,7 +761,8 @@ export const trackerService = {
     user: UserProfile,
     fromDateStr: string,
     toDateStr: string,
-  ): Promise<{ log: DailyLog; copiedEntryIds: string[]; rebalance: RebalanceResult | null }> {
+    rebalanceMode: RebalanceMode = 'auto',
+  ): Promise<{ log: DailyLog; copiedEntryIds: string[] } & RebalanceOutcome> {
     const fromLog = await dailyLogRepository.findByDate(user.id, dayDate(fromDateStr));
     const sourceEntries = (fromLog?.loggedMeals as unknown as LoggedMealEntry[] | null) ?? [];
     const copies: LoggedMealEntry[] = sourceEntries.map((m) => {
@@ -735,8 +773,11 @@ export const trackerService = {
       ...stored,
       ...copies,
     ]);
-    const rebalance = await this.maybeRebalance(user);
-    return { log, copiedEntryIds: copies.map((c) => c.entryId!), rebalance };
+    return {
+      log,
+      copiedEntryIds: copies.map((c) => c.entryId!),
+      ...(await this.rebalanceOutcome(user, rebalanceMode, toDateStr)),
+    };
   },
 
   /**
@@ -782,22 +823,50 @@ export const trackerService = {
   },
 
   /**
-   * F4 rebalance hook — runs after any log write. Premium-only (gated by the
-   * photoLogging matrix key: free tier logs honestly but the chef doesn't
-   * re-plan the week). Failures are swallowed: a broken rebalance must never
-   * fail the log save itself.
+   * F4 rebalance hook — runs after any log write. Free for everyone since
+   * WP-07 (`weekRebalance`: it swaps curated meals, no AI). Failures are
+   * swallowed: a broken rebalance must never fail the log save itself.
+   *
+   * `auto` (what shipped clients get, and the default) applies the swaps and
+   * returns them in `rebalance`. `preview` (new clients that send
+   * `rebalanceMode: 'preview'`, UX-PLAN-09) changes nothing: `rebalance` is
+   * null and `rebalancePreview` carries the swaps to show; the client applies
+   * them with `mealPlan.applyRebalance`. `dateStr` is the logged day: when it
+   * is ahead of the server's today (a client east of UTC after its midnight)
+   * the preview is anchored on it.
    */
-  async maybeRebalance(user: UserProfile): Promise<RebalanceResult | null> {
-    if (!hasFeature(user, 'photoLogging')) return null;
+  async rebalanceOutcome(
+    user: UserProfile,
+    mode: RebalanceMode = 'auto',
+    dateStr?: string,
+  ): Promise<RebalanceOutcome> {
+    if (!hasFeature(user, 'weekRebalance')) {
+      return mode === 'preview' ? { rebalance: null, rebalancePreview: null } : { rebalance: null };
+    }
     try {
+      if (mode === 'preview') {
+        const serverToday = localDateStr(new Date());
+        const localDate = dateStr && dateStr > serverToday ? dateStr : serverToday;
+        const plan = await planForDate(mealPlanRepository, user.id, localDate);
+        if (!plan) return { rebalance: null, rebalancePreview: null };
+        return {
+          rebalance: null,
+          rebalancePreview: await previewRebalance(user.id, plan.id, { localDate }),
+        };
+      }
       // Only the current week is ever rebalanced (UX-PLAN-09).
       const plan = await planForThisWeek(mealPlanRepository, user.id);
-      if (!plan) return null;
-      return await rebalanceWeek(user.id, plan.id);
+      if (!plan) return { rebalance: null };
+      return { rebalance: await rebalanceWeek(user.id, plan.id) };
     } catch (err) {
       console.error('[tracker] rebalanceWeek failed (log save unaffected):', err);
-      return null;
+      return mode === 'preview' ? { rebalance: null, rebalancePreview: null } : { rebalance: null };
     }
+  },
+
+  /** The apply-at-once rebalance only (kept for callers that never preview). */
+  async maybeRebalance(user: UserProfile): Promise<RebalanceResult | null> {
+    return (await this.rebalanceOutcome(user, 'auto')).rebalance;
   },
 
   /**
