@@ -1,7 +1,11 @@
 import { useEffect, useImperativeHandle, useState, type Ref } from 'react';
 import { Pressable, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { findSafetyTaxonomyEntry, safetyTaxonomyEntriesByGroup } from '@chefer/types';
+import {
+  findSafetyTaxonomyEntry,
+  safetyPickerEntries,
+  safetyTaxonomyEntriesByGroup,
+} from '@chefer/types';
 import { ChipGroup, Input, Text } from '@chefer/ui-mobile';
 import {
   applySafetyTerm,
@@ -74,7 +78,8 @@ export function SafetyPicker({
   };
 
   // ── Allergies ────────────────────────────────────────────────────────────
-  const allergyOptions = safetyTaxonomyEntriesByGroup('allergy').map((e) => ({
+  // Legacy "Shellfish" is offered only while already selected (UX-ACC-06 follow-up).
+  const allergyOptions = safetyPickerEntries('allergy', classified.allergyIds).map((e) => ({
     value: e.id,
     label: e.label,
   }));
