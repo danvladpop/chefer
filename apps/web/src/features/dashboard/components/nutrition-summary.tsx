@@ -33,7 +33,7 @@ export function NutritionSummary({
   targetMode,
   remainingPlannedKcal,
 }: NutritionSummaryProps) {
-  // Premium lifters on a training day get the bumped targets (audit P2-4);
+  // Lifters on a training day get the bumped targets (free since WP-07) (audit P2-4);
   // everyone else keeps the base targets the older fields carry.
   const target = n.adjustedTargets ?? {
     dailyCalorieTarget: n.dailyCalorieTarget,

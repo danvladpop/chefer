@@ -30,7 +30,10 @@ const m = vi.hoisted(() => ({
 const rebalance = { rebalanced: false, swaps: [], projectedDeviation: 0, planId: 'p' };
 
 vi.mock('@/lib/analytics', () => ({ capture: vi.fn() }));
-vi.mock('../lib/rebalance-storage', () => ({ handleRebalanceResult: vi.fn() }));
+vi.mock('../lib/rebalance-storage', () => ({
+  handleRebalanceOutcome: vi.fn(),
+  REBALANCE_PREVIEW: { rebalanceMode: 'preview' },
+}));
 vi.mock('@/lib/trpc', () => ({
   trpc: {
     useUtils: () => ({
@@ -133,6 +136,8 @@ describe('QuickAddSheet — search-first (T-19.1)', () => {
       recipeId: 'r1',
       mealType: 'snack',
       portionMultiplier: 1,
+      // WP-07: log writes ask for an offer, never a silent rebalance.
+      rebalanceMode: 'preview',
     });
     expect(onLogged).toHaveBeenCalled();
   });
@@ -312,6 +317,7 @@ describe('QuickAddSheet — Enter calories yourself (fallback, T-19.1)', () => {
       fat: 18.5,
       // UX-FOOD-11: the blank protein is unknown, not a typed 0 g
       unknownMacros: ['protein'],
+      rebalanceMode: 'preview',
     });
   });
 

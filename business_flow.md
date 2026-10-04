@@ -2068,17 +2068,51 @@ rebalanceWeek / previewRebalance(userId, planId)   [application/meal-plan/rebala
 Every swap carries a one-line explanation (`describeRebalanceSwap`, shared by
 mobile and web): "Sunday dinner → Chicken bowl (+28 g protein, −60 kcal)".
 
-The client hands the swap pairs to localStorage
+**Web.** Every log write on web (tracker tick / copy day / skip / "Ate
+something else", quick add, photo scan, Today's "I ate this" and Tonight card,
+cook-mode "Made it!") sends `rebalanceMode: 'preview'` (`REBALANCE_PREVIEW` in
+`features/tracker/lib/rebalance-storage.ts`). A non-null `rebalancePreview` is
+parked in localStorage as an **offer** (`handleRebalanceOutcome`; a later log
+that finds nothing to offer retires it; it expires after 6 h) and
+`RebalanceBanner` renders it as `RebalanceOfferCard` on the tracker, Today,
+cook mode and the plan: the headline ("You're 36 g short on protein this
+week."), one line saying how many coming meals would change, and
+**Preview · Apply · Not now**, with the actions stacked UNDER the text so a
+320 px screen never squeezes them. **Preview** expands each swap's one-line
+explanation (`explanation ?? describeRebalanceSwap`) and any protein snacks.
+**Apply** calls `mealPlan.applyRebalance` with exactly the swaps shown, then
+feeds the result to `handleRebalanceResult` (the Undo hand-off below) and
+refetches the plan; if the week moved on (`rebalanced: false`) it says "Those
+meals have changed since, so nothing was swapped." **Not now** only discards
+the offer: no mutation, no Undo. The plan page has a **Rebalance my week**
+button (current week) that opens a sheet backed by `mealPlan.previewRebalance`
+and shows the same offer with the list open, or "Your week is on track" when the
+query returns `null`.
+
+The client hands the swap pairs of an APPLIED rebalance to localStorage
 (`features/tracker/lib/rebalance-storage.ts`), MERGED with any still-pending
 swaps (`@chefer/utils` `mergePendingRebalance` — a second rebalance used to
 erase the first one's undo, F-TRK-3-2). The banner ("I adjusted Thursday
 dinner to keep your week on track") shows where the log happened (tracker,
-cook-mode finish) and on the meal-plan page, with one-tap
-**undo**, which replays `mealPlan.replaceRecipe(previousRecipeId)` per swap.
+Today, cook-mode finish) and on the meal-plan page, with one-tap
+**undo**, which replays `mealPlan.replaceRecipe(previousRecipeId, pinned: false)`
+per swap (a rebalance only ever swaps un-pinned slots, so an undone slot does not
+become "Your pick").
 Undo is per-device and expires after 24 h — nothing about the swap pairs is
 stored server-side (wave-0 schema freeze). Analytics: `week_rebalanced` fires
-on the client when a log's response carries an applied rebalance. Failures in
+on the client when an applied rebalance is recorded. Failures in
 the rebalance path never fail the log save itself.
+
+**Plan-miss sheet (UX-PLAN-08, web + mobile).** On a weight-loss goal "Bigger
+portions" is held to +10 % (`capProteinScaleFactor`, "Held to +10% on your
+weight-loss goal"), and a protein gap is answered first with "Add a protein
+snack" instead of a large kcal increase; other goals keep the full step.
+
+**Premium copy (WP-07).** The week rebalance and training-day targets are not
+sold anywhere on web: no `/premium` card or "free equivalent" label for
+`trainingNutrition`, no locked "Premium adds this" line on Today / the tracker
+(`training-day-note` is information only when the server does not apply the
+bump), and the photo-scan pitch sells the scan alone.
 
 **Mobile** (P1-7, 2026-09-26): every logging surface (tracker Save Day, quick
 add, photo scan, cook-mode log) feeds the response's `rebalance` into
@@ -2089,9 +2123,8 @@ swapped twice keeps its original recipe for undo, a slot swapped back drops
 out; another plan or a stale hand-off is replaced) — so a second rebalance no
 longer destroys the first one's undo (audit F-TRK-3-2). The banner with Undo
 / Dismiss renders **where the log happened** (tracker, cook-mode finish) and
-on the Plan tab (filtered to the displayed plan). Web still overwrites and
-shows the banner only on the meal-plan page — reverse row in
-`mobile_parity_backlog.md`.
+on the Plan tab (filtered to the displayed plan). Web does the same (merge,
+banner on every logging surface and the plan).
 
 Routing: Caddy sends `/api/scan-meal` to the API in production; a Next.js
 rewrite proxies it in dev.

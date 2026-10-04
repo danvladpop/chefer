@@ -65,7 +65,7 @@ const PREMIUM_FEATURES = [
     icon: '📸',
     title: 'Snap a photo, log the meal',
     description:
-      "Photograph any plate — restaurant, leftovers, grandma's — and the chef estimates the dish and macros, then rebalances your week.",
+      "Photograph any plate — restaurant, leftovers, grandma's — and the chef estimates the dish and macros, then logs it to your day.",
   },
   {
     icon: '🔗',

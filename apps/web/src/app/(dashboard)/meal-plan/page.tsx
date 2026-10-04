@@ -16,6 +16,7 @@ import {
   type PremiumChangesData,
 } from '@/features/meal-plan/components/PremiumChangesCard';
 import { RebalanceBanner } from '@/features/meal-plan/components/RebalanceBanner';
+import { RebalanceMyWeekButton } from '@/features/meal-plan/components/RebalanceMyWeek';
 import {
   ReplaceMealSheet,
   type ReplaceMealResult,
@@ -727,6 +728,9 @@ export default function MealPlanPage() {
             Cook once, eat twice
           </button>
         )}
+
+        {/* WP-07: the week rebalance, reachable without logging first. Free. */}
+        {isCurrent && plan && !loadFailed && <RebalanceMyWeekButton planId={plan.planId} />}
 
         {/* T-07.6: opens the shared "how you cook" plan settings sheet. */}
         {!isPast && (

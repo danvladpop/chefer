@@ -10,7 +10,7 @@ import { trpc } from '@/lib/trpc';
 import { Camera, Loader2, Sparkles } from 'lucide-react';
 import { Sheet } from '@chefer/ui';
 import { userFacingErrorMessage, type SlotRef } from '@chefer/utils';
-import { handleRebalanceResult } from '../lib/rebalance-storage';
+import { handleRebalanceOutcome, REBALANCE_PREVIEW } from '../lib/rebalance-storage';
 import {
   scanMealPhoto,
   ScanUpgradeRequiredError,
@@ -90,7 +90,7 @@ export function ScanMealButton({
       capture('meal_scanned', { confirmed: true });
       // UX-PO-02: a photo scan, confirmed and logged.
       trackMealLogged('snap', variables.mealType);
-      handleRebalanceResult(data.rebalance);
+      handleRebalanceOutcome(data);
       setEstimate(null);
       setPhotoUrl(null);
       onLogged();
@@ -218,6 +218,7 @@ export function ScanMealButton({
             type="button"
             onClick={() =>
               logMutation.mutate({
+                ...REBALANCE_PREVIEW,
                 date,
                 name: name.trim() || 'Scanned meal',
                 estimatedBy: 'vision',
@@ -314,8 +315,7 @@ export function ScanMealButton({
           <DemoScan />
           <p className="mt-4 text-sm text-neutral-600">
             Photograph any plate — restaurant, leftovers, grandma&apos;s — and the chef estimates
-            the dish and macros, logs it, and quietly rebalances the rest of your week to keep you
-            on track.
+            the dish and macros, and logs it to your day.
           </p>
         </div>
       </Sheet>

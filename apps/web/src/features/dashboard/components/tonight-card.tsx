@@ -6,7 +6,10 @@ import { useState } from 'react';
 import { StarRatingWidget } from '@/features/recipe/components/StarRatingWidget';
 import { CheckedForChip } from '@/features/safety/components/CheckedForChip';
 import { SlotActionsMenu } from '@/features/tracker/components/SlotActionsMenu';
-import { handleRebalanceResult } from '@/features/tracker/lib/rebalance-storage';
+import {
+  handleRebalanceOutcome,
+  REBALANCE_PREVIEW,
+} from '@/features/tracker/lib/rebalance-storage';
 import { SKIPPED_LABEL, youHadLine } from '@/features/tracker/lib/slot-copy';
 import { slotTargetOf, type SlotFlow } from '@/features/tracker/lib/use-slot-actions';
 import { trackMealLogged } from '@/lib/analytics-events';
@@ -70,7 +73,7 @@ export function TonightCard({
     onSuccess: (result, variables) => {
       // UX-PO-02: Tonight ticks the planned dinner.
       trackMealLogged('planned', variables.mealType);
-      handleRebalanceResult(result.rebalance);
+      handleRebalanceOutcome(result);
       void utils.dashboard.summary.invalidate();
       void utils.tracker.getDay.invalidate();
       void utils.tracker.weeklySummary.invalidate();
@@ -251,6 +254,7 @@ export function TonightCard({
             data-testid="tonight-ate-this"
             onClick={() =>
               logMutation.mutate({
+                ...REBALANCE_PREVIEW,
                 date: localDateStr(),
                 recipeId: meal.recipe.id,
                 mealType: meal.mealType,
