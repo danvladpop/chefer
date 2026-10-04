@@ -5,6 +5,7 @@ import {
   MealPlanOrigin,
   mealPlanRepository,
   mealRatingRepository,
+  parseSkippedSlots,
   type LoggedMealEntry,
   type TargetChange,
 } from '@chefer/database';
@@ -23,9 +24,11 @@ import {
   isSlotEaten,
   MEAL_ORDER,
   MEAL_WINDOW_END,
+  replacementFor,
   resolveTodayMeals,
   slotPortion,
   TRACK_INFERENCE_MIN_DAYS,
+  type SlotStatus,
 } from '@chefer/utils';
 import type { NutritionInfo } from '../../lib/ai/index.js';
 import type { SafetyCheckable } from '../../lib/curated-recipes/safety.js';
@@ -79,6 +82,18 @@ export interface DashboardShopDue {
   forDate: string;
 }
 
+/**
+ * WP-06: one of today's plan slots and what became of it — additive, on
+ * `today.slots`. `replacedBy` is the custom entry the user logged instead
+ * ("You had: Shawarma"); its numbers are in `nutrition.eatenKcal`.
+ */
+export interface DashboardTodaySlot {
+  slotIndex: number;
+  mealType: string;
+  status: SlotStatus;
+  replacedBy?: { entryId?: string; name: string; kcal: number; protein: number };
+}
+
 export interface DashboardPlanVsTarget {
   plannedKcal: number;
   targetKcal: number;
@@ -96,7 +111,15 @@ export interface DashboardPendingTargetChange {
 
 export interface DashboardSummary {
   user: { firstName: string | null; displayName: string | null };
-  today: { date: string; dayOfWeek: number };
+  today: {
+    date: string;
+    dayOfWeek: number;
+    /**
+     * WP-06: every planned slot of today with its status (planned / eaten /
+     * replaced / skipped), in plan order. Absent without a plan. Additive.
+     */
+    slots?: DashboardTodaySlot[];
+  };
   /** §2.4, T-04.2: the active plan's id, or null with no plan for this week — additive. */
   planId: string | null;
   /** §2.4, T-03.1/T-04.1: the effective jobs list (`effectiveJobs()`) — additive. */
@@ -457,12 +480,30 @@ export class DashboardService {
     const todayDay = plan.days.find((d: { dayOfWeek: number }) => d.dayOfWeek === todayIndex);
     const todayMeals = todayDay ? (todayDay.meals as MealSlot[]) : [];
 
+    // Next meal and rest of today — resolved by meal TYPE against the meals
+    // this plan actually contains, skipping any meal already logged today:
+    // after "Made it!" on dinner the spotlight moves on instead of offering
+    // the same dinner again (audit F-PM-10). Shared with the clients via
+    // @chefer/utils resolveTodayMeals, which also puts them in day order.
+    // Every slot counts: a curated day can hold two snacks, and picking the
+    // first slot per type used to hide the second one from Today.
+    // WP-06: a slot the user replaced counts as eaten, a skipped one is
+    // neither eaten nor remaining; both also leave the planned totals below.
+    const orderedMeals = todayMeals
+      .map((slot, slotIndex) => ({ ...slot, slotIndex }))
+      .filter((slot) => recipeMap.has(slot.recipeId));
+    const loggedToday = (todayLog?.loggedMeals as unknown as LoggedMealEntry[] | null) ?? [];
+    const skippedToday = parseSkippedSlots(todayLog?.skippedSlots);
+    const resolved = resolveTodayMeals(orderedMeals, currentHourLocal, loggedToday, skippedToday);
+    const outOfPlan = new Set([...resolved.replaced, ...resolved.skipped].map((s) => s.slotIndex));
+
     // Compute planned kcal + macros for today
     let plannedKcal = 0;
     let plannedProtein = 0;
     let plannedCarbs = 0;
     let plannedFat = 0;
-    for (const slot of todayMeals) {
+    for (const [slotIndex, slot] of todayMeals.entries()) {
+      if (outOfPlan.has(slotIndex)) continue;
       const recipe = recipeMap.get(slot.recipeId);
       if (recipe) {
         const n = recipe.nutritionInfo as unknown as NutritionInfo;
@@ -474,18 +515,37 @@ export class DashboardService {
       }
     }
 
-    // Next meal and rest of today — resolved by meal TYPE against the meals
-    // this plan actually contains, skipping any meal already logged today:
-    // after "Made it!" on dinner the spotlight moves on instead of offering
-    // the same dinner again (audit F-PM-10). Shared with the clients via
-    // @chefer/utils resolveTodayMeals, which also puts them in day order.
-    // Every slot counts: a curated day can hold two snacks, and picking the
-    // first slot per type used to hide the second one from Today.
-    const orderedMeals = todayMeals
-      .map((slot, slotIndex) => ({ ...slot, slotIndex }))
-      .filter((slot) => recipeMap.has(slot.recipeId));
-    const loggedToday = (todayLog?.loggedMeals as unknown as LoggedMealEntry[] | null) ?? [];
-    const resolved = resolveTodayMeals(orderedMeals, currentHourLocal, loggedToday);
+    const slotStatusOf = (slotIndex: number): SlotStatus =>
+      resolved.replaced.some((s) => s.slotIndex === slotIndex)
+        ? 'replaced'
+        : resolved.skipped.some((s) => s.slotIndex === slotIndex)
+          ? 'skipped'
+          : resolved.eaten.some((s) => s.slotIndex === slotIndex)
+            ? 'eaten'
+            : 'planned';
+    const todaySlots: DashboardTodaySlot[] = orderedMeals.map((slot) => {
+      const status = slotStatusOf(slot.slotIndex);
+      const entry =
+        status === 'replaced'
+          ? replacementFor(
+              { type: slot.type, recipeId: slot.recipeId, slotIndex: slot.slotIndex },
+              loggedToday,
+            )
+          : undefined;
+      return {
+        slotIndex: slot.slotIndex,
+        mealType: slot.type,
+        status,
+        ...(entry && {
+          replacedBy: {
+            ...(entry.entryId && { entryId: entry.entryId }),
+            name: entry.custom?.name ?? 'Something else',
+            kcal: entry.kcal,
+            protein: entry.protein,
+          },
+        }),
+      };
+    });
 
     const toHeroMeal = (
       slot: MealSlot & { slotIndex?: number },
@@ -637,6 +697,7 @@ export class DashboardService {
       today: {
         date: formatDayLabel(now),
         dayOfWeek: todayIndex,
+        slots: todaySlots,
       },
       planId: plan.id,
       jobs,
