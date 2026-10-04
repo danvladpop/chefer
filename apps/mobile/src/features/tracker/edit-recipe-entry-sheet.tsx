@@ -1,9 +1,13 @@
 import { useEffect, useState } from 'react';
 import { View } from 'react-native';
 import { Button, SegmentedControl, Sheet, Text } from '@chefer/ui-mobile';
-import { formatPortion, QUICK_ADD_MEAL_TYPES, type QuickAddMealType } from '@chefer/utils';
+import {
+  formatPortion,
+  proteinLabel,
+  QUICK_ADD_MEAL_TYPES,
+  type QuickAddMealType,
+} from '@chefer/utils';
 import { useNumbersMode } from '../numbers-mode/numbers-mode';
-import { proteinLabel } from '../numbers-mode/numbers-mode-copy';
 
 // Edit or remove a logged recipe that is no longer on the day's plan — the
 // "Also eaten" rows (UX-FOOD-03). A mis-log or a stale one used to be

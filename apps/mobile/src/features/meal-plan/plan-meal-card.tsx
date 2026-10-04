@@ -3,12 +3,17 @@ import { View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { Text } from '@chefer/ui-mobile';
-import { conflictText, formatPortion, slotPortion, verifiedLabels } from '@chefer/utils';
+import {
+  conflictText,
+  formatPortion,
+  proteinLabel,
+  slotPortion,
+  verifiedLabels,
+} from '@chefer/utils';
 import { AiGeneratedChip } from '../../components/ai-generated-chip';
 import type { RouterOutputs } from '../../lib/trpc';
 import { NutritionStatusTag } from '../ingredients/nutrition-provenance';
 import { useNumbersMode } from '../numbers-mode/numbers-mode';
-import { proteinLabel } from '../numbers-mode/numbers-mode-copy';
 import { AllergenWarningChip } from '../recipes/allergen-warning';
 import { CheckedForChip } from '../safety/checked-for-chip';
 import { MealCardView } from './meal-card-view';

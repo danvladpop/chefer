@@ -1,16 +1,27 @@
 import type { PlanTrainingBasis, PlanTrainingDay } from '@chefer/types';
+import { formatNumber } from './format';
+import { joinDayNames, trainingKindLabel, weekdayShortName } from './plan-training';
 import {
   describeRebalanceSwap,
-  formatNumber,
-  joinDayNames,
-  trainingKindLabel,
-  weekdayShortName,
   type RebalanceSnackLike,
   type RebalanceSwapLike,
-} from '@chefer/utils';
+} from './rebalance';
 
 // Copy and small formatters for protein-only mode (WP-08). Pure, so every
 // surface words the same number the same way.
+
+/**
+ * "What do you want to keep an eye on?" (onboarding's goal step and Preferences →
+ * Your targets), the same words on web and mobile. NONE is reserved for WP-16
+ * and is not offered.
+ */
+export const NUMBERS_MODE_COPY = {
+  question: 'What do you want to keep an eye on?',
+  fullTitle: 'Calories and macros',
+  fullDetail: 'Calories, protein, carbs and fat on Today and in the tracker.',
+  proteinTitle: 'Just protein',
+  proteinDetail: 'One number: protein. Your week still balances the rest in the background.',
+} as const;
 
 /** How many kcal one gram of protein stands for when only protein was entered. */
 export const PROTEIN_ONLY_KCAL_PER_PROTEIN_G = 16;

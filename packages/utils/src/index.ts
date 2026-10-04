@@ -842,3 +842,21 @@ export {
   buildProteinGuide,
   explainProteinTarget,
 } from './protein-guide';
+
+// ─── Protein-only mode copy (WP-08), shared by mobile and web ────────────────
+export {
+  NUMBERS_MODE_COPY,
+  PROTEIN_ONLY_KCAL_PER_PROTEIN_G,
+  describeSnackProteinOnly,
+  describeSwapProteinOnly,
+  estimateKcalFromProtein,
+  nutritionLabel,
+  proteinAverageText,
+  proteinLabel,
+  proteinOnlyHeadline,
+  proteinOnlyOfferCopy,
+  proteinOnlyTrainingExplain,
+  proteinOnlyTrainingHeader,
+  proteinRingLabel,
+  withoutKcalLines,
+} from './numbers-mode-copy';

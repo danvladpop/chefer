@@ -8,6 +8,7 @@ import {
   cn,
   defaultMealSlot,
   PREMIUM_PITCH_COPY,
+  proteinLabel,
   QUICK_ADD_LIMITS,
   showSnapTaste,
   userFacingErrorMessage,
@@ -26,7 +27,6 @@ import { photoPickerOptions, preparePhoto } from '../../lib/prepare-photo';
 import { trpc } from '../../lib/trpc';
 import { useAiConsent } from '../ai-consent/ai-consent-provider';
 import { useNumbersMode } from '../numbers-mode/numbers-mode';
-import { proteinLabel } from '../numbers-mode/numbers-mode-copy';
 import { openPremium } from '../premium/open-premium';
 import { invalidateDayQueries } from './invalidate';
 import { REBALANCE_PREVIEW, recordRebalanceOutcome } from './rebalance-offer-store';

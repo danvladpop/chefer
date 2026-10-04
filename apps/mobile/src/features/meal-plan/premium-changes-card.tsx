@@ -1,9 +1,8 @@
 import { Pressable, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Button, Card, colors, Text } from '@chefer/ui-mobile';
-import { joinDayNames, weekdayShortName } from '@chefer/utils';
+import { joinDayNames, weekdayShortName, withoutKcalLines } from '@chefer/utils';
 import { useNumbersMode } from '../numbers-mode/numbers-mode';
-import { withoutKcalLines } from '../numbers-mode/numbers-mode-copy';
 
 // ─── What Premium changed (UX-10 §8, T-10.7) ───────────────────────────────────
 // One-time card above the day view, straight after a premium regeneration. The

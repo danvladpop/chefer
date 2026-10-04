@@ -71,7 +71,6 @@ describe('protein-only mode source scan (WP-08)', () => {
       .map((f) => relative(ROOT, f))
       .sort();
     expect(named).toEqual([
-      'src/features/numbers-mode/numbers-mode-copy.ts',
       'src/features/numbers-mode/numbers-mode.tsx',
       'src/features/onboarding/onboarding-draft.ts',
       'src/features/preferences/numbers-mode-choice.tsx',

@@ -3,12 +3,11 @@ import { Pressable, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { AI_REVIEW_A11Y_LABEL } from '@chefer/types';
 import { Card, ExplainSheet, Text } from '@chefer/ui-mobile';
-import { formatKcal, formatWeightTrend } from '@chefer/utils';
+import { formatKcal, formatWeightTrend, proteinAverageText, withoutKcalLines } from '@chefer/utils';
 import { AiGeneratedChip } from '../../components/ai-generated-chip';
 import { useUnitSystem } from '../../hooks/use-unit-system';
 import { trpc } from '../../lib/trpc';
 import { useNumbersMode } from '../numbers-mode/numbers-mode';
-import { proteinAverageText, withoutKcalLines } from '../numbers-mode/numbers-mode-copy';
 import { useProteinWeekAverage } from '../numbers-mode/use-protein-average';
 import { openPremium } from '../premium/open-premium';
 
