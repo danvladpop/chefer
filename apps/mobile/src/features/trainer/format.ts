@@ -1,11 +1,8 @@
 import type { CoachedSetDto, ExerciseMeta, NextTargetDto } from '@chefer/types';
-import { formatLoad, formatLoadNumber } from '@chefer/utils';
-import { WEEKDAY_SHORT_LABELS } from '../gym/routine/weekday';
+import { formatDayWithWeekday, formatLoad, formatLoadNumber } from '@chefer/utils';
 
 // Pure formatting for the trainer screens (spec §2.4, §2.5). Weights are shown in kg: the trainer's
 // own unit preference is not part of what a client shares, and the engine stores kg.
-
-const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
 /** "Maria Pop" → "Maria" (client-facing copy uses the first name). */
 export function firstNameOf(name: string): string {
@@ -13,16 +10,8 @@ export function firstNameOf(name: string): string {
   return first && first !== '' ? first : name;
 }
 
-/** "Tue 30 Sep" for a device-local `YYYY-MM-DD` date. */
-export function formatWeekdayDate(localDate: string): string {
-  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(localDate);
-  if (!m) return localDate;
-  const [year, month, day] = [Number(m[1]), Number(m[2]), Number(m[3])];
-  const d = new Date(year, month - 1, day);
-  // getDay(): 0 = Sunday; the app's weekday labels start on Monday.
-  const weekday = WEEKDAY_SHORT_LABELS[(d.getDay() + 6) % 7] ?? '';
-  return `${weekday} ${day} ${MONTHS[month - 1] ?? ''}`;
-}
+/** "Tue 30 Sep" for a device-local `YYYY-MM-DD` date (shared formatter, same words as web). */
+export const formatWeekdayDate = formatDayWithWeekday;
 
 /** "Last set effort": reps in reserve, 3 meaning "3+". */
 export function rirText(rir: number | null): string | null {

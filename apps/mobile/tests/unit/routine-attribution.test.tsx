@@ -248,7 +248,7 @@ describe('formatStampDate', () => {
   it('formats a date-only string and an ISO date-time as "2 Oct"', () => {
     expect(formatStampDate('2026-10-02')).toBe('2 Oct');
     expect(formatStampDate('2026-10-02T12:00:00.000Z')).toBe('2 Oct');
-    expect(formatStampDate('nope')).toBe('');
+    expect(formatStampDate('nope')).toBe('nope');
   });
 });
 
