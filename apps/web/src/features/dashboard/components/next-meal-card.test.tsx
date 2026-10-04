@@ -1,4 +1,5 @@
 // @vitest-environment jsdom
+import { fakeSlotFlow } from '@/features/tracker/lib/slot-flow.fixture';
 import { capture } from '@/lib/analytics';
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -175,5 +176,39 @@ describe('NextMealCard', () => {
       expect(screen.getByTestId('today-ate-this').textContent).toContain('I ate this');
       expect(screen.queryByTestId('today-logged-status')).toBeNull();
     });
+  });
+});
+
+// WP-06: "Ate something else" / "Skipped it" next to "I ate this".
+describe('NextMealCard — flexible eating (WP-06)', () => {
+  const planned = { ...MEAL, slotIndex: 2 };
+
+  it('has an overflow with both actions that act on this slot', () => {
+    const flow = fakeSlotFlow();
+    render(<NextMealCard meal={planned} isTomorrow={false} flow={flow} />);
+    fireEvent.click(screen.getByRole('button', { name: 'More actions for Dinner' }));
+    fireEvent.click(screen.getByText('Ate something else'));
+    expect(flow.openAteElse).toHaveBeenCalledWith(
+      expect.objectContaining({ mealType: 'dinner', slotIndex: 2 }),
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'More actions for Dinner' }));
+    fireEvent.click(screen.getByText('Skipped it'));
+    expect(flow.skip).toHaveBeenCalledWith(
+      expect.objectContaining({ mealType: 'dinner', slotIndex: 2 }),
+    );
+  });
+
+  it('keeps "I ate this" as it was', () => {
+    render(<NextMealCard meal={planned} isTomorrow={false} flow={fakeSlotFlow()} />);
+    expect(screen.getByTestId('today-ate-this')).toBeTruthy();
+  });
+
+  it("has no overflow without a flow, or when it is tomorrow's meal", () => {
+    render(<NextMealCard meal={planned} isTomorrow={false} />);
+    expect(screen.queryByRole('button', { name: /More actions/ })).toBeNull();
+    cleanup();
+    render(<NextMealCard meal={planned} isTomorrow flow={fakeSlotFlow()} />);
+    expect(screen.queryByRole('button', { name: /More actions/ })).toBeNull();
   });
 });

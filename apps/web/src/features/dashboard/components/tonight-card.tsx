@@ -5,7 +5,10 @@ import Link from 'next/link';
 import { useState } from 'react';
 import { StarRatingWidget } from '@/features/recipe/components/StarRatingWidget';
 import { CheckedForChip } from '@/features/safety/components/CheckedForChip';
+import { SlotActionsMenu } from '@/features/tracker/components/SlotActionsMenu';
 import { handleRebalanceResult } from '@/features/tracker/lib/rebalance-storage';
+import { SKIPPED_LABEL, youHadLine } from '@/features/tracker/lib/slot-copy';
+import { slotTargetOf, type SlotFlow } from '@/features/tracker/lib/use-slot-actions';
 import { trackMealLogged } from '@/lib/analytics-events';
 import { getRecipeImageProps } from '@/lib/recipe-image';
 import { trpc, type RouterOutputs } from '@/lib/trpc';
@@ -18,6 +21,7 @@ import { localDateStr, slotPortion, userFacingErrorMessage, verifiedLabels } fro
 // kcal and "I ate this" only for goal/tracking users (showNutrition, B-31).
 
 type Tonight = NonNullable<RouterOutputs['dashboard']['summary']['tonight']>;
+type TodaySlot = NonNullable<RouterOutputs['dashboard']['summary']['today']['slots']>[number];
 
 /** 0 = Monday … 6 = Sunday, the Plan page's `day` index. */
 function todayPlanDay(now: Date = new Date()): number {
@@ -30,6 +34,8 @@ export function TonightCard({
   showNutrition,
   onLogged,
   onSwap,
+  slot,
+  flow,
 }: {
   meal: Tonight;
   showNutrition: boolean;
@@ -42,6 +48,13 @@ export function TonightCard({
    * back to linking to /meal-plan.
    */
   onSwap?: () => void;
+  /**
+   * WP-06: what became of tonight's slot (today.slots) — replaced reads "You
+   * had: …", skipped reads "Skipped", each with an Undo.
+   */
+  slot?: TodaySlot | undefined;
+  /** WP-06: the "Ate something else" / "Skipped it" overflow; absent = none. */
+  flow?: SlotFlow | undefined;
 }) {
   const utils = trpc.useUtils();
   // UX-FOOD-04: "Rate it" opens the real rating widget inline (the one cook
@@ -64,6 +77,62 @@ export function TonightCard({
       onLogged();
     },
   });
+
+  const target = slotTargetOf(meal.mealType, meal.slotIndex);
+
+  // WP-06: skipped — a quiet row, no judgement, with an Undo.
+  if (slot?.status === 'skipped') {
+    return (
+      <div
+        data-testid="tonight-card-skipped"
+        className="flex items-center gap-2.5 rounded-2xl border border-neutral-200 bg-neutral-50 px-4 py-1"
+      >
+        <p className="min-w-0 flex-1 py-2 text-sm text-neutral-700">
+          <span className="font-semibold">Dinner</span> · {SKIPPED_LABEL}
+        </p>
+        {flow && (
+          <button
+            type="button"
+            data-testid="tonight-undo-skip"
+            aria-label="Undo for dinner"
+            onClick={() => flow.unskip(target)}
+            className="min-h-11 shrink-0 rounded-xl px-3 text-sm font-semibold text-[#944a00] hover:bg-[#fff2e2]"
+          >
+            Undo
+          </button>
+        )}
+      </div>
+    );
+  }
+
+  // WP-06: replaced — dinner is done, with what you had instead.
+  if (meal.done && slot?.status === 'replaced' && slot.replacedBy) {
+    const entryId = slot.replacedBy.entryId;
+    return (
+      <div
+        data-testid="tonight-card-replaced"
+        className="flex items-center gap-2.5 rounded-2xl border bg-white px-4 py-1 shadow-sm"
+      >
+        <Check className="h-4 w-4 shrink-0 text-emerald-600" aria-hidden="true" />
+        <p className="min-w-0 flex-1 py-2 text-sm text-gray-800">
+          <span className="font-semibold">Dinner</span>
+          {' · '}
+          {youHadLine(slot.replacedBy.name, slot.replacedBy.kcal)}
+        </p>
+        {flow && entryId && (
+          <button
+            type="button"
+            data-testid="tonight-undo-replaced"
+            aria-label="Undo for dinner"
+            onClick={() => flow.undoReplacement(entryId, target)}
+            className="min-h-11 shrink-0 rounded-xl px-3 text-sm font-semibold text-[#944a00] hover:bg-[#fff2e2]"
+          >
+            Undo
+          </button>
+        )}
+      </div>
+    );
+  }
 
   if (meal.done) {
     return (
@@ -176,23 +245,35 @@ export function TonightCard({
         </div>
       </div>
       {showNutrition && (
-        <button
-          type="button"
-          data-testid="tonight-ate-this"
-          onClick={() =>
-            logMutation.mutate({
-              date: localDateStr(),
-              recipeId: meal.recipe.id,
-              mealType: meal.mealType,
-              slotIndex: meal.slotIndex,
-              portionMultiplier: logPortion,
-            })
-          }
-          disabled={logMutation.isPending}
-          className="flex min-h-11 w-full items-center justify-center border-t text-sm font-semibold text-[#944a00] hover:bg-[#fff3e8] disabled:opacity-60"
-        >
-          {logMutation.isPending ? 'Logging…' : 'I ate this'}
-        </button>
+        <div className="flex items-stretch border-t">
+          <button
+            type="button"
+            data-testid="tonight-ate-this"
+            onClick={() =>
+              logMutation.mutate({
+                date: localDateStr(),
+                recipeId: meal.recipe.id,
+                mealType: meal.mealType,
+                slotIndex: meal.slotIndex,
+                portionMultiplier: logPortion,
+              })
+            }
+            disabled={logMutation.isPending}
+            className="flex min-h-11 min-w-0 flex-1 items-center justify-center text-sm font-semibold text-[#944a00] hover:bg-[#fff3e8] disabled:opacity-60"
+          >
+            {logMutation.isPending ? 'Logging…' : 'I ate this'}
+          </button>
+          {/* WP-06: "Ate something else" / "Skipped it". */}
+          {flow && (
+            <SlotActionsMenu
+              slotLabel={target.label}
+              plannedName={meal.recipe.name}
+              onAteElse={() => flow.openAteElse(target)}
+              onSkip={() => flow.skip(target)}
+              className="flex h-11 w-14 shrink-0 items-center justify-center border-l text-neutral-500 hover:bg-neutral-50 disabled:opacity-50"
+            />
+          )}
+        </div>
       )}
       {logMutation.isError && (
         <p role="alert" className="border-t px-4 py-2.5 text-xs text-red-600 sm:px-5">

@@ -3,7 +3,9 @@
 import Image from 'next/image';
 import Link from 'next/link';
 import { useEffect, useRef, useState } from 'react';
+import { SlotActionsMenu } from '@/features/tracker/components/SlotActionsMenu';
 import { handleRebalanceResult } from '@/features/tracker/lib/rebalance-storage';
+import { slotTargetOf, type SlotFlow } from '@/features/tracker/lib/use-slot-actions';
 import { trackMealLogged } from '@/lib/analytics-events';
 import { getRecipeImageProps } from '@/lib/recipe-image';
 import { trpc, type RouterOutputs } from '@/lib/trpc';
@@ -36,9 +38,14 @@ interface NextMealCardProps {
   meal: HeroMeal;
   /** Tomorrow's first meal (nothing left today): view only, no logging. */
   isTomorrow: boolean;
+  /**
+   * WP-06: "Ate something else" / "Skipped it" (the ⋯ next to "I ate this").
+   * Optional so the card still renders standalone; absent = no overflow.
+   */
+  flow?: SlotFlow | undefined;
 }
 
-export function NextMealCard({ meal: nextMeal, isTomorrow }: NextMealCardProps) {
+export function NextMealCard({ meal: nextMeal, isTomorrow, flow }: NextMealCardProps) {
   const utils = trpc.useUtils();
   const [lastLogged, setLastLogged] = useState<string | null>(null);
   // UX-FOOD-15: the summary refetch moves the card to the NEXT meal under the
@@ -161,53 +168,70 @@ export function NextMealCard({ meal: nextMeal, isTomorrow }: NextMealCardProps) 
               View recipe <ArrowRight className="h-4 w-4" aria-hidden="true" />
             </Link>
           ) : (
-            <div className="flex flex-col gap-2 sm:flex-row sm:justify-end">
-              <button
-                type="button"
-                data-testid="today-ate-this"
-                onClick={() =>
-                  logMutation.mutate({
-                    date: localDateStr(),
-                    recipeId: meal.recipe.id,
-                    mealType: meal.mealType,
-                    // The plan slot, so the second of two identical snacks
-                    // logs as its own entry.
-                    ...(meal.slotIndex !== undefined && { slotIndex: meal.slotIndex }),
-                    // Same clamp as the tracker: logRecipe takes 0.5–2×.
-                    portionMultiplier: Math.min(2, Math.max(0.5, slotPortion(portion))),
-                  })
-                }
-                disabled={logMutation.isPending || holding}
-                className="flex min-h-11 items-center justify-center gap-1.5 rounded-full bg-[#944a00] px-4 text-sm font-semibold text-white hover:bg-[#7a3d00] disabled:opacity-60"
-              >
-                <Check className="h-4 w-4" aria-hidden="true" />
-                {logMutation.isPending ? 'Logging…' : holding ? 'Logged ✓' : 'I ate this'}
-              </button>
-              {holding ? (
+            <div className="flex items-start gap-2 sm:justify-end">
+              <div className="flex min-w-0 flex-1 flex-col gap-2 sm:flex-none sm:flex-row">
                 <button
                   type="button"
-                  data-testid="today-undo-logged"
-                  disabled={undoMutation.isPending}
+                  data-testid="today-ate-this"
                   onClick={() =>
-                    undoMutation.mutate({
+                    logMutation.mutate({
                       date: localDateStr(),
                       recipeId: meal.recipe.id,
                       mealType: meal.mealType,
+                      // The plan slot, so the second of two identical snacks
+                      // logs as its own entry.
                       ...(meal.slotIndex !== undefined && { slotIndex: meal.slotIndex }),
+                      // Same clamp as the tracker: logRecipe takes 0.5–2×.
+                      portionMultiplier: Math.min(2, Math.max(0.5, slotPortion(portion))),
                     })
                   }
-                  className="flex min-h-11 items-center justify-center gap-1.5 rounded-full border border-[#944a00]/30 px-4 text-sm font-semibold text-[#944a00] hover:bg-[#fff3e8] disabled:opacity-60"
+                  disabled={logMutation.isPending || holding}
+                  className="flex min-h-11 items-center justify-center gap-1.5 rounded-full bg-[#944a00] px-4 text-sm font-semibold text-white hover:bg-[#7a3d00] disabled:opacity-60"
                 >
-                  Undo
+                  <Check className="h-4 w-4" aria-hidden="true" />
+                  {logMutation.isPending ? 'Logging…' : holding ? 'Logged ✓' : 'I ate this'}
                 </button>
-              ) : (
-                <Link
-                  href={cookHref}
-                  className="flex min-h-11 items-center justify-center gap-1.5 rounded-full border border-[#944a00]/30 px-4 text-sm font-semibold text-[#944a00] hover:bg-[#fff3e8]"
-                >
-                  <ChefHat className="h-4 w-4" aria-hidden="true" />
-                  Cook it
-                </Link>
+                {holding ? (
+                  <button
+                    type="button"
+                    data-testid="today-undo-logged"
+                    disabled={undoMutation.isPending}
+                    onClick={() =>
+                      undoMutation.mutate({
+                        date: localDateStr(),
+                        recipeId: meal.recipe.id,
+                        mealType: meal.mealType,
+                        ...(meal.slotIndex !== undefined && { slotIndex: meal.slotIndex }),
+                      })
+                    }
+                    className="flex min-h-11 items-center justify-center gap-1.5 rounded-full border border-[#944a00]/30 px-4 text-sm font-semibold text-[#944a00] hover:bg-[#fff3e8] disabled:opacity-60"
+                  >
+                    Undo
+                  </button>
+                ) : (
+                  <Link
+                    href={cookHref}
+                    className="flex min-h-11 items-center justify-center gap-1.5 rounded-full border border-[#944a00]/30 px-4 text-sm font-semibold text-[#944a00] hover:bg-[#fff3e8]"
+                  >
+                    <ChefHat className="h-4 w-4" aria-hidden="true" />
+                    Cook it
+                  </Link>
+                )}
+              </div>
+              {flow && meal.slotIndex !== undefined && (
+                <SlotActionsMenu
+                  slotLabel={slotTargetOf(meal.mealType, meal.slotIndex).label}
+                  plannedName={meal.recipe.name}
+                  disabled={holding}
+                  onAteElse={() =>
+                    meal.slotIndex !== undefined &&
+                    flow.openAteElse(slotTargetOf(meal.mealType, meal.slotIndex))
+                  }
+                  onSkip={() =>
+                    meal.slotIndex !== undefined &&
+                    flow.skip(slotTargetOf(meal.mealType, meal.slotIndex))
+                  }
+                />
               )}
             </div>
           )}

@@ -7,6 +7,7 @@ import { pressControl } from '@chefer/ui';
 import {
   cn,
   PLAN_TAILORING_COPY,
+  slotStates,
   tailoringDayLabel,
   tailoringDayState,
   trainingChipA11y,
@@ -14,6 +15,7 @@ import {
 } from '@chefer/utils';
 import { DayRecapBar } from './DayRecapBar';
 import { MealCard } from './MealCard';
+import { PlanSlotShell, type PlanSlotUi } from './PlanSlotShell';
 import { PreRunNote, preRunNoteFor, TrainingDayHeader, TrainingGlyph } from './TrainingDayHeader';
 
 // ─── Mobile day view ──────────────────────────────────────────────────────────
@@ -110,6 +112,12 @@ interface DayViewProps {
   onOpenTrainingExplain?: (() => void) | undefined;
   /** T-11.3: opens the plan-miss sheet for a day whose total misses its target. */
   onOpenMiss?: ((dayOfWeek: number) => void) | undefined;
+  /**
+   * WP-06: today's (or an earlier day's) log and the flexible-eating flow, for
+   * the "Ate something else" / "Skipped it" overflow under each slot. Absent
+   * (future days, the read-only history view) = no overflow.
+   */
+  slotUi?: PlanSlotUi | undefined;
 }
 
 /**
@@ -181,9 +189,18 @@ export function DayView({
   trainingDays,
   onOpenTrainingExplain,
   onOpenMiss,
+  slotUi,
 }: DayViewProps) {
   const day = days.find((d) => d.dayOfWeek === selectedDay);
   const meals = day?.meals ?? [];
+  // WP-06: what became of each slot (planned / eaten / replaced / skipped).
+  const slots = slotUi
+    ? slotStates(
+        meals.map((m, i) => ({ type: m.type, recipeId: m.recipe.id, slotIndex: i })),
+        slotUi.loggedMeals,
+        slotUi.skippedSlots,
+      )
+    : null;
   const trainingToday = trainingDays?.find((t) => t.dayOfWeek === selectedDay);
   const preRun = preRunNoteFor(trainingDays, selectedDay);
   // A training day's target carries its bump when the viewer's tier applies it.
@@ -337,7 +354,7 @@ export function DayView({
           >
             {meals.map((slot, slotIndex) => {
               const override = imageOverrides[slot.recipe.id];
-              return (
+              const card = (
                 <MealCard
                   key={`${slot.type}-${slotIndex}`}
                   variant="row"
@@ -352,7 +369,11 @@ export function DayView({
                   leftoverLabel={slot.leftoverOf}
                   portion={slot.portion}
                   pinned={slot.pinned}
-                  eaten={day?.loggedRecipeIds?.includes(slot.recipe.id) === true}
+                  eaten={
+                    slots
+                      ? slots[slotIndex]?.status === 'eaten'
+                      : day?.loggedRecipeIds?.includes(slot.recipe.id) === true
+                  }
                   onReplace={
                     onReplaceMeal
                       ? () => onReplaceMeal(slot.type, slot.recipe.name, slotIndex, slot.recipe.id)
@@ -362,6 +383,20 @@ export function DayView({
                     onTogglePin ? () => onTogglePin(slot.type, slotIndex, !slot.pinned) : undefined
                   }
                 />
+              );
+              return slotUi ? (
+                <PlanSlotShell
+                  key={`${slot.type}-${slotIndex}`}
+                  mealType={slot.type}
+                  slotIndex={slotIndex}
+                  plannedName={slot.recipe.name}
+                  state={slots?.[slotIndex]}
+                  flow={slotUi.flow}
+                >
+                  {card}
+                </PlanSlotShell>
+              ) : (
+                card
               );
             })}
           </div>
