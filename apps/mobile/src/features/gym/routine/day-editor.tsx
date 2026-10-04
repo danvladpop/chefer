@@ -1,13 +1,14 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { Pressable, Text as RNText, useWindowDimensions, View, type TextInput } from 'react-native';
 import Animated, { FadeIn, FadeOut, LinearTransition } from 'react-native-reanimated';
 import { Ionicons } from '@expo/vector-icons';
 import { elevation } from '@chefer/tokens';
-import type { ExerciseMeta } from '@chefer/types';
+import { COACHING_COPY, COACHING_LIMITS, type ExerciseMeta } from '@chefer/types';
 import {
   Button,
   Card,
   ConfirmSheet,
+  FormField,
   Input,
   Sheet,
   Text,
@@ -26,6 +27,7 @@ import {
 import { ExerciseNameLink } from '../components/exercise-name-link';
 import { SUPERSET_COPY, SupersetSheet } from '../components/superset-sheet';
 import { newId } from '../offline/ids';
+import { ChangedByLine, TrainerNoteLine } from './attribution';
 import type { RoutineDraftAction } from './reducer';
 import {
   MAX_DAYS,
@@ -53,6 +55,22 @@ import { WeekdayPicker } from './weekday-picker';
 // also a text button once the card is open. Removing a row is immediate (no
 // confirm — the routine only ever changes on Save) with an 8s Undo snackbar
 // (`restoreExercise`, mirroring the workout reducer's `restoreSet`).
+
+/**
+ * Trainer coaching seams (WP-18, spec §2.5/§2.6). Omit for the owner's plain editor (unchanged).
+ * - `trainer`: the trainer edits a client's routine — each row gets a "Note for <client>" field and an
+ *   optional next-session slot (`renderNext`, always visible under the summary).
+ * - `client`: the client edits their own routine — a trainer note shows as "Ana: …" with "Remove note"
+ *   (the client can clear a note, not rewrite it).
+ * Both roles show "Changed by …" on rows the other person last changed.
+ */
+export type DayEditorCoaching =
+  | {
+      role: 'trainer';
+      clientName: string;
+      renderNext?: (exercise: RoutineExerciseDraft) => ReactNode;
+    }
+  | { role: 'client'; trainerName: string };
 
 /** "{n} sets · {min}–{max} reps · {rest} s rest" */
 export function exerciseSummary(ex: RoutineExerciseDraft): string {
@@ -145,7 +163,9 @@ export function ExerciseRow({
   onRemove,
   onOpenMenu,
   testIDBase,
+  coaching,
 }: {
+  coaching?: DayEditorCoaching | undefined;
   exercise: RoutineExerciseDraft;
   meta: ExerciseMeta | undefined;
   /** Place in a superset ("A", 0-based position), when in one. */
@@ -232,6 +252,20 @@ export function ExerciseRow({
             </Text>
             <Ionicons name={expanded ? 'chevron-up' : 'chevron-down'} size={16} color="#6b7280" />
           </Pressable>
+          {exercise.lastEditedByOther ? (
+            <ChangedByLine testID={`${testIDBase}-changed-by`} stamp={exercise.lastEditedByOther} />
+          ) : null}
+          {coaching?.role === 'client' && exercise.trainerNote ? (
+            <TrainerNoteLine
+              testID={`${testIDBase}-trainer-note`}
+              trainer={coaching.trainerName}
+              note={exercise.trainerNote}
+              onRemove={() =>
+                set({ type: 'setTrainerNote', dayKey: '', exerciseKey: exercise.key, note: null })
+              }
+            />
+          ) : null}
+          {coaching?.role === 'trainer' ? coaching.renderNext?.(exercise) : null}
         </View>
         <Pressable
           testID={`${testIDBase}-menu`}
@@ -300,6 +334,28 @@ export function ExerciseRow({
               className="flex-1"
             />
           </View>
+
+          {coaching?.role === 'trainer' ? (
+            <FormField
+              testID={`${testIDBase}-trainer-note-field`}
+              label={COACHING_COPY.trainer.noteForClient(coaching.clientName)}
+              hint={COACHING_COPY.trainer.noteForClientHint(coaching.clientName)}
+            >
+              <Input
+                testID={`${testIDBase}-trainer-note-input`}
+                label={COACHING_COPY.trainer.noteForClient(coaching.clientName)}
+                value={exercise.trainerNote ?? ''}
+                maxLength={COACHING_LIMITS.trainerNoteMaxChars}
+                multiline
+                onChangeText={(note) =>
+                  set({ type: 'setTrainerNote', dayKey: '', exerciseKey: exercise.key, note })
+                }
+              />
+              <Text variant="muted" className="text-xs">
+                {(exercise.trainerNote ?? '').length} / {COACHING_LIMITS.trainerNoteMaxChars}
+              </Text>
+            </FormField>
+          ) : null}
 
           {/* MO-05: RIR + superset are expert settings, out of the way. */}
           <Pressable
@@ -404,7 +460,9 @@ export function DayEditor({
   dispatch,
   onAddExercise,
   onSwapExercise,
+  coaching,
 }: {
+  coaching?: DayEditorCoaching | undefined;
   day: RoutineDayDraft;
   index: number;
   dayCount: number;
@@ -567,6 +625,7 @@ export function DayEditor({
                 onSwap={() => onSwapExercise(day.key, ex.key)}
                 onRemove={() => removeExercise(ex.key)}
                 onOpenMenu={() => setMenuKey(ex.key)}
+                coaching={coaching}
                 testIDBase={`${testIDBase}-exercise-${ex.key}`}
               />
             </View>

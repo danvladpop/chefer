@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 import { FlatList, Pressable, TextInput, View } from 'react-native';
 import {
+  COACHING_COPY,
   HIDDEN_EXERCISE_IMAGE_IDS,
   LIBRARY_FILTER_GROUPS,
   MUSCLE_LABELS,
@@ -43,6 +44,11 @@ export interface ExercisePickerProps {
    * form (`openCreateExercise`). Omit for pickers that only choose existing lifts.
    */
   onCreateFromSearch?: (name: string) => void;
+  /**
+   * Trainer coaching (spec §2.5): only Chefer's own exercises can be picked — custom exercises are
+   * hidden, "Create" is never offered and a one-line note says why. The trainer's editor passes it.
+   */
+  curatedOnly?: boolean;
   testID?: string;
 }
 
@@ -87,6 +93,7 @@ export function ExercisePicker({
   excludeIds,
   showCardioFilter = false,
   onCreateFromSearch,
+  curatedOnly = false,
   testID = 'exercise-picker',
 }: ExercisePickerProps) {
   const online = useIsOnline();
@@ -96,12 +103,16 @@ export function ExercisePicker({
   const filterOptions = showCardioFilter ? [CARDIO_FILTER, ...GROUP_FILTERS] : GROUP_FILTERS;
 
   const rows = useMemo(() => {
-    const all = filterExercises(library, { query, group, excludeIds });
+    const all = filterExercises(curatedOnly ? library.filter((e) => !e.ownerId) : library, {
+      query,
+      group,
+      excludeIds,
+    });
     if (!preferSwapGroup || query || group) return all;
     const similar = all.filter((e) => e.swapGroup === preferSwapGroup);
     const rest = all.filter((e) => e.swapGroup !== preferSwapGroup);
     return [...similar, ...rest];
-  }, [library, query, group, excludeIds, preferSwapGroup]);
+  }, [library, query, group, excludeIds, preferSwapGroup, curatedOnly]);
 
   return (
     <Sheet visible={visible} onClose={onClose} title={title} scrollable={false} testID={testID}>
@@ -132,6 +143,11 @@ export function ExercisePicker({
             </Pressable>
           ) : null}
         </View>
+        {curatedOnly ? (
+          <Text testID={`${testID}-curated-only`} variant="muted" className="text-xs">
+            {COACHING_COPY.trainer.curatedOnly}
+          </Text>
+        ) : null}
         {/* T-05.A3.1 (AC19-22): ChipGroup wraps onto multiple lines by
             default — collapsed to one horizontal strip while the keyboard is
             up so >= 5 results stay visible. */}
@@ -194,7 +210,7 @@ export function ExercisePicker({
             <Text variant="muted" className="text-center">
               No exercises match. Try another search.
             </Text>
-            {onCreateFromSearch && online && query.trim().length >= 2 ? (
+            {onCreateFromSearch && !curatedOnly && online && query.trim().length >= 2 ? (
               <Button
                 testID={`${testID}-create-from-search`}
                 variant="outline"
