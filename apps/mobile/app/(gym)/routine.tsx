@@ -18,6 +18,7 @@ import {
   validateRoutine,
   volumeByGroup,
 } from '@chefer/utils';
+import { useMarkRoutineSeen } from '../../src/features/coaching/seen-markers';
 import {
   GymBootstrapUnavailable,
   useGymBootstrapLoad,
@@ -185,6 +186,8 @@ export default function RoutineScreen() {
 
   const data = bootstrap.data;
   const routine = data?.activeRoutine ?? null;
+  // WP-18: opening the Routine tab counts as seeing the trainer's change (Today's notice goes away).
+  useMarkRoutineSeen(routine?.id ?? null, routine?.lastEditedByOther?.at ?? null);
   const trainerName = data?.coaching?.trainerName ?? FALLBACK_TRAINER_NAME;
   const lookup = useMemo(() => (data ? libraryLookup(data) : () => undefined), [data]);
   const unit = data?.profile?.unit ?? 'KG';

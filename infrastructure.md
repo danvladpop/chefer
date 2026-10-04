@@ -750,6 +750,30 @@ query that ever runs):
 - **OTA only:** the whole feature is JavaScript on the current runtime — no native module, no `app.config.js`, `eas.json`,
   `ios/`, `android/` or dependency change (`business_flow.md` §20; `docs/friends/implementation-plan.md` §6).
 
+**Trainer coaching, client side (mobile, WP-18 lane D; `docs/trainer-platform/spec.md` §2.3, §2.6, §10; OTA only).** The web client
+side is `apps/web/src/features/coaching/**` (same copy: `COACHING_COPY`). Everything is dark behind `coaching.availability`
+(flag or allowlist): with it off no row renders and nothing but `availability` is asked. The trainer's own screens are
+`app/trainer/**` (lane C, §8 `trainer.*`).
+
+| Route                  | Screen                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
+| ---------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `coaching/join/[code]` | The invite link's app route (`chefer://coaching/join/<code>`, `chefer-dev://` in dev builds; no universal links). `coaching.previewInvite` → every state has copy → the consent screen (`COACHING_COPY.consent`) → `coaching.join`. Needs gym setup → the existing `/gym/setup`, code kept for "Carry on joining your trainer". **Reachable signed out** (unguarded `Stack.Screen`): it asks to sign in / register and `PendingJoinHost` brings the person back (after onboarding for a new account). |
+| `coaching/index`       | Your trainer: who, since when, what they see and can do, `Leave` (confirm sheet → `coaching.leave`), "Ana stopped coaching you" (30 days) when there is no trainer. Gated on `coaching.availability`                                                                                                                                                                                                                                                                                                  |
+
+Both are `Stack.Screen`s in `app/_layout.tsx` (`coaching/join/[code]` outside the guards, `coaching/index` inside the signed-in
+`Stack.Protected`, next to `trainer/*`). Entry rows: "Your trainer" (anyone, while coaching is on) and "Trainer tools" (`canBeTrainer`)
+in More (below Following) and in Settings → Account.
+
+`src/features/coaching/**`: `join/` (`join-screen.tsx`, `consent-screen.tsx`), `your-trainer/`, `notices/coaching-notices.tsx` (Gym Today:
+"Ana updated your routine · 2 Oct" until the Routine tab was opened, "Ana stopped coaching you" dismissible, "Carry on joining your
+trainer"), `pending-join.ts` (invite code kept on the device for the setup carry-on; an in-memory "return after sign-in" flag),
+`seen-markers.ts` (device-local seen / dismissed markers, no server state; KV keys `coaching.*` in `gym/offline/keys.ts`),
+`logger-lines.ts` (the trainer's cue and "Set by Ana" in the workout logger, read from the cached bootstrap, never from the session
+doc), `use-coaching-status.ts`, `copy.ts` (the few mobile-only strings, equal to web's). Dates ("2 Oct", "Wed 30 Sep") come from
+`formatShortDay` / `formatDayWithWeekday` in `@chefer/utils` (`coaching/dates.ts`), the one formatter both platforms use.
+`src/lib/trpc-links.ts` sends `x-chefer-api-level: 6` (`COACHING_API_LEVEL`); `GYM_CACHE_SCHEMA_VERSION` is 3 (the persisted
+bootstrap shape gained the level-6 fields). `coaching.*` and `trainer.*` queries are never persisted (not `gym.*`).
+
 ---
 
 ## 5. Packages

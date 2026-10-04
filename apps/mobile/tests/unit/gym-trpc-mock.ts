@@ -32,6 +32,28 @@ export function createTrpcGymMock() {
       profile: {
         flags: { useQuery: jest.fn(() => ({ data: undefined })) },
       },
+      // WP-18: Gym Today's coaching notices ask `coaching.availability` first; off by default, so every
+      // existing Today test renders exactly as before. Tests of the notices override these per scenario.
+      coaching: {
+        availability: {
+          useQuery: jest.fn(() => ({
+            data: { enabled: false, canBeTrainer: false },
+            isError: false,
+            isLoading: false,
+            isPending: false,
+            fetchStatus: 'idle',
+            error: null,
+            refetch: jest.fn(),
+          })),
+        },
+        status: {
+          useQuery: jest.fn((): { data: unknown; isError: boolean; isLoading: boolean } => ({
+            data: undefined,
+            isError: false,
+            isLoading: false,
+          })),
+        },
+      },
       gym: {
         bootstrap: { _def: () => ({ path: ['gym', 'bootstrap'] }) },
         profile: {

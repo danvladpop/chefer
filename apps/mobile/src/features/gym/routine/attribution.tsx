@@ -1,24 +1,15 @@
 import { View } from 'react-native';
 import { COACHING_COPY, trainerNameOrFallback } from '@chefer/types';
 import { Button, Text } from '@chefer/ui-mobile';
+import { formatShortDay } from '@chefer/utils';
 import type { EditStamp } from './types';
 
 // Trainer coaching, shared display seams (WP-18 lane C, spec §2.6 / §5.3): the "Changed by Ana · 2 Oct"
 // line, the trainer's note under an exercise, and the short date they share. The client's screens (Routine
 // tab, workout logger, Today) and the trainer's editor render these, so both sides read the same words.
 
-const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-
-/** "2 Oct" for an ISO date-time (device-local day) or a `YYYY-MM-DD` date. */
-export function formatStampDate(iso: string): string {
-  const dateOnly = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso);
-  if (dateOnly) {
-    return `${Number(dateOnly[3])} ${MONTHS[Number(dateOnly[2]) - 1] ?? ''}`;
-  }
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return '';
-  return `${d.getDate()} ${MONTHS[d.getMonth()] ?? ''}`;
-}
+/** "2 Oct" for an ISO date-time (device-local day) or a `YYYY-MM-DD` date. The one formatter web uses too (`@chefer/utils`). */
+export const formatStampDate = formatShortDay;
 
 /** "Changed by Ana · 2 Oct" (a deleted trainer account reads "your trainer"). */
 export function changedByText(stamp: EditStamp): string {

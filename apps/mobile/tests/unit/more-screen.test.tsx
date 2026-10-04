@@ -32,6 +32,11 @@ jest.mock('../../src/features/gym/components/mode-switch', () => ({ ModeSwitch: 
 jest.mock('../../src/features/friends/api/use-friends-badge', () => ({
   useFriendsBadge: () => ({ available: true, badgeCount: 0 }),
 }));
+// WP-18: the "Your trainer" / "Trainer tools" rows follow `coaching.availability` (off by default here).
+let mockCoaching = { enabled: false, canBeTrainer: false };
+jest.mock('../../src/features/trainer/api/use-coaching-availability', () => ({
+  useCoachingAvailability: () => mockCoaching,
+}));
 
 const SAFE_AREA = {
   frame: { x: 0, y: 0, width: 390, height: 844 },
@@ -47,6 +52,7 @@ function renderMore() {
 }
 
 beforeEach(() => {
+  mockCoaching = { enabled: false, canBeTrainer: false };
   mockPush.mockClear();
   mockLogoutMutate.mockClear();
 });
@@ -81,5 +87,32 @@ describe('More (UX-ACC-19)', () => {
     expect(household.getByTestId('icon-home-outline')).toBeOnTheScreen();
     expect(following.getByTestId('icon-people-outline')).toBeOnTheScreen();
     expect(household.queryByTestId('icon-people-outline')).toBeNull();
+  });
+});
+
+describe('More: trainer coaching rows (WP-18)', () => {
+  it('flag off: neither "Your trainer" nor "Trainer tools" exists', async () => {
+    await renderMore();
+    expect(screen.queryByTestId('more-your-trainer')).toBeNull();
+    expect(screen.queryByTestId('more-trainer-tools')).toBeNull();
+  });
+
+  it('coaching on: "Your trainer" for everyone, below Following; "Trainer tools" only for trainers', async () => {
+    mockCoaching = { enabled: true, canBeTrainer: false };
+    await renderMore();
+    expect(screen.getByTestId('more-your-trainer')).toBeOnTheScreen();
+    expect(screen.queryByTestId('more-trainer-tools')).toBeNull();
+    await fireEvent.press(screen.getByTestId('more-your-trainer'));
+    expect(mockPush).toHaveBeenLastCalledWith('/coaching');
+  });
+
+  it('a user who may coach gets "Trainer tools" → /trainer', async () => {
+    mockCoaching = { enabled: true, canBeTrainer: true };
+    await renderMore();
+    const labels = screen.getAllByRole('button').map((b) => b.props.testID as string | undefined);
+    expect(labels.indexOf('more-friends')).toBeLessThan(labels.indexOf('more-your-trainer'));
+    expect(labels.indexOf('more-your-trainer')).toBeLessThan(labels.indexOf('more-trainer-tools'));
+    await fireEvent.press(screen.getByTestId('more-trainer-tools'));
+    expect(mockPush).toHaveBeenLastCalledWith('/trainer');
   });
 });

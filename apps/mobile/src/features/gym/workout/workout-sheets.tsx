@@ -151,12 +151,15 @@ export function WhySheet({
   exercise,
   name,
   unit,
+  setBy = null,
 }: {
   visible: boolean;
   onClose: () => void;
   exercise: SessionExerciseDoc | null;
   name: string;
   unit: WeightUnit;
+  /** Trainer coaching: who set a trainer-set target ("Ana"); "Set by Ana" replaces "Your own target". */
+  setBy?: string | null;
 }) {
   // D2 protected (gym-why-sheet.test.tsx pins the exact copy/testIDs): this
   // is the gym instance of the kit ExplainSheet (PAT-1, T-00.1) — same
@@ -168,8 +171,8 @@ export function WhySheet({
       title={name}
       eyebrow="Why this target"
       testID="why-sheet"
-      sentence={exercise ? explain(exercise.prescription, unit) : undefined}
-      rows={exercise ? explainInputs(exercise.prescription, unit) : []}
+      sentence={exercise ? explain(exercise.prescription, unit, 'today', setBy) : undefined}
+      rows={exercise ? explainInputs(exercise.prescription, unit, setBy) : []}
       footnote="Change any number freely: the next suggestion uses what you actually lift."
     />
   );
