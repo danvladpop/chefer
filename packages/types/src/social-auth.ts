@@ -124,6 +124,9 @@ export const SOCIAL_AUTH_MESSAGES = {
   /** BAD_REQUEST — a new account needs an email and the provider gave none. */
   emailMissing:
     'We couldn’t get an email address from your account. Share your email, or sign up with email instead.',
+  /** BAD_REQUEST — the provider reports the email as unverified, so no account is created. */
+  emailNotVerified:
+    'Your email address isn’t verified with this account. Verify it with the provider, or sign up with email instead.',
   /** CONFLICT — same email, but the provider has not verified it. */
   emailUnverified:
     'An account with this email already exists. Sign in with your password, then connect this account from your profile.',

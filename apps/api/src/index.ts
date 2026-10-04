@@ -26,6 +26,7 @@ import { appRouter } from './routers/index.js';
 import { recipeImagesSseRouter } from './routers/recipe-images-sse.router.js';
 import { scanRouter } from './routers/scan.router.js';
 import { UPLOADS_DIR, uploadsRouter } from './routers/uploads.router.js';
+import { wellKnownRouter } from './routers/well-known.router.js';
 import { friendsMaintenanceWorker } from './workers/friends-maintenance.worker.js';
 import { ingredientPriceWorker } from './workers/ingredient-price.worker.js';
 import { planTailoringWorker } from './workers/plan-tailoring.worker.js';
@@ -111,6 +112,10 @@ app.get(
     }
   }),
 );
+
+// ─── Password-manager association files (WP-22) ──────────────────────────────
+
+app.use('/.well-known', wellKnownRouter);
 
 // ─── SSE — Recipe Images ──────────────────────────────────────────────────────
 

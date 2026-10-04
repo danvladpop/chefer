@@ -160,6 +160,57 @@ const envSchema = z.object({
     z.string().min(32, 'EMAIL_TOKEN_SECRET must be at least 32 characters').optional(),
   ),
 
+  // Sign in with Google / Apple (WP-22). Every value is optional: a provider
+  // with no configuration is DISABLED (auth.socialAvailability says so, the
+  // buttons stay hidden, auth.socialSignIn answers PRECONDITION_FAILED). Empty
+  // values (a copied .env.example) count as unset. See infrastructure.md §10.
+  // Google OAuth client ids (one per platform; a token whose `aud` is any of them is accepted).
+  GOOGLE_CLIENT_ID_WEB: z.preprocess(emptyAsUnset, z.string().optional()),
+  GOOGLE_CLIENT_ID_IOS: z.preprocess(emptyAsUnset, z.string().optional()),
+  GOOGLE_CLIENT_ID_ANDROID: z.preprocess(emptyAsUnset, z.string().optional()),
+  // Apple: Services ID (web audience) and the iOS bundle id (native audience).
+  APPLE_SERVICES_ID: z.preprocess(emptyAsUnset, z.string().optional()),
+  APPLE_BUNDLE_ID: z.preprocess(emptyAsUnset, z.string().default('com.popdan.chefer')),
+  // Apple needs a client-secret JWT (Team ID, Key ID, the .p8 private key — multiline
+  // PEM, or one line with literal "\n") to exchange the sign-in code and to REVOKE
+  // the grant when an account is deleted (App Review). Apple is enabled only when
+  // all three are set.
+  APPLE_TEAM_ID: z.preprocess(emptyAsUnset, z.string().optional()),
+  APPLE_KEY_ID: z.preprocess(emptyAsUnset, z.string().optional()),
+  APPLE_PRIVATE_KEY: z.preprocess(
+    emptyAsUnset,
+    z
+      .string()
+      .transform((v) => v.replace(/\\n/g, '\n'))
+      .optional(),
+  ),
+  // Redirect URI registered for the Services ID (Apple JS SDK). Unset = APP_URL + "/login".
+  APPLE_WEB_REDIRECT_URI: z.preprocess(emptyAsUnset, z.string().url().optional()),
+  // Encrypts the Apple refresh token at rest (AES-256-GCM). Optional: unset
+  // derives a key from JWT_SECRET (rotating JWT_SECRET then orphans stored Apple
+  // tokens — they could no longer be revoked), so set it in production.
+  SOCIAL_TOKEN_SECRET: z.preprocess(
+    emptyAsUnset,
+    z.string().min(32, 'SOCIAL_TOKEN_SECRET must be at least 32 characters').optional(),
+  ),
+
+  // Password-manager association for the Android app (/.well-known/assetlinks.json,
+  // WP-22): comma-separated SHA-256 signing-certificate fingerprints of the
+  // production app (Play App Signing + upload key), e.g. "AB:CD:…,12:34:…".
+  // Unset/empty = the file is served with an empty statement list.
+  ANDROID_CERT_SHA256: z.preprocess(
+    emptyAsUnset,
+    z
+      .string()
+      .transform((val) =>
+        val
+          .split(',')
+          .map((f) => f.trim().toUpperCase())
+          .filter((f) => f.length > 0),
+      )
+      .default(''),
+  ),
+
   // Cloudinary (optional — image generation will fail gracefully without these)
   CLOUDINARY_CLOUD_NAME: z.string().optional(),
   CLOUDINARY_API_KEY: z.string().optional(),
