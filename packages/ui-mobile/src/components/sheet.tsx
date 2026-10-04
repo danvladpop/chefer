@@ -22,7 +22,11 @@ import { elevation } from '@chefer/tokens';
 import { cn } from '@chefer/utils';
 import { duration, springs, timing } from '../motion/motion';
 import { useReducedMotion } from '../motion/use-reduced-motion';
-import { ScrollFieldContext, useScrollFieldIntoViewFor } from './keyboard-aware-scroll-view';
+import {
+  keyboardDismissMode,
+  ScrollFieldContext,
+  useScrollFieldIntoViewFor,
+} from './keyboard-aware-scroll-view';
 import { KeyboardPersistFooter } from './keyboard-persist-footer';
 import { sheetDragOffset, sheetReleaseAction, shouldStartSheetDrag } from './sheet-drag';
 import { Text } from './text';
@@ -232,6 +236,8 @@ export function Sheet({
       PanResponder.create({
         onMoveShouldSetPanResponder: (_e, g) =>
           !closing.current && shouldStartSheetDrag(g.dx, g.dy),
+        // Pulling the sheet down also puts the keyboard away.
+        onPanResponderGrant: () => Keyboard.dismiss(),
         onPanResponderTerminationRequest: () => false,
         onPanResponderMove: (_e, g) => drag.set(sheetDragOffset(g.dy)),
         onPanResponderRelease: (_e, g) => releaseDrag(g.dy, g.vy),
@@ -323,6 +329,7 @@ export function Sheet({
                 ref={scrollRef}
                 testID={testID ? `${testID}-scroll` : undefined}
                 keyboardShouldPersistTaps="handled"
+                keyboardDismissMode={keyboardDismissMode()}
                 contentContainerClassName="gap-3 px-4 pb-4"
                 className="shrink"
               >
@@ -331,7 +338,17 @@ export function Sheet({
                 </ScrollFieldContext.Provider>
               </ScrollView>
             ) : (
-              <View className="shrink px-4 pb-4">{children}</View>
+              // No ScrollView to dismiss on drag/tap: a tap on the body's empty
+              // space closes the keyboard (buttons and fields keep their taps;
+              // not an accessibility element, so VoiceOver never lands on it).
+              <Pressable
+                accessible={false}
+                focusable={false}
+                onPress={() => Keyboard.dismiss()}
+                className="shrink px-4 pb-4"
+              >
+                {children}
+              </Pressable>
             )}
             {footer ? (
               // R-03: a footer outside a keyboardShouldPersistTaps ScrollView

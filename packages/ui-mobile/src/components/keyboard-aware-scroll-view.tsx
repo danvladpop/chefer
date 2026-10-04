@@ -42,6 +42,16 @@ import { KeyboardPersistFooter } from './keyboard-persist-footer';
 /** Extra breathing room kept above the keyboard, beyond what it already displaces. */
 export const KEYBOARD_AWARE_DEFAULT_MARGIN = 24;
 
+/**
+ * `keyboardDismissMode` for every scrolling form/list that hosts inputs:
+ * iOS "interactive" (the keyboard tracks the finger, like Messages), Android
+ * "on-drag" (it has no interactive mode). Pair with
+ * `keyboardShouldPersistTaps="handled"` so buttons still get their first tap.
+ */
+export function keyboardDismissMode(): 'interactive' | 'on-drag' {
+  return Platform.OS === 'ios' ? 'interactive' : 'on-drag';
+}
+
 export type MeasurableField = Pick<TextInput, 'measureLayout'>;
 
 /** Scrolls `field` clear of the keyboard, with `extraMargin` of headroom above it. */
@@ -168,6 +178,8 @@ export function KeyboardAwareScrollView({
         ref={scrollRef}
         keyboardShouldPersistTaps="handled"
         automaticallyAdjustKeyboardInsets={Platform.OS === 'ios'}
+        // Dragging the form closes the keyboard (iOS follows the finger).
+        keyboardDismissMode={keyboardDismissMode()}
         {...scrollViewProps}
         contentContainerStyle={[
           contentContainerStyle,

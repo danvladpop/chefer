@@ -1,4 +1,4 @@
-import { ActivityIndicator, Text } from 'react-native';
+import { ActivityIndicator, Keyboard, Text } from 'react-native';
 import { cva, type VariantProps } from 'class-variance-authority';
 import { cn } from '@chefer/utils';
 import { PressableScale, type PressableScaleProps } from '../motion/pressable-scale';
@@ -64,6 +64,14 @@ export interface ButtonProps
   extends Omit<PressableScaleProps, 'children'>, VariantProps<typeof buttonVariants> {
   className?: string;
   loading?: boolean;
+  /**
+   * Close the on-screen keyboard when pressed (tester feedback 2026-10-04: the
+   * keyboard stayed up after a form was submitted). Defaults to true for the
+   * primary `default` / `destructive` variants — the form's submit — and false
+   * for secondary / outline / ghost buttons, which are often "add another"
+   * actions in the middle of typing.
+   */
+  dismissKeyboard?: boolean;
   /** Plain strings are wrapped in a variant-colored Text automatically. */
   children: React.ReactNode;
 }
@@ -76,8 +84,12 @@ export function Button({
   disabled,
   children,
   accessibilityState,
+  dismissKeyboard,
+  onPress,
   ...props
 }: ButtonProps) {
+  const closesKeyboard =
+    dismissKeyboard ?? (!variant || variant === 'default' || variant === 'destructive');
   const isDisabled = (disabled ?? false) || loading;
   return (
     <PressableScale
@@ -87,6 +99,15 @@ export function Button({
       // `busy` lets a screen reader (and tests) tell which of several buttons
       // is the one working.
       accessibilityState={{ disabled: isDisabled, busy: loading, ...accessibilityState }}
+      // Dismiss first, so a handler that re-focuses a field still wins.
+      onPress={
+        onPress && closesKeyboard
+          ? (event) => {
+              Keyboard.dismiss();
+              onPress(event);
+            }
+          : onPress
+      }
       {...props}
     >
       {loading ? (
