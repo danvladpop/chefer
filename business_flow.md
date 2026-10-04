@@ -5100,6 +5100,15 @@ Consent screen (COACHING_COPY.consent, the same words on both platforms):
   two joins racing for one client: the partial unique index lets one win; the loser re-reads once (a switch) → exactly one ACTIVE link
 ```
 
+**Mobile client side (lane D):** the invite page's "Open in the Chefer app" opens `coaching/join/<code>`. Signed out → "Join your trainer" with
+Sign in / Create account; the code is remembered and the app returns to the invite after sign-in (and after onboarding for a new account).
+`needsGymSetup` → "Set up training" opens the existing setup and Gym Today then shows "Carry on joining your trainer" (dismissible). After
+joining: "You're coached by Ana" with Open my routine / Your trainer. More and Settings carry the rows "Your trainer" (Leave with a confirm) and,
+for allowlisted trainers, "Trainer tools". Gym Today shows one line per event: "Ana updated your routine · 2 Oct" (until the Routine tab is
+opened on this device), "Ana stopped coaching you" (30 days, dismissible). The workout logger shows the trainer's cue under the exercise name
+and "Set by Ana" on a trainer-set target. The app sends API level 6, so all of this appears only on updated apps; an installed 1.0.1 (level 4)
+keeps working unchanged (§36.9).
+
 ### 36.4 What the trainer sees and does
 
 ```
