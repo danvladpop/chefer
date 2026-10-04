@@ -11,7 +11,6 @@ import { ShopDueCard } from '@/features/dashboard/components/shop-due-card';
 import { TodaySlotNotes } from '@/features/dashboard/components/today-slot-notes';
 import { TomorrowCard } from '@/features/dashboard/components/tomorrow-card';
 import { NothingTonightCard, TonightCard } from '@/features/dashboard/components/tonight-card';
-import { weekAverageLine } from '@/features/dashboard/lib/week-average';
 import { TodaysWorkoutCard } from '@/features/gym/shared/todays-workout-card';
 import {
   ReplaceMealSheet,
@@ -34,7 +33,13 @@ import { format, parseISO } from 'date-fns';
 import { ArrowRight, Sparkles, UtensilsCrossed } from 'lucide-react';
 import { Line, LineChart, ReferenceLine, ResponsiveContainer, Tooltip, XAxis } from 'recharts';
 import { ErrorState, Toast } from '@chefer/ui';
-import { formatDate, localDateStr, remainingPlannedKcal } from '@chefer/utils';
+import {
+  formatDate,
+  localDateStr,
+  remainingPlannedKcal,
+  weeklyAverage,
+  weeklyAverageText,
+} from '@chefer/utils';
 
 // ─── Meal type colours ─────────────────────────────────────────────────────────
 
@@ -74,6 +79,8 @@ export default function DashboardPage() {
   const { data: weekSummary } = trpc.tracker.weeklySummary.useQuery(undefined, {
     staleTime: 60_000,
   });
+  // Food 2: the praised number is the week (today is still being logged, so it's left out).
+  const weekAverage = weekSummary ? weeklyAverage(weekSummary.days, localDateStr()) : null;
   // §2.11, T-35.5: the ring's "Your target" / "Suggested" label.
   const { data: targetsData } = trpc.targets.get.useQuery();
 
@@ -521,9 +528,9 @@ export default function DashboardPage() {
             </div>
             {/* Food 2: the weekly average is the number to be pleased with; a
                 single day over or under is just a day. */}
-            {weekAverageLine(weekSummary.days) && (
+            {weekAverage && (
               <p data-testid="week-average" className="mb-3 text-sm font-medium text-gray-800">
-                {weekAverageLine(weekSummary.days)}
+                {weeklyAverageText(weekAverage)}
               </p>
             )}
             <ResponsiveContainer width="100%" height={80}>

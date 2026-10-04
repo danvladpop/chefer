@@ -1,6 +1,7 @@
-import { formatKcal, formatNumber } from '@chefer/utils';
+import { formatKcal, formatNumber } from './format';
 
-// "This week you averaged 1,640 kcal · 112 g protein a day" (WP-06, Food 2).
+// "This week you averaged 1,640 kcal · 112 g protein a day" (WP-06, Food 2),
+// shared by the mobile tracker and web Today.
 // The week's average is the number the tracker praises; a single day over or
 // under is not judged. Today is left out (it is still being logged), and it
 // needs at least two logged days before "average" means anything.

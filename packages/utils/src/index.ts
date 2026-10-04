@@ -813,3 +813,9 @@ export {
   type OffPlanRowLike,
 } from './tracker-day';
 export { regenerateConfirmBody } from './regenerate-copy';
+export {
+  weeklyAverage,
+  weeklyAverageText,
+  WEEKLY_AVERAGE_MIN_DAYS,
+  type WeekDay,
+} from './weekly-average';

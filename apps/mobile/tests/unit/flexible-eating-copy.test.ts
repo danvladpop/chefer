@@ -1,12 +1,12 @@
 import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { join, relative } from 'node:path';
+import { weeklyAverage, weeklyAverageText } from '@chefer/utils';
 import {
   replacedMessage,
   skippedMessage,
   SLOT_COPY,
   youHadText,
 } from '../../src/features/tracker/slot-copy';
-import { weeklyAverage, weeklyAverageText } from '../../src/features/tracker/weekly-average';
 
 // WP-06 (Food 2): eating out is not "off-plan", logging is not "honest", over
 // and under are reported not judged, and the week's average is the number that

@@ -18,6 +18,8 @@ import {
   sumLogged,
   tickStateFromLog,
   userFacingErrorMessage,
+  weeklyAverage,
+  weeklyAverageText,
   type CustomEntryRow,
 } from '@chefer/utils';
 import { MealTypeBadge } from '../src/features/dashboard/components/meal-type-badge';
@@ -36,7 +38,6 @@ import { SLOT_COPY, youHadText } from '../src/features/tracker/slot-copy';
 import { useSlotFlow } from '../src/features/tracker/slot-flow';
 import { TrackerTick } from '../src/features/tracker/tracker-tick';
 import { useTrackerWrites } from '../src/features/tracker/use-tracker-writes';
-import { weeklyAverage, weeklyAverageText } from '../src/features/tracker/weekly-average';
 import { getRecipeImageUrl } from '../src/lib/recipe-image';
 import { trpc } from '../src/lib/trpc';
 
