@@ -11,7 +11,7 @@ import { LogActivitySheet } from './log-activity-sheet';
 // queues through the offline outbox (record only — nothing here touches food).
 
 const { enqueue, setData, cancel, toast } = vi.hoisted(() => ({
-  enqueue: vi.fn(),
+  enqueue: vi.fn<[WorkoutSessionDoc, { ownerId: string | null }], undefined>(),
   setData: vi.fn(),
   cancel: vi.fn(() => Promise.resolve()),
   toast: vi.fn(),
@@ -38,7 +38,9 @@ function open(onClose = vi.fn()) {
 
 function queued(): WorkoutSessionDoc {
   expect(enqueue).toHaveBeenCalledTimes(1);
-  return enqueue.mock.calls[0]?.[0] as WorkoutSessionDoc;
+  const call = enqueue.mock.calls[0];
+  if (!call) throw new Error('nothing was queued');
+  return call[0];
 }
 
 describe('LogActivitySheet', () => {

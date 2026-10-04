@@ -1,4 +1,4 @@
-import { trpc } from '@/lib/trpc';
+import type { trpc } from '@/lib/trpc';
 import type { WorkoutSessionDoc } from '@chefer/types';
 import { localDate } from '../use-gym-bootstrap';
 import { outbox } from '../workout/outbox';

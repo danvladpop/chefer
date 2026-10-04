@@ -196,6 +196,8 @@ describe('GymHistoryDetailPage', () => {
   it('reads a quick-logged activity as one line with the kcal source', () => {
     const at = '2026-09-22T17:00:00.000Z';
     const doc = mixedDoc();
+    const [bench] = doc.exercises;
+    if (!bench) throw new Error('fixture has no exercise');
     m.doc = {
       ...doc,
       name: 'Cycling class',
@@ -203,7 +205,7 @@ describe('GymHistoryDetailPage', () => {
       startedAt: at,
       exercises: [
         {
-          ...(doc.exercises[0] as WorkoutSessionDoc['exercises'][number]),
+          ...bench,
           id: 'se-spin',
           exerciseId: 'spin-class',
           position: 0,
