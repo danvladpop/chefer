@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Image,
+  Keyboard,
   Platform,
   Pressable,
   ScrollView,
@@ -15,6 +16,7 @@ import {
   Card,
   ErrorState,
   KeyboardAwareScrollView,
+  keyboardDismissMode,
   Screen,
   SegmentedControl,
   Text,
@@ -283,6 +285,8 @@ export default function ShoppingListScreen() {
     if (!parsed.name || !weekList?.planId) {
       return;
     }
+    // The keyboard closes once the item is submitted (Return or the + button).
+    Keyboard.dismiss();
     addItemMutation.mutate({ planId: weekList.planId, items: [parsed] });
   };
 
@@ -299,7 +303,11 @@ export default function ShoppingListScreen() {
   if (view === 'kitchen') {
     return (
       <Screen className="px-0">
-        <ScrollView contentContainerClassName="gap-4 px-4 py-4">
+        <ScrollView
+          keyboardShouldPersistTaps="handled"
+          keyboardDismissMode={keyboardDismissMode()}
+          contentContainerClassName="gap-4 px-4 py-4"
+        >
           <ModeSwitch />
           <View>
             <Text className="text-xs font-semibold uppercase tracking-widest text-gray-500">
@@ -564,6 +572,7 @@ export default function ShoppingListScreen() {
                 accessibilityLabel="Add an item to your shopping list"
                 placeholderTextColor="#9ca3af"
                 returnKeyType="done"
+                submitBehavior="blurAndSubmit"
                 className="min-h-11 py-2 flex-1 rounded-md border border-input bg-background px-3 text-base text-foreground"
               />
               <Pressable

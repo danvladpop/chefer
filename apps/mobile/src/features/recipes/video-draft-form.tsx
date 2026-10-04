@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Pressable, TextInput, View } from 'react-native';
+import { Pressable, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { INGREDIENT_CATALOG_COPY, VIDEO_IMPORT_COPY, type VideoDraftField } from '@chefer/types';
 import {
@@ -7,6 +7,7 @@ import {
   Button,
   Card,
   ConfirmSheet,
+  DONE_FIELD_PROPS,
   haptics,
   Input,
   PressableScale,
@@ -234,6 +235,7 @@ export function VideoDraftForm({
           maxLength={120}
           onChangeText={(name) => update({ name })}
           className={cn((nameMissing || nameError) && 'border-red-400')}
+          {...DONE_FIELD_PROPS}
         />
         {nameError ? (
           <Text
@@ -262,6 +264,7 @@ export function VideoDraftForm({
               value={value}
               keyboardType="number-pad"
               onChangeText={(text) => update({ [key]: text }, field)}
+              {...DONE_FIELD_PROPS}
             />
           </View>
         ))}
@@ -294,6 +297,7 @@ export function VideoDraftForm({
                   keyboardType="decimal-pad"
                   onChangeText={(quantity) => setIngredient(index, { quantity })}
                   className={cn('w-16', unheard[index] && 'border-amber-400')}
+                  {...DONE_FIELD_PROPS}
                 />
                 {links[index]?.ingredient ? (
                   <View className="w-20">
@@ -316,6 +320,7 @@ export function VideoDraftForm({
                     autoCapitalize="none"
                     onChangeText={(unit) => setIngredient(index, { unit })}
                     className="w-16"
+                    {...DONE_FIELD_PROPS}
                   />
                 )}
                 <IngredientPickerField
@@ -400,22 +405,18 @@ export function VideoDraftForm({
               <Text className="mt-3 w-5 text-right text-xs font-semibold text-gray-500">
                 {index + 1}.
               </Text>
-              <TextInput
+              <Input
                 testID={`video-draft-step-${index}`}
                 accessibilityLabel={`Step ${index + 1}`}
                 value={step}
                 multiline
                 maxLength={500}
-                placeholderTextColor="#9ca3af"
                 onChangeText={(text) =>
                   update({
                     instructions: form.instructions.map((s, i) => (i === index ? text : s)),
                   })
                 }
-                className={cn(
-                  'min-h-16 min-w-0 flex-1 rounded-md border border-input bg-background px-3 py-2 text-base text-foreground',
-                  stepsMissing && 'border-red-400',
-                )}
+                className={cn('min-h-16 min-w-0 flex-1', stepsMissing && 'border-red-400')}
               />
               <Pressable
                 accessibilityRole="button"

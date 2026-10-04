@@ -1,11 +1,19 @@
 import { useRef, useState } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, TextInput, View } from 'react-native';
+import {
+  ActivityIndicator,
+  Keyboard,
+  Pressable,
+  ScrollView,
+  View,
+  type TextInput,
+} from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import type { DisplayCurrency } from '@chefer/types';
 import {
   Button,
   Card,
   ErrorState,
+  Input,
   Sheet,
   Text,
   useQueryState,
@@ -115,6 +123,7 @@ function EditPantrySheet({
       return;
     }
     setProblem(null);
+    Keyboard.dismiss();
     updateMutation.mutate({
       id: item.id,
       quantity: parsed.kind === 'amount' ? parsed.value : null,
@@ -143,7 +152,7 @@ function EditPantrySheet({
       <View className="gap-3">
         <View className="gap-1">
           <Text className="text-xs font-medium text-gray-600">Amount (leave empty for “some”)</Text>
-          <TextInput
+          <Input
             testID="pantry-edit-qty"
             value={quantity}
             onChangeText={(text) => {
@@ -155,8 +164,8 @@ function EditPantrySheet({
             aria-invalid={error !== null}
             accessibilityHint={error ?? undefined}
             placeholder="some"
-            placeholderTextColor="#9ca3af"
-            className="min-h-11 rounded-md border border-input bg-background px-3 py-2 text-base text-foreground"
+            returnKeyType="done"
+            onSubmitEditing={save}
           />
         </View>
         <View className="flex-row flex-wrap gap-1.5">
@@ -274,6 +283,7 @@ export function PantryPanel({
       return;
     }
     setQuantityProblem(null);
+    Keyboard.dismiss();
     addMutation.mutate({
       name: name.trim(),
       ...(parsed.kind === 'amount' ? { quantity: parsed.value } : {}),
@@ -331,7 +341,7 @@ export function PantryPanel({
       {enabled && (
         <View className="gap-2">
           <View className="flex-row gap-2">
-            <TextInput
+            <Input
               ref={nameInputRef}
               testID="pantry-add-name"
               value={name}
@@ -340,11 +350,11 @@ export function PantryPanel({
               onSubmitEditing={handleAdd}
               accessibilityLabel="Ingredient you have"
               placeholder="Add something you have… e.g. rice"
-              placeholderTextColor="#9ca3af"
               editable={!addMutation.isPending}
-              className="min-h-11 py-2 flex-1 rounded-md border border-input bg-background px-3 text-base text-foreground"
+              className="flex-1"
+              returnKeyType="done"
             />
-            <TextInput
+            <Input
               ref={quantityInputRef}
               testID="pantry-add-qty"
               value={quantity}
@@ -357,9 +367,10 @@ export function PantryPanel({
               accessibilityLabel="Amount"
               aria-invalid={quantityProblem !== null}
               placeholder="Qty"
-              placeholderTextColor="#9ca3af"
               editable={!addMutation.isPending}
-              className="min-h-11 py-2 w-16 rounded-md border border-input bg-background px-2 text-center text-base text-foreground"
+              className="w-16 px-2 text-center"
+              returnKeyType="done"
+              onSubmitEditing={handleAdd}
             />
           </View>
           <View className="flex-row items-center gap-1.5">

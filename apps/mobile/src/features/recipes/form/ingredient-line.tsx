@@ -2,6 +2,7 @@ import { forwardRef, useRef, useState } from 'react';
 import { Keyboard, Pressable, TextInput, View } from 'react-native';
 import { INGREDIENT_CATALOG_COPY, RECIPE_UNIT_GROUPS } from '@chefer/types';
 import {
+  DONE_FIELD_PROPS,
   haptics,
   NumericReturnBar,
   PressableScale,
@@ -148,6 +149,7 @@ export const IngredientLine = forwardRef<TextInput, IngredientLineProps>(functio
               onBlur={() => setQtyFocused(false)}
               keyboardType="decimal-pad"
               inputAccessoryViewID={accessoryID}
+              {...DONE_FIELD_PROPS}
               placeholder="200 or ½"
               placeholderTextColor="#9ca3af"
               accessibilityLabel={`Quantity for ingredient ${index + 1}`}

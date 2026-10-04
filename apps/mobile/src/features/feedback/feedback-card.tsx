@@ -1,6 +1,6 @@
 import { useRef, useState } from 'react';
-import { TextInput } from 'react-native';
-import { Button, Card, Text, useScrollFieldIntoView } from '@chefer/ui-mobile';
+import type { TextInput } from 'react-native';
+import { Button, Card, Input, Text, useScrollFieldIntoView } from '@chefer/ui-mobile';
 import { cn, FEEDBACK_MAX_LENGTH, feedbackCounter, userFacingErrorMessage } from '@chefer/utils';
 import { trpc } from '../../lib/trpc';
 import { buildFeedbackContext, useFeedbackRoute } from './feedback-context';
@@ -47,7 +47,7 @@ export function FeedbackCard({
       <Text nativeID="feedback-label" variant="label">
         Your feedback
       </Text>
-      <TextInput
+      <Input
         testID="feedback-input"
         ref={inputRef}
         onFocus={() => scrollFieldIntoView(inputRef.current)}
@@ -58,9 +58,8 @@ export function FeedbackCard({
         accessibilityLabelledBy="feedback-label"
         accessibilityHint={counter.label}
         placeholder="What happened? What did you expect?"
-        placeholderTextColor="#9ca3af"
         multiline
-        className="min-h-20 rounded-md border border-input bg-background px-3 py-2 text-base text-foreground"
+        className="min-h-20"
       />
       {/* Announced only near the cap, like web's aria-live="polite". */}
       <Text

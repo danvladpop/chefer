@@ -1,5 +1,6 @@
+import { Keyboard } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
-import { render, screen, userEvent, waitFor } from '@testing-library/react-native';
+import { fireEvent, render, screen, userEvent, waitFor } from '@testing-library/react-native';
 import { CURRENT_TERMS_VERSION } from '@chefer/types';
 import ForgotPasswordScreen from '../../app/(auth)/forgot-password';
 import LoginScreen from '../../app/(auth)/login';
@@ -13,6 +14,7 @@ import {
 } from '../../src/features/auth/session-expired';
 import type { createTrpcAuthMock } from './auth-trpc-mock';
 import { mutationResult } from './auth-trpc-mock';
+import { focusedFields, resetFocusedFields } from './keyboard-test-utils';
 
 // Audit P1-7 (auth parity): forgot/reset password (F-M-AUTH-3-1), register's
 // confirm-password field, the Show/Hide password toggle, and every auth
@@ -481,5 +483,134 @@ describe('network failures (R-09)', () => {
     );
     await renderWithSafeArea(<ForgotPasswordScreen />);
     expect(screen.getByTestId('forgot-password-error')).toHaveTextContent(FRIENDLY);
+  });
+});
+
+// Tester feedback 2026-10-04: keyboards must close after the last field, and
+// password / email fields must behave like credential fields.
+describe('Keyboard + credential fields (tester feedback 2026-10-04)', () => {
+  let dismiss: jest.SpyInstance;
+  beforeEach(() => {
+    dismiss = jest.spyOn(Keyboard, 'dismiss').mockImplementation(() => undefined);
+    resetFocusedFields();
+  });
+  afterEach(() => dismiss.mockRestore());
+
+  it('Login: Return on email moves to password; Go on password signs in and closes the keyboard', async () => {
+    const mutate = jest.fn();
+    trpc.auth.login.useMutation.mockReturnValue(mutationResult({ mutate }));
+    const user = userEvent.setup();
+    await renderWithSafeArea(<LoginScreen />);
+    await user.type(screen.getByTestId('login-email'), 'alice@chefer.dev');
+    await user.type(screen.getByTestId('login-password'), 'User@123!');
+
+    expect(screen.getByTestId('login-email').props.returnKeyType).toBe('next');
+    await fireEvent(screen.getByTestId('login-email'), 'submitEditing');
+    expect(focusedFields()).toContain('login-password');
+    expect(dismiss).not.toHaveBeenCalled();
+
+    expect(screen.getByTestId('login-password').props.returnKeyType).toBe('go');
+    await fireEvent(screen.getByTestId('login-password'), 'submitEditing');
+    await waitFor(() =>
+      expect(mutate).toHaveBeenCalledWith({ email: 'alice@chefer.dev', password: 'User@123!' }),
+    );
+    expect(dismiss).toHaveBeenCalled();
+  });
+
+  it('Login: pressing Sign in closes the keyboard too', async () => {
+    trpc.auth.login.useMutation.mockReturnValue(mutationResult({ mutate: jest.fn() }));
+    const user = userEvent.setup();
+    await renderWithSafeArea(<LoginScreen />);
+    await user.type(screen.getByTestId('login-email'), 'alice@chefer.dev');
+    await user.type(screen.getByTestId('login-password'), 'User@123!');
+    await user.press(screen.getByTestId('login-submit'));
+    expect(dismiss).toHaveBeenCalled();
+  });
+
+  it('Login: the password field is a password field, the email field an email field', async () => {
+    await renderWithSafeArea(<LoginScreen />);
+    const password = screen.getByTestId('login-password').props;
+    expect(password.secureTextEntry).toBe(true);
+    expect(password.textContentType).toBe('password');
+    expect(password.autoComplete).toBe('current-password');
+    expect(password.autoCapitalize).toBe('none');
+    expect(password.autoCorrect).toBe(false);
+    const email = screen.getByTestId('login-email').props;
+    expect(email.keyboardType).toBe('email-address');
+    expect(email.textContentType).toBe('emailAddress');
+    expect(email.autoComplete).toBe('email');
+    expect(email.autoCapitalize).toBe('none');
+    expect(email.autoCorrect).toBe(false);
+  });
+
+  it('Register: email / new-password fields declare themselves; confirm submits and closes the keyboard', async () => {
+    const mutate = jest.fn();
+    trpc.auth.register.useMutation.mockReturnValue(mutationResult({ mutate }));
+    const user = userEvent.setup();
+    await renderWithSafeArea(<RegisterScreen />);
+
+    const email = screen.getByTestId('register-email').props;
+    expect(email.keyboardType).toBe('email-address');
+    expect(email.textContentType).toBe('emailAddress');
+    for (const id of ['register-password', 'register-confirm-password']) {
+      const field = screen.getByTestId(id).props;
+      expect(field.secureTextEntry).toBe(true);
+      // Never the saved-password hint on a "choose a password" field.
+      expect(field.textContentType).not.toBe('password');
+      expect(field.autoComplete).not.toBe('current-password');
+      expect(field.autoCapitalize).toBe('none');
+      expect(field.autoCorrect).toBe(false);
+    }
+
+    await user.type(screen.getByTestId('register-email'), 'new@e2e.chefer.dev');
+    await user.type(screen.getByTestId('register-password'), 'Password123!');
+    await user.type(screen.getByTestId('register-confirm-password'), 'Password123!');
+    await checkConsentBoxes(user);
+    // first name → email → password → confirm: each "next" hands focus on.
+    resetFocusedFields();
+    await fireEvent(screen.getByTestId('register-first-name'), 'submitEditing');
+    await fireEvent(screen.getByTestId('register-email'), 'submitEditing');
+    await fireEvent(screen.getByTestId('register-password'), 'submitEditing');
+    expect(focusedFields()).toEqual([
+      'register-email',
+      'register-password',
+      'register-confirm-password',
+    ]);
+    await fireEvent(screen.getByTestId('register-confirm-password'), 'submitEditing');
+    await waitFor(() => expect(mutate).toHaveBeenCalled());
+    expect(dismiss).toHaveBeenCalled();
+  });
+
+  it('Reset: both fields are new-password fields and the last one submits', async () => {
+    useLocalSearchParams.mockReturnValue({ token: 'raw-token' });
+    const mutate = jest.fn();
+    trpc.auth.resetPassword.useMutation.mockReturnValue(mutationResult({ mutate }));
+    const user = userEvent.setup();
+    await renderWithSafeArea(<ResetPasswordScreen />);
+    for (const id of ['reset-password-password', 'reset-password-confirm']) {
+      const field = screen.getByTestId(id).props;
+      expect(field.secureTextEntry).toBe(true);
+      expect(field.textContentType).not.toBe('password');
+      expect(field.autoComplete).not.toBe('current-password');
+    }
+    await user.type(screen.getByTestId('reset-password-password'), 'NewPass123!');
+    await user.type(screen.getByTestId('reset-password-confirm'), 'NewPass123!');
+    await fireEvent(screen.getByTestId('reset-password-confirm'), 'submitEditing');
+    await waitFor(() =>
+      expect(mutate).toHaveBeenCalledWith({ token: 'raw-token', password: 'NewPass123!' }),
+    );
+    expect(dismiss).toHaveBeenCalled();
+  });
+
+  it('Forgot password: Send submits from the keyboard and closes it', async () => {
+    const mutate = jest.fn();
+    trpc.auth.requestPasswordReset.useMutation.mockReturnValue(mutationResult({ mutate }));
+    const user = userEvent.setup();
+    await renderWithSafeArea(<ForgotPasswordScreen />);
+    expect(screen.getByTestId('forgot-password-email').props.textContentType).toBe('emailAddress');
+    await user.type(screen.getByTestId('forgot-password-email'), 'alice@chefer.dev');
+    await fireEvent(screen.getByTestId('forgot-password-email'), 'submitEditing');
+    await waitFor(() => expect(mutate).toHaveBeenCalledWith({ email: 'alice@chefer.dev' }));
+    expect(dismiss).toHaveBeenCalled();
   });
 });

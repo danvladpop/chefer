@@ -1,6 +1,6 @@
 import { useRef, useState } from 'react';
 import { Controller, useForm } from 'react-hook-form';
-import { View } from 'react-native';
+import { Keyboard, View } from 'react-native';
 import type { TextInput } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -109,6 +109,7 @@ function ResetPasswordForm({
   const onSubmit = handleSubmit((values) => {
     // UX-ACC-18: no second submit from the keyboard while one is in flight.
     if (reset.isPending) return;
+    Keyboard.dismiss();
     reset.mutate({ token, password: values.password });
   });
 

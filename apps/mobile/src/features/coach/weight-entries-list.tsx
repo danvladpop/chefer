@@ -100,6 +100,7 @@ function EntryRow({
             autoFocus
             value={value}
             onChangeText={setValue}
+            returnKeyType="done"
             onSubmitEditing={save}
             inputAccessoryViewID={barId}
             keyboardType="decimal-pad"

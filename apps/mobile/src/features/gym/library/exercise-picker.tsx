@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { FlatList, Pressable, TextInput, View } from 'react-native';
+import { FlatList, Keyboard, Pressable, TextInput, View } from 'react-native';
 import {
   HIDDEN_EXERCISE_IMAGE_IDS,
   LIBRARY_FILTER_GROUPS,
@@ -7,7 +7,7 @@ import {
   type ExerciseDto,
   type LibraryFilterGroup,
 } from '@chefer/types';
-import { Button, ChipGroup, Sheet, Text } from '@chefer/ui-mobile';
+import { Button, ChipGroup, keyboardDismissMode, Sheet, Text } from '@chefer/ui-mobile';
 import {
   cn,
   exerciseMatchesFilterGroup,
@@ -114,6 +114,8 @@ export function ExercisePicker({
             placeholder="Search exercises"
             placeholderTextColor="#4b5563"
             autoCorrect={false}
+            returnKeyType="search"
+            onSubmitEditing={() => Keyboard.dismiss()}
             accessibilityLabel="Search exercises"
             className={cn(
               'min-h-11 rounded-xl border border-border bg-background px-3 text-base',
@@ -155,6 +157,7 @@ export function ExercisePicker({
         data={rows}
         keyExtractor={(e) => e.id}
         keyboardShouldPersistTaps="handled"
+        keyboardDismissMode={keyboardDismissMode()}
         initialNumToRender={12}
         renderItem={({ item }) => {
           const uri = exerciseImageUrl(item);

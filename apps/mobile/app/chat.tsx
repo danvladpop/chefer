@@ -3,7 +3,7 @@ import { Pressable, ScrollView, TextInput, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { fetch as expoFetch } from 'expo/fetch';
-import { Card, Screen, Text, useKeyboardInset } from '@chefer/ui-mobile';
+import { Card, keyboardDismissMode, Screen, Text, useKeyboardInset } from '@chefer/ui-mobile';
 import {
   cn,
   dailyAllowanceResetTime,
@@ -224,6 +224,8 @@ export default function ChatScreen() {
       >
         <ScrollView
           ref={scrollRef}
+          keyboardShouldPersistTaps="handled"
+          keyboardDismissMode={keyboardDismissMode()}
           contentContainerClassName="gap-3 px-4 py-2"
           onContentSizeChange={() => scrollRef.current?.scrollToEnd({ animated: false })}
         >

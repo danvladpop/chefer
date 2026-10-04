@@ -9,9 +9,11 @@ import {
   Button,
   Card,
   ConfirmSheet,
+  DONE_FIELD_PROPS,
   EmptyState,
   ErrorState,
   Input,
+  keyboardDismissMode,
   Screen,
   Sheet,
   Stepper,
@@ -313,7 +315,11 @@ export default function GymRoutinesScreen() {
 
   return (
     <Screen className="px-0" edges={['top', 'bottom', 'left', 'right']}>
-      <ScrollView contentContainerClassName="gap-4 px-4 py-4">
+      <ScrollView
+        keyboardShouldPersistTaps="handled"
+        keyboardDismissMode={keyboardDismissMode()}
+        contentContainerClassName="gap-4 px-4 py-4"
+      >
         <View className="flex-row items-center gap-3">
           <Pressable
             testID="gym-routines-title-back"
@@ -563,6 +569,7 @@ export default function GymRoutinesScreen() {
           onChangeText={setBlankName}
           placeholder="Routine name"
           maxLength={60}
+          {...DONE_FIELD_PROPS}
         />
         <View className="flex-row items-center justify-between">
           <Text variant="label">Days</Text>

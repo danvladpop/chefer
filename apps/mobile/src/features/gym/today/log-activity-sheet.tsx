@@ -12,6 +12,7 @@ import {
 import {
   Button,
   ChipGroup,
+  DONE_FIELD_PROPS,
   FormField,
   haptics,
   Input,
@@ -122,6 +123,7 @@ function ActivityForm({ bootstrap, onDone }: { bootstrap: GymBootstrap; onDone: 
       startAt: localInstant(date, ACTIVITY_START_TIME),
       now: nowIso(),
     });
+    Keyboard.dismiss();
     setSaving(true);
     try {
       await saveLoggedSession(queryClient, doc, (id) => {
@@ -165,7 +167,7 @@ function ActivityForm({ bootstrap, onDone }: { bootstrap: GymBootstrap; onDone: 
             value={customName}
             onChangeText={(text) => setCustomName(text.slice(0, ACTIVITY_NAME_MAX_LENGTH))}
             placeholder="e.g. Rock climbing"
-            returnKeyType="done"
+            {...DONE_FIELD_PROPS}
           />
         </FormField>
       ) : null}
@@ -186,7 +188,7 @@ function ActivityForm({ bootstrap, onDone }: { bootstrap: GymBootstrap; onDone: 
               aria-invalid={shown.duration !== undefined}
               keyboardType="number-pad"
               inputAccessoryViewID={barId}
-              returnKeyType="done"
+              {...DONE_FIELD_PROPS}
               value={minutesText}
               onChangeText={(text) => setMinutesText(digitsOnly(text, 3))}
               placeholder="Other"
@@ -219,7 +221,7 @@ function ActivityForm({ bootstrap, onDone }: { bootstrap: GymBootstrap; onDone: 
             aria-invalid={shown.calories !== undefined}
             keyboardType="number-pad"
             inputAccessoryViewID={barId}
-            returnKeyType="done"
+            {...DONE_FIELD_PROPS}
             value={kcalText}
             onChangeText={(text) => setKcalText(digitsOnly(text, 4))}
             placeholder="400"

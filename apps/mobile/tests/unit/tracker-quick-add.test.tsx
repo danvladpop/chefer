@@ -1,7 +1,8 @@
-import { TextInput } from 'react-native';
+import { Keyboard, TextInput } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
-import { act, render, screen, userEvent } from '@testing-library/react-native';
+import { act, fireEvent, render, screen, userEvent } from '@testing-library/react-native';
 import { QuickAddSheet } from '../../src/features/tracker/quick-add-sheet';
+import { focusedFields, resetFocusedFields } from './keyboard-test-utils';
 
 // T-19.1 (UX-19): the search-first Log sheet — Recent, This week's plan,
 // Your recipes, Ingredients (per 100 g), and "Enter calories yourself" as the
@@ -512,5 +513,73 @@ describe('QuickAddSheet — Enter calories yourself (fallback, T-19.1)', () => {
     expect(screen.getByTestId('quick-add-api-error')).toHaveTextContent(
       "You can't log a future day",
     );
+  });
+});
+
+// Tester feedback 2026-10-04: the keyboard walks name -> kcal -> protein ->
+// carbs -> fat on Return / Next, closes after the last field and after Log.
+describe('QuickAddSheet — keyboard (tester feedback 2026-10-04)', () => {
+  let dismiss: jest.SpyInstance;
+  beforeEach(() => {
+    dismiss = jest.spyOn(Keyboard, 'dismiss').mockImplementation(() => undefined);
+    resetFocusedFields();
+  });
+  afterEach(() => dismiss.mockRestore());
+
+  it('Return walks the manual form field by field, then closes the keyboard', async () => {
+    const user = userEvent.setup();
+    await renderSheet();
+    await goToManual(user);
+
+    const name = screen.getByTestId('quick-add-name');
+    expect(name.props.returnKeyType).toBe('next');
+    for (const id of ['quick-add-kcal', 'quick-add-protein', 'quick-add-carbs']) {
+      expect(screen.getByTestId(id).props.returnKeyType).toBe('next');
+    }
+    expect(screen.getByTestId('quick-add-fat').props.returnKeyType).toBe('done');
+
+    resetFocusedFields();
+    for (const id of ['quick-add-name', 'quick-add-kcal', 'quick-add-protein', 'quick-add-carbs']) {
+      await fireEvent(screen.getByTestId(id), 'submitEditing');
+    }
+    expect(focusedFields()).toEqual([
+      'quick-add-kcal',
+      'quick-add-protein',
+      'quick-add-carbs',
+      'quick-add-fat',
+    ]);
+    expect(dismiss).not.toHaveBeenCalled();
+
+    await fireEvent(screen.getByTestId('quick-add-fat'), 'submitEditing');
+    expect(dismiss).toHaveBeenCalledTimes(1);
+  });
+
+  it('Log closes the keyboard when the entry is accepted', async () => {
+    const user = userEvent.setup();
+    await renderSheet();
+    await goToManual(user);
+    await user.type(screen.getByTestId('quick-add-name'), 'Pizza');
+    await user.type(screen.getByTestId('quick-add-kcal'), '300');
+    await user.press(screen.getByTestId('quick-add-submit'));
+    expect(mockLogCustom).toHaveBeenCalled();
+    expect(dismiss).toHaveBeenCalled();
+  });
+
+  it('the search field reads "search" and closes the keyboard on submit', async () => {
+    await renderSheet();
+    const search = screen.getByTestId('log-sheet-search');
+    expect(search.props.returnKeyType).toBe('search');
+    await fireEvent(search, 'submitEditing');
+    expect(dismiss).toHaveBeenCalledTimes(1);
+  });
+
+  it('every numeric field is a number/decimal pad (so iOS shows the Done / Next bar)', async () => {
+    const user = userEvent.setup();
+    await renderSheet();
+    await goToManual(user);
+    expect(screen.getByTestId('quick-add-kcal').props.keyboardType).toBe('number-pad');
+    expect(screen.getByTestId('quick-add-protein').props.keyboardType).toBe('decimal-pad');
+    expect(screen.getByTestId('quick-add-kcal').props.inputAccessoryViewID).toBeTruthy();
+    expect(screen.getByTestId('quick-add-fat').props.inputAccessoryViewID).toBeTruthy();
   });
 });

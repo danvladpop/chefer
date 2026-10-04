@@ -1,5 +1,6 @@
+import { Keyboard } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
-import { render, screen, userEvent } from '@testing-library/react-native';
+import { fireEvent, render, screen, userEvent } from '@testing-library/react-native';
 import ShoppingListScreen from '../../app/(food)/shopping-list';
 import { openPremium } from '../../src/features/premium/open-premium';
 
@@ -146,5 +147,46 @@ describe('Shop screen — household portions (T-10.4)', () => {
     await renderScreen();
     expect(screen.queryByTestId('shopping-first-week')).toBeNull();
     expect(screen.queryByTestId('shopping-household-locked')).toBeNull();
+  });
+});
+
+// Tester feedback 2026-10-04: adding an item closes the keyboard, from the
+// keyboard's own Done key and from the + button alike.
+describe('Shop screen — add an item (keyboard)', () => {
+  let dismiss: jest.SpyInstance;
+  beforeEach(() => {
+    dismiss = jest.spyOn(Keyboard, 'dismiss').mockImplementation(() => undefined);
+    mockMutation.mutate.mockClear();
+  });
+  afterEach(() => dismiss.mockRestore());
+
+  it('Done on the keyboard adds the item and closes the keyboard', async () => {
+    const user = userEvent.setup();
+    mockList.mockReturnValue(list());
+    await renderScreen();
+    const input = screen.getByTestId('add-item-input');
+    expect(input.props.returnKeyType).toBe('done');
+    await user.type(input, 'Oat milk');
+    await fireEvent(input, 'submitEditing');
+    expect(mockMutation.mutate).toHaveBeenCalledTimes(1);
+    expect(dismiss).toHaveBeenCalledTimes(1);
+  });
+
+  it('the + button adds the item and closes the keyboard', async () => {
+    const user = userEvent.setup();
+    mockList.mockReturnValue(list());
+    await renderScreen();
+    await user.type(screen.getByTestId('add-item-input'), 'Oat milk');
+    await user.press(screen.getByTestId('add-item-submit'));
+    expect(mockMutation.mutate).toHaveBeenCalledTimes(1);
+    expect(dismiss).toHaveBeenCalledTimes(1);
+  });
+
+  it('an empty name does nothing (the keyboard stays for the next try)', async () => {
+    mockList.mockReturnValue(list());
+    await renderScreen();
+    await fireEvent(screen.getByTestId('add-item-input'), 'submitEditing');
+    expect(mockMutation.mutate).not.toHaveBeenCalled();
+    expect(dismiss).not.toHaveBeenCalled();
   });
 });

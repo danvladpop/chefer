@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { ActivityIndicator, Pressable, View } from 'react-native';
+import { ActivityIndicator, Keyboard, Pressable, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import {
@@ -94,8 +94,15 @@ export default function MyWeeksScreen() {
     (deleteMutation.error ? userFacingErrorMessage(deleteMutation.error) : undefined) ??
     null;
 
+  const saveCurrentWeek = () => {
+    if (!currentPlan || !saveName.trim() || busy) return;
+    Keyboard.dismiss();
+    saveMutation.mutate({ planId: currentPlan.planId, name: saveName.trim() });
+  };
+
   const submitRename = (templateId: string) => {
     if (!renameValue.trim() || busy) return;
+    Keyboard.dismiss();
     renameMutation.mutate({ templateId, name: renameValue.trim() });
   };
 
@@ -167,6 +174,8 @@ export default function MyWeeksScreen() {
                 accessibilityLabel="Name for this week"
                 value={saveName}
                 onChangeText={setSaveName}
+                returnKeyType="done"
+                onSubmitEditing={saveCurrentWeek}
                 placeholder="Name it, e.g. Mediterranean week"
                 placeholderTextColor="#9ca3af"
                 maxLength={NAME_MAX}
@@ -177,9 +186,7 @@ export default function MyWeeksScreen() {
                 size="sm"
                 disabled={!saveName.trim() || busy}
                 loading={saveMutation.isPending}
-                onPress={() =>
-                  saveMutation.mutate({ planId: currentPlan.planId, name: saveName.trim() })
-                }
+                onPress={saveCurrentWeek}
               >
                 Save
               </Button>

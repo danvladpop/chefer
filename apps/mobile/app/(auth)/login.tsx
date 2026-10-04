@@ -1,9 +1,16 @@
 import { useCallback, useRef, useState, useSyncExternalStore } from 'react';
 import { Controller, useForm } from 'react-hook-form';
-import { Pressable, View, type TextInput } from 'react-native';
+import { Keyboard, Pressable, View, type TextInput } from 'react-native';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Link, router, useFocusEffect } from 'expo-router';
-import { Button, Input, PasswordInput, Text, useScrollFieldIntoView } from '@chefer/ui-mobile';
+import {
+  Button,
+  EMAIL_FIELD_PROPS,
+  Input,
+  PasswordInput,
+  Text,
+  useScrollFieldIntoView,
+} from '@chefer/ui-mobile';
 import { userFacingErrorMessage } from '@chefer/utils';
 import {
   ACCOUNT_DELETED_NOTICE,
@@ -103,6 +110,7 @@ function LoginForm() {
   // must not fire it again.
   const onSubmit = handleSubmit((values) => {
     if (login.isPending) return;
+    Keyboard.dismiss();
     login.mutate(values);
   });
   // UX-ACC-07: the stale server error ("Invalid email or password") goes as
@@ -146,11 +154,7 @@ function LoginForm() {
             <Input
               ref={emailRef}
               testID="login-email"
-              autoCapitalize="none"
-              autoCorrect={false}
-              spellCheck={false}
-              autoComplete="email"
-              keyboardType="email-address"
+              {...EMAIL_FIELD_PROPS}
               returnKeyType="next"
               submitBehavior="submit"
               onSubmitEditing={() => passwordRef.current?.focus()}
@@ -177,6 +181,7 @@ function LoginForm() {
               testID="login-password"
               revealed={revealed}
               onRevealedChange={setRevealed}
+              textContentType="password"
               autoComplete="current-password"
               returnKeyType="go"
               onSubmitEditing={() => void onSubmit()}

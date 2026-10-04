@@ -1,6 +1,8 @@
+import { Keyboard } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react-native';
 import { CustomIngredientSheet } from '../../src/features/ingredients/custom-ingredient-sheet';
+import { focusedFields, resetFocusedFields } from './keyboard-test-utils';
 
 // plan-ingredient-catalog §8.1 / D5 (P9; T-40.8 originally): the mobile
 // private-ingredient sheet. All five label values are required, CONFLICT
@@ -284,5 +286,41 @@ describe('CustomIngredientSheet', () => {
     mockPremiumUser = { planTier: 'FREE', role: 'USER' };
     await renderSheet('oat bran');
     expect(screen.queryByText(/\$|€|£|\bprice\b|\bcheckout\b|\bbuy\b/i)).toBeNull();
+  });
+});
+
+// Tester feedback 2026-10-04: name -> kcal -> protein -> carbs -> fat -> fibre
+// -> g/piece -> g/100 ml on Return / Next, closing the keyboard after the last.
+describe('CustomIngredientSheet — keyboard (tester feedback 2026-10-04)', () => {
+  it('Return walks every field in order and the last one closes the keyboard', async () => {
+    const dismiss = jest.spyOn(Keyboard, 'dismiss').mockImplementation(() => undefined);
+    await renderSheet();
+    const order = [
+      'custom-sheet-name',
+      'custom-sheet-kcal',
+      'custom-sheet-protein',
+      'custom-sheet-carbs',
+      'custom-sheet-fat',
+      'custom-sheet-fiber',
+      'custom-sheet-grams-per-piece',
+      'custom-sheet-grams-per-100ml',
+    ];
+    expect(screen.getByTestId(order[0] ?? '').props.returnKeyType).toBe('next');
+    expect(screen.getByTestId(order[7] ?? '').props.returnKeyType).toBe('done');
+    // number pads have no Return key on iOS: each carries its own Next / Done bar.
+    for (const id of order.slice(1)) {
+      expect(screen.getByTestId(id).props.inputAccessoryViewID).toBeTruthy();
+    }
+
+    resetFocusedFields();
+    for (const id of order.slice(0, 7)) {
+      await fireEvent(screen.getByTestId(id), 'submitEditing');
+    }
+    expect(focusedFields()).toEqual(order.slice(1));
+    expect(dismiss).not.toHaveBeenCalled();
+
+    await fireEvent(screen.getByTestId(order[7] ?? ''), 'submitEditing');
+    expect(dismiss).toHaveBeenCalledTimes(1);
+    dismiss.mockRestore();
   });
 });
