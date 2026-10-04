@@ -4,7 +4,10 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { useEffect, useRef, useState } from 'react';
 import { SlotActionsMenu } from '@/features/tracker/components/SlotActionsMenu';
-import { handleRebalanceResult } from '@/features/tracker/lib/rebalance-storage';
+import {
+  handleRebalanceOutcome,
+  REBALANCE_PREVIEW,
+} from '@/features/tracker/lib/rebalance-storage';
 import { slotTargetOf, type SlotFlow } from '@/features/tracker/lib/use-slot-actions';
 import { trackMealLogged } from '@/lib/analytics-events';
 import { getRecipeImageProps } from '@/lib/recipe-image';
@@ -78,8 +81,8 @@ export function NextMealCard({ meal: nextMeal, isTomorrow, flow }: NextMealCardP
     onSuccess: (result) => {
       // UX-PO-02: the Today hero ticks a planned meal.
       trackMealLogged('planned', meal.mealType);
-      // A premium log can rebalance the week — same hand-off as the tracker.
-      handleRebalanceResult(result.rebalance);
+      // A log can offer to rebalance the week — same hand-off as the tracker.
+      handleRebalanceOutcome(result);
       setLastLogged(meal.recipe.name);
       if (holdTimer.current) clearTimeout(holdTimer.current);
       setHeld(meal);
@@ -175,6 +178,7 @@ export function NextMealCard({ meal: nextMeal, isTomorrow, flow }: NextMealCardP
                   data-testid="today-ate-this"
                   onClick={() =>
                     logMutation.mutate({
+                      ...REBALANCE_PREVIEW,
                       date: localDateStr(),
                       recipeId: meal.recipe.id,
                       mealType: meal.mealType,

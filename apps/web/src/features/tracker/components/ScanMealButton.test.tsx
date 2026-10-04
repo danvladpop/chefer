@@ -31,7 +31,10 @@ vi.mock('@/features/ai-consent/AiConsentProvider', () => ({
 }));
 vi.mock('@/features/premium/components/UpgradeButton', () => ({ UpgradeButton: () => null }));
 vi.mock('@/lib/analytics', () => ({ capture: vi.fn() }));
-vi.mock('../lib/rebalance-storage', () => ({ handleRebalanceResult: vi.fn() }));
+vi.mock('../lib/rebalance-storage', () => ({
+  handleRebalanceOutcome: vi.fn(),
+  REBALANCE_PREVIEW: { rebalanceMode: 'preview' },
+}));
 vi.mock('../lib/scan-client', () => ({
   scanMealPhoto: (...args: unknown[]): unknown => m.scan(...args),
   ScanUpgradeRequiredError: class ScanUpgradeRequiredError extends Error {},
@@ -141,6 +144,7 @@ describe('ScanMealButton for a plan slot (WP-06)', () => {
         estimatedBy: 'vision',
         mealType: 'dinner',
         replacesSlot: { mealType: 'dinner', slotIndex: 2 },
+        rebalanceMode: 'preview', // WP-07: offer first, never a silent rebalance
       }),
     );
   });
@@ -159,5 +163,17 @@ describe('ScanMealButton for a plan slot (WP-06)', () => {
     );
     expect(screen.queryByText('Scan a meal')).toBeNull();
     expect(openRef.current).toBeTypeOf('function');
+  });
+});
+
+// WP-07: the week rebalance is free for everyone, so the premium photo-scan
+// pitch must not sell it ("quietly rebalances the rest of your week").
+describe('ScanMealButton — free-tier demo copy (WP-07)', () => {
+  it('sells the photo scan only, with no rebalance or training-day promise', () => {
+    render(<ScanMealButton date="2026-09-26" isPremium={false} onLogged={vi.fn()} />);
+    fireEvent.click(screen.getByText('Scan a meal'));
+    const text = document.body.textContent;
+    expect(text).toContain('estimates the dish and macros');
+    expect(text).not.toMatch(/rebalanc|rest of your week|training/i);
   });
 });

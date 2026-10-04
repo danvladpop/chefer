@@ -12,6 +12,7 @@ import { TodaySlotNotes } from '@/features/dashboard/components/today-slot-notes
 import { TomorrowCard } from '@/features/dashboard/components/tomorrow-card';
 import { NothingTonightCard, TonightCard } from '@/features/dashboard/components/tonight-card';
 import { TodaysWorkoutCard } from '@/features/gym/shared/todays-workout-card';
+import { RebalanceBanner } from '@/features/meal-plan/components/RebalanceBanner';
 import {
   ReplaceMealSheet,
   type ReplaceTarget,
@@ -281,6 +282,10 @@ export default function DashboardPage() {
             <ScanMealButton date={localDateStr()} isPremium={isPremium} onLogged={onLogged} />
           )}
         </div>
+
+        {/* WP-07: a log here can find a gap in the week — the offer (Preview ·
+            Apply · Not now) and the Undo for an applied rebalance show here. */}
+        <RebalanceBanner onUndone={onLogged} />
 
         {/* UX-04 §3: Tonight (evening, AC3) -> its done collapse -> Tomorrow
             (late/AC5, never "NEXT UP · BREAKFAST" at 22:00) -> the existing

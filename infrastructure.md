@@ -282,6 +282,15 @@ Handles `SIGTERM` and `SIGINT`: closes HTTP server, disconnects Prisma.
 components/HealthConsentSheet.tsx, HealthDeclinedNotice.tsx, HealthConsentNudges.tsx, AiGeneratedChip.tsx}` and
 > `features/profile/components/HealthConsentCard.tsx` (on `/profile`). Same contract as mobile; no new routes.
 
+> **Week rebalance offer (WP-07, UX-PLAN-09, no new routes):** every log write sends `rebalanceMode: 'preview'`
+> (`REBALANCE_PREVIEW`, `features/tracker/lib/rebalance-storage.ts`). `handleRebalanceOutcome` parks a returned
+> `rebalancePreview` as a localStorage offer (`chefer.rebalance.offer`, 6 h expiry) and an applied `rebalance` as the
+> Undo hand-off (`chefer.rebalance.pending`, 24 h). `features/meal-plan/components/RebalanceBanner.tsx` renders both
+> (tracker, Today, cook mode, plan); `RebalanceOffer.tsx` is the Preview · Apply · Not now card + `useApplyRebalance`
+> (`mealPlan.applyRebalance`); `RebalanceMyWeek.tsx` is the Plan's "Rebalance my week" sheet (`mealPlan.previewRebalance`).
+> `PlanMissSheet` caps portion steps on a loss goal (`capProteinScaleFactor`). Week rebalance and training-day targets
+> have no `/premium` card (`premium-features.ts`).
+
 **Port:** 3000
 **Framework:** Next.js 15, App Router, React 19
 

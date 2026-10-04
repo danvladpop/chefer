@@ -13,7 +13,10 @@ import { ScanMealButton } from '@/features/tracker/components/ScanMealButton';
 import { SlotActionsHost } from '@/features/tracker/components/SlotActionsHost';
 import { SlotActionsMenu } from '@/features/tracker/components/SlotActionsMenu';
 import { invalidateDayQueries } from '@/features/tracker/lib/invalidate';
-import { handleRebalanceResult } from '@/features/tracker/lib/rebalance-storage';
+import {
+  handleRebalanceOutcome,
+  REBALANCE_PREVIEW,
+} from '@/features/tracker/lib/rebalance-storage';
 import { SKIPPED_LABEL, youHadLine } from '@/features/tracker/lib/slot-copy';
 import {
   customEntryChipLabel,
@@ -146,6 +149,7 @@ export default function TrackerPage() {
   const logSlot = (meal: PlannedRow, portionMultiplier: PortionKey, onSuccess?: () => void) => {
     logRecipeMutation.mutate(
       {
+        ...REBALANCE_PREVIEW,
         date: dateStr,
         recipeId: meal.recipeId,
         mealType: meal.mealType,
@@ -272,6 +276,7 @@ export default function TrackerPage() {
             // The entry is re-logged exactly as it was (recipe, meal, portion).
             onClick: () =>
               logRecipeMutation.mutate({
+                ...REBALANCE_PREVIEW,
                 date: dateStr,
                 recipeId: row.recipeId,
                 mealType: row.mealType,
@@ -289,10 +294,10 @@ export default function TrackerPage() {
 
   const confirmCopyDay = () => {
     copyDayMutation.mutate(
-      { fromDate: copyFromDateStr, toDate: dateStr },
+      { ...REBALANCE_PREVIEW, fromDate: copyFromDateStr, toDate: dateStr },
       {
         onSuccess: (result) => {
-          handleRebalanceResult(result.rebalance);
+          handleRebalanceOutcome(result);
           setCopyDayOpen(false);
           invalidateDayQueries(utils); // both the source and target dates
           showToast(
@@ -332,7 +337,7 @@ export default function TrackerPage() {
   } = sumLogged(data?.log?.loggedMeals ?? []);
   // All four targets come from the API's resolveDailyTargets — the same
   // source the dashboard uses, so the two surfaces can never disagree
-  // (prod-followups #4). A premium lifter's training day swaps in the bumped
+  // (prod-followups #4). A lifter's training day (free for everyone, WP-07) swaps in the bumped
   // targets, exactly like Today (audit P2-4). Fallbacks only cover the
   // pre-data render.
   const dayTargets = data?.adjustedTargets ?? data?.targets;
