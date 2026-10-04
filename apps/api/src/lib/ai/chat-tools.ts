@@ -92,7 +92,7 @@ export const CHAT_TOOL_DEFINITIONS: ChatToolDefinition[] = [
   {
     name: 'logMeal',
     description:
-      "Logs a meal the user says they ATE (off-plan food: 'I ate a burger', 'had a croissant') into today's tracker with your best realistic macro estimate. Do not use it for planned meals.",
+      "Logs a meal the user says they ATE and that was not on their plan ('I ate a burger', 'had a croissant') into today's tracker with your best realistic macro estimate. Do not use it for planned meals.",
     parameters: {
       type: 'object',
       properties: {

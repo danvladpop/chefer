@@ -26,7 +26,7 @@ type Day = RouterOutputs['tracker']['getDay'];
 type Snapshot = { previous: Day | undefined } | undefined;
 
 /** One scope for every tracker write: same id → run one after another. */
-const WRITE_SCOPE = { id: 'tracker-day-writes' };
+export const WRITE_SCOPE = { id: 'tracker-day-writes' };
 
 const round1 = (v: number): number => Math.round(v * 10) / 10;
 

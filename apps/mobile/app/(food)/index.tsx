@@ -18,10 +18,12 @@ import { HeroMealCard } from '../../src/features/dashboard/components/hero-meal-
 import { MealTypeBadge } from '../../src/features/dashboard/components/meal-type-badge';
 import { NutritionSummary } from '../../src/features/dashboard/components/nutrition-summary';
 import { ShopDueCard } from '../../src/features/dashboard/components/shop-due-card';
+import { TodaySlotNotes } from '../../src/features/dashboard/components/today-slot-notes';
 import { TomorrowCard } from '../../src/features/dashboard/components/tomorrow-card';
 import {
   NothingTonightCard,
   TonightCard,
+  type TonightSlot,
 } from '../../src/features/dashboard/components/tonight-card';
 import { WeekOutlook } from '../../src/features/dashboard/components/week-outlook';
 import { ModeSwitch } from '../../src/features/gym/components/mode-switch';
@@ -31,6 +33,7 @@ import { HealthConsentTodayNotice } from '../../src/features/privacy/health-cons
 import { MigrationCard } from '../../src/features/safety/migration-card';
 import { QuickAddSheet } from '../../src/features/tracker/quick-add-sheet';
 import { ScanMealCard } from '../../src/features/tracker/scan-meal-card';
+import { useSlotFlow } from '../../src/features/tracker/slot-flow';
 import { useIsPremium } from '../../src/hooks/use-is-premium';
 import { getRecipeImageUrl } from '../../src/lib/recipe-image';
 import { trpc } from '../../src/lib/trpc';
@@ -89,6 +92,8 @@ export default function HomeScreen() {
   });
   const showProfileNudge = isPremium === true && hasProfile === false;
   const [quickAddOpen, setQuickAddOpen] = useState(false);
+  // WP-06: "Ate something else" / "Skipped it" for the hero and tonight cards.
+  const slotFlow = useSlotFlow(localDateStr());
   // §2.11, T-35.5: the ring's "Your target" / "Suggested" label.
   const { data: targetsData } = trpc.targets.get.useQuery();
 
@@ -142,11 +147,41 @@ export default function HomeScreen() {
   // dinner is done or it's late (AC5: never "NEXT UP · BREAKFAST" at
   // 22:00), else the existing "next up" hero (today's next open window).
   const moment = momentFor(new Date().getHours());
+  // WP-06: a replaced dinner is `done`; a skipped one is neither done nor left to
+  // cook, so it collapses to its own one-line row and tomorrow takes the spotlight.
+  const dinnerSlot = d.today.slots?.find(
+    (s) => s.mealType === 'dinner' && s.slotIndex === d.tonight?.slotIndex,
+  );
+  const dinnerSkipped = dinnerSlot?.status === 'skipped';
   const dinnerDone = d.tonight?.done === true;
-  const showTonightCard = moment === 'evening' && !!d.tonight && !dinnerDone;
-  const showTonightDoneRow = dinnerDone;
+  const dinnerHandled = dinnerDone || dinnerSkipped;
+  const showTonightCard = moment === 'evening' && !!d.tonight && !dinnerHandled;
+  const showTonightDoneRow = dinnerHandled && !!d.tonight;
   const showNothingTonight = moment === 'evening' && !d.tonight && !dinnerDone;
-  const showTomorrowCard = (moment === 'late' || dinnerDone) && !!d.tomorrow;
+  const showTomorrowCard = (moment === 'late' || dinnerHandled) && !!d.tomorrow;
+  const tonightSlot: TonightSlot | undefined =
+    dinnerSlot?.status === 'skipped'
+      ? {
+          status: 'skipped',
+          onUndo: () =>
+            slotFlow.actions.unskipSlot({ mealType: 'dinner', slotIndex: dinnerSlot.slotIndex }),
+        }
+      : dinnerSlot?.status === 'replaced' && dinnerSlot.replacedBy
+        ? (() => {
+            const entryId = dinnerSlot.replacedBy.entryId;
+            return {
+              status: 'replaced' as const,
+              name: dinnerSlot.replacedBy.name,
+              kcal: dinnerSlot.replacedBy.kcal,
+              ...(entryId && { onRemove: () => slotFlow.actions.removeReplacementById(entryId) }),
+            };
+          })()
+        : undefined;
+  // The tonight card already says what became of dinner; the notes card says the rest.
+  const tonightShown = (showTonightCard || showTonightDoneRow) && !!d.tonight;
+  const noteSlots = (d.today.slots ?? []).filter(
+    (s) => !(tonightShown && s.mealType === 'dinner' && s.slotIndex === d.tonight?.slotIndex),
+  );
   const heroMeal =
     !showTonightCard && !showTonightDoneRow && !showNothingTonight && !showTomorrowCard
       ? d.nextMeal
@@ -261,11 +296,41 @@ export default function HomeScreen() {
             meal={d.tonight}
             showNutrition={showNutritionCards}
             onLogged={() => void refetch()}
+            slot={tonightSlot}
+            onSlotActions={() =>
+              d.tonight &&
+              slotFlow.openMenu({
+                mealType: d.tonight.mealType,
+                slotIndex: d.tonight.slotIndex,
+                name: d.tonight.recipe.name,
+              })
+            }
           />
         )}
         {showNothingTonight && <NothingTonightCard />}
         {showTomorrowCard && d.tomorrow && <TomorrowCard meal={d.tomorrow} />}
-        {heroMeal && <HeroMealCard meal={heroMeal} isTomorrow={false} />}
+        {heroMeal && (
+          <HeroMealCard
+            meal={heroMeal}
+            isTomorrow={false}
+            onSlotActions={
+              heroMeal.slotIndex !== undefined
+                ? (m) =>
+                    slotFlow.openMenu({
+                      mealType: m.mealType,
+                      slotIndex: heroMeal.slotIndex ?? 0,
+                      name: m.recipe.name,
+                    })
+                : undefined
+            }
+          />
+        )}
+        {/* WP-06: meals swapped for something else, or skipped — with Remove / Undo. */}
+        <TodaySlotNotes
+          slots={noteSlots}
+          onRemoveReplacement={slotFlow.actions.removeReplacementById}
+          onUndoSkip={slotFlow.actions.unskipSlot}
+        />
         {!heroMeal &&
           !showTonightCard &&
           !showTonightDoneRow &&
@@ -358,6 +423,8 @@ export default function HomeScreen() {
           </View>
         )}
       </KeyboardAwareScrollView>
+
+      {slotFlow.host}
 
       <QuickAddSheet
         visible={quickAddOpen}

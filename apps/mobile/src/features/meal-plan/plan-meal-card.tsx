@@ -28,6 +28,7 @@ export function PlanMealCard({
   day,
   onReport,
   eaten = false,
+  slotNote,
 }: {
   meal: PlanMeal;
   testID: string;
@@ -38,6 +39,11 @@ export function PlanMealCard({
   onReport?: (recipeId: string, recipeName: string) => void;
   /** UX-PLAN-11: the past-week view marks a meal the user logged as eaten. */
   eaten?: boolean;
+  /**
+   * WP-06: what became of this slot when it was not eaten as planned — "You had:
+   * …" (a replacement) or "Skipped", with its Remove / Undo. Shown under the name.
+   */
+  slotNote?: ReactNode;
 }) {
   // P1-1: the slot may be sized to the day's targets (1½× the recipe).
   const portion = slotPortion(meal.portion);
@@ -118,6 +124,7 @@ export function PlanMealCard({
       }
       trailing={trailing}
     >
+      {slotNote}
       <AiGeneratedChip recipe={meal.recipe} />
       <AllergenWarningChip warnings={meal.recipe.allergenWarnings} details={conflictDetails} />
       {/* T-02.4/AC3: a recipe that fails the table's rules never claims

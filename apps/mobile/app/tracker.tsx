@@ -14,9 +14,12 @@ import {
   localDateStr,
   plannedRowKey,
   slotPortion,
+  slotStates,
   sumLogged,
   tickStateFromLog,
   userFacingErrorMessage,
+  weeklyAverage,
+  weeklyAverageText,
   type CustomEntryRow,
 } from '@chefer/utils';
 import { MealTypeBadge } from '../src/features/dashboard/components/meal-type-badge';
@@ -30,6 +33,9 @@ import { QuickAddSheet } from '../src/features/tracker/quick-add-sheet';
 import { RebalanceBanner } from '../src/features/tracker/rebalance-banner';
 import { recordRebalance } from '../src/features/tracker/rebalance-store';
 import { ScanMealCard } from '../src/features/tracker/scan-meal-card';
+import { SlotOverflowButton, SlotStatusLine } from '../src/features/tracker/slot-controls';
+import { SLOT_COPY, youHadText } from '../src/features/tracker/slot-copy';
+import { useSlotFlow } from '../src/features/tracker/slot-flow';
 import { TrackerTick } from '../src/features/tracker/tracker-tick';
 import { useTrackerWrites } from '../src/features/tracker/use-tracker-writes';
 import { getRecipeImageUrl } from '../src/lib/recipe-image';
@@ -114,6 +120,16 @@ export default function TrackerScreen() {
   // bumped targets (audit P2-4); everyone else keeps the base.
   const dayTargets = data?.adjustedTargets ?? data?.targets;
 
+  // WP-06: "Ate something else" / "Skipped it" on every planned row.
+  const slotFlow = useSlotFlow(dateStr);
+  // The week's average is the number this screen praises (Food 2); one day over
+  // or under is just reported.
+  const { data: week } = trpc.tracker.weeklySummary.useQuery(
+    { localDate: todayStr },
+    { staleTime: 60_000 },
+  );
+  const average = week ? weeklyAverage(week.days, todayStr) : null;
+
   const [quickAddOpen, setQuickAddOpen] = useState(false);
   const [explainOpen, setExplainOpen] = useState(false);
   const [copyDayOpen, setCopyDayOpen] = useState(false);
@@ -148,6 +164,21 @@ export default function TrackerScreen() {
   const planned = (data?.plannedMeals ?? []).map((m, i) => ({ ...m, key: keyOf(m, i) }));
   type PlannedRow = (typeof planned)[number];
 
+  // WP-06: what became of each planned slot — eaten as planned, replaced by
+  // something else ("You had: …"), skipped, or still to eat. One helper for
+  // every surface; `states` lines up with `planned`.
+  const loggedMeals = data?.log?.loggedMeals ?? [];
+  const states = slotStates(
+    planned.map((m, i) => ({
+      type: m.mealType,
+      recipeId: m.recipeId,
+      slotIndex: m.slotIndex ?? i,
+    })),
+    loggedMeals,
+    data?.skippedSlots ?? [],
+  );
+  const replacedEntries = states.flatMap((st) => (st.status === 'replaced' ? [st.entry] : []));
+  const replacedIndexes = new Set(replacedEntries.map((e) => loggedMeals.indexOf(e)));
   const logSlot = (meal: PlannedRow, portionMultiplier: PortionKey, onSuccess?: () => void) => {
     logRecipeMutation.mutate(
       {
@@ -232,6 +263,7 @@ export default function TrackerScreen() {
                       carbs: row.carbs,
                       fat: row.fat,
                       ...(row.unknownMacros && { unknownMacros: [...row.unknownMacros] }),
+                      ...(row.replacesSlot && { replacesSlot: row.replacesSlot }),
                     },
                   })
               : undefined,
@@ -297,7 +329,9 @@ export default function TrackerScreen() {
     );
   };
 
-  const customRows = customEntryRows(data?.log?.loggedMeals ?? []);
+  // A replacement sits on its slot ("You had: …"), so it is not listed again
+  // here. One whose slot is gone from the plan (regenerated since) still is.
+  const customRows = customEntryRows(loggedMeals).filter((r) => !replacedIndexes.has(r.entryIndex));
 
   // UX-FOOD-25: off-plan recipes and custom entries are ONE "Also eaten" list,
   // grouped under the meal they belong to (they were two stacked sections
@@ -318,7 +352,7 @@ export default function TrackerScreen() {
     protein: loggedProtein,
     carbs: loggedCarbs,
     fat: loggedFat,
-  } = sumLogged(data?.log?.loggedMeals ?? []);
+  } = sumLogged(loggedMeals);
 
   return (
     <Screen edges={['top', 'bottom', 'left', 'right']} className="px-0">
@@ -435,6 +469,11 @@ export default function TrackerScreen() {
               <TargetBar label="Carbs (g)" value={loggedCarbs} target={dayTargets?.carbsG ?? 225} />
               <TargetBar label="Fat (g)" value={loggedFat} target={dayTargets?.fatG ?? 65} />
             </View>
+            {average && (
+              <Text testID="tracker-weekly-average" className="text-xs text-gray-600">
+                {weeklyAverageText(average)}
+              </Text>
+            )}
           </View>
 
           {/* Planned meals to check off */}
@@ -464,9 +503,74 @@ export default function TrackerScreen() {
             </View>
           ) : (
             <View className="gap-2">
-              {planned.map((meal) => {
+              {planned.map((meal, i) => {
+                const state = states[i];
                 const isChecked = checked(meal.key);
                 const portion = portionOf(meal);
+                const slot = { mealType: meal.mealType, slotIndex: meal.slotIndex ?? i };
+
+                // WP-06: swapped for something else — says what you had, can't be
+                // ticked again, and the planned meal can come back with Remove.
+                if (state?.status === 'replaced') {
+                  const entry = state.entry;
+                  const entryId = entry.entryId;
+                  return (
+                    <View
+                      key={meal.key}
+                      testID={`tracker-meal-${meal.mealType}`}
+                      className="gap-1 rounded-xl border border-border bg-muted p-3"
+                    >
+                      <MealTypeBadge mealType={meal.mealType} />
+                      <SlotStatusLine
+                        testID={`tracker-slot-replaced-${meal.key}`}
+                        text={youHadText(entry)}
+                        actionLabel={entryId ? SLOT_COPY.remove : undefined}
+                        onAction={
+                          entryId && entry.custom
+                            ? () =>
+                                slotFlow.actions.removeReplacement({
+                                  entryId,
+                                  name: entry.custom?.name ?? 'Something else',
+                                  estimatedBy: entry.custom?.estimatedBy ?? 'manual',
+                                  kcal: entry.kcal,
+                                  protein: entry.protein,
+                                  carbs: entry.carbs,
+                                  fat: entry.fat,
+                                  unknownMacros: entry.unknownMacros,
+                                  replacesSlot: slot,
+                                })
+                            : undefined
+                        }
+                      />
+                      <Text numberOfLines={1} className="text-xs text-gray-500">
+                        Planned: {meal.recipeName}
+                      </Text>
+                    </View>
+                  );
+                }
+
+                // WP-06: skipped — muted, neither eaten nor remaining; Undo puts it back.
+                if (state?.status === 'skipped') {
+                  return (
+                    <View
+                      key={meal.key}
+                      testID={`tracker-meal-${meal.mealType}`}
+                      className="gap-1 rounded-xl border border-border bg-muted p-3"
+                    >
+                      <MealTypeBadge mealType={meal.mealType} />
+                      <Text numberOfLines={1} className="text-sm text-gray-500">
+                        {meal.recipeName}
+                      </Text>
+                      <SlotStatusLine
+                        testID={`tracker-slot-skipped-${meal.key}`}
+                        text={SLOT_COPY.skippedLabel}
+                        actionLabel={SLOT_COPY.undo}
+                        onAction={() => slotFlow.actions.unskipSlot(slot)}
+                      />
+                    </View>
+                  );
+                }
+
                 return (
                   <View
                     key={meal.key}
@@ -475,34 +579,44 @@ export default function TrackerScreen() {
                       isChecked ? 'border-primary/30 bg-accent' : 'border-border bg-card',
                     )}
                   >
-                    <Pressable
-                      testID={`tracker-meal-${meal.mealType}`}
-                      accessibilityRole="button"
-                      accessibilityState={{ checked: isChecked }}
-                      onPress={() => toggleMeal(meal)}
-                      className="min-h-12 flex-row items-center gap-3"
-                    >
-                      <Image
-                        source={{ uri: getRecipeImageUrl(meal.imageUrl) }}
-                        className="h-12 w-12 rounded-lg"
-                        resizeMode="cover"
-                      />
-                      <View className="min-w-0 flex-1">
-                        <MealTypeBadge mealType={meal.mealType} />
-                        <Text
-                          numberOfLines={1}
-                          className="mt-0.5 text-sm font-medium text-gray-800"
-                        >
-                          {meal.recipeName}
-                        </Text>
-                        <Text className="text-xs text-gray-500">
-                          {Math.round(meal.kcal * portion)} kcal
-                          {planPortionOf(meal) !== 1 &&
-                            ` · plan ${formatPortion(planPortionOf(meal))}`}
-                        </Text>
-                      </View>
-                      <TrackerTick testID={`tracker-tick-${meal.mealType}`} checked={isChecked} />
-                    </Pressable>
+                    <View className="flex-row items-center">
+                      <Pressable
+                        testID={`tracker-meal-${meal.mealType}`}
+                        accessibilityRole="button"
+                        accessibilityState={{ checked: isChecked }}
+                        onPress={() => toggleMeal(meal)}
+                        className="min-h-12 min-w-0 flex-1 flex-row items-center gap-3"
+                      >
+                        <Image
+                          source={{ uri: getRecipeImageUrl(meal.imageUrl) }}
+                          className="h-12 w-12 rounded-lg"
+                          resizeMode="cover"
+                        />
+                        <View className="min-w-0 flex-1">
+                          <MealTypeBadge mealType={meal.mealType} />
+                          <Text
+                            numberOfLines={1}
+                            className="mt-0.5 text-sm font-medium text-gray-800"
+                          >
+                            {meal.recipeName}
+                          </Text>
+                          <Text className="text-xs text-gray-500">
+                            {Math.round(meal.kcal * portion)} kcal
+                            {planPortionOf(meal) !== 1 &&
+                              ` · plan ${formatPortion(planPortionOf(meal))}`}
+                          </Text>
+                        </View>
+                        <TrackerTick testID={`tracker-tick-${meal.mealType}`} checked={isChecked} />
+                      </Pressable>
+                      {/* WP-06: only a meal still to eat can be swapped or skipped. */}
+                      {!isChecked && (
+                        <SlotOverflowButton
+                          testID={`tracker-slot-actions-${meal.key}`}
+                          mealType={meal.mealType}
+                          onPress={() => slotFlow.openMenu({ ...slot, name: meal.recipeName })}
+                        />
+                      )}
+                    </View>
 
                     {isChecked && (
                       <View className="mt-2 flex-row gap-1.5">
@@ -665,19 +779,28 @@ export default function TrackerScreen() {
         onClose={() => setQuickAddOpen(false)}
         date={dateStr}
         onLogged={() => invalidateDayQueries(utils, dateStr)}
-        plannedMeals={(data?.plannedMeals ?? []).map((m, i) => ({
-          recipeId: m.recipeId,
-          recipeName: m.recipeName,
-          mealType: m.mealType,
-          imageUrl: m.imageUrl,
-          kcal: m.kcal,
-          protein: m.protein,
-          carbs: m.carbs,
-          fat: m.fat,
-          ...(m.portion !== undefined && { portion: m.portion }),
-          slotIndex: m.slotIndex ?? i,
-        }))}
+        plannedMeals={(data?.plannedMeals ?? []).flatMap((m, i) =>
+          // A slot the user swapped for something else is not offered again (WP-06).
+          states[i]?.status === 'replaced'
+            ? []
+            : [
+                {
+                  recipeId: m.recipeId,
+                  recipeName: m.recipeName,
+                  mealType: m.mealType,
+                  imageUrl: m.imageUrl,
+                  kcal: m.kcal,
+                  protein: m.protein,
+                  carbs: m.carbs,
+                  fat: m.fat,
+                  ...(m.portion !== undefined && { portion: m.portion }),
+                  slotIndex: m.slotIndex ?? i,
+                },
+              ],
+        )}
       />
+
+      {slotFlow.host}
 
       <EditEntrySheet
         visible={editingEntry !== null}

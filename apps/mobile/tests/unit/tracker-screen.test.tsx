@@ -13,11 +13,16 @@ const mockDeleteEntries = jest.fn();
 const mockDeleteCustom = jest.fn();
 const mockRestoreCustom = jest.fn();
 const mockUpdateRecipeEntry = jest.fn();
+const mockLogCustom = jest.fn();
+const mockSkipSlot = jest.fn();
+const mockUnskipSlot = jest.fn();
 const mockRecordRebalance = jest.fn();
 const mockSnackbarShow = jest.fn();
 // Audit P2-4 follow-up: per-test training-day fields on the getDay payload.
 let mockDayExtras: Record<string, unknown> = {};
 let mockCopiedIds: string[] = ['c1', 'c2'];
+// WP-06: the week strip behind "This week you averaged …".
+let mockWeekDays: Record<string, unknown>[] = [];
 
 // ─── A tiny stand-in for the server and react-query's cache ────────────────────
 // `mockServer` is the database; `mockCache` is what `tracker.getDay` returns.
@@ -28,6 +33,7 @@ type MockDay = Record<string, unknown> & {
   plannedMeals: Record<string, unknown>[];
   offPlanLogged: Record<string, unknown>[];
   log: { loggedMeals: MockEntry[] } | null;
+  skippedSlots?: { mealType: string; slotIndex: number }[];
 };
 let mockServer: MockDay;
 let mockCache: MockDay;
@@ -158,6 +164,7 @@ jest.mock('../../src/lib/trpc', () => {
           }),
         },
         recents: { useQuery: () => ({ data: [] }) },
+        weeklySummary: { useQuery: () => ({ data: { days: mockWeekDays } }) },
         logRecipe: {
           useMutation: mockMutation((vars: Record<string, unknown>) => {
             mockLogRecipe(vars);
@@ -250,13 +257,72 @@ jest.mock('../../src/lib/trpc', () => {
         updateCustomMeal: {
           useMutation: () => ({ mutate: jest.fn(), isPending: false, isError: false, error: null }),
         },
+        // WP-06: "Ate something else" — the server's rule: the entry takes the slot
+        // (dropping a ticked recipe or an earlier replacement) and clears a skip.
         logCustomMeal: {
-          useMutation: () => ({
-            mutate: jest.fn(),
-            reset: jest.fn(),
-            isPending: false,
-            isError: false,
-            error: null,
+          useMutation: mockMutation(
+            (vars: {
+              name: string;
+              estimatedBy: string;
+              mealType: string;
+              kcal: number;
+              protein?: number;
+              carbs?: number;
+              fat?: number;
+              replacesSlot?: { mealType: string; slotIndex: number };
+            }) => {
+              mockLogCustom(vars);
+              const slot = vars.replacesSlot;
+              const kept = (mockServer.log?.loggedMeals ?? []).filter(
+                (m) =>
+                  !slot ||
+                  !(
+                    (m.replacesSlot as typeof slot | undefined)?.slotIndex === slot.slotIndex &&
+                    (m.replacesSlot as typeof slot | undefined)?.mealType === slot.mealType
+                  ),
+              );
+              const entryId = `srv-${(mockEntrySeq += 1)}`;
+              mockStore([
+                ...kept,
+                {
+                  entryId,
+                  custom: { name: vars.name, estimatedBy: vars.estimatedBy },
+                  mealType: vars.mealType,
+                  ...(slot && { replacesSlot: slot }),
+                  portionMultiplier: 1,
+                  kcal: vars.kcal,
+                  protein: vars.protein ?? 0,
+                  carbs: vars.carbs ?? 0,
+                  fat: vars.fat ?? 0,
+                },
+              ]);
+              return { log: {}, rebalance, entryId };
+            },
+          ),
+        },
+        skipSlot: {
+          useMutation: mockMutation((vars: { mealType: string; slotIndex: number }) => {
+            mockSkipSlot(vars);
+            mockServer = {
+              ...mockServer,
+              skippedSlots: [
+                ...(mockServer.skippedSlots ?? []),
+                { mealType: vars.mealType, slotIndex: vars.slotIndex },
+              ],
+            };
+            return { log: {}, skippedSlots: mockServer.skippedSlots, rebalance };
+          }),
+        },
+        unskipSlot: {
+          useMutation: mockMutation((vars: { mealType: string; slotIndex: number }) => {
+            mockUnskipSlot(vars);
+            mockServer = {
+              ...mockServer,
+              skippedSlots: (mockServer.skippedSlots ?? []).filter(
+                (s) => !(s.mealType === vars.mealType && s.slotIndex === vars.slotIndex),
+              ),
+            };
+            return { log: {}, skippedSlots: mockServer.skippedSlots };
           }),
         },
       },
@@ -272,6 +338,7 @@ const metrics = {
 const baseDay = (): MockDay => ({
   log: null,
   offPlanLogged: [],
+  skippedSlots: [],
   targets: { dailyCalorieTarget: 2000, proteinG: 125, carbsG: 225, fatG: 65 },
   plannedMeals: [
     {
@@ -314,6 +381,7 @@ async function renderTracker() {
 beforeEach(() => {
   jest.clearAllMocks();
   mockDayExtras = {};
+  mockWeekDays = [];
   mockCopiedIds = ['c1', 'c2'];
   mockFailWrites = false;
   mockCopyDayError = null;
@@ -982,5 +1050,251 @@ describe('TrackerScreen — "Also eaten" recipe rows (UX-FOOD-03)', () => {
         }),
       ),
     );
+  });
+});
+
+// ─── WP-06 "Flexible eating": Ate something else / Skipped it ──────────────────
+describe('TrackerScreen — flexible eating (WP-06)', () => {
+  const replacement = (over: Record<string, unknown> = {}) => ({
+    entryId: 'rep-1',
+    custom: { name: 'Shawarma · normal', estimatedBy: 'manual' },
+    mealType: 'breakfast',
+    replacesSlot: { mealType: 'breakfast', slotIndex: 0 },
+    portionMultiplier: 1,
+    kcal: 775,
+    protein: 40,
+    carbs: 0,
+    fat: 0,
+    ...over,
+  });
+  const dayWith = (loggedMeals: ReturnType<typeof replacement>[]) => ({
+    log: {
+      loggedMeals,
+      totalKcal: loggedMeals.reduce((t, m) => t + m.kcal, 0),
+      totalProtein: loggedMeals.reduce((t, m) => t + m.protein, 0),
+      totalCarbs: 0,
+      totalFat: 0,
+    },
+  });
+
+  it('every planned row has an overflow named after its meal, with both actions', async () => {
+    const user = userEvent.setup();
+    await renderTracker();
+    expect(screen.getByLabelText('More actions for Breakfast')).toBeOnTheScreen();
+    expect(screen.getByLabelText('More actions for Lunch')).toBeOnTheScreen();
+    await user.press(screen.getByTestId('tracker-slot-actions-0'));
+    expect(screen.getByTestId('slot-action-ate-else')).toHaveTextContent(/Ate something else/);
+    expect(screen.getByTestId('slot-action-skip')).toHaveTextContent(/Skipped it/);
+  });
+
+  it('quick estimate: cuisine, size, "Log it" replaces the slot with the range\'s middle', async () => {
+    const user = userEvent.setup();
+    await renderTracker();
+    await user.press(screen.getByTestId('tracker-slot-actions-0'));
+    await user.press(screen.getByTestId('slot-action-ate-else'));
+    // The log button waits for a cuisine; size defaults to normal.
+    expect(screen.getByTestId('ate-else-log-it')).toBeDisabled();
+    await user.press(screen.getByTestId('ate-else-cuisine-shawarma'));
+    expect(screen.getByTestId('ate-else-estimate')).toHaveTextContent(
+      '≈ 700–850 kcal · ≈ 35–45 g protein',
+    );
+    await user.press(screen.getByTestId('ate-else-log-it'));
+    await waitFor(() =>
+      expect(mockLogCustom).toHaveBeenCalledWith(
+        expect.objectContaining({
+          name: 'Shawarma · normal',
+          estimatedBy: 'manual',
+          mealType: 'breakfast',
+          kcal: 775,
+          protein: 40,
+          carbs: 0,
+          fat: 0,
+          unknownMacros: ['carbs', 'fat'],
+          replacesSlot: { mealType: 'breakfast', slotIndex: 0 },
+        }),
+      ),
+    );
+    await waitFor(() =>
+      expect(mockSnackbarShow).toHaveBeenCalledWith(
+        expect.objectContaining({
+          message: 'Logged Shawarma · normal for breakfast',
+          actionLabel: 'Undo',
+        }),
+      ),
+    );
+    expect(mockRecordRebalance).toHaveBeenCalledWith(rebalance);
+  });
+
+  it('a bigger size widens the range, explains itself, and is what gets logged (three taps: cuisine, size, Log it)', async () => {
+    const user = userEvent.setup();
+    await renderTracker();
+    await user.press(screen.getByTestId('tracker-slot-actions-1'));
+    await user.press(screen.getByTestId('slot-action-ate-else'));
+    await user.press(screen.getByTestId('ate-else-cuisine-sushi'));
+    await user.press(screen.getByTestId('ate-else-size-big'));
+    expect(screen.getByTestId('ate-else-size-hint')).toHaveTextContent('A large platter');
+    expect(screen.getByTestId('ate-else-estimate')).toHaveTextContent(
+      '≈ 700–850 kcal · ≈ 30–40 g protein',
+    );
+    await user.press(screen.getByTestId('ate-else-log-it'));
+    await waitFor(() =>
+      expect(mockLogCustom).toHaveBeenCalledWith(
+        expect.objectContaining({
+          name: 'Sushi · big',
+          mealType: 'lunch',
+          kcal: 775,
+          protein: 35,
+          replacesSlot: { mealType: 'lunch', slotIndex: 1 },
+        }),
+      ),
+    );
+  });
+
+  it('the replaced slot reads "You had: …", cannot be ticked again, and is not listed under Also eaten', async () => {
+    mockDayExtras = dayWith([replacement()]);
+    const user = userEvent.setup();
+    await renderTracker();
+    expect(screen.getByTestId('tracker-slot-replaced-0-text')).toHaveTextContent(
+      'You had: Shawarma · normal (≈ 775 kcal)',
+    );
+    // No tick, no overflow, and pressing the row logs nothing.
+    expect(screen.queryByTestId('tracker-tick-breakfast')).not.toBeOnTheScreen();
+    expect(screen.queryByLabelText('More actions for Breakfast')).not.toBeOnTheScreen();
+    await user.press(screen.getByTestId('tracker-meal-breakfast'));
+    expect(mockLogRecipe).not.toHaveBeenCalled();
+    // The replacement is on its slot only — no duplicate under "Also eaten".
+    expect(screen.queryByTestId('tracker-also-eaten')).not.toBeOnTheScreen();
+    expect(screen.queryByTestId('tracker-custom-0')).not.toBeOnTheScreen();
+  });
+
+  it('day totals count the replacement, not the planned meal it replaced', async () => {
+    mockDayExtras = dayWith([replacement()]);
+    await renderTracker();
+    // 775 kcal logged; the planned 400 kcal oats are not added on top.
+    expect(screen.getByText('775 / 2000')).toBeOnTheScreen();
+    expect(screen.getByText('40 / 125')).toBeOnTheScreen();
+  });
+
+  it('Remove brings the planned meal back, and its Undo restores the replacement on its slot', async () => {
+    mockDayExtras = dayWith([replacement()]);
+    const user = userEvent.setup();
+    await renderTracker();
+    await user.press(screen.getByTestId('tracker-slot-replaced-0-action'));
+    await waitFor(() =>
+      expect(mockDeleteEntries).toHaveBeenCalledWith(
+        expect.objectContaining({ entryIds: ['rep-1'] }),
+      ),
+    );
+    await waitFor(() => expect(screen.getByTestId('tracker-tick-breakfast')).toBeOnTheScreen());
+    const call = mockSnackbarShow.mock.calls.find(
+      ([o]) => (o as { message?: string }).message === 'Removed Shawarma · normal',
+    ) as [{ onAction?: () => void }] | undefined;
+    expect(call).toBeDefined();
+    call?.[0].onAction?.();
+    await waitFor(() =>
+      expect(mockRestoreCustom).toHaveBeenCalledWith({
+        date: expect.any(String) as string,
+        entry: expect.objectContaining({
+          entryId: 'rep-1',
+          replacesSlot: { mealType: 'breakfast', slotIndex: 0 },
+        }) as unknown,
+      }),
+    );
+    await waitFor(() =>
+      expect(screen.getByTestId('tracker-slot-replaced-0-text')).toHaveTextContent(/^You had:/),
+    );
+  });
+
+  it('"Skipped it" skips the slot with a neutral Undo, and the row reads Skipped', async () => {
+    const user = userEvent.setup();
+    await renderTracker();
+    await user.press(screen.getByTestId('tracker-slot-actions-0'));
+    await user.press(screen.getByTestId('slot-action-skip'));
+    await waitFor(() =>
+      expect(mockSkipSlot).toHaveBeenCalledWith(
+        expect.objectContaining({ mealType: 'breakfast', slotIndex: 0 }),
+      ),
+    );
+    await waitFor(() =>
+      expect(screen.getByTestId('tracker-slot-skipped-0-text')).toHaveTextContent('Skipped'),
+    );
+    expect(screen.queryByTestId('tracker-tick-breakfast')).not.toBeOnTheScreen();
+    const shown = mockSnackbarShow.mock.calls.find(
+      ([o]) => (o as { message?: string }).message === 'Breakfast skipped',
+    ) as [{ actionLabel?: string; onAction?: () => void }] | undefined;
+    expect(shown?.[0].actionLabel).toBe('Undo');
+    shown?.[0].onAction?.();
+    await waitFor(() =>
+      expect(mockUnskipSlot).toHaveBeenCalledWith(
+        expect.objectContaining({ mealType: 'breakfast', slotIndex: 0 }),
+      ),
+    );
+    await waitFor(() => expect(screen.getByTestId('tracker-tick-breakfast')).toBeOnTheScreen());
+  });
+
+  it('a skipped slot has its own Undo, and its planned kcal never reach the totals', async () => {
+    mockDayExtras = { skippedSlots: [{ mealType: 'breakfast', slotIndex: 0 }] };
+    const user = userEvent.setup();
+    await renderTracker();
+    expect(screen.getByText('0 / 2000')).toBeOnTheScreen();
+    await user.press(screen.getByTestId('tracker-slot-skipped-0-action'));
+    await waitFor(() =>
+      expect(mockUnskipSlot).toHaveBeenCalledWith(expect.objectContaining({ slotIndex: 0 })),
+    );
+    await waitFor(() => expect(screen.getByTestId('tracker-tick-breakfast')).toBeOnTheScreen());
+  });
+
+  it('a failed skip rolls the row back and says why in plain words', async () => {
+    mockFailWrites = true;
+    const user = userEvent.setup();
+    await renderTracker();
+    await user.press(screen.getByTestId('tracker-slot-actions-0'));
+    await user.press(screen.getByTestId('slot-action-skip'));
+    await waitFor(() =>
+      expect(mockSnackbarShow).toHaveBeenCalledWith(
+        expect.objectContaining({
+          message: expect.stringContaining("Couldn't skip breakfast.") as string,
+        }),
+      ),
+    );
+    expect(screen.getByTestId('tracker-tick-breakfast')).toBeOnTheScreen();
+    expect(screen.queryByTestId('tracker-slot-skipped-0')).not.toBeOnTheScreen();
+  });
+
+  it('a failed replacement puts the planned meal back', async () => {
+    mockFailWrites = true;
+    const user = userEvent.setup();
+    await renderTracker();
+    await user.press(screen.getByTestId('tracker-slot-actions-0'));
+    await user.press(screen.getByTestId('slot-action-ate-else'));
+    await user.press(screen.getByTestId('ate-else-cuisine-pizza'));
+    await user.press(screen.getByTestId('ate-else-log-it'));
+    await waitFor(() =>
+      expect(mockSnackbarShow).toHaveBeenCalledWith(
+        expect.objectContaining({
+          message: expect.stringContaining("Couldn't log that.") as string,
+        }),
+      ),
+    );
+    expect(screen.getByTestId('tracker-tick-breakfast')).toBeOnTheScreen();
+    expect(screen.queryByTestId('tracker-slot-replaced-0')).not.toBeOnTheScreen();
+  });
+
+  it("the week's average is the number shown, and a single day is not judged", async () => {
+    mockWeekDays = [
+      { date: '2000-01-01', totalKcal: 1600, totalProtein: 110, hasLog: true },
+      { date: '2000-01-02', totalKcal: 1680, totalProtein: 114, hasLog: true },
+      { date: '2000-01-03', totalKcal: 0, totalProtein: 0, hasLog: false },
+    ];
+    await renderTracker();
+    expect(screen.getByTestId('tracker-weekly-average')).toHaveTextContent(
+      'This week you averaged 1,640 kcal · 112 g protein a day',
+    );
+  });
+
+  it('shows no average until two days are logged', async () => {
+    mockWeekDays = [{ date: '2000-01-01', totalKcal: 1600, totalProtein: 110, hasLog: true }];
+    await renderTracker();
+    expect(screen.queryByTestId('tracker-weekly-average')).not.toBeOnTheScreen();
   });
 });

@@ -34,11 +34,13 @@ import {
   formatPriceRange,
   getWeekStartDate,
   isTailoringRunning,
+  localDateStr,
   PLAN_TAILORING_COPY,
   planButtonLabel,
   planCostCoverageLabel,
   planShapeSummary,
   SAFETY_COPY,
+  slotStates,
   sumPlanDay,
   userFacingErrorMessage,
   weekdayLongName,
@@ -72,6 +74,9 @@ import { PlanMissSheet } from '../../src/features/nutrition/plan-miss-sheet';
 import { openPremium } from '../../src/features/premium/open-premium';
 import { ReportSafetySheet } from '../../src/features/safety/report-sheet';
 import { RebalanceBanner } from '../../src/features/tracker/rebalance-banner';
+import { SlotOverflowButton, SlotStatusLine } from '../../src/features/tracker/slot-controls';
+import { SLOT_COPY, youHadText } from '../../src/features/tracker/slot-copy';
+import { useSlotFlow } from '../../src/features/tracker/slot-flow';
 import { useCurrency } from '../../src/hooks/use-currency';
 import { useHousehold } from '../../src/hooks/use-household';
 import { useIsPremium } from '../../src/hooks/use-is-premium';
@@ -545,6 +550,31 @@ export default function MealPlanScreen() {
   const missMeals = plan?.days.find((d) => d.dayOfWeek === missDay)?.meals ?? [];
   const missTotals = sumPlanDay(missMeals);
   const missGap = plan?.days.find((d) => d.dayOfWeek === missDay)?.proteinGapG;
+
+  // WP-06: "Ate something else" / "Skipped it" on today's and earlier-this-week's
+  // slots. The day's log says what became of each slot; the same helper as the
+  // tracker (`slotStates`) turns it into planned / eaten / replaced / skipped.
+  const selectedDate = getWeekStartDate(weekOffset);
+  selectedDate.setDate(selectedDate.getDate() + selectedDay);
+  const selectedDateStr = localDateStr(selectedDate);
+  const canActOnSlots = weekOffset === 0 && selectedDay <= getTodayDayIndex();
+  const slotFlow = useSlotFlow(selectedDateStr);
+  const { data: dayLog } = trpc.tracker.getDay.useQuery(
+    { date: selectedDateStr },
+    { enabled: canActOnSlots && meals.length > 0, staleTime: 30_000 },
+  );
+  const slotStateList = dayLog
+    ? slotStates(
+        meals.map((m, i) => ({ type: m.type, recipeId: m.recipe.id, slotIndex: i })),
+        dayLog.log?.loggedMeals ?? [],
+        dayLog.skippedSlots,
+      )
+    : null;
+  // The day's planned total leaves out a meal that was swapped or skipped.
+  const plannedMealsOfDay = meals.filter((_, i) => {
+    const status = slotStateList?.[i]?.status;
+    return status !== 'replaced' && status !== 'skipped';
+  });
 
   return (
     <Screen className="px-0">
@@ -1021,70 +1051,118 @@ export default function MealPlanScreen() {
                     {PLAN_TAILORING_COPY.dayUpdated}
                   </Text>
                 )}
-                {meals.map((meal, slotIndex) => (
-                  <PlanMealCard
-                    key={`${meal.type}-${slotIndex}`}
-                    testID={`plan-meal-${meal.type}`}
-                    day={selectedDay}
-                    meal={meal}
-                    onReport={(recipeId, recipeName) => setReportTarget({ recipeId, recipeName })}
-                    trailing={
-                      // Replace this meal (all tiers) + toggle "Your pick"
-                      // (T-07.4/T-08.3: a pinned slot survives Regenerate).
-                      !isPast && (
-                        <View className="flex-row">
-                          <Pressable
-                            testID={`plan-meal-pin-${meal.type}`}
-                            accessibilityRole="button"
-                            accessibilityLabel={
-                              meal.pinned
-                                ? `Stop keeping ${meal.recipe.name}`
-                                : `Keep ${meal.recipe.name}`
-                            }
-                            disabled={pinMutation.isPending}
-                            onPress={() =>
-                              pinMutation.mutate({
-                                planId: plan.planId,
-                                dayOfWeek: selectedDay,
-                                mealType: meal.type,
-                                slotIndex,
-                                pinned: !meal.pinned,
-                              })
-                            }
-                            className="w-11 items-center justify-center border-l border-border"
-                          >
-                            <Ionicons
-                              name={meal.pinned ? 'bookmark' : 'bookmark-outline'}
-                              size={18}
-                              color="#944a00"
-                            />
-                          </Pressable>
-                          <Pressable
-                            testID={`plan-meal-swap-${meal.type}`}
-                            accessibilityRole="button"
-                            accessibilityLabel={`Replace ${meal.recipe.name}`}
-                            onPress={() =>
-                              setPickerTarget({
-                                mealType: meal.type,
-                                slotIndex,
-                                mealName: meal.recipe.name,
-                                recipeId: meal.recipe.id,
-                              })
-                            }
-                            className="w-11 items-center justify-center border-l border-border"
-                          >
-                            <Ionicons name="swap-horizontal-outline" size={18} color="#944a00" />
-                          </Pressable>
-                        </View>
-                      )
-                    }
-                  />
-                ))}
+                {meals.map((meal, slotIndex) => {
+                  const slotState = slotStateList?.[slotIndex];
+                  const slotRef = { mealType: meal.type, slotIndex };
+                  return (
+                    <PlanMealCard
+                      key={`${meal.type}-${slotIndex}`}
+                      testID={`plan-meal-${meal.type}`}
+                      day={selectedDay}
+                      meal={meal}
+                      onReport={(recipeId, recipeName) => setReportTarget({ recipeId, recipeName })}
+                      eaten={slotState?.status === 'eaten'}
+                      slotNote={
+                        slotState?.status === 'replaced' ? (
+                          <SlotStatusLine
+                            testID={`plan-slot-replaced-${slotIndex}`}
+                            text={youHadText(slotState.entry)}
+                            actionLabel={slotState.entry.entryId ? SLOT_COPY.remove : undefined}
+                            onAction={() => {
+                              const entry = slotState.entry;
+                              if (!entry.entryId || !entry.custom) return;
+                              slotFlow.actions.removeReplacement({
+                                entryId: entry.entryId,
+                                name: entry.custom.name,
+                                estimatedBy: entry.custom.estimatedBy,
+                                kcal: entry.kcal,
+                                protein: entry.protein,
+                                carbs: entry.carbs,
+                                fat: entry.fat,
+                                unknownMacros: entry.unknownMacros,
+                                replacesSlot: slotRef,
+                              });
+                            }}
+                          />
+                        ) : slotState?.status === 'skipped' ? (
+                          <SlotStatusLine
+                            testID={`plan-slot-skipped-${slotIndex}`}
+                            text={SLOT_COPY.skippedLabel}
+                            actionLabel={SLOT_COPY.undo}
+                            onAction={() => slotFlow.actions.unskipSlot(slotRef)}
+                          />
+                        ) : null
+                      }
+                      trailing={
+                        // Replace this meal (all tiers) + toggle "Your pick"
+                        // (T-07.4/T-08.3: a pinned slot survives Regenerate), and
+                        // (WP-06) "Ate something else" / "Skipped it" on a meal that
+                        // is still to eat today or earlier this week.
+                        !isPast && (
+                          <View className="flex-row">
+                            <Pressable
+                              testID={`plan-meal-pin-${meal.type}`}
+                              accessibilityRole="button"
+                              accessibilityLabel={
+                                meal.pinned
+                                  ? `Stop keeping ${meal.recipe.name}`
+                                  : `Keep ${meal.recipe.name}`
+                              }
+                              disabled={pinMutation.isPending}
+                              onPress={() =>
+                                pinMutation.mutate({
+                                  planId: plan.planId,
+                                  dayOfWeek: selectedDay,
+                                  mealType: meal.type,
+                                  slotIndex,
+                                  pinned: !meal.pinned,
+                                })
+                              }
+                              className="w-11 items-center justify-center border-l border-border"
+                            >
+                              <Ionicons
+                                name={meal.pinned ? 'bookmark' : 'bookmark-outline'}
+                                size={18}
+                                color="#944a00"
+                              />
+                            </Pressable>
+                            <Pressable
+                              testID={`plan-meal-swap-${meal.type}`}
+                              accessibilityRole="button"
+                              accessibilityLabel={`Replace ${meal.recipe.name}`}
+                              onPress={() =>
+                                setPickerTarget({
+                                  mealType: meal.type,
+                                  slotIndex,
+                                  mealName: meal.recipe.name,
+                                  recipeId: meal.recipe.id,
+                                })
+                              }
+                              className="w-11 items-center justify-center border-l border-border"
+                            >
+                              <Ionicons name="swap-horizontal-outline" size={18} color="#944a00" />
+                            </Pressable>
+                            {slotState?.status === 'planned' && (
+                              <SlotOverflowButton
+                                testID={`plan-slot-actions-${slotIndex}`}
+                                mealType={meal.type}
+                                onPress={() =>
+                                  slotFlow.openMenu({ ...slotRef, name: meal.recipe.name })
+                                }
+                                className="self-center"
+                              />
+                            )}
+                          </View>
+                        )
+                      }
+                    />
+                  );
+                })}
               </Animated.View>
             )}
             {meals.length > 0 && (
               <PlanDayTotals
-                meals={meals}
+                meals={plannedMealsOfDay}
                 calorieTarget={targetForDay(selectedDay)}
                 proteinGapG={day?.proteinGapG}
                 onOpenStatus={isPast ? undefined : () => openMiss(selectedDay)}
@@ -1100,6 +1178,8 @@ export default function MealPlanScreen() {
               {WELLNESS_COPY.mealPlanAdvisoryDisclaimer}
             </Text>
           </ScrollView>
+
+          {slotFlow.host}
 
           <RecipePickerSheet
             visible={pickerTarget !== null}

@@ -3,9 +3,10 @@ import {
   chefProfileRepository,
   dailyLogRepository,
   mealPlanRepository,
+  parseSkippedSlots,
   weightEntryRepository,
 } from '@chefer/database';
-import type { DailyLog, LoggedMealEntry } from '@chefer/database';
+import type { DailyLog, LoggedMealEntry, SlotRefJson } from '@chefer/database';
 import type { NutritionTargets, TrainingDayNutrition, UserProfile } from '@chefer/types';
 import { slotPortion } from '@chefer/utils';
 import { hasFeature } from '../../lib/entitlements.js';
@@ -22,10 +23,12 @@ import {
   aggregateRecents,
   ensureEntryIds,
   isRecipeEntry,
+  isSlotEntry,
   matchesRecipeSlot,
   mergeLoggedMeals,
   needsEntryIdBackfill,
   newEntryId,
+  sameSlot,
   type RecentLogDay,
 } from './merge-log.js';
 
@@ -98,7 +101,17 @@ export interface DayTrackerData {
     totalProtein: number;
     totalCarbs: number;
     totalFat: number;
+    /** WP-06: same list as the top-level `skippedSlots` (the stored row's field). */
+    skippedSlots?: SlotRefJson[];
   } | null;
+  /**
+   * WP-06 "Skipped it": the plan slots the user skipped on this day. A
+   * skipped slot is neither eaten nor remaining. Always present from this
+   * version on (`[]` when none); optional only so older clients' types stay
+   * valid. Entries that REPLACE a slot are ordinary `log.loggedMeals` custom
+   * entries carrying `replacesSlot`.
+   */
+  skippedSlots?: SlotRefJson[];
   targets: {
     dailyCalorieTarget: number;
     proteinG: number;
@@ -299,6 +312,8 @@ export const trackerService = {
       fat: m.fat,
     }));
 
+    const skippedSlots = parseSkippedSlots(log?.skippedSlots);
+
     return {
       date: dateStr,
       plannedMeals,
@@ -311,8 +326,10 @@ export const trackerService = {
             totalProtein: log.totalProtein,
             totalCarbs: log.totalCarbs,
             totalFat: log.totalFat,
+            skippedSlots,
           }
         : null,
+      skippedSlots,
       targets: { dailyCalorieTarget, proteinG, carbsG, fatG },
       ...trainingDayFields(training),
     };
@@ -376,10 +393,31 @@ export const trackerService = {
       fat: Math.round((n.fat ?? 0) * p * 10) / 10,
     };
     const target = { recipeId: recipe.id, mealType: input.mealType, slotIndex: input.slotIndex };
-    const log = await dailyLogRepository.mutateDay(user.id, dayDate(dateStr), (stored) => [
-      ...stored.filter((m) => !matchesRecipeSlot(m, target)),
-      entry,
-    ]);
+    const slot: SlotRefJson | undefined =
+      input.slotIndex === undefined
+        ? undefined
+        : { mealType: input.mealType, slotIndex: input.slotIndex };
+    const log = await dailyLogRepository.mutateDayState(
+      user.id,
+      dayDate(dateStr),
+      ({ entries, skippedSlots }) => {
+        // WP-06: a slot the user replaced ("Ate something else") is already
+        // eaten, with the replacement's numbers — ticking the planned recipe
+        // too would count the meal twice. Remove the replacement first.
+        if (slot && entries.some((m) => m.replacesSlot && sameSlot(m.replacesSlot, slot))) {
+          throw new TRPCError({
+            code: 'CONFLICT',
+            message:
+              'You already logged something else for this meal. Remove that first if you want to log the planned one instead.',
+          });
+        }
+        return {
+          entries: [...entries.filter((m) => !matchesRecipeSlot(m, target)), entry],
+          // Eating a skipped slot un-skips it.
+          skippedSlots: slot ? skippedSlots.filter((s) => !sameSlot(s, slot)) : skippedSlots,
+        };
+      },
+    );
     const rebalance = await this.maybeRebalance(user);
     return { log, rebalance };
   },
@@ -420,6 +458,18 @@ export const trackerService = {
    * Appends one custom entry (photo scan or manual quick-add, F4) to the
    * day's log. Custom entries store pre-scaled macros with portionMultiplier
    * 1 — the confirm sheet already let the user edit the numbers.
+   *
+   * WP-06 "Ate something else": with `replacesSlot` the entry takes over that
+   * plan slot — the slot counts as eaten with THESE numbers and its planned
+   * recipe leaves the day's planned totals. The entry's `mealType` is forced
+   * to the slot's (so an older client, which only knows "a custom entry for
+   * this meal type", reads it the same way). Logging again for the same slot
+   * swaps the earlier replacement (no double count); a planned-recipe entry
+   * ticked for that slot is dropped (the user says they ate something else
+   * instead); a skip on the slot is cleared. Removing the entry through the
+   * existing delete paths restores the slot. The slot is not checked against
+   * the plan: a stale index (plan regenerated since) just leaves an ordinary
+   * custom entry, which still counts in the day's total.
    */
   async logCustomMeal(
     user: UserProfile,
@@ -433,30 +483,94 @@ export const trackerService = {
       carbs: number;
       fat: number;
       unknownMacros?: ('protein' | 'carbs' | 'fat')[] | undefined;
+      replacesSlot?: SlotRefJson | undefined;
     },
   ): Promise<{ log: DailyLog; rebalance: RebalanceResult | null; entryId: string }> {
     // The new row's id is minted here so the client can offer an exact Undo
     // (UX-FOOD-26) — additive: older clients ignore the extra field.
     const entryId = newEntryId();
+    const replaces = entry.replacesSlot;
+    const row: LoggedMealEntry = {
+      entryId,
+      custom: { name: entry.name, estimatedBy: entry.estimatedBy },
+      mealType: replaces ? replaces.mealType : entry.mealType,
+      portionMultiplier: 1,
+      kcal: entry.kcal,
+      protein: entry.protein,
+      carbs: entry.carbs,
+      fat: entry.fat,
+      ...(entry.unknownMacros && entry.unknownMacros.length > 0
+        ? { unknownMacros: entry.unknownMacros }
+        : {}),
+      ...(replaces && {
+        replacesSlot: { mealType: replaces.mealType, slotIndex: replaces.slotIndex },
+      }),
+    };
     // Atomic append — parallel adds no longer overwrite each other (F-TRK-1-2).
-    const log = await dailyLogRepository.mutateDay(user.id, dayDate(dateStr), (stored) => [
-      ...stored,
-      {
-        entryId,
-        custom: { name: entry.name, estimatedBy: entry.estimatedBy },
-        mealType: entry.mealType,
-        portionMultiplier: 1,
-        kcal: entry.kcal,
-        protein: entry.protein,
-        carbs: entry.carbs,
-        fat: entry.fat,
-        ...(entry.unknownMacros && entry.unknownMacros.length > 0
-          ? { unknownMacros: entry.unknownMacros }
-          : {}),
-      },
-    ]);
+    const log = await dailyLogRepository.mutateDayState(
+      user.id,
+      dayDate(dateStr),
+      ({ entries, skippedSlots }) => ({
+        entries: replaces
+          ? [...entries.filter((m) => !isSlotEntry(m, replaces)), row]
+          : [...entries, row],
+        skippedSlots: replaces ? skippedSlots.filter((s) => !sameSlot(s, replaces)) : skippedSlots,
+      }),
+    );
     const rebalance = await this.maybeRebalance(user);
     return { log, rebalance, entryId };
+  },
+
+  /**
+   * WP-06 "Skipped it": marks one plan slot of the day skipped — neither
+   * eaten nor remaining. Idempotent. Stored in the day's separate
+   * `skippedSlots` list, never as an entry, so shipped clients that total the
+   * entries are unaffected. CONFLICT when the slot is already logged (ticked
+   * from the plan, or replaced): remove that entry first. The slot is not
+   * checked against the plan (see logCustomMeal).
+   */
+  async skipSlot(
+    user: UserProfile,
+    dateStr: string,
+    slot: SlotRefJson,
+  ): Promise<{ log: DailyLog; skippedSlots: SlotRefJson[]; rebalance: RebalanceResult | null }> {
+    const log = await dailyLogRepository.mutateDayState(
+      user.id,
+      dayDate(dateStr),
+      ({ entries, skippedSlots }) => {
+        if (entries.some((m) => isSlotEntry(m, slot))) {
+          throw new TRPCError({
+            code: 'CONFLICT',
+            message: 'That meal is already logged. Remove it first if you want to skip it instead.',
+          });
+        }
+        return {
+          entries,
+          skippedSlots: skippedSlots.some((s) => sameSlot(s, slot))
+            ? skippedSlots
+            : [...skippedSlots, { mealType: slot.mealType, slotIndex: slot.slotIndex }],
+        };
+      },
+    );
+    const rebalance = await this.maybeRebalance(user);
+    return { log, skippedSlots: parseSkippedSlots(log.skippedSlots), rebalance };
+  },
+
+  /** Undo of `skipSlot`. A no-op when the slot is not skipped (a retried Undo). */
+  async unskipSlot(
+    userId: string,
+    dateStr: string,
+    slot: SlotRefJson,
+  ): Promise<{ log: DailyLog; skippedSlots: SlotRefJson[] }> {
+    const log = await dailyLogRepository.mutateDayState(
+      userId,
+      dayDate(dateStr),
+      ({ entries, skippedSlots }) => ({
+        entries,
+        skippedSlots: skippedSlots.filter((s) => !sameSlot(s, slot)),
+      }),
+    );
+    return { log, skippedSlots: parseSkippedSlots(log.skippedSlots) };
   },
 
   /**
@@ -602,8 +716,8 @@ export const trackerService = {
   /**
    * Copies every logged entry from `fromDateStr` onto `toDateStr` (T-19.3,
    * "Copy {yesterday} to today"). Each copy gets its OWN `entryId` (so Undo
-   * can delete exactly the copies, not the originals) and drops `slotIndex` —
-   * the target day's plan slots are a different day and may not even have
+   * can delete exactly the copies, not the originals) and drops `slotIndex` and
+   * `replacesSlot` — the target day's plan slots are a different day and may not even have
    * that slot.
    */
   async copyDay(
@@ -614,7 +728,7 @@ export const trackerService = {
     const fromLog = await dailyLogRepository.findByDate(user.id, dayDate(fromDateStr));
     const sourceEntries = (fromLog?.loggedMeals as unknown as LoggedMealEntry[] | null) ?? [];
     const copies: LoggedMealEntry[] = sourceEntries.map((m) => {
-      const { slotIndex: _slotIndex, entryId: _entryId, ...rest } = m;
+      const { slotIndex: _slotIndex, entryId: _entryId, replacesSlot: _replacesSlot, ...rest } = m;
       return { ...rest, entryId: newEntryId() };
     });
     const log = await dailyLogRepository.mutateDay(user.id, dayDate(toDateStr), (stored) => [

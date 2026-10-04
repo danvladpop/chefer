@@ -471,12 +471,40 @@ export {
   MEAL_ORDER,
   MEAL_WINDOW_END,
   isSlotEaten,
+  isSlotSkipped,
   matchLoggedToSlots,
+  plannedTotals,
+  remainingTotals,
+  replacementFor,
   resolveTodayMeals,
+  slotStates,
+  slotStatus,
   type LoggedMealRef,
+  type MacroTotals,
+  type PlannedMacros,
   type PlannedMealSlot,
+  type SlotRef,
+  type SlotState,
+  type SlotStatus,
   type TodayMeals,
 } from './today';
+export {
+  EAT_OUT_CUISINES,
+  EAT_OUT_CUISINE_LABELS,
+  EAT_OUT_SIZES,
+  EAT_OUT_SIZE_HINTS,
+  EAT_OUT_SIZE_LABELS,
+  eatOutEstimate,
+  eatOutEstimates,
+  eatOutLogValues,
+  eatOutMealName,
+  formatEatOutKcal,
+  formatEatOutProtein,
+  type EatOutCuisine,
+  type EatOutEstimate,
+  type EatOutRange,
+  type EatOutSize,
+} from './eat-out';
 export { pastWeeks, type PlanWeekLike } from './my-weeks';
 export {
   PANTRY_CONFIRM_MIN_AGE_DAYS,
@@ -783,8 +811,17 @@ export {
   withRecipeEntryEdited,
   withRecipeLogged,
   withRecipeUnlogged,
+  withSlotReplaced,
+  withSlotSkipped,
+  withSlotUnskipped,
   type DayEntry,
   type DayLike,
   type OffPlanRowLike,
 } from './tracker-day';
 export { regenerateConfirmBody } from './regenerate-copy';
+export {
+  weeklyAverage,
+  weeklyAverageText,
+  WEEKLY_AVERAGE_MIN_DAYS,
+  type WeekDay,
+} from './weekly-average';

@@ -56,6 +56,13 @@ const weightDateSchema = calendarDateSchema.refine(notFuture, "A weigh-in can't 
 // clients that only ever anchored on the server's UTC day.
 const localDateSchema = calendarDateSchema.optional();
 
+// WP-06: a plan slot of one day — its meal type and its index in the day's
+// `meals` (the same `slotIndex` logRecipe / unlogRecipe take).
+const slotRefSchema = z.object({
+  mealType: z.string().min(1).max(20),
+  slotIndex: z.number().int().min(0).max(20),
+});
+
 // A full custom-entry snapshot, for restoreCustomMeal's Undo (T-19.2, B-34):
 // the client sends back exactly what it had before deleting.
 // UX-FOOD-11: macros the client left blank (stored as 0 g, flagged unknown).
@@ -77,6 +84,8 @@ const customEntrySnapshotSchema = z.object({
   carbs: z.number().finite().min(0).max(2000),
   fat: z.number().finite().min(0).max(1000),
   unknownMacros: unknownMacrosSchema,
+  // WP-06: Undo of deleting a replacement puts the slot back to "replaced".
+  replacesSlot: slotRefSchema.optional(),
 });
 
 export const trackerRouter = router({
@@ -135,11 +144,33 @@ export const trackerRouter = router({
         carbs: z.number().min(0).max(1000).default(0),
         fat: z.number().min(0).max(500).default(0),
         unknownMacros: unknownMacrosSchema,
+        // WP-06 "Ate something else": the plan slot this entry replaces. The
+        // slot then counts as eaten with these numbers; the entry's mealType
+        // is taken from the slot. Optional — older clients never send it.
+        replacesSlot: slotRefSchema.optional(),
       }),
     )
     .mutation(async ({ ctx, input }) => {
       const { date, ...entry } = input;
       return trackerService.logCustomMeal(ctx.user, date, entry);
+    }),
+
+  // WP-06 "Skipped it": the slot is neither eaten nor remaining. Idempotent;
+  // CONFLICT when that slot is already logged. Additive — shipped clients
+  // never call it and never see the day's separate `skippedSlots` list.
+  skipSlot: protectedProcedure
+    .input(z.object({ date: logDateSchema, ...slotRefSchema.shape }))
+    .mutation(async ({ ctx, input }) => {
+      const { date, ...slot } = input;
+      return trackerService.skipSlot(ctx.user, date, slot);
+    }),
+
+  // Undo of skipSlot. A no-op when the slot is not skipped.
+  unskipSlot: protectedProcedure
+    .input(z.object({ date: calendarDateSchema, ...slotRefSchema.shape }))
+    .mutation(async ({ ctx, input }) => {
+      const { date, ...slot } = input;
+      return trackerService.unskipSlot(ctx.user.id, date, slot);
     }),
 
   // The tracker's untick (T-19.4, one-save model): removes the planned-recipe

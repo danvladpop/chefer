@@ -15,6 +15,7 @@ import {
   userFacingErrorMessage,
   type QuickAddErrors,
   type QuickAddMealType,
+  type SlotRef,
 } from '@chefer/utils';
 import { trackMealLogged } from '../../lib/analytics-events';
 import { getRecipeImageUrl } from '../../lib/recipe-image';
@@ -22,6 +23,7 @@ import { trpc, type RouterOutputs } from '../../lib/trpc';
 import { NutritionStatusTag } from '../ingredients/nutrition-provenance';
 import { invalidateDayQueries } from './invalidate';
 import { recordRebalance } from './rebalance-store';
+import { mealLabel, SLOT_COPY } from './slot-copy';
 
 type IngredientSearchRow = RouterOutputs['ingredients']['search'][number];
 
@@ -56,6 +58,15 @@ export interface QuickAddSheetProps {
   plannedMeals?: PlannedLogMeal[];
   /** Today only: hands off to Snap-to-Log when "Estimate it" is tapped. */
   onEstimateWithSnap?: () => void;
+  /**
+   * WP-06 "Ate something else" → Describe: everything logged here replaces this
+   * plan slot (`replacesSlot`) instead of being added next to it. The meal
+   * picker and the plan's own meals are hidden (the slot decides the meal),
+   * and a recipe is logged as a custom entry with the recipe's numbers.
+   */
+  targetSlot?: SlotRef;
+  /** With `targetSlot`: called instead of the generic snackbar, so the caller can offer Undo. */
+  onSlotLogged?: (logged: { name: string; entryId: string | undefined }) => void;
 }
 
 const MEAL_OPTIONS = QUICK_ADD_MEAL_TYPES.map((value) => ({
@@ -109,6 +120,8 @@ export function QuickAddSheet({
   onLogged,
   plannedMeals = [],
   onEstimateWithSnap,
+  targetSlot,
+  onSlotLogged,
 }: QuickAddSheetProps) {
   const snackbar = useSnackbar();
   const utils = trpc.useUtils();
@@ -116,7 +129,7 @@ export function QuickAddSheet({
   const [view, setView] = useState<SheetView>('search');
   const [query, setQuery] = useState('');
   const [mealType, setMealType] = useState<QuickAddMealType>(() =>
-    defaultMealSlot(new Date().getHours()),
+    targetSlot ? toQuickAddMealType(targetSlot.mealType) : defaultMealSlot(new Date().getHours()),
   );
   const [expandedKey, setExpandedKey] = useState<string | null>(null);
   const [gramsText, setGramsText] = useState('100');
@@ -159,13 +172,18 @@ export function QuickAddSheet({
     setSanityOverridden(false);
   };
 
+  const targetMealType = targetSlot?.mealType;
   useEffect(() => {
     if (visible) {
-      setMealType(defaultMealSlot(new Date().getHours()));
+      setMealType(
+        targetMealType
+          ? toQuickAddMealType(targetMealType)
+          : defaultMealSlot(new Date().getHours()),
+      );
     } else {
       reset();
     }
-  }, [visible]);
+  }, [visible, targetMealType]);
 
   const trimmedQuery = query.trim();
   const searching = trimmedQuery.length > 0;
@@ -199,10 +217,13 @@ export function QuickAddSheet({
   }, [recentsQuery.data, searching, trimmedQuery]);
 
   const planRows = useMemo(() => {
+    // Aimed at a slot, the day's planned meals are not an option: the user is
+    // saying they did NOT eat that one.
+    if (targetSlot) return [];
     if (!searching) return plannedMeals;
     const q = trimmedQuery.toLowerCase();
     return plannedMeals.filter((m) => m.recipeName.toLowerCase().includes(q));
-  }, [plannedMeals, searching, trimmedQuery]);
+  }, [plannedMeals, searching, trimmedQuery, targetSlot]);
 
   const hasSearchResults =
     recents.length > 0 ||
@@ -213,11 +234,16 @@ export function QuickAddSheet({
   const onLoggedCommon = (
     data: RouterOutputs['tracker']['logRecipe'] | RouterOutputs['tracker']['logCustomMeal'],
     message: string,
+    loggedName: string,
   ) => {
     recordRebalance(data.rebalance);
     invalidateDayQueries(utils, date);
     onLogged();
-    snackbar.show({ message, tone: 'success' });
+    if (targetSlot && onSlotLogged && 'entryId' in data) {
+      onSlotLogged({ name: loggedName, entryId: data.entryId });
+    } else {
+      snackbar.show({ message, tone: 'success' });
+    }
     onClose();
   };
 
@@ -228,7 +254,7 @@ export function QuickAddSheet({
   const quickAddSource = (vars: { mealType: string }, fromPlanRow: boolean) =>
     fromPlanRow
       ? 'planned'
-      : plannedMeals.some((m) => m.mealType === vars.mealType)
+      : targetSlot || plannedMeals.some((m) => m.mealType === vars.mealType)
         ? 'replaced'
         : 'quick';
   const plannedRowPending = useRef(false);
@@ -237,7 +263,7 @@ export function QuickAddSheet({
     onSuccess: (data, vars) => {
       trackMealLogged(quickAddSource(vars, plannedRowPending.current), vars.mealType);
       plannedRowPending.current = false;
-      onLoggedCommon(data, `Logged ${vars.mealType}`);
+      onLoggedCommon(data, `Logged ${vars.mealType}`, vars.mealType);
     },
     onError: () => {
       plannedRowPending.current = false;
@@ -247,15 +273,27 @@ export function QuickAddSheet({
     meta: { silent: true },
     onSuccess: (data, vars) => {
       trackMealLogged(quickAddSource(vars, false), vars.mealType);
-      onLoggedCommon(data, `Logged ${vars.name}`);
+      onLoggedCommon(data, `Logged ${vars.name}`, vars.name);
     },
   });
 
   const isPending = logRecipeMutation.isPending || logCustomMutation.isPending;
 
+  /** Spread into every custom log: aimed at a slot, the entry replaces it (WP-06). */
+  const slotFields = (fallbackMealType: string) =>
+    targetSlot
+      ? {
+          mealType: toQuickAddMealType(targetSlot.mealType),
+          replacesSlot: { mealType: targetSlot.mealType, slotIndex: targetSlot.slotIndex },
+        }
+      : { mealType: toQuickAddMealType(fallbackMealType) };
+
   const logRecentAgain = (recent: NonNullable<typeof recentsQuery.data>[number]) => {
     if (isPending) return;
-    if (recent.recipeId) {
+    // Aimed at a slot, a recipe from Recent is logged as a custom entry with
+    // the recipe's numbers (as they were logged) so the planned slot is
+    // REPLACED rather than ticked — and the recipe keeps its name.
+    if (recent.recipeId && !targetSlot) {
       logRecipeMutation.mutate({
         date,
         recipeId: recent.recipeId,
@@ -268,7 +306,7 @@ export function QuickAddSheet({
       date,
       name: recent.name,
       estimatedBy: recent.estimatedBy ?? 'manual',
-      mealType: toQuickAddMealType(recent.mealType),
+      ...slotFields(recent.mealType),
       kcal: recent.kcal,
       protein: recent.protein,
       carbs: recent.carbs,
@@ -289,9 +327,32 @@ export function QuickAddSheet({
     });
   };
 
-  const logRecipeRow = (recipeId: string, chosenPortion: number) => {
+  const logRecipeRow = (
+    recipe: { id: string; name: string },
+    nutrition: { kcal: number; protein: number; carbs: number; fat: number },
+    chosenPortion: number,
+  ) => {
     if (isPending) return;
-    logRecipeMutation.mutate({ date, recipeId, mealType, portionMultiplier: chosenPortion });
+    if (targetSlot) {
+      // Replacing a slot: a custom entry with the recipe's numbers at this portion.
+      logCustomMutation.mutate({
+        date,
+        name: recipe.name,
+        estimatedBy: 'manual',
+        ...slotFields(mealType),
+        kcal: Math.round(nutrition.kcal * chosenPortion),
+        protein: Math.round(nutrition.protein * chosenPortion * 10) / 10,
+        carbs: Math.round(nutrition.carbs * chosenPortion * 10) / 10,
+        fat: Math.round(nutrition.fat * chosenPortion * 10) / 10,
+      });
+      return;
+    }
+    logRecipeMutation.mutate({
+      date,
+      recipeId: recipe.id,
+      mealType,
+      portionMultiplier: chosenPortion,
+    });
   };
 
   const logIngredientRow = (ingredient: IngredientSearchRow, grams: number) => {
@@ -301,7 +362,7 @@ export function QuickAddSheet({
       date,
       name: `${ingredient.displayName}, ${formatQuickAddGrams(grams)} g`,
       estimatedBy: 'manual',
-      mealType,
+      ...slotFields(mealType),
       kcal: scaled.kcal,
       protein: scaled.protein,
       carbs: scaled.carbs,
@@ -343,7 +404,12 @@ export function QuickAddSheet({
         return;
       }
     }
-    logCustomMutation.mutate({ date, estimatedBy: 'manual', ...parsed.entry });
+    logCustomMutation.mutate({
+      date,
+      estimatedBy: 'manual',
+      ...parsed.entry,
+      ...slotFields(parsed.entry.mealType),
+    });
   };
 
   const close = () => {
@@ -381,8 +447,14 @@ export function QuickAddSheet({
     <Sheet
       visible={visible}
       onClose={close}
-      title={view === 'manual' ? 'Enter calories yourself' : 'Log something'}
-      eyebrow="Off-plan"
+      title={
+        view === 'manual'
+          ? 'Enter calories yourself'
+          : targetSlot
+            ? SLOT_COPY.ateElse
+            : 'Log something'
+      }
+      eyebrow={targetSlot ? mealLabel(targetSlot.mealType) : undefined}
       testID="log-sheet"
       footer={
         view === 'manual' ? (
@@ -424,17 +496,19 @@ export function QuickAddSheet({
     >
       {view === 'search' ? (
         <View className="gap-3">
-          <View className="gap-1">
-            <Text className="text-xs font-medium text-gray-600">Meal</Text>
-            <SegmentedControl
-              size="sm"
-              options={MEAL_OPTIONS}
-              value={mealType}
-              onChange={setMealType}
-              accessibilityLabel="Meal"
-              testID="log-sheet-meal"
-            />
-          </View>
+          {!targetSlot && (
+            <View className="gap-1">
+              <Text className="text-xs font-medium text-gray-600">Meal</Text>
+              <SegmentedControl
+                size="sm"
+                options={MEAL_OPTIONS}
+                value={mealType}
+                onChange={setMealType}
+                accessibilityLabel="Meal"
+                testID="log-sheet-meal"
+              />
+            </View>
+          )}
 
           <Input
             testID="log-sheet-search"
@@ -625,7 +699,18 @@ export function QuickAddSheet({
                           testID={`log-sheet-recipe-log-${key}`}
                           size="sm"
                           loading={logRecipeMutation.isPending}
-                          onPress={() => logRecipeRow(recipe.id, portion)}
+                          onPress={() =>
+                            logRecipeRow(
+                              recipe,
+                              {
+                                kcal: kcalPerServing,
+                                protein: nutrition?.protein ?? 0,
+                                carbs: nutrition?.carbs ?? 0,
+                                fat: nutrition?.fat ?? 0,
+                              },
+                              portion,
+                            )
+                          }
                         >
                           <Text className="text-sm font-medium text-primary-foreground">
                             Log {Math.round(kcalPerServing * portion)} kcal
@@ -829,7 +914,7 @@ export function QuickAddSheet({
           </Pressable>
 
           <Text variant="muted" className="text-sm">
-            Ate something off-plan? Log it honestly — name and calories are enough.
+            Name and calories are enough.
           </Text>
 
           <View className="gap-1">
@@ -855,17 +940,19 @@ export function QuickAddSheet({
             )}
           </View>
 
-          <View className="gap-1">
-            <Text className="text-xs font-medium text-gray-600">Meal</Text>
-            <SegmentedControl
-              size="sm"
-              options={MEAL_OPTIONS}
-              value={mealType}
-              onChange={setMealType}
-              accessibilityLabel="Meal"
-              testID="quick-add-meal"
-            />
-          </View>
+          {!targetSlot && (
+            <View className="gap-1">
+              <Text className="text-xs font-medium text-gray-600">Meal</Text>
+              <SegmentedControl
+                size="sm"
+                options={MEAL_OPTIONS}
+                value={mealType}
+                onChange={setMealType}
+                accessibilityLabel="Meal"
+                testID="quick-add-meal"
+              />
+            </View>
+          )}
 
           <View className="gap-1">
             <Text className="text-xs font-medium text-gray-600">Roughly how many calories?</Text>

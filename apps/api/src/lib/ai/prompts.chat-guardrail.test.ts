@@ -35,6 +35,15 @@ describe('CHAT_SYSTEM_PROMPT — guardrail (T-00.14)', () => {
     }
   });
 
+  // WP-06 (Food 2): eating out or skipping is ordinary — the chat reports
+  // numbers neutrally and never judges.
+  it('uses neutral eating copy: no "off-plan", "honestly" or "stays honest"', () => {
+    for (const prompt of [CHAT_SYSTEM_PROMPT, REVIEW_SYSTEM_PROMPT]) {
+      expect(prompt).not.toMatch(/off-plan|honestly|stays honest/i);
+    }
+    expect(CHAT_SYSTEM_PROMPT).toContain('never scold');
+  });
+
   it('matches the known-good snapshot', () => {
     expect(CHAT_SYSTEM_PROMPT).toMatchSnapshot();
   });
