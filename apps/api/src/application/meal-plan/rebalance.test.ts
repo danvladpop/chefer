@@ -176,3 +176,168 @@ describe('selectRebalanceSwaps — two-snack days', () => {
     ]);
   });
 });
+
+// ─── WP-07: protein-aware selection ───────────────────────────────────────────
+// Weekly protein target 840 g (120/day). Wednesday today; Thu–Sun are open.
+
+const pslot = (
+  dayOfWeek: number,
+  mealType: string,
+  recipeId: string,
+  kcal: number,
+  proteinG: number,
+): RebalanceSlot => ({ ...slot(dayOfWeek, mealType, recipeId, kcal), proteinG });
+
+const pcand = (id: string, kcal: number, proteinG: number): RebalanceCandidate => ({
+  ...cand(id, kcal),
+  proteinG,
+});
+
+/** A week on its kcal target but `gapG` short on protein. */
+const proteinInput = (
+  gapG: number,
+  over: Partial<RebalanceSelectionInput> = {},
+): RebalanceSelectionInput => {
+  const futureSlots = [
+    pslot(3, 'dinner', 'thu-dinner', 700, 25),
+    pslot(4, 'dinner', 'fri-dinner', 700, 25),
+    pslot(5, 'lunch', 'sat-lunch', 600, 20),
+  ];
+  const futureProtein = 25 + 25 + 20;
+  return {
+    todayIndex: 2,
+    weeklyTargetKcal: 14_000,
+    consumedKcal: 14_000 - 2_000, // projected = 14 000 exactly
+    futureSlots,
+    candidatesByType: {},
+    weeklyTargetProteinG: 840,
+    consumedProteinG: 840 - gapG - futureProtein,
+    proteinTrigger: true,
+    ...over,
+  };
+};
+
+describe('selectRebalanceSwaps — protein (WP-07)', () => {
+  it('a −36 g week on a loss goal gets a higher-protein swap, not more food', () => {
+    const result = selectRebalanceSwaps(
+      proteinInput(36, {
+        goal: 'LOSE_WEIGHT',
+        candidatesByType: {
+          dinner: [pcand('chicken-bowl', 740, 55), pcand('huge-steak', 1300, 70)],
+        },
+      }),
+    );
+    expect(result.proteinGapG).toBe(36);
+    expect(result.swaps).toHaveLength(1);
+    const [swap] = result.swaps;
+    expect(swap).toMatchObject({ newRecipeId: 'chicken-bowl', reason: 'protein' });
+    expect(swap!.newProteinG! - swap!.previousProteinG!).toBe(30);
+    expect(swap!.explanation).toBe(
+      'Thursday dinner → chicken-bowl (+30 g protein)'.replace('chicken-bowl', 'name-chicken-bowl'),
+    );
+    // kcal grew by 40 (≪ 10 % of a 2 000 kcal day); the gap is nearly closed.
+    expect(result.projectedKcalAfter - result.projectedKcal).toBe(40);
+    expect(result.proteinGapAfterG).toBeLessThan(10);
+  });
+
+  it('on a loss goal never spends more than 10 % of a day (200 kcal) on protein', () => {
+    const input = proteinInput(36, {
+      goal: 'LOSE_WEIGHT',
+      candidatesByType: { dinner: [pcand('bigger-portions', 1200, 60)] },
+    });
+    // +500 kcal for +35 g protein: exactly the UX-PLAN-08 "Bigger portions" trap.
+    expect(selectRebalanceSwaps(input).swaps).toHaveLength(0);
+    // The same candidate is fine on a muscle-gain goal.
+    const gain = selectRebalanceSwaps({ ...input, goal: 'GAIN_MUSCLE' });
+    expect(gain.swaps.map((s) => s.newRecipeId)).toEqual(['bigger-portions']);
+  });
+
+  it('keeps the protein fixes of a loss week inside one 10 % budget together', () => {
+    const result = selectRebalanceSwaps(
+      proteinInput(60, {
+        goal: 'LOSE_WEIGHT',
+        candidatesByType: { dinner: [pcand('d-a', 880, 50), pcand('d-b', 880, 50)] },
+      }),
+    );
+    // each swap adds 180 kcal (< 200) but two would add 360 (> 200): only one.
+    expect(result.swaps).toHaveLength(1);
+  });
+
+  it('a protein swap never pushes the week outside the kcal tolerance', () => {
+    // Already +14 % over: a +300 kcal protein swap would land at +16 %.
+    const input = proteinInput(36, {
+      consumedKcal: 12_000 + 1_960,
+      candidatesByType: { dinner: [pcand('rich', 1000, 60)] },
+    });
+    expect(selectRebalanceSwaps(input).swaps).toHaveLength(0);
+  });
+
+  it('prefers the higher-protein swap among equally good calorie swaps', () => {
+    const swaps = selectRebalanceSwaps({
+      todayIndex: 2,
+      weeklyTargetKcal: 14_000,
+      consumedKcal: 16_000,
+      futureSlots: [pslot(3, 'dinner', 'thu-dinner', 800, 20)],
+      candidatesByType: {
+        dinner: [pcand('light-low-protein', 350, 10), pcand('light-high-protein', 360, 45)],
+      },
+      weeklyTargetProteinG: 840,
+      consumedProteinG: 600,
+      maxSwaps: 1,
+    }).swaps;
+    expect(swaps[0]).toMatchObject({ newRecipeId: 'light-high-protein', reason: 'both' });
+  });
+
+  it('only RANKS by protein on the auto path: a protein gap alone triggers nothing', () => {
+    const input = proteinInput(36, {
+      proteinTrigger: false,
+      candidatesByType: { dinner: [pcand('chicken-bowl', 740, 55)] },
+    });
+    expect(selectRebalanceSwaps(input).swaps).toHaveLength(0);
+    expect(selectRebalanceSwaps({ ...input, proteinTrigger: true }).swaps).toHaveLength(1);
+  });
+
+  it('ignores a small gap (< 30 g) and a week with no protein target', () => {
+    const candidatesByType = { dinner: [pcand('chicken-bowl', 740, 55)] };
+    expect(selectRebalanceSwaps(proteinInput(20, { candidatesByType })).swaps).toHaveLength(0);
+    expect(
+      selectRebalanceSwaps(proteinInput(60, { candidatesByType, weeklyTargetProteinG: 0 })).swaps,
+    ).toHaveLength(0);
+  });
+
+  it('counts today’s remaining slots and never swaps a locked ("Your pick") slot', () => {
+    const base = proteinInput(36, {
+      candidatesByType: { dinner: [pcand('chicken-bowl', 740, 55)] },
+    });
+    // Today still has a 600 kcal / 30 g meal to eat: the projection grows by it.
+    const withToday = selectRebalanceSwaps({
+      ...base,
+      todayRemaining: { kcal: 600, proteinG: 30 },
+    });
+    expect(withToday.projectedKcal).toBe(selectRebalanceSwaps(base).projectedKcal + 600);
+    expect(withToday.proteinGapG).toBe(6); // 30 g of the 36 g gap is already coming today
+    // Every dinner locked → nothing to swap.
+    const locked = selectRebalanceSwaps({
+      ...base,
+      futureSlots: base.futureSlots.map((s) => ({ ...s, locked: true })),
+    });
+    expect(locked.swaps).toHaveLength(0);
+  });
+
+  it('is convergent: once the swap is in place a re-run is a no-op', () => {
+    const input = proteinInput(36, {
+      candidatesByType: { dinner: [pcand('chicken-bowl', 740, 55)] },
+    });
+    const first = selectRebalanceSwaps(input);
+    expect(first.swaps).toHaveLength(1);
+    const applied: RebalanceSelectionInput = {
+      ...input,
+      futureSlots: input.futureSlots.map((s) =>
+        s.dayOfWeek === 3 && s.mealType === 'dinner'
+          ? { ...s, recipeId: 'chicken-bowl', kcal: 740, proteinG: 55 }
+          : s,
+      ),
+    };
+    expect(selectRebalanceSwaps(applied).swaps).toHaveLength(0);
+  });
+});
