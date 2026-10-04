@@ -8,7 +8,6 @@ import {
   makeCoachUser,
   NO_COACHING_MESSAGE,
   probeCoachingEnabled,
-  setupGym,
   TODAY,
   trainerWithInvite,
   type CoachUser,
@@ -529,5 +528,48 @@ describe.skipIf(false)('trainer coaching (WP-18)', () => {
   });
 });
 
-// Keep a reference so the unused-import rule stays quiet when the suite is skipped.
-void setupGym;
+describe('account deletion (spec §2.7)', () => {
+  it("a deleted trainer: the client keeps the routine, and the trainer's stamps read 'your trainer'", async () => {
+    if (!enabled) return;
+    const t = await makeCoachUser({ prefix: 'coach-del-trainer' });
+    const c = await makeCoachUser({ prefix: 'coach-del-client', gymSetup: true });
+    const invite = await trainerWithInvite(t);
+    await c.api.coaching.join.mutate({ code: invite.code });
+    const routine = await t.api.trainer.client.routine.query({ clientId: c.id });
+    if (!routine) throw new Error('no routine');
+    const doc = docOf(routine);
+    const row = doc.days[0]?.exercises[0];
+    if (!row) throw new Error('no row');
+    row.trainerNote = 'cue from a trainer who leaves';
+    await t.api.trainer.client.saveRoutine.mutate({
+      clientId: c.id,
+      routine: doc,
+      expectedVersion: routine.version,
+    });
+
+    await t.api.user.deleteSelf.mutate({ password: 'Contract@123!', confirm: 'DELETE' });
+
+    const boot = await c.api.gym.bootstrap.query({ today: TODAY });
+    expect(boot.coaching).toBeNull();
+    const kept = boot.activeRoutine?.days[0]?.exercises[0];
+    expect(kept?.trainerNote).toBe('cue from a trainer who leaves');
+    expect(kept?.lastEditedByOther?.name).toBe('your trainer');
+    expect(boot.activeRoutine?.lastEditedByOther?.name).toBe('your trainer');
+    expect(await c.api.coaching.status.query()).toEqual({ trainer: null, stopped: null });
+  });
+
+  it("a deleted client: the trainer's list drops them, and the invite stays used", async () => {
+    if (!enabled) return;
+    const t = await makeCoachUser({ prefix: 'coach-del2-trainer' });
+    const c = await makeCoachUser({ prefix: 'coach-del2-client', gymSetup: true });
+    const invite = await trainerWithInvite(t);
+    await c.api.coaching.join.mutate({ code: invite.code });
+    await t.api.trainer.client.saveNote.mutate({ clientId: c.id, body: 'note' });
+    await c.api.user.deleteSelf.mutate({ password: 'Contract@123!', confirm: 'DELETE' });
+
+    expect(await t.api.trainer.clients.list.query()).toEqual([]);
+    expect(
+      (await t.api.trainer.invites.list.query()).find((i) => i.code === invite.code)?.state,
+    ).toBe('USED');
+  });
+});

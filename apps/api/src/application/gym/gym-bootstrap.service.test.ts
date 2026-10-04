@@ -76,6 +76,7 @@ function setup(
     dates?: string[];
     exercises?: ReturnType<typeof exerciseRow>[];
     pauses?: ReturnType<typeof pauseRow>[];
+    link?: { trainerId: string } | null;
   } = {},
 ) {
   const older = sessionDoc({ localDate: '2026-09-20', startedAt: '2026-09-20T10:00:00.000Z' });
@@ -109,6 +110,17 @@ function setup(
     setterNames: vi.fn().mockResolvedValue(undefined),
   };
   const ensure = vi.fn().mockResolvedValue(undefined);
+  const attribution = {
+    forRoutine: vi.fn(async (_row: unknown, viewerId: string, level: number) =>
+      level >= 6 ? { viewerId, names: new Map([['ctrainer', 'Ana']]) } : undefined,
+    ),
+  };
+  const coachingLinks = {
+    findActiveForClient: vi.fn(async () => (opts.link ?? null) as never),
+  };
+  const trainers = {
+    find: vi.fn(async () => ({ displayName: 'Ana' }) as never),
+  };
   const service = new GymBootstrapService(
     exerciseRepo,
     progressionRepo,
@@ -118,8 +130,11 @@ function setup(
     loader,
     prog,
     ensure,
+    attribution,
+    coachingLinks,
+    trainers,
   );
-  return { service, sessionRepo, prog, ensure, older, newer };
+  return { service, sessionRepo, prog, ensure, older, newer, attribution, coachingLinks, trainers };
 }
 
 beforeEach(() => {
@@ -328,5 +343,114 @@ describe('previousMonth', () => {
   it('wraps the year', () => {
     expect(previousMonth('2026-01-05')).toBe('2025-12');
     expect(previousMonth('2026-10-05')).toBe('2026-09');
+  });
+});
+
+// ─── Trainer coaching (WP-18, spec §5.3, §10) ─────────────────────────────────
+// Level 6+ (the RAW client level, not the effective gym level) gets trainer notes,
+// edit stamps, setter names and `coaching`; every other client gets exactly the
+// legacy bootstrap, and no coaching query runs for it.
+
+describe('GymBootstrapService.get: trainer coaching', () => {
+  beforeEach(() => {
+    vi.mocked(buildNextWorkout).mockReturnValue({
+      dayId: 'day-a',
+      exercises: [],
+    } as unknown as NextWorkoutDto);
+  });
+
+  const coachedContext = () => {
+    const row = routineRow({ nextDayId: 'day-b' });
+    const first = row.days[0]?.exercises[0];
+    if (!row.days[0] || !first) throw new Error('fixture');
+    const coachedRow = {
+      ...row,
+      lastEditedById: 'ctrainer',
+      lastEditedAt: new Date('2026-10-02T08:00:00Z'),
+      days: [
+        {
+          ...row.days[0],
+          exercises: [
+            {
+              ...first,
+              trainerNote: 'knees out',
+              lastEditedById: 'ctrainer',
+              lastEditedAt: new Date('2026-10-02T08:00:00Z'),
+            },
+          ],
+        },
+        ...row.days.slice(1),
+      ],
+    };
+    return ctx({ activeRoutine: toRoutineDto(row), activeRoutineRow: coachedRow });
+  };
+
+  it('level 6: the routine carries notes and stamps, the next workout the note, bootstrap the trainer', async () => {
+    const { service, prog } = setup({ context: coachedContext(), link: { trainerId: 'ctrainer' } });
+    vi.mocked(buildNextWorkout).mockReturnValue({
+      dayId: 'day-a',
+      exercises: [{ routineExerciseId: 're-bench' }, { routineExerciseId: 'other' }],
+    } as unknown as NextWorkoutDto);
+    prog.setterNames.mockResolvedValue(new Map([['ctrainer', 'Ana']]));
+
+    const b = await service.get(USER, { today: TODAY }, 0, { rawLevel: 6, enabled: true });
+
+    expect(b.activeRoutine?.lastEditedByOther?.name).toBe('Ana');
+    expect(b.activeRoutine?.days[0]?.exercises[0]?.trainerNote).toBe('knees out');
+    expect(b.nextWorkout?.exercises.map((e) => e.trainerNote)).toEqual(['knees out', undefined]);
+    expect(b.coaching).toEqual({ trainerName: 'Ana' });
+    expect(prog.toDtos).toHaveBeenCalledWith(
+      expect.anything(),
+      [],
+      expect.any(Map),
+      TODAY,
+      expect.any(Map),
+    );
+  });
+
+  it('level 6 without a trainer: coaching is null', async () => {
+    const { service } = setup({ context: coachedContext(), link: null });
+    expect(
+      (await service.get(USER, { today: TODAY }, 0, { rawLevel: 6, enabled: true })).coaching,
+    ).toBeNull();
+  });
+
+  it('level 6 with coaching off for this user: no `coaching` key at all (but stamps still show)', async () => {
+    const { service, coachingLinks } = setup({ context: coachedContext() });
+    const b = await service.get(USER, { today: TODAY }, 0, { rawLevel: 6, enabled: false });
+    expect(b).not.toHaveProperty('coaching');
+    expect(b.activeRoutine?.lastEditedByOther?.name).toBe('Ana');
+    expect(coachingLinks.findActiveForClient).not.toHaveBeenCalled();
+  });
+
+  it.each([0, 4, 5])(
+    'level %i: the legacy bootstrap, nothing coaching-related queried or sent',
+    async (rawLevel) => {
+      const { service, attribution, coachingLinks, trainers } = setup({
+        context: coachedContext(),
+        link: { trainerId: 'ctrainer' },
+      });
+      const b = await service.get(USER, { today: TODAY }, 0, { rawLevel, enabled: true });
+      const json = JSON.stringify(b);
+      for (const key of [
+        'trainerNote',
+        'lastEditedByOther',
+        'setByName',
+        'knees out',
+        '"coaching"',
+      ]) {
+        expect(json).not.toContain(key);
+      }
+      expect(attribution.forRoutine).not.toHaveBeenCalled();
+      expect(coachingLinks.findActiveForClient).not.toHaveBeenCalled();
+      expect(trainers.find).not.toHaveBeenCalled();
+    },
+  );
+
+  it('the default (no coaching argument, e.g. an old caller) is the legacy bootstrap', async () => {
+    const { service } = setup({ context: coachedContext(), link: { trainerId: 'ctrainer' } });
+    const b = await service.get(USER, { today: TODAY });
+    expect(JSON.stringify(b)).not.toContain('knees out');
+    expect(b).not.toHaveProperty('coaching');
   });
 });
