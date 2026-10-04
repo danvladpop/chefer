@@ -364,6 +364,44 @@ describe('workout view model', () => {
     expect(prs.get(bench.id)?.kind).toBe('e1rm');
   });
 
+  it('UX-GYM-18: a first-ever lift has no live PR; once there is history a better lift does', () => {
+    let doc = startWorkout({ kind: 'planned', workout: plannedWorkout() }, TODAY);
+    const bench = doc.exercises[0]!;
+    const s1 = workingSets(bench)[0]!;
+    doc = dispatchWorkout({
+      type: 'editSet',
+      seId: bench.id,
+      setId: s1.id,
+      weightKg: 200,
+      reps: 10,
+    })!;
+    doc = dispatchWorkout({ type: 'completeSet', seId: bench.id, setId: s1.id })!;
+
+    // No earlier session for this exercise: a baseline, not a record.
+    expect(livePrs(doc, []).size).toBe(0);
+    expect(livePrs(doc, [], {}).size).toBe(0);
+    // The same lift against a lighter earlier session is a PR.
+    const earlier: SessionSummaryDto = {
+      id: 'earlier',
+      name: 'Upper A',
+      routineDayId: null,
+      status: 'COMPLETED',
+      localDate: '2026-09-01',
+      startedAt: '2026-09-01T08:00:00.000Z',
+      finishedAt: '2026-09-01T09:00:00.000Z',
+      isDeload: false,
+      exercises: [
+        {
+          exerciseId: bench.exerciseId,
+          skipped: false,
+          lastSetRir: null,
+          sets: [{ weightKg: 20, reps: 8, isWarmup: false, completed: true }],
+        },
+      ],
+    };
+    expect(livePrs(doc, [earlier]).get(bench.id)?.setId).toBe(s1.id);
+  });
+
   it('warm-up ramps come from the engine (collapsed in the UI)', () => {
     const slot = {
       ...loadSlotOf(meta('back-squat')),

@@ -707,6 +707,7 @@ model HouseholdMember {
   name                String
   portionFactor       Float    @default(1) // 0.5 kid … 1.5 big eater
   isKid               Boolean  @default(false)
+  ageBand             String? // TODDLER | CHILD | PRETEEN | TEEN — kids only, optional (UX-PLAN-12); validated by Zod
   allergies           String[] @default([])
   dietaryRestrictions String[] @default([])
   dislikedIngredients String[] @default([])

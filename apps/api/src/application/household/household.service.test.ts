@@ -221,6 +221,44 @@ describe('HouseholdService — member limit (matrix householdMembers)', () => {
     });
   });
 
+  it('UX-PLAN-12: a kid keeps an age band; a non-kid never stores one', async () => {
+    const repo = makeRepo();
+    const service = new HouseholdService(repo);
+
+    await service.add(freeUser, { name: 'Sam', isKid: true, ageBand: 'CHILD' });
+    expect(repo.createWithinCap).toHaveBeenLastCalledWith(
+      'user-free',
+      { name: 'Sam', isKid: true, ageBand: 'CHILD' },
+      5,
+    );
+
+    await service.add(freeUser, { name: 'Maria', isKid: false, ageBand: 'TEEN' });
+    expect(repo.createWithinCap).toHaveBeenLastCalledWith(
+      'user-free',
+      { name: 'Maria', isKid: false },
+      5,
+    );
+  });
+
+  it('UX-PLAN-12: update sets/clears the band, and un-kidding a member clears it', async () => {
+    const repo = makeRepo();
+    repo.update.mockResolvedValue({ id: 'm1' });
+    const service = new HouseholdService(repo);
+
+    await service.update('u', 'm1', { ageBand: 'TEEN' });
+    expect(repo.update).toHaveBeenLastCalledWith('u', 'm1', { ageBand: 'TEEN' });
+
+    await service.update('u', 'm1', { ageBand: null });
+    expect(repo.update).toHaveBeenLastCalledWith('u', 'm1', { ageBand: null });
+
+    await service.update('u', 'm1', { isKid: false });
+    expect(repo.update).toHaveBeenLastCalledWith('u', 'm1', { isKid: false, ageBand: null });
+
+    // 1.0.1 clients never send ageBand: an ordinary edit leaves it untouched.
+    await service.update('u', 'm1', { name: 'Sam', portionFactor: 0.5 });
+    expect(repo.update).toHaveBeenLastCalledWith('u', 'm1', { name: 'Sam', portionFactor: 0.5 });
+  });
+
   it("update/remove of another user's member surface NOT_FOUND (ownership-scoped repo)", async () => {
     const repo = makeRepo();
     const service = new HouseholdService(repo);
