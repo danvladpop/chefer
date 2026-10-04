@@ -564,7 +564,7 @@ export default function CookModeScreen() {
             {finishMealCopy(meal)}
           </Text>
           <Text variant="muted" className="text-center text-sm">
-            Log it to today&apos;s tracker so your nutrition stays honest.
+            Log it to today&apos;s tracker to keep your day&apos;s totals up to date.
           </Text>
           {/* UX-COOK-04: the slot is a choice, preset from the plan or the clock. */}
           {logged ? null : (
