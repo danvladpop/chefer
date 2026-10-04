@@ -101,6 +101,23 @@ describe('redactSecrets (F-M-AUTH-2-2 — no plaintext passwords in dev logs)', 
     expect(input.password).toBe('User@123!');
   });
 
+  it('masks provider credentials (WP-22: idToken, authorizationCode, nonce — also inside reauth)', () => {
+    const out = redactSecrets({
+      provider: 'APPLE',
+      idToken: 'jwt',
+      authorizationCode: 'code',
+      nonce: 'raw-nonce',
+      reauth: { provider: 'GOOGLE', idToken: 'jwt2', nonce: 'n2' },
+    });
+    expect(out).toEqual({
+      provider: 'APPLE',
+      idToken: REDACTED,
+      authorizationCode: REDACTED,
+      nonce: REDACTED,
+      reauth: { provider: 'GOOGLE', idToken: REDACTED, nonce: REDACTED },
+    });
+  });
+
   it('leaves Errors, Dates, primitives and cycles intact', () => {
     const error = new Error('Network request failed');
     const date = new Date(0);

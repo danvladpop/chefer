@@ -117,4 +117,33 @@ describe('social sign-in contract', () => {
       client.user.deleteSelf.mutate({ password: 'Contract@123!', confirm: 'DELETE' }),
     ).resolves.toEqual({ success: true });
   });
+  it('mobile: linkIdentity with a bad provider token is never a 401 (the sign-out handler must not fire)', async () => {
+    const { client, setToken } = makeContractClient();
+    const registered = await client.auth.register.mutate({
+      email: uniqueEmail('social-link'),
+      password: 'Contract@123!',
+      firstName: 'Link',
+      ...CONTRACT_CONSENT,
+    });
+    if (!registered.session) throw new Error('missing session');
+    setToken(registered.session.token);
+
+    for (const provider of ['GOOGLE', 'APPLE'] as const) {
+      // Disabled provider → PRECONDITION_FAILED; configured → BAD_REQUEST. Never UNAUTHORIZED:
+      // the app signs the user out on any 401, and a failed connect must not.
+      await expect(
+        client.auth.linkIdentity.mutate({
+          provider,
+          idToken: FAKE_TOKEN,
+          nonce: 'contract-nonce-123',
+        }),
+      ).rejects.toMatchObject({
+        data: { code: expect.stringMatching(/^(PRECONDITION_FAILED|BAD_REQUEST)$/) as string },
+      });
+    }
+    // The session still works afterwards.
+    expect((await client.auth.linkedIdentities.query()).hasPassword).toBe(true);
+
+    await client.user.deleteSelf.mutate({ password: 'Contract@123!', confirm: 'DELETE' });
+  });
 });

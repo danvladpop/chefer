@@ -355,8 +355,9 @@ client sending `x-chefer-api-level >= 4`; a request WITHOUT the header (installe
 
 ### 4.10 Sign in with Google / Apple (WP-22, 2026-10-04)
 
-> **Status:** API + web implemented; mobile follows in the next native build (it needs the Google/Apple SDK modules and the
-> Apple entitlement). Disabled everywhere until the owner sets the provider credentials (`infrastructure.md` §10 runbook).
+> **Status:** API, web and mobile implemented; the mobile buttons need the **next native build** (new Google/Apple SDK
+> modules + the Apple entitlement, `infrastructure.md` §4.3/§11) and appear only on binaries that contain them.
+> Disabled everywhere until the owner sets the provider credentials (`infrastructure.md` §10 runbook).
 
 ```
 Login / Register page (web)  |  mobile sign-in / sign-up screen
@@ -388,6 +389,16 @@ Login / Register page (web)  |  mobile sign-in / sign-up screen
               new user → onboarding (same as register); returning user → dashboard
 ```
 
+- **Mobile (iOS / Android app):** Welcome, Sign in and Create account show **Continue with Apple** (Apple's own button, iOS
+  only — never on Android) and **Continue with Google** (white button, Google "G") below the email form, with the consent line.
+  A button appears only when `auth.socialAvailability` enables the provider, the app binary contains the native module and
+  was built for it, and the device can use it (Google on iOS needs the iOS client id, on Android the web client id). The
+  native sheet runs with a fresh nonce; **cancelling the sheet does nothing** (no error). On success the session is stored
+  exactly like an email sign-in: a new account goes through onboarding, a returning one lands on its home screen. If the
+  API answers "couldn't verify" (UNAUTHORIZED) the app shows that message — it never treats it as an expired session.
+  Profile → **Sign-in methods** lists connected Google/Apple accounts, connects one (a fresh provider sign-in →
+  `auth.linkIdentity`), disconnects one (refused with the server's message when it is the only way to sign in), and offers
+  "Email me a link to set a password" to an account that has none.
 - **Names:** Apple sends `givenName`/`familyName` only the first time, outside the token — the client forwards them at once.
 - **Linked accounts** (web Profile → Sign-in methods, mobile Profile): `auth.linkedIdentities` lists them with `hasPassword`;
   `auth.linkIdentity` connects another (a different Apple "Hide My Email" account can be connected this way);
@@ -395,7 +406,9 @@ Login / Register page (web)  |  mobile sign-in / sign-up screen
   Apple also revokes the Apple grant.
 - **No password?** An OAuth-only account can still use "Forgot password" (reset link → sets its first password). Changing the
   sign-in email stays password-gated, so it is not available until a password exists.
-- **Account deletion** (§24): OAuth-only accounts confirm with a fresh provider sign-in (`reauth`) instead of a password.
+- **Account deletion** (§24): OAuth-only accounts confirm with a fresh provider sign-in (`reauth`) instead of a password — on
+  mobile the delete sheet shows no password field for them, asks them to type DELETE, and offers one "Confirm with Apple/Google
+  and delete" button per connected provider the device can run (cancelling the sheet deletes nothing).
 - **Password managers:** password fields are `autocomplete="current-password"` (login) / `new-password` (register, reset);
   the native apps also need the `/.well-known/apple-app-site-association` and `/.well-known/assetlinks.json` files.
 

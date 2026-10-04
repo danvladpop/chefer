@@ -20,18 +20,21 @@ export type NativeSignInModules = {
 
 async function loadApple(): Promise<AppleAuthentication | null> {
   try {
-    const mod = await import('expo-apple-authentication');
+    // require, not import(): a lazy, catchable load that Metro and Jest share.
+    // eslint-disable-next-line @typescript-eslint/no-require-imports -- guarded optional native module
+    const mod = require('expo-apple-authentication') as AppleAuthentication;
     return (await mod.isAvailableAsync()) ? mod : null;
   } catch {
     return null;
   }
 }
 
-async function loadGoogle(): Promise<GoogleSignIn | null> {
+function loadGoogle(): GoogleSignIn | null {
   try {
     // The package reads its native constants while it is being imported, so a
     // binary without the module fails HERE (caught below), not on a tap.
-    return await import('@react-native-google-signin/google-signin');
+    // eslint-disable-next-line @typescript-eslint/no-require-imports -- guarded optional native module
+    return require('@react-native-google-signin/google-signin') as GoogleSignIn;
   } catch {
     return null;
   }
@@ -41,7 +44,7 @@ let cached: Promise<NativeSignInModules> | null = null;
 
 /** Loads both modules once per app run. Never rejects. */
 export function loadNativeSignInModules(): Promise<NativeSignInModules> {
-  cached ??= Promise.all([loadApple(), loadGoogle()]).then(([apple, google]) => ({
+  cached ??= Promise.all([loadApple(), Promise.resolve(loadGoogle())]).then(([apple, google]) => ({
     apple,
     google,
   }));

@@ -18,7 +18,7 @@ export function createTrpcAuthMock() {
         // reset loops type-safe: a query has no mutation to stub.
         socialAvailability: {
           useQuery: () => ({ data: undefined }),
-          useMutation: undefined as undefined,
+          useMutation: undefined,
         },
         socialSignIn: { useMutation: jest.fn() },
       },
