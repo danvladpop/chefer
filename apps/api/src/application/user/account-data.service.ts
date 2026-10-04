@@ -1,5 +1,6 @@
 import { TRPCError } from '@trpc/server';
 import { consentEventRepository, prisma } from '@chefer/database';
+import { COACHING_RETENTION } from '@chefer/types';
 import { displayNameOf } from '@chefer/utils';
 import { posthogAdmin } from '../../infrastructure/analytics/posthog-admin.js';
 import { deleteUploadedFiles } from '../../lib/uploads/uploaded-files.js';
@@ -124,6 +125,105 @@ async function exportSocialData(
   };
 }
 
+// ─── Trainer coaching export (docs/trainer-platform/spec.md §8.4, Q-7) ────────
+// `coaching` is an additive section.
+//   asClient   the trainers you had and when, with the consent log rows
+//   asTrainer  your trainer profile, your clients (display names, dates), your
+//              invites and YOUR OWN private notes about clients
+// Never another user's email or id. Whether a client's export includes the
+// trainer's private notes about them is counsel question Q-7: the recommended
+// default (COACHING_RETENTION.clientExportIncludesTrainerNotes = false) leaves
+// them out, since the trainer is the controller of those notes. The rest of the
+// client's coaching data (the routine with the trainer's exercise notes, stamps,
+// targets) is already in the `gym` section.
+
+async function exportCoachingData(
+  userId: string,
+  consentEvents: { kind: string }[],
+): Promise<Record<string, unknown>> {
+  const [trainerProfile, linksAsClient, linksAsTrainer, invites, notesWritten] = await Promise.all([
+    prisma.trainerProfile.findUnique({ where: { userId } }),
+    prisma.coachingLink.findMany({ where: { clientId: userId }, orderBy: { startedAt: 'desc' } }),
+    prisma.coachingLink.findMany({ where: { trainerId: userId }, orderBy: { startedAt: 'desc' } }),
+    prisma.coachingInvite.findMany({
+      where: { trainerId: userId },
+      orderBy: { createdAt: 'desc' },
+    }),
+    prisma.coachingNote.findMany({ where: { trainerId: userId }, orderBy: { updatedAt: 'desc' } }),
+  ]);
+  const notesAbout = COACHING_RETENTION.clientExportIncludesTrainerNotes
+    ? await prisma.coachingNote.findMany({ where: { clientId: userId, hiddenAt: null } })
+    : [];
+
+  const otherIds = new Set<string>();
+  for (const l of linksAsClient) otherIds.add(l.trainerId);
+  for (const l of linksAsTrainer) otherIds.add(l.clientId);
+  for (const n of notesWritten) otherIds.add(n.clientId);
+  otherIds.delete(userId);
+  const [people, trainers] =
+    otherIds.size === 0
+      ? [[], []]
+      : await Promise.all([
+          prisma.user.findMany({
+            where: { id: { in: [...otherIds] } },
+            select: { id: true, firstName: true, lastName: true, name: true },
+          }),
+          prisma.trainerProfile.findMany({ where: { userId: { in: [...otherIds] } } }),
+        ]);
+  const nameById = new Map(people.map((p) => [p.id, displayNameOf(p)]));
+  const trainerNameById = new Map(trainers.map((t) => [t.userId, t.displayName]));
+  const clientName = (id: string) => nameById.get(id) ?? null;
+  const trainerName = (id: string) => trainerNameById.get(id) ?? null;
+
+  return {
+    asClient: {
+      trainers: linksAsClient.map((l) => ({
+        trainer: trainerName(l.trainerId),
+        since: l.startedAt,
+        endedAt: l.endedAt,
+        endedBy: l.endedBy,
+      })),
+      // Only present when the Q-7 default is changed (see above).
+      trainerNotesAboutYou: notesAbout.map((n) => ({
+        trainer: trainerName(n.trainerId),
+        body: n.body,
+        updatedAt: n.updatedAt,
+      })),
+      consentHistory: consentEvents.filter((e) => e.kind === 'COACHING_SHARING'),
+    },
+    asTrainer: {
+      profile: trainerProfile
+        ? {
+            displayName: trainerProfile.displayName,
+            activatedAt: trainerProfile.activatedAt,
+            disabledAt: trainerProfile.disabledAt,
+          }
+        : null,
+      clients: linksAsTrainer.map((l) => ({
+        client: clientName(l.clientId),
+        label: l.trainerLabel,
+        since: l.startedAt,
+        endedAt: l.endedAt,
+        endedBy: l.endedBy,
+      })),
+      invites: invites.map((i) => ({
+        label: i.label,
+        createdAt: i.createdAt,
+        expiresAt: i.expiresAt,
+        usedAt: i.usedAt,
+        revokedAt: i.revokedAt,
+      })),
+      // Your own notes: you wrote them, they are yours.
+      privateNotes: notesWritten.map((n) => ({
+        client: clientName(n.clientId),
+        body: n.body,
+        updatedAt: n.updatedAt,
+        hiddenAt: n.hiddenAt,
+      })),
+    },
+  };
+}
+
 /** Everything Chefer stores about one user, as plain JSON. */
 export async function exportAccountData(userId: string): Promise<Record<string, unknown>> {
   const where = { userId };
@@ -206,6 +306,7 @@ export async function exportAccountData(userId: string): Promise<Record<string, 
     where: { planId: { in: mealPlans.map((p) => p.id) } },
   });
   const social = await exportSocialData(userId, consentEvents);
+  const coaching = await exportCoachingData(userId, consentEvents);
 
   return {
     exportedAt: new Date().toISOString(),
@@ -234,6 +335,7 @@ export async function exportAccountData(userId: string): Promise<Record<string, 
     },
     feedback,
     social,
+    coaching,
     privacy: {
       consentHistory: consentEvents,
       emailPreferences,

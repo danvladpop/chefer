@@ -19,9 +19,18 @@ import {
   type RoutineListItemDto,
   type TemplateSummaryDto,
 } from '@chefer/types';
-import { instantiateTemplate, normalizeSupersets, type ExerciseLookup } from '@chefer/utils';
+import {
+  diffRoutineDoc,
+  instantiateTemplate,
+  normalizeSupersets,
+  type ExerciseLookup,
+} from '@chefer/utils';
 import { ConflictCause } from '../../lib/conflict.js';
 import { ensureExerciseLibrary } from '../../lib/exercise-library/ensure.js';
+import {
+  coachingAttributionService,
+  type CoachingAttributionService,
+} from '../coaching/coaching-attribution.service.js';
 import { toRoutineDto } from './mappers.js';
 
 // ─── RoutineService (gym_plan.md §4.1, D4/D5a) ───────────────────────────────
@@ -74,6 +83,10 @@ export class RoutineService {
     private readonly exerciseRepo: IExerciseRepository = exerciseRepository,
     private readonly profileRepo: IGymProfileRepository = gymProfileRepository,
     private readonly ensure: () => Promise<void> = ensureExerciseLibrary,
+    private readonly attribution: Pick<
+      CoachingAttributionService,
+      'forRoutine'
+    > = coachingAttributionService,
   ) {}
 
   async list(userId: string): Promise<RoutineListItemDto[]> {
@@ -89,8 +102,9 @@ export class RoutineService {
     }));
   }
 
-  async get(userId: string, id: string): Promise<RoutineDto> {
-    return toRoutineDto(await this.findOwned(userId, id));
+  /** `level` is the RAW `x-chefer-api-level`: 6+ also gets trainer notes and edit stamps (spec §10). */
+  async get(userId: string, id: string, level = 0): Promise<RoutineDto> {
+    return this.toDto(await this.findOwned(userId, id), userId, level);
   }
 
   templates(): TemplateSummaryDto[] {
@@ -176,13 +190,24 @@ export class RoutineService {
   }
 
   /** Makes this the one active routine (unarchiving it if needed). */
-  async setActive(userId: string, id: string): Promise<RoutineDto> {
+  async setActive(userId: string, id: string, level = 0): Promise<RoutineDto> {
     const row = await this.repo.setActive(userId, id);
     if (!row) throw notFound();
-    return toRoutineDto(row);
+    return this.toDto(row, userId, level);
   }
 
-  async save(userId: string, routine: RoutineDoc, expectedVersion: number): Promise<RoutineDto> {
+  /**
+   * Full-document save by the OWNER. Every save (any client version) is stamped
+   * with who changed which rows (spec §5.3); the owner path never writes
+   * `trainerNote` except to remove the notes in `clearTrainerNoteIds`.
+   */
+  async save(
+    userId: string,
+    routine: RoutineDoc,
+    expectedVersion: number,
+    opts: { level?: number; clearTrainerNoteIds?: readonly string[] | undefined } = {},
+  ): Promise<RoutineDto> {
+    const level = opts.level ?? 0;
     const exerciseIds = [
       ...new Set(routine.days.flatMap((d) => d.exercises.map((e) => e.exerciseId))),
     ];
@@ -209,24 +234,40 @@ export class RoutineService {
         })),
       },
       expectedVersion,
+      {
+        actorId: userId,
+        path: 'OWNER',
+        clearTrainerNoteIds: opts.clearTrainerNoteIds,
+        diff: diffRoutineDoc,
+      },
     );
     if (res.status === 'not_found') throw notFound();
     if (res.status === 'conflict') {
-      const current = toRoutineDto(res.current);
+      const current = await this.toDto(res.current, userId, level);
       throw new TRPCError({
         code: 'CONFLICT',
         message: `This routine was changed elsewhere (now version ${current.version}).`,
         cause: new ConflictCause({ kind: 'routine', current }),
       });
     }
-    return toRoutineDto(res.routine);
+    return this.toDto(res.routine, userId, level);
   }
 
   /** "Do another day instead" / "skip this day": moves the rotation pointer. */
-  async setNextDay(userId: string, routineId: string, dayId: string): Promise<RoutineDto> {
+  async setNextDay(
+    userId: string,
+    routineId: string,
+    dayId: string,
+    level = 0,
+  ): Promise<RoutineDto> {
     const row = await this.repo.setNextDay(userId, routineId, dayId);
     if (!row) throw notFound('Routine day not found.');
-    return toRoutineDto(row);
+    return this.toDto(row, userId, level);
+  }
+
+  /** The owner's view of a routine row: legacy shape below level 6, with trainer notes and edit stamps from it. */
+  private async toDto(row: RoutineWithDays, viewerId: string, level: number): Promise<RoutineDto> {
+    return toRoutineDto(row, await this.attribution.forRoutine(row, viewerId, level));
   }
 
   private async findOwned(userId: string, id: string): Promise<RoutineWithDays> {

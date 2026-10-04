@@ -1,7 +1,6 @@
 import {
   clientIdInputSchema,
   clientsListInputSchema,
-  COACHING_COPY,
   COACHING_LIMITS,
   createInviteInputSchema,
   revokeInviteInputSchema,
@@ -10,7 +9,11 @@ import {
 import { coachingInviteService } from '../../application/coaching/coaching-invite.service.js';
 import { coachingLinkService } from '../../application/coaching/coaching-link.service.js';
 import { trainerProfileService } from '../../application/coaching/trainer-profile.service.js';
-import { coachingProcedure, trainerProcedure } from '../../lib/coaching-middleware.js';
+import {
+  coachingProcedure,
+  requireCoachingAccess,
+  trainerProcedure,
+} from '../../lib/coaching-middleware.js';
 import { assertWithinRateLimit } from '../../lib/rate-limit.js';
 import { router } from '../../lib/trpc.js';
 
@@ -41,7 +44,9 @@ export const trainerClientsRouter = router({
   list: trainerProcedure
     .input(clientsListInputSchema)
     .query(({ ctx, input }) => coachingLinkService.listClients(ctx.user.id, input?.today)),
+  // Same uniform NOT_FOUND as every trainer.client.* denial: removing someone who is not your client.
   remove: trainerProcedure
+    .use(requireCoachingAccess('write'))
     .input(clientIdInputSchema)
     .mutation(({ ctx, input }) =>
       coachingLinkService.removeClient(ctx.user.id, input.clientId, sourceOf(ctx)),
@@ -63,6 +68,3 @@ export const trainerProfileRouter = router({
   invites: trainerInvitesRouter,
   clients: trainerClientsRouter,
 });
-
-// Unused import guard: COACHING_COPY is part of the contract (messages) used in A2.
-void COACHING_COPY;

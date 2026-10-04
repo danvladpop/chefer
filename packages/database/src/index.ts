@@ -89,6 +89,9 @@ export {
   type RoutineExerciseWriteData,
   type RoutineListRow,
   type ReplaceRoutineResult,
+  type ReplaceDocumentActor,
+  type StampDoc,
+  type StampDiff,
   WorkoutSessionRepository,
   workoutSessionRepository,
   type IWorkoutSessionRepository,
@@ -226,6 +229,13 @@ export {
   CoachingNoteRepository,
   coachingNoteRepository,
   type ICoachingNoteRepository,
+  CoachingContentRepository,
+  coachingContentRepository,
+  type ICoachingContentRepository,
+  type CoachedExerciseMeta,
+  type CoachedSessionRow,
+  type CoachedSessionCursor,
+  type ActiveRoutineStamp,
 } from './repositories/index';
 
 // Ingredient catalog validators (docs/plan-ingredient-catalog.md §4.5) — pure, no I/O

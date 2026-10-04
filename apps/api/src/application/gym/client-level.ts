@@ -1,4 +1,4 @@
-import { ExerciseTrackingType } from '@chefer/types';
+import { ExerciseTrackingType, INTERVALS_API_LEVEL } from '@chefer/types';
 import { isFlagEnabled } from '../../lib/flags.js';
 
 // ─── Gym client API levels (Δ2.1, T-42.0) ─────────────────────────────────────
@@ -20,8 +20,17 @@ import { isFlagEnabled } from '../../lib/flags.js';
 //                                                     SessionSet fields and cardio equipment values;
 //                                                     logs cardio as one entry
 //   4  W3 OTA (L-CONSENT, T-26.3)                  — shows the health-consent sheet (not gym)
-//   5  W5 L-GYMDATA's OTA                          — also renders INTERVALS, requested exercises
+//   5  (unused)                                    — INTERVALS used to be gated here, but no bundle
+//                                                     implements it yet and levels are cumulative, so
+//                                                     a bundle claiming 6 would have claimed INTERVALS
+//                                                     support too. Moved to 7 on 2026-10-04 (WP-18).
+//   6  WP-18 trainer coaching's OTA                — shows trainer notes, "Changed by <trainer>" stamps
+//                                                     and the coaching consent-history rows
+//                                                     (COACHING_API_LEVEL in @chefer/types). Gated on
+//                                                     the RAW `ctx.clientApiLevel`, not effectiveLevel().
+//   7  W5 L-GYMDATA's OTA                          — also renders INTERVALS, requested exercises
 //                                                     and routine cardio slots
+//                                                     (INTERVALS_API_LEVEL in @chefer/types)
 //
 // Why cardio is level 3, not 2: `x-chefer-api-level` is a single shared
 // counter across every feature (§2.8), and wave 1's unrelated consent-
@@ -35,7 +44,7 @@ import { isFlagEnabled } from '../../lib/flags.js';
 // This helper answers exactly one question — "which ExerciseTrackingType
 // values may this level be sent" — so every gym read path applies the same
 // rule (L-GYM's T-42.2 wires it into gym.bootstrap, gym.library.list,
-// gym.session.get, gym.session.list; a routine returned to a level < 5
+// gym.session.get, gym.session.list; a routine returned to a level < 7
 // client has its cardio slots removed the same way, W5).
 
 /**
@@ -45,7 +54,7 @@ import { isFlagEnabled } from '../../lib/flags.js';
  * Strength types and `DURATION` are always included — a timed exercise
  * (plank, carries) already renders on every shipped client, since it
  * predates this enum. `DURATION_DISTANCE` and `DISTANCE` need level 3 (the
- * cardio entry UI, T-42.3); `INTERVALS` needs level 5 (the interval timer, W5).
+ * cardio entry UI, T-42.3); `INTERVALS` needs level 7 (the interval timer, W5).
  */
 export function renderableTrackingTypes(level: number): ExerciseTrackingType[] {
   const types: ExerciseTrackingType[] = [
@@ -56,7 +65,7 @@ export function renderableTrackingTypes(level: number): ExerciseTrackingType[] {
   if (level >= 3) {
     types.push(ExerciseTrackingType.DURATION_DISTANCE, ExerciseTrackingType.DISTANCE);
   }
-  if (level >= 5) {
+  if (level >= INTERVALS_API_LEVEL) {
     types.push(ExerciseTrackingType.INTERVALS);
   }
   return types;

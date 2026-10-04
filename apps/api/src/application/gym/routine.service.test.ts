@@ -93,6 +93,8 @@ describe('RoutineService.save', () => {
       'r1',
       expect.objectContaining({ name: 'Upper/Lower' }),
       1,
+      // Every save is attributed (spec §5.3): the owner path, stamped with the saver.
+      expect.objectContaining({ actorId: USER, path: 'OWNER' }),
     );
   });
 

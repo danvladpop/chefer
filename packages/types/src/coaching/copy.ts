@@ -174,6 +174,7 @@ export const COACHING_COPY = {
     customExerciseNotAllowed: 'Only Chefer’s exercises can be added to a client’s routine.',
     clientHasRoutine: 'This client already has an active routine.',
     noActiveRoutine: 'This client has no active routine yet.',
+    routineSwitched: 'The client switched to a different routine. Reload to see it.',
     exerciseNotInRoutine: 'That exercise isn’t in the client’s active routine.',
     tooManyAttempts: 'Too many attempts. Please wait a while and try again.',
   },

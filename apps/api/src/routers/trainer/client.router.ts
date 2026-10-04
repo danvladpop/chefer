@@ -1,4 +1,3 @@
-import { z } from 'zod';
 import {
   clearNextTargetInputSchema,
   clientExerciseHistoryInputSchema,
@@ -6,6 +5,7 @@ import {
   clientOverviewInputSchema,
   clientWorkoutsInputSchema,
   createClientRoutineInputSchema,
+  localDateSchema,
   saveNoteInputSchema,
   saveTrainerRoutineInputSchema,
   setNextTargetInputSchema,
@@ -27,7 +27,7 @@ const writeProcedure = trainerProcedure.use(requireCoachingAccess('write'));
 const noteProcedure = trainerProcedure.use(requireCoachingAccess('note'));
 
 /** `trainer.client.routine` also takes an optional device-local `today` (the next-time suggestions are computed for it). */
-const routineInputSchema = clientIdInputSchema.extend({ today: z.string().optional() });
+const routineInputSchema = clientIdInputSchema.extend({ today: localDateSchema.optional() });
 
 export const trainerClientRouter = router({
   overview: readProcedure

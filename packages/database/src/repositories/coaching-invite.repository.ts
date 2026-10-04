@@ -20,8 +20,6 @@ export interface ICoachingInviteRepository {
   listForTrainer(trainerId: string, since: Date): Promise<CoachingInvite[]>;
   /** Invites that are still usable (not used, not revoked, not expired). */
   countOpen(trainerId: string, now: Date): Promise<number>;
-  /** Invites created by the trainer since `since` (daily rate limit survives a restart). */
-  countCreatedSince(trainerId: string, since: Date): Promise<number>;
   /** True when an unused, unrevoked invite of this trainer was revoked. */
   revoke(trainerId: string, code: string, now: Date): Promise<boolean>;
   /** Maintenance: deletes invites that expired before `cutoff`. */
@@ -48,10 +46,6 @@ export class CoachingInviteRepository implements ICoachingInviteRepository {
     return prisma.coachingInvite.count({
       where: { trainerId, usedAt: null, revokedAt: null, expiresAt: { gt: now } },
     });
-  }
-
-  async countCreatedSince(trainerId: string, since: Date): Promise<number> {
-    return prisma.coachingInvite.count({ where: { trainerId, createdAt: { gte: since } } });
   }
 
   async revoke(trainerId: string, code: string, now: Date): Promise<boolean> {

@@ -135,6 +135,9 @@ export {
   type RoutineExerciseWriteData,
   type RoutineListRow,
   type ReplaceRoutineResult,
+  type ReplaceDocumentActor,
+  type StampDoc,
+  type StampDiff,
 } from './routine.repository';
 
 export {
@@ -341,3 +344,13 @@ export {
   coachingNoteRepository,
   type ICoachingNoteRepository,
 } from './coaching-note.repository';
+
+export {
+  CoachingContentRepository,
+  coachingContentRepository,
+  type ICoachingContentRepository,
+  type CoachedExerciseMeta,
+  type CoachedSessionRow,
+  type CoachedSessionCursor,
+  type ActiveRoutineStamp,
+} from './coaching-content.repository';

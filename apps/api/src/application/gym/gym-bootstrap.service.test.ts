@@ -104,7 +104,10 @@ function setup(
     findLatest: vi.fn().mockResolvedValue({ weightKg: 81.4 }),
   };
   const loader = { load: vi.fn().mockResolvedValue(opts.context ?? ctx()) };
-  const prog = { toDtos: vi.fn().mockReturnValue([progression]) };
+  const prog = {
+    toDtos: vi.fn().mockReturnValue([progression]),
+    setterNames: vi.fn().mockResolvedValue(undefined),
+  };
   const ensure = vi.fn().mockResolvedValue(undefined);
   const service = new GymBootstrapService(
     exerciseRepo,
@@ -156,7 +159,13 @@ describe('GymBootstrapService.get', () => {
     const progressions = vi.mocked(buildNextWorkout).mock.calls[0]?.[0].progressions;
     expect([...(progressions?.keys() ?? [])]).toEqual(['bench|6-10']);
     expect(b.nextWorkout?.dayId).toBe('day-b');
-    expect(prog.toDtos).toHaveBeenCalledWith(expect.anything(), [], expect.any(Map), TODAY);
+    expect(prog.toDtos).toHaveBeenCalledWith(
+      expect.anything(),
+      [],
+      expect.any(Map),
+      TODAY,
+      undefined,
+    );
     expect(b.progressions).toEqual([progression]);
     // Last 12 weeks of completed sessions, newest first.
     expect(sessionRepo.findCompleted).toHaveBeenCalledWith(USER, { fromLocalDate: '2026-07-02' });
