@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { RegisterForm } from '@/features/auth/components/register-form';
+import { SocialSignIn } from '@/features/auth/components/social-sign-in';
 import { getSessionUser } from '@/features/auth/lib/session';
 
 export const metadata: Metadata = {
@@ -51,6 +52,10 @@ export default async function RegisterPage() {
         {/* Register Form Card */}
         <div className="rounded-xl border bg-card p-6 shadow-sm sm:p-8">
           <RegisterForm />
+          {/* WP-22: shown only when the API reports a provider as configured. */}
+          <div className="mt-5 empty:hidden">
+            <SocialSignIn mode="register" />
+          </div>
         </div>
 
         {/* Footer Links */}

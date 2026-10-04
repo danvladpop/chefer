@@ -1,6 +1,14 @@
 'use client';
 
 import { useRef, useState } from 'react';
+import { AppleSignInButton } from '@/features/auth/components/apple-sign-in-button';
+import { GoogleSignInButton } from '@/features/auth/components/google-sign-in-button';
+import { useWebSocialProviders } from '@/features/auth/hooks/use-web-social-providers';
+import {
+  requestAppleCredential,
+  SocialCancelledError,
+  type SocialSignInPayload,
+} from '@/features/auth/lib/social-web';
 import { trpc } from '@/lib/trpc';
 import { Download, Trash2 } from 'lucide-react';
 import { ACCOUNT_DELETION_COPY as COPY } from '@chefer/types';
@@ -96,7 +104,37 @@ function DeleteAccountSheet({ open, onClose }: { open: boolean; onClose: () => v
   const me = trpc.auth.me.useQuery(undefined, { staleTime: 5 * 60_000 });
   const email = me.data?.email ?? null;
   const resetMutation = trpc.auth.requestPasswordReset.useMutation({ meta: { silent: true } });
-  const ready = password.length > 0 && confirmText.trim().toUpperCase() === COPY.confirmWord;
+  const confirmed = confirmText.trim().toUpperCase() === COPY.confirmWord;
+  const ready = password.length > 0 && confirmed;
+
+  // WP-22: an account that signs in with Google/Apple only has no password to
+  // type. It proves it's them with a FRESH provider sign-in instead (`reauth`),
+  // which the API checks against the identities linked to this account.
+  const identities = trpc.auth.linkedIdentities.useQuery(undefined, {
+    enabled: open,
+    staleTime: 30_000,
+  });
+  const providers = useWebSocialProviders();
+  const [sdkError, setSdkError] = useState<string | null>(null);
+  const passwordless = identities.data ? !identities.data.hasPassword : false;
+  const linked = identities.data?.identities ?? [];
+  const canGoogle = passwordless && providers.google && linked.some((i) => i.provider === 'GOOGLE');
+  const apple = providers.apple;
+  const canApple = passwordless && apple && linked.some((i) => i.provider === 'APPLE');
+  const noReauthOnWeb = passwordless && !canGoogle && !canApple;
+
+  const deleteWith = (payload: SocialSignInPayload) => {
+    setSdkError(null);
+    deleteMutation.mutate({
+      reauth: { provider: payload.provider, idToken: payload.idToken, nonce: payload.nonce },
+      confirm: COPY.confirmWord,
+    });
+  };
+  const onSdkError = (err: Error) => {
+    if (!(err instanceof SocialCancelledError)) {
+      setSdkError('We couldn’t reach the sign-in service. Check your connection and try again.');
+    }
+  };
 
   return (
     <Sheet
@@ -108,13 +146,15 @@ function DeleteAccountSheet({ open, onClose }: { open: boolean; onClose: () => v
           <Button variant="outline" onClick={onClose}>
             {COPY.cancel}
           </Button>
-          <Button
-            variant="destructive"
-            disabled={!ready || deleteMutation.isPending}
-            onClick={() => deleteMutation.mutate({ password, confirm: COPY.confirmWord })}
-          >
-            {deleteMutation.isPending ? COPY.submitting : COPY.submit}
-          </Button>
+          {!passwordless && (
+            <Button
+              variant="destructive"
+              disabled={!ready || deleteMutation.isPending}
+              onClick={() => deleteMutation.mutate({ password, confirm: COPY.confirmWord })}
+            >
+              {deleteMutation.isPending ? COPY.submitting : COPY.submit}
+            </Button>
+          )}
         </div>
       }
     >
@@ -129,56 +169,106 @@ function DeleteAccountSheet({ open, onClose }: { open: boolean; onClose: () => v
           </ul>
           <p className="text-xs text-gray-600">{COPY.backups}</p>
         </div>
-        <label className="block text-sm font-medium text-gray-800">
-          {COPY.passwordLabel}
-          <input
-            ref={passwordRef}
-            type="password"
-            autoComplete="off"
-            value={password}
-            aria-invalid={deleteMutation.isError ? 'true' : undefined}
-            aria-describedby={deleteMutation.isError ? 'delete-account-error' : undefined}
-            onChange={(e) => {
-              if (deleteMutation.isError) deleteMutation.reset();
-              setPassword(e.target.value);
-            }}
-            className="mt-1 block min-h-11 w-full rounded-lg border border-gray-300 px-3"
-          />
-        </label>
-        {deleteMutation.isError && (
-          <p
-            id="delete-account-error"
-            role="alert"
-            data-testid="delete-account-error"
-            className="text-sm text-red-700"
-          >
-            {userFacingErrorMessage(deleteMutation.error)}
-          </p>
+        {passwordless ? (
+          <div className="space-y-2" data-testid="delete-account-reauth">
+            <p className="text-sm font-medium text-gray-800">{COPY.reauthTitle}</p>
+            <p className="text-xs text-gray-600">{COPY.reauthHint}</p>
+            {!confirmed && (
+              <p className="text-xs text-gray-600" data-testid="delete-account-reauth-wait">
+                {COPY.reauthTypeFirst}
+              </p>
+            )}
+            {confirmed && canGoogle && providers.google && (
+              <GoogleSignInButton
+                clientId={providers.google.clientId}
+                onCredential={deleteWith}
+                onError={onSdkError}
+              />
+            )}
+            {canApple && apple && (
+              <AppleSignInButton
+                label={COPY.reauthApple}
+                disabled={!confirmed || deleteMutation.isPending}
+                onClick={() => {
+                  setSdkError(null);
+                  requestAppleCredential(apple).then(deleteWith, onSdkError);
+                }}
+              />
+            )}
+            {noReauthOnWeb && (
+              <p className="text-sm text-gray-700" data-testid="delete-account-reauth-unavailable">
+                {COPY.reauthUnavailable}
+              </p>
+            )}
+            {sdkError && (
+              <p role="alert" className="text-sm text-red-700">
+                {sdkError}
+              </p>
+            )}
+            {deleteMutation.isError && (
+              <p role="alert" data-testid="delete-account-error" className="text-sm text-red-700">
+                {userFacingErrorMessage(deleteMutation.error)}
+              </p>
+            )}
+          </div>
+        ) : (
+          <>
+            <label className="block text-sm font-medium text-gray-800">
+              {COPY.passwordLabel}
+              <input
+                ref={passwordRef}
+                type="password"
+                autoComplete="off"
+                value={password}
+                aria-invalid={deleteMutation.isError ? 'true' : undefined}
+                aria-describedby={deleteMutation.isError ? 'delete-account-error' : undefined}
+                onChange={(e) => {
+                  if (deleteMutation.isError) deleteMutation.reset();
+                  setPassword(e.target.value);
+                }}
+                className="mt-1 block min-h-11 w-full rounded-lg border border-gray-300 px-3"
+              />
+            </label>
+            {deleteMutation.isError && (
+              <p
+                id="delete-account-error"
+                role="alert"
+                data-testid="delete-account-error"
+                className="text-sm text-red-700"
+              >
+                {userFacingErrorMessage(deleteMutation.error)}
+              </p>
+            )}
+          </>
         )}
-        {email &&
-          (resetMutation.isSuccess ? (
-            <p
-              role="status"
-              className="text-sm text-gray-700"
-              data-testid="delete-account-reset-sent"
-            >
-              {COPY.resetSentTo} {email}. {COPY.resetSentHint}
-            </p>
-          ) : (
-            <button
-              type="button"
-              data-testid="delete-account-forgot-password"
-              disabled={resetMutation.isPending}
-              onClick={() => resetMutation.mutate({ email })}
-              className="min-h-11 text-sm font-semibold text-primary hover:underline disabled:opacity-60"
-            >
-              {resetMutation.isPending ? COPY.resetSending : COPY.forgotPassword}
-            </button>
-          ))}
-        {resetMutation.isError && (
-          <p role="alert" className="text-sm text-red-700">
-            {userFacingErrorMessage(resetMutation.error)}
-          </p>
+        {(!passwordless || noReauthOnWeb) && (
+          <>
+            {email &&
+              (resetMutation.isSuccess ? (
+                <p
+                  role="status"
+                  className="text-sm text-gray-700"
+                  data-testid="delete-account-reset-sent"
+                >
+                  {COPY.resetSentTo} {email}. {COPY.resetSentHint}
+                </p>
+              ) : (
+                <button
+                  type="button"
+                  data-testid="delete-account-forgot-password"
+                  disabled={resetMutation.isPending}
+                  onClick={() => resetMutation.mutate({ email })}
+                  className="min-h-11 text-sm font-semibold text-primary hover:underline disabled:opacity-60"
+                >
+                  {resetMutation.isPending ? COPY.resetSending : COPY.forgotPassword}
+                </button>
+              ))}
+            {resetMutation.isError && (
+              <p role="alert" className="text-sm text-red-700">
+                {userFacingErrorMessage(resetMutation.error)}
+              </p>
+            )}
+          </>
         )}
         <label className="block text-sm font-medium text-gray-800">
           {COPY.confirmLabel}
