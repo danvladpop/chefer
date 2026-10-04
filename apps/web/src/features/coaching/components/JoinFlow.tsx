@@ -58,7 +58,12 @@ function stateMessage(preview: InvitePreviewDto): string | null {
 export function JoinFlow({ code }: { code: string }) {
   const router = useRouter();
   const utils = trpc.useUtils();
-  const preview = trpc.coaching.previewInvite.useQuery({ code }, { retry: false });
+  // Always fresh: the answer changes while the page is away (gym setup done, link
+  // used), and a cached "needs gym setup" would strand a client who just finished it.
+  const preview = trpc.coaching.previewInvite.useQuery(
+    { code },
+    { retry: false, staleTime: 0, gcTime: 0, refetchOnMount: 'always' },
+  );
   const [error, setError] = useState<string | null>(null);
   const [joined, setJoined] = useState<string | null>(null);
   const [choice, setChoice] = useState<'ask' | 'web'>('web');

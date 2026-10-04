@@ -118,7 +118,8 @@ describe('DayCard: coaching display (client side)', () => {
       />,
     );
     const rows = screen.getAllByRole('button');
-    expect(within(rows[0]!).getByText('Set by Ana')).toBeInTheDocument();
+    expect(screen.getByText('Set by Ana')).toBeInTheDocument();
+    expect(within(rows[0]!).queryByText('Set by Ana')).toBeNull();
     expect(screen.queryByText('Edited')).toBeNull();
   });
 });

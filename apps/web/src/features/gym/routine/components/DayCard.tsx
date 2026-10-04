@@ -100,6 +100,11 @@ export function DayCard({
                   <p className="text-xs text-gray-400">
                     {exercise.sets} × {exercise.repMin}–{exercise.repMax}
                   </p>
+                  {progression?.override?.setByName && (
+                    <p className="min-w-0 break-words text-xs font-medium text-amber-800">
+                      {COACHING_COPY.stamps.setBy(progression.override.setByName)}
+                    </p>
+                  )}
                   {exercise.lastEditedByOther && (
                     <ChangedByLine
                       name={exercise.lastEditedByOther.name}
@@ -134,11 +139,9 @@ export function DayCard({
                   >
                     {formatLoad(suggestion.weightKg, unit, meta.loadType, { each: meta.perHand })} ×{' '}
                     {suggestion.reps[0] ?? exercise.repMin}
-                    {edited && (
+                    {edited && !progression?.override?.setByName && (
                       <Badge variant="secondary" className="ml-0.5">
-                        {progression?.override?.setByName
-                          ? COACHING_COPY.stamps.setBy(progression.override.setByName)
-                          : 'Edited'}
+                        Edited
                       </Badge>
                     )}
                   </button>

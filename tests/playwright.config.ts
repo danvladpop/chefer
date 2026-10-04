@@ -79,6 +79,15 @@ export default defineConfig({
       dependencies: ['setup'],
     },
 
+    // WP-18 trainer coaching: each spec registers its own trainer and client
+    // accounts in separate contexts (no saved session). Needs the API with
+    // FEATURE_FLAGS=coaching and TRAINER_ALLOWLIST=*.
+    {
+      name: 'coaching',
+      testMatch: /(trainer|coaching-join)\.spec\.ts/,
+      use: { ...devices['Desktop Chrome'] },
+    },
+
     // ── Public pages ─────────────────────────────────────────────────────────
     // No auth needed. Kept separate so a stale public spec cannot mask a
     // failure in the responsive suites above. onboarding.spec.ts (T-03.6/
