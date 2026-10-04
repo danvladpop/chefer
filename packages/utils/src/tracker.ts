@@ -1,3 +1,5 @@
+import type { SlotRef } from './today';
+
 // ─── Tracker custom-entry helpers (F4 Snap-to-Log) ────────────────────────────
 // Pure functions behind the tracker page's custom-entry rows — kept out of the
 // component so the rendering rules (which entries show, what the chip says,
@@ -18,6 +20,8 @@ export interface LoggedMealEntryLike {
   fat: number;
   /** UX-FOOD-11: macros the user left blank (stored as 0 g). */
   unknownMacros?: readonly ('protein' | 'carbs' | 'fat')[] | undefined;
+  /** WP-06: the plan slot this custom entry replaces ("Ate something else"). */
+  replacesSlot?: SlotRef | undefined;
 }
 
 export interface CustomEntryRow {
@@ -36,6 +40,11 @@ export interface CustomEntryRow {
   fat: number;
   /** UX-FOOD-11: macros the user left blank (stored as 0 g). */
   unknownMacros?: readonly ('protein' | 'carbs' | 'fat')[] | undefined;
+  /**
+   * WP-06: set when this row replaces a plan slot — render it on that slot
+   * ("You had: …") instead of under "Also eaten".
+   */
+  replacesSlot?: SlotRef | undefined;
 }
 
 /**
@@ -60,6 +69,7 @@ export function customEntryRows(loggedMeals: LoggedMealEntryLike[]): CustomEntry
         ...(entry.unknownMacros && entry.unknownMacros.length > 0
           ? { unknownMacros: entry.unknownMacros }
           : {}),
+        ...(entry.replacesSlot && { replacesSlot: entry.replacesSlot }),
       },
     ];
   });
