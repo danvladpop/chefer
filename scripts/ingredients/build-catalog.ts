@@ -23,6 +23,11 @@ import { readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { ENERGY_ALLOW_LIST } from '../../packages/database/src/catalog/energy-allow-list';
 import {
+  applyPortionsOverlay,
+  readPortionsOverlay,
+  validatePortionsOverlay,
+} from '../../packages/database/src/catalog/portions-overlay';
+import {
   summarizeIssues,
   validateCatalog,
   type CatalogEntry,
@@ -430,7 +435,13 @@ function main() {
   const built = draft.map((d) => buildRow(d, src));
   built.sort((a, b) => (a.entry.slug < b.entry.slug ? -1 : a.entry.slug > b.entry.slug ? 1 : 0));
   const entries = built.map((b) => ordered(b.entry));
-  const issues = validateCatalog(entries);
+  // The curated portions overlay (data/ingredients/portions-overlay.json) is merged at
+  // read time, not written into catalog.json. Validate the catalog as the app sees it,
+  // and fail loudly if a regenerated catalog now clashes with an overlay row.
+  const overlayProblems = validatePortionsOverlay(readPortionsOverlay(), entries);
+  if (overlayProblems.length > 0)
+    throw new Error(`portions-overlay.json: ${overlayProblems.join('; ')}`);
+  const issues = validateCatalog(applyPortionsOverlay(entries, readPortionsOverlay()));
   const summary = summarizeIssues(issues);
   const coverage = computeCoverage(entries);
   const vocabulary = computeVocabularyCoverage(entries);

@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { useRef, useState } from 'react';
-import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { StepDiet, type StepDietHandle, type StepDietValues } from './step-diet';
 
@@ -139,5 +139,36 @@ describe('StepDiet.flush (UX-ACC-01)', () => {
     fireEvent.click(screen.getByRole('checkbox', { name: 'Peanuts' }));
     fireEvent.click(screen.getByRole('button', { name: 'Save' }));
     expect(onSave).toHaveBeenCalledWith({ ...EMPTY, allergies: ['Peanuts'] });
+  });
+
+  // UX-ACC-06 follow-up: Crustaceans and Molluscs replace the legacy Shellfish chip for new picks.
+  describe('legacy Shellfish allergy chip', () => {
+    const allergies = () => within(screen.getByRole('group', { name: 'Allergies' }));
+
+    it('is not offered to a user who has not picked it', () => {
+      render(<Controlled initial={EMPTY} />);
+      expect(allergies().queryByRole('checkbox', { name: 'Shellfish' })).toBeNull();
+      expect(allergies().getByRole('checkbox', { name: 'Crustaceans' })).toBeTruthy();
+      expect(allergies().getByRole('checkbox', { name: 'Molluscs' })).toBeTruthy();
+    });
+
+    it('stays visible, selected and removable for a user who already has it', () => {
+      render(<Controlled initial={{ ...EMPTY, allergies: ['Shellfish'] }} />);
+      const chip = allergies().getByRole('checkbox', { name: 'Shellfish' });
+      expect(chip.getAttribute('aria-checked')).toBe('true');
+      expect(screen.getByText('Shellfish.')).toBeTruthy();
+      fireEvent.click(chip);
+      expect(screen.getByText('No allergies selected.')).toBeTruthy();
+      expect(allergies().queryByRole('checkbox', { name: 'Shellfish' })).toBeNull();
+    });
+
+    it('keeps the stored Shellfish allergy when another allergy is toggled', () => {
+      const onChange = vi.fn<[StepDietValues], undefined>();
+      render(<StepDiet value={{ ...EMPTY, allergies: ['Shellfish'] }} onChange={onChange} />);
+      fireEvent.click(allergies().getByRole('checkbox', { name: 'Peanuts' }));
+      expect(onChange.mock.calls[0]?.[0].allergies).toEqual(
+        expect.arrayContaining(['Shellfish', 'Peanuts']),
+      );
+    });
   });
 });
