@@ -1092,6 +1092,37 @@ skips the fly-away tween and calls `onRemove` immediately. Wired onto the gym wo
 (`apps/mobile/src/features/gym/workout/set-row.tsx`). `src/features/gym/library/{collapsible-chip-filters,use-keyboard-visible}.tsx`
 (UX-05 A3 keyboard collapse) are also now built (A3.1, library sub-lane).
 
+**Keyboard conventions (tester feedback 2026-10-04: "keyboards are not closing automatically")** — fixed once, in
+the primitives, so every screen inherits it; `apps/mobile/tests/unit/keyboard-dismiss-guard.test.ts` source-scans
+`apps/mobile/{app,src}` + `packages/ui-mobile` so it cannot regress:
+
+- **Single-line fields** set `returnKeyType` AND `onSubmitEditing`: `next` (+ focus the next field) when another field
+  follows, otherwise `done` / `go` / `search` / `send` — which submits and/or closes the keyboard. `Input` defaults to
+  `returnKeyType="done"` + `submitBehavior="blurAndSubmit"` (`next` defaults to `submit`, keeping the keyboard up);
+  `{...DONE_FIELD_PROPS}` is the "just close it" bundle for a lone field; `useFieldChain` / `useNumericChain`
+  (`apps/mobile/src/features/preferences/use-numeric-chain.tsx`) chain a form (`focusFirst()` hands a text field's
+  Next to the first numeric one; `bind(i, { fieldRef })` keeps a screen's own ref).
+- **Number / decimal / phone pads** have no Return key on iOS: every numeric field has an accessory. `Input` adds a
+  "Done" `KeyboardDoneBar` by itself (opt out with `showDoneBar={false}` when the screen pins its own Done); a Next/Done
+  chain passes `inputAccessoryViewID` from `useNumericChain` (`NumericReturnBar`); a raw `TextInput` uses
+  `useKeyboardDoneBar()`. Android's IME ✓ fires `onSubmitEditing`.
+- **Multiline** fields keep Return as a newline; iOS gets the same Done accessory, and the enclosing scroll closes the
+  keyboard on drag.
+- **Scrolling forms/lists** set `keyboardShouldPersistTaps="handled"` + `keyboardDismissMode={keyboardDismissMode()}`
+  (`interactive` iOS, `on-drag` Android). `KeyboardAwareScrollView` and `Sheet` default both; a non-scrolling `Sheet`
+  body closes the keyboard on a tap of its empty space; starting to drag a `Sheet` down (and every sheet close path)
+  dismisses it.
+- **Submit closes the keyboard**: `Button` (`default` / `destructive` variants; `dismissKeyboard` overrides) dismisses
+  before its `onPress`, and the auth / quick-add / edit-entry / weight / shopping / pantry / recipe-form handlers
+  dismiss themselves when the input is accepted.
+- **Credential fields**: `PasswordInput` defaults to `textContentType="password"` + `autoComplete="current-password"`
+  (+ `secureTextEntry`, no autocapitalise/correct/spellcheck); "choose a password" fields spread
+  `NEW_PASSWORD_FIELD_PROPS` (`src/features/auth/password-fields.ts`); email fields spread `EMAIL_FIELD_PROPS`
+  (`email-address`, `autoComplete="email"`, `textContentType="emailAddress"`). The web auth forms already use
+  `type=password` + `autocomplete` `current-password` / `new-password` / `email` (pinned by
+  `apps/web/src/features/auth/components/credential-fields.test.tsx`). iOS strong-password suggestion / Keychain
+  saving additionally need an associated domain — a native-build change, not part of this fix.
+
 Tests: Jest + RNTL in `apps/mobile/tests/unit/` (`ui-*.test.tsx` for the kit, plus
 `glossary-term.test.tsx`, `premium-shells.test.tsx`, `safety-shells.test.tsx`).
 
