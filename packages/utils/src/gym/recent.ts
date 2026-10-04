@@ -35,7 +35,9 @@ export function sessionStatsText(stats: {
   caloriesKcal: number | null;
 }): { text: string; spoken: string } {
   if (stats.activity) {
-    const kcal = stats.caloriesKcal !== null ? Math.round(stats.caloriesKcal) : null;
+    // 0 reads as "not entered" — "~0 kcal" says nothing useful.
+    const kcal =
+      stats.caloriesKcal !== null && stats.caloriesKcal > 0 ? Math.round(stats.caloriesKcal) : null;
     return {
       text: `${stats.durationMin} min${kcal !== null ? ` · ~${kcal} kcal` : ''}`,
       spoken: `${stats.durationMin} minutes${kcal !== null ? `, about ${kcal} kilocalories` : ''}`,
@@ -100,7 +102,8 @@ function toRow(session: SessionSummaryDto, prSessionIds: ReadonlySet<string>): R
     id: session.id,
     name: session.name,
     localDate: session.localDate,
-    startTime: `${String(start.getUTCHours()).padStart(2, '0')}:${String(start.getUTCMinutes()).padStart(2, '0')}`,
+    // Device-local wall clock (was UTC: an evening session read 3 h early in Romania).
+    startTime: `${String(start.getHours()).padStart(2, '0')}:${String(start.getMinutes()).padStart(2, '0')}`,
     durationMin: session.finishedAt ? minutesBetween(session.startedAt, session.finishedAt) : 0,
     workingSets: workingSetCount(session),
     hasPr: prSessionIds.has(session.id),

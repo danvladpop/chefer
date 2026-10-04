@@ -87,13 +87,13 @@ describe('RecentWorkouts', () => {
       session({
         id: 's1',
         localDate: today,
-        startedAt: `${today}T18:10:00.000Z`,
+        startedAt: `${today}T18:10:00` /* local wall clock */,
         name: 'Full Body A',
       }),
       session({
         id: 's2',
         localDate: today,
-        startedAt: `${today}T07:30:00.000Z`,
+        startedAt: `${today}T07:30:00`,
         name: 'Evening ride',
       }),
       session({

@@ -108,8 +108,8 @@ afterEach(() => {
 describe('RecentWorkouts (web)', () => {
   it('groups under day headers, shows start times only for a same-day pair, 3 rows by default', () => {
     const sessions = [
-      session('s1', { startedAt: `${TODAY}T18:10:00.000Z` }),
-      session('s2', { name: 'Evening ride', startedAt: `${TODAY}T07:30:00.000Z` }),
+      session('s1', { startedAt: `${TODAY}T18:10:00` /* local wall clock */ }),
+      session('s2', { name: 'Evening ride', startedAt: `${TODAY}T07:30:00` }),
       session('s3', { localDate: YESTERDAY, startedAt: `${YESTERDAY}T18:00:00.000Z` }),
       session('s4', { localDate: YESTERDAY, startedAt: `${YESTERDAY}T06:00:00.000Z` }),
     ];
