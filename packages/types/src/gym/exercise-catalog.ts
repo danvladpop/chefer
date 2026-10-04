@@ -2471,6 +2471,43 @@ const STRUCTURE: Struct[] = [
   cardio('stair-climber', 'Stair Climber', 'STAIR_CLIMBER', ExerciseTrackingType.DURATION, {
     aliases: ['Stepmill', 'StairMaster'],
   }),
+
+  // ─── Quick-log activities (WP-20, owner decision 2026-10-04) ────────────────
+  // What "Log an activity" records: a class or session done elsewhere. All
+  // DURATION on purpose — that type renders on EVERY shipped client (see
+  // client-level.ts), so an activity reads back on 1.0.1 and earlier even with
+  // `cardioLogging` off. The chip → id map (with `spin-class` as the cycling
+  // chip) lives in activity-log.ts; the BODYWEIGHT-equipment rows carry
+  // loadType BODYWEIGHT only to satisfy the catalog's equipment invariant.
+  cardio('pilates-class', 'Pilates Class', 'BODYWEIGHT', ExerciseTrackingType.DURATION, {
+    loadType: 'BODYWEIGHT',
+    aliases: ['Pilates', 'Reformer Pilates', 'Mat Pilates'],
+  }),
+  cardio('yoga-class', 'Yoga Class', 'BODYWEIGHT', ExerciseTrackingType.DURATION, {
+    loadType: 'BODYWEIGHT',
+    aliases: ['Yoga', 'Hot Yoga', 'Vinyasa'],
+  }),
+  cardio('hiit-class', 'HIIT / Bootcamp Class', 'BODYWEIGHT', ExerciseTrackingType.DURATION, {
+    loadType: 'BODYWEIGHT',
+    aliases: ['HIIT', 'Bootcamp', 'Circuit Class'],
+  }),
+  cardio('dance-class', 'Dance / Zumba Class', 'BODYWEIGHT', ExerciseTrackingType.DURATION, {
+    loadType: 'BODYWEIGHT',
+    aliases: ['Zumba', 'Dance Class', 'Dance Fitness'],
+  }),
+  cardio('swimming', 'Swimming', 'POOL', ExerciseTrackingType.DURATION, {
+    aliases: ['Swim', 'Pool Swim', 'Lap Swim'],
+  }),
+  cardio('running', 'Running', 'OUTDOOR', ExerciseTrackingType.DURATION, {
+    aliases: ['Run', 'Jog', 'Jogging'],
+  }),
+  cardio('walking', 'Walking', 'OUTDOOR', ExerciseTrackingType.DURATION, {
+    aliases: ['Walk', 'Hike', 'Hiking'],
+  }),
+  cardio('other-activity', 'Other Activity', 'BODYWEIGHT', ExerciseTrackingType.DURATION, {
+    loadType: 'BODYWEIGHT',
+    aliases: ['Other Class', 'Other Workout'],
+  }),
 ];
 
 const EMPTY: ExerciseContent = {

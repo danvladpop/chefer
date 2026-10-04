@@ -239,7 +239,14 @@ export {
   type ValidateOptions,
   // Catalog sync (§4.4 step 7): catalog.json → global Ingredient rows
   readCatalogFile,
+  readGeneratedCatalogFile,
   CATALOG_FILE_PATH,
+  // Curated portions overlay (UX-REC-14)
+  applyPortionsOverlay,
+  readPortionsOverlay,
+  validatePortionsOverlay,
+  PORTIONS_OVERLAY_PATH,
+  type PortionsOverlayRow,
   applyCatalogSync,
   planCatalogSync,
   loadGlobalIngredients,

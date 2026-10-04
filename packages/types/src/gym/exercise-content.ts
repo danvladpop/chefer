@@ -2977,6 +2977,140 @@ export const EXERCISE_CONTENT: Record<string, ExerciseContent> = {
     videoStartSec: null,
     videoChannel: null,
   },
+  'pilates-class': {
+    cues: [
+      'Draw the belly in gently before every movement.',
+      'Move slowly and let the breath set the pace.',
+      'Keep the ribs soft and the neck long.',
+    ],
+    mistakes: [
+      'Rushing through reps and losing the controlled core hold.',
+      'Holding the breath instead of breathing with each move.',
+    ],
+    blurb:
+      'A studio or mat class built on control and core strength — logged by time and how hard it felt.',
+    freeExerciseDbId: null,
+    videoId: null,
+    videoStartSec: null,
+    videoChannel: null,
+  },
+  'yoga-class': {
+    cues: [
+      'Breathe through the nose and move with each breath.',
+      'Ease into each pose; never force the stretch.',
+      'Rest in child pose whenever you need a break.',
+    ],
+    mistakes: [
+      'Pushing into a stretch until it hurts instead of easing in.',
+      'Skipping the final rest, which is part of the practice.',
+    ],
+    blurb:
+      'Any yoga class, from flow to restorative — logged by time since the load varies with the style.',
+    freeExerciseDbId: null,
+    videoId: null,
+    videoStartSec: null,
+    videoChannel: null,
+  },
+  'hiit-class': {
+    cues: [
+      'Go hard in the work blocks and truly rest in the breaks.',
+      'Land softly and keep the knees tracking over the toes.',
+      'Keep water close and sip between rounds.',
+    ],
+    mistakes: [
+      'Going all-out from the first round and fading by the third.',
+      'Letting form collapse when tired instead of scaling the move.',
+    ],
+    blurb:
+      'A high-intensity interval or bootcamp class — logged by time, with effort and kcal if you know them.',
+    freeExerciseDbId: null,
+    videoId: null,
+    videoStartSec: null,
+    videoChannel: null,
+  },
+  'dance-class': {
+    cues: [
+      'Keep the knees soft and the core lightly braced.',
+      'Follow the instructor first; add intensity once you know the steps.',
+      'Take a breather when the heart rate spikes.',
+    ],
+    mistakes: [
+      'Locking the knees on repeated jumps and pivots.',
+      'Skipping the warm-up because the music feels easy.',
+    ],
+    blurb:
+      'Zumba or any dance-fitness class — logged by time since the intensity follows the choreography.',
+    freeExerciseDbId: null,
+    videoId: null,
+    videoStartSec: null,
+    videoChannel: null,
+  },
+  swimming: {
+    cues: [
+      'Exhale steadily under water so the breath stays smooth.',
+      'Reach long and rotate from the hips with each stroke.',
+      'Rest at the wall when your stroke starts to fall apart.',
+    ],
+    mistakes: [
+      'Lifting the head to breathe, which sinks the hips.',
+      'Sprinting the first laps and having nothing left.',
+    ],
+    blurb:
+      'Pool swimming of any stroke — logged by time, with kcal from your watch if it tracks it.',
+    freeExerciseDbId: null,
+    videoId: null,
+    videoStartSec: null,
+    videoChannel: null,
+  },
+  running: {
+    cues: [
+      'Run at a pace where you could still speak in sentences.',
+      'Land under the hips with a quick, light cadence.',
+      'Relax the shoulders and swing the arms loosely.',
+    ],
+    mistakes: [
+      'Starting too fast and fading halfway through.',
+      'Overstriding, which brakes every step and loads the knees.',
+    ],
+    blurb:
+      'A run logged by time only — use it when you did not track distance, or for a quick log.',
+    freeExerciseDbId: null,
+    videoId: null,
+    videoStartSec: null,
+    videoChannel: null,
+  },
+  walking: {
+    cues: [
+      'Walk tall with the eyes up and the shoulders relaxed.',
+      'Swing the arms naturally and keep a brisk pace.',
+      'Wear shoes you are happy to cover distance in.',
+    ],
+    mistakes: [
+      'Slouching forward over the phone as you walk.',
+      'Taking very long strides that put the heel far ahead.',
+    ],
+    blurb: 'A walk or hike logged by time only — easy on the body and counts toward your week.',
+    freeExerciseDbId: null,
+    videoId: null,
+    videoStartSec: null,
+    videoChannel: null,
+  },
+  'other-activity': {
+    cues: [
+      'Note the time you were actually moving, not the whole visit.',
+      'Add kcal from your watch or the machine if you have it.',
+      'Rate the effort so the day reads honestly later.',
+    ],
+    mistakes: [
+      'Counting waiting and chatting time in the duration.',
+      'Guessing a kcal number instead of leaving it blank.',
+    ],
+    blurb: 'Any activity that does not fit the other chips — name it yourself when you log it.',
+    freeExerciseDbId: null,
+    videoId: null,
+    videoStartSec: null,
+    videoChannel: null,
+  },
   elliptical: {
     cues: [
       "Keep a tall posture — don't lean on the front rail.",

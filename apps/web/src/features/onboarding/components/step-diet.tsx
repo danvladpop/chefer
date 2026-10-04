@@ -2,7 +2,11 @@
 
 import { useEffect, useImperativeHandle, useState, type Ref } from 'react';
 import { UncheckedNotice } from '@/features/safety/components/UncheckedNotice';
-import { findSafetyTaxonomyEntry, safetyTaxonomyEntriesByGroup } from '@chefer/types';
+import {
+  findSafetyTaxonomyEntry,
+  safetyPickerEntries,
+  safetyTaxonomyEntriesByGroup,
+} from '@chefer/types';
 import {
   applySafetyTerm,
   BASE_DIET_IDS,
@@ -92,7 +96,8 @@ export function StepDiet({ value, onChange, ref, onPendingChange }: StepDietProp
     onChange(serialiseSafetyPickerValue({ ...classified, ...patch }));
   };
 
-  const allergyEntries = safetyTaxonomyEntriesByGroup('allergy');
+  // Legacy "Shellfish" is offered only while already selected (UX-ACC-06 follow-up).
+  const allergyEntries = safetyPickerEntries('allergy', classified.allergyIds);
   const dislikeEntries = safetyTaxonomyEntriesByGroup('dislike');
   const veganSelected = classified.dietBaseId === 'vegan';
   const knownModifierIds = classified.dietModifierIds.filter((id) =>
@@ -182,7 +187,7 @@ export function StepDiet({ value, onChange, ref, onPendingChange }: StepDietProp
         {/* Allergies */}
         <div className="space-y-3">
           <p className="text-sm font-medium">Allergies</p>
-          <div className="flex flex-wrap gap-2">
+          <div role="group" aria-label="Allergies" className="flex flex-wrap gap-2">
             {allergyEntries.map((entry) => {
               const selected = classified.allergyIds.includes(entry.id);
               return (

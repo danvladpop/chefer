@@ -657,6 +657,54 @@ describe('TodayScreen', () => {
       await waitFor(() => expect(screen.getByTestId('gym-today-day-picker')).toBeOnTheScreen());
     });
 
+    // WP-20: a quick-logged activity is record-only — it never replaces Start.
+    it('"Log an activity" sits beside the past-workout link, and an activity today keeps Start', async () => {
+      const queryClient = makeClient();
+      queryClient.setQueryData(
+        gymBootstrapQueryKey,
+        makeBootstrap({
+          activeRoutine: ROUTINE,
+          nextWorkout: NEXT_WORKOUT,
+          recentSessions: [
+            todaySession({
+              id: 'class-today',
+              name: 'Cycling class',
+              routineDayId: null,
+              startedAt: `${localDate()}T17:00:00.000Z`,
+              finishedAt: `${localDate()}T17:45:00.000Z`,
+              exercises: [
+                {
+                  exerciseId: 'spin-class',
+                  skipped: false,
+                  lastSetRir: null,
+                  sets: [
+                    {
+                      weightKg: 0,
+                      reps: 0,
+                      isWarmup: false,
+                      completed: true,
+                      durationSec: 2700,
+                      caloriesKcal: 400,
+                    },
+                  ],
+                },
+              ],
+            }),
+          ],
+        }),
+      );
+      await renderToday(queryClient);
+
+      expect(screen.getByTestId('gym-today-log-activity')).toBeOnTheScreen();
+      expect(screen.getByTestId('gym-today-log-past')).toBeOnTheScreen();
+      expect(screen.getByTestId('gym-today-start')).toBeOnTheScreen();
+      expect(screen.queryByTestId('gym-today-done')).not.toBeOnTheScreen();
+      // …and the class shows in Recent as minutes + kcal.
+      expect(screen.getByTestId('gym-today-recent-row-class-today')).toHaveTextContent(
+        /45 min · ~400 kcal/,
+      );
+    });
+
     it('shows "Rest day" with "Start {day} anyway" when nothing is done and the next day is due a different weekday', async () => {
       const user = userEvent.setup();
       const restDayWeekday = (weekdayOf(localDate()) + 1) % 7;

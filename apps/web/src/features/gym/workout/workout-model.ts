@@ -13,7 +13,7 @@ import type {
 } from '@chefer/types';
 import {
   defaultTargetRir,
-  detectPrs,
+  detectLivePrs,
   equipmentProfileOf,
   initialState,
   prescribe,
@@ -236,7 +236,8 @@ const PR_RANK: Record<PrKind, number> = { e1rm: 3, weight: 2, reps: 1 };
 
 /**
  * Live PR badges: at most one per exercise — the ticked working set with the
- * highest-ranked record (first one wins a tie). `history` is the bootstrap's
+ * highest-ranked record (first one wins a tie). An exercise with no earlier
+ * history has none (UX-GYM-18: a first-ever lift is a baseline). `history` is the bootstrap's
  * recent sessions; the running session itself is never part of it.
  */
 export function livePrs(
@@ -252,7 +253,7 @@ export function livePrs(
     let best: { setId: string; kind: PrKind } | null = null;
     for (const s of workingSets(se)) {
       if (s.completedAt === null) continue;
-      const kind = detectPrs({
+      const kind = detectLivePrs({
         exerciseId: se.exerciseId,
         history: prior,
         candidate: { weightKg: s.weightKg, reps: s.reps },

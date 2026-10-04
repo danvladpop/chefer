@@ -42,6 +42,7 @@ import { weekdayLabel } from '../routine/weekday';
 import { checkPausedWorkoutTimeout, useActiveWorkout } from '../use-active-workout';
 import { gymBootstrapQueryKey, libraryLookup, useGymBootstrap } from '../use-gym-bootstrap';
 import { HowThisWorksSheet } from './how-this-works-sheet';
+import { LogActivityAction } from './log-activity-sheet';
 import { LogPastWorkoutAction } from './log-past-workout';
 import { dismissMissedDay, isMissedDayDismissed } from './missed-day-dismissed';
 import { RecentWorkouts } from './recent-workouts';
@@ -337,6 +338,7 @@ export function TodayScreen() {
             }}
           />
           <LogPastWorkoutAction bootstrap={bootstrap} />
+          <LogActivityAction bootstrap={bootstrap} />
           <RecentWorkouts bootstrap={bootstrap} />
         </ScrollView>
       </Screen>
@@ -769,7 +771,11 @@ export function TodayScreen() {
           </Card>
         )}
 
-        <LogPastWorkoutAction bootstrap={bootstrap} />
+        {/* Two quiet text links, side by side — neither competes with Start. */}
+        <View className="flex-row flex-wrap items-center gap-x-6">
+          <LogPastWorkoutAction bootstrap={bootstrap} />
+          <LogActivityAction bootstrap={bootstrap} />
+        </View>
 
         <RecentWorkouts bootstrap={bootstrap} />
 
