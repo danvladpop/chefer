@@ -1,7 +1,8 @@
 import { TRPCError } from '@trpc/server';
 import { z } from 'zod';
-import { UserRole } from '@chefer/types';
+import { SOCIAL_AUTH_MESSAGES, socialCredentialSchema, UserRole } from '@chefer/types';
 import { authService } from '../application/auth/auth.service.js';
+import { socialAuthService } from '../application/auth/social-auth.service.js';
 import { deleteAccount, exportAccountData } from '../application/user/account-data.service.js';
 import { UserService } from '../application/user/user.service.js';
 import { PrismaUserRepository } from '../infrastructure/prisma/prisma-user.repository.js';
@@ -172,15 +173,38 @@ export const userRouter = router({
   }),
 
   /**
-   * Deletes the caller's account and all their data, after re-entering the
-   * password and typing DELETE. Required in-app by both app stores (audit
-   * F-M-PROF-1-1). The last admin can't delete themselves.
+   * Deletes the caller's account and all their data, after typing DELETE and
+   * proving it's them: re-entering the password, or (OAuth-only accounts, and
+   * anyone who forgot their password) a FRESH Google/Apple ID token for an
+   * identity linked to this account (`reauth`, WP-22). Required in-app by both
+   * app stores (audit F-M-PROF-1-1). The last admin can't delete themselves.
+   * Apple grants are revoked best-effort as part of the delete.
    */
   deleteSelf: protectedProcedure
-    .input(z.object({ password: z.string().min(1).max(100), confirm: z.literal('DELETE') }))
+    .input(
+      z.object({
+        password: z.string().min(1).max(100).optional(),
+        reauth: socialCredentialSchema.optional(),
+        confirm: z.literal('DELETE'),
+      }),
+    )
     .mutation(async ({ ctx, input }) => {
-      if (!(await userService.verifyPassword(ctx.user.id, input.password))) {
-        throw new TRPCError({ code: 'FORBIDDEN', message: 'That password is not correct' });
+      let proven = false;
+      if (input.password !== undefined) {
+        proven = await userService.verifyPassword(ctx.user.id, input.password);
+        if (!proven && !input.reauth) {
+          throw new TRPCError({ code: 'FORBIDDEN', message: 'That password is not correct' });
+        }
+      }
+      if (!proven && input.reauth) {
+        await socialAuthService.assertReauthenticated(ctx.user.id, input.reauth);
+        proven = true;
+      }
+      if (!proven) {
+        throw new TRPCError({
+          code: 'FORBIDDEN',
+          message: SOCIAL_AUTH_MESSAGES.deleteNeedsReauth,
+        });
       }
       if (ctx.user.role === 'ADMIN' && (await userService.countAdmins()) <= 1) {
         throw new TRPCError({
