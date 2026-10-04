@@ -51,12 +51,26 @@ export type SetJobsInput = z.infer<typeof setJobsInputSchema>;
 /** Relative portion sizes offered in every member editor (0.5 = a kid). */
 export const HOUSEHOLD_PORTION_OPTIONS = [0.5, 0.75, 1, 1.25, 1.5] as const;
 
+/**
+ * Optional age band for a kid (UX-PLAN-12, owner decision 2026-10-04). Stored
+ * as a plain string column (`HouseholdMember.ageBand`) and validated here —
+ * never a Prisma enum, so a band can be added without a migration. Only
+ * meaningful while `isKid`. A band only PRE-FILLS the portion factor
+ * (`ageBandPortionFactor` in `@chefer/utils`); `portionFactor` stays the
+ * source of truth for every plan and list.
+ */
+export const HOUSEHOLD_AGE_BANDS = ['TODDLER', 'CHILD', 'PRETEEN', 'TEEN'] as const;
+export const householdAgeBandSchema = z.enum(HOUSEHOLD_AGE_BANDS);
+export type HouseholdAgeBand = z.infer<typeof householdAgeBandSchema>;
+
 /** household.add / household.update fields (validated on the API). */
 export const householdMemberFieldsSchema = z.object({
   name: z.string().trim().min(1).max(60),
   /** 0.5 kid … 1.5 big eater. */
   portionFactor: z.number().min(0.25).max(3).default(1),
   isKid: z.boolean().default(false),
+  /** Optional, kids only (UX-PLAN-12). null clears it on update; 1.0.1 clients never send it. */
+  ageBand: householdAgeBandSchema.nullish(),
   dietaryRestrictions: z.array(z.string().max(60)).max(20).default([]),
   allergies: z.array(z.string().max(60)).max(20).default([]),
   dislikedIngredients: z.array(z.string().max(60)).max(30).default([]),

@@ -485,8 +485,14 @@ export {
   type PantryItemAgeLike,
 } from './pantry-confirm';
 export {
+  AGE_BAND_LABELS,
+  AGE_BAND_PORTION_FACTORS,
+  ageBandFactorsAreChips,
+  ageBandLabel,
+  ageBandPortionFactor,
   householdGhostSample,
   householdPortionSum,
+  parseAgeBand,
   onboardingProgress,
   onboardingSteps,
   perPortionCost,

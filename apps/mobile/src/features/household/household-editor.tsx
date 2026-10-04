@@ -1,14 +1,23 @@
 import { Fragment, useImperativeHandle, useRef, useState, type Ref } from 'react';
 import { ActivityIndicator, Pressable, Switch, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { findSafetyTaxonomyEntry, HOUSEHOLD_PORTION_OPTIONS } from '@chefer/types';
+import {
+  findSafetyTaxonomyEntry,
+  HOUSEHOLD_AGE_BANDS,
+  HOUSEHOLD_PORTION_OPTIONS,
+  type HouseholdAgeBand,
+} from '@chefer/types';
 import { Button, Card, ErrorState, Input, PressableScale, Sheet, Text } from '@chefer/ui-mobile';
 import {
+  AGE_BAND_LABELS,
+  ageBandLabel,
+  ageBandPortionFactor,
   allergiesAndDietForText,
   classifySafetyValue,
   cn,
   householdPortionSum,
   memberSummaryLine,
+  parseAgeBand,
   tableSummaryLine,
   userFacingErrorMessage,
   type HouseholdGhostKind,
@@ -59,6 +68,8 @@ type Member = {
   name: string;
   portionFactor: number;
   isKid: boolean;
+  /** Optional kid age band (UX-PLAN-12) — a plain string column, narrowed with parseAgeBand. */
+  ageBand: string | null;
   allergies: string[];
   dietaryRestrictions: string[];
   dislikedIngredients: string[];
@@ -251,6 +262,8 @@ export function HouseholdEditor({
   const [name, setName] = useState('');
   const [portionFactor, setPortionFactor] = useState<number>(1);
   const [isKid, setIsKid] = useState(false);
+  /** UX-PLAN-12: only meaningful while `isKid`; picking one pre-fills the portion. */
+  const [ageBand, setAgeBand] = useState<HouseholdAgeBand | null>(null);
   const [memberSafety, setMemberSafety] = useState<SafetyPickerValue>(EMPTY_SAFETY);
   const [memberSafetySheetOpen, setMemberSafetySheetOpen] = useState(false);
   // UX-ACC-01: flushes a typed-but-unadded "Something else?" term on Done/close.
@@ -276,6 +289,7 @@ export function HouseholdEditor({
     setName('');
     setMemberSafety(EMPTY_SAFETY);
     setIsKid(false);
+    setAgeBand(null);
     setPortionFactor(1);
     setEditing(null);
   };
@@ -318,6 +332,7 @@ export function HouseholdEditor({
   const applyPreset = (kind: HouseholdGhostKind) => {
     setPortionFactor(PRESETS[kind].portionFactor);
     setIsKid(PRESETS[kind].isKid);
+    setAgeBand(null);
     if (showGhost) {
       setGhostKind(kind);
     }
@@ -329,6 +344,7 @@ export function HouseholdEditor({
     setName(m.name);
     setPortionFactor(m.portionFactor);
     setIsKid(m.isKid);
+    setAgeBand(m.isKid ? parseAgeBand(m.ageBand) : null);
     setMemberSafety({
       allergies: m.allergies,
       dietaryRestrictions: m.dietaryRestrictions,
@@ -340,7 +356,16 @@ export function HouseholdEditor({
     if (!name.trim() || isSaving || atCap) {
       return;
     }
-    const base = { name: name.trim(), portionFactor, isKid };
+    // Sent only when it differs from what is stored (null clears it; a non-kid never keeps one).
+    const nextBand = isKid ? ageBand : null;
+    const base = {
+      name: name.trim(),
+      portionFactor,
+      isKid,
+      ...(nextBand !== (editing ? parseAgeBand(editing.ageBand) : null)
+        ? { ageBand: nextBand }
+        : {}),
+    };
     const save = (payload: typeof base & Partial<SafetyPickerValue>) => {
       if (editing) {
         const update = { id: editing.id, ...payload };
@@ -469,9 +494,48 @@ export function HouseholdEditor({
                 if (v && portionFactor === 1) {
                   setPortionFactor(0.5);
                 }
+                if (!v) setAgeBand(null);
               }}
             />
           </View>
+          {/* UX-PLAN-12: optional age — picking one pre-fills the portion, which stays adjustable. */}
+          {isKid && (
+            <View testID="household-age-group" className="gap-1">
+              <Text variant="label">Age (optional)</Text>
+              <View className="flex-row gap-2">
+                {HOUSEHOLD_AGE_BANDS.map((band) => (
+                  <PressableScale
+                    key={band}
+                    testID={`household-age-${band}`}
+                    accessibilityRole="button"
+                    accessibilityLabel={`Age ${AGE_BAND_LABELS[band]}`}
+                    accessibilityState={{ selected: ageBand === band }}
+                    onPress={() => {
+                      if (ageBand === band) {
+                        setAgeBand(null);
+                        return;
+                      }
+                      setAgeBand(band);
+                      setPortionFactor(ageBandPortionFactor(band));
+                    }}
+                    className={cn(
+                      'h-11 flex-1 items-center justify-center rounded-md border',
+                      ageBand === band ? 'border-primary bg-primary' : 'border-border bg-white',
+                    )}
+                  >
+                    <Text
+                      className={cn(
+                        'text-sm font-semibold',
+                        ageBand === band ? 'text-primary-foreground' : 'text-gray-600',
+                      )}
+                    >
+                      {AGE_BAND_LABELS[band]}
+                    </Text>
+                  </PressableScale>
+                ))}
+              </View>
+            </View>
+          )}
           <Pressable
             testID="household-safety-open"
             accessibilityRole="button"
@@ -591,7 +655,9 @@ export function HouseholdEditor({
                       <Text className="text-sm font-medium text-gray-800">{m.name}</Text>
                       {m.isKid && (
                         <View className="rounded-full bg-accent px-2 py-0.5">
-                          <Text className="text-xs font-semibold text-primary">Kid</Text>
+                          <Text className="text-xs font-semibold text-primary">
+                            {ageBandLabel(m.ageBand) ? `Kid · ${ageBandLabel(m.ageBand)}` : 'Kid'}
+                          </Text>
                         </View>
                       )}
                     </View>
