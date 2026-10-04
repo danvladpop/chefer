@@ -7,6 +7,7 @@ import {
   setDisplayPreferencesInputSchema,
   setHomeDisplayInputSchema,
   setJobsInputSchema,
+  setNumbersModeInputSchema,
   setOnboardingIntentInputSchema,
 } from '@chefer/types';
 import {
@@ -161,6 +162,17 @@ export const preferencesRouter = router({
     .input(setHomeDisplayInputSchema)
     .mutation(async ({ input, ctx }) => {
       return preferencesService.setHomeDisplay(ctx.user.id, input.showNutritionOnToday);
+    }),
+
+  /**
+   * WP-08 numbers mode: `FULL` | `PROTEIN_ONLY` | `NONE` (reserved for
+   * WP-16) — free for every tier. Independent of `setHomeDisplay`, which
+   * older app builds still call.
+   */
+  setNumbersMode: protectedProcedure
+    .input(setNumbersModeInputSchema)
+    .mutation(async ({ input, ctx }) => {
+      return preferencesService.setNumbersMode(ctx.user.id, input.numbersMode);
     }),
 
   /** Allergies, restrictions, dislikes — free for every account (P1-2). */

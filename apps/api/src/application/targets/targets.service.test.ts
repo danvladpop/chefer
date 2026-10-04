@@ -500,3 +500,36 @@ describe('TargetsService.proposeCoachAdjustment', () => {
     expect(targetChangeRepository.create).not.toHaveBeenCalled();
   });
 });
+
+// ─── WP-08 protein-only mode: numbersMode + proteinWhy on get() ─────────────
+
+describe('TargetsService.get — numbersMode and proteinWhy (WP-08)', () => {
+  it('defaults numbersMode to FULL and explains the effective protein target', async () => {
+    const r = await new TargetsService().get('u1');
+    expect(r.numbersMode).toBe('FULL');
+    expect(r.proteinWhy.effectiveG).toBe(r.effective.proteinG);
+    expect(r.proteinWhy.referenceGPerKg).toBe(1.6);
+    expect(r.proteinWhy.referenceG).toBe(128); // 80 kg
+  });
+
+  it('returns a stored PROTEIN_ONLY and ignores an unknown stored value', async () => {
+    chefProfileRepository.findByUserId.mockResolvedValue({
+      ...BASE_PROFILE,
+      numbersMode: 'PROTEIN_ONLY',
+    });
+    expect((await new TargetsService().get('u1')).numbersMode).toBe('PROTEIN_ONLY');
+    chefProfileRepository.findByUserId.mockResolvedValue({ ...BASE_PROFILE, numbersMode: 'WAT' });
+    expect((await new TargetsService().get('u1')).numbersMode).toBe('FULL');
+  });
+
+  it('names an own override in proteinWhy', async () => {
+    chefProfileRepository.findByUserId.mockResolvedValue({
+      ...BASE_PROFILE,
+      targetMode: 'OWN',
+      customKcal: 2200,
+      customProteinG: 200,
+    });
+    const r = await new TargetsService().get('u1');
+    expect(r.proteinWhy).toMatchObject({ effectiveG: 200, reason: 'OWN', differs: true });
+  });
+});
