@@ -1,13 +1,15 @@
 'use client';
 
 import Link from 'next/link';
-import type { TargetsView } from '@chefer/types';
+import { useNumbersMode } from '@/features/numbers-mode/numbers-mode';
+import type { ProteinWhy, TargetsView } from '@chefer/types';
 import { Sheet } from '@chefer/ui';
 import {
   explainCarbsFatSentence,
   explainKcalSentence,
   explainProteinSentence,
 } from '@chefer/utils';
+import { ProteinWhySheet } from './ProteinWhySheet';
 
 // ─── TargetExplainSheet (§2.11, T-11.2) ─────────────────────────────────────────
 // UX-11 AC3: tapping the ring, a macro, or the day totals opens this sheet.
@@ -18,10 +20,22 @@ export interface TargetExplainSheetProps {
   open: boolean;
   onClose: () => void;
   /** `targets.get`'s resolved view — omitted while it's still loading. */
-  view: TargetsView | undefined;
+  view: (TargetsView & { proteinWhy?: ProteinWhy | undefined }) | undefined;
 }
 
 export function TargetExplainSheet({ open, onClose, view }: TargetExplainSheetProps) {
+  const { proteinOnly } = useNumbersMode();
+  // WP-08: protein-only mode explains the one number it shows — no calories, carbs or fat.
+  if (proteinOnly) {
+    return (
+      <ProteinWhySheet
+        open={open}
+        onClose={onClose}
+        why={view?.proteinWhy}
+        actionHref="/preferences#targets"
+      />
+    );
+  }
   const rows = view
     ? [
         { label: 'Calories', value: `${view.effective.dailyCalorieTarget.toLocaleString()} kcal` },

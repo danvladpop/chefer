@@ -10,10 +10,16 @@ import {
   ProgressRing,
   Text,
 } from '@chefer/ui-mobile';
-import { cn, dayNutritionCaption, dayStatus, formatKcal, formatNumber } from '@chefer/utils';
+import {
+  cn,
+  dayNutritionCaption,
+  dayStatus,
+  formatKcal,
+  formatNumber,
+  proteinRingLabel,
+} from '@chefer/utils';
 import type { RouterOutputs } from '../../../lib/trpc';
 import { useNumbersMode } from '../../numbers-mode/numbers-mode';
-import { proteinRingLabel } from '../../numbers-mode/numbers-mode-copy';
 import { TrainingDayNote } from './training-day-note';
 
 // Port of apps/web/src/features/dashboard/components/nutrition-summary.tsx.

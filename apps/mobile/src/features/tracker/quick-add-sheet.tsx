@@ -6,10 +6,13 @@ import {
   checkMacroSanity,
   clampIngredientGrams,
   defaultMealSlot,
+  estimateKcalFromProtein,
   formatNumber,
   formatPortion,
   formatQuickAddGrams,
+  nutritionLabel,
   parseQuickAdd,
+  proteinLabel,
   QUICK_ADD_LIMITS,
   QUICK_ADD_MEAL_TYPES,
   userFacingErrorMessage,
@@ -22,11 +25,6 @@ import { getRecipeImageUrl } from '../../lib/recipe-image';
 import { trpc, type RouterOutputs } from '../../lib/trpc';
 import { NutritionStatusTag } from '../ingredients/nutrition-provenance';
 import { useNumbersMode } from '../numbers-mode/numbers-mode';
-import {
-  estimateKcalFromProtein,
-  nutritionLabel,
-  proteinLabel,
-} from '../numbers-mode/numbers-mode-copy';
 import { invalidateDayQueries } from './invalidate';
 import { REBALANCE_PREVIEW, recordRebalanceOutcome } from './rebalance-offer-store';
 import { mealLabel, SLOT_COPY } from './slot-copy';

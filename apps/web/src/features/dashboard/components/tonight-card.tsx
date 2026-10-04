@@ -3,6 +3,7 @@
 import Image from 'next/image';
 import Link from 'next/link';
 import { useState } from 'react';
+import { useNumbersMode } from '@/features/numbers-mode/numbers-mode';
 import { StarRatingWidget } from '@/features/recipe/components/StarRatingWidget';
 import { CheckedForChip } from '@/features/safety/components/CheckedForChip';
 import { SlotActionsMenu } from '@/features/tracker/components/SlotActionsMenu';
@@ -60,6 +61,8 @@ export function TonightCard({
   flow?: SlotFlow | undefined;
 }) {
   const utils = trpc.useUtils();
+  // WP-08: protein-only mode shows no kcal on the card.
+  const { proteinOnly } = useNumbersMode();
   // UX-FOOD-04: "Rate it" opens the real rating widget inline (the one cook
   // mode and recipe detail use); the link is gone once a rating exists.
   const [rateOpen, setRateOpen] = useState(false);
@@ -120,7 +123,12 @@ export function TonightCard({
         <p className="min-w-0 flex-1 py-2 text-sm text-gray-800">
           <span className="font-semibold">Dinner</span>
           {' · '}
-          {youHadLine(slot.replacedBy.name, slot.replacedBy.kcal)}
+          {youHadLine(
+            slot.replacedBy.name,
+            slot.replacedBy.kcal,
+            slot.replacedBy.protein,
+            proteinOnly,
+          )}
         </p>
         {flow && entryId && (
           <button
@@ -209,7 +217,7 @@ export function TonightCard({
             <p className="mt-1 text-xs text-gray-500">
               {meal.recipe.prepTimeMins + (meal.recipe.cookTimeMins ?? 0)} min · for{' '}
               {meal.recipe.servings}
-              {showNutrition ? ` · ${meal.recipe.kcal} kcal` : ''}
+              {showNutrition && !proteinOnly ? ` · ${meal.recipe.kcal} kcal` : ''}
             </p>
           </div>
 

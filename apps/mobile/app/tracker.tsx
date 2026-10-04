@@ -12,7 +12,9 @@ import {
   formatPortion,
   groupByMeal,
   localDateStr,
+  nutritionLabel,
   plannedRowKey,
+  proteinAverageText,
   slotPortion,
   slotStates,
   sumLogged,
@@ -25,7 +27,6 @@ import {
 import { MealTypeBadge } from '../src/features/dashboard/components/meal-type-badge';
 import { TrainingDayNote } from '../src/features/dashboard/components/training-day-note';
 import { NumbersModeProvider, useNumbersMode } from '../src/features/numbers-mode/numbers-mode';
-import { nutritionLabel, proteinAverageText } from '../src/features/numbers-mode/numbers-mode-copy';
 import { ChangeNoticeCard } from '../src/features/nutrition/change-notice-card';
 import { TargetExplainSheet } from '../src/features/nutrition/target-explain-sheet';
 import { EditEntrySheet } from '../src/features/tracker/edit-entry-sheet';

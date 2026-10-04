@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { useNumbersMode } from '@/features/numbers-mode/numbers-mode';
 import { trpc } from '@/lib/trpc';
 import { Sheet } from '@chefer/ui';
 import {
@@ -58,13 +59,18 @@ export function PlanMissSheet({
   onApplied,
 }: PlanMissSheetProps) {
   const utils = trpc.useUtils();
-  const direction = missDirection(kcal, target, 0) ?? 'under';
+  // WP-08: protein-only mode judges a day by its protein alone and states no calorie figure.
+  const { proteinOnly } = useNumbersMode();
+  const proteinGap = proteinGapG !== undefined && proteinGapG > 0;
+  const direction =
+    proteinOnly && proteinGap ? 'under' : (missDirection(kcal, target, 0) ?? 'under');
   const rawFactor = scaleFactorFor(kcal, target);
   // UX-PLAN-08: the portion step a loss goal may take is held to +10 %; null
   // = nothing worth offering (a step under 3 %), so the option is hidden.
   const factor = capProteinScaleFactor(rawFactor, goal) ?? 1;
   const capped = factor < rawFactor;
-  const scalable = factor !== 1;
+  // Protein-only only ever offers bigger portions (to close a protein gap).
+  const scalable = proteinOnly ? factor > 1 : factor !== 1;
   const [preview, setPreview] = useState<Preview | null>(null);
 
   const previewMutation = trpc.mealPlan.scaleDay.useMutation({
@@ -125,12 +131,18 @@ export function PlanMissSheet({
     <Sheet
       open={open}
       onClose={onClose}
-      title={`${aboutKcal(kcal - target)} ${direction} target`}
-      description={`${dayName}: planned ${formatKcal(kcal)} kcal, target ${formatKcal(target)} kcal`}
+      title={proteinOnly ? 'Short on protein' : `${aboutKcal(kcal - target)} ${direction} target`}
+      description={
+        proteinOnly
+          ? proteinGap
+            ? `${dayName}: about ${proteinGapG} g short on protein`
+            : `${dayName}: as planned`
+          : `${dayName}: planned ${formatKcal(kcal)} kcal, target ${formatKcal(target)} kcal`
+      }
       size="sm"
     >
       <div className="flex flex-col gap-2 px-5 pb-5" data-testid="plan-miss-sheet">
-        {proteinGapG !== undefined && proteinGapG > 0 && (
+        {!proteinOnly && proteinGapG !== undefined && proteinGapG > 0 && (
           <p className="text-xs text-gray-600">Protein is about {proteinGapG} g short too.</p>
         )}
         {lossProteinSnack && snackButton}
@@ -151,7 +163,7 @@ export function PlanMissSheet({
             </span>
             <span className="text-xs text-gray-600">
               {preview
-                ? `${capped ? `Held to +${Math.round(LOSS_PROTEIN_KCAL_INCREASE_CAP * 100)}% on your weight-loss goal. ` : ''}Brings the day to about ${formatKcal(preview.kcal)} kcal · ${preview.protein} g protein`
+                ? `${capped ? `Held to +${Math.round(LOSS_PROTEIN_KCAL_INCREASE_CAP * 100)}% on your weight-loss goal. ` : ''}Brings the day to about ${proteinOnly ? `${preview.protein} g protein` : `${formatKcal(preview.kcal)} kcal · ${preview.protein} g protein`}`
                 : previewMutation.isError
                   ? 'Adjusts every meal on this day'
                   : 'Checking the numbers…'}

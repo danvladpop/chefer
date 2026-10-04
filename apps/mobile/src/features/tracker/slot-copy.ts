@@ -1,5 +1,9 @@
-import { formatKcal, QUICK_ADD_MEAL_TYPES, type QuickAddMealType } from '@chefer/utils';
-import { proteinLabel } from '../numbers-mode/numbers-mode-copy';
+import {
+  formatKcal,
+  proteinLabel,
+  QUICK_ADD_MEAL_TYPES,
+  type QuickAddMealType,
+} from '@chefer/utils';
 
 // Copy and small formatters for the planned-slot actions (WP-06 "Flexible
 // eating"): "Ate something else" and "Skipped it". Neutral on purpose — a

@@ -38,6 +38,7 @@ import {
   missDirection,
   targetDrifted,
 } from '@/features/meal-plan/plan-miss';
+import { useNumbersMode } from '@/features/numbers-mode/numbers-mode';
 import { PantryUsageBanner } from '@/features/pantry/components/PantryUsageBanner';
 import { UpgradeButton } from '@/features/premium/components/UpgradeButton';
 import { UpgradeNudge } from '@/features/premium/components/UpgradeNudge';
@@ -443,6 +444,8 @@ export default function MealPlanPage() {
   // it with what this week was planned for; the miss sheet reads the goal.
   const { data: targetsView } = trpc.targets.get.useQuery(undefined, { staleTime: 60_000 });
   const goal = targetsView?.inputs.goal;
+  // WP-08: protein-only mode hides kcal in the re-plan banner (cards and totals read the same hook).
+  const { proteinOnly } = useNumbersMode();
   const [replanDismissedFor, setReplanDismissedFor] = useState<string | null>(null);
 
   const pinnedCount = plan?.days.flatMap((d) => d.meals).filter((m) => m.pinned).length ?? 0;
@@ -889,8 +892,9 @@ export default function MealPlanPage() {
           className="mx-4 mb-2 flex flex-col gap-2 rounded-xl border border-gray-200 bg-white px-4 py-3 sm:mx-6 sm:flex-row sm:items-center sm:justify-between sm:gap-3"
         >
           <p className="text-sm text-gray-800">
-            This week was planned for {formatKcal(plan.calorieTarget ?? 0)} kcal. Re-plan with{' '}
-            {formatKcal(targetsView.effective.dailyCalorieTarget)} kcal?
+            {proteinOnly
+              ? 'Your targets have changed since this week was planned. Re-plan to match them?'
+              : `This week was planned for ${formatKcal(plan.calorieTarget ?? 0)} kcal. Re-plan with ${formatKcal(targetsView.effective.dailyCalorieTarget)} kcal?`}
           </p>
           <div className="flex gap-2">
             <button

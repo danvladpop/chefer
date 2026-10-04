@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { TrainingExplainSheet } from '@/features/meal-plan/components/TrainingExplainSheet';
+import { useNumbersMode } from '@/features/numbers-mode/numbers-mode';
 import { trpc } from '@/lib/trpc';
 import { Dumbbell, Footprints } from 'lucide-react';
 import type { PlanTrainingBasis, PlanTrainingDay, TrainingDayNutrition } from '@chefer/types';
@@ -31,9 +32,28 @@ export function TrainingDayNote({
   className?: string;
 }) {
   const [whyOpen, setWhyOpen] = useState(false);
+  const { proteinOnly } = useNumbersMode();
   if (!t.isTrainingDay) return null;
   const kind = t.kind ?? 'lift';
   const isRun = trainingGlyph(kind) === 'walk-outline';
+  // WP-08: protein-only shows the protein bump of a lifting day and nothing else
+  // (a run day's bump is carbs and calories; its Why? sheet is all calories).
+  if (proteinOnly) {
+    if (isRun) return null;
+    return (
+      <div
+        data-testid="training-day"
+        className={cn('mb-4 rounded-xl bg-[#fff3e8] px-3 py-2.5', className)}
+      >
+        <p className="flex items-center gap-1.5 text-xs font-semibold text-[#944a00]">
+          <Dumbbell className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+          <span className="min-w-0" data-testid="training-day-line">
+            {`Training day · +${t.proteinBonus} g protein`}
+          </span>
+        </p>
+      </div>
+    );
+  }
   const Glyph = isRun ? Footprints : Dumbbell;
   const workout = t.workoutName ?? 'Your workout';
   const when = t.reason === 'COMPLETED' ? 'done' : isToday ? 'today' : 'planned';

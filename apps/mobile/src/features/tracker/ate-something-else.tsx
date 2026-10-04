@@ -13,13 +13,13 @@ import {
   formatEatOutKcal,
   formatEatOutProtein,
   formatKcal,
+  proteinLabel,
   type EatOutCuisine,
   type EatOutSize,
   type SlotRef,
 } from '@chefer/utils';
 import { trpc } from '../../lib/trpc';
 import { useNumbersMode } from '../numbers-mode/numbers-mode';
-import { proteinLabel } from '../numbers-mode/numbers-mode-copy';
 import { ScanMealCard } from './scan-meal-card';
 import type { ReplaceInput } from './use-slot-actions';
 

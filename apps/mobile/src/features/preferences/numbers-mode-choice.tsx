@@ -1,6 +1,7 @@
 import { View } from 'react-native';
 import type { NumbersMode } from '@chefer/types';
 import { Text } from '@chefer/ui-mobile';
+import { NUMBERS_MODE_COPY } from '@chefer/utils';
 import { OptionRow } from './components/option-row';
 
 // "What do you want to keep an eye on?" (WP-08): the two numbers modes a user can
@@ -9,14 +10,6 @@ import { OptionRow } from './components/option-row';
 // for WP-16 and is not offered.
 
 export type NumbersModeChoiceValue = Extract<NumbersMode, 'FULL' | 'PROTEIN_ONLY'>;
-
-export const NUMBERS_MODE_COPY = {
-  question: 'What do you want to keep an eye on?',
-  fullTitle: 'Calories and macros',
-  fullDetail: 'Calories, protein, carbs and fat on Today and in the tracker.',
-  proteinTitle: 'Just protein',
-  proteinDetail: 'One number: protein. Your week still balances the rest in the background.',
-} as const;
 
 export function NumbersModeChoice({
   value,

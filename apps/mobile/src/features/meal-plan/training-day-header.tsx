@@ -6,15 +6,13 @@ import { colors, ExplainSheet, Text } from '@chefer/ui-mobile';
 import {
   cn,
   preRunNote,
+  proteinOnlyTrainingExplain,
+  proteinOnlyTrainingHeader,
   trainingDayHeaderCopy,
   trainingExplainCopy,
   trainingGlyph,
 } from '@chefer/utils';
 import { useNumbersMode } from '../numbers-mode/numbers-mode';
-import {
-  proteinOnlyTrainingExplain,
-  proteinOnlyTrainingHeader,
-} from '../numbers-mode/numbers-mode-copy';
 
 // ─── Training days on the Plan tab (UX-06, T-06.4) ─────────────────────────────
 // The day header above a training day's meals, its Explain sheet (PAT-1) and

@@ -1,11 +1,20 @@
 'use client';
 
 import Link from 'next/link';
+import { useNumbersMode } from '@/features/numbers-mode/numbers-mode';
 import type { RouterOutputs } from '@/lib/trpc';
 import { ChevronRight } from 'lucide-react';
 import { overTargetColor } from '@chefer/tokens';
+import type { ProteinGuide } from '@chefer/types';
 import { CountUp, ProgressBar, progressOf, ProgressRing } from '@chefer/ui';
-import { cn, dayNutritionCaption, dayStatus, formatKcal } from '@chefer/utils';
+import {
+  cn,
+  dayNutritionCaption,
+  dayStatus,
+  formatKcal,
+  formatNumber,
+  proteinRingLabel,
+} from '@chefer/utils';
 import { TrainingDayNote } from './training-day-note';
 
 // ─── Nutrition summary ────────────────────────────────────────────────────────
@@ -19,11 +28,129 @@ interface NutritionSummaryProps {
   nutrition: Nutrition;
   /** Name of the next planned meal, used for the AI hint. Omit to hide it. */
   nextMealName?: string | undefined;
-  className?: string;
+  className?: string | undefined;
   /** §2.11, T-35.5: the ring's label — "Your target" (OWN) vs "Suggested" (SUGGESTED). Omitted while unknown. */
   targetMode?: 'SUGGESTED' | 'OWN' | undefined;
   /** Planned meals still to eat today (UX-FOOD-05). Unknown → the plan minus what was eaten. */
   remainingPlannedKcal?: number | undefined;
+  /** WP-08: the per-meal protein guide ("30–40 g per meal"), shown in protein-only mode. */
+  proteinGuide?: ProteinGuide | undefined;
+}
+
+/**
+ * WP-08 protein-only Today: the ring is a PROTEIN ring ("72 of 120 g protein")
+ * with the per-meal guide under it. No kcal caption, no macro bars. The week is
+ * still balanced on calories underneath; this card just never says so. MO-06
+ * motion, same primitives as the calorie ring.
+ */
+function ProteinSummary({
+  nutrition: n,
+  nextMealName,
+  className,
+  targetMode,
+  proteinGuide,
+}: Pick<NutritionSummaryProps, 'nutrition' | 'nextMealName' | 'className' | 'targetMode'> & {
+  proteinGuide?: ProteinGuide | undefined;
+}) {
+  const targetG = n.adjustedTargets?.proteinG ?? n.protein.targetG;
+  const eatenG = Math.round(n.protein.eaten);
+  const leftG = Math.max(Math.round(targetG) - eatenG, 0);
+  // Neutral palette: reaching the goal is green, otherwise just what is left.
+  const reached = targetG > 0 && eatenG >= targetG;
+  const chip = reached
+    ? { text: 'Protein goal reached', style: 'bg-emerald-100 text-emerald-700' }
+    : eatenG === 0
+      ? { text: 'Nothing logged yet', style: 'bg-gray-100 text-gray-600' }
+      : { text: `${leftG} g to go`, style: 'bg-gray-100 text-gray-600' };
+
+  return (
+    <div
+      data-testid="nutrition-summary"
+      className={cn('rounded-2xl border bg-white p-4 shadow-sm sm:p-5', className)}
+    >
+      <div className="mb-4 flex items-center justify-between gap-2">
+        <p className="text-xs font-semibold uppercase tracking-widest text-gray-500">Today</p>
+        <span
+          data-testid="nutrition-status"
+          className={cn(
+            'shrink-0 rounded-full px-2.5 py-0.5 text-xs font-bold uppercase',
+            chip.style,
+          )}
+        >
+          {chip.text}
+        </span>
+      </div>
+
+      {n.trainingDay && <TrainingDayNote t={n.trainingDay} />}
+
+      <div className="flex flex-col items-center gap-2 py-2">
+        <ProgressRing
+          data-testid="protein-ring"
+          label={`${proteinRingLabel(eatenG, targetG)} eaten today`}
+          progress={progressOf(eatenG, targetG)}
+          size={128}
+          strokeWidth={12}
+          overColor={overTargetColor}
+        >
+          <CountUp value={eatenG} className="text-xl font-bold text-gray-900" />
+          <span className="max-w-[88px] text-center text-xs leading-tight text-gray-500">
+            of {formatNumber(Math.round(targetG))} g protein
+          </span>
+        </ProgressRing>
+        {proteinGuide && (
+          <p data-testid="protein-guide" className="text-center text-xs text-gray-600">
+            {proteinGuide.label}
+          </p>
+        )}
+        {targetMode && (
+          <p data-testid="target-mode-label" className="text-center text-xs text-muted-foreground">
+            {targetMode === 'OWN' ? 'Your target' : 'Suggested'}
+          </p>
+        )}
+      </div>
+
+      <NutritionSummaryLinks nextMealName={nextMealName} />
+    </div>
+  );
+}
+
+/** "Up next" and the rail-only quick links, shared by both modes. */
+function NutritionSummaryLinks({ nextMealName }: { nextMealName?: string | undefined }) {
+  return (
+    <>
+      {/* Next meal + a way to log it — the old line claimed every meal
+          "supports your daily nutrition goals", which wasn't checked (F-PM-4). */}
+      {nextMealName && (
+        <div className="mt-4 flex items-center justify-between gap-2 rounded-xl bg-[#fff3e8] px-3 py-2.5">
+          <p className="min-w-0 text-xs text-[#944a00]">
+            Up next: <strong>{nextMealName}</strong>
+          </p>
+          <Link
+            href="/tracker"
+            className="flex min-h-11 shrink-0 items-center text-xs font-semibold text-[#944a00] hover:underline"
+          >
+            Log what you ate
+          </Link>
+        </div>
+      )}
+
+      {/* Quick links — redundant with the tab bar on mobile, so rail-only */}
+      <div className="mt-4 hidden flex-col gap-1.5 xl:flex">
+        <Link
+          href="/meal-plan"
+          className="flex min-h-11 items-center justify-between rounded-xl border px-3 py-2 text-xs font-medium text-gray-600 hover:border-[#944a00]/30 hover:text-[#944a00]"
+        >
+          Meal Planner <ChevronRight className="h-3.5 w-3.5" />
+        </Link>
+        <Link
+          href="/shopping-list"
+          className="flex min-h-11 items-center justify-between rounded-xl border px-3 py-2 text-xs font-medium text-gray-600 hover:border-[#944a00]/30 hover:text-[#944a00]"
+        >
+          Shopping List <ChevronRight className="h-3.5 w-3.5" />
+        </Link>
+      </div>
+    </>
+  );
 }
 
 export function NutritionSummary({
@@ -32,7 +159,20 @@ export function NutritionSummary({
   className,
   targetMode,
   remainingPlannedKcal,
+  proteinGuide,
 }: NutritionSummaryProps) {
+  const { proteinOnly } = useNumbersMode();
+  if (proteinOnly) {
+    return (
+      <ProteinSummary
+        nutrition={n}
+        nextMealName={nextMealName}
+        className={className}
+        targetMode={targetMode}
+        proteinGuide={proteinGuide}
+      />
+    );
+  }
   // Lifters on a training day get the bumped targets (free since WP-07) (audit P2-4);
   // everyone else keeps the base targets the older fields carry.
   const target = n.adjustedTargets ?? {
@@ -136,37 +276,7 @@ export function NutritionSummary({
         </div>
       </div>
 
-      {/* Next meal + a way to log it — the old line claimed every meal
-          "supports your daily nutrition goals", which wasn't checked (F-PM-4). */}
-      {nextMealName && (
-        <div className="mt-4 flex items-center justify-between gap-2 rounded-xl bg-[#fff3e8] px-3 py-2.5">
-          <p className="min-w-0 text-xs text-[#944a00]">
-            Up next: <strong>{nextMealName}</strong>
-          </p>
-          <Link
-            href="/tracker"
-            className="flex min-h-11 shrink-0 items-center text-xs font-semibold text-[#944a00] hover:underline"
-          >
-            Log what you ate
-          </Link>
-        </div>
-      )}
-
-      {/* Quick links — redundant with the tab bar on mobile, so rail-only */}
-      <div className="mt-4 hidden flex-col gap-1.5 xl:flex">
-        <Link
-          href="/meal-plan"
-          className="flex min-h-11 items-center justify-between rounded-xl border px-3 py-2 text-xs font-medium text-gray-600 hover:border-[#944a00]/30 hover:text-[#944a00]"
-        >
-          Meal Planner <ChevronRight className="h-3.5 w-3.5" />
-        </Link>
-        <Link
-          href="/shopping-list"
-          className="flex min-h-11 items-center justify-between rounded-xl border px-3 py-2 text-xs font-medium text-gray-600 hover:border-[#944a00]/30 hover:text-[#944a00]"
-        >
-          Shopping List <ChevronRight className="h-3.5 w-3.5" />
-        </Link>
-      </div>
+      <NutritionSummaryLinks nextMealName={nextMealName} />
     </div>
   );
 }

@@ -5,7 +5,10 @@ import { Button, colors, Text } from '@chefer/ui-mobile';
 import {
   cn,
   describeProteinSnack,
+  describeSnackProteinOnly,
   localDateStr,
+  proteinOnlyHeadline,
+  proteinOnlyOfferCopy,
   rebalanceOfferCopy,
   userFacingErrorMessage,
   type RebalancePreviewLike,
@@ -13,11 +16,6 @@ import {
 } from '@chefer/utils';
 import { trpc } from '../../lib/trpc';
 import { useNumbersMode } from '../numbers-mode/numbers-mode';
-import {
-  describeSnackProteinOnly,
-  proteinOnlyHeadline,
-  proteinOnlyOfferCopy,
-} from '../numbers-mode/numbers-mode-copy';
 import { clearRebalanceOffer, setRebalanceOffer, useRebalanceOffer } from './rebalance-offer-store';
 import { isMealType, recordRebalance } from './rebalance-store';
 
