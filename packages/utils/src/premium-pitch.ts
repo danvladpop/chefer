@@ -160,17 +160,16 @@ const JOBS: Record<PremiumJobId, PitchJob> = {
   },
   training: {
     headline: () => 'A week built around your training days',
-    lede: 'Premium raises your targets on training days and plans protein-rich meals around them.',
+    // Training-day targets are free (WP-07: no AI); Premium sells the AI week.
+    lede: 'Your training-day targets are free. Premium also builds the whole week around your sessions.',
     bullets: [
       b(
         (c) =>
           c.trainingDays
-            ? `More calories and protein on ${c.trainingDays}`
-            : 'More calories and protein on your training days',
-        'trainingNutrition',
-        { hiddenWhenFlag: 'trainingBumpFree' },
+            ? `A week with protein-rich meals on ${c.trainingDays}`
+            : 'A week with protein-rich meals on your training days',
+        'aiMealPlans',
       ),
-      b('A week with protein-rich meals on your training days', 'trainingNutrition'),
       b('Re-planned when your training days change', 'planned'),
       b('Refuel snacks that fit your allergies', 'planned'),
     ],
@@ -274,12 +273,9 @@ const JOBS: Record<PremiumJobId, PitchJob> = {
   },
   'gym-first': {
     headline: () => 'Food that fits your training week',
-    lede: 'Premium plans your meals around your sessions. The gym itself stays free.',
+    lede: 'Premium plans your meals around your sessions. The gym and your training-day targets stay free.',
     bullets: [
-      b('More calories and protein on your training days', 'trainingNutrition', {
-        hiddenWhenFlag: 'trainingBumpFree',
-      }),
-      b('A week of meals planned around your sessions', 'trainingNutrition'),
+      b('A week of meals planned around your sessions', 'aiMealPlans'),
       b('Everything in the gym stays free', 'gymTraining', { freeClaim: true }),
     ],
   },
@@ -288,7 +284,7 @@ const JOBS: Record<PremiumJobId, PitchJob> = {
 /** One row of "Also included": a live premium job, one line, AI ones last. */
 const ALSO_INCLUDED: readonly { job: PremiumJobId; line: string; feature: PlanFeatureKey }[] = [
   { job: 'household', line: 'Portions for your table', feature: 'householdPlans' },
-  { job: 'training', line: 'Nutrition that follows your training', feature: 'trainingNutrition' },
+  { job: 'training', line: 'A week built around your training', feature: 'aiMealPlans' },
   { job: 'budget', line: 'Plans that fit a weekly budget', feature: 'budgetAwarePlanning' },
   { job: 'pantry', line: 'Plans that use your kitchen', feature: 'pantryPlanning' },
   { job: 'default', line: 'Your week, ready every Monday', feature: 'weeklyAutoGeneration' },
