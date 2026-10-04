@@ -7,6 +7,9 @@ import { formatKcal, formatWeightTrend } from '@chefer/utils';
 import { AiGeneratedChip } from '../../components/ai-generated-chip';
 import { useUnitSystem } from '../../hooks/use-unit-system';
 import { trpc } from '../../lib/trpc';
+import { useNumbersMode } from '../numbers-mode/numbers-mode';
+import { proteinAverageText, withoutKcalLines } from '../numbers-mode/numbers-mode-copy';
+import { useProteinWeekAverage } from '../numbers-mode/use-protein-average';
 import { openPremium } from '../premium/open-premium';
 
 // Port of web features/coach/ChefReviewBanner (wave-2b). Renders nothing
@@ -51,7 +54,34 @@ function reviewExplainRows(r: Review, trend: string | null): { label: string; va
   return rows;
 }
 
+/** WP-08: the protein-only explanation — days logged and the protein average, no calories. */
+function proteinExplainRows(
+  r: Review,
+  avg: { protein: number } | null,
+  trend: string | null,
+): { label: string; value: string }[] {
+  const rows = [{ label: 'Days logged', value: `${loggedDaysOf7(r)} of 7 (${r.adherencePct} %)` }];
+  if (avg) rows.push({ label: 'Average protein', value: `${Math.round(avg.protein)} g a day` });
+  if (trend) rows.push({ label: 'Weight trend', value: trend });
+  return rows;
+}
+
+/**
+ * The weekly review card. In protein-only mode it reads the week's protein
+ * average (WP-08) from the tracker's week summary — a query only this branch
+ * makes, so full-mode screens never pay for it.
+ */
 export function ChefReviewBanner() {
+  const { proteinOnly } = useNumbersMode();
+  return proteinOnly ? <ProteinReviewBanner /> : <ReviewBanner proteinAverage={null} />;
+}
+
+function ProteinReviewBanner() {
+  return <ReviewBanner proteinAverage={useProteinWeekAverage(true)} />;
+}
+
+function ReviewBanner({ proteinAverage }: { proteinAverage: { protein: number } | null }) {
+  const { proteinOnly } = useNumbersMode();
   const { data } = trpc.coach.currentReview.useQuery(undefined, { staleTime: 60_000 });
   const system = useUnitSystem();
   const [expanded, setExpanded] = useState(false);
@@ -72,7 +102,11 @@ export function ChefReviewBanner() {
             <Text className="text-sm font-semibold text-gray-900">
               Your chef noticed something about your week…
             </Text>
-            <Text className="mt-1 text-sm text-gray-700">{data.firstLine}</Text>
+            {(proteinOnly ? withoutKcalLines(data.firstLine) : data.firstLine) !== '' && (
+              <Text className="mt-1 text-sm text-gray-700">
+                {proteinOnly ? withoutKcalLines(data.firstLine) : data.firstLine}
+              </Text>
+            )}
             {/* Locked lines — placeholder text, deliberately NOT the review. */}
             <Text className="mt-1 text-sm text-gray-400 opacity-50">{TEASER_PLACEHOLDER}</Text>
             <Text className="mt-2 text-xs text-gray-500">
@@ -94,6 +128,9 @@ export function ChefReviewBanner() {
 
   const r = data.review;
   const trend = formatWeightTrend(r.weightTrendKg, system);
+  // WP-08: the review's text is composed server-side with calorie figures; protein-only drops those lines.
+  const fullText = proteinOnly ? withoutKcalLines(r.reviewText) : r.reviewText;
+  const reviewText = expanded ? fullText : fullText.split('\n')[0];
 
   return (
     <Card testID="coach-review" className="border-emerald-200 bg-emerald-50">
@@ -109,19 +146,25 @@ export function ChefReviewBanner() {
             testID="coach-review-ai-chip"
             a11yLabel={AI_REVIEW_A11Y_LABEL}
           />
-          <Text className="mt-0.5 text-xs text-emerald-800">
-            {expanded ? r.reviewText : r.reviewText.split('\n')[0]}
-          </Text>
+          <Text className="mt-0.5 text-xs text-emerald-800">{reviewText}</Text>
           <View className="mt-2 flex-row flex-wrap gap-x-4 gap-y-1">
             <Text className="text-xs text-emerald-800">
               <Text className="text-xs font-bold text-emerald-800">{r.adherencePct}%</Text> logged
             </Text>
-            <Text className="text-xs text-emerald-800">
-              <Text className="text-xs font-bold text-emerald-800">{r.avgDailyKcal}</Text> kcal/day
-              avg
-            </Text>
+            {proteinOnly ? (
+              proteinAverage && (
+                <Text testID="coach-review-protein-average" className="text-xs text-emerald-800">
+                  {proteinAverageText(proteinAverage)}
+                </Text>
+              )
+            ) : (
+              <Text className="text-xs text-emerald-800">
+                <Text className="text-xs font-bold text-emerald-800">{r.avgDailyKcal}</Text>{' '}
+                kcal/day avg
+              </Text>
+            )}
             {trend && <Text className="text-xs text-emerald-800">{trend}</Text>}
-            {r.adjustmentKcal !== 0 && (
+            {!proteinOnly && r.adjustmentKcal !== 0 && (
               <Text className="text-xs text-emerald-800">
                 budget {r.adjustmentKcal > 0 ? '+' : ''}
                 {r.adjustmentKcal} kcal
@@ -158,8 +201,16 @@ export function ChefReviewBanner() {
               onClose={() => setExplainOpen(false)}
               eyebrow="Your weekly review"
               title="Where these numbers come from"
-              sentence={reviewExplainSentence(r)}
-              rows={reviewExplainRows(r, trend)}
+              sentence={
+                proteinOnly
+                  ? `Your chef looked at the last 7 days: you logged ${loggedDaysOf7(r)} of them.`
+                  : reviewExplainSentence(r)
+              }
+              rows={
+                proteinOnly
+                  ? proteinExplainRows(r, proteinAverage, trend)
+                  : reviewExplainRows(r, trend)
+              }
               footnote="Averages only count the days you logged."
               testID="coach-review-explain"
             />

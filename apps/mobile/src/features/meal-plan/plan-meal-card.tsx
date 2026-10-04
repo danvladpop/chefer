@@ -7,6 +7,8 @@ import { conflictText, formatPortion, slotPortion, verifiedLabels } from '@chefe
 import { AiGeneratedChip } from '../../components/ai-generated-chip';
 import type { RouterOutputs } from '../../lib/trpc';
 import { NutritionStatusTag } from '../ingredients/nutrition-provenance';
+import { useNumbersMode } from '../numbers-mode/numbers-mode';
+import { proteinLabel } from '../numbers-mode/numbers-mode-copy';
 import { AllergenWarningChip } from '../recipes/allergen-warning';
 import { CheckedForChip } from '../safety/checked-for-chip';
 import { MealCardView } from './meal-card-view';
@@ -45,6 +47,8 @@ export function PlanMealCard({
    */
   slotNote?: ReactNode;
 }) {
+  // WP-08: protein-only mode shows protein per meal instead of kcal (the plan still balances kcal).
+  const { proteinOnly } = useNumbersMode();
   // P1-1: the slot may be sized to the day's targets (1½× the recipe).
   const portion = slotPortion(meal.portion);
   const portionParam = portion !== 1 ? { portion: String(portion) } : {};
@@ -116,8 +120,10 @@ export function PlanMealCard({
           <Text className="text-xs text-gray-500">
             {meal.recipe.prepTimeMins + meal.recipe.cookTimeMins}m
           </Text>
-          <Text className="text-xs text-gray-500">
-            {Math.round(meal.recipe.nutritionInfo.calories * portion)} kcal
+          <Text testID={`${testID}-nutrition`} className="text-xs text-gray-500">
+            {proteinOnly
+              ? proteinLabel(meal.recipe.nutritionInfo.protein * portion)
+              : `${Math.round(meal.recipe.nutritionInfo.calories * portion)} kcal`}
           </Text>
           <NutritionStatusTag status={meal.recipe.nutritionStatus} />
         </View>
