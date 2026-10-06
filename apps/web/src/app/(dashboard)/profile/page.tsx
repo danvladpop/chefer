@@ -7,6 +7,7 @@ import { AccountDataCard } from '@/features/profile/components/AccountDataCard';
 import { AiConsentCard } from '@/features/profile/components/AiConsentCard';
 import { AnalyticsConsentCard } from '@/features/profile/components/AnalyticsConsentCard';
 import { HealthConsentCard } from '@/features/profile/components/HealthConsentCard';
+import { SignInMethodsCard } from '@/features/profile/components/SignInMethodsCard';
 import { useHousehold } from '@/hooks/useHousehold';
 import { trpc } from '@/lib/trpc';
 import { Check, ChevronRight, Users } from 'lucide-react';
@@ -368,6 +369,7 @@ export default function ProfilePage() {
         <HealthConsentCard />
         <AiConsentCard />
         <AnalyticsConsentCard />
+        <SignInMethodsCard />
         <AccountDataCard />
       </div>
 

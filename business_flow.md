@@ -336,12 +336,12 @@ during render. A successful login overwrites it via `Set-Cookie`.
 
 **Role capabilities:**
 
-| Role              | What they can do                                                                                                                                          |
-| ----------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| (unauthenticated) | `auth.register`, `auth.login`, `auth.requestPasswordReset`, `auth.resetPassword`, `auth.me`                                                               |
-| USER              | All protected procedures: `user.me`, `user.update` (own), `user.deleteSelf` (own, password), `user.grant/revokeAiDataConsent`, plans, recipes, tracker, … |
-| MODERATOR         | Same as USER (moderation capabilities reserved for future)                                                                                                |
-| ADMIN             | Everything, incl. `user.list`, `user.getById`, `user.create`, `user.delete`, `user.update` (any user); treated as premium by `premiumProcedure`           |
+| Role              | What they can do                                                                                                                                                                                                                   |
+| ----------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| (unauthenticated) | `auth.register`, `auth.login`, `auth.socialAvailability`, `auth.socialSignIn`, `auth.requestPasswordReset`, `auth.resetPassword`, `auth.me`                                                                                        |
+| USER              | All protected procedures: `user.me`, `user.update` (own), `user.deleteSelf` (own, password or provider re-auth), `auth.linkedIdentities/linkIdentity/unlinkIdentity`, `user.grant/revokeAiDataConsent`, plans, recipes, tracker, … |
+| MODERATOR         | Same as USER (moderation capabilities reserved for future)                                                                                                                                                                         |
+| ADMIN             | Everything, incl. `user.list`, `user.getById`, `user.create`, `user.delete`, `user.update` (any user); treated as premium by `premiumProcedure`                                                                                    |
 
 ---
 
@@ -352,6 +352,52 @@ Health writes (`preferences.updateSafety/setup/saveProfileBasics/updateTargets`,
 rejects. `declared`: an un-consented write is rejected (`PRECONDITION_FAILED` / `HEALTH_CONSENT_REQUIRED`) only from a
 client sending `x-chefer-api-level >= 4`; a request WITHOUT the header (installed binary) is always accepted. See
 §33 and `infrastructure.md` §9.
+
+### 4.10 Sign in with Google / Apple (WP-22, 2026-10-04)
+
+> **Status:** API + web implemented; mobile follows in the next native build (it needs the Google/Apple SDK modules and the
+> Apple entitlement). Disabled everywhere until the owner sets the provider credentials (`infrastructure.md` §10 runbook).
+
+```
+Login / Register page (web)  |  mobile sign-in / sign-up screen
+  │  auth.socialAvailability (public) → { google: { enabled, … }, apple: { enabled, … } }
+  │     a provider that is not configured is simply not shown (no error, no empty space)
+  │
+  ├─ "Continue with Google"  (web: Google's own button via Google Identity Services; mobile: native Google sign-in)
+  └─ "Continue with Apple"   (web: Sign in with Apple JS popup; iOS: native sheet — Apple REQUIRES it next to Google)
+        client creates a nonce: provider gets sha256(raw), the API gets raw
+        under the buttons: "By continuing you agree to the Terms and Privacy Policy and confirm you are 16 or older."
+        │
+        └─ auth.socialSignIn { provider, idToken, nonce, authorizationCode?, givenName?, familyName?, acceptLegal: true,
+                               acceptedTermsVersion, region? }      (rate-limited like login)
+              ├─ token fails (signature / issuer / audience / expiry / nonce) → UNAUTHORIZED "We couldn't verify your sign-in…"
+              ├─ provider not configured                                       → PRECONDITION_FAILED
+              ├─ (provider, sub) already linked          → sign in                        isNewUser: false
+              ├─ same email as an existing account:
+              │     ├─ provider did NOT verify the email  → CONFLICT (sign in with your password, connect later)
+              │     └─ verified → link + sign in           linkedExistingAccount: true
+              │           (account whose email was never verified: its password is cleared and its other sessions are
+              │            revoked — the person holding the inbox is now the only one who can get in)
+              └─ new person:
+                    needs acceptLegal: true               → else BAD_REQUEST (legalRequired)
+                    needs a provider-VERIFIED email       → else BAD_REQUEST (Apple "Hide My Email" relay addresses are fine)
+                    create user (no password, emailVerified), TERMS + PRIVACY + AGE consent events (source web|mobile),
+                    the usual email/auto-plan "off" defaults             isNewUser: true
+        │
+        └─ result = auth.login's (cookie for web / session token for mobile) + { isNewUser, linkedExistingAccount }
+              new user → onboarding (same as register); returning user → dashboard
+```
+
+- **Names:** Apple sends `givenName`/`familyName` only the first time, outside the token — the client forwards them at once.
+- **Linked accounts** (web Profile → Sign-in methods, mobile Profile): `auth.linkedIdentities` lists them with `hasPassword`;
+  `auth.linkIdentity` connects another (a different Apple "Hide My Email" account can be connected this way);
+  `auth.unlinkIdentity` disconnects — refused ("set a password first") when it is the only way to sign in. Unlinking
+  Apple also revokes the Apple grant.
+- **No password?** An OAuth-only account can still use "Forgot password" (reset link → sets its first password). Changing the
+  sign-in email stays password-gated, so it is not available until a password exists.
+- **Account deletion** (§24): OAuth-only accounts confirm with a fresh provider sign-in (`reauth`) instead of a password.
+- **Password managers:** password fields are `autocomplete="current-password"` (login) / `new-password` (register, reset);
+  the native apps also need the `/.well-known/apple-app-site-association` and `/.well-known/assetlinks.json` files.
 
 ## 5. View User Profile Flow
 
@@ -3716,8 +3762,12 @@ Profile → Your data → "Delete account"  (web /profile, mobile Profile — la
      password field opts out of iOS "Save Password?" (R-17), and the footer
      button works on the first tap with the keyboard up (R-03, `Sheet` footers).
         │
-        └─ user.deleteSelf { password, confirm: 'DELETE' }
+        └─ user.deleteSelf { password?, reauth?, confirm: 'DELETE' }
+              │   (WP-22: an account that signs in with Google/Apple only has no password — the sheet shows
+              │    "Confirm it's you" with that provider's button instead of the password field, and sends the
+              │    FRESH ID token (≤ 10 min old, for an identity linked to this account) as `reauth`)
               ├─ wrong password            → FORBIDDEN "That password is not correct"
+              ├─ neither / bad reauth      → FORBIDDEN (deleteNeedsReauth)
               ├─ caller is the last ADMIN  → BAD_REQUEST (promote someone first)
               └─ deleteAccount(userId) — ONE transaction:
                     shopping_lists (by the user's planIds; no FK)
@@ -3726,7 +3776,8 @@ Profile → Your data → "Delete account"  (web /profile, mobile Profile — la
                     verification_tokens 'reset:<email>'
                     workout_sessions, routines (before the user: RESTRICT FKs)
                     sessions (every device)
-                    users row → cascades everything else
+                    users row → cascades everything else (incl. auth_identities)
+                 then Sign in with Apple grants are REVOKED at Apple (best effort, App Review 5.1.1(v))
                  then deleteUploadedFiles(): the /uploads files behind the
                  avatar, own recipes and custom ingredients (best effort,
                  P0-6) — then authService.logout clears the web cookie

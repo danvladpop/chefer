@@ -199,6 +199,7 @@ model User {
 
   // Relations
   accounts             Account[]
+  authIdentities       AuthIdentity[]
   sessions             Session[]
   posts                Post[]
   profile              UserProfile?
@@ -753,6 +754,34 @@ model WeightEntry {
 
   @@index([userId, recordedAt])
   @@map("weight_entries")
+}
+
+// Sign in with Google / Apple (WP-22). One row per linked provider identity;
+// `provider` is "GOOGLE" | "APPLE" (a string, so a new provider needs no enum
+// migration) and `subject` is the provider's stable `sub` claim. An OAuth-only
+// account simply has a null User.passwordHash. `refreshTokenEnc` (Apple only)
+// is the AES-256-GCM-encrypted Apple refresh token, kept only so the grant can
+// be revoked when the account is deleted or the identity unlinked;
+// `tokenClientId` is the Apple client id (bundle id or Services ID) it was
+// issued to — revocation must name the same one.
+model AuthIdentity {
+  id              String    @id @default(cuid())
+  userId          String
+  provider        String
+  subject         String
+  email           String?
+  emailVerified   Boolean   @default(false)
+  refreshTokenEnc String?   @db.Text
+  tokenClientId   String?
+  createdAt       DateTime  @default(now())
+  lastSignInAt    DateTime?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, subject])
+  @@unique([userId, provider])
+  @@index([userId])
+  @@map("auth_identities")
 }
 
 model Account {

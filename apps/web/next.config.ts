@@ -84,6 +84,16 @@ const nextConfig: NextConfig = {
         destination: `${process.env['API_INTERNAL_URL'] ?? process.env['NEXT_PUBLIC_API_URL'] ?? 'http://localhost:3001'}/api/chat`,
       },
       {
+        // Password-manager association files (WP-22) are served by the API;
+        // Caddy routes them in production, this rewrite covers dev.
+        source: '/.well-known/apple-app-site-association',
+        destination: `${process.env['API_INTERNAL_URL'] ?? process.env['NEXT_PUBLIC_API_URL'] ?? 'http://localhost:3001'}/.well-known/apple-app-site-association`,
+      },
+      {
+        source: '/.well-known/assetlinks.json',
+        destination: `${process.env['API_INTERNAL_URL'] ?? process.env['NEXT_PUBLIC_API_URL'] ?? 'http://localhost:3001'}/.well-known/assetlinks.json`,
+      },
+      {
         // Meal photo scan (F4 Snap-to-Log) — same API-owned endpoint pattern;
         // Caddy routes it in production, this rewrite covers dev.
         source: '/api/scan-meal',
