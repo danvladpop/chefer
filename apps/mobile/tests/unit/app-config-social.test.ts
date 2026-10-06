@@ -84,9 +84,10 @@ describe('app.config.js — social sign-in native config', () => {
   it('ignores a malformed value with a warning instead of failing the build', () => {
     const warn = jest.spyOn(console, 'warn').mockImplementation(() => undefined);
     const prod = loadConfig({ ...PROD, GOOGLE_IOS_URL_SCHEME: 'not-a-google-scheme' });
-    expect(googlePlugin(prod)?.[1]).toEqual({
-      iosUrlScheme: 'com.googleusercontent.apps.796396192005-trvmr1qkll4sgujsjj47u5a3tgrg7uuc',
-    });
+    expect(googlePlugin(prod)).toEqual([
+      '@react-native-google-signin/google-signin',
+      { iosUrlScheme: 'com.googleusercontent.apps.796396192005-trvmr1qkll4sgujsjj47u5a3tgrg7uuc' },
+    ]);
     const dev = loadConfig({ GOOGLE_IOS_URL_SCHEME: 'not-a-google-scheme' });
     expect(googlePlugin(dev)).toBeUndefined();
     expect(warn).toHaveBeenCalledTimes(2);
@@ -94,9 +95,10 @@ describe('app.config.js — social sign-in native config', () => {
 
   it('treats empty strings (an unset CI variable) as unset — production keeps its default', () => {
     const prod = loadConfig({ ...PROD, GOOGLE_IOS_URL_SCHEME: '', GOOGLE_IOS_CLIENT_ID: '' });
-    expect(googlePlugin(prod)?.[1]).toEqual({
-      iosUrlScheme: 'com.googleusercontent.apps.796396192005-trvmr1qkll4sgujsjj47u5a3tgrg7uuc',
-    });
+    expect(googlePlugin(prod)).toEqual([
+      '@react-native-google-signin/google-signin',
+      { iosUrlScheme: 'com.googleusercontent.apps.796396192005-trvmr1qkll4sgujsjj47u5a3tgrg7uuc' },
+    ]);
     const dev = loadConfig({ GOOGLE_IOS_URL_SCHEME: '', GOOGLE_IOS_CLIENT_ID: '' });
     expect(googlePlugin(dev)).toBeUndefined();
   });
