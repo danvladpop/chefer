@@ -7,7 +7,16 @@ import {
   HOUSEHOLD_PORTION_OPTIONS,
   type HouseholdAgeBand,
 } from '@chefer/types';
-import { Button, Card, ErrorState, Input, PressableScale, Sheet, Text } from '@chefer/ui-mobile';
+import {
+  Button,
+  Card,
+  DONE_FIELD_PROPS,
+  ErrorState,
+  Input,
+  PressableScale,
+  Sheet,
+  Text,
+} from '@chefer/ui-mobile';
 import {
   AGE_BAND_LABELS,
   ageBandLabel,
@@ -454,6 +463,7 @@ export function HouseholdEditor({
             onChangeText={setName}
             placeholder={isKid ? 'Name — e.g. Sam' : 'Name — e.g. Maria'}
             accessibilityLabel="Name"
+            {...DONE_FIELD_PROPS}
           />
           <View className="gap-1">
             <Text variant="label">Portion size</Text>

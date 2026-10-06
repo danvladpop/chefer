@@ -1,12 +1,12 @@
 import { useState } from 'react';
-import { Pressable, TextInput, View } from 'react-native';
+import { Pressable, View } from 'react-native';
 import {
   HIDDEN_EXERCISE_IMAGE_IDS,
   type ExerciseDto,
   type SessionExerciseDoc,
   type WeightUnit,
 } from '@chefer/types';
-import { Button, ExplainSheet, Sheet, Text } from '@chefer/ui-mobile';
+import { Button, ExplainSheet, Input, Sheet, Text } from '@chefer/ui-mobile';
 import { cn, explain, explainInputs, formatLoad } from '@chefer/utils';
 import { ExerciseImage } from '../components/exercise-image';
 import { ExerciseVideoSheet } from '../library-screens/exercise-video-sheet';
@@ -413,7 +413,7 @@ export function ExerciseMenuSheet(props: ExerciseMenuProps) {
 
       {page === 'note' ? (
         <View className="gap-3">
-          <TextInput
+          <Input
             testID="menu-note-input"
             accessibilityLabel="Exercise note"
             value={note}
@@ -421,7 +421,7 @@ export function ExerciseMenuSheet(props: ExerciseMenuProps) {
             placeholder="Seat height, grip, a cue…"
             multiline
             maxLength={500}
-            className="min-h-24 rounded-xl border border-border bg-background p-3 text-base"
+            className="min-h-24 rounded-xl border-border p-3"
             textAlignVertical="top"
           />
           <Button

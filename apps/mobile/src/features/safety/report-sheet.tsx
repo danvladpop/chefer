@@ -1,6 +1,6 @@
 import { useState } from 'react';
-import { TextInput, View } from 'react-native';
-import { Button, ChipGroup, Sheet, Text, useSnackbar } from '@chefer/ui-mobile';
+import { View } from 'react-native';
+import { Button, ChipGroup, Input, Sheet, Text, useSnackbar } from '@chefer/ui-mobile';
 import { reportSentSnackbarText, SAFETY_COPY, userFacingErrorMessage } from '@chefer/utils';
 import { trpc } from '../../lib/trpc';
 
@@ -85,14 +85,14 @@ export function ReportSafetySheet({
       />
       <View className="gap-1">
         <Text variant="label">{SAFETY_COPY.reportNoteLabel}</Text>
-        <TextInput
+        <Input
           testID="report-safety-note"
           value={note}
           onChangeText={setNote}
           multiline
           numberOfLines={3}
           accessibilityLabel={SAFETY_COPY.reportNoteLabel}
-          className="min-h-20 rounded-md border border-input bg-background p-3 text-sm text-foreground"
+          className="min-h-20 p-3 text-sm"
         />
       </View>
       {reportMutation.isError ? (

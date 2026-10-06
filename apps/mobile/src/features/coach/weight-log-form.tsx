@@ -129,6 +129,7 @@ export function WeightLogForm({
             setValue(text);
             setInputError(null);
           }}
+          returnKeyType="done"
           onSubmitEditing={() => submit()}
           inputAccessoryViewID={barId}
           keyboardType="decimal-pad"
@@ -142,7 +143,9 @@ export function WeightLogForm({
           accessibilityRole="button"
           accessibilityLabel="Log weight"
           disabled={disabled}
-          onPress={() => submit()}
+          onPress={() => {
+            if (submit()) Keyboard.dismiss();
+          }}
           className={cn(
             'h-11 w-11 items-center justify-center rounded-md bg-primary',
             disabled && 'opacity-40',

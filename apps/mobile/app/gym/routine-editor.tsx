@@ -7,6 +7,7 @@ import {
   Badge,
   Button,
   ConfirmSheet,
+  DONE_FIELD_PROPS,
   EmptyState,
   Input,
   KeyboardAwareScrollView,
@@ -271,7 +272,7 @@ export default function GymRoutineEditorScreen() {
           maxLength={60}
           onChangeText={(name) => dispatch({ type: 'renameRoutine', name })}
           onFocus={() => scrollFieldIntoView(nameRef.current)}
-          returnKeyType="done"
+          {...DONE_FIELD_PROPS}
           placeholder="Routine name"
         />
 

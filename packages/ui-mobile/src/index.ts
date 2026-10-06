@@ -47,6 +47,7 @@ export { Input, type InputProps } from './components/input';
 export {
   KeyboardAwareScrollView,
   KEYBOARD_AWARE_DEFAULT_MARGIN,
+  keyboardDismissMode,
   useScrollFieldIntoView,
   useScrollFieldIntoViewFor,
   type KeyboardAwareScrollViewProps,
@@ -58,7 +59,15 @@ export {
   type UseKeyboardInsetOptions,
 } from './components/use-keyboard-inset';
 export { PasswordInput, type PasswordInputProps } from './components/password-input';
-export { NumericReturnBar, type NumericReturnBarProps } from './components/numeric-return-bar';
+export {
+  DONE_FIELD_PROPS,
+  KeyboardDoneBar,
+  NumericReturnBar,
+  hasNoReturnKey,
+  useKeyboardDoneBar,
+  type NumericReturnBarProps,
+} from './components/numeric-return-bar';
+export { EMAIL_FIELD_PROPS } from './components/email-field-props';
 export { ProgressBar, type ProgressBarProps } from './components/progress-bar';
 export { ProgressRing, type ProgressRingProps } from './components/progress-ring';
 export { Screen, type ScreenProps } from './components/screen';

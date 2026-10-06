@@ -1,7 +1,16 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Image, Pressable, View, type TextInput } from 'react-native';
+import { Image, Keyboard, Pressable, View, type TextInput } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { Button, Chip, Input, SegmentedControl, Sheet, Text, useSnackbar } from '@chefer/ui-mobile';
+import {
+  Button,
+  Chip,
+  DONE_FIELD_PROPS,
+  Input,
+  SegmentedControl,
+  Sheet,
+  Text,
+  useSnackbar,
+} from '@chefer/ui-mobile';
 import {
   checkMacroSanity,
   clampIngredientGrams,
@@ -25,6 +34,7 @@ import { getRecipeImageUrl } from '../../lib/recipe-image';
 import { trpc, type RouterOutputs } from '../../lib/trpc';
 import { NutritionStatusTag } from '../ingredients/nutrition-provenance';
 import { useNumbersMode } from '../numbers-mode/numbers-mode';
+import { useNumericChain } from '../preferences/use-numeric-chain';
 import { invalidateDayQueries } from './invalidate';
 import { REBALANCE_PREVIEW, recordRebalanceOutcome } from './rebalance-offer-store';
 import { mealLabel, SLOT_COPY } from './slot-copy';
@@ -156,6 +166,9 @@ export function QuickAddSheet({
   const [macros, setMacros] = useState({ protein: '', carbs: '', fat: '' });
   const [errors, setErrors] = useState<QuickAddErrors>({});
   const [sanityOverridden, setSanityOverridden] = useState(false);
+  // name → kcal → protein → carbs → fat (full) or name → protein (protein-only): Next on each,
+  // Done on the last. The refs above stay so submit can focus the first invalid field.
+  const numbers = useNumericChain('quick-add', proteinOnly ? 1 : 4);
   // UX-FOOD-10: a field's error goes the moment that field is edited.
   const clearError = (key: keyof QuickAddErrors) =>
     setErrors((prev) => {
@@ -427,6 +440,7 @@ export function QuickAddSheet({
       return;
     }
     setErrors({});
+    Keyboard.dismiss();
     if (!sanityOverridden) {
       const sanity = checkMacroSanity(parsed.entry);
       if (!sanity.ok) {
@@ -555,6 +569,7 @@ export function QuickAddSheet({
             }}
             placeholder="What did you eat?"
             returnKeyType="search"
+            onSubmitEditing={() => Keyboard.dismiss()}
           />
 
           {(logRecipeMutation.isError || logCustomMutation.isError) && (
@@ -845,6 +860,7 @@ export function QuickAddSheet({
                             }}
                             keyboardType="number-pad"
                             className="min-w-0 flex-1"
+                            {...DONE_FIELD_PROPS}
                           />
                           <Text className="text-sm text-muted-foreground">g</Text>
                         </View>
@@ -987,6 +1003,7 @@ export function QuickAddSheet({
               maxLength={QUICK_ADD_LIMITS.nameMaxLength}
               placeholder="e.g. Slice of birthday cake"
               returnKeyType="next"
+              onSubmitEditing={numbers.focusFirst}
               onChangeText={(text) => {
                 setName(text);
                 clearError('name');
@@ -1023,7 +1040,6 @@ export function QuickAddSheet({
                 <View className="flex-row items-center gap-2">
                   <Input
                     testID="quick-add-protein"
-                    ref={macroInputRefs.protein}
                     accessibilityLabel="Protein grams"
                     value={macros.protein}
                     placeholder="30"
@@ -1033,6 +1049,7 @@ export function QuickAddSheet({
                       clearError('protein');
                     }}
                     className="min-w-0 flex-1"
+                    {...numbers.bind(0, { fieldRef: macroInputRefs.protein })}
                   />
                   <Text className="text-sm text-muted-foreground">g</Text>
                 </View>
@@ -1052,7 +1069,6 @@ export function QuickAddSheet({
                 <View className="flex-row items-center gap-2">
                   <Input
                     testID="quick-add-kcal"
-                    ref={kcalInputRef}
                     accessibilityLabel="Calories"
                     value={kcal}
                     placeholder="350"
@@ -1063,6 +1079,7 @@ export function QuickAddSheet({
                       setSanityOverridden(false);
                     }}
                     className="min-w-0 flex-1"
+                    {...numbers.bind(0, { fieldRef: kcalInputRef })}
                   />
                   <Text className="text-sm text-muted-foreground">kcal</Text>
                 </View>
@@ -1076,12 +1093,11 @@ export function QuickAddSheet({
               <View className="gap-1">
                 <Text className="text-xs font-medium text-gray-600">Macros (optional, grams)</Text>
                 <View className="flex-row gap-2">
-                  {MACROS.map(({ key, label }) => (
+                  {MACROS.map(({ key, label }, index) => (
                     <View key={key} className="min-w-0 flex-1 gap-1">
                       <Text className="text-xs font-medium text-gray-600">{label} (g)</Text>
                       <Input
                         testID={`quick-add-${key}`}
-                        ref={macroInputRefs[key]}
                         accessibilityLabel={`${label} grams`}
                         value={macros[key]}
                         placeholder="–"
@@ -1091,6 +1107,7 @@ export function QuickAddSheet({
                           clearError(key);
                           setSanityOverridden(false);
                         }}
+                        {...numbers.bind(index + 1, { fieldRef: macroInputRefs[key] })}
                       />
                       {errors[key] && (
                         <Text testID={`quick-add-${key}-error`} className="text-xs text-red-600">
@@ -1103,6 +1120,8 @@ export function QuickAddSheet({
               </View>
             </>
           )}
+
+          {numbers.bars}
 
           {logCustomMutation.isError && (
             <Text testID="quick-add-api-error" className="text-sm text-red-600">

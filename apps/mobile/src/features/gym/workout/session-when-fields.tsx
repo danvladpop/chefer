@@ -1,7 +1,7 @@
 import { useEffect, useId, useState } from 'react';
 import { Keyboard, Pressable, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { Input, NumericReturnBar, Text } from '@chefer/ui-mobile';
+import { DONE_FIELD_PROPS, Input, NumericReturnBar, Text } from '@chefer/ui-mobile';
 import { addDaysLocal, cn, weekdayDateLabel } from '@chefer/utils';
 
 // The `When` of a past workout (owner dogfood 2026-09-30): a day and how long
@@ -153,7 +153,7 @@ export function SessionWhenFields({
             aria-invalid={invalid}
             keyboardType="number-pad"
             inputAccessoryViewID={barId}
-            returnKeyType="done"
+            {...DONE_FIELD_PROPS}
             value={text}
             onChangeText={onChangeText}
             onBlur={() => {

@@ -8,6 +8,7 @@ import {
   Button,
   Card,
   ConfirmSheet,
+  DONE_FIELD_PROPS,
   Input,
   Sheet,
   Text,
@@ -488,7 +489,7 @@ export function DayEditor({
           maxLength={40}
           onChangeText={(name) => dispatch({ type: 'renameDay', dayKey: day.key, name })}
           onFocus={() => scrollFieldIntoView(nameRef.current)}
-          returnKeyType="done"
+          {...DONE_FIELD_PROPS}
           placeholder="Day name"
         />
         <Pressable

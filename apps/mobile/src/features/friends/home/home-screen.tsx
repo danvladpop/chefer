@@ -21,6 +21,7 @@ import {
   duration,
   EmptyState,
   ErrorState,
+  keyboardDismissMode,
   Screen,
   SearchField,
   SegmentedControl,
@@ -422,6 +423,7 @@ export function FriendsHome({ me, unread, refetchMe }: FriendsHomeProps) {
           renderItem={renderRow}
           initialNumToRender={20}
           keyboardShouldPersistTaps="handled"
+          keyboardDismissMode={keyboardDismissMode()}
           onEndReached={() => loadMore(list.query)}
           onEndReachedThreshold={0.5}
           refreshControl={

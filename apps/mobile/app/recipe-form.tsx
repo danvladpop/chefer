@@ -1,5 +1,5 @@
 import { forwardRef, useEffect, useRef, useState } from 'react';
-import { Pressable, TextInput, View } from 'react-native';
+import { Keyboard, Pressable, View, type TextInput } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { router, useLocalSearchParams } from 'expo-router';
 import { CUISINE_PRESETS, FRIENDS_COPY, INGREDIENT_CATALOG_COPY } from '@chefer/types';
@@ -8,9 +8,11 @@ import {
   Card,
   ChipGroup,
   ConfirmSheet,
+  DONE_FIELD_PROPS,
   ErrorState,
   FormField,
   haptics,
+  Input,
   KeyboardAwareScrollView,
   Screen,
   SelectField,
@@ -42,6 +44,10 @@ import {
 } from '../src/features/ingredients/catalog-line';
 import { ComputedNutritionCard } from '../src/features/ingredients/computed-nutrition-card';
 import { useComputedNutrition } from '../src/features/ingredients/use-computed-nutrition';
+import {
+  useNumericChain,
+  type NumericChainFieldProps,
+} from '../src/features/preferences/use-numeric-chain';
 import { recipeFormCopy } from '../src/features/recipes/form/copy';
 import { FormFooter } from '../src/features/recipes/form/form-footer';
 import { IngredientLine } from '../src/features/recipes/form/ingredient-line';
@@ -95,20 +101,19 @@ const NameInput = forwardRef<
   { value: string; onChangeText: (v: string) => void; placeholder: string; label: string }
 >(function NameInput({ value, onChangeText, placeholder, label }, ref) {
   return (
-    <TextInput
+    <Input
       ref={ref}
       testID="rf-name-input"
-      accessibilityLabel={label}
+      label={label}
       value={value}
       onChangeText={onChangeText}
       placeholder={placeholder}
-      placeholderTextColor="#9ca3af"
-      returnKeyType="next"
-      className="min-h-11 py-2 rounded-md border border-input bg-background px-3 text-base text-foreground"
+      {...DONE_FIELD_PROPS}
     />
   );
 });
 
+// Multiline: Return stays a newline; `Input` adds iOS's "Done" accessory.
 function DescriptionInput({
   value,
   onChangeText,
@@ -117,40 +122,42 @@ function DescriptionInput({
   onChangeText: (v: string) => void;
 }) {
   return (
-    <TextInput
+    <Input
       testID="rf-description"
-      accessibilityLabel={recipeFormCopy.fields.description}
+      label={recipeFormCopy.fields.description}
       value={value}
       onChangeText={onChangeText}
       placeholder="What makes it special? (optional)"
-      placeholderTextColor="#9ca3af"
       multiline
-      className="min-h-20 rounded-md border border-input bg-background px-3 py-2 text-base text-foreground"
+      className="min-h-20"
     />
   );
 }
 
+// Numeric: prep → cook chain (`useNumericChain` binds ref, return key, the
+// per-field iOS Next/Done bar and Android's ✓).
 function TimeInput({
   value,
   onChangeText,
   testID,
   label,
+  chain,
 }: {
   value: string;
   onChangeText: (v: string) => void;
   testID: string;
   label: string;
+  chain: NumericChainFieldProps;
 }) {
   return (
-    <TextInput
+    <Input
       testID={testID}
-      accessibilityLabel={label}
+      label={label}
       value={value}
       onChangeText={onChangeText}
       placeholder="optional"
-      placeholderTextColor="#9ca3af"
       keyboardType="number-pad"
-      className="min-h-11 py-2 rounded-md border border-input bg-background px-3 text-base text-foreground"
+      {...chain}
     />
   );
 }
@@ -234,6 +241,7 @@ export default function RecipeFormScreen() {
   const [photoUploading, setPhotoUploading] = useState(false);
 
   const nameInputRef = useRef<TextInput>(null);
+  const times = useNumericChain('rf-times', 2);
   const ingredientQtyRefs = useRef<(TextInput | null)[]>([]);
   const baselineRef = useRef<FormSnapshot | null>(null);
 
@@ -415,6 +423,7 @@ export default function RecipeFormScreen() {
       }
       return;
     }
+    Keyboard.dismiss();
     // The server computes from the linked lines and ignores these numbers
     // (D4); they are the same engine's preview, marked `computed`, so an API
     // that predates the catalog still stores something true.
@@ -559,6 +568,7 @@ export default function RecipeFormScreen() {
       </View>
 
       <KeyboardAwareScrollView
+        testID="rf-scroll"
         keyboardShouldPersistTaps="handled"
         contentContainerClassName="gap-4 px-4 pb-4"
         footer={
@@ -749,6 +759,7 @@ export default function RecipeFormScreen() {
                     onChangeText={setPrepTime}
                     testID="rf-prep"
                     label={recipeFormCopy.fields.prepTimeMins}
+                    chain={times.bind(0)}
                   />
                 </FormField>
                 <FormField label={recipeFormCopy.fields.cookTimeMins} testID="rf-cook-field">
@@ -757,9 +768,11 @@ export default function RecipeFormScreen() {
                     onChangeText={setCookTime}
                     testID="rf-cook"
                     label={recipeFormCopy.fields.cookTimeMins}
+                    chain={times.bind(1)}
                   />
                 </FormField>
               </View>
+              {times.bars}
             </View>
           ) : null}
         </View>

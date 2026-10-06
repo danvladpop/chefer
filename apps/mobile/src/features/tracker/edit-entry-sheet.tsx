@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { View } from 'react-native';
+import { Keyboard, View } from 'react-native';
 import { Button, Input, SegmentedControl, Sheet, Text, useSnackbar } from '@chefer/ui-mobile';
 import {
   checkMacroSanity,
@@ -12,6 +12,7 @@ import {
 } from '@chefer/utils';
 import { trpc } from '../../lib/trpc';
 import { useNumbersMode } from '../numbers-mode/numbers-mode';
+import { useNumericChain } from '../preferences/use-numeric-chain';
 import { invalidateDayQueries } from './invalidate';
 
 // Edit any custom entry, undo any delete (bug B-34, T-19.2). Only custom
@@ -78,6 +79,9 @@ export function EditEntrySheet({
     fat: '',
   });
   const [sanityOverridden, setSanityOverridden] = useState(false);
+  // name → kcal → protein → carbs → fat (full), or name → protein (protein-only): Next on
+  // each, Done on the last.
+  const numbers = useNumericChain('edit-entry', proteinOnly ? 1 : 1 + MACROS.length);
 
   useEffect(() => {
     if (!entry) return;
@@ -139,6 +143,7 @@ export function EditEntrySheet({
   const save = () => {
     if (!canSave || !entryId) return;
     if (sanity?.message) return; // the sanity line's Save anyway gates the submit
+    Keyboard.dismiss();
     updateMutation.mutate({
       date,
       entryId,
@@ -235,6 +240,8 @@ export function EditEntrySheet({
           accessibilityLabel="Name"
           value={name}
           onChangeText={setName}
+          returnKeyType="next"
+          onSubmitEditing={numbers.focusFirst}
         />
       </View>
 
@@ -263,6 +270,7 @@ export function EditEntrySheet({
                 keyboardType="decimal-pad"
                 onChangeText={(text) => setMacros((prev) => ({ ...prev, protein: text }))}
                 className="min-w-0 flex-1"
+                {...numbers.bind(0)}
               />
               <Text className="text-sm text-muted-foreground">g</Text>
             </View>
@@ -283,6 +291,7 @@ export function EditEntrySheet({
                   setSanityOverridden(false);
                 }}
                 className="min-w-0 flex-1"
+                {...numbers.bind(0)}
               />
               <Text className="text-sm text-muted-foreground">kcal</Text>
             </View>
@@ -291,7 +300,7 @@ export function EditEntrySheet({
           <View className="gap-1">
             <Text className="text-xs font-medium text-gray-600">Macros (optional, grams)</Text>
             <View className="flex-row gap-2">
-              {MACROS.map(({ key, label }) => (
+              {MACROS.map(({ key, label }, index) => (
                 <View key={key} className="min-w-0 flex-1 gap-1">
                   <Text className="text-xs font-medium text-gray-600">{label} (g)</Text>
                   <Input
@@ -304,6 +313,7 @@ export function EditEntrySheet({
                       setMacros((prev) => ({ ...prev, [key]: text }));
                       setSanityOverridden(false);
                     }}
+                    {...numbers.bind(index + 1)}
                   />
                 </View>
               ))}
@@ -311,6 +321,8 @@ export function EditEntrySheet({
           </View>
         </>
       )}
+
+      {numbers.bars}
 
       {updateMutation.isError && (
         <Text testID="edit-entry-api-error" className="text-sm text-red-600">

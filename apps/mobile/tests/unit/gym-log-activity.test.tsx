@@ -1,6 +1,7 @@
+import { Keyboard } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { onlineManager, QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { render, screen, userEvent, waitFor } from '@testing-library/react-native';
+import { fireEvent, render, screen, userEvent, waitFor } from '@testing-library/react-native';
 import type { GymBootstrap, WorkoutSessionDoc } from '@chefer/types';
 import { resetSnackbarForTests, Snackbar } from '@chefer/ui-mobile';
 import { addDaysLocal } from '@chefer/utils';
@@ -197,5 +198,55 @@ describe('Log an activity (WP-20)', () => {
     await waitFor(() => expect(screen.getByTestId('log-activity-form')).toBeOnTheScreen());
     expect(screen.getByTestId('log-activity-duration').props.value).toBe('');
     expect(queued()).toHaveLength(0);
+  });
+});
+
+// Tester feedback 2026-10-04: every field in the form closes the keyboard from
+// its own Return / Done key, and so does Save.
+describe('Log an activity — keyboard (tester feedback 2026-10-04)', () => {
+  let dismiss: jest.SpyInstance;
+  beforeEach(() => {
+    dismiss = jest.spyOn(Keyboard, 'dismiss').mockImplementation(() => undefined);
+  });
+  afterEach(() => dismiss.mockRestore());
+
+  async function openOther() {
+    const user = await renderAction(makeClient());
+    await user.press(screen.getByTestId('gym-today-log-activity'));
+    await waitFor(() => expect(screen.getByTestId('log-activity-form')).toBeOnTheScreen());
+    await user.press(screen.getByTestId('log-activity-chip-other'));
+    return user;
+  }
+
+  it('the name, duration and kcal fields each read Done and dismiss on submit', async () => {
+    await openOther();
+    for (const id of ['log-activity-name', 'log-activity-duration', 'log-activity-kcal']) {
+      const field = screen.getByTestId(id);
+      expect(field.props.returnKeyType).toBe('done');
+      dismiss.mockClear();
+      await fireEvent(field, 'submitEditing');
+      expect(dismiss).toHaveBeenCalledTimes(1);
+    }
+  });
+
+  it('the number pads carry the iOS Done bar (they have no Return key there)', async () => {
+    await openOther();
+    for (const id of ['log-activity-duration', 'log-activity-kcal']) {
+      expect(screen.getByTestId(id).props.keyboardType).toBe('number-pad');
+      expect(screen.getByTestId(id).props.inputAccessoryViewID).toBeTruthy();
+    }
+    dismiss.mockClear();
+    await fireEvent.press(screen.getByTestId('log-activity-numeric-bar'));
+    expect(dismiss).toHaveBeenCalledTimes(1);
+  });
+
+  it('Save closes the keyboard', async () => {
+    const user = await openOther();
+    await user.type(screen.getByTestId('log-activity-name'), 'Rock climbing');
+    await user.type(screen.getByTestId('log-activity-duration'), '50');
+    dismiss.mockClear();
+    await user.press(screen.getByTestId('log-activity-save'));
+    await waitFor(() => expect(queued()).toHaveLength(1));
+    expect(dismiss).toHaveBeenCalled();
   });
 });

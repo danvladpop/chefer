@@ -3,7 +3,7 @@ import { Image, Linking, Pressable, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import { fetch as expoFetch } from 'expo/fetch';
-import { Button, Card, Input, Text, useSnackbar } from '@chefer/ui-mobile';
+import { Button, Card, DONE_FIELD_PROPS, Input, Text, useSnackbar } from '@chefer/ui-mobile';
 import {
   cn,
   defaultMealSlot,
@@ -386,6 +386,7 @@ function SnapCard({ date, onLogged, autoPick, onAutoPicked, replacesSlot }: Scan
                     keyboardType="number-pad"
                     onChangeText={setKcalText}
                     className="min-w-0 flex-1"
+                    {...DONE_FIELD_PROPS}
                   />
                   <Text className="text-sm text-muted-foreground">kcal</Text>
                 </View>

@@ -43,6 +43,7 @@ export function LogWeightPrompt({ testID = 'log-weight-prompt' }: { testID?: str
     }
     setError(null);
     setDeclined(false);
+    Keyboard.dismiss();
     // "Don't save it": nothing is stored; the typed value stays in the field.
     requestHealthConsent(() => logWeight.mutate({ weightKg: parsed.kg }), {
       onDeclined: () => setDeclined(true),
@@ -62,6 +63,7 @@ export function LogWeightPrompt({ testID = 'log-weight-prompt' }: { testID?: str
             setValue(text);
             setError(null);
           }}
+          returnKeyType="done"
           onSubmitEditing={submit}
           keyboardType="decimal-pad"
           inputAccessoryViewID={barId}

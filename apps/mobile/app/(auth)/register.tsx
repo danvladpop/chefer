@@ -1,10 +1,17 @@
 import { useEffect, useRef, useState } from 'react';
 import { Controller, useForm } from 'react-hook-form';
-import { Pressable, View, type TextInput } from 'react-native';
+import { Keyboard, Pressable, View, type TextInput } from 'react-native';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Link, router } from 'expo-router';
 import { CURRENT_TERMS_VERSION } from '@chefer/types';
-import { Button, Input, PasswordInput, Text, useScrollFieldIntoView } from '@chefer/ui-mobile';
+import {
+  Button,
+  EMAIL_FIELD_PROPS,
+  Input,
+  PasswordInput,
+  Text,
+  useScrollFieldIntoView,
+} from '@chefer/ui-mobile';
 import { detectRegion, userFacingErrorMessage } from '@chefer/utils';
 import { AuthField, AuthScreen } from '../../src/features/auth/auth-screen';
 import { ConsentCheckbox } from '../../src/features/auth/consent-checkbox';
@@ -110,6 +117,7 @@ function RegisterForm() {
   // UX-ACC-18: no second submit from the keyboard while one is in flight.
   const onSubmit = handleSubmit((values) => {
     if (register.isPending) return;
+    Keyboard.dismiss();
     register.mutate({
       email: values.email,
       password: values.password,
@@ -174,11 +182,7 @@ function RegisterForm() {
             <Input
               ref={emailRef}
               testID="register-email"
-              autoCapitalize="none"
-              autoCorrect={false}
-              spellCheck={false}
-              autoComplete="email"
-              keyboardType="email-address"
+              {...EMAIL_FIELD_PROPS}
               returnKeyType="next"
               submitBehavior="submit"
               onSubmitEditing={() => passwordRef.current?.focus()}

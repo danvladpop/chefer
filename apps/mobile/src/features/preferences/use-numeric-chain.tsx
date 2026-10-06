@@ -1,3 +1,4 @@
+import type { RefObject } from 'react';
 import { Keyboard, Platform, type TextInput } from 'react-native';
 import { NumericReturnBar, useFieldChain, type FieldChainBinding } from '@chefer/ui-mobile';
 
@@ -18,8 +19,15 @@ export interface UseNumericChainResult {
   /** Spread onto the `index`-th field: ref, return key, focus/blur and its own accessory id. */
   bind: (
     index: number,
-    opts?: { onFocus?: (field: TextInput | null) => void; onBlur?: () => void },
+    opts?: {
+      onFocus?: (field: TextInput | null) => void;
+      onBlur?: () => void;
+      /** The screen's own ref to this field (e.g. to focus the first invalid one). */
+      fieldRef?: RefObject<TextInput | null>;
+    },
   ) => NumericChainFieldProps;
+  /** Focus the first numeric field (a text field above the chain hands off to it). */
+  focusFirst: () => void;
   /** Render once, anywhere in the same screen: one bar per field (iOS only; Android has a Return key). */
   bars: React.ReactNode;
 }
@@ -41,12 +49,19 @@ export function useNumericChain(
   };
   const idFor = (index: number) => `${idPrefix}-numeric-bar-${index}`;
 
-  const bind: UseNumericChainResult['bind'] = (index, opts) => ({
-    ...chain.bind(index, opts),
-    inputAccessoryViewID: Platform.OS === 'ios' ? idFor(index) : undefined,
-    // Android's own Return key: the last field submits like the bar's Done.
-    onSubmitEditing: index === length - 1 ? done : () => chain.focusNext(index),
-  });
+  const bind: UseNumericChainResult['bind'] = (index, opts) => {
+    const base = chain.bind(index, opts);
+    return {
+      ...base,
+      ref: (el: TextInput | null) => {
+        base.ref(el);
+        if (opts?.fieldRef) opts.fieldRef.current = el;
+      },
+      inputAccessoryViewID: Platform.OS === 'ios' ? idFor(index) : undefined,
+      // Android's own Return key: the last field submits like the bar's Done.
+      onSubmitEditing: index === length - 1 ? done : () => chain.focusNext(index),
+    };
+  };
 
   const bars = (
     <>
@@ -62,5 +77,5 @@ export function useNumericChain(
     </>
   );
 
-  return { bind, bars };
+  return { bind, bars, focusFirst: () => chain.focusNext(-1) };
 }

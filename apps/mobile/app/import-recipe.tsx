@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Pressable, TextInput, View } from 'react-native';
+import { Keyboard, Pressable, TextInput, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { FRIENDS_COPY, VIDEO_IMPORT_COPY } from '@chefer/types';
@@ -10,6 +10,7 @@ import {
   KeyboardAwareScrollView,
   Screen,
   Text,
+  useKeyboardDoneBar,
   useSnackbar,
 } from '@chefer/ui-mobile';
 import { cn, isSupportedVideoUrl, PREMIUM_PITCH_COPY, userFacingErrorMessage } from '@chefer/utils';
@@ -165,10 +166,13 @@ export default function ImportRecipeScreen() {
         ? text.trim().length >= 20
         : isSupportedVideoUrl(videoUrl);
 
+  const textDone = useKeyboardDoneBar();
+
   const runPreview = () => {
     if (previewPending) {
       return;
     }
+    Keyboard.dismiss();
     // Free: importing is Premium. Nothing is sent (no consent needed, no
     // request made) — the sheet opens and the pasted content stays put.
     if (isPremium === false) {
@@ -316,6 +320,8 @@ export default function ImportRecipeScreen() {
                   autoCapitalize="none"
                   autoCorrect={false}
                   keyboardType="url"
+                  returnKeyType="go"
+                  onSubmitEditing={() => canPreview && runPreview()}
                   placeholder={VIDEO_IMPORT_COPY.urlPlaceholder}
                   placeholderTextColor="#9ca3af"
                   className="min-h-11 py-2 rounded-md border border-input bg-background px-3 text-base text-foreground"
@@ -349,6 +355,8 @@ export default function ImportRecipeScreen() {
                 }}
                 autoCapitalize="none"
                 keyboardType="url"
+                returnKeyType="go"
+                onSubmitEditing={() => canPreview && runPreview()}
                 placeholder="https://example.com/best-lasagna"
                 placeholderTextColor="#9ca3af"
                 className="min-h-11 py-2 rounded-md border border-input bg-background px-3 text-base text-foreground"
@@ -360,11 +368,13 @@ export default function ImportRecipeScreen() {
                 value={text}
                 onChangeText={setText}
                 multiline
+                inputAccessoryViewID={textDone.inputAccessoryViewID}
                 placeholder="Paste the full recipe text (ingredients + steps)…"
                 placeholderTextColor="#9ca3af"
                 className="min-h-40 rounded-md border border-input bg-background px-3 py-2 text-base text-foreground"
               />
             )}
+            {textDone.bar}
 
             <Button
               testID="import-preview"
