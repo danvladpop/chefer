@@ -157,12 +157,16 @@ export async function renderGoogleButton(
     onError: (error: Error) => void;
     width?: number;
     text?: 'signin_with' | 'signup_with' | 'continue_with';
+    /** Aborted when the caller unmounts or re-renders: a stale run must not draw a second button. */
+    signal?: AbortSignal;
   },
 ): Promise<void> {
   await loadScript(GOOGLE_GSI_SRC);
+  if (options.signal?.aborted) return;
   const gsi = window.google?.accounts?.id;
   if (!gsi) throw new SocialSdkError('Google Identity Services is unavailable');
   const nonce = await createNonce();
+  if (options.signal?.aborted) return;
   gsi.initialize({
     client_id: options.clientId,
     nonce: nonce.hashed,

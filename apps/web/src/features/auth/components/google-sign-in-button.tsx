@@ -27,20 +27,21 @@ export function GoogleSignInButton({
   useEffect(() => {
     const el = slot.current;
     if (!el) return;
-    let cancelled = false;
+    const controller = new AbortController();
     renderGoogleButton(el, {
       clientId,
       text,
       width: el.clientWidth,
+      signal: controller.signal,
       onCredential: (payload) => handlers.current.onCredential(payload),
       onError: (error) => handlers.current.onError(error),
     }).catch((error: unknown) => {
-      if (!cancelled) {
+      if (!controller.signal.aborted) {
         handlers.current.onError(error instanceof Error ? error : new Error('Google unavailable'));
       }
     });
     return () => {
-      cancelled = true;
+      controller.abort();
       el.replaceChildren();
     };
   }, [clientId, text]);
