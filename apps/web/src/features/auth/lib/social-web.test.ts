@@ -3,6 +3,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { SocialAvailability } from '@chefer/types';
 import {
   createNonce,
+  renderGoogleButton,
   requestAppleCredential,
   sha256Hex,
   SocialCancelledError,
@@ -136,5 +137,45 @@ describe('requestAppleCredential', () => {
     await expect(requestAppleCredential(config)).rejects.toBeInstanceOf(SocialSdkError);
     stubApple(() => Promise.resolve({}));
     await expect(requestAppleCredential(config)).rejects.toBeInstanceOf(SocialSdkError);
+  });
+});
+
+describe('renderGoogleButton', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.restoreAllMocks();
+  });
+
+  function stubGsi() {
+    const renderButton = vi.fn<[HTMLElement, Record<string, unknown>], undefined>(
+      (parent: HTMLElement) => {
+        parent.appendChild(document.createElement('iframe'));
+      },
+    );
+    const initialize = vi.fn();
+    vi.stubGlobal('google', { accounts: { id: { initialize, renderButton } } });
+    vi.spyOn(document.head, 'appendChild').mockImplementation((node: Node) => {
+      queueMicrotask(() => {
+        (node as HTMLScriptElement).onload?.(new Event('load'));
+      });
+      return node;
+    });
+    return renderButton;
+  }
+
+  const options = { clientId: 'web-id', onCredential: vi.fn(), onError: vi.fn() };
+
+  // Production 2026-10-06: a re-render while the first run was still loading
+  // drew Google's button twice. A stale (aborted) run must not draw.
+  it('draws nothing once its signal is aborted, so overlapping runs leave one button', async () => {
+    const renderButton = stubGsi();
+    const parent = document.createElement('div');
+    const stale = new AbortController();
+    const first = renderGoogleButton(parent, { ...options, signal: stale.signal });
+    stale.abort();
+    const second = renderGoogleButton(parent, { ...options, signal: new AbortController().signal });
+    await Promise.all([first, second]);
+    expect(renderButton).toHaveBeenCalledTimes(1);
+    expect(parent.querySelectorAll('iframe')).toHaveLength(1);
   });
 });
