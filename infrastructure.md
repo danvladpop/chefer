@@ -3326,11 +3326,11 @@ asks `auth.socialAvailability` at runtime. The mobile app needs a **new native b
 2. Apple Developer → Identifiers → `com.popdan.chefer`: **Sign in with Apple** AND **Associated Domains** capabilities on
    (EAS syncs capabilities from the entitlements on `eas build`; a local Xcode build with `-allowProvisioningUpdates` does it
    too, with the paid team `45TS85YK89`).
-3. Export the Google iOS scheme for **every** place that builds or publishes: `GOOGLE_IOS_URL_SCHEME=com.googleusercontent.apps.<id>`
-   in `apps/mobile/.env` (local `pnpm mobile:release:*`), in `eas.json` → `build.production.env` (EAS cloud builds), and as the
-   repo **variable** `GOOGLE_IOS_URL_SCHEME` (CI "Mobile OTA update" job). It is part of the native fingerprint — a mismatch
-   means OTA updates silently stop reaching the new binary (like `EXPO_APPLE_TEAM_ID`). No value = the build still succeeds,
-   Google stays hidden on iOS and Apple works.
+3. The Google iOS scheme needs **no setting**: production builds default to the production iOS client's reversed id
+   (`PRODUCTION_GOOGLE_IOS_URL_SCHEME` in `apps/mobile/app.config.js`, Google Cloud project "Chefer", 2026-10-06), so local
+   `pnpm mobile:release:*`, EAS builds and the CI OTA publish all land on the same native fingerprint. Only if the iOS
+   client is ever replaced: change that constant (or set `GOOGLE_IOS_URL_SCHEME` identically everywhere a binary is built
+   or an OTA is published — a mismatch means OTA updates silently stop reaching the new binary).
 4. Build iOS (`eas build --profile production --platform ios`, then submit) and Android (`pnpm mobile:release:android` / store
    build), then compare `npx expo-updates runtimeversion:resolve` with what `pnpm mobile:update` prints. The 1.0.1 binaries do not
    have the modules: they keep working, without the buttons, and cannot receive this JS over the air (different runtime).

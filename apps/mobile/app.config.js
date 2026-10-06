@@ -58,9 +58,9 @@ if (IS_PRODUCTION && !process.env.EXPO_PUBLIC_API_URL?.startsWith('https://')) {
 //    Android needs no build-time value (SHA-1/256 are registered in Google
 //    Cloud, the client ids come from auth.socialAvailability at runtime).
 //
-// These values are part of the native fingerprint (runtimeVersion): export the
-// SAME values wherever a binary is built or an OTA update is published
-// (apps/mobile/.env, eas.json build env, the CI "mobile-update" job).
+// These values are part of the native fingerprint (runtimeVersion). Production
+// defaults to PRODUCTION_GOOGLE_IOS_URL_SCHEME below; only override it with the
+// SAME value everywhere a binary is built or an OTA update is published.
 const GOOGLE_URL_SCHEME_PREFIX = 'com.googleusercontent.apps.';
 const GOOGLE_CLIENT_ID_SUFFIX = '.apps.googleusercontent.com';
 
@@ -75,13 +75,22 @@ function resolveGoogleIosUrlScheme(env) {
   return null;
 }
 
-const GOOGLE_IOS_URL_SCHEME = resolveGoogleIosUrlScheme(process.env);
+// The production iOS OAuth client (Google Cloud project "Chefer", created
+// 2026-10-06). Not a secret — it ships inside every binary — so it is the
+// production default here, which keeps local builds, EAS builds and the CI OTA
+// publish on the same native fingerprint without extra env.
+const PRODUCTION_GOOGLE_IOS_URL_SCHEME =
+  'com.googleusercontent.apps.796396192005-trvmr1qkll4sgujsjj47u5a3tgrg7uuc';
+
+const GOOGLE_IOS_URL_SCHEME_FROM_ENV = resolveGoogleIosUrlScheme(process.env);
+const GOOGLE_IOS_URL_SCHEME =
+  GOOGLE_IOS_URL_SCHEME_FROM_ENV ?? (IS_PRODUCTION ? PRODUCTION_GOOGLE_IOS_URL_SCHEME : null);
 if (
   (process.env.GOOGLE_IOS_URL_SCHEME || process.env.GOOGLE_IOS_CLIENT_ID) &&
-  !GOOGLE_IOS_URL_SCHEME
+  !GOOGLE_IOS_URL_SCHEME_FROM_ENV
 ) {
   console.warn(
-    `[app.config] ignoring GOOGLE_IOS_URL_SCHEME / GOOGLE_IOS_CLIENT_ID: expected "${GOOGLE_URL_SCHEME_PREFIX}<id>" or "<id>${GOOGLE_CLIENT_ID_SUFFIX}" — Google sign-in will be unavailable on iOS`,
+    `[app.config] ignoring GOOGLE_IOS_URL_SCHEME / GOOGLE_IOS_CLIENT_ID: expected "${GOOGLE_URL_SCHEME_PREFIX}<id>" or "<id>${GOOGLE_CLIENT_ID_SUFFIX}" — ${IS_PRODUCTION ? 'using the production default' : 'Google sign-in will be unavailable on iOS'}`,
   );
 }
 const APPLE_SIGN_IN = IS_PRODUCTION || process.env.ENABLE_APPLE_SIGN_IN === '1';

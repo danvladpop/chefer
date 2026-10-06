@@ -47,12 +47,15 @@ afterEach(() => {
 });
 
 describe('app.config.js — social sign-in native config', () => {
-  it('production without any Google env: builds, Apple entitlement + webcredentials on, no Google plugin', () => {
+  it('production without any Google env: Apple entitlement, webcredentials and the production Google scheme', () => {
     const config = loadConfig(PROD);
     expect(pluginNames(config)).toContain('expo-apple-authentication');
-    expect(googlePlugin(config)).toBeUndefined();
+    expect(googlePlugin(config)).toEqual([
+      '@react-native-google-signin/google-signin',
+      { iosUrlScheme: 'com.googleusercontent.apps.796396192005-trvmr1qkll4sgujsjj47u5a3tgrg7uuc' },
+    ]);
     expect(config.ios.associatedDomains).toEqual(['webcredentials:chefer.duckdns.org']);
-    expect(config.extra.socialSignIn).toEqual({ apple: true, googleIos: false });
+    expect(config.extra.socialSignIn).toEqual({ apple: true, googleIos: true });
   });
 
   it('GOOGLE_IOS_URL_SCHEME registers the Google plugin with the reversed client id', () => {
@@ -80,14 +83,22 @@ describe('app.config.js — social sign-in native config', () => {
 
   it('ignores a malformed value with a warning instead of failing the build', () => {
     const warn = jest.spyOn(console, 'warn').mockImplementation(() => undefined);
-    const config = loadConfig({ ...PROD, GOOGLE_IOS_URL_SCHEME: 'not-a-google-scheme' });
-    expect(googlePlugin(config)).toBeUndefined();
-    expect(warn).toHaveBeenCalledTimes(1);
+    const prod = loadConfig({ ...PROD, GOOGLE_IOS_URL_SCHEME: 'not-a-google-scheme' });
+    expect(googlePlugin(prod)?.[1]).toEqual({
+      iosUrlScheme: 'com.googleusercontent.apps.796396192005-trvmr1qkll4sgujsjj47u5a3tgrg7uuc',
+    });
+    const dev = loadConfig({ GOOGLE_IOS_URL_SCHEME: 'not-a-google-scheme' });
+    expect(googlePlugin(dev)).toBeUndefined();
+    expect(warn).toHaveBeenCalledTimes(2);
   });
 
-  it('treats empty strings (an unset CI variable) as unset', () => {
-    const config = loadConfig({ ...PROD, GOOGLE_IOS_URL_SCHEME: '', GOOGLE_IOS_CLIENT_ID: '' });
-    expect(googlePlugin(config)).toBeUndefined();
+  it('treats empty strings (an unset CI variable) as unset — production keeps its default', () => {
+    const prod = loadConfig({ ...PROD, GOOGLE_IOS_URL_SCHEME: '', GOOGLE_IOS_CLIENT_ID: '' });
+    expect(googlePlugin(prod)?.[1]).toEqual({
+      iosUrlScheme: 'com.googleusercontent.apps.796396192005-trvmr1qkll4sgujsjj47u5a3tgrg7uuc',
+    });
+    const dev = loadConfig({ GOOGLE_IOS_URL_SCHEME: '', GOOGLE_IOS_CLIENT_ID: '' });
+    expect(googlePlugin(dev)).toBeUndefined();
   });
 
   it('the development variant has no Apple entitlement and no associated domain', () => {
