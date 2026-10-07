@@ -23,6 +23,9 @@ const mockDeleteState = vi.hoisted(() => ({
   onSuccess: undefined as (() => void) | undefined,
 }));
 
+const mockLogout = vi.hoisted(() => vi.fn());
+vi.mock('@/features/auth/hooks/use-auth', () => ({ useAuth: () => ({ logout: mockLogout }) }));
+
 vi.mock('@/lib/trpc', () => ({
   trpc: {
     useUtils: () => ({ user: { exportData: { fetch: mockExportData } } }),
@@ -71,6 +74,18 @@ beforeEach(() => {
 afterEach(() => {
   vi.unstubAllGlobals();
   cleanup();
+});
+
+describe('AccountDataCard sign out (FB7-02)', () => {
+  it('has a Sign out button between Download and Delete that signs out', () => {
+    render(<AccountDataCard />);
+    const names = screen.getAllByRole('button').map((b) => b.textContent ?? '');
+    const iSignOut = names.findIndex((n) => /Sign out/.test(n));
+    expect(iSignOut).toBeGreaterThan(names.findIndex((n) => /Download my data|Preparing/.test(n)));
+    expect(iSignOut).toBeLessThan(names.findIndex((n) => /Delete/i.test(n)));
+    fireEvent.click(screen.getByRole('button', { name: /Sign out/ }));
+    expect(mockLogout).toHaveBeenCalledTimes(1);
+  });
 });
 
 describe('AccountDataCard export (T-39.5)', () => {
