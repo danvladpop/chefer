@@ -1,6 +1,5 @@
 import { TRPCError } from '@trpc/server';
 import {
-  AiCallType,
   chefProfileRepository,
   mealPlanRepository,
   pantryItemRepository,
@@ -8,12 +7,9 @@ import {
   type MealPlan,
   type MealPlanDay,
   type PlanMealSlotJson,
-  type Prisma,
 } from '@chefer/database';
 import { LABEL_DEPENDENT_INGREDIENTS, type TableSafety, type UserProfile } from '@chefer/types';
 import { roundToPurchasable } from '@chefer/utils';
-import { toFriendlyAiError } from '../../lib/ai/friendly-error.js';
-import { aiService } from '../../lib/ai/index.js';
 import type { Ingredient } from '../../lib/ai/types.js';
 import { hasFeature } from '../../lib/entitlements.js';
 import { groceryAIService } from '../../lib/grocery-ai/index.js';
@@ -28,6 +24,7 @@ import { ingredientPriceWorker } from '../../workers/ingredient-price.worker.js'
 import { householdService } from '../household/household.service.js';
 import { planForThisWeek } from '../meal-plan/plan-for-date.js';
 import { buildPantryCoverageMatcher } from '../pantry/pantry-match.js';
+import { PANTRY_RETIRED } from '../pantry/pantry-retired.js';
 import { pantryService } from '../pantry/pantry.service.js';
 import { safetyService } from '../safety/safety.service.js';
 import { inferCategory } from '../shared/category-map.js';
@@ -153,7 +150,9 @@ function readCustomItems(raw: unknown): StoredShoppingListItem[] {
 }
 
 /**
- * AI-consolidated rows get the derived list's rules (aggregate.ts): no water
+ * FB7-10: the list is never AI-written any more, but rows stored by the old
+ * "Regenerate with AI" still exist. They are read only to carry their ticks
+ * over to the derived list — and get the derived list's rules (aggregate.ts): no water
  * or "to taste" lines, no leftover duplicates, and the local aisle map
  * wherever the stored category is missing or "other" — the model no longer
  * categorises, and older rows were stored as "other" (audit F-SHOP-1-1/1-2).
@@ -297,6 +296,14 @@ export class ShoppingListService {
     estimatedTotalEur: number | null;
     pantry: ShoppingListPantryInfo;
   }> {
+    // FB7-10: the pantry is retired — nothing is marked "have it" or subtracted.
+    if (PANTRY_RETIRED) {
+      return {
+        items,
+        estimatedTotalEur,
+        pantry: { entitled: false, itemCount: 0, savedEur: 0 },
+      };
+    }
     const entitled = hasFeature(user, 'pantryPlanning');
     const pantryRows = await pantryItemRepository.findByUser(user.id);
     if (pantryRows.length === 0) {
@@ -416,6 +423,38 @@ export class ShoppingListService {
     }));
   }
 
+  /**
+   * FB7-10: carries the ticks of a stored AI-consolidated list onto the derived
+   * list and resets the row to a plain check-off row. Returns the check-off keys
+   * to serve. A row that was never AI-generated is returned as is.
+   */
+  private async retireStoredAiList(
+    stored: { planId: string; aiGenerated: boolean; items: unknown; checkedKeys: string[] } | null,
+    derived: StoredShoppingListItem[],
+    custom: StoredShoppingListItem[],
+  ): Promise<string[]> {
+    const checked = [...new Set(stored?.checkedKeys ?? [])];
+    if (!stored?.aiGenerated) return checked;
+
+    const liveKeys = new Set([...derived, ...custom].map((i) => i.key));
+    const carried = carryCheckedKeys(
+      checked,
+      [...tidyAiItems(stored.items as StoredShoppingListItem[]), ...custom],
+      derived,
+    );
+    const next = [...new Set([...carried, ...checked.filter((k) => liveKeys.has(k))])];
+    try {
+      await prisma.shoppingList.updateMany({
+        where: { planId: stored.planId, aiGenerated: true },
+        data: { items: [], aiGenerated: false, checkedKeys: next },
+      });
+    } catch (err) {
+      // Best effort: the next read maps the same ticks again.
+      console.error('[shopping-list] Failed to retire a stored AI list:', err);
+    }
+    return next;
+  }
+
   async getForWeek(user: UserProfile, weekOffset: number): Promise<WeekShoppingList> {
     const userId = user.id;
     const weekStart = getMondayOfWeek(weekOffset);
@@ -450,47 +489,23 @@ export class ShoppingListService {
       };
     }
 
-    // The stored row serves two jobs: the AI-consolidated item list (written
-    // by regenerate, aiGenerated=true) and the synced check-off state (P1-5,
-    // which may exist on a bare row before any regenerate). Only AI rows are
-    // an ITEM source — a bare row must not shadow the derived list.
+    // The stored row holds the synced check-off state (P1-5) and the user's
+    // custom items. FB7-10: its `items` are never served any more — the list is
+    // always derived from the plan's recipes, even when the row still carries
+    // an old AI-consolidated list (`aiGenerated`).
     const stored = await prisma.shoppingList.findUnique({ where: { planId: targetPlan.id } });
-    const checkedKeys = [...new Set(stored?.checkedKeys ?? [])];
     // Premium households get the list sized for the whole table (P2-3).
     const portions = await householdService.scalingPortions(user);
     const table = await householdService.scalingTable(user);
     const sized = portions !== null ? { portions } : {};
-    // User-added items overlay whichever list is served (derived or AI).
+    // User-added items overlay the derived list.
     const customItems = readCustomItems(stored?.customItems);
-    if (stored?.aiGenerated) {
-      const finalized = await this.finalizeItems(
-        [...tidyAiItems(stored.items as unknown as StoredShoppingListItem[]), ...customItems],
-        userId,
-      );
-      const { items, estimatedTotalEur, pantry } = await this.applyPantry(
-        user,
-        finalized.items,
-        finalized.estimatedTotalEur,
-        checkedKeys,
-      );
-      return {
-        planId: targetPlan.id,
-        ...fromDayField(targetPlan),
-        weekStartDate: weekStart.toISOString(),
-        weekEndDate: weekEnd.toISOString(),
-        hasPlan: true,
-        items: withLabelChecks(items, safetyTable),
-        weekOffset,
-        estimatedTotalEur,
-        aiGenerated: true,
-        checkedKeys,
-        pantry,
-        tableSafety: safetyTable,
-        ...sized,
-      };
-    }
-
     const rawItems = await this.buildDerivedRawItems(targetPlan, table);
+    // Ticks made on an old AI list (keys `<plan>-ai-…`) map onto the derived
+    // rows by canonical name, once, and the row is then reset to a plain
+    // check-off row (a later untick of the derived row must not be undone by
+    // the stale AI key).
+    const checkedKeys = await this.retireStoredAiList(stored, rawItems, customItems);
     const finalized = await this.finalizeItems([...rawItems, ...customItems], userId);
     const { items, estimatedTotalEur, pantry } = await this.applyPantry(
       user,
@@ -518,8 +533,7 @@ export class ShoppingListService {
 
   /**
    * The plan's list lines exactly as `getForWeek` serves them (before
-   * pricing): the AI-consolidated rows when stored, else the derived lines —
-   * slot portions (P1-1) and the premium household scale (P2-3) included —
+   * pricing): the derived lines (FB7-10: never the old AI rows) — slot portions (P1-1) and the premium household scale (P2-3) included —
    * plus the user's custom items.
    */
   private async listLinesForPlan(
@@ -528,9 +542,7 @@ export class ShoppingListService {
   ): Promise<StoredShoppingListItem[]> {
     const stored = await prisma.shoppingList.findUnique({ where: { planId: plan.id } });
     return [
-      ...(stored?.aiGenerated
-        ? tidyAiItems(stored.items as unknown as StoredShoppingListItem[])
-        : await this.buildDerivedRawItems(plan, await householdService.scalingTable(user))),
+      ...(await this.buildDerivedRawItems(plan, await householdService.scalingTable(user))),
       ...readCustomItems(stored?.customItems),
     ];
   }
@@ -603,12 +615,15 @@ export class ShoppingListService {
         // F3: checking off = buying — seed the pantry (all tiers: the free
         // ghost state needs the real item count/savings); unchecking reverts
         // it. Never let a pantry failure break the check-off itself.
-        try {
-          const purchased = await this.purchasedItemsForKeys(user, plan, keys);
-          if (checked) await pantryService.seedFromPurchases(userId, purchased);
-          else await pantryService.revertPurchases(userId, purchased);
-        } catch (err) {
-          console.error('[pantry] Failed to sync the pantry with a check-off:', err);
+        // FB7-10: retired — ticking an item no longer touches the pantry.
+        if (!PANTRY_RETIRED) {
+          try {
+            const purchased = await this.purchasedItemsForKeys(user, plan, keys);
+            if (checked) await pantryService.seedFromPurchases(userId, purchased);
+            else await pantryService.revertPurchases(userId, purchased);
+          } catch (err) {
+            console.error('[pantry] Failed to sync the pantry with a check-off:', err);
+          }
         }
         return { checkedKeys };
       } catch (err) {
@@ -726,160 +741,14 @@ export class ShoppingListService {
     }
   }
 
+  /**
+   * FB7-10: the AI tidy-up is gone. Kept only so shipped binaries that still
+   * call `shoppingList.regenerate` get a valid answer: it returns the derived
+   * list exactly as `getForWeek` serves it, without calling the AI (and without
+   * logging an AI call).
+   */
   async regenerate(user: UserProfile, weekOffset: number): Promise<WeekShoppingList> {
-    const userId = user.id;
-    const weekStart = getMondayOfWeek(weekOffset);
-    const weekEnd = new Date(weekStart);
-    weekEnd.setDate(weekStart.getDate() + 6);
-
-    const allPlans = await mealPlanRepository.findAllByUserId(userId, 56, 0);
-    const targetDateStr = weekStart.toDateString();
-    let targetPlan = allPlans.find((p) => {
-      const planMonday = new Date(p.weekStartDate);
-      planMonday.setHours(0, 0, 0, 0);
-      return planMonday.toDateString() === targetDateStr;
-    });
-
-    // B-13/T-00.15: same bug as getForWeek above — findActiveWithDays could
-    // return a different week's plan. findForWeek matches THIS week only.
-    if (!targetPlan && weekOffset === 0) {
-      targetPlan = (await mealPlanRepository.findForWeek(userId, weekStart)) ?? undefined;
-    }
-
-    if (!targetPlan) {
-      const { pantry } = await this.applyPantry(user, [], null);
-      return {
-        planId: null,
-        weekStartDate: weekStart.toISOString(),
-        weekEndDate: weekEnd.toISOString(),
-        hasPlan: false,
-        items: [],
-        weekOffset,
-        estimatedTotalEur: null,
-        aiGenerated: false,
-        checkedKeys: [],
-        pantry,
-      };
-    }
-
-    type MealSlotJson = PlanMealSlotJson;
-    const uniqueIds = [
-      ...new Set(
-        targetPlan.days.flatMap((d) => (d.meals as MealSlotJson[]).map((m) => m.recipeId)),
-      ),
-    ];
-    const recipes = await mealPlanRepository.findRecipesByIds(uniqueIds);
-    const portions = await householdService.scalingPortions(user);
-    const table = await householdService.scalingTable(user);
-
-    // Pre-merge with the shared aggregator before the AI call — the model
-    // only needs to do the *hard* consolidation, and water/"to taste" lines
-    // never reach it. This roughly halves the prompt.
-    const rawIngredients = aggregateIngredientLines(
-      daysFrom(
-        targetPlan.days,
-        firstShoppingDay(targetPlan.weekStartDate, targetPlan.createdAt),
-      ).flatMap((day) =>
-        (day.meals as MealSlotJson[]).flatMap((slot) => {
-          const recipe = recipes.find((r) => r.id === slot.recipeId);
-          if (!recipe) return [];
-          // P1-1: a portioned slot (1.5× of one serving) is the eater's share;
-          // the table (premium members, or "two of us") adds the others'
-          // servings on top (P2-3, UX-PLAN-02, UX-REC-02).
-          const factor = slotShopFactor(slot.portion, recipe.servings, table);
-          return (recipe.ingredients as unknown as Ingredient[]).map((ing) => ({
-            name: ing.name,
-            quantity: ing.quantity * factor,
-            unit: ing.unit,
-            recipeId: slot.recipeId,
-            slug: ing.slug,
-          }));
-        }),
-      ),
-    ).map((l) => ({ name: l.name, quantity: l.quantity, unit: l.unit }));
-
-    const weekLabel = `${weekStart.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })} – ${weekEnd.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}`;
-
-    let aiResult;
-    try {
-      aiResult = await aiService.generateShoppingList({ ingredients: rawIngredients, weekLabel });
-    } catch (err) {
-      throw toFriendlyAiError(
-        err,
-        'generateShoppingList',
-        "Couldn't tidy up the list right now. Please try again.",
-      );
-    }
-
-    prisma.aiCallLog
-      .create({ data: { userId, callType: AiCallType.SHOPPING_LIST } })
-      .catch((err) => console.error('[aiCallLog] Failed to log SHOPPING_LIST call:', err));
-
-    const rawItems: StoredShoppingListItem[] = tidyAiItems(
-      aiResult.items.map((item) => ({
-        // Stable key (no index): checked-off state in the UI survives reloads
-        key: `${targetPlan.id}-ai-${item.ingredientName.toLowerCase().replace(/\s+/g, '-')}-${item.unit.toLowerCase()}`,
-        ingredientName: item.ingredientName,
-        quantity: item.quantity,
-        unit: item.unit,
-        // The AI no longer categorises (saves output tokens) — infer locally
-        category: item.category ?? inferCategory(item.ingredientName),
-        recipeNames: [] as string[],
-      })),
-    );
-
-    // Persist so the AI-consolidated list survives reloads — getForWeek
-    // serves it from now on (until the plan itself is regenerated). The AI
-    // list has fresh item keys, so check-offs are carried over BY INGREDIENT
-    // NAME (canonical, so "Eggs" ticks "Egg"); regenerating used to wipe
-    // every tick with no warning (audit F-SHOP-1-5 / F-M-SHOP-2-1).
-    const before = await prisma.shoppingList.findUnique({ where: { planId: targetPlan.id } });
-    const previousItems = before?.aiGenerated
-      ? tidyAiItems(before.items as unknown as StoredShoppingListItem[])
-      : await this.buildDerivedRawItems(targetPlan, table);
-    const checkedKeys = carryCheckedKeys(
-      before?.checkedKeys ?? [],
-      [...previousItems, ...readCustomItems(before?.customItems)],
-      rawItems,
-    );
-    const itemsJson = rawItems as unknown as Prisma.InputJsonValue;
-    await prisma.shoppingList.upsert({
-      where: { planId: targetPlan.id },
-      create: {
-        planId: targetPlan.id,
-        items: itemsJson,
-        aiGenerated: true,
-      },
-      // customItems is deliberately untouched — user-added items survive an
-      // AI regenerate (their keys are stable, unlike the AI rows').
-      update: { items: itemsJson, aiGenerated: true, checkedKeys },
-    });
-
-    const stored = await prisma.shoppingList.findUnique({ where: { planId: targetPlan.id } });
-    const finalized = await this.finalizeItems(
-      [...rawItems, ...readCustomItems(stored?.customItems)],
-      userId,
-    );
-    const { items, estimatedTotalEur, pantry } = await this.applyPantry(
-      user,
-      finalized.items,
-      finalized.estimatedTotalEur,
-    );
-
-    return {
-      planId: targetPlan.id,
-      ...fromDayField(targetPlan),
-      weekStartDate: weekStart.toISOString(),
-      weekEndDate: weekEnd.toISOString(),
-      hasPlan: true,
-      items,
-      weekOffset,
-      estimatedTotalEur,
-      aiGenerated: true,
-      checkedKeys,
-      pantry,
-      ...(portions !== null && { portions }),
-    };
+    return this.getForWeek(user, weekOffset);
   }
 
   async searchStores(

@@ -3,6 +3,7 @@
 import { useRef, useState } from 'react';
 import { AppleSignInButton } from '@/features/auth/components/apple-sign-in-button';
 import { GoogleSignInButton } from '@/features/auth/components/google-sign-in-button';
+import { useAuth } from '@/features/auth/hooks/use-auth';
 import { useWebSocialProviders } from '@/features/auth/hooks/use-web-social-providers';
 import {
   requestAppleCredential,
@@ -10,7 +11,7 @@ import {
   type SocialSignInPayload,
 } from '@/features/auth/lib/social-web';
 import { trpc } from '@/lib/trpc';
-import { Download, Trash2 } from 'lucide-react';
+import { Download, LogOut, Trash2 } from 'lucide-react';
 import { ACCOUNT_DELETION_COPY as COPY } from '@chefer/types';
 import { Button, Sheet, Toast } from '@chefer/ui';
 import { userFacingErrorMessage } from '@chefer/utils';
@@ -31,6 +32,8 @@ export function AccountDataCard() {
   const [exportError, setExportError] = useState<string | null>(null);
   const [exportReady, setExportReady] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
+  // FB7-02: sign-out next to export/delete (parity with the mobile card).
+  const { logout } = useAuth();
 
   async function downloadData() {
     setExporting(true);
@@ -62,6 +65,10 @@ export function AccountDataCard() {
         <Button variant="outline" onClick={() => void downloadData()} disabled={exporting}>
           <Download aria-hidden="true" />
           {exporting ? 'Preparing…' : 'Download my data'}
+        </Button>
+        <Button variant="outline" onClick={logout}>
+          <LogOut aria-hidden="true" />
+          Sign out
         </Button>
         <Button
           variant="outline"

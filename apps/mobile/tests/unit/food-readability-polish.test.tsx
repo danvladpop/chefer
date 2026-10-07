@@ -53,6 +53,7 @@ jest.mock('../../src/lib/trpc', () => ({
       deleteSelf: { useMutation: () => ({ mutate: jest.fn(), isPending: false }) },
     },
     auth: {
+      logout: { useMutation: () => ({ mutate: jest.fn(), isPending: false }) },
       me: { useQuery: () => ({ data: { email: 'alice@chefer.dev' } }) },
       linkedIdentities: { useQuery: () => ({ data: undefined }) },
       requestPasswordReset: {

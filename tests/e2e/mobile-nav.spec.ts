@@ -100,8 +100,8 @@ test.describe('food IA (P2-2 / P2-8)', () => {
     await expect(page.getByRole('heading', { name: 'My weeks', level: 1 })).toBeVisible();
 
     await gotoAndSettle(page, '/pantry');
-    await expect(page).toHaveURL(/\/shopping-list\?view=kitchen$/);
-    await expect(page.getByTestId('shop-segment-kitchen')).toHaveAttribute('aria-current', 'page');
+    // FB7-10: the pantry is retired; the old route lands on Shop.
+    await expect(page).toHaveURL(/\/shopping-list$/);
     await expect(bottomNav(page).locator('[aria-current="page"]')).toHaveAttribute(
       'href',
       '/shopping-list',

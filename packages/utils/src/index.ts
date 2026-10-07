@@ -398,7 +398,7 @@ export {
   type WeekGapLike,
 } from './rebalance';
 export { RATING_LABELS, composeNotesWithLikedBy, parseLikedBy, stripLikedBy } from './rating';
-export { shoppingWindowLabel } from './shopping-window';
+export { shoppingProvenanceText, shoppingWindowLabel } from './shopping-window';
 export {
   defaultSavedWeekName,
   dinnersHeadingFor,

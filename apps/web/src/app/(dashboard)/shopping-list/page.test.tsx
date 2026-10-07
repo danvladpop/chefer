@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { capture } from '@/lib/analytics';
 import { AppToastHost, resetAppToastForTests } from '@/lib/app-toast';
-import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import ShoppingListPage from './page';
 
@@ -15,26 +15,20 @@ const m = vi.hoisted(() => ({
   units: 'METRIC',
   extraItems: [] as Record<string, unknown>[],
   total: 0,
+  fromDay: undefined as number | undefined,
 }));
 
 vi.mock('next/image', () => ({
-  default: ({ alt }: { alt: string }) => <span role="img" aria-label={alt} />,
+  default: ({ alt, src, onError }: { alt: string; src: string; onError?: () => void }) => (
+    // eslint-disable-next-line @next/next/no-img-element
+    <img alt={alt} src={src} onError={onError} data-testid="item-img" />
+  ),
 }));
 vi.mock('next/link', () => ({
   default: ({ href, children }: { href: string; children: React.ReactNode }) => (
     <a href={href}>{children}</a>
   ),
 }));
-vi.mock('next/navigation', () => ({ useSearchParams: () => new URLSearchParams() }));
-vi.mock('@/features/ai-consent/AiConsentProvider', () => ({ useAiConsent: () => vi.fn() }));
-vi.mock('@/features/pantry/components/PantryCheckBanner', () => ({
-  PantryCheckBanner: () => null,
-}));
-vi.mock('@/features/pantry/components/PantryGhostBanner', () => ({
-  PantryGhostBanner: () => null,
-}));
-vi.mock('@/features/pantry/components/PantryPanel', () => ({ PantryPanel: () => null }));
-vi.mock('@/features/premium/components/UpgradeButton', () => ({ UpgradeButton: () => null }));
 vi.mock('@/features/safety/components/LabelCaveat', () => ({ LabelCaveat: () => null }));
 vi.mock('@/features/shopping-list/components/ShareListDialog', () => ({
   ShareListDialog: () => null,
@@ -61,7 +55,8 @@ const list = {
   ],
   checkedKeys: [],
   estimatedTotalEur: 0,
-  pantry: { entitled: false, savedEur: 0 },
+  pantry: { entitled: false, itemCount: 0, savedEur: 0 },
+  fromDayOfWeek: undefined as number | undefined,
 };
 
 vi.mock('@/lib/trpc', () => {
@@ -71,12 +66,16 @@ vi.mock('@/lib/trpc', () => {
     trpc: {
       useUtils: () => ({
         shoppingList: { getForWeek: cache },
-        pantry: { list: { invalidate: vi.fn() } },
       }),
       shoppingList: {
         getForWeek: {
           useQuery: () => ({
-            data: { ...list, items: [...list.items, ...m.extraItems], estimatedTotalEur: m.total },
+            data: {
+              ...list,
+              items: [...list.items, ...m.extraItems],
+              estimatedTotalEur: m.total,
+              fromDayOfWeek: m.fromDay,
+            },
             isLoading: false,
             isError: false,
             isRefetching: false,
@@ -84,7 +83,6 @@ vi.mock('@/lib/trpc', () => {
           }),
         },
         toggleItems: { useMutation: () => noopMutation },
-        regenerate: { useMutation: () => noopMutation },
         removeCustomItem: {
           useMutation: () => ({
             mutate: (vars: unknown, opts?: { onSuccess?: () => void }) => {
@@ -104,7 +102,6 @@ vi.mock('@/lib/trpc', () => {
           }),
         },
       },
-      pantry: { markOutOfStock: { useMutation: () => noopMutation } },
       mealPlan: { getForWeek: { useQuery: () => ({ data: undefined }) } },
     },
   };
@@ -116,6 +113,7 @@ beforeEach(() => {
   m.units = 'METRIC';
   m.extraItems = [];
   m.total = 0;
+  m.fromDay = undefined;
   localStorage.removeItem('chefer.shopping-expanded.v2');
   resetAppToastForTests();
 });
@@ -229,5 +227,59 @@ describe('Shop: numbers you can shop for (UX-SHOP-03)', () => {
     renderPage();
     // 2 kg of flour is 4.4 lb for an imperial user
     expect(await screen.findByText(/4\.4 lb/)).toBeTruthy();
+  });
+});
+
+describe('Shop: no kitchen, no AI, provenance (FB7-10)', () => {
+  it('has no "In my kitchen" segment and no Regenerate button', async () => {
+    renderPage();
+    await screen.findByLabelText('Remove Flour from the list');
+    expect(screen.queryByTestId('shop-segment-kitchen')).toBeNull();
+    expect(screen.queryByText(/In my kitchen/)).toBeNull();
+    expect(screen.queryByRole('button', { name: /Regenerate/ })).toBeNull();
+    expect(screen.queryByText('Have it')).toBeNull();
+  });
+
+  it('says where the list comes from: the whole week by default, the window mid-week', async () => {
+    renderPage();
+    expect((await screen.findByTestId('shop-provenance')).textContent).toBe(
+      "From your plan's recipes · Mon–Sun",
+    );
+    cleanup();
+    m.fromDay = 4;
+    renderPage();
+    expect((await screen.findByTestId('shop-provenance')).textContent).toBe(
+      "From your plan's recipes · Fri–Sun",
+    );
+  });
+});
+
+describe('Shop: thumbnails are never blank (FB7-10)', () => {
+  const item = (imageUrl: string) => ({
+    key: 'a',
+    ingredientName: 'Strawberries',
+    category: 'produce',
+    quantity: '200',
+    unit: 'g',
+    imageUrl,
+  });
+
+  it('shows the aisle icon when there is no image URL', async () => {
+    m.extraItems = [item('')];
+    renderPage();
+    const row = (await screen.findByText('Strawberries')).closest('button') as HTMLElement;
+    expect(within(row).getByTestId('item-thumb-fallback')).toBeTruthy();
+    expect(within(row).queryByTestId('item-img')).toBeNull();
+  });
+
+  it('swaps the picture for the aisle icon when it fails to load', async () => {
+    m.extraItems = [item('https://img.example/strawberries.jpg')];
+    renderPage();
+    const row = (await screen.findByText('Strawberries')).closest('button') as HTMLElement;
+    const img = within(row).getByTestId('item-img');
+    expect(within(row).queryByTestId('item-thumb-fallback')).toBeNull();
+    fireEvent.error(img);
+    expect(await within(row).findByTestId('item-thumb-fallback')).toBeTruthy();
+    expect(within(row).queryByTestId('item-img')).toBeNull();
   });
 });

@@ -5,7 +5,7 @@ import type { Page } from '@playwright/test';
 /**
  * Authenticated routes worth sweeping. Mirrors FOOD_NAV_ITEMS in apps/web,
  * plus the routes that left the nav but still render (P2-8): /tracker
- * (under Today), /ingredients, and the Shop's kitchen segment. /history and
+ * (under Today) and /ingredients. /history and
  * /pantry only redirect, so they are covered by their targets.
  */
 export const APP_ROUTES = [
@@ -15,7 +15,6 @@ export const APP_ROUTES = [
   '/recipes?tab=discover',
   '/ingredients',
   '/shopping-list',
-  '/shopping-list?view=kitchen',
   '/tracker',
   '/progress',
   '/my-weeks',
