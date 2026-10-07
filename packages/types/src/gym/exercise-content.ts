@@ -37,7 +37,7 @@ export const EXERCISE_CONTENT: Record<string, ExerciseContent> = {
       'The barbell version of the incline press — heavier loading than dumbbells once the shoulder groove is comfortable.',
     freeExerciseDbId: 'Barbell_Incline_Bench_Press_-_Medium_Grip',
     videoId: 'lJ2o89kcnxY',
-    videoStartSec: null,
+    videoStartSec: 0,
     videoChannel: 'Renaissance Periodization',
   },
   'back-extension': {
@@ -54,7 +54,7 @@ export const EXERCISE_CONTENT: Record<string, ExerciseContent> = {
       'A no-barbell way to load the lower back, glutes and hamstrings together; hold a plate to keep progressing once bodyweight is easy.',
     freeExerciseDbId: 'Hyperextensions_Back_Extensions',
     videoId: '5_ejbGfdAQE',
-    videoStartSec: null,
+    videoStartSec: 0,
     videoChannel: 'Renaissance Periodization',
     aliases: ['Hyperextension', 'Roman Chair', 'Hyperextension Bench'],
   },
@@ -532,7 +532,7 @@ export const EXERCISE_CONTENT: Record<string, ExerciseContent> = {
       'The cable keeps tension on the biceps through the whole rep, including the bottom where a barbell goes slack.',
     freeExerciseDbId: 'Standing_Biceps_Cable_Curl',
     videoId: '2MUEL4nL6hA',
-    videoStartSec: null,
+    videoStartSec: 0,
     videoChannel: 'Colossus Fitness',
   },
   'triceps-pushdown': {
@@ -1409,7 +1409,7 @@ export const EXERCISE_CONTENT: Record<string, ExerciseContent> = {
       'A stable, easy-to-load way to train the upper chest when the incline bench is taken or your shoulders prefer a fixed path.',
     freeExerciseDbId: 'Leverage_Incline_Chest_Press',
     videoId: 'TrTSvn5-MTk',
-    videoStartSec: null,
+    videoStartSec: 0,
     videoChannel: 'Renaissance Periodization',
   },
   'smith-machine-bench-press': {
@@ -1426,7 +1426,7 @@ export const EXERCISE_CONTENT: Record<string, ExerciseContent> = {
       'The fixed bar path lets you push close to failure without a spotter, which makes it a solid pressing option for training alone.',
     freeExerciseDbId: 'Smith_Machine_Bench_Press',
     videoId: 'O5viuEPDXKY',
-    videoStartSec: null,
+    videoStartSec: 0,
     videoChannel: 'Renaissance Periodization',
   },
   'smith-machine-incline-press': {
@@ -1443,7 +1443,7 @@ export const EXERCISE_CONTENT: Record<string, ExerciseContent> = {
       'Upper-chest pressing on a fixed path — easy to set up, easy to progress, and safe to take close to failure alone.',
     freeExerciseDbId: 'Smith_Machine_Incline_Bench_Press',
     videoId: '8urE8Z8AMQ4',
-    videoStartSec: null,
+    videoStartSec: 0,
     videoChannel: 'Renaissance Periodization',
   },
   'decline-barbell-bench-press': {
@@ -1460,7 +1460,7 @@ export const EXERCISE_CONTENT: Record<string, ExerciseContent> = {
       'A shorter range of motion lets most people handle more weight, and it puts a little more emphasis on the lower chest.',
     freeExerciseDbId: 'Decline_Barbell_Bench_Press',
     videoId: 'LfyQBUKR8SE',
-    videoStartSec: null,
+    videoStartSec: 0,
     videoChannel: 'ScottHermanFitness',
   },
   'dumbbell-floor-press': {
@@ -1477,7 +1477,7 @@ export const EXERCISE_CONTENT: Record<string, ExerciseContent> = {
       'No bench needed, and the floor caps the range — a shoulder-friendly press for home setups and sore shoulders.',
     freeExerciseDbId: 'Dumbbell_Floor_Press',
     videoId: 'uUGDRwge4F8',
-    videoStartSec: null,
+    videoStartSec: 0,
     videoChannel: 'ScottHermanFitness',
   },
   'standing-cable-chest-press': {
@@ -1494,7 +1494,7 @@ export const EXERCISE_CONTENT: Record<string, ExerciseContent> = {
       'A standing press that trains the chest with constant cable tension and makes your core work to keep you still.',
     freeExerciseDbId: 'Standing_Cable_Chest_Press',
     videoId: 'fOHouR0t9Cw',
-    videoStartSec: null,
+    videoStartSec: 0,
     videoChannel: 'Mike | J2FIT Strength & Conditioning',
   },
   'pec-deck': {
@@ -1511,7 +1511,7 @@ export const EXERCISE_CONTENT: Record<string, ExerciseContent> = {
       'The most common chest isolation machine — a fixed arc makes it simple to learn and easy to push hard safely.',
     freeExerciseDbId: 'Butterfly',
     videoId: 'O-OBCfyh9Fw',
-    videoStartSec: null,
+    videoStartSec: 0,
     videoChannel: 'Renaissance Periodization',
   },
   'cable-crossover': {
@@ -1528,7 +1528,7 @@ export const EXERCISE_CONTENT: Record<string, ExerciseContent> = {
       'A high-to-low cable fly that keeps tension on the chest through the whole arc, with extra emphasis on the lower fibres.',
     freeExerciseDbId: 'Cable_Crossover',
     videoId: '8Um35Es-ROE',
-    videoStartSec: null,
+    videoStartSec: 0,
     videoChannel: 'ScottHermanFitness',
   },
   'low-to-high-cable-fly': {
@@ -1544,7 +1544,7 @@ export const EXERCISE_CONTENT: Record<string, ExerciseContent> = {
     blurb: 'An upward fly that biases the upper chest, a useful complement to incline pressing.',
     freeExerciseDbId: 'Low_Cable_Crossover',
     videoId: 'eQ_NBB6OBH4',
-    videoStartSec: null,
+    videoStartSec: 0,
     videoChannel: 'ScottHermanFitness',
   },
   'incline-dumbbell-fly': {
@@ -1561,7 +1561,7 @@ export const EXERCISE_CONTENT: Record<string, ExerciseContent> = {
       'An upper-chest fly that loads the muscle hardest at the stretch, needing only dumbbells and an adjustable bench.',
     freeExerciseDbId: 'Incline_Dumbbell_Flyes',
     videoId: '8oR5hBwbIBc',
-    videoStartSec: null,
+    videoStartSec: 0,
     videoChannel: 'Renaissance Periodization',
   },
   'close-grip-lat-pulldown': {
@@ -1578,7 +1578,7 @@ export const EXERCISE_CONTENT: Record<string, ExerciseContent> = {
       'A neutral-grip pulldown that many people find easier on the shoulders and stronger than the wide grip.',
     freeExerciseDbId: 'V-Bar_Pulldown',
     videoId: 'GRHLNfmr_oI',
-    videoStartSec: null,
+    videoStartSec: 0,
     videoChannel: 'Renaissance Periodization',
   },
   'underhand-lat-pulldown': {
@@ -1595,7 +1595,7 @@ export const EXERCISE_CONTENT: Record<string, ExerciseContent> = {
       'A palms-up pulldown that lets the biceps help, so most people can load it heavier while still training the lats hard.',
     freeExerciseDbId: 'Underhand_Cable_Pulldowns',
     videoId: 'VprlTxpB1rk',
-    videoStartSec: null,
+    videoStartSec: 0,
     videoChannel: 'Renaissance Periodization',
   },
   'single-arm-lat-pulldown': {
@@ -1612,7 +1612,7 @@ export const EXERCISE_CONTENT: Record<string, ExerciseContent> = {
       'Training one side at a time lets you get a bigger stretch and fix side-to-side differences.',
     freeExerciseDbId: 'One_Arm_Lat_Pulldown',
     videoId: 'M9xUoJYtXtc',
-    videoStartSec: null,
+    videoStartSec: 0,
     videoChannel: 'Ben Yanes',
   },
   'pendlay-row': {
@@ -1629,7 +1629,7 @@ export const EXERCISE_CONTENT: Record<string, ExerciseContent> = {
       'A strict barbell row from a dead stop that removes momentum and builds raw pulling strength through the upper back.',
     freeExerciseDbId: null,
     videoId: 'Wv7f0uIKh8o',
-    videoStartSec: null,
+    videoStartSec: 0,
     videoChannel: 'PureGym',
   },
   't-bar-row': {
@@ -1646,7 +1646,7 @@ export const EXERCISE_CONTENT: Record<string, ExerciseContent> = {
       'A heavy row with a fixed pivot that is easier to balance than a barbell row and loads the whole upper back.',
     freeExerciseDbId: 'T-Bar_Row_with_Handle',
     videoId: 'yPis7nlbqdY',
-    videoStartSec: null,
+    videoStartSec: 0,
     videoChannel: 'Renaissance Periodization',
   },
   'machine-row': {
@@ -1663,7 +1663,7 @@ export const EXERCISE_CONTENT: Record<string, ExerciseContent> = {
       'A supported row that lets you train the back hard without lower-back fatigue limiting the set.',
     freeExerciseDbId: 'Leverage_Iso_Row',
     videoId: 'TeFo51Q_Nsc',
-    videoStartSec: null,
+    videoStartSec: 0,
     videoChannel: 'PureGym',
   },
   'single-arm-cable-row': {
@@ -1679,7 +1679,7 @@ export const EXERCISE_CONTENT: Record<string, ExerciseContent> = {
     blurb: 'A one-arm cable row that gives a longer range of motion and evens out a weaker side.',
     freeExerciseDbId: 'Seated_One-arm_Cable_Pulley_Rows',
     videoId: 'CrylzZHfO1c',
-    videoStartSec: null,
+    videoStartSec: 0,
     videoChannel: 'KAGED',
   },
   'bent-over-dumbbell-row': {
@@ -1696,7 +1696,7 @@ export const EXERCISE_CONTENT: Record<string, ExerciseContent> = {
       'The dumbbell version of the barbell row — no barbell needed, and each arm has to pull its own share.',
     freeExerciseDbId: 'Bent_Over_Two-Dumbbell_Row',
     videoId: '5PoEksoJNaw',
-    videoStartSec: null,
+    videoStartSec: 0,
     videoChannel: 'Renaissance Periodization',
   },
   'band-pull-apart': {
@@ -1713,7 +1713,7 @@ export const EXERCISE_CONTENT: Record<string, ExerciseContent> = {
       'Cheap, portable rear-delt and upper-back work that fits in a warm-up or between pressing sets.',
     freeExerciseDbId: 'Band_Pull_Apart',
     videoId: 'eZwnwWMkEL4',
-    videoStartSec: null,
+    videoStartSec: 0,
     videoChannel: 'Onnit',
   },
   'dumbbell-pullover': {
@@ -1730,7 +1730,7 @@ export const EXERCISE_CONTENT: Record<string, ExerciseContent> = {
       'A dumbbell-only way to train the lats through a long stretch without a pulldown machine.',
     freeExerciseDbId: 'Straight-Arm_Dumbbell_Pullover',
     videoId: 'jQjWlIwG4sI',
-    videoStartSec: null,
+    videoStartSec: 0,
     videoChannel: 'Renaissance Periodization',
   },
   'smith-machine-shoulder-press': {
@@ -1747,7 +1747,7 @@ export const EXERCISE_CONTENT: Record<string, ExerciseContent> = {
       'Overhead pressing on a fixed path — no balancing, so the shoulders can be pushed hard without a spotter.',
     freeExerciseDbId: 'Smith_Machine_Overhead_Shoulder_Press',
     videoId: 'OLqZDUUD2b0',
-    videoStartSec: null,
+    videoStartSec: 0,
     videoChannel: 'Renaissance Periodization',
   },
   'landmine-press': {
@@ -1764,7 +1764,7 @@ export const EXERCISE_CONTENT: Record<string, ExerciseContent> = {
       'An angled press that is often comfortable for people whose shoulders dislike strict overhead pressing.',
     freeExerciseDbId: null,
     videoId: 'SmEm6HGLin4',
-    videoStartSec: null,
+    videoStartSec: 0,
     videoChannel: 'Muscle & Motion',
   },
   'standing-dumbbell-shoulder-press': {
@@ -1781,7 +1781,7 @@ export const EXERCISE_CONTENT: Record<string, ExerciseContent> = {
       'Standing makes the core work to hold you still, and dumbbells let each shoulder move freely.',
     freeExerciseDbId: 'Standing_Dumbbell_Press',
     videoId: 'XBOODv-Y6dc',
-    videoStartSec: null,
+    videoStartSec: 0,
     videoChannel: 'Tim Bullici',
   },
   'arnold-press': {
@@ -1798,7 +1798,7 @@ export const EXERCISE_CONTENT: Record<string, ExerciseContent> = {
       'A rotating dumbbell press that covers a longer range than a standard press and hits the front delts hard.',
     freeExerciseDbId: 'Arnold_Dumbbell_Press',
     videoId: 'jeJttN2EWCo',
-    videoStartSec: null,
+    videoStartSec: 0,
     videoChannel: 'PureGym',
   },
   'machine-shoulder-press': {
@@ -1815,7 +1815,7 @@ export const EXERCISE_CONTENT: Record<string, ExerciseContent> = {
       'A stable, beginner-friendly overhead press that is easy to load and safe to push near failure.',
     freeExerciseDbId: 'Machine_Shoulder_Military_Press',
     videoId: 'WvLMauqrnK8',
-    videoStartSec: null,
+    videoStartSec: 0,
     videoChannel: 'Renaissance Periodization',
   },
   'kettlebell-press': {
@@ -1832,7 +1832,7 @@ export const EXERCISE_CONTENT: Record<string, ExerciseContent> = {
       'A one-arm overhead press that also trains core stability, needing only a single kettlebell.',
     freeExerciseDbId: null,
     videoId: 'gjr-QAdsq4o',
-    videoStartSec: null,
+    videoStartSec: 0,
     videoChannel: 'Onnit',
   },
   'machine-lateral-raise': {
@@ -1849,7 +1849,7 @@ export const EXERCISE_CONTENT: Record<string, ExerciseContent> = {
       'A fixed-path lateral raise that keeps tension on the side delts and is easy to progress in small steps.',
     freeExerciseDbId: null,
     videoId: '0o07iGKUarI',
-    videoStartSec: null,
+    videoStartSec: 0,
     videoChannel: 'Renaissance Periodization',
   },
   'band-lateral-raise': {
@@ -1866,7 +1866,7 @@ export const EXERCISE_CONTENT: Record<string, ExerciseContent> = {
       'A portable side-delt exercise for home or travel — the band gets harder exactly where dumbbells get easy.',
     freeExerciseDbId: 'Lateral_Raise_-_With_Bands',
     videoId: 'gfEyrmxbCbw',
-    videoStartSec: null,
+    videoStartSec: 0,
     videoChannel: 'Live Lean TV Daily Exercises',
   },
   'upright-row': {
@@ -1883,7 +1883,7 @@ export const EXERCISE_CONTENT: Record<string, ExerciseContent> = {
       'A compound pull for the side delts and traps; a wider grip and chest-high finish keep it shoulder-friendly.',
     freeExerciseDbId: 'Upright_Barbell_Row',
     videoId: 'um3VVzqunPU',
-    videoStartSec: null,
+    videoStartSec: 0,
     videoChannel: 'Renaissance Periodization',
   },
   'dumbbell-front-raise': {
@@ -1900,7 +1900,7 @@ export const EXERCISE_CONTENT: Record<string, ExerciseContent> = {
       'Direct front-delt work for people who want more than pressing gives — usually needed in small doses.',
     freeExerciseDbId: 'Front_Dumbbell_Raise',
     videoId: 'hRJ6tR5-if0',
-    videoStartSec: null,
+    videoStartSec: 0,
     videoChannel: 'Renaissance Periodization',
   },
   'cable-rear-delt-fly': {
@@ -1916,7 +1916,7 @@ export const EXERCISE_CONTENT: Record<string, ExerciseContent> = {
     blurb: 'Constant cable tension makes this one of the best ways to isolate the rear delts.',
     freeExerciseDbId: 'Cable_Rear_Delt_Fly',
     videoId: 'er15V96hG5U',
-    videoStartSec: null,
+    videoStartSec: 0,
     videoChannel: 'PureGym',
   },
   'dumbbell-external-rotation': {
@@ -1933,7 +1933,7 @@ export const EXERCISE_CONTENT: Record<string, ExerciseContent> = {
       'Light, direct rotator-cuff work that keeps the shoulders healthy alongside heavy pressing.',
     freeExerciseDbId: 'External_Rotation',
     videoId: 'YvNMmBZ-8dY',
-    videoStartSec: null,
+    videoStartSec: 0,
     videoChannel: 'Live Lean TV Daily Exercises',
   },
   'band-external-rotation': {
@@ -1949,7 +1949,7 @@ export const EXERCISE_CONTENT: Record<string, ExerciseContent> = {
     blurb: 'A band version of rotator-cuff work that fits easily into a warm-up.',
     freeExerciseDbId: 'External_Rotation_with_Band',
     videoId: '4fM554Org3o',
-    videoStartSec: null,
+    videoStartSec: 0,
     videoChannel: 'Onyx Physical Therapy and Wellness',
   },
   'ez-bar-curl': {
@@ -1966,7 +1966,7 @@ export const EXERCISE_CONTENT: Record<string, ExerciseContent> = {
       'The angled grip is easier on the wrists than a straight bar, so most people can curl heavy and comfortably.',
     freeExerciseDbId: 'EZ-Bar_Curl',
     videoId: 'EK747VC37yE',
-    videoStartSec: null,
+    videoStartSec: 0,
     videoChannel: 'Renaissance Periodization',
   },
   'zottman-curl': {
@@ -1983,7 +1983,7 @@ export const EXERCISE_CONTENT: Record<string, ExerciseContent> = {
       'Combines a regular curl with a slow reverse-grip lowering, training the biceps and forearms together.',
     freeExerciseDbId: 'Zottman_Curl',
     videoId: 'FSGDM9-dZ9w',
-    videoStartSec: null,
+    videoStartSec: 0,
     videoChannel: 'Bodybuilding.com',
   },
   'concentration-curl': {
@@ -2000,7 +2000,7 @@ export const EXERCISE_CONTENT: Record<string, ExerciseContent> = {
       'A strict, braced curl that removes all cheating — useful for focusing on the biceps with lighter weights.',
     freeExerciseDbId: 'Concentration_Curls',
     videoId: 'Jvj2wV0vOYU',
-    videoStartSec: null,
+    videoStartSec: 0,
     videoChannel: 'ScottHermanFitness',
   },
   'dumbbell-preacher-curl': {
@@ -2017,7 +2017,7 @@ export const EXERCISE_CONTENT: Record<string, ExerciseContent> = {
       'A one-arm preacher curl that trains each side separately and loads the biceps hard in the stretched position.',
     freeExerciseDbId: 'One_Arm_Dumbbell_Preacher_Curl',
     videoId: 'fuK3nFvwgXk',
-    videoStartSec: null,
+    videoStartSec: 0,
     videoChannel: 'Renaissance Periodization',
   },
   'spider-curl': {
@@ -2033,7 +2033,7 @@ export const EXERCISE_CONTENT: Record<string, ExerciseContent> = {
     blurb: 'Hanging arms keep tension on the biceps at the top, where most curls get easy.',
     freeExerciseDbId: 'Spider_Curl',
     videoId: 'WG3vdcq__I0',
-    videoStartSec: null,
+    videoStartSec: 0,
     videoChannel: 'Renaissance Periodization',
   },
   'machine-biceps-curl': {
@@ -2047,7 +2047,7 @@ export const EXERCISE_CONTENT: Record<string, ExerciseContent> = {
       'A fixed-path curl that is easy to learn and lets you push the biceps hard without cheating.',
     freeExerciseDbId: 'Machine_Bicep_Curl',
     videoId: 'AR-oARBkYxI',
-    videoStartSec: null,
+    videoStartSec: 0,
     videoChannel: 'Colossus Fitness',
   },
   'cable-rope-hammer-curl': {
@@ -2061,7 +2061,7 @@ export const EXERCISE_CONTENT: Record<string, ExerciseContent> = {
       'A hammer curl with constant cable tension that trains the biceps and forearms together.',
     freeExerciseDbId: 'Cable_Hammer_Curls_-_Rope_Attachment',
     videoId: '1Quc_tOv97I',
-    videoStartSec: null,
+    videoStartSec: 0,
     videoChannel: 'ScottHermanFitness',
   },
   'rope-triceps-pushdown': {
@@ -2078,7 +2078,7 @@ export const EXERCISE_CONTENT: Record<string, ExerciseContent> = {
       'The rope lets your hands spread at the bottom for a full triceps squeeze — the most common pushdown variation.',
     freeExerciseDbId: 'Triceps_Pushdown_-_Rope_Attachment',
     videoId: '-xa-6cQaZKY',
-    videoStartSec: null,
+    videoStartSec: 0,
     videoChannel: 'Renaissance Periodization',
   },
   'triceps-dip': {
@@ -2095,7 +2095,7 @@ export const EXERCISE_CONTENT: Record<string, ExerciseContent> = {
       'An upright dip that shifts the work toward the triceps — one of the best bodyweight triceps builders.',
     freeExerciseDbId: 'Dips_-_Triceps_Version',
     videoId: '4LA1kF7yCGo',
-    videoStartSec: null,
+    videoStartSec: 0,
     videoChannel: 'Renaissance Periodization',
   },
   'assisted-dip': {
@@ -2108,7 +2108,7 @@ export const EXERCISE_CONTENT: Record<string, ExerciseContent> = {
     blurb: 'Lets you practise and build strength for full dips with less than your body weight.',
     freeExerciseDbId: null,
     videoId: 'yZ83t4mrPrI',
-    videoStartSec: null,
+    videoStartSec: 0,
     videoChannel: 'Renaissance Periodization',
   },
   'seated-dip-machine': {
@@ -2125,7 +2125,7 @@ export const EXERCISE_CONTENT: Record<string, ExerciseContent> = {
       'A seated, fixed-path dip that loads the triceps heavily without needing to lift your full body weight.',
     freeExerciseDbId: 'Dip_Machine',
     videoId: 'pMarNxAvHPc',
-    videoStartSec: null,
+    videoStartSec: 0,
     videoChannel: 'Live Lean TV Daily Exercises',
   },
   'reverse-curl': {
@@ -2142,7 +2142,7 @@ export const EXERCISE_CONTENT: Record<string, ExerciseContent> = {
       'A palms-down curl that builds the forearms and the brachialis, the muscle under the biceps.',
     freeExerciseDbId: 'Reverse_Barbell_Curl',
     videoId: 'SQOsKWSHTMo',
-    videoStartSec: null,
+    videoStartSec: 0,
     videoChannel: 'ScottHermanFitness',
   },
   'barbell-wrist-curl': {
@@ -2159,7 +2159,7 @@ export const EXERCISE_CONTENT: Record<string, ExerciseContent> = {
       'Direct forearm work for grip strength and forearm size, which pulling alone rarely maxes out.',
     freeExerciseDbId: 'Seated_Palm-Up_Barbell_Wrist_Curl',
     videoId: 'lfQR7oVS8eo',
-    videoStartSec: null,
+    videoStartSec: 0,
     videoChannel: 'Renaissance Periodization',
   },
   'smith-machine-squat': {
@@ -2176,7 +2176,7 @@ export const EXERCISE_CONTENT: Record<string, ExerciseContent> = {
       'A squat with no balancing needed — good for loading the quads hard when training alone.',
     freeExerciseDbId: 'Smith_Machine_Squat',
     videoId: 'AHnX-aimA4E',
-    videoStartSec: null,
+    videoStartSec: 0,
     videoChannel: 'ScottHermanFitness',
   },
   'pendulum-squat': {
@@ -2192,7 +2192,7 @@ export const EXERCISE_CONTENT: Record<string, ExerciseContent> = {
     blurb: 'A machine squat with a deep, quad-focused arc that is easy on the lower back.',
     freeExerciseDbId: null,
     videoId: 'lYoYwBYU3tQ',
-    videoStartSec: null,
+    videoStartSec: 0,
     videoChannel: 'Colossus Fitness',
   },
   'belt-squat': {
@@ -2206,7 +2206,7 @@ export const EXERCISE_CONTENT: Record<string, ExerciseContent> = {
       'Loads the legs from the hips, so you can train squats hard with almost no lower-back or spinal load.',
     freeExerciseDbId: null,
     videoId: 'V0bPCIjJA7U',
-    videoStartSec: null,
+    videoStartSec: 0,
     videoChannel: 'Heavyset Gym',
   },
   'dumbbell-sumo-squat': {
@@ -2222,7 +2222,7 @@ export const EXERCISE_CONTENT: Record<string, ExerciseContent> = {
     blurb: 'A wide-stance squat that adds inner-thigh work and needs just one dumbbell.',
     freeExerciseDbId: 'Plie_Dumbbell_Squat',
     videoId: 'MwNY25e4QEA',
-    videoStartSec: null,
+    videoStartSec: 0,
     videoChannel: 'Live Lean TV Daily Exercises',
   },
   'kettlebell-goblet-squat': {
@@ -2239,7 +2239,7 @@ export const EXERCISE_CONTENT: Record<string, ExerciseContent> = {
       'The kettlebell version of the goblet squat — a simple, self-correcting squat for home and beginners.',
     freeExerciseDbId: 'Goblet_Squat',
     videoId: 'MWHIs0zxkCU',
-    videoStartSec: null,
+    videoStartSec: 0,
     videoChannel: 'National Academy of Sports Medicine (NASM)',
   },
   'good-morning': {
@@ -2256,7 +2256,7 @@ export const EXERCISE_CONTENT: Record<string, ExerciseContent> = {
       'A barbell hinge that trains the hamstrings and lower back; start light and earn the load.',
     freeExerciseDbId: 'Good_Morning',
     videoId: 'dEJ0FTm-CEk',
-    videoStartSec: null,
+    videoStartSec: 0,
     videoChannel: 'Renaissance Periodization',
   },
   'sumo-deadlift': {
@@ -2273,7 +2273,7 @@ export const EXERCISE_CONTENT: Record<string, ExerciseContent> = {
       'A wide-stance deadlift with a more upright torso, which some lifters find stronger and kinder to the back.',
     freeExerciseDbId: 'Sumo_Deadlift',
     videoId: 'pfSMst14EFk',
-    videoStartSec: null,
+    videoStartSec: 0,
     videoChannel: 'Renaissance Periodization',
   },
   'trap-bar-deadlift': {
@@ -2290,7 +2290,7 @@ export const EXERCISE_CONTENT: Record<string, ExerciseContent> = {
       'The easiest deadlift to learn — the load sits beside you, so the back stays more upright and the legs share the work.',
     freeExerciseDbId: 'Trap_Bar_Deadlift',
     videoId: 'v709aJKv-gM',
-    videoStartSec: null,
+    videoStartSec: 0,
     videoChannel: 'Renaissance Periodization',
   },
   'rack-pull': {
@@ -2307,7 +2307,7 @@ export const EXERCISE_CONTENT: Record<string, ExerciseContent> = {
       'A partial deadlift that overloads the top half of the pull and builds the upper back and grip.',
     freeExerciseDbId: 'Rack_Pulls',
     videoId: '9vYBWV5OeKg',
-    videoStartSec: null,
+    videoStartSec: 0,
     videoChannel: 'PureGym',
   },
   'kettlebell-swing': {
@@ -2324,7 +2324,7 @@ export const EXERCISE_CONTENT: Record<string, ExerciseContent> = {
       'A powerful hip hinge that trains the glutes and hamstrings and raises your heart rate at the same time.',
     freeExerciseDbId: null,
     videoId: 'LBhaLLc153A',
-    videoStartSec: null,
+    videoStartSec: 0,
     videoChannel: 'Squat University',
   },
   'kettlebell-deadlift': {
@@ -2341,7 +2341,7 @@ export const EXERCISE_CONTENT: Record<string, ExerciseContent> = {
       'The simplest way to learn the hip hinge before moving on to swings or barbell deadlifts.',
     freeExerciseDbId: null,
     videoId: 'l6gDwf3xC6s',
-    videoStartSec: null,
+    videoStartSec: 0,
     videoChannel: 'Onnit',
   },
   'kettlebell-single-leg-deadlift': {
@@ -2355,7 +2355,7 @@ export const EXERCISE_CONTENT: Record<string, ExerciseContent> = {
       'A one-leg hinge that trains the hamstrings and glutes along with balance and hip control.',
     freeExerciseDbId: 'Kettlebell_One-Legged_Deadlift',
     videoId: 'b9bHy3ojQWA',
-    videoStartSec: null,
+    videoStartSec: 0,
     videoChannel: 'Purple Patch Fitness',
   },
   'dumbbell-reverse-lunge': {
@@ -2371,7 +2371,7 @@ export const EXERCISE_CONTENT: Record<string, ExerciseContent> = {
     blurb: 'A knee-friendly lunge — stepping back is easier to control than stepping forward.',
     freeExerciseDbId: 'Dumbbell_Rear_Lunge',
     videoId: 'QwcBZLq7Jkw',
-    videoStartSec: null,
+    videoStartSec: 0,
     videoChannel: 'Mike | J2FIT Strength & Conditioning',
   },
   'dumbbell-step-up': {
@@ -2385,7 +2385,7 @@ export const EXERCISE_CONTENT: Record<string, ExerciseContent> = {
       'A single-leg exercise that builds the quads and glutes and transfers directly to stairs and hills.',
     freeExerciseDbId: 'Dumbbell_Step_Ups',
     videoId: 'DxUNi119Qzs',
-    videoStartSec: null,
+    videoStartSec: 0,
     videoChannel: 'PureGym',
   },
   'barbell-lunge': {
@@ -2401,7 +2401,7 @@ export const EXERCISE_CONTENT: Record<string, ExerciseContent> = {
     blurb: 'A heavier lunge option once dumbbells become too heavy to hold.',
     freeExerciseDbId: 'Barbell_Lunge',
     videoId: 'NcDtORTfVNQ',
-    videoStartSec: null,
+    videoStartSec: 0,
     videoChannel: 'Colossus Fitness',
   },
   'standing-leg-curl': {
@@ -2414,7 +2414,7 @@ export const EXERCISE_CONTENT: Record<string, ExerciseContent> = {
     blurb: 'A one-leg curl that trains each hamstring separately and evens out imbalances.',
     freeExerciseDbId: 'Standing_Leg_Curl',
     videoId: 'Z053-kKjesQ',
-    videoStartSec: null,
+    videoStartSec: 0,
     videoChannel: 'ScottHermanFitness',
   },
   'barbell-glute-bridge': {
@@ -2431,7 +2431,7 @@ export const EXERCISE_CONTENT: Record<string, ExerciseContent> = {
       'A floor-based hip thrust with a shorter range that is quick to set up and easy to load heavy.',
     freeExerciseDbId: 'Barbell_Glute_Bridge',
     videoId: 'ylpfCk3i-0Y',
-    videoStartSec: null,
+    videoStartSec: 0,
     videoChannel: 'ScottHermanFitness',
   },
   'cable-glute-kickback': {
@@ -2444,7 +2444,7 @@ export const EXERCISE_CONTENT: Record<string, ExerciseContent> = {
     blurb: 'Isolates the glutes one side at a time with constant cable tension.',
     freeExerciseDbId: 'One-Legged_Cable_Kickback',
     videoId: '5jJNfIlKTmg',
-    videoStartSec: null,
+    videoStartSec: 0,
     videoChannel: 'Colossus Fitness',
   },
   'glute-kickback-machine': {
@@ -2457,7 +2457,7 @@ export const EXERCISE_CONTENT: Record<string, ExerciseContent> = {
     blurb: 'A fixed-path glute isolation exercise that is easy to load and progress.',
     freeExerciseDbId: null,
     videoId: 'NLDBFtSNhqg',
-    videoStartSec: null,
+    videoStartSec: 0,
     videoChannel: 'Renaissance Periodization',
   },
   'leg-press-calf-raise': {
@@ -2470,7 +2470,7 @@ export const EXERCISE_CONTENT: Record<string, ExerciseContent> = {
     blurb: 'A calf raise on the leg press — easy to load heavy without a dedicated calf machine.',
     freeExerciseDbId: 'Calf_Press_On_The_Leg_Press_Machine',
     videoId: 'KxEYX_cuesM',
-    videoStartSec: null,
+    videoStartSec: 0,
     videoChannel: 'Renaissance Periodization',
   },
   'hanging-leg-raise': {
@@ -2484,7 +2484,7 @@ export const EXERCISE_CONTENT: Record<string, ExerciseContent> = {
       'A harder progression of the hanging knee raise that trains the abs through a long range.',
     freeExerciseDbId: 'Hanging_Leg_Raise',
     videoId: '7FwGZ8qY5OU',
-    videoStartSec: null,
+    videoStartSec: 0,
     videoChannel: 'Renaissance Periodization',
   },
   'captains-chair-knee-raise': {
@@ -2497,7 +2497,7 @@ export const EXERCISE_CONTENT: Record<string, ExerciseContent> = {
     blurb: 'A supported knee raise that removes grip and swing, so the abs do the work.',
     freeExerciseDbId: 'Knee_Hip_Raise_On_Parallel_Bars',
     videoId: '7KDDZtaUaxw',
-    videoStartSec: null,
+    videoStartSec: 0,
     videoChannel: 'Live Lean TV Daily Exercises',
   },
   'ab-crunch-machine': {
@@ -2513,7 +2513,7 @@ export const EXERCISE_CONTENT: Record<string, ExerciseContent> = {
     blurb: 'Loaded ab work that progresses in steady weight steps.',
     freeExerciseDbId: 'Ab_Crunch_Machine',
     videoId: '-OUSBPnHvsQ',
-    videoStartSec: null,
+    videoStartSec: 0,
     videoChannel: 'Renaissance Periodization',
   },
   crunch: {
@@ -2529,7 +2529,7 @@ export const EXERCISE_CONTENT: Record<string, ExerciseContent> = {
     blurb: 'The simplest ab exercise — no equipment and easy to learn.',
     freeExerciseDbId: 'Crunches',
     videoId: 'NGRKFMKhF8s',
-    videoStartSec: null,
+    videoStartSec: 0,
     videoChannel: 'ScottHermanFitness',
   },
   'reverse-crunch': {
@@ -2542,7 +2542,7 @@ export const EXERCISE_CONTENT: Record<string, ExerciseContent> = {
     blurb: 'A lower-ab focused crunch that is easier on the neck than a regular crunch.',
     freeExerciseDbId: 'Reverse_Crunch',
     videoId: 'fhrkw1aaP8k',
-    videoStartSec: null,
+    videoStartSec: 0,
     videoChannel: 'ATHLEAN-X™',
   },
   'lying-leg-raise': {
@@ -2555,7 +2555,7 @@ export const EXERCISE_CONTENT: Record<string, ExerciseContent> = {
     blurb: 'A floor ab exercise that builds toward hanging leg raises.',
     freeExerciseDbId: 'Flat_Bench_Lying_Leg_Raise',
     videoId: 'xJJu-WiROM8',
-    videoStartSec: null,
+    videoStartSec: 0,
     videoChannel: 'Dimitri Giankoulas',
   },
   'side-plank': {
@@ -2568,7 +2568,7 @@ export const EXERCISE_CONTENT: Record<string, ExerciseContent> = {
     blurb: 'Trains the obliques to resist sideways bending — a core job planks and crunches miss.',
     freeExerciseDbId: 'Side_Bridge',
     videoId: 'Oe9Tp9SvTCE',
-    videoStartSec: null,
+    videoStartSec: 0,
     videoChannel: 'PureGym',
   },
   'hollow-body-hold': {
@@ -2585,7 +2585,7 @@ export const EXERCISE_CONTENT: Record<string, ExerciseContent> = {
       'A demanding hold that builds the core tension used in pull-ups and many bodyweight moves.',
     freeExerciseDbId: null,
     videoId: 'qcwAB98I2Gc',
-    videoStartSec: null,
+    videoStartSec: 0,
     videoChannel: 'Live Lean TV Daily Exercises',
   },
   'dead-bug': {
@@ -2602,7 +2602,7 @@ export const EXERCISE_CONTENT: Record<string, ExerciseContent> = {
       'A beginner-friendly core exercise that teaches you to brace while your arms and legs move.',
     freeExerciseDbId: 'Dead_Bug',
     videoId: '4XLEnwUr1d8',
-    videoStartSec: null,
+    videoStartSec: 0,
     videoChannel: 'Bodybuilding.com',
   },
   'bird-dog': {
@@ -2618,7 +2618,7 @@ export const EXERCISE_CONTENT: Record<string, ExerciseContent> = {
     blurb: 'A gentle core and lower-back exercise that trains stability without loading the spine.',
     freeExerciseDbId: null,
     videoId: 'ZdAHe9_HeEw',
-    videoStartSec: null,
+    videoStartSec: 0,
     videoChannel: 'National Academy of Sports Medicine (NASM)',
   },
   'cable-woodchop': {
@@ -2631,7 +2631,7 @@ export const EXERCISE_CONTENT: Record<string, ExerciseContent> = {
     blurb: 'A rotational core exercise that trains the obliques to produce and control twisting.',
     freeExerciseDbId: 'Standing_Cable_Wood_Chop',
     videoId: 'pAplQXk3dkU',
-    videoStartSec: null,
+    videoStartSec: 0,
     videoChannel: 'ScottHermanFitness',
   },
   'barbell-shrug': {
@@ -2644,7 +2644,7 @@ export const EXERCISE_CONTENT: Record<string, ExerciseContent> = {
     blurb: 'Heavy, direct trap work that is easy to load.',
     freeExerciseDbId: 'Barbell_Shrug',
     videoId: 'M_MjF5Nm_h4',
-    videoStartSec: null,
+    videoStartSec: 0,
     videoChannel: 'Renaissance Periodization',
   },
   'suitcase-carry': {
@@ -2657,7 +2657,7 @@ export const EXERCISE_CONTENT: Record<string, ExerciseContent> = {
     blurb: 'A one-sided carry that trains the obliques to keep you upright, along with grip.',
     freeExerciseDbId: null,
     videoId: 'tNHdx7pmrGI',
-    videoStartSec: null,
+    videoStartSec: 0,
     videoChannel: 'Buff Dudes Workouts',
   },
   'band-lateral-walk': {
@@ -2673,7 +2673,7 @@ export const EXERCISE_CONTENT: Record<string, ExerciseContent> = {
     blurb: 'A warm-up favourite that wakes up the side glutes and abductors.',
     freeExerciseDbId: 'Monster_Walk',
     videoId: 'DkaQ1mmfErA',
-    videoStartSec: null,
+    videoStartSec: 0,
     videoChannel: 'Seriously Strong Training',
   },
   'hip-adduction-machine': {
@@ -2686,7 +2686,7 @@ export const EXERCISE_CONTENT: Record<string, ExerciseContent> = {
     blurb: 'Direct inner-thigh work that compound lifts only partly cover.',
     freeExerciseDbId: 'Thigh_Adductor',
     videoId: 'CjAVezAggkI',
-    videoStartSec: null,
+    videoStartSec: 0,
     videoChannel: 'PureGym',
   },
   'dumbbell-triceps-kickback': {
@@ -2702,7 +2702,7 @@ export const EXERCISE_CONTENT: Record<string, ExerciseContent> = {
     blurb: 'Triceps isolation with just one dumbbell, hardest at full lockout.',
     freeExerciseDbId: 'Tricep_Dumbbell_Kickback',
     videoId: '6SS6K3lAwZ8',
-    videoStartSec: null,
+    videoStartSec: 0,
     videoChannel: 'ScottHermanFitness',
   },
   'pistol-squat': {
@@ -2715,7 +2715,7 @@ export const EXERCISE_CONTENT: Record<string, ExerciseContent> = {
     blurb: 'An advanced single-leg squat that builds serious leg strength with no equipment.',
     freeExerciseDbId: null,
     videoId: 'vq5-vdgJc0I',
-    videoStartSec: null,
+    videoStartSec: 0,
     videoChannel: 'Squat University',
   },
   'wall-sit': {
@@ -2728,7 +2728,7 @@ export const EXERCISE_CONTENT: Record<string, ExerciseContent> = {
     blurb: 'A simple isometric hold that builds quad endurance with nothing but a wall.',
     freeExerciseDbId: null,
     videoId: 'y-wV4Venusw',
-    videoStartSec: null,
+    videoStartSec: 0,
     videoChannel: 'ScottHermanFitness',
   },
   'lateral-lunge': {
@@ -2741,7 +2741,7 @@ export const EXERCISE_CONTENT: Record<string, ExerciseContent> = {
     blurb: 'Trains the legs side-to-side, including the inner thighs, which most leg work misses.',
     freeExerciseDbId: null,
     videoId: 'liFeq7swKfc',
-    videoStartSec: null,
+    videoStartSec: 0,
     videoChannel: 'Mind Pump TV',
   },
   'step-up': {
@@ -2754,7 +2754,7 @@ export const EXERCISE_CONTENT: Record<string, ExerciseContent> = {
     blurb: 'A beginner-friendly single-leg exercise that needs only a step or sturdy box.',
     freeExerciseDbId: null,
     videoId: 'WCFCdxzFBa4',
-    videoStartSec: null,
+    videoStartSec: 0,
     videoChannel: 'Get Exercise Confident',
   },
   'glute-ham-raise': {
@@ -2767,7 +2767,7 @@ export const EXERCISE_CONTENT: Record<string, ExerciseContent> = {
     blurb: 'One of the hardest hamstring exercises — trains them at both the knee and the hip.',
     freeExerciseDbId: 'Glute_Ham_Raise',
     videoId: 'SBGYSfoqyfU',
-    videoStartSec: null,
+    videoStartSec: 0,
     videoChannel: 'Renaissance Periodization',
   },
   'donkey-kick': {
@@ -2780,7 +2780,7 @@ export const EXERCISE_CONTENT: Record<string, ExerciseContent> = {
     blurb: 'A no-equipment glute exercise that is easy to learn and fits in anywhere.',
     freeExerciseDbId: 'Glute_Kickback',
     videoId: 'EtSJ8rwm5M8',
-    videoStartSec: null,
+    videoStartSec: 0,
     videoChannel: 'PureGym',
   },
   clamshell: {
@@ -2793,7 +2793,7 @@ export const EXERCISE_CONTENT: Record<string, ExerciseContent> = {
     blurb: 'A simple side-glute exercise — add a band around the knees to make it harder.',
     freeExerciseDbId: null,
     videoId: 'gFyIjunfbbg',
-    videoStartSec: null,
+    videoStartSec: 0,
     videoChannel: 'Hinge Health',
   },
   'kneeling-push-up': {
@@ -2806,7 +2806,7 @@ export const EXERCISE_CONTENT: Record<string, ExerciseContent> = {
     blurb: 'The standard push-up regression — builds strength toward a full push-up.',
     freeExerciseDbId: null,
     videoId: 'rR1efh-33AQ',
-    videoStartSec: null,
+    videoStartSec: 0,
     videoChannel: 'Live Lean TV Daily Exercises',
   },
   'bench-dip': {
@@ -2822,7 +2822,7 @@ export const EXERCISE_CONTENT: Record<string, ExerciseContent> = {
     blurb: 'A home-friendly triceps exercise that needs only a bench or sturdy chair.',
     freeExerciseDbId: 'Bench_Dips',
     videoId: 'c3ZGl4pAwZ4',
-    videoStartSec: null,
+    videoStartSec: 0,
     videoChannel: 'ScottHermanFitness',
   },
 
@@ -2841,7 +2841,7 @@ export const EXERCISE_CONTENT: Record<string, ExerciseContent> = {
     blurb: 'A low-impact way to build walking volume at a controlled, repeatable pace.',
     freeExerciseDbId: 'Walking_Treadmill',
     videoId: 'HxsFneJFM2c',
-    videoStartSec: null,
+    videoStartSec: 0,
     videoChannel: 'PureGym',
   },
   'treadmill-incline-walk': {
@@ -2858,7 +2858,7 @@ export const EXERCISE_CONTENT: Record<string, ExerciseContent> = {
       'Raises the effort of a walk without adding impact — a glute- and calf-heavy way to build cardio base.',
     freeExerciseDbId: 'Walking_Treadmill',
     videoId: 'NAsObfFJXvE',
-    videoStartSec: null,
+    videoStartSec: 0,
     videoChannel: 'Live Lean TV Daily Exercises',
   },
   'treadmill-run': {
@@ -2874,7 +2874,7 @@ export const EXERCISE_CONTENT: Record<string, ExerciseContent> = {
     blurb: 'Belt-paced running — useful for holding an exact pace or effort indoors.',
     freeExerciseDbId: 'Running_Treadmill',
     videoId: 'HxsFneJFM2c',
-    videoStartSec: null,
+    videoStartSec: 0,
     videoChannel: 'PureGym',
   },
   'outdoor-walk': {
@@ -2890,7 +2890,7 @@ export const EXERCISE_CONTENT: Record<string, ExerciseContent> = {
     blurb: 'The simplest cardio there is — logged by time and distance, wherever you walk.',
     freeExerciseDbId: null,
     videoId: '-fD2TSL2s7I',
-    videoStartSec: null,
+    videoStartSec: 0,
     videoChannel: 'Rehab and Revive',
   },
   'outdoor-run': {
@@ -2907,7 +2907,7 @@ export const EXERCISE_CONTENT: Record<string, ExerciseContent> = {
       'Running outdoors — pace varies with terrain and weather, so judge effort by feel as much as pace.',
     freeExerciseDbId: null,
     videoId: '_kGESn8ArrU',
-    videoStartSec: null,
+    videoStartSec: 0,
     videoChannel: 'Global Triathlon Network',
   },
   'outdoor-cycle': {
@@ -2924,7 +2924,7 @@ export const EXERCISE_CONTENT: Record<string, ExerciseContent> = {
       'Outdoor cycling — logged by time and distance; effort swings with hills, wind and traffic.',
     freeExerciseDbId: null,
     videoId: '4ssLDk1eX9w',
-    videoStartSec: null,
+    videoStartSec: 0,
     videoChannel: 'Global Cycling Network',
   },
   'stationary-bike-upright': {
@@ -2940,7 +2940,7 @@ export const EXERCISE_CONTENT: Record<string, ExerciseContent> = {
     blurb: 'A steady, low-impact bike session — resistance and pace are fully in your control.',
     freeExerciseDbId: 'Bicycling_Stationary',
     videoId: 'fW-gDFOLaCk',
-    videoStartSec: null,
+    videoStartSec: 0,
     videoChannel: 'Live Lean TV Daily Exercises',
   },
   'stationary-bike-recumbent': {
@@ -2957,7 +2957,7 @@ export const EXERCISE_CONTENT: Record<string, ExerciseContent> = {
       'The back-supported bike — an easier entry point for longer, lower-impact cardio sessions.',
     freeExerciseDbId: null,
     videoId: 'ckJRUKyJ8cI',
-    videoStartSec: null,
+    videoStartSec: 0,
     videoChannel: 'Live Lean TV Daily Exercises',
   },
   'spin-class': {
@@ -3059,7 +3059,7 @@ export const EXERCISE_CONTENT: Record<string, ExerciseContent> = {
       'Pool swimming of any stroke — logged by time, with kcal from your watch if it tracks it.',
     freeExerciseDbId: null,
     videoId: '6_vXycbD2TM',
-    videoStartSec: null,
+    videoStartSec: 0,
     videoChannel: 'Global Triathlon Network',
   },
   running: {
@@ -3076,7 +3076,7 @@ export const EXERCISE_CONTENT: Record<string, ExerciseContent> = {
       'A run logged by time only — use it when you did not track distance, or for a quick log.',
     freeExerciseDbId: null,
     videoId: '_kGESn8ArrU',
-    videoStartSec: null,
+    videoStartSec: 0,
     videoChannel: 'Global Triathlon Network',
   },
   walking: {
@@ -3092,7 +3092,7 @@ export const EXERCISE_CONTENT: Record<string, ExerciseContent> = {
     blurb: 'A walk or hike logged by time only — easy on the body and counts toward your week.',
     freeExerciseDbId: null,
     videoId: '-fD2TSL2s7I',
-    videoStartSec: null,
+    videoStartSec: 0,
     videoChannel: 'Rehab and Revive',
   },
   'other-activity': {
@@ -3125,7 +3125,7 @@ export const EXERCISE_CONTENT: Record<string, ExerciseContent> = {
       'A no-impact, full-body cardio machine — good on days a joint needs a break from running.',
     freeExerciseDbId: 'Elliptical_Trainer',
     videoId: 'RakIFxUmSpA',
-    videoStartSec: null,
+    videoStartSec: 0,
     videoChannel: 'Live Lean TV Daily Exercises',
   },
   'rowing-machine': {
@@ -3142,7 +3142,7 @@ export const EXERCISE_CONTENT: Record<string, ExerciseContent> = {
       'A full-body, low-impact machine — distance is logged in metres, the standard rowing unit.',
     freeExerciseDbId: 'Rowing_Stationary',
     videoId: '6_eLpWiNijE',
-    videoStartSec: null,
+    videoStartSec: 0,
     videoChannel: 'PureGym',
   },
   'stair-climber': {
@@ -3159,7 +3159,7 @@ export const EXERCISE_CONTENT: Record<string, ExerciseContent> = {
       'A demanding lower-body cardio machine — logged by time and effort rather than distance.',
     freeExerciseDbId: 'Stairmaster',
     videoId: 'tl90dPJ9Od8',
-    videoStartSec: null,
+    videoStartSec: 0,
     videoChannel: 'Body Mountain',
   },
 };

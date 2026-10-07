@@ -22,20 +22,40 @@ instead of hot-linked from `raw.githubusercontent.com` at runtime.
 - **Size:** exactly 600×400 — `ensure.test.ts` ("is exactly 600×400 (3:2,
   T-05.11 AC30)") reads every vendored file's WebP header
   (`exercise-library/webp-dimensions.ts`) and fails the suite if one drifts.
-- **No photo:** ten exercises have no faithful free-exercise-db match and so
-  have no photos here — `bulgarian-split-squat`, `hip-abduction-machine`,
-  and the home variants `dumbbell-hip-thrust`, `reverse-lunge`,
-  `bodyweight-bulgarian-split-squat`, `single-leg-romanian-deadlift`,
-  `single-leg-calf-raise` and `pike-push-up` (audit F-GYM-2-1), plus the two
-  T-05.10 additions carry real photos so this list is unchanged by them.
-  Their detail screens rely on the cues and the video; `ExerciseImage`/
-  `PhotoCrossfade` show the icon placeholder. The 91 rows added by the
-  2026-10 library expansion (`docs/gym/library-expansion/plan-library-supersets.md`
-  L1) also ship without photos, on purpose: free-exercise-db photo
-  provenance is an open owner decision (L-D1), so their `freeExerciseDbId`
-  stays null and nothing new is vendored here until it is answered. Their
-  candidate free-exercise-db and wger ids are recorded in
-  `docs/gym/library-expansion/sources.json`.
+- **No photo:** 40 of 191 rows (39 plus the hidden `plank`, below) have no photo
+  because free-exercise-db has no entry for the same movement and equipment (a
+  visibly different variant is not accepted). Their detail screens rely on the cues
+  and the video; `ExerciseImage`/`PhotoCrossfade` show the icon placeholder. The
+  list is the commented allow-list in
+  `packages/types/src/gym/exercise-media.test.ts`: `pendlay-row` (dataset has only
+  the bent-over row), `landmine-press`, `kettlebell-press` and `kettlebell-swing`
+  (only alternating / one-arm variants), `machine-lateral-raise`, `assisted-dip`,
+  `pendulum-squat`, `belt-squat`, `kettlebell-deadlift`, `glute-kickback-machine`,
+  `hollow-body-hold`, `bird-dog`, `suitcase-carry`, `dumbbell-hip-thrust`,
+  `pistol-squat` (only a kettlebell version), `wall-sit`, `bulgarian-split-squat`
+  and `bodyweight-bulgarian-split-squat` (the dataset split squat does not show the
+  raised rear foot), `reverse-lunge`, `lateral-lunge`, `step-up`,
+  `single-leg-romanian-deadlift`, `clamshell`, `single-leg-calf-raise`,
+  `kneeling-push-up`, `pike-push-up`, and the cardio/activity presets
+  `outdoor-walk`, `outdoor-run`, `outdoor-cycle` (the dataset "Bicycling" photo is a
+  helmet close-up), `stationary-bike-recumbent`, `spin-class`, `pilates-class`,
+  `yoga-class`, `hiit-class`, `dance-class`, `swimming`, `running`, `walking`,
+  `other-activity`.
+- **2026-10-07 (WP-23 lane v, FB7-06) — photos filled.** The owner decided to use
+  free-exercise-db photos for every exercise that lacked one (superseding L-D1/L-D5
+  of `docs/gym/library-expansion/plan-library-supersets.md` for the new rows). 80
+  exercises gained a photo pair (3.6 MB of WebP), each pair checked on a contact
+  sheet. Close variants: `treadmill-incline-walk` uses the flat
+  `Walking_Treadmill` photo (the incline is not visible); `glute-ham-raise` uses the
+  machine photos (its two frames are shot from different angles); `close-grip-lat-pulldown`
+  uses the V-bar pulldown, `kettlebell-goblet-squat` the kettlebell goblet squat,
+  `triceps-dip` the parallel-bar dip. The research §4 near-misses `preacher-curl`
+  (was a cable photo, now `Preacher_Curl`, EZ bar) and `ab-wheel-rollout` (was a
+  barbell rollout, now `Ab_Roller`) were re-vendored under the same file keys, so a
+  client with the old image cached keeps it until its image cache expires. Still
+  open from §4 (no better dataset match): `hanging-knee-raise` (straight-leg photo),
+  `walking-lunge` (barbell), `assisted-pull-up` (band-assisted), `goblet-squat`
+  (kettlebell), `cable-fly`.
 - **Hidden photos** (file exists, but shows the wrong exercise — a
   free-exercise-db id near-miss): `plank` — both frames actually show a
   kneeling lunge stretch, not a plank. Found 2026-09-27 by a T-05.11 sample
@@ -47,11 +67,17 @@ instead of hot-linked from `raw.githubusercontent.com` at runtime.
   and its web twin (`apps/web/src/features/gym/library/ExerciseImage.tsx`)
   show the icon placeholder for any slug in that set even though the file is
   still served. Add a slug here and to that set when an audit finds another.
-- **Content gaps:** `incline-barbell-bench-press`, `back-extension`
-  (T-05.10) and `cable-biceps-curl` (added 2026-10-02) have no `videoId` yet — no pick has been oEmbed-verified. Handoff
-  for whoever owns exercise-library-research.md next. The same applies to
-  every 2026-10 library-expansion row: no photo and no video until L-D1 is
-  decided and video picks are oEmbed-verified (decision L-D5).
+- **Videos:** every exercise has an oEmbed-verified `videoId` except the six
+  class-style activity presets (`spin-class`, `pilates-class`, `yoga-class`,
+  `hiit-class`, `dance-class`, `other-activity`: no single movement to demonstrate).
+  The 108 videos added 2026-10-07 prefer the channels the catalog already used
+  (Renaissance Periodization exercise clips, ScottHermanFitness, PureGym, Colossus
+  Fitness, ...); `videoChannel` is the oEmbed `author_name` and `videoStartSec` is 0.
+  `scripts/gym/check-exercise-videos.ts` (weekly CI) keeps the links honest.
+- **Guard:** `packages/types/src/gym/exercise-media.test.ts` fails when any exercise
+  lacks a photo or video and is not on its commented allow-list, and when an
+  allow-listed slug has gained media. `scripts/gym/exercise-media-gap-report.ts`
+  prints the per-exercise status.
 - **Format:** WebP, a "cover" crop (scaled up preserving aspect, then
   center-cropped to 600×400 — never stretched) at quality 78.
 - **Regenerating:** `scripts/gym/vendor-exercise-photos.ts` downloads,
