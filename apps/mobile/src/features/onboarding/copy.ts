@@ -15,8 +15,6 @@ export type OnboardingCopyKey =
   | 'jobPlanMealsDetail'
   | 'jobHouseholdTitle'
   | 'jobHouseholdDetail'
-  | 'jobUseWhatIHaveTitle'
-  | 'jobUseWhatIHaveDetail'
   | 'jobSavedRecipesTitle'
   | 'jobSavedRecipesDetail'
   | 'jobTrackTitle'
@@ -58,8 +56,6 @@ export const ONBOARDING_COPY: Record<OnboardingCopyKey, string> = {
   jobPlanMealsDetail: 'A week of meals that fits your time and taste, with one shopping list.',
   jobHouseholdTitle: 'Feed my household',
   jobHouseholdDetail: 'One plan for everyone at my table, allergies included.',
-  jobUseWhatIHaveTitle: 'Use what I have',
-  jobUseWhatIHaveDetail: 'Keep track of what’s in my kitchen and use it first.',
   jobSavedRecipesTitle: 'Cook my saved recipes',
   jobSavedRecipesDetail: 'Keep recipes from links and videos, and plan with them.',
   jobTrackTitle: 'Track what I eat',

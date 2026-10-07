@@ -80,10 +80,10 @@ const PREMIUM_FEATURES = [
       'Add your partner and kids with their own allergies and portions — plans, servings, and the shopping list scale for everyone.',
   },
   {
-    icon: '🧺',
-    title: 'Plans that cook from your pantry',
+    icon: '🛒',
+    title: 'A shopping list built from your recipes',
     description:
-      'Chefer remembers what you bought and plans around it — fewer duplicates, visible savings, zero-waste weeks.',
+      "The week's planned recipes become one list, grouped by aisle, with an estimated total — nothing to type, nothing to forget.",
   },
   {
     icon: '💶',

@@ -607,7 +607,9 @@ export {
 } from './nudge-cap';
 export {
   effectiveJobs,
+  isOfferedOnboardingJob,
   legacyIntentForJobs,
+  RETIRED_ONBOARDING_JOBS,
   TRACK_INFERENCE_MIN_DAYS,
   type EffectiveJobsInput,
 } from './effective-jobs';

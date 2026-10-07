@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { effectiveJobs, legacyIntentForJobs } from './effective-jobs';
+import {
+  effectiveJobs,
+  isOfferedOnboardingJob,
+  legacyIntentForJobs,
+  RETIRED_ONBOARDING_JOBS,
+} from './effective-jobs';
 
 describe('effectiveJobs', () => {
   it('returns stored jobs unchanged when present', () => {
@@ -7,6 +12,25 @@ describe('effectiveJobs', () => {
       'TRAIN',
       'HOUSEHOLD',
     ]);
+  });
+
+  it('reads a stored retired USE_WHAT_I_HAVE as PLAN_MEALS, in place, without duplicating', () => {
+    expect(effectiveJobs({ jobs: ['USE_WHAT_I_HAVE'], intent: null })).toEqual(['PLAN_MEALS']);
+    expect(effectiveJobs({ jobs: ['TRAIN', 'USE_WHAT_I_HAVE', 'TRACK'], intent: null })).toEqual([
+      'TRAIN',
+      'PLAN_MEALS',
+      'TRACK',
+    ]);
+    expect(effectiveJobs({ jobs: ['PLAN_MEALS', 'USE_WHAT_I_HAVE'], intent: null })).toEqual([
+      'PLAN_MEALS',
+    ]);
+  });
+
+  it('the retired job is never offered; every other job is', () => {
+    expect(RETIRED_ONBOARDING_JOBS).toEqual(['USE_WHAT_I_HAVE']);
+    expect(isOfferedOnboardingJob('USE_WHAT_I_HAVE')).toBe(false);
+    expect(isOfferedOnboardingJob('TRAIN')).toBe(true);
+    expect(isOfferedOnboardingJob('PLAN_MEALS')).toBe(true);
   });
 
   it('maps a legacy intent when jobs is empty', () => {

@@ -1,14 +1,6 @@
 'use client';
 
-import {
-  BookOpen,
-  Calendar,
-  Dumbbell,
-  PieChart,
-  ShoppingBasket,
-  Users,
-  type LucideIcon,
-} from 'lucide-react';
+import { BookOpen, Calendar, Dumbbell, PieChart, Users, type LucideIcon } from 'lucide-react';
 import type { OnboardingJob } from '@chefer/types';
 import { cn } from '@chefer/utils';
 
@@ -17,6 +9,8 @@ import { cn } from '@chefer/utils';
 // "What brings you here?" with a multi-select. AC1: Continue is disabled at
 // 0 selections; a selected card deselects on a second click.
 
+// `USE_WHAT_I_HAVE` (the pantry job) is retired (WP-24 / FB7-10): it is not
+// offered here, but stays a valid stored/API value (`RETIRED_ONBOARDING_JOBS`).
 export const JOB_OPTIONS: {
   value: OnboardingJob;
   title: string;
@@ -40,12 +34,6 @@ export const JOB_OPTIONS: {
     title: 'Feed my household',
     detail: 'One plan for everyone at my table, allergies included.',
     icon: Users,
-  },
-  {
-    value: 'USE_WHAT_I_HAVE',
-    title: 'Use what I have',
-    detail: 'Keep track of what’s in my kitchen and use it first.',
-    icon: ShoppingBasket,
   },
   {
     value: 'SAVED_RECIPES',

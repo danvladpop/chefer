@@ -2,7 +2,7 @@ import { View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { ONBOARDING_JOBS, type OnboardingJob } from '@chefer/types';
 import { colors, PressableScale, Text } from '@chefer/ui-mobile';
-import { cn } from '@chefer/utils';
+import { cn, isOfferedOnboardingJob } from '@chefer/utils';
 import { ONBOARDING_COPY } from './copy';
 
 // Step 1 — Jobs (UX-03, T-03.2/T-03.3): multi-select, replaces IntentStep.
@@ -17,14 +17,12 @@ export const JOB_OPTIONS: {
     | 'jobTrainTitle'
     | 'jobPlanMealsTitle'
     | 'jobHouseholdTitle'
-    | 'jobUseWhatIHaveTitle'
     | 'jobSavedRecipesTitle'
     | 'jobTrackTitle';
   detailKey:
     | 'jobTrainDetail'
     | 'jobPlanMealsDetail'
     | 'jobHouseholdDetail'
-    | 'jobUseWhatIHaveDetail'
     | 'jobSavedRecipesDetail'
     | 'jobTrackDetail';
   icon: keyof typeof Ionicons.glyphMap;
@@ -48,12 +46,6 @@ export const JOB_OPTIONS: {
     icon: 'people-outline',
   },
   {
-    value: 'USE_WHAT_I_HAVE',
-    titleKey: 'jobUseWhatIHaveTitle',
-    detailKey: 'jobUseWhatIHaveDetail',
-    icon: 'basket-outline',
-  },
-  {
     value: 'SAVED_RECIPES',
     titleKey: 'jobSavedRecipesTitle',
     detailKey: 'jobSavedRecipesDetail',
@@ -68,8 +60,10 @@ export const JOB_OPTIONS: {
 ];
 
 // Keeps JOB_OPTIONS and the shared ONBOARDING_JOBS enum from drifting apart.
+// Retired jobs (USE_WHAT_I_HAVE, the pantry — WP-24 / FB7-10) stay in the enum
+// for stored values and old clients but are deliberately not offered.
 const _exhaustive: readonly OnboardingJob[] = JOB_OPTIONS.map((o) => o.value);
-if (_exhaustive.length !== ONBOARDING_JOBS.length) {
+if (_exhaustive.length !== ONBOARDING_JOBS.filter(isOfferedOnboardingJob).length) {
   throw new Error('jobs-step.tsx: JOB_OPTIONS is missing a job from ONBOARDING_JOBS');
 }
 
