@@ -11,6 +11,7 @@ export function AiGeneratedChip({
   className,
   a11yLabel = AI_GENERATED_A11Y_LABEL,
   testId = 'ai-generated-chip',
+  variant = 'chip',
 }: {
   /** Anything carrying the optional `aiGenerated` flag (a recipe, or the weekly review). */
   recipe: object | null | undefined;
@@ -18,8 +19,26 @@ export function AiGeneratedChip({
   /** Tooltip / spoken label; defaults to the recipe wording. */
   a11yLabel?: string;
   testId?: string;
+  /**
+   * `icon` (FB7-11): just the small sparkle for a dense meta line. The
+   * accessible label still says it; the visible word is dropped.
+   */
+  variant?: 'chip' | 'icon';
 }) {
   if (!isAiGenerated(recipe)) return null;
+  if (variant === 'icon') {
+    return (
+      <span
+        data-testid={testId}
+        role="img"
+        aria-label={a11yLabel}
+        title={a11yLabel}
+        className={cn('inline-flex shrink-0 items-center text-gray-500', className)}
+      >
+        <Sparkles className="h-3 w-3" aria-hidden="true" />
+      </span>
+    );
+  }
   return (
     <span
       data-testid={testId}

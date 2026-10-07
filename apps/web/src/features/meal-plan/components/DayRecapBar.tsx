@@ -1,6 +1,6 @@
 import { useNumbersMode } from '@/features/numbers-mode/numbers-mode';
 import { ChevronRight } from 'lucide-react';
-import { cn, formatKcal, sumPlanDay } from '@chefer/utils';
+import { cn, formatKcal, formatMacroLine, sumPlanDay } from '@chefer/utils';
 
 interface NutritionInfo {
   calories: number;
@@ -110,11 +110,10 @@ export function DayRecapBar({ meals, calorieTarget, proteinGapG, onOpenMiss }: D
         />
       )}
       {!proteinOnly && (
-        <div className="mt-1 flex gap-3 text-xs text-gray-500">
-          <span>P {totals.protein}g</span>
-          <span>C {totals.carbs}g</span>
-          <span>F {totals.fat}g</span>
-        </div>
+        // FB7-11: the shared "P 80 g · C 200 g · F 60 g" format, as on mobile.
+        <p data-testid="day-total-macros" className="mt-1 text-xs text-gray-500">
+          {formatMacroLine(totals)}
+        </p>
       )}
       {proteinShort && !offTarget && (
         <StatusLine

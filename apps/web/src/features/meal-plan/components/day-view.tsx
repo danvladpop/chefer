@@ -1,21 +1,20 @@
 'use client';
 
-import type { ImageStatusType } from '@/features/recipes/components/RecipeImage';
 import { Check, UtensilsCrossed } from 'lucide-react';
 import type { PlanTailoring, PlanTrainingDay } from '@chefer/types';
 import { pressControl } from '@chefer/ui';
 import {
   cn,
   PLAN_TAILORING_COPY,
-  slotStates,
   tailoringDayLabel,
   tailoringDayState,
   trainingChipA11y,
   type TailoringDayState,
 } from '@chefer/utils';
 import { DayRecapBar } from './DayRecapBar';
-import { MealCard } from './MealCard';
-import { PlanSlotShell, type PlanSlotUi } from './PlanSlotShell';
+import type { MealCardRecipe } from './MealCard';
+import { PlanDayMeals, type ImageOverrides } from './PlanDayMeals';
+import type { PlanSlotUi } from './PlanSlotShell';
 import { PreRunNote, preRunNoteFor, TrainingDayHeader, TrainingGlyph } from './TrainingDayHeader';
 
 // ─── Mobile day view ──────────────────────────────────────────────────────────
@@ -27,14 +26,6 @@ import { PreRunNote, preRunNoteFor, TrainingDayHeader, TrainingGlyph } from './T
 const DAY_SHORT = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 const DAY_LONG = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
 
-interface NutritionInfo {
-  calories: number;
-  protein: number;
-  carbs: number;
-  fat: number;
-  fiber: number;
-}
-
 interface MealSlot {
   type: string;
   /** F3 leftovers: source-day name when the slot re-plates a dinner. */
@@ -43,17 +34,7 @@ interface MealSlot {
   portion?: number;
   /** §T-07.4/T-08.9: "Your pick" — survives Regenerate by default. */
   pinned?: boolean;
-  recipe: {
-    id: string;
-    name: string;
-    description: string;
-    cuisineType: string;
-    prepTimeMins: number;
-    cookTimeMins: number;
-    nutritionInfo: NutritionInfo;
-    imageUrl?: string | null;
-    imageStatus?: ImageStatusType;
-  };
+  recipe: MealCardRecipe;
 }
 
 export interface PlanDay {
@@ -71,7 +52,7 @@ export interface PlanDay {
   planned?: boolean;
 }
 
-export type ImageOverrides = Record<string, { imageUrl: string | null; status: ImageStatusType }>;
+export type { ImageOverrides } from './PlanDayMeals';
 
 interface DayViewProps {
   days: PlanDay[];
@@ -96,6 +77,14 @@ interface DayViewProps {
     | undefined;
   /** Toggles `pinned` on a slot (§T-07.4/T-08.9). */
   onTogglePin?: ((mealType: string, slotIndex: number, pinned: boolean) => void) | undefined;
+  /** FB7-04: opens the picker to add a side dish next to a slot's meal. */
+  onAddSide?:
+    | ((mealType: string, mealName: string, slotIndex: number, recipeId: string) => void)
+    | undefined;
+  /** FB7-04: takes a side dish off the plan. */
+  onRemoveSide?:
+    | ((mealType: string, slotIndex: number, recipe: { id: string; name: string }) => void)
+    | undefined;
   /** §T-07.6 (UX-07 "Plan this day"): fills this currently-unplanned day. */
   onPlanDay?: ((dayOfWeek: number) => void) | undefined;
   /** True while `onPlanDay`'s mutation is running for THIS day. */
@@ -181,6 +170,8 @@ export function DayView({
   className,
   onReplaceMeal,
   onTogglePin,
+  onAddSide,
+  onRemoveSide,
   onPlanDay,
   planDayPending = false,
   planShapeSummary,
@@ -193,14 +184,6 @@ export function DayView({
 }: DayViewProps) {
   const day = days.find((d) => d.dayOfWeek === selectedDay);
   const meals = day?.meals ?? [];
-  // WP-06: what became of each slot (planned / eaten / replaced / skipped).
-  const slots = slotUi
-    ? slotStates(
-        meals.map((m, i) => ({ type: m.type, recipeId: m.recipe.id, slotIndex: i })),
-        slotUi.loggedMeals,
-        slotUi.skippedSlots,
-      )
-    : null;
   const trainingToday = trainingDays?.find((t) => t.dayOfWeek === selectedDay);
   const preRun = preRunNoteFor(trainingDays, selectedDay);
   // A training day's target carries its bump when the viewer's tier applies it.
@@ -352,53 +335,20 @@ export function DayView({
                 'animate-in fade-in-0 duration-deliberate ease-enter',
             )}
           >
-            {meals.map((slot, slotIndex) => {
-              const override = imageOverrides[slot.recipe.id];
-              const card = (
-                <MealCard
-                  key={`${slot.type}-${slotIndex}`}
-                  variant="row"
-                  mealType={slot.type}
-                  recipe={slot.recipe}
-                  planId={planId}
-                  dayOfWeek={selectedDay}
-                  slotIndex={slotIndex}
-                  readOnly={readOnly}
-                  imageUrlOverride={override?.imageUrl}
-                  imageStatusOverride={override?.status}
-                  leftoverLabel={slot.leftoverOf}
-                  portion={slot.portion}
-                  pinned={slot.pinned}
-                  eaten={
-                    slots
-                      ? slots[slotIndex]?.status === 'eaten'
-                      : day?.loggedRecipeIds?.includes(slot.recipe.id) === true
-                  }
-                  onReplace={
-                    onReplaceMeal
-                      ? () => onReplaceMeal(slot.type, slot.recipe.name, slotIndex, slot.recipe.id)
-                      : undefined
-                  }
-                  onTogglePin={
-                    onTogglePin ? () => onTogglePin(slot.type, slotIndex, !slot.pinned) : undefined
-                  }
-                />
-              );
-              return slotUi ? (
-                <PlanSlotShell
-                  key={`${slot.type}-${slotIndex}`}
-                  mealType={slot.type}
-                  slotIndex={slotIndex}
-                  plannedName={slot.recipe.name}
-                  state={slots?.[slotIndex]}
-                  flow={slotUi.flow}
-                >
-                  {card}
-                </PlanSlotShell>
-              ) : (
-                card
-              );
-            })}
+            <PlanDayMeals
+              meals={meals}
+              planId={planId}
+              dayOfWeek={selectedDay}
+              variant="row"
+              readOnly={readOnly}
+              imageOverrides={imageOverrides}
+              slotUi={slotUi}
+              loggedRecipeIds={day?.loggedRecipeIds}
+              onReplaceMeal={onReplaceMeal}
+              onTogglePin={onTogglePin}
+              onAddSide={onAddSide}
+              onRemoveSide={onRemoveSide}
+            />
           </div>
           <DayRecapBar
             meals={meals}
