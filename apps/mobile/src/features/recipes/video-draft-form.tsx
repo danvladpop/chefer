@@ -300,7 +300,9 @@ export function VideoDraftForm({
                   {...DONE_FIELD_PROPS}
                 />
                 {links[index]?.ingredient ? (
-                  <View className="w-20">
+                  // FB7-03: wide enough for "piece" / "tbsp" / "clove" on one
+                  // line (w-20 broke them mid-word).
+                  <View className="w-24">
                     <SelectField
                       testID={`video-draft-unit-${index}`}
                       label={`Unit for ingredient ${index + 1}`}
