@@ -1,4 +1,4 @@
-import { screen, userEvent, waitFor } from '@testing-library/react-native';
+import { screen, userEvent, waitFor, within } from '@testing-library/react-native';
 import type { ExerciseDto } from '@chefer/types';
 import { filterExercisesForTab } from '../../src/features/gym/library-screens/exercise-filters';
 import { ExercisesTab } from '../../src/features/gym/library-screens/exercises-tab';
@@ -135,6 +135,63 @@ describe('ExercisesTab', () => {
 
     await waitFor(() => expect(screen.queryByTestId('exercises-item-bench')).toBeNull());
     expect(screen.getByTestId('exercises-item-curl')).toBeTruthy();
+  });
+
+  // FB7-07: ONE filter row — Equipment ▾ first, then Mine, then the muscle chips.
+  it('renders the filters as a single row, Equipment chip first', async () => {
+    const queryClient = makeGymQueryClient();
+    queryClient.setQueryData(gymBootstrapQueryKey, makeBootstrap({ library: LIBRARY }));
+    await renderWithGym(<ExercisesTab />, queryClient);
+    await screen.findByTestId('exercises-item-bench');
+
+    // Everything lives in the one horizontal scroller, Equipment first.
+    expect(screen.getByTestId('exercises-filters-scroll').props.horizontal).toBe(true);
+    const row = within(screen.getByTestId('exercises-filters-scroll'));
+    expect(row.getByTestId('exercises-equipment-filter')).toBeTruthy();
+    expect(row.getByTestId('exercises-mine-filter')).toBeTruthy();
+    expect(row.getByTestId('exercises-group-filters')).toBeTruthy();
+    // No separate pill row for equipment any more.
+    expect(screen.queryByTestId('exercises-equipment-filters')).toBeNull();
+    expect(screen.queryByTestId('exercises-clear-filters')).toBeNull();
+  });
+
+  it('the Equipment chip opens a sheet, filters, shows the choice and clears', async () => {
+    const user = userEvent.setup();
+    const queryClient = makeGymQueryClient();
+    queryClient.setQueryData(gymBootstrapQueryKey, makeBootstrap({ library: LIBRARY }));
+    await renderWithGym(<ExercisesTab />, queryClient);
+    await screen.findByTestId('exercises-item-bench');
+
+    await user.press(screen.getByTestId('exercises-equipment-filter'));
+    await user.press(await screen.findByTestId('exercises-equipment-filter-sheet-option-DUMBBELL'));
+
+    await waitFor(() => expect(screen.queryByTestId('exercises-item-bench')).toBeNull());
+    expect(screen.getByTestId('exercises-item-curl')).toBeTruthy();
+    expect(screen.getByTestId('exercises-equipment-filter')).toHaveAccessibleName(
+      'Equipment, Dumbbell',
+    );
+
+    // "Clear" appears while a filter is set and resets everything.
+    await user.press(screen.getByTestId('exercises-clear-filters'));
+    await waitFor(() => expect(screen.getByTestId('exercises-item-bench')).toBeTruthy());
+    expect(screen.queryByTestId('exercises-clear-filters')).toBeNull();
+    expect(screen.getByTestId('exercises-equipment-filter')).toHaveAccessibleName('Equipment, any');
+  });
+
+  it('"Any equipment" in the sheet clears the equipment filter', async () => {
+    const user = userEvent.setup();
+    const queryClient = makeGymQueryClient();
+    queryClient.setQueryData(gymBootstrapQueryKey, makeBootstrap({ library: LIBRARY }));
+    await renderWithGym(<ExercisesTab />, queryClient);
+    await screen.findByTestId('exercises-item-bench');
+
+    await user.press(screen.getByTestId('exercises-equipment-filter'));
+    await user.press(await screen.findByTestId('exercises-equipment-filter-sheet-option-DUMBBELL'));
+    await waitFor(() => expect(screen.queryByTestId('exercises-item-bench')).toBeNull());
+
+    await user.press(screen.getByTestId('exercises-equipment-filter'));
+    await user.press(await screen.findByTestId('exercises-equipment-filter-sheet-option-__any__'));
+    await waitFor(() => expect(screen.getByTestId('exercises-item-bench')).toBeTruthy());
   });
 
   it('opens the custom-exercise form', async () => {

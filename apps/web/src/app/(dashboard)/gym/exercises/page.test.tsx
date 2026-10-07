@@ -117,4 +117,54 @@ describe('GymExercisesPage', () => {
     fireEvent.click(screen.getByTestId('exercises-archived-restore-old'));
     expect(m.restore).toHaveBeenCalledWith({ id: 'old' }, expect.any(Object));
   });
+
+  // FB7-07: ONE filter row — Equipment (select-styled chip), Mine, Clear, muscles.
+  describe('FB7-07 filters', () => {
+    const LIBRARY = [
+      {
+        ...EXERCISE,
+        id: 'bench',
+        name: 'Bench Press',
+        ownerId: null,
+        equipment: 'BARBELL',
+        primaryMuscles: ['chest'],
+      },
+      { ...EXERCISE, id: 'curl', name: 'Custom Curl', equipment: 'DUMBBELL' },
+    ];
+
+    beforeEach(() => {
+      m.state = { ...m.state, data: { library: LIBRARY } };
+    });
+
+    it('puts every filter in one group, Equipment first, with no second row', () => {
+      render(<GymExercisesPage />);
+      const groups = screen.getAllByRole('group');
+      expect(groups).toHaveLength(1);
+      const group = groups[0];
+      if (!group) throw new Error('filter group missing');
+      const controls = Array.from(group.querySelectorAll('select, button')).map(
+        (el) => el.getAttribute('aria-label') ?? el.textContent,
+      );
+      expect(controls.slice(0, 2)).toEqual(['Equipment', 'Mine']);
+      expect(controls).toContain('Chest');
+      expect(screen.queryByRole('group', { name: 'Equipment filters' })).toBeNull();
+    });
+
+    it('filters by the Equipment select, then Clear resets it', () => {
+      render(<GymExercisesPage />);
+      expect(screen.getByText('Bench Press')).toBeInTheDocument();
+      expect(screen.queryByTestId('exercises-clear-filters')).toBeNull();
+
+      fireEvent.change(screen.getByRole('combobox', { name: 'Equipment' }), {
+        target: { value: 'DUMBBELL' },
+      });
+      expect(screen.queryByText('Bench Press')).toBeNull();
+      expect(screen.getByText('Custom Curl')).toBeInTheDocument();
+
+      fireEvent.click(screen.getByTestId('exercises-clear-filters'));
+      expect(screen.getByText('Bench Press')).toBeInTheDocument();
+      expect(screen.getByRole('combobox', { name: 'Equipment' })).toHaveValue('');
+      expect(screen.queryByTestId('exercises-clear-filters')).toBeNull();
+    });
+  });
 });

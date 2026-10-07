@@ -19,9 +19,9 @@ import { GymBootstrapUnavailable, useGymBootstrapLoad } from '../components/gym-
 import { ModeSwitch } from '../components/mode-switch';
 import { CollapsibleChipFilters } from '../library/collapsible-chip-filters';
 import { createExerciseHref } from '../library/create-exercise-href';
+import { EquipmentFilterChip } from '../library/equipment-filter-chip';
 import { exerciseImageUrl } from '../library/exercise-image';
 import type { PickerFilter } from '../library/exercise-picker';
-import { useKeyboardVisible } from '../library/use-keyboard-visible';
 import { useGymBootstrap } from '../use-gym-bootstrap';
 import { archivedCustomExercises, ArchivedExercises } from './archived-exercises';
 import {
@@ -47,7 +47,7 @@ export function ExercisesTab() {
   const [group, setGroup] = useState<PickerFilter | null>(null);
   const [equipment, setEquipment] = useState<string | null>(null);
   const [mineOnly, setMineOnly] = useState(false);
-  const keyboardVisible = useKeyboardVisible();
+  const filtersActive = group !== null || equipment !== null || mineOnly;
   const groupFilterOptions = cardioLogging
     ? MUSCLE_GROUP_FILTERS_WITH_CARDIO
     : MUSCLE_GROUP_FILTERS;
@@ -107,41 +107,42 @@ export function ExercisesTab() {
           placeholder="Search exercises"
           accessibilityLabel="Search exercises"
         />
-        {/* T-05.A3.1 (AC19-22): two rows normally — 24 wrapping chips pushed
-            the results below the keyboard (found by e2e/gym-library,
-            2026-09-25) — collapsed to one strip while the keyboard is up, so
-            >= 5 results stay visible. */}
-        <CollapsibleChipFilters
-          testID="exercises-filters"
-          collapsed={keyboardVisible}
-          rows={[
-            <ChipGroup
-              key="group"
-              testID="exercises-group-filters"
-              options={groupFilterOptions}
-              value={group ? [group] : []}
-              onChange={(v) => setGroup(v[0] ?? null)}
-              allowEmpty
-              className="flex-nowrap"
-            />,
+        {/* FB7-07: ONE scrolling row — Equipment ▾ (opens a sheet), Mine,
+            Clear (only while a filter is set), then the muscle chips. */}
+        <CollapsibleChipFilters testID="exercises-filters">
+          <EquipmentFilterChip
+            testID="exercises-equipment-filter"
+            options={EQUIPMENT_FILTERS}
+            value={equipment}
+            onChange={setEquipment}
+          />
+          <Chip
+            testID="exercises-mine-filter"
+            label="Mine"
+            selected={mineOnly}
+            onPress={() => setMineOnly((v) => !v)}
+          />
+          {filtersActive ? (
             <Chip
-              key="mine"
-              testID="exercises-mine-filter"
-              label="Mine"
-              selected={mineOnly}
-              onPress={() => setMineOnly((v) => !v)}
-            />,
-            <ChipGroup
-              key="equipment"
-              testID="exercises-equipment-filters"
-              options={EQUIPMENT_FILTERS}
-              value={equipment ? [equipment] : []}
-              onChange={(v) => setEquipment(v[0] ?? null)}
-              allowEmpty
-              className="flex-nowrap"
-            />,
-          ]}
-        />
+              testID="exercises-clear-filters"
+              label="Clear"
+              accessibilityHint="Removes the muscle, equipment and Mine filters"
+              onPress={() => {
+                setGroup(null);
+                setEquipment(null);
+                setMineOnly(false);
+              }}
+            />
+          ) : null}
+          <ChipGroup
+            testID="exercises-group-filters"
+            options={groupFilterOptions}
+            value={group ? [group] : []}
+            onChange={(v) => setGroup(v[0] ?? null)}
+            allowEmpty
+            className="flex-nowrap"
+          />
+        </CollapsibleChipFilters>
       </View>
 
       <FlatList

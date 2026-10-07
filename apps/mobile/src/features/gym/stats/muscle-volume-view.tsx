@@ -7,8 +7,8 @@ import {
   Card,
   CardTitle,
   chartPalette,
-  ChipGroup,
   colors,
+  SelectField,
   Text,
 } from '@chefer/ui-mobile';
 import { completedSetsByWeek, landmarkFor, VOLUME_GROUP_LABELS } from '@chefer/utils';
@@ -101,11 +101,14 @@ export function MuscleVolumeView({ bootstrap }: { bootstrap: GymBootstrap }) {
   return (
     <Card testID="stats-muscle-volume">
       <CardTitle>Weekly sets per muscle</CardTitle>
-      <ChipGroup
+      {/* FB7-08: a dropdown (as on web), not 12 wrapping chips. */}
+      <SelectField
         testID="stats-muscle-volume-group"
+        label="Muscle"
         options={VOLUME_GROUP_FILTERS}
-        value={[group]}
-        onChange={(v) => v[0] && setGroup(v[0])}
+        value={group}
+        onChange={setGroup}
+        searchable={false}
         className="mb-3"
       />
       <BarChart
