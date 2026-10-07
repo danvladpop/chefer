@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { useMemo, useState } from 'react';
 import { ArchivedExercises } from '@/features/gym/library/ArchivedExercises';
 import { canOfferCreate, createExerciseHref } from '@/features/gym/library/create-exercise-href';
+import { EquipmentFilterSelect } from '@/features/gym/library/EquipmentFilterSelect';
 import { ExerciseCard } from '@/features/gym/library/ExerciseCard';
 import { FilterChip } from '@/features/gym/library/FilterChip';
 import {
@@ -44,11 +45,11 @@ export default function GymExercisesPage() {
     [bootstrap?.library, filters.query],
   );
 
+  const filtersActive =
+    filters.muscleGroup !== null || filters.equipment !== null || filters.mineOnly;
   const setQuery = (query: string) => setFilters((f) => ({ ...f, query }));
   const toggleGroup = (value: (typeof MUSCLE_GROUP_OPTIONS)[number]['value']) =>
     setFilters((f) => ({ ...f, muscleGroup: f.muscleGroup === value ? null : value }));
-  const toggleEquipment = (value: (typeof EQUIPMENT_OPTIONS)[number]['value']) =>
-    setFilters((f) => ({ ...f, equipment: f.equipment === value ? null : value }));
   const toggleMine = () => setFilters((f) => ({ ...f, mineOnly: !f.mineOnly }));
 
   if (!hasMounted) {
@@ -92,35 +93,38 @@ export default function GymExercisesPage() {
         />
       </div>
 
-      {/* Filter chips */}
+      {/* FB7-07: one scrolling row — Equipment (select-styled chip), Mine,
+          Clear (only while a filter is set), then the muscle chips. */}
       <div
         role="group"
-        aria-label="Muscle filters"
-        className="mb-2 flex gap-2 overflow-x-auto pb-1"
+        aria-label="Exercise filters"
+        className="mb-5 flex flex-nowrap gap-2 overflow-x-auto pb-1"
       >
+        <EquipmentFilterSelect
+          value={filters.equipment}
+          options={EQUIPMENT_OPTIONS}
+          onChange={(equipment) => setFilters((f) => ({ ...f, equipment }))}
+        />
         <FilterChip active={filters.mineOnly} onClick={toggleMine}>
           Mine
         </FilterChip>
+        {filtersActive ? (
+          <button
+            type="button"
+            data-testid="exercises-clear-filters"
+            onClick={() =>
+              setFilters((f) => ({ ...f, muscleGroup: null, equipment: null, mineOnly: false }))
+            }
+            className="min-h-11 shrink-0 rounded-full border border-neutral-200 bg-white px-3 text-xs font-medium text-[#944a00] transition hover:border-neutral-300"
+          >
+            Clear
+          </button>
+        ) : null}
         {MUSCLE_GROUP_OPTIONS.map((opt) => (
           <FilterChip
             key={opt.value}
             active={filters.muscleGroup === opt.value}
             onClick={() => toggleGroup(opt.value)}
-          >
-            {opt.label}
-          </FilterChip>
-        ))}
-      </div>
-      <div
-        role="group"
-        aria-label="Equipment filters"
-        className="mb-5 flex gap-2 overflow-x-auto pb-1"
-      >
-        {EQUIPMENT_OPTIONS.map((opt) => (
-          <FilterChip
-            key={opt.value}
-            active={filters.equipment === opt.value}
-            onClick={() => toggleEquipment(opt.value)}
           >
             {opt.label}
           </FilterChip>

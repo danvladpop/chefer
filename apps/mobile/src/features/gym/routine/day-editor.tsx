@@ -212,7 +212,6 @@ export function ExerciseRow({
               numberOfLines={nameLines}
               className="min-w-0 flex-1"
               textClassName="font-medium"
-              underline={false}
             />
           </View>
           <Pressable
