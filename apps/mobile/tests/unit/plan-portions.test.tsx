@@ -62,7 +62,7 @@ describe('PlanDayTotals', () => {
       />,
     );
     expect(screen.getByTestId('plan-day-totals-kcal')).toHaveTextContent('1,300 kcal');
-    expect(screen.getByText('P 80g · C 125g · F 50g')).toBeOnTheScreen();
+    expect(screen.getByText('P 80 g · C 125 g · F 50 g')).toBeOnTheScreen();
     expect(screen.queryByText(/under target/)).toBeNull();
   });
 

@@ -276,67 +276,70 @@ export default function ShoppingListScreen() {
       <KeyboardAwareScrollView contentContainerClassName="gap-4 px-4 py-4">
         <ModeSwitch />
         {/* Header + week navigator */}
-        <View className="flex-row items-center justify-between gap-2">
-          <View className="min-w-0 flex-1">
-            <Text className="text-xs font-semibold uppercase tracking-widest text-gray-500">
-              {weekOffset === 0 ? 'This Week' : weekOffset === 1 ? 'Next Week' : 'Past Week'}
-            </Text>
-            <Text testID="shopping-title" variant="title">
-              Shop
-            </Text>
-            <Text variant="muted" className="text-xs">
-              Week of {formatDate(weekStart, 'long')}
-              {items.length > 0 ? ` · ${checkedCount}/${items.length} done` : ''}
-            </Text>
-            {/* FB7-10: where the list comes from and which days it covers (a
-                plan made mid-week lists only the remaining days, F-PM-3). */}
-            <Text testID="shopping-provenance" variant="muted" className="text-xs">
-              {shoppingProvenanceText(weekList?.fromDayOfWeek)}
-            </Text>
+        <View className="gap-1">
+          <View className="flex-row items-center justify-between gap-2">
+            <View className="min-w-0 flex-1">
+              <Text className="text-xs font-semibold uppercase tracking-widest text-gray-500">
+                {weekOffset === 0 ? 'This Week' : weekOffset === 1 ? 'Next Week' : 'Past Week'}
+              </Text>
+              <Text testID="shopping-title" variant="title">
+                Shop
+              </Text>
+              <Text variant="muted" className="text-xs">
+                Week of {formatDate(weekStart, 'long')}
+                {items.length > 0 ? ` · ${checkedCount}/${items.length} done` : ''}
+              </Text>
+            </View>
+            <View className="flex-row gap-1">
+              <Pressable
+                testID="share-list"
+                accessibilityRole="button"
+                accessibilityLabel="Share the list"
+                accessibilityState={{ disabled: items.length === 0 }}
+                disabled={items.length === 0}
+                onPress={() => setShareOpen(true)}
+                className={cn(
+                  'h-11 w-11 items-center justify-center rounded-full border border-border',
+                  items.length === 0 && 'opacity-40',
+                )}
+              >
+                <Ionicons
+                  name={Platform.select({ ios: 'share-outline', default: 'share-social-outline' })}
+                  size={18}
+                  color="#6b7280"
+                />
+              </Pressable>
+              <Pressable
+                testID="week-prev"
+                accessibilityRole="button"
+                accessibilityLabel="Previous week"
+                disabled={weekOffset <= -52}
+                onPress={() => setWeekOffset((o) => o - 1)}
+                className="h-11 w-11 items-center justify-center rounded-full border border-border"
+              >
+                <Ionicons name="chevron-back" size={18} color="#6b7280" />
+              </Pressable>
+              <Pressable
+                testID="week-next"
+                accessibilityRole="button"
+                accessibilityLabel="Next week"
+                disabled={weekOffset >= 1}
+                onPress={() => setWeekOffset((o) => o + 1)}
+                className={cn(
+                  'h-11 w-11 items-center justify-center rounded-full border border-border',
+                  weekOffset >= 1 && 'opacity-40',
+                )}
+              >
+                <Ionicons name="chevron-forward" size={18} color="#6b7280" />
+              </Pressable>
+            </View>
           </View>
-          <View className="flex-row gap-1">
-            <Pressable
-              testID="share-list"
-              accessibilityRole="button"
-              accessibilityLabel="Share the list"
-              accessibilityState={{ disabled: items.length === 0 }}
-              disabled={items.length === 0}
-              onPress={() => setShareOpen(true)}
-              className={cn(
-                'h-11 w-11 items-center justify-center rounded-full border border-border',
-                items.length === 0 && 'opacity-40',
-              )}
-            >
-              <Ionicons
-                name={Platform.select({ ios: 'share-outline', default: 'share-social-outline' })}
-                size={18}
-                color="#6b7280"
-              />
-            </Pressable>
-            <Pressable
-              testID="week-prev"
-              accessibilityRole="button"
-              accessibilityLabel="Previous week"
-              disabled={weekOffset <= -52}
-              onPress={() => setWeekOffset((o) => o - 1)}
-              className="h-11 w-11 items-center justify-center rounded-full border border-border"
-            >
-              <Ionicons name="chevron-back" size={18} color="#6b7280" />
-            </Pressable>
-            <Pressable
-              testID="week-next"
-              accessibilityRole="button"
-              accessibilityLabel="Next week"
-              disabled={weekOffset >= 1}
-              onPress={() => setWeekOffset((o) => o + 1)}
-              className={cn(
-                'h-11 w-11 items-center justify-center rounded-full border border-border',
-                weekOffset >= 1 && 'opacity-40',
-              )}
-            >
-              <Ionicons name="chevron-forward" size={18} color="#6b7280" />
-            </Pressable>
-          </View>
+          {/* FB7-10: where the list comes from and which days it covers (a
+            plan made mid-week lists only the remaining days, F-PM-3). Full
+            width, under the navigator, so "Mon–Sun" never wraps mid-range. */}
+          <Text testID="shopping-provenance" variant="muted" className="text-xs">
+            {shoppingProvenanceText(weekList?.fromDayOfWeek)}
+          </Text>
         </View>
 
         {/* UX-SHOP-02: say so when changes are waiting for a connection. */}

@@ -1,7 +1,7 @@
 import { Pressable, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { colors, Text } from '@chefer/ui-mobile';
-import { formatKcal, sumPlanDay } from '@chefer/utils';
+import { formatKcal, formatMacroLine, sumPlanDay } from '@chefer/utils';
 import { useNumbersMode } from '../numbers-mode/numbers-mode';
 
 // Day totals for the Plan tab — port of web's DayRecapBar. Each slot counts at
@@ -73,9 +73,7 @@ export function PlanDayTotals({
             <Text testID={`${testID}-kcal`} className="text-sm font-bold text-primary">
               {formatKcal(totals.kcal)} kcal
             </Text>
-            <Text className="text-xs text-gray-500">
-              P {totals.protein}g · C {totals.carbs}g · F {totals.fat}g
-            </Text>
+            <Text className="text-xs text-gray-500">{formatMacroLine(totals)}</Text>
           </>
         )}
       </View>
