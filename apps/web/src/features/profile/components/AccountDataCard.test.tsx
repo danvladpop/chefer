@@ -80,7 +80,7 @@ describe('AccountDataCard sign out (FB7-02)', () => {
   it('has a Sign out button between Download and Delete that signs out', () => {
     render(<AccountDataCard />);
     const names = screen.getAllByRole('button').map((b) => b.textContent ?? '');
-    const iSignOut = names.findIndex((n) => /Sign out/.test(n));
+    const iSignOut = names.findIndex((n) => n.includes('Sign out'));
     expect(iSignOut).toBeGreaterThan(names.findIndex((n) => /Download my data|Preparing/.test(n)));
     expect(iSignOut).toBeLessThan(names.findIndex((n) => /Delete/i.test(n)));
     fireEvent.click(screen.getByRole('button', { name: /Sign out/ }));

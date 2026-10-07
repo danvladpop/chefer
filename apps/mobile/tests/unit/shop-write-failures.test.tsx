@@ -16,13 +16,6 @@ jest.mock('../../src/features/ai-consent/ai-consent-provider', () => ({
   useAiConsent: () => (_feature: string, run: () => void) => run(),
 }));
 jest.mock('../../src/features/gym/components/mode-switch', () => ({ ModeSwitch: () => null }));
-jest.mock('../../src/features/pantry/pantry-check-banner', () => ({
-  PantryCheckBanner: () => null,
-}));
-jest.mock('../../src/features/pantry/pantry-ghost-banner', () => ({
-  PantryGhostBanner: () => null,
-}));
-jest.mock('../../src/features/pantry/pantry-panel', () => ({ PantryPanel: () => null }));
 jest.mock('../../src/hooks/use-currency', () => ({ useCurrency: () => 'EUR' }));
 jest.mock('../../src/hooks/use-household', () => ({
   useHousehold: () => ({ memberCount: 0, tablePortions: null, portionSum: null }),

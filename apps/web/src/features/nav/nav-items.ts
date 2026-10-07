@@ -40,9 +40,10 @@ export interface NavItem {
 
 // Food IA (audit P2-2 / P2-8, PM review §5): Today · Plan · Shop · Cookbook
 // in the tab bar, the rest in More. Today merges Home and the Tracker, Shop
-// holds the pantry ("In my kitchen"), My weeks holds history + saved weeks.
-// Old routes keep working: /tracker lights Today, /pantry redirects to the
-// Shop's kitchen segment, /history redirects to My weeks, /ingredients stays
+// is the plan's list (FB7-10 retired its "In my kitchen" pantry segment), My
+// weeks holds history + saved weeks.
+// Old routes keep working: /tracker lights Today, /pantry redirects to
+// Shop, /history redirects to My weeks, /ingredients stays
 // reachable by URL (FOOD_EXTRA_ROUTES) but leaves the nav.
 export const FOOD_NAV_ITEMS: readonly NavItem[] = [
   {

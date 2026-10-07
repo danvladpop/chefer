@@ -1,4 +1,3 @@
-import { StyleSheet, type StyleProp, type ViewStyle } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { act, fireEvent, render, screen, within } from '@testing-library/react-native';
 import { router } from 'expo-router';
@@ -399,12 +398,8 @@ describe('VideoDraftForm (mobile)', () => {
     const root = screen.getByTestId('video-draft-ingredient-0-root');
     // The trigger flows in the row (never absolutely positioned over the text
     // below it) and wraps the name to two lines instead of overflowing.
-    expect(StyleSheet.flatten(picker.props.style as StyleProp<ViewStyle>)?.position).not.toBe(
-      'absolute',
-    );
-    expect(StyleSheet.flatten(root.props.style as StyleProp<ViewStyle>)?.position).not.toBe(
-      'absolute',
-    );
+    expect(picker).not.toHaveStyle({ position: 'absolute' });
+    expect(root).not.toHaveStyle({ position: 'absolute' });
     expect(within(picker).getByText(longName).props.numberOfLines).toBe(2);
     // Both amber hints are in the column under the row, as siblings of it.
     expect(screen.getByText('Amount not heard — please check')).toBeOnTheScreen();
