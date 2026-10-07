@@ -2321,6 +2321,7 @@ bodyweight home variants added for audit F-GYM-2-1; `incline-barbell-bench-press
 
 Resolution order:
 
+0. **Vendored static thumbnails (FB7-10, WP-24)** — `apps/api/static/ingredients/*.webp` (256×256, AI-generated once via Pollinations, see its README), indexed by `manifest.json` (`lib/ingredient-images/static-images.ts`; lookup tries the display name's candidate keys — whole name, singular, prep-stripped). Wins over the cache, Unsplash and Pollinations. Served by Express at `/uploads/ingredients/<file>?v=<hash>` (30-day immutable; mounted before `/uploads`, already proxied by Caddy's `/uploads/*`, ships inside the API image — no ops step). Covers every shoppable name in the curated pool (278/278); re-render or extend with `scripts/ingredient-images/vendor.ts` (`--only`, `--force`, `--reseed`, `--scope used|all`) and review with `scripts/ingredient-images/contact-sheet.ts`.
 1. **DB cache** — `IngredientImage` table lookup (instant, zero network cost after first resolution).
 2. **Unsplash Search API** — `GET /search/photos?query={name}+food+ingredient` (only if `UNSPLASH_ACCESS_KEY` is set).
 3. **Generated fallback** — deterministic per-ingredient Pollinations product shot (keyless; replaced the old shared category images, prod-followups #6).
