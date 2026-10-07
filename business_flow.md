@@ -2713,8 +2713,28 @@ Food/Gym switch (header of every tab root) → persisted mode
   │         weekly goal = the days the user chose (`input.days`), not the resulting
   │         template's own day count (bug B-18, T-05.2, AC4 — 5 chosen days → goal 5,
   │         even when the template itself has only 4)
-  └─ profile exists → Gym tabs: Today / Routine / Exercises / Stats
+  └─ profile exists → Gym tabs: Today / Routine / Exercises / Stats / More
+      (FB7-01: Gym's More = Gym settings, Profile, Following, Progress, Settings,
+      feedback, legal links, Sign out — route `/gym-more`)
 ```
+
+### Tester feedback 2026-10-07 — gym (WP-23)
+
+Source: `docs/backlog-2026-10/feedback-2026-10-07.md` (FB7-01, 05–09).
+
+- **Gym More tab (mobile, FB7-01).** Gym mode has a fifth tab, **More** (`app/(gym)/gym-more.tsx`, route
+  `/gym-more` because `/more` belongs to Food). It shares `MoreScreen` with Food (`src/features/more/`), lists Gym
+  settings, Profile, Following (when available), Progress and Settings, and carries the same Following badge.
+- **Exercise names (FB7-05).** `ExerciseNameLink` renders plain text by default (no dotted underline); it stays a
+  link for screen readers with a 44 pt hit area.
+- **Exercise filters (FB7-07, mobile + web).** One scrolling row: `Equipment ▾` (a sheet / select; "Any equipment"
+  clears it), `Mine`, `Clear` (only while a filter is set), then the muscle chips. The routine exercise picker's
+  muscle row no longer wraps.
+- **Stats (FB7-08/09, mobile).** "Weekly sets per muscle" and "PR timeline" pick their muscle / exercise from a
+  `SelectField` (searchable above 12 options) instead of a wall of chips — same as web's `<select>`.
+- **Exercise media (FB7-06).** Owner decision 2026-10-07: free-exercise-db photos for rows that lacked one; every
+  video is oEmbed-verified. 151/191 exercises have a photo and 185/191 a video; the rest are listed (with reasons)
+  in `packages/types/src/gym/exercise-media.test.ts`, whose allow-lists can only shrink.
 
 ### The daily loop (offline-first)
 
