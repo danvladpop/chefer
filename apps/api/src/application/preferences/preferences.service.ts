@@ -429,8 +429,10 @@ export class PreferencesService {
    * multi-select replacement for `setIntent`. Also writes the legacy
    * `onboardingIntent` (the first job with a legacy equivalent) so web and
    * older mobile builds — which only ever read the intent — keep routing
-   * sensibly; when none of the chosen jobs has one (e.g. only `USE_WHAT_I_HAVE`
-   * / `SAVED_RECIPES` / `TRACK`), the stored legacy intent is left as it was.
+   * sensibly; when none of the chosen jobs has one (e.g. only `SAVED_RECIPES`
+   * / `TRACK`), the stored legacy intent is left as it was. `USE_WHAT_I_HAVE`
+   * (the retired pantry job) is still accepted and stored for old clients, but
+   * reads back as `PLAN_MEALS` through `effectiveJobs()`.
    */
   async setJobs(
     userId: string,

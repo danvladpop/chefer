@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { PLAN_FEATURES } from '@chefer/types';
+import { PLAN_FEATURES, PREMIUM_PERK_KEYS } from '@chefer/types';
 import { FREE_EQUIVALENT_LABELS, PREMIUM_FEATURE_CARDS } from './premium-features';
 
 // WP-07 (owner decision 2026-10-02, "Premium is for heavy AI only"): the week
@@ -12,6 +12,12 @@ describe('premium feature registry (WP-07)', () => {
     const keys = PREMIUM_FEATURE_CARDS.map((c) => c.key);
     for (const key of FREE_FOR_EVERYONE) expect(keys).not.toContain(key);
     expect(keys).toContain('aiMealPlans');
+  });
+
+  it('has no pantry card — the pantry is retired and never sold (WP-24 / FB7-10)', () => {
+    expect(PREMIUM_FEATURE_CARDS.map((c) => c.key)).not.toContain('pantryPlanning');
+    expect(PLAN_FEATURES.pantryPlanning.upsell).toBe(false);
+    expect(PREMIUM_PERK_KEYS).not.toContain('pantryPlanning');
   });
 
   it('has no "free equivalent" label (they are free, not a lesser tier)', () => {

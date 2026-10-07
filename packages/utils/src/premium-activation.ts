@@ -13,7 +13,7 @@ import type { PlanFeatureKey } from '@chefer/types';
 export const SOURCE_FEATURE_PRIORITY: Partial<Record<string, PlanFeatureKey[]>> = {
   'meal-plan-banner': ['aiMealPlans', 'weeklyAutoGeneration'],
   'pool-exhaustion': ['aiMealPlans', 'aiMealSwaps'],
-  'shopping-list': ['budgetAwarePlanning', 'pantryPlanning'],
+  'shopping-list': ['budgetAwarePlanning'],
   'preferences-locked': ['profilePersonalisation'],
   swap: ['aiMealSwaps'],
   'chat-quota': ['chatMessagesPerDay', 'aiMealPlans'],
@@ -22,7 +22,6 @@ export const SOURCE_FEATURE_PRIORITY: Partial<Record<string, PlanFeatureKey[]>> 
   'snap-scan': ['photoLogging', 'adaptiveCoaching'],
   'recipe-import': ['recipeImport'],
   household: ['householdPlans'],
-  pantry: ['pantryPlanning', 'budgetAwarePlanning'],
   'post-rating': ['aiMealPlans', 'weeklyAutoGeneration'],
   'monday-nudge': ['weeklyAutoGeneration'],
   'training-day': ['aiMealPlans'],
@@ -96,7 +95,6 @@ const STEP_FOR_FEATURE: Partial<Record<PlanFeatureKey, ActivationStepKey>> = {
   aiMealPlans: 'regenerate',
   weeklyAutoGeneration: 'regenerate',
   budgetAwarePlanning: 'regenerate',
-  pantryPlanning: 'regenerate',
   recipeImport: 'cheferize',
 };
 
