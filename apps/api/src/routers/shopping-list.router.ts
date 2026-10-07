@@ -12,13 +12,10 @@ export const shoppingListRouter = router({
   getForWeek: protectedProcedure
     .input(z.object({ weekOffset: z.number().int().min(-52).max(1).default(0) }))
     .query(async ({ ctx, input }) => {
-      // Full user (not just the id): the F3 pantry subtraction is shaped by
-      // the pantryPlanning entitlement.
+      // Full user (not just the id): household scaling is premium-shaped.
       return shoppingListService.getForWeek(ctx.user, input.weekOffset);
     }),
 
-  // AI consolidation is a premium feature — free users keep the
-  // deterministic merge that getForWeek produces.
   /**
    * Synced check-off (P1-5): toggles item keys in the plan's checked set.
    * Per-key semantics — safe for two devices checking concurrently.
@@ -65,8 +62,9 @@ export const shoppingListRouter = router({
       return shoppingListService.removeCustomItem(ctx.user.id, input.planId, input.key);
     }),
 
-  // AI tidy-up of the list (R-10): consent is checked AFTER the tier so a
-  // free user still gets the upgrade message.
+  // FB7-10: the AI tidy-up is retired. Kept (with its old gates) only so shipped
+  // binaries that still call it get a valid answer — it returns the derived list,
+  // no AI call. New clients never call it.
   regenerate: premiumProcedure
     .use(requireAiConsent())
     .input(z.object({ weekOffset: z.number().int().min(-52).max(1).default(0) }))

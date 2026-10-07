@@ -1,6 +1,7 @@
 import { pantryItemRepository, type IPantryItemRepository } from '@chefer/database';
 import type { MealPlanInput } from '../../lib/ai/types.js';
 import { buildPantryMatcher } from './pantry-match.js';
+import { PANTRY_RETIRED } from './pantry-retired.js';
 
 // ─── Pantry generation context provider (F3) ─────────────────────────────────
 // The seam between the pantry and the household-owned meal-plan loader
@@ -47,6 +48,8 @@ export async function getUseFirstIngredients(
   limit: number = USE_FIRST_DEFAULT_LIMIT,
   repo: IPantryItemRepository = pantryItemRepository,
 ): Promise<UseFirstIngredient[]> {
+  // FB7-10: retired — an empty array keeps the prompt byte-identical.
+  if (PANTRY_RETIRED) return [];
   const items = await repo.findByUser(userId); // oldest updatedAt first
   return items.slice(0, Math.max(0, limit)).map((item) => ({
     name: item.ingredientName,
@@ -87,6 +90,8 @@ export async function computeUsedPantryItemsForUser(
   days: PlanDayLike[],
   repo: IPantryItemRepository = pantryItemRepository,
 ): Promise<string[]> {
+  // FB7-10: retired — the plan banner / plan_used_pantry event get nothing.
+  if (PANTRY_RETIRED) return [];
   const items = await repo.findByUser(userId);
   return computeUsedPantryItems(
     days,

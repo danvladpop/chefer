@@ -18,6 +18,9 @@ import { estimatePlanCostEur } from '../shared/plan-cost.js';
 // ingredient-resolver.test.ts and recipe-nutrition.service.test.ts.)
 // (The shopping-list path is covered in shopping-list.service.test.ts.)
 
+// FB7-10: pantry savings are only computed while the pantry is switched on.
+vi.mock('../pantry/pantry-retired.js', () => ({ PANTRY_RETIRED: false }));
+
 vi.mock('@chefer/database', async (importOriginal) => {
   const mod = await importOriginal<typeof import('@chefer/database')>();
   return { ...mod, prisma: { ingredientPrice: { findMany: vi.fn() } } };
