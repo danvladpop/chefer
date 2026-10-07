@@ -12,6 +12,15 @@ export function createTrpcAuthMock() {
         register: { useMutation: jest.fn() },
         requestPasswordReset: { useMutation: jest.fn() },
         resetPassword: { useMutation: jest.fn() },
+        // WP-22: the Continue with Apple / Google block reads these. Plain
+        // functions (not jest.fn) so a resetAllMocks cannot blank them.
+        // `useMutation: undefined` keeps the screens' `for (hook of trpc.auth)`
+        // reset loops type-safe: a query has no mutation to stub.
+        socialAvailability: {
+          useQuery: () => ({ data: undefined }),
+          useMutation: undefined,
+        },
+        socialSignIn: { useMutation: jest.fn() },
       },
     },
   };

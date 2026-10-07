@@ -29,6 +29,7 @@ import {
   setRegisterDraft,
 } from '../../src/features/auth/register-draft';
 import { registerSchema, type RegisterFormValues } from '../../src/features/auth/schemas';
+import { SocialSignIn } from '../../src/features/auth/social/social-sign-in';
 import { useConfirmPasswordError } from '../../src/features/auth/use-confirm-password';
 import { track } from '../../src/lib/analytics';
 import { setToken } from '../../src/lib/auth-store';
@@ -339,6 +340,10 @@ function RegisterForm() {
       <Button testID="register-submit" loading={register.isPending} onPress={() => void onSubmit()}>
         Create account
       </Button>
+
+      {/* WP-22: Continue with Apple / Google — tapping one is the consent
+          (its own line says so), so it skips the two checkboxes above. */}
+      <SocialSignIn />
 
       <View className="flex-row justify-center gap-1">
         <Text variant="muted">Already have an account?</Text>

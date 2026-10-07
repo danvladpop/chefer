@@ -41,6 +41,70 @@ if (IS_PRODUCTION && !process.env.EXPO_PUBLIC_API_URL?.startsWith('https://')) {
   );
 }
 
+// ─── Sign in with Google / Apple (WP-22) — NATIVE, needs a new binary ─────────
+// All env-driven and all optional: a build without the variables below still
+// succeeds (the app then simply hides the corresponding button at runtime).
+//
+//  * Apple: the Sign in with Apple entitlement (expo-apple-authentication
+//    plugin) and the Associated Domains capability are production-only. The
+//    dev variant's bundle id (dev.chefer.app.dev) is not in the site
+//    association file served at /.well-known/apple-app-site-association, and a
+//    free personal team cannot sign either capability. ENABLE_APPLE_SIGN_IN=1
+//    switches them on for a dev build signed by the paid team.
+//  * Google (iOS): the reversed iOS OAuth client id must be registered as a
+//    URL scheme, or the sign-in sheet cannot hand control back to the app.
+//    Give it as GOOGLE_IOS_URL_SCHEME (com.googleusercontent.apps.<id>) or let
+//    it be derived from GOOGLE_IOS_CLIENT_ID (<id>.apps.googleusercontent.com).
+//    Android needs no build-time value (SHA-1/256 are registered in Google
+//    Cloud, the client ids come from auth.socialAvailability at runtime).
+//
+// These values are part of the native fingerprint (runtimeVersion). Production
+// defaults to PRODUCTION_GOOGLE_IOS_URL_SCHEME below; only override it with the
+// SAME value everywhere a binary is built or an OTA update is published.
+const GOOGLE_URL_SCHEME_PREFIX = 'com.googleusercontent.apps.';
+const GOOGLE_CLIENT_ID_SUFFIX = '.apps.googleusercontent.com';
+
+/** The reversed iOS client id, or null when neither env var yields a valid one. */
+function resolveGoogleIosUrlScheme(env) {
+  const explicit = env.GOOGLE_IOS_URL_SCHEME?.trim();
+  if (explicit) return explicit.startsWith(GOOGLE_URL_SCHEME_PREFIX) ? explicit : null;
+  const clientId = env.GOOGLE_IOS_CLIENT_ID?.trim();
+  if (clientId?.endsWith(GOOGLE_CLIENT_ID_SUFFIX)) {
+    return `${GOOGLE_URL_SCHEME_PREFIX}${clientId.slice(0, -GOOGLE_CLIENT_ID_SUFFIX.length)}`;
+  }
+  return null;
+}
+
+// The production iOS OAuth client (Google Cloud project "Chefer", created
+// 2026-10-06). Not a secret — it ships inside every binary — so it is the
+// production default here, which keeps local builds, EAS builds and the CI OTA
+// publish on the same native fingerprint without extra env.
+const PRODUCTION_GOOGLE_IOS_URL_SCHEME =
+  'com.googleusercontent.apps.796396192005-trvmr1qkll4sgujsjj47u5a3tgrg7uuc';
+
+const GOOGLE_IOS_URL_SCHEME_FROM_ENV = resolveGoogleIosUrlScheme(process.env);
+const GOOGLE_IOS_URL_SCHEME =
+  GOOGLE_IOS_URL_SCHEME_FROM_ENV ?? (IS_PRODUCTION ? PRODUCTION_GOOGLE_IOS_URL_SCHEME : null);
+if (
+  (process.env.GOOGLE_IOS_URL_SCHEME || process.env.GOOGLE_IOS_CLIENT_ID) &&
+  !GOOGLE_IOS_URL_SCHEME_FROM_ENV
+) {
+  console.warn(
+    `[app.config] ignoring GOOGLE_IOS_URL_SCHEME / GOOGLE_IOS_CLIENT_ID: expected "${GOOGLE_URL_SCHEME_PREFIX}<id>" or "<id>${GOOGLE_CLIENT_ID_SUFFIX}" — ${IS_PRODUCTION ? 'using the production default' : 'Google sign-in will be unavailable on iOS'}`,
+  );
+}
+const APPLE_SIGN_IN = IS_PRODUCTION || process.env.ENABLE_APPLE_SIGN_IN === '1';
+
+/** Host of the production API/web origin — the site that serves the association files. */
+function webcredentialsDomain() {
+  try {
+    return new URL(process.env.EXPO_PUBLIC_API_URL ?? '').hostname || null;
+  } catch {
+    return null;
+  }
+}
+const ASSOCIATED_DOMAIN = APPLE_SIGN_IN ? webcredentialsDomain() : null;
+
 /**
  * Production iOS bundle id is com.popdan.chefer (2026-09-28): `dev.chefer.app`
  * stayed registered to the free personal team that signed the early builds,
@@ -75,6 +139,9 @@ const config = {
     // public). Unset is fine: simulator builds don't sign, and EAS cloud
     // builds bring their own credentials.
     ...(process.env.EXPO_APPLE_TEAM_ID ? { appleTeamId: process.env.EXPO_APPLE_TEAM_ID } : {}),
+    // webcredentials: lets iOS offer saved passwords / strong-password
+    // suggestions for the API's domain (AASA served by the API, WP-22).
+    ...(ASSOCIATED_DOMAIN ? { associatedDomains: [`webcredentials:${ASSOCIATED_DOMAIN}`] } : {}),
     config: {
       // Only HTTPS and the OS's standard crypto — exempt from export
       // compliance, so App Store Connect stops asking on every build.
@@ -100,6 +167,14 @@ const config = {
     'expo-router',
     'expo-secure-store',
     'expo-dev-client',
+    // WP-22: native Apple sheet (entitlement com.apple.developer.applesignin,
+    // production only — see the block above) and native Google sign-in. Both
+    // modules are autolinked either way; the JS hides a button whose module or
+    // capability is missing.
+    ...(APPLE_SIGN_IN ? ['expo-apple-authentication'] : []),
+    ...(GOOGLE_IOS_URL_SCHEME
+      ? [['@react-native-google-signin/google-signin', { iosUrlScheme: GOOGLE_IOS_URL_SCHEME }]]
+      : []),
     [
       'expo-image-picker',
       {
@@ -129,6 +204,9 @@ const config = {
   },
   extra: {
     appVariant: APP_VARIANT,
+    // WP-22: what THIS binary was built with, read by the sign-in UI so it
+    // never offers a button its native config cannot serve.
+    socialSignIn: { apple: APPLE_SIGN_IN, googleIos: Boolean(GOOGLE_IOS_URL_SCHEME) },
     eas: {
       projectId: EAS_PROJECT_ID,
     },
