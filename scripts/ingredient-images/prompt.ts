@@ -94,7 +94,10 @@ export const VENDOR_PROMPT_OVERRIDES: Record<string, string> = {
   'wholewheat tortillas': 'a stack of round flour tortillas',
   'wholemeal bread': 'a loaf of wholemeal bread',
   zacusca: 'a small glass jar of red roasted vegetable spread',
-  'fresh ginger': 'a knobbly tan fresh ginger root rhizome',
+  'fresh ginger': 'raw ginger root (hand of ginger), knobby light-brown rhizome, grocery produce',
+  ginger: 'raw ginger root (hand of ginger), knobby light-brown rhizome, grocery produce',
+  onion:
+    'a whole yellow onion with golden-brown papery skin next to a halved onion showing white rings',
   cashews: 'raw kidney-shaped cashew nuts in a small white bowl',
   'ground pork': 'raw minced pork meat in a white bowl',
   'lean beef mince': 'raw minced beef meat in a white bowl',

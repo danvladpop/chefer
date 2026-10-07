@@ -812,15 +812,6 @@
       "source": "pollinations/flux",
       "date": "2026-10-07"
     },
-    "ginger": {
-      "file": "ginger.webp",
-      "hash": "244dfe8e",
-      "names": ["fresh ginger", "ginger"],
-      "subject": "fresh ginger",
-      "prompt": "a knobbly tan fresh ginger root rhizome, food photography, centered on a plain white background, studio lighting",
-      "source": "pollinations/flux seed-v3",
-      "date": "2026-10-07"
-    },
     "grain bagel": {
       "file": "grain-bagel.webp",
       "hash": "01b4c4d8",
@@ -1196,11 +1187,11 @@
     },
     "onion": {
       "file": "onion.webp",
-      "hash": "d49867d1",
+      "hash": "b3e3d6db",
       "names": ["onion"],
       "subject": "onion",
-      "prompt": "onion, food photography, centered on a plain white background, studio lighting",
-      "source": "pollinations/flux",
+      "prompt": "a whole yellow onion with golden-brown papery skin next to a halved onion showing white rings, food photography, centered on a plain white background, studio lighting",
+      "source": "pollinations/flux seed-v2",
       "date": "2026-10-07"
     },
     "orange": {

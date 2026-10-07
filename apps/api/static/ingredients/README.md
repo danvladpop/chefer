@@ -48,3 +48,9 @@ Rendering is sequential with retry/backoff: Pollinations answers 402 to a share
 of requests under load, and the script simply retries. Commit the webp files
 together with `manifest.json`; the API test suite fails if a manifest entry
 points at a missing file.
+
+## Intentionally missing
+
+- `ginger` / `fresh ginger` — three prompts rendered carrots or abstract shapes (2026-10-07). It is left out so the
+  resolver falls back to the usual chain (and the app to the aisle icon) instead of showing a wrong picture. A
+  `--scope used` re-run will try it again; delete the file if the render is still wrong.
