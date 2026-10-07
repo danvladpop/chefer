@@ -31,6 +31,7 @@
 
 import { readFileSync } from 'node:fs';
 import { buildPollinationsUrl } from '../apps/api/src/lib/image-gen/pollinations';
+import { legacyProductShotPrompt } from './ingredient-images/prompt';
 
 // Names flagged by the 2026-08-23 visual audit of the prod contact sheet.
 // Kept verbatim (normalized lowercase, matching the ingredient_images PK).
@@ -120,39 +121,17 @@ const FLAGGED: string[] = [
 // prompt, different seed (the " v2" suffix only changes the seed input).
 const RESEED: string[] = ['blueberries', 'canned tomatoes'];
 
-// Hard cases where the generic prompt produced the wrong subject on the first
-// generation pass (verified visually): a more literal subject description
-// beats a reseed. Changing the prompt changes the URL, so these re-render.
-const PROMPT_OVERRIDES: Record<string, string> = {
-  'bell pepper': 'a whole fresh red bell pepper',
-  cumin: 'ground cumin spice powder in a small ceramic bowl',
-  dill: 'a bunch of fresh dill herb fronds',
-  thyme: 'fresh thyme herb sprigs',
-  paprika: 'red paprika spice powder in a small ceramic bowl',
-  pepper: 'ground black pepper in a small ceramic bowl',
-  tamari: 'a small glass bottle of dark tamari soy sauce',
-  'tamari (paleo)': 'a small glass bottle of dark tamari soy sauce',
-  'soy sauce (or tamari)': 'a small glass bottle of dark soy sauce',
-  'fajita seasoning (paleo)': 'fajita spice seasoning mix in a small ceramic bowl',
-  'ground lamb': 'raw ground minced lamb meat on butcher paper',
-  'ground pork': 'raw ground minced pork meat on butcher paper',
-  'ground tempeh': 'crumbled tempeh pieces in a small bowl',
-  'lean turkey mince': 'raw ground minced turkey meat on butcher paper',
-  'green lentils (cooked)': 'cooked green lentils in a small ceramic bowl',
-  // R-21: the generic prompt rendered a lime / a tart. Literal subjects, with
-  // the colour and shape spelled out so the model cannot drift to citrus or pastry.
-  cucumber: 'a whole long dark green cucumber vegetable',
-  cucumbers: 'two whole long dark green cucumber vegetables',
-  radishes: 'a small bunch of fresh round red radish root vegetables with green leaves',
-  radish: 'a few fresh round red radish root vegetables with green leaves',
-};
+// Hard cases (PROMPT_OVERRIDES) and the product-shot prompt now live in
+// scripts/ingredient-images/prompt.ts so the static-image vendor script shares them.
 
 function productShotUrl(name: string, seedSuffix = ''): string {
-  const subject = PROMPT_OVERRIDES[name] ?? name;
-  const prompt =
-    `A clean product photo of ${subject}, single food ingredient on a plain light background, ` +
-    'top-down, soft natural light, no text, no hands, no packaging branding.';
-  return buildPollinationsUrl(prompt, name + seedSuffix, 'ingredient', 256, 256);
+  return buildPollinationsUrl(
+    legacyProductShotPrompt(name),
+    name + seedSuffix,
+    'ingredient',
+    256,
+    256,
+  );
 }
 
 function sqlString(value: string): string {
