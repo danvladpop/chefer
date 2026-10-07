@@ -289,7 +289,7 @@ components/HealthConsentSheet.tsx, HealthDeclinedNotice.tsx, HealthConsentNudges
 > `rebalancePreview` as a localStorage offer (`chefer.rebalance.offer`, 6 h expiry) and an applied `rebalance` as the
 > Undo hand-off (`chefer.rebalance.pending`, 24 h). `features/meal-plan/components/RebalanceBanner.tsx` renders both
 > (tracker, Today, cook mode, plan); `RebalanceOffer.tsx` is the Preview · Apply · Not now card + `useApplyRebalance`
-> (`mealPlan.applyRebalance`); `RebalanceMyWeek.tsx` is the Plan's "Rebalance my week" sheet (`mealPlan.previewRebalance`).
+> (`mealPlan.applyRebalance`); `hooks/use-rebalance-check.ts` + `WeekOptionsSheet.tsx` are the Plan's "Week options" → "Rebalance my week" (`mealPlan.previewRebalance`, run only when pressed; FB7-11). Plan cards: `PlanDayMeals` (groups same-type slots, FB7-04), `PlanMealMenu` ("…" menu), `PlanMealGroup`.
 > `PlanMissSheet` caps portion steps on a loss goal (`capProteinScaleFactor`). Week rebalance and training-day targets
 > have no `/premium` card (`premium-features.ts`).
 

@@ -9,6 +9,14 @@ import { ReplaceMealSheet } from './ReplaceMealSheet';
 
 const m = vi.hoisted(() => ({
   listCalls: [] as unknown[],
+  addCalls: [] as unknown[],
+  addResult: {
+    planId: 'p1',
+    dayOfWeek: 0,
+    mealType: 'lunch',
+    slotIndex: 1,
+    addedRecipeId: 'r1',
+  },
   replaceResult: { name: 'Chicken Salad', previousRecipeId: 'r0', previousPinned: true },
 }));
 
@@ -36,6 +44,7 @@ vi.mock('@/lib/trpc', () => ({
       dashboard: { invalidate: vi.fn() },
       tracker: { invalidate: vi.fn() },
       shoppingList: { invalidate: vi.fn() },
+      recipe: { list: { invalidate: vi.fn() } },
     }),
     recipe: {
       list: {
@@ -51,6 +60,17 @@ vi.mock('@/lib/trpc', () => ({
         },
       },
       listHiddenCount: { useQuery: () => ({ data: undefined }) },
+      addToWeek: {
+        useMutation: (opts: { onSuccess?: (d: unknown) => void }) => ({
+          mutate: (input: unknown) => {
+            m.addCalls.push(input);
+            opts.onSuccess?.(m.addResult);
+          },
+          reset: vi.fn(),
+          isPending: false,
+          error: null,
+        }),
+      },
     },
     mealPlan: {
       replaceRecipe: {
@@ -67,6 +87,7 @@ vi.mock('@/lib/trpc', () => ({
 afterEach(() => {
   cleanup();
   m.listCalls.length = 0;
+  m.addCalls.length = 0;
 });
 
 const target = {
@@ -100,6 +121,34 @@ describe('ReplaceMealSheet picker (UX-PLAN-04/05)', () => {
     fireEvent.click(screen.getByTestId('picker-recipe-r1'));
     expect(onChanged).toHaveBeenCalledWith(
       expect.objectContaining({ previousRecipeId: 'r0', previousPinned: true }),
+    );
+  });
+
+  // FB7-04: "Add a side dish" opens this same picker and adds in add mode.
+  it('side mode adds the pick next to the meal (add mode, no replace) and reports it for Undo', () => {
+    const onSideAdded = vi.fn();
+    const onChanged = vi.fn();
+    render(
+      <ReplaceMealSheet
+        target={{ ...target, side: { weekOffset: 0 } }}
+        onClose={vi.fn()}
+        onChanged={onChanged}
+        onSideAdded={onSideAdded}
+      />,
+    );
+    expect(screen.getByRole('dialog', { name: 'Add a side dish' })).toBeTruthy();
+    // No AI "Regenerate" footer: it would replace, not add.
+    expect(screen.queryByTestId('picker-ai-swap')).toBeNull();
+    fireEvent.click(screen.getByTestId('picker-recipe-r1'));
+    expect(m.addCalls).toEqual([
+      { recipeId: 'r1', weekOffset: 0, dayOfWeek: 0, mealType: 'lunch', mode: 'add' },
+    ]);
+    expect(onChanged).not.toHaveBeenCalled();
+    expect(onSideAdded).toHaveBeenCalledWith(
+      expect.objectContaining({
+        recipeName: 'A very long recipe name that needs a second line',
+        added: expect.objectContaining({ slotIndex: 1, addedRecipeId: 'r1' }) as unknown,
+      }),
     );
   });
 });

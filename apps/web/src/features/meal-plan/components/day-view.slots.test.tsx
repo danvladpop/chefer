@@ -56,19 +56,19 @@ describe('DayView — flexible eating on the Plan day (WP-06)', () => {
   it('every slot has an overflow that acts on its own slot', () => {
     const flow = renderDay();
     expect(screen.getAllByRole('button', { name: /^More actions for/ })).toHaveLength(3);
-    fireEvent.click(screen.getByRole('button', { name: 'More actions for Lunch' }));
-    fireEvent.click(screen.getByRole('button', { name: 'Ate something else' }));
+    fireEvent.click(screen.getByRole('button', { name: 'More actions for Greek Salad' }));
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Ate something else' }));
     expect(flow.openAteElse).toHaveBeenCalledWith(
       expect.objectContaining({ mealType: 'lunch', slotIndex: 1 }),
     );
-    fireEvent.click(screen.getByRole('button', { name: 'More actions for Dinner' }));
-    fireEvent.click(screen.getByRole('button', { name: 'Skipped it' }));
+    fireEvent.click(screen.getByRole('button', { name: 'More actions for Chicken Curry' }));
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Skipped it' }));
     expect(flow.skip).toHaveBeenCalledWith(
       expect.objectContaining({ mealType: 'dinner', slotIndex: 2 }),
     );
   });
 
-  it('a replaced slot reads "You had: …" with an Undo, and loses its overflow', () => {
+  it('a replaced slot reads "You had: …" with an Undo, and loses its log actions', () => {
     const flow = renderDay({
       loggedMeals: [
         {
@@ -87,7 +87,9 @@ describe('DayView — flexible eating on the Plan day (WP-06)', () => {
     expect(screen.getByTestId('plan-slot-note-dinner-2').textContent).toBe(
       'You had: Shawarma · normal (≈ 775 kcal)',
     );
-    expect(screen.queryByRole('button', { name: 'More actions for Dinner' })).toBeNull();
+    // "Ate something else" / "Skipped it" are gone, and with no pin / side
+    // handlers wired there is nothing left for that card's "…" to hold.
+    expect(screen.queryByRole('button', { name: 'More actions for Chicken Curry' })).toBeNull();
     fireEvent.click(screen.getByTestId('plan-slot-undo-dinner-2'));
     expect(flow.undoReplacement).toHaveBeenCalledWith(
       'r1',
@@ -119,9 +121,9 @@ describe('DayView — flexible eating on the Plan day (WP-06)', () => {
         },
       ],
     });
-    fireEvent.click(screen.getByRole('button', { name: 'More actions for Lunch' }));
-    expect(screen.getByRole('button', { name: 'Ate something else' })).toBeTruthy();
-    expect(screen.queryByRole('button', { name: 'Skipped it' })).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'More actions for Greek Salad' }));
+    expect(screen.getByRole('menuitem', { name: 'Ate something else' })).toBeTruthy();
+    expect(screen.queryByRole('menuitem', { name: 'Skipped it' })).toBeNull();
     expect(screen.getByTestId('plan-meal-lunch-eaten')).toBeTruthy();
   });
 

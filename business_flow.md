@@ -1011,12 +1011,31 @@ picker.ts`) — a pure stand-in for the server-side, safety-aware
   mobile-first day view and the desktop week grid) says why and offers
   "Plan this day" via `mealPlan.planDay`.
 - **Regenerate is visible, asks first, and is undoable.** Once a plan
-  exists, the nav bar's Regenerate opens a confirm `Sheet` with a "Keep the
+  exists, the nav bar's single **Week options** button (FB7-11, replaces the
+  separate Regenerate and Rebalance buttons and the price line) opens a sheet
+  with two described actions (`PLAN_WEEK_COPY`): "New meal plan for this week"
+  (opens a confirm `Sheet` with a "Keep the
   N meals you chose" switch (only when picks exist); the success Toast
   offers `Undo` → `mealPlan.restore(previousPlanId)`. An empty week's own
-  CTA still generates directly (nothing to lose).
-- **Pin/unpin.** A bookmark toggle on `MealCard` (row and grid variants)
-  calls `mealPlan.setSlotPinned`; a pinned slot shows "Your pick".
+  CTA still generates directly (nothing to lose). "Rebalance my week" (current
+  week only) runs `mealPlan.previewRebalance` only when pressed: an offer is
+  parked for the usual Preview · Apply · Not now card and scrolled into view;
+  nothing to fix → toast + the row reads disabled ("already on target").
+- **Plan card (FB7-11).** image | body | one compact action column: swap (one
+  click) and a "…" menu (`useMenu`): Keep in next plans / Stop keeping
+  (`mealPlan.setSlotPinned`), Ate something else + Skipped it (slot still to
+  eat), Add a side dish, Remove from plan (sides only). A pinned meal shows a
+  bookmark on its photo ("Your pick"). The body shows type badge, name, a meta
+  line ("30 min · 700 kcal"; AI mark = small sparkle) and a macro line ("P 32 g
+  · C 60 g · F 18 g"; protein-only mode drops the macro line). Day totals use the
+  same macro format.
+- **Side dishes (FB7-04).** Same-type slots of a day render as one meal group
+  (`groupDaySlots`): header with dish count, main card, compact indented "+ side"
+  cards, and a total (`mealGroupTotalLine`). "Add a side dish" opens the replace
+  picker in add mode → `recipe.addToWeek({mode:'add'})` with an Undo toast
+  (`recipe.undoAddToWeek`); "Remove from plan" → `mealPlan.removeSlot` (refused
+  for the only dish of a type) with an Undo that re-adds it as a side. The Add to
+  week sheet offers "Add as a side" next to "Replace this meal".
 - **Undoable Replace/AI swap.** Both show a "Swapped to X" Toast with
   `Undo` back to `previousRecipeId` (`ReplaceMealSheet`'s new `onChanged`
   callback).
@@ -2154,9 +2173,9 @@ feeds the result to `handleRebalanceResult` (the Undo hand-off below) and
 refetches the plan; if the week moved on (`rebalanced: false`) it says "Those
 meals have changed since, so nothing was swapped." **Not now** only discards
 the offer: no mutation, no Undo. The plan page has a **Rebalance my week**
-button (current week) that opens a sheet backed by `mealPlan.previewRebalance`
-and shows the same offer with the list open, or "Your week is on track" when the
-query returns `null`.
+action (current week; inside **Week options**) that runs
+`mealPlan.previewRebalance` only when pressed and parks a non-empty preview as the
+same offer the plan banner shows, or says the week is already on target.
 
 The client hands the swap pairs of an APPLIED rebalance to localStorage
 (`features/tracker/lib/rebalance-storage.ts`), MERGED with any still-pending
