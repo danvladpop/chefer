@@ -19,7 +19,6 @@ import { ExerciseImage } from '../components/exercise-image';
 import { useIsOnline } from '../library-screens/online-status';
 import { CollapsibleChipFilters } from './collapsible-chip-filters';
 import { exerciseImageUrl } from './exercise-image';
-import { useKeyboardVisible } from './use-keyboard-visible';
 
 // Shared exercise picker (swap in the workout, add to a routine/session).
 // Reads the offline-cached library, so it works in a basement gym.
@@ -92,7 +91,6 @@ export function ExercisePicker({
   const online = useIsOnline();
   const [query, setQuery] = useState('');
   const [group, setGroup] = useState<PickerFilter | null>(null);
-  const keyboardVisible = useKeyboardVisible();
   const filterOptions = showCardioFilter ? [CARDIO_FILTER, ...GROUP_FILTERS] : GROUP_FILTERS;
 
   const rows = useMemo(() => {
@@ -134,24 +132,17 @@ export function ExercisePicker({
             </Pressable>
           ) : null}
         </View>
-        {/* T-05.A3.1 (AC19-22): ChipGroup wraps onto multiple lines by
-            default — collapsed to one horizontal strip while the keyboard is
-            up so >= 5 results stay visible. */}
-        <CollapsibleChipFilters
-          testID={`${testID}-filters`}
-          collapsed={keyboardVisible}
-          rows={[
-            <ChipGroup
-              key="group"
-              testID={`${testID}-groups`}
-              options={filterOptions}
-              value={group ? [group] : []}
-              onChange={(v) => setGroup(v[0] ?? null)}
-              allowEmpty
-              className={keyboardVisible ? 'flex-nowrap' : undefined}
-            />,
-          ]}
-        />
+        {/* FB7-07: one horizontally scrolling row of muscle chips. */}
+        <CollapsibleChipFilters testID={`${testID}-filters`}>
+          <ChipGroup
+            testID={`${testID}-groups`}
+            options={filterOptions}
+            value={group ? [group] : []}
+            onChange={(v) => setGroup(v[0] ?? null)}
+            allowEmpty
+            className="flex-nowrap"
+          />
+        </CollapsibleChipFilters>
       </View>
       <FlatList
         data={rows}

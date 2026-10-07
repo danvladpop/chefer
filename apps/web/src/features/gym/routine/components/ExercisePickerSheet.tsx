@@ -86,7 +86,7 @@ export function ExercisePickerSheet({
         <div
           role="group"
           aria-label="Muscle group"
-          className="-mx-1 flex flex-wrap gap-1.5 overflow-x-auto px-1 pb-1"
+          className="-mx-1 flex flex-nowrap gap-1.5 overflow-x-auto px-1 pb-1"
         >
           <button
             type="button"
