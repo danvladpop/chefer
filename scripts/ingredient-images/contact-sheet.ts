@@ -8,6 +8,7 @@
  *   cd apps/api && pnpm exec tsx ../../scripts/ingredient-images/vendor.ts --only "<key>" --force --reseed
  * (or add a PROMPT_OVERRIDES entry in scripts/ingredient-images/prompt.ts first).
  *
+ * `--only a,b` limits the sheet to those keys.
  * Usage:
  *   cd apps/api && pnpm exec tsx ../../scripts/ingredient-images/contact-sheet.ts [--page-size 48]
  * The generated files are gitignored (static/ingredients/.gitignore).
@@ -26,6 +27,11 @@ const CHROME =
 const COLS = 8;
 const TILE = 150;
 
+const onlyArg = process.argv.indexOf('--only');
+const ONLY =
+  onlyArg >= 0
+    ? (process.argv[onlyArg + 1] ?? '').split(',').map((k) => k.trim().toLowerCase())
+    : null;
 const sizeArg = process.argv.indexOf('--page-size');
 const PAGE_SIZE = Number(sizeArg >= 0 ? process.argv[sizeArg + 1] : 48) || 48;
 
@@ -37,7 +43,9 @@ function main(): void {
   const manifest = JSON.parse(
     readFileSync(join(DIR, 'manifest.json'), 'utf8'),
   ) as IngredientImageManifest;
-  const entries = Object.entries(manifest.entries).filter(([, e]) => existsSync(join(DIR, e.file)));
+  const entries = Object.entries(manifest.entries).filter(
+    ([key, e]) => existsSync(join(DIR, e.file)) && (!ONLY || ONLY.includes(key)),
+  );
 
   for (const f of readdirSync(DIR)) {
     if (/^contact-sheet-\d+\.(html|png)$/.test(f)) unlinkSync(join(DIR, f));
