@@ -5283,3 +5283,24 @@ From `apps/api`, with `pnpm exec tsx --env-file=.env src/scripts/<name>.ts …`:
   account the owner registered in the app as PUBLIC with `featured: true` (idempotent; refuses a forced-private account).
 
 There is deliberately no API procedure, screen or queue for either. Nothing depends on them.
+
+## 36. Tester feedback 2026-10-07 — food, account (WP-24)
+
+Source: `docs/backlog-2026-10/feedback-2026-10-07.md` (FB7-02, 03, 04, 10, 11). Plan-page details (Week options,
+cards, side dishes) are in the meal-plan section above.
+
+- **Shop is computed, not AI-written (FB7-10).** The list always comes from the week's planned recipes (every dish of
+  every slot, sides included), aggregated by ingredient and aisle. A line under the title says so: "From your plan's
+  recipes · Mon–Sun" (`shoppingProvenanceText`; a mid-week plan shows the remaining days). The "Regenerate with AI"
+  button is gone; weeks that were AI-tidied before go back to the computed list with their ticks kept.
+- **"In my kitchen" is retired (FB7-10).** No pantry segment, panel or banners on Shop (mobile + web); `/pantry`
+  redirects to Shop; ticking an item no longer records it as "in the kitchen" and nothing is marked "Have it". Server
+  switch: `PANTRY_RETIRED`. The landing page, premium pitches and onboarding no longer offer the pantry.
+- **Thumbnails never blank (FB7-10).** A missing or broken item photo shows the aisle icon on a tinted tile; the
+  catalog's ingredient photos are pre-rendered static files (see infrastructure.md).
+- **Sign out on Profile (FB7-02).** The "Your data" card has Export my data · **Sign out** · Delete account. Mobile
+  uses the same confirm sheet as More/Settings (incl. the unsynced-workouts warning); web signs out directly like the
+  header menu.
+- **Import review (FB7-03).** The old "Ingredients to check" card (whose "Change" button overlapped the text) was
+  replaced on 2026-10-03 by the editable review form; the ingredient picker now has an explicit row/stack layout and
+  wraps long names, and the unit picker fits "piece"/"tbsp" on one line.
