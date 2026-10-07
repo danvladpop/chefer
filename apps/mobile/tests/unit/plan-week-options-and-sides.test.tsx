@@ -135,7 +135,6 @@ describe('Plan page — no price, one "Week options" button (FB7-11)', () => {
       base([mainLunch, dinner], { 'mealPlan.previewRebalance': () => somethingToFix }),
       testQueryClient(),
     );
-    await screen.findByTestId('rebalance-offer');
     await user.press(await screen.findByTestId('plan-week-options'));
     expect(await screen.findByText('New meal plan for this week')).toBeOnTheScreen();
     expect(screen.getByText('Keeps the meals you pinned.')).toBeOnTheScreen();
@@ -147,23 +146,33 @@ describe('Plan page — no price, one "Week options" button (FB7-11)', () => {
     expect(await screen.findByTestId('regenerate-confirm-confirm')).toBeOnTheScreen();
   });
 
-  it('Rebalance is disabled, with the reason, when the preview finds nothing', async () => {
+  it('Rebalance says the week is on target when the preview finds nothing', async () => {
     const user = userEvent.setup();
     await renderWithTrpc(<MealPlanScreen />, base([mainLunch, dinner]), testQueryClient());
     await user.press(await screen.findByTestId('plan-week-options'));
+    await user.press(await screen.findByTestId('plan-week-options-rebalance'));
+    expect(await screen.findByText(/nothing to swap/)).toBeOnTheScreen();
+    expect(screen.queryByTestId('rebalance-offer')).toBeNull();
+    // Reopened, the row stays disabled with the reason.
+    await user.press(screen.getByTestId('plan-week-options'));
     await waitFor(() => expect(screen.getByTestId('plan-week-options-rebalance')).toBeDisabled());
     expect(screen.getByTestId('plan-week-options-rebalance-description')).toHaveTextContent(
       /nothing to swap/,
     );
-    expect(screen.queryByTestId('rebalance-offer')).toBeNull();
   });
 
-  it('shows the rebalance offer inline only when the preview has something to fix', async () => {
+  it('never checks on open; the offer shows after the user asks for a rebalance', async () => {
+    const user = userEvent.setup();
+    const preview = jest.fn(() => somethingToFix);
     await renderWithTrpc(
       <MealPlanScreen />,
-      base([mainLunch, dinner], { 'mealPlan.previewRebalance': () => somethingToFix }),
+      base([mainLunch, dinner], { 'mealPlan.previewRebalance': preview }),
       testQueryClient(),
     );
+    await user.press(await screen.findByTestId('plan-week-options'));
+    expect(preview).not.toHaveBeenCalled();
+    expect(screen.queryByTestId('rebalance-offer')).toBeNull();
+    await user.press(screen.getByTestId('plan-week-options-rebalance'));
     expect(await screen.findByTestId('rebalance-offer')).toBeOnTheScreen();
     expect(screen.getByTestId('rebalance-offer-headline')).toHaveTextContent(/36 g short/);
   });

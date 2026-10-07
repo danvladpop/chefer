@@ -261,18 +261,9 @@ export default function MealPlanScreen() {
   const fitTrainingDays = fitTrainingPref ?? true;
   // WP-07: "Rebalance my week" and the miss sheet's protein route share one check.
   const rebalanceCheck = useRebalanceCheck(plan?.planId);
-  // FB7-11: the preview runs once per plan on this week's Plan, so "Week
-  // options" knows whether there is anything to rebalance — and the existing
-  // offer card shows inline, but only when the preview found something to fix.
-  const rebalanceCheckedPlan = useRef<string | null>(null);
-  const rebalanceCheckPlanId = plan?.planId;
-  useEffect(() => {
-    if (!rebalanceCheckPlanId || isPast || weekOffset !== 0) return;
-    if (rebalanceCheckedPlan.current === rebalanceCheckPlanId) return;
-    rebalanceCheckedPlan.current = rebalanceCheckPlanId;
-    void rebalanceCheck.check();
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- once per plan, not on every state change of the check
-  }, [rebalanceCheckPlanId, isPast, weekOffset]);
+  // FB7-11: the preview runs only when the user asks ("Week options" →
+  // "Rebalance my week") — never on open: a week with nothing logged yet reads
+  // as "under", and an unasked-for offer card would sit on top of the plan.
 
   // Everything derived from the plan lives on other (kept-mounted) tabs —
   // invalidate it all after any plan mutation so Home/Shop don't go stale.
@@ -1429,9 +1420,15 @@ export default function MealPlanScreen() {
                 ? {
                     state: rebalanceCheck.state,
                     onPress: () => {
-                      void rebalanceCheck
-                        .check()
-                        .then(() => planScrollRef.current?.scrollTo({ y: 0, animated: true }));
+                      void rebalanceCheck.check().then((result) => {
+                        if (result === 'idle') {
+                          planScrollRef.current?.scrollTo({ y: 0, animated: true });
+                        } else if (result === 'on-track') {
+                          showSnackbar({ message: PLAN_WEEK_COPY.rebalance.onTrack });
+                        } else if (result === 'error') {
+                          showSnackbar({ message: PLAN_WEEK_COPY.rebalance.error });
+                        }
+                      });
                     },
                   }
                 : undefined

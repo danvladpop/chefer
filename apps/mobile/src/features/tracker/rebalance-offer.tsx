@@ -204,7 +204,11 @@ function OfferCard({
 
 export type RebalanceCheckState = 'idle' | 'loading' | 'on-track' | 'error';
 
-export type RebalanceCheck = { state: RebalanceCheckState; check: () => Promise<void> };
+export type RebalanceCheck = {
+  state: RebalanceCheckState;
+  /** Resolves with the resulting state ('idle' = an offer is now showing). */
+  check: () => Promise<RebalanceCheckState>;
+};
 
 /**
  * Asks the server for a preview of `planId` and shows it as the offer. State
@@ -215,8 +219,8 @@ export function useRebalanceCheck(planId: string | undefined): RebalanceCheck {
   const utils = trpc.useUtils();
   const [state, setState] = useState<RebalanceCheckState>('idle');
 
-  const check = async () => {
-    if (state === 'loading' || planId === undefined) return;
+  const check = async (): Promise<RebalanceCheckState> => {
+    if (state === 'loading' || planId === undefined) return state;
     setState('loading');
     try {
       const preview = await utils.mealPlan.previewRebalance.fetch(
@@ -225,9 +229,12 @@ export function useRebalanceCheck(planId: string | undefined): RebalanceCheck {
       );
       const hasOffer = !!preview && (preview.swaps.length > 0 || preview.snacks.length > 0);
       setRebalanceOffer(preview);
-      setState(hasOffer ? 'idle' : 'on-track');
+      const next = hasOffer ? 'idle' : 'on-track';
+      setState(next);
+      return next;
     } catch {
       setState('error');
+      return 'error';
     }
   };
   return { state, check };
