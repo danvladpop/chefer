@@ -1,6 +1,31 @@
 import { prisma } from '@chefer/database';
 import { env } from '../env.js';
+import { resolveMediaBaseUrl } from '../image-cdn/local.js';
 import { buildPollinationsUrl } from '../image-gen/pollinations.js';
+import {
+  createStaticIngredientImages,
+  loadIngredientImageManifest,
+  type StaticIngredientImages,
+} from './static-images.js';
+
+// ─── Vendored static images (first choice) ───────────────────────────────────
+// Loaded once, lazily. A missing manifest degrades to the old chain.
+let staticImages: StaticIngredientImages | null = null;
+
+function getStaticImages(): StaticIngredientImages {
+  if (staticImages) return staticImages;
+  const manifest = loadIngredientImageManifest();
+  staticImages = createStaticIngredientImages(
+    manifest ?? { version: 1, entries: {} },
+    resolveMediaBaseUrl({
+      apiPublicUrl: env.API_PUBLIC_URL,
+      nodeEnv: env.NODE_ENV,
+      appUrl: env.APP_URL,
+      port: env.PORT,
+    }),
+  );
+  return staticImages;
+}
 
 // ─── Generated fallback ───────────────────────────────────────────────────────
 // When Unsplash is unavailable (no key configured — prod's situation — or a
@@ -60,6 +85,9 @@ async function fetchFromUnsplash(name: string): Promise<string | null> {
  * Resolves an image URL for an ingredient name.
  *
  * Resolution order:
+ *   0. Vendored static image shipped with the API (static/ingredients) — wins
+ *      over everything, including cached Pollinations/Unsplash URLs, because
+ *      those render on demand and fail on cold requests
  *   1. DB cache (IngredientImage table) — instant, no network call
  *   2. Unsplash search API (if UNSPLASH_ACCESS_KEY is configured)
  *   3. Per-ingredient generated image (Pollinations, keyless)
@@ -68,6 +96,9 @@ async function fetchFromUnsplash(name: string): Promise<string | null> {
  * unique ingredient name across all users.
  */
 export async function resolveIngredientImage(name: string): Promise<string> {
+  const vendored = getStaticImages().urlFor(name);
+  if (vendored) return vendored;
+
   const normalized = name.toLowerCase().trim();
 
   // 1. Cache hit
