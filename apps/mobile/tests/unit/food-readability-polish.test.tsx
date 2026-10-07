@@ -206,7 +206,7 @@ describe('UX-PLAN-13 meal card badges', () => {
     imageStatus: 'DONE' as const,
   };
 
-  it('the eyebrow row wraps so "Your pick" and the portion chip never collide', async () => {
+  it('the eyebrow row wraps so the badges and the portion chip never collide', async () => {
     await render(
       <PlanMealCard
         testID="pm"
@@ -217,7 +217,9 @@ describe('UX-PLAN-13 meal card badges', () => {
     const row = classOf('pm-badges');
     expect(row).toMatch(/\bflex-wrap\b/);
     expect(row).toMatch(/\bmin-w-0\b/);
-    expect(screen.getByText('Your pick')).toBeOnTheScreen();
+    // FB7-11: a pinned meal is a bookmark on the photo (spoken as "Your pick").
+    expect(screen.getByLabelText('Your pick')).toBeOnTheScreen();
+    expect(screen.getByTestId('pm-pinned')).toBeOnTheScreen();
     expect(screen.getByTestId('pm-portion')).toBeOnTheScreen();
   });
 });

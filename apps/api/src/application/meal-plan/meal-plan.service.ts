@@ -4,6 +4,7 @@ import type { z } from 'zod';
 import {
   AiCallType,
   chefProfileRepository,
+  dailyLogRepository,
   dietaryPreferencesRepository,
   favouriteRecipeRepository,
   householdMemberRepository,
@@ -13,6 +14,7 @@ import {
   mealRatingRepository,
   prisma,
   type FavouriteRecipeWithRecipe,
+  type IDailyLogRepository,
   type IHouseholdMemberRepository,
   type IMealPlanRepository,
   type IMealPlanTailoringRepository,
@@ -127,6 +129,7 @@ import {
   withDeadline,
 } from './plan-tailoring.js';
 import { withServerRecipeIds } from './recipe-ids.js';
+import { reindexDayStateAfterSlotRemoval } from './slot-removal.js';
 
 export { PoolExhaustedCause };
 
@@ -531,6 +534,11 @@ export class MealPlanService {
     private readonly recipeSocial: RecipeSocialDeps = defaultRecipeSocialDeps,
     /** Catalog computation of AI recipes (plan-ingredient-catalog §6.3). */
     private readonly aiFinisher: AiRecipeFinisher = aiRecipeFinisher,
+    /** FB7-04: removing a slot re-indexes the tracker state keyed by slot index. */
+    private readonly dayLog: Pick<
+      IDailyLogRepository,
+      'findByDate' | 'mutateDayState'
+    > = dailyLogRepository,
   ) {}
 
   /**
@@ -2655,6 +2663,15 @@ export class MealPlanService {
     const addedRecipeId = owned.recipe.id;
 
     if (mode === 'add') {
+      // `undoAddToWeek` addresses slots 0–9, so a day holds at most this many dishes.
+      const dayMeals = (plan.days.find((d) => d.dayOfWeek === dayOfWeek)?.meals ??
+        []) as PlanMealSlotJson[];
+      if (dayMeals.length >= MAX_SLOTS_PER_DAY) {
+        throw new TRPCError({
+          code: 'BAD_REQUEST',
+          message: `A day can hold up to ${MAX_SLOTS_PER_DAY} dishes. Remove one before adding another.`,
+        });
+      }
       const index = await this.repo.appendDayMeal(plan.id, dayOfWeek, mealType, addedRecipeId, {
         pinned: true,
       });
@@ -2764,6 +2781,55 @@ export class MealPlanService {
     }
     const slotIndex = resolvePlanSlot(plan, dayOfWeek, mealType, requestedSlotIndex);
     await this.repo.setSlotPinned(planId, dayOfWeek, mealType, slotIndex, pinned);
+  }
+
+  /**
+   * FB7-04 `mealPlan.removeSlot`: removes one slot of a day (a side dish) —
+   * only while ANOTHER slot of the same meal type remains, so a day never
+   * loses a whole meal this way (that is "Skip it"). The slots after it shift
+   * down by one, so that day's tracker state (logged entries, skipped slots,
+   * "ate something else") is re-indexed to follow — otherwise a logged
+   * dinner would tick the wrong dish.
+   */
+  async removeSlot(
+    userId: string,
+    input: { planId: string; dayOfWeek: number; mealType: string; slotIndex: number },
+  ): Promise<{ ok: true }> {
+    const { planId, dayOfWeek, mealType, slotIndex } = input;
+    const plan = await this.repo.findByIdForUser(userId, planId);
+    if (!plan) {
+      throw new TRPCError({ code: 'NOT_FOUND', message: 'Meal plan not found.' });
+    }
+    const outcome = await this.repo.removeDaySlot(planId, dayOfWeek, mealType, slotIndex);
+    if (outcome === 'missing') {
+      throw new TRPCError({
+        code: 'BAD_REQUEST',
+        message: 'That meal is no longer in this slot. Refresh the plan and try again.',
+      });
+    }
+    if (outcome === 'last-of-type') {
+      throw new TRPCError({
+        code: 'BAD_REQUEST',
+        message: `This is the only ${mealType} of the day, so it can't be removed. Swap it for another meal or skip it instead.`,
+      });
+    }
+
+    // The plan's Monday is local midnight; a log is keyed by the local
+    // calendar day at UTC midnight (see `withLoggedMeals`).
+    const date = new Date(
+      Date.UTC(
+        plan.weekStartDate.getFullYear(),
+        plan.weekStartDate.getMonth(),
+        plan.weekStartDate.getDate() + dayOfWeek,
+      ),
+    );
+    const log = await this.dayLog.findByDate(userId, date);
+    if (log) {
+      await this.dayLog.mutateDayState(userId, date, (current) =>
+        reindexDayStateAfterSlotRemoval(current, slotIndex),
+      );
+    }
+    return { ok: true };
   }
 
   /**
@@ -3220,6 +3286,9 @@ export class MealPlanService {
     }
   }
 }
+
+/** Most dishes one plan day may hold (the add/undo slot index is 0–9). */
+const MAX_SLOTS_PER_DAY = 10;
 
 // ─── Singleton ────────────────────────────────────────────────────────────────
 

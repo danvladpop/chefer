@@ -866,3 +866,23 @@ export {
   proteinRingLabel,
   withoutKcalLines,
 } from './numbers-mode-copy';
+
+// ─── Plan page: slot groups (FB7-04), macro lines and week-options copy (FB7-11) ──
+export {
+  canRemoveSlot,
+  groupDaySlots,
+  type DaySlotEntry,
+  type DaySlotGroup,
+} from './plan-slot-groups';
+export {
+  formatMacroLine,
+  formatPlanMinutes,
+  mealGroupTotalLine,
+  planMealMacroLine,
+  planMealMacros,
+  planMealMetaLine,
+  planMealNutritionLabel,
+  type PlanMealMacros,
+  type PlanMealNutrition,
+} from './plan-meal-macros';
+export { PLAN_MEAL_MENU_COPY, PLAN_WEEK_COPY } from './plan-options-copy';

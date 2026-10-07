@@ -6,7 +6,9 @@ import { Text } from '@chefer/ui-mobile';
 import {
   conflictText,
   formatPortion,
-  proteinLabel,
+  PLAN_MEAL_MENU_COPY,
+  planMealMacroLine,
+  planMealMetaLine,
   slotPortion,
   verifiedLabels,
 } from '@chefer/utils';
@@ -24,7 +26,12 @@ type PlanMeal = RouterOutputs['mealPlan']['getById']['days'][number]['meals'][nu
  * One planned meal (the owner's view, wrapping the presentational
  * `MealCardView`): photo, type badge, name, time and kcal; tapping opens the
  * recipe. Shared by the Plan tab and the read-only history plan detail.
- * `trailing` is an optional action column on the right (the Plan tab's swap).
+ * `trailing` is an optional action column on the right (the Plan tab's swap
+ * and "…", see `PlanMealActions`). FB7-11: the meta line reads "10 min · 687
+ * kcal" with the AI mark reduced to a sparkle, and a macro line sits under it;
+ * a pinned meal shows a bookmark on its photo instead of a text badge.
+ * FB7-04: `side` renders a compact card for a second dish of the same meal
+ * type, and `hideTypeBadge` drops the eyebrow inside a meal group.
  * `day` (Plan tab only) is forwarded with the meal type so recipe detail can
  * offer the star rating, matching web's `?day=` gate.
  */
@@ -36,6 +43,8 @@ export function PlanMealCard({
   onReport,
   eaten = false,
   slotNote,
+  side = false,
+  hideTypeBadge = false,
 }: {
   meal: PlanMeal;
   testID: string;
@@ -51,6 +60,10 @@ export function PlanMealCard({
    * …" (a replacement) or "Skipped", with its Remove / Undo. Shown under the name.
    */
   slotNote?: ReactNode;
+  /** FB7-04: a side dish — compact, with a "+ side" badge. */
+  side?: boolean;
+  /** FB7-04: inside a meal group the header names the type once. */
+  hideTypeBadge?: boolean;
 }) {
   // WP-08: protein-only mode shows protein per meal instead of kcal (the plan still balances kcal).
   const { proteinOnly } = useNumbersMode();
@@ -65,6 +78,7 @@ export function PlanMealCard({
         conflictDetails?.find((d) => d.label === conflicts[0]) ?? { label: conflicts[0] },
       )
     : '';
+  const macroLine = planMealMacroLine(meal.recipe.nutritionInfo, portion, proteinOnly);
   const hasWarnings = (meal.recipe.allergenWarnings?.length ?? 0) > 0;
   return (
     <MealCardView
@@ -72,6 +86,24 @@ export function PlanMealCard({
       mealType={meal.type}
       name={meal.recipe.name}
       imageUrl={meal.recipe.imageUrl}
+      compact={side}
+      hideTypeBadge={hideTypeBadge}
+      imageBadge={
+        meal.pinned ? (
+          // T-07.4/UX-07 §2: a meal the user chose (Replace, own recipe or
+          // `Keep`) survives Regenerate; FB7-11 shows that as a bookmark on
+          // the photo instead of an always-visible button.
+          <View
+            testID={`${testID}-pinned`}
+            accessible
+            accessibilityRole="image"
+            accessibilityLabel={PLAN_MEAL_MENU_COPY.pinnedBadge}
+            className="h-6 w-6 items-center justify-center rounded-full bg-white/90"
+          >
+            <Ionicons name="bookmark" size={13} color="#944a00" />
+          </View>
+        ) : undefined
+      }
       onPress={() =>
         router.push({
           pathname: '/recipe/[id]',
@@ -99,16 +131,11 @@ export function PlanMealCard({
               <Text className="text-xs uppercase text-gray-500">Leftovers · {meal.leftoverOf}</Text>
             </View>
           )}
-          {/* T-07.4/UX-07 §2: a meal the user chose (Replace, own recipe or
-              `Keep`) shows a pin glyph + "Your pick" — it survives
-              Regenerate by default (UX-08 §3). */}
-          {meal.pinned && (
-            <View
-              testID={`${testID}-pinned`}
-              className="flex-row items-center gap-1 rounded-full bg-accent px-2 py-0.5"
-            >
-              <Ionicons name="bookmark" size={10} color="#944a00" />
-              <Text className="text-xs font-semibold text-primary">Your pick</Text>
+          {side && (
+            <View testID={`${testID}-side`} className="rounded-full bg-gray-100 px-2 py-0.5">
+              <Text className="text-xs font-semibold text-gray-600">
+                {PLAN_MEAL_MENU_COPY.sideBadge}
+              </Text>
             </View>
           )}
           {portion !== 1 && (
@@ -121,22 +148,29 @@ export function PlanMealCard({
         </>
       }
       meta={
-        <View className="flex-row items-center gap-3">
-          <Text className="text-xs text-gray-500">
-            {meal.recipe.prepTimeMins + meal.recipe.cookTimeMins}m
-          </Text>
-          <Text testID={`${testID}-nutrition`} className="text-xs text-gray-500">
-            {proteinOnly
-              ? proteinLabel(meal.recipe.nutritionInfo.protein * portion)
-              : `${Math.round(meal.recipe.nutritionInfo.calories * portion)} kcal`}
-          </Text>
-          <NutritionStatusTag status={meal.recipe.nutritionStatus} />
+        <View className="gap-0.5">
+          <View className="min-w-0 flex-row flex-wrap items-center gap-x-2 gap-y-0.5">
+            <AiGeneratedChip recipe={meal.recipe} variant="icon" />
+            <Text testID={`${testID}-nutrition`} className="text-xs text-gray-500">
+              {planMealMetaLine(
+                meal.recipe.prepTimeMins + meal.recipe.cookTimeMins,
+                meal.recipe.nutritionInfo,
+                portion,
+                proteinOnly,
+              )}
+            </Text>
+            <NutritionStatusTag status={meal.recipe.nutritionStatus} />
+          </View>
+          {macroLine !== null && (
+            <Text testID={`${testID}-macros`} numberOfLines={1} className="text-xs text-gray-500">
+              {macroLine}
+            </Text>
+          )}
         </View>
       }
       trailing={trailing}
     >
       {slotNote}
-      <AiGeneratedChip recipe={meal.recipe} />
       <AllergenWarningChip warnings={meal.recipe.allergenWarnings} details={conflictDetails} />
       {/* T-02.4/AC3: a recipe that fails the table's rules never claims
           "Checked" — a conflict pill takes the Checked chip's place. */}

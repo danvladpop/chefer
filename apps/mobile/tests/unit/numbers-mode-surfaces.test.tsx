@@ -333,12 +333,17 @@ describe('Plan (protein-only)', () => {
         />,
       ),
     );
-    expect(screen.getByTestId('plan-meal-dinner-nutrition')).toHaveTextContent('60 g protein');
+    expect(screen.getByTestId('plan-meal-dinner-nutrition')).toHaveTextContent(/60 g protein/);
+    // FB7-11: protein-only shows the one number — no macro line under it.
+    expect(screen.queryByTestId('plan-meal-dinner-macros')).toBeNull();
     noKcal();
     await render(
       <PlanMealCard testID="plan-meal-dinner" day={1} meal={{ type: 'dinner', recipe }} />,
     );
-    expect(screen.getByTestId('plan-meal-dinner-nutrition')).toHaveTextContent('500 kcal');
+    expect(screen.getByTestId('plan-meal-dinner-nutrition')).toHaveTextContent(/500 kcal/);
+    expect(screen.getByTestId('plan-meal-dinner-macros')).toHaveTextContent(
+      'P 40 g · C 50 g · F 20 g',
+    );
   });
 
   it('the day total is protein only, and only a protein shortfall is a status', async () => {

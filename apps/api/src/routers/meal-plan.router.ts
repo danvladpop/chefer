@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { planShapeSchema } from '@chefer/types';
+import { planShapeSchema, removeSlotInputSchema } from '@chefer/types';
 import { mealPlanService } from '../application/meal-plan/meal-plan.service.js';
 import { planShapeService } from '../application/meal-plan/plan-shape.service.js';
 import { rebalanceService } from '../application/meal-plan/rebalance.service.js';
@@ -158,6 +158,15 @@ export const mealPlanRouter = router({
       );
       return { ok: true };
     }),
+
+  /**
+   * FB7-04: removes one slot of a day — a side dish. Refused (BAD_REQUEST)
+   * unless another slot of the same meal type remains that day. Re-indexes
+   * that day's tracker state.
+   */
+  removeSlot: protectedProcedure.input(removeSlotInputSchema).mutation(async ({ ctx, input }) => {
+    return mealPlanService.removeSlot(ctx.user.id, input);
+  }),
 
   /**
    * §T-11.3: previews (default) or applies scaling every slot of one day by

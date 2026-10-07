@@ -23,6 +23,7 @@ export * from './body-metrics';
 export * from './legal';
 export * from './friends';
 export * from './friends-copy';
+export * from './meal-plan-slot';
 export * from './nutrition';
 export * from './ingredient-catalog-copy';
 export * from './social-auth';
