@@ -18,18 +18,21 @@ export function SlotOverflowButton({
   disabled = false,
   testID,
   className,
+  accessibilityLabel,
 }: {
   mealType: string;
   onPress: () => void;
   disabled?: boolean;
   testID?: string;
   className?: string;
+  /** Overrides "More actions for Dinner" (a side dish names itself instead). */
+  accessibilityLabel?: string;
 }) {
   return (
     <Pressable
       {...(testID !== undefined && { testID })}
       accessibilityRole="button"
-      accessibilityLabel={moreActionsLabel(mealType)}
+      accessibilityLabel={accessibilityLabel ?? moreActionsLabel(mealType)}
       accessibilityState={{ disabled }}
       disabled={disabled}
       onPress={onPress}

@@ -100,7 +100,11 @@ describe('PlanMealCard', () => {
       />,
     );
     expect(screen.getByTestId('plan-meal-dinner-portion')).toHaveTextContent('1½× portion');
-    expect(screen.getByText('750 kcal')).toBeOnTheScreen();
+    expect(screen.getByTestId('plan-meal-dinner-nutrition')).toHaveTextContent('30 min · 750 kcal');
+    // FB7-11: the macro line is at the slot's portion too.
+    expect(screen.getByTestId('plan-meal-dinner-macros')).toHaveTextContent(
+      'P 60 g · C 75 g · F 30 g',
+    );
     await fireEvent.press(screen.getByTestId('plan-meal-dinner'));
     expect(router.push).toHaveBeenCalledWith({
       pathname: '/recipe/[id]',
@@ -113,7 +117,7 @@ describe('PlanMealCard', () => {
       <PlanMealCard testID="plan-meal-dinner" day={2} meal={{ type: 'dinner', recipe }} />,
     );
     expect(screen.queryByTestId('plan-meal-dinner-portion')).toBeNull();
-    expect(screen.getByText('500 kcal')).toBeOnTheScreen();
+    expect(screen.getByTestId('plan-meal-dinner-nutrition')).toHaveTextContent('30 min · 500 kcal');
     await fireEvent.press(screen.getByTestId('plan-meal-dinner'));
     expect(router.push).toHaveBeenCalledWith({
       pathname: '/recipe/[id]',

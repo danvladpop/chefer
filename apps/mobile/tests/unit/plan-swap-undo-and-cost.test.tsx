@@ -7,7 +7,7 @@ import { testQueryClient } from './friends-profile-fixtures';
 // UX-PLAN-04: undoing a swap must not leave the slot pinned.
 // UX-PLAN-05: the swap picker asks for the slot, states the check once, and
 //   rows show kcal · protein · minutes.
-// UX-PLAN-07: the cost pill names the days it covers.
+// FB7-11: the Plan page no longer shows the price (Shop does).
 
 jest.mock('expo-router', () => ({
   router: { push: jest.fn(), back: jest.fn() },
@@ -147,18 +147,12 @@ describe('Plan swap: Undo and picker (UX-PLAN-04/05)', () => {
   });
 });
 
-describe('Plan cost pill (UX-PLAN-07)', () => {
-  it('names the whole week by default', async () => {
+describe('Plan page shows no price (FB7-11)', () => {
+  it('has no cost line, whatever the plan carries', async () => {
     await renderWithTrpc(<MealPlanScreen />, base(), testQueryClient());
-    expect(await screen.findByTestId('plan-week-cost')).toHaveTextContent(/· Mon–Sun/);
-  });
-
-  it('names the remaining days for a plan made mid-week', async () => {
-    await renderWithTrpc(
-      <MealPlanScreen />,
-      base({}, { ...basePlan, shoppingFromDay: 4 }),
-      testQueryClient(),
-    );
-    expect(await screen.findByTestId('plan-week-cost')).toHaveTextContent(/· Fri–Sun/);
+    await screen.findByTestId('plan-meal-lunch');
+    expect(screen.queryByTestId('plan-week-cost')).toBeNull();
+    expect(screen.queryByText(/≈/)).toBeNull();
+    expect(screen.queryByText(/Cost estimate unavailable/)).toBeNull();
   });
 });
