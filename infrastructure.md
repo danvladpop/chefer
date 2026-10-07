@@ -760,7 +760,7 @@ query that ever runs):
 | ------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------- |
 | More tab › `Following` row, directly under `Profile` (`more-friends`)          | `app/(food)/more.tsx`; a `CountPill` (`more-friends-badge`, cap `9+`) when `badgeCount > 0`                                                    |
 | More tab icon badge                                                            | `app/(food)/_layout.tsx` `tabBarBadge` = `badgeCount`; this always-mounted layout is what keeps the poll running                               |
-| Settings hub › Account › `Following` (`settings-friends`)                      | `src/features/settings/settings-screen.tsx` — **Gym mode's way in** (Gym has no More tab; the `ModeSwitch` gear opens the hub)                 |
+| Settings hub › Account › `Following` (`settings-friends`)                      | `src/features/settings/settings-screen.tsx` — also reachable from Gym mode (Gym's More tab lists Following too, FB7-01)                        |
 | Profile › Privacy & data › `Profile visibility` (`profile-friends-visibility`) | `src/features/privacy/privacy-section.tsx`; value `Private` / `Public` / `Off` → `/friends/settings`, or `/friends` (intro) when not activated |
 | Consent history label                                                          | `src/features/privacy/consent-history.tsx` names the `SOCIAL_SHARING` events (turned on, made public, targets shared)                          |
 
