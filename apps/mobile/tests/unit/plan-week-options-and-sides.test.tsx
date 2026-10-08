@@ -151,7 +151,8 @@ describe('Plan page — no price, one "Week options" button (FB7-11)', () => {
     await renderWithTrpc(<MealPlanScreen />, base([mainLunch, dinner]), testQueryClient());
     await user.press(await screen.findByTestId('plan-week-options'));
     await user.press(await screen.findByTestId('plan-week-options-rebalance'));
-    expect(await screen.findByText(/nothing to swap/)).toBeOnTheScreen();
+    // The snackbar and the closing sheet's row can both carry it for a moment.
+    expect((await screen.findAllByText(/nothing to swap/)).length).toBeGreaterThan(0);
     expect(screen.queryByTestId('rebalance-offer')).toBeNull();
     // Reopened, the row stays disabled with the reason.
     await user.press(screen.getByTestId('plan-week-options'));
