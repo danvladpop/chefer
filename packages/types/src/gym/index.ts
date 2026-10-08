@@ -8,4 +8,5 @@ export * from './activity-log';
 export * from './cardio-catalog';
 export * from './exercise-catalog';
 export * from './exercise-content';
+export * from './exercise-photos';
 export * from './templates';
