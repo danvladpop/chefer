@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { containsForbiddenPhrase } from '@chefer/eslint-config/rules/no-forbidden-copy';
-import { PLAN_FEATURES, PREMIUM_JOB_IDS, PREMIUM_SOURCES } from '@chefer/types';
+import { PLAN_FEATURES, PREMIUM_JOB_IDS, PREMIUM_PERK_KEYS, PREMIUM_SOURCES } from '@chefer/types';
 import {
   allPitchStrings,
   downgradeLosses,
@@ -37,7 +37,6 @@ describe('every source maps to a job (AC1)', () => {
     expect(premiumPitchFor('training-day').headline).toBe('A week built around your training days');
     expect(premiumPitchFor('training-week').job).toBe('training');
     expect(premiumPitchFor('shopping-list').headline).toBe('Weeks that fit your budget');
-    expect(premiumPitchFor('pantry').headline).toBe("Plans that use what's in your kitchen");
     expect(premiumPitchFor('chat-locked').headline).toBe('Ask the chef');
     expect(premiumPitchFor('chat-quota').job).toBe('chat');
     expect(premiumPitchFor('snap-scan').headline).toBe('Log a meal with a photo');
@@ -66,6 +65,28 @@ describe('every source maps to a job (AC1)', () => {
   });
 });
 
+describe('the retired pantry pitch (WP-24 / FB7-10)', () => {
+  it('a pantry source gets the default pitch, never a kitchen pitch', () => {
+    const pitch = premiumPitchFor('pantry');
+    expect(pitch.job).toBe('default');
+    expect(pitch.headline).toBe('Your week, ready every Monday');
+    expect(premiumJobFor('pantry')).toBe('default');
+    expect(premiumJobFor('pantry', ['TRAIN'])).toBe('gym-first');
+  });
+
+  it('no pitch string and no perk list names the pantry or the kitchen', () => {
+    for (const line of allPitchStrings()) expect(line).not.toMatch(/pantry|kitchen/i);
+    for (const source of PREMIUM_SOURCES) {
+      const pitch = premiumPitchFor(source);
+      for (const line of [pitch.headline, pitch.lede, ...pitch.bullets, ...pitch.alsoIncluded]) {
+        expect(line).not.toMatch(/pantry|kitchen/i);
+      }
+    }
+    expect(PLAN_FEATURES.pantryPlanning.upsell).toBe(false);
+    expect(PREMIUM_PERK_KEYS).not.toContain('pantryPlanning');
+  });
+});
+
 describe('gym-first default for Train users (D-11)', () => {
   it('a Train user on a default source gets the training-week pitch', () => {
     const pitch = premiumPitchFor('profile', { jobs: ['TRAIN'] });
@@ -80,7 +101,7 @@ describe('gym-first default for Train users (D-11)', () => {
 
   it('an explicit source keeps its own job even for a Train user', () => {
     expect(premiumPitchFor('household', { jobs: ['TRAIN'] }).job).toBe('household');
-    expect(premiumJobFor('pantry', ['TRAIN'])).toBe('pantry');
+    expect(premiumJobFor('household', ['TRAIN'])).toBe('household');
   });
 
   it('never pitches the gym as Premium — the gym stays free', () => {
@@ -93,11 +114,20 @@ describe('gym-first default for Train users (D-11)', () => {
     }
   });
 
-  it('retires the training bump bullet when the flag makes it free', () => {
-    const on = premiumPitchFor('training-day', { flags: { trainingBumpFree: true } });
-    const off = premiumPitchFor('training-day', { flags: {} });
-    expect(on.bullets.some((t) => t.includes('More calories and protein'))).toBe(false);
-    expect(off.bullets.some((t) => t.includes('More calories and protein'))).toBe(true);
+  it('never sells training-day targets or week rebalance as Premium (WP-07: no AI, free)', () => {
+    expect(PLAN_FEATURES.trainingDayTargets.free).toBe(true);
+    expect(PLAN_FEATURES.trainingNutrition.free).toBe(true);
+    expect(PLAN_FEATURES.weekRebalance.free).toBe(true);
+    for (const flags of [{}, { trainingBumpFree: true }]) {
+      for (const source of ['training-day', 'training-week', 'snap-scan']) {
+        const pitch = premiumPitchFor(source, { flags });
+        for (const line of [...pitch.bullets, ...pitch.alsoIncluded]) {
+          expect(line).not.toMatch(/more calories and protein|rebalanc/i);
+        }
+      }
+    }
+    expect(PREMIUM_PERK_KEYS).not.toContain('weekRebalance');
+    expect(PREMIUM_PERK_KEYS).not.toContain('trainingNutrition');
   });
 });
 
@@ -145,14 +175,20 @@ describe('also included', () => {
 });
 
 describe('terms and forbidden copy (rules 1 and 2)', () => {
-  it('every pitch carries the free-for-now terms paragraph', () => {
+  it('every pitch carries the included-at-no-cost terms paragraph', () => {
     for (const source of [...PREMIUM_SOURCES, 'unknown']) {
       const { terms } = premiumPitchFor(source);
-      expect(terms.heading).toBe('FREE FOR NOW');
-      expect(terms.body).toContain('costs nothing for now');
-      expect(terms.body).toContain("won't ask for a card");
-      expect(terms.body).toContain('at least 30 days ahead');
-      expect(terms.body).toContain('Nothing changes automatically.');
+      expect(terms.heading).toBe('INCLUDED');
+      expect(terms.body).toBe(
+        'Premium is included at no cost. Turning it on unlocks everything listed above.',
+      );
+    }
+  });
+
+  it('R-04: no copy implies a future price or payment method', () => {
+    const strings = [...Object.values(PREMIUM_PITCH_COPY), ...allPitchStrings()];
+    for (const text of strings) {
+      expect(text).not.toMatch(/for now|\bcard\b|before it has a price|payment|30 days/i);
     }
   });
 

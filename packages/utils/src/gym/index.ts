@@ -10,6 +10,7 @@ export * from './templates';
 export * from './weeks';
 export * from './deload';
 export * from './session';
+export * from './todays-session';
 export * from './workout-reducer';
 // Reason-code → sentence explanations (research §1.11/§1.12). Not re-exported
 // until now: G2-B (Today / active-workout "Why?" copy) is the first caller.
@@ -35,3 +36,9 @@ export * from './tracking';
 export * from './cardio';
 // Correcting a past session: delete preview + target-change diff (T-44.2/T-44.4).
 export * from './session-edit';
+// Pause training: start choices, reason labels and human dates (UX-GYM-16).
+export * from './pause-copy';
+// Relative strength (e1RM ÷ body weight) with a profile-weight fallback (UX-GYM-17).
+export * from './relative-strength';
+// Activity quick-log (WP-20): record a class done elsewhere; record-only kcal.
+export * from './activity-log';

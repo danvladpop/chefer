@@ -1,0 +1,372 @@
+{
+  "incline-machine-chest-press": {
+    "freeExerciseDb": "Leverage_Incline_Chest_Press",
+    "wger": 2632
+  },
+  "smith-machine-bench-press": {
+    "freeExerciseDb": "Smith_Machine_Bench_Press",
+    "wger": null
+  },
+  "smith-machine-incline-press": {
+    "freeExerciseDb": "Smith_Machine_Incline_Bench_Press",
+    "wger": 925
+  },
+  "decline-barbell-bench-press": {
+    "freeExerciseDb": "Decline_Barbell_Bench_Press",
+    "wger": 185
+  },
+  "dumbbell-floor-press": {
+    "freeExerciseDb": "Dumbbell_Floor_Press",
+    "wger": 1084
+  },
+  "standing-cable-chest-press": {
+    "freeExerciseDb": "Standing_Cable_Chest_Press",
+    "wger": null
+  },
+  "pec-deck": {
+    "freeExerciseDb": "Butterfly",
+    "wger": 1904
+  },
+  "cable-crossover": {
+    "freeExerciseDb": "Cable_Crossover",
+    "wger": 1691
+  },
+  "low-to-high-cable-fly": {
+    "freeExerciseDb": "Low_Cable_Crossover",
+    "wger": 1690
+  },
+  "incline-dumbbell-fly": {
+    "freeExerciseDb": "Incline_Dumbbell_Flyes",
+    "wger": 308
+  },
+  "close-grip-lat-pulldown": {
+    "freeExerciseDb": "V-Bar_Pulldown",
+    "wger": 695
+  },
+  "underhand-lat-pulldown": {
+    "freeExerciseDb": "Underhand_Cable_Pulldowns",
+    "wger": 684
+  },
+  "single-arm-lat-pulldown": {
+    "freeExerciseDb": "One_Arm_Lat_Pulldown",
+    "wger": 1972
+  },
+  "pendlay-row": {
+    "freeExerciseDb": null,
+    "wger": 448,
+    "photoRejected": "free-exercise-db only has the bent-over barbell row (not a dead-stop Pendlay)"
+  },
+  "t-bar-row": {
+    "freeExerciseDb": "T-Bar_Row_with_Handle",
+    "wger": 919
+  },
+  "machine-row": {
+    "freeExerciseDb": "Leverage_Iso_Row",
+    "wger": 1725
+  },
+  "single-arm-cable-row": {
+    "freeExerciseDb": "Seated_One-arm_Cable_Pulley_Rows",
+    "wger": null
+  },
+  "bent-over-dumbbell-row": {
+    "freeExerciseDb": "Bent_Over_Two-Dumbbell_Row",
+    "wger": 2669
+  },
+  "band-pull-apart": {
+    "freeExerciseDb": "Band_Pull_Apart",
+    "wger": 1380
+  },
+  "dumbbell-pullover": {
+    "freeExerciseDb": "Straight-Arm_Dumbbell_Pullover",
+    "wger": 1273
+  },
+  "smith-machine-shoulder-press": {
+    "freeExerciseDb": "Smith_Machine_Overhead_Shoulder_Press",
+    "wger": 569
+  },
+  "landmine-press": {
+    "freeExerciseDb": null,
+    "wger": 346,
+    "photoRejected": "no landmine press (only Landmine 180s / Linear Jammer)"
+  },
+  "standing-dumbbell-shoulder-press": {
+    "freeExerciseDb": "Standing_Dumbbell_Press",
+    "wger": null
+  },
+  "arnold-press": {
+    "freeExerciseDb": "Arnold_Dumbbell_Press",
+    "wger": 20
+  },
+  "machine-shoulder-press": {
+    "freeExerciseDb": "Machine_Shoulder_Military_Press",
+    "wger": 543
+  },
+  "kettlebell-press": {
+    "freeExerciseDb": null,
+    "wger": null,
+    "photoRejected": "only the alternating two-kettlebell press"
+  },
+  "machine-lateral-raise": {
+    "freeExerciseDb": null,
+    "wger": 1744
+  },
+  "band-lateral-raise": {
+    "freeExerciseDb": "Lateral_Raise_-_With_Bands",
+    "wger": null
+  },
+  "upright-row": {
+    "freeExerciseDb": "Upright_Barbell_Row",
+    "wger": null
+  },
+  "dumbbell-front-raise": {
+    "freeExerciseDb": "Front_Dumbbell_Raise",
+    "wger": 256
+  },
+  "cable-rear-delt-fly": {
+    "freeExerciseDb": "Cable_Rear_Delt_Fly",
+    "wger": 822
+  },
+  "dumbbell-external-rotation": {
+    "freeExerciseDb": "External_Rotation",
+    "wger": 578
+  },
+  "band-external-rotation": {
+    "freeExerciseDb": "External_Rotation_with_Band",
+    "wger": null
+  },
+  "ez-bar-curl": {
+    "freeExerciseDb": "EZ-Bar_Curl",
+    "wger": 94
+  },
+  "zottman-curl": {
+    "freeExerciseDb": "Zottman_Curl",
+    "wger": 1683
+  },
+  "concentration-curl": {
+    "freeExerciseDb": "Concentration_Curls",
+    "wger": 202
+  },
+  "dumbbell-preacher-curl": {
+    "freeExerciseDb": "One_Arm_Dumbbell_Preacher_Curl",
+    "wger": 584
+  },
+  "spider-curl": {
+    "freeExerciseDb": "Spider_Curl",
+    "wger": 1465
+  },
+  "machine-biceps-curl": {
+    "freeExerciseDb": "Machine_Bicep_Curl",
+    "wger": 1424
+  },
+  "cable-rope-hammer-curl": {
+    "freeExerciseDb": "Cable_Hammer_Curls_-_Rope_Attachment",
+    "wger": 275
+  },
+  "rope-triceps-pushdown": {
+    "freeExerciseDb": "Triceps_Pushdown_-_Rope_Attachment",
+    "wger": 1900
+  },
+  "triceps-dip": {
+    "freeExerciseDb": "Dips_-_Triceps_Version",
+    "wger": null
+  },
+  "assisted-dip": {
+    "freeExerciseDb": null,
+    "wger": 1372
+  },
+  "seated-dip-machine": {
+    "freeExerciseDb": "Dip_Machine",
+    "wger": 2634
+  },
+  "reverse-curl": {
+    "freeExerciseDb": "Reverse_Barbell_Curl",
+    "wger": 1290
+  },
+  "barbell-wrist-curl": {
+    "freeExerciseDb": "Seated_Palm-Up_Barbell_Wrist_Curl",
+    "wger": 51
+  },
+  "smith-machine-squat": {
+    "freeExerciseDb": "Smith_Machine_Squat",
+    "wger": 1747
+  },
+  "pendulum-squat": {
+    "freeExerciseDb": null,
+    "wger": 1527
+  },
+  "belt-squat": {
+    "freeExerciseDb": null,
+    "wger": 1935
+  },
+  "dumbbell-sumo-squat": {
+    "freeExerciseDb": "Plie_Dumbbell_Squat",
+    "wger": null
+  },
+  "kettlebell-goblet-squat": {
+    "freeExerciseDb": "Goblet_Squat",
+    "wger": null
+  },
+  "good-morning": {
+    "freeExerciseDb": "Good_Morning",
+    "wger": null
+  },
+  "sumo-deadlift": {
+    "freeExerciseDb": "Sumo_Deadlift",
+    "wger": 630
+  },
+  "trap-bar-deadlift": {
+    "freeExerciseDb": "Trap_Bar_Deadlift",
+    "wger": null
+  },
+  "rack-pull": {
+    "freeExerciseDb": "Rack_Pulls",
+    "wger": 484
+  },
+  "kettlebell-swing": {
+    "freeExerciseDb": null,
+    "wger": 960,
+    "photoRejected": "only the one-arm swing"
+  },
+  "kettlebell-deadlift": {
+    "freeExerciseDb": null,
+    "wger": 1003
+  },
+  "kettlebell-single-leg-deadlift": {
+    "freeExerciseDb": "Kettlebell_One-Legged_Deadlift",
+    "wger": 1641
+  },
+  "dumbbell-reverse-lunge": {
+    "freeExerciseDb": "Dumbbell_Rear_Lunge",
+    "wger": 1651
+  },
+  "dumbbell-step-up": {
+    "freeExerciseDb": "Dumbbell_Step_Ups",
+    "wger": 722
+  },
+  "barbell-lunge": {
+    "freeExerciseDb": "Barbell_Lunge",
+    "wger": 46
+  },
+  "standing-leg-curl": {
+    "freeExerciseDb": "Standing_Leg_Curl",
+    "wger": 367
+  },
+  "barbell-glute-bridge": {
+    "freeExerciseDb": "Barbell_Glute_Bridge",
+    "wger": null
+  },
+  "cable-glute-kickback": {
+    "freeExerciseDb": "One-Legged_Cable_Kickback",
+    "wger": null
+  },
+  "glute-kickback-machine": {
+    "freeExerciseDb": null,
+    "wger": 1723
+  },
+  "leg-press-calf-raise": {
+    "freeExerciseDb": "Calf_Press_On_The_Leg_Press_Machine",
+    "wger": 146
+  },
+  "hanging-leg-raise": {
+    "freeExerciseDb": "Hanging_Leg_Raise",
+    "wger": 283
+  },
+  "captains-chair-knee-raise": {
+    "freeExerciseDb": "Knee_Hip_Raise_On_Parallel_Bars",
+    "wger": null
+  },
+  "ab-crunch-machine": {
+    "freeExerciseDb": "Ab_Crunch_Machine",
+    "wger": 172
+  },
+  "crunch": {
+    "freeExerciseDb": "Crunches",
+    "wger": 167
+  },
+  "reverse-crunch": {
+    "freeExerciseDb": "Reverse_Crunch",
+    "wger": 1772
+  },
+  "lying-leg-raise": {
+    "freeExerciseDb": "Flat_Bench_Lying_Leg_Raise",
+    "wger": 377
+  },
+  "side-plank": {
+    "freeExerciseDb": "Side_Bridge",
+    "wger": 580
+  },
+  "hollow-body-hold": {
+    "freeExerciseDb": null,
+    "wger": 297
+  },
+  "dead-bug": {
+    "freeExerciseDb": "Dead_Bug",
+    "wger": 178
+  },
+  "bird-dog": {
+    "freeExerciseDb": null,
+    "wger": 1572
+  },
+  "cable-woodchop": {
+    "freeExerciseDb": "Standing_Cable_Wood_Chop",
+    "wger": 145
+  },
+  "barbell-shrug": {
+    "freeExerciseDb": "Barbell_Shrug",
+    "wger": 571
+  },
+  "suitcase-carry": {
+    "freeExerciseDb": null,
+    "wger": 1776,
+    "photoRejected": "only a two-handed farmers walk"
+  },
+  "band-lateral-walk": {
+    "freeExerciseDb": "Monster_Walk",
+    "wger": null
+  },
+  "hip-adduction-machine": {
+    "freeExerciseDb": "Thigh_Adductor",
+    "wger": 12
+  },
+  "dumbbell-triceps-kickback": {
+    "freeExerciseDb": "Tricep_Dumbbell_Kickback",
+    "wger": 655
+  },
+  "pistol-squat": {
+    "freeExerciseDb": null,
+    "wger": 456,
+    "photoRejected": "only a kettlebell pistol squat"
+  },
+  "wall-sit": {
+    "freeExerciseDb": null,
+    "wger": 1408
+  },
+  "lateral-lunge": {
+    "freeExerciseDb": null,
+    "wger": null
+  },
+  "step-up": {
+    "freeExerciseDb": null,
+    "wger": 981
+  },
+  "glute-ham-raise": {
+    "freeExerciseDb": "Glute_Ham_Raise",
+    "wger": 2478
+  },
+  "donkey-kick": {
+    "freeExerciseDb": "Glute_Kickback",
+    "wger": 990
+  },
+  "clamshell": {
+    "freeExerciseDb": null,
+    "wger": 1823
+  },
+  "kneeling-push-up": {
+    "freeExerciseDb": null,
+    "wger": 1218
+  },
+  "bench-dip": {
+    "freeExerciseDb": "Bench_Dips",
+    "wger": 197
+  }
+}

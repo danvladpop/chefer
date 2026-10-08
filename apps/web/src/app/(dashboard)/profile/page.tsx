@@ -7,11 +7,12 @@ import { AccountDataCard } from '@/features/profile/components/AccountDataCard';
 import { AiConsentCard } from '@/features/profile/components/AiConsentCard';
 import { AnalyticsConsentCard } from '@/features/profile/components/AnalyticsConsentCard';
 import { HealthConsentCard } from '@/features/profile/components/HealthConsentCard';
+import { SignInMethodsCard } from '@/features/profile/components/SignInMethodsCard';
 import { useHousehold } from '@/hooks/useHousehold';
 import { trpc } from '@/lib/trpc';
 import { Check, ChevronRight, Users } from 'lucide-react';
 import { PLAN_FEATURES } from '@chefer/types';
-import { PREMIUM_PITCH_COPY, WELLNESS_COPY } from '@chefer/utils';
+import { dailyAllowanceResetTime, PREMIUM_PITCH_COPY, WELLNESS_COPY } from '@chefer/utils';
 
 // ─── Usage bar ────────────────────────────────────────────────────────────────
 
@@ -123,7 +124,7 @@ function Card({
 
 // ─── Plan & Premium (T-10.3, T-10.5) ──────────────────────────────────────────
 // Free: what Free includes + "See what Premium adds" (the job-led dialog, with
-// the free-for-now terms). Premium: "Free for now", what you have, and a
+// the included-at-no-cost terms). Premium: "Included", what you have, and a
 // switch back that says what you keep and lose before it acts.
 
 function PlanCard({ isPremium }: { isPremium: boolean }) {
@@ -193,9 +194,14 @@ export default function ProfilePage() {
           <p className="font-semibold text-gray-900">{displayName}</p>
           <p className="text-sm text-gray-500">{user?.email}</p>
           <div className="mt-0.5 flex items-center gap-1.5">
-            <span className="inline-block rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium uppercase tracking-wide text-gray-600">
-              {user?.role ?? '…'}
-            </span>
+            {user && (user.role === 'ADMIN' || user.role === 'MODERATOR') && (
+              <span
+                data-testid="profile-role-badge"
+                className="inline-block rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium uppercase tracking-wide text-gray-600"
+              >
+                {user.role}
+              </span>
+            )}
             {user && (
               <span
                 className={`inline-block rounded-full px-2 py-0.5 text-xs font-medium uppercase tracking-wide ${
@@ -231,7 +237,9 @@ export default function ProfilePage() {
             title={PREMIUM_PITCH_COPY.allowancesTitle}
             badge={user.planTier === 'PREMIUM' ? 'Premium' : 'Free plan'}
           >
-            <p className="text-xs text-gray-500">Allowances reset at midnight UTC.</p>
+            <p className="text-xs text-gray-500">
+              Allowances reset at {dailyAllowanceResetTime()} your time.
+            </p>
             {(() => {
               const isPremiumTier = user.planTier === 'PREMIUM';
               const tier = isPremiumTier ? 'premium' : 'free';
@@ -361,6 +369,7 @@ export default function ProfilePage() {
         <HealthConsentCard />
         <AiConsentCard />
         <AnalyticsConsentCard />
+        <SignInMethodsCard />
         <AccountDataCard />
       </div>
 

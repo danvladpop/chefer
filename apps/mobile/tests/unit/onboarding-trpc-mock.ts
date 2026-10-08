@@ -9,6 +9,10 @@ export function createTrpcOnboardingMock() {
         me: { useQuery: jest.fn() },
         register: { useMutation: jest.fn() },
         login: { useMutation: jest.fn() },
+        // WP-22: the Continue with Apple / Google block reads these. Plain
+        // functions (not jest.fn) so a resetAllMocks cannot blank them.
+        socialAvailability: { useQuery: () => ({ data: undefined }) },
+        socialSignIn: { useMutation: () => ({ mutate: () => undefined, isPending: false }) },
       },
       preferences: {
         get: {
@@ -24,6 +28,8 @@ export function createTrpcOnboardingMock() {
         setJobs: { useMutation: jest.fn(() => mutationResult()) },
         setDisplayPreferences: { useMutation: jest.fn(() => mutationResult()) },
         updateTargets: { useMutation: jest.fn(() => mutationResult()) },
+        // WP-08: "Just protein" is saved at Finish.
+        setNumbersMode: { useMutation: jest.fn(() => mutationResult()) },
       },
       // "Who's at your table?" (P2-3) renders the household editor.
       household: {
@@ -86,6 +92,7 @@ export function mutationResult(overrides: Record<string, unknown> = {}) {
     isSuccess: false,
     isError: false,
     error: null,
+    reset: jest.fn(),
     ...overrides,
   };
 }

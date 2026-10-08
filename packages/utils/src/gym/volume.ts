@@ -1,8 +1,10 @@
 // Weekly volume & routine validation — research §2.2/§2.3 (fractional sets:
 // primary = 1, secondary = 0.5; rules V1–V11, gentle, never blocking).
 import {
+  LIBRARY_FILTER_GROUPS,
   VOLUME_GROUPS,
   type ExerciseMeta,
+  type LibraryFilterGroup,
   type Muscle,
   type MuscleVolume,
   type MuscleVolumeWeekDto,
@@ -58,6 +60,26 @@ export const VOLUME_GROUP_LABELS: Record<VolumeGroup, string> = {
   calves: 'Calves',
   abs: 'Abs',
 };
+
+export const LIBRARY_FILTER_GROUP_LABELS: Record<LibraryFilterGroup, string> = {
+  ...VOLUME_GROUP_LABELS,
+  forearms: 'Forearms',
+  traps: 'Traps',
+  'lower-back': 'Lower back',
+  'inner-outer-thighs': 'Inner & outer thighs',
+};
+
+/**
+ * Library / picker muscle filter (L2): matches PRIMARY muscles only, the same
+ * on every platform (web's library page used to match secondary muscles too).
+ */
+export function exerciseMatchesFilterGroup(
+  exercise: Pick<ExerciseMeta, 'primaryMuscles'>,
+  group: LibraryFilterGroup,
+): boolean {
+  const muscles: readonly string[] = LIBRARY_FILTER_GROUPS[group];
+  return exercise.primaryMuscles.some((m) => muscles.includes(m));
+}
 
 /** Singular noun for "14 quad sets". */
 const GROUP_NOUN: Record<VolumeGroup, string> = {

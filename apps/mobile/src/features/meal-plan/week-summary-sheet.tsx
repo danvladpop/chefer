@@ -4,14 +4,19 @@ import type { DayKind, DisplayCurrency } from '@chefer/types';
 import { Button, colors, DENSE_MAX_FONT_SCALE, Sheet, Text, useSnackbar } from '@chefer/ui-mobile';
 import {
   cn,
+  dinnersHeadingFor,
   formatDinnersForSharing,
   formatMoney,
+  formatPriceRange,
+  planCostCoverageLabel,
   trainingDaysChip,
   trainingGlyph,
+  weekRelationLabel,
   type ShareDinner,
 } from '@chefer/utils';
 import { getWebUrl } from '../../lib/api-url';
 import { AiConsentHost } from '../ai-consent/ai-consent-provider';
+import { useNumbersMode } from '../numbers-mode/numbers-mode';
 
 // Week summary sheet — opened by tapping the week label on the Plan tab.
 // Day-level stays on the screen; WEEK-level lives here: per-day overview,
@@ -22,6 +27,8 @@ export interface DaySummary {
   dayIndex: number;
   mealsCount: number;
   totalKcal: number;
+  /** WP-08: the day's planned protein (g), shown instead of kcal in protein-only mode. */
+  totalProtein?: number | undefined;
   isToday: boolean;
   /** T-06.4: a training day — its glyph and workout name show on the row. */
   training?: { kind: DayKind; workoutName: string | null } | undefined;
@@ -33,6 +40,10 @@ interface WeekSummarySheetProps {
   badge: string;
   days: DaySummary[];
   weekCostEur: number | null;
+  /** Which week is open (0 = this, 1 = next) — the cost and share copy name it (UX-PLAN-07). */
+  weekOffset?: number;
+  /** First day (0 = Mon) the cost estimate covers when the plan was made mid-week. */
+  shoppingFromDay?: number | undefined;
   isPast: boolean;
   isPremium: boolean;
   leftovers: boolean;
@@ -54,6 +65,8 @@ export function WeekSummarySheet({
   badge,
   days,
   weekCostEur,
+  weekOffset = 0,
+  shoppingFromDay,
   isPast,
   isPremium,
   leftovers,
@@ -67,6 +80,7 @@ export function WeekSummarySheet({
   dinners = [],
 }: WeekSummarySheetProps) {
   const { show: showSnackbar } = useSnackbar();
+  const { proteinOnly } = useNumbersMode();
   const trainingChip = trainingDaysChip(days.filter((d) => d.training).length);
 
   // T-13.2: plain text through the OS share sheet — not an AI call, so no
@@ -75,7 +89,7 @@ export function WeekSummarySheet({
     if (dinners.length === 0) return;
     try {
       const result = await Share.share({
-        message: formatDinnersForSharing(dinners, getWebUrl('/')),
+        message: formatDinnersForSharing(dinners, getWebUrl('/'), dinnersHeadingFor(weekOffset)),
       });
       if (result.action !== Share.dismissedAction) {
         showSnackbar({ message: 'List ready to send.', tone: 'success' });
@@ -86,6 +100,7 @@ export function WeekSummarySheet({
   };
 
   const weekKcal = days.reduce((sum, d) => sum + d.totalKcal, 0);
+  const weekProtein = days.reduce((sum, d) => sum + (d.totalProtein ?? 0), 0);
   const plannedDays = days.filter((d) => d.mealsCount > 0).length;
 
   return (
@@ -126,22 +141,32 @@ export function WeekSummarySheet({
         <View className="rounded-full bg-gray-100 px-3 py-1">
           <Text className="text-xs font-medium text-gray-600">{plannedDays}/7 days planned</Text>
         </View>
-        {weekKcal > 0 && (
-          <View className="rounded-full bg-gray-100 px-3 py-1">
-            <Text className="text-xs font-medium text-gray-600">
-              ~{Math.round(weekKcal / Math.max(plannedDays, 1))} kcal/day
-            </Text>
-          </View>
-        )}
+        {proteinOnly
+          ? weekProtein > 0 && (
+              <View className="rounded-full bg-gray-100 px-3 py-1">
+                <Text className="text-xs font-medium text-gray-600">
+                  ~{Math.round(weekProtein / Math.max(plannedDays, 1))} g protein/day
+                </Text>
+              </View>
+            )
+          : weekKcal > 0 && (
+              <View className="rounded-full bg-gray-100 px-3 py-1">
+                <Text className="text-xs font-medium text-gray-600">
+                  ~{Math.round(weekKcal / Math.max(plannedDays, 1))} kcal/day
+                </Text>
+              </View>
+            )}
         {trainingChip !== null && (
           <View testID="week-summary-training-chip" className="rounded-full bg-accent px-3 py-1">
             <Text className="text-xs font-medium text-primary">{trainingChip}</Text>
           </View>
         )}
         {weekCostEur !== null && (
+          // UX-PLAN-07: a range (never a precise sum), for the week that is
+          // open, over the days it really covers.
           <View className="rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1">
-            <Text className="text-xs font-medium text-emerald-700">
-              ≈ {formatMoney(weekCostEur, currency)} this week
+            <Text testID="week-summary-cost" className="text-xs font-medium text-emerald-700">
+              {`≈ ${formatPriceRange(weekCostEur, currency) ?? formatMoney(weekCostEur, currency)} · ${weekRelationLabel(weekOffset)} · ${planCostCoverageLabel(shoppingFromDay)}`}
             </Text>
           </View>
         )}
@@ -197,11 +222,17 @@ export function WeekSummarySheet({
               )}
             </View>
             <View className="flex-row items-center gap-1.5">
-              {d.totalKcal > 0 && (
-                <Text variant="muted" className="text-xs">
-                  {d.totalKcal} kcal
-                </Text>
-              )}
+              {proteinOnly
+                ? (d.totalProtein ?? 0) > 0 && (
+                    <Text variant="muted" className="text-xs">
+                      {d.totalProtein} g protein
+                    </Text>
+                  )
+                : d.totalKcal > 0 && (
+                    <Text variant="muted" className="text-xs">
+                      {d.totalKcal} kcal
+                    </Text>
+                  )}
               <Ionicons name="chevron-forward" size={14} color="#9ca3af" />
             </View>
           </Pressable>
@@ -213,7 +244,7 @@ export function WeekSummarySheet({
         disabled={dinners.length === 0}
         onPress={() => void shareDinners()}
       >
-        Share this week’s dinners
+        {`Share ${weekRelationLabel(weekOffset)}’s dinners`}
       </Button>
       {/* Its AI action's consent sheet nests here (iOS can't stack root Modals). */}
       <AiConsentHost />

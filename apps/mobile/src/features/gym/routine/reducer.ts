@@ -3,11 +3,13 @@
 // in @chefer/utils), so replaying actions in a test is deterministic.
 import type { ExerciseMeta } from '@chefer/types';
 import {
+  createSuperset,
   defaultTargetRir,
   moveSupersetItem,
   normalizeSupersets,
   removeSupersetItem,
   setSupersetWithNext,
+  ungroupSuperset,
 } from '@chefer/utils';
 import {
   MAX_DAYS,
@@ -44,6 +46,14 @@ export type RoutineDraftAction =
   | { type: 'moveExercise'; dayKey: string; exerciseKey: string; direction: 'up' | 'down' }
   /** "Superset with next": link / unlink this exercise and the one after it. */
   | { type: 'setSupersetWithNext'; dayKey: string; exerciseKey: string; linked: boolean }
+  /**
+   * plan-library-supersets S2: "Group as superset" — the picked exercises
+   * (2 to MAX_SUPERSET_SIZE) move together at the first pick's place under one
+   * letter. Invalid picks leave the day unchanged.
+   */
+  | { type: 'createSuperset'; dayKey: string; exerciseKeys: readonly string[] }
+  /** "Ungroup" on a superset heading: every member of that superset stands alone. */
+  | { type: 'ungroupSuperset'; dayKey: string; exerciseKey: string }
   | { type: 'setSets'; dayKey: string; exerciseKey: string; sets: number }
   | { type: 'setRepMin'; dayKey: string; exerciseKey: string; repMin: number }
   | { type: 'setRepMax'; dayKey: string; exerciseKey: string; repMax: number }
@@ -219,6 +229,22 @@ export function routineDraftReducer(draft: RoutineDraft, action: RoutineDraftAct
         const index = d.exercises.findIndex((e) => e.key === action.exerciseKey);
         if (index < 0) return d;
         return { ...d, exercises: setSupersetWithNext(d.exercises, index, action.linked) };
+      });
+
+    case 'createSuperset':
+      return updateDay(draft, action.dayKey, (d) => {
+        const indices = action.exerciseKeys.map((key) =>
+          d.exercises.findIndex((e) => e.key === key),
+        );
+        if (indices.some((i) => i < 0)) return d;
+        return { ...d, exercises: createSuperset(d.exercises, indices) };
+      });
+
+    case 'ungroupSuperset':
+      return updateDay(draft, action.dayKey, (d) => {
+        const index = d.exercises.findIndex((e) => e.key === action.exerciseKey);
+        if (index < 0) return d;
+        return { ...d, exercises: ungroupSuperset(d.exercises, index) };
       });
 
     case 'setSets':

@@ -16,6 +16,8 @@ export interface HouseholdMemberDto {
   name: string;
   portionFactor: number;
   isKid: boolean;
+  /** Optional kid age band (UX-PLAN-12) — a plain string column, narrowed with parseAgeBand. */
+  ageBand: string | null;
   allergies: string[];
   dietaryRestrictions: string[];
   dislikedIngredients: string[];
@@ -24,6 +26,9 @@ export interface HouseholdMemberDto {
 export function useHousehold(): {
   members: HouseholdMemberDto[];
   isLoading: boolean;
+  /** UX-ACC-03: the list failed to load — `members` is then EMPTY because it is unknown, not because nobody is at the table. */
+  loadFailed: boolean;
+  refetch: () => void;
   /** Members only (0 when none). */
   memberCount: number;
   /** People at the table: owner + members. */
@@ -34,9 +39,11 @@ export function useHousehold(): {
   portionSum: number | null;
   /** True when lists, costs and servings are sized for the whole table. */
   scalesForTable: boolean;
+  /** The members the table scales to (premium households), else null — for `defaultCookServings`. */
+  scaledMembers: HouseholdMemberDto[] | null;
 } {
   const isPremium = useIsPremium();
-  const { data, isLoading } = trpc.household.list.useQuery(undefined, {
+  const { data, isLoading, isError, refetch } = trpc.household.list.useQuery(undefined, {
     staleTime: 60_000,
   });
   const members = data ?? [];
@@ -46,10 +53,13 @@ export function useHousehold(): {
   return {
     members,
     isLoading,
+    loadFailed: isError && data === undefined,
+    refetch: () => void refetch(),
     memberCount,
     peopleCount: memberCount + 1,
     tablePortions,
     portionSum: scalesForTable ? tablePortions : null,
     scalesForTable,
+    scaledMembers: scalesForTable ? members : null,
   };
 }

@@ -1,7 +1,7 @@
-import { useEffect, useState } from 'react';
-import { Pressable, View } from 'react-native';
+import { useEffect, useId, useState } from 'react';
+import { Keyboard, Pressable, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { Input, Text } from '@chefer/ui-mobile';
+import { DONE_FIELD_PROPS, Input, NumericReturnBar, Text } from '@chefer/ui-mobile';
 import { addDaysLocal, cn, weekdayDateLabel } from '@chefer/utils';
 
 // The `When` of a past workout (owner dogfood 2026-09-30): a day and how long
@@ -50,6 +50,49 @@ function StepButton({
   );
 }
 
+export interface DateStepperProps {
+  localDate: string;
+  /** Earliest pickable day (inclusive). */
+  minDate: string;
+  /** Latest pickable day (inclusive) — today. */
+  today: string;
+  onChangeDate: (localDate: string) => void;
+  testID: string;
+}
+
+/** The ‹ date › stepper on its own (also used by the activity quick-log sheet). */
+export function DateStepper({ localDate, minDate, today, onChangeDate, testID }: DateStepperProps) {
+  return (
+    <View className="gap-1">
+      <Text variant="label">Date</Text>
+      <View className="min-h-12 flex-row items-center rounded-xl bg-muted px-1">
+        <StepButton
+          testID={`${testID}-date-prev`}
+          label="Previous day"
+          icon="chevron-back"
+          disabled={localDate <= minDate}
+          onPress={() => onChangeDate(addDaysLocal(localDate, -1))}
+        />
+        <Text
+          testID={`${testID}-date`}
+          accessibilityLiveRegion="polite"
+          className="min-w-0 flex-1 text-center text-base font-semibold"
+          numberOfLines={1}
+        >
+          {whenDateLabel(localDate, today)}
+        </Text>
+        <StepButton
+          testID={`${testID}-date-next`}
+          label="Next day"
+          icon="chevron-forward"
+          disabled={localDate >= today}
+          onPress={() => onChangeDate(addDaysLocal(localDate, 1))}
+        />
+      </View>
+    </View>
+  );
+}
+
 export interface SessionWhenFieldsProps {
   localDate: string;
   durationMin: number;
@@ -73,6 +116,7 @@ export function SessionWhenFields({
   testID,
   className,
 }: SessionWhenFieldsProps) {
+  const barId = `${testID}-numeric-bar-${useId()}`;
   // The text is local so the field can be cleared while typing; only a valid
   // number reaches the parent.
   const [text, setText] = useState(String(durationMin));
@@ -90,33 +134,13 @@ export function SessionWhenFields({
 
   return (
     <View className={cn('gap-3', className)}>
-      <View className="gap-1">
-        <Text variant="label">Date</Text>
-        <View className="min-h-12 flex-row items-center rounded-xl bg-muted px-1">
-          <StepButton
-            testID={`${testID}-date-prev`}
-            label="Previous day"
-            icon="chevron-back"
-            disabled={localDate <= minDate}
-            onPress={() => onChangeDate(addDaysLocal(localDate, -1))}
-          />
-          <Text
-            testID={`${testID}-date`}
-            accessibilityLiveRegion="polite"
-            className="min-w-0 flex-1 text-center text-base font-semibold"
-            numberOfLines={1}
-          >
-            {whenDateLabel(localDate, today)}
-          </Text>
-          <StepButton
-            testID={`${testID}-date-next`}
-            label="Next day"
-            icon="chevron-forward"
-            disabled={localDate >= today}
-            onPress={() => onChangeDate(addDaysLocal(localDate, 1))}
-          />
-        </View>
-      </View>
+      <DateStepper
+        localDate={localDate}
+        minDate={minDate}
+        today={today}
+        onChangeDate={onChangeDate}
+        testID={testID}
+      />
       <View className="gap-1">
         <Text variant="label" nativeID={`${testID}-duration-label`}>
           Duration
@@ -128,7 +152,8 @@ export function SessionWhenFields({
             accessibilityLabelledBy={`${testID}-duration-label`}
             aria-invalid={invalid}
             keyboardType="number-pad"
-            returnKeyType="done"
+            inputAccessoryViewID={barId}
+            {...DONE_FIELD_PROPS}
             value={text}
             onChangeText={onChangeText}
             onBlur={() => {
@@ -139,6 +164,13 @@ export function SessionWhenFields({
           />
           <Text variant="muted">min</Text>
         </View>
+        {/* UX-GYM-34: the number pad has no Return key on iOS. */}
+        <NumericReturnBar
+          nativeID={barId}
+          testID={`${testID}-numeric-bar`}
+          label="Done"
+          onPress={() => Keyboard.dismiss()}
+        />
       </View>
     </View>
   );

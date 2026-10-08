@@ -8,7 +8,6 @@ import {
   type PantryItem,
 } from '@chefer/database';
 import type { UserProfile } from '@chefer/types';
-import { slotPortion } from '@chefer/utils';
 import type { Ingredient } from '../../lib/ai/index.js';
 import { CURATED_POOL_BY_TYPE } from '../../lib/curated-recipes/index.js';
 import { hasFeature } from '../../lib/entitlements.js';
@@ -17,8 +16,12 @@ import {
   normalizeIngredientName,
   visibleToUser,
 } from '../../lib/ingredient-prices/index.js';
+import { planForThisWeek } from '../meal-plan/plan-for-date.js';
+import { planShapeService } from '../meal-plan/plan-shape.service.js';
 import { safetyService, type SafetyService } from '../safety/safety.service.js';
+import { slotShopFactor } from '../shared/household-scale.js';
 import { buildPantryMatcher, rankRecipesByPantry } from './pantry-match.js';
+import { PANTRY_RETIRED } from './pantry-retired.js';
 import { isStapleIngredient } from './staples.js';
 
 // ─── PantryService (F3 Zero-Waste Kitchen) ────────────────────────────────────
@@ -148,9 +151,79 @@ export class PantryService {
     return toDto(item);
   }
 
-  /** Removes one row by id (premium — pantry page delete). */
-  async removeItem(userId: string, id: string): Promise<void> {
+  /**
+   * Removes one row by id — every tier (UX-SHOP-05: the free "In my kitchen"
+   * list could only grow while remove was premium-only). Returns the removed
+   * row so the client can offer Undo (`restoreItem`).
+   */
+  async removeItem(userId: string, id: string): Promise<PantryItemDto | null> {
+    const [row] = await this.repo.findByIds(userId, [id]);
     await this.repo.deleteById(userId, id);
+    return row ? toDto(row) : null;
+  }
+
+  /**
+   * Edits a row's amount and unit (UX-SHOP-05). `quantity: null` is the
+   * "some" state; a number must be positive. A unit change moves the row
+   * (the unique key includes the unit), keeping its source.
+   */
+  async updateItem(
+    userId: string,
+    id: string,
+    input: { quantity: number | null; unit: string },
+  ): Promise<PantryItemDto> {
+    if (input.quantity !== null && !(input.quantity > 0)) {
+      throw new TRPCError({
+        code: 'BAD_REQUEST',
+        message: 'Enter an amount above zero, or leave it empty for "some".',
+      });
+    }
+    const [row] = await this.repo.findByIds(userId, [id]);
+    if (!row)
+      throw new TRPCError({ code: 'NOT_FOUND', message: 'That item is gone from your kitchen.' });
+    const unit = input.unit.toLowerCase().trim() || 'pcs';
+    if (unit !== row.unit) await this.repo.deleteById(userId, id);
+    const saved = await this.repo.upsert({
+      userId,
+      ingredientName: row.ingredientName,
+      quantity: input.quantity ?? 0,
+      unit,
+      source: row.source === 'MANUAL' ? 'MANUAL' : 'PURCHASE',
+    });
+    return toDto(saved);
+  }
+
+  /**
+   * Undo for a removal: puts the row back as it was (any tier — removing is
+   * open to every tier, so taking it back must be too).
+   */
+  async restoreItem(
+    userId: string,
+    input: {
+      ingredientName: string;
+      quantity?: number | undefined;
+      unit: string;
+      source: 'PURCHASE' | 'MANUAL';
+    },
+  ): Promise<PantryItemDto> {
+    const name = normalizeIngredientName(input.ingredientName);
+    if (name.length === 0) {
+      throw new TRPCError({ code: 'BAD_REQUEST', message: 'Give the ingredient a name.' });
+    }
+    if ((await this.repo.countByUser(userId)) >= MAX_PANTRY_ITEMS) {
+      throw new TRPCError({
+        code: 'PRECONDITION_FAILED',
+        message: `Your kitchen already tracks ${MAX_PANTRY_ITEMS} items — clear some first.`,
+      });
+    }
+    const item = await this.repo.upsert({
+      userId,
+      ingredientName: name,
+      quantity: input.quantity != null && input.quantity > 0 ? input.quantity : 0,
+      unit: input.unit.toLowerCase().trim() || 'pcs',
+      source: input.source,
+    });
+    return toDto(item);
   }
 
   /**
@@ -190,6 +263,9 @@ export class PantryService {
    * Free tier gets an honest teaser (pantryPlanning is premium).
    */
   async whatCanIMake(user: UserProfile): Promise<string> {
+    if (PANTRY_RETIRED) {
+      return "Pantry tracking has been retired from Chefer, so there is nothing to match recipes against. Suggest recipes from the user's meal plan or recipe collection instead.";
+    }
     const pantry = await this.repo.findByUser(user.id);
     if (pantry.length === 0) {
       return 'The pantry is empty. Items are added automatically when the user checks off shopping list items, or by hand on the Pantry page.';
@@ -217,7 +293,7 @@ export class PantryService {
     for (const recipe of this.safety.filter(curatedCandidates, ctx)) {
       candidates.set(recipe.name, { name: recipe.name, ingredients: recipe.ingredients });
     }
-    const activePlan = await this.planRepo.findActiveWithDays(user.id);
+    const activePlan = await planForThisWeek(this.planRepo, user.id);
     if (activePlan) {
       type MealSlotJson = { type: string; recipeId: string };
       const ids = [
@@ -260,6 +336,8 @@ export class PantryService {
    * Returns null when the user has no plan for that week.
    */
   async computeWeekPantrySavings(userId: string, weekStart: Date): Promise<number | null> {
+    // FB7-10: retired — the coach review records no pantry saving.
+    if (PANTRY_RETIRED) return null;
     const plan = await this.planRepo.findByWeekStart(userId, weekStart);
     if (!plan) return null;
     const pantry = await this.repo.findByUser(userId);
@@ -267,6 +345,10 @@ export class PantryService {
     const matcher = buildPantryMatcher(pantry.map((p) => p.ingredientName));
 
     type MealSlotJson = { type: string; recipeId: string; portion?: number };
+    // The savings are what the pantry covers of the whole shop: the slot's
+    // eater portion plus "two of us" (UX-PLAN-02).
+    const { cookingFor } = await planShapeService.getShape(userId);
+    const table = { members: [], cookingFor };
     const ids = [
       ...new Set(plan.days.flatMap((d) => (d.meals as MealSlotJson[]).map((m) => m.recipeId))),
     ];
@@ -280,7 +362,7 @@ export class PantryService {
       for (const slot of day.meals as MealSlotJson[]) {
         const recipe = recipeMap.get(slot.recipeId);
         if (!recipe) continue;
-        const portion = slotPortion(slot.portion); // P1-1 portioned slots
+        const portion = slotShopFactor(slot.portion, null, table); // P1-1 portioned slots
         for (const ing of recipe.ingredients as unknown as Ingredient[]) {
           const key = `${normalizeIngredientName(ing.name)}|${ing.unit.toLowerCase().trim()}`;
           const quantity = ing.quantity * portion;

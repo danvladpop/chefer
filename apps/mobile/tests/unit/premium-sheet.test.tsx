@@ -7,9 +7,12 @@ import { LockedFeatureCard } from '../../src/features/premium/locked-feature-car
 import { openPremium } from '../../src/features/premium/open-premium';
 import { PremiumSheet, type PremiumSheetProps } from '../../src/features/premium/premium-sheet';
 
+// openLegal (the AI consent sheet's Privacy link) pulls in expo-router.
+jest.mock('expo-router', () => ({ router: { push: jest.fn() } }));
+
 // PAT-3 / UX-10 (T-10.2): the job-led premium sheet and the lock card. The
 // sheet is presentational — PremiumHost (premium-host.test.tsx) feeds it the
-// pitch for a source. Guards AC1 (job headline), AC2 (the free-for-now terms
+// pitch for a source. Guards AC1 (job headline), AC2 (the included-at-no-cost terms
 // on every open), AC3 (an unavailable bullet never renders) and delta rules 1
 // and 2 (no "beta", no price/checkout on iOS).
 
@@ -53,7 +56,7 @@ describe('PremiumSheet — offer (AC1, AC2)', () => {
     expect(screen.getByText('One shopping list with amounts for everyone')).toBeOnTheScreen();
   });
 
-  it('shows the free-for-now terms paragraph on every open, for every source', async () => {
+  it('shows the included-at-no-cost terms paragraph on every open, for every source', async () => {
     for (const source of PREMIUM_SOURCES) {
       const { unmount } = await render(
         <SafeAreaProvider initialMetrics={metrics}>
@@ -65,7 +68,7 @@ describe('PremiumSheet — offer (AC1, AC2)', () => {
           />
         </SafeAreaProvider>,
       );
-      expect(screen.getByText('FREE FOR NOW')).toBeOnTheScreen();
+      expect(screen.getByText('INCLUDED')).toBeOnTheScreen();
       expect(screen.getByText(PREMIUM_PITCH_COPY.termsBody)).toBeOnTheScreen();
       await unmount();
     }
@@ -107,9 +110,14 @@ describe('PremiumSheet — offer (AC1, AC2)', () => {
     );
     expect(screen.queryByText(/Re-planned when your training days change/)).toBeNull();
     expect(screen.queryByText(/Refuel snacks/)).toBeNull();
-    // 2 live bullets are enough — nothing fills the gap with a promise.
+    // WP-07: training-day targets and the week rebalance are free, so the only
+    // live bullet sells the AI week — nothing fills the gap with a promise.
     const bullets = screen.getByTestId('premium-sheet-bullets');
-    expect(bullets.children).toHaveLength(2);
+    expect(bullets.children).toHaveLength(1);
+    expect(
+      screen.getByText(/A week with protein-rich meals on your training days/),
+    ).toBeOnTheScreen();
+    expect(screen.queryByText(/rebalanc/i)).toBeNull();
   });
 
   it('"Turn on Premium" and "Not now" call back; "Also included" expands and collapses', async () => {

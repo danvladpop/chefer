@@ -1,5 +1,4 @@
 import { prisma } from '@chefer/database';
-import { slotPortion } from '@chefer/utils';
 import type { Ingredient } from '../../lib/ai/types.js';
 import {
   estimateItemPriceEur,
@@ -7,7 +6,7 @@ import {
   visibleToUser,
 } from '../../lib/ingredient-prices/index.js';
 import { aggregateIngredientLines, formatLineQuantity } from '../shopping-list/aggregate.js';
-import { householdScaleFactor } from './household-scale.js';
+import { slotShopFactor, type PortionTable } from './household-scale.js';
 
 // ─── Weekly plan cost estimation (P2-4) ───────────────────────────────────────
 // Sums per-line EUR estimates from the ingredient price vocabulary across
@@ -42,20 +41,27 @@ export async function estimatePlanCostEur(
     }[];
   }[],
   /** `userId`: whose private ingredient rows may price lines (F6); omitted ⇒ global rows only. */
-  options: { portions?: number | null; userId?: string | null | undefined } = {},
+  options: {
+    /** Portions the total is sized for (response field only — see `PlanCostEstimate.portions`). */
+    portions?: number | null;
+    /** Who eats: members (premium scaling) and/or "cooking for". Absent ⇒ the eater only. */
+    table?: PortionTable | null;
+    userId?: string | null | undefined;
+  } = {},
 ): Promise<PlanCostEstimate> {
   const portions = options.portions ?? null;
   const lines = aggregateIngredientLines(
     days.flatMap((d) =>
       d.meals.flatMap((m) => {
-        const factor = householdScaleFactor(m.recipe.servings, portions);
+        // P1-1: a 1.5× slot buys 1.5× the recipe; the table adds the other
+        // eaters' servings (P2-3, UX-PLAN-02 — same rule as the list).
+        const factor = slotShopFactor(m.portion, m.recipe.servings, options.table);
         return m.recipe.ingredients.map((ing) => ({
           name: ing.name,
-          // P1-1: a 1.5× slot buys 1.5× the recipe; P2-3: a premium table
-          // multiplies that by portions ÷ servings (same rule as the list).
-          quantity: ing.quantity * slotPortion(m.portion) * factor,
+          quantity: ing.quantity * factor,
           unit: ing.unit,
           recipeId: m.recipe.id ?? '',
+          slug: ing.slug,
         }));
       }),
     ),

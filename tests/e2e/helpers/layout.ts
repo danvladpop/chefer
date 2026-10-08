@@ -5,7 +5,7 @@ import type { Page } from '@playwright/test';
 /**
  * Authenticated routes worth sweeping. Mirrors FOOD_NAV_ITEMS in apps/web,
  * plus the routes that left the nav but still render (P2-8): /tracker
- * (under Today), /ingredients, and the Shop's kitchen segment. /history and
+ * (under Today) and /ingredients. /history and
  * /pantry only redirect, so they are covered by their targets.
  */
 export const APP_ROUTES = [
@@ -15,7 +15,6 @@ export const APP_ROUTES = [
   '/recipes?tab=discover',
   '/ingredients',
   '/shopping-list',
-  '/shopping-list?view=kitchen',
   '/tracker',
   '/progress',
   '/my-weeks',
@@ -37,6 +36,18 @@ export const APP_ROUTES = [
   '/unsubscribe',
   '/verify-email',
 ] as const;
+
+/**
+ * Routes served outside the app shell (the `(auth)` group: no tab bar / sidebar,
+ * so no "Primary" navigation landmark to wait for).
+ */
+const SHELL_LESS_ROUTES: readonly string[] = ['/unsubscribe', '/verify-email'];
+
+/** True for a route that renders without the app shell's primary navigation. */
+export function isShellLess(route: string): boolean {
+  const path = route.split(/[?#]/)[0] ?? route;
+  return SHELL_LESS_ROUTES.includes(path);
+}
 
 /** Widths from the plan's device matrix. 320 is the narrowest realistic phone. */
 export const MOBILE_WIDTHS = [320, 375, 390, 430] as const;
@@ -164,7 +175,13 @@ export async function findUndersizedTargets(page: Page, minimum = 44): Promise<U
  */
 export async function gotoAndSettle(page: Page, route: string): Promise<void> {
   await page.goto(route, { waitUntil: 'domcontentloaded' });
-  await page.getByRole('navigation', { name: 'Primary' }).first().waitFor({ state: 'attached' });
+  // The email-link pages (P2-5) live outside the shell, so there is no "Primary"
+  // navigation to wait for; their `<main id="main">` is the equivalent signal.
+  // (Waiting for the nav on them timed out — the 10 pre-existing sweep failures.)
+  const ready = isShellLess(route)
+    ? page.locator('main#main')
+    : page.getByRole('navigation', { name: 'Primary' }).first();
+  await ready.waitFor({ state: 'attached' });
 
   // Resolves immediately when the page never showed a skeleton.
   await page

@@ -154,3 +154,56 @@ describe('validateEnv — FRIENDS_ALLOWLIST (Following dark launch, plan §8)', 
     expect(env.FRIENDS_ALLOWLIST.has('cuser3')).toBe(false);
   });
 });
+
+describe('validateEnv — social sign-in and password-manager files (WP-22)', () => {
+  it('everything is optional: no social variable set is valid (providers disabled)', () => {
+    const env = validateEnv({ ...BASE });
+    expect(env.GOOGLE_CLIENT_ID_WEB).toBeUndefined();
+    expect(env.APPLE_SERVICES_ID).toBeUndefined();
+    expect(env.APPLE_TEAM_ID).toBeUndefined();
+    expect(env.APPLE_PRIVATE_KEY).toBeUndefined();
+    expect(env.SOCIAL_TOKEN_SECRET).toBeUndefined();
+    expect(env.APPLE_BUNDLE_ID).toBe('com.popdan.chefer');
+    expect(env.ANDROID_CERT_SHA256).toEqual([]);
+  });
+
+  it('treats empty .env.example lines as unset', () => {
+    const env = validateEnv({
+      ...BASE,
+      GOOGLE_CLIENT_ID_WEB: '',
+      APPLE_KEY_ID: '',
+      APPLE_PRIVATE_KEY: '',
+      APPLE_WEB_REDIRECT_URI: '',
+      SOCIAL_TOKEN_SECRET: '',
+      ANDROID_CERT_SHA256: '',
+      APPLE_BUNDLE_ID: '',
+    });
+    expect(env.GOOGLE_CLIENT_ID_WEB).toBeUndefined();
+    expect(env.APPLE_KEY_ID).toBeUndefined();
+    expect(env.APPLE_PRIVATE_KEY).toBeUndefined();
+    expect(env.SOCIAL_TOKEN_SECRET).toBeUndefined();
+    expect(env.ANDROID_CERT_SHA256).toEqual([]);
+    expect(env.APPLE_BUNDLE_ID).toBe('com.popdan.chefer');
+  });
+
+  it('turns literal \\n in the Apple key into real newlines (one-line .env form)', () => {
+    const env = validateEnv({
+      ...BASE,
+      APPLE_PRIVATE_KEY: '-----BEGIN PRIVATE KEY-----\\nabc\\n-----END PRIVATE KEY-----',
+    });
+    expect(env.APPLE_PRIVATE_KEY).toBe(
+      '-----BEGIN PRIVATE KEY-----\nabc\n-----END PRIVATE KEY-----',
+    );
+  });
+
+  it('parses and normalises the Android certificate fingerprints', () => {
+    const env = validateEnv({ ...BASE, ANDROID_CERT_SHA256: ' aa:bb , CC:dd,, ' });
+    expect(env.ANDROID_CERT_SHA256).toEqual(['AA:BB', 'CC:DD']);
+  });
+
+  it('rejects a too-short SOCIAL_TOKEN_SECRET', () => {
+    expect(() => validateEnv({ ...BASE, SOCIAL_TOKEN_SECRET: 'short' })).toThrow(
+      /SOCIAL_TOKEN_SECRET/,
+    );
+  });
+});

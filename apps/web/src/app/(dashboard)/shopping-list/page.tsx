@@ -1,42 +1,28 @@
 'use client';
 
-import Image from 'next/image';
 import Link from 'next/link';
-import { useSearchParams } from 'next/navigation';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { useAiConsent } from '@/features/ai-consent/AiConsentProvider';
-import { PantryCheckBanner } from '@/features/pantry/components/PantryCheckBanner';
-import { PantryGhostBanner } from '@/features/pantry/components/PantryGhostBanner';
-import { PantryPanel } from '@/features/pantry/components/PantryPanel';
-import { UpgradeButton } from '@/features/premium/components/UpgradeButton';
 import { LabelCaveat } from '@/features/safety/components/LabelCaveat';
+import { ItemThumb } from '@/features/shopping-list/components/ItemThumb';
 import { ShareListDialog } from '@/features/shopping-list/components/ShareListDialog';
-import {
-  ShopSegments,
-  shopViewFromParam,
-  shopViewHref,
-} from '@/features/shopping-list/components/ShopSegments';
 import { WeekNavigator } from '@/features/shopping-list/components/WeekNavigator';
 import { CATEGORY_LABELS, CATEGORY_ORDER } from '@/features/shopping-list/share-list';
 import { useLocalStorage } from '@/hooks/use-local-storage';
 import { useCurrency } from '@/hooks/useCurrency';
 import { useHousehold } from '@/hooks/useHousehold';
 import { useIsPremium } from '@/hooks/useIsPremium';
-import { useUnitSystem } from '@/hooks/useUnitSystem';
+import { useUnits } from '@/hooks/useUnits';
 import { capture } from '@/lib/analytics';
+import { showAppToast } from '@/lib/app-toast';
 import { trpc } from '@/lib/trpc';
 import {
   CheckCircle2,
   ChevronDown,
-  ClipboardCheck,
   Info,
   Lightbulb,
   MoreHorizontal,
   Plus,
   Printer,
-  RefreshCw,
-  Refrigerator,
-  RotateCcw,
   Share2,
   ShoppingCart,
   Smartphone,
@@ -46,14 +32,18 @@ import { ErrorState, pressCard, pressControl, pressTransition, Sheet, useMenu } 
 import {
   checkedForListHeaderText,
   defaultWeekOffset,
-  formatMoney,
+  deviceLocale,
+  formatApproxPrice,
+  formatDate,
   formatPriceRange,
-  formatQuantity,
   getWeekStartDate,
   isConvertedCurrency,
   labelCaveatCompactText,
+  parseCustomItemInput,
   perPortionCost,
+  shoppingProvenanceText,
   shoppingWindowLabel,
+  userFacingErrorMessage,
 } from '@chefer/utils';
 
 const PRINT_STYLES = `
@@ -68,38 +58,13 @@ const PRINT_STYLES = `
 .shopping-list-print-header { display: none; }
 `;
 
-const FALLBACK_IMAGE =
-  'https://images.unsplash.com/photo-1490645935967-10de6ba17061?w=120&h=120&fit=crop&q=80';
-
-// Bug B-32 (T-BUG-32): a bare number with no unit word used to fall through
-// with no `unit` at all, and the pantry/list UI then defaulted THAT to
-// "pcs" — "paneer 225" rendered as "paneer 225 pcs". Nobody buys 225 pieces
-// of a kitchen ingredient in one line; a number this large with no unit word
-// is a weight, so it's inferred as grams instead. Mirrors
-// apps/mobile/src/features/shopping-list/parse-custom-item.ts.
-const LARGE_BARE_NUMBER_UNIT_THRESHOLD = 20;
-
-/**
- * "2 kg flour" → {quantity: 2, unit: 'kg', name: 'flour'}; plain text is a
- * name-only item (quantity defaults server-side). "225 paneer" → unit
- * inferred as grams (bug B-32) rather than left to default to "pcs".
- */
-function parseCustomItemInput(raw: string): { name: string; quantity?: number; unit?: string } {
-  const match = /^(\d+(?:[.,]\d+)?)\s*(g|kg|ml|l|pcs|x)?\s+(.+)$/i.exec(raw.trim());
-  if (!match) return { name: raw.trim() };
-  const quantity = parseFloat((match[1] ?? '1').replace(',', '.'));
-  const unit =
-    match[2]?.toLowerCase() ?? (quantity > LARGE_BARE_NUMBER_UNIT_THRESHOLD ? 'g' : undefined);
-  return {
-    name: (match[3] ?? '').trim(),
-    quantity,
-    ...(unit && { unit }),
-  };
-}
+const EXPANDED_STORAGE_KEY = 'chefer.shopping-expanded.v2';
+/** Rows added optimistically carry this key prefix until the server answers (UX-SHOP-02). */
+const PENDING_KEY_PREFIX = 'pending:';
 
 export default function ShoppingListPage() {
-  // Shop = "To buy" / "In my kitchen" (P2-8): ?view=kitchen shows the pantry.
-  const view = shopViewFromParam(useSearchParams().get('view'));
+  // FB7-10: the list is always the one computed from the plan's recipes — no AI
+  // tidy-up, no "In my kitchen" pantry (both retired).
   // T-08.9 (UX-08 AC1, bug B-13): defaults to the SAME week as Plan — next
   // week from Friday 15:00 to Sunday 23:59 local, else this week — via the
   // shared `defaultWeekOffset` (@chefer/utils), not always 0.
@@ -107,7 +72,11 @@ export default function ShoppingListPage() {
   // Legacy localStorage keys are migrated to the server once (P1-5), then
   // cleared — the server's checkedKeys is the source of truth from then on.
   const [legacyChecked, , clearLegacyChecked] = useLocalStorage<string[]>('shopping-checked', []);
-  const [popupItem, setPopupItem] = useState<{ name: string; imageUrl: string } | null>(null);
+  const [popupItem, setPopupItem] = useState<{
+    name: string;
+    imageUrl: string;
+    category: string;
+  } | null>(null);
   // Overflow menu: keyboard + outside-click handling from the shared hook
   // (was a hand-rolled `fixed inset-0` click-catcher).
   const listMenu = useMenu();
@@ -115,7 +84,7 @@ export default function ShoppingListPage() {
   const [shareOpen, setShareOpen] = useState(false);
   const isPremium = useIsPremium();
   const { memberCount } = useHousehold();
-  const unitSystem = useUnitSystem();
+  const units = useUnits();
   // Prices are EUR estimates; shown in the user's currency (backlog P2-6).
   const currency = useCurrency();
 
@@ -145,6 +114,15 @@ export default function ShoppingListPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps -- fire once per load, not on every render
   }, [weekList?.planId, weekList?.weekStartDate, listLoading, weekOffset]);
 
+  // UX-PO-02: one `list_opened` per visit, once the list has loaded with a plan
+  // (not per week switch or refetch — the funnel counts opens, not re-renders).
+  const listOpenedTracked = useRef(false);
+  useEffect(() => {
+    if (listOpenedTracked.current || !weekList?.hasPlan) return;
+    listOpenedTracked.current = true;
+    capture('list_opened', { itemCount: weekList.items.length });
+  }, [weekList]);
+
   // T-10.4 (D-7): the household first-week line reads the plan's flag; only a
   // free user with a plan can be on that week, so nobody else pays for the query.
   const { data: weekPlan } = trpc.mealPlan.getForWeek.useQuery(
@@ -154,15 +132,6 @@ export default function ShoppingListPage() {
   const firstScaledWeek = isPremium === false && weekPlan?.firstScaledWeek === true;
 
   const utils = trpc.useUtils();
-
-  // AI-regenerate mutation — updates the getForWeek cache inline on success
-  const requestAiConsent = useAiConsent();
-  const regenerateMutation = trpc.shoppingList.regenerate.useMutation({
-    onSuccess: (data) => {
-      capture('shopping_list_regenerated');
-      utils.shoppingList.getForWeek.setData({ weekOffset }, data);
-    },
-  });
 
   // Checked state is per-plan on the server — switching weeks just shows the
   // other plan's state.
@@ -182,25 +151,25 @@ export default function ShoppingListPage() {
   const checkedItems = weekList?.checkedKeys ?? [];
   const checkedCount = checkedItems.filter((key) => items.some((i) => i.key === key)).length;
 
-  // Collapsible categories (review F-3): a 97-item wall is intimidating —
-  // collapsed groups with "N items · M done" read like aisles. Expansion
-  // persists for the session so the list stays as you left it in the store.
+  // Collapsible aisles (review F-3, UX-SHOP-02): open by default — the list is
+  // what the page is for — and the choice is remembered on this device
+  // (localStorage, not the session), so the list stays as you left it.
   const [expandedCategories, setExpandedCategories] = useState<Record<string, boolean>>({});
   useEffect(() => {
     try {
-      const raw = sessionStorage.getItem('chefer.shopping-expanded');
+      const raw = localStorage.getItem(EXPANDED_STORAGE_KEY);
       if (raw) setExpandedCategories(JSON.parse(raw) as Record<string, boolean>);
     } catch {
-      // Ignore malformed storage — default (collapsed) wins.
+      // Ignore malformed storage — the default (open) wins.
     }
   }, []);
   const toggleCategory = useCallback((cat: string) => {
     setExpandedCategories((prev) => {
-      const next = { ...prev, [cat]: !prev[cat] };
+      const next = { ...prev, [cat]: !(prev[cat] ?? true) };
       try {
-        sessionStorage.setItem('chefer.shopping-expanded', JSON.stringify(next));
+        localStorage.setItem(EXPANDED_STORAGE_KEY, JSON.stringify(next));
       } catch {
-        // Storage full/blocked — expansion just won't persist.
+        // Storage full/blocked — the choice just won't persist.
       }
       return next;
     });
@@ -230,11 +199,6 @@ export default function ShoppingListPage() {
         utils.shoppingList.getForWeek.setData({ weekOffset }, context.previous);
       }
     },
-    // F3: checking off seeds the pantry server-side — refresh the (cheap)
-    // pantry list so kitchen counts update mid-session.
-    onSuccess: (_data, vars) => {
-      if (vars.checked) void utils.pantry.list.invalidate();
-    },
   });
 
   const toggleItem = (key: string) => {
@@ -248,31 +212,91 @@ export default function ShoppingListPage() {
 
   // Custom items (the chat's addToShoppingList tool writes the same overlay)
   const [newItemText, setNewItemText] = useState('');
+  // UX-SHOP-02: the new row shows at once ("Saving…") and the box clears; the
+  // server's answer replaces it, a failure rolls it back and returns the text.
   const addItemMutation = trpc.shoppingList.addCustomItems.useMutation({
-    onSuccess: () => {
-      capture('shopping_list_item_added', { via: 'manual' });
+    onMutate: async ({ items: added }) => {
+      await utils.shoppingList.getForWeek.cancel({ weekOffset });
+      const previous = utils.shoppingList.getForWeek.getData({ weekOffset });
+      const nonce = String(Date.now());
+      utils.shoppingList.getForWeek.setData({ weekOffset }, (old) =>
+        old
+          ? {
+              ...old,
+              items: [
+                ...old.items,
+                ...added.map((input, index) => ({
+                  key: `${PENDING_KEY_PREFIX}${nonce}-${index}`,
+                  ingredientName: input.name.charAt(0).toUpperCase() + input.name.slice(1),
+                  quantity: String(input.quantity ?? 1),
+                  unit: input.unit ?? 'pcs',
+                  category: 'other' as const,
+                  recipeNames: [],
+                  imageUrl: '',
+                  estimatedPriceEur: null,
+                  isCustom: true,
+                })),
+              ],
+            }
+          : old,
+      );
       setNewItemText('');
-      void utils.shoppingList.getForWeek.invalidate({ weekOffset });
+      return { previous };
     },
+    onSuccess: () => capture('shopping_list_item_added', { via: 'manual' }),
+    onError: (_err, vars, context) => {
+      if (context?.previous) {
+        utils.shoppingList.getForWeek.setData({ weekOffset }, context.previous);
+      }
+      setNewItemText(vars.items.map((i) => i.name).join(', '));
+    },
+    onSettled: () => void utils.shoppingList.getForWeek.invalidate({ weekOffset }),
+  });
+  // UX-SHOP-02: "Removed · Undo" — Undo re-adds through its own mutation (not
+  // `addItemMutation`, whose success clears the add-item field).
+  const undoRemoveMutation = trpc.shoppingList.addCustomItems.useMutation({
+    meta: { silent: true },
+    onSuccess: () => void utils.shoppingList.getForWeek.invalidate({ weekOffset }),
+    onError: (err) =>
+      showAppToast({ message: `Couldn't put it back. ${userFacingErrorMessage(err)}` }),
   });
   const removeItemMutation = trpc.shoppingList.removeCustomItem.useMutation({
     onSuccess: () => void utils.shoppingList.getForWeek.invalidate({ weekOffset }),
   });
-
-  // F3: one-tap re-add on a "have it" item — clears the pantry row ("I'm out
-  // of it"), which puts the item back into the buy list and the total.
-  const [confirmOpen, setConfirmOpen] = useState(false);
-  const markOutMutation = trpc.pantry.markOutOfStock.useMutation({
-    onSuccess: () => {
-      void utils.shoppingList.getForWeek.invalidate();
-      void utils.pantry.list.invalidate();
-    },
-  });
-  const pantry = weekList?.pantry;
+  const removeCustomItem = (
+    planId: string,
+    item: { key: string; ingredientName: string; quantity: string; unit: string },
+  ) => {
+    const quantity = parseFloat(item.quantity);
+    removeItemMutation.mutate(
+      { planId, key: item.key },
+      {
+        onSuccess: () =>
+          showAppToast({
+            message: `Removed ${item.ingredientName}`,
+            type: 'success',
+            action: {
+              label: 'Undo',
+              onClick: () =>
+                undoRemoveMutation.mutate({
+                  planId,
+                  items: [
+                    {
+                      name: item.ingredientName,
+                      ...(quantity > 0 && quantity <= 999 ? { quantity } : {}),
+                      ...(item.unit ? { unit: item.unit } : {}),
+                    },
+                  ],
+                }),
+            },
+          }),
+      },
+    );
+  };
 
   const handleAddItem = () => {
     const parsed = parseCustomItemInput(newItemText);
-    if (!parsed.name || !weekList?.planId || addItemMutation.isPending) return;
+    if (!parsed.name || !weekList?.planId) return;
     addItemMutation.mutate({ planId: weekList.planId, items: [parsed] });
   };
 
@@ -290,21 +314,6 @@ export default function ShoppingListPage() {
     clearLegacyChecked();
     // eslint-disable-next-line react-hooks/exhaustive-deps -- run once when the list first loads
   }, [weekList?.planId]);
-
-  if (view === 'kitchen') {
-    return (
-      <div className="mx-auto max-w-3xl p-4 lg:p-6">
-        <div className="mb-4">
-          <p className="text-xs font-semibold uppercase tracking-widest text-neutral-500">
-            YOUR KITCHEN
-          </p>
-          <h1 className="mt-1 text-xl font-bold tracking-tight sm:text-2xl">Shop</h1>
-        </div>
-        <ShopSegments view="kitchen" kitchenCount={pantry?.itemCount} className="mb-4" />
-        <PantryPanel />
-      </div>
-    );
-  }
 
   // A failed load is not an empty list (audit F-X-3-1).
   if (listError && !weekList) {
@@ -340,8 +349,7 @@ export default function ShoppingListPage() {
 
       {/* Print-only header */}
       <div className="shopping-list-print-header">
-        Chefer Shopping List — Week of{' '}
-        {weekStart.toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })}
+        Chefer Shopping List — Week of {formatDate(weekStart, 'full')}
       </div>
 
       {/* Page header */}
@@ -352,35 +360,9 @@ export default function ShoppingListPage() {
         <div className="mt-1 flex flex-wrap items-center justify-between gap-3">
           <h1 className="text-xl font-bold tracking-tight sm:text-2xl">Shop</h1>
 
-          {/* Three ~150px buttons do not fit a phone header. Regenerate stays
-              primary; Print and Send-to-Mobile move into an overflow menu —
-              printing from a phone is a rare intent anyway. */}
-          <div className="flex w-full items-center gap-2 sm:w-auto">
-            {/* AI consolidation is premium — free users see the upgrade CTA instead */}
-            {isPremium !== false ? (
-              <button
-                onClick={() =>
-                  // Sends the plan's ingredients to the AI — ask first (5.1.2(i)).
-                  requestAiConsent('shopping-list', () => regenerateMutation.mutate({ weekOffset }))
-                }
-                disabled={regenerateMutation.isPending || !weekList?.hasPlan}
-                title={!weekList?.hasPlan ? 'Generate a meal plan first' : undefined}
-                className="flex min-h-11 flex-1 items-center justify-center gap-1.5 rounded-xl border border-neutral-200 px-3 py-1.5 text-xs font-medium text-neutral-600 transition hover:bg-neutral-50 disabled:opacity-50 sm:min-h-0 sm:flex-none"
-              >
-                <RefreshCw
-                  className={`h-3.5 w-3.5 shrink-0 ${regenerateMutation.isPending ? 'animate-spin' : ''}`}
-                />
-                <span className="truncate">
-                  {regenerateMutation.isPending ? 'Regenerating…' : 'Regenerate list'}
-                </span>
-              </button>
-            ) : (
-              <UpgradeButton
-                className="min-h-11 flex-1 sm:min-h-0 sm:flex-none"
-                source="shopping-list"
-              />
-            )}
-
+          {/* Print and Share live in an overflow menu — printing from a phone
+              is a rare intent, and three buttons do not fit a phone header. */}
+          <div className="flex items-center gap-2">
             <div ref={listMenu.rootRef} className="relative shrink-0">
               <button
                 {...listMenu.triggerProps}
@@ -436,9 +418,12 @@ export default function ShoppingListPage() {
             </div>
           </div>
         </div>
+        {/* FB7-10: where the list comes from and which days it covers (a plan
+            made mid-week lists only the remaining days, audit F-PM-3). */}
+        <p data-testid="shop-provenance" className="mt-1 text-xs text-neutral-500">
+          {shoppingProvenanceText(weekList?.fromDayOfWeek)}
+        </p>
       </div>
-
-      <ShopSegments view="list" kitchenCount={pantry?.itemCount} className="mb-4" />
 
       {/* Week Navigator */}
       <div className="mb-4" data-print-hide>
@@ -469,16 +454,6 @@ export default function ShoppingListPage() {
           </div>
         )}
 
-        {/* A plan made mid-week lists only the remaining days (audit F-PM-3) */}
-        {shoppingWindowLabel(weekList?.fromDayOfWeek) && (
-          <span
-            title="Your plan started mid-week, so the list and total cover the days ahead"
-            className="whitespace-nowrap rounded-full border border-neutral-200 bg-neutral-50 px-3 py-1 text-xs font-medium text-neutral-600"
-          >
-            Covers {shoppingWindowLabel(weekList?.fromDayOfWeek)}
-          </span>
-        )}
-
         {/* Estimated week total from the ingredient price vocabulary.
             T-08.9: a range (formatPriceRange), not a false-precision point
             number — matches the Plan tab's week-cost badge. */}
@@ -492,8 +467,12 @@ export default function ShoppingListPage() {
             className="whitespace-nowrap rounded-full border border-neutral-200 bg-neutral-50 px-3 py-1 text-xs font-medium text-neutral-600"
           >
             Est. total{' '}
-            {formatPriceRange(weekList.estimatedTotalEur, currency) ??
-              `~${formatMoney(weekList.estimatedTotalEur, currency)}`}
+            {formatPriceRange(weekList.estimatedTotalEur, currency, deviceLocale()) ??
+              `~${formatApproxPrice(weekList.estimatedTotalEur, currency)}`}
+            {/* UX-PLAN-07: the total covers the same days as the list. */}
+            {shoppingWindowLabel(weekList.fromDayOfWeek)
+              ? ` · ${shoppingWindowLabel(weekList.fromDayOfWeek)}`
+              : ''}
           </span>
         )}
 
@@ -515,7 +494,7 @@ export default function ShoppingListPage() {
           >
             For {weekList.portions} portions
             {weekList.estimatedTotalEur != null &&
-              ` · ~${formatMoney(
+              ` · ~${formatApproxPrice(
                 perPortionCost(weekList.estimatedTotalEur, weekList.portions) ?? 0,
                 currency,
               )} each`}
@@ -541,53 +520,7 @@ export default function ShoppingListPage() {
             first week
           </p>
         )}
-
-        {/* bug B-33 (T-08.9): the "Saved ~X this week" chip is removed until
-            savings can be itemised — matches the mobile Shop tab. Pantry
-            coverage is still shown per item ("Have it" / "You have N of M"
-            below); `pantry.savedEur` stays in the free-tier ghost banner. */}
-
-        {/* Kitchen link (+ manual weekly check for premium) */}
-        {pantry && pantry.itemCount > 0 && (
-          <span className="flex items-center gap-1">
-            <Link
-              href={shopViewHref('kitchen')}
-              replace
-              className="flex min-h-11 items-center gap-1 whitespace-nowrap rounded-full border border-neutral-200 px-3 py-1 text-xs font-medium text-neutral-600 transition hover:bg-neutral-50 sm:min-h-0"
-            >
-              <Refrigerator className="h-3.5 w-3.5 shrink-0" />
-              Kitchen ({pantry.itemCount})
-            </Link>
-            {pantry.entitled && (
-              <button
-                type="button"
-                onClick={() => setConfirmOpen(true)}
-                title="Still have these? Run the weekly kitchen check"
-                aria-label="Run the weekly kitchen check"
-                className="flex h-11 w-11 items-center justify-center rounded-full border border-neutral-200 text-neutral-500 transition hover:bg-neutral-50 sm:h-7 sm:w-7"
-              >
-                <ClipboardCheck className="h-3.5 w-3.5" />
-              </button>
-            )}
-          </span>
-        )}
       </div>
-
-      {/* F3 weekly kitchen check — inline, never over the list (F-PM-13):
-          auto once a week for items 3+ days old, or by hand from the chip */}
-      <PantryCheckBanner
-        manualOpen={confirmOpen}
-        onManualClose={() => setConfirmOpen(false)}
-        className="mb-5"
-      />
-
-      {/* F3 §6.4 ghost state (free tier): real seeded item count + the real
-          savings this list would have seen */}
-      {pantry && !pantry.entitled && (
-        <div className="mb-5" data-print-hide>
-          <PantryGhostBanner savedEur={pantry.savedEur} currency={currency} />
-        </div>
-      )}
 
       {/* Empty state */}
       {!weekList?.hasPlan ? (
@@ -606,29 +539,6 @@ export default function ShoppingListPage() {
         </div>
       ) : (
         <div className="relative space-y-6">
-          {/* A failed regenerate used to be silent (audit F-SHOP-1-5). */}
-          {regenerateMutation.isError && (
-            <p role="alert" className="rounded-xl bg-red-50 px-4 py-2 text-sm text-red-700">
-              Couldn&apos;t rebuild the list — your list and ticks are unchanged. Try again.
-            </p>
-          )}
-          {/* Regenerating overlay — dims the current list while the AI consolidates */}
-          {regenerateMutation.isPending && (
-            <div className="absolute inset-0 z-10 flex items-start justify-center rounded-2xl bg-white/70 pt-10 backdrop-blur-[1px]">
-              <div className="flex flex-col items-center gap-3 rounded-2xl border border-neutral-200 bg-white px-8 py-6 shadow-sm">
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img
-                  src="/restaurant-food-loading.svg"
-                  alt=""
-                  aria-hidden="true"
-                  className="h-28 w-28"
-                />
-                <p className="text-sm font-medium text-neutral-600">
-                  Consolidating your list with AI…
-                </p>
-              </div>
-            </div>
-          )}
           {/* Add your own item — same overlay the AI chef's
               addToShoppingList tool writes to */}
           <div className="flex gap-2" data-print-hide>
@@ -641,15 +551,14 @@ export default function ShoppingListPage() {
                   handleAddItem();
                 }
               }}
-              placeholder="Add an item… e.g. 2 kg flour"
+              placeholder={units.addItemPlaceholder}
               aria-label="Add an item to the shopping list"
-              disabled={addItemMutation.isPending}
               className="min-h-11 min-w-0 flex-1 rounded-xl border border-neutral-200 px-3 py-2 text-base focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary disabled:opacity-50 sm:text-sm"
             />
             <button
               type="button"
               onClick={handleAddItem}
-              disabled={!newItemText.trim() || addItemMutation.isPending}
+              disabled={!newItemText.trim()}
               aria-label="Add item to shopping list"
               className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-neutral-200 text-neutral-600 hover:bg-neutral-50 disabled:opacity-40 ${pressControl}`}
             >
@@ -658,7 +567,7 @@ export default function ShoppingListPage() {
           </div>
 
           {grouped.map(({ category, label, items: catItems }) => {
-            const isExpanded = expandedCategories[category] ?? false;
+            const isExpanded = expandedCategories[category] ?? true;
             const catDone = catItems.filter((i) => checkedItems.includes(i.key)).length;
             return (
               <section key={category}>
@@ -693,7 +602,7 @@ export default function ShoppingListPage() {
                       const isChecked = checkedItems.includes(item.key);
                       const itemImageUrl = item.imageUrl;
                       const quantityLabel = Number.isFinite(Number(item.quantity))
-                        ? formatQuantity(Number(item.quantity), item.unit, unitSystem)
+                        ? units.qty(Number(item.quantity), item.unit)
                         : `${item.quantity} ${item.unit}`;
                       return (
                         // Exactly two targets per row. Previously the whole card
@@ -704,7 +613,7 @@ export default function ShoppingListPage() {
                           key={item.key}
                           // MO-01: the whole row scales while its primary
                           // (toggle) button is pressed, not the icon button.
-                          className={`flex items-center gap-1 rounded-xl border ${pressTransition} motion-safe:[&:has(>button:first-child:active)]:scale-[0.98] ${isChecked ? 'border-neutral-100 bg-neutral-50 opacity-70' : item.pantryCovered ? 'border-emerald-200 bg-emerald-50/40 hover:border-emerald-300' : 'border-neutral-200 bg-white hover:border-neutral-300'}`}
+                          className={`flex items-center gap-1 rounded-xl border ${pressTransition} motion-safe:[&:has(>button:first-child:active)]:scale-[0.98] ${isChecked ? 'border-neutral-100 bg-neutral-50 opacity-70' : 'border-neutral-200 bg-white hover:border-neutral-300'}`}
                         >
                           {/* Primary target — the whole row toggles bought/not */}
                           <button
@@ -714,16 +623,7 @@ export default function ShoppingListPage() {
                             className="flex min-h-11 min-w-0 flex-1 items-center gap-3 rounded-xl p-2 text-left sm:p-3"
                           >
                             <div className="relative h-12 w-12 flex-shrink-0 overflow-hidden rounded-lg">
-                              <Image
-                                src={itemImageUrl}
-                                alt=""
-                                fill
-                                sizes="48px"
-                                className="object-cover"
-                                onError={(e) => {
-                                  e.currentTarget.src = FALLBACK_IMAGE;
-                                }}
-                              />
+                              <ItemThumb src={itemImageUrl} category={item.category} sizes="48px" />
                             </div>
 
                             <div className="min-w-0 flex-1">
@@ -731,12 +631,6 @@ export default function ShoppingListPage() {
                                 className={`flex items-center gap-1.5 text-sm font-medium ${isChecked ? 'text-neutral-500 line-through' : 'text-neutral-800'}`}
                               >
                                 <span className="min-w-0 truncate">{item.ingredientName}</span>
-                                {/* F3 "have it" chip — the pantry covers this item */}
-                                {item.pantryCovered && (
-                                  <span className="shrink-0 rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-semibold uppercase tracking-wide text-emerald-700">
-                                    Have it
-                                  </span>
-                                )}
                                 {/* T-01.9: this ingredient needs a certified product for the
                                     table's diet labels (e.g. certified gluten-free oats). */}
                                 {item.labelCheck && item.labelCheck.length > 0 && (
@@ -746,33 +640,14 @@ export default function ShoppingListPage() {
                               {/* Quantity and price share a line — as separate
                               columns the name was squeezed to ~150px. */}
                               <p className="truncate text-xs text-neutral-500">
-                                {/* bug B-24 (T-08.4): a pantry row with LESS
-                                    than the line's needed amount is a partial
-                                    match — `quantity` is already the
-                                    remaining (need − have) amount to buy. */}
-                                {item.haveQuantity != null ? (
-                                  <span data-testid={`shopping-item-coverage-${item.key}`}>
-                                    You have{' '}
-                                    {formatQuantity(item.haveQuantity, item.unit, unitSystem)} of{' '}
-                                    {formatQuantity(
-                                      item.haveQuantity + Number(item.quantity),
-                                      item.unit,
-                                      unitSystem,
-                                    )}{' '}
-                                    · Buy {quantityLabel}
-                                  </span>
-                                ) : (
-                                  quantityLabel
-                                )}
+                                {quantityLabel}
                                 {item.estimatedPriceEur != null && (
-                                  <span
-                                    className={`ml-2 font-medium ${item.pantryCovered ? 'line-through opacity-60' : ''}`}
-                                  >
-                                    ~{formatMoney(item.estimatedPriceEur, currency)}
+                                  <span className="ml-2 font-medium">
+                                    ~{formatApproxPrice(item.estimatedPriceEur, currency)}
                                   </span>
                                 )}
-                                {item.pantryCovered && (
-                                  <span className="ml-2 text-emerald-600">in your kitchen</span>
+                                {item.key.startsWith(PENDING_KEY_PREFIX) && (
+                                  <span className="ml-2 text-neutral-400">Saving…</span>
                                 )}
                               </p>
                             </div>
@@ -787,32 +662,13 @@ export default function ShoppingListPage() {
                             </span>
                           </button>
 
-                          {/* Secondary target — re-add for "have it" items,
-                          detail for derived items, remove for user-added
-                          ones */}
-                          {item.pantryCovered ? (
+                          {/* Secondary target — detail for derived items, remove for
+                          user-added ones */}
+                          {item.isCustom ? (
                             <button
                               type="button"
                               onClick={() =>
-                                markOutMutation.mutate({ ingredientName: item.ingredientName })
-                              }
-                              disabled={markOutMutation.isPending}
-                              aria-label={`Out of ${item.ingredientName} — add it back to the list`}
-                              title="I'm out of it — add back to the list"
-                              className={`mr-1 flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-lg text-emerald-500 hover:bg-emerald-50 hover:text-emerald-700 disabled:opacity-50 ${pressControl}`}
-                              data-print-hide
-                            >
-                              <RotateCcw className="h-4 w-4" />
-                            </button>
-                          ) : item.isCustom ? (
-                            <button
-                              type="button"
-                              onClick={() =>
-                                weekList?.planId &&
-                                removeItemMutation.mutate({
-                                  planId: weekList.planId,
-                                  key: item.key,
-                                })
+                                weekList?.planId && removeCustomItem(weekList.planId, item)
                               }
                               disabled={removeItemMutation.isPending}
                               aria-label={`Remove ${item.ingredientName} from the list`}
@@ -826,7 +682,11 @@ export default function ShoppingListPage() {
                             <button
                               type="button"
                               onClick={() =>
-                                setPopupItem({ name: item.ingredientName, imageUrl: itemImageUrl })
+                                setPopupItem({
+                                  name: item.ingredientName,
+                                  imageUrl: itemImageUrl,
+                                  category: item.category,
+                                })
                               }
                               aria-label={`Details for ${item.ingredientName}`}
                               className={`mr-1 flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-lg text-neutral-300 hover:bg-neutral-100 hover:text-neutral-500 ${pressControl}`}
@@ -870,7 +730,7 @@ export default function ShoppingListPage() {
         weekStart={weekStart}
         fromDayOfWeek={weekList?.fromDayOfWeek}
         portions={weekList?.portions}
-        unitSystem={unitSystem}
+        unitSystem={units.system}
       />
 
       {/* Item detail — bottom sheet on phones, centred dialog at sm+ */}
@@ -883,15 +743,12 @@ export default function ShoppingListPage() {
         <div className="flex flex-col items-center gap-4 px-5 pb-6">
           <div className="relative aspect-square w-full max-w-[220px] overflow-hidden rounded-xl">
             {popupItem && (
-              <Image
+              <ItemThumb
                 src={popupItem.imageUrl}
+                category={popupItem.category}
                 alt={popupItem.name}
-                fill
                 sizes="220px"
-                className="object-cover"
-                onError={(e) => {
-                  e.currentTarget.src = FALLBACK_IMAGE;
-                }}
+                iconClassName="h-16 w-16"
               />
             )}
           </div>

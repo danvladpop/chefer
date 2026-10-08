@@ -25,9 +25,17 @@ describe('inferCategory', () => {
     expect(inferCategory('Mixed nuts')).toBe('grains');
   });
 
+  it('files eggs under Dairy & Eggs, not Proteins (UX-SHOP-03)', () => {
+    expect(inferCategory('Egg')).toBe('dairy');
+    expect(inferCategory('Large eggs')).toBe('dairy');
+    // Words that merely contain "egg" keep their own aisle.
+    expect(inferCategory('Eggplant')).toBe('produce');
+    expect(inferCategory('Egg noodles')).toBe('grains');
+  });
+
   it('tolerates simple plurals', () => {
     expect(inferCategory('Carrots')).toBe('produce');
-    expect(inferCategory('Eggs')).toBe('proteins');
+    expect(inferCategory('Eggs')).toBe('dairy');
   });
 
   it('is case-insensitive and falls back to other', () => {

@@ -7,11 +7,17 @@ import { useIsPremium } from './use-is-premium';
  * free on every tier; SCALING to the table is premium, so `portionSum` — what
  * the recipe screen defaults its servings to — is set only for premium
  * households (the same number the API sizes lists and costs to).
+ *
+ * UX-REC-02: `scaledMembers` (premium only) and `useCookingFor()` ("How you cook")
+ * feed `defaultCookServings` → `portionsFor`, so the recipe page, cook mode
+ * and the list agree on the table: the user's portion + each member (3½), never
+ * the owner's portion multiplied across the table.
  */
 export function useHousehold(): {
   memberCount: number;
   tablePortions: number | null;
   portionSum: number | null;
+  scaledMembers: { name: string; portionFactor: number }[] | null;
 } {
   const isPremium = useIsPremium();
   const { data: members = [] } = trpc.household.list.useQuery(undefined, { staleTime: 60_000 });
@@ -20,5 +26,6 @@ export function useHousehold(): {
     memberCount: members.length,
     tablePortions,
     portionSum: isPremium === true ? tablePortions : null,
+    scaledMembers: isPremium === true && members.length > 0 ? members : null,
   };
 }

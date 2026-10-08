@@ -1,7 +1,7 @@
 import { View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import type { OnboardingIntent } from '@chefer/types';
-import { PressableScale, Text } from '@chefer/ui-mobile';
+import { colors, PressableScale, Text } from '@chefer/ui-mobile';
 import { cn } from '@chefer/utils';
 
 // Step 0: "What brings you here?" (backlog P2-3, audit F-PM-6) — port of
@@ -68,7 +68,11 @@ export function IntentStep({
                   selected ? 'bg-primary' : 'bg-accent',
                 )}
               >
-                <Ionicons name={option.icon} size={22} color={selected ? '#ffffff' : '#944a00'} />
+                <Ionicons
+                  name={option.icon}
+                  size={22}
+                  color={selected ? colors.primaryForeground : colors.primary}
+                />
               </View>
               <View className="min-w-0 flex-1">
                 <Text className="font-semibold text-gray-900">{option.title}</Text>

@@ -101,6 +101,7 @@ export function DayCard({
                         repBucket: bucket,
                         exerciseName: meta.name,
                         loadType: meta.loadType,
+                        perHand: meta.perHand,
                         isTimed: meta.isTimed,
                         suggestion,
                         override: progression.override ?? null,
@@ -108,7 +109,7 @@ export function DayCard({
                     }
                     className="flex min-h-11 shrink-0 items-center gap-1.5 rounded-lg border border-gray-200 px-2.5 text-xs font-medium text-gray-700 transition-colors hover:bg-gray-50 sm:min-h-9"
                   >
-                    {formatLoad(suggestion.weightKg, unit, meta.loadType)} ×{' '}
+                    {formatLoad(suggestion.weightKg, unit, meta.loadType, { each: meta.perHand })} ×{' '}
                     {suggestion.reps[0] ?? exercise.repMin}
                     {edited && (
                       <Badge variant="secondary" className="ml-0.5">

@@ -1,5 +1,19 @@
+import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react-native';
 import { OnboardingWizard } from '../../src/features/onboarding/onboarding-wizard';
+
+const SAFE_AREA = {
+  frame: { x: 0, y: 0, width: 390, height: 844 },
+  insets: { top: 0, left: 0, right: 0, bottom: 0 },
+};
+// UX-ONB-01: the wizard's "Leave setup?" sheet reads the safe-area insets.
+function renderWizard() {
+  return render(
+    <SafeAreaProvider initialMetrics={SAFE_AREA}>
+      <OnboardingWizard />
+    </SafeAreaProvider>,
+  );
+}
 
 // UX-03 (T-03.2/T-03.3): the jobs-based onboarding wizard. AC1 (multi-select,
 // Continue disabled at 0) and AC2 (Train only hands off to gym setup exactly
@@ -28,6 +42,11 @@ jest.mock('../../src/features/privacy/use-health-consent', () => ({
 }));
 
 jest.mock('expo-router', () => ({
+  // UX-ONB-01: the screen is always focused here, so run the BACK-handler effect on mount.
+  useFocusEffect: (effect: () => (() => void) | undefined): void => {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports -- jest.mock factories can't close over top-of-file imports
+    (require('react') as typeof import('react')).useEffect(effect, [effect]);
+  },
   router: {
     push: (href: string): void => {
       mockPush(href);
@@ -83,11 +102,14 @@ jest.mock('../../src/lib/trpc', () => ({
       updateSafety: { useMutation: () => ({ mutateAsync: jest.fn(), isPending: false }) },
       saveProfileBasics: { useMutation: () => ({ mutateAsync: jest.fn(), isPending: false }) },
       updateTargets: { useMutation: () => ({ mutateAsync: jest.fn(), isPending: false }) },
+      // WP-08: "Just protein" is saved at Finish.
+      setNumbersMode: { useMutation: () => ({ mutateAsync: jest.fn(), isPending: false }) },
       setDisplayPreferences: { useMutation: () => ({ mutateAsync: jest.fn(), isPending: false }) },
     },
     training: {
       setDayKinds: { useMutation: () => ({ mutateAsync: jest.fn() }) },
     },
+    household: { list: { useQuery: () => ({ data: [] }) } },
     mealPlan: {
       setShape: { useMutation: () => ({ mutateAsync: jest.fn(), isPending: false }) },
       getShape: { useQuery: () => ({ data: undefined }) },
@@ -102,19 +124,19 @@ describe('OnboardingWizard — Jobs step (UX-03)', () => {
   });
 
   it('Continue is disabled with nothing selected (AC1)', async () => {
-    await render(<OnboardingWizard />);
+    await renderWizard();
     expect(a11yState(screen.getByTestId('onboarding-continue'))?.disabled).toBe(true);
   });
 
   it('selecting a job enables Continue and its label counts (AC1)', async () => {
-    await render(<OnboardingWizard />);
+    await renderWizard();
     await fireEvent.press(screen.getByTestId('onboarding-job-PLAN_MEALS'));
     expect(screen.getByText('Continue — 1 selected')).toBeTruthy();
     expect(a11yState(screen.getByTestId('onboarding-continue'))?.disabled).toBeFalsy();
   });
 
   it('tapping a selected card deselects it (AC1)', async () => {
-    await render(<OnboardingWizard />);
+    await renderWizard();
     const card = screen.getByTestId('onboarding-job-TRAIN');
     await fireEvent.press(card);
     expect(a11yState(card)?.checked).toBe(true);
@@ -123,7 +145,7 @@ describe('OnboardingWizard — Jobs step (UX-03)', () => {
   });
 
   it('Train only hands off straight to gym setup (AC2)', async () => {
-    await render(<OnboardingWizard />);
+    await renderWizard();
     await fireEvent.press(screen.getByTestId('onboarding-job-TRAIN'));
     await fireEvent.press(screen.getByTestId('onboarding-continue'));
     await waitFor(() => expect(mockSetJobsMutateAsync).toHaveBeenCalledWith({ jobs: ['TRAIN'] }));
@@ -133,7 +155,7 @@ describe('OnboardingWizard — Jobs step (UX-03)', () => {
   });
 
   it('"Just looking around" saves PLAN_MEALS and skips to Food Today', async () => {
-    await render(<OnboardingWizard />);
+    await renderWizard();
     await fireEvent.press(screen.getByTestId('onboarding-skip'));
     const [input, opts] = mockSetJobsMutate.mock.calls[0] as [
       { jobs: string[] },

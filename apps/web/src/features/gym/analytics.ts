@@ -33,6 +33,8 @@ export interface GymEventMap {
     edited: boolean;
     /** True if the session was ever queued offline before syncing (web outbox). */
     offline?: boolean;
+    /** UX-PO-02: a routine day (`planned`) or an ad-hoc session (`freestyle`). */
+    kind?: 'planned' | 'freestyle';
   };
   /** The user changed the engine's prefilled weight/reps before logging a set. */
   suggestion_overridden: { reasonCode: ReasonCode; direction: 'up' | 'down' | 'same' };
@@ -60,4 +62,11 @@ export function captureGymEvent<E extends keyof GymEventMap>(
   properties: GymEventMap[E],
 ): void {
   capture(event, properties);
+}
+
+/** UX-PO-02: a routine day (`planned`) or an ad-hoc session (`freestyle`). */
+export function workoutFinishedKind(doc: {
+  routineDayId: string | null;
+}): NonNullable<GymEventMap['workout_finished']['kind']> {
+  return doc.routineDayId ? 'planned' : 'freestyle';
 }

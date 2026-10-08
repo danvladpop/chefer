@@ -153,6 +153,49 @@ export function detectPrs(input: {
 }
 
 /**
+ * Whether this exercise has any earlier logged working set (UX-GYM-18). The
+ * first-ever session is a baseline, not a record: the live badge and the
+ * finish summary skip it, while the PR timeline keeps listing it as "First
+ * logged" (`PersonalRecord.isFirst`, T-05.6).
+ */
+export function hasPriorExposure(input: {
+  exerciseId: string;
+  /** Prior completed sessions (any order). */
+  history: SessionSummaryDto[];
+  /** All-time record from sessions outside `history` (bootstrap `olderBests`). */
+  best?: ExerciseBest | undefined;
+}): boolean {
+  if (input.best) return true;
+  return input.history.some(
+    (s) =>
+      s.status === 'COMPLETED' &&
+      s.exercises.some(
+        (ex) => ex.exerciseId === input.exerciseId && !ex.skipped && workingSets(ex).length > 0,
+      ),
+  );
+}
+
+/**
+ * The PR kinds a set beats while the workout is still running (UX-GYM-18 follow-up,
+ * owner decision 2026-10-04): `detectPrs`, except that an exercise with no
+ * earlier history is a baseline, not a record — no badge, no haptic. The one
+ * rule behind the live badge on web and mobile; the finish summary applies the
+ * same rule (`hasPriorExposure`) and the PR timeline still lists the first lift
+ * as "First logged".
+ */
+export function detectLivePrs(input: {
+  exerciseId: string;
+  /** Prior completed sessions (any order), never the running one. */
+  history: SessionSummaryDto[];
+  candidate: Candidate;
+  /** All-time record from sessions outside `history` (bootstrap `olderBests`). */
+  best?: ExerciseBest | undefined;
+}): PrKind[] {
+  if (!hasPriorExposure(input)) return [];
+  return detectPrs(input);
+}
+
+/**
  * Every PR ever set, in date order (for the PR timeline and recap): at most one
  * record per exercise per session — the highest-ranked kind any of its sets
  * beat, compared with all earlier sessions.

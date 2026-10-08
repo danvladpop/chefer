@@ -39,6 +39,26 @@ const HEALTH_KEYWORDS = [
   'chronic condition',
   'health condition',
   'medical condition',
+  // Unsafe weight loss / disordered eating (App Review R-14)
+  'very low calorie',
+  'very-low-calorie',
+  'low-calorie diet',
+  'vlcd',
+  'crash diet',
+  'starvation',
+  'starve myself',
+  'starving myself',
+  'starve to lose',
+  'water fast',
+  'fast to lose weight',
+  'fasting to lose weight',
+  'purge',
+  'purging',
+  'laxative',
+  'binge',
+  'self-harm',
+  'self harm',
+  'hurt myself',
   // Romanian (diacritics stripped by `normalise`)
   'diabet',
   'glicemie',
@@ -63,6 +83,10 @@ const HEALTH_KEYWORDS = [
   'bulimie',
   'afectiune cronica',
   'afectiune medicala',
+  'dieta drastica',
+  'infometare',
+  'sa ma infometez',
+  'vomit',
 ];
 
 /** Allergen/food-safety topics — "AI can be wrong, check the label" (AC4). */
@@ -113,9 +137,32 @@ function matchesAny(normalised: string, keywords: string[]): boolean {
   return keywords.some((k) => normalised.includes(normalise(k)));
 }
 
+/**
+ * A daily intake stated below the 1,200 kcal safety floor ("800 calories a
+ * day", "eat only 600 kcal", "500 cal/day"). A bare per-meal figure ("a 500
+ * calorie dinner") is deliberately NOT matched — that's an ordinary cooking
+ * question.
+ */
+const VERY_LOW_DAILY_KCAL =
+  /(?<![\d,.])\b([1-9]\d{2}|1[01]\d{2})\s*(?:k?cals?|kilocalories|calories|calorii)\b/g;
+const DAILY_CONTEXT =
+  /(a|per|pe|each|every|\/)\s*(day|zi)\b|daily|zilnic|only eat|eating only|just eat|to lose weight/;
+
+function mentionsVeryLowDailyIntake(normalised: string): boolean {
+  for (const m of normalised.matchAll(VERY_LOW_DAILY_KCAL)) {
+    const start = m.index;
+    const end = start + m[0].length;
+    const before = normalised.slice(Math.max(0, start - 20), start);
+    const after = normalised.slice(end, end + 25);
+    if (DAILY_CONTEXT.test(after) || /(only|just)\s+(eat\w*\s+)?$/.test(before)) return true;
+  }
+  return false;
+}
+
 /** True when the message reads as a medical/health question (not an allergen check). */
 export function isHealthTopic(text: string): boolean {
-  return matchesAny(normalise(text), HEALTH_KEYWORDS);
+  const n = normalise(text);
+  return matchesAny(n, HEALTH_KEYWORDS) || mentionsVeryLowDailyIntake(n);
 }
 
 /** True when the message reads as an allergen/food-safety question. */

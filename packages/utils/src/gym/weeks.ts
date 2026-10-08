@@ -28,6 +28,15 @@ function formatLocal(ms: number): string {
   return `${String(d.getUTCFullYear()).padStart(4, '0')}-${mm}-${dd}`;
 }
 
+/**
+ * `YYYY-MM-DD` of a date-only value stored as UTC midnight (Prisma `@db.Date`,
+ * e.g. `DailyLog.date`). Reads the stored calendar day — never "today" from the
+ * server clock (§2.12).
+ */
+export function dateOnlyKey(date: Date): string {
+  return formatLocal(date.getTime());
+}
+
 export function addDaysLocal(localDate: string, days: number): string {
   return formatLocal(parseLocal(localDate) + days * DAY_MS);
 }
@@ -61,6 +70,27 @@ export function weekdayDateLabel(localDate: string): string {
   return `${weekday} ${d.getUTCDate()} ${month}`;
 }
 
+const MONTH_NAMES = [
+  'January',
+  'February',
+  'March',
+  'April',
+  'May',
+  'June',
+  'July',
+  'August',
+  'September',
+  'October',
+  'November',
+  'December',
+];
+
+/** "2026-09" → "September" (UX-GYM-13: "See September"); null for anything that is not YYYY-MM. */
+export function monthNameOf(month: string): string | null {
+  const m = /^(\d{4})-(0[1-9]|1[0-2])$/.exec(month);
+  return m ? (MONTH_NAMES[Number(m[2]) - 1] ?? null) : null;
+}
+
 /**
  * "7-week streak" — or, for a streak of 0, `Your streak starts when you hit
  * this week's goal.` instead of the demoralising "0-week streak" (T-36.4;
@@ -72,6 +102,23 @@ export function weekdayDateLabel(localDate: string): string {
 export function streakWeeksLabel(current: number): string {
   if (current === 0) return "Your streak starts when you hit this week's goal.";
   return current === 1 ? '1-week streak' : `${current}-week streak`;
+}
+
+/**
+ * UX-GYM-12: the weekly goal to SHOW. In the week training was set up the goal
+ * is pro-rated to the days left (setup day through Sunday) — "0 of 4 this week"
+ * on a Friday sign-up is a goal nobody can reach. Later weeks, or an unknown
+ * setup date, keep the full goal. Display only: the streak maths is unchanged.
+ */
+export function proRatedWeekGoal(input: {
+  goal: number;
+  today: string;
+  /** Device-local date training was set up, or null when unknown. */
+  setupDate: string | null;
+}): number {
+  const { goal, today, setupDate } = input;
+  if (!setupDate || weekStartOf(setupDate) !== weekStartOf(today)) return goal;
+  return Math.max(1, Math.min(goal, 7 - weekdayOf(setupDate)));
 }
 
 /** Goal in force for a week: the latest entry whose fromWeek ≤ weekStart (earliest entry before any). */

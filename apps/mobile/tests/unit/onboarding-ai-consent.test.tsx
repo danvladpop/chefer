@@ -5,6 +5,11 @@ import {
   AiConsentHost,
   AiConsentProvider,
 } from '../../src/features/ai-consent/ai-consent-provider';
+import {
+  NO_FOOD_NUDGES,
+  readFoodNudgePrefs,
+  writeFoodNudgePrefs,
+} from '../../src/features/notifications/food-nudges';
 import { OnboardingWizard } from '../../src/features/onboarding/onboarding-wizard';
 
 // UX-03 AC7 (rev 2, delta rule 3): finishing a food path auto-generates the
@@ -35,10 +40,15 @@ const mockPush = jest.fn();
 const mockReplace = jest.fn();
 jest.mock('expo-router', () => {
   // eslint-disable-next-line @typescript-eslint/no-require-imports -- jest.mock factories can't close over top-of-file imports
-  const { createElement } = require('react') as typeof import('react');
+  const { createElement, useEffect } = require('react') as typeof import('react');
   // eslint-disable-next-line @typescript-eslint/no-require-imports
   const { Pressable } = require('react-native') as typeof import('react-native');
   return {
+    // UX-ONB-01: the wizard registers its BACK handler with useFocusEffect; the
+    // screen is always focused here, so run the effect on mount.
+    useFocusEffect: (effect: () => (() => void) | undefined): void => {
+      useEffect(effect, [effect]);
+    },
     router: {
       push: (href: string): void => {
         mockPush(href);
@@ -55,9 +65,23 @@ jest.mock('expo-router', () => {
 });
 jest.mock('../../src/features/gym/mode-store', () => ({ setMode: jest.fn() }));
 
+// UX-PO-08: the nudge question's switches ask the OS through this.
+let mockNotificationsAllowed = true;
+jest.mock('../../src/features/gym/reminders/permission', () => ({
+  ensureGymReminderPermission: () => Promise.resolve(mockNotificationsAllowed),
+  hasGymReminderPermission: () => Promise.resolve(mockNotificationsAllowed),
+}));
+
 let mockUser: { aiDataConsentAt: Date | null } | undefined;
 const mockGrant = jest.fn();
 const mockGenerate = jest.fn();
+// R-18: the invalidations the generation fires once it lands.
+const mockInvalidate = {
+  mealPlan: jest.fn(),
+  dashboard: jest.fn(),
+  shoppingList: jest.fn(),
+};
+let mockGenerateOptions: { onSettled?: () => void } | undefined;
 const SHAPE = {
   slots: ['breakfast', 'lunch', 'dinner'],
   days: [0, 1, 2, 3, 4, 5, 6],
@@ -71,7 +95,9 @@ jest.mock('../../src/lib/trpc', () => ({
   trpc: {
     useUtils: () => ({
       preferences: { invalidate: jest.fn() },
-      dashboard: { invalidate: jest.fn() },
+      dashboard: { invalidate: mockInvalidate.dashboard },
+      mealPlan: { invalidate: mockInvalidate.mealPlan },
+      shoppingList: { invalidate: mockInvalidate.shoppingList },
       user: { me: { setData: jest.fn() } },
     }),
     preferences: {
@@ -93,13 +119,21 @@ jest.mock('../../src/lib/trpc', () => ({
       updateSafety: { useMutation: () => ({ mutateAsync: jest.fn(), isPending: false }) },
       saveProfileBasics: { useMutation: () => ({ mutateAsync: jest.fn(), isPending: false }) },
       updateTargets: { useMutation: () => ({ mutateAsync: jest.fn(), isPending: false }) },
+      // WP-08: "Just protein" is saved at Finish.
+      setNumbersMode: { useMutation: () => ({ mutateAsync: jest.fn(), isPending: false }) },
       setDisplayPreferences: { useMutation: () => ({ mutateAsync: jest.fn(), isPending: false }) },
     },
     training: { setDayKinds: { useMutation: () => ({ mutateAsync: jest.fn() }) } },
+    household: { list: { useQuery: () => ({ data: [] }) } },
     mealPlan: {
       setShape: { useMutation: () => ({ mutateAsync: jest.fn(), isPending: false }) },
       getShape: { useQuery: () => ({ data: SHAPE }) },
-      generate: { useMutation: () => ({ mutate: mockGenerate }) },
+      generate: {
+        useMutation: (opts?: { onSettled?: () => void }) => {
+          mockGenerateOptions = opts;
+          return { mutate: mockGenerate };
+        },
+      },
     },
     profile: { aiProviders: { useQuery: () => ({ data: undefined }) } },
     user: {
@@ -153,10 +187,19 @@ async function driveToFinish() {
   throw new Error('driveToFinish: never reached the finish button within 10 steps');
 }
 
+/** UX-PO-08: the last question comes after the save; answering it leaves the wizard. */
+async function finishNudgeQuestion() {
+  const user = userEvent.setup();
+  await waitFor(() => expect(screen.getByTestId('onboarding-nudge-done')).toBeTruthy());
+  await user.press(screen.getByTestId('onboarding-nudge-done'));
+}
+
 beforeEach(() => {
   jest.clearAllMocks();
   mockIsPremium = false;
   mockUser = { aiDataConsentAt: null };
+  mockNotificationsAllowed = true;
+  writeFoodNudgePrefs(NO_FOOD_NUDGES);
 });
 
 beforeAll(() => {
@@ -173,7 +216,22 @@ describe('Onboarding AC7 — AI consent before the first-week generate', () => {
 
     await waitFor(() => expect(mockGenerate).toHaveBeenCalledWith({ weekOffset: 0 }));
     expect(screen.queryByTestId('ai-consent-allow')).toBeNull();
+    await finishNudgeQuestion();
     expect(mockReplace).toHaveBeenCalledWith('/(food)');
+  });
+
+  // R-18: Today is already on screen (stale "nothing planned") when the
+  // background generation lands — everything that reads the plan is refreshed.
+  it('refreshes the plan, dashboard and shopping list when the first week lands', async () => {
+    await renderWizard();
+    await driveToFinish();
+    await waitFor(() => expect(mockGenerate).toHaveBeenCalled());
+
+    expect(mockGenerateOptions?.onSettled).toBeDefined();
+    mockGenerateOptions?.onSettled?.();
+    expect(mockInvalidate.mealPlan).toHaveBeenCalled();
+    expect(mockInvalidate.dashboard).toHaveBeenCalled();
+    expect(mockInvalidate.shoppingList).toHaveBeenCalled();
   });
 
   it('premium tier: asks first; "Not now" sends nothing and still finishes onboarding', async () => {
@@ -184,6 +242,7 @@ describe('Onboarding AC7 — AI consent before the first-week generate', () => {
     await waitFor(() => expect(screen.getByTestId('ai-consent-not-now')).toBeTruthy());
     expect(mockGenerate).not.toHaveBeenCalled();
     // Finishing onboarding itself doesn't wait on the consent decision.
+    await finishNudgeQuestion();
     expect(mockReplace).toHaveBeenCalledWith('/(food)');
 
     await fireEvent.press(screen.getByTestId('ai-consent-not-now'));
@@ -201,5 +260,48 @@ describe('Onboarding AC7 — AI consent before the first-week generate', () => {
 
     expect(mockGrant).toHaveBeenCalledTimes(1);
     await waitFor(() => expect(mockGenerate).toHaveBeenCalledWith({ weekOffset: 0 }));
+  });
+});
+
+describe('Onboarding — the nudge opt-in question (UX-PO-08)', () => {
+  it('asks once, after the save: nothing leaves the wizard until it is answered', async () => {
+    await renderWizard();
+    await driveToFinish();
+
+    await waitFor(() => expect(screen.getByTestId('onboarding-nudge-title')).toBeTruthy());
+    expect(screen.getByText('Want a nudge to log dinner or plan Sunday?')).toBeTruthy();
+    expect(mockReplace).not.toHaveBeenCalled();
+    // Both switches start off; with neither on the button says so.
+    expect(readFoodNudgePrefs()).toEqual({ dinner: false, planSunday: false });
+    expect(screen.getByText('Not now')).toBeTruthy();
+
+    await finishNudgeQuestion();
+    expect(mockReplace).toHaveBeenCalledWith('/(food)');
+    expect(readFoodNudgePrefs()).toEqual({ dinner: false, planSunday: false });
+  });
+
+  it('turning a switch on stores only that choice', async () => {
+    await renderWizard();
+    await driveToFinish();
+    await waitFor(() => expect(screen.getByTestId('onboarding-nudge-dinner')).toBeTruthy());
+
+    await fireEvent(screen.getByTestId('onboarding-nudge-dinner'), 'valueChange', true);
+    await waitFor(() => expect(readFoodNudgePrefs()).toEqual({ dinner: true, planSunday: false }));
+    expect(screen.getByText('Done')).toBeTruthy();
+
+    await finishNudgeQuestion();
+    expect(mockReplace).toHaveBeenCalledWith('/(food)');
+  });
+
+  it('a refused OS permission leaves the switch off and says why', async () => {
+    mockNotificationsAllowed = false;
+    await renderWizard();
+    await driveToFinish();
+    await waitFor(() => expect(screen.getByTestId('onboarding-nudge-plan')).toBeTruthy());
+
+    await fireEvent(screen.getByTestId('onboarding-nudge-plan'), 'valueChange', true);
+    await waitFor(() => expect(screen.getByTestId('onboarding-nudge-off')).toBeTruthy());
+    expect(readFoodNudgePrefs()).toEqual({ dinner: false, planSunday: false });
+    expect(screen.getByText('Not now')).toBeTruthy();
   });
 });

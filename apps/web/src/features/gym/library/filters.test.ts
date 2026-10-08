@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { ExerciseDto } from '@chefer/types';
-import { DEFAULT_LIBRARY_FILTERS, filterExercises } from './filters';
+import { archivedCustomExercises, DEFAULT_LIBRARY_FILTERS, filterExercises } from './filters';
 
 function exercise(overrides: Partial<ExerciseDto> = {}): ExerciseDto {
   return {
@@ -79,9 +79,16 @@ describe('filterExercises', () => {
     expect(result.map((e) => e.id).sort()).toEqual(['goblet-squat', 'my-curl']);
   });
 
-  it('filters by muscle group, matching primary or secondary', () => {
-    const result = filterExercises(library, { ...DEFAULT_LIBRARY_FILTERS, muscleGroup: 'glutes' });
-    expect(result.map((e) => e.id)).toEqual(['goblet-squat']);
+  it('filters by muscle group on PRIMARY muscles only, like mobile (L2)', () => {
+    expect(
+      filterExercises(library, { ...DEFAULT_LIBRARY_FILTERS, muscleGroup: 'quads' }).map(
+        (e) => e.id,
+      ),
+    ).toEqual(['goblet-squat']);
+    // glutes is only a secondary muscle of the goblet squat
+    expect(filterExercises(library, { ...DEFAULT_LIBRARY_FILTERS, muscleGroup: 'glutes' })).toEqual(
+      [],
+    );
   });
 
   it('"Mine" keeps only exercises with an owner', () => {
@@ -106,5 +113,22 @@ describe('filterExercises', () => {
       mineOnly: true,
     });
     expect(result.map((e) => e.id)).toEqual(['my-curl']);
+  });
+});
+
+describe('archivedCustomExercises (UX-GYM-34)', () => {
+  const library: ExerciseDto[] = [
+    exercise({ id: 'a', ownerId: 'u', name: 'Zed Curl', archived: true }),
+    exercise({ id: 'b', ownerId: 'u', name: 'Alpha Row', archived: true }),
+    exercise({ id: 'c', ownerId: 'u', name: 'Live Custom', archived: false }),
+    exercise({ id: 'd', ownerId: null, name: 'Curated retired', archived: true }),
+  ];
+
+  it('returns only archived custom exercises, A–Z', () => {
+    expect(archivedCustomExercises(library).map((e) => e.id)).toEqual(['b', 'a']);
+  });
+
+  it('narrows by the search text', () => {
+    expect(archivedCustomExercises(library, ' curl ').map((e) => e.id)).toEqual(['a']);
   });
 });

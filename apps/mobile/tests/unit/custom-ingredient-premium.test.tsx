@@ -34,7 +34,10 @@ jest.mock('../../src/lib/trpc', () => {
         hasProfile: { useQuery: () => ({ data: true }) },
       },
       household: { list: { useQuery: () => ({ data: [] }) } },
-      mealPlan: { generate: { useMutation: () => idle } },
+      mealPlan: {
+        generate: { useMutation: () => idle },
+        getForWeek: { useQuery: () => ({ data: null }) },
+      },
       user: { upgradePlan: { useMutation: () => idle } },
       ingredients: {
         createCustom: { useMutation: () => idle },
@@ -76,5 +79,5 @@ it('free: "Fill in for me" opens the job-led premium sheet inside the custom she
   expect(screen.getByTestId('premium-sheet-title')).toHaveTextContent(
     'Fill in nutrition in one tap',
   );
-  expect(screen.getByText('FREE FOR NOW')).toBeOnTheScreen();
+  expect(screen.getByText('INCLUDED')).toBeOnTheScreen();
 });

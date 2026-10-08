@@ -1,7 +1,7 @@
-import { useState } from 'react';
-import { View } from 'react-native';
-import { Button, Input, Text } from '@chefer/ui-mobile';
-import { parseBodyWeight } from '@chefer/utils';
+import { useId, useState } from 'react';
+import { Keyboard, View } from 'react-native';
+import { Button, Input, NumericReturnBar, Text } from '@chefer/ui-mobile';
+import { parseBodyWeight, userFacingErrorMessage } from '@chefer/utils';
 import { useUnitSystem } from '../../../hooks/use-unit-system';
 import { trpc } from '../../../lib/trpc';
 import { HealthDeclinedNotice } from '../../privacy/health-notices';
@@ -13,6 +13,8 @@ import { useHealthConsent } from '../../privacy/use-health-consent';
 export function LogWeightPrompt({ testID = 'log-weight-prompt' }: { testID?: string }) {
   // Typed in the user's unit (backlog P2-6) — sent as kg.
   const system = useUnitSystem();
+  // UX-GYM-34: the decimal pad has no Return key on iOS — give it a Done bar.
+  const barId = `log-weight-numeric-bar-${useId()}`;
   const [value, setValue] = useState('');
   const [error, setError] = useState<string | null>(null);
   const utils = trpc.useUtils();
@@ -27,7 +29,9 @@ export function LogWeightPrompt({ testID = 'log-weight-prompt' }: { testID?: str
       void utils.gym.stats.monthlyRecap.invalidate();
       void utils.tracker.weightHistory.invalidate();
     },
-    onError: (err) => setError(err.message),
+    onError: (err) => setError(userFacingErrorMessage(err)),
+    // Shown inline under the field — no default snackbar.
+    meta: { silent: true },
   });
 
   const submit = () => {
@@ -39,6 +43,7 @@ export function LogWeightPrompt({ testID = 'log-weight-prompt' }: { testID?: str
     }
     setError(null);
     setDeclined(false);
+    Keyboard.dismiss();
     // "Don't save it": nothing is stored; the typed value stays in the field.
     requestHealthConsent(() => logWeight.mutate({ weightKg: parsed.kg }), {
       onDeclined: () => setDeclined(true),
@@ -58,8 +63,10 @@ export function LogWeightPrompt({ testID = 'log-weight-prompt' }: { testID?: str
             setValue(text);
             setError(null);
           }}
+          returnKeyType="done"
           onSubmitEditing={submit}
           keyboardType="decimal-pad"
+          inputAccessoryViewID={barId}
           placeholder={`Weight (${system === 'IMPERIAL' ? 'lb' : 'kg'})`}
           className="w-32"
         />
@@ -71,6 +78,12 @@ export function LogWeightPrompt({ testID = 'log-weight-prompt' }: { testID?: str
           Log your weight
         </Button>
       </View>
+      <NumericReturnBar
+        nativeID={barId}
+        testID={`${testID}-numeric-bar`}
+        label="Done"
+        onPress={() => Keyboard.dismiss()}
+      />
       {error && (
         <Text testID={`${testID}-error`} className="text-xs text-red-600">
           {error}

@@ -1,12 +1,15 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
+import { useNumbersMode } from '@/features/numbers-mode/numbers-mode';
 import { trpc, type RouterOutputs } from '@/lib/trpc';
 import { Sheet } from '@chefer/ui';
 import {
   checkMacroSanity,
+  entryUnknownMacros,
   formatQuickAddGrams,
   QUICK_ADD_MEAL_TYPES,
+  userFacingErrorMessage,
   type CustomEntryRow,
   type QuickAddMealType,
 } from '@chefer/utils';
@@ -32,6 +35,7 @@ interface CustomEntrySnapshot {
   protein: number;
   carbs: number;
   fat: number;
+  unknownMacros?: ('protein' | 'carbs' | 'fat')[];
 }
 
 type DayData = RouterOutputs['tracker']['getDay'];
@@ -75,6 +79,8 @@ export function EditEntrySheet({
 }: EditEntrySheetProps) {
   const [name, setName] = useState('');
   const [mealType, setMealType] = useState<QuickAddMealType>('snack');
+  // WP-08: protein-only mode edits protein; calories and the other macros keep their stored values.
+  const { proteinOnly } = useNumbersMode();
   const [kcal, setKcal] = useState('');
   const [macros, setMacros] = useState<Record<MacroKey, string>>({
     protein: '',
@@ -94,15 +100,18 @@ export function EditEntrySheet({
         : 'snack',
     );
     setKcal(String(entry.kcal));
+    // UX-FOOD-11: a macro the entry never had shows blank, not "0.0".
+    const unknown = entryUnknownMacros(entry);
     setMacros({
-      protein: formatQuickAddGrams(entry.protein),
-      carbs: formatQuickAddGrams(entry.carbs),
-      fat: formatQuickAddGrams(entry.fat),
+      protein: unknown.includes('protein') ? '' : formatQuickAddGrams(entry.protein),
+      carbs: unknown.includes('carbs') ? '' : formatQuickAddGrams(entry.carbs),
+      fat: unknown.includes('fat') ? '' : formatQuickAddGrams(entry.fat),
     });
     setSanityOverridden(false);
   }, [entry]);
 
   const updateMutation = trpc.tracker.updateCustomMeal.useMutation({
+    meta: { silent: true },
     onSuccess: () => {
       invalidateDayQueries(utils, date);
       showToast('Changes saved');
@@ -110,8 +119,9 @@ export function EditEntrySheet({
       onClose();
     },
   });
-  const deleteMutation = trpc.tracker.deleteCustomMeal.useMutation();
+  const deleteMutation = trpc.tracker.deleteCustomMeal.useMutation({ meta: { silent: true } });
   const restoreMutation = trpc.tracker.restoreCustomMeal.useMutation({
+    meta: { silent: true },
     onSuccess: () => invalidateDayQueries(utils, date),
   });
 
@@ -124,7 +134,13 @@ export function EditEntrySheet({
     carbs: Math.max(0, Number(macros.carbs.replace(',', '.')) || 0),
     fat: Math.max(0, Number(macros.fat.replace(',', '.')) || 0),
   };
-  const sanity = sanityOverridden ? null : checkMacroSanity({ kcal: kcalNumber, ...macroNumbers });
+  // Blank macros are unknown, not 0 g (UX-FOOD-11): stored as 0, flagged, and
+  // never trip the "don't add up" check.
+  const unknownMacros = MACROS.filter((k) => macros[k].trim() === '');
+  const sanity =
+    sanityOverridden || proteinOnly
+      ? null
+      : checkMacroSanity({ kcal: kcalNumber, ...macroNumbers, unknownMacros });
   const canSave =
     !!entryId && name.trim().length > 0 && kcalNumber > 0 && !updateMutation.isPending;
 
@@ -140,6 +156,7 @@ export function EditEntrySheet({
       protein: macroNumbers.protein,
       carbs: macroNumbers.carbs,
       fat: macroNumbers.fat,
+      unknownMacros,
     });
   };
 
@@ -155,6 +172,7 @@ export function EditEntrySheet({
       protein: entry.protein,
       carbs: entry.carbs,
       fat: entry.fat,
+      ...(entry.unknownMacros && { unknownMacros: [...entry.unknownMacros] }),
     };
     onClose();
 
@@ -169,7 +187,8 @@ export function EditEntrySheet({
     );
 
     deleteMutation.mutate(
-      { date, entryIndex },
+      // UX-FOOD-17: by stable id (the index is only the fallback).
+      { date, entryId, entryIndex },
       {
         onSuccess: () => {
           invalidateDayQueries(utils, date);
@@ -188,7 +207,12 @@ export function EditEntrySheet({
             },
           });
         },
-        onError: () => void utils.tracker.getDay.invalidate({ date }),
+        // The row was spliced out optimistically — put it back by re-reading
+        // the day, and say why (UX-FOOD-06).
+        onError: (error) => {
+          void utils.tracker.getDay.invalidate({ date });
+          showToast(`Couldn't delete ${entry.name}. ${userFacingErrorMessage(error)}`);
+        },
       },
     );
   };
@@ -221,7 +245,7 @@ export function EditEntrySheet({
                 onClick={() => setSanityOverridden(true)}
                 className="min-h-11 rounded-lg border border-amber-300 px-3 text-xs font-semibold"
               >
-                Log anyway
+                Save anyway
               </button>
             </div>
           )}
@@ -271,50 +295,66 @@ export function EditEntrySheet({
           ))}
         </div>
 
-        <label className="flex flex-col gap-1 text-xs font-medium text-neutral-600">
-          Calories
-          <span className="flex items-center gap-1">
+        {proteinOnly ? (
+          <label className="flex flex-col gap-1 text-xs font-medium text-neutral-600">
+            Protein (g)
             <input
               type="number"
-              inputMode="numeric"
-              data-testid="edit-entry-kcal"
-              ref={kcalRef}
-              value={kcal}
-              onChange={(e) => {
-                setKcal(e.target.value);
-                setSanityOverridden(false);
-              }}
+              inputMode="decimal"
+              data-testid="edit-entry-protein"
+              value={macros.protein}
+              onChange={(e) => setMacros((prev) => ({ ...prev, protein: e.target.value }))}
               className="min-h-11 w-full min-w-0 rounded-xl border border-neutral-200 px-3 text-sm text-neutral-900"
             />
-            <span className="shrink-0 text-neutral-400">kcal</span>
-          </span>
-        </label>
-
-        <div className="flex gap-2">
-          {MACROS.map((k) => (
-            <label
-              key={k}
-              className="flex min-w-0 flex-1 flex-col gap-1 text-xs font-medium text-neutral-600"
-            >
-              {k.charAt(0).toUpperCase() + k.slice(1)}
-              <input
-                type="number"
-                inputMode="decimal"
-                data-testid={`edit-entry-${k}`}
-                value={macros[k]}
-                onChange={(e) => {
-                  setMacros((prev) => ({ ...prev, [k]: e.target.value }));
-                  setSanityOverridden(false);
-                }}
-                className="min-h-11 w-full min-w-0 rounded-xl border border-neutral-200 px-3 text-sm text-neutral-900"
-              />
+          </label>
+        ) : (
+          <>
+            <label className="flex flex-col gap-1 text-xs font-medium text-neutral-600">
+              Calories
+              <span className="flex items-center gap-1">
+                <input
+                  type="number"
+                  inputMode="numeric"
+                  data-testid="edit-entry-kcal"
+                  ref={kcalRef}
+                  value={kcal}
+                  onChange={(e) => {
+                    setKcal(e.target.value);
+                    setSanityOverridden(false);
+                  }}
+                  className="min-h-11 w-full min-w-0 rounded-xl border border-neutral-200 px-3 text-sm text-neutral-900"
+                />
+                <span className="shrink-0 text-neutral-400">kcal</span>
+              </span>
             </label>
-          ))}
-        </div>
+
+            <div className="flex gap-2">
+              {MACROS.map((k) => (
+                <label
+                  key={k}
+                  className="flex min-w-0 flex-1 flex-col gap-1 text-xs font-medium text-neutral-600"
+                >
+                  {k.charAt(0).toUpperCase() + k.slice(1)} (g)
+                  <input
+                    type="number"
+                    inputMode="decimal"
+                    data-testid={`edit-entry-${k}`}
+                    value={macros[k]}
+                    onChange={(e) => {
+                      setMacros((prev) => ({ ...prev, [k]: e.target.value }));
+                      setSanityOverridden(false);
+                    }}
+                    className="min-h-11 w-full min-w-0 rounded-xl border border-neutral-200 px-3 text-sm text-neutral-900"
+                  />
+                </label>
+              ))}
+            </div>
+          </>
+        )}
 
         {updateMutation.isError && (
           <p data-testid="edit-entry-api-error" className="text-xs text-red-600">
-            {updateMutation.error.message}
+            {userFacingErrorMessage(updateMutation.error)}
           </p>
         )}
       </div>

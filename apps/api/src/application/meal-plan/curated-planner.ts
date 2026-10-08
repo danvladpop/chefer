@@ -51,10 +51,11 @@ export interface CuratedShapeOptions {
   timeCapMins?: number | null | undefined;
   weekendNoLimit?: boolean | undefined;
   /**
-   * "Just me" (1, or absent) vs "Two of us" (2, free tier — ⚖ D-7): sets
-   * every planned slot's portion directly (a different axis from the
-   * calorie/protein-driven portion below a household scale, which is applied
-   * on top via `estimatedCost.portions`, never here — see meal-portion.ts).
+   * "Just me" (1, or absent) vs "Two of us" (2, free tier — ⚖ D-7). Carried
+   * for the caller but deliberately NOT used here (UX-PLAN-02): a slot's
+   * `portion` is the EATER's calorie-driven share only. "Cooking for N" is a
+   * table multiplier applied by Shop, cost and cook mode through
+   * `portionsFor` (`@chefer/utils`), never by nutrition or "I ate this".
    */
   cookingFor?: number | null | undefined;
 }
@@ -244,14 +245,6 @@ export function planCuratedWeek(
   // once the user has an explicit shape does leaving Snacks off mean none.
   const isLegacyShape = !shape?.slots || shape.slots.length === 0;
   const wantsSnack = isLegacyShape || wantedSlots.includes('snack');
-  // "Just me" (1, or unset) keeps the calorie/protein-driven per-eater
-  // portion untouched. "Two of us" (2) cooks the recipe at double quantity
-  // for the table, which is a flat multiplier, not a calorie-chasing one —
-  // it overrides the chosen portion outright (§2.3, T-07.2: "cooking for 2 →
-  // slot portion 2"). Larger households stay on the separate premium
-  // `estimatedCost.portions` scaling (meal-portion.ts), never this field.
-  const cookingForPortion = shape?.cookingFor === 2 ? 2 : null;
-
   const candidates = isGain(targets) ? CANDIDATES_GAIN : CANDIDATES;
   const days: PlannedDay[] = [];
   for (let dayOfWeek = 0; dayOfWeek < 7; dayOfWeek++) {
@@ -316,7 +309,7 @@ export function planCuratedWeek(
       meals: recipes.map((recipe, i) => ({
         type: types[i] ?? 'snack',
         recipe,
-        portion: cookingForPortion ?? plan.portions[i] ?? 1,
+        portion: plan.portions[i] ?? 1,
       })),
       kcal: plan.kcal,
       protein: plan.protein,

@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { dailyLogRepository, mealPlanRepository } from '@chefer/database';
-import type { LoggedMealEntry } from '@chefer/database';
+import type { LoggedMealEntry, SlotRefJson } from '@chefer/database';
 import type { UserProfile } from '@chefer/types';
 import { trackerService } from './tracker.service.js';
 
@@ -15,13 +15,14 @@ vi.mock('@chefer/database', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@chefer/database')>()),
   chefProfileRepository: { findByUserId: vi.fn().mockResolvedValue(null) },
   mealPlanRepository: {
-    findActiveWithDays: vi.fn().mockResolvedValue(null),
+    findForWeek: vi.fn().mockResolvedValue(null),
     findRecipesByIds: vi.fn().mockResolvedValue([]),
   },
   dailyLogRepository: {
     findByDate: vi.fn(),
     findLastN: vi.fn(),
     mutateDay: vi.fn(),
+    mutateDayState: vi.fn(),
   },
   gymProfileRepository: { findByUserId: vi.fn().mockResolvedValue(null) },
   weightEntryRepository: { findLatest: vi.fn().mockResolvedValue(null) },
@@ -52,22 +53,32 @@ function customEntry(overrides: Partial<LoggedMealEntry> = {}): LoggedMealEntry 
   };
 }
 
-/** Wires dailyLogRepository.mutateDay to actually run `mutate` against `stored`. */
-function mockMutateDay(stored: LoggedMealEntry[]) {
-  vi.mocked(dailyLogRepository.mutateDay).mockImplementation(async (_userId, _date, mutate) => {
-    const next = mutate(stored);
-    return {
-      id: 'log1',
-      userId: 'u1',
-      date: new Date('2026-09-27T00:00:00Z'),
-      loggedMeals: next as never,
-      totalKcal: 0,
-      totalProtein: 0,
-      totalCarbs: 0,
-      totalFat: 0,
-      updatedAt: new Date(),
-    };
+/**
+ * Wires dailyLogRepository.mutateDay AND mutateDayState to actually run
+ * `mutate` against `stored` (and `skipped`, for the state variant).
+ */
+function mockMutateDay(stored: LoggedMealEntry[], skipped: SlotRefJson[] = []) {
+  const row = (next: LoggedMealEntry[], skippedSlots: SlotRefJson[]) => ({
+    id: 'log1',
+    userId: 'u1',
+    date: new Date('2026-09-27T00:00:00Z'),
+    loggedMeals: next as never,
+    skippedSlots: skippedSlots as never,
+    totalKcal: 0,
+    totalProtein: 0,
+    totalCarbs: 0,
+    totalFat: 0,
+    updatedAt: new Date(),
   });
+  vi.mocked(dailyLogRepository.mutateDay).mockImplementation(async (_userId, _date, mutate) =>
+    row(mutate(stored), skipped),
+  );
+  vi.mocked(dailyLogRepository.mutateDayState).mockImplementation(
+    async (_userId, _date, mutate) => {
+      const next = mutate({ entries: stored, skippedSlots: skipped });
+      return row(next.entries, next.skippedSlots);
+    },
+  );
 }
 
 describe('trackerService.updateCustomMeal (bug B-34, T-19.2)', () => {
@@ -174,6 +185,7 @@ describe('trackerService.copyDay (T-19.3)', () => {
         },
         customEntry({ entryId: 'old-2' }),
       ] as never,
+      skippedSlots: [],
       totalKcal: 500,
       totalProtein: 20,
       totalCarbs: 60,
@@ -367,5 +379,194 @@ describe('trackerService.weeklySummary — local-day anchor (bug B-33, T-21.1)',
     findLastN.mockClear();
     await trackerService.weeklySummary('u1');
     expect(findLastN).toHaveBeenCalledWith('u1', 7);
+  });
+});
+
+describe('trackerService.deleteCustomMeal (UX-FOOD-17 — by entryId, index for old clients)', () => {
+  const stored = () => [
+    customEntry({ entryId: 'a', custom: { name: 'A', estimatedBy: 'manual' } }),
+    {
+      entryId: 'r1',
+      recipeId: 'curry',
+      mealType: 'dinner',
+      portionMultiplier: 1,
+      kcal: 500,
+      protein: 0,
+      carbs: 0,
+      fat: 0,
+    } as LoggedMealEntry,
+    customEntry({ entryId: 'b', custom: { name: 'B', estimatedBy: 'manual' } }),
+  ];
+  const idsOf = (log: { loggedMeals: unknown }) =>
+    (log.loggedMeals as LoggedMealEntry[]).map((m) => m.entryId);
+
+  it('by entryId deletes exactly that entry', async () => {
+    mockMutateDay(stored());
+    const log = await trackerService.deleteCustomMeal('u1', '2026-09-27', { entryId: 'b' });
+    expect(idsOf(log)).toEqual(['a', 'r1']);
+  });
+
+  it('by entryId still deletes the right one when the array has shifted since render', async () => {
+    // The client rendered "B" at index 2, but a recipe entry was unticked
+    // elsewhere in the meantime, so B is now at index 1.
+    const shifted = stored().filter((m) => m.entryId !== 'r1');
+    mockMutateDay(shifted);
+    const log = await trackerService.deleteCustomMeal('u1', '2026-09-27', {
+      entryId: 'b',
+      entryIndex: 2,
+    });
+    expect(idsOf(log)).toEqual(['a']);
+  });
+
+  it('the legacy index path (1.0.1 clients) still works', async () => {
+    mockMutateDay(stored());
+    const log = await trackerService.deleteCustomMeal('u1', '2026-09-27', { entryIndex: 2 });
+    expect(idsOf(log)).toEqual(['a', 'r1']);
+  });
+
+  it('404s an unknown entryId and an entryId that names a recipe entry', async () => {
+    mockMutateDay(stored());
+    await expect(
+      trackerService.deleteCustomMeal('u1', '2026-09-27', { entryId: 'nope' }),
+    ).rejects.toMatchObject({ code: 'NOT_FOUND' });
+    await expect(
+      trackerService.deleteCustomMeal('u1', '2026-09-27', { entryId: 'r1' }),
+    ).rejects.toMatchObject({ code: 'NOT_FOUND' });
+  });
+
+  it('404s an index that names a recipe entry', async () => {
+    mockMutateDay(stored());
+    await expect(
+      trackerService.deleteCustomMeal('u1', '2026-09-27', { entryIndex: 1 }),
+    ).rejects.toMatchObject({ code: 'NOT_FOUND' });
+  });
+});
+
+describe('trackerService.updateRecipeEntry (UX-FOOD-03 — off-plan rows are editable)', () => {
+  const recipeEntry = (): LoggedMealEntry => ({
+    entryId: 'r1',
+    recipeId: 'pad-thai',
+    mealType: 'dinner',
+    portionMultiplier: 1,
+    kcal: 600,
+    protein: 20,
+    carbs: 80,
+    fat: 20,
+  });
+
+  function withStored(entries: LoggedMealEntry[]) {
+    mockMutateDay(entries);
+    vi.mocked(dailyLogRepository.findByDate).mockResolvedValue({
+      loggedMeals: entries as never,
+    } as never);
+    vi.mocked(mealPlanRepository.findRecipesByIds).mockResolvedValue([
+      { id: 'pad-thai', nutritionInfo: { calories: 600, protein: 20, carbs: 80, fat: 20 } },
+    ] as never);
+  }
+
+  it('changes the portion and recomputes the macros from the recipe', async () => {
+    withStored([recipeEntry()]);
+    const log = await trackerService.updateRecipeEntry('u1', '2026-09-27', 'r1', {
+      portionMultiplier: 1.5,
+    });
+    const meal = (log.loggedMeals as unknown as LoggedMealEntry[])[0]!;
+    expect(meal).toMatchObject({ portionMultiplier: 1.5, kcal: 900, protein: 30, carbs: 120 });
+    expect(meal.mealType).toBe('dinner');
+  });
+
+  it('can move the entry to another meal without touching the portion', async () => {
+    withStored([recipeEntry()]);
+    const log = await trackerService.updateRecipeEntry('u1', '2026-09-27', 'r1', {
+      mealType: 'lunch',
+    });
+    expect((log.loggedMeals as unknown as LoggedMealEntry[])[0]).toMatchObject({
+      mealType: 'lunch',
+      portionMultiplier: 1,
+      kcal: 600,
+    });
+  });
+
+  it('404s a stale id and a custom entry', async () => {
+    withStored([recipeEntry(), customEntry()]);
+    await expect(
+      trackerService.updateRecipeEntry('u1', '2026-09-27', 'gone', { portionMultiplier: 2 }),
+    ).rejects.toMatchObject({ code: 'NOT_FOUND' });
+    await expect(
+      trackerService.updateRecipeEntry('u1', '2026-09-27', 'e1', { portionMultiplier: 2 }),
+    ).rejects.toMatchObject({ code: 'NOT_FOUND' });
+  });
+});
+
+// UX-FOOD-11: blank macros are stored as 0 g but flagged unknown (additive —
+// shipped clients keep reading plain numbers).
+describe('trackerService unknownMacros (UX-FOOD-11)', () => {
+  it('logCustomMeal stores the flag next to the zeroed macros, and omits it when empty', async () => {
+    mockMutateDay([]);
+    const base = {
+      name: 'Soup',
+      estimatedBy: 'manual' as const,
+      mealType: 'lunch',
+      kcal: 400,
+      protein: 20,
+      carbs: 0,
+      fat: 0,
+    };
+    const partial = await trackerService.logCustomMeal(FREE_USER, '2026-09-27', {
+      ...base,
+      unknownMacros: ['carbs', 'fat'],
+    });
+    const [stored] = partial.log.loggedMeals as unknown as LoggedMealEntry[];
+    expect(stored).toMatchObject({
+      protein: 20,
+      carbs: 0,
+      fat: 0,
+      unknownMacros: ['carbs', 'fat'],
+    });
+
+    const full = await trackerService.logCustomMeal(FREE_USER, '2026-09-27', base);
+    const [plain] = full.log.loggedMeals as unknown as LoggedMealEntry[];
+    expect(plain).not.toHaveProperty('unknownMacros');
+  });
+
+  it('updateCustomMeal replaces the flag, clears it with [] and keeps it when omitted', async () => {
+    const edit = { kcal: 300, protein: 10, carbs: 40, fat: 8 };
+    mockMutateDay([customEntry({ unknownMacros: ['fat'] })]);
+    const kept = await trackerService.updateCustomMeal('u1', '2026-09-27', 'e1', edit);
+    expect((kept.loggedMeals as unknown as LoggedMealEntry[])[0]!.unknownMacros).toEqual(['fat']);
+
+    mockMutateDay([customEntry({ unknownMacros: ['fat'] })]);
+    const cleared = await trackerService.updateCustomMeal('u1', '2026-09-27', 'e1', {
+      ...edit,
+      unknownMacros: [],
+    });
+    expect((cleared.loggedMeals as unknown as LoggedMealEntry[])[0]).not.toHaveProperty(
+      'unknownMacros',
+    );
+
+    mockMutateDay([customEntry()]);
+    const set = await trackerService.updateCustomMeal('u1', '2026-09-27', 'e1', {
+      ...edit,
+      unknownMacros: ['carbs'],
+    });
+    expect((set.loggedMeals as unknown as LoggedMealEntry[])[0]!.unknownMacros).toEqual(['carbs']);
+  });
+
+  it('recents carries the flag so "log again" does not turn unknown into a typed 0', async () => {
+    vi.mocked(dailyLogRepository.findLastN).mockResolvedValue([
+      {
+        id: 'l1',
+        userId: 'u1',
+        date: new Date('2026-09-26T00:00:00Z'),
+        loggedMeals: [customEntry({ unknownMacros: ['carbs', 'fat'] })] as never,
+        skippedSlots: [],
+        totalKcal: 0,
+        totalProtein: 0,
+        totalCarbs: 0,
+        totalFat: 0,
+        updatedAt: new Date(),
+      },
+    ]);
+    const [recent] = await trackerService.recents('u1');
+    expect(recent?.unknownMacros).toEqual(['carbs', 'fat']);
   });
 });

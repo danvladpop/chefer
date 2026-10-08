@@ -1,4 +1,4 @@
-import type { OnboardingIntent, OnboardingJob } from '@chefer/types';
+import { effectiveNumbersMode, type OnboardingIntent, type OnboardingJob } from '@chefer/types';
 
 // Mirror of the Prisma enums — kept here so client components don't need
 // to import @chefer/database (which pulls in the Prisma server runtime).
@@ -42,6 +42,8 @@ export interface WizardData {
   // model (P2-3, audit F-PM-8).
   cuisinePreferences: string[];
   mealsPerDay: number;
+  // WP-08: "What do you want to keep an eye on?" — saved with the rest at Finish.
+  numbersMode: 'FULL' | 'PROTEIN_ONLY';
 }
 
 export const TOTAL_STEPS = 4;
@@ -58,6 +60,7 @@ export const EMPTY_WIZARD_DATA: WizardData = {
   dislikedIngredients: [],
   cuisinePreferences: [],
   mealsPerDay: 3,
+  numbersMode: 'FULL',
 };
 
 /** Shape of preferences.get, narrowed to what the wizard reads. */
@@ -81,6 +84,8 @@ export interface SavedPreferences {
   } | null;
   /** §2.4, T-03.1: effectiveJobs() — additive, absent on older API responses. */
   jobs?: OnboardingJob[];
+  /** WP-08: the stored numbers mode; absent on older API responses (reads as FULL). */
+  numbersMode?: string | null;
 }
 
 /** The saved effective jobs list, or [] when never answered (§2.4, T-03.6). */
@@ -109,6 +114,7 @@ export function wizardDataFromPreferences(saved: SavedPreferences | null): Wizar
     dislikedIngredients: diet?.dislikedIngredients ?? [],
     cuisinePreferences: diet?.cuisinePreferences ?? [],
     mealsPerDay: diet?.mealsPerDay ?? EMPTY_WIZARD_DATA.mealsPerDay,
+    numbersMode: effectiveNumbersMode(saved.numbersMode),
   };
 }
 

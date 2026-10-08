@@ -11,14 +11,18 @@ import {
   Button,
   Card,
   Input,
+  keyboardDismissMode,
   SelectField,
   Sheet,
   Text,
   type SelectOption,
 } from '@chefer/ui-mobile';
+import { userFacingErrorMessage } from '@chefer/utils';
 import { useIsPremium } from '../../hooks/use-is-premium';
 import { trpc } from '../../lib/trpc';
+import { AiConsentHost, useAiConsent } from '../ai-consent/ai-consent-provider';
 import { friendsErrorData } from '../friends/api/friends-errors';
+import { useNumericChain, type NumericChainFieldProps } from '../preferences/use-numeric-chain';
 import { PremiumHost } from '../premium/premium-host';
 import { pickedFromRef, pickedFromSearchRow, type PickedIngredient } from './catalog-line';
 import { ingredientsCopy } from './copy';
@@ -89,7 +93,8 @@ export function macrosComplete(m: Macros): boolean {
  *   ("Use it", looked up through `ingredients.resolve`) or an explicit
  *   "No, mine is different", which re-sends with `confirmDifferent`.
  * - "Fill in for me" (`ingredients.estimateNutrition`, name only) stays
- *   premium-only and labelled as a suggestion; free taps open the upsell.
+ *   premium-only and labelled as a suggestion; free taps open the upsell. It
+ *   asks for AI-data consent first (the typed name is what is sent).
  *
  * Content sits in a keyboard-aware bounded ScrollView (see
  * use-keyboard-aware-max-height.ts) so the pinned Save footer is never
@@ -104,10 +109,15 @@ export function CustomIngredientSheet({
   testID = 'custom-ingredient-sheet',
 }: CustomIngredientSheetProps) {
   const isPremium = useIsPremium();
+  // R-10: "Fill in for me" sends the typed name to the AI provider, so it asks
+  // for AI-data consent like every other AI action (it used to be exempt).
+  const requestAiConsent = useAiConsent();
   const utils = trpc.useUtils();
   const contentMaxHeight = useKeyboardAwareMaxHeight(CONTENT_RESERVED_PX);
 
   const [name, setName] = useState(initialName);
+  // name → kcal → protein → carbs → fat → fibre → g/piece → g/100ml: Next / Done.
+  const numbers = useNumericChain('custom-ingredient', 7);
   const [category, setCategory] = useState<IngredientCategory | null>(null);
   const [macros, setMacros] = useState<Macros>(EMPTY_MACROS);
   const [gramsPerPiece, setGramsPerPiece] = useState('');
@@ -130,6 +140,7 @@ export function CustomIngredientSheet({
   }, [visible, initialName]);
 
   const createMutation = trpc.ingredients.createCustom.useMutation({
+    meta: { silent: true },
     onSuccess: (row) => {
       const picked = pickedFromSearchRow(row);
       if (picked) onCreated(picked);
@@ -141,6 +152,7 @@ export function CustomIngredientSheet({
     },
   });
   const estimateMutation = trpc.ingredients.estimateNutrition.useMutation({
+    meta: { silent: true },
     onSuccess: (est) => {
       if (!est) return;
       setMacros({
@@ -200,7 +212,7 @@ export function CustomIngredientSheet({
       return;
     }
     if (!nameOk || estimateMutation.isPending) return;
-    estimateMutation.mutate({ name: name.trim() });
+    requestAiConsent('ingredient-estimate', () => estimateMutation.mutate({ name: name.trim() }));
   };
 
   const locked = isPremium === false;
@@ -232,6 +244,7 @@ export function CustomIngredientSheet({
       <ScrollView
         testID={`${testID}-scroll`}
         keyboardShouldPersistTaps="handled"
+        keyboardDismissMode={keyboardDismissMode()}
         className="grow-0"
         style={{ maxHeight: contentMaxHeight }}
       >
@@ -277,6 +290,8 @@ export function CustomIngredientSheet({
                 setName(v);
                 setConflictName(null);
               }}
+              returnKeyType="next"
+              onSubmitEditing={numbers.focusFirst}
             />
           </View>
 
@@ -337,6 +352,7 @@ export function CustomIngredientSheet({
             <View className="flex-row gap-2">
               <MacroField
                 testID={`${testID}-kcal`}
+                chain={numbers.bind(0)}
                 label={copy.kcal}
                 value={macros.calories}
                 invalid={attempted}
@@ -344,6 +360,7 @@ export function CustomIngredientSheet({
               />
               <MacroField
                 testID={`${testID}-protein`}
+                chain={numbers.bind(1)}
                 label={copy.protein}
                 value={macros.protein}
                 invalid={attempted}
@@ -351,6 +368,7 @@ export function CustomIngredientSheet({
               />
               <MacroField
                 testID={`${testID}-carbs`}
+                chain={numbers.bind(2)}
                 label={copy.carbs}
                 value={macros.carbs}
                 invalid={attempted}
@@ -360,6 +378,7 @@ export function CustomIngredientSheet({
             <View className="flex-row gap-2">
               <MacroField
                 testID={`${testID}-fat`}
+                chain={numbers.bind(3)}
                 label={copy.fat}
                 value={macros.fat}
                 invalid={attempted}
@@ -367,6 +386,7 @@ export function CustomIngredientSheet({
               />
               <MacroField
                 testID={`${testID}-fiber`}
+                chain={numbers.bind(4)}
                 label={copy.fiber}
                 value={macros.fiber}
                 invalid={attempted}
@@ -390,6 +410,7 @@ export function CustomIngredientSheet({
 
           <OptionalNumber
             testID={`${testID}-grams-per-piece`}
+            chain={numbers.bind(5)}
             label={copy.gramsPerPiece}
             hint={copy.gramsPerPieceHint}
             value={gramsPerPiece}
@@ -398,6 +419,7 @@ export function CustomIngredientSheet({
           />
           <OptionalNumber
             testID={`${testID}-grams-per-100ml`}
+            chain={numbers.bind(6)}
             label={copy.gramsPer100ml}
             hint={copy.gramsPer100mlHint}
             value={gramsPer100ml}
@@ -407,7 +429,9 @@ export function CustomIngredientSheet({
 
           {genericError && (
             <Card testID={`${testID}-save-error`} className="border-red-200 bg-red-50">
-              <Text className="text-sm text-red-600">{createMutation.error.message}</Text>
+              <Text className="text-sm text-red-600">
+                {userFacingErrorMessage(createMutation.error)}
+              </Text>
             </Card>
           )}
         </View>
@@ -415,7 +439,10 @@ export function CustomIngredientSheet({
       {/* "Fill in for me" can open the premium sheet from in here. iOS cannot
           present a Modal over a Modal, so the sheet nests in its own host
           (the AiConsentHost pattern). */}
+      {numbers.bars}
       <PremiumHost />
+      {/* ...and so does the AI consent sheet. */}
+      <AiConsentHost />
     </Sheet>
   );
 }
@@ -426,12 +453,14 @@ function MacroField({
   value,
   invalid,
   onChangeText,
+  chain,
 }: {
   testID: string;
   label: string;
   value: string;
   invalid: boolean;
   onChangeText: (v: string) => void;
+  chain: NumericChainFieldProps;
 }) {
   const bad = invalid && !Number.isFinite(parseDecimal(value));
   return (
@@ -447,6 +476,7 @@ function MacroField({
         keyboardType="decimal-pad"
         placeholder="0"
         className={bad ? 'border-red-400 px-2 text-center' : 'px-2 text-center'}
+        {...chain}
       />
     </View>
   );
@@ -459,6 +489,7 @@ function OptionalNumber({
   value,
   onChangeText,
   placeholder,
+  chain,
 }: {
   testID: string;
   label: string;
@@ -466,6 +497,7 @@ function OptionalNumber({
   value: string;
   onChangeText: (v: string) => void;
   placeholder: string;
+  chain: NumericChainFieldProps;
 }) {
   return (
     <View className="gap-1">
@@ -482,6 +514,7 @@ function OptionalNumber({
         onChangeText={onChangeText}
         keyboardType="decimal-pad"
         placeholder={placeholder}
+        {...chain}
       />
     </View>
   );

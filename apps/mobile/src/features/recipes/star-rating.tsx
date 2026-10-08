@@ -8,6 +8,7 @@ import {
   parseLikedBy,
   RATING_LABELS,
   stripLikedBy,
+  userFacingErrorMessage,
 } from '@chefer/utils';
 import { useIsPremium } from '../../hooks/use-is-premium';
 import { trpc } from '../../lib/trpc';
@@ -66,6 +67,7 @@ export function StarRating({
 
   const utils = trpc.useUtils();
   const rateMutation = trpc.recipe.rate.useMutation({
+    meta: { silent: true },
     onSuccess: (data) => {
       setSelected(data.rating);
       setNotes(stripLikedBy(data.notes));
@@ -181,7 +183,7 @@ export function StarRating({
       </Button>
       {rateMutation.isError && (
         <Text testID="star-rating-error" className="text-xs text-red-600">
-          {rateMutation.error.message}
+          {userFacingErrorMessage(rateMutation.error)}
         </Text>
       )}
 

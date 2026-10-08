@@ -431,6 +431,20 @@ describe('charts', () => {
     expect(hostNodes('Rect')).toHaveLength(4);
   });
 
+  it('BarChart labels its axis with round numbers, not 0 / 6.6 / 13.2', async () => {
+    await render(
+      <BarChart
+        testID="sets"
+        width={320}
+        data={[{ label: 'W1', segments: [{ key: 'chest', value: 12 }] }]}
+      />,
+    );
+    // Max 12 → axis 0 / 5 / 10 / 15 (never 0 / 6.6 / 13.2).
+    const labels = hostNodes('TSpan').map((n) => String(n.props.content));
+    expect(labels).toEqual(expect.arrayContaining(['0', '5', '10', '15']));
+    expect(labels.some((l) => l.includes('.'))).toBe(false);
+  });
+
   it('WeekGrid renders a cell per week and reports presses', async () => {
     const user = userEvent.setup();
     const onPressWeek = jest.fn();

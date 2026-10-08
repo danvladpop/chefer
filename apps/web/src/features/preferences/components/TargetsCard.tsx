@@ -1,7 +1,13 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { useNumbersMode } from '@/features/numbers-mode/numbers-mode';
+import { ProteinWhySheet } from '@/features/nutrition/components/ProteinWhySheet';
 import { trpc } from '@/lib/trpc';
+import { useQueryState } from '@/lib/use-query-state';
+import { ErrorState } from '@chefer/ui';
+import { userFacingErrorMessage } from '@chefer/utils';
+import { NumbersSettingsSection } from './numbers-settings-section';
 
 // ─── TargetsCard (§2.11, T-35.3) ────────────────────────────────────────────────
 // Web mirror of mobile's targets-card.tsx. Suggested (read-only, computed) or
@@ -16,9 +22,31 @@ function parseIntOrNull(text: string): number | null {
   return Number.isFinite(n) ? n : null;
 }
 
-export function TargetsCard() {
+export interface TargetsCardProps {
+  /**
+   * UX-FOOD-14 (onboarding): the calorie target the body metrics ENTERED so far
+   * give. They are only saved when setup finishes, so until then the server
+   * still resolves the 2,000 kcal default — show this number instead.
+   */
+  previewKcal?: number | null | undefined;
+  /**
+   * WP-08: Preferences passes the stored numbers mode and the resolved "show
+   * nutrition on Today", which merges that setting and the older Today toggle
+   * into this one card. Omitted in onboarding, which asks the question on its
+   * goal step.
+   */
+  numbersSettings?:
+    | { numbersMode: string | null | undefined; showNutritionOnToday: boolean }
+    | undefined;
+}
+
+export function TargetsCard({ previewKcal, numbersSettings }: TargetsCardProps = {}) {
   const utils = trpc.useUtils();
-  const { data, isLoading } = trpc.targets.get.useQuery();
+  const { proteinOnly } = useNumbersMode();
+  const [whyOpen, setWhyOpen] = useState(false);
+  const targetsQuery = trpc.targets.get.useQuery();
+  const { data } = targetsQuery;
+  const { state: loadState, retry } = useQueryState(targetsQuery);
 
   const [mode, setMode] = useState<'SUGGESTED' | 'OWN'>('SUGGESTED');
   const [kcalText, setKcalText] = useState('');
@@ -44,17 +72,36 @@ export function TargetsCard() {
       savedSnapshot.carbsText !== carbsText ||
       savedSnapshot.fatText !== fatText);
 
+  // The server has no body metrics yet (onboarding) but the user has entered
+  // some: the suggested number is the one computed from those, not the default.
+  const fromEntered =
+    typeof previewKcal === 'number' && !!data && !data.custom.kcal && data.inputs.weightKg === null;
+
   useEffect(() => {
     if (!data || loaded) return;
     setMode(data.targetMode);
-    setKcalText(String(data.custom.kcal ?? data.effective.dailyCalorieTarget));
-    setProteinText(String(data.custom.proteinG ?? data.effective.proteinG));
-    setCarbsText(String(data.custom.carbsG ?? data.effective.carbsG));
-    setFatText(String(data.custom.fatG ?? data.effective.fatG));
+    // Macros scale with the calories so an own target prefilled from the
+    // preview still passes the server's 4/4/9 fit check.
+    const ratio =
+      fromEntered && previewKcal ? previewKcal / (data.effective.dailyCalorieTarget || 1) : 1;
+    const scaled = (grams: number) => String(Math.round(grams * ratio));
+    setKcalText(
+      String(data.custom.kcal ?? (fromEntered ? previewKcal : data.effective.dailyCalorieTarget)),
+    );
+    setProteinText(
+      data.custom.proteinG !== null
+        ? String(data.custom.proteinG)
+        : scaled(data.effective.proteinG),
+    );
+    setCarbsText(
+      data.custom.carbsG !== null ? String(data.custom.carbsG) : scaled(data.effective.carbsG),
+    );
+    setFatText(data.custom.fatG !== null ? String(data.custom.fatG) : scaled(data.effective.fatG));
     setLoaded(true);
-  }, [data, loaded]);
+  }, [data, loaded, fromEntered, previewKcal]);
 
   const setMutation = trpc.targets.set.useMutation({
+    meta: { silent: true },
     onSuccess: () => {
       void utils.targets.get.invalidate();
       void utils.targets.changes.invalidate();
@@ -62,7 +109,7 @@ export function TargetsCard() {
       void utils.tracker.getDay.invalidate();
       setLocalError(null);
     },
-    onError: (err) => setLocalError(err.message),
+    onError: (err) => setLocalError(userFacingErrorMessage(err)),
   });
 
   const save = () => {
@@ -95,13 +142,36 @@ export function TargetsCard() {
     });
   };
 
-  if (isLoading || !data) {
+  const numbersSection = numbersSettings ? (
+    <NumbersSettingsSection
+      initialMode={numbersSettings.numbersMode}
+      initialShowNutrition={numbersSettings.showNutritionOnToday}
+    />
+  ) : null;
+
+  // UX-X-12: a failed load is not "Loading…" forever — say so and offer Retry.
+  if (loadState === 'error') {
     return (
       <section
         id="own-targets"
         className="scroll-mt-20 rounded-xl border bg-card p-4 shadow-sm sm:p-6"
       >
         <h2 className="text-lg font-semibold">Your targets</h2>
+        {numbersSection}
+        <div data-testid="targets-card-error" className="mt-3">
+          <ErrorState title="Couldn't load your targets" onRetry={retry} />
+        </div>
+      </section>
+    );
+  }
+  if (!data) {
+    return (
+      <section
+        id="own-targets"
+        className="scroll-mt-20 rounded-xl border bg-card p-4 shadow-sm sm:p-6"
+      >
+        <h2 className="text-lg font-semibold">Your targets</h2>
+        {numbersSection}
         <p className="mt-1 text-sm text-muted-foreground">Loading…</p>
       </section>
     );
@@ -117,6 +187,8 @@ export function TargetsCard() {
         Suggested is computed from your body and goal; My own is never changed for you — a gym
         setup, weigh-in or goal edit only ever proposes a change, and you decide.
       </p>
+
+      {numbersSection}
 
       <div className="mt-3 inline-flex rounded-lg border p-1">
         {(
@@ -142,15 +214,48 @@ export function TargetsCard() {
       </div>
 
       {mode === 'SUGGESTED' ? (
-        <div className="mt-4 rounded-xl bg-primary/5 p-4">
-          <p className="text-2xl font-bold text-primary">
-            {data.suggested.dailyCalorieTarget.toLocaleString()} kcal
-          </p>
-          <p className="mt-1 text-xs text-muted-foreground">
-            {data.suggested.proteinG}g protein · {data.suggested.carbsG}g carbs ·{' '}
-            {data.suggested.fatG}g fat
-          </p>
-        </div>
+        proteinOnly ? (
+          // WP-08: protein-only mode shows the one number, and why it is that number.
+          <div className="mt-4 rounded-xl bg-primary/5 p-4">
+            {fromEntered ? (
+              <p className="text-xs text-muted-foreground">
+                Your protein is set from your weight and goal when you finish.
+              </p>
+            ) : (
+              <>
+                <p
+                  data-testid="targets-suggested-protein"
+                  className="text-2xl font-bold text-primary"
+                >
+                  {data.effective.proteinG} g protein a day
+                </p>
+                <button
+                  type="button"
+                  data-testid="targets-protein-why"
+                  onClick={() => setWhyOpen(true)}
+                  className="mt-1 inline-flex min-h-11 items-center text-xs font-semibold text-primary underline-offset-2 hover:underline"
+                >
+                  Why this protein number?
+                </button>
+              </>
+            )}
+          </div>
+        ) : (
+          <div className="mt-4 rounded-xl bg-primary/5 p-4">
+            <p data-testid="targets-suggested-kcal" className="text-2xl font-bold text-primary">
+              {(fromEntered && previewKcal
+                ? previewKcal
+                : data.suggested.dailyCalorieTarget
+              ).toLocaleString()}{' '}
+              kcal
+            </p>
+            <p className="mt-1 text-xs text-muted-foreground">
+              {fromEntered
+                ? 'Worked out from the details you entered. Your macros are set when you finish.'
+                : `${data.suggested.proteinG}g protein · ${data.suggested.carbsG}g carbs · ${data.suggested.fatG}g fat`}
+            </p>
+          </div>
+        )
       ) : (
         <div className="mt-4 grid grid-cols-2 gap-3">
           <label className="space-y-1 text-sm">
@@ -209,9 +314,12 @@ export function TargetsCard() {
             ? 'Saved ✓'
             : 'Save targets'}
       </button>
-      {(localError ?? setMutation.error?.message) && (
+      <ProteinWhySheet open={whyOpen} onClose={() => setWhyOpen(false)} why={data.proteinWhy} />
+      {(localError ??
+        (setMutation.error ? userFacingErrorMessage(setMutation.error) : undefined)) && (
         <p data-testid="targets-error" className="mt-2 text-xs text-red-600">
-          {localError ?? setMutation.error?.message}
+          {localError ??
+            (setMutation.error ? userFacingErrorMessage(setMutation.error) : undefined)}
         </p>
       )}
     </section>

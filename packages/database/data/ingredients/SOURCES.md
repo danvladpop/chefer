@@ -73,7 +73,19 @@ Portions come from FDC `food_portion.csv`, in both Foundation and SR Legacy, for
 - A draft may pin one FDC record to one unit (`portionAs`). That is used when FDC phrases a common unit as a fraction, for example "0.5 breast" or "0.5 fillet" meaning one breast or fillet as sold. `sourceNote` records that.
 - A draft may drop a mapped unit (`skipPortions`) when the first FDC record for it describes a different item. For example, the tomato record's first "piece" is one cherry tomato.
 - **No FDC `can` portions.** FDC can sizes are American (a tomato purée can is 822 g), so `build-catalog.ts` never imports a `can` portion (`SKIPPED_FDC_PORTION_UNITS`). A recipe line in cans stays PARTIAL until a cited EU can size is added. Owner decision, 2026-10-01.
+- **A can is 400 g (owner decision, 2026-10-02).** `build-catalog.ts` (`canPortion`) gives every `-canned` row a `can` portion of 400 g net, the common EU size. Rows that count only the solids (name contains "drained") get 240 g, the drained weight a 400 g EU can of beans or vegetables prints on its label. Fish, seafood and meat cans (tuna, sardines, salmon, crab, chicken) get none, because those cans are far smaller than 400 g. Portion source: `owner:can-400g` / `owner:can-400g-drained`.
 - No `edibleFraction` is set in v1. The FDC CSV releases carry no refuse percentages, so every row is an edible-portion row (boneless, peeled), and FDC portion weights are edible weights.
+
+### Portions overlay (`portions-overlay.json`, UX-REC-14, owner approved 2026-10-04)
+
+`catalog.json` stays generated, so a recipe unit the dataset does not name stays PARTIAL: an import of "3 piece garlic" cannot compute because FDC publishes garlic only as "1 clove". `portions-overlay.json` is the one hand-reviewed input that fills such gaps without touching generated nutrient data. It is a list of `{ slug, unit, grams, source, basedOn?, note }` rows, and **every row names its source**.
+
+- **Source.** `fdc-portion:<food_portion.id>` (first choice, FDC household measures), `ciqual:<alim_code>`, or `ref:<named published reference>`. A row with no source, or a malformed one, fails CI. No other kind of number is accepted: the overlay never carries an estimate.
+- **`basedOn`.** When a row re-labels a portion the generated catalog already has (FDC "1 clove" used as `piece`), `basedOn` names that unit. The test then requires `grams` and `source` to be identical to that portion, so the number is never re-typed. All v1 rows work this way. A row for a measure the catalog does not have yet (a new FDC record, CIQUAL, a `ref:`) omits `basedOn` and must cite the record by id.
+- **`note`.** One sentence on why that measure stands for that unit. Rules used in v1: garlic `piece` = FDC's "clove"; vegetables, fruit and bagels `piece` = FDC's "medium" (the default whole item); a row whose only whole-item measure is "large" (yellow pepper, boiled/fried/poached/scrambled egg) uses that; chicken breast, thigh and drumstick `piece` = FDC's one breast, thigh or drumstick; common fish `piece` = FDC's one fillet (the same "fillet as sold" decision as in the owner review below). Fish with a very large fillet record (halibut, pike, pollock, turbot) and rows whose "medium" is not a whole item (enoki, oyster mushrooms) get none.
+- **Rules.** `unit` is a canonical count unit (see Portions above). `grams` is edible grams for one unit and lies in (0, 2000). The overlay only adds: if the generated row already has that unit, the generated value wins and CI fails, so a catalog rebuild that gains the same unit shows up as a test failure instead of a silent change. A slug must exist in `catalog.json`.
+- **How it ships.** `readCatalogFile` (`packages/database/src/catalog/catalog-file.ts`) merges the overlay into the entries it returns, so `pnpm ingredients:sync` (every deploy), the curated recipe pool, the AI repair guard and the legacy migration all see it. The build (`pnpm ingredients:build`) validates the catalog together with the overlay and refuses to run when they clash. `catalog.json` itself is never edited by the overlay.
+- **Adding a row.** Find the FDC record id in the raw `food_portion.csv` (`pnpm ingredients:fetch`), or reuse the `fdc-portion:` id of the same food's existing portion, and add the row with a note. Do not add a row you cannot source: a gap stays a gap (the engine reports the line as PARTIAL, invariant I6).
 
 ### Density (`densityGPerMl`)
 
@@ -103,7 +115,7 @@ The owner reviewed the candidate (`catalog-review.html`, 55-row seeded sample) a
 - **Energy-check allow-list.** Beyond the plan's alcohol, polyols and spices, the list also accepts vinegars (acetic acid supplies about 3 kcal/g, which the EU formula leaves out) and cocoa and carob (FDC computes their energy with specific Atwater factors). Each entry is in `src/catalog/energy-allow-list.ts` with its reason.
 - **Proxy mappings.** All 31 rows with a `review` note are accepted for v1, for example paneer → queso fresco, telemea → CIQUAL feta-type cheese and cașcaval → gouda.
 - **"½ fillet" and "½ breast" pins.** FDC's "0.5 fillet" and "0.5 breast" records count as one fillet or one breast as sold, because FDC's whole fillet is an entire side of salmon.
-- **`can` portions.** FDC's are dropped (see Portions).
+- **`can` portions.** FDC's are dropped; the owner's 400 g / 240 g drained can is added instead (see Portions).
 - **No label rows in v1.** Gaps stay gaps. Users create private ingredients, and the weekly review promotes them with provenance.
 - **Size.** v1 ships with 1,085 rows, below the ~1,200 target, because some checklist items exist in neither dataset.
 

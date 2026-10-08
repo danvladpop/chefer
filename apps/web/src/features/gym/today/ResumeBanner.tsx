@@ -6,6 +6,7 @@ import type { GymBootstrap, WorkoutSessionDoc } from '@chefer/types';
 import { Button, ProgressBar } from '@chefer/ui';
 import { resumeSummary, weekdayDateLabel, type ResumeSummary } from '@chefer/utils';
 import { lookupWithCatalog } from '../shared/use-gym-data';
+import { useRestRemaining } from '../workout/rest-timer';
 import { formatClock, supersetsOf } from '../workout/workout-model';
 
 // UX-36 amendment A1 (T-36.A1.3, O-09) on the web: the Resume banner shows the
@@ -34,6 +35,24 @@ function accessibleSentence(summary: ResumeSummary): string {
         : '',
   ].filter(Boolean);
   return `${parts.join(', ')}.`;
+}
+
+/**
+ * UX-GYM-09: the running rest, so leaving the logger never hides it. Ticks in its
+ * own component and is not a live region (a screen reader reads it on focus).
+ */
+function RestCountdown() {
+  const { remainingSec, state } = useRestRemaining();
+  if (!state || remainingSec <= 0) return null;
+  return (
+    <p
+      className="text-xs font-semibold tabular-nums text-[#944a00]"
+      data-testid="gym-resume-rest"
+      aria-label={`Resting, ${remainingSec} seconds left`}
+    >
+      Rest {formatClock(remainingSec)}
+    </p>
+  );
 }
 
 export function ResumeBanner({
@@ -89,6 +108,7 @@ export function ResumeBanner({
           ) : null}
         </div>
         <p className="truncate text-sm font-semibold text-gray-900">{summary.name}</p>
+        <RestCountdown />
         {summary.state === 'allLogged' ? (
           <p className="text-xs text-gray-600">All sets logged · Finish when you’re ready.</p>
         ) : (

@@ -258,7 +258,12 @@ export function IngredientField({
       )}
     >
       <Search className="h-3.5 w-3.5 shrink-0 text-gray-500" aria-hidden="true" />
-      <span className={cn('min-w-0 flex-1 truncate', shown ? 'text-gray-900' : 'text-gray-500')}>
+      <span
+        className={cn(
+          'min-w-0 flex-1 line-clamp-2 break-words',
+          shown ? 'text-gray-900' : 'text-gray-500',
+        )}
+      >
         {shown || 'Choose ingredient…'}
       </span>
       {ingredient ? (

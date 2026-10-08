@@ -20,12 +20,17 @@ import {
   EXERCISE_STATIC_DIR,
   EXERCISE_STATIC_ROUTE,
 } from './lib/exercise-library/ensure.js';
+import {
+  INGREDIENT_STATIC_DIR,
+  INGREDIENT_STATIC_ROUTE,
+} from './lib/ingredient-images/static-images.js';
 import { logger } from './lib/logger.js';
 import { chatRouter } from './routers/chat.router.js';
 import { appRouter } from './routers/index.js';
 import { recipeImagesSseRouter } from './routers/recipe-images-sse.router.js';
 import { scanRouter } from './routers/scan.router.js';
 import { UPLOADS_DIR, uploadsRouter } from './routers/uploads.router.js';
+import { wellKnownRouter } from './routers/well-known.router.js';
 import { friendsMaintenanceWorker } from './workers/friends-maintenance.worker.js';
 import { ingredientPriceWorker } from './workers/ingredient-price.worker.js';
 import { planTailoringWorker } from './workers/plan-tailoring.worker.js';
@@ -112,6 +117,10 @@ app.get(
   }),
 );
 
+// ─── Password-manager association files (WP-22) ──────────────────────────────
+
+app.use('/.well-known', wellKnownRouter);
+
 // ─── SSE — Recipe Images ──────────────────────────────────────────────────────
 
 app.use('/api/recipe-images', recipeImagesSseRouter);
@@ -119,6 +128,13 @@ app.use('/api/recipe-images', recipeImagesSseRouter);
 // ─── Image uploads (recipe & ingredient photos) ──────────────────────────────
 
 app.use('/api/uploads', uploadsRouter);
+// Vendored ingredient thumbnails (FB7-10, static/ingredients). Under /uploads so
+// Caddy's existing /uploads/* rule reaches it; registered first so the uploads
+// volume never shadows it. URLs carry ?v=<content hash>, so immutable is safe.
+app.use(
+  INGREDIENT_STATIC_ROUTE,
+  express.static(INGREDIENT_STATIC_DIR, { maxAge: '30d', immutable: true }),
+);
 app.use('/uploads', express.static(UPLOADS_DIR, { maxAge: '30d', immutable: true }));
 
 // ─── Gym exercise photos (gym_plan.md §5.5) — public-domain, self-hosted ─────

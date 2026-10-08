@@ -1,5 +1,56 @@
 export { cn } from './cn';
+export {
+  bodyFieldTexts,
+  cmToFtIn,
+  ftInToCm,
+  heightCmFromText,
+  heightValueForInference,
+  parseBodyNumber,
+  splitInches,
+  weightKgFromText,
+  type BodyFieldTexts,
+} from './body-input';
 export { formatQuantity, systemForWeightUnit, weightUnitForSystem, type UnitSystem } from './units';
+// ─── One units + formatting system (WP-11, audit §6.4, UX-X-15) ──────────────
+export {
+  MASS_TO_G,
+  VOLUME_TO_ML,
+  addItemPlaceholder,
+  normalizeUnit,
+  PANTRY_QUANTITY_MAX,
+  parseCustomItemInput,
+  parsePantryQuantity,
+  parseQuantityLine,
+  type PantryQuantityResult,
+  unitFamily,
+  unitOptionsFor,
+  type ParsedQuantity,
+  type UnitFamily,
+} from './quantity';
+export {
+  deviceLocale,
+  formatApproxPrice,
+  formatDate,
+  formatDateRange,
+  formatKcal,
+  formatNumber,
+  formatQty,
+  type DateStyle,
+  type FormatDateOptions,
+} from './format';
+export {
+  mergeCitrusLines,
+  roundToPurchasable,
+  type CitrusLine,
+  type PurchasableLine,
+} from './purchasable';
+export {
+  MAX_WEEKLY_BUDGET_EUR,
+  parseWeeklyBudget,
+  weeklyBudgetCap,
+  weeklyBudgetCapLabel,
+  type BudgetInput,
+} from './budget';
 export {
   EUR_EXCHANGE_RATES,
   EUR_EXCHANGE_RATES_AS_OF,
@@ -28,7 +79,7 @@ export {
 } from './locale';
 
 export {
-  formatDate,
+  formatDatePattern,
   formatRelativeTime,
   formatRelativeTo,
   formatIso,
@@ -63,6 +114,21 @@ export {
 } from './object';
 
 export { isHealthTopic, isSafetyTopic } from './health-topic';
+
+export {
+  ACTIVITY_MULTIPLIERS,
+  CALORIE_FLOOR_FEMALE,
+  CALORIE_FLOOR_MALE,
+  GOAL_ADJUSTMENTS,
+  calorieFloor,
+  computeBmrTdee,
+  computeCalorieTarget,
+  goalAdjustmentKcal,
+  isDeficitBlockedForAge,
+  isMinorAge,
+  previewCalorieTarget,
+  previewTargetKcalFromBasics,
+} from './calorie-target';
 
 export {
   invariant,
@@ -220,17 +286,55 @@ export {
   customEntryChipLabel,
   customEntryRows,
   customEntryTotals,
+  copyDayMessage,
+  dailyAllowanceResetTime,
+  entryUnknownMacros,
+  groupByMeal,
+  HERO_LOGGED_HOLD_MS,
+  SCAN_REQUEST_TIMEOUT_MS,
+  SCAN_TIMEOUT_MESSAGE,
   type CustomEntryRow,
   type LoggedMealEntryLike,
 } from './tracker';
 
-export { defaultCookServings, finishMealCopy, guessMealType, parseStepDuration } from './cook-mode';
+export { portionsFor, tableBreakdown, type Portions, type PortionsInput } from './portions';
+export {
+  clampCookServings,
+  cookTimerRemaining,
+  cookTimerStatus,
+  defaultCookServings,
+  finishMealCopy,
+  formatCookTimer,
+  guessMealType,
+  isCookTimer,
+  matchStepIngredients,
+  MAX_COOK_SERVINGS,
+  newCookTimer,
+  parseServingsParam,
+  parseStepDuration,
+  pauseCookTimer,
+  resetCookTimer,
+  startCookTimer,
+  stepIngredientAmounts,
+  type CookIngredient,
+  type CookTimer,
+  type CookTimerStatus,
+  type StepAmount,
+} from './cook-mode';
 export {
   buildPickerSections,
   filterReplaceCandidates,
+  inferMealTypeFromName,
+  pickerRowMeta,
+  pickerSafetyHeader,
+  pickerSafetyHeaderText,
+  rankForSlot,
+  recipeMealTypeHint,
+  slotFitRank,
   type FilterReplaceCandidatesOptions,
   type PickerSection,
   type ReplaceCandidateLike,
+  type SlotMealType,
 } from './recipe-picker';
 export * from './gym';
 export {
@@ -250,36 +354,67 @@ export {
 } from './weight';
 export {
   KCAL_PER_G,
+  INGREDIENT_GRAMS_MAX,
   MACRO_SANITY_TOLERANCE,
   QUICK_ADD_LIMITS,
+  QUICK_ADD_MACRO_KEYS,
   QUICK_ADD_MEAL_TYPES,
   checkMacroSanity,
+  clampIngredientGrams,
   formatQuickAddGrams,
+  maxIngredientGrams,
   parseQuickAdd,
   type MacroSanityResult,
   type QuickAddEntry,
   type QuickAddErrors,
   type QuickAddInput,
+  type QuickAddMacroKey,
   type QuickAddMealType,
   type QuickAddParseResult,
 } from './quick-add';
 export {
+  LOSS_PROTEIN_KCAL_INCREASE_CAP,
+  REBALANCE_MIN_PROTEIN_SWAP_G,
+  REBALANCE_PROTEIN_TRIGGER_FRACTION,
+  REBALANCE_PROTEIN_TRIGGER_G,
   REBALANCE_UNDO_EXPIRY_MS,
+  capProteinScaleFactor,
+  describeProteinSnack,
+  describeRebalanceSwap,
+  describeWeekGap,
+  isLossGoal,
   isPendingFresh,
   mergePendingRebalance,
   parsePendingRebalance,
   rebalanceBannerCopy,
+  rebalanceOfferCopy,
   undoOperations,
   type PendingRebalance,
+  type RebalancePreviewLike,
+  type RebalanceReason,
   type RebalanceResultLike,
+  type RebalanceSnackLike,
   type RebalanceSwapLike,
+  type WeekGapLike,
 } from './rebalance';
 export { RATING_LABELS, composeNotesWithLikedBy, parseLikedBy, stripLikedBy } from './rating';
-export { shoppingWindowLabel } from './shopping-window';
+export { shoppingProvenanceText, shoppingWindowLabel } from './shopping-window';
+export {
+  defaultSavedWeekName,
+  dinnersHeadingFor,
+  planCostCoverageLabel,
+  weekRangeLabel,
+  weekRelationLabel,
+  weekRelationTitle,
+} from './plan-week-copy';
 export {
   dayNutritionCaption,
+  dayStatus,
   PLAN_STATUS_LABEL,
   planStatus,
+  remainingPlannedKcal,
+  type DayStatus,
+  type DayStatusResult,
   type PlanStatus,
 } from './day-nutrition';
 export {
@@ -350,12 +485,40 @@ export {
   MEAL_ORDER,
   MEAL_WINDOW_END,
   isSlotEaten,
+  isSlotSkipped,
   matchLoggedToSlots,
+  plannedTotals,
+  remainingTotals,
+  replacementFor,
   resolveTodayMeals,
+  slotStates,
+  slotStatus,
   type LoggedMealRef,
+  type MacroTotals,
+  type PlannedMacros,
   type PlannedMealSlot,
+  type SlotRef,
+  type SlotState,
+  type SlotStatus,
   type TodayMeals,
 } from './today';
+export {
+  EAT_OUT_CUISINES,
+  EAT_OUT_CUISINE_LABELS,
+  EAT_OUT_SIZES,
+  EAT_OUT_SIZE_HINTS,
+  EAT_OUT_SIZE_LABELS,
+  eatOutEstimate,
+  eatOutEstimates,
+  eatOutLogValues,
+  eatOutMealName,
+  formatEatOutKcal,
+  formatEatOutProtein,
+  type EatOutCuisine,
+  type EatOutEstimate,
+  type EatOutRange,
+  type EatOutSize,
+} from './eat-out';
 export { pastWeeks, type PlanWeekLike } from './my-weeks';
 export {
   PANTRY_CONFIRM_MIN_AGE_DAYS,
@@ -364,8 +527,14 @@ export {
   type PantryItemAgeLike,
 } from './pantry-confirm';
 export {
+  AGE_BAND_LABELS,
+  AGE_BAND_PORTION_FACTORS,
+  ageBandFactorsAreChips,
+  ageBandLabel,
+  ageBandPortionFactor,
   householdGhostSample,
   householdPortionSum,
+  parseAgeBand,
   onboardingProgress,
   onboardingSteps,
   perPortionCost,
@@ -383,8 +552,10 @@ export {
 } from './feedback';
 export {
   ACTIVATION_STEP_COPY,
+  PLAN_WEEK_STEP_COPY,
   SOURCE_FEATURE_PRIORITY,
   activationIntro,
+  activationStepCopy,
   activationStepKeys,
   type ActivationStepCopy,
   type ActivationStepKey,
@@ -393,10 +564,15 @@ export {
   aiConsentBackupLine,
   aiConsentIntro,
   aiConsentRequiredFor,
+  aiConsentFeatureForPath,
   aiConsentToggleOn,
   aiDisclosureProviders,
   formatAiProviderNames,
+  handleAiConsentRequiredError,
+  isAiConsentRequiredError,
   needsAiDataConsent,
+  notifyAiConsentRequired,
+  onAiConsentRequired,
   toAiProviderDisclosure,
   type AiConsentSubject,
 } from './ai-consent';
@@ -419,7 +595,7 @@ export {
   type GlossaryDefinition,
   type GlossaryTermId,
 } from './glossary';
-export { defaultWeekOffset, getWeekStartDate } from './week-default';
+export { defaultWeekOffset, getWeekStartDate, weekStartForDate } from './week-default';
 export { defaultMealSlot } from './meal-slot';
 export {
   canShowNudge,
@@ -431,7 +607,9 @@ export {
 } from './nudge-cap';
 export {
   effectiveJobs,
+  isOfferedOnboardingJob,
   legacyIntentForJobs,
+  RETIRED_ONBOARDING_JOBS,
   TRACK_INFERENCE_MIN_DAYS,
   type EffectiveJobsInput,
 } from './effective-jobs';
@@ -449,11 +627,13 @@ export {
 export {
   isValidPlanShape,
   planButtonLabel,
+  householdTableSummary,
   planShapeSummary,
   resolvePlanDays,
   resolvePlanSlots,
 } from './plan-shape';
 export { recogniseSafetyTerm, type SafetyRecogniseOutcome } from './safety-recognise';
+export { applySafetyTerm, keepSafetyTermAsNote, type SafetyTermOutcome } from './safety-add-term';
 export {
   classifySafetyValue,
   serialiseSafetyPickerValue,
@@ -488,6 +668,14 @@ export {
   checkedForChipText,
   checkedForChipA11yLabel,
   cantCheckLine,
+  conflictHeadline,
+  conflictText,
+  splitCheckedByVerification,
+  taggedOnlyLineText,
+  verifiedLabels,
+  warningText,
+  warningsHeadline,
+  type ConflictLike,
   filteredForLineText,
   pickerFooterText,
   checkedForListHeaderText,
@@ -526,6 +714,27 @@ export {
   type PremiumPitchOptions,
 } from './premium-pitch';
 export { tagConflicts, type RecipeTagConflict } from './recipe-tags';
+export { recipeShareText, type ActionRecipe } from './recipe-share';
+export {
+  chunkShoppingLines,
+  SHOPPING_CHUNK,
+  shoppingLinesFor,
+  type ShoppingLine,
+} from './recipe-actions';
+export {
+  ADD_TO_WEEK_MEAL_ORDER,
+  addToWeekSlotRows,
+  canPickNextWeek,
+  dayOfMonth,
+  defaultDay,
+  isPastDay,
+  localWeekday,
+  NEXT_WEEK_FROM_WEEKDAY,
+  readAddToWeekFailure,
+  type AddToWeekFailure,
+  type AddToWeekMealType,
+  type AddToWeekSlotRow,
+} from './add-to-week';
 export {
   formatFractionalQuantity,
   formatScaledQuantity,
@@ -534,6 +743,7 @@ export {
 } from './scaled-quantity';
 export {
   parseQuantity,
+  sanitizeQuantityInput,
   recipeMissingFields,
   firstIncompleteIngredientLineIndex,
   missingSummary,
@@ -574,3 +784,107 @@ export {
 
 // ─── Computed recipe nutrition (docs/plan-ingredient-catalog.md §5) ───────────
 export * from './nutrition';
+
+export {
+  GENERIC_ERROR_MESSAGE,
+  NETWORK_ERROR_MESSAGE,
+  SERVER_ERROR_MESSAGE,
+  isNetworkError,
+  isServerError,
+  VALIDATION_ERROR_MESSAGE,
+  describeValidationIssues,
+  humaniseFieldPath,
+  parseIssuesFromMessage,
+  userFacingErrorMessage,
+} from './user-facing-error';
+export type { UserFacingErrorOptions, ValidationIssueLike } from './user-facing-error';
+export {
+  DEFAULT_PROGRESS_RANGE,
+  evenLabelIndices,
+  isLoggedDay,
+  PROGRESS_RANGES,
+  type ProgressRange,
+} from './progress-days';
+export { chatActionsTrailer, splitChatActions } from './chat-actions';
+export {
+  CHAT_NOT_SENT_MESSAGE,
+  CHAT_SESSION_EXPIRED_MESSAGE,
+  CHAT_SLOW_DOWN_MESSAGE,
+  CHEF_BUSY_MESSAGE,
+  CHEF_UNAVAILABLE_MESSAGE,
+  chatFailureMessage,
+} from './chat-errors';
+export { getQueryState, isNotFoundError } from './query-state';
+export type { QueryState, QueryStateInput } from './query-state';
+export { shouldNotifyMutationError } from './mutation-errors';
+export type { MutationMetaShape } from './mutation-errors';
+export {
+  plannedRowKey,
+  sumLogged,
+  tickStateFromLog,
+  withEntriesRemoved,
+  withEntryRestored,
+  withRecipeEntryEdited,
+  withRecipeLogged,
+  withRecipeUnlogged,
+  withSlotReplaced,
+  withSlotSkipped,
+  withSlotUnskipped,
+  type DayEntry,
+  type DayLike,
+  type OffPlanRowLike,
+} from './tracker-day';
+export { regenerateConfirmBody } from './regenerate-copy';
+export {
+  weeklyAverage,
+  weeklyAverageText,
+  WEEKLY_AVERAGE_MIN_DAYS,
+  type WeekDay,
+} from './weekly-average';
+
+// ─── Protein-only mode (WP-08, D-5) ──────────────────────────────────────────
+export {
+  DEFAULT_PROTEIN_MEALS,
+  PROTEIN_REFERENCE_G_PER_KG,
+  PROTEIN_REFERENCE_TOLERANCE,
+  buildProteinGuide,
+  explainProteinTarget,
+} from './protein-guide';
+
+// ─── Protein-only mode copy (WP-08), shared by mobile and web ────────────────
+export {
+  NUMBERS_MODE_COPY,
+  PROTEIN_ONLY_KCAL_PER_PROTEIN_G,
+  describeSnackProteinOnly,
+  describeSwapProteinOnly,
+  estimateKcalFromProtein,
+  nutritionLabel,
+  proteinAverageText,
+  proteinLabel,
+  proteinOnlyHeadline,
+  proteinOnlyOfferCopy,
+  proteinOnlyTrainingExplain,
+  proteinOnlyTrainingHeader,
+  proteinRingLabel,
+  withoutKcalLines,
+} from './numbers-mode-copy';
+
+// ─── Plan page: slot groups (FB7-04), macro lines and week-options copy (FB7-11) ──
+export {
+  canRemoveSlot,
+  groupDaySlots,
+  type DaySlotEntry,
+  type DaySlotGroup,
+} from './plan-slot-groups';
+export {
+  formatMacroLine,
+  formatPlanMinutes,
+  mealGroupTotalLine,
+  planMealMacroLine,
+  planMealMacros,
+  planMealMetaLine,
+  planMealNutritionLabel,
+  type PlanMealMacros,
+  type PlanMealNutrition,
+} from './plan-meal-macros';
+export { PLAN_MEAL_MENU_COPY, PLAN_WEEK_COPY } from './plan-options-copy';

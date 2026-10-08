@@ -10,6 +10,8 @@
 // functions below are still scanned by the ESLint rule itself, which walks
 // every string literal and template in this file regardless).
 
+import { recogniseSafetyTerm } from './safety-recognise';
+
 // ─── Static copy (scanned by copy-lint.test.ts) ────────────────────────────────
 
 export const SAFETY_COPY_KEYS = [
@@ -49,6 +51,7 @@ export const SAFETY_COPY_KEYS = [
   'conditionChooseGoal',
   'conditionOk',
   'excludeLabelDependentLabel',
+  'somethingElsePlaceholder',
 ] as const;
 export type SafetyCopyKey = (typeof SAFETY_COPY_KEYS)[number];
 
@@ -93,6 +96,8 @@ export const SAFETY_COPY: Record<SafetyCopyKey, string> = {
   conditionChooseGoal: 'Choose a goal',
   conditionOk: 'OK',
   excludeLabelDependentLabel: 'Leave out recipes that need a certified gluten-free product',
+  // UX-ACC-06: an example the checker really understands ("aubergine" was not one).
+  somethingElsePlaceholder: 'e.g. walnuts or coeliac',
 } as const;
 
 // ─── Dynamic builders (interpolate data, never a bare guarantee word) ──────────
@@ -108,9 +113,13 @@ export function checkedForLineText(checks: readonly CheckedRuleLike[]): string {
   return `Checked for ${rules}`;
 }
 
-/** `Checked for 3` — the compact card/row chip. */
+/**
+ * `3 checks passed` — the compact card/row chip. It used to read `Checked for
+ * 3`, which people took for a head count (UX-PLAN-12); the spelled-out rules
+ * stay in the chip's a11y label and the "Checked for …" line.
+ */
 export function checkedForChipText(count: number): string {
-  return `Checked for ${count}`;
+  return `${count} check${count === 1 ? '' : 's'} passed`;
 }
 
 /** `Checked for tree nuts, fish and vegetarian` — the chip's a11y label. */
@@ -118,6 +127,114 @@ export function checkedForChipA11yLabel(labels: readonly string[]): string {
   if (labels.length === 0) return 'Checked for your table';
   if (labels.length === 1) return `Checked for ${labels[0]}`;
   return `Checked for ${labels.slice(0, -1).join(', ')} and ${labels[labels.length - 1]}`;
+}
+
+/**
+ * UX-REC-01: a pass that rests on the recipe's stored diet TAG alone (nothing
+ * in its ingredients could verify the diet) is never a "Checked" claim. The
+ * API lists those in `taggedOnly` (a subset of `checked`, which keeps its
+ * meaning for older apps); split them here so every surface agrees.
+ */
+export function splitCheckedByVerification<T extends CheckedRuleLike>(checks: {
+  checked: readonly T[];
+  taggedOnly?: readonly CheckedRuleLike[] | undefined;
+}): { verified: T[]; taggedOnly: T[] } {
+  const tagged = new Set((checks.taggedOnly ?? []).map((t) => `${t.label}|${t.who}`));
+  const verified: T[] = [];
+  const taggedOnly: T[] = [];
+  for (const c of checks.checked) {
+    (tagged.has(`${c.label}|${c.who}`) ? taggedOnly : verified).push(c);
+  }
+  return { verified, taggedOnly };
+}
+
+/** The rule labels a recipe really passed (tag-only passes left out) — for the compact chips. */
+export function verifiedLabels(
+  checks:
+    | { checked: readonly CheckedRuleLike[]; taggedOnly?: readonly CheckedRuleLike[] | undefined }
+    | null
+    | undefined,
+): string[] {
+  return checks ? splitCheckedByVerification(checks).verified.map((c) => c.label) : [];
+}
+
+/** `Tagged paleo (not verified)` — the honest line for a tag-only pass. */
+export function taggedOnlyLineText(checks: readonly CheckedRuleLike[]): string {
+  const labels = checks.map((c) => c.label.toLowerCase());
+  const list =
+    labels.length <= 1
+      ? (labels[0] ?? '')
+      : `${labels.slice(0, -1).join(', ')} and ${labels[labels.length - 1]}`;
+  return `Tagged ${list} (not verified)`;
+}
+
+export interface ConflictLike {
+  label: string;
+  /** Present on `safetyChecks.conflictDetails` (newer API); absent from older responses. */
+  kind?: 'allergy' | 'diet' | 'dislike' | undefined;
+  ingredients?: readonly string[] | undefined;
+  reason?: string | undefined;
+}
+
+/** True when a stored rule label is a diet ("Paleo", "Gluten-free") rather than an allergen. */
+function isDietConflict(conflict: ConflictLike): boolean {
+  if (conflict.kind) return conflict.kind === 'diet';
+  const recognised = recogniseSafetyTerm(conflict.label);
+  return recognised.kind === 'diet' || recognised.kind === 'condition';
+}
+
+/**
+ * UX-PLAN-06: what a conflict says. A diet reads as what the dish ISN'T
+ * ("Not paleo: contains quinoa"), never "Contains Paleo"; an allergen reads
+ * as what it contains ("Contains peanut"). Names the offending ingredients
+ * (first three) or the failed limit when the API sent them.
+ */
+export function conflictText(conflict: ConflictLike): string {
+  const ingredients = (conflict.ingredients ?? []).filter((i) => i.trim().length > 0);
+  const named = ingredients.slice(0, 3).join(', ');
+  if (isDietConflict(conflict)) {
+    const head = `Not ${conflict.label.toLowerCase()}`;
+    if (named) return `${head}: contains ${named}`;
+    if (conflict.reason) return `${head}: ${conflict.reason}`;
+    return head;
+  }
+  const head = `Contains ${conflict.label.toLowerCase()}`;
+  return named && named.toLowerCase() !== conflict.label.toLowerCase() ? `${head}: ${named}` : head;
+}
+
+/**
+ * The same for the API's older `allergenWarnings` strings, which already read
+ * "non-paleo" for a diet and "peanut" for an allergen ("gluten" for gluten-free).
+ */
+export function warningText(warning: string): string {
+  const diet = /^non-(.+)$/i.exec(warning.trim());
+  return diet?.[1] ? `Not ${diet[1].toLowerCase()}` : `Contains ${warning.trim().toLowerCase()}`;
+}
+
+/**
+ * The headline for a recipe's conflicts: the API's per-rule details when it
+ * sent them ("Not paleo: contains quinoa"), else the plain `allergenWarnings`
+ * strings. Dislikes are soft preferences and never headline a warning.
+ */
+export function conflictHeadline(
+  warnings: readonly string[],
+  details?: readonly ConflictLike[] | null,
+): string {
+  const hard = (details ?? []).filter((d) => d.kind !== 'dislike');
+  return hard.length > 0 ? hard.map(conflictText).join(' · ') : warningsHeadline(warnings);
+}
+
+/** The banner headline for a list of `allergenWarnings` ("Not paleo, not vegetarian · Contains peanut"). */
+export function warningsHeadline(warnings: readonly string[]): string {
+  const not = warnings.filter((w) => /^non-/i.test(w.trim())).map((w) => warningText(w));
+  const contains = warnings.filter((w) => !/^non-/i.test(w.trim()));
+  const parts: string[] = [];
+  if (not.length > 0) {
+    // "Not paleo, vegetarian": one "Not" for the list reads better than many.
+    parts.push(`Not ${not.map((n) => n.replace(/^Not /, '')).join(' or ')}`);
+  }
+  if (contains.length > 0) parts.push(`Contains ${contains.map((c) => c.trim()).join(', ')}`);
+  return parts.join(' · ');
 }
 
 /** `Can’t check: “low sugar”`. */

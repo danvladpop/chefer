@@ -1,10 +1,19 @@
 import { useRef, useState } from 'react';
 import { Controller, useForm } from 'react-hook-form';
-import { View, type TextInput } from 'react-native';
+import { Keyboard, View, type TextInput } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { Button, Card, Input, Text, useScrollFieldIntoView } from '@chefer/ui-mobile';
+import {
+  Button,
+  Card,
+  EMAIL_FIELD_PROPS,
+  Input,
+  Text,
+  useScrollFieldIntoView,
+} from '@chefer/ui-mobile';
+import { userFacingErrorMessage } from '@chefer/utils';
 import { AuthField, AuthScreen, backToLogin } from '../../src/features/auth/auth-screen';
+import { setEmailHint, takeEmailHint } from '../../src/features/auth/email-hint';
 import {
   forgotPasswordSchema,
   type ForgotPasswordFormValues,
@@ -27,6 +36,8 @@ function ForgotPasswordForm() {
   const emailRef = useRef<TextInput>(null);
   const scrollFieldIntoView = useScrollFieldIntoView();
   const [sent, setSent] = useState(false);
+  // UX-ACC-15: arrive with the address typed on Register / Sign in.
+  const [initialEmail] = useState(takeEmailHint);
 
   const {
     control,
@@ -34,16 +45,24 @@ function ForgotPasswordForm() {
     formState: { errors },
   } = useForm<ForgotPasswordFormValues>({
     resolver: zodResolver(forgotPasswordSchema),
-    defaultValues: { email: '' },
+    defaultValues: { email: initialEmail },
   });
 
   // Always reports success (no account probing) — only rate limits and
   // network failures surface as errors.
   const request = trpc.auth.requestPasswordReset.useMutation({
+    meta: { silent: true },
     onSuccess: () => setSent(true),
   });
 
-  const onSubmit = handleSubmit((values) => request.mutate(values));
+  const onSubmit = handleSubmit((values) => {
+    // UX-ACC-18: no second submit from the keyboard while one is in flight.
+    if (request.isPending) return;
+    Keyboard.dismiss();
+    // UX-ACC-09: "Sign in" below returns with this address prefilled.
+    setEmailHint(values.email);
+    request.mutate(values);
+  });
 
   return (
     <>
@@ -72,18 +91,17 @@ function ForgotPasswordForm() {
                 <Input
                   ref={emailRef}
                   testID="forgot-password-email"
-                  autoCapitalize="none"
-                  autoCorrect={false}
-                  spellCheck={false}
-                  autoComplete="email"
-                  keyboardType="email-address"
+                  {...EMAIL_FIELD_PROPS}
                   placeholder="you@example.com"
                   returnKeyType="send"
                   editable={!request.isPending}
                   onSubmitEditing={() => void onSubmit()}
                   onFocus={() => scrollFieldIntoView(emailRef.current)}
                   onBlur={onBlur}
-                  onChangeText={onChange}
+                  onChangeText={(text) => {
+                    if (request.error) request.reset();
+                    onChange(text);
+                  }}
                   value={value}
                 />
               )}
@@ -92,7 +110,7 @@ function ForgotPasswordForm() {
 
           {request.error && (
             <Text variant="muted" className="text-destructive" testID="forgot-password-error">
-              {request.error.message}
+              {userFacingErrorMessage(request.error)}
             </Text>
           )}
 

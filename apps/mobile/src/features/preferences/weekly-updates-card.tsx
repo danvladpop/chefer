@@ -1,7 +1,13 @@
 import { useEffect, useState } from 'react';
 import { Switch, View } from 'react-native';
 import { Button, Card, Text } from '@chefer/ui-mobile';
+import { userFacingErrorMessage } from '@chefer/utils';
+import { NotificationsOffRow } from '../../components/notifications-off-row';
 import { trpc } from '../../lib/trpc';
+import {
+  refreshNotificationPermission,
+  useNotificationPermission,
+} from '../../lib/use-notification-permission';
 import { ensureGymReminderPermission } from '../gym/reminders/permission';
 import {
   areWeeklyNotificationsOn,
@@ -79,8 +85,8 @@ function EmailDefaultsNoticeCard({
   busy: boolean;
 }) {
   return (
-    <View testID="prefs-email-defaults-notice" className="gap-2 rounded-lg bg-amber-50 p-3">
-      <Text className="text-sm text-amber-900">
+    <View testID="prefs-email-defaults-notice" className="min-w-0 gap-2 rounded-lg bg-amber-50 p-3">
+      <Text className="w-full min-w-0 text-sm text-amber-900">
         We&apos;ve changed how emails work: they&apos;re now off unless you turn them on. Yours are
         still on.
       </Text>
@@ -132,6 +138,7 @@ export function WeeklyUpdatesCard() {
     (prefsQuery.data?.weekReady === true || prefsQuery.data?.weeklyRecap === true);
 
   const save = trpc.notifications.setEmailPreferences.useMutation({
+    meta: { silent: true },
     onSuccess: (res) => setEmail({ weekReady: res.weekReady, weeklyRecap: res.weeklyRecap }),
     // Roll back only the switch that failed.
     onError: (_err, vars) =>
@@ -144,11 +151,17 @@ export function WeeklyUpdatesCard() {
           : prev,
       ),
   });
-  const resend = trpc.notifications.resendConfirmation.useMutation();
+  const resend = trpc.notifications.resendConfirmation.useMutation({ meta: { silent: true } });
 
   const [phoneOn, setPhoneOn] = useState(false);
   const [phoneBusy, setPhoneBusy] = useState(false);
   const [phoneNote, setPhoneNote] = useState<string | null>(null);
+  // UX-ACC-20: the user just answered the permission prompt with "no" — show
+  // the Open Settings row right away, without waiting for the OS re-read.
+  const [phoneRefused, setPhoneRefused] = useState(false);
+  // §6.8: with notifications denied in the OS the switch must not say "On".
+  const notificationPermission = useNotificationPermission();
+  const notificationsDenied = notificationPermission === 'denied';
   useEffect(() => {
     let alive = true;
     void areWeeklyNotificationsOn().then((on) => {
@@ -162,14 +175,17 @@ export function WeeklyUpdatesCard() {
   const togglePhone = async (next: boolean) => {
     setPhoneBusy(true);
     setPhoneNote(null);
+    setPhoneRefused(false);
     try {
       if (!next) {
         await cancelWeeklyNotifications();
         setPhoneOn(false);
         return;
       }
-      if (!(await ensureGymReminderPermission())) {
-        setPhoneNote("Notifications are off for Chefer. Turn them on in your phone's Settings.");
+      const allowed = await ensureGymReminderPermission();
+      refreshNotificationPermission();
+      if (!allowed) {
+        setPhoneRefused(true);
         setPhoneOn(false);
         return;
       }
@@ -211,11 +227,15 @@ export function WeeklyUpdatesCard() {
           testID="prefs-weekly-push-switch"
           title="Monday plan and Sunday recap"
           description="A notification at 8:00 on Monday and 18:00 on Sunday."
-          value={phoneOn}
+          value={phoneOn && !notificationsDenied && !phoneRefused}
           disabled={phoneBusy}
           onChange={(next) => void togglePhone(next)}
         />
-        {phoneNote && <Text className="text-xs text-amber-800">{phoneNote}</Text>}
+        {notificationsDenied || phoneRefused ? (
+          <NotificationsOffRow testID="prefs-weekly-push-off" />
+        ) : (
+          phoneNote && <Text className="text-xs text-amber-800">{phoneNote}</Text>
+        )}
       </View>
 
       {email && prefsQuery.data && (
@@ -236,14 +256,14 @@ export function WeeklyUpdatesCard() {
             />
           ))}
           {!prefsQuery.data.emailConfirmed && (
-            <View className="mt-1 gap-2 rounded-lg bg-amber-50 p-3">
-              <Text className="text-sm text-amber-900">
+            <View className="mt-1 min-w-0 gap-2 rounded-lg bg-amber-50 p-3">
+              <Text className="w-full min-w-0 text-sm text-amber-900">
                 Confirm your email address to start getting these.
               </Text>
               {resend.isSuccess ? (
                 <Text
                   testID="prefs-weekly-email-sent"
-                  className="text-sm font-medium text-amber-900"
+                  className="w-full min-w-0 text-sm font-medium text-amber-900"
                 >
                   {resend.data.alreadyConfirmed
                     ? 'Your address is already confirmed.'
@@ -261,7 +281,7 @@ export function WeeklyUpdatesCard() {
                 </Button>
               )}
               {resend.isError && (
-                <Text className="text-xs text-red-600">{resend.error.message}</Text>
+                <Text className="text-xs text-red-600">{userFacingErrorMessage(resend.error)}</Text>
               )}
             </View>
           )}

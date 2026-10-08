@@ -6,6 +6,7 @@ import {
   useRef,
   useState,
   type ReactNode,
+  type RefObject,
 } from 'react';
 import {
   Keyboard,
@@ -18,6 +19,7 @@ import {
   type TextInput,
 } from 'react-native';
 import { cn } from '@chefer/utils';
+import { KeyboardPersistFooter } from './keyboard-persist-footer';
 
 // Gym dogfood #2 ("the number keyboard covers the bottom of the screen while
 // you type — you can't see the field you're typing in or what comes next").
@@ -39,6 +41,16 @@ import { cn } from '@chefer/utils';
 
 /** Extra breathing room kept above the keyboard, beyond what it already displaces. */
 export const KEYBOARD_AWARE_DEFAULT_MARGIN = 24;
+
+/**
+ * `keyboardDismissMode` for every scrolling form/list that hosts inputs:
+ * iOS "interactive" (the keyboard tracks the finger, like Messages), Android
+ * "on-drag" (it has no interactive mode). Pair with
+ * `keyboardShouldPersistTaps="handled"` so buttons still get their first tap.
+ */
+export function keyboardDismissMode(): 'interactive' | 'on-drag' {
+  return Platform.OS === 'ios' ? 'interactive' : 'on-drag';
+}
 
 export type MeasurableField = Pick<TextInput, 'measureLayout'>;
 
@@ -70,6 +82,39 @@ const ScrollFieldContext = createContext<ScrollFieldIntoView>(noopScrollFieldInt
 export function useScrollFieldIntoView(): ScrollFieldIntoView {
   return useContext(ScrollFieldContext);
 }
+
+/**
+ * Builds the `ScrollFieldIntoView` callback for a `ScrollView` ref. Shared by
+ * `KeyboardAwareScrollView` and the `Sheet` body so both hand their fields the
+ * same `useScrollFieldIntoView()` plumbing.
+ */
+export function useScrollFieldIntoViewFor(
+  scrollRef: RefObject<ScrollView | null>,
+): ScrollFieldIntoView {
+  return useCallback<ScrollFieldIntoView>(
+    (field, extraMargin) => {
+      const scrollView = scrollRef.current;
+      if (!field || !scrollView || typeof field.measureLayout !== 'function') return;
+      // Pass the ScrollView's own ref as the measurement ancestor (the
+      // documented `measureLayout` pattern) rather than converting it to a
+      // node handle first — `findNodeHandle` on a composite ref like this
+      // reliably comes back `null` under the RNTL/Fabric-mock test renderer.
+      field.measureLayout(
+        scrollView as unknown as HostInstance,
+        (_x: number, y: number) => {
+          scrollView.scrollTo({
+            y: Math.max(0, y - (extraMargin ?? KEYBOARD_AWARE_DEFAULT_MARGIN)),
+            animated: true,
+          });
+        },
+        () => undefined,
+      );
+    },
+    [scrollRef],
+  );
+}
+
+export { ScrollFieldContext };
 
 export interface KeyboardAwareScrollViewProps extends Omit<ScrollViewProps, 'children'> {
   children: ReactNode;
@@ -121,24 +166,7 @@ export function KeyboardAwareScrollView({
     };
   }, []);
 
-  const scrollFieldIntoView = useCallback<ScrollFieldIntoView>((field, extraMargin) => {
-    const scrollView = scrollRef.current;
-    if (!field || !scrollView || typeof field.measureLayout !== 'function') return;
-    // Pass the ScrollView's own ref as the measurement ancestor (the
-    // documented `measureLayout` pattern) rather than converting it to a
-    // node handle first — `findNodeHandle` on a composite ref like this
-    // reliably comes back `null` under the RNTL/Fabric-mock test renderer.
-    field.measureLayout(
-      scrollView as unknown as HostInstance,
-      (_x: number, y: number) => {
-        scrollView.scrollTo({
-          y: Math.max(0, y - (extraMargin ?? KEYBOARD_AWARE_DEFAULT_MARGIN)),
-          animated: true,
-        });
-      },
-      () => undefined,
-    );
-  }, []);
+  const scrollFieldIntoView = useScrollFieldIntoViewFor(scrollRef);
 
   return (
     <KeyboardAvoidingView
@@ -150,6 +178,8 @@ export function KeyboardAwareScrollView({
         ref={scrollRef}
         keyboardShouldPersistTaps="handled"
         automaticallyAdjustKeyboardInsets={Platform.OS === 'ios'}
+        // Dragging the form closes the keyboard (iOS follows the finger).
+        keyboardDismissMode={keyboardDismissMode()}
         {...scrollViewProps}
         contentContainerStyle={[
           contentContainerStyle,
@@ -165,7 +195,7 @@ export function KeyboardAwareScrollView({
           {children}
         </ScrollFieldContext.Provider>
       </ScrollView>
-      {footer}
+      {footer ? <KeyboardPersistFooter>{footer}</KeyboardPersistFooter> : null}
     </KeyboardAvoidingView>
   );
 }

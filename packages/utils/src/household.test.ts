@@ -1,9 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import {
+  ageBandFactorsAreChips,
+  ageBandLabel,
+  ageBandPortionFactor,
   householdGhostSample,
   householdPortionSum,
   onboardingProgress,
   onboardingSteps,
+  parseAgeBand,
   perPortionCost,
 } from './household';
 
@@ -253,10 +257,14 @@ describe('householdGhostSample', () => {
 });
 
 describe('onboardingProgress (counter never grows)', () => {
-  it('shows "Step 1" with no total while the intent question is open', () => {
+  it('shows "Getting started" with no total while the first question is open (R-21)', () => {
     for (const intent of [null, 'HOUSEHOLD', 'TRAIN', 'EAT_BETTER'] as const) {
       const steps = onboardingSteps({ intent, askIntent: true, isPremium: false });
-      expect(onboardingProgress(steps, 0)).toEqual({ label: 'Step 1', total: null, percent: null });
+      expect(onboardingProgress(steps, 0)).toEqual({
+        label: 'Getting started',
+        total: null,
+        percent: null,
+      });
     }
   });
 
@@ -269,5 +277,24 @@ describe('onboardingProgress (counter never grows)', () => {
   it('counts normally when the question is not asked', () => {
     const steps = onboardingSteps({ intent: 'TRAIN', askIntent: false, isPremium: true });
     expect(onboardingProgress(steps, 0)).toEqual({ label: 'Step 1 of 4', total: 4, percent: 25 });
+  });
+});
+
+describe('kid age bands (UX-PLAN-12)', () => {
+  it('suggests a growing portion per band, every one a portion chip', () => {
+    expect(ageBandPortionFactor('TODDLER')).toBe(0.5);
+    expect(ageBandPortionFactor('CHILD')).toBe(0.75);
+    expect(ageBandPortionFactor('PRETEEN')).toBe(1);
+    expect(ageBandPortionFactor('TEEN')).toBe(1.25);
+    expect(ageBandFactorsAreChips()).toBe(true);
+  });
+
+  it('labels bands by age range and tolerates unknown / missing values', () => {
+    expect(ageBandLabel('CHILD')).toBe('4–8');
+    expect(ageBandLabel('TEEN')).toBe('14–17');
+    expect(ageBandLabel(null)).toBeNull();
+    expect(ageBandLabel('GIANT')).toBeNull();
+    expect(parseAgeBand('TODDLER')).toBe('TODDLER');
+    expect(parseAgeBand(undefined)).toBeNull();
   });
 });

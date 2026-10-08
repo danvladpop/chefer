@@ -5,9 +5,11 @@ import { useForm } from 'react-hook-form';
 import { trpc } from '@/lib/trpc';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
+import { userFacingErrorMessage } from '@chefer/utils';
 
 const forgotSchema = z.object({
-  email: z.string().min(1, 'Email is required').email('Please enter a valid email address'),
+  // UX-ACC-07: trimmed before validation.
+  email: z.string().trim().min(1, 'Email is required').email('Please enter a valid email address'),
 });
 
 type ForgotFormValues = z.infer<typeof forgotSchema>;
@@ -20,8 +22,9 @@ export function ForgotPasswordForm() {
   const [sent, setSent] = useState(false);
 
   const requestMutation = trpc.auth.requestPasswordReset.useMutation({
+    meta: { silent: true },
     onSuccess: () => setSent(true),
-    onError: (err) => setServerError(err.message),
+    onError: (err) => setServerError(userFacingErrorMessage(err)),
   });
 
   const {

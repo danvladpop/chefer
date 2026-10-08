@@ -1,5 +1,15 @@
 import { describe, expect, it } from 'vitest';
-import { buildPickerSections, filterReplaceCandidates } from './recipe-picker';
+import {
+  buildPickerSections,
+  filterReplaceCandidates,
+  inferMealTypeFromName,
+  pickerRowMeta,
+  pickerSafetyHeader,
+  pickerSafetyHeaderText,
+  rankForSlot,
+  recipeMealTypeHint,
+  slotFitRank,
+} from './recipe-picker';
 
 const r = (id: string, isFavourite = false) => ({ id, isFavourite });
 
@@ -73,5 +83,77 @@ describe('filterReplaceCandidates (T-08.10, bug B-50)', () => {
   it('is a no-op with no options', () => {
     const candidates = [c('a'), c('b')];
     expect(filterReplaceCandidates(candidates)).toEqual(candidates);
+  });
+});
+
+describe('slot ranking (UX-PLAN-05)', () => {
+  const named = (id: string, name: string, mealType?: string) => ({ id, name, mealType });
+
+  it('guesses a meal type from the name, or nothing', () => {
+    expect(inferMealTypeFromName('Blueberry Overnight Oats')).toBe('breakfast');
+    expect(inferMealTypeFromName('Chicken Caesar Salad')).toBe('lunch');
+    expect(inferMealTypeFromName('Lentil Curry')).toBe('dinner');
+    expect(inferMealTypeFromName('Grandma special')).toBeNull();
+  });
+
+  it('a known mealType wins over the name guess', () => {
+    expect(recipeMealTypeHint({ name: 'Oat cookies', mealType: 'snack' })).toBe('snack');
+    expect(recipeMealTypeHint({ name: 'Oat cookies' })).toBe('breakfast');
+  });
+
+  it('ranks fits first, unknowns next, other meals last — stably', () => {
+    const rows = [
+      named('b1', 'Overnight Oats'),
+      named('x1', 'Grandma special'),
+      named('l1', 'Quinoa Bowl'),
+      named('b2', 'Pancakes'),
+      named('l2', 'Turkey Wrap'),
+    ];
+    expect(rankForSlot(rows, 'lunch', recipeMealTypeHint).map((r) => r.id)).toEqual([
+      'l1',
+      'l2',
+      'x1',
+      'b1',
+      'b2',
+    ]);
+    expect(rankForSlot(rows, undefined, recipeMealTypeHint).map((r) => r.id)).toEqual(
+      rows.map((r) => r.id),
+    );
+    expect(slotFitRank('lunch', 'lunch')).toBe(0);
+    expect(slotFitRank(null, 'lunch')).toBe(1);
+    expect(slotFitRank('breakfast', 'lunch')).toBe(2);
+  });
+
+  it('buildPickerSections ranks each section for the slot, never drops a row', () => {
+    const all = [named('b1', 'Overnight Oats'), named('l1', 'Quinoa Bowl')];
+    const sections = buildPickerSections(undefined, all, 'lunch');
+    expect(sections[0]?.data.map((x) => x.id)).toEqual(['l1', 'b1']);
+  });
+});
+
+describe('picker row content (UX-PLAN-05)', () => {
+  it('shows kcal · protein · minutes, skipping what is missing', () => {
+    expect(
+      pickerRowMeta({
+        nutritionInfo: { calories: 420.4, protein: 31.6 },
+        prepTimeMins: 10,
+        cookTimeMins: 15,
+      }),
+    ).toBe('420 kcal · 32 g protein · 25 min');
+    expect(pickerRowMeta({ nutritionInfo: { calories: 300, protein: 0 } })).toBe('300 kcal');
+    expect(pickerRowMeta({})).toBe('');
+  });
+
+  it('states the shared check once and flags only the rows that passed fewer', () => {
+    const header = pickerSafetyHeader([
+      { id: 'a', verified: ['peanuts', 'vegan'] },
+      { id: 'b', verified: ['peanuts', 'vegan'] },
+      { id: 'c', verified: ['peanuts'] },
+      { id: 'd', verified: [] },
+    ]);
+    expect(header.labels).toEqual(['peanuts', 'vegan']);
+    expect([...header.partialIds]).toEqual(['c']);
+    expect(pickerSafetyHeaderText(header.labels)).toBe('Suggestions checked for peanuts and vegan');
+    expect(pickerSafetyHeaderText([])).toBeNull();
   });
 });

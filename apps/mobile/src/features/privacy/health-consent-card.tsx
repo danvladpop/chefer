@@ -25,6 +25,7 @@ export function HealthConsentCard() {
   const [confirming, setConfirming] = useState(false);
 
   const withdraw = trpc.privacy.withdrawHealthData.useMutation({
+    meta: { silent: true },
     onSuccess: () => {
       track('health_consent_withdrawn', {});
       setConfirming(false);
@@ -51,7 +52,10 @@ export function HealthConsentCard() {
           <Button
             testID="profile-health-withdraw"
             variant="outline"
-            onPress={() => setConfirming(true)}
+            onPress={() => {
+              withdraw.reset();
+              setConfirming(true);
+            }}
           >
             {HEALTH_CONSENT_COPY.withdraw}
           </Button>
@@ -67,18 +71,22 @@ export function HealthConsentCard() {
           )
         )}
       </View>
-      {withdraw.isError && (
-        <Text className="text-xs text-red-600">{HEALTH_CONSENT_COPY.withdrawError}</Text>
-      )}
       <ConfirmSheet
         testID="health-withdraw-confirm"
         visible={confirming}
-        onClose={() => setConfirming(false)}
+        onClose={() => {
+          setConfirming(false);
+          withdraw.reset();
+        }}
         title={HEALTH_CONSENT_COPY.withdrawTitle}
         body={HEALTH_CONSENT_COPY.withdrawBody}
         confirmLabel={HEALTH_CONSENT_COPY.withdraw}
         cancelLabel={HEALTH_CONSENT_COPY.withdrawKeep}
         destructive
+        // UX-X-13: the spinner and the failure live in the sheet — the old
+        // inline line sat behind it, so a failed withdrawal looked like nothing.
+        busy={withdraw.isPending}
+        error={withdraw.isError ? HEALTH_CONSENT_COPY.withdrawError : null}
         onConfirm={() => withdraw.mutate({ confirm: HEALTH_WITHDRAW_CONFIRM })}
       />
       {healthConsentSheet}

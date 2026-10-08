@@ -1,6 +1,8 @@
+import { Keyboard } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react-native';
 import { CustomIngredientSheet } from '../../src/features/ingredients/custom-ingredient-sheet';
+import { focusedFields, resetFocusedFields } from './keyboard-test-utils';
 
 // plan-ingredient-catalog §8.1 / D5 (P9; T-40.8 originally): the mobile
 // private-ingredient sheet. All five label values are required, CONFLICT
@@ -34,6 +36,18 @@ jest.mock('expo-router', () => ({
       mockPush(...args);
     },
   },
+}));
+
+// R-10: "Fill in for me" asks for AI-data consent first. The consent guard is
+// replaced by a stub that either allows (runs the action) or declines.
+let mockConsentGranted = true;
+const mockRequestConsent = jest.fn();
+jest.mock('../../src/features/ai-consent/ai-consent-provider', () => ({
+  useAiConsent: () => (feature: string, run: () => void) => {
+    mockRequestConsent(feature);
+    if (mockConsentGranted) run();
+  },
+  AiConsentHost: () => null,
 }));
 
 jest.mock('../../src/features/premium/premium-host', () => ({ PremiumHost: () => null }));
@@ -163,6 +177,7 @@ beforeEach(() => {
   mockPremiumUser = { planTier: 'PREMIUM', role: 'USER' };
   mockEstimateState = { isPending: false, isError: false, data: undefined };
   mockConflictOnce = false;
+  mockConsentGranted = true;
 });
 
 async function fillLabel(
@@ -248,12 +263,22 @@ describe('CustomIngredientSheet', () => {
     expect(screen.getByTestId('custom-sheet-fiber').props.value).toBe('10');
   });
 
+  it('premium: "Fill in for me" asks for AI consent first (feature ingredient-estimate); declining sends nothing (R-10)', async () => {
+    mockConsentGranted = false;
+    await renderSheet('oat bran');
+    await fireEvent.press(screen.getByTestId('custom-sheet-fill-in'));
+
+    expect(mockRequestConsent).toHaveBeenCalledWith('ingredient-estimate');
+    expect(mockEstimate).not.toHaveBeenCalled();
+  });
+
   it('free: "Fill in for me" never calls estimateNutrition and opens the upsell instead', async () => {
     mockPremiumUser = { planTier: 'FREE', role: 'USER' };
     await renderSheet('oat bran');
     await fireEvent.press(screen.getByTestId('custom-sheet-fill-in'));
 
     expect(mockEstimate).not.toHaveBeenCalled();
+    expect(mockRequestConsent).not.toHaveBeenCalled();
     expect(mockOpenPremium).toHaveBeenCalledWith('ingredient-autofill');
   });
 
@@ -261,5 +286,41 @@ describe('CustomIngredientSheet', () => {
     mockPremiumUser = { planTier: 'FREE', role: 'USER' };
     await renderSheet('oat bran');
     expect(screen.queryByText(/\$|€|£|\bprice\b|\bcheckout\b|\bbuy\b/i)).toBeNull();
+  });
+});
+
+// Tester feedback 2026-10-04: name -> kcal -> protein -> carbs -> fat -> fibre
+// -> g/piece -> g/100 ml on Return / Next, closing the keyboard after the last.
+describe('CustomIngredientSheet — keyboard (tester feedback 2026-10-04)', () => {
+  it('Return walks every field in order and the last one closes the keyboard', async () => {
+    const dismiss = jest.spyOn(Keyboard, 'dismiss').mockImplementation(() => undefined);
+    await renderSheet();
+    const order = [
+      'custom-sheet-name',
+      'custom-sheet-kcal',
+      'custom-sheet-protein',
+      'custom-sheet-carbs',
+      'custom-sheet-fat',
+      'custom-sheet-fiber',
+      'custom-sheet-grams-per-piece',
+      'custom-sheet-grams-per-100ml',
+    ];
+    expect(screen.getByTestId(order[0] ?? '').props.returnKeyType).toBe('next');
+    expect(screen.getByTestId(order[7] ?? '').props.returnKeyType).toBe('done');
+    // number pads have no Return key on iOS: each carries its own Next / Done bar.
+    for (const id of order.slice(1)) {
+      expect(screen.getByTestId(id).props.inputAccessoryViewID).toBeTruthy();
+    }
+
+    resetFocusedFields();
+    for (const id of order.slice(0, 7)) {
+      await fireEvent(screen.getByTestId(id), 'submitEditing');
+    }
+    expect(focusedFields()).toEqual(order.slice(1));
+    expect(dismiss).not.toHaveBeenCalled();
+
+    await fireEvent(screen.getByTestId(order[7] ?? ''), 'submitEditing');
+    expect(dismiss).toHaveBeenCalledTimes(1);
+    dismiss.mockRestore();
   });
 });

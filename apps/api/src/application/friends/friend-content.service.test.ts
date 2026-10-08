@@ -59,6 +59,7 @@ function recipe(id: string, overrides: Partial<Recipe> = {}): Recipe {
     originCreatorId: null,
     hiddenAt: null,
     hiddenReason: null,
+    deletedAt: null,
     nutritionStatus: 'PARTIAL',
     nutritionComputedAt: null,
     nutritionTotal: null,
@@ -462,6 +463,7 @@ const meta = (id: string, trackingType: ExerciseTrackingType) => ({
   name: id,
   ownerId: null,
   trackingType,
+  perHand: false,
 });
 
 function session(
@@ -503,6 +505,7 @@ function session(
       lastSetRir: 1,
       prescription: { weightKg: 80 },
       notes: 'private',
+      supersetGroup: null,
       exercise: meta(e.id, e.type),
       sets: [
         {

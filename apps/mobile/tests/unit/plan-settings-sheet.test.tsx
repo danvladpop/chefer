@@ -31,12 +31,18 @@ let mockMutate: jest.Mock;
 
 jest.mock('../../src/lib/trpc', () => ({
   trpc: {
+    household: { list: { useQuery: () => ({ data: [] }) } },
     mealPlan: {
       getShape: {
         useQuery: (_input: unknown, opts?: { enabled?: boolean }) =>
           opts?.enabled === false
             ? { data: undefined, isLoading: false }
-            : { data: mockShapeData, isLoading: false },
+            : {
+                data: mockShapeData,
+                isLoading: false,
+                isError: mockShapeFailed && !mockShapeData,
+                refetch: mockShapeRefetch,
+              },
       },
       setShape: {
         useMutation: () => ({
@@ -51,9 +57,13 @@ jest.mock('../../src/lib/trpc', () => ({
 }));
 
 let mockShapeData: typeof shape | undefined;
+let mockShapeFailed = false;
+const mockShapeRefetch = jest.fn();
 
 beforeEach(() => {
   mockShapeData = shape;
+  mockShapeFailed = false;
+  mockShapeRefetch.mockClear();
   mockMutate = jest.fn((_input, opts?: { onSuccess?: (data: typeof shape) => void }) =>
     opts?.onSuccess?.(shape),
   );
@@ -140,5 +150,26 @@ describe('PlanSettingsSheet', () => {
       />,
     );
     expect(await screen.findByTestId('plan-settings-leftovers')).toBeOnTheScreen();
+  });
+});
+
+// UX-X-12: a failed load is not a spinner forever.
+describe('PlanSettingsSheet — failed load', () => {
+  it('shows an error with Try again instead of a spinner', async () => {
+    mockShapeData = undefined;
+    mockShapeFailed = true;
+    await renderSheet(
+      <PlanSettingsSheet
+        visible
+        onClose={jest.fn()}
+        hasPlan={false}
+        weekLabel="this week"
+        isPremium={false}
+        onSaved={jest.fn()}
+      />,
+    );
+    expect(screen.getByTestId('plan-settings-load-error')).toBeOnTheScreen();
+    await fireEvent.press(screen.getByTestId('plan-settings-load-error-retry'));
+    expect(mockShapeRefetch).toHaveBeenCalled();
   });
 });

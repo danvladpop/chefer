@@ -11,6 +11,8 @@ import { householdPortionSum } from '@chefer/utils';
 import type { MealPlanInput } from '../../lib/ai/types.js';
 import type { SafetyPrefs } from '../../lib/curated-recipes/index.js';
 import { getLimit, hasFeature } from '../../lib/entitlements.js';
+import { planShapeService } from '../meal-plan/plan-shape.service.js';
+import type { PortionTable } from '../shared/household-scale.js';
 
 // ─── Household service (F2 "Feed the Whole Table", backlog P2-3) ──────────────
 // CRUD for the user's extra eaters plus the PURE merge helpers the meal-plan
@@ -176,8 +178,32 @@ export class HouseholdService {
     return members.length > 0 ? householdPortionSum(members) : null;
   }
 
+  /**
+   * Who the plan's list and cost are cooked for (UX-PLAN-02, UX-REC-02): the
+   * premium household's members (scaling is premium) and/or the "How you
+   * cook" setting. Members win over "cooking for" inside `portionsFor`. Null
+   * when there is nothing beyond the user's own portion.
+   */
+  async scalingTable(user: UserProfile): Promise<PortionTable | null> {
+    const members = hasFeature(user, 'householdPlans') ? await this.list(user.id) : [];
+    return this.tableFor(user.id, members);
+  }
+
+  /** Same table for an explicit member list (first-scaled-week / generation paths). */
+  async tableFor(
+    userId: string,
+    members: readonly { portionFactor: number }[],
+  ): Promise<PortionTable | null> {
+    const { cookingFor } = await planShapeService.getShape(userId);
+    if (members.length === 0 && !(typeof cookingFor === 'number' && cookingFor >= 2)) return null;
+    return { members: members.map((m) => ({ portionFactor: m.portionFactor })), cookingFor };
+  }
+
   /** Creates a member, enforcing the matrix cap (`householdMembers`) race-free. */
-  async add(user: UserProfile, data: CreateHouseholdMemberData): Promise<HouseholdMember> {
+  async add(
+    user: UserProfile,
+    data: Omit<CreateHouseholdMemberData, 'ageBand'> & { ageBand?: string | null | undefined },
+  ): Promise<HouseholdMember> {
     const limit = getLimit(user, 'householdMembers');
     if (limit === 0) {
       throw new TRPCError({
@@ -185,7 +211,13 @@ export class HouseholdService {
         message: 'Household members are not available on your plan.',
       });
     }
-    const created = await this.repo.createWithinCap(user.id, data, limit);
+    // An age band only means something for a kid (UX-PLAN-12): dropped otherwise.
+    const { ageBand, ...rest } = data;
+    const created = await this.repo.createWithinCap(
+      user.id,
+      data.isKid && ageBand ? { ...rest, ageBand } : rest,
+      limit,
+    );
     if (!created) {
       throw new TRPCError({
         code: 'FORBIDDEN',
@@ -200,7 +232,9 @@ export class HouseholdService {
     memberId: string,
     data: UpdateHouseholdMemberData,
   ): Promise<HouseholdMember> {
-    const updated = await this.repo.update(userId, memberId, data);
+    // Un-marking someone as a kid drops their age band (UX-PLAN-12).
+    const payload = data.isKid === false ? { ...data, ageBand: null } : data;
+    const updated = await this.repo.update(userId, memberId, payload);
     if (!updated) {
       throw new TRPCError({ code: 'NOT_FOUND', message: 'Household member not found.' });
     }

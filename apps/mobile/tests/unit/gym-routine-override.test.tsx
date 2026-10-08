@@ -132,8 +132,9 @@ describe('OverrideSheet', () => {
     expect(payload.exerciseId).toBe('bench');
     expect(payload.repBucket).toBe('8-12');
     expect(payload.reps).toEqual([9, 9, 9]);
-    // weightKg in lb: suggestion 100 kg → 220.5 lb display, +5 lb step → 225.5 lb → kg.
-    expect(payload.weightKg).toBeCloseTo(unitToKg(225.5, 'LB'), 5);
+    // UX-GYM-28: the step is the exercise's real load step in kg (a 2.5 kg
+    // plate pair), not +5 on an unrounded lb figure.
+    expect(payload.weightKg).toBeCloseTo(102.5, 5);
   });
 
   it('shows the edited badge and an enabled reset when an override exists', async () => {
@@ -178,5 +179,62 @@ describe('OverrideSheet', () => {
 
     await user.press(screen.getByTestId('override-sheet-reset'));
     expect(onReset).toHaveBeenCalledTimes(1);
+  });
+
+  it('UX-GYM-28: tapping the weight opens the keypad, so 40 → 150 kg is typed, not 44 taps', async () => {
+    const user = userEvent.setup();
+    const calls: SetOverrideInput[] = [];
+    const progression = makeProgression();
+    const base = progression.suggestion;
+    const lowSuggestion = { ...base, weightKg: 40 };
+
+    await renderSheet({
+      visible: true,
+      onClose: jest.fn(),
+      exercise,
+      unit: 'KG',
+      repBucket: progression.repBucket,
+      progression: { ...progression, suggestion: lowSuggestion },
+      onSave: (payload) => calls.push(payload),
+      onReset: jest.fn(),
+      testID: 'override-sheet',
+    });
+
+    expect(screen.getByTestId('override-sheet-weight-value')).toHaveTextContent('40 kg');
+    await user.press(screen.getByTestId('override-sheet-weight-value'));
+    await user.press(screen.getByTestId('number-sheet-key-1'));
+    await user.press(screen.getByTestId('number-sheet-key-5'));
+    await user.press(screen.getByTestId('number-sheet-key-0'));
+    await user.press(screen.getByTestId('number-sheet-save'));
+    // 40 → 150 is more than 2x (UX-GYM-01): the keypad asks once before saving.
+    await user.press(screen.getByTestId('number-sheet-jump-confirm'));
+    expect(screen.getByTestId('override-sheet-weight-value')).toHaveTextContent('150 kg');
+
+    await user.press(screen.getByTestId('override-sheet-save'));
+    expect(calls[0]?.weightKg).toBeCloseTo(150, 5);
+  });
+
+  it('UX-GYM-28: lb users step through real loads (the logger’s step), not +5 on an unrounded lb figure', async () => {
+    const user = userEvent.setup();
+    const calls: SetOverrideInput[] = [];
+    const progression = makeProgression();
+    await renderSheet({
+      visible: true,
+      onClose: jest.fn(),
+      exercise,
+      unit: 'LB',
+      repBucket: progression.repBucket,
+      // 60 kg is 132.3 lb; the old sheet stepped it to 137.3 lb, a load nobody can put on the bar.
+      progression: { ...progression, suggestion: { ...progression.suggestion, weightKg: 60 } },
+      onSave: (payload) => calls.push(payload),
+      onReset: jest.fn(),
+      testID: 'override-sheet',
+    });
+
+    await user.press(screen.getByTestId('override-sheet-weight-inc'));
+    await user.press(screen.getByTestId('override-sheet-save'));
+    // One real step up (2.5 kg), the same step the live logger takes.
+    expect(calls[0]?.weightKg).toBeCloseTo(62.5, 5);
+    expect(screen.getByTestId('override-sheet-weight-value')).toHaveTextContent('137.8 lb');
   });
 });

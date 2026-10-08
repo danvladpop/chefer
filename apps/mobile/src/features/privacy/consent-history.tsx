@@ -1,6 +1,6 @@
 import { ActivityIndicator, View } from 'react-native';
 import { FRIENDS_COPY } from '@chefer/types';
-import { Card, Text } from '@chefer/ui-mobile';
+import { Card, ErrorState, Text, useQueryState } from '@chefer/ui-mobile';
 import { trpc } from '../../lib/trpc';
 
 // ─── Consent history (UX-39, T-39.2) ───────────────────────────────────────────
@@ -76,14 +76,24 @@ function formatDate(at: Date | string): string {
 }
 
 export function ConsentHistory() {
-  const { data, isLoading } = trpc.privacy.getConsentHistory.useQuery();
+  const historyQuery = trpc.privacy.getConsentHistory.useQuery();
+  // UX-X-12: a failed load is not "Nothing recorded yet" — that would tell a
+  // user their consent history is empty when we simply could not read it.
+  const { state, data, retry } = useQueryState(historyQuery, (rows) => rows.length === 0);
 
   return (
     <Card testID="profile-consent-history" className="gap-2">
       <Text variant="heading">Consent history</Text>
-      {isLoading ? (
+      {state === 'loading' ? (
         <ActivityIndicator color="#944a00" />
-      ) : !data || data.length === 0 ? (
+      ) : state === 'error' ? (
+        <ErrorState
+          testID="consent-history-error"
+          title="Couldn't load your consent history"
+          onRetry={retry}
+          className="py-4"
+        />
+      ) : state === 'empty' || !data ? (
         <Text variant="muted" className="text-xs">
           Nothing recorded yet.
         </Text>

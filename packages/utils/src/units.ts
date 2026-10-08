@@ -40,10 +40,21 @@ const UNIT_DEFS: Record<string, { family: UnitFamily; toBase: number }> = {
   'fl oz': { family: 'volume', toBase: 29.57 },
 };
 
-/** Rounds for display: integers when large, one decimal when small. */
-function fmt(value: number): string {
-  if (value >= 10) return String(Math.round(value));
-  const rounded = Math.round(value * 10) / 10;
+/**
+ * Rounds for display: integers when large, one decimal when small. With a
+ * `locale` the digits use that locale's separators ("1,5" in de-DE); without
+ * one the output is the plain "1.5" (fixed, for storage-adjacent copy).
+ */
+function fmt(value: number, locale?: string): string {
+  const rounded = value >= 10 ? Math.round(value) : Math.round(value * 10) / 10;
+  if (locale) {
+    try {
+      return new Intl.NumberFormat(locale, { maximumFractionDigits: 1 }).format(rounded);
+    } catch {
+      // Unknown locale tag — fall through to the plain format.
+    }
+  }
+  if (value >= 10) return String(rounded);
   return rounded % 1 === 0 ? String(rounded) : rounded.toFixed(1);
 }
 
@@ -56,31 +67,37 @@ function fmt(value: number): string {
  * through (they are already imperial kitchen units).
  * Count units (piece, medium, clove, …) and unknown units pass through as-is.
  */
-export function formatQuantity(quantity: number, unit: string, system: UnitSystem): string {
+export function formatQuantity(
+  quantity: number,
+  unit: string,
+  system: UnitSystem,
+  locale?: string,
+): string {
+  const f = (value: number) => fmt(value, locale);
   if (!Number.isFinite(quantity)) return `${quantity} ${unit}`;
   const def = UNIT_DEFS[unit.toLowerCase().trim()];
-  if (!def || def.family === 'count') return `${fmt(quantity)} ${unit}`;
+  if (!def || def.family === 'count') return `${f(quantity)} ${unit}`.trim();
 
   const base = quantity * def.toBase; // grams or millilitres
 
   if (system === 'METRIC') {
     if (def.family === 'mass') {
-      return base >= 1000 ? `${fmt(base / 1000)} kg` : `${fmt(base)} g`;
+      return base >= 1000 ? `${f(base / 1000)} kg` : `${f(base)} g`;
     }
-    return base >= 1000 ? `${fmt(base / 1000)} l` : `${fmt(base)} ml`;
+    return base >= 1000 ? `${f(base / 1000)} l` : `${f(base)} ml`;
   }
 
   // IMPERIAL
   if (def.family === 'mass') {
-    return base >= 453.6 ? `${fmt(base / 453.6)} lb` : `${fmt(base / 28.35)} oz`;
+    return base >= 453.6 ? `${f(base / 453.6)} lb` : `${f(base / 28.35)} oz`;
   }
   // Volume: keep the authored unit when it is already an imperial kitchen unit
   const key = unit.toLowerCase().trim();
-  if (key.startsWith('tsp') || key.startsWith('teaspoon')) return `${fmt(quantity)} tsp`;
-  if (key.startsWith('tbsp') || key.startsWith('tablespoon')) return `${fmt(quantity)} tbsp`;
-  if (key.startsWith('cup')) return `${fmt(quantity)} cup${quantity === 1 ? '' : 's'}`;
-  if (key === 'fl oz') return `${fmt(quantity)} fl oz`;
-  return base >= 480 ? `${fmt(base / 240)} cups` : `${fmt(base / 29.57)} fl oz`;
+  if (key.startsWith('tsp') || key.startsWith('teaspoon')) return `${f(quantity)} tsp`;
+  if (key.startsWith('tbsp') || key.startsWith('tablespoon')) return `${f(quantity)} tbsp`;
+  if (key.startsWith('cup')) return `${f(quantity)} cup${quantity === 1 ? '' : 's'}`;
+  if (key === 'fl oz') return `${f(quantity)} fl oz`;
+  return base >= 480 ? `${f(base / 240)} cups` : `${f(base / 29.57)} fl oz`;
 }
 
 // ─── One preference across Food and Gym (backlog P2-6) ────────────────────────

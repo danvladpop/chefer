@@ -1,13 +1,17 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
+import { useNumbersMode } from '@/features/numbers-mode/numbers-mode';
+import { useProteinWeekAverage } from '@/features/numbers-mode/use-protein-average';
 import { UpgradeButton } from '@/features/premium/components/UpgradeButton';
+import { AiGeneratedChip } from '@/features/privacy/components/AiGeneratedChip';
 import { useUnitSystem } from '@/hooks/useUnitSystem';
 import { capture } from '@/lib/analytics';
 import { trpc } from '@/lib/trpc';
 import { ChefHat, Lock, TrendingDown, TrendingUp } from 'lucide-react';
+import { AI_REVIEW_A11Y_LABEL } from '@chefer/types';
 import { Sheet } from '@chefer/ui';
-import { formatWeightTrend } from '@chefer/utils';
+import { formatDate, formatWeightTrend, proteinAverageText, withoutKcalLines } from '@chefer/utils';
 
 // ─── Weekly chef review banner (F1, coach) ────────────────────────────────────
 // The upgraded Monday banner: shows while the latest review is fresh (the API
@@ -22,7 +26,22 @@ import { formatWeightTrend } from '@chefer/utils';
 const TEASER_PLACEHOLDER =
   'Your chef wrote a few more lines about your week — the trend, the pattern behind it, and what next week should change.';
 
+/**
+ * The weekly review card. In protein-only mode (WP-08) it reads the week's
+ * protein average from the tracker's week summary — a query only that branch
+ * makes, so full-mode screens never pay for it.
+ */
 export function ChefReviewBanner() {
+  const { proteinOnly } = useNumbersMode();
+  return proteinOnly ? <ProteinReviewBanner /> : <ReviewBanner proteinAverage={null} />;
+}
+
+function ProteinReviewBanner() {
+  return <ReviewBanner proteinAverage={useProteinWeekAverage(true)} />;
+}
+
+function ReviewBanner({ proteinAverage }: { proteinAverage: { protein: number } | null }) {
+  const { proteinOnly } = useNumbersMode();
   const { data } = trpc.coach.currentReview.useQuery(undefined, { staleTime: 60_000 });
   const system = useUnitSystem();
   const [sheetOpen, setSheetOpen] = useState(false);
@@ -61,7 +80,11 @@ export function ChefReviewBanner() {
             <p className="text-sm font-semibold text-gray-900">
               Your chef noticed something about your week…
             </p>
-            <p className="mt-1 text-sm text-gray-700">{data.firstLine}</p>
+            {(proteinOnly ? withoutKcalLines(data.firstLine) : data.firstLine) !== '' && (
+              <p className="mt-1 text-sm text-gray-700">
+                {proteinOnly ? withoutKcalLines(data.firstLine) : data.firstLine}
+              </p>
+            )}
             {/* Locked lines — placeholder text, deliberately NOT the review. */}
             <p aria-hidden="true" className="mt-1 select-none text-sm text-gray-500 blur-[5px]">
               {TEASER_PLACEHOLDER}
@@ -83,6 +106,8 @@ export function ChefReviewBanner() {
   const r = data.review;
   const trend = formatWeightTrend(r.weightTrendKg, system);
   const TrendIcon = (r.weightTrendKg ?? 0) < -0.05 ? TrendingDown : TrendingUp;
+  // WP-08: the review's text is composed server-side with calorie figures; protein-only drops those lines.
+  const fullText = proteinOnly ? withoutKcalLines(r.reviewText) : r.reviewText;
 
   return (
     <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4">
@@ -90,21 +115,36 @@ export function ChefReviewBanner() {
         <ChefHat className="mt-0.5 h-5 w-5 shrink-0 text-emerald-600" aria-hidden="true" />
         <div className="min-w-0 flex-1">
           <p className="text-sm font-semibold text-emerald-900">Your chef&apos;s weekly review</p>
-          <p className="mt-0.5 text-xs text-emerald-800">{r.reviewText.split('\n')[0]}</p>
+          {/* R-14 (Art. 50): only when the model wrote the text, not the template. */}
+          <AiGeneratedChip
+            recipe={r}
+            a11yLabel={AI_REVIEW_A11Y_LABEL}
+            testId="coach-review-ai-chip"
+            className="mt-1"
+          />
+          <p className="mt-0.5 text-xs text-emerald-800">{fullText.split('\n')[0]}</p>
           <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-emerald-800">
             <span>
               <strong>{r.adherencePct}%</strong> logged
             </span>
-            <span>
-              <strong>{r.avgDailyKcal}</strong> kcal/day avg
-            </span>
+            {proteinOnly ? (
+              proteinAverage && (
+                <span data-testid="coach-review-protein-average">
+                  {proteinAverageText(proteinAverage)}
+                </span>
+              )
+            ) : (
+              <span>
+                <strong>{r.avgDailyKcal}</strong> kcal/day avg
+              </span>
+            )}
             {trend && (
               <span className="flex items-center gap-1">
                 <TrendIcon className="h-3.5 w-3.5" aria-hidden="true" />
                 {trend}
               </span>
             )}
-            {r.adjustmentKcal !== 0 && (
+            {!proteinOnly && r.adjustmentKcal !== 0 && (
               <span>
                 budget{' '}
                 <strong>
@@ -131,17 +171,19 @@ export function ChefReviewBanner() {
         open={sheetOpen}
         onClose={() => setSheetOpen(false)}
         title="Your chef's weekly review"
-        description={`Week of ${new Date(r.weekStart).toLocaleDateString('en-US', {
-          month: 'long',
-          day: 'numeric',
-        })}`}
+        description={`Week of ${formatDate(new Date(r.weekStart), 'long')}`}
         size="md"
       >
         <div className="px-5 pb-5">
           <div className="mb-4 grid grid-cols-3 gap-3">
             {[
               { label: 'Days logged', value: `${r.adherencePct}%` },
-              { label: 'Avg intake', value: `${r.avgDailyKcal} kcal` },
+              proteinOnly
+                ? {
+                    label: 'Avg protein',
+                    value: proteinAverage ? `${Math.round(proteinAverage.protein)} g` : '—',
+                  }
+                : { label: 'Avg intake', value: `${r.avgDailyKcal} kcal` },
               { label: 'Weight trend', value: trend ?? '—' },
             ].map((s) => (
               <div key={s.label} className="rounded-xl bg-gray-50 p-3 text-center">
@@ -150,7 +192,7 @@ export function ChefReviewBanner() {
               </div>
             ))}
           </div>
-          {r.adjustmentKcal !== 0 && (
+          {!proteinOnly && r.adjustmentKcal !== 0 && (
             <p className="mb-3 rounded-xl bg-amber-50 p-3 text-xs text-amber-900">
               Your daily calorie budget changed by{' '}
               <strong>
@@ -161,9 +203,7 @@ export function ChefReviewBanner() {
             </p>
           )}
           <div className="space-y-2 text-sm leading-relaxed text-gray-700">
-            {r.reviewText
-              .split('\n')
-              .map((line, i) => line.trim().length > 0 && <p key={i}>{line}</p>)}
+            {fullText.split('\n').map((line, i) => line.trim().length > 0 && <p key={i}>{line}</p>)}
           </div>
         </div>
       </Sheet>

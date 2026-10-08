@@ -1,16 +1,18 @@
 import { forwardRef, useEffect, useRef, useState } from 'react';
-import { Pressable, TextInput, View } from 'react-native';
+import { Keyboard, Pressable, View, type TextInput } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { router, useLocalSearchParams, useNavigation } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 import { CUISINE_PRESETS, FRIENDS_COPY, INGREDIENT_CATALOG_COPY } from '@chefer/types';
 import {
   Button,
   Card,
   ChipGroup,
   ConfirmSheet,
+  DONE_FIELD_PROPS,
   ErrorState,
   FormField,
   haptics,
+  Input,
   KeyboardAwareScrollView,
   Screen,
   SelectField,
@@ -27,6 +29,7 @@ import {
   parseQuantity,
   recipeMissingFields,
   tagConflicts,
+  userFacingErrorMessage,
 } from '@chefer/utils';
 import { textRejectedOf } from '../src/features/friends/api/friends-errors';
 import {
@@ -41,6 +44,10 @@ import {
 } from '../src/features/ingredients/catalog-line';
 import { ComputedNutritionCard } from '../src/features/ingredients/computed-nutrition-card';
 import { useComputedNutrition } from '../src/features/ingredients/use-computed-nutrition';
+import {
+  useNumericChain,
+  type NumericChainFieldProps,
+} from '../src/features/preferences/use-numeric-chain';
 import { recipeFormCopy } from '../src/features/recipes/form/copy';
 import { FormFooter } from '../src/features/recipes/form/form-footer';
 import { IngredientLine } from '../src/features/recipes/form/ingredient-line';
@@ -48,6 +55,7 @@ import { PhotoField } from '../src/features/recipes/form/photo-field';
 import { StepLine } from '../src/features/recipes/form/step-line';
 import { useIsOnline } from '../src/features/recipes/form/use-is-online';
 import { trpc } from '../src/lib/trpc';
+import { useUnsavedGuard } from '../src/lib/use-unsaved-guard';
 
 // Manual recipe create/edit — rebuilt as sections (T-40.4, UX-40 slice 1).
 // One screen: with ?id= it prefills from getMyRecipe and updates, otherwise
@@ -90,22 +98,22 @@ function friendlySaveError(message: string): string {
 
 const NameInput = forwardRef<
   TextInput,
-  { value: string; onChangeText: (v: string) => void; placeholder: string }
->(function NameInput({ value, onChangeText, placeholder }, ref) {
+  { value: string; onChangeText: (v: string) => void; placeholder: string; label: string }
+>(function NameInput({ value, onChangeText, placeholder, label }, ref) {
   return (
-    <TextInput
+    <Input
       ref={ref}
       testID="rf-name-input"
+      label={label}
       value={value}
       onChangeText={onChangeText}
       placeholder={placeholder}
-      placeholderTextColor="#9ca3af"
-      returnKeyType="next"
-      className="h-11 rounded-md border border-input bg-background px-3 text-base text-foreground"
+      {...DONE_FIELD_PROPS}
     />
   );
 });
 
+// Multiline: Return stays a newline; `Input` adds iOS's "Done" accessory.
 function DescriptionInput({
   value,
   onChangeText,
@@ -114,36 +122,42 @@ function DescriptionInput({
   onChangeText: (v: string) => void;
 }) {
   return (
-    <TextInput
+    <Input
       testID="rf-description"
+      label={recipeFormCopy.fields.description}
       value={value}
       onChangeText={onChangeText}
       placeholder="What makes it special? (optional)"
-      placeholderTextColor="#9ca3af"
       multiline
-      className="min-h-20 rounded-md border border-input bg-background px-3 py-2 text-base text-foreground"
+      className="min-h-20"
     />
   );
 }
 
+// Numeric: prep → cook chain (`useNumericChain` binds ref, return key, the
+// per-field iOS Next/Done bar and Android's ✓).
 function TimeInput({
   value,
   onChangeText,
   testID,
+  label,
+  chain,
 }: {
   value: string;
   onChangeText: (v: string) => void;
   testID: string;
+  label: string;
+  chain: NumericChainFieldProps;
 }) {
   return (
-    <TextInput
+    <Input
       testID={testID}
+      label={label}
       value={value}
       onChangeText={onChangeText}
       placeholder="optional"
-      placeholderTextColor="#9ca3af"
       keyboardType="number-pad"
-      className="h-11 rounded-md border border-input bg-background px-3 text-base text-foreground"
+      {...chain}
     />
   );
 }
@@ -184,10 +198,15 @@ function lineErrorFor(state: LineState): string | undefined {
 }
 
 export default function RecipeFormScreen() {
-  const { id } = useLocalSearchParams<{ id?: string }>();
+  // `?id=` edits that recipe; `?duplicateOf=` opens a new recipe prefilled from
+  // one of yours (UX-REC-04 Duplicate), saved as a copy named "Copy of …".
+  const { id, duplicateOf } = useLocalSearchParams<{ id?: string; duplicateOf?: string }>();
   const isEdit = typeof id === 'string' && id.length > 0;
+  const isDuplicate = !isEdit && typeof duplicateOf === 'string' && duplicateOf.length > 0;
+  /** Whether the form starts from a stored recipe (edit or duplicate). */
+  const fromExisting = isEdit || isDuplicate;
+  const sourceId = isEdit ? id : isDuplicate ? duplicateOf : '';
   const utils = trpc.useUtils();
-  const navigation = useNavigation();
   const snackbar = useSnackbar();
   const scrollFieldIntoView = useScrollFieldIntoView();
   const online = useIsOnline();
@@ -201,8 +220,8 @@ export default function RecipeFormScreen() {
     isFetching,
     refetch: refetchExisting,
   } = trpc.recipe.getMyRecipe.useQuery(
-    { recipeId: id ?? '' },
-    { enabled: isEdit, refetchOnMount: 'always' },
+    { recipeId: sourceId },
+    { enabled: fromExisting, refetchOnMount: 'always' },
   );
 
   const [name, setName] = useState('');
@@ -218,13 +237,13 @@ export default function RecipeFormScreen() {
   const [imageUrl, setImageUrl] = useState('');
   const [prefilled, setPrefilled] = useState(false);
   const [attemptedSave, setAttemptedSave] = useState(false);
-  const [discardVisible, setDiscardVisible] = useState(false);
+  // UX-REC-12: Save waits while a photo is still uploading.
+  const [photoUploading, setPhotoUploading] = useState(false);
 
   const nameInputRef = useRef<TextInput>(null);
+  const times = useNumericChain('rf-times', 2);
   const ingredientQtyRefs = useRef<(TextInput | null)[]>([]);
   const baselineRef = useRef<FormSnapshot | null>(null);
-  const savedRef = useRef(false);
-  const pendingNavAction = useRef<Parameters<typeof navigation.dispatch>[0] | null>(null);
 
   const snapshot = (): FormSnapshot => ({
     name,
@@ -242,10 +261,10 @@ export default function RecipeFormScreen() {
   // Capture the baseline once — on mount for create, once prefill lands for edit.
   useEffect(() => {
     if (baselineRef.current) return;
-    if (isEdit && !prefilled) return;
+    if (fromExisting && !prefilled) return;
     baselineRef.current = snapshot();
     // eslint-disable-next-line react-hooks/exhaustive-deps -- baseline is captured once, deliberately
-  }, [isEdit, prefilled]);
+  }, [fromExisting, prefilled]);
 
   const currentSnapshot = useRef<FormSnapshot | null>(null);
   currentSnapshot.current = snapshot();
@@ -254,24 +273,23 @@ export default function RecipeFormScreen() {
     JSON.stringify(currentSnapshot.current) !== JSON.stringify(baselineRef.current);
 
   // Discard-changes confirm on the header back, Android back and the iOS
-  // swipe-back alike — one navigator listener covers all three (AC9). It
-  // reads the refs at event time: the baseline can be re-captured without a
-  // render (after the resolver links a legacy recipe's lines).
-  useEffect(() => {
-    const unsubscribe = navigation.addListener('beforeRemove', (e) => {
-      if (savedRef.current || !isDirty()) return;
-      e.preventDefault();
-      pendingNavAction.current = e.data.action;
-      setDiscardVisible(true);
-    });
-    return unsubscribe;
-  }, [navigation]);
+  // swipe-back alike (AC9, UX-X-01): `usePreventRemove` also disables the
+  // native swipe while dirty, which a `beforeRemove` listener could not. The
+  // baseline can be re-captured without a render (after the resolver links a
+  // legacy recipe's lines) — it moves BEFORE the ingredients state does, so
+  // the render that follows always sees a consistent `dirty`.
+  const guard = useUnsavedGuard(isDirty(), {
+    title: recipeFormCopy.discard.title,
+    message: recipeFormCopy.discard.body,
+    discardLabel: recipeFormCopy.discard.confirm,
+    keepLabel: recipeFormCopy.discard.cancel,
+  });
 
   useEffect(() => {
     if (!existing || prefilled || !isFetchedAfterMount || isFetching) {
       return;
     }
-    setName(existing.name);
+    setName(isDuplicate ? `Copy of ${existing.name}`.slice(0, 120) : existing.name);
     setDescription(existing.description === 'Imported recipe.' ? '' : existing.description);
     setCuisineType(existing.cuisineType === 'International' ? null : existing.cuisineType);
     const prep = existing.prepTimeMins > 0 ? String(existing.prepTimeMins) : '';
@@ -288,7 +306,7 @@ export default function RecipeFormScreen() {
     // The section opens on edit only if it already has something in it.
     setMoreDetailsOpen(Boolean(existing.description) || prep !== '' || cook !== '');
     setPrefilled(true);
-  }, [existing, prefilled, isFetchedAfterMount, isFetching]);
+  }, [existing, prefilled, isFetchedAfterMount, isFetching, isDuplicate]);
 
   // Legacy lines (no stored catalog link): ask the resolver once, after prefill.
   const toResolve = ingredients.filter((l) => l.resolving);
@@ -318,8 +336,8 @@ export default function RecipeFormScreen() {
     }
   }, [resolveQuery.isError]);
 
-  const onDone = () => {
-    savedRef.current = true;
+  const onDone = (created?: { id: string }) => {
+    guard.release();
     // T-BUG-O3 C1: invalidate every query this same recipe could be read
     // through, not just recipe.list — otherwise a stale getMyRecipe/
     // mealPlan.getRecipe cache reverts the edit the next time it's opened.
@@ -329,10 +347,21 @@ export default function RecipeFormScreen() {
       void utils.mealPlan.getRecipe.invalidate({ recipeId: id });
     }
     snackbar.show({ message: recipeFormCopy.save.saved, tone: 'success' });
+    // A duplicate lands on the new recipe (replacing this form), not back on the original.
+    if (isDuplicate && created) {
+      router.replace({ pathname: '/recipe/[id]', params: { id: created.id } });
+      return;
+    }
     router.back();
   };
-  const createMutation = trpc.recipe.create.useMutation({ onSuccess: onDone });
-  const updateMutation = trpc.recipe.update.useMutation({ onSuccess: onDone });
+  const createMutation = trpc.recipe.create.useMutation({
+    meta: { silent: true },
+    onSuccess: (created) => onDone(created),
+  });
+  const updateMutation = trpc.recipe.update.useMutation({
+    meta: { silent: true },
+    onSuccess: () => onDone(),
+  });
   const mutation = isEdit ? updateMutation : createMutation;
   // Following (PRD §9.4): a shared recipe whose name/description trips the
   // word filter comes back BAD_REQUEST + `data.textRejected: 'recipe'`. Show
@@ -372,7 +401,7 @@ export default function RecipeFormScreen() {
   const conflicts = tagConflicts(validIngredients, dietTags);
 
   const save = () => {
-    if (mutation.isPending || offline) return;
+    if (mutation.isPending || offline || photoUploading) return;
     setAttemptedSave(true);
     if (!canSave) {
       haptics.error();
@@ -394,6 +423,7 @@ export default function RecipeFormScreen() {
       }
       return;
     }
+    Keyboard.dismiss();
     // The server computes from the linked lines and ignores these numbers
     // (D4); they are the same engine's preview, marked `computed`, so an API
     // that predates the catalog still stores something true.
@@ -481,7 +511,7 @@ export default function RecipeFormScreen() {
 
   // T-BUG-O3 C5: a load error (deleted recipe, stale list) used to render a
   // blank "Edit Recipe" form with a disabled button — now an explicit state.
-  if (isEdit && loadError) {
+  if (fromExisting && loadError) {
     return (
       <Screen edges={['top', 'bottom', 'left', 'right']}>
         <ErrorState
@@ -495,7 +525,7 @@ export default function RecipeFormScreen() {
   }
 
   // PAT-8 skeleton instead of a full-screen spinner while an edit loads.
-  if (isEdit && (loadingExisting || !prefilled)) {
+  if (fromExisting && (loadingExisting || !prefilled)) {
     return (
       <Screen edges={['top', 'bottom', 'left', 'right']} className="px-0" testID="rf-skeleton">
         <View className="flex-row items-center gap-3 px-4 py-3">
@@ -525,7 +555,11 @@ export default function RecipeFormScreen() {
         </Pressable>
         <View>
           <Text testID="recipe-form-title" variant="title">
-            {isEdit ? recipeFormCopy.titles.edit : recipeFormCopy.titles.create}
+            {isEdit
+              ? recipeFormCopy.titles.edit
+              : isDuplicate
+                ? recipeFormCopy.titles.duplicate
+                : recipeFormCopy.titles.create}
           </Text>
           <Text variant="muted" className="text-xs">
             {recipeFormCopy.titles.legend}
@@ -534,6 +568,7 @@ export default function RecipeFormScreen() {
       </View>
 
       <KeyboardAwareScrollView
+        testID="rf-scroll"
         keyboardShouldPersistTaps="handled"
         contentContainerClassName="gap-4 px-4 pb-4"
         footer={
@@ -542,8 +577,11 @@ export default function RecipeFormScreen() {
             missingText={missingText}
             offline={offline}
             saving={mutation.isPending}
+            photoUploading={photoUploading}
             saveError={
-              mutation.isError && !textRejected ? friendlySaveError(mutation.error.message) : null
+              mutation.isError && !textRejected
+                ? friendlySaveError(userFacingErrorMessage(mutation.error))
+                : null
             }
             onPress={save}
           />
@@ -566,6 +604,7 @@ export default function RecipeFormScreen() {
             value={name}
             onChangeText={setName}
             placeholder={recipeFormCopy.fields.namePlaceholder}
+            label={recipeFormCopy.fields.name}
           />
         </FormField>
 
@@ -670,7 +709,12 @@ export default function RecipeFormScreen() {
         {/* Photo */}
         <View className="gap-2">
           <Text variant="heading">{recipeFormCopy.fields.photo}</Text>
-          <PhotoField imageUrl={imageUrl} onChange={setImageUrl} disabled={offline} />
+          <PhotoField
+            imageUrl={imageUrl}
+            onChange={setImageUrl}
+            onUploadingChange={setPhotoUploading}
+            disabled={offline}
+          />
         </View>
 
         {/* Nutrition per serving — computed from the linked ingredients
@@ -710,36 +754,31 @@ export default function RecipeFormScreen() {
               </FormField>
               <View className="flex-row gap-2">
                 <FormField label={recipeFormCopy.fields.prepTimeMins} testID="rf-prep-field">
-                  <TimeInput value={prepTime} onChangeText={setPrepTime} testID="rf-prep" />
+                  <TimeInput
+                    value={prepTime}
+                    onChangeText={setPrepTime}
+                    testID="rf-prep"
+                    label={recipeFormCopy.fields.prepTimeMins}
+                    chain={times.bind(0)}
+                  />
                 </FormField>
                 <FormField label={recipeFormCopy.fields.cookTimeMins} testID="rf-cook-field">
-                  <TimeInput value={cookTime} onChangeText={setCookTime} testID="rf-cook" />
+                  <TimeInput
+                    value={cookTime}
+                    onChangeText={setCookTime}
+                    testID="rf-cook"
+                    label={recipeFormCopy.fields.cookTimeMins}
+                    chain={times.bind(1)}
+                  />
                 </FormField>
               </View>
+              {times.bars}
             </View>
           ) : null}
         </View>
       </KeyboardAwareScrollView>
 
-      <ConfirmSheet
-        testID="rf-discard"
-        visible={discardVisible}
-        onClose={() => setDiscardVisible(false)}
-        title={recipeFormCopy.discard.title}
-        body={recipeFormCopy.discard.body}
-        confirmLabel={recipeFormCopy.discard.confirm}
-        cancelLabel={recipeFormCopy.discard.cancel}
-        destructive
-        onConfirm={() => {
-          setDiscardVisible(false);
-          savedRef.current = true;
-          if (pendingNavAction.current) {
-            navigation.dispatch(pendingNavAction.current);
-          } else {
-            router.back();
-          }
-        }}
-      />
+      <ConfirmSheet testID="rf-discard" {...guard.sheetProps} />
     </Screen>
   );
 }

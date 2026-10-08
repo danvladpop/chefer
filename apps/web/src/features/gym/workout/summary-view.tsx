@@ -110,6 +110,8 @@ export function SummaryView({ id }: { id: string }) {
     ),
   );
   const prior = data.recentSessions.filter((s) => s.id !== doc.id && s.startedAt < doc.startedAt);
+  // UX-GYM-18: `livePrs` already skips an exercise's first-ever session (a baseline,
+  // not a record); the PR timeline still lists it as "First logged".
   const prs = livePrs(doc, prior, data.olderBests);
   const inventory = profile ?? FALLBACK_PROFILE;
 
@@ -164,7 +166,7 @@ export function SummaryView({ id }: { id: string }) {
                       <span className="shrink-0 text-xs text-gray-500">
                         {PR_LABEL[pr.kind]} ·{' '}
                         {set
-                          ? `${formatLoad(set.weightKg, unit, meta?.loadType)} × ${set.reps}`
+                          ? `${formatLoad(set.weightKg, unit, meta?.loadType, { each: meta?.perHand })} × ${set.reps}`
                           : ''}
                       </span>
                     </li>
@@ -332,6 +334,7 @@ function NextTimeRow({
   const [weightKg, setWeightKg] = useState(suggestion?.weightKg ?? 0);
   const [repsDelta, setRepsDelta] = useState(0);
   const save = trpc.gym.progression.setOverride.useMutation({
+    meta: { silent: true },
     onSuccess: () => {
       setEditing(false);
       void utils.gym.bootstrap.invalidate();
@@ -369,7 +372,7 @@ function NextTimeRow({
           <div className="flex flex-wrap items-baseline justify-between gap-x-3">
             <p className="min-w-0 truncate text-sm font-semibold text-gray-900">{name}</p>
             <p className="shrink-0 text-xs font-medium tabular-nums text-gray-700">
-              {prescriptionText(suggestion, unit, meta?.loadType, timed)}
+              {prescriptionText(suggestion, unit, meta?.loadType, timed, meta?.perHand)}
             </p>
           </div>
           <p className="mt-0.5 text-xs text-gray-500">{explain(suggestion, unit, 'next')}</p>
@@ -398,8 +401,8 @@ function NextTimeRow({
               // keystrokes here instead of ~44 ± clicks.
               <Stepper
                 label="next weight"
-                value={formatLoad(weightKg, unit, meta?.loadType)}
-                valueLabel={`Next weight, ${formatLoad(weightKg, unit, meta?.loadType)}`}
+                value={formatLoad(weightKg, unit, meta?.loadType, { each: meta?.perHand })}
+                valueLabel={`Next weight, ${formatLoad(weightKg, unit, meta?.loadType, { each: meta?.perHand })}`}
                 rawValue={kgToUnit(weightKg, unit)}
                 onValueChange={(v) => setWeightKg(unitToKg(v, unit))}
                 onDecrement={() =>

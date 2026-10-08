@@ -3,6 +3,9 @@
 // as apps/web/src/features/onboarding/types.ts — so client code doesn't need
 // to import @chefer/database.
 
+import type { Ionicons } from '@expo/vector-icons';
+import { computeBmrTdee, computeCalorieTarget } from '@chefer/utils';
+
 // §2.11, T-35.2 (rev 2): RECOMP and PERFORMANCE are additive over the
 // original four — old server responses/requests that only know the original
 // four keep working (preferences.get downgrades them to MAINTAIN for a
@@ -25,10 +28,13 @@ export type ActivityLevel =
 
 export type BiologicalSex = 'MALE' | 'FEMALE';
 
+type IconName = keyof typeof Ionicons.glyphMap;
+
 export interface GoalOption {
   value: Goal;
   label: string;
-  icon: string;
+  /** Ionicons glyph (UX-ONB-10: the goal cards used emoji next to Ionicons everywhere else). */
+  icon: IconName;
   description: string;
   /** How the goal changes the daily calorie target (web step-goal.tsx). */
   calorieEffect: string;
@@ -38,42 +44,42 @@ export const GOALS: GoalOption[] = [
   {
     value: 'LOSE_WEIGHT',
     label: 'Lose Weight',
-    icon: '⚖️',
+    icon: 'scale-outline',
     description: 'Reduce body fat and reach a healthier weight',
     calorieEffect: '−500 kcal/day deficit',
   },
   {
     value: 'MAINTAIN',
     label: 'Maintain Weight',
-    icon: '🎯',
+    icon: 'locate-outline',
     description: 'Keep your current weight while eating well',
     calorieEffect: 'Maintenance calories',
   },
   {
     value: 'GAIN_MUSCLE',
     label: 'Gain Muscle',
-    icon: '💪',
+    icon: 'barbell-outline',
     description: 'Build strength and increase lean muscle mass',
     calorieEffect: '+300 kcal/day surplus',
   },
   {
     value: 'EAT_HEALTHIER',
     label: 'Eat Healthier',
-    icon: '🥗',
+    icon: 'leaf-outline',
     description: 'Improve overall nutrition and eating habits',
     calorieEffect: 'Maintenance calories, better macros',
   },
   {
     value: 'RECOMP',
     label: 'Recomposition',
-    icon: '🔄',
+    icon: 'sync-outline',
     description: 'Lose fat and build muscle at the same time',
     calorieEffect: 'Maintenance calories',
   },
   {
     value: 'PERFORMANCE',
     label: 'Performance',
-    icon: '🏃',
+    icon: 'speedometer-outline',
     description: 'Fuel training and recovery, not a scale number',
     calorieEffect: 'Maintenance calories',
   },
@@ -101,27 +107,10 @@ export const ACTIVITY_OPTIONS: ActivityOption[] = [
   { value: 'ATHLETE', label: 'Athlete', description: 'Very hard exercise or physical job' },
 ];
 
-export const ACTIVITY_MULTIPLIERS: Record<ActivityLevel, number> = {
-  SEDENTARY: 1.2,
-  LIGHTLY_ACTIVE: 1.375,
-  MODERATELY_ACTIVE: 1.55,
-  VERY_ACTIVE: 1.725,
-  ATHLETE: 1.9,
-};
-
-/** Mirrors the API's GOAL_ADJUSTMENTS (preferences.service.ts) — see step-metrics.tsx on web. */
-export const GOAL_ADJUSTMENTS: Record<Goal, number> = {
-  LOSE_WEIGHT: -500,
-  MAINTAIN: 0,
-  GAIN_MUSCLE: 300,
-  EAT_HEALTHIER: 0,
-  RECOMP: 0,
-  PERFORMANCE: 0,
-};
-
 /**
- * Mifflin-St Jeor, mirrored from web's step-metrics.tsx so the preview shows
- * the same number the API's computeCalorieTarget will use.
+ * Maintenance calories (Mifflin-St Jeor TDEE). The calculation itself lives in
+ * @chefer/utils (calorie-target.ts), shared with the API and web, so the preview
+ * always shows the number the planner will use.
  */
 export function estimateCalories(
   weightKg: number,
@@ -130,13 +119,13 @@ export function estimateCalories(
   activityLevel: ActivityLevel | null,
   biologicalSex: BiologicalSex | null,
 ): number {
-  const sexConstant = biologicalSex === 'MALE' ? 5 : biologicalSex === 'FEMALE' ? -161 : -78;
-  const bmr = 10 * weightKg + 6.25 * heightCm - 5 * age + sexConstant;
-  const multiplier = activityLevel ? ACTIVITY_MULTIPLIERS[activityLevel] : 1.55;
-  return Math.round(bmr * multiplier);
+  return computeBmrTdee(weightKg, heightCm, age, activityLevel, biologicalSex).tdee;
 }
 
-/** Same floor as the API (computeCalorieTarget): never below 1200 kcal. */
+/**
+ * Goal-adjusted target as the API computes it: no deficit under 18 and a
+ * sex-specific floor (1,500 male / 1,200 otherwise) — App Review R-02.
+ */
 export function estimateCalorieTarget(
   weightKg: number,
   heightCm: number,
@@ -145,9 +134,7 @@ export function estimateCalorieTarget(
   biologicalSex: BiologicalSex | null,
   goal: Goal | null,
 ): number {
-  const maintenance = estimateCalories(weightKg, heightCm, age, activityLevel, biologicalSex);
-  const adjustment = goal ? GOAL_ADJUSTMENTS[goal] : 0;
-  return Math.max(1200, maintenance + adjustment);
+  return computeCalorieTarget(weightKg, heightCm, age, activityLevel, biologicalSex, goal);
 }
 
 export const DIET_OPTIONS: { value: string; icon: string }[] = [

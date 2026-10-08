@@ -10,6 +10,9 @@ import ProfileScreen from '../../app/profile';
 
 const mockMembers = [{ name: 'Alice' }, { name: 'Bob' }, { name: 'Carol' }, { name: 'Dave' }];
 
+jest.mock('../../src/features/profile/sign-in-methods-card', () => ({
+  SignInMethodsCard: () => null,
+}));
 jest.mock('../../src/features/privacy/privacy-section', () => ({
   PrivacySection: () => null,
 }));
@@ -20,6 +23,7 @@ jest.mock('../../src/features/premium/use-premium-pitch', () => ({
 }));
 
 jest.mock('expo-router', () => ({
+  useLocalSearchParams: () => ({}),
   router: { back: jest.fn(), push: jest.fn() },
 }));
 
@@ -42,7 +46,9 @@ jest.mock('../../src/lib/trpc', () => ({
         }),
       },
       upgradePlan: { useMutation: () => ({ mutate: jest.fn(), isPending: false }) },
-      downgradePlan: { useMutation: () => ({ mutate: jest.fn(), isPending: false }) },
+      downgradePlan: {
+        useMutation: () => ({ mutate: jest.fn(), reset: jest.fn(), isPending: false }),
+      },
     },
     profile: {
       getAiUsage: { useQuery: () => ({ data: undefined, isLoading: false }) },

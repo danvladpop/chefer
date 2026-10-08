@@ -1,34 +1,41 @@
 import { useEffect, useRef, useState } from 'react';
 import { Controller, useForm } from 'react-hook-form';
-import { View, type TextInput } from 'react-native';
+import { Keyboard, Pressable, View, type TextInput } from 'react-native';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Link, router } from 'expo-router';
 import { CURRENT_TERMS_VERSION } from '@chefer/types';
-import { Button, Input, PasswordInput, Text, useScrollFieldIntoView } from '@chefer/ui-mobile';
-import { detectRegion } from '@chefer/utils';
+import {
+  Button,
+  EMAIL_FIELD_PROPS,
+  Input,
+  PasswordInput,
+  Text,
+  useScrollFieldIntoView,
+} from '@chefer/ui-mobile';
+import { detectRegion, userFacingErrorMessage } from '@chefer/utils';
 import { AuthField, AuthScreen } from '../../src/features/auth/auth-screen';
 import { ConsentCheckbox } from '../../src/features/auth/consent-checkbox';
 import { AUTH_COPY } from '../../src/features/auth/copy';
+import { setEmailHint } from '../../src/features/auth/email-hint';
+import { isAccountExistsError } from '../../src/features/auth/errors';
+import { NEW_PASSWORD_FIELD_PROPS } from '../../src/features/auth/password-fields';
+import {
+  clearPendingOnboarding,
+  requestOnboarding,
+} from '../../src/features/auth/pending-onboarding';
 import {
   clearRegisterDraft,
   getRegisterDraft,
   setRegisterDraft,
 } from '../../src/features/auth/register-draft';
 import { registerSchema, type RegisterFormValues } from '../../src/features/auth/schemas';
+import { SocialSignIn } from '../../src/features/auth/social/social-sign-in';
+import { useConfirmPasswordError } from '../../src/features/auth/use-confirm-password';
+import { track } from '../../src/lib/analytics';
 import { setToken } from '../../src/lib/auth-store';
 import { trpc } from '../../src/lib/trpc';
 
 // UX-25 (T-25.1) / UX-26 (T-26.5) / UX-39 (T-39.1) / B-25 / B-31.
-
-// NOT "new-password" on the password fields: iOS's Automatic Strong Password
-// overlay covers the field and swallows programmatic input (breaks E2E, and
-// made real typing flaky in the simulator too). autoComplete "off" alone
-// doesn't stop the heuristic on secure fields — textContentType "oneTimeCode"
-// is the established opt-out.
-const NO_STRONG_PASSWORD_OVERLAY = {
-  autoComplete: 'off',
-  textContentType: 'oneTimeCode',
-} as const;
 
 function withRegion(region: string | null): { region?: string } {
   return region ? { region } : {};
@@ -80,34 +87,38 @@ function RegisterForm() {
     return () => sub.unsubscribe();
   }, [watch]);
 
-  // Bug B-25: `withPasswordConfirmation`'s cross-field refine attaches its
-  // "Passwords do not match" error to `confirmPassword` — react-hook-form
-  // only re-validates a field when THAT field changes, so editing `password`
-  // after a mismatch left a stale error even once the two matched again.
-  // Re-run confirmPassword's own validation whenever password changes and
-  // confirmPassword already has something to compare against.
-  const password = watch('password');
-  useEffect(() => {
-    if (getValues('confirmPassword')) {
-      void trigger('confirmPassword');
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [password]);
+  // Bug B-25 / UX-ACC-16: "Passwords do not match" is re-checked when EITHER
+  // field changes and is never shown under two identical passwords.
+  const confirmError = useConfirmPasswordError(watch, trigger, errors);
 
   const register = trpc.auth.register.useMutation({
+    meta: { silent: true },
     onSuccess: async (data) => {
+      track('signup_completed', {});
       clearRegisterDraft();
       if (data.session) {
-        await setToken(data.session.token);
         // Dogfood feedback #9: guide new accounts through onboarding instead
         // of landing straight on the dashboard. Sign-in (login.tsx) does NOT
         // do this — only a fresh registration goes through the wizard.
-        router.replace('/onboarding');
+        // R-18b: raised BEFORE setToken (which flips the auth guard and mounts
+        // Today); the Food tab layout redirects to /onboarding while it is up.
+        // An imperative router.replace after the awaited token writes raced the
+        // navigator on a fresh install and left the account on Today.
+        requestOnboarding();
+        try {
+          await setToken(data.session.token);
+        } catch (err) {
+          clearPendingOnboarding();
+          throw err;
+        }
       }
     },
   });
 
-  const onSubmit = handleSubmit((values) =>
+  // UX-ACC-18: no second submit from the keyboard while one is in flight.
+  const onSubmit = handleSubmit((values) => {
+    if (register.isPending) return;
+    Keyboard.dismiss();
     register.mutate({
       email: values.email,
       password: values.password,
@@ -118,8 +129,20 @@ function RegisterForm() {
       // Location defaults (P2-6): the device region seeds units + currency.
       // Intl only — Hermes ships it, no native dependency.
       ...withRegion(detectRegion()),
-    }),
-  );
+    });
+  });
+  // UX-ACC-07 / UX-ACC-15: the server error (including "already exists") goes
+  // as soon as the user edits the email or password.
+  const clearServerError = () => {
+    if (register.error) register.reset();
+  };
+  const accountExists = isAccountExistsError(register.error);
+  // UX-ACC-15: hand the address over so Sign in / Reset are one tap away.
+  const goTo = (path: '/login' | '/forgot-password') => {
+    setEmailHint(getValues('email'));
+    if (path === '/login') router.dismissTo('/login');
+    else router.push(path);
+  };
 
   const openLegal = (doc: 'terms' | 'privacy') => router.push(`/legal/${doc}`);
 
@@ -144,6 +167,7 @@ function RegisterForm() {
               onSubmitEditing={() => emailRef.current?.focus()}
               onFocus={() => scrollFieldIntoView(firstNameRef.current)}
               onBlur={onBlur}
+              editable={!register.isPending}
               onChangeText={onChange}
               value={value ?? ''}
             />
@@ -159,17 +183,17 @@ function RegisterForm() {
             <Input
               ref={emailRef}
               testID="register-email"
-              autoCapitalize="none"
-              autoCorrect={false}
-              spellCheck={false}
-              autoComplete="email"
-              keyboardType="email-address"
+              {...EMAIL_FIELD_PROPS}
               returnKeyType="next"
               submitBehavior="submit"
               onSubmitEditing={() => passwordRef.current?.focus()}
               onFocus={() => scrollFieldIntoView(emailRef.current)}
               onBlur={onBlur}
-              onChangeText={onChange}
+              editable={!register.isPending}
+              onChangeText={(text) => {
+                clearServerError();
+                onChange(text);
+              }}
               value={value}
             />
           )}
@@ -186,13 +210,17 @@ function RegisterForm() {
               testID="register-password"
               revealed={revealed}
               onRevealedChange={setRevealed}
-              {...NO_STRONG_PASSWORD_OVERLAY}
+              {...NEW_PASSWORD_FIELD_PROPS}
               returnKeyType="next"
               submitBehavior="submit"
               onSubmitEditing={() => confirmRef.current?.focus()}
               onFocus={() => scrollFieldIntoView(passwordRef.current)}
               onBlur={onBlur}
-              onChangeText={onChange}
+              editable={!register.isPending}
+              onChangeText={(text) => {
+                clearServerError();
+                onChange(text);
+              }}
               value={value}
             />
           )}
@@ -201,7 +229,7 @@ function RegisterForm() {
 
       <AuthField
         label="Confirm password"
-        error={errors.confirmPassword?.message}
+        error={confirmError}
         errorTestID="register-confirm-password-error"
       >
         <Controller
@@ -213,11 +241,12 @@ function RegisterForm() {
               testID="register-confirm-password"
               revealed={revealed}
               hideToggle
-              {...NO_STRONG_PASSWORD_OVERLAY}
+              {...NEW_PASSWORD_FIELD_PROPS}
               returnKeyType="go"
               onSubmitEditing={() => void onSubmit()}
               onFocus={() => scrollFieldIntoView(confirmRef.current)}
               onBlur={onBlur}
+              editable={!register.isPending}
               onChangeText={onChange}
               value={value}
             />
@@ -276,14 +305,45 @@ function RegisterForm() {
       />
 
       {register.error && (
-        <Text variant="muted" className="text-destructive" testID="register-error">
-          {register.error.message}
-        </Text>
+        <View className="gap-1" testID="register-error-block">
+          <Text variant="muted" className="text-destructive" testID="register-error">
+            {userFacingErrorMessage(register.error)}
+          </Text>
+          {accountExists && (
+            // UX-ACC-15: the dead end becomes two ways forward.
+            <View className="flex-row flex-wrap gap-x-4">
+              <Pressable
+                testID="register-exists-sign-in"
+                accessibilityRole="link"
+                onPress={() => goTo('/login')}
+                className="min-h-11 justify-center"
+              >
+                <Text variant="muted" className="font-semibold text-primary">
+                  Sign in instead
+                </Text>
+              </Pressable>
+              <Pressable
+                testID="register-exists-reset"
+                accessibilityRole="link"
+                onPress={() => goTo('/forgot-password')}
+                className="min-h-11 justify-center"
+              >
+                <Text variant="muted" className="font-semibold text-primary">
+                  Reset your password
+                </Text>
+              </Pressable>
+            </View>
+          )}
+        </View>
       )}
 
       <Button testID="register-submit" loading={register.isPending} onPress={() => void onSubmit()}>
         Create account
       </Button>
+
+      {/* WP-22: Continue with Apple / Google — tapping one is the consent
+          (its own line says so), so it skips the two checkboxes above. */}
+      <SocialSignIn />
 
       <View className="flex-row justify-center gap-1">
         <Text variant="muted">Already have an account?</Text>

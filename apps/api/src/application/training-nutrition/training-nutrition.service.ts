@@ -21,6 +21,7 @@ import {
   buildPlanTrainingDays,
   buildTrainingDayNutrition,
   hasTrainingDayBump,
+  isActivityLogSession,
   isLifter,
   LIFTER_PROTEIN_G_PER_KG,
   lifterProteinGPerKg,
@@ -58,10 +59,11 @@ import {
 //   refuelSnacks    → the curated refuel snacks, safety-filtered (T-06.3)
 //
 // The bump's gate (T-06.1, D-2): a caller passes `access` = the viewer's
-// `trainingDayTargets` entitlement; this service ORs the server flag
-// `trainingBumpFree` onto it, so free users get the bump when the owner flips
-// the flag and every caller (dashboard, tracker) agrees. The same flag widens
-// which goals get which kinds (Q-3, `hasTrainingDayBump`). Off by default.
+// `trainingDayTargets` entitlement. Since WP-07 ("Premium is for heavy AI
+// only") that key is FREE, so every tier gets the lift bump. This service still
+// ORs the server flag `trainingBumpFree` onto it: the flag is now redundant for
+// who gets the bump and only still widens which goals get which kinds (Q-3,
+// `hasTrainingDayBump`); remove it with its env entry in a later cleanup.
 
 export interface LifterContext {
   /**
@@ -237,6 +239,20 @@ export class TrainingNutritionService {
     return this.bumpFlag();
   }
 
+  /**
+   * Completed sessions that make a day a training day. WP-20: a quick-logged
+   * activity ("45 min cycling class, 400 kcal") is record-only — it must not
+   * make the day a lift day, so it can never raise the food target; its kcal
+   * is never read here at all ("no eating back").
+   */
+  private async completedWorkouts(
+    userId: string,
+    range: { fromLocalDate: string; toLocalDate: string },
+  ) {
+    const sessions = await this.sessionRepo.findCompleted(userId, range);
+    return sessions.filter((s) => !isActivityLogSession(s));
+  }
+
   /** The active routine's days with their planned weekday (Monday = 0). */
   async trainingSchedule(userId: string): Promise<ScheduledDay[]> {
     const routine = await this.routineRepo.findActive(userId);
@@ -256,7 +272,7 @@ export class TrainingNutritionService {
   ): Promise<ResolvedTrainingDay> {
     const [scheduled, completed, pauses, kinds] = await Promise.all([
       this.trainingSchedule(userId),
-      this.sessionRepo.findCompleted(userId, { fromLocalDate: localDate, toLocalDate: localDate }),
+      this.completedWorkouts(userId, { fromLocalDate: localDate, toLocalDate: localDate }),
       this.pauseRepo.listForUser(userId),
       this.kindsService.getDayKinds(userId),
     ]);
@@ -336,7 +352,7 @@ export class TrainingNutritionService {
         this.loadLifter(userId, profile),
         this.bumpFlag(),
         this.trainingSchedule(userId),
-        this.sessionRepo.findCompleted(userId, { fromLocalDate: from, toLocalDate: to }),
+        this.completedWorkouts(userId, { fromLocalDate: from, toLocalDate: to }),
         this.pauseRepo.listForUser(userId),
         this.kindsService.getDayKinds(userId),
       ]);

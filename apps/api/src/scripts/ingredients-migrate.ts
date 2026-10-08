@@ -1,5 +1,9 @@
 /**
- * `pnpm --filter @chefer/api ingredients:migrate [--dry-run] [--report-dir DIR] [--limit N]`
+ * `pnpm --filter @chefer/api ingredients:migrate [--dry-run] [--report-dir DIR] [--limit N] [--force | --incomplete]`
+ *
+ * --force re-plans every non-curated recipe; --incomplete re-plans only those
+ * not COMPUTED (PARTIAL / USER_ENTERED), e.g. after a catalog change adds
+ * portions (2026-10-02: the owner's 400 g can).
  *
  * plan-ingredient-catalog §7 (D3): migrates EVERY recipe to the catalog format.
  *   1. links global price rows to their catalog rows (IngredientPrice.ingredientId);
@@ -42,7 +46,11 @@ import {
   ingredientResolver,
   toNutritionIngredient,
 } from '../application/ingredients/ingredient-resolver.js';
-import { mappingFor, unitSubstitutes } from '../application/ingredients/legacy-line-policy.js';
+import {
+  cannedSibling,
+  mappingFor,
+  unitSubstitutes,
+} from '../application/ingredients/legacy-line-policy.js';
 import { ensurePrivateTwins } from '../application/ingredients/private-twins.js';
 import { recipeNutritionService } from '../application/ingredients/recipe-nutrition.service.js';
 import { normalizeIngredientName } from '../lib/ingredient-prices/index.js';
@@ -55,6 +63,8 @@ const REPORT_DIR =
 const LIMIT = args.includes('--limit') ? Number(args[args.indexOf('--limit') + 1]) : Infinity;
 /** Re-migrate recipes that already have catalog lines (default: skip them). */
 const FORCE = args.includes('--force');
+/** Re-plan only recipes that are not COMPUTED yet (they already have lines). */
+const INCOMPLETE = args.includes('--incomplete');
 
 interface JsonLine {
   name?: unknown;
@@ -126,8 +136,14 @@ async function planRecipe(
 
   return pre.map((p): PlannedLine => {
     const { unit: canonical, note: unitNote } = normalizeRecipeUnit(p.unit);
-    const row = p.slug ? (globalsBySlug.get(p.slug) ?? null) : (resolvedRow.get(p) ?? null);
-    const notes = [p.note, unitNote].filter(Boolean);
+    const matched = p.slug ? (globalsBySlug.get(p.slug) ?? null) : (resolvedRow.get(p) ?? null);
+    const sibling = matched ? cannedSibling(matched, canonical, globalsBySlug) : null;
+    const row = sibling ?? matched;
+    const siblingPolicy =
+      sibling && matched ? `can → ${sibling.slug} (not ${matched.slug})` : undefined;
+    const notes = [p.note, unitNote, siblingPolicy && `legacy unit: ${siblingPolicy}`].filter(
+      Boolean,
+    );
     const base: RecipeLineWrite = {
       ingredientId: row?.id ?? null,
       rawName: p.name || '(unnamed)',
@@ -148,7 +164,12 @@ async function planRecipe(
       };
     const engineRow = toNutritionIngredient(row);
     if (!lineGrams({ quantity: base.quantity, unit: base.unit }, engineRow).problem)
-      return { write: base, row, ...(p.mapped ? { mapped: p.mapped } : {}) };
+      return {
+        write: base,
+        row,
+        ...(siblingPolicy ? { policy: siblingPolicy } : {}),
+        ...(p.mapped ? { mapped: p.mapped } : {}),
+      };
     for (const sub of unitSubstitutes(p.unit, canonical, row)) {
       const candidate = { quantity: base.quantity * sub.factor, unit: sub.unit };
       if (!lineGrams(candidate, engineRow).problem) {
@@ -222,7 +243,14 @@ async function main(): Promise<void> {
   // (ensureCuratedRecipes); recipes that already have lines were written by the
   // new save paths. Both are skipped (the latter unless --force).
   const recipes = await prisma.recipe.findMany({
-    where: { source: { not: 'CURATED' }, ...(FORCE ? {} : { lines: { none: {} } }) },
+    where: {
+      source: { not: 'CURATED' },
+      ...(FORCE
+        ? {}
+        : INCOMPLETE
+          ? { nutritionStatus: { in: ['PARTIAL', 'USER_ENTERED'] } }
+          : { lines: { none: {} } }),
+    },
     select: {
       id: true,
       name: true,

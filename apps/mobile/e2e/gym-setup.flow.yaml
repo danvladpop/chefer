@@ -46,6 +46,7 @@ appId: dev.chefer.app.dev
           centerElement: true
       - tapOn:
           id: 'logout-button'
+      - runFlow: common/confirm-sign-out.yaml
 
 # UX-25 (T-25.1): a device that has never signed in lands on Welcome first —
 # same handling as auth.flow.yaml. Navigate via "I already have an account"
@@ -191,6 +192,7 @@ appId: dev.chefer.app.dev
     centerElement: true
 - tapOn:
     id: 'logout-button'
+- runFlow: common/confirm-sign-out.yaml
 - extendedWaitUntil:
     visible:
       id: 'login-title'

@@ -40,6 +40,7 @@ jest.mock('expo-router', () => {
     Tabs,
     Redirect: () => null,
     usePathname: () => '/more',
+    useLocalSearchParams: () => ({}),
     useFocusEffect: (effect: () => void) => {
       // Run once on mount, like a first focus.
       const { useEffect } = jest.requireActual<typeof import('react')>('react');

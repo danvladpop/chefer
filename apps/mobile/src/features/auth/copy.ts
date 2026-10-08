@@ -25,7 +25,13 @@ export type AuthCopyKey =
   | 'registerTermsLabel'
   | 'registerAgeLabel'
   | 'registerTermsError'
-  | 'registerAgeError';
+  | 'registerAgeError'
+  | 'socialDivider'
+  | 'socialGoogle'
+  | 'socialConsentLead'
+  | 'socialConsentTail'
+  | 'socialSdkError'
+  | 'socialNoSession';
 
 export const AUTH_COPY: Record<AuthCopyKey, string> = {
   welcomeTitle: 'Train and eat to one plan',
@@ -47,4 +53,12 @@ export const AUTH_COPY: Record<AuthCopyKey, string> = {
   registerAgeLabel: 'I’m 16 or older',
   registerTermsError: 'You must agree to the Terms and the Privacy Policy',
   registerAgeError: 'You must confirm you are 16 or older',
+  // WP-22: Continue with Apple / Google. The consent line is the same wording
+  // the API records as TERMS + PRIVACY + AGE consent (acceptLegal).
+  socialDivider: 'or',
+  socialGoogle: 'Continue with Google',
+  socialConsentLead: 'By continuing you agree to the',
+  socialConsentTail: 'and confirm you are 16 or older.',
+  socialSdkError: 'We couldn’t finish signing in. Please try again.',
+  socialNoSession: 'We couldn’t start your session. Please try again.',
 };

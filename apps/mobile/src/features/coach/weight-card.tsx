@@ -8,10 +8,11 @@ import { useUnitSystem } from '../../hooks/use-unit-system';
 import { trpc } from '../../lib/trpc';
 import { WeightEntriesList } from './weight-entries-list';
 import { WeightLogForm } from './weight-log-form';
+import { WeightSparkline } from './weight-sparkline';
 
-// Port of web features/coach/WeightCard (wave-2b). Deviation: the recharts
-// sparkline becomes a View-based bar sparkline — no chart library needed for
-// an axis-free 30-day trend. The full 90-day chart lives on /progress.
+// Port of web features/coach/WeightCard (wave-2b). The recharts sparkline is a
+// react-native-svg line with its start and end values (UX-FOOD-27). The full
+// 90-day chart lives on /progress.
 
 export function WeightCard() {
   const [showEntries, setShowEntries] = useState(false);
@@ -28,10 +29,6 @@ export function WeightCard() {
   const first = entries.at(0);
   const delta =
     latest != null && first != null && entries.length > 1 ? latest.weightKg - first.weightKg : null;
-
-  const min = Math.min(...entries.map((e) => e.weightKg));
-  const max = Math.max(...entries.map((e) => e.weightKg));
-  const range = Math.max(max - min, 0.1);
 
   return (
     <Card testID="weight-card">
@@ -57,21 +54,12 @@ export function WeightCard() {
         )}
       </View>
 
-      {/* 30-day sparkline — axis-free bars (web uses recharts) */}
-      {entries.length > 1 && (
-        <View className="mb-3 h-14 flex-row items-end gap-0.5">
-          {entries.map((e, i) => (
-            <View
-              key={i}
-              className="flex-1 rounded-t-sm bg-emerald-200"
-              style={{ height: `${20 + ((e.weightKg - min) / range) * 80}%` }}
-            />
-          ))}
-        </View>
-      )}
+      {/* UX-FOOD-27: 30-day line with its start and end values. */}
+      {entries.length > 1 && <WeightSparkline entries={entries} system={system} />}
 
       {/* Shared parser (audit F-DASH-3-1) lives in the form. */}
       <WeightLogForm
+        lastEntry={latest ?? null}
         {...(latest && { placeholder: `Today: ${formatBodyWeight(latest.weightKg, system)}?` })}
       />
       <View className="mt-1 flex-row items-center justify-between">

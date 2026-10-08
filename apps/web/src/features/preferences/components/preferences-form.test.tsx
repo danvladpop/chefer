@@ -45,6 +45,9 @@ vi.mock('@/lib/trpc', () => {
         },
         updateTargets: { useMutation: () => ({ mutateAsync: m.targets, isPending: false }) },
         computeTargets: { useQuery: (input: unknown) => m.computeTargets(input) },
+        // WP-08: the merged numbers settings.
+        setNumbersMode: { useMutation: () => ({ mutate: vi.fn(), isPending: false }) },
+        setHomeDisplay: { useMutation: () => ({ mutate: vi.fn(), isPending: false }) },
       },
       // TargetsCard (§2.11, T-35.3) — not under test here.
       targets: {
@@ -163,5 +166,68 @@ describe('PreferencesForm — macro preview', () => {
     render(<PreferencesForm chefProfile={body} dietaryPreferences={null} isPremium />);
     expect(screen.getByText('176g')).toBeTruthy();
     expect(screen.queryByTestId('preferences-lifter-note')).toBeNull();
+  });
+});
+
+// UX-ACC-01: a term typed in "Something else?" but never added with "Add" must
+// be in what "Save preferences" stores.
+describe('PreferencesForm — typed-but-unadded safety term (UX-ACC-01)', () => {
+  it('stores "sesame" together with the ticked allergies', async () => {
+    render(<PreferencesForm chefProfile={profile} dietaryPreferences={null} isPremium={false} />);
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Peanuts' }));
+    fireEvent.change(screen.getByLabelText('Something else?'), { target: { value: 'sesame' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Save preferences' }));
+
+    await waitFor(() => expect(m.safety).toHaveBeenCalled());
+    const [payload] = m.safety.mock.calls[0] as [{ allergies: string[] }];
+    expect(payload.allergies).toEqual(expect.arrayContaining(['Peanuts', 'Sesame']));
+  });
+
+  it('does not save while a typed term still needs a Keep/Remove choice', async () => {
+    render(<PreferencesForm chefProfile={profile} dietaryPreferences={null} isPremium={false} />);
+    fireEvent.change(screen.getByLabelText('Something else?'), { target: { value: 'zzqqxx' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Save preferences' }));
+
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    expect(m.safety).not.toHaveBeenCalled();
+    expect(screen.getByTestId('safety-save-blocked')).toBeTruthy();
+  });
+});
+
+// WP-08: what to keep an eye on is free on every tier, so a free user still
+// reaches it (their locked targets panel carries none of it).
+describe('PreferencesForm — numbers settings (WP-08)', () => {
+  const numbersSettings = { numbersMode: 'PROTEIN_ONLY', showNutritionOnToday: true };
+
+  it('a FREE user gets the numbers choice and the Today switch', () => {
+    render(
+      <PreferencesForm
+        chefProfile={profile}
+        dietaryPreferences={null}
+        isPremium={false}
+        numbersSettings={numbersSettings}
+      />,
+    );
+    const card = screen.getByTestId('numbers-settings-free');
+    expect(card.contains(screen.getByTestId('prefs-numbers-mode-protein'))).toBe(true);
+    expect(screen.getByTestId('prefs-numbers-mode-protein').getAttribute('aria-checked')).toBe(
+      'true',
+    );
+    expect(card.contains(screen.getByTestId('prefs-home-display-switch'))).toBe(true);
+  });
+
+  it('a PREMIUM user gets them inside "Your targets", once', () => {
+    render(
+      <PreferencesForm
+        chefProfile={profile}
+        dietaryPreferences={null}
+        isPremium
+        numbersSettings={numbersSettings}
+      />,
+    );
+    expect(screen.queryByTestId('numbers-settings-free')).toBeNull();
+    expect(screen.getAllByTestId('prefs-numbers-mode-protein')).toHaveLength(1);
+    const card = screen.getByRole('heading', { name: 'Your targets' }).closest('section');
+    expect(card?.contains(screen.getByTestId('prefs-home-display-switch'))).toBe(true);
   });
 });

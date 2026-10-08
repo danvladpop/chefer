@@ -1,7 +1,7 @@
 import { redirect } from 'next/navigation';
 
-// The pantry is the Shop tab's "In my kitchen" segment now (P2-8, PM review
-// §5). Old links and bookmarks land there.
+// FB7-10: "In my kitchen" is retired — the pantry no longer exists in the app.
+// The route stays only so old links and bookmarks land on the Shop page.
 export default function PantryPage() {
-  redirect('/shopping-list?view=kitchen');
+  redirect('/shopping-list');
 }

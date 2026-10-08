@@ -2,14 +2,22 @@
 
 import { FREE_EQUIVALENT_LABELS } from '@/features/premium/premium-features';
 import { Check, Minus } from 'lucide-react';
-import { PLAN_FEATURES, type FeatureAccess, type PlanFeatureKey } from '@chefer/types';
+import {
+  PLAN_FEATURES,
+  RETIRED_PLAN_FEATURE_KEYS,
+  type FeatureAccess,
+  type PlanFeatureKey,
+} from '@chefer/types';
 
 // ─── Free vs Premium comparison (premium_plan.md §6.2, principle 3) ──────────
 // Rendered ENTIRELY from the PLAN_FEATURES matrix — the PW-1 principle
 // extended to marketing: pricing copy and enforcement cannot drift because
 // they are the same object. Perk rows first, then the limit plumbing.
 
-const KEYS = Object.keys(PLAN_FEATURES) as PlanFeatureKey[];
+// Retired features (the pantry, WP-24 / FB7-10) never get a row.
+const KEYS = (Object.keys(PLAN_FEATURES) as PlanFeatureKey[]).filter(
+  (k) => !RETIRED_PLAN_FEATURE_KEYS.includes(k),
+);
 const ORDERED_KEYS = [
   ...KEYS.filter((k) => PLAN_FEATURES[k].upsell),
   ...KEYS.filter((k) => !PLAN_FEATURES[k].upsell),

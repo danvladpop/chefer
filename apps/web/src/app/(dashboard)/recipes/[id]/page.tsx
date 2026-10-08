@@ -5,14 +5,18 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { use, useEffect, useState } from 'react';
 import { useAiConsent } from '@/features/ai-consent/AiConsentProvider';
 import { UpgradeButton } from '@/features/premium/components/UpgradeButton';
+import { AiGeneratedChip } from '@/features/privacy/components/AiGeneratedChip';
 import { StarRatingWidget } from '@/features/recipe/components/StarRatingWidget';
+import { AddToWeekSheet, type AddToWeekResult } from '@/features/recipes/components/AddToWeekSheet';
 import { AllergenWarningBanner } from '@/features/recipes/components/AllergenWarning';
 import { RecipeDetailImage } from '@/features/recipes/components/RecipeDetailImage';
 import { RecipeImage } from '@/features/recipes/components/RecipeImage';
 import { RecipeNutritionPanel } from '@/features/recipes/components/RecipeNutritionPanel';
+import { writeRecipeDeleteUndo } from '@/features/recipes/lib/recipe-delete-undo';
 import { CheckedForLine } from '@/features/safety/components/CheckedForLine';
 import { ReportSafetySheet } from '@/features/safety/components/ReportSafetySheet';
 import { WhatWeCheckSheet } from '@/features/safety/components/WhatWeCheckSheet';
+import { useCookingFor } from '@/hooks/useCookingFor';
 import { useHasMounted } from '@/hooks/useHasMounted';
 import { useHousehold } from '@/hooks/useHousehold';
 import { useIsPremium } from '@/hooks/useIsPremium';
@@ -21,28 +25,44 @@ import { capture } from '@/lib/analytics';
 import { trpc } from '@/lib/trpc';
 import {
   ArrowLeft,
+  CalendarPlus,
   ChefHat,
   Clock,
+  Copy,
   Flag,
   Flame,
   Heart,
   Library,
+  ListPlus,
   Pencil,
   Pin,
   RefreshCw,
   Search,
+  Share2,
+  Trash2,
   Users,
 } from 'lucide-react';
-import { Sheet, Toast } from '@chefer/ui';
+import { FRIENDS_COPY } from '@chefer/types';
+import { ErrorState, Sheet, Toast } from '@chefer/ui';
 import {
   aiConsentRequiredFor,
+  chunkShoppingLines,
+  clampCookServings,
   defaultCookServings,
+  formatFractionalQuantity,
   formatPortion,
-  formatQuantity,
+  formatScaledQuantity,
+  isNotFoundError,
   labelCaveatLineText,
+  recipeShareText,
   reportSentSnackbarText,
   scaleNutrition,
+  shoppingLinesFor,
   slotPortion,
+  sourceDomainOf,
+  tableBreakdown,
+  userFacingErrorMessage,
+  weekdayShortName,
 } from '@chefer/utils';
 
 // Swap-undo handoff (review F-2): the swap navigates to the NEW recipe's page,
@@ -102,11 +122,15 @@ function parseSlotIndex(raw: string | null): number | undefined {
   return parseInt(raw, 10);
 }
 
-/** Cook-mode query: the meal type and, for a portioned plan slot, its portion. */
-function cookQuery(meal: string | null, portion: number): string {
+/**
+ * Cook-mode query: the meal type, for a portioned plan slot its portion, and
+ * (UX-COOK-05) the servings the stepper was set to — only when it was touched.
+ */
+function cookQuery(meal: string | null, portion: number, servings: number | null): string {
   const params = new URLSearchParams();
   if (meal) params.set('meal', meal);
   if (portion !== 1) params.set('portion', String(portion));
+  if (servings !== null) params.set('servings', String(servings));
   const query = params.toString();
   return query ? `?${query}` : '';
 }
@@ -145,7 +169,8 @@ export default function RecipeDetailPage({ params }: RecipePageProps) {
   const mealLabel = meal ? meal.charAt(0).toUpperCase() + meal.slice(1) : '';
   const contextLabel = dayLabel && mealLabel ? `${mealLabel} · ${dayLabel}` : '';
 
-  const { data: recipe, isLoading, isError } = trpc.mealPlan.getRecipe.useQuery({ recipeId: id });
+  const recipeQuery = trpc.mealPlan.getRecipe.useQuery({ recipeId: id });
+  const { data: recipe, isLoading, isError } = recipeQuery;
   const { data: savedData } = trpc.recipe.isSaved.useQuery({ recipeId: id });
   const { data: myRating } = trpc.recipe.getMyRating.useQuery({ recipeId: id });
   // T-02.3: a separate, additive query (mealPlan.getRecipe is another
@@ -156,8 +181,34 @@ export default function RecipeDetailPage({ params }: RecipePageProps) {
   const [whatWeCheckOpen, setWhatWeCheckOpen] = useState(false);
   const [reportOpen, setReportOpen] = useState(false);
   const [reportedToast, setReportedToast] = useState(false);
+  // UX-REC-04: owner Delete (soft) + Share.
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [shareToast, setShareToast] = useState<string | null>(null);
+  // UX-REC-08: Add to my week (with Undo) and Add ingredients to the shopping list.
+  const [addToWeekOpen, setAddToWeekOpen] = useState(false);
+  const [weekToast, setWeekToast] = useState<{
+    message: string;
+    type: 'success' | 'error';
+    undo?: () => void;
+  } | null>(null);
+  const [addingToList, setAddingToList] = useState(false);
 
   const utils = trpc.useUtils();
+
+  const deleteMine = trpc.recipe.deleteMine.useMutation({
+    meta: { silent: true },
+    onSuccess: () => {
+      // The Undo toast lives on the cookbook, which this page navigates to.
+      writeRecipeDeleteUndo({ recipeId: id, name: recipe?.name ?? 'Recipe' });
+      void utils.recipe.list.invalidate();
+      void utils.mealPlan.getForWeek.invalidate();
+      setDeleteOpen(false);
+      router.push('/recipes');
+    },
+  });
+
+  const undoAddToWeek = trpc.recipe.undoAddToWeek.useMutation({ meta: { silent: true } });
+  const addShopping = trpc.shoppingList.addCustomItems.useMutation({ meta: { silent: true } });
 
   const toggleFav = trpc.recipe.toggleFavourite.useMutation({
     onSuccess: () => {
@@ -177,6 +228,7 @@ export default function RecipeDetailPage({ params }: RecipePageProps) {
   });
 
   const swapMutation = trpc.mealPlan.swapRecipe.useMutation({
+    meta: { silent: true },
     onSuccess: (newRecipe) => {
       capture('meal_swapped', { tier: isPremium ? 'premium' : 'free' });
       void utils.mealPlan.getForWeek.invalidate();
@@ -222,6 +274,7 @@ export default function RecipeDetailPage({ params }: RecipePageProps) {
   });
 
   const replaceMutation = trpc.mealPlan.replaceRecipe.useMutation({
+    meta: { silent: true },
     onSuccess: (newRecipe) => {
       void utils.mealPlan.getForWeek.invalidate();
       void utils.mealPlan.getActive.invalidate();
@@ -232,14 +285,42 @@ export default function RecipeDetailPage({ params }: RecipePageProps) {
 
   // Servings adjuster. F2: with household members it defaults to the whole
   // table's portion sum — the count generation scaled the plan's recipes to.
-  const { portionSum, peopleCount, tablePortions } = useHousehold();
+  const { portionSum, peopleCount, tablePortions, scaledMembers } = useHousehold();
+  const cookingFor = useCookingFor();
   const [servings, setServings] = useState<number | null>(null);
   const baseServings = recipe?.servings ?? 1;
   // P1-1: opened from a portioned plan slot, quantities start at that
   // portion (it composes with the household portion sum, never replaces it).
-  const defaultServings = defaultCookServings(baseServings, portionSum, planPortion);
+  const defaultServings = defaultCookServings(baseServings, scaledMembers, planPortion, cookingFor);
   const selectedServings = servings ?? defaultServings;
+  const tableLine = scaledMembers ? tableBreakdown(planPortion, scaledMembers) : null;
   const scale = selectedServings / baseServings;
+
+  /** The native share sheet where there is one, else the clipboard. */
+  const shareRecipe = async () => {
+    if (!recipe) return;
+    const text = recipeShareText(
+      {
+        name: recipe.name,
+        description: recipe.description,
+        servings: recipe.servings,
+        sourceUrl: recipe.sourceUrl,
+        ingredients: recipe.ingredients,
+        instructions: recipe.instructions,
+      },
+      unitSystem,
+    );
+    try {
+      if (typeof navigator.share === 'function') {
+        await navigator.share({ title: recipe.name, text });
+        return;
+      }
+      await navigator.clipboard.writeText(text);
+      setShareToast('Recipe copied to the clipboard.');
+    } catch {
+      // A dismissed share sheet rejects — nothing to report.
+    }
+  };
 
   // Saved-recipe picker state
   const [showPicker, setShowPicker] = useState(false);
@@ -267,9 +348,35 @@ export default function RecipeDetailPage({ params }: RecipePageProps) {
     );
   }
 
+  // UX-REC-03: a failed LOAD is not "Recipe not found" — only a real
+  // NOT_FOUND says that. Everything else offers Try again.
+  if (isError && !recipe && !isNotFoundError(recipeQuery.error)) {
+    return (
+      <div
+        data-testid="recipe-load-error"
+        className="mx-auto max-w-3xl px-4 py-6 sm:px-6 sm:py-8 text-center"
+      >
+        <ErrorState
+          title="Couldn't load this recipe"
+          onRetry={() => void recipeQuery.refetch()}
+          retrying={recipeQuery.isRefetching}
+        />
+        <Link
+          href={backHref}
+          className="mt-4 inline-flex min-h-11 items-center text-sm text-[#944a00] hover:underline"
+        >
+          {backLabel}
+        </Link>
+      </div>
+    );
+  }
+
   if (isError || !recipe) {
     return (
-      <div className="mx-auto max-w-3xl px-4 py-6 sm:px-6 sm:py-8 text-center">
+      <div
+        data-testid="recipe-not-found"
+        className="mx-auto max-w-3xl px-4 py-6 sm:px-6 sm:py-8 text-center"
+      >
         <p className="text-gray-500">Recipe not found.</p>
         <Link
           href={backHref}
@@ -283,6 +390,68 @@ export default function RecipeDetailPage({ params }: RecipePageProps) {
 
   const totalTime = recipe.prepTimeMins + recipe.cookTimeMins;
   const { nutritionInfo: n } = recipe;
+
+  /** "Added to Tue lunch" with Undo, which restores a replaced slot too. */
+  const onAddedToWeek = (result: AddToWeekResult) => {
+    setWeekToast({
+      message: FRIENDS_COPY.addToWeek.done(weekdayShortName(result.dayOfWeek), result.mealType),
+      type: 'success',
+      undo: () => {
+        setWeekToast(null);
+        undoAddToWeek.mutate(
+          {
+            planId: result.planId,
+            dayOfWeek: result.dayOfWeek,
+            mealType: result.mealType,
+            slotIndex: result.slotIndex,
+            addedRecipeId: result.addedRecipeId,
+            ...(result.previousRecipeId ? { previousRecipeId: result.previousRecipeId } : {}),
+            ...(result.previousPinned !== undefined
+              ? { previousPinned: result.previousPinned }
+              : {}),
+          },
+          {
+            onSuccess: () => {
+              void utils.mealPlan.getForWeek.invalidate();
+              void utils.dashboard.summary.invalidate();
+            },
+            onError: () => setWeekToast({ message: FRIENDS_COPY.relation.error, type: 'error' }),
+          },
+        );
+      },
+    });
+  };
+
+  /** Adds the ingredients (scaled to the stepper) to this week's shopping list. */
+  const addToShoppingList = async () => {
+    setAddingToList(true);
+    try {
+      const plan = await utils.mealPlan.getForWeek.fetch({ weekOffset: 0 });
+      if (!plan) {
+        setWeekToast({
+          message: 'Make a plan first, then add ingredients to its list.',
+          type: 'error',
+        });
+        return;
+      }
+      const lines = shoppingLinesFor(recipe.ingredients, selectedServings, recipe.servings);
+      for (const items of chunkShoppingLines(lines)) {
+        await addShopping.mutateAsync({ planId: plan.planId, items });
+      }
+      void utils.shoppingList.getForWeek.invalidate();
+      setWeekToast({
+        message: `Added ${lines.length} ingredient${lines.length === 1 ? '' : 's'} to your shopping list`,
+        type: 'success',
+      });
+    } catch (error) {
+      setWeekToast({
+        message: userFacingErrorMessage(error, 'Couldn’t add them to the list. Try again.'),
+        type: 'error',
+      });
+    } finally {
+      setAddingToList(false);
+    }
+  };
 
   return (
     <div className="mx-auto max-w-3xl px-4 py-6 sm:px-6 sm:py-8">
@@ -346,8 +515,34 @@ export default function RecipeDetailPage({ params }: RecipePageProps) {
             ))}
           </div>
           <h1 className="font-serif text-2xl font-bold text-gray-900">{recipe.name}</h1>
+          {/* R-14 (Art. 50): AI-generated recipes carry the same label as plan cards. */}
+          <AiGeneratedChip recipe={recipe} className="mt-1" />
           <p className="mt-1 text-sm text-gray-500">{recipe.description}</p>
-          <AllergenWarningBanner warnings={recipe.allergenWarnings} className="mt-3" />
+          {/* UX-REC-07: an imported recipe (a video included) links back to where it came from. */}
+          {recipe.sourceUrl && sourceDomainOf(recipe.sourceUrl) ? (
+            <a
+              href={recipe.sourceUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              data-testid="recipe-source"
+              className="mt-1 inline-flex min-h-11 items-center text-sm text-[#944a00] underline"
+            >
+              Source: {sourceDomainOf(recipe.sourceUrl)}
+            </a>
+          ) : null}
+          {recipe.deleted ? (
+            <p
+              data-testid="recipe-deleted-banner"
+              className="mt-2 rounded-xl bg-gray-100 px-3 py-2 text-sm text-gray-800"
+            >
+              This recipe was deleted. It stays in the plan slots that already use it.
+            </p>
+          ) : null}
+          <AllergenWarningBanner
+            warnings={recipe.allergenWarnings}
+            details={safetyData?.safetyChecks?.conflictDetails}
+            className="mt-3"
+          />
           {/* T-02.3 AC3: never both — only shows when the conflict banner
               above isn't already showing one. */}
           {(recipe.allergenWarnings?.length ?? 0) === 0 && safetyData?.safetyChecks ? (
@@ -395,6 +590,66 @@ export default function RecipeDetailPage({ params }: RecipePageProps) {
             </Link>
           ) : null}
 
+          {/* UX-REC-08: any recipe can go on your week or its ingredients on the list. */}
+          {!recipe.deleted ? (
+            <button
+              type="button"
+              data-testid="recipe-add-to-week"
+              onClick={() => setAddToWeekOpen(true)}
+              className="flex min-h-11 items-center gap-1.5 rounded-xl border border-gray-200 bg-white px-3 py-2 text-xs font-medium text-gray-600 shadow-sm hover:border-[#944a00]/30 hover:text-[#944a00]"
+            >
+              <CalendarPlus className="h-3.5 w-3.5" />
+              Add to my week
+            </button>
+          ) : null}
+          <button
+            type="button"
+            data-testid="recipe-add-to-list"
+            disabled={addingToList}
+            onClick={() => void addToShoppingList()}
+            className="flex min-h-11 items-center gap-1.5 rounded-xl border border-gray-200 bg-white px-3 py-2 text-xs font-medium text-gray-600 shadow-sm hover:border-[#944a00]/30 hover:text-[#944a00] disabled:opacity-60"
+          >
+            <ListPlus className="h-3.5 w-3.5" />
+            {addingToList ? 'Adding…' : 'Add ingredients to list'}
+          </button>
+
+          {/* UX-REC-04: Duplicate opens the create form prefilled as "Copy of …". */}
+          {savedData?.canEdit ? (
+            <Link
+              href={`/recipes/new?duplicateOf=${encodeURIComponent(id)}`}
+              data-testid="recipe-duplicate"
+              className="flex min-h-11 items-center gap-1.5 rounded-xl border border-gray-200 bg-white px-3 py-2 text-xs font-medium text-gray-600 shadow-sm hover:border-[#944a00]/30 hover:text-[#944a00]"
+            >
+              <Copy className="h-3.5 w-3.5" />
+              Duplicate
+            </Link>
+          ) : null}
+
+          {/* UX-REC-04: Share for every recipe, Delete (with Undo) on your own. */}
+          <button
+            type="button"
+            data-testid="recipe-share"
+            onClick={() => void shareRecipe()}
+            className="flex min-h-11 items-center gap-1.5 rounded-xl border border-gray-200 bg-white px-3 py-2 text-xs font-medium text-gray-600 shadow-sm hover:border-[#944a00]/30 hover:text-[#944a00]"
+          >
+            <Share2 className="h-3.5 w-3.5" />
+            Share
+          </button>
+          {savedData?.canEdit ? (
+            <button
+              type="button"
+              data-testid="recipe-delete"
+              onClick={() => {
+                deleteMine.reset();
+                setDeleteOpen(true);
+              }}
+              className="flex min-h-11 items-center gap-1.5 rounded-xl border border-gray-200 bg-white px-3 py-2 text-xs font-medium text-gray-600 shadow-sm hover:border-red-300 hover:text-red-700"
+            >
+              <Trash2 className="h-3.5 w-3.5" />
+              Delete
+            </button>
+          ) : null}
+
           {/* UX-01 (d), T-01.5: report a safety problem — hides this recipe
               from the reporter's plans, swaps and suggestions at once. */}
           <button
@@ -408,7 +663,7 @@ export default function RecipeDetailPage({ params }: RecipePageProps) {
 
           {/* Cook mode (P1-3) — the primary action on a recipe you're about to make */}
           <Link
-            href={`/recipes/${id}/cook${cookQuery(meal, planPortion)}`}
+            href={`/recipes/${id}/cook${cookQuery(meal, planPortion, servings === null ? null : selectedServings)}`}
             className="flex min-h-11 items-center gap-1.5 rounded-xl bg-[#944a00] px-3 py-2 text-xs font-semibold text-white shadow-sm hover:bg-[#7a3d00]"
           >
             <ChefHat className="h-3.5 w-3.5" />
@@ -473,7 +728,7 @@ export default function RecipeDetailPage({ params }: RecipePageProps) {
               </button>
               {swapMutation.isError && (
                 <p className="w-full text-center text-xs text-red-500">
-                  {swapMutation.error?.message ?? 'Swap failed. Please try again.'}
+                  {userFacingErrorMessage(swapMutation.error, 'Swap failed. Please try again.')}
                 </p>
               )}
 
@@ -500,7 +755,7 @@ export default function RecipeDetailPage({ params }: RecipePageProps) {
         <Stat
           icon={<Users className="h-4 w-4 text-gray-500" />}
           label="Servings"
-          value={String(selectedServings)}
+          value={formatFractionalQuantity(selectedServings)}
         />
         <Stat
           icon={<Flame className="h-4 w-4 text-[#944a00]" />}
@@ -525,8 +780,11 @@ export default function RecipeDetailPage({ params }: RecipePageProps) {
           <Users className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
           <span className="min-w-0">
             Quantities are set for your household of {peopleCount}
-            {selectedServings !== portionSum ? ` — adjusted to ${selectedServings} servings` : ''}.
-            Nutrition facts stay per serving.
+            {tableLine ? ` (${tableLine})` : ''}
+            {selectedServings !== defaultServings
+              ? ` — adjusted to ${formatFractionalQuantity(selectedServings)} servings`
+              : ''}
+            . Nutrition facts stay per serving.
           </span>
         </p>
       )}
@@ -559,30 +817,40 @@ export default function RecipeDetailPage({ params }: RecipePageProps) {
             {/* Servings adjuster — was 20x20px per button */}
             <div className="flex items-center gap-1 rounded-xl border px-1">
               <button
-                onClick={() => setServings(Math.max(1, selectedServings - 1))}
+                onClick={() => setServings(clampCookServings(selectedServings - 1))}
                 aria-label="Decrease servings"
-                className="touch-target relative flex h-9 w-9 items-center justify-center rounded-full text-lg text-gray-600 hover:bg-gray-100"
+                className="flex h-11 w-11 items-center justify-center rounded-full text-lg text-gray-600 hover:bg-gray-100"
               >
                 −
               </button>
               <span aria-live="polite" className="w-8 text-center text-sm font-medium tabular-nums">
-                {selectedServings}
+                {formatFractionalQuantity(selectedServings)}
               </span>
               <button
-                onClick={() => setServings(Math.min(8, selectedServings + 1))}
+                onClick={() => setServings(clampCookServings(selectedServings + 1))}
                 aria-label="Increase servings"
-                className="touch-target relative flex h-9 w-9 items-center justify-center rounded-full text-lg text-gray-600 hover:bg-gray-100"
+                className="flex h-11 w-11 items-center justify-center rounded-full text-lg text-gray-600 hover:bg-gray-100"
               >
                 +
               </button>
             </div>
           </div>
+          {/* UX-REC-11: say what the stepper changed, with the totals. */}
+          {selectedServings !== baseServings ? (
+            <p data-testid="recipe-servings-note" className="mb-3 text-xs text-gray-500">
+              Cooking for {formatFractionalQuantity(selectedServings)} (recipe makes {baseServings})
+              — amounts are scaled
+              {n.calories > 0
+                ? `; about ${Math.round(scaleNutrition(n, selectedServings).calories)} kcal and ${Math.round(scaleNutrition(n, selectedServings).protein)} g protein in total.`
+                : '.'}
+            </p>
+          ) : null}
           <ul className="space-y-2">
             {recipe.ingredients.map((ing, i) => {
               return (
                 <li key={i} className="flex items-baseline gap-2 text-sm">
                   <span className="shrink-0 font-medium text-gray-900">
-                    {formatQuantity(ing.quantity * scale, ing.unit, unitSystem)}
+                    {formatScaledQuantity(ing.quantity, ing.unit, scale, unitSystem)}
                   </span>
                   <span className="text-gray-600">{ing.name}</span>
                 </li>
@@ -625,7 +893,7 @@ export default function RecipeDetailPage({ params }: RecipePageProps) {
       {swapMutation.isError && (
         <div className="mt-4 flex items-center justify-between rounded-xl bg-red-50 px-4 py-3">
           <p className="text-sm text-red-600">
-            {swapMutation.error?.message ?? 'Failed to swap recipe. Please try again.'}
+            {userFacingErrorMessage(swapMutation.error, 'Failed to swap recipe. Please try again.')}
           </p>
           <button
             onClick={() => swapMutation.reset()}
@@ -640,7 +908,10 @@ export default function RecipeDetailPage({ params }: RecipePageProps) {
       {replaceMutation.isError && (
         <div className="mt-4 flex items-center justify-between rounded-xl bg-red-50 px-4 py-3">
           <p className="text-sm text-red-600">
-            {replaceMutation.error?.message ?? 'Failed to replace recipe. Please try again.'}
+            {userFacingErrorMessage(
+              replaceMutation.error,
+              'Failed to replace recipe. Please try again.',
+            )}
           </p>
           <button
             onClick={() => replaceMutation.reset()}
@@ -682,6 +953,57 @@ export default function RecipeDetailPage({ params }: RecipePageProps) {
           table={table}
         />
       )}
+      <Sheet
+        open={deleteOpen}
+        onClose={() => {
+          if (!deleteMine.isPending) setDeleteOpen(false);
+        }}
+        title="Delete this recipe?"
+        description={`“${recipe.name}” will be removed from your cookbook, lists and suggestions. Plan slots that already use it keep it. You can undo right after.`}
+        footer={
+          <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+            <button
+              type="button"
+              disabled={deleteMine.isPending}
+              onClick={() => setDeleteOpen(false)}
+              className="min-h-11 rounded-xl border bg-white px-5 text-sm font-semibold text-gray-600 hover:bg-gray-50"
+            >
+              Keep it
+            </button>
+            <button
+              type="button"
+              data-testid="recipe-delete-confirm"
+              disabled={deleteMine.isPending}
+              onClick={() => deleteMine.mutate({ recipeId: id })}
+              className="min-h-11 rounded-xl bg-red-600 px-5 text-sm font-semibold text-white hover:bg-red-700 disabled:opacity-60"
+            >
+              {deleteMine.isPending ? 'Deleting…' : 'Delete'}
+            </button>
+          </div>
+        }
+      >
+        {deleteMine.isError ? (
+          <p role="alert" data-testid="recipe-delete-error" className="text-sm text-red-600">
+            {userFacingErrorMessage(deleteMine.error, 'Couldn’t delete the recipe. Try again.')}
+          </p>
+        ) : null}
+      </Sheet>
+      {shareToast ? <Toast message={shareToast} onClose={() => setShareToast(null)} /> : null}
+      {weekToast ? (
+        <Toast
+          message={weekToast.message}
+          type={weekToast.type}
+          duration={weekToast.undo ? 10_000 : 4_000}
+          onClose={() => setWeekToast(null)}
+          {...(weekToast.undo ? { action: { label: 'Undo', onClick: weekToast.undo } } : {})}
+        />
+      ) : null}
+      <AddToWeekSheet
+        open={addToWeekOpen}
+        onClose={() => setAddToWeekOpen(false)}
+        recipe={{ id, name: recipe.name, kcal: n.calories }}
+        onAdded={onAddedToWeek}
+      />
       <ReportSafetySheet
         open={reportOpen}
         onClose={() => setReportOpen(false)}

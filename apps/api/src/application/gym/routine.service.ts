@@ -19,7 +19,7 @@ import {
   type RoutineListItemDto,
   type TemplateSummaryDto,
 } from '@chefer/types';
-import { instantiateTemplate, type ExerciseLookup } from '@chefer/utils';
+import { instantiateTemplate, normalizeSupersets, type ExerciseLookup } from '@chefer/utils';
 import { ConflictCause } from '../../lib/conflict.js';
 import { ensureExerciseLibrary } from '../../lib/exercise-library/ensure.js';
 import { toRoutineDto } from './mappers.js';
@@ -162,6 +162,19 @@ export class RoutineService {
     return { ok: true };
   }
 
+  /**
+   * UX-GYM-34: undo `archive`. Idempotent for a routine that is not archived; never
+   * makes it active; respects the same cap as `create*`, since a restored routine
+   * counts again.
+   */
+  async restore(userId: string, id: string): Promise<{ ok: true }> {
+    const row = await this.findOwned(userId, id);
+    if (row.archivedAt === null) return { ok: true };
+    await this.assertRoomForAnother(userId);
+    if (!(await this.repo.restore(userId, id))) throw notFound();
+    return { ok: true };
+  }
+
   /** Makes this the one active routine (unarchiving it if needed). */
   async setActive(userId: string, id: string): Promise<RoutineDto> {
     const row = await this.repo.setActive(userId, id);
@@ -190,7 +203,9 @@ export class RoutineService {
           id: d.id,
           name: d.name.trim(),
           plannedWeekday: d.plannedWeekday,
-          exercises: d.exercises.map((e) => ({ ...e })),
+          // Canonical letters (A, B… adjacent runs, no lone letters) whatever
+          // the client sent — older clients only normalise on load.
+          exercises: normalizeSupersets(d.exercises.map((e) => ({ ...e }))),
         })),
       },
       expectedVersion,

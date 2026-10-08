@@ -24,12 +24,18 @@ import {
   confirmDiscardChanges,
   useUnsavedChangesWarning,
 } from '@/features/gym/routine/use-unsaved-warning';
+import { SupersetSheet } from '@/features/gym/shared/superset-sheet';
 import { libraryLookup, useGymBootstrap } from '@/features/gym/use-gym-bootstrap';
 import { useHasMounted } from '@/hooks/useHasMounted';
 import { trpc } from '@/lib/trpc';
 import { ArrowLeft } from 'lucide-react';
 import { TEMPLATE_BY_KEY, type RoutineDto } from '@chefer/types';
-import { validateRoutine, volumeByGroup } from '@chefer/utils';
+import {
+  supersetSlot,
+  userFacingErrorMessage,
+  validateRoutine,
+  volumeByGroup,
+} from '@chefer/utils';
 import RoutineEditLoading from './loading';
 
 export default function RoutineEditPage() {
@@ -51,6 +57,7 @@ export default function RoutineEditPage() {
   const [version, setVersion] = useState<number | null>(null);
   const [conflictCurrent, setConflictCurrent] = useState<RoutineDto | null>(null);
   const [pickerDayKey, setPickerDayKey] = useState<string | null>(null);
+  const [supersetDayKey, setSupersetDayKey] = useState<string | null>(null);
   const [swapTarget, setSwapTarget] = useState<{ dayKey: string; exerciseKey: string } | null>(
     null,
   );
@@ -74,6 +81,7 @@ export default function RoutineEditPage() {
   useUnsavedChangesWarning(isDirty);
 
   const saveMutation = trpc.gym.routine.save.useMutation({
+    meta: { silent: true },
     onSuccess: (saved) => {
       captureGymEvent('routine_edited', { kind: 'save' });
       void utils.gym.bootstrap.invalidate();
@@ -89,7 +97,8 @@ export default function RoutineEditPage() {
       if (err.data?.conflict) {
         setConflictCurrent(err.data.conflict.current);
       } else {
-        alert(`Failed to save routine: ${err.message}`);
+        // UX-GYM-22: never the raw server text (Zod JSON, transport errors).
+        alert(`Failed to save routine: ${userFacingErrorMessage(err)}`);
       }
     },
   });
@@ -127,6 +136,21 @@ export default function RoutineEditPage() {
         ?.exercises.find((e) => e.key === swapTarget.exerciseKey)?.exerciseId
     : undefined;
 
+  // plan-library-supersets S3: the "Superset" sheet lists the day's exercises.
+  const supersetDay = draft?.days.find((d) => d.key === supersetDayKey) ?? null;
+  const supersetItems = useMemo(
+    () =>
+      (supersetDay?.exercises ?? []).map((exercise, index) => {
+        const slot = supersetSlot(supersetDay?.exercises ?? [], index);
+        return {
+          id: exercise.key,
+          name: lookup(exercise.exerciseId)?.name ?? exercise.exerciseId,
+          badge: slot ? `${slot.label}${slot.position + 1}` : null,
+        };
+      }),
+    [supersetDay, lookup],
+  );
+
   const handleBack = () => {
     if (!confirmDiscardChanges(isDirty)) return;
     router.push('/gym/routine');
@@ -151,7 +175,7 @@ export default function RoutineEditPage() {
     return (
       <div className="flex h-full flex-col items-center justify-center gap-3 px-6 text-center">
         <h1 className="sr-only">Edit routine</h1>
-        <p className="text-sm text-gray-500">{error.message}</p>
+        <p className="text-sm text-gray-500">{userFacingErrorMessage(error)}</p>
         <Link
           href="/gym/routine/all"
           className="inline-flex min-h-11 items-center text-sm font-medium text-gray-900 underline"
@@ -205,6 +229,7 @@ export default function RoutineEditPage() {
           lookup={lookup}
           onAddDay={() => dispatch({ type: 'add_day' })}
           onOpenPicker={setPickerDayKey}
+          onOpenSuperset={setSupersetDayKey}
           onSwap={(dayKey, exerciseKey) => setSwapTarget({ dayKey, exerciseKey })}
         />
         <WeeklyBalancePanel
@@ -222,6 +247,7 @@ export default function RoutineEditPage() {
         lookup={lookup}
         onAddDay={() => dispatch({ type: 'add_day' })}
         onOpenPicker={setPickerDayKey}
+        onOpenSuperset={setSupersetDayKey}
         onSwap={(dayKey, exerciseKey) => setSwapTarget({ dayKey, exerciseKey })}
       />
       <div className="lg:hidden">
@@ -251,6 +277,18 @@ export default function RoutineEditPage() {
             });
             setSwapTarget(null);
           }
+        }}
+      />
+
+      <SupersetSheet
+        open={supersetDay !== null}
+        onClose={() => setSupersetDayKey(null)}
+        items={supersetItems}
+        onGroup={(exerciseKeys) => {
+          if (supersetDay) {
+            dispatch({ type: 'create_superset', dayKey: supersetDay.key, exerciseKeys });
+          }
+          setSupersetDayKey(null);
         }}
       />
 

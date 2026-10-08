@@ -3,15 +3,15 @@
 // exercises, so "Mine" is simply `ownerId !== null` — no user id needed.
 import {
   ExerciseEquipment,
-  VOLUME_GROUPS,
+  LIBRARY_FILTER_GROUPS,
   type ExerciseDto,
-  type VolumeGroup,
+  type LibraryFilterGroup,
 } from '@chefer/types';
-import { VOLUME_GROUP_LABELS } from '@chefer/utils';
+import { exerciseMatchesFilterGroup, LIBRARY_FILTER_GROUP_LABELS } from '@chefer/utils';
 
 export interface LibraryFilters {
   query: string;
-  muscleGroup: VolumeGroup | null;
+  muscleGroup: LibraryFilterGroup | null;
   equipment: ExerciseEquipment | null;
   mineOnly: boolean;
 }
@@ -23,9 +23,9 @@ export const DEFAULT_LIBRARY_FILTERS: LibraryFilters = {
   mineOnly: false,
 };
 
-export const MUSCLE_GROUP_OPTIONS: { value: VolumeGroup; label: string }[] = (
-  Object.keys(VOLUME_GROUPS) as VolumeGroup[]
-).map((group) => ({ value: group, label: VOLUME_GROUP_LABELS[group] }));
+export const MUSCLE_GROUP_OPTIONS: { value: LibraryFilterGroup; label: string }[] = (
+  Object.keys(LIBRARY_FILTER_GROUPS) as LibraryFilterGroup[]
+).map((group) => ({ value: group, label: LIBRARY_FILTER_GROUP_LABELS[group] }));
 
 export const EQUIPMENT_LABELS: Record<ExerciseEquipment, string> = {
   BARBELL: 'Barbell',
@@ -56,14 +56,6 @@ export const EQUIPMENT_OPTIONS: { value: ExerciseEquipment; label: string }[] = 
   ExerciseEquipment,
 ).map((value) => ({ value, label: EQUIPMENT_LABELS[value] }));
 
-function matchesGroup(exercise: ExerciseDto, group: VolumeGroup): boolean {
-  const muscles: readonly string[] = VOLUME_GROUPS[group];
-  return (
-    exercise.primaryMuscles.some((m) => muscles.includes(m)) ||
-    exercise.secondaryMuscles.some((m) => muscles.includes(m))
-  );
-}
-
 /** Search + filter chips + "Mine" (gym_plan.md §1.3). Archived rows never show. */
 export function filterExercises(library: ExerciseDto[], filters: LibraryFilters): ExerciseDto[] {
   const q = filters.query.trim().toLowerCase();
@@ -71,12 +63,24 @@ export function filterExercises(library: ExerciseDto[], filters: LibraryFilters)
     .filter((e) => !e.archived)
     .filter((e) => !filters.mineOnly || e.ownerId !== null)
     .filter((e) => !filters.equipment || e.equipment === filters.equipment)
-    .filter((e) => !filters.muscleGroup || matchesGroup(e, filters.muscleGroup))
+    .filter((e) => !filters.muscleGroup || exerciseMatchesFilterGroup(e, filters.muscleGroup))
     .filter(
       (e) =>
         q.length === 0 ||
         e.name.toLowerCase().includes(q) ||
         e.aliases.some((a) => a.toLowerCase().includes(q)),
     )
+    .sort((a, b) => a.name.localeCompare(b.name));
+}
+
+/**
+ * UX-GYM-34: the user's archived custom exercises (A–Z, narrowed by the search
+ * text) for the "Archived" section — archived rows never show in the main list.
+ */
+export function archivedCustomExercises(library: ExerciseDto[], query = ''): ExerciseDto[] {
+  const q = query.trim().toLowerCase();
+  return library
+    .filter((e) => e.archived && e.ownerId !== null)
+    .filter((e) => q.length === 0 || e.name.toLowerCase().includes(q))
     .sort((a, b) => a.name.localeCompare(b.name));
 }

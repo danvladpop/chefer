@@ -10,6 +10,12 @@
 // UX-22 (T-22.2, T-22.3, L-ENTRY): the AI Chef guardrail lines and the
 // Settings "About" disclaimer. The goal/metrics disclaimer strings are added
 // here by L-TRACK, which owns `goal-step.tsx`/`metrics-step.tsx` this wave.
+//
+// Advisory disclaimers (2026-10-02, owner request): `gymAdvisoryDisclaimer`
+// sits on gym setup and gym settings, `mealPlanAdvisoryDisclaimer` under the
+// meal plan and in the "What we check" sheet — every platform. Chefer only
+// suggests; the user's own judgement decides. Terms §"Health and nutrition"
+// carries the long form.
 
 // T-22.3 (rev 2, §5.13): `goalMetricsDisclaimer` is shown under the goal
 // picker and body-metrics form on every platform (onboarding AND the
@@ -20,7 +26,9 @@ export type WellnessCopyKey =
   | 'chatHealthTopicFooter'
   | 'chatSafetyTopicFooter'
   | 'aboutMedicalDisclaimer'
-  | 'goalMetricsDisclaimer';
+  | 'goalMetricsDisclaimer'
+  | 'gymAdvisoryDisclaimer'
+  | 'mealPlanAdvisoryDisclaimer';
 
 export const WELLNESS_COPY: Record<WellnessCopyKey, string> = {
   chatHeaderSubtitle: 'AI · answers can be wrong',
@@ -29,7 +37,11 @@ export const WELLNESS_COPY: Record<WellnessCopyKey, string> = {
   chatHealthTopicFooter: 'Not medical advice — check with your GP.',
   chatSafetyTopicFooter: 'AI can be wrong about allergens — always check the label.',
   aboutMedicalDisclaimer:
-    "Chefer offers general healthy-eating and training guidance. It isn't a medical device and doesn't give medical advice.",
+    "Chefer suggests meals and workouts as general guidance only. It isn't a medical device and doesn't give medical advice, or certified dietary or coaching advice. Suggestions, including AI ones, can be wrong, even about allergens, so use your own judgement before you follow them.",
   goalMetricsDisclaimer:
     'General estimates only, based on common formulas — for guidance about your own health, talk to a qualified professional.',
+  gymAdvisoryDisclaimer:
+    'Workouts and weight targets are general suggestions, not certified coaching. Warm up, use a weight you can control and stop if something hurts. Check with a doctor first if you have an injury or health condition.',
+  mealPlanAdvisoryDisclaimer:
+    'Meals are suggestions, and our checks and the AI can make mistakes, even about allergens. Always read the ingredients and labels yourself and use your own judgement.',
 };

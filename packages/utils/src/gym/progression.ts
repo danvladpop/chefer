@@ -234,12 +234,20 @@ export function startingGuessKg(
     }
     return profile.barWeightKg + (ex.isLowerBody && ex.category === 'COMPOUND' ? 20 : 10);
   }
+  // Rotator-cuff work (2026-10 library expansion) is deliberately light on
+  // any implement — dumbbell or band — far below a generic isolation guess.
+  if (ex.movementPattern === 'shoulder-external-rotation') {
+    return beginner ? 2 : 4;
+  }
   if (model === 'LIST') {
     if (ex.movementPattern === 'carry') {
       return beginner ? 16 : 24;
     }
     if (ex.category === 'ISOLATION') {
-      const small = ex.movementPattern === 'lateral-raise' || ex.movementPattern === 'rear-delt';
+      const small =
+        ex.movementPattern === 'lateral-raise' ||
+        ex.movementPattern === 'rear-delt' ||
+        ex.movementPattern === 'front-raise';
       return small ? (beginner ? 4 : 8) : beginner ? 6 : 10;
     }
     if (!ex.perHand && ex.isLowerBody) {
@@ -281,6 +289,41 @@ function makeSuggestion(
     deltaKg: round2(deltaKg),
     engineVersion: ENGINE_VERSION,
   };
+}
+
+/**
+ * UX-GYM-18: the weight to start a NEW rep range (bucket) from, carried over
+ * from the same exercise's other bucket(s) instead of discarding it — editing a
+ * routine's 8-12 to 6-10 used to turn a known 40 kg into "Starting guess: 25 kg".
+ * The sibling's next prescription (weight × target reps at its own RIR) is
+ * re-estimated for this slot's first target through the Epley e1RM, so a
+ * heavier range gets a heavier weight. Returns null when there is nothing
+ * trustworthy to carry (a bare starting guess, or a bodyweight/assisted/timed
+ * exercise), and the caller falls back to the research §1.7 guess.
+ */
+export function carriedWeightKg(input: {
+  slot: ExerciseSlot;
+  siblings: readonly ProgressionState[];
+}): number | null {
+  const { slot } = input;
+  if (!canCalibrate(slot)) {
+    return null;
+  }
+  const trusted = input.siblings.filter(
+    (st) => st.next.weightKg > 0 && st.next.inputs['startingGuess'] !== true,
+  );
+  // The sibling worked on most recently wins; one with no exposure yet (a
+  // known weight from setup) ranks last.
+  const sibling = [...trusted].sort((a, b) =>
+    (b.lastExposureDate ?? '').localeCompare(a.lastExposureDate ?? ''),
+  )[0];
+  if (!sibling) {
+    return null;
+  }
+  const fromRepMin = numberInput(sibling.next.inputs, 'repMin') ?? 1;
+  const fromReps = sibling.next.reps[0] ?? fromRepMin;
+  const e1rm = sibling.next.weightKg * (1 + (fromReps + slot.targetRir) / 30);
+  return e1rm / (1 + (slot.repMin + slot.targetRir) / 30);
 }
 
 /** Starting state: known weight → no calibration; otherwise starting guess (research §1.7). */

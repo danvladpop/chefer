@@ -1,10 +1,13 @@
-import { AccessibilityInfo, Pressable } from 'react-native';
+import { AccessibilityInfo, Pressable, StyleSheet } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { act, fireEvent, render, screen } from '@testing-library/react-native';
 import { duration } from '@chefer/tokens';
 import {
   resetSnackbarForTests,
+  setSnackbarTabBarHeight,
   Snackbar,
+  SNACKBAR_MIN_RESUME_MS,
+  SNACKBAR_TAP_SHIELD_MS,
   useSnackbar,
   type SnackbarOptions,
 } from '@chefer/ui-mobile';
@@ -103,7 +106,7 @@ describe('Snackbar (PAT-4)', () => {
     expect(screen.queryByTestId('snackbar')).toBeNull();
   });
 
-  it('auto-dismisses after the default duration (6 s; 8 s with an action)', async () => {
+  it('auto-dismisses after the default duration (6 s; 10 s with an action)', async () => {
     jest.useFakeTimers();
     await render(
       <Harness
@@ -124,9 +127,9 @@ describe('Snackbar (PAT-4)', () => {
 
     await fireEvent.press(screen.getByTestId('show-b'));
     await act(() => {
-      jest.advanceTimersByTime(7999);
+      jest.advanceTimersByTime(9999);
     });
-    expect(screen.getByTestId('snackbar')).toBeTruthy(); // still up — has an action, 8 s
+    expect(screen.getByTestId('snackbar')).toBeTruthy(); // still up — has an action, 10 s
     await act(() => {
       jest.advanceTimersByTime(1 + duration.fast);
     });
@@ -155,5 +158,135 @@ describe('Snackbar (PAT-4)', () => {
     await render(<Harness a={{ message: 'List shared' }} />);
     await fireEvent.press(screen.getByTestId('show-a'));
     expect(screen.getByTestId('snackbar-message')).toHaveTextContent('List shared');
+  });
+});
+
+describe('Snackbar Undo timing (UX-X-16)', () => {
+  const undo: SnackbarOptions = { message: 'Entry deleted', actionLabel: 'Undo' };
+
+  it('holds the countdown while the bar is touched and resumes it on release', async () => {
+    jest.useFakeTimers();
+    await render(<Harness a={undo} />);
+    await fireEvent.press(screen.getByTestId('show-a'));
+
+    await act(() => {
+      jest.advanceTimersByTime(8000);
+    });
+    await fireEvent(screen.getByTestId('snackbar'), 'touchStart');
+    // Held far past the 10 s mark — still up.
+    await act(() => {
+      jest.advanceTimersByTime(30000);
+    });
+    expect(screen.getByTestId('snackbar')).toBeTruthy();
+
+    // Released with 2 s left: it stays at least SNACKBAR_MIN_RESUME_MS, then goes.
+    await fireEvent(screen.getByTestId('snackbar'), 'touchEnd');
+    await act(() => {
+      jest.advanceTimersByTime(SNACKBAR_MIN_RESUME_MS - 1);
+    });
+    expect(screen.getByTestId('snackbar')).toBeTruthy();
+    await act(() => {
+      jest.advanceTimersByTime(1 + duration.fast);
+    });
+    expect(screen.queryByTestId('snackbar')).toBeNull();
+  });
+
+  it('resumes with what was left when that is more than the minimum', async () => {
+    jest.useFakeTimers();
+    await render(<Harness a={undo} />);
+    await fireEvent.press(screen.getByTestId('show-a'));
+    await act(() => {
+      jest.advanceTimersByTime(1000);
+    });
+    await fireEvent(screen.getByTestId('snackbar'), 'touchStart');
+    await fireEvent(screen.getByTestId('snackbar'), 'touchEnd');
+    await act(() => {
+      jest.advanceTimersByTime(8999);
+    });
+    expect(screen.getByTestId('snackbar')).toBeTruthy(); // 10 s - 1 s = 9 s left
+    await act(() => {
+      jest.advanceTimersByTime(1 + duration.fast);
+    });
+    expect(screen.queryByTestId('snackbar')).toBeNull();
+  });
+
+  it('keeps an invisible shield over the bar for 300 ms after it hides', async () => {
+    jest.useFakeTimers();
+    await render(<Harness a={undo} />);
+    await fireEvent.press(screen.getByTestId('show-a'));
+    await fireEvent.press(screen.getByTestId('snackbar-action'));
+
+    // Fade finishes: the bar is gone but its footprint swallows taps.
+    await act(() => {
+      jest.advanceTimersByTime(duration.fast);
+    });
+    expect(screen.queryByTestId('snackbar')).toBeNull();
+    expect(screen.getByTestId('snackbar-shield')).toBeTruthy();
+
+    await act(() => {
+      jest.advanceTimersByTime(SNACKBAR_TAP_SHIELD_MS);
+    });
+    expect(screen.queryByTestId('snackbar-shield')).toBeNull();
+  });
+
+  it('a new snackbar during the shield replaces it', async () => {
+    jest.useFakeTimers();
+    await render(<Harness a={undo} b={{ message: 'Another' }} />);
+    await fireEvent.press(screen.getByTestId('show-a'));
+    await fireEvent.press(screen.getByTestId('snackbar-action'));
+    await act(() => {
+      jest.advanceTimersByTime(duration.fast);
+    });
+    expect(screen.getByTestId('snackbar-shield')).toBeTruthy();
+
+    await fireEvent.press(screen.getByTestId('show-b'));
+    expect(screen.queryByTestId('snackbar-shield')).toBeNull();
+    expect(screen.getByTestId('snackbar-message')).toHaveTextContent('Another');
+  });
+});
+
+describe('Snackbar above the tab bar (App Review R-11)', () => {
+  function wrapperBottom(): number | undefined {
+    const wrapper = screen.getByTestId('snackbar').parent;
+    return (StyleSheet.flatten(wrapper?.props.style as never) as { bottom?: number }).bottom;
+  }
+
+  it('sits above a published tab bar height instead of covering it', async () => {
+    await render(<Harness a={{ message: 'Swapped', actionLabel: 'Undo' }} />);
+    await fireEvent.press(screen.getByTestId('show-a'));
+    // No tab bar published: safe-area inset (34) + 8.
+    expect(wrapperBottom()).toBe(42);
+
+    await act(() => {
+      setSnackbarTabBarHeight('food', 83); // 49 bar + 34 inset
+    });
+    expect(wrapperBottom()).toBe(91);
+  });
+
+  it('falls back when the tab bar unmounts, and the latest registered bar wins', async () => {
+    await render(<Harness a={{ message: 'Swapped' }} />);
+    await fireEvent.press(screen.getByTestId('show-a'));
+
+    await act(() => {
+      setSnackbarTabBarHeight('food', 83);
+      setSnackbarTabBarHeight('gym', 90);
+    });
+    expect(wrapperBottom()).toBe(98);
+
+    await act(() => {
+      setSnackbarTabBarHeight('food', null);
+    });
+    expect(wrapperBottom()).toBe(98);
+
+    await act(() => {
+      setSnackbarTabBarHeight('gym', null);
+    });
+    expect(wrapperBottom()).toBe(42);
+  });
+
+  it('lets touches outside the toast through (box-none wrapper)', async () => {
+    await render(<Harness a={{ message: 'Swapped' }} />);
+    await fireEvent.press(screen.getByTestId('show-a'));
+    expect(screen.getByTestId('snackbar').parent?.props.pointerEvents).toBe('box-none');
   });
 });

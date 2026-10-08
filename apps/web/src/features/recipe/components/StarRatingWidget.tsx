@@ -7,6 +7,7 @@ import { useIsPremium } from '@/hooks/useIsPremium';
 import { capture } from '@/lib/analytics';
 import { trpc } from '@/lib/trpc';
 import { Star } from 'lucide-react';
+import { userFacingErrorMessage } from '@chefer/utils';
 import { composeNotesWithLikedBy, parseLikedBy, stripLikedBy } from '../lib/liked-by';
 
 interface StarRatingWidgetProps {
@@ -31,6 +32,7 @@ export function StarRatingWidget({ recipeId, initialRating, initialNotes }: Star
 
   const utils = trpc.useUtils();
   const rateMutation = trpc.recipe.rate.useMutation({
+    meta: { silent: true },
     onSuccess: (data) => {
       capture('recipe_rated', { rating: data.rating });
       setSelected(data.rating);
@@ -136,7 +138,7 @@ export function StarRatingWidget({ recipeId, initialRating, initialNotes }: Star
           {rateMutation.isPending ? 'Saving…' : saved ? '✓ Saved' : 'Save Rating'}
         </button>
         {rateMutation.isError && (
-          <span className="text-xs text-red-600">{rateMutation.error.message}</span>
+          <span className="text-xs text-red-600">{userFacingErrorMessage(rateMutation.error)}</span>
         )}
       </div>
 

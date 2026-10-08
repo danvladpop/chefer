@@ -1,8 +1,10 @@
+import { Keyboard } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { onlineManager } from '@tanstack/react-query';
 import { act, fireEvent, render, screen, userEvent, waitFor } from '@testing-library/react-native';
 import { resetSnackbarForTests } from '@chefer/ui-mobile';
 import RecipeFormScreen from '../../app/recipe-form';
+import { focusedFields, resetFocusedFields } from './keyboard-test-utils';
 
 const SAFE_AREA_METRICS = {
   frame: { x: 0, y: 0, width: 390, height: 844 },
@@ -112,7 +114,7 @@ function mockSearchRow(r: MockRow) {
   };
 }
 
-let mockParams: { id?: string } = {};
+let mockParams: { id?: string; duplicateOf?: string } = {};
 let mockExisting: unknown = null;
 let mockExistingLoading = false;
 let mockExistingError = false;
@@ -124,18 +126,46 @@ const mockCreate = jest.fn();
 const mockUpdate = jest.fn();
 const mockCreateCustomIngredient = jest.fn();
 const mockInvalidate = { list: jest.fn(), getMyRecipe: jest.fn(), mealPlanGetRecipe: jest.fn() };
-const mockAddListener = jest.fn((_event: string, _cb: (e: unknown) => void) => () => undefined);
+// UX-X-01: the form guards leaving through React Navigation's usePreventRemove
+// (it also disables the iOS swipe). The mock records the latest (prevent,
+// callback) pair, so a test can assert the swipe is blocked while dirty and
+// then fire the blocked removal.
+type PreventRemoveCallback = (options: { data: { action: unknown } }) => void;
+const mockPreventRemove: { prevent: boolean; callback: PreventRemoveCallback | null } = {
+  prevent: false,
+  callback: null,
+};
 const mockDispatch = jest.fn();
 const mockBack = jest.fn();
+const mockReplace = jest.fn();
+const mockGoBack = jest.fn();
+
+// R-10: the custom-ingredient sheet inside the form asks for AI consent before
+// "Fill in for me"; the guard is a pass-through here.
+jest.mock('../../src/features/ai-consent/ai-consent-provider', () => ({
+  useAiConsent: () => (_feature: string, run: () => void) => run(),
+  AiConsentHost: () => null,
+}));
 
 jest.mock('expo-router', () => ({
   router: {
     back: () => {
       mockBack();
     },
+    replace: (...args: unknown[]) => {
+      mockReplace(...args);
+    },
   },
   useLocalSearchParams: () => mockParams,
-  useNavigation: () => ({ addListener: mockAddListener, dispatch: mockDispatch }),
+  useNavigation: () => ({ dispatch: mockDispatch, goBack: mockGoBack }),
+  useIsFocused: () => true,
+}));
+
+jest.mock('expo-router/react-navigation', () => ({
+  usePreventRemove: (prevent: boolean, callback: PreventRemoveCallback) => {
+    mockPreventRemove.prevent = prevent;
+    mockPreventRemove.callback = callback;
+  },
 }));
 
 jest.mock('../../src/lib/trpc', () => ({
@@ -461,21 +491,37 @@ describe('RecipeFormScreen — discard changes (AC9)', () => {
     await renderScreen();
     await fireEvent.changeText(screen.getByTestId('rf-name-input'), 'Something typed');
 
-    expect(mockAddListener).toHaveBeenCalledWith('beforeRemove', expect.any(Function));
-    const listener = mockAddListener.mock.calls.at(-1)?.[1] as (e: unknown) => void;
-    const fakeEvent = {
-      preventDefault: jest.fn(),
-      data: { action: { type: 'GO_BACK' } },
-    };
+    // The guard is armed (this is what disables the iOS swipe-back).
+    expect(mockPreventRemove.prevent).toBe(true);
     await act(() => {
-      listener(fakeEvent);
+      mockPreventRemove.callback?.({ data: { action: { type: 'GO_BACK' } } });
     });
 
-    expect(fakeEvent.preventDefault).toHaveBeenCalled();
     await waitFor(() => expect(screen.getByText('Discard your changes?')).toBeOnTheScreen());
+    expect(mockDispatch).not.toHaveBeenCalled();
 
     await fireEvent.press(screen.getByText('Discard'));
-    expect(mockDispatch).toHaveBeenCalledWith({ type: 'GO_BACK' });
+    await waitFor(() => expect(mockDispatch).toHaveBeenCalledWith({ type: 'GO_BACK' }));
+  });
+
+  it('"Keep editing" leaves the screen and its edits where they are (UX-X-01)', async () => {
+    await renderScreen();
+    await fireEvent.changeText(screen.getByTestId('rf-name-input'), 'Something typed');
+    await act(() => {
+      mockPreventRemove.callback?.({ data: { action: { type: 'GO_BACK' } } });
+    });
+    await waitFor(() => expect(screen.getByText('Discard your changes?')).toBeOnTheScreen());
+
+    await fireEvent.press(screen.getByText('Keep editing'));
+    expect(mockDispatch).not.toHaveBeenCalled();
+    expect(mockGoBack).not.toHaveBeenCalled();
+    expect(screen.getByTestId('rf-name-input')).toHaveProp('value', 'Something typed');
+    expect(mockPreventRemove.prevent).toBe(true);
+  });
+
+  it('a pristine form never arms the guard (nothing to lose, swipe stays enabled)', async () => {
+    await renderScreen();
+    expect(mockPreventRemove.prevent).toBe(false);
   });
 });
 
@@ -641,12 +687,7 @@ describe('RecipeFormScreen — catalog lines and computed nutrition (P9)', () =>
 
     it('linking lines on open is not an edit: leaving untouched never asks to discard', async () => {
       await renderScreen();
-      const listener = mockAddListener.mock.calls.at(-1)?.[1] as (e: unknown) => void;
-      const fakeEvent = { preventDefault: jest.fn(), data: { action: { type: 'GO_BACK' } } };
-      await act(() => {
-        listener(fakeEvent);
-      });
-      expect(fakeEvent.preventDefault).not.toHaveBeenCalled();
+      expect(mockPreventRemove.prevent).toBe(false);
     });
 
     it('a suggestion chip links the line, and the save sends every catalog id', async () => {
@@ -669,5 +710,143 @@ describe('RecipeFormScreen — catalog lines and computed nutrition (P9)', () =>
         { name: 'Four-spice mix', quantity: 1, unit: 'pinch', ingredientId: 'spice-id' },
       ]);
     });
+  });
+});
+
+describe('RecipeFormScreen — quantity input (UX-REC-11)', () => {
+  it('drops letters from the amount box instead of keeping "60rolled oats"', async () => {
+    await renderScreen();
+    await fireEvent.changeText(screen.getByTestId('rf-ingredient-qty-0'), '60rolled oats');
+    expect(String(screen.getByTestId('rf-ingredient-qty-0').props.value).trim()).toBe('60');
+    await fireEvent.changeText(screen.getByTestId('rf-ingredient-qty-0'), '1/2');
+    expect(screen.getByTestId('rf-ingredient-qty-0').props.value).toBe('1/2');
+  });
+
+  it('opens the decimal pad', async () => {
+    await renderScreen();
+    expect(screen.getByTestId('rf-ingredient-qty-0').props.keyboardType).toBe('decimal-pad');
+  });
+});
+
+describe('RecipeFormScreen — duplicate (UX-REC-04)', () => {
+  const original = {
+    id: 'r1',
+    name: 'Bread',
+    description: 'Crusty white bread',
+    cuisineType: 'French',
+    prepTimeMins: 15,
+    cookTimeMins: 30,
+    servings: 4,
+    nutritionInfo: { calories: 200, protein: 8, carbs: 30, fat: 4, fiber: 3 },
+    nutritionStatus: 'COMPUTED',
+    ingredients: [{ name: 'flour', quantity: 500, unit: 'g' }],
+    lines: [
+      {
+        position: 0,
+        ingredientId: 'flour-id',
+        rawName: 'flour',
+        quantity: 500,
+        unit: 'g',
+        grams: 500,
+        note: null,
+        optional: false,
+      },
+    ],
+    instructions: ['Mix', 'Bake'],
+    dietaryTags: ['vegetarian'],
+    imageUrl: null,
+  };
+
+  beforeEach(() => {
+    mockParams = { duplicateOf: 'r1' };
+    mockExisting = original;
+  });
+
+  it('opens prefilled as "Copy of …" under the duplicate title', async () => {
+    await renderScreen();
+    expect(screen.getByTestId('recipe-form-title')).toHaveTextContent('Duplicate recipe');
+    expect(screen.getByTestId('rf-name-input').props.value).toBe('Copy of Bread');
+    expect(screen.getByTestId('rf-ingredient-qty-0').props.value).toBe('500');
+  });
+
+  it('saves as a NEW recipe (create, not update) and lands on it', async () => {
+    await renderScreen();
+    await fireEvent.press(screen.getByTestId('rf-save'));
+    expect(mockUpdate).not.toHaveBeenCalled();
+    expect(mockCreate).toHaveBeenCalledTimes(1);
+    const payload = (mockCreate.mock.calls[0] as [RecipePayload])[0];
+    expect(payload.name).toBe('Copy of Bread');
+    expect(payload.recipeId).toBeUndefined();
+    expect(mockReplace).toHaveBeenCalledWith({
+      pathname: '/recipe/[id]',
+      params: { id: 'new-recipe' },
+    });
+    expect(mockBack).not.toHaveBeenCalled();
+  });
+
+  it('an untouched duplicate never asks to discard', async () => {
+    await renderScreen();
+    expect(mockPreventRemove.prevent).toBe(false);
+  });
+});
+
+// Tester feedback 2026-10-04: the form's keyboard behaviour.
+describe('RecipeFormScreen — keyboard (tester feedback 2026-10-04)', () => {
+  let dismiss: jest.SpyInstance;
+  beforeEach(() => {
+    dismiss = jest.spyOn(Keyboard, 'dismiss').mockImplementation(() => undefined);
+    resetFocusedFields();
+  });
+  afterEach(() => dismiss.mockRestore());
+
+  it('the name field reads Done and closes the keyboard on Return', async () => {
+    await renderScreen();
+    const name = screen.getByTestId('rf-name-input');
+    expect(name.props.returnKeyType).toBe('done');
+    await fireEvent(name, 'submitEditing');
+    expect(dismiss).toHaveBeenCalledTimes(1);
+  });
+
+  it('the description is multiline (Return = newline) and the scroll closes the keyboard on drag', async () => {
+    const user = userEvent.setup();
+    await renderScreen();
+    await user.press(screen.getByTestId('rf-more-details-toggle'));
+    const description = screen.getByTestId('rf-description');
+    expect(description.props.multiline).toBe(true);
+    // iOS: its own Done accessory.
+    expect(description.props.inputAccessoryViewID).toBeTruthy();
+    expect(screen.getByTestId('rf-scroll').props.keyboardDismissMode).toBeDefined();
+    expect(screen.getByTestId('rf-scroll').props.keyboardShouldPersistTaps).toBe('handled');
+  });
+
+  it('prep time hands focus to cook time; cook time is the last field and closes the keyboard', async () => {
+    const user = userEvent.setup();
+    await renderScreen();
+    await user.press(screen.getByTestId('rf-more-details-toggle'));
+    expect(screen.getByTestId('rf-prep').props.keyboardType).toBe('number-pad');
+    expect(screen.getByTestId('rf-prep').props.returnKeyType).toBe('next');
+    expect(screen.getByTestId('rf-cook').props.returnKeyType).toBe('done');
+    // number pads have no Return key on iOS — each field owns a Next / Done bar.
+    expect(screen.getByTestId('rf-prep').props.inputAccessoryViewID).toBeTruthy();
+    expect(screen.getByTestId('rf-cook').props.inputAccessoryViewID).toBeTruthy();
+
+    resetFocusedFields();
+    await fireEvent(screen.getByTestId('rf-prep'), 'submitEditing');
+    expect(focusedFields()).toEqual(['rf-cook']);
+    expect(dismiss).not.toHaveBeenCalled();
+    await fireEvent(screen.getByTestId('rf-cook'), 'submitEditing');
+    expect(dismiss).toHaveBeenCalledTimes(1);
+  });
+
+  it('saving closes the keyboard', async () => {
+    const user = userEvent.setup();
+    await renderScreen();
+    await user.type(screen.getByTestId('rf-name-input'), 'Bread');
+    await pickIngredient(0, 'flour', 'wheat-flour');
+    await user.type(screen.getByTestId('rf-ingredient-qty-0'), '200');
+    dismiss.mockClear();
+    await fireEvent.press(screen.getByTestId('rf-save'));
+    expect(mockCreate).toHaveBeenCalledTimes(1);
+    expect(dismiss).toHaveBeenCalled();
   });
 });

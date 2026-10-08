@@ -4,7 +4,12 @@ import {
   matchLoggedToSlots,
   MEAL_ORDER,
   MEAL_WINDOW_END,
+  plannedTotals,
+  remainingTotals,
   resolveTodayMeals,
+  slotStates,
+  slotStatus,
+  type SlotRef,
 } from './today';
 
 const breakfast = { type: 'breakfast', recipeId: 'oats' };
@@ -45,7 +50,13 @@ describe('resolveTodayMeals — clock only (nothing logged)', () => {
   });
 
   it('handles an empty day', () => {
-    expect(resolveTodayMeals([], 9)).toEqual({ next: null, later: [], eaten: [] });
+    expect(resolveTodayMeals([], 9)).toEqual({
+      next: null,
+      later: [],
+      eaten: [],
+      replaced: [],
+      skipped: [],
+    });
   });
 });
 
@@ -91,6 +102,34 @@ describe('resolveTodayMeals — advancing past logged meals (F-PM-10)', () => {
     const r = resolveTodayMeals(fourMeals, 15, [
       { custom: { name: 'Cake', estimatedBy: 'manual' }, mealType: 'snack' },
     ]);
+    expect(r.next).toBe(snack);
+  });
+});
+
+describe('resolveTodayMeals — dinner done follows the log (UX-PLAN-01)', () => {
+  it('a different dinner logged earlier (plan regenerated since) still counts as dinner done', () => {
+    const r = resolveTodayMeals(threeMeals, 19, [{ recipeId: 'pad-thai', mealType: 'dinner' }]);
+    expect(r.next).toBeNull();
+    expect(r.eaten).toEqual([dinner]);
+  });
+
+  it('one stray entry covers one slot of its type only', () => {
+    const twoLunches = [lunch, { type: 'lunch', recipeId: 'soup' }, dinner];
+    const r = resolveTodayMeals(twoLunches, 11, [{ recipeId: 'ramen', mealType: 'lunch' }]);
+    expect(r.eaten).toEqual([lunch]);
+    expect(r.next).toEqual({ type: 'lunch', recipeId: 'soup' });
+  });
+
+  it('an entry that matches a slot is not also counted as a stray', () => {
+    const r = resolveTodayMeals(threeMeals, 12, [{ recipeId: 'oats', mealType: 'lunch' }]);
+    // The breakfast recipe logged under lunch claims breakfast (cross-type),
+    // so lunch is still open.
+    expect(r.eaten).toEqual([breakfast]);
+    expect(r.next).toBe(lunch);
+  });
+
+  it('a stray snack does not swallow the planned snack', () => {
+    const r = resolveTodayMeals(fourMeals, 15, [{ recipeId: 'chips', mealType: 'snack' }]);
     expect(r.next).toBe(snack);
   });
 });
@@ -184,5 +223,183 @@ describe('two identical snacks (slotIndex on logged meals)', () => {
     ];
     const e = { recipeId: 'yogurt', mealType: 'snack', slotIndex: 3 };
     expect(matchLoggedToSlots(slots, [e])).toEqual([undefined, e]);
+  });
+});
+
+// ─── WP-06: replaced and skipped slots ───────────────────────────────────────
+
+describe('slot status — replaced ("Ate something else") and skipped', () => {
+  const day = [
+    { type: 'breakfast', recipeId: 'oats', slotIndex: 0 },
+    { type: 'lunch', recipeId: 'salad', slotIndex: 1 },
+    { type: 'snack', recipeId: 'nuts', slotIndex: 2 },
+    { type: 'snack', recipeId: 'nuts', slotIndex: 3 },
+    { type: 'dinner', recipeId: 'curry', slotIndex: 4 },
+  ];
+  const shawarma = {
+    custom: { name: 'Shawarma', estimatedBy: 'manual' as const },
+    mealType: 'dinner',
+    replacesSlot: { mealType: 'dinner', slotIndex: 4 },
+  };
+  const slotAt = (i: number) => {
+    const slot = day[i];
+    if (!slot) throw new Error(`no slot ${i}`);
+    return slot;
+  };
+  const status = (logged: Parameters<typeof slotStates>[1], skipped: SlotRef[] = []) =>
+    slotStates(day, logged, skipped).map((s) => s.status);
+
+  it('everything is planned with nothing logged', () => {
+    expect(status([])).toEqual(['planned', 'planned', 'planned', 'planned', 'planned']);
+  });
+
+  it('a replacement marks only its slot as replaced and exposes the entry', () => {
+    const states = slotStates(day, [shawarma]);
+    expect(states[4]).toEqual({ status: 'replaced', entry: shawarma });
+    expect(states.slice(0, 4).map((s) => s.status)).toEqual([
+      'planned',
+      'planned',
+      'planned',
+      'planned',
+    ]);
+  });
+
+  it('replacing one snack leaves the other snack planned', () => {
+    const entry = {
+      custom: { name: 'Croissant', estimatedBy: 'manual' as const },
+      mealType: 'snack',
+      replacesSlot: { mealType: 'snack', slotIndex: 3 },
+    };
+    expect(status([entry])).toEqual(['planned', 'planned', 'planned', 'replaced', 'planned']);
+  });
+
+  it('a skipped slot is skipped, not eaten', () => {
+    expect(status([], [{ mealType: 'lunch', slotIndex: 1 }])).toEqual([
+      'planned',
+      'skipped',
+      'planned',
+      'planned',
+      'planned',
+    ]);
+  });
+
+  it('precedence: replaced > eaten > skipped when stored data disagrees', () => {
+    const skipDinner = [{ mealType: 'dinner', slotIndex: 4 }];
+    expect(status([shawarma], skipDinner)[4]).toBe('replaced');
+    const ticked = { recipeId: 'curry', mealType: 'dinner', slotIndex: 4 };
+    expect(status([ticked], skipDinner)[4]).toBe('eaten');
+  });
+
+  it('a skip names the meal type too: a stale index of another type does not match', () => {
+    expect(status([], [{ mealType: 'dinner', slotIndex: 1 }])[1]).toBe('planned');
+  });
+
+  it('slotStatus (single slot) agrees', () => {
+    expect(slotStatus(slotAt(4), [shawarma])).toBe('replaced');
+    expect(slotStatus(slotAt(1), [], [{ mealType: 'lunch', slotIndex: 1 }])).toBe('skipped');
+    expect(slotStatus(slotAt(0), [{ recipeId: 'oats', mealType: 'breakfast' }])).toBe('eaten');
+    expect(slotStatus(slotAt(0))).toBe('planned');
+  });
+
+  it('isSlotEaten: a replacement covers its slot only; a plain custom entry still covers its meal type', () => {
+    expect(isSlotEaten(slotAt(4), [shawarma])).toBe(true);
+    expect(isSlotEaten(slotAt(1), [shawarma])).toBe(false);
+    const plain = { custom: { name: 'Pizza', estimatedBy: 'manual' as const }, mealType: 'dinner' };
+    expect(isSlotEaten(slotAt(4), [plain])).toBe(true);
+  });
+
+  it('a replacement of one dinner does not eat a SECOND dinner slot (explicit beats the type rule)', () => {
+    const twoDinners = [
+      { type: 'dinner', recipeId: 'a', slotIndex: 0 },
+      { type: 'dinner', recipeId: 'b', slotIndex: 1 },
+    ];
+    const entry = {
+      custom: { name: 'Pizza', estimatedBy: 'manual' as const },
+      mealType: 'dinner',
+      replacesSlot: { mealType: 'dinner', slotIndex: 0 },
+    };
+    expect(slotStates(twoDinners, [entry]).map((s) => s.status)).toEqual(['replaced', 'planned']);
+    const r = resolveTodayMeals(twoDinners, 18, [entry]);
+    expect(r.replaced.map((s) => s.recipeId)).toEqual(['a']);
+    expect(r.next?.recipeId).toBe('b');
+  });
+});
+
+describe('resolveTodayMeals — replaced and skipped slots', () => {
+  const slots = [
+    { type: 'breakfast', recipeId: 'oats', slotIndex: 0 },
+    { type: 'lunch', recipeId: 'salad', slotIndex: 1 },
+    { type: 'dinner', recipeId: 'curry', slotIndex: 2 },
+  ];
+
+  it('a replaced dinner is eaten (and listed as replaced); the spotlight moves on', () => {
+    const entry = {
+      custom: { name: 'Shawarma', estimatedBy: 'manual' as const },
+      mealType: 'dinner',
+      replacesSlot: { mealType: 'dinner', slotIndex: 2 },
+    };
+    const r = resolveTodayMeals(slots, 18, [entry]);
+    expect(r.eaten.map((s) => s.recipeId)).toEqual(['curry']);
+    expect(r.replaced.map((s) => s.recipeId)).toEqual(['curry']);
+    expect(r.next).toBeNull();
+    expect(r.later).toEqual([]);
+  });
+
+  it('a skipped lunch is neither next, later, nor eaten', () => {
+    const r = resolveTodayMeals(slots, 11, [], [{ mealType: 'lunch', slotIndex: 1 }]);
+    expect(r.skipped.map((s) => s.recipeId)).toEqual(['salad']);
+    expect(r.eaten.map((s) => s.recipeId)).toEqual([]);
+    expect(r.next?.recipeId).toBe('curry');
+    expect(r.later).toEqual([]);
+  });
+
+  it('a skipped slot is not swallowed by a stray recipe entry of its meal type', () => {
+    const stray = { recipeId: 'other', mealType: 'lunch' };
+    const r = resolveTodayMeals(slots, 11, [stray], [{ mealType: 'lunch', slotIndex: 1 }]);
+    expect(r.skipped.map((s) => s.recipeId)).toEqual(['salad']);
+  });
+
+  it('with nothing replaced or skipped the result is unchanged (empty extras)', () => {
+    const r = resolveTodayMeals(slots, 7);
+    expect(r.replaced).toEqual([]);
+    expect(r.skipped).toEqual([]);
+    expect(r.next?.recipeId).toBe('oats');
+  });
+});
+
+describe('plannedTotals / remainingTotals', () => {
+  const meals = [
+    { kcal: 400, protein: 20, carbs: 40, fat: 10 },
+    { kcal: 600, protein: 30, carbs: 60, fat: 20 },
+    { kcal: 500, protein: 25, carbs: 50, fat: 15, portion: 1.5 },
+  ];
+  const states = [
+    { status: 'eaten' as const },
+    { status: 'replaced' as const },
+    { status: 'planned' as const },
+  ];
+
+  it('planned excludes the replaced recipe but keeps the eaten and planned ones', () => {
+    expect(plannedTotals(meals, states)).toEqual({
+      kcal: 400 + 750,
+      protein: 20 + 37.5,
+      carbs: 40 + 75,
+      fat: 10 + 22.5,
+    });
+  });
+
+  it('remaining counts only planned slots, scaled by portion', () => {
+    expect(remainingTotals(meals, states)).toEqual({
+      kcal: 750,
+      protein: 37.5,
+      carbs: 75,
+      fat: 22.5,
+    });
+  });
+
+  it('a skipped slot leaves both', () => {
+    const skipped = [{ status: 'skipped' as const }, ...states.slice(1)];
+    expect(plannedTotals(meals, skipped).kcal).toBe(750);
+    expect(remainingTotals(meals, skipped).kcal).toBe(750);
   });
 });

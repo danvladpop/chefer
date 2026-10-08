@@ -1,15 +1,17 @@
 import { useState } from 'react';
-import { Linking, Pressable, TextInput, View } from 'react-native';
+import { Pressable, View } from 'react-native';
 import {
   HIDDEN_EXERCISE_IMAGE_IDS,
   type ExerciseDto,
   type SessionExerciseDoc,
   type WeightUnit,
 } from '@chefer/types';
-import { Button, ExplainSheet, Sheet, Text } from '@chefer/ui-mobile';
+import { Button, ExplainSheet, Input, Sheet, Text } from '@chefer/ui-mobile';
 import { cn, explain, explainInputs, formatLoad } from '@chefer/utils';
 import { ExerciseImage } from '../components/exercise-image';
+import { ExerciseVideoSheet } from '../library-screens/exercise-video-sheet';
 import { exerciseImageUrl } from '../library/exercise-image';
+import { isAtSetCap, SET_CAP_REASON } from './caps';
 import type { ExerciseHistoryEntry } from './workout-model';
 
 // Sheets opened from an exercise card. They live once at screen level (not one
@@ -17,9 +19,7 @@ import type { ExerciseHistoryEntry } from './workout-model';
 
 // ─── Technique ────────────────────────────────────────────────────────────────
 
-export function youtubeUrl(videoId: string, startSec: number | null): string {
-  return `https://youtu.be/${videoId}${startSec ? `?t=${startSec}` : ''}`;
-}
+type VideoRequest = { videoId: string; startSec: number; channel: string | null };
 
 export function TechniqueSheet({
   visible,
@@ -30,88 +30,116 @@ export function TechniqueSheet({
   onClose: () => void;
   exercise: ExerciseDto | null;
 }) {
+  // R-16: "Watch technique" plays in the in-app video sheet instead of
+  // throwing the user out to YouTube mid-set. iOS refuses to present a Modal
+  // while another is still dismissing, so the technique sheet closes first and
+  // the video sheet opens from its `onExited` (never two Modals stacked). The
+  // video's details are captured at tap time because the parent clears its
+  // sheet content once this sheet is gone.
+  const [pendingVideo, setPendingVideo] = useState<VideoRequest | null>(null);
+  const [video, setVideo] = useState<VideoRequest | null>(null);
   const images = exercise
     ? [exerciseImageUrl(exercise, 0), exerciseImageUrl(exercise, 1)].filter(
         (u): u is string => u !== null,
       )
     : [];
   return (
-    <Sheet
-      visible={visible}
-      onClose={onClose}
-      title={exercise?.name ?? 'Technique'}
-      eyebrow="Technique"
-      testID="technique-sheet"
-    >
-      {exercise ? (
-        <View className="flex-row gap-2">
-          {images.length > 0 ? (
-            images.map((uri, i) => (
-              <View key={uri} className="flex-1 overflow-hidden rounded-xl">
+    <>
+      <Sheet
+        visible={visible}
+        onClose={onClose}
+        title={exercise?.name ?? 'Technique'}
+        eyebrow="Technique"
+        testID="technique-sheet"
+        onExited={() => {
+          if (pendingVideo) {
+            setVideo(pendingVideo);
+            setPendingVideo(null);
+          }
+        }}
+      >
+        {exercise ? (
+          <View className="flex-row gap-2">
+            {images.length > 0 ? (
+              images.map((uri, i) => (
+                <View key={uri} className="flex-1 overflow-hidden rounded-xl">
+                  <ExerciseImage
+                    uri={uri}
+                    equipment={exercise.equipment}
+                    name={exercise.name}
+                    size="hero"
+                    hidden={HIDDEN_EXERCISE_IMAGE_IDS.has(exercise.id)}
+                    analyticsExerciseId={exercise.ownerId ? 'custom' : exercise.id}
+                    testID={`technique-sheet-image-${i}`}
+                  />
+                </View>
+              ))
+            ) : (
+              <View className="flex-1 overflow-hidden rounded-xl">
                 <ExerciseImage
-                  uri={uri}
+                  uri={null}
                   equipment={exercise.equipment}
                   name={exercise.name}
                   size="hero"
-                  hidden={HIDDEN_EXERCISE_IMAGE_IDS.has(exercise.id)}
                   analyticsExerciseId={exercise.ownerId ? 'custom' : exercise.id}
-                  testID={`technique-sheet-image-${i}`}
+                  testID="technique-sheet-image-0"
                 />
               </View>
-            ))
-          ) : (
-            <View className="flex-1 overflow-hidden rounded-xl">
-              <ExerciseImage
-                uri={null}
-                equipment={exercise.equipment}
-                name={exercise.name}
-                size="hero"
-                analyticsExerciseId={exercise.ownerId ? 'custom' : exercise.id}
-                testID="technique-sheet-image-0"
-              />
-            </View>
-          )}
-        </View>
+            )}
+          </View>
+        ) : null}
+        {exercise?.videoId ? (
+          <Button
+            testID="technique-sheet-video"
+            variant="outline"
+            onPress={() => {
+              if (!exercise.videoId) return;
+              setPendingVideo({
+                videoId: exercise.videoId,
+                startSec: exercise.videoStartSec ?? 0,
+                channel: exercise.videoChannel,
+              });
+              onClose();
+            }}
+          >
+            ▶ Watch technique
+          </Button>
+        ) : null}
+        {exercise && exercise.cues.length > 0 ? (
+          <View className="gap-1">
+            <Text variant="label">Focus on</Text>
+            {exercise.cues.map((cue) => (
+              <Text key={cue} className="text-sm">
+                • {cue}
+              </Text>
+            ))}
+          </View>
+        ) : null}
+        {exercise && exercise.mistakes.length > 0 ? (
+          <View className="gap-1">
+            <Text variant="label">Avoid</Text>
+            {exercise.mistakes.map((m) => (
+              <Text key={m} className="text-sm">
+                • {m}
+              </Text>
+            ))}
+          </View>
+        ) : null}
+        {exercise?.cues.length === 0 && exercise.mistakes.length === 0 ? (
+          <Text variant="muted">No coaching notes for this exercise yet.</Text>
+        ) : null}
+      </Sheet>
+      {video ? (
+        <ExerciseVideoSheet
+          visible
+          onClose={() => setVideo(null)}
+          videoId={video.videoId}
+          startSec={video.startSec}
+          channel={video.channel}
+          testID="technique-video-sheet"
+        />
       ) : null}
-      {exercise?.videoId ? (
-        <Button
-          testID="technique-sheet-video"
-          variant="outline"
-          onPress={() => {
-            if (exercise.videoId) {
-              Linking.openURL(youtubeUrl(exercise.videoId, exercise.videoStartSec)).catch(
-                () => undefined,
-              );
-            }
-          }}
-        >
-          ▶ Watch technique
-        </Button>
-      ) : null}
-      {exercise && exercise.cues.length > 0 ? (
-        <View className="gap-1">
-          <Text variant="label">Focus on</Text>
-          {exercise.cues.map((cue) => (
-            <Text key={cue} className="text-sm">
-              • {cue}
-            </Text>
-          ))}
-        </View>
-      ) : null}
-      {exercise && exercise.mistakes.length > 0 ? (
-        <View className="gap-1">
-          <Text variant="label">Avoid</Text>
-          {exercise.mistakes.map((m) => (
-            <Text key={m} className="text-sm">
-              • {m}
-            </Text>
-          ))}
-        </View>
-      ) : null}
-      {exercise?.cues.length === 0 && exercise.mistakes.length === 0 ? (
-        <Text variant="muted">No coaching notes for this exercise yet.</Text>
-      ) : null}
-    </Sheet>
+    </>
   );
 }
 
@@ -160,9 +188,17 @@ export interface ExerciseMenuProps {
   isLast: boolean;
   /** null = "Update routine" is available; otherwise the sentence explaining why not. */
   routineBlockedReason: string | null;
+  /**
+   * WP-04 (feedback 2): false for a freestyle session (no routine) or an
+   * exercise that isn't a routine slot — there is nothing to ask, so Swap
+   * goes straight to the picker as "Just today". Default true (scope page).
+   */
+  swapAsksScope?: boolean;
   history: ExerciseHistoryEntry[];
   unit: WeightUnit;
   loadType: ExerciseDto['loadType'];
+  /** UX-GYM-19: dumbbell / kettlebell loads read "20 kg each". */
+  perHand?: boolean;
   onSwap: (scope: SwapScope) => void;
   onSkip: () => void;
   onAddSet: () => void;
@@ -177,6 +213,8 @@ export interface ExerciseMenuProps {
   mode?: 'live' | 'edit' | 'log';
   /** `Remove exercise` (live) / `Remove from this workout` (edit). */
   onRemoveExercise?: () => void;
+  /** plan-library-supersets S2: "Superset" (live only) — opens the pick sheet with this exercise ticked. */
+  onSuperset?: () => void;
 }
 
 type MenuPage = 'actions' | 'swap' | 'note' | 'history';
@@ -212,7 +250,7 @@ function MenuRow({
         {label}
       </Text>
       {hint ? (
-        <Text variant="muted" className="text-xs">
+        <Text variant="muted" className="text-sm">
           {hint}
         </Text>
       ) : null}
@@ -222,6 +260,7 @@ function MenuRow({
 
 export function ExerciseMenuSheet(props: ExerciseMenuProps) {
   const { visible, onClose, exercise, name, isFirst, isLast, routineBlockedReason } = props;
+  const swapAsksScope = props.swapAsksScope ?? true;
   // Log mode (a new past workout) is edit mode where every listed set counts.
   const logging = props.mode === 'log';
   const editing = props.mode === 'edit' || logging;
@@ -266,7 +305,11 @@ export function ExerciseMenuSheet(props: ExerciseMenuProps) {
             </>
           ) : (
             <>
-              <MenuRow testID="menu-swap" label="Swap exercise" onPress={() => setPage('swap')} />
+              <MenuRow
+                testID="menu-swap"
+                label="Swap exercise"
+                onPress={() => (swapAsksScope ? setPage('swap') : props.onSwap('today'))}
+              />
               <MenuRow
                 testID="menu-skip"
                 label={exercise.skipped ? 'Unskip exercise' : 'Skip exercise'}
@@ -284,7 +327,13 @@ export function ExerciseMenuSheet(props: ExerciseMenuProps) {
               />
             </>
           )}
-          <MenuRow testID="menu-add-set" label="Add set" onPress={props.onAddSet} />
+          <MenuRow
+            testID="menu-add-set"
+            label="Add set"
+            hint={isAtSetCap(exercise.sets.length) ? SET_CAP_REASON : undefined}
+            disabled={isAtSetCap(exercise.sets.length)}
+            onPress={props.onAddSet}
+          />
           <MenuRow
             testID="menu-remove-set"
             label="Remove last set"
@@ -312,6 +361,14 @@ export function ExerciseMenuSheet(props: ExerciseMenuProps) {
             disabled={isLast}
             onPress={() => props.onMove('down')}
           />
+          {!editing && props.onSuperset ? (
+            <MenuRow
+              testID="menu-superset"
+              label="Superset"
+              hint="Do it back to back with other exercises."
+              onPress={props.onSuperset}
+            />
+          ) : null}
           <MenuRow
             testID="menu-note"
             label={exercise.notes ? 'Edit note' : 'Add note'}
@@ -356,14 +413,15 @@ export function ExerciseMenuSheet(props: ExerciseMenuProps) {
 
       {page === 'note' ? (
         <View className="gap-3">
-          <TextInput
+          <Input
             testID="menu-note-input"
+            accessibilityLabel="Exercise note"
             value={note}
             onChangeText={setNote}
             placeholder="Seat height, grip, a cue…"
             multiline
             maxLength={500}
-            className="min-h-24 rounded-xl border border-border bg-background p-3 text-base"
+            className="min-h-24 rounded-xl border-border p-3"
             textAlignVertical="top"
           />
           <Button
@@ -395,7 +453,7 @@ export function ExerciseMenuSheet(props: ExerciseMenuProps) {
                     .map((s) =>
                       props.loadType === 'BODYWEIGHT'
                         ? String(s.reps)
-                        : `${formatLoad(s.weightKg, props.unit, props.loadType)} × ${s.reps}`,
+                        : `${formatLoad(s.weightKg, props.unit, props.loadType, { each: props.perHand })} × ${s.reps}`,
                     )
                     .join(', ')}
                   {h.lastSetRir !== null

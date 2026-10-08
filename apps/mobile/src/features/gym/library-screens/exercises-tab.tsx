@@ -3,15 +3,27 @@ import { FlatList, Pressable, View } from 'react-native';
 import { Image } from 'expo-image';
 import { router } from 'expo-router';
 import { HIDDEN_EXERCISE_IMAGE_IDS, MUSCLE_LABELS } from '@chefer/types';
-import { Button, Chip, ChipGroup, EmptyState, Input, Screen, Text } from '@chefer/ui-mobile';
+import {
+  Button,
+  Chip,
+  ChipGroup,
+  EmptyState,
+  Screen,
+  SEARCH_LIST_PROPS,
+  SearchField,
+  Text,
+} from '@chefer/ui-mobile';
 import { useFlags } from '../../../hooks/use-flags';
 import { ExerciseImage } from '../components/exercise-image';
+import { GymBootstrapUnavailable, useGymBootstrapLoad } from '../components/gym-bootstrap-state';
 import { ModeSwitch } from '../components/mode-switch';
 import { CollapsibleChipFilters } from '../library/collapsible-chip-filters';
+import { createExerciseHref } from '../library/create-exercise-href';
+import { EquipmentFilterChip } from '../library/equipment-filter-chip';
 import { exerciseImageUrl } from '../library/exercise-image';
 import type { PickerFilter } from '../library/exercise-picker';
-import { useKeyboardVisible } from '../library/use-keyboard-visible';
 import { useGymBootstrap } from '../use-gym-bootstrap';
+import { archivedCustomExercises, ArchivedExercises } from './archived-exercises';
 import {
   EQUIPMENT_FILTERS,
   filterExercisesForTab,
@@ -26,13 +38,16 @@ import {
 const PREFETCH_DELAY_MS = 300;
 
 export function ExercisesTab() {
-  const { data: bootstrap, isLoading } = useGymBootstrap();
+  const bootstrapQuery = useGymBootstrap();
+  const bootstrap = bootstrapQuery.data;
+  // UX-GYM-24: a failed or offline first load must not read as "No exercises match".
+  const { load, retry } = useGymBootstrapLoad(bootstrapQuery);
   const { cardioLogging } = useFlags();
   const [query, setQuery] = useState('');
   const [group, setGroup] = useState<PickerFilter | null>(null);
   const [equipment, setEquipment] = useState<string | null>(null);
   const [mineOnly, setMineOnly] = useState(false);
-  const keyboardVisible = useKeyboardVisible();
+  const filtersActive = group !== null || equipment !== null || mineOnly;
   const groupFilterOptions = cardioLogging
     ? MUSCLE_GROUP_FILTERS_WITH_CARDIO
     : MUSCLE_GROUP_FILTERS;
@@ -43,6 +58,8 @@ export function ExercisesTab() {
     () => filterExercisesForTab(library, { query, group, equipment, mineOnly }),
     [library, query, group, equipment, mineOnly],
   );
+
+  const archived = useMemo(() => archivedCustomExercises(library, query), [library, query]);
 
   const prefetched = useRef(false);
   useEffect(() => {
@@ -68,7 +85,7 @@ export function ExercisesTab() {
   return (
     <Screen className="px-0" testID="gym-exercises-screen">
       <View className="gap-3 px-4 pb-2 pt-2">
-        <ModeSwitch />
+        <ModeSwitch mode="gym" />
         <View className="flex-row items-center justify-between gap-3">
           <Text testID="gym-exercises-title" variant="title">
             Exercises
@@ -82,72 +99,57 @@ export function ExercisesTab() {
             + Custom
           </Button>
         </View>
-        <View className="relative justify-center">
-          <Input
-            testID="exercises-search"
-            value={query}
-            onChangeText={setQuery}
-            placeholder="Search exercises"
-            placeholderTextColor="#4b5563"
-            autoCorrect={false}
-            accessibilityLabel="Search exercises"
-            className={query ? 'pr-11' : undefined}
-          />
-          {query ? (
-            <Pressable
-              testID="exercises-search-clear"
-              accessibilityRole="button"
-              accessibilityLabel="Clear search"
-              onPress={() => setQuery('')}
-              className="absolute right-1 h-11 w-11 items-center justify-center"
-            >
-              <Text className="text-lg text-muted-foreground">✕</Text>
-            </Pressable>
-          ) : null}
-        </View>
-        {/* T-05.A3.1 (AC19-22): two rows normally — 24 wrapping chips pushed
-            the results below the keyboard (found by e2e/gym-library,
-            2026-09-25) — collapsed to one strip while the keyboard is up, so
-            >= 5 results stay visible. */}
-        <CollapsibleChipFilters
-          testID="exercises-filters"
-          collapsed={keyboardVisible}
-          rows={[
-            <ChipGroup
-              key="group"
-              testID="exercises-group-filters"
-              options={groupFilterOptions}
-              value={group ? [group] : []}
-              onChange={(v) => setGroup(v[0] ?? null)}
-              allowEmpty
-              className="flex-nowrap"
-            />,
-            <Chip
-              key="mine"
-              testID="exercises-mine-filter"
-              label="Mine"
-              selected={mineOnly}
-              onPress={() => setMineOnly((v) => !v)}
-            />,
-            <ChipGroup
-              key="equipment"
-              testID="exercises-equipment-filters"
-              options={EQUIPMENT_FILTERS}
-              value={equipment ? [equipment] : []}
-              onChange={(v) => setEquipment(v[0] ?? null)}
-              allowEmpty
-              className="flex-nowrap"
-            />,
-          ]}
+        {/* UX-X-17: the shared 44 pt SearchField (testIDs unchanged). */}
+        <SearchField
+          testID="exercises-search"
+          value={query}
+          onChangeText={setQuery}
+          placeholder="Search exercises"
+          accessibilityLabel="Search exercises"
         />
+        {/* FB7-07: ONE scrolling row — Equipment ▾ (opens a sheet), Mine,
+            Clear (only while a filter is set), then the muscle chips. */}
+        <CollapsibleChipFilters testID="exercises-filters">
+          <EquipmentFilterChip
+            testID="exercises-equipment-filter"
+            options={EQUIPMENT_FILTERS}
+            value={equipment}
+            onChange={setEquipment}
+          />
+          <Chip
+            testID="exercises-mine-filter"
+            label="Mine"
+            selected={mineOnly}
+            onPress={() => setMineOnly((v) => !v)}
+          />
+          {filtersActive ? (
+            <Chip
+              testID="exercises-clear-filters"
+              label="Clear"
+              accessibilityHint="Removes the muscle, equipment and Mine filters"
+              onPress={() => {
+                setGroup(null);
+                setEquipment(null);
+                setMineOnly(false);
+              }}
+            />
+          ) : null}
+          <ChipGroup
+            testID="exercises-group-filters"
+            options={groupFilterOptions}
+            value={group ? [group] : []}
+            onChange={(v) => setGroup(v[0] ?? null)}
+            allowEmpty
+            className="flex-nowrap"
+          />
+        </CollapsibleChipFilters>
       </View>
 
       <FlatList
         testID="exercises-list"
         data={rows}
         keyExtractor={(e) => e.id}
-        keyboardShouldPersistTaps="handled"
-        keyboardDismissMode="on-drag"
+        {...SEARCH_LIST_PROPS}
         initialNumToRender={14}
         contentContainerStyle={{ paddingBottom: 24 }}
         renderItem={({ item }) => {
@@ -183,11 +185,15 @@ export function ExercisesTab() {
             </Pressable>
           );
         }}
+        ListFooterComponent={<ArchivedExercises rows={archived} />}
         ListEmptyComponent={
-          isLoading ? (
-            <Text variant="muted" className="px-4 py-6 text-center">
-              Loading exercises…
-            </Text>
+          load !== 'data' ? (
+            <GymBootstrapUnavailable
+              load={load}
+              onRetry={retry}
+              testID="exercises"
+              what="the exercises"
+            />
           ) : (
             <EmptyState
               testID="exercises-empty"
@@ -198,13 +204,20 @@ export function ExercisesTab() {
                   : 'Try another search or clear a filter.'
               }
               action={
-                mineOnly
+                query.trim().length >= 2 && !mineOnly
                   ? {
-                      label: 'Create custom exercise',
-                      testID: 'exercises-empty-create',
-                      onPress: () => router.push('/gym/exercise-form'),
+                      // UX-GYM-21: nothing matched — offer to create it.
+                      label: `Create “${query.trim()}”`,
+                      testID: 'exercises-empty-create-from-search',
+                      onPress: () => router.push(createExerciseHref(query)),
                     }
-                  : undefined
+                  : mineOnly
+                    ? {
+                        label: 'Create custom exercise',
+                        testID: 'exercises-empty-create',
+                        onPress: () => router.push('/gym/exercise-form'),
+                      }
+                    : undefined
               }
             />
           )

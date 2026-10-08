@@ -118,7 +118,10 @@ export class GymProfileService {
       IExerciseProgressionRepository,
       'findForUser'
     > = exerciseProgressionRepository,
-    private readonly chefProfiles: Pick<IChefProfileRepository, 'upsert'> = chefProfileRepository,
+    private readonly chefProfiles: Pick<
+      IChefProfileRepository,
+      'upsert' | 'findByUserId'
+    > = chefProfileRepository,
   ) {}
 
   /**
@@ -142,6 +145,26 @@ export class GymProfileService {
       // Best effort — the gym change itself has already been saved.
       console.error('GymProfileService: preferredUnits sync failed', error);
     }
+  }
+
+  /**
+   * Setup's flavour of {@link syncPreferredUnits} (UX-GYM-05). Setup's unit is
+   * a pre-selected default, not necessarily a choice, and there is no "set
+   * explicitly" flag on ChefProfile — so a food unit that is already non-default
+   * (IMPERIAL: only onboarding or Preferences can have set it) is never
+   * overwritten from here. METRIC is the column default: indistinguishable from
+   * untouched, so setup may still move it to imperial. A deliberate unit change
+   * afterwards goes through save(), which keeps syncing both ways.
+   */
+  private async syncPreferredUnitsFromSetup(userId: string, unit: WeightUnit): Promise<void> {
+    try {
+      const profile = await this.chefProfiles.findByUserId(userId);
+      if (profile && profile.preferredUnits !== 'METRIC') return;
+    } catch (error) {
+      console.error('GymProfileService: preferredUnits read failed', error);
+      return;
+    }
+    await this.syncPreferredUnits(userId, unit);
   }
 
   async get(userId: string): Promise<GymProfileDto | null> {
@@ -389,8 +412,9 @@ export class GymProfileService {
       progressions: [...progressions.values()],
     });
 
-    // The unit picked in setup becomes the global preference (P2-6).
-    if (existing?.unit !== input.unit) await this.syncPreferredUnits(userId, input.unit);
+    // The unit picked in setup becomes the global preference (P2-6), unless the
+    // food side already holds a non-default one (UX-GYM-05).
+    if (existing?.unit !== input.unit) await this.syncPreferredUnitsFromSetup(userId, input.unit);
 
     return this.bootstrap.get(userId, { today }, level);
   }

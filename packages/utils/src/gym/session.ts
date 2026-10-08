@@ -21,11 +21,20 @@ import type {
   TrainingProfileFacts,
   WorkoutSessionDoc,
 } from '@chefer/types';
+import { isActivityLogSession } from './activity-log';
 import { nextCarryOver } from './carry-over';
 import { deloadContinues } from './deload';
 import { durationMinutes } from './duration';
-import { applyExposure, initialState, prescribe, progressionKey, repBucket } from './progression';
+import {
+  applyExposure,
+  carriedWeightKg,
+  initialState,
+  prescribe,
+  progressionKey,
+  repBucket,
+} from './progression';
 import { collectPrs } from './prs';
+import { isStrengthTrackingType, trackingTypeOf } from './tracking';
 import type { ExerciseLookup } from './volume';
 import { warmupSets } from './warmups';
 import { addDaysLocal, settleWeeks, weekdayOf, weekStartOf, type WeekRow } from './weeks';
@@ -67,6 +76,38 @@ export function nextDayIdAfter(routine: RoutineDto, completedDayId: string | nul
   return days[(idx + 1) % days.length]?.id ?? null;
 }
 
+/**
+ * R-19: the weekday the "Next session" line should name once something has
+ * been trained today. The rotation's next day carries the weekday it was
+ * pinned to (`plannedWeekday`), but a session done off-schedule leaves that
+ * pin in the past ("Next session: Wednesday" on a Thursday) — a calendar
+ * can't go backwards. So: a pin still ahead of `today` stands; otherwise
+ * (pinned today or earlier this week) it's the next planned training weekday
+ * after today — any routine day's pin — wrapping into next week (the earliest
+ * pin) when none is left this week. A day with no fixed weekday, or a routine
+ * with no pinned days, stays `null` (the card then says no weekday).
+ * 0 = Monday … 6 = Sunday.
+ */
+export function nextSessionWeekday(input: {
+  activeRoutine: RoutineDto | null | undefined;
+  nextDayId: string | null | undefined;
+  today: string;
+}): number | null {
+  const { activeRoutine, nextDayId, today } = input;
+  if (!activeRoutine || !nextDayId) return null;
+  const pinned = activeRoutine.days.find((d) => d.id === nextDayId)?.plannedWeekday ?? null;
+  if (pinned === null) return null;
+  const todayWeekday = weekdayOf(today);
+  if (pinned > todayWeekday) return pinned;
+
+  const planned = [
+    ...new Set(
+      activeRoutine.days.map((d) => d.plannedWeekday).filter((w): w is number => w !== null),
+    ),
+  ].sort((a, b) => a - b);
+  return planned.find((w) => w > todayWeekday) ?? planned[0] ?? null;
+}
+
 export type TodayStatus =
   /**
    * Nothing done today, and the rotation's next day is due today, has no
@@ -91,10 +132,19 @@ export type TodayStatus =
 export function todayStatus(input: {
   bootstrap: Pick<GymBootstrap, 'recentSessions' | 'nextWorkout' | 'activeRoutine'>;
   today: string;
+  /**
+   * UX-GYM-12: the device-local date the user set up training. A day pinned to
+   * a weekday that already passed BEFORE this date was never missed — it is
+   * simply due today (no "Planned for Monday" overdue line, no "Rest day"
+   * pointing at a Monday that is behind us).
+   */
+  since?: string | null | undefined;
 }): TodayStatus {
-  const { bootstrap, today } = input;
+  const { bootstrap, today, since } = input;
+  // WP-20: a quick-logged activity (a class done elsewhere) is not "today's
+  // workout done" — Start stays offered; the activity still counts for the week.
   const doneToday = bootstrap.recentSessions.some(
-    (s) => s.status === 'COMPLETED' && s.localDate === today,
+    (s) => s.status === 'COMPLETED' && s.localDate === today && !isActivityLogSession(s),
   );
   const next = bootstrap.nextWorkout;
   const weekday =
@@ -102,9 +152,26 @@ export function todayStatus(input: {
     null;
 
   if (doneToday) {
-    return { kind: 'done', dayName: next?.dayName ?? '', weekday };
+    // R-19: not the template's pin (it can be in the past after an
+    // off-schedule session) — the next planned training day after today.
+    return {
+      kind: 'done',
+      dayName: next?.dayName ?? '',
+      weekday: nextSessionWeekday({
+        activeRoutine: bootstrap.activeRoutine,
+        nextDayId: next?.dayId,
+        today,
+      }),
+    };
   }
   if (!next || weekday === null || weekday === weekdayOf(today)) {
+    return { kind: 'training' };
+  }
+  if (
+    since &&
+    weekday < weekdayOf(today) &&
+    addDaysLocal(weekStartOf(today), weekday) < since // pinned day passed before setup
+  ) {
     return { kind: 'training' };
   }
   // Owner dogfood 2026-09-29: a day pinned to Monday that was missed used to
@@ -115,6 +182,7 @@ export function todayStatus(input: {
     activeRoutine: bootstrap.activeRoutine,
     recentSessions: bootstrap.recentSessions,
     today,
+    since,
   }).some((d) => d.dayId === next.dayId);
   if (overdue) {
     return { kind: 'training', overdueFrom: weekday };
@@ -141,8 +209,13 @@ export function missedPlannedDays(input: {
   activeRoutine: RoutineDto | null;
   recentSessions: SessionSummaryDto[];
   today: string;
+  /**
+   * UX-GYM-12: device-local setup date. A planned day whose date this week is
+   * BEFORE it is ignored — you can't miss a session before you signed up.
+   */
+  since?: string | null | undefined;
 }): MissedPlannedDay[] {
-  const { activeRoutine, recentSessions, today } = input;
+  const { activeRoutine, recentSessions, today, since } = input;
   if (!activeRoutine) return [];
   const weekStart = weekStartOf(today);
   const todayWeekday = weekdayOf(today);
@@ -160,7 +233,10 @@ export function missedPlannedDays(input: {
   const isMissed = (
     d: RoutineDto['days'][number],
   ): d is RoutineDto['days'][number] & { plannedWeekday: number } =>
-    d.plannedWeekday !== null && d.plannedWeekday < todayWeekday && !doneThisWeekByDay.has(d.id);
+    d.plannedWeekday !== null &&
+    d.plannedWeekday < todayWeekday &&
+    !doneThisWeekByDay.has(d.id) &&
+    (!since || addDaysLocal(weekStart, d.plannedWeekday) >= since);
   return [...activeRoutine.days]
     .filter(isMissed)
     .sort((a, b) => a.plannedWeekday - b.plannedWeekday)
@@ -188,7 +264,7 @@ export function doneTodayCard(input: {
 }): DoneTodayCard | null {
   const { bootstrap, today } = input;
   const session = bootstrap.recentSessions.find(
-    (s) => s.status === 'COMPLETED' && s.localDate === today,
+    (s) => s.status === 'COMPLETED' && s.localDate === today && !isActivityLogSession(s),
   );
   if (!session) return null;
 
@@ -210,9 +286,13 @@ export function doneTodayCard(input: {
   const next = bootstrap.nextWorkout
     ? {
         dayName: bootstrap.nextWorkout.dayName,
-        weekday:
-          bootstrap.activeRoutine?.days.find((d) => d.id === bootstrap.nextWorkout?.dayId)
-            ?.plannedWeekday ?? null,
+        // R-19: the next planned training day after today, not the weekday the
+        // template was originally pinned to (see nextSessionWeekday).
+        weekday: nextSessionWeekday({
+          activeRoutine: bootstrap.activeRoutine,
+          nextDayId: bootstrap.nextWorkout.dayId,
+          today,
+        }),
       }
     : null;
 
@@ -260,6 +340,21 @@ interface BuildExerciseInput {
   isFirstForPattern: boolean;
 }
 
+/** The progression states of the same exercise under OTHER rep buckets (UX-GYM-18). */
+function siblingStates(
+  progressions: ReadonlyMap<string, ProgressionEntry>,
+  exerciseId: string,
+  bucket: string,
+): ProgressionState[] {
+  const own = progressionKey(exerciseId, bucket);
+  const prefix = progressionKey(exerciseId, '');
+  const out: ProgressionState[] = [];
+  for (const [key, entry] of progressions) {
+    if (key !== own && key.startsWith(prefix)) out.push(entry.state);
+  }
+  return out;
+}
+
 /** One routine exercise's prescription + warm-ups + last-time column. */
 function buildExercise(input: BuildExerciseInput): NextWorkoutExerciseDto | null {
   const { re, lookup, profile, facts } = input;
@@ -275,7 +370,17 @@ function buildExercise(input: BuildExerciseInput): NextWorkoutExerciseDto | null
   };
   const bucket = repBucket(re.repMin, re.repMax);
   const entry = input.progressions.get(progressionKey(re.exerciseId, bucket));
-  const state = entry?.state ?? initialState({ slot, profile, experience: facts.experience });
+  const state =
+    entry?.state ??
+    initialState({
+      slot,
+      profile,
+      experience: facts.experience,
+      knownWeightKg: carriedWeightKg({
+        slot,
+        siblings: siblingStates(input.progressions, re.exerciseId, bucket),
+      }),
+    });
   const suggestion = prescribe({
     slot,
     state,
@@ -550,6 +655,12 @@ export function applyFinishedSession(input: {
       if (!meta || !se) {
         continue;
       }
+      // Cardio (and a quick-logged activity) has no stored progression — the
+      // server's fold skips it too (progression.service.ts), so the offline
+      // fold must not invent one that the next bootstrap would then drop.
+      if (!isStrengthTrackingType(trackingTypeOf(meta))) {
+        continue;
+      }
       const bucket = repBucket(exposure.repMin, exposure.repMax);
       const idx = progressions.findIndex(
         (p) => p.exerciseId === exerciseId && p.repBucket === bucket,
@@ -573,7 +684,18 @@ export function applyFinishedSession(input: {
         restSec: se.restSec,
       };
       const prior =
-        existing?.state ?? initialState({ slot, profile, experience: facts.experience });
+        existing?.state ??
+        initialState({
+          slot,
+          profile,
+          experience: facts.experience,
+          knownWeightKg: carriedWeightKg({
+            slot,
+            siblings: progressions
+              .filter((p) => p.exerciseId === exerciseId && p.repBucket !== bucket)
+              .map((p) => p.state),
+          }),
+        });
       const state = applyExposure({
         slot,
         state: prior,

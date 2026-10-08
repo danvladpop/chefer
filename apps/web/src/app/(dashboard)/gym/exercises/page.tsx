@@ -2,9 +2,13 @@
 
 import Link from 'next/link';
 import { useMemo, useState } from 'react';
+import { ArchivedExercises } from '@/features/gym/library/ArchivedExercises';
+import { canOfferCreate, createExerciseHref } from '@/features/gym/library/create-exercise-href';
+import { EquipmentFilterSelect } from '@/features/gym/library/EquipmentFilterSelect';
 import { ExerciseCard } from '@/features/gym/library/ExerciseCard';
 import { FilterChip } from '@/features/gym/library/FilterChip';
 import {
+  archivedCustomExercises,
   DEFAULT_LIBRARY_FILTERS,
   EQUIPMENT_OPTIONS,
   filterExercises,
@@ -14,6 +18,7 @@ import {
 import { useGymBootstrap } from '@/features/gym/use-gym-bootstrap';
 import { useHasMounted } from '@/hooks/useHasMounted';
 import { Plus, Search } from 'lucide-react';
+import { ErrorState } from '@chefer/ui';
 
 function ExercisesSkeleton() {
   return (
@@ -27,7 +32,7 @@ function ExercisesSkeleton() {
 
 export default function GymExercisesPage() {
   const hasMounted = useHasMounted();
-  const { data: bootstrap, isLoading } = useGymBootstrap();
+  const { data: bootstrap, isLoading, isError, refetch, isRefetching } = useGymBootstrap();
   const [filters, setFilters] = useState<LibraryFilters>(DEFAULT_LIBRARY_FILTERS);
 
   const results = useMemo(
@@ -35,11 +40,16 @@ export default function GymExercisesPage() {
     [bootstrap?.library, filters],
   );
 
+  const archived = useMemo(
+    () => archivedCustomExercises(bootstrap?.library ?? [], filters.query),
+    [bootstrap?.library, filters.query],
+  );
+
+  const filtersActive =
+    filters.muscleGroup !== null || filters.equipment !== null || filters.mineOnly;
   const setQuery = (query: string) => setFilters((f) => ({ ...f, query }));
   const toggleGroup = (value: (typeof MUSCLE_GROUP_OPTIONS)[number]['value']) =>
     setFilters((f) => ({ ...f, muscleGroup: f.muscleGroup === value ? null : value }));
-  const toggleEquipment = (value: (typeof EQUIPMENT_OPTIONS)[number]['value']) =>
-    setFilters((f) => ({ ...f, equipment: f.equipment === value ? null : value }));
   const toggleMine = () => setFilters((f) => ({ ...f, mineOnly: !f.mineOnly }));
 
   if (!hasMounted) {
@@ -83,15 +93,33 @@ export default function GymExercisesPage() {
         />
       </div>
 
-      {/* Filter chips */}
+      {/* FB7-07: one scrolling row — Equipment (select-styled chip), Mine,
+          Clear (only while a filter is set), then the muscle chips. */}
       <div
         role="group"
-        aria-label="Muscle filters"
-        className="mb-2 flex gap-2 overflow-x-auto pb-1"
+        aria-label="Exercise filters"
+        className="mb-5 flex flex-nowrap gap-2 overflow-x-auto pb-1"
       >
+        <EquipmentFilterSelect
+          value={filters.equipment}
+          options={EQUIPMENT_OPTIONS}
+          onChange={(equipment) => setFilters((f) => ({ ...f, equipment }))}
+        />
         <FilterChip active={filters.mineOnly} onClick={toggleMine}>
           Mine
         </FilterChip>
+        {filtersActive ? (
+          <button
+            type="button"
+            data-testid="exercises-clear-filters"
+            onClick={() =>
+              setFilters((f) => ({ ...f, muscleGroup: null, equipment: null, mineOnly: false }))
+            }
+            className="min-h-11 shrink-0 rounded-full border border-neutral-200 bg-white px-3 text-xs font-medium text-[#944a00] transition hover:border-neutral-300"
+          >
+            Clear
+          </button>
+        ) : null}
         {MUSCLE_GROUP_OPTIONS.map((opt) => (
           <FilterChip
             key={opt.value}
@@ -102,30 +130,35 @@ export default function GymExercisesPage() {
           </FilterChip>
         ))}
       </div>
-      <div
-        role="group"
-        aria-label="Equipment filters"
-        className="mb-5 flex gap-2 overflow-x-auto pb-1"
-      >
-        {EQUIPMENT_OPTIONS.map((opt) => (
-          <FilterChip
-            key={opt.value}
-            active={filters.equipment === opt.value}
-            onClick={() => toggleEquipment(opt.value)}
-          >
-            {opt.label}
-          </FilterChip>
-        ))}
-      </div>
 
       {isLoading ? (
         <ExercisesSkeleton />
+      ) : isError && !bootstrap ? (
+        // UX-GYM-24: a failed load is an error with Retry, never "No exercises match".
+        <div data-testid="gym-exercises-error">
+          <ErrorState
+            title="Couldn’t load the exercises"
+            onRetry={() => void refetch()}
+            retrying={isRefetching}
+          />
+        </div>
       ) : results.length === 0 ? (
         <div className="rounded-2xl border bg-white p-8 text-center text-sm text-neutral-500">
           No exercises match. Try another search, or{' '}
-          <Link href="/gym/exercises/new" className="text-[#944a00] hover:underline">
-            create a custom one
-          </Link>
+          {/* UX-GYM-21: nothing matched — offer to create it, pre-filled. */}
+          {canOfferCreate(filters.query) && !filters.mineOnly ? (
+            <Link
+              href={createExerciseHref(filters.query)}
+              data-testid="exercises-empty-create-from-search"
+              className="font-medium text-[#944a00] hover:underline"
+            >
+              {`create “${filters.query.trim()}”`}
+            </Link>
+          ) : (
+            <Link href="/gym/exercises/new" className="text-[#944a00] hover:underline">
+              create a custom one
+            </Link>
+          )}
           .
         </div>
       ) : (
@@ -135,6 +168,8 @@ export default function GymExercisesPage() {
           ))}
         </div>
       )}
+
+      <ArchivedExercises rows={archived} />
     </div>
   );
 }

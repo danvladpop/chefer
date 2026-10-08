@@ -1,0 +1,100 @@
+# UX-ACC-02 / ACC-12 / ACC-17 (WP-01): signing out leaves nothing of the old
+# account behind. Account A (alice) is signed in by connect.yaml; we sign out,
+# register a fresh account B, and check that B lands in an EMPTY onboarding
+# (no pre-filled allergies or jobs from A), that the register form held no
+# password from before, and that nothing on B's More/Profile shows A.
+# Rate-limit budget: 1 register (+ the connect.yaml login if needed).
+appId: dev.chefer.app.dev
+---
+- runFlow: common/connect.yaml
+# alice may be asked for health-data consent first.
+- tapOn:
+    text: 'Allow and save'
+    optional: true
+- extendedWaitUntil:
+    visible:
+      id: 'home-title'
+    timeout: 30000
+
+# ── Sign A out from More ──────────────────────────────────────────────────────
+# (Android sometimes drops the first tab tap while Today is still settling.)
+- retry:
+    maxRetries: 2
+    commands:
+      - tapOn: 'More(, .*)?'
+      - extendedWaitUntil:
+          visible:
+            id: 'more-profile'
+          timeout: 5000
+- scrollUntilVisible:
+    element:
+      id: 'logout-button'
+    direction: DOWN
+    centerElement: true
+- tapOn:
+    id: 'logout-button'
+- runFlow: common/confirm-sign-out.yaml
+- extendedWaitUntil:
+    visible:
+      id: 'login-title'
+    timeout: 15000
+
+# ── Register B; the form must start empty (ACC-17) ───────────────────────────
+- evalScript: ${output.email = 'acc02-' + Date.now() + '@e2e.chefer.dev'}
+- tapOn:
+    id: 'login-to-register'
+- assertVisible:
+    id: 'register-title'
+- assertNotVisible: 'alice@chefer.dev'
+- tapOn:
+    id: 'register-email'
+- inputText: ${output.email}
+- tapOn:
+    id: 'register-password'
+- inputText: 'Maestro@123!'
+- tapOn:
+    id: 'register-confirm-password'
+- inputText: 'Maestro@123!'
+- runFlow:
+    when:
+      platform: Android
+    commands:
+      - hideKeyboard
+- tapOn:
+    id: 'register-accept-terms'
+- tapOn:
+    id: 'register-age-confirm'
+- tapOn:
+    id: 'register-submit'
+    optional: true
+- extendedWaitUntil:
+    visible: 'Not Now'
+    timeout: 5000
+    optional: true
+- tapOn:
+    text: 'Not Now'
+    optional: true
+
+# ── B lands in onboarding, not in A's Today ──────────────────────────────────
+- extendedWaitUntil:
+    visible:
+      id: 'onboarding-skip'
+    timeout: 20000
+- assertNotVisible:
+    id: 'home-title'
+- tapOn:
+    id: 'onboarding-skip'
+- extendedWaitUntil:
+    visible:
+      id: 'home-title'
+    timeout: 15000
+
+# ── Nothing of A on B's Profile ───────────────────────────────────────────────
+- tapOn: 'More(, .*)?'
+- tapOn:
+    id: 'more-profile'
+- extendedWaitUntil:
+    visible: ${output.email}
+    timeout: 15000
+- assertNotVisible: 'alice@chefer.dev'
+- assertNotVisible: 'Alice.*'

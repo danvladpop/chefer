@@ -1,6 +1,6 @@
 # More-hub screens E2E — M2-7 preferences, M2-8 profile, My weeks (P2-8).
-# The tracker (Today → "See full day") and the pantry (Shop → In my kitchen)
-# left More in P2-2 / P2-8; dashboard.flow and shopping-list.flow cover them.
+# The tracker (Today → "See full day") left More in P2-2; dashboard.flow covers it.
+# (The pantry, Shop → In my kitchen, was retired by FB7-10.)
 # Precondition: signed-in session (any account).
 appId: dev.chefer.app.dev
 ---
@@ -33,11 +33,14 @@ appId: dev.chefer.app.dev
       id: 'profile-privacy-heading'
     direction: DOWN
     visibilityPercentage: 50
+# The Usage analytics card only renders when a PostHog key is configured
+# (App Review R-08); release builds have none, so it must not be required.
 - scrollUntilVisible:
     element:
       id: 'profile-analytics-consent'
     direction: DOWN
     visibilityPercentage: 50
+    optional: true
 - scrollUntilVisible:
     element:
       id: 'profile-consent-history'

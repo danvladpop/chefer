@@ -2,6 +2,7 @@ import { createHash, randomBytes } from 'node:crypto';
 import { TRPCError } from '@trpc/server';
 import bcrypt from 'bcryptjs';
 import { prisma } from '@chefer/database';
+import { RESET_LINK_INVALID_MESSAGE } from '@chefer/types';
 import { emailService } from '../../lib/email/index.js';
 import { env } from '../../lib/env.js';
 
@@ -73,7 +74,7 @@ export class PasswordResetService {
     if (!row || !row.identifier.startsWith('reset:') || row.expires < new Date()) {
       throw new TRPCError({
         code: 'BAD_REQUEST',
-        message: 'This reset link is invalid or has expired. Request a new one.',
+        message: RESET_LINK_INVALID_MESSAGE,
       });
     }
 
@@ -82,7 +83,7 @@ export class PasswordResetService {
     if (!user) {
       throw new TRPCError({
         code: 'BAD_REQUEST',
-        message: 'This reset link is invalid or has expired. Request a new one.',
+        message: RESET_LINK_INVALID_MESSAGE,
       });
     }
 

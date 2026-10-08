@@ -1,13 +1,19 @@
-import { useEffect, useState } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, Switch, View } from 'react-native';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import {
+  ActivityIndicator,
+  Pressable,
+  RefreshControl,
+  ScrollView,
+  Switch,
+  View,
+} from 'react-native';
 import Animated, { FadeIn } from 'react-native-reanimated';
 import { Ionicons } from '@expo/vector-icons';
-import { router, useIsFocused } from 'expo-router';
+import { router, useIsFocused, useLocalSearchParams } from 'expo-router';
 import { PLAN_TAILORING_POLL_MS } from '@chefer/types';
 import {
   Button,
   Card,
-  ConfirmSheet,
   DENSE_MAX_FONT_SCALE,
   duration,
   ErrorState,
@@ -18,21 +24,31 @@ import {
 } from '@chefer/ui-mobile';
 import {
   aiConsentRequiredFor,
+  canRemoveSlot,
   checkedForLineText,
   cn,
   defaultWeekOffset,
   dinnersFromPlan,
-  formatMoney,
-  formatPriceRange,
+  formatDateRange,
+  formatKcal,
   getWeekStartDate,
+  groupDaySlots,
   isTailoringRunning,
+  localDateStr,
+  mealGroupTotalLine,
+  PLAN_MEAL_MENU_COPY,
   PLAN_TAILORING_COPY,
+  PLAN_WEEK_COPY,
   planButtonLabel,
   planShapeSummary,
   SAFETY_COPY,
+  slotStates,
   sumPlanDay,
+  userFacingErrorMessage,
   weekdayLongName,
   weekdayShortName,
+  WELLNESS_COPY,
+  type DaySlotEntry,
 } from '@chefer/utils';
 import { useAiConsent } from '../../src/features/ai-consent/ai-consent-provider';
 import { ModeSwitch } from '../../src/features/gym/components/mode-switch';
@@ -40,28 +56,39 @@ import { CompareWeeksSheet } from '../../src/features/meal-plan/compare-weeks-sh
 import { dismissPlan, isPlanDismissed } from '../../src/features/meal-plan/dismissals';
 import { DAY_LABELS, PlanDayChips } from '../../src/features/meal-plan/plan-day-chips';
 import { PlanDayTotals } from '../../src/features/meal-plan/plan-day-totals';
+import { PlanMealActions } from '../../src/features/meal-plan/plan-meal-actions';
 import { PlanMealCard } from '../../src/features/meal-plan/plan-meal-card';
+import { PlanMealGroup } from '../../src/features/meal-plan/plan-meal-group';
 import { PlanSettingsSheet } from '../../src/features/meal-plan/plan-settings-sheet';
 import {
   PremiumChangesCard,
   type PremiumChanges,
 } from '../../src/features/meal-plan/premium-changes-card';
 import { RecipePickerSheet } from '../../src/features/meal-plan/recipe-picker-sheet';
+import { RegenerateConfirm } from '../../src/features/meal-plan/regenerate-confirm';
 import { TailoringBanner } from '../../src/features/meal-plan/tailoring-banner';
 import {
   PreRunNote,
   TrainingDayHeader,
   TrainingExplainSheet,
 } from '../../src/features/meal-plan/training-day-header';
+import { useDayRollover } from '../../src/features/meal-plan/use-day-rollover';
 import { useTailoringWatch } from '../../src/features/meal-plan/use-tailoring-watch';
+import { WeekOptionsSheet } from '../../src/features/meal-plan/week-options-sheet';
 import { WeekSummarySheet, type DaySummary } from '../../src/features/meal-plan/week-summary-sheet';
+import { useNumbersMode } from '../../src/features/numbers-mode/numbers-mode';
 import { PlanMissSheet } from '../../src/features/nutrition/plan-miss-sheet';
 import { openPremium } from '../../src/features/premium/open-premium';
 import { ReportSafetySheet } from '../../src/features/safety/report-sheet';
 import { RebalanceBanner } from '../../src/features/tracker/rebalance-banner';
+import { RebalanceOffer, useRebalanceCheck } from '../../src/features/tracker/rebalance-offer';
+import { SlotStatusLine } from '../../src/features/tracker/slot-controls';
+import { mealLabel, SLOT_COPY, youHadText } from '../../src/features/tracker/slot-copy';
+import { useSlotFlow } from '../../src/features/tracker/slot-flow';
 import { useCurrency } from '../../src/hooks/use-currency';
 import { useHousehold } from '../../src/hooks/use-household';
 import { useIsPremium } from '../../src/hooks/use-is-premium';
+import { trackPlanGenerated } from '../../src/lib/analytics-events';
 import { trpc } from '../../src/lib/trpc';
 
 // Plan tab — port of apps/web (dashboard)/meal-plan/page.tsx (M2-2), which
@@ -80,19 +107,65 @@ function getTodayDayIndex(): number {
   return jsDay === 0 ? 6 : jsDay - 1;
 }
 
+/** A route param as a whole number within [min, max], else null. */
+function intParam(value: string | string[] | undefined, min: number, max: number): number | null {
+  const raw = Array.isArray(value) ? value[0] : value;
+  if (raw === undefined || raw.trim() === '') return null;
+  const n = Number(raw);
+  return Number.isInteger(n) && n >= min && n <= max ? n : null;
+}
+
 function formatWeekLabel(weekStart: Date): string {
   const end = new Date(weekStart);
   end.setDate(end.getDate() + 6);
-  const opts: Intl.DateTimeFormatOptions = { month: 'short', day: 'numeric' };
-  return `${weekStart.toLocaleDateString('en-GB', opts)} – ${end.toLocaleDateString('en-GB', opts)}`;
+  return formatDateRange(weekStart, end, 'short');
 }
 
 export default function MealPlanScreen() {
   // T-08.1 (UX-08 AC1): Plan and Shop both default to next week from Friday
   // 15:00 to Sunday 23:59 local, else this week — the same `defaultWeekOffset`
   // shared with the Shop tab (@chefer/utils).
-  const [weekOffset, setWeekOffset] = useState<number>(() => defaultWeekOffset(new Date()));
-  const [selectedDay, setSelectedDay] = useState(getTodayDayIndex());
+  //
+  // UX-FOOD-18: a deep link (Today's Tonight "Swap") names the week and day it
+  // means — `week=0&day=<0-6>&swap=dinner` — so it never lands on next week on a
+  // Friday or Saturday evening. `at` is a timestamp that makes a repeat of the
+  // same link count as a new one.
+  const params = useLocalSearchParams<{
+    week?: string;
+    day?: string;
+    swap?: string;
+    at?: string;
+  }>();
+  const [weekOffset, setWeekOffset] = useState<number>(
+    () => intParam(params.week, MIN_OFFSET, MAX_OFFSET) ?? defaultWeekOffset(new Date()),
+  );
+  const [selectedDay, setSelectedDay] = useState(
+    () => intParam(params.day, 0, 6) ?? getTodayDayIndex(),
+  );
+  // A deep-linked "replace this meal" waiting for its plan to load.
+  const [pendingSwap, setPendingSwap] = useState<MealType | null>(null);
+  // UX-FOOD-18: after midnight Today is a new day — reselect it (and the
+  // default week) instead of keeping yesterday.
+  const { markChecked } = useDayRollover(() => {
+    setSelectedDay(getTodayDayIndex());
+    setWeekOffset(defaultWeekOffset(new Date()));
+  });
+  const linkKey = `${params.week ?? ''}|${params.day ?? ''}|${params.swap ?? ''}|${params.at ?? ''}`;
+  const appliedLinkKey = useRef<string | null>(null);
+  useEffect(() => {
+    if (appliedLinkKey.current === linkKey) return;
+    const first = appliedLinkKey.current === null;
+    appliedLinkKey.current = linkKey;
+    const week = intParam(params.week, MIN_OFFSET, MAX_OFFSET);
+    const dayParam = intParam(params.day, 0, 6);
+    // The first pass already seeded the state above; later links re-seed it.
+    if (week !== null && !first) setWeekOffset(week);
+    if (dayParam !== null && !first) setSelectedDay(dayParam);
+    if (week !== null || dayParam !== null) markChecked();
+    if (params.swap === 'breakfast' || params.swap === 'lunch' || params.swap === 'dinner') {
+      setPendingSwap(params.swap);
+    }
+  }, [linkKey, params.week, params.day, params.swap, markChecked]);
   const [leftovers, setLeftovers] = useState(false);
   const [poolExhaustedMessage, setPoolExhaustedMessage] = useState<string | null>(null);
   const [personalisation, setPersonalisation] = useState<{
@@ -101,6 +174,8 @@ export default function MealPlanScreen() {
     dislikedCount: number;
   } | null>(null);
   const [pickerTarget, setPickerTarget] = useState<{
+    /** `side` (FB7-04) adds a second dish of the type; `replace` swaps this slot. */
+    kind: 'replace' | 'side';
     mealType: MealType;
     /** Index in `day.meals` — a curated day can hold two snacks. */
     slotIndex: number;
@@ -115,6 +190,12 @@ export default function MealPlanScreen() {
     recipeName: string;
   } | null>(null);
   const [summaryOpen, setSummaryOpen] = useState(false);
+  // FB7-11: the one "Week options" sheet (new plan / rebalance).
+  const [weekOptionsOpen, setWeekOptionsOpen] = useState(false);
+  const planScrollRef = useRef<ScrollView>(null);
+  // The picker keeps its kind through its exit animation (the target clears on close).
+  const lastPickerKind = useRef<'replace' | 'side'>('replace');
+  if (pickerTarget) lastPickerKind.current = pickerTarget.kind;
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [regenerateConfirmOpen, setRegenerateConfirmOpen] = useState(false);
   const [keepPicks, setKeepPicks] = useState(true);
@@ -162,6 +243,7 @@ export default function MealPlanScreen() {
     data: plan,
     isLoading,
     isError,
+    isRefetching,
     refetch,
   } = trpc.mealPlan.getForWeek.useQuery(
     { weekOffset },
@@ -177,6 +259,11 @@ export default function MealPlanScreen() {
   const trainingDays = plan?.trainingDays ?? [];
   const hasTrainingDays = trainingDays.length > 0;
   const fitTrainingDays = fitTrainingPref ?? true;
+  // WP-07: "Rebalance my week" and the miss sheet's protein route share one check.
+  const rebalanceCheck = useRebalanceCheck(plan?.planId);
+  // FB7-11: the preview runs only when the user asks ("Week options" →
+  // "Rebalance my week") — never on open: a week with nothing logged yet reads
+  // as "under", and an unasked-for offer card would sit on top of the plan.
 
   // Everything derived from the plan lives on other (kept-mounted) tabs —
   // invalidate it all after any plan mutation so Home/Shop don't go stale.
@@ -203,14 +290,24 @@ export default function MealPlanScreen() {
   // recipes and portions) — a fresh copy of the old plan, not a flag flip
   // (meal-plan.service.ts `restore`).
   const restoreMutation = trpc.mealPlan.restore.useMutation({
+    meta: { silent: true },
     onSuccess: (data) => {
       utils.mealPlan.getForWeek.setData({ weekOffset }, data);
       invalidateDerived();
       if (__DEV__) console.warn('[analytics stub] regenerate_undone');
     },
+    // UX-PLAN-14: the Undo snackbar has already gone, so a failed restore
+    // must say so — and offer the retry the user just tried to make.
+    onError: (err, vars) =>
+      showSnackbar({
+        message: `Couldn't bring your previous week back. ${userFacingErrorMessage(err)}`,
+        actionLabel: 'Try again',
+        onAction: () => restoreMutation.mutate(vars),
+      }),
   });
 
   const generateMutation = trpc.mealPlan.generate.useMutation({
+    meta: { silent: true },
     onMutate: () => {
       setPoolExhaustedMessage(null);
       setPersonalisation(null);
@@ -232,11 +329,12 @@ export default function MealPlanScreen() {
       // T-08.3 (UX-08 §3): only a regeneration (a previous plan existed for
       // this week) gets the "New week planned" snackbar + Undo.
       const { previousPlanId } = data;
+      const keptCount =
+        previousPlanId && data.droppedPinned !== undefined
+          ? Math.max(0, pinnedBeforeRegenerate - data.droppedPinned)
+          : 0;
+      trackPlanGenerated(data, keptCount);
       if (previousPlanId) {
-        const keptCount =
-          data.droppedPinned !== undefined
-            ? Math.max(0, pinnedBeforeRegenerate - data.droppedPinned)
-            : 0;
         const keptNote = keptCount > 0 ? ` Kept ${keptCount} of your picks.` : '';
         showSnackbar({
           message: `New week planned.${keptNote}`,
@@ -254,7 +352,7 @@ export default function MealPlanScreen() {
         // orchestrator wires it, with no crash meanwhile.
         const cause = (err.data as { poolExhausted?: { message?: string } } | undefined)
           ?.poolExhausted;
-        setPoolExhaustedMessage(cause?.message ?? err.message);
+        setPoolExhaustedMessage(cause?.message ?? userFacingErrorMessage(err));
       }
     },
   });
@@ -262,7 +360,10 @@ export default function MealPlanScreen() {
   // AI data consent (App Store 5.1.2(i)): premium generation and swaps send
   // the profile to the AI provider; free ones are curated and never ask.
   const requestAiConsent = useAiConsent();
-  const generateWithConsent = (keepPinned?: boolean) =>
+  const generateWithConsent = (keepPinned?: boolean) => {
+    // UX-PLAN-03: one generation at a time — a second tap used to send a
+    // second request and burn the last free generation.
+    if (generateMutation.isPending) return;
     requestAiConsent(
       'meal-plan',
       () =>
@@ -274,14 +375,16 @@ export default function MealPlanScreen() {
         }),
       { usesAi: aiConsentRequiredFor('meal-plan', isPremium) },
     );
+  };
 
   // "Tailor the rest" (PARTIAL/FAILED): re-queues only the untailored days —
   // no new plan-generation quota. Consent-gated like any premium AI call.
   const resumeTailoringMutation = trpc.mealPlan.resumeTailoring.useMutation({
+    meta: { silent: true },
     onSuccess: (data) => {
       utils.mealPlan.getForWeek.setData({ weekOffset }, data);
     },
-    onError: (err) => showSnackbar({ message: err.message }),
+    onError: (err) => showSnackbar({ message: userFacingErrorMessage(err) }),
   });
   const resumeTailoring = () => {
     if (!plan) return;
@@ -296,6 +399,7 @@ export default function MealPlanScreen() {
 
   // Visible under the day chips (UX-08 §2) — always asks first (§3).
   const openRegenerateConfirm = () => {
+    generateMutation.reset(); // a previous failure's message doesn't greet the new ask
     setSummaryOpen(false);
     setKeepPicks(true);
     setPinnedBeforeRegenerate(pinnedCount);
@@ -303,10 +407,15 @@ export default function MealPlanScreen() {
   };
 
   const pinMutation = trpc.mealPlan.setSlotPinned.useMutation({
+    meta: { silent: true },
     onSuccess: () => void refetch(),
+    // UX-PLAN-14: a failed pin must not look like nothing happened.
+    onError: (err) =>
+      showSnackbar({ message: `Couldn't update that pin. ${userFacingErrorMessage(err)}` }),
   });
 
   const swapMutation = trpc.mealPlan.swapRecipe.useMutation({
+    meta: { silent: true },
     onSuccess: () => {
       setPickerTarget(null);
       void refetch();
@@ -315,6 +424,7 @@ export default function MealPlanScreen() {
   });
 
   const replaceMutation = trpc.mealPlan.replaceRecipe.useMutation({
+    meta: { silent: true },
     onSuccess: () => {
       setPickerTarget(null);
       void refetch();
@@ -322,11 +432,39 @@ export default function MealPlanScreen() {
     },
   });
 
+  // FB7-04: a side dish is a second slot of the same meal type on that day
+  // (`recipe.addToWeek` mode 'add'), and "Remove from plan" takes one back out.
+  const addToWeekMutation = trpc.recipe.addToWeek.useMutation({
+    meta: { silent: true },
+    onSuccess: () => {
+      void refetch();
+      invalidateDerived();
+    },
+  });
+  const undoAddMutation = trpc.recipe.undoAddToWeek.useMutation({
+    meta: { silent: true },
+    onSuccess: () => {
+      void refetch();
+      invalidateDerived();
+    },
+    onError: (err) => showSnackbar({ message: userFacingErrorMessage(err) }),
+  });
+  const removeSlotMutation = trpc.mealPlan.removeSlot.useMutation({
+    meta: { silent: true },
+    onSuccess: () => {
+      void refetch();
+      invalidateDerived();
+    },
+    onError: (err) =>
+      showSnackbar({ message: `Couldn't remove that dish. ${userFacingErrorMessage(err)}` }),
+  });
+
   // wave-1 L-PLAN (UX-07 "Plan this day"): fills just the tapped unplanned
   // day in place via the new `planDay` procedure — it used to open Plan
   // settings instead, which changes the whole week's shape rather than
   // adding this one day. setData (not refetch), same reasoning as generate.
   const planDayMutation = trpc.mealPlan.planDay.useMutation({
+    meta: { silent: true },
     onSuccess: (data) => {
       utils.mealPlan.getForWeek.setData({ weekOffset }, data);
       invalidateDerived();
@@ -336,7 +474,7 @@ export default function MealPlanScreen() {
     onError: (err) => {
       // SnackbarOptions only has 'success' | 'info' (no error tone) — the
       // default (neutral) styling is used, same as elsewhere in this file.
-      showSnackbar({ message: err.message });
+      showSnackbar({ message: userFacingErrorMessage(err) });
     },
   });
 
@@ -344,9 +482,12 @@ export default function MealPlanScreen() {
   // swap ships as commit + Undo, no preview) — call `replaceRecipe` back to
   // the id that was in the slot. `target` is captured at click time so the
   // snackbar action still works after the picker closes.
+  // UX-PLAN-04: `replaceRecipe` pins the slot by default; Undo sends back the
+  // slot's PREVIOUS state so the restored dish isn't left as "Your pick".
   const undoSwap = (
     target: { mealType: MealType; slotIndex: number },
     previousRecipeId: string,
+    previousPinned = false,
   ) => {
     if (!plan) return;
     replaceMutation.mutate({
@@ -355,6 +496,7 @@ export default function MealPlanScreen() {
       mealType: target.mealType,
       slotIndex: target.slotIndex,
       recipeId: previousRecipeId,
+      pinned: previousPinned,
     });
   };
 
@@ -362,6 +504,7 @@ export default function MealPlanScreen() {
     setPickerTarget(null);
     swapMutation.reset();
     replaceMutation.reset();
+    addToWeekMutation.reset();
   };
 
   // B-13 (T-00.15): confirms the server sent the WEEK actually asked for —
@@ -379,12 +522,35 @@ export default function MealPlanScreen() {
 
   const weekLabel = formatWeekLabel(getWeekStartDate(weekOffset));
   const day = plan?.days.find((d) => d.dayOfWeek === selectedDay);
-  const meals = day?.meals ?? [];
+  const meals = useMemo(() => day?.meals ?? [], [day]);
+  // UX-FOOD-18: open the replace picker for the deep-linked meal once its
+  // day is on screen. A missing meal (nothing planned) just drops the link.
+  useEffect(() => {
+    if (pendingSwap === null || isLoading) return;
+    if (isError || !plan) {
+      setPendingSwap(null);
+      return;
+    }
+    const slotIndex = meals.findIndex((m) => m.type === pendingSwap);
+    const meal = meals[slotIndex];
+    if (meal) {
+      setPickerTarget({
+        kind: 'replace',
+        mealType: pendingSwap,
+        slotIndex,
+        mealName: meal.recipe.name,
+        recipeId: meal.recipe.id,
+      });
+    }
+    setPendingSwap(null);
+  }, [pendingSwap, isLoading, isError, plan, meals]);
+  // FB7-11: the Plan page shows no price; the estimate lives on Shop (and the
+  // week summary sheet keeps its own line).
   const weekCost = plan?.estimatedCost?.totalEur ?? null;
-  // Portions the cost is sized for — premium households only (P2-3).
-  const costPortions = plan?.estimatedCost?.portions ?? null;
   // Costs are EUR estimates; shown in the user's currency (backlog P2-6).
   const currency = useCurrency();
+  // WP-08: protein-only mode shows protein, never kcal, on the plan's cards, totals and sheets.
+  const { proteinOnly } = useNumbersMode();
 
   // T-07.3/T-07.5: the "how you cook" shape names the empty-week job and
   // feeds the Plan settings sheet — same query everywhere (onboarding,
@@ -436,6 +602,172 @@ export default function MealPlanScreen() {
   const missMeals = plan?.days.find((d) => d.dayOfWeek === missDay)?.meals ?? [];
   const missTotals = sumPlanDay(missMeals);
   const missGap = plan?.days.find((d) => d.dayOfWeek === missDay)?.proteinGapG;
+
+  // WP-06: "Ate something else" / "Skipped it" on today's and earlier-this-week's
+  // slots. The day's log says what became of each slot; the same helper as the
+  // tracker (`slotStates`) turns it into planned / eaten / replaced / skipped.
+  const selectedDate = getWeekStartDate(weekOffset);
+  selectedDate.setDate(selectedDate.getDate() + selectedDay);
+  const selectedDateStr = localDateStr(selectedDate);
+  const canActOnSlots = weekOffset === 0 && selectedDay <= getTodayDayIndex();
+  const slotFlow = useSlotFlow(selectedDateStr);
+  const { data: dayLog } = trpc.tracker.getDay.useQuery(
+    { date: selectedDateStr },
+    { enabled: canActOnSlots && meals.length > 0, staleTime: 30_000 },
+  );
+  const slotStateList = dayLog
+    ? slotStates(
+        meals.map((m, i) => ({ type: m.type, recipeId: m.recipe.id, slotIndex: i })),
+        dayLog.log?.loggedMeals ?? [],
+        dayLog.skippedSlots,
+      )
+    : null;
+  // The day's planned total leaves out a meal that was swapped or skipped.
+  const plannedMealsOfDay = meals.filter((_, i) => {
+    const status = slotStateList?.[i]?.status;
+    return status !== 'replaced' && status !== 'skipped';
+  });
+
+  // FB7-04: "Remove from plan" on a side dish. Undo puts the same recipe back as a side.
+  const removeSide = (meal: (typeof meals)[number], slotIndex: number) => {
+    if (!plan) return;
+    removeSlotMutation.mutate(
+      { planId: plan.planId, dayOfWeek: selectedDay, mealType: meal.type, slotIndex },
+      {
+        onSuccess: () =>
+          showSnackbar({
+            message: PLAN_MEAL_MENU_COPY.removed(meal.recipe.name),
+            actionLabel: 'Undo',
+            onAction: () =>
+              addToWeekMutation.mutate(
+                {
+                  recipeId: meal.recipe.id,
+                  weekOffset,
+                  dayOfWeek: selectedDay,
+                  mealType: meal.type,
+                  mode: 'add',
+                },
+                { onError: (err) => showSnackbar({ message: userFacingErrorMessage(err) }) },
+              ),
+          }),
+      },
+    );
+  };
+
+  const mealGroups = useMemo(() => groupDaySlots(meals), [meals]);
+
+  // FB7-04/11: one slot's card — `solo` (the only dish of its type), `main`
+  // (first of a group) or `side` (a later one, compact). Every action addresses
+  // the slot by its ORIGINAL index, however the grouping reorders the display.
+  const renderSlot = (
+    entry: DaySlotEntry<(typeof meals)[number]>,
+    role: 'solo' | 'main' | 'side',
+  ) => {
+    const { meal, slotIndex } = entry;
+    const isSide = role === 'side';
+    const slotState = slotStateList?.[slotIndex];
+    const slotRef = { mealType: meal.type, slotIndex };
+    return (
+      <PlanMealCard
+        key={`${meal.type}-${slotIndex}`}
+        testID={isSide ? `plan-side-${meal.type}-${slotIndex}` : `plan-meal-${meal.type}`}
+        day={selectedDay}
+        meal={meal}
+        side={isSide}
+        hideTypeBadge={role !== 'solo'}
+        onReport={(recipeId, recipeName) => setReportTarget({ recipeId, recipeName })}
+        eaten={slotState?.status === 'eaten'}
+        slotNote={
+          slotState?.status === 'replaced' ? (
+            <SlotStatusLine
+              testID={`plan-slot-replaced-${slotIndex}`}
+              text={youHadText(slotState.entry, proteinOnly)}
+              actionLabel={slotState.entry.entryId ? SLOT_COPY.remove : undefined}
+              onAction={() => {
+                const entry = slotState.entry;
+                if (!entry.entryId || !entry.custom) return;
+                slotFlow.actions.removeReplacement({
+                  entryId: entry.entryId,
+                  name: entry.custom.name,
+                  estimatedBy: entry.custom.estimatedBy,
+                  kcal: entry.kcal,
+                  protein: entry.protein,
+                  carbs: entry.carbs,
+                  fat: entry.fat,
+                  unknownMacros: entry.unknownMacros,
+                  replacesSlot: slotRef,
+                });
+              }}
+            />
+          ) : slotState?.status === 'skipped' ? (
+            <SlotStatusLine
+              testID={`plan-slot-skipped-${slotIndex}`}
+              text={SLOT_COPY.skippedLabel}
+              actionLabel={SLOT_COPY.undo}
+              onAction={() => slotFlow.actions.unskipSlot(slotRef)}
+            />
+          ) : null
+        }
+        trailing={
+          // FB7-11: swap (one tap) + "…" — pin, "Ate something else", "Skipped
+          // it" (only while the meal is still to eat), "Add a side dish" and, on
+          // a side, "Remove from plan" all live in the "…" menu.
+          !isPast && plan ? (
+            <PlanMealActions
+              mealName={meal.recipe.name}
+              mealType={meal.type}
+              swapTestID={
+                isSide ? `plan-side-swap-${meal.type}-${slotIndex}` : `plan-meal-swap-${meal.type}`
+              }
+              moreTestID={`plan-slot-actions-${slotIndex}`}
+              {...(isSide && { moreLabel: PLAN_MEAL_MENU_COPY.moreActions(meal.recipe.name) })}
+              onSwap={() =>
+                setPickerTarget({
+                  kind: 'replace',
+                  mealType: meal.type,
+                  slotIndex,
+                  mealName: meal.recipe.name,
+                  recipeId: meal.recipe.id,
+                })
+              }
+              onMore={() =>
+                slotFlow.openMenu({
+                  ...slotRef,
+                  name: meal.recipe.name,
+                  menu: {
+                    logActions: slotState?.status === 'planned',
+                    pin: {
+                      pinned: meal.pinned === true,
+                      onToggle: () =>
+                        pinMutation.mutate({
+                          planId: plan.planId,
+                          dayOfWeek: selectedDay,
+                          mealType: meal.type,
+                          slotIndex,
+                          pinned: meal.pinned !== true,
+                        }),
+                    },
+                    onAddSide: () =>
+                      setPickerTarget({
+                        kind: 'side',
+                        mealType: meal.type,
+                        slotIndex,
+                        mealName: meal.recipe.name,
+                        recipeId: meal.recipe.id,
+                      }),
+                    ...(isSide &&
+                      canRemoveSlot(meals, slotIndex) && {
+                        onRemove: () => removeSide(meal, slotIndex),
+                      }),
+                  },
+                })
+              }
+            />
+          ) : undefined
+        }
+      />
+    );
+  };
 
   return (
     <Screen className="px-0">
@@ -489,7 +821,7 @@ export default function MealPlanScreen() {
             <Text
               maxFontSizeMultiplier={DENSE_MAX_FONT_SCALE}
               className={cn(
-                'text-[12px] font-semibold uppercase',
+                'text-xs font-semibold uppercase',
                 isPast ? 'text-gray-500' : weekOffset === 0 ? 'text-primary' : 'text-blue-600',
               )}
             >
@@ -638,32 +970,55 @@ export default function MealPlanScreen() {
 
           {generateMutation.isError && !poolExhaustedMessage && (
             <Card className="border-red-200 bg-red-50">
-              <Text className="text-sm text-red-600">{generateMutation.error.message}</Text>
+              <Text className="text-sm text-red-600">
+                {userFacingErrorMessage(generateMutation.error)}
+              </Text>
             </Card>
           )}
         </ScrollView>
       ) : (
         /* ── Day view ───────────────────────────────────────────────────── */
         <>
-          {/* UX-07 §2: compact "how you cook" summary + settings entry point. */}
-          {shape && (
+          {/* UX-07 §2: compact "how you cook" summary + settings entry point.
+              FB7-11: "Week options" sits here and replaces the Regenerate and
+              "Rebalance my week" buttons (and the price line) of the old row. */}
+          {(shape !== undefined || !isPast) && (
             <View className="flex-row items-center justify-between gap-2 px-4 pb-2">
               <Text
                 testID="plan-shape-summary"
                 numberOfLines={1}
                 className="min-w-0 flex-1 text-xs text-gray-500"
               >
-                {planShapeSummaryText}
+                {shape ? planShapeSummaryText : ''}
               </Text>
-              <Pressable
-                testID="plan-settings-open"
-                accessibilityRole="button"
-                accessibilityLabel="Plan settings"
-                onPress={() => setSettingsOpen(true)}
-                className="h-11 w-11 items-center justify-center"
-              >
-                <Ionicons name="options-outline" size={20} color="#6b7280" />
-              </Pressable>
+              {!isPast && (
+                <Pressable
+                  testID="plan-week-options"
+                  accessibilityRole="button"
+                  accessibilityLabel={PLAN_WEEK_COPY.optionsLabel}
+                  onPress={() => setWeekOptionsOpen(true)}
+                  className="min-h-11 flex-shrink-0 flex-row items-center gap-1.5 rounded-lg border border-border px-3"
+                >
+                  <Ionicons name="ellipsis-horizontal-circle-outline" size={18} color="#944a00" />
+                  <Text
+                    maxFontSizeMultiplier={DENSE_MAX_FONT_SCALE}
+                    className="text-sm font-medium text-foreground"
+                  >
+                    {PLAN_WEEK_COPY.optionsLabel}
+                  </Text>
+                </Pressable>
+              )}
+              {shape && (
+                <Pressable
+                  testID="plan-settings-open"
+                  accessibilityRole="button"
+                  accessibilityLabel="Plan settings"
+                  onPress={() => setSettingsOpen(true)}
+                  className="h-11 w-11 items-center justify-center"
+                >
+                  <Ionicons name="options-outline" size={20} color="#6b7280" />
+                </Pressable>
+              )}
             </View>
           )}
 
@@ -687,33 +1042,6 @@ export default function MealPlanScreen() {
             onSelect={setSelectedDay}
           />
 
-          {/* UX-08 §2/AC6: week actions visible, cost as a range that names
-              what it covers — never a single precise number. */}
-          {!isPast && (
-            <View className="flex-row items-center justify-between gap-2 px-4 pb-2">
-              <Text testID="plan-week-cost" className="min-w-0 flex-1 text-xs text-gray-600">
-                {weekCost !== null
-                  ? `≈ ${formatPriceRange(weekCost, currency) ?? formatMoney(weekCost, currency)}`
-                  : 'Cost estimate unavailable'}
-                {' · Mon–Sun'}
-                {costPortions !== null
-                  ? ` · ${costPortions} portion${costPortions === 1 ? '' : 's'}`
-                  : memberCount > 0
-                    ? ' · 1 portion'
-                    : ''}
-              </Text>
-              <Button
-                testID="plan-regenerate-action"
-                variant="outline"
-                size="sm"
-                loading={generateMutation.isPending}
-                onPress={openRegenerateConfirm}
-              >
-                <Ionicons name="refresh-outline" size={14} color="#944a00" />
-                <Text className="text-sm font-medium text-foreground">Regenerate</Text>
-              </Button>
-            </View>
-          )}
           {/* T-10.4 (D-7): the free household week is sized for the table. */}
           {!isPast && plan.firstScaledWeek === true && (
             <Text testID="plan-first-scaled-week" className="px-4 pb-2 text-xs text-gray-600">
@@ -721,9 +1049,19 @@ export default function MealPlanScreen() {
             </Text>
           )}
 
-          <ScrollView contentContainerClassName="gap-3 px-4 py-2 pb-8">
+          <ScrollView
+            ref={planScrollRef}
+            testID="plan-day-scroll"
+            contentContainerClassName="gap-3 px-4 py-2 pb-8"
+            refreshControl={
+              <RefreshControl refreshing={isRefetching} onRefresh={() => void refetch()} />
+            }
+          >
             {/* A log elsewhere swapped future meals — say which, offer undo */}
             <RebalanceBanner planId={plan.planId} onUndone={() => void refetch()} />
+            {/* WP-07: a log offered a rebalance (preview first); FB7-11: the Plan's own
+                preview shows it here too, only when there is something to fix. */}
+            <RebalanceOffer planId={plan.planId} onApplied={() => void refetch()} />
 
             {/* T-06.7: this week was built around the routine's training days. */}
             {builtAroundTraining && (
@@ -750,8 +1088,9 @@ export default function MealPlanScreen() {
             {replanNeeded && (
               <View testID="plan-replan-banner" className="gap-1 rounded-xl bg-blue-50 px-3 py-2">
                 <Text className="text-sm text-blue-800">
-                  This week was planned for {plannedKcal.toLocaleString('en-GB')} kcal. Re-plan with{' '}
-                  {liveKcal.toLocaleString('en-GB')} kcal?
+                  {proteinOnly
+                    ? 'Your targets have changed since this week was planned. Re-plan to match them?'
+                    : `This week was planned for ${formatKcal(plannedKcal)} kcal. Re-plan with ${formatKcal(liveKcal)} kcal?`}
                 </Text>
                 <View className="flex-row gap-2">
                   <Pressable
@@ -901,92 +1240,114 @@ export default function MealPlanScreen() {
                     {PLAN_TAILORING_COPY.dayUpdated}
                   </Text>
                 )}
-                {meals.map((meal, slotIndex) => (
-                  <PlanMealCard
-                    key={`${meal.type}-${slotIndex}`}
-                    testID={`plan-meal-${meal.type}`}
-                    day={selectedDay}
-                    meal={meal}
-                    onReport={(recipeId, recipeName) => setReportTarget({ recipeId, recipeName })}
-                    trailing={
-                      // Replace this meal (all tiers) + toggle "Your pick"
-                      // (T-07.4/T-08.3: a pinned slot survives Regenerate).
-                      !isPast && (
-                        <View className="flex-row">
-                          <Pressable
-                            testID={`plan-meal-pin-${meal.type}`}
-                            accessibilityRole="button"
-                            accessibilityLabel={
-                              meal.pinned
-                                ? `Stop keeping ${meal.recipe.name}`
-                                : `Keep ${meal.recipe.name}`
-                            }
-                            disabled={pinMutation.isPending}
-                            onPress={() =>
-                              pinMutation.mutate({
-                                planId: plan.planId,
-                                dayOfWeek: selectedDay,
-                                mealType: meal.type,
-                                slotIndex,
-                                pinned: !meal.pinned,
-                              })
-                            }
-                            className="w-11 items-center justify-center border-l border-border"
-                          >
-                            <Ionicons
-                              name={meal.pinned ? 'bookmark' : 'bookmark-outline'}
-                              size={18}
-                              color="#944a00"
-                            />
-                          </Pressable>
-                          <Pressable
-                            testID={`plan-meal-swap-${meal.type}`}
-                            accessibilityRole="button"
-                            accessibilityLabel={`Replace ${meal.recipe.name}`}
-                            onPress={() =>
-                              setPickerTarget({
-                                mealType: meal.type,
-                                slotIndex,
-                                mealName: meal.recipe.name,
-                                recipeId: meal.recipe.id,
-                              })
-                            }
-                            className="w-11 items-center justify-center border-l border-border"
-                          >
-                            <Ionicons name="swap-horizontal-outline" size={18} color="#944a00" />
-                          </Pressable>
-                        </View>
-                      )
-                    }
-                  />
-                ))}
+                {mealGroups.map((group) =>
+                  group.sides.length === 0 ? (
+                    renderSlot(group.main, 'solo')
+                  ) : (
+                    // FB7-04: a main + sides read as ONE meal — a single type
+                    // header, the compact side cards, and a total for the meal.
+                    <PlanMealGroup
+                      key={`group-${group.mealType}`}
+                      testID={`plan-group-${group.mealType}`}
+                      mealType={group.mealType}
+                      dishCount={group.entries.length}
+                      totalLine={mealGroupTotalLine(
+                        (() => {
+                          const eaten = group.entries.filter((e) => {
+                            const status = slotStateList?.[e.slotIndex]?.status;
+                            return status !== 'replaced' && status !== 'skipped';
+                          });
+                          return (eaten.length > 0 ? eaten : group.entries).map((e) => e.meal);
+                        })(),
+                        proteinOnly,
+                      )}
+                      main={renderSlot(group.main, 'main')}
+                      sides={group.sides.map((entry) => renderSlot(entry, 'side'))}
+                    />
+                  ),
+                )}
               </Animated.View>
             )}
             {meals.length > 0 && (
               <PlanDayTotals
-                meals={meals}
+                meals={plannedMealsOfDay}
                 calorieTarget={targetForDay(selectedDay)}
                 proteinGapG={day?.proteinGapG}
                 onOpenStatus={isPast ? undefined : () => openMiss(selectedDay)}
               />
             )}
+            {/* Advisory disclaimer (2026-10-02): the plan is suggestions, and
+                the allergen checks and AI can be wrong. */}
+            <Text
+              testID="plan-advisory-disclaimer"
+              variant="muted"
+              className="pt-2 text-center text-xs"
+            >
+              {WELLNESS_COPY.mealPlanAdvisoryDisclaimer}
+            </Text>
           </ScrollView>
+
+          {slotFlow.host}
 
           <RecipePickerSheet
             visible={pickerTarget !== null}
             mealName={pickerTarget?.mealName ?? ''}
+            eyebrow={lastPickerKind.current === 'side' ? 'Add a side dish' : 'Replace meal'}
             // T-08.10 (bug B-50): the picker never re-offers the meal being
             // replaced, and narrows to the slot's type.
             excludeRecipeId={pickerTarget?.recipeId}
             slotType={pickerTarget?.mealType}
-            busy={replaceMutation.isPending || swapMutation.isPending}
-            error={replaceMutation.error?.message ?? swapMutation.error?.message ?? null}
+            busy={
+              replaceMutation.isPending || swapMutation.isPending || addToWeekMutation.isPending
+            }
+            error={
+              (replaceMutation.error ? userFacingErrorMessage(replaceMutation.error) : undefined) ??
+              (swapMutation.error ? userFacingErrorMessage(swapMutation.error) : undefined) ??
+              (addToWeekMutation.error
+                ? userFacingErrorMessage(addToWeekMutation.error)
+                : undefined) ??
+              null
+            }
             // T-00.11 (B-34/B-46): replaceRecipe rejects an unsafe recipe with
             // FORBIDDEN — the sheet offers "Use anyway" for the user's own.
-            unsafeError={replaceMutation.error?.data?.code === 'FORBIDDEN'}
+            unsafeError={
+              (replaceMutation.error ?? addToWeekMutation.error)?.data?.code === 'FORBIDDEN'
+            }
             onSelect={(recipeId, acknowledgeConflict) => {
               if (!pickerTarget) return;
               const target = pickerTarget;
+              if (target.kind === 'side') {
+                // FB7-04: a second dish for this meal — `recipe.addToWeek` mode 'add'.
+                addToWeekMutation.mutate(
+                  {
+                    recipeId,
+                    weekOffset,
+                    dayOfWeek: selectedDay,
+                    mealType: target.mealType,
+                    mode: 'add',
+                    ...(acknowledgeConflict && { acknowledgeConflict }),
+                  },
+                  {
+                    onSuccess: (data) => {
+                      setPickerTarget(null);
+                      showSnackbar({
+                        message: `Added as a side to ${mealLabel(target.mealType).toLowerCase()}`,
+                        actionLabel: 'Undo',
+                        onAction: () =>
+                          undoAddMutation.mutate({
+                            planId: data.planId,
+                            dayOfWeek: data.dayOfWeek,
+                            mealType: data.mealType,
+                            slotIndex: data.slotIndex,
+                            addedRecipeId: data.addedRecipeId,
+                          }),
+                        tone: 'success',
+                      });
+                    },
+                  },
+                );
+                return;
+              }
               // Portion at click time — the response carries the new
               // recipe, not the slot's (unchanged) portion (T-08.5).
               const portion = meals[target.slotIndex]?.portion ?? 1;
@@ -1001,12 +1362,12 @@ export default function MealPlanScreen() {
                 },
                 {
                   onSuccess: (data) => {
-                    const { previousRecipeId } = data;
+                    const { previousRecipeId, previousPinned } = data;
                     showSnackbar({
                       message: `Swapped to ${data.name}${portion !== 1 ? ` · ${portion}× portion` : ''}`,
                       actionLabel: previousRecipeId ? 'Undo' : undefined,
                       onAction: previousRecipeId
-                        ? () => undoSwap(target, previousRecipeId)
+                        ? () => undoSwap(target, previousRecipeId, previousPinned === true)
                         : undefined,
                     });
                   },
@@ -1014,7 +1375,7 @@ export default function MealPlanScreen() {
               );
             }}
             onAiSwap={
-              isPremium === true
+              isPremium === true && pickerTarget?.kind !== 'side'
                 ? () => {
                     if (!pickerTarget) return;
                     const target = pickerTarget;
@@ -1029,12 +1390,12 @@ export default function MealPlanScreen() {
                         {
                           // T-08.6 (Q-6): commit + Undo, no preview.
                           onSuccess: (data) => {
-                            const { previousRecipeId } = data;
+                            const { previousRecipeId, previousPinned } = data;
                             showSnackbar({
                               message: `Swapped to ${data.name}`,
                               actionLabel: previousRecipeId ? 'Undo' : undefined,
                               onAction: previousRecipeId
-                                ? () => undoSwap(target, previousRecipeId)
+                                ? () => undoSwap(target, previousRecipeId, previousPinned === true)
                                 : undefined,
                             });
                           },
@@ -1045,6 +1406,33 @@ export default function MealPlanScreen() {
                 : undefined
             }
             onClose={closePicker}
+          />
+
+          {/* FB7-11: one sheet for "New meal plan for this week" and "Rebalance my week". */}
+          <WeekOptionsSheet
+            visible={weekOptionsOpen}
+            onClose={() => setWeekOptionsOpen(false)}
+            // UX-08 §2: Regenerate always asks first — the existing confirm.
+            onRegenerate={openRegenerateConfirm}
+            regenerating={generateMutation.isPending}
+            rebalance={
+              weekOffset === 0
+                ? {
+                    state: rebalanceCheck.state,
+                    onPress: () => {
+                      void rebalanceCheck.check().then((result) => {
+                        if (result === 'idle') {
+                          planScrollRef.current?.scrollTo({ y: 0, animated: true });
+                        } else if (result === 'on-track') {
+                          showSnackbar({ message: PLAN_WEEK_COPY.rebalance.onTrack });
+                        } else if (result === 'error') {
+                          showSnackbar({ message: PLAN_WEEK_COPY.rebalance.error });
+                        }
+                      });
+                    },
+                  }
+                : undefined
+            }
           />
 
           <WeekSummarySheet
@@ -1058,12 +1446,15 @@ export default function MealPlanScreen() {
                 dayIndex: i,
                 mealsCount: dayMeals.length,
                 totalKcal: sumPlanDay(dayMeals).kcal,
+                totalProtein: sumPlanDay(dayMeals).protein,
                 isToday: todayIndex === i,
                 training: trainingDays.find((t) => t.dayOfWeek === i),
               };
             })}
             dinners={dinnersFromPlan(plan.days, weekdayShortName)}
             weekCostEur={weekCost}
+            weekOffset={weekOffset}
+            shoppingFromDay={plan.shoppingFromDay}
             currency={currency}
             isPast={isPast}
             isPremium={isPremium === true}
@@ -1085,24 +1476,22 @@ export default function MealPlanScreen() {
 
           {/* UX-08 §3 (PAT-5): Regenerate always asks; "Keep" defaults on
               and only shows when picks exist. */}
-          <ConfirmSheet
-            testID="regenerate-confirm"
+          <RegenerateConfirm
             visible={regenerateConfirmOpen}
             onClose={() => setRegenerateConfirmOpen(false)}
-            title={`Regenerate ${weekLabel}?`}
-            body={`This replaces the ${plannedMealsCount} planned meal${plannedMealsCount === 1 ? '' : 's'}.`}
-            confirmLabel={`Regenerate ${weekLabel}`}
-            cancelLabel="Cancel"
+            weekLabel={weekLabel}
+            weekOffset={weekOffset}
+            plannedMealsCount={plannedMealsCount}
+            pinnedCount={pinnedCount}
+            keepPicks={keepPicks}
+            onKeepPicksChange={setKeepPicks}
+            busy={generateMutation.isPending}
+            error={
+              generateMutation.isError
+                ? (poolExhaustedMessage ?? userFacingErrorMessage(generateMutation.error))
+                : null
+            }
             onConfirm={() => generateWithConsent(keepPicks)}
-            {...(pinnedCount > 0 && {
-              options: [
-                {
-                  label: `Keep the ${pinnedCount} meal${pinnedCount === 1 ? '' : 's'} you chose`,
-                  value: keepPicks,
-                  onChange: setKeepPicks,
-                },
-              ],
-            })}
           />
 
           {/* L-SAFE2/T-01.5: long-press on a plan card → same report sheet as
@@ -1141,6 +1530,7 @@ export default function MealPlanScreen() {
               invalidateDerived();
             }}
             onAddSnack={() => router.push('/tracker')}
+            onRebalance={() => void rebalanceCheck.check()}
           />
 
           <CompareWeeksSheet

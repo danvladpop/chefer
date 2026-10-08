@@ -67,6 +67,8 @@ export interface IRoutineRepository {
   ): Promise<ReplaceRoutineResult>;
   setActive(userId: string, id: string): Promise<RoutineWithDays | null>;
   archive(userId: string, id: string): Promise<boolean>;
+  /** Un-archives (never makes it active). False when the routine is not the user's. */
+  restore(userId: string, id: string): Promise<boolean>;
   setNextDay(userId: string, id: string, dayId: string): Promise<RoutineWithDays | null>;
 }
 
@@ -289,6 +291,14 @@ export class RoutineRepository implements IRoutineRepository {
     const res = await prisma.routine.updateMany({
       where: { id, userId },
       data: { archivedAt: new Date(), isActive: false },
+    });
+    return res.count > 0;
+  }
+
+  async restore(userId: string, id: string): Promise<boolean> {
+    const res = await prisma.routine.updateMany({
+      where: { id, userId },
+      data: { archivedAt: null },
     });
     return res.count > 0;
   }

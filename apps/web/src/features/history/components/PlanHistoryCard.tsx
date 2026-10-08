@@ -2,9 +2,10 @@
 
 import Link from 'next/link';
 import { useState } from 'react';
-import { trpc } from '@/lib/trpc';
+import { useNumbersMode } from '@/features/numbers-mode/numbers-mode';
 import { format } from 'date-fns';
 import { Calendar, ChevronRight, RotateCcw } from 'lucide-react';
+import { UseWeekAgainSheet } from './UseWeekAgainSheet';
 
 interface PlanHistoryCardProps {
   plan: {
@@ -31,17 +32,8 @@ const STATUS_STYLES: Record<string, string> = {
 };
 
 export function PlanHistoryCard({ plan, onRestored }: PlanHistoryCardProps) {
-  const utils = trpc.useUtils();
-  const [error, setError] = useState<string | null>(null);
-
-  const restoreMutation = trpc.mealPlan.restore.useMutation({
-    onSuccess: () => {
-      void utils.mealPlan.getActive.invalidate();
-      void utils.mealPlan.list.invalidate();
-      onRestored?.();
-    },
-    onError: (e) => setError(e.message),
-  });
+  const [useAgainOpen, setUseAgainOpen] = useState(false);
+  const { proteinOnly } = useNumbersMode();
 
   const weekStart = new Date(plan.weekStartDate);
   const weekEnd = new Date(plan.weekEndDate);
@@ -83,22 +75,33 @@ export function PlanHistoryCard({ plan, onRestored }: PlanHistoryCardProps) {
 
       {/* Macro summary */}
       <div className="mb-4 flex flex-wrap gap-x-4 gap-y-1 text-xs text-neutral-500">
-        <span>
-          <span className="font-medium text-neutral-700">{plan.macroSummary.avgKcal}</span> kcal avg
-        </span>
-        <span>
-          <span className="font-medium text-neutral-700">{plan.macroSummary.avgProtein}g</span> P
-        </span>
-        <span>
-          <span className="font-medium text-neutral-700">{plan.macroSummary.avgCarbs}g</span> C
-        </span>
-        <span>
-          <span className="font-medium text-neutral-700">{plan.macroSummary.avgFat}g</span> F
-        </span>
+        {/* WP-08: protein-only mode shows protein, never kcal, for a past week too. */}
+        {proteinOnly ? (
+          <span>
+            <span className="font-medium text-neutral-700">{plan.macroSummary.avgProtein} g</span>{' '}
+            protein avg
+          </span>
+        ) : (
+          <>
+            <span>
+              <span className="font-medium text-neutral-700">{plan.macroSummary.avgKcal}</span> kcal
+              avg
+            </span>
+            <span>
+              <span className="font-medium text-neutral-700">{plan.macroSummary.avgProtein}g</span>{' '}
+              P
+            </span>
+            <span>
+              <span className="font-medium text-neutral-700">{plan.macroSummary.avgCarbs}g</span> C
+            </span>
+            <span>
+              <span className="font-medium text-neutral-700">{plan.macroSummary.avgFat}g</span> F
+            </span>
+          </>
+        )}
       </div>
 
       {/* Actions */}
-      {error && <p className="mb-2 text-xs text-red-600">{error}</p>}
       <div className="flex gap-2">
         <Link
           href={`/history/${plan.id}`}
@@ -106,21 +109,24 @@ export function PlanHistoryCard({ plan, onRestored }: PlanHistoryCardProps) {
         >
           View <ChevronRight className="h-3 w-3" />
         </Link>
-        {plan.status !== 'ACTIVE' && (
-          <button
-            onClick={() => restoreMutation.mutate({ planId: plan.id })}
-            disabled={restoreMutation.isPending}
-            className="flex min-h-11 flex-1 items-center justify-center gap-1.5 rounded-xl border border-orange-300 px-3 text-xs font-medium text-orange-600 transition hover:bg-orange-50 disabled:opacity-50"
-          >
-            {restoreMutation.isPending ? (
-              <span className="h-3 w-3 animate-spin rounded-full border border-orange-400 border-t-transparent" />
-            ) : (
-              <RotateCcw className="h-3 w-3" />
-            )}
-            Restore
-          </button>
-        )}
+        {/* UX-PLAN-11: any past week can be cooked again, into this or next week. */}
+        <button
+          type="button"
+          data-testid={`past-week-use-again-${plan.id}`}
+          onClick={() => setUseAgainOpen(true)}
+          className="flex min-h-11 flex-1 items-center justify-center gap-1.5 rounded-xl border border-orange-300 px-3 text-xs font-medium text-orange-600 transition hover:bg-orange-50"
+        >
+          <RotateCcw className="h-3 w-3" aria-hidden="true" />
+          Use again
+        </button>
       </div>
+      <UseWeekAgainSheet
+        planId={plan.id}
+        weekLabel={format(weekStart, 'dd MMM')}
+        open={useAgainOpen}
+        onClose={() => setUseAgainOpen(false)}
+        {...(onRestored && { onDone: onRestored })}
+      />
     </div>
   );
 }

@@ -14,6 +14,7 @@ import {
   Button,
   Card,
   ChipGroup,
+  ConfirmSheet,
   Input,
   KeyboardAwareScrollView,
   NumericReturnBar,
@@ -31,12 +32,17 @@ import {
   unitToKg,
   VOLUME_GROUP_LABELS,
   weightUnitForSystem,
+  WELLNESS_COPY,
 } from '@chefer/utils';
+import { NotificationsOffRow } from '../../../components/notifications-off-row';
 import { trpc } from '../../../lib/trpc';
+import { refreshNotificationPermission } from '../../../lib/use-notification-permission';
+import { useUnsavedGuard } from '../../../lib/use-unsaved-guard';
 import { captureGymEvent } from '../analytics';
 import { ExerciseNameLink } from '../components/exercise-name-link';
 import { ensureGymReminderPermission } from '../reminders/permission';
 import { gymBootstrapQueryKey } from '../use-gym-bootstrap';
+import { gymErrorMessage, startingWeightError } from '../validation-copy';
 import { defaultUnitFromLocale } from './locale-unit';
 import {
   buildTemplatePreview,
@@ -53,7 +59,12 @@ import {
 
 const TOTAL_STEPS = 7;
 const WEEKDAY_LABELS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
-const WEIGHTS_ACCESSORY_ID = 'gym-setup-weights-return';
+/**
+ * One accessory bar PER weight field (audit §6.1 root cause 4 / ONB-06): one
+ * `inputAccessoryViewID` shared by every field, with a label that changes
+ * (Next -> Done), breaks the numeric "Next" bar on iOS.
+ */
+const weightsAccessoryId = (exerciseId: string): string => `gym-setup-weights-bar-${exerciseId}`;
 
 function ProgressDots({ step }: { step: number }) {
   return (
@@ -130,16 +141,29 @@ export function SetupWizard() {
   // the saved unit system wins over the locale guess. Applied once, so it
   // never overrides a pick.
   const utils = trpc.useUtils();
-  const prefs = trpc.preferences.get.useQuery(undefined, { staleTime: 60_000 });
+  // UX-GYM-05: fresh on every open. A cached copy from before onboarding saved
+  // "Imperial" made this default to kg and `completeSetup` then flipped the
+  // whole app back to metric. Wait for that refetch to settle (offline it is
+  // paused, so the cache is used); the locale guess is only the fallback for a
+  // user with no saved unit, and a unit the user already tapped is never
+  // overridden.
+  const prefs = trpc.preferences.get.useQuery(undefined, {
+    staleTime: 0,
+    refetchOnMount: 'always',
+  });
   const unitDefaulted = useRef(false);
+  const unitPicked = useRef(false);
   useEffect(() => {
-    if (unitDefaulted.current || prefs.isLoading) return;
+    if (unitDefaulted.current || prefs.isLoading || prefs.isFetching) return;
     unitDefaulted.current = true;
     const preferred = prefs.data?.chefProfile?.preferredUnits;
-    if (preferred) setUnit(weightUnitForSystem(preferred));
-  }, [prefs.isLoading, prefs.data]);
+    if (preferred && !unitPicked.current) setUnit(weightUnitForSystem(preferred));
+  }, [prefs.isLoading, prefs.isFetching, prefs.data]);
   const [weekdays, setWeekdays] = useState<number[]>(initialWeekdays);
   const [reminderEnabled, setReminderEnabled] = useState(false);
+  // UX-GYM-04: the OS refused the permission ask — the switch stays "No
+  // reminder" and a notice points to Settings instead of pretending.
+  const [reminderRefused, setReminderRefused] = useState(false);
   const [reminderHour, setReminderHour] = useState(7);
   const [reminderMinute, setReminderMinute] = useState(0);
   const [overrideKey, setOverrideKey] = useState<string | null>(null);
@@ -190,9 +214,9 @@ export function SetupWizard() {
 
   // Starting weights (dogfood #2): the keyboard used to cover whichever
   // field you were typing into. `decimal-pad` has no Return key on iOS, so
-  // `WEIGHTS_ACCESSORY_ID` pairs every field here with one shared
-  // NumericReturnBar for "Next" / "Done"; on Android the IME already renders
-  // one for `returnKeyType`, and `inputAccessoryViewID` is simply ignored.
+  // `weightsAccessoryId` gives every field here its own NumericReturnBar
+  // ("Next", or "Done" on the last); on Android the IME already renders one
+  // for `returnKeyType`, and `inputAccessoryViewID` is simply ignored.
   const weightsChain = useFieldChain(exercises.length);
   const scrollFieldIntoView = useScrollFieldIntoView();
 
@@ -202,14 +226,40 @@ export function SetupWizard() {
     }
   }, [step, weightsChoice, experience]);
 
+  // UX-GYM-03: hardware BACK used to pop the wizard and drop every answer.
+  // BACK now steps back one page; on the first page it asks before leaving
+  // (also covers the header chevron). The guard is released on success.
+  const stepRef = useRef(step);
+  stepRef.current = step;
+  const guardRef = useRef<{ release: () => void } | null>(null);
+
   const completeSetupMutation = trpc.gym.profile.completeSetup.useMutation({
     onSuccess: (bootstrap) => {
       queryClient.setQueryData(gymBootstrapQueryKey, bootstrap);
       // The setup unit became the global unit preference (P2-6).
       void utils.preferences.get.invalidate();
+      guardRef.current?.release();
       router.replace('/today');
     },
+    // The wizard renders the failure at the bottom of the last step.
+    meta: { silent: true },
   });
+
+  const guard = useUnsavedGuard(!completeSetupMutation.isSuccess, {
+    title: 'Leave setup?',
+    message: 'Your answers will be lost.',
+    discardLabel: 'Leave setup',
+    keepLabel: 'Keep going',
+    onBack: () => {
+      if (completeSetupMutation.isPending) return true;
+      if (stepRef.current > firstStep) {
+        setStep((s) => s - 1);
+        return true;
+      }
+      return false;
+    },
+  });
+  guardRef.current = guard;
 
   const goBack = () => {
     if (completeSetupMutation.isPending) return;
@@ -227,7 +277,7 @@ export function SetupWizard() {
   const goNext = () => setStep((s) => Math.min(TOTAL_STEPS, s + 1));
 
   const handleFinish = () => {
-    if (!templateKey || completeSetupMutation.isPending) return;
+    if (!templateKey || completeSetupMutation.isPending || hasWeightErrors) return;
     const knownWeightsKg: Record<string, number> = {};
     if (weightsChoice === 'know') {
       for (const [exerciseId, raw] of Object.entries(knownWeights)) {
@@ -259,7 +309,20 @@ export function SetupWizard() {
     });
   };
 
-  const canGoNext = step === 5 ? preview !== null : true;
+  // UX-GYM-01: starting weights are checked per field, against the same
+  // bounds the server enforces, before they can be sent.
+  const weightErrors = useMemo(() => {
+    const errors: Record<string, string> = {};
+    if (weightsChoice !== 'know') return errors;
+    for (const ex of exercises) {
+      const message = startingWeightError(knownWeights[ex.exerciseId] ?? '', unit);
+      if (message) errors[ex.exerciseId] = message;
+    }
+    return errors;
+  }, [weightsChoice, exercises, knownWeights, unit]);
+  const hasWeightErrors = Object.keys(weightErrors).length > 0;
+
+  const canGoNext = step === 5 ? preview !== null : step === 6 ? !hasWeightErrors : true;
 
   return (
     <Screen className="px-0" edges={['top', 'bottom', 'left', 'right']}>
@@ -279,7 +342,11 @@ export function SetupWizard() {
         <View className="w-11" />
       </View>
 
+      {/* UX-GYM-30: keyed by step so each page opens at the top — "Starting
+          weights" used to inherit the previous page's scroll offset. */}
       <KeyboardAwareScrollView
+        key={`step-${String(step)}`}
+        testID="gym-setup-scroll"
         contentContainerClassName="gap-5 px-4 py-4"
         footer={
           <View className="gap-2 border-t border-border px-4 pb-2 pt-3">
@@ -287,6 +354,13 @@ export function SetupWizard() {
               <Button variant="ghost" testID="gym-setup-skip" onPress={goNext}>
                 Skip
               </Button>
+            )}
+            {/* Advisory disclaimer (2026-10-02): shown where the user
+                accepts the suggested program, right above "Start training". */}
+            {step === 7 && (
+              <Text testID="gym-setup-advisory-disclaimer" variant="muted" className="text-xs">
+                {WELLNESS_COPY.gymAdvisoryDisclaimer}
+              </Text>
             )}
             {step < 7 ? (
               <Button testID="gym-setup-next" disabled={!canGoNext} onPress={goNext}>
@@ -461,7 +535,10 @@ export function SetupWizard() {
                 value={[unit]}
                 onChange={(v) => {
                   const next = v[0];
-                  if (next) setUnit(next);
+                  if (next) {
+                    unitPicked.current = true;
+                    setUnit(next);
+                  }
                 }}
               />
               <Text variant="muted" className="text-xs">
@@ -499,11 +576,27 @@ export function SetupWizard() {
                 onChange={(v) => {
                   const enabled = v[0] === 'on';
                   setReminderEnabled(enabled);
+                  setReminderRefused(false);
                   // "Want a reminder?" is a direct user action — ask here,
-                  // never on cold start (gym_plan.md §6.5).
-                  if (enabled) void ensureGymReminderPermission();
+                  // never on cold start (gym_plan.md §6.5). UX-GYM-04: if the
+                  // OS says no, the choice goes back to "No reminder".
+                  if (enabled) {
+                    void ensureGymReminderPermission().then((granted) => {
+                      refreshNotificationPermission();
+                      if (!granted) {
+                        setReminderEnabled(false);
+                        setReminderRefused(true);
+                      }
+                    });
+                  }
                 }}
               />
+              {reminderRefused && (
+                <NotificationsOffRow
+                  testID="gym-setup-notifications-off"
+                  message="Reminders are off for Chefer"
+                />
+              )}
               {reminderEnabled && (
                 <View className="flex-row items-center gap-3">
                   <Stepper
@@ -738,39 +831,50 @@ export function SetupWizard() {
             {weightsChoice === 'know' && (
               <View className="gap-3">
                 {exercises.map((ex, i) => (
-                  <View key={ex.exerciseId} className="flex-row items-center gap-3">
-                    <Text numberOfLines={1} className="min-w-0 flex-1 text-sm">
-                      {ex.name}
-                    </Text>
-                    <Input
-                      testID={`gym-setup-weight-${ex.exerciseId}`}
-                      keyboardType="decimal-pad"
-                      inputAccessoryViewID={
-                        Platform.OS === 'ios' ? WEIGHTS_ACCESSORY_ID : undefined
-                      }
-                      placeholder={unitLabel(unit)}
-                      value={knownWeights[ex.exerciseId] ?? ''}
-                      onChangeText={(text) =>
-                        setKnownWeights((prev) => ({ ...prev, [ex.exerciseId]: text }))
-                      }
-                      className="w-24 text-right"
-                      {...weightsChain.bind(i, { onFocus: scrollFieldIntoView })}
+                  <View key={ex.exerciseId} className="gap-1">
+                    <View className="flex-row items-center gap-3">
+                      <Text numberOfLines={1} className="min-w-0 flex-1 text-sm">
+                        {ex.name}
+                      </Text>
+                      <Input
+                        testID={`gym-setup-weight-${ex.exerciseId}`}
+                        accessibilityLabel={`${ex.name} starting weight in ${unitLabel(unit)}`}
+                        aria-invalid={weightErrors[ex.exerciseId] !== undefined}
+                        keyboardType="decimal-pad"
+                        inputAccessoryViewID={
+                          Platform.OS === 'ios' ? weightsAccessoryId(ex.exerciseId) : undefined
+                        }
+                        placeholder={unitLabel(unit)}
+                        value={knownWeights[ex.exerciseId] ?? ''}
+                        onChangeText={(text) =>
+                          setKnownWeights((prev) => ({ ...prev, [ex.exerciseId]: text }))
+                        }
+                        className="w-24 text-right"
+                        {...weightsChain.bind(i, { onFocus: scrollFieldIntoView })}
+                      />
+                      <Text variant="muted" className="text-xs">
+                        {unitLabel(unit)}
+                      </Text>
+                    </View>
+                    <NumericReturnBar
+                      nativeID={weightsAccessoryId(ex.exerciseId)}
+                      label={i === exercises.length - 1 ? 'Done' : 'Next'}
+                      onPress={() => weightsChain.focusNext(i)}
+                      testID={`gym-setup-weights-return-${ex.exerciseId}`}
                     />
-                    <Text variant="muted" className="text-xs">
-                      {unitLabel(unit)}
-                    </Text>
+                    {weightErrors[ex.exerciseId] ? (
+                      <Text
+                        testID={`gym-setup-weight-error-${ex.exerciseId}`}
+                        accessibilityLiveRegion="polite"
+                        className="text-right text-xs text-red-600"
+                      >
+                        {weightErrors[ex.exerciseId]}
+                      </Text>
+                    ) : null}
                   </View>
                 ))}
               </View>
             )}
-            {weightsChoice === 'know' && exercises.length > 0 ? (
-              <NumericReturnBar
-                nativeID={WEIGHTS_ACCESSORY_ID}
-                label={weightsChain.isLastFocused ? 'Done' : 'Next'}
-                onPress={() => weightsChain.focusNext()}
-                testID="gym-setup-weights-return"
-              />
-            ) : null}
           </View>
         )}
 
@@ -797,12 +901,13 @@ export function SetupWizard() {
             </Text>
             {completeSetupMutation.isError && (
               <Text className="text-sm text-red-600" testID="gym-setup-error">
-                {completeSetupMutation.error.message}
+                {gymErrorMessage(completeSetupMutation.error)}
               </Text>
             )}
           </View>
         )}
       </KeyboardAwareScrollView>
+      <ConfirmSheet testID="gym-setup-leave" {...guard.sheetProps} />
     </Screen>
   );
 }

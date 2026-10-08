@@ -14,6 +14,8 @@ export interface UpsertChefReviewData {
   /** Pantry savings surfaced in the review (F3 seam) — null until F3 lands. */
   savedEur?: number | null;
   reviewText: string;
+  /** R-14: the prose came from the AI model (false = template). Defaults to false. */
+  aiGenerated?: boolean;
   /** §2.11, T-35.4 (S13, rev 2) — the coach proposes, never overwrites. */
   proposedAdjustmentKcal?: number | null;
   proposalResolvedAt?: Date | null;

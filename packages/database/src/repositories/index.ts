@@ -65,6 +65,9 @@ export {
   dailyLogRepository,
   type IDailyLogRepository,
   type LoggedMealEntry,
+  type DayState,
+  type SlotRefJson,
+  parseSkippedSlots,
   type UpsertDailyLogData,
 } from './daily-log.repository';
 
@@ -208,6 +211,15 @@ export {
   type IConsentEventRepository,
   type RecordConsentEventData,
 } from './consent-event.repository';
+
+export {
+  AuthIdentityRepository,
+  authIdentityRepository,
+  type IAuthIdentityRepository,
+  type IdentityWithUser,
+  type CreateIdentityData,
+  type UpdateIdentityData,
+} from './auth-identity.repository';
 
 // ─── Following (docs/friends/implementation-plan.md §2.4) ──────────────────────
 

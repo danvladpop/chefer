@@ -1,7 +1,8 @@
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { UserProfile } from '@chefer/types';
 import type { RecipeData } from '../../lib/ai/types.js';
 import { filterSafeRecipes } from '../../lib/curated-recipes/safety.js';
+import { planShapeService } from '../meal-plan/plan-shape.service.js';
 import {
   computeHouseholdContext,
   derivedServingSize,
@@ -10,6 +11,10 @@ import {
   mergeHouseholdSafety,
   type HouseholdMemberSafety,
 } from './household.service.js';
+
+vi.mock('../meal-plan/plan-shape.service.js', () => ({
+  planShapeService: { getShape: vi.fn() },
+}));
 
 // ─── Fixtures ─────────────────────────────────────────────────────────────────
 
@@ -216,6 +221,44 @@ describe('HouseholdService — member limit (matrix householdMembers)', () => {
     });
   });
 
+  it('UX-PLAN-12: a kid keeps an age band; a non-kid never stores one', async () => {
+    const repo = makeRepo();
+    const service = new HouseholdService(repo);
+
+    await service.add(freeUser, { name: 'Sam', isKid: true, ageBand: 'CHILD' });
+    expect(repo.createWithinCap).toHaveBeenLastCalledWith(
+      'user-free',
+      { name: 'Sam', isKid: true, ageBand: 'CHILD' },
+      5,
+    );
+
+    await service.add(freeUser, { name: 'Maria', isKid: false, ageBand: 'TEEN' });
+    expect(repo.createWithinCap).toHaveBeenLastCalledWith(
+      'user-free',
+      { name: 'Maria', isKid: false },
+      5,
+    );
+  });
+
+  it('UX-PLAN-12: update sets/clears the band, and un-kidding a member clears it', async () => {
+    const repo = makeRepo();
+    repo.update.mockResolvedValue({ id: 'm1' });
+    const service = new HouseholdService(repo);
+
+    await service.update('u', 'm1', { ageBand: 'TEEN' });
+    expect(repo.update).toHaveBeenLastCalledWith('u', 'm1', { ageBand: 'TEEN' });
+
+    await service.update('u', 'm1', { ageBand: null });
+    expect(repo.update).toHaveBeenLastCalledWith('u', 'm1', { ageBand: null });
+
+    await service.update('u', 'm1', { isKid: false });
+    expect(repo.update).toHaveBeenLastCalledWith('u', 'm1', { isKid: false, ageBand: null });
+
+    // 1.0.1 clients never send ageBand: an ordinary edit leaves it untouched.
+    await service.update('u', 'm1', { name: 'Sam', portionFactor: 0.5 });
+    expect(repo.update).toHaveBeenLastCalledWith('u', 'm1', { name: 'Sam', portionFactor: 0.5 });
+  });
+
   it("update/remove of another user's member surface NOT_FOUND (ownership-scoped repo)", async () => {
     const repo = makeRepo();
     const service = new HouseholdService(repo);
@@ -252,6 +295,43 @@ describe('HouseholdService.scalingPortions', () => {
   it('premium without members has nothing to scale', async () => {
     const service = new HouseholdService(makeRepo(0, []));
     expect(await service.scalingPortions(premiumUser)).toBeNull();
+  });
+});
+
+describe('HouseholdService.scalingTable (UX-PLAN-02, UX-REC-02)', () => {
+  const table = [
+    { name: 'Maria', portionFactor: 1 },
+    { name: 'Sam', portionFactor: 0.5 },
+  ];
+  const shape = (cookingFor: 1 | 2 | null) =>
+    vi.mocked(planShapeService.getShape).mockResolvedValue({ cookingFor } as never);
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('premium with members: the members, plus the cooking-for setting', async () => {
+    shape(2);
+    const service = new HouseholdService(makeRepo(2, table));
+    expect(await service.scalingTable(premiumUser)).toEqual({
+      members: [{ portionFactor: 1 }, { portionFactor: 0.5 }],
+      cookingFor: 2,
+    });
+  });
+
+  it('free + "two of us": no members scale, but the table is still two', async () => {
+    shape(2);
+    const repo = makeRepo(2, table);
+    const service = new HouseholdService(repo);
+    expect(await service.scalingTable(freeUser)).toEqual({ members: [], cookingFor: 2 });
+    expect(repo.findByUserId).not.toHaveBeenCalled();
+  });
+
+  it('solo with "just me": nothing beyond the eater\'s own portion', async () => {
+    shape(1);
+    expect(await new HouseholdService(makeRepo(0, [])).scalingTable(premiumUser)).toBeNull();
+    shape(null);
+    expect(await new HouseholdService(makeRepo(2, table)).scalingTable(freeUser)).toBeNull();
   });
 });
 

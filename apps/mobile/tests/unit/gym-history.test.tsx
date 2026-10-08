@@ -79,6 +79,46 @@ describe('SessionDetailScreen', () => {
     expect(screen.getByText('RIR: 2')).toBeTruthy();
   });
 
+  // WP-20: "Cycling class · 45 min · ~400 kcal (from your watch)".
+  it('reads a quick-logged activity as one line with the kcal source, with or without the library row', async () => {
+    const activity: SessionSummaryDto = {
+      ...session,
+      id: 'activity-1',
+      name: 'Cycling class',
+      startedAt: '2026-09-10T17:00:00.000Z',
+      finishedAt: '2026-09-10T17:45:00.000Z',
+      exercises: [
+        {
+          exerciseId: 'spin-class',
+          skipped: false,
+          lastSetRir: null,
+          sets: [
+            {
+              weightKg: 0,
+              reps: 0,
+              isWarmup: false,
+              completed: true,
+              durationSec: 2700,
+              intensityRpe: 7,
+              caloriesKcal: 400,
+            },
+          ],
+        },
+      ],
+    };
+    // No `spin-class` in the cached library (an older cache): still a clean line, never "0 kg × 0".
+    const bootstrap = makeBootstrap({ recentSessions: [activity] });
+    const queryClient = makeGymQueryClient();
+    queryClient.setQueryData(gymBootstrapQueryKey, bootstrap);
+    await renderWithGym(<SessionDetailScreen sessionId="activity-1" />, queryClient);
+
+    await screen.findByTestId('gym-session-detail');
+    expect(screen.getByTestId('session-detail-activity')).toBeTruthy();
+    expect(screen.getByText('Cycling class · 45 min · ~400 kcal (from your watch)')).toBeTruthy();
+    expect(screen.getByText('Effort: Hard')).toBeTruthy();
+    expect(screen.queryByText(/kg/)).toBeNull();
+  });
+
   it('bug B-41: working sets are numbered from 1, independent of preceding warm-ups', async () => {
     const bootstrap = makeBootstrap({
       library: [makeExercise('bench', 'Bench Press')],
@@ -95,6 +135,65 @@ describe('SessionDetailScreen', () => {
     expect(screen.getByText('Set 1')).toBeTruthy();
     expect(screen.getByText('Set 2')).toBeTruthy();
     expect(screen.queryByText('Set 3')).toBeNull();
+  });
+
+  // UX-GYM-27 / UX-GYM-34: bodyweight and assisted loads read right, the date is
+  // not an ISO string, and a lift that appears twice does not clash on its key.
+  it('formats bodyweight/assisted loads with the exercise load type and shows an Intl date', async () => {
+    const errorSpy = jest.spyOn(console, 'error').mockImplementation(() => undefined);
+    const bootstrap = makeBootstrap({
+      library: [
+        { ...makeExercise('dip', 'Dip'), loadType: 'BODYWEIGHT_PLUS' },
+        { ...makeExercise('pullup', 'Assisted Pull-up'), loadType: 'ASSISTED' },
+        { ...makeExercise('pushup', 'Push-up'), loadType: 'BODYWEIGHT' },
+      ],
+      recentSessions: [
+        {
+          ...session,
+          exercises: [
+            {
+              exerciseId: 'pushup',
+              skipped: false,
+              lastSetRir: null,
+              sets: [{ weightKg: 0, reps: 12, isWarmup: false, completed: true }],
+            },
+            {
+              exerciseId: 'pullup',
+              skipped: false,
+              lastSetRir: null,
+              sets: [{ weightKg: 25, reps: 8, isWarmup: false, completed: true }],
+            },
+            {
+              exerciseId: 'dip',
+              skipped: false,
+              lastSetRir: null,
+              sets: [{ weightKg: 10, reps: 6, isWarmup: false, completed: true }],
+            },
+            // The same lift twice in one session (two entries) — duplicate keys before.
+            {
+              exerciseId: 'dip',
+              skipped: false,
+              lastSetRir: null,
+              sets: [{ weightKg: 0, reps: 5, isWarmup: false, completed: true }],
+            },
+          ],
+        },
+      ],
+    });
+    const queryClient = makeGymQueryClient();
+    queryClient.setQueryData(gymBootstrapQueryKey, bootstrap);
+    await renderWithGym(<SessionDetailScreen sessionId="session-1" />, queryClient);
+
+    await screen.findByTestId('gym-session-detail');
+    expect(screen.getByText(/BW × 12/)).toBeTruthy();
+    expect(screen.getByText(/25 kg assist × 8/)).toBeTruthy();
+    expect(screen.getByText(/BW \+ 10 kg × 6/)).toBeTruthy();
+    expect(screen.queryByText(/0 kg × 12/)).toBeNull();
+    // "Sep 10, 2026" (device locale), never the ISO "2026-09-10".
+    expect(screen.queryByText(/2026-09-10/)).toBeNull();
+    expect(screen.getByText(/Sep.*10.*2026|10.*Sep.*2026/)).toBeTruthy();
+    const keyWarnings = errorSpy.mock.calls.filter((c) => String(c[0]).includes('same key'));
+    expect(keyWarnings).toHaveLength(0);
   });
 
   it('shows a not-found state offline for an unknown session', async () => {

@@ -3,6 +3,7 @@ import type {
   ExerciseMeta,
   GymBootstrap,
   PrKind,
+  RoutineDto,
   SessionExerciseDoc,
   SessionSetDoc,
   SessionSummaryDto,
@@ -12,12 +13,13 @@ import type {
 } from '@chefer/types';
 import {
   defaultTargetRir,
-  detectPrs,
+  detectLivePrs,
   equipmentProfileOf,
   initialState,
   prescribe,
   repBucket,
   sameKg,
+  sessionOwnsSupersets,
   sessionSupersets,
   supersetGroupLookup,
   warmupSets,
@@ -90,15 +92,78 @@ export function isExerciseDone(se: SessionExerciseDoc): boolean {
 const NO_SUPERSETS: ReadonlyMap<string, SessionSupersetSlot> = new Map();
 
 /**
- * The session's supersets, derived from the cached routine (the session doc
- * has no superset field): routine slots sharing a letter AND still adjacent.
+ * The session's supersets: its own letters once the doc carries them
+ * (plan-library-supersets S-D3, every session started since S1), else derived
+ * from the cached routine (older docs) — slots sharing a letter AND still
+ * adjacent. Works without a bootstrap for docs that own their letters.
  */
 export function supersetsOf(
   doc: WorkoutSessionDoc,
   bootstrap: Pick<GymBootstrap, 'activeRoutine' | 'nextWorkout'> | undefined | null,
 ): Map<string, SessionSupersetSlot> {
-  if (!bootstrap) return new Map();
-  return sessionSupersets(doc.exercises, supersetGroupLookup(bootstrap));
+  return sessionSupersets(doc.exercises, bootstrap ? supersetGroupLookup(bootstrap) : null);
+}
+
+/**
+ * The `derivedGroups` for a `createSuperset` / `ungroupSuperset` action: the
+ * grouping on screen (seId → letter) when the doc does not own its letters
+ * yet, so the routine's supersets survive the first edit. Undefined for a doc
+ * that owns them (the reducer then uses its own).
+ */
+export function derivedSupersetGroups(
+  doc: WorkoutSessionDoc,
+  supersets: ReadonlyMap<string, SessionSupersetSlot>,
+): Record<string, string | null> | undefined {
+  if (sessionOwnsSupersets(doc.exercises)) return undefined;
+  return Object.fromEntries(
+    doc.exercises.map((se) => [se.id, supersets.get(se.id)?.label ?? null]),
+  );
+}
+
+/** The active routine's day this session was started from (null for freestyle / another routine). */
+function sessionRoutineDay(doc: WorkoutSessionDoc, routine: RoutineDto | null | undefined) {
+  if (!routine || !doc.routineDayId || doc.routineId !== routine.id) return null;
+  return routine.days.find((d) => d.id === doc.routineDayId) ?? null;
+}
+
+/**
+ * "Also change my routine" for a superset made in the workout: the picks'
+ * routine slots, when EVERY pick is a slot of the session's day in the active
+ * routine (an exercise added mid-workout has none). Null hides the option.
+ */
+export function routineSlotsForPicks(
+  doc: WorkoutSessionDoc,
+  routine: RoutineDto | null | undefined,
+  seIds: readonly string[],
+): string[] | null {
+  const day = sessionRoutineDay(doc, routine);
+  if (!day || seIds.length < 2) return null;
+  const slots: string[] = [];
+  for (const id of seIds) {
+    const rid = doc.exercises.find((se) => se.id === id)?.routineExerciseId ?? null;
+    if (!rid || !day.exercises.some((e) => e.id === rid)) return null;
+    slots.push(rid);
+  }
+  return slots;
+}
+
+/**
+ * "Also change my routine" for Ungroup: a member's routine slot that is in a
+ * superset on the session's routine day (null when the routine has nothing
+ * to ungroup, which hides the option).
+ */
+export function routineSupersetSlotOf(
+  doc: WorkoutSessionDoc,
+  routine: RoutineDto | null | undefined,
+  memberIds: readonly string[],
+): string | null {
+  const day = sessionRoutineDay(doc, routine);
+  if (!day) return null;
+  for (const id of memberIds) {
+    const rid = doc.exercises.find((se) => se.id === id)?.routineExerciseId ?? null;
+    if (rid && day.exercises.some((e) => e.id === rid && e.supersetGroup !== null)) return rid;
+  }
+  return null;
 }
 
 /** The next working set to do — walked round by round inside a superset. */
@@ -171,7 +236,8 @@ const PR_RANK: Record<PrKind, number> = { e1rm: 3, weight: 2, reps: 1 };
 
 /**
  * Live PR badges: at most one per exercise — the ticked working set with the
- * highest-ranked record (first one wins a tie). `history` is the bootstrap's
+ * highest-ranked record (first one wins a tie). An exercise with no earlier
+ * history has none (UX-GYM-18: a first-ever lift is a baseline). `history` is the bootstrap's
  * recent sessions; the running session itself is never part of it.
  */
 export function livePrs(
@@ -187,7 +253,7 @@ export function livePrs(
     let best: { setId: string; kind: PrKind } | null = null;
     for (const s of workingSets(se)) {
       if (s.completedAt === null) continue;
-      const kind = detectPrs({
+      const kind = detectLivePrs({
         exerciseId: se.exerciseId,
         history: prior,
         candidate: { weightKg: s.weightKg, reps: s.reps },

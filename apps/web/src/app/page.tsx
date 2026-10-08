@@ -6,7 +6,7 @@ import { getSessionUser } from '@/features/auth/lib/session';
 export const metadata: Metadata = {
   title: 'Chefer — Gym Log & Meal Planner',
   description:
-    'A free workout log that tells you what to lift next, plus a week of meal plans built around your goals, allergies and budget — with priced shopping lists, photo meal logging, recipe import and adaptive coaching. Free for now.',
+    'A free workout log that tells you what to lift next, plus a week of meal plans built around your goals, allergies and budget — with priced shopping lists, photo meal logging, recipe import and adaptive coaching. Free to use.',
 };
 
 // ─── Landing page ─────────────────────────────────────────────────────────────
@@ -65,7 +65,7 @@ const PREMIUM_FEATURES = [
     icon: '📸',
     title: 'Snap a photo, log the meal',
     description:
-      "Photograph any plate — restaurant, leftovers, grandma's — and the chef estimates the dish and macros, then rebalances your week.",
+      "Photograph any plate — restaurant, leftovers, grandma's — and the chef estimates the dish and macros, then logs it to your day.",
   },
   {
     icon: '🔗',
@@ -80,10 +80,10 @@ const PREMIUM_FEATURES = [
       'Add your partner and kids with their own allergies and portions — plans, servings, and the shopping list scale for everyone.',
   },
   {
-    icon: '🧺',
-    title: 'Plans that cook from your pantry',
+    icon: '🛒',
+    title: 'A shopping list built from your recipes',
     description:
-      'Chefer remembers what you bought and plans around it — fewer duplicates, visible savings, zero-waste weeks.',
+      "The week's planned recipes become one list, grouped by aisle, with an estimated total — nothing to type, nothing to forget.",
   },
   {
     icon: '💶',
@@ -96,7 +96,7 @@ const PREMIUM_FEATURES = [
 const FAQ = [
   {
     q: 'What does it cost?',
-    a: 'Nothing right now. Every feature — premium included — is free, and we never ask for payment details. The free tier stays free.',
+    a: 'Nothing. Every feature, Premium included, is free to use.',
   },
   {
     q: 'Do I need to fill in a big profile first?',
@@ -149,7 +149,7 @@ export default async function HomePage() {
           <div className="mx-auto max-w-3xl">
             <div className="mb-6 inline-flex items-center gap-2 rounded-full border border-amber-200 bg-amber-50 px-4 py-1.5 text-sm font-medium text-amber-900">
               <span aria-hidden="true">✨</span>
-              Everything free for now, premium features included
+              Everything free, premium features included
             </div>
 
             <h1 className="mb-5 font-serif text-4xl font-semibold tracking-tight sm:text-5xl lg:text-6xl">
@@ -224,7 +224,7 @@ export default async function HomePage() {
               <h2 className="mb-3 font-serif text-3xl font-semibold tracking-tight">
                 Everything you need to train and eat well
               </h2>
-              <p className="text-gray-600">Free. Not a trial — the free tier stays free.</p>
+              <p className="text-gray-600">Free. Not a trial.</p>
             </div>
             <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-4">
               {FREE_FEATURES.map(({ icon, title, description }) => (
@@ -245,14 +245,14 @@ export default async function HomePage() {
           <div className="mx-auto max-w-5xl">
             <div className="mb-12 text-center">
               <p className="mb-2 text-xs font-bold uppercase tracking-widest text-[#944a00]">
-                Premium · free for now
+                Premium · included
               </p>
               <h2 className="mb-3 font-serif text-3xl font-semibold tracking-tight">
                 A chef that knows you — and your week
               </h2>
               <p className="mx-auto max-w-xl text-gray-600">
-                Premium turns Chefer from a recipe book into a personal chef. For now it costs
-                nothing — one click activates it, no card asked.
+                Premium turns Chefer from a recipe book into a personal chef. It is included at no
+                cost — one click activates it.
               </p>
             </div>
             <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">

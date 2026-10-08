@@ -11,7 +11,12 @@ import { trpc } from '@/lib/trpc';
 import { Pencil, Plus, Search, Trash2 } from 'lucide-react';
 import { INGREDIENT_CATEGORIES, type IngredientCategory } from '@chefer/types';
 import { cn, pressControl, Sheet } from '@chefer/ui';
-import { formatMoney, INGREDIENT_CATEGORY_LABELS, normalizeIngredientKey } from '@chefer/utils';
+import {
+  formatMoney,
+  INGREDIENT_CATEGORY_LABELS,
+  normalizeIngredientKey,
+  userFacingErrorMessage,
+} from '@chefer/utils';
 
 // ─── Ingredients page (plan-ingredient-catalog §10) ───────────────────────────
 // The catalog recipes compute from: Chefer's global rows (nutrition from USDA
@@ -68,6 +73,7 @@ export default function IngredientsPage() {
   };
 
   const deleteMutation = trpc.ingredients.delete.useMutation({
+    meta: { silent: true },
     onSuccess: () => {
       setDeleteTarget(null);
       invalidate();
@@ -293,7 +299,7 @@ export default function IngredientsPage() {
           </p>
           {deleteMutation.isError && (
             <p role="alert" className="mt-2 text-sm text-red-600">
-              {deleteMutation.error.message}
+              {userFacingErrorMessage(deleteMutation.error)}
             </p>
           )}
         </div>

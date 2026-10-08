@@ -8,7 +8,22 @@ import {
   type NextWorkoutDto,
   type Suggestion,
 } from '@chefer/types';
-import { NextUpCard } from './today-view';
+import { NextUpCard, OfferCard } from './today-view';
+
+vi.mock('@/lib/trpc', () => {
+  const mutation = { mutate: vi.fn(), isPending: false };
+  return {
+    trpc: {
+      useUtils: () => ({ gym: { bootstrap: { invalidate: vi.fn() } } }),
+      gym: {
+        progression: {
+          dismissOffer: { useMutation: () => mutation },
+          startDeload: { useMutation: () => mutation },
+        },
+      },
+    },
+  };
+});
 
 afterEach(cleanup);
 
@@ -105,5 +120,32 @@ describe('NextUpCard — supersets', () => {
     );
     expect(screen.queryByTestId('gym-next-up-superset-chip')).toBeNull();
     expect(screen.queryByTestId('routine-superset-A')).toBeNull();
+  });
+});
+
+// UX-GYM-13: the monthly recap card opens that month's recap.
+describe('OfferCard — recap', () => {
+  it('has a primary "See September" link to Stats with the month pre-selected', () => {
+    render(
+      <OfferCard
+        offer={{
+          kind: 'recap',
+          key: 'recap:2026-09',
+          title: 'Your month in review',
+          body: 'body',
+          data: { month: '2026-09' },
+        }}
+      />,
+    );
+    const link = screen.getByRole('link', { name: 'See September' });
+    expect(link).toHaveAttribute('href', '/gym/stats?month=2026-09');
+  });
+
+  it('falls back to a plain Stats link when the offer carries no month', () => {
+    render(<OfferCard offer={{ kind: 'recap', key: 'x', title: 'Recap', body: 'body' }} />);
+    expect(screen.getByRole('link', { name: 'See your month' })).toHaveAttribute(
+      'href',
+      '/gym/stats',
+    );
   });
 });

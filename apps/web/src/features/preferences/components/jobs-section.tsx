@@ -34,6 +34,7 @@ export function JobsSection({ initialJobs }: { initialJobs: OnboardingJob[] }) {
   }, [initialJobs]);
 
   const mutation = trpc.preferences.setJobs.useMutation({
+    meta: { silent: true },
     onSuccess: () => {
       void utils.preferences.invalidate();
       const addedTrain = jobs.includes('TRAIN') && !originalJobs.includes('TRAIN');

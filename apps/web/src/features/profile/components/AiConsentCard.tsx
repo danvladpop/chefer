@@ -18,8 +18,14 @@ export function AiConsentCard() {
   const providers = useAiProviderDisclosure();
   const onSaved = ({ aiDataConsentAt }: { aiDataConsentAt: Date | null }) =>
     utils.user.me.setData(undefined, (prev) => (prev ? { ...prev, aiDataConsentAt } : prev));
-  const grant = trpc.user.grantAiDataConsent.useMutation({ onSuccess: onSaved });
-  const revoke = trpc.user.revokeAiDataConsent.useMutation({ onSuccess: onSaved });
+  const grant = trpc.user.grantAiDataConsent.useMutation({
+    meta: { silent: true },
+    onSuccess: onSaved,
+  });
+  const revoke = trpc.user.revokeAiDataConsent.useMutation({
+    meta: { silent: true },
+    onSuccess: onSaved,
+  });
   const busy = grant.isPending || revoke.isPending;
   const enabled = Boolean(user?.aiDataConsentAt);
 
@@ -48,6 +54,9 @@ export function AiConsentCard() {
           disabled={!user || busy}
         />
       </div>
+      <p className="mt-2 text-xs text-gray-600" data-testid="ai-consent-coach-note">
+        {AI_CONSENT_COPY.coachReviewNote}
+      </p>
       {(grant.isError || revoke.isError) && (
         <p role="alert" className="mt-2 text-sm text-red-700">
           {AI_CONSENT_COPY.saveError}

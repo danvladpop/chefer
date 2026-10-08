@@ -175,6 +175,15 @@ describe('SummaryScreen', () => {
     expect(screen.getByTestId('summary-pr-bench')).toBeOnTheScreen();
   });
 
+  it('UX-GYM-18: an exercise’s first-ever session is a baseline, not a counted PR', async () => {
+    const doc = finishedDoc();
+    rememberFinished(doc);
+    // bootstrapAfterFinish has no earlier history for this exercise.
+    await renderSummary(doc.id, bootstrapAfterFinish(doc));
+    expect(screen.getByTestId('summary-prs')).toHaveTextContent('0');
+    expect(screen.queryByTestId('summary-pr-bench')).toBeNull();
+  });
+
   it('T-05.5: an exercise name is a real link — tapping it opens its exercise detail page', async () => {
     const user = userEvent.setup();
     const doc = finishedDoc();
@@ -284,6 +293,8 @@ describe('SummaryScreen', () => {
     await user.press(screen.getByTestId('number-sheet-key-0'));
     expect(screen.getByTestId('number-sheet-value')).toHaveTextContent('150 kg');
     await user.press(screen.getByTestId('number-sheet-save'));
+    // 40 → 150 is more than 2x (UX-GYM-01): the keypad asks once before saving.
+    await user.press(screen.getByTestId('number-sheet-jump-confirm'));
 
     expect(screen.getByTestId('adjust-weight-value')).toHaveTextContent('150 kg');
   });

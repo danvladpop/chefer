@@ -20,10 +20,11 @@ import {
 //     (never rendered). A flag can retire a bullet (`hiddenWhenFlag`) once the
 //     thing it promises becomes free. So a pitch can never promise an unbuilt
 //     feature (UX-25 rule).
-//   - No price, currency, checkout or "buy" wording — Premium is the free
-//     toggle for now and the iOS build must carry no purchase path (App Review
-//     3.1.1). The terms paragraph says nothing changes without notice.
-//   - No "beta" in user-facing copy (App Review 2.2) — "free for now".
+//   - No price, currency, checkout, card or "buy" wording, and nothing that
+//     implies a future price or payment method — Premium is an included
+//     toggle and the iOS build must carry no purchase path (App Review 3.1.1,
+//     R-04). The terms paragraph only says it is included at no cost.
+//   - No "beta" in user-facing copy (App Review 2.2) — "included".
 //   - The gym stays free (D-11): the Train pitch says so, and no bullet ever
 //     sells gym features as Premium.
 // Scanned by `chefer/no-forbidden-copy` and the belt-and-braces test in
@@ -35,9 +36,8 @@ export const PREMIUM_PITCH_COPY = {
   eyebrow: 'PREMIUM',
   alsoIncluded: 'Also included',
   dailyAllowanceSuffix: '(daily allowance)',
-  termsHeading: 'FREE FOR NOW',
-  termsBody:
-    "Premium costs nothing for now, and we won't ask for a card. Before it has a price, we'll tell you in the app at least 30 days ahead and you choose whether to keep it. Nothing changes automatically.",
+  termsHeading: 'INCLUDED',
+  termsBody: 'Premium is included at no cost. Turning it on unlocks everything listed above.',
   turnOn: 'Turn on Premium',
   notNow: 'Not now',
   successTitle: 'Premium is on',
@@ -52,7 +52,7 @@ export const PREMIUM_PITCH_COPY = {
   planFreeBody:
     'Free includes the gym log, weekly plans from our recipes, allergy checks on every plan and your shopping list.',
   planPremiumTitle: 'Your plan: Premium',
-  planPremiumNote: 'Free for now',
+  planPremiumNote: 'Included',
   planWhatYouHave: 'What you have',
   switchBackToFree: 'Switch back to Free',
   downgradeTitle: 'Switch back to Free?',
@@ -73,14 +73,19 @@ export type PremiumPitchCopyKey = keyof typeof PREMIUM_PITCH_COPY;
 
 // ─── Sources → jobs ─────────────────────────────────────────────────────────────
 
-const SOURCE_JOB: Record<string, PremiumJobId> = {
+/** Every job a pitch can still headline (everything but the retired `pantry`). */
+type LivePitchJobId = Exclude<PremiumJobId, 'pantry'>;
+
+// `pantry` is retired (WP-24 / FB7-10, "In my kitchen" is gone): the source and
+// the `pantry` job id stay valid for analytics and old callers, but a pantry
+// source no longer maps to a job, so it gets the default pitch.
+const SOURCE_JOB: Record<string, LivePitchJobId> = {
   household: 'household',
   'recipe-import': 'recipe-import',
   'training-day': 'training',
   'training-week': 'training',
   budget: 'budget',
   'shopping-list': 'budget',
-  pantry: 'pantry',
   'chat-locked': 'chat',
   'chat-quota': 'chat',
   'snap-scan': 'snap-scan',
@@ -129,7 +134,7 @@ const b = (
   extra: Partial<Omit<PitchBullet, 'text' | 'feature'>> = {},
 ): PitchBullet => ({ text: typeof text === 'string' ? () => text : text, feature, ...extra });
 
-const JOBS: Record<PremiumJobId, PitchJob> = {
+const JOBS: Record<LivePitchJobId, PitchJob> = {
   household: {
     headline: (c) =>
       c.tableSize && c.tableSize > 1
@@ -160,17 +165,16 @@ const JOBS: Record<PremiumJobId, PitchJob> = {
   },
   training: {
     headline: () => 'A week built around your training days',
-    lede: 'Premium raises your targets on training days and plans protein-rich meals around them.',
+    // Training-day targets are free (WP-07: no AI); Premium sells the AI week.
+    lede: 'Your training-day targets are free. Premium also builds the whole week around your sessions.',
     bullets: [
       b(
         (c) =>
           c.trainingDays
-            ? `More calories and protein on ${c.trainingDays}`
-            : 'More calories and protein on your training days',
-        'trainingNutrition',
-        { hiddenWhenFlag: 'trainingBumpFree' },
+            ? `A week with protein-rich meals on ${c.trainingDays}`
+            : 'A week with protein-rich meals on your training days',
+        'aiMealPlans',
       ),
-      b('A week with protein-rich meals on your training days', 'trainingNutrition'),
       b('Re-planned when your training days change', 'planned'),
       b('Refuel snacks that fit your allergies', 'planned'),
     ],
@@ -190,15 +194,6 @@ const JOBS: Record<PremiumJobId, PitchJob> = {
         hiddenWhenFlag: 'budgetFree',
       }),
       b('Cheaper swaps when a week runs over', 'planned'),
-    ],
-  },
-  pantry: {
-    headline: () => "Plans that use what's in your kitchen",
-    lede: 'Premium cooks from what you already have before it buys anything new.',
-    bullets: [
-      b('Meals chosen to use what you have first', 'pantryPlanning'),
-      b('Your list skips what you already have', 'pantryPlanning'),
-      b('What has been there longest, cooked first', 'pantryPlanning'),
     ],
   },
   chat: {
@@ -274,23 +269,19 @@ const JOBS: Record<PremiumJobId, PitchJob> = {
   },
   'gym-first': {
     headline: () => 'Food that fits your training week',
-    lede: 'Premium plans your meals around your sessions. The gym itself stays free.',
+    lede: 'Premium plans your meals around your sessions. The gym and your training-day targets stay free.',
     bullets: [
-      b('More calories and protein on your training days', 'trainingNutrition', {
-        hiddenWhenFlag: 'trainingBumpFree',
-      }),
-      b('A week of meals planned around your sessions', 'trainingNutrition'),
+      b('A week of meals planned around your sessions', 'aiMealPlans'),
       b('Everything in the gym stays free', 'gymTraining', { freeClaim: true }),
     ],
   },
 };
 
 /** One row of "Also included": a live premium job, one line, AI ones last. */
-const ALSO_INCLUDED: readonly { job: PremiumJobId; line: string; feature: PlanFeatureKey }[] = [
+const ALSO_INCLUDED: readonly { job: LivePitchJobId; line: string; feature: PlanFeatureKey }[] = [
   { job: 'household', line: 'Portions for your table', feature: 'householdPlans' },
-  { job: 'training', line: 'Nutrition that follows your training', feature: 'trainingNutrition' },
+  { job: 'training', line: 'A week built around your training', feature: 'aiMealPlans' },
   { job: 'budget', line: 'Plans that fit a weekly budget', feature: 'budgetAwarePlanning' },
-  { job: 'pantry', line: 'Plans that use your kitchen', feature: 'pantryPlanning' },
   { job: 'default', line: 'Your week, ready every Monday', feature: 'weeklyAutoGeneration' },
   { job: 'coaching', line: 'Targets that adapt to your progress', feature: 'adaptiveCoaching' },
   { job: 'recipe-import', line: 'Recipe import', feature: 'recipeImport' },
@@ -358,7 +349,7 @@ export interface PremiumPitchOptions {
 export function premiumJobFor(
   source: string | null | undefined,
   jobs: readonly OnboardingJob[] = [],
-): PremiumJobId {
+): LivePitchJobId {
   const mapped = source ? SOURCE_JOB[source] : undefined;
   if (mapped) return mapped;
   return jobs.includes('TRAIN') ? 'gym-first' : 'default';
@@ -379,7 +370,7 @@ export function premiumPitchFor(
     .map((bullet) => bullet.text(context));
 
   const rows = ALSO_INCLUDED.filter((r) => r.job !== job && featureLive(r.feature));
-  const isAi = (jobId: PremiumJobId) => JOBS[jobId].ai === true;
+  const isAi = (jobId: LivePitchJobId) => JOBS[jobId].ai === true;
   const alsoIncluded = [
     ...rows.filter((r) => !isAi(r.job)).map((r) => r.line),
     ...rows
@@ -412,11 +403,11 @@ export function allPitchStrings(): string[] {
 
 /** Every job's bullets with their availability inputs — for the tests. */
 export function pitchBulletsForTests(): {
-  job: PremiumJobId;
+  job: LivePitchJobId;
   text: string;
   feature: PlanFeatureKey | 'planned';
 }[] {
-  return (Object.entries(JOBS) as [PremiumJobId, PitchJob][]).flatMap(([job, def]) =>
+  return (Object.entries(JOBS) as [LivePitchJobId, PitchJob][]).flatMap(([job, def]) =>
     def.bullets.map((bullet) => ({ job, text: bullet.text({}), feature: bullet.feature })),
   );
 }

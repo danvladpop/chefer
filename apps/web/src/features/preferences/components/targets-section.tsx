@@ -5,27 +5,27 @@ import type { ActivityLevel, BiologicalSex, Goal } from '@/features/onboarding/t
 import { UpgradeCard } from '@/features/premium/components/UpgradeButton';
 import { trpc } from '@/lib/trpc';
 import { skipToken } from '@tanstack/react-query';
-import { lifterProteinNote } from '@chefer/utils';
+import {
+  bodyMetricsAgeError,
+  isPlausibleHeightCm,
+  isPlausibleWeightKg,
+  MAX_BODY_METRICS_AGE,
+  MIN_BODY_METRICS_AGE,
+  MINOR_NO_DEFICIT_NOTE,
+} from '@chefer/types';
+import {
+  computeBmrTdee,
+  computeCalorieTarget,
+  goalAdjustmentKcal,
+  isDeficitBlockedForAge,
+  lifterProteinNote,
+} from '@chefer/utils';
+import { NumbersSettingsSection } from './numbers-settings-section';
 import { Section } from './section';
 import { TargetsCard } from './TargetsCard';
 
 // ─── Client-side nutrition preview (instant estimate, replaced by the
 // server's numbers as soon as they arrive — see serverPreview below) ─────────
-
-const ACTIVITY_MULTIPLIERS: Record<string, number> = {
-  SEDENTARY: 1.2,
-  LIGHTLY_ACTIVE: 1.375,
-  MODERATELY_ACTIVE: 1.55,
-  VERY_ACTIVE: 1.725,
-  ATHLETE: 1.9,
-};
-
-const GOAL_ADJUSTMENTS: Record<string, number> = {
-  LOSE_WEIGHT: -500,
-  MAINTAIN: 0,
-  GAIN_MUSCLE: 300,
-  EAT_HEALTHIER: 0,
-};
 
 const GOAL_MACRO_SPLITS: Record<string, { protein: number; carbs: number; fat: number }> = {
   LOSE_WEIGHT: { protein: 0.35, carbs: 0.35, fat: 0.3 },
@@ -61,24 +61,43 @@ function computePreviewTargets(data: PreviewFormData) {
   ) {
     return null;
   }
-  const sexConstant = data.biologicalSex === 'MALE' ? 5 : -161;
-  const bmr = 10 * data.weightKg + 6.25 * data.heightCm - 5 * data.age + sexConstant;
-  const multiplier = ACTIVITY_MULTIPLIERS[data.activityLevel] ?? 1.55;
-  const tdee = Math.round(bmr * multiplier);
-  const adjustment = GOAL_ADJUSTMENTS[data.goal] ?? 0;
-  const calories = Math.max(1200, tdee + adjustment);
+  // Shared with the API and mobile (@chefer/utils calorie-target.ts): no
+  // deficit under 18, sex-specific floor (App Review R-02).
+  if (bodyMetricsAgeError(data.age) !== null) return null;
+  // UX-ONB-05: no estimate from an implausible height or weight.
+  if (!isPlausibleHeightCm(data.heightCm) || !isPlausibleWeightKg(data.weightKg)) return null;
+  const { tdee } = computeBmrTdee(
+    data.weightKg,
+    data.heightCm,
+    data.age,
+    data.activityLevel,
+    data.biologicalSex,
+  );
+  const calories = computeCalorieTarget(
+    data.weightKg,
+    data.heightCm,
+    data.age,
+    data.activityLevel,
+    data.biologicalSex,
+    data.goal,
+  );
+  const deficitBlocked = isDeficitBlockedForAge(data.goal, data.age);
+  const adjustment = deficitBlocked ? 0 : goalAdjustmentKcal(data.goal, data.age);
   const split = GOAL_MACRO_SPLITS[data.goal] ?? GOAL_MACRO_SPLITS['MAINTAIN']!;
   return {
     calories,
     tdee,
     adjustment,
+    deficitBlocked,
     proteinG: Math.round((calories * split.protein) / 4),
     carbsG: Math.round((calories * split.carbs) / 4),
     fatG: Math.round((calories * split.fat) / 9),
     proteinPct: Math.round(split.protein * 100),
     carbsPct: Math.round(split.carbs * 100),
     fatPct: Math.round(split.fat * 100),
-    description: GOAL_DESCRIPTIONS[data.goal] ?? '',
+    description: deficitBlocked
+      ? GOAL_DESCRIPTIONS['MAINTAIN']!
+      : (GOAL_DESCRIPTIONS[data.goal] ?? ''),
   };
 }
 
@@ -95,11 +114,18 @@ interface TargetsData {
   mealsPerDay: number;
 }
 
+/** WP-08: what the merged "Your targets" card needs for the numbers settings. */
+export interface NumbersSettings {
+  numbersMode: string | null | undefined;
+  showNutritionOnToday: boolean;
+}
+
 interface TargetsSectionProps {
   /** Free users see the upgrade panel instead (mutations are server-gated regardless). */
   isPremium: boolean;
   data: TargetsData;
   onChange: (patch: Partial<TargetsData>) => void;
+  numbersSettings?: NumbersSettings | undefined;
 }
 
 /**
@@ -107,7 +133,12 @@ interface TargetsSectionProps {
  * premium personalisation (the AI chef builds every plan around these).
  * Split out of preferences-form.tsx (T-00.13, no behaviour change).
  */
-export function TargetsSection({ isPremium, data, onChange }: TargetsSectionProps) {
+export function TargetsSection({
+  isPremium,
+  data,
+  onChange,
+  numbersSettings,
+}: TargetsSectionProps) {
   // Instant local estimate, replaced by the server's numbers as soon as they
   // arrive: preferences.computeTargets applies the same rules as the
   // dashboard (the 2.2 g/kg protein cap, and a lifter's bodyweight protein),
@@ -117,14 +148,12 @@ export function TargetsSection({ isPremium, data, onChange }: TargetsSectionProp
     data.goal !== null &&
     data.biologicalSex !== null &&
     data.age !== null &&
-    data.age >= 10 &&
-    data.age <= 110 &&
+    data.age >= MIN_BODY_METRICS_AGE &&
+    data.age <= MAX_BODY_METRICS_AGE &&
     data.heightCm !== null &&
-    data.heightCm > 0 &&
-    data.heightCm <= 300 &&
+    isPlausibleHeightCm(data.heightCm) &&
     data.weightKg !== null &&
-    data.weightKg > 0 &&
-    data.weightKg <= 500 &&
+    isPlausibleWeightKg(data.weightKg) &&
     data.activityLevel !== null
       ? {
           goal: data.goal,
@@ -142,11 +171,27 @@ export function TargetsSection({ isPremium, data, onChange }: TargetsSectionProp
 
   if (!isPremium) {
     return (
-      <UpgradeCard
-        source="preferences-locked"
-        title="Unlock your personal targets"
-        description="Set your goal, body metrics and cuisine preferences, and the AI chef builds every plan around them. Your allergies and restrictions above are always respected — on any plan."
-      />
+      <>
+        {/* WP-08: what to keep an eye on is free on every tier, so it is not locked with the rest. */}
+        {numbersSettings && (
+          <section
+            id="targets"
+            data-testid="numbers-settings-free"
+            className="scroll-mt-20 rounded-xl border bg-card p-4 shadow-sm sm:p-6"
+          >
+            <h2 className="text-lg font-semibold">Your numbers</h2>
+            <NumbersSettingsSection
+              initialMode={numbersSettings.numbersMode}
+              initialShowNutrition={numbersSettings.showNutritionOnToday}
+            />
+          </section>
+        )}
+        <UpgradeCard
+          source="preferences-locked"
+          title="Unlock your personal targets"
+          description="Set your goal, body metrics and cuisine preferences, and the AI chef builds every plan around them. Your allergies and restrictions above are always respected — on any plan."
+        />
+      </>
     );
   }
 
@@ -196,7 +241,7 @@ export function TargetsSection({ isPremium, data, onChange }: TargetsSectionProp
 
       {/* §2.11, T-35.3 — Suggested (computed) or My own (never moved
           silently — gym setup, a weigh-in or a goal edit only propose). */}
-      <TargetsCard />
+      <TargetsCard numbersSettings={numbersSettings} />
 
       {/* Cuisine & meal cadence */}
       <Section>
@@ -240,6 +285,14 @@ export function TargetsSection({ isPremium, data, onChange }: TargetsSectionProp
               className="mt-3 text-center text-xs text-muted-foreground"
             >
               {lifterProteinNote(lifter.proteinGPerKg)}
+            </p>
+          )}
+          {preview.deficitBlocked && (
+            <p
+              data-testid="preferences-minor-note"
+              className="mt-3 text-center text-xs text-foreground"
+            >
+              {MINOR_NO_DEFICIT_NOTE}
             </p>
           )}
           {preview.adjustment !== 0 && (

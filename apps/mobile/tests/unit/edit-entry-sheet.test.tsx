@@ -42,18 +42,22 @@ jest.mock('../../src/lib/trpc', () => ({
       },
       deleteCustomMeal: {
         useMutation: () => ({
-          mutate: (vars: unknown, callbacks?: { onSuccess?: () => void }) => {
+          mutate: (
+            vars: unknown,
+            callbacks?: { onSuccess?: () => void; onError?: (e: Error) => void },
+          ) => {
             mockDelete(vars);
-            callbacks?.onSuccess?.();
+            if (mockDeleteFails) callbacks?.onError?.(new Error('Network request failed'));
+            else callbacks?.onSuccess?.();
           },
           isPending: false,
         }),
       },
       restoreCustomMeal: {
-        useMutation: (opts: { onSuccess?: () => void }) => ({
+        useMutation: (opts: { onSettled?: () => void }) => ({
           mutate: (vars: unknown) => {
             mockRestore(vars);
-            opts.onSuccess?.();
+            opts.onSettled?.();
           },
           isPending: false,
         }),
@@ -82,6 +86,7 @@ const entry: CustomEntryRow = {
 const onClose = jest.fn();
 const onSaved = jest.fn();
 const onDeleted = jest.fn();
+let mockDeleteFails = false;
 
 async function renderSheet(overrides: Partial<CustomEntryRow> = {}) {
   await render(
@@ -100,6 +105,7 @@ async function renderSheet(overrides: Partial<CustomEntryRow> = {}) {
 
 beforeEach(() => {
   jest.clearAllMocks();
+  mockDeleteFails = false;
   mockUpdateState.isPending = false;
   mockUpdateState.isError = false;
   mockUpdateState.error = null;
@@ -129,7 +135,46 @@ describe('EditEntrySheet (bug B-34, T-19.2)', () => {
       protein: 30,
       carbs: 5,
       fat: 2,
+      unknownMacros: [],
     });
+  });
+
+  // UX-FOOD-11: a macro the entry never had shows blank (not "0.0") and stays
+  // unknown when saved; the sanity check ignores it.
+  it('UX-FOOD-11: shows unknown macros blank and saves them as unknown', async () => {
+    const user = userEvent.setup();
+    await renderSheet({
+      kcal: 400,
+      protein: 20,
+      carbs: 0,
+      fat: 0,
+      unknownMacros: ['carbs', 'fat'],
+    });
+    expect(screen.getByTestId('edit-entry-protein')).toHaveProp('value', '20');
+    expect(screen.getByTestId('edit-entry-carbs')).toHaveProp('value', '');
+    expect(screen.getByTestId('edit-entry-fat')).toHaveProp('value', '');
+    expect(screen.queryByTestId('edit-entry-sanity')).not.toBeOnTheScreen();
+    await user.press(screen.getByTestId('edit-entry-save'));
+    expect(mockUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({ protein: 20, carbs: 0, fat: 0, unknownMacros: ['carbs', 'fat'] }),
+    );
+  });
+
+  it('UX-FOOD-11: a calories-only entry from before the flag reads as all-unknown', async () => {
+    await renderSheet({ kcal: 350, protein: 0, carbs: 0, fat: 0 });
+    expect(screen.getByTestId('edit-entry-protein')).toHaveProp('value', '');
+  });
+
+  it('UX-FOOD-11: the sanity gate says "Save anyway", not "Log anyway"', async () => {
+    await renderSheet({ kcal: 100, protein: 500, carbs: 0, fat: 0 });
+    expect(screen.getByTestId('edit-entry-sanity-log-anyway')).toHaveTextContent('Save anyway');
+  });
+
+  it('UX-FOOD-25: every macro field has a visible label with its unit', async () => {
+    await renderSheet();
+    expect(screen.getByText('Protein (g)')).toBeOnTheScreen();
+    expect(screen.getByText('Carbs (g)')).toBeOnTheScreen();
+    expect(screen.getByText('Fat (g)')).toBeOnTheScreen();
   });
 
   it('on save success shows "Changes saved" and closes', async () => {
@@ -157,12 +202,30 @@ describe('EditEntrySheet (bug B-34, T-19.2)', () => {
     expect(mockUpdate).toHaveBeenCalledWith(expect.objectContaining({ kcal: 100, protein: 500 }));
   });
 
+  it('UX-FOOD-06: a failed delete says why instead of reporting success', async () => {
+    mockDeleteFails = true;
+    const user = userEvent.setup();
+    await renderSheet();
+    await user.press(screen.getByTestId('edit-entry-delete'));
+    expect(onDeleted).not.toHaveBeenCalled();
+    expect(mockSnackbarShow).toHaveBeenCalledTimes(1);
+    expect(mockSnackbarShow).toHaveBeenCalledWith({
+      message:
+        "Couldn't delete Protein shake. Can't reach Chefer right now. Check your connection and try again.",
+    });
+  });
+
   it('bug B-34/AC2: deleting shows Undo, which restores the entry exactly', async () => {
     const user = userEvent.setup();
     await renderSheet();
     await user.press(screen.getByTestId('edit-entry-delete'));
     expect(onClose).toHaveBeenCalled();
-    expect(mockDelete).toHaveBeenCalledWith({ date: '2026-09-26', entryIndex: 2 });
+    // UX-FOOD-17: the stable id goes with the index.
+    expect(mockDelete).toHaveBeenCalledWith({
+      date: '2026-09-26',
+      entryId: 'e1',
+      entryIndex: 2,
+    });
     expect(onDeleted).toHaveBeenCalled();
     expect(mockSnackbarShow).toHaveBeenCalledWith(
       expect.objectContaining({ message: 'Deleted Protein shake', actionLabel: 'Undo' }),

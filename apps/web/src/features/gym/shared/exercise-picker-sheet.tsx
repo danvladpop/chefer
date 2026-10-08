@@ -1,16 +1,18 @@
 'use client';
 
+import Link from 'next/link';
 import { useMemo, useState } from 'react';
 import { Search, X } from 'lucide-react';
 import {
   HIDDEN_EXERCISE_IMAGE_IDS,
+  LIBRARY_FILTER_GROUPS,
   MUSCLE_LABELS,
-  VOLUME_GROUPS,
   type ExerciseDto,
-  type VolumeGroup,
+  type LibraryFilterGroup,
 } from '@chefer/types';
 import { Input, Sheet } from '@chefer/ui';
-import { cn, VOLUME_GROUP_LABELS } from '@chefer/utils';
+import { cn, exerciseMatchesFilterGroup, LIBRARY_FILTER_GROUP_LABELS } from '@chefer/utils';
+import { canOfferCreate, createExerciseHref } from '../library/create-exercise-href';
 import { ExerciseImage } from '../library/ExerciseImage';
 import { exerciseImageUrl } from '../use-gym-bootstrap';
 import { isCardioExercise } from './cardio';
@@ -19,23 +21,18 @@ import { isCardioExercise } from './cardio';
 // apps/mobile/src/features/gym/library/exercise-picker.tsx: search, a muscle
 // filter, and same-swap-group alternatives first.
 
-const GROUPS = Object.keys(VOLUME_GROUPS) as VolumeGroup[];
-
-function matchesGroup(exercise: ExerciseDto, group: VolumeGroup): boolean {
-  const muscles = VOLUME_GROUPS[group] as readonly string[];
-  return exercise.primaryMuscles.some((m) => muscles.includes(m));
-}
+const GROUPS = Object.keys(LIBRARY_FILTER_GROUPS) as LibraryFilterGroup[];
 
 export function filterExercises(
   library: ExerciseDto[],
-  opts: { query: string; group: VolumeGroup | null; excludeIds?: readonly string[] },
+  opts: { query: string; group: LibraryFilterGroup | null; excludeIds?: readonly string[] },
 ): ExerciseDto[] {
   const q = opts.query.trim().toLowerCase();
   return (
     library
       // T-42.5 (Q-31): the web renders cardio but never logs it — pickers exclude it.
       .filter((e) => !e.archived && !(opts.excludeIds ?? []).includes(e.id) && !isCardioExercise(e))
-      .filter((e) => (opts.group ? matchesGroup(e, opts.group) : true))
+      .filter((e) => (opts.group ? exerciseMatchesFilterGroup(e, opts.group) : true))
       .filter((e) =>
         q.length === 0
           ? true
@@ -64,7 +61,7 @@ export function ExercisePickerSheet({
   excludeIds?: readonly string[];
 }) {
   const [query, setQuery] = useState('');
-  const [group, setGroup] = useState<VolumeGroup | null>(null);
+  const [group, setGroup] = useState<LibraryFilterGroup | null>(null);
 
   const rows = useMemo(() => {
     const all = filterExercises(library, { query, group, ...(excludeIds ? { excludeIds } : {}) });
@@ -119,7 +116,7 @@ export function ExercisePickerSheet({
                     : 'bg-white text-gray-600 hover:bg-gray-50',
                 )}
               >
-                {VOLUME_GROUP_LABELS[g]}
+                {LIBRARY_FILTER_GROUP_LABELS[g]}
               </button>
             );
           })}
@@ -167,6 +164,16 @@ export function ExercisePickerSheet({
         {rows.length === 0 && (
           <li className="px-5 py-8 text-center text-sm text-gray-500">
             No exercises match. Try another search.
+            {/* UX-GYM-21: nothing matched — offer to create it, pre-filled. */}
+            {canOfferCreate(query) ? (
+              <Link
+                href={createExerciseHref(query)}
+                data-testid="exercise-picker-create-from-search"
+                className="mt-3 flex min-h-11 items-center justify-center font-medium text-[#944a00] hover:underline"
+              >
+                {`Create “${query.trim()}”`}
+              </Link>
+            ) : null}
           </li>
         )}
       </ul>

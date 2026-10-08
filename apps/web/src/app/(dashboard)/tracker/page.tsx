@@ -1,28 +1,50 @@
 'use client';
 
 import Image from 'next/image';
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { TrainingDayNote } from '@/features/dashboard/components/training-day-note';
 import { RebalanceBanner } from '@/features/meal-plan/components/RebalanceBanner';
+import { NumbersModeProvider, useNumbersMode } from '@/features/numbers-mode/numbers-mode';
 import { ChangeNoticeCard } from '@/features/nutrition/components/ChangeNoticeCard';
 import { TargetExplainSheet } from '@/features/nutrition/components/TargetExplainSheet';
 import { EditEntrySheet } from '@/features/tracker/components/EditEntrySheet';
+import { EditRecipeEntrySheet } from '@/features/tracker/components/EditRecipeEntrySheet';
 import { QuickAddSheet } from '@/features/tracker/components/QuickAddSheet';
 import { ScanMealButton } from '@/features/tracker/components/ScanMealButton';
-import { handleRebalanceResult } from '@/features/tracker/lib/rebalance-storage';
+import { SlotActionsHost } from '@/features/tracker/components/SlotActionsHost';
+import { SlotActionsMenu } from '@/features/tracker/components/SlotActionsMenu';
+import { invalidateDayQueries } from '@/features/tracker/lib/invalidate';
+import {
+  handleRebalanceOutcome,
+  REBALANCE_PREVIEW,
+} from '@/features/tracker/lib/rebalance-storage';
+import { SKIPPED_LABEL, youHadLine } from '@/features/tracker/lib/slot-copy';
 import {
   customEntryChipLabel,
   customEntryRows,
-  customEntryTotals,
   type CustomEntryRow,
 } from '@/features/tracker/lib/tracker-utils';
+import { slotTargetOf, useSlotActions } from '@/features/tracker/lib/use-slot-actions';
+import { useTrackerWrites } from '@/features/tracker/lib/use-tracker-writes';
 import { useIsPremium } from '@/hooks/useIsPremium';
 import { getRecipeImageProps } from '@/lib/recipe-image';
 import { trpc } from '@/lib/trpc';
 import { addDays, format } from 'date-fns';
 import { ChevronLeft, ChevronRight, Copy, Flame, Info, Trash2 } from 'lucide-react';
 import { ErrorState, Sheet, Toast } from '@chefer/ui';
-import { formatPortion, localDateStr, matchLoggedToSlots, slotPortion } from '@chefer/utils';
+import {
+  copyDayMessage,
+  formatPortion,
+  groupByMeal,
+  localDateStr,
+  plannedRowKey,
+  proteinLabel,
+  slotPortion,
+  slotStates,
+  sumLogged,
+  tickStateFromLog,
+  userFacingErrorMessage,
+} from '@chefer/utils';
 
 type PortionKey = number;
 const PORTION_OPTIONS: PortionKey[] = [0.5, 1, 1.5, 2];
@@ -41,7 +63,7 @@ const portionOptionsFor = (meal: { portion?: number }): PortionKey[] =>
  * A planned row's key: its plan slot, so two identical snacks are two rows
  * that tick separately (they used to share `recipeId:mealType`).
  */
-const keyOf = (meal: { slotIndex?: number }, i: number): string => String(meal.slotIndex ?? i);
+const keyOf = plannedRowKey;
 
 // Local calendar day, not the UTC one (F-TRK-1-1).
 const toDateStr = (d: Date): string => localDateStr(d);
@@ -76,120 +98,107 @@ export default function TrackerPage() {
     { date: dateStr },
     { enabled: !isFuture, staleTime: 30_000 },
   );
+  // WP-08: the day's payload decides protein-only (no kcal in rows or totals).
+  const { proteinOnly } = useNumbersMode(data?.numbersMode);
 
-  // checkedMeals: map plan slot (keyOf) → { checked, portion }
-  const [checkedMeals, setCheckedMeals] = useState<
-    Record<string, { checked: boolean; portion: PortionKey }>
-  >({});
-  const [initialised, setInitialised] = useState<string | null>(null); // tracks which dateStr we initialised for
   const [toast, setToast] = useState<{
     message: string;
     action?: { label: string; onClick: () => void };
   } | null>(null);
   const [copyDayOpen, setCopyDayOpen] = useState(false);
   const [editingEntry, setEditingEntry] = useState<CustomEntryRow | null>(null);
+  const [editingRecipeEntryId, setEditingRecipeEntryId] = useState<string | null>(null);
 
   const showToast = (message: string, action?: { label: string; onClick: () => void }) =>
     setToast({ message, ...(action && { action }) });
 
-  // When data loads, pre-populate from existing log (only once per dateStr).
-  // Entries without a recipeId are custom (Snap-to-Log quick-adds, F4) — they
-  // don't map to a planned-meal row, so they're skipped here and preserved
-  // verbatim on save instead.
-  // Each logged entry ticks ONE slot (matchLoggedToSlots): its own slot when
-  // it carries a slotIndex, else the first free slot of its recipe and type.
-  useEffect(() => {
-    if (!data || initialised === dateStr) return;
-    if (data.log) {
-      const init: Record<string, { checked: boolean; portion: PortionKey }> = {};
-      const matched = matchLoggedToSlots(
-        data.plannedMeals.map((m, i) => ({
-          type: m.mealType,
-          recipeId: m.recipeId,
-          slotIndex: m.slotIndex ?? i,
-        })),
-        data.log.loggedMeals,
-      );
-      data.plannedMeals.forEach((m, i) => {
-        const entry = matched[i];
-        if (entry) init[keyOf(m, i)] = { checked: true, portion: entry.portionMultiplier };
-      });
-      setCheckedMeals(init);
-    } else {
-      setCheckedMeals({});
-    }
-    setInitialised(dateStr);
-  }, [data, dateStr, initialised]);
+  // UX-FOOD-01: ticks and totals are DERIVED from the cached day on every
+  // render — there is no once-a-day copy in component state, so Undo, a log
+  // made on Today or a write that failed can never leave the page out of step
+  // with the server. Taps edit that cached day optimistically (see
+  // useTrackerWrites: rolled back on error, re-fetched on settle).
+  const ticks = tickStateFromLog(data?.plannedMeals ?? [], data?.log?.loggedMeals ?? []);
 
   const isPremium = useIsPremium();
 
+  // WP-06: "Ate something else" / "Skipped it" for every planned row.
+  const slotFlow = useSlotActions(dateStr, showToast);
+
   // ─── One-save model (bug B-23, T-19.4) — every tick/portion change saves
   // immediately through logRecipe/unlogRecipe; there is no Save Day. ────────
-  const logRecipeMutation = trpc.tracker.logRecipe.useMutation({
-    onSuccess: (result) => {
-      handleRebalanceResult(result.rebalance);
-      void refetch();
-    },
-  });
-  const unlogRecipeMutation = trpc.tracker.unlogRecipe.useMutation({
-    onSuccess: () => void refetch(),
-  });
-  const copyDayMutation = trpc.tracker.copyDay.useMutation();
-  const deleteEntriesMutation = trpc.tracker.deleteEntries.useMutation({
-    onSuccess: () => void refetch(),
-  });
-  const deleteCustomMutation = trpc.tracker.deleteCustomMeal.useMutation();
-  const restoreCustomMutation = trpc.tracker.restoreCustomMeal.useMutation({
-    onSuccess: () => void refetch(),
-  });
+  const {
+    logRecipe: logRecipeMutation,
+    unlogRecipe: unlogRecipeMutation,
+    deleteCustom: deleteCustomMutation,
+    deleteEntries: deleteEntriesMutation,
+    restoreCustom: restoreCustomMutation,
+    updateRecipeEntry: updateRecipeEntryMutation,
+  } = useTrackerWrites(dateStr, showToast);
+  const copyDayMutation = trpc.tracker.copyDay.useMutation({ meta: { silent: true } });
 
   const planned = (data?.plannedMeals ?? []).map((m, i) => ({ ...m, key: keyOf(m, i) }));
   type PlannedRow = (typeof planned)[number];
+  // WP-06: what became of each slot — planned, eaten as planned, replaced by
+  // what you had instead, or skipped. Derived from the cached day, like ticks.
+  const slots = slotStates(
+    planned.map((m, i) => ({
+      type: m.mealType,
+      recipeId: m.recipeId,
+      slotIndex: m.slotIndex ?? i,
+    })),
+    data?.log?.loggedMeals ?? [],
+    data?.skippedSlots ?? [],
+  );
 
-  const logSlot = (meal: PlannedRow, portionMultiplier: PortionKey) => {
-    logRecipeMutation.mutate({
-      date: dateStr,
-      recipeId: meal.recipeId,
-      mealType: meal.mealType,
-      portionMultiplier,
-      ...(meal.slotIndex !== undefined && { slotIndex: meal.slotIndex }),
-    });
+  const logSlot = (meal: PlannedRow, portionMultiplier: PortionKey, onSuccess?: () => void) => {
+    logRecipeMutation.mutate(
+      {
+        ...REBALANCE_PREVIEW,
+        date: dateStr,
+        recipeId: meal.recipeId,
+        mealType: meal.mealType,
+        portionMultiplier,
+        ...(meal.slotIndex !== undefined && { slotIndex: meal.slotIndex }),
+      },
+      onSuccess ? { onSuccess } : {},
+    );
   };
-
-  const toggleMeal = (meal: PlannedRow) => {
-    const wasChecked = checkedMeals[meal.key]?.checked ?? false;
-    const portion = checkedMeals[meal.key]?.portion ?? planPortionOf(meal);
-    setCheckedMeals((prev) => ({ ...prev, [meal.key]: { checked: !wasChecked, portion } }));
-    if (!wasChecked) {
-      logSlot(meal, portion);
-      showToast(`Logged ${meal.mealType}`, {
-        label: 'Undo',
-        onClick: () =>
-          unlogRecipeMutation.mutate({
-            date: dateStr,
-            recipeId: meal.recipeId,
-            mealType: meal.mealType,
-            ...(meal.slotIndex !== undefined && { slotIndex: meal.slotIndex }),
-          }),
-      });
-    } else {
-      unlogRecipeMutation.mutate({
+  const unlogSlot = (meal: PlannedRow, onSuccess?: () => void) => {
+    unlogRecipeMutation.mutate(
+      {
         date: dateStr,
         recipeId: meal.recipeId,
         mealType: meal.mealType,
         ...(meal.slotIndex !== undefined && { slotIndex: meal.slotIndex }),
-      });
-      showToast(`Removed ${meal.mealType}`, {
-        label: 'Undo',
-        onClick: () => logSlot(meal, portion),
-      });
+      },
+      onSuccess ? { onSuccess } : {},
+    );
+  };
+
+  // The toast confirms only once the server has said yes (UX-FOOD-06): a
+  // failed write shows the reason instead (useTrackerWrites) and the tick
+  // goes back.
+  const toggleMeal = (meal: PlannedRow) => {
+    const wasChecked = ticks[meal.key]?.checked ?? false;
+    const portion = ticks[meal.key]?.portion ?? planPortionOf(meal);
+    if (!wasChecked) {
+      logSlot(meal, portion, () =>
+        showToast(`Logged ${meal.mealType}`, {
+          label: 'Undo',
+          onClick: () => unlogSlot(meal),
+        }),
+      );
+    } else {
+      unlogSlot(meal, () =>
+        showToast(`Removed ${meal.mealType}`, {
+          label: 'Undo',
+          onClick: () => logSlot(meal, portion),
+        }),
+      );
     }
   };
 
-  const setPortion = (meal: PlannedRow, portion: PortionKey) => {
-    setCheckedMeals((prev) => ({ ...prev, [meal.key]: { checked: true, portion } }));
-    logSlot(meal, portion);
-  };
+  const setPortion = (meal: PlannedRow, portion: PortionKey) => logSlot(meal, portion);
 
   // Custom and off-plan entries are server-owned: each write is its own
   // mutation (F-PM-1, F-TRK-1-2) — nothing here re-sends them.
@@ -197,15 +206,34 @@ export default function TrackerPage() {
   // Rendered rows (F4): custom entries with their delete-target index into
   // the FULL loggedMeals array preserved.
   const customRows = customEntryRows(data?.log?.loggedMeals ?? []);
+  // A replacing entry is shown ON its slot ("You had: …"), not again under
+  // "Also eaten". One whose slot has left the plan (a regenerated day) has no
+  // row to sit on, so it stays in the list.
+  const plannedSlotKeys = new Set(planned.map((m, i) => `${m.mealType}:${m.slotIndex ?? i}`));
+  const isShownOnSlot = (row: CustomEntryRow): boolean =>
+    row.replacesSlot !== undefined &&
+    plannedSlotKeys.has(`${row.replacesSlot.mealType}:${row.replacesSlot.slotIndex}`);
+  // UX-FOOD-25: off-plan recipes and custom entries are ONE "Also eaten" list,
+  // grouped under the meal they belong to (they were two stacked sections
+  // with the same header).
+  const alsoEaten = groupByMeal([
+    ...offPlanLogged.map((m) => ({ kind: 'recipe' as const, mealType: m.mealType, m })),
+    ...customRows
+      .filter((row) => !isShownOnSlot(row))
+      .map((row) => ({ kind: 'custom' as const, mealType: row.mealType, row })),
+  ]);
 
   const deleteCustomEntry = (row: CustomEntryRow) => {
     if (deleteCustomMutation.isPending) return;
     const entryId = row.entryId;
     deleteCustomMutation.mutate(
-      { date: dateStr, entryIndex: row.entryIndex },
+      // UX-FOOD-17: by stable id when the row has one (the index is only the
+      // fallback for an entry that has none yet).
+      entryId
+        ? { date: dateStr, entryId, entryIndex: row.entryIndex }
+        : { date: dateStr, entryIndex: row.entryIndex },
       {
         onSuccess: () => {
-          void refetch();
           showToast(
             `Deleted ${row.name}`,
             entryId
@@ -223,11 +251,42 @@ export default function TrackerPage() {
                         protein: row.protein,
                         carbs: row.carbs,
                         fat: row.fat,
+                        ...(row.unknownMacros && { unknownMacros: [...row.unknownMacros] }),
+                        ...(row.replacesSlot && { replacesSlot: row.replacesSlot }),
                       },
                     }),
                 }
               : undefined,
           );
+        },
+      },
+    );
+  };
+
+  // Off-plan recipe rows (UX-FOOD-03): editable and removable like custom
+  // entries — they used to be read-only, so a mis-log or a stale one could
+  // never be fixed.
+  const editingRecipeEntry = offPlanLogged.find((m) => m.entryId === editingRecipeEntryId) ?? null;
+  const deleteOffPlanEntry = (row: (typeof offPlanLogged)[number]) => {
+    const entryId = row.entryId;
+    if (!entryId) return;
+    deleteEntriesMutation.mutate(
+      { date: dateStr, entryIds: [entryId] },
+      {
+        onSuccess: () => {
+          setEditingRecipeEntryId(null);
+          showToast(`Deleted ${row.recipeName}`, {
+            label: 'Undo',
+            // The entry is re-logged exactly as it was (recipe, meal, portion).
+            onClick: () =>
+              logRecipeMutation.mutate({
+                ...REBALANCE_PREVIEW,
+                date: dateStr,
+                recipeId: row.recipeId,
+                mealType: row.mealType,
+                portionMultiplier: row.portionMultiplier ?? 1,
+              }),
+          });
         },
       },
     );
@@ -239,14 +298,14 @@ export default function TrackerPage() {
 
   const confirmCopyDay = () => {
     copyDayMutation.mutate(
-      { fromDate: copyFromDateStr, toDate: dateStr },
+      { ...REBALANCE_PREVIEW, fromDate: copyFromDateStr, toDate: dateStr },
       {
         onSuccess: (result) => {
-          handleRebalanceResult(result.rebalance);
+          handleRebalanceOutcome(result);
           setCopyDayOpen(false);
-          void refetch();
+          invalidateDayQueries(utils); // both the source and target dates
           showToast(
-            `Copied ${result.copiedEntryIds.length} entries`,
+            copyDayMessage(result.copiedEntryIds.length, copyLabel),
             result.copiedEntryIds.length > 0
               ? {
                   label: 'Undo',
@@ -259,50 +318,30 @@ export default function TrackerPage() {
               : undefined,
           );
         },
+        onError: (error) => {
+          setCopyDayOpen(false);
+          showToast(`Couldn't copy the day. ${userFacingErrorMessage(error)}`);
+        },
       },
     );
   };
 
   const changeDate = (delta: number) => {
     setSelectedDate((d) => addDays(d, delta));
-    setCheckedMeals({});
-    setInitialised(null);
   };
 
-  // Compute logged totals from current UI state, plus already-saved custom
-  // entries (their macros are stored pre-scaled, so no portion multiply).
-  const loggedMeals = (data?.plannedMeals ?? []).flatMap((m, i) => {
-    const state = checkedMeals[keyOf(m, i)];
-    return state?.checked ? [{ ...m, logPortion: state.portion }] : [];
-  });
+  // The day's totals are whatever the log holds — planned ticks, custom
+  // entries, replacements and recipes eaten off the plan alike (the server's
+  // own definition). A replaced or skipped planned meal adds nothing.
   const {
-    kcal: customKcal,
-    protein: customProtein,
-    carbs: customCarbs,
-    fat: customFat,
-  } = customEntryTotals(data?.log?.loggedMeals ?? []);
-  const offPlan = offPlanLogged.reduce(
-    (t, m) => ({
-      kcal: t.kcal + m.kcal,
-      protein: t.protein + m.protein,
-      carbs: t.carbs + m.carbs,
-      fat: t.fat + m.fat,
-    }),
-    { kcal: 0, protein: 0, carbs: 0, fat: 0 },
-  );
-  const loggedKcal =
-    loggedMeals.reduce((s, m) => s + Math.round(m.kcal * m.logPortion), 0) +
-    customKcal +
-    offPlan.kcal;
-  const loggedProtein =
-    loggedMeals.reduce((s, m) => s + m.protein * m.logPortion, 0) + customProtein + offPlan.protein;
-  const loggedCarbs =
-    loggedMeals.reduce((s, m) => s + m.carbs * m.logPortion, 0) + customCarbs + offPlan.carbs;
-  const loggedFat =
-    loggedMeals.reduce((s, m) => s + m.fat * m.logPortion, 0) + customFat + offPlan.fat;
+    kcal: loggedKcal,
+    protein: loggedProtein,
+    carbs: loggedCarbs,
+    fat: loggedFat,
+  } = sumLogged(data?.log?.loggedMeals ?? []);
   // All four targets come from the API's resolveDailyTargets — the same
   // source the dashboard uses, so the two surfaces can never disagree
-  // (prod-followups #4). A premium lifter's training day swaps in the bumped
+  // (prod-followups #4). A lifter's training day (free for everyone, WP-07) swaps in the bumped
   // targets, exactly like Today (audit P2-4). Fallbacks only cover the
   // pre-data render.
   const dayTargets = data?.adjustedTargets ?? data?.targets;
@@ -313,435 +352,584 @@ export default function TrackerPage() {
   const pct = (v: number, t: number) => Math.min(Math.round((v / (t || 1)) * 100), 100);
 
   return (
-    <div className="mx-auto max-w-2xl px-4 py-6 sm:py-8">
-      {/* Header */}
-      <div className="mb-6 flex items-start justify-between gap-2">
-        <div>
-          <p className="text-xs font-semibold uppercase tracking-widest text-neutral-500">
-            DAILY LOG
-          </p>
-          <h1 className="mt-1 font-serif text-2xl font-bold text-neutral-900">Tracker</h1>
-        </div>
-        <button
-          type="button"
-          data-testid="tracker-copy-day"
-          aria-label={`Copy ${copyLabel} to ${isToday ? 'today' : 'this day'}`}
-          onClick={() => setCopyDayOpen(true)}
-          className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl text-neutral-500 hover:bg-neutral-100"
-        >
-          <Copy className="h-5 w-5" />
-        </button>
-      </div>
-
-      {/* Date selector */}
-      <div className="mb-6 flex items-center justify-between gap-2 rounded-2xl border bg-white px-2 py-2 shadow-sm sm:px-4 sm:py-3">
-        <button
-          type="button"
-          onClick={() => changeDate(-1)}
-          aria-label="Previous day"
-          className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl hover:bg-neutral-100"
-        >
-          <ChevronLeft className="h-5 w-5 text-neutral-500" />
-        </button>
-        <div className="min-w-0 text-center">
-          <p className="truncate text-sm font-semibold text-neutral-800">
-            {isToday ? 'Today' : format(selectedDate, 'EEEE')}
-          </p>
-          <p className="truncate text-xs text-neutral-500">
-            {format(selectedDate, 'dd MMMM yyyy')}
-          </p>
-        </div>
-        <button
-          type="button"
-          onClick={() => changeDate(1)}
-          disabled={isToday}
-          aria-label="Next day"
-          className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl hover:bg-neutral-100 disabled:opacity-30"
-        >
-          <ChevronRight className="h-5 w-5 text-neutral-500" />
-        </button>
-      </div>
-
-      {/* Feedback where the log happened (audit F-TRK-3-2): a premium log can
-          adjust future meals — say so here, with Undo. */}
-      <RebalanceBanner onUndone={() => void utils.mealPlan.invalidate()} />
-
-      {isFuture && (
-        <div className="rounded-2xl border border-dashed py-10 text-center text-sm text-neutral-500">
-          Can&apos;t log future meals.
-        </div>
-      )}
-
-      {!isFuture && isLoading && (
-        <div className="space-y-3">
-          {[1, 2, 3, 4].map((i) => (
-            <div key={i} className="h-20 animate-pulse rounded-2xl bg-neutral-100" />
-          ))}
-        </div>
-      )}
-
-      {/* A failed load is not an empty day (audit F-X-3-1). */}
-      {!isFuture && isError && !data && (
-        <ErrorState
-          title="Couldn't load this day"
-          onRetry={() => void refetch()}
-          retrying={isRefetching}
-        />
-      )}
-
-      {!isFuture && !isLoading && data && (
-        <>
-          {/* Snap-to-Log (F4): photo scan (premium; demo for free) + the
-              search-first Log sheet — the honesty tools for off-plan food. */}
-          <div className="mb-6 flex flex-wrap gap-2">
-            <ScanMealButton date={dateStr} isPremium={isPremium} onLogged={() => void refetch()} />
-            <QuickAddSheet
-              date={dateStr}
-              onLogged={() => void refetch()}
-              plannedMeals={data.plannedMeals.map((m, i) => ({
-                recipeId: m.recipeId,
-                recipeName: m.recipeName,
-                mealType: m.mealType,
-                imageUrl: m.imageUrl,
-                kcal: m.kcal,
-                protein: m.protein,
-                carbs: m.carbs,
-                fat: m.fat,
-                ...(m.portion !== undefined && { portion: m.portion }),
-                slotIndex: m.slotIndex ?? i,
-              }))}
-            />
+    <NumbersModeProvider mode={data?.numbersMode}>
+      <div className="mx-auto max-w-2xl px-4 py-6 sm:py-8">
+        {/* Header */}
+        <div className="mb-6 flex items-start justify-between gap-2">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-widest text-neutral-500">
+              DAILY LOG
+            </p>
+            <h1 className="mt-1 font-serif text-2xl font-bold text-neutral-900">Tracker</h1>
           </div>
+          <button
+            type="button"
+            data-testid="tracker-copy-day"
+            aria-label={`Copy ${copyLabel} to ${isToday ? 'today' : 'this day'}`}
+            onClick={() => setCopyDayOpen(true)}
+            className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl text-neutral-500 hover:bg-neutral-100"
+          >
+            <Copy className="h-5 w-5" />
+          </button>
+        </div>
 
-          {/* Target change notice (§2.11, T-11.1/T-11.5) — never a silent change */}
-          <ChangeNoticeCard />
+        {/* Date selector */}
+        <div className="mb-6 flex items-center justify-between gap-2 rounded-2xl border bg-white px-2 py-2 shadow-sm sm:px-4 sm:py-3">
+          <button
+            type="button"
+            onClick={() => changeDate(-1)}
+            aria-label="Previous day"
+            className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl hover:bg-neutral-100"
+          >
+            <ChevronLeft className="h-5 w-5 text-neutral-500" />
+          </button>
+          <div className="min-w-0 text-center">
+            <p className="truncate text-sm font-semibold text-neutral-800">
+              {isToday ? 'Today' : format(selectedDate, 'EEEE')}
+            </p>
+            <p className="truncate text-xs text-neutral-500">
+              {format(selectedDate, 'dd MMMM yyyy')}
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={() => changeDate(1)}
+            disabled={isToday}
+            aria-label="Next day"
+            className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl hover:bg-neutral-100 disabled:opacity-30"
+          >
+            <ChevronRight className="h-5 w-5 text-neutral-500" />
+          </button>
+        </div>
 
-          {/* Macro summary */}
-          <div className="mb-6 rounded-2xl border bg-white p-5 shadow-sm">
-            <div className="mb-3 flex items-center justify-between">
-              <p className="text-xs font-semibold uppercase tracking-widest text-neutral-500">
-                {isToday ? "Today's Progress" : 'Day Progress'}
-              </p>
-              <div className="flex items-center gap-2">
-                <span className="flex items-center gap-1 text-sm font-bold text-neutral-700">
-                  <Flame className="h-4 w-4 text-[#944a00]" />
-                  {loggedKcal.toLocaleString()} / {target.toLocaleString()} kcal
-                </span>
-                {/* UX-11 AC3: tapping the day totals opens "Why this number". */}
-                <button
-                  type="button"
-                  aria-label="Why this target"
-                  data-testid="tracker-why-target"
-                  onClick={() => setExplainOpen(true)}
-                  className="flex h-8 w-8 items-center justify-center rounded-full text-neutral-400 hover:bg-neutral-100 hover:text-neutral-600"
-                >
-                  <Info className="h-4 w-4" />
-                </button>
-              </div>
-            </div>
-            {data.trainingDay && <TrainingDayNote t={data.trainingDay} isToday={isToday} />}
-            {[
-              { label: 'Calories', v: loggedKcal, t: target, unit: 'kcal', colour: 'bg-[#944a00]' },
-              {
-                label: 'Protein',
-                v: loggedProtein,
-                t: proteinTarget,
-                unit: 'g',
-                colour: 'bg-blue-500',
-              },
-              {
-                label: 'Carbs',
-                v: loggedCarbs,
-                t: carbsTarget,
-                unit: 'g',
-                colour: 'bg-emerald-500',
-              },
-              { label: 'Fat', v: loggedFat, t: fatTarget, unit: 'g', colour: 'bg-amber-400' },
-            ].map(({ label, v, t, unit, colour }) => (
-              <div key={label} className="mb-2">
-                <div className="mb-1 flex justify-between text-xs">
-                  <span className="text-neutral-600">{label}</span>
-                  <span className="text-neutral-500">
-                    {Math.round(v)}
-                    {unit} / {t}
-                    {unit}
-                  </span>
-                </div>
-                <div className="h-2 overflow-hidden rounded-full bg-neutral-100">
-                  <div
-                    className={`h-full rounded-full ${colour} transition-all`}
-                    style={{ width: `${pct(v, t)}%` }}
-                  />
-                </div>
-              </div>
+        {/* Feedback where the log happened (audit F-TRK-3-2): a premium log can
+          adjust future meals — say so here, with Undo. */}
+        <RebalanceBanner onUndone={() => void utils.mealPlan.invalidate()} />
+
+        {isFuture && (
+          <div className="rounded-2xl border border-dashed py-10 text-center text-sm text-neutral-500">
+            Can&apos;t log future meals.
+          </div>
+        )}
+
+        {!isFuture && isLoading && (
+          <div className="space-y-3">
+            {[1, 2, 3, 4].map((i) => (
+              <div key={i} className="h-20 animate-pulse rounded-2xl bg-neutral-100" />
             ))}
           </div>
+        )}
 
-          {/* Meal list */}
-          {data.plannedMeals.length === 0 ? (
-            <div
-              data-testid="tracker-empty-plan"
-              className="rounded-2xl border border-dashed py-10 text-center text-sm text-neutral-500"
-            >
-              {!data.hasActivePlan ? (
-                // T-19.6: a Track-only user may never generate a plan — this
-                // reads as an invitation to log, not a missing-plan error.
-                <p>No plan today — log from Recent or search below.</p>
-              ) : (
-                <>
-                  No meals planned for this day.{' '}
-                  <a
-                    href="/meal-plan"
-                    className="touch-target relative text-[#944a00] hover:underline"
-                  >
-                    Go to Meal Planner →
-                  </a>
-                </>
-              )}
+        {/* A failed load is not an empty day (audit F-X-3-1). */}
+        {!isFuture && isError && !data && (
+          <ErrorState
+            title="Couldn't load this day"
+            onRetry={() => void refetch()}
+            retrying={isRefetching}
+          />
+        )}
+
+        {!isFuture && !isLoading && data && (
+          <>
+            {/* Snap-to-Log (F4): photo scan (premium; demo for free) + the
+              search-first Log sheet — for anything eaten outside the plan. */}
+            <div className="mb-6 flex flex-wrap gap-2">
+              <ScanMealButton
+                date={dateStr}
+                isPremium={isPremium}
+                onLogged={() => void refetch()}
+                onLoggedEntry={({ entryId, name }) =>
+                  showToast(`Logged ${name}`, {
+                    label: 'Undo',
+                    onClick: () => deleteCustomMutation.mutate({ date: dateStr, entryId }),
+                  })
+                }
+              />
+              <QuickAddSheet
+                date={dateStr}
+                onLogged={() => void refetch()}
+                plannedMeals={data.plannedMeals.map((m, i) => ({
+                  recipeId: m.recipeId,
+                  recipeName: m.recipeName,
+                  mealType: m.mealType,
+                  imageUrl: m.imageUrl,
+                  kcal: m.kcal,
+                  protein: m.protein,
+                  carbs: m.carbs,
+                  fat: m.fat,
+                  ...(m.portion !== undefined && { portion: m.portion }),
+                  slotIndex: m.slotIndex ?? i,
+                }))}
+              />
             </div>
-          ) : (
-            <div className="mb-6 space-y-3">
-              {planned.map((meal) => {
-                const k = meal.key;
-                const isChecked = checkedMeals[k]?.checked ?? false;
-                const portion = checkedMeals[k]?.portion ?? planPortionOf(meal);
-                const scaledKcal = Math.round(meal.kcal * portion);
 
-                return (
-                  <div
-                    key={k}
-                    className={`flex gap-3 rounded-2xl border p-3 transition-all ${isChecked ? 'border-[#944a00]/30 bg-[#fff8f0]' : 'border-neutral-200 bg-white'}`}
+            {/* Target change notice (§2.11, T-11.1/T-11.5) — never a silent change */}
+            <ChangeNoticeCard />
+
+            {/* Macro summary */}
+            <div className="mb-6 rounded-2xl border bg-white p-5 shadow-sm">
+              <div className="mb-3 flex items-center justify-between">
+                <p className="text-xs font-semibold uppercase tracking-widest text-neutral-500">
+                  {isToday ? "Today's Progress" : 'Day Progress'}
+                </p>
+                <div className="flex items-center gap-2">
+                  <span className="flex items-center gap-1 text-sm font-bold text-neutral-700">
+                    <Flame className="h-4 w-4 text-[#944a00]" />
+                    {proteinOnly
+                      ? `${Math.round(loggedProtein).toLocaleString()} / ${Math.round(proteinTarget).toLocaleString()} g protein`
+                      : `${loggedKcal.toLocaleString()} / ${target.toLocaleString()} kcal`}
+                  </span>
+                  {/* UX-11 AC3: tapping the day totals opens "Why this number". */}
+                  <button
+                    type="button"
+                    aria-label="Why this target"
+                    data-testid="tracker-why-target"
+                    onClick={() => setExplainOpen(true)}
+                    className="flex h-8 w-8 items-center justify-center rounded-full text-neutral-400 hover:bg-neutral-100 hover:text-neutral-600"
                   >
-                    {/* Image */}
-                    <div className="relative h-14 w-14 shrink-0 overflow-hidden rounded-xl">
-                      <Image
-                        {...getRecipeImageProps(meal.imageUrl)}
-                        alt={meal.recipeName}
-                        fill
-                        sizes="56px"
-                        className={`object-cover transition-opacity ${isChecked ? 'opacity-100' : 'opacity-60'}`}
+                    <Info className="h-4 w-4" />
+                  </button>
+                </div>
+              </div>
+              {data.trainingDay && <TrainingDayNote t={data.trainingDay} isToday={isToday} />}
+              {[
+                {
+                  label: 'Calories',
+                  v: loggedKcal,
+                  t: target,
+                  unit: 'kcal',
+                  colour: 'bg-[#944a00]',
+                },
+                {
+                  label: 'Protein',
+                  v: loggedProtein,
+                  t: proteinTarget,
+                  unit: 'g',
+                  colour: 'bg-blue-500',
+                },
+                {
+                  label: 'Carbs',
+                  v: loggedCarbs,
+                  t: carbsTarget,
+                  unit: 'g',
+                  colour: 'bg-emerald-500',
+                },
+                { label: 'Fat', v: loggedFat, t: fatTarget, unit: 'g', colour: 'bg-amber-400' },
+              ]
+                // WP-08: protein-only shows the protein bar and nothing else.
+                .filter(({ label }) => !proteinOnly || label === 'Protein')
+                .map(({ label, v, t, unit, colour }) => (
+                  <div key={label} className="mb-2">
+                    <div className="mb-1 flex justify-between text-xs">
+                      <span className="text-neutral-600">{label}</span>
+                      <span className="text-neutral-500">
+                        {Math.round(v)}
+                        {unit} / {t}
+                        {unit}
+                      </span>
+                    </div>
+                    <div className="h-2 overflow-hidden rounded-full bg-neutral-100">
+                      <div
+                        className={`h-full rounded-full ${colour} transition-all`}
+                        style={{ width: `${pct(v, t)}%` }}
                       />
                     </div>
+                  </div>
+                ))}
+              {proteinOnly && data.proteinGuide && (
+                <p data-testid="tracker-protein-guide" className="mt-1 text-xs text-neutral-600">
+                  {data.proteinGuide.label}
+                </p>
+              )}
+            </div>
 
-                    {/* Details */}
-                    <div className="flex min-w-0 flex-1 flex-col gap-2">
-                      <div className="flex items-start justify-between gap-2">
-                        <div className="min-w-0">
+            {/* Meal list */}
+            {data.plannedMeals.length === 0 ? (
+              <div
+                data-testid="tracker-empty-plan"
+                className="rounded-2xl border border-dashed py-10 text-center text-sm text-neutral-500"
+              >
+                {!data.hasActivePlan ? (
+                  // T-19.6: a Track-only user may never generate a plan — this
+                  // reads as an invitation to log, not a missing-plan error.
+                  <p>No plan today — log from Recent or search below.</p>
+                ) : (
+                  <>
+                    No meals planned for this day.{' '}
+                    <a
+                      href="/meal-plan"
+                      className="touch-target relative text-[#944a00] hover:underline"
+                    >
+                      Go to Meal Planner →
+                    </a>
+                  </>
+                )}
+              </div>
+            ) : (
+              <div className="mb-6 space-y-3">
+                {planned.map((meal, i) => {
+                  const k = meal.key;
+                  const slot = slotTargetOf(meal.mealType, meal.slotIndex ?? i);
+                  const state = slots[i];
+                  const replacement =
+                    state?.status === 'replaced' && state.entry.custom
+                      ? {
+                          name: state.entry.custom.name,
+                          kcal: state.entry.kcal,
+                          protein: state.entry.protein,
+                          entryId: state.entry.entryId,
+                        }
+                      : null;
+                  if (replacement || state?.status === 'skipped') {
+                    // WP-06: the slot was replaced or skipped — a calm, muted
+                    // row with a plain line and an Undo; there is no tick to
+                    // press a second time.
+                    return (
+                      <div
+                        key={k}
+                        data-testid={`tracker-slot-${state?.status}-${k}`}
+                        className="flex items-center gap-3 rounded-2xl border border-neutral-200 bg-neutral-50 p-3"
+                      >
+                        <div className="relative h-14 w-14 shrink-0 overflow-hidden rounded-xl">
+                          <Image
+                            {...getRecipeImageProps(meal.imageUrl)}
+                            alt={meal.recipeName}
+                            fill
+                            sizes="56px"
+                            className="object-cover opacity-40"
+                          />
+                        </div>
+                        <div className="min-w-0 flex-1">
                           <span
                             className={`rounded-full px-2 py-0.5 text-xs font-semibold uppercase ${MEAL_COLOURS[meal.mealType] ?? 'bg-gray-100 text-gray-600'}`}
                           >
                             {meal.mealType}
                           </span>
-                          <p className="mt-0.5 text-sm font-medium text-neutral-800">
+                          <p className="mt-0.5 truncate text-sm font-medium text-neutral-500">
                             {meal.recipeName}
                           </p>
+                          <p
+                            data-testid={`tracker-slot-note-${k}`}
+                            className="min-w-0 text-xs text-neutral-700"
+                          >
+                            {replacement
+                              ? youHadLine(
+                                  replacement.name,
+                                  replacement.kcal,
+                                  replacement.protein,
+                                  proteinOnly,
+                                )
+                              : SKIPPED_LABEL}
+                          </p>
                         </div>
-                        {/* 24px was the smallest target on the page's primary
-                            action. Visual size holds; the hit area is 44px. */}
                         <button
                           type="button"
-                          onClick={() => toggleMeal(meal)}
-                          aria-pressed={isChecked}
-                          className="-m-2.5 flex h-11 w-11 shrink-0 items-center justify-center p-2.5"
-                          aria-label={`${isChecked ? 'Uncheck' : 'Check'} ${meal.recipeName}`}
+                          data-testid={`tracker-slot-undo-${k}`}
+                          aria-label={`Undo for ${meal.mealType}`}
+                          onClick={() =>
+                            replacement
+                              ? replacement.entryId
+                                ? slotFlow.undoReplacement(replacement.entryId, slot)
+                                : undefined
+                              : slotFlow.unskip(slot)
+                          }
+                          className="min-h-11 shrink-0 rounded-xl px-3 text-sm font-semibold text-[#944a00] hover:bg-[#fff2e2]"
                         >
-                          <span
-                            aria-hidden="true"
-                            className={`flex h-6 w-6 items-center justify-center rounded-full border-2 transition-all ${isChecked ? 'border-[#944a00] bg-[#944a00] text-white' : 'border-neutral-300 text-transparent'}`}
-                          >
-                            {isChecked && <span className="text-xs font-bold">✓</span>}
-                          </span>
+                          Undo
                         </button>
                       </div>
+                    );
+                  }
+                  const isChecked = ticks[k]?.checked ?? false;
+                  const portion = ticks[k]?.portion ?? planPortionOf(meal);
+                  const scaledKcal = Math.round(meal.kcal * portion);
 
-                      {/* Portion + kcal — a four-up segmented control that fills
-                          the row, rather than four ~34x20px pills. */}
-                      <div className="flex flex-wrap items-center gap-2">
-                        <div
-                          role="group"
-                          aria-label={`Portion size for ${meal.recipeName}`}
-                          className="flex flex-1 gap-1 sm:flex-none"
-                        >
-                          {portionOptionsFor(meal).map((p) => (
-                            <button
-                              key={p}
-                              type="button"
-                              onClick={() => setPortion(meal, p)}
-                              aria-pressed={portion === p && isChecked}
-                              className={`min-h-11 flex-1 rounded-lg px-2 text-xs font-medium transition-all sm:flex-none sm:px-3 ${portion === p && isChecked ? 'bg-[#944a00] text-white' : 'bg-neutral-100 text-neutral-600 hover:bg-neutral-200'}`}
+                  return (
+                    <div
+                      key={k}
+                      className={`flex gap-3 rounded-2xl border p-3 transition-all ${isChecked ? 'border-[#944a00]/30 bg-[#fff8f0]' : 'border-neutral-200 bg-white'}`}
+                    >
+                      {/* Image */}
+                      <div className="relative h-14 w-14 shrink-0 overflow-hidden rounded-xl">
+                        <Image
+                          {...getRecipeImageProps(meal.imageUrl)}
+                          alt={meal.recipeName}
+                          fill
+                          sizes="56px"
+                          className={`object-cover transition-opacity ${isChecked ? 'opacity-100' : 'opacity-60'}`}
+                        />
+                      </div>
+
+                      {/* Details */}
+                      <div className="flex min-w-0 flex-1 flex-col gap-2">
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="min-w-0">
+                            <span
+                              className={`rounded-full px-2 py-0.5 text-xs font-semibold uppercase ${MEAL_COLOURS[meal.mealType] ?? 'bg-gray-100 text-gray-600'}`}
                             >
-                              {formatPortion(p)}
+                              {meal.mealType}
+                            </span>
+                            <p className="mt-0.5 text-sm font-medium text-neutral-800">
+                              {meal.recipeName}
+                            </p>
+                          </div>
+                          <div className="-my-2.5 flex shrink-0 items-center">
+                            {/* WP-06: "Ate something else" / "Skipped it". */}
+                            <SlotActionsMenu
+                              slotLabel={slot.label}
+                              plannedName={meal.recipeName}
+                              canSkip={!isChecked}
+                              onAteElse={() => slotFlow.openAteElse(slot)}
+                              onSkip={() => slotFlow.skip(slot)}
+                            />
+                            {/* 24px was the smallest target on the page's primary
+                              action. Visual size holds; the hit area is 44px. */}
+                            <button
+                              type="button"
+                              onClick={() => toggleMeal(meal)}
+                              aria-pressed={isChecked}
+                              className="flex h-11 w-11 shrink-0 items-center justify-center p-2.5"
+                              aria-label={`${isChecked ? 'Uncheck' : 'Check'} ${meal.recipeName}`}
+                            >
+                              <span
+                                aria-hidden="true"
+                                className={`flex h-6 w-6 items-center justify-center rounded-full border-2 transition-all ${isChecked ? 'border-[#944a00] bg-[#944a00] text-white' : 'border-neutral-300 text-transparent'}`}
+                              >
+                                {isChecked && <span className="text-xs font-bold">✓</span>}
+                              </span>
                             </button>
-                          ))}
+                          </div>
                         </div>
-                        <span className="shrink-0 text-xs text-neutral-500">
-                          {scaledKcal} kcal
-                          {planPortionOf(meal) !== 1 &&
-                            ` · plan ${formatPortion(planPortionOf(meal))}`}
-                        </span>
+
+                        {/* Portion + kcal — a four-up segmented control that fills
+                          the row, rather than four ~34x20px pills. */}
+                        <div className="flex flex-wrap items-center gap-2">
+                          <div
+                            role="group"
+                            aria-label={`Portion size for ${meal.recipeName}`}
+                            className="flex flex-1 gap-1 sm:flex-none"
+                          >
+                            {portionOptionsFor(meal).map((p) => (
+                              <button
+                                key={p}
+                                type="button"
+                                onClick={() => setPortion(meal, p)}
+                                aria-pressed={portion === p && isChecked}
+                                className={`min-h-11 flex-1 rounded-lg px-2 text-xs font-medium transition-all sm:flex-none sm:px-3 ${portion === p && isChecked ? 'bg-[#944a00] text-white' : 'bg-neutral-100 text-neutral-600 hover:bg-neutral-200'}`}
+                              >
+                                {formatPortion(p)}
+                              </button>
+                            ))}
+                          </div>
+                          <span className="shrink-0 text-xs text-neutral-500">
+                            {proteinOnly
+                              ? proteinLabel(meal.protein * portion)
+                              : `${scaledKcal} kcal`}
+                            {planPortionOf(meal) !== 1 &&
+                              ` · plan ${formatPortion(planPortionOf(meal))}`}
+                          </span>
+                        </div>
                       </div>
                     </div>
-                  </div>
-                );
-              })}
-            </div>
-          )}
-
-          {/* Off-plan meals (F-PM-1): logged recipes that have since left
-              today's plan (regenerate or swap). Kept and counted. */}
-          {offPlanLogged.length > 0 && (
-            <div className="mb-6" data-testid="tracker-off-plan">
-              <p className="mb-2 text-xs font-semibold uppercase tracking-widest text-neutral-500">
-                Also eaten
-              </p>
-              <div className="space-y-3">
-                {offPlanLogged.map((m) => (
-                  <div
-                    key={`${m.recipeId}:${m.mealType}`}
-                    className="flex flex-col gap-1 rounded-2xl border border-neutral-200 bg-white p-3"
-                  >
-                    <span
-                      className={`self-start rounded-full px-2 py-0.5 text-xs font-semibold uppercase ${MEAL_COLOURS[m.mealType] ?? 'bg-gray-100 text-gray-600'}`}
-                    >
-                      {m.mealType}
-                    </span>
-                    <p className="min-w-0 truncate text-sm font-medium text-neutral-800">
-                      {m.recipeName}
-                    </p>
-                    <p className="text-xs text-neutral-500">
-                      {Math.round(m.kcal)} kcal · {Math.round(m.protein)}g P · {Math.round(m.carbs)}
-                      g C · {Math.round(m.fat)}g F
-                    </p>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
-            </div>
-          )}
+            )}
 
-          {/* Custom entries (F4): photo scans + quick-adds. Tap to edit
-              (bug B-34, T-19.2); the bin deletes immediately with Undo. */}
-          {customRows.length > 0 && (
-            <div className="mb-6">
-              <p className="mb-2 text-xs font-semibold uppercase tracking-widest text-neutral-500">
-                Also eaten
-              </p>
-              <div className="space-y-3">
-                {customRows.map((row) => (
-                  <button
-                    type="button"
-                    key={row.entryIndex}
-                    data-testid={`tracker-custom-${row.entryIndex}`}
-                    onClick={() => setEditingEntry(row)}
-                    className="flex w-full items-center gap-3 rounded-2xl border border-neutral-200 bg-white p-3 text-left hover:bg-neutral-50"
-                  >
-                    <div className="flex min-w-0 flex-1 flex-col gap-1">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <span
-                          className={`rounded-full px-2 py-0.5 text-xs font-semibold uppercase ${MEAL_COLOURS[row.mealType] ?? 'bg-gray-100 text-gray-600'}`}
-                        >
-                          {row.mealType}
-                        </span>
-                        <span className="rounded-full bg-neutral-100 px-2 py-0.5 text-xs font-semibold uppercase text-neutral-600">
-                          {customEntryChipLabel(row.estimatedBy)}
-                        </span>
+            {/* Also eaten — off-plan recipes (F-PM-1: logged, then left today's
+              plan) and custom entries (F4: photo scans + quick adds), one
+              list grouped by meal. Tap to edit, bin to delete with Undo
+              (UX-FOOD-03, bug B-34, T-19.2, UX-FOOD-25). */}
+            {alsoEaten.length > 0 && (
+              <div className="mb-6" data-testid="tracker-also-eaten">
+                <h2 className="mb-2 text-xs font-semibold uppercase tracking-widest text-neutral-500">
+                  Also eaten
+                </h2>
+                <div className="space-y-4">
+                  {alsoEaten.map((group) => (
+                    <div key={group.mealType} data-testid={`tracker-also-eaten-${group.mealType}`}>
+                      <span
+                        className={`mb-2 inline-block rounded-full px-2 py-0.5 text-xs font-semibold uppercase ${MEAL_COLOURS[group.mealType] ?? 'bg-gray-100 text-gray-600'}`}
+                      >
+                        {group.mealType}
+                      </span>
+                      <div className="space-y-3">
+                        {group.rows.map((item) =>
+                          item.kind === 'recipe' ? (
+                            <div
+                              key={item.m.entryId ?? `${item.m.recipeId}:${item.m.mealType}`}
+                              className="flex items-center gap-3 rounded-2xl border border-neutral-200 bg-white p-3"
+                            >
+                              <button
+                                type="button"
+                                data-testid={`tracker-off-plan-${item.m.entryId ?? item.m.recipeId}`}
+                                aria-label={`Edit ${item.m.recipeName}`}
+                                disabled={!item.m.entryId}
+                                onClick={() => setEditingRecipeEntryId(item.m.entryId ?? null)}
+                                className="flex min-w-0 flex-1 flex-col gap-1 rounded-xl text-left hover:bg-neutral-50 disabled:cursor-default disabled:hover:bg-transparent"
+                              >
+                                <span className="min-w-0 truncate text-sm font-medium text-neutral-800">
+                                  {item.m.recipeName}
+                                </span>
+                                <span className="text-xs text-neutral-500">
+                                  {proteinOnly
+                                    ? proteinLabel(item.m.protein)
+                                    : `${Math.round(item.m.kcal)} kcal · ${Math.round(item.m.protein)}g P · ${Math.round(item.m.carbs)}g C · ${Math.round(item.m.fat)}g F`}
+                                  {(item.m.portionMultiplier ?? 1) !== 1 &&
+                                    ` · ${formatPortion(item.m.portionMultiplier ?? 1)}`}
+                                </span>
+                              </button>
+                              {item.m.entryId && (
+                                <button
+                                  type="button"
+                                  aria-label={`Delete ${item.m.recipeName}`}
+                                  disabled={deleteEntriesMutation.isPending}
+                                  onClick={() => deleteOffPlanEntry(item.m)}
+                                  className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl text-neutral-400 transition hover:bg-red-50 hover:text-red-600"
+                                >
+                                  <Trash2 className="h-4 w-4" />
+                                </button>
+                              )}
+                            </div>
+                          ) : (
+                            <button
+                              type="button"
+                              key={item.row.entryIndex}
+                              data-testid={`tracker-custom-${item.row.entryIndex}`}
+                              onClick={() => setEditingEntry(item.row)}
+                              className="flex w-full items-center gap-3 rounded-2xl border border-neutral-200 bg-white p-3 text-left hover:bg-neutral-50"
+                            >
+                              <div className="flex min-w-0 flex-1 flex-col gap-1">
+                                <div className="flex flex-wrap items-center gap-2">
+                                  <span className="rounded-full bg-neutral-100 px-2 py-0.5 text-xs font-semibold uppercase text-neutral-600">
+                                    {customEntryChipLabel(item.row.estimatedBy)}
+                                  </span>
+                                </div>
+                                <p className="min-w-0 truncate text-sm font-medium text-neutral-800">
+                                  {item.row.name}
+                                </p>
+                                <p className="text-xs text-neutral-500">
+                                  {proteinOnly
+                                    ? proteinLabel(item.row.protein)
+                                    : `${item.row.kcal} kcal${
+                                        item.row.protein > 0 ||
+                                        item.row.carbs > 0 ||
+                                        item.row.fat > 0
+                                          ? ` · ${Math.round(item.row.protein)}g P · ${Math.round(item.row.carbs)}g C · ${Math.round(item.row.fat)}g F`
+                                          : ''
+                                      }`}
+                                </p>
+                              </div>
+                              <span
+                                role="button"
+                                tabIndex={0}
+                                aria-label={`Delete ${item.row.name}`}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  deleteCustomEntry(item.row);
+                                }}
+                                onKeyDown={(e) => {
+                                  if (e.key === 'Enter' || e.key === ' ') {
+                                    e.preventDefault();
+                                    e.stopPropagation();
+                                    deleteCustomEntry(item.row);
+                                  }
+                                }}
+                                className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl text-neutral-400 transition hover:bg-red-50 hover:text-red-600"
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </span>
+                            </button>
+                          ),
+                        )}
                       </div>
-                      <p className="min-w-0 truncate text-sm font-medium text-neutral-800">
-                        {row.name}
-                      </p>
-                      <p className="text-xs text-neutral-500">
-                        {row.kcal} kcal
-                        {row.protein > 0 || row.carbs > 0 || row.fat > 0
-                          ? ` · ${Math.round(row.protein)}g P · ${Math.round(row.carbs)}g C · ${Math.round(row.fat)}g F`
-                          : ''}
-                      </p>
                     </div>
-                    <span
-                      role="button"
-                      tabIndex={0}
-                      aria-label={`Delete ${row.name}`}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        deleteCustomEntry(row);
-                      }}
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter' || e.key === ' ') {
-                          e.preventDefault();
-                          e.stopPropagation();
-                          deleteCustomEntry(row);
-                        }
-                      }}
-                      className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl text-neutral-400 transition hover:bg-red-50 hover:text-red-600"
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </span>
-                  </button>
-                ))}
+                  ))}
+                </div>
               </div>
-            </div>
-          )}
-        </>
-      )}
+            )}
+          </>
+        )}
 
-      <TargetExplainSheet
-        open={explainOpen}
-        onClose={() => setExplainOpen(false)}
-        view={targetsView}
-      />
+        <SlotActionsHost flow={slotFlow} date={dateStr} isPremium={isPremium} />
 
-      <EditEntrySheet
-        open={editingEntry !== null}
-        onClose={() => setEditingEntry(null)}
-        date={dateStr}
-        entry={editingEntry}
-        onSaved={() => void refetch()}
-        onDeleted={() => setEditingEntry(null)}
-        showToast={showToast}
-      />
-
-      <Sheet
-        open={copyDayOpen}
-        onClose={() => setCopyDayOpen(false)}
-        title="Copy day"
-        description={`Copy everything logged ${copyLabel} to ${isToday ? 'today' : 'this day'}? You can undo it right after.`}
-        size="sm"
-        footer={
-          <div className="flex w-full gap-2 px-5 pb-2">
-            <button
-              type="button"
-              onClick={() => setCopyDayOpen(false)}
-              className="min-h-11 flex-1 rounded-xl border border-neutral-200 px-4 text-sm font-semibold text-neutral-700 hover:bg-neutral-50"
-            >
-              Cancel
-            </button>
-            <button
-              type="button"
-              data-testid="tracker-copy-day-confirm"
-              onClick={confirmCopyDay}
-              disabled={copyDayMutation.isPending}
-              className="min-h-11 flex-1 rounded-xl bg-[#944a00] px-4 text-sm font-semibold text-white hover:bg-[#7a3d00] disabled:opacity-50"
-            >
-              {copyDayMutation.isPending ? 'Copying…' : `Copy ${copyLabel}`}
-            </button>
-          </div>
-        }
-      >
-        <div />
-      </Sheet>
-
-      {toast && (
-        <Toast
-          message={toast.message}
-          onClose={() => setToast(null)}
-          // Bug B-34/AC2: an Undo toast (delete, remove-meal, copy-day) needs
-          // longer than the plain 3s default — deleting also invalidates the
-          // day/summary/recents queries, and that refetch's render can eat
-          // into the window before the user gets a chance to tap Undo.
-          // 8000ms matches mobile's WITH_ACTION_DURATION_MS
-          // (packages/ui-mobile/src/components/snackbar.tsx).
-          duration={toast.action ? 8000 : 3000}
-          {...(toast.action && { action: toast.action })}
+        <TargetExplainSheet
+          open={explainOpen}
+          onClose={() => setExplainOpen(false)}
+          view={targetsView}
         />
-      )}
-    </div>
+
+        <EditEntrySheet
+          open={editingEntry !== null}
+          onClose={() => setEditingEntry(null)}
+          date={dateStr}
+          entry={editingEntry}
+          onSaved={() => void refetch()}
+          onDeleted={() => setEditingEntry(null)}
+          showToast={showToast}
+        />
+
+        <EditRecipeEntrySheet
+          open={editingRecipeEntry !== null}
+          onClose={() => setEditingRecipeEntryId(null)}
+          entry={editingRecipeEntry}
+          onSave={(edit) => {
+            if (!editingRecipeEntry?.entryId) return;
+            updateRecipeEntryMutation.mutate({
+              date: dateStr,
+              entryId: editingRecipeEntry.entryId,
+              ...edit,
+            });
+            setEditingRecipeEntryId(null);
+          }}
+          onDelete={() => editingRecipeEntry && deleteOffPlanEntry(editingRecipeEntry)}
+        />
+
+        <Sheet
+          open={copyDayOpen}
+          onClose={() => setCopyDayOpen(false)}
+          title="Copy day"
+          description={`Copy everything logged ${copyLabel} to ${isToday ? 'today' : 'this day'}? You can undo it right after.`}
+          size="sm"
+          footer={
+            <div className="flex w-full gap-2 px-5 pb-2">
+              <button
+                type="button"
+                onClick={() => setCopyDayOpen(false)}
+                className="min-h-11 flex-1 rounded-xl border border-neutral-200 px-4 text-sm font-semibold text-neutral-700 hover:bg-neutral-50"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                data-testid="tracker-copy-day-confirm"
+                onClick={confirmCopyDay}
+                disabled={copyDayMutation.isPending}
+                className="min-h-11 flex-1 rounded-xl bg-[#944a00] px-4 text-sm font-semibold text-white hover:bg-[#7a3d00] disabled:opacity-50"
+              >
+                {copyDayMutation.isPending ? 'Copying…' : `Copy ${copyLabel}`}
+              </button>
+            </div>
+          }
+        >
+          <div />
+        </Sheet>
+
+        {toast && (
+          <Toast
+            message={toast.message}
+            onClose={() => setToast(null)}
+            // Bug B-34/AC2: an Undo toast (delete, remove-meal, copy-day) needs
+            // longer than the plain 3s default — deleting also invalidates the
+            // day/summary/recents queries, and that refetch's render can eat
+            // into the window before the user gets a chance to tap Undo.
+            // 8000ms matches mobile's WITH_ACTION_DURATION_MS
+            // (packages/ui-mobile/src/components/snackbar.tsx).
+            duration={toast.action ? 8000 : 3000}
+            {...(toast.action && { action: toast.action })}
+          />
+        )}
+      </div>
+    </NumbersModeProvider>
   );
 }

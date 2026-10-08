@@ -8,18 +8,34 @@ import {
   ArrowDown,
   ArrowUp,
   CircleSlash,
+  Link2,
   Minus,
   Plus,
   Repeat,
   StickyNote,
   Trash2,
 } from 'lucide-react';
-import type { ExerciseDto, PrKind, Rir, SessionSetDoc, WorkoutSessionDoc } from '@chefer/types';
-import { Button, Sheet, Toast } from '@chefer/ui';
-import { cn, sessionSupersetKey, type SessionSupersetSlot } from '@chefer/utils';
-import { captureGymEvent } from '../analytics';
+import {
+  GYM_MAX_EXERCISES_PER_SESSION,
+  GYM_MAX_SETS_PER_EXERCISE,
+  type ExerciseDto,
+  type PrKind,
+  type Rir,
+  type SessionSetDoc,
+  type WorkoutSessionDoc,
+} from '@chefer/types';
+import { Button, pressControl, Sheet, Toast } from '@chefer/ui';
+import {
+  cn,
+  routineWithoutSuperset,
+  routineWithSuperset,
+  sessionSupersetKey,
+  type SessionSupersetSlot,
+} from '@chefer/utils';
+import { captureGymEvent, workoutFinishedKind } from '../analytics';
 import { ExercisePickerSheet } from '../shared/exercise-picker-sheet';
 import { GymSkeleton } from '../shared/gym-card';
+import { SupersetSheet } from '../shared/superset-sheet';
 import { SyncIndicator } from '../shared/sync-indicator';
 import { FALLBACK_PROFILE, useGymData } from '../shared/use-gym-data';
 import { ExerciseCard } from './components/exercise-card';
@@ -28,17 +44,21 @@ import { RestTimerBar } from './components/rest-timer-bar';
 import { newId } from './ids';
 import { SummaryView } from './summary-view';
 import { useActiveWorkout } from './use-active-workout';
+import { useRoutineSupersetSave } from './use-routine-superset-save';
 import {
   buildAddExerciseAction,
   buildSwapAction,
   currentExerciseId,
   currentFocus,
+  derivedSupersetGroups,
   formatElapsed,
   isExerciseDone,
   lastNoteFor,
   lastTimeSets,
   livePrs,
   propagateEditActions,
+  routineSlotsForPicks,
+  routineSupersetSlotOf,
   sessionProgress,
   setLabelOf,
   sortedExercises,
@@ -92,12 +112,19 @@ export function WorkoutView() {
   // router navigation needs a server round trip and showed the browser's
   // "No internet" page when finishing offline).
   const [finishedId, setFinishedId] = useState<string | null>(null);
+  // plan-library-supersets S3: the "Superset" sheet (picks ticked on open) and
+  // the Ungroup confirm (only when "Also change my routine" applies).
+  const [supersetPick, setSupersetPick] = useState<string[] | null>(null);
+  const [ungroupFor, setUngroupFor] = useState<string | null>(null);
+  const saveRoutineSuperset = useRoutineSupersetSave();
 
   const isDesktop = useMediaQuery('(min-width: 1024px)');
   useWakeLock(session !== null);
 
-  // Supersets come from the cached routine (the session has no superset
-  // field); kept referentially stable while the grouping itself is unchanged.
+  // Supersets: the session's own letters (S-D3), else derived from the cached
+  // routine for older docs. The key covers every member's letter and slot, so
+  // a superset made or ungrouped here re-groups focus and rest at once; the
+  // map stays referentially stable while the grouping itself is unchanged.
   const derivedSupersets = session ? supersetsOf(session, data) : NO_SUPERSETS;
   const supersetKey = sessionSupersetKey(derivedSupersets);
   // eslint-disable-next-line react-hooks/exhaustive-deps -- keyed on the grouping, not the doc
@@ -202,6 +229,38 @@ export function WorkoutView() {
     [],
   );
 
+  const activeRoutine = data?.activeRoutine ?? null;
+  const groupSuperset = (seIds: string[], alsoRoutine: boolean) => {
+    setSupersetPick(null);
+    if (!session) return;
+    const derivedGroups = derivedSupersetGroups(session, supersets);
+    act({ type: 'createSuperset', seIds, ...(derivedGroups && { derivedGroups }) });
+    const slots = alsoRoutine ? routineSlotsForPicks(session, activeRoutine, seIds) : null;
+    if (slots && activeRoutine) {
+      void saveRoutineSuperset(activeRoutine, (r) => routineWithSuperset(r, slots));
+    }
+  };
+  const ungroup = (seId: string, alsoRoutine: boolean) => {
+    setUngroupFor(null);
+    if (!session) return;
+    const slot = supersets.get(seId);
+    const rid =
+      alsoRoutine && slot ? routineSupersetSlotOf(session, activeRoutine, slot.memberIds) : null;
+    const derivedGroups = derivedSupersetGroups(session, supersets);
+    act({ type: 'ungroupSuperset', seId, ...(derivedGroups && { derivedGroups }) });
+    if (rid && activeRoutine) {
+      void saveRoutineSuperset(activeRoutine, (r) => routineWithoutSuperset(r, rid));
+    }
+  };
+  /** Ungroup at once, or ask first when the routine has the same superset. */
+  const requestUngroup = (seId: string) => {
+    const slot = supersets.get(seId);
+    const routineHasIt =
+      session && slot ? routineSupersetSlotOf(session, activeRoutine, slot.memberIds) : null;
+    if (routineHasIt) setUngroupFor(seId);
+    else ungroup(seId, false);
+  };
+
   if (finishedId) {
     return <SummaryView id={finishedId} />;
   }
@@ -237,6 +296,16 @@ export function WorkoutView() {
     exercises[0] ??
     null;
   const canPrescribe = !!data?.profile;
+  const pickable = exercises.filter((se) => !se.skipped);
+  const supersetItems = pickable.map((se) => {
+    const slot = supersets.get(se.id);
+    return {
+      id: se.id,
+      name: lookup(se.exerciseId)?.name ?? 'Exercise',
+      badge: slot ? `${slot.label}${slot.index + 1}` : null,
+    };
+  });
+  const ungroupSlot = ungroupFor ? (supersets.get(ungroupFor) ?? null) : null;
 
   const renderCard = (seId: string, forceExpanded: boolean) => {
     const idx = exercises.findIndex((e) => e.id === seId);
@@ -287,6 +356,8 @@ export function WorkoutView() {
       sets: progress.done,
       prs: prCount,
       offline: typeof navigator !== 'undefined' && !navigator.onLine,
+      // UX-PO-02: a routine day (`planned`) or an ad-hoc session (`freestyle`).
+      kind: workoutFinishedKind(finished),
     });
     prs.forEach((pr) => captureGymEvent('pr_achieved', { kind: pr.kind }));
     // Client render + URL update, no navigation: works with no connection
@@ -297,6 +368,10 @@ export function WorkoutView() {
   };
 
   const actionsSe = exercises.find((e) => e.id === actionsFor) ?? null;
+  // UX-GYM-01: the session schema allows 30 exercises and 20 sets each — past that a
+  // finished workout can never sync, so the buttons stop there and say why.
+  const atExerciseCap = exercises.length >= GYM_MAX_EXERCISES_PER_SESSION;
+  const exerciseCapReason = `Max ${String(GYM_MAX_EXERCISES_PER_SESSION)} exercises per workout.`;
   const noteSe = noteFor === 'session' ? null : (exercises.find((e) => e.id === noteFor) ?? null);
 
   return (
@@ -366,10 +441,24 @@ export function WorkoutView() {
             variant="outline"
             className="mt-3 min-h-11 w-full"
             onClick={() => setPicker({ kind: 'add' })}
-            disabled={!canPrescribe}
+            disabled={!canPrescribe || atExerciseCap}
+            title={atExerciseCap ? exerciseCapReason : undefined}
           >
             <Plus aria-hidden="true" />
             Add exercise
+          </Button>
+          {atExerciseCap && (
+            <p className="mt-1 text-center text-xs text-gray-500">{exerciseCapReason}</p>
+          )}
+          <Button
+            variant="outline"
+            className="mt-2 min-h-11 w-full"
+            onClick={() => setSupersetPick([])}
+            disabled={pickable.length < 2}
+            data-testid="gym-superset-open"
+          >
+            <Link2 aria-hidden="true" />
+            Superset
           </Button>
           <SyncIndicator className="mt-2" />
         </nav>
@@ -386,6 +475,7 @@ export function WorkoutView() {
                       exercises.find((e) => e.id === supersets.get(selected.id)?.memberIds.at(-1))
                         ?.restSec ?? selected.restSec
                     }
+                    onUngroup={() => requestUngroup(selected.id)}
                   />
                 )}
                 {renderCard(selected.id, true)}
@@ -399,7 +489,13 @@ export function WorkoutView() {
                 const restSec = exercises.find((e) => e.id === lastId)?.restSec ?? se.restSec;
                 return (
                   <div key={se.id} id={`se-${se.id}`} className="scroll-mt-32">
-                    {slot?.index === 0 && <SupersetHeading label={slot.label} restSec={restSec} />}
+                    {slot?.index === 0 && (
+                      <SupersetHeading
+                        label={slot.label}
+                        restSec={restSec}
+                        onUngroup={() => requestUngroup(se.id)}
+                      />
+                    )}
                     {renderCard(se.id, false)}
                   </div>
                 );
@@ -413,15 +509,26 @@ export function WorkoutView() {
             </div>
           )}
 
-          <div className="mt-4 flex flex-col gap-2 sm:flex-row lg:hidden">
+          <div className="mt-4 grid grid-cols-2 gap-2 lg:hidden">
             <Button
               variant="outline"
-              className="min-h-11 flex-1"
+              className="min-h-11 min-w-0"
               onClick={() => setPicker({ kind: 'add' })}
-              disabled={!canPrescribe}
+              disabled={!canPrescribe || atExerciseCap}
+              title={atExerciseCap ? exerciseCapReason : undefined}
             >
               <Plus aria-hidden="true" />
               Add exercise
+            </Button>
+            <Button
+              variant="outline"
+              className="min-h-11 min-w-0"
+              onClick={() => setSupersetPick([])}
+              disabled={pickable.length < 2}
+              data-testid="gym-superset-open"
+            >
+              <Link2 aria-hidden="true" />
+              Superset
             </Button>
           </div>
           {!canPrescribe && (
@@ -494,9 +601,26 @@ export function WorkoutView() {
                 setActionsFor(null);
               }}
             />
+            {!actionsSe.skipped && (
+              <ActionItem
+                icon={Link2}
+                label="Superset"
+                disabled={pickable.length < 2}
+                onClick={() => {
+                  setActionsFor(null);
+                  setSupersetPick([actionsSe.id]);
+                }}
+              />
+            )}
             <ActionItem
               icon={Plus}
               label="Add set"
+              disabled={actionsSe.sets.length >= GYM_MAX_SETS_PER_EXERCISE}
+              hint={
+                actionsSe.sets.length >= GYM_MAX_SETS_PER_EXERCISE
+                  ? `Max ${String(GYM_MAX_SETS_PER_EXERCISE)} sets per exercise.`
+                  : undefined
+              }
               onClick={() => {
                 act({ type: 'addSet', seId: actionsSe.id, newSetId: newId() });
                 setActionsFor(null);
@@ -536,6 +660,23 @@ export function WorkoutView() {
           </ul>
         )}
       </Sheet>
+
+      <SupersetSheet
+        open={supersetPick !== null}
+        onClose={() => setSupersetPick(null)}
+        items={supersetItems}
+        initialPicked={supersetPick ?? []}
+        routineOption={(picked) => routineSlotsForPicks(session, activeRoutine, picked) !== null}
+        onGroup={groupSuperset}
+      />
+
+      <UngroupSheet
+        label={ungroupSlot?.label ?? null}
+        onClose={() => setUngroupFor(null)}
+        onUngroup={(alsoRoutine) => {
+          if (ungroupFor) ungroup(ungroupFor, alsoRoutine);
+        }}
+      />
 
       <NoteSheet
         key={noteFor ?? 'none'}
@@ -732,15 +873,87 @@ export function WorkoutView() {
   );
 }
 
-function SupersetHeading({ label, restSec }: { label: string; restSec: number }) {
+function SupersetHeading({
+  label,
+  restSec,
+  onUngroup,
+}: {
+  label: string;
+  restSec: number;
+  onUngroup: () => void;
+}) {
   return (
-    <p className="mb-1.5 flex items-center gap-2 px-1 text-sm" data-testid="gym-superset-heading">
+    <div
+      className="mb-1.5 flex min-w-0 items-center gap-2 px-1 text-sm"
+      data-testid="gym-superset-heading"
+    >
       <span className="h-4 w-1 shrink-0 rounded-full bg-violet-500" aria-hidden="true" />
-      <span className="font-semibold text-violet-800">Superset {label}</span>
-      <span className="min-w-0 truncate text-xs text-gray-500">
+      <span className="shrink-0 font-semibold text-violet-800">Superset {label}</span>
+      <span className="min-w-0 flex-1 truncate text-xs text-gray-500">
         {restSec} s rest after each round
       </span>
-    </p>
+      <button
+        type="button"
+        onClick={onUngroup}
+        aria-label={`Ungroup superset ${label}`}
+        data-testid="gym-superset-ungroup"
+        // MO-01 press feedback; the hit area grows to 44 px via touch-target.
+        className={cn(
+          'touch-target relative -my-1.5 flex h-8 shrink-0 items-center rounded-md px-2 text-xs font-medium text-violet-700 hover:bg-violet-50',
+          pressControl,
+        )}
+      >
+        Ungroup
+      </button>
+    </div>
+  );
+}
+
+/** Ungroup confirm, shown only when the routine has the same superset (S-D2). */
+function UngroupSheet({
+  label,
+  onClose,
+  onUngroup,
+}: {
+  label: string | null;
+  onClose: () => void;
+  onUngroup: (alsoRoutine: boolean) => void;
+}) {
+  const [alsoRoutine, setAlsoRoutine] = useState(false);
+  useEffect(() => {
+    if (label !== null) setAlsoRoutine(false);
+  }, [label]);
+  return (
+    <Sheet
+      open={label !== null}
+      onClose={onClose}
+      title={label ? `Ungroup superset ${label}` : 'Ungroup'}
+      description="You'll rest after every set again."
+      size="sm"
+      footer={
+        <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+          <Button variant="outline" onClick={onClose}>
+            Cancel
+          </Button>
+          <Button onClick={() => onUngroup(alsoRoutine)} data-testid="gym-ungroup-confirm">
+            Ungroup
+          </Button>
+        </div>
+      }
+    >
+      <div className="px-3 pb-4">
+        <label className="flex min-h-11 cursor-pointer items-center gap-3 rounded-xl border bg-white px-3 py-2 text-sm text-gray-800">
+          <input
+            type="checkbox"
+            checked={alsoRoutine}
+            onChange={(e) => setAlsoRoutine(e.target.checked)}
+            className="h-5 w-5 shrink-0 accent-[#944a00]"
+            data-testid="gym-ungroup-also-routine"
+          />
+          <span className="min-w-0 flex-1">Also change my routine</span>
+        </label>
+      </div>
+    </Sheet>
   );
 }
 
@@ -844,11 +1057,14 @@ function ActionItem({
   label,
   onClick,
   disabled = false,
+  hint,
 }: {
   icon: typeof Plus;
   label: string;
   onClick: () => void;
   disabled?: boolean;
+  /** Why it is unavailable, shown under the label. */
+  hint?: string | undefined;
 }) {
   return (
     <li>
@@ -859,7 +1075,10 @@ function ActionItem({
         className="flex min-h-12 w-full items-center gap-3 rounded-xl px-3 text-left text-sm text-gray-800 hover:bg-gray-100 disabled:opacity-40"
       >
         <Icon className="h-4 w-4 shrink-0 text-gray-500" aria-hidden="true" />
-        {label}
+        <span className="min-w-0">
+          {label}
+          {hint && <span className="block text-xs text-gray-500">{hint}</span>}
+        </span>
       </button>
     </li>
   );

@@ -22,11 +22,15 @@ import {
 } from 'lucide-react';
 import { VIDEO_IMPORT_COPY } from '@chefer/types';
 import { Sheet } from '@chefer/ui';
-import { cn, isSupportedVideoUrl, PREMIUM_PITCH_COPY, premiumPitchFor } from '@chefer/utils';
+import {
+  cn,
+  isSupportedVideoUrl,
+  PREMIUM_PITCH_COPY,
+  premiumPitchFor,
+  userFacingErrorMessage,
+} from '@chefer/utils';
 import { useLiveNutrition, type LiveNutrition } from '../hooks/useLiveNutrition';
-import { rowsFromImport, toSaveLines, type LineRow } from '../lib/recipe-lines';
-import { NutritionPreview } from './NutritionPreview';
-import { RecipeLinesEditor } from './RecipeLinesEditor';
+import { rowsFromImport, type LineRow } from '../lib/recipe-lines';
 import {
   VideoDraftForm,
   type VideoDraftRecipe,
@@ -43,6 +47,12 @@ import {
 // Video links (2026-09-26) take a different path: the API reads the video's
 // words (caption, subtitles or speech) into a DRAFT, and VideoDraftForm lets
 // the user correct and complete it before it is saved as the original.
+//
+// UX-REC-15 (web twin of the phone's import review): a link, pasted text or
+// photo is reviewed in the SAME editable form. Choose the version (Original or
+// Cheferized), then fix the name, amounts, units, matches and steps inline;
+// Save sends the chosen variant and `acceptPartial`. Switching version restarts
+// the review (the form is keyed by the variant).
 
 type SourceTab = 'url' | 'text' | 'photo' | 'video';
 
@@ -83,16 +93,15 @@ export function ImportRecipeSheet({ open, onClose }: { open: boolean; onClose: (
   const [preview, setPreview] = useState<ImportPreviewData | null>(null);
   const [videoPreview, setVideoPreview] = useState<VideoImportPreviewData | null>(null);
   const [variant, setVariant] = useState<Variant>('adapted');
-  // Catalog lines per variant (plan-ingredient-catalog §6.2): matched by the
-  // server, reviewed here; unmatched lines get a pick or a private ingredient.
+  // The imported lines per variant, only to show each version's computed kcal on
+  // its card; the review form below owns the editable copy (§6.2).
   const [lines, setLines] = useState<Record<Variant, LineRow[]> | null>(null);
-  const [acceptPartial, setAcceptPartial] = useState(false);
-  const [matchError, setMatchError] = useState<string | null>(null);
   const liveOriginal = useLiveNutrition(lines?.original ?? [], preview?.original.servings ?? 1);
   const liveAdapted = useLiveNutrition(lines?.adapted ?? [], preview?.adapted.servings ?? 1);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const previewMutation = trpc.recipe.importPreview.useMutation({
+    meta: { silent: true },
     onSuccess: (data) => {
       capture('recipe_imported', { via: data.via });
       if (isPremium === false) capture('teaser_engaged', { feature: 'import' });
@@ -101,13 +110,12 @@ export function ImportRecipeSheet({ open, onClose }: { open: boolean; onClose: (
         original: rowsFromImport(data.original.ingredients, data.resolution.original),
         adapted: rowsFromImport(data.adapted.ingredients, data.resolution.adapted),
       });
-      setAcceptPartial(false);
-      setMatchError(null);
       setPreview(data);
     },
   });
 
   const videoPreviewMutation = trpc.recipe.importVideoPreview.useMutation({
+    meta: { silent: true },
     onSuccess: (data) => {
       capture('recipe_imported', { via: 'video' });
       setVideoPreview(data);
@@ -115,6 +123,7 @@ export function ImportRecipeSheet({ open, onClose }: { open: boolean; onClose: (
   });
 
   const saveMutation = trpc.recipe.importSave.useMutation({
+    meta: { silent: true },
     onSuccess: (recipe) => {
       if (variant === 'adapted') capture('recipe_cheferized');
       void utils.recipe.list.invalidate();
@@ -134,7 +143,6 @@ export function ImportRecipeSheet({ open, onClose }: { open: boolean; onClose: (
   const reset = () => {
     setPreview(null);
     setLines(null);
-    setMatchError(null);
     setVideoPreview(null);
     previewMutation.reset();
     videoPreviewMutation.reset();
@@ -193,29 +201,15 @@ export function ImportRecipeSheet({ open, onClose }: { open: boolean; onClose: (
     });
   };
 
-  const handleSave = () => {
-    if (!preview || !lines) return;
-    const chosen = variant === 'adapted' ? preview.adapted : preview.original;
-    const live = variant === 'adapted' ? liveAdapted : liveOriginal;
-    const ingredients = toSaveLines(lines[variant]);
-    if (ingredients.length === 0) {
-      setMatchError('Keep at least one ingredient with an amount.');
-      return;
-    }
-    // Save is blocked while lines need data, unless the user accepts it (§6.2).
-    if (live.missingCount > 0 && !acceptPartial) {
-      setMatchError(
-        `${live.missingCount} ingredient${live.missingCount === 1 ? ' needs' : 's need'} a match — pick one for each, or tick “Save with incomplete nutrition”.`,
-      );
-      return;
-    }
-    setMatchError(null);
+  /** The editable review saves the reviewed recipe as the chosen variant. */
+  const handleReviewSave = (recipe: VideoDraftRecipe, opts: { acceptPartial: boolean }) => {
+    if (!preview) return;
     saveMutation.mutate({
-      recipe: { ...chosen, ingredients },
+      recipe,
       variant,
       sourceUrl: preview.sourceUrl,
       ogImageUrl: preview.ogImageUrl,
-      acceptPartial,
+      acceptPartial: opts.acceptPartial,
     });
   };
 
@@ -254,29 +248,7 @@ export function ImportRecipeSheet({ open, onClose }: { open: boolean; onClose: (
             source="recipe-import"
             label="Preview import"
           />
-        ) : videoPreview ? undefined : preview ? (
-          isPremium ? (
-            <div className="flex w-full items-center gap-3">
-              <button
-                onClick={reset}
-                className="min-h-11 shrink-0 rounded-xl border px-4 text-sm font-medium text-gray-600 hover:bg-gray-50"
-              >
-                Back
-              </button>
-              <button
-                onClick={handleSave}
-                disabled={saveMutation.isPending}
-                className="min-h-11 min-w-0 flex-1 rounded-xl bg-[#944a00] px-4 text-sm font-semibold text-white transition-colors hover:bg-[#7a3d00] disabled:opacity-50"
-              >
-                {saveMutation.isPending
-                  ? 'Saving…'
-                  : variant === 'adapted'
-                    ? 'Save Cheferized recipe'
-                    : 'Save original recipe'}
-              </button>
-            </div>
-          ) : undefined
-        ) : (
+        ) : videoPreview || preview ? undefined : (
           <button
             onClick={handlePreview}
             disabled={!canSubmit || previewPending}
@@ -298,7 +270,9 @@ export function ImportRecipeSheet({ open, onClose }: { open: boolean; onClose: (
         <VideoDraftForm
           preview={videoPreview}
           saving={saveMutation.isPending}
-          saveError={saveMutation.error?.message ?? null}
+          saveError={
+            (saveMutation.error ? userFacingErrorMessage(saveMutation.error) : undefined) ?? null
+          }
           onBack={reset}
           onSave={handleVideoSave}
         />
@@ -308,22 +282,14 @@ export function ImportRecipeSheet({ open, onClose }: { open: boolean; onClose: (
           isPremium={isPremium}
           variant={variant}
           adaptedUsable={adaptedUsable}
-          onVariantChange={(v) => {
-            setVariant(v);
-            setMatchError(null);
-          }}
-          lines={lines}
-          onLinesChange={(v, rows) => {
-            setLines((prev) => (prev ? { ...prev, [v]: rows } : prev));
-            setMatchError(null);
-          }}
+          onVariantChange={setVariant}
           live={{ original: liveOriginal, adapted: liveAdapted }}
-          acceptPartial={acceptPartial}
-          onAcceptPartialChange={(accept) => {
-            setAcceptPartial(accept);
-            setMatchError(null);
-          }}
-          saveError={matchError ?? saveMutation.error?.message ?? null}
+          saving={saveMutation.isPending}
+          saveError={
+            (saveMutation.error ? userFacingErrorMessage(saveMutation.error) : undefined) ?? null
+          }
+          onBack={reset}
+          onSave={handleReviewSave}
         />
       ) : (
         <div>
@@ -440,7 +406,9 @@ export function ImportRecipeSheet({ open, onClose }: { open: boolean; onClose: (
             </div>
           )}
 
-          {previewError && <p className="mt-3 text-sm text-red-600">{previewError.message}</p>}
+          {previewError && (
+            <p className="mt-3 text-sm text-red-600">{userFacingErrorMessage(previewError)}</p>
+          )}
         </div>
       )}
     </Sheet>
@@ -455,26 +423,24 @@ function PreviewStep({
   variant,
   adaptedUsable,
   onVariantChange,
-  lines,
-  onLinesChange,
   live,
-  acceptPartial,
-  onAcceptPartialChange,
+  saving,
   saveError,
+  onBack,
+  onSave,
 }: {
   preview: ImportPreviewData;
   isPremium: boolean | undefined;
   variant: Variant;
   adaptedUsable: boolean;
   onVariantChange: (v: Variant) => void;
-  lines: Record<Variant, LineRow[]>;
-  onLinesChange: (v: Variant, rows: LineRow[]) => void;
   live: Record<Variant, LiveNutrition>;
-  acceptPartial: boolean;
-  onAcceptPartialChange: (accept: boolean) => void;
+  saving: boolean;
   saveError: string | null;
+  onBack: () => void;
+  onSave: (recipe: VideoDraftRecipe, opts: { acceptPartial: boolean }) => void;
 }) {
-  // Free users can only save the original.
+  // Free users can only see the original.
   const shown: Variant = isPremium && variant === 'adapted' ? 'adapted' : 'original';
   return (
     <div className="space-y-4">
@@ -529,105 +495,31 @@ function PreviewStep({
         </p>
       )}
 
-      {/* Owner dogfood 2026-09-30 (mobile parity): the full chosen version —
-          every ingredient and step — so the extraction can be checked before
-          Save. Free users can only save the original. */}
-      <FullRecipePreview
-        recipe={shown === 'adapted' ? preview.adapted : preview.original}
-        label={shown === 'adapted' ? 'Cheferized for you' : 'Original'}
-        lines={lines[shown]}
-        onLinesChange={(rows) => onLinesChange(shown, rows)}
-        live={live[shown]}
-        acceptPartial={acceptPartial}
-        onAcceptPartialChange={onAcceptPartialChange}
-      />
-
-      {preview.sourceUrl && (
-        <p className="truncate text-xs text-gray-400">
-          Source: {preview.sourceUrl} — imported to your private collection only.
-        </p>
+      {isPremium && adaptedUsable && (
+        <p className="text-xs text-gray-500">Switching version restarts the review below.</p>
       )}
 
-      <div role="alert" aria-atomic="true">
-        {saveError && <p className="text-sm text-red-600">{saveError}</p>}
-      </div>
+      {/* UX-REC-15: the chosen version in the editable review form — every
+          ingredient, amount, unit and step can be fixed before Save. Free users
+          can only look (the footer's upgrade button replaces Save). */}
+      {isPremium !== false && (
+        <VideoDraftForm
+          key={shown}
+          preview={{
+            draft: shown === 'adapted' ? preview.adapted : preview.original,
+            resolution: preview.resolution[shown],
+            // The notice above already says what the adaptation could not remove.
+            safety: { ok: true, issues: [] },
+            sourceUrl: preview.sourceUrl,
+          }}
+          saving={saving}
+          saveError={saveError}
+          saveLabel={shown === 'adapted' ? 'Save Cheferized recipe' : 'Save original recipe'}
+          onBack={onBack}
+          onSave={onSave}
+        />
+      )}
     </div>
-  );
-}
-
-function FullRecipePreview({
-  recipe,
-  label,
-  lines,
-  onLinesChange,
-  live,
-  acceptPartial,
-  onAcceptPartialChange,
-}: {
-  recipe: RecipePayload;
-  label: string;
-  lines: LineRow[];
-  onLinesChange: (rows: LineRow[]) => void;
-  live: LiveNutrition;
-  acceptPartial: boolean;
-  onAcceptPartialChange: (accept: boolean) => void;
-}) {
-  return (
-    <section
-      data-testid="import-full-preview"
-      className="space-y-3 rounded-2xl border border-gray-200 bg-white p-4"
-      aria-label={`Preview of ${recipe.name}`}
-    >
-      <div>
-        <p className="text-xs font-semibold uppercase tracking-widest text-gray-500">
-          Preview · {label}
-        </p>
-        <h3 className="font-serif text-base font-bold text-gray-900">{recipe.name}</h3>
-        <p className="text-sm text-gray-600">{recipe.description}</p>
-        <p className="mt-1 text-xs text-gray-500">{recipe.servings} servings</p>
-      </div>
-      <div>
-        <h4 className="text-sm font-semibold text-gray-800">
-          Ingredients ({lines.length}) — check each match
-        </h4>
-        <div className="mt-2">
-          <RecipeLinesEditor
-            rows={lines}
-            onChange={onLinesChange}
-            problems={live.problems}
-            idPrefix="import"
-          />
-        </div>
-      </div>
-      <div>
-        <h4 className="mb-2 text-sm font-semibold text-gray-800">Nutrition per serving</h4>
-        <NutritionPreview live={live} />
-        {live.missingCount > 0 && (
-          <label className="mt-2 flex min-h-11 items-center gap-2 text-sm text-gray-800">
-            <input
-              type="checkbox"
-              checked={acceptPartial}
-              onChange={(e) => onAcceptPartialChange(e.target.checked)}
-              className="h-5 w-5 shrink-0 accent-[#944a00]"
-            />
-            Save with incomplete nutrition
-          </label>
-        )}
-      </div>
-      <div>
-        <h4 className="text-sm font-semibold text-gray-800">
-          Steps ({recipe.instructions.length})
-        </h4>
-        <ol className="mt-1 list-decimal space-y-1 pl-5 text-sm text-gray-700">
-          {recipe.instructions.map((step, i) => (
-            <li key={i}>{step}</li>
-          ))}
-        </ol>
-      </div>
-      <p className="text-xs text-gray-500">
-        Something off? Start over, or save it and fix it with Edit on the recipe.
-      </p>
-    </section>
   );
 }
 

@@ -14,29 +14,42 @@ import {
   useSnackbar,
 } from '@chefer/ui-mobile';
 import {
+  routineWithoutSuperset,
+  routineWithSuperset,
   sameKg,
   sessionSupersetKey,
   unstartedExercises,
   type SessionSupersetSlot,
 } from '@chefer/utils';
 import { useFlags } from '../../../hooks/use-flags';
+import { captureGymEvent } from '../analytics';
+import { SUPERSET_COPY, SupersetSheet } from '../components/superset-sheet';
+import { openCreateExercise } from '../library/create-exercise-href';
 import { ExercisePicker } from '../library/exercise-picker';
 import { useActiveSessionPausedAt } from '../offline/active-session-store';
 import { localDate, newId } from '../offline/ids';
 import { dispatchWorkout, getResumableSession, useActiveWorkout } from '../use-active-workout';
 import { useGymBootstrap } from '../use-gym-bootstrap';
+import { EXERCISE_CAP_REASON, isAtExerciseCap } from './caps';
 import { ExerciseCard, type WorkoutContext, type WorkoutSheetRequest } from './exercise-card';
 import { rememberFinished } from './finished-store';
 import { NumberSheet } from './number-sheet';
 import { ElapsedTime, RestTimerBar } from './rest-timer-bar';
 import type { SetRowHandlers } from './set-row';
 import { useIsOnline } from './use-is-online';
-import { ROUTINE_SWAP_NOTICE, useRoutineSwap } from './use-routine-swap';
+import {
+  ROUTINE_SUPERSET_NOTICE,
+  ROUTINE_SWAP_NOTICE,
+  ROUTINE_UNGROUP_NOTICE,
+  useRoutineEdit,
+  useRoutineSwap,
+} from './use-routine-swap';
 import { useWeightedBodyweightOffer } from './use-weighted-offer';
 import {
   byPosition,
   currentFocus,
   defaultSlotParams,
+  derivedSupersetGroups,
   equipmentOf,
   exerciseHistory,
   fallbackMeta,
@@ -45,6 +58,7 @@ import {
   loggingProfile,
   prescribeFor,
   priorSessions,
+  routineSlotsOf,
   setLabelOf,
   supersetsOf,
   swapSlotParams,
@@ -66,7 +80,14 @@ type SheetState =
   | { kind: 'picker'; mode: 'swap' | 'add'; seId: string | null; scope: SwapScope }
   | { kind: 'finish' }
   | { kind: 'discard' }
-  | { kind: 'minimise' };
+  | { kind: 'minimise' }
+  // plan-library-supersets S2: the "Superset" pick sheet (`seId` = ticked on
+  // open) and the Ungroup confirmation (only when the routine could change too).
+  | { kind: 'superset'; seId: string | null }
+  | { kind: 'ungroup'; seId: string; label: string };
+
+const ROUTINE_OFFLINE_REASON =
+  'Changing your routine needs a connection. This applies to today only.';
 
 /** iOS can't present a Modal while another is still dismissing. */
 const SHEET_SWAP_DELAY_MS = 380;
@@ -97,8 +118,11 @@ export function WorkoutScreen() {
   const { cardioLogging } = useFlags();
   const online = useIsOnline();
   const swapRoutine = useRoutineSwap();
+  const editRoutine = useRoutineEdit();
+  const [ungroupAlsoRoutine, setUngroupAlsoRoutine] = useState(false);
   const snackbar = useSnackbar();
   const [finishing, setFinishing] = useState(false);
+  const [restBarHeight, setRestBarHeight] = useState(0);
   const [notice, setNotice] = useState<string | null>(null);
   const [moveUnstarted, setMoveUnstarted] = useState(true);
   const isActive = session !== null;
@@ -142,9 +166,11 @@ export function WorkoutScreen() {
     () => priorSessions(bootstrap?.recentSessions ?? [], sessionId),
     [bootstrap?.recentSessions, sessionId],
   );
-  // Supersets come from the cached routine (the session has no superset
-  // field). Re-derived per render but kept referentially stable while the
-  // grouping itself is unchanged, so memoised cards don't re-render per tick.
+  // Supersets: the session's own letters (S-D3), or — for an older doc without
+  // them — derived from the cached routine. Re-derived per render but kept
+  // referentially stable while the grouping itself is unchanged (the key holds
+  // every member's id, letter and place, so a regroup in the workout shows at
+  // once), so memoised cards don't re-render per tick.
   const derivedSupersets = session ? supersetsOf(session, bootstrap) : NO_SUPERSETS;
   const supersetKey = sessionSupersetKey(derivedSupersets);
   // eslint-disable-next-line react-hooks/exhaustive-deps -- keyed on the grouping, not the doc
@@ -409,6 +435,17 @@ export function WorkoutScreen() {
       try {
         const doc = await finish(carryOverExerciseIds);
         if (doc) {
+          captureGymEvent('workout_finished', {
+            durationMin: Math.round(
+              (Date.parse(doc.finishedAt ?? doc.startedAt) - Date.parse(doc.startedAt)) / 60000,
+            ),
+            sets: doc.exercises.reduce(
+              (n, se) =>
+                n + (se.skipped ? 0 : se.sets.filter((s) => !s.isWarmup && s.completedAt).length),
+              0,
+            ),
+            kind: doc.routineDayId ? 'planned' : 'freestyle',
+          });
           rememberFinished(doc);
           router.replace({ pathname: '/gym/summary/[id]', params: { id: doc.id } });
           return;
@@ -537,6 +574,87 @@ export function WorkoutScreen() {
     [closeSheet, swapRoutine],
   );
 
+  // ── Supersets made in the workout (plan-library-supersets S2) ─────────────
+  // Session-only by default (S-D2); "Also change my routine" saves the same
+  // grouping to the routine through the swap's save path (online only).
+  const onGroupSuperset = useCallback(
+    (seIds: string[], alsoRoutine: boolean) => {
+      closeSheet();
+      const doc = getResumableSession();
+      if (!doc) return;
+      const { supersets: groups, bootstrap: cached } = live.current;
+      const slotIds = alsoRoutine ? routineSlotsOf(doc, seIds, cached?.activeRoutine) : null;
+      const derived = derivedSupersetGroups(doc, groups);
+      dispatchWorkout({
+        type: 'createSuperset',
+        seIds,
+        ...(derived ? { derivedGroups: derived } : {}),
+      });
+      haptics.success();
+      if (slotIds) {
+        setNotice('Updating your routine…');
+        void editRoutine((base) => routineWithSuperset(base, slotIds)).then((result) =>
+          setNotice(ROUTINE_SUPERSET_NOTICE[result]),
+        );
+      }
+    },
+    [closeSheet, editRoutine],
+  );
+
+  const applyUngroup = useCallback(
+    (seId: string, alsoRoutine: boolean) => {
+      closeSheet();
+      const doc = getResumableSession();
+      if (!doc) return;
+      const { supersets: groups, bootstrap: cached } = live.current;
+      const slot = groups.get(seId);
+      const slotIds =
+        alsoRoutine && slot ? routineSlotsOf(doc, slot.memberIds, cached?.activeRoutine) : null;
+      const derived = derivedSupersetGroups(doc, groups);
+      dispatchWorkout({
+        type: 'ungroupSuperset',
+        seId,
+        ...(derived ? { derivedGroups: derived } : {}),
+      });
+      haptics.tick();
+      const anchor = slotIds?.[0];
+      if (anchor) {
+        setNotice('Updating your routine…');
+        void editRoutine((base) => routineWithoutSuperset(base, anchor)).then((result) =>
+          setNotice(ROUTINE_UNGROUP_NOTICE[result]),
+        );
+      }
+    },
+    [closeSheet, editRoutine],
+  );
+
+  // Ungroup is immediate unless the routine has the same superset — then a
+  // small sheet asks whether to change the routine too.
+  const onUngroupPress = useCallback(
+    (seId: string) => {
+      const doc = getResumableSession();
+      const { supersets: groups, bootstrap: cached } = live.current;
+      const slot = groups.get(seId);
+      if (!doc || !slot) return;
+      const routine = cached?.activeRoutine;
+      const slotIds = routineSlotsOf(doc, slot.memberIds, routine);
+      const inRoutineSuperset =
+        slotIds?.every(
+          (id) =>
+            routine?.days.some((d) =>
+              d.exercises.some((e) => e.id === id && e.supersetGroup !== null),
+            ) ?? false,
+        ) ?? false;
+      if (!inRoutineSuperset) {
+        applyUngroup(seId, false);
+        return;
+      }
+      setUngroupAlsoRoutine(false);
+      openSheet({ kind: 'ungroup', seId, label: slot.label });
+    },
+    [applyUngroup, openSheet],
+  );
+
   // ── Render ─────────────────────────────────────────────────────────────────
   if (!session) {
     return (
@@ -574,7 +692,12 @@ export function WorkoutScreen() {
       : !online
         ? 'Changing your routine needs a connection. This swap applies to today only.'
         : null;
+  // WP-04: a freestyle session (no routine) or an exercise outside the routine
+  // has no "routine" to change, so Swap skips the scope page ("Just today").
+  const swapAsksScope = session.routineId !== null && Boolean(contentSe?.routineExerciseId);
   const unticked = planned - done;
+  // Skipped exercises can't join a superset; ones added mid-workout can.
+  const pickable = exercises.filter((se) => !se.skipped);
 
   return (
     <Screen className="px-0" edges={['top', 'left', 'right']}>
@@ -589,7 +712,7 @@ export function WorkoutScreen() {
           <Ionicons name="chevron-down" size={22} color="#374151" />
         </Pressable>
         <View className="min-w-0 flex-1">
-          <Text testID="workout-title" numberOfLines={1} className="text-base font-semibold">
+          <Text testID="workout-title" numberOfLines={2} className="text-lg font-semibold">
             {session.name}
           </Text>
           <View className="flex-row items-center gap-2">
@@ -603,7 +726,14 @@ export function WorkoutScreen() {
             </Text>
           </View>
         </View>
-        <Button testID="workout-finish" onPress={onFinishPress} loading={finishing}>
+        {/* WP-04: one size up (lg) — pressed with sweaty hands; px-5 keeps the header slim. */}
+        <Button
+          testID="workout-finish"
+          size="lg"
+          className="px-5"
+          onPress={onFinishPress}
+          loading={finishing}
+        >
           Finish
         </Button>
       </View>
@@ -621,7 +751,8 @@ export function WorkoutScreen() {
         testID="workout-list"
         keyboardShouldPersistTaps="handled"
         contentContainerClassName="gap-3 px-2 pt-3"
-        contentContainerStyle={{ paddingBottom: 160 }}
+        // UX-GYM-34: pad by the rest bar's real height, not a guess.
+        contentContainerStyle={{ paddingBottom: 32 + restBarHeight }}
       >
         {exercises.length === 0 ? (
           <Text variant="muted" className="px-2 py-6 text-center">
@@ -659,9 +790,18 @@ export function WorkoutScreen() {
             >
               <View className="h-4 w-1 rounded-full bg-violet-500" />
               <Text className="text-sm font-semibold text-violet-800">Superset {slot.label}</Text>
-              <Text variant="muted" className="min-w-0 flex-1 text-xs" numberOfLines={1}>
+              <Text variant="muted" className="min-w-0 flex-1 text-xs" numberOfLines={2}>
                 {restSec} s rest after each round
               </Text>
+              <Pressable
+                testID={`superset-${slot.label}-ungroup`}
+                accessibilityRole="button"
+                accessibilityLabel={`Ungroup superset ${slot.label}`}
+                onPress={() => onUngroupPress(se.id)}
+                className="min-h-11 justify-center px-2"
+              >
+                <Text className="text-sm font-medium text-primary">{SUPERSET_COPY.ungroup}</Text>
+              </Pressable>
             </View>,
             card,
           ];
@@ -670,9 +810,32 @@ export function WorkoutScreen() {
           testID="workout-add-exercise"
           variant="outline"
           size="lg"
+          disabled={isAtExerciseCap(exercises.length)}
           onPress={() => openSheet({ kind: 'picker', mode: 'add', seId: null, scope: 'today' })}
         >
           + Add exercise
+        </Button>
+        {isAtExerciseCap(exercises.length) ? (
+          <Text
+            testID="workout-add-exercise-reason"
+            variant="muted"
+            className="text-center text-sm"
+          >
+            {EXERCISE_CAP_REASON}
+          </Text>
+        ) : null}
+        <Button
+          testID="workout-superset"
+          variant="outline"
+          disabled={pickable.length < 2}
+          accessibilityLabel="Superset"
+          accessibilityHint="Pick exercises to do back to back"
+          onPress={() => openSheet({ kind: 'superset', seId: null })}
+        >
+          <View className="flex-row items-center gap-1">
+            <Ionicons name="link" size={16} color="#6d28d9" />
+            <Text className="font-medium text-violet-800">{SUPERSET_COPY.title}</Text>
+          </View>
         </Button>
         {/* Finish again at the end of the list: in reach right after the last
             exercise (the header copy sits in the hard-to-reach top corner). */}
@@ -698,7 +861,7 @@ export function WorkoutScreen() {
         </Button>
       </ScrollView>
 
-      <RestTimerBar />
+      <RestTimerBar onHeightChange={setRestBarHeight} />
 
       {/* ── Sheets ── */}
       <ExerciseMenuSheet
@@ -710,9 +873,11 @@ export function WorkoutScreen() {
         isFirst={contentIndex === 0}
         isLast={contentIndex === exercises.length - 1}
         routineBlockedReason={routineBlockedReason}
+        swapAsksScope={swapAsksScope}
         history={contentSe ? exerciseHistory(contentSe.exerciseId, prior, 5) : []}
         unit={unit}
         loadType={contentMeta?.loadType ?? 'WEIGHTED'}
+        perHand={contentMeta?.perHand ?? false}
         onSwap={(scope) => {
           if (contentSe) openSheet({ kind: 'picker', mode: 'swap', seId: contentSe.id, scope });
         }}
@@ -768,6 +933,59 @@ export function WorkoutScreen() {
           if (contentSe) dispatchWorkout({ type: 'setNote', seId: contentSe.id, notes: note });
           closeSheet();
         }}
+        {...(contentSe && !contentSe.skipped && pickable.length >= 2
+          ? { onSuperset: () => openSheet({ kind: 'superset', seId: contentSe.id }) }
+          : {})}
+      />
+      <SupersetSheet
+        key={`superset-${sheetKey}`}
+        visible={active?.kind === 'superset'}
+        onClose={closeSheet}
+        testID="workout-superset-sheet"
+        items={pickable.map((se) => {
+          const slot = supersets.get(se.id);
+          return {
+            key: se.id,
+            name: lookup(se.exerciseId).name,
+            detail: slot ? `In superset ${slot.label}` : null,
+          };
+        })}
+        initialKeys={content?.kind === 'superset' && content.seId ? [content.seId] : []}
+        routineOption={{
+          available: (keys) => routineSlotsOf(session, keys, bootstrap?.activeRoutine) !== null,
+          blockedReason: online ? null : ROUTINE_OFFLINE_REASON,
+        }}
+        onApply={onGroupSuperset}
+      />
+      <ConfirmSheet
+        visible={active?.kind === 'ungroup'}
+        onClose={closeSheet}
+        testID="workout-ungroup-sheet"
+        title={`Ungroup superset ${content?.kind === 'ungroup' ? content.label : ''}`}
+        body={
+          online
+            ? 'You’ll rest after each set again.'
+            : `You’ll rest after each set again. ${ROUTINE_OFFLINE_REASON}`
+        }
+        options={
+          online
+            ? [
+                {
+                  label: SUPERSET_COPY.alsoRoutine,
+                  detail: 'Next time these are separate too.',
+                  value: ungroupAlsoRoutine,
+                  onChange: setUngroupAlsoRoutine,
+                },
+              ]
+            : undefined
+        }
+        confirmLabel={SUPERSET_COPY.ungroup}
+        cancelLabel="Keep superset"
+        onConfirm={() => {
+          if (content?.kind === 'ungroup') {
+            applyUngroup(content.seId, online && ungroupAlsoRoutine);
+          }
+        }}
       />
       <TechniqueSheet
         visible={active?.kind === 'technique'}
@@ -813,6 +1031,7 @@ export function WorkoutScreen() {
         }
         excludeIds={contentSe && content?.kind === 'picker' ? [contentSe.exerciseId] : undefined}
         showCardioFilter={cardioLogging}
+        onCreateFromSearch={openCreateExercise}
         testID="workout-picker"
       />
       <ConfirmSheet

@@ -1,7 +1,7 @@
 import { useState } from 'react';
-import { TextInput, View } from 'react-native';
-import { Button, ChipGroup, Sheet, Text, useSnackbar } from '@chefer/ui-mobile';
-import { reportSentSnackbarText, SAFETY_COPY } from '@chefer/utils';
+import { View } from 'react-native';
+import { Button, ChipGroup, Input, Sheet, Text, useSnackbar } from '@chefer/ui-mobile';
+import { reportSentSnackbarText, SAFETY_COPY, userFacingErrorMessage } from '@chefer/utils';
 import { trpc } from '../../lib/trpc';
 
 // T-01.5 — report a safety problem (UX-01 (d)): recipe-detail header overflow
@@ -37,6 +37,7 @@ export function ReportSafetySheet({
   const utils = trpc.useUtils();
 
   const reportMutation = trpc.safety.report.useMutation({
+    meta: { silent: true },
     onSuccess: () => {
       onClose();
       setReason([]);
@@ -84,18 +85,18 @@ export function ReportSafetySheet({
       />
       <View className="gap-1">
         <Text variant="label">{SAFETY_COPY.reportNoteLabel}</Text>
-        <TextInput
+        <Input
           testID="report-safety-note"
           value={note}
           onChangeText={setNote}
           multiline
           numberOfLines={3}
           accessibilityLabel={SAFETY_COPY.reportNoteLabel}
-          className="min-h-20 rounded-md border border-input bg-background p-3 text-sm text-foreground"
+          className="min-h-20 p-3 text-sm"
         />
       </View>
       {reportMutation.isError ? (
-        <Text className="text-xs text-red-600">{reportMutation.error.message}</Text>
+        <Text className="text-xs text-red-600">{userFacingErrorMessage(reportMutation.error)}</Text>
       ) : null}
     </Sheet>
   );

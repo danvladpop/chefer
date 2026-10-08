@@ -10,7 +10,16 @@ import { useHasMounted } from '@/hooks/useHasMounted';
 import { trpc } from '@/lib/trpc';
 import { format, parseISO } from 'date-fns';
 import { ArrowLeft, Clock } from 'lucide-react';
-import { formatLoad, toSessionSummary } from '@chefer/utils';
+import { ErrorState } from '@chefer/ui';
+import {
+  activityFacts,
+  activitySummaryLine,
+  effortLabelForRpe,
+  formatLoad,
+  isActivityLogSession,
+  isNotFoundError,
+  toSessionSummary,
+} from '@chefer/utils';
 
 const RIR_LABEL: Record<number, string> = { 0: '0 RIR', 1: '1 RIR', 2: '2 RIR', 3: '3+ RIR' };
 
@@ -28,7 +37,13 @@ export default function GymHistoryDetailPage() {
   const router = useRouter();
   const hasMounted = useHasMounted();
 
-  const { data: session, isLoading, error } = trpc.gym.session.get.useQuery({ id });
+  const {
+    data: session,
+    isLoading,
+    error,
+    refetch,
+    isRefetching,
+  } = trpc.gym.session.get.useQuery({ id });
   const { data: bootstrap } = useGymBootstrap();
 
   // UX-44 (T-44.5): delete = a named confirm, then an 8 s Undo toast that
@@ -51,6 +66,19 @@ export default function GymHistoryDetailPage() {
     );
   }
 
+  // UX-GYM-24: a failed load has Retry — only a real NOT_FOUND says "not found".
+  if (error && !isNotFoundError(error)) {
+    return (
+      <div className="mx-auto max-w-2xl px-4 py-10" data-testid="gym-history-detail-error">
+        <ErrorState
+          title="Couldn’t load this workout"
+          onRetry={() => void refetch()}
+          retrying={isRefetching}
+        />
+      </div>
+    );
+  }
+
   if (error || !session) {
     return (
       <div className="mx-auto max-w-2xl px-4 py-10 text-center">
@@ -66,6 +94,11 @@ export default function GymHistoryDetailPage() {
   }
 
   const duration = durationLabel(session.startedAt, session.finishedAt);
+  const isActivity = isActivityLogSession(session);
+  const activityEffort = isActivity
+    ? session.exercises.flatMap((e) => e.sets).find((x) => x.intensityRpe !== undefined)
+        ?.intensityRpe
+    : undefined;
 
   return (
     <div className="mx-auto max-w-2xl px-4 py-6 sm:py-8">
@@ -108,7 +141,24 @@ export default function GymHistoryDetailPage() {
       </div>
 
       <div className="space-y-4">
-        {session.exercises.map((ex) => {
+        {/* WP-20: a quick-logged activity reads "Cycling class · 45 min · ~400 kcal (from your
+            watch)" — one line, no sets table. */}
+        {isActivity && (
+          <div
+            className="rounded-2xl border bg-white p-4 shadow-sm"
+            data-testid="gym-history-activity"
+          >
+            <p className="font-medium text-neutral-900">
+              {activitySummaryLine(session.name, activityFacts(session))}
+            </p>
+            {activityEffort !== undefined && (
+              <p className="mt-1 text-sm text-neutral-500">
+                {`Effort: ${effortLabelForRpe(activityEffort) ?? `RPE ${activityEffort}`}`}
+              </p>
+            )}
+          </div>
+        )}
+        {(isActivity ? [] : session.exercises).map((ex) => {
           const meta = lookup(ex.exerciseId);
           const working = ex.sets.filter((s) => !s.isWarmup);
           const warmups = ex.sets.filter((s) => s.isWarmup);
@@ -149,7 +199,12 @@ export default function GymHistoryDetailPage() {
                   {warmups.length > 0 && (
                     <p className="mb-1.5 text-xs text-neutral-400">
                       Warm-up:{' '}
-                      {warmups.map((s) => `${formatLoad(s.weightKg, unit)}×${s.reps}`).join(', ')}
+                      {warmups
+                        .map(
+                          (s) =>
+                            `${formatLoad(s.weightKg, unit, meta?.loadType, { each: meta?.perHand })}×${s.reps}`,
+                        )
+                        .join(', ')}
                     </p>
                   )}
                   <div className="flex flex-wrap gap-1.5">
@@ -162,7 +217,8 @@ export default function GymHistoryDetailPage() {
                             : 'bg-neutral-50 text-neutral-300 line-through'
                         }`}
                       >
-                        {formatLoad(set.weightKg, unit)} × {set.reps}
+                        {formatLoad(set.weightKg, unit, meta?.loadType, { each: meta?.perHand })} ×{' '}
+                        {set.reps}
                         {i === working.length - 1 && ex.lastSetRir !== null && (
                           <span className="ml-1 text-xs text-neutral-400">
                             ({RIR_LABEL[ex.lastSetRir]})

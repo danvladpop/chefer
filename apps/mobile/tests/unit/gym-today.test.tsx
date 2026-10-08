@@ -1,20 +1,23 @@
 import { Platform } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { onlineManager, QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { render, screen, userEvent, waitFor } from '@testing-library/react-native';
+import { act, render, screen, userEvent, waitFor, within } from '@testing-library/react-native';
 import type { GymOffer, NextWorkoutDto, RoutineDto, SessionSummaryDto } from '@chefer/types';
 import { resetSnackbarForTests, Snackbar } from '@chefer/ui-mobile';
 import { weekdayOf } from '@chefer/utils';
 import { activeSessionStore } from '../../src/features/gym/offline/active-session-store';
 import { localDate } from '../../src/features/gym/offline/ids';
-import { createMemoryKvBackend, setKvBackendForTests } from '../../src/features/gym/offline/kv';
+import { KV_KEYS } from '../../src/features/gym/offline/keys';
+import { createMemoryKvBackend, kv, setKvBackendForTests } from '../../src/features/gym/offline/kv';
 import { outbox } from '../../src/features/gym/offline/outbox';
 import { resetGymOwnerForTests } from '../../src/features/gym/offline/owner';
 import { TodayScreen } from '../../src/features/gym/today/today-screen';
 import { gymBootstrapQueryKey } from '../../src/features/gym/use-gym-bootstrap';
+import { describeValidationIssues } from '../../src/features/gym/validation-copy';
 import { makeBootstrap, makeDoc } from './gym-fixtures';
 import type { createTrpcGymMock } from './gym-trpc-mock';
 import { mutationResult } from './gym-trpc-mock';
+import { activeDoc } from './gym-workout-helpers';
 
 // `TodayScreen` (imported above) transitively imports `../../src/lib/trpc`
 // BEFORE this file's own `./gym-trpc-mock` import would run, so the factory
@@ -126,6 +129,8 @@ function renderToday(queryClient: QueryClient) {
   );
 }
 
+const PROFILE = makeBootstrap().profile!; // eslint-disable-line @typescript-eslint/no-non-null-assertion -- fixture always has a profile
+
 function makeClient() {
   return new QueryClient({ defaultOptions: { queries: { gcTime: Infinity, retry: false } } });
 }
@@ -174,6 +179,67 @@ describe('TodayScreen', () => {
     expect(router.push).toHaveBeenCalledWith('/gym/workout');
   });
 
+  // UX-GYM-29: the week strip's dots are colour-only, so each day carries a label.
+  it('the week strip reads "Monday, planned, today" to a screen reader', async () => {
+    const queryClient = makeClient();
+    queryClient.setQueryData(
+      gymBootstrapQueryKey,
+      makeBootstrap({ activeRoutine: ROUTINE, nextWorkout: NEXT_WORKOUT }),
+    );
+    await renderToday(queryClient);
+
+    expect(screen.getByTestId('gym-today-week-strip-0').props.accessibilityLabel).toBe(
+      'Monday, planned, today',
+    );
+    expect(screen.getByTestId('gym-today-week-strip-5').props.accessibilityLabel).toMatch(
+      /^Saturday, /,
+    );
+  });
+
+  // UX-GYM-29: online-only buttons follow connectivity live, not just on mount.
+  it('"Skip this day" re-enables when the connection comes back', async () => {
+    const queryClient = makeClient();
+    queryClient.setQueryData(
+      gymBootstrapQueryKey,
+      makeBootstrap({ activeRoutine: ROUTINE, nextWorkout: NEXT_WORKOUT }),
+    );
+    onlineManager.setOnline(false);
+    try {
+      await renderToday(queryClient);
+      expect(screen.getByTestId('gym-today-skip')).toBeDisabled();
+      await act(() => {
+        onlineManager.setOnline(true);
+        return Promise.resolve();
+      });
+      expect(screen.getByTestId('gym-today-skip')).toBeEnabled();
+    } finally {
+      onlineManager.setOnline(true);
+    }
+  });
+
+  // WP-04 (feedback 1): the busy-hands primaries are the large (48 pt) button,
+  // and a long exercise name wraps to two lines instead of truncating.
+  it('Start workout and Freestyle use the lg button; exercise names wrap to 2 lines', async () => {
+    const queryClient = makeClient();
+    queryClient.setQueryData(
+      gymBootstrapQueryKey,
+      makeBootstrap({ activeRoutine: ROUTINE, nextWorkout: NEXT_WORKOUT }),
+    );
+    await renderToday(queryClient);
+
+    // The lg size is the only one whose label steps up to text-base.
+    const start = within(screen.getByTestId('gym-today-start')).getByText('Start workout');
+    const freestyle = within(screen.getByTestId('gym-today-freestyle')).getByText(
+      'Freestyle workout',
+    );
+    expect(String(start.props.className)).toContain('text-base');
+    expect(String(freestyle.props.className)).toContain('text-base');
+    const [bench] = NEXT_WORKOUT.exercises;
+    if (!bench) throw new Error('expected a fixture exercise');
+    const name = screen.getByTestId(`gym-today-next-up-${bench.routineExerciseId}-name`);
+    expect(within(name).getByText('bench').props.numberOfLines).toBe(2);
+  });
+
   it('brackets adjacent superset exercises in "Next up" with a chip and heading', async () => {
     const queryClient = makeClient();
     const [bench] = NEXT_WORKOUT.exercises;
@@ -220,6 +286,7 @@ describe('TodayScreen', () => {
   });
 
   it('shows the rest-week empty state when there is nothing scheduled', async () => {
+    jest.setSystemTime(new Date(2026, 8, 29, 12, 0, 0)); // Tue: no routine day is pinned to it
     const queryClient = makeClient();
     queryClient.setQueryData(
       gymBootstrapQueryKey,
@@ -248,6 +315,42 @@ describe('TodayScreen', () => {
     expect(screen.getByText('Back at it')).toBeOnTheScreen();
     expect(screen.queryByText('Take a deload')).not.toBeOnTheScreen();
     expect(screen.queryByTestId('gym-today-offer-accept')).not.toBeOnTheScreen();
+  });
+
+  // UX-GYM-13: the recap card opens the recap instead of only being dismissable.
+  it('the recap card has a primary "See September" button that opens Stats on that month', async () => {
+    const offers: GymOffer[] = [
+      {
+        kind: 'recap',
+        key: 'recap:2026-09',
+        title: 'Your month in review',
+        body: 'body',
+        data: { month: '2026-09' },
+      },
+    ];
+    const queryClient = makeClient();
+    queryClient.setQueryData(
+      gymBootstrapQueryKey,
+      makeBootstrap({ activeRoutine: ROUTINE, nextWorkout: NEXT_WORKOUT, offers }),
+    );
+    const user = userEvent.setup();
+    await renderToday(queryClient);
+
+    await user.press(screen.getByTestId('gym-today-offer-recap'));
+    expect(screen.getByText('See September')).toBeOnTheScreen();
+    expect(router.push).toHaveBeenCalledWith({ pathname: '/stats', params: { month: '2026-09' } });
+  });
+
+  it('a recap offer without a month stays dismiss-only', async () => {
+    const offers: GymOffer[] = [{ kind: 'recap', key: 'recap-x', title: 'Recap', body: 'body' }];
+    const queryClient = makeClient();
+    queryClient.setQueryData(
+      gymBootstrapQueryKey,
+      makeBootstrap({ activeRoutine: ROUTINE, nextWorkout: NEXT_WORKOUT, offers }),
+    );
+    await renderToday(queryClient);
+    expect(screen.queryByTestId('gym-today-offer-recap')).not.toBeOnTheScreen();
+    expect(screen.getByTestId('gym-today-offer-dismiss')).toBeOnTheScreen();
   });
 
   it('shows the deload offer with an accept action when nothing outranks it', async () => {
@@ -410,8 +513,11 @@ describe('TodayScreen', () => {
       await renderToday(queryClient);
 
       expect(screen.getByTestId('gym-today-paused')).toBeOnTheScreen();
-      expect(screen.getByTestId('gym-today-paused')).toHaveTextContent(/2026-10-04/);
-      expect(screen.getByTestId('gym-today-paused')).toHaveTextContent(/vacation/);
+      // UX-GYM-16: a human date and a reason label — never "2026-10-04" / "vacation".
+      expect(screen.getByTestId('gym-today-paused')).toHaveTextContent(
+        /Paused through Sun 4 Oct · Vacation/,
+      );
+      expect(screen.getByTestId('gym-today-paused')).not.toHaveTextContent(/2026-10-04|Resumes/);
       expect(screen.queryByTestId('gym-today-next-up')).not.toBeOnTheScreen();
 
       await user.press(screen.getByTestId('gym-today-end-pause'));
@@ -505,6 +611,23 @@ describe('TodayScreen', () => {
       };
     }
 
+    it('UX-GYM-15: with no active routine, Recent workouts and "Log a workout you already did" stay', async () => {
+      const queryClient = makeClient();
+      queryClient.setQueryData(
+        gymBootstrapQueryKey,
+        makeBootstrap({
+          activeRoutine: null,
+          nextWorkout: null,
+          recentSessions: [todaySession()],
+        }),
+      );
+      await renderToday(queryClient);
+
+      expect(screen.getByTestId('gym-today-empty-routine')).toBeOnTheScreen();
+      expect(screen.getByTestId('gym-today-recent')).toBeOnTheScreen();
+      expect(screen.getByTestId('gym-today-log-past')).toBeOnTheScreen();
+    });
+
     it('shows "Done today" (no Start) once a session finished today, even on a training weekday', async () => {
       const user = userEvent.setup();
       const queryClient = makeClient();
@@ -532,6 +655,54 @@ describe('TodayScreen', () => {
 
       await user.press(screen.getByTestId('gym-today-done-pick-day'));
       await waitFor(() => expect(screen.getByTestId('gym-today-day-picker')).toBeOnTheScreen());
+    });
+
+    // WP-20: a quick-logged activity is record-only — it never replaces Start.
+    it('"Log an activity" sits beside the past-workout link, and an activity today keeps Start', async () => {
+      const queryClient = makeClient();
+      queryClient.setQueryData(
+        gymBootstrapQueryKey,
+        makeBootstrap({
+          activeRoutine: ROUTINE,
+          nextWorkout: NEXT_WORKOUT,
+          recentSessions: [
+            todaySession({
+              id: 'class-today',
+              name: 'Cycling class',
+              routineDayId: null,
+              startedAt: `${localDate()}T17:00:00.000Z`,
+              finishedAt: `${localDate()}T17:45:00.000Z`,
+              exercises: [
+                {
+                  exerciseId: 'spin-class',
+                  skipped: false,
+                  lastSetRir: null,
+                  sets: [
+                    {
+                      weightKg: 0,
+                      reps: 0,
+                      isWarmup: false,
+                      completed: true,
+                      durationSec: 2700,
+                      caloriesKcal: 400,
+                    },
+                  ],
+                },
+              ],
+            }),
+          ],
+        }),
+      );
+      await renderToday(queryClient);
+
+      expect(screen.getByTestId('gym-today-log-activity')).toBeOnTheScreen();
+      expect(screen.getByTestId('gym-today-log-past')).toBeOnTheScreen();
+      expect(screen.getByTestId('gym-today-start')).toBeOnTheScreen();
+      expect(screen.queryByTestId('gym-today-done')).not.toBeOnTheScreen();
+      // …and the class shows in Recent as minutes + kcal.
+      expect(screen.getByTestId('gym-today-recent-row-class-today')).toHaveTextContent(
+        /45 min · ~400 kcal/,
+      );
     });
 
     it('shows "Rest day" with "Start {day} anyway" when nothing is done and the next day is due a different weekday', async () => {
@@ -622,6 +793,11 @@ describe('TodayScreen', () => {
       days: ROUTINE.days.map((d) => (d.id === 'd1' ? { ...d, plannedWeekday: missedWeekday } : d)),
     };
 
+    const unpinnedLower: RoutineDto = {
+      ...missedRoutine,
+      days: missedRoutine.days.map((d) => (d.id === 'd2' ? { ...d, plannedWeekday: null } : d)),
+    };
+
     // The rotation has moved past the missed Upper A (e.g. Lower A was done
     // instead), so Lower A is next and Upper A is still owed this week.
     const LOWER_NEXT: NextWorkoutDto = {
@@ -638,7 +814,7 @@ describe('TodayScreen', () => {
       const queryClient = makeClient();
       queryClient.setQueryData(
         gymBootstrapQueryKey,
-        makeBootstrap({ activeRoutine: missedRoutine, nextWorkout: NEXT_WORKOUT }),
+        makeBootstrap({ activeRoutine: unpinnedLower, nextWorkout: NEXT_WORKOUT }),
       );
       await renderToday(queryClient);
 
@@ -646,6 +822,100 @@ describe('TodayScreen', () => {
       expect(screen.queryByTestId('gym-today-rest')).not.toBeOnTheScreen();
       expect(screen.getByTestId('gym-today-next-up')).toHaveTextContent(/Upper A/);
       expect(screen.getByTestId('gym-today-overdue')).toHaveTextContent(/Planned for/);
+    });
+
+    // UX-GYM-12: "Still time" and an overdue card never appear together.
+    it('never shows "Still time" next to the overdue card, even for a second missed day', async () => {
+      const twoMissed: RoutineDto = {
+        ...ROUTINE,
+        days: [
+          { id: 'd1', position: 0, name: 'Upper A', plannedWeekday: 0, exercises: [] }, // Mon (rotation next, overdue)
+          { id: 'd2', position: 1, name: 'Lower A', plannedWeekday: 1, exercises: [] }, // Tue
+          { id: 'd3', position: 2, name: 'Pull', plannedWeekday: 5, exercises: [] }, // Sat
+        ],
+      };
+      const queryClient = makeClient();
+      queryClient.setQueryData(
+        gymBootstrapQueryKey,
+        makeBootstrap({ activeRoutine: twoMissed, nextWorkout: NEXT_WORKOUT }),
+      );
+      await renderToday(queryClient);
+
+      expect(screen.getByTestId('gym-today-overdue')).toBeOnTheScreen();
+      expect(screen.queryByTestId('gym-today-missed')).not.toBeOnTheScreen();
+    });
+
+    // UX-GYM-31: the SAME day the Food Today card names (a pinned day wins).
+    it("names the day pinned to today's weekday, like the Food card, and offers the overdue one", async () => {
+      const queryClient = makeClient();
+      queryClient.setQueryData(
+        gymBootstrapQueryKey,
+        makeBootstrap({ activeRoutine: missedRoutine, nextWorkout: NEXT_WORKOUT }),
+      );
+      await renderToday(queryClient);
+
+      // d2 "Lower A" is pinned to Wednesday (today); d1 "Upper A" is overdue from Tuesday.
+      expect(screen.getByTestId('gym-today-next-up')).toHaveTextContent(/Lower A/);
+      expect(screen.queryByTestId('gym-today-overdue')).not.toBeOnTheScreen();
+      expect(screen.getByTestId('gym-today-missed')).toHaveTextContent(/Upper A/);
+    });
+
+    // UX-GYM-12: you cannot miss a session before you signed up.
+    it('ignores planned days before the setup date and does not call a first-week day overdue', async () => {
+      const queryClient = makeClient();
+      queryClient.setQueryData(
+        gymBootstrapQueryKey,
+        makeBootstrap({
+          activeRoutine: unpinnedLower,
+          nextWorkout: NEXT_WORKOUT,
+          // Set up this Wednesday morning: Tuesday's Upper A predates it.
+          profile: {
+            ...PROFILE,
+            setupCompletedAt: new Date(2026, 8, 30, 9, 0, 0).toISOString(),
+          },
+        }),
+      );
+      await renderToday(queryClient);
+
+      expect(screen.queryByTestId('gym-today-missed')).not.toBeOnTheScreen();
+      expect(screen.queryByTestId('gym-today-overdue')).not.toBeOnTheScreen();
+      expect(screen.queryByTestId('gym-today-rest')).not.toBeOnTheScreen();
+      expect(screen.getByTestId('gym-today-next-up')).toHaveTextContent(/Upper A/);
+    });
+
+    it('pro-rates the first week goal to the days left', async () => {
+      jest.setSystemTime(new Date(2026, 9, 3, 12, 0, 0)); // Sat 3 Oct: two days left
+      const queryClient = makeClient();
+      queryClient.setQueryData(
+        gymBootstrapQueryKey,
+        makeBootstrap({
+          activeRoutine: unpinnedLower,
+          nextWorkout: NEXT_WORKOUT,
+          streak: { current: 0, best: 0, flexTokens: 0, thisWeekSessions: 0, thisWeekGoal: 4 },
+          profile: {
+            ...PROFILE,
+            setupCompletedAt: new Date(2026, 9, 3, 9, 0, 0).toISOString(),
+          },
+        }),
+      );
+      await renderToday(queryClient);
+
+      expect(screen.getByText('0 of 2 this week')).toBeOnTheScreen();
+      expect(screen.queryByText('0 of 4 this week')).not.toBeOnTheScreen();
+    });
+
+    it('keeps the full goal in later weeks', async () => {
+      const queryClient = makeClient();
+      queryClient.setQueryData(
+        gymBootstrapQueryKey,
+        makeBootstrap({
+          activeRoutine: unpinnedLower,
+          nextWorkout: NEXT_WORKOUT,
+          streak: { current: 0, best: 0, flexTokens: 0, thisWeekSessions: 0, thisWeekGoal: 4 },
+        }),
+      );
+      await renderToday(queryClient);
+      expect(screen.getByText('0 of 4 this week')).toBeOnTheScreen();
     });
 
     it('"Do it today" starts the missed day', async () => {
@@ -736,5 +1006,158 @@ describe('TodayScreen', () => {
       await renderToday(queryClient);
       expect(screen.queryByTestId('gym-today-missed')).not.toBeOnTheScreen();
     });
+  });
+});
+
+// UX-GYM-02: a start tap used to land silently in the OTHER in-progress workout.
+describe('TodayScreen — starting while another workout is in progress (UX-GYM-02)', () => {
+  function seedActiveWithLoggedSet() {
+    const doc = activeDoc();
+    const [first] = doc.exercises;
+    if (!first) throw new Error('expected an exercise');
+    const logged = {
+      ...doc,
+      name: 'Lower A',
+      exercises: [
+        {
+          ...first,
+          sets: first.sets.map((set, i) =>
+            i === 1 ? { ...set, completedAt: new Date().toISOString() } : set,
+          ),
+        },
+      ],
+    };
+    activeSessionStore.set(logged, null);
+    return logged;
+  }
+
+  function seedBootstrap() {
+    const queryClient = makeClient();
+    queryClient.setQueryData(
+      gymBootstrapQueryKey,
+      makeBootstrap({ activeRoutine: ROUTINE, nextWorkout: NEXT_WORKOUT }),
+    );
+    return queryClient;
+  }
+
+  it('Start asks Resume / Finish & start / Discard & start instead of reopening the old workout', async () => {
+    const logged = seedActiveWithLoggedSet();
+    const user = userEvent.setup();
+    await renderToday(seedBootstrap());
+
+    await user.press(screen.getByTestId('gym-today-start'));
+
+    expect(screen.getByTestId('gym-start-conflict-body')).toHaveTextContent(
+      /You have 1 set logged in Lower A/,
+    );
+    expect(screen.getByTestId('gym-start-conflict-body')).toHaveTextContent(/start Upper A/);
+    expect(screen.getByTestId('gym-start-conflict-resume')).toBeOnTheScreen();
+    expect(screen.getByTestId('gym-start-conflict-finish')).toBeOnTheScreen();
+    expect(screen.getByTestId('gym-start-conflict-discard')).toBeOnTheScreen();
+    // Nothing happened yet: no navigation, the old workout is still the active one.
+    expect(router.push).not.toHaveBeenCalled();
+    expect(activeSessionStore.get()?.doc.id).toBe(logged.id);
+  });
+
+  it('Resume goes back to the workout in progress', async () => {
+    seedActiveWithLoggedSet();
+    const user = userEvent.setup();
+    await renderToday(seedBootstrap());
+
+    await user.press(screen.getByTestId('gym-today-start'));
+    await user.press(screen.getByTestId('gym-start-conflict-resume'));
+
+    expect(router.push).toHaveBeenCalledWith('/gym/workout');
+    expect(activeSessionStore.get()?.doc.name).toBe('Lower A');
+  });
+
+  it('Discard & start drops the old workout (queued as DISCARDED) and starts the chosen one', async () => {
+    const logged = seedActiveWithLoggedSet();
+    const user = userEvent.setup();
+    await renderToday(seedBootstrap());
+
+    await user.press(screen.getByTestId('gym-today-start'));
+    await user.press(screen.getByTestId('gym-start-conflict-discard'));
+
+    const active = activeSessionStore.get()?.doc;
+    expect(active?.name).toBe('Upper A');
+    expect(active?.id).not.toBe(logged.id);
+    expect(outbox.getState().entries.find((e) => e.doc.id === logged.id)?.doc.status).toBe(
+      'DISCARDED',
+    );
+    expect(router.push).toHaveBeenCalledWith('/gym/workout');
+  });
+
+  it('Finish & start completes the old workout (queued as COMPLETED) and starts the chosen one', async () => {
+    const logged = seedActiveWithLoggedSet();
+    const user = userEvent.setup();
+    await renderToday(seedBootstrap());
+
+    await user.press(screen.getByTestId('gym-today-start'));
+    await user.press(screen.getByTestId('gym-start-conflict-finish'));
+
+    await waitFor(() => expect(activeSessionStore.get()?.doc.name).toBe('Upper A'));
+    expect(outbox.getState().entries.find((e) => e.doc.id === logged.id)?.doc.status).toBe(
+      'COMPLETED',
+    );
+    expect(router.push).toHaveBeenCalledWith('/gym/workout');
+  });
+
+  it('Freestyle is guarded the same way', async () => {
+    seedActiveWithLoggedSet();
+    const user = userEvent.setup();
+    await renderToday(seedBootstrap());
+
+    await user.press(screen.getByTestId('gym-today-freestyle'));
+
+    expect(screen.getByTestId('gym-start-conflict-body')).toHaveTextContent(
+      /start a freestyle workout/,
+    );
+    expect(router.push).not.toHaveBeenCalled();
+  });
+});
+
+// UX-GYM-01: a rejected workout is surfaced on Today, in plain words, with a way to fix it.
+describe('TodayScreen — a workout that did not save (UX-GYM-01)', () => {
+  it('shows what is wrong and offers Fix it', async () => {
+    const doc = makeDoc(9, { name: 'Upper A' });
+    kv.setJSON(KV_KEYS.outbox, {
+      v: 1,
+      entries: [
+        {
+          doc,
+          ownerId: null,
+          enqueuedAt: '2026-09-20T00:00:00.000Z',
+          attempts: 1,
+          lastError: 'Number must be less than or equal to 1000',
+          lastAttemptAt: '2026-09-20T00:00:00.000Z',
+          parkedReason: describeValidationIssues([
+            { code: 'too_big', path: ['exercises', 0, 'sets', 0, 'weightKg'] },
+          ]),
+        },
+      ],
+      lastSyncAt: null,
+      failures: 0,
+      nextAttemptAt: null,
+      lastError: null,
+    });
+    outbox.reload();
+
+    const queryClient = makeClient();
+    queryClient.setQueryData(
+      gymBootstrapQueryKey,
+      makeBootstrap({ activeRoutine: ROUTINE, nextWorkout: NEXT_WORKOUT }),
+    );
+    const user = userEvent.setup();
+    await renderToday(queryClient);
+
+    expect(screen.getByText("Upper A didn't save")).toBeOnTheScreen();
+    const reason = screen.getByTestId(`gym-today-parked-${doc.id}-reason`);
+    expect(reason).toHaveTextContent(/above the 1000 kg/);
+    expect(reason).not.toHaveTextContent(/too_big|invalid/i);
+    await user.press(screen.getByTestId(`gym-today-parked-${doc.id}-fix`));
+    expect(router.push).toHaveBeenCalledWith(`/gym/workout?edit=${doc.id}`);
+    await user.press(screen.getByTestId(`gym-today-parked-${doc.id}-details`));
+    expect(router.push).toHaveBeenCalledWith('/gym/settings');
   });
 });

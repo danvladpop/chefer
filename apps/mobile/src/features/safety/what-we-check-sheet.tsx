@@ -3,7 +3,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import type { TableSafety, TableSafetyPerson } from '@chefer/types';
 import { Button, Sheet, Text } from '@chefer/ui-mobile';
-import { SAFETY_COPY } from '@chefer/utils';
+import { SAFETY_COPY, WELLNESS_COPY } from '@chefer/utils';
 
 // WhatWeCheckSheet (UX-02 "What we check" sheet, an ExplainSheet instance —
 // T-02.2). Every person's row opens their own SafetyStep (T-01.7); the
@@ -77,6 +77,9 @@ export function WhatWeCheckSheet({
         </Text>
         <Text variant="muted" className="text-xs leading-relaxed">
           {SAFETY_COPY.sheetHowBody}
+        </Text>
+        <Text testID={`${testID}-advisory`} variant="muted" className="text-xs leading-relaxed">
+          {WELLNESS_COPY.mealPlanAdvisoryDisclaimer}
         </Text>
       </View>
     </Sheet>

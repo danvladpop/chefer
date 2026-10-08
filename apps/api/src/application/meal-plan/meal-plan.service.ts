@@ -4,6 +4,7 @@ import type { z } from 'zod';
 import {
   AiCallType,
   chefProfileRepository,
+  dailyLogRepository,
   dietaryPreferencesRepository,
   favouriteRecipeRepository,
   householdMemberRepository,
@@ -13,6 +14,7 @@ import {
   mealRatingRepository,
   prisma,
   type FavouriteRecipeWithRecipe,
+  type IDailyLogRepository,
   type IHouseholdMemberRepository,
   type IMealPlanRepository,
   type IMealPlanTailoringRepository,
@@ -20,6 +22,7 @@ import {
   type Recipe,
 } from '@chefer/database';
 import {
+  AI_CONSENT_REQUIRED_MESSAGE,
   FRIENDS_COPY,
   type addRecipeToWeekInputSchema,
   type PlanTailoring,
@@ -43,11 +46,13 @@ import {
   trainingDayBonus,
   trainingWeekdays,
 } from '@chefer/utils';
+import { aiConsentMissing, aiConsentRequiredError } from '../../lib/ai-consent-gate.js';
 import { toFriendlyAiError } from '../../lib/ai/friendly-error.js';
 import { aiService } from '../../lib/ai/index.js';
 import type {
   Ingredient,
   MealPlanInput,
+  MealSlot,
   MealType,
   NutritionInfo,
   RecipeData,
@@ -63,8 +68,13 @@ import {
   type SafetyCheckable,
   type SafetyPrefs,
 } from '../../lib/curated-recipes/index.js';
+import { findSafetyBlockers } from '../../lib/curated-recipes/safety.js';
 import { hasFeature } from '../../lib/entitlements.js';
-import { unsafeForTableError } from '../../lib/friends-errors.js';
+import {
+  unsafeForTableError,
+  unsafeForTableMessage,
+  type UnsafeForTableContext,
+} from '../../lib/friends-errors.js';
 import { notifyTailoringQueued } from '../../lib/plan-tailoring-signal.js';
 import { PoolExhaustedCause } from '../../lib/pool-exhausted.js';
 import { recipeImageWorker } from '../../workers/recipe-image.worker.js';
@@ -91,6 +101,7 @@ import {
 } from '../recipe/recipe-access.js';
 import { recipeCopyService, type RecipeCopyService } from '../recipe/recipe-copy.service.js';
 import { safetyService, type SafetyContext } from '../safety/safety.service.js';
+import type { PortionTable } from '../shared/household-scale.js';
 import { estimatePlanCostEur, type PlanCostEstimate } from '../shared/plan-cost.js';
 import { daysFrom, firstShoppingDay } from '../shared/plan-window.js';
 import {
@@ -104,6 +115,7 @@ import {
   type FinishContext,
 } from './ai-recipe-finisher.js';
 import { planCuratedWeek, type CuratedShapeOptions } from './curated-planner.js';
+import { mergeKeptSlots, selectKeptSlots, type KeptDay } from './keep-eaten.js';
 import { planShapeService } from './plan-shape.service.js';
 import {
   lockedSlotIndexes,
@@ -117,6 +129,7 @@ import {
   withDeadline,
 } from './plan-tailoring.js';
 import { withServerRecipeIds } from './recipe-ids.js';
+import { reindexDayStateAfterSlotRemoval } from './slot-removal.js';
 
 export { PoolExhaustedCause };
 
@@ -181,6 +194,13 @@ export interface RecipeDto {
    */
   previousRecipeId?: string;
   /**
+   * UX-PLAN-04: on the same responses, whether the slot that was replaced was
+   * pinned ("Your pick"). Undo passes it back as `replaceRecipe.pinned` so an
+   * undone swap no longer leaves the restored dish pinned. Present (true)
+   * only when the slot WAS pinned; additive.
+   */
+  previousPinned?: boolean;
+  /**
    * §2.2, T-02.1: which of the table's safety rules this recipe passes/fails
    * — the plan-surface `Checked` chip / conflict line. Present only when the
    * table has rules (SafetyService.check's caller only attaches it then, so
@@ -206,6 +226,11 @@ export interface RecipeDto {
   origin?: RecipeAttribution['origin'];
   hidden?: RecipeAttribution['hidden'];
   sourceUrl?: string;
+  /**
+   * UX-REC-04 (`mealPlan.getRecipe` only): the owner deleted this recipe but a
+   * plan slot still holds it — shown as a tombstone. Omitted when live.
+   */
+  deleted?: true;
 }
 
 export type AddRecipeToWeekInput = z.infer<typeof addRecipeToWeekInputSchema>;
@@ -253,6 +278,12 @@ export interface MealSlotDto {
 export interface DayPlanDto {
   dayOfWeek: number;
   meals: MealSlotDto[];
+  /**
+   * UX-PLAN-11: ids of the recipes the user logged as eaten on this day.
+   * Only `getById` (the past-week view) fills it, so a past week can show what
+   * was actually eaten next to what was planned. Additive; absent = none.
+   */
+  loggedRecipeIds?: string[];
   /**
    * P1-1: grams the day's portioned protein falls short of the user's target,
    * present only when meaningfully short (under 90% and ≥ 10 g). Clients show
@@ -503,7 +534,44 @@ export class MealPlanService {
     private readonly recipeSocial: RecipeSocialDeps = defaultRecipeSocialDeps,
     /** Catalog computation of AI recipes (plan-ingredient-catalog §6.3). */
     private readonly aiFinisher: AiRecipeFinisher = aiRecipeFinisher,
+    /** FB7-04: removing a slot re-indexes the tracker state keyed by slot index. */
+    private readonly dayLog: Pick<
+      IDailyLogRepository,
+      'findByDate' | 'mutateDayState'
+    > = dailyLogRepository,
   ) {}
+
+  /**
+   * UX-PLAN-01: what a regenerate of the CURRENT week must keep from the
+   * plan it replaces — past days whole, and today's slots whose recipe is
+   * already logged. Future weeks have nothing to keep. A failed log read
+   * keeps all of today's slots rather than risk replacing an eaten one.
+   */
+  private async loadKeptSlots(
+    userId: string,
+    weekOffset: number,
+    weekStartDate: Date,
+  ): Promise<KeptDay[]> {
+    if (weekOffset !== 0) return [];
+    const existing = await this.repo.findForWeek(userId, weekStartDate);
+    if (!existing) return [];
+    const now = new Date();
+    const today = new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate()));
+    let logged: Set<string> | null = null;
+    try {
+      logged = new Set(await this.tailoringRepo.findLoggedRecipeIds(userId, today));
+    } catch (err) {
+      console.error('[meal-plan] eaten-slot lookup failed — keeping all of today:', err);
+    }
+    return selectKeptSlots(existing.days, getTodayDayIndex(), logged);
+  }
+
+  /** The recipe rows behind kept slots, as planner recipe data. */
+  private async keptRecipes(kept: KeptDay[]): Promise<Map<string, RecipeData>> {
+    const ids = [...new Set(kept.flatMap((k) => k.slots.map((s) => s.recipeId)))];
+    const rows = await this.repo.findRecipesByIds(ids);
+    return new Map(rows.map((r) => [r.id, rowToRecipeData(r)]));
+  }
 
   /** `findRecipeVisibleTo` with this service's repository and social deps. */
   private findVisibleRecipe(userId: string, recipeId: string): Promise<Recipe | null> {
@@ -534,6 +602,13 @@ export class MealPlanService {
       return this.generateCurated(userId, weekOffset, withAccess);
     }
     if (options.instant) {
+      return this.generateInstant(userId, weekOffset, withAccess);
+    }
+    // The blocking AI week sends the whole profile to the AI provider. Without
+    // AI-data consent (server-side, R-10) the user gets the curated week
+    // instead — the same one the instant path builds, with no tailoring — so
+    // generation never fails over consent.
+    if (await aiConsentMissing({ userId })) {
       return this.generateInstant(userId, weekOffset, withAccess);
     }
     return this.generateBlocking(userId, weekOffset, withAccess);
@@ -761,6 +836,7 @@ export class MealPlanService {
       trainingBonus,
       trainingDayTargets,
       householdContext,
+      householdMembers,
       planSafety,
       hiddenRecipeIds: safetyCtx.hiddenRecipeIds,
       safetyTable: safetyCtx.table,
@@ -789,6 +865,7 @@ export class MealPlanService {
       trainingBonus,
       trainingDayTargets,
       householdContext,
+      householdMembers,
       planSafety,
       hiddenRecipeIds,
       safetyTable,
@@ -912,6 +989,26 @@ export class MealPlanService {
     // labels). Runs AFTER pin placement so pins land in fresh slots first.
     if (options.leftovers) {
       weekPlan = pairLeftovers(weekPlan);
+    }
+
+    // 3d. UX-PLAN-01: a mid-week regenerate keeps the days that are over and
+    // anything already eaten today. Kept recipes already exist as rows, so —
+    // like pinned favourites — they are never re-upserted below.
+    const keptWeekStart = getMondayOfWeek(weekOffset);
+    const kept = await this.loadKeptSlots(userId, weekOffset, keptWeekStart);
+    if (kept.length > 0) {
+      const recipeById = await this.keptRecipes(kept);
+      const merged = mergeKeptSlots(weekPlan.days, kept, (slot): MealSlot | null => {
+        const recipe = recipeById.get(slot.recipeId);
+        if (!recipe) return null;
+        pinnedIds.add(recipe.id);
+        return {
+          type: slot.type as MealType,
+          recipe,
+          ...(slot.leftoverOf && { leftoverOf: slot.leftoverOf }),
+        };
+      });
+      weekPlan = { ...weekPlan, days: merged.days };
     }
 
     // 4. Collect unique recipes and their image priority (min day-distance
@@ -1054,6 +1151,7 @@ export class MealPlanService {
       // Sized for the table (P2-3): premium generation IS household scaling.
       estimatedCost: await estimatePlanCostEur(daysFrom(weekPlan.days, shopFrom), {
         portions: householdContext?.portionSum ?? null,
+        table: await this.portionTable(userId, householdMembers),
         userId,
       }),
       ...(shopFrom > 0 && { shoppingFromDay: shopFrom }),
@@ -1111,9 +1209,24 @@ export class MealPlanService {
         leftovers: options.leftovers === true,
         // Premium generation IS household scaling (P2-3).
         costPortions: members.length > 0 ? householdPortionSum(members) : null,
+        costMembers: members,
       });
     } catch (err) {
       if (err instanceof TRPCError && err.cause instanceof PoolExhaustedCause) {
+        // The blocking AI week is the only thing that can build this table's
+        // week, and it sends the profile to the AI provider: without AI-data
+        // consent (R-10) it must not run. The pool-exhausted answer clients
+        // already handle is returned instead, saying how to unlock it.
+        if (await aiConsentMissing({ userId })) {
+          console.info(
+            '[meal-plan] curated pool too small for this table and no AI data consent — no AI week',
+          );
+          throw new TRPCError({
+            code: 'PRECONDITION_FAILED',
+            message: `We don't have enough recipes matching your restrictions to plan this week without AI. ${AI_CONSENT_REQUIRED_MESSAGE}`,
+            cause: new PoolExhaustedCause(),
+          });
+        }
         console.info(
           '[meal-plan] curated pool too small for this table — premium uses the blocking AI week',
         );
@@ -1391,10 +1504,8 @@ export class MealPlanService {
     }
     const gate = await this.tailoringRepo.findUserGate(userId);
     if (!gate?.aiDataConsentAt) {
-      throw new TRPCError({
-        code: 'PRECONDITION_FAILED',
-        message: 'Allow AI personalisation to let your chef tailor your week.',
-      });
+      // R-10: the typed rejection (`data.reason`) so clients open the sheet.
+      throw aiConsentRequiredError();
     }
     const weekOffset = weekOffsetOf(plan.weekStartDate, getMondayOfWeek(0));
     const wanted = new Set(untailoredDays(row));
@@ -1553,6 +1664,8 @@ export class MealPlanService {
       pinnedFavourites: FavouriteRecipeWithRecipe[];
       leftovers: boolean;
       costPortions: number | null;
+      /** The members `costPortions` was summed from (UX-REC-02: owner portion + Σ members). */
+      costMembers: readonly { portionFactor: number }[];
     },
   ): Promise<{
     dto: WeekPlanDto;
@@ -1719,6 +1832,29 @@ export class MealPlanService {
       days = pairLeftoverSlots(days);
     }
 
+    // UX-PLAN-01: a mid-week regenerate keeps the days that are over and
+    // anything already eaten today; only the rest is new.
+    const kept = await this.loadKeptSlots(userId, weekOffset, weekStartDate);
+    if (kept.length > 0) {
+      const recipeById = await this.keptRecipes(kept);
+      const merged = mergeKeptSlots(days, kept, (slot): CuratedSlot | null => {
+        const recipe = recipeById.get(slot.recipeId);
+        if (!recipe) return null;
+        return {
+          type: slot.type as MealType,
+          recipe,
+          portion: slotPortion(slot.portion),
+          pinned: slot.pinned === true,
+          ...(slot.leftoverOf && { leftoverOf: slot.leftoverOf }),
+        };
+      });
+      days = merged.days.map((d) => {
+        if (!merged.wholeKept.has(d.dayOfWeek)) return d;
+        const { unfilled: _unfilled, ...rest } = d;
+        return { ...rest, planned: d.meals.length > 0, proteinGapG: null };
+      });
+    }
+
     const uniqueRecipeIds = [...new Set(days.flatMap((d) => d.meals.map((m) => m.recipe.id)))];
     const curatedShopFrom = firstShoppingDay(weekStartDate, new Date());
     // P1-1: each slot's portion is stored in the day JSON (1× is left out,
@@ -1775,10 +1911,15 @@ export class MealPlanService {
       estimatedCost: premium
         ? await estimatePlanCostEur(daysFrom(days, curatedShopFrom), {
             portions: premium.costPortions,
+            table: await this.portionTable(userId, premium.costMembers),
             userId,
           })
         : await estimatePlanCostEur(daysFrom(days, curatedShopFrom), {
             portions: firstScaledPortions,
+            table: await this.portionTable(
+              userId,
+              firstScaledPortions !== null ? await this.householdRepo.findByUserId(userId) : [],
+            ),
             userId,
           }),
       ...(!premium && firstScaledPortions !== null && { firstScaledWeek: true }),
@@ -1900,6 +2041,21 @@ export class MealPlanService {
     return safetyService.loadContext(userId);
   }
 
+  /**
+   * Who the week's list and cost are cooked for (UX-PLAN-02, UX-REC-02):
+   * the household's members when this view is scaled to the table (the
+   * caller passes `[]` when it is not), plus the
+   * "two of us" setting. Null when it is only the user's own portion.
+   */
+  private async portionTable(
+    userId: string,
+    members: readonly { portionFactor: number }[],
+  ): Promise<PortionTable | null> {
+    const { cookingFor } = await planShapeService.getShape(userId);
+    if (members.length === 0 && !(typeof cookingFor === 'number' && cookingFor >= 2)) return null;
+    return { members: members.map((m) => ({ portionFactor: m.portionFactor })), cookingFor };
+  }
+
   /** Table portion sum, or null when it's just the owner (P2-3). */
   private async householdPortions(userId: string): Promise<number | null> {
     const members = await this.householdRepo.findByUserId(userId);
@@ -2019,7 +2175,16 @@ export class MealPlanService {
       weekStartDate: plan.weekStartDate,
       days,
       // Same scaling as the shopping list, so the chip equals the list total.
-      estimatedCost: await estimatePlanCostEur(daysFrom(days, shopFrom), { portions, userId }),
+      estimatedCost: await estimatePlanCostEur(daysFrom(days, shopFrom), {
+        portions,
+        table: userId
+          ? await this.portionTable(
+              userId,
+              portions !== null ? await this.householdRepo.findByUserId(userId) : [],
+            )
+          : null,
+        userId,
+      }),
       ...(firstScaledWeek && { firstScaledWeek: true }),
       ...(shopFrom > 0 && { shoppingFromDay: shopFrom }),
       ...(targets && {
@@ -2117,6 +2282,7 @@ export class MealPlanService {
       ...decorateRecipeDto(rowToRecipeDto(row), rowToRecipeData(row), ctx),
       ...attribution,
       ...(row.sourceUrl && { sourceUrl: row.sourceUrl }),
+      ...(row.deletedAt != null && { deleted: true as const }),
       ...(nutritionLines.length > 0 && { nutritionLines }),
     };
   }
@@ -2186,6 +2352,7 @@ export class MealPlanService {
     // Find the current recipe name in the plan day
     const slot = slotAt(plan, dayOfWeek, slotIndex);
     const previousRecipeId = slot?.recipeId;
+    const previousPinned = slot?.pinned === true;
     const currentRecipe = slot ? await this.repo.findRecipeById(slot.recipeId) : null;
 
     // Call AI swap (catalog slugs, no nutrition — plan-ingredient-catalog §6.3)
@@ -2286,6 +2453,7 @@ export class MealPlanService {
       // T-08.6: the default this wave is commit + Undo (no preview) — the
       // client offers Undo by calling `replaceRecipe` back to this id.
       ...(previousRecipeId && { previousRecipeId }),
+      ...(previousRecipeId && previousPinned && { previousPinned }),
     };
   }
 
@@ -2348,6 +2516,7 @@ export class MealPlanService {
         ctx,
       ),
       ...(slot?.recipeId && { previousRecipeId: slot.recipeId }),
+      ...(slot?.recipeId && slot.pinned === true && { previousPinned: true }),
     };
   }
 
@@ -2372,6 +2541,12 @@ export class MealPlanService {
     recipeId: string,
     requestedSlotIndex?: number,
     acknowledgeConflict?: boolean,
+    /**
+     * UX-PLAN-04: whether the slot becomes "Your pick". Default true (a manual
+     * Replace is a deliberate choice); Undo passes the PREVIOUS pinned state so
+     * a swap that is undone doesn't leave the slot pinned.
+     */
+    pinned = true,
   ): Promise<RecipeDto> {
     const plan = await this.repo.findByIdForUser(userId, planId);
     if (!plan) {
@@ -2385,14 +2560,18 @@ export class MealPlanService {
     }
 
     const ctx = await this.loadSafetyContext(userId);
-    const issues = findSafetyIssues(rowToRecipeData(found), ctx.prefs);
+    const issues = findSafetyIssues(
+      { ...rowToRecipeData(found), nutritionStatus: found.nutritionStatus },
+      ctx.prefs,
+      { deriveFromIngredients: true },
+    );
     if (issues.length > 0) {
       // Honoured only for a MANUAL recipe the user owns — or, with Following,
       // another user's MANUAL recipe, which becomes the user's own copy below.
       if (!acknowledgeConflict || !isAcknowledgeable(found)) {
         throw new TRPCError({
           code: 'FORBIDDEN',
-          message: `UNSAFE_FOR_TABLE: this recipe contains ${issues[0]}, which conflicts with an allergy or dietary restriction set for your table.`,
+          message: unsafeForTableMessage(issues, unsafeContext(found, ctx.prefs)),
         });
       }
     }
@@ -2414,12 +2593,15 @@ export class MealPlanService {
       recipe.id,
       keepPortion !== 1 ? keepPortion : undefined,
       slotIndex ?? undefined,
-      true,
+      pinned,
     );
 
     return {
       ...decorateRecipeDto(rowToRecipeDto(recipe), rowToRecipeData(recipe), ctx),
       ...(previousRecipeId && previousRecipeId !== recipe.id && { previousRecipeId }),
+      ...(previousRecipeId &&
+        previousRecipeId !== recipe.id &&
+        currentSlot?.pinned === true && { previousPinned: true }),
     };
   }
 
@@ -2463,12 +2645,17 @@ export class MealPlanService {
       mode === 'replace' ? resolvePlanSlot(plan, dayOfWeek, mealType, input.slotIndex) : null;
 
     const ctx = await this.loadSafetyContext(userId);
-    const issues = findSafetyIssues(rowToRecipeData(found), ctx.prefs);
+    const issues = findSafetyIssues(
+      { ...rowToRecipeData(found), nutritionStatus: found.nutritionStatus },
+      ctx.prefs,
+      { deriveFromIngredients: true },
+    );
     if (issues.length > 0 && !(acknowledgeConflict && isAcknowledgeable(found))) {
-      if (isAcknowledgeable(found)) throw unsafeForTableError(issues);
+      const context = unsafeContext(found, ctx.prefs);
+      if (isAcknowledgeable(found)) throw unsafeForTableError(issues, context);
       throw new TRPCError({
         code: 'FORBIDDEN',
-        message: `UNSAFE_FOR_TABLE: this recipe contains ${issues[0]}, which conflicts with an allergy or dietary restriction set for your table.`,
+        message: unsafeForTableMessage(issues, context),
       });
     }
 
@@ -2476,6 +2663,15 @@ export class MealPlanService {
     const addedRecipeId = owned.recipe.id;
 
     if (mode === 'add') {
+      // `undoAddToWeek` addresses slots 0–9, so a day holds at most this many dishes.
+      const dayMeals = (plan.days.find((d) => d.dayOfWeek === dayOfWeek)?.meals ??
+        []) as PlanMealSlotJson[];
+      if (dayMeals.length >= MAX_SLOTS_PER_DAY) {
+        throw new TRPCError({
+          code: 'BAD_REQUEST',
+          message: `A day can hold up to ${MAX_SLOTS_PER_DAY} dishes. Remove one before adding another.`,
+        });
+      }
       const index = await this.repo.appendDayMeal(plan.id, dayOfWeek, mealType, addedRecipeId, {
         pinned: true,
       });
@@ -2585,6 +2781,55 @@ export class MealPlanService {
     }
     const slotIndex = resolvePlanSlot(plan, dayOfWeek, mealType, requestedSlotIndex);
     await this.repo.setSlotPinned(planId, dayOfWeek, mealType, slotIndex, pinned);
+  }
+
+  /**
+   * FB7-04 `mealPlan.removeSlot`: removes one slot of a day (a side dish) —
+   * only while ANOTHER slot of the same meal type remains, so a day never
+   * loses a whole meal this way (that is "Skip it"). The slots after it shift
+   * down by one, so that day's tracker state (logged entries, skipped slots,
+   * "ate something else") is re-indexed to follow — otherwise a logged
+   * dinner would tick the wrong dish.
+   */
+  async removeSlot(
+    userId: string,
+    input: { planId: string; dayOfWeek: number; mealType: string; slotIndex: number },
+  ): Promise<{ ok: true }> {
+    const { planId, dayOfWeek, mealType, slotIndex } = input;
+    const plan = await this.repo.findByIdForUser(userId, planId);
+    if (!plan) {
+      throw new TRPCError({ code: 'NOT_FOUND', message: 'Meal plan not found.' });
+    }
+    const outcome = await this.repo.removeDaySlot(planId, dayOfWeek, mealType, slotIndex);
+    if (outcome === 'missing') {
+      throw new TRPCError({
+        code: 'BAD_REQUEST',
+        message: 'That meal is no longer in this slot. Refresh the plan and try again.',
+      });
+    }
+    if (outcome === 'last-of-type') {
+      throw new TRPCError({
+        code: 'BAD_REQUEST',
+        message: `This is the only ${mealType} of the day, so it can't be removed. Swap it for another meal or skip it instead.`,
+      });
+    }
+
+    // The plan's Monday is local midnight; a log is keyed by the local
+    // calendar day at UTC midnight (see `withLoggedMeals`).
+    const date = new Date(
+      Date.UTC(
+        plan.weekStartDate.getFullYear(),
+        plan.weekStartDate.getMonth(),
+        plan.weekStartDate.getDate() + dayOfWeek,
+      ),
+    );
+    const log = await this.dayLog.findByDate(userId, date);
+    if (log) {
+      await this.dayLog.mutateDayState(userId, date, (current) =>
+        reindexDayStateAfterSlotRemoval(current, slotIndex),
+      );
+    }
+    return { ok: true };
   }
 
   /**
@@ -2953,7 +3198,13 @@ export class MealPlanService {
     });
   }
 
-  async restore(userId: string, planId: string): Promise<WeekPlanDto> {
+  /**
+   * Brings a plan back as a fresh copy. By default into its own week (the
+   * original behaviour: Undo after Regenerate relies on it); with `weekOffset`
+   * into this (0) or next (1) week instead — "Use this week again" (UX-PLAN-11),
+   * since a past week could only ever be restored into its own past week.
+   */
+  async restore(userId: string, planId: string, weekOffset?: 0 | 1): Promise<WeekPlanDto> {
     // Ownership check via a single indexed lookup (previously a 100-row scan)
     const target = await this.repo.findByIdForUser(userId, planId);
     if (!target) {
@@ -2973,12 +3224,15 @@ export class MealPlanService {
       dayOfWeek: d.dayOfWeek,
       meals: d.meals as PlanMealSlotJson[],
     }));
+    const intoOtherWeek = weekOffset !== undefined;
     const restored = await this.repo.createPlan({
       userId,
-      weekStartDate: target.weekStartDate,
+      weekStartDate: intoOtherWeek ? getMondayOfWeek(weekOffset) : target.weekStartDate,
       days,
       recipeIds: [...new Set(days.flatMap((d) => d.meals.map((m) => m.recipeId)))],
-      carryShoppingFromPlanId: target.id,
+      // Ticks belong to the week they were made in; a copy for another week
+      // inherits from whatever plan it replaces there instead.
+      ...(!intoOtherWeek && { carryShoppingFromPlanId: target.id }),
     });
 
     return this.assemblePlanDto({ ...restored, days: target.days }, userId);
@@ -2989,9 +3243,52 @@ export class MealPlanService {
     if (!plan) {
       throw new TRPCError({ code: 'NOT_FOUND', message: 'Plan not found.' });
     }
-    return this.assemblePlanDto(plan, userId, view);
+    const dto = await this.assemblePlanDto(plan, userId, view);
+    return this.withLoggedMeals(userId, plan.weekStartDate, dto);
+  }
+
+  /**
+   * UX-PLAN-11: marks, per day, which planned recipes were logged as eaten —
+   * the past-week view shows what happened, not only what was planned. A
+   * failed log read just leaves the plan as it is.
+   */
+  private async withLoggedMeals(
+    userId: string,
+    weekStartDate: Date,
+    dto: WeekPlanDto,
+  ): Promise<WeekPlanDto> {
+    try {
+      const logged = await Promise.all(
+        dto.days.map(async (d) => {
+          // `weekStartDate` is the Monday at LOCAL midnight; a log is keyed by the
+          // local calendar day at UTC midnight — so build it from the local parts.
+          const date = new Date(
+            Date.UTC(
+              weekStartDate.getFullYear(),
+              weekStartDate.getMonth(),
+              weekStartDate.getDate() + d.dayOfWeek,
+            ),
+          );
+          return [d.dayOfWeek, await this.tailoringRepo.findLoggedRecipeIds(userId, date)] as const;
+        }),
+      );
+      const byDay = new Map(logged);
+      return {
+        ...dto,
+        days: dto.days.map((d) => {
+          const ids = [...new Set(byDay.get(d.dayOfWeek) ?? [])];
+          return ids.length > 0 ? { ...d, loggedRecipeIds: ids } : d;
+        }),
+      };
+    } catch (err) {
+      console.warn('[meal-plan] could not read the log for the past-week view', err);
+      return dto;
+    }
   }
 }
+
+/** Most dishes one plan day may hold (the add/undo slot index is 0–9). */
+const MAX_SLOTS_PER_DAY = 10;
 
 // ─── Singleton ────────────────────────────────────────────────────────────────
 
@@ -3173,7 +3470,8 @@ function withAllergenWarnings(
   safety: SafetyPrefs | null,
 ): RecipeDto {
   if (!safety) return dto;
-  const issues = findSafetyIssues(data, safety);
+  // UX-REC-01: a recipe nobody tagged is judged on its ingredients.
+  const issues = findSafetyIssues(data, safety, { deriveFromIngredients: true });
   if (issues.length === 0) return dto;
   const restrictions = new Set(safety.dietaryRestrictions);
   return {
@@ -3227,9 +3525,13 @@ function decorateRecipeDto(
   // in this file passes a full SafetyCheckable already, but decoration
   // failing for one recipe must still never break the whole response.
   try {
-    let out = withDerivedTags(dto, data);
-    out = withAllergenWarnings(out, data, ctx?.prefs ?? null);
-    out = withSafetyChecks(out, data, ctx?.table ?? null);
+    // UX-REC-01: the keto check needs to know whether the carbs are catalogue-computed.
+    const checkable: SafetyCheckable = dto.nutritionStatus
+      ? { ...data, nutritionStatus: dto.nutritionStatus }
+      : data;
+    let out = withDerivedTags(dto, checkable);
+    out = withAllergenWarnings(out, checkable, ctx?.prefs ?? null);
+    out = withSafetyChecks(out, checkable, ctx?.table ?? null);
     return out;
   } catch (err) {
     console.error(
@@ -3267,6 +3569,25 @@ function pickSafeCurated(
   const candidates = pool.filter((r) => r.id !== excludeId);
   const source = candidates.length > 0 ? candidates : pool;
   return source[Math.floor(Math.random() * source.length)] ?? null;
+}
+
+/**
+ * UX-PLAN-06: what the UNSAFE_FOR_TABLE rejection needs to word a DIET conflict
+ * ("isn't paleo (it contains quinoa)") instead of "contains Paleo".
+ */
+function unsafeContext(
+  found: Recipe,
+  prefs: Pick<SafetyPrefs, 'allergies' | 'dietaryRestrictions'>,
+): UnsafeForTableContext {
+  const blockers = findSafetyBlockers(
+    { ...rowToRecipeData(found), nutritionStatus: found.nutritionStatus },
+    prefs,
+    { deriveFromIngredients: true },
+  );
+  return {
+    diets: prefs.dietaryRestrictions,
+    ingredients: Object.fromEntries(blockers.map((b) => [b.term, b.ingredients])),
+  };
 }
 
 /**

@@ -259,6 +259,29 @@ describe('decideAdjustmentKcal', () => {
       expected: 0,
     },
     {
+      name: 'LOSE plateau for a minor → never trims calories (R-02)',
+      input: { trendKgPerWeek: 0, prevTrendKgPerWeek: 0, age: 17 },
+      expected: 0,
+    },
+    {
+      name: 'LOSE plateau for an adult → unchanged by the age field',
+      input: { trendKgPerWeek: 0, prevTrendKgPerWeek: 0, age: 30, biologicalSex: 'FEMALE' },
+      expected: -100,
+    },
+    {
+      name: 'LOSE floor is raised to 1,500 for men (BMR×1.1 = 1,100 < 1,500)',
+      // bmr 1000 → BMR floor 1100; male floor 1500; target 1560 → headroom 60.
+      input: {
+        trendKgPerWeek: 0,
+        prevTrendKgPerWeek: 0,
+        bmr: 1000,
+        currentTargetKcal: 1560,
+        age: 40,
+        biologicalSex: 'MALE',
+      },
+      expected: -60,
+    },
+    {
       name: 'MAINTAIN goal → the dial never moves',
       input: { goal: 'MAINTAIN', trendKgPerWeek: 0, prevTrendKgPerWeek: 0 },
       expected: 0,

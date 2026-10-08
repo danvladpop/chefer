@@ -199,6 +199,7 @@ model User {
 
   // Relations
   accounts             Account[]
+  authIdentities       AuthIdentity[]
   sessions             Session[]
   posts                Post[]
   profile              UserProfile?
@@ -333,6 +334,9 @@ model ChefProfile {
   trainingWeekdays       Int[]             @default([])
   // Null = derive from goal (bug B-31); explicit true/false overrides it.
   showNutritionOnToday   Boolean?
+  // WP-08: 'FULL' | 'PROTEIN_ONLY' | 'NONE' (numbersModeSchema, @chefer/types).
+  // Null = FULL. A string + Zod enum, so a new mode is never a migration.
+  numbersMode            String?
   // §2.6, rev 2 (UX-06): weekday -> 'lift' | 'run' | 'long_run' | 'rest'
   // (dayKindSchema, @chefer/types). `lift` days come from the routine; the
   // others are set by training.setDayKinds (wave 1).
@@ -429,6 +433,8 @@ model Recipe {
   /// Automatic moderation (PRD §9): hidden from everyone but the creator; existing hearts and copies keep working.
   hiddenAt        DateTime?
   hiddenReason    RecipeHiddenReason?
+  /// UX-REC-04: the owner's soft delete (`recipe.deleteMine`). Hidden from lists, pickers, pins and sharing; slots in the owner's existing plans keep resolving it (a tombstone). Null = live.
+  deletedAt       DateTime?
 
   originRecipe  Recipe?  @relation("RecipeCopies", fields: [originRecipeId], references: [id], onDelete: SetNull)
   copies        Recipe[] @relation("RecipeCopies")
@@ -597,6 +603,10 @@ model DailyLog {
   totalProtein Float
   totalCarbs   Float
   totalFat     Float
+  // WP-06: plan slots the user skipped that day — [{ mealType, slotIndex }].
+  // Deliberately NOT part of loggedMeals: shipped clients iterate the entries
+  // and sum them, and a skipped meal is not food. Additive, defaults to [].
+  skippedSlots Json     @default("[]")
   updatedAt    DateTime @updatedAt
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -625,6 +635,11 @@ model ChefReview {
   // surfaces as a SUGGESTED TargetChange until acknowledged.
   proposedAdjustmentKcal Int?
   proposalResolvedAt     DateTime?
+  // App Review R-14 (Guideline 1.4.1 / EU AI Act Art. 50): true when the review
+  // prose came from the AI model, false for the deterministic template. Rows
+  // written before this column existed read false (unlabelled) until the next
+  // weekly review replaces them.
+  aiGenerated            Boolean   @default(false)
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
@@ -700,6 +715,7 @@ model HouseholdMember {
   name                String
   portionFactor       Float    @default(1) // 0.5 kid … 1.5 big eater
   isKid               Boolean  @default(false)
+  ageBand             String? // TODDLER | CHILD | PRETEEN | TEEN — kids only, optional (UX-PLAN-12); validated by Zod
   allergies           String[] @default([])
   dietaryRestrictions String[] @default([])
   dislikedIngredients String[] @default([])
@@ -738,6 +754,34 @@ model WeightEntry {
 
   @@index([userId, recordedAt])
   @@map("weight_entries")
+}
+
+// Sign in with Google / Apple (WP-22). One row per linked provider identity;
+// `provider` is "GOOGLE" | "APPLE" (a string, so a new provider needs no enum
+// migration) and `subject` is the provider's stable `sub` claim. An OAuth-only
+// account simply has a null User.passwordHash. `refreshTokenEnc` (Apple only)
+// is the AES-256-GCM-encrypted Apple refresh token, kept only so the grant can
+// be revoked when the account is deleted or the identity unlinked;
+// `tokenClientId` is the Apple client id (bundle id or Services ID) it was
+// issued to — revocation must name the same one.
+model AuthIdentity {
+  id              String    @id @default(cuid())
+  userId          String
+  provider        String
+  subject         String
+  email           String?
+  emailVerified   Boolean   @default(false)
+  refreshTokenEnc String?   @db.Text
+  tokenClientId   String?
+  createdAt       DateTime  @default(now())
+  lastSignInAt    DateTime?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, subject])
+  @@unique([userId, provider])
+  @@index([userId])
+  @@map("auth_identities")
 }
 
 model Account {
@@ -1376,6 +1420,7 @@ model SessionExercise {
   lastSetRir        Int? // 0..3 (3 = "3+")
   prescription      Json // { weightKg, reps[], reasonCode, inputs, engineVersion }
   notes             String?
+  supersetGroup     String? // this session's superset letter (plan-library-supersets S-D3)
 
   session  WorkoutSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
   exercise Exercise       @relation(fields: [exerciseId], references: [id])

@@ -1,10 +1,11 @@
 'use client';
 
 import { useState } from 'react';
+import { useNumbersMode } from '@/features/numbers-mode/numbers-mode';
 import { trpc } from '@/lib/trpc';
 import { Sparkles, X } from 'lucide-react';
 import { Sheet } from '@chefer/ui';
-import { sumPlanDay } from '@chefer/utils';
+import { formatKcal, sumPlanDay, withoutKcalLines } from '@chefer/utils';
 import { dismissChanges, isChangesDismissed, missLines, type PlanMiss } from '../plan-miss';
 
 // ─── What Premium changed (UX-10 §8, T-10.7) ───────────────────────────────────
@@ -51,8 +52,13 @@ export function PremiumChangesCard({
 }) {
   const [dismissed, setDismissed] = useState(() => isChangesDismissed(planId));
   const [compareOpen, setCompareOpen] = useState(false);
+  // WP-08: protein-only mode drops the server's calorie lines and the calorie-miss line (and its Fix it).
+  const { proteinOnly } = useNumbersMode();
   if (dismissed) return null;
-  const misses = missLines(changes.misses ?? []);
+  const misses = proteinOnly ? [] : missLines(changes.misses ?? []);
+  const lines = proteinOnly
+    ? changes.lines.filter((line) => withoutKcalLines(line) !== '')
+    : changes.lines;
 
   return (
     <div
@@ -77,7 +83,7 @@ export function PremiumChangesCard({
         </button>
       </div>
       <ul className="mt-1 space-y-1 text-sm text-amber-900">
-        {changes.lines.map((line) => (
+        {lines.map((line) => (
           <li key={line} className="flex gap-2">
             <span aria-hidden="true">·</span>
             <span className="min-w-0">{line}</span>
@@ -142,15 +148,25 @@ function CompareDialog({
     { planId: previousPlanId },
     { enabled: open, staleTime: 60_000 },
   );
+  // WP-08: protein-only mode compares protein alone.
+  const { proteinOnly } = useNumbersMode();
   const cell = (t: { kcal: number; protein: number }) =>
-    t.kcal > 0 ? `${t.kcal.toLocaleString('en-US')} kcal · ${t.protein} g` : 'Not planned';
+    t.kcal > 0
+      ? proteinOnly
+        ? `${t.protein} g protein`
+        : `${formatKcal(t.kcal)} kcal · ${t.protein} g`
+      : 'Not planned';
 
   return (
     <Sheet
       open={open}
       onClose={onClose}
       title="Compare with your free week"
-      description="Daily calories and protein, before and after"
+      description={
+        proteinOnly
+          ? 'Daily protein, before and after'
+          : 'Daily calories and protein, before and after'
+      }
       size="md"
     >
       <div className="px-5 pb-5" data-testid="premium-compare">

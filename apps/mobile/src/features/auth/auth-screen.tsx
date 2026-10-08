@@ -14,7 +14,10 @@ export function AuthScreen({ children, testID }: { children: ReactNode; testID?:
     <Screen edges={['top', 'bottom', 'left', 'right']}>
       <KeyboardAwareScrollView
         testID={testID}
-        contentContainerClassName="flex-grow justify-center gap-4 py-6"
+        // UX-ACC-14: top-aligned, NOT justify-center — a centred form re-centres
+        // every time an error line appears or clears, so the fields (and the
+        // button under the finger) jumped.
+        contentContainerClassName="flex-grow gap-4 pb-6 pt-8"
         keyboardDismissMode="on-drag"
         showsVerticalScrollIndicator={false}
       >

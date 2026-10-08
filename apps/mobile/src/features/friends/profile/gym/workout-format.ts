@@ -1,4 +1,4 @@
-import type { ExerciseTrackingType, FriendWorkoutDto } from '@chefer/types';
+import { EXERCISE_BY_ID, type ExerciseTrackingType, type FriendWorkoutDto } from '@chefer/types';
 import {
   distanceUnitFor,
   formatDistance,
@@ -23,6 +23,18 @@ export function isStrength(exercise: Pick<Exercise, 'trackingType'>): boolean {
   return isStrengthTrackingType(exercise.trackingType as ExerciseTrackingType);
 }
 
+/**
+ * UX-GYM-19: a dumbbell / kettlebell set reads "20 kg each". The friend DTO's
+ * `perHand` (catalog or custom exercise) is authoritative; it is omitted when
+ * false, so an API that predates the field (or a cached response) falls back
+ * to the catalog for a library exercise. A custom exercise from an older API
+ * stays a bare weight.
+ */
+function isPerHand(exercise: Pick<Exercise, 'exerciseId' | 'isCustom' | 'perHand'>): boolean {
+  if (exercise.perHand === true) return true;
+  return !exercise.isCustom && EXERCISE_BY_ID.get(exercise.exerciseId)?.perHand === true;
+}
+
 function strengthLine(exercise: Exercise, set: WorkoutSet, units: ViewerUnits): string {
   const load =
     exercise.trackingType === 'BODYWEIGHT_REPS'
@@ -31,7 +43,7 @@ function strengthLine(exercise: Exercise, set: WorkoutSet, units: ViewerUnits): 
           units.weight,
           set.weightKg > KG_EPS ? 'BODYWEIGHT_PLUS' : 'BODYWEIGHT',
         )
-      : formatLoad(set.weightKg, units.weight);
+      : formatLoad(set.weightKg, units.weight, 'WEIGHTED', { each: isPerHand(exercise) });
   return `${load} × ${set.reps}`;
 }
 

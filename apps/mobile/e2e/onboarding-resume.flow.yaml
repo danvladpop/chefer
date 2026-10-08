@@ -1,0 +1,108 @@
+# UX-ONB-01 (WP-01): onboarding survives Android BACK and a process kill.
+# Signs out whoever is signed in, registers a fresh account, answers step 1,
+# then: Android BACK steps back one question (answers kept); a cold relaunch
+# mid-wizard resumes on the same step instead of dropping the user on Today.
+appId: dev.chefer.app.dev
+---
+- runFlow: common/connect.yaml
+- tapOn:
+    text: 'Allow and save'
+    optional: true
+- extendedWaitUntil:
+    visible:
+      id: 'home-title'
+    timeout: 30000
+
+# ── Sign A out from More ──────────────────────────────────────────────────────
+# (Android sometimes drops the first tab tap while Today is still settling.)
+- retry:
+    maxRetries: 2
+    commands:
+      - tapOn: 'More(, .*)?'
+      - extendedWaitUntil:
+          visible:
+            id: 'more-profile'
+          timeout: 5000
+- scrollUntilVisible:
+    element:
+      id: 'logout-button'
+    direction: DOWN
+    centerElement: true
+- tapOn:
+    id: 'logout-button'
+- runFlow: common/confirm-sign-out.yaml
+- extendedWaitUntil:
+    visible:
+      id: 'login-title'
+    timeout: 15000
+
+# ── Register B; the form must start empty (ACC-17) ───────────────────────────
+- evalScript: ${output.email = 'onb01-' + Date.now() + '@e2e.chefer.dev'}
+- tapOn:
+    id: 'login-to-register'
+- assertVisible:
+    id: 'register-title'
+- assertNotVisible: 'alice@chefer.dev'
+- tapOn:
+    id: 'register-email'
+- inputText: ${output.email}
+- tapOn:
+    id: 'register-password'
+- inputText: 'Maestro@123!'
+- tapOn:
+    id: 'register-confirm-password'
+- inputText: 'Maestro@123!'
+- runFlow:
+    when:
+      platform: Android
+    commands:
+      - hideKeyboard
+- tapOn:
+    id: 'register-accept-terms'
+- tapOn:
+    id: 'register-age-confirm'
+- tapOn:
+    id: 'register-submit'
+    optional: true
+- extendedWaitUntil:
+    visible: 'Not Now'
+    timeout: 5000
+    optional: true
+- tapOn:
+    text: 'Not Now'
+    optional: true
+
+# ── Step 1: pick a job and continue ──────────────────────────────────────────
+- extendedWaitUntil:
+    visible: 'What should Chefer help with\?'
+    timeout: 20000
+- tapOn:
+    id: 'onboarding-job-PLAN_MEALS'
+- tapOn:
+    id: 'onboarding-continue'
+- assertNotVisible: 'What should Chefer help with\?'
+
+# ── Android BACK steps back one question and keeps the answer ────────────────
+- runFlow:
+    when:
+      platform: Android
+    commands:
+      - back
+      - extendedWaitUntil:
+          visible: 'What should Chefer help with\?'
+          timeout: 5000
+      - assertVisible: 'Continue.*1 selected'
+      - tapOn:
+          id: 'onboarding-continue'
+      - assertNotVisible: 'What should Chefer help with\?'
+
+# ── Process kill mid-wizard resumes on the same step ─────────────────────────
+- stopApp
+- runFlow: common/launch.yaml
+- extendedWaitUntil:
+    visible:
+      id: 'onboarding-title'
+    timeout: 60000
+- assertNotVisible: 'What should Chefer help with\?'
+- assertNotVisible:
+    id: 'home-title'

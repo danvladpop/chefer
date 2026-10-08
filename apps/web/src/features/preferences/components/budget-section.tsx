@@ -1,5 +1,10 @@
 import type { DisplayCurrency } from '@chefer/types';
-import { currencySymbol, fromEur } from '@chefer/utils';
+import {
+  currencySymbol,
+  parseWeeklyBudget,
+  weeklyBudgetCap,
+  weeklyBudgetCapLabel,
+} from '@chefer/utils';
 import { Section } from './section';
 
 interface BudgetSectionProps {
@@ -24,6 +29,8 @@ export function BudgetSection({
   onChange,
 }: BudgetSectionProps) {
   if (!isPremium) return null;
+  // UX-ACC-23: validate live and show the cap, instead of silently storing the cap.
+  const parsed = parseWeeklyBudget(weeklyBudget, deliveryCurrency);
 
   return (
     <Section>
@@ -39,16 +46,28 @@ export function BudgetSection({
         <input
           type="number"
           min={1}
-          max={Math.round(fromEur(2000, deliveryCurrency))}
+          max={weeklyBudgetCap(deliveryCurrency)}
           step="1"
           value={weeklyBudget}
           onChange={(e) => onChange(e.target.value)}
           onFocus={(e) => e.currentTarget.select()}
+          aria-label="Weekly budget"
+          aria-invalid={parsed.kind === 'error' ? 'true' : undefined}
+          aria-describedby="budget-hint"
           placeholder="e.g. 60"
           className="w-32 rounded-xl border border-input bg-background px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
         />
         <span className="text-sm text-muted-foreground">per week</span>
       </div>
+      {parsed.kind === 'error' ? (
+        <p id="budget-hint" role="alert" className="mt-2 text-sm text-destructive">
+          {parsed.message}
+        </p>
+      ) : (
+        <p id="budget-hint" className="mt-2 text-sm text-muted-foreground">
+          {weeklyBudgetCapLabel(deliveryCurrency)}.
+        </p>
+      )}
     </Section>
   );
 }

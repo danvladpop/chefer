@@ -1,6 +1,7 @@
 import {
   completeSetupInputSchema,
   EXERCISE_BY_ID,
+  GYM_MAX_WEIGHT_KG,
   TEMPLATE_BY_KEY,
   type CompleteSetupInput,
   type ExerciseMeta,
@@ -9,7 +10,15 @@ import {
   type TrainingExperience,
   type WeightUnit,
 } from '@chefer/types';
-import { estimateDurationMin, instantiateTemplate, unitToKg, volumeByGroup } from '@chefer/utils';
+import {
+  estimateDurationMin,
+  formatLoadNumber,
+  instantiateTemplate,
+  kgToUnit,
+  unitLabel,
+  unitToKg,
+  volumeByGroup,
+} from '@chefer/utils';
 
 // Pure setup logic (gym_plan.md §1.3 Setup): answers → the completeSetup
 // payload, and a template preview computed with the shared engine so
@@ -46,6 +55,31 @@ export function parseWeightInput(text: string): number | null {
   return Number.isFinite(value) && value > 0 ? value : null;
 }
 
+/**
+ * Inline check of one "I know my weights" field (UX-GYM-01): null when it is
+ * fine (or empty = skipped), else a short message with the limit in the user's
+ * unit. The same bound the server enforces, so the user never sees its Zod text.
+ */
+export function knownWeightError(text: string, unit: WeightUnit): string | null {
+  if (text.trim() === '') return null;
+  if (!/^\s*\d*[.,]?\d*\s*$/.test(text)) return 'Enter a number.';
+  const value = parseWeightInput(text);
+  if (value === null) return 'Enter a weight above 0, or leave it empty.';
+  if (value > kgToUnit(GYM_MAX_WEIGHT_KG, unit)) {
+    return `Max ${formatLoadNumber(GYM_MAX_WEIGHT_KG, unit)} ${unitLabel(unit)}.`;
+  }
+  return null;
+}
+
+/** A server rejection → words a person can act on (never Zod JSON). */
+export function friendlySetupError(message: string): string {
+  const t = message.trim();
+  if (t.startsWith('[') || t.startsWith('{')) {
+    return 'Some answers are out of range. Check the weights you typed and try again.';
+  }
+  return message;
+}
+
 /** Typed known weights (user unit) → kg, dropping blanks; capped at the schema's 1000 kg. */
 export function knownWeightsToKg(
   known: Record<string, string>,
@@ -55,7 +89,7 @@ export function knownWeightsToKg(
   for (const [exerciseId, text] of Object.entries(known)) {
     const value = parseWeightInput(text);
     if (value === null) continue;
-    out[exerciseId] = Math.min(1000, unitToKg(value, unit));
+    out[exerciseId] = Math.min(GYM_MAX_WEIGHT_KG, unitToKg(value, unit));
   }
   return out;
 }

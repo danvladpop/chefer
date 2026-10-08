@@ -30,6 +30,9 @@ export function createTrpcPreferencesMock() {
         updateTargets: { useMutation: jest.fn() },
         saveProfileBasics: { useMutation: jest.fn() },
         setDisplayPreferences: { useMutation: jest.fn() },
+        setNumbersMode: {
+          useMutation: jest.fn(() => ({ mutate: jest.fn(), isPending: false, isError: false })),
+        },
         setHomeDisplay: {
           useMutation: jest.fn(() => ({ mutate: jest.fn(), isPending: false, isError: false })),
         },
@@ -107,7 +110,11 @@ export function createTrpcPreferencesMock() {
         mealPlan: { invalidate: jest.fn() },
         dashboard: { invalidate: jest.fn(), summary: { invalidate: jest.fn() } },
         user: { me: { setData: jest.fn(), invalidate: jest.fn() } },
-        targets: { get: { invalidate: jest.fn() }, changes: { invalidate: jest.fn() } },
+        targets: {
+          invalidate: jest.fn(),
+          get: { invalidate: jest.fn() },
+          changes: { invalidate: jest.fn() },
+        },
         tracker: { getDay: { invalidate: jest.fn() } },
       })),
     },

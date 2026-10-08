@@ -1,8 +1,8 @@
 import { TRPCError } from '@trpc/server';
 import bcrypt from 'bcryptjs';
 import type { Response } from 'express';
-import { ConsentKind, prisma } from '@chefer/database';
-import type { AuthResult, MobileSession } from '@chefer/types';
+import { ConsentKind, prisma, type User } from '@chefer/database';
+import { ACCOUNT_EXISTS_MESSAGE, type AuthResult, type MobileSession } from '@chefer/types';
 import { defaultsForRegion } from '@chefer/utils';
 import { consentService } from '../privacy/consent.service.js';
 
@@ -95,7 +95,7 @@ export class AuthService {
     if (existing) {
       throw new TRPCError({
         code: 'CONFLICT',
-        message: 'An account with this email already exists',
+        message: ACCOUNT_EXISTS_MESSAGE,
       });
     }
 
@@ -194,6 +194,24 @@ export class AuthService {
     res.setHeader('Set-Cookie', `${SESSION_COOKIE}=; Path=/; HttpOnly; SameSite=Strict; Max-Age=0`);
   }
 
+  /** The `login`/`register` result shape, for flows that issue the session themselves (social sign-in). */
+  authResult(
+    user: Pick<User, 'id' | 'email' | 'name' | 'firstName' | 'role' | 'planTier' | 'image'>,
+    session: MobileSession,
+    includeSession: boolean,
+  ): AuthResult {
+    return {
+      id: user.id,
+      email: user.email,
+      name: user.name,
+      firstName: user.firstName,
+      role: user.role,
+      planTier: user.planTier,
+      image: user.image,
+      ...(includeSession ? { session } : {}),
+    };
+  }
+
   // ─── Private ───────────────────────────────────────────────────────────────
 
   /**
@@ -205,7 +223,7 @@ export class AuthService {
    * every registration regardless of level, since the column defaults apply
    * unconditionally.
    */
-  private async recordRegistrationConsent(
+  async recordRegistrationConsent(
     userId: string,
     input: {
       acceptedTerms: boolean | undefined;
@@ -255,7 +273,7 @@ export class AuthService {
     await Promise.all(writes);
   }
 
-  private async createSession(userId: string, res: Response): Promise<MobileSession> {
+  async createSession(userId: string, res: Response): Promise<MobileSession> {
     const sessionToken = crypto.randomUUID();
     const expires = new Date(Date.now() + SESSION_EXPIRY_MS);
 

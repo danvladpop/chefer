@@ -1,13 +1,8 @@
 import { useState } from 'react';
-import { Pressable, TextInput, View } from 'react-native';
+import { Keyboard, Pressable, TextInput, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
-import {
-  FRIENDS_COPY,
-  INGREDIENT_CATALOG_COPY,
-  VIDEO_IMPORT_COPY,
-  type NutritionStatus,
-} from '@chefer/types';
+import { FRIENDS_COPY, VIDEO_IMPORT_COPY } from '@chefer/types';
 import {
   Button,
   Card,
@@ -15,20 +10,15 @@ import {
   KeyboardAwareScrollView,
   Screen,
   Text,
+  useKeyboardDoneBar,
+  useSnackbar,
 } from '@chefer/ui-mobile';
-import { cn, incompleteLineCount, isSupportedVideoUrl, PREMIUM_PITCH_COPY } from '@chefer/utils';
+import { cn, isSupportedVideoUrl, PREMIUM_PITCH_COPY, userFacingErrorMessage } from '@chefer/utils';
 import { useAiConsent } from '../src/features/ai-consent/ai-consent-provider';
 import { textRejectedOf } from '../src/features/friends/api/friends-errors';
-import type { PickedIngredient } from '../src/features/ingredients/catalog-line';
-import {
-  effectiveIngredientIds,
-  ImportLineReview,
-} from '../src/features/ingredients/import-line-review';
-import { NutritionStatusTag } from '../src/features/ingredients/nutrition-provenance';
-import { useComputedNutrition } from '../src/features/ingredients/use-computed-nutrition';
 import { LockedFeatureCard } from '../src/features/premium/locked-feature-card';
 import { openPremium } from '../src/features/premium/open-premium';
-import { ImportedRecipePreview } from '../src/features/recipes/imported-recipe-preview';
+import { recipeFormCopy } from '../src/features/recipes/form/copy';
 import {
   VideoDraftForm,
   type VideoImportPreview,
@@ -36,6 +26,7 @@ import {
 } from '../src/features/recipes/video-draft-form';
 import { useIsPremium } from '../src/hooks/use-is-premium';
 import { trpc, type RouterOutputs } from '../src/lib/trpc';
+import { useUnsavedGuard } from '../src/lib/use-unsaved-guard';
 
 // Recipe import (F5 Cheferize) — port of web's ImportRecipeSheet (wave-2b).
 // Sources: URL, pasted text and a video link. Photo import lands with M3-2's
@@ -47,8 +38,15 @@ import { trpc, type RouterOutputs } from '../src/lib/trpc';
 // subtitles or speech) into a draft, and VideoDraftForm lets the user correct
 // and complete it before it is saved as the original.
 //
+// UX-REC-15: link and text imports review in the SAME editable form as video
+// (VideoDraftForm), seeded with the chosen version — Original, or Cheferized
+// when the adaptation changed something and is safe. UX-REC-14: when there is
+// no second version to choose, "Cheferized for you" is a note, not a disabled
+// card that looks selectable. UX-REC-07: Save replaces this screen with the
+// new recipe (no jump back to an unrelated screen).
+//
 // plan-ingredient-catalog §6.2/§10: nutrition is computed from the catalog,
-// never the AI. The review lists the lines the resolver couldn't match, with
+// never the AI. The form lists the lines the resolver couldn't match, with
 // candidates, the catalog search and "Create … as my ingredient"; the save
 // sends each line's `ingredientId` and `acceptPartial` — false when every
 // line computes, true only after "Save with incomplete nutrition?".
@@ -63,24 +61,25 @@ function VariantCard({
   selected,
   onSelect,
   note,
-  status,
+  testID,
 }: {
   title: string;
   recipe: Preview['original'];
   selected: boolean;
-  onSelect?: (() => void) | undefined;
+  onSelect: () => void;
   note?: string;
-  status?: NutritionStatus | undefined;
+  testID: string;
 }) {
   return (
     <Pressable
-      accessibilityRole="button"
-      disabled={!onSelect}
+      testID={testID}
+      accessibilityRole="radio"
+      accessibilityState={{ selected, checked: selected }}
+      accessibilityLabel={title}
       onPress={onSelect}
       className={cn(
-        'rounded-xl border p-3',
+        'min-h-11 rounded-xl border p-3',
         selected ? 'border-primary bg-accent' : 'border-border bg-card',
-        !onSelect && 'opacity-70',
       )}
     >
       <View className="flex-row items-center justify-between">
@@ -92,13 +91,9 @@ function VariantCard({
       <Text numberOfLines={1} className="mt-1 text-sm text-gray-800">
         {recipe.name}
       </Text>
-      <View className="flex-row flex-wrap items-center gap-1">
-        <Text className="text-xs text-gray-500">
-          {recipe.nutritionInfo.calories} kcal · {recipe.ingredients.length} ingredients ·{' '}
-          {recipe.prepTimeMins + recipe.cookTimeMins}m
-        </Text>
-        <NutritionStatusTag status={status} />
-      </View>
+      <Text className="text-xs text-gray-500">
+        {recipe.ingredients.length} ingredients · {recipe.prepTimeMins + recipe.cookTimeMins}m
+      </Text>
       {note && (
         <Text variant="muted" className="mt-1 text-xs">
           {note}
@@ -119,27 +114,37 @@ export default function ImportRecipeScreen() {
   const [preview, setPreview] = useState<Preview | null>(null);
   const [videoPreview, setVideoPreview] = useState<VideoImportPreview | null>(null);
   const [variant, setVariant] = useState<Variant>('adapted');
-  // The review's picks, per variant (their lines differ), by line index.
-  const [picks, setPicks] = useState<Record<Variant, Record<number, PickedIngredient>>>({
-    original: {},
-    adapted: {},
+  const snackbar = useSnackbar();
+
+  // UX-REC-06: a finished AI preview (link/text or video) is work the user paid
+  // a request for — BACK, the header arrow or the iOS swipe ask before it is
+  // thrown away. "Start over" clears the preview, which lifts the guard.
+  const guard = useUnsavedGuard(preview !== null || videoPreview !== null, {
+    title: 'Discard this import?',
+    message: 'The recipe preview will be lost and you will need to import it again.',
+    discardLabel: 'Discard',
+    keepLabel: 'Keep reviewing',
   });
-  const [confirmPartial, setConfirmPartial] = useState(false);
 
   const previewMutation = trpc.recipe.importPreview.useMutation({
+    meta: { silent: true },
     onSuccess: (data) => {
       setPreview(data);
-      setPicks({ original: {}, adapted: {} });
       setVariant(data.safety.ok && data.changes.length > 0 ? 'adapted' : 'original');
     },
   });
   const videoPreviewMutation = trpc.recipe.importVideoPreview.useMutation({
+    meta: { silent: true },
     onSuccess: (data) => setVideoPreview(data),
   });
   const saveMutation = trpc.recipe.importSave.useMutation({
-    onSuccess: () => {
+    meta: { silent: true },
+    onSuccess: (saved) => {
       void utils.recipe.list.invalidate();
-      router.back();
+      guard.release();
+      snackbar.show({ message: recipeFormCopy.save.saved, tone: 'success' });
+      // UX-REC-07: land on the recipe just saved, not on whatever is below.
+      router.replace({ pathname: '/recipe/[id]', params: { id: saved.id } });
     },
   });
 
@@ -161,10 +166,13 @@ export default function ImportRecipeScreen() {
         ? text.trim().length >= 20
         : isSupportedVideoUrl(videoUrl);
 
+  const textDone = useKeyboardDoneBar();
+
   const runPreview = () => {
     if (previewPending) {
       return;
     }
+    Keyboard.dismiss();
     // Free: importing is Premium. Nothing is sent (no consent needed, no
     // request made) — the sheet opens and the pasted content stays put.
     if (isPremium === false) {
@@ -205,42 +213,11 @@ export default function ImportRecipeScreen() {
   const adaptedUsable = preview ? preview.safety.ok && preview.changes.length > 0 : false;
   const chosen = preview ? (variant === 'adapted' ? preview.adapted : preview.original) : null;
 
-  // Catalog review of the chosen variant: the resolver's matches plus the
-  // user's picks, computed live with the shared engine.
-  const chosenResolution = preview ? preview.resolution[variant] : [];
-  const chosenPicks = picks[variant];
-  const chosenIds = chosen
-    ? effectiveIngredientIds(chosen.ingredients, chosenResolution, chosenPicks)
-    : [];
-  const live = useComputedNutrition(
-    chosen
-      ? chosen.ingredients.map((ing, i) => ({
-          ingredientId: chosenIds[i] ?? null,
-          quantity: ing.quantity,
-          unit: ing.unit,
-        }))
-      : [],
-    chosen?.servings ?? 1,
-  );
-  const liveReady = live.result !== undefined && !live.isComputing;
-  const chosenStatus: NutritionStatus | undefined = liveReady
-    ? live.result?.status
-    : preview?.nutritionStatus[variant];
-  const incompleteIndexes =
-    liveReady && live.result
-      ? live.result.lines.flatMap((l, i) => (l.problem !== undefined && !l.optional ? [i] : []))
-      : chosenResolution.flatMap((r, i) => (r.problem !== undefined ? [i] : []));
-
-  const saveChosen = (acceptPartial: boolean) => {
-    if (!chosen || !preview) return;
+  /** The editable form saves the reviewed recipe as the chosen variant. */
+  const saveChosen = (recipe: VideoSaveRecipe, acceptPartial: boolean) => {
+    if (!preview) return;
     saveMutation.mutate({
-      recipe: {
-        ...chosen,
-        ingredients: chosen.ingredients.map((ing, i) => {
-          const id = chosenIds[i];
-          return id ? { ...ing, ingredientId: id } : ing;
-        }),
-      },
+      recipe,
       variant,
       sourceUrl: preview.sourceUrl,
       ogImageUrl: preview.ogImageUrl,
@@ -282,7 +259,12 @@ export default function ImportRecipeScreen() {
           <VideoDraftForm
             preview={videoPreview}
             saving={saveMutation.isPending}
-            saveError={saveTextRejected ? null : (saveMutation.error?.message ?? null)}
+            saveError={
+              saveTextRejected
+                ? null
+                : ((saveMutation.error ? userFacingErrorMessage(saveMutation.error) : undefined) ??
+                  null)
+            }
             nameError={saveTextRejected ? FRIENDS_COPY.recipe.textRejected : null}
             onBack={startOver}
             onSave={saveVideoDraft}
@@ -338,9 +320,11 @@ export default function ImportRecipeScreen() {
                   autoCapitalize="none"
                   autoCorrect={false}
                   keyboardType="url"
+                  returnKeyType="go"
+                  onSubmitEditing={() => canPreview && runPreview()}
                   placeholder={VIDEO_IMPORT_COPY.urlPlaceholder}
                   placeholderTextColor="#9ca3af"
-                  className="h-11 rounded-md border border-input bg-background px-3 text-base text-foreground"
+                  className="min-h-11 py-2 rounded-md border border-input bg-background px-3 text-base text-foreground"
                 />
                 {videoUrlInvalid && (
                   <Text testID="import-video-invalid" className="text-sm text-red-600">
@@ -354,6 +338,7 @@ export default function ImportRecipeScreen() {
             ) : tab === 'url' ? (
               <TextInput
                 testID="import-url"
+                accessibilityLabel="Recipe link"
                 value={url}
                 onChangeText={(v) => {
                   // bug B-17: pasting a video link into the plain Link tab
@@ -370,21 +355,26 @@ export default function ImportRecipeScreen() {
                 }}
                 autoCapitalize="none"
                 keyboardType="url"
+                returnKeyType="go"
+                onSubmitEditing={() => canPreview && runPreview()}
                 placeholder="https://example.com/best-lasagna"
                 placeholderTextColor="#9ca3af"
-                className="h-11 rounded-md border border-input bg-background px-3 text-base text-foreground"
+                className="min-h-11 py-2 rounded-md border border-input bg-background px-3 text-base text-foreground"
               />
             ) : (
               <TextInput
                 testID="import-text"
+                accessibilityLabel="Recipe text"
                 value={text}
                 onChangeText={setText}
                 multiline
+                inputAccessoryViewID={textDone.inputAccessoryViewID}
                 placeholder="Paste the full recipe text (ingredients + steps)…"
                 placeholderTextColor="#9ca3af"
                 className="min-h-40 rounded-md border border-input bg-background px-3 py-2 text-base text-foreground"
               />
             )}
+            {textDone.bar}
 
             <Button
               testID="import-preview"
@@ -400,7 +390,7 @@ export default function ImportRecipeScreen() {
             </Button>
             {previewError && (
               <Card testID="import-error" className="border-red-200 bg-red-50">
-                <Text className="text-sm text-red-600">{previewError.message}</Text>
+                <Text className="text-sm text-red-600">{userFacingErrorMessage(previewError)}</Text>
               </Card>
             )}
           </>
@@ -421,103 +411,70 @@ export default function ImportRecipeScreen() {
               </Card>
             )}
 
-            <VariantCard
-              title="Original"
-              recipe={preview.original}
-              selected={variant === 'original'}
-              onSelect={isPremium ? () => setVariant('original') : undefined}
-              status={variant === 'original' ? chosenStatus : preview.nutritionStatus.original}
-            />
-            <VariantCard
-              title="Cheferized for you"
-              recipe={preview.adapted}
-              selected={variant === 'adapted'}
-              onSelect={isPremium && adaptedUsable ? () => setVariant('adapted') : undefined}
-              status={variant === 'adapted' ? chosenStatus : preview.nutritionStatus.adapted}
-              note={
-                preview.changes.length > 0
-                  ? preview.changes
-                      .slice(0, 3)
-                      .map((c) => c.description)
-                      .join(' · ')
-                  : 'No changes needed — already fits your profile.'
-              }
-            />
-
-            {chosen ? (
-              <ImportLineReview
-                testID="import-review"
-                lines={chosen.ingredients}
-                resolution={chosenResolution}
-                picks={chosenPicks}
-                result={liveReady ? live.result : undefined}
-                onPick={(index, ingredient) =>
-                  setPicks((prev) => ({
-                    ...prev,
-                    [variant]: { ...prev[variant], [index]: ingredient },
-                  }))
-                }
-              />
-            ) : null}
-
-            {chosen ? (
-              <ImportedRecipePreview
-                recipe={chosen}
-                label={variant === 'adapted' ? 'Cheferized for you' : 'Original'}
-                imageUrl={preview.ogImageUrl}
-                nutrition={liveReady ? live.result?.perServing : undefined}
-                status={chosenStatus}
-                incompleteLines={incompleteIndexes}
-              />
-            ) : null}
-
-            <Button
-              testID="import-save"
-              loading={saveMutation.isPending}
-              disabled={!chosen}
-              onPress={() => {
-                if (!chosen) return;
-                if (chosenStatus === 'PARTIAL') {
-                  setConfirmPartial(true);
-                  return;
-                }
-                saveChosen(false);
-              }}
-            >
-              {variant === 'adapted' ? 'Save Cheferized recipe' : 'Save original recipe'}
-            </Button>
-            {saveMutation.isError && (
-              <Card className="border-red-200 bg-red-50">
-                <Text testID="import-save-error" className="text-sm text-red-600">
-                  {saveTextRejected ? FRIENDS_COPY.recipe.textRejected : saveMutation.error.message}
+            {isPremium && adaptedUsable ? (
+              // Two real versions: pick the one to review and save.
+              <View testID="import-variants" accessibilityRole="radiogroup" className="gap-2">
+                <VariantCard
+                  testID="import-variant-original"
+                  title="Original"
+                  recipe={preview.original}
+                  selected={variant === 'original'}
+                  onSelect={() => setVariant('original')}
+                />
+                <VariantCard
+                  testID="import-variant-adapted"
+                  title="Cheferized for you"
+                  recipe={preview.adapted}
+                  selected={variant === 'adapted'}
+                  onSelect={() => setVariant('adapted')}
+                  note={preview.changes
+                    .slice(0, 3)
+                    .map((c) => c.description)
+                    .join(' · ')}
+                />
+                <Text variant="muted" className="text-xs">
+                  Switching version restarts the review below.
+                </Text>
+              </View>
+            ) : isPremium && preview.safety.ok ? (
+              // UX-REC-14: nothing to choose — a note, not a disabled card.
+              <Card testID="import-no-changes" className="bg-gray-50">
+                <Text className="text-xs text-gray-700">
+                  Cheferized for you: no changes needed — this recipe already fits your profile.
                 </Text>
               </Card>
-            )}
+            ) : null}
 
-            <Button variant="ghost" onPress={startOver}>
-              <Text variant="muted" className="text-xs">
-                Start over
-              </Text>
-            </Button>
+            {chosen ? (
+              <VideoDraftForm
+                key={variant}
+                preview={{
+                  draft: chosen,
+                  resolution: preview.resolution[variant],
+                  // The unsafe card above already says what the adaptation could not remove.
+                  safety: { ok: true, issues: [] },
+                }}
+                saving={saveMutation.isPending}
+                saveError={
+                  saveTextRejected
+                    ? null
+                    : ((saveMutation.error
+                        ? userFacingErrorMessage(saveMutation.error)
+                        : undefined) ?? null)
+                }
+                nameError={saveTextRejected ? FRIENDS_COPY.recipe.textRejected : null}
+                saveLabel={
+                  variant === 'adapted' ? 'Save Cheferized recipe' : 'Save original recipe'
+                }
+                onBack={startOver}
+                onSave={saveChosen}
+              />
+            ) : null}
           </>
         )}
       </KeyboardAwareScrollView>
 
-      <ConfirmSheet
-        testID="import-save-partial"
-        visible={confirmPartial}
-        onClose={() => setConfirmPartial(false)}
-        title={INGREDIENT_CATALOG_COPY.importReview.saveIncompleteTitle}
-        body={INGREDIENT_CATALOG_COPY.importReview.saveIncompleteBody(
-          Math.max(1, live.result ? incompleteLineCount(live.result) : incompleteIndexes.length),
-        )}
-        confirmLabel={INGREDIENT_CATALOG_COPY.importReview.saveIncompleteConfirm}
-        cancelLabel={INGREDIENT_CATALOG_COPY.importReview.saveIncompleteCancel}
-        onConfirm={() => {
-          setConfirmPartial(false);
-          saveChosen(true);
-        }}
-      />
+      <ConfirmSheet testID="import-discard" {...guard.sheetProps} />
     </Screen>
   );
 }

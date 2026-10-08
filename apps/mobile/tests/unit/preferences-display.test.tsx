@@ -22,7 +22,9 @@ jest.mock('../../src/lib/trpc', () => {
   const mock = require('./preferences-trpc-mock') as typeof import('./preferences-trpc-mock');
   return mock.createTrpcPreferencesMock();
 });
+let mockSearchParams: { section?: string } = {};
 jest.mock('expo-router', () => ({
+  useLocalSearchParams: () => mockSearchParams,
   router: { back: jest.fn(), push: jest.fn(), replace: jest.fn() },
 }));
 
@@ -61,6 +63,7 @@ function withProfile(planTier: 'FREE' | 'PREMIUM') {
 
 beforeEach(() => {
   jest.clearAllMocks();
+  mockSearchParams = {};
   trpc.preferences.updateSafety.useMutation.mockReturnValue(mutationResult());
   trpc.preferences.updateTargets.useMutation.mockReturnValue(mutationResult());
   trpc.preferences.saveProfileBasics.useMutation.mockReturnValue(mutationResult());
@@ -189,5 +192,22 @@ describe('Show calories and macros on Today (T-04.5)', () => {
     );
     await renderScreen();
     expect(screen.getByTestId('prefs-home-display-switch').props.value).toBe(false);
+  });
+});
+
+describe('Preferences — opened from a Settings row (UX-ACC-04)', () => {
+  it('is titled after the row and wraps the card it names in an anchor', async () => {
+    mockSearchParams = { section: 'display' };
+    withProfile('FREE');
+    await renderScreen();
+    expect(screen.getByTestId('preferences-title')).toHaveTextContent('Money & units');
+    expect(screen.getByTestId('section-display')).toBeOnTheScreen();
+    expect(screen.getByTestId('preferences-display')).toBeOnTheScreen();
+  });
+
+  it('keeps its own title when opened without a section', async () => {
+    withProfile('FREE');
+    await renderScreen();
+    expect(screen.getByTestId('preferences-title')).toHaveTextContent('Preferences');
   });
 });

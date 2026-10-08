@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { catalogRow } from '../../test-support/fake-catalog.js';
-import { mappingFor, unitSubstitutes } from './legacy-line-policy.js';
+import { cannedSibling, mappingFor, unitSubstitutes } from './legacy-line-policy.js';
 
 const portion = (unit: string, grams: number) => ({ unit, grams, source: 'fdc-portion:1' });
 
@@ -62,5 +62,21 @@ describe('mappingFor (legacy-mapping.json)', () => {
       ['salt', 1],
       ['black-pepper', 1],
     ]);
+  });
+});
+
+describe('cannedSibling (owner can size, 2026-10-02)', () => {
+  const cooked = catalogRow('bc', 'black-beans-cooked', []);
+  const canned = catalogRow('bk', 'black-beans-canned', [], { portions: [portion('can', 400)] });
+  const bySlug = new Map([cooked, canned].map((r) => [r.slug, r]));
+
+  it('moves a "can" line from the cooked row to its canned sibling', () => {
+    expect(cannedSibling(cooked, 'can', bySlug)?.slug).toBe('black-beans-canned');
+  });
+
+  it('leaves other units, and rows that already weigh a can, alone', () => {
+    expect(cannedSibling(cooked, 'g', bySlug)).toBeNull();
+    expect(cannedSibling(canned, 'can', bySlug)).toBeNull();
+    expect(cannedSibling(catalogRow('t', 'tofu-firm', []), 'can', bySlug)).toBeNull();
   });
 });

@@ -7,6 +7,7 @@ import { useFriendsMe } from '../friends/api/use-friends-me';
 import { AccountDataCard } from '../profile/account-data-card';
 import { AiConsentCard } from '../profile/ai-consent-card';
 import { AnalyticsConsentCard } from '../profile/analytics-consent-card';
+import { SectionAnchor } from '../settings/section-anchor';
 import { ConsentHistory } from './consent-history';
 import { HealthConsentCard } from './health-consent-card';
 
@@ -91,7 +92,9 @@ export function PrivacySection() {
       <ProfileVisibilityRow />
       <GymSettingsRow />
       {/* Destructive last (App Store 5.1.1(v)): Your data → Delete account. */}
-      <AccountDataCard />
+      <SectionAnchor id="account">
+        <AccountDataCard />
+      </SectionAnchor>
     </View>
   );
 }

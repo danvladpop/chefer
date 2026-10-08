@@ -15,19 +15,19 @@ import { trpc } from '@/lib/trpc';
 import { Check, Sparkles } from 'lucide-react';
 import { PLAN_FEATURES, PREMIUM_PERK_KEYS } from '@chefer/types';
 import { Sheet } from '@chefer/ui';
-import { cn, downgradeLosses, PREMIUM_PITCH_COPY } from '@chefer/utils';
+import { cn, downgradeLosses, PREMIUM_PITCH_COPY, userFacingErrorMessage } from '@chefer/utils';
 
 // ─── Upgrade button + confirmation dialog (PW-2) ──────────────────────────────
 // The one shared upgrade surface. Every touchpoint passes a `source` so the
 // PW-3 funnel can answer "which gate converts": upgrade_prompt_shown →
 // upgrade_clicked → upgrade_completed, all tagged with it.
 //
-// Soft-paywall phase: one confirmed click flips planTier to PREMIUM — free for
-// now, no payment. Stripe (roadmap P2-1) replaces only how the flag gets set.
+// Soft-paywall phase: one confirmed click flips planTier to PREMIUM — no
+// payment. Stripe (roadmap P2-1) replaces only how the flag gets set.
 //
 // T-10.5 (UX-10): the dialog is headlined by the JOB the source unlocks
 // (packages/utils premium-pitch.ts — the same registry the mobile sheet reads),
-// shows only live bullets, and carries the free-for-now terms every time it
+// shows only live bullets, and carries the included-at-no-cost terms every time it
 // opens. The trigger is "See what Premium adds", not a generic upgrade.
 //
 // The perk list on UpgradeCard still renders from the PLAN_FEATURES matrix
@@ -54,6 +54,7 @@ export function UpgradeButton({
   const router = useRouter();
 
   const upgradeMutation = trpc.user.upgradePlan.useMutation({
+    meta: { silent: true },
     onSuccess: () => {
       capture('upgrade_completed', { source });
       // Post-upgrade activation (review P-8) is shown by the shell-mounted
@@ -255,6 +256,7 @@ export function DowngradeButton({ className }: { className?: string }) {
   });
 
   const downgradeMutation = trpc.user.downgradePlan.useMutation({
+    meta: { silent: true },
     onSuccess: () => {
       capture('downgrade_completed', {});
       void utils.invalidate();
@@ -320,7 +322,7 @@ export function DowngradeButton({ className }: { className?: string }) {
         )}
         {downgradeMutation.isError && (
           <p role="alert" className="mt-3 text-sm text-red-600">
-            {downgradeMutation.error.message}
+            {userFacingErrorMessage(downgradeMutation.error)}
           </p>
         )}
       </Sheet>

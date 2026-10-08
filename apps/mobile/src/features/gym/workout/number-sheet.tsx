@@ -1,10 +1,17 @@
 import { useState } from 'react';
 import { Pressable, Text as RNText, View } from 'react-native';
-import type { EquipmentProfile, ExerciseMeta, WeightUnit } from '@chefer/types';
+import {
+  GYM_MAX_REPS,
+  GYM_MAX_WEIGHT_KG,
+  type EquipmentProfile,
+  type ExerciseMeta,
+  type WeightUnit,
+} from '@chefer/types';
 import { Button, Sheet, Text } from '@chefer/ui-mobile';
 import {
   formatLoadNumber,
   kgToUnit,
+  PER_HAND_SUFFIX,
   platesPerSide,
   roundToAchievable,
   sameKg,
@@ -54,7 +61,35 @@ function Keypad({
   );
 }
 
-function applyKey(text: string, key: Key, fresh: boolean, allowDecimal: boolean): string {
+/**
+ * UX-GYM-01: a value above this many times the previous one asks "are you
+ * sure?" before it is saved ("1025" typed for 102.5 kg is the classic slip).
+ */
+export const JUMP_CONFIRM_FACTOR = 2;
+/** Reps jump around legitimately (8 → 20 on a light set): only a big result asks. */
+const REPS_JUMP_CONFIRM_MIN = 50;
+
+/** The largest value the keypad accepts, in the unit it displays (the wire schema's cap). */
+export function keypadMax(kind: 'weight' | 'reps', unit: WeightUnit): number {
+  return kind === 'weight' ? kgToUnit(GYM_MAX_WEIGHT_KG, unit) : GYM_MAX_REPS;
+}
+
+/**
+ * True when saving `next` (display value) over `previous` should be
+ * confirmed: more than {@link JUMP_CONFIRM_FACTOR}× a known previous value.
+ */
+export function needsJumpConfirm(kind: 'weight' | 'reps', previous: number, next: number): boolean {
+  if (!(previous > 0) || next <= previous * JUMP_CONFIRM_FACTOR) return false;
+  return kind === 'weight' || next >= REPS_JUMP_CONFIRM_MIN;
+}
+
+function applyKey(
+  text: string,
+  key: Key,
+  fresh: boolean,
+  allowDecimal: boolean,
+  max: number,
+): string {
   const current = fresh ? '' : text;
   if (key === 'back') return fresh ? '' : current.slice(0, -1);
   if (key === '.') {
@@ -64,7 +99,21 @@ function applyKey(text: string, key: Key, fresh: boolean, allowDecimal: boolean)
   const [, decimals] = current.split('.');
   if (decimals !== undefined && decimals.length >= 2) return current;
   if (current.replace('.', '').length >= 5) return current;
-  return current === '0' ? key : `${current}${key}`;
+  const next = current === '0' ? key : `${current}${key}`;
+  // Clamp to the schema bound: a digit that would exceed it is ignored.
+  return Number.parseFloat(next) > max ? current : next;
+}
+
+// UX-GYM-19: a dumbbell / kettlebell number is ONE implement — say "each".
+function formatPrevious(
+  kind: 'weight' | 'reps',
+  value: number,
+  unit: WeightUnit,
+  each: boolean,
+): string {
+  return kind === 'weight'
+    ? `${formatLoadNumber(value, unit)} ${unitLabel(unit)}${each ? ` ${PER_HAND_SUFFIX}` : ''}`
+    : String(value);
 }
 
 export interface NumberSheetProps {
@@ -100,12 +149,31 @@ export function NumberSheet(props: NumberSheetProps) {
       : null;
   const belowBar = showPlates && kg !== null && kg < profile.barWeightKg - 0.005;
 
+  const max = keypadMax(kind, unit);
+  const [confirmingJump, setConfirmingJump] = useState(false);
+  const previousDisplay = kind === 'weight' ? kgToUnit(value, unit) : value;
+  const nextDisplay = kind === 'weight' ? parsed : Math.round(parsed);
+
+  const commit = () => {
+    onSubmit(
+      kind === 'weight' ? unitToKg(parsed, unit) : Math.min(GYM_MAX_REPS, Math.round(parsed)),
+    );
+  };
   const submit = () => {
     if (!valid) return;
-    onSubmit(kind === 'weight' ? unitToKg(parsed, unit) : Math.min(3600, Math.round(parsed)));
+    if (needsJumpConfirm(kind, previousDisplay, nextDisplay)) {
+      setConfirmingJump(true);
+      return;
+    }
+    commit();
   };
 
-  const suffix = kind === 'weight' ? unitLabel(unit) : timed ? 's' : 'reps';
+  const suffix =
+    kind === 'weight'
+      ? `${unitLabel(unit)}${meta?.perHand ? ` ${PER_HAND_SUFFIX}` : ''}`
+      : timed
+        ? 's'
+        : 'reps';
 
   return (
     <Sheet
@@ -114,9 +182,25 @@ export function NumberSheet(props: NumberSheetProps) {
       title={title}
       testID="number-sheet"
       footer={
-        <Button testID="number-sheet-save" size="lg" disabled={!valid} onPress={submit}>
-          Save
-        </Button>
+        confirmingJump ? (
+          <View className="gap-2">
+            <Button testID="number-sheet-jump-confirm" size="lg" onPress={commit}>
+              {`Yes, save ${text} ${suffix}`}
+            </Button>
+            <Button
+              testID="number-sheet-jump-change"
+              size="lg"
+              variant="outline"
+              onPress={() => setConfirmingJump(false)}
+            >
+              Change it
+            </Button>
+          </View>
+        ) : (
+          <Button testID="number-sheet-save" size="lg" disabled={!valid} onPress={submit}>
+            Save
+          </Button>
+        )
       }
     >
       <View className="items-center py-2">
@@ -125,6 +209,12 @@ export function NumberSheet(props: NumberSheetProps) {
           <Text className="text-lg text-muted-foreground"> {suffix}</Text>
         </Text>
       </View>
+
+      {confirmingJump ? (
+        <Text testID="number-sheet-jump-warning" className="text-center text-sm text-amber-800">
+          {`That is more than ${JUMP_CONFIRM_FACTOR}× the last ${formatPrevious(kind, value, unit, meta?.perHand === true)}. Is it right?`}
+        </Text>
+      ) : null}
 
       {plates && !belowBar ? (
         <View testID="plate-calculator" className="gap-2 rounded-xl bg-muted p-3">
@@ -147,6 +237,11 @@ export function NumberSheet(props: NumberSheetProps) {
               ))}
             </View>
           )}
+          {plates.remainderKg > 0.005 ? (
+            <Text testID="plate-calculator-remainder" className="text-sm text-amber-800">
+              {`${formatLoadNumber(plates.remainderKg, unit)} ${unitLabel(unit)} per side can't be made with your plates.`}
+            </Text>
+          ) : null}
           {nearest !== null && kg !== null && !sameKg(nearest, kg) ? (
             <Pressable
               testID="plate-calculator-nearest"
@@ -175,8 +270,9 @@ export function NumberSheet(props: NumberSheetProps) {
         testID="number-sheet"
         allowDecimal={allowDecimal}
         onKey={(key) => {
-          setText((t) => applyKey(t, key, fresh, allowDecimal));
+          setText((t) => applyKey(t, key, fresh, allowDecimal, max));
           setFresh(false);
+          setConfirmingJump(false);
         }}
       />
     </Sheet>

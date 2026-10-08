@@ -1,11 +1,12 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { render, screen, userEvent } from '@testing-library/react-native';
+import { act, render, screen, userEvent } from '@testing-library/react-native';
 import type { NextWorkoutDto, RoutineDto, SessionSummaryDto } from '@chefer/types';
 import { weekdayOf } from '@chefer/utils';
 import { getMode, resetModeForTests } from '../../src/features/gym/mode-store';
 import { activeSessionStore } from '../../src/features/gym/offline/active-session-store';
 import { localDate } from '../../src/features/gym/offline/ids';
 import { createMemoryKvBackend, setKvBackendForTests } from '../../src/features/gym/offline/kv';
+import { resetRestTimerForTests, skipRest, startRest } from '../../src/features/gym/rest-timer';
 import { TodaysWorkoutCard } from '../../src/features/gym/today/todays-workout-card';
 import { saveForLater, startWorkout } from '../../src/features/gym/use-active-workout';
 import { gymBootstrapQueryKey } from '../../src/features/gym/use-gym-bootstrap';
@@ -102,11 +103,24 @@ function todaySession(): SessionSummaryDto {
   };
 }
 
+// Pinned clock: the card reads the real clock, and "rest day" needs a pinned
+// weekday that is still AHEAD of today this week (a pin already behind us reads
+// as overdue → training), so the suite used to fail on Sundays. Local noon on
+// Wed 7 Oct 2026 keeps the weekday stable in every timezone. `advanceTimers`
+// keeps react-query, animations and `setTimeout` working.
+const NOW = new Date(2026, 9, 7, 12, 0, 0);
+
 beforeEach(() => {
   jest.clearAllMocks();
+  jest.useFakeTimers({ now: NOW, advanceTimers: true });
   setKvBackendForTests(createMemoryKvBackend());
   resetModeForTests();
   activeSessionStore.clear();
+  resetRestTimerForTests();
+});
+
+afterEach(() => {
+  jest.useRealTimers();
 });
 
 describe('TodaysWorkoutCard', () => {
@@ -176,7 +190,9 @@ describe('TodaysWorkoutCard', () => {
 
   it('rest day: "Rest day · Next: …", a Train anyway link instead of Start', async () => {
     const user = userEvent.setup();
-    const restWeekday = (weekdayOf(localDate()) + 1) % 7;
+    // Wed is weekday 2, so Thu (3) is still ahead this week — a genuine rest day.
+    expect(weekdayOf(localDate())).toBe(2);
+    const restWeekday = weekdayOf(localDate()) + 1;
     const queryClient = makeClient();
     queryClient.setQueryData(
       gymBootstrapQueryKey,
@@ -192,6 +208,39 @@ describe('TodaysWorkoutCard', () => {
     await user.press(screen.getByTestId('todays-workout-card-train-anyway'));
     expect(getMode()).toBe('gym');
     expect(router.push).toHaveBeenCalledWith('/today');
+  });
+
+  // UX-FOOD-19: the Plan names the routine day pinned to today's weekday. The
+  // card used to name the rotation's next day instead, so the two disagreed.
+  it('names the day pinned to today, not the rotation’s next day (UX-FOOD-19)', async () => {
+    const user = userEvent.setup();
+    const today = weekdayOf(localDate());
+    const queryClient = makeClient();
+    const routine: RoutineDto = {
+      ...routineFor((today + 2) % 7),
+      days: [
+        {
+          id: 'day-a',
+          position: 0,
+          name: 'Upper A',
+          plannedWeekday: (today + 2) % 7,
+          exercises: [],
+        },
+        { id: 'day-b', position: 1, name: 'Lower B', plannedWeekday: today, exercises: [] },
+      ],
+    };
+    // The rotation points at Upper A (due later this week); Plan says Lower B today.
+    queryClient.setQueryData(
+      gymBootstrapQueryKey,
+      makeBootstrap({ activeRoutine: routine, nextWorkout: NEXT_WORKOUT }),
+    );
+    await renderCard(queryClient);
+
+    expect(screen.getByTestId('todays-workout-card-label')).toHaveTextContent('Lower B');
+    expect(screen.queryByText(/Rest day/)).not.toBeOnTheScreen();
+
+    await user.press(screen.getByTestId('todays-workout-card-start'));
+    expect(activeSessionStore.get()?.doc.name).toBe('Lower B');
   });
 
   // T-36.A1.2: the resume line, built on the same resumeSummary() the gym
@@ -220,6 +269,30 @@ describe('TodaysWorkoutCard', () => {
       await user.press(screen.getByTestId('todays-workout-card-resume-button'));
       expect(getMode()).toBe('gym');
       expect(router.push).toHaveBeenCalledWith('/gym/workout');
+    });
+
+    // UX-GYM-09: minimising the workout must not hide the running rest.
+    it('shows the running rest countdown on the resume line', async () => {
+      const queryClient = makeClient();
+      queryClient.setQueryData(
+        gymBootstrapQueryKey,
+        makeBootstrap({
+          activeRoutine: routineFor(weekdayOf(localDate())),
+          nextWorkout: NEXT_WORKOUT,
+        }),
+      );
+      await renderCard(queryClient);
+      expect(screen.queryByTestId('todays-workout-card-rest')).not.toBeOnTheScreen();
+
+      await act(() => {
+        startRest(90, null);
+      });
+      expect(screen.getByTestId('todays-workout-card-rest')).toHaveTextContent(/Rest 1:\d\d/);
+
+      await act(() => {
+        skipRest();
+      });
+      expect(screen.queryByTestId('todays-workout-card-rest')).not.toBeOnTheScreen();
     });
 
     it('shows "Workout paused" once saved for later', async () => {

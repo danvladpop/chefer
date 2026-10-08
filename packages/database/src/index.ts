@@ -44,6 +44,9 @@ export {
   dailyLogRepository,
   type IDailyLogRepository,
   type LoggedMealEntry,
+  type DayState,
+  type SlotRefJson,
+  parseSkippedSlots,
   type UpsertDailyLogData,
   WeightEntryRepository,
   weightEntryRepository,
@@ -159,6 +162,13 @@ export {
   consentEventRepository,
   type IConsentEventRepository,
   type RecordConsentEventData,
+  // Sign in with Google / Apple (WP-22)
+  AuthIdentityRepository,
+  authIdentityRepository,
+  type IAuthIdentityRepository,
+  type IdentityWithUser,
+  type CreateIdentityData,
+  type UpdateIdentityData,
   // Following (docs/friends/implementation-plan.md §2.4)
   SocialProfileRepository,
   socialProfileRepository,
@@ -236,7 +246,14 @@ export {
   type ValidateOptions,
   // Catalog sync (§4.4 step 7): catalog.json → global Ingredient rows
   readCatalogFile,
+  readGeneratedCatalogFile,
   CATALOG_FILE_PATH,
+  // Curated portions overlay (UX-REC-14)
+  applyPortionsOverlay,
+  readPortionsOverlay,
+  validatePortionsOverlay,
+  PORTIONS_OVERLAY_PATH,
+  type PortionsOverlayRow,
   applyCatalogSync,
   planCatalogSync,
   loadGlobalIngredients,
@@ -251,6 +268,7 @@ export {
 export type {
   User,
   Account,
+  AuthIdentity,
   Session,
   Post,
   Tag,

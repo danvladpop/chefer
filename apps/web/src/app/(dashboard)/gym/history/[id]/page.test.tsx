@@ -14,13 +14,18 @@ import GymHistoryDetailPage from './page';
 
 const ID = '00000000-0000-4000-8000-0000000000f1';
 
-const m = vi.hoisted(() => ({
-  back: vi.fn(),
-  push: vi.fn(),
-  toasts: [] as { message: string; actionLabel?: string; onAction?: () => void }[],
-  doc: undefined as WorkoutSessionDoc | undefined,
-  library: [] as unknown[],
-}));
+const m = vi.hoisted(() => {
+  const error: unknown = null;
+  return {
+    back: vi.fn(),
+    push: vi.fn(),
+    toasts: [] as { message: string; actionLabel?: string; onAction?: () => void }[],
+    doc: undefined as WorkoutSessionDoc | undefined,
+    library: [] as unknown[],
+    error,
+    refetch: vi.fn(),
+  };
+});
 
 vi.mock('next/navigation', () => ({
   useParams: () => ({ id: '00000000-0000-4000-8000-0000000000f1' }),
@@ -40,7 +45,19 @@ vi.mock('next/link', () => ({
 vi.mock('@/hooks/useHasMounted', () => ({ useHasMounted: () => true }));
 vi.mock('@/lib/trpc', () => ({
   trpc: {
-    gym: { session: { get: { useQuery: () => ({ data: m.doc, isLoading: false, error: null }) } } },
+    gym: {
+      session: {
+        get: {
+          useQuery: () => ({
+            data: m.error ? undefined : m.doc,
+            isLoading: false,
+            error: m.error,
+            refetch: m.refetch,
+            isRefetching: false,
+          }),
+        },
+      },
+    },
     useUtils: () => ({
       gym: {
         bootstrap: {
@@ -165,6 +182,8 @@ beforeEach(() => {
   m.toasts.length = 0;
   m.push.mockClear();
   m.doc = mixedDoc();
+  m.error = null;
+  m.refetch.mockClear();
   m.library = [exercise('barbell-bench-press'), exercise('outdoor-run')];
 });
 afterEach(() => {
@@ -173,11 +192,89 @@ afterEach(() => {
 });
 
 describe('GymHistoryDetailPage', () => {
+  // WP-20: "Cycling class · 45 min · ~400 kcal (from your watch)".
+  it('reads a quick-logged activity as one line with the kcal source', () => {
+    const at = '2026-09-22T17:00:00.000Z';
+    const doc = mixedDoc();
+    const [bench] = doc.exercises;
+    if (!bench) throw new Error('fixture has no exercise');
+    m.doc = {
+      ...doc,
+      name: 'Cycling class',
+      finishedAt: '2026-09-22T17:45:00.000Z',
+      startedAt: at,
+      exercises: [
+        {
+          ...bench,
+          id: 'se-spin',
+          exerciseId: 'spin-class',
+          position: 0,
+          lastSetRir: null,
+          sets: [
+            {
+              id: 's1',
+              position: 0,
+              weightKg: 0,
+              reps: 0,
+              isWarmup: false,
+              completedAt: at,
+              durationSec: 2700,
+              intensityRpe: 7,
+              caloriesKcal: 400,
+            },
+          ],
+        },
+      ],
+    };
+    m.library = [exercise('spin-class')];
+    render(<GymHistoryDetailPage />);
+    expect(screen.getByTestId('gym-history-activity')).toHaveTextContent(
+      'Cycling class · 45 min · ~400 kcal (from your watch)',
+    );
+    expect(screen.getByText('Effort: Hard')).toBeInTheDocument();
+    expect(screen.queryByText(/kg/)).toBeNull();
+  });
+
   it('T-42.5: a cardio exercise reads time · distance · effort, never "0 kg × 0"', () => {
     render(<GymHistoryDetailPage />);
     expect(screen.getByText('60 kg × 8')).toBeInTheDocument();
     expect(screen.getByTestId('gym-history-cardio')).toHaveTextContent('20 min · 5 km · Moderate');
     expect(screen.queryByText(/0 kg × 0/)).toBeNull();
+  });
+
+  // UX-GYM-27: assisted / bodyweight loads read right, never "25 kg × 8" or "0 kg × 12".
+  it('UX-GYM-27: an assisted set reads "25 kg assist", a bodyweight set reads "BW"', () => {
+    const at = '2026-09-22T18:00:00.000Z';
+    const doc = mixedDoc();
+    const base = doc.exercises[0];
+    if (!base) throw new Error('fixture');
+    doc.exercises = [
+      {
+        ...base,
+        id: 'se-assist',
+        exerciseId: 'assisted-pull-up',
+        sets: [{ id: 'a1', position: 0, weightKg: 25, reps: 8, isWarmup: false, completedAt: at }],
+      },
+    ];
+    m.doc = doc;
+    m.library = [exercise('assisted-pull-up')];
+    render(<GymHistoryDetailPage />);
+    expect(screen.getByText('25 kg assist × 8')).toBeInTheDocument();
+  });
+
+  // UX-GYM-24: a failed load is an error with Retry, not "Session not found".
+  it('UX-GYM-24: a failed load shows Retry; only NOT_FOUND says "not found"', () => {
+    m.error = new Error('network down');
+    render(<GymHistoryDetailPage />);
+    expect(screen.getByTestId('gym-history-detail-error')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: /try again/i }));
+    expect(m.refetch).toHaveBeenCalled();
+    expect(screen.queryByText('Session not found.')).toBeNull();
+
+    cleanup();
+    m.error = { data: { code: 'NOT_FOUND', httpStatus: 404 } };
+    render(<GymHistoryDetailPage />);
+    expect(screen.getByText('Session not found.')).toBeInTheDocument();
   });
 
   it('T-44.5: ⋯ → Delete workout confirms by name, holds it, and Undo sends nothing', async () => {

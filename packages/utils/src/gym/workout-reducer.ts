@@ -10,6 +10,13 @@ import type {
   WorkoutSessionDoc,
 } from '@chefer/types';
 import { ENGINE_VERSION } from './progression';
+import {
+  createSuperset,
+  moveSupersetItem,
+  normalizeSupersets,
+  sessionOwnsSupersets,
+  ungroupSuperset,
+} from './supersets';
 
 /**
  * T-42.3 (S20, Δ2.2): the optional cardio fields a `completeSet`/`editSet`
@@ -84,6 +91,22 @@ export type WorkoutAction =
       at: string;
     }
   | { type: 'moveExercise'; seId: string; direction: 'up' | 'down'; at: string }
+  // plan-library-supersets S2/S3: supersets made in the workout belong to this
+  // session (S-D3). `derivedGroups` (seId → letter) is the grouping the screen
+  // showed for a doc that does not own its letters yet (an older doc whose
+  // supersets come from the routine), so those survive the first edit.
+  | {
+      type: 'createSuperset';
+      seIds: string[];
+      derivedGroups?: Record<string, string | null>;
+      at: string;
+    }
+  | {
+      type: 'ungroupSuperset';
+      seId: string;
+      derivedGroups?: Record<string, string | null>;
+      at: string;
+    }
   | { type: 'setNote'; seId: string | null; notes: string | null; at: string }
   // T-36.3: `carryOverExerciseIds` names the unstarted exercises to move to
   // the next session (`Move them to your next session`, or the 24 h
@@ -173,6 +196,7 @@ export function startSession(input: {
         prescription: ex.suggestion,
         notes: ex.notes,
         sets: plannedSets(ex.suggestion, ex.warmups, ids),
+        supersetGroup: ex.supersetGroup,
       };
     });
   return {
@@ -229,6 +253,32 @@ function mapSet(
 
 function sortedByPosition<T extends { position: number }>(items: T[]): T[] {
   return [...items].sort((a, b) => a.position - b.position);
+}
+
+/**
+ * The doc's exercises in order with explicit superset letters: its own when
+ * it owns them, else `derived` (what the screen showed), else none.
+ */
+type GroupedExercise = SessionExerciseDoc & { supersetGroup: string | null };
+
+function withOwnGroups(
+  doc: WorkoutSessionDoc,
+  derived: Record<string, string | null> | undefined,
+): GroupedExercise[] {
+  const owned = sessionOwnsSupersets(doc.exercises);
+  return sortedByPosition(doc.exercises).map((se) => ({
+    ...se,
+    supersetGroup: owned ? (se.supersetGroup ?? null) : (derived?.[se.id] ?? null),
+  }));
+}
+
+/** Normalised letters (narrowed back to SessionExerciseDoc) and contiguous positions. */
+function regroup(exercises: SessionExerciseDoc[]): SessionExerciseDoc[] {
+  const items: GroupedExercise[] = exercises.map((se) => ({
+    ...se,
+    supersetGroup: se.supersetGroup ?? null,
+  }));
+  return reindex(normalizeSupersets(items));
 }
 
 /**
@@ -353,8 +403,9 @@ export function workoutReducer(doc: WorkoutSessionDoc, action: WorkoutAction): W
       );
     case 'removeExercise': {
       if (!doc.exercises.some((se) => se.id === action.seId)) return doc;
+      const left = sortedByPosition(doc.exercises).filter((se) => se.id !== action.seId);
       return stamp({
-        exercises: reindex(sortedByPosition(doc.exercises).filter((se) => se.id !== action.seId)),
+        exercises: sessionOwnsSupersets(doc.exercises) ? regroup(left) : reindex(left),
       });
     }
     case 'restoreExercise': {
@@ -382,6 +433,7 @@ export function workoutReducer(doc: WorkoutSessionDoc, action: WorkoutAction): W
         prescription: action.prescription,
         notes: null,
         sets: plannedSets(action.prescription, action.warmups, action.newSetIds),
+        ...(sessionOwnsSupersets(exercises) && { supersetGroup: null }),
       };
       return stamp({ exercises: reindex([...exercises, added]) });
     }
@@ -391,6 +443,15 @@ export function workoutReducer(doc: WorkoutSessionDoc, action: WorkoutAction): W
       if (idx < 0) {
         return doc;
       }
+      if (sessionOwnsSupersets(exercises)) {
+        // Same rule as the routine editors: a step swaps partners inside a
+        // superset, otherwise hops over a whole neighbouring superset.
+        const items: GroupedExercise[] = exercises.map((se) => ({
+          ...se,
+          supersetGroup: se.supersetGroup ?? null,
+        }));
+        return stamp({ exercises: reindex(moveSupersetItem(items, idx, action.direction)) });
+      }
       const target = action.direction === 'up' ? idx - 1 : idx + 1;
       const moving = exercises[idx];
       const other = exercises[target];
@@ -399,6 +460,18 @@ export function workoutReducer(doc: WorkoutSessionDoc, action: WorkoutAction): W
         exercises[target] = moving;
       }
       return stamp({ exercises: reindex(exercises) });
+    }
+    case 'createSuperset': {
+      const exercises = withOwnGroups(doc, action.derivedGroups);
+      const indices = action.seIds.map((id) => exercises.findIndex((se) => se.id === id));
+      if (indices.some((i) => i < 0)) return doc;
+      return stamp({ exercises: reindex(createSuperset(exercises, indices)) });
+    }
+    case 'ungroupSuperset': {
+      const exercises = withOwnGroups(doc, action.derivedGroups);
+      const index = exercises.findIndex((se) => se.id === action.seId);
+      if (index < 0) return doc;
+      return stamp({ exercises: reindex(ungroupSuperset(exercises, index)) });
     }
     case 'setNote':
       if (action.seId === null) {

@@ -34,6 +34,35 @@ export interface LoggedMealEntry {
   protein: number;
   carbs: number;
   fat: number;
+  /**
+   * UX-FOOD-11: macros of a custom entry the user left blank. The numbers
+   * above stay plain 0 (shipped clients read them as numbers; a null would
+   * crash them) — this additive flag says they are unknown, not zero.
+   */
+  unknownMacros?: ('protein' | 'carbs' | 'fat')[] | undefined;
+  /**
+   * WP-06 "Ate something else": the plan slot this CUSTOM entry replaces.
+   * The slot then counts as eaten with this entry's numbers and its planned
+   * recipe leaves the day's planned totals. Optional and additive — older
+   * clients see an ordinary custom entry (same `mealType`) and total it.
+   */
+  replacesSlot?: SlotRefJson | undefined;
+}
+
+/** A plan slot of one day: the meal type and its index in the day's `meals`. */
+export interface SlotRefJson {
+  mealType: string;
+  slotIndex: number;
+}
+
+/**
+ * One day's mutable state: the entries plus the slots the user skipped
+ * (WP-06). Skips live OUTSIDE `loggedMeals` so shipped clients that iterate
+ * and total the entries never see them.
+ */
+export interface DayState {
+  entries: LoggedMealEntry[];
+  skippedSlots: SlotRefJson[];
 }
 
 export interface UpsertDailyLogData {
@@ -59,6 +88,28 @@ export interface IDailyLogRepository {
     date: Date,
     mutate: (current: LoggedMealEntry[]) => LoggedMealEntry[],
   ): Promise<DailyLog>;
+  /**
+   * Like `mutateDay`, but the mutation also sees and returns the day's
+   * `skippedSlots` (WP-06). Same SERIALIZABLE transaction and retry; totals
+   * are recomputed from the entries only.
+   */
+  mutateDayState(
+    userId: string,
+    date: Date,
+    mutate: (current: DayState) => DayState,
+  ): Promise<DailyLog>;
+}
+
+/** The stored `skippedSlots` JSON as a typed list (tolerates null / junk). */
+export function parseSkippedSlots(value: unknown): SlotRefJson[] {
+  if (!Array.isArray(value)) return [];
+  return value.flatMap((v): SlotRefJson[] => {
+    if (typeof v !== 'object' || v === null) return [];
+    const { mealType, slotIndex } = v as { mealType?: unknown; slotIndex?: unknown };
+    return typeof mealType === 'string' && typeof slotIndex === 'number'
+      ? [{ mealType, slotIndex }]
+      : [];
+  });
 }
 
 /** Day totals from its entries (kcal rounded to int, macros to 0.1 g). */
@@ -129,6 +180,17 @@ export class DailyLogRepository implements IDailyLogRepository {
     date: Date,
     mutate: (current: LoggedMealEntry[]) => LoggedMealEntry[],
   ): Promise<DailyLog> {
+    return this.mutateDayState(userId, date, ({ entries, skippedSlots }) => ({
+      entries: mutate(entries),
+      skippedSlots,
+    }));
+  }
+
+  async mutateDayState(
+    userId: string,
+    date: Date,
+    mutate: (current: DayState) => DayState,
+  ): Promise<DailyLog> {
     const d = new Date(date);
     d.setUTCHours(0, 0, 0, 0);
     // Parallel quick-adds used to read the same array and overwrite each
@@ -141,14 +203,18 @@ export class DailyLogRepository implements IDailyLogRepository {
             const existing = await tx.dailyLog.findUnique({
               where: { userId_date: { userId, date: d } },
             });
-            const current = (existing?.loggedMeals as unknown as LoggedMealEntry[] | null) ?? [];
+            const current: DayState = {
+              entries: (existing?.loggedMeals as unknown as LoggedMealEntry[] | null) ?? [],
+              skippedSlots: parseSkippedSlots(existing?.skippedSlots),
+            };
             const next = mutate(current);
-            const totals = dayTotals(next);
-            const loggedMeals = next as unknown as Prisma.JsonArray;
+            const totals = dayTotals(next.entries);
+            const loggedMeals = next.entries as unknown as Prisma.JsonArray;
+            const skippedSlots = next.skippedSlots as unknown as Prisma.JsonArray;
             return tx.dailyLog.upsert({
               where: { userId_date: { userId, date: d } },
-              create: { userId, date: d, loggedMeals, ...totals },
-              update: { loggedMeals, ...totals },
+              create: { userId, date: d, loggedMeals, skippedSlots, ...totals },
+              update: { loggedMeals, skippedSlots, ...totals },
             });
           },
           { isolationLevel: 'Serializable' },

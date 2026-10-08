@@ -5,15 +5,21 @@ import { HouseholdSection } from './household-section';
 
 // Backlog P2-3: members are free (safety), scaling is premium; the free ghost
 // reflects the chip tapped (F-PM-12); removing a member asks first (F-ONB-3-2).
-const m = vi.hoisted(() => ({
-  members: [] as Record<string, unknown>[],
-  isPremium: false,
-  remove: vi.fn(),
-  add: vi.fn(),
-  updateSafety: vi.fn(),
-  ownSafety: { allergies: [] as string[], dietaryRestrictions: [] as string[] },
-  table: { people: [] as Record<string, unknown>[], hasRules: false, needsReview: false },
-}));
+const m = vi.hoisted(() => {
+  const noState: Record<string, unknown> = {};
+  return {
+    members: [] as Record<string, unknown>[],
+    isPremium: false,
+    remove: vi.fn(),
+    add: vi.fn(),
+    updateSafety: vi.fn(),
+    ownSafety: { allergies: [] as string[], dietaryRestrictions: [] as string[] },
+    // UX-ACC-03: the two loads can fail independently.
+    listState: noState,
+    prefsState: noState,
+    table: { people: [] as Record<string, unknown>[], hasRules: false, needsReview: false },
+  };
+});
 // T-26.2: these tests are about the save itself — the health-consent guard is
 // covered in privacy/use-health-consent.test.tsx, so here consent is always on record.
 vi.mock('@/features/privacy/use-health-consent', () => ({
@@ -64,7 +70,7 @@ vi.mock('@/lib/trpc', () => {
         shoppingList: { invalidate },
       }),
       household: {
-        list: { useQuery: () => ({ data: m.members, isLoading: false }) },
+        list: { useQuery: () => ({ data: m.members, isLoading: false, ...m.listState }) },
         add: { useMutation: mutation((...a) => m.add(...a)) },
         update: { useMutation: mutation(() => undefined) },
         remove: { useMutation: mutation((...a) => m.remove(...a)) },
@@ -74,6 +80,7 @@ vi.mock('@/lib/trpc', () => {
         get: {
           useQuery: () => ({
             data: { dietaryPreferences: m.ownSafety },
+            ...m.prefsState,
           }),
         },
         updateSafety: { useMutation: mutation((...a) => m.updateSafety(...a)) },
@@ -100,6 +107,8 @@ afterEach(cleanup);
 beforeEach(() => {
   vi.clearAllMocks();
   m.members = [];
+  m.listState = {};
+  m.prefsState = {};
   m.isPremium = false;
   m.ownSafety = { allergies: [], dietaryRestrictions: [] };
   m.table = { people: [], hasRules: false, needsReview: false };
@@ -131,6 +140,38 @@ describe('HouseholdSection', () => {
     expect(m.add).toHaveBeenCalledWith(
       expect.objectContaining({ name: 'Sam', portionFactor: 0.5, isKid: true }),
     );
+  });
+
+  it('UX-PLAN-12: a kid gets age chips that pre-fill the portion and are sent with the member', () => {
+    render(<HouseholdSection isPremium={false} ownerSafety={owner} />);
+    fireEvent.click(screen.getByRole('button', { name: '+ add a kid' }));
+    fireEvent.click(screen.getByRole('button', { name: /Add a kid — free/ }));
+    expect(screen.getByTestId('member-age-group')).toBeTruthy();
+    fireEvent.change(screen.getByLabelText('Name'), { target: { value: 'Ana' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Age 14–17' }));
+    expect(screen.getByRole('button', { name: 'Age 14–17' }).getAttribute('aria-pressed')).toBe(
+      'true',
+    );
+    // Pre-filled to 1¼, still adjustable.
+    expect(screen.getByRole('button', { name: '1¼ · hearty' }).getAttribute('aria-pressed')).toBe(
+      'true',
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'Add to my table' }));
+    expect(m.add).toHaveBeenCalledWith(
+      expect.objectContaining({ name: 'Ana', isKid: true, ageBand: 'TEEN', portionFactor: 1.25 }),
+    );
+  });
+
+  it('UX-PLAN-12: age chips are hidden for a non-kid, and the stored band shows on the member', () => {
+    m.members = [{ ...sam, ageBand: 'CHILD' }];
+    render(<HouseholdSection isPremium={false} ownerSafety={owner} />);
+    expect(screen.getByText(/4–8 · /)).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: 'Edit Sam' }));
+    expect(screen.getByRole('button', { name: 'Age 4–8' }).getAttribute('aria-pressed')).toBe(
+      'true',
+    );
+    fireEvent.click(screen.getByLabelText('This is a kid'));
+    expect(screen.queryByTestId('member-age-group')).toBeNull();
   });
 
   it('a free table with members can edit them and sees the scaling upsell', () => {
@@ -197,5 +238,52 @@ describe('HouseholdSection', () => {
     m.table = { people: [], hasRules: true, needsReview: false };
     render(<HouseholdSection isPremium={false} ownerSafety={owner} variant="onboarding" />);
     expect(screen.queryByRole('button', { name: 'Allergies & diet for you' })).toBeNull();
+  });
+
+  // UX-ACC-01: a typed-but-unadded "Something else?" term must be in what Save stores.
+  it('adds a typed "sesame" to the new member when Add to my table is pressed', () => {
+    render(<HouseholdSection isPremium={false} ownerSafety={owner} />);
+    fireEvent.click(screen.getByRole('button', { name: '+ add a kid' }));
+    fireEvent.click(screen.getByRole('button', { name: /Add a kid — free/ }));
+    fireEvent.change(screen.getByLabelText('Name'), { target: { value: 'Sam' } });
+    fireEvent.change(screen.getByLabelText('Something else?'), { target: { value: 'sesame' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Add to my table' }));
+
+    expect(m.add).toHaveBeenCalledTimes(1);
+    const [payload] = m.add.mock.calls[0] as [{ allergies: string[] }];
+    expect(payload.allergies).toContain('Sesame');
+  });
+
+  it('adds a typed "sesame" to your own allergies when Save changes is pressed', () => {
+    m.ownSafety = { allergies: ['Peanuts'], dietaryRestrictions: [] };
+    render(<HouseholdSection isPremium={false} ownerSafety={owner} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Allergies & diet for you' }));
+    fireEvent.change(screen.getByLabelText('Something else?'), { target: { value: 'sesame' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Save changes' }));
+
+    expect(m.updateSafety).toHaveBeenCalledTimes(1);
+    const [payload] = m.updateSafety.mock.calls[0] as [{ allergies: string[] }];
+    expect(payload.allergies).toEqual(expect.arrayContaining(['Peanuts', 'Sesame']));
+  });
+
+  // UX-ACC-03: a failed load must not read as "just you", nor seed "You" with nothing.
+  it('shows an error with a retry — not an empty table — when the household failed to load', () => {
+    const refetch = vi.fn();
+    m.listState = { data: undefined, isError: true, refetch };
+    render(<HouseholdSection isPremium={false} ownerSafety={owner} />);
+    expect(screen.getByTestId('household-load-error')).toBeTruthy();
+    expect(screen.queryByRole('button', { name: '+ add a kid' })).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'Try again' }));
+    expect(refetch).toHaveBeenCalled();
+  });
+
+  it('does not offer "You" until the saved preferences loaded', () => {
+    const refetch = vi.fn();
+    m.prefsState = { data: undefined, isError: true, refetch };
+    render(<HouseholdSection isPremium={false} ownerSafety={owner} />);
+    expect(screen.queryByRole('button', { name: 'Allergies & diet for you' })).toBeNull();
+    expect(screen.getByTestId('household-you-unavailable').textContent).toContain('Couldn’t load');
+    fireEvent.click(screen.getByRole('button', { name: 'Retry' }));
+    expect(refetch).toHaveBeenCalled();
   });
 });

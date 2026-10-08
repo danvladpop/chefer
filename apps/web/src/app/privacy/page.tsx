@@ -79,8 +79,11 @@ export default async function PrivacyPage() {
           <p>
             Chefer is run by Pop Dan-Vlad, an individual based in Romania, who is the data
             controller for the personal data described here. In this policy, &ldquo;we&rdquo; and
-            &ldquo;us&rdquo; mean him. For anything about your data, email <Mail />. Chefer has no
-            data protection officer, so write to the same address.
+            &ldquo;us&rdquo; mean him. On the App Store, the iOS app is published by Smooth Path
+            Digital S.R.L on his behalf, which is why Apple shows that company as the seller. Smooth
+            Path Digital S.R.L does not receive or process your Chefer account data. For anything
+            about your data, email <Mail />. Chefer has no data protection officer, so write to the
+            same address.
           </p>
         </Section>
 
@@ -163,9 +166,10 @@ export default async function PrivacyPage() {
 
         <Section title="AI processing">
           <p>
-            Plan generation, meal swaps, meal-photo scanning, recipe import, chat and AI
-            shopping-list tidy-up send the relevant data (your preferences and allergies, goals and
-            body metrics, the photo, recipe or message you submitted) to an AI provider — currently{' '}
+            Plan generation, meal swaps, meal-photo scanning, recipe import, chat, AI shopping-list
+            tidy-up, the weekly review and filling in an ingredient&apos;s nutrition send the
+            relevant data (your preferences and allergies, goals, body metrics and weight trend, the
+            photo, recipe, message or ingredient name you submitted) to an AI provider — currently{' '}
             {primary.name}
             {backups.length > 0 && (
               <>
@@ -196,10 +200,10 @@ export default async function PrivacyPage() {
 
         <Section title="Camera & photos">
           <p>
-            The iOS and Android app use your camera or photo library only when you choose to take or
-            attach a photo — for example to scan a meal or add a recipe photo. Nothing is read in
-            the background. Photos you attach to a recipe or an ingredient are stored on our server
-            so you can see them.
+            The Chefer app uses your camera or photo library only when you choose to take or attach
+            a photo — for example to scan a meal or add a recipe photo. Nothing is read in the
+            background. Photos you attach to a recipe or an ingredient are stored on our server so
+            you can see them.
           </p>
         </Section>
 
@@ -249,9 +253,9 @@ export default async function PrivacyPage() {
               outside the EU.
             </li>
             <li>
-              <strong>Expo</strong> delivers updates to the iOS and Android app. When the app checks
-              for an update, Expo sees your IP address and technical details of the app and device,
-              but no account data. United States.
+              <strong>Expo</strong> delivers updates to the Chefer app. When the app checks for an
+              update, Expo sees your IP address and technical details of the app and device, but no
+              account data. United States.
             </li>
           </ul>
           <p>
@@ -310,12 +314,12 @@ export default async function PrivacyPage() {
         <Section title="Deleting your account">
           <p>
             You can delete your account yourself at any time: <em>Profile → Delete account</em>, on
-            the web or in the iOS and Android app (you confirm with your password). This removes
-            your account and everything in it — preferences, plans, logs, recipes, uploaded photos,
-            workouts, household and feedback — from the live database immediately, and signs you out
-            on every device. Recipes that Chefer&apos;s AI generated for you contain no personal
-            data; they may stay in the shared recipe collection with no link to you. You can
-            download all your data first from <em>Profile → Your data</em>.
+            the web or in the app (you confirm with your password). This removes your account and
+            everything in it — preferences, plans, logs, recipes, uploaded photos, workouts,
+            household and feedback — from the live database immediately, and signs you out on every
+            device. Recipes that Chefer&apos;s AI generated for you contain no personal data; they
+            may stay in the shared recipe collection with no link to you. You can download all your
+            data first from <em>Profile → Your data</em>.
           </p>
         </Section>
 
@@ -385,14 +389,14 @@ export default async function PrivacyPage() {
             sends a &ldquo;Do Not Track&rdquo; signal, we send no analytics at all.
           </p>
           <p>
-            <strong>In the app.</strong> The iOS and Android app shows no ads and uses no
-            advertising identifier. It can send the same kind of anonymous usage counts to PostHog
-            (EU) as the website, but only in app versions that have analytics switched on; where
-            they do, <em>Profile → Privacy &amp; data → Usage analytics</em> has two switches.
-            &ldquo;Send anonymous usage counts&rdquo; is on by default and sends counts of which
-            screens and features are used, tagged with a random identifier made each time the app
-            starts and never stored, with no name, email or health information. &ldquo;Link usage to
-            my account&rdquo; is off unless you turn it on; when it is on, the counts can carry your
+            <strong>In the app.</strong> The Chefer app shows no ads and uses no advertising
+            identifier. It can send the same kind of anonymous usage counts to PostHog (EU) as the
+            website, but only in app versions that have analytics switched on; where they do,{' '}
+            <em>Profile → Privacy &amp; data → Usage analytics</em> has two switches. &ldquo;Send
+            anonymous usage counts&rdquo; is on by default and sends counts of which screens and
+            features are used, tagged with a random identifier made each time the app starts and
+            never stored, with no name, email or health information. &ldquo;Link usage to my
+            account&rdquo; is off unless you turn it on; when it is on, the counts can carry your
             account ID instead (never your name or email). Turning the first switch off stops all
             analytics requests from the app at once. The choice applies to the phone you set it on.
             The app keeps your sign-in in the device&apos;s secure storage and saves workouts on the

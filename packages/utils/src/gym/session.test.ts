@@ -6,6 +6,7 @@ import type {
   SessionSummaryDto,
   WorkoutSessionDoc,
 } from '@chefer/types';
+import { buildActivityLogDoc } from './activity-log';
 import { foldHistory, prescribe, progressionKey, repBucket } from './progression';
 import {
   applyFinishedSession,
@@ -15,6 +16,7 @@ import {
   exposuresFromSession,
   missedPlannedDays,
   nextDayIdAfter,
+  nextSessionWeekday,
   todayStatus,
   toSessionSummary,
   type ProgressionEntry,
@@ -202,10 +204,12 @@ describe('todayStatus (bug B-15)', () => {
     const boot = bootstrapFor(MONDAY, {
       recentSessions: [summary('s1', MONDAY, 'barbell-bench-press', [[60, 8, true]])],
     });
+    // R-19: Upper (pinned Monday) is not "next Monday" today — the next planned
+    // training weekday after today is Thursday's.
     expect(todayStatus({ bootstrap: boot, today: MONDAY })).toEqual({
       kind: 'done',
       dayName: 'Upper',
-      weekday: 0,
+      weekday: 3,
     });
   });
 
@@ -294,6 +298,46 @@ describe('missedPlannedDays (T-04.8, UX-04 §7)', () => {
   });
 });
 
+// UX-GYM-12: a brand-new user is never scolded for planned days BEFORE setup.
+describe('setup date (UX-GYM-12)', () => {
+  const WEDNESDAY = '2026-09-09';
+  const SINCE_WED = '2026-09-09'; // set up on Wednesday; Monday's Upper predates it
+
+  it('missedPlannedDays ignores a planned day earlier than the setup date', () => {
+    expect(
+      missedPlannedDays({
+        activeRoutine: ROUTINE,
+        recentSessions: [],
+        today: '2026-09-10',
+        since: SINCE_WED,
+      }),
+    ).toEqual([]);
+  });
+
+  it('missedPlannedDays still flags a planned day on/after the setup date', () => {
+    expect(
+      missedPlannedDays({
+        activeRoutine: ROUTINE,
+        recentSessions: [],
+        today: '2026-09-10',
+        since: '2026-09-07',
+      }),
+    ).toEqual([{ dayId: 'dA', dayName: 'Upper', weekday: 0 }]);
+  });
+
+  it('todayStatus: a pinned day that passed before setup is due today, not overdue or "rest"', () => {
+    // Monday's Upper is next; set up Tuesday night → Wednesday it is simply training.
+    const boot = bootstrapFor(WEDNESDAY);
+    expect(todayStatus({ bootstrap: boot, today: WEDNESDAY })).toEqual({
+      kind: 'training',
+      overdueFrom: 0,
+    });
+    expect(todayStatus({ bootstrap: boot, today: WEDNESDAY, since: SINCE_WED })).toEqual({
+      kind: 'training',
+    });
+  });
+});
+
 describe('doneTodayCard (T-05.9)', () => {
   const MONDAY = '2026-09-07';
   const PRIOR_MONDAY = '2026-08-31';
@@ -319,7 +363,133 @@ describe('doneTodayCard (T-05.9)', () => {
     expect(card?.durationMin).toBe(60); // summary() finishes 1h after it starts
     expect(card?.workingSets).toBe(2);
     expect(card?.prCount).toBe(1);
-    expect(card?.next).toEqual({ dayName: 'Upper', weekday: 0 });
+    expect(card?.next).toEqual({ dayName: 'Upper', weekday: 3 });
+  });
+});
+
+// R-19: "Next session: Wednesday" on a Thursday after Full Body A was done
+// off-schedule, although Friday is a planned training day.
+describe('next session weekday (R-19)', () => {
+  const MON = '2026-09-07';
+  const WED = '2026-09-09';
+  const THU = '2026-09-10';
+  const FRI = '2026-09-11';
+  const SAT = '2026-09-12';
+
+  const day = (id: string, position: number, name: string, plannedWeekday: number | null) => ({
+    id,
+    position,
+    name,
+    plannedWeekday,
+    exercises: [re(`e-${id}`, 'back-squat', 0, 3, 5, 8)],
+  });
+  // Mon / Wed / Fri routine: Full Body A, B, A again.
+  const MWF: RoutineDto = {
+    ...ROUTINE,
+    days: [
+      day('dA', 0, 'Full Body A', 0),
+      day('dB', 1, 'Full Body B', 2),
+      day('dC', 2, 'Full Body A', 4),
+    ],
+  };
+  const FLEXIBLE: RoutineDto = {
+    ...ROUTINE,
+    days: [day('dA', 0, 'Full Body A', null), day('dB', 1, 'Full Body B', null)],
+  };
+
+  /** Bootstrap after finishing `doneOn` — the rotation has advanced to `nextDayId`. */
+  function after(
+    doneOn: string,
+    nextDayId: string,
+    routine: RoutineDto = MWF,
+  ): ReturnType<typeof bootstrapFor> {
+    const base = bootstrapFor(doneOn);
+    const next = routine.days.find((d) => d.id === nextDayId);
+    return {
+      ...base,
+      activeRoutine: routine,
+      nextWorkout: base.nextWorkout && {
+        ...base.nextWorkout,
+        dayId: nextDayId,
+        dayName: next?.name ?? '',
+      },
+      recentSessions: [summary('s1', doneOn, 'back-squat', [[60, 8, true]])],
+    };
+  }
+
+  it("keeps the next day's own weekday when it is still ahead (did today's planned workout)", () => {
+    // Monday's A done on Monday → B, pinned Wednesday.
+    const boot = after(MON, 'dB');
+    expect(todayStatus({ bootstrap: boot, today: MON })).toEqual({
+      kind: 'done',
+      dayName: 'Full Body B',
+      weekday: 2,
+    });
+    expect(doneTodayCard({ bootstrap: boot, today: MON })?.next).toEqual({
+      dayName: 'Full Body B',
+      weekday: 2,
+    });
+  });
+
+  it('did an off-schedule workout: the next planned training day (Friday), not the stale Wednesday pin', () => {
+    // Thursday: Full Body A done off-schedule; the rotation now points at B
+    // (pinned Wednesday — already in the past). Friday is still planned.
+    const boot = after(THU, 'dB');
+    expect(todayStatus({ bootstrap: boot, today: THU })).toEqual({
+      kind: 'done',
+      dayName: 'Full Body B',
+      weekday: 4,
+    });
+    expect(doneTodayCard({ bootstrap: boot, today: THU })?.next).toEqual({
+      dayName: 'Full Body B',
+      weekday: 4,
+    });
+  });
+
+  it('a day pinned to today (done off-schedule on its own weekday) also moves on', () => {
+    // Wednesday: A trained instead of B; B is pinned Wednesday = today.
+    const boot = after(WED, 'dB');
+    expect(doneTodayCard({ bootstrap: boot, today: WED })?.next?.weekday).toBe(4);
+  });
+
+  it('end of week wraps to the first planned weekday of next week', () => {
+    // Friday's planned workout done; the rotation wraps to A (pinned Monday).
+    expect(doneTodayCard({ bootstrap: after(FRI, 'dA'), today: FRI })?.next?.weekday).toBe(0);
+    // Saturday, off-schedule: nothing planned is left this week.
+    expect(doneTodayCard({ bootstrap: after(SAT, 'dB'), today: SAT })?.next).toEqual({
+      dayName: 'Full Body B',
+      weekday: 0,
+    });
+  });
+
+  it('a flexible routine (no pinned weekdays) has no weekday', () => {
+    const boot = after(THU, 'dB', FLEXIBLE);
+    expect(doneTodayCard({ bootstrap: boot, today: THU })?.next?.weekday).toBeNull();
+    expect(todayStatus({ bootstrap: boot, today: THU })).toMatchObject({
+      kind: 'done',
+      weekday: null,
+    });
+  });
+
+  it('nextSessionWeekday: unknown day / no routine is null', () => {
+    expect(nextSessionWeekday({ activeRoutine: null, nextDayId: 'dB', today: THU })).toBeNull();
+    expect(nextSessionWeekday({ activeRoutine: MWF, nextDayId: null, today: THU })).toBeNull();
+    expect(nextSessionWeekday({ activeRoutine: MWF, nextDayId: 'nope', today: THU })).toBeNull();
+  });
+
+  it('rest days still name the template weekday (no regression)', () => {
+    const base = bootstrapFor('2026-09-08'); // Tuesday
+    const boot = {
+      ...base,
+      activeRoutine: MWF,
+      nextWorkout: base.nextWorkout && { ...base.nextWorkout, dayId: 'dB', dayName: 'Full Body B' },
+      recentSessions: [summary('s1', MON, 'back-squat', [[60, 8, true]])],
+    };
+    expect(todayStatus({ bootstrap: boot, today: '2026-09-08' })).toEqual({
+      kind: 'rest',
+      dayName: 'Full Body B',
+      weekday: 2,
+    });
   });
 });
 
@@ -406,6 +576,36 @@ describe('buildNextWorkout', () => {
     expect(bench?.notes).toBe('Seat 4');
     expect(db?.suggestion).toMatchObject({ weightKg: 14, reasonCode: 'START_CALIBRATING' });
     expect(lateral?.suggestion).toMatchObject({ weightKg: 10, reasonCode: 'USER_OVERRIDE' });
+  });
+
+  // UX-GYM-18: bench was set up at 80 kg in the 6-8 bucket; the routine now says 10-12.
+  it('a rep range with no progression yet carries the known weight from the same exercise', () => {
+    const edited: RoutineDto = {
+      ...ROUTINE,
+      days: ROUTINE.days.map((d) => ({
+        ...d,
+        exercises: d.exercises.map((e) =>
+          e.exerciseId === 'barbell-bench-press' ? { ...e, repMin: 10, repMax: 12 } : e,
+        ),
+      })),
+    };
+    const carried = buildNextWorkout({
+      routine: edited,
+      dayId: 'dA',
+      lookup,
+      progressions,
+      profile: KG_PROFILE,
+      facts,
+      today: '2026-09-15',
+      recentSessions: recent,
+      isDeload: false,
+    });
+    const bench = carried.exercises.find((e) => e.exerciseId === 'barbell-bench-press');
+    expect(bench?.repBucket).toBe('10-12');
+    // Lighter than 80 kg for 10 reps, but nowhere near the 30 kg starting guess.
+    expect(bench?.suggestion.weightKg).toBeGreaterThan(60);
+    expect(bench?.suggestion.weightKg).toBeLessThan(80);
+    expect(bench?.suggestion.reasonCode).toBe('START');
   });
 
   it('ramps the first exercise of a movement pattern, then a single feeler', () => {
@@ -754,6 +954,24 @@ describe('applyFinishedSession — the offline optimistic fold', () => {
         }),
       );
     }
+  });
+
+  it('WP-20: a quick-logged activity counts for the week but folds no progression and moves no rotation', () => {
+    const boot = bootstrapFor('2026-09-15');
+    const doc = buildActivityLogDoc({
+      input: { presetKey: 'yoga', localDate: '2026-09-15', durationMin: 60, caloriesKcal: 200 },
+      id: '11111111-1111-4111-8111-111111111111',
+      newId: () => crypto.randomUUID(),
+      startAt: '2026-09-15T08:00:00.000Z',
+      now: '2026-09-15T20:00:00.000Z',
+    });
+    const next = applyFinishedSession({ bootstrap: boot, doc, lookup, facts, today: '2026-09-15' });
+
+    expect(next.recentSessions[0]?.id).toBe(doc.id);
+    expect(next.streak.thisWeekSessions).toBe(1);
+    expect(next.progressions).toEqual(boot.progressions);
+    expect(next.activeRoutine?.nextDayId).toBe(boot.activeRoutine?.nextDayId);
+    expect(next.nextWorkout?.dayId).toBe(boot.nextWorkout?.dayId);
   });
 
   it('T-36.3: carries an explicitly-moved exercise into the next workout, then consumes it', () => {

@@ -148,11 +148,10 @@ describe('WorkoutScreen — set rows', () => {
     expect(getRestTimer()).toMatchObject({ durationSec: 120, seId: SE_ID });
     expect(screen.getByTestId('rest-timer')).toBeOnTheScreen();
     expect(screen.getByTestId('workout-progress')).toHaveTextContent(/1\/3 sets/);
-    // T-05.6 (UX-05 F): this is the very first logged set ever for this
-    // exercise (no prior sessions, no olderBests) — it now counts as a PR,
-    // so it gets the success haptic instead of a plain tick.
-    expect(haptics.notificationAsync).toHaveBeenCalledWith('success');
-    expect(haptics.impactAsync).not.toHaveBeenCalled();
+    // UX-GYM-18: this is the very first logged set ever for this exercise (no prior
+    // sessions, no olderBests) — a baseline, not a PR: a plain tick, no success buzz.
+    expect(haptics.notificationAsync).not.toHaveBeenCalled();
+    expect(haptics.impactAsync).toHaveBeenCalled();
 
     // A second tap un-ticks it.
     await user.press(screen.getByTestId('exercise-0-set-1-check'));
@@ -299,6 +298,48 @@ describe('WorkoutScreen — RIR chips', () => {
 });
 
 describe('WorkoutScreen — live PRs', () => {
+  it('UX-GYM-18: a first-ever lift shows no PR badge and fires no success haptic', async () => {
+    const user = userEvent.setup();
+    await renderWorkout(activeDoc()); // no recentSessions, no olderBests
+    await user.press(screen.getByTestId('exercise-0-set-1-check'));
+    await user.press(screen.getByTestId('exercise-0-set-2-check'));
+
+    expect(screen.queryByTestId('exercise-0-set-1-pr')).toBeNull();
+    expect(screen.queryByTestId('exercise-0-set-2-pr')).toBeNull();
+    expect(haptics.notificationAsync).not.toHaveBeenCalled();
+  });
+
+  it('UX-GYM-18: a second session that beats the first does show the badge and the haptic', async () => {
+    const user = userEvent.setup();
+    const bootstrap = makeBootstrap({
+      recentSessions: [
+        {
+          id: 'first-ever',
+          name: 'Upper A',
+          routineDayId: null,
+          status: 'COMPLETED',
+          localDate: '2026-09-20',
+          startedAt: '2026-09-20T08:00:00.000Z',
+          finishedAt: '2026-09-20T09:00:00.000Z',
+          isDeload: false,
+          exercises: [
+            {
+              exerciseId: 'bench',
+              skipped: false,
+              lastSetRir: null,
+              sets: [{ weightKg: 40, reps: 8, isWarmup: false, completed: true }],
+            },
+          ],
+        },
+      ],
+    });
+    await renderWorkout(activeDoc(), bootstrap);
+    await user.press(screen.getByTestId('exercise-0-set-1-check')); // 60 × 10 beats 40 × 8
+
+    expect(screen.getByTestId('exercise-0-set-1-pr')).toHaveTextContent(/PR/);
+    expect(haptics.notificationAsync).toHaveBeenCalledWith('success');
+  });
+
   it('badges at most one set per exercise when it beats the cached history', async () => {
     const user = userEvent.setup();
     const bootstrap = makeBootstrap({
@@ -474,10 +515,54 @@ describe('WorkoutScreen — exercise menu', () => {
     expect(currentDoc().exercises[0]).toEqual(before);
   });
 
-  it('"Update routine" on a swap is disabled with a reason when the exercise has no routine slot', async () => {
+  // WP-04 (feedback 2): a freestyle session has no routine, so Swap asks nothing.
+  it('freestyle session: Swap opens the picker directly — no "today / my routine" page', async () => {
     const user = userEvent.setup();
     await renderWorkout(activeDoc());
+    expect(currentDoc().routineId).toBeNull();
     await user.press(screen.getByTestId('exercise-0-menu'));
+    await user.press(screen.getByTestId('menu-swap'));
+    expect(await screen.findByTestId('workout-picker-title')).toHaveTextContent('Swap for');
+    expect(screen.queryByTestId('menu-swap-today')).toBeNull();
+    expect(screen.queryByTestId('menu-swap-routine')).toBeNull();
+  });
+
+  it('routine session, exercise outside the routine (added mid-workout): Swap opens the picker directly', async () => {
+    const user = userEvent.setup();
+    const doc = supersetDoc();
+    await renderWorkout(
+      {
+        ...doc,
+        routineId: 'routine-1',
+        exercises: doc.exercises.map((se) =>
+          se.id === 'row-se' ? { ...se, routineExerciseId: null } : se,
+        ),
+      },
+      makeBootstrap({ activeRoutine: supersetRoutine() }),
+    );
+    await user.press(screen.getByTestId('exercise-2-menu'));
+    await user.press(screen.getByTestId('menu-swap'));
+    expect(await screen.findByTestId('workout-picker-title')).toHaveTextContent('Swap for');
+    expect(screen.queryByTestId('menu-swap-today')).toBeNull();
+  });
+
+  it('routine session, routine exercise: Swap still shows the scope page', async () => {
+    const user = userEvent.setup();
+    await renderWorkout(
+      { ...supersetDoc(), routineId: 'routine-1' },
+      makeBootstrap({ activeRoutine: supersetRoutine() }),
+    );
+    await user.press(screen.getByTestId('exercise-2-menu'));
+    await user.press(screen.getByTestId('menu-swap'));
+    expect(screen.getByTestId('menu-swap-today')).toBeOnTheScreen();
+    expect(screen.getByTestId('menu-swap-routine')).toBeEnabled();
+    expect(screen.queryByTestId('workout-picker-title')).toBeNull();
+  });
+
+  it('routine session but no active routine to update: the scope page keeps its reason', async () => {
+    const user = userEvent.setup();
+    await renderWorkout({ ...supersetDoc(), routineId: 'routine-1' }, makeBootstrap());
+    await user.press(screen.getByTestId('exercise-2-menu'));
     await user.press(screen.getByTestId('menu-swap'));
     expect(screen.getByTestId('menu-swap-routine')).toBeDisabled();
     expect(screen.getByTestId('menu-swap-routine-blocked')).toHaveTextContent(/today only/);

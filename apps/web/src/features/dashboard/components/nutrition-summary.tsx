@@ -1,11 +1,20 @@
 'use client';
 
 import Link from 'next/link';
+import { useNumbersMode } from '@/features/numbers-mode/numbers-mode';
 import type { RouterOutputs } from '@/lib/trpc';
 import { ChevronRight } from 'lucide-react';
 import { overTargetColor } from '@chefer/tokens';
+import type { ProteinGuide } from '@chefer/types';
 import { CountUp, ProgressBar, progressOf, ProgressRing } from '@chefer/ui';
-import { cn, dayNutritionCaption, PLAN_STATUS_LABEL, planStatus } from '@chefer/utils';
+import {
+  cn,
+  dayNutritionCaption,
+  dayStatus,
+  formatKcal,
+  formatNumber,
+  proteinRingLabel,
+} from '@chefer/utils';
 import { TrainingDayNote } from './training-day-note';
 
 // ─── Nutrition summary ────────────────────────────────────────────────────────
@@ -19,109 +28,96 @@ interface NutritionSummaryProps {
   nutrition: Nutrition;
   /** Name of the next planned meal, used for the AI hint. Omit to hide it. */
   nextMealName?: string | undefined;
-  className?: string;
+  className?: string | undefined;
   /** §2.11, T-35.5: the ring's label — "Your target" (OWN) vs "Suggested" (SUGGESTED). Omitted while unknown. */
   targetMode?: 'SUGGESTED' | 'OWN' | undefined;
+  /** Planned meals still to eat today (UX-FOOD-05). Unknown → the plan minus what was eaten. */
+  remainingPlannedKcal?: number | undefined;
+  /** WP-08: the per-meal protein guide ("30–40 g per meal"), shown in protein-only mode. */
+  proteinGuide?: ProteinGuide | undefined;
 }
 
-export function NutritionSummary({
+/**
+ * WP-08 protein-only Today: the ring is a PROTEIN ring ("72 of 120 g protein")
+ * with the per-meal guide under it. No kcal caption, no macro bars. The week is
+ * still balanced on calories underneath; this card just never says so. MO-06
+ * motion, same primitives as the calorie ring.
+ */
+function ProteinSummary({
   nutrition: n,
   nextMealName,
   className,
   targetMode,
-}: NutritionSummaryProps) {
-  // Premium lifters on a training day get the bumped targets (audit P2-4);
-  // everyone else keeps the base targets the older fields carry.
-  const target = n.adjustedTargets ?? {
-    dailyCalorieTarget: n.dailyCalorieTarget,
-    proteinG: n.protein.targetG,
-    carbsG: n.carbs.targetG,
-    fatG: n.fat.targetG,
-  };
-  // The ring shows what was EATEN today (audit F-DASH-1-2: it showed planned
-  // food — "540 remaining" with 6,070 kcal logged). The chip judges the plan
-  // (three-state honesty, review P-2) via the shared rules in @chefer/utils.
-  const targetStatus = planStatus(n.plannedKcal, target.dailyCalorieTarget);
+  proteinGuide,
+}: Pick<NutritionSummaryProps, 'nutrition' | 'nextMealName' | 'className' | 'targetMode'> & {
+  proteinGuide?: ProteinGuide | undefined;
+}) {
+  const targetG = n.adjustedTargets?.proteinG ?? n.protein.targetG;
+  const eatenG = Math.round(n.protein.eaten);
+  const leftG = Math.max(Math.round(targetG) - eatenG, 0);
+  // Neutral palette: reaching the goal is green, otherwise just what is left.
+  const reached = targetG > 0 && eatenG >= targetG;
+  const chip = reached
+    ? { text: 'Protein goal reached', style: 'bg-emerald-100 text-emerald-700' }
+    : eatenG === 0
+      ? { text: 'Nothing logged yet', style: 'bg-gray-100 text-gray-600' }
+      : { text: `${leftG} g to go`, style: 'bg-gray-100 text-gray-600' };
 
   return (
     <div
       data-testid="nutrition-summary"
       className={cn('rounded-2xl border bg-white p-4 shadow-sm sm:p-5', className)}
     >
-      {/* Header */}
       <div className="mb-4 flex items-center justify-between gap-2">
         <p className="text-xs font-semibold uppercase tracking-widest text-gray-500">Today</p>
         <span
+          data-testid="nutrition-status"
           className={cn(
             'shrink-0 rounded-full px-2.5 py-0.5 text-xs font-bold uppercase',
-            targetStatus === 'over' && 'bg-red-100 text-red-700',
-            targetStatus === 'under' && 'bg-amber-100 text-amber-700',
-            targetStatus === 'on' && 'bg-emerald-100 text-emerald-700',
-            targetStatus === 'none' && 'bg-gray-100 text-gray-600',
+            chip.style,
           )}
         >
-          {PLAN_STATUS_LABEL[targetStatus]}
+          {chip.text}
         </span>
       </div>
 
       {n.trainingDay && <TrainingDayNote t={n.trainingDay} />}
 
-      {/* Ring + macros sit side by side on wide phones/tablets, stacked in the
-          narrow desktop rail. */}
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:gap-6 xl:flex-col xl:gap-4">
-        {/* Calorie ring */}
-        <div className="flex shrink-0 flex-col items-center gap-2 self-center py-2">
-          {/* MO-06: sweeps from its previous value with a count-up; past
-              100% it turns amber with an overflow lap (mobile parity). */}
-          <ProgressRing
-            data-testid="calorie-ring"
-            label={`${n.eatenKcal} of ${target.dailyCalorieTarget} kcal eaten today`}
-            progress={progressOf(n.eatenKcal, target.dailyCalorieTarget)}
-            size={128}
-            strokeWidth={12}
-            overColor={overTargetColor}
-          >
-            <CountUp value={n.eatenKcal} className="text-xl font-bold text-gray-900" />
-            <span className="max-w-[88px] text-center text-xs leading-tight text-gray-500">
-              of {target.dailyCalorieTarget.toLocaleString('en-US')} kcal eaten
-            </span>
-          </ProgressRing>
-          <p className="text-center text-xs text-gray-500">
-            {dayNutritionCaption(n.eatenKcal, n.plannedKcal, target.dailyCalorieTarget)}
+      <div className="flex flex-col items-center gap-2 py-2">
+        <ProgressRing
+          data-testid="protein-ring"
+          label={`${proteinRingLabel(eatenG, targetG)} eaten today`}
+          progress={progressOf(eatenG, targetG)}
+          size={128}
+          strokeWidth={12}
+          overColor={overTargetColor}
+        >
+          <CountUp value={eatenG} className="text-xl font-bold text-gray-900" />
+          <span className="max-w-[88px] text-center text-xs leading-tight text-gray-500">
+            of {formatNumber(Math.round(targetG))} g protein
+          </span>
+        </ProgressRing>
+        {proteinGuide && (
+          <p data-testid="protein-guide" className="text-center text-xs text-gray-600">
+            {proteinGuide.label}
           </p>
-          {targetMode && (
-            <p data-testid="target-mode-label" className="text-center text-[11px] text-gray-400">
-              {targetMode === 'OWN' ? 'Your target' : 'Suggested'}
-            </p>
-          )}
-        </div>
-
-        {/* Macro bars */}
-        <div className="flex flex-1 flex-col gap-3 sm:min-w-0">
-          {[
-            { label: 'Protein', v: n.protein.eaten, t: target.proteinG },
-            { label: 'Carbs', v: n.carbs.eaten, t: target.carbsG },
-            { label: 'Fat', v: n.fat.eaten, t: target.fatG },
-          ].map(({ label, v, t }) => (
-            <div key={label}>
-              {/* gap-2 + whitespace-nowrap: in the 288px rail a three-digit
-                  pair ("135g / 140g") butted straight up against the label. */}
-              <div className="mb-1 flex items-baseline justify-between gap-2 text-xs">
-                <span className="font-medium text-gray-700">{label}</span>
-                <span className="whitespace-nowrap text-gray-500">
-                  {v}g / {t}g
-                </span>
-              </div>
-              <ProgressBar
-                label={`${label}: ${v} of ${t} grams eaten`}
-                progress={progressOf(v, t)}
-                overColor={overTargetColor}
-              />
-            </div>
-          ))}
-        </div>
+        )}
+        {targetMode && (
+          <p data-testid="target-mode-label" className="text-center text-xs text-muted-foreground">
+            {targetMode === 'OWN' ? 'Your target' : 'Suggested'}
+          </p>
+        )}
       </div>
 
+      <NutritionSummaryLinks nextMealName={nextMealName} />
+    </div>
+  );
+}
+
+/** "Up next" and the rail-only quick links, shared by both modes. */
+function NutritionSummaryLinks({ nextMealName }: { nextMealName?: string | undefined }) {
+  return (
+    <>
       {/* Next meal + a way to log it — the old line claimed every meal
           "supports your daily nutrition goals", which wasn't checked (F-PM-4). */}
       {nextMealName && (
@@ -153,6 +149,134 @@ export function NutritionSummary({
           Shopping List <ChevronRight className="h-3.5 w-3.5" />
         </Link>
       </div>
+    </>
+  );
+}
+
+export function NutritionSummary({
+  nutrition: n,
+  nextMealName,
+  className,
+  targetMode,
+  remainingPlannedKcal,
+  proteinGuide,
+}: NutritionSummaryProps) {
+  const { proteinOnly } = useNumbersMode();
+  if (proteinOnly) {
+    return (
+      <ProteinSummary
+        nutrition={n}
+        nextMealName={nextMealName}
+        className={className}
+        targetMode={targetMode}
+        proteinGuide={proteinGuide}
+      />
+    );
+  }
+  // Lifters on a training day get the bumped targets (free since WP-07) (audit P2-4);
+  // everyone else keeps the base targets the older fields carry.
+  const target = n.adjustedTargets ?? {
+    dailyCalorieTarget: n.dailyCalorieTarget,
+    proteinG: n.protein.targetG,
+    carbsG: n.carbs.targetG,
+    fatG: n.fat.targetG,
+  };
+  // The ring shows what was EATEN today (audit F-DASH-1-2: it showed planned
+  // food — "540 remaining" with 6,070 kcal logged). The chip judges the plan
+  // (three-state honesty, review P-2) via the shared rules in @chefer/utils.
+  // UX-FOOD-05: the pill looks at eaten + what is still planned vs the target,
+  // not the plan alone — it used to stay green 871 kcal over.
+  const { status: targetStatus, label: statusLabel } = dayStatus(
+    n.eatenKcal,
+    remainingPlannedKcal ?? Math.max(n.plannedKcal - n.eatenKcal, 0),
+    target.dailyCalorieTarget,
+  );
+
+  return (
+    <div
+      data-testid="nutrition-summary"
+      className={cn('rounded-2xl border bg-white p-4 shadow-sm sm:p-5', className)}
+    >
+      {/* Header */}
+      <div className="mb-4 flex items-center justify-between gap-2">
+        <p className="text-xs font-semibold uppercase tracking-widest text-gray-500">Today</p>
+        <span
+          data-testid="nutrition-status"
+          className={cn(
+            'shrink-0 rounded-full px-2.5 py-0.5 text-xs font-bold uppercase',
+            targetStatus === 'over' && 'bg-amber-100 text-amber-800',
+            targetStatus === 'heading_over' && 'bg-amber-50 text-amber-800',
+            targetStatus === 'under' && 'bg-gray-100 text-gray-600',
+            targetStatus === 'on' && 'bg-emerald-100 text-emerald-700',
+            targetStatus === 'none' && 'bg-gray-100 text-gray-600',
+          )}
+        >
+          {statusLabel}
+        </span>
+      </div>
+
+      {n.trainingDay && <TrainingDayNote t={n.trainingDay} />}
+
+      {/* Ring + macros sit side by side on wide phones/tablets, stacked in the
+          narrow desktop rail. */}
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:gap-6 xl:flex-col xl:gap-4">
+        {/* Calorie ring */}
+        <div className="flex shrink-0 flex-col items-center gap-2 self-center py-2">
+          {/* MO-06: sweeps from its previous value with a count-up; past
+              100% it turns amber with an overflow lap (mobile parity). */}
+          <ProgressRing
+            data-testid="calorie-ring"
+            label={`${n.eatenKcal} of ${target.dailyCalorieTarget} kcal eaten today`}
+            progress={progressOf(n.eatenKcal, target.dailyCalorieTarget)}
+            size={128}
+            strokeWidth={12}
+            overColor={overTargetColor}
+          >
+            <CountUp value={n.eatenKcal} className="text-xl font-bold text-gray-900" />
+            <span className="max-w-[88px] text-center text-xs leading-tight text-gray-500">
+              of {formatKcal(target.dailyCalorieTarget)} kcal eaten
+            </span>
+          </ProgressRing>
+          <p className="text-center text-xs text-gray-500">
+            {dayNutritionCaption(n.eatenKcal, n.plannedKcal, target.dailyCalorieTarget)}
+          </p>
+          {targetMode && (
+            <p
+              data-testid="target-mode-label"
+              className="text-center text-xs text-muted-foreground"
+            >
+              {targetMode === 'OWN' ? 'Your target' : 'Suggested'}
+            </p>
+          )}
+        </div>
+
+        {/* Macro bars */}
+        <div className="flex flex-1 flex-col gap-3 sm:min-w-0">
+          {[
+            { label: 'Protein', v: n.protein.eaten, t: target.proteinG },
+            { label: 'Carbs', v: n.carbs.eaten, t: target.carbsG },
+            { label: 'Fat', v: n.fat.eaten, t: target.fatG },
+          ].map(({ label, v, t }) => (
+            <div key={label}>
+              {/* gap-2 + whitespace-nowrap: in the 288px rail a three-digit
+                  pair ("135g / 140g") butted straight up against the label. */}
+              <div className="mb-1 flex items-baseline justify-between gap-2 text-xs">
+                <span className="font-medium text-gray-700">{label}</span>
+                <span className="whitespace-nowrap text-gray-500">
+                  {v}g / {t}g
+                </span>
+              </div>
+              <ProgressBar
+                label={`${label}: ${v} of ${t} grams eaten`}
+                progress={progressOf(v, t)}
+                overColor={overTargetColor}
+              />
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <NutritionSummaryLinks nextMealName={nextMealName} />
     </div>
   );
 }

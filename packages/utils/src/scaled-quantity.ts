@@ -49,6 +49,18 @@ export function formatFractionalQuantity(quantity: number): string {
 }
 
 /**
+ * UX-REC-07: "1 tbsp" is a kitchen measure in every country, so a metric
+ * display keeps spoons as spoons — "1 tbsp" scaled ×1.5 reads "1½ tbsp", never
+ * "22 ml". Returns the canonical short unit, or null for any other unit.
+ */
+function spoonUnit(unit: string): 'tsp' | 'tbsp' | null {
+  const key = unit.trim().toLowerCase();
+  if (key.startsWith('tsp') || key.startsWith('teaspoon')) return 'tsp';
+  if (key.startsWith('tbsp') || key.startsWith('tablespoon')) return 'tbsp';
+  return null;
+}
+
+/**
  * Formats an ingredient quantity scaled by `scale` (the servings adjuster):
  * "to taste" lines are never scaled and render without a number; every
  * other line is scaled, converted to the user's unit system (`formatQuantity`)
@@ -61,6 +73,9 @@ export function formatScaledQuantity(
   system: UnitSystem,
 ): string {
   if (isUnscalableUnit(unit)) return 'To taste';
+
+  const spoon = spoonUnit(unit);
+  if (spoon) return `${formatFractionalQuantity(quantity * scale)} ${spoon}`;
 
   const converted = formatQuantity(quantity * scale, unit, system);
   const match = /^(-?\d+(?:\.\d+)?)(\s.*)?$/.exec(converted);

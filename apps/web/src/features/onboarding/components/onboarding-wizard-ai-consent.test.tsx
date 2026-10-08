@@ -64,9 +64,12 @@ vi.mock('@/lib/trpc', () => {
         updateSafety: { useMutation: mutation(() => Promise.resolve({})) },
         saveProfileBasics: { useMutation: mutation(() => Promise.resolve({})) },
         updateTargets: { useMutation: mutation(() => Promise.resolve({})) },
+        // WP-08: "Just protein" is saved at Finish.
+        setNumbersMode: { useMutation: mutation(() => Promise.resolve({})) },
         setDisplayPreferences: { useMutation: mutation(() => Promise.resolve({})) },
       },
       training: { setDayKinds: { useMutation: mutation(() => Promise.resolve({})) } },
+      household: { list: { useQuery: () => ({ data: [] }) } },
       mealPlan: {
         setShape: { useMutation: mutation(() => Promise.resolve({})) },
         getShape: {

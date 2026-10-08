@@ -24,7 +24,16 @@ const values = <T extends Record<string, string>>(o: T) =>
 export const localDateSchema = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Expected YYYY-MM-DD');
 export const isoDateTimeSchema = z.string().datetime({ offset: true });
 export const clientIdSchema = z.string().uuid();
-export const weightKgSchema = z.number().min(0).max(1000);
+/**
+ * Plausibility bounds of the wire schemas below — exported so keypads and forms
+ * can clamp / validate inline instead of surfacing a server Zod rejection.
+ */
+export const GYM_MAX_WEIGHT_KG = 1000;
+/** Reps, or seconds for timed exercises (`sessionSetDocSchema.reps`). */
+export const GYM_MAX_REPS = 3600;
+export const GYM_MAX_SETS_PER_EXERCISE = 20;
+export const GYM_MAX_EXERCISES_PER_SESSION = 30;
+export const weightKgSchema = z.number().min(0).max(GYM_MAX_WEIGHT_KG);
 export const rirSchema = z.number().int().min(0).max(3);
 export const muscleSchema = z.enum(MUSCLES);
 
@@ -60,7 +69,7 @@ export const sessionSetDocSchema = z.object({
   position: z.number().int().min(0).max(50),
   weightKg: weightKgSchema,
   /** Reps, or seconds for timed exercises. */
-  reps: z.number().int().min(0).max(3600),
+  reps: z.number().int().min(0).max(GYM_MAX_REPS),
   isWarmup: z.boolean(),
   completedAt: isoDateTimeSchema.nullable(),
   // S20 (T-42.0, 06 §5.2) — cardio fields, all additive/optional. schemaVersion
@@ -92,7 +101,13 @@ export const sessionExerciseDocSchema = z.object({
   lastSetRir: rirSchema.nullable(),
   prescription: suggestionSchema,
   notes: z.string().max(500).nullable(),
-  sets: z.array(sessionSetDocSchema).max(20),
+  sets: z.array(sessionSetDocSchema).max(GYM_MAX_SETS_PER_EXERCISE),
+  /**
+   * Superset letter for THIS session (plan-library-supersets S-D3). Optional
+   * and additive: absent on docs from older binaries, which keep deriving
+   * supersets from the routine (`sessionOwnsSupersets`).
+   */
+  supersetGroup: z.string().max(20).nullable().optional(),
 });
 export type SessionExerciseDoc = z.infer<typeof sessionExerciseDocSchema>;
 
@@ -110,7 +125,7 @@ export const workoutSessionDocSchema = z.object({
   notes: z.string().max(1000).nullable(),
   clientUpdatedAt: isoDateTimeSchema,
   engineVersion: z.number().int().min(1),
-  exercises: z.array(sessionExerciseDocSchema).max(30),
+  exercises: z.array(sessionExerciseDocSchema).max(GYM_MAX_EXERCISES_PER_SESSION),
   /**
    * T-36.3 (CI-49): exercise ids the user chose to "move to next session" on
    * finish, or that an auto-finish (24 h save-for-later timeout) carried over

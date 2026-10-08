@@ -30,6 +30,13 @@ export interface SafetyTaxonomyEntry {
   mayContain?: string;
   /** Coeliac-style condition → the diet id it maps onto (`condition` group only). */
   impliesDietId?: string;
+  /**
+   * Legacy entry kept for stored data and server-side matching but no longer
+   * offered as a NEW pick (UX-ACC-06 follow-up: "Shellfish" next to Crustaceans
+   * and Molluscs). Pickers show it only while it is already selected, so nobody
+   * who ticked it loses sight of it or protection; the matcher is unchanged.
+   */
+  hiddenForNewPicks?: boolean;
 }
 
 // ─── Allergies ──────────────────────────────────────────────────────────────
@@ -124,9 +131,12 @@ const ALLERGY_ENTRIES: SafetyTaxonomyEntry[] = [
     id: 'shellfish',
     group: 'allergy',
     label: 'Shellfish',
-    synonyms: ['shellfish', 'shellfish allergy', 'crustacean'],
+    synonyms: ['shellfish', 'shellfish allergy'],
     patternSet: 'SHELLFISH_PATTERNS',
     readBack: 'a shellfish allergy',
+    // UX-ACC-06 follow-up (owner, 2026-10-04): Crustaceans + Molluscs replace it
+    // for new picks; users who already have it keep it selected and protected.
+    hiddenForNewPicks: true,
   },
   {
     id: 'sesame',
@@ -136,6 +146,100 @@ const ALLERGY_ENTRIES: SafetyTaxonomyEntry[] = [
     patternSet: 'SESAME_PATTERNS',
     readBack: 'a sesame allergy',
     mayContain: 'hummus, tahini and some bread toppings',
+  },
+  // UX-ACC-06: the rest of the EU's 14 declarable allergens. "Shellfish" above
+  // keeps meaning ALL shellfish (its stored id, label and matcher are unchanged,
+  // so nobody who already ticked it loses protection); Crustaceans and Molluscs
+  // are the two narrower choices EU-14 names separately.
+  {
+    id: 'crustaceans',
+    group: 'allergy',
+    label: 'Crustaceans',
+    synonyms: [
+      'crustaceans',
+      'crustacean',
+      'crustacean allergy',
+      'shrimp',
+      'prawn',
+      'prawns',
+      'crab',
+      'lobster',
+      'crayfish',
+    ],
+    patternSet: 'CRUSTACEAN_PATTERNS',
+    readBack: 'a crustacean allergy',
+    mayContain: 'shrimp paste, fish stock, bouillabaisse and some Asian sauces',
+  },
+  {
+    id: 'molluscs',
+    group: 'allergy',
+    label: 'Molluscs',
+    synonyms: [
+      'molluscs',
+      'mollusc',
+      'mollusks',
+      'mollusk',
+      'mollusc allergy',
+      'oyster',
+      'oysters',
+      'mussel',
+      'mussels',
+      'clam',
+      'clams',
+      'scallop',
+      'scallops',
+      'squid',
+      'calamari',
+      'octopus',
+      'snail',
+      'snails',
+    ],
+    patternSet: 'MOLLUSC_PATTERNS',
+    readBack: 'a mollusc allergy',
+    mayContain: 'oyster sauce, seafood stock and paella',
+  },
+  {
+    id: 'celery',
+    group: 'allergy',
+    label: 'Celery',
+    synonyms: ['celery', 'celery allergy', 'celeriac', 'celery seed', 'celery salt'],
+    patternSet: 'CELERY_PATTERNS',
+    readBack: 'a celery allergy',
+    mayContain: 'stock cubes, soups, spice mixes and some sausages',
+  },
+  {
+    id: 'mustard',
+    group: 'allergy',
+    label: 'Mustard',
+    synonyms: ['mustard', 'mustard allergy', 'mustard seed', 'dijon'],
+    patternSet: 'MUSTARD_PATTERNS',
+    readBack: 'a mustard allergy',
+    mayContain: 'salad dressings, marinades, curry powder, pickles and some sauces',
+  },
+  {
+    id: 'lupin',
+    group: 'allergy',
+    label: 'Lupin',
+    synonyms: ['lupin', 'lupine', 'lupini', 'lupin allergy', 'lupin flour'],
+    patternSet: 'LUPIN_PATTERNS',
+    readBack: 'a lupin allergy',
+    mayContain: 'some gluten-free or continental breads, pastries and pasta',
+  },
+  {
+    id: 'sulphites',
+    group: 'allergy',
+    label: 'Sulphites',
+    synonyms: [
+      'sulphites',
+      'sulphite',
+      'sulfites',
+      'sulfite',
+      'sulphite allergy',
+      'sulphur dioxide',
+    ],
+    patternSet: 'SULPHITE_PATTERNS',
+    readBack: 'a sulphite sensitivity',
+    mayContain: 'wine, vinegars, dried fruit, pickles and some cured meats',
   },
 ];
 
@@ -395,6 +499,22 @@ export function findSafetyTaxonomyEntry(id: string): SafetyTaxonomyEntry | undef
 
 export function safetyTaxonomyEntriesByGroup(group: SafetyTaxonomyGroup): SafetyTaxonomyEntry[] {
   return SAFETY_TAXONOMY.filter((entry) => entry.group === group);
+}
+
+/**
+ * The entries a picker should render for `group`: every entry except those
+ * flagged `hiddenForNewPicks`, which stay visible only while the user already has
+ * them selected (so a legacy choice remains removable). Pickers on every platform
+ * use this instead of {@link safetyTaxonomyEntriesByGroup}; the matcher and the
+ * taxonomy lookups still see the full list.
+ */
+export function safetyPickerEntries(
+  group: SafetyTaxonomyGroup,
+  selectedIds: readonly string[],
+): SafetyTaxonomyEntry[] {
+  return safetyTaxonomyEntriesByGroup(group).filter(
+    (entry) => !entry.hiddenForNewPicks || selectedIds.includes(entry.id),
+  );
 }
 
 // ─── Hidden gluten (bug B-47 / T-01.9, rev 2) ──────────────────────────────────

@@ -1,6 +1,6 @@
 # Implementation Plan — Premium User Tier
 
-Status: **implemented** · Paywall copy since UX-10 (wave 2) lives in `packages/utils/src/premium-pitch.ts` — a job-led pitch per upgrade source with the free-for-now terms and no price or checkout on iOS; the "Upgrade plan" wording below is historical. · Scope: FREE vs PREMIUM user tiers; AI features and profile
+Status: **implemented** · Paywall copy since UX-10 (wave 2) lives in `packages/utils/src/premium-pitch.ts` — a job-led pitch per upgrade source with the included-at-no-cost terms and no price or checkout on iOS; the "Upgrade plan" wording below is historical. · Scope: FREE vs PREMIUM user tiers; AI features and profile
 personalisation gated behind premium; curated generic recipe pool for free users.
 
 ## Product rules
@@ -13,6 +13,12 @@ personalisation gated behind premium; curated generic recipe pool for free users
 | Recipe images                                                   | Curated recipes ship with preset stock URLs (instant)                         | AI pipeline (Pollinations worker)   |
 
 - Admins are treated as premium.
+- **Premium is for heavy AI only (WP-07, owner decision 2026-10-02).** Week
+  rebalance (`weekRebalance`) and training-day nutrition (`trainingNutrition`,
+  `trainingDayTargets`) use no AI and are free for every tier; they are not in any
+  premium list or upsell. Premium keeps the AI features: regenerating the week,
+  AI meal swaps and photo logging (plus the chat, recipe import and the other
+  per-user AI allowances).
 - "Upgrade plan" is a demo flow: one click flips the tier in the DB (no payment
   integration — Stripe is a later phase, see `.env` placeholders).
 

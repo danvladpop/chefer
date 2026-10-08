@@ -10,7 +10,7 @@ import { AiConsentHost } from '../ai-consent/ai-consent-provider';
 // `source` a lock opened it with and owns the upgrade mutation.
 //
 //   offer   headline = the job it unlocks · lede · live bullets · "Also
-//           included" · the FREE FOR NOW terms paragraph · Turn on Premium /
+//           included" · the INCLUDED terms paragraph · Turn on Premium /
 //           Not now
 //   success "Premium is on" · "You now have:" the bullets ticked · the job's
 //           action (or Done) / Later

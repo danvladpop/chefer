@@ -2,8 +2,7 @@
 
 import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
-import { useEffect, useId, useMemo, useState } from 'react';
-import { pickedFromRef } from '@/features/ingredients/lib/picked-ingredient';
+import { useEffect, useId, useState } from 'react';
 import { NutritionPreview } from '@/features/recipes/components/NutritionPreview';
 import {
   Field,
@@ -18,6 +17,7 @@ import {
   RecipeLinesEditor,
 } from '@/features/recipes/components/RecipeLinesEditor';
 import { useLiveNutrition } from '@/features/recipes/hooks/useLiveNutrition';
+import { useRecipeFormLines } from '@/features/recipes/hooks/useRecipeFormLines';
 import {
   errorIdFor,
   fieldErrorProps,
@@ -29,23 +29,7 @@ import {
 import { newLineRow, toSaveLines, type LineRow } from '@/features/recipes/lib/recipe-lines';
 import { trpc } from '@/lib/trpc';
 import { ArrowLeft, Plus, Trash2 } from 'lucide-react';
-import { normalizeRecipeUnit } from '@chefer/utils';
-
-// ─── Lines to edit (plan-ingredient-catalog §10) ─────────────────────────────
-// Stored catalog lines come back linked by their ingredientId. A line without
-// one (legacy, or an old client's free text) is resolved: an EXACT/ALIAS match
-// is linked as the server would on save, anything else shows "pick a match"
-// with the resolver's suggestions. A pre-catalog recipe with no stored lines
-// falls back to the Json ingredients.
-
-type SourceLine = {
-  ingredientId: string | null;
-  rawName: string;
-  quantity: number;
-  unit: string;
-  note: string | null;
-  optional: boolean;
-};
+import { userFacingErrorMessage } from '@chefer/utils';
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
@@ -100,39 +84,6 @@ export default function EditRecipePage() {
   const [hydrated, setHydrated] = useState(false);
   const { errors, clear: clearError, report: reportErrors } = useRecipeFormErrors();
 
-  // The recipe's lines: stored catalog lines, else the legacy Json ones.
-  const sourceLines = useMemo<SourceLine[] | null>(() => {
-    if (!recipe || !isFetchedAfterMount || isFetching) return null;
-    if (recipe.lines.length > 0) return recipe.lines;
-    const legacy = recipe.ingredients as { name: string; quantity: number; unit: string }[];
-    return legacy.map((l) => {
-      const { unit, note } = normalizeRecipeUnit(l.unit);
-      return {
-        ingredientId: null,
-        rawName: l.name,
-        quantity: l.quantity,
-        unit: unit || l.unit,
-        note: note ?? null,
-        optional: false,
-      };
-    });
-  }, [recipe, isFetchedAfterMount, isFetching]);
-  const linkedIds = useMemo(
-    () => [
-      ...new Set((sourceLines ?? []).flatMap((l) => (l.ingredientId ? [l.ingredientId] : []))),
-    ],
-    [sourceLines],
-  );
-  const unlinked = useMemo(() => (sourceLines ?? []).filter((l) => !l.ingredientId), [sourceLines]);
-  const details = trpc.ingredients.getMany.useQuery(
-    { ids: linkedIds },
-    { enabled: linkedIds.length > 0, staleTime: 5 * 60_000 },
-  );
-  const resolution = trpc.ingredients.resolve.useQuery(
-    { lines: unlinked.slice(0, 100).map((l) => ({ rawName: l.rawName, unit: l.unit })) },
-    { enabled: unlinked.length > 0, staleTime: 60_000, retry: false },
-  );
-
   // Pre-fill form when recipe loads
   useEffect(() => {
     if (!recipe || hydrated || !isFetchedAfterMount || isFetching) return;
@@ -149,40 +100,19 @@ export default function EditRecipePage() {
     setHydrated(true);
   }, [recipe, hydrated, isFetchedAfterMount, isFetching]);
 
-  // Build the line rows once the linked rows' details and the legacy lines'
-  // resolution have landed (a failed lookup still lets the user edit).
-  const detailsReady = linkedIds.length === 0 || !details.isLoading;
-  const resolutionReady = unlinked.length === 0 || !resolution.isLoading;
+  // The recipe's lines, linked to the catalog (shared with Duplicate).
+  const hydratedRows = useRecipeFormLines(recipe, isFetchedAfterMount && !isFetching);
   useEffect(() => {
-    if (linesHydrated || !sourceLines || !detailsReady || !resolutionReady) return;
-    const byId = new Map((details.data ?? []).map((d) => [d.id, pickedFromRef(d)] as const));
-    let u = 0;
-    const rows = sourceLines.map((l): LineRow => {
-      const base = {
-        rawName: l.rawName,
-        quantity: String(l.quantity),
-        unit: l.unit,
-        note: l.note,
-        optional: l.optional,
-      };
-      if (l.ingredientId) {
-        const picked = byId.get(l.ingredientId) ?? null;
-        return newLineRow({ ...base, ingredient: picked });
-      }
-      const r = resolution.data?.[u++];
-      if (r?.match && (r.confidence === 'EXACT' || r.confidence === 'ALIAS')) {
-        return newLineRow({ ...base, ingredient: pickedFromRef(r.match) });
-      }
-      return newLineRow({ ...base, candidates: (r?.candidates ?? []).map(pickedFromRef) });
-    });
-    setLines(rows.length > 0 ? rows : [newLineRow()]);
+    if (linesHydrated || !hydratedRows) return;
+    setLines(hydratedRows);
     setLinesHydrated(true);
-  }, [linesHydrated, sourceLines, detailsReady, resolutionReady, details.data, resolution.data]);
+  }, [linesHydrated, hydratedRows]);
 
   const servingsNum = Math.max(1, Number(servings) || 1);
   const live = useLiveNutrition(lines, servingsNum);
 
   const updateMutation = trpc.recipe.update.useMutation({
+    meta: { silent: true },
     onSuccess: () => {
       // T-BUG-O3 C1: invalidate every query this recipe could be read
       // through — a stale cache in any of these reverted the previous edit.
@@ -542,7 +472,7 @@ export default function EditRecipePage() {
               role="alert"
               className="mb-3 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600"
             >
-              {updateMutation.error.message}
+              {userFacingErrorMessage(updateMutation.error)}
             </p>
           )}
 

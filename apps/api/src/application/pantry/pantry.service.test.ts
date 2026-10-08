@@ -1,8 +1,21 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { dietaryPreferencesRepository, prisma } from '@chefer/database';
 import type { IMealPlanRepository, IPantryItemRepository, PantryItem } from '@chefer/database';
 import type { UserProfile } from '@chefer/types';
 import { PantryService } from './pantry.service.js';
+
+// FB7-10: the pantry is retired by default (`PANTRY_RETIRED`); the suites below
+// pin the reversible legacy path with the switch off, and `retired` tests flip it on.
+const pantrySwitch = vi.hoisted(() => ({ retired: false }));
+vi.mock('./pantry-retired.js', () => ({
+  get PANTRY_RETIRED() {
+    return pantrySwitch.retired;
+  },
+}));
+
+afterEach(() => {
+  pantrySwitch.retired = false;
+});
 
 // ─── Module mocks ─────────────────────────────────────────────────────────────
 
@@ -68,7 +81,7 @@ function makeRepo(items: PantryItem[] = []): IPantryItemRepository {
 
 function makePlanRepo(over: Partial<IMealPlanRepository> = {}): IMealPlanRepository {
   return {
-    findActiveWithDays: vi.fn().mockResolvedValue(null),
+    findForWeek: vi.fn().mockResolvedValue(null),
     findByWeekStart: vi.fn().mockResolvedValue(null),
     findRecipesByIds: vi.fn().mockResolvedValue([]),
     ...over,
@@ -78,6 +91,92 @@ function makePlanRepo(over: Partial<IMealPlanRepository> = {}): IMealPlanReposit
 describe('PantryService', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+  });
+
+  // ── Remove / edit / undo for every tier (UX-SHOP-05) ───────────────────────
+
+  it('removeItem deletes the row and hands it back so the client can offer Undo', async () => {
+    const row = pantryRow('rice', { quantity: 800 });
+    const repo = makeRepo([row]);
+    vi.mocked(repo.findByIds).mockResolvedValue([row]);
+    const service = new PantryService(repo, makePlanRepo());
+    const removed = await service.removeItem('u1', row.id);
+    expect(repo.deleteById).toHaveBeenCalledWith('u1', row.id);
+    expect(removed).toMatchObject({ ingredientName: 'rice', quantity: 800, unit: 'g' });
+  });
+
+  it('removeItem of a row that is already gone is a no-op, not an error', async () => {
+    const repo = makeRepo();
+    const service = new PantryService(repo, makePlanRepo());
+    await expect(service.removeItem('u1', 'nope')).resolves.toBeNull();
+  });
+
+  it('updateItem changes the amount in place, keeping the source', async () => {
+    const row = pantryRow('rice', { source: 'MANUAL' });
+    const repo = makeRepo([row]);
+    vi.mocked(repo.findByIds).mockResolvedValue([row]);
+    const service = new PantryService(repo, makePlanRepo());
+    await service.updateItem('u1', row.id, { quantity: 250, unit: 'g' });
+    expect(repo.deleteById).not.toHaveBeenCalled();
+    expect(repo.upsert).toHaveBeenCalledWith({
+      userId: 'u1',
+      ingredientName: 'rice',
+      quantity: 250,
+      unit: 'g',
+      source: 'MANUAL',
+    });
+  });
+
+  it('updateItem moves the row when the unit changes (the unique key includes the unit)', async () => {
+    const row = pantryRow('rice');
+    const repo = makeRepo([row]);
+    vi.mocked(repo.findByIds).mockResolvedValue([row]);
+    const service = new PantryService(repo, makePlanRepo());
+    await service.updateItem('u1', row.id, { quantity: 1, unit: 'lb' });
+    expect(repo.deleteById).toHaveBeenCalledWith('u1', row.id);
+    expect(repo.upsert).toHaveBeenCalledWith(expect.objectContaining({ quantity: 1, unit: 'lb' }));
+  });
+
+  it('updateItem with a null amount is the "some" state, but zero or negative is refused', async () => {
+    const row = pantryRow('rice');
+    const repo = makeRepo([row]);
+    vi.mocked(repo.findByIds).mockResolvedValue([row]);
+    const service = new PantryService(repo, makePlanRepo());
+    await service.updateItem('u1', row.id, { quantity: null, unit: 'g' });
+    expect(repo.upsert).toHaveBeenCalledWith(expect.objectContaining({ quantity: 0 }));
+    await expect(service.updateItem('u1', row.id, { quantity: -5, unit: 'g' })).rejects.toThrow(
+      /above zero/,
+    );
+    await expect(service.updateItem('u1', row.id, { quantity: 0, unit: 'g' })).rejects.toThrow(
+      /above zero/,
+    );
+  });
+
+  it('updateItem on a missing row is NOT_FOUND', async () => {
+    const service = new PantryService(makeRepo(), makePlanRepo());
+    await expect(
+      service.updateItem('u1', 'nope', { quantity: 1, unit: 'g' }),
+    ).rejects.toMatchObject({
+      code: 'NOT_FOUND',
+    });
+  });
+
+  it('restoreItem puts a removed row back (Undo) with its source', async () => {
+    const repo = makeRepo();
+    const service = new PantryService(repo, makePlanRepo());
+    await service.restoreItem('u1', {
+      ingredientName: ' Rice ',
+      quantity: 800,
+      unit: 'g',
+      source: 'PURCHASE',
+    });
+    expect(repo.upsert).toHaveBeenCalledWith({
+      userId: 'u1',
+      ingredientName: 'rice',
+      quantity: 800,
+      unit: 'g',
+      source: 'PURCHASE',
+    });
   });
 
   // ── Seeding from check-offs ────────────────────────────────────────────────
@@ -185,7 +284,7 @@ describe('PantryService', () => {
   it('whatCanIMake ranks the active plan recipes by pantry coverage (premium)', async () => {
     const repo = makeRepo([pantryRow('halloumi'), pantryRow('couscous')]);
     const planRepo = makePlanRepo({
-      findActiveWithDays: vi.fn().mockResolvedValue({
+      findForWeek: vi.fn().mockResolvedValue({
         id: 'plan1',
         days: [{ meals: [{ type: 'dinner', recipeId: 'r1' }] }],
       }),
@@ -208,6 +307,22 @@ describe('PantryService', () => {
     expect(answer).toContain('everything on hand');
   });
 
+  it("whatCanIMake reads THIS week's plan, not the newest ACTIVE one (UX-FOOD-02)", async () => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date(2026, 9, 2, 10, 0, 0)); // Friday 2 Oct 2026
+    try {
+      const findForWeek = vi.fn().mockResolvedValue(null);
+      const service = new PantryService(
+        makeRepo([pantryRow('halloumi')]),
+        makePlanRepo({ findForWeek }),
+      );
+      await service.whatCanIMake(premiumUser);
+      expect(findForWeek).toHaveBeenCalledWith('u1', new Date(2026, 8, 28, 0, 0, 0, 0));
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it('whatCanIMake never ranks a recipe unsafe for an egg-allergic vegetarian (B-34, B-46, T-00.11)', async () => {
     vi.mocked(dietaryPreferencesRepository.findByUserId).mockResolvedValueOnce({
       allergies: ['egg'],
@@ -216,7 +331,7 @@ describe('PantryService', () => {
     } as never);
     const repo = makeRepo([pantryRow('egg'), pantryRow('spinach'), pantryRow('feta')]);
     const planRepo = makePlanRepo({
-      findActiveWithDays: vi.fn().mockResolvedValue({
+      findForWeek: vi.fn().mockResolvedValue({
         id: 'plan1',
         days: [
           { meals: [{ type: 'breakfast', recipeId: 'r-egg' }] },
@@ -296,5 +411,21 @@ describe('PantryService', () => {
     });
     const service2 = new PantryService(makeRepo([]), planRepo);
     expect(await service2.computeWeekPantrySavings('u1', new Date())).toBe(0);
+  });
+
+  // ── FB7-10: retired ────────────────────────────────────────────────────────
+
+  it('retired: whatCanIMake does not read the pantry and says the feature is gone', async () => {
+    pantrySwitch.retired = true;
+    const repo = makeRepo([pantryRow('tomato')]);
+    const service = new PantryService(repo, makePlanRepo());
+    expect(await service.whatCanIMake(premiumUser)).toContain('retired');
+    expect(repo.findByUser).not.toHaveBeenCalled();
+  });
+
+  it('retired: computeWeekPantrySavings records no saving', async () => {
+    pantrySwitch.retired = true;
+    const service = new PantryService(makeRepo([pantryRow('tomato')]), makePlanRepo());
+    expect(await service.computeWeekPantrySavings('u1', new Date())).toBeNull();
   });
 });

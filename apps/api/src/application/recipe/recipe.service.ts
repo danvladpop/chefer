@@ -11,8 +11,13 @@ import {
   type Recipe,
 } from '@chefer/database';
 import type { SafetyChecks, TableSafety } from '@chefer/types';
+import { rankForSlot, recipeMealTypeHint } from '@chefer/utils';
 import type { RecipeData } from '../../lib/ai/types.js';
-import { ensureCuratedRecipes, safeCuratedPools } from '../../lib/curated-recipes/index.js';
+import {
+  CURATED_POOL_BY_TYPE,
+  ensureCuratedRecipes,
+  safeCuratedPools,
+} from '../../lib/curated-recipes/index.js';
 import type { SafetyCheckable } from '../../lib/curated-recipes/safety.js';
 import { moderationService, type ModerationService } from '../friends/moderation.service.js';
 import { socialAccessService } from '../friends/social-access.service.js';
@@ -69,14 +74,41 @@ type RecipeWithPeople = Awaited<
  * they surface only as the optional `creator`/`origin` keys, so a row for a
  * user who never used Following has exactly the pre-Following key set (INV-8).
  */
-type FollowingColumns = 'originRecipeId' | 'originCreatorId' | 'hiddenAt' | 'hiddenReason';
+type FollowingColumns =
+  | 'originRecipeId'
+  | 'originCreatorId'
+  | 'hiddenAt'
+  | 'hiddenReason'
+  | 'deletedAt';
 
 /** A `recipe.list` row: the recipe as before, plus the optional attribution keys. */
 export type RecipeListRow = Omit<Recipe, FollowingColumns> &
   Pick<RecipeAttribution, 'creator' | 'origin'> & {
     isFavourite: boolean;
     safetyChecks?: SafetyChecks;
+    /**
+     * UX-PLAN-05: the meal type of a CURATED recipe, only when `list` was
+     * asked for a `slotType` (additive; absent = unknown).
+     */
+    mealType?: MealTypeKey;
   };
+
+type MealTypeKey = 'breakfast' | 'lunch' | 'dinner' | 'snack';
+
+let curatedMealTypes: Map<string, MealTypeKey> | null = null;
+/** Curated recipe id → its meal type (the pools are static, built once). */
+function curatedMealTypeOf(id: string): MealTypeKey | undefined {
+  if (!curatedMealTypes) {
+    curatedMealTypes = new Map();
+    for (const [type, pool] of Object.entries(CURATED_POOL_BY_TYPE)) {
+      for (const recipe of pool) curatedMealTypes.set(recipe.id, type as MealTypeKey);
+    }
+  }
+  return curatedMealTypes.get(id);
+}
+
+/** Rows scanned to find the best matches for a slot (the repo caps a read at 200). */
+const SLOT_RANK_WINDOW = 200;
 
 /** What `list` needs from Following. Injectable for tests. */
 export interface RecipeListSocialDeps {
@@ -107,6 +139,8 @@ function toListRow(
     originCreatorId: _originCreatorId,
     hiddenAt: _hiddenAt,
     hiddenReason: _hiddenReason,
+    // UX-REC-04: listed rows are never deleted — the column stays server-side.
+    deletedAt: _deletedAt,
     ...base
   } = row;
   const { creator: creatorDto, origin } = recipeAttribution(
@@ -207,39 +241,62 @@ export class RecipeService {
        * Optional and off by default so older list callers are unaffected.
        */
       forTable?: boolean | undefined;
+      /**
+       * UX-PLAN-05: the meal slot the list is for. Re-orders so recipes that
+       * fit it come first (the Lunch picker used to lead with breakfasts) and
+       * tags curated rows with their `mealType`. Optional and additive.
+       */
+      slotType?: MealTypeKey | undefined;
     },
   ): Promise<RecipeListRow[]> {
-    const { forTable, ...listOpts } = opts;
+    const { forTable, slotType, ...listOpts } = opts;
     const { friendsOn, visibleCreatorIds } = await this.listSocial(userId);
+    // A slot ranks BEFORE the page is cut, so scan a wider window first.
+    const wanted = listOpts.limit ?? 20;
     const [recipes, savedIds] = await Promise.all([
       favouriteRecipeRepository.findAllRecipesForUser(userId, {
         ...listOpts,
+        ...(slotType && !listOpts.cursor && { limit: Math.max(wanted, SLOT_RANK_WINDOW) }),
         ...(visibleCreatorIds && { visibleCreatorIds }),
       }),
       favouriteRecipeRepository.findSavedRecipeIds(userId),
     ]);
     const saved = new Set(savedIds);
-    const withFavourite = recipes.map((recipe) =>
+    const base = recipes.map((recipe) =>
       toListRow(userId, recipe, friendsOn, saved.has(recipe.id)),
     );
-    if (!forTable) return withFavourite;
+    const withFavourite = slotType
+      ? rankForSlot(
+          base.map((row) => {
+            const known = curatedMealTypeOf(row.id);
+            return known ? { ...row, mealType: known } : row;
+          }),
+          slotType,
+          recipeMealTypeHint,
+        )
+      : base;
+    // The ranked window is cut after the safety filter, below.
+    const finish = (rows: RecipeListRow[]) => (slotType ? rows.slice(0, wanted) : rows);
+    if (!forTable) return finish(withFavourite);
 
     // T-01.2/T-08.10: the Replace picker (and any other `forTable` list)
     // goes through the ONE SafetyService filter — reported recipes excluded,
     // dislikes hard, taxonomy-recognised legacy terms included.
     const ctx = await this.safety.loadContext(userId);
-    const visible = this.safety.filter(withFavourite, ctx);
+    const visible = this.safety.filter(withFavourite, ctx, { deriveFromIngredients: true });
     // T-02.1/T-02.4: picker rows get their Checked chip from the same
     // payload the plan surfaces use — only attached when the table has
     // rules (UX-02 AC1: no false "Checked" claim on a rule-less table).
-    if (!ctx.table.hasRules) return visible;
+    if (!ctx.table.hasRules) return finish(visible);
     // `visible` rows are full Prisma `Recipe` rows (findAllRecipesForUser
     // does a plain findMany, no narrowing `select`) — ingredients/
     // instructions/dietaryTags are all present, so this cast is safe.
-    return visible.map((r) => {
-      const checks = safeCheck(this.safety, r as unknown as SafetyCheckable, ctx.table);
-      return checks ? { ...r, safetyChecks: checks } : r;
-    });
+    return finish(
+      visible.map((r) => {
+        const checks = safeCheck(this.safety, r as unknown as SafetyCheckable, ctx.table);
+        return checks ? { ...r, safetyChecks: checks } : r;
+      }),
+    );
   }
 
   /**
@@ -264,7 +321,7 @@ export class RecipeService {
         ...(visibleCreatorIds && { visibleCreatorIds }),
       }),
     ]);
-    const visible = this.safety.filter(recipes, ctx);
+    const visible = this.safety.filter(recipes, ctx, { deriveFromIngredients: true });
     const filteredFor = [...ctx.prefs.allergies, ...ctx.prefs.dietaryRestrictions];
     return { hiddenCount: recipes.length - visible.length, filteredFor };
   }
@@ -376,6 +433,26 @@ export class RecipeService {
       { lines: prepared.lines, nutrition: prepared.nutrition },
     );
     return { ...recipe, lines: prepared.report };
+  }
+
+  /**
+   * UX-REC-04: soft-deletes the user's own recipe. NOT_FOUND when it isn't
+   * theirs (or is already deleted) — same answer, so ids can't be probed.
+   * Idempotent for the client: the deleted recipe's id is returned for Undo.
+   */
+  async deleteMine(userId: string, recipeId: string): Promise<{ recipeId: string }> {
+    if (!(await favouriteRecipeRepository.softDeleteManualRecipe(userId, recipeId))) {
+      throw new TRPCError({ code: 'NOT_FOUND', message: 'Recipe not found.' });
+    }
+    return { recipeId };
+  }
+
+  /** The Undo of `deleteMine`: brings the user's deleted recipe back. */
+  async restoreMine(userId: string, recipeId: string): Promise<{ recipeId: string }> {
+    if (!(await favouriteRecipeRepository.restoreManualRecipe(userId, recipeId))) {
+      throw new TRPCError({ code: 'NOT_FOUND', message: 'Recipe not found.' });
+    }
+    return { recipeId };
   }
 
   async toggleFavourite(userId: string, recipeId: string): Promise<{ isSaved: boolean }> {

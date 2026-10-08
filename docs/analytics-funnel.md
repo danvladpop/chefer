@@ -59,6 +59,50 @@ Capture is production-only (`NEXT_PUBLIC_POSTHOG_DEV=1` to test locally).
   `analytics_consent_changed { anonymous, linked }` (either switch flips),
   `meal_logged { source, mealType }` (tracker, new shape above).
 
+### Mobile beta funnel (WP-13, UX-PO-02)
+
+Fired from `apps/mobile` through `track()` (so both consent switches and the
+no-key no-op apply unchanged); shapes live in the shared `EventMap`
+(`packages/types/src/analytics-events.ts`, health-data-guarded: counts and
+literal unions only). Call-site helpers: `apps/mobile/src/lib/analytics-events.ts`.
+Web fires the same events through `apps/web/src/lib/analytics-events.ts` and `capture()` (see "Web" below).
+
+| Event                  | Properties                                          | Fired when                                                                                                                                                                                                                                                                                                                                                                                                    |
+| ---------------------- | --------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `signup_completed`     | —                                                   | `auth.register` succeeded (`app/(auth)/register.tsx`)                                                                                                                                                                                                                                                                                                                                                         |
+| `onboarding_completed` | `jobs[]`, `trainingStyles[]?`                       | The setup wizard ends: Finish, train-only Continue or "Just looking around" — once per onboarding. `trainingStyles` = distinct training-day kinds, if any                                                                                                                                                                                                                                                     |
+| `plan_generated`       | `slotsCount`, `keptPicks`                           | `mealPlan.generate` succeeded from Plan, the onboarding first week or the premium household action (`keptPicks` = pins carried over a regenerate, else 0)                                                                                                                                                                                                                                                     |
+| `meal_logged`          | `source`, `mealType?`                               | A meal is logged. `source`: `planned` (plan slot ticked/logged: Today hero, Tonight card, tracker tick, quick-add plan row, cook mode opened from a slot), `replaced` (quick-add/cook log for a meal type that already has a planned meal), `quick` (quick-add recent/recipe/ingredient/typed, cook mode without a slot), `snap` (photo scan). `mealType` only when it is one of breakfast/lunch/dinner/snack |
+| `list_opened`          | `itemCount`                                         | The Shop tab loaded a list with a plan — once per visit to the screen                                                                                                                                                                                                                                                                                                                                         |
+| `list_shared`          | `scope: 'whatsLeft' \| 'everything'`                | The OS share sheet confirmed a send of the list                                                                                                                                                                                                                                                                                                                                                               |
+| `cook_finished`        | —                                                   | Cook mode's finish screen is reached                                                                                                                                                                                                                                                                                                                                                                          |
+| `workout_finished`     | `durationMin`, `sets`, `kind: planned \| freestyle` | Finish completes a gym session (`gym/workout/workout-screen.tsx`). `prs` is omitted on mobile (computed on the summary screen)                                                                                                                                                                                                                                                                                |
+| `class_checked_in`     | —                                                   | **Reserved** in `EventMap` for WP-05 (class check-in); no call site yet                                                                                                                                                                                                                                                                                                                                       |
+
+Deliberately not fired: `slot_skipped` — mobile has no "skip a slot" action
+today. `onboarding_completed.numbersMode` — there is no numbers-mode setting
+yet. Add both when the feature exists.
+
+Gaps and rules:
+
+- **Web (UX-PO-02 parity):** web fires `signup_completed` (`register-form`), `onboarding_completed`
+  (the wizard's Finish, train-only Continue and "Just looking around", once), `list_opened` (Shop, once per
+  visit once a plan's list has loaded), `list_shared` (the Send-the-list dialog: native share confirmed or
+  copied), `cook_finished` (cook mode's finish screen, once per cook), `workout_finished.kind`
+  (`planned` | `freestyle`) and the new `meal_logged.source` values: `planned` (Today hero, Tonight, tracker
+  tick, plan row in the log sheet, cook mode opened from a slot), `replaced`, `quick` (log sheet, cook mode
+  without a slot) and `snap` (photo scan). The old web `source: 'today'` is retired in favour of `planned`.
+  All go through `capture()`, so the "Send anonymous usage counts" switch applies. Web `plan_generated` still
+  sends the older `tier, weekOffset` shape.
+- **Privacy labels first (OA-2):** the owner must update the App Store privacy
+  labels (and the in-app privacy copy) to cover these usage events BEFORE any
+  `EXPO_PUBLIC_POSTHOG_KEY` is set in `eas.json` / the deploy workflow. No key
+  is configured today, so every event above is a no-op in production builds.
+- **No key needed for the beta numbers:** `docs/beta-dashboard.sql` computes
+  daily actives, 2-days-in-7 activation, weekly retention by signup week and
+  the food-vs-gym split straight from our own Postgres tables
+  (`psql -v cohort_start=YYYY-MM-DD -f docs/beta-dashboard.sql`).
+
 ### Upgrade funnel (PW-2)
 
 | Event                  | Properties | Fired when                                       |

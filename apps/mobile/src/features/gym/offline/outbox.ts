@@ -1,6 +1,8 @@
 import { useSyncExternalStore } from 'react';
 import { onlineManager } from '@tanstack/react-query';
 import { workoutSessionDocSchema, type SyncResultDto, type WorkoutSessionDoc } from '@chefer/types';
+import { isNetworkError } from '@chefer/utils';
+import { describeValidationIssues, friendlyValidationMessage } from '../validation-copy';
 import { createExternalStore } from './external-store';
 import { KV_KEYS } from './keys';
 import { getKvBackend } from './kv';
@@ -14,7 +16,14 @@ import { getConfirmedGymOwner, getGymOwner, subscribeGymOwner } from './owner';
 //    explicit user "Discard" of a parked entry;
 //  • 'rejected' (or a doc that fails validation) PARKS the entry for the user
 //    ("needs attention" in gym settings: Copy / Retry / Discard);
-//  • network / server errors keep everything and back off exponentially.
+//  • network / server errors keep everything and back off exponentially;
+//  • UX-GYM-25: an item the SERVER keeps failing on (not the network) is
+//    isolated after SERVER_FAILURE_ROUNDS rounds and PARKED — but only when
+//    another item in the same pass got through, so it is that item and not an
+//    outage — so one bad workout can no longer block the others forever;
+//  • UX-GYM-23: an ack for a copy older than the queued one (an edit or a
+//    delete was queued while the upload was in flight) never drops the newer
+//    copy — it stays queued and is sent next.
 // The queue is persisted synchronously on every mutation.
 
 export type SendDocs = (docs: WorkoutSessionDoc[]) => Promise<SyncResultDto[]>;
@@ -29,6 +38,11 @@ export interface OutboxEntry {
   lastAttemptAt: string | null;
   /** Set ⇒ "needs attention": never sent automatically until retried. */
   parkedReason?: string;
+  /**
+   * UX-GYM-25: rounds in which the server (not the network) failed the batch
+   * this entry was in. Additive; absent = 0.
+   */
+  serverFailures?: number;
   /**
    * T-44.2: ISO time before which this entry is held back from flushing — the
    * 8 s "Undo" snackbar on a session delete (Δ2.3): the delete is enqueued
@@ -89,6 +103,10 @@ export interface OutboxConfig {
 export const OUTBOX_BATCH_SIZE = 20;
 export const BACKOFF_BASE_MS = 5_000;
 export const BACKOFF_MAX_MS = 5 * 60_000;
+/** UX-GYM-25: server-failed rounds before a batch is split and a failing item parked. */
+export const SERVER_FAILURE_ROUNDS = 3;
+export const SERVER_FAILURE_PARKED_REASON =
+  "The server couldn't save this workout after several tries. It is kept on this phone. Tap Retry to try again.";
 
 /** 5 s, 10 s, 20 s … capped at 5 min. */
 export function backoffDelay(failures: number): number {
@@ -193,8 +211,14 @@ export function createOutbox(deps: OutboxDeps = {}) {
     for (const entry of sendable(store.get(), owner)) {
       const parsed = workoutSessionDocSchema.safeParse(entry.doc);
       if (!parsed.success) {
-        const reason = `invalid: ${parsed.error.issues[0]?.message ?? 'schema mismatch'}`;
-        patchEntries(new Set([entry.doc.id]), (e) => ({ ...e, parkedReason: reason }));
+        // UX-GYM-01: a plain sentence (what to fix), never the raw Zod text —
+        // Today and Gym settings render `parkedReason` as-is.
+        const reason = describeValidationIssues(parsed.error.issues);
+        patchEntries(new Set([entry.doc.id]), (e) => ({
+          ...e,
+          lastError: parsed.error.issues[0]?.message ?? 'schema mismatch',
+          parkedReason: reason,
+        }));
         result.parked++;
       }
     }
@@ -215,6 +239,12 @@ export function createOutbox(deps: OutboxDeps = {}) {
   ): Promise<boolean> {
     const ids = new Set(batch.map((e) => e.doc.id));
     const attemptAt = iso();
+    // UX-GYM-23: the copy that went out. An entry whose doc changed while the
+    // request was in flight is a NEWER copy — no ack or failure for the old one
+    // may drop, park or otherwise touch it.
+    const sentAt = new Map(batch.map((e) => [e.doc.id, e.doc.clientUpdatedAt]));
+    const isSentCopy = (entry: OutboxEntry) =>
+      sentAt.get(entry.doc.id) === entry.doc.clientUpdatedAt;
     let results: SyncResultDto[];
     try {
       results = await send(batch.map((e) => e.doc));
@@ -229,22 +259,41 @@ export function createOutbox(deps: OutboxDeps = {}) {
       }
       const message = errorMessage(error);
       if (isBadRequest(error)) {
-        patchEntries(ids, (e) => ({
-          ...e,
-          attempts: e.attempts + 1,
-          lastAttemptAt: attemptAt,
-          lastError: message,
-          parkedReason: `rejected: ${message}`,
-        }));
+        patchEntries(ids, (e) =>
+          isSentCopy(e)
+            ? {
+                ...e,
+                attempts: e.attempts + 1,
+                lastAttemptAt: attemptAt,
+                lastError: message,
+                parkedReason: friendlyValidationMessage(message),
+              }
+            : e,
+        );
         result.parked += batch.length;
         return true;
       }
+      const serverSide = !isNetworkError(error);
       patchEntries(ids, (e) => ({
         ...e,
         attempts: e.attempts + 1,
         lastAttemptAt: attemptAt,
         lastError: message,
+        ...(serverSide && isSentCopy(e) && { serverFailures: (e.serverFailures ?? 0) + 1 }),
       }));
+      // UX-GYM-25: a batch the server keeps failing is split, so one bad
+      // workout cannot hold the rest hostage.
+      if (
+        serverSide &&
+        batch.length > 1 &&
+        store
+          .get()
+          .entries.some(
+            (e) => ids.has(e.doc.id) && (e.serverFailures ?? 0) >= SERVER_FAILURE_ROUNDS,
+          )
+      ) {
+        return isolateFailingBatch(send, ids, owner, result);
+      }
       result.failed += batch.length;
       update((state) => {
         const failures = state.failures + 1;
@@ -262,6 +311,21 @@ export function createOutbox(deps: OutboxDeps = {}) {
     const acked: string[] = [];
     const staleIds: string[] = [];
     patchEntries(ids, (entry) => {
+      // UX-GYM-23: a newer copy was queued while this one was uploading; the
+      // ack belongs to the old copy, so the newer entry stays and is sent next.
+      if (!isSentCopy(entry)) {
+        const ack = byId.get(entry.doc.id);
+        if (ack && (ack.status === 'applied' || ack.status === 'stale')) {
+          acked.push(entry.doc.id);
+          if (ack.status === 'applied') result.applied++;
+          else {
+            result.stale++;
+            staleIds.push(entry.doc.id);
+          }
+        }
+        pending.rerun = true;
+        return entry;
+      }
       const ack = byId.get(entry.doc.id);
       if (!ack) {
         result.failed++;
@@ -287,7 +351,7 @@ export function createOutbox(deps: OutboxDeps = {}) {
         attempts: entry.attempts + 1,
         lastAttemptAt: attemptAt,
         lastError: ack.reason ?? 'Rejected by the server',
-        parkedReason: `rejected: ${ack.reason ?? 'rejected by the server'}`,
+        parkedReason: friendlyValidationMessage(ack.reason ?? 'The server rejected this workout.'),
       };
     });
     update((state) => ({
@@ -311,6 +375,46 @@ export function createOutbox(deps: OutboxDeps = {}) {
         // Informational only.
       }
     }
+    return true;
+  }
+
+  /**
+   * UX-GYM-25: send a failing batch one item at a time. The item the server
+   * keeps failing on is parked ("needs attention") when something else in the
+   * same pass got through — proof the server works and it is that item. With
+   * no such proof (an outage, or a lone item) nothing is parked: the queue
+   * keeps backing off and the UI shows the last error with "Sync now".
+   */
+  async function isolateFailingBatch(
+    send: SendDocs,
+    ids: Set<string>,
+    owner: string,
+    result: FlushResult,
+  ): Promise<boolean> {
+    const gotThrough = () => result.applied + result.stale;
+    const before = gotThrough();
+    const failedBefore = result.failed;
+    const failedIds: string[] = [];
+    for (const id of ids) {
+      const current = store.get().entries.find((e) => e.doc.id === id && !e.parkedReason);
+      if (!current) continue;
+      const ok = await sendBatch(send, [current], owner, result);
+      if (!ok) failedIds.push(id);
+    }
+    if (failedIds.length === 0) return true;
+    if (gotThrough() === before) return false;
+
+    let parkedCount = 0;
+    patchEntries(new Set(failedIds), (e) => {
+      if ((e.serverFailures ?? 0) < SERVER_FAILURE_ROUNDS) return e;
+      parkedCount++;
+      return { ...e, parkedReason: SERVER_FAILURE_PARKED_REASON };
+    });
+    result.parked += parkedCount;
+    result.failed = Math.max(failedBefore, result.failed - parkedCount);
+    if (parkedCount < failedIds.length) return false;
+    // Everything left got through or is parked: the server is fine, clear the backoff.
+    update((state) => ({ ...state, failures: 0, nextAttemptAt: null, lastError: null }));
     return true;
   }
 
@@ -384,7 +488,12 @@ export function createOutbox(deps: OutboxDeps = {}) {
             if (e.doc.id !== doc.id) return e;
             // A fresh copy gets a fresh chance: drop the parked flag and any
             // stale hold from a previous enqueue of this same session.
-            const { parkedReason: _dropped, holdUntil: _dropped2, ...rest } = e;
+            const {
+              parkedReason: _dropped,
+              holdUntil: _dropped2,
+              serverFailures: _dropped3,
+              ...rest
+            } = e;
             return {
               ...rest,
               doc,
@@ -419,7 +528,7 @@ export function createOutbox(deps: OutboxDeps = {}) {
     /** User "Retry" on a parked entry. */
     retryParked(id: string): Promise<FlushResult> {
       patchEntries(new Set([id]), (e) => {
-        const { parkedReason: _dropped, ...rest } = e;
+        const { parkedReason: _dropped, serverFailures: _dropped2, ...rest } = e;
         return rest;
       });
       return outbox.flush({ force: true });

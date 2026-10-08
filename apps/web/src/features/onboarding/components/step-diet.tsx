@@ -1,16 +1,18 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useImperativeHandle, useState, type Ref } from 'react';
 import { UncheckedNotice } from '@/features/safety/components/UncheckedNotice';
-import { findSafetyTaxonomyEntry, safetyTaxonomyEntriesByGroup } from '@chefer/types';
 import {
+  findSafetyTaxonomyEntry,
+  safetyPickerEntries,
+  safetyTaxonomyEntriesByGroup,
+} from '@chefer/types';
+import {
+  applySafetyTerm,
   BASE_DIET_IDS,
   classifySafetyValue,
   DIET_MODIFIER_IDS,
-  recognisedAddedText,
-  recognisedDietSetText,
-  recognisedModifierAddedText,
-  recogniseSafetyTerm,
+  keepSafetyTermAsNote,
   SAFETY_COPY,
   serialiseSafetyPickerValue,
   type BaseDietId,
@@ -29,9 +31,26 @@ export interface StepDietValues {
   dislikedIngredients: string[];
 }
 
+/**
+ * UX-ACC-01: what a host calls from its Save / Continue. A term typed in
+ * "Something else?" but never confirmed with "Add" must not be lost, so the
+ * host asks the picker to flush it first and saves the RETURNED value (state
+ * updates are async — `value` is stale inside the same handler).
+ *  - nothing pending → the current value;
+ *  - a recognised term → it is added and the new value is returned;
+ *  - an unrecognised term (or one still awaiting a Keep/Remove choice) → the
+ *    picker shows its notice and returns `null`: the host must NOT save yet.
+ */
+export interface StepDietHandle {
+  flush: () => StepDietValues | null;
+}
+
 interface StepDietProps {
   value: StepDietValues;
   onChange: (value: StepDietValues) => void;
+  ref?: Ref<StepDietHandle> | undefined;
+  /** True while the field holds un-added text or a Keep/Remove choice is open (a pending edit). */
+  onPendingChange?: ((pending: boolean) => void) | undefined;
 }
 
 function labelFor(id: string): string {
@@ -62,7 +81,7 @@ const chipCls = (selected: boolean, disabled = false) =>
         : 'border-border text-muted-foreground hover:border-primary/40 hover:text-foreground'
   }`;
 
-export function StepDiet({ value, onChange }: StepDietProps) {
+export function StepDiet({ value, onChange, ref, onPendingChange }: StepDietProps) {
   const classified = classifySafetyValue(value);
   const [somethingElse, setSomethingElse] = useState('');
   const [addedMessage, setAddedMessage] = useState<string | null>(null);
@@ -70,12 +89,15 @@ export function StepDiet({ value, onChange }: StepDietProps) {
     variant: 'unrecognised' | 'condition';
     term: string;
   } | null>(null);
+  // Set when a host's Save was held back because a term still needs a choice.
+  const [blockedTerm, setBlockedTerm] = useState<string | null>(null);
 
   const commit = (patch: Partial<ReturnType<typeof classifySafetyValue>>) => {
     onChange(serialiseSafetyPickerValue({ ...classified, ...patch }));
   };
 
-  const allergyEntries = safetyTaxonomyEntriesByGroup('allergy');
+  // Legacy "Shellfish" is offered only while already selected (UX-ACC-06 follow-up).
+  const allergyEntries = safetyPickerEntries('allergy', classified.allergyIds);
   const dislikeEntries = safetyTaxonomyEntriesByGroup('dislike');
   const veganSelected = classified.dietBaseId === 'vegan';
   const knownModifierIds = classified.dietModifierIds.filter((id) =>
@@ -105,61 +127,51 @@ export function StepDiet({ value, onChange }: StepDietProps) {
     return list.includes(id) ? list.filter((x) => x !== id) : [...list, id];
   }
 
-  function handleAdd() {
-    const term = somethingElse.trim();
-    if (!term) return;
+  function handleAdd(): StepDietValues | null {
+    const outcome = applySafetyTerm(value, somethingElse);
+    if (outcome.status === 'empty') return value;
     setSomethingElse('');
     setAddedMessage(null);
-    const recognised = recogniseSafetyTerm(term);
-
-    if (recognised.kind === 'unrecognised') {
-      setPending({ variant: 'unrecognised', term });
-      return;
+    setBlockedTerm(null);
+    if (outcome.status === 'needs-decision') {
+      setPending({ variant: outcome.variant, term: outcome.term });
+      return null;
     }
-    if (recognised.kind === 'condition') {
-      if (recognised.impliesDietId) {
-        commit({
-          dietModifierIds: [...new Set([...classified.dietModifierIds, recognised.impliesDietId])],
-        });
-        setAddedMessage(recognisedDietSetText(labelFor(recognised.impliesDietId)));
-      } else {
-        setPending({ variant: 'condition', term });
-      }
-      return;
-    }
-    if (recognised.kind === 'allergy') {
-      commit({ allergyIds: [...new Set([...classified.allergyIds, recognised.id])] });
-      setAddedMessage(recognisedAddedText('Allergies', recognised.label));
-      return;
-    }
-    if (recognised.kind === 'dislike') {
-      commit({ dislikeIds: [...new Set([...classified.dislikeIds, recognised.id])] });
-      setAddedMessage(recognisedAddedText('Won’t eat', recognised.label));
-      return;
-    }
-    if (
-      recognised.id === 'vegetarian-no-eggs' &&
-      classified.dietBaseId !== 'vegetarian' &&
-      classified.dietBaseId !== 'vegetarian-no-eggs'
-    ) {
-      commit({ dietModifierIds: [...new Set([...classified.dietModifierIds, 'egg-free'])] });
-      setAddedMessage(recognisedModifierAddedText('Egg-free'));
-      return;
-    }
-    if ((BASE_DIET_IDS as readonly string[]).includes(recognised.id)) {
-      commit({ dietBaseId: recognised.id as BaseDietId });
-      setAddedMessage(recognisedDietSetText(recognised.label));
-      return;
-    }
-    commit({ dietModifierIds: [...new Set([...classified.dietModifierIds, recognised.id])] });
-    setAddedMessage(recognisedModifierAddedText(recognised.label));
+    onChange(outcome.value);
+    setAddedMessage(outcome.message);
+    return outcome.value;
   }
 
   function keepPendingAsNote() {
     if (!pending) return;
-    commit({ notes: [...classified.notes, pending.term] });
+    onChange(keepSafetyTermAsNote(value, pending.term));
     setPending(null);
+    setBlockedTerm(null);
   }
+
+  const hasPendingEdit = somethingElse.trim() !== '' || pending !== null;
+  useEffect(() => {
+    onPendingChange?.(hasPendingEdit);
+  }, [hasPendingEdit, onPendingChange]);
+
+  useImperativeHandle(ref, () => ({
+    flush: () => {
+      if (pending?.variant === 'unrecognised') {
+        setBlockedTerm(pending.term);
+        return null;
+      }
+      if (pending) {
+        // A health-condition notice is informational — nothing is ever stored
+        // from it, so a second Save simply moves on.
+        setPending(null);
+        return value;
+      }
+      const typed = somethingElse.trim();
+      const added = handleAdd();
+      if (added === null) setBlockedTerm(typed);
+      return added;
+    },
+  }));
 
   return (
     <div className="space-y-8">
@@ -175,7 +187,7 @@ export function StepDiet({ value, onChange }: StepDietProps) {
         {/* Allergies */}
         <div className="space-y-3">
           <p className="text-sm font-medium">Allergies</p>
-          <div className="flex flex-wrap gap-2">
+          <div role="group" aria-label="Allergies" className="flex flex-wrap gap-2">
             {allergyEntries.map((entry) => {
               const selected = classified.allergyIds.includes(entry.id);
               return (
@@ -316,12 +328,12 @@ export function StepDiet({ value, onChange }: StepDietProps) {
                   handleAdd();
                 }
               }}
-              placeholder="e.g. aubergine"
+              placeholder={SAFETY_COPY.somethingElsePlaceholder}
               className="min-w-0 flex-1 rounded-md border border-input bg-background px-3 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
             />
             <button
               type="button"
-              onClick={handleAdd}
+              onClick={() => handleAdd()}
               className="inline-flex min-h-11 shrink-0 items-center justify-center rounded-md border border-input bg-background px-4 text-sm font-medium hover:bg-accent"
             >
               Add
@@ -333,10 +345,24 @@ export function StepDiet({ value, onChange }: StepDietProps) {
               term={pending.term}
               variant={pending.variant}
               onKeepNote={keepPendingAsNote}
-              onRemove={() => setPending(null)}
-              onChooseGoal={() => setPending(null)}
-              onDismiss={() => setPending(null)}
+              onRemove={() => {
+                setPending(null);
+                setBlockedTerm(null);
+              }}
+              onChooseGoal={() => {
+                setPending(null);
+                setBlockedTerm(null);
+              }}
+              onDismiss={() => {
+                setPending(null);
+                setBlockedTerm(null);
+              }}
             />
+          )}
+          {blockedTerm && (
+            <p role="alert" data-testid="safety-save-blocked" className="text-xs text-destructive">
+              Choose what to do with “{blockedTerm}” first — then save again.
+            </p>
           )}
           {classified.notes.length > 0 && (
             <div className="flex flex-wrap gap-1.5">

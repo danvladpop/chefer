@@ -1,4 +1,5 @@
 // @vitest-environment jsdom
+import { capture } from '@/lib/analytics';
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { QuickAddSheet } from './QuickAddSheet';
@@ -13,6 +14,9 @@ const m = vi.hoisted(() => ({
   recents: [] as unknown[],
   recipes: [] as unknown[],
   ingredients: [] as unknown[],
+  search: { isFetching: false, isError: false },
+  refetch: vi.fn(),
+  logRecipeState: { isError: false, error: null as { message: string } | null },
   logCustomState: { isPending: false, isError: false, error: null as { message: string } | null },
   invalidate: {
     getDay: vi.fn(),
@@ -25,7 +29,11 @@ const m = vi.hoisted(() => ({
 
 const rebalance = { rebalanced: false, swaps: [], projectedDeviation: 0, planId: 'p' };
 
-vi.mock('../lib/rebalance-storage', () => ({ handleRebalanceResult: vi.fn() }));
+vi.mock('@/lib/analytics', () => ({ capture: vi.fn() }));
+vi.mock('../lib/rebalance-storage', () => ({
+  handleRebalanceOutcome: vi.fn(),
+  REBALANCE_PREVIEW: { rebalanceMode: 'preview' },
+}));
 vi.mock('@/lib/trpc', () => ({
   trpc: {
     useUtils: () => ({
@@ -37,8 +45,12 @@ vi.mock('@/lib/trpc', () => ({
       },
       dashboard: { summary: { invalidate: m.invalidate.dashboardSummary } },
     }),
-    recipe: { list: { useQuery: () => ({ data: m.recipes }) } },
-    ingredients: { search: { useQuery: () => ({ data: m.ingredients }) } },
+    recipe: {
+      list: { useQuery: () => ({ data: m.recipes, refetch: m.refetch, ...m.search }) },
+    },
+    ingredients: {
+      search: { useQuery: () => ({ data: m.ingredients, refetch: m.refetch, ...m.search }) },
+    },
     tracker: {
       recents: { useQuery: () => ({ data: m.recents }) },
       logRecipe: {
@@ -47,6 +59,7 @@ vi.mock('@/lib/trpc', () => ({
             m.logRecipe(vars);
             opts.onSuccess?.({ log: {}, rebalance }, vars);
           },
+          ...m.logRecipeState,
           isPending: false,
         }),
       },
@@ -55,7 +68,8 @@ vi.mock('@/lib/trpc', () => ({
           ...m.logCustomState,
           mutate: (vars: unknown) => {
             m.logCustom(vars);
-            if (!m.logCustomState.isError) opts.onSuccess?.({ log: {}, rebalance }, vars);
+            if (!m.logCustomState.isError)
+              opts.onSuccess?.({ log: {}, rebalance, entryId: 'e-1' }, vars);
           },
         }),
       },
@@ -82,6 +96,10 @@ beforeEach(() => {
   m.recents = [];
   m.recipes = [];
   m.ingredients = [];
+  m.search.isFetching = false;
+  m.search.isError = false;
+  m.logRecipeState.isError = false;
+  m.logRecipeState.error = null;
   m.logCustomState.isPending = false;
   m.logCustomState.isError = false;
   m.logCustomState.error = null;
@@ -118,6 +136,8 @@ describe('QuickAddSheet — search-first (T-19.1)', () => {
       recipeId: 'r1',
       mealType: 'snack',
       portionMultiplier: 1,
+      // WP-07: log writes ask for an offer, never a silent rebalance.
+      rebalanceMode: 'preview',
     });
     expect(onLogged).toHaveBeenCalled();
   });
@@ -167,6 +187,64 @@ describe('QuickAddSheet — search-first (T-19.1)', () => {
     );
   });
 
+  // UX-FOOD-09
+  it('clamps absurd grams instead of previewing 88,999 kcal', () => {
+    m.ingredients = [
+      {
+        name: 'banana',
+        displayName: 'Banana',
+        imageUrl: null,
+        hasMacros: true,
+        isCustom: false,
+        per100g: { calories: 89, protein: 1.1, carbs: 23, fat: 0.3 },
+      },
+    ];
+    renderSheet();
+    fireEvent.change(screen.getByTestId('log-sheet-search'), { target: { value: 'banana' } });
+    fireEvent.click(screen.getByText('Banana'));
+    const input = screen.getByTestId<HTMLInputElement>('log-sheet-grams-input-banana');
+    fireEvent.change(input, { target: { value: '99999' } });
+    expect(input.value).toBe('4347');
+    expect(screen.getByTestId('log-sheet-grams-max-banana')).toBeTruthy();
+    expect(screen.getByTestId('log-sheet-grams-live-kcal-banana').textContent).toMatch(
+      /^3869 kcal/,
+    );
+    fireEvent.click(screen.getByTestId('log-sheet-grams-log-banana'));
+    expect(m.logCustom).toHaveBeenCalledWith(expect.objectContaining({ kcal: 3869 }));
+  });
+
+  it('shows "Searching…" while a first search loads', () => {
+    m.search.isFetching = true;
+    renderSheet();
+    fireEvent.change(screen.getByTestId('log-sheet-search'), { target: { value: 'zzz' } });
+    expect(screen.getByTestId('log-sheet-searching')).toBeTruthy();
+  });
+
+  it('offers "enter calories yourself" when nothing matches, once the debounce settles', async () => {
+    renderSheet();
+    fireEvent.change(screen.getByTestId('log-sheet-search'), { target: { value: 'zzz' } });
+    expect(screen.queryByTestId('log-sheet-no-matches')).toBeNull();
+    fireEvent.click(await screen.findByTestId('log-sheet-no-matches'));
+    expect(screen.getByTestId<HTMLInputElement>('quick-add-name').value).toBe('zzz');
+  });
+
+  it('shows a Retry when the search fails instead of an empty list', () => {
+    m.search.isError = true;
+    renderSheet();
+    fireEvent.change(screen.getByTestId('log-sheet-search'), { target: { value: 'rice' } });
+    expect(screen.getByTestId('log-sheet-search-error')).toBeTruthy();
+    expect(screen.queryByTestId('log-sheet-no-matches')).toBeNull();
+    fireEvent.click(screen.getByTestId('log-sheet-search-retry'));
+    expect(m.refetch).toHaveBeenCalled();
+  });
+
+  it('shows a failed log in the search view', () => {
+    m.logRecipeState.isError = true;
+    m.logRecipeState.error = { message: 'Recipe not found.' };
+    renderSheet();
+    expect(screen.getByTestId('log-sheet-api-error').textContent).toMatch(/Recipe not found/);
+  });
+
   it('B-29/AC6: never shows a barcode or branded-product affordance', () => {
     renderSheet();
     expect(screen.queryByText(/barcode/i)).toBeNull();
@@ -195,6 +273,28 @@ describe('QuickAddSheet — Enter calories yourself (fallback, T-19.1)', () => {
     expect(screen.getByTestId('quick-add-kcal-error').textContent).toBe('Enter the calories.');
   });
 
+  // UX-FOOD-10: an error goes as soon as its own field is edited.
+  it('clears a field error as soon as that field is edited', () => {
+    renderSheet();
+    goToManual();
+    fireEvent.change(screen.getByTestId('quick-add-protein'), { target: { value: '900' } });
+    fireEvent.click(screen.getByTestId('quick-add-submit'));
+    expect(screen.getByTestId('quick-add-name-error')).toBeTruthy();
+    expect(screen.getByTestId('quick-add-kcal-error')).toBeTruthy();
+    expect(screen.getByTestId('quick-add-protein-error')).toBeTruthy();
+
+    fireEvent.change(screen.getByTestId('quick-add-name'), { target: { value: 'P' } });
+    expect(screen.queryByTestId('quick-add-name-error')).toBeNull();
+    expect(screen.getByTestId('quick-add-kcal-error')).toBeTruthy();
+
+    fireEvent.change(screen.getByTestId('quick-add-kcal'), { target: { value: '3' } });
+    expect(screen.queryByTestId('quick-add-kcal-error')).toBeNull();
+    expect(screen.getByTestId('quick-add-protein-error')).toBeTruthy();
+
+    fireEvent.change(screen.getByTestId('quick-add-protein'), { target: { value: '0' } });
+    expect(screen.queryByTestId('quick-add-protein-error')).toBeNull();
+  });
+
   it('logs name, chosen meal, kcal and macros that pass the sanity check', () => {
     renderSheet();
     goToManual();
@@ -215,6 +315,9 @@ describe('QuickAddSheet — Enter calories yourself (fallback, T-19.1)', () => {
       protein: 0,
       carbs: 50,
       fat: 18.5,
+      // UX-FOOD-11: the blank protein is unknown, not a typed 0 g
+      unknownMacros: ['protein'],
+      rebalanceMode: 'preview',
     });
   });
 
@@ -225,6 +328,8 @@ describe('QuickAddSheet — Enter calories yourself (fallback, T-19.1)', () => {
     fireEvent.change(screen.getByTestId('quick-add-name'), { target: { value: 'Mystery shake' } });
     fireEvent.change(screen.getByTestId('quick-add-kcal'), { target: { value: '100' } });
     fireEvent.change(screen.getByTestId('quick-add-protein'), { target: { value: '500' } });
+    fireEvent.change(screen.getByTestId('quick-add-carbs'), { target: { value: '0' } });
+    fireEvent.change(screen.getByTestId('quick-add-fat'), { target: { value: '0' } });
     expect(screen.getByTestId('quick-add-sanity').textContent).toContain(
       "These don't add up: 100 kcal logged, but the macros add up to 2,000 kcal.",
     );
@@ -238,10 +343,37 @@ describe('QuickAddSheet — Enter calories yourself (fallback, T-19.1)', () => {
     fireEvent.change(screen.getByTestId('quick-add-name'), { target: { value: 'Mystery shake' } });
     fireEvent.change(screen.getByTestId('quick-add-kcal'), { target: { value: '100' } });
     fireEvent.change(screen.getByTestId('quick-add-protein'), { target: { value: '500' } });
+    fireEvent.change(screen.getByTestId('quick-add-carbs'), { target: { value: '0' } });
+    fireEvent.change(screen.getByTestId('quick-add-fat'), { target: { value: '0' } });
     fireEvent.click(screen.getByTestId('quick-add-sanity-log-anyway'));
     expect(screen.queryByTestId('quick-add-sanity')).toBeNull();
     fireEvent.click(screen.getByTestId('quick-add-submit'));
     expect(m.logCustom).toHaveBeenCalledWith(expect.objectContaining({ kcal: 100, protein: 500 }));
+  });
+
+  // UX-FOOD-11: calories + protein only used to count the blanks as 0 g and
+  // flag "don't add up", greying out Log.
+  it('UX-FOOD-11: partial macros skip the sanity check, keep Log enabled and flag the blanks', () => {
+    renderSheet();
+    goToManual();
+    fireEvent.change(screen.getByTestId('quick-add-name'), { target: { value: 'Soup' } });
+    fireEvent.change(screen.getByTestId('quick-add-kcal'), { target: { value: '400' } });
+    fireEvent.change(screen.getByTestId('quick-add-protein'), { target: { value: '20' } });
+    expect(screen.queryByTestId('quick-add-sanity')).toBeNull();
+    const submit = screen.getByTestId('quick-add-submit');
+    expect((submit as HTMLButtonElement).disabled).toBe(false);
+    fireEvent.click(submit);
+    expect(m.logCustom).toHaveBeenCalledWith(
+      expect.objectContaining({ protein: 20, carbs: 0, fat: 0, unknownMacros: ['carbs', 'fat'] }),
+    );
+  });
+
+  it('UX-FOOD-25: every macro field has a visible label with its unit', () => {
+    renderSheet();
+    goToManual();
+    expect(screen.getByText('Protein (g)')).toBeTruthy();
+    expect(screen.getByText('Carbs (g)')).toBeTruthy();
+    expect(screen.getByText('Fat (g)')).toBeTruthy();
   });
 
   it('shows the API error', () => {
@@ -252,5 +384,194 @@ describe('QuickAddSheet — Enter calories yourself (fallback, T-19.1)', () => {
     expect(screen.getByTestId('quick-add-api-error').textContent).toBe(
       "You can't log a future day",
     );
+  });
+});
+
+// UX-PO-02: where a logged meal came from, by the same rules as the phone — a
+// planned row is `planned`; another meal into a type the plan already has is
+// `replaced`; everything else is `quick`.
+describe('QuickAddSheet analytics (UX-PO-02)', () => {
+  const PLANNED = {
+    recipeId: 'r2',
+    recipeName: 'Lentil curry',
+    mealType: 'dinner',
+    imageUrl: null,
+    kcal: 540,
+    protein: 25,
+    carbs: 60,
+    fat: 15,
+    slotIndex: 2,
+  };
+  const recent = (mealType: string) => ({
+    key: 'recipe:r1',
+    recipeId: 'r1',
+    name: 'Protein shake',
+    imageUrl: null,
+    mealType,
+    kcal: 180,
+    protein: 30,
+    carbs: 5,
+    fat: 2,
+    portionMultiplier: 1,
+    count: 4,
+    lastLoggedAt: '2026-09-25',
+  });
+
+  it('a planned row logs as planned', () => {
+    renderSheet([PLANNED]);
+    fireEvent.click(screen.getByText('Lentil curry'));
+    fireEvent.click(screen.getByTestId('log-sheet-plan-log-plan:2'));
+    expect(capture).toHaveBeenCalledWith('meal_logged', { source: 'planned', mealType: 'dinner' });
+  });
+
+  it('a recent logged into a type the plan already has is replaced', () => {
+    m.recents = [recent('dinner')];
+    renderSheet([PLANNED]);
+    fireEvent.click(screen.getByTestId('log-sheet-recent-add-recipe:r1'));
+    expect(capture).toHaveBeenCalledWith('meal_logged', { source: 'replaced', mealType: 'dinner' });
+  });
+
+  it('a recent into an unplanned type is quick, and a planned flag does not leak to the next log', () => {
+    m.recents = [recent('snack')];
+    renderSheet([PLANNED]);
+    fireEvent.click(screen.getByTestId('log-sheet-recent-add-recipe:r1'));
+    expect(capture).toHaveBeenLastCalledWith('meal_logged', { source: 'quick', mealType: 'snack' });
+  });
+});
+
+// ─── WP-06: pre-targeted at a plan slot ("Ate something else" → Describe) ──────
+describe('QuickAddSheet — logging INSTEAD of a planned slot (WP-06)', () => {
+  const slot = { mealType: 'dinner', slotIndex: 2 };
+  const onLoggedEntry = vi.fn();
+
+  function renderForSlot(
+    plannedMeals: React.ComponentProps<typeof QuickAddSheet>['plannedMeals'] = [],
+  ) {
+    render(
+      <QuickAddSheet
+        date="2026-09-26"
+        onLogged={onLogged}
+        plannedMeals={plannedMeals}
+        replacesSlot={slot}
+        open
+        hideTrigger
+        onLoggedEntry={onLoggedEntry}
+      />,
+    );
+  }
+
+  it('opens controlled, with no trigger, no meal chips and no plan group', () => {
+    renderForSlot([
+      {
+        recipeId: 'r2',
+        recipeName: 'Lentil curry',
+        mealType: 'dinner',
+        imageUrl: null,
+        kcal: 540,
+        protein: 25,
+        carbs: 60,
+        fat: 15,
+        slotIndex: 2,
+      },
+    ]);
+    expect(screen.queryByTestId('tracker-quick-add')).toBeNull();
+    expect(screen.getByText('Ate something else')).toBeTruthy();
+    expect(screen.queryByTestId('quick-add-meal-dinner')).toBeNull();
+    expect(screen.queryByText("This week's plan")).toBeNull();
+    expect(screen.queryByText('Lentil curry')).toBeNull();
+  });
+
+  it('a typed entry is a custom entry that replaces the slot', () => {
+    renderForSlot();
+    goToManual();
+    fireEvent.change(screen.getByTestId('quick-add-name'), { target: { value: 'Kebab plate' } });
+    fireEvent.change(screen.getByTestId('quick-add-kcal'), { target: { value: '800' } });
+    fireEvent.click(screen.getByTestId('quick-add-submit'));
+    expect(m.logCustom).toHaveBeenCalledWith(
+      expect.objectContaining({
+        name: 'Kebab plate',
+        kcal: 800,
+        mealType: 'dinner',
+        replacesSlot: slot,
+      }),
+    );
+    // The page gets the entry's id, for an Undo toast.
+    expect(onLoggedEntry).toHaveBeenCalledWith({ entryId: 'e-1', name: 'Kebab plate' });
+  });
+
+  it('a recipe from Recent is logged as a custom entry with its numbers, not ticked on the slot', () => {
+    m.recents = [
+      {
+        key: 'recipe:r1',
+        recipeId: 'r1',
+        name: 'Protein shake',
+        imageUrl: null,
+        mealType: 'snack',
+        kcal: 180,
+        protein: 30,
+        carbs: 5,
+        fat: 2,
+        portionMultiplier: 1,
+        count: 4,
+        lastLoggedAt: '2026-09-25',
+      },
+    ];
+    renderForSlot();
+    fireEvent.click(screen.getByTestId('log-sheet-recent-add-recipe:r1'));
+    expect(m.logRecipe).not.toHaveBeenCalled();
+    expect(m.logCustom).toHaveBeenCalledWith(
+      expect.objectContaining({
+        name: 'Protein shake',
+        kcal: 180,
+        protein: 30,
+        replacesSlot: slot,
+      }),
+    );
+  });
+
+  it('a searched recipe is logged as a custom entry scaled to the portion', () => {
+    m.recipes = [
+      {
+        id: 'r9',
+        name: 'Lentil dal',
+        nutritionInfo: { calories: 400, protein: 20, carbs: 50, fat: 10 },
+      },
+    ];
+    renderForSlot();
+    fireEvent.change(screen.getByTestId('log-sheet-search'), { target: { value: 'lentil' } });
+    fireEvent.click(screen.getByText('Lentil dal'));
+    fireEvent.click(screen.getByTestId('log-sheet-recipe-portion-recipe:r9-1.5'));
+    fireEvent.click(screen.getByTestId('log-sheet-recipe-log-recipe:r9'));
+    expect(m.logRecipe).not.toHaveBeenCalled();
+    expect(m.logCustom).toHaveBeenCalledWith(
+      expect.objectContaining({ name: 'Lentil dal', kcal: 600, protein: 30, replacesSlot: slot }),
+    );
+  });
+
+  it('an ingredient is logged against the slot too', () => {
+    m.ingredients = [
+      {
+        name: 'banana',
+        displayName: 'Banana',
+        imageUrl: null,
+        hasMacros: true,
+        isCustom: false,
+        per100g: { calories: 89, protein: 1.1, carbs: 23, fat: 0.3 },
+      },
+    ];
+    renderForSlot();
+    fireEvent.change(screen.getByTestId('log-sheet-search'), { target: { value: 'banana' } });
+    fireEvent.click(screen.getByText('Banana'));
+    fireEvent.click(screen.getByTestId('log-sheet-grams-log-banana'));
+    expect(m.logCustom).toHaveBeenCalledWith(expect.objectContaining({ replacesSlot: slot }));
+  });
+});
+
+describe('QuickAddSheet — neutral copy (WP-06, Food 2)', () => {
+  it('never says "off-plan" or asks the user to log "honestly"', () => {
+    renderSheet();
+    goToManual();
+    expect(document.body.textContent).not.toMatch(/off-plan|honest/i);
+    expect(screen.getByText(/a rough guess is fine/i)).toBeTruthy();
   });
 });

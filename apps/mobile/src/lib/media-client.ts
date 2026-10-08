@@ -4,6 +4,14 @@
 // bytes with the image's content-type — no multipart (mirrors web's
 // scan-client.ts / upload-image.ts transport).
 
+import { AI_CONSENT_REQUIRED_REASON } from '@chefer/types';
+import {
+  notifyAiConsentRequired,
+  SCAN_REQUEST_TIMEOUT_MS,
+  SCAN_TIMEOUT_MESSAGE,
+} from '@chefer/utils';
+import { reportUnauthorized } from '../features/auth/session-expired';
+
 export type ImageMime = 'image/jpeg' | 'image/png' | 'image/webp' | 'image/heic';
 
 export interface MediaClientOptions {
@@ -64,6 +72,8 @@ export function uploadErrorFrom(status: number | null, body: unknown, bytes: num
     return new Error(PHOTO_TOO_BIG_MESSAGE);
   }
   if (status === 401) {
+    // UX-ACC-10: a 401 here is an expired session — end it like any other.
+    reportUnauthorized();
     return new Error(SIGNED_OUT_MESSAGE);
   }
   if (status === null) {
@@ -110,26 +120,42 @@ export async function scanMealPhoto(
     throw new Error(PHOTO_TOO_BIG_MESSAGE);
   }
 
+  // UX-FOOD-26: the vision estimate used to wait forever on a bad connection.
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), SCAN_REQUEST_TIMEOUT_MS);
   let res: Response;
-  try {
-    res = await fetchImpl(`${apiBaseUrl}/api/scan-meal`, {
-      method: 'POST',
-      headers: authHeaders(getToken, mime),
-      body: bytes as unknown as BodyInit,
-    });
-  } catch {
-    throw uploadErrorFrom(null, null, bytes.length);
-  }
-
-  const data = (await res.json().catch(() => null)) as {
+  let data: {
     estimate?: MealPhotoEstimate;
     error?: string | { code?: string; message?: string };
     upgradeRequired?: boolean;
+    reason?: string;
   } | null;
+  try {
+    try {
+      res = await fetchImpl(`${apiBaseUrl}/api/scan-meal`, {
+        method: 'POST',
+        headers: authHeaders(getToken, mime),
+        body: bytes as unknown as BodyInit,
+        signal: controller.signal,
+      });
+    } catch {
+      if (controller.signal.aborted) throw new Error(SCAN_TIMEOUT_MESSAGE);
+      throw uploadErrorFrom(null, null, bytes.length);
+    }
+    data = (await res.json().catch(() => null)) as typeof data;
+    if (controller.signal.aborted) throw new Error(SCAN_TIMEOUT_MESSAGE);
+  } finally {
+    clearTimeout(timer);
+  }
 
   if (res.status === 403 && data?.upgradeRequired) {
     const message = typeof data.error === 'string' ? data.error : undefined;
     throw new ScanUpgradeRequiredError(message ?? 'Photo scanning is a premium feature.');
+  }
+  // R-10: the server has no AI consent on record — reopen the sheet (the
+  // thrown message, the same sentence, still shows in the card).
+  if (res.status === 403 && data?.reason === AI_CONSENT_REQUIRED_REASON) {
+    notifyAiConsentRequired('meal-scan');
   }
   if (!res.ok || !data?.estimate) {
     throw uploadErrorFrom(res.status, data, bytes.length);

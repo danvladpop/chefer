@@ -1,3 +1,5 @@
+import { onAiConsentRequired, SCAN_REQUEST_TIMEOUT_MS, SCAN_TIMEOUT_MESSAGE } from '@chefer/utils';
+import { setUnauthorizedHandler } from '../../src/features/auth/session-expired';
 import {
   PHOTO_TOO_BIG_MESSAGE,
   SCAN_MAX_BYTES,
@@ -57,6 +59,20 @@ describe('T-BUG-O1 uploadErrorFrom', () => {
 
   it('maps a 401 status to the signed-out sentence', () => {
     expect(uploadErrorFrom(401, null, 0).message).toBe('Sign in again to add photos.');
+  });
+
+  // UX-ACC-10: the same 401 also ends the session, like a tRPC 401 does.
+  it('reports a 401 to the shared session-expired handler', () => {
+    const handler = jest.fn();
+    setUnauthorizedHandler(handler);
+    try {
+      uploadErrorFrom(401, null, 0);
+      expect(handler).toHaveBeenCalledTimes(1);
+      uploadErrorFrom(500, null, 0);
+      expect(handler).toHaveBeenCalledTimes(1);
+    } finally {
+      setUnauthorizedHandler(null);
+    }
   });
 
   it('maps a null status (network failure) to the no-connection sentence', () => {
@@ -206,5 +222,88 @@ describe('T-BUG-O1 scanMealPhoto — client-side size pre-check and error mappin
         'image/jpeg',
       ),
     ).rejects.toThrow('Something went wrong on our side. Try again in a moment.');
+  });
+});
+
+describe('R-10 scanMealPhoto — server-side AI consent rejection', () => {
+  it('reopens the consent sheet and still throws the server sentence', async () => {
+    const listener = jest.fn();
+    const off = onAiConsentRequired(listener);
+    const message = 'Allow AI features in Profile → AI & your data to use this.';
+    const fetchImpl = jest
+      .fn()
+      .mockResolvedValue(jsonResponse(403, { error: message, reason: 'AI_CONSENT_REQUIRED' }));
+
+    await expect(
+      scanMealPhoto(
+        { fetchImpl, apiBaseUrl: 'https://api.test', getToken: () => 'token' },
+        new Uint8Array(10),
+        'image/jpeg',
+      ),
+    ).rejects.toThrow(message);
+    expect(listener).toHaveBeenCalledWith('meal-scan');
+    off();
+  });
+
+  it('a plain 403 without the reason does not touch the consent sheet', async () => {
+    const listener = jest.fn();
+    const off = onAiConsentRequired(listener);
+    const fetchImpl = jest.fn().mockResolvedValue(jsonResponse(403, { error: 'Nope' }));
+    await expect(
+      scanMealPhoto(
+        { fetchImpl, apiBaseUrl: 'https://api.test', getToken: () => 'token' },
+        new Uint8Array(10),
+        'image/jpeg',
+      ),
+    ).rejects.toThrow();
+    expect(listener).not.toHaveBeenCalled();
+    off();
+  });
+});
+
+// UX-FOOD-26: the scan request used to have no timeout.
+describe('scanMealPhoto timeout (UX-FOOD-26)', () => {
+  afterEach(() => jest.useRealTimers());
+
+  it('gives up after the timeout with a plain sentence and aborts the request', async () => {
+    jest.useFakeTimers();
+    let signal: AbortSignal | undefined;
+    const hangingFetch = ((_url: string, init?: RequestInit) => {
+      signal = init?.signal ?? undefined;
+      return new Promise<Response>((_resolve, reject) => {
+        init?.signal?.addEventListener('abort', () => reject(new Error('aborted')));
+      });
+    }) as unknown as typeof fetch;
+
+    const scan = scanMealPhoto(
+      { fetchImpl: hangingFetch, apiBaseUrl: 'http://api.test', getToken: () => 't' },
+      new Uint8Array([1, 2, 3]),
+      'image/jpeg',
+    );
+    const assertion = expect(scan).rejects.toThrow(SCAN_TIMEOUT_MESSAGE);
+    await jest.advanceTimersByTimeAsync(SCAN_REQUEST_TIMEOUT_MS + 10);
+    await assertion;
+    expect(signal?.aborted).toBe(true);
+  });
+
+  it('still returns the estimate when the server answers in time', async () => {
+    const estimate = {
+      dishName: 'Soup',
+      confidence: 'med',
+      kcal: 200,
+      protein: 10,
+      carbs: 20,
+      fat: 5,
+      portionNote: 'a bowl',
+    };
+    const fetchImpl = (() =>
+      Promise.resolve(jsonResponse(200, { estimate }))) as unknown as typeof fetch;
+    await expect(
+      scanMealPhoto(
+        { fetchImpl, apiBaseUrl: 'http://api.test', getToken: () => 't' },
+        new Uint8Array([1]),
+        'image/jpeg',
+      ),
+    ).resolves.toEqual(estimate);
   });
 });

@@ -5,6 +5,15 @@ import { AnalyticsConsentCard } from '../../src/features/profile/analytics-conse
 // my account" (default off, disabled while anonymous is off). Every change
 // is logged server-side via privacy.recordAnalyticsConsent (T-39.2).
 
+const mockPush = jest.fn();
+jest.mock('expo-router', () => ({
+  router: {
+    push: (...args: unknown[]) => {
+      mockPush(...args);
+    },
+  },
+}));
+
 let mockConsent = { anonymous: true, linked: false };
 const mockSetConsent = jest.fn((next: Partial<typeof mockConsent>) => {
   mockConsent =
@@ -14,7 +23,9 @@ const mockSetConsent = jest.fn((next: Partial<typeof mockConsent>) => {
 const mockRecordConsentMutate = jest.fn();
 const mockTrack = jest.fn();
 
+let mockTransportEnabled = true;
 jest.mock('../../src/lib/analytics', () => ({
+  isTransportEnabled: () => mockTransportEnabled,
   getAnalyticsConsent: () => mockConsent,
   setAnalyticsConsent: (next: Partial<{ anonymous: boolean; linked: boolean }>) =>
     mockSetConsent(next),
@@ -32,13 +43,28 @@ jest.mock('../../src/lib/trpc', () => ({
 }));
 
 beforeEach(() => {
+  mockTransportEnabled = true;
   mockConsent = { anonymous: true, linked: false };
   mockSetConsent.mockClear();
   mockRecordConsentMutate.mockClear();
   mockTrack.mockClear();
+  mockPush.mockClear();
 });
 
 describe('mobile AnalyticsConsentCard', () => {
+  it('renders nothing when the analytics transport is disabled (R-08)', async () => {
+    mockTransportEnabled = false;
+    await render(<AnalyticsConsentCard />);
+    expect(screen.queryByTestId('profile-analytics-consent')).toBeNull();
+    expect(screen.queryByTestId('profile-analytics-anonymous-switch')).toBeNull();
+  });
+
+  it('opens the Privacy Policy in the app, at its analytics section (UX-ACC-19)', async () => {
+    await render(<AnalyticsConsentCard />);
+    await fireEvent.press(screen.getByText('Privacy policy'));
+    expect(mockPush).toHaveBeenCalledWith('/legal/privacy?anchor=analytics');
+  });
+
   it('defaults to anonymous on, linked off', async () => {
     await render(<AnalyticsConsentCard />);
     expect(screen.getByTestId('profile-analytics-anonymous-switch').props.value).toBe(true);

@@ -9,8 +9,10 @@ import { buildTemplateReviewText, type ReviewTextInput } from './review.service.
 // the deterministic template so the Sunday sweep NEVER fails on prose.
 
 /**
- * Returns the weekly review prose. Live AI when configured, otherwise
- * (mock mode or any call failure) the template string.
+ * Returns the weekly review prose and where it came from (`aiGenerated` is
+ * true only for live model output — the template and the mock are not AI, so
+ * the "AI-generated" label never lands on them; App Review R-14). Live AI when
+ * configured, otherwise (mock mode or any call failure) the template string.
  *
  * `lib/ai/types.ts`'s `CoachReviewInput` (not owned by this lane) still names
  * the field `adjustmentKcal` — mapped here from `proposedAdjustmentKcal`
@@ -18,15 +20,24 @@ import { buildTemplateReviewText, type ReviewTextInput } from './review.service.
  * covers renaming it and the "adjusted by" → "suggests" wording in
  * `lib/ai/prompts.ts` L450-465 (owned by L-PLAN).
  */
-export async function generateReviewText(input: ReviewTextInput): Promise<string> {
+export async function generateReviewTextWithSource(
+  input: ReviewTextInput,
+): Promise<{ text: string; aiGenerated: boolean }> {
   const aiInput = { ...input, adjustmentKcal: input.proposedAdjustmentKcal };
-  if (env.AI_MOCK_ENABLED) return buildTemplateReviewText(input);
+  if (env.AI_MOCK_ENABLED) return { text: buildTemplateReviewText(input), aiGenerated: false };
 
   try {
     const text = (await aiService.generateReviewText(aiInput)).trim();
-    return text || buildTemplateReviewText(input);
+    return text
+      ? { text, aiGenerated: true }
+      : { text: buildTemplateReviewText(input), aiGenerated: false };
   } catch (err) {
     console.error('[coach] review text generation failed, using template:', err);
-    return buildTemplateReviewText(input);
+    return { text: buildTemplateReviewText(input), aiGenerated: false };
   }
+}
+
+/** Same as {@link generateReviewTextWithSource}, text only. */
+export async function generateReviewText(input: ReviewTextInput): Promise<string> {
+  return (await generateReviewTextWithSource(input)).text;
 }

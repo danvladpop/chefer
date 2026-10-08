@@ -2,7 +2,7 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { render, screen, userEvent } from '@testing-library/react-native';
 import type { RoutineDto } from '@chefer/types';
-import { addDaysLocal, weekStartOf } from '@chefer/utils';
+import { addDaysLocal, weekdayOf, weekStartOf } from '@chefer/utils';
 import { localDate } from '../../src/features/gym/offline/ids';
 import { KV_KEYS } from '../../src/features/gym/offline/keys';
 import { createMemoryKvBackend, kv, setKvBackendForTests } from '../../src/features/gym/offline/kv';
@@ -24,6 +24,7 @@ jest.mock('../../src/lib/trpc', () => {
   return mock.createTrpcGymMock();
 });
 jest.mock('expo-router', () => ({
+  useLocalSearchParams: () => ({}),
   router: { replace: jest.fn(), back: jest.fn(), canGoBack: jest.fn(() => true), push: jest.fn() },
 }));
 
@@ -217,9 +218,78 @@ describe('GymSettingsScreen — units and pause', () => {
     await renderSettings(queryClient);
 
     expect(screen.getByTestId('gym-settings-paused-note')).toBeOnTheScreen();
+    // UX-GYM-16: one consistent line with a human date — not "Paused until 2026-09-30".
+    expect(screen.getByTestId('gym-settings-paused-note')).toHaveTextContent(
+      'Paused through Wed 30 Sep · Vacation',
+    );
     expect(screen.queryByTestId('gym-settings-pause-start')).not.toBeOnTheScreen();
     await user.press(screen.getByTestId('gym-settings-pause-end'));
     expect(mutate).toHaveBeenCalledWith({ id: 'pause-1' });
+  });
+
+  it('UX-GYM-16: the pause sheet explains pausing and offers a start choice', async () => {
+    const mutate = jest.fn();
+    trpc.gym.pause.create.useMutation.mockReturnValue(mutationResult({ mutate }));
+    const queryClient = makeClient();
+    queryClient.setQueryData(gymBootstrapQueryKey, makeBootstrap());
+    const user = userEvent.setup();
+    await renderSettings(queryClient);
+
+    await user.press(screen.getByTestId('gym-settings-pause-start'));
+    expect(screen.getByTestId('gym-settings-pause-explainer')).toHaveTextContent(
+      /don’t break your streak/,
+    );
+
+    await user.press(screen.getByTestId('gym-settings-pause-starting-tomorrow'));
+    await user.press(screen.getByTestId('gym-settings-pause-confirm'));
+    const tomorrow = addDaysLocal(localDate(), 1);
+    expect(mutate).toHaveBeenCalledWith({
+      startDate: tomorrow,
+      endDate: addDaysLocal(tomorrow, 6),
+      reason: null,
+    });
+  });
+
+  it('UX-GYM-16: "Next Monday" starts on the coming Monday', async () => {
+    const mutate = jest.fn<undefined, [{ startDate: string }]>();
+    trpc.gym.pause.create.useMutation.mockReturnValue(mutationResult({ mutate }));
+    const queryClient = makeClient();
+    queryClient.setQueryData(gymBootstrapQueryKey, makeBootstrap());
+    const user = userEvent.setup();
+    await renderSettings(queryClient);
+
+    await user.press(screen.getByTestId('gym-settings-pause-start'));
+    await user.press(screen.getByTestId('gym-settings-pause-starting-monday'));
+    await user.press(screen.getByTestId('gym-settings-pause-confirm'));
+    const input = mutate.mock.calls[0]?.[0];
+    if (!input) throw new Error('pause.create was not called');
+    expect(weekdayOf(input.startDate)).toBe(0);
+    expect(input.startDate > localDate()).toBe(true);
+  });
+
+  it('UX-GYM-16: a pause that starts later is shown with a Cancel action, not a second Pause button', async () => {
+    const mutate = jest.fn();
+    trpc.gym.pause.end.useMutation.mockReturnValue(mutationResult({ mutate }));
+    const queryClient = makeClient();
+    const start = addDaysLocal(localDate(), 2);
+    queryClient.setQueryData(
+      gymBootstrapQueryKey,
+      makeBootstrap({
+        upcomingPause: {
+          id: 'pause-2',
+          startDate: start,
+          endDate: addDaysLocal(start, 6),
+          reason: 'injury',
+        },
+      }),
+    );
+    const user = userEvent.setup();
+    await renderSettings(queryClient);
+
+    expect(screen.getByTestId('gym-settings-paused-note')).toHaveTextContent(/^Starts .*· Injury$/);
+    expect(screen.queryByTestId('gym-settings-pause-start')).not.toBeOnTheScreen();
+    await user.press(screen.getByTestId('gym-settings-pause-end'));
+    expect(mutate).toHaveBeenCalledWith({ id: 'pause-2' });
   });
 });
 

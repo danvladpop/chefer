@@ -6,7 +6,13 @@ import Svg, { G, Line, Rect, Text as SvgText } from 'react-native-svg';
 import { cn } from '@chefer/utils';
 import { Text } from '../text';
 import { chartPalette, colors } from '../theme';
-import { defaultFormat, linearScale, useChartWidth } from './chart-utils';
+import {
+  clampLabelCentre,
+  defaultFormat,
+  linearScale,
+  niceTicks,
+  useChartWidth,
+} from './chart-utils';
 
 export interface BarSegment {
   /** Series key — stable across bars so colours line up. */
@@ -79,7 +85,10 @@ export function BarChart({
   }
 
   const totals = data.map((bar) => bar.segments.reduce((sum, s) => sum + Math.max(0, s.value), 0));
-  const top = Math.max(...totals, band?.max ?? 0, 1) * 1.1;
+  // UX-GYM-33: round axis bounds (0 / 10 / 20) instead of 0 / 6.6 / 13.2.
+  const nice = niceTicks({ min: 0, max: Math.max(...totals, band?.max ?? 0, 1) * 1.05 });
+  const top = nice.max;
+  const gridValues = nice.ticks;
   const plotLeft = AXIS_W;
   const plotRight = width - 4;
   const plotBottom = height - LABEL_H;
@@ -111,7 +120,7 @@ export function BarChart({
             />
           ) : null}
 
-          {[0, top / 2, top].map((value, i) => (
+          {gridValues.map((value, i) => (
             <G key={`grid-${i}`}>
               <Line
                 x1={plotLeft}
@@ -156,7 +165,7 @@ export function BarChart({
                 })}
                 {i % every === 0 ? (
                   <SvgText
-                    x={left + barWidth / 2}
+                    x={clampLabelCentre(left + barWidth / 2, bar.label, width)}
                     y={height - 4}
                     fontSize={10}
                     fill={colors.mutedForeground}

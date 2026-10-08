@@ -16,6 +16,8 @@ import {
   type CustomExerciseInput,
   type Muscle,
 } from '@chefer/types';
+import { userFacingErrorMessage } from '@chefer/utils';
+import { EXERCISE_NAME_MAX, exerciseNameError } from './exercise-form-errors';
 import { EQUIPMENT_LABELS } from './filters';
 import { removeMuscle, toggleMuscle } from './muscle-select';
 
@@ -78,9 +80,11 @@ export interface ExerciseFormProps {
   mode: 'create' | 'edit';
   exerciseId?: string;
   initial?: CustomExerciseInput;
+  /** UX-GYM-21: a searched name to pre-fill a new exercise with. */
+  initialName?: string;
 }
 
-export function ExerciseForm({ mode, exerciseId, initial }: ExerciseFormProps) {
+export function ExerciseForm({ mode, exerciseId, initial, initialName }: ExerciseFormProps) {
   const router = useRouter();
   const utils = trpc.useUtils();
   const [serverError, setServerError] = useState<string | null>(null);
@@ -93,7 +97,7 @@ export function ExerciseForm({ mode, exerciseId, initial }: ExerciseFormProps) {
     formState: { errors },
   } = useForm<CustomExerciseInput>({
     resolver: zodResolver(customExerciseInputSchema),
-    defaultValues: initial ?? DEFAULT_VALUES,
+    defaultValues: initial ?? { ...DEFAULT_VALUES, name: initialName ?? DEFAULT_VALUES.name },
   });
 
   const primaryMuscles = watch('primaryMuscles');
@@ -108,16 +112,18 @@ export function ExerciseForm({ mode, exerciseId, initial }: ExerciseFormProps) {
   };
 
   const createMutation = trpc.gym.library.createCustom.useMutation({
+    meta: { silent: true },
     onSuccess: (row) => {
       void utils.gym.bootstrap.invalidate();
       void utils.gym.library.invalidate();
       router.push(`/gym/exercises/${row.id}`);
     },
-    onError: (err) => setServerError(err.message),
+    onError: (err) => setServerError(userFacingErrorMessage(err)),
   });
   const updateMutation = trpc.gym.library.updateCustom.useMutation({
+    meta: { silent: true },
     onSuccess,
-    onError: (err) => setServerError(err.message),
+    onError: (err) => setServerError(userFacingErrorMessage(err)),
   });
 
   const isPending = createMutation.isPending || updateMutation.isPending;
@@ -157,10 +163,17 @@ export function ExerciseForm({ mode, exerciseId, initial }: ExerciseFormProps) {
         <label htmlFor="name" className={labelClass}>
           Name
         </label>
-        <input id="name" type="text" className={inputClass} {...register('name')} />
+        <input
+          id="name"
+          type="text"
+          maxLength={EXERCISE_NAME_MAX}
+          aria-invalid={errors.name ? true : undefined}
+          className={inputClass}
+          {...register('name')}
+        />
         {errors.name && (
           <p className="mt-1 text-xs text-red-600" role="alert">
-            {errors.name.message}
+            {exerciseNameError(errors.name.type)}
           </p>
         )}
       </div>

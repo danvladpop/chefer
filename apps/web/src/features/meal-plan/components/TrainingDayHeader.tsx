@@ -1,8 +1,15 @@
 'use client';
 
+import { useNumbersMode } from '@/features/numbers-mode/numbers-mode';
 import { Dumbbell, Footprints, Info } from 'lucide-react';
 import type { DayKind, PlanTrainingDay } from '@chefer/types';
-import { cn, preRunNote, trainingDayHeaderCopy, trainingGlyph } from '@chefer/utils';
+import {
+  cn,
+  preRunNote,
+  proteinOnlyTrainingHeader,
+  trainingDayHeaderCopy,
+  trainingGlyph,
+} from '@chefer/utils';
 
 // ─── Training days on the plan (UX-06, T-06.8) ─────────────────────────────────
 // A glyph for the day chips / column headers, the header button above a
@@ -32,7 +39,11 @@ export function TrainingDayHeader({
   onOpen: () => void;
   className?: string;
 }) {
-  const copy = trainingDayHeaderCopy(day, { isToday });
+  // WP-08: protein-only mode shows the protein bump of a lifting day, never calories.
+  const { proteinOnly } = useNumbersMode();
+  const copy = proteinOnly
+    ? proteinOnlyTrainingHeader(day)
+    : trainingDayHeaderCopy(day, { isToday });
   return (
     <button
       type="button"

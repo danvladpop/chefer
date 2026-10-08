@@ -140,7 +140,27 @@ free workout log too, not meal planning alone (CI-16/CI-25).
              an error response.
    └── the router then emails the address-confirmation link in the
        background (P2-5, §23) — never blocks or fails the signup
-3. Client redirects to /onboarding
+3. Client redirects to /onboarding (mobile, R-18b: as state, not a navigation call —
+   register raises the in-memory `pending-onboarding` flag BEFORE storing the
+   token, and the Food tab layout, the first protected screen the auth-guard flip
+   mounts, renders a `<Redirect href="/onboarding">` while it is up; the
+   onboarding screen clears it. An imperative `router.replace` after the awaited
+   SecureStore writes used to race the navigator on a fresh install, so the
+   first account landed on Today. Every new account now gets the wizard)
+
+   **Resuming an interrupted setup (mobile, UX-ONB-01, 2026-10).** The wizard
+   saves every answer and the current step to the on-device KV (`onboarding.draft`,
+   scoped to a fingerprint of the session token, so another account's answers never
+   match; removed on finish/skip and by `signOut()`). The Food layout
+   (`useOnboardingGate`) sends the sign-in into `/onboarding` once per launch when
+   there is a draft for this session, or when `preferences.get().jobs` is empty
+   (the account never answered "what should Chefer help with?"). Android hardware
+   BACK (and the header arrow) steps back one question; on the first question it
+   asks "Leave setup for now?" — leaving keeps the draft, so the next launch resumes.
+   "Just looking around" saves `PLAN_MEALS`, which ends the nag. The wizard hydrates
+   from `preferences.get` (saved jobs pre-filled, steps built from the current
+   selection, body metrics rounded to 1 decimal) and a typed-but-unadded
+   "Something else?" allergy is added before the diet step is left (UX-ACC-01).
 4. Onboarding step 1 — "What should Chefer help with?" (§2.4, T-03.1/T-03.2,
    rev 2 — mobile only; web still runs the v1 single-intent flow below until
    its own migration lands, T-03.6). A multi-select JobsStep (`Train` /
@@ -158,7 +178,8 @@ free workout log too, not meal planning alone (CI-16/CI-25).
    │     pre-selected from the device region, CI-24, and the once-only
    │     "Plan my next week automatically every Sunday?" switch, default
    │     off, T-03.9) → Your goal (adds a "Just good food" card — no
-   │     calorie target, ever, AC6) → Body metrics (optional).
+   │     calorie target, ever, AC6) → Body metrics (optional; age must be 16+
+   │     — see "Body-metric age and calorie-target safety rules" below).
    ├── Feed my household also adds "Who's at your table?" before Diet.
    ├── Train + a food job also adds "Which days do you train?" before Diet
    │     (weekday chips + a per-day Lift/Run/Long run row via
@@ -201,9 +222,13 @@ free workout log too, not meal planning alone (CI-16/CI-25).
    flow). The premium wizard no longer asks "How many people are you
    cooking for?" — the household is the one people model (F-PM-8).
    Step counter (both platforms, shared `onboardingProgress`): while the
-   jobs/intent question is on screen it reads "Step 1" with no total and an
-   empty bar — the answer changes the total, so it never reads "1 of 4" and
-   then "2 of 5"; from step 2 on it is "Step N of M" with a percentage.
+   jobs/intent question is on screen it reads "Getting started" with no total
+   and an empty bar (R-21; it used to read a bare "Step 1") — the answer changes
+   the total, so it never reads "1 of 4" and then "2 of 5"; from step 2 on it is
+   "Step N of M" with a percentage. Finishing a food path generates the first week
+   in the background after navigating to Today; the generate mutation invalidates
+   `mealPlan`, `dashboard` and `shoppingList` when it settles (R-18, mobile and
+   web) so Today never keeps showing "nothing planned".
 ```
 
 Admins can additionally create users via `user.create` (admin-only).
@@ -229,6 +254,26 @@ Admins can additionally create users via `user.create` (admin-only).
 
 Sessions are DB rows (`sessions` table), not JWTs — resolution is a lookup on
 every request (see §4), and logout / password reset delete the rows.
+
+**Leaving an account on mobile (UX-ACC-02/12/17, 2026-10).** More, Settings,
+account deletion and the 401 handler all run one `signOut()`
+(`apps/mobile/src/lib/sign-out.ts`): cancel in-flight queries → empty the query
+cache → wipe the on-device KV (everything but `analytics.consent`: gym outbox and
+active workout, mode, landing cache, per-exercise notes, plan dismissals, onboarding
+draft …) and reset the in-memory stores that cached it → cancel gym reminders →
+clear the register draft / pending-onboarding / onboarding gate → clear the token
+last. `setToken` also empties the cache, so a sign-in never starts on the previous
+account's reads. Signing out (More/Settings) warns first when workouts exist only
+on the phone (outbox entries or a workout in progress); a 401 (`session-expired`)
+keeps the gym outbox, active session and owner so unsynced workouts upload on the
+next login. The register draft never holds passwords.
+**Session expiry (UX-ACC-10, 2026-10).** A 401 from any client path — tRPC, the AI
+Chef stream, photo upload/scan — marks the session expired and runs that same
+`signOut({ reason: 'session-expired' })`; Sign in then says "Your session expired…"
+(web: when the URL carries `?from=`). **Failed writes and loads (WP-02):** every
+mutation without its own error UI shows a plain-language snackbar/toast (a
+`MutationCache.onError` default; `meta: { silent: true }` opts out), and a failed
+load renders an error with Retry instead of "Loading…" or an empty state.
 "Forgot password?" on the form (web and the mobile Sign in screen) starts the
 reset flow (§11). Both platforms' forms have a Show/Hide password toggle; the
 register forms also require a matching confirm-password field (client-side
@@ -291,12 +336,12 @@ during render. A successful login overwrites it via `Set-Cookie`.
 
 **Role capabilities:**
 
-| Role              | What they can do                                                                                                                                          |
-| ----------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| (unauthenticated) | `auth.register`, `auth.login`, `auth.requestPasswordReset`, `auth.resetPassword`, `auth.me`                                                               |
-| USER              | All protected procedures: `user.me`, `user.update` (own), `user.deleteSelf` (own, password), `user.grant/revokeAiDataConsent`, plans, recipes, tracker, … |
-| MODERATOR         | Same as USER (moderation capabilities reserved for future)                                                                                                |
-| ADMIN             | Everything, incl. `user.list`, `user.getById`, `user.create`, `user.delete`, `user.update` (any user); treated as premium by `premiumProcedure`           |
+| Role              | What they can do                                                                                                                                                                                                                   |
+| ----------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| (unauthenticated) | `auth.register`, `auth.login`, `auth.socialAvailability`, `auth.socialSignIn`, `auth.requestPasswordReset`, `auth.resetPassword`, `auth.me`                                                                                        |
+| USER              | All protected procedures: `user.me`, `user.update` (own), `user.deleteSelf` (own, password or provider re-auth), `auth.linkedIdentities/linkIdentity/unlinkIdentity`, `user.grant/revokeAiDataConsent`, plans, recipes, tracker, … |
+| MODERATOR         | Same as USER (moderation capabilities reserved for future)                                                                                                                                                                         |
+| ADMIN             | Everything, incl. `user.list`, `user.getById`, `user.create`, `user.delete`, `user.update` (any user); treated as premium by `premiumProcedure`                                                                                    |
 
 ---
 
@@ -307,6 +352,65 @@ Health writes (`preferences.updateSafety/setup/saveProfileBasics/updateTargets`,
 rejects. `declared`: an un-consented write is rejected (`PRECONDITION_FAILED` / `HEALTH_CONSENT_REQUIRED`) only from a
 client sending `x-chefer-api-level >= 4`; a request WITHOUT the header (installed binary) is always accepted. See
 §33 and `infrastructure.md` §9.
+
+### 4.10 Sign in with Google / Apple (WP-22, 2026-10-04)
+
+> **Status:** API, web and mobile implemented; the mobile buttons need the **next native build** (new Google/Apple SDK
+> modules + the Apple entitlement, `infrastructure.md` §4.3/§11) and appear only on binaries that contain them.
+> Disabled everywhere until the owner sets the provider credentials (`infrastructure.md` §10 runbook).
+
+```
+Login / Register page (web)  |  mobile sign-in / sign-up screen
+  │  auth.socialAvailability (public) → { google: { enabled, … }, apple: { enabled, … } }
+  │     a provider that is not configured is simply not shown (no error, no empty space)
+  │
+  ├─ "Continue with Google"  (web: Google's own button via Google Identity Services; mobile: native Google sign-in)
+  └─ "Continue with Apple"   (web: Sign in with Apple JS popup; iOS: native sheet — Apple REQUIRES it next to Google)
+        client creates a nonce: provider gets sha256(raw), the API gets raw
+        under the buttons: "By continuing you agree to the Terms and Privacy Policy and confirm you are 16 or older."
+        │
+        └─ auth.socialSignIn { provider, idToken, nonce, authorizationCode?, givenName?, familyName?, acceptLegal: true,
+                               acceptedTermsVersion, region? }      (rate-limited like login)
+              ├─ token fails (signature / issuer / audience / expiry / nonce) → UNAUTHORIZED "We couldn't verify your sign-in…"
+              ├─ provider not configured                                       → PRECONDITION_FAILED
+              ├─ (provider, sub) already linked          → sign in                        isNewUser: false
+              ├─ same email as an existing account:
+              │     ├─ provider did NOT verify the email  → CONFLICT (sign in with your password, connect later)
+              │     └─ verified → link + sign in           linkedExistingAccount: true
+              │           (account whose email was never verified: its password is cleared and its other sessions are
+              │            revoked — the person holding the inbox is now the only one who can get in)
+              └─ new person:
+                    needs acceptLegal: true               → else BAD_REQUEST (legalRequired)
+                    needs a provider-VERIFIED email       → else BAD_REQUEST (Apple "Hide My Email" relay addresses are fine)
+                    create user (no password, emailVerified), TERMS + PRIVACY + AGE consent events (source web|mobile),
+                    the usual email/auto-plan "off" defaults             isNewUser: true
+        │
+        └─ result = auth.login's (cookie for web / session token for mobile) + { isNewUser, linkedExistingAccount }
+              new user → onboarding (same as register); returning user → dashboard
+```
+
+- **Mobile (iOS / Android app):** Welcome, Sign in and Create account show **Continue with Apple** (Apple's own button, iOS
+  only — never on Android) and **Continue with Google** (white button, Google "G") below the email form, with the consent line.
+  A button appears only when `auth.socialAvailability` enables the provider, the app binary contains the native module and
+  was built for it, and the device can use it (Google on iOS needs the iOS client id, on Android the web client id). The
+  native sheet runs with a fresh nonce; **cancelling the sheet does nothing** (no error). On success the session is stored
+  exactly like an email sign-in: a new account goes through onboarding, a returning one lands on its home screen. If the
+  API answers "couldn't verify" (UNAUTHORIZED) the app shows that message — it never treats it as an expired session.
+  Profile → **Sign-in methods** lists connected Google/Apple accounts, connects one (a fresh provider sign-in →
+  `auth.linkIdentity`), disconnects one (refused with the server's message when it is the only way to sign in), and offers
+  "Email me a link to set a password" to an account that has none.
+- **Names:** Apple sends `givenName`/`familyName` only the first time, outside the token — the client forwards them at once.
+- **Linked accounts** (web Profile → Sign-in methods, mobile Profile): `auth.linkedIdentities` lists them with `hasPassword`;
+  `auth.linkIdentity` connects another (a different Apple "Hide My Email" account can be connected this way);
+  `auth.unlinkIdentity` disconnects — refused ("set a password first") when it is the only way to sign in. Unlinking
+  Apple also revokes the Apple grant.
+- **No password?** An OAuth-only account can still use "Forgot password" (reset link → sets its first password). Changing the
+  sign-in email stays password-gated, so it is not available until a password exists.
+- **Account deletion** (§24): OAuth-only accounts confirm with a fresh provider sign-in (`reauth`) instead of a password — on
+  mobile the delete sheet shows no password field for them, asks them to type DELETE, and offers one "Confirm with Apple/Google
+  and delete" button per connected provider the device can run (cancelling the sheet deletes nothing).
+- **Password managers:** password fields are `autocomplete="current-password"` (login) / `new-password` (register, reset);
+  the native apps also need the `/.well-known/apple-app-site-association` and `/.well-known/assetlinks.json` files.
 
 ## 5. View User Profile Flow
 
@@ -488,7 +592,7 @@ UpgradeButton (ONE shared surface; every touchpoint passes a `source`)
            the chat in place)
   → capture('upgrade_prompt_shown' { source, job })
   → Sheet dialog headlined by the JOB the source unlocks, with the
-    "FREE FOR NOW" terms (T-10.5) → capture('upgrade_clicked')
+    "INCLUDED" terms (T-10.5) → capture('upgrade_clicked')
   → user.upgradePlan (protected) → planTier = PREMIUM
   → capture('upgrade_completed') → full cache invalidate + router.refresh
 
@@ -542,10 +646,9 @@ Admin (/admin/users, adminProcedure-gated)
   default (`Food that fits your training week`) on a default source; the gym
   itself is never pitched as Premium (D-11). `ingredient-autofill` is the
   source behind "Fill in for me" on the custom-ingredient sheet (T-40.11).
-- **Terms on every open.** The sheet/dialog shows the FREE FOR NOW paragraph
-  (`Premium costs nothing for now, and we won't ask for a card. Before it has a
-price, we'll tell you in the app at least 30 days ahead and you choose
-whether to keep it. Nothing changes automatically.`) — never "beta" (App
+- **Terms on every open.** The sheet/dialog shows the INCLUDED paragraph
+  (`Premium is included at no cost. Turning it on unlocks every feature
+below.` — no "for now", price, card or payment-method wording, R-04) — never "beta" (App
   Review 2.2) — and carries no price, currency, checkout or purchase link on
   any platform (App Review 3.1.1): "Turn on Premium" is the same free
   `user.upgradePlan` toggle.
@@ -564,7 +667,7 @@ meals to my training days`; household and the AI chef open their job.
   job; a gym-only user, and a user whose jobs are still unknown, never see it.
   It sends nothing, so it asks no AI consent (the real scan still does).
 - **Profile › Plan & Premium.** `Your plan: Free` (what Free includes) +
-  `See what Premium adds`, or `Your plan: Premium` · `Free for now` · `What you
+  `See what Premium adds`, or `Your plan: Premium` · `Included` · `What you
 have` · `Switch back to Free`. The downgrade sheet names what you keep and
   lists only the Premium jobs this user has used (`downgradeLosses`); cancel
   keeps Premium.
@@ -617,7 +720,8 @@ mealPlan.generate { weekOffset }
        ├─ calorie + macro targets from resolveDailyTargets()
        │   (preferences.service — THE single source: live Mifflin-St Jeor
        │   TDEE ± goal adjustment when metrics are complete, else the stored
-       │   snapshot. The dashboard ring and tracker read the same resolver,
+       │   snapshot; no deficit under 18, sex-specific floor — see "Body-metric
+       │   age and calorie-target safety rules". The dashboard ring and tracker read the same resolver,
        │   so a goal change moves all three together.)
        ├─ IAIService.generateMealPlan (Gemini) → 21 personalised recipes
        │   (prompt carries "Liked recently (4-5★)…" / "Disliked recently
@@ -750,9 +854,14 @@ FREE generation now honours the shape:
   ├─ a time cap filters each meal type's candidates; a recipe whose
   │    prepTimeMins + cookTimeMins is 0 ("unknown") fits any cap but
   │    ranks after known-fast recipes (owner feedback Q-35)
-  ├─ "cooking for 2" sets every planned slot's portion to 2 directly
-  │    (a flat multiplier — separate from the calorie-driven P1-1
-  │    portion, and from premium household scaling)
+  ├─ "cooking for 2" does NOT touch the slot's portion (UX-PLAN-02): a
+  │    slot's `portion` is the EATER's calorie-driven share only — what the
+  │    user eats, logs and counts toward their targets. "Two of us" is a
+  │    TABLE multiplier (a standard second portion) applied by Shop, the
+  │    plan cost, pantry savings and cook mode through the shared
+  │    `portionsFor` (`@chefer/utils`). Plans stored before the fix with
+  │    portion 2 for these users are normalised by the owner-run data fix
+  │    `scripts/data-fixes/2026-10-03-two-of-us-eater-portion.sql` (see "Portions" below)
   ├─ an explicit shape with Snacks off never adds an opportunistic
   │    snack (the legacy/no-shape path still tops up automatically)
   ├─ a day that can't fill a wanted slot reports
@@ -805,6 +914,17 @@ replaced plan's pinned slots onto the new week when the day/slot type still
 exists and the dish still passes the safety filter, and reports how many
 couldn't be kept as `droppedPinned`.
 
+**Regenerate keeps what already happened (UX-PLAN-01).** Regenerating the CURRENT
+week (`weekOffset` 0) keeps every past day exactly as it was and any of today's
+slots whose recipe is already logged (`meal-plan/keep-eaten.ts`; the logged ids
+come from `findLoggedRecipeIds`, and an unreadable log keeps all of today). Only
+today's uneaten slots and the days after it are replaced; a kept slot replaces
+the new slot of its type, so there is never a second dinner. A future week is
+replaced whole. The confirm copy says so (`regenerateConfirmBody`). Today's
+"dinner done" is read from the log, not from the slot's recipe id
+(`resolveTodayMeals`: a recipe logged for a meal type no slot holds any more
+still closes one open slot of that type).
+
 **Regenerate Undo (T-08.3).** Both generation paths return `previousPlanId`
 (the same-week plan the call replaced) so a client can offer `Undo` via the
 existing `mealPlan.restore({ planId: previousPlanId })`. A PREMIUM
@@ -842,11 +962,20 @@ persona-study wave 1, `feat/ux-now/plan-mobile`).** `app/(food)/meal-plan.tsx`
   button sits under the day chips; it opens a `ConfirmSheet` with a "Keep
   the N meals you chose" switch (shown only when pinned picks exist), and
   the success snackbar offers `Undo` → `mealPlan.restore(previousPlanId)`.
+  UX-PLAN-03: while the generation runs the confirm button spins and ignores
+  taps (one generation per confirm), and a failure — the free-quota
+  `TOO_MANY_REQUESTS` message included — shows inside the sheet.
 * **Pin/unpin.** A bookmark toggle next to each meal's Replace action calls
   `mealPlan.setSlotPinned`; a pinned slot shows a "Your pick" badge
   (`plan-meal-card.tsx`).
 * **Undoable Replace/AI swap.** Both show a "Swapped to X" snackbar with
-  `Undo` back to `previousRecipeId`.
+  `Undo` back to `previousRecipeId`. UX-PLAN-04: Undo sends `pinned:
+previousPinned` so the restored dish keeps the slot's old pin state
+  (`replaceRecipe` pins by default; an undone swap used to leave "Your pick").
+  UX-PLAN-05: the picker asks `recipe.list` for the slot (`slotType`), states
+  the safety check once in a header ("Suggestions checked for …" — only a row
+  that passed fewer rules keeps its own chip), shows "kcal · g protein · min"
+  and allows two-line names.
 * **Replace picker filter (bug B-50).** `recipe-picker-sheet.tsx` narrows
   candidates with `filterReplaceCandidates` (`@chefer/utils/recipe-
 picker.ts`) — a pure stand-in for the server-side, safety-aware
@@ -882,12 +1011,31 @@ picker.ts`) — a pure stand-in for the server-side, safety-aware
   mobile-first day view and the desktop week grid) says why and offers
   "Plan this day" via `mealPlan.planDay`.
 - **Regenerate is visible, asks first, and is undoable.** Once a plan
-  exists, the nav bar's Regenerate opens a confirm `Sheet` with a "Keep the
+  exists, the nav bar's single **Week options** button (FB7-11, replaces the
+  separate Regenerate and Rebalance buttons and the price line) opens a sheet
+  with two described actions (`PLAN_WEEK_COPY`): "New meal plan for this week"
+  (opens a confirm `Sheet` with a "Keep the
   N meals you chose" switch (only when picks exist); the success Toast
   offers `Undo` → `mealPlan.restore(previousPlanId)`. An empty week's own
-  CTA still generates directly (nothing to lose).
-- **Pin/unpin.** A bookmark toggle on `MealCard` (row and grid variants)
-  calls `mealPlan.setSlotPinned`; a pinned slot shows "Your pick".
+  CTA still generates directly (nothing to lose). "Rebalance my week" (current
+  week only) runs `mealPlan.previewRebalance` only when pressed: an offer is
+  parked for the usual Preview · Apply · Not now card and scrolled into view;
+  nothing to fix → toast + the row reads disabled ("already on target").
+- **Plan card (FB7-11).** image | body | one compact action column: swap (one
+  click) and a "…" menu (`useMenu`): Keep in next plans / Stop keeping
+  (`mealPlan.setSlotPinned`), Ate something else + Skipped it (slot still to
+  eat), Add a side dish, Remove from plan (sides only). A pinned meal shows a
+  bookmark on its photo ("Your pick"). The body shows type badge, name, a meta
+  line ("30 min · 700 kcal"; AI mark = small sparkle) and a macro line ("P 32 g
+  · C 60 g · F 18 g"; protein-only mode drops the macro line). Day totals use the
+  same macro format.
+- **Side dishes (FB7-04).** Same-type slots of a day render as one meal group
+  (`groupDaySlots`): header with dish count, main card, compact indented "+ side"
+  cards, and a total (`mealGroupTotalLine`). "Add a side dish" opens the replace
+  picker in add mode → `recipe.addToWeek({mode:'add'})` with an Undo toast
+  (`recipe.undoAddToWeek`); "Remove from plan" → `mealPlan.removeSlot` (refused
+  for the only dish of a type) with an Undo that re-adds it as a side. The Add to
+  week sheet offers "Add as a side" next to "Replace this meal".
 - **Undoable Replace/AI swap.** Both show a "Swapped to X" Toast with
   `Undo` back to `previousRecipeId` (`ReplaceMealSheet`'s new `onChanged`
   callback).
@@ -969,8 +1117,13 @@ column and reaching Sunday meant scrolling sideways through the whole week. The
 single-day view is a different information architecture, not a scaled-down grid.
 `/history/[planId]` renders the same component in read-only mode. Mobile has
 the same read-only detail (`app/history/[planId].tsx`: day chips, meals open the
-recipe) and adds Restore there; on both mobile screens Restore asks first
-(`ConfirmSheet`) and only the row being restored shows a spinner.
+recipe) and adds "Use this week again" there. UX-PLAN-11: a past week used to be
+restorable only into its own (past) week; "Use this week again" (web and mobile,
+My weeks cards and the detail page) asks THIS or NEXT week
+(`mealPlan.restore({ planId, weekOffset })`), only the row being copied shows a
+spinner, "Save as a week" keeps it as a My weeks template, and the read-only
+view marks meals the user logged as "Eaten" (`getById` `loggedRecipeIds`).
+UX-PLAN-15: the screen's copy says "My weeks", not "History".
 
 ### Meal swap
 
@@ -987,6 +1140,8 @@ Plans continue week to week until changed: `mealPlan.getForWeek` for the current
 ### Meal replace (picker)
 
 `mealPlan.replaceRecipe` — any tier, no quota: sets a meal slot to a specific recipe the user chose. On mobile this is the primary per-meal action: the Plan tab's replace button opens a bottom-sheet picker (own + favourited recipes first, searchable) with an AI-regen footer (premium, calls `swapRecipe`). Web exposes `replaceRecipe` only via the tracker rebalance banner so far — meal-plan picker port pending (see `mobile_parity_backlog.md`). **Your pick survives regeneration (T-07.4):** the slot keeps its current portion (bug T-BUG-X2/T-08.5 — it used to always drop to 1×) and is marked `pinned` ("Your pick"); `mealPlan.setSlotPinned` toggles the pin without touching the recipe, and `generate({ keepPinned: true })` re-applies pinned slots onto a freshly generated week when they still pass the safety filter (`droppedPinned` reports how many didn't). The response also gains `previousRecipeId?` for `Undo`.
+
+**EU-14 allergens (UX-ACC-06, 2026-10).** The allergy taxonomy covers the EU-14 set: alongside the earlier entries it adds mustard, celery, lupin, sulphites, molluscs and crustaceans (Shellfish keeps its id and covers both). The curated safety checks and the recogniser know all of them; older clients show an unknown allergy as a kept note, and the server still enforces it.
 
 **Safety on Replace (B-34/B-46, T-00.11).** The picker is a search over `recipe.list`, not the safety-filtered curated pool, so before this hotfix a user could Replace into a recipe that conflicted with their (or their household's) allergies or dietary restrictions with no check at all:
 
@@ -1048,6 +1203,31 @@ pantry row with a known, smaller amount doesn't cover the line.
 All displayed quantities (shopping list + recipe pages) are converted to the
 user's preferred unit system (ChefProfile.preferredUnits, set in Preferences):
 METRIC shows g/kg/ml/l (cups -> ml), IMPERIAL shows oz/lb/fl oz/cups.
+
+**Shop-sized lines and one units system (WP-11, audit §6.4, UX-SHOP-01..07).**
+- The derived list now merges citrus zest + juice into whole lemons/limes,
+  groups on the catalog slug (else the base name) with size words (large,
+  medium, each) read as `pieces`, and rounds every line to what goes in the
+  basket: 0.8 avocado -> 1, 5.5 cloves -> 6, "Onion 3.2 oz" -> 1, 252 g ->
+  260 g. Eggs sit in "Dairy & Eggs". The sums behind the planner's cost chip
+  use the same lines.
+- "Add item" reads the user's own units: `2 lb chicken thighs` becomes 2 lb of
+  "chicken thighs" (`parseQuantityLine`), the placeholder teaches lb to an
+  imperial user. A new item shows at once, marked "Saving..." (offline: "Not
+  saved yet", plus an offline pill) and the server's answer replaces it.
+- Aisles open by default and the choice is remembered on the device. Prices
+  are shown as whole units ("~EUR 7", "<EUR 1"), never to the cent. The share
+  sheet counts only the dinners the (mid-week) list covers.
+- On the phone, the Shop list, the week's plan, a recipe (cook mode) and the
+  user's units survive a cold start offline (7-day cache).
+- Pantry ("In my kitchen"): every tier can remove a row ("Removed - Undo"),
+  edit its amount/unit, and sees quantities in their units; the amount box
+  refuses text and non-positive numbers (empty = "some"). Adding by hand and
+  the weekly confirm stay premium. Not done: a "use by" date (needs a schema
+  column).
+- Dates and numbers everywhere follow the device locale (`formatDate`,
+  `formatKcal`, `formatQty`).
+
 
 All displayed prices (shopping-list lines + total, pantry savings, the
 meal-plan week cost / per-person / over-budget copy, the ingredient browser)
@@ -1253,6 +1433,22 @@ Snap-to-log (B-31), same rule as before, now reading the additive field.
 The ring also shows a **"Your target" / "Suggested"** label
 (`targetMode` from `targets.get`, §2.11, T-35.5).
 
+**Today polish (UX-FOOD-13/18/19/23).** The pull-to-refresh spinner follows a
+user pull only (`useTimedRefresh`), never the focus refetch, and the summary
+query keeps its previous data when the hour changes (`keepPreviousData`, web
+and mobile) instead of swapping the dashboard for a spinner. Tonight's **Swap**
+links Plan with `week=0&day=<Monday-first weekday>&swap=dinner&at=<now>` (web:
+`/meal-plan?week=0&day=N`), so it never opens next week on a Friday or
+Saturday evening; Plan applies those params (`week` -1..1, `day` 0..6, `swap`
+breakfast/lunch/dinner opens that slot's replace picker, `at` makes a repeat
+link a new one) and, after midnight, reselects today and the default week on
+the next focus or foreground (`useDayRollover`). "Today's session" has one
+answer, `selectTodaysSession` (`@chefer/utils`): a session completed today, else
+the routine day pinned to today's weekday (what the Plan marks), else the
+rotation's next day; the Today workout card names and starts that day. The
+training-day Explain sheet quotes the **Training-day target** (rest + bump)
+beside the rest-day one (`trainingExplainCopy`, both platforms).
+
 **Landing (T-04.3).** `landingFor()` (`@chefer/utils`) is a pure function
 over `{ jobs, persistedMode, hasGymProfile, workoutInProgress?,
 isTrainingDayToday?, workoutDoneToday?, localHour?, reminderHour? }`:
@@ -1262,12 +1458,26 @@ Gym; else a planned training day not yet done from 14:00 (or 2h before
 an earlier reminder) opens Gym; else Food. Mobile's cold start
 (`(food)/_layout.tsx`) calls a synchronous wrapper, `landingSurfaceSync()`,
 fed from a small KV-backed cache (`features/navigation/landing-cache.ts`)
-that a mounted hook keeps fresh from `preferences.get`/`gym.profile.get`
-for the _next_ cold start — this wave only wires the jobs/gym-setup rows
-live; the workout-in-progress and training-day-time rows are implemented
-and unit-tested in `landingFor` itself but not yet fed live gym state. A
-landing never writes the persisted mode, and never re-applies once the
-app is open (no foreground-after-30-minutes listener yet).
+that a mounted hook (`useSyncLandingCache`) keeps fresh for the _next_
+cold start from `preferences.get`, `gym.profile.get` and the persisted gym
+bootstrap (UX-PO-10): jobs, whether gym is set up, and today's training
+state (`training-landing.ts`: a routine day pinned to today's weekday and
+no pause = a planned training day; a session completed today = done; the
+reminder hour). The workout-in-progress row reads the active-session store
+synchronously (a "Save for later" session is parked, not in progress, and
+another account's session never counts) and, like in `landingFor`, wins
+even over an explicit Food choice. An explicit Food/Gym choice still beats
+the jobs and training-day rows, so those two only decide for someone who
+has never switched. A landing never writes the persisted mode.
+
+**Foreground re-landing (UX-PO-10).** After 30 minutes in the background
+(`AppState` `background` → `active`), `ForegroundLandingHost` (root layout,
+signed-in only) re-runs the same decision. It moves the user only from a
+tab root of the _other_ surface (a Food tab when Gym is due, a Gym tab when
+Food is) to `/today` or `/(food)`; anywhere deeper (an active workout, a
+recipe, onboarding, a notification or deep-link target) is an in-flight flow
+and is left alone, and a shorter absence or a transient `inactive` does
+nothing.
 
 ### Today (P2-2) — Home + Tracker in one tab
 
@@ -1306,6 +1516,16 @@ Plan/Shop/Today used to answer "what's my plan" four different ways: `mealPlan.g
 
 `dashboard.summary.showNutritionCards` is `true` when `chefProfile.goal` is set **or** the user already tracks (logged on ≥ 3 of the last 7 days, rev 2 — a tracker keeps the ring even goal-less). A goal-less, non-tracking user gets `false`, and both clients hide `NutritionSummary` (the ring), `WeightCard`, the "Complete your profile" nudge and Snap-to-log — a ring and a weight chart against a target nobody set was meaningless, and the profile nudge and Snap-to-log both assume the same thing. Quick add stays available to everyone (it needs no goal). No schema field yet — the flag is derived fresh on every call; wave 1 persists the equivalent choice in `ChefProfile.showNutritionOnToday`.
 
+### Protein-only mode: one number, protein (WP-08, owner decision D-5)
+
+A user who does not want to count calories picks "Just protein" (`preferences.setNumbersMode({ numbersMode: 'PROTEIN_ONLY' })`; `FULL` switches back, `NONE` is reserved for WP-16). The mode is `ChefProfile.numbersMode` (null = `FULL`) and changes **presentation only**: targets, the plan generator and the rebalance keep balancing kcal underneath, so nothing is recomputed when the mode flips. It is independent of `showNutritionOnToday` (older builds keep calling `setHomeDisplay`; the new clients show both choices in one card).
+
+- **What the API hands the client.** `preferences.get.numbersMode`, `dashboard.summary.{numbersMode, proteinGuide}`, `tracker.getDay.{numbersMode, proteinGuide}` and `targets.get.{numbersMode, proteinWhy}`, all additive. Clients render `effectiveNumbersMode(numbersMode)` from `@chefer/types`, which maps null/`NONE` to `FULL` until WP-16.
+- **The protein number** is always the effective protein target from `resolveTargets` (own override, lifter rule or goal split). Today's ring reads "72 of 120 g protein"; macro bars and the kcal caption are hidden.
+- **Per-meal guide** (`buildProteinGuide`, `@chefer/utils`): target ÷ planned meals (3 when nothing is planned), shown as a 10 g range aligned to 5 g and centred on the per-meal figure ("30–40 g per meal").
+- **"Why this number?"** (`explainProteinTarget`): the research default is 1.6 g per kg of body weight. When the user's effective target is not within 0.1 g/kg of that, `proteinWhy` names it (own override, the training-focused goal rule, or the goal's calorie split) with a plain sentence and the 1.6 g/kg figure for their weight.
+- **Old clients (1.0.1)** ignore the new fields and keep full numbers; no API gating, no existing field changes shape.
+
 ### Cookbook, Shop, My weeks (P2-8)
 
 - **Cookbook** (was Recipes): All (past-plan recipes) / Saved / My Recipes /
@@ -1317,6 +1537,26 @@ Plan/Shop/Today used to answer "what's my plan" four different ways: `mealPlan.g
   for the inline "Still have these?" banner.
 - **My weeks**: saved weeks + past weeks (see §9 "Week templates").
 - **Ingredients** left the nav; `/ingredients` still works by URL.
+
+**Cookbook tabs and paging (UX-REC-05, WP-11).** All = recipes from your plans, your own recipes and your favourites;
+Saved = hearted; Mine = recipes you wrote or imported (the AI dishes your plans made are under All, and each tab says so in
+a one-line caption); Discover = the curated pool, safety-filtered. The first three page with the API's cursor (the last row's
+id): the app loads the next page when the list ends, the web cookbook has a "Load more" button. An empty Discover with no
+filter set means the diet filters hid every dish: it says so and links to the diet settings (UX-REC-09).
+
+**Recipe menu, delete and Undo (UX-REC-04/08, WP-11).** The ⋯ on a recipe opens a menu: Add to my week (any recipe, no
+Following needed: `recipe.addToWeek`, with an Undo snackbar), Add ingredients to the shopping list (this week's list, scaled to
+the servings stepper), Share (native share sheet; web: share sheet or clipboard). On your own recipe it also offers Edit,
+Duplicate (a prefilled new recipe named "Copy of …") and Delete. Delete asks first, then **soft-deletes** (`recipe.deleteMine`):
+the recipe leaves your cookbook, lists, favourites, pins and Following, and a snackbar offers Undo for 10 seconds
+(`recipe.restoreMine`). Plan slots that already hold it keep showing it (a tombstone: `mealPlan.getRecipe` answers
+`deleted: true`), so no week ever breaks; an old app that opens the id from elsewhere gets "Recipe not found", never an error.
+On the **web** recipe page the same actions are buttons in the action row (not a ⋯ menu): **Add to my week** (`AddToWeekSheet`: this
+week, next week from Thursday; day buttons with past days disabled; one row per planned meal, "Add here" or "Replace" with an inline
+confirm; a table-safety conflict shows "Use anyway"; "Make a plan" when the week has none; success toast with Undo through
+`recipe.undoAddToWeek`), **Add ingredients to list** (`shoppingList.addCustomItems` in chunks of 20, scaled to the servings stepper;
+"Make a plan first" with no plan), **Duplicate** (opens `/recipes/new?duplicateOf=<id>`, prefilled as "Copy of …", and lands on the new
+recipe) and Share/Edit/Delete. The pure rules live in `@chefer/utils` (`add-to-week`, `recipe-actions`), shared with the phone.
 
 ### 10.1 Training-aware nutrition (audit P2-4)
 
@@ -1332,8 +1572,8 @@ a goal, and a known bodyweight (latest `WeightEntry`, else
 | Rule              | Value                                                                                                                                                                                                          | Tier                                                                                                                                        |
 | ----------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
 | Base protein      | by goal: **GAIN_MUSCLE 1.8 g/kg**, **LOSE_WEIGHT 2.0 g/kg** (keeps muscle in a deficit), **MAINTAIN / EAT_HEALTHIER 1.6 g/kg** — replaces the goal's % split; carbs absorb the difference so kcal is unchanged | every tier — `resolveDailyTargets(profile, lifterBodyweightKg)` in dashboard, tracker, chat context, coach review and both generation paths |
-| Training day      | a workout **completed** that day (any day), else a routine day **planned** for that weekday outside a training pause                                                                                           | —                                                                                                                                           |
-| Training-day bump | GAIN_MUSCLE only (a cut keeps its deficit): protein to **2.2 g/kg** (+0.4 g/kg), kcal **+10%** of the base (rounded to 10, clamped 150–300); kcal not covered by protein → carbs; fat unchanged                | **premium** applies it; **free** sees the same numbers locked (upgrade source `training-day`)                                               |
+| Training day      | a workout **completed** that day (any day — **not** a quick-logged activity, WP-20), else a routine day **planned** for that weekday outside a training pause                                                  | —                                                                                                                                           |
+| Training-day bump | GAIN_MUSCLE only (a cut keeps its deficit): protein to **2.2 g/kg** (+0.4 g/kg), kcal **+10%** of the base (rounded to 10, clamped 150–300); kcal not covered by protein → carbs; fat unchanged                | **every tier** applies it (free since WP-07: no AI)                                                                                         |
 | Post-workout meal | **~0.4 g/kg** protein, rounded to 5 g, 20–45 g (30 g without a bodyweight)                                                                                                                                     | every tier                                                                                                                                  |
 | Premium AI week   | the routine's training weekdays + the bump go into the generation prompt (`buildTrainingDaysSection`), and the ±15%/±20% validation judges those days against the bumped targets                               | premium                                                                                                                                     |
 | Free curated week | training weekdays weigh the protein shortfall double in `planCuratedWeek`, so those days pick the higher-protein combinations (usually dinner); no kcal bump                                                   | free                                                                                                                                        |
@@ -1400,13 +1640,14 @@ protein targets (owner decision Q-3, 2026-09-30 — no widening to other goals,
 no run-day numbers). A long run still adds an evening-before carb snack idea
 on the previous day.
 
-**Free vs premium (D-2).** The bump on Today, the tracker and the plan's day
-targets is gated by `trainingDayTargets` (premium) OR the flag
-`trainingBumpFree` (free). Flag off → a free user sees the same numbers as a
-locked preview and the target does not move. `trainingNutrition` (premium)
-means "Fit meals to my training days" — the AI/curated week is built around
-the lift days; the switch is in the Plan settings sheet and is sent as
-`generate.fitTrainingDays`.
+**Free vs premium (WP-07, "Premium is for heavy AI only").** Training-day
+nutrition uses no AI, so the bump on Today, the tracker and the plan's day
+targets is **free for every tier** (`trainingDayTargets` and `trainingNutrition`
+are `free: true`; the old `trainingBumpFree` flag is redundant and kept only
+until it is removed). What stays premium is the AI-built week: "Fit meals to my
+training days" in the Plan settings sheet (`generate.fitTrainingDays`) runs
+through `aiMealPlans`. A free GAIN_MUSCLE lifter with a training day today sees
+the applied targets, not a locked preview.
 
 **Plan (web + mobile).** Day chips carry a barbell (lift) or walk (run) glyph
 on exactly the training weekdays; the day view gets a header (`Training day ·
@@ -1417,9 +1658,9 @@ training days`); a user whose goal gets no bump sees the marker and title but
 no kcal. The week summary shows `3 training days`. The day before a long run
 shows the pre-run snack idea.
 
-**Today.** `training-day-note` renders the applied state for free (flag on)
-and premium with a `Why?` link; the locked variant only when the bump is not
-applied. For users who train, the week outlook becomes the week glance: seven
+**Today.** `training-day-note` renders the applied state for every tier with a
+`Why?` link; the locked variant only shows when the server did not apply the
+bump (never for tier reasons since WP-07). For users who train, the week outlook becomes the week glance: seven
 equal columns (Mon–Sun, never a scroll), each with the meal count and a
 barbell / walk glyph (filled = done, outline = planned, never red).
 `dashboard.summary.refuelSnacks` carries two allergy-safe snacks for the gym
@@ -1584,6 +1825,17 @@ blood pressure, pregnancy, medication) instead of answering. Both prompts
 share one string so they can't drift apart; a snapshot test
 (`prompts.chat-guardrail.test.ts`) locks the wording in.
 
+**Unsafe weight-loss guardrail (App Review R-14, Guideline 1.4.1).** The chat
+prompt also carries `DISORDERED_EATING_RULE`: never endorse very-low-calorie
+diets (below about 1,200 kcal a day), crash diets, fasting to lose weight,
+purging or other disordered eating — say so kindly, suggest a doctor or
+dietitian, offer a balanced meal idea, and for signs of an eating disorder or
+self-harm point to professional help or local emergency services.
+`isHealthTopic` also matches "very low calorie", "crash diet", "starve myself",
+purging/laxatives and a stated daily intake under 1,200 kcal ("800 calories a
+day"), so the "Not medical advice" footer appears on those replies; a per-meal
+figure ("a 500 calorie dinner") is deliberately not matched.
+
 **Header flags + footer disclaimers (UX-22, T-22.2, wave 1 L-ENTRY).** The
 chat header always shows the subtitle `AI · answers can be wrong`, and the
 empty thread shows a chef-not-a-doctor line (`WELLNESS_COPY` in
@@ -1596,6 +1848,23 @@ control) and, before the stream starts, sets `X-Chat-Health-Topic: 1` /
 a flag on otherwise). Both clients read the header once the response arrives
 and render a fixed footer under that reply: `Not medical advice — check with
 your GP.` or `AI can be wrong about allergens — always check the label.`
+
+**What a reply did, and how it fails (UX-FOOD-21).** A client that sends
+`x-chefer-chat-actions: 1` gets the tools' effects after the reply text: a
+trailer (`CHAT_ACTIONS_MARKER` + a JSON array of `ChatAction`, `@chefer/types`)
+that `splitChatActions` (`@chefer/utils`) separates from the prose. The reply
+then carries a chip per action (swap, shopping-list add, logged meal, import)
+with **View** (the plan day, the list, the tracker, the recipe) and **Undo**
+(`mealPlan.replaceRecipe` back to the previous recipe, `shoppingList.removeCustomItem`
+per key, `tracker.deleteEntries` for the entry the chat created; an import has
+no Undo). Failures read as sentences through `chatFailureMessage` (502 "The chef
+is unavailable right now…", 401 session ended, offline), the unanswered question
+offers "Tap to retry" (mobile) / "Try again" (web), **Stop** aborts the request
+(and leaving the screen does too), replies over about 320 characters fold
+behind "Show more", and an empty premium thread offers starter prompts (the
+free preview's example prompts). The last thread is kept for the rest of the
+calendar day: mobile in the on-device KV store (wiped at sign-out), web in
+`sessionStorage` (this tab only, cleared at logout); "New chat" clears it.
 
 ```
 POST /api/chat (session cookie)
@@ -1701,7 +1970,13 @@ the adjusted target must shape next week's budget)
   fresh (≤14 days after its weekStart), shaped by entitlement:
   `full` for `adaptiveCoaching` accounts; `teaser` (FIRST line only +
   `lockedLineCount` — the full text never leaves the server) for free;
-  `none` with `loggedDaysThisWeek`/`daysNeeded` otherwise.
+  `none` with `loggedDaysThisWeek`/`daysNeeded` otherwise. The `full` review
+  carries an additive `aiGenerated` flag (R-14, EU AI Act Art. 50): true only
+  when the model wrote the text (`ChefReview.aiGenerated`, set by
+  `generateReviewTextWithSource`; the template, mock mode and failure
+  fallbacks are false). Web and mobile show the "AI-generated" chip next to
+  the review title only when it is true. Reviews written before the column
+  existed read false until the next weekly review.
 - Dashboard banner (`ChefReviewBanner`): premium sees summary chips + a
   full-review Sheet (`chef_review_viewed`); free sees the blurred-teaser ghost
   state (`upgrade_prompt_shown {source: 'coach-review'}` on impression,
@@ -1716,8 +1991,14 @@ the adjusted target must shape next week's budget)
   `tracker.deleteWeight`): both platforms list them on Progress (web
   /progress, mobile `progress` — linked from the card's "See progress" and
   from More); mobile can also expand them inside the dashboard card.
-- Progress (web + mobile): 28-day calories vs target and macro breakdown
-  (`tracker.monthlySummary`), 90-day weight chart (`tracker.weightHistory`)
+- Progress (web + mobile): calories vs target and macro breakdown over a
+  window the user picks, 7 / 28 / 90 days (`tracker.monthlySummary({ localDate,
+  days })`, default 28; UX-FOOD-20). The calorie axis is floored at 0 with round
+  ticks, the x labels are evenly spaced and kept inside the chart, and only
+  days with something logged count (`isLoggedDay`: an emptied day keeps a log
+  row with 0 kcal and no longer inflates "Days logged"). The weight card is
+  rendered outside the calorie summary's error branch, so a failed summary
+  does not hide it (UX-FOOD-28). 90-day weight chart (`tracker.weightHistory`)
   with current weight and change. The change is coloured by goal via the
   shared `weightChangeTone` (`@chefer/utils`): gaining is green for
   GAIN_MUSCLE, losing is green for LOSE_WEIGHT, other goals stay neutral
@@ -1738,8 +2019,9 @@ matching mobile's `progress.tsx` `shortDate`, which already did this.
 
 Photo logging + week rebalance (premium*plan.md W1-B). The honesty principle:
 logging off-plan food is FREE (manual quick-add, chat "I ate this"); the
-\_vision* scan and the automatic week rebalance are premium
-(`PLAN_FEATURES.photoLogging`, `mealScansPerDay: 10`).
+\_vision* scan is premium (`PLAN_FEATURES.photoLogging`, `mealScansPerDay: 10`).
+**Since WP-07 the week rebalance is free** (`PLAN_FEATURES.weekRebalance`, no AI —
+"Premium is for heavy AI only") and shows a preview before it changes anything.
 
 ### Photo scan (premium)
 
@@ -1836,35 +2118,89 @@ no-active-plan empty state are §30.
   `upgrade_prompt_shown { source: 'snap-scan' }` + `teaser_engaged
 { feature: 'snap' }` (§6.4 merchandising).
 
-### Week rebalance (premium)
+### Week rebalance (free, protein-aware, preview before apply — WP-07)
 
 After ANY log write (tracker save, quick-add, photo scan, chat logMeal,
-cook-mode "Made it!"), `TrackerService.maybeRebalance` runs for users with
-`photoLogging` access:
+cook-mode "Made it!", skip), `TrackerService.rebalanceOutcome` runs for every
+user (`weekRebalance`, free + premium). There are two deliveries:
+
+- **Old clients (no opt-in, e.g. app 1.0.1):** exactly as before — the swaps are
+  applied at once and returned in the log response's `rebalance`; the banner
+  offers Undo.
+- **New clients (`rebalanceMode: 'preview'` on the log):** nothing is applied.
+  The response carries `rebalance: null` and `rebalancePreview`; the client shows
+  "I can rebalance the rest of your week: Sunday dinner → Chicken bowl (+28 g
+  protein)" with **Preview · Apply · Not now**. Apply calls
+  `mealPlan.applyRebalance` with the swaps it was shown; the result has the same
+  shape as an auto rebalance, so Undo is unchanged. Plan can ask at any time with
+  `mealPlan.previewRebalance`.
 
 ```
-rebalanceWeek(userId, activePlanId)   [application/meal-plan/rebalance.ts]
+rebalanceWeek / previewRebalance(userId, planId)   [application/meal-plan/rebalance.ts]
   ├─ only the CURRENT week's plan; Sunday → no-op (no future days)
-  ├─ projection = Σ logged kcal Mon…today + Σ planned kcal for days AFTER today
-  ├─ |projection − 7×dailyTarget| ≤ 15% → no-op ("week is on track")
-  └─ else: greedy-swap up to 2 FUTURE slots for closer-calorie alternatives
-       from the safety-filtered curated pool (deterministic, no AI call);
-       stops early when back within 15% or no swap improves ≥2% of target
-       → applies via mealPlanRepository.updateDayMeal
-       → returns { rebalanced, swaps[previous↔new pairs], planId }
+  ├─ projection (kcal AND protein) = Σ logged Mon…today
+  │     + today's slots still to eat (planned; a replaced slot is eaten with the
+  │       replacement's numbers, a skipped slot is neither — WP-06 slot rules)
+  │     + Σ planned for days AFTER today
+  ├─ kcal off by > 15% of 7×dailyTarget  → calorie swaps (auto and preview)
+  ├─ protein short by ≥ max(30 g, 2%)     → protein swaps (preview only; an
+  │     auto rebalance never rewrites the week for protein alone)
+  └─ greedy-swap up to 2 FUTURE, un-pinned slots from the safety-filtered curated
+       pool (deterministic, NO AI): a swap scores on the kcal gap and the protein
+       gap it closes; a protein swap may not leave the kcal tolerance, and on a
+       weight-loss goal protein fixes add at most 10% of one day's calories
+       (never "Bigger portions (+503 kcal)"); when swaps cannot close a protein
+       gap the preview also lists safe protein snacks
 ```
 
-The client hands the swap pairs to localStorage
+Every swap carries a one-line explanation (`describeRebalanceSwap`, shared by
+mobile and web): "Sunday dinner → Chicken bowl (+28 g protein, −60 kcal)".
+
+**Web.** Every log write on web (tracker tick / copy day / skip / "Ate
+something else", quick add, photo scan, Today's "I ate this" and Tonight card,
+cook-mode "Made it!") sends `rebalanceMode: 'preview'` (`REBALANCE_PREVIEW` in
+`features/tracker/lib/rebalance-storage.ts`). A non-null `rebalancePreview` is
+parked in localStorage as an **offer** (`handleRebalanceOutcome`; a later log
+that finds nothing to offer retires it; it expires after 6 h) and
+`RebalanceBanner` renders it as `RebalanceOfferCard` on the tracker, Today,
+cook mode and the plan: the headline ("You're 36 g short on protein this
+week."), one line saying how many coming meals would change, and
+**Preview · Apply · Not now**, with the actions stacked UNDER the text so a
+320 px screen never squeezes them. **Preview** expands each swap's one-line
+explanation (`explanation ?? describeRebalanceSwap`) and any protein snacks.
+**Apply** calls `mealPlan.applyRebalance` with exactly the swaps shown, then
+feeds the result to `handleRebalanceResult` (the Undo hand-off below) and
+refetches the plan; if the week moved on (`rebalanced: false`) it says "Those
+meals have changed since, so nothing was swapped." **Not now** only discards
+the offer: no mutation, no Undo. The plan page has a **Rebalance my week**
+action (current week; inside **Week options**) that runs
+`mealPlan.previewRebalance` only when pressed and parks a non-empty preview as the
+same offer the plan banner shows, or says the week is already on target.
+
+The client hands the swap pairs of an APPLIED rebalance to localStorage
 (`features/tracker/lib/rebalance-storage.ts`), MERGED with any still-pending
 swaps (`@chefer/utils` `mergePendingRebalance` — a second rebalance used to
 erase the first one's undo, F-TRK-3-2). The banner ("I adjusted Thursday
 dinner to keep your week on track") shows where the log happened (tracker,
-cook-mode finish) and on the meal-plan page, with one-tap
-**undo**, which replays `mealPlan.replaceRecipe(previousRecipeId)` per swap.
+Today, cook-mode finish) and on the meal-plan page, with one-tap
+**undo**, which replays `mealPlan.replaceRecipe(previousRecipeId, pinned: false)`
+per swap (a rebalance only ever swaps un-pinned slots, so an undone slot does not
+become "Your pick").
 Undo is per-device and expires after 24 h — nothing about the swap pairs is
 stored server-side (wave-0 schema freeze). Analytics: `week_rebalanced` fires
-on the client when a log's response carries an applied rebalance. Failures in
+on the client when an applied rebalance is recorded. Failures in
 the rebalance path never fail the log save itself.
+
+**Plan-miss sheet (UX-PLAN-08, web + mobile).** On a weight-loss goal "Bigger
+portions" is held to +10 % (`capProteinScaleFactor`, "Held to +10% on your
+weight-loss goal"), and a protein gap is answered first with "Add a protein
+snack" instead of a large kcal increase; other goals keep the full step.
+
+**Premium copy (WP-07).** The week rebalance and training-day targets are not
+sold anywhere on web: no `/premium` card or "free equivalent" label for
+`trainingNutrition`, no locked "Premium adds this" line on Today / the tracker
+(`training-day-note` is information only when the server does not apply the
+bump), and the photo-scan pitch sells the scan alone.
 
 **Mobile** (P1-7, 2026-09-26): every logging surface (tracker Save Day, quick
 add, photo scan, cook-mode log) feeds the response's `rebalance` into
@@ -1875,9 +2211,8 @@ swapped twice keeps its original recipe for undo, a slot swapped back drops
 out; another plan or a stale hand-off is replaced) — so a second rebalance no
 longer destroys the first one's undo (audit F-TRK-3-2). The banner with Undo
 / Dismiss renders **where the log happened** (tracker, cook-mode finish) and
-on the Plan tab (filtered to the displayed plan). Web still overwrites and
-shows the banner only on the meal-plan page — reverse row in
-`mobile_parity_backlog.md`.
+on the Plan tab (filtered to the displayed plan). Web does the same (merge,
+banner on every logging surface and the plan).
 
 Routing: Caddy sends `/api/scan-meal` to the API in production; a Next.js
 rewrite proxies it in dev.
@@ -1932,7 +2267,13 @@ data, unless the user ticks "Save with incomplete nutrition" (`acceptPartial: tr
 The old "calorie estimate uncertain" banner is gone. The video draft form (§16.1) uses
 the same editor and the same rule.
 
-**Preview before Save (owner dogfood 2026-09-30, web + mobile):** under the Original /
+**Editable review (UX-REC-15, web + mobile):** a link, pasted text or photo is reviewed in the same
+editable form as a video draft (web `VideoDraftForm` fed a `DraftReviewSource`; mobile `VideoDraftForm`): pick
+the version (Original or Cheferized — switching restarts the review), then fix the name, servings, times,
+amounts, units, matches and steps inline. Save sends the chosen `variant` and `acceptPartial`. This replaces the
+read-only "Preview before Save" below on web.
+
+**Preview before Save (owner dogfood 2026-09-30, web + mobile; superseded by the editable review above on web):** under the Original /
 Cheferized cards, the chosen version is shown in full — name, description, servings,
 times, kcal/macros, EVERY ingredient and EVERY step (mobile
 `features/recipes/imported-recipe-preview.tsx`, web `FullRecipePreview` in
@@ -1991,6 +2332,12 @@ and computed nutrition since P9 — see "Mobile: catalog lines" in §31):
        (same save path; allergen conflicts are shown as a warning on the form)
 ```
 
+**One review form for every source (UX-REC-15/14/07, WP-11).** On mobile, link and text imports now review in this same
+editable form (seeded with the version you pick: Original, or Cheferized when the adaptation changed something and is safe;
+with nothing to choose, "Cheferized for you" is a note), instead of a read-only preview. Saving opens the new recipe
+(`router.replace`), and the recipe page always shows a source link back to the page or video it came from. A scaled recipe
+keeps spoon units ("1½ tbsp", never "22 ml"). (The web import sheet keeps its read-only link/text review for now.)
+
 Errors the user can see: not a supported link; private / login-only video; video not
 found; video site refused us (YouTube bot check, rate limit); longer than 10 minutes;
 too large; no caption, subtitles or speech with a recipe; took too long; video import
@@ -2030,11 +2377,20 @@ Entry points (≤ 2 taps from Profile / "You", PM review §5)
 Members (household.* — protected, EVERY tier, cap householdMembers = 5)
   ├─ household.list — member chips with per-member safety summary
   ├─ household.add — { name, portionFactor 0.25–3 (0.5 kid … 1.5 big eater),
-  │    isKid, allergies[], dietaryRestrictions[], dislikedIngredients[] }
+  │    isKid, ageBand? (kids only), allergies[], dietaryRestrictions[],
+  │    dislikedIngredients[] }
   │    count + insert in one SERIALIZABLE transaction (F-ONB-3-1: parallel
   │    adds can no longer pass the cap); `household_member_added` on save
   ├─ household.update / household.remove — ownership-scoped; removing asks
   │    to confirm first (F-ONB-3-2)
+  ├─ Kid age band (UX-PLAN-12, optional, web + mobile editors): when "kid" is on,
+  │    "Age" chips 1–3 / 4–8 / 9–13 / 14–17 appear. Picking one PRE-FILLS the
+  │    portion (½ / ¾ / 1 / 1¼ — EFSA energy needs by age relative to a ~2,000
+  │    kcal adult); the user can still change it, tapping the chip again clears
+  │    it. `portionFactor` stays the only number planning, servings and the
+  │    shopping list read — the band is display + a suggestion. The member row
+  │    shows it ("Kid · 4–8" on mobile, "4–8 · ¾ portion" on web). Un-marking
+  │    someone as a kid clears the band; 1.0.1 clients never send it.
   └─ quick chips on an empty household: "+ add your partner" / "+ add a kid"
        ├─ premium: open the editor pre-filled (kid = ½ portion, isKid)
        └─ free: the §6.4 ghost reflects the chip tapped (F-PM-12) — the kid
@@ -2071,15 +2427,29 @@ SCALING — premium only (`householdPlans`)
   │    .servingSize); the legacy setting is never read. Imports adapt to the
   │    same number.
   ├─ shopping list (derived AND the AI-consolidation input): every recipe's
-  │    ingredients × portions / recipe.servings — a single-portion curated
-  │    week ×portions, a recipe already generated for the table ×1 — and the
-  │    list reports `portions`
+  │    ingredients × (the slot's eater portion + Σ member portionFactor) /
+  │    recipe.servings — a single-portion curated week × the table, a recipe
+  │    already generated for the table × that ÷ its servings — and the list
+  │    reports `portions` (= householdPortionSum, unchanged for old apps).
+  │    The table is ADDED to the eater's portion, never multiplied across it
+  │    (UX-REC-02: owner 2× + Mia ½ + Noah 1 = 3½, not ceil(2½) × 2)
   ├─ plan week cost: estimatedCost scaled the same way (chip = list total),
   │    with `portions`
-  └─ recipe page + cook mode default to the table's servings, × the plan
-       slot's portion when opened from the plan (shared
-       `defaultCookServings`; mobile cook mode's ingredient list has the
-       servings stepper)
+  └─ recipe page + cook mode default to the table's servings: the user's
+       plan portion + each member (shared `defaultCookServings` →
+       `portionsFor`; shown as "You 2 · Mia ½ · Noah 1 = 3½"; mobile cook
+       mode's ingredient list has the servings stepper)
+Portions — one helper, three numbers (UX-PLAN-02 / UX-REC-02,
+`portionsFor({ eaterPortion, members, cookingFor, recipeServings })` in
+`@chefer/utils`): `eaterPortion` (what the signed-in user eats and logs — the
+stored slot `portion`), `cookServings` (the whole table), `shopMultiplier`
+(what Shop and the cost chip scale quantities by). Members describe the table
+exactly and win over "cooking for"; with no members "cooking for N" adds N − 1
+standard portions. Nutrition, day totals, "I ate this", rebalance and the
+tracker only ever use the eater's portion. Legacy plans: a one-off data
+migration drops `portion: 2` from slots of users whose "cooking for" is 2
+(their original per-eater portion was never stored, so 1× is the honest value;
+Regenerate recomputes it).
 FREE households: lists, costs and recipe pages stay as written (single
 portion for curated plans) and say so ("sized for 1 portion — Premium scales
 it for your table"). Per-person cost is ALWAYS total ÷ the portions the list
@@ -2202,13 +2572,32 @@ API's 2,000 characters with a live counter ("123 / 2,000", amber in the last 100
 (F-PROF-2-2).
 
 ```
-User → Send feedback → feedback.submit { message, path } → FeedbackService.submit
-     → Feedback row (userId, message ≤2000, path, createdAt)
+User → Send feedback → feedback.submit { message, path?, build?, os?, route? }
+     → FeedbackService.submit → Feedback row (userId, message ≤2000, path, createdAt)
+                              → email to FEEDBACK_NOTIFY_EMAIL (best effort, if set)
 ```
 
-The current route is attached automatically as `path`. On success the client
-fires the `feedback_submitted { path }` PostHog event and thanks the chef.
-Feedback is write-only in-app; the team reads it via Prisma Studio/psql.
+Each submission carries its context (UX-PO-05; additive optional fields, so
+shipped 1.0.1 binaries that send only `message` + `path` keep working). The
+Feedback table has no columns for them, so the service folds the screen, OS
+and build into the existing `path` column as one line, e.g.
+`/gym/workout · iOS 18.2 · Chefer 1.0.1 · production · update 3f2a9c1e`
+(≤400 chars). Mobile sends `CURRENT_BUILD`, `Platform` OS + version and the
+expo-router pathname; web sends `Chefer web`, the browser/OS and the Next
+pathname. On success the web client fires the `feedback_submitted { path }`
+PostHog event and thanks the chef.
+
+Entry points on mobile: the card on the More tab (Food), a "Send feedback"
+row in Gym settings that opens the same form in a sheet (Gym mode), and a
+"Report this" button on the crash screen (`RootErrorBoundary`), which
+pre-fills the error and submits through a standalone tRPC client because the
+boundary renders outside the app's providers.
+
+When `FEEDBACK_NOTIFY_EMAIL` is set, every submission is also mailed to it
+(subject `[Chefer feedback] …`; message, sender email, context) through the
+existing `EMAIL_PROVIDER` transport (console mock in dev). The mail is
+fire-and-forget: a mail failure is logged and never fails the submission.
+Unset = no mail. Feedback is otherwise read via Prisma Studio/psql.
 
 ---
 
@@ -2324,8 +2713,28 @@ Food/Gym switch (header of every tab root) → persisted mode
   │         weekly goal = the days the user chose (`input.days`), not the resulting
   │         template's own day count (bug B-18, T-05.2, AC4 — 5 chosen days → goal 5,
   │         even when the template itself has only 4)
-  └─ profile exists → Gym tabs: Today / Routine / Exercises / Stats
+  └─ profile exists → Gym tabs: Today / Routine / Exercises / Stats / More
+      (FB7-01: Gym's More = Gym settings, Profile, Following, Progress, Settings,
+      feedback, legal links, Sign out — route `/gym-more`)
 ```
+
+### Tester feedback 2026-10-07 — gym (WP-23)
+
+Source: `docs/backlog-2026-10/feedback-2026-10-07.md` (FB7-01, 05–09).
+
+- **Gym More tab (mobile, FB7-01).** Gym mode has a fifth tab, **More** (`app/(gym)/gym-more.tsx`, route
+  `/gym-more` because `/more` belongs to Food). It shares `MoreScreen` with Food (`src/features/more/`), lists Gym
+  settings, Profile, Following (when available), Progress and Settings, and carries the same Following badge.
+- **Exercise names (FB7-05).** `ExerciseNameLink` renders plain text by default (no dotted underline); it stays a
+  link for screen readers with a 44 pt hit area.
+- **Exercise filters (FB7-07, mobile + web).** One scrolling row: `Equipment ▾` (a sheet / select; "Any equipment"
+  clears it), `Mine`, `Clear` (only while a filter is set), then the muscle chips. The routine exercise picker's
+  muscle row no longer wraps.
+- **Stats (FB7-08/09, mobile).** "Weekly sets per muscle" and "PR timeline" pick their muscle / exercise from a
+  `SelectField` (searchable above 12 options) instead of a wall of chips — same as web's `<select>`.
+- **Exercise media (FB7-06).** Owner decision 2026-10-07: free-exercise-db photos for rows that lacked one; every
+  video is oEmbed-verified. 151/191 exercises have a photo and 185/191 a video; the rest are listed (with reasons)
+  in `packages/types/src/gym/exercise-media.test.ts`, whose allow-lists can only shrink.
 
 ### The daily loop (offline-first)
 
@@ -2477,6 +2886,10 @@ against `recentSessions` and the next day's `plannedWeekday`:
   (checked first, regardless of weekday). Gym Today shows `Done today` with
   the just-finished session's stats (`doneTodayCard()`: duration, working
   sets, PR count via `collectPrs`) and `Next session: {weekday} — {dayName}`;
+  the weekday is `nextSessionWeekday()` (R-19): the next day's own pin when it
+  is still ahead of today, otherwise the next planned training weekday after
+  today (any routine day's pin), wrapping into next week — so an off-schedule
+  Thursday session with Mon/Wed/Fri pinned names Friday, not the past Wednesday;
   no Start button. `See summary` opens that session; `Train again today? Pick
 a day` reuses the existing day-picker sheet.
 - **`rest`** — nothing done today, and the next day's `plannedWeekday`
@@ -2514,6 +2927,66 @@ connection) spun forever. `useTimedRefresh()`
 (`src/features/gym/today/use-timed-refresh.ts`) decouples the two — the
 spinner always drops after 10 s, whether or not the refetch itself ever
 settles.
+
+### Log an activity (WP-20, owner decision 2026-10-04)
+
+A class is not a trainer feature: **any** gym user can quickly record something
+they did elsewhere — "45 min cycling class, 400 kcal burnt" — as done. It is
+**record only**: the calories never raise the day's food target ("no eating
+back"), never feed the meal planner or a rebalance.
+
+- **Where.** `Log an activity` is a quiet text link beside "Log a workout you
+  already did" on Gym Today (also when no routine is active), and at the top of
+  History (mobile Stats › History, web `/gym/history`). Never next to — or
+  instead of — `Start`.
+- **The sheet** (mobile `today/log-activity-sheet.tsx`, web
+  `today/log-activity-sheet.tsx`; copy and rules come from `@chefer/utils`
+  `activity-log.ts`, so the two cannot drift): activity chips — Cycling class,
+  Pilates, Yoga, HIIT / bootcamp, Zumba / dance, Swimming, Running, Walking,
+  Other (+ a free-text name) — then a duration (chips 15/30/45/60/90 or any
+  1–180 min), the date (today by default; back to Monday of last week, never the
+  future), **Calories burnt (optional)** — "From your watch or the machine" —
+  and **Effort (optional)** Easy / Moderate / Hard (RPE 3/5/7; the phone also
+  has the exact 1–10). Common case: three taps inside the sheet — activity,
+  duration, Save. Errors are plain sentences (`validateActivityLog`), never raw
+  Zod.
+- **Storage — the existing gym model, no new procedure.** A finished
+  `WorkoutSession` (`COMPLETED`, `routineId`/`routineDayId` null, named after the
+  chip or the typed name) with ONE session exercise whose catalogue row is a
+  `DURATION` cardio entry (`ACTIVITY_PRESETS` in
+  `packages/types/src/gym/activity-log.ts`: `spin-class`, `pilates-class`,
+  `yoga-class`, `hiit-class`, `dance-class`, `swimming`, `running`, `walking`,
+  `other-activity`) and one ticked set: `durationSec`, optional `caloriesKcal`,
+  optional `intensityRpe`, `weightKg 0`, `reps 0`. `buildActivityLogDoc()` builds
+  it; it goes through the same offline outbox and `gym.session.upsertMany` as any
+  finished workout (works offline, retries idempotently) and is folded into the
+  cached bootstrap at once (`saveLoggedSession` on the phone, `saveActivityLog`
+  on web).
+- **Counts as a training day for the WEEK, not for today's workout.** It is a
+  finished session, so the weekly goal ring, week strip and streak count it (a
+  class is training). But it does **not** make Gym Today say `Done today` (Start
+  stays), and it never advances the rotation (freestyle: no `routineDayId`).
+  `isActivityLogSession()` (no routine day + every exercise is an activity entry)
+  is the single test, used by `todayStatus`, `doneTodayCard`,
+  `selectTodaysSession` and the web Today/dashboard cards.
+- **Not a training day for nutrition.** `trainingNutritionService` drops activity
+  sessions from the "completed workout that day" lookup (`trainingDayFor`,
+  `trainingWeek`), so a logged class neither marks the plan week nor applies the
+  lift bump — and `caloriesKcal` is not read anywhere on the food side.
+  Contract-tested against the real API (`activity-log.contract.test.ts`: targets,
+  ring and training-day flag identical before/after; a real workout the same day
+  is the control that flips it).
+- **Display.** Recent / History rows read `45 min · ~400 kcal` (never "1 sets");
+  the session detail reads `Cycling class · 45 min · ~400 kcal (from your watch)`
+  plus the effort. Strength PRs / e1RM / volume are untouched (a cardio set has
+  `reps 0`, no progression is folded for a non-strength exercise — the offline
+  fold now skips it too).
+- **Old apps.** `DURATION` is renderable at every API level (client-level.ts), so
+  a 1.0.1 app (level 4) and older apps read the session back in the legacy cardio
+  shape and receive the new library rows; an unknown exercise would fall back to
+  the session name. Health-consent gating is unchanged: `gym.session.upsertMany`
+  is not a consent-gated procedure (the kcal is a gym-set field like the other
+  cardio fields).
 
 ### Correcting a past workout (UX-44, T-44.1–T-44.5, D-21 a: any past session)
 
@@ -2742,9 +3215,30 @@ Routine editor (mobile + web): "Superset with next" on any exercise but the day'
   → violet bracket + A1/A2 chips + "Superset A · <rest> s rest after each round"
   reorder / remove / cross-day move → groups re-normalised (a pair left with one dissolves;
   a step move hops over a whole superset; a drag dropped between members joins it)
-Active workout: grouping derived from routineExerciseId via the cached routine
-  (the session doc has no superset field; exercises added mid-session never join one,
-  and moving members apart in the session breaks it for that session)
+Routine editor, easy path (2026-10, plan-library-supersets S2/S3): a "Superset" button on
+  each day → pick 2–4 exercises → "Group as superset" moves them together at the first
+  pick's place under one letter (`createSuperset`); "Ungroup" on a superset heading
+  (`ungroupSuperset`). Saving normalises letters on the server too (`normalizeSupersets`).
+Active workout: the session doc carries its own optional `supersetGroup` per exercise
+  (copied from the routine at Start; additive, column session_exercises.supersetGroup).
+  The workout's "Superset" action and "Ungroup" change THIS session only; "Also change my
+  routine" writes the same grouping to the routine day (`routineWithSuperset` /
+  `routineWithoutSuperset`) when every member is a routine slot of that day.
+  Mobile (S2): "Superset" sits under the workout's "+ Add exercise" and in each exercise's ⋯
+  menu (opens with that exercise ticked; skipped exercises are not offered). "Ungroup" on the
+  heading is immediate when the superset exists only in this session; when the routine has the
+  same superset a sheet asks first, with "Also change my routine" off (hidden while offline).
+  Routine editor (mobile): "Superset" in each day's footer, next to the day's ⋯.
+  Exercises added mid-workout can be grouped; moving a member applies the editor's rule
+  (step inside the superset swaps partners, otherwise hops over a whole superset).
+  Web (S3): "Superset" sits under the exercise list (phone) / in the navigator (desktop)
+  and in each exercise's ⋯ sheet (that exercise pre-ticked). "Ungroup" acts at once unless
+  the routine day has the same superset; then a small sheet offers "Also change my routine".
+  A routine save that hits a version CONFLICT is rebuilt on the server's copy and retried
+  once; if it no longer applies, a toast says the routine was left alone.
+  Sessions without the field (older binaries / older docs) keep the original derivation
+  from routineExerciseId via the cached routine; a session that never grouped anything
+  reads back from the API without the field.
   tick set k of A1 → no rest, focus + scroll to set k of A2 (a running rest is cleared)
   last exercise of round k ticked → rest timer with the superset's LAST exercise's rest
   focus walks round by round (A1·1, A2·1, A1·2 …); skipped members drop out of rounds
@@ -2754,9 +3248,11 @@ Also shown outside the workout, same bracket/chip/heading, read-only (no reorder
   via the shared `SupersetHeading` component)
 ```
 
-Shared logic: `@chefer/utils` `gym/supersets.ts` (`setSupersetWithNext`,
-`moveSupersetItem[To]`, `removeSupersetItem`, `sessionSupersets`, `setTickOutcome`,
-`workoutFocus`, `supersetRuns`, `supersetSlot`).
+Shared logic: `@chefer/utils` `gym/supersets.ts` (`createSuperset`, `ungroupSuperset`,
+`setSupersetWithNext`, `moveSupersetItem[To]`, `removeSupersetItem`, `sessionOwnsSupersets`,
+`sessionSupersets`, `setTickOutcome`, `workoutFocus`, `supersetRuns`, `supersetSlot`,
+`routineWithSuperset`, `routineWithoutSuperset`); workout reducer actions `createSuperset` /
+`ungroupSuperset`. The duration estimate counts one rest per superset round.
 
 "Notes from last time": `SessionSummaryDto.exercises[].notes` (additive, optional —
 shipped mobile clients predate it) carries each exercise's session note through
@@ -2799,6 +3295,27 @@ streaks, no red "missed" markers.
   **End pause** button (`gym.pause.end`) regardless of which device started
   it — the web's earlier "only pauses created in this browser" workaround
   (localStorage bookkeeping) is gone.
+- **Pause start choice (UX-GYM-16, WP-12 B):** a pause starts Today, Tomorrow or
+  next Monday (`pauseStartDate`, `@chefer/utils`) and lasts 1–4 whole weeks; the end
+  date is the **last paused day** (inclusive), so copy reads "Paused through Thu 8
+  Oct · Vacation" (`pauseSummaryLine`), never the raw ISO date or enum. A pause that
+  has not started yet is `GymBootstrap.upcomingPause` (additive, optional; same
+  shape as `activePause`), shown in settings with **Cancel pause** (`gym.pause.end`
+  deletes a pause that has not begun).
+- **Switching routines (UX-GYM-14/15, mobile My routines):** a template is previewed
+  day by day before it is created; **Create** keeps the active routine, **Create and
+  switch** activates it and sets the weekly goal to the template's days/week
+  (`gym.profile.save`). Archiving the active routine is confirmed with copy that says
+  Today will have no workout; Today then still shows Recent workouts and "Log a
+  workout you already did".
+- **Rep-range edits (UX-GYM-18):** a rep bucket with no progression yet starts from
+  the same exercise's other bucket (`carriedWeightKg`, Epley e1RM re-estimate)
+  instead of the starting guess; an exercise's first-ever session is a baseline and
+  is not counted as a PR on the finish summary (the PR timeline still lists it as
+  "First logged"). The live in-workout badge and its success haptic follow the
+  same rule (owner decision 2026-10-04): with no earlier history for the exercise
+  the set is a plain tick — one shared `detectLivePrs` in `@chefer/utils` backs
+  both the web and mobile live badge, and the summary reads the same result.
 - **Reminders (mobile only, local `expo-notifications`, G4-A):** one
   notification per planned weekday over the next 14 days at the profile's
   `reminderTime`, skipping a day already trained or inside a pause, plus at
@@ -2852,6 +3369,27 @@ your rest is over, even with the phone locked?` / `Allow notifications` /
   `Not now`) shown once, in context, the first time a rest actually begins
   (`workout/rest-timer-bar.tsx`) — never cold, never more than once per
   device.
+- **Rest timer, Today and recap polish (WP-12 lane A, UX-GYM-09/10/12/13/20/31):**
+  - _Rest timer:_ the "Rest is over" local notification is scheduled when a rest
+    STARTS (and re-scheduled on ±15 s, cancelled on skip/finish) by `rest-timer.ts`
+    (`syncNotification`, serialised, one alert per `endsAt`), not when the app
+    backgrounds. The countdown (`Rest m:ss`) also shows on the Gym Today Resume
+    card, the Food Today resume line (mobile) and the web Resume banner, so
+    minimising the workout never hides it. A screen reader hears the rest at start,
+    at 10 s and at the end (`nextRestAnnouncement` + `announceForAccessibility`);
+    the ticking text is no longer a live region. Exact Android alarms
+    (`USE_EXACT_ALARM`) are native and still open.
+  - _Gym Today:_ planned days dated before `profile.setupCompletedAt` are never
+    "missed" (`missedPlannedDays`/`todayStatus` take `since`), the first week's goal
+    is pro-rated to the days left (`proRatedWeekGoal`, display only), "Still time
+    this week" never shows beside the overdue card, and the main card names
+    `selectTodaysSession` — the same day the Food Today card and the Plan use.
+  - _Monthly recap card:_ the server offers it only for a month with at least 2
+    sessions (`RECAP_MIN_SESSIONS`); the card has a primary `See {Month}` button that
+    opens Stats (`/stats?month=YYYY-MM` on mobile, `/gym/stats?month=` on web) with
+    that month selected and the recap scrolled into view.
+  - _Mode pill:_ the Food | Gym pill derives from the route GROUP (`useSegments`),
+    and Gym-only screens pass `mode="gym"`; it no longer says Food on Gym tabs.
 - **Streak repair — "Log a workout you already did" (mobile + web, G4-A;
   was "Log a past workout"):**
   - **Mobile (owner dogfood 2026-09-30): log mode, no timer.** One sheet —
@@ -2939,6 +3477,27 @@ Weekly sets per muscle (mobile only — web's chart shows one group at a time):
   above the keyboard. Search inputs carry a real accessible label, a 4.5:1
   placeholder (`#4b5563`, not the default gray-400) and a clear (✕) button
   once there's a query.
+- **Archived exercises + stats polish (WP-12 lane C, UX-GYM-27/29/33/34, mobile + web):**
+  an archived custom exercise is listed under a collapsible "Archived (N)"
+  section at the bottom of the Exercises tab with a **Restore** button
+  (`gym.library.restoreCustom`; there is no Delete — sessions reference the
+  row), and archiving offers an Undo toast/snackbar. A search with no result
+  offers "Create “<query>”", opening the custom-exercise form pre-filled
+  (web: `/gym/exercises/new?name=…`). One **PR rule** everywhere — a session is a
+  PR when ANY kind (weight, reps or e1RM) is beaten against all-time bests
+  (`collectPrs`): the workout summary, History rows, the e1RM chart's PR dots
+  (mobile local engine and `gym.stats.e1rm`) all agree. History's "Load more"
+  only shows when a one-row probe past the cached window finds an older
+  session. Loads render by exercise load type (`BW`, `BW + 10 kg`,
+  `25 kg assist`) in session detail, exercise detail and the PR timeline;
+  dates are Intl-formatted (`formatLocalDateLong`), never ISO; "Last 1
+  sessions" reads "Last session". The muscle-volume stack shows the top 5
+  groups plus the selected one (distinct colours) and folds the rest into
+  "Other"; bar-chart axes use round ticks. A failed load shows an error with
+  Retry (never "not found", "No exercises match" or an endless skeleton) on
+  the web Exercises, Stats, History, exercise-detail and settings pages, and
+  the monthly recap. Web gym settings save optimistically
+  (`use-save-gym-profile.ts`), rolling back only the failed fields.
 - **Library staples (T-05.10, UX-05 A5):** `incline-barbell-bench-press`
   (searchable by "incline bench"; shares the `incline-press` swap group,
   sorted before the dumbbell version) and `back-extension` (`BODYWEIGHT_PLUS`
@@ -3195,6 +3754,30 @@ tap → useNotificationLinks (root layout, signed in only) → router.push(url)
 
 Off by default; unlike email they use the phone's own time zone.
 
+### Food nudges and Settings → Notifications (mobile only, UX-PO-08)
+
+Two more opt-in LOCAL notifications, both off by default, no server field:
+
+- **Log dinner** — 20:30 on evenings when no dinner entry is logged yet. A rolling
+  window of one-shot notifications for the next 7 evenings, re-planned on launch, on
+  foreground, when the choice changes and when today's log gains/loses a dinner
+  (so logging dinner at 19:00 drops tonight's). A user who stops opening the app
+  therefore gets at most a week of nudges. Tap → `/tracker`.
+- **Plan Sunday** — weekly, Sunday 18:30 (the weekly recap owns 18:00). Tap → `/meal-plan`.
+
+The choice is stored in the device KV (`notifications.food-nudges`), asked at the very
+end of onboarding (after the save, before leaving the wizard; skipped for "Just looking
+around" and the Train-only hand-off) and changeable in **Settings → Notifications**,
+which also gathers Weekly updates, the training reminder (a read-only row opening gym
+settings), the rest-timer alert (OS permission status) and shows the standard
+"Off for Chefer" row when the OS denies notifications. Sign-out cancels every nudge
+and wipes the choice. Class reminders get a row when classes ship (WP-05).
+
+```
+onboarding saved → NudgeStep (2 switches) → on: ensureGymReminderPermission → KV write
+FoodNudgeHost (root) ← KV change / foreground / today's tracker.getDay → syncFoodNudges
+```
+
 ### Manual trigger (ops / live verification)
 
 No API procedure. From `apps/api`:
@@ -3224,9 +3807,19 @@ Profile → Your data → "Delete account"  (web /profile, mobile Profile — la
      household, feedback, sign-in on every device) + "Backup copies age out
      within about 30 days."
      Inputs: password + type DELETE (case-insensitive) → destructive button
+     "Forgot your password?" (App Review R-24, web + mobile): asks
+     `auth.requestPasswordReset { email: <the signed-in user's own email> }` and
+     confirms "We sent a reset link to <email>" — the in-app forgot-password
+     screen is signed-out only, so the link lives in the sheet. The mobile
+     password field opts out of iOS "Save Password?" (R-17), and the footer
+     button works on the first tap with the keyboard up (R-03, `Sheet` footers).
         │
-        └─ user.deleteSelf { password, confirm: 'DELETE' }
+        └─ user.deleteSelf { password?, reauth?, confirm: 'DELETE' }
+              │   (WP-22: an account that signs in with Google/Apple only has no password — the sheet shows
+              │    "Confirm it's you" with that provider's button instead of the password field, and sends the
+              │    FRESH ID token (≤ 10 min old, for an identity linked to this account) as `reauth`)
               ├─ wrong password            → FORBIDDEN "That password is not correct"
+              ├─ neither / bad reauth      → FORBIDDEN (deleteNeedsReauth)
               ├─ caller is the last ADMIN  → BAD_REQUEST (promote someone first)
               └─ deleteAccount(userId) — ONE transaction:
                     shopping_lists (by the user's planIds; no FK)
@@ -3235,7 +3828,8 @@ Profile → Your data → "Delete account"  (web /profile, mobile Profile — la
                     verification_tokens 'reset:<email>'
                     workout_sessions, routines (before the user: RESTRICT FKs)
                     sessions (every device)
-                    users row → cascades everything else
+                    users row → cascades everything else (incl. auth_identities)
+                 then Sign in with Apple grants are REVOKED at Apple (best effort, App Review 5.1.1(v))
                  then deleteUploadedFiles(): the /uploads files behind the
                  avatar, own recipes and custom ingredients (best effort,
                  P0-6) — then authService.logout clears the web cookie
@@ -3274,12 +3868,15 @@ when the account never linked, or when `POSTHOG_PERSONAL_API_KEY` /
 
 ## 25. AI Data Consent Flow (App Store 5.1.2(i))
 
-> **Status:** Implemented on web and mobile 2026-09-26. User-initiated AI
-> procedures are gated in the clients only (the API does not re-check them).
-> Server-initiated jobs check consent themselves: the Sunday auto-plan skips
-> premium users without consent (§9) and the weekly review writes their text
-> from the template instead of the AI (§14). Other background AI calls carry
-> no personal data (recipe images from AI recipe names; the global ingredient
+> **Status:** Implemented on web and mobile 2026-09-26; enforced on the
+> server too since 2026-10-02 (R-10). The clients' sheet asks first; the API
+> then refuses any user-triggered AI action from a user with no consent on
+> record (`AI_CONSENT_ENFORCE`, default on): an old binary, a stale cache or a
+> consent revoked on another device can no longer send data. Server-initiated
+> jobs check consent themselves: the Sunday auto-plan skips premium users
+> without consent (§9) and the weekly review writes their text from the
+> template instead of the AI (§14). Other background AI calls carry no
+> personal data (recipe images from AI recipe names; the global ingredient
 > price vocabulary).
 
 ```
@@ -3292,9 +3889,9 @@ user taps an AI action ──► requestAiConsent(feature, run, { usesAi })
              "Allow AI to use your data?"
              "To <action>, Chefer sends some of your data to <primary>, a
               third-party AI service, which uses it only to produce the result."
-             (<primary>/<backups> from profile.aiProviders — Google Gemini +
-              Groq by default; Groq + Cloudflare Workers AI when the API runs
-              AI_FREE_ONLY=true)
+             (<primary>/<backups> from profile.aiProviders — Groq +
+              Cloudflare Workers AI by default, i.e. what production runs;
+              Google Gemini + Groq only when the API says so)
              What gets sent: <per-feature list, AI_CONSENT_FEATURE_DATA>
              "Your data is not used to train AI models."
              backup-provider line · "You can turn this off at any time in
@@ -3313,14 +3910,46 @@ user taps an AI action ──► requestAiConsent(feature, run, { usesAi })
 | `recipe-import`              | Import recipe sheet preview (URL / text / photo / video)     | Import recipe screen preview (URL / text / video)     |
 | `chat`                       | Chat widget send + suggested prompts                         | AI Chef screen send                                   |
 | `shopping-list`              | Shop "Regenerate list"                                       | Shop "Regenerate with AI"                             |
+| `ingredient-estimate`        | Ingredient form "Fill in for me"                             | Custom ingredient sheet "Fill in for me"              |
 
 The first plan after onboarding is generated from the Plan tab / dashboard
-"Generate my week", so it is covered by `meal-plan`. Not gated (no personal
-data): AI nutrition estimate for a custom ingredient (ingredient name only) and
-recipe image generation.
+"Generate my week", so it is covered by `meal-plan`. The ingredient "Fill in
+for me" used to be exempt (name only); it now asks like the rest, saying that
+the typed name is what is sent. Not gated (no personal data): recipe image
+generation.
+
+**Server-side check (R-10).** Every row above is backed by a check in the API:
+
+```
+AI action ──► API
+  ├─ consent on record (aiDataConsentAt set) ──────────────────► runs
+  ├─ AI_CONSENT_ENFORCE=off ───────────────────────────────────► runs (emergency switch)
+  └─ no consent
+        ├─ tRPC procedure ─► FORBIDDEN, message "Allow AI features in
+        │    Profile → AI & your data to use this.", data.reason =
+        │    'AI_CONSENT_REQUIRED'   (recipe.importPreview/importVideoPreview,
+        │    shoppingList.regenerate/searchStores, premium mealPlan.swapRecipe,
+        │    ingredients.estimateNutrition's AI fallback, mealPlan.resumeTailoring)
+        ├─ /api/chat, /api/scan-meal ─► 403 { error, reason } +
+        │    X-AI-Consent-Required: 1
+        └─ mealPlan.generate ─► never an error over consent: a premium user
+             without consent gets the curated week (no tailoring); the AI
+             fallback for a table the curated pool can't cover is skipped and
+             the existing "not enough recipes" answer is returned instead
+```
+
+On a consent rejection the client (web and mobile) drops its cached consent
+and reopens the consent sheet for that feature instead of a generic error;
+"Allow" records consent and the user repeats the action. Old binaries show the
+same sentence as a normal error.
 
 **Revoking:** Profile → "AI & your data" → "Allow AI features to process my
 data" switch (web + mobile) → `user.revokeAiDataConsent` / `grantAiDataConsent`.
+The switch text lists every feature that may send data (plans, swaps, photo
+scans, recipe and video imports, chat, ingredient fill-in, the AI shopping-list
+tidy-up and the weekly coach review), and a note under it says what the coach
+review sends (weight trend, goal, average calories) and that without consent
+it is written from a template and nothing is sent.
 
 **Who is named (2026-09-26):** the sheet, the Profile switch's "on" text, the
 web privacy page ("AI processing" + "Who receives your data") and the support
@@ -3328,7 +3957,9 @@ FAQ never hard-code a provider. They read `profile.aiProviders` (public), which
 the API derives from its live route table, and fill the shared templates in
 `@chefer/types` `AI_CONSENT_COPY` via `@chefer/utils` (`aiConsentIntro`,
 `aiConsentBackupLine`, `aiConsentToggleOn`). Until it answers, or against an
-API that predates it, clients show the standard set (Gemini, Groq backup).
+API that predates it (or when the request fails — it is retried), clients
+show the set production runs (Groq, Cloudflare Workers AI backup), never the
+legacy Gemini one.
 
 **When the AI is out of capacity** (every provider in a chain busy or past its
 free daily quota): the user sees "The chef is over capacity right now — give it
@@ -3393,6 +4024,9 @@ app/_layout.tsx ──► initAnalytics(): starts the 30s flush timer + backgrou
                              next event (AC2); off → sign-out resets it to off
 
 Profile → Privacy & data → "Usage analytics" (AnalyticsConsentCard, mobile)
+  rendered only when the transport is enabled (PostHog key + host set at
+  bundle time — not in the App Store build; R-08), so the app never shows an
+  "on" switch for something that sends nothing;
   same two switches as web; each change also calls
   privacy.recordAnalyticsConsent and fires analytics_consent_changed
 ```
@@ -3444,6 +4078,24 @@ Reporting a recipe (T-01.5):
     └─► next SafetyService.loadContext() includes it in hiddenRecipeIds
     └─► recipe.list({forTable:true}) / discover / whatCanIMake never show it again for this user
 ```
+
+**Diets are decided on ingredients, not only tags (UX-REC-01, UX-PLAN-06).**
+`RESTRICTION_RULES` gives paleo a forbidden list (grains, legumes, dairy incl.
+cheeses named without "cheese", refined sugar) and keto a net-carb limit
+(`KETO_MAX_NET_CARBS_G` = 20 g/serving, from the recipe's catalogue-computed
+nutrition; fibre is subtracted only from typed (USER_ENTERED) totals) plus a
+starchy/sugary staple fallback. Two modes: **strict** (the default — stored
+tag AND clean ingredients; the curated pool/generation fail-safe) and
+**`deriveFromIngredients`** (recipes people wrote or imported: an untagged
+recipe passes when its own ingredients verify the diet, so plain oats are
+vegetarian; used by `SafetyService.check`, `findSafetyIssues` for display and
+the Replace/add gates, import, and `recipe.list({forTable})`). A pass that
+rests on the tag alone is reported in the additive `safetyChecks.taggedOnly`
+(still inside `checked` for 1.0.1 apps) and clients say "Tagged paleo (not
+verified)", never "Checked for"; an untagged recipe nothing can verify is
+`unchecked`, not a conflict. `safetyChecks.conflictDetails` (additive) names the
+offending ingredients/limit so copy reads "Not paleo: contains quinoa" instead
+of "Contains Paleo"; `UNSAFE_FOR_TABLE` rejections word diets the same way.
 
 **Dislikes: hard everywhere `SafetyService.filter` runs with its default
 `opts.dislikes: 'hide'`** (generation, the Replace picker's default list,
@@ -3688,6 +4340,40 @@ Profile → Your data → "Download my data" / "Export my data"
 
 ## 29. Your Own Targets & Change Notices Flow
 
+### Body-metric age and calorie-target safety rules (App Review R-02)
+
+Guideline 1.4.1 (physical harm): a diet app must not hand a child a weight-loss
+target. Chefer is 16+ (sign-up checkbox, Terms), and these rules enforce it
+where body metrics are entered:
+
+- **Minimum age 16** for body metrics. `MIN_BODY_METRICS_AGE` / `MIN_AGE_MESSAGE`
+  ("Chefer is for people aged 16 and over.") live in `@chefer/types`
+  (`body-metrics.ts`); `bodyMetricsAgeSchema` is the zod rule on every API write
+  (`preferences.setup`, `saveProfileBasics`, `computeTargets`) and
+  `bodyMetricsAgeError` drives the web and mobile forms (error under the Age
+  field, no calorie estimate, Continue/Save disabled until fixed or cleared).
+  Installed clients that send an age under 16 get a normal `BAD_REQUEST`
+  carrying that message. Stored ages under 16 are never re-validated on read:
+  reads, plan generation and targets keep working for those rows.
+- **No deficit under 18.** `goalAdjustmentKcal` (`calorie-target.ts`,
+  `@chefer/utils`) turns a negative goal adjustment (LOSE_WEIGHT) into 0 for
+  anyone under 18, so the suggested target is maintenance. The forms show
+  `MINOR_NO_DEFICIT_NOTE` ("Under 18 we don't set a calorie deficit — your
+  target is maintenance. Talk to a doctor before trying to lose weight."), the
+  Explain sheet's rate reads "Maintenance calories (no calorie deficit under
+  18)", a negative coach dial is ignored and the coach never proposes a trim
+  (`decideAdjustmentKcal` returns 0).
+- **Sex-specific floor.** `calorieFloor`: 1,500 kcal for male, 1,200 for female
+  or unknown, applied to the computed target, the coach's dial and the coach's
+  BMR×1.1 safety bound. Own targets (`targets.set`) keep their 1,200–5,000
+  validation: they are a deliberate user choice, not a suggestion.
+- **One implementation.** The API (`computeCalorieTarget`, `computeBmrTdee`
+  re-exported from `preferences.service.ts`), the web preview (onboarding
+  `StepMetrics`, preferences `TargetsSection`) and the mobile preview
+  (`MetricsStep`, `estimateCalorieTarget`) all call `@chefer/utils`
+  `calorie-target.ts`, so the number typed into a form is the number the planner
+  uses.
+
 **§2.11 (UX-35 "Set my own targets", UX-11 "Never change it silently"), wave 1
 (L-TRACK).** One resolver, an own-target override that nothing can move
 silently, and a provable change log.
@@ -3696,7 +4382,10 @@ silently, and a provable change log.
 resolveTargets(profile, lifterBodyweightKg?)      [preferences.service.ts]
   ├─ suggested = live Mifflin-St Jeor TDEE ± goal adjustment ± the coach's
   │    cumulative dial, macros from the goal's split; lifter g/kg protein +
-  │    BMI ≥ 30 adjusted-weight rule when lifterBodyweightKg is given
+  │    BMI ≥ 30 adjusted-weight rule when lifterBodyweightKg is given.
+  │    R-02: under 18 a deficit goal resolves to maintenance (and a negative
+  │    dial is ignored); the floor is 1,500 kcal male / 1,200 female or
+  │    unknown (`calorie-target.ts` in @chefer/utils — shared with web+mobile)
   ├─ effective = profile.targetMode === 'OWN'
   │      ? { customKcal, customProteinG, customCarbsG, customFatG }
   │          (falling back per-field to `suggested`)
@@ -3805,6 +4494,36 @@ tracker.updateCustomMeal({ date, entryId, name?, estimatedBy?, mealType?,
      entryId answers NOT_FOUND; those are edited by re-ticking a portion)
      and replaces its fields in one mutateDay transaction
 
+  WP-10 A (additive, older clients ignore all of it):
+  - `logCustomMeal` / `updateCustomMeal` / `restoreCustomMeal` take an optional
+    `unknownMacros: ('protein'|'carbs'|'fat')[]` — macros the user left blank
+    (UX-FOOD-11). They are stored as plain 0 g (shipped 1.0.1 clients read
+    numbers) with the flag next to them; `checkMacroSanity` skips an entry with
+    any unknown macro, the edit sheet shows them blank, `recents` carries the
+    flag. On update an explicit list replaces it, `[]` clears it, absent keeps it.
+  - `logCustomMeal` mints the entry's `entryId` and returns it next to
+    `{ log, rebalance }`, so Snap-to-Log's "Logged … Undo" snackbar deletes
+    exactly that entry (UX-FOOD-26).
+
+tracker.deleteCustomMeal({ date, entryId?, entryIndex? })    [F4, UX-FOOD-17]
+  └─ by stable entryId when the client has one (wins over the index; a stale
+     id is NOT_FOUND instead of deleting whatever moved into that position),
+     else by index — 1.0.1 clients only send the index
+
+tracker.updateRecipeEntry({ date, entryId, portionMultiplier?, mealType? })
+                                                              [UX-FOOD-03]
+  └─ edits one logged RECIPE entry — the "Also eaten" rows for recipes that
+     left the plan. Macros are recomputed from the stored recipe × portion.
+     Delete is deleteEntries; its Undo re-logs via logRecipe.
+
+Tracker clients (UX-FOOD-01/06): ticks and totals are derived from the cached
+`tracker.getDay` data on every render (`tickStateFromLog`, `sumLogged` in
+@chefer/utils) — no once-a-day copy in component state. A tap edits that cache
+optimistically, rolls back and shows a plain-words error on failure, and
+re-fetches on settle; writes are serialised (mutation scope), and the "Logged"
+confirmation shows only after the server answered. The day's plan is the plan
+of the date's WEEK (UX-FOOD-02), never the newest ACTIVE plan.
+
 tracker.restoreCustomMeal({ date, entry })                    [T-19.2, B-34]
   └─ the bin's `Undo` snackbar (8 s): the client already holds the exact
      deleted entry (its snapshot, including entryId) and sends it back;
@@ -3815,6 +4534,39 @@ tracker.copyDay({ fromDate, toDate })                         [T-19.3]
   └─ copies every entry from fromDate onto toDate, each with a FRESH entryId
      (so the header's own Undo can delete exactly the copies, not the
      originals) and no slotIndex (the target day's plan slots differ)
+
+tracker.logCustomMeal({ …, replacesSlot? }) / skipSlot / unskipSlot  [WP-06 flexible eating]
+  Every planned slot can be eaten as planned, swapped for what was actually
+  eaten, or skipped — and the app never judges any of the three.
+  ├─ "Ate something else": logCustomMeal with `replacesSlot { mealType, slotIndex }`.
+  │    The entry is a normal custom entry (so 1.0.1 clients total it and show it
+  │    as "Also eaten") that names its slot; its mealType is forced to the
+  │    slot's. The slot is `replaced`: EATEN with the replacement's numbers,
+  │    its planned recipe leaves the day's planned totals. Logging again for the
+  │    slot swaps the earlier replacement; a recipe ticked for it is dropped;
+  │    a skip on it is cleared. logRecipe for a replaced slot → CONFLICT
+  │    ("You already logged something else for this meal…"). Undo = delete the
+  │    entry (deleteEntries / deleteCustomMeal): the slot is open again.
+  ├─ "Skipped it": skipSlot / unskipSlot edit DailyLog.skippedSlots — a SEPARATE
+  │    list, never an entry, so old clients that iterate entries never see it.
+  │    A skipped slot is neither eaten nor remaining and leaves the planned
+  │    totals. skipSlot on a ticked/replaced slot → CONFLICT; ticking or
+  │    replacing a skipped slot un-skips it. Idempotent both ways.
+  ├─ Status (one rule set, `@chefer/utils` today.ts): planned | eaten | replaced |
+  │    skipped, precedence replaced > eaten > skipped. Clients use
+  │    `slotStates(plannedMeals, loggedMeals, skippedSlots)`; Today reads the
+  │    server's `dashboard.summary.today.slots`. `resolveTodayMeals` treats a
+  │    replaced slot as eaten and drops a skipped one from next/later.
+  ├─ Old clients (no API level needed): the day's entries and totals are exactly
+  │    what they were; a skipped slot just looks unticked on an old tracker; an
+  │    old tracker that taps a replaced slot's tick gets the CONFLICT message.
+  ├─ upsertDay (older clients' save) preserves skips and drops a tick for a
+  │    replaced slot; copyDay copies entries without `replacesSlot` or skips.
+  ├─ maybeRebalance runs after replace and skip like any other log (gating
+  │    unchanged, premium).
+  └─ Eating-out quick estimate (no AI, free): `eatOutEstimates` in
+     `@chefer/utils` eat-out.ts — cuisine × size → kcal/protein RANGE rounded
+     UP ("≈ 700–850 kcal"); clients log the middle via `eatOutLogValues`.
 
 tracker.unlogRecipe({ date, recipeId, mealType, slotIndex? })  [T-19.4, B-23]
   └─ the one-save model's untick: removes exactly the entry logRecipe would
@@ -3828,7 +4580,7 @@ tracker.deleteEntries({ date, entryIds })                      [T-19.3]
      batch a client already holds ids for. Idempotent: an unmatched id is
      silently ignored.
 
-tracker.weeklySummary / monthlySummary({ localDate? })   [§2.12, T-21.1, B-33]
+tracker.weeklySummary({ localDate? }) / monthlySummary({ localDate?, days? })   [§2.12, T-21.1, B-33; days 7-90: UX-FOOD-20]
   └─ optional localDate anchors the trailing-N-day window on the CLIENT's
      local day instead of the server's UTC one (a user whose local day has
      turned over relative to UTC used to see a window shifted by a day);
@@ -3856,6 +4608,36 @@ so the Log sheet's grams row can show a live kcal as the user picks
 50/100/150/200 g. Fixed alongside (T-BUG-X7): `search()` now goes through
 `ingredientPriceRepository.searchCatalog` instead of querying `prisma`
 directly.
+
+**Ingredient search ranking (UX-FOOD-12).** Rank = exact alias → the row's NAME
+starts with the query → name has the query as a word → alias-only matches
+(prefix, word-start, substring); within a rank the user's own rows, then the row
+most used by recipes (`searchByAlias` returns `uses`), then the shortest alias.
+So "chicken" lists the chicken cuts before Egg (alias "chicken egg") or schmaltz.
+`ingredients.search` takes an optional `limit` (1-40, default 12): the Log sheet's
+"Show more" asks for 36.
+
+**Target-change notices (UX-FOOD-14).** `targets.detectAndRecordChange` writes
+no notice when the previous snapshot had no body metrics and the new one does
+(finishing onboarding is setup, not a weigh-in), nor when no changed field moved
+by at least 25 kcal / 5 g (rounding wobble) — the snapshot still advances. "Keep"
+on an already-applied change fixes the targets as "My own", so both clients ask
+first (confirm sheet). The onboarding targets step previews the calories from
+the metrics entered so far (`previewTargetKcalFromBasics`), not the 2,000 default.
+
+**Today hero "I ate this" (UX-FOOD-15).** After a log the card holds the meal
+just logged as a disabled "Logged ✓" + Undo (`unlogRecipe`) for
+`HERO_LOGGED_HOLD_MS` (2 s) before the refetched summary moves it on.
+
+**Snap result (UX-FOOD-26).** The confirm card shows the photo, a 2-line dish
+name and editable calories (macros scale with them); the request times out after
+`SCAN_REQUEST_TIMEOUT_MS` (30 s); a successful log shows a snackbar/toast with Undo.
+
+**Tracker polish (UX-FOOD-25).** Off-plan recipes and custom entries are one
+"Also eaten" list grouped by meal (`groupByMeal`), above the Snap upsell on
+mobile; copy-day says "Copied 1 entry" / "Nothing to copy from yesterday"
+(`copyDayMessage`); macro fields carry visible "(g)" labels; the allowance reset
+line shows the local clock time of 00:00 UTC (`dailyAllowanceResetTime`).
 
 **Search-first Log sheet (T-19.1, both platforms).** `quick-add-sheet.tsx` /
 web `QuickAddSheet.tsx` open on a search field with **Recent** (one tap re-logs
@@ -4521,3 +5303,24 @@ From `apps/api`, with `pnpm exec tsx --env-file=.env src/scripts/<name>.ts …`:
   account the owner registered in the app as PUBLIC with `featured: true` (idempotent; refuses a forced-private account).
 
 There is deliberately no API procedure, screen or queue for either. Nothing depends on them.
+
+## 36. Tester feedback 2026-10-07 — food, account (WP-24)
+
+Source: `docs/backlog-2026-10/feedback-2026-10-07.md` (FB7-02, 03, 04, 10, 11). Plan-page details (Week options,
+cards, side dishes) are in the meal-plan section above.
+
+- **Shop is computed, not AI-written (FB7-10).** The list always comes from the week's planned recipes (every dish of
+  every slot, sides included), aggregated by ingredient and aisle. A line under the title says so: "From your plan's
+  recipes · Mon–Sun" (`shoppingProvenanceText`; a mid-week plan shows the remaining days). The "Regenerate with AI"
+  button is gone; weeks that were AI-tidied before go back to the computed list with their ticks kept.
+- **"In my kitchen" is retired (FB7-10).** No pantry segment, panel or banners on Shop (mobile + web); `/pantry`
+  redirects to Shop; ticking an item no longer records it as "in the kitchen" and nothing is marked "Have it". Server
+  switch: `PANTRY_RETIRED`. The landing page, premium pitches and onboarding no longer offer the pantry.
+- **Thumbnails never blank (FB7-10).** A missing or broken item photo shows the aisle icon on a tinted tile; the
+  catalog's ingredient photos are pre-rendered static files (see infrastructure.md).
+- **Sign out on Profile (FB7-02).** The "Your data" card has Export my data · **Sign out** · Delete account. Mobile
+  uses the same confirm sheet as More/Settings (incl. the unsynced-workouts warning); web signs out directly like the
+  header menu.
+- **Import review (FB7-03).** The old "Ingredients to check" card (whose "Change" button overlapped the text) was
+  replaced on 2026-10-03 by the editable review form; the ingredient picker now has an explicit row/stack layout and
+  wraps long names, and the unit picker fits "piece"/"tbsp" on one line.

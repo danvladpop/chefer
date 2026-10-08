@@ -5,7 +5,7 @@ import { PREMIUM_PITCH_COPY } from '@chefer/utils';
 import { DowngradeButton, UpgradeButton } from './UpgradeButton';
 
 // UX-10 (T-10.5): the web upgrade dialog is headlined by the job its source
-// unlocks, carries the free-for-now terms on every open, never says "beta" or
+// unlocks, carries the included-at-no-cost terms on every open, never says "beta" or
 // shows a price, and the downgrade asks first — keep/lose, cancel keeps Premium.
 
 const mocks = vi.hoisted(() => ({
@@ -63,14 +63,14 @@ beforeEach(() => {
 afterEach(cleanup);
 
 describe('UpgradeButton — a dialog that names the job', () => {
-  it('opens headlined by the source’s job, with live bullets and the free-for-now terms', () => {
+  it('opens headlined by the source’s job, with live bullets and the included-at-no-cost terms', () => {
     render(<UpgradeButton source="recipe-import" />);
     fireEvent.click(screen.getByRole('button', { name: 'See what Premium adds' }));
 
     expect(screen.getByRole('dialog')).toBeTruthy();
     expect(screen.getByText('Turn your saved links and videos into recipes')).toBeTruthy();
     expect(screen.getByText('Import from a link, pasted text or a cooking video')).toBeTruthy();
-    expect(screen.getByText('FREE FOR NOW')).toBeTruthy();
+    expect(screen.getByText('INCLUDED')).toBeTruthy();
     expect(screen.getByText(PREMIUM_PITCH_COPY.termsBody)).toBeTruthy();
     expect(screen.getByRole('button', { name: 'Turn on Premium' })).toBeTruthy();
     expect(screen.getByRole('button', { name: 'Not now' })).toBeTruthy();
@@ -84,7 +84,7 @@ describe('UpgradeButton — a dialog that names the job', () => {
     render(<UpgradeButton source="household" />);
     for (let i = 0; i < 2; i++) {
       fireEvent.click(screen.getByRole('button', { name: 'See what Premium adds' }));
-      expect(screen.getByText('FREE FOR NOW')).toBeTruthy();
+      expect(screen.getByText('INCLUDED')).toBeTruthy();
       const text = screen.getByRole('dialog').textContent ?? '';
       expect(text).not.toMatch(/\bbeta\b/i);
       expect(text.replace(PREMIUM_PITCH_COPY.termsBody, '')).not.toMatch(
@@ -103,20 +103,32 @@ describe('UpgradeButton — a dialog that names the job', () => {
   });
 
   it('Turn on Premium flips the plan (the free toggle) and reports the click', () => {
-    render(<UpgradeButton source="pantry" />);
+    render(<UpgradeButton source="household" />);
     fireEvent.click(screen.getByRole('button', { name: 'See what Premium adds' }));
     fireEvent.click(screen.getByRole('button', { name: 'Turn on Premium' }));
     expect(mocks.upgradeMutate).toHaveBeenCalledTimes(1);
     expect(mocks.capture).toHaveBeenCalledWith('upgrade_clicked', {
+      source: 'household',
+      job: 'household',
+    });
+  });
+
+  it('a retired pantry source pitches the default week, never the kitchen (WP-24)', () => {
+    render(<UpgradeButton source="pantry" />);
+    fireEvent.click(screen.getByRole('button', { name: 'See what Premium adds' }));
+    expect(screen.getByText('Your week, ready every Monday')).toBeTruthy();
+    expect(screen.queryByText(/kitchen|pantry/i)).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'Turn on Premium' }));
+    expect(mocks.capture).toHaveBeenCalledWith('upgrade_clicked', {
       source: 'pantry',
-      job: 'pantry',
+      job: 'default',
     });
   });
 
   it('a custom trigger label (the import form’s "Preview import") still opens the pitch', () => {
     render(<UpgradeButton source="recipe-import" label="Preview import" />);
     fireEvent.click(screen.getByRole('button', { name: 'Preview import' }));
-    expect(screen.getByText('FREE FOR NOW')).toBeTruthy();
+    expect(screen.getByText('INCLUDED')).toBeTruthy();
   });
 });
 

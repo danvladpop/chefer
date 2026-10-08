@@ -2,6 +2,7 @@ import { forwardRef, useRef, useState } from 'react';
 import { Keyboard, Pressable, TextInput, View } from 'react-native';
 import { INGREDIENT_CATALOG_COPY, RECIPE_UNIT_GROUPS } from '@chefer/types';
 import {
+  DONE_FIELD_PROPS,
   haptics,
   NumericReturnBar,
   PressableScale,
@@ -10,7 +11,12 @@ import {
   useScrollFieldIntoView,
   type SelectOption,
 } from '@chefer/ui-mobile';
-import { ingredientUnitGroups, parseQuantity, unitForPickedIngredient } from '@chefer/utils';
+import {
+  ingredientUnitGroups,
+  parseQuantity,
+  sanitizeQuantityInput,
+  unitForPickedIngredient,
+} from '@chefer/utils';
 import { SwipeToRemove } from '../../../components/swipe-to-remove';
 import {
   pickedFromRef,
@@ -135,7 +141,7 @@ export const IngredientLine = forwardRef<TextInput, IngredientLineProps>(functio
               ref={setQtyRef}
               testID={`rf-ingredient-qty-${index}`}
               value={line.quantity}
-              onChangeText={(v) => onChange({ quantity: v })}
+              onChangeText={(v) => onChange({ quantity: sanitizeQuantityInput(v) })}
               onFocus={() => {
                 setQtyFocused(true);
                 scrollFieldIntoView(qtyInputRef.current);
@@ -143,10 +149,11 @@ export const IngredientLine = forwardRef<TextInput, IngredientLineProps>(functio
               onBlur={() => setQtyFocused(false)}
               keyboardType="decimal-pad"
               inputAccessoryViewID={accessoryID}
+              {...DONE_FIELD_PROPS}
               placeholder="200 or ½"
               placeholderTextColor="#9ca3af"
               accessibilityLabel={`Quantity for ingredient ${index + 1}`}
-              className="h-11 rounded-md border border-input bg-background px-2 text-center text-base text-foreground"
+              className="min-h-11 py-2 rounded-md border border-input bg-background px-2 text-center text-base text-foreground"
             />
           </View>
           <View className="w-[88px]">

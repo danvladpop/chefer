@@ -49,10 +49,17 @@ type After = 'confirm' | 'picker' | 'makePlan' | null;
 export function AddToWeekSheet({
   recipe,
   onDismiss,
+  api = 'friends',
   testID = 'friends-add-to-week',
 }: {
   recipe: AddToWeekRecipe;
   onDismiss: () => void;
+  /**
+   * Which procedures run the add: `friends.*` (Following, another person's
+   * recipe — the default) or `recipe.*` (UX-REC-08: any recipe, no Following).
+   * Same inputs and results.
+   */
+  api?: 'friends' | 'recipe';
   testID?: string;
 }) {
   const utils = trpc.useUtils();
@@ -68,7 +75,9 @@ export function AddToWeekSheet({
 
   const week = trpc.mealPlan.getForWeek.useQuery({ weekOffset }, { retry: false });
   const shape = trpc.mealPlan.getShape.useQuery(undefined, { staleTime: 60_000 });
-  const add = trpc.friends.addRecipeToWeek.useMutation();
+  const addViaFriends = trpc.friends.addRecipeToWeek.useMutation({ meta: { silent: true } });
+  const addViaRecipe = trpc.recipe.addToWeek.useMutation({ meta: { silent: true } });
+  const add = api === 'recipe' ? addViaRecipe : addViaFriends;
 
   const plan = week.data;
   const rows = plan ? slotRows(plan, day, shape.data?.slots ?? []) : [];
@@ -107,7 +116,11 @@ export function AddToWeekSheet({
         tone: 'success',
         actionLabel: FRIENDS_COPY.common.undo,
         onAction: () => {
-          void utils.client.friends.undoAddToWeek
+          const undo =
+            api === 'recipe'
+              ? utils.client.recipe.undoAddToWeek
+              : utils.client.friends.undoAddToWeek;
+          void undo
             .mutate({
               planId: result.planId,
               dayOfWeek: result.dayOfWeek,
@@ -312,8 +325,10 @@ export function AddToWeekSheet({
               const isSelected = selected?.key === row.key;
               const action =
                 row.mode === 'add'
-                  ? FRIENDS_COPY.addToWeek.addHere
-                  : FRIENDS_COPY.addToWeek.replace;
+                  ? row.side
+                    ? FRIENDS_COPY.addToWeek.addAsSide
+                    : FRIENDS_COPY.addToWeek.addHere
+                  : FRIENDS_COPY.addToWeek.replaceThisMeal;
               return (
                 <Pressable
                   key={row.key}

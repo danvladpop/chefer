@@ -56,8 +56,21 @@ const weightDateSchema = calendarDateSchema.refine(notFuture, "A weigh-in can't 
 // clients that only ever anchored on the server's UTC day.
 const localDateSchema = calendarDateSchema.optional();
 
+// WP-06: a plan slot of one day — its meal type and its index in the day's
+// `meals` (the same `slotIndex` logRecipe / unlogRecipe take).
+const slotRefSchema = z.object({
+  mealType: z.string().min(1).max(20),
+  slotIndex: z.number().int().min(0).max(20),
+});
+
 // A full custom-entry snapshot, for restoreCustomMeal's Undo (T-19.2, B-34):
 // the client sends back exactly what it had before deleting.
+// UX-FOOD-11: macros the client left blank (stored as 0 g, flagged unknown).
+const unknownMacrosSchema = z
+  .array(z.enum(['protein', 'carbs', 'fat']))
+  .max(3)
+  .optional();
+
 const customEntrySnapshotSchema = z.object({
   entryId: z.string().min(1).optional(),
   custom: z.object({
@@ -70,7 +83,17 @@ const customEntrySnapshotSchema = z.object({
   protein: z.number().finite().min(0).max(1000),
   carbs: z.number().finite().min(0).max(2000),
   fat: z.number().finite().min(0).max(1000),
+  unknownMacros: unknownMacrosSchema,
+  // WP-06: Undo of deleting a replacement puts the slot back to "replaced".
+  replacesSlot: slotRefSchema.optional(),
 });
+
+// WP-07 / UX-PLAN-09: how a log's week rebalance is delivered. Absent or
+// `auto` = today's behaviour (apply at once, result in `rebalance`; every
+// shipped client). `preview` = change nothing and return `rebalancePreview`
+// (the swaps with one-line explanations); the client applies them with
+// `mealPlan.applyRebalance`. Additive on every log write.
+const rebalanceModeSchema = z.enum(['auto', 'preview']).optional();
 
 export const trackerRouter = router({
   getDay: protectedProcedure
@@ -86,12 +109,20 @@ export const trackerRouter = router({
         // May be empty: unticking every planned meal un-logs them (F-TRK-1-3).
         // Custom and off-plan entries survive — the server merges.
         loggedMeals: z.array(loggedMealSchema).max(50),
+        rebalanceMode: rebalanceModeSchema,
       }),
     )
     .mutation(async ({ ctx, input }) => {
       // Returns { log, rebalance } — rebalance (F4) is non-null only when the
-      // premium week-projection guard actually swapped future meals.
-      return trackerService.upsertDay(ctx.user, input.date, input.loggedMeals);
+      // week-projection guard actually swapped future meals (free for every
+      // tier since WP-07). With rebalanceMode 'preview' it is always null and
+      // `rebalancePreview` is returned instead.
+      return trackerService.upsertDay(
+        ctx.user,
+        input.date,
+        input.loggedMeals,
+        input.rebalanceMode ?? 'auto',
+      );
     }),
 
   // Cook mode "Made it!": log one recipe, atomically and idempotently.
@@ -105,11 +136,12 @@ export const trackerRouter = router({
         portionMultiplier: z.number().min(0.5).max(2).default(1),
         // Today's "I ate this" names the plan slot (additive, optional).
         slotIndex: z.number().int().min(0).max(20).optional(),
+        rebalanceMode: rebalanceModeSchema,
       }),
     )
     .mutation(async ({ ctx, input }) => {
-      const { date, ...entry } = input;
-      return trackerService.logRecipe(ctx.user, date, entry);
+      const { date, rebalanceMode, ...entry } = input;
+      return trackerService.logRecipe(ctx.user, date, entry, rebalanceMode ?? 'auto');
     }),
 
   // F4 Snap-to-Log: append one custom entry (photo scan or quick-add) to the
@@ -127,11 +159,37 @@ export const trackerRouter = router({
         protein: z.number().min(0).max(500).default(0),
         carbs: z.number().min(0).max(1000).default(0),
         fat: z.number().min(0).max(500).default(0),
+        unknownMacros: unknownMacrosSchema,
+        // WP-06 "Ate something else": the plan slot this entry replaces. The
+        // slot then counts as eaten with these numbers; the entry's mealType
+        // is taken from the slot. Optional — older clients never send it.
+        replacesSlot: slotRefSchema.optional(),
+        rebalanceMode: rebalanceModeSchema,
       }),
     )
     .mutation(async ({ ctx, input }) => {
-      const { date, ...entry } = input;
-      return trackerService.logCustomMeal(ctx.user, date, entry);
+      const { date, rebalanceMode, ...entry } = input;
+      return trackerService.logCustomMeal(ctx.user, date, entry, rebalanceMode ?? 'auto');
+    }),
+
+  // WP-06 "Skipped it": the slot is neither eaten nor remaining. Idempotent;
+  // CONFLICT when that slot is already logged. Additive — shipped clients
+  // never call it and never see the day's separate `skippedSlots` list.
+  skipSlot: protectedProcedure
+    .input(
+      z.object({ date: logDateSchema, ...slotRefSchema.shape, rebalanceMode: rebalanceModeSchema }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      const { date, rebalanceMode, ...slot } = input;
+      return trackerService.skipSlot(ctx.user, date, slot, rebalanceMode ?? 'auto');
+    }),
+
+  // Undo of skipSlot. A no-op when the slot is not skipped.
+  unskipSlot: protectedProcedure
+    .input(z.object({ date: calendarDateSchema, ...slotRefSchema.shape }))
+    .mutation(async ({ ctx, input }) => {
+      const { date, ...slot } = input;
+      return trackerService.unskipSlot(ctx.user.id, date, slot);
     }),
 
   // The tracker's untick (T-19.4, one-save model): removes the planned-recipe
@@ -162,18 +220,43 @@ export const trackerRouter = router({
       return trackerService.deleteEntries(ctx.user.id, input.date, input.entryIds);
     }),
 
-  // F4: delete one custom entry by its position in the day's loggedMeals.
-  // Older clients (no entryId, T-19.2) keep using this — the server resolves
-  // the index against the current array in one transaction.
+  // F4: delete one custom entry. UX-FOOD-17: by stable `entryId` (new
+  // clients) or, for 1.0.1 builds that only ever send it, by position in the
+  // day's loggedMeals — the server resolves either against the current array
+  // in one transaction, and `entryId` wins when both are sent.
   deleteCustomMeal: protectedProcedure
+    .input(
+      z
+        .object({
+          date: calendarDateSchema,
+          entryIndex: z.number().int().min(0).optional(),
+          entryId: z.string().min(1).optional(),
+        })
+        .refine((v) => v.entryIndex !== undefined || v.entryId !== undefined, {
+          message: 'entryId or entryIndex is required',
+        }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      return trackerService.deleteCustomMeal(ctx.user.id, input.date, {
+        entryId: input.entryId,
+        entryIndex: input.entryIndex,
+      });
+    }),
+
+  // UX-FOOD-03: edit a logged recipe entry (portion / meal) by stable id —
+  // the "Also eaten" rows for recipes that have left the plan. Additive.
+  updateRecipeEntry: protectedProcedure
     .input(
       z.object({
         date: calendarDateSchema,
-        entryIndex: z.number().int().min(0),
+        entryId: z.string().min(1),
+        portionMultiplier: z.number().min(0.5).max(2).optional(),
+        mealType: z.string().min(1).max(20).optional(),
       }),
     )
     .mutation(async ({ ctx, input }) => {
-      return trackerService.deleteCustomMeal(ctx.user.id, input.date, input.entryIndex);
+      const { date, entryId, ...updates } = input;
+      return trackerService.updateRecipeEntry(ctx.user.id, date, entryId, updates);
     }),
 
   // Edit any custom entry by its stable id (bug B-34, T-19.2). Additive —
@@ -190,6 +273,8 @@ export const trackerRouter = router({
         protein: z.number().finite().min(0).max(1000),
         carbs: z.number().finite().min(0).max(2000),
         fat: z.number().finite().min(0).max(1000),
+        // Present = replace the flag (an empty list clears it); absent = keep it.
+        unknownMacros: unknownMacrosSchema,
       }),
     )
     .mutation(async ({ ctx, input }) => {
@@ -208,9 +293,20 @@ export const trackerRouter = router({
   // "Copy {yesterday} to today" (T-19.3). Returns the new entries' ids so the
   // header's own Undo can delete exactly the copies.
   copyDay: protectedProcedure
-    .input(z.object({ fromDate: calendarDateSchema, toDate: logDateSchema }))
+    .input(
+      z.object({
+        fromDate: calendarDateSchema,
+        toDate: logDateSchema,
+        rebalanceMode: rebalanceModeSchema,
+      }),
+    )
     .mutation(async ({ ctx, input }) => {
-      return trackerService.copyDay(ctx.user, input.fromDate, input.toDate);
+      return trackerService.copyDay(
+        ctx.user,
+        input.fromDate,
+        input.toDate,
+        input.rebalanceMode ?? 'auto',
+      );
     }),
 
   // Search-first Log sheet (T-19.1): the last 15 distinct things logged,
@@ -227,9 +323,20 @@ export const trackerRouter = router({
       return trackerService.weeklySummary(ctx.user.id, input?.localDate);
     }),
 
+  // UX-FOOD-20: `days` (7–90) lets Progress pick its window; omitted keeps 28.
   monthlySummary: protectedProcedure
-    .input(z.object({ localDate: localDateSchema }).optional())
+    .input(
+      z
+        .object({
+          localDate: localDateSchema,
+          days: z.number().int().min(7).max(90).optional(),
+        })
+        .optional(),
+    )
     .query(async ({ ctx, input }) => {
+      if (input?.days !== undefined && input.days !== 28) {
+        return trackerService.summary(ctx.user.id, input.days, input.localDate);
+      }
       return trackerService.monthlySummary(ctx.user.id, input?.localDate);
     }),
 

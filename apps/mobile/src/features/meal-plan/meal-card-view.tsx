@@ -2,6 +2,7 @@ import type { ReactNode } from 'react';
 import { Image, Pressable, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Text } from '@chefer/ui-mobile';
+import { cn } from '@chefer/utils';
 import { getRecipeImageUrl } from '../../lib/recipe-image';
 import { MealTypeBadge } from '../dashboard/components/meal-type-badge';
 
@@ -26,6 +27,12 @@ export type MealCardViewProps = {
   placeholder?: boolean;
   /** Next to the meal-type eyebrow (leftovers, `Your pick`, portion…). */
   badges?: ReactNode;
+  /** Overlaid on the photo's top-left corner (the Plan's bookmark for a pinned meal). */
+  imageBadge?: ReactNode;
+  /** A smaller photo and tighter padding — a side dish inside a meal group (FB7-04). */
+  compact?: boolean;
+  /** Leaves the meal-type eyebrow out: the group header above already says it. */
+  hideTypeBadge?: boolean;
   /** Under the name (chips, the portion line…). */
   children?: ReactNode;
   /** The bottom line (time · kcal, or the macro line). */
@@ -45,6 +52,9 @@ export function MealCardView({
   imageUrl,
   placeholder = false,
   badges,
+  imageBadge,
+  compact = false,
+  hideTypeBadge = false,
   children,
   meta,
   trailing,
@@ -54,24 +64,32 @@ export function MealCardView({
 }: MealCardViewProps) {
   const body = (
     <>
-      {placeholder ? (
-        <View
-          testID={`${testID}-placeholder`}
-          className="h-28 w-24 items-center justify-center bg-muted"
-        >
-          <Ionicons name="eye-off-outline" size={22} color="#9ca3af" />
-        </View>
-      ) : (
-        <Image
-          source={{ uri: getRecipeImageUrl(imageUrl) }}
-          className="h-28 w-24"
-          resizeMode="cover"
-        />
-      )}
-      <View className="min-w-0 flex-1 justify-between p-3">
+      <View className={compact ? 'h-20 w-20' : 'h-28 w-24'}>
+        {placeholder ? (
+          <View
+            testID={`${testID}-placeholder`}
+            className="h-full w-full items-center justify-center bg-muted"
+          >
+            <Ionicons name="eye-off-outline" size={22} color="#9ca3af" />
+          </View>
+        ) : (
+          <Image
+            source={{ uri: getRecipeImageUrl(imageUrl) }}
+            className="h-full w-full"
+            resizeMode="cover"
+          />
+        )}
+        {imageBadge && <View className="absolute left-1.5 top-1.5">{imageBadge}</View>}
+      </View>
+      <View className={cn('min-w-0 flex-1 justify-between', compact ? 'p-2.5' : 'p-3')}>
         <View className="gap-1">
-          <View className="flex-row items-center gap-2">
-            <MealTypeBadge mealType={mealType} />
+          {/* UX-PLAN-13: the eyebrow + badges wrap instead of "Your pick" being
+              cut by the portion chip. */}
+          <View
+            testID={`${testID}-badges`}
+            className="min-w-0 flex-row flex-wrap items-center gap-x-2 gap-y-1"
+          >
+            {!hideTypeBadge && <MealTypeBadge mealType={mealType} />}
             {badges}
           </View>
           <Text numberOfLines={2} className="text-sm font-semibold text-gray-900">

@@ -18,9 +18,13 @@ export interface SessionSetView {
   distanceM?: number;
   intensityRpe?: number;
   resistanceLevel?: number;
+  /** WP-20: the kcal a quick-logged activity carries (record only). */
+  caloriesKcal?: number;
 }
 
 export interface SessionExerciseView {
+  /** The session-exercise id (full doc only) — the list key when a lift appears twice. */
+  id?: string;
   exerciseId: string;
   skipped: boolean;
   /** Rir (0-3) from the summary, or the doc schema's plain validated number — same range. */
@@ -37,6 +41,8 @@ export interface SessionView {
   finishedAt: string | null;
   isDeload: boolean;
   notes: string | null;
+  /** WP-20: null for a freestyle session or quick-logged activity (absent in older fixtures). */
+  routineDayId?: string | null;
   exercises: SessionExerciseView[];
 }
 
@@ -49,6 +55,7 @@ export function viewFromSummary(summary: SessionSummaryDto): SessionView {
     finishedAt: summary.finishedAt,
     isDeload: summary.isDeload,
     notes: null,
+    routineDayId: summary.routineDayId,
     exercises: summary.exercises.map((ex) => ({
       exerciseId: ex.exerciseId,
       skipped: ex.skipped,
@@ -68,7 +75,9 @@ export function viewFromDoc(doc: WorkoutSessionDoc): SessionView {
     finishedAt: doc.finishedAt,
     isDeload: doc.isDeload,
     notes: doc.notes,
+    routineDayId: doc.routineDayId,
     exercises: doc.exercises.map((ex) => ({
+      id: ex.id,
       exerciseId: ex.exerciseId,
       skipped: ex.skipped,
       lastSetRir: ex.lastSetRir,
@@ -82,6 +91,7 @@ export function viewFromDoc(doc: WorkoutSessionDoc): SessionView {
         ...(s.distanceM !== undefined && { distanceM: s.distanceM }),
         ...(s.intensityRpe !== undefined && { intensityRpe: s.intensityRpe }),
         ...(s.resistanceLevel !== undefined && { resistanceLevel: s.resistanceLevel }),
+        ...(s.caloriesKcal !== undefined && { caloriesKcal: s.caloriesKcal }),
       })),
     })),
   };

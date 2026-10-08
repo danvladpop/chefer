@@ -16,14 +16,21 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 // stores its ingredientId; nutrition is previewed live with the shared engine
 // and computed by the server on save (no typed numbers on web any more).
 
-const { createMutate, updateMutate, recipeState } = vi.hoisted(() => {
-  const state: { current: unknown } = { current: null };
-  return {
-    createMutate: vi.fn((_input: Record<string, unknown>) => undefined),
-    updateMutate: vi.fn((_input: Record<string, unknown>) => undefined),
-    recipeState: state,
-  };
-});
+const { createMutate, updateMutate, recipeState, routerPush, searchState, createOptions } =
+  vi.hoisted(() => {
+    const state: { current: unknown } = { current: null };
+    const created: { current: { onSuccess?: (created: { id: string }) => void } } = {
+      current: {},
+    };
+    return {
+      createMutate: vi.fn((_input: Record<string, unknown>) => undefined),
+      updateMutate: vi.fn((_input: Record<string, unknown>) => undefined),
+      recipeState: state,
+      routerPush: vi.fn(),
+      searchState: { params: new URLSearchParams() },
+      createOptions: created,
+    };
+  });
 
 const RECIPE = {
   id: 'r1',
@@ -54,8 +61,9 @@ const RECIPE = {
 };
 
 vi.mock('next/navigation', () => ({
-  useRouter: () => ({ push: vi.fn() }),
+  useRouter: () => ({ push: routerPush }),
   useParams: () => ({ id: 'r1' }),
+  useSearchParams: () => searchState.params,
 }));
 vi.mock('next/link', () => ({
   default: ({ href, children, ...rest }: { href: string; children: React.ReactNode }) => (
@@ -73,7 +81,10 @@ vi.mock('@/lib/trpc', async () => {
       recipe: {
         aiImageUrl: { useQuery: () => ({ refetch: vi.fn(), isFetching: false }) },
         create: {
-          useMutation: () => ({ mutate: createMutate, isPending: false, error: null }),
+          useMutation: (options: { onSuccess?: (created: { id: string }) => void } = {}) => {
+            createOptions.current = options;
+            return { mutate: createMutate, isPending: false, error: null };
+          },
         },
         getMyRecipe: {
           useQuery: () => ({
@@ -106,6 +117,8 @@ afterEach(cleanup);
 beforeEach(() => {
   createMutate.mockClear();
   updateMutate.mockClear();
+  routerPush.mockClear();
+  searchState.params = new URLSearchParams();
   recipeState.current = null;
   catalogState.resolve.clear();
 });
@@ -306,6 +319,43 @@ describe('NewRecipePage photo upload (T-BUG-O1)', () => {
   });
 });
 
+describe('NewRecipePage photo upload gates Save (UX-REC-12)', () => {
+  it('disables Save with a reason while the photo uploads, then re-enables it', async () => {
+    let finish: (url: string) => void = () => undefined;
+    vi.mocked(uploadImage).mockReturnValueOnce(
+      new Promise<string>((resolve) => (finish = resolve)),
+    );
+    render(<NewRecipePage />);
+    const save = screen.getByRole('button', { name: /save recipe/i });
+    expect(save).toHaveProperty('disabled', false);
+
+    fireEvent.change(screen.getByLabelText(/upload from device/i), {
+      target: { files: [new File(['x'], 'photo.jpg', { type: 'image/jpeg' })] },
+    });
+    const waiting = await screen.findByRole('button', { name: /uploading photo/i });
+    expect(waiting).toHaveProperty('disabled', true);
+
+    finish('https://cdn.example.com/p.jpg');
+    await waitFor(() =>
+      expect(screen.getByRole('button', { name: /save recipe/i })).toHaveProperty(
+        'disabled',
+        false,
+      ),
+    );
+  });
+});
+
+describe('Quantity input (UX-REC-11)', () => {
+  it('drops letters typed or pasted into an amount box', () => {
+    render(<NewRecipePage />);
+    const qty = screen.getAllByLabelText(/Amount for ingredient 1/)[0] as HTMLInputElement;
+    fireEvent.change(qty, { target: { value: '60rolled oats' } });
+    expect(qty.value.trim()).toBe('60');
+    fireEvent.change(qty, { target: { value: '1/2' } });
+    expect(qty.value).toBe('1/2');
+  });
+});
+
 describe('EditRecipePage accessibility', () => {
   it('names every control and the back link', () => {
     render(<EditRecipePage />);
@@ -422,5 +472,64 @@ describe('EditRecipePage accessibility', () => {
     expect(updateMutate).not.toHaveBeenCalled();
     await waitFor(() => expect(document.activeElement).toBe(name));
     expect(name.getAttribute('aria-invalid')).toBe('true');
+  });
+});
+
+// UX-REC-04 (web twin of the phone's Duplicate): /recipes/new?duplicateOf=<id>
+// opens the create form prefilled from one of your recipes, saved as a copy.
+describe('NewRecipePage — duplicate', () => {
+  beforeEach(() => {
+    searchState.params = new URLSearchParams({ duplicateOf: 'r1' });
+  });
+
+  it('prefills the form from the source as "Copy of …" and saves a NEW recipe', () => {
+    render(<NewRecipePage />);
+    expect(screen.getByRole('heading', { name: 'Duplicate Recipe' })).toBeTruthy();
+    expect(screen.getByLabelText(/Recipe Name/)).toHaveProperty('value', 'Copy of Pesto Pasta');
+    expect(screen.getByLabelText('Description')).toHaveProperty('value', 'Green and quick.');
+    expect(screen.getByLabelText('Prep (min)')).toHaveProperty('value', '10');
+    expect(screen.getByLabelText('Servings')).toHaveProperty('value', '2');
+    expect(screen.getByRole('button', { name: 'Italian' }).getAttribute('aria-pressed')).toBe(
+      'true',
+    );
+    expect(screen.getByRole('button', { name: 'Ingredient 1: Basil, fresh' })).toBeTruthy();
+    expect(screen.getByLabelText('Step 2')).toHaveProperty('value', 'Toss with pasta.');
+
+    submit();
+    expect(updateMutate).not.toHaveBeenCalled();
+    expect(createMutate).toHaveBeenCalledTimes(1);
+    expect(createMutate.mock.calls[0]?.[0]).toMatchObject({
+      name: 'Copy of Pesto Pasta',
+      servings: 2,
+      dietaryTags: ['vegetarian'],
+      ingredients: [{ name: 'basil', quantity: 30, unit: 'g', ingredientId: 'basil' }],
+    });
+  });
+
+  it('blanks the placeholders an import fills in, and lands on the new recipe', () => {
+    recipeState.current = {
+      ...RECIPE,
+      description: 'Imported recipe.',
+      cuisineType: 'International',
+      prepTimeMins: 0,
+      cookTimeMins: 0,
+    };
+    render(<NewRecipePage />);
+    expect(screen.getByLabelText('Description')).toHaveProperty('value', '');
+    expect(screen.getByLabelText('Prep (min)')).toHaveProperty('value', '');
+    expect(screen.getByRole('button', { name: 'Italian' }).getAttribute('aria-pressed')).toBe(
+      'false',
+    );
+    createOptions.current.onSuccess?.({ id: 'copy-1' });
+    expect(routerPush).toHaveBeenCalledWith('/recipes/copy-1');
+  });
+
+  it('a plain create still returns to My Recipes', () => {
+    searchState.params = new URLSearchParams();
+    render(<NewRecipePage />);
+    expect(screen.getByRole('heading', { name: 'Create Recipe' })).toBeTruthy();
+    expect(screen.getByLabelText(/Recipe Name/)).toHaveProperty('value', '');
+    createOptions.current.onSuccess?.({ id: 'new-1' });
+    expect(routerPush).toHaveBeenCalledWith('/recipes?tab=my');
   });
 });

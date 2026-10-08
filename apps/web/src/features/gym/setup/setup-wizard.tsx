@@ -12,7 +12,13 @@ import {
   type WeightUnit,
 } from '@chefer/types';
 import { Button, Input } from '@chefer/ui';
-import { cn, unitLabel, VOLUME_GROUP_LABELS, weightUnitForSystem } from '@chefer/utils';
+import {
+  cn,
+  unitLabel,
+  VOLUME_GROUP_LABELS,
+  weightUnitForSystem,
+  WELLNESS_COPY,
+} from '@chefer/utils';
 import { CardLabel, GymCard } from '../shared/gym-card';
 import { ToggleRow } from '../shared/toggle-row';
 import { useGymData } from '../shared/use-gym-data';
@@ -20,7 +26,9 @@ import { localDate } from '../use-gym-bootstrap';
 import {
   buildSetupPayload,
   defaultUnitForLocale,
+  friendlySetupError,
   knownWeightCandidates,
+  knownWeightError,
   previewForTemplate,
   type ProgramPreview,
   type StartMode,
@@ -65,14 +73,22 @@ export function SetupWizard() {
   // The unit defaults to the global unit preference (one preference across
   // Food and Gym, P2-6) — or, without a profile yet, to the locale (after
   // mount: SSR has no navigator). Applied once, so it never overrides a pick.
-  const prefs = trpc.preferences.get.useQuery(undefined, { staleTime: 60_000 });
+  // UX-GYM-05: fresh on every open, and wait for that refetch — a cached copy
+  // from before Imperial was saved made setup default to kg and then flip the
+  // whole app back to metric.
+  const prefs = trpc.preferences.get.useQuery(undefined, {
+    staleTime: 0,
+    refetchOnMount: 'always',
+  });
   const unitDefaulted = useRef(false);
+  const unitPicked = useRef(false);
   useEffect(() => {
-    if (unitDefaulted.current || prefs.isLoading) return;
+    if (unitDefaulted.current || prefs.isLoading || prefs.isFetching) return;
     unitDefaulted.current = true;
+    if (unitPicked.current) return;
     const preferred = prefs.data?.chefProfile?.preferredUnits;
     setUnit(preferred ? weightUnitForSystem(preferred) : defaultUnitForLocale(navigator.language));
-  }, [prefs.isLoading, prefs.data]);
+  }, [prefs.isLoading, prefs.isFetching, prefs.data]);
 
   // Experienced lifters usually know their weights (§1.3: calibrate is the beginner default).
   useEffect(() => {
@@ -91,6 +107,7 @@ export function SetupWizard() {
 
   const saveProfile = trpc.gym.profile.save.useMutation();
   const complete = trpc.gym.profile.completeSetup.useMutation({
+    meta: { silent: true },
     onSuccess: async (bootstrap) => {
       utils.gym.bootstrap.setData({ today: localDate() }, bootstrap);
       // The setup unit became the global unit preference (P2-6).
@@ -108,11 +125,21 @@ export function SetupWizard() {
       });
       setStep(5);
     },
-    onError: (e) => setError(e.message),
+    onError: (e) => setError(friendlySetupError(e.message)),
   });
 
+  // UX-GYM-01: starting weights are checked per field before they can be sent.
+  const weightErrors: Record<string, string> = {};
+  if (startMode === 'known') {
+    for (const [id, text] of Object.entries(knownWeights)) {
+      const message = knownWeightError(text, unit);
+      if (message) weightErrors[id] = message;
+    }
+  }
+  const hasWeightErrors = Object.keys(weightErrors).length > 0;
+
   const finish = () => {
-    if (!chosenKey) return;
+    if (!chosenKey || hasWeightErrors) return;
     setError(null);
     try {
       const payload = buildSetupPayload({
@@ -219,7 +246,10 @@ export function SetupWizard() {
               <Choice
                 key={u}
                 selected={unit === u}
-                onClick={() => setUnit(u)}
+                onClick={() => {
+                  unitPicked.current = true;
+                  setUnit(u);
+                }}
                 testId={`setup-unit-${u}`}
               >
                 <span className="font-semibold">{unitLabel(u)}</span>
@@ -309,9 +339,17 @@ export function SetupWizard() {
           startMode={startMode}
           onStartMode={setStartMode}
           knownWeights={knownWeights}
+          weightErrors={weightErrors}
           onKnownWeight={(id, v) => setKnownWeights((k) => ({ ...k, [id]: v }))}
           onRetry={() => void recommend.refetch()}
         />
+      )}
+      {/* Advisory disclaimer (2026-10-02): shown where the user accepts the
+          suggested program, right above "Start this program". */}
+      {step === 4 && (
+        <p data-testid="setup-advisory-disclaimer" className="mt-4 text-xs text-gray-500">
+          {WELLNESS_COPY.gymAdvisoryDisclaimer}
+        </p>
       )}
 
       {step === 5 && (
@@ -355,7 +393,7 @@ export function SetupWizard() {
           ) : (
             <Button
               onClick={finish}
-              disabled={!preview || complete.isPending}
+              disabled={!preview || complete.isPending || hasWeightErrors}
               loading={complete.isPending}
               className="bg-[#944a00] hover:bg-[#7a3d00]"
               data-testid="setup-finish"
@@ -435,6 +473,7 @@ function ProgramStep({
   startMode,
   onStartMode,
   knownWeights,
+  weightErrors,
   onKnownWeight,
   onRetry,
 }: {
@@ -449,6 +488,7 @@ function ProgramStep({
   startMode: StartMode;
   onStartMode: (mode: StartMode) => void;
   knownWeights: Record<string, string>;
+  weightErrors: Record<string, string>;
   onKnownWeight: (exerciseId: string, value: string) => void;
   onRetry: () => void;
 }) {
@@ -606,21 +646,38 @@ function ProgramStep({
         {startMode === 'known' && candidates.length > 0 && (
           <ul className="mt-4 divide-y">
             {candidates.map((meta) => (
-              <li key={meta.id} className="flex items-center justify-between gap-3 py-2">
-                <label htmlFor={`kw-${meta.id}`} className="min-w-0 truncate text-sm text-gray-800">
-                  {meta.name}
-                </label>
-                <span className="flex shrink-0 items-center gap-1.5">
-                  <Input
-                    id={`kw-${meta.id}`}
-                    inputMode="decimal"
-                    placeholder="—"
-                    value={knownWeights[meta.id] ?? ''}
-                    onChange={(e) => onKnownWeight(meta.id, e.target.value)}
-                    className="w-20 text-right"
-                  />
-                  <span className="w-5 text-xs text-gray-500">{unitLabel(unit)}</span>
-                </span>
+              <li key={meta.id} className="py-2">
+                <div className="flex items-center justify-between gap-3">
+                  <label
+                    htmlFor={`kw-${meta.id}`}
+                    className="min-w-0 truncate text-sm text-gray-800"
+                  >
+                    {meta.name}
+                  </label>
+                  <span className="flex shrink-0 items-center gap-1.5">
+                    <Input
+                      id={`kw-${meta.id}`}
+                      inputMode="decimal"
+                      placeholder="—"
+                      value={knownWeights[meta.id] ?? ''}
+                      onChange={(e) => onKnownWeight(meta.id, e.target.value)}
+                      aria-invalid={weightErrors[meta.id] !== undefined}
+                      aria-describedby={weightErrors[meta.id] ? `kw-${meta.id}-error` : undefined}
+                      className="w-20 text-right"
+                    />
+                    <span className="w-5 text-xs text-gray-500">{unitLabel(unit)}</span>
+                  </span>
+                </div>
+                {weightErrors[meta.id] && (
+                  <p
+                    id={`kw-${meta.id}-error`}
+                    role="alert"
+                    className="mt-1 text-right text-xs text-red-600"
+                    data-testid={`setup-weight-error-${meta.id}`}
+                  >
+                    {weightErrors[meta.id]}
+                  </p>
+                )}
               </li>
             ))}
           </ul>

@@ -10,6 +10,7 @@ import { PrTimeline } from '@/features/gym/stats/PrTimeline';
 import { StrengthTrendChart } from '@/features/gym/stats/StrengthTrendChart';
 import { useGymBootstrap } from '@/features/gym/use-gym-bootstrap';
 import { useHasMounted } from '@/hooks/useHasMounted';
+import { ErrorState } from '@chefer/ui';
 
 function StatsSkeleton() {
   return (
@@ -21,9 +22,17 @@ function StatsSkeleton() {
   );
 }
 
+const MONTH_PARAM = /^\d{4}-(0[1-9]|1[0-2])$/;
+
+/** UX-GYM-13: `?month=YYYY-MM` from Today's recap card. Read after mount (the page renders only then). */
+function readMonthParam(): string | undefined {
+  const value = new URLSearchParams(window.location.search).get('month');
+  return value && MONTH_PARAM.test(value) ? value : undefined;
+}
+
 export default function GymStatsPage() {
   const hasMounted = useHasMounted();
-  const { data: bootstrap, isLoading } = useGymBootstrap();
+  const { data: bootstrap, isLoading, isError, refetch, isRefetching } = useGymBootstrap();
 
   const experience = bootstrap?.profile?.experience ?? 'INTERMEDIATE';
   const unit = bootstrap?.profile?.unit ?? 'KG';
@@ -32,6 +41,19 @@ export default function GymStatsPage() {
     () => topCompoundsByFrequency(bootstrap?.recentSessions ?? [], bootstrap?.library ?? []),
     [bootstrap?.recentSessions, bootstrap?.library],
   );
+
+  // UX-GYM-24: a failed load is an error with Retry, never an endless skeleton.
+  if (hasMounted && isError && !bootstrap) {
+    return (
+      <div className="mx-auto max-w-6xl px-4 py-6 sm:py-8" data-testid="gym-stats-error">
+        <ErrorState
+          title="Couldn’t load your stats"
+          onRetry={() => void refetch()}
+          retrying={isRefetching}
+        />
+      </div>
+    );
+  }
 
   if (!hasMounted || isLoading || !bootstrap) {
     return (
@@ -59,13 +81,21 @@ export default function GymStatsPage() {
         <div className="space-y-4">
           {bootstrap.bodyweightKg === null && <BodyweightPrompt />}
 
-          <StrengthTrendChart library={bootstrap.library} defaultExerciseIds={defaultExerciseIds} />
+          <StrengthTrendChart
+            library={bootstrap.library}
+            defaultExerciseIds={defaultExerciseIds}
+            unit={unit}
+          />
 
           <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
             <MuscleVolumeChart experience={experience} />
             <ConsistencyGrid />
             <PrTimeline library={bootstrap.library} unit={unit} />
-            <MonthlyRecapCard library={bootstrap.library} unit={unit} />
+            <MonthlyRecapCard
+              library={bootstrap.library}
+              unit={unit}
+              initialMonth={readMonthParam()}
+            />
           </div>
         </div>
       )}

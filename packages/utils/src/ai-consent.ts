@@ -1,6 +1,7 @@
 import {
   AI_CONSENT_COPY,
   AI_CONSENT_FEATURE_DATA,
+  AI_CONSENT_REQUIRED_REASON,
   AI_PROVIDERS,
   DEFAULT_AI_PROVIDER_DISCLOSURE,
   type AiConsentFeature,
@@ -101,4 +102,70 @@ export function toAiProviderDisclosure(value: unknown): AiProviderDisclosure {
     return DEFAULT_AI_PROVIDER_DISCLOSURE;
   }
   return { primary: v.primary, backups: v.backups };
+}
+
+// ─── Server-side "consent required" (R-10) ───────────────────────────────────
+// The API refuses an AI action when no consent is on record (the user revoked
+// it on another device, or the client's cache is stale). Both platforms react
+// the same way: reopen the consent sheet instead of showing a generic error.
+
+/**
+ * True for a failed AI action the API refused for missing consent: a tRPC
+ * error with `data.reason`, or an Error a plain-HTTP client built from a 403
+ * `{ reason }` body (it carries `reason` itself).
+ */
+export function isAiConsentRequiredError(error: unknown): boolean {
+  if (typeof error !== 'object' || error === null) return false;
+  const e = error as { reason?: unknown; data?: { reason?: unknown } | null };
+  return e.reason === AI_CONSENT_REQUIRED_REASON || e.data?.reason === AI_CONSENT_REQUIRED_REASON;
+}
+
+/** The consent-sheet copy for the tRPC procedure that was refused (default: the plan). */
+export function aiConsentFeatureForPath(path: string | null | undefined): AiConsentFeature {
+  switch (path) {
+    case 'mealPlan.swapRecipe':
+      return 'meal-swap';
+    case 'recipe.importPreview':
+    case 'recipe.importVideoPreview':
+      return 'recipe-import';
+    case 'shoppingList.regenerate':
+    case 'shoppingList.searchStores':
+      return 'shopping-list';
+    case 'ingredients.estimateNutrition':
+      return 'ingredient-estimate';
+    default:
+      return 'meal-plan';
+  }
+}
+
+type AiConsentRequiredListener = (feature: AiConsentFeature) => void;
+const aiConsentRequiredListeners = new Set<AiConsentRequiredListener>();
+
+/**
+ * Subscribes the consent provider. Returns the unsubscribe. A module-level
+ * bus because the places that SEE the rejection (the query client's mutation
+ * cache, the chat/scan fetch clients) sit outside the React tree.
+ */
+export function onAiConsentRequired(listener: AiConsentRequiredListener): () => void {
+  aiConsentRequiredListeners.add(listener);
+  return () => {
+    aiConsentRequiredListeners.delete(listener);
+  };
+}
+
+/** Tells the consent provider the server refused `feature` for missing consent. */
+export function notifyAiConsentRequired(feature: AiConsentFeature): void {
+  for (const listener of [...aiConsentRequiredListeners]) listener(feature);
+}
+
+/**
+ * The query client's mutation `onError`: when the failed mutation was refused
+ * for missing consent, notify the provider. `mutationKey` is tRPC's
+ * `[['mealPlan', 'swapRecipe']]`.
+ */
+export function handleAiConsentRequiredError(error: unknown, mutationKey?: unknown): void {
+  if (!isAiConsentRequiredError(error)) return;
+  const first = Array.isArray(mutationKey) ? (mutationKey[0] as unknown) : undefined;
+  const path = Array.isArray(first) ? first.join('.') : undefined;
+  notifyAiConsentRequired(aiConsentFeatureForPath(path));
 }

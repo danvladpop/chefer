@@ -322,11 +322,74 @@ describe('resolveDailyTargets — targetAdjustmentKcal ordering', () => {
   it('never lets the dial push the target below the 1200 kcal safety floor', () => {
     const t = resolveDailyTargets({
       ...METRICS,
+      biologicalSex: 'FEMALE',
       weightKg: null,
       dailyCalorieTarget: 1250,
       targetAdjustmentKcal: -300,
     });
     expect(t.dailyCalorieTarget).toBe(1200);
+  });
+});
+
+// ─── R-02 (Guideline 1.4.1): minors, sex-specific floors ──────────────────────
+
+describe('resolveDailyTargets — under-18 and sex-specific floors (R-02)', () => {
+  const TEEN = {
+    weightKg: 44,
+    heightCm: 152,
+    age: 13, // legacy stored age < 16 must still resolve, not throw
+    activityLevel: 'SEDENTARY',
+    biologicalSex: 'FEMALE',
+    goal: 'LOSE_WEIGHT',
+    dailyCalorieTarget: null,
+  };
+
+  it('LOSE_WEIGHT for a minor resolves to maintenance (the App Review repro)', () => {
+    const lose = resolveDailyTargets(TEEN);
+    const maintain = resolveDailyTargets({ ...TEEN, goal: 'MAINTAIN' });
+    expect(lose.dailyCalorieTarget).toBe(maintain.dailyCalorieTarget);
+    expect(lose.dailyCalorieTarget).toBe(1397);
+  });
+
+  it('LOSE_WEIGHT at 18 still gets the −500 deficit', () => {
+    const adult = { ...TEEN, age: 18, weightKg: 70, heightCm: 170 };
+    const lose = resolveDailyTargets(adult);
+    const maintain = resolveDailyTargets({ ...adult, goal: 'MAINTAIN' });
+    expect(lose.dailyCalorieTarget).toBe(maintain.dailyCalorieTarget - 500);
+  });
+
+  it('a negative coach dial is ignored for a minor', () => {
+    const t = resolveDailyTargets({ ...TEEN, targetAdjustmentKcal: -200 });
+    expect(t.dailyCalorieTarget).toBe(1397);
+  });
+
+  it('tells the explanation the deficit was not applied', () => {
+    expect(resolveTargets(TEEN).inputs.rate).toContain('no calorie deficit under 18');
+  });
+
+  it('floors a small adult man at 1,500 and a small adult woman at 1,200', () => {
+    const small = {
+      weightKg: 50,
+      heightCm: 155,
+      age: 60,
+      activityLevel: 'SEDENTARY',
+      goal: 'LOSE_WEIGHT',
+      dailyCalorieTarget: null,
+    };
+    expect(resolveDailyTargets({ ...small, biologicalSex: 'MALE' }).dailyCalorieTarget).toBe(1500);
+    expect(resolveDailyTargets({ ...small, biologicalSex: 'FEMALE' }).dailyCalorieTarget).toBe(
+      1200,
+    );
+  });
+
+  it('applies the male floor to the snapshot path too', () => {
+    const t = resolveDailyTargets({
+      ...TEEN,
+      biologicalSex: 'MALE',
+      weightKg: null,
+      dailyCalorieTarget: 1300,
+    });
+    expect(t.dailyCalorieTarget).toBe(1500);
   });
 });
 
@@ -775,5 +838,46 @@ describe('PreferencesService.setHomeDisplay (§2.4, T-04.1)', () => {
       showNutritionOnToday: false,
     });
     expect(upsert).toHaveBeenCalledWith('user1', { showNutritionOnToday: false });
+  });
+});
+
+describe('PreferencesService.setNumbersMode / get (WP-08)', () => {
+  it('stores PROTEIN_ONLY and reads it back', async () => {
+    const upsert = vi
+      .fn()
+      .mockResolvedValue({ ...CHEF_PROFILE_FIXTURE, numbersMode: 'PROTEIN_ONLY' });
+    const service = new PreferencesService(
+      makeChefProfileRepo({ upsert }),
+      makeDietaryPreferencesRepo(),
+    );
+    await expect(service.setNumbersMode('user1', 'PROTEIN_ONLY')).resolves.toEqual({
+      numbersMode: 'PROTEIN_ONLY',
+    });
+    expect(upsert).toHaveBeenCalledWith('user1', { numbersMode: 'PROTEIN_ONLY' });
+  });
+
+  it('accepts the reserved NONE and does not touch showNutritionOnToday', async () => {
+    const upsert = vi.fn().mockResolvedValue({ ...CHEF_PROFILE_FIXTURE, numbersMode: 'NONE' });
+    const service = new PreferencesService(
+      makeChefProfileRepo({ upsert }),
+      makeDietaryPreferencesRepo(),
+    );
+    await expect(service.setNumbersMode('user1', 'NONE')).resolves.toEqual({ numbersMode: 'NONE' });
+    expect(upsert.mock.calls[0]?.[1]).not.toHaveProperty('showNutritionOnToday');
+  });
+
+  it('get() reports numbersMode (FULL when unset) next to the untouched chefProfile', async () => {
+    const findByUserId = vi.fn().mockResolvedValue({ ...CHEF_PROFILE_FIXTURE, numbersMode: null });
+    const service = new PreferencesService(
+      makeChefProfileRepo({ findByUserId }),
+      makeDietaryPreferencesRepo(),
+    );
+    const unset = await service.get('user1');
+    expect(unset.numbersMode).toBe('FULL');
+
+    findByUserId.mockResolvedValue({ ...CHEF_PROFILE_FIXTURE, numbersMode: 'PROTEIN_ONLY' });
+    const set = await service.get('user1');
+    expect(set.numbersMode).toBe('PROTEIN_ONLY');
+    expect(set.chefProfile?.numbersMode).toBe('PROTEIN_ONLY');
   });
 });

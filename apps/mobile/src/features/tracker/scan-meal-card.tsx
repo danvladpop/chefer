@@ -1,11 +1,21 @@
-import { useState } from 'react';
-import { Linking, Pressable, View } from 'react-native';
+import { useEffect, useRef, useState } from 'react';
+import { Image, Linking, Pressable, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import { fetch as expoFetch } from 'expo/fetch';
-import { Button, Card, Text } from '@chefer/ui-mobile';
-import { cn, defaultMealSlot, PREMIUM_PITCH_COPY, showSnapTaste } from '@chefer/utils';
+import { Button, Card, DONE_FIELD_PROPS, Input, Text, useSnackbar } from '@chefer/ui-mobile';
+import {
+  cn,
+  defaultMealSlot,
+  PREMIUM_PITCH_COPY,
+  proteinLabel,
+  QUICK_ADD_LIMITS,
+  showSnapTaste,
+  userFacingErrorMessage,
+  type SlotRef,
+} from '@chefer/utils';
 import { useEntitlement } from '../../hooks/use-entitlement';
+import { trackMealLogged } from '../../lib/analytics-events';
 import { getApiBaseUrl } from '../../lib/api-url';
 import { getToken } from '../../lib/auth-store';
 import {
@@ -16,9 +26,11 @@ import {
 import { photoPickerOptions, preparePhoto } from '../../lib/prepare-photo';
 import { trpc } from '../../lib/trpc';
 import { useAiConsent } from '../ai-consent/ai-consent-provider';
+import { useNumbersMode } from '../numbers-mode/numbers-mode';
 import { openPremium } from '../premium/open-premium';
 import { invalidateDayQueries } from './invalidate';
-import { recordRebalance } from './rebalance-store';
+import { REBALANCE_PREVIEW, recordRebalanceOutcome } from './rebalance-offer-store';
+import { toLogMealType } from './slot-copy';
 
 // Snap-to-Log (F4 / M3-2) — mobile counterpart of web's ScanMealButton.
 // Camera or library → vision estimate → confirm card → logCustomMeal.
@@ -32,12 +44,52 @@ const CONFIDENCE_LABEL: Record<MealPhotoEstimate['confidence'], string> = {
 };
 
 /**
+ * UX-FOOD-26: the calories the user typed over a vision estimate, with the
+ * estimate's macros scaled by the same factor so the entry stays internally
+ * consistent. An unreadable or empty field means 0 (Log stays disabled).
+ */
+export function loggedFromEstimate(
+  estimate: Pick<MealPhotoEstimate, 'kcal' | 'protein' | 'carbs' | 'fat'> | null,
+  kcalText: string,
+): { kcal: number; protein: number; carbs: number; fat: number } {
+  if (!estimate) return { kcal: 0, protein: 0, carbs: 0, fat: 0 };
+  const parsed = Math.round(Number(kcalText.replace(',', '.')));
+  const kcal = Math.min(QUICK_ADD_LIMITS.kcal, Number.isFinite(parsed) ? Math.max(0, parsed) : 0);
+  const factor = estimate.kcal > 0 ? kcal / estimate.kcal : 1;
+  const scale = (grams: number, max: number): number =>
+    Math.min(max, Math.round(grams * factor * 10) / 10);
+  return {
+    kcal,
+    protein: scale(estimate.protein, QUICK_ADD_LIMITS.protein),
+    carbs: scale(estimate.carbs, QUICK_ADD_LIMITS.carbs),
+    fat: scale(estimate.fat, QUICK_ADD_LIMITS.fat),
+  };
+}
+
+/**
  * Premium (and admins) get the real Snap card. On a free plan the card used to
  * render nothing, so a tracker never learned Snap existed (bug B-35, T-10.6):
  * a food-job user now sees a taste instead, and a gym-only user still sees
  * nothing.
  */
-export function ScanMealCard(props: { date: string; onLogged: () => void }) {
+export type ScanMealCardProps = {
+  date: string;
+  onLogged: () => void;
+  /**
+   * UX-ACC-13: open the photo picker once, right after the card appears — the
+   * post-upgrade "Snap your next meal" CTA lands here. Asks AI consent first.
+   */
+  autoPick?: boolean;
+  /** Called once when `autoPick` has been acted on (so the caller can drop its route param). */
+  onAutoPicked?: () => void;
+  /**
+   * WP-06 "Ate something else" → Snap: the photo's estimate REPLACES this plan
+   * slot (`replacesSlot`), and the slot decides the meal (no meal picker).
+   */
+  replacesSlot?: SlotRef;
+};
+
+export function ScanMealCard(props: ScanMealCardProps) {
   const { enabled } = useEntitlement('mealScansPerDay');
   return enabled ? <SnapCard {...props} /> : <SnapTaste />;
 }
@@ -91,11 +143,18 @@ function SnapTaste() {
   );
 }
 
-function SnapCard({ date, onLogged }: { date: string; onLogged: () => void }) {
+function SnapCard({ date, onLogged, autoPick, onAutoPicked, replacesSlot }: ScanMealCardProps) {
+  const snackbar = useSnackbar();
+  // WP-08: protein-only mode confirms the estimated protein, with no calorie field.
+  const { proteinOnly } = useNumbersMode();
   const [scanning, setScanning] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [upgradeNeeded, setUpgradeNeeded] = useState(false);
   const [estimate, setEstimate] = useState<MealPhotoEstimate | null>(null);
+  // UX-FOOD-26: the photo itself on the confirm card, and the calories the
+  // user may correct before logging (macros follow proportionally).
+  const [photoUri, setPhotoUri] = useState<string | null>(null);
+  const [kcalText, setKcalText] = useState('');
   // Bug B-36: this always defaulted to Lunch, even for a 7am or 9pm scan.
   // Shared with Quick add so a log entered at any hour lands sensibly.
   const [mealType, setMealType] = useState<(typeof MEAL_TYPES)[number]>(() =>
@@ -107,15 +166,38 @@ function SnapCard({ date, onLogged }: { date: string; onLogged: () => void }) {
   const [cameraDenied, setCameraDenied] = useState(false);
 
   const utils = trpc.useUtils();
+  // UX-FOOD-26: the log is confirmed with a snackbar whose Undo deletes
+  // exactly the entry just written (by its id).
+  const undoMutation = trpc.tracker.deleteCustomMeal.useMutation({
+    meta: { silent: true },
+    onSuccess: () => {
+      invalidateDayQueries(utils, date);
+      onLogged();
+    },
+    onError: (error) =>
+      snackbar.show({ message: `Couldn't undo that. ${userFacingErrorMessage(error)}` }),
+  });
   const logMutation = trpc.tracker.logCustomMeal.useMutation({
-    onSuccess: (data) => {
-      recordRebalance(data.rebalance);
+    meta: { silent: true },
+    onSuccess: (data, variables) => {
+      trackMealLogged('snap', variables.mealType);
+      recordRebalanceOutcome(data);
       // Bug B-44: Today used to lag the tracker by ~8s after a snap log —
       // this mutation invalidated nothing, so the dashboard ring only caught
       // up on its own stale-time refetch.
       invalidateDayQueries(utils, date);
       setEstimate(null);
+      setPhotoUri(null);
       onLogged();
+      const entryId = data.entryId;
+      snackbar.show({
+        message: `Logged ${variables.name}`,
+        tone: 'success',
+        ...(entryId && {
+          actionLabel: 'Undo',
+          onAction: () => undoMutation.mutate({ date, entryId }),
+        }),
+      });
     },
   });
 
@@ -126,6 +208,16 @@ function SnapCard({ date, onLogged }: { date: string; onLogged: () => void }) {
   const requestAiConsent = useAiConsent();
   const pick = (source: 'camera' | 'library') =>
     requestAiConsent('meal-scan', () => void pickNow(source));
+
+  // UX-ACC-13: arrive from the upgrade CTA → the picker opens by itself, once.
+  const autoPicked = useRef(false);
+  useEffect(() => {
+    if (!autoPick || autoPicked.current) return;
+    autoPicked.current = true;
+    onAutoPicked?.();
+    pick('library');
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- once per arrival
+  }, [autoPick]);
 
   const pickNow = async (source: 'camera' | 'library') => {
     setError(null);
@@ -163,16 +255,22 @@ function SnapCard({ date, onLogged }: { date: string; onLogged: () => void }) {
         photo.mime,
       );
       setEstimate(est);
+      setKcalText(String(est.kcal));
+      setPhotoUri(asset.uri);
     } catch (err) {
       if (err instanceof ScanUpgradeRequiredError) {
         setUpgradeNeeded(true);
       } else {
-        setError(err instanceof Error ? err.message : 'Scan failed. Try a clearer shot.');
+        setError(userFacingErrorMessage(err, 'Scan failed. Try a clearer shot.'));
       }
     } finally {
       setScanning(false);
     }
   };
+
+  // What will be logged: the user's calories, with the estimated macros scaled
+  // to match (the estimate's own numbers when they leave calories alone).
+  const logged = loggedFromEstimate(estimate, kcalText);
 
   return (
     <Card testID="scan-meal-card" className="gap-3">
@@ -243,71 +341,128 @@ function SnapCard({ date, onLogged }: { date: string; onLogged: () => void }) {
         </>
       ) : (
         <>
-          {/* Confirm — honest confidence, adjustable meal slot */}
-          <View className="flex-row items-center gap-2">
-            <View className="rounded-full bg-accent px-2 py-0.5">
-              <Text className="text-[12px] font-semibold uppercase text-primary">
-                {CONFIDENCE_LABEL[estimate.confidence]}
+          {/* Confirm — the photo, honest confidence, adjustable calories and meal slot */}
+          <View className="flex-row items-start gap-3">
+            {photoUri && (
+              <Image
+                testID="scan-photo"
+                source={{ uri: photoUri }}
+                accessibilityLabel="The photo you scanned"
+                className="h-16 w-16 rounded-lg bg-muted"
+                resizeMode="cover"
+              />
+            )}
+            <View className="min-w-0 flex-1 gap-1">
+              <View className="self-start rounded-full bg-accent px-2 py-0.5">
+                <Text className="text-xs font-semibold uppercase text-primary">
+                  {CONFIDENCE_LABEL[estimate.confidence]}
+                </Text>
+              </View>
+              <Text
+                testID="scan-dish-name"
+                numberOfLines={2}
+                className="text-sm font-semibold text-gray-900"
+              >
+                {estimate.dishName}
               </Text>
             </View>
-            <Text numberOfLines={1} className="flex-1 text-sm font-semibold text-gray-900">
-              {estimate.dishName}
-            </Text>
           </View>
           <Text variant="muted" className="text-xs">
             {estimate.portionNote}
           </Text>
-          <Text className="text-sm text-gray-700">
-            {estimate.kcal} kcal · {estimate.protein}g P · {estimate.carbs}g C · {estimate.fat}g F
-          </Text>
-          <View className="flex-row gap-1.5">
-            {MEAL_TYPES.map((t) => (
-              <Pressable
-                key={t}
-                accessibilityRole="button"
-                onPress={() => setMealType(t)}
-                className={cn(
-                  'h-9 flex-1 items-center justify-center rounded-lg border',
-                  mealType === t ? 'border-primary bg-primary' : 'border-border bg-white',
-                )}
-              >
-                <Text
+          {proteinOnly ? (
+            <Text testID="scan-protein" className="text-sm font-semibold text-gray-800">
+              {`≈ ${proteinLabel(logged.protein)}`}
+            </Text>
+          ) : (
+            <>
+              <View className="gap-1">
+                <Text className="text-xs font-medium text-gray-600">Calories</Text>
+                <View className="flex-row items-center gap-2">
+                  <Input
+                    testID="scan-kcal"
+                    accessibilityLabel="Calories"
+                    value={kcalText}
+                    keyboardType="number-pad"
+                    onChangeText={setKcalText}
+                    className="min-w-0 flex-1"
+                    {...DONE_FIELD_PROPS}
+                  />
+                  <Text className="text-sm text-muted-foreground">kcal</Text>
+                </View>
+              </View>
+              <Text testID="scan-macros" className="text-sm text-gray-700">
+                {logged.protein}g P · {logged.carbs}g C · {logged.fat}g F
+              </Text>
+            </>
+          )}
+          {!replacesSlot && (
+            <View className="flex-row gap-1.5">
+              {MEAL_TYPES.map((t) => (
+                <Pressable
+                  key={t}
+                  accessibilityRole="button"
+                  onPress={() => setMealType(t)}
                   className={cn(
-                    'text-xs font-medium capitalize',
-                    mealType === t ? 'text-primary-foreground' : 'text-gray-600',
+                    'h-9 flex-1 items-center justify-center rounded-lg border',
+                    mealType === t ? 'border-primary bg-primary' : 'border-border bg-white',
                   )}
                 >
-                  {t}
-                </Text>
-              </Pressable>
-            ))}
-          </View>
+                  <Text
+                    className={cn(
+                      'text-xs font-medium capitalize',
+                      mealType === t ? 'text-primary-foreground' : 'text-gray-600',
+                    )}
+                  >
+                    {t}
+                  </Text>
+                </Pressable>
+              ))}
+            </View>
+          )}
           <View className="flex-row gap-2">
-            <Button variant="outline" className="flex-1" onPress={() => setEstimate(null)}>
+            <Button
+              variant="outline"
+              className="flex-1"
+              onPress={() => {
+                setEstimate(null);
+                setPhotoUri(null);
+              }}
+            >
               Discard
             </Button>
             <Button
               testID="scan-log"
               className="flex-1"
               loading={logMutation.isPending}
+              disabled={logged.kcal <= 0}
               onPress={() =>
                 logMutation.mutate({
                   date,
+                  ...REBALANCE_PREVIEW,
                   name: estimate.dishName || 'Scanned meal',
                   estimatedBy: 'vision',
-                  mealType,
-                  kcal: estimate.kcal,
-                  protein: estimate.protein,
-                  carbs: estimate.carbs,
-                  fat: estimate.fat,
+                  mealType: replacesSlot ? toLogMealType(replacesSlot.mealType) : mealType,
+                  ...(replacesSlot && {
+                    replacesSlot: {
+                      mealType: replacesSlot.mealType,
+                      slotIndex: replacesSlot.slotIndex,
+                    },
+                  }),
+                  kcal: logged.kcal,
+                  protein: logged.protein,
+                  carbs: logged.carbs,
+                  fat: logged.fat,
                 })
               }
             >
-              {`Log ${estimate.kcal} kcal`}
+              {proteinOnly ? 'Log it' : `Log ${logged.kcal} kcal`}
             </Button>
           </View>
           {logMutation.isError && (
-            <Text className="text-xs text-red-600">{logMutation.error.message}</Text>
+            <Text className="text-xs text-red-600">
+              {userFacingErrorMessage(logMutation.error)}
+            </Text>
           )}
         </>
       )}

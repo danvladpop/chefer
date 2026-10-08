@@ -1,11 +1,12 @@
 import { z } from 'zod';
-import { planShapeSchema } from '@chefer/types';
+import { planShapeSchema, removeSlotInputSchema } from '@chefer/types';
 import { mealPlanService } from '../application/meal-plan/meal-plan.service.js';
 import { planShapeService } from '../application/meal-plan/plan-shape.service.js';
+import { rebalanceService } from '../application/meal-plan/rebalance.service.js';
 import { hasFeature, isPremiumUser } from '../lib/entitlements.js';
 import { env } from '../lib/env.js';
 import { reserveAiSwap, reservePlanGeneration } from '../lib/quotas.js';
-import { protectedProcedure, router } from '../lib/trpc.js';
+import { protectedProcedure, requireAiConsent, router } from '../lib/trpc.js';
 
 // §2.3, T-07.1 (S1): the "how you cook" shape, plus `leftovers` (bug B-27,
 // stored on the same DietaryPreferences row).
@@ -26,6 +27,15 @@ const planView = (user: Parameters<typeof hasFeature>[0]) => ({
 // and additive: shipped mobile builds omit it and get the first slot of
 // `mealType`, as before. When sent, the slot must be of `mealType`.
 const slotIndexSchema = z.number().int().min(0).max(20).optional();
+
+// The client's local calendar day, YYYY-MM-DD.
+const calendarDateInputSchema = z
+  .string()
+  .regex(/^\d{4}-\d{2}-\d{2}$/)
+  .refine((d) => {
+    const parsed = new Date(`${d}T00:00:00Z`);
+    return !Number.isNaN(parsed.getTime()) && parsed.toISOString().slice(0, 10) === d;
+  }, 'Not a real calendar date');
 
 // ─── Router ───────────────────────────────────────────────────────────────────
 
@@ -150,6 +160,15 @@ export const mealPlanRouter = router({
     }),
 
   /**
+   * FB7-04: removes one slot of a day — a side dish. Refused (BAD_REQUEST)
+   * unless another slot of the same meal type remains that day. Re-indexes
+   * that day's tracker state.
+   */
+  removeSlot: protectedProcedure.input(removeSlotInputSchema).mutation(async ({ ctx, input }) => {
+    return mealPlanService.removeSlot(ctx.user.id, input);
+  }),
+
+  /**
    * §T-11.3: previews (default) or applies scaling every slot of one day by
    * `factor` (0.75–1.5×; each slot's own resulting portion is still capped
    * to the plan's 0.75–2× steps, T-11.4).
@@ -205,8 +224,11 @@ export const mealPlanRouter = router({
   /**
    * Swaps a single meal slot with an AI-generated alternative.
    * Input: planId, dayOfWeek (0=Mon), mealType, optional slotIndex, optional reason.
+   * Only the premium swap reaches the AI (free swaps are curated), so only
+   * that one needs AI-data consent (R-10) — checked before the quota is reserved.
    */
   swapRecipe: protectedProcedure
+    .use(requireAiConsent(({ user }) => isPremiumUser(user)))
     .input(
       z.object({
         planId: z.string().min(1),
@@ -252,6 +274,12 @@ export const mealPlanRouter = router({
          * today's rejection with no bypass.
          */
         acknowledgeConflict: z.boolean().optional(),
+        /**
+         * UX-PLAN-04: whether the slot becomes "Your pick" (default true).
+         * Undo sends the previous state (`previousPinned` on the swap response,
+         * absent = false) so an undone swap doesn't leave the slot pinned.
+         */
+        pinned: z.boolean().optional(),
       }),
     )
     .mutation(async ({ ctx, input }) => {
@@ -263,7 +291,63 @@ export const mealPlanRouter = router({
         input.recipeId,
         input.slotIndex,
         input.acknowledgeConflict,
+        input.pinned,
       );
+    }),
+
+  // ─── Week rebalance (WP-07, UX-PLAN-09) — all tiers, no AI ──────────────────
+
+  /**
+   * What a week rebalance WOULD do, without doing it: up to two swaps from
+   * the user's safe curated pool, each with a one-line `explanation`, a
+   * `headline` for the week's gap and protein `snacks` when swaps cannot close
+   * a protein gap. `null` = nothing to offer. Also what Plan's "Rebalance my
+   * week" shows. `localDate` = the client's local today.
+   */
+  previewRebalance: protectedProcedure
+    .input(
+      z
+        .object({
+          planId: z.string().min(1).optional(),
+          localDate: calendarDateInputSchema.optional(),
+        })
+        .optional(),
+    )
+    .query(async ({ ctx, input }) => {
+      return rebalanceService.preview(ctx.user, {
+        planId: input?.planId,
+        localDate: input?.localDate,
+      });
+    }),
+
+  /**
+   * Applies the swaps the user accepted in a preview. Stale or unsafe swaps
+   * are skipped (never an error), so a preview that went out of date cannot
+   * rewrite a week the user has changed. Returns the same shape as a log's
+   * `rebalance` (swaps with `previousRecipeId`/`slotIndex`), so Undo through
+   * `replaceRecipe` is unchanged.
+   */
+  applyRebalance: protectedProcedure
+    .input(
+      z.object({
+        planId: z.string().min(1),
+        swaps: z
+          .array(
+            z.object({
+              dayOfWeek: z.number().int().min(0).max(6),
+              mealType: z.enum(['breakfast', 'lunch', 'dinner', 'snack']),
+              slotIndex: slotIndexSchema,
+              previousRecipeId: z.string().min(1),
+              newRecipeId: z.string().min(1),
+            }),
+          )
+          .min(1)
+          .max(6),
+        localDate: calendarDateInputSchema.optional(),
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      return rebalanceService.apply(ctx.user, input);
     }),
 
   // ─── Week templates ("My weeks") — all tiers, no AI ─────────────────────────
@@ -326,9 +410,19 @@ export const mealPlanRouter = router({
     }),
 
   restore: protectedProcedure
-    .input(z.object({ planId: z.string().min(1) }))
+    .input(
+      z.object({
+        planId: z.string().min(1),
+        /**
+         * UX-PLAN-11: bring the plan back into this (0) or next (1) week instead
+         * of its own. Optional and additive — omitted keeps today's behaviour
+         * (Undo after Regenerate relies on it).
+         */
+        weekOffset: z.union([z.literal(0), z.literal(1)]).optional(),
+      }),
+    )
     .mutation(async ({ ctx, input }) => {
-      return mealPlanService.restore(ctx.user.id, input.planId);
+      return mealPlanService.restore(ctx.user.id, input.planId, input.weekOffset);
     }),
 
   getById: protectedProcedure

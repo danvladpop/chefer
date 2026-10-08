@@ -29,11 +29,16 @@ jest.mock('../../src/lib/analytics', () => ({
 
 let mockJobs: string[] = ['PLAN_MEALS'];
 let mockMembers: { name: string; isKid: boolean }[] = [];
+// The current week's plan: null = none yet (UX-ACC-13).
+let mockPlan: { id: string } | null = { id: 'plan-1' };
 const mockUpgrade = jest.fn();
 const mockInvalidate = jest.fn();
 let upgradeOpts: { onSuccess?: () => void; onError?: () => void } = {};
 const mockGenerate = jest.fn();
-let generateOpts: { onSuccess?: () => void; onError?: (e: Error) => void } = {};
+let generateOpts: {
+  onSuccess?: (data: { days: { meals: unknown[] }[] }) => void;
+  onError?: (e: Error) => void;
+} = {};
 // Consent on record → runs at once; "Not now" → mockConsentAllows = false → nothing runs.
 let mockConsentAllows = true;
 const mockRequestConsent = jest.fn((_feature: string, run: () => void) => {
@@ -52,6 +57,7 @@ jest.mock('../../src/lib/trpc', () => ({
       shoppingList: { invalidate: mockInvalidate },
     }),
     mealPlan: {
+      getForWeek: { useQuery: () => ({ data: mockPlan }) },
       generate: {
         useMutation: (opts: typeof generateOpts) => {
           generateOpts = opts;
@@ -94,6 +100,7 @@ beforeEach(() => {
   resetPremiumStoreForTests();
   mockJobs = ['PLAN_MEALS'];
   mockMembers = [];
+  mockPlan = { id: 'plan-1' };
   mockConsentAllows = true;
 });
 
@@ -107,7 +114,7 @@ describe('PremiumHost', () => {
     expect(screen.getByTestId('premium-sheet-title')).toHaveTextContent(
       'Turn your saved links and videos into recipes',
     );
-    expect(screen.getByText('FREE FOR NOW')).toBeOnTheScreen();
+    expect(screen.getByText('INCLUDED')).toBeOnTheScreen();
     expect(mockTrack).toHaveBeenCalledWith('upgrade_prompt_shown', {
       source: 'recipe-import',
       job: 'recipe-import',
@@ -193,9 +200,63 @@ describe('PremiumHost', () => {
     expect(mockGenerate).toHaveBeenCalledWith({ weekOffset: 1, keepPinned: true });
 
     await act(() => {
-      generateOpts.onSuccess?.();
+      generateOpts.onSuccess?.({ days: [{ meals: [{}] }] });
     });
     expect(mockPush).toHaveBeenCalledWith('/meal-plan');
+  });
+
+  it('UX-ACC-13: a Snap upgrade leads to the tracker, never a regenerate', async () => {
+    const user = userEvent.setup();
+    await renderHost();
+    await act(() => {
+      openPremium('snap-scan');
+    });
+    await act(() => {
+      upgradeOpts.onSuccess?.();
+    });
+    expect(screen.getByText('Snap your next meal')).toBeOnTheScreen();
+    expect(screen.queryByText('Regenerate this week')).toBeNull();
+    await user.press(screen.getByTestId('premium-sheet-action'));
+    // ... and opens the photo picker on arrival (`snap=1`).
+    expect(mockPush).toHaveBeenCalledWith({ pathname: '/tracker', params: { snap: '1' } });
+    expect(mockGenerate).not.toHaveBeenCalled();
+  });
+
+  it('UX-ACC-13: with no plan the action is "Plan my week" and builds one right there', async () => {
+    mockPlan = null;
+    const user = userEvent.setup();
+    await renderHost();
+    await act(() => {
+      openPremium('meal-plan-banner');
+    });
+    await act(() => {
+      upgradeOpts.onSuccess?.();
+    });
+    expect(screen.getByText('Plan my week')).toBeOnTheScreen();
+    await user.press(screen.getByTestId('premium-sheet-action'));
+    expect(mockPush).not.toHaveBeenCalled();
+    expect(mockRequestConsent).toHaveBeenCalledWith('meal-plan', expect.any(Function));
+    expect(mockGenerate).toHaveBeenCalledWith(expect.objectContaining({ keepPinned: true }));
+    expect(mockGenerate).toHaveBeenCalledTimes(1);
+    await act(() => {
+      generateOpts.onSuccess?.({ days: [{ meals: [{}] }] });
+    });
+    expect(mockPush).toHaveBeenCalledWith('/meal-plan');
+  });
+
+  it('UX-ACC-13: with a plan the meal-plan source still offers to regenerate it', async () => {
+    const user = userEvent.setup();
+    await renderHost();
+    await act(() => {
+      openPremium('meal-plan-banner');
+    });
+    await act(() => {
+      upgradeOpts.onSuccess?.();
+    });
+    expect(screen.getByText('Regenerate this week')).toBeOnTheScreen();
+    await user.press(screen.getByTestId('premium-sheet-action'));
+    expect(mockPush).toHaveBeenCalledWith('/meal-plan');
+    expect(mockGenerate).not.toHaveBeenCalled();
   });
 
   it('"Not now" on the AI consent sends nothing', async () => {
@@ -241,7 +302,7 @@ describe('PremiumHost', () => {
       upgradeOpts.onError?.();
     });
     expect(screen.getByTestId('premium-sheet-error')).toBeOnTheScreen();
-    expect(screen.getByText('FREE FOR NOW')).toBeOnTheScreen();
+    expect(screen.getByText('INCLUDED')).toBeOnTheScreen();
     expect(screen.getByText('Try again')).toBeOnTheScreen();
   });
 

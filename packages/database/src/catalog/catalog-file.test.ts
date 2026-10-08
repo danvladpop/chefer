@@ -25,4 +25,17 @@ describe('data/ingredients/catalog.json', () => {
   it('has a source reference on every row', () => {
     expect(catalog.filter((e) => !/^(fdc|ciqual|label):.+/.test(e.sourceRef))).toEqual([]);
   });
+
+  it('weighs a can at 400 g net, 240 g for drained rows, never for fish or meat (owner, 2026-10-02)', () => {
+    const can = (slug: string) =>
+      catalog.find((e) => e.slug === slug)?.portions.find((p) => p.unit === 'can')?.grams;
+    expect(can('tomatoes-canned')).toBe(400);
+    expect(can('coconut-milk-canned')).toBe(400);
+    expect(can('chickpeas-canned-drained')).toBe(240);
+    expect(can('tuna-canned-water')).toBeUndefined();
+    expect(can('sardines-canned-oil')).toBeUndefined();
+    const cans = catalog.flatMap((e) => e.portions.filter((p) => p.unit === 'can'));
+    expect(cans.length).toBeGreaterThan(20);
+    expect(cans.every((p) => p.grams === 400 || p.grams === 240)).toBe(true);
+  });
 });

@@ -5,6 +5,9 @@ import {
   type IngredientPrice,
   type IRecipeLineRepository,
 } from '@chefer/database';
+import { aiConsentRequiredError, assertAiConsent } from '../../lib/ai-consent-gate.js';
+import { aiService } from '../../lib/ai/index.js';
+import { reserveNutritionEstimate } from '../../lib/quotas.js';
 import { catalogRow, fakeCatalog, type FakeCatalog } from '../../test-support/fake-catalog.js';
 import { IngredientResolver } from './ingredient-resolver.js';
 import { IngredientsService } from './ingredients.service.js';
@@ -37,6 +40,15 @@ vi.mock('../../lib/ingredient-images/index.js', () => ({
 }));
 // estimateNutrition imports aiService (env-dependent); unused here.
 vi.mock('../../lib/ai/index.js', () => ({ aiService: { estimateIngredientPrices: vi.fn() } }));
+
+// R-10: the AI fallback of estimateNutrition needs server-side AI-data consent.
+vi.mock('../../lib/ai-consent-gate.js', async (importOriginal) => {
+  const mod = await importOriginal<typeof import('../../lib/ai-consent-gate.js')>();
+  return { ...mod, assertAiConsent: vi.fn().mockResolvedValue(undefined) };
+});
+vi.mock('../../lib/quotas.js', () => ({
+  reserveNutritionEstimate: vi.fn().mockResolvedValue({ release: vi.fn() }),
+}));
 
 const GARLIC = catalogRow('garlic', 'garlic-raw', ['garlic', 'usturoi'], {
   name: 'Garlic, raw',
@@ -115,6 +127,45 @@ describe('search', () => {
       owner: 'global',
       hasDensity: false,
     });
+  });
+
+  // UX-FOOD-12: "chicken" used to rank Egg (alias "chicken egg") and schmaltz
+  // above the chicken cuts, because a shorter ALIAS beat a longer name.
+  it('ranks name-prefix and commonness first and demotes alias-only matches', async () => {
+    const chicken = fakeCatalog([
+      catalogRow('egg', 'egg-whole-raw', ['egg', 'chicken egg'], { name: 'Egg, whole, raw' }),
+      catalogRow('fat', 'chicken-fat', ['chicken fat', 'schmaltz'], {
+        name: 'Chicken fat (schmaltz)',
+      }),
+      catalogRow('breast', 'chicken-breast-raw', ['chicken breast', 'chicken fillet'], {
+        name: 'Chicken breast, skinless, raw',
+      }),
+      catalogRow('whole', 'chicken-whole', ['whole chicken', 'chicken'], {
+        name: 'Whole chicken (meat and skin), raw',
+      }),
+      catalogRow('roast', 'roast-chicken', ['roast chicken', 'chicken roast'], {
+        name: 'Roast chicken (meat and skin)',
+      }),
+    ]);
+    const uses: Record<string, number> = { breast: 40, fat: 1, egg: 90, whole: 5 };
+    const counted = {
+      ...chicken,
+      searchByAlias: async (...args: Parameters<FakeCatalog['searchByAlias']>) =>
+        (await chicken.searchByAlias(...args)).map((h) => ({
+          ...h,
+          uses: uses[h.ingredient.id] ?? 0,
+        })),
+    };
+    const svc = new IngredientsService(counted, new IngredientResolver(counted), nutrition);
+    // the exact alias first, then name-prefix by usage, name word-start, alias-only (egg) last
+    expect((await svc.search('alice', 'chicken')).map((r) => r.id)).toEqual([
+      'whole',
+      'breast',
+      'fat',
+      'roast',
+      'egg',
+    ]);
+    expect((await svc.search('alice', 'chicken', 2)).map((r) => r.id)).toEqual(['whole', 'breast']);
   });
 
   it('includes the caller’s private rows, never another user’s (I4)', async () => {
@@ -449,5 +500,54 @@ describe('catalogList', () => {
     expect(first.nextCursor).toBe(2);
     const second = await service.catalogList('alice', 'USER', { limit: 2, offset: 2 });
     expect(second.items.map((i) => i.id)).not.toEqual(first.items.map((i) => i.id));
+  });
+});
+
+describe('estimateNutrition — AI-data consent (R-10)', () => {
+  const user = { id: 'alice', role: 'USER', planTier: 'PREMIUM' } as never;
+  const estimate = {
+    caloriesPer100g: 100,
+    proteinPer100g: 1,
+    carbsPer100g: 2,
+    fatPer100g: 3,
+    fiberPer100g: 4,
+    gramsPerPiece: null,
+    pricePer100gEur: null,
+    pricePer100mlEur: null,
+    pricePerPieceEur: null,
+  };
+
+  it('a catalog hit needs no consent check and never reaches the AI', async () => {
+    vi.mocked(prisma.ingredientPrice.findFirst).mockResolvedValue({
+      caloriesPer100g: 149,
+      proteinPer100g: 6,
+      carbsPer100g: 31,
+      fatPer100g: 0.5,
+      fiberPer100g: 2,
+    } as never);
+    const out = await service.estimateNutrition(user, 'garlic');
+    expect(out?.source).toBe('catalog');
+    expect(assertAiConsent).not.toHaveBeenCalled();
+    expect(aiService.estimateIngredientPrices).not.toHaveBeenCalled();
+  });
+
+  it('the AI fallback is refused without consent — the name is never sent and no quota is used', async () => {
+    vi.mocked(prisma.ingredientPrice.findFirst).mockResolvedValue(null);
+    vi.mocked(assertAiConsent).mockRejectedValueOnce(aiConsentRequiredError());
+    await expect(service.estimateNutrition(user, 'dragon fruit')).rejects.toMatchObject({
+      code: 'FORBIDDEN',
+      message: expect.stringContaining('AI & your data'),
+    });
+    expect(aiService.estimateIngredientPrices).not.toHaveBeenCalled();
+    expect(reserveNutritionEstimate).not.toHaveBeenCalled();
+  });
+
+  it('with consent the AI fallback runs and is labelled source: ai', async () => {
+    vi.mocked(prisma.ingredientPrice.findFirst).mockResolvedValue(null);
+    vi.mocked(aiService.estimateIngredientPrices).mockResolvedValue([estimate] as never);
+    const out = await service.estimateNutrition(user, 'dragon fruit');
+    expect(assertAiConsent).toHaveBeenCalledWith({ userId: 'alice' });
+    expect(out?.source).toBe('ai');
+    expect(aiService.estimateIngredientPrices).toHaveBeenCalledTimes(1);
   });
 });

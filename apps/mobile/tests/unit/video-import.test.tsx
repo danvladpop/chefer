@@ -1,5 +1,5 @@
 import { SafeAreaProvider } from 'react-native-safe-area-context';
-import { fireEvent, render, screen } from '@testing-library/react-native';
+import { act, fireEvent, render, screen, within } from '@testing-library/react-native';
 import { router } from 'expo-router';
 import ImportRecipeScreen from '../../app/import-recipe';
 import { openPremium } from '../../src/features/premium/open-premium';
@@ -17,11 +17,32 @@ const mockSaveMutate = jest.fn();
 const mockIsPremium = jest.fn<boolean | undefined, []>(() => true);
 let mockVideoPreview: VideoImportPreview | null = null;
 
-jest.mock('expo-router', () => ({ router: { push: jest.fn(), back: jest.fn() } }));
+// The unsaved-work guard (UX-REC-06) reads navigation state: the mock records
+// the latest (prevent, callback) pair — `prevent === true` is what also
+// disables the iOS swipe-back.
+type PreventCallback = (options: { data: { action: unknown } }) => void;
+const mockPrevent: { value: boolean; callback: PreventCallback | null } = {
+  value: false,
+  callback: null,
+};
+const mockDispatch = jest.fn();
+const mockGoBack = jest.fn();
+jest.mock('expo-router', () => ({
+  router: { push: jest.fn(), back: jest.fn() },
+  useNavigation: () => ({ dispatch: mockDispatch, goBack: mockGoBack }),
+  useIsFocused: () => true,
+}));
+jest.mock('expo-router/react-navigation', () => ({
+  usePreventRemove: (prevent: boolean, callback: PreventCallback) => {
+    mockPrevent.value = prevent;
+    mockPrevent.callback = callback;
+  },
+}));
 jest.mock('../../src/features/premium/open-premium', () => ({ openPremium: jest.fn() }));
 jest.mock('../../src/hooks/use-is-premium', () => ({ useIsPremium: () => mockIsPremium() }));
 jest.mock('../../src/features/ai-consent/ai-consent-provider', () => ({
   useAiConsent: () => (_feature: string, run: () => void) => run(),
+  AiConsentHost: () => null,
 }));
 jest.mock('../../src/features/premium/premium-host', () => ({ PremiumHost: () => null }));
 jest.mock('../../src/lib/trpc', () => {
@@ -119,6 +140,10 @@ function preview(overrides: Partial<VideoImportPreview> = {}): VideoImportPrevie
 }
 
 beforeEach(() => {
+  mockPrevent.value = false;
+  mockPrevent.callback = null;
+  mockDispatch.mockClear();
+  mockGoBack.mockClear();
   mockVideoMutate.mockClear();
   mockSaveMutate.mockClear();
   mockIsPremium.mockReturnValue(true);
@@ -236,6 +261,59 @@ describe('Import screen — video source', () => {
   });
 });
 
+// UX-REC-06 (WP-03): a finished preview is not thrown away by BACK / swipe.
+describe('Import screen — unsaved-preview guard (UX-REC-06)', () => {
+  async function openPreview() {
+    mockVideoPreview = preview();
+    await renderScreen();
+    await fireEvent.press(screen.getByTestId('import-tab-video'));
+    await fireEvent.changeText(
+      screen.getByTestId('import-video-url'),
+      'https://youtu.be/abcdef123',
+    );
+    await fireEvent.press(screen.getByTestId('import-preview'));
+    expect(screen.getByTestId('video-draft-form')).toBeTruthy();
+  }
+
+  const pressBack = async () => {
+    await act(() => {
+      mockPrevent.callback?.({ data: { action: { type: 'GO_BACK' } } });
+    });
+  };
+
+  it('does not prevent leaving while no preview exists', async () => {
+    await renderScreen();
+    expect(mockPrevent.value).toBe(false);
+  });
+
+  it('prevents removal (and the iOS swipe) while a preview exists, and BACK asks first', async () => {
+    await openPreview();
+    expect(mockPrevent.value).toBe(true);
+    expect(screen.queryByText('Discard this import?')).toBeNull();
+
+    await pressBack();
+    expect(screen.getByText('Discard this import?')).toBeTruthy();
+    // "Keep reviewing" keeps the preview on screen and leaves nothing replayed.
+    await fireEvent.press(screen.getByTestId('import-discard-cancel'));
+    expect(screen.getByTestId('video-draft-form')).toBeTruthy();
+    expect(mockDispatch).not.toHaveBeenCalled();
+    expect(mockGoBack).not.toHaveBeenCalled();
+  });
+
+  it('"Discard" lets the blocked navigation through', async () => {
+    await openPreview();
+    await pressBack();
+    await fireEvent.press(screen.getByTestId('import-discard-confirm'));
+    expect(mockDispatch).toHaveBeenCalledWith({ type: 'GO_BACK' });
+  });
+
+  it('"Start over" clears the preview and lifts the guard', async () => {
+    await openPreview();
+    await fireEvent.press(screen.getByText('Start over'));
+    expect(mockPrevent.value).toBe(false);
+  });
+});
+
 describe('VideoDraftForm (mobile)', () => {
   async function renderForm(data: VideoImportPreview) {
     const onSave = jest.fn();
@@ -302,6 +380,31 @@ describe('VideoDraftForm (mobile)', () => {
       }),
       true,
     );
+  });
+
+  it('FB7-03: a very long ingredient name with an amber hint keeps the picker in its row and the hint below it', async () => {
+    const longName =
+      'extra virgin cold-pressed organic olive oil from the first harvest of the season';
+    await renderForm(
+      preview({
+        draft: {
+          ...preview().draft,
+          ingredients: [{ name: longName, quantity: 3, unit: 'tbsp' }],
+        },
+        unverifiedQuantities: [0],
+      }),
+    );
+    const picker = screen.getByTestId('video-draft-ingredient-0');
+    const root = screen.getByTestId('video-draft-ingredient-0-root');
+    // The trigger flows in the row (never absolutely positioned over the text
+    // below it) and wraps the name to two lines instead of overflowing.
+    expect(picker).not.toHaveStyle({ position: 'absolute' });
+    expect(root).not.toHaveStyle({ position: 'absolute' });
+    expect(within(picker).getByText(longName).props.numberOfLines).toBe(2);
+    // Both amber hints are in the column under the row, as siblings of it.
+    expect(screen.getByText('Amount not heard — please check')).toBeOnTheScreen();
+    expect(screen.getByTestId('video-draft-match-0')).toBeOnTheScreen();
+    expect(screen.getByTestId('video-draft-match-0')).toHaveTextContent(/No match for/);
   });
 
   it('adds and removes rows', async () => {

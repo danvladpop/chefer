@@ -1,10 +1,24 @@
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { IPantryItemRepository, PantryItem } from '@chefer/database';
 import {
   computeUsedPantryItems,
+  computeUsedPantryItemsForUser,
   getUseFirstIngredients,
   useFirstReason,
 } from './pantry-context.js';
+
+// FB7-10: the pantry is retired by default (`PANTRY_RETIRED`); the suites below
+// pin the reversible legacy path with the switch off, and `retired` tests flip it on.
+const pantrySwitch = vi.hoisted(() => ({ retired: false }));
+vi.mock('./pantry-retired.js', () => ({
+  get PANTRY_RETIRED() {
+    return pantrySwitch.retired;
+  },
+}));
+
+afterEach(() => {
+  pantrySwitch.retired = false;
+});
 
 // The provider talks only to the repository interface — a plain stub keeps
 // the test DB-free (interface-driven repositories, CLAUDE.md rule 3).
@@ -62,6 +76,17 @@ describe('getUseFirstIngredients (the household-loader seam, F3)', () => {
 
   it('returns an empty array for an empty pantry (prompt stays byte-identical)', async () => {
     expect(await getUseFirstIngredients('u1', 5, repoWith([]))).toEqual([]);
+  });
+});
+
+describe('retired pantry (FB7-10)', () => {
+  it('gives plan generation no use-first hint and no used-pantry items, without reading the pantry', async () => {
+    pantrySwitch.retired = true;
+    const repo = repoWith([item('rice', 20)]);
+    expect(await getUseFirstIngredients('u1', 5, repo)).toEqual([]);
+    const day = { meals: [{ recipe: { ingredients: [{ name: 'rice' }] } }] };
+    expect(await computeUsedPantryItemsForUser('u1', [day], repo)).toEqual([]);
+    expect(repo.findByUser).not.toHaveBeenCalled();
   });
 });
 

@@ -1,6 +1,5 @@
 'use client';
 
-import type { ImageStatusType } from '@/features/recipes/components/RecipeImage';
 import { Check, UtensilsCrossed } from 'lucide-react';
 import type { PlanTailoring, PlanTrainingDay } from '@chefer/types';
 import { pressControl } from '@chefer/ui';
@@ -13,7 +12,9 @@ import {
   type TailoringDayState,
 } from '@chefer/utils';
 import { DayRecapBar } from './DayRecapBar';
-import { MealCard } from './MealCard';
+import type { MealCardRecipe } from './MealCard';
+import { PlanDayMeals, type ImageOverrides } from './PlanDayMeals';
+import type { PlanSlotUi } from './PlanSlotShell';
 import { PreRunNote, preRunNoteFor, TrainingDayHeader, TrainingGlyph } from './TrainingDayHeader';
 
 // ─── Mobile day view ──────────────────────────────────────────────────────────
@@ -25,14 +26,6 @@ import { PreRunNote, preRunNoteFor, TrainingDayHeader, TrainingGlyph } from './T
 const DAY_SHORT = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 const DAY_LONG = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
 
-interface NutritionInfo {
-  calories: number;
-  protein: number;
-  carbs: number;
-  fat: number;
-  fiber: number;
-}
-
 interface MealSlot {
   type: string;
   /** F3 leftovers: source-day name when the slot re-plates a dinner. */
@@ -41,17 +34,7 @@ interface MealSlot {
   portion?: number;
   /** §T-07.4/T-08.9: "Your pick" — survives Regenerate by default. */
   pinned?: boolean;
-  recipe: {
-    id: string;
-    name: string;
-    description: string;
-    cuisineType: string;
-    prepTimeMins: number;
-    cookTimeMins: number;
-    nutritionInfo: NutritionInfo;
-    imageUrl?: string | null;
-    imageStatus?: ImageStatusType;
-  };
+  recipe: MealCardRecipe;
 }
 
 export interface PlanDay {
@@ -59,6 +42,8 @@ export interface PlanDay {
   meals: MealSlot[];
   /** P1-1: grams short of the protein target, when meaningfully short. */
   proteinGapG?: number;
+  /** UX-PLAN-11: ids of the recipes logged as eaten that day (past-week view only). */
+  loggedRecipeIds?: string[];
   /**
    * §T-07.2/T-07.6: false when this day is outside the chosen plan shape
    * (`meals` is `[]`) — recomputed from the CURRENT stored shape on every
@@ -67,7 +52,7 @@ export interface PlanDay {
   planned?: boolean;
 }
 
-export type ImageOverrides = Record<string, { imageUrl: string | null; status: ImageStatusType }>;
+export type { ImageOverrides } from './PlanDayMeals';
 
 interface DayViewProps {
   days: PlanDay[];
@@ -92,6 +77,14 @@ interface DayViewProps {
     | undefined;
   /** Toggles `pinned` on a slot (§T-07.4/T-08.9). */
   onTogglePin?: ((mealType: string, slotIndex: number, pinned: boolean) => void) | undefined;
+  /** FB7-04: opens the picker to add a side dish next to a slot's meal. */
+  onAddSide?:
+    | ((mealType: string, mealName: string, slotIndex: number, recipeId: string) => void)
+    | undefined;
+  /** FB7-04: takes a side dish off the plan. */
+  onRemoveSide?:
+    | ((mealType: string, slotIndex: number, recipe: { id: string; name: string }) => void)
+    | undefined;
   /** §T-07.6 (UX-07 "Plan this day"): fills this currently-unplanned day. */
   onPlanDay?: ((dayOfWeek: number) => void) | undefined;
   /** True while `onPlanDay`'s mutation is running for THIS day. */
@@ -108,6 +101,12 @@ interface DayViewProps {
   onOpenTrainingExplain?: (() => void) | undefined;
   /** T-11.3: opens the plan-miss sheet for a day whose total misses its target. */
   onOpenMiss?: ((dayOfWeek: number) => void) | undefined;
+  /**
+   * WP-06: today's (or an earlier day's) log and the flexible-eating flow, for
+   * the "Ate something else" / "Skipped it" overflow under each slot. Absent
+   * (future days, the read-only history view) = no overflow.
+   */
+  slotUi?: PlanSlotUi | undefined;
 }
 
 /**
@@ -171,6 +170,8 @@ export function DayView({
   className,
   onReplaceMeal,
   onTogglePin,
+  onAddSide,
+  onRemoveSide,
   onPlanDay,
   planDayPending = false,
   planShapeSummary,
@@ -179,6 +180,7 @@ export function DayView({
   trainingDays,
   onOpenTrainingExplain,
   onOpenMiss,
+  slotUi,
 }: DayViewProps) {
   const day = days.find((d) => d.dayOfWeek === selectedDay);
   const meals = day?.meals ?? [];
@@ -333,34 +335,20 @@ export function DayView({
                 'animate-in fade-in-0 duration-deliberate ease-enter',
             )}
           >
-            {meals.map((slot, slotIndex) => {
-              const override = imageOverrides[slot.recipe.id];
-              return (
-                <MealCard
-                  key={`${slot.type}-${slotIndex}`}
-                  variant="row"
-                  mealType={slot.type}
-                  recipe={slot.recipe}
-                  planId={planId}
-                  dayOfWeek={selectedDay}
-                  slotIndex={slotIndex}
-                  readOnly={readOnly}
-                  imageUrlOverride={override?.imageUrl}
-                  imageStatusOverride={override?.status}
-                  leftoverLabel={slot.leftoverOf}
-                  portion={slot.portion}
-                  pinned={slot.pinned}
-                  onReplace={
-                    onReplaceMeal
-                      ? () => onReplaceMeal(slot.type, slot.recipe.name, slotIndex, slot.recipe.id)
-                      : undefined
-                  }
-                  onTogglePin={
-                    onTogglePin ? () => onTogglePin(slot.type, slotIndex, !slot.pinned) : undefined
-                  }
-                />
-              );
-            })}
+            <PlanDayMeals
+              meals={meals}
+              planId={planId}
+              dayOfWeek={selectedDay}
+              variant="row"
+              readOnly={readOnly}
+              imageOverrides={imageOverrides}
+              slotUi={slotUi}
+              loggedRecipeIds={day?.loggedRecipeIds}
+              onReplaceMeal={onReplaceMeal}
+              onTogglePin={onTogglePin}
+              onAddSide={onAddSide}
+              onRemoveSide={onRemoveSide}
+            />
           </div>
           <DayRecapBar
             meals={meals}

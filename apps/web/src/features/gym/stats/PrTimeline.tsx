@@ -6,6 +6,7 @@ import { trpc } from '@/lib/trpc';
 import { format, parseISO } from 'date-fns';
 import { Award } from 'lucide-react';
 import type { ExerciseDto, PrKind, WeightUnit } from '@chefer/types';
+import { ErrorState } from '@chefer/ui';
 import { formatLoad } from '@chefer/utils';
 
 // Stats tab #4 (gym_plan.md §1.3): a feed of PRs by date, filterable by
@@ -15,11 +16,11 @@ const KIND_LABEL: Record<PrKind, string> = { weight: 'Weight PR', reps: 'Rep PR'
 
 export function PrTimeline({ library, unit }: { library: ExerciseDto[]; unit: WeightUnit }) {
   const [exerciseId, setExerciseId] = useState<string>('');
-  const { data, isLoading } = trpc.gym.stats.prs.useQuery({
+  const { data, isLoading, isError, refetch, isRefetching } = trpc.gym.stats.prs.useQuery({
     exerciseId: exerciseId || undefined,
     limit: 50,
   });
-  const byId = new Map(library.map((e) => [e.id, e.name]));
+  const byId = new Map(library.map((e) => [e.id, e]));
 
   return (
     <div className="rounded-2xl border bg-white p-4 shadow-sm sm:p-5">
@@ -47,6 +48,13 @@ export function PrTimeline({ library, unit }: { library: ExerciseDto[]; unit: We
 
       {isLoading ? (
         <div className="h-32 animate-pulse rounded-xl bg-neutral-100" />
+      ) : isError && !data ? (
+        <ErrorState
+          title="Couldn’t load your PRs"
+          onRetry={() => void refetch()}
+          retrying={isRefetching}
+          className="py-6"
+        />
       ) : !data || data.length === 0 ? (
         <p className="py-6 text-center text-sm text-neutral-500">
           No PRs yet. Every weight, rep or e1RM record shows up here.
@@ -62,14 +70,17 @@ export function PrTimeline({ library, unit }: { library: ExerciseDto[]; unit: We
                 <Award className="h-4 w-4 shrink-0 text-amber-500" />
                 <div className="min-w-0 flex-1">
                   <p className="truncate text-sm font-medium text-neutral-900">
-                    {byId.get(pr.exerciseId) ?? pr.exerciseId}
+                    {byId.get(pr.exerciseId)?.name ?? pr.exerciseId}
                   </p>
                   <p className="text-xs text-neutral-500">
                     {/* T-05.6 (UX-05 F): the first-ever logged set is its own
                         kind of milestone — a bare "e1RM PR" label would read
                         oddly for a lift with nothing prior to beat. */}
                     {pr.isFirst ? 'First logged' : KIND_LABEL[pr.kind]} ·{' '}
-                    {formatLoad(pr.weightKg, unit)} × {pr.reps}
+                    {formatLoad(pr.weightKg, unit, byId.get(pr.exerciseId)?.loadType, {
+                      each: byId.get(pr.exerciseId)?.perHand,
+                    })}{' '}
+                    × {pr.reps}
                     {pr.e1rmKg !== null ? ` · e1RM ${formatLoad(pr.e1rmKg, unit)}` : ''}
                   </p>
                 </div>

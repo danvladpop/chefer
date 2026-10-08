@@ -6,7 +6,7 @@ export {
   type AvatarSize,
 } from './components/avatar';
 export { Badge, type BadgeProps } from './components/badge';
-export { Button, type ButtonProps } from './components/button';
+export { Button, buttonVariants, type ButtonProps } from './components/button';
 export { Card, CardTitle, type CardProps } from './components/card';
 export {
   ChangeNoticeCard,
@@ -37,31 +37,65 @@ export {
 export { EmptyState, type EmptyStateProps } from './components/empty-state';
 export { CountPill, countPillText, type CountPillProps } from './components/count-pill';
 export { ErrorState, type ErrorStateProps } from './components/error-state';
+export { QueryStateView, type QueryStateViewProps } from './components/query-state-view';
+export {
+  useQueryState,
+  type QueryStateSource,
+  type UseQueryStateResult,
+} from './hooks/use-query-state';
 export { Input, type InputProps } from './components/input';
 export {
   KeyboardAwareScrollView,
   KEYBOARD_AWARE_DEFAULT_MARGIN,
+  keyboardDismissMode,
   useScrollFieldIntoView,
+  useScrollFieldIntoViewFor,
   type KeyboardAwareScrollViewProps,
   type ScrollFieldIntoView,
 } from './components/keyboard-aware-scroll-view';
+export {
+  useKeyboardInset,
+  type KeyboardInset,
+  type UseKeyboardInsetOptions,
+} from './components/use-keyboard-inset';
 export { PasswordInput, type PasswordInputProps } from './components/password-input';
-export { NumericReturnBar, type NumericReturnBarProps } from './components/numeric-return-bar';
+export {
+  DONE_FIELD_PROPS,
+  KeyboardDoneBar,
+  NumericReturnBar,
+  hasNoReturnKey,
+  useKeyboardDoneBar,
+  type NumericReturnBarProps,
+} from './components/numeric-return-bar';
+export { EMAIL_FIELD_PROPS } from './components/email-field-props';
 export { ProgressBar, type ProgressBarProps } from './components/progress-bar';
 export { ProgressRing, type ProgressRingProps } from './components/progress-ring';
 export { Screen, type ScreenProps } from './components/screen';
 export {
   SegmentedControl,
+  thumbMetrics,
   type SegmentedControlProps,
   type SegmentedOption,
 } from './components/segmented-control';
 export {
   SearchField,
   SEARCH_DEBOUNCE_MS,
+  SEARCH_LIST_PROPS,
   SEARCH_TARGET_PT,
   type SearchFieldProps,
 } from './components/search-field';
 export { Sheet, type SheetProps } from './components/sheet';
+export {
+  SHEET_DISMISS_FRACTION,
+  SHEET_DISMISS_VELOCITY,
+  SHEET_DRAG_ACTIVATION,
+  SHEET_FLICK_MIN_DISTANCE,
+  SHEET_RUBBER_BAND,
+  sheetDragOffset,
+  sheetReleaseAction,
+  shouldStartSheetDrag,
+  type SheetRelease,
+} from './components/sheet-drag';
 export {
   Skeleton,
   SKELETON_CYCLE_MS,
@@ -70,7 +104,11 @@ export {
 } from './components/skeleton';
 export {
   Snackbar,
+  SNACKBAR_MIN_RESUME_MS,
+  SNACKBAR_TAP_SHIELD_MS,
   resetSnackbarForTests,
+  setSnackbarTabBarHeight,
+  showSnackbar,
   useSnackbar,
   type SnackbarOptions,
   type SnackbarProps,
@@ -98,7 +136,12 @@ export {
   type FieldChainBinding,
   type UseFieldChainResult,
 } from './components/use-field-chain';
-export { ValueStepper, valueFontSize, type ValueStepperProps } from './components/value-stepper';
+export {
+  ValueStepper,
+  VALUE_MAX_FONT_SCALE,
+  valueFontSize,
+  type ValueStepperProps,
+} from './components/value-stepper';
 export { chartPalette, colors } from './components/theme';
 // Charts (react-native-svg)
 export {
@@ -107,6 +150,7 @@ export {
   type BarDatum,
   type BarSegment,
 } from './components/charts/bar-chart';
+export { clampLabelCentre, niceTicks } from './components/charts/chart-utils';
 export {
   LineChart,
   type LineChartProps,

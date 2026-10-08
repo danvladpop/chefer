@@ -1,11 +1,13 @@
 import { TRPCError } from '@trpc/server';
 import { z } from 'zod';
 import {
+  bodyMetricsAgeSchema,
   goalSchema,
   LEVEL_0_UNKNOWN_GOALS,
   setDisplayPreferencesInputSchema,
   setHomeDisplayInputSchema,
   setJobsInputSchema,
+  setNumbersModeInputSchema,
   setOnboardingIntentInputSchema,
 } from '@chefer/types';
 import {
@@ -21,7 +23,7 @@ import { premiumProcedure, protectedProcedure, requireHealthConsent, router } fr
 const setupSchema = z.object({
   goal: goalSchema,
   biologicalSex: z.enum(['MALE', 'FEMALE']),
-  age: z.number().int().min(10).max(110),
+  age: bodyMetricsAgeSchema,
   heightCm: z.number().positive().max(300),
   weightKg: z.number().positive().max(500),
   activityLevel: z.enum([
@@ -162,6 +164,17 @@ export const preferencesRouter = router({
       return preferencesService.setHomeDisplay(ctx.user.id, input.showNutritionOnToday);
     }),
 
+  /**
+   * WP-08 numbers mode: `FULL` | `PROTEIN_ONLY` | `NONE` (reserved for
+   * WP-16) — free for every tier. Independent of `setHomeDisplay`, which
+   * older app builds still call.
+   */
+  setNumbersMode: protectedProcedure
+    .input(setNumbersModeInputSchema)
+    .mutation(async ({ input, ctx }) => {
+      return preferencesService.setNumbersMode(ctx.user.id, input.numbersMode);
+    }),
+
   /** Allergies, restrictions, dislikes — free for every account (P1-2). */
   updateSafety: protectedProcedure
     .input(safetySchema)
@@ -232,7 +245,7 @@ export const preferencesRouter = router({
       z.object({
         goal: goalSchema,
         biologicalSex: z.enum(['MALE', 'FEMALE']),
-        age: z.number().int().min(10).max(110),
+        age: bodyMetricsAgeSchema,
         heightCm: z.number().positive().max(300),
         weightKg: z.number().positive().max(500),
         activityLevel: z.enum([

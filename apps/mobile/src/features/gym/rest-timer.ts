@@ -37,6 +37,10 @@ function write(next: RestTimerState | null): void {
   if (next) kv.setJSON(KV_KEYS.restTimer, next);
   else kv.remove(KV_KEYS.restTimer);
   restStore.set(next);
+  // UX-GYM-09/10: the "Rest is over" alert is (re)scheduled the moment the rest
+  // STARTS or changes — not when the app later backgrounds, when the OS may
+  // have already suspended JS — and cancelled the moment it is cleared.
+  void syncNotification();
 }
 
 export function getRestTimer(): RestTimerState | null {
@@ -139,6 +143,8 @@ export async function ensureRestNotificationPermission(): Promise<boolean> {
     const requested = await Notifications.requestPermissionsAsync({
       ios: { allowAlert: true, allowSound: true, allowBadge: false },
     });
+    // A rest already running when the user taps Allow gets its alert now.
+    if (requested.granted) void syncNotification();
     return requested.granted;
   } catch {
     return false;
@@ -149,6 +155,22 @@ export async function ensureRestNotificationPermission(): Promise<boolean> {
 export async function hasRestNotificationPermission(): Promise<boolean> {
   try {
     return (await Notifications.getPermissionsAsync()).granted;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * UX-GYM-11: true when asking again would do nothing — the OS has the
+ * permission denied and won't show its prompt (iOS after one answer, Android
+ * once "don't ask again"), or we already asked in this process. The rationale
+ * sheet's "Allow" then opens the phone's Settings instead of silently closing.
+ */
+export async function restPermissionNeedsSettings(): Promise<boolean> {
+  try {
+    const current = await Notifications.getPermissionsAsync();
+    if (current.granted) return false;
+    return !current.canAskAgain || permissionAsked;
   } catch {
     return false;
   }
@@ -165,20 +187,72 @@ export function markRestPermissionRationaleShown(): void {
   kv.setString(RATIONALE_SHOWN_KEY, '1');
 }
 
+// ── Announcements (UX-GYM-09) ─────────────────────────────────────────────────
+
+/** How far into a rest the screen reader has already been told. */
+export type RestAnnounceStage = 'idle' | 'started' | 'tenSeconds';
+
+/** TalkBack/VoiceOver hear the rest at start, at 10 s left and at the end — never every second. */
+export const REST_WARNING_SEC = 10;
+
+/**
+ * Pure: given the stage already announced and the seconds left, the stage to
+ * move to and the message to speak (null = say nothing). Adding time with +15 s
+ * past the warning re-arms it; a rest shorter than the warning skips straight
+ * to the end.
+ */
+export function nextRestAnnouncement(
+  stage: RestAnnounceStage,
+  remainingSec: number,
+): { stage: RestAnnounceStage; message: string | null } {
+  if (stage === 'idle') {
+    return {
+      stage: remainingSec <= REST_WARNING_SEC ? 'tenSeconds' : 'started',
+      message: `Rest started, ${remainingSec} seconds`,
+    };
+  }
+  if (stage === 'started' && remainingSec <= REST_WARNING_SEC) {
+    return { stage: 'tenSeconds', message: `${REST_WARNING_SEC} seconds left` };
+  }
+  if (stage === 'tenSeconds' && remainingSec > REST_WARNING_SEC) {
+    return { stage: 'started', message: null };
+  }
+  return { stage, message: null };
+}
+
+export const REST_OVER_ANNOUNCEMENT = 'Rest is over';
+
+// ── Scheduling the alert ──────────────────────────────────────────────────────
+
+// The stored value is `${notificationId}@${endsAt}` so a second sync for the
+// SAME end instant is a no-op (an older build stored just the id).
+function readScheduled(): { id: string; endsAt: number } | null {
+  const raw = kv.getString(NOTIFICATION_KEY);
+  if (!raw) return null;
+  const at = raw.lastIndexOf('@');
+  if (at < 0) return { id: raw, endsAt: Number.NaN };
+  return { id: raw.slice(0, at), endsAt: Number(raw.slice(at + 1)) };
+}
+
 async function cancelScheduled(): Promise<void> {
-  const id = kv.getString(NOTIFICATION_KEY);
-  if (!id) return;
+  const scheduled = readScheduled();
+  if (!scheduled) return;
   kv.remove(NOTIFICATION_KEY);
   try {
-    await Notifications.cancelScheduledNotificationAsync(id);
+    await Notifications.cancelScheduledNotificationAsync(scheduled.id);
   } catch {
     // Already delivered or gone.
   }
 }
 
-async function scheduleForRest(state: RestTimerState): Promise<void> {
-  if (state.endsAt - Date.now() < 1000) return;
+async function reconcileNotification(): Promise<void> {
   try {
+    const state = restStore.get();
+    if (!state || state.endsAt - Date.now() < 1000) {
+      await cancelScheduled();
+      return;
+    }
+    if (readScheduled()?.endsAt === state.endsAt) return; // already set for this end
     const permission = await Notifications.getPermissionsAsync();
     if (!permission.granted) return; // never prompt from the background
     if (Platform.OS === 'android') {
@@ -190,6 +264,9 @@ async function scheduleForRest(state: RestTimerState): Promise<void> {
       });
     }
     await cancelScheduled();
+    // The rest may have been skipped or changed while we awaited the OS.
+    const latest = restStore.get();
+    if (!latest || latest.endsAt - Date.now() < 1000) return;
     const id = await Notifications.scheduleNotificationAsync({
       content: {
         title: 'Rest is over',
@@ -199,29 +276,36 @@ async function scheduleForRest(state: RestTimerState): Promise<void> {
       },
       trigger: {
         type: Notifications.SchedulableTriggerInputTypes.DATE,
-        date: state.endsAt,
+        date: latest.endsAt,
         channelId: ANDROID_CHANNEL_ID,
       },
     });
-    kv.setString(NOTIFICATION_KEY, id);
+    kv.setString(NOTIFICATION_KEY, `${id}@${latest.endsAt}`);
   } catch {
     // Notifications are a convenience; the timer itself is unaffected.
   }
 }
 
+// Reconciles run one at a time, each reading the CURRENT rest when it runs, so a
+// quick start → +15 s → skip never leaves a stray or duplicate notification.
+let reconcileChain: Promise<void> = Promise.resolve();
+
+/** Makes the one scheduled "Rest is over" notification match the current rest (or none). */
+export function syncNotification(): Promise<void> {
+  reconcileChain = reconcileChain.then(reconcileNotification, reconcileNotification);
+  return reconcileChain;
+}
+
 /**
- * Schedules a local notification at `endsAt` when the app backgrounds with a
- * rest running, and cancels it when the app comes back. Returns a stop fn.
+ * Keeps the OS notification in step with the rest for the life of the app:
+ * a launch re-syncs a rest that survived a kill (or drops a stale alert), and
+ * a background transition re-syncs once more (e.g. permission was granted
+ * after the rest began). Returns a stop fn.
  */
 export function startRestNotifications(): () => void {
-  void cancelScheduled(); // a launch means we're in the foreground
+  void syncNotification();
   const subscription = AppState.addEventListener('change', (status: AppStateStatus) => {
-    if (status === 'background') {
-      const state = restStore.get();
-      if (state) void scheduleForRest(state);
-    } else if (status === 'active') {
-      void cancelScheduled();
-    }
+    if (status === 'background') void syncNotification();
   });
   return () => subscription.remove();
 }

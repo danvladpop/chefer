@@ -1,11 +1,21 @@
 import { useEffect, useState } from 'react';
-import { ActivityIndicator, View } from 'react-native';
+import { ActivityIndicator, Pressable, ScrollView, View } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import type { OnboardingJob } from '@chefer/types';
-import { Button, Screen, Text, useSnackbar } from '@chefer/ui-mobile';
+import {
+  Button,
+  ConfirmSheet,
+  ErrorState,
+  Screen,
+  Text,
+  useQueryState,
+  useSnackbar,
+} from '@chefer/ui-mobile';
 import { setMode } from '../../src/features/gym/mode-store';
 import { JobsStep } from '../../src/features/onboarding/jobs-step';
 import { trpc } from '../../src/lib/trpc';
+import { useUnsavedGuard } from '../../src/lib/use-unsaved-guard';
 
 // Settings › "What you use Chefer for" (UX-03, T-03.5). Same JobsStep as
 // onboarding, as a screen with a Save footer instead of a wizard. Existing
@@ -21,7 +31,9 @@ import { trpc } from '../../src/lib/trpc';
 export default function SettingsJobsScreen() {
   const utils = trpc.useUtils();
   const snackbar = useSnackbar();
-  const { data, isLoading } = trpc.preferences.get.useQuery();
+  const prefsQuery = trpc.preferences.get.useQuery();
+  const { data } = prefsQuery;
+  const { state: loadState, retry } = useQueryState(prefsQuery);
   const [jobs, setJobs] = useState<OnboardingJob[] | null>(null);
   const [originalJobs, setOriginalJobs] = useState<OnboardingJob[]>([]);
 
@@ -33,8 +45,19 @@ export default function SettingsJobsScreen() {
     // eslint-disable-next-line react-hooks/exhaustive-deps -- hydrate once
   }, [data]);
 
+  // UX-ACC-05: leaving with changed selections (← button, iOS swipe, Android
+  // BACK) asks first; a successful save lifts the guard before it navigates.
+  const dirty =
+    jobs !== null &&
+    (jobs.length !== originalJobs.length || jobs.some((job) => !originalJobs.includes(job)));
+  const guard = useUnsavedGuard(dirty, {
+    title: 'Discard your changes?',
+    message: 'Your selections have not been saved.',
+  });
+
   const setJobsMutation = trpc.preferences.setJobs.useMutation({
     onSuccess: () => {
+      guard.release();
       void utils.preferences.invalidate();
       const addedTrain = jobs?.includes('TRAIN') && !originalJobs.includes('TRAIN');
       const wasGymOnly = originalJobs.length === 1 && originalJobs[0] === 'TRAIN';
@@ -63,7 +86,20 @@ export default function SettingsJobsScreen() {
     },
   });
 
-  if (isLoading || jobs === null) {
+  // UX-X-12: a failed load is not a spinner forever.
+  if (loadState === 'error') {
+    return (
+      <Screen edges={['top', 'bottom', 'left', 'right']} className="justify-center">
+        <ErrorState
+          testID="settings-jobs-load-error"
+          title="Couldn't load your settings"
+          onRetry={retry}
+        />
+      </Screen>
+    );
+  }
+
+  if (jobs === null) {
     return (
       <Screen edges={['top', 'bottom', 'left', 'right']} className="items-center justify-center">
         <ActivityIndicator size="large" color="#944a00" />
@@ -73,14 +109,30 @@ export default function SettingsJobsScreen() {
 
   return (
     <Screen edges={['top', 'bottom', 'left', 'right']} className="px-0">
-      <View className="px-4 py-3">
-        <Text testID="settings-jobs-title" variant="heading">
+      {/* UX-ACC-05: a back row (Android had no way out but the system gesture). */}
+      <View className="flex-row items-center gap-3 px-4 py-3">
+        <Pressable
+          testID="settings-jobs-back"
+          accessibilityRole="button"
+          accessibilityLabel="Back"
+          onPress={() => router.back()}
+          className="h-11 w-11 items-center justify-center"
+        >
+          <Ionicons name="arrow-back" size={20} color="#1f2937" />
+        </Pressable>
+        <Text testID="settings-jobs-title" variant="heading" className="min-w-0 flex-1">
           What you use Chefer for
         </Text>
       </View>
-      <View className="flex-1 px-4">
+      {/* UX-ACC-05: the six cards scroll — the last one used to sit under Save,
+          and at accessibility text sizes three were unreachable. */}
+      <ScrollView
+        testID="settings-jobs-scroll"
+        className="flex-1"
+        contentContainerClassName="px-4 pb-4"
+      >
         <JobsStep value={jobs} onChange={setJobs} />
-      </View>
+      </ScrollView>
       <View className="gap-2 border-t border-border px-4 pb-2 pt-3">
         <Button
           testID="settings-jobs-save"
@@ -91,6 +143,7 @@ export default function SettingsJobsScreen() {
           Save
         </Button>
       </View>
+      <ConfirmSheet testID="settings-jobs-discard" {...guard.sheetProps} />
     </Screen>
   );
 }

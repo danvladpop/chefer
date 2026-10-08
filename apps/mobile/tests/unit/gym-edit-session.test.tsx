@@ -1,5 +1,13 @@
 import { onlineManager } from '@tanstack/react-query';
-import { fireEvent, render, screen, userEvent, waitFor } from '@testing-library/react-native';
+import {
+  act,
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+  userEvent,
+  waitFor,
+} from '@testing-library/react-native';
 import type { GymBootstrap, SessionSummaryDto, WorkoutSessionDoc } from '@chefer/types';
 import { resetSnackbarForTests, Snackbar } from '@chefer/ui-mobile';
 import {
@@ -23,6 +31,11 @@ import {
   EditSessionScreen,
   LogSessionScreen,
 } from '../../src/features/gym/workout/edit-session-screen';
+import {
+  editDraftTarget,
+  loadSessionDraft,
+  logDraftTarget,
+} from '../../src/features/gym/workout/session-draft-store';
 import { makeBootstrap, makeDoc, makeExercise } from './gym-fixtures';
 import {
   activeDoc,
@@ -38,16 +51,35 @@ import {
 // touched, edits save through the outbox), AC5 (Replace never touches the
 // routine), AC6 (the date never lands in the future).
 
+// UX-GYM-26: leaving is guarded by `useUnsavedGuard` (React Navigation's
+// `usePreventRemove`). The mock records the latest (prevent, callback) pair —
+// `prevent === true` is what also disables the iOS swipe — and `router.back()`
+// behaves like the navigator: while prevented it reports the blocked action to
+// the callback instead of leaving.
+type PreventCallback = (options: { data: { action: unknown } }) => void;
+const mockPrevent: { value: boolean; callback: PreventCallback | null } = {
+  value: false,
+  callback: null,
+};
+const mockDispatch = jest.fn();
+const mockGoBack = jest.fn();
+const BACK_ACTION = { type: 'GO_BACK' };
 jest.mock('expo-router', () => ({
   router: {
     replace: jest.fn(),
-    back: jest.fn(),
+    back: jest.fn(() => {
+      if (mockPrevent.value) mockPrevent.callback?.({ data: { action: BACK_ACTION } });
+    }),
     push: jest.fn(),
     canGoBack: jest.fn(() => true),
   },
-  useFocusEffect: (cb: () => undefined | (() => void)) => {
-    const { useEffect: mockUseEffect } = jest.requireActual<typeof import('react')>('react');
-    mockUseEffect(cb, [cb]);
+  useNavigation: () => ({ dispatch: mockDispatch, goBack: mockGoBack }),
+  useIsFocused: () => true,
+}));
+jest.mock('expo-router/react-navigation', () => ({
+  usePreventRemove: (prevent: boolean, callback: PreventCallback) => {
+    mockPrevent.value = prevent;
+    mockPrevent.callback = callback;
   },
 }));
 jest.mock('expo-crypto', () => {
@@ -166,6 +198,10 @@ beforeEach(() => {
   setGymOwner('user-a');
   onlineManager.setOnline(true);
   router.back.mockClear();
+  mockPrevent.value = false;
+  mockPrevent.callback = null;
+  mockDispatch.mockClear();
+  mockGoBack.mockClear();
 });
 
 async function fixTheTypo(user: ReturnType<typeof userEvent.setup>) {
@@ -225,6 +261,45 @@ describe('EditSessionScreen', () => {
     await user.press(screen.getByTestId('edit-session-save'));
     expect(outbox.getState().entries).toHaveLength(1);
     expect(send).not.toHaveBeenCalled();
+  });
+
+  it('UX-GYM-01: a PARKED (server-rejected) workout opens for editing, and saving the fix un-parks it', async () => {
+    const user = userEvent.setup();
+    const typo = pastDoc();
+    const [first] = typo.exercises;
+    if (!first) throw new Error('expected an exercise');
+    const parkedDoc = {
+      ...typo,
+      exercises: [
+        {
+          ...first,
+          sets: first.sets.map((set, i) => (i === 1 ? { ...set, weightKg: 1025 } : set)),
+        },
+      ],
+    };
+    // Park it the way a rejected upload does (sender first: enqueue kicks a flush).
+    outbox.configure({
+      send: jest.fn(() =>
+        Promise.resolve([{ id: parkedDoc.id, status: 'rejected' as const, reason: 'bad' }]),
+      ),
+    });
+    outbox.enqueue(parkedDoc, { ownerId: 'user-a' });
+    await outbox.flush({ force: true });
+    outbox.configure(null);
+    expect(outbox.getState().entries[0]?.parkedReason).toBeDefined();
+
+    await renderEdit(parkedDoc);
+    expect(await screen.findByTestId('exercise-0-set-2-weight-value')).toHaveTextContent(/1025/);
+    await user.press(screen.getByTestId('exercise-0-set-2-weight-value'));
+    for (const key of ['1', '0', '2', 'dot', '5']) {
+      await user.press(screen.getByTestId(`number-sheet-key-${key}`));
+    }
+    await user.press(screen.getByTestId('number-sheet-save'));
+    await user.press(screen.getByTestId('edit-session-save'));
+
+    const [entry] = outbox.getState().entries;
+    expect(entry?.parkedReason).toBeUndefined();
+    expect(entry?.doc.exercises[0]?.sets[1]?.weightKg).toBe(102.5);
   });
 
   it('AC5: Replace exercise goes straight to the picker, never offers the routine, and changes this workout only', async () => {
@@ -293,8 +368,90 @@ describe('EditSessionScreen', () => {
     expect(await screen.findByText('Discard your edits?')).toBeOnTheScreen();
     expect(screen.getByText('Your workout stays as it was.')).toBeOnTheScreen();
     await user.press(screen.getByTestId('edit-session-discard-sheet-confirm'));
-    expect(router.back).toHaveBeenCalled();
+    // Discard replays the held navigation; nothing was sent.
+    expect(mockDispatch).toHaveBeenCalledWith(BACK_ACTION);
     expect(outbox.getState().entries).toHaveLength(0);
+  });
+
+  // WP-03 lane C (UX-GYM-26): the leave guard + crash-safe drafts.
+  describe('unsaved edits (UX-GYM-26)', () => {
+    it('holds the iOS swipe only while there are edits', async () => {
+      const user = userEvent.setup();
+      await renderEdit(pastDoc());
+      await screen.findByTestId('edit-session-title');
+      expect(mockPrevent.value).toBe(false);
+      await fixTheTypo(user);
+      expect(mockPrevent.value).toBe(true);
+    });
+
+    it('a system back (Android BACK / swipe) with edits asks, and "Keep editing" keeps them', async () => {
+      const user = userEvent.setup();
+      await renderEdit(pastDoc());
+      await fixTheTypo(user);
+      await act(() => {
+        mockPrevent.callback?.({ data: { action: BACK_ACTION } });
+      });
+      expect(await screen.findByText('Discard your edits?')).toBeOnTheScreen();
+      await user.press(screen.getByTestId('edit-session-discard-sheet-cancel'));
+      expect(screen.getByTestId('exercise-0-set-2-weight-value')).toHaveTextContent(/^60kg$/);
+      expect(mockDispatch).not.toHaveBeenCalled();
+    });
+
+    it('saving leaves without asking and forgets the draft', async () => {
+      const user = userEvent.setup();
+      const doc = pastDoc();
+      await renderEdit(doc);
+      await fixTheTypo(user);
+      expect(loadSessionDraft('edit', editDraftTarget(doc.id))).not.toBeNull();
+      await user.press(screen.getByTestId('edit-session-save'));
+      expect(await screen.findByText('Workout updated')).toBeOnTheScreen();
+      expect(screen.queryByText('Discard your edits?')).toBeNull();
+      expect(router.back).toHaveBeenCalled();
+      // The guard was released in the same tick as the navigation: no confirm,
+      // and the held action is replayed once React has lifted the guard.
+      expect(mockDispatch).toHaveBeenCalledWith(BACK_ACTION);
+      expect(loadSessionDraft('edit', editDraftTarget(doc.id))).toBeNull();
+    });
+
+    it('a crash mid-edit loses nothing: re-opening brings the edits back, still unsaved', async () => {
+      const user = userEvent.setup();
+      const doc = pastDoc();
+      await renderEdit(doc);
+      await fixTheTypo(user);
+      expect(loadSessionDraft('edit', editDraftTarget(doc.id))).not.toBeNull();
+      // "Crash": the screen goes away without Save or Discard.
+      await cleanup();
+
+      await renderEdit(doc);
+      expect(await screen.findByText('Restored your unsaved changes.')).toBeOnTheScreen();
+      expect(screen.getByTestId('exercise-0-set-2-weight-value')).toHaveTextContent(/^60kg$/);
+      expect(mockPrevent.value).toBe(true);
+    });
+
+    it('Discard forgets the draft; the next open starts from the saved session', async () => {
+      const user = userEvent.setup();
+      const doc = pastDoc();
+      await renderEdit(doc);
+      await fixTheTypo(user);
+      await user.press(screen.getByTestId('edit-session-cancel'));
+      await user.press(await screen.findByTestId('edit-session-discard-sheet-confirm'));
+      expect(loadSessionDraft('edit', editDraftTarget(doc.id))).toBeNull();
+    });
+
+    it('ignores a draft older than the session it was made from', async () => {
+      const user = userEvent.setup();
+      const doc = pastDoc();
+      await renderEdit(doc);
+      await fixTheTypo(user);
+      await cleanup();
+      // The session synced a newer version in the meantime.
+      const newer = { ...doc, clientUpdatedAt: new Date(Date.now() + 1000).toISOString() };
+      await renderEdit(newer);
+      expect(await screen.findByTestId('exercise-0-set-2-weight-value')).toHaveTextContent(
+        /^600kg$/,
+      );
+      expect(screen.queryByText('Restored your unsaved changes.')).toBeNull();
+    });
   });
 
   it('Cancel with no edits just leaves', async () => {
@@ -407,6 +564,51 @@ describe('LogSessionScreen', () => {
     expect(after).not.toBe(start);
     expect(label('exercise-0-set-2-weight-value')).toBe(after);
     expect(label('exercise-0-set-3-weight-value')).toBe(after);
+  });
+
+  // WP-03 lane C (UX-GYM-26): log mode is guarded and crash-safe per day.
+  it('holds the swipe once the log is edited, and a crash brings the log back', async () => {
+    const user = userEvent.setup();
+    await renderLog('day-1');
+    await screen.findByTestId('exercise-0-set-1-weight-value');
+    expect(mockPrevent.value).toBe(false);
+    expect(loadSessionDraft('log', logDraftTarget(YESTERDAY, 'day-1'))).toBeNull();
+
+    await user.press(screen.getByTestId('exercise-0-set-1-weight-inc'));
+    expect(mockPrevent.value).toBe(true);
+    const label = (id: string): string =>
+      String(screen.getByTestId(id).props.accessibilityLabel ?? '');
+    const edited = label('exercise-0-set-1-weight-value');
+    expect(loadSessionDraft('log', logDraftTarget(YESTERDAY, 'day-1'))).not.toBeNull();
+
+    await cleanup();
+    await renderLog('day-1');
+    expect(await screen.findByText('Restored your unsaved changes.')).toBeOnTheScreen();
+    expect(label('exercise-0-set-1-weight-value')).toBe(edited);
+    expect(mockPrevent.value).toBe(true);
+  });
+
+  it('Back with an edited log asks "Discard this workout?"; Discard forgets the draft', async () => {
+    const user = userEvent.setup();
+    await renderLog('day-1');
+    await user.press(await screen.findByTestId('exercise-0-set-1-weight-inc'));
+    await user.press(screen.getByTestId('edit-session-cancel'));
+    expect(await screen.findByText('Discard this workout?')).toBeOnTheScreen();
+    await user.press(screen.getByTestId('edit-session-discard-sheet-confirm'));
+    expect(mockDispatch).toHaveBeenCalledWith(BACK_ACTION);
+    expect(loadSessionDraft('log', logDraftTarget(YESTERDAY, 'day-1'))).toBeNull();
+  });
+
+  it('saving a log forgets the draft and leaves without asking', async () => {
+    const user = userEvent.setup();
+    await renderLog('day-1');
+    await user.press(await screen.findByTestId('exercise-0-set-1-weight-inc'));
+    await user.press(screen.getByTestId('edit-session-save'));
+    expect(outbox.getState().entries).toHaveLength(1);
+    expect(loadSessionDraft('log', logDraftTarget(YESTERDAY, 'day-1'))).toBeNull();
+    expect(screen.queryByText('Discard this workout?')).toBeNull();
+    // Released in the same tick as the navigation: the held action is replayed.
+    expect(mockDispatch).toHaveBeenCalledWith(BACK_ACTION);
   });
 
   it('an empty freestyle log is not saved', async () => {

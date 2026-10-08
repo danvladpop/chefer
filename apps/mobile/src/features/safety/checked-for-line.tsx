@@ -2,7 +2,13 @@ import { Pressable, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import type { SafetyChecks } from '@chefer/types';
 import { Text } from '@chefer/ui-mobile';
-import { cantCheckLine, checkedForLineText, cn } from '@chefer/utils';
+import {
+  cantCheckLine,
+  checkedForLineText,
+  cn,
+  splitCheckedByVerification,
+  taggedOnlyLineText,
+} from '@chefer/utils';
 
 // PAT-2 — "Checked for …" (UX-02 §2, T-02.2/T-02.3): the full-line form for
 // recipe detail (under the tag chips) and cook mode (top of the ingredient
@@ -12,14 +18,17 @@ import { cantCheckLine, checkedForLineText, cn } from '@chefer/utils';
 // (T-02.3 AC3): render the conflict banner instead of this line, not both.
 
 export interface CheckedForLineProps {
-  checks: Pick<SafetyChecks, 'checked' | 'unchecked'>;
+  checks: Pick<SafetyChecks, 'checked' | 'unchecked'> & Partial<Pick<SafetyChecks, 'taggedOnly'>>;
   onPress?: () => void;
   testID?: string;
 }
 
 export function CheckedForLine({ checks, onPress, testID }: CheckedForLineProps) {
-  const { checked, unchecked } = checks;
-  if (checked.length === 0 && unchecked.length === 0) return null;
+  const { unchecked } = checks;
+  // UX-REC-01: a pass that rests on the recipe's tag alone is "Tagged … (not
+  // verified)", never "Checked".
+  const { verified: checked, taggedOnly } = splitCheckedByVerification(checks);
+  if (checked.length === 0 && taggedOnly.length === 0 && unchecked.length === 0) return null;
 
   const mainLine = checked.length > 0 ? checkedForLineText(checked) : null;
   const a11yLabel = mainLine
@@ -41,6 +50,15 @@ export function CheckedForLine({ checks, onPress, testID }: CheckedForLineProps)
             {mainLine}
           </Text>
         </View>
+      ) : null}
+      {taggedOnly.length > 0 ? (
+        <Text
+          testID={testID ? `${testID}-tagged-only` : undefined}
+          variant="muted"
+          className={cn('text-xs text-amber-700', mainLine ? 'pl-[22px]' : '')}
+        >
+          {taggedOnlyLineText(taggedOnly)}
+        </Text>
       ) : null}
       {unchecked.map((term) => (
         <Text key={term} variant="muted" className="pl-[22px] text-xs text-amber-700">

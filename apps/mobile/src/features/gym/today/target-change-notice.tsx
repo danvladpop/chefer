@@ -2,7 +2,13 @@ import { useEffect, useMemo } from 'react';
 import { onlineManager, useQueryClient } from '@tanstack/react-query';
 import type { GymBootstrap, WeightUnit } from '@chefer/types';
 import { ChangeNoticeCard, useSnackbar } from '@chefer/ui-mobile';
-import { formatLoad, snapshotTargets, targetDiff, type TargetDiffRow } from '@chefer/utils';
+import {
+  formatDate,
+  formatLoad,
+  snapshotTargets,
+  targetDiff,
+  type TargetDiffRow,
+} from '@chefer/utils';
 import { trpc } from '../../../lib/trpc';
 import { captureGymEvent } from '../analytics';
 import {
@@ -23,13 +29,21 @@ import { gymBootstrapQueryKey, libraryLookup } from '../use-gym-bootstrap';
 const MAX_ROWS = 3;
 
 function weekdayName(localDate: string): string {
-  return new Date(`${localDate}T00:00:00`).toLocaleDateString('en-US', { weekday: 'long' });
+  return formatDate(new Date(`${localDate}T00:00:00`), 'weekday-long');
 }
 
 /** "62.5 kg" when the weight moved, else the rep target ("10 reps"). */
-function describeTarget(row: TargetDiffRow, side: 'before' | 'after', unit: WeightUnit): string {
+function describeTarget(
+  row: TargetDiffRow,
+  side: 'before' | 'after',
+  unit: WeightUnit,
+  each: boolean,
+): string {
   const target = row[side];
-  if (row.before.weightKg !== row.after.weightKg) return formatLoad(target.weightKg, unit);
+  // UX-GYM-19: a per-hand exercise's weight is one dumbbell — "20 kg each".
+  if (row.before.weightKg !== row.after.weightKg) {
+    return formatLoad(target.weightKg, unit, 'WEIGHTED', { each });
+  }
   const reps = target.reps[0] ?? 0;
   return `${reps} ${reps === 1 ? 'rep' : 'reps'}`;
 }
@@ -58,7 +72,8 @@ export function TargetChangeNotice({
   const notice = useTargetNotice();
   const snackbar = useSnackbar();
   const queryClient = useQueryClient();
-  const setOverride = trpc.gym.progression.setOverride.useMutation();
+  // The card shows its own failure snackbar below — no second default one.
+  const setOverride = trpc.gym.progression.setOverride.useMutation({ meta: { silent: true } });
   const rows = useMemo(
     () => (notice ? noticeRows(notice, bootstrap, dataUpdatedAt) : null),
     [notice, bootstrap, dataUpdatedAt],
@@ -88,8 +103,8 @@ export function TargetChangeNotice({
       title="Next time changed after your edit"
       rows={shown.map((row) => ({
         label: find(row.exerciseId)?.name ?? row.exerciseId,
-        before: describeTarget(row, 'before', unit),
-        after: describeTarget(row, 'after', unit),
+        before: describeTarget(row, 'before', unit, find(row.exerciseId)?.perHand === true),
+        after: describeTarget(row, 'after', unit, find(row.exerciseId)?.perHand === true),
       }))}
       reason={more > 0 ? `and ${more} more\n${reason}` : reason}
       primary={{

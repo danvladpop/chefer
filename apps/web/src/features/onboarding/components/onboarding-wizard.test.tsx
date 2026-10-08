@@ -1,4 +1,5 @@
 // @vitest-environment jsdom
+import { capture } from '@/lib/analytics';
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { OnboardingWizard } from './onboarding-wizard';
@@ -64,9 +65,12 @@ vi.mock('@/lib/trpc', () => {
         updateSafety: { useMutation: mutation((...a) => m.safety(...a)) },
         saveProfileBasics: { useMutation: mutation((...a) => m.basics(...a)) },
         updateTargets: { useMutation: mutation(() => Promise.resolve({})) },
+        // WP-08: "Just protein" is saved at Finish.
+        setNumbersMode: { useMutation: mutation(() => Promise.resolve({})) },
         setDisplayPreferences: { useMutation: mutation(() => Promise.resolve({})) },
       },
       training: { setDayKinds: { useMutation: mutation(() => Promise.resolve({})) } },
+      household: { list: { useQuery: () => ({ data: [] }) } },
       mealPlan: {
         setShape: { useMutation: mutation(() => Promise.resolve({})) },
         getShape: {
@@ -99,7 +103,7 @@ describe('OnboardingWizard — jobs step (§2.4, T-03.6)', () => {
   it('asks "What should Chefer help with?" first, Continue disabled at 0 (AC1)', () => {
     render(<OnboardingWizard isPremium={false} />);
     expect(screen.getByRole('heading', { name: 'What should Chefer help with?' })).toBeTruthy();
-    expect(screen.getByText('Step 1')).toBeTruthy();
+    expect(screen.getByText('Getting started')).toBeTruthy();
     expect(screen.queryByText(/% complete/)).toBeNull();
     expect(screen.getByTestId('onboarding-continue').getAttribute('disabled')).toBe('');
   });
@@ -149,5 +153,66 @@ describe('OnboardingWizard — jobs step (§2.4, T-03.6)', () => {
     ];
     expect(input).toEqual({ jobs: ['PLAN_MEALS'] });
     expect(typeof opts?.onSuccess).toBe('function');
+  });
+
+  // UX-PO-02: every way out of the setup counts once as onboarding_completed.
+  it('Train only fires onboarding_completed with its job', async () => {
+    render(<OnboardingWizard isPremium={false} />);
+    fireEvent.click(screen.getByTestId('onboarding-job-TRAIN'));
+    fireEvent.click(screen.getByTestId('onboarding-continue'));
+    await waitFor(() => expect(m.push).toHaveBeenCalledWith('/gym/setup'));
+    expect(capture).toHaveBeenCalledWith('onboarding_completed', { jobs: ['TRAIN'] });
+  });
+
+  it('"Just looking around" fires onboarding_completed with PLAN_MEALS', async () => {
+    render(<OnboardingWizard isPremium={false} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Just looking around' }));
+    await waitFor(() => expect(m.push).toHaveBeenCalledWith('/dashboard'));
+    expect(capture).toHaveBeenCalledWith('onboarding_completed', { jobs: ['PLAN_MEALS'] });
+  });
+
+  it('does not fire when moving on to the food steps', async () => {
+    render(<OnboardingWizard isPremium={false} />);
+    fireEvent.click(screen.getByTestId('onboarding-job-HOUSEHOLD'));
+    fireEvent.click(screen.getByTestId('onboarding-continue'));
+    await screen.findByRole('heading', { name: "Who's at your table?" });
+    expect(capture).not.toHaveBeenCalledWith('onboarding_completed', expect.anything());
+  });
+});
+
+// UX-ONB-04: the device region picks the starting units once, in the wizard's
+// initial state — re-mounting How you cook (Back, then forward) used to put the
+// region's pick back over the user's own.
+describe('OnboardingWizard — region default is applied once (UX-ONB-04)', () => {
+  async function goToHowYouCook() {
+    render(<OnboardingWizard isPremium={false} />);
+    fireEvent.click(screen.getByTestId('onboarding-job-PLAN_MEALS'));
+    fireEvent.click(screen.getByTestId('onboarding-continue')); // jobs -> diet
+    await waitFor(() => expect(screen.getByTestId('onboarding-title').textContent).toMatch(/Diet/));
+    fireEvent.click(screen.getByTestId('onboarding-continue')); // diet -> how you cook
+    await waitFor(() => expect(screen.getByTestId('how-you-cook-units-imperial')).toBeTruthy());
+  }
+
+  it('starts from the device region, and a metric pick survives Back and forward', async () => {
+    vi.spyOn(navigator, 'languages', 'get').mockReturnValue(['en-US']);
+    await goToHowYouCook();
+    expect(screen.getByTestId('how-you-cook-units-imperial').getAttribute('aria-pressed')).toBe(
+      'true',
+    );
+
+    fireEvent.click(screen.getByTestId('how-you-cook-units-metric'));
+    fireEvent.click(screen.getByTestId('onboarding-continue')); // -> goal
+    await waitFor(() =>
+      expect(screen.getByTestId('onboarding-title').textContent).toMatch(/goal/i),
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'Back' })); // -> how you cook
+    await waitFor(() => expect(screen.getByTestId('how-you-cook-units-metric')).toBeTruthy());
+
+    expect(screen.getByTestId('how-you-cook-units-metric').getAttribute('aria-pressed')).toBe(
+      'true',
+    );
+    expect(screen.getByTestId('how-you-cook-units-imperial').getAttribute('aria-pressed')).toBe(
+      'false',
+    );
   });
 });

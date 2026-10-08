@@ -1,9 +1,10 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { ActivityIndicator, Image, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import { fetch as expoFetch } from 'expo/fetch';
 import { Button, Text } from '@chefer/ui-mobile';
+import { userFacingErrorMessage } from '@chefer/utils';
 import { getApiBaseUrl } from '../../../lib/api-url';
 import { getToken } from '../../../lib/auth-store';
 import { uploadImage } from '../../../lib/media-client';
@@ -16,6 +17,12 @@ export interface PhotoFieldProps {
   onChange: (url: string) => void;
   /** Offline: picking/changing is disabled with a reason (PAT-17's one exception). */
   disabled?: boolean;
+  /**
+   * UX-REC-12: fires as an upload starts and ends, so the form can hold Save
+   * until the photo URL is committed (a Save tapped mid-upload used to store
+   * the recipe without its photo).
+   */
+  onUploadingChange?: (uploading: boolean) => void;
 }
 
 /**
@@ -29,11 +36,22 @@ export interface PhotoFieldProps {
  * `photoPickerOptions()`, shrink on the device with `preparePhoto(asset)`
  * (T-BUG-O1.2), then upload the prepared bytes.
  */
-export function PhotoField({ imageUrl, onChange, disabled = false }: PhotoFieldProps) {
+export function PhotoField({
+  imageUrl,
+  onChange,
+  disabled = false,
+  onUploadingChange,
+}: PhotoFieldProps) {
   const [previewUri, setPreviewUri] = useState<string | null>(null);
   const [lastAsset, setLastAsset] = useState<ImagePicker.ImagePickerAsset | null>(null);
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    onUploadingChange?.(uploading);
+    // The callback is a setter; only the flag changing matters.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [uploading]);
 
   const pickPhotoAsset = async (): Promise<ImagePicker.ImagePickerAsset | null> => {
     const result = await ImagePicker.launchImageLibraryAsync(photoPickerOptions());
@@ -56,7 +74,7 @@ export function PhotoField({ imageUrl, onChange, disabled = false }: PhotoFieldP
       const url = await uploadPreparedPhoto(prepared);
       onChange(url);
     } catch (err) {
-      setError(err instanceof Error ? err.message : recipeFormCopy.photo.generic);
+      setError(userFacingErrorMessage(err, recipeFormCopy.photo.generic));
     } finally {
       setUploading(false);
     }

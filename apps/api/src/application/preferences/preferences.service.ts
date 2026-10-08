@@ -14,6 +14,7 @@ import {
 import type {
   DisplayCurrency,
   GoalValue,
+  NumbersMode,
   OnboardingIntent,
   OnboardingJob,
   SetDisplayPreferencesInput,
@@ -21,8 +22,14 @@ import type {
   TargetInputs,
   TargetsView,
 } from '@chefer/types';
+import { parseStoredNumbersMode } from '@chefer/types';
 import {
+  calorieFloor,
+  computeBmrTdee,
+  computeCalorieTarget,
   effectiveJobs,
+  isDeficitBlockedForAge,
+  isMinorAge,
   legacyIntentForJobs,
   lifterProteinGPerKg,
   toDisplayCurrency,
@@ -31,30 +38,13 @@ import {
 import { derivedServingSize, householdService } from '../household/household.service.js';
 import { consentService } from '../privacy/consent.service.js';
 
-// ─── Activity multipliers (Mifflin-St Jeor) ──────────────────────────────────
-
-const ACTIVITY_MULTIPLIERS: Record<string, number> = {
-  SEDENTARY: 1.2,
-  LIGHTLY_ACTIVE: 1.375,
-  MODERATELY_ACTIVE: 1.55,
-  VERY_ACTIVE: 1.725,
-  ATHLETE: 1.9,
-};
-
-// RECOMP and PERFORMANCE (§2.11, T-35.2, rev 2) are additive goals: both are
-// maintenance-calorie goals (no surplus/deficit — recomp trades fat for
-// muscle at the same weight; performance trains at upkeep), so both get a 0
-// kcal adjustment like MAINTAIN. Their macro split is a starting point only —
-// lifters (the expected audience for these two goals) get the g/kg protein
-// rule from `withLifterProtein` on top, same as every other goal.
-const GOAL_ADJUSTMENTS: Record<string, number> = {
-  LOSE_WEIGHT: -500,
-  MAINTAIN: 0,
-  GAIN_MUSCLE: 300,
-  EAT_HEALTHIER: 0,
-  RECOMP: 0,
-  PERFORMANCE: 0,
-};
+// ─── Calorie target (shared with web + mobile) ───────────────────────────────
+// Mifflin-St Jeor, goal adjustment, the under-18 no-deficit rule and the
+// sex-specific floor live in @chefer/utils (calorie-target.ts) so the web and
+// mobile previews can never drift from the planner (App Review R-02). They are
+// re-exported here because the Adaptive Chef (coach) and meal-plan generation
+// import them from this module.
+export { computeBmrTdee, computeCalorieTarget };
 
 const GOAL_MACRO_SPLITS: Record<string, { protein: number; carbs: number; fat: number }> = {
   LOSE_WEIGHT: { protein: 0.35, carbs: 0.35, fat: 0.3 },
@@ -68,44 +58,6 @@ const GOAL_MACRO_SPLITS: Record<string, { protein: number; carbs: number; fat: n
   RECOMP: { protein: 0.3, carbs: 0.4, fat: 0.3 },
   PERFORMANCE: { protein: 0.25, carbs: 0.5, fat: 0.25 },
 };
-
-/**
- * Raw Mifflin-St Jeor BMR + activity-multiplied TDEE. Exported for the
- * Adaptive Chef (F1): the weekly-review adjustment policy needs the safe
- * bounds (floor BMR×1.1, ceiling TDEE+500) without the goal adjustment.
- */
-export function computeBmrTdee(
-  weightKg: number,
-  heightCm: number,
-  age: number,
-  activityLevel: string,
-  biologicalSex: string | null,
-): { bmr: number; tdee: number } {
-  // Mifflin-St Jeor: male +5, female −161, unknown average −78
-  const sexConstant = biologicalSex === 'MALE' ? 5 : biologicalSex === 'FEMALE' ? -161 : -78;
-  const bmr = 10 * weightKg + 6.25 * heightCm - 5 * age + sexConstant;
-  const multiplier = ACTIVITY_MULTIPLIERS[activityLevel] ?? 1.55;
-  return { bmr: Math.round(bmr), tdee: Math.round(bmr * multiplier) };
-}
-
-/**
- * Goal-adjusted daily calorie target (Mifflin-St Jeor TDEE + goal adjustment,
- * e.g. −500 kcal for LOSE_WEIGHT). Exported so meal-plan generation can
- * recompute it live from body metrics — the stored ChefProfile value is only
- * a display snapshot and may predate goal/metric changes.
- */
-export function computeCalorieTarget(
-  weightKg: number,
-  heightCm: number,
-  age: number,
-  activityLevel: string,
-  biologicalSex: string | null,
-  goal?: string | null,
-): number {
-  const { tdee } = computeBmrTdee(weightKg, heightCm, age, activityLevel, biologicalSex);
-  const adjustment = goal ? (GOAL_ADJUSTMENTS[goal] ?? 0) : 0;
-  return Math.max(1200, tdee + adjustment); // minimum 1200 kcal
-}
 
 // ─── Macro targets ────────────────────────────────────────────────────────────
 
@@ -273,7 +225,14 @@ export function resolveTargets(
   // F1 ordering contract (premium_plan.md W1-A): the coach's cumulative dial
   // applies AFTER the goal adjustment (inside computeCalorieTarget above) and
   // BEFORE the protein cap (splitToGrams below sees the adjusted calories).
-  const calories = Math.max(1200, baseCalories + (profile?.targetAdjustmentKcal ?? 0));
+  // Under 18 the coach's dial can never push the target below maintenance
+  // (R-02: no calorie deficit for minors); everyone is held to the
+  // sex-specific floor (1,500 male / 1,200 otherwise).
+  const dial = profile?.targetAdjustmentKcal ?? 0;
+  const calories = Math.max(
+    calorieFloor(profile?.biologicalSex),
+    baseCalories + (isMinorAge(profile?.age) && dial < 0 ? 0 : dial),
+  );
 
   let suggested: DailyTargets = {
     dailyCalorieTarget: calories,
@@ -314,7 +273,9 @@ export function resolveTargets(
     isLifter: isLifterFlag,
     proteinGPerKg,
     usedAdjustedWeight,
-    rate: GOAL_RATE[goal] ?? null,
+    rate: isDeficitBlockedForAge(profile?.goal, profile?.age)
+      ? 'Maintenance calories (no calorie deficit under 18)'
+      : (GOAL_RATE[goal] ?? null),
   };
 
   return { effective, suggested, source: isOwn ? 'own' : 'suggested', inputs };
@@ -415,6 +376,12 @@ export interface PreferencesDto {
    * since it's read on nearly every screen.
    */
   jobs: OnboardingJob[];
+  /**
+   * WP-08: the stored numbers mode, `FULL` when never set. Additive — the
+   * same value is on `chefProfile.numbersMode` (nullable). Clients render
+   * `effectiveNumbersMode(numbersMode)` (NONE is treated as FULL until WP-16).
+   */
+  numbersMode: NumbersMode;
 }
 
 /**
@@ -462,8 +429,10 @@ export class PreferencesService {
    * multi-select replacement for `setIntent`. Also writes the legacy
    * `onboardingIntent` (the first job with a legacy equivalent) so web and
    * older mobile builds — which only ever read the intent — keep routing
-   * sensibly; when none of the chosen jobs has one (e.g. only `USE_WHAT_I_HAVE`
-   * / `SAVED_RECIPES` / `TRACK`), the stored legacy intent is left as it was.
+   * sensibly; when none of the chosen jobs has one (e.g. only `SAVED_RECIPES`
+   * / `TRACK`), the stored legacy intent is left as it was. `USE_WHAT_I_HAVE`
+   * (the retired pantry job) is still accepted and stored for old clients, but
+   * reads back as `PLAN_MEALS` through `effectiveJobs()`.
    */
   async setJobs(
     userId: string,
@@ -499,6 +468,22 @@ export class PreferencesService {
   ): Promise<{ showNutritionOnToday: boolean }> {
     const profile = await this.chefProfileRepo.upsert(userId, { showNutritionOnToday });
     return { showNutritionOnToday: profile.showNutritionOnToday ?? showNutritionOnToday };
+  }
+
+  /**
+   * WP-08 "What do you want to keep an eye on?" — free for every tier.
+   * Stores the numbers mode as given (`NONE` is reserved for WP-16 and is
+   * accepted now; clients treat it as FULL via `effectiveNumbersMode`).
+   * Deliberately independent of `showNutritionOnToday`: that flag keeps
+   * its own meaning for older app builds, and the new clients present both
+   * in one card.
+   */
+  async setNumbersMode(
+    userId: string,
+    numbersMode: NumbersMode,
+  ): Promise<{ numbersMode: NumbersMode }> {
+    const profile = await this.chefProfileRepo.upsert(userId, { numbersMode });
+    return { numbersMode: parseStoredNumbersMode(profile.numbersMode) ?? numbersMode };
   }
 
   /**
@@ -583,6 +568,7 @@ export class PreferencesService {
         jobs: chefProfile?.onboardingJobs ?? [],
         intent: chefProfile?.onboardingIntent ?? null,
       }),
+      numbersMode: parseStoredNumbersMode(chefProfile?.numbersMode) ?? 'FULL',
     };
   }
 

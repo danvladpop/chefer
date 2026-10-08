@@ -1,7 +1,7 @@
 import { Pressable, View } from 'react-native';
 import { router } from 'expo-router';
 import { Button, Card, Text } from '@chefer/ui-mobile';
-import { resumeSummary, todayStatus } from '@chefer/utils';
+import { resumeSummary, selectTodaysSession, todayStatus } from '@chefer/utils';
 import { setMode } from '../mode-store';
 import { useActiveSessionPausedAt } from '../offline/active-session-store';
 import { localDate } from '../offline/ids';
@@ -10,6 +10,8 @@ import { weekdayLabel } from '../routine/weekday';
 import { useActiveWorkout } from '../use-active-workout';
 import { libraryLookup, useGymBootstrap } from '../use-gym-bootstrap';
 import { supersetsOf } from '../workout/workout-model';
+import { RestCountdown } from './rest-countdown';
+import { setupLocalDate, workoutForDay } from './today-helpers';
 
 // "Today's workout" dashboard card (UX-04 §5 "Workout card on Food Today",
 // T-04.6): a link from Food into Gym. It reads only the persisted bootstrap —
@@ -68,6 +70,8 @@ export function TodaysWorkoutCard() {
           <Text testID="todays-workout-card-resume-label" className="mt-0.5 font-medium">
             {`${stateLabel} · ${summary.exercisesDone} of ${summary.exercisesTotal} exercises`}
           </Text>
+          {/* UX-GYM-09: the running rest, so minimising the workout never hides it. */}
+          <RestCountdown testID="todays-workout-card-rest" className="mt-0.5" />
         </View>
         <Button testID="todays-workout-card-resume-button" size="sm" onPress={goToWorkout}>
           Resume
@@ -93,8 +97,15 @@ export function TodaysWorkoutCard() {
     );
   }
 
-  const status = todayStatus({ bootstrap, today });
-  const { nextWorkout } = bootstrap;
+  const since = setupLocalDate(bootstrap.profile.setupCompletedAt);
+  const status = todayStatus({ bootstrap, today, since });
+  // UX-FOOD-19: the Plan names the routine day pinned to today's weekday, so a
+  // pinned day beats the rotation's "next" here too (one shared selector).
+  const session = selectTodaysSession({ bootstrap, today, since });
+  const nextWorkout =
+    session.kind === 'planned'
+      ? workoutForDay(bootstrap, session.dayId, today)
+      : bootstrap.nextWorkout;
 
   if (status.kind === 'done') {
     return (
@@ -111,7 +122,7 @@ export function TodaysWorkoutCard() {
     );
   }
 
-  if (status.kind === 'rest') {
+  if (status.kind === 'rest' && session.kind !== 'planned') {
     return (
       <Card testID="todays-workout-card" className="gap-1">
         <Text className="text-xs font-semibold uppercase tracking-widest text-gray-500">
@@ -154,7 +165,7 @@ export function TodaysWorkoutCard() {
       <Text variant="muted" className="text-xs">
         {`~${nextWorkout.estimatedMin} min · ${nextWorkout.exercises.length} exercises`}
       </Text>
-      <Button testID="todays-workout-card-start" size="sm" className="mt-1" onPress={handleStart}>
+      <Button testID="todays-workout-card-start" size="lg" className="mt-1" onPress={handleStart}>
         Start workout
       </Button>
     </Card>

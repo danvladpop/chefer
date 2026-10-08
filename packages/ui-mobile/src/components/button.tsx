@@ -1,14 +1,15 @@
-import { ActivityIndicator, Text } from 'react-native';
+import { ActivityIndicator, Keyboard, Text } from 'react-native';
 import { cva, type VariantProps } from 'class-variance-authority';
 import { cn } from '@chefer/utils';
 import { PressableScale, type PressableScaleProps } from '../motion/pressable-scale';
+import { DEFAULT_MAX_FONT_SCALE } from './text';
 import { colors } from './theme';
 
 // Same variant vocabulary as @chefer/ui's web Button. All sizes clear the
 // 44pt minimum touch target (CLAUDE.md). Built on PressableScale (MO-01):
 // scales to 0.97 on press; solid fills also dim via `active:opacity-80`.
 // Buttons get no haptic — that would be too much (motion-system.md MO-01).
-const buttonVariants = cva(
+export const buttonVariants = cva(
   'flex-row items-center justify-center gap-2 rounded-md active:opacity-80 disabled:opacity-50',
   {
     variants: {
@@ -20,9 +21,11 @@ const buttonVariants = cva(
         ghost: '',
       },
       size: {
-        default: 'h-11 px-4',
-        sm: 'h-11 px-3',
-        lg: 'h-12 px-8',
+        // min-h, not h: at Accessibility XL the label grows (App Review R-20)
+        // and the button must grow with it instead of clipping it.
+        default: 'min-h-11 px-4 py-2',
+        sm: 'min-h-11 px-3 py-2',
+        lg: 'min-h-12 px-8 py-2.5',
         icon: 'h-11 w-11',
       },
     },
@@ -35,6 +38,14 @@ const buttonVariants = cva(
 
 const buttonTextVariants = cva('text-sm font-medium', {
   variants: {
+    // `lg` (48pt) is the busy-hands size — Start workout, Freestyle (WP-04):
+    // its label steps up with it.
+    size: {
+      default: '',
+      sm: '',
+      lg: 'text-base',
+      icon: '',
+    },
     variant: {
       default: 'text-primary-foreground',
       destructive: 'text-destructive-foreground',
@@ -45,6 +56,7 @@ const buttonTextVariants = cva('text-sm font-medium', {
   },
   defaultVariants: {
     variant: 'default',
+    size: 'default',
   },
 });
 
@@ -52,6 +64,14 @@ export interface ButtonProps
   extends Omit<PressableScaleProps, 'children'>, VariantProps<typeof buttonVariants> {
   className?: string;
   loading?: boolean;
+  /**
+   * Close the on-screen keyboard when pressed (tester feedback 2026-10-04: the
+   * keyboard stayed up after a form was submitted). Defaults to true for the
+   * primary `default` / `destructive` variants — the form's submit — and false
+   * for secondary / outline / ghost buttons, which are often "add another"
+   * actions in the middle of typing.
+   */
+  dismissKeyboard?: boolean;
   /** Plain strings are wrapped in a variant-colored Text automatically. */
   children: React.ReactNode;
 }
@@ -64,8 +84,12 @@ export function Button({
   disabled,
   children,
   accessibilityState,
+  dismissKeyboard,
+  onPress,
   ...props
 }: ButtonProps) {
+  const closesKeyboard =
+    dismissKeyboard ?? (!variant || variant === 'default' || variant === 'destructive');
   const isDisabled = (disabled ?? false) || loading;
   return (
     <PressableScale
@@ -75,6 +99,15 @@ export function Button({
       // `busy` lets a screen reader (and tests) tell which of several buttons
       // is the one working.
       accessibilityState={{ disabled: isDisabled, busy: loading, ...accessibilityState }}
+      // Dismiss first, so a handler that re-focuses a field still wins.
+      onPress={
+        onPress && closesKeyboard
+          ? (event) => {
+              Keyboard.dismiss();
+              onPress(event);
+            }
+          : onPress
+      }
       {...props}
     >
       {loading ? (
@@ -90,7 +123,12 @@ export function Button({
         />
       ) : null}
       {typeof children === 'string' ? (
-        <Text className={buttonTextVariants({ variant })}>{children}</Text>
+        <Text
+          maxFontSizeMultiplier={DEFAULT_MAX_FONT_SCALE}
+          className={cn(buttonTextVariants({ variant, size }), 'shrink text-center')}
+        >
+          {children}
+        </Text>
       ) : (
         children
       )}

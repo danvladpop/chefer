@@ -6,7 +6,14 @@ import Svg, { Circle, G, Line, Polyline, Text as SvgText } from 'react-native-sv
 import { cn } from '@chefer/utils';
 import { Text } from '../text';
 import { colors } from '../theme';
-import { defaultFormat, linearScale, paddedExtent, useChartWidth } from './chart-utils';
+import {
+  clampLabelCentre,
+  defaultFormat,
+  linearScale,
+  niceTicks,
+  paddedExtent,
+  useChartWidth,
+} from './chart-utils';
 
 export interface LinePoint {
   /** Any monotonic number: a timestamp, a day index… */
@@ -34,6 +41,10 @@ export interface LineChartProps {
   xDomain?: { min: number; max: number };
   /** Dashed horizontal guide, e.g. a daily calorie target. Always kept in view. */
   reference?: { y: number; label?: string };
+  /** Lowest value the y axis may reach (e.g. 0 for calories): padding never dips below it. */
+  yFloor?: number;
+  /** Round axis bounds and gridlines (0 / 1,000 / 2,000) instead of padded min / mid / max. */
+  niceTicks?: boolean;
   width?: number;
   height?: number;
   color?: string;
@@ -77,6 +88,8 @@ export function LineChart({
   xLabels,
   reference,
   xDomain,
+  yFloor,
+  niceTicks: useNiceTicks = false,
   width: widthProp,
   height = 180,
   color = colors.primary,
@@ -90,11 +103,19 @@ export function LineChart({
   const { width, onLayout } = useChartWidth(widthProp);
   const secondaryData = secondary?.data ?? [];
 
-  const yExtent = paddedExtent([
+  const paddedY = paddedExtent([
     ...data.map((p) => p.y),
     ...(trend ?? []).filter((v): v is number => v !== null),
     ...(reference ? [reference.y] : []),
   ]);
+  // UX-FOOD-20: padding must not push an all-positive series below its floor
+  // (the calorie axis read -149.6).
+  const flooredY =
+    paddedY && yFloor !== undefined && paddedY.min < yFloor
+      ? { min: yFloor, max: Math.max(paddedY.max, yFloor + 1) }
+      : paddedY;
+  const nice = flooredY && useNiceTicks ? niceTicks(flooredY) : null;
+  const yExtent = nice ? { min: nice.min, max: nice.max } : flooredY;
   const secondaryExtent = paddedExtent(secondaryData.map((p) => p.y));
   const xExtent =
     xDomain ?? paddedExtent([...data.map((p) => p.x), ...secondaryData.map((p) => p.x)], 0);
@@ -111,7 +132,9 @@ export function LineChart({
     );
   }
 
-  const gridValues = [yExtent.min, (yExtent.min + yExtent.max) / 2, yExtent.max];
+  const gridValues = nice
+    ? nice.ticks
+    : [yExtent.min, (yExtent.min + yExtent.max) / 2, yExtent.max];
   const formatY2 = secondary?.formatY ?? defaultFormat;
   const secondaryColor = secondary?.color ?? colors.info;
 
@@ -266,7 +289,7 @@ export function LineChart({
           {xLabels?.map((label, i) => (
             <SvgText
               key={`xl-${i}`}
-              x={x(label.x)}
+              x={clampLabelCentre(x(label.x), label.label, width)}
               y={height - 4}
               fontSize={10}
               fill={colors.mutedForeground}

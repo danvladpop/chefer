@@ -1,12 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import {
-  Alert,
-  Pressable,
-  Text as RNText,
-  useWindowDimensions,
-  View,
-  type TextInput,
-} from 'react-native';
+import { Pressable, Text as RNText, useWindowDimensions, View, type TextInput } from 'react-native';
 import Animated, { FadeIn, FadeOut, LinearTransition } from 'react-native-reanimated';
 import { Ionicons } from '@expo/vector-icons';
 import { elevation } from '@chefer/tokens';
@@ -14,6 +7,8 @@ import type { ExerciseMeta } from '@chefer/types';
 import {
   Button,
   Card,
+  ConfirmSheet,
+  DONE_FIELD_PROPS,
   Input,
   Sheet,
   Text,
@@ -30,6 +25,7 @@ import {
   supersetSlot,
 } from '@chefer/utils';
 import { ExerciseNameLink } from '../components/exercise-name-link';
+import { SUPERSET_COPY, SupersetSheet } from '../components/superset-sheet';
 import { newId } from '../offline/ids';
 import type { RoutineDraftAction } from './reducer';
 import {
@@ -216,7 +212,6 @@ export function ExerciseRow({
               numberOfLines={nameLines}
               className="min-w-0 flex-1"
               textClassName="font-medium"
-              underline={false}
             />
           </View>
           <Pressable
@@ -432,6 +427,11 @@ export function DayEditor({
   const [expandedKey, setExpandedKey] = useState<string | null>(null);
   const [menuKey, setMenuKey] = useState<string | null>(null);
   const [dayMenuOpen, setDayMenuOpen] = useState(false);
+  // UX-X-13: "Delete day" confirms in a ConfirmSheet that opens once the menu
+  // sheet has exited (iOS can't present one sheet over a dismissing one).
+  const [deleteDayOpen, setDeleteDayOpen] = useState(false);
+  // plan-library-supersets S2: the visible "Superset" pick sheet.
+  const [supersetOpen, setSupersetOpen] = useState(false);
   // iOS refuses to present a Modal (the exercise picker) or an Alert while
   // a sheet is still dismissing — the invisible sheet then swallows every
   // tap ("Swap exercise freezes", owner dogfood 2026-09-30). Actions that
@@ -488,7 +488,7 @@ export function DayEditor({
           maxLength={40}
           onChangeText={(name) => dispatch({ type: 'renameDay', dayKey: day.key, name })}
           onFocus={() => scrollFieldIntoView(nameRef.current)}
-          returnKeyType="done"
+          {...DONE_FIELD_PROPS}
           placeholder="Day name"
         />
         <Pressable
@@ -540,6 +540,19 @@ export function DayEditor({
                   <Text variant="muted" className="min-w-0 flex-1 text-xs" numberOfLines={1}>
                     {lastRest ?? ex.restSec} s rest after each round
                   </Text>
+                  <Pressable
+                    testID={`${testIDBase}-superset-${slot.label}-ungroup`}
+                    accessibilityRole="button"
+                    accessibilityLabel={`Ungroup superset ${slot.label}`}
+                    onPress={() =>
+                      dispatch({ type: 'ungroupSuperset', dayKey: day.key, exerciseKey: ex.key })
+                    }
+                    className="min-h-11 justify-center px-2"
+                  >
+                    <Text className="text-sm font-medium text-primary">
+                      {SUPERSET_COPY.ungroup}
+                    </Text>
+                  </Pressable>
                 </View>
               ) : null}
               <ExerciseRow
@@ -577,9 +590,27 @@ export function DayEditor({
         </Button>
       </View>
       <View className="mt-1 flex-row items-center justify-between">
-        <Text testID={`${testIDBase}-duration`} variant="muted" className="text-xs">
+        <Text testID={`${testIDBase}-duration`} variant="muted" className="min-w-0 flex-1 text-xs">
           ~{durationMin} min
         </Text>
+        {/* plan-library-supersets S2: grouping is one visible tap away, not
+            under each exercise's "More". */}
+        <Pressable
+          testID={`${testIDBase}-superset-create`}
+          accessibilityRole="button"
+          accessibilityLabel={`Superset, ${day.name}`}
+          accessibilityHint="Pick exercises to do back to back"
+          accessibilityState={{ disabled: day.exercises.length < 2 }}
+          disabled={day.exercises.length < 2}
+          onPress={() => setSupersetOpen(true)}
+          className={cn(
+            'min-h-11 flex-row items-center gap-1 rounded-md px-3 active:bg-muted',
+            day.exercises.length < 2 && 'opacity-40',
+          )}
+        >
+          <Ionicons name="link" size={16} color="#6d28d9" />
+          <Text className="text-sm font-medium text-violet-800">{SUPERSET_COPY.title}</Text>
+        </Pressable>
         <Pressable
           testID={`${testIDBase}-day-menu`}
           accessibilityRole="button"
@@ -654,6 +685,24 @@ export function DayEditor({
         </View>
       </Sheet>
 
+      <SupersetSheet
+        visible={supersetOpen}
+        onClose={() => setSupersetOpen(false)}
+        testID={`${testIDBase}-superset-sheet`}
+        items={day.exercises.map((ex, i) => {
+          const slot = supersetSlot(day.exercises, i);
+          return {
+            key: ex.key,
+            name: lookup(ex.exerciseId)?.name ?? 'Exercise',
+            detail: slot ? `In superset ${slot.label}` : null,
+          };
+        })}
+        onApply={(exerciseKeys) => {
+          dispatch({ type: 'createSuperset', dayKey: day.key, exerciseKeys });
+          setSupersetOpen(false);
+        }}
+      />
+
       <Sheet
         visible={dayMenuOpen}
         onClose={() => setDayMenuOpen(false)}
@@ -681,24 +730,27 @@ export function DayEditor({
             label="Delete day"
             destructive
             onPress={() => {
-              afterSheetExit.current = () =>
-                Alert.alert(
-                  'Delete this day?',
-                  `"${day.name}" and its exercises will be removed.`,
-                  [
-                    { text: 'Cancel', style: 'cancel' },
-                    {
-                      text: 'Delete',
-                      style: 'destructive',
-                      onPress: () => dispatch({ type: 'deleteDay', dayKey: day.key }),
-                    },
-                  ],
-                );
+              afterSheetExit.current = () => setDeleteDayOpen(true);
               setDayMenuOpen(false);
             }}
           />
         </View>
       </Sheet>
+
+      <ConfirmSheet
+        visible={deleteDayOpen}
+        onClose={() => setDeleteDayOpen(false)}
+        title="Delete this day?"
+        body={`"${day.name}" and its exercises will be removed.`}
+        confirmLabel="Delete"
+        cancelLabel="Cancel"
+        destructive
+        onConfirm={() => {
+          setDeleteDayOpen(false);
+          dispatch({ type: 'deleteDay', dayKey: day.key });
+        }}
+        testID={`${testIDBase}-delete-confirm`}
+      />
     </Card>
   );
 }

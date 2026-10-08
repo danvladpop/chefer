@@ -1,7 +1,20 @@
 import { useEffect, useState } from 'react';
-import { View } from 'react-native';
-import { Button, Card, Input, SegmentedControl, Text } from '@chefer/ui-mobile';
+import { Pressable, View } from 'react-native';
+import {
+  Button,
+  Card,
+  ErrorState,
+  Input,
+  SegmentedControl,
+  Text,
+  useQueryState,
+} from '@chefer/ui-mobile';
+import { formatKcal, userFacingErrorMessage } from '@chefer/utils';
 import { trpc } from '../../lib/trpc';
+import { useNumbersMode } from '../numbers-mode/numbers-mode';
+import { ProteinWhySheet } from '../nutrition/protein-why-sheet';
+import { NumbersSettingsSection } from './numbers-settings-section';
+import { useNumericChain } from './use-numeric-chain';
 
 // ─── TargetsCard (§2.11, T-35.3) ────────────────────────────────────────────────
 // Settings › Preferences "Your targets": Suggested (read-only, from the
@@ -24,9 +37,33 @@ function parseIntOrNull(text: string): number | null {
   return Number.isFinite(n) ? n : null;
 }
 
-export function TargetsCard() {
+export interface TargetsCardProps {
+  /**
+   * UX-FOOD-14 (onboarding): the calorie target the body metrics ENTERED so far
+   * give. They are only saved when setup finishes, so until then the server
+   * still resolves the 2,000 kcal default — show this number instead.
+   */
+  previewKcal?: number | null | undefined;
+  /**
+   * WP-08: Preferences passes the stored numbers mode and the resolved "show
+   * nutrition on Today", which merges that setting and the older Today toggle
+   * into this one card. Omitted in onboarding, which asks the question on its
+   * goal step.
+   */
+  numbersSettings?:
+    | { numbersMode: string | null | undefined; showNutritionOnToday: boolean }
+    | undefined;
+}
+
+export function TargetsCard({ previewKcal, numbersSettings }: TargetsCardProps = {}) {
   const utils = trpc.useUtils();
-  const { data, isLoading } = trpc.targets.get.useQuery();
+  const { proteinOnly } = useNumbersMode();
+  const [whyOpen, setWhyOpen] = useState(false);
+  // Mounted on first open and kept, so the sheet still plays its exit motion.
+  const [whyMounted, setWhyMounted] = useState(false);
+  const targetsQuery = trpc.targets.get.useQuery();
+  const { data } = targetsQuery;
+  const { state: loadState, retry } = useQueryState(targetsQuery);
 
   const [mode, setMode] = useState<'SUGGESTED' | 'OWN'>('SUGGESTED');
   const [kcalText, setKcalText] = useState('');
@@ -34,6 +71,8 @@ export function TargetsCard() {
   const [carbsText, setCarbsText] = useState('');
   const [fatText, setFatText] = useState('');
   const [loaded, setLoaded] = useState(false);
+  // UX-ONB-06: one accessory bar per number field, Calories → Protein → Carbs → Fat.
+  const numeric = useNumericChain('targets', 4);
   const [localError, setLocalError] = useState<string | null>(null);
   // Bug B-38 pattern: "Saved ✓" must not stick past a further edit — snapshot
   // exactly what was sent, captured synchronously at save-click time.
@@ -52,17 +91,36 @@ export function TargetsCard() {
       savedSnapshot.carbsText !== carbsText ||
       savedSnapshot.fatText !== fatText);
 
+  // The server has no body metrics yet (onboarding) but the user has entered
+  // some: the suggested number is the one computed from those, not the default.
+  const fromEntered =
+    typeof previewKcal === 'number' && !!data && !data.custom.kcal && data.inputs.weightKg === null;
+
   useEffect(() => {
     if (!data || loaded) return;
     setMode(data.targetMode);
-    setKcalText(String(data.custom.kcal ?? data.effective.dailyCalorieTarget));
-    setProteinText(String(data.custom.proteinG ?? data.effective.proteinG));
-    setCarbsText(String(data.custom.carbsG ?? data.effective.carbsG));
-    setFatText(String(data.custom.fatG ?? data.effective.fatG));
+    // Macros scale with the calories so an own target prefilled from the
+    // preview still passes the server's 4/4/9 fit check.
+    const ratio =
+      fromEntered && previewKcal ? previewKcal / (data.effective.dailyCalorieTarget || 1) : 1;
+    const scaled = (grams: number) => String(Math.round(grams * ratio));
+    setKcalText(
+      String(data.custom.kcal ?? (fromEntered ? previewKcal : data.effective.dailyCalorieTarget)),
+    );
+    setProteinText(
+      data.custom.proteinG !== null
+        ? String(data.custom.proteinG)
+        : scaled(data.effective.proteinG),
+    );
+    setCarbsText(
+      data.custom.carbsG !== null ? String(data.custom.carbsG) : scaled(data.effective.carbsG),
+    );
+    setFatText(data.custom.fatG !== null ? String(data.custom.fatG) : scaled(data.effective.fatG));
     setLoaded(true);
-  }, [data, loaded]);
+  }, [data, loaded, fromEntered, previewKcal]);
 
   const setMutation = trpc.targets.set.useMutation({
+    meta: { silent: true },
     onSuccess: () => {
       void utils.targets.get.invalidate();
       void utils.targets.changes.invalidate();
@@ -70,7 +128,7 @@ export function TargetsCard() {
       void utils.tracker.getDay.invalidate();
       setLocalError(null);
     },
-    onError: (err) => setLocalError(err.message),
+    onError: (err) => setLocalError(userFacingErrorMessage(err)),
   });
 
   const save = () => {
@@ -103,10 +161,33 @@ export function TargetsCard() {
     });
   };
 
-  if (isLoading || !data) {
+  const numbersSection = numbersSettings ? (
+    <NumbersSettingsSection
+      initialMode={numbersSettings.numbersMode}
+      initialShowNutrition={numbersSettings.showNutritionOnToday}
+    />
+  ) : null;
+
+  // UX-X-12: a failed load is not "Loading…" forever — say so and offer Retry.
+  if (loadState === 'error') {
     return (
       <Card testID="targets-card" className="gap-2">
         <Text variant="heading">Your targets</Text>
+        {numbersSection}
+        <ErrorState
+          testID="targets-card-error"
+          title="Couldn't load your targets"
+          onRetry={retry}
+          className="py-4"
+        />
+      </Card>
+    );
+  }
+  if (!data) {
+    return (
+      <Card testID="targets-card" className="gap-2">
+        <Text variant="heading">Your targets</Text>
+        {numbersSection}
         <Text variant="muted" className="text-xs">
           Loading…
         </Text>
@@ -124,6 +205,8 @@ export function TargetsCard() {
         </Text>
       </View>
 
+      {numbersSection}
+
       <SegmentedControl
         size="sm"
         options={MODE_OPTIONS}
@@ -134,15 +217,53 @@ export function TargetsCard() {
       />
 
       {mode === 'SUGGESTED' ? (
-        <View className="gap-1 rounded-lg bg-accent p-3">
-          <Text className="text-2xl font-bold text-primary">
-            {data.suggested.dailyCalorieTarget.toLocaleString('en-US')} kcal
-          </Text>
-          <Text variant="muted" className="text-xs">
-            {data.suggested.proteinG}g protein · {data.suggested.carbsG}g carbs ·{' '}
-            {data.suggested.fatG}g fat
-          </Text>
-        </View>
+        proteinOnly ? (
+          // WP-08: protein-only mode shows the one number, and why it is that number.
+          <View className="gap-1 rounded-lg bg-accent p-3">
+            {fromEntered ? (
+              <Text variant="muted" className="text-xs">
+                Your protein is set from your weight and goal when you finish.
+              </Text>
+            ) : (
+              <>
+                <Text
+                  testID="targets-suggested-protein"
+                  className="text-2xl font-bold text-primary"
+                >
+                  {data.effective.proteinG} g protein a day
+                </Text>
+                <Pressable
+                  testID="targets-protein-why"
+                  accessibilityRole="button"
+                  accessibilityLabel="Why this protein number?"
+                  onPress={() => {
+                    setWhyMounted(true);
+                    setWhyOpen(true);
+                  }}
+                  className="min-h-11 justify-center self-start"
+                >
+                  <Text className="text-xs font-semibold text-primary">
+                    Why this protein number?
+                  </Text>
+                </Pressable>
+              </>
+            )}
+          </View>
+        ) : (
+          <View className="gap-1 rounded-lg bg-accent p-3">
+            <Text testID="targets-suggested-kcal" className="text-2xl font-bold text-primary">
+              {formatKcal(
+                fromEntered && previewKcal ? previewKcal : data.suggested.dailyCalorieTarget,
+              )}{' '}
+              kcal
+            </Text>
+            <Text variant="muted" className="text-xs">
+              {fromEntered
+                ? 'Worked out from the details you entered. Your macros are set when you finish.'
+                : `${data.suggested.proteinG}g protein · ${data.suggested.carbsG}g carbs · ${data.suggested.fatG}g fat`}
+            </Text>
+          </View>
+        )
       ) : (
         <View className="gap-3">
           <View className="flex-row gap-2">
@@ -150,6 +271,7 @@ export function TargetsCard() {
               <Text variant="label">Calories</Text>
               <Input
                 testID="targets-kcal"
+                {...numeric.bind(0)}
                 accessibilityLabel="Calories"
                 value={kcalText}
                 onChangeText={setKcalText}
@@ -160,6 +282,7 @@ export function TargetsCard() {
               <Text variant="label">Protein (g)</Text>
               <Input
                 testID="targets-protein"
+                {...numeric.bind(1)}
                 accessibilityLabel="Protein grams"
                 value={proteinText}
                 onChangeText={setProteinText}
@@ -172,6 +295,7 @@ export function TargetsCard() {
               <Text variant="label">Carbs (g)</Text>
               <Input
                 testID="targets-carbs"
+                {...numeric.bind(2)}
                 accessibilityLabel="Carbs grams"
                 value={carbsText}
                 onChangeText={setCarbsText}
@@ -182,6 +306,7 @@ export function TargetsCard() {
               <Text variant="label">Fat (g)</Text>
               <Input
                 testID="targets-fat"
+                {...numeric.bind(3)}
                 accessibilityLabel="Fat grams"
                 value={fatText}
                 onChangeText={setFatText}
@@ -192,13 +317,24 @@ export function TargetsCard() {
         </View>
       )}
 
+      {numeric.bars}
+
       <Button testID="targets-save" loading={setMutation.isPending} onPress={save}>
         {setMutation.isSuccess && !dirty ? 'Saved ✓' : 'Save targets'}
       </Button>
-      {(localError ?? setMutation.error?.message) && (
+      {(localError ??
+        (setMutation.error ? userFacingErrorMessage(setMutation.error) : undefined)) && (
         <Text testID="targets-error" className="text-xs text-red-600">
-          {localError ?? setMutation.error?.message}
+          {localError ??
+            (setMutation.error ? userFacingErrorMessage(setMutation.error) : undefined)}
         </Text>
+      )}
+      {whyMounted && (
+        <ProteinWhySheet
+          visible={whyOpen}
+          onClose={() => setWhyOpen(false)}
+          why={data.proteinWhy}
+        />
       )}
     </Card>
   );

@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { RegisterForm } from '@/features/auth/components/register-form';
+import { SocialSignIn } from '@/features/auth/components/social-sign-in';
 import { getSessionUser } from '@/features/auth/lib/session';
 
 export const metadata: Metadata = {
@@ -19,9 +20,10 @@ export default async function RegisterPage() {
 
   return (
     <div className="flex min-h-dvh flex-col items-center px-4 py-8 sm:py-12">
-      {/* my-auto (not justify-center on the parent): auto margins collapse to 0
+      {/* sm:my-auto (UX-ACC-14: top-aligned on phones so fields do not jump as errors
+          appear; not justify-center on the parent): auto margins collapse to 0
           when the card overflows a short phone viewport, keeping the top reachable. */}
-      <div className="my-auto w-full max-w-md space-y-8">
+      <div className="w-full max-w-md space-y-8 sm:my-auto">
         {/* Logo / Brand */}
         <div className="text-center">
           <Link
@@ -50,6 +52,10 @@ export default async function RegisterPage() {
         {/* Register Form Card */}
         <div className="rounded-xl border bg-card p-6 shadow-sm sm:p-8">
           <RegisterForm />
+          {/* WP-22: shown only when the API reports a provider as configured. */}
+          <div className="mt-5 empty:hidden">
+            <SocialSignIn mode="register" />
+          </div>
         </div>
 
         {/* Footer Links */}

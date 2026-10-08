@@ -24,6 +24,28 @@ export function matchesRecipeSlot(
   );
 }
 
+/** Two slot references point at the same plan slot. */
+export function sameSlot(
+  a: { mealType: string; slotIndex: number },
+  b: { mealType: string; slotIndex: number },
+): boolean {
+  return a.mealType === b.mealType && a.slotIndex === b.slotIndex;
+}
+
+/**
+ * Whether a stored entry is what fills `slot` (WP-06): the planned recipe
+ * ticked from that slot (`slotIndex` + meal type) or a custom entry that
+ * REPLACES it. Entries logged without a slot (cook mode, older clients) are
+ * never matched — a slot can't be read off them.
+ */
+export function isSlotEntry(
+  m: LoggedMealEntry,
+  slot: { mealType: string; slotIndex: number },
+): boolean {
+  if (m.replacesSlot) return sameSlot(m.replacesSlot, slot);
+  return isRecipeEntry(m) && m.slotIndex === slot.slotIndex && m.mealType === slot.mealType;
+}
+
 /**
  * Assigns a stable `entryId` to every entry that doesn't have one yet (bug
  * B-34, T-19.2). Pure and idempotent: entries that already carry an id are
@@ -67,6 +89,7 @@ export interface RecentAggregate {
   protein: number;
   carbs: number;
   fat: number;
+  unknownMacros?: ('protein' | 'carbs' | 'fat')[];
   portionMultiplier?: number;
   /** How many times this was logged in the scanned window. */
   count: number;
@@ -105,6 +128,8 @@ export function aggregateRecents(days: RecentLogDay[], limit = 15): RecentAggreg
         protein: entry.protein,
         carbs: entry.carbs,
         fat: entry.fat,
+        ...(entry.unknownMacros &&
+          entry.unknownMacros.length > 0 && { unknownMacros: entry.unknownMacros }),
         ...(entry.portionMultiplier !== undefined && {
           portionMultiplier: entry.portionMultiplier,
         }),
@@ -142,7 +167,17 @@ export function mergeLoggedMeals(
   incoming: LoggedMealEntry[],
   plannedRecipeIds: ReadonlySet<string>,
 ): LoggedMealEntry[] {
-  const incomingRecipes = incoming.filter(isRecipeEntry);
+  // WP-06: a slot the user replaced ("Ate something else") must not be
+  // ticked again by a stale/older client's save — that would count the meal
+  // twice. Incoming recipe entries naming such a slot are dropped.
+  const replaced = stored.flatMap((m) => (m.custom && m.replacesSlot ? [m.replacesSlot] : []));
+  const incomingRecipes = incoming.filter(isRecipeEntry).filter((m) => {
+    const slotIndex = m.slotIndex;
+    return (
+      slotIndex === undefined ||
+      !replaced.some((r) => sameSlot(r, { mealType: m.mealType, slotIndex }))
+    );
+  });
   const clientManaged = new Set<string>([
     ...plannedRecipeIds,
     ...incomingRecipes.map((m) => m.recipeId),

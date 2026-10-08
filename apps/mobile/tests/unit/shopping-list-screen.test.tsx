@@ -1,5 +1,6 @@
+import { Keyboard } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
-import { render, screen, userEvent } from '@testing-library/react-native';
+import { fireEvent, render, screen, userEvent } from '@testing-library/react-native';
 import ShoppingListScreen from '../../app/(food)/shopping-list';
 import { openPremium } from '../../src/features/premium/open-premium';
 
@@ -17,17 +18,7 @@ jest.mock('expo-router', () => ({
   router: { push: jest.fn() },
 }));
 jest.mock('../../src/features/premium/open-premium', () => ({ openPremium: jest.fn() }));
-jest.mock('../../src/features/ai-consent/ai-consent-provider', () => ({
-  useAiConsent: () => jest.fn(),
-}));
 jest.mock('../../src/features/gym/components/mode-switch', () => ({ ModeSwitch: () => null }));
-jest.mock('../../src/features/pantry/pantry-check-banner', () => ({
-  PantryCheckBanner: () => null,
-}));
-jest.mock('../../src/features/pantry/pantry-ghost-banner', () => ({
-  PantryGhostBanner: () => null,
-}));
-jest.mock('../../src/features/pantry/pantry-panel', () => ({ PantryPanel: () => null }));
 jest.mock('../../src/hooks/use-currency', () => ({ useCurrency: () => 'EUR' }));
 jest.mock('../../src/hooks/use-household', () => ({ useHousehold: () => mockHousehold() }));
 jest.mock('../../src/hooks/use-is-premium', () => ({ useIsPremium: () => mockPremium() }));
@@ -45,16 +36,13 @@ jest.mock('../../src/lib/trpc', () => ({
           invalidate: jest.fn(),
         },
       },
-      pantry: { list: { invalidate: jest.fn() } },
     }),
     shoppingList: {
       getForWeek: { useQuery: () => mockList() },
       toggleItems: { useMutation: () => mockMutation },
       addCustomItems: { useMutation: () => mockMutation },
       removeCustomItem: { useMutation: () => mockMutation },
-      regenerate: { useMutation: () => mockMutation },
     },
-    pantry: { markOutOfStock: { useMutation: () => mockMutation } },
     mealPlan: { getForWeek: { useQuery: () => mockPlan() } },
     preferences: { get: { useQuery: () => ({ data: undefined }) } },
   },
@@ -73,7 +61,7 @@ const list = (over: Record<string, unknown> = {}) => ({
     items: [{ key: 'a', ingredientName: 'Spinach', category: 'produce', quantity: 200, unit: 'g' }],
     checkedKeys: [],
     estimatedTotalEur: 40,
-    pantry: { entitled: true, savedEur: 0 },
+    pantry: { entitled: false, itemCount: 0, savedEur: 0 },
     ...over,
   },
   isLoading: false,
@@ -146,5 +134,112 @@ describe('Shop screen — household portions (T-10.4)', () => {
     await renderScreen();
     expect(screen.queryByTestId('shopping-first-week')).toBeNull();
     expect(screen.queryByTestId('shopping-household-locked')).toBeNull();
+  });
+});
+
+// Tester feedback 2026-10-04: adding an item closes the keyboard, from the
+// keyboard's own Done key and from the + button alike.
+describe('Shop screen — add an item (keyboard)', () => {
+  let dismiss: jest.SpyInstance;
+  beforeEach(() => {
+    dismiss = jest.spyOn(Keyboard, 'dismiss').mockImplementation(() => undefined);
+    mockMutation.mutate.mockClear();
+  });
+  afterEach(() => dismiss.mockRestore());
+
+  it('Done on the keyboard adds the item and closes the keyboard', async () => {
+    const user = userEvent.setup();
+    mockList.mockReturnValue(list());
+    await renderScreen();
+    const input = screen.getByTestId('add-item-input');
+    expect(input.props.returnKeyType).toBe('done');
+    await user.type(input, 'Oat milk');
+    await fireEvent(input, 'submitEditing');
+    expect(mockMutation.mutate).toHaveBeenCalledTimes(1);
+    expect(dismiss).toHaveBeenCalledTimes(1);
+  });
+
+  it('the + button adds the item and closes the keyboard', async () => {
+    const user = userEvent.setup();
+    mockList.mockReturnValue(list());
+    await renderScreen();
+    await user.type(screen.getByTestId('add-item-input'), 'Oat milk');
+    await user.press(screen.getByTestId('add-item-submit'));
+    expect(mockMutation.mutate).toHaveBeenCalledTimes(1);
+    expect(dismiss).toHaveBeenCalledTimes(1);
+  });
+
+  it('an empty name does nothing (the keyboard stays for the next try)', async () => {
+    mockList.mockReturnValue(list());
+    await renderScreen();
+    await fireEvent(screen.getByTestId('add-item-input'), 'submitEditing');
+    expect(mockMutation.mutate).not.toHaveBeenCalled();
+    expect(dismiss).not.toHaveBeenCalled();
+  });
+});
+
+// FB7-10: "In my kitchen" and the AI tidy-up are retired; the list says where it
+// comes from; a thumbnail that is missing or fails to load shows the aisle icon.
+describe('Shop screen — no kitchen, no AI (FB7-10)', () => {
+  it('has no "In my kitchen" segment and no Regenerate-with-AI button, even for premium', async () => {
+    mockPremium.mockReturnValue(true);
+    mockList.mockReturnValue(list());
+    await renderScreen();
+    expect(screen.queryByTestId('shop-segments')).toBeNull();
+    expect(screen.queryByTestId('shop-segment-kitchen')).toBeNull();
+    expect(screen.queryByText('In my kitchen')).toBeNull();
+    expect(screen.queryByTestId('regenerate-list')).toBeNull();
+    expect(screen.queryByText(/Regenerate with AI/)).toBeNull();
+    expect(screen.queryByText('Have it')).toBeNull();
+  });
+
+  it("says the list comes from the plan's recipes, for the whole week by default", async () => {
+    mockList.mockReturnValue(list());
+    await renderScreen();
+    expect(screen.getByTestId('shopping-provenance')).toHaveTextContent(
+      "From your plan's recipes · Mon–Sun",
+    );
+  });
+
+  it('names the remaining days for a plan made mid-week', async () => {
+    mockList.mockReturnValue(list({ fromDayOfWeek: 4 }));
+    await renderScreen();
+    expect(screen.getByTestId('shopping-provenance')).toHaveTextContent(
+      "From your plan's recipes · Fri–Sun",
+    );
+  });
+});
+
+// The thumbnail is decoration (the row carries the name), so it is hidden from a11y.
+const HIDDEN = { includeHiddenElements: true };
+
+describe('Shop screen — thumbnails never blank (FB7-10)', () => {
+  const withImage = (imageUrl: string) =>
+    list({
+      items: [
+        {
+          key: 'a',
+          ingredientName: 'Strawberries',
+          category: 'produce',
+          quantity: '200',
+          unit: 'g',
+          imageUrl,
+        },
+      ],
+    });
+
+  it('shows the aisle icon when the ingredient has no image URL', async () => {
+    mockList.mockReturnValue(withImage(''));
+    await renderScreen();
+    expect(screen.getByTestId('item-thumb-a-fallback', HIDDEN)).toBeOnTheScreen();
+  });
+
+  it('shows the picture, then the aisle icon when it fails to load', async () => {
+    mockList.mockReturnValue(withImage('https://img.example/strawberries.jpg'));
+    await renderScreen();
+    expect(screen.queryByTestId('item-thumb-a-fallback', HIDDEN)).toBeNull();
+    await fireEvent(screen.getByTestId('item-thumb-a', HIDDEN), 'error');
+    expect(screen.getByTestId('item-thumb-a-fallback', HIDDEN)).toBeOnTheScreen();
+    expect(screen.queryByTestId('item-thumb-a', HIDDEN)).toBeNull();
   });
 });

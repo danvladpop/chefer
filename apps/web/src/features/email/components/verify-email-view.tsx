@@ -14,7 +14,7 @@ const LINK_CLASSES =
 
 export function VerifyEmailView() {
   const token = useSearchParams().get('token') ?? '';
-  const mutation = trpc.notifications.confirmEmail.useMutation();
+  const mutation = trpc.notifications.confirmEmail.useMutation({ meta: { silent: true } });
   const started = useRef(false);
 
   useEffect(() => {

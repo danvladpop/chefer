@@ -1,7 +1,8 @@
 'use client';
 
 import Link from 'next/link';
-import { useEffect, useState } from 'react';
+import { useEffect } from 'react';
+import { HouseholdTableSummary } from '@/features/meal-plan/components/HouseholdTableSummary';
 import { trpc } from '@/lib/trpc';
 import {
   DISPLAY_CURRENCIES,
@@ -9,12 +10,14 @@ import {
   type PlanShape,
   type PlanSlot,
 } from '@chefer/types';
-import { cn, defaultsForRegion, detectRegion, planShapeSummary } from '@chefer/utils';
+import { cn, householdTableSummary, planShapeSummary } from '@chefer/utils';
 
 // ─── Step: How you cook (UX-07 §1, T-03.6) ─────────────────────────────────────
 // Web parity of mobile's how-you-cook-step.tsx. Reuses the same fieldsets as
 // PlanSettingsSheet (mealPlan.getShape/setShape), plus currency/units
-// (pre-selected from the device region, CI-24) and the once-only "Plan my
+// (pre-selected from the device region, CI-24 — by the wizard's initial state,
+// UX-ONB-04, never by this step, so going Back and forward keeps the user's
+// pick) and the once-only "Plan my
 // next week automatically every Sunday?" switch (T-03.9, default off).
 
 export type DraftShape = PlanShape & { leftovers: boolean };
@@ -85,21 +88,17 @@ export function StepHowYouCook({
   isPremium: boolean;
 }) {
   const { data } = trpc.mealPlan.getShape.useQuery();
-  const [regionApplied, setRegionApplied] = useState(false);
+  // UX-PLAN-12: a household's "Cooking for" is read-only, from the table.
+  const { data: householdMembers } = trpc.household.list.useQuery(undefined, {
+    staleTime: 60_000,
+  });
+  const table = householdTableSummary(householdMembers ?? []);
 
   useEffect(() => {
     if (!data) return;
     onChange((prev) => (prev.shape ? prev : { ...prev, shape: data }));
     // eslint-disable-next-line react-hooks/exhaustive-deps -- hydrate once
   }, [data]);
-
-  useEffect(() => {
-    if (regionApplied) return;
-    setRegionApplied(true);
-    const { preferredUnits, currency } = defaultsForRegion(detectRegion());
-    onChange((prev) => ({ ...prev, units: preferredUnits, currency }));
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- run once
-  }, []);
 
   if (!value.shape) {
     return (
@@ -220,29 +219,39 @@ export function StepHowYouCook({
         <legend className="text-xs font-semibold uppercase tracking-widest text-gray-500">
           Cooking for
         </legend>
-        <div role="radiogroup" aria-label="Cooking for" className="flex flex-wrap gap-2">
-          <Chip
-            testId="how-you-cook-for-1"
-            selected={shape.cookingFor == null || shape.cookingFor === 1}
-            onClick={() => onChange((prev) => ({ ...prev, shape: { ...shape, cookingFor: 1 } }))}
-          >
-            Just me
-          </Chip>
-          <Chip
-            testId="how-you-cook-for-2"
-            selected={shape.cookingFor === 2}
-            onClick={() => onChange((prev) => ({ ...prev, shape: { ...shape, cookingFor: 2 } }))}
-          >
-            Two of us
-          </Chip>
-        </div>
-        <Link
-          href="/preferences#household"
-          data-testid="how-you-cook-household-link"
-          className="text-xs font-semibold text-[#944a00] hover:underline"
-        >
-          Household of 3+? Set up your table ›
-        </Link>
+        {table ? (
+          <HouseholdTableSummary table={table} testId="how-you-cook-household-summary" />
+        ) : (
+          <>
+            <div role="radiogroup" aria-label="Cooking for" className="flex flex-wrap gap-2">
+              <Chip
+                testId="how-you-cook-for-1"
+                selected={shape.cookingFor == null || shape.cookingFor === 1}
+                onClick={() =>
+                  onChange((prev) => ({ ...prev, shape: { ...shape, cookingFor: 1 } }))
+                }
+              >
+                Just me
+              </Chip>
+              <Chip
+                testId="how-you-cook-for-2"
+                selected={shape.cookingFor === 2}
+                onClick={() =>
+                  onChange((prev) => ({ ...prev, shape: { ...shape, cookingFor: 2 } }))
+                }
+              >
+                Two of us
+              </Chip>
+            </div>
+            <Link
+              href="/preferences#household"
+              data-testid="how-you-cook-household-link"
+              className="text-xs font-semibold text-[#944a00] hover:underline"
+            >
+              Household of 3+? Set up your table ›
+            </Link>
+          </>
+        )}
       </fieldset>
 
       {isPremium && (
@@ -267,7 +276,7 @@ export function StepHowYouCook({
 
       <div aria-live="polite" className="rounded-xl bg-gray-50 px-3 py-2.5">
         <p data-testid="how-you-cook-summary" className="text-sm text-gray-700">
-          {planShapeSummary(shape)}
+          {planShapeSummary(shape, table ? (householdMembers?.length ?? 0) + 1 : null)}
         </p>
       </div>
 

@@ -54,14 +54,12 @@ describe('NutritionSummary — training day (audit P2-4)', () => {
     expect(screen.queryByRole('button', { name: 'Upgrade' })).toBeNull();
   });
 
-  it('free: the same line locked, base targets kept, upgrade one tap away', () => {
+  it('not applied (older API): base targets kept, and no premium copy or upgrade (WP-07)', () => {
     render(<NutritionSummary nutrition={{ ...base, trainingDay: trainingDay(false) }} />);
     expect(screen.getByText('Training day · +250 kcal, +32 g protein')).toBeTruthy();
-    expect(screen.getByText(/Premium adds this/)).toBeTruthy();
+    expect(screen.queryByText(/Premium/)).toBeNull();
     expect(screen.getByText('of 2,500 kcal eaten')).toBeTruthy();
-    expect(screen.getByRole('button', { name: 'Upgrade' }).getAttribute('data-source')).toBe(
-      'training-day',
-    );
+    expect(screen.queryByRole('button', { name: 'Upgrade' })).toBeNull();
   });
 
   it('rest day: no line', () => {
@@ -124,5 +122,37 @@ describe('NutritionSummary (MO-06)', () => {
     expect(fill?.style.transform).toMatch(/^scaleX\(/);
     expect(fill?.style.width).toBe('');
     expect(fill?.className).not.toContain('transition-all');
+  });
+});
+
+describe('NutritionSummary — status pill (UX-FOOD-05)', () => {
+  it('says how far over the target the day already is, never "on track"', () => {
+    render(
+      <NutritionSummary
+        nutrition={{ ...base, dailyCalorieTarget: 1701, plannedKcal: 1700, eatenKcal: 2572 }}
+        remainingPlannedKcal={759}
+      />,
+    );
+    expect(screen.getByTestId('nutrition-status')).toHaveTextContent('Over by 871 kcal');
+  });
+
+  it('warns the day is heading over when a planned meal tips it', () => {
+    render(
+      <NutritionSummary
+        nutrition={{ ...base, dailyCalorieTarget: 1701, plannedKcal: 2400, eatenKcal: 1672 }}
+        remainingPlannedKcal={759}
+      />,
+    );
+    expect(screen.getByTestId('nutrition-status')).toHaveTextContent('Heading over');
+  });
+
+  it('is on track when eaten plus remaining lands near the target', () => {
+    render(
+      <NutritionSummary
+        nutrition={{ ...base, plannedKcal: 2400, eatenKcal: 1000 }}
+        remainingPlannedKcal={1400}
+      />,
+    );
+    expect(screen.getByTestId('nutrition-status')).toHaveTextContent('On track');
   });
 });

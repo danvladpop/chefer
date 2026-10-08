@@ -66,7 +66,7 @@ export function PlanDayChips({
               adjustsFontSizeToFit
               maxFontSizeMultiplier={DENSE_MAX_FONT_SCALE}
               className={cn(
-                'text-[12px] font-semibold uppercase',
+                'text-xs font-semibold uppercase',
                 isSelected ? 'text-primary-foreground' : 'text-gray-600',
               )}
             >

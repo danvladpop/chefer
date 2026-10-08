@@ -1,18 +1,24 @@
 import { useMemo, useState } from 'react';
-import { FlatList, Pressable, TextInput, View } from 'react-native';
+import { FlatList, Keyboard, Pressable, TextInput, View } from 'react-native';
 import {
   HIDDEN_EXERCISE_IMAGE_IDS,
+  LIBRARY_FILTER_GROUPS,
   MUSCLE_LABELS,
-  VOLUME_GROUPS,
   type ExerciseDto,
-  type VolumeGroup,
+  type LibraryFilterGroup,
 } from '@chefer/types';
-import { ChipGroup, Sheet, Text } from '@chefer/ui-mobile';
-import { cn, isStrengthTrackingType, trackingTypeOf } from '@chefer/utils';
+import { Button, ChipGroup, keyboardDismissMode, Sheet, Text } from '@chefer/ui-mobile';
+import {
+  cn,
+  exerciseMatchesFilterGroup,
+  isStrengthTrackingType,
+  LIBRARY_FILTER_GROUP_LABELS,
+  trackingTypeOf,
+} from '@chefer/utils';
 import { ExerciseImage } from '../components/exercise-image';
+import { useIsOnline } from '../library-screens/online-status';
 import { CollapsibleChipFilters } from './collapsible-chip-filters';
 import { exerciseImageUrl } from './exercise-image';
-import { useKeyboardVisible } from './use-keyboard-visible';
 
 // Shared exercise picker (swap in the workout, add to a routine/session).
 // Reads the offline-cached library, so it works in a basement gym.
@@ -29,25 +35,27 @@ export interface ExercisePickerProps {
   excludeIds?: readonly string[];
   /** T-42.3: show a "Cardio" filter chip first (behind cardioLogging — the caller decides). */
   showCardioFilter?: boolean;
+  /**
+   * UX-GYM-21: when nothing matches the search, offer `Create "<query>"` (online
+   * only — custom exercises are created on the server). The picker closes
+   * itself first, then calls this with the searched name; the caller opens the
+   * form (`openCreateExercise`). Omit for pickers that only choose existing lifts.
+   */
+  onCreateFromSearch?: (name: string) => void;
   testID?: string;
 }
 
-/** T-42.3: the picker's group filter is a VolumeGroup, or the special "Cardio" bucket. */
-export type PickerFilter = VolumeGroup | 'CARDIO';
+/** T-42.3: the picker's group filter is a library muscle group (L2), or the special "Cardio" bucket. */
+export type PickerFilter = LibraryFilterGroup | 'CARDIO';
 
-const GROUP_FILTERS: { value: VolumeGroup; label: string }[] = (
-  Object.keys(VOLUME_GROUPS) as VolumeGroup[]
+const GROUP_FILTERS: { value: LibraryFilterGroup; label: string }[] = (
+  Object.keys(LIBRARY_FILTER_GROUPS) as LibraryFilterGroup[]
 ).map((group) => ({
   value: group,
-  label: (MUSCLE_LABELS as Record<string, string | undefined>)[group] ?? 'Back',
+  label: LIBRARY_FILTER_GROUP_LABELS[group],
 }));
 
 const CARDIO_FILTER: { value: PickerFilter; label: string } = { value: 'CARDIO', label: 'Cardio' };
-
-function matchesGroup(exercise: ExerciseDto, group: VolumeGroup): boolean {
-  const muscles = VOLUME_GROUPS[group] as readonly string[];
-  return exercise.primaryMuscles.some((m) => muscles.includes(m));
-}
 
 export function filterExercises(
   library: ExerciseDto[],
@@ -58,7 +66,7 @@ export function filterExercises(
     .filter((e) => !e.archived && !(opts.excludeIds ?? []).includes(e.id))
     .filter((e) => {
       if (opts.group === 'CARDIO') return !isStrengthTrackingType(trackingTypeOf(e));
-      return opts.group ? matchesGroup(e, opts.group) : true;
+      return opts.group ? exerciseMatchesFilterGroup(e, opts.group) : true;
     })
     .filter((e) =>
       q.length === 0
@@ -77,11 +85,12 @@ export function ExercisePicker({
   preferSwapGroup,
   excludeIds,
   showCardioFilter = false,
+  onCreateFromSearch,
   testID = 'exercise-picker',
 }: ExercisePickerProps) {
+  const online = useIsOnline();
   const [query, setQuery] = useState('');
   const [group, setGroup] = useState<PickerFilter | null>(null);
-  const keyboardVisible = useKeyboardVisible();
   const filterOptions = showCardioFilter ? [CARDIO_FILTER, ...GROUP_FILTERS] : GROUP_FILTERS;
 
   const rows = useMemo(() => {
@@ -103,6 +112,8 @@ export function ExercisePicker({
             placeholder="Search exercises"
             placeholderTextColor="#4b5563"
             autoCorrect={false}
+            returnKeyType="search"
+            onSubmitEditing={() => Keyboard.dismiss()}
             accessibilityLabel="Search exercises"
             className={cn(
               'min-h-11 rounded-xl border border-border bg-background px-3 text-base',
@@ -121,29 +132,23 @@ export function ExercisePicker({
             </Pressable>
           ) : null}
         </View>
-        {/* T-05.A3.1 (AC19-22): ChipGroup wraps onto multiple lines by
-            default — collapsed to one horizontal strip while the keyboard is
-            up so >= 5 results stay visible. */}
-        <CollapsibleChipFilters
-          testID={`${testID}-filters`}
-          collapsed={keyboardVisible}
-          rows={[
-            <ChipGroup
-              key="group"
-              testID={`${testID}-groups`}
-              options={filterOptions}
-              value={group ? [group] : []}
-              onChange={(v) => setGroup(v[0] ?? null)}
-              allowEmpty
-              className={keyboardVisible ? 'flex-nowrap' : undefined}
-            />,
-          ]}
-        />
+        {/* FB7-07: one horizontally scrolling row of muscle chips. */}
+        <CollapsibleChipFilters testID={`${testID}-filters`}>
+          <ChipGroup
+            testID={`${testID}-groups`}
+            options={filterOptions}
+            value={group ? [group] : []}
+            onChange={(v) => setGroup(v[0] ?? null)}
+            allowEmpty
+            className="flex-nowrap"
+          />
+        </CollapsibleChipFilters>
       </View>
       <FlatList
         data={rows}
         keyExtractor={(e) => e.id}
         keyboardShouldPersistTaps="handled"
+        keyboardDismissMode={keyboardDismissMode()}
         initialNumToRender={12}
         renderItem={({ item }) => {
           const uri = exerciseImageUrl(item);
@@ -179,9 +184,23 @@ export function ExercisePicker({
           );
         }}
         ListEmptyComponent={
-          <Text variant="muted" className="px-4 py-6 text-center">
-            No exercises match. Try another search.
-          </Text>
+          <View className="items-center gap-3 px-4 py-6">
+            <Text variant="muted" className="text-center">
+              No exercises match. Try another search.
+            </Text>
+            {onCreateFromSearch && online && query.trim().length >= 2 ? (
+              <Button
+                testID={`${testID}-create-from-search`}
+                variant="outline"
+                onPress={() => {
+                  onClose();
+                  onCreateFromSearch(query.trim());
+                }}
+              >
+                {`Create “${query.trim()}”`}
+              </Button>
+            ) : null}
+          </View>
         }
       />
     </Sheet>

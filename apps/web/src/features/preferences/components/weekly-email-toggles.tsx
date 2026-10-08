@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { trpc } from '@/lib/trpc';
 import { Switch } from '@chefer/ui';
+import { userFacingErrorMessage } from '@chefer/utils';
 
 // Weekly emails (audit P2-5, F-PM-14): the Monday "your week is ready" email
 // and the Sunday recap, every tier. Both are on by default and only go to a
@@ -92,6 +93,7 @@ export function WeeklyEmailToggles({ initial }: { initial: WeeklyEmailPreference
     meQuery.data?.emailDefaultsNoticeAt === null && (prefs.weekReady || prefs.weeklyRecap);
 
   const save = trpc.notifications.setEmailPreferences.useMutation({
+    meta: { silent: true },
     onSuccess: (res) => setPrefs(res),
     // Roll back only the switch that failed.
     onError: (_err, vars) =>
@@ -101,7 +103,7 @@ export function WeeklyEmailToggles({ initial }: { initial: WeeklyEmailPreference
         ...(vars.weeklyRecap !== undefined && { weeklyRecap: !vars.weeklyRecap }),
       })),
   });
-  const resend = trpc.notifications.resendConfirmation.useMutation();
+  const resend = trpc.notifications.resendConfirmation.useMutation({ meta: { silent: true } });
 
   const toggle = (key: Key, next: boolean) => {
     setPrefs((p) => ({ ...p, [key]: next }));
@@ -174,7 +176,7 @@ export function WeeklyEmailToggles({ initial }: { initial: WeeklyEmailPreference
           )}
           {resend.isError && (
             <p role="alert" className="mt-2 text-xs text-red-600">
-              {resend.error.message}
+              {userFacingErrorMessage(resend.error)}
             </p>
           )}
         </div>

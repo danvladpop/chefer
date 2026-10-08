@@ -4,7 +4,7 @@ import { useRouter } from 'next/navigation';
 import { ChevronRight } from 'lucide-react';
 import type { TableSafety, TableSafetyPerson } from '@chefer/types';
 import { Sheet } from '@chefer/ui';
-import { SAFETY_COPY } from '@chefer/utils';
+import { SAFETY_COPY, WELLNESS_COPY } from '@chefer/utils';
 
 // WhatWeCheckSheet (UX-02 "What we check" sheet — T-02.2). Web parity of the
 // mobile component; rows come straight from `safety.getTable`'s TableSafety
@@ -68,6 +68,12 @@ export function WhatWeCheckSheet({ open, onClose, table, onEditPerson }: WhatWeC
           <p className="text-sm font-semibold">{SAFETY_COPY.sheetHowHeading}</p>
           <p className="text-xs leading-relaxed text-muted-foreground">
             {SAFETY_COPY.sheetHowBody}
+          </p>
+          <p
+            data-testid="what-we-check-advisory"
+            className="text-xs leading-relaxed text-muted-foreground"
+          >
+            {WELLNESS_COPY.mealPlanAdvisoryDisclaimer}
           </p>
         </div>
       </div>

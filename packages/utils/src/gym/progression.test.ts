@@ -9,6 +9,7 @@ import type {
 import {
   applyExposure,
   breakFactor,
+  carriedWeightKg,
   deloadPrescription,
   explain,
   fitTargets,
@@ -158,6 +159,13 @@ describe('initialState & starting guesses (research §1.7)', () => {
     ['push-up', 3, 8, 20, INT, 0],
     ['assisted-pull-up', 3, 6, 10, BEG, 40],
     ['assisted-pull-up', 3, 6, 10, INT, 20],
+    // 2026-10 library expansion: rotator-cuff and front-raise work start light.
+    ['dumbbell-external-rotation', 2, 12, 20, BEG, 2],
+    ['dumbbell-external-rotation', 2, 12, 20, INT, 4],
+    ['band-external-rotation', 2, 12, 20, INT, 5], // 4 → nearest 2.5 kg band step
+    ['dumbbell-front-raise', 2, 10, 15, BEG, 4],
+    ['kettlebell-swing', 3, 10, 20, BEG, 12],
+    ['band-pull-apart', 2, 15, 25, BEG, 5],
   ];
   it.each(cases)('%s (%d×%d–%d, %s) starts at %d kg', (id, sets, lo, hi, exp, kg) => {
     const slot = slotFor(id, sets, lo, hi);
@@ -188,6 +196,60 @@ describe('initialState & starting guesses (research §1.7)', () => {
     for (const slot of [pullUp, assisted, plank, carry]) {
       expect(fresh(slot).calibrating).toBe(false);
     }
+  });
+});
+
+// UX-GYM-18: editing a routine's rep range used to throw away the weight the
+// user told setup about (40 kg → "Starting guess: 25 kg").
+describe('carriedWeightKg — a new rep range keeps the known weight', () => {
+  const wide = slotFor('barbell-bench-press', 3, 8, 12); // first target 8
+  const heavy = slotFor('barbell-bench-press', 3, 4, 6); // first target 4
+  const light = slotFor('barbell-bench-press', 3, 12, 15); // first target 12
+
+  it('re-estimates through the e1RM: heavier for fewer reps, lighter for more', () => {
+    const state = known(wide, 40);
+    const kgHeavy = carriedWeightKg({ slot: heavy, siblings: [state] });
+    const kgLight = carriedWeightKg({ slot: light, siblings: [state] });
+    expect(kgHeavy).toBeGreaterThan(40);
+    expect(kgLight).toBeLessThan(40);
+    // 40 kg × 8 @ RIR 2 → e1RM 40 × (1 + 10/30) = 53.3; 4 reps @ RIR 2 → 53.3 / 1.2 = 44.4.
+    expect(kgHeavy).toBeCloseTo(44.44, 1);
+  });
+
+  it('feeds initialState so the new range starts from it, not from the starting guess', () => {
+    const carried = carriedWeightKg({ slot: heavy, siblings: [known(wide, 40)] });
+    const state = initialState({
+      slot: heavy,
+      profile: P,
+      experience: INT,
+      knownWeightKg: carried,
+    });
+    expect(state.next.weightKg).toBe(45);
+    expect(state.next.reasonCode).toBe('START');
+    expect(state.next.weightKg).not.toBe(
+      initialState({ slot: heavy, profile: P, experience: INT }).next.weightKg,
+    );
+  });
+
+  it('prefers the most recently worked sibling', () => {
+    const old = step(wide, known(wide, 40), '2026-09-01', 40, [8, 8, 8]);
+    const recent = step(
+      slotFor('barbell-bench-press', 3, 6, 8),
+      known(slotFor('barbell-bench-press', 3, 6, 8), 60),
+      '2026-09-20',
+      60,
+      [6, 6, 6],
+    );
+    const fromRecent = carriedWeightKg({ slot: heavy, siblings: [old, recent] });
+    const fromOld = carriedWeightKg({ slot: heavy, siblings: [old] });
+    expect(fromRecent).toBeGreaterThan(fromOld ?? 0);
+  });
+
+  it('carries nothing from a bare starting guess, or for bodyweight and timed work', () => {
+    expect(carriedWeightKg({ slot: heavy, siblings: [fresh(wide)] })).toBeNull();
+    expect(carriedWeightKg({ slot: heavy, siblings: [] })).toBeNull();
+    expect(carriedWeightKg({ slot: pullUp, siblings: [known(wide, 40)] })).toBeNull();
+    expect(carriedWeightKg({ slot: plank, siblings: [known(wide, 40)] })).toBeNull();
   });
 });
 

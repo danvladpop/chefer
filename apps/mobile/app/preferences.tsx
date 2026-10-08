@@ -1,14 +1,31 @@
-import { useEffect, useState } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, TextInput, View } from 'react-native';
+import { useEffect, useRef, useState } from 'react';
+import { ActivityIndicator, Pressable, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { DISPLAY_CURRENCIES, type DisplayCurrency } from '@chefer/types';
-import { Button, Card, ErrorState, Screen, Text } from '@chefer/ui-mobile';
-import { cn, currencySymbol, fromEur, toDisplayCurrency, toEur } from '@chefer/utils';
+import {
+  Button,
+  Card,
+  ErrorState,
+  Input,
+  KeyboardAwareScrollView,
+  Screen,
+  Text,
+} from '@chefer/ui-mobile';
+import {
+  cn,
+  currencySymbol,
+  formatKcal,
+  fromEur,
+  parseWeeklyBudget,
+  toDisplayCurrency,
+  toEur,
+  userFacingErrorMessage,
+  weeklyBudgetCapLabel,
+} from '@chefer/utils';
 import { AutoPlanToggle } from '../src/features/preferences/auto-plan-toggle';
 import { SafetyStep } from '../src/features/preferences/components/safety-step';
 import { GoalBodyCard, type GoalBodySavePayload } from '../src/features/preferences/goal-body-card';
-import { HomeDisplayToggle } from '../src/features/preferences/home-display-toggle';
 import { TargetsCard } from '../src/features/preferences/targets-card';
 import type {
   ActivityLevel,
@@ -16,11 +33,14 @@ import type {
   Goal,
   SafetyValue,
 } from '../src/features/preferences/types';
+import { useNumericChain } from '../src/features/preferences/use-numeric-chain';
 import { WeeklyUpdatesCard } from '../src/features/preferences/weekly-updates-card';
 import { openPremium } from '../src/features/premium/open-premium';
 import { HealthDeclinedNotice } from '../src/features/privacy/health-notices';
 import { useHealthConsent } from '../src/features/privacy/use-health-consent';
 import { MigrationCard } from '../src/features/safety/migration-card';
+import type { SafetyPickerHandle } from '../src/features/safety/safety-picker';
+import { SectionAnchor, useSectionTitle } from '../src/features/settings/section-anchor';
 import { useIsPremium } from '../src/hooks/use-is-premium';
 import { trpc } from '../src/lib/trpc';
 
@@ -42,6 +62,8 @@ function budgetText(budgetEur: number | null | undefined, currency: DisplayCurre
 
 export default function PreferencesScreen() {
   const isPremium = useIsPremium();
+  // UX-ACC-04: opened from a Settings row (`?section=`), the title is the row's.
+  const title = useSectionTitle('Preferences');
   const { data, isLoading, isError, refetch } = trpc.preferences.get.useQuery();
   const utils = trpc.useUtils();
   // T-26.2: allergies/diets/dislikes are health information — asked once, on the first save.
@@ -55,12 +77,18 @@ export default function PreferencesScreen() {
     dislikedIngredients: [],
   });
   const [safetyLoaded, setSafetyLoaded] = useState(false);
+  // UX-ACC-01: a term typed in "Something else?" but never added with "+" is
+  // flushed into the value on Save (and counts as an unsaved edit meanwhile).
+  const safetyPickerRef = useRef<SafetyPickerHandle>(null);
+  const [safetyTermPending, setSafetyTermPending] = useState(false);
 
   // ── Units & currency (free) + budget (premium) ─────────────────────────────
   const savedCurrency = toDisplayCurrency(data?.chefProfile?.deliveryCurrency);
   const [units, setUnits] = useState<'METRIC' | 'IMPERIAL'>('METRIC');
   const [currency, setCurrency] = useState<DisplayCurrency>('EUR');
   const [budget, setBudget] = useState('');
+  // UX-X-05: the budget pad gets its own "Done" bar (number pads have no Return on iOS).
+  const budgetNumeric = useNumericChain('prefs-budget', 1);
 
   useEffect(() => {
     if (!data || safetyLoaded) {
@@ -79,12 +107,14 @@ export default function PreferencesScreen() {
   }, [data, safetyLoaded]);
 
   const safetyMutation = trpc.preferences.updateSafety.useMutation({
+    meta: { silent: true },
     onSuccess: () => {
       void utils.preferences.get.invalidate();
       void utils.mealPlan.invalidate();
     },
   });
   const displayMutation = trpc.preferences.setDisplayPreferences.useMutation({
+    meta: { silent: true },
     onSuccess: (_result, input) => {
       // The typed budget keeps its value in the new currency.
       if (input.currency && input.currency !== savedCurrency) {
@@ -99,12 +129,17 @@ export default function PreferencesScreen() {
     },
   });
   const targetsMutation = trpc.preferences.updateTargets.useMutation({
+    meta: { silent: true },
     onSuccess: () => void utils.preferences.get.invalidate(),
   });
   const goalBodyMutation = trpc.preferences.saveProfileBasics.useMutation({
+    meta: { silent: true },
     onSuccess: () => {
       void utils.preferences.get.invalidate();
       void utils.dashboard.invalidate();
+      // UX-ACC-21: "Your targets" on this same screen showed the old number
+      // until the next visit — the goal and body drive the suggested target.
+      void utils.targets.invalidate();
     },
   });
 
@@ -122,7 +157,8 @@ export default function PreferencesScreen() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [safetyMutation.isSuccess, safetyLoaded]);
   const safetyDirty =
-    savedSafety !== null && JSON.stringify(savedSafety) !== JSON.stringify(safety);
+    safetyTermPending ||
+    (savedSafety !== null && JSON.stringify(savedSafety) !== JSON.stringify(safety));
 
   const [savedDisplay, setSavedDisplay] = useState<{
     units: 'METRIC' | 'IMPERIAL';
@@ -143,13 +179,16 @@ export default function PreferencesScreen() {
   const budgetDirty = savedBudget !== null && savedBudget !== budget;
 
   const saveSafety = () => {
+    // null = a typed term still needs a Keep/Remove choice: don't save yet.
+    const toSave = safetyPickerRef.current ? safetyPickerRef.current.flush() : safety;
+    if (toSave === null) return;
     setSafetyDeclined(false);
-    requestHealthConsent(() => safetyMutation.mutate(safety), {
+    requestHealthConsent(() => safetyMutation.mutate(toSave), {
       // Clearing every list stores nothing health-related — no consent needed.
       hasHealthData:
-        safety.allergies.length +
-          safety.dietaryRestrictions.length +
-          safety.dislikedIngredients.length >
+        toSave.allergies.length +
+          toSave.dietaryRestrictions.length +
+          toSave.dislikedIngredients.length >
         0,
       // "Don't save it": nothing health-related is stored; say what that means.
       onDeclined: () => setSafetyDeclined(true),
@@ -158,12 +197,17 @@ export default function PreferencesScreen() {
 
   const saveDisplay = () => displayMutation.mutate({ preferredUnits: units, currency });
 
+  // UX-ACC-23: blank removes the budget; anything else must be a real amount
+  // within the cap — "abc" no longer erases it and 5000 is no longer stored as 2000.
+  const [budgetError, setBudgetError] = useState<string | null>(null);
   const saveBudget = () => {
-    const parsed = parseFloat(budget.replace(',', '.'));
-    targetsMutation.mutate({
-      weeklyBudgetEur:
-        Number.isFinite(parsed) && parsed > 0 ? Math.min(2000, toEur(parsed, savedCurrency)) : null,
-    });
+    const parsed = parseWeeklyBudget(budget, savedCurrency);
+    if (parsed.kind === 'error') {
+      setBudgetError(parsed.message);
+      return;
+    }
+    setBudgetError(null);
+    targetsMutation.mutate({ weeklyBudgetEur: parsed.kind === 'ok' ? parsed.eur : null });
   };
 
   const saveGoalBody = (payload: GoalBodySavePayload) => goalBodyMutation.mutate(payload);
@@ -180,7 +224,7 @@ export default function PreferencesScreen() {
           <Ionicons name="arrow-back" size={20} color="#1f2937" />
         </Pressable>
         <Text testID="preferences-title" variant="title">
-          Preferences
+          {title}
         </Text>
       </View>
 
@@ -198,7 +242,12 @@ export default function PreferencesScreen() {
           onRetry={() => void refetch()}
         />
       ) : (
-        <ScrollView contentContainerClassName="gap-4 px-4 pb-8" keyboardShouldPersistTaps="handled">
+        // UX-X-05: keyboard-aware, so the budget field and the Save button under
+        // it (and the targets fields) scroll clear of the keyboard.
+        <KeyboardAwareScrollView
+          testID="preferences-scroll"
+          contentContainerClassName="gap-4 px-4 pb-8"
+        >
           <Text variant="muted" className="text-sm">
             Your allergies and dietary restrictions apply to every plan — free or premium.
           </Text>
@@ -206,8 +255,7 @@ export default function PreferencesScreen() {
           {isPremium === true && data?.chefProfile?.dailyCalorieTarget != null && (
             <View className="self-start rounded-lg border border-primary/30 bg-accent px-4 py-2">
               <Text className="text-sm font-medium text-primary">
-                {data.chefProfile.dailyCalorieTarget.toLocaleString('en-US')} kcal / day — current
-                target
+                {formatKcal(data.chefProfile.dailyCalorieTarget)} kcal / day — current target
               </Text>
             </View>
           )}
@@ -216,41 +264,65 @@ export default function PreferencesScreen() {
           <MigrationCard />
 
           {/* Safety — free for every account (P1-2) */}
-          <Card testID="preferences-safety" className="gap-4">
-            <Text variant="heading">Food safety</Text>
-            <SafetyStep value={safety} onChange={setSafety} testIDPrefix="prefs" />
-            <Button
-              testID="prefs-save-safety"
-              loading={safetyMutation.isPending}
-              onPress={saveSafety}
-            >
-              {safetyMutation.isSuccess && !safetyDirty ? 'Saved ✓' : 'Save safety preferences'}
-            </Button>
-            {safetyMutation.isError && (
-              <Text className="text-xs text-red-600">{safetyMutation.error.message}</Text>
-            )}
-            {safetyDeclined && <HealthDeclinedNotice testID="prefs-safety-declined" />}
-          </Card>
+          <SectionAnchor id="safety">
+            <Card testID="preferences-safety" className="gap-4">
+              <Text variant="heading">Food safety</Text>
+              <SafetyStep
+                ref={safetyPickerRef}
+                value={safety}
+                onChange={setSafety}
+                onPendingChange={setSafetyTermPending}
+                testIDPrefix="prefs"
+              />
+              <Button
+                testID="prefs-save-safety"
+                loading={safetyMutation.isPending}
+                onPress={saveSafety}
+              >
+                {safetyMutation.isSuccess && !safetyDirty ? 'Saved ✓' : 'Save safety preferences'}
+              </Button>
+              {safetyMutation.isError && (
+                <Text className="text-xs text-red-600">
+                  {userFacingErrorMessage(safetyMutation.error)}
+                </Text>
+              )}
+              {safetyDeclined && <HealthDeclinedNotice testID="prefs-safety-declined" />}
+            </Card>
+          </SectionAnchor>
 
           {/* Goal & body — every tier (dogfood feedback #6) */}
-          <GoalBodyCard
-            initial={{
-              goal: (data?.chefProfile?.goal as Goal | null) ?? null,
-              biologicalSex: (data?.chefProfile?.biologicalSex as BiologicalSex | null) ?? null,
-              age: data?.chefProfile?.age ?? null,
-              heightCm: data?.chefProfile?.heightCm ?? null,
-              weightKg: data?.chefProfile?.weightKg ?? null,
-              activityLevel: (data?.chefProfile?.activityLevel as ActivityLevel | null) ?? null,
-            }}
-            onSave={saveGoalBody}
-            isSaving={goalBodyMutation.isPending}
-            isSaved={goalBodyMutation.isSuccess}
-            errorMessage={goalBodyMutation.error?.message}
-          />
+          <SectionAnchor id="goal-body">
+            <GoalBodyCard
+              initial={{
+                goal: (data?.chefProfile?.goal as Goal | null) ?? null,
+                biologicalSex: (data?.chefProfile?.biologicalSex as BiologicalSex | null) ?? null,
+                age: data?.chefProfile?.age ?? null,
+                heightCm: data?.chefProfile?.heightCm ?? null,
+                weightKg: data?.chefProfile?.weightKg ?? null,
+                activityLevel: (data?.chefProfile?.activityLevel as ActivityLevel | null) ?? null,
+              }}
+              units={data?.chefProfile?.preferredUnits ?? 'METRIC'}
+              onSave={saveGoalBody}
+              isSaving={goalBodyMutation.isPending}
+              isSaved={goalBodyMutation.isSuccess}
+              errorMessage={
+                goalBodyMutation.error ? userFacingErrorMessage(goalBodyMutation.error) : undefined
+              }
+            />
+          </SectionAnchor>
 
           {/* §2.11, T-35.3 — Suggested (computed) or My own (never moved
               silently — gym setup, a weigh-in or a goal edit only propose). */}
-          <TargetsCard />
+          <SectionAnchor id="targets">
+            <TargetsCard
+              numbersSettings={{
+                numbersMode: data?.numbersMode,
+                // T-04.5: an explicit choice overrides the goal-derived B-31 default.
+                showNutritionOnToday:
+                  data?.chefProfile?.showNutritionOnToday ?? data?.chefProfile?.goal != null,
+              }}
+            />
+          </SectionAnchor>
 
           {isPremium === true && (
             <Pressable
@@ -266,151 +338,177 @@ export default function PreferencesScreen() {
             </Pressable>
           )}
 
-          {/* T-04.5: an explicit choice overrides the goal-derived B-31 default. */}
-          <HomeDisplayToggle
-            initialEnabled={
-              data?.chefProfile?.showNutritionOnToday ?? data?.chefProfile?.goal != null
-            }
-          />
-
           {/* Every tier since P2-5: free users get a curated Sunday week. */}
-          <AutoPlanToggle
-            initialEnabled={data?.chefProfile?.autoPlanWeekly ?? true}
-            isPremium={isPremium === true}
-          />
-          <WeeklyUpdatesCard />
+          <SectionAnchor id="auto-plan">
+            <AutoPlanToggle
+              initialEnabled={data?.chefProfile?.autoPlanWeekly ?? true}
+              isPremium={isPremium === true}
+            />
+          </SectionAnchor>
+          <SectionAnchor id="weekly-updates">
+            <WeeklyUpdatesCard />
+          </SectionAnchor>
 
           {/* Units & currency — free for every account (P2-6, F-DASH-3-2) */}
-          <Card testID="preferences-display" className="gap-4">
-            <Text variant="heading">Units & currency</Text>
-            <View className="gap-2">
-              <Text variant="label">Measurement units</Text>
-              <View className="flex-row gap-2">
-                {(['METRIC', 'IMPERIAL'] as const).map((u) => (
-                  <Pressable
-                    key={u}
-                    testID={`prefs-units-${u}`}
-                    accessibilityRole="radio"
-                    accessibilityState={{ selected: units === u }}
-                    onPress={() => setUnits(u)}
-                    className={cn(
-                      'min-h-11 flex-1 items-center justify-center rounded-md border px-2',
-                      units === u ? 'border-primary bg-primary' : 'border-border bg-white',
-                    )}
-                  >
-                    <Text
+          <SectionAnchor id="display">
+            <Card testID="preferences-display" className="gap-4">
+              <Text variant="heading">Units & currency</Text>
+              <View className="gap-2">
+                <Text variant="label">Measurement units</Text>
+                <View className="flex-row gap-2">
+                  {(['METRIC', 'IMPERIAL'] as const).map((u) => (
+                    <Pressable
+                      key={u}
+                      testID={`prefs-units-${u}`}
+                      accessibilityRole="radio"
+                      accessibilityState={{ selected: units === u }}
+                      onPress={() => setUnits(u)}
                       className={cn(
-                        'text-sm font-medium',
-                        units === u ? 'text-primary-foreground' : 'text-gray-600',
+                        'min-h-11 flex-1 items-center justify-center rounded-md border px-2',
+                        units === u ? 'border-primary bg-primary' : 'border-border bg-white',
                       )}
                     >
-                      {u === 'METRIC' ? 'Metric (g, kg)' : 'Imperial (oz, lb)'}
-                    </Text>
-                  </Pressable>
-                ))}
+                      <Text
+                        className={cn(
+                          'text-sm font-medium',
+                          units === u ? 'text-primary-foreground' : 'text-gray-600',
+                        )}
+                      >
+                        {u === 'METRIC' ? 'Metric (g, kg)' : 'Imperial (oz, lb)'}
+                      </Text>
+                    </Pressable>
+                  ))}
+                </View>
+                <Text variant="muted" className="text-xs">
+                  Recipes, shopping lists, your body weight and gym loads all use this system.
+                </Text>
               </View>
-              <Text variant="muted" className="text-xs">
-                Recipes, shopping lists, your body weight and gym loads all use this system.
-              </Text>
-            </View>
-            <View className="gap-2">
-              <Text variant="label">Currency</Text>
-              <View className="flex-row flex-wrap gap-2">
-                {DISPLAY_CURRENCIES.map((c) => (
-                  <Pressable
-                    key={c}
-                    testID={`prefs-currency-${c}`}
-                    accessibilityRole="radio"
-                    accessibilityState={{ selected: currency === c }}
-                    onPress={() => setCurrency(c)}
-                    className={cn(
-                      'h-11 min-w-16 items-center justify-center rounded-md border px-3',
-                      currency === c ? 'border-primary bg-primary' : 'border-border bg-white',
-                    )}
-                  >
-                    <Text
+              <View className="gap-2">
+                <Text variant="label">Currency</Text>
+                <View className="flex-row flex-wrap gap-2">
+                  {DISPLAY_CURRENCIES.map((c) => (
+                    <Pressable
+                      key={c}
+                      testID={`prefs-currency-${c}`}
+                      accessibilityRole="radio"
+                      accessibilityState={{ selected: currency === c }}
+                      onPress={() => setCurrency(c)}
                       className={cn(
-                        'text-sm font-medium',
-                        currency === c ? 'text-primary-foreground' : 'text-gray-600',
+                        'h-11 min-w-16 items-center justify-center rounded-md border px-3',
+                        currency === c ? 'border-primary bg-primary' : 'border-border bg-white',
                       )}
                     >
-                      {c}
-                    </Text>
-                  </Pressable>
-                ))}
+                      <Text
+                        className={cn(
+                          'text-sm font-medium',
+                          currency === c ? 'text-primary-foreground' : 'text-gray-600',
+                        )}
+                      >
+                        {c}
+                      </Text>
+                    </Pressable>
+                  ))}
+                </View>
+                <Text variant="muted" className="text-xs">
+                  Prices are estimates from typical supermarket prices
+                  {currency !== 'EUR' ? ', converted from euros at an approximate rate' : ''}.
+                </Text>
               </View>
-              <Text variant="muted" className="text-xs">
-                Prices are estimates from typical supermarket prices
-                {currency !== 'EUR' ? ', converted from euros at an approximate rate' : ''}.
-              </Text>
-            </View>
-            <Button
-              testID="prefs-save-display"
-              variant="outline"
-              loading={displayMutation.isPending}
-              onPress={saveDisplay}
-            >
-              {displayMutation.isSuccess && !displayDirty ? 'Saved ✓' : 'Save units & currency'}
-            </Button>
-            {displayMutation.isError && (
-              <Text className="text-xs text-red-600">{displayMutation.error.message}</Text>
-            )}
-          </Card>
+              <Button
+                testID="prefs-save-display"
+                variant="outline"
+                loading={displayMutation.isPending}
+                onPress={saveDisplay}
+              >
+                {displayMutation.isSuccess && !displayDirty ? 'Saved ✓' : 'Save units & currency'}
+              </Button>
+              {displayMutation.isError && (
+                <Text className="text-xs text-red-600">
+                  {userFacingErrorMessage(displayMutation.error)}
+                </Text>
+              )}
+            </Card>
+          </SectionAnchor>
 
           {/* Weekly budget — premium, saved via updateTargets (stored in EUR).
               B-10 (T-00.13): on free, the field is READ-ONLY — it used to
               stay editable while the Save button was hidden, so anything
               typed there was silently dropped on navigation. */}
-          <Card className="gap-4">
-            <Text variant="heading">Weekly budget</Text>
-            <View className="gap-2">
-              <Text variant="label">
-                Weekly ingredient budget ({currencySymbol(savedCurrency)}, optional)
-              </Text>
-              <TextInput
-                testID="prefs-budget"
-                value={budget}
-                onChangeText={isPremium === true ? setBudget : undefined}
-                editable={isPremium === true}
-                keyboardType="decimal-pad"
-                placeholder="e.g. 60"
-                placeholderTextColor="#9ca3af"
-                className={cn(
-                  'h-11 rounded-md border border-input bg-background px-3 text-base text-foreground',
-                  isPremium === false && 'bg-gray-100 text-gray-400',
-                )}
-              />
-            </View>
-            {isPremium === false ? (
-              <View className="flex-row items-center gap-1.5">
-                <Ionicons name="lock-closed" size={14} color="#9ca3af" />
-                <Text variant="muted" className="min-w-0 flex-1 text-xs">
-                  Saving a weekly budget is part of Premium.
+          <SectionAnchor id="budget">
+            <Card className="gap-4">
+              <Text variant="heading">Weekly budget</Text>
+              <View className="gap-2">
+                <Text variant="label">
+                  Weekly ingredient budget ({currencySymbol(savedCurrency)}, optional)
                 </Text>
-                <Pressable
-                  testID="prefs-budget-premium"
-                  accessibilityRole="button"
-                  onPress={() => openPremium('budget')}
-                  className="min-h-11 justify-center"
-                >
-                  <Text className="text-xs font-semibold text-primary">See what Premium adds</Text>
-                </Pressable>
+                <Input
+                  testID="prefs-budget"
+                  {...budgetNumeric.bind(0)}
+                  accessibilityLabel="Weekly ingredient budget"
+                  value={budget}
+                  onChangeText={
+                    isPremium === true
+                      ? (text) => {
+                          setBudget(text);
+                          setBudgetError(null);
+                        }
+                      : undefined
+                  }
+                  editable={isPremium === true}
+                  keyboardType="decimal-pad"
+                  placeholder="e.g. 60"
+                  className={cn(isPremium === false && 'bg-gray-100 text-gray-400')}
+                />
+                {budgetNumeric.bars}
+                {budgetError ? (
+                  <Text
+                    testID="prefs-budget-error"
+                    accessibilityRole="alert"
+                    className="text-xs text-red-600"
+                  >
+                    {budgetError}
+                  </Text>
+                ) : (
+                  <Text testID="prefs-budget-cap" variant="muted" className="text-xs">
+                    {weeklyBudgetCapLabel(savedCurrency)}. Leave empty for no budget.
+                  </Text>
+                )}
               </View>
-            ) : (
-              <Button
-                testID="prefs-save-extras"
-                variant="outline"
-                loading={targetsMutation.isPending}
-                onPress={saveBudget}
-              >
-                {targetsMutation.isSuccess && !budgetDirty ? 'Saved ✓' : 'Save budget'}
-              </Button>
-            )}
-            {targetsMutation.isError && (
-              <Text className="text-xs text-red-600">{targetsMutation.error.message}</Text>
-            )}
-          </Card>
-        </ScrollView>
+              {isPremium === false ? (
+                <View className="flex-row items-center gap-1.5">
+                  <Ionicons name="lock-closed" size={14} color="#9ca3af" />
+                  <Text variant="muted" className="min-w-0 flex-1 text-xs">
+                    Saving a weekly budget is part of Premium.
+                  </Text>
+                  <Pressable
+                    testID="prefs-budget-premium"
+                    accessibilityRole="button"
+                    onPress={() => openPremium('budget')}
+                    className="min-h-11 justify-center"
+                  >
+                    <Text className="text-xs font-semibold text-primary">
+                      See what Premium adds
+                    </Text>
+                  </Pressable>
+                </View>
+              ) : (
+                <Button
+                  testID="prefs-save-extras"
+                  variant="outline"
+                  loading={targetsMutation.isPending}
+                  onPress={saveBudget}
+                >
+                  {targetsMutation.isSuccess && !budgetDirty ? 'Saved ✓' : 'Save budget'}
+                </Button>
+              )}
+              {targetsMutation.isError && (
+                <Text className="text-xs text-red-600">
+                  {userFacingErrorMessage(targetsMutation.error)}
+                </Text>
+              )}
+            </Card>
+          </SectionAnchor>
+        </KeyboardAwareScrollView>
       )}
       {healthConsentSheet}
     </Screen>

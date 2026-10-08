@@ -32,4 +32,7 @@ export const gymLibraryRouter = router({
   archiveCustom: protectedProcedure
     .input(z.object({ id: z.string().min(1).max(100) }))
     .mutation(({ ctx, input }) => exerciseLibraryService.archiveCustom(ctx.user.id, input.id)),
+  restoreCustom: protectedProcedure
+    .input(z.object({ id: z.string().min(1).max(100) }))
+    .mutation(({ ctx, input }) => exerciseLibraryService.restoreCustom(ctx.user.id, input.id)),
 });

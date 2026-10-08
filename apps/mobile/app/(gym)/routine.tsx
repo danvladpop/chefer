@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { ActivityIndicator, ScrollView, View } from 'react-native';
+import { ScrollView, View } from 'react-native';
 import { router } from 'expo-router';
 import {
   TEMPLATE_BY_KEY,
@@ -9,6 +9,10 @@ import {
 } from '@chefer/types';
 import { Badge, Button, EmptyState, Screen, Text } from '@chefer/ui-mobile';
 import { formatLoad, repBucket, validateRoutine, volumeByGroup } from '@chefer/utils';
+import {
+  GymBootstrapUnavailable,
+  useGymBootstrapLoad,
+} from '../../src/features/gym/components/gym-bootstrap-state';
 import { ModeSwitch } from '../../src/features/gym/components/mode-switch';
 import { DayCardView } from '../../src/features/gym/routine/day-card-view';
 import { dismissHint, getDismissedHints } from '../../src/features/gym/routine/hints-storage';
@@ -18,6 +22,7 @@ import { useIsOnline } from '../../src/features/gym/routine/use-online';
 import { weekdayLabel } from '../../src/features/gym/routine/weekday';
 import { WeeklyBalanceCard } from '../../src/features/gym/routine/weekly-balance';
 import { libraryLookup, useGymBootstrap } from '../../src/features/gym/use-gym-bootstrap';
+import { equipmentOf } from '../../src/features/gym/workout/workout-model';
 import { trpc } from '../../src/lib/trpc';
 
 // Routine tab (gym_plan.md §1.3 "Routine tab"): the active routine's days,
@@ -76,8 +81,11 @@ function DayCard({
                 detail: (
                   <View className="flex-row items-center gap-2">
                     <Text variant="muted" className="min-w-0 flex-1 text-xs" numberOfLines={1}>
-                      Next: {formatLoad(progression.suggestion.weightKg, unit, meta.loadType)} ×{' '}
-                      {progression.suggestion.reps.join('/')}
+                      Next:{' '}
+                      {formatLoad(progression.suggestion.weightKg, unit, meta.loadType, {
+                        each: meta.perHand,
+                      })}{' '}
+                      × {progression.suggestion.reps.join('/')}
                     </Text>
                     {progression.override ? (
                       <Badge testID={`routine-exercise-${ex.id}-edited`} variant="secondary">
@@ -96,6 +104,7 @@ function DayCard({
 
 export default function RoutineScreen() {
   const bootstrap = useGymBootstrap();
+  const bootstrapLoad = useGymBootstrapLoad(bootstrap);
   const isOnline = useIsOnline();
   const utils = trpc.useUtils();
   const [overrideTarget, setOverrideTarget] = useState<OverrideTarget | null>(null);
@@ -138,19 +147,17 @@ export default function RoutineScreen() {
     return (
       <Screen className="px-0">
         <ScrollView contentContainerClassName="gap-4 px-4 py-4">
-          <ModeSwitch />
+          <ModeSwitch mode="gym" />
           <Text testID="gym-routine-title" variant="title">
             Routine
           </Text>
-          {bootstrap.isFetching ? (
-            <ActivityIndicator testID="gym-routine-loading" />
-          ) : (
-            <EmptyState
-              testID="gym-routine-offline-empty"
-              title="Needs a connection"
-              description="Your routine will load once you're back online."
-            />
-          )}
+          {/* UX-GYM-24: a failed load has Retry; offline with no cache says so. */}
+          <GymBootstrapUnavailable
+            load={bootstrapLoad.load === 'data' ? 'loading' : bootstrapLoad.load}
+            onRetry={bootstrapLoad.retry}
+            testID="gym-routine"
+            what="your routine"
+          />
         </ScrollView>
       </Screen>
     );
@@ -159,7 +166,7 @@ export default function RoutineScreen() {
   return (
     <Screen className="px-0">
       <ScrollView contentContainerClassName="gap-4 px-4 py-4">
-        <ModeSwitch />
+        <ModeSwitch mode="gym" />
         <Text testID="gym-routine-title" variant="title">
           Routine
         </Text>
@@ -248,6 +255,7 @@ export default function RoutineScreen() {
           unit={unit}
           repBucket={overrideTarget.progression.repBucket}
           progression={overrideTarget.progression}
+          profile={equipmentOf(data)}
           saving={setOverride.isPending || clearOverride.isPending}
           onSave={(payload: SetOverrideInput) => setOverride.mutate(payload)}
           onReset={() =>

@@ -1,6 +1,7 @@
 import { Platform, Pressable, Text } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
-import { render, screen, userEvent } from '@testing-library/react-native';
+import { act, render, screen, userEvent } from '@testing-library/react-native';
+import { notifyAiConsentRequired } from '@chefer/utils';
 import {
   AiConsentHost,
   AiConsentProvider,
@@ -14,6 +15,15 @@ import {
 let mockUser: { aiDataConsentAt: Date | null } | undefined;
 let mockProviders: { primary: string; backups: string[] } | undefined;
 const mockGrant = jest.fn();
+const mockPush = jest.fn();
+
+jest.mock('expo-router', () => ({
+  router: {
+    push: (href: string) => {
+      mockPush(href);
+    },
+  },
+}));
 
 jest.mock('../../src/lib/trpc', () => ({
   trpc: {
@@ -90,6 +100,40 @@ beforeAll(() => {
 });
 
 describe('AI data consent gate', () => {
+  it('R-10: when the server refuses an AI action for missing consent the sheet reopens with that feature’s copy', async () => {
+    // A stale cache: the client thinks consent is on record.
+    mockUser = { aiDataConsentAt: new Date() };
+    await renderGate();
+    expect(screen.queryByTestId('ai-consent-allow')).toBeNull();
+
+    await act(() => {
+      notifyAiConsentRequired('ingredient-estimate');
+    });
+
+    expect(screen.getByTestId('ai-consent-allow')).toBeTruthy();
+    expect(screen.getByText('The ingredient name you typed')).toBeTruthy();
+    expect(action).not.toHaveBeenCalled();
+    // "Allow" records consent and runs nothing (the original action is unknown).
+    await userEvent.setup().press(screen.getByTestId('ai-consent-allow'));
+    expect(mockGrant).toHaveBeenCalledTimes(1);
+    expect(action).not.toHaveBeenCalled();
+  });
+
+  // The consent sheet is a Modal: a pushed route would open behind it, so the
+  // Privacy link closes the sheet first and opens the in-app page once it is
+  // gone. It counts as "Not now": nothing is sent, the action is dropped.
+  it('Privacy link closes the sheet, then opens Privacy in the app (no browser)', async () => {
+    const user = userEvent.setup();
+    await renderGate();
+    await user.press(screen.getByTestId('ai-action'));
+    await user.press(screen.getByTestId('ai-consent-privacy'));
+    expect(screen.queryByTestId('ai-consent-allow')).toBeNull();
+    expect(mockPush).toHaveBeenCalledWith('/legal/privacy');
+    expect(mockPush).toHaveBeenCalledTimes(1);
+    expect(action).not.toHaveBeenCalled();
+    expect(mockGrant).not.toHaveBeenCalled();
+  });
+
   it('runs straight away when consent is on record', async () => {
     mockUser = { aiDataConsentAt: new Date() };
     const user = userEvent.setup();
@@ -117,9 +161,18 @@ describe('AI data consent gate', () => {
     await user.press(screen.getByTestId('ai-action'));
 
     expect(action).not.toHaveBeenCalled();
-    expect(screen.getByText(/Google Gemini/)).toBeTruthy();
+    expect(screen.getByText(/sends some of your data to Groq/)).toBeTruthy();
     expect(screen.getByText('The photo you take or choose')).toBeTruthy();
     expect(screen.getByText(/not used to train/)).toBeTruthy();
+  });
+
+  it('R-10: before the provider list loads (or when it fails) it names Groq + Cloudflare, never the legacy Gemini', async () => {
+    mockProviders = undefined;
+    await renderGate();
+    await userEvent.setup().press(screen.getByTestId('ai-action'));
+    expect(screen.getByText(/sends some of your data to Groq/)).toBeTruthy();
+    expect(screen.getByText(/handled by Cloudflare Workers AI/)).toBeTruthy();
+    expect(screen.queryByText(/Gemini/)).toBeNull();
   });
 
   it('names Groq and Cloudflare, never Gemini, when the server runs free-only', async () => {

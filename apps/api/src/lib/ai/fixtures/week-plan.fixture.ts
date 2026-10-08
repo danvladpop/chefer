@@ -367,7 +367,7 @@ export const RECIPE_LIBRARY = {
     dietaryTags: ['vegan', 'gluten-free', 'dairy-free', 'high-fiber'],
     prepTimeMins: 10,
     cookTimeMins: 30,
-    servings: 1,
+    servings: 2,
     imageUrl: U('photo-1585937421612-70a008356fbe'),
   },
 

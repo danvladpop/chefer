@@ -139,6 +139,70 @@ describe('TargetsService.get — change detection', () => {
     );
   });
 
+  // UX-FOOD-14: first-run notices with the wrong reason.
+  it('finishing onboarding (body metrics arrive after the default snapshot) writes no notice', async () => {
+    const service = new TargetsService();
+    // The user's first read happens before they have entered any body metrics.
+    chefProfileRepository.findByUserId.mockResolvedValue({
+      ...BASE_PROFILE,
+      age: null,
+      heightCm: null,
+      weightKg: null,
+      activityLevel: null,
+    });
+    const first = await service.get('u1');
+    expect(first.effective.dailyCalorieTarget).toBe(2000);
+
+    chefProfileRepository.findByUserId.mockResolvedValue({
+      ...BASE_PROFILE,
+      targetSnapshot: {
+        effective: first.effective,
+        suggested: first.suggested,
+        inputs: first.inputs,
+      },
+    });
+    const after = await service.get('u1');
+
+    expect(after.effective.dailyCalorieTarget).not.toBe(2000);
+    expect(targetChangeRepository.create).not.toHaveBeenCalled();
+    // ...and the snapshot moved on, so the next read is quiet too.
+    expect(chefProfileRepository.upsert).toHaveBeenLastCalledWith(
+      'u1',
+      expect.objectContaining({
+        targetSnapshot: expect.objectContaining({ effective: after.effective }),
+      }),
+    );
+  });
+
+  it('a sub-threshold wobble (a few kcal, ±1 g) writes no notice but advances the snapshot', async () => {
+    const service = new TargetsService();
+    const first = await service.get('u1');
+    const wobbled = {
+      ...first.effective,
+      dailyCalorieTarget: first.effective.dailyCalorieTarget + 10,
+      proteinG: first.effective.proteinG + 1,
+      fatG: first.effective.fatG - 1,
+    };
+    chefProfileRepository.findByUserId.mockResolvedValue({
+      ...BASE_PROFILE,
+      targetSnapshot: {
+        effective: wobbled,
+        suggested: first.suggested,
+        inputs: first.inputs,
+      },
+    });
+
+    await service.get('u1');
+
+    expect(targetChangeRepository.create).not.toHaveBeenCalled();
+    expect(chefProfileRepository.upsert).toHaveBeenLastCalledWith(
+      'u1',
+      expect.objectContaining({
+        targetSnapshot: expect.objectContaining({ effective: first.effective }),
+      }),
+    );
+  });
+
   it('debounces a second weight-driven notice within 7 days (risk mitigation)', async () => {
     const service = new TargetsService();
     const first = await service.get('u1');
@@ -434,5 +498,38 @@ describe('TargetsService.proposeCoachAdjustment', () => {
     const service = new TargetsService();
     await service.proposeCoachAdjustment('u1', 2100, 0);
     expect(targetChangeRepository.create).not.toHaveBeenCalled();
+  });
+});
+
+// ─── WP-08 protein-only mode: numbersMode + proteinWhy on get() ─────────────
+
+describe('TargetsService.get — numbersMode and proteinWhy (WP-08)', () => {
+  it('defaults numbersMode to FULL and explains the effective protein target', async () => {
+    const r = await new TargetsService().get('u1');
+    expect(r.numbersMode).toBe('FULL');
+    expect(r.proteinWhy.effectiveG).toBe(r.effective.proteinG);
+    expect(r.proteinWhy.referenceGPerKg).toBe(1.6);
+    expect(r.proteinWhy.referenceG).toBe(128); // 80 kg
+  });
+
+  it('returns a stored PROTEIN_ONLY and ignores an unknown stored value', async () => {
+    chefProfileRepository.findByUserId.mockResolvedValue({
+      ...BASE_PROFILE,
+      numbersMode: 'PROTEIN_ONLY',
+    });
+    expect((await new TargetsService().get('u1')).numbersMode).toBe('PROTEIN_ONLY');
+    chefProfileRepository.findByUserId.mockResolvedValue({ ...BASE_PROFILE, numbersMode: 'WAT' });
+    expect((await new TargetsService().get('u1')).numbersMode).toBe('FULL');
+  });
+
+  it('names an own override in proteinWhy', async () => {
+    chefProfileRepository.findByUserId.mockResolvedValue({
+      ...BASE_PROFILE,
+      targetMode: 'OWN',
+      customKcal: 2200,
+      customProteinG: 200,
+    });
+    const r = await new TargetsService().get('u1');
+    expect(r.proteinWhy).toMatchObject({ effectiveG: 200, reason: 'OWN', differs: true });
   });
 });

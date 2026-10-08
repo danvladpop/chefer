@@ -13,8 +13,18 @@ const mocks = vi.hoisted(() => ({
   updateMutate: vi.fn(),
   createError: null as null | ((err: unknown) => Promise<void>),
   resolveFetch: vi.fn(),
+  estimateMutate: vi.fn(),
 }));
 
+// R-10: "Fill in for me" asks for AI-data consent first; the guard is a stub
+// that either allows (runs the action) or declines.
+const consent = vi.hoisted(() => ({ granted: true, request: vi.fn() }));
+vi.mock('@/features/ai-consent/AiConsentProvider', () => ({
+  useAiConsent: () => (feature: string, run: () => void) => {
+    consent.request(feature);
+    if (consent.granted) run();
+  },
+}));
 vi.mock('@/lib/upload-image', () => ({ uploadImage: vi.fn() }));
 vi.mock('@/lib/trpc', () => {
   const idle = { isPending: false, isError: false, isSuccess: false, data: undefined, error: null };
@@ -29,7 +39,7 @@ vi.mock('@/lib/trpc', () => {
           },
         },
         update: { useMutation: () => ({ ...idle, mutate: mocks.updateMutate }) },
-        estimateNutrition: { useMutation: () => ({ ...idle, mutate: vi.fn() }) },
+        estimateNutrition: { useMutation: () => ({ ...idle, mutate: mocks.estimateMutate }) },
       },
     },
   };
@@ -41,6 +51,9 @@ beforeEach(() => {
   mocks.createMutate.mockClear();
   mocks.updateMutate.mockClear();
   mocks.resolveFetch.mockReset();
+  mocks.estimateMutate.mockClear();
+  consent.request.mockClear();
+  consent.granted = true;
 });
 
 function fillMacros(values: Partial<Record<string, string>> = {}) {
@@ -195,5 +208,32 @@ describe('IngredientFormModal — edit', () => {
         category: 'VEGETABLE',
       }),
     );
+  });
+});
+
+describe('IngredientFormModal — "Fill in for me" AI consent (R-10)', () => {
+  const open = () =>
+    render(
+      <IngredientFormModal
+        mode="create"
+        initialName="oat bran"
+        onSaved={vi.fn()}
+        onClose={vi.fn()}
+      />,
+    );
+
+  it('asks for AI consent (ingredient-estimate) and then estimates the typed name', () => {
+    open();
+    fireEvent.click(screen.getByRole('button', { name: 'Fill in for me' }));
+    expect(consent.request).toHaveBeenCalledWith('ingredient-estimate');
+    expect(mocks.estimateMutate).toHaveBeenCalledWith({ name: 'oat bran' });
+  });
+
+  it('sends nothing when the user declines', () => {
+    consent.granted = false;
+    open();
+    fireEvent.click(screen.getByRole('button', { name: 'Fill in for me' }));
+    expect(consent.request).toHaveBeenCalledWith('ingredient-estimate');
+    expect(mocks.estimateMutate).not.toHaveBeenCalled();
   });
 });

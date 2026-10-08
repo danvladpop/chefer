@@ -12,6 +12,7 @@ import {
 import type { UserProfile } from '@chefer/types';
 import { lifterProteinGPerKg } from '@chefer/utils';
 import { hasFeature } from '../../lib/entitlements.js';
+import { planForThisWeek } from '../meal-plan/plan-for-date.js';
 import { pantryService } from '../pantry/pantry.service.js';
 import { computeBmrTdee, resolveDailyTargets } from '../preferences/preferences.service.js';
 import { targetsService, type TargetsService } from '../targets/targets.service.js';
@@ -19,7 +20,7 @@ import {
   trainingNutritionService,
   type TrainingNutritionService,
 } from '../training-nutrition/training-nutrition.service.js';
-import { generateReviewText } from './review-text.js';
+import { generateReviewTextWithSource } from './review-text.js';
 import {
   buildTemplateReviewText,
   computeReviewMetrics,
@@ -68,6 +69,12 @@ export interface ChefReviewDto {
   adjustmentKcal: number;
   savedEur: number | null;
   reviewText: string;
+  /**
+   * R-14: true when the text was written by the AI model (show the
+   * "AI-generated" label), false for the deterministic template. Additive;
+   * older clients ignore it.
+   */
+  aiGenerated: boolean;
   createdAt: Date;
 }
 
@@ -174,6 +181,8 @@ export class CoachService {
           currentTargetKcal: targets.dailyCalorieTarget,
           bmr: bmrTdee?.bmr ?? null,
           tdee: bmrTdee?.tdee ?? null,
+          age: profile?.age ?? null,
+          biologicalSex: profile?.biologicalSex ?? null,
         })
       : 0;
 
@@ -199,11 +208,14 @@ export class CoachService {
     // the Sunday sweep used to call the model for every free user (audit
     // F-DASH-2-3).
     let reviewText: string;
+    let reviewAiGenerated = false; // R-14: only live model output counts
     if (!applyAdjustment || !aiText) {
       reviewText = buildTemplateReviewText(textInput);
     } else {
       try {
-        reviewText = await generateReviewText(textInput);
+        const generated = await generateReviewTextWithSource(textInput);
+        reviewText = generated.text;
+        reviewAiGenerated = generated.aiGenerated;
       } catch {
         reviewText = buildTemplateReviewText(textInput);
       }
@@ -230,6 +242,7 @@ export class CoachService {
         return null;
       }),
       reviewText,
+      aiGenerated: reviewAiGenerated,
     });
 
     if (proposedAdjustmentKcal !== 0) {
@@ -346,15 +359,16 @@ export class CoachService {
         adjustmentKcal: latest.adjustmentKcal,
         savedEur: latest.savedEur,
         reviewText: latest.reviewText,
+        aiGenerated: latest.aiGenerated,
         createdAt: latest.createdAt,
       },
     };
   }
 
-  /** Dish names on the user's active plan — flavour for the review prose. */
+  /** Dish names on the user's plan for the current week — flavour for the review prose. */
   private async loadWeekDishNames(userId: string): Promise<string[]> {
     try {
-      const plan = await mealPlanRepository.findActiveWithDays(userId);
+      const plan = await planForThisWeek(mealPlanRepository, userId);
       if (!plan) return [];
       const slots = plan.days.flatMap((d) => d.meals as { type: string; recipeId: string }[]);
       const ids = [...new Set(slots.map((s) => s.recipeId))].slice(0, 10);

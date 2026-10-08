@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
-import { AccessibilityInfo, Platform, Pressable } from 'react-native';
+import { AccessibilityInfo, Platform, Pressable, View } from 'react-native';
 import Animated, {
   useAnimatedStyle,
   useSharedValue,
@@ -21,13 +21,22 @@ import { Text } from './text';
 // only (Reanimated), so this ships OTA.
 
 const DEFAULT_DURATION_MS = 6000;
-const WITH_ACTION_DURATION_MS = 8000;
+// UX-X-16: ~10 s with an Undo — long enough to read the message and reach for it.
+const WITH_ACTION_DURATION_MS = 10000;
+/** After a touch is released, the bar stays at least this long so the tap can land (UX-X-16). */
+export const SNACKBAR_MIN_RESUME_MS = 2000;
+/**
+ * UX-X-16: for this long after the bar has gone, an invisible shield keeps
+ * its footprint, so a tap meant for Undo as it fades does not fall through to
+ * the control underneath (opening a picker, ticking another row).
+ */
+export const SNACKBAR_TAP_SHIELD_MS = 300;
 
 export interface SnackbarOptions {
   message: string;
   actionLabel?: string;
   onAction?: () => void;
-  /** Defaults to 6 s (8 s with an action); doubled while a screen reader runs. */
+  /** Defaults to 6 s (10 s with an action); doubled while a screen reader runs; paused while the bar is touched. */
   durationMs?: number;
   /** Fires `haptics.success` on show. Omit for a purely informational bar —
    * "success for confirmations, none for info" (§2.4). */
@@ -59,6 +68,41 @@ function getSnapshot(): SnackbarState | null {
   return state;
 }
 
+// R-11: the tab bar's height (inset included), published by the tab layouts so
+// the snackbar sits ABOVE it instead of covering it. Last-registered bar wins:
+// switching Food <-> Gym mounts one tab layout before the other unmounts.
+const tabBars = new Map<string, number>();
+const tabBarListeners = new Set<() => void>();
+let tabBarHeight = 0;
+
+function recomputeTabBarHeight(): void {
+  const heights = [...tabBars.values()];
+  const next = heights.length ? (heights[heights.length - 1] ?? 0) : 0;
+  if (next === tabBarHeight) return;
+  tabBarHeight = next;
+  tabBarListeners.forEach((listener) => listener());
+}
+
+/**
+ * Register (or update) a tab bar's full height, measured from the bottom of
+ * the screen, safe-area inset included. Pass `null` when it unmounts. Returns
+ * nothing; `id` identifies the bar (one per tab layout).
+ */
+export function setSnackbarTabBarHeight(id: string, height: number | null): void {
+  tabBars.delete(id);
+  if (height !== null && height > 0) tabBars.set(id, height);
+  recomputeTabBarHeight();
+}
+
+function subscribeTabBar(listener: () => void): () => void {
+  tabBarListeners.add(listener);
+  return () => tabBarListeners.delete(listener);
+}
+
+function getTabBarHeight(): number {
+  return tabBarHeight;
+}
+
 function announce(message: string, actionLabel?: string): void {
   try {
     AccessibilityInfo.announceForAccessibility(
@@ -69,7 +113,12 @@ function announce(message: string, actionLabel?: string): void {
   }
 }
 
-function showSnackbar(options: SnackbarOptions): void {
+/**
+ * The same call as `useSnackbar().show`, for code outside React (the query
+ * client's default mutation-error handler). Needs the `<Snackbar />` host
+ * mounted at the root.
+ */
+export function showSnackbar(options: SnackbarOptions): void {
   const durationMs =
     options.durationMs ?? (options.actionLabel ? WITH_ACTION_DURATION_MS : DEFAULT_DURATION_MS);
   state = {
@@ -97,6 +146,8 @@ function dismissSnackbar(id: number): void {
  * as `resetRebalanceStoreForTests`). Never call this from app code. */
 export function resetSnackbarForTests(): void {
   state = null;
+  tabBars.clear();
+  recomputeTabBarHeight();
   notify();
 }
 
@@ -112,21 +163,66 @@ export interface SnackbarProps {
 }
 
 /**
- * The snackbar host — mount exactly once, near the root, above the tab bar.
+ * The snackbar host — mount exactly once, near the root. On tab screens it
+ * rides above the tab bar (the layouts publish its height through
+ * `setSnackbarTabBarHeight`, R-11) and its wrapper is `box-none`, so taps
+ * anywhere but on the toast itself reach the tab bar and the screen below.
  * Renders nothing while the store is empty.
  */
 export function Snackbar({ bottomOffset = 0 }: SnackbarProps = {}) {
   const current = useSyncExternalStore(subscribe, getSnapshot, getSnapshot);
+  const publishedTabBar = useSyncExternalStore(subscribeTabBar, getTabBarHeight, getTabBarHeight);
   const insets = useSafeAreaInsets();
   const reduced = useReducedMotion();
   // Kept only for the ~150 ms fade-out after `current` goes back to null —
   // `current` itself already reflects a new message the instant the store
   // notifies, so showing it never waits on this state.
   const [lastShown, setLastShown] = useState<SnackbarState | null>(null);
+  // UX-X-16: true for SNACKBAR_TAP_SHIELD_MS after the bar has gone.
+  const [shield, setShield] = useState(false);
   const opacity = useSharedValue(0);
   const rise = useSharedValue(0);
   const dismissTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const hideTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const shieldTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // UX-X-16 pause-on-touch bookkeeping: when the current countdown started,
+  // how much of it is left, whether a finger is down, and which bar it is for.
+  const countdownStart = useRef(0);
+  const remainingMs = useRef(0);
+  const touched = useRef(false);
+  const currentId = useRef<number | null>(null);
+
+  const startCountdown = (total: number) => {
+    if (dismissTimer.current) clearTimeout(dismissTimer.current);
+    dismissTimer.current = null;
+    remainingMs.current = total;
+    countdownStart.current = Date.now();
+    const id = currentId.current;
+    // A finger already down holds the countdown until it is released.
+    if (touched.current || id === null) return;
+    dismissTimer.current = setTimeout(() => dismissSnackbar(id), total);
+  };
+
+  /** Finger down on the bar: freeze the countdown with what is left of it. */
+  const pauseCountdown = () => {
+    touched.current = true;
+    if (dismissTimer.current) {
+      clearTimeout(dismissTimer.current);
+      dismissTimer.current = null;
+      remainingMs.current = Math.max(
+        0,
+        remainingMs.current - (Date.now() - countdownStart.current),
+      );
+    }
+  };
+
+  /** Finger up: carry on with the rest (at least SNACKBAR_MIN_RESUME_MS). */
+  const resumeCountdown = () => {
+    if (!touched.current) return;
+    touched.current = false;
+    if (currentId.current === null) return;
+    startCountdown(Math.max(remainingMs.current, SNACKBAR_MIN_RESUME_MS));
+  };
 
   useEffect(() => {
     if (dismissTimer.current) {
@@ -137,14 +233,25 @@ export function Snackbar({ bottomOffset = 0 }: SnackbarProps = {}) {
       clearTimeout(hideTimer.current);
       hideTimer.current = null;
     }
+    if (shieldTimer.current) {
+      clearTimeout(shieldTimer.current);
+      shieldTimer.current = null;
+    }
+    currentId.current = current?.id ?? null;
+    touched.current = false;
 
     if (!current) {
       if (lastShown) {
         opacity.set(withTiming(0, timing(duration.fast)));
-        hideTimer.current = setTimeout(() => setLastShown(null), duration.fast);
+        hideTimer.current = setTimeout(() => {
+          setLastShown(null);
+          setShield(true);
+          shieldTimer.current = setTimeout(() => setShield(false), SNACKBAR_TAP_SHIELD_MS);
+        }, duration.fast);
       }
       return;
     }
+    setShield(false);
 
     setLastShown(current);
     if (reduced) {
@@ -156,10 +263,9 @@ export function Snackbar({ bottomOffset = 0 }: SnackbarProps = {}) {
     }
 
     let cancelled = false;
-    const id = current.id;
     const scheduleDismiss = (total: number) => {
       if (cancelled) return;
-      dismissTimer.current = setTimeout(() => dismissSnackbar(id), total);
+      startCountdown(total);
     };
     // Pauses under a screen reader: the bar stays up twice as long so a
     // VoiceOver/TalkBack user has time to swipe to the action (§2.4).
@@ -178,6 +284,7 @@ export function Snackbar({ bottomOffset = 0 }: SnackbarProps = {}) {
     () => () => {
       if (dismissTimer.current) clearTimeout(dismissTimer.current);
       if (hideTimer.current) clearTimeout(hideTimer.current);
+      if (shieldTimer.current) clearTimeout(shieldTimer.current);
     },
     [],
   );
@@ -188,8 +295,20 @@ export function Snackbar({ bottomOffset = 0 }: SnackbarProps = {}) {
   }));
 
   const displayed = current ?? lastShown;
+  const bottom =
+    (publishedTabBar > 0 ? publishedTabBar + bottomOffset : insets.bottom + bottomOffset) + 8;
   if (!displayed) {
-    return null;
+    if (!shield) return null;
+    // UX-X-16: same footprint as the bar, invisible, swallowing stray taps.
+    return (
+      <Animated.View
+        pointerEvents="box-none"
+        className="absolute inset-x-0 items-center px-4"
+        style={{ bottom }}
+      >
+        <View testID="snackbar-shield" className="min-h-11 w-full max-w-[560px]" />
+      </Animated.View>
+    );
   }
 
   const handleAction = () => {
@@ -201,13 +320,19 @@ export function Snackbar({ bottomOffset = 0 }: SnackbarProps = {}) {
     <Animated.View
       pointerEvents="box-none"
       className="absolute inset-x-0 items-center px-4"
-      style={{ bottom: insets.bottom + bottomOffset + 8 }}
+      // A published tab bar height already includes the safe-area inset.
+      style={{ bottom }}
     >
       <Animated.View
         testID="snackbar"
         accessibilityLiveRegion={Platform.OS === 'android' ? 'polite' : undefined}
         className="min-h-11 w-full max-w-[560px] flex-row items-center rounded-full bg-foreground px-4 py-2.5"
         style={[animatedStyle, { boxShadow: elevation.e3 }]}
+        // UX-X-16: a finger on the bar holds the countdown (touches on the
+        // Undo button bubble up to here).
+        onTouchStart={pauseCountdown}
+        onTouchEnd={resumeCountdown}
+        onTouchCancel={resumeCountdown}
       >
         <Text testID="snackbar-message" className="min-w-0 flex-1 text-[15px] text-background">
           {displayed.message}

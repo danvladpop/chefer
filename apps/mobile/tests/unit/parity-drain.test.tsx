@@ -1,18 +1,16 @@
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { fireEvent, render, screen, userEvent } from '@testing-library/react-native';
 import { FeedbackCard } from '../../src/features/feedback/feedback-card';
-import { PantryGhostBanner } from '../../src/features/pantry/pantry-ghost-banner';
 import { PostUpgradeSheet } from '../../src/features/premium/post-upgrade-sheet';
 
 // Parity drain (mobile_parity_backlog.md, 2026-09-26): the feedback counter
-// (F-PROF-2-2), the source-aware post-upgrade sheet (F-PREM-1-5, F-PM-9) and
-// the free pantry ghost banner (F3 §6.4) — each mirrors its web component.
+// (F-PROF-2-2) and the source-aware post-upgrade sheet (F-PREM-1-5, F-PM-9) —
+// each mirrors its web component. (The free pantry ghost banner was retired by FB7-10.)
 
 const mockPush = jest.fn();
 const mockOpenPremium = jest.fn();
 const mockSubmit = jest.fn();
 let mockHasProfile: boolean | undefined = true;
-let mockPantryCount = 0;
 
 jest.mock('../../src/features/premium/open-premium', () => ({
   openPremium: (...args: unknown[]) => {
@@ -20,6 +18,7 @@ jest.mock('../../src/features/premium/open-premium', () => ({
   },
 }));
 jest.mock('expo-router', () => ({
+  usePathname: () => '/more',
   router: {
     push: (...args: unknown[]) => {
       mockPush(...args);
@@ -42,9 +41,6 @@ jest.mock('../../src/lib/trpc', () => ({
     preferences: {
       hasProfile: { useQuery: () => ({ data: mockHasProfile }) },
     },
-    pantry: {
-      list: { useQuery: () => ({ data: { items: [], count: mockPantryCount } }) },
-    },
   },
 }));
 
@@ -56,7 +52,6 @@ const SAFE_AREA_METRICS = {
 beforeEach(() => {
   jest.clearAllMocks();
   mockHasProfile = true;
-  mockPantryCount = 0;
 });
 
 describe('FeedbackCard (F-PROF-2-2)', () => {
@@ -71,6 +66,20 @@ describe('FeedbackCard (F-PROF-2-2)', () => {
 
     await user.type(input, 'Great app');
     expect(screen.getByTestId('feedback-counter')).toHaveTextContent('9 / 2,000');
+  });
+
+  it('attaches the build, OS and current screen to each submission (UX-PO-05)', async () => {
+    await render(<FeedbackCard />);
+    await fireEvent.changeText(screen.getByTestId('feedback-input'), '  Rest timer is silent ');
+    await fireEvent.press(screen.getByTestId('feedback-submit'));
+    expect(mockSubmit).toHaveBeenCalledTimes(1);
+    const [sent] = mockSubmit.mock.calls[0] as [
+      { message: string; build: string; os: string; route: string },
+    ];
+    expect(sent.message).toBe('Rest timer is silent');
+    expect(sent.build).toContain('Chefer');
+    expect(sent.os).toMatch(/^(iOS|Android API) /);
+    expect(sent.route).toBe('/more');
   });
 
   it('says when the limit is reached', async () => {
@@ -108,22 +117,5 @@ describe('PostUpgradeSheet (F-PREM-1-5, F-PM-9)', () => {
     mockHasProfile = false;
     await renderSheet(null);
     expect(screen.getByTestId('post-upgrade-step-profile')).toBeOnTheScreen();
-  });
-});
-
-describe('PantryGhostBanner (F3 §6.4)', () => {
-  it('hides until check-offs have seeded the kitchen', async () => {
-    await render(<PantryGhostBanner savedEur={4.5} />);
-    expect(screen.queryByTestId('pantry-ghost')).toBeNull();
-  });
-
-  it('shows the real count and savings, and upgrades with the pantry source', async () => {
-    mockPantryCount = 3;
-    const user = userEvent.setup();
-    await render(<PantryGhostBanner savedEur={4.5} />);
-    expect(screen.getByTestId('pantry-ghost')).toHaveTextContent(/You now have 3 items/);
-    expect(screen.getByTestId('pantry-ghost-saved')).toHaveTextContent(/saved ~€4\.50/);
-    await user.press(screen.getByTestId('pantry-ghost-upgrade'));
-    expect(mockOpenPremium).toHaveBeenCalledWith('pantry');
   });
 });

@@ -22,6 +22,8 @@ export const ACTIVATION_HREFS: Record<ActivationStepKey, Href> = {
   household: '/household',
   regenerate: '/meal-plan',
   cheferize: '/import-recipe',
+  // UX-ACC-13: `snap=1` opens the photo picker on arrival.
+  snap: { pathname: '/tracker', params: { snap: '1' } },
 };
 
 export function PostUpgradeSheet({

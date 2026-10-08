@@ -75,6 +75,16 @@ describe('TrainingDayNote', () => {
     expect(screen.getByText('Training bonus')).toBeOnTheScreen();
   });
 
+  // UX-FOOD-19: the sheet quoted only the rest-day figure on a training day.
+  it('Why? also quotes the training-day target, rest + the bump (UX-FOOD-19)', async () => {
+    const user = userEvent.setup();
+    await renderNote(lift(), { restKcal: 2300, restProteinG: 140 });
+    await user.press(screen.getByTestId('training-day-why'));
+    expect(await screen.findByText('Training-day target')).toBeOnTheScreen();
+    // 2,300 + 250 kcal, 140 + 32 g protein.
+    expect(screen.getByText('2,550 kcal · 172 g protein')).toBeOnTheScreen();
+  });
+
   it('Why? works without the rest-day target (rows omitted)', async () => {
     const user = userEvent.setup();
     await renderNote(lift());
@@ -83,12 +93,12 @@ describe('TrainingDayNote', () => {
     expect(screen.queryByText('Rest-day target')).toBeNull();
   });
 
-  it('locked (free, flag off): dashed preview, upgrade opens Premium, no Why?', async () => {
-    const user = userEvent.setup();
+  // WP-07: training-day targets are free (no AI) — the note is never a lock.
+  it('never sells Premium: even an unapplied bump (older API) reads as the free note', async () => {
     await renderNote(lift({ applied: false }));
-    expect(screen.queryByTestId('training-day-why')).toBeNull();
-    expect(screen.queryByText(/Upgrade from your Profile/)).toBeNull();
-    await user.press(screen.getByTestId('training-day-upgrade'));
-    expect(openPremium).toHaveBeenCalledWith('training-day');
+    expect(screen.getByTestId('training-day-why')).toBeOnTheScreen();
+    expect(screen.queryByTestId('training-day-upgrade')).toBeNull();
+    expect(screen.queryByText(/Premium/)).toBeNull();
+    expect(openPremium).not.toHaveBeenCalled();
   });
 });

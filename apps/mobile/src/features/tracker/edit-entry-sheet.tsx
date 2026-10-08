@@ -1,14 +1,18 @@
 import { useEffect, useState } from 'react';
-import { View } from 'react-native';
+import { Keyboard, View } from 'react-native';
 import { Button, Input, SegmentedControl, Sheet, Text, useSnackbar } from '@chefer/ui-mobile';
 import {
   checkMacroSanity,
+  entryUnknownMacros,
   formatQuickAddGrams,
   QUICK_ADD_MEAL_TYPES,
+  userFacingErrorMessage,
   type CustomEntryRow,
   type QuickAddMealType,
 } from '@chefer/utils';
 import { trpc } from '../../lib/trpc';
+import { useNumbersMode } from '../numbers-mode/numbers-mode';
+import { useNumericChain } from '../preferences/use-numeric-chain';
 import { invalidateDayQueries } from './invalidate';
 
 // Edit any custom entry, undo any delete (bug B-34, T-19.2). Only custom
@@ -40,6 +44,7 @@ interface CustomEntrySnapshot {
   protein: number;
   carbs: number;
   fat: number;
+  unknownMacros?: ('protein' | 'carbs' | 'fat')[];
 }
 
 export interface EditEntrySheetProps {
@@ -62,6 +67,8 @@ export function EditEntrySheet({
 }: EditEntrySheetProps) {
   const snackbar = useSnackbar();
   const utils = trpc.useUtils();
+  // WP-08: protein-only mode edits protein; calories and the other macros keep their stored values.
+  const { proteinOnly } = useNumbersMode();
 
   const [name, setName] = useState('');
   const [mealType, setMealType] = useState<QuickAddMealType>('snack');
@@ -72,6 +79,9 @@ export function EditEntrySheet({
     fat: '',
   });
   const [sanityOverridden, setSanityOverridden] = useState(false);
+  // name → kcal → protein → carbs → fat (full), or name → protein (protein-only): Next on
+  // each, Done on the last.
+  const numbers = useNumericChain('edit-entry', proteinOnly ? 1 : 1 + MACROS.length);
 
   useEffect(() => {
     if (!entry) return;
@@ -82,15 +92,18 @@ export function EditEntrySheet({
         : 'snack',
     );
     setKcal(String(entry.kcal));
+    // UX-FOOD-11: a macro the entry never had shows blank, not "0.0".
+    const unknown = entryUnknownMacros(entry);
     setMacros({
-      protein: formatQuickAddGrams(entry.protein),
-      carbs: formatQuickAddGrams(entry.carbs),
-      fat: formatQuickAddGrams(entry.fat),
+      protein: unknown.includes('protein') ? '' : formatQuickAddGrams(entry.protein),
+      carbs: unknown.includes('carbs') ? '' : formatQuickAddGrams(entry.carbs),
+      fat: unknown.includes('fat') ? '' : formatQuickAddGrams(entry.fat),
     });
     setSanityOverridden(false);
   }, [entry]);
 
   const updateMutation = trpc.tracker.updateCustomMeal.useMutation({
+    meta: { silent: true },
     onSuccess: () => {
       invalidateDayQueries(utils, date);
       snackbar.show({ message: 'Changes saved', tone: 'success' });
@@ -98,9 +111,14 @@ export function EditEntrySheet({
       onClose();
     },
   });
-  const deleteMutation = trpc.tracker.deleteCustomMeal.useMutation();
+  const deleteMutation = trpc.tracker.deleteCustomMeal.useMutation({ meta: { silent: true } });
+  // UX-FOOD-06: a failed restore (the Undo) says so, and either way the day
+  // is re-read so the screen shows what the server holds.
   const restoreMutation = trpc.tracker.restoreCustomMeal.useMutation({
-    onSuccess: () => invalidateDayQueries(utils, date),
+    meta: { silent: true },
+    onError: (error) =>
+      snackbar.show({ message: `Couldn't bring that back. ${userFacingErrorMessage(error)}` }),
+    onSettled: () => invalidateDayQueries(utils, date),
   });
 
   if (!entry) return null;
@@ -112,13 +130,20 @@ export function EditEntrySheet({
     carbs: Math.max(0, Number(macros.carbs.replace(',', '.')) || 0),
     fat: Math.max(0, Number(macros.fat.replace(',', '.')) || 0),
   };
-  const sanity = sanityOverridden ? null : checkMacroSanity({ kcal: kcalNumber, ...macroNumbers });
+  // Blank macros are unknown, not 0 g (UX-FOOD-11): they are stored as 0, flagged,
+  // and never trip the "don't add up" check.
+  const unknownMacros = MACROS.filter(({ key }) => macros[key].trim() === '').map(({ key }) => key);
+  const sanity =
+    sanityOverridden || proteinOnly
+      ? null
+      : checkMacroSanity({ kcal: kcalNumber, ...macroNumbers, unknownMacros });
   const canSave =
     !!entryId && name.trim().length > 0 && kcalNumber > 0 && !updateMutation.isPending;
 
   const save = () => {
     if (!canSave || !entryId) return;
-    if (sanity?.message) return; // Fix / Log anyway gates the submit
+    if (sanity?.message) return; // the sanity line's Save anyway gates the submit
+    Keyboard.dismiss();
     updateMutation.mutate({
       date,
       entryId,
@@ -129,6 +154,7 @@ export function EditEntrySheet({
       protein: macroNumbers.protein,
       carbs: macroNumbers.carbs,
       fat: macroNumbers.fat,
+      unknownMacros,
     });
   };
 
@@ -146,10 +172,12 @@ export function EditEntrySheet({
       protein: entry.protein,
       carbs: entry.carbs,
       fat: entry.fat,
+      ...(entry.unknownMacros && { unknownMacros: [...entry.unknownMacros] }),
     };
     onClose();
     deleteMutation.mutate(
-      { date, entryIndex: entry.entryIndex },
+      // UX-FOOD-17: by stable id (the index is only the fallback).
+      { date, entryId, entryIndex: entry.entryIndex },
       {
         onSuccess: () => {
           invalidateDayQueries(utils, date);
@@ -160,6 +188,12 @@ export function EditEntrySheet({
             onAction: () => restoreMutation.mutate({ date, entry: snapshot }),
           });
         },
+        // The sheet closes before the server answers; if the delete failed
+        // the row is still there (nothing was removed), so say why.
+        onError: (error) =>
+          snackbar.show({
+            message: `Couldn't delete ${entry.name}. ${userFacingErrorMessage(error)}`,
+          }),
       },
     );
   };
@@ -181,7 +215,7 @@ export function EditEntrySheet({
                 size="sm"
                 onPress={() => setSanityOverridden(true)}
               >
-                Log anyway
+                Save anyway
               </Button>
             </View>
           )}
@@ -206,6 +240,8 @@ export function EditEntrySheet({
           accessibilityLabel="Name"
           value={name}
           onChangeText={setName}
+          returnKeyType="next"
+          onSubmitEditing={numbers.focusFirst}
         />
       </View>
 
@@ -221,47 +257,76 @@ export function EditEntrySheet({
         />
       </View>
 
-      <View className="gap-1">
-        <Text className="text-xs font-medium text-gray-600">Calories</Text>
-        <View className="flex-row items-center gap-2">
-          <Input
-            testID="edit-entry-kcal"
-            accessibilityLabel="Calories"
-            value={kcal}
-            keyboardType="number-pad"
-            onChangeText={(text) => {
-              setKcal(text);
-              setSanityOverridden(false);
-            }}
-            className="min-w-0 flex-1"
-          />
-          <Text className="text-sm text-gray-400">kcal</Text>
-        </View>
-      </View>
-
-      <View className="gap-1">
-        <Text className="text-xs font-medium text-gray-600">Macros (grams)</Text>
-        <View className="flex-row gap-2">
-          {MACROS.map(({ key, label }) => (
-            <View key={key} className="min-w-0 flex-1 gap-1">
+      {proteinOnly ? (
+        <>
+          <View className="gap-1">
+            <Text className="text-xs font-medium text-gray-600">Protein (g)</Text>
+            <View className="flex-row items-center gap-2">
               <Input
-                testID={`edit-entry-${key}`}
-                accessibilityLabel={`${label} grams`}
-                value={macros[key]}
+                testID="edit-entry-protein"
+                accessibilityLabel="Protein grams"
+                placeholder="–"
+                value={macros.protein}
                 keyboardType="decimal-pad"
+                onChangeText={(text) => setMacros((prev) => ({ ...prev, protein: text }))}
+                className="min-w-0 flex-1"
+                {...numbers.bind(0)}
+              />
+              <Text className="text-sm text-muted-foreground">g</Text>
+            </View>
+          </View>
+        </>
+      ) : (
+        <>
+          <View className="gap-1">
+            <Text className="text-xs font-medium text-gray-600">Calories</Text>
+            <View className="flex-row items-center gap-2">
+              <Input
+                testID="edit-entry-kcal"
+                accessibilityLabel="Calories"
+                value={kcal}
+                keyboardType="number-pad"
                 onChangeText={(text) => {
-                  setMacros((prev) => ({ ...prev, [key]: text }));
+                  setKcal(text);
                   setSanityOverridden(false);
                 }}
+                className="min-w-0 flex-1"
+                {...numbers.bind(0)}
               />
+              <Text className="text-sm text-muted-foreground">kcal</Text>
             </View>
-          ))}
-        </View>
-      </View>
+          </View>
+
+          <View className="gap-1">
+            <Text className="text-xs font-medium text-gray-600">Macros (optional, grams)</Text>
+            <View className="flex-row gap-2">
+              {MACROS.map(({ key, label }, index) => (
+                <View key={key} className="min-w-0 flex-1 gap-1">
+                  <Text className="text-xs font-medium text-gray-600">{label} (g)</Text>
+                  <Input
+                    testID={`edit-entry-${key}`}
+                    accessibilityLabel={`${label} grams`}
+                    placeholder="–"
+                    value={macros[key]}
+                    keyboardType="decimal-pad"
+                    onChangeText={(text) => {
+                      setMacros((prev) => ({ ...prev, [key]: text }));
+                      setSanityOverridden(false);
+                    }}
+                    {...numbers.bind(index + 1)}
+                  />
+                </View>
+              ))}
+            </View>
+          </View>
+        </>
+      )}
+
+      {numbers.bars}
 
       {updateMutation.isError && (
         <Text testID="edit-entry-api-error" className="text-sm text-red-600">
-          {updateMutation.error.message}
+          {userFacingErrorMessage(updateMutation.error)}
         </Text>
       )}
     </Sheet>

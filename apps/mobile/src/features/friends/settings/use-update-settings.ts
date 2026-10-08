@@ -41,7 +41,7 @@ export function useUpdateSettings(): {
   save: (input: UpdateSettingsInput, options?: { optimistic?: boolean }) => Promise<SaveResult>;
 } {
   const utils = trpc.useUtils();
-  const mutation = trpc.friends.updateSettings.useMutation();
+  const mutation = trpc.friends.updateSettings.useMutation({ meta: { silent: true } });
   const inflight = useRef(0);
 
   const save = async (

@@ -1,17 +1,24 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import {
+  AI_CONSENT_COPY,
   AI_CONSENT_FEATURE_DATA,
   AI_CONSENT_FEATURES,
+  DEFAULT_AI_PROVIDER_DISCLOSURE,
   FREE_ONLY_AI_PROVIDER_DISCLOSURE,
   LEGACY_AI_PROVIDER_DISCLOSURE,
 } from '@chefer/types';
 import {
   aiConsentBackupLine,
+  aiConsentFeatureForPath,
   aiConsentIntro,
   aiConsentRequiredFor,
   aiConsentToggleOn,
   formatAiProviderNames,
+  handleAiConsentRequiredError,
+  isAiConsentRequiredError,
   needsAiDataConsent,
+  notifyAiConsentRequired,
+  onAiConsentRequired,
   toAiProviderDisclosure,
 } from './ai-consent';
 
@@ -47,17 +54,24 @@ describe('aiConsentRequiredFor', () => {
   });
 
   it('always asks for the AI-only features', () => {
-    for (const f of ['meal-scan', 'recipe-import', 'chat', 'shopping-list'] as const) {
+    for (const f of [
+      'meal-scan',
+      'recipe-import',
+      'chat',
+      'shopping-list',
+      'ingredient-estimate',
+    ] as const) {
       expect(aiConsentRequiredFor(f, false)).toBe(true);
     }
   });
 });
 
 describe('aiConsentIntro', () => {
-  it('names the provider and the action for every feature (standard routing by default)', () => {
+  it('names the provider and the action for every feature (the production set by default)', () => {
     for (const f of AI_CONSENT_FEATURES) {
       const intro = aiConsentIntro(f);
-      expect(intro).toContain('Google Gemini');
+      expect(intro).toContain('Groq');
+      expect(intro).not.toContain('Gemini');
       expect(intro).toContain(AI_CONSENT_FEATURE_DATA[f].action);
       expect(intro).not.toMatch(/\{\w+\}/);
       expect(AI_CONSENT_FEATURE_DATA[f].data.length).toBeGreaterThan(0);
@@ -103,8 +117,73 @@ describe('provider lines', () => {
       FREE_ONLY_AI_PROVIDER_DISCLOSURE,
     );
     expect(toAiProviderDisclosure({ primary: 'openai', backups: [] })).toEqual(
-      LEGACY_AI_PROVIDER_DISCLOSURE,
+      DEFAULT_AI_PROVIDER_DISCLOSURE,
     );
-    expect(toAiProviderDisclosure(undefined)).toEqual(LEGACY_AI_PROVIDER_DISCLOSURE);
+    expect(toAiProviderDisclosure(undefined)).toEqual(DEFAULT_AI_PROVIDER_DISCLOSURE);
+  });
+
+  it('R-10: the default (no answer / a failed request) is what production runs, not the legacy Gemini set', () => {
+    expect(DEFAULT_AI_PROVIDER_DISCLOSURE).toEqual(FREE_ONLY_AI_PROVIDER_DISCLOSURE);
+    expect(aiConsentBackupLine()).toBe(
+      'If Groq is busy, a request may be handled by Cloudflare Workers AI, a backup AI service, instead.',
+    );
+    expect(aiConsentToggleOn()).not.toContain('Gemini');
+  });
+});
+
+describe('R-10 copy', () => {
+  it('the ingredient fill-in says what it sends: only the typed name', () => {
+    expect(AI_CONSENT_FEATURE_DATA['ingredient-estimate'].data).toEqual([
+      'The ingredient name you typed',
+    ]);
+  });
+
+  it('the toggle lists every feature that may send data, including the coach review and the shopping-list tidy-up', () => {
+    const on = aiConsentToggleOn();
+    for (const word of [
+      'meal plans',
+      'swaps',
+      'photo scans',
+      'recipe',
+      'chat',
+      'ingredient',
+      'shopping-list',
+      'weekly coach review',
+    ]) {
+      expect(on.toLowerCase()).toContain(word);
+    }
+    expect(AI_CONSENT_COPY.coachReviewNote).toMatch(/weight trend, goal and average calories/);
+  });
+});
+
+describe('server-side consent rejection (R-10)', () => {
+  it('recognises the tRPC reason and a plain-HTTP error carrying it', () => {
+    expect(isAiConsentRequiredError({ data: { reason: 'AI_CONSENT_REQUIRED' } })).toBe(true);
+    expect(isAiConsentRequiredError({ reason: 'AI_CONSENT_REQUIRED' })).toBe(true);
+    expect(isAiConsentRequiredError({ data: { reason: null, code: 'FORBIDDEN' } })).toBe(false);
+    expect(isAiConsentRequiredError(new Error('nope'))).toBe(false);
+    expect(isAiConsentRequiredError(null)).toBe(false);
+  });
+
+  it('maps a refused procedure to its consent-sheet copy', () => {
+    expect(aiConsentFeatureForPath('mealPlan.swapRecipe')).toBe('meal-swap');
+    expect(aiConsentFeatureForPath('recipe.importVideoPreview')).toBe('recipe-import');
+    expect(aiConsentFeatureForPath('shoppingList.regenerate')).toBe('shopping-list');
+    expect(aiConsentFeatureForPath('ingredients.estimateNutrition')).toBe('ingredient-estimate');
+    expect(aiConsentFeatureForPath(undefined)).toBe('meal-plan');
+  });
+
+  it('notifies subscribers only for a consent rejection, with the right feature', () => {
+    const listener = vi.fn();
+    const off = onAiConsentRequired(listener);
+    handleAiConsentRequiredError({ data: { reason: 'AI_CONSENT_REQUIRED' } }, [
+      ['mealPlan', 'swapRecipe'],
+    ]);
+    expect(listener).toHaveBeenCalledWith('meal-swap');
+    handleAiConsentRequiredError({ data: { code: 'FORBIDDEN', reason: null } }, [['x', 'y']]);
+    expect(listener).toHaveBeenCalledTimes(1);
+    off();
+    notifyAiConsentRequired('chat');
+    expect(listener).toHaveBeenCalledTimes(1);
   });
 });

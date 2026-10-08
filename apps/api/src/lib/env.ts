@@ -145,6 +145,9 @@ const envSchema = z.object({
   // weekly emails stop 50 short of it — that headroom is kept for
   // password-reset and confirmation emails.
   EMAIL_DAILY_CAP: z.preprocess(emptyAsUnset, z.coerce.number().int().positive().optional()),
+  // PO-05: where each beta-feedback submission is mailed (through the
+  // EMAIL_PROVIDER transport above). Unset = no notification (the row is still stored).
+  FEEDBACK_NOTIFY_EMAIL: z.preprocess(emptyAsUnset, z.string().email().optional()),
   // Base URL used in emailed links (reset password, etc.)
   APP_URL: z.string().url().default('http://localhost:3000'),
   // Signs the weekly-email unsubscribe and email-confirmation links (audit
@@ -155,6 +158,57 @@ const envSchema = z.object({
   EMAIL_TOKEN_SECRET: z.preprocess(
     emptyAsUnset,
     z.string().min(32, 'EMAIL_TOKEN_SECRET must be at least 32 characters').optional(),
+  ),
+
+  // Sign in with Google / Apple (WP-22). Every value is optional: a provider
+  // with no configuration is DISABLED (auth.socialAvailability says so, the
+  // buttons stay hidden, auth.socialSignIn answers PRECONDITION_FAILED). Empty
+  // values (a copied .env.example) count as unset. See infrastructure.md §10.
+  // Google OAuth client ids (one per platform; a token whose `aud` is any of them is accepted).
+  GOOGLE_CLIENT_ID_WEB: z.preprocess(emptyAsUnset, z.string().optional()),
+  GOOGLE_CLIENT_ID_IOS: z.preprocess(emptyAsUnset, z.string().optional()),
+  GOOGLE_CLIENT_ID_ANDROID: z.preprocess(emptyAsUnset, z.string().optional()),
+  // Apple: Services ID (web audience) and the iOS bundle id (native audience).
+  APPLE_SERVICES_ID: z.preprocess(emptyAsUnset, z.string().optional()),
+  APPLE_BUNDLE_ID: z.preprocess(emptyAsUnset, z.string().default('com.popdan.chefer')),
+  // Apple needs a client-secret JWT (Team ID, Key ID, the .p8 private key — multiline
+  // PEM, or one line with literal "\n") to exchange the sign-in code and to REVOKE
+  // the grant when an account is deleted (App Review). Apple is enabled only when
+  // all three are set.
+  APPLE_TEAM_ID: z.preprocess(emptyAsUnset, z.string().optional()),
+  APPLE_KEY_ID: z.preprocess(emptyAsUnset, z.string().optional()),
+  APPLE_PRIVATE_KEY: z.preprocess(
+    emptyAsUnset,
+    z
+      .string()
+      .transform((v) => v.replace(/\\n/g, '\n'))
+      .optional(),
+  ),
+  // Redirect URI registered for the Services ID (Apple JS SDK). Unset = APP_URL + "/login".
+  APPLE_WEB_REDIRECT_URI: z.preprocess(emptyAsUnset, z.string().url().optional()),
+  // Encrypts the Apple refresh token at rest (AES-256-GCM). Optional: unset
+  // derives a key from JWT_SECRET (rotating JWT_SECRET then orphans stored Apple
+  // tokens — they could no longer be revoked), so set it in production.
+  SOCIAL_TOKEN_SECRET: z.preprocess(
+    emptyAsUnset,
+    z.string().min(32, 'SOCIAL_TOKEN_SECRET must be at least 32 characters').optional(),
+  ),
+
+  // Password-manager association for the Android app (/.well-known/assetlinks.json,
+  // WP-22): comma-separated SHA-256 signing-certificate fingerprints of the
+  // production app (Play App Signing + upload key), e.g. "AB:CD:…,12:34:…".
+  // Unset/empty = the file is served with an empty statement list.
+  ANDROID_CERT_SHA256: z.preprocess(
+    emptyAsUnset,
+    z
+      .string()
+      .transform((val) =>
+        val
+          .split(',')
+          .map((f) => f.trim().toUpperCase())
+          .filter((f) => f.length > 0),
+      )
+      .default(''),
   ),
 
   // Cloudinary (optional — image generation will fail gracefully without these)
@@ -214,6 +268,13 @@ const envSchema = z.object({
   // deploy stays `off` — flipping modes is a later, explicit rollout step
   // (§2.8 "rollout").
   HEALTH_CONSENT_ENFORCE: z.enum(['off', 'declared', 'all']).default('off'),
+
+  // AI-data consent enforcement (App Store 5.1.2(i), R-10). `on` (the
+  // default) refuses an AI action from a user with no `aiDataConsentAt` with
+  // `AI_CONSENT_REQUIRED` (lib/ai-consent-gate.ts); every shipped client
+  // already asks before it calls the AI, so consenting users never notice.
+  // `off` restores the client-only behaviour (an emergency switch).
+  AI_CONSENT_ENFORCE: z.enum(['off', 'on']).default('on'),
 
   // Grocery store search (lib/grocery-ai): mock is enabled by default so
   // local dev never calls the real store-search AI. T-BUG-X6: this used to

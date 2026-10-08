@@ -1,16 +1,16 @@
 import { useMemo, useState } from 'react';
 import { Pressable, View } from 'react-native';
-import { onlineManager } from '@tanstack/react-query';
 import { router } from 'expo-router';
 import type { GymBootstrap, SessionSummaryDto } from '@chefer/types';
 import { Button, Text } from '@chefer/ui-mobile';
-import { collectPrs, groupRecentSessions } from '@chefer/utils';
+import { collectPrs, groupRecentSessions, sessionStatsText } from '@chefer/utils';
 import { trpc } from '../../../lib/trpc';
 import {
   SessionOptionsButton,
   sessionRowAccessibilityActions,
   useSessionActions,
 } from '../history/use-session-actions';
+import { useIsOnline } from '../library-screens/online-status';
 import { localDate } from '../offline/ids';
 
 // UX-36 amendment A2 (T-36.A2.1, O-10/O-11): the `Recent` section on Gym
@@ -35,6 +35,7 @@ export interface RecentWorkoutsProps {
 
 export function RecentWorkouts({ bootstrap, testID = 'gym-today-recent' }: RecentWorkoutsProps) {
   const utils = trpc.useUtils();
+  const online = useIsOnline();
   const actions = useSessionActions({ bootstrap, source: 'recent', testIDPrefix: testID });
   const today = localDate();
   const cached = useMemo(
@@ -66,7 +67,7 @@ export function RecentWorkouts({ bootstrap, testID = 'gym-today-recent' }: Recen
       setVisibleCount((v) => Math.min(INLINE_CAP, v + PAGE_SIZE));
       return;
     }
-    if (!onlineManager.isOnline()) {
+    if (!online) {
       setLoadError(true);
       return;
     }
@@ -107,8 +108,10 @@ export function RecentWorkouts({ bootstrap, testID = 'gym-today-recent' }: Recen
           </Text>
           {group.rows.map((row) => {
             const showTime = group.rows.length >= 2;
-            const detail = `${row.durationMin} min · ${row.workingSets} sets${row.hasPr ? ' · PR' : ''}`;
-            const a11yLabel = `${row.name}, ${group.heading}${showTime ? ` at ${row.startTime}` : ''}, ${row.durationMin} minutes, ${row.workingSets} sets${row.hasPr ? ', personal record' : ''}`;
+            // WP-20: an activity reads "45 min · ~400 kcal", never "1 sets".
+            const stats = sessionStatsText(row);
+            const detail = stats.text;
+            const a11yLabel = `${row.name}, ${group.heading}${showTime ? ` at ${row.startTime}` : ''}, ${stats.spoken}`;
             const session = combined.find((s) => s.id === row.id);
             return (
               <View
@@ -148,9 +151,7 @@ export function RecentWorkouts({ bootstrap, testID = 'gym-today-recent' }: Recen
 
       {loadError ? (
         <Text testID={`${testID}-error`} variant="muted" className="text-xs">
-          {onlineManager.isOnline()
-            ? "Couldn't load older workouts."
-            : 'Connect to load older workouts.'}{' '}
+          {online ? "Couldn't load older workouts." : 'Connect to load older workouts.'}{' '}
           <Text className="text-primary" onPress={handleShowMore}>
             Try again
           </Text>

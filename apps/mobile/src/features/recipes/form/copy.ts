@@ -6,6 +6,7 @@ export const recipeFormCopy = {
   titles: {
     create: 'New recipe',
     edit: 'Edit recipe',
+    duplicate: 'Duplicate recipe',
     legend: '* Required',
   },
   fields: {
@@ -44,6 +45,7 @@ export const recipeFormCopy = {
     save: 'Save changes',
     creating: 'Creating…',
     saving: 'Saving…',
+    uploadingPhoto: 'Uploading photo…',
     needsConnection: 'Needs a connection',
     addIngredient: '+ Add ingredient',
     addStep: '+ Add step',
@@ -73,6 +75,7 @@ export const recipeFormCopy = {
   photo: {
     add: 'Add a photo',
     uploading: 'Uploading photo…',
+    waitingToSave: 'Saving unlocks when the photo has finished uploading.',
     change: 'Change photo',
     remove: 'Remove',
     failedTitle: "Couldn't add the photo.",

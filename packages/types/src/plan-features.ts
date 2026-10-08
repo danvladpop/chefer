@@ -123,8 +123,20 @@ export const PLAN_FEATURES = {
     premium: true,
     label: 'Snap a photo, log the meal',
     description:
-      'Photograph any plate and the chef estimates the dish and macros — then quietly rebalances the rest of your week to keep you on track.',
+      'Photograph any plate and the chef estimates the dish and macros, then logs it to your day.',
     upsell: true,
+  },
+  weekRebalance: {
+    // WP-07 (owner decision 2026-10-02, "Premium is for heavy AI only"): the
+    // post-log week rebalance swaps future meals from the curated pool, with no
+    // AI call, so it is free. It used to ride on `photoLogging`. Gated in
+    // TrackerService.maybeRebalance and mealPlan.previewRebalance/applyRebalance.
+    free: true,
+    premium: true,
+    label: 'Week rebalance',
+    description:
+      'After you log a meal, the chef can adjust a couple of coming meals to keep your week on target, calories and protein, and you see the change before it happens.',
+    upsell: false,
   },
   recipeImport: {
     free: false,
@@ -145,12 +157,15 @@ export const PLAN_FEATURES = {
     upsell: true,
   },
   pantryPlanning: {
+    // Retired with the "In my kitchen" pantry (WP-24 / FB7-10): kept in the
+    // matrix because the server still gates the (switched-off) pantry code on
+    // it, but never sold — no pitch, perk list or /premium card shows it.
     free: false,
     premium: true,
     label: 'Plans that cook from your pantry',
     description:
       'Chefer remembers what you bought and plans around it — fewer duplicates, visible savings, zero-waste weeks.',
-    upsell: true,
+    upsell: false,
   },
   mealScansPerDay: {
     // Enforced via AiCallLog type SCAN (F4). Pure limit plumbing.
@@ -191,28 +206,24 @@ export const PLAN_FEATURES = {
     upsell: false,
   },
   trainingNutrition: {
-    // The gym premium hero (audit P2-4). Free lifters get the base protein
-    // target from their bodyweight and the post-workout nudge; premium builds
-    // the week around the routine's training days ("Fit meals to my training
-    // days"). Since UX-06 (T-06.1) the training-day BUMP itself is gated by
-    // `trainingDayTargets` below, not by this key — a key split, not a rename
-    // (old clients that read this key for their lock copy keep working).
-    // Deterministic — no extra AI call.
-    free: false,
+    // Free since WP-07 (owner decision 2026-10-02, "Premium is for heavy AI
+    // only"): training-day nutrition is deterministic, no AI. The AI-built
+    // week that puts protein-rich meals on training days stays premium via
+    // `aiMealPlans`. Kept as a key (older clients read it for their lock copy).
+    free: true,
     premium: true,
     label: 'Nutrition that follows your training',
     description:
-      'On workout days your calorie and protein targets rise to fuel the session, and your AI week puts protein-rich meals on your training days.',
-    upsell: true,
+      'On workout days your calorie and protein targets rise to fuel the session, with the reason one tap away.',
+    upsell: false,
   },
   trainingDayTargets: {
-    // UX-06 (T-06.1, D-2): the training-day calorie/protein bump on Today,
-    // the tracker and the plan's day targets. Premium-only here; the
+    // UX-06 (T-06.1, D-2): the training-day calorie/protein bump on Today, the
+    // tracker and the plan's day targets. Free since WP-07 (no AI). The
     // `trainingBumpFree` feature flag (server-side, packages/types
-    // feature-flags.ts) opens it to the free tier — enforced in
-    // TrainingNutritionService, which ORs the flag onto this key's access.
-    // Not a perk line of its own (the pitch lists `trainingNutrition`).
-    free: false,
+    // feature-flags.ts) is now redundant for the lift bump and stays readable
+    // only until it is removed (TrainingNutritionService still ORs it on).
+    free: true,
     premium: true,
     label: 'Training-day targets',
     description:
@@ -232,6 +243,13 @@ export const PLAN_FEATURES = {
 } as const satisfies Record<string, PlanFeature>;
 
 export type PlanFeatureKey = keyof typeof PLAN_FEATURES;
+
+/**
+ * Matrix keys for features that are retired from the product (WP-24 / FB7-10:
+ * the "In my kitchen" pantry). They stay in the matrix for the server's gates
+ * but no pricing table, perk list or pitch may list them.
+ */
+export const RETIRED_PLAN_FEATURE_KEYS: readonly PlanFeatureKey[] = ['pantryPlanning'];
 
 /** Feature keys whose `upsell` flag is set — the canonical premium perk list. */
 export const PREMIUM_PERK_KEYS = (Object.keys(PLAN_FEATURES) as PlanFeatureKey[]).filter(

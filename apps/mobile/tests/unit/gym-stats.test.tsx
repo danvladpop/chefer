@@ -1,6 +1,7 @@
+import { useState } from 'react';
 import { onlineManager } from '@tanstack/react-query';
-import { screen, userEvent } from '@testing-library/react-native';
-import type { ExerciseDto, SessionSummaryDto } from '@chefer/types';
+import { act, screen, userEvent } from '@testing-library/react-native';
+import type { ExerciseDto, MuscleVolumeWeekDto, SessionSummaryDto } from '@chefer/types';
 import { ConsistencyView } from '../../src/features/gym/stats/consistency-view';
 import {
   localBestSets,
@@ -8,6 +9,8 @@ import {
   localRepPrTable,
   topCompoundsByFrequency,
 } from '../../src/features/gym/stats/local-engine';
+import { MonthlyRecapView } from '../../src/features/gym/stats/monthly-recap-view';
+import { pickStackGroups } from '../../src/features/gym/stats/muscle-volume-view';
 import { PrTimelineView } from '../../src/features/gym/stats/pr-timeline-view';
 import { StatsTab } from '../../src/features/gym/stats/stats-tab';
 import { StrengthTrendView } from '../../src/features/gym/stats/strength-trend-view';
@@ -16,10 +19,11 @@ import { makeBootstrap, makeExercise } from './gym-fixtures';
 import { makeGymQueryClient, renderWithGym } from './gym-screen-test-utils';
 
 jest.mock('@expo/vector-icons', () => ({ Ionicons: () => null }));
+let mockSearchParams: Record<string, string> = {};
 jest.mock('expo-router', () => ({
   router: { replace: jest.fn(), push: jest.fn(), back: jest.fn(), canGoBack: () => false },
   usePathname: () => '/stats',
-  useLocalSearchParams: () => ({}),
+  useLocalSearchParams: () => mockSearchParams,
 }));
 
 function session(overrides: Partial<SessionSummaryDto> & { id: string }): SessionSummaryDto {
@@ -91,8 +95,9 @@ describe('local-engine (offline e1RM / rep-PR / frequency)', () => {
 
     expect(series.points).toHaveLength(3);
     expect(series.points.map((p) => p.e1rmKg)).toEqual([123.33, 122.5, 132]);
-    // s2 is a WEIGHT pr (105 > 100) but not an e1RM pr (122.5 < 123.33).
-    expect(series.points[1]?.isPr).toBe(false);
+    // UX-GYM-33: a PR is ANY kind beaten, the same rule as the summary and History.
+    // s2 is a WEIGHT pr (105 > 100) even though its e1RM (122.5) is lower.
+    expect(series.points[1]?.isPr).toBe(true);
     // s3 (132) beats the prior e1RM max (123.33): an e1RM PR.
     expect(series.points[2]?.isPr).toBe(true);
     expect(series.trend).toEqual([123.33, 123.33, 132]);
@@ -157,8 +162,38 @@ describe('Stats empty states', () => {
     expect(await screen.findByTestId('stats-strength-log-weight')).toBeTruthy();
   });
 
-  it('B-42 (T-BUG-42): the Stats "More" card never leaks internal spec copy ("research §…")', async () => {
+  it('UX-GYM-17: "× body weight" is off, with a reason, when no weight is known anywhere', async () => {
+    const bootstrap = makeBootstrap({
+      library: [bench],
+      recentSessions: SESSIONS,
+      bodyweightKg: null,
+    });
+    await renderWithGym(<StrengthTrendView bootstrap={bootstrap} />, makeGymQueryClient());
+
+    const toggle = await screen.findByTestId('stats-strength-relative-toggle');
+    expect(toggle).toBeDisabled();
+    expect(screen.getByTestId('stats-strength-relative-disabled')).toBeTruthy();
+  });
+
+  it('UX-GYM-17: with a weight known, the ratio view is labelled and never the raw kg', async () => {
     const user = userEvent.setup();
+    const bootstrap = makeBootstrap({
+      library: [bench],
+      recentSessions: SESSIONS,
+      bodyweightKg: 80,
+    });
+    await renderWithGym(<StrengthTrendView bootstrap={bootstrap} />, makeGymQueryClient());
+
+    const toggle = await screen.findByTestId('stats-strength-relative-toggle');
+    expect(toggle).toBeEnabled();
+    await user.press(toggle);
+    expect(await screen.findByTestId('stats-strength-relative-note')).toHaveTextContent(
+      /× body weight/,
+    );
+    expect(screen.queryByTestId('stats-strength-relative-disabled')).toBeNull();
+  });
+
+  it('UX-GYM-34: the Stats tab has no empty "More" placeholder', async () => {
     const queryClient = makeGymQueryClient();
     queryClient.setQueryData(
       gymBootstrapQueryKey,
@@ -166,11 +201,71 @@ describe('Stats empty states', () => {
     );
     await renderWithGym(<StatsTab />, queryClient);
 
-    await user.press(await screen.findByTestId('gym-stats-more-toggle'));
-    const more = await screen.findByTestId('gym-stats-more');
-    expect(more).toBeTruthy();
+    await screen.findByTestId('gym-stats-scroll');
+    expect(screen.queryByTestId('gym-stats-more-toggle')).toBeNull();
+    expect(screen.queryByTestId('gym-stats-more')).toBeNull();
     expect(screen.queryByText(/§/)).toBeNull();
-    expect(screen.queryByText(/research/i)).toBeNull();
+  });
+
+  // UX-GYM-29: the tab stays mounted, so a new ?tab=history must move the segment.
+  it('switches to History when the tab param changes after mount', async () => {
+    const queryClient = makeGymQueryClient();
+    queryClient.setQueryData(
+      gymBootstrapQueryKey,
+      makeBootstrap({ library: [bench], recentSessions: SESSIONS }),
+    );
+    let bump: () => void = () => undefined;
+    function Harness() {
+      const [, setN] = useState(0);
+      bump = () => setN((n) => n + 1);
+      return <StatsTab />;
+    }
+    await renderWithGym(<Harness />, queryClient);
+    expect(await screen.findByTestId('gym-stats-scroll')).toBeOnTheScreen();
+
+    mockSearchParams = { tab: 'history' };
+    try {
+      await act(() => {
+        bump();
+        return Promise.resolve();
+      });
+      expect(await screen.findByTestId('gym-stats-history-scroll')).toBeOnTheScreen();
+    } finally {
+      mockSearchParams = {};
+    }
+  });
+
+  // UX-GYM-13: Today's "See September" opens Stats with the month pre-selected.
+  it('opens the monthly recap on the month passed in ?month=', async () => {
+    mockSearchParams = { month: '2026-09' };
+    try {
+      const queryClient = makeGymQueryClient();
+      queryClient.setQueryData(
+        gymBootstrapQueryKey,
+        makeBootstrap({ library: [bench], recentSessions: SESSIONS }),
+      );
+      await renderWithGym(<StatsTab />, queryClient);
+
+      const recap = await screen.findByTestId('stats-monthly-recap');
+      expect(recap).toHaveTextContent(/September 2026/);
+    } finally {
+      mockSearchParams = {};
+    }
+  });
+
+  it('ignores a malformed ?month= and shows the current month', async () => {
+    mockSearchParams = { month: 'September' };
+    try {
+      const queryClient = makeGymQueryClient();
+      queryClient.setQueryData(
+        gymBootstrapQueryKey,
+        makeBootstrap({ library: [bench], recentSessions: SESSIONS }),
+      );
+      await renderWithGym(<StatsTab />, queryClient);
+      expect(await screen.findByTestId('stats-monthly-recap')).not.toHaveTextContent(/September/);
+    } finally {
+      mockSearchParams = {};
+    }
   });
 
   it('T-36.5: the History segment lists sessions and hides the overview views', async () => {
@@ -223,5 +318,37 @@ describe('Stats empty states', () => {
     expect(await screen.findByTestId('stats-consistency-grid')).toBeTruthy();
     expect(screen.getByText('1')).toBeTruthy(); // current streak
     expect(screen.getByText('4')).toBeTruthy(); // best streak
+  });
+});
+
+describe('UX-GYM-33/34 stats polish', () => {
+  it('pickStackGroups: top 5 by volume plus the selected group, in library order', () => {
+    const weeks: MuscleVolumeWeekDto[] = [
+      {
+        weekStart: '2026-09-07',
+        sets: { chest: 12, back: 10, quads: 9, glutes: 8, biceps: 7, triceps: 6 },
+      },
+      {
+        weekStart: '2026-09-14',
+        sets: { chest: 12, back: 10, quads: 9, glutes: 8, biceps: 7, calves: 1 },
+      },
+    ];
+    const groups = pickStackGroups(weeks, 'calves');
+    // Six colours at most, so six groups at most — never twelve sharing six colours.
+    expect(groups).toHaveLength(6);
+    expect(groups).toContain('calves'); // the selected group always gets a colour
+    expect(groups).not.toContain('triceps'); // sixth by volume folds into "Other"
+    expect(groups.indexOf('chest')).toBeLessThan(groups.indexOf('back')); // library order
+  });
+
+  it('the monthly recap shows an error with Retry, not "No data for this month"', async () => {
+    onlineManager.setOnline(true);
+    const bootstrap = makeBootstrap({ library: [bench] });
+    await renderWithGym(<MonthlyRecapView bootstrap={bootstrap} />, makeGymQueryClient());
+
+    expect(await screen.findByTestId('stats-monthly-recap-error')).toBeOnTheScreen();
+    expect(screen.queryByTestId('stats-monthly-recap-empty')).toBeNull();
+    // The month is a name, never the raw YYYY-MM.
+    expect(screen.getByTestId('stats-recap-month')).not.toHaveTextContent(/^\d{4}-\d{2}$/);
   });
 });

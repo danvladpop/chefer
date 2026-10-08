@@ -3,6 +3,7 @@ import { AppState, Platform, type AppStateStatus } from 'react-native';
 import * as Notifications from 'expo-notifications';
 import { localDate, nowIso } from '../offline/ids';
 import { useGymBootstrap } from '../use-gym-bootstrap';
+import { cancelAllGymReminders, GYM_REMINDER_APP_TAG } from './cancel-reminders';
 import { hasGymReminderPermission } from './permission';
 import { computeAllGymReminders, type GymReminder } from './schedule';
 
@@ -15,23 +16,9 @@ import { computeAllGymReminders, type GymReminder } from './schedule';
 // (the settings toggle, ../settings/settings-screen.tsx, and the setup
 // wizard's reminder step), per the "never on cold start" rule.
 
-const APP_TAG = 'gym-reminder';
 const ANDROID_CHANNEL_ID = 'gym-reminders';
 
-async function cancelAllGymReminders(): Promise<void> {
-  try {
-    const all = await Notifications.getAllScheduledNotificationsAsync();
-    await Promise.all(
-      all
-        .filter((n) => (n.content.data as { app?: string } | null)?.app === APP_TAG)
-        .map((n) => Notifications.cancelScheduledNotificationAsync(n.identifier)),
-    );
-  } catch {
-    // best-effort cleanup; a stale notification is a minor annoyance, not a crash
-  }
-}
-
-async function scheduleGymReminders(reminders: readonly GymReminder[]): Promise<void> {
+export async function scheduleGymReminders(reminders: readonly GymReminder[]): Promise<void> {
   if (reminders.length === 0) return;
   try {
     if (Platform.OS === 'android') {
@@ -46,7 +33,7 @@ async function scheduleGymReminders(reminders: readonly GymReminder[]): Promise<
           title: reminder.title,
           body: reminder.body,
           sound: false,
-          data: { app: APP_TAG, kind: reminder.kind },
+          data: { app: GYM_REMINDER_APP_TAG, kind: reminder.kind },
         },
         trigger: {
           type: Notifications.SchedulableTriggerInputTypes.DATE,

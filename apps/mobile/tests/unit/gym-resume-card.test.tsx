@@ -62,6 +62,14 @@ describe('ResumeCard', () => {
     expect(screen.getByTestId('gym-today-resume-elapsed')).toBeOnTheScreen();
   });
 
+  it('large text: the eyebrow shrinks beside the timer instead of pushing it off (WP-04)', async () => {
+    const session = { ...activeDoc(), localDate: localDate() };
+    await render(<ResumeCard bootstrap={BOOTSTRAP} session={session} pausedAt={null} />);
+    const eyebrow = String(screen.getByText('WORKOUT IN PROGRESS').props.className);
+    expect(eyebrow).toMatch(/\bmin-w-0\b/);
+    expect(eyebrow).toMatch(/\bflex-1\b/);
+  });
+
   it('active: Resume routes to the workout screen', async () => {
     const user = userEvent.setup();
     const session = { ...activeDoc(), localDate: localDate() };

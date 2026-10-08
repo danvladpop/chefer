@@ -1,7 +1,9 @@
 import { TRPCError } from '@trpc/server';
 import { Router, type Request, type Response } from 'express';
+import { CHAT_ACTIONS_HEADER } from '@chefer/types';
 import { isHealthTopic, isSafetyTopic } from '@chefer/utils';
 import { chatService } from '../application/chat/chat.service.js';
+import { rejectWithoutAiConsent } from '../lib/ai-consent-gate.js';
 import { AI_OVER_CAPACITY_MESSAGE, isAiCapacityFailure } from '../lib/ai/friendly-error.js';
 import type { ChatMessage } from '../lib/ai/index.js';
 import { asyncHandler } from '../lib/async-handler.js';
@@ -48,6 +50,11 @@ chatRouter.post(
       return;
     }
 
+    // R-10 (App Store 5.1.2(i)): no AI-data consent on record → nothing is
+    // sent. 403 + `reason` + X-AI-Consent-Required; clients open the consent
+    // sheet, older ones show `error`.
+    if (await rejectWithoutAiConsent(res, { userId: user.id })) return;
+
     const body = req.body as { messages?: IncomingMessage[] } | undefined;
     const messages = toChatMessages(body?.messages ?? []);
     if (messages.length === 0) {
@@ -71,7 +78,10 @@ chatRouter.post(
 
     let stream: ReadableStream;
     try {
-      stream = await chatService.chat(user, messages);
+      // UX-FOOD-21: only a client that asks gets the action trailer.
+      stream = await chatService.chat(user, messages, {
+        withActions: req.header(CHAT_ACTIONS_HEADER) === '1',
+      });
     } catch (err) {
       // FORBIDDEN = chat is premium-only for this tier (per-user AI, owner
       // decision 2026-09-25). It rides the same 200 + quota-header path so

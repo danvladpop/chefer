@@ -18,8 +18,12 @@ const MY_COPY = { ...THEIRS, id: 'my-copy', creatorId: 'u1', originRecipeId: 'th
 vi.mock('@chefer/database', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@chefer/database')>()),
   chefProfileRepository: { findByUserId: vi.fn().mockResolvedValue(null) },
-  mealPlanRepository: { findActiveWithDays: vi.fn().mockResolvedValue(null) },
-  dailyLogRepository: { findByDate: vi.fn().mockResolvedValue(null), mutateDay: vi.fn() },
+  mealPlanRepository: { findForWeek: vi.fn().mockResolvedValue(null) },
+  dailyLogRepository: {
+    findByDate: vi.fn().mockResolvedValue(null),
+    mutateDay: vi.fn(),
+    mutateDayState: vi.fn(),
+  },
   gymProfileRepository: { findByUserId: vi.fn().mockResolvedValue(null) },
   weightEntryRepository: { findLatest: vi.fn().mockResolvedValue(null) },
 }));
@@ -54,8 +58,8 @@ describe('trackerService.logRecipe — Following (INV-5)', () => {
 
   it("logs another user's recipe as the viewer's copy", async () => {
     let written: LoggedMealEntry[] = [];
-    vi.mocked(dailyLogRepository.mutateDay).mockImplementation((_u, _d, mutate) => {
-      written = mutate([]);
+    vi.mocked(dailyLogRepository.mutateDayState).mockImplementation((_u, _d, mutate) => {
+      written = mutate({ entries: [], skippedSlots: [] }).entries;
       return Promise.resolve({} as never);
     });
 

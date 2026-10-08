@@ -1,7 +1,8 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
-  KeyboardAvoidingView,
+  Keyboard,
   Modal,
+  PanResponder,
   Platform,
   Pressable,
   ScrollView,
@@ -21,7 +22,15 @@ import { elevation } from '@chefer/tokens';
 import { cn } from '@chefer/utils';
 import { duration, springs, timing } from '../motion/motion';
 import { useReducedMotion } from '../motion/use-reduced-motion';
+import {
+  keyboardDismissMode,
+  ScrollFieldContext,
+  useScrollFieldIntoViewFor,
+} from './keyboard-aware-scroll-view';
+import { KeyboardPersistFooter } from './keyboard-persist-footer';
+import { sheetDragOffset, sheetReleaseAction, shouldStartSheetDrag } from './sheet-drag';
 import { Text } from './text';
+import { useKeyboardInset } from './use-keyboard-inset';
 
 export interface SheetProps {
   visible: boolean;
@@ -63,16 +72,18 @@ const REOPEN_CHECK_MS = 120;
  * with the panel. A parent that sets `visible` false itself gets the same
  * exit before the Modal unmounts. Reduced motion: a 150 ms crossfade, no
  * movement. Drag-to-dismiss waits for react-native-gesture-handler (native
- * dependency, next store build).
- *
- * `behavior="padding"` on both platforms (gym dogfood #2): Expo SDK 57 makes
- * edge-to-edge mandatory on Android, and under edge-to-edge the
- * `windowSoftInputMode="adjustResize"` this app otherwise relies on (Expo's
- * `android.softwareKeyboardLayoutMode` default) no longer resizes the window
- * for the keyboard — `undefined` here would leave Android with nothing
- * pushing the sheet's fields above it. See `KeyboardAwareScrollView` for the
- * full explanation; it applies here too since a `Modal`'s content sits
- * outside the normal Android resize path either way.
+X *
+ * Keyboard (UX-X-02, one mechanism on both platforms): the Modal's wrapper
+ * takes `useKeyboardInset()` as its bottom padding, which lifts the whole
+ * panel (body and pinned footer) clear of the keyboard and shrinks its
+ * `maxHeight` so the body scrolls. There is deliberately NO
+ * `KeyboardAvoidingView` and NO `automaticallyAdjustKeyboardInsets`: on iOS
+ * the two stacked and scrolled fields (and the Meal selector) out of view,
+ * and under Android's mandatory edge-to-edge (Expo SDK 57) the window does
+ * not resize for the keyboard at all, so the inset hook is the only thing
+ * that works there. The hook already subtracts the bottom safe-area, which
+ * the panel's own bottom padding gives back, so content ends flush above the
+ * keyboard.
  */
 export function Sheet({
   visible,
@@ -93,10 +104,15 @@ export function Sheet({
 
   // `mounted` keeps the Modal up while the exit animation runs.
   const [mounted, setMounted] = useState(visible);
+  const { inset: keyboardInset } = useKeyboardInset({ enabled: mounted });
   const scrim = useSharedValue(0);
   const panel = useSharedValue(0);
   // Off-screen by default so nothing flashes before the first layout.
   const panelHeight = useSharedValue(windowHeight);
+  // Finger displacement (pt) while dragging the grabber/header — MO-02.
+  const drag = useSharedValue(0);
+  const scrollRef = useRef<ScrollView>(null);
+  const scrollFieldIntoView = useScrollFieldIntoViewFor(scrollRef);
 
   const closing = useRef(false);
   const exitDone = useRef(false);
@@ -124,6 +140,7 @@ export function Sheet({
   const animateIn = useCallback(() => {
     closing.current = false;
     exitDone.current = false;
+    drag.set(0);
     if (reduced) {
       scrim.set(withTiming(1, timing(duration.fast)));
       panel.set(withTiming(1, timing(duration.fast)));
@@ -131,12 +148,14 @@ export function Sheet({
     }
     scrim.set(withTiming(1, timing(duration.base)));
     panel.set(withSpring(1, springs.gentle));
-  }, [reduced, scrim, panel]);
+  }, [reduced, scrim, panel, drag]);
 
   /** Run the exit, then `then` on the JS thread (skipped if re-opened mid-exit). */
   const animateOut = useCallback(
     (then: () => void) => {
       closing.current = true;
+      // UX-FOOD-16: no keyboard left up with nothing focused once the sheet is gone.
+      Keyboard.dismiss();
       const finish = () => {
         if (!closing.current) return;
         exitDone.current = true;
@@ -193,14 +212,50 @@ export function Sheet({
     });
   }, [animateIn, animateOut]);
 
+  /** Release of the grabber/header drag (MO-02): exit from here, or spring back. */
+  const releaseDrag = useCallback(
+    (dy: number, vy: number) => {
+      if (sheetReleaseAction(dy, vy, panelHeight.get()) === 'dismiss' && !closing.current) {
+        const offset = sheetDragOffset(dy);
+        if (!reduced) {
+          // Fold the finger offset into `panel` so the exit continues from here.
+          const height = panelHeight.get();
+          panel.set(height > 0 ? Math.max(0, 1 - offset / height) : 0);
+          drag.set(0);
+        }
+        requestClose();
+        return;
+      }
+      drag.set(reduced ? withTiming(0, timing(duration.fast)) : withSpring(0, springs.gentle));
+    },
+    [reduced, panel, drag, panelHeight, requestClose],
+  );
+
+  const dragResponder = useMemo(
+    () =>
+      PanResponder.create({
+        onMoveShouldSetPanResponder: (_e, g) =>
+          !closing.current && shouldStartSheetDrag(g.dx, g.dy),
+        // Pulling the sheet down also puts the keyboard away.
+        onPanResponderGrant: () => Keyboard.dismiss(),
+        onPanResponderTerminationRequest: () => false,
+        onPanResponderMove: (_e, g) => drag.set(sheetDragOffset(g.dy)),
+        onPanResponderRelease: (_e, g) => releaseDrag(g.dy, g.vy),
+        onPanResponderTerminate: () => releaseDrag(0, 0),
+      }),
+    [drag, releaseDrag],
+  );
+
   const scrimStyle = useAnimatedStyle(() => ({ opacity: scrim.get() }));
   const panelStyle = useAnimatedStyle(() =>
     reduced
-      ? { opacity: panel.get(), transform: [{ translateY: 0 }] }
+      ? { opacity: panel.get(), transform: [{ translateY: drag.get() }] }
       : {
           opacity: 1,
           // Clamp the spring's ~1% overshoot so no gap opens under the panel.
-          transform: [{ translateY: Math.max(0, (1 - panel.get()) * panelHeight.get()) }],
+          transform: [
+            { translateY: Math.max(0, (1 - panel.get()) * panelHeight.get()) + drag.get() },
+          ],
         },
   );
 
@@ -214,7 +269,11 @@ export function Sheet({
       statusBarTranslucent
       testID={testID}
     >
-      <KeyboardAvoidingView behavior="padding" className="flex-1 justify-end">
+      <View
+        testID={testID ? `${testID}-keyboard-inset` : undefined}
+        className="flex-1 justify-end"
+        style={{ paddingBottom: keyboardInset }}
+      >
         <Animated.View style={[StyleSheet.absoluteFill, styles.scrim, scrimStyle]}>
           <Pressable
             accessibilityRole="button"
@@ -231,50 +290,79 @@ export function Sheet({
             className={cn('rounded-t-3xl bg-card', className)}
             style={[styles.panel, { paddingBottom: Math.max(insets.bottom, 16) }]}
           >
-            <View className="items-center pt-2">
-              <View className="h-1 w-10 rounded-full bg-gray-300" />
-            </View>
-            <View className="flex-row items-center justify-between gap-3 px-4 pb-2 pt-3">
-              <View className="min-w-0 flex-1">
-                {eyebrow ? (
-                  <Text className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
-                    {eyebrow}
-                  </Text>
-                ) : null}
-                <Text
-                  testID={testID ? `${testID}-title` : undefined}
-                  variant="heading"
-                  numberOfLines={2}
-                >
-                  {title}
-                </Text>
+            {/* MO-02: the grabber and header are the drag handle; the body scrolls. */}
+            <View
+              testID={testID ? `${testID}-drag-handle` : undefined}
+              {...dragResponder.panHandlers}
+            >
+              <View className="items-center pt-2">
+                <View className="h-1 w-10 rounded-full bg-gray-300" />
               </View>
-              <Pressable
-                testID={testID ? `${testID}-close` : undefined}
-                accessibilityRole="button"
-                accessibilityLabel="Close"
-                onPress={requestClose}
-                className="h-11 w-11 items-center justify-center rounded-full bg-gray-100"
-              >
-                <Text className="text-lg font-semibold text-gray-700">✕</Text>
-              </Pressable>
+              <View className="flex-row items-center justify-between gap-3 px-4 pb-2 pt-3">
+                <View className="min-w-0 flex-1">
+                  {eyebrow ? (
+                    <Text className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
+                      {eyebrow}
+                    </Text>
+                  ) : null}
+                  <Text
+                    testID={testID ? `${testID}-title` : undefined}
+                    variant="heading"
+                    numberOfLines={2}
+                  >
+                    {title}
+                  </Text>
+                </View>
+                <Pressable
+                  testID={testID ? `${testID}-close` : undefined}
+                  accessibilityRole="button"
+                  accessibilityLabel="Close"
+                  onPress={requestClose}
+                  className="h-11 w-11 items-center justify-center rounded-full bg-gray-100"
+                >
+                  <Text className="text-lg font-semibold text-gray-700">✕</Text>
+                </Pressable>
+              </View>
             </View>
             {scrollable ? (
               <ScrollView
+                ref={scrollRef}
+                testID={testID ? `${testID}-scroll` : undefined}
                 keyboardShouldPersistTaps="handled"
-                automaticallyAdjustKeyboardInsets={Platform.OS === 'ios'}
+                keyboardDismissMode={keyboardDismissMode()}
                 contentContainerClassName="gap-3 px-4 pb-4"
                 className="shrink"
               >
-                {children}
+                <ScrollFieldContext.Provider value={scrollFieldIntoView}>
+                  {children}
+                </ScrollFieldContext.Provider>
               </ScrollView>
             ) : (
-              <View className="shrink px-4 pb-4">{children}</View>
+              // No ScrollView to dismiss on drag/tap: a tap on the body's empty
+              // space closes the keyboard (buttons and fields keep their taps;
+              // not an accessibility element, so VoiceOver never lands on it).
+              <Pressable
+                accessible={false}
+                focusable={false}
+                onPress={() => Keyboard.dismiss()}
+                className="shrink px-4 pb-4"
+              >
+                {children}
+              </Pressable>
             )}
-            {footer ? <View className="border-t border-border px-4 pt-3">{footer}</View> : null}
+            {footer ? (
+              // R-03: a footer outside a keyboardShouldPersistTaps ScrollView
+              // loses its first tap while the keyboard is up.
+              <KeyboardPersistFooter
+                testID={testID ? `${testID}-footer` : undefined}
+                contentContainerClassName="border-t border-border px-4 pt-3"
+              >
+                {footer}
+              </KeyboardPersistFooter>
+            ) : null}
           </View>
         </Animated.View>
-      </KeyboardAvoidingView>
+      </View>
     </Modal>
   );
 }

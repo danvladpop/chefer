@@ -354,6 +354,9 @@ export function toFriendWorkoutDto(
       name: exerciseName(e.exercise),
       isCustom: e.exercise.ownerId !== null,
       trackingType: e.exercise.trackingType,
+      // UX-GYM-19: from the exercise itself (catalog or a custom one), so a
+      // friend's per-hand lift reads "30 kg each". Omitted when false.
+      ...(e.exercise.perHand && { perHand: true }),
       sets,
     });
   }

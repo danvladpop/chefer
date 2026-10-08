@@ -1,4 +1,4 @@
-import { screen, userEvent } from '@testing-library/react-native';
+import { act, screen, userEvent } from '@testing-library/react-native';
 import { getQueryKey } from '@trpc/react-query';
 import { ExerciseFormScreen } from '../../src/features/gym/library-screens/exercise-form-screen';
 import { gymBootstrapQueryKey } from '../../src/features/gym/use-gym-bootstrap';
@@ -37,8 +37,76 @@ describe('ExerciseFormScreen', () => {
     // Default state has no name and no primary muscle picked.
     await user.press(screen.getByTestId('exercise-form-submit'));
 
-    expect(await screen.findByTestId('exercise-form-errors')).toBeTruthy();
+    // UX-GYM-21: each problem sits under its own field, in plain words —
+    // never the raw schema text at the bottom of the form.
+    expect(await screen.findByTestId('exercise-form-error-name')).toHaveTextContent(
+      'Give it a name of at least 2 characters.',
+    );
+    expect(screen.getByTestId('exercise-form-error-primary-muscles')).toHaveTextContent(
+      'Pick at least one primary muscle.',
+    );
+    expect(screen.queryByText(/Array must contain/)).toBeNull();
     expect(router.replace).not.toHaveBeenCalled();
+  });
+
+  it('limits the name and cue lengths and the number of muscles', async () => {
+    const user = userEvent.setup();
+    const queryClient = makeGymQueryClient();
+    queryClient.setQueryData(gymBootstrapQueryKey, makeBootstrap());
+    await renderWithGym(<ExerciseFormScreen />, queryClient);
+
+    expect(screen.getByTestId('exercise-form-name').props.maxLength).toBe(60);
+    await user.press(screen.getByTestId('exercise-form-add-cue'));
+    expect(screen.getByTestId('exercise-form-cue-0').props.maxLength).toBe(120);
+
+    // A 5th primary muscle is refused with a visible reason (the schema caps at 4).
+    for (const label of ['Chest', 'Lats', 'Quads', 'Hamstrings', 'Biceps']) {
+      const [chip] = screen.getAllByText(label);
+      if (!chip) throw new Error(`expected a "${label}" chip`);
+      await user.press(chip);
+    }
+    expect(screen.getByTestId('exercise-form-error-primary-muscles')).toHaveTextContent(
+      'Pick up to 4 primary muscles.',
+    );
+  });
+
+  it('shows human equipment labels, not enum text', async () => {
+    const queryClient = makeGymQueryClient();
+    queryClient.setQueryData(gymBootstrapQueryKey, makeBootstrap());
+    await renderWithGym(<ExerciseFormScreen />, queryClient);
+
+    expect(screen.getByText('Ski erg')).toBeTruthy();
+    expect(screen.getByText('Treadmill')).toBeTruthy();
+    expect(screen.queryByText('SKI_ERG')).toBeNull();
+    expect(screen.queryByText('TREADMILL')).toBeNull();
+  });
+
+  it('pre-fills the name from a search (Create "T-bar")', async () => {
+    const queryClient = makeGymQueryClient();
+    queryClient.setQueryData(gymBootstrapQueryKey, makeBootstrap());
+    await renderWithGym(<ExerciseFormScreen initialName="T-bar row" />, queryClient);
+
+    expect(screen.getByDisplayValue('T-bar row')).toBeTruthy();
+  });
+
+  it('does not seed an edit with defaults while the library is still refreshing', async () => {
+    // Right after creating: the cached library lacks the new exercise for a
+    // moment. The form must wait, then show the exercise — not the defaults.
+    const queryClient = makeGymQueryClient();
+    queryClient.setQueryData(gymBootstrapQueryKey, makeBootstrap());
+    await renderWithGym(<ExerciseFormScreen exerciseId="fresh" />, queryClient);
+    expect(screen.queryByDisplayValue('Cable Fly')).toBeNull();
+
+    const fresh = {
+      ...makeExercise('fresh', 'Cable Fly'),
+      ownerId: 'user-1',
+      primaryMuscles: ['chest' as const],
+    };
+    await act(() => {
+      queryClient.setQueryData(gymBootstrapQueryKey, makeBootstrap({ library: [fresh] }));
+    });
+
+    expect(await screen.findByDisplayValue('Cable Fly')).toBeTruthy();
   });
 
   it('passes validation once the required fields are filled in', async () => {
@@ -59,8 +127,11 @@ describe('ExerciseFormScreen', () => {
     // client-side and the submit handler reaches the mutation — surfaced
     // here by the (mocked, always-failing) network error rather than a
     // validation message, since the test's trpc client points at a dummy
-    // unreachable port (gym-screen-test-utils).
-    expect(await screen.findByTestId('exercise-form-errors')).toHaveTextContent('offline (test)');
+    // unreachable port (gym-screen-test-utils). R-09: shown as the friendly
+    // "Can't reach Chefer" line, not the raw transport text.
+    expect(await screen.findByTestId('exercise-form-errors')).toHaveTextContent(
+      /Can't reach Chefer right now/,
+    );
   });
 
   it('lets the user add and remove cues, capped at 6', async () => {

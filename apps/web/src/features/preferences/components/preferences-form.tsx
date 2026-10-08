@@ -1,20 +1,35 @@
 'use client';
 
 import { useRouter } from 'next/navigation';
-import { useState } from 'react';
+import { useRef, useState } from 'react';
+import type { StepDietHandle } from '@/features/onboarding/components/step-diet';
 import type { ActivityLevel, BiologicalSex, Goal } from '@/features/onboarding/types';
 import { useHealthConsent } from '@/features/privacy/use-health-consent';
 import { SafetyReviewCard } from '@/features/safety/components/SafetyReviewCard';
 import { capture } from '@/lib/analytics';
 import { trpc } from '@/lib/trpc';
-import { HEALTH_CONSENT_COPY, type DisplayCurrency } from '@chefer/types';
+import {
+  bodyMetricsAgeError,
+  bodyMetricsHeightError,
+  bodyMetricsWeightError,
+  HEALTH_CONSENT_COPY,
+  isPlausibleHeightCm,
+  isPlausibleWeightKg,
+  type DisplayCurrency,
+} from '@chefer/types';
 import { Toast } from '@chefer/ui';
-import { fromEur, toDisplayCurrency, toEur } from '@chefer/utils';
+import {
+  fromEur,
+  parseWeeklyBudget,
+  toDisplayCurrency,
+  toEur,
+  userFacingErrorMessage,
+} from '@chefer/utils';
 import type { ChefProfileData, DietaryPreferencesData } from '../types';
 import { BudgetSection } from './budget-section';
 import { HouseholdSection } from './household-section';
 import { SafetySection } from './safety-section';
-import { TargetsSection } from './targets-section';
+import { TargetsSection, type NumbersSettings } from './targets-section';
 import { UnitsSection } from './units-section';
 
 // ─── Currency helpers (backlog P2-6) ──────────────────────────────────────────
@@ -55,6 +70,8 @@ interface PreferencesFormProps {
   dietaryPreferences: DietaryPreferencesData | null;
   /** Free users edit only the safety section; the rest renders locked (P1-2). */
   isPremium: boolean;
+  /** WP-08: the stored numbers mode and the resolved "show nutrition on Today" (the merged targets card). */
+  numbersSettings?: NumbersSettings | undefined;
 }
 
 // ─── Component ────────────────────────────────────────────────────────────────
@@ -63,6 +80,7 @@ export function PreferencesForm({
   chefProfile,
   dietaryPreferences,
   isPremium,
+  numbersSettings,
 }: PreferencesFormProps) {
   const initialCurrency = toDisplayCurrency(chefProfile?.deliveryCurrency);
   const initialUnits =
@@ -94,9 +112,14 @@ export function PreferencesForm({
 
   // Safety (allergies/restrictions/dislikes) and display units/currency save
   // through free procedures; everything else is premium-only updateTargets.
-  const safetyMutation = trpc.preferences.updateSafety.useMutation();
-  const displayMutation = trpc.preferences.setDisplayPreferences.useMutation();
-  const targetsMutation = trpc.preferences.updateTargets.useMutation();
+  const safetyMutation = trpc.preferences.updateSafety.useMutation({ meta: { silent: true } });
+  // UX-ACC-01: a term typed in "Something else?" but never added with "Add" is
+  // flushed into the saved value on Save instead of being dropped.
+  const safetyPickerRef = useRef<StepDietHandle>(null);
+  const displayMutation = trpc.preferences.setDisplayPreferences.useMutation({
+    meta: { silent: true },
+  });
+  const targetsMutation = trpc.preferences.updateTargets.useMutation({ meta: { silent: true } });
   const isSaving =
     safetyMutation.isPending || displayMutation.isPending || targetsMutation.isPending;
 
@@ -112,6 +135,8 @@ export function PreferencesForm({
     // recipe pages) via preferences.get — refresh those caches immediately
     void utils.preferences.get.invalidate();
     void utils.dashboard.invalidate();
+    // UX-ACC-21: the suggested targets follow the goal and body just saved.
+    void utils.targets.invalidate();
     void utils.mealPlan.invalidate();
     // A unit change also moves the gym's kg/lb (one preference, P2-6).
     if (data.preferredUnits !== initialUnits) void utils.gym.invalidate();
@@ -149,8 +174,33 @@ export function PreferencesForm({
 
   function handleSave() {
     if (isSaving) return;
+    // R-02: no body metrics under 16 — the server would reject it anyway, but
+    // say so here, before the consent sheet, and keep everything else unsaved
+    // until the age is fixed or cleared.
+    // UX-ONB-05: the same for a height or weight outside the plausible range.
+    const ageError = isPremium
+      ? (bodyMetricsAgeError(data.age) ??
+        bodyMetricsHeightError(data.heightCm) ??
+        bodyMetricsWeightError(data.weightKg))
+      : null;
+    if (ageError !== null) {
+      setToast({ message: ageError, type: 'error' });
+      return;
+    }
+    // null = a typed term still needs a Keep/Remove choice: don't save yet.
+    const safety = safetyPickerRef.current
+      ? safetyPickerRef.current.flush()
+      : {
+          dietaryRestrictions: data.dietaryRestrictions,
+          allergies: data.allergies,
+          dislikedIngredients: data.dislikedIngredients,
+        };
+    if (safety === null) return;
     const hasSafetyTerms =
-      data.allergies.length + data.dietaryRestrictions.length + data.dislikedIngredients.length > 0;
+      safety.allergies.length +
+        safety.dietaryRestrictions.length +
+        safety.dislikedIngredients.length >
+      0;
     const hasBodyData =
       isPremium &&
       (data.goal !== null ||
@@ -159,22 +209,27 @@ export function PreferencesForm({
         (data.heightCm !== null && data.heightCm > 0) ||
         (data.weightKg !== null && data.weightKg > 0) ||
         data.activityLevel !== null);
-    requestHealthConsent(() => void save(true), {
+    requestHealthConsent(() => void save(true, safety), {
       hasHealthData: hasSafetyTerms || hasBodyData,
       // "Don't save it": every other field is still saved, nothing health-related is sent.
-      onDeclined: () => void save(false),
+      onDeclined: () => void save(false, safety),
     });
   }
 
-  async function save(includeHealth: boolean) {
+  async function save(
+    includeHealth: boolean,
+    safety: { dietaryRestrictions: string[]; allergies: string[]; dislikedIngredients: string[] },
+  ) {
     if (isSaving) return;
+    // UX-ACC-23: a bad budget is shown inline and nothing is saved.
+    const budget = parseWeeklyBudget(data.weeklyBudget, data.deliveryCurrency);
+    if (isPremium && budget.kind === 'error') {
+      setToast({ message: budget.message, type: 'error' });
+      return;
+    }
     try {
       if (includeHealth) {
-        await safetyMutation.mutateAsync({
-          dietaryRestrictions: data.dietaryRestrictions,
-          allergies: data.allergies,
-          dislikedIngredients: data.dislikedIngredients,
-        });
+        await safetyMutation.mutateAsync(safety);
       }
       // Units + currency are free on every tier (audit F-DASH-3-2).
       if (data.preferredUnits !== initialUnits || data.deliveryCurrency !== initialCurrency) {
@@ -188,27 +243,27 @@ export function PreferencesForm({
           ...(includeHealth && data.goal !== null && { goal: data.goal }),
           ...(includeHealth &&
             data.biologicalSex !== null && { biologicalSex: data.biologicalSex }),
-          ...(includeHealth && data.age !== null && data.age > 0 && { age: data.age }),
+          ...(includeHealth &&
+            data.age !== null &&
+            bodyMetricsAgeError(data.age) === null && { age: data.age }),
           ...(includeHealth &&
             data.heightCm !== null &&
-            data.heightCm > 0 && { heightCm: data.heightCm }),
+            isPlausibleHeightCm(data.heightCm) && { heightCm: data.heightCm }),
           ...(includeHealth &&
             data.weightKg !== null &&
-            data.weightKg > 0 && { weightKg: data.weightKg }),
+            isPlausibleWeightKg(data.weightKg) && { weightKg: data.weightKg }),
           ...(includeHealth &&
             data.activityLevel !== null && { activityLevel: data.activityLevel }),
           cuisinePreferences: data.cuisinePreferences,
           mealsPerDay: data.mealsPerDay,
           deliveryAddress: data.deliveryAddress || null,
-          weeklyBudgetEur: data.weeklyBudget.trim()
-            ? Math.min(2000, toEur(Number(data.weeklyBudget), data.deliveryCurrency))
-            : null,
+          weeklyBudgetEur: budget.kind === 'ok' ? budget.eur : null,
         });
       }
       onSaved(!includeHealth);
     } catch (err) {
       setToast({
-        message: err instanceof Error ? err.message : 'Failed to save preferences.',
+        message: userFacingErrorMessage(err, 'Failed to save preferences.'),
         type: 'error',
       });
     }
@@ -223,6 +278,7 @@ export function PreferencesForm({
         {/* Diet & restrictions — the safety section, free for every account.
             Rendered first so free users see their editable section on top. */}
         <SafetySection
+          ref={safetyPickerRef}
           value={{
             dietaryRestrictions: data.dietaryRestrictions,
             allergies: data.allergies,
@@ -276,6 +332,7 @@ export function PreferencesForm({
             mealsPerDay: data.mealsPerDay,
           }}
           onChange={patch}
+          numbersSettings={numbersSettings}
         />
 
         {/* Weekly budget (P2-4) — generation treats it as a hard ceiling. */}
