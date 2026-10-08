@@ -199,7 +199,11 @@ describe('Plan page — week options (FB7-11)', () => {
     render(<MealPlanPage />);
     fireEvent.click(screen.getByTestId('plan-week-options'));
     fireEvent.click(screen.getByTestId('plan-week-options-rebalance'));
-    expect(await screen.findByText(/Couldn.t check your week just now/)).toBeTruthy();
+    // The toast and the (still open or reopened) sheet row can both carry the
+    // message — assert it shows, not how many places do.
+    expect(
+      (await screen.findAllByText(/Couldn.t check your week just now/)).length,
+    ).toBeGreaterThan(0);
   });
 });
 
