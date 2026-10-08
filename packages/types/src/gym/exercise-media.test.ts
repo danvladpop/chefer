@@ -47,6 +47,16 @@ const NO_PHOTO_ALLOWED: ReadonlySet<string> = new Set<string>([
   'clamshell',
   // Renders were a seated row or a bench plank; no hips-up bridge on a bench.
   'dumbbell-hip-thrust',
+  // Rejected in the orchestrator's review (2026-10-08): the renders showed the wrong movement,
+  // which is worse than the placeholder for a training app.
+  // Hollow-body hold: one arm up / legs up, never the banana-shaped hold.
+  'hollow-body-hold',
+  // Landmine press: a regular barbell press with the bar on the floor, no landmine.
+  'landmine-press',
+  // Pike push-up: a dip and a side plank, never hips-up.
+  'pike-push-up',
+  // Wall sit: standing, then sitting on a bench; no wall.
+  'wall-sit',
 ]);
 
 /** Exercises with no demo video: none (every preset has an oEmbed-verified one). */

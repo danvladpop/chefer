@@ -52,7 +52,7 @@ The same two scenes serve `running` and `outdoor-run` (one activity, two presets
 ## AI renders
 
 29 exercises have photos rendered with **FLUX.1-schnell** through the AI Horde (stablehorde.net,
-anonymous, free): `belt-squat`, `bulgarian-split-squat`, `glute-kickback-machine`, `hiit-class`, `hollow-body-hold`, `kettlebell-deadlift`, `kettlebell-press`, `kettlebell-swing`, `kneeling-push-up`, `landmine-press`, `lateral-lunge`, `machine-lateral-raise`, `other-activity`, `outdoor-cycle`, `outdoor-walk`, `pendlay-row`, `pendulum-squat`, `pike-push-up`, `pistol-squat`, `plank`, `reverse-lunge`, `single-leg-calf-raise`, `single-leg-romanian-deadlift`, `stationary-bike-recumbent`, `step-up`, `suitcase-carry`, `walking`, `wall-sit`, `yoga-class`.
+anonymous, free): `belt-squat`, `bulgarian-split-squat`, `glute-kickback-machine`, `hiit-class`, `kettlebell-deadlift`, `kettlebell-press`, `kettlebell-swing`, `kneeling-push-up`, `lateral-lunge`, `machine-lateral-raise`, `other-activity`, `outdoor-cycle`, `outdoor-walk`, `pendlay-row`, `pendulum-squat`, `pistol-squat`, `plank`, `reverse-lunge`, `single-leg-calf-raise`, `single-leg-romanian-deadlift`, `stationary-bike-recumbent`, `step-up`, `suitcase-carry`, `walking`, `yoga-class`.
 They share one house style (same gym, lighting, framing; `scripts/gym/exercise-photo-prompts.ts`),
 with the prompt and seed of every frame recorded in `docs/gym/exercise-photo-sources.json`. Each frame
 was picked by eye from 3-4 candidates (contact sheets reviewed; wrong movements, wrong equipment and
@@ -63,8 +63,10 @@ quota after three renders.
 Honest quality notes: AI renders show the right equipment and a plausible pose, not always a
 coaching-perfect position. The weaker ones (a better source would be welcome): `kettlebell-swing`
 (end frame shows the bell at the waist, not the top of the swing), `pendulum-squat` (end frame),
-`pike-push-up`, `suitcase-carry` (end frame holds two dumbbells), `wall-sit` (end frame has no wall in
-view), `pendlay-row` (both frames show the bar near the floor), `plank` (high plank on straight arms).
+`plank` (high plank on straight arms). Orchestrator review 2026-10-08: `pendlay-row`, `pendulum-squat`,
+`suitcase-carry` and `kettlebell-swing` reuse their start frame as the end frame (the end renders showed the
+wrong position or equipment); `hollow-body-hold`, `landmine-press`, `pike-push-up` and `wall-sit` were dropped
+(wrong movement) and show the placeholder until a correct photo exists.
 Regenerate one with `cd apps/api && pnpm exec tsx ../../scripts/gym/generate-exercise-photos.ts --only
 <slug> --force --reseed 3 --candidates 3`, look at the candidates cached in
 `~/Library/Caches/chefer-exercise-photos`, then install one with `--use <slug>:<frame>:s<seed>-<n>`.
