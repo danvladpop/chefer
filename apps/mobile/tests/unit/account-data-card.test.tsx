@@ -21,6 +21,7 @@ const mockShow = jest.fn();
 const mockExportFetch = jest.fn(() => Promise.resolve({ user: { id: 'u1' } }));
 const mockDeleteMutate = jest.fn();
 const mockResetMutate = jest.fn();
+const mockLogoutMutate = jest.fn();
 let mockResetState: { isSuccess: boolean; isPending: boolean } = {
   isSuccess: false,
   isPending: false,
@@ -77,6 +78,7 @@ jest.mock('../../src/lib/trpc', () => ({
       },
     },
     auth: {
+      logout: { useMutation: () => ({ mutate: mockLogoutMutate, isPending: false }) },
       me: { useQuery: () => ({ data: { email: 'alice@chefer.dev' } }) },
       linkedIdentities: { useQuery: () => ({ data: undefined }) },
       requestPasswordReset: {
@@ -93,6 +95,7 @@ beforeEach(() => {
   mockShow.mockClear();
   mockExportFetch.mockClear();
   mockDeleteMutate.mockClear();
+  mockLogoutMutate.mockClear();
   mockSignOut.mockClear();
   mockResetMutate.mockClear();
   mockMarkAccountDeleted.mockClear();
@@ -145,6 +148,24 @@ describe('mobile AccountDataCard export (T-39.5)', () => {
       expect(screen.getByText("Couldn't prepare your data. Please try again.")).toBeTruthy(),
     );
     expect(mockShow).not.toHaveBeenCalled();
+  });
+});
+
+describe('mobile AccountDataCard sign out (FB7-02)', () => {
+  it('has a neutral Sign out button between Export and Delete, behind the confirm sheet', async () => {
+    await renderCard();
+    const labels = screen
+      .getAllByRole('button')
+      .map((b) => b.props.testID as string | undefined)
+      .filter((id) => id === 'profile-sign-out' || id === 'profile-delete-account');
+    expect(labels).toEqual(['profile-sign-out', 'profile-delete-account']);
+
+    await fireEvent.press(screen.getByTestId('profile-sign-out'));
+    expect(mockLogoutMutate).not.toHaveBeenCalled();
+    expect(await screen.findByTestId('profile-sign-out-confirm-body')).toBeTruthy();
+
+    await fireEvent.press(screen.getByTestId('profile-sign-out-confirm-confirm'));
+    expect(mockLogoutMutate).toHaveBeenCalledTimes(1);
   });
 });
 

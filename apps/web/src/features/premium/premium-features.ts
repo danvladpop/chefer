@@ -5,7 +5,6 @@ import {
   Camera,
   Link2,
   RefreshCw,
-  Refrigerator,
   Target,
   TrendingUp,
   Users,
@@ -28,7 +27,8 @@ export interface PremiumFeatureCard {
 
 // WP-07 ("Premium is for heavy AI only"): week rebalance and training-day
 // targets are free, so neither has a card here; `aiMealPlans` carries the
-// premium "week built around your training" pitch.
+// premium "week built around your training" pitch. `pantryPlanning` has no card
+// either: the pantry is retired (WP-24 / FB7-10) and never sold.
 export const PREMIUM_FEATURE_CARDS: PremiumFeatureCard[] = [
   { key: 'aiMealPlans', icon: CalendarDays },
   { key: 'profilePersonalisation', icon: Target },
@@ -39,7 +39,6 @@ export const PREMIUM_FEATURE_CARDS: PremiumFeatureCard[] = [
   { key: 'photoLogging', icon: Camera },
   { key: 'recipeImport', icon: Link2 },
   { key: 'householdPlans', icon: Users },
-  { key: 'pantryPlanning', icon: Refrigerator },
 ];
 
 /** Matrix keys announced on /premium as "cooking now" until their wave lands. */

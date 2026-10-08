@@ -192,6 +192,7 @@ function makeRepo() {
     hasShoppingProgress: vi.fn().mockResolvedValue(false),
     appendDayMeal: vi.fn().mockResolvedValue(0),
     removeDayMealIfMatches: vi.fn().mockResolvedValue(true),
+    removeDaySlot: vi.fn().mockResolvedValue('removed'),
   };
 }
 
@@ -1980,6 +1981,116 @@ describe('MealPlanService.setSlotPinned (T-07.4)', () => {
   });
 });
 
+describe('MealPlanService.removeSlot (FB7-04)', () => {
+  const PLAN_WITH_SIDE = {
+    id: 'plan1',
+    weekStartDate: new Date(2026, 8, 28), // Monday, local midnight
+    days: [
+      {
+        dayOfWeek: 1,
+        meals: [
+          { type: 'breakfast', recipeId: 'b1' },
+          { type: 'lunch', recipeId: 'l1' },
+          { type: 'lunch', recipeId: 'side', pinned: true },
+          { type: 'dinner', recipeId: 'd1' },
+        ],
+      },
+    ],
+  };
+  const input = { planId: 'plan1', dayOfWeek: 1, mealType: 'lunch', slotIndex: 2 };
+  const dayLogStub = (exists = true) => ({
+    findByDate: vi.fn().mockResolvedValue(exists ? { id: 'log1' } : null),
+    mutateDayState: vi.fn().mockResolvedValue({}),
+  });
+  const serviceWith = (repo: ReturnType<typeof makeRepo>, dayLog = dayLogStub()) =>
+    new MealPlanService(
+      repo,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      dayLog,
+    );
+
+  it('removes the side slot and re-indexes that day’s tracker state', async () => {
+    const repo = makeRepo();
+    repo.findByIdForUser.mockResolvedValue(PLAN_WITH_SIDE);
+    repo.removeDaySlot.mockResolvedValue('removed');
+    const dayLog = dayLogStub();
+
+    await expect(serviceWith(repo, dayLog).removeSlot('user1', input)).resolves.toEqual({
+      ok: true,
+    });
+
+    expect(repo.removeDaySlot).toHaveBeenCalledWith('plan1', 1, 'lunch', 2);
+    // Tuesday of the plan's week, as the log's UTC-midnight key.
+    const logDate = new Date(Date.UTC(2026, 8, 29));
+    expect(dayLog.findByDate).toHaveBeenCalledWith('user1', logDate);
+    expect(dayLog.mutateDayState).toHaveBeenCalledTimes(1);
+    expect(dayLog.mutateDayState.mock.calls[0]?.[1]).toEqual(logDate);
+    // The mutation shifts the dinner (was slot 3) down to 2 and unlinks the side's entry.
+    const mutate = dayLog.mutateDayState.mock.calls[0]?.[2] as (s: {
+      entries: { slotIndex?: number; mealType: string }[];
+      skippedSlots: { mealType: string; slotIndex: number }[];
+    }) => { entries: { slotIndex?: number }[]; skippedSlots: { slotIndex: number }[] };
+    const out = mutate({
+      entries: [
+        { mealType: 'lunch', slotIndex: 2 },
+        { mealType: 'dinner', slotIndex: 3 },
+      ],
+      skippedSlots: [{ mealType: 'dinner', slotIndex: 3 }],
+    });
+    expect(out.entries[0]).not.toHaveProperty('slotIndex');
+    expect(out.entries[1]?.slotIndex).toBe(2);
+    expect(out.skippedSlots).toEqual([{ mealType: 'dinner', slotIndex: 2 }]);
+  });
+
+  it('does not touch the tracker when that day has no log', async () => {
+    const repo = makeRepo();
+    repo.findByIdForUser.mockResolvedValue(PLAN_WITH_SIDE);
+    repo.removeDaySlot.mockResolvedValue('removed');
+    const dayLog = dayLogStub(false);
+    await serviceWith(repo, dayLog).removeSlot('user1', input);
+    expect(dayLog.mutateDayState).not.toHaveBeenCalled();
+  });
+
+  it('rejects a plan the user does not own', async () => {
+    const repo = makeRepo();
+    repo.findByIdForUser.mockResolvedValue(null);
+    repo.removeDaySlot.mockClear();
+    const dayLog = dayLogStub();
+    await expect(serviceWith(repo, dayLog).removeSlot('attacker', input)).rejects.toMatchObject({
+      code: 'NOT_FOUND',
+    });
+    expect(repo.removeDaySlot).not.toHaveBeenCalled();
+    expect(dayLog.mutateDayState).not.toHaveBeenCalled();
+  });
+
+  it('refuses to remove the only meal of its type (that is Skip, not Remove)', async () => {
+    const repo = makeRepo();
+    repo.findByIdForUser.mockResolvedValue(PLAN_WITH_SIDE);
+    repo.removeDaySlot.mockResolvedValue('last-of-type');
+    const dayLog = dayLogStub();
+    const err = await serviceWith(repo, dayLog)
+      .removeSlot('user1', { ...input, mealType: 'dinner', slotIndex: 3 })
+      .catch((e: unknown) => e);
+    expect(err).toMatchObject({ code: 'BAD_REQUEST' });
+    expect((err as Error).message).toMatch(/only dinner/);
+    expect(dayLog.mutateDayState).not.toHaveBeenCalled();
+  });
+
+  it('a stale index is a BAD_REQUEST that asks for a refresh', async () => {
+    const repo = makeRepo();
+    repo.findByIdForUser.mockResolvedValue(PLAN_WITH_SIDE);
+    repo.removeDaySlot.mockResolvedValue('missing');
+    await expect(serviceWith(repo).removeSlot('user1', input)).rejects.toMatchObject({
+      code: 'BAD_REQUEST',
+    });
+  });
+});
+
 describe('MealPlanService.scaleDay (T-11.3, portion cap T-11.4)', () => {
   const scaleDayPlan = {
     id: 'plan1',
@@ -2889,6 +3000,31 @@ describe('MealPlanService — Following (PRD §13, FR-17, INV-5)', () => {
         addedRecipeId: 'my-copy',
         copiedFromId: 'theirs',
       });
+    });
+
+    it('add: a side is another slot of the same type — and a full day refuses more', async () => {
+      const repo = makeRepo();
+      repo.findRecipeById.mockResolvedValue({ ...AI_RECIPE, id: 'side', source: 'AI' });
+      const full = {
+        ...WEEK,
+        days: [
+          {
+            dayOfWeek: 1,
+            meals: Array.from({ length: 10 }, () => ({ type: 'snack', recipeId: 'ai-r1' })),
+          },
+        ],
+      };
+      repo.findForWeek.mockResolvedValue(full);
+      await expect(
+        serviceWith(repo).addRecipeToSlot(ME, {
+          recipeId: 'side',
+          weekOffset: 0,
+          dayOfWeek: 1,
+          mealType: 'lunch',
+          mode: 'add',
+        }),
+      ).rejects.toMatchObject({ code: 'BAD_REQUEST' });
+      expect(repo.appendDayMeal).not.toHaveBeenCalled();
     });
 
     it('replace: swaps that slot, keeps its portion, returns previousRecipeId for Undo', async () => {

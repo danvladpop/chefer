@@ -21,6 +21,7 @@ import { planShapeService } from '../meal-plan/plan-shape.service.js';
 import { safetyService, type SafetyService } from '../safety/safety.service.js';
 import { slotShopFactor } from '../shared/household-scale.js';
 import { buildPantryMatcher, rankRecipesByPantry } from './pantry-match.js';
+import { PANTRY_RETIRED } from './pantry-retired.js';
 import { isStapleIngredient } from './staples.js';
 
 // ─── PantryService (F3 Zero-Waste Kitchen) ────────────────────────────────────
@@ -262,6 +263,9 @@ export class PantryService {
    * Free tier gets an honest teaser (pantryPlanning is premium).
    */
   async whatCanIMake(user: UserProfile): Promise<string> {
+    if (PANTRY_RETIRED) {
+      return "Pantry tracking has been retired from Chefer, so there is nothing to match recipes against. Suggest recipes from the user's meal plan or recipe collection instead.";
+    }
     const pantry = await this.repo.findByUser(user.id);
     if (pantry.length === 0) {
       return 'The pantry is empty. Items are added automatically when the user checks off shopping list items, or by hand on the Pantry page.';
@@ -332,6 +336,8 @@ export class PantryService {
    * Returns null when the user has no plan for that week.
    */
   async computeWeekPantrySavings(userId: string, weekStart: Date): Promise<number | null> {
+    // FB7-10: retired — the coach review records no pantry saving.
+    if (PANTRY_RETIRED) return null;
     const plan = await this.planRepo.findByWeekStart(userId, weekStart);
     if (!plan) return null;
     const pantry = await this.repo.findByUser(userId);

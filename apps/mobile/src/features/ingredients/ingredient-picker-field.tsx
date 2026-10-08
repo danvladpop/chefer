@@ -22,6 +22,14 @@ export interface IngredientPickerFieldProps {
   placeholder: string;
   accessibilityLabel: string;
   testID: string;
+  /**
+   * Where the field sits. `row` (default) fills the space left in a
+   * `flex-row` parent (`flex-1`). `stack` is for a column parent, where
+   * `flex-1` would collapse the field to zero height (FB7-03: the 44 pt
+   * trigger then overlapped the text above it) — it takes the full width
+   * and its natural height instead.
+   */
+  layout?: 'row' | 'stack';
 }
 
 /**
@@ -46,6 +54,7 @@ export function IngredientPickerField({
   placeholder,
   accessibilityLabel,
   testID,
+  layout = 'row',
 }: IngredientPickerFieldProps) {
   const [searchOpen, setSearchOpen] = useState(false);
   const [customOpen, setCustomOpen] = useState(false);
@@ -60,7 +69,10 @@ export function IngredientPickerField({
         : accessibilityLabel;
 
   return (
-    <View className="min-w-0 flex-1">
+    <View
+      testID={`${testID}-root`}
+      className={layout === 'stack' ? 'w-full min-w-0' : 'min-w-0 flex-1'}
+    >
       {/* MO-01 press feedback on the trigger. */}
       <PressableScale
         testID={testID}
@@ -70,7 +82,7 @@ export function IngredientPickerField({
         accessibilityHint="Opens ingredient search"
         onPress={() => setSearchOpen(true)}
         className={cn(
-          'h-11 flex-row items-center gap-1 rounded-md border bg-background px-3',
+          'min-h-11 flex-row items-center gap-1 rounded-md border bg-background px-3 py-1',
           needsMatch ? 'border-amber-400' : 'border-input',
         )}
       >
@@ -89,10 +101,13 @@ export function IngredientPickerField({
             accessibilityElementsHidden
           />
         ) : null}
+        {/* Two lines so a long name wraps instead of being cut at 320 pt. */}
         <Text
-          numberOfLines={1}
+          numberOfLines={2}
           className={
-            name ? 'flex-1 text-base text-foreground' : 'flex-1 text-base text-muted-foreground'
+            name
+              ? 'min-w-0 flex-1 text-base text-foreground'
+              : 'min-w-0 flex-1 text-base text-muted-foreground'
           }
         >
           {name || placeholder}

@@ -16,6 +16,7 @@ import { markAccountDeleted } from '../auth/account-deleted-notice';
 import { socialErrorMessage } from '../auth/social/social-errors';
 import { useSocialProviders } from '../auth/social/social-providers';
 import { requestProviderCredential } from '../auth/social/use-social-sign-in';
+import { useSignOut } from '../settings/use-sign-out';
 
 // Mirrors apps/web/src/features/profile/components/AccountDataCard.tsx.
 // In-app export and account deletion (audit P0-6): both app stores require
@@ -33,6 +34,8 @@ export function AccountDataCard() {
   const [exporting, setExporting] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [exportError, setExportError] = useState<string | null>(null);
+  // FB7-02: same confirm sheet + unsynced-workout guard as More / Settings.
+  const signOutAction = useSignOut('profile-sign-out-confirm');
 
   async function exportData() {
     setExporting(true);
@@ -61,6 +64,14 @@ export function AccountDataCard() {
           Export my data
         </Button>
         <Button
+          testID="profile-sign-out"
+          variant="outline"
+          loading={signOutAction.isPending}
+          onPress={signOutAction.request}
+        >
+          Sign out
+        </Button>
+        <Button
           testID="profile-delete-account"
           variant="outline"
           className="border-red-200"
@@ -70,6 +81,7 @@ export function AccountDataCard() {
         </Button>
       </View>
       {exportError && <Text className="mt-2 text-sm text-red-700">{exportError}</Text>}
+      {signOutAction.confirmSheet}
       <DeleteAccountSheet visible={deleteOpen} onClose={() => setDeleteOpen(false)} />
     </Card>
   );

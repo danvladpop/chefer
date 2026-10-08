@@ -1,24 +1,13 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import {
-  ActivityIndicator,
-  Image,
-  Keyboard,
-  Platform,
-  Pressable,
-  ScrollView,
-  TextInput,
-  View,
-} from 'react-native';
+import { ActivityIndicator, Keyboard, Platform, Pressable, TextInput, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { Link, useLocalSearchParams } from 'expo-router';
+import { Link } from 'expo-router';
 import {
   Button,
   Card,
   ErrorState,
   KeyboardAwareScrollView,
-  keyboardDismissMode,
   Screen,
-  SegmentedControl,
   Text,
   useScrollFieldIntoView,
   useSnackbar,
@@ -37,14 +26,11 @@ import {
   labelCaveatCompactText,
   parseCustomItemInput,
   perPortionCost,
+  shoppingProvenanceText,
   shoppingWindowLabel,
   userFacingErrorMessage,
 } from '@chefer/utils';
-import { useAiConsent } from '../../src/features/ai-consent/ai-consent-provider';
 import { ModeSwitch } from '../../src/features/gym/components/mode-switch';
-import { PantryCheckBanner } from '../../src/features/pantry/pantry-check-banner';
-import { PantryGhostBanner } from '../../src/features/pantry/pantry-ghost-banner';
-import { PantryPanel } from '../../src/features/pantry/pantry-panel';
 import { LockedFeatureCard } from '../../src/features/premium/locked-feature-card';
 import { LabelCaveat } from '../../src/features/safety/label-caveat';
 import { CATEGORY_LABELS, CATEGORY_ORDER } from '../../src/features/shopping-list/categories';
@@ -55,6 +41,7 @@ import {
   saveExpandedAisles,
   type ExpandedAisles,
 } from '../../src/features/shopping-list/expanded-store';
+import { ItemThumb } from '../../src/features/shopping-list/item-thumb';
 import { isPendingItem, withPendingItems } from '../../src/features/shopping-list/pending-item';
 import { ShareListSheet } from '../../src/features/shopping-list/share-list-sheet';
 import { useCurrency } from '../../src/hooks/use-currency';
@@ -66,25 +53,12 @@ import { track } from '../../src/lib/analytics';
 import { trpc } from '../../src/lib/trpc';
 
 // Shop tab — port of apps/web (dashboard)/shopping-list/page.tsx (M2-5).
-// P2-8: "To buy" / "In my kitchen" segments (the pantry moved here from More)
-// and the inline weekly "Still have these?" banner (F-PM-13). Deviations,
-// deliberate: no print / send-to-mobile (this IS the phone). Free tier: the
-// pantry ghost banner (real kitchen count + this week's savings) on both
-// segments.
-
-type ShopView = 'list' | 'kitchen';
-const SHOP_SEGMENTS = [
-  { value: 'list' as const, label: 'To buy', testID: 'shop-segment-list' },
-  { value: 'kitchen' as const, label: 'In my kitchen', testID: 'shop-segment-kitchen' },
-];
-
-const FALLBACK_IMAGE =
-  'https://images.unsplash.com/photo-1490645935967-10de6ba17061?w=120&h=120&fit=crop&q=80';
+// FB7-10: the list is always the one computed from the plan's recipes (no AI
+// tidy-up, no "In my kitchen" pantry — both retired), with a provenance line
+// under the title. Deviations, deliberate: no print / send-to-mobile (this IS
+// the phone).
 
 export default function ShoppingListScreen() {
-  // Deep links (/shopping-list?view=kitchen) open the kitchen segment.
-  const params = useLocalSearchParams<{ view?: string }>();
-  const [view, setView] = useState<ShopView>(params.view === 'kitchen' ? 'kitchen' : 'list');
   // T-08.1 (UX-08 AC1): same default as Plan — next week Fri 15:00–Sun,
   // else this week — so Plan and Shop always agree on which week opens.
   const [weekOffset, setWeekOffset] = useState<number>(() => defaultWeekOffset(new Date()));
@@ -164,11 +138,6 @@ export default function ShoppingListScreen() {
         utils.shoppingList.getForWeek.setData({ weekOffset }, context.previous);
       }
     },
-    onSuccess: (_data, vars) => {
-      if (vars.checked) {
-        void utils.pantry.list.invalidate();
-      }
-    },
   });
 
   // UX-SHOP-02: the new row shows up at once, marked "Not saved yet" until the
@@ -231,25 +200,9 @@ export default function ShoppingListScreen() {
       },
     );
   };
-  const markOutMutation = trpc.pantry.markOutOfStock.useMutation({
-    onSuccess: () => {
-      void utils.shoppingList.getForWeek.invalidate();
-      void utils.pantry.list.invalidate();
-    },
-  });
-  // Sends the plan's ingredients to the AI — ask first (App Store 5.1.2(i)).
-  const requestAiConsent = useAiConsent();
-  const regenerateMutation = trpc.shoppingList.regenerate.useMutation({
-    meta: { silent: true },
-    onSuccess: (data) => {
-      utils.shoppingList.getForWeek.setData({ weekOffset }, data);
-    },
-  });
-
   const items = weekList?.items ?? [];
   const checkedItems = weekList?.checkedKeys ?? [];
   const checkedCount = checkedItems.filter((key) => items.some((i) => i.key === key)).length;
-  const pantry = weekList?.pantry;
 
   const grouped = CATEGORY_ORDER.map((cat) => ({
     category: cat,
@@ -290,40 +243,6 @@ export default function ShoppingListScreen() {
     addItemMutation.mutate({ planId: weekList.planId, items: [parsed] });
   };
 
-  const segments = (
-    <SegmentedControl
-      options={SHOP_SEGMENTS}
-      value={view}
-      onChange={setView}
-      accessibilityLabel="Shop sections"
-      testID="shop-segments"
-    />
-  );
-
-  if (view === 'kitchen') {
-    return (
-      <Screen className="px-0">
-        <ScrollView
-          keyboardShouldPersistTaps="handled"
-          keyboardDismissMode={keyboardDismissMode()}
-          contentContainerClassName="gap-4 px-4 py-4"
-        >
-          <ModeSwitch />
-          <View>
-            <Text className="text-xs font-semibold uppercase tracking-widest text-gray-500">
-              Your Kitchen
-            </Text>
-            <Text testID="shopping-title" variant="title">
-              Shop
-            </Text>
-          </View>
-          {segments}
-          <PantryPanel savedEur={weekList?.pantry.savedEur ?? 0} currency={currency} />
-        </ScrollView>
-      </Screen>
-    );
-  }
-
   if (isLoading) {
     return (
       <Screen>
@@ -356,68 +275,71 @@ export default function ShoppingListScreen() {
           default. */}
       <KeyboardAwareScrollView contentContainerClassName="gap-4 px-4 py-4">
         <ModeSwitch />
-        {segments}
         {/* Header + week navigator */}
-        <View className="flex-row items-center justify-between gap-2">
-          <View className="min-w-0 flex-1">
-            <Text className="text-xs font-semibold uppercase tracking-widest text-gray-500">
-              {weekOffset === 0 ? 'This Week' : weekOffset === 1 ? 'Next Week' : 'Past Week'}
-            </Text>
-            <Text testID="shopping-title" variant="title">
-              Shop
-            </Text>
-            <Text variant="muted" className="text-xs">
-              Week of {formatDate(weekStart, 'long')}
-              {items.length > 0 ? ` · ${checkedCount}/${items.length} done` : ''}
-              {/* A plan made mid-week lists only the remaining days (audit F-PM-3) */}
-              {shoppingWindowLabel(weekList?.fromDayOfWeek)
-                ? ` · covers ${shoppingWindowLabel(weekList?.fromDayOfWeek)}`
-                : ''}
-            </Text>
+        <View className="gap-1">
+          <View className="flex-row items-center justify-between gap-2">
+            <View className="min-w-0 flex-1">
+              <Text className="text-xs font-semibold uppercase tracking-widest text-gray-500">
+                {weekOffset === 0 ? 'This Week' : weekOffset === 1 ? 'Next Week' : 'Past Week'}
+              </Text>
+              <Text testID="shopping-title" variant="title">
+                Shop
+              </Text>
+              <Text variant="muted" className="text-xs">
+                Week of {formatDate(weekStart, 'long')}
+                {items.length > 0 ? ` · ${checkedCount}/${items.length} done` : ''}
+              </Text>
+            </View>
+            <View className="flex-row gap-1">
+              <Pressable
+                testID="share-list"
+                accessibilityRole="button"
+                accessibilityLabel="Share the list"
+                accessibilityState={{ disabled: items.length === 0 }}
+                disabled={items.length === 0}
+                onPress={() => setShareOpen(true)}
+                className={cn(
+                  'h-11 w-11 items-center justify-center rounded-full border border-border',
+                  items.length === 0 && 'opacity-40',
+                )}
+              >
+                <Ionicons
+                  name={Platform.select({ ios: 'share-outline', default: 'share-social-outline' })}
+                  size={18}
+                  color="#6b7280"
+                />
+              </Pressable>
+              <Pressable
+                testID="week-prev"
+                accessibilityRole="button"
+                accessibilityLabel="Previous week"
+                disabled={weekOffset <= -52}
+                onPress={() => setWeekOffset((o) => o - 1)}
+                className="h-11 w-11 items-center justify-center rounded-full border border-border"
+              >
+                <Ionicons name="chevron-back" size={18} color="#6b7280" />
+              </Pressable>
+              <Pressable
+                testID="week-next"
+                accessibilityRole="button"
+                accessibilityLabel="Next week"
+                disabled={weekOffset >= 1}
+                onPress={() => setWeekOffset((o) => o + 1)}
+                className={cn(
+                  'h-11 w-11 items-center justify-center rounded-full border border-border',
+                  weekOffset >= 1 && 'opacity-40',
+                )}
+              >
+                <Ionicons name="chevron-forward" size={18} color="#6b7280" />
+              </Pressable>
+            </View>
           </View>
-          <View className="flex-row gap-1">
-            <Pressable
-              testID="share-list"
-              accessibilityRole="button"
-              accessibilityLabel="Share the list"
-              accessibilityState={{ disabled: items.length === 0 }}
-              disabled={items.length === 0}
-              onPress={() => setShareOpen(true)}
-              className={cn(
-                'h-11 w-11 items-center justify-center rounded-full border border-border',
-                items.length === 0 && 'opacity-40',
-              )}
-            >
-              <Ionicons
-                name={Platform.select({ ios: 'share-outline', default: 'share-social-outline' })}
-                size={18}
-                color="#6b7280"
-              />
-            </Pressable>
-            <Pressable
-              testID="week-prev"
-              accessibilityRole="button"
-              accessibilityLabel="Previous week"
-              disabled={weekOffset <= -52}
-              onPress={() => setWeekOffset((o) => o - 1)}
-              className="h-11 w-11 items-center justify-center rounded-full border border-border"
-            >
-              <Ionicons name="chevron-back" size={18} color="#6b7280" />
-            </Pressable>
-            <Pressable
-              testID="week-next"
-              accessibilityRole="button"
-              accessibilityLabel="Next week"
-              disabled={weekOffset >= 1}
-              onPress={() => setWeekOffset((o) => o + 1)}
-              className={cn(
-                'h-11 w-11 items-center justify-center rounded-full border border-border',
-                weekOffset >= 1 && 'opacity-40',
-              )}
-            >
-              <Ionicons name="chevron-forward" size={18} color="#6b7280" />
-            </Pressable>
-          </View>
+          {/* FB7-10: where the list comes from and which days it covers (a
+            plan made mid-week lists only the remaining days, F-PM-3). Full
+            width, under the navigator, so "Mon–Sun" never wraps mid-range. */}
+          <Text testID="shopping-provenance" variant="muted" className="text-xs">
+            {shoppingProvenanceText(weekList?.fromDayOfWeek)}
+          </Text>
         </View>
 
         {/* UX-SHOP-02: say so when changes are waiting for a connection. */}
@@ -515,15 +437,6 @@ export default function ShoppingListScreen() {
             />
           )}
 
-        {/* Weekly kitchen check — inline, never over the list (F-PM-13) */}
-        <PantryCheckBanner />
-
-        {/* F3 §6.4 ghost state (free tier): real seeded item count + the real
-            savings this list would have seen */}
-        {pantry && !pantry.entitled && (
-          <PantryGhostBanner savedEur={pantry.savedEur} currency={currency} />
-        )}
-
         {!weekList?.hasPlan ? (
           /* Empty state */
           <Card testID="shopping-empty" className="items-center border-dashed py-12">
@@ -540,25 +453,6 @@ export default function ShoppingListScreen() {
           </Card>
         ) : (
           <>
-            {/* Premium AI consolidation */}
-            {isPremium === true && (
-              <Button
-                testID="regenerate-list"
-                variant="outline"
-                loading={regenerateMutation.isPending}
-                onPress={() =>
-                  requestAiConsent('shopping-list', () => regenerateMutation.mutate({ weekOffset }))
-                }
-              >
-                {regenerateMutation.isPending ? 'Consolidating with AI…' : 'Regenerate with AI'}
-              </Button>
-            )}
-            {regenerateMutation.isError && (
-              <Text testID="regenerate-error" className="text-xs text-red-600">
-                Couldn&apos;t rebuild the list — your list and ticks are unchanged. Try again.
-              </Text>
-            )}
-
             {/* Add your own item */}
             <View className="flex-row gap-2">
               <TextInput
@@ -616,9 +510,7 @@ export default function ShoppingListScreen() {
                               'flex-row items-center rounded-xl border',
                               isChecked
                                 ? 'border-gray-100 bg-gray-50 opacity-70'
-                                : item.pantryCovered
-                                  ? 'border-emerald-200 bg-emerald-50/40'
-                                  : 'border-border bg-white',
+                                : 'border-border bg-white',
                             )}
                           >
                             {/* Primary target — toggles bought/not */}
@@ -630,10 +522,10 @@ export default function ShoppingListScreen() {
                               onPress={() => toggleItem(item.key)}
                               className="min-h-11 min-w-0 flex-1 flex-row items-center gap-3 p-2"
                             >
-                              <Image
-                                source={{ uri: item.imageUrl || FALLBACK_IMAGE }}
-                                className="h-12 w-12 rounded-lg"
-                                resizeMode="cover"
+                              <ItemThumb
+                                testID={`item-thumb-${item.key}`}
+                                uri={item.imageUrl}
+                                category={item.category}
                               />
                               <View className="min-w-0 flex-1">
                                 <View className="flex-row items-center gap-1.5">
@@ -646,13 +538,6 @@ export default function ShoppingListScreen() {
                                   >
                                     {item.ingredientName}
                                   </Text>
-                                  {item.pantryCovered && (
-                                    <View className="rounded-full bg-emerald-100 px-2 py-0.5">
-                                      <Text className="text-xs font-semibold uppercase text-emerald-700">
-                                        Have it
-                                      </Text>
-                                    </View>
-                                  )}
                                   {/* T-01.9: the risk sits in a bought product
                                       (e.g. stock, oats, soy sauce) — the item
                                       stays on the list, flagged inline. */}
@@ -668,7 +553,6 @@ export default function ShoppingListScreen() {
                                   {quantityLabel}
                                   {item.estimatedPriceEur != null &&
                                     ` · ~${formatApproxPrice(item.estimatedPriceEur, currency)}`}
-                                  {item.pantryCovered && ' · in your kitchen'}
                                   {pending && (online ? ' · Saving…' : ' · Not saved yet')}
                                 </Text>
                               </View>
@@ -682,20 +566,8 @@ export default function ShoppingListScreen() {
                               </View>
                             </Pressable>
 
-                            {/* Secondary target — re-add (pantry) or remove (custom) */}
-                            {item.pantryCovered ? (
-                              <Pressable
-                                accessibilityRole="button"
-                                accessibilityLabel={`Out of ${item.ingredientName} — add it back`}
-                                disabled={markOutMutation.isPending}
-                                onPress={() =>
-                                  markOutMutation.mutate({ ingredientName: item.ingredientName })
-                                }
-                                className="h-11 w-11 items-center justify-center"
-                              >
-                                <Ionicons name="refresh-outline" size={18} color="#059669" />
-                              </Pressable>
-                            ) : item.isCustom && !pending ? (
+                            {/* Secondary target — remove (custom items) */}
+                            {item.isCustom && !pending ? (
                               <Pressable
                                 accessibilityRole="button"
                                 accessibilityLabel={`Remove ${item.ingredientName}`}

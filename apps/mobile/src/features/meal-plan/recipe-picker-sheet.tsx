@@ -26,6 +26,8 @@ interface RecipePickerSheetProps {
   visible: boolean;
   /** Name of the meal being replaced — shown in the header. */
   mealName: string;
+  /** The small line above the title (default "Replace meal"; "Add a side dish" for FB7-04). */
+  eyebrow?: string;
   /**
    * T-08.10 (bug B-50): the recipe currently in the slot — never re-offered
    * as its own replacement.
@@ -62,6 +64,7 @@ function pickerSlotType(
 export function RecipePickerSheet({
   visible,
   mealName,
+  eyebrow = 'Replace meal',
   excludeRecipeId,
   slotType,
   busy,
@@ -161,7 +164,7 @@ export function RecipePickerSheet({
     <Sheet
       visible={visible}
       onClose={onClose}
-      eyebrow="Replace meal"
+      eyebrow={eyebrow}
       title={mealName || shownName}
       scrollable={false}
       testID="picker"

@@ -108,18 +108,25 @@ appId: dev.chefer.app.dev
           timeout: 10000
       - assertVisible: 'Training day · .*'
 
-# Visible Regenerate action row (UX-08 T-08.2/T-08.3) — under the day chips,
-# not only behind the week-summary sheet. It now always asks first: open the
-# confirm and Cancel WITHOUT confirming (a confirm would replace the week).
+# "Week options" (FB7-11, replaces the Regenerate button and the "Rebalance my
+# week" button) — under the day chips, not only behind the week-summary sheet.
+# Its "New meal plan for this week" row always asks first: open the confirm and
+# Cancel WITHOUT confirming (a confirm would replace the week).
 - runFlow:
     when:
       notVisible:
         id: 'plan-empty'
     commands:
       - assertVisible:
-          id: 'plan-regenerate-action'
+          id: 'plan-week-options'
       - tapOn:
-          id: 'plan-regenerate-action'
+          id: 'plan-week-options'
+      - extendedWaitUntil:
+          visible:
+            id: 'plan-week-options-regenerate'
+          timeout: 10000
+      - tapOn:
+          id: 'plan-week-options-regenerate'
       - extendedWaitUntil:
           visible:
             id: 'regenerate-confirm-title'

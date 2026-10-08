@@ -121,9 +121,11 @@ describe('Plan — protein-only mode (WP-08)', () => {
         </>,
       ),
     );
-    expect(screen.getByTestId('plan-meal-dinner-protein').textContent).toBe('40 g protein');
+    expect(screen.getByTestId('plan-meal-dinner-meta').textContent).toBe('30 min · 40 g protein');
+    // Protein-only: the meta line carries the protein, there is no macro line.
+    expect(screen.queryByTestId('plan-meal-dinner-macros')).toBeNull();
     expect(text()).not.toMatch(/kcal/i);
-    expect(screen.queryByText(/C 60g/)).toBeNull();
+    expect(screen.queryByText(/C 60 ?g/)).toBeNull();
     // Back to the full numbers.
     rerender(
       inMode(
@@ -135,7 +137,9 @@ describe('Plan — protein-only mode (WP-08)', () => {
       ),
     );
     expect(text()).toMatch(/700 kcal/);
-    expect(text()).toMatch(/C 60g/);
+    expect(screen.getByTestId('plan-meal-dinner-macros').textContent).toBe(
+      'P 40 g · C 60 g · F 20 g',
+    );
   });
 
   it('a portion-sized card shows the portion-sized protein', () => {
@@ -152,7 +156,7 @@ describe('Plan — protein-only mode (WP-08)', () => {
         />,
       ),
     );
-    expect(screen.getByTestId('plan-meal-dinner-protein').textContent).toBe('60 g protein');
+    expect(screen.getByTestId('plan-meal-dinner-meta').textContent).toBe('30 min · 60 g protein');
   });
 
   it('the day total shows protein and only a protein shortfall, never a calorie miss', () => {

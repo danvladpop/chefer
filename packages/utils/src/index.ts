@@ -398,7 +398,7 @@ export {
   type WeekGapLike,
 } from './rebalance';
 export { RATING_LABELS, composeNotesWithLikedBy, parseLikedBy, stripLikedBy } from './rating';
-export { shoppingWindowLabel } from './shopping-window';
+export { shoppingProvenanceText, shoppingWindowLabel } from './shopping-window';
 export {
   defaultSavedWeekName,
   dinnersHeadingFor,
@@ -607,7 +607,9 @@ export {
 } from './nudge-cap';
 export {
   effectiveJobs,
+  isOfferedOnboardingJob,
   legacyIntentForJobs,
+  RETIRED_ONBOARDING_JOBS,
   TRACK_INFERENCE_MIN_DAYS,
   type EffectiveJobsInput,
 } from './effective-jobs';
@@ -866,3 +868,23 @@ export {
   proteinRingLabel,
   withoutKcalLines,
 } from './numbers-mode-copy';
+
+// ─── Plan page: slot groups (FB7-04), macro lines and week-options copy (FB7-11) ──
+export {
+  canRemoveSlot,
+  groupDaySlots,
+  type DaySlotEntry,
+  type DaySlotGroup,
+} from './plan-slot-groups';
+export {
+  formatMacroLine,
+  formatPlanMinutes,
+  mealGroupTotalLine,
+  planMealMacroLine,
+  planMealMacros,
+  planMealMetaLine,
+  planMealNutritionLabel,
+  type PlanMealMacros,
+  type PlanMealNutrition,
+} from './plan-meal-macros';
+export { PLAN_MEAL_MENU_COPY, PLAN_WEEK_COPY } from './plan-options-copy';

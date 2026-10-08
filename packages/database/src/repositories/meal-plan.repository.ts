@@ -127,6 +127,18 @@ export interface IMealPlanRepository {
     pinned: boolean,
   ): Promise<void>;
   /**
+   * FB7-04: removes the slot at `slotIndex` (its type must be `mealType`),
+   * atomically refusing when it would leave the day with no slot of that type.
+   * `removed` = done (later slots shift down by one); `missing` = no such
+   * slot (stale index or day); `last-of-type` = it is the only one of its type.
+   */
+  removeDaySlot(
+    planId: string,
+    dayOfWeek: number,
+    mealType: string,
+    slotIndex: number,
+  ): Promise<'removed' | 'missing' | 'last-of-type'>;
+  /**
    * T-11.3: overwrites one day's slot portions in place (by index, same
    * order as the day's `meals`), leaving recipe, `leftoverOf` and `pinned`
    * untouched. A `portions[i]` of `undefined` leaves that slot's portion
@@ -643,6 +655,36 @@ export class MealPlanRepository implements IMealPlanRepository {
       });
       return true;
     });
+  }
+
+  async removeDaySlot(
+    planId: string,
+    dayOfWeek: number,
+    mealType: string,
+    slotIndex: number,
+  ): Promise<'removed' | 'missing' | 'last-of-type'> {
+    const result = await serializableDayWrite(async (tx) => {
+      const day = await tx.mealPlanDay.findFirst({ where: { mealPlanId: planId, dayOfWeek } });
+      if (!day) return 'missing' as const;
+      const meals = (day.meals as unknown as PlanMealSlotJson[] | null) ?? [];
+      if (meals[slotIndex]?.type !== mealType) return 'missing' as const;
+      if (meals.filter((m) => m.type === mealType).length < 2) return 'last-of-type' as const;
+      await tx.mealPlanDay.update({
+        where: { id: day.id },
+        data: {
+          meals: meals.filter((_, i) => i !== slotIndex),
+        },
+      });
+      return 'removed' as const;
+    });
+    if (result === 'removed') {
+      // An edited copy is the user's week now (audit F-PLAN-4-2), as updateDayMeal.
+      await prisma.mealPlan.updateMany({
+        where: { id: planId, origin: MealPlanOrigin.CARRY_FORWARD },
+        data: { origin: MealPlanOrigin.USER },
+      });
+    }
+    return result;
   }
 
   async hasShoppingProgress(planId: string): Promise<boolean> {

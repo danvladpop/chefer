@@ -2,7 +2,7 @@ import { expect, test } from '@playwright/test';
 import { gotoAndSettle } from './helpers/layout';
 
 // ─── Meal plan — wave-1 L-PLAN web parity (T-07.6/T-08.9) ─────────────────────
-// Default week persistence, visible Regenerate → confirm → Undo, and
+// Default week persistence, Week options → new plan → confirm → Undo, and
 // Replace → Undo. Desktop only for now (project "plan",
 // playwright.config.ts) — the mobile-first single-day view is exercised by
 // mobile-overflow.spec.ts's route sweep, not by these interaction flows.
@@ -44,10 +44,12 @@ test.describe('Meal plan — Regenerate confirm + Undo (UX-08 §3, T-08.3)', () 
     const emptyCta = page.getByTestId('plan-generate-empty');
     if (await emptyCta.isVisible().catch(() => false)) {
       await emptyCta.click();
-      await expect(page.getByTestId('plan-regenerate')).toBeEnabled({ timeout: 30_000 });
+      await expect(page.getByTestId('plan-week-options')).toBeEnabled({ timeout: 30_000 });
     }
 
-    await page.getByTestId('plan-regenerate').click();
+    // FB7-11: Regenerate and Rebalance live behind one "Week options" button.
+    await page.getByTestId('plan-week-options').click();
+    await page.getByTestId('plan-week-options-regenerate').click();
     await expect(
       page.getByRole('heading', { name: /^Regenerate (this|next) week\?$/ }),
     ).toBeVisible();

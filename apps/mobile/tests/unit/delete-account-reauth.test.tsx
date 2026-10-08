@@ -35,6 +35,7 @@ jest.mock('../../src/lib/trpc', () => ({
       },
     },
     auth: {
+      logout: { useMutation: () => ({ mutate: jest.fn(), isPending: false }) },
       me: { useQuery: () => ({ data: { email: 'ada@gmail.com' } }) },
       linkedIdentities: { useQuery: () => ({ data: mockIdentities }) },
       requestPasswordReset: {

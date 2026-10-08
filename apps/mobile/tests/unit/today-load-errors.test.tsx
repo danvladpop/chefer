@@ -1,6 +1,5 @@
 import { screen, userEvent, waitFor } from '@testing-library/react-native';
 import HomeScreen from '../../app/(food)/index';
-import { PantryPanel } from '../../src/features/pantry/pantry-panel';
 import { renderWithTrpc, trpcError } from './friends-core-harness';
 import { testQueryClient } from './friends-profile-fixtures';
 
@@ -45,13 +44,5 @@ describe('Today: API down', () => {
     const before = calls;
     await user.press(screen.getByTestId('today-load-error-retry'));
     await waitFor(() => expect(calls).toBeGreaterThan(before));
-  });
-});
-
-describe('Kitchen (pantry): API down', () => {
-  it('shows an error with Try again, not the empty-kitchen hint', async () => {
-    await renderWithTrpc(<PantryPanel />, { 'pantry.list': serverDown }, testQueryClient());
-    await waitFor(() => expect(screen.getByTestId('pantry-load-error')).toBeOnTheScreen());
-    expect(screen.queryByTestId('pantry-empty')).toBeNull();
   });
 });

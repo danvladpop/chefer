@@ -157,12 +157,15 @@ export const PLAN_FEATURES = {
     upsell: true,
   },
   pantryPlanning: {
+    // Retired with the "In my kitchen" pantry (WP-24 / FB7-10): kept in the
+    // matrix because the server still gates the (switched-off) pantry code on
+    // it, but never sold — no pitch, perk list or /premium card shows it.
     free: false,
     premium: true,
     label: 'Plans that cook from your pantry',
     description:
       'Chefer remembers what you bought and plans around it — fewer duplicates, visible savings, zero-waste weeks.',
-    upsell: true,
+    upsell: false,
   },
   mealScansPerDay: {
     // Enforced via AiCallLog type SCAN (F4). Pure limit plumbing.
@@ -240,6 +243,13 @@ export const PLAN_FEATURES = {
 } as const satisfies Record<string, PlanFeature>;
 
 export type PlanFeatureKey = keyof typeof PLAN_FEATURES;
+
+/**
+ * Matrix keys for features that are retired from the product (WP-24 / FB7-10:
+ * the "In my kitchen" pantry). They stay in the matrix for the server's gates
+ * but no pricing table, perk list or pitch may list them.
+ */
+export const RETIRED_PLAN_FEATURE_KEYS: readonly PlanFeatureKey[] = ['pantryPlanning'];
 
 /** Feature keys whose `upsell` flag is set — the canonical premium perk list. */
 export const PREMIUM_PERK_KEYS = (Object.keys(PLAN_FEATURES) as PlanFeatureKey[]).filter(

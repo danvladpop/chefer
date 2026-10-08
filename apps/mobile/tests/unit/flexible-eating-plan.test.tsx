@@ -175,21 +175,28 @@ describe('Plan day — overflow on a planned slot (WP-06)', () => {
     });
   });
 
-  it('a later day has no overflow and its log is never read', async () => {
+  it('a later day\u2019s menu has no eaten/skipped actions and its log is never read', async () => {
     const seen: Record<string, unknown[]> = {};
     const user = userEvent.setup();
     await renderWithTrpc(<MealPlanScreen />, handlers({}, seen), testQueryClient());
     await screen.findByTestId('plan-slot-actions-0');
     await user.press(screen.getByTestId('plan-day-4'));
-    await waitFor(() => expect(screen.queryByTestId('plan-slot-actions-0')).toBeNull());
-    expect(screen.getByTestId('plan-meal-breakfast')).toBeOnTheScreen();
+    await screen.findByTestId('plan-meal-breakfast');
+    // FB7-11: the "…" is still there (pin, add a side dish) but "Ate something else" and
+    // "Skipped it" only apply to a meal still to eat today or earlier this week.
+    await user.press(screen.getByTestId('plan-slot-actions-0'));
+    expect(await screen.findByTestId('slot-action-pin')).toBeOnTheScreen();
+    expect(screen.getByTestId('slot-action-add-side')).toBeOnTheScreen();
+    expect(screen.queryByTestId('slot-action-skip')).toBeNull();
+    expect(screen.queryByTestId('slot-action-ate-else')).toBeNull();
     expect(seen.getDay?.every((i) => (i as { date: string }).date === WEDNESDAY)).toBe(true);
   });
 });
 
 describe('Plan day — swapped and skipped slots (WP-06)', () => {
-  it('a replaced slot reads "You had: …", has no overflow, and the day total leaves its planned meal out', async () => {
+  it('a replaced slot reads "You had: …", has no eaten/skip actions, and the day total leaves its planned meal out', async () => {
     const seen: Record<string, unknown[]> = {};
+    const user = userEvent.setup();
     await renderWithTrpc(
       <MealPlanScreen />,
       handlers({ log: { loggedMeals: [replacement] } }, seen),
@@ -198,10 +205,13 @@ describe('Plan day — swapped and skipped slots (WP-06)', () => {
     expect(await screen.findByTestId('plan-slot-replaced-0-text')).toHaveTextContent(
       'You had: Pizza · normal (≈ 775 kcal)',
     );
-    expect(screen.queryByLabelText('More actions for Breakfast')).toBeNull();
     // Dinner is still to eat; breakfast's 450 kcal are no longer part of the plan.
     expect(screen.getByLabelText('More actions for Dinner')).toBeOnTheScreen();
     expect(dayTotal()).toHaveTextContent('540 kcal');
+    // The replaced breakfast's menu offers no "Ate something else" / "Skipped it" any more.
+    await user.press(screen.getByLabelText('More actions for Breakfast'));
+    expect(await screen.findByTestId('slot-action-pin')).toBeOnTheScreen();
+    expect(screen.queryByTestId('slot-action-skip')).toBeNull();
   });
 
   it('Remove puts the planned meal back', async () => {

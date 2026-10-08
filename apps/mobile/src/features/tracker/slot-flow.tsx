@@ -1,8 +1,9 @@
-import { useEffect, useRef, useState, type ReactElement } from 'react';
+import { useEffect, useRef, useState, type ComponentProps, type ReactElement } from 'react';
 import { Pressable, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Sheet, Text } from '@chefer/ui-mobile';
-import type { SlotRef } from '@chefer/utils';
+import { PLAN_MEAL_MENU_COPY, type SlotRef } from '@chefer/utils';
+import { useAfterSheetExit } from '../meal-plan/after-sheet-exit';
 import { AteSomethingElseBody } from './ate-something-else';
 import { QuickAddSheet } from './quick-add-sheet';
 import { mealLabel, SLOT_COPY } from './slot-copy';
@@ -21,9 +22,29 @@ import { useSlotActions } from './use-slot-actions';
 // the hand-off waits for this sheet to be fully gone because iOS cannot
 // present a second modal while the first is still dismissing.
 
+/**
+ * FB7-11: the Plan's "…" menu is this same sheet with more rows. Without
+ * `menu` (Today, tracker) it is exactly the two WP-06 actions.
+ */
+export type SlotMenu = {
+  /**
+   * Whether "Ate something else" / "Skipped it" apply — only while the slot is
+   * still to eat. Default true.
+   */
+  logActions?: boolean;
+  /** "Keep in next plans" / "Stop keeping in next plans" (the slot's pin). */
+  pin?: { pinned: boolean; onToggle: () => void };
+  /** "Add a side dish" — opens another sheet, so it runs after this one exits. */
+  onAddSide?: () => void;
+  /** "Remove from plan" — only offered on a side slot. */
+  onRemove?: () => void;
+};
+
 export type SlotTarget = SlotRef & {
   /** The planned meal's name (the sheet's eyebrow). */
   name: string;
+  /** Extra rows for the Plan's "…" menu. */
+  menu?: SlotMenu;
 };
 
 type Step = 'menu' | 'else' | 'describe' | null;
@@ -41,6 +62,7 @@ export function useSlotFlow(date: string): {
   const [step, setStep] = useState<Step>(null);
   const [handoff, setHandoff] = useState(false);
   const handoffRef = useRef(false);
+  const afterExit = useAfterSheetExit();
 
   const finishHandoff = () => {
     if (!handoffRef.current) return;
@@ -63,6 +85,8 @@ export function useSlotFlow(date: string): {
   const slot: SlotRef | null = target
     ? { mealType: target.mealType, slotIndex: target.slotIndex }
     : null;
+  const menu: SlotMenu = target?.menu ?? {};
+  const logActions = menu.logActions !== false;
 
   const host = (
     <>
@@ -70,7 +94,10 @@ export function useSlotFlow(date: string): {
         <Sheet
           visible={step === 'menu' || step === 'else'}
           onClose={close}
-          onExited={finishHandoff}
+          onExited={() => {
+            finishHandoff();
+            afterExit.onExited();
+          }}
           title={step === 'else' ? SLOT_COPY.ateElse : mealLabel(target.mealType)}
           eyebrow={step === 'else' ? mealLabel(target.mealType) : target.name}
           testID="slot-sheet"
@@ -93,34 +120,69 @@ export function useSlotFlow(date: string): {
             />
           ) : (
             <View className="gap-2">
-              <Pressable
-                testID="slot-action-ate-else"
-                accessibilityRole="button"
-                accessibilityHint={SLOT_COPY.ateElseHint}
-                onPress={() => setStep('else')}
-                className="min-h-14 flex-row items-center gap-3 rounded-xl border border-border bg-card px-3 py-2"
-              >
-                <Ionicons name="restaurant-outline" size={20} color="#944a00" />
-                <Text className="min-w-0 flex-1 text-base font-medium text-gray-900">
-                  {SLOT_COPY.ateElse}
-                </Text>
-                <Ionicons name="chevron-forward" size={16} color="#9ca3af" />
-              </Pressable>
-              <Pressable
-                testID="slot-action-skip"
-                accessibilityRole="button"
-                accessibilityHint={SLOT_COPY.skipItHint}
-                onPress={() => {
-                  close();
-                  actions.skipSlot(slot);
-                }}
-                className="min-h-14 flex-row items-center gap-3 rounded-xl border border-border bg-card px-3 py-2"
-              >
-                <Ionicons name="remove-circle-outline" size={20} color="#6b7280" />
-                <Text className="min-w-0 flex-1 text-base font-medium text-gray-900">
-                  {SLOT_COPY.skipIt}
-                </Text>
-              </Pressable>
+              {menu.pin && (
+                <MenuRow
+                  testID="slot-action-pin"
+                  icon={menu.pin.pinned ? 'bookmark' : 'bookmark-outline'}
+                  label={menu.pin.pinned ? PLAN_MEAL_MENU_COPY.unpin : PLAN_MEAL_MENU_COPY.pin}
+                  hint={
+                    menu.pin.pinned ? PLAN_MEAL_MENU_COPY.unpinHint : PLAN_MEAL_MENU_COPY.pinHint
+                  }
+                  onPress={() => {
+                    close();
+                    menu.pin?.onToggle();
+                  }}
+                />
+              )}
+              {logActions && (
+                <>
+                  <MenuRow
+                    testID="slot-action-ate-else"
+                    icon="restaurant-outline"
+                    label={SLOT_COPY.ateElse}
+                    hint={SLOT_COPY.ateElseHint}
+                    chevron
+                    onPress={() => setStep('else')}
+                  />
+                  <MenuRow
+                    testID="slot-action-skip"
+                    icon="remove-circle-outline"
+                    iconColor="#6b7280"
+                    label={SLOT_COPY.skipIt}
+                    hint={SLOT_COPY.skipItHint}
+                    onPress={() => {
+                      close();
+                      actions.skipSlot(slot);
+                    }}
+                  />
+                </>
+              )}
+              {menu.onAddSide && (
+                <MenuRow
+                  testID="slot-action-add-side"
+                  icon="add-circle-outline"
+                  label={PLAN_MEAL_MENU_COPY.addSide}
+                  hint={PLAN_MEAL_MENU_COPY.addSideHint}
+                  onPress={() => {
+                    // Another sheet follows: wait until this one is fully gone.
+                    if (menu.onAddSide) afterExit.schedule(menu.onAddSide);
+                    close();
+                  }}
+                />
+              )}
+              {menu.onRemove && (
+                <MenuRow
+                  testID="slot-action-remove"
+                  icon="trash-outline"
+                  iconColor="#b91c1c"
+                  label={PLAN_MEAL_MENU_COPY.removeSide}
+                  hint={PLAN_MEAL_MENU_COPY.removeSideHint}
+                  onPress={() => {
+                    close();
+                    menu.onRemove?.();
+                  }}
+                />
+              )}
             </View>
           )}
         </Sheet>
@@ -148,4 +210,36 @@ export function useSlotFlow(date: string): {
     actions,
     host,
   };
+}
+
+function MenuRow({
+  testID,
+  icon,
+  iconColor = '#944a00',
+  label,
+  hint,
+  chevron = false,
+  onPress,
+}: {
+  testID: string;
+  icon: ComponentProps<typeof Ionicons>['name'];
+  iconColor?: string;
+  label: string;
+  hint: string;
+  chevron?: boolean;
+  onPress: () => void;
+}) {
+  return (
+    <Pressable
+      testID={testID}
+      accessibilityRole="button"
+      accessibilityHint={hint}
+      onPress={onPress}
+      className="min-h-14 flex-row items-center gap-3 rounded-xl border border-border bg-card px-3 py-2"
+    >
+      <Ionicons name={icon} size={20} color={iconColor} />
+      <Text className="min-w-0 flex-1 text-base font-medium text-gray-900">{label}</Text>
+      {chevron && <Ionicons name="chevron-forward" size={16} color="#9ca3af" />}
+    </Pressable>
+  );
 }

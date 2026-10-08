@@ -14,7 +14,17 @@ const tableOf = (members: number[], cookingFor: number | null = null) => ({
   cookingFor,
 });
 
+// FB7-10: the pantry is retired by default (`PANTRY_RETIRED`). The legacy F3
+// suites below flip the switch off to keep pinning the reversible code path.
+const pantrySwitch = vi.hoisted(() => ({ retired: true }));
+vi.mock('../pantry/pantry-retired.js', () => ({
+  get PANTRY_RETIRED() {
+    return pantrySwitch.retired;
+  },
+}));
+
 afterEach(() => {
+  pantrySwitch.retired = true;
   vi.mocked(householdService.scalingPortions).mockReset().mockResolvedValue(null);
   vi.mocked(householdService.scalingTable).mockReset().mockResolvedValue(null);
 });
@@ -26,7 +36,11 @@ vi.mock('@chefer/database', async (importOriginal) => {
   return {
     ...mod,
     prisma: {
-      shoppingList: { findUnique: vi.fn().mockResolvedValue(null), upsert: vi.fn() },
+      shoppingList: {
+        findUnique: vi.fn().mockResolvedValue(null),
+        upsert: vi.fn(),
+        updateMany: vi.fn().mockResolvedValue({ count: 1 }),
+      },
       ingredientPrice: { findMany: vi.fn().mockResolvedValue([]) },
       aiCallLog: { create: vi.fn().mockResolvedValue({}) },
       $transaction: vi.fn(),
@@ -152,10 +166,11 @@ function planWithRecipes() {
   vi.mocked(prisma.ingredientPrice.findMany).mockResolvedValue(PRICES as never);
 }
 
-describe('ShoppingListService — F3 pantry subtraction', () => {
+describe('ShoppingListService — F3 pantry subtraction (switch off)', () => {
   const service = new ShoppingListService();
 
   beforeEach(() => {
+    pantrySwitch.retired = false;
     vi.clearAllMocks();
     vi.mocked(prisma.shoppingList.findUnique).mockResolvedValue(null);
     vi.mocked(pantryItemRepository.findByUser).mockResolvedValue([]);
@@ -270,10 +285,11 @@ describe('ShoppingListService — F3 pantry subtraction', () => {
   });
 });
 
-describe('ShoppingListService — F3 pantry seeding from check-offs', () => {
+describe('ShoppingListService — F3 pantry seeding from check-offs (switch off)', () => {
   const service = new ShoppingListService();
 
   beforeEach(() => {
+    pantrySwitch.retired = false;
     vi.clearAllMocks();
     vi.mocked(prisma.shoppingList.findUnique).mockResolvedValue(null);
     vi.mocked(pantryItemRepository.findByUser).mockResolvedValue([]);
@@ -345,6 +361,124 @@ describe('ShoppingListService — F3 pantry seeding from check-offs', () => {
   it('checked keys that match no list item seed nothing', async () => {
     await service.toggleItems(freeUser, 'plan1', ['plan1-nonexistent|g'], true);
     expect(pantryService.seedFromPurchases).toHaveBeenCalledWith('u1', []);
+  });
+});
+
+describe('ShoppingListService — FB7-10: no pantry, no AI list', () => {
+  const service = new ShoppingListService();
+  const aiRow = (checkedKeys: string[]) => ({
+    planId: 'plan1',
+    aiGenerated: true,
+    checkedKeys,
+    items: [
+      {
+        key: 'plan1-ai-tomato-g',
+        ingredientName: 'Tomatoes',
+        quantity: '700',
+        unit: 'g',
+        category: 'produce',
+        recipeNames: [],
+      },
+      {
+        key: 'plan1-ai-garlic-pcs',
+        ingredientName: 'Garlic',
+        quantity: '2',
+        unit: 'pcs',
+        category: 'produce',
+        recipeNames: [],
+      },
+    ],
+    customItems: [
+      {
+        key: 'plan1-custom-soap-pcs',
+        ingredientName: 'Soap',
+        quantity: '1',
+        unit: 'pcs',
+        category: 'other',
+        recipeNames: [],
+      },
+    ],
+  });
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.mocked(prisma.shoppingList.findUnique).mockResolvedValue(null);
+    vi.mocked(pantryItemRepository.findByUser).mockResolvedValue([pantryRow('tomato')] as never);
+    vi.mocked(prisma.$transaction).mockImplementation(async (fn: unknown) => {
+      const tx = {
+        shoppingList: {
+          findUnique: vi.fn().mockResolvedValue(null),
+          upsert: vi.fn().mockResolvedValue({}),
+        },
+      };
+      return (fn as (t: typeof tx) => Promise<unknown>)(tx);
+    });
+  });
+
+  it('a filled pantry changes nothing: no "have it", no subtraction, neutral pantry summary', async () => {
+    planWithRecipes();
+    const list = await service.getForWeek(premiumUser, 0);
+    expect(list.items.every((i) => i.pantryCovered === undefined)).toBe(true);
+    expect(list.items.every((i) => i.haveQuantity === undefined)).toBe(true);
+    expect(list.estimatedTotalEur).toBe(9);
+    expect(list.pantry).toEqual({ entitled: false, itemCount: 0, savedEur: 0 });
+    expect(pantryItemRepository.findByUser).not.toHaveBeenCalled();
+  });
+
+  it('ticking an item no longer seeds the pantry, and unticking no longer reverts it', async () => {
+    planWithRecipes();
+    await service.toggleItems(premiumUser, 'plan1', ['plan1-tomato|g'], true);
+    await service.toggleItems(premiumUser, 'plan1', ['plan1-tomato|g'], false);
+    expect(pantryService.seedFromPurchases).not.toHaveBeenCalled();
+    expect(pantryService.revertPurchases).not.toHaveBeenCalled();
+  });
+
+  it('serves the derived list even when an old AI list is stored, keeping custom items', async () => {
+    planWithRecipes();
+    vi.mocked(prisma.shoppingList.findUnique).mockResolvedValue(aiRow([]) as never);
+    const list = await service.getForWeek(premiumUser, 0);
+    expect(list.aiGenerated).toBe(false);
+    const names = list.items.map((i) => i.ingredientName).sort();
+    expect(names).toEqual(['Beef', 'Soap', 'Tomato']);
+    expect(list.items.find((i) => i.ingredientName === 'Soap')?.isCustom).toBe(true);
+  });
+
+  it('ticks made on the old AI list map onto the derived rows by name, and the row is reset', async () => {
+    planWithRecipes();
+    vi.mocked(prisma.shoppingList.findUnique).mockResolvedValue(
+      aiRow(['plan1-ai-tomato-g', 'plan1-ai-garlic-pcs', 'plan1-custom-soap-pcs']) as never,
+    );
+    const list = await service.getForWeek(premiumUser, 0);
+    // "Tomatoes" (AI) ticks "Tomato" (derived); garlic has no derived row.
+    expect(list.checkedKeys.sort()).toEqual(['plan1-custom-soap-pcs', 'plan1-tomato|g']);
+    expect(prisma.shoppingList.updateMany).toHaveBeenCalledWith({
+      where: { planId: 'plan1', aiGenerated: true },
+      data: { items: [], aiGenerated: false, checkedKeys: list.checkedKeys },
+    });
+  });
+
+  it('a plain check-off row is served as stored and never rewritten', async () => {
+    planWithRecipes();
+    vi.mocked(prisma.shoppingList.findUnique).mockResolvedValue({
+      planId: 'plan1',
+      aiGenerated: false,
+      items: [],
+      checkedKeys: ['plan1-tomato|g'],
+      customItems: [],
+    } as never);
+    const list = await service.getForWeek(premiumUser, 0);
+    expect(list.checkedKeys).toEqual(['plan1-tomato|g']);
+    expect(prisma.shoppingList.updateMany).not.toHaveBeenCalled();
+  });
+
+  it('regenerate returns the derived list without calling the AI', async () => {
+    planWithRecipes();
+    vi.mocked(prisma.shoppingList.findUnique).mockResolvedValue(aiRow([]) as never);
+    const list = await service.regenerate(premiumUser, 0);
+    expect(list.aiGenerated).toBe(false);
+    expect(list.items.map((i) => i.ingredientName).sort()).toEqual(['Beef', 'Soap', 'Tomato']);
+    expect(prisma.aiCallLog.create).not.toHaveBeenCalled();
+    expect(prisma.shoppingList.upsert).not.toHaveBeenCalled();
   });
 });
 
