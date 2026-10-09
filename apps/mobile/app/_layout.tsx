@@ -21,6 +21,7 @@ import { useNotificationLinks } from '../src/features/notifications/use-notifica
 import { NumbersModeHost } from '../src/features/numbers-mode/numbers-mode';
 import { PremiumHost } from '../src/features/premium/premium-host';
 import { HealthConsentLaunchPrompt } from '../src/features/privacy/health-consent-launch-prompt';
+import { ShellFlagHost } from '../src/features/shell/shell-flag-host';
 import { initAnalytics, track } from '../src/lib/analytics';
 import { getTrpcUrl } from '../src/lib/api-url';
 import { getToken } from '../src/lib/auth-store';
@@ -107,6 +108,13 @@ export default function RootLayout() {
                 the persisted mode picks which one "/" opens. */}
                   <Stack.Screen name="(food)" />
                   <Stack.Screen name="(gym)" />
+                  {/* Mobile UX revamp: the one-tab-bar shell (`mobileShellV2`)
+                    and the old Gym/Cookbook tabs, pushed from it. */}
+                  <Stack.Screen name="(main)" />
+                  <Stack.Screen name="training/routine" />
+                  <Stack.Screen name="training/exercises" />
+                  <Stack.Screen name="training/stats" />
+                  <Stack.Screen name="cookbook" />
                   <Stack.Screen name="recipe/[id]" />
                   <Stack.Screen name="tracker" />
                   <Stack.Screen name="pantry" />
@@ -163,6 +171,8 @@ export default function RootLayout() {
             <FoodNudgeHost signedIn={token !== null} />
             {/* UX-PO-10: after 30 min in the background, a foreground re-lands (food/gym). */}
             <ForegroundLandingHost signedIn={token !== null} />
+            {/* Mobile UX revamp: caches `mobileShellV2` for the next cold start. */}
+            <ShellFlagHost signedIn={token !== null} />
             {/* UX-26, Q-7 (pending counsel): data saved before health consent existed
                 is kept; the signed-in user is asked once per launch. */}
             <HealthConsentLaunchPrompt signedIn={token !== null} />

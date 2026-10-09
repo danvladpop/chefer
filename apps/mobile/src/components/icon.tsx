@@ -1,3 +1,4 @@
+import type { ColorValue } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 
 // One icon component for the revamp (plan: "Shape, depth and icons"). Screens
@@ -35,6 +36,7 @@ const GLYPHS = {
   stats: 'trending-up-outline',
   play: 'play',
   chevronRight: 'chevron-forward',
+  chevronBack: 'chevron-back',
   close: 'close',
   camera: 'camera-outline',
   copy: 'copy-outline',
@@ -50,7 +52,7 @@ export type IconName = keyof typeof GLYPHS;
 export interface IconProps {
   name: IconName;
   size?: number;
-  color: string;
+  color: ColorValue;
 }
 
 /** A decorative glyph: hidden from screen readers (its control carries the label). */

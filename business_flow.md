@@ -2718,6 +2718,16 @@ Food/Gym switch (header of every tab root) → persisted mode
       feedback, legal links, Sign out — route `/gym-more`)
 ```
 
+### New mobile shell (UX revamp phase 1, behind `mobileShellV2`)
+
+With the flag (or the admin/dev preview switch) on, mobile has one tab bar instead of the Food | Gym modes:
+**Today · Plan · Shop · Train · You**. A TRAIN-only account sees Today · Train · You; a food-only account
+without a gym profile sees Today · Plan · Shop · You. Recipes open from Plan's header; Routine, Exercises,
+Stats and Gym settings are listed at the foot of Train; everything that was in More (and the header gear) is
+under You. Food is added through Today's **+** sheet (search, snap, copy yesterday, save a recipe). A running
+workout shows a mini bar above the tabs on every tab. Any old link (`/meal-plan`, `/today`, `/stats?tab=…`)
+lands on the same screen in the new shell. Web is unchanged.
+
 ### Tester feedback 2026-10-07 — gym (WP-23)
 
 Source: `docs/backlog-2026-10/feedback-2026-10-07.md` (FB7-01, 05–09).

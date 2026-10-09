@@ -3,6 +3,8 @@ import { Tabs } from 'expo-router';
 import { colors, countPillText } from '@chefer/ui-mobile';
 import { SnackbarAwareTabBar } from '../../src/components/snackbar-tab-bar';
 import { useFriendsMe } from '../../src/features/friends/api/use-friends-me';
+import { ShellV2Forward } from '../../src/features/shell/shell-forward';
+import { useShellV2 } from '../../src/features/shell/shell-store';
 import { TAB_BAR_SCREEN_OPTIONS } from '../../src/lib/tab-bar-options';
 
 // Gym mode tab bar (gym_plan.md D3): Today / Routine / Exercises / Stats /
@@ -13,6 +15,12 @@ export default function GymTabsLayout() {
   // Same in-app Following badge as Food's More tab (pending requests + unread
   // Activity, hidden at 0). Shares the useFriendsMe cache with the Food layout.
   const { badgeCount } = useFriendsMe();
+  // Mobile UX revamp: with the new shell on, this group only forwards
+  // (Today → Train, Routine/Exercises/Stats → pushed from Train, More → You).
+  const shellV2 = useShellV2();
+  if (shellV2) {
+    return <ShellV2Forward fallback="/train" />;
+  }
   return (
     <Tabs
       screenOptions={TAB_BAR_SCREEN_OPTIONS}

@@ -9,6 +9,7 @@ import { CURRENT_VERSION_LABEL } from '../../lib/current-build';
 import { useFriendsAvailability } from '../friends/api/use-friends-availability';
 import { useGymBootstrap } from '../gym/use-gym-bootstrap';
 import { legalHref } from '../legal/legal-docs';
+import { ShellPreviewSection } from '../shell/shell-preview-row';
 import { useSignOut } from './use-sign-out';
 
 // ─── Settings hub (T-00.9, PAT-9 §2.9; UX-ACC-04, UX-ACC-19) ───────────────────
@@ -254,6 +255,10 @@ export function SettingsScreen() {
             </View>
           </View>
         ))}
+        {/* Mobile UX revamp: admins and test builds can preview the new shell. */}
+        <View className="mx-4 mt-2">
+          <ShellPreviewSection />
+        </View>
         {/* T-22.3: the medical/legal disclaimer, always visible on Settings. */}
         <Text testID="settings-about-disclaimer" variant="muted" className="px-4 text-xs">
           {WELLNESS_COPY.aboutMedicalDisclaimer}

@@ -622,6 +622,26 @@ the wrong segment highlighted. A `settings-outline` gear (44 pt) sits between
 the switch and `HeaderAvatar`: on a Gym route it opens `gym/settings`
 (UX-36 (1)); on a Food route it opens the new Settings hub (`settings/index`).
 
+**New shell (mobile UX revamp, phase 1; `docs/mobile-ux-revamp/plan.md`).**
+Behind the `mobileShellV2` flag (cached in the gym KV store by `ShellFlagHost`,
+key `shell.v2.flag`) or a per-device preview switch (`shell.v2.preview`, shown
+to admins and development builds in Settings and You), the app renders one
+`Tabs` group, `app/(main)`, instead of the two modes: `/home` (Today),
+`/plan`, `/shop`, `/train`, `/you`. Tabs are job-aware (`shellTabsFor`,
+`src/features/shell/shell-routes.ts`: Plan/Shop hidden for TRAIN-only, Train
+hidden for food-only without a gym profile; hidden tabs keep their route).
+The old Gym and Cookbook tabs become pushed stack screens: `/training/routine`,
+`/training/exercises`, `/training/stats`, `/cookbook`. While the shell is on,
+the `(food)` and `(gym)` layouts render `ShellV2Forward`, which redirects any
+old tab URL (`/`, `/meal-plan`, `/today`, `/stats?tab=history`…) to its new
+home with its query params. Existing screens are reused: `ModeSwitch` renders
+`ShellTopBar` instead (Back on pushed screens, the tab's actions such as Ask
+Chef, Add and Recipes on tab roots), driven by `ShellChromeProvider` in each
+route file. Today's Add sheet (`add-action.tsx`) holds Search foods (the quick
+add sheet), Snap (`/tracker?snap=1`), Copy yesterday (`/tracker?copy=1`) and
+Save a recipe. A workout mini bar (`workout-mini-bar.tsx`) rides above the tab
+bar while a workout is running. All OTA-safe; no native changes.
+
 **Gym offline layer (gym_plan.md D6, §5.2; `src/features/gym/offline/`).**
 Workout logging never needs a connection:
 

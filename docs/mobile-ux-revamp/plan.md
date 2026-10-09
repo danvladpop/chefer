@@ -46,3 +46,13 @@ and dev builds only). Off by default, so merging changes nothing for testers.
 - `tests/unit/color-sync.test.ts`: `global.css` matches the colour roles.
 - `packages/tokens/src/color.test.ts`: every text role meets WCAG AA on every
   background, light and dark.
+
+## Status
+
+| Phase              | State                                | Notes                                                                                                                                                                           |
+| ------------------ | ------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 0 Foundations      | Done (PR #134)                       | Colour roles + AA tests, `ListSection`/`ListRow`, `IconButton`, `LargeHeader`, `SurfaceCard`, `Icon`, drift guard, `mobileShellV2` flag, iOS light appearance.                  |
+| 1 New shell        | Done (PR #134), needs a device check | `app/(main)` tabs, job-aware tab set, old URLs forwarded, Today's Add sheet, Train links, You, workout mini bar, preview switch. Existing screens reused through `ShellTopBar`. |
+| 2 Screen rebuilds  | Not started                          | Today's single nudge, Plan week strip, Shop sections, cookbook search, visual pass onto the colour roles.                                                                       |
+| 3 Binary 1.1       | Not started                          | Native tabs, SF Symbols, gesture-handler sheets, keyboard-controller, predictive back. Needs a store build.                                                                     |
+| 4 Dark mode + a11y | Not started                          |                                                                                                                                                                                 |
