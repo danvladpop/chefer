@@ -30,4 +30,24 @@
   --border: 214.3 31.8% 91.4%;
   --input: 214.3 31.8% 91.4%;
   --ring: 30 100% 29%;
+
+  /* Revamp colour roles (@chefer/tokens color.ts, light values; dark values
+     land with the Appearance setting in phase 4). Stored as "r g b" so
+     Tailwind can add alpha: bg-brand/10. Kept identical to the tokens by
+     tests/unit/color-sync.test.ts. */
+  --canvas: 250 247 242;
+  --surface: 255 255 255;
+  --surface-raised: 255 255 255;
+  --surface-sunken: 242 236 228;
+  --separator: 230 222 211;
+  --label: 28 25 23;
+  --label-secondary: 87 83 78;
+  --label-tertiary: 111 103 95;
+  --brand: 148 74 0;
+  --on-brand: 255 255 255;
+  --brand-tint: 246 234 219;
+  --positive: 45 122 75;
+  --attention: 168 81 0;
+  --info: 29 95 208;
+  --danger: 198 40 40;
 }

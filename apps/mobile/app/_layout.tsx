@@ -5,6 +5,7 @@ import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { Snackbar } from '@chefer/ui-mobile';
 import { AiConsentHost, AiConsentProvider } from '../src/features/ai-consent/ai-consent-provider';
+import { forceLightAppearance } from '../src/features/appearance/force-light';
 import { markSessionExpired, setUnauthorizedHandler } from '../src/features/auth/session-expired';
 import { TermsReacceptSheet } from '../src/features/auth/terms-reaccept-sheet';
 import { useSession } from '../src/features/auth/use-session';
@@ -33,6 +34,9 @@ import { buildTrpcLinks } from '../src/lib/trpc-links';
 // (info, not warn: warn would raise a LogBox toast in dev builds.)
 // eslint-disable-next-line no-console
 console.info(`[chefer] ${CURRENT_BUILD}`);
+
+// UX-X-07: native UI (keyboard, alerts, share sheet) matches the light app.
+forceLightAppearance();
 
 // NetInfo → onlineManager, AppState → focusManager (gym offline layer, §5.2).
 installQueryConnectivity();
