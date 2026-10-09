@@ -110,6 +110,34 @@ const base = (meals: object[], more: Handlers = {}): Handlers => ({
   ...more,
 });
 
+// Plan opens on NEXT week from Friday 15:00 (defaultWeekOffset), so a run on
+// a Friday afternoon expected weekOffset 1. Pin the clock to a Wednesday noon;
+// only Date is faked, timers stay real for react-query and userEvent.
+beforeAll(() => {
+  jest.useFakeTimers({
+    now: new Date(2026, 9, 7, 12, 0, 0),
+    doNotFake: [
+      'hrtime',
+      'nextTick',
+      'performance',
+      'queueMicrotask',
+      'requestAnimationFrame',
+      'cancelAnimationFrame',
+      'requestIdleCallback',
+      'cancelIdleCallback',
+      'setImmediate',
+      'clearImmediate',
+      'setInterval',
+      'clearInterval',
+      'setTimeout',
+      'clearTimeout',
+    ],
+  });
+});
+afterAll(() => {
+  jest.useRealTimers();
+});
+
 beforeEach(() => {
   jest.clearAllMocks();
   resetSnackbarForTests();
