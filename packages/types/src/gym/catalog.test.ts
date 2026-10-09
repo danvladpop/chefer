@@ -230,11 +230,9 @@ describe('library staples (T-05.10, UX-05 A5, AC27-29)', () => {
     expect(EXERCISE_BY_ID.get('back-extension')?.loadType).toBe('BODYWEIGHT_PLUS');
   });
 
-  it('HIDDEN_EXERCISE_IMAGE_IDS only names real catalog slugs that actually have a vendored photo', () => {
+  it('HIDDEN_EXERCISE_IMAGE_IDS only names real catalog slugs (empty since WP-25)', () => {
     for (const id of HIDDEN_EXERCISE_IMAGE_IDS) {
-      const e = EXERCISE_BY_ID.get(id);
-      expect(e, id).toBeDefined();
-      expect(e?.freeExerciseDbId, id).not.toBeNull();
+      expect(EXERCISE_BY_ID.get(id), id).toBeDefined();
     }
   });
 

@@ -1,4 +1,4 @@
-import { readFileSync } from 'node:fs';
+import { readdirSync, readFileSync } from 'node:fs';
 import { describe, expect, it, vi } from 'vitest';
 import type { Exercise, IExerciseRepository } from '@chefer/database';
 import { EXERCISE_CATALOG, type ExerciseCatalogEntry } from '@chefer/types';
@@ -80,22 +80,52 @@ describe('syncExerciseLibrary', () => {
 });
 
 describe('imageKeysFor', () => {
-  it('lists only photos that exist, and none without a free-exercise-db id', () => {
+  it('lists only photos that exist, whatever their source (no free-exercise-db id needed)', () => {
     const e = entry({ id: 'bench' });
     expect(imageKeysFor(e, (f) => f === 'bench-0.3x2.webp')).toEqual(['bench-0.3x2.webp']);
     expect(imageKeysFor(e, () => true)).toEqual(['bench-0.3x2.webp', 'bench-1.3x2.webp']);
-    expect(imageKeysFor(entry({ freeExerciseDbId: null }), () => true)).toEqual([]);
+    expect(imageKeysFor(entry({ id: 'bench', freeExerciseDbId: null }), () => true)).toEqual([
+      'bench-0.3x2.webp',
+      'bench-1.3x2.webp',
+    ]);
+    expect(imageKeysFor(entry({ id: 'bench', freeExerciseDbId: null }), () => false)).toEqual([]);
+  });
+
+  it('gives a re-vendored photo a new key (revision suffix), so cached URLs are not reused', () => {
+    expect(imageKeysFor(entry({ id: 'preacher-curl' }), () => true)).toEqual([
+      'preacher-curl-0.r2.3x2.webp',
+      'preacher-curl-1.r2.3x2.webp',
+    ]);
+  });
+
+  it('bumps contentVersion when a row gains photos, so installed apps refetch', async () => {
+    const e = entry({ id: 'bench', freeExerciseDbId: null });
+    const r = repo([storedRow(e)]);
+    await syncExerciseLibrary(r, [e], () => true);
+    expect(r.updateCurated).toHaveBeenCalledWith(
+      'bench',
+      expect.objectContaining({
+        imageKeys: ['bench-0.3x2.webp', 'bench-1.3x2.webp'],
+        contentVersion: 4,
+      }),
+    );
   });
 });
 
 describe('vendored photos (apps/api/static/exercises)', () => {
-  it('ships both photos for every catalog exercise with a free-exercise-db id', () => {
-    // Deploys serve these files as-is; a new catalog entry without its vendored
-    // photos would silently show none (run scripts/gym/vendor-exercise-photos.ts).
-    const missing = EXERCISE_CATALOG.filter(
-      (e) => e.freeExerciseDbId !== null && imageKeysFor(e).length !== 2,
-    ).map((e) => e.id);
-    expect(missing).toEqual([]);
+  it('never ships half a photo pair (start without end, or the reverse)', () => {
+    // Which exercises MUST have a pair is guarded in @chefer/types
+    // (gym/exercise-media.test.ts); here only that what is on disk is complete.
+    const half = EXERCISE_CATALOG.filter((e) => imageKeysFor(e).length === 1).map((e) => e.id);
+    expect(half).toEqual([]);
+  });
+
+  it('has no orphan photo files that no catalog exercise references', () => {
+    const referenced = new Set(EXERCISE_CATALOG.flatMap((e) => imageKeysFor(e)));
+    const orphans = readdirSync(EXERCISE_STATIC_DIR).filter(
+      (f) => f.endsWith('.webp') && !referenced.has(f),
+    );
+    expect(orphans).toEqual([]);
   });
 
   it('is exactly 600×400 (3:2, T-05.11 AC30) for every vendored photo', () => {

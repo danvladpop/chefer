@@ -903,7 +903,7 @@ export const EXERCISE_CONTENT: Record<string, ExerciseContent> = {
     ],
     blurb:
       "Trains the abs' real job — resisting spinal extension under load — and doubles as a low-risk core baseline.",
-    freeExerciseDbId: 'Plank',
+    freeExerciseDbId: null, // WP-25: the dataset's "Plank" photo shows a lunge stretch; the photo is now an AI render
     videoId: '1G0y8D5rFDc',
     videoStartSec: 74,
     videoChannel: 'Jeff Nippard',
@@ -2973,9 +2973,9 @@ export const EXERCISE_CONTENT: Record<string, ExerciseContent> = {
     blurb:
       'An instructor-led bike session — logged by time and effort since resistance varies through the class.',
     freeExerciseDbId: null,
-    videoId: null,
-    videoStartSec: null,
-    videoChannel: null,
+    videoId: 'ufhbfTWpYEk',
+    videoStartSec: 0,
+    videoChannel: 'SpinFriends',
   },
   'pilates-class': {
     cues: [
@@ -2990,9 +2990,9 @@ export const EXERCISE_CONTENT: Record<string, ExerciseContent> = {
     blurb:
       'A studio or mat class built on control and core strength — logged by time and how hard it felt.',
     freeExerciseDbId: null,
-    videoId: null,
-    videoStartSec: null,
-    videoChannel: null,
+    videoId: 'bbsElOlWBcw',
+    videoStartSec: 0,
+    videoChannel: 'Trifecta Pilates',
   },
   'yoga-class': {
     cues: [
@@ -3007,9 +3007,9 @@ export const EXERCISE_CONTENT: Record<string, ExerciseContent> = {
     blurb:
       'Any yoga class, from flow to restorative — logged by time since the load varies with the style.',
     freeExerciseDbId: null,
-    videoId: null,
-    videoStartSec: null,
-    videoChannel: null,
+    videoId: 'vNyJuQuuMC8',
+    videoStartSec: 0,
+    videoChannel: 'Yoga With Adriene',
   },
   'hiit-class': {
     cues: [
@@ -3024,9 +3024,9 @@ export const EXERCISE_CONTENT: Record<string, ExerciseContent> = {
     blurb:
       'A high-intensity interval or bootcamp class — logged by time, with effort and kcal if you know them.',
     freeExerciseDbId: null,
-    videoId: null,
-    videoStartSec: null,
-    videoChannel: null,
+    videoId: 'zghuACZGqoY',
+    videoStartSec: 0,
+    videoChannel: 'The Body Coach TV by Joe Wicks',
   },
   'dance-class': {
     cues: [
@@ -3041,9 +3041,9 @@ export const EXERCISE_CONTENT: Record<string, ExerciseContent> = {
     blurb:
       'Zumba or any dance-fitness class — logged by time since the intensity follows the choreography.',
     freeExerciseDbId: null,
-    videoId: null,
-    videoStartSec: null,
-    videoChannel: null,
+    videoId: 'mZeFvX3ALKY',
+    videoStartSec: 0,
+    videoChannel: 'Zumba',
   },
   swimming: {
     cues: [
@@ -3107,9 +3107,9 @@ export const EXERCISE_CONTENT: Record<string, ExerciseContent> = {
     ],
     blurb: 'Any activity that does not fit the other chips — name it yourself when you log it.',
     freeExerciseDbId: null,
-    videoId: null,
-    videoStartSec: null,
-    videoChannel: null,
+    videoId: '9C-M-c-8GOw',
+    videoStartSec: 0,
+    videoChannel: 'Emma Mattison',
   },
   elliptical: {
     cues: [

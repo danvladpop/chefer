@@ -2541,10 +2541,9 @@ export const EXERCISE_BY_ID: ReadonlyMap<string, ExerciseCatalogEntry> = new Map
  * imageKeysFor still returns the files (T-05.11, UX-05 A6, D-22 a). Record
  * an addition here in apps/api/static/exercises/README.md "Hidden photos"
  * too.
+ *
+ * Empty since WP-25: `plank` (free-exercise-db's photo showed a kneeling lunge
+ * stretch) got a correct photo under a new file name. The set stays exported
+ * because app builds in the field import it.
  */
-export const HIDDEN_EXERCISE_IMAGE_IDS: ReadonlySet<string> = new Set([
-  // free-exercise-db's "Plank" id (both frames) is actually a kneeling lunge
-  // stretch photo, not a plank — confirmed 2026-09-27 by a T-05.11 sample
-  // audit (apps/api/static/exercises/README.md "Hidden photos").
-  'plank',
-]);
+export const HIDDEN_EXERCISE_IMAGE_IDS: ReadonlySet<string> = new Set<string>();
