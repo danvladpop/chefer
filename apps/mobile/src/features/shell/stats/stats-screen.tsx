@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { ActivityIndicator, View, type LayoutChangeEvent } from 'react-native';
-import { keepPreviousData, useQuery } from '@tanstack/react-query';
+import { keepPreviousData, skipToken, useQuery } from '@tanstack/react-query';
 import { getQueryKey } from '@trpc/react-query';
 import { router } from 'expo-router';
 import { AI_REVIEW_A11Y_LABEL, type GymBootstrap } from '@chefer/types';
@@ -207,7 +207,10 @@ function WeekStrip({ cells }: { cells: WeekCell[] }) {
  */
 function useCachedGymBootstrap(): GymBootstrap | undefined {
   const queryKey = getQueryKey(trpc.gym.bootstrap, undefined, 'query');
-  return useQuery<GymBootstrap>({ queryKey, enabled: false }).data;
+  // `skipToken`: observe the cached entry without ever fetching (a key-only
+  // query with no queryFn logs "No queryFn was passed" when React Query
+  // touches it, e.g. on refocus).
+  return useQuery<GymBootstrap>({ queryKey, queryFn: skipToken }).data;
 }
 
 function TrainingStatsSection({ range }: { range: ProgressRange }) {
