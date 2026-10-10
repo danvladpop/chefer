@@ -1,0 +1,183 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Gym — Settings</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+body{margin:0}
+a{color:#944a00;text-decoration:none}a:hover{color:#6e3700}
+input::placeholder,textarea::placeholder{color:#9ca3af}
+</style>
+</helmet>
+<div style="width: 390px; height: 1810px; position: relative; overflow: hidden; background: #ffffff; font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Helvetica Neue', system-ui, sans-serif; color: #020817; display: flex; flex-direction: column">
+  <div style="height: 47px; flex: none"></div>
+
+  <div style="flex: none; display: flex; align-items: center; gap: 10.5px; padding: 7px 14px 0">
+    <a href="GymToday.dc.html" aria-label="Back" style="width: 44px; height: 44px; flex: none; border-radius: 9999px; background: #f3f4f6; color: #374151; display: flex; align-items: center; justify-content: center; text-decoration: none"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 5l-7 7 7 7"></path></svg></a>
+    <h1 style="margin: 0; font-size: 25px; line-height: 31px; font-weight: 700">Gym settings</h1>
+  </div>
+
+  <main id="main" style="flex: 1; display: flex; flex-direction: column; gap: 17.5px; padding: 14px">
+
+    <section aria-labelledby="sec-units" style="display: flex; flex-direction: column; gap: 7px">
+      <h2 id="sec-units" style="margin: 0; font-size: 13px; line-height: 18px; font-weight: 600; text-transform: uppercase; letter-spacing: .1em; color: #6b7280">Units</h2>
+      <div style="display: flex; flex-wrap: wrap; gap: 7px">
+        <button type="button" aria-pressed="true" style="min-height: 44px; padding: 0 14px; border-radius: 9999px; border: 1px solid #944a00; background: #944a00; color: #fcf9f5; font: inherit; font-size: 15px; font-weight: 500">kg</button>
+        <button type="button" aria-pressed="false" style="min-height: 44px; padding: 0 14px; border-radius: 9999px; border: 1px solid #e2e8f0; background: #ffffff; color: #020817; font: inherit; font-size: 15px; font-weight: 500">lb</button>
+      </div>
+      <p style="margin: 0; font-size: 13px; line-height: 18px; color: #8a7560">Also switches recipes, shopping lists and your body weight.</p>
+    </section>
+
+    <section aria-labelledby="sec-goal" style="display: flex; flex-direction: column; gap: 7px">
+      <h2 id="sec-goal" style="margin: 0; font-size: 13px; line-height: 18px; font-weight: 600; text-transform: uppercase; letter-spacing: .1em; color: #6b7280">Weekly goal</h2>
+      <div style="display: flex; align-items: center; gap: 3.5px">
+        <button type="button" aria-label="Decrease weekly goal" style="width: 44px; height: 44px; border: none; border-radius: 5.25px; background: #faf5f0; color: #020817; font: inherit; font-size: 21px; font-weight: 600">−</button>
+        <span style="min-width: 42px; min-height: 44px; padding: 0 3.5px; display: flex; flex-direction: column; align-items: center; justify-content: center"><b style="font-size: 17px; line-height: 24px; font-weight: 600; font-variant-numeric: tabular-nums">3</b><span style="font-size: 12px; line-height: 15px; color: #8a7560">sessions / week</span></span>
+        <button type="button" aria-label="Increase weekly goal" style="width: 44px; height: 44px; border: none; border-radius: 5.25px; background: #faf5f0; color: #020817; font: inherit; font-size: 21px; font-weight: 600">+</button>
+      </div>
+    </section>
+
+    <section aria-labelledby="sec-equipment" style="display: flex; flex-direction: column; gap: 10.5px">
+      <h2 id="sec-equipment" style="margin: 0; font-size: 13px; line-height: 18px; font-weight: 600; text-transform: uppercase; letter-spacing: .1em; color: #6b7280">Equipment</h2>
+      <div style="border: 1px solid #e2e8f0; border-radius: 7px; background: #ffffff; padding: 14px; display: flex; flex-direction: column; gap: 14px">
+
+        <div style="display: flex; flex-direction: column; gap: 7px">
+          <span style="font-size: 15px; line-height: 21px; font-weight: 500">Bar weight</span>
+          <div style="display: flex; align-items: center; gap: 3.5px">
+            <button type="button" aria-label="Decrease bar weight" style="width: 44px; height: 44px; border: none; border-radius: 5.25px; background: #faf5f0; color: #020817; font: inherit; font-size: 21px; font-weight: 600">−</button>
+            <span style="min-width: 42px; min-height: 44px; padding: 0 3.5px; display: flex; align-items: center; justify-content: center; font-size: 17px; font-weight: 600; font-variant-numeric: tabular-nums">20 kg</span>
+            <button type="button" aria-label="Increase bar weight" style="width: 44px; height: 44px; border: none; border-radius: 5.25px; background: #faf5f0; color: #020817; font: inherit; font-size: 21px; font-weight: 600">+</button>
+          </div>
+        </div>
+
+        <div style="display: flex; flex-direction: column; gap: 7px">
+          <span style="font-size: 15px; line-height: 21px; font-weight: 500">Plate pairs you have</span>
+          <div style="display: flex; flex-wrap: wrap; gap: 7px">
+            <button type="button" aria-label="Remove 1.25 kg" style="min-height: 44px; padding: 0 10.5px; border-radius: 9999px; border: 1px solid #e2e8f0; background: #ffffff; font: inherit; color: #020817; display: flex; align-items: center; gap: 5.25px"><span style="font-size: 15px">1.25 kg</span><span aria-hidden="true" style="font-size: 13px; color: #8a7560">✕</span></button>
+            <button type="button" aria-label="Remove 2.5 kg" style="min-height: 44px; padding: 0 10.5px; border-radius: 9999px; border: 1px solid #e2e8f0; background: #ffffff; font: inherit; color: #020817; display: flex; align-items: center; gap: 5.25px"><span style="font-size: 15px">2.5 kg</span><span aria-hidden="true" style="font-size: 13px; color: #8a7560">✕</span></button>
+            <button type="button" aria-label="Remove 5 kg" style="min-height: 44px; padding: 0 10.5px; border-radius: 9999px; border: 1px solid #e2e8f0; background: #ffffff; font: inherit; color: #020817; display: flex; align-items: center; gap: 5.25px"><span style="font-size: 15px">5 kg</span><span aria-hidden="true" style="font-size: 13px; color: #8a7560">✕</span></button>
+            <button type="button" aria-label="Remove 10 kg" style="min-height: 44px; padding: 0 10.5px; border-radius: 9999px; border: 1px solid #e2e8f0; background: #ffffff; font: inherit; color: #020817; display: flex; align-items: center; gap: 5.25px"><span style="font-size: 15px">10 kg</span><span aria-hidden="true" style="font-size: 13px; color: #8a7560">✕</span></button>
+            <button type="button" aria-label="Remove 15 kg" style="min-height: 44px; padding: 0 10.5px; border-radius: 9999px; border: 1px solid #e2e8f0; background: #ffffff; font: inherit; color: #020817; display: flex; align-items: center; gap: 5.25px"><span style="font-size: 15px">15 kg</span><span aria-hidden="true" style="font-size: 13px; color: #8a7560">✕</span></button>
+            <button type="button" aria-label="Remove 20 kg" style="min-height: 44px; padding: 0 10.5px; border-radius: 9999px; border: 1px solid #e2e8f0; background: #ffffff; font: inherit; color: #020817; display: flex; align-items: center; gap: 5.25px"><span style="font-size: 15px">20 kg</span><span aria-hidden="true" style="font-size: 13px; color: #8a7560">✕</span></button>
+            <button type="button" aria-label="Remove 25 kg" style="min-height: 44px; padding: 0 10.5px; border-radius: 9999px; border: 1px solid #e2e8f0; background: #ffffff; font: inherit; color: #020817; display: flex; align-items: center; gap: 5.25px"><span style="font-size: 15px">25 kg</span><span aria-hidden="true" style="font-size: 13px; color: #8a7560">✕</span></button>
+          </div>
+          <div style="display: flex; align-items: center; gap: 7px">
+            <input aria-label="Add plate pair (kg)" placeholder="Add (kg)" inputmode="decimal" style="width: 98px; height: 44px; box-sizing: border-box; border: 1px solid #e2e8f0; border-radius: 5.25px; padding: 0 10.5px; font: inherit; font-size: 17px; color: #020817; background: #ffffff">
+            <button type="button" style="height: 44px; padding: 0 10.5px; border: 1px solid #e2e8f0; border-radius: 5.25px; background: #ffffff; color: #020817; font: inherit; font-size: 15px; font-weight: 500">Add</button>
+          </div>
+        </div>
+
+        <div style="display: flex; flex-direction: column; gap: 7px">
+          <span style="font-size: 15px; line-height: 21px; font-weight: 500">Dumbbells you have</span>
+          <div style="display: flex; flex-wrap: wrap; gap: 7px">
+            <button type="button" aria-label="Remove 2.5 kg" style="min-height: 44px; padding: 0 10.5px; border-radius: 9999px; border: 1px solid #e2e8f0; background: #ffffff; font: inherit; color: #020817; display: flex; align-items: center; gap: 5.25px"><span style="font-size: 15px">2.5 kg</span><span aria-hidden="true" style="font-size: 13px; color: #8a7560">✕</span></button>
+            <button type="button" aria-label="Remove 5 kg" style="min-height: 44px; padding: 0 10.5px; border-radius: 9999px; border: 1px solid #e2e8f0; background: #ffffff; font: inherit; color: #020817; display: flex; align-items: center; gap: 5.25px"><span style="font-size: 15px">5 kg</span><span aria-hidden="true" style="font-size: 13px; color: #8a7560">✕</span></button>
+            <button type="button" aria-label="Remove 7.5 kg" style="min-height: 44px; padding: 0 10.5px; border-radius: 9999px; border: 1px solid #e2e8f0; background: #ffffff; font: inherit; color: #020817; display: flex; align-items: center; gap: 5.25px"><span style="font-size: 15px">7.5 kg</span><span aria-hidden="true" style="font-size: 13px; color: #8a7560">✕</span></button>
+            <button type="button" aria-label="Remove 10 kg" style="min-height: 44px; padding: 0 10.5px; border-radius: 9999px; border: 1px solid #e2e8f0; background: #ffffff; font: inherit; color: #020817; display: flex; align-items: center; gap: 5.25px"><span style="font-size: 15px">10 kg</span><span aria-hidden="true" style="font-size: 13px; color: #8a7560">✕</span></button>
+            <button type="button" aria-label="Remove 12.5 kg" style="min-height: 44px; padding: 0 10.5px; border-radius: 9999px; border: 1px solid #e2e8f0; background: #ffffff; font: inherit; color: #020817; display: flex; align-items: center; gap: 5.25px"><span style="font-size: 15px">12.5 kg</span><span aria-hidden="true" style="font-size: 13px; color: #8a7560">✕</span></button>
+            <button type="button" aria-label="Remove 15 kg" style="min-height: 44px; padding: 0 10.5px; border-radius: 9999px; border: 1px solid #e2e8f0; background: #ffffff; font: inherit; color: #020817; display: flex; align-items: center; gap: 5.25px"><span style="font-size: 15px">15 kg</span><span aria-hidden="true" style="font-size: 13px; color: #8a7560">✕</span></button>
+            <button type="button" aria-label="Remove 17.5 kg" style="min-height: 44px; padding: 0 10.5px; border-radius: 9999px; border: 1px solid #e2e8f0; background: #ffffff; font: inherit; color: #020817; display: flex; align-items: center; gap: 5.25px"><span style="font-size: 15px">17.5 kg</span><span aria-hidden="true" style="font-size: 13px; color: #8a7560">✕</span></button>
+            <button type="button" aria-label="Remove 20 kg" style="min-height: 44px; padding: 0 10.5px; border-radius: 9999px; border: 1px solid #e2e8f0; background: #ffffff; font: inherit; color: #020817; display: flex; align-items: center; gap: 5.25px"><span style="font-size: 15px">20 kg</span><span aria-hidden="true" style="font-size: 13px; color: #8a7560">✕</span></button>
+            <button type="button" aria-label="Remove 22.5 kg" style="min-height: 44px; padding: 0 10.5px; border-radius: 9999px; border: 1px solid #e2e8f0; background: #ffffff; font: inherit; color: #020817; display: flex; align-items: center; gap: 5.25px"><span style="font-size: 15px">22.5 kg</span><span aria-hidden="true" style="font-size: 13px; color: #8a7560">✕</span></button>
+          </div>
+          <div style="display: flex; align-items: center; gap: 7px">
+            <input aria-label="Add dumbbell (kg)" placeholder="Add (kg)" inputmode="decimal" style="width: 98px; height: 44px; box-sizing: border-box; border: 1px solid #e2e8f0; border-radius: 5.25px; padding: 0 10.5px; font: inherit; font-size: 17px; color: #020817; background: #ffffff">
+            <button type="button" style="height: 44px; padding: 0 10.5px; border: 1px solid #e2e8f0; border-radius: 5.25px; background: #ffffff; color: #020817; font: inherit; font-size: 15px; font-weight: 500">Add</button>
+          </div>
+        </div>
+
+        <div style="display: flex; flex-direction: column; gap: 7px">
+          <span style="font-size: 15px; line-height: 21px; font-weight: 500">Machine weight step</span>
+          <div style="display: flex; align-items: center; gap: 3.5px">
+            <button type="button" aria-label="Decrease machine weight step" style="width: 44px; height: 44px; border: none; border-radius: 5.25px; background: #faf5f0; color: #020817; font: inherit; font-size: 21px; font-weight: 600">−</button>
+            <span style="min-width: 42px; min-height: 44px; padding: 0 3.5px; display: flex; align-items: center; justify-content: center; font-size: 17px; font-weight: 600; font-variant-numeric: tabular-nums">5 kg</span>
+            <button type="button" aria-label="Increase machine weight step" style="width: 44px; height: 44px; border: none; border-radius: 5.25px; background: #faf5f0; color: #020817; font: inherit; font-size: 21px; font-weight: 600">+</button>
+          </div>
+        </div>
+
+        <div style="display: flex; flex-direction: column; gap: 7px">
+          <span style="font-size: 15px; line-height: 21px; font-weight: 500">Cable weight step</span>
+          <div style="display: flex; align-items: center; gap: 3.5px">
+            <button type="button" aria-label="Decrease cable weight step" style="width: 44px; height: 44px; border: none; border-radius: 5.25px; background: #faf5f0; color: #020817; font: inherit; font-size: 21px; font-weight: 600">−</button>
+            <span style="min-width: 42px; min-height: 44px; padding: 0 3.5px; display: flex; align-items: center; justify-content: center; font-size: 17px; font-weight: 600; font-variant-numeric: tabular-nums">2.5 kg</span>
+            <button type="button" aria-label="Increase cable weight step" style="width: 44px; height: 44px; border: none; border-radius: 5.25px; background: #faf5f0; color: #020817; font: inherit; font-size: 21px; font-weight: 600">+</button>
+          </div>
+        </div>
+
+        <div role="group" aria-labelledby="lbl-dip" style="display: flex; flex-direction: column; gap: 7px">
+          <span id="lbl-dip" style="font-size: 15px; line-height: 21px; font-weight: 500">Dip belt</span>
+          <div style="display: flex; flex-wrap: wrap; gap: 7px">
+            <button type="button" aria-pressed="true" style="min-height: 44px; padding: 0 14px; border-radius: 9999px; border: 1px solid #944a00; background: #944a00; color: #fcf9f5; font: inherit; font-size: 15px; font-weight: 500">No</button>
+            <button type="button" aria-pressed="false" style="min-height: 44px; padding: 0 14px; border-radius: 9999px; border: 1px solid #e2e8f0; background: #ffffff; color: #020817; font: inherit; font-size: 15px; font-weight: 500">Yes</button>
+          </div>
+        </div>
+
+        <div role="group" aria-labelledby="lbl-micro" style="display: flex; flex-direction: column; gap: 7px">
+          <span id="lbl-micro" style="font-size: 15px; line-height: 21px; font-weight: 500">Micro plates</span>
+          <div style="display: flex; flex-wrap: wrap; gap: 7px">
+            <button type="button" aria-pressed="false" style="min-height: 44px; padding: 0 14px; border-radius: 9999px; border: 1px solid #e2e8f0; background: #ffffff; color: #020817; font: inherit; font-size: 15px; font-weight: 500">No</button>
+            <button type="button" aria-pressed="true" style="min-height: 44px; padding: 0 14px; border-radius: 9999px; border: 1px solid #944a00; background: #944a00; color: #fcf9f5; font: inherit; font-size: 15px; font-weight: 500">Yes</button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section aria-labelledby="sec-reminder" style="display: flex; flex-direction: column; gap: 7px">
+      <h2 id="sec-reminder" style="margin: 0; font-size: 13px; line-height: 18px; font-weight: 600; text-transform: uppercase; letter-spacing: .1em; color: #6b7280">Reminder</h2>
+      <div style="border: 1px solid #e2e8f0; border-radius: 7px; background: #ffffff; padding: 14px; display: flex; flex-direction: column; gap: 10.5px">
+        <div style="display: flex; flex-wrap: wrap; gap: 7px">
+          <button type="button" aria-pressed="false" style="min-height: 44px; padding: 0 14px; border-radius: 9999px; border: 1px solid #e2e8f0; background: #ffffff; color: #020817; font: inherit; font-size: 15px; font-weight: 500">Off</button>
+          <button type="button" aria-pressed="true" style="min-height: 44px; padding: 0 14px; border-radius: 9999px; border: 1px solid #944a00; background: #944a00; color: #fcf9f5; font: inherit; font-size: 15px; font-weight: 500">On</button>
+        </div>
+        <div style="display: flex; align-items: center; gap: 10.5px">
+          <div style="display: flex; align-items: center; gap: 3.5px">
+            <button type="button" aria-label="Decrease reminder hour" style="width: 44px; height: 44px; border: none; border-radius: 5.25px; background: #faf5f0; color: #020817; font: inherit; font-size: 21px; font-weight: 600">−</button>
+            <span aria-label="Reminder hour" style="min-width: 42px; min-height: 44px; padding: 0 3.5px; display: flex; align-items: center; justify-content: center; font-size: 17px; font-weight: 600; font-variant-numeric: tabular-nums">07</span>
+            <button type="button" aria-label="Increase reminder hour" style="width: 44px; height: 44px; border: none; border-radius: 5.25px; background: #faf5f0; color: #020817; font: inherit; font-size: 21px; font-weight: 600">+</button>
+          </div>
+          <span style="font-size: 19px; line-height: 26px; font-weight: 600">:</span>
+          <div style="display: flex; align-items: center; gap: 3.5px">
+            <button type="button" aria-label="Decrease reminder minute" style="width: 44px; height: 44px; border: none; border-radius: 5.25px; background: #faf5f0; color: #020817; font: inherit; font-size: 21px; font-weight: 600">−</button>
+            <span aria-label="Reminder minute" style="min-width: 42px; min-height: 44px; padding: 0 3.5px; display: flex; align-items: center; justify-content: center; font-size: 17px; font-weight: 600; font-variant-numeric: tabular-nums">30</span>
+            <button type="button" aria-label="Increase reminder minute" style="width: 44px; height: 44px; border: none; border-radius: 5.25px; background: #faf5f0; color: #020817; font: inherit; font-size: 21px; font-weight: 600">+</button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section aria-labelledby="sec-pause" style="display: flex; flex-direction: column; gap: 7px">
+      <h2 id="sec-pause" style="margin: 0; font-size: 13px; line-height: 18px; font-weight: 600; text-transform: uppercase; letter-spacing: .1em; color: #6b7280">Pause training</h2>
+      <div style="border: 1px solid #e2e8f0; border-radius: 7px; background: #ffffff; padding: 14px; display: flex; flex-direction: column; gap: 7px">
+        <button type="button" style="height: 44px; padding: 0 14px; border: 1px solid #e2e8f0; border-radius: 5.25px; background: #ffffff; color: #020817; font: inherit; font-size: 15px; font-weight: 500">Pause training</button>
+      </div>
+    </section>
+
+    <section aria-label="Export training data" style="border: 1px solid #e2e8f0; border-radius: 7px; background: #ffffff; padding: 14px; display: flex; flex-direction: column; gap: 7px">
+      <span style="font-size: 17px; line-height: 24px; font-weight: 500">Export training data</span>
+      <p style="margin: 0; font-size: 13px; line-height: 18px; color: #8a7560">Every set you've logged, as a CSV you can open in a spreadsheet. Large histories export best from chefer.duckdns.org.</p>
+      <button type="button" style="height: 44px; padding: 0 10.5px; border: 1px solid #e2e8f0; border-radius: 5.25px; background: #ffffff; color: #020817; font: inherit; font-size: 15px; font-weight: 500">Export training data</button>
+    </section>
+
+    <section aria-labelledby="sec-sync" style="display: flex; flex-direction: column; gap: 3.5px">
+      <h2 id="sec-sync" style="margin: 0; font-size: 13px; line-height: 18px; font-weight: 600; text-transform: uppercase; letter-spacing: .1em; color: #6b7280">Last sync</h2>
+      <p style="margin: 0; font-size: 15px; line-height: 21px; color: #8a7560">10/10/2026, 8:42:15 AM</p>
+    </section>
+  </main>
+
+  <div style="height: 34px; flex: none"></div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":1810}}'>
+class Component extends DCLogic {
+renderVals() {
+return {};
+}
+}
+</script>
+</body>
+</html>

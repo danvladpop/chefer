@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Gym — Exercise menu</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+body{margin:0}
+a{color:#944a00;text-decoration:none}a:hover{color:#6e3700}
+input::placeholder,textarea::placeholder{color:#9ca3af}
+</style>
+</helmet>
+<div style="width: 390px; height: 844px; position: relative; overflow: hidden; background: #ffffff; font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Helvetica Neue', system-ui, sans-serif; color: #020817; display: flex; flex-direction: column">
+  <div style="height: 47px; flex: none"></div>
+
+  <a href="Workout.dc.html" aria-label="Close Bench Press" style="position: absolute; inset: 0; background: rgba(0,0,0,.4); text-decoration: none"></a>
+
+  <div role="dialog" aria-modal="true" aria-labelledby="exercise-menu-title" style="position: absolute; left: 0; right: 0; bottom: 0; background: #ffffff; border-radius: 21px 21px 0 0; box-shadow: 0 -4px 12px -4px rgba(67,42,25,.08), 0 -16px 40px -12px rgba(67,42,25,.18); max-height: 85%; display: flex; flex-direction: column">
+    <div style="width: 40px; height: 3.5px; border-radius: 9999px; background: #d1d5db; margin: 7px auto 0"></div>
+    <div style="padding: 10.5px 14px 7px; display: flex; align-items: center; justify-content: space-between; gap: 10.5px">
+      <h1 id="exercise-menu-title" style="margin: 0; flex: 1; min-width: 0; font-size: 19px; line-height: 26px; font-weight: 600">Bench Press</h1>
+      <a href="Workout.dc.html" aria-label="Close" style="width: 44px; height: 44px; flex: none; border-radius: 9999px; background: #f3f4f6; color: #374151; font-size: 19px; font-weight: 600; display: flex; align-items: center; justify-content: center; text-decoration: none">✕</a>
+    </div>
+
+    <div style="padding: 0 14px 14px; display: flex; flex-direction: column">
+      <button type="button" style="min-height: 42px; padding: 7px 3.5px; border: none; border-bottom: 1px solid #e2e8f0; background: transparent; font: inherit; color: #020817; text-align: left; display: flex; flex-direction: column; justify-content: center">
+        <span style="font-size: 17px; line-height: 24px; font-weight: 500">Swap exercise</span>
+      </button>
+      <a href="Workout.dc.html" style="min-height: 42px; box-sizing: border-box; padding: 7px 3.5px; border-bottom: 1px solid #e2e8f0; color: #020817; text-decoration: none; display: flex; flex-direction: column; justify-content: center">
+        <span style="font-size: 17px; line-height: 24px; font-weight: 500">Skip exercise</span>
+        <span style="font-size: 13px; line-height: 18px; color: #8a7560">Skipping never counts as a miss.</span>
+      </a>
+      <a href="Workout.dc.html" style="min-height: 42px; box-sizing: border-box; padding: 7px 3.5px; border-bottom: 1px solid #e2e8f0; color: #020817; text-decoration: none; display: flex; flex-direction: column; justify-content: center">
+        <span style="font-size: 17px; line-height: 24px; font-weight: 500">Add set</span>
+      </a>
+      <a href="Workout.dc.html" style="min-height: 42px; box-sizing: border-box; padding: 7px 3.5px; border-bottom: 1px solid #e2e8f0; color: #020817; text-decoration: none; display: flex; flex-direction: column; justify-content: center">
+        <span style="font-size: 17px; line-height: 24px; font-weight: 500">Remove a set</span>
+        <span style="font-size: 13px; line-height: 18px; color: #8a7560">Removes the last set you haven’t logged.</span>
+      </a>
+      <a href="Workout.dc.html" style="min-height: 42px; box-sizing: border-box; padding: 7px 3.5px; border-bottom: 1px solid #e2e8f0; color: #020817; text-decoration: none; display: flex; flex-direction: column; justify-content: center">
+        <span style="font-size: 17px; line-height: 24px; font-weight: 500">Move up</span>
+      </a>
+      <a href="Workout.dc.html" style="min-height: 42px; box-sizing: border-box; padding: 7px 3.5px; border-bottom: 1px solid #e2e8f0; color: #020817; text-decoration: none; display: flex; flex-direction: column; justify-content: center">
+        <span style="font-size: 17px; line-height: 24px; font-weight: 500">Move down</span>
+      </a>
+      <button type="button" style="min-height: 42px; padding: 7px 3.5px; border: none; border-bottom: 1px solid #e2e8f0; background: transparent; font: inherit; color: #020817; text-align: left; display: flex; flex-direction: column; justify-content: center">
+        <span style="font-size: 17px; line-height: 24px; font-weight: 500">Add note</span>
+      </button>
+      <button type="button" style="min-height: 42px; padding: 7px 3.5px; border: none; border-bottom: 1px solid #e2e8f0; background: transparent; font: inherit; color: #020817; text-align: left; display: flex; flex-direction: column; justify-content: center">
+        <span style="font-size: 17px; line-height: 24px; font-weight: 500">Exercise history</span>
+      </button>
+    </div>
+    <div style="height: 34px; flex: none"></div>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":844}}'>
+class Component extends DCLogic {
+renderVals() {
+return {};
+}
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,99 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Account — Profile</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+body{margin:0}
+a{color:#944a00;text-decoration:none}a:hover{color:#6e3700}
+input::placeholder,textarea::placeholder{color:#9ca3af}
+</style>
+</helmet>
+<div style="width: 390px; height: 1160px; position: relative; overflow: hidden; background: #ffffff; font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Helvetica Neue', system-ui, sans-serif; color: #020817; display: flex; flex-direction: column">
+  <div style="height: 47px; flex: none"></div>
+
+  <header style="flex: none; display: flex; align-items: center; gap: 10.5px; padding: 10.5px 14px">
+    <a href="More.dc.html" aria-label="Back" style="width: 44px; height: 44px; display: flex; align-items: center; justify-content: center; color: #1f2937"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M11 5l-7 7 7 7M4 12h16"></path></svg></a>
+    <h1 style="margin: 0; font-size: 25px; line-height: 31px; font-weight: 700">Profile</h1>
+  </header>
+
+  <main id="main" style="flex: 1; display: flex; flex-direction: column; gap: 14px; padding: 0 14px 28px">
+
+    <section aria-label="Your account" style="border: 1px solid #e2e8f0; border-radius: 7px; background: #ffffff; padding: 14px; display: flex; align-items: center; gap: 14px">
+      <span aria-hidden="true" style="width: 49px; height: 49px; flex: none; border-radius: 9999px; background: #fcf3ea; color: #944a00; font-size: 25px; font-weight: 700; display: flex; align-items: center; justify-content: center">D</span>
+      <div style="flex: 1; min-width: 0; display: flex; flex-direction: column">
+        <span style="font-size: 17px; line-height: 24px; font-weight: 600; color: #111827">Dan Pop</span>
+        <span style="font-size: 15px; line-height: 21px; color: #8a7560; white-space: nowrap; overflow: hidden; text-overflow: ellipsis">dan@example.com</span>
+        <div style="margin-top: 3.5px; display: flex; gap: 5.25px">
+          <span style="border-radius: 9999px; padding: 1.75px 7px; background: #f3f4f6; color: #6b7280; font-size: 12px; font-weight: 500; text-transform: uppercase">User</span>
+          <span style="border-radius: 9999px; padding: 1.75px 7px; background: #f3f4f6; color: #6b7280; font-size: 12px; font-weight: 500; text-transform: uppercase">Free plan</span>
+        </div>
+      </div>
+    </section>
+
+    <a href="Household.dc.html" aria-label="Your household" style="min-height: 44px; border: 1px solid #e2e8f0; border-radius: 10.5px; background: #ffffff; padding: 14px; display: flex; align-items: center; gap: 10.5px; color: inherit; text-decoration: none">
+      <span style="width: 35px; height: 35px; flex: none; border-radius: 9999px; background: #fcf3ea; display: flex; align-items: center; justify-content: center"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#944a00" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="9" cy="8.5" r="3.2"></circle><path d="M3 19.5c0-3.3 2.7-5.5 6-5.5s6 2.2 6 5.5"></path><circle cx="17" cy="9.5" r="2.5"></circle><path d="M16.5 14.2c2.7.2 4.5 2 4.5 4.8"></path></svg></span>
+      <span style="flex: 1; min-width: 0; display: flex; flex-direction: column">
+        <span style="font-size: 17px; line-height: 24px; font-weight: 600; color: #111827">Your household</span>
+        <span style="font-size: 15px; line-height: 21px; color: #8a7560; white-space: nowrap; overflow: hidden; text-overflow: ellipsis">3 at the table: you, Maria, Sam</span>
+      </span>
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#9ca3af" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 5l7 7-7 7"></path></svg>
+    </a>
+
+    <section aria-label="Go Premium" style="border: 1px solid rgba(148,74,0,.2); border-radius: 7px; background: #fcf3ea; padding: 14px; display: flex; flex-direction: column">
+      <h2 style="margin: 0; font-size: 17px; line-height: 24px; font-weight: 600; color: #944a00">Go Premium</h2>
+      <p style="margin: 3.5px 0 10.5px; font-size: 13px; line-height: 18px; color: rgba(148,74,0,.8)">Unlock AI meal plans tailored to your goals, AI-powered swaps, and your personal nutrition profile.</p>
+      <a href="PostUpgradeSheet.dc.html" style="height: 44px; padding: 0 14px; border-radius: 5.25px; background: #944a00; color: #fcf9f5; font-size: 15px; font-weight: 500; display: flex; align-items: center; justify-content: center; text-decoration: none">Upgrade — free for now</a>
+    </section>
+
+    <section aria-label="Today's AI usage" style="border: 1px solid #e2e8f0; border-radius: 7px; background: #ffffff; padding: 14px; display: flex; flex-direction: column">
+      <h2 style="margin: 0; font-size: 19px; line-height: 26px; font-weight: 600">Today's AI usage</h2>
+      <p style="margin: 0; font-size: 13px; line-height: 18px; color: #8a7560">Daily allowances reset at midnight. Upgrading raises every limit.</p>
+      <div style="margin-top: 10.5px">
+        <div style="margin-bottom: 3.5px; display: flex; justify-content: space-between">
+          <span style="font-size: 13px; line-height: 18px; font-weight: 500; color: #374151">Meal plans generated</span>
+          <span style="font-size: 13px; line-height: 18px; color: #6b7280">1 / 3</span>
+        </div>
+        <div role="progressbar" aria-label="Meal plans generated" aria-valuenow="1" aria-valuemin="0" aria-valuemax="3" style="height: 5.25px; width: 100%; border-radius: 9999px; background: #f3f4f6; overflow: hidden"><div style="height: 100%; width: 33%; background: #944a00; border-radius: 9999px"></div></div>
+      </div>
+    </section>
+
+    <section aria-label="AI &amp; your data" style="border: 1px solid #e2e8f0; border-radius: 7px; background: #ffffff; padding: 14px; display: flex; flex-direction: column; gap: 7px">
+      <h2 style="margin: 0; font-size: 19px; line-height: 26px; font-weight: 600">AI &amp; your data</h2>
+      <div style="min-height: 44px; display: flex; align-items: center; justify-content: space-between; gap: 10.5px">
+        <div style="flex: 1; min-width: 0; display: flex; flex-direction: column">
+          <span id="ai-consent-title" style="font-size: 15px; line-height: 21px; font-weight: 500; color: #111827">Allow AI features to process my data</span>
+          <span style="font-size: 13px; line-height: 18px; color: #8a7560">Meal plans, swaps, photo scans, recipe imports and chat send the data they need to Google Gemini and Groq. Not used for training.</span>
+        </div>
+        <button type="button" role="switch" aria-checked="true" aria-labelledby="ai-consent-title" style="width: 51px; height: 31px; flex: none; padding: 2px; border: none; border-radius: 9999px; background: #944a00; display: flex; justify-content: flex-end"><span style="width: 27px; height: 27px; border-radius: 9999px; background: #ffffff; box-shadow: 0 2px 4px rgba(0,0,0,.2)"></span></button>
+      </div>
+      <button type="button" style="height: 44px; padding: 0 10.5px; border: none; border-radius: 5.25px; background: transparent; color: #020817; font: inherit; font-size: 15px; font-weight: 500">Privacy policy</button>
+    </section>
+
+    <section aria-label="Your data" style="border: 1px solid #e2e8f0; border-radius: 7px; background: #ffffff; padding: 14px; display: flex; flex-direction: column">
+      <h2 style="margin: 0; font-size: 17px; line-height: 24px; font-weight: 600; color: #111827">Your data</h2>
+      <p style="margin: 3.5px 0 0; font-size: 15px; line-height: 21px; color: #8a7560">Export everything Chefer stores about you, or delete your account for good.</p>
+      <div style="margin-top: 10.5px; display: flex; flex-direction: column; gap: 7px">
+        <button type="button" style="height: 44px; padding: 0 14px; border: 1px solid #e2e8f0; border-radius: 5.25px; background: #ffffff; color: #020817; font: inherit; font-size: 15px; font-weight: 500">Export my data</button>
+        <a href="DeleteAccountSheet.dc.html" style="height: 44px; box-sizing: border-box; padding: 0 14px; border: 1px solid #fecaca; border-radius: 5.25px; background: #ffffff; color: #b91c1c; font-size: 17px; font-weight: 600; display: flex; align-items: center; justify-content: center; text-decoration: none">Delete account</a>
+      </div>
+    </section>
+  </main>
+
+  <div style="height: 34px; flex: none"></div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":1160}}'>
+class Component extends DCLogic {
+renderVals() {
+return {};
+}
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,119 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Recipe — Create</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+body{margin:0}
+a{color:#944a00;text-decoration:none}a:hover{color:#6e3700}
+input::placeholder,textarea::placeholder{color:#9ca3af}
+</style>
+</helmet>
+<div style="width: 390px; height: 1200px; position: relative; overflow: hidden; background: #ffffff; font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Helvetica Neue', system-ui, sans-serif; color: #020817; display: flex; flex-direction: column">
+  <div style="height: 47px; flex: none"></div>
+
+  <main id="main" style="flex: 1; display: flex; flex-direction: column">
+    <header style="flex: none; display: flex; align-items: center; gap: 10.5px; padding: 10.5px 14px">
+      <a href="Cookbook.dc.html" aria-label="Back" style="width: 44px; height: 44px; display: flex; align-items: center; justify-content: center; color: #1f2937; text-decoration: none"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M11 5l-7 7 7 7M4 12h16"></path></svg></a>
+      <h1 style="margin: 0; font-size: 25px; line-height: 31px; font-weight: 700">Create Recipe</h1>
+    </header>
+
+    <form style="display: flex; flex-direction: column; gap: 14px; padding: 0 14px 28px">
+      <div style="display: flex; flex-direction: column; gap: 3.5px">
+        <label for="rf-name" style="font-size: 15px; line-height: 21px; font-weight: 500">Name</label>
+        <input id="rf-name" placeholder="Grandma's lasagna" style="height: 44px; box-sizing: border-box; width: 100%; border: 1px solid #e2e8f0; border-radius: 5.25px; padding: 0 10.5px; font: inherit; font-size: 17px; color: #020817; background: #ffffff">
+      </div>
+      <div style="display: flex; flex-direction: column; gap: 3.5px">
+        <label for="rf-description" style="font-size: 15px; line-height: 21px; font-weight: 500">Description</label>
+        <textarea id="rf-description" placeholder="What makes it special?" style="min-height: 70px; box-sizing: border-box; width: 100%; resize: none; border: 1px solid #e2e8f0; border-radius: 5.25px; padding: 7px 10.5px; font: inherit; font-size: 17px; color: #020817; background: #ffffff"></textarea>
+      </div>
+      <div style="display: flex; gap: 7px">
+        <div style="flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3.5px">
+          <label for="rf-cuisine" style="font-size: 15px; line-height: 21px; font-weight: 500">Cuisine</label>
+          <input id="rf-cuisine" placeholder="Italian" style="height: 44px; box-sizing: border-box; width: 100%; border: 1px solid #e2e8f0; border-radius: 5.25px; padding: 0 10.5px; font: inherit; font-size: 17px; color: #020817; background: #ffffff">
+        </div>
+        <div style="flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3.5px">
+          <label for="rf-servings" style="font-size: 15px; line-height: 21px; font-weight: 500">Servings</label>
+          <input id="rf-servings" value="2" inputmode="decimal" style="height: 44px; box-sizing: border-box; width: 100%; border: 1px solid #e2e8f0; border-radius: 5.25px; padding: 0 10.5px; font: inherit; font-size: 17px; color: #020817; background: #ffffff">
+        </div>
+      </div>
+      <div style="display: flex; gap: 7px">
+        <div style="flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3.5px">
+          <label for="rf-prep" style="font-size: 15px; line-height: 21px; font-weight: 500">Prep (min)</label>
+          <input id="rf-prep" value="10" inputmode="decimal" style="height: 44px; box-sizing: border-box; width: 100%; border: 1px solid #e2e8f0; border-radius: 5.25px; padding: 0 10.5px; font: inherit; font-size: 17px; color: #020817; background: #ffffff">
+        </div>
+        <div style="flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3.5px">
+          <label for="rf-cook" style="font-size: 15px; line-height: 21px; font-weight: 500">Cook (min)</label>
+          <input id="rf-cook" value="20" inputmode="decimal" style="height: 44px; box-sizing: border-box; width: 100%; border: 1px solid #e2e8f0; border-radius: 5.25px; padding: 0 10.5px; font: inherit; font-size: 17px; color: #020817; background: #ffffff">
+        </div>
+      </div>
+
+      <section aria-label="Ingredients" style="border: 1px solid #e2e8f0; border-radius: 7px; background: #ffffff; padding: 14px; display: flex; flex-direction: column; gap: 7px">
+        <h2 style="margin: 0; font-size: 19px; line-height: 26px; font-weight: 600">Ingredients</h2>
+        <div style="display: flex; align-items: center; gap: 7px">
+          <input aria-label="Quantity" placeholder="200" inputmode="decimal" style="flex: none; width: 56px; height: 44px; box-sizing: border-box; border: 1px solid #e2e8f0; border-radius: 5.25px; padding: 0 7px; text-align: center; font: inherit; font-size: 17px; color: #020817; background: #ffffff">
+          <input aria-label="Unit" value="g" style="flex: none; width: 49px; height: 44px; box-sizing: border-box; border: 1px solid #e2e8f0; border-radius: 5.25px; padding: 0 7px; text-align: center; font: inherit; font-size: 17px; color: #020817; background: #ffffff">
+          <input aria-label="Ingredient name" placeholder="flour" style="flex: 1; min-width: 0; height: 44px; box-sizing: border-box; border: 1px solid #e2e8f0; border-radius: 5.25px; padding: 0 10.5px; font: inherit; font-size: 17px; color: #020817; background: #ffffff">
+          <button type="button" aria-label="Remove ingredient" disabled style="flex: none; width: 44px; height: 44px; padding: 0; border: none; background: transparent; color: #9ca3af; display: flex; align-items: center; justify-content: center"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"></path></svg></button>
+        </div>
+        <button type="button" style="height: 44px; padding: 0 14px; border: 1px solid #e2e8f0; border-radius: 5.25px; background: #ffffff; color: #020817; font: inherit; font-size: 15px; font-weight: 500">Add ingredient</button>
+      </section>
+
+      <section aria-label="Instructions" style="border: 1px solid #e2e8f0; border-radius: 7px; background: #ffffff; padding: 14px; display: flex; flex-direction: column; gap: 7px">
+        <h2 style="margin: 0; font-size: 19px; line-height: 26px; font-weight: 600">Instructions</h2>
+        <div style="display: flex; align-items: flex-start; gap: 7px">
+          <span style="flex: none; margin-top: 7px; width: 21px; height: 21px; border-radius: 9999px; background: #944a00; color: #fcf9f5; font-size: 13px; font-weight: 700; display: flex; align-items: center; justify-content: center">1</span>
+          <textarea aria-label="Step 1" placeholder="Describe this step…" style="flex: 1; min-width: 0; min-height: 44px; height: 44px; box-sizing: border-box; resize: none; border: 1px solid #e2e8f0; border-radius: 5.25px; padding: 9px 10.5px; font: inherit; font-size: 17px; line-height: 24px; color: #020817; background: #ffffff"></textarea>
+          <button type="button" aria-label="Remove step" disabled style="flex: none; margin-top: 3.5px; width: 31.5px; height: 44px; padding: 0; border: none; background: transparent; color: #9ca3af; display: flex; align-items: center; justify-content: center"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"></path></svg></button>
+        </div>
+        <button type="button" style="height: 44px; padding: 0 14px; border: 1px solid #e2e8f0; border-radius: 5.25px; background: #ffffff; color: #020817; font: inherit; font-size: 15px; font-weight: 500">Add step</button>
+      </section>
+
+      <section aria-label="Photo" style="border: 1px solid #e2e8f0; border-radius: 7px; background: #ffffff; padding: 14px; display: flex; flex-direction: column; gap: 7px">
+        <h2 style="margin: 0; font-size: 19px; line-height: 26px; font-weight: 600">Photo</h2>
+        <button type="button" style="height: 44px; padding: 0 14px; border: 1px solid #e2e8f0; border-radius: 5.25px; background: #ffffff; color: #944a00; font: inherit; font-size: 15px; font-weight: 500; display: flex; align-items: center; justify-content: center; gap: 5.25px"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#944a00" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3.5" y="5" width="17" height="14" rx="2"></rect><circle cx="9" cy="10" r="1.5"></circle><path d="M20.5 15.5l-5-5-7.5 8.5"></path></svg>Add a photo</button>
+      </section>
+
+      <section aria-label="Nutrition" style="border: 1px solid #e2e8f0; border-radius: 7px; background: #ffffff; padding: 14px; display: flex; flex-direction: column; gap: 7px">
+        <h2 style="margin: 0; font-size: 19px; line-height: 26px; font-weight: 600">Nutrition <span style="font-size: 13px; font-weight: 400; color: #8a7560">per serving</span></h2>
+        <div style="display: flex; gap: 7px">
+          <div style="flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3.5px">
+            <label for="rf-kcal" style="font-size: 15px; line-height: 21px; font-weight: 500; white-space: nowrap">kcal</label>
+            <input id="rf-kcal" inputmode="decimal" style="height: 44px; box-sizing: border-box; width: 100%; border: 1px solid #e2e8f0; border-radius: 5.25px; padding: 0 10.5px; font: inherit; font-size: 17px; color: #020817; background: #ffffff">
+          </div>
+          <div style="flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3.5px">
+            <label for="rf-protein" style="font-size: 15px; line-height: 21px; font-weight: 500; white-space: nowrap">Protein g</label>
+            <input id="rf-protein" inputmode="decimal" style="height: 44px; box-sizing: border-box; width: 100%; border: 1px solid #e2e8f0; border-radius: 5.25px; padding: 0 10.5px; font: inherit; font-size: 17px; color: #020817; background: #ffffff">
+          </div>
+          <div style="flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3.5px">
+            <label for="rf-carbs" style="font-size: 15px; line-height: 21px; font-weight: 500; white-space: nowrap">Carbs g</label>
+            <input id="rf-carbs" inputmode="decimal" style="height: 44px; box-sizing: border-box; width: 100%; border: 1px solid #e2e8f0; border-radius: 5.25px; padding: 0 10.5px; font: inherit; font-size: 17px; color: #020817; background: #ffffff">
+          </div>
+          <div style="flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3.5px">
+            <label for="rf-fat" style="font-size: 15px; line-height: 21px; font-weight: 500; white-space: nowrap">Fat g</label>
+            <input id="rf-fat" inputmode="decimal" style="height: 44px; box-sizing: border-box; width: 100%; border: 1px solid #e2e8f0; border-radius: 5.25px; padding: 0 10.5px; font: inherit; font-size: 17px; color: #020817; background: #ffffff">
+          </div>
+        </div>
+      </section>
+
+      <button type="button" disabled style="height: 44px; padding: 0 14px; border: none; border-radius: 5.25px; background: #944a00; color: #fcf9f5; font: inherit; font-size: 15px; font-weight: 500; opacity: .5">Create recipe</button>
+    </form>
+  </main>
+
+  <div style="height: 34px; flex: none"></div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":1200}}'>
+class Component extends DCLogic {
+renderVals() {
+return {};
+}
+}
+</script>
+</body>
+</html>

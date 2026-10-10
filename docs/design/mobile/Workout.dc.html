@@ -1,0 +1,202 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Gym — Live workout</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+body{margin:0}
+a{color:#944a00;text-decoration:none}a:hover{color:#6e3700}
+input::placeholder,textarea::placeholder{color:#9ca3af}
+</style>
+</helmet>
+<div style="width: 390px; height: 1225px; position: relative; overflow: hidden; background: #ffffff; font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Helvetica Neue', system-ui, sans-serif; color: #020817; display: flex; flex-direction: column">
+  <div style="height: 47px; flex: none"></div>
+
+  <header style="flex: none; display: flex; align-items: center; gap: 7px; border-bottom: 1px solid #e2e8f0; padding: 3.5px 7px 7px">
+    <a href="GymToday.dc.html" aria-label="Minimise workout" style="width: 44px; height: 44px; flex: none; border-radius: 9999px; background: #faf5f0; color: #374151; display: flex; align-items: center; justify-content: center; text-decoration: none"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 9l7 7 7-7"></path></svg></a>
+    <div style="flex: 1; min-width: 0; display: flex; flex-direction: column">
+      <h1 style="margin: 0; font-size: 17px; line-height: 24px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis">Full Body B</h1>
+      <div style="display: flex; align-items: center; gap: 7px; font-size: 15px; line-height: 21px; color: #8a7560">
+        <span style="font-variant-numeric: tabular-nums">23:41</span>
+        <span aria-label="7 of 15 sets done">· 7/15 sets</span>
+      </div>
+    </div>
+    <a href="Summary.dc.html" style="height: 44px; padding: 0 14px; border-radius: 5.25px; background: #944a00; color: #fcf9f5; font-size: 15px; font-weight: 500; display: flex; align-items: center; justify-content: center; text-decoration: none">Finish</a>
+  </header>
+
+  <main id="main" style="flex: 1; display: flex; flex-direction: column; gap: 10.5px; padding: 10.5px 7px 21px">
+
+    <!-- Done, collapsed -->
+    <article aria-label="Back Squat" style="border: 1px solid #e2e8f0; border-radius: 14px; background: #ffffff">
+      <div style="display: flex; align-items: center; gap: 7px; padding: 7px">
+        <button type="button" aria-label="Technique for Back Squat" style="width: 42px; height: 42px; flex: none; padding: 0; border: none; border-radius: 7px; overflow: hidden; background: #eadccd; color: #8a7560; font: inherit; font-size: 12px">Photo</button>
+        <button type="button" aria-expanded="false" style="flex: 1; min-width: 0; min-height: 42px; padding: 0; border: none; background: transparent; font: inherit; color: inherit; text-align: left; display: flex; flex-direction: column; justify-content: center">
+          <span style="font-size: 17px; line-height: 24px; font-weight: 600">Back Squat</span>
+          <span style="font-size: 15px; line-height: 21px; color: #8a7560; white-space: nowrap; overflow: hidden; text-overflow: ellipsis">3 × 6–8 · 3/3 done · PR</span>
+        </button>
+        <a href="WorkoutMenuSheet.dc.html" aria-label="More options for Back Squat" style="width: 44px; height: 44px; flex: none; border-radius: 9999px; color: #020817; display: flex; align-items: center; justify-content: center; text-decoration: none"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 12h.01M12 12h.01M18 12h.01" stroke-width="3"></path></svg></a>
+      </div>
+    </article>
+
+    <article aria-label="Romanian Deadlift" style="border: 1px solid #e2e8f0; border-radius: 14px; background: #ffffff">
+      <div style="display: flex; align-items: center; gap: 7px; padding: 7px">
+        <button type="button" aria-label="Technique for Romanian Deadlift" style="width: 42px; height: 42px; flex: none; padding: 0; border: none; border-radius: 7px; overflow: hidden; background: #eadccd; color: #8a7560; font: inherit; font-size: 12px">Photo</button>
+        <button type="button" aria-expanded="false" style="flex: 1; min-width: 0; min-height: 42px; padding: 0; border: none; background: transparent; font: inherit; color: inherit; text-align: left; display: flex; flex-direction: column; justify-content: center">
+          <span style="font-size: 17px; line-height: 24px; font-weight: 600">Romanian Deadlift</span>
+          <span style="font-size: 15px; line-height: 21px; color: #8a7560; white-space: nowrap; overflow: hidden; text-overflow: ellipsis">3 × 8–12 · 3/3 done</span>
+        </button>
+        <a href="WorkoutMenuSheet.dc.html" aria-label="More options for Romanian Deadlift" style="width: 44px; height: 44px; flex: none; border-radius: 9999px; color: #020817; display: flex; align-items: center; justify-content: center; text-decoration: none"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 12h.01M12 12h.01M18 12h.01" stroke-width="3"></path></svg></a>
+      </div>
+    </article>
+
+    <!-- Current, expanded -->
+    <article aria-label="Bench Press" style="border: 1px solid rgba(148,74,0,.5); border-radius: 14px; background: #ffffff">
+      <div style="display: flex; align-items: center; gap: 7px; padding: 7px">
+        <button type="button" aria-label="Technique for Bench Press" style="width: 42px; height: 42px; flex: none; padding: 0; border: none; border-radius: 7px; overflow: hidden; background: #eadccd; color: #8a7560; font: inherit; font-size: 12px">Photo</button>
+        <button type="button" aria-expanded="true" style="flex: 1; min-width: 0; min-height: 42px; padding: 0; border: none; background: transparent; font: inherit; color: inherit; text-align: left; display: flex; flex-direction: column; justify-content: center">
+          <span style="font-size: 17px; line-height: 24px; font-weight: 600">Bench Press</span>
+          <span style="font-size: 15px; line-height: 21px; color: #8a7560; white-space: nowrap; overflow: hidden; text-overflow: ellipsis">3 × 8–10 · 1/3 done</span>
+        </button>
+        <a href="WorkoutMenuSheet.dc.html" aria-label="More options for Bench Press" style="width: 44px; height: 44px; flex: none; border-radius: 9999px; color: #020817; display: flex; align-items: center; justify-content: center; text-decoration: none"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 12h.01M12 12h.01M18 12h.01" stroke-width="3"></path></svg></a>
+      </div>
+
+      <div style="padding: 0 7px 10.5px; display: flex; flex-direction: column; gap: 7px">
+        <div style="border-radius: 10.5px; background: #fcf3ea; padding: 7px; display: flex; align-items: flex-start; gap: 7px">
+          <span style="flex: none; border-radius: 5.25px; background: #ffffff; padding: 3.5px 7px; font-size: 13px; font-weight: 700; color: #944a00">↑ 2.5 kg</span>
+          <span style="flex: 1; min-width: 0; font-size: 15px; line-height: 21px">You hit 10 on every set, so +2.5 kg today. Aim for 8+ reps.</span>
+          <button type="button" aria-label="Why this target?" style="flex: none; min-height: 44px; margin: -7px 0; padding: 0 7px; border: none; background: transparent; font: inherit; font-size: 15px; font-weight: 600; color: #944a00">Why?</button>
+        </div>
+
+        <button type="button" aria-expanded="false" style="min-height: 44px; padding: 0 3.5px; border: none; background: transparent; font: inherit; font-size: 15px; color: #8a7560; display: flex; align-items: center; justify-content: space-between">
+          <span>2 warm-up sets · 2 done</span><span>Show ▾</span>
+        </button>
+
+        <!-- Set 1: done -->
+        <div style="display: flex; flex-direction: column; gap: 1.75px; border: 1px solid transparent; border-radius: 7px; background: #ecfdf5; padding: 3.5px">
+          <div style="min-height: 17.5px; display: flex; align-items: center; gap: 7px; padding: 0 3.5px">
+            <span style="font-size: 13px; line-height: 18px; font-weight: 600">Set 1</span>
+            <span style="flex: 1; min-width: 0; font-size: 13px; line-height: 18px; color: #8a7560">Last 60 × 10</span>
+          </div>
+          <div style="display: flex; align-items: center; gap: 3.5px">
+            <div role="group" aria-label="Weight" style="flex: 1; min-width: 0; display: flex; align-items: center">
+              <button type="button" aria-label="Decrease weight" style="width: 44px; height: 44px; flex: none; border: none; border-radius: 5.25px; background: #faf5f0; font: inherit; font-size: 21px; font-weight: 600; color: #020817">−</button>
+              <a href="NumberSheet.dc.html" aria-label="Weight 62.5 kg, tap to type" style="flex: 1; min-width: 31.5px; min-height: 44px; display: flex; flex-direction: column; align-items: center; justify-content: center; text-decoration: none"><span style="font-size: 17px; line-height: 22px; font-weight: 600; font-variant-numeric: tabular-nums; color: #065f46">62.5</span><span style="font-size: 12px; line-height: 15px; color: #8a7560">kg</span></a>
+              <button type="button" aria-label="Increase weight" style="width: 44px; height: 44px; flex: none; border: none; border-radius: 5.25px; background: #faf5f0; font: inherit; font-size: 21px; font-weight: 600; color: #020817">+</button>
+            </div>
+            <div role="group" aria-label="Reps" style="flex: 1; min-width: 0; display: flex; align-items: center">
+              <button type="button" aria-label="Decrease reps" style="width: 44px; height: 44px; flex: none; border: none; border-radius: 5.25px; background: #faf5f0; font: inherit; font-size: 21px; font-weight: 600; color: #020817">−</button>
+              <a href="NumberSheet.dc.html" aria-label="Reps 9 reps, tap to type" style="flex: 1; min-width: 31.5px; min-height: 44px; display: flex; flex-direction: column; align-items: center; justify-content: center; text-decoration: none"><span style="font-size: 17px; line-height: 22px; font-weight: 600; font-variant-numeric: tabular-nums; color: #065f46">9</span><span style="font-size: 12px; line-height: 15px; color: #8a7560">reps</span></a>
+              <button type="button" aria-label="Increase reps" style="width: 44px; height: 44px; flex: none; border: none; border-radius: 5.25px; background: #faf5f0; font: inherit; font-size: 21px; font-weight: 600; color: #020817">+</button>
+            </div>
+            <button type="button" role="checkbox" aria-checked="true" aria-label="Set 1: 62.5 kg, 9 reps. Logged, tap to undo" style="width: 49px; height: 49px; flex: none; box-sizing: border-box; border: 2px solid #059669; border-radius: 10.5px; background: #059669; color: #ffffff; display: flex; align-items: center; justify-content: center"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"></path></svg></button>
+          </div>
+        </div>
+
+        <!-- Set 2: next (focused) -->
+        <div style="display: flex; flex-direction: column; gap: 1.75px; border: 1px solid rgba(148,74,0,.4); border-radius: 7px; padding: 3.5px">
+          <div style="min-height: 17.5px; display: flex; align-items: center; gap: 7px; padding: 0 3.5px">
+            <span style="font-size: 13px; line-height: 18px; font-weight: 600">Set 2</span>
+            <span style="flex: 1; min-width: 0; font-size: 13px; line-height: 18px; color: #8a7560">Last 60 × 10</span>
+          </div>
+          <div style="display: flex; align-items: center; gap: 3.5px">
+            <div role="group" aria-label="Weight" style="flex: 1; min-width: 0; display: flex; align-items: center">
+              <button type="button" aria-label="Decrease weight" style="width: 44px; height: 44px; flex: none; border: none; border-radius: 5.25px; background: #faf5f0; font: inherit; font-size: 21px; font-weight: 600; color: #020817">−</button>
+              <a href="NumberSheet.dc.html" aria-label="Weight 62.5 kg, tap to type" style="flex: 1; min-width: 31.5px; min-height: 44px; display: flex; flex-direction: column; align-items: center; justify-content: center; text-decoration: none"><span style="font-size: 17px; line-height: 22px; font-weight: 600; font-variant-numeric: tabular-nums; color: #020817">62.5</span><span style="font-size: 12px; line-height: 15px; color: #8a7560">kg</span></a>
+              <button type="button" aria-label="Increase weight" style="width: 44px; height: 44px; flex: none; border: none; border-radius: 5.25px; background: #faf5f0; font: inherit; font-size: 21px; font-weight: 600; color: #020817">+</button>
+            </div>
+            <div role="group" aria-label="Reps" style="flex: 1; min-width: 0; display: flex; align-items: center">
+              <button type="button" aria-label="Decrease reps" style="width: 44px; height: 44px; flex: none; border: none; border-radius: 5.25px; background: #faf5f0; font: inherit; font-size: 21px; font-weight: 600; color: #020817">−</button>
+              <a href="NumberSheet.dc.html" aria-label="Reps 8 reps, tap to type" style="flex: 1; min-width: 31.5px; min-height: 44px; display: flex; flex-direction: column; align-items: center; justify-content: center; text-decoration: none"><span style="font-size: 17px; line-height: 22px; font-weight: 600; font-variant-numeric: tabular-nums; color: #020817">8</span><span style="font-size: 12px; line-height: 15px; color: #8a7560">reps</span></a>
+              <button type="button" aria-label="Increase reps" style="width: 44px; height: 44px; flex: none; border: none; border-radius: 5.25px; background: #faf5f0; font: inherit; font-size: 21px; font-weight: 600; color: #020817">+</button>
+            </div>
+            <button type="button" role="checkbox" aria-checked="false" aria-label="Log Set 2: 62.5 kg, 8 reps" style="width: 49px; height: 49px; flex: none; box-sizing: border-box; border: 2px solid #e2e8f0; border-radius: 10.5px; background: #ffffff; color: #8a7560; display: flex; align-items: center; justify-content: center"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"></path></svg></button>
+          </div>
+        </div>
+
+        <!-- Set 3: open -->
+        <div style="display: flex; flex-direction: column; gap: 1.75px; border: 1px solid transparent; border-radius: 7px; padding: 3.5px">
+          <div style="min-height: 17.5px; display: flex; align-items: center; gap: 7px; padding: 0 3.5px">
+            <span style="font-size: 13px; line-height: 18px; font-weight: 600">Set 3</span>
+            <span style="flex: 1; min-width: 0; font-size: 13px; line-height: 18px; color: #8a7560">Last 60 × 10</span>
+          </div>
+          <div style="display: flex; align-items: center; gap: 3.5px">
+            <div role="group" aria-label="Weight" style="flex: 1; min-width: 0; display: flex; align-items: center">
+              <button type="button" aria-label="Decrease weight" style="width: 44px; height: 44px; flex: none; border: none; border-radius: 5.25px; background: #faf5f0; font: inherit; font-size: 21px; font-weight: 600; color: #020817">−</button>
+              <a href="NumberSheet.dc.html" aria-label="Weight 62.5 kg, tap to type" style="flex: 1; min-width: 31.5px; min-height: 44px; display: flex; flex-direction: column; align-items: center; justify-content: center; text-decoration: none"><span style="font-size: 17px; line-height: 22px; font-weight: 600; font-variant-numeric: tabular-nums; color: #020817">62.5</span><span style="font-size: 12px; line-height: 15px; color: #8a7560">kg</span></a>
+              <button type="button" aria-label="Increase weight" style="width: 44px; height: 44px; flex: none; border: none; border-radius: 5.25px; background: #faf5f0; font: inherit; font-size: 21px; font-weight: 600; color: #020817">+</button>
+            </div>
+            <div role="group" aria-label="Reps" style="flex: 1; min-width: 0; display: flex; align-items: center">
+              <button type="button" aria-label="Decrease reps" style="width: 44px; height: 44px; flex: none; border: none; border-radius: 5.25px; background: #faf5f0; font: inherit; font-size: 21px; font-weight: 600; color: #020817">−</button>
+              <a href="NumberSheet.dc.html" aria-label="Reps 8 reps, tap to type" style="flex: 1; min-width: 31.5px; min-height: 44px; display: flex; flex-direction: column; align-items: center; justify-content: center; text-decoration: none"><span style="font-size: 17px; line-height: 22px; font-weight: 600; font-variant-numeric: tabular-nums; color: #020817">8</span><span style="font-size: 12px; line-height: 15px; color: #8a7560">reps</span></a>
+              <button type="button" aria-label="Increase reps" style="width: 44px; height: 44px; flex: none; border: none; border-radius: 5.25px; background: #faf5f0; font: inherit; font-size: 21px; font-weight: 600; color: #020817">+</button>
+            </div>
+            <button type="button" role="checkbox" aria-checked="false" aria-label="Log Set 3: 62.5 kg, 8 reps" style="width: 49px; height: 49px; flex: none; box-sizing: border-box; border: 2px solid #e2e8f0; border-radius: 10.5px; background: #ffffff; color: #8a7560; display: flex; align-items: center; justify-content: center"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"></path></svg></button>
+          </div>
+        </div>
+
+        <button type="button" style="min-height: 44px; border: 1px dashed #e2e8f0; border-radius: 7px; background: transparent; font: inherit; font-size: 15px; font-weight: 500; color: #944a00">+ Add set</button>
+      </div>
+    </article>
+
+    <!-- Superset A -->
+    <div style="margin-bottom: -3.5px; padding: 0 7px; display: flex; align-items: center; gap: 7px">
+      <i style="width: 3.5px; height: 14px; flex: none; border-radius: 9999px; background: #8b5cf6"></i>
+      <span style="font-size: 15px; line-height: 21px; font-weight: 600; color: #5b21b6">Superset A</span>
+      <span style="flex: 1; min-width: 0; font-size: 13px; color: #8a7560; white-space: nowrap; overflow: hidden; text-overflow: ellipsis">90 s rest after each round</span>
+    </div>
+
+    <article aria-label="Lat Pulldown, superset A1" style="border: 1px solid #e2e8f0; border-left: 4px solid #8b5cf6; border-radius: 14px; background: #ffffff">
+      <div style="display: flex; align-items: center; gap: 7px; padding: 7px">
+        <button type="button" aria-label="Technique for Lat Pulldown" style="width: 42px; height: 42px; flex: none; padding: 0; border: none; border-radius: 7px; overflow: hidden; background: #eadccd; color: #8a7560; font: inherit; font-size: 12px">Photo</button>
+        <button type="button" aria-expanded="false" style="flex: 1; min-width: 0; min-height: 42px; padding: 0; border: none; background: transparent; font: inherit; color: inherit; text-align: left; display: flex; flex-direction: column; justify-content: center">
+          <span style="display: flex; align-items: center; gap: 5.25px"><span aria-label="Superset A, exercise 1" style="border-radius: 3.5px; background: #ede9fe; padding: 1.75px 5.25px; font-size: 13px; font-weight: 700; color: #5b21b6">A1</span><span style="flex: 1; min-width: 0; font-size: 17px; line-height: 24px; font-weight: 600">Lat Pulldown</span></span>
+          <span style="font-size: 15px; line-height: 21px; color: #8a7560; white-space: nowrap; overflow: hidden; text-overflow: ellipsis">3 × 10–12 · 0/3 done</span>
+        </button>
+        <a href="WorkoutMenuSheet.dc.html" aria-label="More options for Lat Pulldown" style="width: 44px; height: 44px; flex: none; border-radius: 9999px; color: #020817; display: flex; align-items: center; justify-content: center; text-decoration: none"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 12h.01M12 12h.01M18 12h.01" stroke-width="3"></path></svg></a>
+      </div>
+    </article>
+
+    <article aria-label="Seated Dumbbell Shoulder Press, superset A2" style="border: 1px solid #e2e8f0; border-left: 4px solid #8b5cf6; border-radius: 14px; background: #ffffff">
+      <div style="display: flex; align-items: center; gap: 7px; padding: 7px">
+        <button type="button" aria-label="Technique for Seated Dumbbell Shoulder Press" style="width: 42px; height: 42px; flex: none; padding: 0; border: none; border-radius: 7px; overflow: hidden; background: #eadccd; color: #8a7560; font: inherit; font-size: 12px">Photo</button>
+        <button type="button" aria-expanded="false" style="flex: 1; min-width: 0; min-height: 42px; padding: 0; border: none; background: transparent; font: inherit; color: inherit; text-align: left; display: flex; flex-direction: column; justify-content: center">
+          <span style="display: flex; align-items: center; gap: 5.25px"><span aria-label="Superset A, exercise 2" style="border-radius: 3.5px; background: #ede9fe; padding: 1.75px 5.25px; font-size: 13px; font-weight: 700; color: #5b21b6">A2</span><span style="flex: 1; min-width: 0; font-size: 17px; line-height: 24px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis">Seated Dumbbell Shoulder Press</span></span>
+          <span style="font-size: 15px; line-height: 21px; color: #8a7560; white-space: nowrap; overflow: hidden; text-overflow: ellipsis">3 × 8–10 · 0/3 done</span>
+        </button>
+        <a href="WorkoutMenuSheet.dc.html" aria-label="More options for Seated Dumbbell Shoulder Press" style="width: 44px; height: 44px; flex: none; border-radius: 9999px; color: #020817; display: flex; align-items: center; justify-content: center; text-decoration: none"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 12h.01M12 12h.01M18 12h.01" stroke-width="3"></path></svg></a>
+      </div>
+    </article>
+
+    <button type="button" style="height: 42px; padding: 0 28px; border: 1px solid #e2e8f0; border-radius: 5.25px; background: #ffffff; font: inherit; font-size: 15px; font-weight: 500; color: #020817">+ Add exercise</button>
+    <a href="Summary.dc.html" style="height: 42px; padding: 0 28px; border-radius: 5.25px; background: #944a00; color: #fcf9f5; font-size: 15px; font-weight: 500; display: flex; align-items: center; justify-content: center; text-decoration: none">Finish workout</a>
+    <button type="button" style="height: 44px; padding: 0 14px; border: none; border-radius: 5.25px; background: transparent; font: inherit; font-size: 15px; font-weight: 500; color: #ef4444">Discard workout</button>
+  </main>
+
+  <section aria-label="Rest timer" style="flex: none; border-top: 1px solid #e2e8f0; background: #ffffff; padding-bottom: 34px">
+    <div style="height: 3.5px; background: #faf5f0"><div style="height: 3.5px; width: 30%; background: #944a00"></div></div>
+    <div style="display: flex; align-items: center; gap: 7px; padding: 7px 10.5px 0">
+      <div style="flex: 1; min-width: 0; display: flex; flex-direction: column">
+        <span style="font-size: 13px; line-height: 18px; color: #8a7560">Rest</span>
+        <span aria-label="Rest, 105 seconds left" style="font-size: 25px; line-height: 31px; font-weight: 700; font-variant-numeric: tabular-nums">1:45</span>
+      </div>
+      <button type="button" aria-label="15 seconds less rest" style="height: 42px; min-width: 49px; padding: 0 10.5px; border: none; border-radius: 10.5px; background: #faf5f0; font: inherit; font-size: 17px; font-weight: 600; color: #020817">−15</button>
+      <button type="button" aria-label="15 seconds more rest" style="height: 42px; min-width: 49px; padding: 0 10.5px; border: none; border-radius: 10.5px; background: #faf5f0; font: inherit; font-size: 17px; font-weight: 600; color: #020817">+15</button>
+      <button type="button" aria-label="Skip rest" style="height: 42px; min-width: 49px; padding: 0 10.5px; border: none; border-radius: 10.5px; background: #944a00; font: inherit; font-size: 17px; font-weight: 600; color: #fcf9f5">Skip</button>
+    </div>
+  </section>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":1225}}'>
+class Component extends DCLogic {
+renderVals() {
+return {};
+}
+}
+</script>
+</body>
+</html>

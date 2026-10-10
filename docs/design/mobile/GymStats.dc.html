@@ -1,0 +1,179 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Gym — Stats</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+body{margin:0}
+a{color:#944a00;text-decoration:none}a:hover{color:#6e3700}
+input::placeholder,textarea::placeholder{color:#9ca3af}
+</style>
+</helmet>
+<div style="width: 390px; height: 2545px; position: relative; overflow: hidden; background: #ffffff; font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Helvetica Neue', system-ui, sans-serif; color: #020817; display: flex; flex-direction: column">
+  <div style="height: 47px; flex: none"></div>
+
+  <main id="main" style="flex: 1; display: flex; flex-direction: column">
+    <div style="padding: 7px 14px; display: flex; flex-direction: column; gap: 10.5px">
+      <div style="display: flex; align-items: center; justify-content: space-between">
+        <div role="tablist" aria-label="Mode" style="width: 126px; height: 28px; box-sizing: border-box; background: #faf5f0; border-radius: 7px; padding: 3px; display: flex">
+          <a href="FoodToday.dc.html" role="tab" aria-selected="false" style="flex: 1; border-radius: 5px; color: #8a7560; font-size: 13px; font-weight: 500; display: flex; align-items: center; justify-content: center; text-decoration: none">Food</a>
+          <a href="GymToday.dc.html" role="tab" aria-selected="true" style="flex: 1; border-radius: 5px; background: #ffffff; box-shadow: 0 1px 2px rgba(0,0,0,.08); color: #020817; font-size: 13px; font-weight: 500; display: flex; align-items: center; justify-content: center; text-decoration: none">Gym</a>
+        </div>
+        <a href="Profile.dc.html" aria-label="Profile" style="width: 44px; height: 44px; display: flex; align-items: center; justify-content: center; text-decoration: none"><span style="width: 31.5px; height: 31.5px; border-radius: 9999px; background: #944a00; color: #ffffff; font-size: 15px; font-weight: 600; display: flex; align-items: center; justify-content: center">DP</span></a>
+      </div>
+      <h1 style="margin: 0; font-size: 25px; line-height: 31px; font-weight: 700">Stats</h1>
+    </div>
+
+    <div style="padding: 0 14px 28px; display: flex; flex-direction: column; gap: 14px">
+
+      <!-- (a) Strength trend -->
+      <section aria-label="Strength trend" style="border: 1px solid #e2e8f0; border-radius: 7px; background: #ffffff; padding: 14px">
+        <h2 style="margin: 0 0 7px; font-size: 19px; line-height: 26px; font-weight: 600">Strength trend</h2>
+        <div style="margin-bottom: 10.5px; display: flex; flex-wrap: wrap; align-items: center; gap: 7px">
+          <button type="button" aria-pressed="true" style="min-height: 44px; padding: 0 14px; border: 1px solid #944a00; border-radius: 9999px; background: #944a00; font: inherit; font-size: 15px; font-weight: 500; color: #fcf9f5">Back Squat</button>
+          <button type="button" aria-pressed="false" style="min-height: 44px; padding: 0 14px; border: 1px solid #e2e8f0; border-radius: 9999px; background: #ffffff; font: inherit; font-size: 15px; font-weight: 500; color: #020817">Bench Press</button>
+          <button type="button" aria-pressed="false" style="min-height: 44px; padding: 0 14px; border: 1px solid #e2e8f0; border-radius: 9999px; background: #ffffff; font: inherit; font-size: 15px; font-weight: 500; color: #020817">Romanian Deadlift</button>
+          <button type="button" style="height: 44px; padding: 0 10.5px; border: none; border-radius: 5.25px; background: #faf5f0; color: #3a2414; font: inherit; font-size: 15px; font-weight: 500">Choose…</button>
+        </div>
+        <div role="tablist" aria-label="Range" style="margin-bottom: 10.5px; background: #faf5f0; border-radius: 7px; padding: 4px; display: flex">
+          <button type="button" role="tab" aria-selected="true" style="flex: 1; min-height: 36px; border: none; border-radius: 6px; background: #ffffff; box-shadow: 0 1px 2px rgba(0,0,0,.08); font: inherit; font-size: 15px; font-weight: 500; color: #020817">3 m</button>
+          <button type="button" role="tab" aria-selected="false" style="flex: 1; min-height: 36px; border: none; border-radius: 6px; background: transparent; font: inherit; font-size: 15px; font-weight: 500; color: #8a7560">1 y</button>
+          <button type="button" role="tab" aria-selected="false" style="flex: 1; min-height: 36px; border: none; border-radius: 6px; background: transparent; font: inherit; font-size: 15px; font-weight: 500; color: #8a7560">All</button>
+        </div>
+        <svg width="332" height="180" viewBox="0 0 332 180" role="img" aria-label="Back Squat estimated 1RM over 3 months, rising from 96 kg to 110 kg with 4 personal records" style="display: block"><line x1="38" x2="324" y1="162" y2="162" stroke="#e2e8f0" stroke-width="1"></line><text x="34" y="165" font-size="10" fill="#8a7560" text-anchor="end">94 kg</text><line x1="38" x2="324" y1="86" y2="86" stroke="#e2e8f0" stroke-width="1"></line><text x="34" y="89" font-size="10" fill="#8a7560" text-anchor="end">104 kg</text><line x1="38" x2="324" y1="10" y2="10" stroke="#e2e8f0" stroke-width="1"></line><text x="34" y="13" font-size="10" fill="#8a7560" text-anchor="end">114 kg</text><polyline points="44,146.8 68.9,135.4 93.8,139.2 118.7,124 143.6,112.6 168.5,116.4 193.5,97.4 218.4,86 243.3,89.8 268.2,70.8 293.1,55.6 318,40.4" fill="none" stroke="#944a00" stroke-opacity="0.3" stroke-width="1"></polyline><polyline points="44,144.5 318,43.4" fill="none" stroke="#944a00" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"></polyline><circle cx="44" cy="146.8" r="3" fill="#944a00"></circle><circle cx="68.9" cy="135.4" r="3" fill="#944a00"></circle><circle cx="93.8" cy="139.2" r="3" fill="#944a00"></circle><circle cx="118.7" cy="124" r="3" fill="#944a00"></circle><circle cx="143.6" cy="112.6" r="5.5" fill="#d97706" stroke="#ffffff" stroke-width="2"></circle><circle cx="168.5" cy="116.4" r="3" fill="#944a00"></circle><circle cx="193.5" cy="97.4" r="3" fill="#944a00"></circle><circle cx="218.4" cy="86" r="5.5" fill="#d97706" stroke="#ffffff" stroke-width="2"></circle><circle cx="243.3" cy="89.8" r="3" fill="#944a00"></circle><circle cx="268.2" cy="70.8" r="3" fill="#944a00"></circle><circle cx="293.1" cy="55.6" r="5.5" fill="#d97706" stroke="#ffffff" stroke-width="2"></circle><circle cx="318" cy="40.4" r="5.5" fill="#d97706" stroke="#ffffff" stroke-width="2"></circle><text x="44" y="176" font-size="10" fill="#8a7560" text-anchor="middle">Jul 14</text><text x="118.7" y="176" font-size="10" fill="#8a7560" text-anchor="middle">Aug 4</text><text x="193.5" y="176" font-size="10" fill="#8a7560" text-anchor="middle">Aug 25</text><text x="268.2" y="176" font-size="10" fill="#8a7560" text-anchor="middle">Sep 15</text><text x="314" y="176" font-size="10" fill="#8a7560" text-anchor="middle">Oct 6</text></svg>
+        <div style="margin-top: 10.5px; display: flex; flex-wrap: wrap; gap: 7px">
+          <button type="button" aria-pressed="false" style="min-height: 44px; padding: 0 14px; border: 1px solid #e2e8f0; border-radius: 9999px; background: #ffffff; font: inherit; font-size: 15px; font-weight: 500; color: #020817">Bodyweight overlay</button>
+          <button type="button" aria-pressed="false" style="min-height: 44px; padding: 0 14px; border: 1px solid #e2e8f0; border-radius: 9999px; background: #ffffff; font: inherit; font-size: 15px; font-weight: 500; color: #020817">Relative strength</button>
+        </div>
+      </section>
+
+      <!-- (b) Weekly sets per muscle -->
+      <section aria-label="Weekly sets per muscle" style="border: 1px solid #e2e8f0; border-radius: 7px; background: #ffffff; padding: 14px">
+        <h2 style="margin: 0 0 7px; font-size: 19px; line-height: 26px; font-weight: 600">Weekly sets per muscle</h2>
+        <div role="group" aria-label="Muscle group" style="margin-bottom: 10.5px; display: flex; flex-wrap: wrap; gap: 7px">
+          <button type="button" aria-pressed="true" style="min-height: 44px; padding: 0 14px; border: 1px solid #944a00; border-radius: 9999px; background: #944a00; font: inherit; font-size: 15px; font-weight: 500; color: #fcf9f5">Chest</button>
+          <button type="button" aria-pressed="false" style="min-height: 44px; padding: 0 14px; border: 1px solid #e2e8f0; border-radius: 9999px; background: #ffffff; font: inherit; font-size: 15px; font-weight: 500; color: #020817">back</button>
+          <button type="button" aria-pressed="false" style="min-height: 44px; padding: 0 14px; border: 1px solid #e2e8f0; border-radius: 9999px; background: #ffffff; font: inherit; font-size: 15px; font-weight: 500; color: #020817">Quads</button>
+          <button type="button" aria-pressed="false" style="min-height: 44px; padding: 0 14px; border: 1px solid #e2e8f0; border-radius: 9999px; background: #ffffff; font: inherit; font-size: 15px; font-weight: 500; color: #020817">Hamstrings</button>
+          <button type="button" aria-pressed="false" style="min-height: 44px; padding: 0 14px; border: 1px solid #e2e8f0; border-radius: 9999px; background: #ffffff; font: inherit; font-size: 15px; font-weight: 500; color: #020817">Glutes</button>
+          <button type="button" aria-pressed="false" style="min-height: 44px; padding: 0 14px; border: 1px solid #e2e8f0; border-radius: 9999px; background: #ffffff; font: inherit; font-size: 15px; font-weight: 500; color: #020817">Side delts</button>
+          <button type="button" aria-pressed="false" style="min-height: 44px; padding: 0 14px; border: 1px solid #e2e8f0; border-radius: 9999px; background: #ffffff; font: inherit; font-size: 15px; font-weight: 500; color: #020817">Rear delts</button>
+          <button type="button" aria-pressed="false" style="min-height: 44px; padding: 0 14px; border: 1px solid #e2e8f0; border-radius: 9999px; background: #ffffff; font: inherit; font-size: 15px; font-weight: 500; color: #020817">Front delts</button>
+          <button type="button" aria-pressed="false" style="min-height: 44px; padding: 0 14px; border: 1px solid #e2e8f0; border-radius: 9999px; background: #ffffff; font: inherit; font-size: 15px; font-weight: 500; color: #020817">Biceps</button>
+          <button type="button" aria-pressed="false" style="min-height: 44px; padding: 0 14px; border: 1px solid #e2e8f0; border-radius: 9999px; background: #ffffff; font: inherit; font-size: 15px; font-weight: 500; color: #020817">Triceps</button>
+          <button type="button" aria-pressed="false" style="min-height: 44px; padding: 0 14px; border: 1px solid #e2e8f0; border-radius: 9999px; background: #ffffff; font: inherit; font-size: 15px; font-weight: 500; color: #020817">Calves</button>
+          <button type="button" aria-pressed="false" style="min-height: 44px; padding: 0 14px; border: 1px solid #e2e8f0; border-radius: 9999px; background: #ffffff; font: inherit; font-size: 15px; font-weight: 500; color: #020817">Abs</button>
+        </div>
+        <svg width="332" height="180" viewBox="0 0 332 180" role="img" aria-label="Weekly sets per muscle for the last 12 weeks, stacked by muscle group; the chest productive band of 6 to 16 sets is shaded" style="display: block"><rect x="30" y="121.5" width="302" height="25.3" fill="#059669" fill-opacity="0.12"></rect><line x1="30" x2="332" y1="162" y2="162" stroke="#e2e8f0" stroke-width="1"></line><text x="26" y="165" font-size="10" fill="#8a7560" text-anchor="end">0</text><line x1="30" x2="332" y1="86" y2="86" stroke="#e2e8f0" stroke-width="1"></line><text x="26" y="89" font-size="10" fill="#8a7560" text-anchor="end">30</text><line x1="30" x2="332" y1="10" y2="10" stroke="#e2e8f0" stroke-width="1"></line><text x="26" y="13" font-size="10" fill="#8a7560" text-anchor="end">60</text><rect x="34.5" y="146.8" width="16.1" height="15.2" fill="#944a00"></rect><rect x="34.5" y="126.5" width="16.1" height="20.3" fill="#2563eb"></rect><rect x="34.5" y="111.3" width="16.1" height="15.2" fill="#059669"></rect><rect x="34.5" y="103.7" width="16.1" height="7.6" fill="#d97706"></rect><rect x="34.5" y="96.1" width="16.1" height="7.6" fill="#7c3aed"></rect><rect x="34.5" y="88.5" width="16.1" height="7.6" fill="#db2777"></rect><text x="42.5" y="176" font-size="10" fill="#8a7560" text-anchor="middle">Jul 21</text><rect x="59.7" y="131.6" width="16.1" height="30.4" fill="#944a00"></rect><rect x="59.7" y="96.1" width="16.1" height="35.5" fill="#2563eb"></rect><rect x="59.7" y="70.8" width="16.1" height="25.3" fill="#059669"></rect><rect x="59.7" y="58.1" width="16.1" height="12.7" fill="#d97706"></rect><rect x="59.7" y="40.4" width="16.1" height="17.7" fill="#7c3aed"></rect><rect x="59.7" y="30.3" width="16.1" height="10.1" fill="#db2777"></rect><rect x="84.9" y="139.2" width="16.1" height="22.8" fill="#944a00"></rect><rect x="84.9" y="111.3" width="16.1" height="27.9" fill="#2563eb"></rect><rect x="84.9" y="91.1" width="16.1" height="20.2" fill="#059669"></rect><rect x="84.9" y="70.8" width="16.1" height="20.3" fill="#d97706"></rect><rect x="84.9" y="50.5" width="16.1" height="20.3" fill="#7c3aed"></rect><rect x="84.9" y="35.3" width="16.1" height="15.2" fill="#db2777"></rect><text x="93" y="176" font-size="10" fill="#8a7560" text-anchor="middle">Aug 4</text><rect x="110" y="134.1" width="16.1" height="27.9" fill="#944a00"></rect><rect x="110" y="103.7" width="16.1" height="30.4" fill="#2563eb"></rect><rect x="110" y="83.5" width="16.1" height="20.2" fill="#059669"></rect><rect x="110" y="65.7" width="16.1" height="17.8" fill="#d97706"></rect><rect x="110" y="45.5" width="16.1" height="20.2" fill="#7c3aed"></rect><rect x="110" y="30.3" width="16.1" height="15.2" fill="#db2777"></rect><rect x="135.2" y="146.8" width="16.1" height="15.2" fill="#944a00"></rect><rect x="135.2" y="136.7" width="16.1" height="10.1" fill="#2563eb"></rect><rect x="135.2" y="126.5" width="16.1" height="10.2" fill="#059669"></rect><rect x="135.2" y="118.9" width="16.1" height="7.6" fill="#d97706"></rect><rect x="135.2" y="111.3" width="16.1" height="7.6" fill="#7c3aed"></rect><rect x="135.2" y="108.8" width="16.1" height="2.5" fill="#db2777"></rect><text x="143.2" y="176" font-size="10" fill="#8a7560" text-anchor="middle">Aug 18</text><rect x="160.4" y="136.7" width="16.1" height="25.3" fill="#944a00"></rect><rect x="160.4" y="108.8" width="16.1" height="27.9" fill="#2563eb"></rect><rect x="160.4" y="80.9" width="16.1" height="27.9" fill="#059669"></rect><rect x="160.4" y="63.2" width="16.1" height="17.7" fill="#d97706"></rect><rect x="160.4" y="45.5" width="16.1" height="17.7" fill="#7c3aed"></rect><rect x="160.4" y="35.3" width="16.1" height="10.2" fill="#db2777"></rect><rect x="185.5" y="131.6" width="16.1" height="30.4" fill="#944a00"></rect><rect x="185.5" y="98.7" width="16.1" height="32.9" fill="#2563eb"></rect><rect x="185.5" y="70.8" width="16.1" height="27.9" fill="#059669"></rect><rect x="185.5" y="53.1" width="16.1" height="17.7" fill="#d97706"></rect><rect x="185.5" y="35.3" width="16.1" height="17.8" fill="#7c3aed"></rect><rect x="185.5" y="22.7" width="16.1" height="12.6" fill="#db2777"></rect><text x="193.6" y="176" font-size="10" fill="#8a7560" text-anchor="middle">Sep 1</text><rect x="210.7" y="136.7" width="16.1" height="25.3" fill="#944a00"></rect><rect x="210.7" y="103.7" width="16.1" height="33" fill="#2563eb"></rect><rect x="210.7" y="83.5" width="16.1" height="20.2" fill="#059669"></rect><rect x="210.7" y="70.8" width="16.1" height="12.7" fill="#d97706"></rect><rect x="210.7" y="50.5" width="16.1" height="20.3" fill="#7c3aed"></rect><rect x="210.7" y="42.9" width="16.1" height="7.6" fill="#db2777"></rect><rect x="235.9" y="141.7" width="16.1" height="20.3" fill="#944a00"></rect><rect x="235.9" y="106.3" width="16.1" height="35.4" fill="#2563eb"></rect><rect x="235.9" y="86" width="16.1" height="20.3" fill="#059669"></rect><rect x="235.9" y="70.8" width="16.1" height="15.2" fill="#d97706"></rect><rect x="235.9" y="53.1" width="16.1" height="17.7" fill="#7c3aed"></rect><rect x="235.9" y="42.9" width="16.1" height="10.2" fill="#db2777"></rect><text x="244" y="176" font-size="10" fill="#8a7560" text-anchor="middle">Sep 15</text><rect x="261" y="131.6" width="16.1" height="30.4" fill="#944a00"></rect><rect x="261" y="101.2" width="16.1" height="30.4" fill="#2563eb"></rect><rect x="261" y="78.4" width="16.1" height="22.8" fill="#059669"></rect><rect x="261" y="65.7" width="16.1" height="12.7" fill="#d97706"></rect><rect x="261" y="45.5" width="16.1" height="20.2" fill="#7c3aed"></rect><rect x="261" y="35.3" width="16.1" height="10.2" fill="#db2777"></rect><rect x="286.2" y="139.2" width="16.1" height="22.8" fill="#944a00"></rect><rect x="286.2" y="103.7" width="16.1" height="35.5" fill="#2563eb"></rect><rect x="286.2" y="83.5" width="16.1" height="20.2" fill="#059669"></rect><rect x="286.2" y="68.3" width="16.1" height="15.2" fill="#d97706"></rect><rect x="286.2" y="45.5" width="16.1" height="22.8" fill="#7c3aed"></rect><rect x="286.2" y="37.9" width="16.1" height="7.6" fill="#db2777"></rect><text x="294.2" y="176" font-size="10" fill="#8a7560" text-anchor="middle">Sep 29</text><rect x="311.4" y="141.7" width="16.1" height="20.3" fill="#944a00"></rect><rect x="311.4" y="111.3" width="16.1" height="30.4" fill="#2563eb"></rect><rect x="311.4" y="86" width="16.1" height="25.3" fill="#059669"></rect><rect x="311.4" y="70.8" width="16.1" height="15.2" fill="#d97706"></rect><rect x="311.4" y="55.6" width="16.1" height="15.2" fill="#7c3aed"></rect><rect x="311.4" y="45.5" width="16.1" height="10.1" fill="#db2777"></rect></svg>
+      </section>
+
+      <!-- (c) Consistency -->
+      <section aria-label="Consistency" style="border: 1px solid #e2e8f0; border-radius: 7px; background: #ffffff; padding: 14px">
+        <h2 style="margin: 0 0 7px; font-size: 19px; line-height: 26px; font-weight: 600">Consistency</h2>
+        <div style="margin-bottom: 10.5px; display: flex; gap: 14px; font-size: 17px; line-height: 24px">
+          <span>Current streak: <b style="font-weight: 600">7</b></span>
+          <span>Best: <b style="font-weight: 600">11</b></span>
+        </div>
+        <div style="display: flex; flex-direction: column; gap: 10.5px">
+          <svg width="260" height="106" viewBox="0 0 260 106" role="img" aria-label="Consistency over the last 52 weeks: weekly goal met in 37 weeks, 3 flex weeks, 2 paused, 3 under goal; this week in progress" style="display: block"><rect x="0" y="0" width="18" height="18" rx="3.5" fill="#f3f4f6"></rect><rect x="22" y="0" width="18" height="18" rx="3.5" fill="#f3f4f6"></rect><rect x="44" y="0" width="18" height="18" rx="3.5" fill="#f3f4f6"></rect><rect x="66" y="0" width="18" height="18" rx="3.5" fill="#f3f4f6"></rect><rect x="88" y="0" width="18" height="18" rx="3.5" fill="#f3f4f6"></rect><rect x="110" y="0" width="18" height="18" rx="3.5" fill="#f3f4f6"></rect><rect x="132" y="0" width="18" height="18" rx="3.5" fill="#d1d5db"></rect><rect x="154" y="0" width="18" height="18" rx="3.5" fill="#944a00"></rect><rect x="176" y="0" width="18" height="18" rx="3.5" fill="#944a00"></rect><rect x="198" y="0" width="18" height="18" rx="3.5" fill="#944a00"></rect><rect x="220" y="0" width="18" height="18" rx="3.5" fill="#e0a060"></rect><rect x="242" y="0" width="18" height="18" rx="3.5" fill="#944a00"></rect><rect x="0" y="22" width="18" height="18" rx="3.5" fill="#944a00"></rect><rect x="22" y="22" width="18" height="18" rx="3.5" fill="#944a00"></rect><rect x="44" y="22" width="18" height="18" rx="3.5" fill="#944a00"></rect><rect x="66" y="22" width="18" height="18" rx="3.5" fill="#d1d5db"></rect><rect x="88" y="22" width="18" height="18" rx="3.5" fill="#944a00"></rect><rect x="110" y="22" width="18" height="18" rx="3.5" fill="#944a00"></rect><rect x="132" y="22" width="18" height="18" rx="3.5" fill="#944a00"></rect><rect x="154" y="22" width="18" height="18" rx="3.5" fill="#944a00"></rect><rect x="176" y="22" width="18" height="18" rx="3.5" fill="#bfdbfe"></rect><rect x="198" y="22" width="18" height="18" rx="3.5" fill="#bfdbfe"></rect><rect x="220" y="22" width="18" height="18" rx="3.5" fill="#944a00"></rect><rect x="242" y="22" width="18" height="18" rx="3.5" fill="#944a00"></rect><rect x="0" y="44" width="18" height="18" rx="3.5" fill="#944a00"></rect><rect x="22" y="44" width="18" height="18" rx="3.5" fill="#944a00"></rect><rect x="44" y="44" width="18" height="18" rx="3.5" fill="#944a00"></rect><rect x="66" y="44" width="18" height="18" rx="3.5" fill="#e0a060"></rect><rect x="88" y="44" width="18" height="18" rx="3.5" fill="#944a00"></rect><rect x="110" y="44" width="18" height="18" rx="3.5" fill="#944a00"></rect><rect x="132" y="44" width="18" height="18" rx="3.5" fill="#944a00"></rect><rect x="154" y="44" width="18" height="18" rx="3.5" fill="#944a00"></rect><rect x="176" y="44" width="18" height="18" rx="3.5" fill="#944a00"></rect><rect x="198" y="44" width="18" height="18" rx="3.5" fill="#d1d5db"></rect><rect x="220" y="44" width="18" height="18" rx="3.5" fill="#944a00"></rect><rect x="242" y="44" width="18" height="18" rx="3.5" fill="#944a00"></rect><rect x="0" y="66" width="18" height="18" rx="3.5" fill="#944a00"></rect><rect x="22" y="66" width="18" height="18" rx="3.5" fill="#944a00"></rect><rect x="44" y="66" width="18" height="18" rx="3.5" fill="#944a00"></rect><rect x="66" y="66" width="18" height="18" rx="3.5" fill="#944a00"></rect><rect x="88" y="66" width="18" height="18" rx="3.5" fill="#944a00"></rect><rect x="110" y="66" width="18" height="18" rx="3.5" fill="#e0a060"></rect><rect x="132" y="66" width="18" height="18" rx="3.5" fill="#944a00"></rect><rect x="154" y="66" width="18" height="18" rx="3.5" fill="#944a00"></rect><rect x="176" y="66" width="18" height="18" rx="3.5" fill="#944a00"></rect><rect x="198" y="66" width="18" height="18" rx="3.5" fill="#944a00"></rect><rect x="220" y="66" width="18" height="18" rx="3.5" fill="#944a00"></rect><rect x="242" y="66" width="18" height="18" rx="3.5" fill="#944a00"></rect><rect x="0" y="88" width="18" height="18" rx="3.5" fill="#944a00"></rect><rect x="22" y="88" width="18" height="18" rx="3.5" fill="#944a00"></rect><rect x="44" y="88" width="18" height="18" rx="3.5" fill="#944a00"></rect><rect x="67" y="89" width="16" height="16" rx="3" fill="#ffffff" stroke="#944a00" stroke-width="2"></rect></svg>
+          <div style="display: flex; flex-wrap: wrap; gap: 3.5px 10.5px">
+            <span style="display: flex; align-items: center; gap: 5.25px; font-size: 13px; line-height: 18px; color: #8a7560"><i style="width: 8.75px; height: 8.75px; border-radius: 2px; background: #944a00"></i>Goal met</span>
+            <span style="display: flex; align-items: center; gap: 5.25px; font-size: 13px; line-height: 18px; color: #8a7560"><i style="width: 8.75px; height: 8.75px; border-radius: 2px; background: #e0a060"></i>Flex week</span>
+            <span style="display: flex; align-items: center; gap: 5.25px; font-size: 13px; line-height: 18px; color: #8a7560"><i style="width: 8.75px; height: 8.75px; border-radius: 2px; background: #bfdbfe"></i>Paused</span>
+            <span style="display: flex; align-items: center; gap: 5.25px; font-size: 13px; line-height: 18px; color: #8a7560"><i style="width: 8.75px; height: 8.75px; border-radius: 2px; background: #d1d5db"></i>Under goal</span>
+          </div>
+        </div>
+      </section>
+
+      <!-- (d) PR timeline -->
+      <section aria-label="PR timeline" style="border: 1px solid #e2e8f0; border-radius: 7px; background: #ffffff; padding: 14px">
+        <h2 style="margin: 0 0 7px; font-size: 19px; line-height: 26px; font-weight: 600">PR timeline</h2>
+        <div role="group" aria-label="Filter by exercise" style="margin-bottom: 10.5px; display: flex; flex-wrap: wrap; gap: 7px">
+          <button type="button" aria-pressed="true" style="min-height: 44px; padding: 0 14px; border: 1px solid #944a00; border-radius: 9999px; background: #944a00; font: inherit; font-size: 15px; font-weight: 500; color: #fcf9f5">All</button>
+          <button type="button" aria-pressed="false" style="min-height: 44px; padding: 0 14px; border: 1px solid #e2e8f0; border-radius: 9999px; background: #ffffff; font: inherit; font-size: 15px; font-weight: 500; color: #020817">Back Squat</button>
+          <button type="button" aria-pressed="false" style="min-height: 44px; padding: 0 14px; border: 1px solid #e2e8f0; border-radius: 9999px; background: #ffffff; font: inherit; font-size: 15px; font-weight: 500; color: #020817">Bench Press</button>
+          <button type="button" aria-pressed="false" style="min-height: 44px; padding: 0 14px; border: 1px solid #e2e8f0; border-radius: 9999px; background: #ffffff; font: inherit; font-size: 15px; font-weight: 500; color: #020817">Romanian Deadlift</button>
+          <button type="button" aria-pressed="false" style="min-height: 44px; padding: 0 14px; border: 1px solid #e2e8f0; border-radius: 9999px; background: #ffffff; font: inherit; font-size: 15px; font-weight: 500; color: #020817">Lat Pulldown</button>
+          <button type="button" aria-pressed="false" style="min-height: 44px; padding: 0 14px; border: 1px solid #e2e8f0; border-radius: 9999px; background: #ffffff; font: inherit; font-size: 15px; font-weight: 500; color: #020817">Leg Press</button>
+          <button type="button" aria-pressed="false" style="min-height: 44px; padding: 0 14px; border: 1px solid #e2e8f0; border-radius: 9999px; background: #ffffff; font: inherit; font-size: 15px; font-weight: 500; color: #020817">Goblet Squat</button>
+        </div>
+        <div style="display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid #e2e8f0; padding: 7px 0">
+          <div style="flex: 1; min-width: 0; display: flex; flex-direction: column"><span style="font-size: 17px; line-height: 24px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis">Back Squat</span><span style="font-size: 15px; line-height: 21px; color: #8a7560">2026-10-06</span></div>
+          <div style="display: flex; align-items: center; gap: 7px"><span style="font-size: 17px">87.5 kg × 8</span><span style="border-radius: 9999px; padding: 1.75px 8.75px; font-size: 13px; font-weight: 600; background: #fef3c7; color: #92400e">e1RM PR</span></div>
+        </div>
+        <div style="display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid #e2e8f0; padding: 7px 0">
+          <div style="flex: 1; min-width: 0; display: flex; flex-direction: column"><span style="font-size: 17px; line-height: 24px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis">Bench Press</span><span style="font-size: 15px; line-height: 21px; color: #8a7560">2026-10-01</span></div>
+          <div style="display: flex; align-items: center; gap: 7px"><span style="font-size: 17px">62.5 kg × 8</span><span style="border-radius: 9999px; padding: 1.75px 8.75px; font-size: 13px; font-weight: 600; background: #fef3c7; color: #92400e">Weight PR</span></div>
+        </div>
+        <div style="display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid #e2e8f0; padding: 7px 0">
+          <div style="flex: 1; min-width: 0; display: flex; flex-direction: column"><span style="font-size: 17px; line-height: 24px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis">Romanian Deadlift</span><span style="font-size: 15px; line-height: 21px; color: #8a7560">2026-09-24</span></div>
+          <div style="display: flex; align-items: center; gap: 7px"><span style="font-size: 17px">70 kg × 12</span><span style="border-radius: 9999px; padding: 1.75px 8.75px; font-size: 13px; font-weight: 600; background: #fef3c7; color: #92400e">Rep PR</span></div>
+        </div>
+        <div style="display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid #e2e8f0; padding: 7px 0">
+          <div style="flex: 1; min-width: 0; display: flex; flex-direction: column"><span style="font-size: 17px; line-height: 24px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis">Lat Pulldown</span><span style="font-size: 15px; line-height: 21px; color: #8a7560">2026-09-22</span></div>
+          <div style="display: flex; align-items: center; gap: 7px"><span style="font-size: 17px">55 kg × 12</span><span style="border-radius: 9999px; padding: 1.75px 8.75px; font-size: 13px; font-weight: 600; background: #fef3c7; color: #92400e">Weight PR</span></div>
+        </div>
+      </section>
+
+      <!-- (e) Monthly recap -->
+      <section aria-label="Monthly recap" style="border: 1px solid #e2e8f0; border-radius: 7px; background: #ffffff; padding: 14px">
+        <div style="margin-bottom: 10.5px; display: flex; align-items: center; justify-content: space-between">
+          <h2 style="margin: 0; font-size: 19px; line-height: 26px; font-weight: 600">Monthly recap</h2>
+          <div style="display: flex; align-items: center; gap: 3.5px">
+            <button type="button" aria-label="Previous month" style="width: 44px; height: 44px; border: none; border-radius: 5.25px; background: transparent; display: flex; align-items: center; justify-content: center"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#374151" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 5l-7 7 7 7"></path></svg></button>
+            <span style="font-size: 15px; color: #8a7560">2026-10</span>
+            <button type="button" aria-label="Next month" disabled style="width: 44px; height: 44px; border: none; border-radius: 5.25px; background: transparent; opacity: .5; display: flex; align-items: center; justify-content: center"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#374151" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 5l7 7-7 7"></path></svg></button>
+          </div>
+        </div>
+        <div style="display: flex; flex-direction: column; gap: 7px; font-size: 17px; line-height: 24px">
+          <span>Sessions: <b style="font-weight: 600">4</b> / 12 goal</span>
+          <span>Weeks met: 1 / 2</span>
+          <span>Streak: 7</span>
+          <span>PRs this month: 3</span>
+          <div style="margin-top: 7px; display: flex; flex-direction: column">
+            <span style="margin-bottom: 3.5px; font-size: 15px; line-height: 21px; font-weight: 500">Biggest gains</span>
+            <span>Back Squat: 82.5 kg → 87.5 kg (+6%)</span>
+            <span>Lat Pulldown: 52.5 kg → 55 kg (+5%)</span>
+            <span>Bench Press: 60 kg → 62.5 kg (+4%)</span>
+          </div>
+          <div style="margin-top: 7px; display: flex; flex-direction: column">
+            <span style="margin-bottom: 3.5px; font-size: 15px; line-height: 21px; font-weight: 500">Sets per muscle vs last month</span>
+            <span>Chest: 14 (was 12)</span>
+            <span>Back: 18 (was 16)</span>
+            <span>Quads: 12 (was 12)</span>
+            <span>Hamstrings: 8 (was 6)</span>
+            <span>Side delts: 6 (was 4)</span>
+          </div>
+          <div style="margin-top: 7px; display: flex; flex-direction: column">
+            <span style="margin-bottom: 3.5px; font-size: 15px; line-height: 21px; font-weight: 500">Bodyweight</span>
+            <span>78.9 kg → 78.4 kg</span>
+          </div>
+        </div>
+      </section>
+
+      <button type="button" aria-pressed="false" style="min-height: 44px; padding: 0 14px; border: 1px solid #e2e8f0; border-radius: 9999px; background: #ffffff; font: inherit; font-size: 15px; font-weight: 500; color: #020817">More</button>
+    </div>
+  </main>
+
+  <nav aria-label="Gym tabs" style="flex: none; height: 83px; box-sizing: border-box; border-top: 1px solid #e2e8f0; background: #ffffff; display: flex; padding: 7px 0 34px">
+    <a href="GymToday.dc.html" style="flex: 1; display: flex; flex-direction: column; align-items: center; gap: 2px; color: #8e8e93; font-size: 12px; font-weight: 600; text-decoration: none"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3.5" y="5" width="17" height="15.5" rx="2.5"></rect><path d="M3.5 9.5h17M8 3v3.5M16 3v3.5"></path><rect x="13.5" y="13" width="3.5" height="3.5" rx=".8"></rect></svg><span>Today</span></a>
+    <a href="GymRoutine.dc.html" style="flex: 1; display: flex; flex-direction: column; align-items: center; gap: 2px; color: #8e8e93; font-size: 12px; font-weight: 600; text-decoration: none"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 7h11M9 12h11M9 17h11M4.5 7h.01M4.5 12h.01M4.5 17h.01" stroke-width="2.2"></path></svg><span>Routine</span></a>
+    <a href="GymExercises.dc.html" style="flex: 1; display: flex; flex-direction: column; align-items: center; gap: 2px; color: #8e8e93; font-size: 12px; font-weight: 600; text-decoration: none"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2.5 12h19M6 7.5v9M9 6v12M15 6v12M18 7.5v9"></path></svg><span>Exercises</span></a>
+    <a href="GymStats.dc.html" aria-current="page" style="flex: 1; display: flex; flex-direction: column; align-items: center; gap: 2px; color: #944a00; font-size: 12px; font-weight: 600; text-decoration: none"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20.5h16"></path><rect x="5" y="13" width="3" height="7.5" rx=".8"></rect><rect x="10.5" y="5" width="3" height="15.5" rx=".8"></rect><rect x="16" y="9.5" width="3" height="11" rx=".8"></rect></svg><span>Stats</span></a>
+  </nav>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":2545}}'>
+class Component extends DCLogic {
+renderVals() {
+return {};
+}
+}
+</script>
+</body>
+</html>

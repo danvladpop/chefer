@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Onboarding — Goal</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+body{margin:0}
+a{color:#944a00;text-decoration:none}a:hover{color:#6e3700}
+input::placeholder,textarea::placeholder{color:#9ca3af}
+</style>
+</helmet>
+<div style="width: 390px; height: 844px; position: relative; overflow: hidden; background: #ffffff; font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Helvetica Neue', system-ui, sans-serif; color: #020817; display: flex; flex-direction: column">
+  <div style="height: 47px; flex: none"></div>
+
+  <header style="flex: none; display: flex; align-items: center; gap: 7px; padding: 10.5px 14px">
+    <a href="OnbIntent.dc.html" aria-label="Back" style="width: 44px; height: 44px; flex: none; display: flex; align-items: center; justify-content: center; color: #1f2937; text-decoration: none"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M11 5l-7 7 7 7M4 12h16"></path></svg></a>
+    <div style="flex: 1; min-width: 0; display: flex; flex-direction: column">
+      <span style="font-size: 13px; line-height: 18px; color: #8a7560">Step 2 of 5 · 40%</span>
+      <h1 style="margin: 0; font-size: 19px; line-height: 26px; font-weight: 600">Your goal</h1>
+    </div>
+  </header>
+
+  <div role="progressbar" aria-valuemin="1" aria-valuemax="5" aria-valuenow="3" aria-label="Onboarding progress" style="flex: none; margin: 0 14px 7px; height: 5.25px; border-radius: 9999px; background: #f3f4f6; overflow: hidden"><div style="height: 100%; width: 40%; background: #944a00; border-radius: 9999px"></div></div>
+
+  <main id="main" style="flex: 1; min-height: 0; display: flex; flex-direction: column; gap: 14px; padding: 10.5px 14px 28px">
+    <div style="display: flex; flex-wrap: wrap; gap: 10.5px">
+
+      <button type="button" aria-pressed="true" style="position: relative; width: 47%; box-sizing: border-box; padding: 14px; border: 1px solid #944a00; border-radius: 10.5px; background: #fcf3ea; font: inherit; color: inherit; display: flex; flex-direction: column; align-items: center; gap: 7px">
+        <span aria-hidden="true" style="position: absolute; top: 7px; right: 7px; width: 17.5px; height: 17.5px; border-radius: 9999px; background: #944a00; color: #ffffff; display: flex; align-items: center; justify-content: center"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"></path></svg></span>
+        <span style="font-size: 31px; line-height: 37px">⚖️</span>
+        <span style="font-size: 15px; line-height: 21px; font-weight: 600; text-align: center; color: #944a00">Lose Weight</span>
+        <span style="font-size: 13px; line-height: 18px; text-align: center; color: #8a7560">Reduce body fat and reach a healthier weight</span>
+        <span style="border-radius: 9999px; padding: 1.75px 7px; background: rgba(148,74,0,.1); font-size: 13px; line-height: 18px; font-weight: 500; text-align: center; color: #944a00">−500 kcal/day deficit</span>
+      </button>
+
+      <button type="button" aria-pressed="false" style="position: relative; width: 47%; box-sizing: border-box; padding: 14px; border: 1px solid #e2e8f0; border-radius: 10.5px; background: #ffffff; font: inherit; color: inherit; display: flex; flex-direction: column; align-items: center; gap: 7px">
+        <span style="font-size: 31px; line-height: 37px">🎯</span>
+        <span style="font-size: 15px; line-height: 21px; font-weight: 600; text-align: center; color: #1f2937">Maintain Weight</span>
+        <span style="font-size: 13px; line-height: 18px; text-align: center; color: #8a7560">Keep your current weight while eating well</span>
+        <span style="border-radius: 9999px; padding: 1.75px 7px; background: #f3f4f6; font-size: 13px; line-height: 18px; font-weight: 500; text-align: center; color: #4b5563">Maintenance calories</span>
+      </button>
+
+      <button type="button" aria-pressed="false" style="position: relative; width: 47%; box-sizing: border-box; padding: 14px; border: 1px solid #e2e8f0; border-radius: 10.5px; background: #ffffff; font: inherit; color: inherit; display: flex; flex-direction: column; align-items: center; gap: 7px">
+        <span style="font-size: 31px; line-height: 37px">💪</span>
+        <span style="font-size: 15px; line-height: 21px; font-weight: 600; text-align: center; color: #1f2937">Gain Muscle</span>
+        <span style="font-size: 13px; line-height: 18px; text-align: center; color: #8a7560">Build strength and increase lean muscle mass</span>
+        <span style="border-radius: 9999px; padding: 1.75px 7px; background: #f3f4f6; font-size: 13px; line-height: 18px; font-weight: 500; text-align: center; color: #4b5563">+300 kcal/day surplus</span>
+      </button>
+
+      <button type="button" aria-pressed="false" style="position: relative; width: 47%; box-sizing: border-box; padding: 14px; border: 1px solid #e2e8f0; border-radius: 10.5px; background: #ffffff; font: inherit; color: inherit; display: flex; flex-direction: column; align-items: center; gap: 7px">
+        <span style="font-size: 31px; line-height: 37px">🥗</span>
+        <span style="font-size: 15px; line-height: 21px; font-weight: 600; text-align: center; color: #1f2937">Eat Healthier</span>
+        <span style="font-size: 13px; line-height: 18px; text-align: center; color: #8a7560">Improve overall nutrition and eating habits</span>
+        <span style="border-radius: 9999px; padding: 1.75px 7px; background: #f3f4f6; font-size: 13px; line-height: 18px; font-weight: 500; text-align: center; color: #4b5563">Maintenance calories, better macros</span>
+      </button>
+
+    </div>
+  </main>
+
+  <div style="flex: none; border-top: 1px solid #e2e8f0; padding: 10.5px 14px 7px; display: flex; flex-direction: column; gap: 7px">
+    <a href="OnbMetrics.dc.html" style="height: 44px; padding: 0 14px; border: none; border-radius: 5.25px; background: #944a00; color: #fcf9f5; font-size: 15px; font-weight: 500; display: flex; align-items: center; justify-content: center; gap: 7px; text-decoration: none">Continue</a>
+    <a href="FoodToday.dc.html" style="height: 44px; display: flex; align-items: center; justify-content: center; font-size: 15px; font-weight: 600; color: #944a00; text-decoration: none">Skip for now</a>
+  </div>
+
+  <div style="height: 34px; flex: none"></div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":844}}'>
+class Component extends DCLogic {
+renderVals() {
+return {};
+}
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Profile — Delete account</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+body{margin:0}
+a{color:#944a00;text-decoration:none}a:hover{color:#6e3700}
+input::placeholder,textarea::placeholder{color:#9ca3af}
+</style>
+</helmet>
+<div style="width: 390px; height: 880px; position: relative; overflow: hidden; background: #ffffff; font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Helvetica Neue', system-ui, sans-serif; color: #020817; display: flex; flex-direction: column">
+  <div style="height: 47px; flex: none"></div>
+
+  <a href="Profile.dc.html" aria-label="Close Delete your account?" style="position: absolute; inset: 0; background: rgba(0,0,0,.4)"></a>
+
+  <section role="dialog" aria-modal="true" aria-labelledby="delete-account-title" style="position: absolute; left: 0; right: 0; bottom: 0; max-height: 85%; background: #ffffff; border-radius: 21px 21px 0 0; box-shadow: 0 -4px 12px -4px rgba(67,42,25,.08), 0 -16px 40px -12px rgba(67,42,25,.18); display: flex; flex-direction: column">
+    <div style="flex: none; width: 40px; height: 3.5px; border-radius: 9999px; background: #d1d5db; margin: 7px auto 0"></div>
+    <div style="flex: none; padding: 10.5px 14px 7px; display: flex; align-items: center; justify-content: space-between; gap: 10.5px">
+      <h2 id="delete-account-title" style="margin: 0; flex: 1; min-width: 0; font-size: 19px; line-height: 26px; font-weight: 600">Delete your account?</h2>
+      <a href="Profile.dc.html" aria-label="Close" style="width: 44px; height: 44px; flex: none; border-radius: 9999px; background: #f3f4f6; color: #374151; font-size: 19px; font-weight: 600; display: flex; align-items: center; justify-content: center; text-decoration: none">✕</a>
+    </div>
+
+    <div style="flex: 0 1 auto; min-height: 0; overflow: hidden; padding: 0 14px 14px; display: flex; flex-direction: column; gap: 10.5px">
+      <p style="margin: 0; font-size: 15px; line-height: 21px; font-weight: 600; color: #111827">This permanently deletes your Chefer account. It can’t be undone.</p>
+      <div style="display: flex; flex-direction: column; gap: 3.5px">
+        <span style="font-size: 15px; line-height: 21px; color: #1f2937">Deleted for good:</span>
+        <ul style="margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 3.5px">
+          <li style="display: flex; gap: 7px; font-size: 15px; line-height: 21px; color: #374151"><span aria-hidden="true">•</span><span style="flex: 1; min-width: 0">Your profile, preferences, allergies, goals and body metrics</span></li>
+          <li style="display: flex; gap: 7px; font-size: 15px; line-height: 21px; color: #374151"><span aria-hidden="true">•</span><span style="flex: 1; min-width: 0">Meal plans, shopping lists, food logs, weight entries and pantry</span></li>
+          <li style="display: flex; gap: 7px; font-size: 15px; line-height: 21px; color: #374151"><span aria-hidden="true">•</span><span style="flex: 1; min-width: 0">Your own and imported recipes, uploaded photos, favourites and ratings</span></li>
+          <li style="display: flex; gap: 7px; font-size: 15px; line-height: 21px; color: #374151"><span aria-hidden="true">•</span><span style="flex: 1; min-width: 0">Workouts, routines and custom exercises</span></li>
+          <li style="display: flex; gap: 7px; font-size: 15px; line-height: 21px; color: #374151"><span aria-hidden="true">•</span><span style="flex: 1; min-width: 0">Household members, feedback, and your sign-in on every device</span></li>
+        </ul>
+        <span style="font-size: 13px; line-height: 18px; color: #8a7560">Backup copies age out within about 30 days.</span>
+      </div>
+      <label for="delete-password" style="font-size: 15px; line-height: 21px; font-weight: 500; color: #1f2937">Your password</label>
+      <div style="position: relative">
+        <input id="delete-password" type="password" autocomplete="current-password" style="height: 44px; box-sizing: border-box; width: 100%; border: 1px solid #e2e8f0; border-radius: 5.25px; padding: 0 56px 0 10.5px; font: inherit; font-size: 17px; color: #020817; background: #ffffff">
+        <button type="button" aria-label="Show password" style="position: absolute; top: 0; right: 0; bottom: 0; min-width: 44px; padding: 0 10.5px; border: none; background: transparent; color: #944a00; font: inherit; font-size: 15px; font-weight: 500">Show</button>
+      </div>
+      <label for="delete-confirm" style="font-size: 15px; line-height: 21px; font-weight: 500; color: #1f2937">Type DELETE to confirm</label>
+      <input id="delete-confirm" autocapitalize="characters" autocomplete="off" style="min-height: 44px; height: 44px; box-sizing: border-box; width: 100%; border: 1px solid #d1d5db; border-radius: 7px; padding: 0 10.5px; font: inherit; font-size: 17px; color: #020817; background: #ffffff">
+    </div>
+
+    <div style="flex: none; border-top: 1px solid #e2e8f0; padding: 10.5px 14px 0; display: flex; flex-direction: column; gap: 7px">
+      <button type="button" disabled style="height: 42px; padding: 0 28px; border: none; border-radius: 5.25px; background: #ef4444; color: #ffffff; font: inherit; font-size: 15px; font-weight: 500; opacity: .5">Delete my account</button>
+      <a href="Profile.dc.html" style="height: 42px; box-sizing: border-box; padding: 0 28px; border: 1px solid #e2e8f0; border-radius: 5.25px; background: #ffffff; color: #020817; font-size: 15px; font-weight: 500; display: flex; align-items: center; justify-content: center; text-decoration: none">Cancel</a>
+    </div>
+    <div style="height: 34px; flex: none"></div>
+  </section>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":880}}'>
+class Component extends DCLogic {
+renderVals() {
+return {};
+}
+}
+</script>
+</body>
+</html>

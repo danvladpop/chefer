@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Recipe — Import preview</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+body{margin:0}
+a{color:#944a00;text-decoration:none}a:hover{color:#6e3700}
+input::placeholder,textarea::placeholder{color:#9ca3af}
+</style>
+</helmet>
+<div style="width: 390px; height: 844px; position: relative; overflow: hidden; background: #ffffff; font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Helvetica Neue', system-ui, sans-serif; color: #020817; display: flex; flex-direction: column">
+  <div style="height: 47px; flex: none"></div>
+
+  <main id="main" style="flex: 1; display: flex; flex-direction: column">
+    <header style="flex: none; display: flex; align-items: center; gap: 10.5px; padding: 10.5px 14px">
+      <a href="Cookbook.dc.html" aria-label="Back" style="width: 44px; height: 44px; display: flex; align-items: center; justify-content: center; color: #1f2937; text-decoration: none"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M11 5l-7 7 7 7M4 12h16"></path></svg></a>
+      <h1 style="margin: 0; font-size: 25px; line-height: 31px; font-weight: 700">Import Recipe</h1>
+    </header>
+
+    <div style="display: flex; flex-direction: column; gap: 14px; padding: 0 14px 28px">
+      <div style="border: 1px solid #fde68a; border-radius: 7px; background: #fffbeb; padding: 14px">
+        <p style="margin: 0; font-size: 13px; line-height: 18px; color: #92400e">The source claims 320 kcal/serving, but our ingredient data computes ~410 kcal.</p>
+      </div>
+
+      <div role="radiogroup" aria-label="Version to save" style="display: flex; flex-direction: column; gap: 14px">
+        <button type="button" role="radio" aria-checked="false" style="border: 1px solid #e2e8f0; border-radius: 10.5px; background: #ffffff; padding: 10.5px; font: inherit; text-align: left; display: flex; flex-direction: column; color: inherit">
+          <span style="display: flex; align-items: center; justify-content: space-between; min-height: 21px"><span style="font-size: 15px; line-height: 21px; font-weight: 600; color: #1f2937">Original</span></span>
+          <span style="margin-top: 3.5px; font-size: 15px; line-height: 21px; color: #1f2937; white-space: nowrap; overflow: hidden; text-overflow: ellipsis">One-Pan Shakshuka with Feta</span>
+          <span style="font-size: 13px; line-height: 18px; color: #6b7280">320 kcal · 9 ingredients · 30m</span>
+        </button>
+        <button type="button" role="radio" aria-checked="true" style="border: 1px solid #944a00; border-radius: 10.5px; background: #fcf3ea; padding: 10.5px; font: inherit; text-align: left; display: flex; flex-direction: column; color: inherit">
+          <span style="display: flex; align-items: center; justify-content: space-between; min-height: 21px"><span style="font-size: 15px; line-height: 21px; font-weight: 600; color: #944a00">Cheferized for you</span><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="color: #944a00"><circle cx="12" cy="12" r="9.5" fill="currentColor" stroke="none"></circle><path d="M7.5 12.3l3 3 6-6" stroke="#ffffff"></path></svg></span>
+          <span style="margin-top: 3.5px; font-size: 15px; line-height: 21px; color: #1f2937; white-space: nowrap; overflow: hidden; text-overflow: ellipsis">One-Pan Shakshuka (dairy-free)</span>
+          <span style="font-size: 13px; line-height: 18px; color: #6b7280">360 kcal · 9 ingredients · 30m</span>
+          <span style="margin-top: 3.5px; font-size: 13px; line-height: 18px; color: #8a7560">Swapped feta for a dairy-free crumble · Cut the olive oil from 4 to 2 tbsp · Added spinach for fibre</span>
+        </button>
+      </div>
+
+      <a href="Cookbook.dc.html" style="height: 44px; border-radius: 5.25px; background: #944a00; color: #fcf9f5; font-size: 15px; font-weight: 500; display: flex; align-items: center; justify-content: center; text-decoration: none">Save Cheferized recipe</a>
+
+      <a href="ImportRecipe.dc.html" style="height: 44px; border-radius: 5.25px; color: #8a7560; font-size: 13px; display: flex; align-items: center; justify-content: center; text-decoration: none">Start over</a>
+    </div>
+  </main>
+
+  <div style="height: 34px; flex: none"></div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":844}}'>
+class Component extends DCLogic {
+renderVals() {
+return {};
+}
+}
+</script>
+</body>
+</html>
