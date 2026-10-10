@@ -33,7 +33,7 @@ import {
   checkedForListHeaderText,
   defaultWeekOffset,
   deviceLocale,
-  formatApproxPrice,
+  formatApproxPriceHint,
   formatDate,
   formatPriceRange,
   getWeekStartDate,
@@ -468,7 +468,7 @@ export default function ShoppingListPage() {
           >
             Est. total{' '}
             {formatPriceRange(weekList.estimatedTotalEur, currency, deviceLocale()) ??
-              `~${formatApproxPrice(weekList.estimatedTotalEur, currency)}`}
+              formatApproxPriceHint(weekList.estimatedTotalEur, currency)}
             {/* UX-PLAN-07: the total covers the same days as the list. */}
             {shoppingWindowLabel(weekList.fromDayOfWeek)
               ? ` · ${shoppingWindowLabel(weekList.fromDayOfWeek)}`
@@ -494,7 +494,7 @@ export default function ShoppingListPage() {
           >
             For {weekList.portions} portions
             {weekList.estimatedTotalEur != null &&
-              ` · ~${formatApproxPrice(
+              ` · ${formatApproxPriceHint(
                 perPortionCost(weekList.estimatedTotalEur, weekList.portions) ?? 0,
                 currency,
               )} each`}
@@ -643,7 +643,7 @@ export default function ShoppingListPage() {
                                 {quantityLabel}
                                 {item.estimatedPriceEur != null && (
                                   <span className="ml-2 font-medium">
-                                    ~{formatApproxPrice(item.estimatedPriceEur, currency)}
+                                    {formatApproxPriceHint(item.estimatedPriceEur, currency)}
                                   </span>
                                 )}
                                 {item.key.startsWith(PENDING_KEY_PREFIX) && (

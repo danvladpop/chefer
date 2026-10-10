@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   deviceLocale,
   formatApproxPrice,
+  formatApproxPriceHint,
   formatDate,
   formatDateRange,
   formatKcal,
@@ -70,7 +71,7 @@ describe('formatQty', () => {
 
   it('prints a bare count without a stray space', () => {
     expect(formatQty(3, undefined, 'METRIC', 'en-US')).toBe('3');
-    expect(formatQty(3, 'pcs', 'METRIC', 'en-US')).toBe('3 pcs');
+    expect(formatQty(3, 'pcs', 'METRIC', 'en-US')).toBe('3 pieces');
   });
 });
 
@@ -78,6 +79,11 @@ describe('prices', () => {
   it('rounds an estimate to whole currency units, never to the cent', () => {
     expect(formatApproxPrice(6.56, 'EUR', 'en-IE')).toBe('€7');
     expect(formatApproxPrice(12.7, 'EUR', 'en-IE')).toBe('€13');
+  });
+
+  it('marks an approximate price once: ~€7, or <€1 on its own', () => {
+    expect(formatApproxPriceHint(6.56, 'EUR', 'en-IE')).toBe('~€7');
+    expect(formatApproxPriceHint(0.3, 'EUR', 'en-IE')).toBe('<€1');
   });
 
   it('says "under one" instead of rounding a 40-cent herb up', () => {

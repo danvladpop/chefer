@@ -1,7 +1,7 @@
 import { Pressable, View } from 'react-native';
 import { router } from 'expo-router';
 import { Button, Card, Text } from '@chefer/ui-mobile';
-import { resumeSummary, selectTodaysSession, todayStatus } from '@chefer/utils';
+import { resumeSummary, selectTodaysSession, todayStatus, weekdayOf } from '@chefer/utils';
 import { setMode } from '../mode-store';
 import { useActiveSessionPausedAt } from '../offline/active-session-store';
 import { localDate } from '../offline/ids';
@@ -146,8 +146,19 @@ export function TodaysWorkoutCard() {
   // 'training' with nothing planned at all (no routine day) — nothing useful to offer here.
   if (!nextWorkout) return null;
 
-  const eyebrow =
-    new Date().getHours() >= EYEBROW_TONIGHT_HOUR ? 'TRAINING TONIGHT' : 'TRAINING TODAY';
+  // A rotation day pinned to another weekday (its pin passed before setup, or
+  // it is overdue) is not "today's training": say it is up next, and when it
+  // usually happens, so a Saturday doesn't read as a scheduled training day.
+  const pinnedWeekday =
+    session.kind === 'rotation'
+      ? (bootstrap.activeRoutine?.days.find((d) => d.id === session.dayId)?.plannedWeekday ?? null)
+      : null;
+  const offSchedule = pinnedWeekday !== null && pinnedWeekday !== weekdayOf(today);
+  const eyebrow = offSchedule
+    ? 'UP NEXT'
+    : new Date().getHours() >= EYEBROW_TONIGHT_HOUR
+      ? 'TRAINING TONIGHT'
+      : 'TRAINING TODAY';
   const handleStart = () => {
     setMode('gym');
     activeWorkout.start({ kind: 'planned', workout: nextWorkout });
@@ -163,7 +174,7 @@ export function TodaysWorkoutCard() {
         {nextWorkout.dayName}
       </Text>
       <Text variant="muted" className="text-xs">
-        {`~${nextWorkout.estimatedMin} min · ${nextWorkout.exercises.length} exercises`}
+        {`${offSchedule ? `Usually ${weekdayLabel(pinnedWeekday)} · ` : ''}~${nextWorkout.estimatedMin} min · ${nextWorkout.exercises.length} exercises`}
       </Text>
       <Button testID="todays-workout-card-start" size="lg" className="mt-1" onPress={handleStart}>
         Start workout

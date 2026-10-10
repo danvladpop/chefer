@@ -165,7 +165,8 @@ describe('Shop: numbers you can shop for (UX-SHOP-03)', () => {
     // Whole units in whatever format the device uses ("€7", "7 €").
     expect(await screen.findByText(/~€?7(\D|$)/)).toBeOnTheScreen();
     expect(screen.queryByText(/6[.,]56/)).toBeNull();
-    expect(screen.getByText(/~<€?1(\D|$)/)).toBeOnTheScreen();
+    expect(screen.getByText(/(^|[^~])<€?1(\D|$)/)).toBeOnTheScreen();
+    expect(screen.queryByText(/~</)).toBeNull();
   });
 
   it('shows quantities in the user’s units', async () => {

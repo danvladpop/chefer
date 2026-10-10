@@ -103,7 +103,7 @@ describe('NutritionProvenance', () => {
 describe('NutritionStatusTag', () => {
   it('tags PARTIAL and USER_ENTERED only', async () => {
     await render(<NutritionStatusTag status="PARTIAL" testID="tag" />);
-    expect(screen.getByTestId('tag')).toHaveTextContent('· Incomplete');
+    expect(screen.getByTestId('tag')).toHaveTextContent('· Partial data');
     await render(<NutritionStatusTag status="COMPUTED" testID="tag2" />);
     expect(screen.queryByTestId('tag2')).toBeNull();
   });

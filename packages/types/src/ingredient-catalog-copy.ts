@@ -17,7 +17,7 @@ export const INGREDIENT_CATALOG_COPY = {
     /** USER_ENTERED: an old client's typed numbers, kept under D4. */
     userEntered: 'Entered by you',
     /** Short badge text for list cards. */
-    incompleteBadge: 'Incomplete',
+    incompleteBadge: 'Partial data',
     userEnteredBadge: 'Entered by you',
     caveat: 'Computed from standard food data, not a lab measurement.',
     fix: 'Fix ingredients',

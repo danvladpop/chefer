@@ -1,4 +1,8 @@
-import { shellTabsFor, shellV2PathFor } from '../../src/features/shell/shell-routes';
+import {
+  isShellV2TabPath,
+  shellTabsFor,
+  shellV2PathFor,
+} from '../../src/features/shell/shell-routes';
 
 describe('shellTabsFor', () => {
   it('shows every tab when the jobs question was never answered', () => {
@@ -39,5 +43,14 @@ describe('shellV2PathFor', () => {
 
   it('leaves anything else alone', () => {
     expect(shellV2PathFor('/recipe/abc')).toBeNull();
+  });
+});
+
+describe('isShellV2TabPath', () => {
+  it('knows the new tabs and nothing else', () => {
+    expect(isShellV2TabPath('/you')).toBe(true);
+    expect(isShellV2TabPath('/home')).toBe(true);
+    expect(isShellV2TabPath('/settings')).toBe(false);
+    expect(isShellV2TabPath('/more')).toBe(false);
   });
 });

@@ -40,3 +40,10 @@ const OLD_TO_NEW: Readonly<Record<string, string>> = {
 export function shellV2PathFor(pathname: string): string | null {
   return OLD_TO_NEW[pathname] ?? null;
 }
+
+const NEW_TAB_PATHS: ReadonlySet<string> = new Set(['/home', '/plan', '/shop', '/train', '/you']);
+
+/** Whether a pathname is one of the new shell's own tabs. */
+export function isShellV2TabPath(pathname: string): boolean {
+  return NEW_TAB_PATHS.has(pathname);
+}

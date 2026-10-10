@@ -900,7 +900,7 @@ describe('TodayScreen', () => {
       );
       await renderToday(queryClient);
 
-      expect(screen.getByText('0 of 2 this week')).toBeOnTheScreen();
+      expect(screen.getByText('0 of 2 this week · 4 from next week')).toBeOnTheScreen();
       expect(screen.queryByText('0 of 4 this week')).not.toBeOnTheScreen();
     });
 

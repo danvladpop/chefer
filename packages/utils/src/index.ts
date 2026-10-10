@@ -30,6 +30,7 @@ export {
 export {
   deviceLocale,
   formatApproxPrice,
+  formatApproxPriceHint,
   formatDate,
   formatDateRange,
   formatKcal,

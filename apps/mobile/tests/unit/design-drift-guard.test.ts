@@ -32,7 +32,7 @@ const PALETTE_FILES = new Set([
 ]);
 
 // The count of the rest of the app, 2026-10-09. Only ever lower these.
-const BASELINE = { hex: 301, palette: 816 };
+const BASELINE = { hex: 301, palette: 804 };
 
 const HEX = /['"`]#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{3})['"`]/g;
 const PALETTE =

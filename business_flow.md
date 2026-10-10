@@ -2726,7 +2726,8 @@ without a gym profile sees Today · Plan · Shop · You. Recipes open from Plan'
 Stats and Gym settings are listed at the foot of Train; everything that was in More (and the header gear) is
 under You. Food is added through Today's **+** sheet (search, snap, copy yesterday, save a recipe). A running
 workout shows a mini bar above the tabs on every tab. Any old link (`/meal-plan`, `/today`, `/stats?tab=…`)
-lands on the same screen in the new shell. Web is unchanged.
+lands on the same screen in the new shell. Flipping the preview on Settings leaves Settings open; Back
+then lands on You (or the old More when switching off). Web is unchanged.
 
 ### Tester feedback 2026-10-07 — gym (WP-23)
 

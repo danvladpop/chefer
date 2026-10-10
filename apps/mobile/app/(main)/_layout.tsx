@@ -1,5 +1,5 @@
 import { View } from 'react-native';
-import { Redirect, Tabs } from 'expo-router';
+import { Redirect, Tabs, usePathname } from 'expo-router';
 import { countPillText, useThemeColors } from '@chefer/ui-mobile';
 import { Icon, type IconName } from '../../src/components/icon';
 import { SnackbarAwareTabBar } from '../../src/components/snackbar-tab-bar';
@@ -8,7 +8,11 @@ import { useFriendsMe } from '../../src/features/friends/api/use-friends-me';
 import { getCachedHasGymProfile, getCachedJobs } from '../../src/features/navigation/landing-cache';
 import { useSyncLandingCache } from '../../src/features/navigation/use-landing';
 import { useOnboardingGate } from '../../src/features/onboarding/use-onboarding-gate';
-import { shellTabsFor, type ShellTab } from '../../src/features/shell/shell-routes';
+import {
+  isShellV2TabPath,
+  shellTabsFor,
+  type ShellTab,
+} from '../../src/features/shell/shell-routes';
 import { useShellV2 } from '../../src/features/shell/shell-store';
 import { WorkoutMiniBar } from '../../src/features/shell/workout-mini-bar';
 import { trpc } from '../../src/lib/trpc';
@@ -30,6 +34,7 @@ const TABS: { name: ShellTab; title: string; icon: IconName; activeIcon: IconNam
 
 export default function MainTabsLayout() {
   const shellV2 = useShellV2();
+  const pathname = usePathname();
   const colors = useThemeColors();
   useSyncLandingCache();
   // Same in-app Following badge the old More tabs carried, now on You.
@@ -45,8 +50,9 @@ export default function MainTabsLayout() {
   );
 
   if (onboardingPending || onboardingUnfinished) return <Redirect href="/onboarding" />;
-  // The preview was switched off (or the flag flipped back): old shell.
-  if (!shellV2) return <Redirect href="/(food)" />;
+  // The preview was switched off (or the flag flipped back): old shell —
+  // once a new tab has focus, not from under a pushed Settings screen.
+  if (!shellV2) return isShellV2TabPath(pathname) ? <Redirect href="/(food)" /> : null;
 
   return (
     <Tabs

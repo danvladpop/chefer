@@ -19,7 +19,7 @@ export default function GymTabsLayout() {
   // (Today → Train, Routine/Exercises/Stats → pushed from Train, More → You).
   const shellV2 = useShellV2();
   if (shellV2) {
-    return <ShellV2Forward fallback="/train" />;
+    return <ShellV2Forward />;
   }
   return (
     <Tabs

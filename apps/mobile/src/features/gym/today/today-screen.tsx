@@ -359,6 +359,9 @@ export function TodayScreen() {
     streak.thisWeekGoal > 0
       ? proRatedWeekGoal({ goal: streak.thisWeekGoal, today, setupDate: since })
       : 0;
+  // The pro-rated first week explains itself: "0 of 2 this week · 3 from next week".
+  const firstWeekNote =
+    weekGoal < streak.thisWeekGoal ? ` · ${streak.thisWeekGoal} from next week` : '';
   const goalMet = weekGoal > 0 && streak.thisWeekSessions >= weekGoal;
   const ringProgress = weekGoal > 0 ? Math.min(1, streak.thisWeekSessions / weekGoal) : 0;
   // Bug B-15: `nextWorkout` always reflects the rotation's next day, which
@@ -475,7 +478,7 @@ export function TodayScreen() {
               <Text className="text-sm font-medium">
                 {goalMet
                   ? `Weekly goal met · ${streak.thisWeekSessions} ${streak.thisWeekSessions === 1 ? 'session' : 'sessions'}`
-                  : `${streak.thisWeekSessions} of ${weekGoal} this week`}
+                  : `${streak.thisWeekSessions} of ${weekGoal} this week${firstWeekNote}`}
               </Text>
               <Text testID="gym-today-streak" variant="muted" className="text-sm">
                 {formatStreakLine(streak)}

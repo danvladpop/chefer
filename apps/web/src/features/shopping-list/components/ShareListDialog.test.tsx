@@ -109,7 +109,7 @@ describe('ShareListDialog', () => {
     await waitFor(() => expect(writeText).toHaveBeenCalledOnce());
     const text = String(writeText.mock.calls[0]?.[0]);
     expect(text).toContain('Shopping list · 28 Sep – 4 Oct');
-    expect(text).toContain('PRODUCE\n- Tomatoes, 2 pcs');
+    expect(text).toContain('PRODUCE\n- Tomatoes, 2 pieces');
     expect(text).toMatch(/Made with Chefer · http/);
     await waitFor(() => expect(screen.getByRole('status').textContent).toBe('List copied.'));
   });
@@ -121,7 +121,7 @@ describe('ShareListDialog', () => {
     render(<ShareListDialog {...props({ onClose })} />);
     fireEvent.click(screen.getByRole('button', { name: 'Share…' }));
     await waitFor(() => expect(share).toHaveBeenCalledOnce());
-    expect(share.mock.calls[0]?.[0].text).toContain('Rice, 2 pcs');
+    expect(share.mock.calls[0]?.[0].text).toContain('Rice, 2 pieces');
     await waitFor(() => expect(onClose).toHaveBeenCalled());
   });
 });

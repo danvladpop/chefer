@@ -63,7 +63,7 @@ export default function FoodTabsLayout() {
       landingCheckedForToken = token;
       if (pathname === '/' && landingSurfaceSync() === 'gym') landing = '/train';
     }
-    return <ShellV2Forward fallback="/home" landing={landing} />;
+    return <ShellV2Forward landing={landing} />;
   }
   if (landingCheckedForToken !== token) {
     landingCheckedForToken = token;
