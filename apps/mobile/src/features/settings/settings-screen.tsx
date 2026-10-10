@@ -10,6 +10,8 @@ import { useFriendsAvailability } from '../friends/api/use-friends-availability'
 import { useGymBootstrap } from '../gym/use-gym-bootstrap';
 import { legalHref } from '../legal/legal-docs';
 import { ShellPreviewSection } from '../shell/shell-preview-row';
+import { useShellV2 } from '../shell/shell-store';
+import { AccountScreen } from '../shell/you/account-screen';
 import { useSignOut } from './use-sign-out';
 
 // ─── Settings hub (T-00.9, PAT-9 §2.9; UX-ACC-04, UX-ACC-19) ───────────────────
@@ -199,7 +201,12 @@ function TrainingSetupCta() {
   );
 }
 
+/** `/settings`: "Account" in the new shell (10 Oct redesign), the hub in the old one. */
 export function SettingsScreen() {
+  return useShellV2() ? <AccountScreen /> : <LegacySettingsScreen />;
+}
+
+function LegacySettingsScreen() {
   const { enabled: friendsAvailable } = useFriendsAvailability();
   // Only a *loaded* "no gym profile" swaps the Training rows for the CTA — a
   // slow or failed load keeps the rows rather than flashing a setup prompt.
