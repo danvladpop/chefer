@@ -7,6 +7,7 @@ import type { ChatContext, ChatMessage, ChatTools } from '../../lib/ai/index.js'
 import { isPremiumUser } from '../../lib/entitlements.js';
 import { reserveAiSwap, reserveChatMessage } from '../../lib/quotas.js';
 import { coachService } from '../coach/coach.service.js';
+import { trainingSummaryService } from '../gym/training-summary.service.js';
 import { mealPlanService, type WeekPlanDto } from '../meal-plan/meal-plan.service.js';
 import { pantryService } from '../pantry/pantry.service.js';
 import { resolveDailyTargets } from '../preferences/preferences.service.js';
@@ -363,6 +364,17 @@ export class ChatService {
         } catch (err) {
           return `Import failed: ${err instanceof Error ? err.message : 'unknown error'}`;
         }
+      },
+
+      getMyTraining: async () => {
+        // Read-only (no ChatAction): the user's local day drives the week
+        // and pause dates, the nutrition units are the fallback before the
+        // gym profile (which carries its own kg/lb) exists.
+        const profile = await chefProfileRepository.findByUserId(user.id);
+        return trainingSummaryService.forChat(user.id, {
+          today: localDateInZone(profile?.timeZone),
+          preferredUnits: profile?.preferredUnits ?? null,
+        });
       },
 
       whatCanIMake: async () => {

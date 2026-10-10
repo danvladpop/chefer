@@ -1883,6 +1883,32 @@ free preview's example prompts). The last thread is kept for the rest of the
 calendar day: mobile in the on-device KV store (wiped at sign-out), web in
 `sessionStorage` (this tab only, cleared at logout); "New chat" clears it.
 
+**Ask Chef helps with training (2026-10-10).** The chef is now a personal chef
+AND training helper. `CHAT_SYSTEM_PROMPT` tells the model that for questions
+about workouts, routines, progress, sets, PRs or what to train next it calls the
+read-only tool `getMyTraining` and answers from what it returns — never
+inventing weights, reps, sets, dates or sessions. The tool
+(`TrainingSummaryService.forChat`, `application/gym/training-summary.service.ts`)
+reads the same data the Train tab shows (`gym.bootstrap` for the user's local
+today, the PR timeline, the setup recommendation) and returns a short text:
+whether training is set up (if not: say so and point to the Train tab), the
+weekly goal and this week's sessions, the streak, the next workout (each
+exercise with sets × rep range and the suggested load), the active routine's
+days and exercises, the last 5 finished sessions (date, name, minutes, working
+sets, user-logged kcal of an activity), recent PRs (first-ever baseline sets
+are not PRs), an active or planned training pause, and the program the app
+recommends for their setup (marked when it is already theirs). Loads are in the
+user's kg/lb (`GymProfile.unit`; before setup, `ChefProfile.preferredUnits`).
+The chef cannot create or edit routines or log workouts from chat — it explains
+the in-app path (Train → Routines → Edit); the tool records no `ChatAction`, so
+no client chip or contract changes. Guardrail: `TRAINING_NOT_PHYSIO_RULE` — for
+training it is a helper, not a doctor or physiotherapist: no injury diagnosis,
+no rehab or pain-management advice, never "train through pain"; pain or an
+injury → see a doctor or physiotherapist. The chef-not-doctor and
+disordered-eating rules are unchanged. The mock provider (`AI_MOCK_ENABLED`)
+answers "what should I train", "my workouts / training / routine / lifts / PRs"
+with the real tool's text.
+
 ```
 POST /api/chat (session cookie)
   ├─ resolve user from session (401 without)
@@ -1902,9 +1928,11 @@ POST /api/chat (session cookie)
        │    │    (a chat swap IS a plan swap — the meal-plan page reflects it)
        │    ├─ scaleRecipe(recipeName, servings) → quantities rescaled from
        │    │    the active plan
-       │    └─ addToShoppingList(items[]) → ShoppingListService.addCustomItems
-       │         (items land in the customItems overlay — visible and
-       │         removable on the Shopping List page)
+       │    ├─ addToShoppingList(items[]) → ShoppingListService.addCustomItems
+       │    │    (items land in the customItems overlay — visible and
+       │    │    removable on the Shopping List page)
+       │    └─ getMyTraining() → TrainingSummaryService.forChat (read-only:
+       │         gym.bootstrap + PR timeline + setup recommendation as text)
        └─ mock: echoes the same context and exercises the same tools
 ```
 
@@ -2746,8 +2774,8 @@ new shell. Flipping the preview on You leaves You open; switching off lands on t
 **10 Oct redesign** (owner feedback `docs/design/feedback/2026-10-10/feedback.md`, approved boards in
 `docs/design/mobile/`). Less text, one tile for recipes and workouts, and settings in one place:
 
-- **Every tab** has its title and an **Ask Chef** pill in the same spot (the chat still helps with food only;
-  workout help needs API work). Plan is renamed **Meals** so it reads as food.
+- **Every tab** has its title and an **Ask Chef** pill in the same spot (the chat helps with food and, since
+  2026-10-10, with workouts and routines — §13). Plan is renamed **Meals** so it reads as food.
 - **Today:** a half-ring calorie gauge (eaten · left · target) with protein 🍖, carbs 🍞 and fat 🥑 rows
   (over target says "N g over", amber, never red) → the **next meal** with Eaten / Cook now / Swap / Skip →
   **Your day** (one circle per meal, "Open your day" → the day's log, renamed Your day) → **Training**
