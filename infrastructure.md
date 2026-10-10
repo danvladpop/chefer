@@ -627,9 +627,9 @@ Behind the `mobileShellV2` flag (cached in the gym KV store by `ShellFlagHost`,
 key `shell.v2.flag`) or a per-device preview switch (`shell.v2.preview`, shown
 to admins and development builds in Settings and You), the app renders one
 `Tabs` group, `app/(main)`, instead of the two modes: `/home` (Today),
-`/plan`, `/shop`, `/train`, `/you`. Tabs are job-aware (`shellTabsFor`,
-`src/features/shell/shell-routes.ts`: Plan/Shop hidden for TRAIN-only, Train
-hidden for food-only without a gym profile; hidden tabs keep their route).
+`/plan`, `/shop`, `/train`, `/you`. Every account sees all five tabs (the
+job-aware first cut hid Plan/Shop from TRAIN-only accounts that still used
+the food side, so it was dropped on 2026-10-10).
 The old Gym and Cookbook tabs become pushed stack screens: `/training/routine`,
 `/training/exercises`, `/training/stats`, `/cookbook`. While the shell is on,
 the `(food)` and `(gym)` layouts render `ShellV2Forward`, which redirects any

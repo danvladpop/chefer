@@ -5,21 +5,17 @@ import { Icon, type IconName } from '../../src/components/icon';
 import { SnackbarAwareTabBar } from '../../src/components/snackbar-tab-bar';
 import { usePendingOnboarding } from '../../src/features/auth/pending-onboarding';
 import { useFriendsMe } from '../../src/features/friends/api/use-friends-me';
-import { getCachedHasGymProfile, getCachedJobs } from '../../src/features/navigation/landing-cache';
 import { useSyncLandingCache } from '../../src/features/navigation/use-landing';
 import { useOnboardingGate } from '../../src/features/onboarding/use-onboarding-gate';
-import {
-  isShellV2TabPath,
-  shellTabsFor,
-  type ShellTab,
-} from '../../src/features/shell/shell-routes';
+import { isShellV2TabPath, type ShellTab } from '../../src/features/shell/shell-routes';
 import { useShellV2 } from '../../src/features/shell/shell-store';
 import { WorkoutMiniBar } from '../../src/features/shell/workout-mini-bar';
-import { trpc } from '../../src/lib/trpc';
 
 // ─── The new shell (mobile UX revamp, phase 1; plan: "Target navigation") ───
 // One tab bar instead of two Food|Gym modes: Today · Plan · Shop · Train ·
-// You. Tabs follow the jobs the user picked (a lifter never sees Plan/Shop).
+// You. Every account sees all five: the old app let anyone reach Food and
+// Gym through the mode switch, so hiding tabs by onboarding jobs (first cut)
+// stranded a "training only" account without Plan or Shop.
 // Recipes live inside Plan, the old More inside You, Add and Ask Chef are
 // header buttons. Only reachable while `mobileShellV2` (or the device
 // preview) is on; the old (food)/(gym) groups redirect here then.
@@ -41,13 +37,6 @@ export default function MainTabsLayout() {
   const { badgeCount } = useFriendsMe();
   const onboardingPending = usePendingOnboarding();
   const onboardingUnfinished = useOnboardingGate();
-  // Live jobs when loaded, the launch cache before that (no tab pop-in).
-  const { data: prefs } = trpc.preferences.get.useQuery();
-  const { data: gymProfile } = trpc.gym.profile.get.useQuery();
-  const tabs = shellTabsFor(
-    prefs?.jobs ?? getCachedJobs(),
-    gymProfile === undefined ? getCachedHasGymProfile() : gymProfile !== null,
-  );
 
   if (onboardingPending || onboardingUnfinished) return <Redirect href="/onboarding" />;
   // The preview was switched off (or the flag flipped back): old shell —
@@ -76,8 +65,6 @@ export default function MainTabsLayout() {
           name={tab.name}
           options={{
             title: tab.title,
-            // A hidden tab keeps its route (deep links still open) but no button.
-            href: tabs[tab.name] ? undefined : null,
             tabBarButtonTestID: `tab-${tab.name}`,
             tabBarIcon: ({ color, focused }) => (
               <Icon name={focused ? tab.activeIcon : tab.icon} color={color} size={24} />
