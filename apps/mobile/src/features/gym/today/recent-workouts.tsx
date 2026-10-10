@@ -1,17 +1,15 @@
-import { useMemo, useState } from 'react';
 import { Pressable, View } from 'react-native';
 import { router } from 'expo-router';
-import type { GymBootstrap, SessionSummaryDto } from '@chefer/types';
+import type { GymBootstrap } from '@chefer/types';
 import { Button, Text } from '@chefer/ui-mobile';
-import { collectPrs, groupRecentSessions, sessionStatsText } from '@chefer/utils';
-import { trpc } from '../../../lib/trpc';
+import { groupRecentSessions, sessionStatsText } from '@chefer/utils';
 import {
   SessionOptionsButton,
   sessionRowAccessibilityActions,
   useSessionActions,
 } from '../history/use-session-actions';
-import { useIsOnline } from '../library-screens/online-status';
 import { localDate } from '../offline/ids';
+import { useRecentSessions } from './use-recent-sessions';
 
 // UX-36 amendment A2 (T-36.A2.1, O-10/O-11): the `Recent` section on Gym
 // Today, replacing the old single "Last workout" row. Built on
@@ -21,72 +19,28 @@ import { localDate } from '../offline/ids';
 // exhausted — the online tier degrades to a "Connect to load older
 // workouts." message offline, per spec.
 
-const PAGE_SIZE = 5;
-const INLINE_CAP = 13;
-
-function cursorOf(session: SessionSummaryDto): string {
-  return `${session.startedAt}|${session.id}`;
-}
-
 export interface RecentWorkoutsProps {
   bootstrap: GymBootstrap;
   testID?: string;
 }
 
 export function RecentWorkouts({ bootstrap, testID = 'gym-today-recent' }: RecentWorkoutsProps) {
-  const utils = trpc.useUtils();
-  const online = useIsOnline();
   const actions = useSessionActions({ bootstrap, source: 'recent', testIDPrefix: testID });
   const today = localDate();
-  const cached = useMemo(
-    () => bootstrap.recentSessions.filter((s) => s.status === 'COMPLETED'),
-    [bootstrap.recentSessions],
-  );
-  const [extra, setExtra] = useState<SessionSummaryDto[]>([]);
-  const [visibleCount, setVisibleCount] = useState(3);
-  const [loadingMore, setLoadingMore] = useState(false);
-  const [loadError, setLoadError] = useState(false);
-  const [exhaustedOnline, setExhaustedOnline] = useState(false);
-
-  const combined = useMemo(() => [...cached, ...extra], [cached, extra]);
-  const prSessionIds = useMemo(
-    () => new Set(collectPrs(combined, undefined, bootstrap.olderBests).map((r) => r.sessionId)),
-    [combined, bootstrap.olderBests],
-  );
+  const {
+    online,
+    combined,
+    shown,
+    prSessionIds,
+    hasMoreToShow,
+    loadingMore,
+    loadError,
+    handleShowMore,
+  } = useRecentSessions(bootstrap);
 
   if (combined.length === 0) return null;
 
-  const shown = combined.slice(0, visibleCount);
   const groups = groupRecentSessions(shown, today, { limit: shown.length, prSessionIds });
-  const hasMoreToShow =
-    visibleCount < INLINE_CAP && (visibleCount < cached.length || !exhaustedOnline);
-
-  const handleShowMore = async () => {
-    setLoadError(false);
-    if (visibleCount < cached.length) {
-      setVisibleCount((v) => Math.min(INLINE_CAP, v + PAGE_SIZE));
-      return;
-    }
-    if (!online) {
-      setLoadError(true);
-      return;
-    }
-    setLoadingMore(true);
-    try {
-      const last = combined.at(-1);
-      const res = await utils.gym.session.list.fetch({
-        cursor: last ? cursorOf(last) : undefined,
-        limit: PAGE_SIZE,
-      });
-      setExtra((prev) => [...prev, ...res.items]);
-      setVisibleCount((v) => Math.min(INLINE_CAP, v + res.items.length));
-      if (res.items.length === 0 || res.nextCursor === null) setExhaustedOnline(true);
-    } catch {
-      setLoadError(true);
-    } finally {
-      setLoadingMore(false);
-    }
-  };
 
   return (
     <View testID={testID} className="gap-3">

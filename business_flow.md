@@ -2721,13 +2721,44 @@ Food/Gym switch (header of every tab root) → persisted mode
 ### New mobile shell (UX revamp phase 1, behind `mobileShellV2`)
 
 With the flag (or the admin/dev preview switch) on, mobile has one tab bar instead of the Food | Gym modes:
-**Today · Plan · Shop · Train · You**, the same five for every account (hiding tabs by onboarding jobs
-stranded training-only accounts that also plan meals, 2026-10-10). Recipes open from Plan's header; Routine, Exercises,
-Stats and Gym settings are listed at the foot of Train; everything that was in More (and the header gear) is
-under You. Food is added through Today's **+** sheet (search, snap, copy yesterday, save a recipe). A running
-workout shows a mini bar above the tabs on every tab. Any old link (`/meal-plan`, `/today`, `/stats?tab=…`)
-lands on the same screen in the new shell. Flipping the preview on Settings leaves Settings open; Back
-then lands on You (or the old More when switching off). Web is unchanged.
+**Today · Meals · Shop · Train · You**, the same five for every account (hiding tabs by onboarding jobs
+stranded training-only accounts that also plan meals, 2026-10-10). A running workout shows a mini bar above
+the tabs on every tab. Any old link (`/meal-plan`, `/today`, `/stats?tab=…`) lands on the same screen in the
+new shell. Flipping the preview on You leaves You open; switching off lands on the old shell. Web is unchanged.
+
+**10 Oct redesign** (owner feedback `docs/design/feedback/2026-10-10/feedback.md`, approved boards in
+`docs/design/mobile/`). Less text, one tile for recipes and workouts, and settings in one place:
+
+- **Every tab** has its title and an **Ask Chef** pill in the same spot (the chat still helps with food only;
+  workout help needs API work). Plan is renamed **Meals** so it reads as food.
+- **Today:** a half-ring calorie gauge (eaten · left · target) with protein 🍖, carbs 🍞 and fat 🥑 rows
+  (over target says "N g over", amber, never red) → the **next meal** with Eaten / Cook now / Swap / Skip →
+  **Your day** (one circle per meal, "Open your day" → the day's log, renamed Your day) → **Training**
+  (planned: Start workout + Log a workout; done: duration, sets or logged kcal, exercises, Summary,
+  Log another workout; rest days are one quiet row; nothing for people who don't train) → **weight** (weigh
+  in; once logged today it becomes a widget with the 30-day change, tapping opens Stats). **Stats** (top
+  bar) joins eating trends (7/28/90 days), weight and training streaks; the weekly chef review moved there.
+  The shop reminder, Later today and Tonight/Tomorrow cards are gone from Today.
+- **Log a workout** (Today, the + sheet, Train): pick the gym day you already did (log mode for today), an
+  activity (form opens with it picked), or start a freestyle workout now.
+- **Meals:** This week / Next week, a day strip, big day totals (kcal + macro tiles), the day's meals as
+  tiles labelled with the meal type, each with a swap button; **Change week** (new plan, rebalance, Meal
+  settings); one safety line with an info button for the full disclaimer; the **Cookbook** card (open it or
+  add a recipe). Nothing training-related on Meals.
+- **Shop:** one cost chip and a done count, one "Search or add an item" field, items grouped (Fruit & veg,
+  Meat & fish, Dairy & eggs, Grains & pantry, Frozen, Other); **checked items move to the bottom of their
+  group**.
+- **Train:** an ongoing workout first, then the week, **Up next** (time chips, Start, Edit, Freestyle), Log a
+  workout, the **Routines** card (same weight as Cookbook), past workouts one per line with PR badges.
+  Workout complete shows duration, sets (or logged kcal for activities) and exercises, PRs and the week.
+  Program setup shows distinct program cards; New exercise uses dropdowns.
+- **You is the one home for settings:** Your progress (Stats, My weeks), Settings (Meals → the new Meal
+  settings screen, Training → Training settings, Notifications, Account), People, Preview, Help (Send
+  feedback opens a sheet), Sign out. Account holds what was left of Settings (goal, targets, Premium,
+  emails, privacy, data, legal); Goals & diet (`/preferences`) lists Goal & body before allergies. In-context
+  shortcuts only link into these screens (Change week → Meal settings). Every old Settings row is reachable:
+  food rows → Meal settings, training rows → Training settings, workout history → Train → Strength and
+  history.
 
 ### Tester feedback 2026-10-07 — gym (WP-23)
 

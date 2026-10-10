@@ -170,7 +170,12 @@ export function SegmentedControl<T extends string>({
             )}
           >
             <Text
-              className={cn(segmentTextVariants({ size, selected }), 'text-center')}
+              // self-stretch: the label box spans the whole segment instead of
+              // its own measured width. Android draws a few px wider than it
+              // measures, so a hugging box wrapped "This week" to a clipped
+              // second line ("This"; Pixel_8, 10 Oct redesign). Centred text
+              // looks the same either way.
+              className={cn(segmentTextVariants({ size, selected }), 'self-stretch text-center')}
               // The compact (xs) size is header chrome in a fixed-width track
               // (the Food | Gym switch): cap it lower so it never truncates to "F…".
               maxFontSizeMultiplier={compact ? COMPACT_MAX_FONT_SCALE : DENSE_MAX_FONT_SCALE}

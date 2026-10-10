@@ -1,12 +1,10 @@
-import { useId, useRef, useState } from 'react';
+import { useId, useRef } from 'react';
 import { Keyboard, Pressable, TextInput, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { NumericReturnBar, showSnackbar, Text, useScrollFieldIntoView } from '@chefer/ui-mobile';
-import { cn, formatBodyWeight, parseBodyWeight, userFacingErrorMessage } from '@chefer/utils';
-import { useUnitSystem } from '../../hooks/use-unit-system';
-import { trpc } from '../../lib/trpc';
+import { NumericReturnBar, Text, useScrollFieldIntoView } from '@chefer/ui-mobile';
+import { cn } from '@chefer/utils';
 import { HealthDeclinedNotice } from '../privacy/health-notices';
-import { useHealthConsent } from '../privacy/use-health-consent';
+import { useWeightLog } from './use-weight-log';
 
 // One weigh-in form for the dashboard weight card and the Progress screen —
 // mobile counterpart of web features/coach/WeightLogForm. Validation mirrors
@@ -19,19 +17,6 @@ import { useHealthConsent } from '../privacy/use-health-consent';
 // Progress screen can be mounted at the same time (duplicate native ids would
 // make iOS pick one arbitrarily).
 
-// UX-FOOD-08: the same weight, typed again on the same calendar day, is a
-// duplicate weigh-in (a second tap on "+", or Return after the field was
-// refilled) — it is ignored rather than stored twice.
-const SAME_WEIGHT_KG = 0.05;
-
-function isSameDay(a: Date, b: Date): boolean {
-  return (
-    a.getFullYear() === b.getFullYear() &&
-    a.getMonth() === b.getMonth() &&
-    a.getDate() === b.getDate()
-  );
-}
-
 export function WeightLogForm({
   placeholder,
   label,
@@ -42,80 +27,25 @@ export function WeightLogForm({
   /** The newest weigh-in on record, for the same-value-same-day dedupe. */
   lastEntry?: { weightKg: number; recordedAt: Date } | null;
 }) {
-  const system = useUnitSystem();
   const barId = `weight-log-numeric-bar-${useId()}`;
-  const imperial = system === 'IMPERIAL';
-  const [value, setValue] = useState('');
-  const [inputError, setInputError] = useState<string | null>(null);
-  const [saved, setSaved] = useState(false);
   const inputRef = useRef<TextInput>(null);
   // Keeps the field clear of the keyboard inside a KeyboardAwareScrollView
   // (Progress); a no-op elsewhere.
   const scrollFieldIntoView = useScrollFieldIntoView();
-  const utils = trpc.useUtils();
-  // T-26.2: a weigh-in is health information — asked once, on the first save.
-  const { requestHealthConsent, healthConsentSheet } = useHealthConsent();
-  const [declined, setDeclined] = useState(false);
-
-  const logWeight = trpc.tracker.logWeight.useMutation({
-    meta: { silent: true },
-    onSuccess: (entry, variables) => {
-      setSaved(true);
-      // UX-FOOD-08: a logged weight must not stay in the field (it led to
-      // duplicate weigh-ins) — clear it and offer an Undo.
-      setValue('');
-      setTimeout(() => setSaved(false), 3000);
-      // Every range (30-day card, 90-day progress) and the gym bodyweight views.
-      const refresh = () => {
-        void utils.tracker.weightHistory.invalidate();
-        void utils.gym.stats.bodyweight.invalidate();
-        void utils.gym.bootstrap.invalidate();
-      };
-      refresh();
-      showSnackbar({
-        message: `Logged ${formatBodyWeight(variables.weightKg, system)}`,
-        actionLabel: 'Undo',
-        tone: 'success',
-        onAction: () => {
-          // Imperative client: the card may be gone by the time Undo is tapped.
-          utils.client.tracker.deleteWeight
-            .mutate({ id: entry.id })
-            .then(refresh)
-            .catch((err: unknown) => showSnackbar({ message: userFacingErrorMessage(err) }));
-        },
-      });
-    },
-  });
-
-  /** Returns true when the typed value was accepted (valid), so the caller may close the keyboard. */
-  const submit = (): boolean => {
-    if (logWeight.isPending) return false;
-    const parsed = parseBodyWeight(value, system);
-    if (!parsed.ok) {
-      setInputError(parsed.error);
-      return false;
-    }
-    setInputError(null);
-    setDeclined(false);
-    if (
-      lastEntry &&
-      isSameDay(new Date(lastEntry.recordedAt), new Date()) &&
-      Math.abs(lastEntry.weightKg - parsed.kg) < SAME_WEIGHT_KG
-    ) {
-      setValue('');
-      showSnackbar({ message: `Already logged ${formatBodyWeight(parsed.kg, system)} today` });
-      return true;
-    }
-    // "Don't save it": nothing is stored; the typed value stays in the field.
-    requestHealthConsent(() => logWeight.mutate({ weightKg: parsed.kg }), {
-      onDeclined: () => setDeclined(true),
-    });
-    return true;
-  };
-
-  const error =
-    inputError ?? (logWeight.error ? userFacingErrorMessage(logWeight.error) : undefined) ?? null;
-  const disabled = logWeight.isPending || !value.trim();
+  // The write itself — parser, dedupe, consent gate, Undo — is shared with
+  // the redesigned Today card (use-weight-log.ts).
+  const {
+    system,
+    value,
+    onChangeText,
+    submit,
+    error,
+    declined,
+    saved,
+    disabled,
+    healthConsentSheet,
+  } = useWeightLog(lastEntry);
+  const imperial = system === 'IMPERIAL';
 
   return (
     <View>
@@ -125,10 +55,7 @@ export function WeightLogForm({
           ref={inputRef}
           onFocus={() => scrollFieldIntoView(inputRef.current)}
           value={value}
-          onChangeText={(text) => {
-            setValue(text);
-            setInputError(null);
-          }}
+          onChangeText={onChangeText}
           returnKeyType="done"
           onSubmitEditing={() => submit()}
           inputAccessoryViewID={barId}

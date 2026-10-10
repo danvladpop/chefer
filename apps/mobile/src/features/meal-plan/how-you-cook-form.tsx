@@ -3,6 +3,12 @@ import { Link } from 'expo-router';
 import type { PlanShape } from '@chefer/types';
 import { ChipGroup, SegmentedControl, Text } from '@chefer/ui-mobile';
 import { householdTableSummary, planShapeSummary } from '@chefer/utils';
+import {
+  timeCapValue as timeCapValueOf,
+  withDays,
+  withSlots,
+  withTimeCap,
+} from './plan-shape-edits';
 
 // HOW YOU COOK (UX-07 §1) — one form used in three places: onboarding
 // (UX-03), Settings › How you cook, and the Plan's own "Plan settings"
@@ -56,7 +62,7 @@ export function HowYouCookForm({
   testID = 'how-you-cook',
 }: HowYouCookFormProps) {
   const table = householdTableSummary(householdMembers ?? []);
-  const timeCapValue = shape.timeCapMins == null ? 'none' : String(shape.timeCapMins);
+  const timeCapValue = timeCapValueOf(shape);
 
   return (
     <View testID={testID} className="gap-5">
@@ -70,8 +76,8 @@ export function HowYouCookForm({
           value={shape.slots}
           multiple
           onChange={(slots) => {
-            if (slots.length === 0) return; // validation: pick at least one meal
-            onChange({ ...shape, slots });
+            const next = withSlots(shape, slots); // validation: pick at least one meal
+            if (next) onChange(next);
           }}
         />
       </View>
@@ -86,8 +92,8 @@ export function HowYouCookForm({
           value={shape.days}
           multiple
           onChange={(days) => {
-            if (days.length === 0) return; // validation: pick at least one day
-            onChange({ ...shape, days: [...days].sort((a, b) => a - b) });
+            const next = withDays(shape, days); // validation: pick at least one day
+            if (next) onChange(next);
           }}
         />
       </View>
@@ -101,12 +107,7 @@ export function HowYouCookForm({
           accessibilityLabel="How long can you cook on those days?"
           options={TIME_CAP_OPTIONS}
           value={timeCapValue}
-          onChange={(value) =>
-            onChange({
-              ...shape,
-              timeCapMins: value === 'none' ? null : (Number(value) as 15 | 30 | 45),
-            })
-          }
+          onChange={(value) => onChange(withTimeCap(shape, value))}
         />
         <View className="min-h-11 flex-row items-center justify-between">
           <Text className="flex-1 text-sm text-gray-700">Weekends can take longer</Text>

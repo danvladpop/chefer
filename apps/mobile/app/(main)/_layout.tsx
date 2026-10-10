@@ -12,8 +12,9 @@ import { useShellV2 } from '../../src/features/shell/shell-store';
 import { WorkoutMiniBar } from '../../src/features/shell/workout-mini-bar';
 
 // ─── The new shell (mobile UX revamp, phase 1; plan: "Target navigation") ───
-// One tab bar instead of two Food|Gym modes: Today · Plan · Shop · Train ·
-// You. Every account sees all five: the old app let anyone reach Food and
+// One tab bar instead of two Food|Gym modes: Today · Meals · Shop · Train ·
+// You (Plan was renamed Meals on 10 Oct so it reads as food, not training;
+// the route stays /plan). Every account sees all five: the old app let anyone reach Food and
 // Gym through the mode switch, so hiding tabs by onboarding jobs (first cut)
 // stranded a "training only" account without Plan or Shop.
 // Recipes live inside Plan, the old More inside You, Add and Ask Chef are
@@ -22,7 +23,7 @@ import { WorkoutMiniBar } from '../../src/features/shell/workout-mini-bar';
 
 const TABS: { name: ShellTab; title: string; icon: IconName; activeIcon: IconName }[] = [
   { name: 'home', title: 'Today', icon: 'today', activeIcon: 'todayActive' },
-  { name: 'plan', title: 'Plan', icon: 'plan', activeIcon: 'planActive' },
+  { name: 'plan', title: 'Meals', icon: 'plan', activeIcon: 'planActive' },
   { name: 'shop', title: 'Shop', icon: 'shop', activeIcon: 'shopActive' },
   { name: 'train', title: 'Train', icon: 'train', activeIcon: 'trainActive' },
   { name: 'you', title: 'You', icon: 'you', activeIcon: 'youActive' },

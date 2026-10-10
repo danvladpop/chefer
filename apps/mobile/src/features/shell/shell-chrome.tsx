@@ -14,9 +14,12 @@ import { Icon } from '../../components/icon';
 //    works), falling back to the tab root when there is no history.
 // The route that renders the screen says which, through this context.
 
+// 10 Oct redesign: every tab root names itself (title1) and carries Ask Chef;
+// Today adds a date eyebrow over its title; pushed shell screens may show
+// their title next to Back.
 export type ShellChrome =
-  | { kind: 'tab-root'; actions?: ReactNode; title?: string }
-  | { kind: 'pushed'; fallback: Href; actions?: ReactNode };
+  | { kind: 'tab-root'; actions?: ReactNode; title?: string; eyebrow?: string }
+  | { kind: 'pushed'; fallback: Href; actions?: ReactNode; title?: string };
 
 const ShellChromeContext = createContext<ShellChrome | null>(null);
 
@@ -49,21 +52,33 @@ export function ShellTopBar({ className }: { className?: string }) {
         className="-ml-2"
       />
     ) : null;
-  // A tab whose screen has no title of its own (Plan) names itself here.
-  const title =
-    chrome.kind === 'tab-root' && chrome.title ? (
+  const title = chrome.title ? (
+    <View className="min-w-0 flex-1">
+      {chrome.kind === 'tab-root' && chrome.eyebrow ? (
+        <Text className="text-subhead font-semibold text-label-secondary" numberOfLines={1}>
+          {chrome.eyebrow}
+        </Text>
+      ) : null}
       <Text
         accessibilityRole="header"
-        className="min-w-0 flex-1 text-title1 font-bold text-label"
+        className="text-title1 font-bold text-label"
         numberOfLines={1}
       >
         {chrome.title}
       </Text>
-    ) : null;
+    </View>
+  ) : null;
   if (!back && !title && !chrome.actions) return null;
   return (
     <View className={['min-h-11 flex-row items-center justify-between gap-2', className].join(' ')}>
-      {back ?? title ?? <View />}
+      {back && title ? (
+        <View className="min-w-0 flex-1 flex-row items-center gap-1">
+          {back}
+          {title}
+        </View>
+      ) : (
+        (back ?? title ?? <View />)
+      )}
       {chrome.actions ? (
         <View className="flex-row items-center gap-1">{chrome.actions}</View>
       ) : null}

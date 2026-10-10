@@ -16,17 +16,17 @@ export function useCanPreviewShell(): boolean {
   return devBuild || me?.role === 'ADMIN';
 }
 
-export function ShellPreviewSection() {
+const DEFAULT_FOOTER =
+  'Try the new app design on this phone. Only admins and test builds see this.';
+
+/** `footer` lets the new shell's You tab use the board's shorter line. */
+export function ShellPreviewSection({ footer = DEFAULT_FOOTER }: { footer?: string } = {}) {
   const allowed = useCanPreviewShell();
   const on = useShellV2Preview();
   const colors = useThemeColors();
   if (!allowed) return null;
   return (
-    <ListSection
-      title="Preview"
-      footer="Try the new app design on this phone. Only admins and test builds see this."
-      testID="shell-preview-section"
-    >
+    <ListSection title="Preview" footer={footer} testID="shell-preview-section">
       <ListRow
         title="New design"
         accessory={

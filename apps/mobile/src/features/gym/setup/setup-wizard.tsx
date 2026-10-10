@@ -38,6 +38,8 @@ import { NotificationsOffRow } from '../../../components/notifications-off-row';
 import { trpc } from '../../../lib/trpc';
 import { refreshNotificationPermission } from '../../../lib/use-notification-permission';
 import { useUnsavedGuard } from '../../../lib/use-unsaved-guard';
+import { useShellV2 } from '../../shell/shell-store';
+import { ProgramStep } from '../../shell/train/program-step';
 import { captureGymEvent } from '../analytics';
 import { ExerciseNameLink } from '../components/exercise-name-link';
 import { ensureGymReminderPermission } from '../reminders/permission';
@@ -111,6 +113,9 @@ function parseWeekdaysParam(raw: string | undefined): number[] {
 
 export function SetupWizard() {
   const queryClient = useQueryClient();
+  // 10 Oct redesign (board GymSetup): in the new shell step 5 is drawn by
+  // `ProgramStep`; every other step, and step 5 in the old shell, is unchanged.
+  const shellV2 = useShellV2();
 
   // T-03.4 (UX-03 AC2/AC3): L-HOME's onboarding hands off to gym setup with
   // `?from=onboarding&days=0,2,4` when the user picked Train + a food job —
@@ -323,6 +328,35 @@ export function SetupWizard() {
   const hasWeightErrors = Object.keys(weightErrors).length > 0;
 
   const canGoNext = step === 5 ? preview !== null : step === 6 ? !hasWeightErrors : true;
+
+  if (shellV2 && step === 5) {
+    return (
+      <ProgramStep
+        step={step}
+        totalSteps={TOTAL_STEPS}
+        onBack={goBack}
+        recommendation={recommendQuery.data}
+        isLoading={recommendQuery.isLoading}
+        isError={recommendQuery.isError}
+        onRetry={() => void recommendQuery.refetch()}
+        selectedKey={templateKey}
+        onSelect={(key) => {
+          if (key === templateKey) return;
+          // Same reset as legacy's "Use this": a new routine drops the old
+          // routine's weight guesses.
+          setOverrideKey(key);
+          setWeightsChoice(null);
+          setKnownWeights({});
+        }}
+        preview={preview}
+        sessionLengthMins={sessionLengthMins}
+        canGoNext={canGoNext}
+        onNext={goNext}
+      >
+        <ConfirmSheet testID="gym-setup-leave" {...guard.sheetProps} />
+      </ProgramStep>
+    );
+  }
 
   return (
     <Screen className="px-0" edges={['top', 'bottom', 'left', 'right']}>
