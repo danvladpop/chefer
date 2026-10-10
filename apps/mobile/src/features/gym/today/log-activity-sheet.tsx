@@ -72,13 +72,22 @@ function numberOrUndefined(text: string): number | undefined {
   return text === '' ? undefined : Number(text);
 }
 
-function ActivityForm({ bootstrap, onDone }: { bootstrap: GymBootstrap; onDone: () => void }) {
+export function ActivityForm({
+  bootstrap,
+  onDone,
+  initialPresetKey,
+}: {
+  bootstrap: GymBootstrap;
+  onDone: () => void;
+  /** Preselects an activity chip (the 10 Oct "Log a workout" sheet passes the one tapped). */
+  initialPresetKey?: string;
+}) {
   const queryClient = useQueryClient();
   const snackbar = useSnackbar();
   const barId = `log-activity-numeric-bar-${useId()}`;
   const today = localDate();
 
-  const [presetKey, setPresetKey] = useState<string | undefined>(undefined);
+  const [presetKey, setPresetKey] = useState<string | undefined>(initialPresetKey);
   const [customName, setCustomName] = useState('');
   const [date, setDate] = useState(today);
   const [minutesText, setMinutesText] = useState('');

@@ -13,7 +13,7 @@ export default function PlanTab() {
     <ShellChromeProvider
       value={{
         kind: 'tab-root',
-        title: 'Plan',
+        title: 'Meals',
         actions: (
           <>
             <AskChefAction />

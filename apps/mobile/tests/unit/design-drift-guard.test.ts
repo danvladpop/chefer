@@ -23,6 +23,13 @@ const CLEAN = [
   'packages/ui-mobile/src/components/icon-button.tsx',
   'packages/ui-mobile/src/components/large-header.tsx',
   'packages/ui-mobile/src/components/surface-card.tsx',
+  // 10 Oct redesign primitives
+  'packages/ui-mobile/src/components/calorie-gauge.tsx',
+  'packages/ui-mobile/src/components/day-strip.tsx',
+  'packages/ui-mobile/src/components/entry-card.tsx',
+  'packages/ui-mobile/src/components/macro.tsx',
+  'packages/ui-mobile/src/components/media-tile.tsx',
+  'packages/ui-mobile/src/components/stat-tile.tsx',
 ];
 
 /** Files allowed to hold raw colour values: the palettes themselves. */

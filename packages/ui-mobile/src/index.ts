@@ -192,3 +192,31 @@ export { LargeHeader, type LargeHeaderProps } from './components/large-header';
 export { ListRow, ListSection, type ListRowProps, type ListSectionProps } from './components/list';
 export { SurfaceCard, type SurfaceCardProps } from './components/surface-card';
 export { useThemeColors } from './hooks/use-theme-colors';
+// 10 Oct redesign (docs/design/feedback/2026-10-10): shared tiles, gauge, macros
+export { CalorieGauge, type CalorieGaugeProps } from './components/calorie-gauge';
+export { DayStrip, type DayStripDay, type DayStripProps } from './components/day-strip';
+export { EntryCard, type EntryCardProps } from './components/entry-card';
+export {
+  MACRO_META,
+  MacroRow,
+  MacroTiles,
+  type MacroKey,
+  type MacroRowProps,
+  type MacroTilesProps,
+} from './components/macro';
+export {
+  MediaFrame,
+  MediaRow,
+  MediaTile,
+  TileGrid,
+  type MediaFrameProps,
+  type MediaRowProps,
+  type MediaTileProps,
+  type TileGridProps,
+} from './components/media-tile';
+export {
+  StatTile,
+  StatTiles,
+  type StatTileProps,
+  type StatTilesProps,
+} from './components/stat-tile';
