@@ -165,7 +165,9 @@ const config = {
     // runs LAST — after expo-notifications has added the entitlement.
     withoutPushEntitlement,
     'expo-router',
-    'expo-secure-store',
+    // Face ID is never used (no requireAuthentication) — without `false` the plugin
+    // writes a generic NSFaceIDUsageDescription (App Review 5.1.1, review R-07).
+    ['expo-secure-store', { faceIDPermission: false }],
     'expo-dev-client',
     // WP-22: native Apple sheet (entitlement com.apple.developer.applesignin,
     // production only — see the block above) and native Google sign-in. Both
@@ -180,6 +182,9 @@ const config = {
       {
         photosPermission: 'Chefer uses your photos to scan meals and illustrate your recipes.',
         cameraPermission: 'Chefer uses the camera to scan meals you are about to eat.',
+        // Images only — no video, so no microphone. `false` drops the plugin's generic
+        // NSMicrophoneUsageDescription and Android's RECORD_AUDIO (review R-07).
+        microphonePermission: false,
       },
     ],
     // Gym (gym_plan.md §5.6): offline store, cached exercise photos, local

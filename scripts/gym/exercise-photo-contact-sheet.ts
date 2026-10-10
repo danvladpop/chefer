@@ -48,7 +48,7 @@ function main(): void {
     return `
     <section class="row" data-slug="${e.id}">
       <h2>${escapeHtml(e.name)} <code>${e.id}</code></h2>
-      ${keys.length > 0 ? cells : '<p class="none">No photo (freeExerciseDbId: ' + (e.freeExerciseDbId ? escapeHtml(e.freeExerciseDbId) : 'null') + ')</p>'}
+      ${keys.length > 0 ? cells : '<p class="none">No photo (' + (e.freeExerciseDbId ? 'free-exercise-db ' + escapeHtml(e.freeExerciseDbId) : 'no source') + ')</p>'}
     </section>`;
   }).join('\n');
 
@@ -69,7 +69,7 @@ function main(): void {
 </head>
 <body>
 <h1>Exercise photo contact sheet — ${EXERCISE_CATALOG.length} catalog exercises, generated ${new Date().toISOString().slice(0, 10)}</h1>
-<p>Sweep for a photo showing the wrong exercise (free-exercise-db ids occasionally point at a near-miss). Record any hit in apps/api/static/exercises/README.md "Hidden photos" and add the slug to HIDDEN_EXERCISE_IMAGE_IDS (packages/types/src/gym/exercise-catalog.ts) so ExerciseImage/PhotoCrossfade show the icon placeholder instead.</p>
+<p>Sweep for a photo showing the wrong exercise or movement (free-exercise-db ids occasionally point at a near-miss; AI renders get extra limbs and wrong gear). Fix a bad AI render with generate-exercise-photos.ts --only slug --force --reseed N; a wrong dataset photo gets a replacement (new revision in exercise-photos.ts) or, as a last resort, the slug in HIDDEN_EXERCISE_IMAGE_IDS so ExerciseImage/PhotoCrossfade show the icon placeholder.</p>
 ${rows}
 </body>
 </html>`;

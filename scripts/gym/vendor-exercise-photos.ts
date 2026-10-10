@@ -17,6 +17,11 @@
  * disk image cache keyed by URL — picks up the new crop instead of serving a
  * stale square one under the same key.
  *
+ * File names come from `exercisePhotoFile` (@chefer/types), which adds a `.r<N>`
+ * revision for slugs whose photo was replaced after shipping (so cached URLs change).
+ * Exercises WITHOUT a `freeExerciseDbId` are not touched: their photos are openly
+ * licensed (vendor-commons-photos.ts) or AI renders (generate-exercise-photos.ts).
+ *
  * Source: https://github.com/yuhonas/free-exercise-db — The Unlicense
  * (public domain, no attribution required). See
  * apps/api/static/exercises/README.md for the license note.
@@ -37,7 +42,7 @@ import { existsSync, mkdirSync, statSync, unlinkSync, writeFileSync } from 'node
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { EXERCISE_CATALOG } from '@chefer/types';
+import { EXERCISE_CATALOG, exercisePhotoFile } from '@chefer/types';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -135,7 +140,7 @@ async function main(): Promise<void> {
     if (!dbId) continue;
 
     for (const frame of FRAMES) {
-      const outPath = join(OUT_DIR, `${entry.id}-${frame}.3x2.webp`);
+      const outPath = join(OUT_DIR, exercisePhotoFile(entry.id, frame));
       if (existsSync(outPath) && !FORCE) {
         skipped++;
         continue;
@@ -149,7 +154,7 @@ async function main(): Promise<void> {
         coverCropTo3x2(tmpJpg, tmpCropped);
         convertToWebp(tmpCropped, outPath);
         done++;
-        console.log(`  ok  ${entry.id}-${frame}.3x2.webp`);
+        console.log(`  ok  ${exercisePhotoFile(entry.id, frame)}`);
       } catch (err) {
         failed++;
         failedSlugs.push(`${entry.id}-${frame}`);
@@ -164,7 +169,7 @@ async function main(): Promise<void> {
   let totalBytes = 0;
   for (const entry of entries) {
     for (const frame of FRAMES) {
-      const outPath = join(OUT_DIR, `${entry.id}-${frame}.3x2.webp`);
+      const outPath = join(OUT_DIR, exercisePhotoFile(entry.id, frame));
       if (existsSync(outPath)) totalBytes += statSync(outPath).size;
     }
   }
