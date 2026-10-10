@@ -17,18 +17,18 @@ The canvas is the working copy; this folder is a versioned record of it. Re-expo
 
 ## Board → route
 
-| Board | Route |
-| --- | --- |
-| Login, Register, ForgotPassword (+ ForgotSent), ResetPassword | `/(auth)/login`, `/register`, `/forgot-password`, `/reset-password` |
-| OnbIntent → OnbGoal → OnbMetrics → OnbDiet → OnbCuisine | `/onboarding` (premium step order) |
-| FoodToday, MealPlan (+ RecipePickerSheet, WeekSummarySheet), ShoppingList, Cookbook, More | `/(food)` tabs: index, `meal-plan`, `shopping-list`, `recipes`, `more` |
-| Tracker (+ QuickAddSheet), Progress, Pantry, MyWeeks, HistoryWeek | `/tracker`, `/progress`, `/pantry`, `/my-weeks`, `/history/[planId]` |
-| RecipeDetail, CookStep / CookIngredients / CookFinished, RecipeForm | `/recipe/[id]`, `/cook/[id]`, `/recipe-form` |
-| ImportRecipe, ImportPreview, Chat, ChatLocked, AiConsentSheet | `/import-recipe`, `/chat`, global AI-consent sheet |
-| GymToday, GymRoutine, GymExercises, GymStats | `/(gym)` tabs: `today`, `routine`, `exercises`, `stats` |
-| Workout (+ NumberSheet, WorkoutMenuSheet), Summary, Session | `/gym/workout`, `/gym/summary/[id]`, `/gym/session/[id]` |
-| GymSetup, ExerciseDetail, ExerciseForm, Routines, RoutineEditor, GymSettings | `/gym/setup`, `/gym/exercise/[id]`, `/gym/exercise-form`, `/gym/routines`, `/gym/routine-editor`, `/gym/settings` |
-| Profile (+ PostUpgradeSheet, DeleteAccountSheet), Preferences, Household | `/profile`, `/preferences`, `/household` |
+| Board                                                                                     | Route                                                                                                             |
+| ----------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------- |
+| Login, Register, ForgotPassword (+ ForgotSent), ResetPassword                             | `/(auth)/login`, `/register`, `/forgot-password`, `/reset-password`                                               |
+| OnbIntent → OnbGoal → OnbMetrics → OnbDiet → OnbCuisine                                   | `/onboarding` (premium step order)                                                                                |
+| FoodToday, MealPlan (+ RecipePickerSheet, WeekSummarySheet), ShoppingList, Cookbook, More | `/(food)` tabs: index, `meal-plan`, `shopping-list`, `recipes`, `more`                                            |
+| Tracker (+ QuickAddSheet), Progress, Pantry, MyWeeks, HistoryWeek                         | `/tracker`, `/progress`, `/pantry`, `/my-weeks`, `/history/[planId]`                                              |
+| RecipeDetail, CookStep / CookIngredients / CookFinished, RecipeForm                       | `/recipe/[id]`, `/cook/[id]`, `/recipe-form`                                                                      |
+| ImportRecipe, ImportPreview, Chat, ChatLocked, AiConsentSheet                             | `/import-recipe`, `/chat`, global AI-consent sheet                                                                |
+| GymToday, GymRoutine, GymExercises, GymStats                                              | `/(gym)` tabs: `today`, `routine`, `exercises`, `stats`                                                           |
+| Workout (+ NumberSheet, WorkoutMenuSheet), Summary, Session                               | `/gym/workout`, `/gym/summary/[id]`, `/gym/session/[id]`                                                          |
+| GymSetup, ExerciseDetail, ExerciseForm, Routines, RoutineEditor, GymSettings              | `/gym/setup`, `/gym/exercise/[id]`, `/gym/exercise-form`, `/gym/routines`, `/gym/routine-editor`, `/gym/settings` |
+| Profile (+ PostUpgradeSheet, DeleteAccountSheet), Preferences, Household                  | `/profile`, `/preferences`, `/household`                                                                          |
 
 ## Workflow
 
