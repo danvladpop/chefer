@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<title>Recipe — Import</title>
+<title>Import recipe</title>
 <script src="./support.js"></script>
 </head>
 <body>
@@ -14,28 +14,26 @@ a{color:#944a00;text-decoration:none}a:hover{color:#6e3700}
 input::placeholder,textarea::placeholder{color:#9ca3af}
 </style>
 </helmet>
-<div style="width: 390px; height: 844px; position: relative; overflow: hidden; background: #ffffff; font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Helvetica Neue', system-ui, sans-serif; color: #020817; display: flex; flex-direction: column">
+<div style="width: 390px; height: 844px; position: relative; overflow: hidden; background: #FFFFFF; font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Helvetica Neue', system-ui, sans-serif; color: #020817; display: flex; flex-direction: column">
   <div style="height: 47px; flex: none"></div>
 
-  <main id="main" style="flex: 1; display: flex; flex-direction: column">
-    <header style="flex: none; display: flex; align-items: center; gap: 10.5px; padding: 10.5px 14px">
-      <a href="Cookbook.dc.html" aria-label="Back" style="width: 44px; height: 44px; display: flex; align-items: center; justify-content: center; color: #1f2937; text-decoration: none"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M11 5l-7 7 7 7M4 12h16"></path></svg></a>
-      <h1 style="margin: 0; font-size: 25px; line-height: 31px; font-weight: 700">Import Recipe</h1>
-    </header>
+  <div style="padding: 10.5px 14px; display: flex; align-items: center; gap: 10.5px">
+    <a href="Cookbook.dc.html" aria-label="Back" style="width: 44px; height: 44px; flex: none; color: #1F2937; display: flex; align-items: center; justify-content: center"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M11 5l-7 7 7 7M4 12h16"></path></svg></a>
+    <h1 style="margin: 0; font-size: 25px; line-height: 31px; font-weight: 700">Import Recipe</h1>
+  </div>
 
-    <div style="display: flex; flex-direction: column; gap: 14px; padding: 0 14px 28px">
-      <p style="margin: 0; font-size: 15px; line-height: 21px; color: #8a7560">Paste a recipe link, its text or a cooking video — the chef extracts it and adapts it to your dietary needs.</p>
+  <main id="main" style="flex: 1; padding: 0 14px 28px; display: flex; flex-direction: column; gap: 14px">
+    <p style="margin: 0; font-size: 16px; line-height: 22px; color: #8A7560">Paste a recipe link, its text or a cooking video — the chef extracts it and adapts it to your dietary needs.</p>
 
-      <div role="tablist" aria-label="Import source" style="display: flex; border: 1px solid #e2e8f0; border-radius: 7px; padding: 3.5px">
-        <button type="button" role="tab" aria-selected="true" style="flex: 1; height: 35px; border: none; border-radius: 5.25px; background: #944a00; color: #fcf9f5; font: inherit; font-size: 15px; font-weight: 500">Link</button>
-        <button type="button" role="tab" aria-selected="false" style="flex: 1; height: 35px; border: none; border-radius: 5.25px; background: transparent; color: #4b5563; font: inherit; font-size: 15px; font-weight: 500">Paste text</button>
-        <button type="button" role="tab" aria-selected="false" style="flex: 1; height: 35px; border: none; border-radius: 5.25px; background: transparent; color: #4b5563; font: inherit; font-size: 15px; font-weight: 500">Video</button>
-      </div>
-
-      <input aria-label="Recipe link" type="url" value="https://cookingblog.example/one-pan-shakshuka" placeholder="https://example.com/best-lasagna" style="height: 44px; box-sizing: border-box; width: 100%; border: 1px solid #e2e8f0; border-radius: 5.25px; padding: 0 10.5px; font: inherit; font-size: 17px; color: #020817; background: #ffffff">
-
-      <a href="ImportPreview.dc.html" style="height: 44px; border-radius: 5.25px; background: #944a00; color: #fcf9f5; font-size: 15px; font-weight: 500; display: flex; align-items: center; justify-content: center; text-decoration: none">Preview import</a>
+    <div role="tablist" aria-label="Import source" style="display: flex; border: 1px solid #E2E8F0; border-radius: 7px; padding: 3.5px">
+      <button type="button" role="tab" aria-selected="true" style="flex: 1; height: 35px; border: none; border-radius: 5.25px; background: #944A00; font: inherit; font-size: 16px; font-weight: 500; color: #FCF9F5">Link</button>
+      <button type="button" role="tab" aria-selected="false" style="flex: 1; height: 35px; border: none; border-radius: 5.25px; background: transparent; font: inherit; font-size: 16px; font-weight: 500; color: #4B5563">Paste text</button>
+      <button type="button" role="tab" aria-selected="false" style="flex: 1; height: 35px; border: none; border-radius: 5.25px; background: transparent; font: inherit; font-size: 16px; font-weight: 500; color: #4B5563">Video</button>
     </div>
+
+    <input aria-label="Recipe link" type="url" value="https://www.bbcgoodfood.com/recipes/chicken-shawarma" placeholder="https://example.com/best-lasagna" style="min-height: 44px; box-sizing: border-box; width: 100%; border: 1px solid #E2E8F0; border-radius: 5.25px; padding: 7px 10.5px; font: inherit; font-size: 17px; color: #020817; background: #FFFFFF">
+
+    <a href="ImportPreview.dc.html" style="min-height: 44px; box-sizing: border-box; padding: 7px 14px; border-radius: 5.25px; background: #944A00; color: #FCF9F5; font-size: 16px; font-weight: 500; display: flex; align-items: center; justify-content: center; text-decoration: none">Preview import</a>
   </main>
 
   <div style="height: 34px; flex: none"></div>

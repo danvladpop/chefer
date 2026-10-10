@@ -1,0 +1,118 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Plan — Plan settings</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+body{margin:0}
+a{color:#944a00;text-decoration:none}a:hover{color:#6e3700}
+input::placeholder,textarea::placeholder{color:#9ca3af}
+</style>
+</helmet>
+<div style="width: 390px; height: 1000px; position: relative; overflow: hidden; background: #FFFFFF; font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Helvetica Neue', system-ui, sans-serif; color: #1C1917; display: flex; flex-direction: column">
+  <div style="height: 47px; flex: none"></div>
+
+  <a href="Plan.dc.html" aria-label="Close Plan settings" style="position: absolute; inset: 0; background: rgba(0,0,0,.4)"></a>
+
+  <section role="dialog" aria-label="Plan settings" style="margin-top: auto; position: relative; flex: none; background: #FFFFFF; border-radius: 21px 21px 0 0; box-shadow: 0 -4px 12px -4px rgba(67,42,25,.08), 0 -16px 40px -12px rgba(67,42,25,.18); display: flex; flex-direction: column">
+    <div style="width: 40px; height: 3.5px; border-radius: 9999px; background: #D1D5DB; margin: 7px auto 0; flex: none"></div>
+    <div style="padding: 10.5px 14px 7px; display: flex; align-items: center; justify-content: space-between; gap: 10.5px">
+      <div style="flex: 1; min-width: 0; display: flex; flex-direction: column">
+        <span style="font-size: 14px; line-height: 19px; font-weight: 600; text-transform: uppercase; letter-spacing: .1em; color: #8A7560">How you cook</span>
+        <h2 style="margin: 0; font-size: 19px; line-height: 26px; font-weight: 600; color: #020817">Plan settings</h2>
+      </div>
+      <a href="Plan.dc.html" aria-label="Close" style="width: 44px; height: 44px; flex: none; border-radius: 9999px; background: #F3F4F6; color: #374151; font-size: 19px; font-weight: 600; display: flex; align-items: center; justify-content: center; text-decoration: none">✕</a>
+    </div>
+
+    <div style="padding: 0 14px 14px; display: flex; flex-direction: column; gap: 10.5px">
+      <div style="padding-bottom: 7px; display: flex; flex-direction: column; gap: 17.5px">
+
+        <div style="display: flex; flex-direction: column; gap: 17.5px">
+          <div style="display: flex; flex-direction: column; gap: 7px">
+            <span style="font-size: 14px; line-height: 19px; font-weight: 600; text-transform: uppercase; letter-spacing: .1em; color: #6B7280">Which meals should we plan?</span>
+            <div style="display: flex; flex-wrap: wrap; gap: 7px">
+              <button type="button" aria-pressed="true" style="min-height: 44px; box-sizing: border-box; border-radius: 9999px; border: 1px solid #944A00; background: #944A00; color: #FCF9F5; padding: 7px 14px; font: inherit; font-size: 16px; line-height: 22px; font-weight: 500">Breakfast</button>
+              <button type="button" aria-pressed="true" style="min-height: 44px; box-sizing: border-box; border-radius: 9999px; border: 1px solid #944A00; background: #944A00; color: #FCF9F5; padding: 7px 14px; font: inherit; font-size: 16px; line-height: 22px; font-weight: 500">Lunch</button>
+              <button type="button" aria-pressed="true" style="min-height: 44px; box-sizing: border-box; border-radius: 9999px; border: 1px solid #944A00; background: #944A00; color: #FCF9F5; padding: 7px 14px; font: inherit; font-size: 16px; line-height: 22px; font-weight: 500">Dinner</button>
+              <button type="button" aria-pressed="false" style="min-height: 44px; box-sizing: border-box; border-radius: 9999px; border: 1px solid #E2E8F0; background: #FFFFFF; color: #020817; padding: 7px 14px; font: inherit; font-size: 16px; line-height: 22px; font-weight: 500">Snacks</button>
+            </div>
+          </div>
+
+          <div style="display: flex; flex-direction: column; gap: 7px">
+            <span style="font-size: 14px; line-height: 19px; font-weight: 600; text-transform: uppercase; letter-spacing: .1em; color: #6B7280">On which days?</span>
+            <div style="display: flex; flex-wrap: wrap; gap: 7px">
+              <button type="button" aria-pressed="true" style="min-height: 44px; box-sizing: border-box; border-radius: 9999px; border: 1px solid #944A00; background: #944A00; color: #FCF9F5; padding: 7px 14px; font: inherit; font-size: 16px; line-height: 22px; font-weight: 500">Mon</button>
+              <button type="button" aria-pressed="true" style="min-height: 44px; box-sizing: border-box; border-radius: 9999px; border: 1px solid #944A00; background: #944A00; color: #FCF9F5; padding: 7px 14px; font: inherit; font-size: 16px; line-height: 22px; font-weight: 500">Tue</button>
+              <button type="button" aria-pressed="true" style="min-height: 44px; box-sizing: border-box; border-radius: 9999px; border: 1px solid #944A00; background: #944A00; color: #FCF9F5; padding: 7px 14px; font: inherit; font-size: 16px; line-height: 22px; font-weight: 500">Wed</button>
+              <button type="button" aria-pressed="true" style="min-height: 44px; box-sizing: border-box; border-radius: 9999px; border: 1px solid #944A00; background: #944A00; color: #FCF9F5; padding: 7px 14px; font: inherit; font-size: 16px; line-height: 22px; font-weight: 500">Thu</button>
+              <button type="button" aria-pressed="true" style="min-height: 44px; box-sizing: border-box; border-radius: 9999px; border: 1px solid #944A00; background: #944A00; color: #FCF9F5; padding: 7px 14px; font: inherit; font-size: 16px; line-height: 22px; font-weight: 500">Fri</button>
+              <button type="button" aria-pressed="true" style="min-height: 44px; box-sizing: border-box; border-radius: 9999px; border: 1px solid #944A00; background: #944A00; color: #FCF9F5; padding: 7px 14px; font: inherit; font-size: 16px; line-height: 22px; font-weight: 500">Sat</button>
+              <button type="button" aria-pressed="true" style="min-height: 44px; box-sizing: border-box; border-radius: 9999px; border: 1px solid #944A00; background: #944A00; color: #FCF9F5; padding: 7px 14px; font: inherit; font-size: 16px; line-height: 22px; font-weight: 500">Sun</button>
+            </div>
+          </div>
+
+          <div style="display: flex; flex-direction: column; gap: 7px">
+            <span style="font-size: 14px; line-height: 19px; font-weight: 600; text-transform: uppercase; letter-spacing: .1em; color: #6B7280">How long can you cook on those days?</span>
+            <div role="tablist" aria-label="How long can you cook on those days?" style="border-radius: 7px; background: #FAF5F0; padding: 4px; display: flex">
+              <button type="button" role="tab" aria-selected="false" style="flex: 1; min-height: 44px; border: none; border-radius: 5.25px; background: transparent; padding: 3.5px 7px; font: inherit; font-size: 16px; line-height: 22px; font-weight: 500; color: #8A7560">≤ 15 min</button>
+              <button type="button" role="tab" aria-selected="false" style="flex: 1; min-height: 44px; border: none; border-radius: 5.25px; background: transparent; padding: 3.5px 7px; font: inherit; font-size: 16px; line-height: 22px; font-weight: 500; color: #8A7560">≤ 30 min</button>
+              <button type="button" role="tab" aria-selected="false" style="flex: 1; min-height: 44px; border: none; border-radius: 5.25px; background: transparent; padding: 3.5px 7px; font: inherit; font-size: 16px; line-height: 22px; font-weight: 500; color: #8A7560">≤ 45 min</button>
+              <button type="button" role="tab" aria-selected="true" style="flex: 1; min-height: 44px; border: none; border-radius: 5.25px; background: #FFFFFF; box-shadow: 0 1px 2px rgba(0,0,0,.08); padding: 3.5px 7px; font: inherit; font-size: 16px; line-height: 22px; font-weight: 500; color: #020817">No limit</button>
+            </div>
+            <div style="min-height: 44px; display: flex; align-items: center; justify-content: space-between; gap: 10.5px">
+              <span style="flex: 1; font-size: 16px; line-height: 22px; color: #374151">Weekends can take longer</span>
+              <button type="button" role="switch" aria-checked="false" aria-label="Weekends can take longer" style="width: 51px; height: 31px; flex: none; border: none; border-radius: 9999px; background: #D1D5DB; padding: 2px; display: flex; align-items: center; justify-content: flex-start"><span style="width: 27px; height: 27px; border-radius: 9999px; background: #FFFFFF; box-shadow: 0 2px 4px rgba(0,0,0,.2)"></span></button>
+            </div>
+          </div>
+
+          <div style="display: flex; flex-direction: column; gap: 7px">
+            <span style="font-size: 14px; line-height: 19px; font-weight: 600; text-transform: uppercase; letter-spacing: .1em; color: #6B7280">Cooking for</span>
+            <div style="min-height: 44px; box-sizing: border-box; border: 1px solid #E2E8F0; border-radius: 10.5px; padding: 7px 10.5px; display: flex; align-items: center; justify-content: space-between; gap: 10.5px">
+              <div style="flex: 1; min-width: 0; display: flex; flex-direction: column">
+                <span style="font-size: 16px; line-height: 22px; font-weight: 500; color: #111827">You + 1</span>
+                <span style="font-size: 14px; line-height: 19px; color: #8A7560; white-space: nowrap; overflow: hidden; text-overflow: ellipsis">Ana</span>
+              </div>
+              <a href="Household.dc.html" aria-label="Edit table" style="min-height: 44px; display: flex; align-items: center; font-size: 16px; font-weight: 600; color: #944A00; text-decoration: none">Edit table</a>
+            </div>
+          </div>
+
+          <div role="status" style="border-radius: 10.5px; background: #F9FAFB; padding: 8.75px 10.5px">
+            <span style="font-size: 16px; line-height: 22px; color: #374151">Breakfast, lunch, dinner · every day · cooking for 2</span>
+          </div>
+        </div>
+
+        <div style="border-top: 1px solid #E2E8F0; padding-top: 14px; display: flex; flex-direction: column; gap: 7px">
+          <span style="font-size: 14px; line-height: 19px; font-weight: 600; text-transform: uppercase; letter-spacing: .1em; color: #6B7280">Options</span>
+          <div style="min-height: 44px; display: flex; align-items: center; justify-content: space-between; gap: 10.5px">
+            <span style="flex: 1; min-width: 0; font-size: 16px; line-height: 22px; color: #374151">Cook once, eat twice (leftover lunches)</span>
+            <button type="button" role="switch" aria-checked="false" aria-label="Cook once, eat twice (leftover lunches)" style="width: 51px; height: 31px; flex: none; border: none; border-radius: 9999px; background: #D1D5DB; padding: 2px; display: flex; align-items: center; justify-content: flex-start"><span style="width: 27px; height: 27px; border-radius: 9999px; background: #FFFFFF; box-shadow: 0 2px 4px rgba(0,0,0,.2)"></span></button>
+          </div>
+          <div style="min-height: 44px; display: flex; align-items: center; justify-content: space-between; gap: 10.5px">
+            <span style="flex: 1; min-width: 0; font-size: 16px; line-height: 22px; color: #374151">Fit meals to my training days</span>
+            <button type="button" role="switch" aria-checked="true" aria-label="Fit meals to my training days" style="width: 51px; height: 31px; flex: none; border: none; border-radius: 9999px; background: #944A00; padding: 2px; display: flex; align-items: center; justify-content: flex-end"><span style="width: 27px; height: 27px; border-radius: 9999px; background: #FFFFFF; box-shadow: 0 2px 4px rgba(0,0,0,.2)"></span></button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div style="border-top: 1px solid #E2E8F0; padding: 10.5px 14px 0">
+      <button type="button" style="width: 100%; min-height: 44px; border: none; border-radius: 5.25px; background: #944A00; padding: 7px 14px; font: inherit; font-size: 16px; font-weight: 500; color: #FCF9F5">Save and re-plan next week</button>
+    </div>
+    <div style="height: 34px; flex: none"></div>
+  </section>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":1000}}'>
+class Component extends DCLogic {
+renderVals() {
+return {};
+}
+}
+</script>
+</body>
+</html>

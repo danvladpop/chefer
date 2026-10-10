@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<title>Recipe — Import preview</title>
+<title>Import preview</title>
 <script src="./support.js"></script>
 </head>
 <body>
@@ -14,44 +14,138 @@ a{color:#944a00;text-decoration:none}a:hover{color:#6e3700}
 input::placeholder,textarea::placeholder{color:#9ca3af}
 </style>
 </helmet>
-<div style="width: 390px; height: 844px; position: relative; overflow: hidden; background: #ffffff; font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Helvetica Neue', system-ui, sans-serif; color: #020817; display: flex; flex-direction: column">
+<div style="width: 390px; height: 1813px; position: relative; overflow: hidden; background: #FFFFFF; font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Helvetica Neue', system-ui, sans-serif; color: #020817; display: flex; flex-direction: column">
   <div style="height: 47px; flex: none"></div>
 
-  <main id="main" style="flex: 1; display: flex; flex-direction: column">
-    <header style="flex: none; display: flex; align-items: center; gap: 10.5px; padding: 10.5px 14px">
-      <a href="Cookbook.dc.html" aria-label="Back" style="width: 44px; height: 44px; display: flex; align-items: center; justify-content: center; color: #1f2937; text-decoration: none"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M11 5l-7 7 7 7M4 12h16"></path></svg></a>
-      <h1 style="margin: 0; font-size: 25px; line-height: 31px; font-weight: 700">Import Recipe</h1>
-    </header>
+  <div style="padding: 10.5px 14px; display: flex; align-items: center; gap: 10.5px">
+    <a href="Cookbook.dc.html" aria-label="Back" style="width: 44px; height: 44px; flex: none; color: #1F2937; display: flex; align-items: center; justify-content: center"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M11 5l-7 7 7 7M4 12h16"></path></svg></a>
+    <h1 style="margin: 0; font-size: 25px; line-height: 31px; font-weight: 700">Import Recipe</h1>
+  </div>
 
-    <div style="display: flex; flex-direction: column; gap: 14px; padding: 0 14px 28px">
-      <div style="border: 1px solid #fde68a; border-radius: 7px; background: #fffbeb; padding: 14px">
-        <p style="margin: 0; font-size: 13px; line-height: 18px; color: #92400e">The source claims 320 kcal/serving, but our ingredient data computes ~410 kcal.</p>
-      </div>
+  <main id="main" style="flex: 1; padding: 0 14px 28px; display: flex; flex-direction: column; gap: 14px">
 
-      <div role="radiogroup" aria-label="Version to save" style="display: flex; flex-direction: column; gap: 14px">
-        <button type="button" role="radio" aria-checked="false" style="border: 1px solid #e2e8f0; border-radius: 10.5px; background: #ffffff; padding: 10.5px; font: inherit; text-align: left; display: flex; flex-direction: column; color: inherit">
-          <span style="display: flex; align-items: center; justify-content: space-between; min-height: 21px"><span style="font-size: 15px; line-height: 21px; font-weight: 600; color: #1f2937">Original</span></span>
-          <span style="margin-top: 3.5px; font-size: 15px; line-height: 21px; color: #1f2937; white-space: nowrap; overflow: hidden; text-overflow: ellipsis">One-Pan Shakshuka with Feta</span>
-          <span style="font-size: 13px; line-height: 18px; color: #6b7280">320 kcal · 9 ingredients · 30m</span>
-        </button>
-        <button type="button" role="radio" aria-checked="true" style="border: 1px solid #944a00; border-radius: 10.5px; background: #fcf3ea; padding: 10.5px; font: inherit; text-align: left; display: flex; flex-direction: column; color: inherit">
-          <span style="display: flex; align-items: center; justify-content: space-between; min-height: 21px"><span style="font-size: 15px; line-height: 21px; font-weight: 600; color: #944a00">Cheferized for you</span><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="color: #944a00"><circle cx="12" cy="12" r="9.5" fill="currentColor" stroke="none"></circle><path d="M7.5 12.3l3 3 6-6" stroke="#ffffff"></path></svg></span>
-          <span style="margin-top: 3.5px; font-size: 15px; line-height: 21px; color: #1f2937; white-space: nowrap; overflow: hidden; text-overflow: ellipsis">One-Pan Shakshuka (dairy-free)</span>
-          <span style="font-size: 13px; line-height: 18px; color: #6b7280">360 kcal · 9 ingredients · 30m</span>
-          <span style="margin-top: 3.5px; font-size: 13px; line-height: 18px; color: #8a7560">Swapped feta for a dairy-free crumble · Cut the olive oil from 4 to 2 tbsp · Added spinach for fibre</span>
-        </button>
-      </div>
-
-      <a href="Cookbook.dc.html" style="height: 44px; border-radius: 5.25px; background: #944a00; color: #fcf9f5; font-size: 15px; font-weight: 500; display: flex; align-items: center; justify-content: center; text-decoration: none">Save Cheferized recipe</a>
-
-      <a href="ImportRecipe.dc.html" style="height: 44px; border-radius: 5.25px; color: #8a7560; font-size: 13px; display: flex; align-items: center; justify-content: center; text-decoration: none">Start over</a>
+    <div role="radiogroup" aria-label="Recipe version" style="display: flex; flex-direction: column; gap: 7px">
+      <button type="button" role="radio" aria-checked="false" style="min-height: 44px; padding: 10.5px; border: 1px solid #E2E8F0; border-radius: 10.5px; background: #FFFFFF; font: inherit; text-align: left; display: flex; flex-direction: column">
+        <span style="font-size: 16px; line-height: 22px; font-weight: 600; color: #1F2937">Original</span>
+        <span style="margin-top: 3.5px; font-size: 16px; line-height: 22px; color: #1F2937; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%">Chicken Shawarma Bowls</span>
+        <span style="font-size: 14px; line-height: 19px; color: #6B7280">7 ingredients · 45m</span>
+      </button>
+      <button type="button" role="radio" aria-checked="true" style="min-height: 44px; padding: 10.5px; border: 1px solid #944A00; border-radius: 10.5px; background: #FCF3EA; font: inherit; text-align: left; display: flex; flex-direction: column">
+        <span style="align-self: stretch; display: flex; align-items: center; justify-content: space-between"><span style="font-size: 16px; line-height: 22px; font-weight: 600; color: #944A00">Cheferized for you</span><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#944A00" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9.5" fill="#944A00" stroke="none"></circle><path d="M7.5 12.3l3 3 6-6" stroke="#ffffff"></path></svg></span>
+        <span style="margin-top: 3.5px; font-size: 16px; line-height: 22px; color: #1F2937; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%">Chicken Shawarma Bowls</span>
+        <span style="font-size: 14px; line-height: 19px; color: #6B7280">7 ingredients · 45m</span>
+        <span style="margin-top: 3.5px; font-size: 14px; line-height: 19px; color: #8A7560">Swapped Greek yogurt for a dairy-free yogurt · Cut the olive oil to 1 tbsp · Added cucumber for crunch</span>
+      </button>
+      <p style="margin: 0; font-size: 14px; line-height: 19px; color: #8A7560">Switching version restarts the review below.</p>
     </div>
+
+    <div style="border: 1px solid #FDE68A; border-radius: 7px; background: #FFFBEB; padding: 14px; display: flex; align-items: flex-start; gap: 7px">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#92400E" stroke-width="1.75" aria-hidden="true" style="flex: none"><circle cx="12" cy="12" r="9.5" fill="currentColor" stroke="none"></circle><path d="M12 11v5.5M12 7.8v.2" stroke="#ffffff" stroke-width="2" stroke-linecap="round"></path></svg>
+      <div style="flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1.75px">
+        <span style="font-size: 16px; line-height: 22px; font-weight: 600; color: #78350F">Check the details</span>
+        <span style="font-size: 14px; line-height: 19px; color: #78350F">We read this from your link or text. Check the amounts and steps, and fix anything that looks off before you save.</span>
+      </div>
+    </div>
+
+    <div style="display: flex; flex-direction: column">
+      <label for="ip-name" style="margin-bottom: 3.5px; font-size: 14px; line-height: 19px; font-weight: 500; color: #4B5563">Recipe name</label>
+      <input id="ip-name" value="Chicken Shawarma Bowls" style="min-height: 44px; box-sizing: border-box; width: 100%; border: 1px solid #E2E8F0; border-radius: 5.25px; padding: 7px 10.5px; font: inherit; font-size: 17px; color: #020817; background: #FFFFFF">
+    </div>
+
+    <div style="display: flex; gap: 7px">
+      <div style="flex: 1; min-width: 0; display: flex; flex-direction: column"><label for="ip-servings" style="margin-bottom: 3.5px; font-size: 14px; line-height: 19px; font-weight: 500; color: #4B5563">Servings</label><input id="ip-servings" inputmode="numeric" value="4" style="min-height: 44px; box-sizing: border-box; width: 100%; border: 1px solid #E2E8F0; border-radius: 5.25px; padding: 7px 10.5px; font: inherit; font-size: 17px; color: #020817; background: #FFFFFF"></div>
+      <div style="flex: 1; min-width: 0; display: flex; flex-direction: column"><label for="ip-prep" style="margin-bottom: 3.5px; font-size: 14px; line-height: 19px; font-weight: 500; color: #4B5563">Prep (min)</label><input id="ip-prep" inputmode="numeric" value="15" style="min-height: 44px; box-sizing: border-box; width: 100%; border: 1px solid #E2E8F0; border-radius: 5.25px; padding: 7px 10.5px; font: inherit; font-size: 17px; color: #020817; background: #FFFFFF"></div>
+      <div style="flex: 1; min-width: 0; display: flex; flex-direction: column"><label for="ip-cook" style="margin-bottom: 3.5px; font-size: 14px; line-height: 19px; font-weight: 500; color: #4B5563">Cook (min)</label><input id="ip-cook" inputmode="numeric" value="30" style="min-height: 44px; box-sizing: border-box; width: 100%; border: 1px solid #E2E8F0; border-radius: 5.25px; padding: 7px 10.5px; font: inherit; font-size: 17px; color: #020817; background: #FFFFFF"></div>
+    </div>
+
+    <section aria-label="Ingredients" style="display: flex; flex-direction: column">
+      <h2 style="margin: 0 0 7px; font-size: 16px; line-height: 22px; font-weight: 600; color: #111827">Ingredients</h2>
+      <div style="display: flex; flex-direction: column; gap: 7px">
+
+        <div style="display: flex; align-items: center; gap: 7px">
+          <input aria-label="Amount for ingredient 1" value="600" placeholder="Qty" style="width: 56px; flex: none; min-height: 44px; box-sizing: border-box; border: 1px solid #E2E8F0; border-radius: 5.25px; padding: 7px 10.5px; font: inherit; font-size: 17px; color: #020817; background: #FFFFFF">
+          <button type="button" aria-label="Unit for ingredient 1, g" style="width: 84px; flex: none; min-height: 44px; padding: 7px 10.5px; border: 1px solid #E2E8F0; border-radius: 5.25px; background: #FFFFFF; font: inherit; display: flex; align-items: center; justify-content: space-between"><span style="font-size: 17px">g</span><span aria-hidden="true" style="font-size: 14px; color: #8A7560">▾</span></button>
+          <button type="button" aria-label="Ingredient 1, Chicken thigh, nutrition known" style="flex: 1; min-width: 0; min-height: 44px; padding: 3.5px 10.5px; border: 1px solid #E2E8F0; border-radius: 5.25px; background: #FFFFFF; font: inherit; text-align: left; display: flex; align-items: center; gap: 3.5px"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#6B7280" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex: none"><path d="M12 7c-1-1-3-1.6-4.6-.8C5 7.5 4.6 11 5.6 14c1 3.2 3 5.8 4.6 5.8 1 0 1.2-.5 1.8-.5s.8.5 1.8.5c1.6 0 3.6-2.6 4.6-5.8 1-3 .6-6.5-1.8-7.8C15 5.4 13 6 12 7zM12 7c0-2 1-3.5 3-4"></path></svg><span style="flex: 1; min-width: 0; font-size: 17px; line-height: 24px">Chicken thigh</span></button>
+          <button type="button" aria-label="Remove ingredient 1" style="width: 44px; height: 44px; flex: none; border: none; background: transparent; color: #9CA3AF; display: flex; align-items: center; justify-content: center"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"></path></svg></button>
+        </div>
+
+        <div style="display: flex; align-items: center; gap: 7px">
+          <input aria-label="Amount for ingredient 2" value="2" placeholder="Qty" style="width: 56px; flex: none; min-height: 44px; box-sizing: border-box; border: 1px solid #E2E8F0; border-radius: 5.25px; padding: 7px 10.5px; font: inherit; font-size: 17px; color: #020817; background: #FFFFFF">
+          <button type="button" aria-label="Unit for ingredient 2, tsp" style="width: 84px; flex: none; min-height: 44px; padding: 7px 10.5px; border: 1px solid #E2E8F0; border-radius: 5.25px; background: #FFFFFF; font: inherit; display: flex; align-items: center; justify-content: space-between"><span style="font-size: 17px">tsp</span><span aria-hidden="true" style="font-size: 14px; color: #8A7560">▾</span></button>
+          <button type="button" aria-label="Ingredient 2, Ground cumin, nutrition known" style="flex: 1; min-width: 0; min-height: 44px; padding: 3.5px 10.5px; border: 1px solid #E2E8F0; border-radius: 5.25px; background: #FFFFFF; font: inherit; text-align: left; display: flex; align-items: center; gap: 3.5px"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#6B7280" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex: none"><path d="M12 7c-1-1-3-1.6-4.6-.8C5 7.5 4.6 11 5.6 14c1 3.2 3 5.8 4.6 5.8 1 0 1.2-.5 1.8-.5s.8.5 1.8.5c1.6 0 3.6-2.6 4.6-5.8 1-3 .6-6.5-1.8-7.8C15 5.4 13 6 12 7zM12 7c0-2 1-3.5 3-4"></path></svg><span style="flex: 1; min-width: 0; font-size: 17px; line-height: 24px">Ground cumin</span></button>
+          <button type="button" aria-label="Remove ingredient 2" style="width: 44px; height: 44px; flex: none; border: none; background: transparent; color: #9CA3AF; display: flex; align-items: center; justify-content: center"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"></path></svg></button>
+        </div>
+
+        <div style="display: flex; align-items: center; gap: 7px">
+          <input aria-label="Amount for ingredient 3" value="2" placeholder="Qty" style="width: 56px; flex: none; min-height: 44px; box-sizing: border-box; border: 1px solid #E2E8F0; border-radius: 5.25px; padding: 7px 10.5px; font: inherit; font-size: 17px; color: #020817; background: #FFFFFF">
+          <button type="button" aria-label="Unit for ingredient 3, tsp" style="width: 84px; flex: none; min-height: 44px; padding: 7px 10.5px; border: 1px solid #E2E8F0; border-radius: 5.25px; background: #FFFFFF; font: inherit; display: flex; align-items: center; justify-content: space-between"><span style="font-size: 17px">tsp</span><span aria-hidden="true" style="font-size: 14px; color: #8A7560">▾</span></button>
+          <button type="button" aria-label="Ingredient 3, Smoked paprika, nutrition known" style="flex: 1; min-width: 0; min-height: 44px; padding: 3.5px 10.5px; border: 1px solid #E2E8F0; border-radius: 5.25px; background: #FFFFFF; font: inherit; text-align: left; display: flex; align-items: center; gap: 3.5px"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#6B7280" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex: none"><path d="M12 7c-1-1-3-1.6-4.6-.8C5 7.5 4.6 11 5.6 14c1 3.2 3 5.8 4.6 5.8 1 0 1.2-.5 1.8-.5s.8.5 1.8.5c1.6 0 3.6-2.6 4.6-5.8 1-3 .6-6.5-1.8-7.8C15 5.4 13 6 12 7zM12 7c0-2 1-3.5 3-4"></path></svg><span style="flex: 1; min-width: 0; font-size: 17px; line-height: 24px">Smoked paprika</span></button>
+          <button type="button" aria-label="Remove ingredient 3" style="width: 44px; height: 44px; flex: none; border: none; background: transparent; color: #9CA3AF; display: flex; align-items: center; justify-content: center"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"></path></svg></button>
+        </div>
+
+        <div style="display: flex; align-items: center; gap: 7px">
+          <input aria-label="Amount for ingredient 4" value="1" placeholder="Qty" style="width: 56px; flex: none; min-height: 44px; box-sizing: border-box; border: 1px solid #E2E8F0; border-radius: 5.25px; padding: 7px 10.5px; font: inherit; font-size: 17px; color: #020817; background: #FFFFFF">
+          <button type="button" aria-label="Unit for ingredient 4, tbsp" style="width: 84px; flex: none; min-height: 44px; padding: 7px 10.5px; border: 1px solid #E2E8F0; border-radius: 5.25px; background: #FFFFFF; font: inherit; display: flex; align-items: center; justify-content: space-between"><span style="font-size: 17px">tbsp</span><span aria-hidden="true" style="font-size: 14px; color: #8A7560">▾</span></button>
+          <button type="button" aria-label="Ingredient 4, Olive oil, nutrition known" style="flex: 1; min-width: 0; min-height: 44px; padding: 3.5px 10.5px; border: 1px solid #E2E8F0; border-radius: 5.25px; background: #FFFFFF; font: inherit; text-align: left; display: flex; align-items: center; gap: 3.5px"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#6B7280" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex: none"><path d="M12 7c-1-1-3-1.6-4.6-.8C5 7.5 4.6 11 5.6 14c1 3.2 3 5.8 4.6 5.8 1 0 1.2-.5 1.8-.5s.8.5 1.8.5c1.6 0 3.6-2.6 4.6-5.8 1-3 .6-6.5-1.8-7.8C15 5.4 13 6 12 7zM12 7c0-2 1-3.5 3-4"></path></svg><span style="flex: 1; min-width: 0; font-size: 17px; line-height: 24px">Olive oil</span></button>
+          <button type="button" aria-label="Remove ingredient 4" style="width: 44px; height: 44px; flex: none; border: none; background: transparent; color: #9CA3AF; display: flex; align-items: center; justify-content: center"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"></path></svg></button>
+        </div>
+
+        <div>
+          <div style="display: flex; align-items: center; gap: 7px">
+            <input aria-label="Amount for ingredient 5" value="200" placeholder="Qty" style="width: 56px; flex: none; min-height: 44px; box-sizing: border-box; border: 1px solid #E2E8F0; border-radius: 5.25px; padding: 7px 10.5px; font: inherit; font-size: 17px; color: #020817; background: #FFFFFF">
+            <input aria-label="Unit for ingredient 5" value="g" placeholder="g" style="width: 56px; flex: none; min-height: 44px; box-sizing: border-box; border: 1px solid #E2E8F0; border-radius: 5.25px; padding: 7px 10.5px; font: inherit; font-size: 17px; color: #020817; background: #FFFFFF">
+            <button type="button" aria-label="Ingredient 5, dairy-free yogurt, needs a match" style="flex: 1; min-width: 0; min-height: 44px; padding: 3.5px 10.5px; border: 1px solid #FBBF24; border-radius: 5.25px; background: #FFFFFF; font: inherit; text-align: left; display: flex; align-items: center; gap: 3.5px"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#B45309" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex: none"><circle cx="12" cy="12" r="9"></circle><path d="M9.5 9.5a2.5 2.5 0 114 2c-.9.6-1.5 1.1-1.5 2.3M12 17h.01"></path></svg><span style="flex: 1; min-width: 0; font-size: 17px; line-height: 24px">dairy-free yogurt</span></button>
+            <button type="button" aria-label="Remove ingredient 5" style="width: 44px; height: 44px; flex: none; border: none; background: transparent; color: #9CA3AF; display: flex; align-items: center; justify-content: center"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"></path></svg></button>
+          </div>
+          <div style="margin-top: 3.5px; display: flex; flex-direction: column; gap: 3.5px">
+            <span style="font-size: 14px; line-height: 19px; color: #92400E">"dairy-free yogurt" isn't linked to an ingredient yet.</span>
+            <div style="display: flex; flex-wrap: wrap; gap: 5.25px">
+              <button type="button" aria-label="Pick a match: Coconut yogurt" style="min-height: 44px; padding: 0 10.5px; border: 1px solid #FCD34D; border-radius: 9999px; background: #FFFBEB; font: inherit; font-size: 14px; font-weight: 500; color: #78350F">Coconut yogurt</button>
+              <button type="button" aria-label="Pick a match: Soy yogurt" style="min-height: 44px; padding: 0 10.5px; border: 1px solid #FCD34D; border-radius: 9999px; background: #FFFBEB; font: inherit; font-size: 14px; font-weight: 500; color: #78350F">Soy yogurt</button>
+              <button type="button" aria-label="Pick a match: Oat yogurt" style="min-height: 44px; padding: 0 10.5px; border: 1px solid #FCD34D; border-radius: 9999px; background: #FFFBEB; font: inherit; font-size: 14px; font-weight: 500; color: #78350F">Oat yogurt</button>
+            </div>
+          </div>
+        </div>
+
+        <div style="display: flex; align-items: center; gap: 7px">
+          <input aria-label="Amount for ingredient 6" value="250" placeholder="Qty" style="width: 56px; flex: none; min-height: 44px; box-sizing: border-box; border: 1px solid #E2E8F0; border-radius: 5.25px; padding: 7px 10.5px; font: inherit; font-size: 17px; color: #020817; background: #FFFFFF">
+          <button type="button" aria-label="Unit for ingredient 6, g" style="width: 84px; flex: none; min-height: 44px; padding: 7px 10.5px; border: 1px solid #E2E8F0; border-radius: 5.25px; background: #FFFFFF; font: inherit; display: flex; align-items: center; justify-content: space-between"><span style="font-size: 17px">g</span><span aria-hidden="true" style="font-size: 14px; color: #8A7560">▾</span></button>
+          <button type="button" aria-label="Ingredient 6, Basmati rice, nutrition known" style="flex: 1; min-width: 0; min-height: 44px; padding: 3.5px 10.5px; border: 1px solid #E2E8F0; border-radius: 5.25px; background: #FFFFFF; font: inherit; text-align: left; display: flex; align-items: center; gap: 3.5px"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#6B7280" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex: none"><path d="M12 7c-1-1-3-1.6-4.6-.8C5 7.5 4.6 11 5.6 14c1 3.2 3 5.8 4.6 5.8 1 0 1.2-.5 1.8-.5s.8.5 1.8.5c1.6 0 3.6-2.6 4.6-5.8 1-3 .6-6.5-1.8-7.8C15 5.4 13 6 12 7zM12 7c0-2 1-3.5 3-4"></path></svg><span style="flex: 1; min-width: 0; font-size: 17px; line-height: 24px">Basmati rice</span></button>
+          <button type="button" aria-label="Remove ingredient 6" style="width: 44px; height: 44px; flex: none; border: none; background: transparent; color: #9CA3AF; display: flex; align-items: center; justify-content: center"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"></path></svg></button>
+        </div>
+
+        <div style="display: flex; align-items: center; gap: 7px">
+          <input aria-label="Amount for ingredient 7" value="1" placeholder="Qty" style="width: 56px; flex: none; min-height: 44px; box-sizing: border-box; border: 1px solid #E2E8F0; border-radius: 5.25px; padding: 7px 10.5px; font: inherit; font-size: 17px; color: #020817; background: #FFFFFF">
+          <button type="button" aria-label="Unit for ingredient 7, piece" style="width: 84px; flex: none; min-height: 44px; padding: 7px 10.5px; border: 1px solid #E2E8F0; border-radius: 5.25px; background: #FFFFFF; font: inherit; display: flex; align-items: center; justify-content: space-between"><span style="font-size: 17px">piece</span><span aria-hidden="true" style="font-size: 14px; color: #8A7560">▾</span></button>
+          <button type="button" aria-label="Ingredient 7, Cucumber, nutrition known" style="flex: 1; min-width: 0; min-height: 44px; padding: 3.5px 10.5px; border: 1px solid #E2E8F0; border-radius: 5.25px; background: #FFFFFF; font: inherit; text-align: left; display: flex; align-items: center; gap: 3.5px"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#6B7280" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex: none"><path d="M12 7c-1-1-3-1.6-4.6-.8C5 7.5 4.6 11 5.6 14c1 3.2 3 5.8 4.6 5.8 1 0 1.2-.5 1.8-.5s.8.5 1.8.5c1.6 0 3.6-2.6 4.6-5.8 1-3 .6-6.5-1.8-7.8C15 5.4 13 6 12 7zM12 7c0-2 1-3.5 3-4"></path></svg><span style="flex: 1; min-width: 0; font-size: 17px; line-height: 24px">Cucumber</span></button>
+          <button type="button" aria-label="Remove ingredient 7" style="width: 44px; height: 44px; flex: none; border: none; background: transparent; color: #9CA3AF; display: flex; align-items: center; justify-content: center"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"></path></svg></button>
+        </div>
+      </div>
+      <button type="button" style="margin-top: 3.5px; align-self: flex-start; min-height: 44px; padding: 7px 10.5px; border: none; border-radius: 5.25px; background: transparent; font: inherit; font-size: 16px; font-weight: 500; color: #020817">+ Add ingredient</button>
+    </section>
+
+    <section aria-label="Steps" style="display: flex; flex-direction: column">
+      <h2 style="margin: 0 0 7px; font-size: 16px; line-height: 22px; font-weight: 600; color: #111827">Steps</h2>
+      <div style="display: flex; flex-direction: column; gap: 7px">
+        <div style="display: flex; align-items: flex-start; gap: 7px"><span aria-hidden="true" style="margin-top: 10.5px; width: 17.5px; flex: none; text-align: right; font-size: 14px; font-weight: 600; color: #6B7280">1.</span><textarea aria-label="Step 1" rows="2" style="flex: 1; min-width: 0; min-height: 56px; box-sizing: border-box; border: 1px solid #E2E8F0; border-radius: 5.25px; padding: 7px 10.5px; font: inherit; font-size: 17px; line-height: 24px; color: #020817; background: #FFFFFF; resize: none">Mix the cumin, paprika and olive oil, and coat the chicken. Leave for 10 minutes.</textarea><button type="button" aria-label="Remove step 1" style="width: 44px; height: 44px; flex: none; border: none; background: transparent; color: #9CA3AF; display: flex; align-items: center; justify-content: center"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"></path></svg></button></div>
+        <div style="display: flex; align-items: flex-start; gap: 7px"><span aria-hidden="true" style="margin-top: 10.5px; width: 17.5px; flex: none; text-align: right; font-size: 14px; font-weight: 600; color: #6B7280">2.</span><textarea aria-label="Step 2" rows="2" style="flex: 1; min-width: 0; min-height: 56px; box-sizing: border-box; border: 1px solid #E2E8F0; border-radius: 5.25px; padding: 7px 10.5px; font: inherit; font-size: 17px; line-height: 24px; color: #020817; background: #FFFFFF; resize: none">Cook the rice in 500 ml water for 12 minutes, then rest it covered.</textarea><button type="button" aria-label="Remove step 2" style="width: 44px; height: 44px; flex: none; border: none; background: transparent; color: #9CA3AF; display: flex; align-items: center; justify-content: center"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"></path></svg></button></div>
+        <div style="display: flex; align-items: flex-start; gap: 7px"><span aria-hidden="true" style="margin-top: 10.5px; width: 17.5px; flex: none; text-align: right; font-size: 14px; font-weight: 600; color: #6B7280">3.</span><textarea aria-label="Step 3" rows="2" style="flex: 1; min-width: 0; min-height: 56px; box-sizing: border-box; border: 1px solid #E2E8F0; border-radius: 5.25px; padding: 7px 10.5px; font: inherit; font-size: 17px; line-height: 24px; color: #020817; background: #FFFFFF; resize: none">Roast the chicken at 220°C for 25 minutes, then slice it.</textarea><button type="button" aria-label="Remove step 3" style="width: 44px; height: 44px; flex: none; border: none; background: transparent; color: #9CA3AF; display: flex; align-items: center; justify-content: center"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"></path></svg></button></div>
+        <div style="display: flex; align-items: flex-start; gap: 7px"><span aria-hidden="true" style="margin-top: 10.5px; width: 17.5px; flex: none; text-align: right; font-size: 14px; font-weight: 600; color: #6B7280">4.</span><textarea aria-label="Step 4" rows="2" style="flex: 1; min-width: 0; min-height: 56px; box-sizing: border-box; border: 1px solid #E2E8F0; border-radius: 5.25px; padding: 7px 10.5px; font: inherit; font-size: 17px; line-height: 24px; color: #020817; background: #FFFFFF; resize: none">Serve over the rice with diced cucumber and a spoon of yogurt.</textarea><button type="button" aria-label="Remove step 4" style="width: 44px; height: 44px; flex: none; border: none; background: transparent; color: #9CA3AF; display: flex; align-items: center; justify-content: center"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"></path></svg></button></div>
+      </div>
+      <button type="button" style="margin-top: 3.5px; align-self: flex-start; min-height: 44px; padding: 7px 10.5px; border: none; border-radius: 5.25px; background: transparent; font: inherit; font-size: 16px; font-weight: 500; color: #020817">+ Add step</button>
+    </section>
+
+    <p style="margin: 0; font-size: 14px; line-height: 19px; color: #92400E">Incomplete — 1 ingredient needs data</p>
+    <p style="margin: 0; font-size: 14px; line-height: 19px; color: #8A7560">Nutrition is computed from the matched ingredients. Saved to your private collection only.</p>
+
+    <a href="RecipeDetail.dc.html" style="min-height: 44px; box-sizing: border-box; padding: 7px 14px; border-radius: 5.25px; background: #944A00; color: #FCF9F5; font-size: 16px; font-weight: 500; display: flex; align-items: center; justify-content: center; text-decoration: none">Save Cheferized recipe</a>
+    <a href="ImportRecipe.dc.html" style="min-height: 44px; box-sizing: border-box; padding: 7px 14px; border-radius: 5.25px; font-size: 14px; color: #8A7560; display: flex; align-items: center; justify-content: center; text-decoration: none">Start over</a>
   </main>
 
   <div style="height: 34px; flex: none"></div>
 </div>
 </x-dc>
-<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":844}}'>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":1813}}'>
 class Component extends DCLogic {
 renderVals() {
 return {};

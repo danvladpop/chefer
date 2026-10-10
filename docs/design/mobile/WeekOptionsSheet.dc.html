@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Plan — Week options</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+body{margin:0}
+a{color:#944a00;text-decoration:none}a:hover{color:#6e3700}
+input::placeholder,textarea::placeholder{color:#9ca3af}
+</style>
+</helmet>
+<div style="width: 390px; height: 844px; position: relative; overflow: hidden; background: #FFFFFF; font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Helvetica Neue', system-ui, sans-serif; color: #1C1917; display: flex; flex-direction: column">
+  <div style="height: 47px; flex: none"></div>
+
+  <a href="Plan.dc.html" aria-label="Close Week options" style="position: absolute; inset: 0; background: rgba(0,0,0,.4)"></a>
+
+  <section role="dialog" aria-label="Week options" style="position: absolute; left: 0; right: 0; bottom: 0; max-height: 85%; background: #FFFFFF; border-radius: 21px 21px 0 0; box-shadow: 0 -4px 12px -4px rgba(67,42,25,.08), 0 -16px 40px -12px rgba(67,42,25,.18); display: flex; flex-direction: column">
+    <div style="width: 40px; height: 3.5px; border-radius: 9999px; background: #D1D5DB; margin: 7px auto 0; flex: none"></div>
+    <div style="padding: 10.5px 14px 7px; display: flex; align-items: center; justify-content: space-between; gap: 10.5px">
+      <h2 style="margin: 0; flex: 1; min-width: 0; font-size: 19px; line-height: 26px; font-weight: 600; color: #020817">Week options</h2>
+      <a href="Plan.dc.html" aria-label="Close" style="width: 44px; height: 44px; flex: none; border-radius: 9999px; background: #F3F4F6; color: #374151; font-size: 19px; font-weight: 600; display: flex; align-items: center; justify-content: center; text-decoration: none">✕</a>
+    </div>
+
+    <div style="padding: 0 14px 14px; display: flex; flex-direction: column; gap: 10.5px">
+      <div style="padding-bottom: 7px; display: flex; flex-direction: column; gap: 7px">
+        <button type="button" aria-label="New meal plan for this week. Keeps the meals you pinned." style="min-height: 56px; box-sizing: border-box; border: 1px solid #E2E8F0; border-radius: 10.5px; background: #FFFFFF; padding: 10.5px; font: inherit; text-align: left; display: flex; align-items: center; gap: 10.5px">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#944A00" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex: none"><path d="M19.5 12a7.5 7.5 0 11-2.2-5.3M19.5 4v4.5H15"></path></svg>
+          <span style="flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1.75px">
+            <span style="font-size: 17px; line-height: 24px; font-weight: 500; color: #111827">New meal plan for this week</span>
+            <span style="font-size: 16px; line-height: 22px; color: #4B5563">Keeps the meals you pinned.</span>
+          </span>
+        </button>
+        <button type="button" aria-label="Rebalance my week. Swaps up to 2 upcoming meals to bring your week back on target." style="min-height: 56px; box-sizing: border-box; border: 1px solid #E2E8F0; border-radius: 10.5px; background: #FFFFFF; padding: 10.5px; font: inherit; text-align: left; display: flex; align-items: center; gap: 10.5px">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#944A00" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex: none"><path d="M4 20L15 9M13 7l2-2 4 4-2 2"></path><path d="M8 3v3M6.5 4.5h3M19 14v3M17.5 15.5h3"></path></svg>
+          <span style="flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1.75px">
+            <span style="font-size: 17px; line-height: 24px; font-weight: 500; color: #111827">Rebalance my week</span>
+            <span style="font-size: 16px; line-height: 22px; color: #4B5563">Swaps up to 2 upcoming meals to bring your week back on target.</span>
+          </span>
+        </button>
+      </div>
+    </div>
+    <div style="height: 34px; flex: none"></div>
+  </section>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":844}}'>
+class Component extends DCLogic {
+renderVals() {
+return {};
+}
+}
+</script>
+</body>
+</html>
