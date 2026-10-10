@@ -48,8 +48,11 @@ import { WeightField } from '../today/weight-card';
 import {
   eatingStats,
   MIN_LOGGED_DAYS,
+  needsOlderHistory,
+  olderHistoryCursor,
   signedPct,
   trainingStats,
+  trainingStatsWithHistory,
   weekCells,
   type WeekCell,
 } from './stats-helpers';
@@ -213,13 +216,57 @@ function useCachedGymBootstrap(): GymBootstrap | undefined {
   return useQuery<GymBootstrap>({ queryKey, queryFn: skipToken }).data;
 }
 
+/** Older history is a few weeks old by definition: no need to refetch it often. */
+const HISTORY_STALE_MS = 5 * 60_000;
+/** One `gym.session.list` page: far more than six days of training can hold. */
+const OLDER_PAGE = 50;
+/** The PR timeline (newest first) — 90 days of new PRs fit well inside it. */
+const PR_TIMELINE_LIMIT = 200;
+
 function TrainingStatsSection({ range }: { range: ProgressRange }) {
-  const colors = useThemeColors();
   const bootstrap = useCachedGymBootstrap();
   // Only people who train: a gym profile with something on record.
   if (!bootstrap?.profile) return null;
   if (bootstrap.recentSessions.length === 0 && bootstrap.weeks.length === 0) return null;
-  const stats = trainingStats(bootstrap, localDate(), range);
+  return <TrainingStatsCard bootstrap={bootstrap} range={range} />;
+}
+
+/**
+ * 7 and 28 days come straight from the cached bootstrap (offline too). The
+ * 90-day view reaches past its 12 weeks, so it adds the next page of older
+ * sessions and the server's PR timeline; until those arrive — or offline —
+ * it shows the cached numbers and says they cover the last 12 weeks.
+ */
+function TrainingStatsCard({
+  bootstrap,
+  range,
+}: {
+  bootstrap: GymBootstrap;
+  range: ProgressRange;
+}) {
+  const colors = useThemeColors();
+  const today = localDate();
+  const beyondCache = needsOlderHistory(range);
+  const older = trpc.gym.session.list.useQuery(
+    beyondCache
+      ? { cursor: olderHistoryCursor(bootstrap.recentSessions), limit: OLDER_PAGE }
+      : skipToken,
+    { staleTime: HISTORY_STALE_MS, retry: false },
+  );
+  const prTimeline = trpc.gym.stats.prs.useQuery(
+    beyondCache ? { limit: PR_TIMELINE_LIMIT } : skipToken,
+    { staleTime: HISTORY_STALE_MS, retry: false },
+  );
+  const stats =
+    beyondCache && older.data && prTimeline.data
+      ? trainingStatsWithHistory({
+          bootstrap,
+          olderSessions: older.data.items,
+          prTimeline: prTimeline.data,
+          today,
+          rangeDays: range,
+        })
+      : trainingStats(bootstrap, today, range);
   const cells = weekCells(bootstrap.weeks);
   const suffix = stats.clipped ? ', last 12 weeks' : '';
   return (
