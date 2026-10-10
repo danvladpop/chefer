@@ -14,9 +14,9 @@ import { Text } from './text';
 
 export interface MediaFrameProps {
   /** A photo; covers the frame (no letterboxing). */
-  imageUri?: string | null;
+  imageUri?: string | null | undefined;
   /** Shown when there is no photo: an icon on a brand-tint wash. */
-  illustration?: ReactNode;
+  illustration?: ReactNode | undefined;
   /** Frame height; width fills (tile) or equals the height (row). */
   size: number;
   square?: boolean;
