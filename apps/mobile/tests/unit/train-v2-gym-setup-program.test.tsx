@@ -5,7 +5,9 @@ import { TEMPLATE_BY_KEY, type CompleteSetupInput, type TemplateSummaryDto } fro
 import { createMemoryKvBackend, setKvBackendForTests } from '../../src/features/gym/offline/kv';
 import { SetupWizard } from '../../src/features/gym/setup/setup-wizard';
 import { buildTemplatePreview } from '../../src/features/gym/setup/template-preview';
+import { gymBootstrapQueryKey } from '../../src/features/gym/use-gym-bootstrap';
 import { resetShellStoreForTests, setShellV2Preview } from '../../src/features/shell/shell-store';
+import { makeBootstrap, makeExercise, photosIn } from './gym-fixtures';
 import type { createTrpcGymMock } from './gym-trpc-mock';
 import { mutationResult, queryResult } from './gym-trpc-mock';
 
@@ -60,8 +62,12 @@ const SAFE_AREA_METRICS = {
   frame: { x: 0, y: 0, width: 390, height: 844 },
 };
 
-function renderWizard() {
-  const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+function renderWizard(bootstrap?: ReturnType<typeof makeBootstrap>) {
+  // gcTime Infinity: a cached bootstrap must not leave a 5-min GC timer open after the test.
+  const queryClient = new QueryClient({
+    defaultOptions: { queries: { retry: false, gcTime: Infinity } },
+  });
+  if (bootstrap) queryClient.setQueryData(gymBootstrapQueryKey, bootstrap);
   return render(
     <SafeAreaProvider initialMetrics={SAFE_AREA_METRICS}>
       <QueryClientProvider client={queryClient}>
@@ -168,6 +174,27 @@ describe('Gym setup · Your program (shell v2)', () => {
     await user.press(screen.getByTestId('gym-setup-program-select-fb3-beginner'));
     expect(selectedOf('fb3-beginner').selected).toBe(true);
     expect(selectedOf('ul4-beginner').selected).toBe(false);
+  });
+
+  it('a day row shows its first exercise photo from the cached library, else the barbell', async () => {
+    const user = userEvent.setup();
+    const preview = buildTemplatePreview('fb3-beginner', 'FULL_GYM', 'BEGINNER');
+    const first = preview.days[0]?.exercises[0]?.exerciseId ?? '';
+    await renderWizard(
+      makeBootstrap({
+        profile: null,
+        library: [{ ...makeExercise(first), images: ['/static/exercises/first.jpg'] }],
+      }),
+    );
+    await goToProgram(user);
+    expect(photosIn(screen.getByTestId('gym-setup-day-row-0'))).toEqual([
+      'http://localhost:3001/static/exercises/first.jpg',
+    ]);
+    // A day without that exercise keeps the illustration.
+    const other = preview.days.findIndex((d) => d.exercises.every((e) => e.exerciseId !== first));
+    if (other >= 0) {
+      expect(photosIn(screen.getByTestId(`gym-setup-day-row-${String(other)}`))).toEqual([]);
+    }
   });
 
   it("tapping a day row reveals that day's exercises", async () => {

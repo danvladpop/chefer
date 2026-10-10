@@ -10,7 +10,7 @@ import { outbox } from '../../src/features/gym/offline/outbox';
 import { resetGymOwnerForTests } from '../../src/features/gym/offline/owner';
 import { gymBootstrapQueryKey } from '../../src/features/gym/use-gym-bootstrap';
 import { pastWorkoutMeta } from '../../src/features/shell/train/past-workouts';
-import { makeBootstrap } from './gym-fixtures';
+import { makeBootstrap, makeExercise, photosIn } from './gym-fixtures';
 import type { createTrpcGymMock } from './gym-trpc-mock';
 import { mutationResult } from './gym-trpc-mock';
 import { activeDoc } from './gym-workout-helpers';
@@ -325,6 +325,72 @@ describe('Train (new shell)', () => {
       pathname: '/training/stats',
       params: { tab: 'history' },
     });
+  });
+
+  it('covers: Up next and past workouts show the first exercise photo; activities keep the glyph', async () => {
+    const SQUAT_PHOTO = '/static/exercises/squat-start.jpg';
+    const BENCH_PHOTO = 'https://cdn.example/bench.jpg';
+    await renderTrain(
+      client({
+        library: [
+          { ...makeExercise('bench'), images: [BENCH_PHOTO] },
+          { ...makeExercise('squat'), images: [SQUAT_PHOTO] },
+        ],
+        recentSessions: [
+          session({ id: 's1' }),
+          // The skipped squat doesn't count: the cover is bench, done second.
+          session({
+            id: 's2',
+            localDate: '2026-09-21',
+            startedAt: '2026-09-21T17:00:00.000Z',
+            finishedAt: '2026-09-21T17:54:00.000Z',
+            exercises: [
+              { exerciseId: 'squat', skipped: true, lastSetRir: null, sets: [] },
+              {
+                exerciseId: 'bench',
+                skipped: false,
+                lastSetRir: 2,
+                sets: [{ weightKg: 60, reps: 10, isWarmup: false, completed: true }],
+              },
+            ],
+          }),
+          session({
+            id: 'a1',
+            name: 'Run',
+            routineDayId: null,
+            localDate: '2026-09-20',
+            startedAt: '2026-09-20T07:00:00.000Z',
+            finishedAt: '2026-09-20T07:30:00.000Z',
+            exercises: [
+              {
+                exerciseId: 'running',
+                skipped: false,
+                lastSetRir: null,
+                sets: [
+                  { weightKg: 0, reps: 0, isWarmup: false, completed: true, durationSec: 1800 },
+                ],
+              },
+            ],
+          }),
+        ],
+      }),
+    );
+    expect(
+      photosIn(screen.getByTestId('train-up-next-cover', { includeHiddenElements: true })),
+    ).toEqual([BENCH_PHOTO]);
+    expect(photosIn(screen.getByTestId('train-past-row-s1'))).toEqual([
+      `http://localhost:3001${SQUAT_PHOTO}`,
+    ]);
+    expect(photosIn(screen.getByTestId('train-past-row-s2'))).toEqual([BENCH_PHOTO]);
+    expect(photosIn(screen.getByTestId('train-past-row-a1'))).toEqual([]);
+  });
+
+  it('covers: without exercise photos the frames keep the illustration', async () => {
+    await renderTrain(client({ recentSessions: [session({ id: 's1' })] }));
+    expect(
+      photosIn(screen.getByTestId('train-up-next-cover', { includeHiddenElements: true })),
+    ).toEqual([]);
+    expect(photosIn(screen.getByTestId('train-past-row-s1'))).toEqual([]);
   });
 
   it('an activity row shows its distance instead of sets', () => {

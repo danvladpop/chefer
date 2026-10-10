@@ -47,6 +47,8 @@ export interface ProgramStepProps {
   preview: TemplatePreview | null;
   /** The optional session length from step 1 (flags days that run longer). */
   sessionLengthMins: number | null;
+  /** A day's cover photo URL from its exercise ids, or null (the barbell then). */
+  coverOf?: (exerciseIds: readonly string[]) => string | null;
   canGoNext: boolean;
   onNext: () => void;
   /** Overlays the wizard keeps mounted (the leave-setup confirm). */
@@ -198,10 +200,13 @@ function DayRow({
   day,
   index,
   sessionLengthMins,
+  coverUri,
 }: {
   day: TemplatePreview['days'][number];
   index: number;
   sessionLengthMins: number | null;
+  /** The first exercise photo of the day, or null for the barbell. */
+  coverUri: string | null;
 }) {
   const colors = useThemeColors();
   const [open, setOpen] = useState(false);
@@ -213,6 +218,7 @@ function DayRow({
         title={day.name}
         meta={`${String(day.exercises.length)} exercises · ~${String(day.estimatedMin)} min`}
         badge={long ? `Over ${String(sessionLengthMins)} min` : undefined}
+        imageUri={coverUri}
         illustration={<Icon name="barbell" size={24} color={colors.brand} />}
         accessibilityHint={open ? 'Hides the exercises' : 'Shows the exercises'}
         onPress={() => {
@@ -325,6 +331,7 @@ export function ProgramStep({
   onSelect,
   preview,
   sessionLengthMins,
+  coverOf,
   canGoNext,
   onNext,
   children,
@@ -463,6 +470,7 @@ export function ProgramStep({
                 day={day}
                 index={i}
                 sessionLengthMins={sessionLengthMins}
+                coverUri={coverOf?.(day.exercises.map((e) => e.exerciseId)) ?? null}
               />
             ))}
           </View>

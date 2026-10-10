@@ -9,8 +9,15 @@ import {
   Text,
   useThemeColors,
 } from '@chefer/ui-mobile';
-import { resumeSummary, selectTodaysSession, todayStatus, weekdayOf } from '@chefer/utils';
+import {
+  resumeSummary,
+  selectTodaysSession,
+  sessionKcalCopy,
+  todayStatus,
+  weekdayOf,
+} from '@chefer/utils';
 import { Icon } from '../../../components/icon';
+import { exerciseCoverUrl, libraryImages } from '../../gym/library/exercise-image';
 import { useActiveSessionPausedAt } from '../../gym/offline/active-session-store';
 import { localDate } from '../../gym/offline/ids';
 import { weekdayLabel } from '../../gym/routine/weekday';
@@ -19,6 +26,7 @@ import { useActiveWorkout } from '../../gym/use-active-workout';
 import { libraryLookup, useGymBootstrap } from '../../gym/use-gym-bootstrap';
 import { supersetsOf } from '../../gym/workout/workout-model';
 import { LogWorkoutSheet } from '../log-workout-sheet';
+import { BurnTile } from '../train/burn-tile';
 import { ActionButton, BoardCard, SectionTitle } from './parts';
 import { clockTime, doneToday, type DoneToday } from './today-helpers';
 import { useStartGuard } from './use-start-guard';
@@ -29,8 +37,9 @@ import { useStartGuard } from './use-start-guard';
 // `selectTodaysSession()` selectors, so Today and Train never disagree:
 //  - a workout in progress or paused → Resume;
 //  - a session finished today → "Done at 18:40", Summary and three stat tiles
-//    (kcal only when the user entered it on an activity — Chefer has no burn
-//    estimate for gym workouts, so the tile shows Sets instead);
+//    (kcal: what the user logged, else "~310 kcal burned (est.)" from their
+//    bodyweight and the workout time — `estimateSessionKcal`; Sets only when
+//    neither exists, e.g. no weigh-in yet);
 //  - a planned day → Start workout (guarded like Train's Start) and Log a workout;
 //  - a rest day → one compact line; no gym profile or nothing planned → nothing,
 //    so people who don't train are never nagged.
@@ -132,13 +141,8 @@ export function TrainingSection() {
             unit="min"
             label="Duration"
           />
-          {done.caloriesKcal !== null ? (
-            <StatTile
-              testID="today-training-kcal"
-              icon={<Icon name="flame" color={colors.brand} size={18} />}
-              value={`~${done.caloriesKcal}`}
-              label="kcal, from your watch"
-            />
+          {done.burn ? (
+            <BurnTile testID="today-training-kcal" copy={sessionKcalCopy(done.burn)} />
           ) : (
             <StatTile
               testID="today-training-sets"
@@ -216,10 +220,16 @@ export function TrainingSection() {
   return section(
     <BoardCard testID="today-training-planned">
       <View className="flex-row items-center gap-3">
+        {/* The first exercise photo of the day; the barbell when none has one. */}
         <MediaFrame
+          testID="today-training-cover"
           size={56}
           square
           radius="inner"
+          imageUri={exerciseCoverUrl(
+            nextWorkout.exercises.map((e) => e.exerciseId),
+            libraryImages(bootstrap.library),
+          )}
           illustration={<Icon name="barbell" color={colors.brand} size={26} />}
         />
         <View className="min-w-0 flex-1 gap-0.5">

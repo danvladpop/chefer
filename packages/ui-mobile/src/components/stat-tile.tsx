@@ -16,15 +16,28 @@ export interface StatTileProps {
   /** A unit drawn smaller after the value, e.g. "min". */
   unit?: string;
   label: string;
+  /** Replaces the default "{label}: {value} {unit}" — e.g. to spell out an estimate. */
+  accessibilityLabel?: string;
+  /** Where the number comes from, e.g. how an estimate was made. */
+  accessibilityHint?: string;
   testID?: string;
 }
 
-export function StatTile({ icon, value, unit, label, testID }: StatTileProps) {
+export function StatTile({
+  icon,
+  value,
+  unit,
+  label,
+  accessibilityLabel,
+  accessibilityHint,
+  testID,
+}: StatTileProps) {
   return (
     <View
       testID={testID}
       accessible
-      accessibilityLabel={`${label}: ${value}${unit ? ` ${unit}` : ''}`}
+      accessibilityLabel={accessibilityLabel ?? `${label}: ${value}${unit ? ` ${unit}` : ''}`}
+      accessibilityHint={accessibilityHint}
       className="min-w-0 flex-1 items-center gap-1 rounded-card border border-separator bg-surface px-2 py-3"
     >
       {icon ? (

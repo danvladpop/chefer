@@ -177,7 +177,7 @@ beforeEach(() => {
 });
 
 describe('WorkoutSummaryV2', () => {
-  it('a gym session shows Duration / Sets / Exercises and never a kcal tile', async () => {
+  it('without a weigh-in a gym session shows Duration / Sets / Exercises and no kcal tile', async () => {
     const doc = finishedDoc();
     rememberFinished(doc);
     await renderSummary(doc.id, bootstrapAfterFinish(doc));
@@ -207,6 +207,34 @@ describe('WorkoutSummaryV2', () => {
     expectTile('summary-kcal', '310', 'kcal you logged');
     expect(screen.queryByTestId('summary-sets')).toBeNull();
     expectTile('summary-exercises', '1', 'Exercise');
+  });
+
+  it('with a known bodyweight the middle tile is an estimated kcal burned, labelled as one', async () => {
+    const doc = finishedDoc();
+    rememberFinished(doc);
+    await renderSummary(doc.id, { ...bootstrapAfterFinish(doc), bodyweightKg: 80 });
+
+    // 3 working sets cap strength time at 25 of 52 min: 3.5 MET × 80 kg × 25/60 h ≈ 117 → 120.
+    expectTile('summary-kcal', '~120', 'kcal burned (est.)');
+    expect(screen.getByTestId('summary-kcal')).toHaveProp(
+      'accessibilityLabel',
+      'About 120 kilocalories burned, estimated',
+    );
+    expect(screen.getByTestId('summary-kcal')).toHaveProp(
+      'accessibilityHint',
+      'Estimated from your body weight and workout time',
+    );
+    expect(screen.queryByTestId('summary-sets')).toBeNull();
+  });
+
+  it('kcal the user logged wins over the estimate', async () => {
+    const doc = activityDoc();
+    rememberFinished(doc);
+    await renderSummary(
+      doc.id,
+      makeBootstrap({ recentSessions: [toSessionSummary(doc)], bodyweightKg: 80 }),
+    );
+    expectTile('summary-kcal', '310', 'kcal you logged');
   });
 
   it('shows the PR card with the exercise and the record set', async () => {
