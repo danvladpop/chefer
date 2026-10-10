@@ -6,6 +6,8 @@ import { usePendingOnboarding } from '../../src/features/auth/pending-onboarding
 import { useFriendsMe } from '../../src/features/friends/api/use-friends-me';
 import { landingSurfaceSync, useSyncLandingCache } from '../../src/features/navigation/use-landing';
 import { useOnboardingGate } from '../../src/features/onboarding/use-onboarding-gate';
+import { ShellV2Forward } from '../../src/features/shell/shell-forward';
+import { useShellV2 } from '../../src/features/shell/shell-store';
 import { getToken } from '../../src/lib/auth-store';
 import { TAB_BAR_SCREEN_OPTIONS } from '../../src/lib/tab-bar-options';
 
@@ -33,6 +35,8 @@ export default function FoodTabsLayout() {
   // once the app is open (caught by e2e/gym-mode.flow.yaml, 2026-09-25),
   // and never writes the persisted mode.
   const pathname = usePathname();
+  // Mobile UX revamp: with the new shell on, this group only forwards.
+  const shellV2 = useShellV2();
   useSyncLandingCache();
   // Following (ux-design.md §2.1): the More tab carries the in-app
   // notification badge (pending requests + unread Activity, capped `9+`,
@@ -52,6 +56,14 @@ export default function FoodTabsLayout() {
   const token = getToken();
   if (onboardingPending || onboardingUnfinished) {
     return <Redirect href="/onboarding" />;
+  }
+  if (shellV2) {
+    let landing: '/train' | undefined;
+    if (landingCheckedForToken !== token) {
+      landingCheckedForToken = token;
+      if (pathname === '/' && landingSurfaceSync() === 'gym') landing = '/train';
+    }
+    return <ShellV2Forward landing={landing} />;
   }
   if (landingCheckedForToken !== token) {
     landingCheckedForToken = token;

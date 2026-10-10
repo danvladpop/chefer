@@ -35,67 +35,86 @@ export function PlanDayChips({
   todayIndex: number | null;
   onSelect: (dayIndex: number) => void;
 }) {
+  // The two markers explain themselves once a week carries both (walkthrough
+  // 2026-10-10: "↔ and • with no legend").
+  const legendGlyph = plan.trainingDays?.[0]?.kind;
   return (
-    <View className="flex-row justify-between px-4 pb-2">
-      {DAY_LABELS.map((label, i) => {
-        const isSelected = selectedDay === i;
-        const isToday = todayIndex === i;
-        const hasMeals = plan.days.some((d) => d.dayOfWeek === i && d.meals.length > 0);
-        const tailorState = tailoringDayState(plan.tailoring, i);
-        const tailorLabel = tailoringDayLabel(tailorState);
-        const marked =
-          tailorState === 'tailored' || tailorState === 'tailoring' || tailorState === 'waiting';
-        const training = plan.trainingDays?.find((d) => d.dayOfWeek === i);
-        return (
-          <Pressable
-            key={label}
-            testID={`plan-day-${i}`}
-            accessibilityRole="button"
-            accessibilityLabel={`${
-              training ? trainingChipA11y(training.dayName, training.kind) : label
-            }${isToday ? ', today' : ''}${tailorLabel ? `, ${tailorLabel}` : ''}`}
-            accessibilityState={{ selected: isSelected }}
-            onPress={() => onSelect(i)}
-            className={cn(
-              'h-14 w-11 items-center justify-center gap-0.5 rounded-xl',
-              isSelected ? 'bg-primary' : isToday ? 'bg-accent' : 'bg-gray-50',
-            )}
-          >
-            <Text
-              numberOfLines={1}
-              adjustsFontSizeToFit
-              maxFontSizeMultiplier={DENSE_MAX_FONT_SCALE}
+    <View className="pb-2">
+      <View className="flex-row justify-between px-4">
+        {DAY_LABELS.map((label, i) => {
+          const isSelected = selectedDay === i;
+          const isToday = todayIndex === i;
+          const hasMeals = plan.days.some((d) => d.dayOfWeek === i && d.meals.length > 0);
+          const tailorState = tailoringDayState(plan.tailoring, i);
+          const tailorLabel = tailoringDayLabel(tailorState);
+          const marked =
+            tailorState === 'tailored' || tailorState === 'tailoring' || tailorState === 'waiting';
+          const training = plan.trainingDays?.find((d) => d.dayOfWeek === i);
+          return (
+            <Pressable
+              key={label}
+              testID={`plan-day-${i}`}
+              accessibilityRole="button"
+              accessibilityLabel={`${
+                training ? trainingChipA11y(training.dayName, training.kind) : label
+              }${isToday ? ', today' : ''}${tailorLabel ? `, ${tailorLabel}` : ''}`}
+              accessibilityState={{ selected: isSelected }}
+              onPress={() => onSelect(i)}
               className={cn(
-                'text-xs font-semibold uppercase',
-                isSelected ? 'text-primary-foreground' : 'text-gray-600',
+                'h-14 w-11 items-center justify-center gap-0.5 rounded-xl',
+                isSelected ? 'bg-primary' : isToday ? 'bg-accent' : 'bg-gray-50',
               )}
             >
-              {label}
-            </Text>
-            {/* Fixed-height slot: the dot, the training glyph and the
+              <Text
+                numberOfLines={1}
+                adjustsFontSizeToFit
+                maxFontSizeMultiplier={DENSE_MAX_FONT_SCALE}
+                className={cn(
+                  'text-xs font-semibold uppercase',
+                  isSelected ? 'text-primary-foreground' : 'text-gray-600',
+                )}
+              >
+                {label}
+              </Text>
+              {/* Fixed-height slot: the dot, the training glyph and the
                 tailoring marks swap without moving the chip's label. */}
-            <View className="h-3 items-center justify-center">
-              {marked ? (
-                <TailoringDayMark state={tailorState} selected={isSelected} />
-              ) : training ? (
-                <Ionicons
-                  testID={`plan-day-${i}-training`}
-                  name={trainingGlyph(training.kind)}
-                  size={10}
-                  color={isSelected ? colors.primaryForeground : colors.primary}
-                />
-              ) : (
-                <View
-                  className={cn(
-                    'h-1.5 w-1.5 rounded-full',
-                    !hasMeals ? 'bg-transparent' : isSelected ? 'bg-white/70' : 'bg-primary',
-                  )}
-                />
-              )}
-            </View>
-          </Pressable>
-        );
-      })}
+              <View className="h-3 items-center justify-center">
+                {marked ? (
+                  <TailoringDayMark state={tailorState} selected={isSelected} />
+                ) : training ? (
+                  <Ionicons
+                    testID={`plan-day-${i}-training`}
+                    name={trainingGlyph(training.kind)}
+                    size={10}
+                    color={isSelected ? colors.primaryForeground : colors.primary}
+                  />
+                ) : (
+                  <View
+                    className={cn(
+                      'h-1.5 w-1.5 rounded-full',
+                      !hasMeals ? 'bg-transparent' : isSelected ? 'bg-white/70' : 'bg-primary',
+                    )}
+                  />
+                )}
+              </View>
+            </Pressable>
+          );
+        })}
+      </View>
+      {legendGlyph && (
+        <View testID="plan-day-legend" className="mt-1 flex-row items-center gap-3 px-4">
+          <View className="flex-row items-center gap-1">
+            <View className="h-1.5 w-1.5 rounded-full bg-primary" />
+            <Text className="text-xs text-label-secondary">Meals planned</Text>
+          </View>
+          <View className="flex-row items-center gap-1">
+            <Ionicons name={trainingGlyph(legendGlyph)} size={10} color={colors.primary} />
+            <Text className="text-xs text-label-secondary">
+              {trainingGlyph(legendGlyph) === 'walk-outline' ? 'Run day' : 'Training day'}
+            </Text>
+          </View>
+        </View>
+      )}
     </View>
   );
 }

@@ -17,7 +17,7 @@ import {
   cn,
   defaultWeekOffset,
   deviceLocale,
-  formatApproxPrice,
+  formatApproxPriceHint,
   formatDate,
   formatMoney,
   formatPriceRange,
@@ -383,7 +383,7 @@ export default function ShoppingListScreen() {
               <Text testID="shopping-total" className="text-xs font-medium text-gray-600">
                 Est. total{' '}
                 {formatPriceRange(weekList.estimatedTotalEur, currency, deviceLocale()) ??
-                  `~${formatApproxPrice(weekList.estimatedTotalEur, currency)}`}
+                  formatApproxPriceHint(weekList.estimatedTotalEur, currency)}
                 {/* UX-PLAN-07: the total covers the same days as the list. */}
                 {shoppingWindowLabel(weekList.fromDayOfWeek)
                   ? ` · ${shoppingWindowLabel(weekList.fromDayOfWeek)}`
@@ -396,7 +396,7 @@ export default function ShoppingListScreen() {
               <View className="rounded-full border border-primary/20 bg-accent px-3 py-1">
                 <Text testID="shopping-portions" className="text-xs font-medium text-primary">
                   For {weekList.portions} portions
-                  {` · ~${formatApproxPrice(
+                  {` · ${formatApproxPriceHint(
                     perPortionCost(weekList.estimatedTotalEur, weekList.portions) ?? 0,
                     currency,
                   )} each`}
@@ -552,7 +552,7 @@ export default function ShoppingListScreen() {
                                 <Text numberOfLines={1} className="text-xs text-gray-500">
                                   {quantityLabel}
                                   {item.estimatedPriceEur != null &&
-                                    ` · ~${formatApproxPrice(item.estimatedPriceEur, currency)}`}
+                                    ` · ${formatApproxPriceHint(item.estimatedPriceEur, currency)}`}
                                   {pending && (online ? ' · Saving…' : ' · Not saved yet')}
                                 </Text>
                               </View>

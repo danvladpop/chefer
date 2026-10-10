@@ -5,6 +5,7 @@ import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { Snackbar } from '@chefer/ui-mobile';
 import { AiConsentHost, AiConsentProvider } from '../src/features/ai-consent/ai-consent-provider';
+import { forceLightAppearance } from '../src/features/appearance/force-light';
 import { markSessionExpired, setUnauthorizedHandler } from '../src/features/auth/session-expired';
 import { TermsReacceptSheet } from '../src/features/auth/terms-reaccept-sheet';
 import { useSession } from '../src/features/auth/use-session';
@@ -20,6 +21,7 @@ import { useNotificationLinks } from '../src/features/notifications/use-notifica
 import { NumbersModeHost } from '../src/features/numbers-mode/numbers-mode';
 import { PremiumHost } from '../src/features/premium/premium-host';
 import { HealthConsentLaunchPrompt } from '../src/features/privacy/health-consent-launch-prompt';
+import { ShellFlagHost } from '../src/features/shell/shell-flag-host';
 import { initAnalytics, track } from '../src/lib/analytics';
 import { getTrpcUrl } from '../src/lib/api-url';
 import { getToken } from '../src/lib/auth-store';
@@ -33,6 +35,9 @@ import { buildTrpcLinks } from '../src/lib/trpc-links';
 // (info, not warn: warn would raise a LogBox toast in dev builds.)
 // eslint-disable-next-line no-console
 console.info(`[chefer] ${CURRENT_BUILD}`);
+
+// UX-X-07: native UI (keyboard, alerts, share sheet) matches the light app.
+forceLightAppearance();
 
 // NetInfo → onlineManager, AppState → focusManager (gym offline layer, §5.2).
 installQueryConnectivity();
@@ -103,6 +108,13 @@ export default function RootLayout() {
                 the persisted mode picks which one "/" opens. */}
                   <Stack.Screen name="(food)" />
                   <Stack.Screen name="(gym)" />
+                  {/* Mobile UX revamp: the one-tab-bar shell (`mobileShellV2`)
+                    and the old Gym/Cookbook tabs, pushed from it. */}
+                  <Stack.Screen name="(main)" />
+                  <Stack.Screen name="training/routine" />
+                  <Stack.Screen name="training/exercises" />
+                  <Stack.Screen name="training/stats" />
+                  <Stack.Screen name="cookbook" />
                   <Stack.Screen name="recipe/[id]" />
                   <Stack.Screen name="tracker" />
                   <Stack.Screen name="pantry" />
@@ -159,6 +171,8 @@ export default function RootLayout() {
             <FoodNudgeHost signedIn={token !== null} />
             {/* UX-PO-10: after 30 min in the background, a foreground re-lands (food/gym). */}
             <ForegroundLandingHost signedIn={token !== null} />
+            {/* Mobile UX revamp: caches `mobileShellV2` for the next cold start. */}
+            <ShellFlagHost signedIn={token !== null} />
             {/* UX-26, Q-7 (pending counsel): data saved before health consent existed
                 is kept; the signed-in user is asked once per launch. */}
             <HealthConsentLaunchPrompt signedIn={token !== null} />

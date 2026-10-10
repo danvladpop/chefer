@@ -32,6 +32,7 @@ import { useTimedRefresh } from '../../src/features/gym/today/use-timed-refresh'
 import { NumbersModeProvider } from '../../src/features/numbers-mode/numbers-mode';
 import { HealthConsentTodayNotice } from '../../src/features/privacy/health-consent-notice';
 import { MigrationCard } from '../../src/features/safety/migration-card';
+import { useShellV2 } from '../../src/features/shell/shell-store';
 import { QuickAddSheet } from '../../src/features/tracker/quick-add-sheet';
 import { RebalanceBanner } from '../../src/features/tracker/rebalance-banner';
 import { RebalanceOffer } from '../../src/features/tracker/rebalance-offer';
@@ -88,6 +89,10 @@ export default function HomeScreen() {
     }, [refetch]),
   );
 
+  // Mobile UX revamp: in the new shell, adding food moves to the header's +
+  // (one Add sheet), and the week outlook and favourites move to Plan and the
+  // cookbook, so Today answers one question: what now.
+  const shellV2 = useShellV2();
   const isPremium = useIsPremium();
   const { data: hasProfile } = trpc.preferences.hasProfile.useQuery(undefined, {
     enabled: isPremium === true,
@@ -287,13 +292,19 @@ export default function HomeScreen() {
           {/* Off-plan logging: free quick add + premium Snap-to-log. Quick add
             stays available to everyone; Snap-to-log is nutrition-tracking
             gear (B-31 interim). */}
-          <Button testID="today-quick-add" variant="outline" onPress={() => setQuickAddOpen(true)}>
-            <View className="flex-row items-center gap-1.5">
-              <Ionicons name="add" size={18} color="#944a00" />
-              <Text className="text-sm font-medium text-primary">Quick add</Text>
-            </View>
-          </Button>
-          {showNutritionCards && (
+          {!shellV2 && (
+            <Button
+              testID="today-quick-add"
+              variant="outline"
+              onPress={() => setQuickAddOpen(true)}
+            >
+              <View className="flex-row items-center gap-1.5">
+                <Ionicons name="add" size={18} color="#944a00" />
+                <Text className="text-sm font-medium text-primary">Quick add</Text>
+              </View>
+            </Button>
+          )}
+          {showNutritionCards && !shellV2 && (
             <ScanMealCard date={localDateStr()} onLogged={() => void refetch()} />
           )}
 
@@ -354,6 +365,17 @@ export default function HomeScreen() {
                     ? "You're all caught up for today."
                     : 'No meals planned yet. Head to the Plan tab to get started.'}
                 </Text>
+                {/* Mobile UX revamp: the empty state leads somewhere. */}
+                {shellV2 && !hasPlan ? (
+                  <Button
+                    testID="today-open-plan"
+                    size="sm"
+                    className="mt-3 self-start"
+                    onPress={() => router.navigate('/plan')}
+                  >
+                    Open Plan
+                  </Button>
+                ) : null}
               </Card>
             )}
 
@@ -363,7 +385,7 @@ export default function HomeScreen() {
           {/* Rest of today */}
           <LaterTodayCard meals={d.restOfToday} />
 
-          <WeekOutlook weekPlan={d.weekPlan} weekGlance={d.weekGlance} />
+          {!shellV2 && <WeekOutlook weekPlan={d.weekPlan} weekGlance={d.weekGlance} />}
 
           {/* B-31 interim (T-00.12): weight tracking assumes a goal. */}
           {showNutritionCards && <WeightCard />}
@@ -371,7 +393,7 @@ export default function HomeScreen() {
           <TodaysWorkoutCard />
 
           {/* Recent favourites */}
-          {d.recentFavourites.length > 0 && (
+          {!shellV2 && d.recentFavourites.length > 0 && (
             <View>
               <Text className="mb-2 text-xs font-semibold uppercase tracking-widest text-gray-500">
                 Recent Favourites

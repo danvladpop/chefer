@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { ActivityIndicator, Image, Pressable, ScrollView, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { router, useLocalSearchParams } from 'expo-router';
@@ -110,7 +110,8 @@ function TargetBar({ label, value, target }: { label: string; value: number; tar
 export default function TrackerScreen() {
   // UX-ACC-13: `?snap=1` (the post-upgrade "Snap your next meal" CTA) opens the
   // photo picker as soon as the Snap card is there.
-  const { snap } = useLocalSearchParams<{ snap?: string }>();
+  // Revamp Add sheet: `?copy=1` ("Copy yesterday") opens the copy-day confirm.
+  const { snap, copy } = useLocalSearchParams<{ snap?: string; copy?: string }>();
   const snackbar = useSnackbar();
   const utils = trpc.useUtils();
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
@@ -141,7 +142,12 @@ export default function TrackerScreen() {
 
   const [quickAddOpen, setQuickAddOpen] = useState(false);
   const [explainOpen, setExplainOpen] = useState(false);
-  const [copyDayOpen, setCopyDayOpen] = useState(false);
+  const [copyDayOpen, setCopyDayOpen] = useState(copy === '1');
+  useEffect(() => {
+    if (copy !== '1') return;
+    setCopyDayOpen(true);
+    router.setParams({ copy: undefined });
+  }, [copy]);
   const [editingEntry, setEditingEntry] = useState<CustomEntryRow | null>(null);
   const [editingRecipeEntryId, setEditingRecipeEntryId] = useState<string | null>(null);
 

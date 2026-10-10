@@ -240,7 +240,7 @@ function BreakdownRow({ line, testID }: { line: NutritionLineRow; testID: string
 }
 
 /**
- * The caveat next to a kcal figure on cards and pickers: "Incomplete" (PARTIAL,
+ * The caveat next to a kcal figure on cards and pickers: "Partial data" (PARTIAL,
  * amber) or "Entered by you" (USER_ENTERED, muted). Nothing for COMPUTED, or
  * for an API that sends no status.
  */

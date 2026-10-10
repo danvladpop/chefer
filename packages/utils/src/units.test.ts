@@ -52,6 +52,10 @@ describe('formatQuantity', () => {
     it('leaves count and unknown units untouched in both systems', () => {
       expect(formatQuantity(2, 'pieces', 'METRIC')).toBe('2 pieces');
       expect(formatQuantity(3, 'cloves', 'IMPERIAL')).toBe('3 cloves');
+      expect(formatQuantity(1, 'pcs', 'METRIC')).toBe('1 piece');
+      expect(formatQuantity(3, 'pcs', 'METRIC')).toBe('3 pieces');
+      expect(formatQuantity(12, 'clove', 'METRIC')).toBe('12 cloves');
+      expect(formatQuantity(1, 'cloves', 'METRIC')).toBe('1 clove');
       expect(formatQuantity(1, 'medium', 'METRIC')).toBe('1 medium');
     });
 

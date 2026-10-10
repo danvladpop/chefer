@@ -47,8 +47,8 @@ const TAB_CAPTIONS: Record<Tab, string> = {
 
 const TABS = [
   { key: 'all', label: 'All' },
-  { key: 'saved', label: '♥ Saved' },
-  { key: 'my', label: '✎ Mine' },
+  { key: 'saved', label: 'Saved' },
+  { key: 'my', label: 'Mine' },
   { key: 'discover', label: 'Discover' },
 ] as const;
 

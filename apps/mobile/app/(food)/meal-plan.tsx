@@ -815,14 +815,18 @@ export default function MealPlanScreen() {
           <View
             className={cn(
               'rounded-full px-2 py-0.5',
-              isPast ? 'bg-gray-100' : weekOffset === 0 ? 'bg-accent' : 'bg-blue-50',
+              isPast ? 'bg-gray-100' : weekOffset === 0 ? 'bg-accent' : 'bg-surface-sunken',
             )}
           >
             <Text
               maxFontSizeMultiplier={DENSE_MAX_FONT_SCALE}
               className={cn(
                 'text-xs font-semibold uppercase',
-                isPast ? 'text-gray-500' : weekOffset === 0 ? 'text-primary' : 'text-blue-600',
+                isPast
+                  ? 'text-gray-500'
+                  : weekOffset === 0
+                    ? 'text-primary'
+                    : 'text-label-secondary',
               )}
             >
               {isPast ? 'Past' : weekOffset === 0 ? 'This Week' : 'Next Week'}
@@ -850,9 +854,9 @@ export default function MealPlanScreen() {
         <View
           testID="plan-weekend-line"
           accessibilityLiveRegion="polite"
-          className="mx-4 mb-2 flex-row items-center justify-between gap-2 rounded-lg bg-blue-50 px-3 py-2"
+          className="mx-4 mb-2 flex-row items-center justify-between gap-2 rounded-lg bg-surface-sunken px-3 py-2"
         >
-          <Text className="flex-1 text-xs text-blue-700">
+          <Text className="flex-1 text-xs text-label-secondary">
             Showing next week — it&apos;s the weekend.
           </Text>
           <Pressable
@@ -864,7 +868,7 @@ export default function MealPlanScreen() {
             }}
             className="min-h-11 items-center justify-center px-1"
           >
-            <Text className="text-xs font-semibold text-blue-700">This week ›</Text>
+            <Text className="text-xs font-semibold text-brand">This week ›</Text>
           </Pressable>
         </View>
       )}
@@ -986,7 +990,7 @@ export default function MealPlanScreen() {
             <View className="flex-row items-center justify-between gap-2 px-4 pb-2">
               <Text
                 testID="plan-shape-summary"
-                numberOfLines={1}
+                numberOfLines={2}
                 className="min-w-0 flex-1 text-xs text-gray-500"
               >
                 {shape ? planShapeSummaryText : ''}
@@ -1086,8 +1090,11 @@ export default function MealPlanScreen() {
 
             {/* T-11.3: the target moved since this week was planned. */}
             {replanNeeded && (
-              <View testID="plan-replan-banner" className="gap-1 rounded-xl bg-blue-50 px-3 py-2">
-                <Text className="text-sm text-blue-800">
+              <View
+                testID="plan-replan-banner"
+                className="gap-1 rounded-xl bg-brand-tint px-3 py-2"
+              >
+                <Text className="text-sm text-label">
                   {proteinOnly
                     ? 'Your targets have changed since this week was planned. Re-plan to match them?'
                     : `This week was planned for ${formatKcal(plannedKcal)} kcal. Re-plan with ${formatKcal(liveKcal)} kcal?`}
@@ -1099,7 +1106,7 @@ export default function MealPlanScreen() {
                     onPress={openRegenerateConfirm}
                     className="min-h-11 justify-center px-2"
                   >
-                    <Text className="text-sm font-semibold text-blue-800">Re-plan</Text>
+                    <Text className="text-sm font-semibold text-brand">Re-plan</Text>
                   </Pressable>
                   <Pressable
                     testID="plan-replan-keep"
@@ -1110,7 +1117,7 @@ export default function MealPlanScreen() {
                     }}
                     className="min-h-11 justify-center px-2"
                   >
-                    <Text className="text-sm font-semibold text-blue-800">Keep</Text>
+                    <Text className="text-sm font-semibold text-brand">Keep</Text>
                   </Pressable>
                 </View>
               </View>
@@ -1153,9 +1160,9 @@ export default function MealPlanScreen() {
               {plan.carriedOver && (
                 <View
                   testID="plan-carried-over"
-                  className="rounded-full border border-blue-200 bg-blue-50 px-3 py-1"
+                  className="rounded-full border border-separator bg-surface-sunken px-3 py-1"
                 >
-                  <Text className="text-xs font-medium text-blue-700">
+                  <Text className="text-xs font-medium text-label-secondary">
                     Continued from your last plan
                   </Text>
                 </View>

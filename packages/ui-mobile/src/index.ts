@@ -186,3 +186,9 @@ export {
 } from './motion/progress';
 export { useProgressValue } from './motion/use-progress-value';
 export { useReducedMotion } from './motion/use-reduced-motion';
+// Revamp design system (docs/mobile-ux-revamp/plan.md, "Design system")
+export { IconButton, type IconButtonProps } from './components/icon-button';
+export { LargeHeader, type LargeHeaderProps } from './components/large-header';
+export { ListRow, ListSection, type ListRowProps, type ListSectionProps } from './components/list';
+export { SurfaceCard, type SurfaceCardProps } from './components/surface-card';
+export { useThemeColors } from './hooks/use-theme-colors';

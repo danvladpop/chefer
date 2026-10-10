@@ -277,6 +277,11 @@ export function TodayView() {
               <div className="min-w-0 text-sm">
                 <p className="font-semibold text-gray-900">
                   {data.streak.thisWeekSessions} of {weekGoal} this week
+                  {weekGoal < data.streak.thisWeekGoal && (
+                    <span className="font-normal text-gray-500">
+                      {` · ${data.streak.thisWeekGoal} from next week`}
+                    </span>
+                  )}
                 </p>
                 <p className="flex items-center gap-1 text-xs text-gray-500">
                   <Flame className="h-3.5 w-3.5 shrink-0 text-[#944a00]" aria-hidden="true" />

@@ -28,6 +28,8 @@ import {
   weekStartOf,
 } from '@chefer/utils';
 import { trpc } from '../../../lib/trpc';
+import { useShellV2 } from '../../shell/shell-store';
+import { TrainLinks } from '../../shell/train-links';
 import { captureGymEvent } from '../analytics';
 import { ExerciseNameLink } from '../components/exercise-name-link';
 import { GymBootstrapUnavailable, useGymBootstrapLoad } from '../components/gym-bootstrap-state';
@@ -104,6 +106,7 @@ function WeekStrip({ days, today }: { days: WeekStripDay[]; today: string }) {
 
 export function TodayScreen() {
   const queryClient = useQueryClient();
+  const shellV2 = useShellV2();
   // UX-GYM-29: online-only buttons re-render when connectivity changes.
   const online = useIsOnline();
   useGymReminders();
@@ -281,7 +284,7 @@ export function TodayScreen() {
     <View className="gap-1">
       <ModeSwitch mode="gym" />
       <Text testID="gym-today-title" variant="title" className="mt-1">
-        Today
+        {shellV2 ? 'Train' : 'Today'}
       </Text>
     </View>
   );
@@ -340,6 +343,7 @@ export function TodayScreen() {
           <LogPastWorkoutAction bootstrap={bootstrap} />
           <LogActivityAction bootstrap={bootstrap} />
           <RecentWorkouts bootstrap={bootstrap} />
+          {shellV2 ? <TrainLinks /> : null}
         </ScrollView>
       </Screen>
     );
@@ -355,6 +359,9 @@ export function TodayScreen() {
     streak.thisWeekGoal > 0
       ? proRatedWeekGoal({ goal: streak.thisWeekGoal, today, setupDate: since })
       : 0;
+  // The pro-rated first week explains itself: "0 of 2 this week · 3 from next week".
+  const firstWeekNote =
+    weekGoal < streak.thisWeekGoal ? ` · ${streak.thisWeekGoal} from next week` : '';
   const goalMet = weekGoal > 0 && streak.thisWeekSessions >= weekGoal;
   const ringProgress = weekGoal > 0 ? Math.min(1, streak.thisWeekSessions / weekGoal) : 0;
   // Bug B-15: `nextWorkout` always reflects the rotation's next day, which
@@ -471,7 +478,7 @@ export function TodayScreen() {
               <Text className="text-sm font-medium">
                 {goalMet
                   ? `Weekly goal met · ${streak.thisWeekSessions} ${streak.thisWeekSessions === 1 ? 'session' : 'sessions'}`
-                  : `${streak.thisWeekSessions} of ${weekGoal} this week`}
+                  : `${streak.thisWeekSessions} of ${weekGoal} this week${firstWeekNote}`}
               </Text>
               <Text testID="gym-today-streak" variant="muted" className="text-sm">
                 {formatStreakLine(streak)}
@@ -817,6 +824,8 @@ export function TodayScreen() {
 
         {/* UX-GYM-25: how many are waiting, why the last try failed, Sync now. */}
         <OutboxWaitingCard status={outboxStatus} testID="gym-today-outbox" />
+        {/* Mobile UX revamp: the old Gym tabs, one tap down from Train. */}
+        {shellV2 ? <TrainLinks /> : null}
       </ScrollView>
 
       {activeWorkout.session ? (
