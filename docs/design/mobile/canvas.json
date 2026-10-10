@@ -7,7 +7,7 @@
   "title": "Chefer App Design",
   "launch": {
     "view": "canvas",
-    "page": "foundations"
+    "page": "today"
   },
   "pages": [
     {
@@ -19,20 +19,28 @@
       "name": "Auth & onboarding"
     },
     {
-      "id": "food",
-      "name": "Food"
+      "id": "today",
+      "name": "Today"
+    },
+    {
+      "id": "plan",
+      "name": "Plan & Shop"
     },
     {
       "id": "recipes",
-      "name": "Recipes & AI"
+      "name": "Recipes & cooking"
     },
     {
-      "id": "gym",
-      "name": "Gym"
+      "id": "train",
+      "name": "Train"
     },
     {
-      "id": "account",
-      "name": "Account"
+      "id": "you",
+      "name": "You & settings"
+    },
+    {
+      "id": "following",
+      "name": "Following"
     }
   ],
   "boards": {
@@ -40,21 +48,30 @@
       "x": 0,
       "y": 0,
       "w": 1280,
-      "h": 2120,
-      "title": "Foundations — tokens & components",
+      "h": 2300,
+      "title": "Foundations — revamp tokens & components",
       "page": "foundations"
     },
-    "Login.dc.html": {
+    "Welcome.dc.html": {
       "x": 0,
       "y": 0,
       "w": 390,
       "h": 844,
-      "title": "Log in",
+      "title": "Welcome",
+      "page": "auth",
+      "is_interactive": true
+    },
+    "Login.dc.html": {
+      "x": 470,
+      "y": 0,
+      "w": 390,
+      "h": 844,
+      "title": "Sign in",
       "page": "auth",
       "is_interactive": true
     },
     "Register.dc.html": {
-      "x": 470,
+      "x": 940,
       "y": 0,
       "w": 390,
       "h": 844,
@@ -63,7 +80,7 @@
       "is_interactive": true
     },
     "ForgotPassword.dc.html": {
-      "x": 940,
+      "x": 1410,
       "y": 0,
       "w": 390,
       "h": 844,
@@ -72,7 +89,7 @@
       "is_interactive": true
     },
     "ForgotSent.dc.html": {
-      "x": 1410,
+      "x": 1880,
       "y": 0,
       "w": 390,
       "h": 844,
@@ -81,7 +98,7 @@
       "is_interactive": true
     },
     "ResetPassword.dc.html": {
-      "x": 1880,
+      "x": 2350,
       "y": 0,
       "w": 390,
       "h": 844,
@@ -89,165 +106,210 @@
       "page": "auth",
       "is_interactive": true
     },
-    "OnbIntent.dc.html": {
-      "x": 2350,
-      "y": 0,
+    "OnbStart.dc.html": {
+      "x": 0,
+      "y": 1004,
+      "w": 390,
+      "h": 938,
+      "title": "Onboarding 1 — what you use Chefer for",
+      "page": "auth",
+      "is_interactive": true
+    },
+    "OnbTrainingDays.dc.html": {
+      "x": 470,
+      "y": 1004,
       "w": 390,
       "h": 844,
-      "title": "Onboarding — intent",
+      "title": "Onboarding — training days",
       "page": "auth",
       "is_interactive": true
     },
     "OnbDiet.dc.html": {
-      "x": 3760,
-      "y": 0,
+      "x": 940,
+      "y": 1004,
       "w": 390,
-      "h": 844,
-      "title": "Onboarding — diet & restrictions",
+      "h": 1340,
+      "title": "Onboarding — diet & safety",
+      "page": "auth",
+      "is_interactive": true
+    },
+    "OnbHowYouCook.dc.html": {
+      "x": 1410,
+      "y": 1004,
+      "w": 390,
+      "h": 1204,
+      "title": "Onboarding — how you cook",
       "page": "auth",
       "is_interactive": true
     },
     "OnbGoal.dc.html": {
-      "x": 2820,
-      "y": 0,
+      "x": 1880,
+      "y": 1004,
       "w": 390,
-      "h": 844,
+      "h": 1467,
       "title": "Onboarding — goal",
       "page": "auth",
       "is_interactive": true
     },
     "OnbMetrics.dc.html": {
-      "x": 3290,
-      "y": 0,
+      "x": 2350,
+      "y": 1004,
       "w": 390,
-      "h": 1010,
+      "h": 1104,
       "title": "Onboarding — body metrics",
       "page": "auth",
       "is_interactive": true
     },
-    "OnbCuisine.dc.html": {
-      "x": 4230,
-      "y": 0,
+    "OnbTargets.dc.html": {
+      "x": 2820,
+      "y": 1004,
       "w": 390,
       "h": 844,
-      "title": "Onboarding — cuisine & cadence",
+      "title": "Onboarding — your targets",
       "page": "auth",
       "is_interactive": true
     },
-    "FoodToday.dc.html": {
+    "OnbNudge.dc.html": {
+      "x": 3290,
+      "y": 1004,
+      "w": 390,
+      "h": 844,
+      "title": "Onboarding — one last thing",
+      "page": "auth",
+      "is_interactive": true
+    },
+    "Home.dc.html": {
       "x": 0,
       "y": 0,
       "w": 390,
-      "h": 2480,
+      "h": 1870,
       "title": "Today (tab)",
-      "page": "food",
+      "page": "today",
       "is_interactive": true
     },
-    "MealPlan.dc.html": {
+    "AddSheet.dc.html": {
       "x": 470,
       "y": 0,
       "w": 390,
-      "h": 892,
-      "title": "Plan (tab)",
-      "page": "food",
-      "is_interactive": true
-    },
-    "RecipePickerSheet.dc.html": {
-      "x": 940,
-      "y": 0,
-      "w": 390,
       "h": 844,
-      "title": "Plan — replace meal sheet",
-      "page": "food",
-      "is_interactive": true
-    },
-    "WeekSummarySheet.dc.html": {
-      "x": 1410,
-      "y": 0,
-      "w": 390,
-      "h": 844,
-      "title": "Plan — week summary sheet",
-      "page": "food",
-      "is_interactive": true
-    },
-    "ShoppingList.dc.html": {
-      "x": 1880,
-      "y": 0,
-      "w": 390,
-      "h": 1080,
-      "title": "Shop (tab)",
-      "page": "food",
-      "is_interactive": true
-    },
-    "More.dc.html": {
-      "x": 2350,
-      "y": 0,
-      "w": 390,
-      "h": 986,
-      "title": "More (tab)",
-      "page": "food",
-      "is_interactive": true
-    },
-    "Tracker.dc.html": {
-      "x": 0,
-      "y": 2640,
-      "w": 390,
-      "h": 1360,
-      "title": "Tracker",
-      "page": "food",
+      "title": "Add to today (sheet)",
+      "page": "today",
       "is_interactive": true
     },
     "QuickAddSheet.dc.html": {
-      "x": 470,
-      "y": 2640,
-      "w": 390,
-      "h": 844,
-      "title": "Quick add sheet",
-      "page": "food",
-      "is_interactive": true
-    },
-    "Progress.dc.html": {
       "x": 940,
-      "y": 2640,
-      "w": 390,
-      "h": 1790,
-      "title": "Progress",
-      "page": "food",
-      "is_interactive": true
-    },
-    "Pantry.dc.html": {
-      "x": 1410,
-      "y": 2640,
-      "w": 390,
-      "h": 868,
-      "title": "Pantry",
-      "page": "food",
-      "is_interactive": true
-    },
-    "MyWeeks.dc.html": {
-      "x": 1880,
-      "y": 2640,
-      "w": 390,
-      "h": 1052,
-      "title": "My weeks",
-      "page": "food",
-      "is_interactive": true
-    },
-    "HistoryWeek.dc.html": {
-      "x": 2350,
-      "y": 2640,
+      "y": 0,
       "w": 390,
       "h": 844,
-      "title": "Past week (read-only)",
-      "page": "food",
+      "title": "Log something (sheet)",
+      "page": "today",
+      "is_interactive": true
+    },
+    "Tracker.dc.html": {
+      "x": 1410,
+      "y": 0,
+      "w": 390,
+      "h": 1482,
+      "title": "Tracker — full day",
+      "page": "today",
+      "is_interactive": true
+    },
+    "Chat.dc.html": {
+      "x": 1880,
+      "y": 0,
+      "w": 390,
+      "h": 844,
+      "title": "Ask Chef — AI Chef",
+      "page": "today",
+      "is_interactive": true
+    },
+    "ChatLocked.dc.html": {
+      "x": 2350,
+      "y": 0,
+      "w": 390,
+      "h": 844,
+      "title": "AI Chef — locked (free)",
+      "page": "today",
+      "is_interactive": true
+    },
+    "AiConsentSheet.dc.html": {
+      "x": 2820,
+      "y": 0,
+      "w": 390,
+      "h": 844,
+      "title": "AI consent (sheet)",
+      "page": "today",
+      "is_interactive": true
+    },
+    "Plan.dc.html": {
+      "x": 0,
+      "y": 0,
+      "w": 390,
+      "h": 1576,
+      "title": "Plan (tab)",
+      "page": "plan",
+      "is_interactive": true
+    },
+    "WeekOptionsSheet.dc.html": {
+      "x": 470,
+      "y": 0,
+      "w": 390,
+      "h": 844,
+      "title": "Week options (sheet)",
+      "page": "plan",
+      "is_interactive": true
+    },
+    "WeekSummarySheet.dc.html": {
+      "x": 940,
+      "y": 0,
+      "w": 390,
+      "h": 844,
+      "title": "Week summary (sheet)",
+      "page": "plan",
+      "is_interactive": true
+    },
+    "RecipePickerSheet.dc.html": {
+      "x": 1410,
+      "y": 0,
+      "w": 390,
+      "h": 844,
+      "title": "Replace meal (sheet)",
+      "page": "plan",
+      "is_interactive": true
+    },
+    "PlanSettingsSheet.dc.html": {
+      "x": 1880,
+      "y": 0,
+      "w": 390,
+      "h": 1000,
+      "title": "Plan settings (sheet)",
+      "page": "plan",
+      "is_interactive": true
+    },
+    "Shop.dc.html": {
+      "x": 0,
+      "y": 1736,
+      "w": 390,
+      "h": 1858,
+      "title": "Shop (tab)",
+      "page": "plan",
+      "is_interactive": true
+    },
+    "ShareListSheet.dc.html": {
+      "x": 470,
+      "y": 1736,
+      "w": 390,
+      "h": 844,
+      "title": "Send the list (sheet)",
+      "page": "plan",
       "is_interactive": true
     },
     "Cookbook.dc.html": {
       "x": 0,
       "y": 0,
       "w": 390,
-      "h": 1280,
-      "title": "Cookbook (tab)",
+      "h": 1330,
+      "title": "Cookbook",
       "page": "recipes",
       "is_interactive": true
     },
@@ -255,7 +317,7 @@
       "x": 470,
       "y": 0,
       "w": 390,
-      "h": 2100,
+      "h": 1904,
       "title": "Recipe detail",
       "page": "recipes",
       "is_interactive": true
@@ -282,7 +344,7 @@
       "x": 1880,
       "y": 0,
       "w": 390,
-      "h": 870,
+      "h": 844,
       "title": "Cook mode — finished",
       "page": "recipes",
       "is_interactive": true
@@ -291,8 +353,8 @@
       "x": 2350,
       "y": 0,
       "w": 390,
-      "h": 1200,
-      "title": "Create recipe",
+      "h": 1935,
+      "title": "New recipe",
       "page": "recipes",
       "is_interactive": true
     },
@@ -301,7 +363,7 @@
       "y": 0,
       "w": 390,
       "h": 844,
-      "title": "Import recipe — input",
+      "title": "Import recipe",
       "page": "recipes",
       "is_interactive": true
     },
@@ -309,243 +371,357 @@
       "x": 3290,
       "y": 0,
       "w": 390,
-      "h": 844,
-      "title": "Import recipe — preview",
+      "h": 1813,
+      "title": "Import recipe — review",
       "page": "recipes",
       "is_interactive": true
     },
-    "Chat.dc.html": {
-      "x": 3760,
-      "y": 0,
-      "w": 390,
-      "h": 844,
-      "title": "AI Chef chat",
-      "page": "recipes",
-      "is_interactive": true
-    },
-    "ChatLocked.dc.html": {
-      "x": 4230,
-      "y": 0,
-      "w": 390,
-      "h": 844,
-      "title": "AI Chef — locked (free)",
-      "page": "recipes",
-      "is_interactive": true
-    },
-    "AiConsentSheet.dc.html": {
-      "x": 4700,
-      "y": 0,
-      "w": 390,
-      "h": 844,
-      "title": "AI consent sheet",
-      "page": "recipes",
-      "is_interactive": true
-    },
-    "GymToday.dc.html": {
+    "Train.dc.html": {
       "x": 0,
       "y": 0,
       "w": 390,
-      "h": 965,
-      "title": "Gym Today (tab)",
-      "page": "gym",
+      "h": 1914,
+      "title": "Train (tab)",
+      "page": "train",
       "is_interactive": true
     },
-    "GymRoutine.dc.html": {
+    "TrainingRoutine.dc.html": {
       "x": 470,
       "y": 0,
       "w": 390,
-      "h": 2110,
-      "title": "Routine (tab)",
-      "page": "gym",
+      "h": 2636,
+      "title": "Routine",
+      "page": "train",
       "is_interactive": true
     },
-    "GymExercises.dc.html": {
+    "TrainingExercises.dc.html": {
       "x": 940,
       "y": 0,
       "w": 390,
-      "h": 1060,
-      "title": "Exercises (tab)",
-      "page": "gym",
+      "h": 1207,
+      "title": "Exercises",
+      "page": "train",
       "is_interactive": true
     },
-    "GymStats.dc.html": {
+    "TrainingStats.dc.html": {
       "x": 1410,
       "y": 0,
       "w": 390,
-      "h": 2545,
-      "title": "Stats (tab)",
-      "page": "gym",
+      "h": 2400,
+      "title": "Stats and history",
+      "page": "train",
       "is_interactive": true
     },
     "Workout.dc.html": {
       "x": 0,
-      "y": 2705,
+      "y": 2796,
       "w": 390,
-      "h": 1225,
+      "h": 1586,
       "title": "Live workout",
-      "page": "gym",
+      "page": "train",
       "is_interactive": true
     },
     "NumberSheet.dc.html": {
       "x": 470,
-      "y": 2705,
+      "y": 2796,
       "w": 390,
       "h": 844,
-      "title": "Workout — number pad sheet",
-      "page": "gym",
+      "title": "Workout — number pad (sheet)",
+      "page": "train",
       "is_interactive": true
     },
     "WorkoutMenuSheet.dc.html": {
       "x": 940,
-      "y": 2705,
+      "y": 2796,
       "w": 390,
       "h": 844,
-      "title": "Workout — exercise menu",
-      "page": "gym",
+      "title": "Workout — exercise menu (sheet)",
+      "page": "train",
       "is_interactive": true
     },
     "Summary.dc.html": {
       "x": 1410,
-      "y": 2705,
+      "y": 2796,
       "w": 390,
-      "h": 1460,
-      "title": "Workout summary",
-      "page": "gym",
+      "h": 1526,
+      "title": "Workout done",
+      "page": "train",
       "is_interactive": true
     },
     "Session.dc.html": {
       "x": 1880,
-      "y": 2705,
+      "y": 2796,
       "w": 390,
-      "h": 1010,
+      "h": 1142,
       "title": "Past session",
-      "page": "gym",
+      "page": "train",
       "is_interactive": true
     },
     "GymSetup.dc.html": {
       "x": 0,
-      "y": 4325,
+      "y": 4542,
       "w": 390,
-      "h": 1560,
+      "h": 2011,
       "title": "Gym setup — your program",
-      "page": "gym",
+      "page": "train",
       "is_interactive": true
     },
     "ExerciseDetail.dc.html": {
       "x": 470,
-      "y": 4325,
+      "y": 4542,
       "w": 390,
-      "h": 2260,
+      "h": 2185,
       "title": "Exercise detail",
-      "page": "gym",
+      "page": "train",
       "is_interactive": true
     },
     "ExerciseForm.dc.html": {
       "x": 940,
-      "y": 4325,
+      "y": 4542,
       "w": 390,
-      "h": 1760,
-      "title": "New custom exercise",
-      "page": "gym",
+      "h": 2059,
+      "title": "New exercise",
+      "page": "train",
       "is_interactive": true
     },
     "Routines.dc.html": {
       "x": 1410,
-      "y": 4325,
+      "y": 4542,
       "w": 390,
       "h": 844,
       "title": "My routines",
-      "page": "gym",
+      "page": "train",
       "is_interactive": true
     },
     "RoutineEditor.dc.html": {
       "x": 1880,
-      "y": 4325,
+      "y": 4542,
       "w": 390,
-      "h": 2456,
-      "title": "Routine editor",
-      "page": "gym",
+      "h": 3756,
+      "title": "Edit routine",
+      "page": "train",
       "is_interactive": true
     },
     "GymSettings.dc.html": {
       "x": 2350,
-      "y": 4325,
+      "y": 4542,
       "w": 390,
-      "h": 1810,
+      "h": 2842,
       "title": "Gym settings",
-      "page": "gym",
+      "page": "train",
       "is_interactive": true
     },
-    "Profile.dc.html": {
+    "You.dc.html": {
       "x": 0,
       "y": 0,
       "w": 390,
-      "h": 1160,
-      "title": "Profile",
-      "page": "account",
+      "h": 1667,
+      "title": "You (tab)",
+      "page": "you",
       "is_interactive": true
     },
-    "PostUpgradeSheet.dc.html": {
+    "SignOutSheet.dc.html": {
       "x": 470,
       "y": 0,
       "w": 390,
       "h": 844,
-      "title": "Post-upgrade sheet",
-      "page": "account",
+      "title": "Sign out (sheet)",
+      "page": "you",
       "is_interactive": true
     },
-    "DeleteAccountSheet.dc.html": {
+    "Progress.dc.html": {
       "x": 940,
       "y": 0,
       "w": 390,
-      "h": 880,
-      "title": "Delete account sheet",
-      "page": "account",
+      "h": 1700,
+      "title": "Progress",
+      "page": "you",
+      "is_interactive": true
+    },
+    "MyWeeks.dc.html": {
+      "x": 1410,
+      "y": 0,
+      "w": 390,
+      "h": 1288,
+      "title": "My weeks",
+      "page": "you",
+      "is_interactive": true
+    },
+    "HistoryWeek.dc.html": {
+      "x": 1880,
+      "y": 0,
+      "w": 390,
+      "h": 995,
+      "title": "Past week (read-only)",
+      "page": "you",
+      "is_interactive": true
+    },
+    "Household.dc.html": {
+      "x": 2350,
+      "y": 0,
+      "w": 390,
+      "h": 1026,
+      "title": "Household",
+      "page": "you",
+      "is_interactive": true
+    },
+    "Profile.dc.html": {
+      "x": 2820,
+      "y": 0,
+      "w": 390,
+      "h": 2951,
+      "title": "Profile",
+      "page": "you",
+      "is_interactive": true
+    },
+    "Settings.dc.html": {
+      "x": 0,
+      "y": 3111,
+      "w": 390,
+      "h": 1626,
+      "title": "Settings",
+      "page": "you",
+      "is_interactive": true
+    },
+    "SettingsJobs.dc.html": {
+      "x": 470,
+      "y": 3111,
+      "w": 390,
+      "h": 844,
+      "title": "What you use Chefer for",
+      "page": "you",
+      "is_interactive": true
+    },
+    "SettingsNotifications.dc.html": {
+      "x": 940,
+      "y": 3111,
+      "w": 390,
+      "h": 992,
+      "title": "Notifications",
+      "page": "you",
       "is_interactive": true
     },
     "Preferences.dc.html": {
       "x": 1410,
-      "y": 0,
+      "y": 3111,
       "w": 390,
-      "h": 3220,
-      "title": "Preferences",
-      "page": "account",
+      "h": 5061,
+      "title": "Preferences — allergies & diets",
+      "page": "you",
       "is_interactive": true
     },
-    "Household.dc.html": {
+    "Legal.dc.html": {
+      "x": 1880,
+      "y": 3111,
+      "w": 390,
+      "h": 844,
+      "title": "Terms of Service",
+      "page": "you",
+      "is_interactive": true
+    },
+    "FriendsIntro.dc.html": {
+      "x": 0,
+      "y": 0,
+      "w": 390,
+      "h": 1080,
+      "title": "Following — intro",
+      "page": "following",
+      "is_interactive": true
+    },
+    "Friends.dc.html": {
+      "x": 470,
+      "y": 0,
+      "w": 390,
+      "h": 1354,
+      "title": "Following",
+      "page": "following",
+      "is_interactive": true
+    },
+    "FriendProfile.dc.html": {
+      "x": 940,
+      "y": 0,
+      "w": 390,
+      "h": 1213,
+      "title": "Friend's profile",
+      "page": "following",
+      "is_interactive": true
+    },
+    "FriendsRequests.dc.html": {
+      "x": 1410,
+      "y": 0,
+      "w": 390,
+      "h": 844,
+      "title": "Follow requests",
+      "page": "following",
+      "is_interactive": true
+    },
+    "FriendsActivity.dc.html": {
       "x": 1880,
       "y": 0,
       "w": 390,
-      "h": 960,
-      "title": "Household",
-      "page": "account",
+      "h": 889,
+      "title": "Activity",
+      "page": "following",
+      "is_interactive": true
+    },
+    "FriendsSuggestions.dc.html": {
+      "x": 2350,
+      "y": 0,
+      "w": 390,
+      "h": 844,
+      "title": "Suggested for you",
+      "page": "following",
+      "is_interactive": true
+    },
+    "FriendsSettings.dc.html": {
+      "x": 2820,
+      "y": 0,
+      "w": 390,
+      "h": 991,
+      "title": "Sharing & privacy",
+      "page": "following",
+      "is_interactive": true
+    },
+    "FriendsBlocked.dc.html": {
+      "x": 3290,
+      "y": 0,
+      "w": 390,
+      "h": 844,
+      "title": "Blocked people",
+      "page": "following",
       "is_interactive": true
     }
   },
   "order": [
     "Main.dc.html",
+    "Welcome.dc.html",
     "Login.dc.html",
     "Register.dc.html",
     "ForgotPassword.dc.html",
     "ForgotSent.dc.html",
     "ResetPassword.dc.html",
-    "OnbIntent.dc.html",
+    "OnbStart.dc.html",
+    "OnbTrainingDays.dc.html",
+    "OnbDiet.dc.html",
+    "OnbHowYouCook.dc.html",
     "OnbGoal.dc.html",
     "OnbMetrics.dc.html",
-    "OnbDiet.dc.html",
-    "OnbCuisine.dc.html",
-    "FoodToday.dc.html",
-    "MealPlan.dc.html",
-    "RecipePickerSheet.dc.html",
-    "WeekSummarySheet.dc.html",
-    "ShoppingList.dc.html",
-    "More.dc.html",
-    "Tracker.dc.html",
+    "OnbTargets.dc.html",
+    "OnbNudge.dc.html",
+    "Home.dc.html",
+    "AddSheet.dc.html",
     "QuickAddSheet.dc.html",
-    "Progress.dc.html",
-    "Pantry.dc.html",
-    "MyWeeks.dc.html",
-    "HistoryWeek.dc.html",
+    "Tracker.dc.html",
+    "Chat.dc.html",
+    "ChatLocked.dc.html",
+    "AiConsentSheet.dc.html",
+    "Plan.dc.html",
+    "WeekOptionsSheet.dc.html",
+    "WeekSummarySheet.dc.html",
+    "RecipePickerSheet.dc.html",
+    "PlanSettingsSheet.dc.html",
+    "Shop.dc.html",
+    "ShareListSheet.dc.html",
     "Cookbook.dc.html",
     "RecipeDetail.dc.html",
     "CookStep.dc.html",
@@ -554,13 +730,10 @@
     "RecipeForm.dc.html",
     "ImportRecipe.dc.html",
     "ImportPreview.dc.html",
-    "Chat.dc.html",
-    "ChatLocked.dc.html",
-    "AiConsentSheet.dc.html",
-    "GymToday.dc.html",
-    "GymRoutine.dc.html",
-    "GymExercises.dc.html",
-    "GymStats.dc.html",
+    "Train.dc.html",
+    "TrainingRoutine.dc.html",
+    "TrainingExercises.dc.html",
+    "TrainingStats.dc.html",
     "Workout.dc.html",
     "NumberSheet.dc.html",
     "WorkoutMenuSheet.dc.html",
@@ -572,11 +745,26 @@
     "Routines.dc.html",
     "RoutineEditor.dc.html",
     "GymSettings.dc.html",
+    "You.dc.html",
+    "SignOutSheet.dc.html",
+    "Progress.dc.html",
+    "MyWeeks.dc.html",
+    "HistoryWeek.dc.html",
+    "Household.dc.html",
     "Profile.dc.html",
-    "PostUpgradeSheet.dc.html",
-    "DeleteAccountSheet.dc.html",
+    "Settings.dc.html",
+    "SettingsJobs.dc.html",
+    "SettingsNotifications.dc.html",
     "Preferences.dc.html",
-    "Household.dc.html"
+    "Legal.dc.html",
+    "FriendsIntro.dc.html",
+    "Friends.dc.html",
+    "FriendProfile.dc.html",
+    "FriendsRequests.dc.html",
+    "FriendsActivity.dc.html",
+    "FriendsSuggestions.dc.html",
+    "FriendsSettings.dc.html",
+    "FriendsBlocked.dc.html"
   ],
   "notes": {
     "t_foundations": {
@@ -592,40 +780,56 @@
       "y": -300,
       "text": "Auth & onboarding",
       "kind": "title1",
-      "maxW": 4620,
+      "maxW": 3680,
       "page": "auth"
     },
-    "t_food": {
+    "t_today": {
       "x": 0,
       "y": -300,
-      "text": "Food — tabs, tracking & weeks",
+      "text": "Today",
       "kind": "title1",
-      "maxW": 2740,
-      "page": "food"
+      "maxW": 3210,
+      "page": "today"
+    },
+    "t_plan": {
+      "x": 0,
+      "y": -300,
+      "text": "Plan & Shop",
+      "kind": "title1",
+      "maxW": 2270,
+      "page": "plan"
     },
     "t_recipes": {
       "x": 0,
       "y": -300,
-      "text": "Recipes, cooking & AI",
+      "text": "Recipes & cooking",
       "kind": "title1",
-      "maxW": 5090,
+      "maxW": 3680,
       "page": "recipes"
     },
-    "t_gym": {
+    "t_train": {
       "x": 0,
       "y": -300,
-      "text": "Gym — training",
+      "text": "Train",
       "kind": "title1",
       "maxW": 2740,
-      "page": "gym"
+      "page": "train"
     },
-    "t_account": {
+    "t_you": {
       "x": 0,
       "y": -300,
-      "text": "Account & settings",
+      "text": "You & settings",
       "kind": "title1",
-      "maxW": 2270,
-      "page": "account"
+      "maxW": 3210,
+      "page": "you"
+    },
+    "t_following": {
+      "x": 0,
+      "y": -300,
+      "text": "Following",
+      "kind": "title1",
+      "maxW": 3680,
+      "page": "following"
     }
   },
   "designSystems": []

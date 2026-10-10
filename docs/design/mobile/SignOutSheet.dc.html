@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>You — Sign out</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+body{margin:0}
+a{color:#944a00;text-decoration:none}a:hover{color:#6e3700}
+input::placeholder,textarea::placeholder{color:#9ca3af}
+</style>
+</helmet>
+<div style="width: 390px; height: 844px; position: relative; overflow: hidden; background: #FAF7F2; font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Helvetica Neue', system-ui, sans-serif; color: #1C1917; display: flex; flex-direction: column">
+  <div style="height: 47px; flex: none"></div>
+  <div aria-hidden="true" style="flex: 1; background: #FAF7F2"></div>
+
+  <a href="You.dc.html" aria-label="Close" style="position: absolute; inset: 0; background: rgba(0,0,0,.4)"></a>
+
+  <section role="dialog" aria-modal="true" aria-labelledby="signout-title" style="position: absolute; left: 0; right: 0; bottom: 0; background: #FFFFFF; border-radius: 21px 21px 0 0; box-shadow: 0 -4px 12px -4px rgba(67,42,25,.08), 0 -16px 40px -12px rgba(67,42,25,.18); max-height: 85%; display: flex; flex-direction: column">
+    <div style="width: 40px; height: 3.5px; border-radius: 9999px; background: #D1D5DB; margin: 7px auto 0"></div>
+    <div style="padding: 10.5px 14px 7px; display: flex; justify-content: space-between; align-items: flex-start; gap: 10.5px">
+      <h2 id="signout-title" style="margin: 0; padding-top: 9px; font-size: 19px; line-height: 26px; font-weight: 600; color: #020817">Sign out of Chefer?</h2>
+      <a href="You.dc.html" aria-label="Close" style="width: 44px; height: 44px; flex: none; border-radius: 9999px; background: #F3F4F6; color: #374151; font-size: 19px; font-weight: 600; display: flex; align-items: center; justify-content: center; text-decoration: none">✕</a>
+    </div>
+    <div style="padding: 0 14px; display: flex; flex-direction: column; gap: 10.5px">
+      <p style="margin: 0; font-size: 17px; line-height: 24px; color: #020817">You can sign back in any time.</p>
+      <div style="display: flex; flex-direction: column; gap: 7px; padding-top: 7px">
+        <a href="Welcome.dc.html" style="min-height: 42px; padding: 8.75px 28px; box-sizing: border-box; border-radius: 5.25px; background: #EF4444; color: #FFFFFF; font-size: 17px; font-weight: 500; display: flex; align-items: center; justify-content: center; text-decoration: none">Sign out</a>
+        <a href="You.dc.html" style="min-height: 42px; padding: 8.75px 28px; box-sizing: border-box; border: 1px solid #E2E8F0; border-radius: 5.25px; background: #FFFFFF; color: #020817; font-size: 17px; font-weight: 500; display: flex; align-items: center; justify-content: center; text-decoration: none">Cancel</a>
+      </div>
+    </div>
+    <div style="height: 34px; flex: none"></div>
+  </section>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":844}}'>
+class Component extends DCLogic {
+renderVals() {
+return {};
+}
+}
+</script>
+</body>
+</html>

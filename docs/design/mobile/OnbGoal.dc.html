@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<title>Onboarding — Goal</title>
+<title>Setup — Your goal</title>
 <script src="./support.js"></script>
 </head>
 <body>
@@ -14,63 +14,105 @@ a{color:#944a00;text-decoration:none}a:hover{color:#6e3700}
 input::placeholder,textarea::placeholder{color:#9ca3af}
 </style>
 </helmet>
-<div style="width: 390px; height: 844px; position: relative; overflow: hidden; background: #ffffff; font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Helvetica Neue', system-ui, sans-serif; color: #020817; display: flex; flex-direction: column">
+<div style="width: 390px; height: 1467px; position: relative; overflow: hidden; background: #FFFFFF; font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Helvetica Neue', system-ui, sans-serif; color: #020817; display: flex; flex-direction: column">
   <div style="height: 47px; flex: none"></div>
 
-  <header style="flex: none; display: flex; align-items: center; gap: 7px; padding: 10.5px 14px">
-    <a href="OnbIntent.dc.html" aria-label="Back" style="width: 44px; height: 44px; flex: none; display: flex; align-items: center; justify-content: center; color: #1f2937; text-decoration: none"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M11 5l-7 7 7 7M4 12h16"></path></svg></a>
+  <div style="flex: none; display: flex; align-items: center; gap: 7px; padding: 10.5px 14px">
+    <a href="OnbHowYouCook.dc.html" aria-label="Back" style="width: 44px; height: 44px; flex: none; color: #020817; display: flex; align-items: center; justify-content: center"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M11 5l-7 7 7 7M4 12h16"></path></svg></a>
     <div style="flex: 1; min-width: 0; display: flex; flex-direction: column">
-      <span style="font-size: 13px; line-height: 18px; color: #8a7560">Step 2 of 5 · 40%</span>
+      <span style="font-size: 14px; line-height: 19px; color: #8A7560">Step 5 of 7 · 71%</span>
       <h1 style="margin: 0; font-size: 19px; line-height: 26px; font-weight: 600">Your goal</h1>
     </div>
-  </header>
+  </div>
+  <div role="progressbar" aria-label="Setup progress" aria-valuemin="0" aria-valuemax="7" aria-valuenow="5" style="flex: none; margin: 0 14px 7px; height: 5.25px; border-radius: 9999px; background: #F3F4F6; overflow: hidden"><div style="height: 100%; width: 71%; border-radius: 9999px; background: #944A00"></div></div>
 
-  <div role="progressbar" aria-valuemin="1" aria-valuemax="5" aria-valuenow="3" aria-label="Onboarding progress" style="flex: none; margin: 0 14px 7px; height: 5.25px; border-radius: 9999px; background: #f3f4f6; overflow: hidden"><div style="height: 100%; width: 40%; background: #944a00; border-radius: 9999px"></div></div>
+  <main id="main" style="flex: 1; display: flex; flex-direction: column; gap: 14px; padding: 10.5px 14px 28px">
+    <div style="display: flex; flex-direction: column; gap: 10.5px">
+      <p style="margin: 0; font-size: 16px; line-height: 22px; color: #8A7560; text-align: center">Optional — skip if you just want chef-picked meals.</p>
 
-  <main id="main" style="flex: 1; min-height: 0; display: flex; flex-direction: column; gap: 14px; padding: 10.5px 14px 28px">
-    <div style="display: flex; flex-wrap: wrap; gap: 10.5px">
+      <div style="display: flex; flex-direction: column; gap: 10.5px">
+        <div style="display: flex; flex-wrap: wrap; gap: 10.5px">
 
-      <button type="button" aria-pressed="true" style="position: relative; width: 47%; box-sizing: border-box; padding: 14px; border: 1px solid #944a00; border-radius: 10.5px; background: #fcf3ea; font: inherit; color: inherit; display: flex; flex-direction: column; align-items: center; gap: 7px">
-        <span aria-hidden="true" style="position: absolute; top: 7px; right: 7px; width: 17.5px; height: 17.5px; border-radius: 9999px; background: #944a00; color: #ffffff; display: flex; align-items: center; justify-content: center"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"></path></svg></span>
-        <span style="font-size: 31px; line-height: 37px">⚖️</span>
-        <span style="font-size: 15px; line-height: 21px; font-weight: 600; text-align: center; color: #944a00">Lose Weight</span>
-        <span style="font-size: 13px; line-height: 18px; text-align: center; color: #8a7560">Reduce body fat and reach a healthier weight</span>
-        <span style="border-radius: 9999px; padding: 1.75px 7px; background: rgba(148,74,0,.1); font-size: 13px; line-height: 18px; font-weight: 500; text-align: center; color: #944a00">−500 kcal/day deficit</span>
-      </button>
+          <button type="button" aria-pressed="false" style="position: relative; width: 47%; box-sizing: border-box; display: flex; flex-direction: column; align-items: center; gap: 7px; padding: 14px; border-radius: 10.5px; border: 1px solid #E2E8F0; background: #FFFFFF; font: inherit; color: inherit">
+            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#8A7560" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 3v7a2 2 0 002 2v9M10 3v7a2 2 0 01-2 2M8 3v6M17.5 21V3c-2 1-3.5 3.5-3.5 7v3h3.5"></path></svg>
+            <span style="font-size: 16px; line-height: 22px; font-weight: 600; color: #1F2937; text-align: center">Just good food</span>
+            <span style="font-size: 14px; line-height: 19px; color: #8A7560; text-align: center">No calorie target. We’ll plan balanced meals and never count for you.</span>
+          </button>
 
-      <button type="button" aria-pressed="false" style="position: relative; width: 47%; box-sizing: border-box; padding: 14px; border: 1px solid #e2e8f0; border-radius: 10.5px; background: #ffffff; font: inherit; color: inherit; display: flex; flex-direction: column; align-items: center; gap: 7px">
-        <span style="font-size: 31px; line-height: 37px">🎯</span>
-        <span style="font-size: 15px; line-height: 21px; font-weight: 600; text-align: center; color: #1f2937">Maintain Weight</span>
-        <span style="font-size: 13px; line-height: 18px; text-align: center; color: #8a7560">Keep your current weight while eating well</span>
-        <span style="border-radius: 9999px; padding: 1.75px 7px; background: #f3f4f6; font-size: 13px; line-height: 18px; font-weight: 500; text-align: center; color: #4b5563">Maintenance calories</span>
-      </button>
+          <button type="button" aria-pressed="false" style="position: relative; width: 47%; box-sizing: border-box; display: flex; flex-direction: column; align-items: center; gap: 7px; padding: 14px; border-radius: 10.5px; border: 1px solid #E2E8F0; background: #FFFFFF; font: inherit; color: inherit">
+            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#8A7560" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3.5" y="3.5" width="17" height="17" rx="3.5"></rect><path d="M7.5 10a6 6 0 019 0"></path><path d="M12 10.5l1.5-2.5"></path></svg>
+            <span style="font-size: 16px; line-height: 22px; font-weight: 600; color: #1F2937; text-align: center">Lose Weight</span>
+            <span style="font-size: 14px; line-height: 19px; color: #8A7560; text-align: center">Reduce body fat and reach a healthier weight</span>
+            <span style="border-radius: 9999px; padding: 1.75px 7px; background: #F3F4F6; font-size: 14px; line-height: 19px; font-weight: 500; color: #4B5563; text-align: center">−500 kcal/day deficit</span>
+          </button>
 
-      <button type="button" aria-pressed="false" style="position: relative; width: 47%; box-sizing: border-box; padding: 14px; border: 1px solid #e2e8f0; border-radius: 10.5px; background: #ffffff; font: inherit; color: inherit; display: flex; flex-direction: column; align-items: center; gap: 7px">
-        <span style="font-size: 31px; line-height: 37px">💪</span>
-        <span style="font-size: 15px; line-height: 21px; font-weight: 600; text-align: center; color: #1f2937">Gain Muscle</span>
-        <span style="font-size: 13px; line-height: 18px; text-align: center; color: #8a7560">Build strength and increase lean muscle mass</span>
-        <span style="border-radius: 9999px; padding: 1.75px 7px; background: #f3f4f6; font-size: 13px; line-height: 18px; font-weight: 500; text-align: center; color: #4b5563">+300 kcal/day surplus</span>
-      </button>
+          <button type="button" aria-pressed="false" style="position: relative; width: 47%; box-sizing: border-box; display: flex; flex-direction: column; align-items: center; gap: 7px; padding: 14px; border-radius: 10.5px; border: 1px solid #E2E8F0; background: #FFFFFF; font: inherit; color: inherit">
+            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#8A7560" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="6.5"></circle><path d="M12 2.5v3M12 18.5v3M2.5 12h3M18.5 12h3"></path></svg>
+            <span style="font-size: 16px; line-height: 22px; font-weight: 600; color: #1F2937; text-align: center">Maintain Weight</span>
+            <span style="font-size: 14px; line-height: 19px; color: #8A7560; text-align: center">Keep your current weight while eating well</span>
+            <span style="border-radius: 9999px; padding: 1.75px 7px; background: #F3F4F6; font-size: 14px; line-height: 19px; font-weight: 500; color: #4B5563; text-align: center">Maintenance calories</span>
+          </button>
 
-      <button type="button" aria-pressed="false" style="position: relative; width: 47%; box-sizing: border-box; padding: 14px; border: 1px solid #e2e8f0; border-radius: 10.5px; background: #ffffff; font: inherit; color: inherit; display: flex; flex-direction: column; align-items: center; gap: 7px">
-        <span style="font-size: 31px; line-height: 37px">🥗</span>
-        <span style="font-size: 15px; line-height: 21px; font-weight: 600; text-align: center; color: #1f2937">Eat Healthier</span>
-        <span style="font-size: 13px; line-height: 18px; text-align: center; color: #8a7560">Improve overall nutrition and eating habits</span>
-        <span style="border-radius: 9999px; padding: 1.75px 7px; background: #f3f4f6; font-size: 13px; line-height: 18px; font-weight: 500; text-align: center; color: #4b5563">Maintenance calories, better macros</span>
-      </button>
+          <button type="button" aria-pressed="true" style="position: relative; width: 47%; box-sizing: border-box; display: flex; flex-direction: column; align-items: center; gap: 7px; padding: 14px; border-radius: 10.5px; border: 1px solid #944A00; background: #FCF3EA; font: inherit; color: inherit">
+            <span style="position: absolute; top: 7px; right: 7px; width: 17.5px; height: 17.5px; border-radius: 9999px; background: #944A00; color: #FFFFFF; display: flex; align-items: center; justify-content: center"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"></path></svg></span>
+            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#944A00" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2.5 12h19M6 7.5v9M9 6v12M15 6v12M18 7.5v9"></path></svg>
+            <span style="font-size: 16px; line-height: 22px; font-weight: 600; color: #944A00; text-align: center">Gain Muscle</span>
+            <span style="font-size: 14px; line-height: 19px; color: #8A7560; text-align: center">Build strength and increase lean muscle mass</span>
+            <span style="border-radius: 9999px; padding: 1.75px 7px; background: rgba(148,74,0,.1); font-size: 14px; line-height: 19px; font-weight: 500; color: #944A00; text-align: center">+300 kcal/day surplus</span>
+          </button>
 
+          <button type="button" aria-pressed="false" style="position: relative; width: 47%; box-sizing: border-box; display: flex; flex-direction: column; align-items: center; gap: 7px; padding: 14px; border-radius: 10.5px; border: 1px solid #E2E8F0; background: #FFFFFF; font: inherit; color: inherit">
+            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#8A7560" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5.5 18.5C5 10 10 4.5 19.5 4.5c.3 9.5-5 14.5-14 14z"></path><path d="M5.5 18.5l8-8"></path></svg>
+            <span style="font-size: 16px; line-height: 22px; font-weight: 600; color: #1F2937; text-align: center">Eat Healthier</span>
+            <span style="font-size: 14px; line-height: 19px; color: #8A7560; text-align: center">Improve overall nutrition and eating habits</span>
+            <span style="border-radius: 9999px; padding: 1.75px 7px; background: #F3F4F6; font-size: 14px; line-height: 19px; font-weight: 500; color: #4B5563; text-align: center">Maintenance calories, better macros</span>
+          </button>
+
+          <button type="button" aria-pressed="false" style="position: relative; width: 47%; box-sizing: border-box; display: flex; flex-direction: column; align-items: center; gap: 7px; padding: 14px; border-radius: 10.5px; border: 1px solid #E2E8F0; background: #FFFFFF; font: inherit; color: inherit">
+            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#8A7560" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19.5 9A7.5 7.5 0 006 7.5M4.5 15A7.5 7.5 0 0018 16.5"></path><path d="M6 3.5v4h4M18 20.5v-4h-4"></path></svg>
+            <span style="font-size: 16px; line-height: 22px; font-weight: 600; color: #1F2937; text-align: center">Recomposition</span>
+            <span style="font-size: 14px; line-height: 19px; color: #8A7560; text-align: center">Lose fat and build muscle at the same time</span>
+            <span style="border-radius: 9999px; padding: 1.75px 7px; background: #F3F4F6; font-size: 14px; line-height: 19px; font-weight: 500; color: #4B5563; text-align: center">Maintenance calories</span>
+          </button>
+
+          <button type="button" aria-pressed="false" style="position: relative; width: 47%; box-sizing: border-box; display: flex; flex-direction: column; align-items: center; gap: 7px; padding: 14px; border-radius: 10.5px; border: 1px solid #E2E8F0; background: #FFFFFF; font: inherit; color: inherit">
+            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#8A7560" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 17a8.5 8.5 0 1116 0"></path><path d="M12 14l3.5-4.5"></path><circle cx="12" cy="14.5" r="1"></circle></svg>
+            <span style="font-size: 16px; line-height: 22px; font-weight: 600; color: #1F2937; text-align: center">Performance</span>
+            <span style="font-size: 14px; line-height: 19px; color: #8A7560; text-align: center">Fuel training and recovery, not a scale number</span>
+            <span style="border-radius: 9999px; padding: 1.75px 7px; background: #F3F4F6; font-size: 14px; line-height: 19px; font-weight: 500; color: #4B5563; text-align: center">Maintenance calories</span>
+          </button>
+        </div>
+        <p style="margin: 0; font-size: 14px; line-height: 19px; color: #8A7560">General estimates only, based on common formulas — for guidance about your own health, talk to a qualified professional.</p>
+      </div>
+
+      <div role="radiogroup" aria-labelledby="onb-numbers-q" style="display: flex; flex-direction: column; gap: 7px">
+        <h2 id="onb-numbers-q" style="margin: 0; font-size: 16px; line-height: 22px; font-weight: 500">What do you want to keep an eye on?</h2>
+        <button type="button" role="radio" aria-checked="true" style="display: flex; align-items: center; gap: 10.5px; padding: 10.5px; border-radius: 10.5px; border: 1px solid #944A00; background: #FCF3EA; font: inherit; text-align: left; color: inherit">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#944A00" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20.5h16"></path><rect x="5" y="13" width="3" height="7.5" rx=".8"></rect><rect x="10.5" y="5" width="3" height="15.5" rx=".8"></rect><rect x="16" y="9.5" width="3" height="11" rx=".8"></rect></svg>
+          <span style="flex: 1; min-width: 0; display: flex; flex-direction: column">
+            <span style="font-size: 16px; line-height: 22px; font-weight: 600; color: #944A00">Calories and macros</span>
+            <span style="font-size: 14px; line-height: 19px; color: #8A7560">Calories, protein, carbs and fat on Today and in the tracker.</span>
+          </span>
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#944A00" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9.5" fill="#944A00" stroke="none"></circle><path d="M7.5 12.3l3 3 6-6" stroke="#ffffff"></path></svg>
+        </button>
+        <button type="button" role="radio" aria-checked="false" style="display: flex; align-items: center; gap: 10.5px; padding: 10.5px; border-radius: 10.5px; border: 1px solid #E2E8F0; background: #FFFFFF; font: inherit; text-align: left; color: inherit">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#8A7560" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2.5 12h19M6 7.5v9M9 6v12M15 6v12M18 7.5v9"></path></svg>
+          <span style="flex: 1; min-width: 0; display: flex; flex-direction: column">
+            <span style="font-size: 16px; line-height: 22px; font-weight: 600; color: #1F2937">Just protein</span>
+            <span style="font-size: 14px; line-height: 19px; color: #8A7560">One number: protein. Your week still balances the rest in the background.</span>
+          </span>
+        </button>
+      </div>
     </div>
   </main>
 
-  <div style="flex: none; border-top: 1px solid #e2e8f0; padding: 10.5px 14px 7px; display: flex; flex-direction: column; gap: 7px">
-    <a href="OnbMetrics.dc.html" style="height: 44px; padding: 0 14px; border: none; border-radius: 5.25px; background: #944a00; color: #fcf9f5; font-size: 15px; font-weight: 500; display: flex; align-items: center; justify-content: center; gap: 7px; text-decoration: none">Continue</a>
-    <a href="FoodToday.dc.html" style="height: 44px; display: flex; align-items: center; justify-content: center; font-size: 15px; font-weight: 600; color: #944a00; text-decoration: none">Skip for now</a>
+  <div style="flex: none; display: flex; flex-direction: column; gap: 7px; border-top: 1px solid #E2E8F0; background: #FFFFFF; padding: 10.5px 14px 7px">
+    <a href="OnbMetrics.dc.html" style="min-height: 44px; padding: 7px 14px; box-sizing: border-box; border-radius: 5.25px; background: #944A00; color: #FCF9F5; font-size: 16px; line-height: 22px; font-weight: 500; display: flex; align-items: center; justify-content: center; text-decoration: none">Continue</a>
   </div>
-
   <div style="height: 34px; flex: none"></div>
 </div>
 </x-dc>
-<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":844}}'>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":1467}}'>
 class Component extends DCLogic {
 renderVals() {
 return {};

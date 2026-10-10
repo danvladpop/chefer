@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<title>Gym — My routines</title>
+<title>My routines</title>
 <script src="./support.js"></script>
 </head>
 <body>
@@ -14,71 +14,70 @@ a{color:#944a00;text-decoration:none}a:hover{color:#6e3700}
 input::placeholder,textarea::placeholder{color:#9ca3af}
 </style>
 </helmet>
-<div style="width: 390px; height: 844px; position: relative; overflow: hidden; background: #ffffff; font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Helvetica Neue', system-ui, sans-serif; color: #020817; display: flex; flex-direction: column">
+<div style="width: 390px; height: 844px; position: relative; overflow: hidden; background: #FFFFFF; font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Helvetica Neue', system-ui, sans-serif; color: #020817; display: flex; flex-direction: column">
   <div style="height: 47px; flex: none"></div>
 
-  <main id="main" style="flex: 1; display: flex; flex-direction: column; gap: 14px; padding: 14px">
-
+  <main id="main" style="display: flex; flex-direction: column; gap: 14px; padding: 14px">
     <div style="display: flex; align-items: center; gap: 10.5px">
-      <a href="GymRoutine.dc.html" aria-label="Back" style="width: 44px; height: 44px; flex: none; border-radius: 9999px; background: #f3f4f6; color: #374151; display: flex; align-items: center; justify-content: center; text-decoration: none"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 5l-7 7 7 7"></path></svg></a>
+      <a href="TrainingRoutine.dc.html" aria-label="Back" style="width: 44px; height: 44px; flex: none; border-radius: 9999px; background: #F3F4F6; color: #374151; display: flex; align-items: center; justify-content: center; text-decoration: none"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 5l-7 7 7 7"></path></svg></a>
       <h1 style="margin: 0; font-size: 25px; line-height: 31px; font-weight: 700">My routines</h1>
     </div>
 
     <div style="display: flex; gap: 7px">
-      <button type="button" style="flex: 1; height: 44px; padding: 0 14px; border: 1px solid #e2e8f0; border-radius: 5.25px; background: #ffffff; color: #020817; font: inherit; font-size: 15px; font-weight: 500">From a template</button>
-      <button type="button" style="flex: 1; height: 44px; padding: 0 14px; border: 1px solid #e2e8f0; border-radius: 5.25px; background: #ffffff; color: #020817; font: inherit; font-size: 15px; font-weight: 500">Blank routine</button>
+      <button type="button" style="flex: 1; min-height: 44px; padding: 7px 14px; border: 1px solid #E2E8F0; border-radius: 5.25px; background: #FFFFFF; color: #020817; font: inherit; font-size: 16px; font-weight: 500">From a template</button>
+      <button type="button" style="flex: 1; min-height: 44px; padding: 7px 14px; border: 1px solid #E2E8F0; border-radius: 5.25px; background: #FFFFFF; color: #020817; font: inherit; font-size: 16px; font-weight: 500">Blank routine</button>
     </div>
 
     <div style="display: flex; flex-direction: column; gap: 10.5px">
-      <section aria-label="Full Body 3×" style="border: 1px solid #e2e8f0; border-radius: 7px; background: #ffffff; padding: 14px; display: flex; flex-direction: column">
+      <section aria-label="Push / Pull / Legs" style="border: 1px solid #E2E8F0; border-radius: 7px; background: #FFFFFF; padding: 14px; display: flex; flex-direction: column">
+        <div style="display: flex; align-items: flex-start; justify-content: space-between; gap: 7px">
+          <div style="flex: 1; min-width: 0; display: flex; flex-direction: column">
+            <span style="font-size: 17px; line-height: 24px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis">Push / Pull / Legs</span>
+            <span style="font-size: 14px; line-height: 19px; color: #8A7560">3 days</span>
+          </div>
+          <span style="border-radius: 9999px; padding: 1.75px 8.75px; font-size: 14px; font-weight: 600; background: #D1FAE5; color: #065F46">Active</span>
+        </div>
+        <div style="margin-top: 10.5px; display: flex; align-items: center; gap: 7px">
+          <button type="button" aria-label="More actions for Push / Pull / Legs" style="margin-left: auto; width: 44px; height: 44px; border: none; border-radius: 9999px; background: #F3F4F6; color: #374151; display: flex; align-items: center; justify-content: center"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" aria-hidden="true"><path d="M6 12h.01M12 12h.01M18 12h.01" stroke-width="3"></path></svg></button>
+        </div>
+      </section>
+
+      <section aria-label="Full Body 3×" style="border: 1px solid #E2E8F0; border-radius: 7px; background: #FFFFFF; padding: 14px; display: flex; flex-direction: column">
         <div style="display: flex; align-items: flex-start; justify-content: space-between; gap: 7px">
           <div style="flex: 1; min-width: 0; display: flex; flex-direction: column">
             <span style="font-size: 17px; line-height: 24px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis">Full Body 3×</span>
-            <span style="font-size: 13px; line-height: 18px; color: #8a7560">3 days</span>
-          </div>
-          <div style="display: flex; gap: 3.5px">
-            <span style="border-radius: 9999px; padding: 1.75px 8.75px; font-size: 13px; font-weight: 600; background: #d1fae5; color: #065f46">Active</span>
+            <span style="font-size: 14px; line-height: 19px; color: #8A7560">3 days</span>
           </div>
         </div>
-        <div style="margin-top: 10.5px; display: flex; flex-wrap: wrap; gap: 7px">
-          <button type="button" style="height: 44px; padding: 0 10.5px; border: 1px solid #e2e8f0; border-radius: 5.25px; background: #ffffff; color: #020817; font: inherit; font-size: 15px; font-weight: 500">Duplicate</button>
-          <button type="button" style="height: 44px; padding: 0 10.5px; border: none; border-radius: 5.25px; background: #ef4444; color: #ffffff; font: inherit; font-size: 15px; font-weight: 500">Archive</button>
+        <div style="margin-top: 10.5px; display: flex; align-items: center; gap: 7px">
+          <button type="button" style="min-height: 44px; padding: 7px 10.5px; border: 1px solid #E2E8F0; border-radius: 5.25px; background: #FFFFFF; color: #020817; font: inherit; font-size: 16px; font-weight: 500">Set active</button>
+          <button type="button" aria-label="More actions for Full Body 3×" style="margin-left: auto; width: 44px; height: 44px; border: none; border-radius: 9999px; background: #F3F4F6; color: #374151; display: flex; align-items: center; justify-content: center"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" aria-hidden="true"><path d="M6 12h.01M12 12h.01M18 12h.01" stroke-width="3"></path></svg></button>
         </div>
       </section>
 
-      <section aria-label="Upper/Lower 4×" style="border: 1px solid #e2e8f0; border-radius: 7px; background: #ffffff; padding: 14px; display: flex; flex-direction: column">
+      <section aria-label="Upper / Lower 4×" style="border: 1px solid #E2E8F0; border-radius: 7px; background: #FFFFFF; padding: 14px; display: flex; flex-direction: column">
         <div style="display: flex; align-items: flex-start; justify-content: space-between; gap: 7px">
           <div style="flex: 1; min-width: 0; display: flex; flex-direction: column">
-            <span style="font-size: 17px; line-height: 24px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis">Upper/Lower 4×</span>
-            <span style="font-size: 13px; line-height: 18px; color: #8a7560">4 days</span>
+            <span style="font-size: 17px; line-height: 24px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis">Upper / Lower 4×</span>
+            <span style="font-size: 14px; line-height: 19px; color: #8A7560">4 days</span>
           </div>
         </div>
-        <div style="margin-top: 10.5px; display: flex; flex-wrap: wrap; gap: 7px">
-          <button type="button" style="height: 44px; padding: 0 10.5px; border: 1px solid #e2e8f0; border-radius: 5.25px; background: #ffffff; color: #020817; font: inherit; font-size: 15px; font-weight: 500">Set active</button>
-          <button type="button" style="height: 44px; padding: 0 10.5px; border: 1px solid #e2e8f0; border-radius: 5.25px; background: #ffffff; color: #020817; font: inherit; font-size: 15px; font-weight: 500">Duplicate</button>
-          <button type="button" style="height: 44px; padding: 0 10.5px; border: none; border-radius: 5.25px; background: #ef4444; color: #ffffff; font: inherit; font-size: 15px; font-weight: 500">Archive</button>
-        </div>
-      </section>
-
-      <section aria-label="Summer Push Pull Legs" style="border: 1px solid #e2e8f0; border-radius: 7px; background: #ffffff; padding: 14px; display: flex; flex-direction: column">
-        <div style="display: flex; align-items: flex-start; justify-content: space-between; gap: 7px">
-          <div style="flex: 1; min-width: 0; display: flex; flex-direction: column">
-            <span style="font-size: 17px; line-height: 24px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis">Summer Push Pull Legs</span>
-            <span style="font-size: 13px; line-height: 18px; color: #8a7560">6 days</span>
-          </div>
-          <div style="display: flex; gap: 3.5px">
-            <span style="border-radius: 9999px; padding: 1.75px 8.75px; font-size: 13px; font-weight: 600; background: #faf5f0; color: #3a2414">Archived</span>
-          </div>
-        </div>
-        <div style="margin-top: 10.5px; display: flex; flex-wrap: wrap; gap: 7px">
-          <button type="button" style="height: 44px; padding: 0 10.5px; border: 1px solid #e2e8f0; border-radius: 5.25px; background: #ffffff; color: #020817; font: inherit; font-size: 15px; font-weight: 500">Set active</button>
-          <button type="button" style="height: 44px; padding: 0 10.5px; border: 1px solid #e2e8f0; border-radius: 5.25px; background: #ffffff; color: #020817; font: inherit; font-size: 15px; font-weight: 500">Duplicate</button>
+        <div style="margin-top: 10.5px; display: flex; align-items: center; gap: 7px">
+          <button type="button" style="min-height: 44px; padding: 7px 10.5px; border: 1px solid #E2E8F0; border-radius: 5.25px; background: #FFFFFF; color: #020817; font: inherit; font-size: 16px; font-weight: 500">Set active</button>
+          <button type="button" aria-label="More actions for Upper / Lower 4×" style="margin-left: auto; width: 44px; height: 44px; border: none; border-radius: 9999px; background: #F3F4F6; color: #374151; display: flex; align-items: center; justify-content: center"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" aria-hidden="true"><path d="M6 12h.01M12 12h.01M18 12h.01" stroke-width="3"></path></svg></button>
         </div>
       </section>
     </div>
+
+    <div style="border-top: 1px solid #E2E8F0">
+      <button type="button" aria-expanded="false" aria-label="Archived routines, 1" style="width: 100%; min-height: 44px; padding: 10.5px 0; border: none; background: transparent; font: inherit; color: #020817; display: flex; align-items: center; justify-content: space-between">
+        <span style="font-size: 17px; font-weight: 500">Archived (1)</span>
+        <span style="font-size: 16px; color: #8A7560">Show</span>
+      </button>
+    </div>
   </main>
 
-  <div style="height: 34px; flex: none"></div>
+  <div style="height: 34px; flex: none; margin-top: auto"></div>
 </div>
 </x-dc>
 <script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":844}}'>

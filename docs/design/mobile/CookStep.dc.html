@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<title>Cook — Step</title>
+<title>Cook mode — Step</title>
 <script src="./support.js"></script>
 </head>
 <body>
@@ -14,34 +14,37 @@ a{color:#944a00;text-decoration:none}a:hover{color:#6e3700}
 input::placeholder,textarea::placeholder{color:#9ca3af}
 </style>
 </helmet>
-<div style="width: 390px; height: 844px; position: relative; overflow: hidden; background: #ffffff; font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Helvetica Neue', system-ui, sans-serif; color: #020817; display: flex; flex-direction: column">
+<div style="width: 390px; height: 844px; position: relative; overflow: hidden; background: #FFFFFF; font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Helvetica Neue', system-ui, sans-serif; color: #020817; display: flex; flex-direction: column">
   <div style="height: 47px; flex: none"></div>
 
-  <main id="main" style="flex: 1; min-height: 0; display: flex; flex-direction: column">
-    <header style="flex: none; display: flex; align-items: center; gap: 10.5px; padding: 10.5px 14px">
-      <a href="RecipeDetail.dc.html" aria-label="Exit cook mode" style="flex: none; width: 44px; height: 44px; display: flex; align-items: center; justify-content: center; color: #1f2937; text-decoration: none"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"></path></svg></a>
+  <main id="main" style="flex: 1; display: flex; flex-direction: column; min-height: 0">
+    <div style="padding: 10.5px 14px; display: flex; align-items: center; gap: 10.5px">
+      <a href="RecipeDetail.dc.html" aria-label="Exit cook mode" style="width: 44px; height: 44px; flex: none; color: #1F2937; display: flex; align-items: center; justify-content: center"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"></path></svg></a>
       <div style="flex: 1; min-width: 0; display: flex; flex-direction: column">
         <h1 style="margin: 0; font-size: 19px; line-height: 26px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis">Lemon Herb Salmon with Quinoa</h1>
-        <span style="font-size: 13px; line-height: 18px; color: #8a7560">Step 3 of 7</span>
+        <span style="font-size: 14px; line-height: 19px; color: #8A7560">Step 3 of 6</span>
       </div>
-      <a href="CookIngredients.dc.html" aria-label="Toggle ingredients" style="flex: none; width: 44px; height: 44px; display: flex; align-items: center; justify-content: center; color: #944a00; text-decoration: none"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 7h11M9 12h11M9 17h11M4.5 7h.01M4.5 12h.01M4.5 17h.01" stroke-width="2.2"></path></svg></a>
-    </header>
-
-    <div role="alert" style="flex: none; margin: 0 14px 7px; border: 1px solid #fecaca; background: #fef2f2; border-radius: 10.5px; padding: 8.75px 10.5px; display: flex; align-items: flex-start; gap: 7px">
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#991b1b" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex: none; margin-top: 2px; color: #991b1b"><path d="M12 3.5L2.5 20h19z" fill="currentColor" stroke="none"></path><path d="M12 10v4.5M12 17v.3" stroke="#ffffff" stroke-width="2"></path></svg>
-      <p style="margin: 0; flex: 1; min-width: 0; font-size: 15px; line-height: 21px; color: #991b1b"><b style="font-weight: 600">Contains Dairy.</b> This recipe conflicts with your allergies or diet — check the ingredients or swap it.</p>
+      <a href="CookIngredients.dc.html" aria-label="Toggle ingredients" style="width: 44px; height: 44px; flex: none; color: #944A00; display: flex; align-items: center; justify-content: center"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" aria-hidden="true"><path d="M9 7h11M9 12h11M9 17h11" stroke-width="2"></path><path d="M4.5 7h.01M4.5 12h.01M4.5 17h.01" stroke-width="3"></path></svg></a>
     </div>
 
-    <div role="progressbar" aria-label="Cooking progress" aria-valuemin="1" aria-valuemax="7" aria-valuenow="3" style="flex: none; margin: 0 14px 7px; height: 5.25px; border-radius: 9999px; background: #f3f4f6; overflow: hidden"><div style="height: 100%; width: 42.86%; background: #944a00; border-radius: 9999px"></div></div>
+    <div role="progressbar" aria-valuenow="3" aria-valuemin="1" aria-valuemax="6" aria-label="Step progress" style="margin: 0 14px 7px; height: 5.25px; border-radius: 9999px; background: #F3F4F6; overflow: hidden"><div style="height: 100%; width: 50%; border-radius: 9999px; background: #944A00"></div></div>
 
-    <div style="flex: 1; min-height: 0; display: flex; flex-direction: column; padding: 0 14px 21px">
-      <div style="flex: 1; display: flex; flex-direction: column; gap: 17.5px; padding: 14px 0">
-        <p style="margin: 0; font-size: 25px; line-height: 31.5px; font-weight: 600; color: #111827">Cover, lower the heat and simmer for 15 minutes, until the water is absorbed. Fluff with a fork.</p>
-        <button type="button" style="align-self: flex-start; display: flex; align-items: center; gap: 7px; padding: 7px 14px; border: 1px solid #e2e8f0; border-radius: 9999px; background: #ffffff; font: inherit; font-size: 15px; font-weight: 600; font-variant-numeric: tabular-nums; color: #944a00"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 5.5v13l10-6.5z" fill="currentColor"></path></svg>15:00</button>
+    <div style="flex: 1; min-height: 0; padding: 0 14px 21px; display: flex; flex-direction: column">
+      <div style="flex: 1; min-height: 0; padding: 14px 0; display: flex; flex-direction: column; gap: 17.5px">
+        <p style="margin: 0; font-size: 25px; line-height: 31.5px; font-weight: 600; color: #111827">Rub the salmon fillet with the olive oil mix and roast at 200°C for 12 minutes.</p>
+
+        <div style="border: 1px solid #E2E8F0; border-radius: 10.5px; background: #FFFFFF; padding: 10.5px; display: flex; flex-direction: column; gap: 3.5px">
+          <span style="font-size: 16px; line-height: 22px; color: #8A7560">For 2 servings</span>
+          <div style="display: flex; align-items: baseline; gap: 7px; font-size: 17px; line-height: 24px"><span style="flex: none; font-weight: 600; color: #111827">300 g</span><span style="flex: 1; min-width: 0; color: #374151">salmon fillet</span></div>
+          <div style="display: flex; align-items: baseline; gap: 7px; font-size: 17px; line-height: 24px"><span style="flex: none; font-weight: 600; color: #111827">2 tbsp</span><span style="flex: 1; min-width: 0; color: #374151">olive oil</span></div>
+        </div>
+
+        <button type="button" aria-label="Start a 12:00 timer" style="align-self: flex-start; min-height: 44px; box-sizing: border-box; padding: 7px 14px; border: 1px solid #E2E8F0; border-radius: 9999px; background: #FFFFFF; font: inherit; display: flex; align-items: center; gap: 7px; color: #944A00"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#944A00" aria-hidden="true"><path d="M8 5.5v13l10-6.5z" fill="currentColor"></path></svg><span style="font-size: 16px; font-weight: 600; font-variant-numeric: tabular-nums">12:00</span></button>
       </div>
-      <div style="flex: none; display: flex; gap: 10.5px">
-        <button type="button" style="flex: 1; height: 44px; padding: 0 14px; border: 1px solid #e2e8f0; border-radius: 5.25px; background: #ffffff; color: #020817; font: inherit; font-size: 15px; font-weight: 500">Back</button>
-        <button type="button" style="flex: 1; height: 44px; padding: 0 14px; border: none; border-radius: 5.25px; background: #944a00; color: #fcf9f5; font: inherit; font-size: 15px; font-weight: 500">Next step</button>
+
+      <div style="display: flex; gap: 10.5px">
+        <button type="button" style="flex: 1; min-height: 44px; padding: 7px 14px; border: 1px solid #E2E8F0; border-radius: 5.25px; background: #FFFFFF; font: inherit; font-size: 16px; font-weight: 500; color: #020817">Back</button>
+        <button type="button" style="flex: 1; min-height: 44px; padding: 7px 14px; border: none; border-radius: 5.25px; background: #944A00; font: inherit; font-size: 16px; font-weight: 500; color: #FCF9F5">Next step</button>
       </div>
     </div>
   </main>

@@ -1,0 +1,82 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Today — Add sheet</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+body{margin:0}
+a{color:#944a00;text-decoration:none}a:hover{color:#6e3700}
+input::placeholder,textarea::placeholder{color:#9ca3af}
+</style>
+</helmet>
+<div style="width: 390px; height: 844px; position: relative; overflow: hidden; background: #FFFFFF; font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Helvetica Neue', system-ui, sans-serif; color: #1C1917; display: flex; flex-direction: column">
+  <div style="height: 47px; flex: none"></div>
+
+  <a href="Home.dc.html" aria-label="Close Add to today" style="position: absolute; inset: 0; background: rgba(0,0,0,.4)"></a>
+
+  <section role="dialog" aria-label="Add to today" style="position: absolute; left: 0; right: 0; bottom: 0; max-height: 85%; background: #FFFFFF; border-radius: 21px 21px 0 0; box-shadow: 0 -4px 12px -4px rgba(67,42,25,.08), 0 -16px 40px -12px rgba(67,42,25,.18); display: flex; flex-direction: column">
+    <div style="width: 40px; height: 3.5px; border-radius: 9999px; background: #D1D5DB; margin: 7px auto 0; flex: none"></div>
+    <div style="padding: 10.5px 14px 7px; display: flex; align-items: center; justify-content: space-between; gap: 10.5px">
+      <h2 style="margin: 0; flex: 1; min-width: 0; font-size: 19px; line-height: 26px; font-weight: 600; color: #020817">Add to today</h2>
+      <a href="Home.dc.html" aria-label="Close" style="width: 44px; height: 44px; flex: none; border-radius: 9999px; background: #F3F4F6; color: #374151; font-size: 19px; font-weight: 600; display: flex; align-items: center; justify-content: center; text-decoration: none">✕</a>
+    </div>
+
+    <div style="padding: 0 14px 14px; display: flex; flex-direction: column; gap: 10.5px">
+      <div style="margin-bottom: 14px; display: flex; flex-direction: column; gap: 5.25px">
+        <div style="border: 1px solid #E6DED3; border-radius: 16px; background: #FFFFFF; overflow: hidden">
+          <a href="QuickAddSheet.dc.html" style="min-height: 44px; display: flex; align-items: center; gap: 10.5px; padding: 10.5px 14px; color: inherit; text-decoration: none">
+            <span style="width: 24.5px; flex: none; display: flex; justify-content: center"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#944A00" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5"></circle><path d="M15.5 15.5L20 20"></path></svg></span>
+            <span style="flex: 1; min-width: 0; display: flex; flex-direction: column">
+              <span style="font-size: 17px; line-height: 24px; color: #1C1917">Search foods</span>
+              <span style="margin-top: 1.75px; font-size: 15px; line-height: 20px; color: #57534E">A food, a recipe or something you had before</span>
+            </span>
+            <span aria-hidden="true" style="font-size: 20px; line-height: 25px; color: #6F675F">›</span>
+          </a>
+          <div style="height: 1px; background: #E6DED3; margin-left: 49px"></div>
+          <a href="Tracker.dc.html" style="min-height: 44px; display: flex; align-items: center; gap: 10.5px; padding: 10.5px 14px; color: inherit; text-decoration: none">
+            <span style="width: 24.5px; flex: none; display: flex; justify-content: center"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#944A00" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 8h3l1.8-2.5h6.4L17 8h3v11H4z"></path><circle cx="12" cy="13" r="3.5"></circle></svg></span>
+            <span style="flex: 1; min-width: 0; display: flex; flex-direction: column">
+              <span style="font-size: 17px; line-height: 24px; color: #1C1917">Snap a meal</span>
+              <span style="margin-top: 1.75px; font-size: 15px; line-height: 20px; color: #57534E">Take a photo and the chef estimates it</span>
+            </span>
+            <span aria-hidden="true" style="font-size: 20px; line-height: 25px; color: #6F675F">›</span>
+          </a>
+          <div style="height: 1px; background: #E6DED3; margin-left: 49px"></div>
+          <a href="Tracker.dc.html" style="min-height: 44px; display: flex; align-items: center; gap: 10.5px; padding: 10.5px 14px; color: inherit; text-decoration: none">
+            <span style="width: 24.5px; flex: none; display: flex; justify-content: center"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#944A00" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="8" y="8" width="12" height="12" rx="2"></rect><path d="M16 8V5.5a1.5 1.5 0 00-1.5-1.5h-9A1.5 1.5 0 004 5.5v9A1.5 1.5 0 005.5 16H8"></path></svg></span>
+            <span style="flex: 1; min-width: 0; display: flex; flex-direction: column">
+              <span style="font-size: 17px; line-height: 24px; color: #1C1917">Copy yesterday</span>
+              <span style="margin-top: 1.75px; font-size: 15px; line-height: 20px; color: #57534E">Log everything you ate yesterday again</span>
+            </span>
+            <span aria-hidden="true" style="font-size: 20px; line-height: 25px; color: #6F675F">›</span>
+          </a>
+          <div style="height: 1px; background: #E6DED3; margin-left: 49px"></div>
+          <a href="ImportRecipe.dc.html" style="min-height: 44px; display: flex; align-items: center; gap: 10.5px; padding: 10.5px 14px; color: inherit; text-decoration: none">
+            <span style="width: 24.5px; flex: none; display: flex; justify-content: center"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#944A00" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 6.5c-2-1.7-5-2.3-8.5-2v14c3.5-.3 6.5.3 8.5 2 2-1.7 5-2.3 8.5-2v-14c-3.5-.3-6.5.3-8.5 2zM12 6.5v14"></path></svg></span>
+            <span style="flex: 1; min-width: 0; display: flex; flex-direction: column">
+              <span style="font-size: 17px; line-height: 24px; color: #1C1917">Save a recipe</span>
+              <span style="margin-top: 1.75px; font-size: 15px; line-height: 20px; color: #57534E">From a link, a photo or by hand</span>
+            </span>
+            <span aria-hidden="true" style="font-size: 20px; line-height: 25px; color: #6F675F">›</span>
+          </a>
+        </div>
+      </div>
+    </div>
+    <div style="height: 34px; flex: none"></div>
+  </section>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":844}}'>
+class Component extends DCLogic {
+renderVals() {
+return {};
+}
+}
+</script>
+</body>
+</html>

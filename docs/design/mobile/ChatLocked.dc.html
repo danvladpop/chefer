@@ -14,38 +14,37 @@ a{color:#944a00;text-decoration:none}a:hover{color:#6e3700}
 input::placeholder,textarea::placeholder{color:#9ca3af}
 </style>
 </helmet>
-<div style="width: 390px; height: 844px; position: relative; overflow: hidden; background: #ffffff; font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Helvetica Neue', system-ui, sans-serif; color: #020817; display: flex; flex-direction: column">
+<div style="width: 390px; height: 844px; position: relative; overflow: hidden; background: #FFFFFF; font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Helvetica Neue', system-ui, sans-serif; color: #020817; display: flex; flex-direction: column">
   <div style="height: 47px; flex: none"></div>
 
-  <main id="main" style="flex: 1; min-height: 0; display: flex; flex-direction: column">
-    <header style="flex: none; display: flex; align-items: center; gap: 10.5px; padding: 10.5px 14px">
-      <a href="More.dc.html" aria-label="Back" style="width: 44px; height: 44px; display: flex; align-items: center; justify-content: center; color: #1f2937; text-decoration: none"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M11 5l-7 7 7 7M4 12h16"></path></svg></a>
-      <h1 style="margin: 0; font-size: 25px; line-height: 31px; font-weight: 700">AI Chef</h1>
-    </header>
+  <div style="display: flex; align-items: center; gap: 10.5px; padding: 10.5px 14px">
+    <a href="Home.dc.html" aria-label="Back" style="width: 44px; height: 44px; flex: none; display: flex; align-items: center; justify-content: center; color: #1F2937"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M11 5l-7 7 7 7M4 12h16"></path></svg></a>
+    <div style="flex: 1; min-width: 0; display: flex; flex-direction: column">
+      <h1 style="margin: 0; font-size: 25px; line-height: 31px; font-weight: 700; color: #020817">AI Chef</h1>
+      <span style="font-size: 14px; line-height: 19px; color: #8A7560">AI · answers can be wrong</span>
+    </div>
+  </div>
 
-    <div style="flex: 1; display: flex; flex-direction: column; padding: 7px 14px">
-      <div style="display: flex; flex-direction: column; gap: 10.5px">
-        <h2 style="margin: 0; font-size: 13px; line-height: 18px; font-weight: 600; text-transform: uppercase; letter-spacing: .025em; color: #6b7280">Example conversation</h2>
-        <div aria-label="Example conversation" style="display: flex; flex-direction: column; gap: 7px; opacity: .8">
-          <div style="align-self: flex-end; max-width: 85%; border-radius: 14px; background: #944a00; padding: 7px 10.5px; font-size: 15px; line-height: 21px; color: #fcf9f5">Swap tomorrow's lunch for something lighter</div>
-          <div style="align-self: flex-start; max-width: 85%; border-radius: 14px; background: #f3f4f6; padding: 7px 10.5px; font-size: 15px; line-height: 21px; color: #1f2937">Done — I swapped Chicken Caesar Salad for a Quinoa Veggie Bowl (−180 kcal, same protein). Your shopping list is updated.</div>
-          <div style="align-self: flex-end; max-width: 85%; border-radius: 14px; background: #944a00; padding: 7px 10.5px; font-size: 15px; line-height: 21px; color: #fcf9f5">I had a croissant for breakfast</div>
-          <div style="align-self: flex-start; max-width: 85%; border-radius: 14px; background: #f3f4f6; padding: 7px 10.5px; font-size: 15px; line-height: 21px; color: #1f2937">Logged a croissant (~270 kcal) to today. You have 1,480 kcal left.</div>
-        </div>
+  <main id="main" style="flex: 1; display: flex; flex-direction: column; gap: 10.5px; padding: 7px 14px">
+    <h2 style="margin: 0; font-size: 14px; line-height: 19px; font-weight: 600; text-transform: uppercase; letter-spacing: .025em; color: #6B7280">Example conversation</h2>
+    <div aria-label="Example conversation" style="display: flex; flex-direction: column; gap: 7px; opacity: .8">
+      <div style="align-self: flex-end; max-width: 85%; border-radius: 14px; padding: 7px 10.5px; background: #944A00"><p style="margin: 0; font-size: 16px; line-height: 22px; color: #FCF9F5">Swap tomorrow's lunch for something lighter</p></div>
+      <div style="align-self: flex-start; max-width: 85%; border-radius: 14px; padding: 7px 10.5px; background: #F3F4F6"><p style="margin: 0; font-size: 16px; line-height: 22px; color: #1F2937">Done — I swapped Chicken Caesar Salad for a Quinoa Veggie Bowl (−180 kcal, same protein). Your shopping list is updated.</p></div>
+      <div style="align-self: flex-end; max-width: 85%; border-radius: 14px; padding: 7px 10.5px; background: #944A00"><p style="margin: 0; font-size: 16px; line-height: 22px; color: #FCF9F5">I had a croissant for breakfast</p></div>
+      <div style="align-self: flex-start; max-width: 85%; border-radius: 14px; padding: 7px 10.5px; background: #F3F4F6"><p style="margin: 0; font-size: 16px; line-height: 22px; color: #1F2937">Logged a croissant (~270 kcal) to today. You have 1,480 kcal left.</p></div>
+    </div>
 
-        <section aria-label="Premium" style="border: 1px solid rgba(148,74,0,.2); border-radius: 7px; background: #fcf3ea; padding: 14px; display: flex; flex-direction: column">
-          <span style="font-size: 15px; line-height: 21px; font-weight: 600; color: #944a00">The AI chef is part of Premium</span>
-          <span style="margin-top: 3.5px; font-size: 15px; line-height: 21px; color: rgba(148,74,0,.8)">It can change your plan, log what you ate and import recipes for you.</span>
-          <a href="Profile.dc.html" style="margin-top: 7px; min-height: 44px; display: flex; align-items: center; font-size: 15px; font-weight: 600; color: #944a00; text-decoration: none">Upgrade from your Profile →</a>
-        </section>
+    <section aria-label="Premium" style="border: 1px solid rgba(148,74,0,.2); border-radius: 7px; background: #FCF3EA; padding: 14px; display: flex; flex-direction: column">
+      <span style="font-size: 16px; line-height: 22px; font-weight: 600; color: #944A00">The AI chef is part of Premium</span>
+      <span style="margin-top: 3.5px; font-size: 16px; line-height: 22px; color: rgba(148,74,0,.8)">It can change your plan, log what you ate and import recipes for you.</span>
+      <button type="button" style="margin-top: 7px; min-height: 44px; padding: 0; border: none; background: transparent; font: inherit; text-align: left; font-size: 16px; font-weight: 600; color: #944A00">See what Premium adds</button>
+    </section>
 
-        <nav aria-label="Free tools" style="display: flex; flex-direction: column">
-          <span style="font-size: 13px; line-height: 18px; color: #8a7560">Free tools that do the same jobs:</span>
-          <a href="MealPlan.dc.html" style="min-height: 44px; display: flex; align-items: center; font-size: 15px; font-weight: 500; color: #944a00; text-decoration: none">Replace a meal →</a>
-          <a href="Tracker.dc.html" style="min-height: 44px; display: flex; align-items: center; font-size: 15px; font-weight: 500; color: #944a00; text-decoration: none">Quick-add what you ate →</a>
-          <a href="ShoppingList.dc.html" style="min-height: 44px; display: flex; align-items: center; font-size: 15px; font-weight: 500; color: #944a00; text-decoration: none">Add to your shopping list →</a>
-        </nav>
-      </div>
+    <div style="display: flex; flex-direction: column">
+      <span style="font-size: 14px; line-height: 19px; color: #8A7560">Free tools that do the same jobs:</span>
+      <a href="Plan.dc.html" style="min-height: 44px; display: flex; align-items: center; font-size: 16px; font-weight: 500; color: #944A00; text-decoration: none">Replace a meal →</a>
+      <a href="Tracker.dc.html" style="min-height: 44px; display: flex; align-items: center; font-size: 16px; font-weight: 500; color: #944A00; text-decoration: none">Quick-add what you ate →</a>
+      <a href="Shop.dc.html" style="min-height: 44px; display: flex; align-items: center; font-size: 16px; font-weight: 500; color: #944A00; text-decoration: none">Add to your shopping list →</a>
     </div>
   </main>
 

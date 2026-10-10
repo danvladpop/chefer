@@ -14,27 +14,64 @@ a{color:#944a00;text-decoration:none}a:hover{color:#6e3700}
 input::placeholder,textarea::placeholder{color:#9ca3af}
 </style>
 </helmet>
-<div style="width: 390px; height: 844px; position: relative; overflow: hidden; background: #ffffff; font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Helvetica Neue', system-ui, sans-serif; color: #020817; display: flex; flex-direction: column">
+<div style="width: 390px; height: 844px; position: relative; overflow: hidden; background: #FFFFFF; font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Helvetica Neue', system-ui, sans-serif; color: #020817; display: flex; flex-direction: column">
   <div style="height: 47px; flex: none"></div>
 
-  <main id="main" style="flex: 1; min-height: 0; display: flex; flex-direction: column">
-    <header style="flex: none; display: flex; align-items: center; gap: 10.5px; padding: 10.5px 14px">
-      <a href="More.dc.html" aria-label="Back" style="width: 44px; height: 44px; display: flex; align-items: center; justify-content: center; color: #1f2937; text-decoration: none"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M11 5l-7 7 7 7M4 12h16"></path></svg></a>
-      <h1 style="margin: 0; font-size: 25px; line-height: 31px; font-weight: 700">AI Chef</h1>
-    </header>
+  <div style="display: flex; align-items: center; gap: 10.5px; padding: 10.5px 14px">
+    <a href="Home.dc.html" aria-label="Back" style="width: 44px; height: 44px; flex: none; display: flex; align-items: center; justify-content: center; color: #1F2937"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M11 5l-7 7 7 7M4 12h16"></path></svg></a>
+    <div style="flex: 1; min-width: 0; display: flex; flex-direction: column">
+      <h1 style="margin: 0; font-size: 25px; line-height: 31px; font-weight: 700; color: #020817">AI Chef</h1>
+      <span style="font-size: 14px; line-height: 19px; color: #8A7560">AI · answers can be wrong</span>
+    </div>
+    <button type="button" aria-label="Start a new chat" style="min-height: 44px; padding: 0 7px; border: none; background: transparent; font: inherit; font-size: 16px; font-weight: 600; color: #944A00">New chat</button>
+  </div>
 
-    <div role="log" aria-label="Conversation" style="flex: 1; min-height: 0; display: flex; flex-direction: column; gap: 10.5px; padding: 7px 14px">
-      <div style="align-self: flex-end; max-width: 85%; border-radius: 14px; background: #944a00; padding: 7px 10.5px; font-size: 15px; line-height: 21px; color: #fcf9f5">What can I use instead of quinoa tonight? I'm out.</div>
-      <div style="align-self: flex-start; max-width: 85%; border-radius: 14px; background: #f3f4f6; padding: 7px 10.5px; font-size: 15px; line-height: 21px; color: #1f2937">Couscous is the quickest swap — 5 minutes in boiling water, similar carbs and a little less protein. Brown rice works too, but it needs about 25 minutes.</div>
-      <div style="align-self: flex-end; max-width: 85%; border-radius: 14px; background: #944a00; padding: 7px 10.5px; font-size: 15px; line-height: 21px; color: #fcf9f5">Couscous it is. Can you add it to my shopping list?</div>
-      <div style="align-self: flex-start; max-width: 85%; border-radius: 14px; background: #f3f4f6; padding: 7px 10.5px; font-size: 15px; line-height: 21px; color: #1f2937">Added 300 g couscous to your shopping list.</div>
-      <div style="align-self: flex-end; max-width: 85%; border-radius: 14px; background: #944a00; padding: 7px 10.5px; font-size: 15px; line-height: 21px; color: #fcf9f5">Thanks! How much protein is left for today?</div>
-      <div style="align-self: flex-start; max-width: 85%; border-radius: 14px; background: #f3f4f6; padding: 7px 10.5px; font-size: 15px; line-height: 21px; color: #1f2937">You're at 62 g of 140 g. Tonight's salmon adds 38 g, so a Greek yogurt snack would get you within 20 g of target.</div>
+  <main id="main" style="flex: 1; min-height: 0; display: flex; flex-direction: column">
+    <div style="flex: 1; min-height: 0; overflow: hidden; display: flex; flex-direction: column; gap: 10.5px; padding: 7px 14px">
+      <div style="align-self: flex-end; max-width: 85%">
+        <div style="border-radius: 14px; padding: 7px 10.5px; background: #944A00"><p style="margin: 0; font-size: 16px; line-height: 22px; color: #FCF9F5">I had a big lunch. Can you make tonight's dinner lighter?</p></div>
+      </div>
+
+      <div style="align-self: flex-start; max-width: 85%">
+        <div style="border-radius: 14px; padding: 7px 10.5px; background: #F3F4F6"><p style="margin: 0; font-size: 16px; line-height: 22px; color: #1F2937">Done — I swapped tonight's salmon for Miso Glazed Cod with Greens. It's about 190 kcal lighter with the same protein, and your shopping list is updated.</p></div>
+        <div style="margin-top: 5.25px; display: flex; flex-direction: column; gap: 5.25px">
+          <div style="border: 1px solid #A7F3D0; border-radius: 10.5px; background: #ECFDF5; padding: 7px 10.5px">
+            <div style="display: flex; align-items: center; gap: 7px">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#047857" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex: none"><circle cx="12" cy="12" r="9"></circle><path d="M7.5 12.3l3 3 6-6"></path></svg>
+              <span style="flex: 1; min-width: 0; font-size: 16px; line-height: 22px; color: #064E3B">Swapped Saturday's dinner for Miso Glazed Cod with Greens</span>
+            </div>
+            <div style="display: flex; align-items: center">
+              <a href="Plan.dc.html" aria-label="View: Swapped Saturday's dinner for Miso Glazed Cod with Greens" style="min-height: 44px; padding-right: 17.5px; display: flex; align-items: center; font-size: 16px; font-weight: 600; color: #944A00; text-decoration: none">View</a>
+              <button type="button" aria-label="Undo: Swapped Saturday's dinner for Miso Glazed Cod with Greens" style="min-height: 44px; padding: 0 17.5px 0 0; border: none; background: transparent; font: inherit; font-size: 16px; font-weight: 600; color: #944A00">Undo</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div style="align-self: flex-end; max-width: 85%">
+        <div style="border-radius: 14px; padding: 7px 10.5px; background: #944A00"><p style="margin: 0; font-size: 16px; line-height: 22px; color: #FCF9F5">Great. Add limes to my list too</p></div>
+      </div>
+
+      <div style="align-self: flex-start; max-width: 85%">
+        <div style="border-radius: 14px; padding: 7px 10.5px; background: #F3F4F6"><p style="margin: 0; font-size: 16px; line-height: 22px; color: #1F2937">Added limes to your shopping list. The cod goes nicely with a squeeze of lime over the greens.</p></div>
+        <div style="margin-top: 5.25px; display: flex; flex-direction: column; gap: 5.25px">
+          <div style="border: 1px solid #A7F3D0; border-radius: 10.5px; background: #ECFDF5; padding: 7px 10.5px">
+            <div style="display: flex; align-items: center; gap: 7px">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#047857" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex: none"><circle cx="12" cy="12" r="9"></circle><path d="M7.5 12.3l3 3 6-6"></path></svg>
+              <span style="flex: 1; min-width: 0; font-size: 16px; line-height: 22px; color: #064E3B">Added to your shopping list: Limes</span>
+            </div>
+            <div style="display: flex; align-items: center">
+              <a href="Shop.dc.html" aria-label="View: Added to your shopping list: Limes" style="min-height: 44px; padding-right: 17.5px; display: flex; align-items: center; font-size: 16px; font-weight: 600; color: #944A00; text-decoration: none">View</a>
+              <button type="button" aria-label="Undo: Added to your shopping list: Limes" style="min-height: 44px; padding: 0 17.5px 0 0; border: none; background: transparent; font: inherit; font-size: 16px; font-weight: 600; color: #944A00">Undo</button>
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
 
-    <div style="flex: none; display: flex; align-items: flex-end; gap: 7px; border-top: 1px solid #e2e8f0; padding: 10.5px 14px">
-      <textarea aria-label="Message the chef" placeholder="Message the chef…" rows="1" style="flex: 1; min-width: 0; min-height: 44px; height: 44px; box-sizing: border-box; resize: none; border: 1px solid #e2e8f0; border-radius: 14px; padding: 10px 14px; font: inherit; font-size: 17px; line-height: 22px; color: #020817; background: #ffffff"></textarea>
-      <button type="button" aria-label="Send" disabled style="flex: none; width: 44px; height: 44px; padding: 0; border: none; border-radius: 9999px; background: #944a00; color: #ffffff; opacity: .4; display: flex; align-items: center; justify-content: center"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 19V5M6 11l6-6 6 6"></path></svg></button>
+    <div style="flex: none; display: flex; align-items: flex-end; gap: 7px; border-top: 1px solid #E2E8F0; padding: 10.5px 14px">
+      <textarea aria-label="Message the chef" placeholder="Message the chef…" rows="1" style="flex: 1; min-width: 0; min-height: 44px; box-sizing: border-box; resize: none; border: 1px solid #E2E8F0; border-radius: 14px; background: #FFFFFF; padding: 10.5px 14px; font: inherit; font-size: 17px; line-height: 21px; color: #020817"></textarea>
+      <button type="button" aria-label="Send" disabled style="width: 44px; height: 44px; flex: none; border: none; border-radius: 9999px; background: #944A00; opacity: .4; padding: 0; color: #FFFFFF; display: flex; align-items: center; justify-content: center"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 19V5M6 11l6-6 6 6"></path></svg></button>
     </div>
   </main>
 

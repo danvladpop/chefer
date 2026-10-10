@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<title>Tracker — Quick add</title>
+<title>Today — Log something</title>
 <script src="./support.js"></script>
 </head>
 <body>
@@ -14,60 +14,83 @@ a{color:#944a00;text-decoration:none}a:hover{color:#6e3700}
 input::placeholder,textarea::placeholder{color:#9ca3af}
 </style>
 </helmet>
-<div style="width: 390px; height: 844px; position: relative; overflow: hidden; background: #ffffff; font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Helvetica Neue', system-ui, sans-serif; color: #020817; display: flex; flex-direction: column">
+<div style="width: 390px; height: 844px; position: relative; overflow: hidden; background: #FFFFFF; font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Helvetica Neue', system-ui, sans-serif; color: #1C1917; display: flex; flex-direction: column">
   <div style="height: 47px; flex: none"></div>
-  <div aria-hidden="true" style="flex: 1; background: #ffffff"></div>
 
-  <a href="Tracker.dc.html" aria-label="Close Quick add" style="position: absolute; inset: 0; background: rgba(0,0,0,.4); text-decoration: none"></a>
+  <a href="Home.dc.html" aria-label="Close Log something" style="position: absolute; inset: 0; background: rgba(0,0,0,.4)"></a>
 
-  <section role="dialog" aria-modal="true" aria-labelledby="quick-add-title" style="position: absolute; left: 0; right: 0; bottom: 0; background: #ffffff; border-radius: 21px 21px 0 0; box-shadow: 0 -4px 12px -4px rgba(67,42,25,.08), 0 -16px 40px -12px rgba(67,42,25,.18); max-height: 85%; display: flex; flex-direction: column">
-    <div style="width: 40px; height: 3.5px; border-radius: 9999px; background: #d1d5db; margin: 7px auto 0"></div>
-    <div style="padding: 10.5px 14px 7px; display: flex; justify-content: space-between; align-items: center; gap: 10.5px">
-      <div style="min-width: 0; flex: 1; display: flex; flex-direction: column">
-        <span style="font-size: 13px; line-height: 18px; font-weight: 600; text-transform: uppercase; letter-spacing: .1em; color: #8a7560">Off-plan</span>
-        <h1 id="quick-add-title" style="margin: 0; font-size: 19px; line-height: 26px; font-weight: 600">Quick add</h1>
-      </div>
-      <a href="Tracker.dc.html" aria-label="Close" style="width: 44px; height: 44px; flex: none; border-radius: 9999px; background: #f3f4f6; color: #374151; font-size: 19px; font-weight: 600; display: flex; align-items: center; justify-content: center; text-decoration: none">✕</a>
+  <section role="dialog" aria-label="Log something" style="position: absolute; left: 0; right: 0; bottom: 0; max-height: 85%; background: #FFFFFF; border-radius: 21px 21px 0 0; box-shadow: 0 -4px 12px -4px rgba(67,42,25,.08), 0 -16px 40px -12px rgba(67,42,25,.18); display: flex; flex-direction: column">
+    <div style="width: 40px; height: 3.5px; border-radius: 9999px; background: #D1D5DB; margin: 7px auto 0; flex: none"></div>
+    <div style="padding: 10.5px 14px 7px; display: flex; align-items: center; justify-content: space-between; gap: 10.5px">
+      <h2 style="margin: 0; flex: 1; min-width: 0; font-size: 19px; line-height: 26px; font-weight: 600; color: #020817">Log something</h2>
+      <a href="Home.dc.html" aria-label="Close" style="width: 44px; height: 44px; flex: none; border-radius: 9999px; background: #F3F4F6; color: #374151; font-size: 19px; font-weight: 600; display: flex; align-items: center; justify-content: center; text-decoration: none">✕</a>
     </div>
 
     <div style="padding: 0 14px 14px; display: flex; flex-direction: column; gap: 10.5px">
-      <p style="margin: 0; font-size: 15px; line-height: 21px; color: #8a7560">Ate something off-plan? Log it honestly — name and calories are enough.</p>
-
       <div style="display: flex; flex-direction: column; gap: 3.5px">
-        <label for="quick-add-name" style="font-size: 13px; line-height: 18px; font-weight: 500; color: #4b5563">What did you eat?</label>
-        <input id="quick-add-name" placeholder="e.g. Slice of birthday cake" style="height: 44px; box-sizing: border-box; width: 100%; border: 1px solid #e2e8f0; border-radius: 5.25px; padding: 0 10.5px; font: inherit; font-size: 17px; color: #020817; background: #ffffff">
-      </div>
-
-      <div style="display: flex; flex-direction: column; gap: 3.5px">
-        <span id="quick-add-meal-label" style="font-size: 13px; line-height: 18px; font-weight: 500; color: #4b5563">Meal</span>
-        <div role="radiogroup" aria-labelledby="quick-add-meal-label" style="background: #faf5f0; border-radius: 7px; padding: 4px; display: flex">
-          <button type="button" role="radio" aria-checked="false" style="flex: 1; min-height: 36px; border: none; border-radius: 6px; background: transparent; font: inherit; font-size: 13px; font-weight: 500; color: #8a7560">Breakfast</button>
-          <button type="button" role="radio" aria-checked="false" style="flex: 1; min-height: 36px; border: none; border-radius: 6px; background: transparent; font: inherit; font-size: 13px; font-weight: 500; color: #8a7560">Lunch</button>
-          <button type="button" role="radio" aria-checked="false" style="flex: 1; min-height: 36px; border: none; border-radius: 6px; background: transparent; font: inherit; font-size: 13px; font-weight: 500; color: #8a7560">Dinner</button>
-          <button type="button" role="radio" aria-checked="true" style="flex: 1; min-height: 36px; border: none; border-radius: 6px; background: #ffffff; box-shadow: 0 1px 2px rgba(0,0,0,.08); font: inherit; font-size: 13px; font-weight: 500; color: #020817">Snack</button>
+        <span id="qa-meal-label" style="font-size: 14px; line-height: 19px; font-weight: 500; color: #4B5563">Meal</span>
+        <div role="tablist" aria-labelledby="qa-meal-label" style="background: #FAF5F0; border-radius: 7px; padding: 4px; display: flex">
+          <button type="button" role="tab" aria-selected="false" style="flex: 1; min-height: 44px; padding: 3.5px 10.5px; border: none; border-radius: 5.25px; background: transparent; font: inherit; font-size: 14px; font-weight: 500; color: #8A7560">Breakfast</button>
+          <button type="button" role="tab" aria-selected="true" style="flex: 1; min-height: 44px; padding: 3.5px 10.5px; border: none; border-radius: 6px; background: #FFFFFF; box-shadow: 0 1px 2px rgba(0,0,0,.08); font: inherit; font-size: 14px; font-weight: 500; color: #020817">Lunch</button>
+          <button type="button" role="tab" aria-selected="false" style="flex: 1; min-height: 44px; padding: 3.5px 10.5px; border: none; border-radius: 5.25px; background: transparent; font: inherit; font-size: 14px; font-weight: 500; color: #8A7560">Dinner</button>
+          <button type="button" role="tab" aria-selected="false" style="flex: 1; min-height: 44px; padding: 3.5px 10.5px; border: none; border-radius: 5.25px; background: transparent; font: inherit; font-size: 14px; font-weight: 500; color: #8A7560">Snack</button>
         </div>
       </div>
 
-      <div style="display: flex; flex-direction: column; gap: 3.5px">
-        <label for="quick-add-kcal" style="font-size: 13px; line-height: 18px; font-weight: 500; color: #4b5563">Roughly how many calories?</label>
-        <div style="display: flex; align-items: center; gap: 7px">
-          <input id="quick-add-kcal" aria-label="Calories" placeholder="350" inputmode="numeric" style="flex: 1; min-width: 0; height: 44px; box-sizing: border-box; border: 1px solid #e2e8f0; border-radius: 5.25px; padding: 0 10.5px; font: inherit; font-size: 17px; color: #020817; background: #ffffff">
-          <span style="font-size: 15px; color: #9ca3af">kcal</span>
+      <input aria-label="What did you eat?" placeholder="What did you eat?" style="min-height: 44px; box-sizing: border-box; width: 100%; border: 1px solid #E2E8F0; border-radius: 5.25px; padding: 7px 10.5px; font: inherit; font-size: 17px; color: #020817; background: #FFFFFF">
+
+      <div style="display: flex; flex-direction: column; gap: 5.25px">
+        <h3 style="margin: 7px 0 0; font-size: 14px; line-height: 19px; font-weight: 600; text-transform: uppercase; letter-spacing: .1em; color: #6B7280">Recent</h3>
+
+        <div style="display: flex; align-items: center; gap: 10.5px; border: 1px solid #E2E8F0; border-radius: 10.5px; background: #FFFFFF; padding: 8.75px">
+          <div style="width: 31.5px; height: 31.5px; flex: none; border-radius: 7px; background: #EADCCD; display: flex; align-items: center; justify-content: center; color: #8A7560; font-size: 12px; overflow: hidden">Photo</div>
+          <div style="flex: 1; min-width: 0; display: flex; flex-direction: column">
+            <span style="font-size: 16px; line-height: 22px; font-weight: 500; color: #1F2937; white-space: nowrap; overflow: hidden; text-overflow: ellipsis">Flat white</span>
+            <span style="font-size: 14px; line-height: 19px; color: #6B7280">140 kcal</span>
+          </div>
+          <button type="button" aria-label="Log Flat white again, 140 kilocalories" style="width: 44px; height: 44px; flex: none; border: none; background: transparent; padding: 0; display: flex; align-items: center; justify-content: center"><svg width="26" height="26" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="10" fill="#944A00"></circle><path d="M12 7.5v9M7.5 12h9" stroke="#FFFFFF" stroke-width="2" stroke-linecap="round"></path></svg></button>
+        </div>
+
+        <div style="display: flex; align-items: center; gap: 10.5px; border: 1px solid #E2E8F0; border-radius: 10.5px; background: #FFFFFF; padding: 8.75px">
+          <div style="width: 31.5px; height: 31.5px; flex: none; border-radius: 7px; background: #EADCCD; display: flex; align-items: center; justify-content: center; color: #8A7560; font-size: 12px; overflow: hidden">Photo</div>
+          <div style="flex: 1; min-width: 0; display: flex; flex-direction: column">
+            <span style="font-size: 16px; line-height: 22px; font-weight: 500; color: #1F2937; white-space: nowrap; overflow: hidden; text-overflow: ellipsis">Overnight Oats with Berries</span>
+            <span style="font-size: 14px; line-height: 19px; color: #6B7280">420 kcal</span>
+          </div>
+          <button type="button" aria-label="Log Overnight Oats with Berries again, 420 kilocalories" style="width: 44px; height: 44px; flex: none; border: none; background: transparent; padding: 0; display: flex; align-items: center; justify-content: center"><svg width="26" height="26" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="10" fill="#944A00"></circle><path d="M12 7.5v9M7.5 12h9" stroke="#FFFFFF" stroke-width="2" stroke-linecap="round"></path></svg></button>
+        </div>
+
+        <div style="display: flex; align-items: center; gap: 10.5px; border: 1px solid #E2E8F0; border-radius: 10.5px; background: #FFFFFF; padding: 8.75px">
+          <div style="width: 31.5px; height: 31.5px; flex: none; border-radius: 7px; background: #EADCCD; display: flex; align-items: center; justify-content: center; color: #8A7560; font-size: 12px; overflow: hidden">Photo</div>
+          <div style="flex: 1; min-width: 0; display: flex; flex-direction: column">
+            <span style="font-size: 16px; line-height: 22px; font-weight: 500; color: #1F2937; white-space: nowrap; overflow: hidden; text-overflow: ellipsis">Almond croissant</span>
+            <span style="font-size: 14px; line-height: 19px; color: #6B7280">580 kcal</span>
+          </div>
+          <button type="button" aria-label="Log Almond croissant again, 580 kilocalories" style="width: 44px; height: 44px; flex: none; border: none; background: transparent; padding: 0; display: flex; align-items: center; justify-content: center"><svg width="26" height="26" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="10" fill="#944A00"></circle><path d="M12 7.5v9M7.5 12h9" stroke="#FFFFFF" stroke-width="2" stroke-linecap="round"></path></svg></button>
+        </div>
+
+        <div style="display: flex; align-items: center; gap: 10.5px; border: 1px solid #E2E8F0; border-radius: 10.5px; background: #FFFFFF; padding: 8.75px">
+          <div style="width: 31.5px; height: 31.5px; flex: none; border-radius: 7px; background: #EADCCD; display: flex; align-items: center; justify-content: center; color: #8A7560; font-size: 12px; overflow: hidden">Photo</div>
+          <div style="flex: 1; min-width: 0; display: flex; flex-direction: column">
+            <span style="font-size: 16px; line-height: 22px; font-weight: 500; color: #1F2937; white-space: nowrap; overflow: hidden; text-overflow: ellipsis">Chicken &amp; Chickpea Bowl</span>
+            <span style="font-size: 14px; line-height: 19px; color: #6B7280">640 kcal</span>
+          </div>
+          <button type="button" aria-label="Log Chicken and Chickpea Bowl again, 640 kilocalories" style="width: 44px; height: 44px; flex: none; border: none; background: transparent; padding: 0; display: flex; align-items: center; justify-content: center"><svg width="26" height="26" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="10" fill="#944A00"></circle><path d="M12 7.5v9M7.5 12h9" stroke="#FFFFFF" stroke-width="2" stroke-linecap="round"></path></svg></button>
+        </div>
+
+        <div style="display: flex; align-items: center; gap: 10.5px; border: 1px solid #E2E8F0; border-radius: 10.5px; background: #FFFFFF; padding: 8.75px">
+          <div style="width: 31.5px; height: 31.5px; flex: none; border-radius: 7px; background: #EADCCD; display: flex; align-items: center; justify-content: center; color: #8A7560; font-size: 12px; overflow: hidden">Photo</div>
+          <div style="flex: 1; min-width: 0; display: flex; flex-direction: column">
+            <span style="font-size: 16px; line-height: 22px; font-weight: 500; color: #1F2937; white-space: nowrap; overflow: hidden; text-overflow: ellipsis">Banana</span>
+            <span style="font-size: 14px; line-height: 19px; color: #6B7280">100 kcal</span>
+          </div>
+          <button type="button" aria-label="Log Banana again, 100 kilocalories" style="width: 44px; height: 44px; flex: none; border: none; background: transparent; padding: 0; display: flex; align-items: center; justify-content: center"><svg width="26" height="26" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="10" fill="#944A00"></circle><path d="M12 7.5v9M7.5 12h9" stroke="#FFFFFF" stroke-width="2" stroke-linecap="round"></path></svg></button>
         </div>
       </div>
 
-      <div style="display: flex; flex-direction: column; gap: 3.5px">
-        <span style="font-size: 13px; line-height: 18px; font-weight: 500; color: #4b5563">Macros (optional, grams)</span>
-        <div style="display: flex; gap: 7px">
-          <input aria-label="Protein grams" placeholder="Protein" inputmode="decimal" style="flex: 1; min-width: 0; height: 44px; box-sizing: border-box; border: 1px solid #e2e8f0; border-radius: 5.25px; padding: 0 10.5px; font: inherit; font-size: 17px; color: #020817; background: #ffffff">
-          <input aria-label="Carbs grams" placeholder="Carbs" inputmode="decimal" style="flex: 1; min-width: 0; height: 44px; box-sizing: border-box; border: 1px solid #e2e8f0; border-radius: 5.25px; padding: 0 10.5px; font: inherit; font-size: 17px; color: #020817; background: #ffffff">
-          <input aria-label="Fat grams" placeholder="Fat" inputmode="decimal" style="flex: 1; min-width: 0; height: 44px; box-sizing: border-box; border: 1px solid #e2e8f0; border-radius: 5.25px; padding: 0 10.5px; font: inherit; font-size: 17px; color: #020817; background: #ffffff">
-        </div>
+      <div style="margin-top: 3.5px; display: flex; flex-wrap: wrap; gap: 10.5px; border-top: 1px solid #E2E8F0; padding-top: 10.5px">
+        <button type="button" style="min-height: 44px; padding: 0; border: none; background: transparent; font: inherit; font-size: 16px; line-height: 22px; font-weight: 500; color: #944A00">Enter calories yourself</button>
       </div>
-    </div>
-
-    <div style="border-top: 1px solid #e2e8f0; padding: 10.5px 14px 0">
-      <button type="button" style="width: 100%; height: 44px; padding: 0 14px; border: none; border-radius: 5.25px; background: #944a00; color: #fcf9f5; font: inherit; font-size: 15px; font-weight: 500; display: flex; align-items: center; justify-content: center">Log it</button>
     </div>
     <div style="height: 34px; flex: none"></div>
   </section>

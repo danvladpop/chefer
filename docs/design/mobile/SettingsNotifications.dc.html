@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Settings — Notifications</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+body{margin:0}
+a{color:#944a00;text-decoration:none}a:hover{color:#6e3700}
+input::placeholder,textarea::placeholder{color:#9ca3af}
+</style>
+</helmet>
+<div style="width: 390px; height: 992px; position: relative; overflow: hidden; background: #FFFFFF; font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Helvetica Neue', system-ui, sans-serif; color: #020817; display: flex; flex-direction: column">
+  <div style="height: 47px; flex: none"></div>
+  <header style="flex: none; display: flex; align-items: center; gap: 10.5px; padding: 10.5px 14px; ">
+    <a href="Settings.dc.html" aria-label="Back" style="width: 44px; height: 44px; flex: none; display: flex; align-items: center; justify-content: center"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#1F2937" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M11 5l-7 7 7 7M4 12h16"></path></svg></a>
+    <h1 style="margin: 0; flex: 1; min-width: 0; font-size: 19px; line-height: 26px; font-weight: 600; color: #020817">Notifications</h1>
+  </header>
+  <main id="main" style="flex: 1; display: flex; flex-direction: column; gap: 10.5px; padding: 0 14px 28px">
+    <section style="border: 1px solid #E2E8F0; border-radius: 7px; background: #FFFFFF; padding: 14px; display: flex; flex-direction: column; gap: 10.5px">
+      <h2 style="margin: 0; font-size: 19px; line-height: 26px; font-weight: 600; color: #020817">Weekly updates</h2>
+      <div style="display: flex; flex-direction: column; gap: 3.5px">
+        <span style="font-size: 16px; line-height: 22px; font-weight: 500; color: #020817">On this phone</span>
+        <div style="min-height: 44px; display: flex; align-items: center; justify-content: space-between; gap: 10.5px; padding: 3.5px 0;"><div style="flex: 1; min-width: 0; display: flex; flex-direction: column"><span style="font-size: 16px; line-height: 22px; font-weight: 500; color: #111827">Monday plan and Sunday recap</span><span style="font-size: 14px; line-height: 19px; color: #8A7560">A notification at 8:00 on Monday and 18:00 on Sunday.</span></div><button type="button" role="switch" aria-checked="true" aria-label="Monday plan and Sunday recap" style="width: 51px; height: 31px; flex: none; padding: 2px; border: none; border-radius: 9999px; background: #944A00; display: flex; align-items: center; justify-content: flex-end"><span style="width: 27px; height: 27px; border-radius: 9999px; background: #FFFFFF; box-shadow: 0 2px 4px rgba(0,0,0,.2)"></span></button></div>
+      </div>
+      <div style="display: flex; flex-direction: column; gap: 3.5px">
+        <span style="font-size: 16px; line-height: 22px; font-weight: 500; color: #020817">By email</span>
+        <p style="margin: 0; font-size: 14px; line-height: 19px; color: #8A7560;">Sent to dan@example.com.</p>
+        <div style="min-height: 44px; display: flex; align-items: center; justify-content: space-between; gap: 10.5px; padding: 3.5px 0;"><div style="flex: 1; min-width: 0; display: flex; flex-direction: column"><span style="font-size: 16px; line-height: 22px; font-weight: 500; color: #111827">Monday: your week is ready</span><span style="font-size: 14px; line-height: 19px; color: #8A7560">This week's dinners and your estimated shopping list.</span></div><button type="button" role="switch" aria-checked="true" aria-label="Monday: your week is ready" style="width: 51px; height: 31px; flex: none; padding: 2px; border: none; border-radius: 9999px; background: #944A00; display: flex; align-items: center; justify-content: flex-end"><span style="width: 27px; height: 27px; border-radius: 9999px; background: #FFFFFF; box-shadow: 0 2px 4px rgba(0,0,0,.2)"></span></button></div>
+        <div style="min-height: 44px; display: flex; align-items: center; justify-content: space-between; gap: 10.5px; padding: 3.5px 0;"><div style="flex: 1; min-width: 0; display: flex; flex-direction: column"><span style="font-size: 16px; line-height: 22px; font-weight: 500; color: #111827">Sunday: your week in review</span><span style="font-size: 14px; line-height: 19px; color: #8A7560">Meals logged, days on target, weight and workouts.</span></div><button type="button" role="switch" aria-checked="false" aria-label="Sunday: your week in review" style="width: 51px; height: 31px; flex: none; padding: 2px; border: none; border-radius: 9999px; background: #D1D5DB; display: flex; align-items: center; justify-content: flex-start"><span style="width: 27px; height: 27px; border-radius: 9999px; background: #FFFFFF; box-shadow: 0 2px 4px rgba(0,0,0,.2)"></span></button></div>
+      </div>
+    </section>
+    <section style="border: 1px solid #E2E8F0; border-radius: 7px; background: #FFFFFF; padding: 14px; display: flex; flex-direction: column; padding: 0">
+      <a href="GymSettings.dc.html" aria-label="Training reminders. On, at 18:00" style="min-height: 49px; display: flex; align-items: center; gap: 10.5px; padding: 7px 14px; color: inherit; text-decoration: none">
+        <span style="flex: 1; min-width: 0; display: flex; flex-direction: column"><span style="font-size: 16px; line-height: 22px; font-weight: 500; color: #111827">Training reminders</span><span style="font-size: 14px; line-height: 19px; color: #8A7560">On, at 18:00</span></span>
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#9CA3AF" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 5l7 7-7 7"></path></svg>
+      </a>
+    </section>
+    <section style="border: 1px solid #E2E8F0; border-radius: 7px; background: #FFFFFF; padding: 14px; display: flex; flex-direction: column; gap: 7px">
+      <h2 style="margin: 0; font-size: 19px; line-height: 26px; font-weight: 600; color: #020817">Food nudges</h2>
+      <div style="display: flex; flex-direction: column; gap: 3.5px">
+        <div style="min-height: 44px; display: flex; align-items: center; justify-content: space-between; gap: 10.5px; padding: 3.5px 0;"><div style="flex: 1; min-width: 0; display: flex; flex-direction: column"><span style="font-size: 16px; line-height: 22px; font-weight: 500; color: #111827">Log dinner</span><span style="font-size: 14px; line-height: 19px; color: #8A7560">At 20:30 on evenings when dinner isn’t logged yet.</span></div><button type="button" role="switch" aria-checked="true" aria-label="Log dinner" style="width: 51px; height: 31px; flex: none; padding: 2px; border: none; border-radius: 9999px; background: #944A00; display: flex; align-items: center; justify-content: flex-end"><span style="width: 27px; height: 27px; border-radius: 9999px; background: #FFFFFF; box-shadow: 0 2px 4px rgba(0,0,0,.2)"></span></button></div>
+        <div style="min-height: 44px; display: flex; align-items: center; justify-content: space-between; gap: 10.5px; padding: 3.5px 0;"><div style="flex: 1; min-width: 0; display: flex; flex-direction: column"><span style="font-size: 16px; line-height: 22px; font-weight: 500; color: #111827">Plan Sunday</span><span style="font-size: 14px; line-height: 19px; color: #8A7560">A Sunday evening nudge to pick next week’s dinners.</span></div><button type="button" role="switch" aria-checked="false" aria-label="Plan Sunday" style="width: 51px; height: 31px; flex: none; padding: 2px; border: none; border-radius: 9999px; background: #D1D5DB; display: flex; align-items: center; justify-content: flex-start"><span style="width: 27px; height: 27px; border-radius: 9999px; background: #FFFFFF; box-shadow: 0 2px 4px rgba(0,0,0,.2)"></span></button></div>
+      </div>
+    </section>
+    <section style="border: 1px solid #E2E8F0; border-radius: 7px; background: #FFFFFF; padding: 14px; display: flex; flex-direction: column; gap: 7px">
+      <h2 style="margin: 0; font-size: 19px; line-height: 26px; font-weight: 600; color: #020817">Rest-timer alerts</h2>
+      <p style="margin: 0; font-size: 16px; line-height: 22px; color: #8A7560;">A “Rest is over” alert when Chefer is in the background during a workout or a cooking timer.</p>
+      <span style="font-size: 16px; line-height: 22px; font-weight: 500; color: #111827">On</span>
+    </section>
+  </main>
+  <div style="height: 34px; flex: none"></div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":992}}'>
+class Component extends DCLogic {
+renderVals() {
+return {};
+}
+}
+</script>
+</body>
+</html>

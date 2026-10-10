@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<title>Auth — Create account</title>
+<title>Create account</title>
 <script src="./support.js"></script>
 </head>
 <body>
@@ -14,43 +14,51 @@ a{color:#944a00;text-decoration:none}a:hover{color:#6e3700}
 input::placeholder,textarea::placeholder{color:#9ca3af}
 </style>
 </helmet>
-<div style="width: 390px; height: 844px; position: relative; overflow: hidden; background: #ffffff; font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Helvetica Neue', system-ui, sans-serif; color: #020817; display: flex; flex-direction: column">
+<div style="width: 390px; height: 844px; position: relative; overflow: hidden; background: #FFFFFF; font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Helvetica Neue', system-ui, sans-serif; color: #020817; display: flex; flex-direction: column">
   <div style="height: 47px; flex: none"></div>
 
-  <main id="main" style="flex: 1; display: flex; flex-direction: column; justify-content: center; gap: 14px; padding: 21px 14px">
+  <main id="main" style="flex: 1; display: flex; flex-direction: column; gap: 14px; padding: 28px 14px 21px">
     <h1 style="margin: 0; font-size: 25px; line-height: 31px; font-weight: 700">Create your account</h1>
-    <p style="margin: 0; font-size: 15px; line-height: 21px; color: #8a7560">Meal planning that fits your goals</p>
+    <p style="margin: 0; font-size: 16px; line-height: 22px; color: #8A7560">Free workout log and weekly meal plans.</p>
 
     <div style="display: flex; flex-direction: column; gap: 3.5px">
-      <label for="register-first-name" style="font-size: 15px; line-height: 21px; font-weight: 500">First name (optional)</label>
-      <input id="register-first-name" autocomplete="given-name" style="height: 44px; box-sizing: border-box; width: 100%; border: 1px solid #e2e8f0; border-radius: 5.25px; padding: 0 10.5px; font: inherit; font-size: 17px; color: #020817; background: #ffffff">
+      <label for="reg-first-name" style="font-size: 16px; line-height: 22px; font-weight: 500">First name (optional)</label>
+      <input id="reg-first-name" type="text" value="Dan" autocomplete="given-name" style="min-height: 44px; box-sizing: border-box; width: 100%; border: 1px solid #E2E8F0; border-radius: 5.25px; padding: 7px 10.5px; font: inherit; font-size: 17px; color: #020817; background: #FFFFFF">
     </div>
 
     <div style="display: flex; flex-direction: column; gap: 3.5px">
-      <label for="register-email" style="font-size: 15px; line-height: 21px; font-weight: 500">Email</label>
-      <input id="register-email" type="email" autocomplete="email" style="height: 44px; box-sizing: border-box; width: 100%; border: 1px solid #e2e8f0; border-radius: 5.25px; padding: 0 10.5px; font: inherit; font-size: 17px; color: #020817; background: #ffffff">
+      <label for="reg-email" style="font-size: 16px; line-height: 22px; font-weight: 500">Email</label>
+      <input id="reg-email" type="email" value="dan@example.com" autocomplete="email" style="min-height: 44px; box-sizing: border-box; width: 100%; border: 1px solid #E2E8F0; border-radius: 5.25px; padding: 7px 10.5px; font: inherit; font-size: 17px; color: #020817; background: #FFFFFF">
     </div>
 
     <div style="display: flex; flex-direction: column; gap: 3.5px">
-      <label for="register-password" style="font-size: 15px; line-height: 21px; font-weight: 500">Password</label>
+      <label for="reg-password" style="font-size: 16px; line-height: 22px; font-weight: 500">Password</label>
       <div style="position: relative; display: flex; align-items: center">
-        <input id="register-password" type="password" autocomplete="off" style="height: 44px; box-sizing: border-box; width: 100%; border: 1px solid #e2e8f0; border-radius: 5.25px; padding: 0 56px 0 10.5px; font: inherit; font-size: 17px; color: #020817; background: #ffffff">
-        <button type="button" aria-label="Show password" style="position: absolute; top: 0; right: 0; bottom: 0; min-width: 44px; padding: 0 10.5px; border: none; background: transparent; font: inherit; font-size: 15px; font-weight: 500; color: #944a00; display: flex; align-items: center; justify-content: center">Show</button>
+        <input id="reg-password" type="password" value="Spinach-Deadlift-9" autocomplete="new-password" style="min-height: 44px; box-sizing: border-box; width: 100%; border: 1px solid #E2E8F0; border-radius: 5.25px; padding: 7px 56px 7px 10.5px; font: inherit; font-size: 17px; color: #020817; background: #FFFFFF">
+        <button type="button" aria-label="Show password" style="position: absolute; top: 0; right: 0; bottom: 0; min-width: 44px; padding: 0 10.5px; border: none; background: transparent; font: inherit; font-size: 16px; font-weight: 500; color: #944A00">Show</button>
       </div>
     </div>
 
     <div style="display: flex; flex-direction: column; gap: 3.5px">
-      <label for="register-confirm-password" style="font-size: 15px; line-height: 21px; font-weight: 500">Confirm password</label>
-      <input id="register-confirm-password" type="password" autocomplete="off" style="height: 44px; box-sizing: border-box; width: 100%; border: 1px solid #e2e8f0; border-radius: 5.25px; padding: 0 10.5px; font: inherit; font-size: 17px; color: #020817; background: #ffffff">
+      <label for="reg-confirm" style="font-size: 16px; line-height: 22px; font-weight: 500">Confirm password</label>
+      <input id="reg-confirm" type="password" value="Spinach-Deadlift-9" autocomplete="new-password" style="min-height: 44px; box-sizing: border-box; width: 100%; border: 1px solid #E2E8F0; border-radius: 5.25px; padding: 7px 10.5px; font: inherit; font-size: 17px; color: #020817; background: #FFFFFF">
     </div>
 
-    <a href="OnbIntent.dc.html" style="height: 44px; padding: 0 14px; border: none; border-radius: 5.25px; background: #944a00; color: #fcf9f5; font-size: 15px; font-weight: 500; display: flex; align-items: center; justify-content: center; gap: 7px; text-decoration: none">Create account</a>
+    <div role="checkbox" aria-checked="true" tabindex="0" style="min-height: 44px; box-sizing: border-box; display: flex; align-items: flex-start; gap: 10.5px; padding: 3.5px 0">
+      <span style="margin-top: 1.75px; width: 17.5px; height: 17.5px; flex: none; box-sizing: border-box; border-radius: 5.25px; border: 2px solid #944A00; background: #944A00; color: #FFFFFF; display: flex; align-items: center; justify-content: center"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"></path></svg></span>
+      <span style="flex: 1; min-width: 0; font-size: 16px; line-height: 22px; color: #1F2937">I agree to the <a href="Legal.dc.html" style="color: #944A00; text-decoration: underline">Terms</a> and the <a href="Legal.dc.html" style="color: #944A00; text-decoration: underline">Privacy Policy</a></span>
+    </div>
 
-    <p style="margin: 0; font-size: 13px; line-height: 18px; color: #8a7560; text-align: center">By creating an account you confirm you are 16 or older and agree to the <button type="button" style="padding: 0; border: none; background: transparent; font: inherit; font-size: 13px; line-height: 18px; color: #944a00; text-decoration: underline">Terms</button>. The <button type="button" style="padding: 0; border: none; background: transparent; font: inherit; font-size: 13px; line-height: 18px; color: #944a00; text-decoration: underline">Privacy Policy</button> explains how we use your data.</p>
+    <div role="checkbox" aria-checked="true" tabindex="0" style="min-height: 44px; box-sizing: border-box; display: flex; align-items: flex-start; gap: 10.5px; padding: 3.5px 0">
+      <span style="margin-top: 1.75px; width: 17.5px; height: 17.5px; flex: none; box-sizing: border-box; border-radius: 5.25px; border: 2px solid #944A00; background: #944A00; color: #FFFFFF; display: flex; align-items: center; justify-content: center"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"></path></svg></span>
+      <span style="flex: 1; min-width: 0; font-size: 16px; line-height: 22px; color: #1F2937">I’m 16 or older</span>
+    </div>
 
-    <div style="display: flex; justify-content: center; gap: 3.5px; font-size: 15px; line-height: 21px">
-      <span style="color: #8a7560">Already have an account?</span>
-      <a href="Login.dc.html" style="font-weight: 600; color: #944a00; text-decoration: none">Sign in</a>
+    <a href="OnbStart.dc.html" style="min-height: 44px; padding: 7px 14px; box-sizing: border-box; border-radius: 5.25px; background: #944A00; color: #FCF9F5; font-size: 16px; line-height: 22px; font-weight: 500; display: flex; align-items: center; justify-content: center; text-decoration: none">Create account</a>
+
+    <div style="display: flex; justify-content: center; gap: 3.5px; font-size: 16px; line-height: 22px">
+      <span style="color: #8A7560">Already have an account?</span>
+      <a href="Login.dc.html" style="font-weight: 600; color: #944A00; text-decoration: none">Sign in</a>
     </div>
   </main>
 

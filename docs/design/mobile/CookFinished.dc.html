@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<title>Cook — Finished</title>
+<title>Cook mode — Finished</title>
 <script src="./support.js"></script>
 </head>
 <body>
@@ -14,55 +14,44 @@ a{color:#944a00;text-decoration:none}a:hover{color:#6e3700}
 input::placeholder,textarea::placeholder{color:#9ca3af}
 </style>
 </helmet>
-<div style="width: 390px; height: 870px; position: relative; overflow: hidden; background: #ffffff; font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Helvetica Neue', system-ui, sans-serif; color: #020817; display: flex; flex-direction: column">
+<div style="width: 390px; height: 844px; position: relative; overflow: hidden; background: #FFFFFF; font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Helvetica Neue', system-ui, sans-serif; color: #020817; display: flex; flex-direction: column">
   <div style="height: 47px; flex: none"></div>
 
-  <main id="main" style="flex: 1; min-height: 0; display: flex; flex-direction: column">
-    <header style="flex: none; display: flex; align-items: center; gap: 10.5px; padding: 10.5px 14px">
-      <a href="RecipeDetail.dc.html" aria-label="Exit cook mode" style="flex: none; width: 44px; height: 44px; display: flex; align-items: center; justify-content: center; color: #1f2937; text-decoration: none"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"></path></svg></a>
+  <main id="main" style="flex: 1; display: flex; flex-direction: column; min-height: 0">
+    <div style="padding: 10.5px 14px; display: flex; align-items: center; gap: 10.5px">
+      <a href="RecipeDetail.dc.html" aria-label="Exit cook mode" style="width: 44px; height: 44px; flex: none; color: #1F2937; display: flex; align-items: center; justify-content: center"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"></path></svg></a>
       <div style="flex: 1; min-width: 0; display: flex; flex-direction: column">
         <span style="font-size: 19px; line-height: 26px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis">Lemon Herb Salmon with Quinoa</span>
       </div>
-      <a href="CookIngredients.dc.html" aria-label="Toggle ingredients" style="flex: none; width: 44px; height: 44px; display: flex; align-items: center; justify-content: center; color: #944a00; text-decoration: none"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 7h11M9 12h11M9 17h11M4.5 7h.01M4.5 12h.01M4.5 17h.01" stroke-width="2.2"></path></svg></a>
-    </header>
-
-    <div role="alert" style="flex: none; margin: 0 14px 7px; border: 1px solid #fecaca; background: #fef2f2; border-radius: 10.5px; padding: 8.75px 10.5px; display: flex; align-items: flex-start; gap: 7px">
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#991b1b" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex: none; margin-top: 2px; color: #991b1b"><path d="M12 3.5L2.5 20h19z" fill="currentColor" stroke="none"></path><path d="M12 10v4.5M12 17v.3" stroke="#ffffff" stroke-width="2"></path></svg>
-      <p style="margin: 0; flex: 1; min-width: 0; font-size: 15px; line-height: 21px; color: #991b1b"><b style="font-weight: 600">Contains Dairy.</b> This recipe conflicts with your allergies or diet — check the ingredients or swap it.</p>
+      <a href="CookIngredients.dc.html" aria-label="Toggle ingredients" style="width: 44px; height: 44px; flex: none; color: #944A00; display: flex; align-items: center; justify-content: center"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" aria-hidden="true"><path d="M9 7h11M9 12h11M9 17h11" stroke-width="2"></path><path d="M4.5 7h.01M4.5 12h.01M4.5 17h.01" stroke-width="3"></path></svg></a>
     </div>
 
-    <div role="progressbar" aria-label="Cooking progress" aria-valuemin="1" aria-valuemax="7" aria-valuenow="7" style="flex: none; margin: 0 14px 7px; height: 5.25px; border-radius: 9999px; background: #f3f4f6; overflow: hidden"><div style="height: 100%; width: 100%; background: #944a00; border-radius: 9999px"></div></div>
+    <div role="progressbar" aria-valuenow="6" aria-valuemin="1" aria-valuemax="6" aria-label="Step progress" style="margin: 0 14px 7px; height: 5.25px; border-radius: 9999px; background: #F3F4F6; overflow: hidden"><div style="height: 100%; width: 100%; border-radius: 9999px; background: #944A00"></div></div>
 
-    <div style="flex: 1; display: flex; flex-direction: column; align-items: center; gap: 14px; padding: 35px 21px">
-      <span style="font-size: 42px; line-height: 42px">🎉</span>
-      <h1 style="margin: 0; font-size: 25px; line-height: 31px; font-weight: 700; text-align: center">Enjoy your dinner!</h1>
-      <p style="margin: 0; font-size: 15px; line-height: 21px; color: #8a7560; text-align: center">Log it to today's tracker so your nutrition stays honest.</p>
-      <button type="button" style="height: 44px; padding: 0 14px; border: none; border-radius: 5.25px; background: #944a00; color: #fcf9f5; font: inherit; font-size: 15px; font-weight: 500; display: flex; align-items: center; justify-content: center">Log this meal</button>
+    <div style="padding: 35px 21px; display: flex; flex-direction: column; align-items: center; gap: 14px">
+      <span aria-hidden="true" style="font-size: 42px; line-height: 42px">🎉</span>
+      <h1 style="margin: 0; text-align: center; font-size: 25px; line-height: 31px; font-weight: 700">Enjoy your dinner!</h1>
+      <p style="margin: 0; text-align: center; font-size: 16px; line-height: 22px; color: #8A7560">Log it to today's tracker to keep your day's totals up to date.</p>
 
-      <section aria-label="How was it?" style="align-self: stretch; border: 1px solid #e2e8f0; border-radius: 7px; background: #ffffff; padding: 14px; display: flex; flex-direction: column; gap: 10.5px">
-        <div style="display: flex; flex-direction: column; gap: 1.75px">
-          <h2 style="margin: 0; font-size: 19px; line-height: 26px; font-weight: 600">How was it?</h2>
-          <span style="font-size: 13px; line-height: 18px; color: #8a7560">Your rating shapes what the chef cooks up next week.</span>
+      <div style="align-self: stretch; display: flex; flex-direction: column; align-items: center; gap: 7px">
+        <span style="font-size: 16px; line-height: 22px; color: #8A7560">Log it as</span>
+        <div role="radiogroup" aria-label="Meal" style="display: flex; flex-wrap: wrap; justify-content: center; gap: 7px">
+          <button type="button" aria-pressed="false" style="min-height: 44px; padding: 7px 14px; border: 1px solid #E2E8F0; border-radius: 9999px; background: #FFFFFF; font: inherit; font-size: 16px; font-weight: 500; color: #020817">Breakfast</button>
+          <button type="button" aria-pressed="false" style="min-height: 44px; padding: 7px 14px; border: 1px solid #E2E8F0; border-radius: 9999px; background: #FFFFFF; font: inherit; font-size: 16px; font-weight: 500; color: #020817">Lunch</button>
+          <button type="button" aria-pressed="true" style="min-height: 44px; padding: 7px 14px; border: 1px solid #944A00; border-radius: 9999px; background: #944A00; font: inherit; font-size: 16px; font-weight: 500; color: #FCF9F5">Dinner</button>
+          <button type="button" aria-pressed="false" style="min-height: 44px; padding: 7px 14px; border: 1px solid #E2E8F0; border-radius: 9999px; background: #FFFFFF; font: inherit; font-size: 16px; font-weight: 500; color: #020817">Snack</button>
         </div>
-        <div role="radiogroup" aria-label="Rating" style="display: flex; align-items: center">
-          <button type="button" role="radio" aria-checked="false" aria-label="Rate 1 star" style="width: 44px; height: 44px; padding: 0; border: none; background: transparent; color: #d1d5db; display: flex; align-items: center; justify-content: center"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3.5l2.6 5.5 6 .7-4.4 4.1 1.2 5.9L12 16.8l-5.4 2.9 1.2-5.9L3.4 9.7l6-.7z"></path></svg></button>
-          <button type="button" role="radio" aria-checked="false" aria-label="Rate 2 stars" style="width: 44px; height: 44px; padding: 0; border: none; background: transparent; color: #d1d5db; display: flex; align-items: center; justify-content: center"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3.5l2.6 5.5 6 .7-4.4 4.1 1.2 5.9L12 16.8l-5.4 2.9 1.2-5.9L3.4 9.7l6-.7z"></path></svg></button>
-          <button type="button" role="radio" aria-checked="false" aria-label="Rate 3 stars" style="width: 44px; height: 44px; padding: 0; border: none; background: transparent; color: #d1d5db; display: flex; align-items: center; justify-content: center"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3.5l2.6 5.5 6 .7-4.4 4.1 1.2 5.9L12 16.8l-5.4 2.9 1.2-5.9L3.4 9.7l6-.7z"></path></svg></button>
-          <button type="button" role="radio" aria-checked="false" aria-label="Rate 4 stars" style="width: 44px; height: 44px; padding: 0; border: none; background: transparent; color: #d1d5db; display: flex; align-items: center; justify-content: center"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3.5l2.6 5.5 6 .7-4.4 4.1 1.2 5.9L12 16.8l-5.4 2.9 1.2-5.9L3.4 9.7l6-.7z"></path></svg></button>
-          <button type="button" role="radio" aria-checked="false" aria-label="Rate 5 stars" style="width: 44px; height: 44px; padding: 0; border: none; background: transparent; color: #d1d5db; display: flex; align-items: center; justify-content: center"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3.5l2.6 5.5 6 .7-4.4 4.1 1.2 5.9L12 16.8l-5.4 2.9 1.2-5.9L3.4 9.7l6-.7z"></path></svg></button>
-        </div>
-        <textarea aria-label="Rating notes" placeholder="Any notes? (optional)" style="min-height: 56px; box-sizing: border-box; width: 100%; resize: none; border: 1px solid #e2e8f0; border-radius: 5.25px; padding: 7px 10.5px; font: inherit; font-size: 17px; color: #020817; background: #ffffff"></textarea>
-        <button type="button" disabled style="height: 44px; padding: 0 14px; border: none; border-radius: 5.25px; background: #944a00; color: #fcf9f5; font: inherit; font-size: 15px; font-weight: 500; opacity: .5">Save rating</button>
-      </section>
+      </div>
 
-      <a href="FoodToday.dc.html" style="height: 44px; box-sizing: border-box; padding: 0 14px; border: 1px solid #e2e8f0; border-radius: 5.25px; background: #ffffff; color: #020817; font-size: 15px; font-weight: 500; display: flex; align-items: center; justify-content: center; text-decoration: none">Done</a>
+      <button type="button" style="min-height: 44px; padding: 7px 14px; border: none; border-radius: 5.25px; background: #944A00; font: inherit; font-size: 16px; font-weight: 500; color: #FCF9F5">Log this meal</button>
+      <a href="RecipeDetail.dc.html" style="min-height: 44px; box-sizing: border-box; padding: 7px 14px; border: 1px solid #E2E8F0; border-radius: 5.25px; background: #FFFFFF; font-size: 16px; font-weight: 500; color: #020817; display: flex; align-items: center; justify-content: center; text-decoration: none">Done</a>
     </div>
   </main>
 
   <div style="height: 34px; flex: none"></div>
 </div>
 </x-dc>
-<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":870}}'>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":844}}'>
 class Component extends DCLogic {
 renderVals() {
 return {};

@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<title>Onboarding — Diet &amp; restrictions</title>
+<title>Setup — Diet &amp; safety</title>
 <script src="./support.js"></script>
 </head>
 <body>
@@ -14,69 +14,99 @@ a{color:#944a00;text-decoration:none}a:hover{color:#6e3700}
 input::placeholder,textarea::placeholder{color:#9ca3af}
 </style>
 </helmet>
-<div style="width: 390px; height: 844px; position: relative; overflow: hidden; background: #ffffff; font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Helvetica Neue', system-ui, sans-serif; color: #020817; display: flex; flex-direction: column">
+<div style="width: 390px; height: 1340px; position: relative; overflow: hidden; background: #FFFFFF; font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Helvetica Neue', system-ui, sans-serif; color: #020817; display: flex; flex-direction: column">
   <div style="height: 47px; flex: none"></div>
 
-  <header style="flex: none; display: flex; align-items: center; gap: 7px; padding: 10.5px 14px">
-    <a href="OnbMetrics.dc.html" aria-label="Back" style="width: 44px; height: 44px; flex: none; display: flex; align-items: center; justify-content: center; color: #1f2937; text-decoration: none"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M11 5l-7 7 7 7M4 12h16"></path></svg></a>
+  <div style="flex: none; display: flex; align-items: center; gap: 7px; padding: 10.5px 14px">
+    <a href="OnbTrainingDays.dc.html" aria-label="Back" style="width: 44px; height: 44px; flex: none; color: #020817; display: flex; align-items: center; justify-content: center"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M11 5l-7 7 7 7M4 12h16"></path></svg></a>
     <div style="flex: 1; min-width: 0; display: flex; flex-direction: column">
-      <span style="font-size: 13px; line-height: 18px; color: #8a7560">Step 4 of 5 · 80%</span>
-      <h1 style="margin: 0; font-size: 19px; line-height: 26px; font-weight: 600">Diet &amp; restrictions</h1>
+      <span style="font-size: 14px; line-height: 19px; color: #8A7560">Step 3 of 6 · 50%</span>
+      <h1 style="margin: 0; font-size: 19px; line-height: 26px; font-weight: 600">Diet &amp; safety</h1>
     </div>
-  </header>
+  </div>
+  <div role="progressbar" aria-label="Setup progress" aria-valuemin="0" aria-valuemax="6" aria-valuenow="3" style="flex: none; margin: 0 14px 7px; height: 5.25px; border-radius: 9999px; background: #F3F4F6; overflow: hidden"><div style="height: 100%; width: 50%; border-radius: 9999px; background: #944A00"></div></div>
 
-  <div role="progressbar" aria-valuemin="1" aria-valuemax="5" aria-valuenow="2" aria-label="Onboarding progress" style="flex: none; margin: 0 14px 7px; height: 5.25px; border-radius: 9999px; background: #f3f4f6; overflow: hidden"><div style="height: 100%; width: 80%; background: #944a00; border-radius: 9999px"></div></div>
+  <main id="main" style="flex: 1; display: flex; flex-direction: column; gap: 14px; padding: 10.5px 14px 28px">
+    <div style="display: flex; flex-direction: column; gap: 21px">
 
-  <main id="main" style="flex: 1; min-height: 0; display: flex; flex-direction: column; gap: 14px; padding: 10.5px 14px 28px">
-    <div style="display: flex; flex-direction: column; gap: 14px">
+      <section style="display: flex; flex-direction: column; gap: 10.5px">
+        <h2 style="margin: 0; font-size: 16px; line-height: 22px; font-weight: 500">ALLERGIES</h2>
+        <div role="group" aria-label="Allergies" style="display: flex; flex-wrap: wrap; gap: 7px">
+          <button type="button" aria-pressed="false" style="min-height: 44px; padding: 7px 14px; box-sizing: border-box; border-radius: 9999px; border: 1px solid #E2E8F0; background: #FFFFFF; color: #020817; font: inherit; font-size: 16px; line-height: 22px; font-weight: 500">Tree nuts</button>
+          <button type="button" aria-pressed="true" style="min-height: 44px; padding: 7px 14px; box-sizing: border-box; border-radius: 9999px; border: 1px solid #944A00; background: #944A00; color: #FCF9F5; font: inherit; font-size: 16px; line-height: 22px; font-weight: 500">Peanuts</button>
+          <button type="button" aria-pressed="false" style="min-height: 44px; padding: 7px 14px; box-sizing: border-box; border-radius: 9999px; border: 1px solid #E2E8F0; background: #FFFFFF; color: #020817; font: inherit; font-size: 16px; line-height: 22px; font-weight: 500">Dairy</button>
+          <button type="button" aria-pressed="false" style="min-height: 44px; padding: 7px 14px; box-sizing: border-box; border-radius: 9999px; border: 1px solid #E2E8F0; background: #FFFFFF; color: #020817; font: inherit; font-size: 16px; line-height: 22px; font-weight: 500">Eggs</button>
+          <button type="button" aria-pressed="false" style="min-height: 44px; padding: 7px 14px; box-sizing: border-box; border-radius: 9999px; border: 1px solid #E2E8F0; background: #FFFFFF; color: #020817; font: inherit; font-size: 16px; line-height: 22px; font-weight: 500">Gluten</button>
+          <button type="button" aria-pressed="false" style="min-height: 44px; padding: 7px 14px; box-sizing: border-box; border-radius: 9999px; border: 1px solid #E2E8F0; background: #FFFFFF; color: #020817; font: inherit; font-size: 16px; line-height: 22px; font-weight: 500">Soy</button>
+          <button type="button" aria-pressed="false" style="min-height: 44px; padding: 7px 14px; box-sizing: border-box; border-radius: 9999px; border: 1px solid #E2E8F0; background: #FFFFFF; color: #020817; font: inherit; font-size: 16px; line-height: 22px; font-weight: 500">Fish</button>
+          <button type="button" aria-pressed="false" style="min-height: 44px; padding: 7px 14px; box-sizing: border-box; border-radius: 9999px; border: 1px solid #E2E8F0; background: #FFFFFF; color: #020817; font: inherit; font-size: 16px; line-height: 22px; font-weight: 500">Sesame</button>
+          <button type="button" aria-pressed="false" style="min-height: 44px; padding: 7px 14px; box-sizing: border-box; border-radius: 9999px; border: 1px solid #E2E8F0; background: #FFFFFF; color: #020817; font: inherit; font-size: 16px; line-height: 22px; font-weight: 500">Crustaceans</button>
+          <button type="button" aria-pressed="false" style="min-height: 44px; padding: 7px 14px; box-sizing: border-box; border-radius: 9999px; border: 1px solid #E2E8F0; background: #FFFFFF; color: #020817; font: inherit; font-size: 16px; line-height: 22px; font-weight: 500">Molluscs</button>
+          <button type="button" aria-pressed="false" style="min-height: 44px; padding: 7px 14px; box-sizing: border-box; border-radius: 9999px; border: 1px solid #E2E8F0; background: #FFFFFF; color: #020817; font: inherit; font-size: 16px; line-height: 22px; font-weight: 500">Celery</button>
+          <button type="button" aria-pressed="false" style="min-height: 44px; padding: 7px 14px; box-sizing: border-box; border-radius: 9999px; border: 1px solid #E2E8F0; background: #FFFFFF; color: #020817; font: inherit; font-size: 16px; line-height: 22px; font-weight: 500">Mustard</button>
+          <button type="button" aria-pressed="false" style="min-height: 44px; padding: 7px 14px; box-sizing: border-box; border-radius: 9999px; border: 1px solid #E2E8F0; background: #FFFFFF; color: #020817; font: inherit; font-size: 16px; line-height: 22px; font-weight: 500">Lupin</button>
+          <button type="button" aria-pressed="false" style="min-height: 44px; padding: 7px 14px; box-sizing: border-box; border-radius: 9999px; border: 1px solid #E2E8F0; background: #FFFFFF; color: #020817; font: inherit; font-size: 16px; line-height: 22px; font-weight: 500">Sulphites</button>
+        </div>
+        <div role="status" style="display: flex; flex-direction: column; gap: 5.25px; border-radius: 10.5px; background: rgba(252,243,234,.6); padding: 10.5px">
+          <div style="display: flex; align-items: center; gap: 5.25px; color: #944A00">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l7.5 3v5.5c0 4.5-3.2 8-7.5 9.5-4.3-1.5-7.5-5-7.5-9.5V6z"></path></svg>
+            <span style="font-size: 14px; line-height: 19px; font-weight: 600; text-transform: uppercase; letter-spacing: .025em">We’ll keep out</span>
+          </div>
+          <p style="margin: 0; font-size: 16px; line-height: 26px; color: #374151">Peanuts — and foods that often contain it: satay sauce, some granola bars and Thai/African-style dishes.</p>
+        </div>
+      </section>
 
-      <div style="display: flex; flex-direction: column; gap: 7px">
-        <label for="onb-restrictions-input" style="font-size: 15px; line-height: 21px; font-weight: 500">Dietary restrictions</label>
+      <section style="display: flex; flex-direction: column; gap: 10.5px">
+        <h2 style="margin: 0; font-size: 16px; line-height: 22px; font-weight: 500">DIET</h2>
+        <div role="group" aria-label="Diet" style="display: flex; flex-wrap: wrap; gap: 7px">
+          <button type="button" aria-pressed="true" style="min-height: 44px; padding: 7px 14px; box-sizing: border-box; border-radius: 9999px; border: 1px solid #944A00; background: #944A00; color: #FCF9F5; font: inherit; font-size: 16px; line-height: 22px; font-weight: 500">No restriction</button>
+          <button type="button" aria-pressed="false" style="min-height: 44px; padding: 7px 14px; box-sizing: border-box; border-radius: 9999px; border: 1px solid #E2E8F0; background: #FFFFFF; color: #020817; font: inherit; font-size: 16px; line-height: 22px; font-weight: 500">Vegetarian</button>
+          <button type="button" aria-pressed="false" style="min-height: 44px; padding: 7px 14px; box-sizing: border-box; border-radius: 9999px; border: 1px solid #E2E8F0; background: #FFFFFF; color: #020817; font: inherit; font-size: 16px; line-height: 22px; font-weight: 500">Vegetarian, no eggs</button>
+          <button type="button" aria-pressed="false" style="min-height: 44px; padding: 7px 14px; box-sizing: border-box; border-radius: 9999px; border: 1px solid #E2E8F0; background: #FFFFFF; color: #020817; font: inherit; font-size: 16px; line-height: 22px; font-weight: 500">Vegan</button>
+          <button type="button" aria-pressed="false" style="min-height: 44px; padding: 7px 14px; box-sizing: border-box; border-radius: 9999px; border: 1px solid #E2E8F0; background: #FFFFFF; color: #020817; font: inherit; font-size: 16px; line-height: 22px; font-weight: 500">Pescatarian</button>
+        </div>
+        <span style="font-size: 14px; line-height: 19px; color: #8A7560">Also:</span>
+        <div role="group" aria-label="Diet, also" style="display: flex; flex-wrap: wrap; gap: 7px">
+          <button type="button" aria-pressed="false" style="min-height: 44px; padding: 7px 14px; box-sizing: border-box; border-radius: 9999px; border: 1px solid #E2E8F0; background: #FFFFFF; color: #020817; font: inherit; font-size: 16px; line-height: 22px; font-weight: 500">Gluten-free (coeliac)</button>
+          <button type="button" aria-pressed="false" style="min-height: 44px; padding: 7px 14px; box-sizing: border-box; border-radius: 9999px; border: 1px solid #E2E8F0; background: #FFFFFF; color: #020817; font: inherit; font-size: 16px; line-height: 22px; font-weight: 500">Dairy-free</button>
+          <button type="button" aria-pressed="false" style="min-height: 44px; padding: 7px 14px; box-sizing: border-box; border-radius: 9999px; border: 1px solid #E2E8F0; background: #FFFFFF; color: #020817; font: inherit; font-size: 16px; line-height: 22px; font-weight: 500">Egg-free</button>
+          <button type="button" aria-pressed="false" style="min-height: 44px; padding: 7px 14px; box-sizing: border-box; border-radius: 9999px; border: 1px solid #E2E8F0; background: #FFFFFF; color: #020817; font: inherit; font-size: 16px; line-height: 22px; font-weight: 500">Keto</button>
+          <button type="button" aria-pressed="false" style="min-height: 44px; padding: 7px 14px; box-sizing: border-box; border-radius: 9999px; border: 1px solid #E2E8F0; background: #FFFFFF; color: #020817; font: inherit; font-size: 16px; line-height: 22px; font-weight: 500">Paleo</button>
+        </div>
+      </section>
+
+      <section style="display: flex; flex-direction: column; gap: 10.5px">
+        <h2 style="margin: 0; font-size: 16px; line-height: 22px; font-weight: 500">WON'T EAT</h2>
+        <div role="group" aria-label="Won't eat" style="display: flex; flex-wrap: wrap; gap: 7px">
+          <button type="button" aria-pressed="false" style="min-height: 44px; padding: 7px 14px; box-sizing: border-box; border-radius: 9999px; border: 1px solid #E2E8F0; background: #FFFFFF; color: #020817; font: inherit; font-size: 16px; line-height: 22px; font-weight: 500">Fish</button>
+          <button type="button" aria-pressed="false" style="min-height: 44px; padding: 7px 14px; box-sizing: border-box; border-radius: 9999px; border: 1px solid #E2E8F0; background: #FFFFFF; color: #020817; font: inherit; font-size: 16px; line-height: 22px; font-weight: 500">Shellfish</button>
+          <button type="button" aria-pressed="false" style="min-height: 44px; padding: 7px 14px; box-sizing: border-box; border-radius: 9999px; border: 1px solid #E2E8F0; background: #FFFFFF; color: #020817; font: inherit; font-size: 16px; line-height: 22px; font-weight: 500">Red meat</button>
+          <button type="button" aria-pressed="true" style="min-height: 44px; padding: 7px 14px; box-sizing: border-box; border-radius: 9999px; border: 1px solid #944A00; background: #944A00; color: #FCF9F5; font: inherit; font-size: 16px; line-height: 22px; font-weight: 500">Mushrooms</button>
+          <button type="button" aria-pressed="false" style="min-height: 44px; padding: 7px 14px; box-sizing: border-box; border-radius: 9999px; border: 1px solid #E2E8F0; background: #FFFFFF; color: #020817; font: inherit; font-size: 16px; line-height: 22px; font-weight: 500">Leafy greens</button>
+          <button type="button" aria-pressed="false" style="min-height: 44px; padding: 7px 14px; box-sizing: border-box; border-radius: 9999px; border: 1px solid #E2E8F0; background: #FFFFFF; color: #020817; font: inherit; font-size: 16px; line-height: 22px; font-weight: 500">Onion &amp; garlic</button>
+          <button type="button" aria-pressed="false" style="min-height: 44px; padding: 7px 14px; box-sizing: border-box; border-radius: 9999px; border: 1px solid #E2E8F0; background: #FFFFFF; color: #020817; font: inherit; font-size: 16px; line-height: 22px; font-weight: 500">Spicy food</button>
+          <button type="button" aria-pressed="false" style="min-height: 44px; padding: 7px 14px; box-sizing: border-box; border-radius: 9999px; border: 1px solid #E2E8F0; background: #FFFFFF; color: #020817; font: inherit; font-size: 16px; line-height: 22px; font-weight: 500">Cilantro / coriander</button>
+        </div>
+        <p style="margin: 0; font-size: 14px; line-height: 19px; color: #8A7560">We’ll leave out mushrooms.</p>
+      </section>
+
+      <section style="display: flex; flex-direction: column; gap: 7px">
+        <h2 style="margin: 0; font-size: 16px; line-height: 22px; font-weight: 500">SOMETHING ELSE?</h2>
         <div style="display: flex; gap: 7px">
-          <input id="onb-restrictions-input" placeholder="e.g. vegetarian" style="flex: 1; min-width: 0; height: 44px; box-sizing: border-box; border: 1px solid #e2e8f0; border-radius: 5.25px; padding: 0 10.5px; font: inherit; font-size: 17px; color: #020817; background: #ffffff">
-          <button type="button" aria-label="Add to Dietary restrictions" style="width: 44px; height: 44px; flex: none; border: 1px solid #e2e8f0; border-radius: 5.25px; background: #ffffff; color: #944a00; display: flex; align-items: center; justify-content: center"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14M5 12h14"></path></svg></button>
+          <input aria-label="Something else" placeholder="e.g. walnuts or coeliac" style="flex: 1; min-width: 0; min-height: 44px; box-sizing: border-box; border: 1px solid #E2E8F0; border-radius: 5.25px; padding: 7px 10.5px; font: inherit; font-size: 17px; color: #020817; background: #FFFFFF">
+          <button type="button" aria-label="Add" style="width: 44px; height: 44px; flex: none; padding: 0; box-sizing: border-box; border: 1px solid #E2E8F0; border-radius: 5.25px; background: transparent; color: #944A00; display: flex; align-items: center; justify-content: center"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14M5 12h14"></path></svg></button>
         </div>
-        <div style="display: flex; flex-wrap: wrap; gap: 5.25px">
-          <button type="button" aria-label="Remove Vegetarian" style="min-height: 31.5px; padding: 0 10.5px; border: none; border-radius: 9999px; background: #fcf3ea; color: #944a00; font: inherit; font-size: 13px; font-weight: 500; display: flex; align-items: center; gap: 3.5px">Vegetarian<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"></path></svg></button>
-        </div>
-      </div>
-
-      <div style="display: flex; flex-direction: column; gap: 7px">
-        <label for="onb-allergies-input" style="font-size: 15px; line-height: 21px; font-weight: 500">Allergies</label>
-        <div style="display: flex; gap: 7px">
-          <input id="onb-allergies-input" placeholder="e.g. peanuts" style="flex: 1; min-width: 0; height: 44px; box-sizing: border-box; border: 1px solid #e2e8f0; border-radius: 5.25px; padding: 0 10.5px; font: inherit; font-size: 17px; color: #020817; background: #ffffff">
-          <button type="button" aria-label="Add to Allergies" style="width: 44px; height: 44px; flex: none; border: 1px solid #e2e8f0; border-radius: 5.25px; background: #ffffff; color: #944a00; display: flex; align-items: center; justify-content: center"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14M5 12h14"></path></svg></button>
-        </div>
-        <div style="display: flex; flex-wrap: wrap; gap: 5.25px">
-          <button type="button" aria-label="Remove peanuts" style="min-height: 31.5px; padding: 0 10.5px; border: none; border-radius: 9999px; background: #fcf3ea; color: #944a00; font: inherit; font-size: 13px; font-weight: 500; display: flex; align-items: center; gap: 3.5px">peanuts<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"></path></svg></button>
-          <button type="button" aria-label="Remove shellfish" style="min-height: 31.5px; padding: 0 10.5px; border: none; border-radius: 9999px; background: #fcf3ea; color: #944a00; font: inherit; font-size: 13px; font-weight: 500; display: flex; align-items: center; gap: 3.5px">shellfish<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"></path></svg></button>
-        </div>
-      </div>
-
-      <div style="display: flex; flex-direction: column; gap: 7px">
-        <label for="onb-disliked-input" style="font-size: 15px; line-height: 21px; font-weight: 500">Disliked ingredients</label>
-        <div style="display: flex; gap: 7px">
-          <input id="onb-disliked-input" placeholder="e.g. cilantro" style="flex: 1; min-width: 0; height: 44px; box-sizing: border-box; border: 1px solid #e2e8f0; border-radius: 5.25px; padding: 0 10.5px; font: inherit; font-size: 17px; color: #020817; background: #ffffff">
-          <button type="button" aria-label="Add to Disliked ingredients" style="width: 44px; height: 44px; flex: none; border: 1px solid #e2e8f0; border-radius: 5.25px; background: #ffffff; color: #944a00; display: flex; align-items: center; justify-content: center"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14M5 12h14"></path></svg></button>
-        </div>
-        <div style="display: flex; flex-wrap: wrap; gap: 5.25px">
-          <button type="button" aria-label="Remove cilantro" style="min-height: 31.5px; padding: 0 10.5px; border: none; border-radius: 9999px; background: #fcf3ea; color: #944a00; font: inherit; font-size: 13px; font-weight: 500; display: flex; align-items: center; gap: 3.5px">cilantro<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"></path></svg></button>
-          <button type="button" aria-label="Remove olives" style="min-height: 31.5px; padding: 0 10.5px; border: none; border-radius: 9999px; background: #fcf3ea; color: #944a00; font: inherit; font-size: 13px; font-weight: 500; display: flex; align-items: center; gap: 3.5px">olives<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"></path></svg></button>
-        </div>
-      </div>
-
+      </section>
     </div>
   </main>
 
-  <div style="flex: none; border-top: 1px solid #e2e8f0; padding: 10.5px 14px 7px; display: flex; flex-direction: column; gap: 7px">
-    <a href="OnbCuisine.dc.html" style="height: 44px; padding: 0 14px; border: none; border-radius: 5.25px; background: #944a00; color: #fcf9f5; font-size: 15px; font-weight: 500; display: flex; align-items: center; justify-content: center; gap: 7px; text-decoration: none">Continue</a>
-    <a href="FoodToday.dc.html" style="height: 44px; display: flex; align-items: center; justify-content: center; font-size: 15px; font-weight: 600; color: #944a00; text-decoration: none">Skip for now</a>
+  <div style="flex: none; display: flex; flex-direction: column; gap: 7px; border-top: 1px solid #E2E8F0; background: #FFFFFF; padding: 10.5px 14px 7px">
+    <a href="OnbHowYouCook.dc.html" style="min-height: 44px; padding: 7px 14px; box-sizing: border-box; border-radius: 5.25px; background: #944A00; color: #FCF9F5; font-size: 16px; line-height: 22px; font-weight: 500; display: flex; align-items: center; justify-content: center; text-decoration: none">Continue</a>
   </div>
-
   <div style="height: 34px; flex: none"></div>
 </div>
 </x-dc>
-<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":844}}'>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":1340}}'>
 class Component extends DCLogic {
 renderVals() {
 return {};
