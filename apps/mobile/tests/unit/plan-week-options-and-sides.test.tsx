@@ -13,7 +13,9 @@ import { testQueryClient } from './friends-profile-fixtures';
 jest.mock('expo-router', () => ({
   router: { push: jest.fn(), back: jest.fn() },
   useIsFocused: () => true,
-  useLocalSearchParams: () => ({}),
+  // Pin "this week": without it the screen follows `defaultWeekOffset`, which
+  // jumps to next week from Friday 15:00, so the suite failed on weekends.
+  useLocalSearchParams: () => ({ week: '0' }),
 }));
 jest.mock('../../src/features/ai-consent/ai-consent-provider', () => ({
   useAiConsent: () => (_feature: string, run: () => void) => run(),
