@@ -22,6 +22,9 @@ import {
   type SessionSupersetSlot,
 } from '@chefer/utils';
 import { useFlags } from '../../../hooks/use-flags';
+import { useShellV2 } from '../../shell/shell-store';
+import { WorkoutActions } from '../../shell/train/workout-actions';
+import { WorkoutHeader } from '../../shell/train/workout-header';
 import { captureGymEvent } from '../analytics';
 import { SUPERSET_COPY, SupersetSheet } from '../components/superset-sheet';
 import { openCreateExercise } from '../library/create-exercise-href';
@@ -128,6 +131,8 @@ export function WorkoutScreen() {
   const isActive = session !== null;
   const sessionId = session?.id ?? null;
   const pausedAt = useActiveSessionPausedAt();
+  // 10 Oct redesign: the new shell draws the brand header and list foot.
+  const shellV2 = useShellV2();
 
   // ── Keep the screen on while a workout runs ────────────────────────────────
   useEffect(() => {
@@ -700,43 +705,58 @@ export function WorkoutScreen() {
   const pickable = exercises.filter((se) => !se.skipped);
 
   return (
-    <Screen className="px-0" edges={['top', 'left', 'right']}>
-      <View className="flex-row items-center gap-2 border-b border-border px-2 pb-2 pt-1">
-        <Pressable
-          testID="workout-minimise"
-          accessibilityRole="button"
-          accessibilityLabel="Minimise workout"
-          onPress={leaveWorkout}
-          className="h-11 w-11 items-center justify-center rounded-full bg-muted"
-        >
-          <Ionicons name="chevron-down" size={22} color="#374151" />
-        </Pressable>
-        <View className="min-w-0 flex-1">
-          <Text testID="workout-title" numberOfLines={2} className="text-lg font-semibold">
-            {session.name}
-          </Text>
-          <View className="flex-row items-center gap-2">
-            <ElapsedTime startedAt={session.startedAt} testID="workout-elapsed" />
-            <Text
-              testID="workout-progress"
-              accessibilityLabel={`${done} of ${planned} sets done`}
-              className="text-sm text-muted-foreground"
-            >
-              · {done}/{planned} sets
+    <Screen
+      className={shellV2 ? 'bg-canvas px-0' : 'px-0'}
+      edges={shellV2 ? ['left', 'right'] : ['top', 'left', 'right']}
+    >
+      {shellV2 ? (
+        <WorkoutHeader
+          name={session.name}
+          startedAt={session.startedAt}
+          done={done}
+          planned={planned}
+          finishing={finishing}
+          onMinimise={leaveWorkout}
+          onFinish={onFinishPress}
+        />
+      ) : (
+        <View className="flex-row items-center gap-2 border-b border-border px-2 pb-2 pt-1">
+          <Pressable
+            testID="workout-minimise"
+            accessibilityRole="button"
+            accessibilityLabel="Minimise workout"
+            onPress={leaveWorkout}
+            className="h-11 w-11 items-center justify-center rounded-full bg-muted"
+          >
+            <Ionicons name="chevron-down" size={22} color="#374151" />
+          </Pressable>
+          <View className="min-w-0 flex-1">
+            <Text testID="workout-title" numberOfLines={2} className="text-lg font-semibold">
+              {session.name}
             </Text>
+            <View className="flex-row items-center gap-2">
+              <ElapsedTime startedAt={session.startedAt} testID="workout-elapsed" />
+              <Text
+                testID="workout-progress"
+                accessibilityLabel={`${done} of ${planned} sets done`}
+                className="text-sm text-muted-foreground"
+              >
+                · {done}/{planned} sets
+              </Text>
+            </View>
           </View>
+          {/* WP-04: one size up (lg) — pressed with sweaty hands; px-5 keeps the header slim. */}
+          <Button
+            testID="workout-finish"
+            size="lg"
+            className="px-5"
+            onPress={onFinishPress}
+            loading={finishing}
+          >
+            Finish
+          </Button>
         </View>
-        {/* WP-04: one size up (lg) — pressed with sweaty hands; px-5 keeps the header slim. */}
-        <Button
-          testID="workout-finish"
-          size="lg"
-          className="px-5"
-          onPress={onFinishPress}
-          loading={finishing}
-        >
-          Finish
-        </Button>
-      </View>
+      )}
 
       {notice ? (
         <View className="bg-accent px-4 py-2">
@@ -788,8 +808,20 @@ export function WorkoutScreen() {
               testID={`superset-${slot.label}`}
               className="-mb-1 flex-row items-center gap-2 px-2"
             >
-              <View className="h-4 w-1 rounded-full bg-violet-500" />
-              <Text className="text-sm font-semibold text-violet-800">Superset {slot.label}</Text>
+              <View
+                className={
+                  shellV2 ? 'h-4 w-1 rounded-full bg-brand' : 'h-4 w-1 rounded-full bg-violet-500'
+                }
+              />
+              <Text
+                className={
+                  shellV2
+                    ? 'text-subhead font-semibold text-brand'
+                    : 'text-sm font-semibold text-violet-800'
+                }
+              >
+                Superset {slot.label}
+              </Text>
               <Text variant="muted" className="min-w-0 flex-1 text-xs" numberOfLines={2}>
                 {restSec} s rest after each round
               </Text>
@@ -806,59 +838,74 @@ export function WorkoutScreen() {
             card,
           ];
         })}
-        <Button
-          testID="workout-add-exercise"
-          variant="outline"
-          size="lg"
-          disabled={isAtExerciseCap(exercises.length)}
-          onPress={() => openSheet({ kind: 'picker', mode: 'add', seId: null, scope: 'today' })}
-        >
-          + Add exercise
-        </Button>
-        {isAtExerciseCap(exercises.length) ? (
-          <Text
-            testID="workout-add-exercise-reason"
-            variant="muted"
-            className="text-center text-sm"
-          >
-            {EXERCISE_CAP_REASON}
-          </Text>
-        ) : null}
-        <Button
-          testID="workout-superset"
-          variant="outline"
-          disabled={pickable.length < 2}
-          accessibilityLabel="Superset"
-          accessibilityHint="Pick exercises to do back to back"
-          onPress={() => openSheet({ kind: 'superset', seId: null })}
-        >
-          <View className="flex-row items-center gap-1">
-            <Ionicons name="link" size={16} color="#6d28d9" />
-            <Text className="font-medium text-violet-800">{SUPERSET_COPY.title}</Text>
-          </View>
-        </Button>
-        {/* Finish again at the end of the list: in reach right after the last
-            exercise (the header copy sits in the hard-to-reach top corner). */}
-        <Button
-          testID="workout-finish-bottom"
-          size="lg"
-          loading={finishing}
-          onPress={onFinishPress}
-        >
-          Finish workout
-        </Button>
-        {/* UX-36 (3), T-36.3: bottom actions become Finish · Save for later ·
-            Discard — a cut-short workout is never just finish-or-bin (CI-49). */}
-        <Button testID="workout-save-for-later" variant="outline" onPress={onSaveForLater}>
-          Save for later
-        </Button>
-        <Button
-          testID="workout-discard"
-          variant="ghost"
-          onPress={() => openSheet({ kind: 'discard' })}
-        >
-          <Text className="text-sm font-medium text-destructive">Discard workout</Text>
-        </Button>
+        {shellV2 ? (
+          <WorkoutActions
+            addDisabled={isAtExerciseCap(exercises.length)}
+            addReason={isAtExerciseCap(exercises.length) ? EXERCISE_CAP_REASON : null}
+            supersetDisabled={pickable.length < 2}
+            supersetTitle={SUPERSET_COPY.title}
+            onAdd={() => openSheet({ kind: 'picker', mode: 'add', seId: null, scope: 'today' })}
+            onSuperset={() => openSheet({ kind: 'superset', seId: null })}
+            onSaveForLater={onSaveForLater}
+            onDiscard={() => openSheet({ kind: 'discard' })}
+          />
+        ) : (
+          <>
+            <Button
+              testID="workout-add-exercise"
+              variant="outline"
+              size="lg"
+              disabled={isAtExerciseCap(exercises.length)}
+              onPress={() => openSheet({ kind: 'picker', mode: 'add', seId: null, scope: 'today' })}
+            >
+              + Add exercise
+            </Button>
+            {isAtExerciseCap(exercises.length) ? (
+              <Text
+                testID="workout-add-exercise-reason"
+                variant="muted"
+                className="text-center text-sm"
+              >
+                {EXERCISE_CAP_REASON}
+              </Text>
+            ) : null}
+            <Button
+              testID="workout-superset"
+              variant="outline"
+              disabled={pickable.length < 2}
+              accessibilityLabel="Superset"
+              accessibilityHint="Pick exercises to do back to back"
+              onPress={() => openSheet({ kind: 'superset', seId: null })}
+            >
+              <View className="flex-row items-center gap-1">
+                <Ionicons name="link" size={16} color="#6d28d9" />
+                <Text className="font-medium text-violet-800">{SUPERSET_COPY.title}</Text>
+              </View>
+            </Button>
+            {/* Finish again at the end of the list: in reach right after the last
+                exercise (the header copy sits in the hard-to-reach top corner). */}
+            <Button
+              testID="workout-finish-bottom"
+              size="lg"
+              loading={finishing}
+              onPress={onFinishPress}
+            >
+              Finish workout
+            </Button>
+            {/* UX-36 (3), T-36.3: bottom actions become Finish · Save for later ·
+                Discard — a cut-short workout is never just finish-or-bin (CI-49). */}
+            <Button testID="workout-save-for-later" variant="outline" onPress={onSaveForLater}>
+              Save for later
+            </Button>
+            <Button
+              testID="workout-discard"
+              variant="ghost"
+              onPress={() => openSheet({ kind: 'discard' })}
+            >
+              <Text className="text-sm font-medium text-destructive">Discard workout</Text>
+            </Button>
+          </>
+        )}
       </ScrollView>
 
       <RestTimerBar onHeightChange={setRestBarHeight} />
