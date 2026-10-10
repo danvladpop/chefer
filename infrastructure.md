@@ -3758,6 +3758,11 @@ projects need a seeded fixture dataset, planned with roadmap P0-8). The
 required set, so a still-empty Safety Regression or a UTC Day Guard allowlist entry never
 blocks a deploy).
 
+`Mobile Contract` and `E2E Tests` pull their Postgres service from
+`public.ecr.aws/docker/library/postgres:16-alpine` (the official image's AWS
+mirror), not Docker Hub, whose unauthenticated pull limit on shared runners
+failed those jobs before any test ran (2026-10-09).
+
 ### `deploy.yml` — one-button production deploy, gated on green CI
 
 Triggered by **Actions → Deploy → Run workflow**, `gh workflow run deploy.yml`, or any push to

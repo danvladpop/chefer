@@ -261,7 +261,9 @@ jobs:
     if: github.event_name == 'pull_request'
     services:
       postgres:
-        image: postgres:16-alpine
+        # The same official image from AWS's public mirror: Docker Hub's
+        # unauthenticated pull limit failed E2E before any test ran.
+        image: public.ecr.aws/docker/library/postgres:16-alpine
         env:
           POSTGRES_USER: postgres
           POSTGRES_PASSWORD: postgres
@@ -367,7 +369,9 @@ jobs:
     if: github.event_name == 'pull_request'
     services:
       postgres:
-        image: postgres:16-alpine
+        # The same official image from AWS's public mirror: Docker Hub's
+        # unauthenticated pull limit failed E2E before any test ran.
+        image: public.ecr.aws/docker/library/postgres:16-alpine
         env:
           POSTGRES_USER: postgres
           POSTGRES_PASSWORD: postgres
