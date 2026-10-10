@@ -34,7 +34,7 @@ export function ListSection({ title, footer, children, className, testID }: List
           {title}
         </Text>
       ) : null}
-      <View className="overflow-hidden rounded-card bg-surface">
+      <View className="overflow-hidden rounded-card border border-separator bg-surface">
         {rows.map((row, index) => (
           <Fragment key={row.key ?? index}>
             {index > 0 ? <View className="ml-14 h-px bg-separator" /> : null}

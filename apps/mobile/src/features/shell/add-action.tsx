@@ -87,7 +87,7 @@ export function AddAction() {
         title="Add to today"
         testID="add-sheet"
       >
-        <ListSection>
+        <ListSection className="mb-4">
           {CHOICES.map((choice) => (
             <ListRow
               key={choice.key}

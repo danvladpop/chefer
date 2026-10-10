@@ -365,6 +365,17 @@ export default function HomeScreen() {
                     ? "You're all caught up for today."
                     : 'No meals planned yet. Head to the Plan tab to get started.'}
                 </Text>
+                {/* Mobile UX revamp: the empty state leads somewhere. */}
+                {shellV2 && !hasPlan ? (
+                  <Button
+                    testID="today-open-plan"
+                    size="sm"
+                    className="mt-3 self-start"
+                    onPress={() => router.navigate('/plan')}
+                  >
+                    Open Plan
+                  </Button>
+                ) : null}
               </Card>
             )}
 

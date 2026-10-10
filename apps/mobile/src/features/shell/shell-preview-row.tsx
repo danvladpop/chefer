@@ -35,6 +35,9 @@ export function ShellPreviewSection() {
             accessibilityLabel="Preview the new design"
             value={on}
             onValueChange={setShellV2Preview}
+            // Android draws its own teal thumb unless told otherwise.
+            thumbColor={colors.surface}
+            ios_backgroundColor={colors.separator}
             trackColor={{ true: colors.brand, false: colors.separator }}
           />
         }

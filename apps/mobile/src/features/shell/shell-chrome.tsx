@@ -1,7 +1,7 @@
 import { createContext, useContext, type ReactNode } from 'react';
 import { View } from 'react-native';
 import { router, type Href } from 'expo-router';
-import { IconButton, useThemeColors } from '@chefer/ui-mobile';
+import { IconButton, Text, useThemeColors } from '@chefer/ui-mobile';
 import { Icon } from '../../components/icon';
 
 // ─── Shell chrome (mobile UX revamp, phase 1) ───────────────────────────────
@@ -15,7 +15,7 @@ import { Icon } from '../../components/icon';
 // The route that renders the screen says which, through this context.
 
 export type ShellChrome =
-  | { kind: 'tab-root'; actions?: ReactNode }
+  | { kind: 'tab-root'; actions?: ReactNode; title?: string }
   | { kind: 'pushed'; fallback: Href; actions?: ReactNode };
 
 const ShellChromeContext = createContext<ShellChrome | null>(null);
@@ -49,10 +49,21 @@ export function ShellTopBar({ className }: { className?: string }) {
         className="-ml-2"
       />
     ) : null;
-  if (!back && !chrome.actions) return null;
+  // A tab whose screen has no title of its own (Plan) names itself here.
+  const title =
+    chrome.kind === 'tab-root' && chrome.title ? (
+      <Text
+        accessibilityRole="header"
+        className="min-w-0 flex-1 text-title1 font-bold text-label"
+        numberOfLines={1}
+      >
+        {chrome.title}
+      </Text>
+    ) : null;
+  if (!back && !title && !chrome.actions) return null;
   return (
-    <View className={['min-h-11 flex-row items-center justify-between', className].join(' ')}>
-      {back ?? <View />}
+    <View className={['min-h-11 flex-row items-center justify-between gap-2', className].join(' ')}>
+      {back ?? title ?? <View />}
       {chrome.actions ? (
         <View className="flex-row items-center gap-1">{chrome.actions}</View>
       ) : null}
