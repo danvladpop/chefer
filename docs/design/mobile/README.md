@@ -1,6 +1,6 @@
 # Chefer mobile — design boards
 
-A snapshot of the **Chefer App Design** canvas (https://claude.ai/artifact/SBQUh2dcY14U3p4gcnJ4xj), taken 2026-10-10 from master `e5a8ca22`.
+A snapshot of the **Chefer App Design** canvas (https://claude.ai/artifact/SBQUh2dcY14U3p4gcnJ4xj), taken 2026-10-10 from master `e5a8ca22`, tab-bar note updated for `ddfa6859` (every account sees all five tabs).
 Each `*.dc.html` file is one screen or sheet of `apps/mobile`, drawn as it renders in the **revamp shell** (`mobileShellV2` on, light theme), with real copy, colours and sizes.
 The canvas is the working copy; this folder is a versioned record of it. Re-export after significant design changes.
 
