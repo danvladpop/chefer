@@ -1,0 +1,632 @@
+{
+ "v": 3,
+ "createdOnFiles": {
+  "v": 1,
+  "at": "2026-10-10T09:00:00Z"
+ },
+ "title": "Chefer App Design",
+ "launch": {
+  "view": "canvas",
+  "page": "foundations"
+ },
+ "pages": [
+  {
+   "id": "foundations",
+   "name": "Foundations"
+  },
+  {
+   "id": "auth",
+   "name": "Auth & onboarding"
+  },
+  {
+   "id": "food",
+   "name": "Food"
+  },
+  {
+   "id": "recipes",
+   "name": "Recipes & AI"
+  },
+  {
+   "id": "gym",
+   "name": "Gym"
+  },
+  {
+   "id": "account",
+   "name": "Account"
+  }
+ ],
+ "boards": {
+  "Main.dc.html": {
+   "x": 0,
+   "y": 0,
+   "w": 1280,
+   "h": 2120,
+   "title": "Foundations — tokens & components",
+   "page": "foundations"
+  },
+  "Login.dc.html": {
+   "x": 0,
+   "y": 0,
+   "w": 390,
+   "h": 844,
+   "title": "Log in",
+   "page": "auth",
+   "is_interactive": true
+  },
+  "Register.dc.html": {
+   "x": 470,
+   "y": 0,
+   "w": 390,
+   "h": 844,
+   "title": "Create account",
+   "page": "auth",
+   "is_interactive": true
+  },
+  "ForgotPassword.dc.html": {
+   "x": 940,
+   "y": 0,
+   "w": 390,
+   "h": 844,
+   "title": "Forgot password",
+   "page": "auth",
+   "is_interactive": true
+  },
+  "ForgotSent.dc.html": {
+   "x": 1410,
+   "y": 0,
+   "w": 390,
+   "h": 844,
+   "title": "Forgot password — sent",
+   "page": "auth",
+   "is_interactive": true
+  },
+  "ResetPassword.dc.html": {
+   "x": 1880,
+   "y": 0,
+   "w": 390,
+   "h": 844,
+   "title": "Reset password",
+   "page": "auth",
+   "is_interactive": true
+  },
+  "OnbIntent.dc.html": {
+   "x": 2350,
+   "y": 0,
+   "w": 390,
+   "h": 844,
+   "title": "Onboarding — intent",
+   "page": "auth",
+   "is_interactive": true
+  },
+  "OnbDiet.dc.html": {
+   "x": 3760,
+   "y": 0,
+   "w": 390,
+   "h": 844,
+   "title": "Onboarding — diet & restrictions",
+   "page": "auth",
+   "is_interactive": true
+  },
+  "OnbGoal.dc.html": {
+   "x": 2820,
+   "y": 0,
+   "w": 390,
+   "h": 844,
+   "title": "Onboarding — goal",
+   "page": "auth",
+   "is_interactive": true
+  },
+  "OnbMetrics.dc.html": {
+   "x": 3290,
+   "y": 0,
+   "w": 390,
+   "h": 1010,
+   "title": "Onboarding — body metrics",
+   "page": "auth",
+   "is_interactive": true
+  },
+  "OnbCuisine.dc.html": {
+   "x": 4230,
+   "y": 0,
+   "w": 390,
+   "h": 844,
+   "title": "Onboarding — cuisine & cadence",
+   "page": "auth",
+   "is_interactive": true
+  },
+  "FoodToday.dc.html": {
+   "x": 0,
+   "y": 0,
+   "w": 390,
+   "h": 2480,
+   "title": "Today (tab)",
+   "page": "food",
+   "is_interactive": true
+  },
+  "MealPlan.dc.html": {
+   "x": 470,
+   "y": 0,
+   "w": 390,
+   "h": 892,
+   "title": "Plan (tab)",
+   "page": "food",
+   "is_interactive": true
+  },
+  "RecipePickerSheet.dc.html": {
+   "x": 940,
+   "y": 0,
+   "w": 390,
+   "h": 844,
+   "title": "Plan — replace meal sheet",
+   "page": "food",
+   "is_interactive": true
+  },
+  "WeekSummarySheet.dc.html": {
+   "x": 1410,
+   "y": 0,
+   "w": 390,
+   "h": 844,
+   "title": "Plan — week summary sheet",
+   "page": "food",
+   "is_interactive": true
+  },
+  "ShoppingList.dc.html": {
+   "x": 1880,
+   "y": 0,
+   "w": 390,
+   "h": 1080,
+   "title": "Shop (tab)",
+   "page": "food",
+   "is_interactive": true
+  },
+  "More.dc.html": {
+   "x": 2350,
+   "y": 0,
+   "w": 390,
+   "h": 986,
+   "title": "More (tab)",
+   "page": "food",
+   "is_interactive": true
+  },
+  "Tracker.dc.html": {
+   "x": 0,
+   "y": 2640,
+   "w": 390,
+   "h": 1360,
+   "title": "Tracker",
+   "page": "food",
+   "is_interactive": true
+  },
+  "QuickAddSheet.dc.html": {
+   "x": 470,
+   "y": 2640,
+   "w": 390,
+   "h": 844,
+   "title": "Quick add sheet",
+   "page": "food",
+   "is_interactive": true
+  },
+  "Progress.dc.html": {
+   "x": 940,
+   "y": 2640,
+   "w": 390,
+   "h": 1790,
+   "title": "Progress",
+   "page": "food",
+   "is_interactive": true
+  },
+  "Pantry.dc.html": {
+   "x": 1410,
+   "y": 2640,
+   "w": 390,
+   "h": 868,
+   "title": "Pantry",
+   "page": "food",
+   "is_interactive": true
+  },
+  "MyWeeks.dc.html": {
+   "x": 1880,
+   "y": 2640,
+   "w": 390,
+   "h": 1052,
+   "title": "My weeks",
+   "page": "food",
+   "is_interactive": true
+  },
+  "HistoryWeek.dc.html": {
+   "x": 2350,
+   "y": 2640,
+   "w": 390,
+   "h": 844,
+   "title": "Past week (read-only)",
+   "page": "food",
+   "is_interactive": true
+  },
+  "Cookbook.dc.html": {
+   "x": 0,
+   "y": 0,
+   "w": 390,
+   "h": 1280,
+   "title": "Cookbook (tab)",
+   "page": "recipes",
+   "is_interactive": true
+  },
+  "RecipeDetail.dc.html": {
+   "x": 470,
+   "y": 0,
+   "w": 390,
+   "h": 2100,
+   "title": "Recipe detail",
+   "page": "recipes",
+   "is_interactive": true
+  },
+  "CookStep.dc.html": {
+   "x": 940,
+   "y": 0,
+   "w": 390,
+   "h": 844,
+   "title": "Cook mode — step",
+   "page": "recipes",
+   "is_interactive": true
+  },
+  "CookIngredients.dc.html": {
+   "x": 1410,
+   "y": 0,
+   "w": 390,
+   "h": 844,
+   "title": "Cook mode — ingredients",
+   "page": "recipes",
+   "is_interactive": true
+  },
+  "CookFinished.dc.html": {
+   "x": 1880,
+   "y": 0,
+   "w": 390,
+   "h": 870,
+   "title": "Cook mode — finished",
+   "page": "recipes",
+   "is_interactive": true
+  },
+  "RecipeForm.dc.html": {
+   "x": 2350,
+   "y": 0,
+   "w": 390,
+   "h": 1200,
+   "title": "Create recipe",
+   "page": "recipes",
+   "is_interactive": true
+  },
+  "ImportRecipe.dc.html": {
+   "x": 2820,
+   "y": 0,
+   "w": 390,
+   "h": 844,
+   "title": "Import recipe — input",
+   "page": "recipes",
+   "is_interactive": true
+  },
+  "ImportPreview.dc.html": {
+   "x": 3290,
+   "y": 0,
+   "w": 390,
+   "h": 844,
+   "title": "Import recipe — preview",
+   "page": "recipes",
+   "is_interactive": true
+  },
+  "Chat.dc.html": {
+   "x": 3760,
+   "y": 0,
+   "w": 390,
+   "h": 844,
+   "title": "AI Chef chat",
+   "page": "recipes",
+   "is_interactive": true
+  },
+  "ChatLocked.dc.html": {
+   "x": 4230,
+   "y": 0,
+   "w": 390,
+   "h": 844,
+   "title": "AI Chef — locked (free)",
+   "page": "recipes",
+   "is_interactive": true
+  },
+  "AiConsentSheet.dc.html": {
+   "x": 4700,
+   "y": 0,
+   "w": 390,
+   "h": 844,
+   "title": "AI consent sheet",
+   "page": "recipes",
+   "is_interactive": true
+  },
+  "GymToday.dc.html": {
+   "x": 0,
+   "y": 0,
+   "w": 390,
+   "h": 965,
+   "title": "Gym Today (tab)",
+   "page": "gym",
+   "is_interactive": true
+  },
+  "GymRoutine.dc.html": {
+   "x": 470,
+   "y": 0,
+   "w": 390,
+   "h": 2110,
+   "title": "Routine (tab)",
+   "page": "gym",
+   "is_interactive": true
+  },
+  "GymExercises.dc.html": {
+   "x": 940,
+   "y": 0,
+   "w": 390,
+   "h": 1060,
+   "title": "Exercises (tab)",
+   "page": "gym",
+   "is_interactive": true
+  },
+  "GymStats.dc.html": {
+   "x": 1410,
+   "y": 0,
+   "w": 390,
+   "h": 2545,
+   "title": "Stats (tab)",
+   "page": "gym",
+   "is_interactive": true
+  },
+  "Workout.dc.html": {
+   "x": 0,
+   "y": 2705,
+   "w": 390,
+   "h": 1225,
+   "title": "Live workout",
+   "page": "gym",
+   "is_interactive": true
+  },
+  "NumberSheet.dc.html": {
+   "x": 470,
+   "y": 2705,
+   "w": 390,
+   "h": 844,
+   "title": "Workout — number pad sheet",
+   "page": "gym",
+   "is_interactive": true
+  },
+  "WorkoutMenuSheet.dc.html": {
+   "x": 940,
+   "y": 2705,
+   "w": 390,
+   "h": 844,
+   "title": "Workout — exercise menu",
+   "page": "gym",
+   "is_interactive": true
+  },
+  "Summary.dc.html": {
+   "x": 1410,
+   "y": 2705,
+   "w": 390,
+   "h": 1460,
+   "title": "Workout summary",
+   "page": "gym",
+   "is_interactive": true
+  },
+  "Session.dc.html": {
+   "x": 1880,
+   "y": 2705,
+   "w": 390,
+   "h": 1010,
+   "title": "Past session",
+   "page": "gym",
+   "is_interactive": true
+  },
+  "GymSetup.dc.html": {
+   "x": 0,
+   "y": 4325,
+   "w": 390,
+   "h": 1560,
+   "title": "Gym setup — your program",
+   "page": "gym",
+   "is_interactive": true
+  },
+  "ExerciseDetail.dc.html": {
+   "x": 470,
+   "y": 4325,
+   "w": 390,
+   "h": 2260,
+   "title": "Exercise detail",
+   "page": "gym",
+   "is_interactive": true
+  },
+  "ExerciseForm.dc.html": {
+   "x": 940,
+   "y": 4325,
+   "w": 390,
+   "h": 1760,
+   "title": "New custom exercise",
+   "page": "gym",
+   "is_interactive": true
+  },
+  "Routines.dc.html": {
+   "x": 1410,
+   "y": 4325,
+   "w": 390,
+   "h": 844,
+   "title": "My routines",
+   "page": "gym",
+   "is_interactive": true
+  },
+  "RoutineEditor.dc.html": {
+   "x": 1880,
+   "y": 4325,
+   "w": 390,
+   "h": 2456,
+   "title": "Routine editor",
+   "page": "gym",
+   "is_interactive": true
+  },
+  "GymSettings.dc.html": {
+   "x": 2350,
+   "y": 4325,
+   "w": 390,
+   "h": 1810,
+   "title": "Gym settings",
+   "page": "gym",
+   "is_interactive": true
+  },
+  "Profile.dc.html": {
+   "x": 0,
+   "y": 0,
+   "w": 390,
+   "h": 1160,
+   "title": "Profile",
+   "page": "account",
+   "is_interactive": true
+  },
+  "PostUpgradeSheet.dc.html": {
+   "x": 470,
+   "y": 0,
+   "w": 390,
+   "h": 844,
+   "title": "Post-upgrade sheet",
+   "page": "account",
+   "is_interactive": true
+  },
+  "DeleteAccountSheet.dc.html": {
+   "x": 940,
+   "y": 0,
+   "w": 390,
+   "h": 880,
+   "title": "Delete account sheet",
+   "page": "account",
+   "is_interactive": true
+  },
+  "Preferences.dc.html": {
+   "x": 1410,
+   "y": 0,
+   "w": 390,
+   "h": 3220,
+   "title": "Preferences",
+   "page": "account",
+   "is_interactive": true
+  },
+  "Household.dc.html": {
+   "x": 1880,
+   "y": 0,
+   "w": 390,
+   "h": 960,
+   "title": "Household",
+   "page": "account",
+   "is_interactive": true
+  }
+ },
+ "order": [
+  "Main.dc.html",
+  "Login.dc.html",
+  "Register.dc.html",
+  "ForgotPassword.dc.html",
+  "ForgotSent.dc.html",
+  "ResetPassword.dc.html",
+  "OnbIntent.dc.html",
+  "OnbGoal.dc.html",
+  "OnbMetrics.dc.html",
+  "OnbDiet.dc.html",
+  "OnbCuisine.dc.html",
+  "FoodToday.dc.html",
+  "MealPlan.dc.html",
+  "RecipePickerSheet.dc.html",
+  "WeekSummarySheet.dc.html",
+  "ShoppingList.dc.html",
+  "More.dc.html",
+  "Tracker.dc.html",
+  "QuickAddSheet.dc.html",
+  "Progress.dc.html",
+  "Pantry.dc.html",
+  "MyWeeks.dc.html",
+  "HistoryWeek.dc.html",
+  "Cookbook.dc.html",
+  "RecipeDetail.dc.html",
+  "CookStep.dc.html",
+  "CookIngredients.dc.html",
+  "CookFinished.dc.html",
+  "RecipeForm.dc.html",
+  "ImportRecipe.dc.html",
+  "ImportPreview.dc.html",
+  "Chat.dc.html",
+  "ChatLocked.dc.html",
+  "AiConsentSheet.dc.html",
+  "GymToday.dc.html",
+  "GymRoutine.dc.html",
+  "GymExercises.dc.html",
+  "GymStats.dc.html",
+  "Workout.dc.html",
+  "NumberSheet.dc.html",
+  "WorkoutMenuSheet.dc.html",
+  "Summary.dc.html",
+  "Session.dc.html",
+  "GymSetup.dc.html",
+  "ExerciseDetail.dc.html",
+  "ExerciseForm.dc.html",
+  "Routines.dc.html",
+  "RoutineEditor.dc.html",
+  "GymSettings.dc.html",
+  "Profile.dc.html",
+  "PostUpgradeSheet.dc.html",
+  "DeleteAccountSheet.dc.html",
+  "Preferences.dc.html",
+  "Household.dc.html"
+ ],
+ "notes": {
+  "t_foundations": {
+   "x": 0,
+   "y": -300,
+   "text": "Foundations",
+   "kind": "title1",
+   "maxW": 1280,
+   "page": "foundations"
+  },
+  "t_auth": {
+   "x": 0,
+   "y": -300,
+   "text": "Auth & onboarding",
+   "kind": "title1",
+   "maxW": 4620,
+   "page": "auth"
+  },
+  "t_food": {
+   "x": 0,
+   "y": -300,
+   "text": "Food — tabs, tracking & weeks",
+   "kind": "title1",
+   "maxW": 2740,
+   "page": "food"
+  },
+  "t_recipes": {
+   "x": 0,
+   "y": -300,
+   "text": "Recipes, cooking & AI",
+   "kind": "title1",
+   "maxW": 5090,
+   "page": "recipes"
+  },
+  "t_gym": {
+   "x": 0,
+   "y": -300,
+   "text": "Gym — training",
+   "kind": "title1",
+   "maxW": 2740,
+   "page": "gym"
+  },
+  "t_account": {
+   "x": 0,
+   "y": -300,
+   "text": "Account & settings",
+   "kind": "title1",
+   "maxW": 2270,
+   "page": "account"
+  }
+ },
+ "designSystems": []
+}

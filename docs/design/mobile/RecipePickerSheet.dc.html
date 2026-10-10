@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Plan — Replace meal</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+body{margin:0}
+a{color:#944a00;text-decoration:none}a:hover{color:#6e3700}
+input::placeholder,textarea::placeholder{color:#9ca3af}
+</style>
+</helmet>
+<div style="width: 390px; height: 844px; position: relative; overflow: hidden; background: #ffffff; font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Helvetica Neue', system-ui, sans-serif; color: #020817; display: flex; flex-direction: column">
+  <div style="height: 47px; flex: none"></div>
+  <div aria-hidden="true" style="flex: 1; background: #ffffff"></div>
+
+  <a href="MealPlan.dc.html" aria-label="Close Chicken Caesar Wrap" style="position: absolute; inset: 0; background: rgba(0,0,0,.4); text-decoration: none"></a>
+
+  <section role="dialog" aria-modal="true" aria-labelledby="picker-title" style="position: absolute; left: 0; right: 0; bottom: 0; background: #ffffff; border-radius: 21px 21px 0 0; box-shadow: 0 -4px 12px -4px rgba(67,42,25,.08), 0 -16px 40px -12px rgba(67,42,25,.18); max-height: 85%; display: flex; flex-direction: column">
+    <div style="width: 40px; height: 3.5px; border-radius: 9999px; background: #d1d5db; margin: 7px auto 0"></div>
+    <div style="padding: 10.5px 14px 7px; display: flex; justify-content: space-between; align-items: center; gap: 10.5px">
+      <div style="min-width: 0; flex: 1; display: flex; flex-direction: column">
+        <span style="font-size: 13px; line-height: 18px; font-weight: 600; text-transform: uppercase; letter-spacing: .1em; color: #8a7560">Replace meal</span>
+        <h1 id="picker-title" style="margin: 0; font-size: 19px; line-height: 26px; font-weight: 600">Chicken Caesar Wrap</h1>
+      </div>
+      <a href="MealPlan.dc.html" aria-label="Close" style="width: 44px; height: 44px; flex: none; border-radius: 9999px; background: #f3f4f6; color: #374151; font-size: 19px; font-weight: 600; display: flex; align-items: center; justify-content: center; text-decoration: none">✕</a>
+    </div>
+
+    <div style="padding: 0 14px 14px; display: flex; flex-direction: column; min-height: 0">
+      <div style="padding-bottom: 7px">
+        <input aria-label="Search recipes" placeholder="Search recipes…" style="height: 44px; box-sizing: border-box; width: 100%; border: 1px solid #e2e8f0; border-radius: 10.5px; padding: 0 14px; font: inherit; font-size: 17px; color: #020817; background: #ffffff">
+      </div>
+
+      <h2 style="margin: 0; padding: 10.5px 0 5.25px; font-size: 13px; line-height: 18px; font-weight: 600; text-transform: uppercase; letter-spacing: .1em; color: #6b7280">Your recipes</h2>
+      <div style="display: flex; flex-direction: column; gap: 7px">
+        <button type="button" aria-label="Use Creamy Tuscan Chicken" style="border: 1px solid #e2e8f0; border-radius: 10.5px; background: #ffffff; padding: 7px; font: inherit; color: inherit; text-align: left; display: flex; align-items: center; gap: 10.5px">
+          <span style="width: 42px; height: 42px; flex: none; border-radius: 7px; background: #eadccd"></span>
+          <span style="flex: 1; min-width: 0; display: flex; flex-direction: column"><span style="font-size: 15px; line-height: 21px; font-weight: 500; color: #111827; white-space: nowrap; overflow: hidden; text-overflow: ellipsis">Creamy Tuscan Chicken</span><span style="font-size: 13px; line-height: 18px; color: #6b7280">640 kcal</span></span>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#944a00" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20s-7.5-4.6-7.5-10.2A4.3 4.3 0 0112 7.3a4.3 4.3 0 017.5 2.5C19.5 15.4 12 20 12 20z" fill="#944a00"></path></svg>
+        </button>
+        <button type="button" aria-label="Use Shakshuka" style="border: 1px solid #e2e8f0; border-radius: 10.5px; background: #ffffff; padding: 7px; font: inherit; color: inherit; text-align: left; display: flex; align-items: center; gap: 10.5px">
+          <span style="width: 42px; height: 42px; flex: none; border-radius: 7px; background: #eadccd"></span>
+          <span style="flex: 1; min-width: 0; display: flex; flex-direction: column"><span style="font-size: 15px; line-height: 21px; font-weight: 500; color: #111827; white-space: nowrap; overflow: hidden; text-overflow: ellipsis">Shakshuka</span><span style="font-size: 13px; line-height: 18px; color: #6b7280">410 kcal</span></span>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#944a00" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20s-7.5-4.6-7.5-10.2A4.3 4.3 0 0112 7.3a4.3 4.3 0 017.5 2.5C19.5 15.4 12 20 12 20z" fill="#944a00"></path></svg>
+        </button>
+        <button type="button" aria-label="Use Grandma's Chicken Soup" style="border: 1px solid #e2e8f0; border-radius: 10.5px; background: #ffffff; padding: 7px; font: inherit; color: inherit; text-align: left; display: flex; align-items: center; gap: 10.5px">
+          <span style="width: 42px; height: 42px; flex: none; border-radius: 7px; background: #eadccd"></span>
+          <span style="flex: 1; min-width: 0; display: flex; flex-direction: column"><span style="font-size: 15px; line-height: 21px; font-weight: 500; color: #111827; white-space: nowrap; overflow: hidden; text-overflow: ellipsis">Grandma's Chicken Soup</span><span style="font-size: 13px; line-height: 18px; color: #6b7280">380 kcal</span></span>
+        </button>
+      </div>
+
+      <h2 style="margin: 0; padding: 10.5px 0 5.25px; font-size: 13px; line-height: 18px; font-weight: 600; text-transform: uppercase; letter-spacing: .1em; color: #6b7280">All recipes</h2>
+      <div style="display: flex; flex-direction: column; gap: 7px">
+        <button type="button" aria-label="Use Chicken Burrito Bowl" style="border: 1px solid #e2e8f0; border-radius: 10.5px; background: #ffffff; padding: 7px; font: inherit; color: inherit; text-align: left; display: flex; align-items: center; gap: 10.5px">
+          <span style="width: 42px; height: 42px; flex: none; border-radius: 7px; background: #eadccd"></span>
+          <span style="flex: 1; min-width: 0; display: flex; flex-direction: column"><span style="font-size: 15px; line-height: 21px; font-weight: 500; color: #111827; white-space: nowrap; overflow: hidden; text-overflow: ellipsis">Chicken Burrito Bowl</span><span style="font-size: 13px; line-height: 18px; color: #6b7280">590 kcal</span></span>
+        </button>
+        <button type="button" aria-label="Use Mediterranean Quinoa Salad" style="border: 1px solid #e2e8f0; border-radius: 10.5px; background: #ffffff; padding: 7px; font: inherit; color: inherit; text-align: left; display: flex; align-items: center; gap: 10.5px">
+          <span style="width: 42px; height: 42px; flex: none; border-radius: 7px; background: #eadccd"></span>
+          <span style="flex: 1; min-width: 0; display: flex; flex-direction: column"><span style="font-size: 15px; line-height: 21px; font-weight: 500; color: #111827; white-space: nowrap; overflow: hidden; text-overflow: ellipsis">Mediterranean Quinoa Salad</span><span style="font-size: 13px; line-height: 18px; color: #6b7280">460 kcal</span></span>
+        </button>
+        <button type="button" aria-label="Use Turkey Pesto Panini" style="border: 1px solid #e2e8f0; border-radius: 10.5px; background: #ffffff; padding: 7px; font: inherit; color: inherit; text-align: left; display: flex; align-items: center; gap: 10.5px">
+          <span style="width: 42px; height: 42px; flex: none; border-radius: 7px; background: #eadccd"></span>
+          <span style="flex: 1; min-width: 0; display: flex; flex-direction: column"><span style="font-size: 15px; line-height: 21px; font-weight: 500; color: #111827; white-space: nowrap; overflow: hidden; text-overflow: ellipsis">Turkey Pesto Panini</span><span style="font-size: 13px; line-height: 18px; color: #6b7280">530 kcal</span></span>
+        </button>
+      </div>
+    </div>
+
+    <div style="border-top: 1px solid #e2e8f0; padding: 10.5px 14px 0">
+      <button type="button" style="width: 100%; height: 44px; padding: 0 14px; border: 1px solid #e2e8f0; border-radius: 5.25px; background: #ffffff; color: #020817; font: inherit; font-size: 15px; font-weight: 500; display: flex; align-items: center; justify-content: center">Regenerate with AI</button>
+    </div>
+    <div style="height: 34px; flex: none"></div>
+  </section>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":844}}'>
+class Component extends DCLogic {
+renderVals() {
+return {};
+}
+}
+</script>
+</body>
+</html>

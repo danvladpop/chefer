@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>AI Chef — Chat</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+body{margin:0}
+a{color:#944a00;text-decoration:none}a:hover{color:#6e3700}
+input::placeholder,textarea::placeholder{color:#9ca3af}
+</style>
+</helmet>
+<div style="width: 390px; height: 844px; position: relative; overflow: hidden; background: #ffffff; font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Helvetica Neue', system-ui, sans-serif; color: #020817; display: flex; flex-direction: column">
+  <div style="height: 47px; flex: none"></div>
+
+  <main id="main" style="flex: 1; min-height: 0; display: flex; flex-direction: column">
+    <header style="flex: none; display: flex; align-items: center; gap: 10.5px; padding: 10.5px 14px">
+      <a href="More.dc.html" aria-label="Back" style="width: 44px; height: 44px; display: flex; align-items: center; justify-content: center; color: #1f2937; text-decoration: none"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M11 5l-7 7 7 7M4 12h16"></path></svg></a>
+      <h1 style="margin: 0; font-size: 25px; line-height: 31px; font-weight: 700">AI Chef</h1>
+    </header>
+
+    <div role="log" aria-label="Conversation" style="flex: 1; min-height: 0; display: flex; flex-direction: column; gap: 10.5px; padding: 7px 14px">
+      <div style="align-self: flex-end; max-width: 85%; border-radius: 14px; background: #944a00; padding: 7px 10.5px; font-size: 15px; line-height: 21px; color: #fcf9f5">What can I use instead of quinoa tonight? I'm out.</div>
+      <div style="align-self: flex-start; max-width: 85%; border-radius: 14px; background: #f3f4f6; padding: 7px 10.5px; font-size: 15px; line-height: 21px; color: #1f2937">Couscous is the quickest swap — 5 minutes in boiling water, similar carbs and a little less protein. Brown rice works too, but it needs about 25 minutes.</div>
+      <div style="align-self: flex-end; max-width: 85%; border-radius: 14px; background: #944a00; padding: 7px 10.5px; font-size: 15px; line-height: 21px; color: #fcf9f5">Couscous it is. Can you add it to my shopping list?</div>
+      <div style="align-self: flex-start; max-width: 85%; border-radius: 14px; background: #f3f4f6; padding: 7px 10.5px; font-size: 15px; line-height: 21px; color: #1f2937">Added 300 g couscous to your shopping list.</div>
+      <div style="align-self: flex-end; max-width: 85%; border-radius: 14px; background: #944a00; padding: 7px 10.5px; font-size: 15px; line-height: 21px; color: #fcf9f5">Thanks! How much protein is left for today?</div>
+      <div style="align-self: flex-start; max-width: 85%; border-radius: 14px; background: #f3f4f6; padding: 7px 10.5px; font-size: 15px; line-height: 21px; color: #1f2937">You're at 62 g of 140 g. Tonight's salmon adds 38 g, so a Greek yogurt snack would get you within 20 g of target.</div>
+    </div>
+
+    <div style="flex: none; display: flex; align-items: flex-end; gap: 7px; border-top: 1px solid #e2e8f0; padding: 10.5px 14px">
+      <textarea aria-label="Message the chef" placeholder="Message the chef…" rows="1" style="flex: 1; min-width: 0; min-height: 44px; height: 44px; box-sizing: border-box; resize: none; border: 1px solid #e2e8f0; border-radius: 14px; padding: 10px 14px; font: inherit; font-size: 17px; line-height: 22px; color: #020817; background: #ffffff"></textarea>
+      <button type="button" aria-label="Send" disabled style="flex: none; width: 44px; height: 44px; padding: 0; border: none; border-radius: 9999px; background: #944a00; color: #ffffff; opacity: .4; display: flex; align-items: center; justify-content: center"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 19V5M6 11l6-6 6 6"></path></svg></button>
+    </div>
+  </main>
+
+  <div style="height: 34px; flex: none"></div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":844}}'>
+class Component extends DCLogic {
+renderVals() {
+return {};
+}
+}
+</script>
+</body>
+</html>

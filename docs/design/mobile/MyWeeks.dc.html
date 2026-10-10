@@ -1,0 +1,103 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Food — My weeks</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+body{margin:0}
+a{color:#944a00;text-decoration:none}a:hover{color:#6e3700}
+input::placeholder,textarea::placeholder{color:#9ca3af}
+</style>
+</helmet>
+<div style="width: 390px; height: 1052px; position: relative; overflow: hidden; background: #ffffff; font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Helvetica Neue', system-ui, sans-serif; color: #020817; display: flex; flex-direction: column">
+  <div style="height: 47px; flex: none"></div>
+
+  <header style="display: flex; align-items: center; gap: 7px; padding: 14px 14px 7px">
+    <a href="More.dc.html" aria-label="Back" style="width: 44px; height: 44px; display: flex; align-items: center; justify-content: center; color: #1f2937"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M11 5l-7 7 7 7M4 12h16"></path></svg></a>
+    <div style="display: flex; flex-direction: column">
+      <span style="font-size: 13px; line-height: 18px; font-weight: 600; text-transform: uppercase; letter-spacing: .1em; color: #6b7280">Saved &amp; past weeks</span>
+      <h1 style="margin: 0; font-size: 25px; line-height: 31px; font-weight: 700">My Weeks</h1>
+    </div>
+  </header>
+
+  <main id="main" style="flex: 1; display: flex; flex-direction: column; gap: 10.5px; padding: 7px 14px 28px">
+    <p style="margin: 0; font-size: 15px; line-height: 21px; color: #8a7560">Save a week you like and reuse it. The week you follow repeats each week until you switch.</p>
+
+    <section aria-labelledby="save-week-heading" style="border: 1px solid #e2e8f0; border-radius: 7px; background: #ffffff; padding: 14px; display: flex; flex-direction: column; gap: 7px">
+      <h2 id="save-week-heading" style="margin: 0; font-size: 15px; line-height: 21px; font-weight: 600; color: #111827">Save this week</h2>
+      <div style="display: flex; align-items: center; gap: 7px">
+        <input aria-label="Week name" placeholder="Name it, e.g. Mediterranean week" maxlength="40" style="flex: 1; min-width: 0; height: 44px; box-sizing: border-box; border: 1px solid #e2e8f0; border-radius: 10.5px; padding: 0 10.5px; font: inherit; font-size: 17px; color: #020817; background: #ffffff">
+        <button type="button" disabled style="height: 44px; flex: none; padding: 0 10.5px; border: none; border-radius: 5.25px; background: #944a00; color: #fcf9f5; font: inherit; font-size: 15px; font-weight: 500; opacity: .5">Save</button>
+      </div>
+    </section>
+
+    <section aria-label="High-protein week" style="border: 1px solid #e2e8f0; border-radius: 7px; background: #ffffff; padding: 14px; display: flex; flex-direction: column; gap: 7px">
+      <div style="display: flex; align-items: center; justify-content: space-between; gap: 7px">
+        <div style="flex: 1; min-width: 0; display: flex; flex-direction: column">
+          <span style="font-size: 17px; line-height: 24px; font-weight: 600; color: #111827; white-space: nowrap; overflow: hidden; text-overflow: ellipsis">High-protein week</span>
+          <span style="font-size: 13px; line-height: 18px; color: #8a7560; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden">28 meals · Overnight Oats with Banana · Chicken Caesar Wrap · Lemon Herb Salmon with Quinoa</span>
+        </div>
+        <button type="button" aria-label="Rename High-protein week" style="width: 44px; height: 44px; flex: none; border: none; background: transparent; color: #6b7280; display: flex; align-items: center; justify-content: center; padding: 0"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15.5 4.5l4 4L9 19H5v-4z"></path></svg></button>
+        <button type="button" aria-label="Delete High-protein week" style="width: 44px; height: 44px; flex: none; border: none; background: transparent; color: #dc2626; display: flex; align-items: center; justify-content: center; padding: 0"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 7h14M10 7V4.5h4V7M7 7l1 13h8l1-13M10.5 11v5.5M13.5 11v5.5"></path></svg></button>
+      </div>
+      <button type="button" aria-pressed="true" style="height: 44px; padding: 0 10.5px; border: 1px solid #e2e8f0; border-radius: 5.25px; background: #ffffff; color: #020817; font: inherit; font-size: 15px; font-weight: 500; display: flex; align-items: center; justify-content: center">Following ✓ — tap to stop</button>
+    </section>
+
+    <section aria-label="Mediterranean week" style="border: 1px solid #e2e8f0; border-radius: 7px; background: #ffffff; padding: 14px; display: flex; flex-direction: column; gap: 7px">
+      <div style="display: flex; align-items: center; justify-content: space-between; gap: 7px">
+        <div style="flex: 1; min-width: 0; display: flex; flex-direction: column">
+          <span style="font-size: 17px; line-height: 24px; font-weight: 600; color: #111827; white-space: nowrap; overflow: hidden; text-overflow: ellipsis">Mediterranean week</span>
+          <span style="font-size: 13px; line-height: 18px; color: #8a7560; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden">26 meals · Shakshuka · Mediterranean Quinoa Salad · Lentil Soup</span>
+        </div>
+        <button type="button" aria-label="Rename Mediterranean week" style="width: 44px; height: 44px; flex: none; border: none; background: transparent; color: #6b7280; display: flex; align-items: center; justify-content: center; padding: 0"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15.5 4.5l4 4L9 19H5v-4z"></path></svg></button>
+        <button type="button" aria-label="Delete Mediterranean week" style="width: 44px; height: 44px; flex: none; border: none; background: transparent; color: #dc2626; display: flex; align-items: center; justify-content: center; padding: 0"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 7h14M10 7V4.5h4V7M7 7l1 13h8l1-13M10.5 11v5.5M13.5 11v5.5"></path></svg></button>
+      </div>
+      <button type="button" style="height: 44px; padding: 0 10.5px; border: none; border-radius: 5.25px; background: #944a00; color: #fcf9f5; font: inherit; font-size: 15px; font-weight: 500; display: flex; align-items: center; justify-content: center">Follow this week</button>
+    </section>
+
+    <section aria-labelledby="past-weeks-heading" style="display: flex; flex-direction: column; gap: 10.5px">
+      <h2 id="past-weeks-heading" style="margin: 7px 0 0; font-size: 13px; line-height: 18px; font-weight: 600; text-transform: uppercase; letter-spacing: .1em; color: #6b7280">Past weeks</h2>
+
+      <div style="border: 1px solid #e2e8f0; border-radius: 7px; background: #ffffff; padding: 14px; display: flex; flex-direction: column; gap: 7px">
+        <div style="display: flex; align-items: center; justify-content: space-between; gap: 7px">
+          <span style="flex: 1; min-width: 0; font-size: 15px; line-height: 21px; font-weight: 600; color: #111827">29 Sep – 5 Oct</span>
+        </div>
+        <span style="font-size: 13px; line-height: 18px; color: #8a7560; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden">Overnight Oats with Banana · Chicken Burrito Bowl · Creamy Tuscan Chicken · Greek Yogurt &amp; Berries</span>
+        <span style="font-size: 13px; line-height: 18px; color: #6b7280">2040 kcal avg · 128g P · 214g C · 68g F</span>
+        <div style="display: flex; gap: 7px">
+          <a href="HistoryWeek.dc.html" style="flex: 1; height: 44px; border: 1px solid #e2e8f0; border-radius: 5.25px; background: #ffffff; color: #020817; font-size: 15px; font-weight: 500; display: flex; align-items: center; justify-content: center; text-decoration: none">View week</a>
+        </div>
+      </div>
+
+      <div style="border: 1px solid #e2e8f0; border-radius: 7px; background: #ffffff; padding: 14px; display: flex; flex-direction: column; gap: 7px">
+        <div style="display: flex; align-items: center; justify-content: space-between; gap: 7px">
+          <span style="flex: 1; min-width: 0; font-size: 15px; line-height: 21px; font-weight: 600; color: #111827">22 Sep – 28 Sep</span>
+          <span style="border-radius: 9999px; padding: 1.75px 7px; background: #f3f4f6; font-size: 13px; line-height: 18px; font-weight: 500; color: #6b7280">Replaced</span>
+        </div>
+        <span style="font-size: 13px; line-height: 18px; color: #8a7560; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden">Shakshuka · Turkey Pesto Panini · Lemon Herb Salmon with Quinoa · Lentil Soup</span>
+        <span style="font-size: 13px; line-height: 18px; color: #6b7280">1985 kcal avg · 121g P · 208g C · 66g F</span>
+        <div style="display: flex; gap: 7px">
+          <a href="HistoryWeek.dc.html" style="flex: 1; height: 44px; border: 1px solid #e2e8f0; border-radius: 5.25px; background: #ffffff; color: #020817; font-size: 15px; font-weight: 500; display: flex; align-items: center; justify-content: center; text-decoration: none">View week</a>
+          <button type="button" style="flex: 1; height: 44px; border: 1px solid #e2e8f0; border-radius: 5.25px; background: #ffffff; color: #020817; font: inherit; font-size: 15px; font-weight: 500; display: flex; align-items: center; justify-content: center">Restore</button>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <div style="height: 34px; flex: none"></div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":1052}}'>
+class Component extends DCLogic {
+renderVals() {
+return {};
+}
+}
+</script>
+</body>
+</html>

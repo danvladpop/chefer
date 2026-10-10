@@ -1,0 +1,143 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Food — Shop</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+body{margin:0}
+a{color:#944a00;text-decoration:none}a:hover{color:#6e3700}
+input::placeholder,textarea::placeholder{color:#9ca3af}
+</style>
+</helmet>
+<div style="width: 390px; height: 1080px; position: relative; overflow: hidden; background: #ffffff; font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Helvetica Neue', system-ui, sans-serif; color: #020817; display: flex; flex-direction: column">
+  <div style="height: 47px; flex: none"></div>
+
+  <main id="main" style="flex: 1; display: flex; flex-direction: column; gap: 14px; padding: 14px">
+
+    <div style="display: flex; align-items: center; justify-content: space-between">
+      <div role="tablist" aria-label="Mode" style="width: 126px; height: 28px; box-sizing: border-box; background: #faf5f0; border-radius: 7px; padding: 3px; display: flex">
+        <a href="FoodToday.dc.html" role="tab" aria-selected="true" style="flex: 1; border-radius: 5px; background: #ffffff; box-shadow: 0 1px 2px rgba(0,0,0,.08); color: #020817; font-size: 13px; font-weight: 500; display: flex; align-items: center; justify-content: center; text-decoration: none">Food</a>
+        <a href="GymToday.dc.html" role="tab" aria-selected="false" style="flex: 1; border-radius: 5px; color: #8a7560; font-size: 13px; font-weight: 500; display: flex; align-items: center; justify-content: center; text-decoration: none">Gym</a>
+      </div>
+      <a href="Profile.dc.html" aria-label="Profile" style="width: 44px; height: 44px; display: flex; align-items: center; justify-content: center; text-decoration: none"><span style="width: 31.5px; height: 31.5px; border-radius: 9999px; background: #944a00; color: #ffffff; font-size: 15px; font-weight: 600; display: flex; align-items: center; justify-content: center">DP</span></a>
+    </div>
+
+    <div role="tablist" aria-label="Shop sections" style="background: #faf5f0; border-radius: 7px; padding: 4px; display: flex">
+      <a href="ShoppingList.dc.html" role="tab" aria-selected="true" style="flex: 1; min-height: 36px; border-radius: 6px; background: #ffffff; box-shadow: 0 1px 2px rgba(0,0,0,.08); color: #020817; font-size: 15px; font-weight: 500; display: flex; align-items: center; justify-content: center; text-decoration: none">To buy</a>
+      <a href="Pantry.dc.html" role="tab" aria-selected="false" style="flex: 1; min-height: 36px; border-radius: 6px; color: #8a7560; font-size: 15px; font-weight: 500; display: flex; align-items: center; justify-content: center; text-decoration: none">In my kitchen</a>
+    </div>
+
+    <div style="display: flex; align-items: center; justify-content: space-between; gap: 7px">
+      <div style="min-width: 0; flex: 1; display: flex; flex-direction: column">
+        <span style="font-size: 13px; line-height: 18px; font-weight: 600; text-transform: uppercase; letter-spacing: .1em; color: #6b7280">This Week</span>
+        <h1 style="margin: 0; font-size: 25px; line-height: 31px; font-weight: 700">Shop</h1>
+        <span style="font-size: 13px; line-height: 18px; color: #8a7560">Week of 6 October · 1/24 done</span>
+      </div>
+      <div style="display: flex; gap: 3.5px">
+        <button type="button" aria-label="Previous week" style="width: 44px; height: 44px; box-sizing: border-box; border: 1px solid #e2e8f0; border-radius: 9999px; background: #ffffff; color: #6b7280; display: flex; align-items: center; justify-content: center; padding: 0"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 5l-7 7 7 7"></path></svg></button>
+        <button type="button" aria-label="Next week" style="width: 44px; height: 44px; box-sizing: border-box; border: 1px solid #e2e8f0; border-radius: 9999px; background: #ffffff; color: #6b7280; display: flex; align-items: center; justify-content: center; padding: 0"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 5l7 7-7 7"></path></svg></button>
+      </div>
+    </div>
+
+    <div style="display: flex; flex-wrap: wrap; gap: 7px">
+      <span style="border-radius: 9999px; border: 1px solid #e2e8f0; background: #f9fafb; padding: 3.5px 10.5px; font-size: 13px; line-height: 18px; font-weight: 500; color: #4b5563">Est. total ~€54.20</span>
+      <span style="border-radius: 9999px; border: 1px solid #a7f3d0; background: #ecfdf5; padding: 3.5px 10.5px; font-size: 13px; line-height: 18px; font-weight: 500; color: #047857">Saved ~€6.40 this week</span>
+    </div>
+
+    <button type="button" style="height: 44px; padding: 0 14px; border: 1px solid #e2e8f0; border-radius: 5.25px; background: #ffffff; color: #020817; font: inherit; font-size: 15px; font-weight: 500; display: flex; align-items: center; justify-content: center">Regenerate with AI</button>
+
+    <div style="display: flex; gap: 7px">
+      <input aria-label="Add item" placeholder="Add item… e.g. 2 kg flour" style="flex: 1; min-width: 0; height: 44px; box-sizing: border-box; border: 1px solid #e2e8f0; border-radius: 5.25px; padding: 0 10.5px; font: inherit; font-size: 17px; color: #020817; background: #ffffff">
+      <button type="button" aria-label="Add item" style="width: 44px; height: 44px; flex: none; border: none; border-radius: 5.25px; background: #944a00; color: #ffffff; display: flex; align-items: center; justify-content: center; padding: 0"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14M5 12h14"></path></svg></button>
+    </div>
+
+    <section aria-label="Produce" style="display: flex; flex-direction: column">
+      <button type="button" aria-expanded="true" style="min-height: 44px; margin-bottom: 7px; padding: 0 3.5px; border: none; background: transparent; font: inherit; display: flex; align-items: center; justify-content: space-between; text-align: left">
+        <span style="font-size: 13px; font-weight: 600; text-transform: uppercase; letter-spacing: .1em; color: #6b7280">Produce <span style="font-weight: 400; text-transform: none; letter-spacing: normal">4 items · 1 done</span></span>
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#9ca3af" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 15l7-7 7 7"></path></svg>
+      </button>
+      <div style="display: flex; flex-direction: column; gap: 7px">
+        <div style="display: flex; align-items: center; border: 1px solid #e2e8f0; border-radius: 10.5px; background: #ffffff">
+          <button type="button" aria-pressed="false" style="flex: 1; min-width: 0; min-height: 44px; padding: 7px; border: none; background: transparent; font: inherit; color: inherit; text-align: left; display: flex; align-items: center; gap: 10.5px">
+            <span style="width: 42px; height: 42px; flex: none; border-radius: 7px; background: #eadccd"></span>
+            <span style="flex: 1; min-width: 0; display: flex; flex-direction: column"><span style="font-size: 15px; line-height: 21px; font-weight: 500; color: #1f2937">Cherry tomatoes</span><span style="font-size: 13px; line-height: 18px; color: #6b7280">250 g · ~€2.10</span></span>
+            <span style="width: 24px; height: 24px; flex: none; box-sizing: border-box; border-radius: 9999px; border: 2px solid #d1d5db"></span>
+          </button>
+        </div>
+        <div style="display: flex; align-items: center; border: 1px solid #f3f4f6; border-radius: 10.5px; background: #f9fafb; opacity: .7">
+          <button type="button" aria-pressed="true" style="flex: 1; min-width: 0; min-height: 44px; padding: 7px; border: none; background: transparent; font: inherit; color: inherit; text-align: left; display: flex; align-items: center; gap: 10.5px">
+            <span style="width: 42px; height: 42px; flex: none; border-radius: 7px; background: #eadccd"></span>
+            <span style="flex: 1; min-width: 0; display: flex; flex-direction: column"><span style="font-size: 15px; line-height: 21px; font-weight: 500; color: #6b7280; text-decoration: line-through">Baby spinach</span><span style="font-size: 13px; line-height: 18px; color: #6b7280">200 g · ~€1.80</span></span>
+            <span style="width: 24px; height: 24px; flex: none; box-sizing: border-box; border-radius: 9999px; border: 2px solid #944a00; background: #944a00; color: #ffffff; display: flex; align-items: center; justify-content: center"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"></path></svg></span>
+          </button>
+        </div>
+        <div style="display: flex; align-items: center; border: 1px solid #a7f3d0; border-radius: 10.5px; background: rgba(236,253,245,.4)">
+          <button type="button" aria-pressed="false" style="flex: 1; min-width: 0; min-height: 44px; padding: 7px; border: none; background: transparent; font: inherit; color: inherit; text-align: left; display: flex; align-items: center; gap: 10.5px">
+            <span style="width: 42px; height: 42px; flex: none; border-radius: 7px; background: #eadccd"></span>
+            <span style="flex: 1; min-width: 0; display: flex; flex-direction: column">
+              <span style="display: flex; align-items: center; gap: 5.25px"><span style="font-size: 15px; line-height: 21px; font-weight: 500; color: #1f2937">Lemons</span><span style="border-radius: 9999px; padding: 1.75px 7px; background: #d1fae5; color: #047857; font-size: 12px; font-weight: 600; text-transform: uppercase">Have it</span></span>
+              <span style="font-size: 13px; line-height: 18px; color: #6b7280; white-space: nowrap; overflow: hidden; text-overflow: ellipsis">3 pcs · ~€1.20 · in your kitchen</span>
+            </span>
+            <span style="width: 24px; height: 24px; flex: none; box-sizing: border-box; border-radius: 9999px; border: 2px solid #d1d5db"></span>
+          </button>
+          <button type="button" aria-label="Out of Lemons — add it back" style="width: 44px; height: 44px; flex: none; border: none; background: transparent; color: #059669; display: flex; align-items: center; justify-content: center; padding: 0"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19.5 12a7.5 7.5 0 11-2.2-5.3M19.5 4v4.5H15"></path></svg></button>
+        </div>
+        <div style="display: flex; align-items: center; border: 1px solid #e2e8f0; border-radius: 10.5px; background: #ffffff">
+          <button type="button" aria-pressed="false" style="flex: 1; min-width: 0; min-height: 44px; padding: 7px; border: none; background: transparent; font: inherit; color: inherit; text-align: left; display: flex; align-items: center; gap: 10.5px">
+            <span style="width: 42px; height: 42px; flex: none; border-radius: 7px; background: #eadccd"></span>
+            <span style="flex: 1; min-width: 0; display: flex; flex-direction: column"><span style="font-size: 15px; line-height: 21px; font-weight: 500; color: #1f2937">Fresh dill</span><span style="font-size: 13px; line-height: 18px; color: #6b7280">1 bunch · ~€1.00</span></span>
+            <span style="width: 24px; height: 24px; flex: none; box-sizing: border-box; border-radius: 9999px; border: 2px solid #d1d5db"></span>
+          </button>
+        </div>
+      </div>
+    </section>
+
+    <section aria-label="Proteins">
+      <button type="button" aria-expanded="false" style="width: 100%; min-height: 44px; margin-bottom: 7px; padding: 0 3.5px; border: none; background: transparent; font: inherit; display: flex; align-items: center; justify-content: space-between; text-align: left">
+        <span style="font-size: 13px; font-weight: 600; text-transform: uppercase; letter-spacing: .1em; color: #6b7280">Proteins <span style="font-weight: 400; text-transform: none; letter-spacing: normal">5 items</span></span>
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#9ca3af" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 9l7 7 7-7"></path></svg>
+      </button>
+    </section>
+    <section aria-label="Dairy &amp; Eggs">
+      <button type="button" aria-expanded="false" style="width: 100%; min-height: 44px; margin-bottom: 7px; padding: 0 3.5px; border: none; background: transparent; font: inherit; display: flex; align-items: center; justify-content: space-between; text-align: left">
+        <span style="font-size: 13px; font-weight: 600; text-transform: uppercase; letter-spacing: .1em; color: #6b7280">Dairy &amp; Eggs <span style="font-weight: 400; text-transform: none; letter-spacing: normal">4 items</span></span>
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#9ca3af" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 9l7 7 7-7"></path></svg>
+      </button>
+    </section>
+    <section aria-label="Grains &amp; Pantry">
+      <button type="button" aria-expanded="false" style="width: 100%; min-height: 44px; margin-bottom: 7px; padding: 0 3.5px; border: none; background: transparent; font: inherit; display: flex; align-items: center; justify-content: space-between; text-align: left">
+        <span style="font-size: 13px; font-weight: 600; text-transform: uppercase; letter-spacing: .1em; color: #6b7280">Grains &amp; Pantry <span style="font-weight: 400; text-transform: none; letter-spacing: normal">8 items</span></span>
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#9ca3af" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 9l7 7 7-7"></path></svg>
+      </button>
+    </section>
+    <section aria-label="Other">
+      <button type="button" aria-expanded="false" style="width: 100%; min-height: 44px; margin-bottom: 7px; padding: 0 3.5px; border: none; background: transparent; font: inherit; display: flex; align-items: center; justify-content: space-between; text-align: left">
+        <span style="font-size: 13px; font-weight: 600; text-transform: uppercase; letter-spacing: .1em; color: #6b7280">Other <span style="font-weight: 400; text-transform: none; letter-spacing: normal">3 items</span></span>
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#9ca3af" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 9l7 7 7-7"></path></svg>
+      </button>
+    </section>
+  </main>
+
+  <nav aria-label="Food tabs" style="margin-top: auto; flex: none; height: 83px; box-sizing: border-box; border-top: 1px solid #e2e8f0; background: #ffffff; display: flex; padding: 7px 0 34px">
+    <a href="FoodToday.dc.html" style="flex: 1; display: flex; flex-direction: column; align-items: center; gap: 2px; color: #8e8e93; font-size: 12px; font-weight: 600; text-decoration: none"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3.5" y="5" width="17" height="15.5" rx="2.5"></rect><path d="M3.5 9.5h17M8 3v3.5M16 3v3.5"></path><rect x="13.5" y="13" width="3.5" height="3.5" rx=".8"></rect></svg><span>Today</span></a>
+    <a href="MealPlan.dc.html" style="flex: 1; display: flex; flex-direction: column; align-items: center; gap: 2px; color: #8e8e93; font-size: 12px; font-weight: 600; text-decoration: none"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3.5" y="5" width="17" height="15.5" rx="2.5"></rect><path d="M3.5 9.5h17M8 3v3.5M16 3v3.5"></path></svg><span>Plan</span></a>
+    <a href="ShoppingList.dc.html" aria-current="page" style="flex: 1; display: flex; flex-direction: column; align-items: center; gap: 2px; color: #944a00; font-size: 12px; font-weight: 600; text-decoration: none"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="9" cy="20" r="1.3"></circle><circle cx="17.5" cy="20" r="1.3"></circle><path d="M2.5 3.5h3l2.4 11.5h11l2-8.5H6.6"></path></svg><span>Shop</span></a>
+    <a href="Cookbook.dc.html" style="flex: 1; display: flex; flex-direction: column; align-items: center; gap: 2px; color: #8e8e93; font-size: 12px; font-weight: 600; text-decoration: none"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 6.5c-2-1.7-5-2.3-8.5-2v14c3.5-.3 6.5.3 8.5 2 2-1.7 5-2.3 8.5-2v-14c-3.5-.3-6.5.3-8.5 2zM12 6.5v14"></path></svg><span>Cookbook</span></a>
+    <a href="More.dc.html" style="flex: 1; display: flex; flex-direction: column; align-items: center; gap: 2px; color: #8e8e93; font-size: 12px; font-weight: 600; text-decoration: none"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16"></path></svg><span>More</span></a>
+  </nav>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":1080}}'>
+class Component extends DCLogic {
+renderVals() {
+return {};
+}
+}
+</script>
+</body>
+</html>

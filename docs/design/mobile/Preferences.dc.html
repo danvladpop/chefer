@@ -1,0 +1,257 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Account — Preferences</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+body{margin:0}
+a{color:#944a00;text-decoration:none}a:hover{color:#6e3700}
+input::placeholder,textarea::placeholder{color:#9ca3af}
+</style>
+</helmet>
+<div style="width: 390px; height: 3220px; position: relative; overflow: hidden; background: #ffffff; font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Helvetica Neue', system-ui, sans-serif; color: #020817; display: flex; flex-direction: column">
+  <div style="height: 47px; flex: none"></div>
+
+  <header style="flex: none; display: flex; align-items: center; gap: 10.5px; padding: 10.5px 14px">
+    <a href="More.dc.html" aria-label="Back" style="width: 44px; height: 44px; display: flex; align-items: center; justify-content: center; color: #1f2937"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M11 5l-7 7 7 7M4 12h16"></path></svg></a>
+    <h1 style="margin: 0; font-size: 25px; line-height: 31px; font-weight: 700">Preferences</h1>
+  </header>
+
+  <main id="main" style="flex: 1; display: flex; flex-direction: column; gap: 14px; padding: 0 14px 28px">
+
+    <p style="margin: 0; font-size: 15px; line-height: 21px; color: #8a7560">Your allergies and dietary restrictions apply to every plan — free or premium.</p>
+
+    <div style="align-self: flex-start; border: 1px solid rgba(148,74,0,.3); border-radius: 7px; background: #fcf3ea; padding: 7px 14px">
+      <span style="font-size: 15px; line-height: 21px; font-weight: 500; color: #944a00">2,133 kcal / day — current target</span>
+    </div>
+
+    <!-- Food safety -->
+    <section aria-labelledby="prefs-safety-title" style="border: 1px solid #e2e8f0; border-radius: 7px; background: #ffffff; padding: 14px; display: flex; flex-direction: column; gap: 14px">
+      <h2 id="prefs-safety-title" style="margin: 0; font-size: 19px; line-height: 26px; font-weight: 600">Food safety</h2>
+
+      <div style="display: flex; flex-direction: column; gap: 7px">
+        <label for="prefs-restrictions-input" style="font-size: 15px; line-height: 21px; font-weight: 500">Dietary restrictions</label>
+        <div style="display: flex; gap: 7px">
+          <input id="prefs-restrictions-input" placeholder="e.g. vegetarian" style="flex: 1; min-width: 0; height: 44px; box-sizing: border-box; border: 1px solid #e2e8f0; border-radius: 5.25px; padding: 0 10.5px; font: inherit; font-size: 17px; color: #020817; background: #ffffff">
+          <button type="button" aria-label="Add to Dietary restrictions" style="width: 44px; height: 44px; flex: none; border: 1px solid #e2e8f0; border-radius: 5.25px; background: #ffffff; color: #944a00; display: flex; align-items: center; justify-content: center"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14M5 12h14"></path></svg></button>
+        </div>
+        <div style="display: flex; flex-wrap: wrap; gap: 5.25px">
+          <button type="button" aria-label="Remove Vegetarian" style="min-height: 31.5px; padding: 0 10.5px; border: none; border-radius: 9999px; background: #fcf3ea; color: #944a00; font: inherit; font-size: 13px; font-weight: 500; display: flex; align-items: center; gap: 3.5px">Vegetarian<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"></path></svg></button>
+        </div>
+      </div>
+
+      <div style="display: flex; flex-direction: column; gap: 7px">
+        <label for="prefs-allergies-input" style="font-size: 15px; line-height: 21px; font-weight: 500">Allergies</label>
+        <div style="display: flex; gap: 7px">
+          <input id="prefs-allergies-input" placeholder="e.g. peanuts" style="flex: 1; min-width: 0; height: 44px; box-sizing: border-box; border: 1px solid #e2e8f0; border-radius: 5.25px; padding: 0 10.5px; font: inherit; font-size: 17px; color: #020817; background: #ffffff">
+          <button type="button" aria-label="Add to Allergies" style="width: 44px; height: 44px; flex: none; border: 1px solid #e2e8f0; border-radius: 5.25px; background: #ffffff; color: #944a00; display: flex; align-items: center; justify-content: center"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14M5 12h14"></path></svg></button>
+        </div>
+        <div style="display: flex; flex-wrap: wrap; gap: 5.25px">
+          <button type="button" aria-label="Remove Peanuts" style="min-height: 31.5px; padding: 0 10.5px; border: none; border-radius: 9999px; background: #fcf3ea; color: #944a00; font: inherit; font-size: 13px; font-weight: 500; display: flex; align-items: center; gap: 3.5px">Peanuts<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"></path></svg></button>
+          <button type="button" aria-label="Remove Shellfish" style="min-height: 31.5px; padding: 0 10.5px; border: none; border-radius: 9999px; background: #fcf3ea; color: #944a00; font: inherit; font-size: 13px; font-weight: 500; display: flex; align-items: center; gap: 3.5px">Shellfish<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"></path></svg></button>
+        </div>
+      </div>
+
+      <div style="display: flex; flex-direction: column; gap: 7px">
+        <label for="prefs-disliked-input" style="font-size: 15px; line-height: 21px; font-weight: 500">Disliked ingredients</label>
+        <div style="display: flex; gap: 7px">
+          <input id="prefs-disliked-input" placeholder="e.g. cilantro" style="flex: 1; min-width: 0; height: 44px; box-sizing: border-box; border: 1px solid #e2e8f0; border-radius: 5.25px; padding: 0 10.5px; font: inherit; font-size: 17px; color: #020817; background: #ffffff">
+          <button type="button" aria-label="Add to Disliked ingredients" style="width: 44px; height: 44px; flex: none; border: 1px solid #e2e8f0; border-radius: 5.25px; background: #ffffff; color: #944a00; display: flex; align-items: center; justify-content: center"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14M5 12h14"></path></svg></button>
+        </div>
+        <div style="display: flex; flex-wrap: wrap; gap: 5.25px">
+          <button type="button" aria-label="Remove Cilantro" style="min-height: 31.5px; padding: 0 10.5px; border: none; border-radius: 9999px; background: #fcf3ea; color: #944a00; font: inherit; font-size: 13px; font-weight: 500; display: flex; align-items: center; gap: 3.5px">Cilantro<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"></path></svg></button>
+          <button type="button" aria-label="Remove Olives" style="min-height: 31.5px; padding: 0 10.5px; border: none; border-radius: 9999px; background: #fcf3ea; color: #944a00; font: inherit; font-size: 13px; font-weight: 500; display: flex; align-items: center; gap: 3.5px">Olives<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"></path></svg></button>
+        </div>
+      </div>
+
+      <button type="button" style="height: 44px; padding: 0 14px; border: none; border-radius: 5.25px; background: #944a00; color: #fcf9f5; font: inherit; font-size: 15px; font-weight: 500">Save safety preferences</button>
+    </section>
+
+    <!-- Goal & body -->
+    <section aria-labelledby="prefs-goal-title" style="border: 1px solid #e2e8f0; border-radius: 7px; background: #ffffff; padding: 14px; display: flex; flex-direction: column; gap: 14px">
+      <div style="display: flex; flex-direction: column; gap: 3.5px">
+        <h2 id="prefs-goal-title" style="margin: 0; font-size: 19px; line-height: 26px; font-weight: 600">Goal &amp; body</h2>
+        <p style="margin: 0; font-size: 13px; line-height: 18px; color: #8a7560">Optional, and available on every plan — with these, your calorie target is computed from your body instead of a default.</p>
+      </div>
+
+      <div role="group" aria-labelledby="prefs-goal-label" style="display: flex; flex-direction: column; gap: 7px">
+        <span id="prefs-goal-label" style="font-size: 15px; line-height: 21px; font-weight: 500">Goal</span>
+        <button type="button" aria-pressed="true" style="padding: 10.5px; border: 1px solid #944a00; border-radius: 10.5px; background: #fcf3ea; font: inherit; color: inherit; text-align: left; display: flex; align-items: center; gap: 10.5px">
+          <span aria-hidden="true" style="font-size: 21px; line-height: 28px">⚖️</span>
+          <span style="flex: 1; min-width: 0; display: flex; flex-direction: column"><span style="font-size: 15px; line-height: 21px; font-weight: 600; color: #944a00">Lose Weight</span><span style="font-size: 13px; line-height: 18px; color: #8a7560">Reduce body fat and reach a healthier weight · −500 kcal/day deficit</span></span>
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#944a00" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex: none; color: #944a00"><circle cx="12" cy="12" r="9.5" fill="currentColor" stroke="none"></circle><path d="M7.5 12.3l3 3 6-6" stroke="#ffffff"></path></svg>
+        </button>
+        <button type="button" aria-pressed="false" style="padding: 10.5px; border: 1px solid #e2e8f0; border-radius: 10.5px; background: #ffffff; font: inherit; color: inherit; text-align: left; display: flex; align-items: center; gap: 10.5px">
+          <span aria-hidden="true" style="font-size: 21px; line-height: 28px">🎯</span>
+          <span style="flex: 1; min-width: 0; display: flex; flex-direction: column"><span style="font-size: 15px; line-height: 21px; font-weight: 600; color: #1f2937">Maintain Weight</span><span style="font-size: 13px; line-height: 18px; color: #8a7560">Keep your current weight while eating well · Maintenance calories</span></span>
+        </button>
+        <button type="button" aria-pressed="false" style="padding: 10.5px; border: 1px solid #e2e8f0; border-radius: 10.5px; background: #ffffff; font: inherit; color: inherit; text-align: left; display: flex; align-items: center; gap: 10.5px">
+          <span aria-hidden="true" style="font-size: 21px; line-height: 28px">💪</span>
+          <span style="flex: 1; min-width: 0; display: flex; flex-direction: column"><span style="font-size: 15px; line-height: 21px; font-weight: 600; color: #1f2937">Gain Muscle</span><span style="font-size: 13px; line-height: 18px; color: #8a7560">Build strength and increase lean muscle mass · +300 kcal/day surplus</span></span>
+        </button>
+        <button type="button" aria-pressed="false" style="padding: 10.5px; border: 1px solid #e2e8f0; border-radius: 10.5px; background: #ffffff; font: inherit; color: inherit; text-align: left; display: flex; align-items: center; gap: 10.5px">
+          <span aria-hidden="true" style="font-size: 21px; line-height: 28px">🥗</span>
+          <span style="flex: 1; min-width: 0; display: flex; flex-direction: column"><span style="font-size: 15px; line-height: 21px; font-weight: 600; color: #1f2937">Eat Healthier</span><span style="font-size: 13px; line-height: 18px; color: #8a7560">Improve overall nutrition and eating habits · Maintenance calories, better macros</span></span>
+        </button>
+      </div>
+
+      <div style="display: flex; flex-direction: column; gap: 17.5px">
+        <div role="group" aria-labelledby="metrics-sex-label" style="display: flex; flex-direction: column; gap: 5.25px">
+          <span id="metrics-sex-label" style="font-size: 15px; line-height: 21px; font-weight: 500">Biological sex</span>
+          <span style="font-size: 13px; line-height: 18px; color: #8a7560">Used for accurate calorie calculation.</span>
+          <div style="display: flex; gap: 7px">
+            <button type="button" aria-pressed="true" style="flex: 1; height: 44px; border: 1px solid #944a00; border-radius: 5.25px; background: #944a00; color: #fcf9f5; font: inherit; font-size: 15px; font-weight: 500">Male</button>
+            <button type="button" aria-pressed="false" style="flex: 1; height: 44px; border: 1px solid #e2e8f0; border-radius: 5.25px; background: #ffffff; color: #4b5563; font: inherit; font-size: 15px; font-weight: 500">Female</button>
+          </div>
+        </div>
+
+        <div style="display: flex; gap: 7px">
+          <div style="flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3.5px">
+            <label for="metrics-age" style="font-size: 15px; line-height: 21px; font-weight: 500">Age</label>
+            <input id="metrics-age" inputmode="numeric" value="30" placeholder="e.g. 30" style="height: 44px; box-sizing: border-box; width: 100%; border: 1px solid #e2e8f0; border-radius: 5.25px; padding: 0 10.5px; font: inherit; font-size: 17px; color: #020817; background: #ffffff">
+          </div>
+          <div style="flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3.5px">
+            <label for="metrics-height" style="font-size: 15px; line-height: 21px; font-weight: 500; white-space: nowrap">Height (cm)</label>
+            <input id="metrics-height" inputmode="decimal" value="175" placeholder="e.g. 175" style="height: 44px; box-sizing: border-box; width: 100%; border: 1px solid #e2e8f0; border-radius: 5.25px; padding: 0 10.5px; font: inherit; font-size: 17px; color: #020817; background: #ffffff">
+          </div>
+          <div style="flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3.5px">
+            <label for="metrics-weight" style="font-size: 15px; line-height: 21px; font-weight: 500; white-space: nowrap">Weight (kg)</label>
+            <input id="metrics-weight" inputmode="decimal" value="75" placeholder="e.g. 75" style="height: 44px; box-sizing: border-box; width: 100%; border: 1px solid #e2e8f0; border-radius: 5.25px; padding: 0 10.5px; font: inherit; font-size: 17px; color: #020817; background: #ffffff">
+          </div>
+        </div>
+
+        <div role="group" aria-labelledby="metrics-activity-label" style="display: flex; flex-direction: column; gap: 5.25px">
+          <span id="metrics-activity-label" style="font-size: 15px; line-height: 21px; font-weight: 500">Activity level</span>
+          <div style="display: flex; flex-direction: column; gap: 7px">
+            <button type="button" aria-pressed="false" style="padding: 10.5px; border: 1px solid #e2e8f0; border-radius: 10.5px; background: #ffffff; font: inherit; color: inherit; text-align: left; display: flex; align-items: center; gap: 10.5px">
+              <span style="flex: 1; min-width: 0; display: flex; flex-direction: column"><span style="font-size: 15px; line-height: 21px; font-weight: 600; color: #1f2937">Sedentary</span><span style="font-size: 13px; line-height: 18px; color: #8a7560">Little or no exercise, desk job</span></span>
+            </button>
+            <button type="button" aria-pressed="false" style="padding: 10.5px; border: 1px solid #e2e8f0; border-radius: 10.5px; background: #ffffff; font: inherit; color: inherit; text-align: left; display: flex; align-items: center; gap: 10.5px">
+              <span style="flex: 1; min-width: 0; display: flex; flex-direction: column"><span style="font-size: 15px; line-height: 21px; font-weight: 600; color: #1f2937">Lightly Active</span><span style="font-size: 13px; line-height: 18px; color: #8a7560">Light exercise 1–3 days/week</span></span>
+            </button>
+            <button type="button" aria-pressed="true" style="padding: 10.5px; border: 1px solid #944a00; border-radius: 10.5px; background: #fcf3ea; font: inherit; color: inherit; text-align: left; display: flex; align-items: center; gap: 10.5px">
+              <span style="flex: 1; min-width: 0; display: flex; flex-direction: column"><span style="font-size: 15px; line-height: 21px; font-weight: 600; color: #944a00">Moderately Active</span><span style="font-size: 13px; line-height: 18px; color: #8a7560">Moderate exercise 3–5 days/week</span></span>
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#944a00" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex: none; color: #944a00"><circle cx="12" cy="12" r="9.5" fill="currentColor" stroke="none"></circle><path d="M7.5 12.3l3 3 6-6" stroke="#ffffff"></path></svg>
+            </button>
+            <button type="button" aria-pressed="false" style="padding: 10.5px; border: 1px solid #e2e8f0; border-radius: 10.5px; background: #ffffff; font: inherit; color: inherit; text-align: left; display: flex; align-items: center; gap: 10.5px">
+              <span style="flex: 1; min-width: 0; display: flex; flex-direction: column"><span style="font-size: 15px; line-height: 21px; font-weight: 600; color: #1f2937">Very Active</span><span style="font-size: 13px; line-height: 18px; color: #8a7560">Hard exercise 6–7 days/week</span></span>
+            </button>
+            <button type="button" aria-pressed="false" style="padding: 10.5px; border: 1px solid #e2e8f0; border-radius: 10.5px; background: #ffffff; font: inherit; color: inherit; text-align: left; display: flex; align-items: center; gap: 10.5px">
+              <span style="flex: 1; min-width: 0; display: flex; flex-direction: column"><span style="font-size: 15px; line-height: 21px; font-weight: 600; color: #1f2937">Athlete</span><span style="font-size: 13px; line-height: 18px; color: #8a7560">Very hard exercise or physical job</span></span>
+            </button>
+          </div>
+        </div>
+
+        <div aria-live="polite" style="border: 2px solid rgba(148,74,0,.3); border-radius: 7px; background: #fcf3ea; padding: 14px; display: flex; flex-direction: column; align-items: center; gap: 3.5px">
+          <span style="font-size: 13px; line-height: 18px; color: #8a7560">Estimated daily calorie target</span>
+          <b style="font-size: 31px; line-height: 37px; font-weight: 700; color: #944a00">2,133</b>
+          <span style="font-size: 13px; line-height: 18px; color: #8a7560; text-align: center">kcal / day · 2,633 maintenance</span>
+        </div>
+      </div>
+
+      <button type="button" style="height: 44px; padding: 0 14px; border: none; border-radius: 5.25px; background: #944a00; color: #fcf9f5; font: inherit; font-size: 15px; font-weight: 500">Save goal &amp; body</button>
+    </section>
+
+    <a href="OnbIntent.dc.html" style="min-height: 44px; box-sizing: border-box; border: 1px solid #e2e8f0; border-radius: 10.5px; background: #ffffff; padding: 0 14px; display: flex; align-items: center; justify-content: space-between; color: inherit; text-decoration: none">
+      <span style="font-size: 15px; line-height: 21px; font-weight: 500; color: #1f2937">Full setup: cuisine, cadence &amp; targets</span>
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#9ca3af" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 5l7 7-7 7"></path></svg>
+    </a>
+
+    <!-- Plan my week every Sunday -->
+    <section aria-labelledby="prefs-auto-plan-title" style="border: 1px solid #e2e8f0; border-radius: 7px; background: #ffffff; padding: 14px; display: flex; flex-direction: column; gap: 7px">
+      <div style="display: flex; align-items: center; justify-content: space-between; gap: 10.5px">
+        <div style="flex: 1; min-width: 0; display: flex; flex-direction: column">
+          <h2 id="prefs-auto-plan-title" style="margin: 0; font-size: 19px; line-height: 26px; font-weight: 600">Plan my week every Sunday</h2>
+          <p style="margin: 3.5px 0 0; font-size: 15px; line-height: 21px; color: #8a7560">Your chef prepares next week on Sunday morning, learning from what you rate. If you follow a saved week in My weeks, that week repeats instead.</p>
+        </div>
+        <button type="button" role="switch" aria-checked="true" aria-label="Plan my week every Sunday" style="width: 51px; height: 31px; flex: none; padding: 2px; border: none; border-radius: 9999px; background: #944a00; display: flex; justify-content: flex-end"><span style="width: 27px; height: 27px; border-radius: 9999px; background: #ffffff; box-shadow: 0 2px 4px rgba(0,0,0,.2)"></span></button>
+      </div>
+    </section>
+
+    <!-- Weekly updates -->
+    <section aria-labelledby="prefs-weekly-title" style="border: 1px solid #e2e8f0; border-radius: 7px; background: #ffffff; padding: 14px; display: flex; flex-direction: column; gap: 10.5px">
+      <h2 id="prefs-weekly-title" style="margin: 0; font-size: 19px; line-height: 26px; font-weight: 600">Weekly updates</h2>
+
+      <div style="display: flex; flex-direction: column; gap: 3.5px">
+        <span style="font-size: 15px; line-height: 21px; font-weight: 500">On this phone</span>
+        <div style="min-height: 44px; padding: 3.5px 0; display: flex; align-items: center; justify-content: space-between; gap: 10.5px">
+          <div style="flex: 1; min-width: 0; display: flex; flex-direction: column">
+            <span style="font-size: 15px; line-height: 21px; font-weight: 500; color: #111827">Monday plan and Sunday recap</span>
+            <span style="font-size: 13px; line-height: 18px; color: #8a7560">A notification at 8:00 on Monday and 18:00 on Sunday.</span>
+          </div>
+          <button type="button" role="switch" aria-checked="false" aria-label="Monday plan and Sunday recap" style="width: 51px; height: 31px; flex: none; padding: 2px; border: none; border-radius: 9999px; background: #d1d5db; display: flex; justify-content: flex-start"><span style="width: 27px; height: 27px; border-radius: 9999px; background: #ffffff; box-shadow: 0 2px 4px rgba(0,0,0,.2)"></span></button>
+        </div>
+      </div>
+
+      <div style="display: flex; flex-direction: column; gap: 3.5px">
+        <span style="font-size: 15px; line-height: 21px; font-weight: 500">By email</span>
+        <span style="font-size: 13px; line-height: 18px; color: #8a7560">Sent to dan@example.com.</span>
+        <div style="min-height: 44px; padding: 3.5px 0; display: flex; align-items: center; justify-content: space-between; gap: 10.5px">
+          <div style="flex: 1; min-width: 0; display: flex; flex-direction: column">
+            <span style="font-size: 15px; line-height: 21px; font-weight: 500; color: #111827">Monday: your week is ready</span>
+            <span style="font-size: 13px; line-height: 18px; color: #8a7560">This week's dinners and your estimated shopping list.</span>
+          </div>
+          <button type="button" role="switch" aria-checked="true" aria-label="Monday: your week is ready" style="width: 51px; height: 31px; flex: none; padding: 2px; border: none; border-radius: 9999px; background: #944a00; display: flex; justify-content: flex-end"><span style="width: 27px; height: 27px; border-radius: 9999px; background: #ffffff; box-shadow: 0 2px 4px rgba(0,0,0,.2)"></span></button>
+        </div>
+        <div style="min-height: 44px; padding: 3.5px 0; display: flex; align-items: center; justify-content: space-between; gap: 10.5px">
+          <div style="flex: 1; min-width: 0; display: flex; flex-direction: column">
+            <span style="font-size: 15px; line-height: 21px; font-weight: 500; color: #111827">Sunday: your week in review</span>
+            <span style="font-size: 13px; line-height: 18px; color: #8a7560">Meals logged, days on target, weight and workouts.</span>
+          </div>
+          <button type="button" role="switch" aria-checked="true" aria-label="Sunday: your week in review" style="width: 51px; height: 31px; flex: none; padding: 2px; border: none; border-radius: 9999px; background: #944a00; display: flex; justify-content: flex-end"><span style="width: 27px; height: 27px; border-radius: 9999px; background: #ffffff; box-shadow: 0 2px 4px rgba(0,0,0,.2)"></span></button>
+        </div>
+      </div>
+    </section>
+
+    <!-- Units & currency -->
+    <section aria-labelledby="prefs-display-title" style="border: 1px solid #e2e8f0; border-radius: 7px; background: #ffffff; padding: 14px; display: flex; flex-direction: column; gap: 14px">
+      <h2 id="prefs-display-title" style="margin: 0; font-size: 19px; line-height: 26px; font-weight: 600">Units &amp; currency</h2>
+      <div role="radiogroup" aria-labelledby="prefs-units-label" style="display: flex; flex-direction: column; gap: 7px">
+        <span id="prefs-units-label" style="font-size: 15px; line-height: 21px; font-weight: 500">Measurement units</span>
+        <div style="display: flex; gap: 7px">
+          <button type="button" role="radio" aria-checked="true" style="flex: 1; min-height: 44px; padding: 0 7px; border: 1px solid #944a00; border-radius: 5.25px; background: #944a00; color: #fcf9f5; font: inherit; font-size: 15px; font-weight: 500">Metric (g, kg)</button>
+          <button type="button" role="radio" aria-checked="false" style="flex: 1; min-height: 44px; padding: 0 7px; border: 1px solid #e2e8f0; border-radius: 5.25px; background: #ffffff; color: #4b5563; font: inherit; font-size: 15px; font-weight: 500">Imperial (oz, lb)</button>
+        </div>
+        <span style="font-size: 13px; line-height: 18px; color: #8a7560">Recipes, shopping lists, your body weight and gym loads all use this system.</span>
+      </div>
+      <div role="radiogroup" aria-labelledby="prefs-currency-label" style="display: flex; flex-direction: column; gap: 7px">
+        <span id="prefs-currency-label" style="font-size: 15px; line-height: 21px; font-weight: 500">Currency</span>
+        <div style="display: flex; flex-wrap: wrap; gap: 7px">
+          <button type="button" role="radio" aria-checked="true" style="height: 44px; min-width: 56px; padding: 0 10.5px; border: 1px solid #944a00; border-radius: 5.25px; background: #944a00; color: #fcf9f5; font: inherit; font-size: 15px; font-weight: 500">EUR</button>
+          <button type="button" role="radio" aria-checked="false" style="height: 44px; min-width: 56px; padding: 0 10.5px; border: 1px solid #e2e8f0; border-radius: 5.25px; background: #ffffff; color: #4b5563; font: inherit; font-size: 15px; font-weight: 500">USD</button>
+          <button type="button" role="radio" aria-checked="false" style="height: 44px; min-width: 56px; padding: 0 10.5px; border: 1px solid #e2e8f0; border-radius: 5.25px; background: #ffffff; color: #4b5563; font: inherit; font-size: 15px; font-weight: 500">GBP</button>
+          <button type="button" role="radio" aria-checked="false" style="height: 44px; min-width: 56px; padding: 0 10.5px; border: 1px solid #e2e8f0; border-radius: 5.25px; background: #ffffff; color: #4b5563; font: inherit; font-size: 15px; font-weight: 500">RON</button>
+        </div>
+        <span style="font-size: 13px; line-height: 18px; color: #8a7560">Prices are estimates from typical supermarket prices.</span>
+      </div>
+      <button type="button" style="height: 44px; padding: 0 14px; border: 1px solid #e2e8f0; border-radius: 5.25px; background: #ffffff; color: #020817; font: inherit; font-size: 15px; font-weight: 500">Save units &amp; currency</button>
+    </section>
+
+    <!-- Weekly budget -->
+    <section aria-labelledby="prefs-budget-title" style="border: 1px solid #e2e8f0; border-radius: 7px; background: #ffffff; padding: 14px; display: flex; flex-direction: column; gap: 14px">
+      <h2 id="prefs-budget-title" style="margin: 0; font-size: 19px; line-height: 26px; font-weight: 600">Weekly budget</h2>
+      <div style="display: flex; flex-direction: column; gap: 7px">
+        <label for="prefs-budget" style="font-size: 15px; line-height: 21px; font-weight: 500">Weekly ingredient budget (€, optional)</label>
+        <input id="prefs-budget" inputmode="decimal" value="60" placeholder="e.g. 60" style="height: 44px; box-sizing: border-box; width: 100%; border: 1px solid #e2e8f0; border-radius: 5.25px; padding: 0 10.5px; font: inherit; font-size: 17px; color: #020817; background: #ffffff">
+      </div>
+      <button type="button" style="height: 44px; padding: 0 14px; border: 1px solid #e2e8f0; border-radius: 5.25px; background: #ffffff; color: #020817; font: inherit; font-size: 15px; font-weight: 500">Save budget</button>
+    </section>
+  </main>
+
+  <div style="height: 34px; flex: none"></div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":3220}}'>
+class Component extends DCLogic {
+renderVals() {
+return {};
+}
+}
+</script>
+</body>
+</html>

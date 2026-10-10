@@ -1,0 +1,113 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Gym — Today</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+body{margin:0}
+a{color:#944a00;text-decoration:none}a:hover{color:#6e3700}
+input::placeholder,textarea::placeholder{color:#9ca3af}
+</style>
+</helmet>
+<div style="width: 390px; height: 965px; position: relative; overflow: hidden; background: #ffffff; font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Helvetica Neue', system-ui, sans-serif; color: #020817; display: flex; flex-direction: column">
+  <div style="height: 47px; flex: none"></div>
+
+  <main id="main" style="flex: 1; display: flex; flex-direction: column; gap: 14px; padding: 14px">
+
+    <div style="display: flex; flex-direction: column; gap: 3.5px">
+      <div style="display: flex; align-items: center; justify-content: space-between">
+        <div role="tablist" aria-label="Mode" style="width: 126px; height: 28px; box-sizing: border-box; background: #faf5f0; border-radius: 7px; padding: 3px; display: flex">
+          <a href="FoodToday.dc.html" role="tab" aria-selected="false" style="flex: 1; border-radius: 5px; color: #8a7560; font-size: 13px; font-weight: 500; display: flex; align-items: center; justify-content: center; text-decoration: none">Food</a>
+          <a href="GymToday.dc.html" role="tab" aria-selected="true" style="flex: 1; border-radius: 5px; background: #ffffff; box-shadow: 0 1px 2px rgba(0,0,0,.08); color: #020817; font-size: 13px; font-weight: 500; display: flex; align-items: center; justify-content: center; text-decoration: none">Gym</a>
+        </div>
+        <a href="Profile.dc.html" aria-label="Profile" style="width: 44px; height: 44px; display: flex; align-items: center; justify-content: center; text-decoration: none"><span style="width: 31.5px; height: 31.5px; border-radius: 9999px; background: #944a00; color: #ffffff; font-size: 15px; font-weight: 600; display: flex; align-items: center; justify-content: center">DP</span></a>
+      </div>
+      <h1 style="margin: 3.5px 0 0; font-size: 25px; line-height: 31px; font-weight: 700">Today</h1>
+    </div>
+
+    <section aria-label="This week" style="border: 1px solid #e2e8f0; border-radius: 7px; background: #ffffff; padding: 14px; display: flex; flex-direction: column; gap: 10.5px">
+      <div style="display: flex; justify-content: space-between">
+        <div style="display: flex; flex-direction: column; align-items: center; gap: 3.5px"><span style="font-size: 12px; line-height: 15px; color: #8a7560">M</span><i aria-label="Monday: done" style="width: 10.5px; height: 10.5px; box-sizing: border-box; border-radius: 9999px; background: #944a00"></i></div>
+        <div style="display: flex; flex-direction: column; align-items: center; gap: 3.5px"><span style="font-size: 12px; line-height: 15px; color: #8a7560">T</span><i style="width: 10.5px; height: 10.5px; box-sizing: border-box; border-radius: 9999px; background: #faf5f0"></i></div>
+        <div style="display: flex; flex-direction: column; align-items: center; gap: 3.5px"><span style="font-size: 12px; line-height: 15px; color: #8a7560">W</span><i aria-label="Wednesday: done" style="width: 10.5px; height: 10.5px; box-sizing: border-box; border-radius: 9999px; background: #944a00"></i></div>
+        <div style="display: flex; flex-direction: column; align-items: center; gap: 3.5px"><span style="font-size: 12px; line-height: 15px; color: #8a7560">T</span><i style="width: 10.5px; height: 10.5px; box-sizing: border-box; border-radius: 9999px; background: #faf5f0"></i></div>
+        <div style="display: flex; flex-direction: column; align-items: center; gap: 3.5px"><span style="font-size: 12px; line-height: 15px; color: #8a7560">F</span><i aria-label="Friday: planned" style="width: 10.5px; height: 10.5px; box-sizing: border-box; border-radius: 9999px; border: 2px solid #944a00; background: transparent"></i></div>
+        <div style="display: flex; flex-direction: column; align-items: center; gap: 3.5px"><span style="font-size: 12px; line-height: 15px; color: #8a7560">S</span><i style="width: 10.5px; height: 10.5px; box-sizing: border-box; border-radius: 9999px; background: #faf5f0"></i></div>
+        <div style="display: flex; flex-direction: column; align-items: center; gap: 3.5px"><span style="font-size: 12px; line-height: 15px; color: #8a7560">S</span><i style="width: 10.5px; height: 10.5px; box-sizing: border-box; border-radius: 9999px; background: #faf5f0"></i></div>
+      </div>
+      <div style="display: flex; align-items: center; gap: 10.5px">
+        <div role="img" aria-label="2 of 3 this week" style="position: relative; width: 56px; height: 56px; flex: none">
+          <svg width="56" height="56" viewBox="0 0 56 56" aria-hidden="true"><circle cx="28" cy="28" r="25" fill="none" stroke="#f3f4f6" stroke-width="6"></circle><circle cx="28" cy="28" r="25" fill="none" stroke="#944a00" stroke-width="6" stroke-linecap="round" stroke-dasharray="157.1" stroke-dashoffset="52.4" transform="rotate(-90 28 28)"></circle></svg>
+          <span style="position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-size: 13px; font-weight: 600">2/3</span>
+        </div>
+        <div style="flex: 1; min-width: 0; display: flex; flex-direction: column">
+          <span style="font-size: 15px; line-height: 21px; font-weight: 500">2 of 3 this week</span>
+          <span style="font-size: 13px; line-height: 18px; color: #8a7560">7-week streak · 1 flex week saved</span>
+        </div>
+      </div>
+    </section>
+
+    <section aria-label="Next up" style="border: 1px solid #e2e8f0; border-radius: 7px; background: #ffffff; padding: 14px; display: flex; flex-direction: column; gap: 10.5px">
+      <div style="display: flex; align-items: center; justify-content: space-between">
+        <h2 style="margin: 0; font-size: 17px; line-height: 24px; font-weight: 600">Full Body B</h2>
+        <span style="font-size: 13px; color: #8a7560">~55 min</span>
+      </div>
+      <div style="display: flex; flex-direction: column; gap: 5.25px">
+        <div style="display: flex; align-items: center; justify-content: space-between"><span style="flex: 1; min-width: 0; padding-right: 7px; font-size: 15px; line-height: 21px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis">Back Squat</span><span style="font-size: 13px; color: #8a7560">3 × 8 @ 80 kg</span></div>
+        <div style="display: flex; align-items: center; justify-content: space-between"><span style="flex: 1; min-width: 0; padding-right: 7px; font-size: 15px; line-height: 21px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis">Romanian Deadlift</span><span style="font-size: 13px; color: #8a7560">3 × 10 @ 70 kg</span></div>
+        <div style="display: flex; align-items: center; justify-content: space-between"><span style="flex: 1; min-width: 0; padding-right: 7px; font-size: 15px; line-height: 21px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis">Bench Press</span><span style="font-size: 13px; color: #8a7560">3 × 8 @ 62.5 kg</span></div>
+        <div style="display: flex; flex-direction: column; gap: 3.5px">
+          <div style="display: flex; align-items: center; gap: 7px; padding-top: 3.5px">
+            <span style="font-size: 13px; line-height: 18px; font-weight: 600; color: #5b21b6">Superset A</span>
+            <span style="flex: 1; min-width: 0; font-size: 13px; line-height: 18px; color: #8a7560; white-space: nowrap; overflow: hidden; text-overflow: ellipsis">90 s rest after each round</span>
+          </div>
+          <div style="display: flex; align-items: center; justify-content: space-between; border-left: 4px solid #8b5cf6; padding-left: 7px">
+            <div style="flex: 1; min-width: 0; display: flex; align-items: center; gap: 5.25px; padding-right: 7px"><span style="border-radius: 3.5px; background: #ede9fe; padding: 1.75px 3.5px; font-size: 12px; font-weight: 700; color: #5b21b6">A1</span><span style="flex: 1; min-width: 0; font-size: 15px; line-height: 21px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis">Lat Pulldown</span></div>
+            <span style="font-size: 13px; color: #8a7560">3 × 12 @ 55 kg</span>
+          </div>
+        </div>
+        <div style="display: flex; align-items: center; justify-content: space-between; border-left: 4px solid #8b5cf6; padding-left: 7px">
+          <div style="flex: 1; min-width: 0; display: flex; align-items: center; gap: 5.25px; padding-right: 7px"><span style="border-radius: 3.5px; background: #ede9fe; padding: 1.75px 3.5px; font-size: 12px; font-weight: 700; color: #5b21b6">A2</span><span style="flex: 1; min-width: 0; font-size: 15px; line-height: 21px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis">Seated Dumbbell Shoulder Press</span></div>
+          <span style="font-size: 13px; color: #8a7560">3 × 10 @ 18 kg</span>
+        </div>
+      </div>
+      <a href="Workout.dc.html" style="height: 44px; padding: 0 14px; border-radius: 5.25px; background: #944a00; color: #fcf9f5; font-size: 15px; font-weight: 500; display: flex; align-items: center; justify-content: center; text-decoration: none">Start workout</a>
+      <div style="display: flex; flex-wrap: wrap; gap: 7px 14px">
+        <button type="button" style="min-height: 44px; padding: 0; border: none; background: transparent; font: inherit; font-size: 15px; font-weight: 500; color: #944a00">Do another day instead</button>
+        <button type="button" style="min-height: 44px; padding: 0; border: none; background: transparent; font: inherit; font-size: 15px; font-weight: 500; color: #944a00">Skip this day</button>
+        <a href="Workout.dc.html" style="min-height: 44px; display: flex; align-items: center; font-size: 15px; font-weight: 500; color: #944a00; text-decoration: none">Freestyle workout</a>
+      </div>
+    </section>
+
+    <button type="button" style="align-self: flex-start; min-height: 44px; padding: 0; border: none; background: transparent; font: inherit; font-size: 15px; font-weight: 500; color: #944a00">Log a past workout</button>
+
+    <a href="Session.dc.html" style="min-height: 44px; box-sizing: border-box; border: 1px solid #e2e8f0; border-radius: 7px; padding: 10.5px 14px; display: flex; align-items: center; justify-content: space-between; color: inherit; text-decoration: none">
+      <span style="flex: 1; min-width: 0; display: flex; flex-direction: column"><span style="font-size: 15px; line-height: 21px; font-weight: 500">Full Body A</span><span style="font-size: 13px; line-height: 18px; color: #8a7560">2026-10-08</span></span>
+      <span aria-hidden="true" style="font-size: 17px; color: #944a00">→</span>
+    </a>
+
+    <a href="GymSettings.dc.html" style="min-height: 44px; box-sizing: border-box; border-radius: 7px; background: #faf5f0; padding: 10.5px 14px; display: flex; align-items: center; font-size: 13px; color: #8a7560; text-decoration: none">1 workout waiting to sync</a>
+  </main>
+
+  <nav aria-label="Gym tabs" style="flex: none; height: 83px; box-sizing: border-box; border-top: 1px solid #e2e8f0; background: #ffffff; display: flex; padding: 7px 0 34px">
+    <a href="GymToday.dc.html" aria-current="page" style="flex: 1; display: flex; flex-direction: column; align-items: center; gap: 2px; color: #944a00; font-size: 12px; font-weight: 600; text-decoration: none"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3.5" y="5" width="17" height="15.5" rx="2.5"></rect><path d="M3.5 9.5h17M8 3v3.5M16 3v3.5"></path><rect x="13.5" y="13" width="3.5" height="3.5" rx=".8"></rect></svg><span>Today</span></a>
+    <a href="GymRoutine.dc.html" style="flex: 1; display: flex; flex-direction: column; align-items: center; gap: 2px; color: #8e8e93; font-size: 12px; font-weight: 600; text-decoration: none"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 7h11M9 12h11M9 17h11M4.5 7h.01M4.5 12h.01M4.5 17h.01" stroke-width="2.2"></path></svg><span>Routine</span></a>
+    <a href="GymExercises.dc.html" style="flex: 1; display: flex; flex-direction: column; align-items: center; gap: 2px; color: #8e8e93; font-size: 12px; font-weight: 600; text-decoration: none"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2.5 12h19M6 7.5v9M9 6v12M15 6v12M18 7.5v9"></path></svg><span>Exercises</span></a>
+    <a href="GymStats.dc.html" style="flex: 1; display: flex; flex-direction: column; align-items: center; gap: 2px; color: #8e8e93; font-size: 12px; font-weight: 600; text-decoration: none"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20.5h16"></path><rect x="5" y="13" width="3" height="7.5" rx=".8"></rect><rect x="10.5" y="5" width="3" height="15.5" rx=".8"></rect><rect x="16" y="9.5" width="3" height="11" rx=".8"></rect></svg><span>Stats</span></a>
+  </nav>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":965}}'>
+class Component extends DCLogic {
+renderVals() {
+return {};
+}
+}
+</script>
+</body>
+</html>

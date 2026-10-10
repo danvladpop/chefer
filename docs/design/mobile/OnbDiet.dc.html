@@ -1,0 +1,87 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Onboarding — Diet &amp; restrictions</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+body{margin:0}
+a{color:#944a00;text-decoration:none}a:hover{color:#6e3700}
+input::placeholder,textarea::placeholder{color:#9ca3af}
+</style>
+</helmet>
+<div style="width: 390px; height: 844px; position: relative; overflow: hidden; background: #ffffff; font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Helvetica Neue', system-ui, sans-serif; color: #020817; display: flex; flex-direction: column">
+  <div style="height: 47px; flex: none"></div>
+
+  <header style="flex: none; display: flex; align-items: center; gap: 7px; padding: 10.5px 14px">
+    <a href="OnbMetrics.dc.html" aria-label="Back" style="width: 44px; height: 44px; flex: none; display: flex; align-items: center; justify-content: center; color: #1f2937; text-decoration: none"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M11 5l-7 7 7 7M4 12h16"></path></svg></a>
+    <div style="flex: 1; min-width: 0; display: flex; flex-direction: column">
+      <span style="font-size: 13px; line-height: 18px; color: #8a7560">Step 4 of 5 · 80%</span>
+      <h1 style="margin: 0; font-size: 19px; line-height: 26px; font-weight: 600">Diet &amp; restrictions</h1>
+    </div>
+  </header>
+
+  <div role="progressbar" aria-valuemin="1" aria-valuemax="5" aria-valuenow="2" aria-label="Onboarding progress" style="flex: none; margin: 0 14px 7px; height: 5.25px; border-radius: 9999px; background: #f3f4f6; overflow: hidden"><div style="height: 100%; width: 80%; background: #944a00; border-radius: 9999px"></div></div>
+
+  <main id="main" style="flex: 1; min-height: 0; display: flex; flex-direction: column; gap: 14px; padding: 10.5px 14px 28px">
+    <div style="display: flex; flex-direction: column; gap: 14px">
+
+      <div style="display: flex; flex-direction: column; gap: 7px">
+        <label for="onb-restrictions-input" style="font-size: 15px; line-height: 21px; font-weight: 500">Dietary restrictions</label>
+        <div style="display: flex; gap: 7px">
+          <input id="onb-restrictions-input" placeholder="e.g. vegetarian" style="flex: 1; min-width: 0; height: 44px; box-sizing: border-box; border: 1px solid #e2e8f0; border-radius: 5.25px; padding: 0 10.5px; font: inherit; font-size: 17px; color: #020817; background: #ffffff">
+          <button type="button" aria-label="Add to Dietary restrictions" style="width: 44px; height: 44px; flex: none; border: 1px solid #e2e8f0; border-radius: 5.25px; background: #ffffff; color: #944a00; display: flex; align-items: center; justify-content: center"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14M5 12h14"></path></svg></button>
+        </div>
+        <div style="display: flex; flex-wrap: wrap; gap: 5.25px">
+          <button type="button" aria-label="Remove Vegetarian" style="min-height: 31.5px; padding: 0 10.5px; border: none; border-radius: 9999px; background: #fcf3ea; color: #944a00; font: inherit; font-size: 13px; font-weight: 500; display: flex; align-items: center; gap: 3.5px">Vegetarian<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"></path></svg></button>
+        </div>
+      </div>
+
+      <div style="display: flex; flex-direction: column; gap: 7px">
+        <label for="onb-allergies-input" style="font-size: 15px; line-height: 21px; font-weight: 500">Allergies</label>
+        <div style="display: flex; gap: 7px">
+          <input id="onb-allergies-input" placeholder="e.g. peanuts" style="flex: 1; min-width: 0; height: 44px; box-sizing: border-box; border: 1px solid #e2e8f0; border-radius: 5.25px; padding: 0 10.5px; font: inherit; font-size: 17px; color: #020817; background: #ffffff">
+          <button type="button" aria-label="Add to Allergies" style="width: 44px; height: 44px; flex: none; border: 1px solid #e2e8f0; border-radius: 5.25px; background: #ffffff; color: #944a00; display: flex; align-items: center; justify-content: center"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14M5 12h14"></path></svg></button>
+        </div>
+        <div style="display: flex; flex-wrap: wrap; gap: 5.25px">
+          <button type="button" aria-label="Remove peanuts" style="min-height: 31.5px; padding: 0 10.5px; border: none; border-radius: 9999px; background: #fcf3ea; color: #944a00; font: inherit; font-size: 13px; font-weight: 500; display: flex; align-items: center; gap: 3.5px">peanuts<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"></path></svg></button>
+          <button type="button" aria-label="Remove shellfish" style="min-height: 31.5px; padding: 0 10.5px; border: none; border-radius: 9999px; background: #fcf3ea; color: #944a00; font: inherit; font-size: 13px; font-weight: 500; display: flex; align-items: center; gap: 3.5px">shellfish<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"></path></svg></button>
+        </div>
+      </div>
+
+      <div style="display: flex; flex-direction: column; gap: 7px">
+        <label for="onb-disliked-input" style="font-size: 15px; line-height: 21px; font-weight: 500">Disliked ingredients</label>
+        <div style="display: flex; gap: 7px">
+          <input id="onb-disliked-input" placeholder="e.g. cilantro" style="flex: 1; min-width: 0; height: 44px; box-sizing: border-box; border: 1px solid #e2e8f0; border-radius: 5.25px; padding: 0 10.5px; font: inherit; font-size: 17px; color: #020817; background: #ffffff">
+          <button type="button" aria-label="Add to Disliked ingredients" style="width: 44px; height: 44px; flex: none; border: 1px solid #e2e8f0; border-radius: 5.25px; background: #ffffff; color: #944a00; display: flex; align-items: center; justify-content: center"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14M5 12h14"></path></svg></button>
+        </div>
+        <div style="display: flex; flex-wrap: wrap; gap: 5.25px">
+          <button type="button" aria-label="Remove cilantro" style="min-height: 31.5px; padding: 0 10.5px; border: none; border-radius: 9999px; background: #fcf3ea; color: #944a00; font: inherit; font-size: 13px; font-weight: 500; display: flex; align-items: center; gap: 3.5px">cilantro<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"></path></svg></button>
+          <button type="button" aria-label="Remove olives" style="min-height: 31.5px; padding: 0 10.5px; border: none; border-radius: 9999px; background: #fcf3ea; color: #944a00; font: inherit; font-size: 13px; font-weight: 500; display: flex; align-items: center; gap: 3.5px">olives<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"></path></svg></button>
+        </div>
+      </div>
+
+    </div>
+  </main>
+
+  <div style="flex: none; border-top: 1px solid #e2e8f0; padding: 10.5px 14px 7px; display: flex; flex-direction: column; gap: 7px">
+    <a href="OnbCuisine.dc.html" style="height: 44px; padding: 0 14px; border: none; border-radius: 5.25px; background: #944a00; color: #fcf9f5; font-size: 15px; font-weight: 500; display: flex; align-items: center; justify-content: center; gap: 7px; text-decoration: none">Continue</a>
+    <a href="FoodToday.dc.html" style="height: 44px; display: flex; align-items: center; justify-content: center; font-size: 15px; font-weight: 600; color: #944a00; text-decoration: none">Skip for now</a>
+  </div>
+
+  <div style="height: 34px; flex: none"></div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":844}}'>
+class Component extends DCLogic {
+renderVals() {
+return {};
+}
+}
+</script>
+</body>
+</html>

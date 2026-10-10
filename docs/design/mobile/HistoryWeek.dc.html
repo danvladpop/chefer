@@ -1,0 +1,100 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Food — Past week</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+body{margin:0}
+a{color:#944a00;text-decoration:none}a:hover{color:#6e3700}
+input::placeholder,textarea::placeholder{color:#9ca3af}
+</style>
+</helmet>
+<div style="width: 390px; height: 844px; position: relative; overflow: hidden; background: #ffffff; font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Helvetica Neue', system-ui, sans-serif; color: #020817; display: flex; flex-direction: column">
+  <div style="height: 47px; flex: none"></div>
+
+  <header style="display: flex; align-items: center; gap: 10.5px; padding: 10.5px 14px">
+    <a href="MyWeeks.dc.html" aria-label="Back" style="width: 44px; height: 44px; flex: none; display: flex; align-items: center; justify-content: center; color: #1f2937"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M11 5l-7 7 7 7M4 12h16"></path></svg></a>
+    <div style="flex: 1; min-width: 0; display: flex; flex-direction: column">
+      <span style="font-size: 13px; line-height: 18px; font-weight: 600; text-transform: uppercase; letter-spacing: .1em; color: #6b7280">Read-only view</span>
+      <h1 style="margin: 0; font-size: 25px; line-height: 31px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis">Week of 22 Sep 2026</h1>
+    </div>
+  </header>
+
+  <div role="group" aria-label="Day" style="display: flex; justify-content: space-between; padding: 0 14px 7px">
+    <button type="button" aria-label="Monday 22 September" aria-pressed="true" style="width: 44px; height: 49px; border: none; border-radius: 10.5px; background: #944a00; font: inherit; padding: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1.75px; color: #fcf9f5"><span style="font-size: 12px; font-weight: 600; text-transform: uppercase">Mon</span><b style="font-size: 13px; line-height: 15px">22</b><i style="width: 3.5px; height: 3.5px; border-radius: 9999px; background: rgba(255,255,255,.7)"></i></button>
+    <button type="button" aria-label="Tuesday 23 September" style="width: 44px; height: 49px; border: none; border-radius: 10.5px; background: #f9fafb; font: inherit; padding: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1.75px; color: #4b5563"><span style="font-size: 12px; font-weight: 600; text-transform: uppercase">Tue</span><b style="font-size: 13px; line-height: 15px; color: #1f2937">23</b><i style="width: 3.5px; height: 3.5px; border-radius: 9999px; background: #944a00"></i></button>
+    <button type="button" aria-label="Wednesday 24 September" style="width: 44px; height: 49px; border: none; border-radius: 10.5px; background: #f9fafb; font: inherit; padding: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1.75px; color: #4b5563"><span style="font-size: 12px; font-weight: 600; text-transform: uppercase">Wed</span><b style="font-size: 13px; line-height: 15px; color: #1f2937">24</b><i style="width: 3.5px; height: 3.5px; border-radius: 9999px; background: #944a00"></i></button>
+    <button type="button" aria-label="Thursday 25 September" style="width: 44px; height: 49px; border: none; border-radius: 10.5px; background: #f9fafb; font: inherit; padding: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1.75px; color: #4b5563"><span style="font-size: 12px; font-weight: 600; text-transform: uppercase">Thu</span><b style="font-size: 13px; line-height: 15px; color: #1f2937">25</b><i style="width: 3.5px; height: 3.5px; border-radius: 9999px; background: #944a00"></i></button>
+    <button type="button" aria-label="Friday 26 September" style="width: 44px; height: 49px; border: none; border-radius: 10.5px; background: #f9fafb; font: inherit; padding: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1.75px; color: #4b5563"><span style="font-size: 12px; font-weight: 600; text-transform: uppercase">Fri</span><b style="font-size: 13px; line-height: 15px; color: #1f2937">26</b><i style="width: 3.5px; height: 3.5px; border-radius: 9999px; background: #944a00"></i></button>
+    <button type="button" aria-label="Saturday 27 September" style="width: 44px; height: 49px; border: none; border-radius: 10.5px; background: #f9fafb; font: inherit; padding: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1.75px; color: #4b5563"><span style="font-size: 12px; font-weight: 600; text-transform: uppercase">Sat</span><b style="font-size: 13px; line-height: 15px; color: #1f2937">27</b><i style="width: 3.5px; height: 3.5px; border-radius: 9999px; background: #944a00"></i></button>
+    <button type="button" aria-label="Sunday 28 September" style="width: 44px; height: 49px; border: none; border-radius: 10.5px; background: #f9fafb; font: inherit; padding: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1.75px; color: #4b5563"><span style="font-size: 12px; font-weight: 600; text-transform: uppercase">Sun</span><b style="font-size: 13px; line-height: 15px; color: #1f2937">28</b><i style="width: 3.5px; height: 3.5px; border-radius: 9999px; background: #944a00"></i></button>
+  </div>
+
+  <main id="main" style="flex: 1; display: flex; flex-direction: column; gap: 10.5px; padding: 7px 14px 28px">
+    <span style="font-size: 13px; line-height: 18px; color: #6b7280">Day total · 1,760 kcal</span>
+
+    <a href="RecipeDetail.dc.html" style="display: flex; border: 1px solid #e2e8f0; border-radius: 14px; background: #ffffff; overflow: hidden; color: inherit; text-decoration: none">
+      <div style="width: 84px; min-height: 98px; flex: none; background: #eadccd; display: flex; align-items: center; justify-content: center; color: #8a7560; font-size: 12px">Photo</div>
+      <div style="flex: 1; min-width: 0; padding: 10.5px; display: flex; flex-direction: column; justify-content: space-between; gap: 7px">
+        <div style="display: flex; flex-direction: column; gap: 3.5px; align-items: flex-start">
+          <span style="border-radius: 9999px; padding: 1.75px 8.75px; font-size: 12px; font-weight: 600; text-transform: uppercase; background: #d1fae5; color: #047857">Breakfast</span>
+          <span style="font-size: 15px; line-height: 21px; font-weight: 600; color: #111827">Shakshuka</span>
+        </div>
+        <div style="display: flex; gap: 10.5px; font-size: 13px; line-height: 18px; color: #6b7280"><span>25m</span><span>410 kcal</span></div>
+      </div>
+    </a>
+
+    <a href="RecipeDetail.dc.html" style="display: flex; border: 1px solid #e2e8f0; border-radius: 14px; background: #ffffff; overflow: hidden; color: inherit; text-decoration: none">
+      <div style="width: 84px; min-height: 98px; flex: none; background: #eadccd; display: flex; align-items: center; justify-content: center; color: #8a7560; font-size: 12px">Photo</div>
+      <div style="flex: 1; min-width: 0; padding: 10.5px; display: flex; flex-direction: column; justify-content: space-between; gap: 7px">
+        <div style="display: flex; flex-direction: column; gap: 3.5px; align-items: flex-start">
+          <span style="border-radius: 9999px; padding: 1.75px 8.75px; font-size: 12px; font-weight: 600; text-transform: uppercase; background: #ffedd5; color: #c2410c">Lunch</span>
+          <span style="font-size: 15px; line-height: 21px; font-weight: 600; color: #111827">Turkey Pesto Panini</span>
+        </div>
+        <div style="display: flex; gap: 10.5px; font-size: 13px; line-height: 18px; color: #6b7280"><span>15m</span><span>530 kcal</span></div>
+      </div>
+    </a>
+
+    <a href="RecipeDetail.dc.html" style="display: flex; border: 1px solid #e2e8f0; border-radius: 14px; background: #ffffff; overflow: hidden; color: inherit; text-decoration: none">
+      <div style="width: 84px; min-height: 98px; flex: none; background: #eadccd; display: flex; align-items: center; justify-content: center; color: #8a7560; font-size: 12px">Photo</div>
+      <div style="flex: 1; min-width: 0; padding: 10.5px; display: flex; flex-direction: column; justify-content: space-between; gap: 7px">
+        <div style="display: flex; flex-direction: column; gap: 3.5px; align-items: flex-start">
+          <span style="border-radius: 9999px; padding: 1.75px 8.75px; font-size: 12px; font-weight: 600; text-transform: uppercase; background: #e0e7ff; color: #4338ca">Dinner</span>
+          <span style="font-size: 15px; line-height: 21px; font-weight: 600; color: #111827">Creamy Tuscan Chicken</span>
+        </div>
+        <div style="display: flex; gap: 10.5px; font-size: 13px; line-height: 18px; color: #6b7280"><span>35m</span><span>640 kcal</span></div>
+      </div>
+    </a>
+
+    <a href="RecipeDetail.dc.html" style="display: flex; border: 1px solid #e2e8f0; border-radius: 14px; background: #ffffff; overflow: hidden; color: inherit; text-decoration: none">
+      <div style="width: 84px; min-height: 98px; flex: none; background: #eadccd; display: flex; align-items: center; justify-content: center; color: #8a7560; font-size: 12px">Photo</div>
+      <div style="flex: 1; min-width: 0; padding: 10.5px; display: flex; flex-direction: column; justify-content: space-between; gap: 7px">
+        <div style="display: flex; flex-direction: column; gap: 3.5px; align-items: flex-start">
+          <span style="border-radius: 9999px; padding: 1.75px 8.75px; font-size: 12px; font-weight: 600; text-transform: uppercase; background: #f3e8ff; color: #7e22ce">Snack</span>
+          <span style="font-size: 15px; line-height: 21px; font-weight: 600; color: #111827">Hummus &amp; Veggie Sticks</span>
+        </div>
+        <div style="display: flex; gap: 10.5px; font-size: 13px; line-height: 18px; color: #6b7280"><span>10m</span><span>180 kcal</span></div>
+      </div>
+    </a>
+  </main>
+
+  <div style="flex: none; border-top: 1px solid #e2e8f0; padding: 10.5px 14px 7px">
+    <button type="button" style="width: 100%; height: 44px; padding: 0 14px; border: 1px solid #e2e8f0; border-radius: 5.25px; background: #ffffff; color: #020817; font: inherit; font-size: 15px; font-weight: 500; display: flex; align-items: center; justify-content: center">Restore this week</button>
+  </div>
+  <div style="height: 34px; flex: none"></div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":844}}'>
+class Component extends DCLogic {
+renderVals() {
+return {};
+}
+}
+</script>
+</body>
+</html>

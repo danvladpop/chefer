@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>AI consent sheet</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+body{margin:0}
+a{color:#944a00;text-decoration:none}a:hover{color:#6e3700}
+input::placeholder,textarea::placeholder{color:#9ca3af}
+</style>
+</helmet>
+<div style="width: 390px; height: 844px; position: relative; overflow: hidden; background: #ffffff; font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Helvetica Neue', system-ui, sans-serif; color: #020817; display: flex; flex-direction: column">
+  <div style="height: 47px; flex: none"></div>
+  <main id="main" style="flex: 1"><h1 style="position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); margin: 0">AI data consent</h1></main>
+
+  <div aria-hidden="true" style="position: absolute; inset: 0; background: rgba(0,0,0,.4)"></div>
+
+  <div role="dialog" aria-modal="true" aria-labelledby="ai-consent-title" style="position: absolute; left: 0; right: 0; bottom: 0; background: #ffffff; border-radius: 21px 21px 0 0; box-shadow: 0 -4px 12px -4px rgba(67,42,25,.08), 0 -16px 40px -12px rgba(67,42,25,.18); max-height: 85%; display: flex; flex-direction: column">
+    <div style="width: 40px; height: 3.5px; border-radius: 9999px; background: #d1d5db; margin: 7px auto 0"></div>
+    <div style="padding: 10.5px 14px 7px; display: flex; align-items: center; justify-content: space-between; gap: 10.5px">
+      <h2 id="ai-consent-title" style="margin: 0; flex: 1; min-width: 0; font-size: 19px; line-height: 26px; font-weight: 600">Allow AI to use your data?</h2>
+      <a href="FoodToday.dc.html" aria-label="Close" style="flex: none; width: 44px; height: 44px; border-radius: 9999px; background: #f3f4f6; color: #374151; font-size: 19px; font-weight: 600; display: flex; align-items: center; justify-content: center; text-decoration: none">✕</a>
+    </div>
+
+    <div style="padding: 0 14px 14px; display: flex; flex-direction: column; gap: 10.5px">
+      <p style="margin: 0; font-size: 17px; line-height: 24px; color: #1f2937">To estimate the nutrition in your photo, Chefer sends some of your data to Google Gemini, a third-party AI service, which uses it only to produce the result.</p>
+      <div style="display: flex; flex-direction: column; gap: 3.5px">
+        <h3 style="margin: 0; font-size: 15px; line-height: 21px; font-weight: 600; color: #111827">What gets sent</h3>
+        <ul style="margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 3.5px">
+          <li style="display: flex; gap: 7px; font-size: 15px; line-height: 21px; color: #374151"><span aria-hidden="true">•</span><span style="flex: 1; min-width: 0">The photo you take or choose</span></li>
+        </ul>
+      </div>
+      <p style="margin: 0; font-size: 15px; line-height: 21px; font-weight: 500; color: #111827">Your data is not used to train AI models.</p>
+      <p style="margin: 0; font-size: 15px; line-height: 21px; color: #8a7560">If Gemini is busy, a request may be handled by Groq, a backup AI service, instead.</p>
+      <p style="margin: 0; font-size: 15px; line-height: 21px; color: #8a7560">We only ask once. You can turn this off at any time in Profile → AI &amp; your data.</p>
+      <button type="button" style="height: 44px; padding: 0 14px; border: none; border-radius: 5.25px; background: transparent; color: #020817; font: inherit; font-size: 15px; font-weight: 500">Privacy policy</button>
+    </div>
+
+    <div style="border-top: 1px solid #e2e8f0; padding: 10.5px 14px 0; display: flex; flex-direction: column; gap: 7px">
+      <a href="FoodToday.dc.html" style="height: 42px; padding: 0 28px; border-radius: 5.25px; background: #944a00; color: #fcf9f5; font-size: 15px; font-weight: 500; display: flex; align-items: center; justify-content: center; text-decoration: none">Allow</a>
+      <a href="FoodToday.dc.html" style="height: 42px; box-sizing: border-box; padding: 0 28px; border: 1px solid #e2e8f0; border-radius: 5.25px; background: #ffffff; color: #020817; font-size: 15px; font-weight: 500; display: flex; align-items: center; justify-content: center; text-decoration: none">Not now</a>
+    </div>
+    <div style="height: 34px; flex: none"></div>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":844}}'>
+class Component extends DCLogic {
+renderVals() {
+return {};
+}
+}
+</script>
+</body>
+</html>
