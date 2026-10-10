@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Log a workout</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+body{margin:0}
+a{color:#944a00;text-decoration:none}a:hover{color:#6e3700}
+input::placeholder,textarea::placeholder{color:#6F675F}
+</style>
+</helmet>
+<div style="width: 390px; height: 844px; position: relative; overflow: hidden; background: #FFFFFF; font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Helvetica Neue', system-ui, sans-serif; color: #1C1917; display: flex; flex-direction: column">
+  <div style="height: 47px; flex: none"></div>
+  <div style="flex: 1"></div>
+  <a href="Train.dc.html" aria-label="Close Log a workout" style="position: absolute; inset: 0; background: rgba(0,0,0,.4)"></a>
+  <section role="dialog" aria-label="Log a workout" style="position: absolute; left: 0; right: 0; bottom: 0; max-height: 85%; background: #FFFFFF; border-radius: 24px 24px 0 0; box-shadow: 0 -4px 12px -4px rgba(67,42,25,.08), 0 -16px 40px -12px rgba(67,42,25,.18); display: flex; flex-direction: column">
+    <div style="width: 40px; height: 3.5px; border-radius: 9999px; background: #D1D5DB; margin: 7px auto 0; flex: none"></div>
+    <div style="padding: 10.5px 14px 7px; display: flex; align-items: center; justify-content: space-between; gap: 10.5px">
+      <div style="display: flex; flex-direction: column; min-width: 0"><span style="font-size: 14px; line-height: 19px; font-weight: 600; text-transform: uppercase; letter-spacing: .1em; color: #57534E">Today</span><h2 style="margin: 0; font-size: 20px; line-height: 25px; font-weight: 700">Log a workout</h2></div>
+      <a href="Train.dc.html" aria-label="Close" style="width: 44px; height: 44px; flex: none; border-radius: 9999px; background: #F2ECE4; color: #57534E; display: flex; align-items: center; justify-content: center; text-decoration: none"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"></path></svg></a>
+    </div>
+    <div style="padding: 0 14px 14px; display: flex; flex-direction: column; gap: 12px">
+      <span style="display: flex; align-items: center; gap: 8px; font-size: 17px; font-weight: 600"><span style="color: #944A00; display: flex"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2.5 12h19M6 7.5v9M9 6v12M15 6v12M18 7.5v9"></path></svg></span>Gym workout you did</span>
+      <div style="display: flex; flex-wrap: wrap; gap: 8px"><button type="button" aria-pressed="false" style="min-height: 44px; box-sizing: border-box; padding: 0 14px; border-radius: 9999px; background: #FFFFFF; color: #1C1917; border: 1px solid #E6DED3; font: inherit; font-size: 16px; font-weight: 500">Push A</button><button type="button" aria-pressed="false" style="min-height: 44px; box-sizing: border-box; padding: 0 14px; border-radius: 9999px; background: #FFFFFF; color: #1C1917; border: 1px solid #E6DED3; font: inherit; font-size: 16px; font-weight: 500">Pull A</button><button type="button" aria-pressed="false" style="min-height: 44px; box-sizing: border-box; padding: 0 14px; border-radius: 9999px; background: #FFFFFF; color: #1C1917; border: 1px solid #E6DED3; font: inherit; font-size: 16px; font-weight: 500">Legs</button><button type="button" aria-pressed="false" style="min-height: 44px; box-sizing: border-box; padding: 0 14px; border-radius: 9999px; background: #FFFFFF; color: #1C1917; border: 1px solid #E6DED3; font: inherit; font-size: 16px; font-weight: 500">Upper</button><button type="button" aria-pressed="false" style="min-height: 44px; box-sizing: border-box; padding: 0 14px; border-radius: 9999px; background: #FFFFFF; color: #1C1917; border: 1px solid #E6DED3; font: inherit; font-size: 16px; font-weight: 500">Freestyle</button></div>
+      <div style="height: 1px; background: #E6DED3"></div>
+      <span style="display: flex; align-items: center; gap: 8px; font-size: 17px; font-weight: 600"><span style="color: #944A00; display: flex"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="13.5" cy="4.5" r="1.8"></circle><path d="M9 21l2.5-6.5L14 17v4M7.5 12l2.5-3.5 3.5.5 2 3 3 1M11.5 14.5l1-5.5"></path></svg></span>Activity</span>
+      <div style="display: flex; flex-wrap: wrap; gap: 8px"><button type="button" aria-pressed="false" style="min-height: 44px; box-sizing: border-box; padding: 0 14px; border-radius: 9999px; background: #FFFFFF; color: #1C1917; border: 1px solid #E6DED3; font: inherit; font-size: 16px; font-weight: 500">Running</button><button type="button" aria-pressed="false" style="min-height: 44px; box-sizing: border-box; padding: 0 14px; border-radius: 9999px; background: #FFFFFF; color: #1C1917; border: 1px solid #E6DED3; font: inherit; font-size: 16px; font-weight: 500">Walking</button><button type="button" aria-pressed="false" style="min-height: 44px; box-sizing: border-box; padding: 0 14px; border-radius: 9999px; background: #FFFFFF; color: #1C1917; border: 1px solid #E6DED3; font: inherit; font-size: 16px; font-weight: 500">Cycling</button><button type="button" aria-pressed="false" style="min-height: 44px; box-sizing: border-box; padding: 0 14px; border-radius: 9999px; background: #FFFFFF; color: #1C1917; border: 1px solid #E6DED3; font: inherit; font-size: 16px; font-weight: 500">Swimming</button><button type="button" aria-pressed="false" style="min-height: 44px; box-sizing: border-box; padding: 0 14px; border-radius: 9999px; background: #FFFFFF; color: #1C1917; border: 1px solid #E6DED3; font: inherit; font-size: 16px; font-weight: 500">Yoga</button><button type="button" aria-pressed="false" style="min-height: 44px; box-sizing: border-box; padding: 0 14px; border-radius: 9999px; background: #FFFFFF; color: #1C1917; border: 1px solid #E6DED3; font: inherit; font-size: 16px; font-weight: 500">Other</button></div>
+      <div style="height: 1px; background: #E6DED3"></div>
+      <div style="display: flex"><a href="Workout.dc.html" style="flex: 1; min-height: 44px; box-sizing: border-box; padding: 0 14px; border: none; border-radius: 12px; background: #F6EADB; color: #944A00; font: inherit; font-size: 16px; font-weight: 600; display: flex; align-items: center; justify-content: center; gap: 6px; text-decoration: none"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 5.5v13l10-6.5z" fill="currentColor"></path></svg>Start a freestyle workout now</a></div>
+    </div>
+    <div style="height: 34px; flex: none"></div>
+  </section>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":844}}'>
+class Component extends DCLogic {
+renderVals() {
+return {};
+}
+}
+</script>
+</body>
+</html>

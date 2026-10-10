@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<title>Chefer — Foundations</title>
+<title>Before — Chefer — Foundations</title>
 <script src="./support.js"></script>
 </head>
 <body>
@@ -14,7 +14,7 @@ a{color:#944a00;text-decoration:none}a:hover{color:#6e3700}
 input::placeholder,textarea::placeholder{color:#9ca3af}
 </style>
 </helmet>
-<div style="width: 1280px; height: 3320px; box-sizing: border-box; padding: 64px 72px; background: #FFFFFF; font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Helvetica Neue', system-ui, sans-serif; color: #1C1917; display: flex; flex-direction: column; gap: 52px">
+<div style="width: 1280px; height: 2300px; box-sizing: border-box; padding: 64px 72px; background: #FFFFFF; font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Helvetica Neue', system-ui, sans-serif; color: #1C1917; display: flex; flex-direction: column; gap: 52px">
 
   <header style="display: flex; justify-content: space-between; align-items: flex-end; gap: 32px; border-bottom: 1px solid #E6DED3; padding-bottom: 28px">
     <div style="display: flex; flex-direction: column; gap: 8px">
@@ -161,105 +161,6 @@ input::placeholder,textarea::placeholder{color:#9ca3af}
     </div>
   </section>
 
-  <section aria-label="Redesign components" style="display: flex; flex-direction: column; gap: 24px; border-top: 1px solid #E6DED3; padding-top: 40px">
-    <div style="display: flex; flex-direction: column; gap: 6px">
-      <div style="font-size: 13px; font-weight: 600; text-transform: uppercase; letter-spacing: .1em; color: #944A00">New · 10 Oct redesign · build in @chefer/ui-mobile</div>
-      <h2 style="margin: 0; font-size: 21px; font-weight: 700">Shared components</h2>
-      <p style="margin: 0; font-size: 15px; line-height: 22px; color: #57534E; max-width: 900px">One tile for recipes and workouts, one gauge for calories, one stat tile for every number. Colour roles only; macro emojis always sit next to their word. Bars fill with brand and turn attention (amber) over target, never red.</p>
-    </div>
-    <div style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 40px; align-items: start">
-
-      <div style="display: flex; flex-direction: column; gap: 12px">
-        <span style="font-size: 13px; font-weight: 600; color: #57534E">CalorieGauge + MacroRow · Today, Your day, Stats</span>
-        <div style="border-radius: 16px; border: 1px solid #E6DED3; background: #FFFFFF; padding: 16px 14px; display: flex; flex-direction: column; gap: 14px">
-          <div style="position: relative; width: 240px; height: 132px; align-self: center">
-            <svg width="240" height="132" viewBox="0 0 240 132" aria-hidden="true"><path d="M20 120 A100 100 0 0 1 220 120" fill="none" stroke="#F2ECE4" stroke-width="18" stroke-linecap="round"></path><path d="M20 120 A100 100 0 0 1 220 120" fill="none" stroke="#944A00" stroke-width="18" stroke-linecap="round" stroke-dasharray="314.16" stroke-dashoffset="128.8"></path></svg>
-            <div style="position: absolute; left: 0; right: 0; bottom: 4px; display: flex; flex-direction: column; align-items: center"><b style="font-size: 34px; line-height: 41px; font-variant-numeric: tabular-nums">1,240</b><span style="font-size: 14px; line-height: 19px; color: #57534E">kcal eaten</span></div>
-          </div>
-          <div style="display: flex; justify-content: space-between; padding: 0 12px"><span style="display: flex; flex-direction: column"><b style="font-size: 17px; line-height: 22px">860</b><span style="font-size: 14px; color: #57534E">left</span></span><span style="display: flex; flex-direction: column; text-align: right"><b style="font-size: 17px; line-height: 22px">2,100</b><span style="font-size: 14px; color: #57534E">target</span></span></div>
-          <div style="display: flex; flex-direction: column; gap: 10px">
-            <div style="display: flex; flex-direction: column; gap: 5px"><div style="display: flex; align-items: center; gap: 8px; font-size: 16px; line-height: 21px"><span aria-hidden="true" style="font-size: 18px">🍖</span><span style="flex: 1; font-weight: 600">Protein</span><span><b>82</b><span style="color: #6F675F"> / 140 g</span></span></div><div style="height: 8px; border-radius: 9999px; background: #F2ECE4; overflow: hidden"><div style="height: 100%; width: 59%; border-radius: 9999px; background: #944A00"></div></div></div>
-            <div style="display: flex; flex-direction: column; gap: 5px"><div style="display: flex; align-items: center; gap: 8px; font-size: 16px; line-height: 21px"><span aria-hidden="true" style="font-size: 18px">🍞</span><span style="flex: 1; font-weight: 600">Carbs</span><span><b>148</b><span style="color: #6F675F"> / 230 g</span></span></div><div style="height: 8px; border-radius: 9999px; background: #F2ECE4; overflow: hidden"><div style="height: 100%; width: 64%; border-radius: 9999px; background: #944A00"></div></div></div>
-            <div style="display: flex; flex-direction: column; gap: 5px"><div style="display: flex; align-items: center; gap: 8px; font-size: 16px; line-height: 21px"><span aria-hidden="true" style="font-size: 18px">🥑</span><span style="flex: 1; font-weight: 600">Fat</span><span><b>74</b><span style="color: #6F675F"> / 70 g</span></span></div><div style="height: 8px; border-radius: 9999px; background: #F2ECE4; overflow: hidden"><div style="height: 100%; width: 100%; border-radius: 9999px; background: #A85100"></div></div></div>
-          </div>
-        </div>
-        <ul style="margin: 0; padding-left: 18px; font-size: 13px; line-height: 20px; color: #57534E">
-          <li>Half ring, 180°, stroke 18, track surface-sunken, fill brand. Centre: display 34 + caption.</li>
-          <li>Over target the arc and bar switch to attention. The Fat row shows that state.</li>
-          <li>Screen readers hear one sentence: "1,240 of 2,100 kcal eaten, 860 left".</li>
-        </ul>
-      </div>
-
-      <div style="display: flex; flex-direction: column; gap: 12px">
-        <span style="font-size: 13px; font-weight: 600; color: #57534E">MediaTile in TileGrid · Meals day, Cookbook, past workouts, routine days</span>
-        <div style="width: 362px; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10.5px">
-          <article style="position: relative; border-radius: 16px; border: 1px solid #E6DED3; background: #FFFFFF; padding: 7px; display: flex; flex-direction: column">
-            <a href="RecipeDetail.dc.html" style="display: flex; flex-direction: column; gap: 8px; color: inherit; text-decoration: none">
-              <div style="height: 120px; border-radius: 12px; background: #EADCCD; display: flex; align-items: center; justify-content: center; color: #8A7560; font-size: 12px">Photo</div>
-              <span style="padding: 0 4px 4px; display: flex; flex-direction: column; gap: 2px"><b style="font-size: 16px; line-height: 21px; font-weight: 600">Chicken &amp; Chickpea Bowl</b><span style="font-size: 14px; line-height: 19px; color: #57534E">Lunch · 640 kcal</span></span>
-            </a>
-            <button type="button" aria-label="Swap lunch" style="position: absolute; top: 10px; right: 10px; width: 44px; height: 44px; border: none; border-radius: 9999px; background: rgba(255,255,255,.94); color: #944A00; display: flex; align-items: center; justify-content: center; box-shadow: 0 1px 3px rgba(67,42,25,.18)"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 8h15M15 4l4 4-4 4M20 16H5M9 12l-4 4 4 4"></path></svg></button>
-          </article>
-          <article style="position: relative; border-radius: 16px; border: 1px solid #E6DED3; background: #FFFFFF; padding: 7px; display: flex; flex-direction: column">
-            <a href="Session.dc.html" style="display: flex; flex-direction: column; gap: 8px; color: inherit; text-decoration: none">
-              <div style="height: 120px; border-radius: 12px; background: #F6EADB; color: #944A00; display: flex; align-items: center; justify-content: center"><svg width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2.5 12h19M6 7.5v9M9 6v12M15 6v12M18 7.5v9"></path></svg></div>
-              <span style="padding: 0 4px 4px; display: flex; flex-direction: column; gap: 2px"><b style="font-size: 16px; line-height: 21px; font-weight: 600">Legs</b><span style="font-size: 14px; line-height: 19px; color: #57534E">Wed 7 Oct · 61 min</span></span>
-            </a>
-            <span style="position: absolute; top: 14px; left: 14px; border-radius: 9999px; padding: 2px 8px; background: #FFFFFF; color: #944A00; font-size: 14px; font-weight: 600">🏆 PR</span>
-          </article>
-        </div>
-        <ul style="margin: 0; padding-left: 18px; font-size: 13px; line-height: 20px; color: #57534E">
-          <li>Frame: card radius 16, 7px inset, image radius 12, 120px tall (4:3 at 390pt). Photo covers the frame; no letterboxing.</li>
-          <li>Workouts use an illustration frame: brand-tint with the routine's glyph.</li>
-          <li>Title (2 lines max) · one meta line · one action. Swap, heart or ⋯ sits on the frame.</li><li><b>MediaRow</b> (same parts, one per line, 56px frame): past workouts and program days, where dates and stats scan better in a list.</li>
-        </ul>
-        <span style="font-size: 13px; font-weight: 600; color: #57534E; margin-top: 8px">EntryCard · Cookbook in Meals and Routines in Train, same weight</span>
-        <div style="width: 362px; display: flex; flex-direction: column; gap: 10.5px">
-          <div style="border-radius: 16px; background: #F6EADB; padding: 10px 10px 10px 14px; display: flex; align-items: center; gap: 12px">
-            <a href="Cookbook.dc.html" style="flex: 1; min-width: 0; min-height: 44px; display: flex; align-items: center; gap: 12px; color: inherit; text-decoration: none"><span style="width: 44px; height: 44px; flex: none; border-radius: 12px; background: #944A00; color: #FFFFFF; display: flex; align-items: center; justify-content: center"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 6.5c-2-1.7-5-2.3-8.5-2v14c3.5-.3 6.5.3 8.5 2 2-1.7 5-2.3 8.5-2v-14c-3.5-.3-6.5.3-8.5 2zM12 6.5v14"></path></svg></span><span style="display: flex; flex-direction: column; min-width: 0"><b style="font-size: 17px; line-height: 22px">Cookbook</b><span style="font-size: 14px; line-height: 19px; color: #57534E">Your recipes and saves</span></span></a>
-            <a href="RecipeForm.dc.html" style="min-height: 44px; padding: 0 14px; border-radius: 9999px; background: #FFFFFF; color: #944A00; font-size: 16px; font-weight: 600; display: flex; align-items: center; gap: 4px; text-decoration: none">+ Recipe</a>
-          </div>
-          <div style="border-radius: 16px; background: #F6EADB; padding: 10px 10px 10px 14px; display: flex; align-items: center; gap: 12px">
-            <a href="TrainingRoutine.dc.html" style="flex: 1; min-width: 0; min-height: 44px; display: flex; align-items: center; gap: 12px; color: inherit; text-decoration: none"><span style="width: 44px; height: 44px; flex: none; border-radius: 12px; background: #944A00; color: #FFFFFF; display: flex; align-items: center; justify-content: center"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 7h11M9 12h11M9 17h11M4.5 7h.01M4.5 12h.01M4.5 17h.01"></path></svg></span><span style="display: flex; flex-direction: column; min-width: 0"><b style="font-size: 17px; line-height: 22px">Routines</b><span style="font-size: 14px; line-height: 19px; color: #57534E">Push Pull Legs + Upper</span></span></a>
-            <a href="RoutineEditor.dc.html" style="min-height: 44px; padding: 0 14px; border-radius: 9999px; background: #FFFFFF; color: #944A00; font-size: 16px; font-weight: 600; display: flex; align-items: center; gap: 4px; text-decoration: none">+ Routine</a>
-          </div>
-        </div>
-      </div>
-
-      <div style="display: flex; flex-direction: column; gap: 12px">
-        <span style="font-size: 13px; font-weight: 600; color: #57534E">TabTopBar · every tab, Ask Chef always in the same place</span>
-        <div style="width: 362px; min-height: 44px; display: flex; align-items: center; justify-content: space-between; gap: 7px">
-          <b style="font-size: 28px; line-height: 34px">Meals</b>
-          <a href="Chat.dc.html" style="min-height: 44px; padding: 0 14px 0 11px; border-radius: 9999px; background: #F6EADB; color: #944A00; font-size: 16px; font-weight: 600; display: flex; align-items: center; gap: 6px; text-decoration: none"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 3.5l1.6 4.4 4.4 1.6-4.4 1.6L10 15.5l-1.6-4.4L4 9.5l4.4-1.6zM18 13l.9 2.1L21 16l-2.1.9L18 19l-.9-2.1L15 16l2.1-.9z"></path></svg>Ask Chef</a>
-        </div>
-        <span style="font-size: 13px; font-weight: 600; color: #57534E; margin-top: 8px">StatTile · Today's training, workout summary, Stats</span>
-        <div style="width: 362px; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px">
-          <div style="border-radius: 16px; border: 1px solid #E6DED3; background: #FFFFFF; padding: 12px 10px; display: flex; flex-direction: column; align-items: center; gap: 4px"><span style="width: 32px; height: 32px; border-radius: 9999px; background: #F6EADB; color: #944A00; display: flex; align-items: center; justify-content: center"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="8.5"></circle><path d="M12 7v5l3.5 2"></path></svg></span><b style="font-size: 22px; line-height: 28px">56<span style="font-size: 15px; font-weight: 600"> min</span></b><span style="font-size: 14px; color: #57534E">Duration</span></div>
-          <div style="border-radius: 16px; border: 1px solid #E6DED3; background: #FFFFFF; padding: 12px 10px; display: flex; flex-direction: column; align-items: center; gap: 4px"><span style="width: 32px; height: 32px; border-radius: 9999px; background: #F6EADB; color: #944A00; display: flex; align-items: center; justify-content: center"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" aria-hidden="true"><path d="M2.5 12h19M6 7.5v9M9 6v12M15 6v12M18 7.5v9"></path></svg></span><b style="font-size: 22px; line-height: 28px">18</b><span style="font-size: 14px; color: #57534E">Sets</span></div>
-          <div style="border-radius: 16px; border: 1px solid #E6DED3; background: #FFFFFF; padding: 12px 10px; display: flex; flex-direction: column; align-items: center; gap: 4px"><span style="width: 32px; height: 32px; border-radius: 9999px; background: #F6EADB; color: #944A00; display: flex; align-items: center; justify-content: center"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M9 7h11M9 12h11M9 17h11M4.5 7h.01M4.5 12h.01M4.5 17h.01"></path></svg></span><b style="font-size: 22px; line-height: 28px">6</b><span style="font-size: 14px; color: #57534E">Exercises</span></div>
-        </div>
-        <span style="font-size: 13px; font-weight: 600; color: #57534E; margin-top: 8px">DayStrip + WeekToggle · Meals</span>
-        <div role="tablist" aria-label="Week" style="width: 362px; box-sizing: border-box; border-radius: 12px; background: #F2ECE4; padding: 3px; display: flex">
-          <button type="button" role="tab" aria-selected="true" style="flex: 1; min-height: 38px; border: none; border-radius: 9px; background: #FFFFFF; box-shadow: 0 1px 2px rgba(0,0,0,.08); font: inherit; font-size: 15px; font-weight: 600; color: #1C1917">This week</button>
-          <button type="button" role="tab" aria-selected="false" style="flex: 1; min-height: 38px; border: none; border-radius: 9px; background: transparent; font: inherit; font-size: 15px; font-weight: 600; color: #57534E">Next week</button>
-        </div>
-        <div style="width: 362px; display: flex; gap: 5px">
-          <button type="button" style="flex: 1; min-height: 60px; border: 1px solid #E6DED3; border-radius: 12px; background: #FFFFFF; font: inherit; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1px"><span style="font-size: 12px; font-weight: 600; color: #6F675F">MON</span><b style="font-size: 17px; color: #1C1917">5</b></button>
-          <button type="button" style="flex: 1; min-height: 60px; border: 1px solid #E6DED3; border-radius: 12px; background: #FFFFFF; font: inherit; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1px"><span style="font-size: 12px; font-weight: 600; color: #6F675F">TUE</span><b style="font-size: 17px; color: #1C1917">6</b></button>
-          <button type="button" style="flex: 1; min-height: 60px; border: 1px solid #E6DED3; border-radius: 12px; background: #FFFFFF; font: inherit; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1px"><span style="font-size: 12px; font-weight: 600; color: #6F675F">WED</span><b style="font-size: 17px; color: #1C1917">7</b></button>
-          <button type="button" aria-current="date" style="flex: 1; min-height: 60px; border: none; border-radius: 12px; background: #944A00; font: inherit; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1px"><span style="font-size: 12px; font-weight: 600; color: #FFFFFF">THU</span><b style="font-size: 17px; color: #FFFFFF">8</b></button>
-          <button type="button" style="flex: 1; min-height: 60px; border: 1px solid #E6DED3; border-radius: 12px; background: #FFFFFF; font: inherit; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1px"><span style="font-size: 12px; font-weight: 600; color: #6F675F">FRI</span><b style="font-size: 17px; color: #1C1917">9</b></button>
-          <button type="button" style="flex: 1; min-height: 60px; border: 1px solid #E6DED3; border-radius: 12px; background: #FFFFFF; font: inherit; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1px"><span style="font-size: 12px; font-weight: 600; color: #6F675F">SAT</span><b style="font-size: 17px; color: #1C1917">10</b></button>
-          <button type="button" style="flex: 1; min-height: 60px; border: 1px solid #E6DED3; border-radius: 12px; background: #FFFFFF; font: inherit; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1px"><span style="font-size: 12px; font-weight: 600; color: #6F675F">SUN</span><b style="font-size: 17px; color: #1C1917">11</b></button>
-        </div>
-        <ul style="margin: 0; padding-left: 18px; font-size: 13px; line-height: 20px; color: #57534E">
-          <li>Ask Chef is a labelled pill, not a bare glyph: it is the one global assistant (meals and routines).</li>
-          <li>Tab content sits on canvas; cards are surface with a separator hairline.</li>
-        </ul>
-      </div>
-    </div>
-  </section>
-
   <section style="display: flex; flex-direction: column; gap: 20px">
     <h2 style="margin: 0; font-size: 21px; font-weight: 700">Shell chrome</h2>
     <div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 48px">
@@ -267,14 +168,14 @@ input::placeholder,textarea::placeholder{color:#9ca3af}
         <span style="font-size: 13px; font-weight: 600; color: #57534E">Tab bar · same five tabs for every account · focused = filled glyph + brand · badge on You</span>
         <nav aria-label="Tab bar example" style="width: 390px; height: 83px; box-sizing: border-box; border: 1px solid #E6DED3; border-radius: 10px; background: #FFFFFF; display: flex; padding: 7px 0 34px">
           <span style="flex: 1; display: flex; flex-direction: column; align-items: center; gap: 2px; color: #944A00; font-size: 12px; font-weight: 600"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="4.5" fill="currentColor"></circle><path d="M12 2.5v2M12 19.5v2M2.5 12h2M19.5 12h2M5.3 5.3l1.4 1.4M17.3 17.3l1.4 1.4M5.3 18.7l1.4-1.4M17.3 6.7l1.4-1.4" stroke-width="2"></path></svg>Today</span>
-          <span style="flex: 1; display: flex; flex-direction: column; align-items: center; gap: 2px; color: #57534E; font-size: 12px; font-weight: 600"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3.5" y="5" width="17" height="15.5" rx="2.5"></rect><path d="M3.5 9.5h17M8 3v3.5M16 3v3.5"></path></svg>Meals</span>
+          <span style="flex: 1; display: flex; flex-direction: column; align-items: center; gap: 2px; color: #57534E; font-size: 12px; font-weight: 600"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3.5" y="5" width="17" height="15.5" rx="2.5"></rect><path d="M3.5 9.5h17M8 3v3.5M16 3v3.5"></path></svg>Plan</span>
           <span style="flex: 1; display: flex; flex-direction: column; align-items: center; gap: 2px; color: #57534E; font-size: 12px; font-weight: 600"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="9" cy="20" r="1.3"></circle><circle cx="17.5" cy="20" r="1.3"></circle><path d="M2.5 3.5h3l2.4 11.5h11l2-8.5H6.6"></path></svg>Shop</span>
           <span style="flex: 1; display: flex; flex-direction: column; align-items: center; gap: 2px; color: #57534E; font-size: 12px; font-weight: 600"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2.5 12h19M6 7.5v9M9 6v12M15 6v12M18 7.5v9"></path></svg>Train</span>
           <span style="flex: 1; display: flex; flex-direction: column; align-items: center; gap: 2px; color: #57534E; font-size: 12px; font-weight: 600; position: relative"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"></circle><circle cx="12" cy="10" r="3"></circle><path d="M6.5 18.2c1.2-2 3.2-3 5.5-3s4.3 1 5.5 3"></path></svg>You<span style="position: absolute; top: -3px; left: calc(50% + 6px); min-width: 17.5px; height: 17.5px; box-sizing: border-box; padding: 0 5px; border-radius: 9999px; background: #944A00; color: #FFFFFF; font-size: 12px; display: flex; align-items: center; justify-content: center">2</span></span>
         </nav>
         <ul style="margin: 0; padding-left: 18px; font-size: 13px; line-height: 20px; color: #57534E">
           <li>Every account sees all five tabs, whatever it picked in onboarding (since ddfa6859; the earlier job-aware set hid Plan and Shop from training-only users).</li>
-          <li>Plan is renamed <b>Meals</b> (route stays <code>/plan</code>). Add (+) and Ask Chef are header buttons, never tabs. More is gone; every setting lives under You.</li>
+          <li>Add (+) and Ask Chef are header buttons, never tabs. More is gone; its rows live under You.</li>
         </ul>
         <span style="font-size: 13px; font-weight: 600; color: #57534E">Workout mini bar · above the tab bar on every tab while a workout runs</span>
         <div style="width: 390px; box-sizing: border-box; background: #FAF7F2; padding: 3.5px 10.5px 7px; border-radius: 10px">
@@ -282,14 +183,12 @@ input::placeholder,textarea::placeholder{color:#9ca3af}
         </div>
       </div>
       <div style="display: flex; flex-direction: column; gap: 14px">
-        <span style="font-size: 13px; font-weight: 600; color: #57534E">ShellTopBar · 10 Oct: every tab has a title and Ask Chef</span>
+        <span style="font-size: 13px; font-weight: 600; color: #57534E">ShellTopBar variants</span>
         <div style="display: flex; flex-direction: column; gap: 10px; font-size: 13px; color: #57534E">
-          <div style="width: 390px; box-sizing: border-box; border: 1px solid #E6DED3; border-radius: 10px; padding: 6px 14px; display: flex; align-items: center; justify-content: space-between"><b style="font-size: 28px; line-height: 34px; color: #1C1917">Today</b><span style="display: flex; gap: 3.5px; align-items: center"><i style="width: 36px; height: 36px; border-radius: 9999px; background: #F6EADB"></i><span style="min-height: 36px; padding: 0 12px; border-radius: 9999px; background: #F6EADB; color: #944A00; font-size: 14px; font-weight: 600; display: flex; align-items: center">Ask Chef</span><i style="width: 36px; height: 36px; border-radius: 9999px; background: #944A00"></i></span></div>
-          <div style="width: 390px; box-sizing: border-box; border: 1px solid #E6DED3; border-radius: 10px; padding: 6px 14px; display: flex; align-items: center; justify-content: space-between"><b style="font-size: 28px; line-height: 34px; color: #1C1917">Meals</b><span style="display: flex; gap: 3.5px; align-items: center"><span style="min-height: 36px; padding: 0 12px; border-radius: 9999px; background: #F6EADB; color: #944A00; font-size: 14px; font-weight: 600; display: flex; align-items: center">Ask Chef</span></span></div>
-          <div style="width: 390px; box-sizing: border-box; border: 1px solid #E6DED3; border-radius: 10px; padding: 6px 14px; display: flex; align-items: center; justify-content: space-between"><b style="font-size: 28px; line-height: 34px; color: #1C1917">Shop</b><span style="display: flex; gap: 3.5px; align-items: center"><i style="width: 36px; height: 36px; border-radius: 9999px; background: #F6EADB"></i><span style="min-height: 36px; padding: 0 12px; border-radius: 9999px; background: #F6EADB; color: #944A00; font-size: 14px; font-weight: 600; display: flex; align-items: center">Ask Chef</span></span></div>
-          <div style="width: 390px; box-sizing: border-box; border: 1px solid #E6DED3; border-radius: 10px; padding: 6px 14px; display: flex; align-items: center; justify-content: space-between"><b style="font-size: 28px; line-height: 34px; color: #1C1917">Train</b><span style="display: flex; gap: 3.5px; align-items: center"><span style="min-height: 36px; padding: 0 12px; border-radius: 9999px; background: #F6EADB; color: #944A00; font-size: 14px; font-weight: 600; display: flex; align-items: center">Ask Chef</span></span></div>
-          <div style="width: 390px; box-sizing: border-box; border: 1px solid #E6DED3; border-radius: 10px; padding: 6px 14px; display: flex; align-items: center; justify-content: space-between"><b style="font-size: 28px; line-height: 34px; color: #1C1917">You</b><span style="display: flex; gap: 3.5px; align-items: center"><span style="min-height: 36px; padding: 0 12px; border-radius: 9999px; background: #F6EADB; color: #944A00; font-size: 14px; font-weight: 600; display: flex; align-items: center">Ask Chef</span></span></div>
-          <span>Today adds Stats (tinted) and Add (filled); Shop adds Share. Pushed shell screens (Cookbook, Routine, Stats) keep the back chevron and gain Ask Chef. Older stack screens keep the 20px arrow + 25px bold title until phase 2.</span>
+          <div style="width: 390px; box-sizing: border-box; border: 1px solid #E6DED3; border-radius: 10px; padding: 6px 14px; display: flex; align-items: center; justify-content: space-between"><span>Today: actions only</span><span style="display: flex; gap: 3.5px"><i style="width: 36px; height: 36px; border-radius: 9999px; background: #F6EADB"></i><i style="width: 36px; height: 36px; border-radius: 9999px; background: #944A00"></i></span></div>
+          <div style="width: 390px; box-sizing: border-box; border: 1px solid #E6DED3; border-radius: 10px; padding: 6px 14px; display: flex; align-items: center; justify-content: space-between"><b style="font-size: 28px; line-height: 34px; color: #1C1917">Plan</b><span style="display: flex; gap: 3.5px"><i style="width: 36px; height: 36px; border-radius: 9999px; background: #F6EADB"></i><i style="width: 36px; height: 36px; border-radius: 9999px; background: #F6EADB"></i></span></div>
+          <div style="width: 390px; box-sizing: border-box; border: 1px solid #E6DED3; border-radius: 10px; padding: 6px 14px; display: flex; align-items: center; gap: 8px"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#944A00" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 5l-7 7 7 7"></path></svg><span>Pushed shell screen (Cookbook, Training/*): back only</span></div>
+          <span>Shop and Train render no top bar. You uses a LargeHeader. Older stack screens keep the 20px arrow + 25px bold title until phase 2.</span>
         </div>
         <h2 style="margin: 14px 0 0; font-size: 21px; font-weight: 700">How to use this canvas</h2>
         <ol style="margin: 0; padding-left: 20px; font-size: 15px; line-height: 23px; color: #374151; display: flex; flex-direction: column; gap: 6px">
@@ -303,7 +202,7 @@ input::placeholder,textarea::placeholder{color:#9ca3af}
   </section>
 </div>
 </x-dc>
-<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1280,"height":3320}}'>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1280,"height":2300}}'>
 class Component extends DCLogic {
 renderVals() {
 return {};
