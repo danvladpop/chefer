@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { ActivityIndicator, Image, Pressable, SectionList, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Button, ErrorState, SEARCH_LIST_PROPS, SearchField, Sheet, Text } from '@chefer/ui-mobile';
@@ -47,6 +47,14 @@ interface RecipePickerSheetProps {
   onSelect: (recipeId: string, acknowledgeConflict?: boolean) => void;
   onAiSwap?: () => void;
   onClose: () => void;
+  /**
+   * New shell (Meals): extra rows above the list — the meal's other actions
+   * (pin, side dish, skipped…) live on its "Change" sheet. The old shell
+   * passes nothing.
+   */
+  actions?: ReactNode;
+  /** Forwarded to the Sheet: runs once it has fully gone (a next sheet may open then). */
+  onExited?: () => void;
 }
 
 /** The `slotType` list input for a slot type string, or nothing for an unknown one. */
@@ -73,6 +81,8 @@ export function RecipePickerSheet({
   onSelect,
   onAiSwap,
   onClose,
+  actions,
+  onExited,
 }: RecipePickerSheetProps) {
   const { proteinOnly } = useNumbersMode();
   // Keep the title through the exit animation (the caller clears mealName on close).
@@ -168,6 +178,7 @@ export function RecipePickerSheet({
       title={mealName || shownName}
       scrollable={false}
       testID="picker"
+      {...(onExited && { onExited })}
       footer={
         // AI fallback (premium only; quota enforced server-side)
         onAiSwap ? (
@@ -177,6 +188,7 @@ export function RecipePickerSheet({
         ) : undefined
       }
     >
+      {actions}
       {/* T-02.5/AC7: how many results the table's rules hid from this list. */}
       {hiddenData && hiddenData.hiddenCount > 0 && (
         <FilteredForLine
