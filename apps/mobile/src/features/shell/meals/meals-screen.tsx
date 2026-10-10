@@ -80,7 +80,6 @@ import { mealLabel, SLOT_COPY, youHadText } from '../../tracker/slot-copy';
 import { useSlotFlow } from '../../tracker/slot-flow';
 import { ShellTopBar } from '../shell-chrome';
 import { ChangeWeekSheet } from './change-week-sheet';
-import { useFitTrainingDays } from './fit-training-pref';
 import {
   intParam,
   mealConflictText,
@@ -204,7 +203,6 @@ export function MealsScreen() {
 
   const isPremium = useIsPremium();
   const { memberCount } = useHousehold();
-  const fitTrainingDays = useFitTrainingDays();
   const todayIndex = weekOffset === 0 ? todayDayIndex() : null;
   const reducedMotion = useReducedMotion();
   const { show: showSnackbar } = useSnackbar();
@@ -230,7 +228,6 @@ export function MealsScreen() {
     },
   );
   const trainingDays = plan?.trainingDays ?? [];
-  const hasTrainingDays = trainingDays.length > 0;
   const rebalanceCheck = useRebalanceCheck(plan?.planId);
 
   // Everything derived from the plan lives on other (kept-mounted) tabs.
@@ -311,7 +308,8 @@ export function MealsScreen() {
           weekOffset,
           ...(leftovers && { leftovers: true }),
           ...(keepPinned !== undefined && { keepPinned }),
-          ...(isPremium === true && hasTrainingDays && { fitTrainingDays }),
+          // T-06.7 follow-up: no per-call fitTrainingDays — the API applies
+          // the choice saved on Meal settings (premium only).
         }),
       { usesAi: aiConsentRequiredFor('meal-plan', isPremium) },
     );

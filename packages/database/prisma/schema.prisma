@@ -390,6 +390,11 @@ model DietaryPreferences {
   cookingFor            Int?
   // Persists "cook once, eat twice" (bug B-27).
   leftovers             Boolean   @default(false)
+  // T-06.7 follow-up (2026-10-10): the saved "Fit meals to training days"
+  // choice. null = never chosen = the default (on for lifters whose goal gets
+  // the training-day bump). Generation applies it for premium only, and an
+  // explicit `mealPlan.generate({ fitTrainingDays })` still wins.
+  fitTrainingDays       Boolean?
   // §2.1, T-01.3/T-01.9 (S2, rev 2): null + any stored term that isn't a
   // canonical taxonomy label => tableSafety.needsReview.
   safetyReviewedAt      DateTime?

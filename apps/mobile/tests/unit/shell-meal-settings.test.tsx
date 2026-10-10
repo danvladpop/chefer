@@ -1,9 +1,5 @@
 import { fireEvent, screen, userEvent, waitFor } from '@testing-library/react-native';
 import { router } from 'expo-router';
-import {
-  getFitTrainingPref,
-  resetFitTrainingPrefForTests,
-} from '../../src/features/shell/meals/fit-training-pref';
 import { MealSettingsScreen } from '../../src/features/shell/meals/meal-settings-screen';
 import { renderWithTrpc, type Handlers } from './friends-core-harness';
 import { testQueryClient } from './friends-profile-fixtures';
@@ -61,7 +57,6 @@ beforeEach(() => {
   mockParams = { week: '1' };
   mockCanGoBack = true;
   mockPremium = false;
-  resetFitTrainingPrefForTests();
 });
 
 describe('Meal settings (new shell)', () => {
@@ -167,23 +162,50 @@ describe('Meal settings (new shell)', () => {
     );
   });
 
-  it('training days: Fit meals is a session choice for the next plan (premium)', async () => {
+  const withTrainingDays = {
+    'mealPlan.getForWeek': () => ({
+      planId: 'p1',
+      days: [],
+      trainingDays: [{ dayOfWeek: 1, kind: 'gym', applied: true }],
+    }),
+  };
+
+  it('training days: Fit meals starts on when never chosen and saves with the shape (premium)', async () => {
     mockPremium = true;
-    await renderWithTrpc(
+    const user = userEvent.setup();
+    const { calls } = await renderWithTrpc(
       <MealSettingsScreen />,
       base({
-        'mealPlan.getForWeek': () => ({
-          planId: 'p1',
-          days: [],
-          trainingDays: [{ dayOfWeek: 1, kind: 'gym', applied: true }],
-        }),
+        ...withTrainingDays,
+        'mealPlan.getShape': () => ({ ...shape(), fitTrainingDays: null }),
       }),
       testQueryClient(),
     );
     const toggle = await screen.findByTestId('meal-settings-fit-training');
     expect(toggle.props.value).toBe(true);
     await fireEvent(toggle, 'valueChange', false);
-    expect(getFitTrainingPref()).toBe(false);
+    expect(screen.getByTestId('meal-settings-fit-training').props.value).toBe(false);
+    // Nothing is saved until Save, like every other row here.
+    expect(calls.find((c) => c.path === 'mealPlan.setShape')).toBeUndefined();
+    await user.press(screen.getByTestId('meal-settings-save'));
+    await waitFor(() =>
+      expect(calls.find((c) => c.path === 'mealPlan.setShape')?.input).toMatchObject({
+        fitTrainingDays: false,
+      }),
+    );
+  });
+
+  it('training days: shows the saved choice (premium)', async () => {
+    mockPremium = true;
+    await renderWithTrpc(
+      <MealSettingsScreen />,
+      base({
+        ...withTrainingDays,
+        'mealPlan.getShape': () => ({ ...shape(), fitTrainingDays: false }),
+      }),
+      testQueryClient(),
+    );
+    expect((await screen.findByTestId('meal-settings-fit-training')).props.value).toBe(false);
   });
 
   it('free: Fit meals is locked with the Premium link', async () => {

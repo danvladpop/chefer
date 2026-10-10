@@ -1649,6 +1649,23 @@ training days" in the Plan settings sheet (`generate.fitTrainingDays`) runs
 through `aiMealPlans`. A free GAIN_MUSCLE lifter with a training day today sees
 the applied targets, not a locked preview.
 
+**"Fit meals to training days" is a saved choice (2026-10-10).** It used to be a
+per-call flag only (lost when the app restarted, and never seen by the Sunday
+auto-plan). It is now stored on `DietaryPreferences.fitTrainingDays` (null =
+never chosen = on for lifters whose goal gets the bump) and travels with the
+plan shape: `mealPlan.getShape` returns it, `mealPlan.setShape` takes it as an
+optional field (a client that does not send it — every shipped binary,
+onboarding, the Settings form — leaves it alone). Precedence when a week is
+generated (`resolveFitTrainingDays`): an explicit `generate({ fitTrainingDays })`
+wins; otherwise a **premium** user's saved choice applies — on the Plan button,
+on the Sunday `WeeklyPlanWorker` (which never sent the flag) and on every day
+live tailoring re-plans (it reads the saved choice too); otherwise the default.
+Free generation never applies it, exactly like the per-call flag. Web's Plan
+settings sheet and the new mobile shell's Meal settings save it with the rest of
+the settings (Save); neither sends a per-call flag any more. The old mobile shell
+keeps its session switch (sent per call, so it still wins) but starts from the
+saved value.
+
 **Plan (web + mobile).** Day chips carry a barbell (lift) or walk (run) glyph
 on exactly the training weekdays; the day view gets a header (`Training day ·
 Upper A`, `Target today … kcal · … g protein`, `(+300 kcal, +31 g protein for
