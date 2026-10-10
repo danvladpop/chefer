@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react';
+import { useRef, useState, type ReactNode } from 'react';
 import { Keyboard, Platform, Pressable, View, type TextInput } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useQueryClient } from '@tanstack/react-query';
@@ -119,6 +119,40 @@ function BackButton() {
   );
 }
 
+/**
+ * 10 Oct redesign: the new shell's Training settings (`features/shell/train`)
+ * opens ONE part of this screen at a time, as a pushed page with its own top
+ * bar. Without a `part` (the old shell) the whole screen renders as before.
+ */
+export type GymSettingsPart = 'equipment' | 'days' | 'reminders' | 'session' | 'pause' | 'export';
+
+export interface GymSettingsScreenProps {
+  /** Render only this part (new shell). Omitted: the full legacy screen. */
+  part?: GymSettingsPart;
+  /** Replaces the legacy back + title row (new shell's top bar). */
+  header?: ReactNode;
+}
+
+/** A `SectionAnchor` on the full screen; a plain wrapper when one part is shown alone. */
+function PartAnchor({
+  part,
+  id,
+  className,
+  children,
+}: {
+  part: GymSettingsPart | undefined;
+  id: string;
+  className?: string;
+  children: ReactNode;
+}) {
+  if (part) return <View className={className}>{children}</View>;
+  return (
+    <SectionAnchor id={id} className={className}>
+      {children}
+    </SectionAnchor>
+  );
+}
+
 function SectionTitle({ children }: { children: string }) {
   return (
     <Text className="text-xs font-semibold uppercase tracking-widest text-gray-500">
@@ -206,7 +240,9 @@ function WeightListEditor({
   );
 }
 
-export function GymSettingsScreen() {
+export function GymSettingsScreen({ part, header }: GymSettingsScreenProps = {}) {
+  const full = part === undefined;
+  const show = (p: GymSettingsPart) => full || part === p;
   // UX-ACC-04: opened from a Settings row (`?section=`), the title is the row's.
   const title = useSectionTitle('Gym settings');
   const queryClient = useQueryClient();
@@ -258,13 +294,18 @@ export function GymSettingsScreen() {
   if (bootstrapLoad.load !== 'data') {
     // UX-GYM-24: a failed or offline first load is not "set up your training".
     return (
-      <Screen className="px-0" edges={['top', 'bottom', 'left', 'right']}>
-        <View className="flex-row items-center gap-3 px-4 pt-2">
-          <BackButton />
-          <Text testID="gym-settings-title" variant="title">
-            Gym settings
-          </Text>
-        </View>
+      <Screen
+        className={full ? 'px-0' : 'bg-canvas px-0'}
+        edges={['top', 'bottom', 'left', 'right']}
+      >
+        {header ?? (
+          <View className="flex-row items-center gap-3 px-4 pt-2">
+            <BackButton />
+            <Text testID="gym-settings-title" variant="title">
+              Gym settings
+            </Text>
+          </View>
+        )}
         <GymBootstrapUnavailable
           load={bootstrapLoad.load}
           onRetry={bootstrapLoad.retry}
@@ -277,13 +318,18 @@ export function GymSettingsScreen() {
 
   if (!bootstrap?.profile) {
     return (
-      <Screen className="px-0" edges={['top', 'bottom', 'left', 'right']}>
-        <View className="flex-row items-center gap-3 px-4 pt-2">
-          <BackButton />
-          <Text testID="gym-settings-title" variant="title">
-            Gym settings
-          </Text>
-        </View>
+      <Screen
+        className={full ? 'px-0' : 'bg-canvas px-0'}
+        edges={['top', 'bottom', 'left', 'right']}
+      >
+        {header ?? (
+          <View className="flex-row items-center gap-3 px-4 pt-2">
+            <BackButton />
+            <Text testID="gym-settings-title" variant="title">
+              Gym settings
+            </Text>
+          </View>
+        )}
         <EmptyState
           testID="gym-settings-empty"
           title="Set up your training first"
@@ -358,293 +404,317 @@ export function GymSettingsScreen() {
   };
 
   return (
-    <Screen className="px-0" edges={['top', 'bottom', 'left', 'right']}>
-      <View className="flex-row items-center gap-3 px-4 pt-2">
-        <BackButton />
-        <Text testID="gym-settings-title" variant="title">
-          {title}
-        </Text>
-      </View>
+    <Screen className={full ? 'px-0' : 'bg-canvas px-0'} edges={['top', 'bottom', 'left', 'right']}>
+      {header ?? (
+        <View className="flex-row items-center gap-3 px-4 pt-2">
+          <BackButton />
+          <Text testID="gym-settings-title" variant="title">
+            {title}
+          </Text>
+        </View>
+      )}
 
       <KeyboardAwareScrollView contentContainerClassName="gap-5 px-4 py-4">
-        <SectionAnchor id="units" className="gap-2">
-          <SectionTitle>Units</SectionTitle>
-          <ChipGroup
-            testID="gym-settings-unit"
-            options={[
-              { value: 'KG' as const, label: 'kg', testID: 'gym-settings-unit-kg' },
-              { value: 'LB' as const, label: 'lb', testID: 'gym-settings-unit-lb' },
-            ]}
-            value={[unit]}
-            onChange={(v) => {
-              const next = v[0];
-              if (next) saveMutation.mutate({ unit: next });
-            }}
-          />
-          <Text variant="muted" className="text-xs">
-            Also switches recipes, shopping lists and your body weight.
-          </Text>
-        </SectionAnchor>
+        {full ? (
+          <>
+            <SectionAnchor id="units" className="gap-2">
+              <SectionTitle>Units</SectionTitle>
+              <ChipGroup
+                testID="gym-settings-unit"
+                options={[
+                  { value: 'KG' as const, label: 'kg', testID: 'gym-settings-unit-kg' },
+                  { value: 'LB' as const, label: 'lb', testID: 'gym-settings-unit-lb' },
+                ]}
+                value={[unit]}
+                onChange={(v) => {
+                  const next = v[0];
+                  if (next) saveMutation.mutate({ unit: next });
+                }}
+              />
+              <Text variant="muted" className="text-xs">
+                Also switches recipes, shopping lists and your body weight.
+              </Text>
+            </SectionAnchor>
 
-        {cardioLogging ? (
-          <View className="gap-2">
-            <SectionTitle>Distance</SectionTitle>
-            <ChipGroup
-              testID="gym-settings-distance-unit"
-              options={[
-                { value: 'KM' as const, label: 'km', testID: 'gym-settings-distance-unit-km' },
-                { value: 'MI' as const, label: 'mi', testID: 'gym-settings-distance-unit-mi' },
-              ]}
-              value={[distanceUnit]}
-              onChange={(v) => {
-                const next = v[0];
-                if (next) saveMutation.mutate({ distanceUnit: next });
-              }}
-            />
+            {cardioLogging ? (
+              <View className="gap-2">
+                <SectionTitle>Distance</SectionTitle>
+                <ChipGroup
+                  testID="gym-settings-distance-unit"
+                  options={[
+                    { value: 'KM' as const, label: 'km', testID: 'gym-settings-distance-unit-km' },
+                    { value: 'MI' as const, label: 'mi', testID: 'gym-settings-distance-unit-mi' },
+                  ]}
+                  value={[distanceUnit]}
+                  onChange={(v) => {
+                    const next = v[0];
+                    if (next) saveMutation.mutate({ distanceUnit: next });
+                  }}
+                />
+              </View>
+            ) : null}
+
+            <View className="gap-2">
+              <SectionTitle>Weekly goal</SectionTitle>
+              <Stepper
+                testID="gym-settings-weekly-goal"
+                accessibilityLabel="Weekly goal"
+                value={profile.weeklyGoal}
+                min={1}
+                max={7}
+                label="sessions / week"
+                onChange={(n) => saveMutation.mutate({ weeklyGoal: n })}
+              />
+            </View>
+          </>
+        ) : null}
+
+        {show('equipment') ? (
+          <View className="gap-3">
+            {full ? <SectionTitle>Equipment</SectionTitle> : null}
+            <Card className="gap-4">
+              <View className="gap-2">
+                <Text variant="label">Bar weight</Text>
+                <Stepper
+                  testID="gym-settings-bar-weight"
+                  accessibilityLabel="Bar weight"
+                  value={kgToUnit(profile.barWeightKg, unit)}
+                  step={unit === 'KG' ? 0.5 : 1}
+                  min={0}
+                  max={60}
+                  format={(v) => `${formatLoadNumber(unitToKg(v, unit), unit)} ${unitLabel(unit)}`}
+                  onChange={(v) => saveMutation.mutate({ barWeightKg: unitToKg(v, unit) })}
+                />
+              </View>
+              <View className="gap-2">
+                <Text variant="label">Plate pairs you have</Text>
+                <WeightListEditor
+                  testID="gym-settings-plates"
+                  valuesKg={profile.platePairsKg}
+                  unit={unit}
+                  onChangeKg={(kg) => saveMutation.mutate({ platePairsKg: kg })}
+                />
+              </View>
+              <View className="gap-2">
+                <Text variant="label">Dumbbells you have (weight of one dumbbell)</Text>
+                <WeightListEditor
+                  testID="gym-settings-dumbbells"
+                  valuesKg={profile.dumbbellsKg}
+                  unit={unit}
+                  onChangeKg={(kg) => saveMutation.mutate({ dumbbellsKg: kg })}
+                />
+              </View>
+              <View className="gap-2">
+                <Text variant="label">Machine weight step</Text>
+                <Stepper
+                  testID="gym-settings-machine-step"
+                  accessibilityLabel="Machine weight step"
+                  value={kgToUnit(profile.machineStepKg, unit)}
+                  step={unit === 'KG' ? 0.5 : 1}
+                  min={0.5}
+                  max={20}
+                  format={(v) => `${formatLoadNumber(unitToKg(v, unit), unit)} ${unitLabel(unit)}`}
+                  onChange={(v) => saveMutation.mutate({ machineStepKg: unitToKg(v, unit) })}
+                />
+              </View>
+              <View className="gap-2">
+                <Text variant="label">Cable weight step</Text>
+                <Stepper
+                  testID="gym-settings-cable-step"
+                  accessibilityLabel="Cable weight step"
+                  value={kgToUnit(profile.cableStepKg, unit)}
+                  step={unit === 'KG' ? 0.5 : 1}
+                  min={0.5}
+                  max={20}
+                  format={(v) => `${formatLoadNumber(unitToKg(v, unit), unit)} ${unitLabel(unit)}`}
+                  onChange={(v) => saveMutation.mutate({ cableStepKg: unitToKg(v, unit) })}
+                />
+              </View>
+              <View className="gap-2">
+                <Text variant="label">Dip belt</Text>
+                <ChipGroup
+                  testID="gym-settings-dip-belt"
+                  options={[
+                    { value: 'no' as const, label: 'No', testID: 'gym-settings-dip-belt-no' },
+                    { value: 'yes' as const, label: 'Yes', testID: 'gym-settings-dip-belt-yes' },
+                  ]}
+                  value={[profile.hasDipBelt ? 'yes' : 'no']}
+                  onChange={(v) => saveMutation.mutate({ hasDipBelt: v[0] === 'yes' })}
+                />
+              </View>
+              <View className="gap-2">
+                <Text variant="label">Micro plates</Text>
+                <ChipGroup
+                  testID="gym-settings-micro-plates"
+                  options={[
+                    { value: 'no' as const, label: 'No', testID: 'gym-settings-micro-plates-no' },
+                    {
+                      value: 'yes' as const,
+                      label: 'Yes',
+                      testID: 'gym-settings-micro-plates-yes',
+                    },
+                  ]}
+                  value={[profile.microPlates ? 'yes' : 'no']}
+                  onChange={(v) => saveMutation.mutate({ microPlates: v[0] === 'yes' })}
+                />
+              </View>
+            </Card>
           </View>
         ) : null}
 
-        <View className="gap-2">
-          <SectionTitle>Weekly goal</SectionTitle>
-          <Stepper
-            testID="gym-settings-weekly-goal"
-            accessibilityLabel="Weekly goal"
-            value={profile.weeklyGoal}
-            min={1}
-            max={7}
-            label="sessions / week"
-            onChange={(n) => saveMutation.mutate({ weeklyGoal: n })}
-          />
-        </View>
+        {show('days') || show('reminders') || show('session') ? (
+          <PartAnchor part={part} id="reminders" className="gap-2">
+            {full ? <SectionTitle>Training days & reminders</SectionTitle> : null}
+            <Card className="gap-3">
+              {show('days') ? (
+                <View className="gap-1.5">
+                  <Text variant="label">Weekday kind</Text>
+                  <View className="flex-row justify-between" testID="gym-settings-day-kinds">
+                    {WEEKDAY_SHORT_LABELS.map((label, weekday) => {
+                      const isLift = liftWeekdays.has(weekday);
+                      const kind: DayKind | null = isLift
+                        ? 'lift'
+                        : (dayKinds[String(weekday)] ?? null);
+                      return (
+                        <Pressable
+                          key={weekday}
+                          testID={`gym-settings-day-kind-${weekday}`}
+                          accessibilityRole="button"
+                          accessibilityLabel={`${weekdayLabel(weekday)}: ${kind ? DAY_KIND_SHORT[kind] : 'not set'}`}
+                          disabled={isLift}
+                          onPress={() => setKindSheetWeekday(weekday)}
+                          className="min-h-11 min-w-11 items-center justify-center gap-0.5 rounded-lg px-1 disabled:opacity-60"
+                        >
+                          <Text className="text-xs font-semibold">{label}</Text>
+                          <Text variant="muted" className="text-xs">
+                            {kind ? DAY_KIND_SHORT[kind] : '—'}
+                          </Text>
+                        </Pressable>
+                      );
+                    })}
+                  </View>
+                  <Text variant="muted" className="text-xs">
+                    Lift days come from your routine. Mark the rest as a run, a long run or rest.
+                  </Text>
+                </View>
+              ) : null}
+              {show('reminders') ? (
+                <>
+                  <ChipGroup
+                    testID="gym-settings-reminder-toggle"
+                    options={[
+                      { value: 'off' as const, label: 'Off', testID: 'gym-settings-reminder-off' },
+                      { value: 'on' as const, label: 'On', testID: 'gym-settings-reminder-on' },
+                    ]}
+                    value={[remindersOn ? 'on' : 'off']}
+                    onChange={(v) => saveReminder(v[0] === 'on', reminderHour, reminderMinute)}
+                  />
+                  {showNotificationsOff && (
+                    <NotificationsOffRow
+                      testID="gym-settings-notifications-off"
+                      message="Reminders are off for Chefer"
+                    />
+                  )}
+                  {remindersOn && (
+                    <View className="flex-row items-center gap-3">
+                      <Stepper
+                        testID="gym-settings-reminder-hour"
+                        accessibilityLabel="Reminder hour"
+                        value={reminderHour}
+                        min={0}
+                        max={23}
+                        format={(v) => pad(v)}
+                        onChange={(v) => {
+                          setReminderHour(v);
+                          saveReminder(true, v, reminderMinute);
+                        }}
+                      />
+                      <Text className="text-lg font-semibold">:</Text>
+                      <Stepper
+                        testID="gym-settings-reminder-minute"
+                        accessibilityLabel="Reminder minute"
+                        value={reminderMinute}
+                        step={15}
+                        min={0}
+                        max={45}
+                        format={(v) => pad(v)}
+                        onChange={(v) => {
+                          setReminderMinute(v);
+                          saveReminder(true, reminderHour, v);
+                        }}
+                      />
+                    </View>
+                  )}
+                  <View className="gap-1.5">
+                    <Text variant="label">Nudge me if I’ve gone quiet for</Text>
+                    <ChipGroup
+                      testID="gym-settings-quiet-nudge"
+                      options={QUIET_NUDGE_OPTIONS}
+                      value={[quietNudgeChipValue(profile.quietNudgeDays)]}
+                      onChange={(v) => {
+                        const chip = v[0] ?? 'never';
+                        saveMutation.mutate({ quietNudgeDays: QUIET_NUDGE_DAYS[chip] });
+                      }}
+                    />
+                  </View>
+                </>
+              ) : null}
+              {show('session') ? (
+                <View className="gap-1.5">
+                  <Text variant="label">How long can a session usually be?</Text>
+                  <ChipGroup
+                    testID="gym-settings-session-length"
+                    allowEmpty
+                    options={SESSION_LENGTH_OPTIONS.map((n) => ({
+                      value: n,
+                      label: n === 75 ? '75+ min' : `${String(n)} min`,
+                      testID: `gym-settings-session-length-${String(n)}`,
+                    }))}
+                    value={profile.sessionLengthMins ? [profile.sessionLengthMins] : []}
+                    onChange={(v) => saveMutation.mutate({ sessionLengthMins: v[0] ?? null })}
+                  />
+                </View>
+              ) : null}
+            </Card>
+          </PartAnchor>
+        ) : null}
 
-        <View className="gap-3">
-          <SectionTitle>Equipment</SectionTitle>
-          <Card className="gap-4">
-            <View className="gap-2">
-              <Text variant="label">Bar weight</Text>
-              <Stepper
-                testID="gym-settings-bar-weight"
-                accessibilityLabel="Bar weight"
-                value={kgToUnit(profile.barWeightKg, unit)}
-                step={unit === 'KG' ? 0.5 : 1}
-                min={0}
-                max={60}
-                format={(v) => `${formatLoadNumber(unitToKg(v, unit), unit)} ${unitLabel(unit)}`}
-                onChange={(v) => saveMutation.mutate({ barWeightKg: unitToKg(v, unit) })}
-              />
-            </View>
-            <View className="gap-2">
-              <Text variant="label">Plate pairs you have</Text>
-              <WeightListEditor
-                testID="gym-settings-plates"
-                valuesKg={profile.platePairsKg}
-                unit={unit}
-                onChangeKg={(kg) => saveMutation.mutate({ platePairsKg: kg })}
-              />
-            </View>
-            <View className="gap-2">
-              <Text variant="label">Dumbbells you have (weight of one dumbbell)</Text>
-              <WeightListEditor
-                testID="gym-settings-dumbbells"
-                valuesKg={profile.dumbbellsKg}
-                unit={unit}
-                onChangeKg={(kg) => saveMutation.mutate({ dumbbellsKg: kg })}
-              />
-            </View>
-            <View className="gap-2">
-              <Text variant="label">Machine weight step</Text>
-              <Stepper
-                testID="gym-settings-machine-step"
-                accessibilityLabel="Machine weight step"
-                value={kgToUnit(profile.machineStepKg, unit)}
-                step={unit === 'KG' ? 0.5 : 1}
-                min={0.5}
-                max={20}
-                format={(v) => `${formatLoadNumber(unitToKg(v, unit), unit)} ${unitLabel(unit)}`}
-                onChange={(v) => saveMutation.mutate({ machineStepKg: unitToKg(v, unit) })}
-              />
-            </View>
-            <View className="gap-2">
-              <Text variant="label">Cable weight step</Text>
-              <Stepper
-                testID="gym-settings-cable-step"
-                accessibilityLabel="Cable weight step"
-                value={kgToUnit(profile.cableStepKg, unit)}
-                step={unit === 'KG' ? 0.5 : 1}
-                min={0.5}
-                max={20}
-                format={(v) => `${formatLoadNumber(unitToKg(v, unit), unit)} ${unitLabel(unit)}`}
-                onChange={(v) => saveMutation.mutate({ cableStepKg: unitToKg(v, unit) })}
-              />
-            </View>
-            <View className="gap-2">
-              <Text variant="label">Dip belt</Text>
-              <ChipGroup
-                testID="gym-settings-dip-belt"
-                options={[
-                  { value: 'no' as const, label: 'No', testID: 'gym-settings-dip-belt-no' },
-                  { value: 'yes' as const, label: 'Yes', testID: 'gym-settings-dip-belt-yes' },
-                ]}
-                value={[profile.hasDipBelt ? 'yes' : 'no']}
-                onChange={(v) => saveMutation.mutate({ hasDipBelt: v[0] === 'yes' })}
-              />
-            </View>
-            <View className="gap-2">
-              <Text variant="label">Micro plates</Text>
-              <ChipGroup
-                testID="gym-settings-micro-plates"
-                options={[
-                  { value: 'no' as const, label: 'No', testID: 'gym-settings-micro-plates-no' },
-                  { value: 'yes' as const, label: 'Yes', testID: 'gym-settings-micro-plates-yes' },
-                ]}
-                value={[profile.microPlates ? 'yes' : 'no']}
-                onChange={(v) => saveMutation.mutate({ microPlates: v[0] === 'yes' })}
-              />
-            </View>
-          </Card>
-        </View>
-
-        <SectionAnchor id="reminders" className="gap-2">
-          <SectionTitle>Training days & reminders</SectionTitle>
-          <Card className="gap-3">
-            <View className="gap-1.5">
-              <Text variant="label">Weekday kind</Text>
-              <View className="flex-row justify-between" testID="gym-settings-day-kinds">
-                {WEEKDAY_SHORT_LABELS.map((label, weekday) => {
-                  const isLift = liftWeekdays.has(weekday);
-                  const kind: DayKind | null = isLift
-                    ? 'lift'
-                    : (dayKinds[String(weekday)] ?? null);
-                  return (
-                    <Pressable
-                      key={weekday}
-                      testID={`gym-settings-day-kind-${weekday}`}
-                      accessibilityRole="button"
-                      accessibilityLabel={`${weekdayLabel(weekday)}: ${kind ? DAY_KIND_SHORT[kind] : 'not set'}`}
-                      disabled={isLift}
-                      onPress={() => setKindSheetWeekday(weekday)}
-                      className="min-h-11 min-w-11 items-center justify-center gap-0.5 rounded-lg px-1 disabled:opacity-60"
-                    >
-                      <Text className="text-xs font-semibold">{label}</Text>
-                      <Text variant="muted" className="text-xs">
-                        {kind ? DAY_KIND_SHORT[kind] : '—'}
-                      </Text>
-                    </Pressable>
-                  );
-                })}
-              </View>
-              <Text variant="muted" className="text-xs">
-                Lift days come from your routine. Mark the rest as a run, a long run or rest.
-              </Text>
-            </View>
-            <ChipGroup
-              testID="gym-settings-reminder-toggle"
-              options={[
-                { value: 'off' as const, label: 'Off', testID: 'gym-settings-reminder-off' },
-                { value: 'on' as const, label: 'On', testID: 'gym-settings-reminder-on' },
-              ]}
-              value={[remindersOn ? 'on' : 'off']}
-              onChange={(v) => saveReminder(v[0] === 'on', reminderHour, reminderMinute)}
-            />
-            {showNotificationsOff && (
-              <NotificationsOffRow
-                testID="gym-settings-notifications-off"
-                message="Reminders are off for Chefer"
-              />
-            )}
-            {remindersOn && (
-              <View className="flex-row items-center gap-3">
-                <Stepper
-                  testID="gym-settings-reminder-hour"
-                  accessibilityLabel="Reminder hour"
-                  value={reminderHour}
-                  min={0}
-                  max={23}
-                  format={(v) => pad(v)}
-                  onChange={(v) => {
-                    setReminderHour(v);
-                    saveReminder(true, v, reminderMinute);
-                  }}
-                />
-                <Text className="text-lg font-semibold">:</Text>
-                <Stepper
-                  testID="gym-settings-reminder-minute"
-                  accessibilityLabel="Reminder minute"
-                  value={reminderMinute}
-                  step={15}
-                  min={0}
-                  max={45}
-                  format={(v) => pad(v)}
-                  onChange={(v) => {
-                    setReminderMinute(v);
-                    saveReminder(true, reminderHour, v);
-                  }}
-                />
-              </View>
-            )}
-            <View className="gap-1.5">
-              <Text variant="label">Nudge me if I’ve gone quiet for</Text>
-              <ChipGroup
-                testID="gym-settings-quiet-nudge"
-                options={QUIET_NUDGE_OPTIONS}
-                value={[quietNudgeChipValue(profile.quietNudgeDays)]}
-                onChange={(v) => {
-                  const chip = v[0] ?? 'never';
-                  saveMutation.mutate({ quietNudgeDays: QUIET_NUDGE_DAYS[chip] });
-                }}
-              />
-            </View>
-            <View className="gap-1.5">
-              <Text variant="label">How long can a session usually be?</Text>
-              <ChipGroup
-                testID="gym-settings-session-length"
-                allowEmpty
-                options={SESSION_LENGTH_OPTIONS.map((n) => ({
-                  value: n,
-                  label: n === 75 ? '75+ min' : `${String(n)} min`,
-                  testID: `gym-settings-session-length-${String(n)}`,
-                }))}
-                value={profile.sessionLengthMins ? [profile.sessionLengthMins] : []}
-                onChange={(v) => saveMutation.mutate({ sessionLengthMins: v[0] ?? null })}
-              />
-            </View>
-          </Card>
-        </SectionAnchor>
-
-        <SectionAnchor id="pause" className="gap-2">
-          <SectionTitle>Pause training</SectionTitle>
-          <Card className="gap-2">
-            {shownPause ? (
-              <View className="gap-2">
+        {show('pause') ? (
+          <PartAnchor part={part} id="pause" className="gap-2">
+            {full ? <SectionTitle>Pause training</SectionTitle> : null}
+            <Card className="gap-2">
+              {shownPause ? (
+                <View className="gap-2">
+                  <Text testID="gym-settings-paused-note" variant="muted">
+                    {pauseSummaryLine(shownPause, today)}
+                  </Text>
+                  <Button
+                    testID="gym-settings-pause-end"
+                    variant="outline"
+                    loading={pauseEndMutation.isPending}
+                    onPress={() => pauseEndMutation.mutate({ id: shownPause.id })}
+                  >
+                    {activePause ? 'End pause now' : 'Cancel pause'}
+                  </Button>
+                </View>
+              ) : isPausedThisWeek ? (
                 <Text testID="gym-settings-paused-note" variant="muted">
-                  {pauseSummaryLine(shownPause, today)}
+                  Training is paused this week.
                 </Text>
+              ) : (
                 <Button
-                  testID="gym-settings-pause-end"
+                  testID="gym-settings-pause-start"
                   variant="outline"
-                  loading={pauseEndMutation.isPending}
-                  onPress={() => pauseEndMutation.mutate({ id: shownPause.id })}
+                  onPress={() => setPauseSheetVisible(true)}
                 >
-                  {activePause ? 'End pause now' : 'Cancel pause'}
+                  Pause training
                 </Button>
-              </View>
-            ) : isPausedThisWeek ? (
-              <Text testID="gym-settings-paused-note" variant="muted">
-                Training is paused this week.
-              </Text>
-            ) : (
-              <Button
-                testID="gym-settings-pause-start"
-                variant="outline"
-                onPress={() => setPauseSheetVisible(true)}
-              >
-                Pause training
-              </Button>
-            )}
-          </Card>
-        </SectionAnchor>
+              )}
+            </Card>
+          </PartAnchor>
+        ) : null}
 
-        {outboxStatus.parked.length > 0 && (
+        {full && outboxStatus.parked.length > 0 && (
           <View className="gap-2">
             <SectionTitle>Needs attention</SectionTitle>
             <View className="gap-2">
@@ -705,29 +775,37 @@ export function GymSettingsScreen() {
           </View>
         )}
 
-        <SectionAnchor id="export">
-          <GymExportRow />
-        </SectionAnchor>
+        {show('export') ? (
+          <PartAnchor part={part} id="export">
+            <GymExportRow />
+          </PartAnchor>
+        ) : null}
 
-        <GymFeedbackRow />
+        {full ? (
+          <>
+            <GymFeedbackRow />
 
-        <OutboxWaitingCard status={outboxStatus} testID="gym-settings-outbox" />
+            <OutboxWaitingCard status={outboxStatus} testID="gym-settings-outbox" />
 
-        <View className="gap-1">
-          <SectionTitle>Last sync</SectionTitle>
-          <Text testID="gym-settings-last-sync" variant="muted">
-            {outboxStatus.lastSyncAt ? new Date(outboxStatus.lastSyncAt).toLocaleString() : 'Never'}
-          </Text>
-        </View>
+            <View className="gap-1">
+              <SectionTitle>Last sync</SectionTitle>
+              <Text testID="gym-settings-last-sync" variant="muted">
+                {outboxStatus.lastSyncAt
+                  ? new Date(outboxStatus.lastSyncAt).toLocaleString()
+                  : 'Never'}
+              </Text>
+            </View>
 
-        {/* Advisory disclaimer (2026-10-02), always visible on gym settings. */}
-        <Text
-          testID="gym-settings-advisory-disclaimer"
-          variant="muted"
-          className="text-center text-xs"
-        >
-          {WELLNESS_COPY.gymAdvisoryDisclaimer}
-        </Text>
+            {/* Advisory disclaimer (2026-10-02), always visible on gym settings. */}
+            <Text
+              testID="gym-settings-advisory-disclaimer"
+              variant="muted"
+              className="text-center text-xs"
+            >
+              {WELLNESS_COPY.gymAdvisoryDisclaimer}
+            </Text>
+          </>
+        ) : null}
       </KeyboardAwareScrollView>
 
       <Sheet
