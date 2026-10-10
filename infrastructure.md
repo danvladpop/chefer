@@ -3807,7 +3807,7 @@ level-0 request still succeeding, T-00.8; the job's API runs with `RATE_LIMIT_MA
 so the whole suite from one IP isn't throttled by the default 100/min limiter; **Following:** the job also sets `FEATURE_FLAGS: 'friends'` so `apps/mobile/tests/contract/friends.contract.test.ts` runs — it skips itself when the flag is off — and `flags.contract.test.ts`'s "every flag defaults off" check exempts `friends`), and `E2E Tests` (PRs only — the
 unauthenticated `public` Playwright project; the authenticated `mobile`/`desktop`
 projects need a seeded fixture dataset, planned with roadmap P0-8). The
-`Lint`/`Type Check`/`Unit Tests`/`Build` job names are polled by name from
+`Lint`/`Format`/`Type Check`/`Unit Tests`/`Build` job names are polled by name from
 `deploy.yml`'s gate — rename them in both files together (the two new jobs are NOT in that
 required set, so a still-empty Safety Regression or a UTC Day Guard allowlist entry never
 blocks a deploy).
@@ -3830,7 +3830,7 @@ Triggered by **Actions → Deploy → Run workflow**, `gh workflow run deploy.ym
 
 ```
 setup (resolve tag)
-  └─ gate (Wait for CI)                          polls this commit's Lint / Type Check /
+  └─ gate (Wait for CI)                          polls this commit's Lint / Format / Type Check /
         Unit Tests / Build check runs; fails the deploy if any is red;
         skipped on the rollback path (the image was CI'd when first built)
   └─ build (matrix: api + web, in parallel)      GitHub runner, buildx + GHA layer cache
@@ -3857,7 +3857,7 @@ different runtime and updates would never arrive). Rolling mobile JS back:
 commit).
 
 **Branch protection (manual, repo Settings → Branches → `master`):** require the
-`Lint`, `Type Check`, `Unit Tests`, and `Build` status checks. This is the second
+`Lint`, `Format`, `Type Check`, `Unit Tests`, and `Build` status checks. This is the second
 half of the gate — the deploy gate stops red code _shipping_; protection stops it
 _merging_.
 

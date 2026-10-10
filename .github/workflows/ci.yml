@@ -1,7 +1,7 @@
 name: CI
 
 # The default branch is master — [main, develop] here meant CI never ran
-# (roadmap F-3). The Deploy workflow's "Wait for CI" gate polls the four
+# (roadmap F-3). The Deploy workflow's "Wait for CI" gate polls the five
 # job names below by exact name; rename them there too if they change here.
 on:
   push:
