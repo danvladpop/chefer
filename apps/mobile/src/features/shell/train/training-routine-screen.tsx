@@ -34,6 +34,7 @@ import {
   GymBootstrapUnavailable,
   useGymBootstrapLoad,
 } from '../../gym/components/gym-bootstrap-state';
+import { exerciseCoverUrl, libraryImages } from '../../gym/library/exercise-image';
 import { dismissHint, getDismissedHints, hintKey } from '../../gym/routine/hints-storage';
 import type { SetOverrideInput } from '../../gym/routine/override-payload';
 import { OverrideSheet } from '../../gym/routine/override-sheet';
@@ -176,6 +177,7 @@ export function TrainingRoutineScreen() {
   const data = bootstrap.data;
   const routine = data?.activeRoutine ?? null;
   const lookup = useMemo(() => (data ? libraryLookup(data) : () => undefined), [data]);
+  const imagesOf = useMemo(() => libraryImages(data?.library), [data?.library]);
   const unit = data?.profile?.unit ?? 'KG';
 
   const { volume, hints } = useMemo(() => {
@@ -293,6 +295,13 @@ export function TrainingRoutineScreen() {
                   title={day.name}
                   meta={dayMeta(day)}
                   badge={day.id === routine.nextDayId ? 'Up next' : undefined}
+                  // The first exercise photo of the day; the barbell when none has one.
+                  imageUri={exerciseCoverUrl(
+                    [...day.exercises]
+                      .sort((a, b) => a.position - b.position)
+                      .map((e) => e.exerciseId),
+                    imagesOf,
+                  )}
                   illustration={<Icon name="barbell" color={colors.brand} size={34} />}
                   accessibilityHint="Shows its exercises and next targets"
                   onPress={() => setOpenDayId(day.id)}

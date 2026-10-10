@@ -1,4 +1,4 @@
-import type { GymBootstrap, WeekSummary } from '@chefer/types';
+import type { GymBootstrap, PersonalRecord, SessionSummaryDto, WeekSummary } from '@chefer/types';
 import { addDaysLocal, collectPrs, isLoggedDay } from '@chefer/utils';
 
 // Pure numbers behind Stats (10 Oct redesign, board Progress). The eating
@@ -114,7 +114,10 @@ export type TrainingStats = {
   streakWeeks: number;
   workouts: number;
   newPrs: number;
-  /** The range was cut to the 12 weeks the bootstrap carries. */
+  /**
+   * The range was cut to the 12 weeks the bootstrap carries — only when the
+   * older history could not be fetched (offline fallback).
+   */
   clipped: boolean;
 };
 
@@ -140,5 +143,50 @@ export function trainingStats(
     workouts: completed.length,
     newPrs: prs.length,
     clipped,
+  };
+}
+
+/** Whether `rangeDays` reaches past the sessions the bootstrap carries (the 90-day view). */
+export function needsOlderHistory(rangeDays: number): boolean {
+  return rangeDays > BOOTSTRAP_SESSION_DAYS;
+}
+
+/**
+ * The `gym.session.list` cursor right after the oldest cached session, so the
+ * one page asked for starts where `bootstrap.recentSessions` ends.
+ */
+export function olderHistoryCursor(sessions: readonly SessionSummaryDto[]): string | undefined {
+  let oldest: SessionSummaryDto | undefined;
+  for (const s of sessions) {
+    if (!oldest || s.startedAt < oldest.startedAt) oldest = s;
+  }
+  return oldest ? `${oldest.startedAt}|${oldest.id}` : undefined;
+}
+
+/**
+ * Training numbers for a range longer than the cache (90 days), exact: the
+ * cached sessions plus the next page of older ones (`gym.session.list`) for
+ * workouts, and the server's all-time PR timeline (`gym.stats.prs`) for new
+ * PRs — first-ever sets are baselines, not PRs, as everywhere else.
+ */
+export function trainingStatsWithHistory(args: {
+  bootstrap: Pick<GymBootstrap, 'recentSessions' | 'streak'>;
+  olderSessions: readonly SessionSummaryDto[];
+  prTimeline: readonly PersonalRecord[];
+  today: string;
+  rangeDays: number;
+}): TrainingStats {
+  const { bootstrap, olderSessions, prTimeline, today, rangeDays } = args;
+  const from = addDaysLocal(today, -(rangeDays - 1));
+  const inRange = (localDate: string) => localDate >= from && localDate <= today;
+  const ids = new Set<string>();
+  for (const s of [...bootstrap.recentSessions, ...olderSessions]) {
+    if (s.status === 'COMPLETED' && inRange(s.localDate)) ids.add(s.id);
+  }
+  return {
+    streakWeeks: bootstrap.streak.current,
+    workouts: ids.size,
+    newPrs: prTimeline.filter((pr) => !pr.isFirst && inRange(pr.localDate)).length,
+    clipped: false,
   };
 }

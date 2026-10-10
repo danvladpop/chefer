@@ -42,3 +42,7 @@ export * from './pause-copy';
 export * from './relative-strength';
 // Activity quick-log (WP-20): record a class done elsewhere; record-only kcal.
 export * from './activity-log';
+// Calories burned for a finished session — MET × bodyweight × hours, logged kcal wins.
+export * from './burn';
+// Routine-day / past-workout cover: the first exercise photo, in order.
+export * from './cover-image';

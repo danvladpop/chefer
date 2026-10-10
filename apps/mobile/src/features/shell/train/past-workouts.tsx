@@ -1,3 +1,4 @@
+import { useMemo } from 'react';
 import { View } from 'react-native';
 import { router } from 'expo-router';
 import type { GymBootstrap, SessionSummaryDto } from '@chefer/types';
@@ -12,13 +13,15 @@ import {
 } from '@chefer/utils';
 import { Icon } from '../../../components/icon';
 import { useSessionActions } from '../../gym/history/use-session-actions';
+import { exerciseCoverUrl, libraryImages } from '../../gym/library/exercise-image';
 import { localDate } from '../../gym/offline/ids';
 import { useRecentSessions } from '../../gym/today/use-recent-sessions';
 import { TrainButton } from './train-button';
 
 // "Past workouts" on Train (10 Oct redesign; owner: one per line). The same
 // sessions and paging as the old Recent list (`useRecentSessions`), each a
-// `MediaRow`: a barbell (or the activity glyph), the name, a 🏆 PR badge,
+// `MediaRow`: the photo of the first exercise done (a barbell when none has
+// one; an activity always keeps its glyph), the name, a 🏆 PR badge,
 // "Wed 7 Oct · 61 min · 20 sets" (or the distance for an activity) and the
 // same ⋯ menu (Edit workout / Delete workout with Undo).
 
@@ -55,6 +58,7 @@ export function PastWorkouts({ bootstrap }: { bootstrap: GymBootstrap }) {
   const pager = useRecentSessions(bootstrap);
   const today = localDate();
   const distanceUnit = bootstrap.profile?.distanceUnit ?? 'KM';
+  const imagesOf = useMemo(() => libraryImages(bootstrap.library), [bootstrap.library]);
 
   if (pager.combined.length === 0) return null;
   const rows = groupRecentSessions(pager.shown, today, {
@@ -92,6 +96,14 @@ export function PastWorkouts({ bootstrap }: { bootstrap: GymBootstrap }) {
             title={row.name}
             meta={meta.text}
             badge={row.hasPr ? '🏆 PR' : undefined}
+            imageUri={
+              session && !activity
+                ? exerciseCoverUrl(
+                    session.exercises.filter((e) => !e.skipped).map((e) => e.exerciseId),
+                    imagesOf,
+                  )
+                : null
+            }
             illustration={
               <Icon name={activity ? 'activity' : 'barbell'} color={colors.brand} size={24} />
             }

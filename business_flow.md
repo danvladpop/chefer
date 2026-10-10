@@ -2734,10 +2734,23 @@ new shell. Flipping the preview on You leaves You open; switching off lands on t
 - **Today:** a half-ring calorie gauge (eaten · left · target) with protein 🍖, carbs 🍞 and fat 🥑 rows
   (over target says "N g over", amber, never red) → the **next meal** with Eaten / Cook now / Swap / Skip →
   **Your day** (one circle per meal, "Open your day" → the day's log, renamed Your day) → **Training**
-  (planned: Start workout + Log a workout; done: duration, sets or logged kcal, exercises, Summary,
-  Log another workout; rest days are one quiet row; nothing for people who don't train) → **weight** (weigh
-  in; once logged today it becomes a widget with the 30-day change, tapping opens Stats). **Stats** (top
-  bar) joins eating trends (7/28/90 days), weight and training streaks; the weekly chef review moved there.
+  (planned: the day's first exercise photo, Start workout + Log a workout; done: duration, calories burned,
+  exercises, Summary, Log another workout; rest days are one quiet row; nothing for people who don't
+  train) → **weight** (weigh in; once logged today it becomes a widget with the 30-day change, tapping
+  opens Stats). **Stats** (top bar) joins eating trends (7/28/90 days), weight and training streaks; the
+  weekly chef review moved there. Training numbers cover the whole range: 7 and 28 days come from the
+  cached gym data (offline too); 90 days also reads the older sessions (`gym.session.list`, one page after
+  the cache) and the PR timeline (`gym.stats.prs`). Only when those can't load (offline) does it show the
+  cached numbers labelled "last 12 weeks".
+- **Calories burned** (Today's done card, Workout complete): the kcal the user logged (an activity or a
+  cardio set, "kcal you logged") wins; otherwise an estimate from their latest weigh-in and the workout —
+  MET × body weight (kg) × hours (`estimateSessionKcal` in `@chefer/utils`): strength work at 3.5 MET
+  (Compendium 02054, general resistance training — the time includes rests) over the session's time,
+  capped at 5 min per working set + 10 min (a "Save for later" session resumed hours later is not a
+  marathon), cardio and activities at their catalogue MET (range midpoint, or placed by the logged effort)
+  over their logged duration. Shown as "~310" · "kcal burned (est.)", rounded to 5/10, spoken as "About 310
+  kilocalories burned, estimated" with the hint "Estimated from your body weight and workout time". No
+  weigh-in means no estimate — never a guessed weight — and the tile falls back to Sets.
   The shop reminder, Later today and Tonight/Tomorrow cards are gone from Today.
 - **Log a workout** (Today, the + sheet, Train): pick the gym day you already did (log mode for today), an
   activity (form opens with it picked), or start a freestyle workout now.
@@ -2750,7 +2763,10 @@ new shell. Flipping the preview on You leaves You open; switching off lands on t
   group**.
 - **Train:** an ongoing workout first, then the week, **Up next** (time chips, Start, Edit, Freestyle), Log a
   workout, the **Routines** card (same weight as Cookbook), past workouts one per line with PR badges.
-  Workout complete shows duration, sets (or logged kcal for activities) and exercises, PRs and the week.
+  Routines and sessions have no picture of their own, so routine days (Routine, Up next, Today, setup
+  program days) and past workouts show the photo of their first exercise that has one, else the barbell;
+  logged activities keep their activity glyph. Workout complete shows duration, calories burned (as on
+  Today; Sets without a weigh-in) and exercises, PRs and the week.
   Program setup shows distinct program cards; New exercise uses dropdowns.
 - **You is the one home for settings:** Your progress (Stats, My weeks), Settings (Meals → the new Meal
   settings screen, Training → Training settings, Notifications, Account), People, Preview, Help (Send

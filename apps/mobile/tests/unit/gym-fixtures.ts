@@ -96,3 +96,18 @@ export function makeBootstrap(overrides: Partial<GymBootstrap> = {}): GymBootstr
     ...overrides,
   };
 }
+
+type RenderedNode =
+  | { props?: Record<string, unknown>; children?: readonly unknown[] }
+  | string
+  | null
+  | undefined;
+
+/** The photo URLs drawn inside a rendered element (MediaFrame's Image), in order. */
+export function photosIn(element: unknown): string[] {
+  const node = element as RenderedNode;
+  if (typeof node === 'string' || node === null || node === undefined) return [];
+  const source = node.props?.source as { uri?: unknown } | undefined;
+  const own = typeof source?.uri === 'string' ? [source.uri] : [];
+  return [...own, ...(node.children ?? []).flatMap((child) => photosIn(child))];
+}

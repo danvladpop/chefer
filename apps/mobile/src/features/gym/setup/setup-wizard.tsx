@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Platform, Pressable, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { useQueryClient } from '@tanstack/react-query';
+import { skipToken, useQuery, useQueryClient } from '@tanstack/react-query';
 import { router, useLocalSearchParams } from 'expo-router';
 import type {
+  GymBootstrap,
   GymEquipmentAccess,
   GymSplitPreference,
   TrainingExperience,
@@ -42,6 +43,7 @@ import { useShellV2 } from '../../shell/shell-store';
 import { ProgramStep } from '../../shell/train/program-step';
 import { captureGymEvent } from '../analytics';
 import { ExerciseNameLink } from '../components/exercise-name-link';
+import { exerciseCoverUrl, libraryImages } from '../library/exercise-image';
 import { ensureGymReminderPermission } from '../reminders/permission';
 import { gymBootstrapQueryKey } from '../use-gym-bootstrap';
 import { gymErrorMessage, startingWeightError } from '../validation-copy';
@@ -113,6 +115,13 @@ function parseWeekdaysParam(raw: string | undefined): number[] {
 
 export function SetupWizard() {
   const queryClient = useQueryClient();
+  // The cached library (cache-only, never fetched here) gives the new-shell
+  // program days their cover photo — the first exercise that has one.
+  const cachedLibrary = useQuery<GymBootstrap>({
+    queryKey: gymBootstrapQueryKey,
+    queryFn: skipToken,
+  }).data?.library;
+  const imagesOf = useMemo(() => libraryImages(cachedLibrary), [cachedLibrary]);
   // 10 Oct redesign (board GymSetup): in the new shell step 5 is drawn by
   // `ProgramStep`; every other step, and step 5 in the old shell, is unchanged.
   const shellV2 = useShellV2();
@@ -350,6 +359,7 @@ export function SetupWizard() {
         }}
         preview={preview}
         sessionLengthMins={sessionLengthMins}
+        coverOf={(exerciseIds) => exerciseCoverUrl(exerciseIds, imagesOf)}
         canGoNext={canGoNext}
         onNext={goNext}
       >

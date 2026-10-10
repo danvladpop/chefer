@@ -1,13 +1,15 @@
 import { screen, userEvent, waitFor, within } from '@testing-library/react-native';
-import type { SessionSummaryDto, WeekSummary } from '@chefer/types';
+import type { PersonalRecord, SessionSummaryDto, WeekSummary } from '@chefer/types';
 import { addDaysLocal } from '@chefer/utils';
 import ProgressScreen from '../../app/progress';
 import { localDate } from '../../src/features/gym/offline/ids';
 import { gymBootstrapQueryKey } from '../../src/features/gym/use-gym-bootstrap';
 import {
   eatingStats,
+  olderHistoryCursor,
   signedPct,
   trainingStats,
+  trainingStatsWithHistory,
   weekCells,
 } from '../../src/features/shell/stats/stats-helpers';
 import { renderWithTrpc, type Handlers } from './friends-core-harness';
@@ -118,6 +120,19 @@ function session(id: string, daysBack: number, weightKg: number): SessionSummary
   };
 }
 
+function pr(sessionId: string, daysBack: number): PersonalRecord {
+  return {
+    exerciseId: 'bench',
+    kind: 'weight',
+    weightKg: 70,
+    reps: 8,
+    e1rmKg: null,
+    localDate: addDaysLocal(TODAY, -daysBack),
+    sessionId,
+    isFirst: false,
+  };
+}
+
 const week = (weekStart: string, status: WeekSummary['status'], sessions = 3): WeekSummary => ({
   weekStart,
   goal: 4,
@@ -147,7 +162,8 @@ async function renderStats(over: Partial<Handlers> = {}, gym: unknown = GYM) {
   if (gym) queryClient.setQueryData(gymBootstrapQueryKey, gym);
   const utils = await renderWithTrpc(<ProgressScreen />, server.handlers, queryClient);
   await screen.findByTestId('stats-avg');
-  return { ...utils, calls: server.calls };
+  // `requests`: every tRPC call the screen made ({ path, input }).
+  return { ...utils, calls: server.calls, requests: utils.calls };
 }
 
 beforeEach(() => jest.clearAllMocks());
@@ -222,6 +238,59 @@ describe('Stats (new shell)', () => {
     expect(router.push).toHaveBeenCalledWith('/training/stats');
   });
 
+  it('90 days: older sessions and the PR timeline cover the whole range, with no "last 12 weeks"', async () => {
+    const user = userEvent.setup();
+    const { requests } = await renderStats({
+      'gym.session.list': () => ({
+        items: [session('s0', 87, 55), session('s-old', 120, 50)],
+        nextCursor: null,
+      }),
+      'gym.stats.prs': () => [
+        pr('s3', 2),
+        pr('s0', 87),
+        pr('s-old', 120),
+        { ...pr('s-first', 89), isFirst: true },
+      ],
+    });
+    await user.press(screen.getByTestId('progress-range-90'));
+    const section = screen.getByTestId('stats-training');
+    // 2, 9 and 40 days ago from the cache + 87 days ago from the older page.
+    await waitFor(() =>
+      expect(within(section).getByTestId('stats-workouts')).toHaveProp(
+        'accessibilityLabel',
+        'workouts: 4',
+      ),
+    );
+    expect(within(section).getByTestId('stats-prs')).toHaveProp('accessibilityLabel', 'new PRs: 2');
+    expect(within(section).queryByText(/last 12 weeks/)).toBeNull();
+    // The page starts right after the oldest cached session.
+    expect(requests.find((c) => c.path === 'gym.session.list')?.input).toEqual({
+      cursor: olderHistoryCursor(GYM.recentSessions),
+      limit: 50,
+    });
+  });
+
+  it('7 and 28 days never ask the server for older history', async () => {
+    const user = userEvent.setup();
+    const { requests } = await renderStats();
+    await user.press(screen.getByTestId('progress-range-7'));
+    await user.press(screen.getByTestId('progress-range-28'));
+    expect(requests.some((c) => c.path === 'gym.session.list' || c.path === 'gym.stats.prs')).toBe(
+      false,
+    );
+  });
+
+  it('90 days without the older history (offline/error) falls back to the cache and says so', async () => {
+    const user = userEvent.setup();
+    await renderStats(); // no handlers for the history: both calls fail
+    await user.press(screen.getByTestId('progress-range-90'));
+    const section = screen.getByTestId('stats-training');
+    expect(within(section).getByTestId('stats-workouts')).toHaveProp(
+      'accessibilityLabel',
+      'workouts, last 12 weeks: 3',
+    );
+  });
+
   it('no training section for someone without a gym profile', async () => {
     await renderStats({}, makeBootstrap({ profile: null }));
     expect(screen.queryByTestId('stats-training')).toBeNull();
@@ -252,9 +321,33 @@ describe('stats helpers', () => {
     expect(cells[1]?.label).toBe('Week of 2026-10-05: this week, 2 of 4');
   });
 
-  it('counts 90 days from the 12 weeks the bootstrap carries, and says so', () => {
+  it('offline fallback: counts 90 days from the 12 weeks the bootstrap carries, and says so', () => {
     const stats = trainingStats(GYM, TODAY, 90);
     expect(stats.clipped).toBe(true);
     expect(stats.workouts).toBe(3);
+  });
+
+  it('with older history: exact over 90 days, de-duplicated, completed only', () => {
+    const stats = trainingStatsWithHistory({
+      bootstrap: GYM,
+      olderSessions: [
+        session('s1', 40, 60), // already cached: counted once
+        session('s0', 89, 55), // first day of the range
+        session('s-out', 90, 55), // one day too old
+        { ...session('s-open', 86, 55), status: 'IN_PROGRESS' },
+      ],
+      prTimeline: [pr('s3', 2), pr('s-out', 90), { ...pr('s0', 89), isFirst: true }],
+      today: TODAY,
+      rangeDays: 90,
+    });
+    expect(stats).toEqual({ streakWeeks: 7, workouts: 4, newPrs: 1, clipped: false });
+  });
+
+  it('the older-history cursor follows the oldest cached session', () => {
+    expect(olderHistoryCursor([])).toBeUndefined();
+    const oldest = session('s1', 40, 60);
+    expect(olderHistoryCursor([session('s3', 2, 70), oldest, session('s2', 9, 65)])).toBe(
+      `${oldest.startedAt}|s1`,
+    );
   });
 });

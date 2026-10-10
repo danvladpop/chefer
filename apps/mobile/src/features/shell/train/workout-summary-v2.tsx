@@ -13,7 +13,15 @@ import {
   Text,
   useThemeColors,
 } from '@chefer/ui-mobile';
-import { cn, formatDate, formatLoad, localDateStr, postWorkoutProteinG } from '@chefer/utils';
+import {
+  cn,
+  estimateSessionKcal,
+  formatDate,
+  formatLoad,
+  localDateStr,
+  postWorkoutProteinG,
+  sessionKcalCopy,
+} from '@chefer/utils';
 import { Icon } from '../../../components/icon';
 import { trpc } from '../../../lib/trpc';
 import { ExerciseNameLink } from '../../gym/components/exercise-name-link';
@@ -26,33 +34,21 @@ import {
   summaryFromDoc,
   summaryFromRecent,
   type NextTimeRow,
-  type SummaryView,
 } from '../../gym/workout/summary-model';
 import { AdjustSheet, goToday, PR_KIND_LABEL } from '../../gym/workout/summary-screen';
 import { useIsOnline } from '../../gym/workout/use-is-online';
 import { DIRECTION_LABEL, fallbackMeta, unitOf } from '../../gym/workout/workout-model';
+import { BurnTile } from './burn-tile';
 
 // ─── Workout summary, shell v2 (10 Oct redesign, Summary board) ─────────────
 // Same data as the legacy SummaryScreen (finished-store doc or the cached
 // recentSessions copy, PRs against cached history, the engine's "Next time"
 // from the optimistically folded bootstrap — correct offline too), laid out
 // as the board: trophy hero, three stat tiles, PR card, week ring, refuel
-// row, compact Next-time rows, Done. Calories burned for a gym workout do
-// not exist: a kcal tile appears only for a user-entered `caloriesKcal`
-// (logged activities); otherwise the middle tile is Sets.
-
-/** Sum of the user-entered kcal on completed sets, or null when none was entered. */
-export function loggedKcal(view: SummaryView): number | null {
-  let total: number | null = null;
-  for (const ex of view.summary.exercises) {
-    if (ex.skipped) continue;
-    for (const set of ex.sets) {
-      if (!set.completed || set.isWarmup || set.caloriesKcal === undefined) continue;
-      total = (total ?? 0) + set.caloriesKcal;
-    }
-  }
-  return total;
-}
+// row, compact Next-time rows, Done. The middle tile is calories burned —
+// the user's logged kcal, else `estimateSessionKcal` from the bootstrap's
+// bodyweight and the workout time ("~310 kcal burned (est.)") — and Sets
+// only when neither exists (no weigh-in and nothing logged).
 
 /** Duration tile: "52" + "min", or "1:05" + "h" from an hour on. */
 function durationTile(sec: number | null): { value: string; unit?: string } {
@@ -111,7 +107,10 @@ export function WorkoutSummaryV2({ id }: { id: string }) {
     );
   }
 
-  const kcal = loggedKcal(view);
+  const burn = estimateSessionKcal({
+    session: view.summary,
+    bodyweightKg: bootstrap?.bodyweightKg,
+  });
   const duration = durationTile(view.durationSec);
   const exerciseCount = view.exercises.filter((e) => !e.skipped && e.workingSets > 0).length;
   const day = formatDate(`${view.summary.localDate}T00:00:00Z`, 'weekday-short', {
@@ -159,13 +158,8 @@ export function WorkoutSummaryV2({ id }: { id: string }) {
             unit={duration.unit}
             label="Duration"
           />
-          {kcal !== null ? (
-            <StatTile
-              testID="summary-kcal"
-              icon={<Icon name="flame" size={18} color={colors.brand} />}
-              value={String(Math.round(kcal))}
-              label="kcal you logged"
-            />
+          {burn ? (
+            <BurnTile testID="summary-kcal" copy={sessionKcalCopy(burn)} />
           ) : (
             <StatTile
               testID="summary-sets"
