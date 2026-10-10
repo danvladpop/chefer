@@ -32,6 +32,8 @@ import {
 } from '@chefer/utils';
 import { WeightEntriesList } from '../src/features/coach/weight-entries-list';
 import { WeightLogForm } from '../src/features/coach/weight-log-form';
+import { useShellV2 } from '../src/features/shell/shell-store';
+import { StatsScreen } from '../src/features/shell/stats/stats-screen';
 import { trpc } from '../src/lib/trpc';
 
 // Progress — port of apps/web (dashboard)/progress/page.tsx (audit TRK-4).
@@ -105,7 +107,8 @@ function StatTile({
   );
 }
 
-export default function ProgressScreen() {
+/** Legacy (Food|Gym shell) Progress — unchanged. */
+function LegacyProgressScreen() {
   const [range, setRange] = useState<ProgressRange>(DEFAULT_PROGRESS_RANGE);
   const {
     data: monthly,
@@ -430,4 +433,10 @@ export default function ProgressScreen() {
       </KeyboardAwareScrollView>
     </Screen>
   );
+}
+
+// 10 Oct redesign: the new shell shows Stats (board Progress), opened from
+// Today's top bar; the old Food|Gym shell keeps the screen above.
+export default function ProgressScreen() {
+  return useShellV2() ? <StatsScreen /> : <LegacyProgressScreen />;
 }

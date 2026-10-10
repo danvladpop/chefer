@@ -299,9 +299,11 @@ describe('log writes ask for a preview', () => {
     // The hook that wraps the tracker's own logRecipe is fed by the screen.
     const missing = writers.filter((s) => !s.source.includes('REBALANCE_PREVIEW'));
     expect(missing.map((s) => s.file)).toEqual(['src/features/tracker/use-tracker-writes.ts']);
+    // The tracker's writes live in its shared hook (legacy Tracker + the new shell's Your day).
     expect(
-      sources.find((s) => s.file === 'app/tracker.tsx')?.source.match(/\.\.\.REBALANCE_PREVIEW/g)
-        ?.length,
+      sources
+        .find((s) => s.file === 'src/features/tracker/use-tracker-day.ts')
+        ?.source.match(/\.\.\.REBALANCE_PREVIEW/g)?.length,
     ).toBeGreaterThanOrEqual(3);
   });
 
