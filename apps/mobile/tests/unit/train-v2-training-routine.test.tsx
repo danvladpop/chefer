@@ -8,7 +8,7 @@ import { createMemoryKvBackend, setKvBackendForTests } from '../../src/features/
 import { resetGymOwnerForTests } from '../../src/features/gym/offline/owner';
 import { gymBootstrapQueryKey } from '../../src/features/gym/use-gym-bootstrap';
 import { BalanceBar } from '../../src/features/shell/train/training-routine-screen';
-import { makeBootstrap } from './gym-fixtures';
+import { makeBootstrap, makeExercise, photosIn } from './gym-fixtures';
 import type { createTrpcGymMock } from './gym-trpc-mock';
 import { mutationResult } from './gym-trpc-mock';
 import { activeDoc } from './gym-workout-helpers';
@@ -132,6 +132,28 @@ describe('Routine (new shell)', () => {
         name: 'Pull A, Mon · 1 exercise',
       }),
     ).toBeOnTheScreen();
+  });
+
+  it('a day tile shows its first exercise photo, or the barbell when none has one', async () => {
+    await renderRoute(
+      makeBootstrap({
+        activeRoutine: ROUTINE,
+        library: [
+          { ...makeExercise('bench'), images: ['/static/exercises/bench-start.jpg'] },
+          makeExercise('squat'),
+        ],
+      }),
+    );
+    const photoOf = (dayId: string) =>
+      photosIn(screen.getByTestId(`training-routine-day-${dayId}`));
+    expect(photoOf('d1')).toEqual(['http://localhost:3001/static/exercises/bench-start.jpg']);
+    // Legs: squat has no photo, so the day takes bench's.
+    expect(photoOf('d2')).toEqual(['http://localhost:3001/static/exercises/bench-start.jpg']);
+  });
+
+  it('no exercise photos: the day tiles keep the illustration', async () => {
+    await renderRoute();
+    expect(photosIn(screen.getByTestId('training-routine-day-d1'))).toEqual([]);
   });
 
   it('the play button starts that day', async () => {

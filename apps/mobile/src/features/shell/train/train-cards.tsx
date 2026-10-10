@@ -19,6 +19,7 @@ import {
   type ResumeSummary,
 } from '@chefer/utils';
 import { Icon, type IconName } from '../../../components/icon';
+import { exerciseCoverUrl, libraryImages } from '../../gym/library/exercise-image';
 import { localDate } from '../../gym/offline/ids';
 import { useRestRemaining } from '../../gym/rest-timer';
 import { weekdayLabel } from '../../gym/routine/weekday';
@@ -286,7 +287,13 @@ export function UpNextCard({
     <TrainCard testID="train-up-next">
       <View className="flex-row items-center gap-3">
         <View importantForAccessibility="no-hide-descendants" accessibilityElementsHidden>
+          {/* The first exercise photo of the day; the barbell when none has one. */}
           <MediaFrame
+            testID="train-up-next-cover"
+            imageUri={exerciseCoverUrl(
+              shownWorkout.exercises.map((e) => e.exerciseId),
+              libraryImages(t.bootstrap?.library),
+            )}
             illustration={<Icon name="barbell" color={colors.brand} size={30} />}
             size={64}
             square

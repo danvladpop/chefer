@@ -338,6 +338,13 @@ export interface ChatTools {
    * gets an honest teaser.
    */
   whatCanIMake(): Promise<string>;
+  /**
+   * Ask Chef helps with training (2026-10-10): a short read-only summary of
+   * the user's gym data — setup, week vs goal, streak, next workout, active
+   * routine, last sessions, PRs, a pause and the program recommendation.
+   * Never edits anything.
+   */
+  getMyTraining(): Promise<string>;
 }
 
 export interface ChatContext {

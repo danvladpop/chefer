@@ -492,7 +492,7 @@ describe('Today v2 — training', () => {
     expect(screen.getByTestId('log-workout-sheet-open')).toBeOnTheScreen();
   });
 
-  it('done today: "Done at 18:40", Summary, and Duration / Sets / Exercises (no burn estimate)', async () => {
+  it('done today: "Done at 18:40", Summary, and Duration / Sets / Exercises (no weigh-in → no kcal)', async () => {
     const user = userEvent.setup();
     mockBootstrap = makeBootstrap({
       activeRoutine: routineFor(weekdayOf(TODAY)),
@@ -519,5 +519,60 @@ describe('Today v2 — training', () => {
     });
     await user.press(screen.getByTestId('today-training-log-another'));
     expect(screen.getByTestId('log-workout-sheet-open')).toBeOnTheScreen();
+  });
+
+  it('done today with a known bodyweight: an estimated kcal tile replaces Sets, and says so', async () => {
+    mockBootstrap = makeBootstrap({
+      activeRoutine: routineFor(weekdayOf(TODAY)),
+      nextWorkout: PUSH_A,
+      recentSessions: [finishedToday()],
+      bodyweightKg: 80,
+    });
+    await renderToday();
+    // 3 working sets cap the strength time at 25 of the 56 min: 3.5 MET × 80 kg × 25/60 h ≈ 117 → 120.
+    const tile = screen.getByTestId('today-training-kcal');
+    expect(tile).toHaveTextContent(/~120/);
+    expect(tile).toHaveTextContent(/kcal burned \(est\.\)/);
+    expect(tile).toHaveProp('accessibilityLabel', 'About 120 kilocalories burned, estimated');
+    expect(tile).toHaveProp(
+      'accessibilityHint',
+      'Estimated from your body weight and workout time',
+    );
+    expect(screen.queryByTestId('today-training-sets')).toBeNull();
+  });
+
+  it('done today with kcal the user logged: "kcal you logged", their number unrounded', async () => {
+    const session = finishedToday();
+    mockBootstrap = makeBootstrap({
+      activeRoutine: routineFor(weekdayOf(TODAY)),
+      nextWorkout: PUSH_A,
+      recentSessions: [
+        {
+          ...session,
+          exercises: [
+            {
+              exerciseId: 'spin-class',
+              skipped: false,
+              lastSetRir: null,
+              sets: [
+                {
+                  weightKg: 0,
+                  reps: 0,
+                  isWarmup: false,
+                  completed: true,
+                  durationSec: 45 * 60,
+                  caloriesKcal: 313,
+                },
+              ],
+            },
+          ],
+        },
+      ],
+    });
+    await renderToday();
+    const tile = screen.getByTestId('today-training-kcal');
+    expect(tile).toHaveTextContent(/313/);
+    expect(tile).toHaveTextContent(/kcal you logged/);
+    expect(tile).toHaveProp('accessibilityLabel', '313 kilocalories burned, as you logged');
   });
 });

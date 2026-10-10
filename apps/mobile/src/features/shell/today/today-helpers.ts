@@ -1,9 +1,10 @@
 import type { GymBootstrap, SessionSummaryDto } from '@chefer/types';
 import {
-  activityFacts,
+  estimateSessionKcal,
   formatBodyWeight,
   formatDate,
   isActivityLogSession,
+  type SessionKcal,
   type UnitSystem,
 } from '@chefer/utils';
 import type { RouterOutputs } from '../../../lib/trpc';
@@ -139,8 +140,11 @@ export type DoneToday = {
   durationMin: number;
   workingSets: number;
   exercises: number;
-  /** Only what the user entered for an activity — never an estimate of ours. */
-  caloriesKcal: number | null;
+  /**
+   * Calories burned: the user's own logged kcal, else an estimate from their
+   * bodyweight and the workout time (`estimateSessionKcal`), else null.
+   */
+  burn: SessionKcal | null;
 };
 
 /**
@@ -148,7 +152,7 @@ export type DoneToday = {
  * is not "today's workout" — it only counts with `includeActivities`.
  */
 export function doneToday(
-  bootstrap: Pick<GymBootstrap, 'recentSessions'>,
+  bootstrap: Pick<GymBootstrap, 'recentSessions'> & Partial<Pick<GymBootstrap, 'bodyweightKg'>>,
   today: string,
   { includeActivities = false }: { includeActivities?: boolean } = {},
 ): DoneToday | null {
@@ -173,14 +177,12 @@ export function doneToday(
     (n, ex) => n + ex.sets.filter((s) => !s.isWarmup && s.completed).length,
     0,
   );
-  // kcal typed on an activity or a cardio set ("from your watch") — record only.
-  const kcal = activityFacts(session).caloriesKcal;
   return {
     session,
     finishedAt: session.finishedAt,
     durationMin,
     workingSets,
     exercises: session.exercises.filter((e) => !e.skipped).length,
-    caloriesKcal: kcal !== null && kcal > 0 ? Math.round(kcal) : null,
+    burn: estimateSessionKcal({ session, bodyweightKg: bootstrap.bodyweightKg }),
   };
 }

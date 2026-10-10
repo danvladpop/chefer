@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { planShapeSchema, removeSlotInputSchema } from '@chefer/types';
+import { planSettingsInputSchema, planShapeSchema, removeSlotInputSchema } from '@chefer/types';
 import { mealPlanService } from '../application/meal-plan/meal-plan.service.js';
 import { planShapeService } from '../application/meal-plan/plan-shape.service.js';
 import { rebalanceService } from '../application/meal-plan/rebalance.service.js';
@@ -8,9 +8,6 @@ import { env } from '../lib/env.js';
 import { reserveAiSwap, reservePlanGeneration } from '../lib/quotas.js';
 import { protectedProcedure, requireAiConsent, router } from '../lib/trpc.js';
 
-// §2.3, T-07.1 (S1): the "how you cook" shape, plus `leftovers` (bug B-27,
-// stored on the same DietaryPreferences row).
-const planShapeWithLeftoversSchema = planShapeSchema.extend({ leftovers: z.boolean() });
 // A one-off override on `generate`: every field optional, merged over the
 // user's stored shape for this call only (never persisted) — e.g.
 // `Plan this day` sends `{ days: [d] }`.
@@ -56,10 +53,11 @@ export const mealPlanRouter = router({
         /** §T-07.4/T-08.3: keep slots the user pinned when they still pass safety. */
         keepPinned: z.boolean().optional(),
         /**
-         * §T-06.7: premium `Fit meals to my training days`. Omitted = today's
-         * behaviour (on for lifters whose goal gets the bump); `false` turns
-         * it off for this week. Ignored on the free tier (the switch is a
-         * locked preview there).
+         * §T-06.7: premium `Fit meals to my training days`. Omitted = the
+         * user's saved choice (`setShape({ fitTrainingDays })`), else the
+         * default (on for lifters whose goal gets the bump); `false` turns it
+         * off for this week. Ignored on the free tier (the switch is a locked
+         * preview there).
          */
         fitTrainingDays: z.boolean().optional(),
       }),
@@ -124,17 +122,23 @@ export const mealPlanRouter = router({
       );
     }),
 
-  /** §T-07.1: the user's "how you cook" plan shape (legacy default when unset). */
+  /**
+   * §T-07.1: the user's "how you cook" plan shape (legacy default when unset),
+   * plus `leftovers` and the saved `fitTrainingDays` (null = not chosen).
+   */
   getShape: protectedProcedure.query(async ({ ctx }) => {
     return planShapeService.getShape(ctx.user.id);
   }),
 
-  /** §T-07.1: persists the plan shape (onboarding, Settings, or the Plan settings sheet). */
-  setShape: protectedProcedure
-    .input(planShapeWithLeftoversSchema)
-    .mutation(async ({ ctx, input }) => {
-      return planShapeService.setShape(ctx.user.id, input);
-    }),
+  /**
+   * §T-07.1: persists the plan shape (onboarding, Settings, or the Plan
+   * settings sheet). §2.3 S1: `leftovers` (bug B-27) and, optionally, the
+   * saved `fitTrainingDays` (T-06.7 follow-up — omitted = left as stored)
+   * live on the same DietaryPreferences row.
+   */
+  setShape: protectedProcedure.input(planSettingsInputSchema).mutation(async ({ ctx, input }) => {
+    return planShapeService.setShape(ctx.user.id, input);
+  }),
 
   /** §T-07.4: toggles `Your pick` on an existing slot. */
   setSlotPinned: protectedProcedure

@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { CHAT_SYSTEM_PROMPT, DISORDERED_EATING_RULE, REVIEW_SYSTEM_PROMPT } from './prompts.js';
+import {
+  CHAT_SYSTEM_PROMPT,
+  DISORDERED_EATING_RULE,
+  REVIEW_SYSTEM_PROMPT,
+  TRAINING_NOT_PHYSIO_RULE,
+} from './prompts.js';
 
 // T-00.14 (UX-22 AC3, Art. 50 floor): the chat prompt used to invite
 // "nutritional advice" and carried no medical-topic guardrail at all — the
@@ -42,6 +47,38 @@ describe('CHAT_SYSTEM_PROMPT — guardrail (T-00.14)', () => {
       expect(prompt).not.toMatch(/off-plan|honestly|stays honest/i);
     }
     expect(CHAT_SYSTEM_PROMPT).toContain('never scold');
+  });
+
+  // Ask Chef helps with training (2026-10-10).
+  it('is a chef AND training helper that answers training from getMyTraining, never invented', () => {
+    expect(CHAT_SYSTEM_PROMPT).toContain('training helper');
+    expect(CHAT_SYSTEM_PROMPT).toContain('workouts and workout routines');
+    expect(CHAT_SYSTEM_PROMPT).toContain('call getMyTraining');
+    expect(CHAT_SYSTEM_PROMPT).toContain('never invent');
+    expect(CHAT_SYSTEM_PROMPT).toMatch(/weights, reps, sets, dates or sessions/);
+    expect(CHAT_SYSTEM_PROMPT).toContain('point them to the Train tab');
+  });
+
+  it('cannot edit routines from chat — it explains the in-app path', () => {
+    expect(CHAT_SYSTEM_PROMPT).toContain('You cannot create or edit routines or log');
+    expect(CHAT_SYSTEM_PROMPT).toContain('Train → Routines → Edit');
+  });
+
+  it('extends chef-not-doctor to training: not a physiotherapist, no injury advice, refer out', () => {
+    expect(CHAT_SYSTEM_PROMPT).toContain(TRAINING_NOT_PHYSIO_RULE);
+    const rule = TRAINING_NOT_PHYSIO_RULE.toLowerCase();
+    for (const term of [
+      'not a doctor or physiotherapist',
+      'no injury diagnosis',
+      'rehab',
+      'never suggest training through pain',
+      'pain or an injury',
+      'see a doctor or physiotherapist',
+    ]) {
+      expect(rule).toContain(term);
+    }
+    // The review prompt stays food-only.
+    expect(REVIEW_SYSTEM_PROMPT).not.toContain(TRAINING_NOT_PHYSIO_RULE);
   });
 
   it('matches the known-good snapshot', () => {

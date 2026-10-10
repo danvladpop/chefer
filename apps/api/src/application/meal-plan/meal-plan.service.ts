@@ -448,9 +448,10 @@ export type GenerateOptions = {
   keepPinned?: boolean;
   /**
    * §T-06.7: `Fit meals to my training days`. `false` turns the training-day
-   * bias off for this call; `undefined` keeps today's behaviour (on for
-   * lifters whose goal gets the bump). The router only forwards it for
-   * premium users.
+   * bias off for this call; `undefined` falls back to the user's saved
+   * choice (`DietaryPreferences.fitTrainingDays`, premium only — see
+   * `resolveFitTrainingDays`), then to the default (on for lifters whose
+   * goal gets the bump). The router only forwards it for premium users.
    */
   fitTrainingDays?: boolean;
   /**
@@ -515,6 +516,22 @@ export function dayImagePriority(dayOfWeek: number, weekOffset: number): number 
     return (dayOfWeek - getTodayDayIndex() + 7) % 7;
   }
   return weekOffset * 7 + dayOfWeek;
+}
+
+/**
+ * T-06.7 follow-up (2026-10-10): the `fitTrainingDays` a generation runs
+ * with. An explicit per-call value always wins; otherwise a premium user's
+ * saved choice applies (null = never chosen → undefined = the default, on).
+ * Free generation ignores the saved choice, exactly as the router ignores the
+ * per-call flag on the free tier — the switch is a locked preview there.
+ */
+export function resolveFitTrainingDays(
+  explicit: boolean | undefined,
+  saved: boolean | null,
+  premium: boolean,
+): boolean | undefined {
+  if (explicit !== undefined || !premium) return explicit;
+  return saved ?? undefined;
 }
 
 // ─── Service ──────────────────────────────────────────────────────────────────
@@ -597,7 +614,21 @@ export class MealPlanService {
   ): Promise<WeekPlanDto> {
     // T-06.1: the tier's `trainingDayTargets` entitlement (premium-only in the
     // matrix); the flag `trainingBumpFree` is ORed on inside the training service.
-    const withAccess: GenerateOptions = { ...options, trainingAccess: premium };
+    // T-06.7 follow-up: an omitted per-call flag falls back to the saved
+    // choice (premium only). Resolved here so the Plan button, the Sunday
+    // WeeklyPlanWorker and every generation path agree.
+    const fitTrainingDays = resolveFitTrainingDays(
+      options.fitTrainingDays,
+      premium && options.fitTrainingDays === undefined
+        ? await planShapeService.getFitTrainingDays(userId)
+        : null,
+      premium,
+    );
+    const withAccess: GenerateOptions = {
+      ...options,
+      trainingAccess: premium,
+      ...(fitTrainingDays !== undefined && { fitTrainingDays }),
+    };
     if (!premium) {
       return this.generateCurated(userId, weekOffset, withAccess);
     }
@@ -745,9 +776,17 @@ export class MealPlanService {
     // Lift-day bump: GAIN_MUSCLE-only unless the widened gate is on (Q-3,
     // `trainingBumpFree`); other lifters get the g/kg protein base alone.
     // `fitTrainingDays: false` (T-06.7) turns the bias off for this call.
+    // Premium-only context: when the caller did not say (a live-tailored day
+    // of an instant week), the saved choice applies — the day matches the
+    // week it is tailoring.
+    const fitTrainingDays = resolveFitTrainingDays(
+      options.fitTrainingDays,
+      dietaryPrefs?.fitTrainingDays ?? null,
+      true,
+    );
     const widened = await this.training.isBumpWidened();
     const trainingDays =
-      options.fitTrainingDays !== false &&
+      fitTrainingDays !== false &&
       lifterBodyweightKg &&
       hasTrainingDayBump(chefProfile?.goal, 'lift', widened)
         ? trainingWeekdays(await this.training.trainingSchedule(userId))

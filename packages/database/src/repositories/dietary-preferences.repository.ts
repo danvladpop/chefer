@@ -17,6 +17,8 @@ export interface UpsertDietaryPreferencesData {
   weekendNoLimit?: boolean;
   cookingFor?: number | null;
   leftovers?: boolean;
+  // T-06.7 follow-up: saved "Fit meals to training days" (null = not chosen).
+  fitTrainingDays?: boolean | null;
   // §2.1, T-01.3/T-01.9 (S2, rev 2)
   safetyReviewedAt?: Date | null;
   excludeLabelDependent?: boolean;

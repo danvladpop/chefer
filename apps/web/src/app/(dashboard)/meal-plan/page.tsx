@@ -322,9 +322,6 @@ export default function MealPlanPage() {
   // F3 "cook once, eat twice" generation option (premium): pairs dinners with
   // next-day leftover lunches. Plain state — remembered per visit, not stored.
   const [leftovers, setLeftovers] = useState(false);
-  // T-06.8: premium `Fit meals to my training days` — a per-generation option,
-  // on by default (the API's own default for lifters).
-  const [fitTraining, setFitTraining] = useState(true);
   const [generated, setGenerated] = useState<{
     planId: string;
     previousPlanId: string | undefined;
@@ -413,7 +410,6 @@ export default function MealPlanPage() {
     weekOffset: number;
     leftovers?: true;
     keepPinned?: boolean;
-    fitTrainingDays?: boolean;
   }) => {
     // UX-PLAN-03: one generation at a time — a second click used to send a
     // second request and burn the last free generation.
@@ -423,13 +419,13 @@ export default function MealPlanPage() {
     });
   };
 
-  // Premium sends the training-day switch explicitly; free never does.
-  const fitTrainingInput = isPremium ? { fitTrainingDays: fitTraining } : {};
+  // T-06.8: `Fit meals to my training days` is saved with the plan settings
+  // (T-06.7 follow-up) — generate sends no per-call flag, so the API applies
+  // the saved choice (premium only).
   const handleGenerate = () =>
     generateWithConsent({
       weekOffset,
       ...(leftovers && { leftovers: true as const }),
-      ...fitTrainingInput,
     });
 
   // T-07.6/T-08.9: the "how you cook" shape names the empty-week job and
@@ -1457,7 +1453,6 @@ export default function MealPlanPage() {
                 generateWithConsent({
                   weekOffset,
                   ...(leftovers && { leftovers: true as const }),
-                  ...fitTrainingInput,
                   keepPinned: keepPicks,
                 })
               }
@@ -1536,8 +1531,6 @@ export default function MealPlanPage() {
         hasPlan={plan !== null && plan !== undefined}
         weekLabel={weekOffset === 0 ? 'this week' : 'next week'}
         isPremium={isPremium === true}
-        fitTrainingDays={fitTraining}
-        onFitTrainingDaysChange={setFitTraining}
         onSaved={() => {
           void utils.mealPlan.getShape.invalidate();
           // A plan already exists for this week — the settings change needs

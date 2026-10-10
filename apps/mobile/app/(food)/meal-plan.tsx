@@ -206,8 +206,8 @@ export default function MealPlanScreen() {
   // Dismissed once per mount — reopening the tab re-announces it, matching
   // "announced once on open" (UX-08 a11y) closely enough without persistence.
   const [weekendLineDismissed, setWeekendLineDismissed] = useState(false);
-  // T-06.7: the `Fit meals to my training days` choice (null = never touched →
-  // on when the user has training days). Sent with the next generate call.
+  // T-06.7: the `Fit meals to my training days` choice (null = never touched
+  // this session → the saved choice, else on). Sent with the next generate call.
   const [fitTrainingPref, setFitTrainingPref] = useState<boolean | null>(null);
   // T-06.7 / T-10.7: the extras only a `generate` response carries, held for
   // this session (never persisted beyond the per-plan dismissals below).
@@ -258,7 +258,13 @@ export default function MealPlanScreen() {
 
   const trainingDays = plan?.trainingDays ?? [];
   const hasTrainingDays = trainingDays.length > 0;
-  const fitTrainingDays = fitTrainingPref ?? true;
+  // T-07.3/T-07.5: the "how you cook" shape names the empty-week job and
+  // feeds the Plan settings sheet — same query everywhere (onboarding,
+  // Settings, here), so all three read the same values (UX-07 AC6).
+  const { data: shape } = trpc.mealPlan.getShape.useQuery();
+  // T-06.7 follow-up: untouched this session = the choice saved on the new
+  // shell's Meal settings (null = never chosen = on).
+  const fitTrainingDays = fitTrainingPref ?? shape?.fitTrainingDays ?? true;
   // WP-07: "Rebalance my week" and the miss sheet's protein route share one check.
   const rebalanceCheck = useRebalanceCheck(plan?.planId);
   // FB7-11: the preview runs only when the user asks ("Week options" →
@@ -552,10 +558,6 @@ export default function MealPlanScreen() {
   // WP-08: protein-only mode shows protein, never kcal, on the plan's cards, totals and sheets.
   const { proteinOnly } = useNumbersMode();
 
-  // T-07.3/T-07.5: the "how you cook" shape names the empty-week job and
-  // feeds the Plan settings sheet — same query everywhere (onboarding,
-  // Settings, here), so all three read the same values (UX-07 AC6).
-  const { data: shape } = trpc.mealPlan.getShape.useQuery();
   const planShapeSummaryText = shape ? planShapeSummary(shape) : '';
 
   // T-11.3: the live target vs the one this week was planned for, and the

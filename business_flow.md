@@ -1649,6 +1649,23 @@ training days" in the Plan settings sheet (`generate.fitTrainingDays`) runs
 through `aiMealPlans`. A free GAIN_MUSCLE lifter with a training day today sees
 the applied targets, not a locked preview.
 
+**"Fit meals to training days" is a saved choice (2026-10-10).** It used to be a
+per-call flag only (lost when the app restarted, and never seen by the Sunday
+auto-plan). It is now stored on `DietaryPreferences.fitTrainingDays` (null =
+never chosen = on for lifters whose goal gets the bump) and travels with the
+plan shape: `mealPlan.getShape` returns it, `mealPlan.setShape` takes it as an
+optional field (a client that does not send it — every shipped binary,
+onboarding, the Settings form — leaves it alone). Precedence when a week is
+generated (`resolveFitTrainingDays`): an explicit `generate({ fitTrainingDays })`
+wins; otherwise a **premium** user's saved choice applies — on the Plan button,
+on the Sunday `WeeklyPlanWorker` (which never sent the flag) and on every day
+live tailoring re-plans (it reads the saved choice too); otherwise the default.
+Free generation never applies it, exactly like the per-call flag. Web's Plan
+settings sheet and the new mobile shell's Meal settings save it with the rest of
+the settings (Save); neither sends a per-call flag any more. The old mobile shell
+keeps its session switch (sent per call, so it still wins) but starts from the
+saved value.
+
 **Plan (web + mobile).** Day chips carry a barbell (lift) or walk (run) glyph
 on exactly the training weekdays; the day view gets a header (`Training day ·
 Upper A`, `Target today … kcal · … g protein`, `(+300 kcal, +31 g protein for
@@ -1866,6 +1883,32 @@ free preview's example prompts). The last thread is kept for the rest of the
 calendar day: mobile in the on-device KV store (wiped at sign-out), web in
 `sessionStorage` (this tab only, cleared at logout); "New chat" clears it.
 
+**Ask Chef helps with training (2026-10-10).** The chef is now a personal chef
+AND training helper. `CHAT_SYSTEM_PROMPT` tells the model that for questions
+about workouts, routines, progress, sets, PRs or what to train next it calls the
+read-only tool `getMyTraining` and answers from what it returns — never
+inventing weights, reps, sets, dates or sessions. The tool
+(`TrainingSummaryService.forChat`, `application/gym/training-summary.service.ts`)
+reads the same data the Train tab shows (`gym.bootstrap` for the user's local
+today, the PR timeline, the setup recommendation) and returns a short text:
+whether training is set up (if not: say so and point to the Train tab), the
+weekly goal and this week's sessions, the streak, the next workout (each
+exercise with sets × rep range and the suggested load), the active routine's
+days and exercises, the last 5 finished sessions (date, name, minutes, working
+sets, user-logged kcal of an activity), recent PRs (first-ever baseline sets
+are not PRs), an active or planned training pause, and the program the app
+recommends for their setup (marked when it is already theirs). Loads are in the
+user's kg/lb (`GymProfile.unit`; before setup, `ChefProfile.preferredUnits`).
+The chef cannot create or edit routines or log workouts from chat — it explains
+the in-app path (Train → Routines → Edit); the tool records no `ChatAction`, so
+no client chip or contract changes. Guardrail: `TRAINING_NOT_PHYSIO_RULE` — for
+training it is a helper, not a doctor or physiotherapist: no injury diagnosis,
+no rehab or pain-management advice, never "train through pain"; pain or an
+injury → see a doctor or physiotherapist. The chef-not-doctor and
+disordered-eating rules are unchanged. The mock provider (`AI_MOCK_ENABLED`)
+answers "what should I train", "my workouts / training / routine / lifts / PRs"
+with the real tool's text.
+
 ```
 POST /api/chat (session cookie)
   ├─ resolve user from session (401 without)
@@ -1885,9 +1928,11 @@ POST /api/chat (session cookie)
        │    │    (a chat swap IS a plan swap — the meal-plan page reflects it)
        │    ├─ scaleRecipe(recipeName, servings) → quantities rescaled from
        │    │    the active plan
-       │    └─ addToShoppingList(items[]) → ShoppingListService.addCustomItems
-       │         (items land in the customItems overlay — visible and
-       │         removable on the Shopping List page)
+       │    ├─ addToShoppingList(items[]) → ShoppingListService.addCustomItems
+       │    │    (items land in the customItems overlay — visible and
+       │    │    removable on the Shopping List page)
+       │    └─ getMyTraining() → TrainingSummaryService.forChat (read-only:
+       │         gym.bootstrap + PR timeline + setup recommendation as text)
        └─ mock: echoes the same context and exercises the same tools
 ```
 
@@ -2729,15 +2774,28 @@ new shell. Flipping the preview on You leaves You open; switching off lands on t
 **10 Oct redesign** (owner feedback `docs/design/feedback/2026-10-10/feedback.md`, approved boards in
 `docs/design/mobile/`). Less text, one tile for recipes and workouts, and settings in one place:
 
-- **Every tab** has its title and an **Ask Chef** pill in the same spot (the chat still helps with food only;
-  workout help needs API work). Plan is renamed **Meals** so it reads as food.
+- **Every tab** has its title and an **Ask Chef** pill in the same spot (the chat helps with food and, since
+  2026-10-10, with workouts and routines — §13). Plan is renamed **Meals** so it reads as food.
 - **Today:** a half-ring calorie gauge (eaten · left · target) with protein 🍖, carbs 🍞 and fat 🥑 rows
   (over target says "N g over", amber, never red) → the **next meal** with Eaten / Cook now / Swap / Skip →
   **Your day** (one circle per meal, "Open your day" → the day's log, renamed Your day) → **Training**
-  (planned: Start workout + Log a workout; done: duration, sets or logged kcal, exercises, Summary,
-  Log another workout; rest days are one quiet row; nothing for people who don't train) → **weight** (weigh
-  in; once logged today it becomes a widget with the 30-day change, tapping opens Stats). **Stats** (top
-  bar) joins eating trends (7/28/90 days), weight and training streaks; the weekly chef review moved there.
+  (planned: the day's first exercise photo, Start workout + Log a workout; done: duration, calories burned,
+  exercises, Summary, Log another workout; rest days are one quiet row; nothing for people who don't
+  train) → **weight** (weigh in; once logged today it becomes a widget with the 30-day change, tapping
+  opens Stats). **Stats** (top bar) joins eating trends (7/28/90 days), weight and training streaks; the
+  weekly chef review moved there. Training numbers cover the whole range: 7 and 28 days come from the
+  cached gym data (offline too); 90 days also reads the older sessions (`gym.session.list`, one page after
+  the cache) and the PR timeline (`gym.stats.prs`). Only when those can't load (offline) does it show the
+  cached numbers labelled "last 12 weeks".
+- **Calories burned** (Today's done card, Workout complete): the kcal the user logged (an activity or a
+  cardio set, "kcal you logged") wins; otherwise an estimate from their latest weigh-in and the workout —
+  MET × body weight (kg) × hours (`estimateSessionKcal` in `@chefer/utils`): strength work at 3.5 MET
+  (Compendium 02054, general resistance training — the time includes rests) over the session's time,
+  capped at 5 min per working set + 10 min (a "Save for later" session resumed hours later is not a
+  marathon), cardio and activities at their catalogue MET (range midpoint, or placed by the logged effort)
+  over their logged duration. Shown as "~310" · "kcal burned (est.)", rounded to 5/10, spoken as "About 310
+  kilocalories burned, estimated" with the hint "Estimated from your body weight and workout time". No
+  weigh-in means no estimate — never a guessed weight — and the tile falls back to Sets.
   The shop reminder, Later today and Tonight/Tomorrow cards are gone from Today.
 - **Log a workout** (Today, the + sheet, Train): pick the gym day you already did (log mode for today), an
   activity (form opens with it picked), or start a freestyle workout now.
@@ -2750,7 +2808,10 @@ new shell. Flipping the preview on You leaves You open; switching off lands on t
   group**.
 - **Train:** an ongoing workout first, then the week, **Up next** (time chips, Start, Edit, Freestyle), Log a
   workout, the **Routines** card (same weight as Cookbook), past workouts one per line with PR badges.
-  Workout complete shows duration, sets (or logged kcal for activities) and exercises, PRs and the week.
+  Routines and sessions have no picture of their own, so routine days (Routine, Up next, Today, setup
+  program days) and past workouts show the photo of their first exercise that has one, else the barbell;
+  logged activities keep their activity glyph. Workout complete shows duration, calories burned (as on
+  Today; Sets without a weigh-in) and exercises, PRs and the week.
   Program setup shows distinct program cards; New exercise uses dropdowns.
 - **You is the one home for settings:** Your progress (Stats, My weeks), Settings (Meals → the new Meal
   settings screen, Training → Training settings, Notifications, Account), People, Preview, Help (Send
