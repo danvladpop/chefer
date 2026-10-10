@@ -41,6 +41,8 @@ import { useHealthConsent } from '../src/features/privacy/use-health-consent';
 import { MigrationCard } from '../src/features/safety/migration-card';
 import type { SafetyPickerHandle } from '../src/features/safety/safety-picker';
 import { SectionAnchor, useSectionTitle } from '../src/features/settings/section-anchor';
+import { useShellV2 } from '../src/features/shell/shell-store';
+import { PreferencesHeaderV2 } from '../src/features/shell/you/preferences-header';
 import { useIsPremium } from '../src/hooks/use-is-premium';
 import { trpc } from '../src/lib/trpc';
 
@@ -62,8 +64,11 @@ function budgetText(budgetEur: number | null | undefined, currency: DisplayCurre
 
 export default function PreferencesScreen() {
   const isPremium = useIsPremium();
+  // 10 Oct redesign: the new shell titles this screen "Goals & diet" and puts
+  // Goal & body first, food safety second; the old shell is unchanged.
+  const shellV2 = useShellV2();
   // UX-ACC-04: opened from a Settings row (`?section=`), the title is the row's.
-  const title = useSectionTitle('Preferences');
+  const title = useSectionTitle(shellV2 ? 'Goals & diet' : 'Preferences');
   const { data, isLoading, isError, refetch } = trpc.preferences.get.useQuery();
   const utils = trpc.useUtils();
   // T-26.2: allergies/diets/dislikes are health information — asked once, on the first save.
@@ -212,21 +217,59 @@ export default function PreferencesScreen() {
 
   const saveGoalBody = (payload: GoalBodySavePayload) => goalBodyMutation.mutate(payload);
 
+  const currentTargetPill = isPremium === true && data?.chefProfile?.dailyCalorieTarget != null && (
+    <View className="self-start rounded-lg border border-primary/30 bg-accent px-4 py-2">
+      <Text className="text-sm font-medium text-primary">
+        {formatKcal(data.chefProfile.dailyCalorieTarget)} kcal / day — current target
+      </Text>
+    </View>
+  );
+
+  // Goal & body — every tier (dogfood feedback #6)
+  const goalBodySection = (
+    <SectionAnchor id="goal-body">
+      <GoalBodyCard
+        initial={{
+          goal: (data?.chefProfile?.goal as Goal | null) ?? null,
+          biologicalSex: (data?.chefProfile?.biologicalSex as BiologicalSex | null) ?? null,
+          age: data?.chefProfile?.age ?? null,
+          heightCm: data?.chefProfile?.heightCm ?? null,
+          weightKg: data?.chefProfile?.weightKg ?? null,
+          activityLevel: (data?.chefProfile?.activityLevel as ActivityLevel | null) ?? null,
+        }}
+        units={data?.chefProfile?.preferredUnits ?? 'METRIC'}
+        onSave={saveGoalBody}
+        isSaving={goalBodyMutation.isPending}
+        isSaved={goalBodyMutation.isSuccess}
+        errorMessage={
+          goalBodyMutation.error ? userFacingErrorMessage(goalBodyMutation.error) : undefined
+        }
+      />
+    </SectionAnchor>
+  );
+
   return (
-    <Screen edges={['top', 'bottom', 'left', 'right']} className="px-0">
-      <View className="flex-row items-center gap-3 px-4 py-3">
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel="Back"
-          onPress={() => router.back()}
-          className="h-11 w-11 items-center justify-center"
-        >
-          <Ionicons name="arrow-back" size={20} color="#1f2937" />
-        </Pressable>
-        <Text testID="preferences-title" variant="title">
-          {title}
-        </Text>
-      </View>
+    <Screen
+      edges={['top', 'bottom', 'left', 'right']}
+      className={shellV2 ? 'bg-canvas px-0' : 'px-0'}
+    >
+      {shellV2 ? (
+        <PreferencesHeaderV2 title={title} />
+      ) : (
+        <View className="flex-row items-center gap-3 px-4 py-3">
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Back"
+            onPress={() => router.back()}
+            className="h-11 w-11 items-center justify-center"
+          >
+            <Ionicons name="arrow-back" size={20} color="#1f2937" />
+          </Pressable>
+          <Text testID="preferences-title" variant="title">
+            {title}
+          </Text>
+        </View>
+      )}
 
       {isLoading ? (
         <View className="flex-1 items-center justify-center">
@@ -248,17 +291,15 @@ export default function PreferencesScreen() {
           testID="preferences-scroll"
           contentContainerClassName="gap-4 px-4 pb-8"
         >
+          {/* 10 Oct redesign ("Goals & diet"): the goal first, allergies after. */}
+          {shellV2 && currentTargetPill}
+          {shellV2 && goalBodySection}
+
           <Text variant="muted" className="text-sm">
             Your allergies and dietary restrictions apply to every plan — free or premium.
           </Text>
 
-          {isPremium === true && data?.chefProfile?.dailyCalorieTarget != null && (
-            <View className="self-start rounded-lg border border-primary/30 bg-accent px-4 py-2">
-              <Text className="text-sm font-medium text-primary">
-                {formatKcal(data.chefProfile.dailyCalorieTarget)} kcal / day — current target
-              </Text>
-            </View>
-          )}
+          {!shellV2 && currentTargetPill}
 
           {/* T-01.3: one-time free-text migration card */}
           <MigrationCard />
@@ -290,26 +331,7 @@ export default function PreferencesScreen() {
             </Card>
           </SectionAnchor>
 
-          {/* Goal & body — every tier (dogfood feedback #6) */}
-          <SectionAnchor id="goal-body">
-            <GoalBodyCard
-              initial={{
-                goal: (data?.chefProfile?.goal as Goal | null) ?? null,
-                biologicalSex: (data?.chefProfile?.biologicalSex as BiologicalSex | null) ?? null,
-                age: data?.chefProfile?.age ?? null,
-                heightCm: data?.chefProfile?.heightCm ?? null,
-                weightKg: data?.chefProfile?.weightKg ?? null,
-                activityLevel: (data?.chefProfile?.activityLevel as ActivityLevel | null) ?? null,
-              }}
-              units={data?.chefProfile?.preferredUnits ?? 'METRIC'}
-              onSave={saveGoalBody}
-              isSaving={goalBodyMutation.isPending}
-              isSaved={goalBodyMutation.isSuccess}
-              errorMessage={
-                goalBodyMutation.error ? userFacingErrorMessage(goalBodyMutation.error) : undefined
-              }
-            />
-          </SectionAnchor>
+          {!shellV2 && goalBodySection}
 
           {/* §2.11, T-35.3 — Suggested (computed) or My own (never moved
               silently — gym setup, a weigh-in or a goal edit only propose). */}
