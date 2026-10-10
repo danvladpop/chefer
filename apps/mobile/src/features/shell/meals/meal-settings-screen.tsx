@@ -38,7 +38,6 @@ import {
 } from '../../meal-plan/plan-shape-edits';
 import { openPremium } from '../../premium/open-premium';
 import { ShellTopBar } from '../shell-chrome';
-import { setFitTrainingPref, useFitTrainingDays } from './fit-training-pref';
 import { intParam } from './meals-model';
 
 // ─── Meal settings (10 Oct redesign, board PlanSettingsSheet) ──────────────
@@ -47,10 +46,12 @@ import { intParam } from './meals-model';
 // shape saves the way the sheet did (`mealPlan.setShape`, the same
 // validation via plan-shape-edits); saving never regenerates by itself — when
 // the week already has a plan, Meals opens the usual "new plan?" confirm
-// (`/plan?replan=1`). "Fit meals to training days" stays a session choice
-// sent with the next generate, as in the old shell (not stored server-side).
+// (`/plan?replan=1`). "Fit meals to training days" is saved with the shape
+// (`setShape({ fitTrainingDays })`, T-06.7 follow-up): every later generate —
+// the Meals button and the Sunday auto-plan — uses it (premium only).
 
-type Shape = PlanShape & { leftovers: boolean };
+/** `fitTrainingDays`: null/absent = never chosen (on for an account with training days). */
+type Shape = PlanShape & { leftovers: boolean; fitTrainingDays?: boolean | null };
 
 const SLOT_OPTIONS = [
   { value: 'breakfast' as const, label: 'Breakfast', testID: 'meal-settings-slot-breakfast' },
@@ -162,7 +163,6 @@ export function MealSettingsScreen() {
   const { data: plan } = trpc.mealPlan.getForWeek.useQuery({ weekOffset }, { retry: false });
   const hasPlan = plan !== null && plan !== undefined;
   const hasTrainingDays = (plan?.trainingDays ?? []).length > 0;
-  const fitTrainingDays = useFitTrainingDays();
 
   const [draft, setDraft] = useState<Shape | null>(null);
   const [cookingForOpen, setCookingForOpen] = useState(false);
@@ -371,8 +371,8 @@ export function MealSettingsScreen() {
                     subtitle="More on workout days"
                     disabled={!isPremium}
                     {...(!isPremium && { badge: 'Premium' })}
-                    value={isPremium ? fitTrainingDays : false}
-                    onChange={setFitTrainingPref}
+                    value={isPremium ? (draft.fitTrainingDays ?? true) : false}
+                    onChange={(fitTrainingDays) => setDraft({ ...draft, fitTrainingDays })}
                   />
                   {!isPremium ? (
                     <PressableScale

@@ -584,6 +584,14 @@ export class MockAIService implements IAIService {
       // "what did my review say" — exercises the real getMyReview handler (F1).
       const result = await context.tools.getMyReview();
       response = `(Mock) ${result}`;
+    } else if (
+      /what should i train|\bmy (workouts?|training|routine|lifts?|prs?)\b/i.test(question) &&
+      context.tools
+    ) {
+      // "what should I train today?" / "how are my workouts going?" —
+      // exercises the real getMyTraining handler (Ask Chef helps with training).
+      const result = await context.tools.getMyTraining();
+      response = `(Mock) ${result}`;
     } else if (/what can i (make|cook)|\b(pantry|my kitchen)\b/i.test(question) && context.tools) {
       // "what can I make?" — exercises the real whatCanIMake handler (F3).
       const result = await context.tools.whatCanIMake();

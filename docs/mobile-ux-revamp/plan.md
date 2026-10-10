@@ -18,7 +18,8 @@ This file is the in-repo summary that code comments point at.
 3. **Add (+)** is a header button (FAB on Android), never a tab: Apple's HIG says
    tab bars are for navigation, not actions.
 4. **Ask Chef** is a labelled pill in the top bar of every tab (10 Oct redesign),
-   not buried in More.
+   not buried in More. It helps with meals and, since the API follow-up of
+   2026-10-10 (`getMyTraining` chat tool), with workouts and routines.
 5. **More is gone:** Progress, My weeks, Household, Following, Settings and Help
    live under You.
 6. **An active workout** shows as a mini bar above the tab bar on every tab.

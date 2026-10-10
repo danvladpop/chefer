@@ -115,6 +115,14 @@ vi.mock('../pantry/pantry.service.js', () => ({
   },
 }));
 
+// Ask Chef helps with training: the summary service is covered in
+// gym/training-summary.service.test.ts — here only its wiring.
+vi.mock('../gym/training-summary.service.js', () => ({
+  trainingSummaryService: {
+    forChat: vi.fn().mockResolvedValue('TRAINING (real data from the Train tab): set up.'),
+  },
+}));
+
 // Lifter lookup reads the gym profile + weight log — the fixture user has
 // neither (P2-4 follow-up: MAINTAIN lifters get a g/kg rule too).
 vi.mock('../training-nutrition/training-nutrition.service.js', () => ({
@@ -377,6 +385,21 @@ describe('ChatService', () => {
         },
       });
 
+    it('getMyTraining records no chat action (nothing to undo)', async () => {
+      const { aiService } = await import('../../lib/ai/index.js');
+      vi.spyOn(mealPlanService, 'getActive').mockResolvedValue(PLAN);
+      vi.spyOn(aiService, 'chat').mockImplementationOnce(async (_messages, context) => {
+        await context.tools?.getMyTraining();
+        return textStream('Push day next.');
+      });
+      const stream = await service.chat(
+        user({ planTier: 'PREMIUM' }),
+        [{ role: 'user', content: 'what should I train?' }],
+        { withActions: true },
+      );
+      expect(await readAll(stream)).toBe('Push day next.');
+    });
+
     it('appends the swap the tool performed, with the id to undo to', async () => {
       const { aiService } = await import('../../lib/ai/index.js');
       vi.mocked(mealPlanService.getActive).mockResolvedValue(PLAN);
@@ -514,6 +537,32 @@ describe('ChatService', () => {
 
     expect(pantryService.whatCanIMake).toHaveBeenCalledWith(premium);
     expect(result).toContain('Halloumi Couscous Bowl');
+  });
+
+  it("getMyTraining reads the training summary for the user's local day and units (read-only)", async () => {
+    const { trainingSummaryService } = await import('../gym/training-summary.service.js');
+    const { chefProfileRepository } = await import('@chefer/database');
+    // Once for the chat context, once for the tool (clearAllMocks keeps
+    // implementations — never leak this profile into later tests).
+    const kiritimati = { timeZone: 'Pacific/Kiritimati', preferredUnits: 'IMPERIAL' } as never;
+    vi.spyOn(chefProfileRepository, 'findByUserId')
+      .mockResolvedValueOnce(kiritimati)
+      .mockResolvedValueOnce(kiritimati);
+    vi.spyOn(mealPlanService, 'getActive').mockResolvedValue(PLAN);
+    const forChat = vi.spyOn(trainingSummaryService, 'forChat');
+    const { aiService } = await import('../../lib/ai/index.js');
+    const chat = vi.spyOn(aiService, 'chat');
+    const premium = user({ planTier: 'PREMIUM' });
+    await service.chat(premium, [{ role: 'user', content: 'what should I train?' }]);
+    const context = chat.mock.calls.at(-1)?.[1];
+
+    const result = await context?.tools?.getMyTraining();
+
+    expect(result).toContain('TRAINING');
+    expect(forChat).toHaveBeenCalledWith(premium.id, {
+      today: localDateInZone('Pacific/Kiritimati'),
+      preferredUnits: 'IMPERIAL',
+    });
   });
 
   // ─── T-21.1: one local-day contract (bugs B-06, B-33) ─────────────────────────

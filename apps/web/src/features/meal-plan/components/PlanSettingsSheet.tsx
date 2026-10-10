@@ -20,7 +20,8 @@ import { cn, householdTableSummary, planShapeSummary, userFacingErrorMessage } f
 // already exists for the week and, if so, follows up with the regenerate
 // confirm (interaction spec: settings never regenerate silently).
 
-type DraftShape = PlanShape & { leftovers: boolean };
+/** `fitTrainingDays`: the saved choice (T-06.7 follow-up); null/absent = never chosen (on). */
+type DraftShape = PlanShape & { leftovers: boolean; fitTrainingDays?: boolean | null };
 
 const SLOT_OPTIONS: { value: PlanSlot; label: string }[] = [
   { value: 'breakfast', label: 'Breakfast' },
@@ -75,14 +76,12 @@ export interface PlanSettingsSheetProps {
   /** `{week}` for the footer, e.g. "this week" / "next week". */
   weekLabel: string;
   isPremium: boolean;
-  onSaved: (shape: DraftShape) => void;
   /**
-   * T-06.8 (UX-06 §4): premium `Fit meals to my training days`. A per-generation
-   * option (the API takes it on `mealPlan.generate`, it is not part of the
-   * stored shape), so the page owns the state. Free sees it locked.
+   * T-06.8 (UX-06 §4): the premium `Fit meals to my training days` switch is
+   * part of the saved settings (`setShape({ fitTrainingDays })`, T-06.7
+   * follow-up) — every later generate uses it. Free sees it locked.
    */
-  fitTrainingDays?: boolean;
-  onFitTrainingDaysChange?: (value: boolean) => void;
+  onSaved: (shape: DraftShape) => void;
 }
 
 export function PlanSettingsSheet({
@@ -92,8 +91,6 @@ export function PlanSettingsSheet({
   weekLabel,
   isPremium,
   onSaved,
-  fitTrainingDays = true,
-  onFitTrainingDaysChange,
 }: PlanSettingsSheetProps) {
   const shapeQuery = trpc.mealPlan.getShape.useQuery(undefined, { enabled: open });
   // UX-PLAN-12: a household's "Cooking for" is read-only, from the table.
@@ -314,8 +311,8 @@ export function PlanSettingsSheet({
                     type="checkbox"
                     role="switch"
                     data-testid="plan-settings-fit-training"
-                    checked={fitTrainingDays}
-                    onChange={(e) => onFitTrainingDaysChange?.(e.target.checked)}
+                    checked={draft.fitTrainingDays ?? true}
+                    onChange={(e) => setDraft({ ...draft, fitTrainingDays: e.target.checked })}
                     className="h-5 w-5 rounded border-gray-300 text-[#944a00] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#944a00]"
                   />
                 </label>

@@ -17,9 +17,11 @@ import {
   dayImagePriority,
   MealPlanService,
   planOffTargetScore,
+  resolveFitTrainingDays,
   resolvePlanSlot,
   restrictionWarningLabel,
 } from './meal-plan.service.js';
+import { planShapeService } from './plan-shape.service.js';
 
 // ─── Module mocks (hoisted) ───────────────────────────────────────────────────
 
@@ -3573,5 +3575,82 @@ describe('MealPlanService.generate — mid-week regenerate keeps past days and e
 
     const wed = plan.days.find((x) => x.dayOfWeek === 2)!.meals.map((m) => m.recipe.id);
     expect(wed).toEqual(expect.arrayContaining(['old-wed-lunch', 'old-wed-dinner']));
+  });
+});
+
+// ─── Saved "Fit meals to training days" (T-06.7 follow-up, 2026-10-10) ───────
+
+describe('resolveFitTrainingDays', () => {
+  it('an explicit per-call value always wins', () => {
+    expect(resolveFitTrainingDays(true, false, true)).toBe(true);
+    expect(resolveFitTrainingDays(false, true, true)).toBe(false);
+    expect(resolveFitTrainingDays(false, null, false)).toBe(false);
+  });
+
+  it('premium: omitted falls back to the saved choice; never chosen keeps the default', () => {
+    expect(resolveFitTrainingDays(undefined, false, true)).toBe(false);
+    expect(resolveFitTrainingDays(undefined, true, true)).toBe(true);
+    expect(resolveFitTrainingDays(undefined, null, true)).toBeUndefined();
+  });
+
+  it('free: the saved choice never applies', () => {
+    expect(resolveFitTrainingDays(undefined, false, false)).toBeUndefined();
+  });
+});
+
+describe('MealPlanService.generate — saved fitTrainingDays', () => {
+  type Paths = {
+    generateInstant: (...args: unknown[]) => Promise<unknown>;
+    generateCurated: (...args: unknown[]) => Promise<unknown>;
+  };
+
+  // Only the singleton's spy outlives a test (the service spies are per instance).
+  const restore: { mockRestore(): void }[] = [];
+  const spySaved = (value: boolean | null) => {
+    const spy = vi.spyOn(planShapeService, 'getFitTrainingDays').mockResolvedValue(value);
+    restore.push(spy);
+    return spy;
+  };
+  afterEach(() => restore.splice(0).forEach((spy) => spy.mockRestore()));
+
+  it('premium: an omitted flag runs with the saved choice, an explicit one wins', async () => {
+    const service = new MealPlanService(makeRepo());
+    const instant = vi.spyOn(service as unknown as Paths, 'generateInstant').mockResolvedValue({});
+    const saved = spySaved(false);
+
+    await service.generate('u1', 1, true, { instant: true });
+    expect(instant).toHaveBeenLastCalledWith(
+      'u1',
+      1,
+      expect.objectContaining({ fitTrainingDays: false }),
+    );
+
+    await service.generate('u1', 1, true, { instant: true, fitTrainingDays: true });
+    expect(instant).toHaveBeenLastCalledWith(
+      'u1',
+      1,
+      expect.objectContaining({ fitTrainingDays: true }),
+    );
+    // The explicit call never needed the stored value.
+    expect(saved).toHaveBeenCalledTimes(1);
+  });
+
+  it('premium, never chosen: no flag is passed on (the default — on for lifters)', async () => {
+    const service = new MealPlanService(makeRepo());
+    const instant = vi.spyOn(service as unknown as Paths, 'generateInstant').mockResolvedValue({});
+    spySaved(null);
+    await service.generate('u1', 0, true, { instant: true });
+    const opts = instant.mock.calls[0]?.[2] as Record<string, unknown>;
+    expect('fitTrainingDays' in opts).toBe(false);
+  });
+
+  it('free: the saved choice is never read nor applied', async () => {
+    const service = new MealPlanService(makeRepo());
+    const curated = vi.spyOn(service as unknown as Paths, 'generateCurated').mockResolvedValue({});
+    const saved = spySaved(false);
+    await service.generate('u1', 0, false);
+    expect(saved).not.toHaveBeenCalled();
+    const opts = curated.mock.calls[0]?.[2] as Record<string, unknown>;
+    expect('fitTrainingDays' in opts).toBe(false);
   });
 });

@@ -1,9 +1,9 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { selectRebalanceSwaps } from '../../application/meal-plan/rebalance.js';
 import { isRecipeSafe } from '../curated-recipes/safety.js';
 import { WEEK_PLAN_FIXTURE } from './fixtures/week-plan.fixture.js';
 import { MEAL_PHOTO_SCENARIOS, MockAIService } from './mock.js';
-import type { ExtractedRecipe, MealPlanInput, RecipeData } from './types.js';
+import type { ChatTools, ExtractedRecipe, MealPlanInput, RecipeData } from './types.js';
 
 // ─── Scenario-steerable MockAIService (premium_plan.md §4.5) ─────────────────
 // Two invariants: (1) with no steering keyword every method returns exactly
@@ -301,5 +301,62 @@ describe('MockAIService.generateMealPlanDay', () => {
     // A copy — mutating it never touches the shared fixture.
     day.meals[0]!.recipe.name = 'changed';
     expect(fixtureDay?.meals[0]?.recipe.name).not.toBe('changed');
+  });
+});
+
+describe('MockAIService.chat — getMyTraining trigger (Ask Chef helps with training)', () => {
+  const tools = () => {
+    const fns = {
+      getMyReview: vi.fn().mockResolvedValue('review'),
+      whatCanIMake: vi.fn().mockResolvedValue('pantry'),
+      getMyTraining: vi.fn().mockResolvedValue('TRAINING summary'),
+    };
+    const all: ChatTools = {
+      swapMeal: vi.fn(),
+      scaleRecipe: vi.fn(),
+      addToShoppingList: vi.fn(),
+      logMeal: vi.fn(),
+      importRecipe: vi.fn(),
+      ...fns,
+    };
+    return { all, ...fns };
+  };
+  const read = async (stream: ReadableStream): Promise<string> => {
+    const reader = stream.getReader();
+    const decoder = new TextDecoder();
+    let text = '';
+    for (;;) {
+      const { done, value } = (await reader.read()) as { done: boolean; value?: Uint8Array };
+      if (done) return text;
+      text += decoder.decode(value);
+    }
+  };
+
+  it.each(['What should I train today?', 'How are my workouts going?', 'Explain my routine'])(
+    '"%s" calls the real getMyTraining handler',
+    async (question) => {
+      const t = tools();
+      const stream = await ai.chat([{ role: 'user', content: question }], {
+        userId: 'u1',
+        contextSummary: 'ctx',
+        tools: t.all,
+      });
+      expect(await read(stream)).toBe('(Mock) TRAINING summary');
+      expect(t.getMyTraining).toHaveBeenCalledOnce();
+      expect(t.getMyReview).not.toHaveBeenCalled();
+    },
+  );
+
+  it('food questions never reach it', async () => {
+    const t = tools();
+    await read(
+      await ai.chat([{ role: 'user', content: 'what can I make tonight?' }], {
+        userId: 'u1',
+        contextSummary: 'ctx',
+        tools: t.all,
+      }),
+    );
+    expect(t.getMyTraining).not.toHaveBeenCalled();
+    expect(t.whatCanIMake).toHaveBeenCalledOnce();
   });
 });

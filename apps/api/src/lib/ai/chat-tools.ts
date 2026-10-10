@@ -127,6 +127,12 @@ export const CHAT_TOOL_DEFINITIONS: ChatToolDefinition[] = [
       "Lists the recipes the user can (mostly) cook from what is already in their kitchen/pantry. Use when the user asks what they can make, cook or eat with what they have, or what's in their pantry.",
     parameters: { type: 'object', properties: {} },
   },
+  {
+    name: 'getMyTraining',
+    description:
+      "Fetches a read-only summary of the user's training from the Train tab: whether it is set up, weekly goal and this week's sessions, streak, the next workout (exercises with sets × reps and suggested load), the active routine's days, the last few sessions, recent PRs, any training pause and the program the app recommends. Use for any question about workouts, routines, sets, lifting progress, PRs or what to train next. It cannot change anything.",
+    parameters: { type: 'object', properties: {} },
+  },
 ];
 
 /**
@@ -169,6 +175,9 @@ export async function dispatchChatTool(
     }
     if (name === 'whatCanIMake') {
       return await tools.whatCanIMake();
+    }
+    if (name === 'getMyTraining') {
+      return await tools.getMyTraining();
     }
     if (name === 'logMeal') {
       const mealType = typeof args['mealType'] === 'string' ? args['mealType'] : undefined;
