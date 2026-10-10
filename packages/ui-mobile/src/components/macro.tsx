@@ -1,5 +1,5 @@
 import { View } from 'react-native';
-import { cn } from '@chefer/utils';
+import { cn, formatNumber } from '@chefer/utils';
 import { useThemeColors } from '../hooks/use-theme-colors';
 import { ProgressBar } from './progress-bar';
 import { Text } from './text';
@@ -18,7 +18,8 @@ export const MACRO_META: Record<MacroKey, { label: string; emoji: string }> = {
   fat: { label: 'Fat', emoji: '🥑' },
 };
 
-const fmt = (n: number) => Math.round(n).toLocaleString();
+// One formatter for the app (WP-11): device locale via Intl, like formatKcal.
+const fmt = (n: number) => formatNumber(Math.round(n));
 
 export interface MacroRowProps {
   macro: MacroKey;

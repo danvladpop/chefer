@@ -1,7 +1,7 @@
 import { View } from 'react-native';
 import Animated, { useAnimatedProps } from 'react-native-reanimated';
 import Svg, { Path } from 'react-native-svg';
-import { cn } from '@chefer/utils';
+import { cn, formatNumber } from '@chefer/utils';
 import { useThemeColors } from '../hooks/use-theme-colors';
 import { CountUp } from '../motion/count-up';
 import { isOverTarget, mainFill, normaliseProgress } from '../motion/progress';
@@ -27,7 +27,8 @@ export interface CalorieGaugeProps {
   testID?: string;
 }
 
-const fmt = (n: number) => Math.round(n).toLocaleString();
+// One formatter for the app (WP-11): device locale via Intl, like formatKcal.
+const fmt = (n: number) => formatNumber(Math.round(n));
 
 /**
  * Half-ring calorie gauge (10 Oct redesign, ref-1/ref-2 layout in Chefer's
@@ -109,6 +110,7 @@ export function CalorieGauge({
         <View className="absolute bottom-0 left-0 right-0 items-center">
           <CountUp
             value={value}
+            format={fmt}
             className="text-display font-bold text-label"
             style={{ fontVariant: ['tabular-nums'] }}
           />
