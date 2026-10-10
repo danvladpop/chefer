@@ -42,6 +42,16 @@ This file is the in-repo summary that code comments point at.
 device opted in through Settings → "Preview the new design" (shown to admins
 and dev builds only). Off by default, so merging changes nothing for testers.
 
+## After the flag flip (owner decision 2026-10-10)
+
+The pieces the new shell still shares with the old one keep their legacy look
+on purpose: Preferences card internals, the live-workout exercise cards and set
+rows, and the kit `Button` / `Stepper` / `SelectField` / `SegmentedControl`
+(legacy palette inside). Restyling them now would change the shipped Food | Gym
+shell. Once `mobileShellV2` is on for everyone and the old `(food)` / `(gym)`
+groups are deleted, restyle them in one global pass onto the colour roles and
+lower the drift-guard baseline with it.
+
 ## Guardrails
 
 - `tests/unit/design-drift-guard.test.ts`: zero hex colours / raw palette
