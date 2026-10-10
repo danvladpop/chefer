@@ -11,6 +11,12 @@ thumbnails (tester feedback 2026-10-07, FB7-10). `resolveIngredientImage()`
 (`apps/api/src/lib/ingredient-images`) now checks `manifest.json` first; the
 cache, Unsplash and Pollinations remain the fallback for names not covered here.
 
+## Coverage
+
+1,051 thumbnails (about 5 MB) cover the whole ingredient catalog plus every shoppable name in the
+curated recipe pool (WP-25, 2026-10-10). Every image was checked by eye on contact sheets; 324 were
+re-rendered with a literal subject (`REVIEW_PROMPT_OVERRIDES`) and 9 were removed (see below).
+
 ## Provenance
 
 - **AI-generated**, not photographs. Rendered once with Pollinations.ai (Flux,
@@ -54,3 +60,8 @@ points at a missing file.
 - `ginger` / `fresh ginger` — three prompts rendered carrots or abstract shapes (2026-10-07). It is left out so the
   resolver falls back to the usual chain (and the app to the aisle icon) instead of showing a wrong picture. A
   `--scope used` re-run will try it again; delete the file if the render is still wrong.
+
+- Removed in the full-catalog review (2026-10-10) because the render showed a person, a live animal or an
+  unrecognisable shape: `chicken meat raw`, `yogurt fruit nonfat`, `lettuce red leaf raw`, `quail raw`,
+  `pheasant raw`, `blood sausage`, `salami dry`, `rhubarb raw`, and `ginger` again. They fall back to the usual
+  chain (and the app to the aisle icon).
