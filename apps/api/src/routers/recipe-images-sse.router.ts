@@ -1,7 +1,7 @@
 import { Router, type Request, type Response } from 'express';
 import { ImageStatus, prisma } from '@chefer/database';
 import { asyncHandler } from '../lib/async-handler.js';
-import { resolveRequestAuth } from '../lib/session-auth.js';
+import { authOnce } from '../lib/route-rate-limit.js';
 import { recipeImageEventEmitter, type RecipeImageEvent } from '../lib/sse/recipe-image-emitter.js';
 
 const MAX_IDS = 50;
@@ -14,7 +14,7 @@ recipeImagesSseRouter.get(
   '/stream',
   asyncHandler(async (req: Request, res: Response) => {
     // ── Auth ──────────────────────────────────────────────────────────────────
-    const { user } = await resolveRequestAuth(req);
+    const { user } = await authOnce(req, res);
     const userId = user?.id ?? null;
     if (!userId) {
       res.status(401).json({ error: 'Unauthorized' });

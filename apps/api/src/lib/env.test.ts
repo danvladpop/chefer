@@ -217,3 +217,27 @@ describe('validateEnv — social sign-in and password-manager files (WP-22)', ()
     );
   });
 });
+
+describe('validateEnv — Phase 1 guardrails', () => {
+  it('defaults to one video import at a time and a real (not dry-run) uploads sweep', () => {
+    const env = validateEnv(BASE);
+    expect(env.VIDEO_IMPORT_CONCURRENCY).toBe(1);
+    expect(env.UPLOAD_SWEEP_DRY_RUN).toBe(false);
+  });
+
+  it('reads both from the environment', () => {
+    const env = validateEnv({
+      ...BASE,
+      VIDEO_IMPORT_CONCURRENCY: '2',
+      UPLOAD_SWEEP_DRY_RUN: 'true',
+    });
+    expect(env.VIDEO_IMPORT_CONCURRENCY).toBe(2);
+    expect(env.UPLOAD_SWEEP_DRY_RUN).toBe(true);
+  });
+
+  it('refuses a zero concurrency', () => {
+    expect(() => validateEnv({ ...BASE, VIDEO_IMPORT_CONCURRENCY: '0' })).toThrow(
+      /VIDEO_IMPORT_CONCURRENCY/,
+    );
+  });
+});

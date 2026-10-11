@@ -95,3 +95,28 @@ describe('streamChat — action trailer opt-in and typed errors', () => {
     expect(err).toMatchObject({ status: 500, serverMessage: 'The chef is down' });
   });
 });
+
+// Phase 1 guardrails: the server only shows the model the newest 12 messages
+// and caps the body at 64 KB, so the app never sends a longer history.
+describe('streamChat — history cap', () => {
+  it('sends only the newest 12 messages', async () => {
+    const fetchImpl = jest.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      headers: new Headers(),
+      body: null,
+      text: () => Promise.resolve('ok'),
+    });
+    const messages = Array.from({ length: 20 }, (_, i) => ({
+      role: i % 2 ? ('assistant' as const) : ('user' as const),
+      content: `m${i}`,
+    }));
+    await streamChat({ ...base, fetchImpl, messages });
+    const calls = fetchImpl.mock.calls as [string, { body: string }][];
+    const sent = (JSON.parse(calls[0]?.[1].body ?? '{}') as { messages: { content: string }[] })
+      .messages;
+    expect(sent).toHaveLength(12);
+    expect(sent[0]?.content).toBe('m8');
+    expect(sent.at(-1)?.content).toBe('m19');
+  });
+});

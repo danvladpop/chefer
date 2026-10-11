@@ -1,13 +1,19 @@
 import { TRPCError } from '@trpc/server';
-import { Router, type Request, type Response } from 'express';
-import { CHAT_ACTIONS_HEADER } from '@chefer/types';
+import express, {
+  Router,
+  type ErrorRequestHandler,
+  type Request,
+  type RequestHandler,
+  type Response,
+} from 'express';
+import { CHAT_ACTIONS_HEADER, CHAT_LIMITS, CHAT_MESSAGE_TOO_LONG_MESSAGE } from '@chefer/types';
 import { isHealthTopic, isSafetyTopic } from '@chefer/utils';
 import { chatService } from '../application/chat/chat.service.js';
 import { rejectWithoutAiConsent } from '../lib/ai-consent-gate.js';
 import { AI_OVER_CAPACITY_MESSAGE, isAiCapacityFailure } from '../lib/ai/friendly-error.js';
 import type { ChatMessage } from '../lib/ai/index.js';
 import { asyncHandler } from '../lib/async-handler.js';
-import { resolveRequestAuth } from '../lib/session-auth.js';
+import { authOnce } from '../lib/route-rate-limit.js';
 
 // ─── AI chef chat endpoint (P1-4) ─────────────────────────────────────────────
 // Plain-text streaming over POST — the web widget's TextStreamChatTransport
@@ -23,8 +29,15 @@ interface IncomingMessage {
   content?: string;
 }
 
-function toChatMessages(messages: IncomingMessage[]): ChatMessage[] {
-  return messages
+/**
+ * The ai-sdk/mobile message array → what the model sees: text only, empty
+ * messages dropped, the newest CHAT_LIMITS.historyMessages (12) kept, and
+ * every earlier message cut to CHAT_LIMITS.maxHistoryMessageChars. The LAST
+ * message (the one being sent) is left whole so the caller can reject it when
+ * it is over the per-message cap, instead of silently cutting the question.
+ */
+export function toChatMessages(messages: IncomingMessage[]): ChatMessage[] {
+  const kept = messages
     .map((m) => ({
       role: m.role === 'assistant' ? ('assistant' as const) : ('user' as const),
       content:
@@ -36,15 +49,49 @@ function toChatMessages(messages: IncomingMessage[]): ChatMessage[] {
         '',
     }))
     .filter((m) => m.content.trim().length > 0)
-    .slice(-20); // bound the history the model sees
+    .slice(-CHAT_LIMITS.historyMessages); // bound the history the model sees
+  return kept.map((m, i) =>
+    i === kept.length - 1
+      ? m
+      : { ...m, content: m.content.slice(0, CHAT_LIMITS.maxHistoryMessageChars) },
+  );
 }
+
+/** True when the message being sent is a user message over the per-message cap. */
+export function isOverLongMessage(messages: ChatMessage[]): boolean {
+  const last = messages.at(-1);
+  return last?.role === 'user' && last.content.length > CHAT_LIMITS.maxMessageChars;
+}
+
+const CHAT_BODY_TOO_LARGE_MESSAGE =
+  'This conversation is too long to send. Start a new chat and ask again.';
+
+/**
+ * POST /api/chat's own JSON body parser (64 KB, Phase 1 guardrails). index.ts
+ * mounts it BEFORE the global `express.json({ limit: '10mb' })`: body-parser
+ * skips a request whose body was already read, so the first parser that runs
+ * sets the limit. The error handler rides in the same mount — a router's own
+ * error middleware never sees a parser error raised outside it — and answers
+ * the plain-string `{ error }` shape both chat clients show verbatim.
+ */
+export const chatBodyParser: (RequestHandler | ErrorRequestHandler)[] = [
+  express.json({ limit: CHAT_LIMITS.maxBodyBytes }),
+  ((err, _req, res, next) => {
+    const type = typeof err === 'object' && err !== null ? (err as { type?: unknown }).type : null;
+    if (type === 'entity.too.large') {
+      res.status(413).json({ error: CHAT_BODY_TOO_LARGE_MESSAGE });
+      return;
+    }
+    next(err);
+  }) satisfies ErrorRequestHandler,
+];
 
 export const chatRouter: Router = Router();
 
 chatRouter.post(
   '/',
   asyncHandler(async (req: Request, res: Response) => {
-    const { user } = await resolveRequestAuth(req);
+    const { user } = await authOnce(req, res);
     if (!user) {
       res.status(401).json({ error: 'Unauthorized' });
       return;
@@ -59,6 +106,12 @@ chatRouter.post(
     const messages = toChatMessages(body?.messages ?? []);
     if (messages.length === 0) {
       res.status(400).json({ error: 'No message provided.' });
+      return;
+    }
+    // Phase 1 guardrails: one message is at most 2,000 characters. Rejected
+    // before the quota is reserved, so it costs the user nothing.
+    if (isOverLongMessage(messages)) {
+      res.status(400).json({ error: CHAT_MESSAGE_TOO_LONG_MESSAGE });
       return;
     }
 

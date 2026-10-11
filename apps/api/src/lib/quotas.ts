@@ -200,7 +200,11 @@ export async function reserveAiSwap(user: UserProfile): Promise<QuotaReservation
   );
 }
 
-/** Reserves one chat message (attempts count; premium is unlimited). */
+/**
+ * Reserves one chat message (attempts count). Free has no access (FORBIDDEN);
+ * premium is capped at PLAN_FEATURES.chatMessagesPerDay (100 since the Phase 1
+ * guardrails — it used to be unlimited).
+ */
 export async function reserveChatMessage(user: UserProfile): Promise<QuotaReservation> {
   const limit = getLimit(user, 'chatMessagesPerDay');
   return reserve(

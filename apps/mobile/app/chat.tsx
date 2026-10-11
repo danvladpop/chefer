@@ -3,6 +3,7 @@ import { Pressable, ScrollView, TextInput, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { fetch as expoFetch } from 'expo/fetch';
+import { CHAT_LIMITS } from '@chefer/types';
 import {
   IconButton,
   keyboardDismissMode,
@@ -67,6 +68,10 @@ export default function ChatScreen() {
   // Free tier: chat is premium-only — locked preview, no input.
   const isPremium = useIsPremium();
   const locked = isPremium === false;
+  // Phase 1 guardrails: one message is at most 2,000 characters (the server
+  // refuses longer); the count shows near the end.
+  const nearLimit = draft.length >= CHAT_LIMITS.counterFromChars;
+  const atLimit = draft.length >= CHAT_LIMITS.maxMessageChars;
   // AI data consent (App Store 5.1.2(i)): the first message asks before
   // anything is sent; "Not now" keeps the draft and sends nothing.
   const requestAiConsent = useAiConsent();
@@ -345,13 +350,15 @@ export default function ChatScreen() {
           )}
         </ScrollView>
 
-        {locked ? null : quotaExhausted && isPremium ? (
-          // Premium past its AI allowance (monthly budget, or AI paused for
-          // the day): the chef's reply above says when it is back — no
-          // upgrade pitch to someone who already has Premium.
+        {locked ? null : quotaExhausted && isPremium === true ? (
+          // Premium past its AI allowance — the daily chat cap (Phase 1), the
+          // monthly AI budget or a global AI pause (Phase 2). All arrive as the
+          // same quota header, so the copy fits every case: the chef's reply
+          // above says when it is back, and there is no upgrade pitch to
+          // someone who already has Premium.
           <View testID="chat-ai-paused" className="m-4 gap-1 rounded-card bg-brand-tint p-4">
             <Text className="text-headline font-semibold text-brand">
-              AI chat is paused for now
+              You&apos;ve reached your AI chat limit for now
             </Text>
             <Text className="text-subhead text-label-secondary">
               The chef&apos;s note above says when it&apos;s back. Your plans, recipes and tracking
@@ -377,35 +384,57 @@ export default function ChatScreen() {
             </Pressable>
           </View>
         ) : (
-          <View className="flex-row items-end gap-2 border-t border-separator bg-surface px-4 py-3">
-            <TextInput
-              testID="chat-input"
-              accessibilityLabel="Message the chef"
-              value={draft}
-              onChangeText={setDraft}
-              placeholder="Message the chef…"
-              placeholderTextColor={colors.labelTertiary}
-              multiline
-              className="max-h-28 min-h-11 flex-1 rounded-control border border-separator bg-surface-sunken px-4 py-3 text-body text-label"
-            />
-            {streaming ? (
-              <IconButton
-                testID="chat-stop"
-                accessibilityLabel="Stop"
-                variant="filled"
-                icon={<Ionicons name="stop" size={18} color={colors.onBrand} />}
-                onPress={stop}
-              />
-            ) : (
-              <IconButton
-                testID="chat-send"
-                accessibilityLabel="Send"
-                variant="filled"
-                disabled={!draft.trim()}
-                icon={<Icon name="arrowUp" size={20} color={colors.onBrand} />}
-                onPress={() => send()}
-              />
+          <View className="gap-1 border-t border-separator bg-surface px-4 py-3">
+            {nearLimit && (
+              <Text
+                testID="chat-char-counter"
+                accessibilityLiveRegion="polite"
+                className={cn(
+                  'text-right text-caption',
+                  atLimit ? 'text-danger' : 'text-label-secondary',
+                )}
+              >
+                {atLimit
+                  ? `${CHAT_LIMITS.maxMessageChars.toLocaleString('en-US')} characters is the most one message can hold.`
+                  : `${draft.length.toLocaleString('en-US')} / ${CHAT_LIMITS.maxMessageChars.toLocaleString('en-US')}`}
+              </Text>
             )}
+            <View className="flex-row items-end gap-2">
+              <TextInput
+                testID="chat-input"
+                accessibilityLabel="Message the chef"
+                accessibilityHint={
+                  nearLimit
+                    ? `${draft.length} of ${CHAT_LIMITS.maxMessageChars} characters`
+                    : undefined
+                }
+                value={draft}
+                maxLength={CHAT_LIMITS.maxMessageChars}
+                onChangeText={setDraft}
+                placeholder="Message the chef…"
+                placeholderTextColor={colors.labelTertiary}
+                multiline
+                className="max-h-28 min-h-11 flex-1 rounded-control border border-separator bg-surface-sunken px-4 py-3 text-body text-label"
+              />
+              {streaming ? (
+                <IconButton
+                  testID="chat-stop"
+                  accessibilityLabel="Stop"
+                  variant="filled"
+                  icon={<Ionicons name="stop" size={18} color={colors.onBrand} />}
+                  onPress={stop}
+                />
+              ) : (
+                <IconButton
+                  testID="chat-send"
+                  accessibilityLabel="Send"
+                  variant="filled"
+                  disabled={!draft.trim()}
+                  icon={<Icon name="arrowUp" size={20} color={colors.onBrand} />}
+                  onPress={() => send()}
+                />
+              )}
+            </View>
           </View>
         )}
       </View>

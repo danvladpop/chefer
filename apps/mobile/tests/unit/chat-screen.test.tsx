@@ -1,5 +1,5 @@
 import { SafeAreaProvider } from 'react-native-safe-area-context';
-import { act, render, screen, userEvent, waitFor } from '@testing-library/react-native';
+import { act, fireEvent, render, screen, userEvent, waitFor } from '@testing-library/react-native';
 import { CHAT_ACTIONS_MARKER, type ChatAction } from '@chefer/types';
 import { localDateStr } from '@chefer/utils';
 import ChatScreen from '../../app/chat';
@@ -440,10 +440,50 @@ describe('AI budget', () => {
     const user = userEvent.setup();
     await renderChat();
     await send(user, 'swap my lunch');
+    // One premium panel for every cause (daily cap, monthly budget, AI
+    // paused) — the client cannot tell them apart.
     expect(await screen.findByTestId('chat-ai-paused')).toHaveTextContent(
-      /AI chat is paused for now/,
+      /You've reached your AI chat limit for now/,
     );
     expect(screen.getByText(message)).toBeTruthy();
+    expect(screen.queryByTestId('chat-quota-upgrade')).toBeNull();
+    expect(screen.queryByTestId('chat-input')).toBeNull();
+  });
+});
+
+// Phase 1 guardrails: 2,000 characters per message with a counter near the
+// end, and premium's daily cap (100) gets the shared premium limit panel, not an upsell.
+describe('guardrails', () => {
+  it('caps the input at 2,000 characters and shows a counter near the limit', async () => {
+    await renderChat();
+    const input = screen.getByTestId('chat-input');
+    expect(input).toHaveProp('maxLength', 2000);
+    expect(screen.queryByTestId('chat-char-counter')).toBeNull();
+
+    await fireEvent.changeText(input, 'a'.repeat(1850));
+    expect(screen.getByTestId('chat-char-counter')).toHaveTextContent('1,850 / 2,000');
+
+    await fireEvent.changeText(input, 'a'.repeat(2000));
+    expect(screen.getByTestId('chat-char-counter')).toHaveTextContent(
+      '2,000 characters is the most one message can hold.',
+    );
+  });
+
+  it('a premium user at the daily cap sees the premium limit panel, with no upgrade button', async () => {
+    mockStream.mockImplementation(() =>
+      Promise.resolve({
+        fullText: "You've used today's 100 chat messages. It resets at midnight UTC.",
+        quotaExhausted: true,
+        healthTopic: false,
+        safetyTopic: false,
+      }),
+    );
+    const user = userEvent.setup();
+    await renderChat();
+    await send(user, 'one more');
+    expect(await screen.findByTestId('chat-ai-paused')).toHaveTextContent(
+      /You've reached your AI chat limit for now/,
+    );
     expect(screen.queryByTestId('chat-quota-upgrade')).toBeNull();
     expect(screen.queryByTestId('chat-input')).toBeNull();
   });

@@ -5,6 +5,7 @@ export {
   tooLongMessage,
   type VideoImportErrorCode,
 } from './errors.js';
+export { ConcurrencyLimitedTranscriber } from './concurrency.js';
 export { MockVideoTranscriber } from './mock.js';
 export { capConfidence, captionStatesServings, DERIVED_SERVINGS_NOTE } from './servings.js';
 export {

@@ -12,6 +12,7 @@ import {
   AI_CONSENT_REQUIRED_HEADER,
   AI_CONSENT_REQUIRED_MESSAGE,
   CHAT_ACTIONS_HEADER,
+  CHAT_LIMITS,
 } from '@chefer/types';
 import {
   chatFailureMessage,
@@ -104,6 +105,7 @@ export function ChatWidget() {
   const inputRef = useRef<HTMLInputElement>(null);
   const titleId = useId();
   const panelId = useId();
+  const counterId = useId();
   // Screen readers hear the assistant's reply once, when streaming finishes —
   // a live region on the thread itself would re-read every streamed chunk.
   const [announcement, setAnnouncement] = useState('');
@@ -149,6 +151,18 @@ export function ChatWidget() {
     messages: stored.messages,
     transport: new TextStreamChatTransport({
       api: '/api/chat',
+      // Phase 1 guardrails: the server only shows the model the newest 12
+      // messages (and caps the body at 64 KB) — send no more than that, so a
+      // long day's thread never trips the body limit.
+      prepareSendMessagesRequest: ({ id, messages: thread, body, trigger, messageId }) => ({
+        body: {
+          ...body,
+          id,
+          messages: thread.slice(-CHAT_LIMITS.historyMessages),
+          trigger,
+          messageId,
+        },
+      }),
       fetch: async (input: RequestInfo | URL, init?: RequestInit) => {
         // UX-FOOD-21: ask for what the chef's tools did, appended after the text.
         const headers = new Headers(init?.headers);
@@ -185,6 +199,8 @@ export function ChatWidget() {
       ),
   });
   const isLoading = status === 'submitted' || status === 'streaming';
+  const nearLimit = inputValue.length >= CHAT_LIMITS.counterFromChars;
+  const atLimit = inputValue.length >= CHAT_LIMITS.maxMessageChars;
 
   // Remember the thread whenever it settles (never mid-stream).
   useEffect(() => {
@@ -476,21 +492,23 @@ export function ChatWidget() {
                 )}
               </div>
             )}
-            {quotaExhausted && isPremium && (
-              // Premium past its AI allowance (monthly budget, or AI paused
-              // for the day): the chef's reply above already says when it is
-              // back — no upgrade pitch to someone who already has Premium.
+            {quotaExhausted && isPremium === true && (
+              // Premium past its AI allowance — the daily chat cap (Phase 1),
+              // the monthly AI budget or a global AI pause (Phase 2). They all
+              // arrive as the same quota header, so the copy fits every case:
+              // the chef's reply above says when it is back, and there is no
+              // upgrade pitch to someone who already has Premium.
               <div
                 data-testid="chat-ai-paused"
                 className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2.5"
               >
                 <p className="text-xs text-amber-900">
-                  AI chat is paused for now — the chef’s note above says when it’s back. Your plans,
-                  recipes and tracking keep working.
+                  You&apos;ve reached your AI chat limit for now — the chef&apos;s note above says
+                  when it&apos;s back. Your plans, recipes and tracking keep working.
                 </p>
               </div>
             )}
-            {quotaExhausted && !isPremium && (
+            {quotaExhausted && isPremium !== true && (
               <div className="flex flex-col gap-2 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2.5">
                 <p className="flex items-start gap-2 text-xs text-amber-900">
                   <Sparkles
@@ -520,43 +538,60 @@ export function ChatWidget() {
           </div>
 
           {/* Input */}
-          <div className={`${locked ? 'hidden' : 'flex'} shrink-0 gap-2 border-t p-3`}>
-            <input
-              ref={inputRef}
-              aria-label="Message the chef"
-              value={inputValue}
-              onChange={(e) => setInputValue(e.target.value)}
-              onKeyDown={handleKeyDown}
-              placeholder={
-                quotaExhausted
-                  ? isPremium
-                    ? 'AI chat is paused for now'
-                    : 'Out of free messages today'
-                  : 'Ask your chef anything…'
-              }
-              disabled={isLoading || quotaExhausted}
-              className="min-w-0 flex-1 rounded-xl border border-neutral-200 px-3 py-2 text-base focus:border-[#944a00] focus:outline-none focus:ring-1 focus:ring-[#944a00] disabled:opacity-50 sm:text-sm"
-            />
-            {isLoading ? (
-              <button
-                type="button"
-                onClick={() => void stop()}
-                aria-label="Stop"
-                data-testid="chat-stop"
-                className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-[#944a00] text-white transition hover:bg-[#7a3d00]"
+          <div className={`${locked ? 'hidden' : 'flex'} shrink-0 flex-col gap-1 border-t p-3`}>
+            <div className="flex gap-2">
+              <input
+                ref={inputRef}
+                aria-label="Message the chef"
+                aria-describedby={nearLimit ? counterId : undefined}
+                value={inputValue}
+                maxLength={CHAT_LIMITS.maxMessageChars}
+                onChange={(e) => setInputValue(e.target.value)}
+                onKeyDown={handleKeyDown}
+                placeholder={
+                  quotaExhausted
+                    ? isPremium === true
+                      ? 'AI chat is paused for now'
+                      : 'Out of free messages today'
+                    : 'Ask your chef anything…'
+                }
+                disabled={isLoading || quotaExhausted}
+                className="min-w-0 flex-1 rounded-xl border border-neutral-200 px-3 py-2 text-base focus:border-[#944a00] focus:outline-none focus:ring-1 focus:ring-[#944a00] disabled:opacity-50 sm:text-sm"
+              />
+              {isLoading ? (
+                <button
+                  type="button"
+                  onClick={() => void stop()}
+                  aria-label="Stop"
+                  data-testid="chat-stop"
+                  className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-[#944a00] text-white transition hover:bg-[#7a3d00]"
+                >
+                  <Square className="h-4 w-4" aria-hidden="true" />
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  onClick={handleSend}
+                  disabled={!inputValue.trim()}
+                  aria-label="Send message"
+                  className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-[#944a00] text-white transition hover:bg-[#7a3d00] disabled:opacity-40"
+                >
+                  <Send className="h-4 w-4" aria-hidden="true" />
+                </button>
+              )}
+            </div>
+            {/* Phase 1 guardrails: one message is at most 2,000 characters
+                (the server refuses longer) — the count shows near the end. */}
+            {nearLimit && (
+              <p
+                id={counterId}
+                data-testid="chat-char-counter"
+                className={`text-right text-xs ${atLimit ? 'text-amber-800' : 'text-neutral-500'}`}
               >
-                <Square className="h-4 w-4" aria-hidden="true" />
-              </button>
-            ) : (
-              <button
-                type="button"
-                onClick={handleSend}
-                disabled={!inputValue.trim()}
-                aria-label="Send message"
-                className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-[#944a00] text-white transition hover:bg-[#7a3d00] disabled:opacity-40"
-              >
-                <Send className="h-4 w-4" aria-hidden="true" />
-              </button>
+                {atLimit
+                  ? `${CHAT_LIMITS.maxMessageChars.toLocaleString('en-US')} characters is the most one message can hold.`
+                  : `${inputValue.length.toLocaleString('en-US')} / ${CHAT_LIMITS.maxMessageChars.toLocaleString('en-US')}`}
+              </p>
             )}
           </div>
         </div>

@@ -225,6 +225,17 @@ export {
   friendRecipeRepository,
   type IFriendRecipeRepository,
   type ListSharedRecipesOptions,
+  // Phase 1 guardrails: uploaded photos ledger + upload references
+  UploadedFileRepository,
+  uploadedFileRepository,
+  type IUploadedFileRepository,
+  type CreateUploadedFileData,
+  type UploadLimits,
+  type UploadReservation,
+  UploadReferenceRepository,
+  uploadReferenceRepository,
+  type IUploadReferenceRepository,
+  type PurgeResult,
 } from './repositories/index';
 
 // Ingredient catalog validators (docs/plan-ingredient-catalog.md §4.5) — pure, no I/O

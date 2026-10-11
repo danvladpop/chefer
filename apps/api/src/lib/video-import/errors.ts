@@ -13,6 +13,7 @@ export type VideoImportErrorCode =
   | 'NO_SPEECH'
   | 'TIMEOUT'
   | 'UNAVAILABLE'
+  | 'BUSY'
   | 'FAILED';
 
 const PASTE_INSTEAD = 'You can paste the recipe text instead.';
@@ -27,6 +28,7 @@ export const VIDEO_ERROR_MESSAGES: Record<VideoImportErrorCode, string> = {
   NO_SPEECH: `We couldn't find a caption, subtitles or speech with a recipe in that video. ${PASTE_INSTEAD}`,
   TIMEOUT: `Reading that video took too long. Try again, or paste the recipe text instead.`,
   UNAVAILABLE: `Video import isn't available right now. ${PASTE_INSTEAD}`,
+  BUSY: `We're reading another video right now. Try again in a minute, or paste the recipe text instead.`,
   FAILED: `We couldn't read that video. ${PASTE_INSTEAD}`,
 };
 
