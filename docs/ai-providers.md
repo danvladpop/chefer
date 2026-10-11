@@ -551,6 +551,79 @@ Set the workload's `AI_ROUTE_*` line from the list above, recreate the API conta
 it from `AI_SHADOW_ROUTE`. Watch the `[AI] <op>: served by …` and `[ai.usage]` lines for a day.
 Roll back by deleting the line.
 
+## Cost tracking and budgets
+
+Added 2026-10-11 (Phase 2), before the switch from free tiers to paid models. Code:
+`apps/api/src/lib/ai/pricing.ts`, `lib/ai/usage-recorder.ts`, `lib/ai/budget-gate.ts`,
+`lib/ai-budget/`; schema `AiUsageEvent` (infrastructure.md §6).
+
+**What is recorded.** One `ai_usage_events` row per real provider call — the same calls that print
+an `[ai.usage]` line: every completion, every repair retry, and a failed or rejected attempt that
+still reported usage (clients log before they validate), against the provider and model that
+actually spent the tokens. Calls that fail with no usage (HTTP 4xx/5xx, timeouts) cost nothing and
+record nothing. Columns: user (null for background/system work and shadow replays), operation,
+workload, provider, model, input / cached input / output (reasoning included) / reasoning tokens,
+audio seconds (Whisper, 10 s minimum), images (Cloudflare flux), estimated cost in micro-USD.
+Writes are fire-and-forget. Pollinations images are free and loaded by the client, so they never
+produce a row.
+
+**Prices.** `MODEL_PRICES` in `pricing.ts`, USD list prices checked 2026-10-11 (`PRICES_CHECKED_ON`):
+
+| Model                                  | Input / 1M | Cached input / 1M | Output / 1M | Other          |
+| -------------------------------------- | ---------- | ----------------- | ----------- | -------------- |
+| Groq `openai/gpt-oss-120b`             | $0.15      | $0.075            | $0.60       |                |
+| Groq `openai/gpt-oss-20b`              | $0.075     | —                 | $0.30       |                |
+| Groq `qwen/qwen3.8-27b`                | $0.80      | —                 | $4.00       |                |
+| Groq `whisper-large-v3-turbo`          | —          | —                 | —           | $0.04 per hour |
+| `gemini-2.5-flash`                     | $0.30      | —                 | $2.50       |                |
+| `gemini-2.5-flash-lite`                | $0.10      | —                 | $0.40       |                |
+| `@cf/openai/gpt-oss-120b`              | $0.35      | —                 | $0.75       |                |
+| `@cf/openai/gpt-oss-20b`               | $0.20      | —                 | $0.30       |                |
+| `@cf/google/gemma-4-26b-a4b-it`        | $0.10      | —                 | $0.30       |                |
+| `@cf/black-forest-labs/flux-1-schnell` | —          | —                 | —           | $0.00064/image |
+| Pollinations                           | —          | —                 | —           | $0             |
+
+**Free-tier calls are priced at the paid list price of the same model.** Today's real bill is $0,
+but the budgets must mean "what this would cost on the paid tier" so they already protect us and
+need no change on the day the paid switch happens. A model missing from the table is priced at a
+conservative fallback ($1.00 in / $5.00 out per 1M, above every listed model) with one warning per
+model in the log — add it to the table when that warning appears. Re-check the prices (and the
+date) before the paid switch.
+
+**Budgets** (env, infrastructure.md §10):
+
+| Variable                   | Default | What happens                                                                                                                            |
+| -------------------------- | ------- | --------------------------------------------------------------------------------------------------------------------------------------- |
+| `AI_USER_MONTHLY_SOFT_USD` | 3       | Per user per calendar month (UTC): logged once a month, `profile.getAiUsage.aiBudget.status = soft`                                     |
+| `AI_USER_MONTHLY_HARD_USD` | 6       | New user-initiated AI refused (TOO_MANY_REQUESTS, friendly copy); premium plans fall back to curated                                    |
+| `AI_GLOBAL_DAILY_USD`      | 25      | Per UTC day: alert emails at 50 / 80 / 100 %; at 100 % user AI refused ("AI is paused for today"), background AI paused until 00:00 UTC |
+| `AI_BUDGET_ENFORCE`        | on      | `warn` = log + email, never refuse; `off` = record only                                                                                 |
+| `AI_BUDGET_ALERT_EMAIL`    | —       | Alert recipient; unset = `FEEDBACK_NOTIFY_EMAIL`; neither = log only. Sent within `EMAIL_DAILY_CAP`                                     |
+
+User-initiated AI is checked where the quotas are reserved (`lib/quotas.ts` → `assertAiBudget`), so
+chat (and its swap tool), scans, AI swaps, every import (link, text, photo, video — Cheferize and
+Whisper included), nutrition auto-fill and "Tailor the rest" are all covered; free curated plans
+and free curated swaps cost no AI and are never refused. Background work shared by everyone
+(ingredient prices, recipe images, shadow replays) is charged to nobody but counts toward the
+global budget; live tailoring and the Sunday auto-plan are charged to the plan's user.
+
+The day and month totals are cached in memory for 60 s and every recorded call is added to the
+cache in between, so a burst cannot run far past a limit. The cache and the "already emailed"
+markers live in the API process: a restart re-reads the totals and may repeat one alert.
+
+**Seeing the numbers.** `user.aiCostSummary` (admin-only tRPC query): today's and this month's
+total, this month per workload and the 10 most expensive users. In SQL:
+
+```sql
+SELECT workload, model, count(*) AS calls, sum("costMicroUsd") / 1e6 AS usd
+FROM ai_usage_events
+WHERE "createdAt" >= date_trunc('month', now() AT TIME ZONE 'UTC')
+GROUP BY 1, 2 ORDER BY usd DESC;
+```
+
+Rows older than 90 days are deleted by `DataRetentionWorker` (with `ai_call_logs` older than 90
+days and expired sessions).
+
 ## Golden set
 
 Everything the eval needs is in `apps/api/eval/golden/`. Nothing is fetched live.
