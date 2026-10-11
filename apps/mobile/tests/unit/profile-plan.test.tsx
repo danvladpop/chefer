@@ -259,7 +259,9 @@ describe('Daily AI allowances (T-10.8, AC13)', () => {
     mockUsage = usage({ aiMealPlans: 1, importsSaved: 1 }, { RECIPE_IMPORT: 2, CHAT: 4 });
     await renderProfile();
     expect(screen.getByText('AI meal plans')).toBeOnTheScreen();
-    expect(screen.getByText('1 / 20')).toBeOnTheScreen();
+    // Phase 1 guardrails: premium plans 20 → 5 a day, chat unlimited → 100.
+    expect(screen.getByText('1 / 5')).toBeOnTheScreen();
+    expect(screen.getByText('4 / 100')).toBeOnTheScreen();
     expect(screen.getByText('Recipe imports read')).toBeOnTheScreen();
     expect(screen.getByText('2 / 5')).toBeOnTheScreen();
     expect(screen.getByTestId('profile-usage-helper')).toHaveTextContent(

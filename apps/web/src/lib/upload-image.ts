@@ -1,9 +1,13 @@
+import { UPLOAD_LIMITS } from '@chefer/types';
+import { resizeImageForUpload } from './resize-image';
+
 const API_URL = process.env['NEXT_PUBLIC_API_URL'];
 if (!API_URL) throw new Error('NEXT_PUBLIC_API_URL is not set');
 
-// Keep in sync with the server limit: apps/api/src/routers/uploads.router.ts
-// (T-BUG-O1 / O-18 / Q-22 raised it from 5 MB to 10 MB).
-const MAX_BYTES = 10 * 1024 * 1024;
+// The server limit, shared with apps/api/src/routers/uploads.router.ts and the
+// mobile client (Phase 1 guardrails: 10 MB → 5 MB). Checked AFTER the
+// in-browser resize, so only a photo the browser could not shrink can trip it.
+const MAX_BYTES = UPLOAD_LIMITS.maxBytes;
 
 // UX-40's four photo-failure sentences (03-ux-design-spec.md lines
 // 4460-4485, UX-21 amendment A1) — never a status code, never
@@ -48,12 +52,15 @@ function uploadErrorFrom(status: number | null, body: unknown): Error {
 
 /**
  * Uploads an image file (phone or PC file picker) to the API's upload endpoint
- * as a raw body. Returns the public URL of the stored file.
+ * as a raw body. Returns the public URL of the stored file. The photo is
+ * resized in the browser first (long edge 1600 px, JPEG 0.8 — Phase 1
+ * guardrails); if that fails the original goes up and the server resizes it.
  */
-export async function uploadImage(file: File): Promise<string> {
-  if (!file.type.startsWith('image/')) {
+export async function uploadImage(picked: File): Promise<string> {
+  if (!picked.type.startsWith('image/')) {
     throw new Error('Please choose an image file.');
   }
+  const file = await resizeImageForUpload(picked);
   if (file.size > MAX_BYTES) {
     throw new Error(PHOTO_TOO_BIG_MESSAGE);
   }

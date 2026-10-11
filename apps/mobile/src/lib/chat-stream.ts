@@ -3,7 +3,7 @@
 // tests pass Node's global fetch. Both stream the same wire format: plain
 // text chunks, with X-Chat-Quota-Exhausted: 1 signalling the quota gate.
 
-import { AI_CONSENT_REQUIRED_REASON, CHAT_ACTIONS_HEADER } from '@chefer/types';
+import { AI_CONSENT_REQUIRED_REASON, CHAT_ACTIONS_HEADER, CHAT_LIMITS } from '@chefer/types';
 import { notifyAiConsentRequired } from '@chefer/utils';
 import { reportUnauthorized, SESSION_EXPIRED_MESSAGE } from '../features/auth/session-expired';
 
@@ -67,7 +67,9 @@ export async function streamChat({
       [CHAT_ACTIONS_HEADER]: '1',
       ...(token ? { authorization: `Bearer ${token}` } : {}),
     },
-    body: JSON.stringify({ messages }),
+    // Phase 1 guardrails: the model only sees the newest 12 messages and the
+    // body is capped at 64 KB — never send more than that.
+    body: JSON.stringify({ messages: messages.slice(-CHAT_LIMITS.historyMessages) }),
     ...(signal ? { signal } : {}),
   });
 

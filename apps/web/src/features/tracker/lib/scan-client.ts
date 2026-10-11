@@ -2,6 +2,7 @@
 // Same raw-body transport as lib/upload-image.ts: the file's bytes go up with
 // their image/* content-type, session cookie included.
 
+import { resizeImageForUpload } from '@/lib/resize-image';
 import { AI_CONSENT_REQUIRED_REASON } from '@chefer/types';
 import {
   notifyAiConsentRequired,
@@ -77,10 +78,13 @@ export class ScanUpgradeRequiredError extends Error {}
  * premium gate (403) so the caller can open the upgrade surface instead of
  * showing a generic failure.
  */
-export async function scanMealPhoto(file: File): Promise<MealPhotoEstimate> {
-  if (!file.type.startsWith('image/')) {
+export async function scanMealPhoto(picked: File): Promise<MealPhotoEstimate> {
+  if (!picked.type.startsWith('image/')) {
     throw new Error('Please choose an image file.');
   }
+  // Phase 1 guardrails: shrink in the browser first (1600 px JPEG, like the
+  // app) — a vision estimate needs no 12 MP photo. Falls back to the original.
+  const file = await resizeImageForUpload(picked);
   if (file.size > MAX_BYTES) {
     throw new Error(PHOTO_TOO_BIG_MESSAGE);
   }

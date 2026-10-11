@@ -15,7 +15,18 @@ const chat = vi.hoisted(() => ({
   clearError: vi.fn(),
   sendMessage: vi.fn(),
   options: undefined as { messages?: unknown[]; onError?: (e: unknown) => void } | undefined,
-  transportConfig: undefined as { fetch?: typeof fetch } | undefined,
+  transportConfig: undefined as
+    | {
+        fetch?: typeof fetch;
+        prepareSendMessagesRequest?: (o: {
+          id: string;
+          messages: UIMessage[];
+          body: Record<string, unknown> | undefined;
+          trigger: 'submit-message' | 'regenerate-message';
+          messageId: string | undefined;
+        }) => { body: { messages: UIMessage[] } & Record<string, unknown> };
+      }
+    | undefined,
 }));
 
 vi.mock('@ai-sdk/react', () => ({
@@ -297,5 +308,65 @@ describe('ChatWidget (UX-FOOD-21)', () => {
     chatState = { messages: [], status: 'ready' };
     rerender(<ChatWidget />);
     expect(window.sessionStorage.getItem('chefer.chat.thread')).toBeNull();
+  });
+});
+
+// Phase 1 guardrails on web: 2,000 characters per message (with a counter near
+// the end), only the newest 12 messages are sent, and premium's daily cap
+// (100) is a reset time, not an upsell.
+describe('ChatWidget (Phase 1 guardrails)', () => {
+  it('caps the input at 2,000 characters and shows a counter near the limit', () => {
+    render(<ChatWidget />);
+    open();
+    const input = screen.getByRole('textbox', { name: 'Message the chef' });
+    expect(input.getAttribute('maxlength')).toBe('2000');
+    expect(screen.queryByTestId('chat-char-counter')).toBeNull();
+
+    fireEvent.change(input, { target: { value: 'a'.repeat(1850) } });
+    const counter = screen.getByTestId('chat-char-counter');
+    expect(counter.textContent).toBe('1,850 / 2,000');
+    expect(input.getAttribute('aria-describedby')).toBe(counter.id);
+
+    fireEvent.change(input, { target: { value: 'a'.repeat(2000) } });
+    expect(screen.getByTestId('chat-char-counter').textContent).toBe(
+      '2,000 characters is the most one message can hold.',
+    );
+  });
+
+  it('sends only the newest 12 messages of the thread', () => {
+    render(<ChatWidget />);
+    const thread = Array.from({ length: 20 }, (_, i) =>
+      msg(String(i), i % 2 ? 'assistant' : 'user', `m${i}`),
+    );
+    const prepared = chat.transportConfig?.prepareSendMessagesRequest?.({
+      id: 'chat1',
+      messages: thread,
+      body: undefined,
+      trigger: 'submit-message',
+      messageId: undefined,
+    });
+    expect(prepared?.body.messages).toHaveLength(12);
+    expect(prepared?.body.messages[0]?.id).toBe('8');
+    expect(prepared?.body['id']).toBe('chat1');
+  });
+
+  it('a premium user at the daily cap sees when it resets, not an upgrade button', async () => {
+    render(<ChatWidget />);
+    open();
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+      new Response("You've used today's 100 chat messages.", {
+        headers: { 'X-Chat-Quota-Exhausted': '1' },
+      }),
+    );
+    await act(async () => {
+      await chat.transportConfig?.fetch?.('/api/chat', { method: 'POST' });
+    });
+    expect((await screen.findByTestId('chat-premium-quota')).textContent).toContain(
+      "You've used today's 100 chat messages",
+    );
+    expect(screen.queryByRole('button', { name: 'Upgrade' })).toBeNull();
+    expect(
+      screen.getByRole('textbox', { name: 'Message the chef' }).getAttribute('placeholder'),
+    ).toBe('Out of chat messages today');
   });
 });
