@@ -1,14 +1,12 @@
 import { useRef, useState, type ReactNode } from 'react';
 import { Keyboard, Platform, Pressable, View, type TextInput } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
 import { useQueryClient } from '@tanstack/react-query';
 import { router } from 'expo-router';
 import type { DayKind, WeightUnit } from '@chefer/types';
 import {
-  Button,
-  Card,
   ChipGroup,
   EmptyState,
+  IconButton,
   Input,
   KeyboardAwareScrollView,
   NumericReturnBar,
@@ -17,6 +15,7 @@ import {
   Stepper,
   Text,
   useScrollFieldIntoView,
+  useThemeColors,
 } from '@chefer/ui-mobile';
 import {
   formatLoadNumber,
@@ -34,6 +33,7 @@ import {
   WELLNESS_COPY,
   type PauseStartChoice,
 } from '@chefer/utils';
+import { Icon } from '../../../components/icon';
 import { NotificationsOffRow } from '../../../components/notifications-off-row';
 import { useFlags } from '../../../hooks/use-flags';
 import { trpc } from '../../../lib/trpc';
@@ -43,6 +43,7 @@ import {
 } from '../../../lib/use-notification-permission';
 import { GymFeedbackRow } from '../../feedback/gym-feedback-row';
 import { SectionAnchor, useSectionTitle } from '../../settings/section-anchor';
+import { TrainButton } from '../../shell/train/train-button';
 import { GymBootstrapUnavailable, useGymBootstrapLoad } from '../components/gym-bootstrap-state';
 import { OutboxWaitingCard } from '../components/outbox-waiting-card';
 import { GymExportRow } from '../export/export-row';
@@ -105,17 +106,51 @@ function pad(n: number): string {
   return String(n).padStart(2, '0');
 }
 
-function BackButton() {
+// 10 Oct redesign: the old shell's header draws Back like the shell top bar
+// (a plain IconButton with the brand chevron) and the title as a title1.
+function LegacyHeader({ title }: { title: string }) {
+  const colors = useThemeColors();
   return (
-    <Pressable
-      testID="gym-settings-title-back"
-      accessibilityRole="button"
-      accessibilityLabel="Back"
-      onPress={() => (router.canGoBack() ? router.back() : router.replace('/today'))}
-      className="h-11 w-11 items-center justify-center rounded-full bg-gray-100"
-    >
-      <Ionicons name="chevron-back" size={22} color="#374151" />
-    </Pressable>
+    <View className="min-h-11 flex-row items-center gap-1 px-4 pt-2">
+      <IconButton
+        testID="gym-settings-title-back"
+        accessibilityLabel="Back"
+        icon={<Icon name="chevronBack" color={colors.brand} size={26} />}
+        onPress={() => (router.canGoBack() ? router.back() : router.replace('/today'))}
+        className="-ml-2"
+      />
+      <Text
+        testID="gym-settings-title"
+        accessibilityRole="header"
+        numberOfLines={1}
+        className="min-w-0 flex-1 text-title1 font-bold text-label"
+      >
+        {title}
+      </Text>
+    </View>
+  );
+}
+
+/** A settings group's surface: the shell's card (hairline, one radius). */
+function SettingsCard({ children, testID }: { children: ReactNode; testID?: string }) {
+  return (
+    <View testID={testID} className="gap-4 rounded-card border border-separator bg-surface p-4">
+      {children}
+    </View>
+  );
+}
+
+/** A control's name above it, inside a card. */
+function FieldLabel({ children }: { children: string }) {
+  return <Text className="text-callout font-semibold text-label">{children}</Text>;
+}
+
+/** One line of help under a control. */
+function Hint({ children, testID }: { children: ReactNode; testID?: string }) {
+  return (
+    <Text testID={testID} className="text-caption text-label-secondary">
+      {children}
+    </Text>
   );
 }
 
@@ -155,7 +190,10 @@ function PartAnchor({
 
 function SectionTitle({ children }: { children: string }) {
   return (
-    <Text className="text-xs font-semibold uppercase tracking-widest text-gray-500">
+    <Text
+      accessibilityRole="header"
+      className="px-4 text-subhead font-semibold text-label-secondary"
+    >
       {children}
     </Text>
   );
@@ -172,6 +210,7 @@ function WeightListEditor({
   unit: WeightUnit;
   onChangeKg: (kg: number[]) => void;
 }) {
+  const colors = useThemeColors();
   const [draft, setDraft] = useState('');
   const sorted = [...valuesKg].sort((a, b) => a - b);
   const inputRef = useRef<TextInput>(null);
@@ -203,12 +242,12 @@ function WeightListEditor({
             accessibilityRole="button"
             accessibilityLabel={`Remove ${formatLoadNumber(kg, unit)} ${unitLabel(unit)}`}
             onPress={() => onChangeKg(valuesKg.filter((v) => v !== kg))}
-            className="min-h-11 flex-row items-center gap-1.5 rounded-full border border-border bg-background px-3"
+            className="min-h-11 flex-row items-center gap-1.5 rounded-full border border-separator bg-surface-sunken px-3 active:opacity-70"
           >
-            <Text className="text-sm">
+            <Text className="text-subhead text-label">
               {formatLoadNumber(kg, unit)} {unitLabel(unit)}
             </Text>
-            <Text className="text-xs text-muted-foreground">✕</Text>
+            <Icon name="close" color={colors.labelSecondary} size={16} />
           </Pressable>
         ))}
       </View>
@@ -226,9 +265,7 @@ function WeightListEditor({
           onSubmitEditing={submit}
           className="w-28"
         />
-        <Button testID={`${testID}-add`} size="sm" variant="outline" onPress={add}>
-          Add
-        </Button>
+        <TrainButton testID={`${testID}-add`} label="Add" variant="outline" onPress={add} />
       </View>
       <NumericReturnBar
         nativeID={accessoryID}
@@ -294,18 +331,8 @@ export function GymSettingsScreen({ part, header }: GymSettingsScreenProps = {})
   if (bootstrapLoad.load !== 'data') {
     // UX-GYM-24: a failed or offline first load is not "set up your training".
     return (
-      <Screen
-        className={full ? 'px-0' : 'bg-canvas px-0'}
-        edges={['top', 'bottom', 'left', 'right']}
-      >
-        {header ?? (
-          <View className="flex-row items-center gap-3 px-4 pt-2">
-            <BackButton />
-            <Text testID="gym-settings-title" variant="title">
-              Gym settings
-            </Text>
-          </View>
-        )}
+      <Screen className="bg-canvas px-0" edges={['top', 'bottom', 'left', 'right']}>
+        {header ?? <LegacyHeader title="Gym settings" />}
         <GymBootstrapUnavailable
           load={bootstrapLoad.load}
           onRetry={bootstrapLoad.retry}
@@ -318,18 +345,8 @@ export function GymSettingsScreen({ part, header }: GymSettingsScreenProps = {})
 
   if (!bootstrap?.profile) {
     return (
-      <Screen
-        className={full ? 'px-0' : 'bg-canvas px-0'}
-        edges={['top', 'bottom', 'left', 'right']}
-      >
-        {header ?? (
-          <View className="flex-row items-center gap-3 px-4 pt-2">
-            <BackButton />
-            <Text testID="gym-settings-title" variant="title">
-              Gym settings
-            </Text>
-          </View>
-        )}
+      <Screen className="bg-canvas px-0" edges={['top', 'bottom', 'left', 'right']}>
+        {header ?? <LegacyHeader title="Gym settings" />}
         <EmptyState
           testID="gym-settings-empty"
           title="Set up your training first"
@@ -404,77 +421,84 @@ export function GymSettingsScreen({ part, header }: GymSettingsScreenProps = {})
   };
 
   return (
-    <Screen className={full ? 'px-0' : 'bg-canvas px-0'} edges={['top', 'bottom', 'left', 'right']}>
-      {header ?? (
-        <View className="flex-row items-center gap-3 px-4 pt-2">
-          <BackButton />
-          <Text testID="gym-settings-title" variant="title">
-            {title}
-          </Text>
-        </View>
-      )}
+    <Screen className="bg-canvas px-0" edges={['top', 'bottom', 'left', 'right']}>
+      {header ?? <LegacyHeader title={title} />}
 
-      <KeyboardAwareScrollView contentContainerClassName="gap-5 px-4 py-4">
+      <KeyboardAwareScrollView contentContainerClassName="gap-6 px-4 pb-8 pt-4">
         {full ? (
           <>
-            <SectionAnchor id="units" className="gap-2">
+            <SectionAnchor id="units" className="gap-1.5">
               <SectionTitle>Units</SectionTitle>
-              <ChipGroup
-                testID="gym-settings-unit"
-                options={[
-                  { value: 'KG' as const, label: 'kg', testID: 'gym-settings-unit-kg' },
-                  { value: 'LB' as const, label: 'lb', testID: 'gym-settings-unit-lb' },
-                ]}
-                value={[unit]}
-                onChange={(v) => {
-                  const next = v[0];
-                  if (next) saveMutation.mutate({ unit: next });
-                }}
-              />
-              <Text variant="muted" className="text-xs">
+              <SettingsCard>
+                <ChipGroup
+                  testID="gym-settings-unit"
+                  options={[
+                    { value: 'KG' as const, label: 'kg', testID: 'gym-settings-unit-kg' },
+                    { value: 'LB' as const, label: 'lb', testID: 'gym-settings-unit-lb' },
+                  ]}
+                  value={[unit]}
+                  onChange={(v) => {
+                    const next = v[0];
+                    if (next) saveMutation.mutate({ unit: next });
+                  }}
+                />
+              </SettingsCard>
+              <Text className="px-4 text-caption text-label-tertiary">
                 Also switches recipes, shopping lists and your body weight.
               </Text>
             </SectionAnchor>
 
             {cardioLogging ? (
-              <View className="gap-2">
+              <View className="gap-1.5">
                 <SectionTitle>Distance</SectionTitle>
-                <ChipGroup
-                  testID="gym-settings-distance-unit"
-                  options={[
-                    { value: 'KM' as const, label: 'km', testID: 'gym-settings-distance-unit-km' },
-                    { value: 'MI' as const, label: 'mi', testID: 'gym-settings-distance-unit-mi' },
-                  ]}
-                  value={[distanceUnit]}
-                  onChange={(v) => {
-                    const next = v[0];
-                    if (next) saveMutation.mutate({ distanceUnit: next });
-                  }}
-                />
+                <SettingsCard>
+                  <ChipGroup
+                    testID="gym-settings-distance-unit"
+                    options={[
+                      {
+                        value: 'KM' as const,
+                        label: 'km',
+                        testID: 'gym-settings-distance-unit-km',
+                      },
+                      {
+                        value: 'MI' as const,
+                        label: 'mi',
+                        testID: 'gym-settings-distance-unit-mi',
+                      },
+                    ]}
+                    value={[distanceUnit]}
+                    onChange={(v) => {
+                      const next = v[0];
+                      if (next) saveMutation.mutate({ distanceUnit: next });
+                    }}
+                  />
+                </SettingsCard>
               </View>
             ) : null}
 
-            <View className="gap-2">
+            <View className="gap-1.5">
               <SectionTitle>Weekly goal</SectionTitle>
-              <Stepper
-                testID="gym-settings-weekly-goal"
-                accessibilityLabel="Weekly goal"
-                value={profile.weeklyGoal}
-                min={1}
-                max={7}
-                label="sessions / week"
-                onChange={(n) => saveMutation.mutate({ weeklyGoal: n })}
-              />
+              <SettingsCard>
+                <Stepper
+                  testID="gym-settings-weekly-goal"
+                  accessibilityLabel="Weekly goal"
+                  value={profile.weeklyGoal}
+                  min={1}
+                  max={7}
+                  label="sessions / week"
+                  onChange={(n) => saveMutation.mutate({ weeklyGoal: n })}
+                />
+              </SettingsCard>
             </View>
           </>
         ) : null}
 
         {show('equipment') ? (
-          <View className="gap-3">
+          <View className="gap-1.5">
             {full ? <SectionTitle>Equipment</SectionTitle> : null}
-            <Card className="gap-4">
+            <SettingsCard>
               <View className="gap-2">
-                <Text variant="label">Bar weight</Text>
+                <FieldLabel>Bar weight</FieldLabel>
                 <Stepper
                   testID="gym-settings-bar-weight"
                   accessibilityLabel="Bar weight"
@@ -487,7 +511,7 @@ export function GymSettingsScreen({ part, header }: GymSettingsScreenProps = {})
                 />
               </View>
               <View className="gap-2">
-                <Text variant="label">Plate pairs you have</Text>
+                <FieldLabel>Plate pairs you have</FieldLabel>
                 <WeightListEditor
                   testID="gym-settings-plates"
                   valuesKg={profile.platePairsKg}
@@ -496,7 +520,7 @@ export function GymSettingsScreen({ part, header }: GymSettingsScreenProps = {})
                 />
               </View>
               <View className="gap-2">
-                <Text variant="label">Dumbbells you have (weight of one dumbbell)</Text>
+                <FieldLabel>Dumbbells you have (weight of one dumbbell)</FieldLabel>
                 <WeightListEditor
                   testID="gym-settings-dumbbells"
                   valuesKg={profile.dumbbellsKg}
@@ -505,7 +529,7 @@ export function GymSettingsScreen({ part, header }: GymSettingsScreenProps = {})
                 />
               </View>
               <View className="gap-2">
-                <Text variant="label">Machine weight step</Text>
+                <FieldLabel>Machine weight step</FieldLabel>
                 <Stepper
                   testID="gym-settings-machine-step"
                   accessibilityLabel="Machine weight step"
@@ -518,7 +542,7 @@ export function GymSettingsScreen({ part, header }: GymSettingsScreenProps = {})
                 />
               </View>
               <View className="gap-2">
-                <Text variant="label">Cable weight step</Text>
+                <FieldLabel>Cable weight step</FieldLabel>
                 <Stepper
                   testID="gym-settings-cable-step"
                   accessibilityLabel="Cable weight step"
@@ -531,7 +555,7 @@ export function GymSettingsScreen({ part, header }: GymSettingsScreenProps = {})
                 />
               </View>
               <View className="gap-2">
-                <Text variant="label">Dip belt</Text>
+                <FieldLabel>Dip belt</FieldLabel>
                 <ChipGroup
                   testID="gym-settings-dip-belt"
                   options={[
@@ -543,7 +567,7 @@ export function GymSettingsScreen({ part, header }: GymSettingsScreenProps = {})
                 />
               </View>
               <View className="gap-2">
-                <Text variant="label">Micro plates</Text>
+                <FieldLabel>Micro plates</FieldLabel>
                 <ChipGroup
                   testID="gym-settings-micro-plates"
                   options={[
@@ -558,17 +582,17 @@ export function GymSettingsScreen({ part, header }: GymSettingsScreenProps = {})
                   onChange={(v) => saveMutation.mutate({ microPlates: v[0] === 'yes' })}
                 />
               </View>
-            </Card>
+            </SettingsCard>
           </View>
         ) : null}
 
         {show('days') || show('reminders') || show('session') ? (
-          <PartAnchor part={part} id="reminders" className="gap-2">
+          <PartAnchor part={part} id="reminders" className="gap-1.5">
             {full ? <SectionTitle>Training days & reminders</SectionTitle> : null}
-            <Card className="gap-3">
+            <SettingsCard>
               {show('days') ? (
                 <View className="gap-1.5">
-                  <Text variant="label">Weekday kind</Text>
+                  <FieldLabel>Weekday kind</FieldLabel>
                   <View className="flex-row justify-between" testID="gym-settings-day-kinds">
                     {WEEKDAY_SHORT_LABELS.map((label, weekday) => {
                       const isLift = liftWeekdays.has(weekday);
@@ -583,19 +607,25 @@ export function GymSettingsScreen({ part, header }: GymSettingsScreenProps = {})
                           accessibilityLabel={`${weekdayLabel(weekday)}: ${kind ? DAY_KIND_SHORT[kind] : 'not set'}`}
                           disabled={isLift}
                           onPress={() => setKindSheetWeekday(weekday)}
-                          className="min-h-11 min-w-11 items-center justify-center gap-0.5 rounded-lg px-1 disabled:opacity-60"
+                          className="min-h-11 min-w-11 items-center justify-center gap-0.5 rounded-inner px-1 active:bg-surface-sunken disabled:opacity-60"
                         >
-                          <Text className="text-xs font-semibold">{label}</Text>
-                          <Text variant="muted" className="text-xs">
+                          <Text className="text-caption font-semibold text-label">{label}</Text>
+                          <Text
+                            className={
+                              kind
+                                ? 'text-caption font-semibold text-brand'
+                                : 'text-caption text-label-tertiary'
+                            }
+                          >
                             {kind ? DAY_KIND_SHORT[kind] : '—'}
                           </Text>
                         </Pressable>
                       );
                     })}
                   </View>
-                  <Text variant="muted" className="text-xs">
+                  <Hint>
                     Lift days come from your routine. Mark the rest as a run, a long run or rest.
-                  </Text>
+                  </Hint>
                 </View>
               ) : null}
               {show('reminders') ? (
@@ -629,7 +659,7 @@ export function GymSettingsScreen({ part, header }: GymSettingsScreenProps = {})
                           saveReminder(true, v, reminderMinute);
                         }}
                       />
-                      <Text className="text-lg font-semibold">:</Text>
+                      <Text className="text-title3 font-semibold text-label">:</Text>
                       <Stepper
                         testID="gym-settings-reminder-minute"
                         accessibilityLabel="Reminder minute"
@@ -646,7 +676,7 @@ export function GymSettingsScreen({ part, header }: GymSettingsScreenProps = {})
                     </View>
                   )}
                   <View className="gap-1.5">
-                    <Text variant="label">Nudge me if I’ve gone quiet for</Text>
+                    <FieldLabel>Nudge me if I’ve gone quiet for</FieldLabel>
                     <ChipGroup
                       testID="gym-settings-quiet-nudge"
                       options={QUIET_NUDGE_OPTIONS}
@@ -661,7 +691,7 @@ export function GymSettingsScreen({ part, header }: GymSettingsScreenProps = {})
               ) : null}
               {show('session') ? (
                 <View className="gap-1.5">
-                  <Text variant="label">How long can a session usually be?</Text>
+                  <FieldLabel>How long can a session usually be?</FieldLabel>
                   <ChipGroup
                     testID="gym-settings-session-length"
                     allowEmpty
@@ -675,101 +705,91 @@ export function GymSettingsScreen({ part, header }: GymSettingsScreenProps = {})
                   />
                 </View>
               ) : null}
-            </Card>
+            </SettingsCard>
           </PartAnchor>
         ) : null}
 
         {show('pause') ? (
-          <PartAnchor part={part} id="pause" className="gap-2">
+          <PartAnchor part={part} id="pause" className="gap-1.5">
             {full ? <SectionTitle>Pause training</SectionTitle> : null}
-            <Card className="gap-2">
+            <SettingsCard>
               {shownPause ? (
-                <View className="gap-2">
-                  <Text testID="gym-settings-paused-note" variant="muted">
+                <View className="gap-3">
+                  <Text testID="gym-settings-paused-note" className="text-callout text-label">
                     {pauseSummaryLine(shownPause, today)}
                   </Text>
-                  <Button
+                  <TrainButton
                     testID="gym-settings-pause-end"
+                    label={activePause ? 'End pause now' : 'Cancel pause'}
                     variant="outline"
                     loading={pauseEndMutation.isPending}
                     onPress={() => pauseEndMutation.mutate({ id: shownPause.id })}
-                  >
-                    {activePause ? 'End pause now' : 'Cancel pause'}
-                  </Button>
+                  />
                 </View>
               ) : isPausedThisWeek ? (
-                <Text testID="gym-settings-paused-note" variant="muted">
+                <Text testID="gym-settings-paused-note" className="text-callout text-label">
                   Training is paused this week.
                 </Text>
               ) : (
-                <Button
+                <TrainButton
                   testID="gym-settings-pause-start"
+                  label="Pause training"
                   variant="outline"
                   onPress={() => setPauseSheetVisible(true)}
-                >
-                  Pause training
-                </Button>
+                />
               )}
-            </Card>
+            </SettingsCard>
           </PartAnchor>
         ) : null}
 
         {full && outboxStatus.parked.length > 0 && (
-          <View className="gap-2">
+          <View className="gap-1.5">
             <SectionTitle>Needs attention</SectionTitle>
             <View className="gap-2">
               {outboxStatus.parked.map((entry) => (
-                <Card
+                <View
                   key={entry.doc.id}
                   testID={`gym-settings-parked-${entry.doc.id}`}
-                  className="gap-2"
+                  className="gap-2 rounded-card border border-separator bg-surface p-4"
                 >
-                  <Text className="font-medium">{entry.doc.name}</Text>
-                  <Text variant="muted" className="text-xs">
+                  <Text className="text-body font-semibold text-label">{entry.doc.name}</Text>
+                  <Text className="text-caption text-label-secondary">
                     {entry.doc.localDate} · {entry.parkedReason ?? entry.lastError ?? 'Rejected'}
                   </Text>
                   {confirmingDiscardId === entry.doc.id ? (
                     <View className="gap-2">
-                      <Text className="text-sm text-red-600">This workout will be lost.</Text>
+                      <Text className="text-subhead text-danger">This workout will be lost.</Text>
                       <View className="flex-row gap-2">
-                        <Button
+                        <TrainButton
                           testID={`gym-settings-parked-${entry.doc.id}-discard-confirm`}
-                          size="sm"
-                          variant="destructive"
+                          label="Discard"
+                          variant="danger"
                           onPress={() => discardParked(entry.doc.id)}
-                        >
-                          Discard
-                        </Button>
-                        <Button
+                        />
+                        <TrainButton
                           testID={`gym-settings-parked-${entry.doc.id}-discard-cancel`}
-                          size="sm"
+                          label="Cancel"
                           variant="outline"
                           onPress={() => setConfirmingDiscardId(null)}
-                        >
-                          Cancel
-                        </Button>
+                        />
                       </View>
                     </View>
                   ) : (
                     <View className="flex-row gap-2">
-                      <Button
+                      <TrainButton
                         testID={`gym-settings-parked-${entry.doc.id}-retry`}
-                        size="sm"
+                        label="Retry"
                         onPress={() => retryParked(entry.doc.id)}
-                      >
-                        Retry
-                      </Button>
-                      <Button
+                      />
+                      <TrainButton
                         testID={`gym-settings-parked-${entry.doc.id}-discard`}
-                        size="sm"
+                        label="Discard"
                         variant="outline"
                         onPress={() => setConfirmingDiscardId(entry.doc.id)}
-                      >
-                        Discard
-                      </Button>
+                      />
                     </View>
                   )}
-                </Card>
+                </View>
               ))}
             </View>
           </View>
@@ -789,7 +809,7 @@ export function GymSettingsScreen({ part, header }: GymSettingsScreenProps = {})
 
             <View className="gap-1">
               <SectionTitle>Last sync</SectionTitle>
-              <Text testID="gym-settings-last-sync" variant="muted">
+              <Text testID="gym-settings-last-sync" className="px-4 text-callout text-label">
                 {outboxStatus.lastSyncAt
                   ? new Date(outboxStatus.lastSyncAt).toLocaleString()
                   : 'Never'}
@@ -799,8 +819,7 @@ export function GymSettingsScreen({ part, header }: GymSettingsScreenProps = {})
             {/* Advisory disclaimer (2026-10-02), always visible on gym settings. */}
             <Text
               testID="gym-settings-advisory-disclaimer"
-              variant="muted"
-              className="text-center text-xs"
+              className="text-center text-caption text-label-tertiary"
             >
               {WELLNESS_COPY.gymAdvisoryDisclaimer}
             </Text>
@@ -814,20 +833,20 @@ export function GymSettingsScreen({ part, header }: GymSettingsScreenProps = {})
         title="Pause training"
         testID="gym-settings-pause-sheet"
         footer={
-          <Button
+          <TrainButton
             testID="gym-settings-pause-confirm"
+            label="Pause"
+            size="lg"
             loading={pauseCreateMutation.isPending}
             onPress={confirmPause}
-          >
-            Pause
-          </Button>
+          />
         }
       >
-        <Text testID="gym-settings-pause-explainer" variant="muted">
+        <Text testID="gym-settings-pause-explainer" className="text-subhead text-label-secondary">
           {PAUSE_EXPLAINER}
         </Text>
         <View className="gap-2">
-          <Text variant="label">Starting</Text>
+          <FieldLabel>Starting</FieldLabel>
           <ChipGroup
             testID="gym-settings-pause-starting"
             options={PAUSE_START_CHOICES.map((c) => ({
@@ -839,7 +858,7 @@ export function GymSettingsScreen({ part, header }: GymSettingsScreenProps = {})
           />
         </View>
         <View className="gap-2">
-          <Text variant="label">How many weeks?</Text>
+          <FieldLabel>How many weeks?</FieldLabel>
           <Stepper
             testID="gym-settings-pause-weeks"
             accessibilityLabel="Pause weeks"
@@ -851,7 +870,7 @@ export function GymSettingsScreen({ part, header }: GymSettingsScreenProps = {})
           />
         </View>
         <View className="gap-2">
-          <Text variant="label">Reason (optional)</Text>
+          <FieldLabel>Reason (optional)</FieldLabel>
           <ChipGroup
             testID="gym-settings-pause-reason"
             options={PAUSE_REASONS.map((r) => ({
@@ -863,7 +882,7 @@ export function GymSettingsScreen({ part, header }: GymSettingsScreenProps = {})
             onChange={(v) => setPauseReason(v[0] ?? null)}
           />
         </View>
-        <Text testID="gym-settings-pause-range" className="text-sm font-medium">
+        <Text testID="gym-settings-pause-range" className="text-callout font-semibold text-label">
           {`${weekdayDateLabel(pauseStartDate(pauseStart, today))} – ${weekdayDateLabel(pauseEndDate(pauseStartDate(pauseStart, today), pauseWeeks))}`}
         </Text>
       </Sheet>
@@ -884,9 +903,9 @@ export function GymSettingsScreen({ part, header }: GymSettingsScreenProps = {})
               setDayKindsMutation.mutate({ days: { [String(kindSheetWeekday)]: opt.value } });
               setKindSheetWeekday(null);
             }}
-            className="min-h-11 justify-center border-b border-border py-3"
+            className="min-h-11 justify-center border-b border-separator py-3 active:opacity-70"
           >
-            <Text className="font-medium">{opt.label}</Text>
+            <Text className="text-body text-label">{opt.label}</Text>
           </Pressable>
         ))}
         <Pressable
@@ -897,9 +916,9 @@ export function GymSettingsScreen({ part, header }: GymSettingsScreenProps = {})
             setDayKindsMutation.mutate({ days: { [String(kindSheetWeekday)]: null } });
             setKindSheetWeekday(null);
           }}
-          className="min-h-11 justify-center py-3"
+          className="min-h-11 justify-center py-3 active:opacity-70"
         >
-          <Text className="font-medium text-muted-foreground">Clear</Text>
+          <Text className="text-body text-label-secondary">Clear</Text>
         </Pressable>
       </Sheet>
     </Screen>

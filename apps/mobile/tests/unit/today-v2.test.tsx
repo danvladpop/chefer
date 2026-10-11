@@ -422,6 +422,47 @@ describe('Today v2 — your day', () => {
     );
   });
 
+  it('tapping a planned slot logs it as eaten; tapping an eaten one unticks it', async () => {
+    const user = userEvent.setup();
+    const { calls } = await renderToday();
+    await user.press(screen.getByTestId('your-day-slot-dinner-2'));
+    await waitFor(() => expect(calls.logRecipe).toHaveLength(1));
+    expect(calls.logRecipe?.[0]).toMatchObject({
+      recipeId: 'salmon',
+      mealType: 'dinner',
+      slotIndex: 2,
+      portionMultiplier: 1,
+      date: TODAY,
+    });
+    await user.press(screen.getByTestId('your-day-slot-breakfast-0'));
+    await waitFor(() => expect(calls.unlogRecipe).toHaveLength(1));
+    expect(calls.unlogRecipe?.[0]).toMatchObject({
+      recipeId: 'oats',
+      mealType: 'breakfast',
+      slotIndex: 0,
+    });
+  });
+
+  it('a skipped slot is not ticked here — it opens the full day', async () => {
+    const user = userEvent.setup();
+    const base = summary();
+    const { calls } = await renderToday({
+      'dashboard.summary': () =>
+        summary({
+          today: {
+            ...base.today,
+            slots: [
+              { slotIndex: 0, mealType: 'breakfast', status: 'skipped' },
+              ...base.today.slots.slice(1),
+            ],
+          },
+        }),
+    });
+    await user.press(screen.getByTestId('your-day-slot-breakfast-0'));
+    expect(router.push).toHaveBeenCalledWith('/tracker');
+    expect(calls.logRecipe).toBeUndefined();
+  });
+
   it('"Open your day" goes to the tracker', async () => {
     const user = userEvent.setup();
     await renderToday();

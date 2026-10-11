@@ -2,14 +2,18 @@ import { useMemo, useState } from 'react';
 import { Pressable, View } from 'react-native';
 import { router } from 'expo-router';
 import type { GymBootstrap, SessionSummaryDto } from '@chefer/types';
-import { Button, EmptyState, Text } from '@chefer/ui-mobile';
-import { collectPrs, groupSessionsByWeek, sessionStatsOf, weekdayDateLabel } from '@chefer/utils';
-import { trpc } from '../../../lib/trpc';
+import { EmptyState, IconButton, Text, useThemeColors } from '@chefer/ui-mobile';
 import {
-  SessionOptionsButton,
-  sessionRowAccessibilityActions,
-  useSessionActions,
-} from '../history/use-session-actions';
+  cn,
+  collectPrs,
+  groupSessionsByWeek,
+  sessionStatsOf,
+  weekdayDateLabel,
+} from '@chefer/utils';
+import { Icon } from '../../../components/icon';
+import { trpc } from '../../../lib/trpc';
+import { TrainButton } from '../../shell/train/train-button';
+import { sessionRowAccessibilityActions, useSessionActions } from '../history/use-session-actions';
 import { useIsOnline } from '../library-screens/online-status';
 import { LogActivityAction } from '../today/log-activity-sheet';
 
@@ -31,6 +35,7 @@ export interface HistoryViewProps {
 }
 
 export function HistoryView({ bootstrap, testID = 'gym-history' }: HistoryViewProps) {
+  const colors = useThemeColors();
   const utils = trpc.useUtils();
   const online = useIsOnline();
   const actions = useSessionActions({ bootstrap, source: 'history', testIDPrefix: testID });
@@ -115,65 +120,77 @@ export function HistoryView({ bootstrap, testID = 'gym-history' }: HistoryViewPr
           <Text
             testID={`${testID}-week-${group.weekStart}`}
             accessibilityRole="header"
-            className="text-xs font-semibold uppercase tracking-wide text-muted-foreground"
+            className="px-4 text-subhead font-semibold text-label-secondary"
           >
             {`Week of ${weekdayDateLabel(group.weekStart)}`}
           </Text>
-          {group.sessions.map((session) => {
-            const stats = sessionStatsOf(session, prSessionIds.has(session.id));
-            return (
-              <View
-                key={session.id}
-                className="min-h-11 flex-row items-center rounded-lg border border-border"
-              >
-                <Pressable
-                  testID={`${testID}-row-${session.id}`}
-                  accessibilityRole="button"
-                  accessibilityLabel={`${session.name}, ${weekdayDateLabel(session.localDate)}, ${stats.spoken}`}
-                  {...sessionRowAccessibilityActions(actions, session)}
-                  onPress={() =>
-                    router.push({ pathname: '/gym/session/[id]', params: { id: session.id } })
-                  }
-                  className="min-h-11 min-w-0 flex-1 flex-row items-center justify-between gap-2 py-3 pl-4"
+          <View className="overflow-hidden rounded-card border border-separator bg-surface">
+            {group.sessions.map((session, index) => {
+              const stats = sessionStatsOf(session, prSessionIds.has(session.id));
+              const date = weekdayDateLabel(session.localDate);
+              return (
+                <View
+                  key={session.id}
+                  className={cn(
+                    'min-h-11 flex-row items-center pr-1',
+                    index > 0 && 'border-t border-separator',
+                  )}
                 >
-                  <View className="min-w-0 flex-1">
-                    <Text className="text-sm font-medium">{session.name}</Text>
-                    <Text variant="muted" className="text-xs">
-                      {`${weekdayDateLabel(session.localDate)} · ${stats.text}`}
-                    </Text>
-                  </View>
-                  <Text className="text-primary">›</Text>
-                </Pressable>
-                <SessionOptionsButton
-                  testID={`${testID}-row-${session.id}-options`}
-                  session={session}
-                  onPress={() => actions.openMenu(session)}
-                />
-              </View>
-            );
-          })}
+                  {/* A full-width row highlights on press (MO-01's list variant). */}
+                  <Pressable
+                    testID={`${testID}-row-${session.id}`}
+                    accessibilityRole="button"
+                    accessibilityLabel={`${session.name}, ${date}, ${stats.spoken}`}
+                    {...sessionRowAccessibilityActions(actions, session)}
+                    onPress={() =>
+                      router.push({ pathname: '/gym/session/[id]', params: { id: session.id } })
+                    }
+                    className="min-h-11 min-w-0 flex-1 flex-row items-center justify-between gap-2 py-3 pl-4 active:bg-surface-sunken"
+                  >
+                    <View className="min-w-0 flex-1 gap-0.5">
+                      <Text className="text-body text-label" numberOfLines={2}>
+                        {session.name}
+                      </Text>
+                      <Text className="text-subhead text-label-secondary">
+                        {`${date} · ${stats.text}`}
+                      </Text>
+                    </View>
+                    <Icon name="chevronRight" color={colors.labelTertiary} size={18} />
+                  </Pressable>
+                  <IconButton
+                    testID={`${testID}-row-${session.id}-options`}
+                    accessibilityLabel={`Options for ${session.name}, ${date}`}
+                    icon={<Icon name="more" color={colors.labelSecondary} />}
+                    onPress={() => actions.openMenu(session)}
+                  />
+                </View>
+              );
+            })}
+          </View>
         </View>
       ))}
 
       {loadError ? (
-        <Text testID={`${testID}-error`} variant="muted" className="text-xs">
+        <Text testID={`${testID}-error`} className="text-caption text-label-secondary">
           {online ? "Couldn't load older workouts." : 'Connect to load older workouts.'}{' '}
-          <Text className="text-primary" onPress={() => void handleLoadMore()}>
+          <Text
+            className="font-semibold text-brand"
+            accessibilityRole="link"
+            onPress={() => void handleLoadMore()}
+          >
             Try again
           </Text>
         </Text>
       ) : null}
 
       {hasMore ? (
-        <Button
+        <TrainButton
           testID={`${testID}-load-more`}
+          label="Load more"
           variant="outline"
-          size="sm"
           loading={loadingMore}
           onPress={() => void handleLoadMore()}
-        >
-          Load more
-        </Button>
+        />
       ) : null}
 
       {actions.sheets}

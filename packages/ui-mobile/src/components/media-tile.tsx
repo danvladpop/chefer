@@ -8,9 +8,10 @@ import { Text } from './text';
 // recipes are displayed and the grid where the workouts are displayed should
 // be similar"). Every tile is the same four parts: a framed image (or an
 // illustration for things without a photo), a title, one meta line and one
-// action. `MediaTile` stacks them for 2-column grids (Meals day, Cookbook,
-// routine days); `MediaRow` lays the same parts in a line for lists where
-// dates and stats scan better (past workouts, program days).
+// action. `MediaTile` stacks them for 2-column grids (Cookbook); `MediaRow`
+// lays the same parts in a line, one card per row — the Meals day and the
+// routine days (11 Oct owner feedback: one card per line, not two columns),
+// past workouts and program days.
 
 export interface MediaFrameProps {
   /** A photo; covers the frame (no letterboxing). */
@@ -153,7 +154,11 @@ export interface MediaRowProps {
   meta?: string;
   imageUri?: string | null;
   illustration?: ReactNode;
+  /** A short eyebrow above the title, e.g. the meal type ("Breakfast"). */
+  label?: string;
   badge?: string;
+  /** The square frame's side; 56 for dense lists, larger where the photo leads. */
+  frameSize?: number;
   /** The one trailing action (a 44pt button), or nothing for a plain push row. */
   action?: ReactNode;
   onPress?: () => void;
@@ -161,19 +166,21 @@ export interface MediaRowProps {
   testID?: string;
 }
 
-/** The tile's parts on one line: 56pt frame, title + badge, meta, action. */
+/** The tile's parts on one line: square frame, label, title + badge, meta, action. */
 export function MediaRow({
   title,
   meta,
   imageUri,
   illustration,
+  label,
   badge,
+  frameSize = 56,
   action,
   onPress,
   accessibilityHint,
   testID,
 }: MediaRowProps) {
-  const spoken = [title, badge, meta].filter(Boolean).join(', ');
+  const spoken = [label, title, badge, meta].filter(Boolean).join(', ');
   return (
     <View
       testID={testID}
@@ -191,11 +198,19 @@ export function MediaRow({
         <MediaFrame
           imageUri={imageUri}
           illustration={illustration}
-          size={56}
+          size={frameSize}
           square
           radius="inner"
         />
         <View className="min-w-0 flex-1 gap-0.5">
+          {label ? (
+            <Text
+              numberOfLines={1}
+              className="text-caption font-bold uppercase tracking-wide text-brand"
+            >
+              {label}
+            </Text>
+          ) : null}
           <View className="flex-row flex-wrap items-center gap-2">
             <Text numberOfLines={1} className="shrink text-headline font-semibold text-label">
               {title}

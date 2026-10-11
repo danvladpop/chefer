@@ -220,9 +220,16 @@ export function ShopScreen() {
   const scrollFieldIntoView = useScrollFieldIntoView();
 
   // The same parser as the old add box ("2 lb chicken thighs", UX-SHOP-01).
+  // 11 Oct owner feedback: "+" with nothing typed did nothing at all, which
+  // read as a dead button (on Android and iOS alike) — it now opens the
+  // field so the item can be typed, and adds it on the next tap or Return.
   const addTyped = () => {
     const parsed = parseCustomItemInput(text);
-    if (!parsed.name || !weekList?.planId) return;
+    if (!parsed.name) {
+      fieldRef.current?.focus();
+      return;
+    }
+    if (!weekList?.planId) return;
     Keyboard.dismiss();
     addItemMutation.mutate({ planId: weekList.planId, items: [parsed] });
   };
@@ -484,6 +491,9 @@ export function ShopScreen() {
               <IconButton
                 testID="shop-add"
                 accessibilityLabel="Add item"
+                accessibilityHint={
+                  searching ? `Adds ${text.trim()} to your list` : 'Type an item to add'
+                }
                 variant="filled"
                 icon={<Icon name="add" color={colors.onBrand} size={26} />}
                 onPress={addTyped}

@@ -2778,7 +2778,8 @@ new shell. Flipping the preview on You leaves You open; switching off lands on t
   2026-10-10, with workouts and routines — §13). Plan is renamed **Meals** so it reads as food.
 - **Today:** a half-ring calorie gauge (eaten · left · target) with protein 🍖, carbs 🍞 and fat 🥑 rows
   (over target says "N g over", amber, never red) → the **next meal** with Eaten / Cook now / Swap / Skip →
-  **Your day** (one circle per meal, "Open your day" → the day's log, renamed Your day) → **Training**
+  **Your day** (one circle per meal — tap a circle to mark that meal eaten, tap an eaten one to untick it
+  (since 2026-10-11); "Open your day" → the day's log, renamed Your day) → **Training**
   (planned: the day's first exercise photo, Start workout + Log a workout; done: duration, calories burned,
   exercises, Summary, Log another workout; rest days are one quiet row; nothing for people who don't
   train) → **weight** (weigh in; once logged today it becomes a widget with the 30-day change, tapping

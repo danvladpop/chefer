@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { BackHandler, Pressable, ScrollView, View } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
 import { activateKeepAwakeAsync, deactivateKeepAwake } from 'expo-keep-awake';
 import { router, useFocusEffect } from 'expo-router';
 import type { ExerciseDto, Rir } from '@chefer/types';
@@ -12,6 +11,7 @@ import {
   Screen,
   Text,
   useSnackbar,
+  useThemeColors,
 } from '@chefer/ui-mobile';
 import {
   routineWithoutSuperset,
@@ -21,6 +21,7 @@ import {
   unstartedExercises,
   type SessionSupersetSlot,
 } from '@chefer/utils';
+import { Icon } from '../../../components/icon';
 import { useFlags } from '../../../hooks/use-flags';
 import { useShellV2 } from '../../shell/shell-store';
 import { WorkoutActions } from '../../shell/train/workout-actions';
@@ -133,6 +134,7 @@ export function WorkoutScreen() {
   const pausedAt = useActiveSessionPausedAt();
   // 10 Oct redesign: the new shell draws the brand header and list foot.
   const shellV2 = useShellV2();
+  const colors = useThemeColors();
 
   // ── Keep the screen on while a workout runs ────────────────────────────────
   useEffect(() => {
@@ -720,18 +722,22 @@ export function WorkoutScreen() {
           onFinish={onFinishPress}
         />
       ) : (
-        <View className="flex-row items-center gap-2 border-b border-border px-2 pb-2 pt-1">
+        <View className="flex-row items-center gap-2 border-b border-separator px-2 pb-2 pt-1">
           <Pressable
             testID="workout-minimise"
             accessibilityRole="button"
             accessibilityLabel="Minimise workout"
             onPress={leaveWorkout}
-            className="h-11 w-11 items-center justify-center rounded-full bg-muted"
+            className="h-11 w-11 items-center justify-center rounded-full bg-surface-sunken"
           >
-            <Ionicons name="chevron-down" size={22} color="#374151" />
+            <Icon name="chevronDown" color={colors.label} />
           </Pressable>
           <View className="min-w-0 flex-1">
-            <Text testID="workout-title" numberOfLines={2} className="text-lg font-semibold">
+            <Text
+              testID="workout-title"
+              numberOfLines={2}
+              className="text-headline font-semibold text-label"
+            >
               {session.name}
             </Text>
             <View className="flex-row items-center gap-2">
@@ -739,7 +745,8 @@ export function WorkoutScreen() {
               <Text
                 testID="workout-progress"
                 accessibilityLabel={`${done} of ${planned} sets done`}
-                className="text-sm text-muted-foreground"
+                className="text-subhead text-label-secondary"
+                style={{ fontVariant: ['tabular-nums'] }}
               >
                 · {done}/{planned} sets
               </Text>
@@ -759,8 +766,8 @@ export function WorkoutScreen() {
       )}
 
       {notice ? (
-        <View className="bg-accent px-4 py-2">
-          <Text testID="workout-notice" className="text-sm">
+        <View className="bg-brand-tint px-4 py-2">
+          <Text testID="workout-notice" className="text-subhead text-label">
             {notice}
           </Text>
         </View>
@@ -775,7 +782,7 @@ export function WorkoutScreen() {
         contentContainerStyle={{ paddingBottom: 32 + restBarHeight }}
       >
         {exercises.length === 0 ? (
-          <Text variant="muted" className="px-2 py-6 text-center">
+          <Text className="px-2 py-6 text-center text-callout text-label-secondary">
             Add your first exercise to get going.
           </Text>
         ) : null}
@@ -808,21 +815,9 @@ export function WorkoutScreen() {
               testID={`superset-${slot.label}`}
               className="-mb-1 flex-row items-center gap-2 px-2"
             >
-              <View
-                className={
-                  shellV2 ? 'h-4 w-1 rounded-full bg-brand' : 'h-4 w-1 rounded-full bg-violet-500'
-                }
-              />
-              <Text
-                className={
-                  shellV2
-                    ? 'text-subhead font-semibold text-brand'
-                    : 'text-sm font-semibold text-violet-800'
-                }
-              >
-                Superset {slot.label}
-              </Text>
-              <Text variant="muted" className="min-w-0 flex-1 text-xs" numberOfLines={2}>
+              <View className="h-4 w-1 rounded-full bg-brand" />
+              <Text className="text-subhead font-semibold text-brand">Superset {slot.label}</Text>
+              <Text className="min-w-0 flex-1 text-caption text-label-secondary" numberOfLines={2}>
                 {restSec} s rest after each round
               </Text>
               <Pressable
@@ -832,7 +827,9 @@ export function WorkoutScreen() {
                 onPress={() => onUngroupPress(se.id)}
                 className="min-h-11 justify-center px-2"
               >
-                <Text className="text-sm font-medium text-primary">{SUPERSET_COPY.ungroup}</Text>
+                <Text className="text-subhead font-semibold text-brand">
+                  {SUPERSET_COPY.ungroup}
+                </Text>
               </Pressable>
             </View>,
             card,
@@ -863,8 +860,7 @@ export function WorkoutScreen() {
             {isAtExerciseCap(exercises.length) ? (
               <Text
                 testID="workout-add-exercise-reason"
-                variant="muted"
-                className="text-center text-sm"
+                className="text-center text-subhead text-label-secondary"
               >
                 {EXERCISE_CAP_REASON}
               </Text>
@@ -878,8 +874,8 @@ export function WorkoutScreen() {
               onPress={() => openSheet({ kind: 'superset', seId: null })}
             >
               <View className="flex-row items-center gap-1">
-                <Ionicons name="link" size={16} color="#6d28d9" />
-                <Text className="font-medium text-violet-800">{SUPERSET_COPY.title}</Text>
+                <Icon name="link" size={18} color={colors.brand} />
+                <Text className="text-callout font-semibold text-brand">{SUPERSET_COPY.title}</Text>
               </View>
             </Button>
             {/* Finish again at the end of the list: in reach right after the last
@@ -902,7 +898,7 @@ export function WorkoutScreen() {
               variant="ghost"
               onPress={() => openSheet({ kind: 'discard' })}
             >
-              <Text className="text-sm font-medium text-destructive">Discard workout</Text>
+              <Text className="text-callout font-semibold text-danger">Discard workout</Text>
             </Button>
           </>
         )}
