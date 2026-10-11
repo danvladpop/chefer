@@ -97,18 +97,6 @@ export const cheferizedRecipeSchema = z.object({
   ),
 });
 
-export const aiShoppingListItemSchema = z.object({
-  ingredientName: z.string(),
-  quantity: z.string(),
-  unit: z.string(),
-  // category is inferred locally (inferCategory) — omitting it from the AI
-  // output cuts ~25% of the response tokens and shaves call latency.
-});
-
-export const shoppingListResponseSchema = z.object({
-  items: z.array(aiShoppingListItemSchema),
-});
-
 export const ingredientPriceEstimateSchema = z.object({
   ingredientName: z.string(),
   pricePer100gEur: z.number().nullable(),

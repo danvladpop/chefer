@@ -84,7 +84,6 @@ const envSchema = z.object({
   AI_ROUTE_CHAT: aiRoute,
   AI_ROUTE_REVIEW: aiRoute,
   AI_ROUTE_PRICES: aiRoute,
-  AI_ROUTE_SHOPPING: aiRoute,
   // Shadow mode: "<workload>:<chain>[,…]" re-runs a sampled share of premium,
   // consented, user-initiated calls on a candidate chain in the background
   // and logs "[ai.shadow]" scores. Unset or sample 0 = off.

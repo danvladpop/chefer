@@ -35,7 +35,6 @@ describe('validateEnv — AI without Gemini (docs/ai-providers.md "Running witho
     AI_ROUTE_CHAT: 'groq',
     AI_ROUTE_REVIEW: 'groq',
     AI_ROUTE_PRICES: 'groq',
-    AI_ROUTE_SHOPPING: 'groq',
   };
 
   it('accepts the Groq-only production config with no GEMINI_API_KEY', () => {
@@ -54,6 +53,17 @@ describe('validateEnv — AI without Gemini (docs/ai-providers.md "Running witho
       AI_SECONDARY_REASONING_EFFORT: '',
     });
     expect(env.AI_SECONDARY_REASONING_EFFORT).toBe('auto');
+  });
+
+  it('ignores leftovers of the retired shopping workload (removed 2026-10-11)', () => {
+    const env = validateEnv({
+      ...BASE,
+      ...GROQ_ONLY,
+      AI_ROUTE_SHOPPING: 'groq>gemini',
+      AI_SHADOW_ROUTE: 'shopping:groq,mealPlan:groq',
+    });
+    expect(env).not.toHaveProperty('AI_ROUTE_SHOPPING');
+    expect(env.AI_SHADOW_ROUTE).toBe('shopping:groq,mealPlan:groq');
   });
 
   it('still requires the Groq key when Gemini is gone', () => {

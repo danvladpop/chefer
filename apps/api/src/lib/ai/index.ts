@@ -228,7 +228,6 @@ export const aiProviderDisclosure: AiProviderDisclosure = computeDisclosure();
 // Re-export types for convenience
 export type { IAIService } from './types.js';
 export type {
-  AiShoppingListItem,
   ChatContext,
   ChatMessage,
   ChatTools,
@@ -249,9 +248,6 @@ export type {
   MealType,
   NutritionInfo,
   RecipeData,
-  ShoppingCategory,
-  ShoppingListInput,
-  ShoppingListResponse,
   SwapInput,
   WeekPlanResponse,
 } from './types.js';

@@ -14,7 +14,6 @@ import {
   scorePhoto,
   scorePrices,
   scoreReview,
-  scoreShopping,
   scoreSwap,
   summarise,
   type CaseResult,
@@ -89,12 +88,6 @@ export function buildEvalCases(workload: AiWorkload, golden: GoldenSet): EvalCas
             ),
             out,
           ),
-      }));
-    case 'shopping':
-      return golden.shopping.map((c) => ({
-        id: c.id,
-        call: (s) => s.generateShoppingList(c.input),
-        score: (out) => scoreShopping(c.input, out),
       }));
     case 'review':
       return golden.reviews.map((c) => ({

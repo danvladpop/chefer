@@ -33,8 +33,11 @@ error (a validation failure, a bad input) is returned straight away.
 | `chat`       | AI chef chat (with tools)                   | `AI_ROUTE_CHAT`        | `groq>gemini`                            |
 | `review`     | weekly coach review prose                   | `AI_ROUTE_REVIEW`      | `gemini>groq`                            |
 | `prices`     | ingredient price + macro estimates (worker) | `AI_ROUTE_PRICES`      | `groq>gemini`                            |
-| `shopping`   | AI shopping-list consolidation              | `AI_ROUTE_SHOPPING`    | `groq>gemini`                            |
 
+- The `shopping` workload (AI shopping-list consolidation, `AI_ROUTE_SHOPPING`) was removed on
+  2026-10-11; the list has been derived without AI since FB7-10. A leftover `AI_ROUTE_SHOPPING`
+  line is ignored, and a `shopping:<chain>` entry in `AI_SHADOW_ROUTE` is skipped. The eval
+  results below that list a `shopping` row predate the removal.
 - A provider without a key is dropped from every chain. With no `AI_SECONDARY_API_KEY`, every
   workload is Gemini alone, as before. An override naming a missing provider logs a warning at
   startup.
@@ -66,7 +69,7 @@ error (a validation failure, a bad input) is returned straight away.
     waiting, and 300 s for the Sunday auto-plan and the eval. On a paid tier the budget always
     fits, so it never waits.
 - **429s.** Background calls wait out one 429 of up to 10 s (from `Retry-After`, or the body's
-  "try again in Xs") and retry once. Background calls are prices, shopping list, coach review,
+  "try again in Xs") and retry once. Background calls are prices, coach review,
   anything outside a user request (workers) and shadow replays. Interactive calls fail over to
   the next provider straight away, as before. With Groq as the only provider there is no next
   provider, so the user gets the friendly "over capacity" message.
@@ -92,7 +95,7 @@ AI_ROUTE_CHEFERIZE=groq>gemini
 AI_ROUTE_IMPORT_TEXT=groq>gemini
 AI_ROUTE_VISION=groq>gemini
 AI_ROUTE_MEAL_PLAN=groq>gemini
-# chat, prices and shopping already default to groq>gemini
+# chat and prices already default to groq>gemini
 ```
 
 Dropping Gemini entirely for a workload means a single-provider chain, for example
@@ -121,7 +124,6 @@ AI_ROUTE_VISION=groq
 AI_ROUTE_CHAT=groq
 AI_ROUTE_REVIEW=groq
 AI_ROUTE_PRICES=groq
-AI_ROUTE_SHOPPING=groq
 AI_SHADOW_ROUTE=
 AI_SHADOW_SAMPLE=0
 ```
@@ -271,7 +273,7 @@ Per day, per workload (**measured** = from the 2026-09-26 eval, `apps/api/eval/r
 ### Cheaper model for the simple workloads (optional, off)
 
 `AI_SECONDARY_FAST_MODEL=openai/gpt-oss-20b` (Groq) and `CF_FAST_MODEL=@cf/openai/gpt-oss-20b`
-(Cloudflare) move **ingredient prices, the shopping-list tidy-up and the weekly review prose** to the
+(Cloudflare) move **ingredient prices and the weekly review prose** to the
 smaller model. Chat stays on the main model because its tools write data.
 
 - **Why it might help:** if Groq counts each model against its own 200K tokens/day, these
@@ -279,13 +281,13 @@ smaller model. Chat stays on the main model because its tools write data.
   of gpt-oss-120b's neurons per output token.
 - **Why it is off:** Groq says limits apply at the organisation level, and whether each model has
   its own bucket is unverified. The tasks are simple (flat JSON, one paragraph), but the eval has
-  not scored gpt-oss-20b on them yet. Turn it on after `pnpm ai:eval --route=prices,shopping,review`
+  not scored gpt-oss-20b on them yet. Turn it on after `pnpm ai:eval --route=prices,review`
   passes with `AI_SECONDARY_MODEL=openai/gpt-oss-20b`, and check in the Groq console whether the
   120b daily counter stops moving when those workloads run.
 
 ### What users see when capacity runs out
 
-- **Interactive calls** (plan, swap, import, scan, chat, shopping list, nutrition estimate): the chain
+- **Interactive calls** (plan, swap, import, scan, chat, nutrition estimate): the chain
   fails over from Groq to Cloudflare. When both are out, the user sees **"The chef is over capacity
   right now — give it a minute and try again."** Never a raw provider error. Chat on mobile shows the
   same sentence (HTTP 503 with that `error`).
@@ -444,7 +446,7 @@ safe.
 
 ## Runbook: switching a workload off Gemini
 
-The rollout order, lowest risk first (research §5.4 step 4): images → chat, shopping, prices,
+The rollout order, lowest risk first (research §5.4 step 4): images → chat, prices,
 review → swap, cheferize, text import → vision → meal plan last. Each workload goes through three
 steps.
 
@@ -562,7 +564,7 @@ Everything the eval needs is in `apps/api/eval/golden/`. Nothing is fetched live
 | `cheferize.json`                 | 5 recipes paired with allergy and diet preferences                                                                                                                               |
 | `photos.json` + `photos/`        | Meal photos with labels                                                                                                                                                          |
 | `prices.json`                    | 20 ingredients in 2 batches, with reference kcal per 100 g                                                                                                                       |
-| `shopping.json`, `reviews.json`  | Shopping-list and coach-review inputs                                                                                                                                            |
+| `reviews.json`                   | Coach-review inputs                                                                                                                                                              |
 
 **Photos still to add.** The three committed images are generated in-repo and show no food. They
 test the vision plumbing and the prompt's "Not a meal" honesty rule.

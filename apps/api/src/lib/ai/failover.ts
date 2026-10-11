@@ -19,8 +19,6 @@ import type {
   RecipeExtractionSource,
   RecipeLineRepair,
   RecipeLineRepairRequest,
-  ShoppingListInput,
-  ShoppingListResponse,
   SwapInput,
   WeekPlanResponse,
 } from './types.js';
@@ -38,8 +36,7 @@ import type {
 // two-provider table exactly:
 // - PRIMARY-FIRST (quality-sensitive): generateMealPlan, generateRecipeSwap,
 //   cheferizeRecipe, extractRecipe (text sources), generateReviewText.
-// - SECONDARY-FIRST (cheap, high-volume): chat, estimateIngredientPrices,
-//   generateShoppingList.
+// - SECONDARY-FIRST (cheap, high-volume): chat, estimateIngredientPrices.
 // - GEMINI-FIRST by default: analyzeMealPhoto and photo extraction (the
 //   `vision` workload, routable via AI_ROUTE_VISION). Video links are read as
 //   text (lib/video-import) and ride the importText chain like any paste.
@@ -191,15 +188,6 @@ export class ChainAIService implements IAIService {
 
   generateRecipeSwap(input: SwapInput): Promise<RecipeData> {
     return this.run('generateRecipeSwap', 'swap', (s) => s.generateRecipeSwap(input), input);
-  }
-
-  generateShoppingList(input: ShoppingListInput): Promise<ShoppingListResponse> {
-    return this.run(
-      'generateShoppingList',
-      'shopping',
-      (s) => s.generateShoppingList(input),
-      input,
-    );
   }
 
   estimateIngredientPrices(

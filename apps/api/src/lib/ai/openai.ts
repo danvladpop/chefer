@@ -15,7 +15,6 @@ import {
   buildMealPlanUserPrompt,
   buildRepairLinesPrompt,
   buildReviewUserPrompt,
-  buildShoppingListPrompt,
   buildSwapUserPrompt,
   CHAT_SYSTEM_PROMPT,
   CHEFERIZE_SYSTEM_PROMPT,
@@ -29,7 +28,6 @@ import {
   MEAL_PLAN_SYSTEM_PROMPT,
   REPAIR_LINES_SYSTEM_PROMPT,
   REVIEW_SYSTEM_PROMPT,
-  SHOPPING_LIST_SYSTEM_PROMPT,
   SWAP_SYSTEM_PROMPT,
 } from './prompts.js';
 import { retryAfterFrom, TokenRateState } from './rate-limit.js';
@@ -42,7 +40,6 @@ import {
   ingredientPricesResponseSchema,
   parseMealPhotoResponse,
   recipeLineRepairResponseSchema,
-  shoppingListResponseSchema,
   weekPlanResponseSchema,
 } from './schemas.js';
 import type {
@@ -64,8 +61,6 @@ import type {
   RecipeExtractionSource,
   RecipeLineRepair,
   RecipeLineRepairRequest,
-  ShoppingListInput,
-  ShoppingListResponse,
   SwapInput,
   WeekPlanResponse,
 } from './types.js';
@@ -143,11 +138,7 @@ const CHUNK_PROMPT_ESTIMATE = 1_000;
 const BACKGROUND_RETRY_MAX_WAIT_MS = 10_000;
 const BACKGROUND_RETRY_JITTER_MS = 250;
 /** Operations nobody is waiting on (workers, sweeps) — see isBackgroundCall. */
-const BACKGROUND_OPS = new Set([
-  'estimateIngredientPrices',
-  'generateShoppingList',
-  'generateReviewText',
-]);
+const BACKGROUND_OPS = new Set(['estimateIngredientPrices', 'generateReviewText']);
 const CHUNK_LABEL = 'generateMealPlan.day';
 /** Default wait allowance inside one generateMealPlanDay call (live tailoring). */
 const DAY_MAX_WAIT_MS = 20_000;
@@ -158,7 +149,6 @@ const DAY_MAX_WAIT_MS = 20_000;
  */
 export const FAST_MODEL_OPS: ReadonlySet<string> = new Set([
   'estimateIngredientPrices',
-  'generateShoppingList',
   'generateReviewText',
 ]);
 
@@ -271,8 +261,6 @@ const WEEK_PLAN_SHAPE =
 const ANNOTATED_EXTRACTION_SHAPE = `{"recipe":${EXTRACTED_RECIPE_SHAPE},"confidence":"high"|"medium"|"low","assumptions":[string]}`;
 
 const CHEFERIZED_SHAPE = `{"adapted":${EXTRACTED_RECIPE_SHAPE},"changes":[{"kind":"allergen"|"restriction"|"dislike"|"servings"|"other","description":string}]}`;
-
-const SHOPPING_LIST_SHAPE = '{"items":[{"ingredientName":string,"quantity":string,"unit":string}]}';
 
 const INGREDIENT_PRICES_SHAPE =
   '{"items":[{"ingredientName":string,"pricePer100gEur":number|null,"pricePer100mlEur":number|null,' +
@@ -389,8 +377,8 @@ function isTruncation(err: unknown): boolean {
 }
 
 /**
- * A call nobody is waiting on: a background operation (prices, shopping,
- * review), a shadow replay, or anything outside a user request (the Sunday
+ * A call nobody is waiting on: a background operation (prices, review),
+ * a shadow replay, or anything outside a user request (the Sunday
  * auto-plan and other workers set no AI call context). These wait out one
  * short 429; interactive calls fail over instead.
  */
@@ -888,18 +876,6 @@ export class OpenAICompatibleAIService implements IAIService {
       maxTokens: MAX_TOKENS_DEFAULT,
     });
     return { ...recipe, imageUrl: null };
-  }
-
-  async generateShoppingList(input: ShoppingListInput): Promise<ShoppingListResponse> {
-    return this.completeJson({
-      label: 'generateShoppingList',
-      system: SHOPPING_LIST_SYSTEM_PROMPT,
-      user: buildShoppingListPrompt(input),
-      shape: SHOPPING_LIST_SHAPE,
-      schema: shoppingListResponseSchema,
-      temperature: 0.2,
-      maxTokens: MAX_TOKENS_DEFAULT,
-    });
   }
 
   /** plan-ingredient-catalog §6.3 repair round: slugs and quantities only. */
