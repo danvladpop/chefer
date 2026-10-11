@@ -103,10 +103,10 @@ export const PLAN_FEATURES = {
   chatMessagesPerDay: {
     // Per-user AI is premium-only (owner decision 2026-09-25): free users see
     // a locked chat preview. Enforced by reserveChatMessage (lib/quotas.ts).
-    // Premium unlimited → 100/day (Phase 1 guardrails, owner decision
-    // 2026-10-11): a cost ceiling no real conversation reaches.
+    // Premium unlimited → 20/day (Phase 1 guardrails, owner decision
+    // 2026-10-11): a hard cost ceiling for the beta.
     free: false,
-    premium: 100,
+    premium: 20,
     label: 'AI chef chat',
     description:
       'Ask the AI chef anything — it can swap meals, log what you ate and import recipes for you.',

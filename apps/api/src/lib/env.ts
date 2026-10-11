@@ -296,9 +296,9 @@ const envSchema = z.object({
   // refused and background AI pauses until 00:00 UTC. ENFORCE: on | warn
   // (log + email, never refuse) | off (record only).
   AI_BUDGET_ENFORCE: z.preprocess(emptyAsUnset, z.enum(['on', 'warn', 'off']).default('on')),
-  AI_USER_MONTHLY_SOFT_USD: z.preprocess(emptyAsUnset, z.coerce.number().min(0).default(3)),
-  AI_USER_MONTHLY_HARD_USD: z.preprocess(emptyAsUnset, z.coerce.number().min(0).default(6)),
-  AI_GLOBAL_DAILY_USD: z.preprocess(emptyAsUnset, z.coerce.number().min(0).default(25)),
+  AI_USER_MONTHLY_SOFT_USD: z.preprocess(emptyAsUnset, z.coerce.number().min(0).default(2)),
+  AI_USER_MONTHLY_HARD_USD: z.preprocess(emptyAsUnset, z.coerce.number().min(0).default(3)),
+  AI_GLOBAL_DAILY_USD: z.preprocess(emptyAsUnset, z.coerce.number().min(0).default(10)),
   AI_BUDGET_ALERT_EMAIL: z.preprocess(emptyAsUnset, z.string().email().optional()),
 
   // PostHog admin API (T-12.5): deletes a person's linked analytics events on

@@ -25,7 +25,7 @@ beforeAll(async () => {
 // endpoint — proves the wire contract the mobile client's error mapping
 // (uploadErrorFrom) relies on: a plain-string `{ error }` body for every
 // refusal. Phase 1 guardrails (2026-10-11): the limit is 5 MB again (clients
-// resize to 1600 px first) and the server re-encodes every photo as JPEG.
+// resize to 1080 px first) and the server re-encodes every photo as JPEG.
 function pngBytesOfSize(totalBytes: number): Uint8Array {
   const header = base64ToBytes(TINY_PNG_BASE64);
   const bytes = new Uint8Array(totalBytes);

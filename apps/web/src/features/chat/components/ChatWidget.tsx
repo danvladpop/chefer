@@ -580,7 +580,7 @@ export function ChatWidget() {
                 </button>
               )}
             </div>
-            {/* Phase 1 guardrails: one message is at most 2,000 characters
+            {/* Phase 1 guardrails: one message is at most 500 characters
                 (the server refuses longer) — the count shows near the end. */}
             {nearLimit && (
               <p

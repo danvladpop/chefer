@@ -82,7 +82,7 @@ export async function scanMealPhoto(picked: File): Promise<MealPhotoEstimate> {
   if (!picked.type.startsWith('image/')) {
     throw new Error('Please choose an image file.');
   }
-  // Phase 1 guardrails: shrink in the browser first (1600 px JPEG, like the
+  // Phase 1 guardrails: shrink in the browser first (1080 px JPEG, like the
   // app) — a vision estimate needs no 12 MP photo. Falls back to the original.
   const file = await resizeImageForUpload(picked);
   if (file.size > MAX_BYTES) {

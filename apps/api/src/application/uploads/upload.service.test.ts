@@ -70,7 +70,7 @@ describe('UploadService.storeImage (Phase 1 guardrails)', () => {
     expect(stored.fileName).toMatch(/^[0-9a-f-]{36}\.jpg$/);
     const written = path.join(dir, stored.fileName);
     const meta = await sharp(written).metadata();
-    expect([meta.format, meta.width, meta.height]).toEqual(['jpeg', 1600, 1200]);
+    expect([meta.format, meta.width, meta.height]).toEqual(['jpeg', 1080, 810]);
     expect((await stat(written)).size).toBe(stored.bytes);
 
     const [data, limits] = reserve.mock.calls[0] ?? [];

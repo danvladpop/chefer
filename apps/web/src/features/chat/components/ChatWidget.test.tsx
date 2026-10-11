@@ -336,25 +336,25 @@ describe('ChatWidget (AI budget)', () => {
   });
 });
 
-// Phase 1 guardrails on web: 2,000 characters per message (with a counter near
+// Phase 1 guardrails on web: 500 characters per message (with a counter near
 // the end), only the newest 12 messages are sent, and premium's daily cap
 // (100) gets the shared premium limit panel, not an upsell.
 describe('ChatWidget (Phase 1 guardrails)', () => {
-  it('caps the input at 2,000 characters and shows a counter near the limit', () => {
+  it('caps the input at 500 characters and shows a counter near the limit', () => {
     render(<ChatWidget />);
     open();
     const input = screen.getByRole('textbox', { name: 'Message the chef' });
-    expect(input.getAttribute('maxlength')).toBe('2000');
+    expect(input.getAttribute('maxlength')).toBe('500');
     expect(screen.queryByTestId('chat-char-counter')).toBeNull();
 
-    fireEvent.change(input, { target: { value: 'a'.repeat(1850) } });
+    fireEvent.change(input, { target: { value: 'a'.repeat(450) } });
     const counter = screen.getByTestId('chat-char-counter');
-    expect(counter.textContent).toBe('1,850 / 2,000');
+    expect(counter.textContent).toBe('450 / 500');
     expect(input.getAttribute('aria-describedby')).toBe(counter.id);
 
-    fireEvent.change(input, { target: { value: 'a'.repeat(2000) } });
+    fireEvent.change(input, { target: { value: 'a'.repeat(500) } });
     expect(screen.getByTestId('chat-char-counter').textContent).toBe(
-      '2,000 characters is the most one message can hold.',
+      '500 characters is the most one message can hold.',
     );
   });
 
@@ -379,7 +379,7 @@ describe('ChatWidget (Phase 1 guardrails)', () => {
     render(<ChatWidget />);
     open();
     vi.spyOn(globalThis, 'fetch').mockResolvedValue(
-      new Response("You've used today's 100 chat messages.", {
+      new Response("You've used today's 20 chat messages.", {
         headers: { 'X-Chat-Quota-Exhausted': '1' },
       }),
     );

@@ -52,9 +52,9 @@ describe('getLimit', () => {
     expect(getLimit(admin, 'planGenerationsPerDay')).toBe(5);
   });
 
-  it('caps premium chat at 100 messages a day (Phase 1 guardrails)', () => {
-    expect(getLimit(premium, 'chatMessagesPerDay')).toBe(100);
-    expect(getLimit(admin, 'chatMessagesPerDay')).toBe(100);
+  it('caps premium chat at 20 messages a day (Phase 1 guardrails)', () => {
+    expect(getLimit(premium, 'chatMessagesPerDay')).toBe(20);
+    expect(getLimit(admin, 'chatMessagesPerDay')).toBe(20);
   });
 
   it('returns null for unlimited access', () => {

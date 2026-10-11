@@ -206,13 +206,13 @@ describe('ChatService', () => {
     expect(prisma.aiCallLog.create).not.toHaveBeenCalled();
   });
 
-  it('premium (and admins) are capped at 100 a day (Phase 1 guardrails; was unlimited)', async () => {
-    vi.mocked(prisma.aiCallLog.count).mockResolvedValue(99);
+  it('premium (and admins) are capped at 20 a day (Phase 1 guardrails; was unlimited)', async () => {
+    vi.mocked(prisma.aiCallLog.count).mockResolvedValue(19);
     await service.chat(user({ planTier: 'PREMIUM' }), [{ role: 'user', content: 'hi' }]);
     await service.chat(user({ role: 'ADMIN' }), [{ role: 'user', content: 'hi' }]);
     expect(prisma.aiCallLog.count).toHaveBeenCalledTimes(2);
 
-    vi.mocked(prisma.aiCallLog.count).mockResolvedValue(100);
+    vi.mocked(prisma.aiCallLog.count).mockResolvedValue(20);
     await expect(
       service.chat(user({ planTier: 'PREMIUM' }), [{ role: 'user', content: 'hi' }]),
     ).rejects.toMatchObject({ code: 'TOO_MANY_REQUESTS' });

@@ -39,29 +39,29 @@ afterEach(() => {
 });
 
 describe('targetSize', () => {
-  it('brings the long edge down to 1600 px, keeping the aspect ratio', () => {
-    expect(targetSize(4032, 3024)).toEqual({ width: 1600, height: 1200 });
-    expect(targetSize(3024, 4032)).toEqual({ width: 1200, height: 1600 });
+  it('brings the long edge down to 1080 px, keeping the aspect ratio', () => {
+    expect(targetSize(4032, 3024)).toEqual({ width: 1080, height: 810 });
+    expect(targetSize(3024, 4032)).toEqual({ width: 810, height: 1080 });
   });
 
   it('leaves a photo that already fits alone, and never upscales', () => {
-    expect(targetSize(1600, 900)).toBeNull();
+    expect(targetSize(1080, 900)).toBeNull();
     expect(targetSize(800, 600)).toBeNull();
     expect(targetSize(0, 0)).toBeNull();
   });
 });
 
 describe('resizeImageForUpload', () => {
-  it('decodes with the EXIF orientation applied and re-encodes a large photo as a 1600 px JPEG 0.8', async () => {
+  it('decodes with the EXIF orientation applied and re-encodes a large photo as a 1080 px JPEG 0.75', async () => {
     const browser = stubBrowser(4032, 3024);
     const out = await resizeImageForUpload(file(6_000_000));
 
     expect(browser.createImageBitmap).toHaveBeenCalledWith(expect.any(File), {
       imageOrientation: 'from-image',
     });
-    expect([browser.canvases[0]?.width, browser.canvases[0]?.height]).toEqual([1600, 1200]);
-    expect(browser.drawImage).toHaveBeenCalledWith(expect.anything(), 0, 0, 1600, 1200);
-    expect(browser.toBlob).toHaveBeenCalledWith(expect.any(Function), 'image/jpeg', 0.8);
+    expect([browser.canvases[0]?.width, browser.canvases[0]?.height]).toEqual([1080, 810]);
+    expect(browser.drawImage).toHaveBeenCalledWith(expect.anything(), 0, 0, 1080, 810);
+    expect(browser.toBlob).toHaveBeenCalledWith(expect.any(Function), 'image/jpeg', 0.75);
     expect(out.type).toBe('image/jpeg');
     expect(out.size).toBe(300_000);
     expect(out.name).toBe('IMG_0001.HEIC.jpg');
@@ -69,7 +69,7 @@ describe('resizeImageForUpload', () => {
   });
 
   it('keeps a small photo that already fits as is', async () => {
-    stubBrowser(1200, 900);
+    stubBrowser(1000, 750);
     const original = file(200_000);
     expect(await resizeImageForUpload(original)).toBe(original);
   });

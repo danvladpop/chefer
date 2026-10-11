@@ -34,7 +34,7 @@ export class ScanUpgradeRequiredError extends Error {}
 
 // The server-side limits: uploads read the shared UPLOAD_LIMITS.maxBytes (the
 // same constant apps/api/src/routers/uploads.router.ts enforces; Phase 1
-// guardrails took it from 10 MB back to 5 MB — photos are resized to 1600 px
+// guardrails took it from 10 MB back to 5 MB — photos are resized to 1080 px
 // by preparePhoto first); scan matches apps/api/src/routers/scan.router.ts.
 export const UPLOAD_MAX_BYTES: number = UPLOAD_LIMITS.maxBytes;
 export const SCAN_MAX_BYTES = 5 * 1024 * 1024;

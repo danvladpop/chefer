@@ -680,14 +680,14 @@ have` · `Switch back to Free`. The downgrade sheet names what you keep and
   from our recipes uses no AI (free cap 3/day, `curatedPlans`); a Premium
   generate is ONE AI reservation (`aiMealPlans`, capped at 5/day since the
   Phase 1 guardrails — it was 20; its instant curated week is not a second
-  count); premium chat shows `n / 100`; `mealPlan.resumeTailoring` reserves nothing; an import's AI
+  count); premium chat shows `n / 20`; `mealPlan.resumeTailoring` reserves nothing; an import's AI
   cost is the preview (counted when read), and `importsSaved` says how many
   ended as a saved recipe. No copy says curated plans are unlimited (Q-18).
 - **AI budgets (Phase 2).** On top of the daily quotas, every model call is
   costed at the paid list price of its model (also on today's free tiers) and
   capped: per user per calendar month (UTC) `AI_USER_MONTHLY_HARD_USD` (default
-  $6; a warning at the $3 soft limit) and globally per UTC day
-  `AI_GLOBAL_DAILY_USD` (default $25). Past either, a new AI action answers the
+  $3; a warning at the $2 soft limit) and globally per UTC day
+  `AI_GLOBAL_DAILY_USD` (default $10). Past either, a new AI action answers the
   quota shape (TOO_MANY_REQUESTS) with a friendly sentence, and a premium
   **Generate** quietly gives the curated week instead. See §25 "When the AI
   budget is used up" and infrastructure.md §7 "AI cost tracking & budgets".
@@ -1315,9 +1315,9 @@ Recipe creation (revamped form)
   |    a fix link for the owner; USER_ENTERED -> "Entered by you"
   +- recipe photo: device upload (POST /api/uploads/image, <=5 MB since the
   |    Phase 1 guardrails, 2026-10-11; BOTH clients first shrink the photo to
-  |    <= 1600 px, JPEG 0.8 — mobile prepare-photo.ts, web resize-image.ts —
+  |    <= 1080 px, JPEG 0.75 — mobile prepare-photo.ts, web resize-image.ts —
   |    and the server re-encodes it again: EXIF-rotated, metadata stripped,
-  |    <= 1600 px, JPEG q80; per user 60 uploads / rolling 24 h and 200 MB
+  |    <= 1080 px, JPEG q75; per user 60 uploads / rolling 24 h and 200 MB
   |    stored (premium 1 GB), DB-backed — see "Photo uploads" below) or
   |    deterministic AI image (recipe.aiImageUrl); a failed
   |    upload always shows one of the four UX-40 sentences (never a status
@@ -1346,7 +1346,7 @@ meal scan uses the same resize on both.
 
 ```
 pick a photo
-  ├─ client resize: long edge ≤ 1600 px, JPEG 0.8, EXIF orientation applied
+  ├─ client resize: long edge ≤ 1080 px, JPEG 0.75, EXIF orientation applied
   │    (web: createImageBitmap/canvas, falls back to the original file if the
   │    browser can't decode it; mobile: expo-image-manipulator)
   ├─ client pre-check ≤ 5 MB → "That photo is too big…" without a request
@@ -1356,7 +1356,7 @@ POST /api/uploads/image  (raw image/* body)
   ├─ body ≤ 5 MB → else 413 "That photo is too big…"
   ├─ declared type ∈ jpeg/png/webp/gif/avif and the bytes match → else 415
   ├─ server resize (sharp): EXIF-rotate, strip ALL metadata (no GPS leaves
-  │    in a shared recipe), ≤ 1600 px, JPEG q80, transparency → white;
+  │    in a shared recipe), ≤ 1080 px, JPEG q75, transparency → white;
   │    animated GIF/WebP → 415 "Animated images aren't supported…"
   ├─ uploaded_files ledger, ONE serializable transaction:
   │    ├─ ≥ 60 uploads in the last 24 h → 429 "Daily upload limit reached — try
@@ -1979,14 +1979,14 @@ POST /api/chat (session cookie)
   ├─ resolve user from session (401 without)
   ├─ history: text only, newest 12 messages (clients send no more than
   │    12), earlier ones cut to 4,000 chars; the message being sent over
-  │    2,000 chars → 400 "That message is too long. Keep it under 2,000
-  │    characters." (no quota charged). Both clients cap the input at 2,000
-  │    (maxLength) and show a "1,850 / 2,000" counter from 1,800 on
+  │    500 chars → 400 "That message is too long. Keep it under 500
+  │    characters." (no quota charged). Both clients cap the input at 500
+  │    (maxLength) and show a "450 / 500" counter from 400 on
   ├─ ChatService → reserveChatMessage (PLAN_FEATURES.chatMessagesPerDay)
   │    ├─ FREE: no access (FORBIDDEN) — streams the upgrade message as a
   │    │    normal reply + X-Chat-Quota-Exhausted (+ X-Chat-Upgrade-Required);
   │    │    the widget swaps its input for UpgradeButton (source: chat-quota)
-  │    └─ PREMIUM: 100 messages / UTC day (was unlimited until the Phase 1
+  │    └─ PREMIUM: 20 messages / UTC day (was unlimited until the Phase 1
   │         guardrails) — over quota: same 200 reply + X-Chat-Quota-Exhausted;
   │         premium clients show one neutral panel — "You've reached your
   │         AI chat limit for now — the chef's note above says when it's
@@ -2169,7 +2169,7 @@ POST /api/scan-meal (session cookie, raw image body — same transport as upload
 the literal text `[object Object]`. `scanMealPhoto` (mobile
 `src/lib/media-client.ts`, web `features/tracker/lib/scan-client.ts`) checks
 the photo's size against the 5 MB limit before sending (after shrinking it to
-<= 1600 px / JPEG 0.8 on both platforms — T-BUG-O1.2 on mobile, the Phase 1
+<= 1080 px / JPEG 0.75 on both platforms — T-BUG-O1.2 on mobile, the Phase 1
 guardrails on web), and maps any failure —
 client-side pre-check or a server response — to a sentence: **too big** ("That
 photo is too big. Choose another, or use a screenshot of it.") for a 413 or an

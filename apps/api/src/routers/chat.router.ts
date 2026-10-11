@@ -108,7 +108,7 @@ chatRouter.post(
       res.status(400).json({ error: 'No message provided.' });
       return;
     }
-    // Phase 1 guardrails: one message is at most 2,000 characters. Rejected
+    // Phase 1 guardrails: one message is at most 500 characters. Rejected
     // before the quota is reserved, so it costs the user nothing.
     if (isOverLongMessage(messages)) {
       res.status(400).json({ error: CHAT_MESSAGE_TOO_LONG_MESSAGE });

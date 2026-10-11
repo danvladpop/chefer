@@ -596,9 +596,9 @@ date) before the paid switch.
 
 | Variable                   | Default | What happens                                                                                                                            |
 | -------------------------- | ------- | --------------------------------------------------------------------------------------------------------------------------------------- |
-| `AI_USER_MONTHLY_SOFT_USD` | 3       | Per user per calendar month (UTC): logged once a month, `profile.getAiUsage.aiBudget.status = soft`                                     |
-| `AI_USER_MONTHLY_HARD_USD` | 6       | New user-initiated AI refused (TOO_MANY_REQUESTS, friendly copy); premium plans fall back to curated                                    |
-| `AI_GLOBAL_DAILY_USD`      | 25      | Per UTC day: alert emails at 50 / 80 / 100 %; at 100 % user AI refused ("AI is paused for today"), background AI paused until 00:00 UTC |
+| `AI_USER_MONTHLY_SOFT_USD` | 2       | Per user per calendar month (UTC): logged once a month, `profile.getAiUsage.aiBudget.status = soft`                                     |
+| `AI_USER_MONTHLY_HARD_USD` | 3       | New user-initiated AI refused (TOO_MANY_REQUESTS, friendly copy); premium plans fall back to curated                                    |
+| `AI_GLOBAL_DAILY_USD`      | 10      | Per UTC day: alert emails at 50 / 80 / 100 %; at 100 % user AI refused ("AI is paused for today"), background AI paused until 00:00 UTC |
 | `AI_BUDGET_ENFORCE`        | on      | `warn` = log + email, never refuse; `off` = record only                                                                                 |
 | `AI_BUDGET_ALERT_EMAIL`    | —       | Alert recipient; unset = `FEEDBACK_NOTIFY_EMAIL`; neither = log only. Sent within `EMAIL_DAILY_CAP`                                     |
 

@@ -40,7 +40,7 @@ function asset(overrides: Partial<ImagePickerAsset> = {}): ImagePickerAsset {
 
 beforeEach(() => {
   jest.clearAllMocks();
-  mockSave.mockResolvedValue({ base64: 'AQID', uri: 'file:///out.jpg', width: 1600, height: 1200 });
+  mockSave.mockResolvedValue({ base64: 'AQID', uri: 'file:///out.jpg', width: 1080, height: 810 });
   const context = {
     resize: (size: unknown) => {
       mockResize(size);
@@ -53,8 +53,8 @@ beforeEach(() => {
 });
 
 describe('T-BUG-O1.2 resizeFor', () => {
-  it('brings the long edge down to 1600 px (Phase 1 guardrails; was 2048)', () => {
-    expect(PHOTO_MAX_EDGE).toBe(1600);
+  it('brings the long edge down to 1080 px (Phase 1 guardrails; was 2048)', () => {
+    expect(PHOTO_MAX_EDGE).toBe(1080);
     expect(resizeFor(8064, 6048)).toEqual({ width: PHOTO_MAX_EDGE });
     expect(resizeFor(3024, 4032)).toEqual({ height: PHOTO_MAX_EDGE });
     expect(resizeFor(4000, 4000)).toEqual({ width: PHOTO_MAX_EDGE });
@@ -62,7 +62,7 @@ describe('T-BUG-O1.2 resizeFor', () => {
 
   it('leaves a photo that already fits alone', () => {
     expect(resizeFor(1170, 2532)).toEqual({ height: PHOTO_MAX_EDGE });
-    expect(resizeFor(1170, 1600)).toBeNull();
+    expect(resizeFor(810, 1080)).toBeNull();
     expect(resizeFor(1170, 2048)).toEqual({ height: PHOTO_MAX_EDGE });
     expect(resizeFor(800, 600)).toBeNull();
   });

@@ -9,13 +9,13 @@ function solid(width: number, height: number) {
 }
 
 describe('processUploadedImage', () => {
-  it('caps the long edge at 1600 px, keeping the aspect ratio', async () => {
+  it('caps the long edge at 1080 px, keeping the aspect ratio', async () => {
     const input = await solid(3200, 2000).png().toBuffer();
     const out = await processUploadedImage(input);
-    expect(out).toMatchObject({ mime: 'image/jpeg', ext: 'jpg', width: 1600, height: 1000 });
+    expect(out).toMatchObject({ mime: 'image/jpeg', ext: 'jpg', width: 1080, height: 675 });
     const meta = await sharp(out.bytes).metadata();
     expect(meta.format).toBe('jpeg');
-    expect([meta.width, meta.height]).toEqual([1600, 1000]);
+    expect([meta.width, meta.height]).toEqual([1080, 675]);
   });
 
   it('never upscales a small photo', async () => {

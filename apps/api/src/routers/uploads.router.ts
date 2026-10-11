@@ -15,7 +15,7 @@ import { authOnce } from '../lib/route-rate-limit.js';
 // Phase 1 guardrails: the session is checked BEFORE express.raw buffers the
 // body — an anonymous request is answered 401 without the server reading (or
 // holding in memory) a single byte of it — and the body limit is 5 MB
-// (UPLOAD_LIMITS.maxBytes; the clients resize to 1600 px first, so a real
+// (UPLOAD_LIMITS.maxBytes; the clients resize to 1080 px first, so a real
 // photo arrives at a few hundred KB). Keep the clients' own pre-send checks in
 // sync: apps/mobile/src/lib/media-client.ts and apps/web/src/lib/upload-image.ts
 // both read the same shared constant.

@@ -1,8 +1,8 @@
 // T-BUG-O1.2 (O-18 root cause): shrink a picked photo on the device before it
 // is uploaded (recipe photo) or scanned (Snap-to-log). A phone camera photo is
 // 3–10 MB; a recipe card or a vision estimate needs nowhere near 12–48 MP, so
-// the long edge goes to 1600 px at JPEG 0.8 (~0.3–0.6 MB). Phase 1 guardrails
-// (2026-10-11): 2048 → 1600, the shared UPLOAD_LIMITS the web client and the
+// the long edge goes to 1080 px at JPEG 0.75 (~0.1–0.25 MB). Phase 1 guardrails
+// (2026-10-11): 2048 → 1080, the shared UPLOAD_LIMITS the web client and the
 // server's own resize use too.
 //
 // expo-image-manipulator is a native module that only binaries built after it

@@ -6,8 +6,8 @@ import { UPLOAD_LIMITS } from '@chefer/types';
 // did (old app binaries and scripts upload originals):
 //   - auto-rotated from its EXIF orientation, then ALL metadata dropped (sharp
 //     writes none unless asked — no GPS position leaves in a shared recipe);
-//   - long edge capped at UPLOAD_LIMITS.maxLongEdgePx (1600 px), never upscaled;
-//   - re-encoded as JPEG quality 80 (mozjpeg), transparency flattened onto
+//   - long edge capped at UPLOAD_LIMITS.maxLongEdgePx (1080 px), never upscaled;
+//   - re-encoded as JPEG quality 75 (mozjpeg), transparency flattened onto
 //     white. JPEG, not WebP: the weekly emails embed recipe photos, and email
 //     clients still render WebP unreliably.
 // Animated images (GIF/WebP with several frames) are refused: a recipe photo
@@ -38,7 +38,7 @@ function loadSharp(): Promise<typeof Sharp> {
 
 /** 48 MP phone sensors fit; anything larger is refused before decoding. */
 export const MAX_INPUT_PIXELS = 50_000_000;
-export const OUTPUT_JPEG_QUALITY = 80;
+export const OUTPUT_JPEG_QUALITY = Math.round(UPLOAD_LIMITS.jpegQuality * 100);
 
 export type ImageRejection = 'ANIMATED' | 'UNREADABLE';
 

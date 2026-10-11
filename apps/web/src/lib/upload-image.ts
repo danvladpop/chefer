@@ -53,7 +53,7 @@ function uploadErrorFrom(status: number | null, body: unknown): Error {
 /**
  * Uploads an image file (phone or PC file picker) to the API's upload endpoint
  * as a raw body. Returns the public URL of the stored file. The photo is
- * resized in the browser first (long edge 1600 px, JPEG 0.8 — Phase 1
+ * resized in the browser first (long edge 1080 px, JPEG 0.75 — Phase 1
  * guardrails); if that fails the original goes up and the server resizes it.
  */
 export async function uploadImage(picked: File): Promise<string> {

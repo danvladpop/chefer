@@ -218,8 +218,8 @@ describe('Phase 1 guardrails (2026-10-11)', () => {
     expect(createMock).not.toHaveBeenCalled();
   });
 
-  it('chat: premium reserves under 100 messages a day, in a serializable transaction', async () => {
-    countMock.mockResolvedValue(99);
+  it('chat: premium reserves under 20 messages a day, in a serializable transaction', async () => {
+    countMock.mockResolvedValue(19);
     await reserveChatMessage(premium);
     expect(txMock).toHaveBeenCalledWith(expect.any(Function), { isolationLevel: 'Serializable' });
     expect(createMock).toHaveBeenCalledWith({ data: { userId: 'u1', callType: 'CHAT' } });
@@ -230,7 +230,7 @@ describe('Phase 1 guardrails (2026-10-11)', () => {
     const err = await reserveChatMessage(premium).catch((e: unknown) => e);
     expect(err).toBeInstanceOf(TRPCError);
     expect((err as TRPCError).code).toBe('TOO_MANY_REQUESTS');
-    expect((err as TRPCError).message).toContain('100 chat messages');
+    expect((err as TRPCError).message).toContain('20 chat messages');
     expect(createMock).not.toHaveBeenCalled();
   });
 

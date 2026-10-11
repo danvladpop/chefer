@@ -3,7 +3,7 @@ import { UPLOAD_LIMITS } from '@chefer/types';
 // ─── Resize a photo in the browser before it is uploaded (Phase 1 guardrails) ─
 // A phone camera photo is 3–10 MB; a recipe card or a vision estimate needs
 // nowhere near 12–48 MP. The long edge goes to UPLOAD_LIMITS.maxLongEdgePx
-// (1600 px, same as the mobile app and the server) at JPEG 0.8 — typically a
+// (1080 px, same as the mobile app and the server) at JPEG 0.75 — typically a
 // few hundred KB. EXIF orientation is applied while decoding
 // (`imageOrientation: 'from-image'`; an <img> fallback applies it by default),
 // so a portrait photo stays upright once the metadata is gone. Transparent

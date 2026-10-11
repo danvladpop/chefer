@@ -452,27 +452,27 @@ describe('AI budget', () => {
 });
 
 // Phase 1 guardrails: 2,000 characters per message with a counter near the
-// end, and premium's daily cap (100) gets the shared premium limit panel, not an upsell.
+// end, and premium's daily cap (20) gets the shared premium limit panel, not an upsell.
 describe('guardrails', () => {
-  it('caps the input at 2,000 characters and shows a counter near the limit', async () => {
+  it('caps the input at 500 characters and shows a counter near the limit', async () => {
     await renderChat();
     const input = screen.getByTestId('chat-input');
-    expect(input).toHaveProp('maxLength', 2000);
+    expect(input).toHaveProp('maxLength', 500);
     expect(screen.queryByTestId('chat-char-counter')).toBeNull();
 
-    await fireEvent.changeText(input, 'a'.repeat(1850));
-    expect(screen.getByTestId('chat-char-counter')).toHaveTextContent('1,850 / 2,000');
+    await fireEvent.changeText(input, 'a'.repeat(450));
+    expect(screen.getByTestId('chat-char-counter')).toHaveTextContent('450 / 500');
 
-    await fireEvent.changeText(input, 'a'.repeat(2000));
+    await fireEvent.changeText(input, 'a'.repeat(500));
     expect(screen.getByTestId('chat-char-counter')).toHaveTextContent(
-      '2,000 characters is the most one message can hold.',
+      '500 characters is the most one message can hold.',
     );
   });
 
   it('a premium user at the daily cap sees the premium limit panel, with no upgrade button', async () => {
     mockStream.mockImplementation(() =>
       Promise.resolve({
-        fullText: "You've used today's 100 chat messages. It resets at midnight UTC.",
+        fullText: "You've used today's 20 chat messages. It resets at midnight UTC.",
         quotaExhausted: true,
         healthTopic: false,
         safetyTopic: false,

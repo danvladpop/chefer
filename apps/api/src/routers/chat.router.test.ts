@@ -141,17 +141,17 @@ describe('chatRouter — action trailer opt-in (UX-FOOD-21)', () => {
 });
 
 describe('chatRouter — Phase 1 guardrails (message length, history, body size)', () => {
-  it('rejects a message over 2,000 characters with 400 and a friendly sentence, never calling the chef', async () => {
-    const res = await post('a'.repeat(2001));
+  it('rejects a message over 500 characters with 400 and a friendly sentence, never calling the chef', async () => {
+    const res = await post('a'.repeat(501));
     expect(res.status).toBe(400);
     expect(await res.json()).toEqual({
-      error: 'That message is too long. Keep it under 2,000 characters.',
+      error: 'That message is too long. Keep it under 500 characters.',
     });
     expect(chatService.chat).not.toHaveBeenCalled();
   });
 
-  it('accepts a message of exactly 2,000 characters', async () => {
-    const res = await post('a'.repeat(2000));
+  it('accepts a message of exactly 500 characters', async () => {
+    const res = await post('a'.repeat(500));
     expect(res.status).toBe(200);
     expect(chatService.chat).toHaveBeenCalledTimes(1);
   });

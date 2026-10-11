@@ -10,9 +10,9 @@ const MB = 1024 * 1024;
 
 export const CHAT_LIMITS = {
   /** Longest chat message a user may send (characters). Enforced server-side. */
-  maxMessageChars: 2000,
+  maxMessageChars: 500,
   /** Clients show a character counter from here on. */
-  counterFromChars: 1800,
+  counterFromChars: 400,
   /** How many of the newest thread messages the model sees (and clients send). */
   historyMessages: 12,
   /**
@@ -29,10 +29,14 @@ export const CHAT_MESSAGE_TOO_LONG_MESSAGE = `That message is too long. Keep it 
 export const UPLOAD_LIMITS = {
   /** Largest upload body POST /api/uploads/image accepts. */
   maxBytes: 5 * MB,
-  /** Long edge, in px, photos are resized to (client before upload, server after). */
-  maxLongEdgePx: 1600,
-  /** JPEG quality the clients re-encode at (0–1); the server uses 80. */
-  jpegQuality: 0.8,
+  /**
+   * Long edge, in px, photos are resized to (client before upload, server
+   * after). 1080 is sharp on a phone screen and keeps a photo ~100–250 KB
+   * (owner decision 2026-10-11).
+   */
+  maxLongEdgePx: 1080,
+  /** JPEG quality the clients re-encode at (0–1); the server uses the same. */
+  jpegQuality: 0.75,
   /** Uploads per user per rolling 24 h. */
   uploadsPerDay: 60,
   /** Total stored photo bytes per user, by tier. */
