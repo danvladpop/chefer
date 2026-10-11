@@ -1,7 +1,7 @@
 import { View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { ONBOARDING_JOBS, type OnboardingJob } from '@chefer/types';
-import { colors, PressableScale, Text } from '@chefer/ui-mobile';
+import { PressableScale, Text, useThemeColors } from '@chefer/ui-mobile';
 import { cn, isOfferedOnboardingJob } from '@chefer/utils';
 import { ONBOARDING_COPY } from './copy';
 
@@ -73,15 +73,15 @@ export interface JobsStepProps {
 }
 
 export function JobsStep({ value, onChange }: JobsStepProps) {
+  // Colour roles (11 Oct restyle), not the legacy palette.
+  const colors = useThemeColors();
   function toggle(job: OnboardingJob) {
     onChange(value.includes(job) ? value.filter((j) => j !== job) : [...value, job]);
   }
 
   return (
     <View className="gap-3">
-      <Text variant="muted" className="text-sm">
-        {ONBOARDING_COPY.jobsHelper}
-      </Text>
+      <Text className="text-callout text-label-secondary">{ONBOARDING_COPY.jobsHelper}</Text>
       <View className="gap-3">
         {JOB_OPTIONS.map((option) => {
           const selected = value.includes(option.value);
@@ -95,39 +95,37 @@ export function JobsStep({ value, onChange }: JobsStepProps) {
               accessibilityState={{ checked: selected }}
               onPress={() => toggle(option.value)}
               className={cn(
-                'min-h-11 flex-row items-center gap-4 rounded-xl border-2 p-4',
-                selected ? 'border-primary bg-accent' : 'border-border bg-white',
+                'min-h-11 flex-row items-center gap-4 rounded-card border-2 p-4',
+                selected ? 'border-brand bg-brand-tint' : 'border-separator bg-surface',
               )}
             >
               <View
                 className={cn(
-                  'h-11 w-11 items-center justify-center rounded-xl',
-                  selected ? 'bg-primary' : 'bg-accent',
+                  'h-11 w-11 items-center justify-center rounded-control',
+                  selected ? 'bg-brand' : 'bg-brand-tint',
                 )}
               >
                 <Ionicons
                   name={option.icon}
                   size={22}
-                  color={selected ? colors.primaryForeground : colors.primary}
+                  color={selected ? colors.onBrand : colors.brand}
                 />
               </View>
               <View className="min-w-0 flex-1">
-                <Text className="font-semibold text-gray-900">
+                <Text className="text-headline font-semibold text-label">
                   {ONBOARDING_COPY[option.titleKey]}
                 </Text>
-                <Text variant="muted" className="text-sm">
+                <Text className="text-callout text-label-secondary">
                   {ONBOARDING_COPY[option.detailKey]}
                 </Text>
               </View>
               <View
                 className={cn(
                   'h-6 w-6 items-center justify-center rounded-full border-2',
-                  selected ? 'border-primary bg-primary' : 'border-border bg-white',
+                  selected ? 'border-brand bg-brand' : 'border-separator bg-surface',
                 )}
               >
-                {selected && (
-                  <Ionicons name="checkmark" size={14} color={colors.primaryForeground} />
-                )}
+                {selected && <Ionicons name="checkmark" size={14} color={colors.onBrand} />}
               </View>
             </PressableScale>
           );

@@ -1,21 +1,23 @@
 import { useState, type ReactNode } from 'react';
 import { View } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
-import { router } from 'expo-router';
+import { router, type Href } from 'expo-router';
 import { FRIENDS_COPY } from '@chefer/types';
 import {
   EmptyState,
   ErrorState,
+  IconButton,
   KeyboardAwareScrollView,
   PressableScale,
   Screen,
   Skeleton,
   Text,
+  useThemeColors,
 } from '@chefer/ui-mobile';
+import { cn } from '@chefer/utils';
+import { Icon } from '../../../components/icon';
 import { trpc } from '../../../lib/trpc';
 import { useFriendsMe } from '../api/use-friends-me';
 import { FriendsGate } from '../components/friends-gate';
-import { FriendsScreenHeader } from '../components/friends-screen-header';
 import { FRIENDS_SCREEN_TITLES } from '../components/screen-titles';
 import { NameSection } from './name-section';
 import { SharingSection } from './sharing-section';
@@ -27,16 +29,65 @@ import { VisibilitySection } from './visibility-section';
 // Safety (Blocked people) · Turn off Following. There is NO notifications
 // section: Following has no push or email (PRD Q-F-14), the badge is the only
 // notification.
+//
+// 11 Oct restyle: the shell's look — canvas, ShellTopBar's brand chevron +
+// title1 top bar (drawn here so the header keeps its testIDs), ListSection-
+// style titled groups on hairline surface cards, colour roles only.
+
+/**
+ * The page's top bar in the shell's look (ShellTopBar: brand chevron Back +
+ * title1). Back falls back to `fallback` when there is no history. Shared by
+ * Blocked people.
+ */
+export function SettingsTopBar({
+  title,
+  fallback,
+  testID,
+}: {
+  title: string;
+  fallback: Href;
+  testID: string;
+}) {
+  const colors = useThemeColors();
+  return (
+    <View testID={testID} className="mx-4 mt-3 min-h-11 flex-row items-center gap-1">
+      <IconButton
+        testID={`${testID}-back`}
+        accessibilityLabel="Back"
+        icon={<Icon name="chevronBack" color={colors.brand} size={26} />}
+        onPress={() => (router.canGoBack() ? router.back() : router.replace(fallback))}
+        className="-ml-2"
+      />
+      <Text
+        testID={`${testID}-title`}
+        accessibilityRole="header"
+        numberOfLines={2}
+        className="min-w-0 flex-1 text-title1 font-bold text-label"
+      >
+        {title}
+      </Text>
+    </View>
+  );
+}
 
 function SectionHeading({ children, testID }: { children: string; testID?: string }) {
   return (
     <Text
       testID={testID}
       accessibilityRole="header"
-      className="pt-6 text-xs font-semibold uppercase tracking-wide text-muted-foreground"
+      className="px-4 pb-1.5 pt-5 text-subhead font-semibold text-label-secondary"
     >
       {children}
     </Text>
+  );
+}
+
+/** A section's body: a hairline surface card, rows inset by px-4. */
+function Group({ children }: { children: ReactNode }) {
+  return (
+    <View className="overflow-hidden rounded-card border border-separator bg-surface px-4 py-1">
+      {children}
+    </View>
   );
 }
 
@@ -53,6 +104,7 @@ function LinkRow({
   disabled?: boolean;
   trailing?: ReactNode;
 }) {
+  const colors = useThemeColors();
   return (
     <PressableScale
       testID={testID}
@@ -62,11 +114,11 @@ function LinkRow({
       accessibilityState={{ disabled }}
       disabled={disabled}
       onPress={onPress}
-      className="min-h-11 flex-row items-center gap-2 py-2"
+      className={cn('min-h-11 flex-row items-center gap-2 py-3', disabled && 'opacity-50')}
     >
-      <Text className="min-w-0 flex-1">{label}</Text>
+      <Text className="min-w-0 flex-1 text-body text-label">{label}</Text>
       {trailing}
-      <Ionicons name="chevron-forward" size={18} color="#9ca3af" />
+      <Icon name="chevronRight" size={18} color={colors.labelTertiary} />
     </PressableScale>
   );
 }
@@ -80,10 +132,10 @@ function SettingsBody() {
   if (isLoading || (!me && !isError)) {
     return (
       <View testID="friends-settings-loading" className="gap-3 px-4 pt-6">
-        <Skeleton className="h-6 w-1/2 rounded-md" />
-        <Skeleton className="h-11 w-full rounded-md" />
-        <Skeleton className="h-11 w-full rounded-md" />
-        <Skeleton className="h-11 w-full rounded-md" />
+        <Skeleton className="h-6 w-1/2 rounded-inner" />
+        <Skeleton className="h-11 w-full rounded-card" />
+        <Skeleton className="h-11 w-full rounded-card" />
+        <Skeleton className="h-11 w-full rounded-card" />
       </View>
     );
   }
@@ -113,42 +165,53 @@ function SettingsBody() {
         contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 32 }}
       >
         <SectionHeading testID="friends-settings-who">{FRIENDS_COPY.settings.who}</SectionHeading>
-        <VisibilitySection me={me} settings={settings} />
+        <Group>
+          <VisibilitySection me={me} settings={settings} />
+        </Group>
 
         <SectionHeading testID="friends-settings-name-heading">
           {FRIENDS_COPY.intro.nameHeading}
         </SectionHeading>
-        <NameSection me={me} />
+        <View className="rounded-card border border-separator bg-surface p-4">
+          <NameSection me={me} />
+        </View>
 
         <SectionHeading testID="friends-settings-what">{FRIENDS_COPY.settings.what}</SectionHeading>
-        <SharingSection settings={settings} />
-        <LinkRow
-          testID="friends-settings-preview"
-          label={FRIENDS_COPY.settings.preview}
-          disabled={!user}
-          onPress={() => user && router.push(`/friends/${user.id}`)}
-        />
+        <Group>
+          <SharingSection settings={settings} />
+          <View className="h-px bg-separator" />
+          <LinkRow
+            testID="friends-settings-preview"
+            label={FRIENDS_COPY.settings.preview}
+            disabled={!user}
+            onPress={() => user && router.push(`/friends/${user.id}`)}
+          />
+        </Group>
 
         <SectionHeading testID="friends-settings-safety">
           {FRIENDS_COPY.settings.safety}
         </SectionHeading>
-        <LinkRow
-          testID="friends-settings-blocked"
-          label={FRIENDS_COPY.settings.blocked(me.counts.blocked)}
-          onPress={() => router.push('/friends/blocked')}
-        />
+        <Group>
+          <LinkRow
+            testID="friends-settings-blocked"
+            label={FRIENDS_COPY.settings.blocked(me.counts.blocked)}
+            onPress={() => router.push('/friends/blocked')}
+          />
+        </Group>
 
-        <View className="mt-4 border-t border-border pt-2">
-          <PressableScale
-            testID="friends-settings-turn-off"
-            pressScale="card"
-            accessibilityRole="button"
-            accessibilityLabel={FRIENDS_COPY.settings.turnOff}
-            onPress={() => setTurnOffVisible(true)}
-            className="min-h-11 justify-center py-2"
-          >
-            <Text className="font-medium text-destructive">{FRIENDS_COPY.settings.turnOff}</Text>
-          </PressableScale>
+        <View className="mt-6">
+          <Group>
+            <PressableScale
+              testID="friends-settings-turn-off"
+              pressScale="card"
+              accessibilityRole="button"
+              accessibilityLabel={FRIENDS_COPY.settings.turnOff}
+              onPress={() => setTurnOffVisible(true)}
+              className="min-h-11 justify-center py-3"
+            >
+              <Text className="text-body text-danger">{FRIENDS_COPY.settings.turnOff}</Text>
+            </PressableScale>
+          </Group>
         </View>
       </KeyboardAwareScrollView>
 
@@ -164,9 +227,10 @@ function SettingsBody() {
 export function FriendsSettingsScreen() {
   return (
     <FriendsGate>
-      <Screen testID="friends-settings" className="px-0">
-        <FriendsScreenHeader
+      <Screen testID="friends-settings" className="bg-canvas px-0">
+        <SettingsTopBar
           title={FRIENDS_SCREEN_TITLES.settings}
+          fallback="/friends"
           testID="friends-settings-header"
         />
         <SettingsBody />

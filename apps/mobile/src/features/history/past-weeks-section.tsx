@@ -1,10 +1,12 @@
 import { ActivityIndicator, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
-import { Button, Card, ErrorState, Text } from '@chefer/ui-mobile';
-import { cn, formatDate, pastWeeks } from '@chefer/utils';
+import { ErrorState, Text, useThemeColors } from '@chefer/ui-mobile';
+import { formatDate, pastWeeks } from '@chefer/utils';
 import { trpc } from '../../lib/trpc';
 import { useNumbersMode } from '../numbers-mode/numbers-mode';
+import { BoardCard, SectionTitle } from '../shell/today/parts';
+import { TrainButton } from '../shell/train/train-button';
 import { useRestorePlan } from './use-restore-plan';
 
 // Past weeks on My weeks (P2-8) — History folded into My weeks, as on web.
@@ -15,12 +17,8 @@ import { useRestorePlan } from './use-restore-plan';
 
 const HISTORY_LIMIT = 50;
 
-const STATUS_STYLES: Record<string, { bg: string; text: string }> = {
-  ACTIVE: { bg: 'bg-emerald-100', text: 'text-emerald-700' },
-  ARCHIVED: { bg: 'bg-gray-100', text: 'text-gray-500' },
-};
-
 export function PastWeeksSection() {
+  const colors = useThemeColors();
   const {
     data: plans = [],
     isLoading,
@@ -33,66 +31,66 @@ export function PastWeeksSection() {
 
   return (
     <View testID="past-weeks" className="gap-3">
-      <Text className="mt-2 text-xs font-semibold uppercase tracking-widest text-gray-500">
-        Past weeks
-      </Text>
+      <View className="mt-2">
+        <SectionTitle>Past weeks</SectionTitle>
+      </View>
 
       {isLoading ? (
         <View className="items-center py-6">
-          <ActivityIndicator color="#944a00" />
+          <ActivityIndicator color={colors.brand} />
         </View>
       ) : isError && plans.length === 0 ? (
         <ErrorState
           title="Couldn't load your past weeks"
-          icon={<Ionicons name="cloud-offline-outline" size={40} color="#9ca3af" />}
+          icon={<Ionicons name="cloud-offline-outline" size={40} color={colors.labelTertiary} />}
           onRetry={() => void refetch()}
         />
       ) : weeks.length === 0 ? (
-        <Card testID="past-weeks-empty" className="items-center border-dashed py-8">
-          <Ionicons name="time-outline" size={32} color="#d1d5db" />
-          <Text variant="muted" className="mt-2 px-4 text-center text-sm">
+        <BoardCard testID="past-weeks-empty" className="items-center border-dashed py-8">
+          <Ionicons name="time-outline" size={32} color={colors.labelTertiary} />
+          <Text className="px-4 text-center text-subhead text-label-secondary">
             Once a planned week is over it shows up here, ready to cook again.
           </Text>
-        </Card>
+        </BoardCard>
       ) : (
         weeks.map((plan) => {
           const weekStart = new Date(plan.weekStartDate);
           const weekEnd = new Date(plan.weekEndDate);
-          const status = STATUS_STYLES[plan.status] ?? STATUS_STYLES.ARCHIVED;
           const weekLabel = formatDate(weekStart, 'short');
           return (
-            <Card key={plan.id} testID={`past-week-${plan.id}`} className="gap-2">
+            <BoardCard key={plan.id} testID={`past-week-${plan.id}`}>
               <View className="flex-row items-center justify-between gap-2">
-                <Text className="min-w-0 flex-1 text-sm font-semibold text-gray-900">
+                <Text className="min-w-0 flex-1 text-headline font-semibold text-label">
                   {weekLabel} – {formatDate(weekEnd, 'short')}
                 </Text>
                 {/* Only a replaced week needs a badge; "ACTIVE" on every past
                     week read as if the week were still running. */}
                 {plan.status !== 'ACTIVE' && (
-                  <View className={cn('rounded-full px-2 py-0.5', status?.bg)}>
-                    <Text className={cn('text-xs font-medium', status?.text)}>Replaced</Text>
-                  </View>
+                  <Text className="rounded-full bg-surface-sunken px-2 text-caption font-semibold text-label-secondary">
+                    Replaced
+                  </Text>
                 )}
               </View>
 
               {plan.recipePreview.length > 0 && (
-                <Text numberOfLines={2} variant="muted" className="text-xs">
+                <Text numberOfLines={2} className="text-subhead text-label-secondary">
                   {plan.recipePreview.join(' · ')}
                 </Text>
               )}
 
-              <Text className="text-xs text-gray-500">
+              <Text className="text-caption text-label-tertiary">
                 {proteinOnly
                   ? `${plan.macroSummary.avgProtein} g protein avg`
                   : `${plan.macroSummary.avgKcal} kcal avg · ${plan.macroSummary.avgProtein}g P · ${plan.macroSummary.avgCarbs}g C · ${plan.macroSummary.avgFat}g F`}
               </Text>
 
               {restore.errorFor(plan.id) && (
-                <Text className="text-xs text-red-600">{restore.errorFor(plan.id)}</Text>
+                <Text className="text-caption text-danger">{restore.errorFor(plan.id)}</Text>
               )}
               <View className="flex-row gap-2">
-                <Button
+                <TrainButton
                   testID={`past-week-view-${plan.id}`}
+                  label="View week"
                   variant="outline"
                   className="flex-1"
                   onPress={() =>
@@ -101,21 +99,18 @@ export function PastWeeksSection() {
                       params: { planId: plan.id, status: plan.status },
                     })
                   }
-                >
-                  View week
-                </Button>
-                <Button
+                />
+                <TrainButton
                   testID={`past-week-restore-${plan.id}`}
-                  variant="outline"
+                  label="Use again"
+                  variant="tinted"
                   className="flex-1"
                   loading={restore.pendingPlanId === plan.id}
                   disabled={restore.pendingPlanId !== null}
                   onPress={() => restore.requestRestore(plan.id, weekLabel)}
-                >
-                  Use again
-                </Button>
+                />
               </View>
-            </Card>
+            </BoardCard>
           );
         })
       )}

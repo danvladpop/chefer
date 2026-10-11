@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Switch, View } from 'react-native';
-import { Button, Card, Text } from '@chefer/ui-mobile';
+import { Text, useThemeColors } from '@chefer/ui-mobile';
 import { userFacingErrorMessage } from '@chefer/utils';
 import { NotificationsOffRow } from '../../components/notifications-off-row';
 import { trpc } from '../../lib/trpc';
@@ -14,6 +14,8 @@ import {
   cancelWeeklyNotifications,
   scheduleWeeklyNotifications,
 } from '../notifications/weekly-notifications';
+import { BoardCard } from '../shell/today/parts';
+import { TrainButton } from '../shell/train/train-button';
 
 // Weekly updates (audit P2-5, F-PM-14) — every tier:
 // - Emails (server): Monday "your week is ready" + Sunday recap, on by
@@ -38,8 +40,6 @@ const EMAIL_ROWS: { key: EmailKey; title: string; description: string }[] = [
   },
 ];
 
-const TRACK = { true: '#944a00', false: '#d1d5db' };
-
 function ToggleRow(props: {
   testID: string;
   title: string;
@@ -48,13 +48,12 @@ function ToggleRow(props: {
   disabled?: boolean;
   onChange: (next: boolean) => void;
 }) {
+  const colors = useThemeColors();
   return (
     <View className="min-h-11 flex-row items-center justify-between gap-3 py-1">
       <View className="min-w-0 flex-1">
-        <Text className="text-sm font-medium text-gray-900">{props.title}</Text>
-        <Text variant="muted" className="text-xs">
-          {props.description}
-        </Text>
+        <Text className="text-body text-label">{props.title}</Text>
+        <Text className="mt-0.5 text-subhead text-label-secondary">{props.description}</Text>
       </View>
       <Switch
         testID={props.testID}
@@ -62,7 +61,7 @@ function ToggleRow(props: {
         value={props.value}
         disabled={props.disabled ?? false}
         onValueChange={props.onChange}
-        trackColor={TRACK}
+        trackColor={{ true: colors.brand, false: colors.separator }}
       />
     </View>
   );
@@ -85,30 +84,31 @@ function EmailDefaultsNoticeCard({
   busy: boolean;
 }) {
   return (
-    <View testID="prefs-email-defaults-notice" className="min-w-0 gap-2 rounded-lg bg-amber-50 p-3">
-      <Text className="w-full min-w-0 text-sm text-amber-900">
+    <View
+      testID="prefs-email-defaults-notice"
+      className="min-w-0 gap-2 rounded-control bg-surface-sunken p-3"
+    >
+      <Text className="w-full min-w-0 text-subhead text-label">
         We&apos;ve changed how emails work: they&apos;re now off unless you turn them on. Yours are
         still on.
       </Text>
       <View className="flex-row gap-2">
-        <Button
+        <TrainButton
           testID="prefs-email-defaults-keep"
+          label="Keep them on"
           variant="outline"
-          size="sm"
+          className="flex-1"
           disabled={busy}
           onPress={onKeepOn}
-        >
-          Keep them on
-        </Button>
-        <Button
+        />
+        <TrainButton
           testID="prefs-email-defaults-turn-off"
+          label="Turn them off"
           variant="outline"
-          size="sm"
+          className="flex-1"
           disabled={busy}
           onPress={onTurnOff}
-        >
-          Turn them off
-        </Button>
+        />
       </View>
     </View>
   );
@@ -210,8 +210,10 @@ export function WeeklyUpdatesCard() {
   };
 
   return (
-    <Card testID="prefs-weekly-updates" className="gap-3">
-      <Text variant="heading">Weekly updates</Text>
+    <BoardCard testID="prefs-weekly-updates">
+      <Text accessibilityRole="header" className="text-headline font-semibold text-label">
+        Weekly updates
+      </Text>
 
       {showEmailDefaultsNotice && (
         <EmailDefaultsNoticeCard
@@ -222,7 +224,7 @@ export function WeeklyUpdatesCard() {
       )}
 
       <View className="gap-1">
-        <Text variant="label">On this phone</Text>
+        <Text className="text-subhead font-semibold text-label-secondary">On this phone</Text>
         <ToggleRow
           testID="prefs-weekly-push-switch"
           title="Monday plan and Sunday recap"
@@ -234,16 +236,14 @@ export function WeeklyUpdatesCard() {
         {notificationsDenied || phoneRefused ? (
           <NotificationsOffRow testID="prefs-weekly-push-off" />
         ) : (
-          phoneNote && <Text className="text-xs text-amber-800">{phoneNote}</Text>
+          phoneNote && <Text className="text-caption text-attention">{phoneNote}</Text>
         )}
       </View>
 
       {email && prefsQuery.data && (
         <View className="gap-1">
-          <Text variant="label">By email</Text>
-          <Text variant="muted" className="text-xs">
-            Sent to {prefsQuery.data.email}.
-          </Text>
+          <Text className="text-subhead font-semibold text-label-secondary">By email</Text>
+          <Text className="text-caption text-label-tertiary">Sent to {prefsQuery.data.email}.</Text>
           {EMAIL_ROWS.map((row) => (
             <ToggleRow
               key={row.key}
@@ -256,40 +256,40 @@ export function WeeklyUpdatesCard() {
             />
           ))}
           {!prefsQuery.data.emailConfirmed && (
-            <View className="mt-1 min-w-0 gap-2 rounded-lg bg-amber-50 p-3">
-              <Text className="w-full min-w-0 text-sm text-amber-900">
+            <View className="mt-1 min-w-0 gap-2 rounded-control bg-surface-sunken p-3">
+              <Text className="w-full min-w-0 text-subhead text-label">
                 Confirm your email address to start getting these.
               </Text>
               {resend.isSuccess ? (
                 <Text
                   testID="prefs-weekly-email-sent"
-                  className="w-full min-w-0 text-sm font-medium text-amber-900"
+                  className="w-full min-w-0 text-subhead font-semibold text-label"
                 >
                   {resend.data.alreadyConfirmed
                     ? 'Your address is already confirmed.'
                     : 'Sent. Check your inbox for the confirmation link.'}
                 </Text>
               ) : (
-                <Button
+                <TrainButton
                   testID="prefs-weekly-email-confirm"
+                  label="Send confirmation link"
                   variant="outline"
-                  size="sm"
                   loading={resend.isPending}
                   onPress={() => resend.mutate()}
-                >
-                  Send confirmation link
-                </Button>
+                />
               )}
               {resend.isError && (
-                <Text className="text-xs text-red-600">{userFacingErrorMessage(resend.error)}</Text>
+                <Text className="text-caption text-danger">
+                  {userFacingErrorMessage(resend.error)}
+                </Text>
               )}
             </View>
           )}
           {save.isError && (
-            <Text className="text-xs text-red-600">Couldn&apos;t save that. Try again.</Text>
+            <Text className="text-caption text-danger">Couldn&apos;t save that. Try again.</Text>
           )}
         </View>
       )}
-    </Card>
+    </BoardCard>
   );
 }

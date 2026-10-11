@@ -22,13 +22,13 @@ export function NotificationsOffRow({
   return (
     <View
       testID={testID}
-      className={cn('flex-row items-center gap-3 rounded-lg bg-amber-50 p-3', className)}
+      className={cn('flex-row items-center gap-3 rounded-control bg-brand-tint p-3', className)}
     >
       <View className="min-w-0 flex-1">
-        <Text testID={`${testID}-message`} className="text-sm text-amber-900">
+        <Text testID={`${testID}-message`} className="text-subhead font-semibold text-attention">
           {message}
         </Text>
-        <Text variant="muted" className="text-xs">
+        <Text className="text-caption text-label-secondary">
           Notifications are turned off for Chefer in your phone&apos;s Settings.
         </Text>
       </View>

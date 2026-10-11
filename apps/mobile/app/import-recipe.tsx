@@ -1,19 +1,22 @@
 import { useState } from 'react';
-import { Keyboard, Pressable, TextInput, View } from 'react-native';
+import { Keyboard, TextInput, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { FRIENDS_COPY, VIDEO_IMPORT_COPY } from '@chefer/types';
 import {
-  Button,
-  Card,
   ConfirmSheet,
+  IconButton,
   KeyboardAwareScrollView,
+  PressableScale,
   Screen,
+  SegmentedControl,
   Text,
   useKeyboardDoneBar,
   useSnackbar,
+  useThemeColors,
 } from '@chefer/ui-mobile';
 import { cn, isSupportedVideoUrl, PREMIUM_PITCH_COPY, userFacingErrorMessage } from '@chefer/utils';
+import { Icon } from '../src/components/icon';
 import { useAiConsent } from '../src/features/ai-consent/ai-consent-provider';
 import { textRejectedOf } from '../src/features/friends/api/friends-errors';
 import { LockedFeatureCard } from '../src/features/premium/locked-feature-card';
@@ -24,6 +27,7 @@ import {
   type VideoImportPreview,
   type VideoSaveRecipe,
 } from '../src/features/recipes/video-draft-form';
+import { TrainButton } from '../src/features/shell/train/train-button';
 import { useIsPremium } from '../src/hooks/use-is-premium';
 import { trpc, type RouterOutputs } from '../src/lib/trpc';
 import { useUnsavedGuard } from '../src/lib/use-unsaved-guard';
@@ -55,6 +59,18 @@ type Preview = RouterOutputs['recipe']['importPreview'];
 type Variant = 'original' | 'adapted';
 type SourceTab = 'url' | 'text' | 'video';
 
+const SOURCE_TABS: { value: SourceTab; label: string; testID: string }[] = [
+  { value: 'url', label: 'Link', testID: 'import-tab-url' },
+  { value: 'text', label: 'Paste text', testID: 'import-tab-text' },
+  { value: 'video', label: VIDEO_IMPORT_COPY.tabLabel, testID: 'import-tab-video' },
+];
+
+/** The redesign's card (BoardCard's look). */
+const CARD = 'gap-3 rounded-card border border-separator bg-surface p-4';
+/** A text field in the redesign's roles (as Today's weight card draws it). */
+const FIELD =
+  'min-h-11 rounded-control border border-separator bg-surface px-3 py-2 text-body text-label';
+
 function VariantCard({
   title,
   recipe,
@@ -70,40 +86,38 @@ function VariantCard({
   note?: string;
   testID: string;
 }) {
+  const colors = useThemeColors();
   return (
-    <Pressable
+    <PressableScale
       testID={testID}
       accessibilityRole="radio"
       accessibilityState={{ selected, checked: selected }}
       accessibilityLabel={title}
       onPress={onSelect}
       className={cn(
-        'min-h-11 rounded-xl border p-3',
-        selected ? 'border-primary bg-accent' : 'border-border bg-card',
+        'min-h-11 gap-0.5 rounded-card border p-4',
+        selected ? 'border-brand bg-brand-tint' : 'border-separator bg-surface',
       )}
     >
       <View className="flex-row items-center justify-between">
-        <Text className={cn('text-sm font-semibold', selected ? 'text-primary' : 'text-gray-800')}>
+        <Text className={cn('text-headline font-semibold', selected ? 'text-brand' : 'text-label')}>
           {title}
         </Text>
-        {selected && <Ionicons name="checkmark-circle" size={18} color="#944a00" />}
+        {selected && <Icon name="checkmarkCircle" size={20} color={colors.brand} />}
       </View>
-      <Text numberOfLines={1} className="mt-1 text-sm text-gray-800">
+      <Text numberOfLines={1} className="text-callout text-label">
         {recipe.name}
       </Text>
-      <Text className="text-xs text-gray-500">
+      <Text className="text-subhead text-label-secondary">
         {recipe.ingredients.length} ingredients · {recipe.prepTimeMins + recipe.cookTimeMins}m
       </Text>
-      {note && (
-        <Text variant="muted" className="mt-1 text-xs">
-          {note}
-        </Text>
-      )}
-    </Pressable>
+      {note && <Text className="mt-1 text-subhead text-label-secondary">{note}</Text>}
+    </PressableScale>
   );
 }
 
 export default function ImportRecipeScreen() {
+  const colors = useThemeColors();
   const isPremium = useIsPremium();
   const utils = trpc.useUtils();
 
@@ -226,17 +240,22 @@ export default function ImportRecipeScreen() {
   };
 
   return (
-    <Screen edges={['top', 'bottom', 'left', 'right']} className="px-0">
-      <View className="flex-row items-center gap-3 px-4 py-3">
-        <Pressable
-          accessibilityRole="button"
+    <Screen edges={['top', 'bottom', 'left', 'right']} className="bg-canvas px-0">
+      {/* The shell's top bar look (ShellTopBar: brand chevron Back + title1),
+          drawn here so the title keeps the `import-title` testID Maestro waits on. */}
+      <View className="min-h-11 flex-row items-center gap-1 px-4 pb-2 pt-1">
+        <IconButton
           accessibilityLabel="Back"
+          icon={<Icon name="chevronBack" color={colors.brand} size={26} />}
           onPress={() => router.back()}
-          className="h-11 w-11 items-center justify-center"
+          className="-ml-2"
+        />
+        <Text
+          testID="import-title"
+          accessibilityRole="header"
+          numberOfLines={1}
+          className="min-w-0 flex-1 text-title1 font-bold text-label"
         >
-          <Ionicons name="arrow-back" size={20} color="#1f2937" />
-        </Pressable>
-        <Text testID="import-title" variant="title">
           Import Recipe
         </Text>
       </View>
@@ -271,47 +290,23 @@ export default function ImportRecipeScreen() {
           />
         ) : !preview ? (
           <>
-            <Text variant="muted" className="text-sm">
+            <Text className="text-subhead text-label-secondary">
               Paste a recipe link, its text or a cooking video — the chef extracts it and adapts it
               to your dietary needs.
             </Text>
 
             {/* Source tabs */}
-            <View className="flex-row rounded-lg border border-border p-1">
-              {(
-                [
-                  ['url', 'Link'],
-                  ['text', 'Paste text'],
-                  ['video', VIDEO_IMPORT_COPY.tabLabel],
-                ] as const
-              ).map(([key, label]) => (
-                <Pressable
-                  key={key}
-                  testID={`import-tab-${key}`}
-                  accessibilityRole="button"
-                  onPress={() => setTab(key)}
-                  className={cn(
-                    'h-10 flex-1 items-center justify-center rounded-md',
-                    tab === key && 'bg-primary',
-                  )}
-                >
-                  <Text
-                    className={cn(
-                      'text-sm font-medium',
-                      tab === key ? 'text-primary-foreground' : 'text-gray-600',
-                    )}
-                  >
-                    {label}
-                  </Text>
-                </Pressable>
-              ))}
-            </View>
+            <SegmentedControl
+              testID="import-tabs"
+              accessibilityLabel="Import from"
+              options={SOURCE_TABS}
+              value={tab}
+              onChange={setTab}
+            />
 
             {tab === 'video' ? (
               <View className="gap-2">
-                <Text variant="muted" className="text-sm">
-                  {VIDEO_IMPORT_COPY.intro}
-                </Text>
+                <Text className="text-subhead text-label-secondary">{VIDEO_IMPORT_COPY.intro}</Text>
                 <TextInput
                   testID="import-video-url"
                   accessibilityLabel="Video link"
@@ -323,15 +318,15 @@ export default function ImportRecipeScreen() {
                   returnKeyType="go"
                   onSubmitEditing={() => canPreview && runPreview()}
                   placeholder={VIDEO_IMPORT_COPY.urlPlaceholder}
-                  placeholderTextColor="#9ca3af"
-                  className="min-h-11 py-2 rounded-md border border-input bg-background px-3 text-base text-foreground"
+                  placeholderTextColor={colors.labelTertiary}
+                  className={FIELD}
                 />
                 {videoUrlInvalid && (
-                  <Text testID="import-video-invalid" className="text-sm text-red-600">
+                  <Text testID="import-video-invalid" className="text-subhead text-danger">
                     {VIDEO_IMPORT_COPY.unsupportedUrl}
                   </Text>
                 )}
-                <Text variant="muted" className="text-xs">
+                <Text className="text-caption text-label-secondary">
                   {VIDEO_IMPORT_COPY.privacyNote}
                 </Text>
               </View>
@@ -358,8 +353,8 @@ export default function ImportRecipeScreen() {
                 returnKeyType="go"
                 onSubmitEditing={() => canPreview && runPreview()}
                 placeholder="https://example.com/best-lasagna"
-                placeholderTextColor="#9ca3af"
-                className="min-h-11 py-2 rounded-md border border-input bg-background px-3 text-base text-foreground"
+                placeholderTextColor={colors.labelTertiary}
+                className={FIELD}
               />
             ) : (
               <TextInput
@@ -370,28 +365,32 @@ export default function ImportRecipeScreen() {
                 multiline
                 inputAccessoryViewID={textDone.inputAccessoryViewID}
                 placeholder="Paste the full recipe text (ingredients + steps)…"
-                placeholderTextColor="#9ca3af"
-                className="min-h-40 rounded-md border border-input bg-background px-3 py-2 text-base text-foreground"
+                placeholderTextColor={colors.labelTertiary}
+                className={cn(FIELD, 'min-h-40')}
               />
             )}
             {textDone.bar}
 
-            <Button
+            <TrainButton
               testID="import-preview"
+              size="lg"
               loading={previewPending}
               disabled={!canPreview}
               onPress={runPreview}
-            >
-              {previewPending
-                ? tab === 'video'
-                  ? VIDEO_IMPORT_COPY.reading
-                  : 'Extracting…'
-                : 'Preview import'}
-            </Button>
+              label={
+                previewPending
+                  ? tab === 'video'
+                    ? VIDEO_IMPORT_COPY.reading
+                    : 'Extracting…'
+                  : 'Preview import'
+              }
+            />
             {previewError && (
-              <Card testID="import-error" className="border-red-200 bg-red-50">
-                <Text className="text-sm text-red-600">{userFacingErrorMessage(previewError)}</Text>
-              </Card>
+              <View testID="import-error" className={cn(CARD, 'border-danger')}>
+                <Text className="text-callout text-danger">
+                  {userFacingErrorMessage(previewError)}
+                </Text>
+              </View>
             )}
           </>
         ) : (
@@ -400,15 +399,20 @@ export default function ImportRecipeScreen() {
               // Parity with web ImportRecipeSheet: the adaptation left an
               // allergen or restriction in, so only the original can be saved
               // — say so instead of silently selecting it (F-M-REC-4-1).
-              <Card testID="import-unsafe" className="border-red-200 bg-red-50">
+              <View testID="import-unsafe" className={cn(CARD, 'border-danger')}>
                 <View className="flex-row items-start gap-2">
-                  <Ionicons name="warning" size={16} color="#b91c1c" style={{ marginTop: 2 }} />
-                  <Text className="min-w-0 flex-1 text-xs text-red-700">
+                  <Ionicons
+                    name="warning-outline"
+                    size={18}
+                    color={colors.danger}
+                    style={{ marginTop: 1 }}
+                  />
+                  <Text className="min-w-0 flex-1 text-subhead text-danger">
                     The adaptation could not fully remove: {preview.safety.issues.join(', ')}. Only
                     the original can be saved — review it carefully before cooking.
                   </Text>
                 </View>
-              </Card>
+              </View>
             )}
 
             {isPremium && adaptedUsable ? (
@@ -432,17 +436,17 @@ export default function ImportRecipeScreen() {
                     .map((c) => c.description)
                     .join(' · ')}
                 />
-                <Text variant="muted" className="text-xs">
+                <Text className="text-caption text-label-secondary">
                   Switching version restarts the review below.
                 </Text>
               </View>
             ) : isPremium && preview.safety.ok ? (
               // UX-REC-14: nothing to choose — a note, not a disabled card.
-              <Card testID="import-no-changes" className="bg-gray-50">
-                <Text className="text-xs text-gray-700">
+              <View testID="import-no-changes" className="rounded-card bg-surface-sunken p-4">
+                <Text className="text-subhead text-label-secondary">
                   Cheferized for you: no changes needed — this recipe already fits your profile.
                 </Text>
-              </Card>
+              </View>
             ) : null}
 
             {chosen ? (

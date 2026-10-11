@@ -1,5 +1,5 @@
 import { Fragment, useImperativeHandle, useRef, useState, type Ref } from 'react';
-import { ActivityIndicator, Pressable, Switch, View } from 'react-native';
+import { ActivityIndicator, Switch, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import {
   findSafetyTaxonomyEntry,
@@ -8,14 +8,14 @@ import {
   type HouseholdAgeBand,
 } from '@chefer/types';
 import {
-  Button,
-  Card,
   DONE_FIELD_PROPS,
   ErrorState,
+  IconButton,
   Input,
   PressableScale,
   Sheet,
   Text,
+  useThemeColors,
 } from '@chefer/ui-mobile';
 import {
   AGE_BAND_LABELS,
@@ -32,12 +32,15 @@ import {
   type HouseholdGhostKind,
   type SafetyPickerValue,
 } from '@chefer/utils';
+import { Icon } from '../../components/icon';
 import { useEntitlement } from '../../hooks/use-entitlement';
 import { trpc } from '../../lib/trpc';
 import { openPremium } from '../premium/open-premium';
 import { HealthDeclinedNotice } from '../privacy/health-notices';
 import { useHealthConsent } from '../privacy/use-health-consent';
 import { SafetyPicker, type SafetyPickerHandle } from '../safety/safety-picker';
+import { BoardCard } from '../shell/today/parts';
+import { TrainButton } from '../shell/train/train-button';
 import { HouseholdGhost } from './household-ghost';
 
 // Household editor (F2, backlog P2-3) — port of web's household-section.
@@ -110,6 +113,7 @@ function memberCardSummary(m: {
 
 /** "You" card — always first (UX-01). Own safety, saved through preferences.updateSafety. */
 function YouCard() {
+  const colors = useThemeColors();
   const { data, isError, refetch } = trpc.preferences.get.useQuery();
   const utils = trpc.useUtils();
   const [sheetOpen, setSheetOpen] = useState(false);
@@ -143,25 +147,23 @@ function YouCard() {
     return (
       <View
         testID="household-you-unavailable"
-        className="flex-row items-center gap-3 rounded-xl border border-border bg-card p-3"
+        className="flex-row items-center gap-3 rounded-card border border-separator bg-surface p-4"
       >
         <View className="min-w-0 flex-1">
-          <Text className="text-sm font-medium text-gray-800">You</Text>
-          <Text className="text-xs text-gray-500">
+          <Text className="text-headline font-semibold text-label">You</Text>
+          <Text className="text-subhead text-label-secondary">
             {isError
               ? 'Couldn’t load your allergies and diet. Nothing has been changed.'
               : 'Loading your allergies and diet…'}
           </Text>
         </View>
         {isError && (
-          <Button
+          <TrainButton
             testID="household-you-retry"
-            variant="outline"
-            size="sm"
+            label="Retry"
+            variant="tinted"
             onPress={() => void refetch()}
-          >
-            Retry
-          </Button>
+          />
         )}
       </View>
     );
@@ -169,7 +171,7 @@ function YouCard() {
 
   return (
     <>
-      <Pressable
+      <PressableScale
         testID="household-you-card"
         accessibilityRole="button"
         accessibilityLabel={allergiesAndDietForText('you')}
@@ -177,24 +179,25 @@ function YouCard() {
           setDraft(ownSafety);
           setSheetOpen(true);
         }}
-        className="flex-row items-center gap-3 rounded-xl border border-primary/30 bg-accent/40 p-3"
+        className="min-h-11 flex-row items-center gap-3 rounded-card border border-separator bg-brand-tint p-4"
       >
         <View className="min-w-0 flex-1">
-          <Text className="text-sm font-medium text-gray-800">You</Text>
-          <Text className="text-xs text-gray-500">
+          <Text className="text-headline font-semibold text-label">You</Text>
+          <Text className="text-subhead text-label-secondary">
             {memberCardSummary({ portionFactor: 1, ...ownSafety })}
           </Text>
         </View>
-        <Ionicons name="chevron-forward" size={18} color="#6b7280" />
-      </Pressable>
+        <Icon name="chevronRight" size={18} color={colors.brand} />
+      </PressableScale>
       <Sheet
         visible={sheetOpen}
         onClose={() => setSheetOpen(false)}
         title={allergiesAndDietForText('you')}
         testID="household-you-sheet"
         footer={
-          <Button
+          <TrainButton
             testID="household-you-save"
+            label="Save changes"
             loading={saveMutation.isPending}
             onPress={() => {
               // null = a typed term still needs a Keep/Remove choice: don't save yet.
@@ -211,9 +214,7 @@ function YouCard() {
                 onDeclined: () => setDeclined(true),
               });
             }}
-          >
-            Save changes
-          </Button>
+          />
         }
       >
         <SafetyPicker
@@ -223,7 +224,7 @@ function YouCard() {
           testIDPrefix="household-you"
         />
         {saveMutation.isError && (
-          <Text testID="household-you-error" className="text-xs text-red-600">
+          <Text testID="household-you-error" className="text-caption text-danger">
             {userFacingErrorMessage(saveMutation.error)}
           </Text>
         )}
@@ -258,6 +259,7 @@ export function HouseholdEditor({
   variant?: 'screen' | 'onboarding';
   handleRef?: Ref<HouseholdEditorHandle>;
 }) {
+  const colors = useThemeColors();
   const { limit, isPremium } = useEntitlement('householdMembers');
   const list = trpc.household.list.useQuery();
   const members = list.data ?? [];
@@ -421,12 +423,16 @@ export function HouseholdEditor({
   // Add or edit someone — every tier. While editing, the form opens right
   // under that member's row so the pencil visibly does something.
   const formCard = (
-    <Card testID="household-form" className="gap-3">
-      <Text testID="household-form-title" variant="heading">
+    <BoardCard testID="household-form">
+      <Text
+        testID="household-form-title"
+        accessibilityRole="header"
+        className="text-headline font-semibold text-label"
+      >
         {editing ? `Edit ${editing.name}` : 'Add someone'}
       </Text>
       {atCap ? (
-        <Text variant="muted" className="text-xs">
+        <Text className="text-subhead text-label-secondary">
           You&apos;ve reached the limit of {limit} household members.
         </Text>
       ) : (
@@ -445,11 +451,11 @@ export function HouseholdEditor({
                     accessibilityState={{ selected }}
                     onPress={() => applyPreset(kind)}
                     className={cn(
-                      'h-11 flex-1 items-center justify-center rounded-full border-2 border-dashed',
-                      selected ? 'border-amber-400 bg-amber-50' : 'border-amber-300',
+                      'h-11 flex-1 items-center justify-center rounded-full border border-dashed',
+                      selected ? 'border-brand bg-brand-tint' : 'border-separator bg-surface',
                     )}
                   >
-                    <Text className="text-sm font-medium text-amber-800">
+                    <Text className="text-callout font-semibold text-brand">
                       {kind === 'kid' ? '+ A kid' : '+ My partner'}
                     </Text>
                   </PressableScale>
@@ -466,7 +472,7 @@ export function HouseholdEditor({
             {...DONE_FIELD_PROPS}
           />
           <View className="gap-1">
-            <Text variant="label">Portion size</Text>
+            <Text className="text-subhead font-semibold text-label-secondary">Portion size</Text>
             <View className="flex-row gap-2">
               {HOUSEHOLD_PORTION_OPTIONS.map((p) => (
                 <PressableScale
@@ -477,14 +483,14 @@ export function HouseholdEditor({
                   accessibilityState={{ selected: portionFactor === p }}
                   onPress={() => setPortionFactor(p)}
                   className={cn(
-                    'h-11 flex-1 items-center justify-center rounded-md border',
-                    portionFactor === p ? 'border-primary bg-primary' : 'border-border bg-white',
+                    'h-11 flex-1 items-center justify-center rounded-control border',
+                    portionFactor === p ? 'border-brand bg-brand' : 'border-separator bg-surface',
                   )}
                 >
                   <Text
                     className={cn(
-                      'text-sm font-semibold',
-                      portionFactor === p ? 'text-primary-foreground' : 'text-gray-600',
+                      'text-callout font-semibold',
+                      portionFactor === p ? 'text-brand-on' : 'text-label-secondary',
                     )}
                   >
                     {PORTION_LABELS[p] ?? p}
@@ -494,10 +500,11 @@ export function HouseholdEditor({
             </View>
           </View>
           <View className="min-h-11 flex-row items-center justify-between">
-            <Text variant="label">Child (smaller portions)</Text>
+            <Text className="min-w-0 flex-1 text-body text-label">Child (smaller portions)</Text>
             <Switch
               testID="household-kid"
               accessibilityLabel="Child"
+              trackColor={{ true: colors.brand, false: colors.separator }}
               value={isKid}
               onValueChange={(v) => {
                 setIsKid(v);
@@ -511,7 +518,9 @@ export function HouseholdEditor({
           {/* UX-PLAN-12: optional age — picking one pre-fills the portion, which stays adjustable. */}
           {isKid && (
             <View testID="household-age-group" className="gap-1">
-              <Text variant="label">Age (optional)</Text>
+              <Text className="text-subhead font-semibold text-label-secondary">
+                Age (optional)
+              </Text>
               <View className="flex-row gap-2">
                 {HOUSEHOLD_AGE_BANDS.map((band) => (
                   <PressableScale
@@ -529,14 +538,14 @@ export function HouseholdEditor({
                       setPortionFactor(ageBandPortionFactor(band));
                     }}
                     className={cn(
-                      'h-11 flex-1 items-center justify-center rounded-md border',
-                      ageBand === band ? 'border-primary bg-primary' : 'border-border bg-white',
+                      'h-11 flex-1 items-center justify-center rounded-control border',
+                      ageBand === band ? 'border-brand bg-brand' : 'border-separator bg-surface',
                     )}
                   >
                     <Text
                       className={cn(
-                        'text-sm font-semibold',
-                        ageBand === band ? 'text-primary-foreground' : 'text-gray-600',
+                        'text-callout font-semibold',
+                        ageBand === band ? 'text-brand-on' : 'text-label-secondary',
                       )}
                     >
                       {AGE_BAND_LABELS[band]}
@@ -546,43 +555,45 @@ export function HouseholdEditor({
               </View>
             </View>
           )}
-          <Pressable
+          <PressableScale
             testID="household-safety-open"
             accessibilityRole="button"
             accessibilityLabel={allergiesAndDietForText(name.trim() || 'this person')}
             onPress={() => setMemberSafetySheetOpen(true)}
-            className="min-h-11 flex-row items-center justify-between rounded-md border border-border px-3"
+            className="min-h-11 flex-row items-center justify-between gap-2 rounded-control border border-separator bg-surface px-3"
           >
-            <Text className="text-sm text-gray-700">
+            <Text className="min-w-0 flex-1 text-callout text-label">
               {allergiesAndDietForText(name.trim() || 'this person')}
             </Text>
-            <Ionicons name="chevron-forward" size={16} color="#6b7280" />
-          </Pressable>
-          <Text testID="household-safety-summary" variant="muted" className="text-xs">
+            <Icon name="chevronRight" size={18} color={colors.labelTertiary} />
+          </PressableScale>
+          <Text testID="household-safety-summary" className="text-subhead text-label-secondary">
             {memberCardSummary({ portionFactor, ...memberSafety })}
           </Text>
-          <Button
+          <TrainButton
             testID="household-add"
+            label={editing ? 'Save changes' : 'Add to my table'}
             loading={isSaving}
             disabled={!name.trim()}
             onPress={() => handleSave()}
-          >
-            {editing ? 'Save changes' : 'Add to my table'}
-          </Button>
+          />
           {editing && (
-            <Button testID="household-edit-cancel" variant="ghost" onPress={resetForm}>
-              Cancel
-            </Button>
+            <TrainButton
+              testID="household-edit-cancel"
+              label="Cancel"
+              variant="ghost"
+              onPress={resetForm}
+            />
           )}
         </>
       )}
       {saveError && (
-        <Text testID="household-save-error" className="text-xs text-red-600">
+        <Text testID="household-save-error" className="text-caption text-danger">
           {userFacingErrorMessage(saveError)}
         </Text>
       )}
       {safetyDeclined && <HealthDeclinedNotice testID="household-member-declined" />}
-    </Card>
+    </BoardCard>
   );
 
   return (
@@ -593,13 +604,13 @@ export function HouseholdEditor({
 
       {/* Members */}
       {isLoading ? (
-        <ActivityIndicator color="#944a00" />
+        <ActivityIndicator color={colors.brand} />
       ) : listFailed ? (
         <ErrorState
           testID="household-load-error"
           title="Couldn’t load your household"
           description="Nothing has been changed. Check your connection and try again."
-          icon={<Ionicons name="cloud-offline-outline" size={40} color="#9ca3af" />}
+          icon={<Ionicons name="cloud-offline-outline" size={40} color={colors.labelTertiary} />}
           onRetry={() => void list.refetch()}
         />
       ) : members.length === 0 ? (
@@ -607,17 +618,15 @@ export function HouseholdEditor({
         (showGhost && ghostKind ? (
           <HouseholdGhost kind={ghostKind} />
         ) : (
-          <Card testID="household-empty" className="items-center border-dashed py-8">
-            <Ionicons name="people-outline" size={36} color="#d1d5db" />
-            <Text variant="muted" className="mt-2 text-sm">
-              Just you at the table for now.
-            </Text>
+          <BoardCard testID="household-empty" className="items-center border-dashed py-8">
+            <Ionicons name="people-outline" size={36} color={colors.labelTertiary} />
+            <Text className="text-body text-label-secondary">Just you at the table for now.</Text>
             {showGhost && (
-              <Text variant="muted" className="mt-1 px-6 text-center text-xs">
+              <Text className="px-6 text-center text-subhead text-label-tertiary">
                 Tap “+ A kid” or “+ My partner” below to see your week with them.
               </Text>
             )}
-          </Card>
+          </BoardCard>
         ))
       ) : (
         <View className="gap-2">
@@ -628,66 +637,64 @@ export function HouseholdEditor({
               <View
                 key={m.id}
                 testID={`household-confirm-${m.id}`}
-                className="gap-2 rounded-xl border border-red-200 bg-red-50 p-3"
+                className="gap-3 rounded-card border border-separator bg-surface p-4"
               >
-                <Text className="text-sm text-red-800">
+                <Text className="text-body text-label">
                   Remove {m.name}? Their allergies stop applying to your plans.
                 </Text>
                 <View className="flex-row gap-2">
-                  <Button
+                  <TrainButton
+                    label="Keep"
                     variant="outline"
                     className="flex-1"
                     onPress={() => setConfirmingId(null)}
-                  >
-                    Keep
-                  </Button>
-                  <Button
+                  />
+                  <TrainButton
                     testID={`household-confirm-remove-${m.id}`}
-                    variant="destructive"
-                    className="flex-1"
+                    label="Remove"
+                    variant="danger"
+                    className="flex-1 border border-separator bg-surface"
                     loading={removeMutation.isPending}
                     onPress={() => removeMutation.mutate({ id: m.id })}
-                  >
-                    Remove
-                  </Button>
+                  />
                 </View>
               </View>
             ) : (
               <Fragment key={m.id}>
                 <View
                   className={cn(
-                    'flex-row items-center gap-3 rounded-xl border bg-card p-3',
-                    editing?.id === m.id ? 'border-primary' : 'border-border',
+                    'flex-row items-center gap-2 rounded-card border bg-surface py-2 pl-4 pr-2',
+                    editing?.id === m.id ? 'border-brand' : 'border-separator',
                   )}
                 >
                   <View className="min-w-0 flex-1">
                     <View className="flex-row items-center gap-2">
-                      <Text className="text-sm font-medium text-gray-800">{m.name}</Text>
+                      <Text className="min-w-0 shrink text-headline font-semibold text-label">
+                        {m.name}
+                      </Text>
                       {m.isKid && (
-                        <View className="rounded-full bg-accent px-2 py-0.5">
-                          <Text className="text-xs font-semibold text-primary">
-                            {ageBandLabel(m.ageBand) ? `Kid · ${ageBandLabel(m.ageBand)}` : 'Kid'}
-                          </Text>
-                        </View>
+                        <Text className="rounded-full bg-brand-tint px-2 text-caption font-semibold text-brand">
+                          {ageBandLabel(m.ageBand) ? `Kid · ${ageBandLabel(m.ageBand)}` : 'Kid'}
+                        </Text>
                       )}
                     </View>
-                    <Text testID={`household-summary-${m.id}`} className="text-xs text-gray-500">
+                    <Text
+                      testID={`household-summary-${m.id}`}
+                      className="text-subhead text-label-secondary"
+                    >
                       {memberCardSummary(m)}
                     </Text>
                   </View>
-                  <Pressable
+                  <IconButton
                     testID={`household-edit-${m.id}`}
-                    accessibilityRole="button"
                     accessibilityLabel={`Edit ${m.name}`}
+                    icon={<Icon name="edit" size={20} color={colors.labelSecondary} />}
                     onPress={() => startEdit(m)}
-                    className="h-11 w-11 items-center justify-center"
-                  >
-                    <Ionicons name="pencil-outline" size={18} color="#6b7280" />
-                  </Pressable>
-                  <Pressable
+                  />
+                  <IconButton
                     testID={`household-remove-${m.id}`}
-                    accessibilityRole="button"
                     accessibilityLabel={`Remove ${m.name}`}
+                    icon={<Icon name="trash" size={20} color={colors.danger} />}
                     onPress={() => {
                       // Removing the member in the form drops the edit too.
                       if (editing?.id === m.id) {
@@ -695,10 +702,7 @@ export function HouseholdEditor({
                       }
                       setConfirmingId(m.id);
                     }}
-                    className="h-11 w-11 items-center justify-center"
-                  >
-                    <Ionicons name="trash-outline" size={18} color="#6b7280" />
-                  </Pressable>
+                  />
                 </View>
                 {editing?.id === m.id && formCard}
               </Fragment>
@@ -709,7 +713,7 @@ export function HouseholdEditor({
 
       {/* UX-02/CI-41: table read-back summary */}
       {tableSummary && (
-        <Text testID="household-table-summary" variant="muted" className="text-xs">
+        <Text testID="household-table-summary" className="text-subhead text-label-secondary">
           {tableSummary}
         </Text>
       )}
@@ -717,28 +721,25 @@ export function HouseholdEditor({
       {/* Free tables: safety applies, scaling is the premium part (P2-3).
           An empty free table sees the ghost instead (F-PM-12). */}
       {variant === 'screen' && isPremium === false && members.length > 0 && (
-        <Card testID="household-upsell" className="border-amber-200 bg-amber-50">
-          <Text className="text-sm font-semibold text-gray-900">
+        <BoardCard testID="household-upsell" className="bg-brand-tint">
+          <Text className="text-headline font-semibold text-label">
             Everyone&apos;s allergies apply to every plan — free.
           </Text>
-          <Text className="mt-1 text-sm text-gray-700">
+          <Text className="text-subhead text-label-secondary">
             Your shopping list and servings are still sized for one portion. Premium scales them for
             your table ({tablePortions} portions), kids at half portions included.
           </Text>
-          <Button
+          <TrainButton
             testID="household-upsell-upgrade"
-            variant="outline"
-            size="sm"
-            className="mt-3"
+            label="See what Premium adds"
+            variant="onBrand"
             onPress={() => openPremium('household')}
-          >
-            See what Premium adds
-          </Button>
-        </Card>
+          />
+        </BoardCard>
       )}
 
       {removeMutation.isError && (
-        <Text testID="household-remove-error" className="text-xs text-red-600">
+        <Text testID="household-remove-error" className="text-caption text-danger">
           {userFacingErrorMessage(removeMutation.error)}
         </Text>
       )}
@@ -753,9 +754,11 @@ export function HouseholdEditor({
         title={allergiesAndDietForText(name.trim() || 'this person')}
         testID="household-member-safety-sheet"
         footer={
-          <Button testID="household-member-safety-done" onPress={closeMemberSafetySheet}>
-            Done
-          </Button>
+          <TrainButton
+            testID="household-member-safety-done"
+            label="Done"
+            onPress={closeMemberSafetySheet}
+          />
         }
       >
         <SafetyPicker

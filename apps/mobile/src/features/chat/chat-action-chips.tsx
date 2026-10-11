@@ -1,10 +1,11 @@
 import { useState } from 'react';
-import { Pressable, View } from 'react-native';
+import { View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import type { ChatAction } from '@chefer/types';
-import { Text } from '@chefer/ui-mobile';
+import { PressableScale, Text, useThemeColors } from '@chefer/ui-mobile';
 import { cn, userFacingErrorMessage } from '@chefer/utils';
+import { Icon } from '../../components/icon';
 import { trpc } from '../../lib/trpc';
 import { invalidateDayQueries } from '../tracker/invalidate';
 
@@ -55,6 +56,7 @@ function Chip({
   undone: boolean;
   onUndone: () => void;
 }) {
+  const colors = useThemeColors();
   const utils = trpc.useUtils();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -106,18 +108,21 @@ function Chip({
 
   const showUndo = canUndo(action) && !undone;
   return (
-    <View testID={testID} className="rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2">
+    <View
+      testID={testID}
+      className="gap-1 rounded-control border border-separator bg-surface px-3 pt-2"
+    >
       <View className="flex-row items-center gap-2">
-        <Ionicons
-          name={undone ? 'arrow-undo-outline' : 'checkmark-circle-outline'}
-          size={18}
-          color="#047857"
-        />
+        {undone ? (
+          <Ionicons name="arrow-undo-outline" size={18} color={colors.labelSecondary} />
+        ) : (
+          <Icon name="checkmarkCircle" size={18} color={colors.positive} />
+        )}
         <Text
           testID={`${testID}-label`}
           className={cn(
-            'min-w-0 flex-1 text-sm text-emerald-900',
-            undone && 'text-emerald-800 line-through',
+            'min-w-0 flex-1 text-callout text-label',
+            undone && 'text-label-secondary line-through',
           )}
         >
           {action.label}
@@ -125,22 +130,25 @@ function Chip({
       </View>
       <View className="flex-row items-center">
         {undone ? (
-          <Text testID={`${testID}-undone`} className="min-h-11 py-3 text-sm text-emerald-800">
+          <Text
+            testID={`${testID}-undone`}
+            className="min-h-11 py-3 text-subhead text-label-secondary"
+          >
             Undone
           </Text>
         ) : (
           <>
-            <Pressable
+            <PressableScale
               testID={`${testID}-view`}
               accessibilityRole="button"
               accessibilityLabel={`View: ${action.label}`}
               onPress={() => router.push(viewTargetFor(action))}
               className="min-h-11 justify-center pr-5"
             >
-              <Text className="text-sm font-semibold text-primary">View</Text>
-            </Pressable>
+              <Text className="text-callout font-semibold text-brand">View</Text>
+            </PressableScale>
             {showUndo && (
-              <Pressable
+              <PressableScale
                 testID={`${testID}-undo`}
                 accessibilityRole="button"
                 accessibilityLabel={`Undo: ${action.label}`}
@@ -148,16 +156,16 @@ function Chip({
                 onPress={() => void undo()}
                 className={cn('min-h-11 justify-center pr-5', busy && 'opacity-40')}
               >
-                <Text className="text-sm font-semibold text-primary">
+                <Text className="text-callout font-semibold text-brand">
                   {busy ? 'Undoing…' : 'Undo'}
                 </Text>
-              </Pressable>
+              </PressableScale>
             )}
           </>
         )}
       </View>
       {error && (
-        <Text testID={`${testID}-error`} className="pb-1 text-xs text-red-600">
+        <Text testID={`${testID}-error`} className="pb-2 text-caption text-danger">
           {error}
         </Text>
       )}
