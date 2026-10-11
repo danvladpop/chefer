@@ -23,8 +23,9 @@ beforeAll(async () => {
 
 // T-BUG-O1 (O-18): the real, non-mocked round trip through the raw-body
 // endpoint — proves the wire contract the mobile client's error mapping
-// (uploadErrorFrom) relies on: a plain-string `{ error }` body and, since
-// Q-22 raised the limit, 10 MB uploads succeeding where 5 MB used to reject.
+// (uploadErrorFrom) relies on: a plain-string `{ error }` body for every
+// refusal. Phase 1 guardrails (2026-10-11): the limit is 5 MB again (clients
+// resize to 1600 px first) and the server re-encodes every photo as JPEG.
 function pngBytesOfSize(totalBytes: number): Uint8Array {
   const header = base64ToBytes(TINY_PNG_BASE64);
   const bytes = new Uint8Array(totalBytes);
@@ -33,13 +34,13 @@ function pngBytesOfSize(totalBytes: number): Uint8Array {
 }
 
 describe('image upload contract (M3-3)', () => {
-  it('uploads bytes and serves them back at the returned URL', async () => {
+  it('uploads bytes and serves them back at the returned URL, re-encoded as JPEG', async () => {
     const url = await uploadImage(media, base64ToBytes(TINY_PNG_BASE64), 'image/png');
-    expect(url).toMatch(/\/uploads\/.+\.png$/);
+    expect(url).toMatch(/\/uploads\/.+\.jpg$/);
 
     const served = await fetch(url);
     expect(served.ok).toBe(true);
-    expect(served.headers.get('content-type')).toContain('image/png');
+    expect(served.headers.get('content-type')).toContain('image/jpeg');
   });
 
   it('rejects without a token with the signed-out sentence (T-BUG-O1), never a bare status code', async () => {
@@ -48,14 +49,17 @@ describe('image upload contract (M3-3)', () => {
     ).rejects.toThrow('Sign in again to add photos.');
   });
 
-  it('T-BUG-O1: a ~6 MB body uploads OK (the raised 10 MB limit)', async () => {
-    const bytes = pngBytesOfSize(6 * 1024 * 1024);
-    const url = await uploadImage(media, bytes, 'image/png');
-    expect(url).toMatch(/\/uploads\/.+\.png$/);
-
-    const served = await fetch(url);
-    expect(served.ok).toBe(true);
-    expect(served.headers.get('content-length')).toBe(String(bytes.length));
+  it('a body that is not a decodable image gets a plain string error over the wire', async () => {
+    // PNG magic bytes followed by zeros: under the size limit, but sharp
+    // cannot decode it, so it is refused (415) instead of being stored.
+    const res = await fetch(`${API_URL}/api/uploads/image`, {
+      method: 'POST',
+      headers: { 'content-type': 'image/png', authorization: `Bearer ${getToken()}` },
+      body: pngBytesOfSize(64 * 1024) as unknown as BodyInit,
+    });
+    expect(res.status).toBe(415);
+    const data = (await res.json()) as { error?: unknown };
+    expect(typeof data.error).toBe('string');
   });
 
   it('T-BUG-O1: an oversize body gets a real 413 with a plain string error over the wire', async () => {
@@ -67,7 +71,7 @@ describe('image upload contract (M3-3)', () => {
     const res = await fetch(`${API_URL}/api/uploads/image`, {
       method: 'POST',
       headers: { 'content-type': 'image/png', authorization: `Bearer ${getToken()}` },
-      body: pngBytesOfSize(11 * 1024 * 1024) as unknown as BodyInit,
+      body: pngBytesOfSize(6 * 1024 * 1024) as unknown as BodyInit,
     });
     expect(res.status).toBe(413);
     const data = (await res.json()) as { error?: unknown };
