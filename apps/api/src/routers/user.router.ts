@@ -1,6 +1,7 @@
 import { TRPCError } from '@trpc/server';
 import { z } from 'zod';
 import { SOCIAL_AUTH_MESSAGES, socialCredentialSchema, UserRole } from '@chefer/types';
+import { aiCostService } from '../application/ai-cost/ai-cost.instance.js';
 import { authService } from '../application/auth/auth.service.js';
 import { socialAuthService } from '../application/auth/social-auth.service.js';
 import { deleteAccount, exportAccountData } from '../application/user/account-data.service.js';
@@ -289,6 +290,13 @@ export const userRouter = router({
       });
       return Object.fromEntries(rows.map((r) => [r.userId, r._count._all]));
     }),
+
+  /**
+   * Phase 2 AI cost tracking (admin only): today's and this month's (UTC)
+   * estimated AI cost at paid list prices, this month per workload, and the
+   * month's 10 most expensive users. No admin UI yet — query it directly.
+   */
+  aiCostSummary: adminProcedure.query(() => aiCostService.adminSummary()),
 
   /**
    * Update the current user's own profile.

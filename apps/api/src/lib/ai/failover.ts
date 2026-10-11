@@ -1,3 +1,4 @@
+import { runWithAiUsageScope } from './call-context.js';
 import { isCapacityAiError } from './friendly-error.js';
 import { AI_WORKLOADS, DEFAULT_AI_ROUTES, type AiWorkload } from './routing.js';
 import type {
@@ -131,7 +132,9 @@ export class ChainAIService implements IAIService {
     for (let i = 0; i < chain.length; i++) {
       const ref = chain[i]!;
       try {
-        const result = await call(ref.service);
+        // Labels every model call this attempt makes with its workload (cost
+        // tracking, usage-recorder.ts) — changes nothing about how it runs.
+        const result = await runWithAiUsageScope({ workload }, () => call(ref.service));
         console.info(`[AI] ${label}: served by ${ref.name}${i > 0 ? ' (failover)' : ''}`);
         if (shadowInput !== undefined) {
           this.notifyShadow({

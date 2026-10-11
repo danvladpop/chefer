@@ -77,6 +77,7 @@ import {
 } from '../../lib/friends-errors.js';
 import { notifyTailoringQueued } from '../../lib/plan-tailoring-signal.js';
 import { PoolExhaustedCause } from '../../lib/pool-exhausted.js';
+import { assertAiBudget } from '../../lib/quotas.js';
 import { recipeImageWorker } from '../../workers/recipe-image.worker.js';
 import {
   computeHouseholdContext,
@@ -1546,6 +1547,9 @@ export class MealPlanService {
       // R-10: the typed rejection (`data.reason`) so clients open the sheet.
       throw aiConsentRequiredError();
     }
+    // Phase 2 AI budgets: resuming reserves no quota, but it is new AI work —
+    // refused like any other user AI action past the monthly/daily budget.
+    await assertAiBudget(userId);
     const weekOffset = weekOffsetOf(plan.weekStartDate, getMondayOfWeek(0));
     const wanted = new Set(untailoredDays(row));
     const order = tailoringDayOrder(plan.days, weekOffset, getTodayDayIndex()).filter((d) =>

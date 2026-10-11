@@ -1,3 +1,4 @@
+import { logAiUsage } from '../ai/usage.js';
 import { VideoImportError } from './errors.js';
 import type { DownloadedAudio } from './ytdlp.js';
 
@@ -27,10 +28,23 @@ export interface ISpeechToText {
 }
 
 const WHISPER_TIMEOUT_MS = 90_000;
+/** Groq bills every transcription as at least 10 seconds of audio. */
+const WHISPER_MIN_BILLED_SECONDS = 10;
+
+/** Host of the endpoint (api.groq.com) for usage rows. */
+function providerHost(baseUrl: string): string {
+  try {
+    return new URL(baseUrl).hostname;
+  } catch {
+    return 'openai-compatible';
+  }
+}
 
 interface VerboseJson {
   text?: string;
   language?: string;
+  /** Seconds of audio decoded. */
+  duration?: number;
   segments?: { text?: string; no_speech_prob?: number }[];
 }
 
@@ -58,6 +72,7 @@ export class GroqWhisperClient implements ISpeechToText {
       form.append('language', options.language);
     }
 
+    const started = Date.now();
     let response: Response;
     try {
       response = await this.fetchFn(
@@ -87,6 +102,17 @@ export class GroqWhisperClient implements ISpeechToText {
     }
 
     const json = (await response.json()) as VerboseJson;
+    // Cost tracking (lib/ai/usage-recorder.ts): Groq bills per audio second
+    // with a 10 s minimum. verbose_json reports the decoded duration; when it
+    // is missing the minimum is recorded (the import's audio cap bounds it).
+    const seconds = typeof json.duration === 'number' ? json.duration : 0;
+    logAiUsage({
+      provider: providerHost(this.config.baseUrl),
+      model: this.config.model,
+      op: 'transcribe',
+      audioSeconds: Math.max(WHISPER_MIN_BILLED_SECONDS, seconds),
+      ms: Date.now() - started,
+    });
     return {
       text: json.text?.trim() ?? '',
       language: json.language ?? null,

@@ -3,6 +3,7 @@ import {
   ingredientResolver,
   type IngredientResolver,
 } from '../application/ingredients/ingredient-resolver.js';
+import { backgroundAiAllowed } from '../lib/ai/budget-gate.js';
 import { runOutsideAiCallContext } from '../lib/ai/call-context.js';
 import { isAiCapacityFailure } from '../lib/ai/friendly-error.js';
 import { aiService } from '../lib/ai/index.js';
@@ -110,6 +111,14 @@ export class IngredientPriceWorker {
       const toEstimate = await this.findStaleOrMissing([...catalog.keys()]);
       if (toEstimate.length === 0) {
         this.capacityFailures = 0;
+        return;
+      }
+      // Global AI kill-switch (Phase 2): shared background AI waits for the
+      // next UTC day; the regular sweep (or the next wake) picks it up again.
+      if (!(await backgroundAiAllowed())) {
+        console.warn(
+          `[IngredientPriceWorker] ${toEstimate.length} prices left for later — today’s global AI budget is used up`,
+        );
         return;
       }
 

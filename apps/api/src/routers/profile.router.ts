@@ -1,4 +1,5 @@
 import { AI_PROVIDERS } from '@chefer/types';
+import { aiCostService } from '../application/ai-cost/ai-cost.instance.js';
 import { getTodayAiUsage } from '../application/profile/ai-usage.service.js';
 import { aiProviderDisclosure } from '../lib/ai/index.js';
 import { allFlags } from '../lib/flags.js';
@@ -57,6 +58,13 @@ export const profileRouter = router({
       curatedPlans,
       importsSaved,
     } = await getTodayAiUsage(ctx.user.id);
+    // Phase 2 (additive, optional for clients): this month's estimated AI
+    // cost vs the user's allowance. Best effort — a failed read omits it
+    // rather than failing the counters shipped clients rely on.
+    const aiBudget = await aiCostService.userBudget(ctx.user.id).catch((err: unknown) => {
+      console.error('[profile.getAiUsage] AI budget read failed (omitted)', err);
+      return undefined;
+    });
 
     const primary = aiProviderDisclosure.primary;
     return {
@@ -65,6 +73,13 @@ export const profileRouter = router({
       aiMealPlans,
       curatedPlans,
       importsSaved,
+      /**
+       * This calendar month (UTC): estimated AI cost at paid list prices vs
+       * the soft/hard allowance; `status` 'soft' = past the soft limit,
+       * 'hard' = new AI actions are refused; `pausedToday` = the global
+       * daily budget is used up. Absent when it could not be read.
+       */
+      ...(aiBudget && { aiBudget }),
       /** The provider serving most workloads (admin telemetry card). */
       primaryProvider: {
         id: primary,

@@ -3,6 +3,7 @@ import { planSettingsInputSchema, planShapeSchema, removeSlotInputSchema } from 
 import { mealPlanService } from '../application/meal-plan/meal-plan.service.js';
 import { planShapeService } from '../application/meal-plan/plan-shape.service.js';
 import { rebalanceService } from '../application/meal-plan/rebalance.service.js';
+import { checkUserAiBudget } from '../lib/ai/budget-gate.js';
 import { hasFeature, isPremiumUser } from '../lib/entitlements.js';
 import { env } from '../lib/env.js';
 import { reserveAiSwap, reservePlanGeneration } from '../lib/quotas.js';
@@ -65,7 +66,10 @@ export const mealPlanRouter = router({
     .mutation(async ({ ctx, input }) => {
       // Atomic reservation; refunded when generation fails, so an outage or
       // an exhausted curated pool doesn't use up the day's allowance.
-      const premium = isPremiumUser(ctx.user);
+      // Phase 2 AI budgets: a premium user over their monthly AI allowance, or
+      // any user while AI is paused for the day, gets the curated week (the
+      // free path, zero AI) instead of an error.
+      const premium = isPremiumUser(ctx.user) && !(await checkUserAiBudget(ctx.user.id));
       const reservation = await reservePlanGeneration(ctx.user, premium);
       try {
         return await mealPlanService.generate(ctx.user.id, input.weekOffset, premium, {
