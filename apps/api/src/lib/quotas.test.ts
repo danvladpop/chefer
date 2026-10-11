@@ -4,6 +4,7 @@ import { prisma } from '@chefer/database';
 import type { UserProfile } from '@chefer/types';
 import {
   reserveAiSwap,
+  reserveChatMessage,
   reserveMealScan,
   reservePlanGeneration,
   reserveRecipeImport,
@@ -138,5 +139,45 @@ describe('reservation mechanics (audit F-PLAN-2-3, F-TRK-2-2)', () => {
     await reservation.release();
     expect(txMock).not.toHaveBeenCalled();
     expect(createMock).not.toHaveBeenCalled();
+  });
+});
+
+describe('Phase 1 guardrails (2026-10-11)', () => {
+  it('chat: free has no access (FORBIDDEN) and writes nothing', async () => {
+    await expect(reserveChatMessage(free)).rejects.toMatchObject({ code: 'FORBIDDEN' });
+    expect(createMock).not.toHaveBeenCalled();
+  });
+
+  it('chat: premium reserves under 100 messages a day, in a serializable transaction', async () => {
+    countMock.mockResolvedValue(99);
+    await reserveChatMessage(premium);
+    expect(txMock).toHaveBeenCalledWith(expect.any(Function), { isolationLevel: 'Serializable' });
+    expect(createMock).toHaveBeenCalledWith({ data: { userId: 'u1', callType: 'CHAT' } });
+  });
+
+  it('chat: premium is refused at 100 (it used to be unlimited)', async () => {
+    countMock.mockResolvedValue(100);
+    const err = await reserveChatMessage(premium).catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(TRPCError);
+    expect((err as TRPCError).code).toBe('TOO_MANY_REQUESTS');
+    expect((err as TRPCError).message).toContain('100 chat messages');
+    expect(createMock).not.toHaveBeenCalled();
+  });
+
+  it('plans: premium is refused at 5 generations a day (was 20)', async () => {
+    countMock.mockResolvedValue(4);
+    await reservePlanGeneration(premium);
+    countMock.mockResolvedValue(5);
+    const err = await reservePlanGeneration(premium).catch((e: unknown) => e);
+    expect((err as TRPCError).code).toBe('TOO_MANY_REQUESTS');
+    expect((err as TRPCError).message).toContain('limit of 5 plan generations');
+  });
+
+  it('plans: free stays at 3 and the upsell names the premium 5', async () => {
+    countMock.mockResolvedValue(3);
+    const err = await reservePlanGeneration(free).catch((e: unknown) => e);
+    expect((err as TRPCError).message).toBe(
+      "You've used today's 3 free plan generations. Upgrade for 5 per day.",
+    );
   });
 });
