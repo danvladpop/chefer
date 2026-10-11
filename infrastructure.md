@@ -3788,8 +3788,10 @@ hits the API. The deploy pipeline's `verify` job polls the same two URLs.
 
 ### `ci.yml` — lint / typecheck / test / build on push & PR to `master`
 
-Jobs: `Lint` (ESLint + prettier check), `Type Check`, `Unit Tests` (vitest, all
-workspaces), `UTC Day Guard` (**NEW, T-00.10, §2.12** — `scripts/check-utc-days.mjs`, a
+Jobs: `Lint` (ESLint), `Format` (prettier check), `Type Check`, `Unit Tests` (an aggregate
+that passes only when `Unit Tests (API, web, packages)` — vitest via turbo, every workspace but
+mobile — and the three `Unit Tests (mobile n/3)` Jest shards all pass; each shard restores its
+Jest transform cache from `actions/cache`), `UTC Day Guard` (**NEW, T-00.10, §2.12** — `scripts/check-utc-days.mjs`, a
 grep-based lint failing on `new Date().toISOString().split('T')[0]` / `.slice(0, 10)` in
 `apps/api/src/application/**` outside a known-violations allowlist; wave-1 fixes shrink the
 allowlist, never grow it), `Safety Regression` (T-01.1 —
@@ -3805,10 +3807,16 @@ level-0 request still succeeding, T-00.8; the job's API runs with `RATE_LIMIT_MA
 so the whole suite from one IP isn't throttled by the default 100/min limiter; **Following:** the job also sets `FEATURE_FLAGS: 'friends'` so `apps/mobile/tests/contract/friends.contract.test.ts` runs — it skips itself when the flag is off — and `flags.contract.test.ts`'s "every flag defaults off" check exempts `friends`), and `E2E Tests` (PRs only — the
 unauthenticated `public` Playwright project; the authenticated `mobile`/`desktop`
 projects need a seeded fixture dataset, planned with roadmap P0-8). The
-`Lint`/`Type Check`/`Unit Tests`/`Build` job names are polled by name from
+`Lint`/`Format`/`Type Check`/`Unit Tests`/`Build` job names are polled by name from
 `deploy.yml`'s gate — rename them in both files together (the two new jobs are NOT in that
 required set, so a still-empty Safety Regression or a UTC Day Guard allowlist entry never
 blocks a deploy).
+
+**Speed (2026-10-10):** no job waits on another except the `Unit Tests` aggregate, so a run takes
+as long as its slowest job instead of the old Setup → Unit Tests → Build → E2E chain (~14 min on
+PRs). `Build` no longer waits for Lint/Type Check/Unit Tests and `E2E Tests` no longer waits for
+`Build` (it builds with its own localhost URLs anyway); the deploy gate and branch protection still
+require all four checks, so nothing ships or merges on red.
 
 `Mobile Contract` and `E2E Tests` pull their Postgres service from
 `public.ecr.aws/docker/library/postgres:16-alpine` (the official image's AWS
@@ -3822,7 +3830,7 @@ Triggered by **Actions → Deploy → Run workflow**, `gh workflow run deploy.ym
 
 ```
 setup (resolve tag)
-  └─ gate (Wait for CI)                          polls this commit's Lint / Type Check /
+  └─ gate (Wait for CI)                          polls this commit's Lint / Format / Type Check /
         Unit Tests / Build check runs; fails the deploy if any is red;
         skipped on the rollback path (the image was CI'd when first built)
   └─ build (matrix: api + web, in parallel)      GitHub runner, buildx + GHA layer cache
@@ -3849,7 +3857,7 @@ different runtime and updates would never arrive). Rolling mobile JS back:
 commit).
 
 **Branch protection (manual, repo Settings → Branches → `master`):** require the
-`Lint`, `Type Check`, `Unit Tests`, and `Build` status checks. This is the second
+`Lint`, `Format`, `Type Check`, `Unit Tests`, and `Build` status checks. This is the second
 half of the gate — the deploy gate stops red code _shipping_; protection stops it
 _merging_.
 
