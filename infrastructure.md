@@ -3826,7 +3826,7 @@ setup (resolve tag)
   └─ build (matrix: api + web, in parallel)      GitHub runner, buildx + GHA layer cache
         push → ghcr.io/<owner>/chefer-{api,web}:latest and :sha-<short>
   └─ deploy (ssh to the VM)                      TAG=<tag> ./infrastructure/scripts/deploy.sh
-        git pull → docker compose pull → up -d --no-build → prune
+        git pull → docker compose pull → up -d --no-build → prune unused images (-a)
   └─ verify                                      polls <DEPLOYMENT_URL>/api/health (API + DB,
         expects {"ok":true}) and the homepage (web, expects 200); fails if either stays unhealthy
         └─ mobile-update (M4-4)                  `pnpm mobile:update "<sha> <subject>"` →
