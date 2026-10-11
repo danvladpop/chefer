@@ -7,7 +7,7 @@ import {
   MAX_BODY_METRICS_AGE,
   MIN_BODY_METRICS_AGE,
 } from '@chefer/types';
-import { Button, Card, Text } from '@chefer/ui-mobile';
+import { Text } from '@chefer/ui-mobile';
 import {
   bodyFieldTexts,
   heightCmFromText,
@@ -18,6 +18,8 @@ import { trpc } from '../../lib/trpc';
 import { HEALTH_DECLINED_BODY_NOTICE } from '../privacy/copy';
 import { HealthDeclinedNotice } from '../privacy/health-notices';
 import { useHealthConsent } from '../privacy/use-health-consent';
+import { BoardCard } from '../shell/today/parts';
+import { TrainButton } from '../shell/train/train-button';
 import { GoalStep } from './components/goal-step';
 import { metricsFieldErrors, MetricsStep } from './components/metrics-step';
 import type { ActivityLevel, BiologicalSex, Goal, MetricsValue } from './types';
@@ -232,17 +234,19 @@ export function GoalBodyCard({
   }
 
   return (
-    <Card testID="preferences-goal-body" className="gap-4">
+    <BoardCard testID="preferences-goal-body" className="gap-4">
       <View className="gap-1">
-        <Text variant="heading">Goal & body</Text>
-        <Text variant="muted" className="text-xs">
+        <Text accessibilityRole="header" className="text-headline font-semibold text-label">
+          Goal & body
+        </Text>
+        <Text className="text-subhead text-label-secondary">
           Optional, and available on every plan — with these, your calorie target is computed from
           your body instead of a default.
         </Text>
       </View>
 
       <View className="gap-2">
-        <Text variant="label">Goal</Text>
+        <Text className="text-subhead font-semibold text-label-secondary">Goal</Text>
         <GoalStep value={goal} onChange={setGoal} compact showDisclaimer={false} />
       </View>
 
@@ -262,15 +266,14 @@ export function GoalBodyCard({
         units={units}
       />
 
-      <Button
+      <TrainButton
         testID="prefs-save-goal-body"
+        label={isSaved && !dirty ? 'Saved ✓' : 'Save goal & body'}
         loading={isSaving}
         disabled={hasFieldError}
         onPress={handleSave}
-      >
-        {isSaved && !dirty ? 'Saved ✓' : 'Save goal & body'}
-      </Button>
-      {errorMessage && <Text className="text-xs text-red-600">{errorMessage}</Text>}
+      />
+      {errorMessage && <Text className="text-caption text-danger">{errorMessage}</Text>}
       {declined && (
         <HealthDeclinedNotice
           testID="prefs-goal-body-declined"
@@ -278,6 +281,6 @@ export function GoalBodyCard({
         />
       )}
       {healthConsentSheet}
-    </Card>
+    </BoardCard>
   );
 }

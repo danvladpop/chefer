@@ -1,18 +1,12 @@
 import { useEffect, useState } from 'react';
 import { Pressable, View } from 'react-native';
-import {
-  Button,
-  Card,
-  ErrorState,
-  Input,
-  SegmentedControl,
-  Text,
-  useQueryState,
-} from '@chefer/ui-mobile';
+import { ErrorState, Input, SegmentedControl, Text, useQueryState } from '@chefer/ui-mobile';
 import { formatKcal, userFacingErrorMessage } from '@chefer/utils';
 import { trpc } from '../../lib/trpc';
 import { useNumbersMode } from '../numbers-mode/numbers-mode';
 import { ProteinWhySheet } from '../nutrition/protein-why-sheet';
+import { BoardCard } from '../shell/today/parts';
+import { TrainButton } from '../shell/train/train-button';
 import { NumbersSettingsSection } from './numbers-settings-section';
 import { useNumericChain } from './use-numeric-chain';
 
@@ -171,8 +165,10 @@ export function TargetsCard({ previewKcal, numbersSettings }: TargetsCardProps =
   // UX-X-12: a failed load is not "Loading…" forever — say so and offer Retry.
   if (loadState === 'error') {
     return (
-      <Card testID="targets-card" className="gap-2">
-        <Text variant="heading">Your targets</Text>
+      <BoardCard testID="targets-card">
+        <Text accessibilityRole="header" className="text-headline font-semibold text-label">
+          Your targets
+        </Text>
         {numbersSection}
         <ErrorState
           testID="targets-card-error"
@@ -180,26 +176,28 @@ export function TargetsCard({ previewKcal, numbersSettings }: TargetsCardProps =
           onRetry={retry}
           className="py-4"
         />
-      </Card>
+      </BoardCard>
     );
   }
   if (!data) {
     return (
-      <Card testID="targets-card" className="gap-2">
-        <Text variant="heading">Your targets</Text>
-        {numbersSection}
-        <Text variant="muted" className="text-xs">
-          Loading…
+      <BoardCard testID="targets-card">
+        <Text accessibilityRole="header" className="text-headline font-semibold text-label">
+          Your targets
         </Text>
-      </Card>
+        {numbersSection}
+        <Text className="text-subhead text-label-secondary">Loading…</Text>
+      </BoardCard>
     );
   }
 
   return (
-    <Card testID="targets-card" className="gap-4">
+    <BoardCard testID="targets-card" className="gap-4">
       <View className="gap-1">
-        <Text variant="heading">Your targets</Text>
-        <Text variant="muted" className="text-xs">
+        <Text accessibilityRole="header" className="text-headline font-semibold text-label">
+          Your targets
+        </Text>
+        <Text className="text-subhead text-label-secondary">
           Suggested is computed from your body and goal; My own is never changed for you — a gym
           setup, weigh-in or goal edit only ever proposes a change, and you decide.
         </Text>
@@ -219,16 +217,16 @@ export function TargetsCard({ previewKcal, numbersSettings }: TargetsCardProps =
       {mode === 'SUGGESTED' ? (
         proteinOnly ? (
           // WP-08: protein-only mode shows the one number, and why it is that number.
-          <View className="gap-1 rounded-lg bg-accent p-3">
+          <View className="gap-1 rounded-control bg-brand-tint p-3">
             {fromEntered ? (
-              <Text variant="muted" className="text-xs">
+              <Text className="text-subhead text-label-secondary">
                 Your protein is set from your weight and goal when you finish.
               </Text>
             ) : (
               <>
                 <Text
                   testID="targets-suggested-protein"
-                  className="text-2xl font-bold text-primary"
+                  className="text-title2 font-bold text-brand"
                 >
                   {data.effective.proteinG} g protein a day
                 </Text>
@@ -242,7 +240,7 @@ export function TargetsCard({ previewKcal, numbersSettings }: TargetsCardProps =
                   }}
                   className="min-h-11 justify-center self-start"
                 >
-                  <Text className="text-xs font-semibold text-primary">
+                  <Text className="text-subhead font-semibold text-brand">
                     Why this protein number?
                   </Text>
                 </Pressable>
@@ -250,14 +248,14 @@ export function TargetsCard({ previewKcal, numbersSettings }: TargetsCardProps =
             )}
           </View>
         ) : (
-          <View className="gap-1 rounded-lg bg-accent p-3">
-            <Text testID="targets-suggested-kcal" className="text-2xl font-bold text-primary">
+          <View className="gap-1 rounded-control bg-brand-tint p-3">
+            <Text testID="targets-suggested-kcal" className="text-title2 font-bold text-brand">
               {formatKcal(
                 fromEntered && previewKcal ? previewKcal : data.suggested.dailyCalorieTarget,
               )}{' '}
               kcal
             </Text>
-            <Text variant="muted" className="text-xs">
+            <Text className="text-subhead text-label-secondary">
               {fromEntered
                 ? 'Worked out from the details you entered. Your macros are set when you finish.'
                 : `${data.suggested.proteinG}g protein · ${data.suggested.carbsG}g carbs · ${data.suggested.fatG}g fat`}
@@ -268,7 +266,7 @@ export function TargetsCard({ previewKcal, numbersSettings }: TargetsCardProps =
         <View className="gap-3">
           <View className="flex-row gap-2">
             <View className="flex-1 gap-1">
-              <Text variant="label">Calories</Text>
+              <Text className="text-subhead font-semibold text-label-secondary">Calories</Text>
               <Input
                 testID="targets-kcal"
                 {...numeric.bind(0)}
@@ -279,7 +277,7 @@ export function TargetsCard({ previewKcal, numbersSettings }: TargetsCardProps =
               />
             </View>
             <View className="flex-1 gap-1">
-              <Text variant="label">Protein (g)</Text>
+              <Text className="text-subhead font-semibold text-label-secondary">Protein (g)</Text>
               <Input
                 testID="targets-protein"
                 {...numeric.bind(1)}
@@ -292,7 +290,7 @@ export function TargetsCard({ previewKcal, numbersSettings }: TargetsCardProps =
           </View>
           <View className="flex-row gap-2">
             <View className="flex-1 gap-1">
-              <Text variant="label">Carbs (g)</Text>
+              <Text className="text-subhead font-semibold text-label-secondary">Carbs (g)</Text>
               <Input
                 testID="targets-carbs"
                 {...numeric.bind(2)}
@@ -303,7 +301,7 @@ export function TargetsCard({ previewKcal, numbersSettings }: TargetsCardProps =
               />
             </View>
             <View className="flex-1 gap-1">
-              <Text variant="label">Fat (g)</Text>
+              <Text className="text-subhead font-semibold text-label-secondary">Fat (g)</Text>
               <Input
                 testID="targets-fat"
                 {...numeric.bind(3)}
@@ -319,12 +317,15 @@ export function TargetsCard({ previewKcal, numbersSettings }: TargetsCardProps =
 
       {numeric.bars}
 
-      <Button testID="targets-save" loading={setMutation.isPending} onPress={save}>
-        {setMutation.isSuccess && !dirty ? 'Saved ✓' : 'Save targets'}
-      </Button>
+      <TrainButton
+        testID="targets-save"
+        label={setMutation.isSuccess && !dirty ? 'Saved ✓' : 'Save targets'}
+        loading={setMutation.isPending}
+        onPress={save}
+      />
       {(localError ??
         (setMutation.error ? userFacingErrorMessage(setMutation.error) : undefined)) && (
-        <Text testID="targets-error" className="text-xs text-red-600">
+        <Text testID="targets-error" className="text-caption text-danger">
           {localError ??
             (setMutation.error ? userFacingErrorMessage(setMutation.error) : undefined)}
         </Text>
@@ -336,6 +337,6 @@ export function TargetsCard({ previewKcal, numbersSettings }: TargetsCardProps =
           why={data.proteinWhy}
         />
       )}
-    </Card>
+    </BoardCard>
   );
 }

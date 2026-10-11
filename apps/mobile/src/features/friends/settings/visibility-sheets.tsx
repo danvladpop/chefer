@@ -73,13 +73,15 @@ export function PrivateConfirmSheet({
       title={FRIENDS_COPY.private.confirm.title}
       testID={testID}
     >
-      <Text testID={`${testID}-body`}>{FRIENDS_COPY.private.confirm.body(followers)}</Text>
+      <Text testID={`${testID}-body`} className="text-body text-label">
+        {FRIENDS_COPY.private.confirm.body(followers)}
+      </Text>
       {failed ? (
         <Text
           testID={`${testID}-error`}
           accessibilityRole="alert"
           accessibilityLiveRegion="polite"
-          className="text-sm text-destructive"
+          className="text-subhead text-danger"
         >
           {FRIENDS_COPY.settings.saveError}
         </Text>

@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Switch, View } from 'react-native';
 import { effectiveNumbersMode } from '@chefer/types';
-import { Text } from '@chefer/ui-mobile';
+import { Text, useThemeColors } from '@chefer/ui-mobile';
 import { userFacingErrorMessage } from '@chefer/utils';
 import { trpc } from '../../lib/trpc';
 import { NumbersModeChoice, type NumbersModeChoiceValue } from './numbers-mode-choice';
@@ -22,6 +22,7 @@ export function NumbersSettingsSection({
   /** The resolved "show nutrition on Today" (explicit choice, else goal-derived). */
   initialShowNutrition: boolean;
 }) {
+  const colors = useThemeColors();
   const utils = trpc.useUtils();
   const [mode, setMode] = useState<NumbersModeChoiceValue>(effectiveNumbersMode(initialMode));
   const [showNutrition, setShowNutrition] = useState(initialShowNutrition);
@@ -61,8 +62,8 @@ export function NumbersSettingsSection({
       />
       <View className="flex-row items-center justify-between gap-3">
         <View className="min-w-0 flex-1">
-          <Text variant="label">Show calories and macros on Today</Text>
-          <Text variant="muted" className="mt-1 text-xs">
+          <Text className="text-body text-label">Show calories and macros on Today</Text>
+          <Text className="mt-0.5 text-subhead text-label-secondary">
             Off: Today shows your meals and workouts, without numbers.
           </Text>
         </View>
@@ -75,11 +76,11 @@ export function NumbersSettingsSection({
             setShowNutrition(next);
             homeMutation.mutate({ showNutritionOnToday: next });
           }}
-          trackColor={{ true: '#944a00', false: '#d1d5db' }}
+          trackColor={{ true: colors.brand, false: colors.separator }}
         />
       </View>
       {failed && (
-        <Text testID="prefs-numbers-error" className="text-xs text-red-600">
+        <Text testID="prefs-numbers-error" className="text-caption text-danger">
           {userFacingErrorMessage(modeMutation.error ?? homeMutation.error) ||
             "Couldn't save that. Try again."}
         </Text>

@@ -1,19 +1,21 @@
 import { useEffect, useState } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, View } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
+import { ActivityIndicator, ScrollView, View } from 'react-native';
 import { router } from 'expo-router';
 import type { OnboardingJob } from '@chefer/types';
 import {
-  Button,
   ConfirmSheet,
   ErrorState,
+  IconButton,
   Screen,
   Text,
   useQueryState,
   useSnackbar,
+  useThemeColors,
 } from '@chefer/ui-mobile';
+import { Icon } from '../../src/components/icon';
 import { setMode } from '../../src/features/gym/mode-store';
 import { JobsStep } from '../../src/features/onboarding/jobs-step';
+import { TrainButton } from '../../src/features/shell/train/train-button';
 import { trpc } from '../../src/lib/trpc';
 import { useUnsavedGuard } from '../../src/lib/use-unsaved-guard';
 
@@ -27,8 +29,13 @@ import { useUnsavedGuard } from '../../src/lib/use-unsaved-guard';
 // Preferences, where How you cook / diet / goal live) — a lighter stand-in
 // for the onboarding food-only sub-flow the spec describes, which this
 // lane didn't have time to build as its own screen (see the final report).
+//
+// 11 Oct restyle: the shell's look — canvas, ShellTopBar's brand chevron +
+// title1 top bar (drawn here so Back and the title keep their testIDs, and so
+// Back stays a plain `router.back()` the unsaved guard intercepts).
 
 export default function SettingsJobsScreen() {
+  const colors = useThemeColors();
   const utils = trpc.useUtils();
   const snackbar = useSnackbar();
   const prefsQuery = trpc.preferences.get.useQuery();
@@ -89,7 +96,7 @@ export default function SettingsJobsScreen() {
   // UX-X-12: a failed load is not a spinner forever.
   if (loadState === 'error') {
     return (
-      <Screen edges={['top', 'bottom', 'left', 'right']} className="justify-center">
+      <Screen edges={['top', 'bottom', 'left', 'right']} className="justify-center bg-canvas">
         <ErrorState
           testID="settings-jobs-load-error"
           title="Couldn't load your settings"
@@ -101,26 +108,31 @@ export default function SettingsJobsScreen() {
 
   if (jobs === null) {
     return (
-      <Screen edges={['top', 'bottom', 'left', 'right']} className="items-center justify-center">
-        <ActivityIndicator size="large" color="#944a00" />
+      <Screen
+        edges={['top', 'bottom', 'left', 'right']}
+        className="items-center justify-center bg-canvas"
+      >
+        <ActivityIndicator size="large" color={colors.brand} />
       </Screen>
     );
   }
 
   return (
-    <Screen edges={['top', 'bottom', 'left', 'right']} className="px-0">
+    <Screen edges={['top', 'bottom', 'left', 'right']} className="bg-canvas px-0">
       {/* UX-ACC-05: a back row (Android had no way out but the system gesture). */}
-      <View className="flex-row items-center gap-3 px-4 py-3">
-        <Pressable
+      <View className="mx-4 mt-3 min-h-11 flex-row items-center gap-1">
+        <IconButton
           testID="settings-jobs-back"
-          accessibilityRole="button"
           accessibilityLabel="Back"
+          icon={<Icon name="chevronBack" color={colors.brand} size={26} />}
           onPress={() => router.back()}
-          className="h-11 w-11 items-center justify-center"
+          className="-ml-2"
+        />
+        <Text
+          testID="settings-jobs-title"
+          accessibilityRole="header"
+          className="min-w-0 flex-1 text-title1 font-bold text-label"
         >
-          <Ionicons name="arrow-back" size={20} color="#1f2937" />
-        </Pressable>
-        <Text testID="settings-jobs-title" variant="heading" className="min-w-0 flex-1">
           What you use Chefer for
         </Text>
       </View>
@@ -129,19 +141,19 @@ export default function SettingsJobsScreen() {
       <ScrollView
         testID="settings-jobs-scroll"
         className="flex-1"
-        contentContainerClassName="px-4 pb-4"
+        contentContainerClassName="px-4 pb-4 pt-3"
       >
         <JobsStep value={jobs} onChange={setJobs} />
       </ScrollView>
-      <View className="gap-2 border-t border-border px-4 pb-2 pt-3">
-        <Button
+      <View className="gap-2 border-t border-separator bg-surface px-4 pb-2 pt-3">
+        <TrainButton
           testID="settings-jobs-save"
+          label="Save"
+          size="lg"
           loading={setJobsMutation.isPending}
           disabled={jobs.length === 0 || setJobsMutation.isPending}
           onPress={() => setJobsMutation.mutate({ jobs })}
-        >
-          Save
-        </Button>
+        />
       </View>
       <ConfirmSheet testID="settings-jobs-discard" {...guard.sheetProps} />
     </Screen>

@@ -1,5 +1,6 @@
 import { View } from 'react-native';
-import { Button, Card, Text } from '@chefer/ui-mobile';
+import { Text } from '@chefer/ui-mobile';
+import { TrainButton } from '../../shell/train/train-button';
 import { recipeFormCopy } from './copy';
 
 export interface FormFooterProps {
@@ -43,32 +44,35 @@ export function FormFooter({
           : recipeFormCopy.buttons.create;
 
   return (
-    <View className="gap-2 border-t border-border bg-background px-4 pb-2 pt-3">
+    <View className="gap-2 border-t border-separator bg-surface px-4 pb-2 pt-3">
       {offline ? (
-        <Text testID="rf-offline" variant="muted" className="text-center text-xs">
+        <Text testID="rf-offline" className="text-center text-caption text-label-secondary">
           {recipeFormCopy.save.offline}
         </Text>
       ) : null}
       {saveError ? (
-        <Card testID="rf-save-error" className="border-red-200 bg-red-50">
-          <Text className="text-sm text-red-600">{saveError}</Text>
-        </Card>
+        <View
+          testID="rf-save-error"
+          className="rounded-card border border-danger bg-surface px-4 py-3"
+        >
+          <Text className="text-callout text-danger">{saveError}</Text>
+        </View>
       ) : null}
-      <Button
+      <TrainButton
         testID="rf-save"
+        size="lg"
+        label={label}
         loading={saving}
         disabled={offline || photoUploading}
         onPress={onPress}
-      >
-        {label}
-      </Button>
+      />
       {photoUploading ? (
-        <Text testID="rf-photo-wait" variant="muted" className="text-center text-xs">
+        <Text testID="rf-photo-wait" className="text-center text-caption text-label-secondary">
           {recipeFormCopy.photo.waitingToSave}
         </Text>
       ) : null}
       {!offline && !photoUploading && missingText ? (
-        <Text testID="rf-missing" variant="muted" className="text-center text-xs">
+        <Text testID="rf-missing" className="text-center text-caption text-label-secondary">
           {missingText}
         </Text>
       ) : null}

@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { View } from 'react-native';
 import { SOCIAL_PROVIDER_LABELS, type LinkedIdentity, type SocialProvider } from '@chefer/types';
-import { Button, Card, Text } from '@chefer/ui-mobile';
+import { Text } from '@chefer/ui-mobile';
 import { userFacingErrorMessage } from '@chefer/utils';
 import { trpc } from '../../lib/trpc';
 import { socialErrorMessage } from '../auth/social/social-errors';
@@ -10,6 +10,7 @@ import {
   requestProviderCredential,
   type SocialProviderKey,
 } from '../auth/social/use-social-sign-in';
+import { TrainButton } from '../shell/train/train-button';
 
 // Profile › Sign-in methods (WP-22). Mirrors apps/web SignInMethodsCard: which
 // Google/Apple accounts are connected, connect (a fresh provider sign-in →
@@ -17,6 +18,7 @@ import {
 // last way to sign in), and, for an account with no password, a way to add one
 // (the reset link doubles as "set a password"). Hidden when there is nothing
 // to show: nothing connected and no provider this device can offer.
+// 11 Oct restyle: the shell's card, named text styles and colour roles.
 
 const PROVIDER_KEY: Record<SocialProvider, SocialProviderKey> = {
   GOOGLE: 'google',
@@ -98,15 +100,23 @@ export function SignInMethodsCard() {
 
   const email = me.data?.email ?? null;
   return (
-    <Card testID="profile-sign-in-methods" className="min-w-0">
-      <Text className="w-full min-w-0 font-semibold text-gray-900">
-        {SIGN_IN_METHODS_COPY.title}
-      </Text>
-      <Text variant="muted" className="mt-1 w-full min-w-0 text-sm">
-        {SIGN_IN_METHODS_COPY.intro}
-      </Text>
+    <View
+      testID="profile-sign-in-methods"
+      className="min-w-0 gap-3 rounded-card border border-separator bg-surface p-4"
+    >
+      <View className="gap-0.5">
+        <Text
+          accessibilityRole="header"
+          className="w-full min-w-0 text-headline font-semibold text-label"
+        >
+          {SIGN_IN_METHODS_COPY.title}
+        </Text>
+        <Text className="w-full min-w-0 text-subhead text-label-secondary">
+          {SIGN_IN_METHODS_COPY.intro}
+        </Text>
+      </View>
 
-      <View className="mt-3 gap-3">
+      <View className="gap-3">
         {rows.map(({ provider, connected }) => (
           <MethodRow
             key={provider}
@@ -129,39 +139,37 @@ export function SignInMethodsCard() {
         <Text
           testID="sign-in-methods-error"
           accessibilityRole="alert"
-          className="mt-3 text-sm text-red-700"
+          className="text-subhead text-danger"
         >
           {error}
         </Text>
       )}
 
       {!data.hasPassword && (
-        <View
-          testID="sign-in-methods-no-password"
-          className="mt-4 gap-2 border-t border-border pt-3"
-        >
-          <Text className="text-sm text-gray-700">{SIGN_IN_METHODS_COPY.noPassword}</Text>
+        <View testID="sign-in-methods-no-password" className="gap-2 border-t border-separator pt-3">
+          <Text className="text-subhead text-label-secondary">
+            {SIGN_IN_METHODS_COPY.noPassword}
+          </Text>
           {email &&
             (reset.isSuccess ? (
-              <Text testID="sign-in-methods-reset-sent" className="text-sm text-gray-700">
+              <Text testID="sign-in-methods-reset-sent" className="text-subhead text-label">
                 {SIGN_IN_METHODS_COPY.sentTo} {email}. {SIGN_IN_METHODS_COPY.sentHint}
               </Text>
             ) : (
-              <Button
+              <TrainButton
                 testID="sign-in-methods-set-password"
-                variant="outline"
+                label={SIGN_IN_METHODS_COPY.setPassword}
+                variant="tinted"
                 loading={reset.isPending}
                 onPress={() => reset.mutate({ email })}
-              >
-                {SIGN_IN_METHODS_COPY.setPassword}
-              </Button>
+              />
             ))}
           {reset.isError && (
-            <Text className="text-sm text-red-700">{userFacingErrorMessage(reset.error)}</Text>
+            <Text className="text-subhead text-danger">{userFacingErrorMessage(reset.error)}</Text>
           )}
         </View>
       )}
-    </Card>
+    </View>
   );
 }
 
@@ -185,34 +193,32 @@ function MethodRow({
   return (
     <View testID={`sign-in-method-${id}`} className="flex-row items-center justify-between gap-3">
       <View className="min-w-0 flex-1">
-        <Text className="text-sm font-medium text-gray-900">{label}</Text>
-        <Text variant="muted" numberOfLines={1} className="text-xs">
+        <Text className="text-body text-label">{label}</Text>
+        <Text numberOfLines={1} className="text-subhead text-label-secondary">
           {connected
             ? (connected.email ?? SIGN_IN_METHODS_COPY.connected)
             : SIGN_IN_METHODS_COPY.notConnected}
         </Text>
       </View>
       {connected ? (
-        <Button
+        <TrainButton
           testID={`sign-in-method-${id}-disconnect`}
+          label={SIGN_IN_METHODS_COPY.disconnect}
           variant="outline"
           disabled={busy}
           accessibilityLabel={`${SIGN_IN_METHODS_COPY.disconnect} ${label}`}
           onPress={onDisconnect}
-        >
-          {SIGN_IN_METHODS_COPY.disconnect}
-        </Button>
+        />
       ) : (
-        <Button
+        <TrainButton
           testID={`sign-in-method-${id}-connect`}
-          variant="outline"
+          label={SIGN_IN_METHODS_COPY.connect}
+          variant="tinted"
           loading={loading}
           disabled={busy}
           accessibilityLabel={`${SIGN_IN_METHODS_COPY.connect} ${label}`}
           onPress={onConnect}
-        >
-          {SIGN_IN_METHODS_COPY.connect}
-        </Button>
+        />
       )}
     </View>
   );

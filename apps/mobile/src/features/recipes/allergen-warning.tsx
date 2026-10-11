@@ -1,6 +1,6 @@
 import { View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { Text } from '@chefer/ui-mobile';
+import { Text, useThemeColors } from '@chefer/ui-mobile';
 import { cn, conflictHeadline, type ConflictLike } from '@chefer/utils';
 
 // Mirrors apps/web/src/features/recipes/components/AllergenWarning.tsx: shown
@@ -19,6 +19,7 @@ export function AllergenWarningBanner({
   details?: readonly ConflictLike[] | null | undefined;
   className?: string;
 }) {
+  const colors = useThemeColors();
   if (!warnings || warnings.length === 0) return null;
   const headline = conflictHeadline(warnings, details);
   return (
@@ -26,13 +27,13 @@ export function AllergenWarningBanner({
       testID="allergen-warning"
       accessibilityRole="alert"
       className={cn(
-        'flex-row items-start gap-2 rounded-xl border border-red-200 bg-red-50 px-3 py-2.5',
+        'flex-row items-start gap-2 rounded-card border border-danger/30 bg-danger/10 px-3 py-2.5',
         className,
       )}
     >
-      <Ionicons name="warning" size={16} color="#991b1b" style={{ marginTop: 2 }} />
-      <Text className="min-w-0 flex-1 text-sm text-red-800">
-        <Text className="text-sm font-semibold text-red-800">{headline}.</Text> This recipe
+      <Ionicons name="warning" size={16} color={colors.danger} style={{ marginTop: 2 }} />
+      <Text className="min-w-0 flex-1 text-subhead text-danger">
+        <Text className="text-subhead font-semibold text-danger">{headline}.</Text> This recipe
         conflicts with your allergies or diet — check the ingredients or swap it.
       </Text>
     </View>
@@ -47,15 +48,16 @@ export function AllergenWarningChip({
   warnings: string[] | undefined;
   details?: readonly ConflictLike[] | null | undefined;
 }) {
+  const colors = useThemeColors();
   if (!warnings || warnings.length === 0) return null;
   const headline = conflictHeadline(warnings, details);
   return (
     <View
       accessibilityLabel={headline}
-      className="flex-row items-center gap-1 self-start rounded-full bg-red-100 px-2 py-0.5"
+      className="flex-row items-center gap-1 self-start rounded-full bg-danger/10 px-2 py-0.5"
     >
-      <Ionicons name="warning" size={12} color="#991b1b" />
-      <Text numberOfLines={1} className="text-xs font-semibold text-red-800">
+      <Ionicons name="warning" size={12} color={colors.danger} />
+      <Text numberOfLines={1} className="text-caption font-semibold text-danger">
         {headline}
       </Text>
     </View>

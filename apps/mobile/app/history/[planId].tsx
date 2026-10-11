@@ -2,7 +2,15 @@ import { useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { router, useLocalSearchParams } from 'expo-router';
-import { Button, Card, EmptyState, ErrorState, Screen, Text, useSnackbar } from '@chefer/ui-mobile';
+import {
+  EmptyState,
+  ErrorState,
+  IconButton,
+  Screen,
+  Text,
+  useSnackbar,
+  useThemeColors,
+} from '@chefer/ui-mobile';
 import {
   cn,
   defaultSavedWeekName,
@@ -11,9 +19,12 @@ import {
   sumPlanDay,
   userFacingErrorMessage,
 } from '@chefer/utils';
+import { Icon } from '../../src/components/icon';
 import { useRestorePlan } from '../../src/features/history/use-restore-plan';
 import { PlanMealCard } from '../../src/features/meal-plan/plan-meal-card';
 import { useNumbersMode } from '../../src/features/numbers-mode/numbers-mode';
+import { BoardCard } from '../../src/features/shell/today/parts';
+import { TrainButton } from '../../src/features/shell/train/train-button';
 import { trpc } from '../../src/lib/trpc';
 
 // Past-week detail — port of apps/web (dashboard)/history/[planId]
@@ -32,6 +43,7 @@ export default function HistoryPlanScreen() {
   // WP-08: protein-only mode shows protein, never kcal, for a past week too.
   const { proteinOnly } = useNumbersMode();
   const snackbar = useSnackbar();
+  const colors = useThemeColors();
 
   const {
     data: plan,
@@ -63,22 +75,27 @@ export default function HistoryPlanScreen() {
   const dayKcal = dayTotals.kcal;
 
   return (
-    <Screen edges={['top', 'bottom', 'left', 'right']} className="px-0">
-      <View className="flex-row items-center gap-3 px-4 py-3">
-        <Pressable
+    <Screen edges={['top', 'bottom', 'left', 'right']} className="bg-canvas px-0">
+      {/* The shell's pushed-page top bar (chevron Back + title1), drawn here
+          to keep the history-plan-back / history-plan-title ids. */}
+      <View className="min-h-11 flex-row items-center gap-1 px-4 py-2">
+        <IconButton
           testID="history-plan-back"
-          accessibilityRole="button"
           accessibilityLabel="Back"
-          onPress={() => router.back()}
-          className="h-11 w-11 items-center justify-center"
-        >
-          <Ionicons name="arrow-back" size={20} color="#1f2937" />
-        </Pressable>
+          icon={<Icon name="chevronBack" color={colors.brand} size={26} />}
+          onPress={() => (router.canGoBack() ? router.back() : router.replace('/my-weeks'))}
+          className="-ml-2"
+        />
         <View className="min-w-0 flex-1">
-          <Text className="text-xs font-semibold uppercase tracking-widest text-gray-500">
+          <Text className="text-subhead font-semibold text-label-secondary" numberOfLines={1}>
             Read-only view
           </Text>
-          <Text testID="history-plan-title" variant="title" numberOfLines={1}>
+          <Text
+            testID="history-plan-title"
+            accessibilityRole="header"
+            className="text-title1 font-bold text-label"
+            numberOfLines={1}
+          >
             {weekStart ? `Week of ${formatDate(weekStart, 'medium')}` : 'Past week'}
           </Text>
         </View>
@@ -86,7 +103,7 @@ export default function HistoryPlanScreen() {
 
       {isLoading ? (
         <View className="flex-1 items-center justify-center">
-          <ActivityIndicator size="large" color="#944a00" />
+          <ActivityIndicator size="large" color={colors.brand} />
         </View>
       ) : !plan ? (
         // Not found is a real answer; anything else is a failed load
@@ -95,7 +112,7 @@ export default function HistoryPlanScreen() {
           <ErrorState
             testID="history-plan-error"
             title="Couldn't load this week"
-            icon={<Ionicons name="cloud-offline-outline" size={40} color="#9ca3af" />}
+            icon={<Ionicons name="cloud-offline-outline" size={40} color={colors.labelTertiary} />}
             onRetry={() => void refetch()}
           />
         ) : (
@@ -124,22 +141,22 @@ export default function HistoryPlanScreen() {
                   accessibilityLabel={formatDate(date, 'weekday-long-date')}
                   onPress={() => setSelectedDay(i)}
                   className={cn(
-                    'h-14 w-11 items-center justify-center gap-0.5 rounded-xl',
-                    isSelected ? 'bg-primary' : 'bg-gray-50',
+                    'h-14 w-11 items-center justify-center gap-0.5 rounded-control border',
+                    isSelected ? 'border-brand bg-brand' : 'border-separator bg-surface',
                   )}
                 >
                   <Text
                     className={cn(
-                      'text-xs font-semibold uppercase',
-                      isSelected ? 'text-primary-foreground' : 'text-gray-600',
+                      'text-caption font-semibold',
+                      isSelected ? 'text-brand-on' : 'text-label-secondary',
                     )}
                   >
                     {label}
                   </Text>
                   <Text
                     className={cn(
-                      'text-xs font-bold',
-                      isSelected ? 'text-primary-foreground' : 'text-gray-800',
+                      'text-caption font-bold',
+                      isSelected ? 'text-brand-on' : 'text-label',
                     )}
                   >
                     {date.getDate()}
@@ -147,7 +164,7 @@ export default function HistoryPlanScreen() {
                   <View
                     className={cn(
                       'h-1 w-1 rounded-full',
-                      !hasMeals ? 'bg-transparent' : isSelected ? 'bg-white/70' : 'bg-primary',
+                      !hasMeals ? 'bg-transparent' : isSelected ? 'bg-brand-on' : 'bg-brand',
                     )}
                   />
                 </Pressable>
@@ -157,18 +174,20 @@ export default function HistoryPlanScreen() {
 
           <ScrollView contentContainerClassName="gap-3 px-4 py-2 pb-8">
             {meals.length === 0 ? (
-              <Card className="items-center py-8">
-                <Text variant="muted">No meals planned for this day.</Text>
-              </Card>
+              <BoardCard className="items-center py-8">
+                <Text className="text-body text-label-secondary">
+                  No meals planned for this day.
+                </Text>
+              </BoardCard>
             ) : (
               <>
-                <Text testID="history-day-kcal" className="text-xs text-gray-500">
+                <Text testID="history-day-kcal" className="text-subhead text-label-secondary">
                   {proteinOnly
                     ? `Day total · ${dayTotals.protein} g protein`
                     : `Day total · ${formatKcal(dayKcal)} kcal`}
                 </Text>
                 {day?.proteinGapG !== undefined && (
-                  <Text testID="history-day-protein-gap" className="text-xs text-amber-800">
+                  <Text testID="history-day-protein-gap" className="text-subhead text-attention">
                     Protein short by {day.proteinGapG} g
                   </Text>
                 )}
@@ -184,31 +203,29 @@ export default function HistoryPlanScreen() {
             )}
           </ScrollView>
 
-          <View className="gap-2 border-t border-border px-4 pb-2 pt-3">
+          <View className="gap-2 border-t border-separator bg-canvas px-4 pb-2 pt-3">
             {restore.errorFor(plan.planId) && (
-              <Text testID="history-plan-restore-error" className="text-xs text-red-600">
+              <Text testID="history-plan-restore-error" className="text-caption text-danger">
                 {restore.errorFor(plan.planId)}
               </Text>
             )}
-            <Button
+            <TrainButton
               testID="history-plan-restore"
-              variant="outline"
+              label="Use this week again"
               loading={restore.pendingPlanId === plan.planId}
               onPress={() => restore.requestRestore(plan.planId, weekLabel ?? '')}
-            >
-              Use this week again
-            </Button>
-            <Button
+            />
+            <TrainButton
               testID="history-plan-save-week"
+              label="Save as a week"
               variant="ghost"
               loading={saveAsWeek.isPending}
-              onPress={() =>
-                weekStart &&
-                saveAsWeek.mutate({ planId: plan.planId, name: defaultSavedWeekName(weekStart) })
-              }
-            >
-              Save as a week
-            </Button>
+              onPress={() => {
+                if (weekStart) {
+                  saveAsWeek.mutate({ planId: plan.planId, name: defaultSavedWeekName(weekStart) });
+                }
+              }}
+            />
           </View>
           {restore.sheet}
         </>

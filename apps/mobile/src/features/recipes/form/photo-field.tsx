@@ -3,12 +3,13 @@ import { ActivityIndicator, Image, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import { fetch as expoFetch } from 'expo/fetch';
-import { Button, Text } from '@chefer/ui-mobile';
+import { Text, useThemeColors } from '@chefer/ui-mobile';
 import { userFacingErrorMessage } from '@chefer/utils';
 import { getApiBaseUrl } from '../../../lib/api-url';
 import { getToken } from '../../../lib/auth-store';
 import { uploadImage } from '../../../lib/media-client';
 import { photoPickerOptions, preparePhoto, type PreparedPhoto } from '../../../lib/prepare-photo';
+import { TrainButton } from '../../shell/train/train-button';
 import { recipeFormCopy } from './copy';
 
 export interface PhotoFieldProps {
@@ -42,6 +43,7 @@ export function PhotoField({
   disabled = false,
   onUploadingChange,
 }: PhotoFieldProps) {
+  const colors = useThemeColors();
   const [previewUri, setPreviewUri] = useState<string | null>(null);
   const [lastAsset, setLastAsset] = useState<ImagePicker.ImagePickerAsset | null>(null);
   const [uploading, setUploading] = useState(false);
@@ -106,36 +108,34 @@ export function PhotoField({
           {previewUri ? (
             <Image
               source={{ uri: previewUri }}
-              className="h-40 w-full rounded-xl opacity-50"
+              className="h-40 w-full rounded-card opacity-50"
               resizeMode="cover"
             />
           ) : null}
         </View>
         <View className="flex-row items-start gap-1.5">
-          <Ionicons name="warning-outline" size={16} color="#dc2626" />
-          <Text testID="rf-photo-error" className="flex-1 text-xs text-destructive">
+          <Ionicons name="warning-outline" size={18} color={colors.danger} />
+          <Text testID="rf-photo-error" className="min-w-0 flex-1 text-subhead text-danger">
             {recipeFormCopy.photo.failedTitle} {error}
           </Text>
         </View>
         <View className="flex-row gap-2">
-          <Button
+          <TrainButton
             testID="rf-photo-retry"
-            variant="outline"
+            variant="tinted"
+            label={recipeFormCopy.photo.tryAgain}
             disabled={disabled}
             onPress={retry}
             className="flex-1"
-          >
-            {recipeFormCopy.photo.tryAgain}
-          </Button>
-          <Button
+          />
+          <TrainButton
             testID="rf-photo-choose-another"
             variant="outline"
+            label={recipeFormCopy.photo.chooseAnother}
             disabled={disabled}
             onPress={() => void pickAndUpload()}
             className="flex-1"
-          >
-            {recipeFormCopy.photo.chooseAnother}
-          </Button>
+          />
         </View>
       </View>
     );
@@ -147,14 +147,14 @@ export function PhotoField({
         <View className="relative">
           <Image
             source={{ uri: previewUri ?? undefined }}
-            className="h-40 w-full rounded-xl opacity-50"
+            className="h-40 w-full rounded-card opacity-50"
             resizeMode="cover"
           />
           <View className="absolute inset-0 items-center justify-center">
-            <ActivityIndicator size="large" color="#944a00" />
+            <ActivityIndicator size="large" color={colors.brand} />
           </View>
         </View>
-        <Text variant="muted" className="text-center text-xs">
+        <Text className="text-center text-caption text-label-secondary">
           {recipeFormCopy.photo.uploading}
         </Text>
       </View>
@@ -164,47 +164,39 @@ export function PhotoField({
   if (imageUrl) {
     return (
       <View className="gap-2">
-        <Image source={{ uri: imageUrl }} className="h-40 w-full rounded-xl" resizeMode="cover" />
+        <Image source={{ uri: imageUrl }} className="h-40 w-full rounded-card" resizeMode="cover" />
         <View className="flex-row gap-2">
-          <Button
+          <TrainButton
             testID="rf-photo-change"
-            variant="outline"
+            variant="tinted"
+            label={recipeFormCopy.photo.change}
             disabled={disabled}
             onPress={() => void pickAndUpload()}
             className="flex-1"
-          >
-            {recipeFormCopy.photo.change}
-          </Button>
-          <Button testID="rf-photo-remove" variant="outline" onPress={remove} className="flex-1">
-            {recipeFormCopy.photo.remove}
-          </Button>
+          />
+          <TrainButton
+            testID="rf-photo-remove"
+            variant="danger"
+            label={recipeFormCopy.photo.remove}
+            onPress={remove}
+            className="flex-1"
+          />
         </View>
       </View>
     );
   }
 
   return (
-    <Button
+    <TrainButton
       // Keep as "rf-photo" (not "rf-photo-add"): e2e/common/pick-latest-photo.yaml
       // (shared by recipes.flow.yaml and recipe-create-photo.flow.yaml) taps
       // this id to open the picker.
       testID="rf-photo"
-      variant="outline"
+      variant="tinted"
+      icon="images"
+      label={disabled ? recipeFormCopy.buttons.needsConnection : recipeFormCopy.photo.add}
       disabled={disabled}
       onPress={() => void pickAndUpload()}
-    >
-      <View className="flex-row items-center gap-1.5">
-        <Ionicons name="image-outline" size={16} color={disabled ? '#9ca3af' : '#944a00'} />
-        <Text
-          className={
-            disabled
-              ? 'text-sm font-medium text-muted-foreground'
-              : 'text-sm font-medium text-primary'
-          }
-        >
-          {disabled ? recipeFormCopy.buttons.needsConnection : recipeFormCopy.photo.add}
-        </Text>
-      </View>
-    </Button>
+    />
   );
 }

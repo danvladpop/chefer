@@ -1,7 +1,7 @@
 import { useState } from 'react';
-import { Pressable, View } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
-import { Sheet, Text } from '@chefer/ui-mobile';
+import { View } from 'react-native';
+import { IconButton, PressableScale, Sheet, Text, useThemeColors } from '@chefer/ui-mobile';
+import { Icon } from '../../../components/icon';
 
 export interface RowMenuAction {
   label: string;
@@ -25,17 +25,15 @@ export interface RowMenuProps {
  */
 export function RowMenu({ accessibilityLabel, actions, testID }: RowMenuProps) {
   const [open, setOpen] = useState(false);
+  const colors = useThemeColors();
   return (
     <>
-      <Pressable
+      <IconButton
         testID={testID}
-        accessibilityRole="button"
         accessibilityLabel={accessibilityLabel}
+        icon={<Icon name="more" size={20} color={colors.labelSecondary} />}
         onPress={() => setOpen(true)}
-        className="h-11 w-11 items-center justify-center"
-      >
-        <Ionicons name="ellipsis-horizontal" size={20} color="#6b7280" />
-      </Pressable>
+      />
       <Sheet
         visible={open}
         onClose={() => setOpen(false)}
@@ -44,7 +42,7 @@ export function RowMenu({ accessibilityLabel, actions, testID }: RowMenuProps) {
       >
         <View className="gap-1">
           {actions.map((action) => (
-            <Pressable
+            <PressableScale
               key={action.label}
               testID={action.testID}
               accessibilityRole="button"
@@ -52,12 +50,14 @@ export function RowMenu({ accessibilityLabel, actions, testID }: RowMenuProps) {
                 setOpen(false);
                 action.onPress();
               }}
-              className="min-h-11 justify-center rounded-md px-2 py-2"
+              className="min-h-11 justify-center rounded-control px-2 py-2"
             >
-              <Text className={action.destructive ? 'text-base text-destructive' : 'text-base'}>
+              <Text
+                className={action.destructive ? 'text-body text-danger' : 'text-body text-label'}
+              >
                 {action.label}
               </Text>
-            </Pressable>
+            </PressableScale>
           ))}
         </View>
       </Sheet>

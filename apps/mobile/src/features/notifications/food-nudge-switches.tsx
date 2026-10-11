@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Switch, View } from 'react-native';
-import { Text } from '@chefer/ui-mobile';
+import { Text, useThemeColors } from '@chefer/ui-mobile';
 import { NotificationsOffRow } from '../../components/notifications-off-row';
 import {
   refreshNotificationPermission,
@@ -22,7 +22,6 @@ import { useFoodNudgePrefs } from './use-food-nudges';
 // "Off for Chefer" row. Scheduling itself is the root `FoodNudgeHost`'s job
 // (it reacts to the stored choice).
 
-const TRACK = { true: '#944a00', false: '#d1d5db' };
 const pad = (n: number) => String(n).padStart(2, '0');
 
 export const DINNER_NUDGE_COPY = {
@@ -41,20 +40,19 @@ function NudgeRow(props: {
   value: boolean;
   onChange: (next: boolean) => void;
 }) {
+  const colors = useThemeColors();
   return (
     <View className="min-h-11 flex-row items-center justify-between gap-3 py-1">
       <View className="min-w-0 flex-1">
-        <Text className="text-sm font-medium text-gray-900">{props.title}</Text>
-        <Text variant="muted" className="text-xs">
-          {props.description}
-        </Text>
+        <Text className="text-body text-label">{props.title}</Text>
+        <Text className="mt-0.5 text-subhead text-label-secondary">{props.description}</Text>
       </View>
       <Switch
         testID={props.testID}
         accessibilityLabel={props.title}
         value={props.value}
         onValueChange={props.onChange}
-        trackColor={TRACK}
+        trackColor={{ true: colors.brand, false: colors.separator }}
       />
     </View>
   );

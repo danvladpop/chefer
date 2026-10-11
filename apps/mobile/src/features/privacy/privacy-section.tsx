@@ -1,8 +1,8 @@
 import { View } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { FRIENDS_COPY, type FriendsMeDto } from '@chefer/types';
-import { PressableScale, Text } from '@chefer/ui-mobile';
+import { PressableScale, Text, useThemeColors } from '@chefer/ui-mobile';
+import { Icon } from '../../components/icon';
 import { useFriendsMe } from '../friends/api/use-friends-me';
 import { AccountDataCard } from '../profile/account-data-card';
 import { AiConsentCard } from '../profile/ai-consent-card';
@@ -19,8 +19,13 @@ import { HealthConsentCard } from './health-consent-card';
 // Health information (T-26.4): consent status + Withdraw and delete, above the
 // AI consent (which stays separate). Following's `Profile visibility` row sits
 // between Consent history and Gym settings (only while Following is available).
+// 11 Oct restyle: rows in the shell's card look, colour roles, Icon set.
+
+const ROW =
+  'min-h-11 flex-row items-center gap-3 rounded-card border border-separator bg-surface p-4';
 
 function GymSettingsRow() {
+  const colors = useThemeColors();
   return (
     <PressableScale
       pressScale="card"
@@ -28,11 +33,11 @@ function GymSettingsRow() {
       accessibilityRole="button"
       accessibilityLabel="Gym settings"
       onPress={() => router.push('/gym/settings')}
-      className="min-h-11 flex-row items-center gap-3 rounded-xl border border-border bg-card p-4"
+      className={ROW}
     >
-      <Ionicons name="barbell-outline" size={20} color="#944a00" />
-      <Text className="min-w-0 flex-1 font-semibold text-gray-900">Gym settings</Text>
-      <Ionicons name="chevron-forward" size={18} color="#9ca3af" />
+      <Icon name="barbell" size={22} color={colors.brand} />
+      <Text className="min-w-0 flex-1 text-body text-label">Gym settings</Text>
+      <Icon name="chevronRight" size={18} color={colors.labelTertiary} />
     </PressableScale>
   );
 }
@@ -53,6 +58,7 @@ export function profileVisibilityValue(me: FriendsMeDto): string {
  */
 function ProfileVisibilityRow() {
   const { me } = useFriendsMe();
+  const colors = useThemeColors();
   if (!me) return null;
   const value = profileVisibilityValue(me);
   return (
@@ -62,16 +68,17 @@ function ProfileVisibilityRow() {
       accessibilityRole="button"
       accessibilityLabel={`${FRIENDS_COPY.privacyRow.label}, ${value}`}
       onPress={() => router.push(me.activated ? '/friends/settings' : '/friends')}
-      className="min-h-11 flex-row items-center gap-3 rounded-xl border border-border bg-card p-4"
+      className={ROW}
     >
-      <Ionicons name="people-outline" size={20} color="#944a00" />
-      <Text className="min-w-0 flex-1 font-semibold text-gray-900">
-        {FRIENDS_COPY.privacyRow.label}
-      </Text>
-      <Text testID="profile-friends-visibility-value" variant="muted" className="shrink-0">
+      <Icon name="following" size={22} color={colors.brand} />
+      <Text className="min-w-0 flex-1 text-body text-label">{FRIENDS_COPY.privacyRow.label}</Text>
+      <Text
+        testID="profile-friends-visibility-value"
+        className="shrink-0 text-body text-label-secondary"
+      >
         {value}
       </Text>
-      <Ionicons name="chevron-forward" size={18} color="#9ca3af" />
+      <Icon name="chevronRight" size={18} color={colors.labelTertiary} />
     </PressableScale>
   );
 }
@@ -82,7 +89,11 @@ export function PrivacySection() {
       {/* A dedicated testID on the (small) heading, not the whole section —
           the section is taller than one screen, so scrollUntilVisible on
           profile-privacy-section itself can never reach 100% visibility. */}
-      <Text testID="profile-privacy-heading" variant="title" className="text-lg">
+      <Text
+        testID="profile-privacy-heading"
+        accessibilityRole="header"
+        className="text-title3 font-bold text-label"
+      >
         Privacy & data
       </Text>
       <HealthConsentCard />

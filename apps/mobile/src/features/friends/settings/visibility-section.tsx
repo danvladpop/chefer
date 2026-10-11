@@ -55,12 +55,12 @@ function Radio({
       <View
         className={cn(
           'h-5 w-5 items-center justify-center rounded-full border-2',
-          selected ? 'border-primary' : 'border-input',
+          selected ? 'border-brand' : 'border-separator',
         )}
       >
-        {selected ? <View className="h-2.5 w-2.5 rounded-full bg-primary" /> : null}
+        {selected ? <View className="h-2.5 w-2.5 rounded-full bg-brand" /> : null}
       </View>
-      <Text className="min-w-0 flex-1">{label}</Text>
+      <Text className="min-w-0 flex-1 text-body text-label">{label}</Text>
     </PressableScale>
   );
 }
@@ -121,8 +121,11 @@ export function VisibilitySection({ me, settings }: { me: FriendsMeDto; settings
         onPress={() => choose('PUBLIC')}
       />
       {locked ? (
-        <View className="gap-1 pl-8">
-          <Text testID="friends-settings-forced-private" variant="muted">
+        <View className="gap-1 pb-2 pl-8">
+          <Text
+            testID="friends-settings-forced-private"
+            className="text-subhead text-label-secondary"
+          >
             {FRIENDS_COPY.settings.forcedPrivate}
           </Text>
           <AppealLink subject="profile" testID="friends-settings-forced-private-appeal" />

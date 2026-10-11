@@ -35,9 +35,9 @@ export function StepLine({
       <View testID={`rf-step-${index}`} className="flex-row items-start gap-2">
         <View
           accessibilityElementsHidden
-          className="mt-2 h-6 w-6 items-center justify-center rounded-full bg-primary"
+          className="mt-2.5 h-7 w-7 items-center justify-center rounded-full bg-brand-tint"
         >
-          <Text className="text-xs font-bold text-primary-foreground">{index + 1}</Text>
+          <Text className="text-caption font-bold text-brand">{index + 1}</Text>
         </View>
         <Input
           ref={inputRef}
