@@ -8,11 +8,32 @@
 #   docker compose --env-file .env.production -f docker-compose.deploy.yml up -d --build
 # (or just run infrastructure/scripts/deploy.sh)
 
+# ─── Phase 1 guardrails (2026-10-11): log rotation + memory limits ────────────
+# Every service logs through the json-file driver with rotation (3 × 10 MB per
+# container), so container logs can no longer fill the VM's disk.
+#
+# Memory limits are sized for the CURRENT VM: Oracle E2.1.Micro, 1 GB RAM +
+# 4 GB swap. Budget: postgres 256m + api 450m + web 256m + caddy 64m ≈ 1 GB;
+# swap absorbs short peaks (Docker allows swap up to 2× mem_limit by default).
+# A container over its limit is OOM-killed and restarted (`restart: always`)
+# instead of taking the whole VM down. Each limit is a variable with the
+# default below, so raising one is a line in .env.production — no edit here.
+# ON THE 12 GB ARM SHAPE (A1.Flex) RAISE THEM, e.g. POSTGRES_MEM_LIMIT=2g,
+# API_MEM_LIMIT=2g + API_MAX_OLD_SPACE_MB=1536, WEB_MEM_LIMIT=1g,
+# CADDY_MEM_LIMIT=256m.
+x-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: '10m'
+    max-file: '3'
+
 services:
   postgres:
     image: postgres:16-alpine
     container_name: chefer-postgres
     restart: always
+    logging: *default-logging
+    mem_limit: ${POSTGRES_MEM_LIMIT:-256m}
     environment:
       POSTGRES_USER: ${POSTGRES_USER}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
@@ -44,6 +65,8 @@ services:
     image: ghcr.io/danvladpop/chefer-api:${TAG:-latest}
     container_name: chefer-migrate
     restart: 'no'
+    # One-shot that runs before the API starts, so it gets no limit of its own.
+    logging: *default-logging
     env_file:
       - .env.production
     command: sh -c "cd packages/database && npx prisma db push --skip-generate && npx tsx src/catalog/sync-cli.ts"
@@ -60,12 +83,17 @@ services:
     image: ghcr.io/danvladpop/chefer-api:${TAG:-latest}
     container_name: chefer-api
     restart: always
+    logging: *default-logging
+    mem_limit: ${API_MEM_LIMIT:-450m}
     env_file:
       - .env.production
     environment:
       NODE_ENV: production
       PORT: '3001'
       HOST: 0.0.0.0
+      # V8 heap below the container limit, leaving room for sharp/libvips,
+      # yt-dlp + ffmpeg children and native buffers (raise with API_MEM_LIMIT).
+      NODE_OPTIONS: --max-old-space-size=${API_MAX_OLD_SPACE_MB:-320}
     depends_on:
       postgres:
         condition: service_healthy
@@ -93,6 +121,8 @@ services:
     image: ghcr.io/danvladpop/chefer-web:${TAG:-latest}
     container_name: chefer-web
     restart: always
+    logging: *default-logging
+    mem_limit: ${WEB_MEM_LIMIT:-256m}
     environment:
       NODE_ENV: production
       PORT: '3000'
@@ -116,6 +146,8 @@ services:
     image: caddy:2-alpine
     container_name: chefer-caddy
     restart: always
+    logging: *default-logging
+    mem_limit: ${CADDY_MEM_LIMIT:-64m}
     ports:
       - '80:80'
       - '443:443'
