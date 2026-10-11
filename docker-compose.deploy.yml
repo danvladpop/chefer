@@ -18,9 +18,9 @@
 # A container over its limit is OOM-killed and restarted (`restart: always`)
 # instead of taking the whole VM down. Each limit is a variable with the
 # default below, so raising one is a line in .env.production — no edit here.
-# ON THE 12 GB ARM SHAPE (A1.Flex) RAISE THEM, e.g. POSTGRES_MEM_LIMIT=2g,
-# API_MEM_LIMIT=2g + API_MAX_OLD_SPACE_MB=1536, WEB_MEM_LIMIT=1g,
-# CADDY_MEM_LIMIT=256m.
+# ON THE ARM SHAPE (A1.Flex, 4 OCPU / 24 GB since 2026-10-11) RAISE THEM in
+# .env.production: POSTGRES_MEM_LIMIT=4g, API_MEM_LIMIT=4g +
+# API_MAX_OLD_SPACE_MB=3072, WEB_MEM_LIMIT=2g, CADDY_MEM_LIMIT=256m.
 x-logging: &default-logging
   driver: json-file
   options:

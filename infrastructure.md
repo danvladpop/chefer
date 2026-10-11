@@ -4055,8 +4055,13 @@ setup (resolve tag)
   └─ gate (Wait for CI)                          polls this commit's Lint / Format / Type Check /
         Unit Tests / Build check runs; fails the deploy if any is red;
         skipped on the rollback path (the image was CI'd when first built)
-  └─ build (matrix: api + web, in parallel)      GitHub runner, buildx + GHA layer cache
-        push → ghcr.io/<owner>/chefer-{api,web}:latest and :sha-<short>
+  └─ build (matrix: {api, web} × {amd64, arm64}) native runners (ubuntu-latest /
+        ubuntu-24.04-arm, free for public repos), buildx + GHA layer cache per app+arch;
+        each pushes its image by digest only
+  └─ merge (matrix: api + web)                   `docker buildx imagetools create` joins
+        both digests into one multi-arch manifest → ghcr.io/<owner>/chefer-{api,web}:latest
+        and :sha-<short>; each server pulls the image for its own CPU (Phase 3, 2026-10-11:
+        the move from the AMD micro VM to the Ampere A1 ARM shape)
   └─ deploy (ssh to the VM)                      TAG=<tag> ./infrastructure/scripts/deploy.sh
         git pull → docker compose pull → up -d --no-build → prune unused images (-a)
   └─ verify                                      polls <DEPLOYMENT_URL>/api/health (API + DB,
