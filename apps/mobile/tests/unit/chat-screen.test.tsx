@@ -421,3 +421,30 @@ describe('long replies', () => {
     expect(screen.queryByTestId('chat-message-2-toggle')).toBeNull();
   });
 });
+
+// Phase 2 AI budgets: the server answers a premium user past the monthly
+// allowance (or while AI is paused for the day) with the quota header — the
+// note replaces the input, without the upgrade pitch.
+describe('AI budget', () => {
+  it('a premium user over the AI budget sees the paused note, not the Premium upsell', async () => {
+    const message = "You've used this month's AI allowance. AI features are back on the 1st.";
+    mockStream.mockImplementation((options: StreamChatOptions) => {
+      options.onChunk?.(message);
+      return Promise.resolve({
+        fullText: message,
+        quotaExhausted: true,
+        healthTopic: false,
+        safetyTopic: false,
+      });
+    });
+    const user = userEvent.setup();
+    await renderChat();
+    await send(user, 'swap my lunch');
+    expect(await screen.findByTestId('chat-ai-paused')).toHaveTextContent(
+      /AI chat is paused for now/,
+    );
+    expect(screen.getByText(message)).toBeTruthy();
+    expect(screen.queryByTestId('chat-quota-upgrade')).toBeNull();
+    expect(screen.queryByTestId('chat-input')).toBeNull();
+  });
+});

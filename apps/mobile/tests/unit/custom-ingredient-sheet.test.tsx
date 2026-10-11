@@ -28,6 +28,7 @@ let mockEstimateState: {
   isPending: boolean;
   isError: boolean;
   data: unknown;
+  error?: unknown;
 } = { isPending: false, isError: false, data: undefined };
 
 jest.mock('expo-router', () => ({
@@ -261,6 +262,31 @@ describe('CustomIngredientSheet', () => {
     expect(screen.getByTestId('custom-sheet-kcal').props.value).toBe('379');
     expect(screen.getByTestId('custom-sheet-protein').props.value).toBe('13');
     expect(screen.getByTestId('custom-sheet-fiber').props.value).toBe('10');
+  });
+
+  it('a quota or AI-budget refusal (TOO_MANY_REQUESTS) shows the server sentence, like web', async () => {
+    const message = "You've used this month's AI allowance. AI features are back on the 1st.";
+    mockEstimateState = {
+      isPending: false,
+      isError: true,
+      data: undefined,
+      error: { message, data: { code: 'TOO_MANY_REQUESTS' } },
+    };
+    await renderSheet('oat bran');
+    expect(screen.getByTestId('custom-sheet-fill-in-error')).toHaveTextContent(message);
+  });
+
+  it('any other fill-in failure keeps the generic copy', async () => {
+    mockEstimateState = {
+      isPending: false,
+      isError: true,
+      data: undefined,
+      error: { message: 'boom', data: { code: 'INTERNAL_SERVER_ERROR' } },
+    };
+    await renderSheet('oat bran');
+    expect(screen.getByTestId('custom-sheet-fill-in-error')).toHaveTextContent(
+      'Could not fill this in right now. Copy the values from the label.',
+    );
   });
 
   it('premium: "Fill in for me" asks for AI consent first (feature ingredient-estimate); declining sends nothing (R-10)', async () => {

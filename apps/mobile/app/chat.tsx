@@ -65,7 +65,8 @@ export default function ChatScreen() {
   const threadRef = useRef(thread);
   threadRef.current = thread;
   // Free tier: chat is premium-only — locked preview, no input.
-  const locked = useIsPremium() === false;
+  const isPremium = useIsPremium();
+  const locked = isPremium === false;
   // AI data consent (App Store 5.1.2(i)): the first message asks before
   // anything is sent; "Not now" keeps the draft and sends nothing.
   const requestAiConsent = useAiConsent();
@@ -344,7 +345,20 @@ export default function ChatScreen() {
           )}
         </ScrollView>
 
-        {locked ? null : quotaExhausted ? (
+        {locked ? null : quotaExhausted && isPremium ? (
+          // Premium past its AI allowance (monthly budget, or AI paused for
+          // the day): the chef's reply above says when it is back — no
+          // upgrade pitch to someone who already has Premium.
+          <View testID="chat-ai-paused" className="m-4 gap-1 rounded-card bg-brand-tint p-4">
+            <Text className="text-headline font-semibold text-brand">
+              AI chat is paused for now
+            </Text>
+            <Text className="text-subhead text-label-secondary">
+              The chef&apos;s note above says when it&apos;s back. Your plans, recipes and tracking
+              keep working.
+            </Text>
+          </View>
+        ) : quotaExhausted ? (
           <View testID="chat-quota" className="m-4 gap-1 rounded-card bg-brand-tint p-4">
             <Text className="text-headline font-semibold text-brand">
               You&apos;ve used today&apos;s chat messages

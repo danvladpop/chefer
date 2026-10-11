@@ -338,7 +338,15 @@ export function CustomIngredientSheet({
 
             {estimateMutation.isError && (
               <Text testID={`${testID}-fill-in-error`} className="text-xs text-destructive">
-                {ingredientsCopy.custom.fillInError}
+                {/* A daily cap or the AI budget (TOO_MANY_REQUESTS) carries its
+                    own sentence — shown as on web; anything else keeps the
+                    generic copy. */}
+                {friendsErrorData(estimateMutation.error).code === 'TOO_MANY_REQUESTS'
+                  ? userFacingErrorMessage(
+                      estimateMutation.error,
+                      ingredientsCopy.custom.fillInError,
+                    )
+                  : ingredientsCopy.custom.fillInError}
               </Text>
             )}
             {estimateMutation.data && (
