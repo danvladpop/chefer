@@ -476,7 +476,21 @@ export function ChatWidget() {
                 )}
               </div>
             )}
-            {quotaExhausted && (
+            {quotaExhausted && isPremium && (
+              // Premium past its AI allowance (monthly budget, or AI paused
+              // for the day): the chef's reply above already says when it is
+              // back — no upgrade pitch to someone who already has Premium.
+              <div
+                data-testid="chat-ai-paused"
+                className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2.5"
+              >
+                <p className="text-xs text-amber-900">
+                  AI chat is paused for now — the chef’s note above says when it’s back. Your plans,
+                  recipes and tracking keep working.
+                </p>
+              </div>
+            )}
+            {quotaExhausted && !isPremium && (
               <div className="flex flex-col gap-2 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2.5">
                 <p className="flex items-start gap-2 text-xs text-amber-900">
                   <Sparkles
@@ -514,7 +528,11 @@ export function ChatWidget() {
               onChange={(e) => setInputValue(e.target.value)}
               onKeyDown={handleKeyDown}
               placeholder={
-                quotaExhausted ? 'Out of free messages today' : 'Ask your chef anything…'
+                quotaExhausted
+                  ? isPremium
+                    ? 'AI chat is paused for now'
+                    : 'Out of free messages today'
+                  : 'Ask your chef anything…'
               }
               disabled={isLoading || quotaExhausted}
               className="min-w-0 flex-1 rounded-xl border border-neutral-200 px-3 py-2 text-base focus:border-[#944a00] focus:outline-none focus:ring-1 focus:ring-[#944a00] disabled:opacity-50 sm:text-sm"

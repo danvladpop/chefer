@@ -299,3 +299,25 @@ describe('ChatWidget (UX-FOOD-21)', () => {
     expect(window.sessionStorage.getItem('chefer.chat.thread')).toBeNull();
   });
 });
+
+// Phase 2 AI budgets: a premium user past the monthly allowance (or while AI
+// is paused for the day) gets the quota header too — but no upgrade pitch.
+describe('ChatWidget (AI budget)', () => {
+  it('a premium user over the AI budget sees a neutral paused note, not Upgrade', async () => {
+    render(<ChatWidget />);
+    open();
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+      new Response("You've used this month's AI allowance.", {
+        headers: { 'X-Chat-Quota-Exhausted': '1' },
+      }),
+    );
+    await act(async () => {
+      await chat.transportConfig?.fetch?.('/api/chat', { method: 'POST' });
+    });
+    expect(await screen.findByTestId('chat-ai-paused')).toBeTruthy();
+    expect(screen.queryByRole('button', { name: 'Upgrade' })).toBeNull();
+    expect(screen.getByLabelText('Message the chef').getAttribute('placeholder')).toBe(
+      'AI chat is paused for now',
+    );
+  });
+});
