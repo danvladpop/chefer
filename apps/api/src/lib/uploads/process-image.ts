@@ -1,4 +1,4 @@
-import sharp from 'sharp';
+import type Sharp from 'sharp';
 import { UPLOAD_LIMITS } from '@chefer/types';
 
 // ─── Server-side photo normalisation (Phase 1 guardrails) ─────────────────────
@@ -16,8 +16,25 @@ import { UPLOAD_LIMITS } from '@chefer/types';
 // The 1 GB VM shapes the settings: one libvips thread, no operation cache, and
 // a pixel ceiling that refuses decompression bombs before decoding them.
 
-sharp.concurrency(1);
-sharp.cache(false);
+// sharp is a native module. It is loaded on the first upload rather than at
+// import time, so a missing or broken binary in the image (e.g. a new CPU
+// architecture) breaks photo uploads only — not the whole API at boot.
+let sharpModule: Promise<typeof Sharp> | undefined;
+function loadSharp(): Promise<typeof Sharp> {
+  sharpModule ??= import('sharp').then(
+    ({ default: sharp }) => {
+      sharp.concurrency(1);
+      sharp.cache(false);
+      return sharp;
+    },
+    (err: unknown) => {
+      sharpModule = undefined; // retry on the next upload
+      console.error('[uploads] sharp failed to load; photo uploads are unavailable', err);
+      throw err;
+    },
+  );
+  return sharpModule;
+}
 
 /** 48 MP phone sensors fit; anything larger is refused before decoding. */
 export const MAX_INPUT_PIXELS = 50_000_000;
@@ -49,6 +66,7 @@ export async function processUploadedImage(
   input: Buffer,
   maxEdge: number = UPLOAD_LIMITS.maxLongEdgePx,
 ): Promise<ProcessedImage> {
+  const sharp = await loadSharp();
   let pages: number;
   try {
     const meta = await sharp(input, { limitInputPixels: MAX_INPUT_PIXELS }).metadata();
