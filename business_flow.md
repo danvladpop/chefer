@@ -678,8 +678,9 @@ have` · `Switch back to Free`. The downgrade sheet names what you keep and
 - **Honest allowances.** Profile › Daily AI allowances counts what
   `lib/quotas.ts` reserves (`profile.getAiUsage`, infrastructure.md §8): a plan
   from our recipes uses no AI (free cap 3/day, `curatedPlans`); a Premium
-  generate is ONE AI reservation (`aiMealPlans`, its instant curated week is not
-  a second count); `mealPlan.resumeTailoring` reserves nothing; an import's AI
+  generate is ONE AI reservation (`aiMealPlans`, capped at 5/day since the
+  Phase 1 guardrails — it was 20; its instant curated week is not a second
+  count); premium chat shows `n / 100`; `mealPlan.resumeTailoring` reserves nothing; an import's AI
   cost is the preview (counted when read), and `importsSaved` says how many
   ended as a saved recipe. No copy says curated plans are unlimited (Q-18).
 
@@ -1304,9 +1305,13 @@ Recipe creation (revamped form)
   |    computed from N ingredients" opens the per-line breakdown (grams, kcal,
   |    protein, source); PARTIAL -> "Incomplete -- N ingredients need data" +
   |    a fix link for the owner; USER_ENTERED -> "Entered by you"
-  +- recipe photo: device upload (POST /api/uploads/image, <=10 MB since
-  |    T-BUG-O1/Q-22; the mobile app first shrinks the photo to <= 2048 px,
-  |    JPEG 0.8 — T-BUG-O1.2) or deterministic AI image (recipe.aiImageUrl); a failed
+  +- recipe photo: device upload (POST /api/uploads/image, <=5 MB since the
+  |    Phase 1 guardrails, 2026-10-11; BOTH clients first shrink the photo to
+  |    <= 1600 px, JPEG 0.8 — mobile prepare-photo.ts, web resize-image.ts —
+  |    and the server re-encodes it again: EXIF-rotated, metadata stripped,
+  |    <= 1600 px, JPEG q80; per user 60 uploads / rolling 24 h and 200 MB
+  |    stored (premium 1 GB), DB-backed — see "Photo uploads" below) or
+  |    deterministic AI image (recipe.aiImageUrl); a failed
   |    upload always shows one of the four UX-40 sentences (never a status
   |    code or "[object Object]") — see §15's "Error states" note and
   |    infrastructure.md §4.1.1
@@ -1323,6 +1328,55 @@ IngredientPriceWorker (background)
   +- prices missing entries, refreshes entries older than 7 days
   +- IAIService.estimateIngredientPrices (Gemini, batches of 40)
 ```
+
+### Photo uploads, storage quota and the orphan sweep (Phase 1 guardrails, 2026-10-11)
+
+Every photo a user adds (recipe photo, custom-ingredient photo) goes through one
+path on each platform — web `uploadImage` (`lib/upload-image.ts`), mobile
+`preparePhoto` + `uploadImage` (`lib/prepare-photo.ts`, `lib/media-client.ts`); the
+meal scan uses the same resize on both.
+
+```
+pick a photo
+  ├─ client resize: long edge ≤ 1600 px, JPEG 0.8, EXIF orientation applied
+  │    (web: createImageBitmap/canvas, falls back to the original file if the
+  │    browser can't decode it; mobile: expo-image-manipulator)
+  ├─ client pre-check ≤ 5 MB → "That photo is too big…" without a request
+POST /api/uploads/image  (raw image/* body)
+  ├─ per-user rate limit 20/min (per IP when signed out) → 429
+  ├─ session checked BEFORE the body is read → 401 (nothing buffered)
+  ├─ body ≤ 5 MB → else 413 "That photo is too big…"
+  ├─ declared type ∈ jpeg/png/webp/gif/avif and the bytes match → else 415
+  ├─ server resize (sharp): EXIF-rotate, strip ALL metadata (no GPS leaves
+  │    in a shared recipe), ≤ 1600 px, JPEG q80, transparency → white;
+  │    animated GIF/WebP → 415 "Animated images aren't supported…"
+  ├─ uploaded_files ledger, ONE serializable transaction:
+  │    ├─ ≥ 60 uploads in the last 24 h → 429 "Daily upload limit reached — try
+  │    │    again tomorrow"
+  │    ├─ stored bytes + this photo > quota (free 200 MB, premium/admin 1 GB)
+  │    │    → 403 "You've used your 200 MB of photo storage. Delete recipes or
+  │    │    ingredients whose photos you no longer need, or upgrade to Premium
+  │    │    for 1 GB." (premium: no upsell)
+  │    └─ row recorded with the FINAL (resized) byte size
+  └─ file written as <uuid>.jpg → 201 { url }
+```
+
+Both clients show the server's `{ error }` sentence for 403/429 as is.
+
+**Daily sweep** (`UploadSweeperWorker`, once per UTC day, first run 10 min after
+boot): hard-deletes recipes soft-deleted (`deletedAt`) more than 30 days ago that
+no plan day or food log still names; then deletes every file in the uploads
+volume (user photos and generated recipe images) that is older than 24 h and
+referenced by no row (avatar, any recipe — soft-deleted ones until their purge —,
+custom/catalog ingredient, post cover); then drops ledger rows whose file is
+gone, which frees the user's storage quota. Deleting a recipe therefore frees
+its photo's space within about a day (30 days for a soft-deleted one).
+`UPLOAD_SWEEP_DRY_RUN=true` logs the same `uploads.sweep` summary without
+deleting anything.
+
+**Shared photos.** Copying a friend's recipe reuses its image URL. Deleting an
+account removes the account's photo files only when no other row still
+references them, so the friend's copy keeps its photo.
 
 ### Units & currency — one preference, every tier (P2-6)
 
@@ -1911,12 +1965,23 @@ with the real tool's text.
 
 ```
 POST /api/chat (session cookie)
+  ├─ per-user rate limit: 10 requests/min (429 { error }), before any body
+  │    is read; JSON body ≤ 64 KB (413 "This conversation is too long to
+  │    send. Start a new chat and ask again.") — Phase 1 guardrails
   ├─ resolve user from session (401 without)
-  ├─ ChatService.assertChatQuota
-  │    └─ FREE: 5 messages/day (PLAN_FEATURES.chatMessagesPerDay, counted
-  │       from ai_call_logs CHAT rows) — over quota streams the upgrade
-  │       message as a normal reply + X-Chat-Quota-Exhausted header; the
-  │       widget then swaps its input for UpgradeButton (source: chat-quota)
+  ├─ history: text only, newest 12 messages (clients send no more than
+  │    12), earlier ones cut to 4,000 chars; the message being sent over
+  │    2,000 chars → 400 "That message is too long. Keep it under 2,000
+  │    characters." (no quota charged). Both clients cap the input at 2,000
+  │    (maxLength) and show a "1,850 / 2,000" counter from 1,800 on
+  ├─ ChatService → reserveChatMessage (PLAN_FEATURES.chatMessagesPerDay)
+  │    ├─ FREE: no access (FORBIDDEN) — streams the upgrade message as a
+  │    │    normal reply + X-Chat-Quota-Exhausted (+ X-Chat-Upgrade-Required);
+  │    │    the widget swaps its input for UpgradeButton (source: chat-quota)
+  │    └─ PREMIUM: 100 messages / UTC day (was unlimited until the Phase 1
+  │         guardrails) — over quota: same 200 reply + X-Chat-Quota-Exhausted;
+  │         premium clients show "You've used today's 100 chat messages.
+  │         They reset at <local time>" — no upsell
   ├─ build fresh context from REAL data:
   │    today's meals + macros + day totals, weekly overview, resolved
   │    daily targets, allergies/restrictions/dislikes, recent ratings
@@ -2093,8 +2158,9 @@ POST /api/scan-meal (session cookie, raw image body — same transport as upload
 **Error states (T-BUG-O1, O-18).** A failed scan never shows a status code or
 the literal text `[object Object]`. `scanMealPhoto` (mobile
 `src/lib/media-client.ts`, web `features/tracker/lib/scan-client.ts`) checks
-the photo's size against the 5 MB limit before sending (on mobile, after
-shrinking it to <= 2048 px / JPEG 0.8 — T-BUG-O1.2), and maps any failure —
+the photo's size against the 5 MB limit before sending (after shrinking it to
+<= 1600 px / JPEG 0.8 on both platforms — T-BUG-O1.2 on mobile, the Phase 1
+guardrails on web), and maps any failure —
 client-side pre-check or a server response — to a sentence: **too big** ("That
 photo is too big. Choose another, or use a screenshot of it.") for a 413 or an
 oversize body, **no connection** ("No connection. Try again when you're back
@@ -2350,6 +2416,10 @@ Import → "Video" tab (web sheet + mobile screen; premium only — free users s
   ├─ AI data consent (recipe-import; now names the Groq transcription for videos)
 recipe.importVideoPreview { url }   (protected; RECIPE_IMPORT quota → FREE FORBIDDEN,
   │                                  PREMIUM 5/day, refunded on any failure)
+  ├─ one video import at a time, server-wide (VIDEO_IMPORT_CONCURRENCY, default 1 —
+  │    Phase 1 guardrails): a second one while the slot is taken fails fast with
+  │    SERVICE_UNAVAILABLE "We're reading another video right now. Try again in a
+  │    minute, or paste the recipe text instead." (quota refunded; no queue)
   ├─ yt-dlp metadata → caption/description
   │    └─ caption carries the whole recipe (ingredients AND method)? → use it, stop
   ├─ else one subtitle track (uploaded in the video's language, else the original
@@ -3935,8 +4005,11 @@ Profile → Your data → "Delete account"  (web /profile, mobile Profile — la
                     users row → cascades everything else (incl. auth_identities)
                  then Sign in with Apple grants are REVOKED at Apple (best effort, App Review 5.1.1(v))
                  then deleteUploadedFiles(): the /uploads files behind the
-                 avatar, own recipes and custom ingredients (best effort,
-                 P0-6) — then authService.logout clears the web cookie
+                 avatar, own recipes, custom ingredients and every
+                 uploaded_files ledger row (the rows cascade) — EXCEPT a file
+                 another row still references, e.g. a friend's copy of one of
+                 these recipes (Phase 1 guardrails); best effort, P0-6 — then
+                 authService.logout clears the web cookie
         │
         ├─ web:    window.location.assign('/') — full navigation drops every cache
         └─ mobile: clear SecureStore token + queryClient.clear() (incl. persisted
