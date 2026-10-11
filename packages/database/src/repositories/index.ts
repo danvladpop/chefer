@@ -321,3 +321,20 @@ export {
   ingredientNoticeRepository,
   type IIngredientNoticeRepository,
 } from './ingredient-notice.repository';
+
+// Phase 1 guardrails: uploaded photos ledger + who references an upload
+export {
+  UploadedFileRepository,
+  uploadedFileRepository,
+  type IUploadedFileRepository,
+  type CreateUploadedFileData,
+  type UploadLimits,
+  type UploadReservation,
+} from './uploaded-file.repository';
+
+export {
+  UploadReferenceRepository,
+  uploadReferenceRepository,
+  type IUploadReferenceRepository,
+  type PurgeResult,
+} from './upload-reference.repository';
