@@ -13,6 +13,8 @@ export interface IconButtonProps {
   icon: ReactNode;
   /** What VoiceOver / TalkBack says. Required. */
   accessibilityLabel: string;
+  /** What happens on press, when the label alone doesn't say. */
+  accessibilityHint?: string;
   onPress: () => void;
   /** `plain` sits on any background; `tinted` is a brand wash; `filled` is the primary action. */
   variant?: 'plain' | 'tinted' | 'filled';
@@ -24,6 +26,7 @@ export interface IconButtonProps {
 export function IconButton({
   icon,
   accessibilityLabel,
+  accessibilityHint,
   onPress,
   variant = 'plain',
   disabled = false,
@@ -35,6 +38,7 @@ export function IconButton({
       testID={testID}
       accessibilityRole="button"
       accessibilityLabel={accessibilityLabel}
+      accessibilityHint={accessibilityHint}
       accessibilityState={{ disabled }}
       disabled={disabled}
       hitSlop={4}

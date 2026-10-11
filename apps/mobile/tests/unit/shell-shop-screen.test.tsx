@@ -142,6 +142,18 @@ describe('Shop tab (new shell)', () => {
     );
   });
 
+  it('+ with nothing typed says what it does and adds nothing', async () => {
+    const user = userEvent.setup();
+    const { calls } = await renderWithTrpc(<ShopScreen />, base(), testQueryClient());
+    await screen.findByLabelText('Search or add an item');
+    expect(screen.getByLabelText('Add item')).toHaveProp(
+      'accessibilityHint',
+      'Type an item to add',
+    );
+    await user.press(screen.getByLabelText('Add item'));
+    expect(calls.find((c) => c.path === 'shoppingList.addCustomItems')).toBeUndefined();
+  });
+
   it('a new item shows at once as "Saving…" and the field clears', async () => {
     const user = userEvent.setup();
     await renderWithTrpc(

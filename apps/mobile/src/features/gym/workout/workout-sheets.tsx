@@ -62,7 +62,7 @@ export function TechniqueSheet({
           <View className="flex-row gap-2">
             {images.length > 0 ? (
               images.map((uri, i) => (
-                <View key={uri} className="flex-1 overflow-hidden rounded-xl">
+                <View key={uri} className="flex-1 overflow-hidden rounded-control">
                   <ExerciseImage
                     uri={uri}
                     equipment={exercise.equipment}
@@ -75,7 +75,7 @@ export function TechniqueSheet({
                 </View>
               ))
             ) : (
-              <View className="flex-1 overflow-hidden rounded-xl">
+              <View className="flex-1 overflow-hidden rounded-control">
                 <ExerciseImage
                   uri={null}
                   equipment={exercise.equipment}
@@ -107,9 +107,9 @@ export function TechniqueSheet({
         ) : null}
         {exercise && exercise.cues.length > 0 ? (
           <View className="gap-1">
-            <Text variant="label">Focus on</Text>
+            <Text className="text-headline font-semibold text-label">Focus on</Text>
             {exercise.cues.map((cue) => (
-              <Text key={cue} className="text-sm">
+              <Text key={cue} className="text-callout text-label">
                 • {cue}
               </Text>
             ))}
@@ -117,16 +117,18 @@ export function TechniqueSheet({
         ) : null}
         {exercise && exercise.mistakes.length > 0 ? (
           <View className="gap-1">
-            <Text variant="label">Avoid</Text>
+            <Text className="text-headline font-semibold text-label">Avoid</Text>
             {exercise.mistakes.map((m) => (
-              <Text key={m} className="text-sm">
+              <Text key={m} className="text-callout text-label">
                 • {m}
               </Text>
             ))}
           </View>
         ) : null}
         {exercise?.cues.length === 0 && exercise.mistakes.length === 0 ? (
-          <Text variant="muted">No coaching notes for this exercise yet.</Text>
+          <Text className="text-subhead text-label-secondary">
+            No coaching notes for this exercise yet.
+          </Text>
         ) : null}
       </Sheet>
       {video ? (
@@ -242,18 +244,14 @@ function MenuRow({
       disabled={disabled}
       onPress={onPress}
       className={cn(
-        'min-h-12 justify-center border-b border-border px-1 py-2 active:bg-muted',
+        'min-h-12 justify-center border-b border-separator px-1 py-2 active:bg-surface-sunken',
         disabled && 'opacity-50',
       )}
     >
-      <Text className={cn('text-base font-medium', destructive && 'text-destructive')}>
+      <Text className={cn('text-body font-medium', destructive ? 'text-danger' : 'text-label')}>
         {label}
       </Text>
-      {hint ? (
-        <Text variant="muted" className="text-sm">
-          {hint}
-        </Text>
-      ) : null}
+      {hint ? <Text className="text-subhead text-label-secondary">{hint}</Text> : null}
     </Pressable>
   );
 }
@@ -387,7 +385,9 @@ export function ExerciseMenuSheet(props: ExerciseMenuProps) {
 
       {page === 'swap' ? (
         <View className="gap-3">
-          <Text variant="muted">Pick where the change applies, then choose the exercise.</Text>
+          <Text className="text-subhead text-label-secondary">
+            Pick where the change applies, then choose the exercise.
+          </Text>
           <Button testID="menu-swap-today" size="lg" onPress={() => props.onSwap('today')}>
             Just today
           </Button>
@@ -401,7 +401,7 @@ export function ExerciseMenuSheet(props: ExerciseMenuProps) {
             Today and my routine
           </Button>
           {routineBlockedReason ? (
-            <Text testID="menu-swap-routine-blocked" variant="muted">
+            <Text testID="menu-swap-routine-blocked" className="text-subhead text-label-secondary">
               {routineBlockedReason}
             </Text>
           ) : null}
@@ -421,7 +421,7 @@ export function ExerciseMenuSheet(props: ExerciseMenuProps) {
             placeholder="Seat height, grip, a cue…"
             multiline
             maxLength={500}
-            className="min-h-24 rounded-xl border-border p-3"
+            className="min-h-24 rounded-control border-separator p-3"
             textAlignVertical="top"
           />
           <Button
@@ -439,16 +439,21 @@ export function ExerciseMenuSheet(props: ExerciseMenuProps) {
       {page === 'history' ? (
         <View className="gap-2">
           {props.history.length === 0 ? (
-            <Text variant="muted">No history yet. This will be the first time.</Text>
+            <Text className="text-subhead text-label-secondary">
+              No history yet. This will be the first time.
+            </Text>
           ) : (
             props.history.map((h) => (
               <View
                 key={h.sessionId}
                 testID={`menu-history-${h.sessionId}`}
-                className="gap-0.5 border-b border-border py-2"
+                className="gap-0.5 border-b border-separator py-2"
               >
-                <Text className="text-sm font-medium">{h.localDate}</Text>
-                <Text variant="muted">
+                <Text className="text-callout font-semibold text-label">{h.localDate}</Text>
+                <Text
+                  className="text-subhead text-label-secondary"
+                  style={{ fontVariant: ['tabular-nums'] }}
+                >
                   {h.sets
                     .map((s) =>
                       props.loadType === 'BODYWEIGHT'

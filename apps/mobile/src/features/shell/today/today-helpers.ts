@@ -32,6 +32,14 @@ export type DaySlot = {
   label: string;
   kcal: number;
   state: DaySlotState;
+  /** The plan slot (index in the day's meals) — what logRecipe / unlogRecipe take. */
+  slotIndex: number;
+  recipeId: string;
+  recipeName: string;
+  /** The slot's portion when not 1×. */
+  portion?: number;
+  /** Eaten as the planned recipe (not replaced by something else) — can be unticked. */
+  loggedAsPlanned: boolean;
 };
 
 /**
@@ -66,6 +74,11 @@ export function yourDaySlots(summary: Summary): DaySlot[] {
       label: mealTypeLabel(meal.mealType),
       kcal: Math.round(meal.kcal),
       state,
+      slotIndex: index,
+      recipeId: meal.recipeId,
+      recipeName: meal.recipeName,
+      ...(meal.portion !== undefined && { portion: meal.portion }),
+      loggedAsPlanned: status === 'eaten',
     };
   });
 }

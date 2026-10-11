@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { AccessibilityInfo, Linking, Pressable, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { haptics, Text } from '@chefer/ui-mobile';
+import { cn } from '@chefer/utils';
 import {
   adjustRest,
   ensureRestNotificationPermission,
@@ -108,25 +109,24 @@ export function RestTimerBar({ onHeightChange }: { onHeightChange?: (height: num
   return (
     <View
       testID="rest-timer"
-      className="absolute bottom-0 left-0 right-0 border-t border-border bg-card"
+      className="absolute bottom-0 left-0 right-0 border-t border-separator bg-surface"
       style={{ paddingBottom: Math.max(insets.bottom, 8) }}
       onLayout={(e) => onHeightChange?.(Math.ceil(e.nativeEvent.layout.height))}
     >
-      <View className="h-1 bg-muted">
+      <View className="h-1 bg-surface-sunken">
         <View
-          className="h-1 bg-primary"
+          className="h-1 bg-brand"
           style={{ width: `${Math.min(100, Math.max(0, progress * 100))}%` }}
         />
       </View>
       <View className="flex-row items-center gap-2 px-3 pt-2">
         <View className="min-w-0 flex-1">
-          <Text variant="muted" className="text-xs">
-            Rest
-          </Text>
+          <Text className="text-caption text-label-secondary">Rest</Text>
           <Text
             testID="rest-timer-remaining"
             accessibilityLabel={`Rest, ${remainingSec} seconds left`}
-            className="text-2xl font-bold tabular-nums"
+            className="text-title1 font-bold text-label"
+            style={{ fontVariant: ['tabular-nums'] }}
           >
             {formatClock(remainingSec)}
           </Text>
@@ -179,12 +179,14 @@ function TimerButton({
       accessibilityRole="button"
       accessibilityLabel={a11y}
       onPress={onPress}
-      className={`min-h-[52px] min-w-14 items-center justify-center rounded-xl px-3 active:opacity-70 ${
-        primary ? 'bg-primary' : 'bg-muted'
-      }`}
+      className={cn(
+        'min-h-[52px] min-w-14 items-center justify-center rounded-control px-3 active:opacity-70',
+        primary ? 'bg-brand' : 'bg-brand-tint',
+      )}
     >
       <Text
-        className={`text-lg font-semibold ${primary ? 'text-primary-foreground' : 'text-foreground'}`}
+        className={cn('text-headline font-semibold', primary ? 'text-brand-on' : 'text-brand')}
+        style={{ fontVariant: ['tabular-nums'] }}
       >
         {label}
       </Text>
@@ -202,7 +204,11 @@ export function ElapsedTime({ startedAt, testID }: { startedAt: string; testID: 
   }, []);
   const sec = Number.isFinite(start) ? (now - start) / 1000 : 0;
   return (
-    <Text testID={testID} className="text-sm tabular-nums text-muted-foreground">
+    <Text
+      testID={testID}
+      className="text-subhead text-label-secondary"
+      style={{ fontVariant: ['tabular-nums'] }}
+    >
       {formatClock(sec)}
     </Text>
   );

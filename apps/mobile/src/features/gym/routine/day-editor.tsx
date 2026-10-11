@@ -1,20 +1,22 @@
 import { useEffect, useRef, useState } from 'react';
-import { Pressable, Text as RNText, useWindowDimensions, View, type TextInput } from 'react-native';
+import { Pressable, useWindowDimensions, View, type TextInput } from 'react-native';
 import Animated, { FadeIn, FadeOut, LinearTransition } from 'react-native-reanimated';
-import { Ionicons } from '@expo/vector-icons';
 import { elevation } from '@chefer/tokens';
 import type { ExerciseMeta } from '@chefer/types';
 import {
-  Button,
-  Card,
   ConfirmSheet,
   DONE_FIELD_PROPS,
+  IconButton,
   Input,
+  ListRow,
+  ListSection,
+  PressableScale,
   Sheet,
   Text,
   useReducedMotion,
   useScrollFieldIntoView,
   useSnackbar,
+  useThemeColors,
   ValueStepper,
 } from '@chefer/ui-mobile';
 import {
@@ -24,6 +26,8 @@ import {
   supersetRuns,
   supersetSlot,
 } from '@chefer/utils';
+import { Icon } from '../../../components/icon';
+import { TrainButton } from '../../shell/train/train-button';
 import { ExerciseNameLink } from '../components/exercise-name-link';
 import { SUPERSET_COPY, SupersetSheet } from '../components/superset-sheet';
 import { newId } from '../offline/ids';
@@ -43,6 +47,9 @@ import {
 } from './types';
 import { WeekdayPicker } from './weekday-picker';
 
+/** TrainCard's surface (10 Oct redesign) — inlined to keep this file free of the shell's router imports. */
+const CARD = 'gap-3 rounded-card border border-separator bg-surface p-4';
+
 // One day of the routine editor (gym_plan.md §5.4, UX-05 A4/T-05.3, O-23).
 // Exercise cards are compact by default ("{n} sets · {min}–{max} reps · {rest}
 // s rest") and expand ONE AT A TIME (opening another collapses the first) into
@@ -54,6 +61,9 @@ import { WeekdayPicker } from './weekday-picker';
 // also a text button once the card is open. Removing a row is immediate (no
 // confirm — the routine only ever changes on Save) with an 8s Undo snackbar
 // (`restoreExercise`, mirroring the workout reducer's `restoreSet`).
+// 10 Oct redesign: the day is a TrainCard, rows are hairline surfaces, menus
+// are ListSections, and every colour is a role (supersets wear the brand
+// tint, as MediaRow's pills do).
 
 /** "{n} sets · {min}–{max} reps · {rest} s rest" */
 export function exerciseSummary(ex: RoutineExerciseDraft): string {
@@ -86,7 +96,7 @@ function LabeledStepper({
 }) {
   return (
     <View className={cn('min-w-0 gap-1', className)}>
-      <Text className="text-[13px] text-muted-foreground">{label}</Text>
+      <Text className="text-caption text-label-secondary">{label}</Text>
       <ValueStepper
         testID={testID}
         variant="grouped"
@@ -115,21 +125,28 @@ function MenuRow({
   destructive?: boolean;
 }) {
   return (
-    <Pressable
+    <View className={cn(disabled && 'opacity-40')}>
+      <ListRow
+        testID={testID}
+        title={label}
+        accessory="none"
+        destructive={destructive}
+        disabled={disabled}
+        onPress={onPress}
+      />
+    </View>
+  );
+}
+
+/** The superset place tag ("A1"), a brand pill like MediaRow's badge. */
+function SupersetTag({ label, testID }: { label: string; testID: string }) {
+  return (
+    <Text
       testID={testID}
-      accessibilityRole="button"
-      accessibilityState={{ disabled }}
-      disabled={disabled}
-      onPress={onPress}
-      className={cn(
-        'min-h-12 justify-center border-b border-border px-1 py-2 active:bg-muted',
-        disabled && 'opacity-50',
-      )}
+      className="rounded-full bg-brand-tint px-2 text-caption font-bold text-brand"
     >
-      <Text className={cn('text-base font-medium', destructive && 'text-destructive')}>
-        {label}
-      </Text>
-    </Pressable>
+      {label}
+    </Text>
   );
 }
 
@@ -165,6 +182,7 @@ export function ExerciseRow({
   testIDBase: string;
 }) {
   const { fontScale } = useWindowDimensions();
+  const colors = useThemeColors();
   const reducedMotion = useReducedMotion();
   const [moreOpen, setMoreOpen] = useState(false);
   const name = meta?.name ?? exercise.exerciseId;
@@ -184,24 +202,19 @@ export function ExerciseRow({
       layout={LinearTransition.duration(layoutMs)}
       style={expanded ? { boxShadow: elevation.e1 } : undefined}
       className={cn(
-        'rounded-2xl bg-card',
-        expanded ? 'gap-4 border border-border p-4' : 'px-4 py-3',
-        superset && 'border-l-4 border-l-violet-500',
+        'rounded-control border border-separator bg-surface',
+        expanded ? 'gap-4 p-4' : 'px-4 py-3',
+        superset && 'border-l-4 border-l-brand',
       )}
     >
       <View className="flex-row items-start gap-1">
         <View className="min-w-0 flex-1">
           <View className="flex-row items-center gap-1.5">
             {superset ? (
-              <View className="rounded bg-violet-100 px-1.5 py-0.5">
-                <RNText
-                  testID={`${testIDBase}-superset`}
-                  className="text-xs font-bold text-violet-800"
-                >
-                  {superset.label}
-                  {superset.position + 1}
-                </RNText>
-              </View>
+              <SupersetTag
+                testID={`${testIDBase}-superset`}
+                label={`${superset.label}${String(superset.position + 1)}`}
+              />
             ) : null}
             {/* T-05.5 follow-up: the name is its own tap target, never nested
                 inside the expand/collapse Pressable below. */}
@@ -211,7 +224,7 @@ export function ExerciseRow({
               name={name}
               numberOfLines={nameLines}
               className="min-w-0 flex-1"
-              textClassName="font-medium"
+              textClassName="text-headline font-semibold text-label"
             />
           </View>
           <Pressable
@@ -224,25 +237,25 @@ export function ExerciseRow({
           >
             <Text
               testID={`${testIDBase}-summary`}
-              variant="muted"
               numberOfLines={1}
-              className="min-w-0 flex-1 text-sm"
+              className="min-w-0 flex-1 text-subhead text-label-secondary"
             >
               {summary}
             </Text>
-            <Ionicons name={expanded ? 'chevron-up' : 'chevron-down'} size={16} color="#6b7280" />
+            <Icon
+              name={expanded ? 'chevronUp' : 'chevronDown'}
+              color={colors.labelSecondary}
+              size={16}
+            />
           </Pressable>
         </View>
-        <Pressable
+        <IconButton
           testID={`${testIDBase}-menu`}
-          accessibilityRole="button"
           accessibilityLabel={`Options for ${name}`}
-          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
           onPress={onOpenMenu}
-          className="h-11 w-11 items-center justify-center"
-        >
-          <RNText className="text-lg font-bold text-muted-foreground">⋯</RNText>
-        </Pressable>
+          className="-mr-2"
+          icon={<Icon name="more" color={colors.labelSecondary} size={22} />}
+        />
       </View>
 
       {expanded ? (
@@ -302,7 +315,7 @@ export function ExerciseRow({
           </View>
 
           {/* MO-05: RIR + superset are expert settings, out of the way. */}
-          <Pressable
+          <PressableScale
             testID={`${testIDBase}-more`}
             accessibilityRole="button"
             accessibilityState={{ expanded: moreOpen }}
@@ -310,13 +323,9 @@ export function ExerciseRow({
             onPress={() => setMoreOpen((v) => !v)}
             className="min-h-11 flex-row items-center gap-1 self-start"
           >
-            <Text className="text-sm font-medium text-primary">More</Text>
-            <Ionicons
-              name={moreOpen ? 'chevron-down' : 'chevron-forward'}
-              size={14}
-              color="#944a00"
-            />
-          </Pressable>
+            <Text className="text-callout font-semibold text-brand">More</Text>
+            <Icon name={moreOpen ? 'chevronDown' : 'chevronRight'} color={colors.brand} size={14} />
+          </PressableScale>
 
           {moreOpen ? (
             <Animated.View
@@ -349,21 +358,23 @@ export function ExerciseRow({
                       linked: !linkedToNext,
                     })
                   }
-                  className="min-h-11 flex-row items-center justify-between rounded-lg bg-muted px-3"
+                  className="min-h-11 flex-row items-center justify-between gap-3 rounded-control bg-surface-sunken px-3 py-2"
                 >
                   <View className="min-w-0 flex-1">
-                    <Text className="text-sm font-medium">Superset with next</Text>
-                    <Text variant="muted" className="text-xs">
+                    <Text className="text-callout font-semibold text-label">
+                      Superset with next
+                    </Text>
+                    <Text className="text-caption text-label-secondary">
                       No rest in between; rest after the round
                     </Text>
                   </View>
                   <View
                     className={cn(
                       'h-6 w-11 justify-center rounded-full px-0.5',
-                      linkedToNext ? 'items-end bg-violet-500' : 'items-start bg-gray-300',
+                      linkedToNext ? 'items-end bg-brand' : 'items-start bg-separator',
                     )}
                   >
-                    <View className="h-5 w-5 rounded-full bg-white" />
+                    <View className="h-5 w-5 rounded-full bg-surface" />
                   </View>
                 </Pressable>
               ) : null}
@@ -372,23 +383,25 @@ export function ExerciseRow({
 
           {/* One filled control area (the steppers); Swap/Remove are text buttons. */}
           <View className="flex-row items-center gap-4">
-            <Pressable
+            <PressableScale
               testID={`${testIDBase}-swap`}
               accessibilityRole="button"
               onPress={onSwap}
-              className="min-h-11 justify-center"
+              className="min-h-11 flex-row items-center gap-1.5"
             >
-              <Text className="text-sm font-medium text-primary">Swap exercise</Text>
-            </Pressable>
-            <Pressable
+              <Icon name="swap" color={colors.brand} size={18} />
+              <Text className="text-callout font-semibold text-brand">Swap exercise</Text>
+            </PressableScale>
+            <PressableScale
               testID={`${testIDBase}-remove`}
               accessibilityRole="button"
               accessibilityLabel={`Remove ${name}`}
               onPress={onRemove}
-              className="min-h-11 justify-center"
+              className="min-h-11 flex-row items-center gap-1.5"
             >
-              <Text className="text-sm font-medium text-destructive">Remove</Text>
-            </Pressable>
+              <Icon name="trash" color={colors.danger} size={18} />
+              <Text className="text-callout font-semibold text-danger">Remove</Text>
+            </PressableScale>
           </View>
         </Animated.View>
       ) : null}
@@ -414,6 +427,7 @@ export function DayEditor({
   onSwapExercise: (dayKey: string, exerciseKey: string) => void;
 }) {
   const testIDBase = `routine-editor-day-${day.key}`;
+  const colors = useThemeColors();
   // ExerciseRow dispatches with dayKey: '' — patch it in here, one place, so
   // every row action stays a plain object the reducer can match on dayKey.
   const dispatchForDay = (action: RoutineDraftAction) =>
@@ -478,8 +492,8 @@ export function DayEditor({
   const durationMin = estimateDurationMin(day, lookup);
 
   return (
-    <Card testID={testIDBase}>
-      <View className="flex-row items-center gap-2">
+    <View testID={testIDBase} className={CARD}>
+      <View className="flex-row items-center gap-1">
         <Input
           ref={nameRef}
           testID={`${testIDBase}-name`}
@@ -491,30 +505,26 @@ export function DayEditor({
           {...DONE_FIELD_PROPS}
           placeholder="Day name"
         />
-        <Pressable
+        <IconButton
           testID={`${testIDBase}-up`}
-          accessibilityRole="button"
           accessibilityLabel="Move day up"
+          variant="tinted"
           disabled={index === 0}
           onPress={() => dispatch({ type: 'moveDay', dayKey: day.key, direction: 'up' })}
-          className="h-11 w-11 items-center justify-center rounded-md bg-muted disabled:opacity-30"
-        >
-          <Ionicons name="chevron-up" size={18} color="#374151" />
-        </Pressable>
-        <Pressable
+          icon={<Icon name="chevronUp" color={colors.brand} size={20} />}
+        />
+        <IconButton
           testID={`${testIDBase}-down`}
-          accessibilityRole="button"
           accessibilityLabel="Move day down"
+          variant="tinted"
           disabled={index === dayCount - 1}
           onPress={() => dispatch({ type: 'moveDay', dayKey: day.key, direction: 'down' })}
-          className="h-11 w-11 items-center justify-center rounded-md bg-muted disabled:opacity-30"
-        >
-          <Ionicons name="chevron-down" size={18} color="#374151" />
-        </Pressable>
+          icon={<Icon name="chevronDown" color={colors.brand} size={20} />}
+        />
       </View>
 
-      <View className="mt-3 gap-1">
-        <Text variant="label">Planned weekday</Text>
+      <View className="gap-1.5">
+        <Text className="text-subhead font-semibold text-label-secondary">Planned weekday</Text>
         <WeekdayPicker
           testID={`${testIDBase}-weekday`}
           value={day.plannedWeekday}
@@ -522,7 +532,7 @@ export function DayEditor({
         />
       </View>
 
-      <View className="mt-3 gap-3">
+      <View className="gap-2.5">
         {day.exercises.map((ex, i) => {
           const slot = supersetSlot(day.exercises, i);
           const run = slot?.position === 0 ? runs.find((r) => r.start === i) : undefined;
@@ -534,13 +544,16 @@ export function DayEditor({
                   testID={`${testIDBase}-superset-${slot.label}`}
                   className="flex-row items-center gap-2 pt-1"
                 >
-                  <Text className="text-sm font-semibold text-violet-800">
+                  <Text className="text-subhead font-semibold text-brand">
                     Superset {slot.label}
                   </Text>
-                  <Text variant="muted" className="min-w-0 flex-1 text-xs" numberOfLines={1}>
+                  <Text
+                    className="min-w-0 flex-1 text-caption text-label-secondary"
+                    numberOfLines={1}
+                  >
                     {lastRest ?? ex.restSec} s rest after each round
                   </Text>
-                  <Pressable
+                  <PressableScale
                     testID={`${testIDBase}-superset-${slot.label}-ungroup`}
                     accessibilityRole="button"
                     accessibilityLabel={`Ungroup superset ${slot.label}`}
@@ -549,10 +562,10 @@ export function DayEditor({
                     }
                     className="min-h-11 justify-center px-2"
                   >
-                    <Text className="text-sm font-medium text-primary">
+                    <Text className="text-callout font-semibold text-brand">
                       {SUPERSET_COPY.ungroup}
                     </Text>
-                  </Pressable>
+                  </PressableScale>
                 </View>
               ) : null}
               <ExerciseRow
@@ -577,25 +590,24 @@ export function DayEditor({
       {/* Day footer: a full-width outline "+ Add exercise" that never wraps
           (AC26), the live duration, and the day's own "⋯" (day delete is only
           here, per AC26 — no filled red Delete on the page). */}
-      <View className="mt-3">
-        <Button
-          testID={`${testIDBase}-add-exercise`}
-          variant="outline"
-          disabled={day.exercises.length >= MAX_EXERCISES_PER_DAY}
-          onPress={() => onAddExercise(day.key)}
+      <TrainButton
+        testID={`${testIDBase}-add-exercise`}
+        label="Add exercise"
+        icon="add"
+        variant="tinted"
+        disabled={day.exercises.length >= MAX_EXERCISES_PER_DAY}
+        onPress={() => onAddExercise(day.key)}
+      />
+      <View className="-mb-2 -mt-1 flex-row items-center justify-between">
+        <Text
+          testID={`${testIDBase}-duration`}
+          className="min-w-0 flex-1 text-caption text-label-secondary"
         >
-          <Text numberOfLines={1} className="font-medium text-primary">
-            + Add exercise
-          </Text>
-        </Button>
-      </View>
-      <View className="mt-1 flex-row items-center justify-between">
-        <Text testID={`${testIDBase}-duration`} variant="muted" className="min-w-0 flex-1 text-xs">
           ~{durationMin} min
         </Text>
         {/* plan-library-supersets S2: grouping is one visible tap away, not
             under each exercise's "More". */}
-        <Pressable
+        <PressableScale
           testID={`${testIDBase}-superset-create`}
           accessibilityRole="button"
           accessibilityLabel={`Superset, ${day.name}`}
@@ -604,23 +616,20 @@ export function DayEditor({
           disabled={day.exercises.length < 2}
           onPress={() => setSupersetOpen(true)}
           className={cn(
-            'min-h-11 flex-row items-center gap-1 rounded-md px-3 active:bg-muted',
+            'min-h-11 flex-row items-center gap-1.5 px-3',
             day.exercises.length < 2 && 'opacity-40',
           )}
         >
-          <Ionicons name="link" size={16} color="#6d28d9" />
-          <Text className="text-sm font-medium text-violet-800">{SUPERSET_COPY.title}</Text>
-        </Pressable>
-        <Pressable
+          <Icon name="link" color={colors.brand} size={18} />
+          <Text className="text-callout font-semibold text-brand">{SUPERSET_COPY.title}</Text>
+        </PressableScale>
+        <IconButton
           testID={`${testIDBase}-day-menu`}
-          accessibilityRole="button"
           accessibilityLabel={`Options for ${day.name}`}
-          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
           onPress={() => setDayMenuOpen(true)}
-          className="h-11 w-11 items-center justify-center"
-        >
-          <RNText className="text-lg font-bold text-muted-foreground">⋯</RNText>
-        </Pressable>
+          className="-mr-2"
+          icon={<Icon name="more" color={colors.labelSecondary} size={22} />}
+        />
       </View>
 
       <Sheet
@@ -630,7 +639,7 @@ export function DayEditor({
         title={menuName}
         testID={`${testIDBase}-exercise-menu`}
       >
-        <View>
+        <ListSection>
           <MenuRow
             testID={`${testIDBase}-menu-move-up`}
             label="Move up"
@@ -682,7 +691,7 @@ export function DayEditor({
               if (key) removeExercise(key);
             }}
           />
-        </View>
+        </ListSection>
       </Sheet>
 
       <SupersetSheet
@@ -710,7 +719,7 @@ export function DayEditor({
         title={day.name}
         testID={`${testIDBase}-day-menu-sheet`}
       >
-        <View>
+        <ListSection>
           <MenuRow
             testID={`${testIDBase}-menu-duplicate`}
             label="Duplicate day"
@@ -734,7 +743,7 @@ export function DayEditor({
               setDayMenuOpen(false);
             }}
           />
-        </View>
+        </ListSection>
       </Sheet>
 
       <ConfirmSheet
@@ -751,6 +760,6 @@ export function DayEditor({
         }}
         testID={`${testIDBase}-delete-confirm`}
       />
-    </Card>
+    </View>
   );
 }

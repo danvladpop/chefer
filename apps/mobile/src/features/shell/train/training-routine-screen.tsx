@@ -14,11 +14,10 @@ import {
   IconButton,
   ListRow,
   ListSection,
-  MediaTile,
+  MediaRow,
   Screen,
   Sheet,
   Text,
-  TileGrid,
   useThemeColors,
 } from '@chefer/ui-mobile';
 import {
@@ -50,7 +49,7 @@ import { TrainCard } from './train-cards';
 
 // ─── Routine (10 Oct redesign, board "TrainingRoutine") ─────────────────────
 // The active routine as a card (Edit / My routines), its days as the same
-// tiles the Meals grid uses — each with a play button that starts that day
+// rows the Meals day uses — each with a play button that starts that day
 // through the same guarded start as Train — and the weekly balance as bars
 // against the target band. A day tile opens its exercises with their next
 // targets; tapping one opens the override sheet, as on the old Routine tab.
@@ -287,9 +286,11 @@ export function TrainingRoutineScreen() {
             <Text accessibilityRole="header" className="text-title3 font-bold text-label">
               Days
             </Text>
-            <TileGrid testID="training-routine-days">
+            {/* 11 Oct owner feedback: one day card per line, not a 2-column grid. */}
+            <View testID="training-routine-days" className="gap-2.5">
               {days.map((day) => (
-                <MediaTile
+                <MediaRow
+                  frameSize={72}
                   key={day.id}
                   testID={`training-routine-day-${day.id}`}
                   title={day.name}
@@ -309,14 +310,14 @@ export function TrainingRoutineScreen() {
                     <IconButton
                       testID={`training-routine-day-${day.id}-start`}
                       accessibilityLabel={`Start ${day.name}`}
-                      className="bg-surface"
+                      variant="tinted"
                       icon={<Icon name="play" color={colors.brand} size={20} />}
                       onPress={() => starts.startDay(data, day.id)}
                     />
                   }
                 />
               ))}
-            </TileGrid>
+            </View>
 
             <Text accessibilityRole="header" className="text-title3 font-bold text-label">
               Weekly balance

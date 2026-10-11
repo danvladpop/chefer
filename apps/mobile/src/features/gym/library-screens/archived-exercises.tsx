@@ -1,9 +1,11 @@
 import { useState } from 'react';
-import { Pressable, View } from 'react-native';
+import { View } from 'react-native';
 import { router } from 'expo-router';
 import type { ExerciseDto } from '@chefer/types';
-import { Button, showSnackbar, Text } from '@chefer/ui-mobile';
+import { PressableScale, showSnackbar, Text, useThemeColors } from '@chefer/ui-mobile';
+import { Icon } from '../../../components/icon';
 import { trpc } from '../../../lib/trpc';
+import { TrainButton } from '../../shell/train/train-button';
 
 // UX-GYM-34: an archived custom exercise used to vanish with no way back. This
 // collapsible "Archived" section sits under the Exercises list and offers
@@ -22,6 +24,7 @@ export function archivedCustomExercises(
 }
 
 export function ArchivedExercises({ rows }: { rows: ExerciseDto[] }) {
+  const colors = useThemeColors();
   const [open, setOpen] = useState(false);
   const utils = trpc.useUtils();
   // A failed restore reaches the user through the default mutation snackbar.
@@ -32,41 +35,50 @@ export function ArchivedExercises({ rows }: { rows: ExerciseDto[] }) {
   if (rows.length === 0) return null;
 
   return (
-    <View testID="exercises-archived" className="mt-4 border-t border-border">
-      <Pressable
+    <View
+      testID="exercises-archived"
+      className="mt-2 overflow-hidden rounded-card border border-separator bg-surface"
+    >
+      {/* MO-01 press feedback on the disclosure row. */}
+      <PressableScale
         testID="exercises-archived-toggle"
         accessibilityRole="button"
         accessibilityState={{ expanded: open }}
         accessibilityLabel={`Archived exercises, ${rows.length}`}
         onPress={() => setOpen((v) => !v)}
-        className="min-h-11 flex-row items-center justify-between px-4 py-3"
+        className="min-h-11 flex-row items-center justify-between gap-3 px-4 py-3"
       >
-        <Text className="font-medium">{`Archived (${rows.length})`}</Text>
-        <Text variant="muted">{open ? 'Hide' : 'Show'}</Text>
-      </Pressable>
+        <Text className="text-headline font-semibold text-label">{`Archived (${rows.length})`}</Text>
+        <View className="flex-row items-center gap-0.5">
+          <Text className="text-callout font-semibold text-brand">{open ? 'Hide' : 'Show'}</Text>
+          <Icon name={open ? 'chevronUp' : 'chevronDown'} color={colors.brand} size={18} />
+        </View>
+      </PressableScale>
       {open
         ? rows.map((item) => (
             <View
               key={item.id}
               testID={`exercises-archived-item-${item.id}`}
-              className="min-h-14 flex-row items-center gap-3 border-t border-border px-4 py-2"
+              className="min-h-14 flex-row items-center gap-3 border-t border-separator py-2 pl-4 pr-2"
             >
-              <Pressable
+              <PressableScale
                 accessibilityRole="button"
+                accessibilityHint="Opens the exercise"
                 onPress={() => router.push(`/gym/exercise/${item.id}`)}
                 className="min-h-11 min-w-0 flex-1 justify-center"
               >
-                <Text numberOfLines={1} className="font-medium">
+                <Text numberOfLines={1} className="text-headline font-semibold text-label">
                   {item.name}
                 </Text>
-                <Text variant="muted" numberOfLines={1}>
+                <Text numberOfLines={1} className="text-caption text-label-secondary">
                   Past workouts keep their history
                 </Text>
-              </Pressable>
-              <Button
+              </PressableScale>
+              <TrainButton
                 testID={`exercises-archived-restore-${item.id}`}
-                size="sm"
-                variant="secondary"
+                label="Restore"
+                variant="tinted"
+                pill
                 accessibilityLabel={`Restore ${item.name}`}
                 loading={restore.isPending && restore.variables.id === item.id}
                 disabled={restore.isPending}
@@ -76,9 +88,7 @@ export function ArchivedExercises({ rows }: { rows: ExerciseDto[] }) {
                     { onSuccess: () => showSnackbar({ message: `Restored “${item.name}”.` }) },
                   )
                 }
-              >
-                Restore
-              </Button>
+              />
             </View>
           ))
         : null}

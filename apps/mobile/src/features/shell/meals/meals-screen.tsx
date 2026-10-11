@@ -22,12 +22,11 @@ import {
   ListRow,
   ListSection,
   MacroTiles,
-  MediaTile,
+  MediaRow,
   PressableScale,
   Screen,
   SegmentedControl,
   Text,
-  TileGrid,
   useReducedMotion,
   useSnackbar,
   useThemeColors,
@@ -605,10 +604,11 @@ export function MealsScreen() {
     const conflict = mealConflictText(meal);
     const portion = slotPortion(meal.portion);
     return (
-      <MediaTile
+      <MediaRow
         key={`${meal.type}-${slotIndex}`}
         testID={`meals-tile-${meal.type}-${slotIndex}`}
         label={label}
+        frameSize={72}
         title={meal.recipe.name}
         meta={mealTileMeta(meal, isSide, proteinOnly)}
         imageUri={meal.recipe.imageUrl ? getRecipeImageUrl(meal.recipe.imageUrl) : null}
@@ -630,7 +630,7 @@ export function MealsScreen() {
           <IconButton
             testID={`meals-swap-${meal.type}-${slotIndex}`}
             accessibilityLabel={changeLabel}
-            className="bg-surface"
+            variant="tinted"
             icon={<Icon name="swap" color={colors.brand} />}
             onPress={() =>
               setPickerTarget({
@@ -1009,7 +1009,10 @@ export function MealsScreen() {
                     {PLAN_TAILORING_COPY.dayUpdated}
                   </Text>
                 ) : null}
-                <TileGrid testID="meals-tiles">{slotEntries.map(renderTile)}</TileGrid>
+                {/* 11 Oct owner feedback: one meal card per line, not a 2-column grid. */}
+                <View testID="meals-tiles" className="gap-2.5">
+                  {slotEntries.map(renderTile)}
+                </View>
               </Animated.View>
             )}
 

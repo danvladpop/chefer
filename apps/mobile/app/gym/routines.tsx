@@ -1,37 +1,52 @@
 import { useMemo, useRef, useState } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, View } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
+import { ActivityIndicator, ScrollView, View } from 'react-native';
 import { useQueryClient } from '@tanstack/react-query';
-import { router } from 'expo-router';
 import type { GymBootstrap, RoutineListItemDto, TemplateSummaryDto } from '@chefer/types';
 import {
-  Badge,
-  Button,
-  Card,
   ConfirmSheet,
   DONE_FIELD_PROPS,
-  EmptyState,
   ErrorState,
+  IconButton,
   Input,
   keyboardDismissMode,
+  ListRow,
+  ListSection,
   Screen,
   Sheet,
   Stepper,
   Text,
   useQueryState,
   useSnackbar,
+  useThemeColors,
 } from '@chefer/ui-mobile';
 import { userFacingErrorMessage } from '@chefer/utils';
+import { Icon } from '../../src/components/icon';
 import { ArchivedRoutines } from '../../src/features/gym/routine/archived-routines';
 import { useIsOnline } from '../../src/features/gym/routine/use-online';
 import { buildTemplatePreview } from '../../src/features/gym/setup/template-preview';
 import { gymBootstrapQueryKey } from '../../src/features/gym/use-gym-bootstrap';
 import { useSaveGymProfile } from '../../src/features/gym/use-save-gym-profile';
+import { ShellChromeProvider, ShellTopBar } from '../../src/features/shell/shell-chrome';
+import { useShellV2 } from '../../src/features/shell/shell-store';
+import { TrainButton } from '../../src/features/shell/train/train-button';
+import { TrainCard } from '../../src/features/shell/train/train-cards';
 import { trpc } from '../../src/lib/trpc';
 
 // My routines (gym_plan.md §1.3 "Routine tab" routine switcher): create from
 // a template or from scratch, set active, duplicate, archive (Undo for 10 s, and an
 // "Archived" section with Restore afterwards). All online-only.
+
+/** The small brand pill MediaRow uses for "Up next" (10 Oct redesign). */
+function Pill({ children, testID }: { children: string; testID?: string }) {
+  return (
+    <Text
+      testID={testID}
+      className="rounded-full bg-brand-tint px-2 text-caption font-semibold text-brand"
+    >
+      {children}
+    </Text>
+  );
+}
 
 function RoutineRow({
   routine,
@@ -44,51 +59,46 @@ function RoutineRow({
   onMore: () => void;
   disabled: boolean;
 }) {
+  const colors = useThemeColors();
   return (
-    <Card testID={`routine-list-item-${routine.id}`}>
-      <View className="flex-row items-start justify-between gap-2">
-        <View className="min-w-0 flex-1">
-          <Text className="font-medium" numberOfLines={1}>
-            {routine.name}
-          </Text>
-          <Text variant="muted" className="text-xs">
+    <TrainCard testID={`routine-list-item-${routine.id}`}>
+      <View className="flex-row items-start gap-2">
+        <View className="min-w-0 flex-1 gap-0.5">
+          <View className="flex-row flex-wrap items-center gap-2">
+            <Text numberOfLines={1} className="shrink text-headline font-semibold text-label">
+              {routine.name}
+            </Text>
+            {routine.isActive ? (
+              <Pill testID={`routine-list-item-${routine.id}-active`}>Active</Pill>
+            ) : null}
+          </View>
+          <Text className="text-subhead text-label-secondary">
             {routine.dayCount} {routine.dayCount === 1 ? 'day' : 'days'}
           </Text>
         </View>
-        <View className="flex-row gap-1">
-          {routine.isActive ? (
-            <Badge testID={`routine-list-item-${routine.id}-active`} variant="success">
-              Active
-            </Badge>
-          ) : null}
-        </View>
-      </View>
-      <View className="mt-3 flex-row items-center gap-2">
-        {!routine.isActive ? (
-          <Button
-            testID={`routine-list-item-${routine.id}-set-active`}
-            size="sm"
-            variant="outline"
-            disabled={disabled}
-            onPress={onSetActive}
-          >
-            Set active
-          </Button>
-        ) : null}
         {/* UX-GYM-15: Archive (and Duplicate) live in a ⋯ menu, so the destructive
             action is no longer one slip away from "Set active". */}
-        <Pressable
+        <IconButton
           testID={`routine-list-item-${routine.id}-more`}
-          accessibilityRole="button"
           accessibilityLabel={`More actions for ${routine.name}`}
           disabled={disabled}
           onPress={onMore}
-          className="ml-auto h-11 w-11 items-center justify-center rounded-full bg-gray-100"
-        >
-          <Ionicons name="ellipsis-horizontal" size={20} color="#374151" />
-        </Pressable>
+          className="-mr-2 -mt-2"
+          icon={<Icon name="more" color={colors.labelSecondary} size={22} />}
+        />
       </View>
-    </Card>
+      {!routine.isActive ? (
+        <TrainButton
+          testID={`routine-list-item-${routine.id}-set-active`}
+          label="Set active"
+          icon="checkmarkCircle"
+          variant="tinted"
+          className="self-start"
+          disabled={disabled}
+          onPress={onSetActive}
+        />
+      ) : null}
+    </TrainCard>
   );
 }
 
@@ -102,29 +112,24 @@ function TemplateRow({
   disabled: boolean;
 }) {
   return (
-    <View
-      testID={`gym-routines-template-${template.key}`}
-      className="gap-1 rounded-lg border border-border p-3"
-    >
-      <Text className="font-medium">{template.name}</Text>
-      <Text variant="muted" className="text-xs">
-        {template.daysPerWeek}×/week ·{' '}
-        {template.experience === 'BEGINNER' ? 'Beginner' : 'Experienced'}
-      </Text>
-      <Text variant="muted" className="text-sm">
-        {template.description}
-      </Text>
-      <Button
+    <TrainCard testID={`gym-routines-template-${template.key}`}>
+      <View className="gap-0.5">
+        <Text className="text-headline font-semibold text-label">{template.name}</Text>
+        <Text className="text-caption text-label-secondary">
+          {template.daysPerWeek}×/week ·{' '}
+          {template.experience === 'BEGINNER' ? 'Beginner' : 'Experienced'}
+        </Text>
+      </View>
+      <Text className="text-subhead text-label-secondary">{template.description}</Text>
+      <TrainButton
         testID={`gym-routines-template-${template.key}-preview`}
-        size="sm"
+        label="Preview"
         variant="outline"
-        className="mt-2 self-start"
+        className="self-start"
         disabled={disabled}
         onPress={onPreview}
-      >
-        Preview
-      </Button>
-    </View>
+      />
+    </TrainCard>
   );
 }
 
@@ -142,11 +147,14 @@ function TemplatePreviewBody({
 }) {
   return (
     <View className="gap-3" testID="gym-routines-template-preview">
-      <Text variant="muted" className="text-sm">
+      <Text className="text-subhead text-label-secondary">
         {template.daysPerWeek}×/week · {template.description}
       </Text>
       {hasActive ? (
-        <Text testID="gym-routines-template-preview-switch-note" className="text-sm">
+        <Text
+          testID="gym-routines-template-preview-switch-note"
+          className="rounded-control bg-surface-sunken px-3 py-2 text-subhead text-label"
+        >
           {currentGoal !== null && currentGoal !== template.daysPerWeek
             ? `“Create and switch” makes this your active routine and changes your weekly goal from ${String(currentGoal)} to ${String(template.daysPerWeek)}. “Create” keeps your current routine active.`
             : '“Create and switch” makes this your active routine. “Create” keeps your current routine active.'}
@@ -154,25 +162,26 @@ function TemplatePreviewBody({
       ) : null}
       {preview ? (
         preview.days.map((day, i) => (
-          <Card
+          <TrainCard
             key={`${day.name}-${String(i)}`}
             testID={`gym-routines-template-preview-day-${String(i)}`}
-            className="gap-1"
+            className="gap-1.5"
           >
             <View className="flex-row items-center justify-between gap-2">
-              <Text className="min-w-0 flex-1 font-semibold" numberOfLines={1}>
+              <Text
+                className="min-w-0 flex-1 text-headline font-semibold text-label"
+                numberOfLines={1}
+              >
                 {day.name}
               </Text>
-              <Text variant="muted" className="text-xs">
-                ~{day.estimatedMin} min
-              </Text>
+              <Text className="text-caption text-label-secondary">~{day.estimatedMin} min</Text>
             </View>
             {day.exercises.map((ex) => (
               <View key={ex.exerciseId} className="flex-row items-center justify-between gap-2">
-                <Text className="min-w-0 flex-1 text-sm" numberOfLines={1}>
+                <Text className="min-w-0 flex-1 text-subhead text-label" numberOfLines={1}>
                   {ex.name}
                 </Text>
-                <Text variant="muted" className="text-xs">
+                <Text className="text-caption text-label-secondary">
                   {ex.sets} ×{' '}
                   {ex.repMin === ex.repMax
                     ? ex.repMin
@@ -180,10 +189,13 @@ function TemplatePreviewBody({
                 </Text>
               </View>
             ))}
-          </Card>
+          </TrainCard>
         ))
       ) : (
-        <Text variant="muted" testID="gym-routines-template-preview-unavailable">
+        <Text
+          testID="gym-routines-template-preview-unavailable"
+          className="text-subhead text-label-secondary"
+        >
           The day-by-day preview isn’t available for this program.
         </Text>
       )}
@@ -191,7 +203,26 @@ function TemplatePreviewBody({
   );
 }
 
-export default function GymRoutinesScreen() {
+// 10 Oct redesign: a pushed page under the shell's top bar (brand Back +
+// title1), on the canvas, with TrainCards — the look of Routine / Training
+// settings. The route wraps the screen in its own chrome so the top bar shows
+// in both shells; Back falls back to the shell's Routine page.
+export default function GymRoutinesRoute() {
+  const shellV2 = useShellV2();
+  return (
+    <ShellChromeProvider
+      value={{
+        kind: 'pushed',
+        fallback: shellV2 ? '/training/routine' : '/routine',
+        title: 'My routines',
+      }}
+    >
+      <GymRoutinesScreen />
+    </ShellChromeProvider>
+  );
+}
+
+function GymRoutinesScreen() {
   const isOnline = useIsOnline();
   const utils = trpc.useUtils();
   const listQuery = trpc.gym.routine.list.useQuery();
@@ -314,54 +345,44 @@ export default function GymRoutinesScreen() {
   const archivedRoutines = (listQuery.data ?? []).filter((r) => r.archived);
 
   return (
-    <Screen className="px-0" edges={['top', 'bottom', 'left', 'right']}>
+    <Screen className="bg-canvas px-0" edges={['top', 'bottom', 'left', 'right']}>
       <ScrollView
         keyboardShouldPersistTaps="handled"
         keyboardDismissMode={keyboardDismissMode()}
-        contentContainerClassName="gap-4 px-4 py-4"
+        contentContainerClassName="gap-4 px-4 pb-8 pt-2"
       >
-        <View className="flex-row items-center gap-3">
-          <Pressable
-            testID="gym-routines-title-back"
-            accessibilityRole="button"
-            accessibilityLabel="Back"
-            onPress={() => (router.canGoBack() ? router.back() : router.replace('/routine'))}
-            className="h-11 w-11 items-center justify-center rounded-full bg-gray-100"
-          >
-            <Ionicons name="chevron-back" size={22} color="#374151" />
-          </Pressable>
-          <Text testID="gym-routines-title" variant="title">
-            My routines
-          </Text>
+        <View testID="gym-routines-title">
+          <ShellTopBar />
         </View>
 
         {!isOnline ? (
-          <View testID="gym-routines-offline-banner" className="rounded-lg bg-amber-50 px-3 py-2">
-            <Text className="text-sm text-amber-900">
-              Editing routines needs a connection. Logging works offline.
-            </Text>
-          </View>
+          <Text
+            testID="gym-routines-offline-banner"
+            className="rounded-control bg-surface-sunken px-3 py-2 text-subhead text-label-secondary"
+          >
+            Editing routines needs a connection. Logging works offline.
+          </Text>
         ) : null}
 
         <View className="flex-row gap-2">
-          <Button
+          <TrainButton
             testID="gym-routines-create-template"
-            variant="outline"
+            label="From a template"
+            icon="routine"
+            variant="tinted"
             className="flex-1"
             disabled={!isOnline}
             onPress={openTemplateSheet}
-          >
-            From a template
-          </Button>
-          <Button
+          />
+          <TrainButton
             testID="gym-routines-create-blank"
-            variant="outline"
+            label="Blank routine"
+            icon="add"
+            variant="tinted"
             className="flex-1"
             disabled={!isOnline}
             onPress={() => setBlankSheetOpen(true)}
-          >
-            Blank routine
-          </Button>
+          />
         </View>
 
         {listState.state === 'error' ? (
@@ -374,7 +395,7 @@ export default function GymRoutinesScreen() {
         ) : listQuery.isPending && listQuery.fetchStatus !== 'paused' ? (
           <ActivityIndicator testID="gym-routines-loading" />
         ) : liveRoutines.length > 0 ? (
-          <View className="gap-3">
+          <View testID="gym-routines-list" className="gap-2.5">
             {liveRoutines.map((routine) => (
               <RoutineRow
                 key={routine.id}
@@ -386,15 +407,16 @@ export default function GymRoutinesScreen() {
             ))}
           </View>
         ) : (
-          <EmptyState
-            testID="gym-routines-empty"
-            title={isOnline ? 'No routines yet' : 'Needs a connection'}
-            description={
-              isOnline
+          <TrainCard testID="gym-routines-empty">
+            <Text accessibilityRole="header" className="text-title3 font-bold text-label">
+              {isOnline ? 'No routines yet' : 'Needs a connection'}
+            </Text>
+            <Text className="text-subhead text-label-secondary">
+              {isOnline
                 ? 'Create one from a template or start from scratch.'
-                : 'Your routines will load once you are back online.'
-            }
-          />
+                : 'Your routines will load once you are back online.'}
+            </Text>
+          </TrainCard>
         )}
         {archivedRoutines.length > 0 ? (
           <ArchivedRoutines
@@ -417,23 +439,22 @@ export default function GymRoutinesScreen() {
         title={menuTarget?.name ?? 'Routine'}
         testID="gym-routines-menu-sheet"
       >
-        <View>
-          <Pressable
+        <ListSection>
+          <ListRow
             testID="gym-routines-menu-duplicate"
-            accessibilityRole="button"
+            title="Duplicate"
+            accessory="none"
             onPress={() => {
               const target = menuTarget;
               setMenuTarget(null);
               if (target) duplicateMutation.mutate({ id: target.id });
             }}
-            className="min-h-12 justify-center border-b border-border px-1 py-2 active:bg-muted"
-          >
-            <Text className="text-base font-medium">Duplicate</Text>
-          </Pressable>
+          />
           {menuTarget && !menuTarget.archived ? (
-            <Pressable
+            <ListRow
               testID="gym-routines-menu-archive"
-              accessibilityRole="button"
+              title="Archive"
+              destructive
               onPress={() => {
                 const target = menuTarget;
                 // The confirm opens once this sheet has exited (iOS can't present
@@ -441,12 +462,9 @@ export default function GymRoutinesScreen() {
                 afterMenuExit.current = () => confirmArchive(target);
                 setMenuTarget(null);
               }}
-              className="min-h-12 justify-center px-1 py-2 active:bg-muted"
-            >
-              <Text className="text-base font-medium text-destructive">Archive</Text>
-            </Pressable>
+            />
           ) : null}
-        </View>
+        </ListSection>
       </Sheet>
 
       <ConfirmSheet
@@ -480,8 +498,10 @@ export default function GymRoutinesScreen() {
         footer={
           previewTemplate ? (
             <View className="gap-2">
-              <Button
+              <TrainButton
                 testID="gym-routines-template-create-switch"
+                label={hasActive ? 'Create and switch' : 'Create'}
+                size="lg"
                 loading={
                   createFromTemplateMutation.isPending &&
                   createFromTemplateMutation.variables.setActive === true
@@ -493,12 +513,11 @@ export default function GymRoutinesScreen() {
                     setActive: true,
                   })
                 }
-              >
-                {hasActive ? 'Create and switch' : 'Create'}
-              </Button>
+              />
               {hasActive ? (
-                <Button
+                <TrainButton
                   testID="gym-routines-template-create"
+                  label="Create"
                   variant="outline"
                   loading={
                     createFromTemplateMutation.isPending &&
@@ -511,17 +530,14 @@ export default function GymRoutinesScreen() {
                       setActive: false,
                     })
                   }
-                >
-                  Create
-                </Button>
+                />
               ) : null}
-              <Button
+              <TrainButton
                 testID="gym-routines-template-back"
+                label="All templates"
                 variant="ghost"
                 onPress={() => setPreviewKey(null)}
-              >
-                All templates
-              </Button>
+              />
             </View>
           ) : undefined
         }
@@ -553,14 +569,14 @@ export default function GymRoutinesScreen() {
         title="Blank routine"
         testID="gym-routines-blank-sheet"
         footer={
-          <Button
+          <TrainButton
             testID="gym-routines-blank-create"
+            label="Create"
+            size="lg"
             loading={createBlankMutation.isPending}
             disabled={blankName.trim().length === 0}
             onPress={() => createBlankMutation.mutate({ name: blankName.trim(), days: blankDays })}
-          >
-            Create
-          </Button>
+          />
         }
       >
         <Input
@@ -571,8 +587,8 @@ export default function GymRoutinesScreen() {
           maxLength={60}
           {...DONE_FIELD_PROPS}
         />
-        <View className="flex-row items-center justify-between">
-          <Text variant="label">Days</Text>
+        <View className="min-h-11 flex-row items-center justify-between gap-3">
+          <Text className="text-callout font-semibold text-label">Days</Text>
           <Stepper
             testID="gym-routines-blank-days"
             accessibilityLabel="Days"

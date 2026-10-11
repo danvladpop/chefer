@@ -1,6 +1,5 @@
 import { memo, useCallback } from 'react';
-import { Pressable, Text as RNText, View } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
+import { Pressable, View } from 'react-native';
 import type {
   EquipmentProfile,
   ExerciseMeta,
@@ -9,8 +8,9 @@ import type {
   SessionSetDoc,
   WeightUnit,
 } from '@chefer/types';
-import { Text, ValueStepper } from '@chefer/ui-mobile';
+import { Text, useThemeColors, ValueStepper } from '@chefer/ui-mobile';
 import { cn, formatLoad, formatLoadNumber, unitLabel } from '@chefer/utils';
+import { Icon } from '../../../components/icon';
 import { SwipeToRemove } from '../../../components/swipe-to-remove';
 import { nextLoad, PR_LABELS, type WeightMode } from './workout-model';
 
@@ -49,8 +49,6 @@ export interface SetRowProps {
   testID: string;
 }
 
-/** muted-foreground — Ionicons takes a colour, not a class. */
-const MUTED_ICON = '#6b7280';
 const MAX_REPS = 100;
 const MAX_SECONDS = 3600;
 const TIMED_STEP = 5;
@@ -81,6 +79,7 @@ function SetRowImpl({
   handlers,
   testID,
 }: SetRowProps) {
+  const colors = useThemeColors();
   const done = set.completedAt !== null;
   const timed = meta.isTimed;
   const repsCaption = timed ? 's' : 'reps';
@@ -130,32 +129,33 @@ function SetRowImpl({
         accessible={false}
         onLongPress={longPress}
         className={cn(
-          'gap-0.5 rounded-lg border px-1 py-1',
+          'gap-0.5 rounded-control border px-1 py-1',
           done
-            ? 'border-transparent bg-emerald-50'
+            ? 'border-transparent bg-positive/10'
             : focused
-              ? 'border-primary/40'
+              ? 'border-brand/40'
               : 'border-transparent',
         )}
       >
-        {/* WP-04: labels one step up (text-sm). min-h, not h: at large OS text
+        {/* WP-04: labels one step up (text-callout, 16 pt). min-h, not h: at large OS text
             the row grows; "Last 60 × 10" wraps to two lines instead of clipping. */}
         <View className="min-h-6 flex-row items-center gap-2 px-1">
-          <Text testID={`${testID}-label`} className="text-sm font-semibold text-foreground">
+          <Text testID={`${testID}-label`} className="text-callout font-semibold text-label">
             {label}
           </Text>
           <Text
             testID={`${testID}-last`}
             numberOfLines={2}
-            className="min-w-0 flex-1 text-sm text-muted-foreground"
+            className="min-w-0 flex-1 text-callout text-label-secondary"
+            style={{ fontVariant: ['tabular-nums'] }}
           >
             {lastText}
           </Text>
           {prKind ? (
-            <View className="rounded-full bg-amber-100 px-2 py-0.5">
-              <RNText testID={`${testID}-pr`} className="text-xs font-bold text-amber-800">
+            <View className="rounded-full bg-attention/10 px-2 py-0.5">
+              <Text testID={`${testID}-pr`} className="text-caption font-bold text-attention">
                 {PR_LABELS[prKind]}
-              </RNText>
+              </Text>
             </View>
           ) : null}
           {/* UX-05 A1 (T-05.A1.2, PAT-16): a visible remove control on every
@@ -170,7 +170,7 @@ function SetRowImpl({
             onPress={longPress}
             className="h-11 w-11 items-center justify-center"
           >
-            <Ionicons name="close" size={18} color={MUTED_ICON} />
+            <Icon name="close" size={18} color={colors.labelSecondary} />
           </Pressable>
         </View>
         {/* UX-05 A1 (T-05.A1.1, O-05/O-06): grouped kg/reps containers 8 pt
@@ -179,7 +179,10 @@ function SetRowImpl({
         <View className="flex-row items-center gap-2">
           {weightMode === 'none' ? (
             <View className="min-h-11 flex-1 items-center justify-center">
-              <Text testID={`${testID}-weight-value`} className="text-xl font-semibold">
+              <Text
+                testID={`${testID}-weight-value`}
+                className="text-title2 font-semibold text-label"
+              >
                 BW
               </Text>
             </View>
@@ -222,14 +225,14 @@ function SetRowImpl({
                 // WP-04: 52 pt visual + hit area (SET_TICK_SIZE) — the control
                 // used with a barbell in hand.
                 'h-[52px] w-[52px] shrink-0 items-center justify-center rounded-full border-2 active:opacity-70',
-                done ? 'border-emerald-600 bg-emerald-600' : 'border-primary/40 bg-background',
+                done ? 'border-positive bg-positive' : 'border-brand/40 bg-surface',
               )}
             >
-              <RNText
-                className={cn('text-2xl font-bold', done ? 'text-white' : 'text-muted-foreground')}
-              >
-                ✓
-              </RNText>
+              <Icon
+                name="checkmark"
+                size={28}
+                color={done ? colors.onBrand : colors.labelTertiary}
+              />
             </Pressable>
           ) : null}
         </View>

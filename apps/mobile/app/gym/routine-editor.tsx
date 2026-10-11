@@ -1,22 +1,21 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { ActivityIndicator, Alert, Pressable, View, type TextInput } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
+import { ActivityIndicator, Alert, View, type TextInput } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { TEMPLATE_BY_KEY, type RoutineDto } from '@chefer/types';
 import {
-  Badge,
-  Button,
   ConfirmSheet,
   DONE_FIELD_PROPS,
-  EmptyState,
+  IconButton,
   Input,
   KeyboardAwareScrollView,
   Screen,
   Sheet,
   Text,
   useScrollFieldIntoView,
+  useThemeColors,
 } from '@chefer/ui-mobile';
 import { userFacingErrorMessage, validateRoutine, volumeByGroup } from '@chefer/utils';
+import { Icon } from '../../src/components/icon';
 import { openCreateExercise } from '../../src/features/gym/library/create-exercise-href';
 import { ExercisePicker } from '../../src/features/gym/library/exercise-picker';
 import { newId } from '../../src/features/gym/offline/ids';
@@ -39,6 +38,8 @@ import { MAX_DAYS, type RoutineDraft } from '../../src/features/gym/routine/type
 import { useIsOnline } from '../../src/features/gym/routine/use-online';
 import { WeeklyBalanceCard } from '../../src/features/gym/routine/weekly-balance';
 import { libraryLookup, useGymBootstrap } from '../../src/features/gym/use-gym-bootstrap';
+import { TrainButton } from '../../src/features/shell/train/train-button';
+import { TrainCard } from '../../src/features/shell/train/train-cards';
 import { trpc } from '../../src/lib/trpc';
 import { useUnsavedGuard } from '../../src/lib/use-unsaved-guard';
 
@@ -53,6 +54,43 @@ const EMPTY_DRAFT: RoutineDraft = { id: '', name: '', version: 0, days: [] };
 
 interface ConflictState {
   current: RoutineDto;
+}
+
+/**
+ * The page's top bar in the shell's look (ShellTopBar: brand chevron Back +
+ * title1, 10 Oct redesign). Drawn here rather than through ShellChromeProvider
+ * so Back and the title keep the testIDs the Maestro flows tap, and so the
+ * "Unsaved" pill can sit beside the title.
+ */
+function EditorTopBar({ dirty = false }: { dirty?: boolean }) {
+  const colors = useThemeColors();
+  return (
+    <View className="min-h-11 flex-row items-center gap-1">
+      <IconButton
+        testID="gym-routine-editor-title-back"
+        accessibilityLabel="Back"
+        icon={<Icon name="chevronBack" color={colors.brand} size={26} />}
+        onPress={() => router.back()}
+        className="-ml-2"
+      />
+      <Text
+        testID="gym-routine-editor-title"
+        accessibilityRole="header"
+        numberOfLines={1}
+        className="min-w-0 flex-1 text-title1 font-bold text-label"
+      >
+        Edit routine
+      </Text>
+      {dirty ? (
+        <Text
+          testID="gym-routine-editor-dirty"
+          className="rounded-full bg-brand-tint px-2 text-caption font-semibold text-brand"
+        >
+          Unsaved
+        </Text>
+      ) : null}
+    </View>
+  );
 }
 
 type PickerState =
@@ -163,21 +201,33 @@ export default function GymRoutineEditorScreen() {
   // has Retry — neither is an endless spinner.
   if (routineQuery.isPending && routineQuery.fetchStatus === 'paused') {
     return (
-      <Screen className="px-0" edges={['top', 'bottom', 'left', 'right']}>
-        <View className="flex-1 items-center justify-center gap-3 px-6">
-          <EmptyState
-            testID="gym-routine-editor-offline"
-            title="Needs a connection"
-            description="Reconnect to edit this routine."
-            action={{
-              label: 'Try again',
-              onPress: () => void routineQuery.refetch(),
-              testID: 'gym-routine-editor-offline-retry',
-            }}
-          />
-          <Button testID="gym-routine-editor-back" variant="outline" onPress={() => router.back()}>
-            Back
-          </Button>
+      <Screen className="bg-canvas px-0" edges={['top', 'bottom', 'left', 'right']}>
+        <View className="gap-4 px-4 pt-2">
+          <EditorTopBar />
+          <TrainCard testID="gym-routine-editor-offline">
+            <Text accessibilityRole="header" className="text-title3 font-bold text-label">
+              Needs a connection
+            </Text>
+            <Text className="text-subhead text-label-secondary">
+              Reconnect to edit this routine.
+            </Text>
+            <View className="flex-row gap-2">
+              <TrainButton
+                testID="gym-routine-editor-offline-retry"
+                label="Try again"
+                icon="refresh"
+                className="flex-1"
+                onPress={() => void routineQuery.refetch()}
+              />
+              <TrainButton
+                testID="gym-routine-editor-back"
+                label="Back"
+                variant="outline"
+                className="flex-1"
+                onPress={() => router.back()}
+              />
+            </View>
+          </TrainCard>
         </View>
       </Screen>
     );
@@ -185,7 +235,7 @@ export default function GymRoutineEditorScreen() {
 
   if (routineQuery.isPending) {
     return (
-      <Screen className="px-0" edges={['top', 'bottom', 'left', 'right']}>
+      <Screen className="bg-canvas px-0" edges={['top', 'bottom', 'left', 'right']}>
         <View className="flex-1 items-center justify-center">
           <ActivityIndicator testID="gym-routine-editor-loading" />
         </View>
@@ -195,74 +245,69 @@ export default function GymRoutineEditorScreen() {
 
   if (routineQuery.isError) {
     return (
-      <Screen className="px-0" edges={['top', 'bottom', 'left', 'right']}>
-        <View className="flex-1 items-center justify-center gap-3 px-6">
-          <Text testID="gym-routine-editor-title" variant="title">
-            Edit routine
-          </Text>
-          <Text variant="muted" className="text-center">
-            {userFacingErrorMessage(routineQuery.error)}
-          </Text>
-          <Button testID="gym-routine-editor-retry" onPress={() => void routineQuery.refetch()}>
-            Try again
-          </Button>
-          <Button testID="gym-routine-editor-back" variant="outline" onPress={() => router.back()}>
-            Back
-          </Button>
+      <Screen className="bg-canvas px-0" edges={['top', 'bottom', 'left', 'right']}>
+        <View className="gap-4 px-4 pt-2">
+          <EditorTopBar />
+          <TrainCard testID="gym-routine-editor-error">
+            <Text accessibilityRole="header" className="text-title3 font-bold text-label">
+              Couldn’t load this routine
+            </Text>
+            <Text className="text-subhead text-label-secondary">
+              {userFacingErrorMessage(routineQuery.error)}
+            </Text>
+            <View className="flex-row gap-2">
+              <TrainButton
+                testID="gym-routine-editor-retry"
+                label="Try again"
+                icon="refresh"
+                className="flex-1"
+                onPress={() => void routineQuery.refetch()}
+              />
+              <TrainButton
+                testID="gym-routine-editor-back"
+                label="Back"
+                variant="outline"
+                className="flex-1"
+                onPress={() => router.back()}
+              />
+            </View>
+          </TrainCard>
         </View>
       </Screen>
     );
   }
 
   return (
-    <Screen className="px-0" edges={['top', 'bottom', 'left', 'right']}>
+    <Screen className="bg-canvas px-0" edges={['top', 'bottom', 'left', 'right']}>
       {/* Sticky header: Back stays reachable however far the draft scrolls. */}
-      <View className="flex-row items-center gap-3 border-b border-border px-4 py-3">
-        <Pressable
-          testID="gym-routine-editor-title-back"
-          accessibilityRole="button"
-          accessibilityLabel="Back"
-          onPress={() => router.back()}
-          className="h-11 w-11 items-center justify-center rounded-full bg-gray-100"
-        >
-          <Ionicons name="chevron-back" size={22} color="#374151" />
-        </Pressable>
-        <Text testID="gym-routine-editor-title" variant="title" className="min-w-0 flex-1">
-          Edit routine
-        </Text>
-        {dirty ? (
-          <Badge testID="gym-routine-editor-dirty" variant="warning">
-            Unsaved
-          </Badge>
-        ) : null}
+      <View className="border-b border-separator bg-canvas px-4 pb-2 pt-2">
+        <EditorTopBar dirty={dirty} />
       </View>
       <KeyboardAwareScrollView
-        contentContainerClassName="gap-4 px-4 py-4"
+        contentContainerClassName="gap-4 px-4 pb-8 pt-3"
         footer={
           // Primary action in thumb reach (and clear of the top-right corner) —
           // inside the same KeyboardAvoidingView so it rises with the keyboard
           // instead of staying pinned behind it (dogfood #2).
-          <View className="border-t border-border bg-background px-4 pb-2 pt-3">
-            <Button
+          <View className="border-t border-separator bg-canvas px-4 pb-2 pt-3">
+            <TrainButton
               testID="gym-routine-editor-save"
+              label={dirty ? 'Save changes' : 'No changes'}
+              size="lg"
               loading={saveMutation.isPending}
               disabled={!isOnline || !dirty}
               onPress={() => submitSave(draft)}
-            >
-              {dirty ? 'Save changes' : 'No changes'}
-            </Button>
+            />
           </View>
         }
       >
         {!isOnline ? (
-          <View
+          <Text
             testID="gym-routine-editor-offline-banner"
-            className="rounded-lg bg-amber-50 px-3 py-2"
+            className="rounded-control bg-surface-sunken px-3 py-2 text-subhead text-label-secondary"
           >
-            <Text className="text-sm text-amber-900">
-              Editing routines needs a connection. Logging works offline.
-            </Text>
-          </View>
+            Editing routines needs a connection. Logging works offline.
+          </Text>
         ) : null}
 
         <Input
@@ -291,14 +336,14 @@ export default function GymRoutineEditorScreen() {
           />
         ))}
 
-        <Button
+        <TrainButton
           testID="gym-routine-editor-add-day"
-          variant="outline"
+          label="Add day"
+          icon="add"
+          variant="tinted"
           disabled={draft.days.length >= MAX_DAYS}
           onPress={() => dispatch({ type: 'addDay', dayId: newId() })}
-        >
-          Add day
-        </Button>
+        />
 
         <WeeklyBalanceCard testID="gym-routine-editor-balance" volume={volume} hints={hints} />
       </KeyboardAwareScrollView>
@@ -340,8 +385,10 @@ export default function GymRoutineEditorScreen() {
         testID="gym-routine-editor-conflict"
         footer={
           <View className="gap-2">
-            <Button
+            <TrainButton
               testID="gym-routine-editor-conflict-keep-mine"
+              label="Keep mine"
+              size="lg"
               onPress={() => {
                 if (!conflict) return;
                 const bumped = keepMineAfterConflict(draft, conflict.current);
@@ -349,11 +396,10 @@ export default function GymRoutineEditorScreen() {
                 setConflict(null);
                 submitSave(bumped);
               }}
-            >
-              Keep mine
-            </Button>
-            <Button
+            />
+            <TrainButton
               testID="gym-routine-editor-conflict-use-theirs"
+              label="Use the other version"
               variant="outline"
               onPress={() => {
                 if (!conflict) return;
@@ -362,20 +408,21 @@ export default function GymRoutineEditorScreen() {
                 setBaseline(next);
                 setConflict(null);
               }}
-            >
-              Use the other version
-            </Button>
+            />
           </View>
         }
       >
-        <Text variant="muted">
+        <Text className="text-subhead text-label-secondary">
           This routine changed on another device. Keep mine re-saves your edits with the newer
           version; use the other version reloads it and discards your edits here.
         </Text>
         {conflict ? (
-          <Badge testID="gym-routine-editor-conflict-version" variant="secondary">
+          <Text
+            testID="gym-routine-editor-conflict-version"
+            className="self-start rounded-full bg-brand-tint px-2 text-caption font-semibold text-brand"
+          >
             Server version {conflict.current.version}
-          </Badge>
+          </Text>
         ) : null}
       </Sheet>
 

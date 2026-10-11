@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Pressable, Text as RNText, View } from 'react-native';
+import { Pressable, View } from 'react-native';
 import {
   GYM_MAX_REPS,
   GYM_MAX_WEIGHT_KG,
@@ -9,6 +9,7 @@ import {
 } from '@chefer/types';
 import { Button, Sheet, Text } from '@chefer/ui-mobile';
 import {
+  cn,
   formatLoadNumber,
   kgToUnit,
   PER_HAND_SUFFIX,
@@ -47,13 +48,18 @@ function Keypad({
             accessibilityLabel={key === 'back' ? 'Delete' : key === '.' ? 'Decimal point' : key}
             disabled={hidden}
             onPress={() => onKey(key)}
-            className={`h-14 w-[31%] items-center justify-center rounded-xl ${
-              hidden ? 'opacity-0' : 'bg-muted active:opacity-70'
-            }`}
+            className={cn(
+              'h-14 w-[31%] items-center justify-center rounded-control',
+              hidden ? 'opacity-0' : 'bg-surface-sunken active:opacity-70',
+            )}
           >
-            <RNText className="text-2xl font-semibold text-foreground">
+            <Text
+              maxFontSizeMultiplier={1.3}
+              className="text-title1 font-semibold text-label"
+              style={{ fontVariant: ['tabular-nums'] }}
+            >
               {key === 'back' ? '⌫' : key}
-            </RNText>
+            </Text>
           </Pressable>
         );
       })}
@@ -204,41 +210,52 @@ export function NumberSheet(props: NumberSheetProps) {
       }
     >
       <View className="items-center py-2">
-        <Text testID="number-sheet-value" className="text-4xl font-bold tabular-nums">
+        <Text
+          testID="number-sheet-value"
+          className="text-display font-bold text-label"
+          style={{ fontVariant: ['tabular-nums'] }}
+        >
           {text === '' ? '0' : text}
-          <Text className="text-lg text-muted-foreground"> {suffix}</Text>
+          <Text className="text-title3 font-semibold text-label-secondary"> {suffix}</Text>
         </Text>
       </View>
 
       {confirmingJump ? (
-        <Text testID="number-sheet-jump-warning" className="text-center text-sm text-amber-800">
+        <Text
+          testID="number-sheet-jump-warning"
+          className="text-center text-callout font-medium text-attention"
+        >
           {`That is more than ${JUMP_CONFIRM_FACTOR}× the last ${formatPrevious(kind, value, unit, meta?.perHand === true)}. Is it right?`}
         </Text>
       ) : null}
 
       {plates && !belowBar ? (
-        <View testID="plate-calculator" className="gap-2 rounded-xl bg-muted p-3">
-          <Text className="text-sm font-medium">
+        <View testID="plate-calculator" className="gap-2 rounded-control bg-surface-sunken p-3">
+          <Text className="text-callout font-medium text-label">
             Per side, on a {formatLoadNumber(profile.barWeightKg, unit)} {unitLabel(unit)} bar
           </Text>
           {plates.plates.length === 0 ? (
-            <Text variant="muted">Just the bar.</Text>
+            <Text className="text-subhead text-label-secondary">Just the bar.</Text>
           ) : (
             <View className="flex-row flex-wrap gap-2">
               {plates.plates.map((p, i) => (
                 <View
                   key={`${p}-${i}`}
-                  className="min-w-11 items-center rounded-md border border-border bg-card px-2 py-1"
+                  className="min-w-11 items-center rounded-inner border border-separator bg-surface px-2 py-1"
                 >
-                  <RNText testID={`plate-${i}`} className="text-base font-semibold text-foreground">
+                  <Text
+                    testID={`plate-${i}`}
+                    className="text-callout font-semibold text-label"
+                    style={{ fontVariant: ['tabular-nums'] }}
+                  >
                     {String(kgToUnit(p, unit))}
-                  </RNText>
+                  </Text>
                 </View>
               ))}
             </View>
           )}
           {plates.remainderKg > 0.005 ? (
-            <Text testID="plate-calculator-remainder" className="text-sm text-amber-800">
+            <Text testID="plate-calculator-remainder" className="text-subhead text-attention">
               {`${formatLoadNumber(plates.remainderKg, unit)} ${unitLabel(unit)} per side can't be made with your plates.`}
             </Text>
           ) : null}
@@ -252,7 +269,7 @@ export function NumberSheet(props: NumberSheetProps) {
               }}
               className="min-h-11 justify-center"
             >
-              <Text className="text-sm text-amber-800">
+              <Text className="text-subhead font-semibold text-attention">
                 Your plates can&apos;t make this exactly. Tap to use{' '}
                 {formatLoadNumber(nearest, unit)} {unitLabel(unit)}.
               </Text>
@@ -261,7 +278,7 @@ export function NumberSheet(props: NumberSheetProps) {
         </View>
       ) : null}
       {belowBar ? (
-        <Text variant="muted" className="text-center">
+        <Text className="text-center text-subhead text-label-secondary">
           Lighter than the empty bar.
         </Text>
       ) : null}

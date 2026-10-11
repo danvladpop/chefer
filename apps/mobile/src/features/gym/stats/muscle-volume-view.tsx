@@ -2,17 +2,10 @@ import { useMemo, useState } from 'react';
 import { View } from 'react-native';
 import type { GymBootstrap, MuscleVolumeWeekDto, VolumeGroup } from '@chefer/types';
 import { VOLUME_GROUPS } from '@chefer/types';
-import {
-  BarChart,
-  Card,
-  CardTitle,
-  chartPalette,
-  colors,
-  SelectField,
-  Text,
-} from '@chefer/ui-mobile';
+import { BarChart, chartPalette, SelectField, Text, useThemeColors } from '@chefer/ui-mobile';
 import { completedSetsByWeek, landmarkFor, VOLUME_GROUP_LABELS } from '@chefer/utils';
 import { trpc } from '../../../lib/trpc';
+import { TrainCard } from '../../shell/train/train-cards';
 import { useIsOnline } from '../library-screens/online-status';
 import { libraryLookup } from '../use-gym-bootstrap';
 
@@ -57,6 +50,7 @@ function shortLabel(weekStart: string): string {
 }
 
 export function MuscleVolumeView({ bootstrap }: { bootstrap: GymBootstrap }) {
+  const colors = useThemeColors();
   const online = useIsOnline();
   const [group, setGroup] = useState<VolumeGroup>('chest');
 
@@ -74,9 +68,9 @@ export function MuscleVolumeView({ bootstrap }: { bootstrap: GymBootstrap }) {
   const windowWeeks = weeks.slice(-WEEKS);
   const stackGroups = pickStackGroups(windowWeeks, group);
   const seriesColors: Record<string, string> = Object.fromEntries(
-    stackGroups.map((g, i) => [g, chartPalette[i % chartPalette.length] ?? colors.primary]),
+    stackGroups.map((g, i) => [g, chartPalette[i % chartPalette.length] ?? colors.brand]),
   );
-  seriesColors[OTHER_KEY] = colors.mutedForeground;
+  seriesColors[OTHER_KEY] = colors.labelTertiary;
   const hasOther = windowWeeks.some((w) =>
     GROUPS.some((g) => !stackGroups.includes(g) && (w.sets[g] ?? 0) > 0),
   );
@@ -99,8 +93,10 @@ export function MuscleVolumeView({ bootstrap }: { bootstrap: GymBootstrap }) {
   ];
 
   return (
-    <Card testID="stats-muscle-volume">
-      <CardTitle>Weekly sets per muscle</CardTitle>
+    <TrainCard testID="stats-muscle-volume">
+      <Text accessibilityRole="header" className="text-headline font-semibold text-label">
+        Weekly sets per muscle
+      </Text>
       {/* FB7-08: a dropdown (as on web), not 12 wrapping chips. */}
       <SelectField
         testID="stats-muscle-volume-group"
@@ -109,7 +105,6 @@ export function MuscleVolumeView({ bootstrap }: { bootstrap: GymBootstrap }) {
         value={group}
         onChange={setGroup}
         searchable={false}
-        className="mb-3"
       />
       <BarChart
         testID="stats-muscle-volume-chart"
@@ -120,22 +115,17 @@ export function MuscleVolumeView({ bootstrap }: { bootstrap: GymBootstrap }) {
       />
       {/* UX-05 F (CI-36): a legend under the stacked bar — colour swatch +
           label, wraps at narrow widths. */}
-      <View
-        testID="stats-muscle-volume-legend"
-        className="mt-2 flex-row flex-wrap gap-x-3 gap-y-1.5"
-      >
+      <View testID="stats-muscle-volume-legend" className="flex-row flex-wrap gap-x-3 gap-y-1.5">
         {legend.map((item) => (
           <View key={item.key} className="flex-row items-center gap-1.5">
             <View
               className="h-2.5 w-2.5 rounded-full"
               style={{ backgroundColor: seriesColors[item.key] }}
             />
-            <Text variant="muted" className="text-xs">
-              {item.label}
-            </Text>
+            <Text className="text-caption text-label-secondary">{item.label}</Text>
           </View>
         ))}
       </View>
-    </Card>
+    </TrainCard>
   );
 }

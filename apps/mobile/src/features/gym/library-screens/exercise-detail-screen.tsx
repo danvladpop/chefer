@@ -1,21 +1,21 @@
 import { useMemo, useState } from 'react';
-import { Keyboard, Pressable, View } from 'react-native';
+import type { ReactNode } from 'react';
+import { ActivityIndicator, Keyboard, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { HIDDEN_EXERCISE_IMAGE_IDS, MUSCLE_LABELS } from '@chefer/types';
 import {
-  Badge,
-  Button,
-  Card,
-  CardTitle,
   ConfirmSheet,
   EmptyState,
   ErrorState,
+  IconButton,
   KeyboardAwareScrollView,
   LineChart,
+  PressableScale,
   Screen,
   showSnackbar,
   Text,
+  useThemeColors,
 } from '@chefer/ui-mobile';
 import {
   formatLoad,
@@ -24,7 +24,10 @@ import {
   lastSessionsLabel,
   userFacingErrorMessage,
 } from '@chefer/utils';
+import { Icon } from '../../../components/icon';
 import { trpc } from '../../../lib/trpc';
+import { useShellChrome } from '../../shell/shell-chrome';
+import { TrainButton } from '../../shell/train/train-button';
 import { GymBootstrapUnavailable, useGymBootstrapLoad } from '../components/gym-bootstrap-state';
 import { exerciseImageUrl } from '../library/exercise-image';
 import { localBestSets, localE1rmSeries, localRepPrTable } from '../stats/local-engine';
@@ -41,7 +44,52 @@ import { StackBackButton } from './stack-back-button';
 // last 5 sessions and a sticky personal note). Custom exercises also get
 // edit/archive.
 
+// 10 Oct redesign: canvas page, the shell's brand-chevron Back (falling back
+// to the pushed route's chrome when there is one), a title1 name, and each
+// section a surface card with a headline title.
+
 const HISTORY_LIMIT = 5;
+
+/** A surface card with a headline title — the shell's card vocabulary. */
+function SectionCard({
+  title,
+  testID,
+  children,
+}: {
+  title?: string;
+  testID?: string;
+  children: ReactNode;
+}) {
+  return (
+    <View testID={testID} className="gap-1.5 rounded-card border border-separator bg-surface p-4">
+      {title ? (
+        <Text accessibilityRole="header" className="text-headline font-semibold text-label">
+          {title}
+        </Text>
+      ) : null}
+      {children}
+    </View>
+  );
+}
+
+function GroupTitle({ children }: { children: string }) {
+  return (
+    <Text
+      accessibilityRole="header"
+      className="px-1 text-subhead font-semibold text-label-secondary"
+    >
+      {children}
+    </Text>
+  );
+}
+
+function PrPill() {
+  return (
+    <Text className="rounded-full bg-brand-tint px-2 text-caption font-semibold text-brand">
+      PR
+    </Text>
+  );
+}
 
 /** First and last point's date under the chart, e.g. "3 Aug 2026" … "24 Sep 2026". */
 function chartDateLabels(localDates: readonly string[]): { x: number; label: string }[] {
@@ -54,6 +102,9 @@ function chartDateLabels(localDates: readonly string[]): { x: number; label: str
 }
 
 export function ExerciseDetailScreen({ exerciseId }: { exerciseId: string }) {
+  const colors = useThemeColors();
+  const chrome = useShellChrome();
+  const backFallback = chrome?.kind === 'pushed' ? { fallback: chrome.fallback } : {};
   const bootstrapQuery = useGymBootstrap();
   const bootstrap = bootstrapQuery.data;
   // UX-GYM-24: a failed load is an error with Retry, not "Loading…" or "not found".
@@ -131,16 +182,23 @@ export function ExerciseDetailScreen({ exerciseId }: { exerciseId: string }) {
 
   if (!exercise) {
     return (
-      <Screen className="px-0" edges={['top', 'bottom', 'left', 'right']}>
-        <View className="px-4 pt-2">
-          <StackBackButton testID="gym-exercise-title-back" />
+      <Screen className="bg-canvas px-0" edges={['top', 'bottom', 'left', 'right']}>
+        <View className="min-h-11 flex-row items-center px-4 pt-2">
+          <StackBackButton testID="gym-exercise-title-back" {...backFallback} />
         </View>
-        <View className="flex-1 items-center justify-center px-6">
-          <Text testID="gym-exercise-title" variant="title" className="mb-2">
+        <View className="flex-1 items-center justify-center gap-2 px-6">
+          <Text
+            testID="gym-exercise-title"
+            accessibilityRole="header"
+            className="text-title1 font-bold text-label"
+          >
             Exercise
           </Text>
           {bootstrapLoad.load === 'loading' || fetchedQuery.isLoading ? (
-            <Text variant="muted">Loading…</Text>
+            <View className="items-center gap-2">
+              <ActivityIndicator color={colors.brand} />
+              <Text className="text-subhead text-label-secondary">Loading…</Text>
+            </View>
           ) : bootstrapLoad.load === 'error' || bootstrapLoad.load === 'offline' ? (
             <GymBootstrapUnavailable
               load={bootstrapLoad.load}
@@ -172,7 +230,7 @@ export function ExerciseDetailScreen({ exerciseId }: { exerciseId: string }) {
   const isCustom = exercise.ownerId !== null;
 
   return (
-    <Screen className="px-0" edges={['top', 'bottom', 'left', 'right']}>
+    <Screen className="bg-canvas px-0" edges={['top', 'bottom', 'left', 'right']}>
       {/* UX-GYM-35: keyboard-aware, with a sticky "Done" bar while the note is
           being typed (the note autosaves; Done just puts the keyboard away). */}
       <KeyboardAwareScrollView
@@ -180,50 +238,56 @@ export function ExerciseDetailScreen({ exerciseId }: { exerciseId: string }) {
         testID="gym-exercise-detail"
         footer={
           noteFocused ? (
-            <View className="border-t border-border bg-background px-4 py-2">
-              <Button
+            <View className="border-t border-separator bg-surface px-4 py-2">
+              <TrainButton
                 testID="exercise-detail-note-done"
+                label="Done"
                 variant="outline"
                 onPress={() => Keyboard.dismiss()}
-              >
-                Done
-              </Button>
+              />
             </View>
           ) : undefined
         }
       >
-        <View className="flex-row items-center gap-3">
-          <StackBackButton testID="gym-exercise-title-back" />
-        </View>
-        <View className="flex-row items-center justify-between gap-3">
-          <Text testID="gym-exercise-title" variant="title" className="min-w-0 flex-1">
-            {exercise.name}
-          </Text>
+        <View className="min-h-11 flex-row items-center justify-between gap-2">
+          <StackBackButton testID="gym-exercise-title-back" {...backFallback} />
           {isCustom ? (
-            <View className="flex-row gap-2">
-              <Pressable
+            <View className="flex-row items-center gap-1">
+              <IconButton
                 testID="exercise-detail-edit"
-                accessibilityRole="button"
                 accessibilityLabel="Edit exercise"
+                variant="tinted"
+                icon={<Icon name="edit" color={colors.brand} size={20} />}
                 onPress={() =>
                   router.push({ pathname: '/gym/exercise-form', params: { id: exerciseId } })
                 }
-                className="h-11 w-11 items-center justify-center rounded-full bg-gray-100"
-              >
-                <Ionicons name="pencil-outline" size={20} color="#374151" />
-              </Pressable>
-              <Pressable
+              />
+              <IconButton
                 testID="exercise-detail-archive"
-                accessibilityRole="button"
                 accessibilityLabel="Archive exercise"
+                variant="tinted"
+                // No archive glyph in the shared Icon set yet; same tint role.
+                icon={
+                  <Ionicons
+                    name="archive-outline"
+                    size={20}
+                    color={colors.brand}
+                    accessibilityElementsHidden
+                    importantForAccessibility="no"
+                  />
+                }
                 onPress={onArchive}
-                className="h-11 w-11 items-center justify-center rounded-full bg-gray-100"
-              >
-                <Ionicons name="archive-outline" size={20} color="#374151" />
-              </Pressable>
+              />
             </View>
           ) : null}
         </View>
+        <Text
+          testID="gym-exercise-title"
+          accessibilityRole="header"
+          className="-mt-2 text-title1 font-bold text-label"
+        >
+          {exercise.name}
+        </Text>
 
         <PhotoCrossfade
           images={images}
@@ -235,140 +299,162 @@ export function ExerciseDetailScreen({ exerciseId }: { exerciseId: string }) {
           testID="exercise-detail-photos"
         />
 
-        <Button
-          testID="exercise-detail-watch"
-          variant="outline"
-          onPress={() => setVideoVisible(true)}
-        >
-          {exercise.videoId ? 'Watch technique' : 'No technique video yet'}
-        </Button>
-        {exercise.videoChannel ? <Text variant="muted">Video: {exercise.videoChannel}</Text> : null}
+        <View className="gap-1.5">
+          <TrainButton
+            testID="exercise-detail-watch"
+            label={exercise.videoId ? 'Watch technique' : 'No technique video yet'}
+            icon={exercise.videoId ? 'play' : undefined}
+            variant={exercise.videoId ? 'tinted' : 'outline'}
+            onPress={() => setVideoVisible(true)}
+          />
+          {exercise.videoChannel ? (
+            <Text className="px-1 text-caption text-label-secondary">
+              Video: {exercise.videoChannel}
+            </Text>
+          ) : null}
+        </View>
 
         {exercise.cues.length > 0 ? (
-          <Card testID="exercise-detail-cues">
-            <CardTitle>Focus on</CardTitle>
+          <SectionCard testID="exercise-detail-cues" title="Focus on">
             {exercise.cues.map((cue, i) => (
-              <Text key={i} className="mb-1">
+              <Text key={i} className="text-body text-label">
                 • {cue}
               </Text>
             ))}
-          </Card>
+          </SectionCard>
         ) : null}
 
         {exercise.mistakes.length > 0 ? (
-          <Card testID="exercise-detail-mistakes">
-            <CardTitle>Avoid</CardTitle>
+          <SectionCard testID="exercise-detail-mistakes" title="Avoid">
             {exercise.mistakes.map((mistake, i) => (
-              <Text key={i} className="mb-1">
+              <Text key={i} className="text-body text-label">
                 • {mistake}
               </Text>
             ))}
-          </Card>
+          </SectionCard>
         ) : null}
 
-        <Card testID="exercise-detail-muscles">
-          <CardTitle>Muscles worked</CardTitle>
-          <Text className="mb-1">
+        <SectionCard testID="exercise-detail-muscles" title="Muscles worked">
+          <Text className="text-body text-label">
             Primary: {exercise.primaryMuscles.map((m) => MUSCLE_LABELS[m]).join(', ')}
           </Text>
           {exercise.secondaryMuscles.length > 0 ? (
-            <Text variant="muted">
+            <Text className="text-subhead text-label-secondary">
               Secondary: {exercise.secondaryMuscles.map((m) => MUSCLE_LABELS[m]).join(', ')}
             </Text>
           ) : null}
-        </Card>
+        </SectionCard>
 
         {exercise.blurb ? (
-          <Card testID="exercise-detail-blurb">
-            <Text variant="muted">{exercise.blurb}</Text>
-          </Card>
+          <SectionCard testID="exercise-detail-blurb">
+            <Text className="text-body text-label-secondary">{exercise.blurb}</Text>
+          </SectionCard>
         ) : null}
 
-        <View>
-          <Text variant="heading" className="mb-2">
+        <View className="gap-3">
+          <Text accessibilityRole="header" className="text-title3 font-bold text-label">
             Your history
           </Text>
 
-          {/* UX-GYM-33: the chart says what it plots and where it starts and ends. */}
-          <Text testID="exercise-detail-e1rm-caption" variant="muted" className="mb-1 text-xs">
-            Estimated 1-rep max over time
-          </Text>
-          <LineChart
-            testID="exercise-detail-e1rm-chart"
-            data={e1rmSeries.points.map((p) => ({
-              x: Date.parse(p.localDate),
-              y: p.e1rmKg,
-              highlight: p.isPr,
-            }))}
-            trend={e1rmSeries.trend}
-            niceTicks
-            xLabels={chartDateLabels(e1rmSeries.points.map((p) => p.localDate))}
-            accessibilityLabel={`Estimated 1-rep max for ${exercise.name}`}
-            formatY={(v) => formatLoad(v, unit)}
-            emptyLabel="Log this exercise to see your trend"
-          />
+          <SectionCard>
+            {/* UX-GYM-33: the chart says what it plots and where it starts and ends. */}
+            <Text
+              testID="exercise-detail-e1rm-caption"
+              className="text-caption text-label-secondary"
+            >
+              Estimated 1-rep max over time
+            </Text>
+            <LineChart
+              testID="exercise-detail-e1rm-chart"
+              data={e1rmSeries.points.map((p) => ({
+                x: Date.parse(p.localDate),
+                y: p.e1rmKg,
+                highlight: p.isPr,
+              }))}
+              trend={e1rmSeries.trend}
+              color={colors.brand}
+              niceTicks
+              xLabels={chartDateLabels(e1rmSeries.points.map((p) => p.localDate))}
+              accessibilityLabel={`Estimated 1-rep max for ${exercise.name}`}
+              formatY={(v) => formatLoad(v, unit)}
+              emptyLabel="Log this exercise to see your trend"
+            />
+          </SectionCard>
 
           {bestSets.length > 0 ? (
-            <Card testID="exercise-detail-best-sets" className="mt-3">
-              <CardTitle>Best sets</CardTitle>
+            <SectionCard testID="exercise-detail-best-sets" title="Best sets">
               {bestSets.map((set, i) => (
-                <View key={i} className="mb-1 flex-row items-center justify-between">
-                  <Text>
+                <View key={i} className="min-h-7 flex-row items-center justify-between gap-2">
+                  <Text className="min-w-0 shrink text-body text-label">
                     {formatLoad(set.weightKg, unit, exercise.loadType, { each: exercise.perHand })}{' '}
                     × {set.reps}
                   </Text>
                   <View className="flex-row items-center gap-2">
-                    {set.isPr ? <Badge variant="warning">PR</Badge> : null}
-                    <Text variant="muted">{formatLocalDateLong(set.localDate)}</Text>
+                    {set.isPr ? <PrPill /> : null}
+                    <Text className="text-subhead text-label-secondary">
+                      {formatLocalDateLong(set.localDate)}
+                    </Text>
                   </View>
                 </View>
               ))}
-            </Card>
+            </SectionCard>
           ) : null}
 
           {repPrTable.length > 0 ? (
-            <Card testID="exercise-detail-rep-prs" className="mt-3">
-              <CardTitle>Best reps at each weight</CardTitle>
+            <SectionCard testID="exercise-detail-rep-prs" title="Best reps at each weight">
               {repPrTable.map((row, i) => (
-                <View key={i} className="mb-1 flex-row items-center justify-between">
-                  <Text>
+                <View key={i} className="min-h-7 flex-row items-center justify-between gap-2">
+                  <Text className="text-body text-label">
                     {formatLoad(row.weightKg, unit, exercise.loadType, { each: exercise.perHand })}
                   </Text>
-                  <Text>{row.reps} reps</Text>
-                  <Text variant="muted">{formatLocalDateLong(row.localDate)}</Text>
+                  <Text className="text-body text-label">{row.reps} reps</Text>
+                  <Text className="text-subhead text-label-secondary">
+                    {formatLocalDateLong(row.localDate)}
+                  </Text>
                 </View>
               ))}
-            </Card>
+            </SectionCard>
           ) : null}
 
           {lastSessions.length > 0 ? (
-            <View className="mt-3">
-              <Text variant="label" className="mb-1">
-                {lastSessionsLabel(lastSessions.length)}
-              </Text>
-              {lastSessions.map((session) => (
-                <Pressable
-                  key={session.id}
-                  testID={`exercise-detail-session-${session.id}`}
-                  accessibilityRole="button"
-                  onPress={() => router.push(`/gym/session/${session.id}`)}
-                  className="min-h-11 flex-row items-center justify-between border-b border-border py-2"
-                >
-                  <Text>{formatLocalDateLong(session.localDate)}</Text>
-                  <Text variant="muted">{session.name}</Text>
-                </Pressable>
-              ))}
+            <View className="gap-1.5">
+              <GroupTitle>{lastSessionsLabel(lastSessions.length)}</GroupTitle>
+              <View className="overflow-hidden rounded-card border border-separator bg-surface">
+                {lastSessions.map((session, i) => (
+                  // MO-01 press feedback on each session row.
+                  <PressableScale
+                    key={session.id}
+                    testID={`exercise-detail-session-${session.id}`}
+                    accessibilityRole="button"
+                    accessibilityHint="Opens the workout"
+                    onPress={() => router.push(`/gym/session/${session.id}`)}
+                    className={[
+                      'min-h-11 flex-row items-center gap-3 py-2.5 pl-4 pr-3',
+                      i > 0 ? 'border-t border-separator' : '',
+                    ].join(' ')}
+                  >
+                    <Text className="text-body text-label">
+                      {formatLocalDateLong(session.localDate)}
+                    </Text>
+                    <Text
+                      numberOfLines={1}
+                      className="min-w-0 flex-1 text-right text-subhead text-label-secondary"
+                    >
+                      {session.name}
+                    </Text>
+                    <Icon name="chevronRight" color={colors.labelTertiary} size={18} />
+                  </PressableScale>
+                ))}
+              </View>
             </View>
           ) : (
-            <Text variant="muted" className="mt-3">
+            <Text className="px-1 text-subhead text-label-secondary">
               No sessions with this exercise yet.
             </Text>
           )}
 
-          <View className="mt-3">
-            <Text variant="label" className="mb-1">
-              Your notes
-            </Text>
+          <View className="gap-1.5">
+            <GroupTitle>Your notes</GroupTitle>
             <ExerciseNoteField
               value={note}
               onChangeText={onSaveNote}

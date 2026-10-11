@@ -136,6 +136,12 @@ export interface DashboardSummary {
       recipeName: string;
       imageUrl: string | null;
       kcal: number;
+      /**
+       * The slot's portion (servings of the recipe) when not 1×; `kcal`
+       * already includes it. Today's "Your day" logs a slot at this portion.
+       * Additive — older clients ignore it.
+       */
+      portion?: number;
     }[];
   }[];
   nextMeal: {
@@ -481,12 +487,14 @@ export class DashboardService {
       meals: meals.map((m) => {
         const recipe = recipeMap.get(m.recipeId);
         const nutrition = recipe?.nutritionInfo as NutritionInfo | undefined;
+        const portion = slotPortion(m.portion);
         return {
           mealType: m.type,
           recipeId: m.recipeId,
           recipeName: recipe?.name ?? 'Unknown',
           imageUrl: recipe?.imageUrl ?? null,
-          kcal: Math.round((nutrition?.calories ?? 0) * slotPortion(m.portion)),
+          kcal: Math.round((nutrition?.calories ?? 0) * portion),
+          ...(portion !== 1 && { portion }),
         };
       }),
     }));

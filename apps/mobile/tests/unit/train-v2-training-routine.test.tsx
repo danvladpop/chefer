@@ -14,7 +14,7 @@ import { mutationResult } from './gym-trpc-mock';
 import { activeDoc } from './gym-workout-helpers';
 
 // 10 Oct redesign — /training/routine in the new shell (board
-// "TrainingRoutine"): the routine card, day tiles with a play button that
+// "TrainingRoutine"): the routine card, day rows with a play button that
 // starts the day through the guarded start, and the weekly balance bars.
 
 jest.mock('../../src/lib/trpc', () => {
@@ -119,13 +119,13 @@ describe('Routine (new shell)', () => {
     expect(router.push).toHaveBeenCalledWith('/gym/routines');
   });
 
-  it('lists the days as tiles with weekday · exercises, and marks the next one', async () => {
+  it('lists the days as one card per line with weekday · exercises, and marks the next one', async () => {
     await renderRoute();
     const legs = screen.getByTestId('training-routine-day-d2');
     expect(within(legs).getByText('Wed · 2 exercises')).toBeOnTheScreen();
     // The badge is drawn on the frame and spoken as part of the tile's label.
     expect(
-      within(legs).getByRole('button', { name: 'Legs, Wed · 2 exercises, Up next' }),
+      within(legs).getByRole('button', { name: 'Legs, Up next, Wed · 2 exercises' }),
     ).toBeOnTheScreen();
     expect(
       within(screen.getByTestId('training-routine-day-d1')).getByRole('button', {

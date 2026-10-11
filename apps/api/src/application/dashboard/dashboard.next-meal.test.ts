@@ -112,6 +112,26 @@ describe('dashboard summary — next meal skips logged meals', () => {
     expect(s.nextMeal?.slotIndex).toBe(1);
   });
 
+  it('weekPlan carries a slot portion only when it is not 1× (Your day logs at it)', async () => {
+    vi.mocked(mealPlanRepository.findForWeek).mockResolvedValueOnce({
+      origin: 'MANUAL',
+      createdAt: new Date('2026-09-21T08:00:00Z'),
+      days: [
+        {
+          dayOfWeek: 5,
+          meals: [
+            { type: 'breakfast', recipeId: 'oats', portion: 1.5 },
+            { type: 'lunch', recipeId: 'salad' },
+          ],
+        },
+      ],
+    } as never);
+    const s = await summaryAt(7);
+    const [breakfast, lunch] = s.weekPlan[0]?.meals ?? [];
+    expect(breakfast).toMatchObject({ kcal: 600, portion: 1.5 });
+    expect(lunch).not.toHaveProperty('portion');
+  });
+
   describe('two identical snacks', () => {
     beforeEach(() => {
       vi.mocked(mealPlanRepository.findForWeek).mockResolvedValueOnce({
