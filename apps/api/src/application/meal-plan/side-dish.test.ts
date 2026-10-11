@@ -31,9 +31,6 @@ vi.mock('@chefer/database', async (importOriginal) => {
   };
 });
 vi.mock('../../lib/ai/index.js', () => ({ aiService: {} }));
-vi.mock('../../lib/grocery-ai/index.js', () => ({
-  groceryAIService: { searchNearbyStores: vi.fn().mockResolvedValue({ stores: [] }) },
-}));
 vi.mock('../../lib/ingredient-images/index.js', () => ({
   resolveIngredientImage: vi.fn().mockResolvedValue('https://img.example/x.jpg'),
 }));

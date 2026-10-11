@@ -1,6 +1,5 @@
 import { TRPCError } from '@trpc/server';
 import {
-  chefProfileRepository,
   mealPlanRepository,
   pantryItemRepository,
   prisma,
@@ -12,8 +11,6 @@ import { LABEL_DEPENDENT_INGREDIENTS, type TableSafety, type UserProfile } from 
 import { roundToPurchasable } from '@chefer/utils';
 import type { Ingredient } from '../../lib/ai/types.js';
 import { hasFeature } from '../../lib/entitlements.js';
-import { groceryAIService } from '../../lib/grocery-ai/index.js';
-import type { GroceryCategory, GrocerySearchResult } from '../../lib/grocery-ai/index.js';
 import { resolveIngredientImage } from '../../lib/ingredient-images/index.js';
 import {
   estimateItemPriceEur,
@@ -22,12 +19,11 @@ import {
 } from '../../lib/ingredient-prices/index.js';
 import { ingredientPriceWorker } from '../../workers/ingredient-price.worker.js';
 import { householdService } from '../household/household.service.js';
-import { planForThisWeek } from '../meal-plan/plan-for-date.js';
 import { buildPantryCoverageMatcher } from '../pantry/pantry-match.js';
 import { PANTRY_RETIRED } from '../pantry/pantry-retired.js';
 import { pantryService } from '../pantry/pantry.service.js';
 import { safetyService } from '../safety/safety.service.js';
-import { inferCategory } from '../shared/category-map.js';
+import { inferCategory, type GroceryCategory } from '../shared/category-map.js';
 import { slotShopFactor, type PortionTable } from '../shared/household-scale.js';
 import { daysFrom, firstShoppingDay } from '../shared/plan-window.js';
 import {
@@ -749,51 +745,6 @@ export class ShoppingListService {
    */
   async regenerate(user: UserProfile, weekOffset: number): Promise<WeekShoppingList> {
     return this.getForWeek(user, weekOffset);
-  }
-
-  async searchStores(
-    user: UserProfile,
-    planId: string,
-    userLat?: number,
-    userLng?: number,
-    deliveryAddress?: string,
-  ): Promise<GrocerySearchResult> {
-    const userId = user.id;
-    const allPlans = await mealPlanRepository.findAllByUserId(userId, 52, 0);
-    const plan =
-      allPlans.find((p) => p.id === planId) ?? (await planForThisWeek(mealPlanRepository, userId));
-
-    const chefProfile = await chefProfileRepository.findByUserId(userId);
-    const currency = chefProfile?.deliveryCurrency ?? 'EUR';
-
-    if (!plan) {
-      return {
-        stores: [],
-        searchedAt: new Date(),
-        locationUsed: 'default',
-        currencyCode: currency,
-      };
-    }
-
-    // The stores are searched for the list the user sees — aggregated across
-    // the week, per slot portion and household scale — not each recipe's
-    // ingredients once (which under-bought every repeated or 2× dish).
-    const ingredients = (await this.listLinesForPlan(user, plan)).map((item) => ({
-      name: item.ingredientName,
-      quantity: item.quantity,
-      unit: item.unit,
-      category: item.category,
-    }));
-
-    const searchInput: Parameters<typeof groceryAIService.searchNearbyStores>[0] = {
-      ingredients,
-      preferredCurrency: currency,
-    };
-    if (userLat !== undefined) searchInput.userLat = userLat;
-    if (userLng !== undefined) searchInput.userLng = userLng;
-    if (deliveryAddress !== undefined) searchInput.deliveryAddress = deliveryAddress;
-
-    return groceryAIService.searchNearbyStores(searchInput);
   }
 }
 

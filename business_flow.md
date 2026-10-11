@@ -4032,7 +4032,7 @@ AI action ──► API
         ├─ tRPC procedure ─► FORBIDDEN, message "Allow AI features in
         │    Profile → AI & your data to use this.", data.reason =
         │    'AI_CONSENT_REQUIRED'   (recipe.importPreview/importVideoPreview,
-        │    shoppingList.regenerate/searchStores, premium mealPlan.swapRecipe,
+        │    shoppingList.regenerate, premium mealPlan.swapRecipe,
         │    ingredients.estimateNutrition's AI fallback, mealPlan.resumeTailoring)
         ├─ /api/chat, /api/scan-meal ─► 403 { error, reason } +
         │    X-AI-Consent-Required: 1

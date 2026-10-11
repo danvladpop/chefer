@@ -1,7 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { mealPlanRepository, pantryItemRepository, prisma } from '@chefer/database';
 import type { UserProfile } from '@chefer/types';
-import { groceryAIService } from '../../lib/grocery-ai/index.js';
 import { fakeIngredientPriceFindMany } from '../../test-support/fake-ingredient-prices.js';
 import { householdService } from '../household/household.service.js';
 import { pantryService } from '../pantry/pantry.service.js';
@@ -50,20 +49,15 @@ vi.mock('@chefer/database', async (importOriginal) => {
       findActiveWithDays: vi.fn().mockResolvedValue(null),
       findByIdForUser: vi.fn().mockResolvedValue(null),
       findRecipesByIds: vi.fn().mockResolvedValue([]),
-      findAllByUserId: vi.fn().mockResolvedValue([]),
     },
     pantryItemRepository: {
       findByUser: vi.fn().mockResolvedValue([]),
     },
-    chefProfileRepository: { findByUserId: vi.fn().mockResolvedValue(null) },
   };
 });
 
 // The AI module validates env at import time — mock it (never called here).
 vi.mock('../../lib/ai/index.js', () => ({ aiService: {} }));
-vi.mock('../../lib/grocery-ai/index.js', () => ({
-  groceryAIService: { searchNearbyStores: vi.fn().mockResolvedValue({ stores: [] }) },
-}));
 vi.mock('../../lib/ingredient-images/index.js', () => ({
   resolveIngredientImage: vi.fn().mockResolvedValue('https://img.example/x.jpg'),
 }));
@@ -505,67 +499,6 @@ describe('ShoppingListService — private ingredient isolation (F6)', () => {
 
     expect(list.items.find((i) => i.ingredientName === 'Beef')?.estimatedPriceEur).toBeNull();
     expect(list.estimatedTotalEur).toBe(3); // tomato only: 600 g × €0.5/100 g
-  });
-});
-
-describe('ShoppingListService — store search uses the aggregated list', () => {
-  const service = new ShoppingListService();
-
-  beforeEach(() => {
-    vi.clearAllMocks();
-    vi.mocked(prisma.shoppingList.findUnique).mockResolvedValue(null);
-  });
-
-  it('searches for the list lines (repeats summed, portions and household applied)', async () => {
-    // The same recipe twice in the week, once at 2×, for a table of five more
-    // people on a 4-serving recipe: tomato 600 g × ((1 + 5) + (2 + 5)) / 4 =
-    // 1950 g — one line.
-    const plan = {
-      ...PLAN,
-      days: [
-        { ...PLAN.days[0], meals: [{ type: 'dinner', recipeId: 'r1' }] },
-        {
-          id: 'd1',
-          mealPlanId: 'plan1',
-          dayOfWeek: 1,
-          meals: [{ type: 'dinner', recipeId: 'r1', portion: 2 }],
-        },
-      ],
-    };
-    vi.mocked(mealPlanRepository.findAllByUserId).mockResolvedValue([plan] as never);
-    vi.mocked(mealPlanRepository.findRecipesByIds).mockResolvedValue([
-      { ...RECIPE, servings: 4 },
-    ] as never);
-    vi.mocked(householdService.scalingPortions).mockResolvedValue(6);
-    vi.mocked(householdService.scalingTable).mockResolvedValue(tableOf([1, 1, 1, 1, 1]));
-
-    await service.searchStores(premiumUser, 'plan1');
-
-    const input = vi.mocked(groceryAIService.searchNearbyStores).mock.calls[0]![0];
-    expect(input.ingredients.filter((i) => i.name === 'Tomato')).toEqual([
-      { name: 'Tomato', quantity: '1950', unit: 'g', category: 'produce' },
-    ]);
-  });
-});
-
-describe('ShoppingListService.searchStores — fallback plan (UX-FOOD-02)', () => {
-  const service = new ShoppingListService();
-
-  beforeEach(() => {
-    vi.clearAllMocks();
-    vi.mocked(prisma.shoppingList.findUnique).mockResolvedValue(null);
-  });
-
-  it("falls back to THIS week's plan when the planId isn't found, never the newest ACTIVE one", async () => {
-    vi.mocked(mealPlanRepository.findAllByUserId).mockResolvedValue([] as never);
-    vi.mocked(mealPlanRepository.findForWeek).mockResolvedValue(null);
-
-    const result = await service.searchStores(premiumUser, 'gone');
-
-    expect(result.stores).toEqual([]);
-    const [, weekStart] = vi.mocked(mealPlanRepository.findForWeek).mock.calls[0]!;
-    expect(weekStart.getDay()).toBe(1);
-    expect(mealPlanRepository.findActiveWithDays).not.toHaveBeenCalled();
   });
 });
 

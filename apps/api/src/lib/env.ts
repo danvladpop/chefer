@@ -276,17 +276,6 @@ const envSchema = z.object({
   // `off` restores the client-only behaviour (an emergency switch).
   AI_CONSENT_ENFORCE: z.enum(['off', 'on']).default('on'),
 
-  // Grocery store search (lib/grocery-ai): mock is enabled by default so
-  // local dev never calls the real store-search AI. T-BUG-X6: this used to
-  // be a direct `process.env['GROCERY_AI_MOCK_ENABLED']` read in
-  // lib/grocery-ai/index.ts (the one exception to "env vars go through
-  // env.ts") — preserved semantics: only the literal "false" disables the
-  // mock, same as before.
-  GROCERY_AI_MOCK_ENABLED: z
-    .string()
-    .default('true')
-    .transform((val) => val !== 'false'),
-
   // PostHog admin API (T-12.5): deletes a person's linked analytics events on
   // account deletion. Both optional — absent = skip + log (most deployments,
   // and any account that never linked, never need this).
