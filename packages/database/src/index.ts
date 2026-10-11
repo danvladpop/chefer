@@ -155,6 +155,15 @@ export {
   IngredientNoticeRepository,
   ingredientNoticeRepository,
   type IIngredientNoticeRepository,
+  AiUsageRepository,
+  aiUsageRepository,
+  type IAiUsageRepository,
+  type CreateAiUsageEventData,
+  type AiCostByWorkload,
+  type AiCostByUser,
+  SessionRepository,
+  sessionRepository,
+  type ISessionRepository,
   type CatalogListQuery,
   type CatalogListPage,
   catalogListWhere,
@@ -216,6 +225,17 @@ export {
   friendRecipeRepository,
   type IFriendRecipeRepository,
   type ListSharedRecipesOptions,
+  // Phase 1 guardrails: uploaded photos ledger + upload references
+  UploadedFileRepository,
+  uploadedFileRepository,
+  type IUploadedFileRepository,
+  type CreateUploadedFileData,
+  type UploadLimits,
+  type UploadReservation,
+  UploadReferenceRepository,
+  uploadReferenceRepository,
+  type IUploadReferenceRepository,
+  type PurgeResult,
 } from './repositories/index';
 
 // Ingredient catalog validators (docs/plan-ingredient-catalog.md §4.5) — pure, no I/O
@@ -318,6 +338,8 @@ export type {
   IngredientPortion,
   IngredientNotice,
   RecipeIngredient,
+  // Phase 2 AI cost tracking
+  AiUsageEvent,
 } from '@prisma/client';
 export {
   AiCallType,

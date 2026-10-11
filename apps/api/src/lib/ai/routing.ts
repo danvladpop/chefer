@@ -25,7 +25,6 @@ export const AI_WORKLOADS = [
   'chat',
   'review',
   'prices',
-  'shopping',
 ] as const;
 export type AiWorkload = (typeof AI_WORKLOADS)[number];
 
@@ -39,13 +38,12 @@ export const AI_ROUTE_ENV_KEYS = {
   chat: 'AI_ROUTE_CHAT',
   review: 'AI_ROUTE_REVIEW',
   prices: 'AI_ROUTE_PRICES',
-  shopping: 'AI_ROUTE_SHOPPING',
 } as const satisfies Record<AiWorkload, string>;
 
 /**
  * Today's table (failover.ts before the refactor):
  * - primary-first (quality-sensitive): plan, swap, cheferize, text import, review;
- * - secondary-first (cheap, high-volume): chat, prices, shopping list;
+ * - secondary-first (cheap, high-volume): chat, prices;
  * - vision (meal photo, photo import): Gemini only.
  * Video links are not a workload of their own: lib/video-import turns them
  * into text (caption, subtitles or a Whisper transcript) → importText.
@@ -59,7 +57,6 @@ export const DEFAULT_AI_ROUTES: Readonly<Record<AiWorkload, readonly AiProviderN
   chat: ['groq', 'gemini'],
   review: ['gemini', 'groq'],
   prices: ['groq', 'gemini'],
-  shopping: ['groq', 'gemini'],
 };
 
 /**
@@ -77,11 +74,18 @@ export const FREE_ONLY_AI_ROUTES: Readonly<Record<AiWorkload, readonly AiProvide
   chat: ['groq', 'cloudflare'],
   review: ['groq', 'cloudflare'],
   prices: ['groq', 'cloudflare'],
-  shopping: ['groq', 'cloudflare'],
 };
 
 /** Providers free-only mode may never route to (paid, or not free for EEA users). */
 export const NON_FREE_PROVIDERS: readonly AiProviderName[] = ['gemini'];
+
+/**
+ * Workloads that no longer exist. `shopping` (the AI shopping-list
+ * consolidation) was removed on 2026-10-11. An env file that still names one —
+ * `AI_ROUTE_SHOPPING` (unknown keys are stripped by the env schema) or a
+ * `shopping:<chain>` entry in AI_SHADOW_ROUTE — is ignored, not a startup error.
+ */
+export const RETIRED_AI_WORKLOADS: readonly string[] = ['shopping'];
 
 /** Workloads shadow mode may sample. Chat is excluded: its tools write data. */
 export const SHADOWABLE_WORKLOADS: readonly AiWorkload[] = AI_WORKLOADS.filter((w) => w !== 'chat');
@@ -125,7 +129,8 @@ export function isAiWorkload(value: string): value is AiWorkload {
 /**
  * Parses AI_SHADOW_ROUTE: "mealPlan:groq" or several comma-separated,
  * "mealPlan:groq,swap:groq>gemini". Throws on unknown workloads (chat
- * included — see SHADOWABLE_WORKLOADS) or bad chains.
+ * included — see SHADOWABLE_WORKLOADS) or bad chains. Entries for a retired
+ * workload (RETIRED_AI_WORKLOADS) are skipped.
  */
 export function parseShadowRoutes(value: string): Map<AiWorkload, AiProviderName[]> {
   const routes = new Map<AiWorkload, AiProviderName[]>();
@@ -135,6 +140,7 @@ export function parseShadowRoutes(value: string): Map<AiWorkload, AiProviderName
     const sep = entry.indexOf(':');
     if (sep <= 0) throw new Error(`"${entry}" must be <workload>:<chain>`);
     const workload = entry.slice(0, sep).trim();
+    if (RETIRED_AI_WORKLOADS.includes(workload)) continue;
     if (!isAiWorkload(workload) || !SHADOWABLE_WORKLOADS.includes(workload)) {
       throw new Error(
         `"${workload}" cannot be shadowed (allowed: ${SHADOWABLE_WORKLOADS.join(', ')})`,

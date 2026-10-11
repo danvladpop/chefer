@@ -6,7 +6,6 @@ import {
   scorePhoto,
   scorePrices,
   scoreReview,
-  scoreShopping,
   scoreSwap,
   type CaseScores,
 } from './eval/scorer.js';
@@ -17,7 +16,6 @@ import type {
   CheferizeInput,
   IAIService,
   MealPlanInput,
-  ShoppingListInput,
   SwapInput,
 } from './types.js';
 import { logAiShadow, onAiUsage, type AiShadowScores } from './usage.js';
@@ -176,8 +174,6 @@ export function scoreLiveCall(
       return scoreExtraction({}, (output as AnnotatedExtraction | undefined)?.recipe);
     case 'analyzeMealPhoto':
       return scorePhoto({}, output);
-    case 'generateShoppingList':
-      return scoreShopping(input as ShoppingListInput, output);
     case 'generateReviewText':
       return scoreReview(output);
     case 'estimateIngredientPrices':

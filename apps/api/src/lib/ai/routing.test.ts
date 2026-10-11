@@ -25,7 +25,6 @@ describe('DEFAULT_AI_ROUTES — today’s table, unchanged', () => {
       // secondary-first (cheap, high-volume)
       chat: ['groq', 'gemini'],
       prices: ['groq', 'gemini'],
-      shopping: ['groq', 'gemini'],
       // vision: Gemini only
       vision: ['gemini'],
     });
@@ -112,6 +111,12 @@ describe('parseShadowRoutes', () => {
     expect(() => parseShadowRoutes('dessert:groq')).toThrow(/cannot be shadowed/);
     expect(() => parseShadowRoutes('mealPlan')).toThrow(/<workload>:<chain>/);
     expect(() => parseShadowRoutes('mealPlan:claude')).toThrow(/unknown AI provider/);
+  });
+
+  it('skips entries for a retired workload (shopping, removed 2026-10-11)', () => {
+    expect(parseShadowRoutes('shopping:groq, mealPlan:groq')).toEqual(
+      new Map([['mealPlan', ['groq']]]),
+    );
   });
 });
 

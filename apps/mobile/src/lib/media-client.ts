@@ -4,7 +4,7 @@
 // bytes with the image's content-type — no multipart (mirrors web's
 // scan-client.ts / upload-image.ts transport).
 
-import { AI_CONSENT_REQUIRED_REASON } from '@chefer/types';
+import { AI_CONSENT_REQUIRED_REASON, UPLOAD_LIMITS } from '@chefer/types';
 import {
   notifyAiConsentRequired,
   SCAN_REQUEST_TIMEOUT_MS,
@@ -32,10 +32,11 @@ export interface MealPhotoEstimate {
 
 export class ScanUpgradeRequiredError extends Error {}
 
-// Keep in sync with the server-side limits: apps/api/src/routers/uploads.router.ts
-// (MAX_BYTES) and apps/api/src/routers/scan.router.ts (MAX_BYTES). T-BUG-O1
-// (O-18, Q-22) raised uploads to 10 MB; scan stays 5 MB.
-export const UPLOAD_MAX_BYTES = 10 * 1024 * 1024;
+// The server-side limits: uploads read the shared UPLOAD_LIMITS.maxBytes (the
+// same constant apps/api/src/routers/uploads.router.ts enforces; Phase 1
+// guardrails took it from 10 MB back to 5 MB — photos are resized to 1080 px
+// by preparePhoto first); scan matches apps/api/src/routers/scan.router.ts.
+export const UPLOAD_MAX_BYTES: number = UPLOAD_LIMITS.maxBytes;
 export const SCAN_MAX_BYTES = 5 * 1024 * 1024;
 
 // UX-40's four photo-failure sentences (03-ux-design-spec.md lines 4460-4485,

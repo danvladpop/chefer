@@ -116,12 +116,9 @@ describe('cloudflare provider', () => {
     const ref = createProvider('cloudflare', CONFIG);
     expect(ref.name).toBe('workers-ai/@cf/openai/gpt-oss-120b');
     fetchMock.mockResolvedValueOnce(
-      cfCompletion(
-        { items: [{ ingredientName: 'rice', quantity: '200', unit: 'g' }] },
-        { prompt_tokens: 100, completion_tokens: 50, neurons: 6.6 },
-      ),
+      cfCompletion({ items: [] }, { prompt_tokens: 100, completion_tokens: 50, neurons: 6.6 }),
     );
-    await ref.service.generateShoppingList({ ingredients: [], weekLabel: 'w' });
+    await ref.service.estimateIngredientPrices(['rice']);
     const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
     expect(url).toBe('https://api.cloudflare.com/client/v4/accounts/acct/ai/v1/chat/completions');
     expect((init.headers as Record<string, string>)['authorization']).toBe('Bearer tok');
@@ -174,7 +171,7 @@ describe('neuron budget', () => {
     fetchMock.mockResolvedValueOnce(
       cfCompletion({ items: [] }, { prompt_tokens: 92, completion_tokens: 57, neurons: 6.81 }),
     );
-    await cfService(ledger).generateShoppingList({ ingredients: [], weekLabel: 'w' });
+    await cfService(ledger).estimateIngredientPrices(['rice']);
     expect(ledger.usedToday()).toBeCloseTo(6.81);
     const line = info.mock.calls.map((c) => String(c[0])).find((l) => l.startsWith('[ai.usage]'));
     expect(line).toContain('"provider":"cloudflare"');
@@ -186,7 +183,7 @@ describe('neuron budget', () => {
     const ledger = new NeuronLedger();
     ledger.record(10);
     const err = await cfService(ledger)
-      .generateShoppingList({ ingredients: [], weekLabel: 'w' })
+      .estimateIngredientPrices(['rice'])
       .catch((e: unknown) => e);
     expect(fetchMock).not.toHaveBeenCalled();
     expect((err as { status?: number }).status).toBe(429);
@@ -234,17 +231,9 @@ describe('groq>cloudflare chain', () => {
     return { generateRecipeSwap: fn } as unknown as IAIService;
   }
   const routes = Object.fromEntries(
-    [
-      'mealPlan',
-      'swap',
-      'cheferize',
-      'importText',
-      'vision',
-      'chat',
-      'review',
-      'prices',
-      'shopping',
-    ].map((w) => [w, ['groq', 'cloudflare']]),
+    ['mealPlan', 'swap', 'cheferize', 'importText', 'vision', 'chat', 'review', 'prices'].map(
+      (w) => [w, ['groq', 'cloudflare']],
+    ),
   ) as never;
   const input = {
     userId: 'u',

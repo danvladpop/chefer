@@ -27,6 +27,7 @@ export * from './meal-plan-slot';
 export * from './nutrition';
 export * from './ingredient-catalog-copy';
 export * from './social-auth';
+export * from './usage-limits';
 
 // ─── Enums ───────────────────────────────────────────────────────────────────
 

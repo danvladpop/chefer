@@ -68,4 +68,29 @@ describe('PlanTailoringWorker', () => {
     expect(runNext).toHaveBeenCalledTimes(1);
     worker = null;
   });
+
+  it('global AI kill-switch: a paused budget claims no step until it reopens', async () => {
+    vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    const runNext = vi.fn().mockResolvedValue(false);
+    let open = false;
+    worker = new PlanTailoringWorker({ runNext }, () => Promise.resolve(open));
+    worker.wake();
+    await new Promise((r) => setTimeout(r, 10));
+    expect(runNext).not.toHaveBeenCalled();
+    expect(console.warn).toHaveBeenCalledWith(expect.stringContaining('paused'));
+    open = true;
+    worker.wake();
+    await vi.waitFor(() => expect(runNext).toHaveBeenCalledTimes(1));
+  });
+
+  it('the budget is re-checked between steps of one pass', async () => {
+    vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    const runNext = vi.fn().mockResolvedValue(true);
+    const allowed = vi.fn().mockResolvedValueOnce(true).mockResolvedValue(false);
+    worker = new PlanTailoringWorker({ runNext }, allowed);
+    worker.wake(); // gate (true) → step 1 → gate (false) → stop
+    await vi.waitFor(() => expect(allowed).toHaveBeenCalledTimes(2));
+    await new Promise((r) => setTimeout(r, 10));
+    expect(runNext).toHaveBeenCalledTimes(1);
+  });
 });

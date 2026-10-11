@@ -1,5 +1,5 @@
 import { SafeAreaProvider } from 'react-native-safe-area-context';
-import { act, render, screen, userEvent, waitFor } from '@testing-library/react-native';
+import { act, fireEvent, render, screen, userEvent, waitFor } from '@testing-library/react-native';
 import { CHAT_ACTIONS_MARKER, type ChatAction } from '@chefer/types';
 import { localDateStr } from '@chefer/utils';
 import ChatScreen from '../../app/chat';
@@ -419,5 +419,72 @@ describe('long replies', () => {
     await send(user, 'ok');
     await screen.findByText('Sure.');
     expect(screen.queryByTestId('chat-message-2-toggle')).toBeNull();
+  });
+});
+
+// Phase 2 AI budgets: the server answers a premium user past the monthly
+// allowance (or while AI is paused for the day) with the quota header — the
+// note replaces the input, without the upgrade pitch.
+describe('AI budget', () => {
+  it('a premium user over the AI budget sees the paused note, not the Premium upsell', async () => {
+    const message = "You've used this month's AI allowance. AI features are back on the 1st.";
+    mockStream.mockImplementation((options: StreamChatOptions) => {
+      options.onChunk?.(message);
+      return Promise.resolve({
+        fullText: message,
+        quotaExhausted: true,
+        healthTopic: false,
+        safetyTopic: false,
+      });
+    });
+    const user = userEvent.setup();
+    await renderChat();
+    await send(user, 'swap my lunch');
+    // One premium panel for every cause (daily cap, monthly budget, AI
+    // paused) — the client cannot tell them apart.
+    expect(await screen.findByTestId('chat-ai-paused')).toHaveTextContent(
+      /You've reached your AI chat limit for now/,
+    );
+    expect(screen.getByText(message)).toBeTruthy();
+    expect(screen.queryByTestId('chat-quota-upgrade')).toBeNull();
+    expect(screen.queryByTestId('chat-input')).toBeNull();
+  });
+});
+
+// Phase 1 guardrails: 2,000 characters per message with a counter near the
+// end, and premium's daily cap (20) gets the shared premium limit panel, not an upsell.
+describe('guardrails', () => {
+  it('caps the input at 500 characters and shows a counter near the limit', async () => {
+    await renderChat();
+    const input = screen.getByTestId('chat-input');
+    expect(input).toHaveProp('maxLength', 500);
+    expect(screen.queryByTestId('chat-char-counter')).toBeNull();
+
+    await fireEvent.changeText(input, 'a'.repeat(450));
+    expect(screen.getByTestId('chat-char-counter')).toHaveTextContent('450 / 500');
+
+    await fireEvent.changeText(input, 'a'.repeat(500));
+    expect(screen.getByTestId('chat-char-counter')).toHaveTextContent(
+      '500 characters is the most one message can hold.',
+    );
+  });
+
+  it('a premium user at the daily cap sees the premium limit panel, with no upgrade button', async () => {
+    mockStream.mockImplementation(() =>
+      Promise.resolve({
+        fullText: "You've used today's 20 chat messages. It resets at midnight UTC.",
+        quotaExhausted: true,
+        healthTopic: false,
+        safetyTopic: false,
+      }),
+    );
+    const user = userEvent.setup();
+    await renderChat();
+    await send(user, 'one more');
+    expect(await screen.findByTestId('chat-ai-paused')).toHaveTextContent(
+      /You've reached your AI chat limit for now/,
+    );
+    expect(screen.queryByTestId('chat-quota-upgrade')).toBeNull();
+    expect(screen.queryByTestId('chat-input')).toBeNull();
   });
 });

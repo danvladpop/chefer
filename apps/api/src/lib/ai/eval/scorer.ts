@@ -9,16 +9,9 @@ import {
   ingredientPriceEstimateSchema,
   mealPhotoEstimateSchema,
   recipeSchema,
-  shoppingListResponseSchema,
   weekPlanResponseSchema,
 } from '../schemas.js';
-import type {
-  CheferizeInput,
-  ExtractedRecipe,
-  MealPlanInput,
-  RecipeData,
-  ShoppingListInput,
-} from '../types.js';
+import type { CheferizeInput, ExtractedRecipe, MealPlanInput, RecipeData } from '../types.js';
 
 // ─── Eval scorer (research §5.4 step 2) ───────────────────────────────────────
 // Pure functions: an AI output + what the golden case expects in, scores out.
@@ -297,7 +290,7 @@ export function scorePhoto(expected: PhotoExpectation, output: unknown): CaseSco
   };
 }
 
-// ─── Prices / shopping / review ──────────────────────────────────────────────
+// ─── Prices / review ─────────────────────────────────────────────────────────
 
 export function scorePrices(
   names: string[],
@@ -318,26 +311,6 @@ export function scorePrices(
     restrictionViolations: 0,
     kcalErrorPct: round1(mean(kcalErrors)),
     checks: { coverage: names.length ? covered / names.length : 0 },
-  };
-}
-
-export function scoreShopping(input: ShoppingListInput, output: unknown): CaseScores {
-  const parsed = shoppingListResponseSchema.safeParse(output);
-  if (!parsed.success) return { ...EMPTY };
-  const outNames = parsed.data.items.map((i) => i.ingredientName.toLowerCase());
-  const distinct = [...new Set(input.ingredients.map((i) => i.name.trim().toLowerCase()))];
-  const covered = distinct.filter((n) =>
-    outNames.some((o) => o.includes(n) || n.includes(o)),
-  ).length;
-  return {
-    schemaValid: true,
-    allergenViolations: 0,
-    restrictionViolations: 0,
-    checks: {
-      coverage: distinct.length ? covered / distinct.length : 0,
-      // A consolidated list has no more lines than distinct inputs.
-      consolidated: parsed.data.items.length <= distinct.length ? 1 : 0,
-    },
   };
 }
 

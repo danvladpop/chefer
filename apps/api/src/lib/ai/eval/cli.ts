@@ -27,8 +27,8 @@ import {
 //                [--concurrency=N] [--delay-ms=N] [--min-schema=PCT]
 //                [--out=results.json] [--golden=<dir>] [--verbose]
 //
-//   --route        mealPlan, swap, cheferize, importText, vision, review, prices,
-//                  shopping (chat is not evaluated offline: its tools write data)
+//   --route        mealPlan, swap, cheferize, importText, vision, review, prices
+//                  (chat is not evaluated offline: its tools write data)
 //   --provider     a chain like the AI_ROUTE_* values: gemini, groq, cloudflare, groq>cloudflare,
 //                  or mock (fixtures, no keys, no cost)
 //   --limit        at most N cases per workload (cost control on live providers)

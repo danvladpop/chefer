@@ -250,25 +250,6 @@ export interface RecipeLineRepair {
   unit: string;
 }
 
-export interface ShoppingListInput {
-  ingredients: { name: string; quantity: number; unit: string }[];
-  weekLabel: string; // e.g., "Mon 24 Mar – Sun 30 Mar 2025"
-}
-
-export type ShoppingCategory = 'produce' | 'proteins' | 'dairy' | 'grains' | 'frozen' | 'other';
-
-export interface AiShoppingListItem {
-  ingredientName: string;
-  quantity: string; // numeric string, e.g. "500" or "2.5"
-  unit: string;
-  /** Optional — the live AI no longer returns it (inferred locally); mock still does. */
-  category?: ShoppingCategory;
-}
-
-export interface ShoppingListResponse {
-  items: AiShoppingListItem[];
-}
-
 // ─── Ingredient price & macro estimation ─────────────────────────────────────
 // Store-agnostic baseline prices per base-unit family plus per-100g macros.
 // At least one price field is set per ingredient; null means the family
@@ -383,7 +364,6 @@ export interface IAIService {
   generateRecipeSwap(input: SwapInput): Promise<RecipeData>;
   /** plan-ingredient-catalog §6.3: one repair round for unresolved generated lines. */
   repairRecipeLines(request: RecipeLineRepairRequest): Promise<RecipeLineRepair[]>;
-  generateShoppingList(input: ShoppingListInput): Promise<ShoppingListResponse>;
   /**
    * Store-agnostic EUR prices. Nutrition fields come back null unless
    * `opts.nutrition` (the premium private-ingredient auto-fill, D5): the price

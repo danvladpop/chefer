@@ -84,7 +84,6 @@ const envSchema = z.object({
   AI_ROUTE_CHAT: aiRoute,
   AI_ROUTE_REVIEW: aiRoute,
   AI_ROUTE_PRICES: aiRoute,
-  AI_ROUTE_SHOPPING: aiRoute,
   // Shadow mode: "<workload>:<chain>[,…]" re-runs a sampled share of premium,
   // consented, user-initiated calls on a candidate chain in the background
   // and logs "[ai.shadow]" scores. Unset or sample 0 = off.
@@ -116,6 +115,18 @@ const envSchema = z.object({
   // Largest source download yt-dlp may start (the transcoded audio sent to
   // Whisper is ~0.25 MB/min regardless).
   VIDEO_MAX_DOWNLOAD_MB: z.coerce.number().int().positive().max(500).default(50),
+  // Phase 1 guardrails: how many video imports (yt-dlp + ffmpeg) may run at
+  // once, process-wide. Another request while every slot is busy gets a
+  // friendly "busy, try again in a minute" instead of a second download.
+  VIDEO_IMPORT_CONCURRENCY: z.coerce.number().int().positive().max(8).default(1),
+
+  // Phase 1 guardrails: the daily uploads orphan sweeper
+  // (workers/upload-sweeper.worker.ts). 'true' logs what it would delete
+  // (files, ledger rows; the 30-day recipe purge is skipped) and deletes nothing.
+  UPLOAD_SWEEP_DRY_RUN: z
+    .string()
+    .default('false')
+    .transform((val) => val === 'true'),
 
   // Email — mock is enabled by default so local dev never sends real mail;
   // the mock logs the message (including reset links) to the console instead.
@@ -276,16 +287,19 @@ const envSchema = z.object({
   // `off` restores the client-only behaviour (an emergency switch).
   AI_CONSENT_ENFORCE: z.enum(['off', 'on']).default('on'),
 
-  // Grocery store search (lib/grocery-ai): mock is enabled by default so
-  // local dev never calls the real store-search AI. T-BUG-X6: this used to
-  // be a direct `process.env['GROCERY_AI_MOCK_ENABLED']` read in
-  // lib/grocery-ai/index.ts (the one exception to "env vars go through
-  // env.ts") — preserved semantics: only the literal "false" disables the
-  // mock, same as before.
-  GROCERY_AI_MOCK_ENABLED: z
-    .string()
-    .default('true')
-    .transform((val) => val !== 'false'),
+  // AI cost budgets (Phase 2, lib/ai-budget). Spend is estimated at each
+  // model's PAID list price (lib/ai/pricing.ts) even on free tiers.
+  // Per user per calendar month (UTC): past SOFT the user is logged and
+  // flagged; past HARD new user-initiated AI is refused (premium plans fall
+  // back to curated). GLOBAL is today's (UTC) total: 50/80/100% alerts to
+  // AI_BUDGET_ALERT_EMAIL (else FEEDBACK_NOTIFY_EMAIL); at 100% user AI is
+  // refused and background AI pauses until 00:00 UTC. ENFORCE: on | warn
+  // (log + email, never refuse) | off (record only).
+  AI_BUDGET_ENFORCE: z.preprocess(emptyAsUnset, z.enum(['on', 'warn', 'off']).default('on')),
+  AI_USER_MONTHLY_SOFT_USD: z.preprocess(emptyAsUnset, z.coerce.number().min(0).default(2)),
+  AI_USER_MONTHLY_HARD_USD: z.preprocess(emptyAsUnset, z.coerce.number().min(0).default(3)),
+  AI_GLOBAL_DAILY_USD: z.preprocess(emptyAsUnset, z.coerce.number().min(0).default(10)),
+  AI_BUDGET_ALERT_EMAIL: z.preprocess(emptyAsUnset, z.string().email().optional()),
 
   // PostHog admin API (T-12.5): deletes a person's linked analytics events on
   // account deletion. Both optional — absent = skip + log (most deployments,
@@ -362,6 +376,10 @@ export function validateEnv(source: NodeJS.ProcessEnv = process.env): Env {
     (!data.CLOUDINARY_CLOUD_NAME || !data.CLOUDINARY_API_KEY || !data.CLOUDINARY_API_SECRET)
   ) {
     throw new Error('❌ CLOUDINARY_* keys are required when IMAGE_STORAGE=cloudinary');
+  }
+
+  if (data.AI_USER_MONTHLY_SOFT_USD > data.AI_USER_MONTHLY_HARD_USD) {
+    throw new Error('❌ AI_USER_MONTHLY_SOFT_USD must not be above AI_USER_MONTHLY_HARD_USD');
   }
 
   const email = resolveEmailConfig(data);

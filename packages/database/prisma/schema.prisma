@@ -212,6 +212,7 @@ model User {
   weightEntries        WeightEntry[]
   createdRecipes       Recipe[]              @relation("CreatedRecipes")
   aiCallLogs           AiCallLog[]
+  aiUsageEvents        AiUsageEvent[]
   chefReviews          ChefReview[]
   householdMembers     HouseholdMember[]
   pantryItems          PantryItem[]
@@ -246,6 +247,9 @@ model User {
   // Ingredient catalog (docs/plan-ingredient-catalog.md §3): the user's private ingredients
   privateIngredients Ingredient[]
   ingredientNotices  IngredientNotice[]
+
+  // Phase 1 guardrails: the ledger of photos this user uploaded
+  uploadedFiles UploadedFile[]
 
   @@index([email])
   @@map("users")
@@ -894,6 +898,44 @@ model AiCallLog {
 
   @@index([userId, createdAt])
   @@map("ai_call_logs")
+}
+
+// Phase 2 AI cost tracking (docs/ai-providers.md "Cost tracking and budgets").
+// One row per REAL provider call — every model call, repair retry and failed
+// attempt that still reported usage — with its estimated cost at the PAID
+// list price (apps/api/src/lib/ai/pricing.ts). Kept apart from AiCallLog on
+// purpose: an AiCallLog row is a per-user quota RESERVATION (one per user
+// action, deleted on refund, counted for the daily caps), while one action
+// can make several provider calls and background jobs make calls for nobody.
+// userId is null for background/system work (price worker, recipe images,
+// shadow replays) and after the user is deleted. Pruned after 90 days.
+model AiUsageEvent {
+  id                String   @id @default(cuid())
+  userId            String?
+  /// IAIService operation (generateMealPlan, chat, transcribe, recipeImage…).
+  operation         String
+  /// Routing workload (mealPlan, chat, vision, transcription, recipeImage…).
+  workload          String?
+  provider          String
+  model             String
+  inputTokens       Int      @default(0)
+  cachedInputTokens Int      @default(0)
+  /// Includes reasoningTokens (reasoning bills as output).
+  outputTokens      Int      @default(0)
+  reasoningTokens   Int      @default(0)
+  audioSeconds      Float?
+  images            Int?
+  /// Estimated cost in micro-USD (1 = $0.000001).
+  costMicroUsd      Int      @default(0)
+  /// Made by shadow mode (never served to a user; charged to nobody).
+  shadow            Boolean  @default(false)
+  createdAt         DateTime @default(now())
+
+  user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([createdAt])
+  @@index([userId, createdAt])
+  @@map("ai_usage_events")
 }
 
 model IngredientImage {
@@ -1661,4 +1703,26 @@ model Notification {
   @@index([userId, createdAt])
   @@index([userId, readAt])
   @@map("notifications")
+}
+
+// ─── Uploaded photos ledger (Phase 1 guardrails, 2026-10-11) ──────────────────
+// One row per file POST /api/uploads/image wrote into the uploads volume. The
+// per-user daily upload cap (rolling 24 h) and the total-bytes storage quota
+// are counted from these rows, so both survive an API restart (the old cap
+// was in memory). `bytes` is the stored size AFTER the server-side resize.
+// The orphan sweeper (upload-sweeper.worker.ts) deletes a row together with
+// its file once nothing references the file; account deletion cascades.
+model UploadedFile {
+  id        String   @id @default(cuid())
+  userId    String
+  /// File name under the uploads volume (`<uuid>.jpg`); served at /uploads/<fileName>.
+  fileName  String   @unique
+  mime      String
+  bytes     Int
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+  @@map("uploaded_files")
 }

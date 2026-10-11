@@ -206,10 +206,16 @@ describe('ChatService', () => {
     expect(prisma.aiCallLog.create).not.toHaveBeenCalled();
   });
 
-  it('premium (and admins) are unlimited — no count query at all', async () => {
+  it('premium (and admins) are capped at 20 a day (Phase 1 guardrails; was unlimited)', async () => {
+    vi.mocked(prisma.aiCallLog.count).mockResolvedValue(19);
     await service.chat(user({ planTier: 'PREMIUM' }), [{ role: 'user', content: 'hi' }]);
     await service.chat(user({ role: 'ADMIN' }), [{ role: 'user', content: 'hi' }]);
-    expect(prisma.aiCallLog.count).not.toHaveBeenCalled();
+    expect(prisma.aiCallLog.count).toHaveBeenCalledTimes(2);
+
+    vi.mocked(prisma.aiCallLog.count).mockResolvedValue(20);
+    await expect(
+      service.chat(user({ planTier: 'PREMIUM' }), [{ role: 'user', content: 'hi' }]),
+    ).rejects.toMatchObject({ code: 'TOO_MANY_REQUESTS' });
   });
 
   it("context summary carries today's real meals, protein totals and safety prefs", async () => {

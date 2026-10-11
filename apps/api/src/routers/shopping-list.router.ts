@@ -1,12 +1,6 @@
 import { z } from 'zod';
 import { shoppingListService } from '../application/shopping-list/shopping-list.service.js';
-import {
-  aiConsentProcedure,
-  premiumProcedure,
-  protectedProcedure,
-  requireAiConsent,
-  router,
-} from '../lib/trpc.js';
+import { premiumProcedure, protectedProcedure, requireAiConsent, router } from '../lib/trpc.js';
 
 export const shoppingListRouter = router({
   getForWeek: protectedProcedure
@@ -70,26 +64,5 @@ export const shoppingListRouter = router({
     .input(z.object({ weekOffset: z.number().int().min(-52).max(1).default(0) }))
     .mutation(async ({ ctx, input }) => {
       return shoppingListService.regenerate(ctx.user, input.weekOffset);
-    }),
-
-  // The real store search (GROCERY_AI_MOCK_ENABLED=false) sends the list and
-  // the location to the AI provider.
-  searchStores: aiConsentProcedure
-    .input(
-      z.object({
-        planId: z.string().min(1),
-        lat: z.number().optional(),
-        lng: z.number().optional(),
-        deliveryAddress: z.string().optional(),
-      }),
-    )
-    .query(async ({ ctx, input }) => {
-      return shoppingListService.searchStores(
-        ctx.user,
-        input.planId,
-        input.lat,
-        input.lng,
-        input.deliveryAddress,
-      );
     }),
 });

@@ -3,13 +3,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { z } from 'zod';
 import { extractedRecipeSchema } from '../schemas.js';
-import type {
-  CheferizeInput,
-  CoachReviewInput,
-  MealPlanInput,
-  ShoppingListInput,
-  SwapInput,
-} from '../types.js';
+import type { CheferizeInput, CoachReviewInput, MealPlanInput, SwapInput } from '../types.js';
 import type { ImportExpectation, PhotoExpectation } from './scorer.js';
 
 // ─── Golden set (apps/api/eval/golden) ────────────────────────────────────────
@@ -126,20 +120,6 @@ const pricesSchema = z.object({
   kcalPer100g: z.record(z.number()),
 });
 
-const shoppingInputSchema = z.custom<ShoppingListInput>(
-  (v) =>
-    z
-      .object({
-        weekLabel: z.string(),
-        ingredients: z.array(
-          z.object({ name: z.string(), quantity: z.number(), unit: z.string() }),
-        ),
-      })
-      .safeParse(v).success,
-  'not a ShoppingListInput',
-);
-const shoppingSchema = z.array(z.object({ id: z.string(), input: shoppingInputSchema }));
-
 const reviewInputSchema = z.custom<CoachReviewInput>(
   (v) =>
     z
@@ -171,7 +151,6 @@ export interface GoldenSet {
   }[];
   cheferize: z.infer<typeof cheferizeSchema>;
   prices: z.infer<typeof pricesSchema>;
-  shopping: z.infer<typeof shoppingSchema>;
   reviews: z.infer<typeof reviewsSchema>;
 }
 
@@ -204,7 +183,6 @@ export function loadGoldenSet(dir: string = GOLDEN_DIR): GoldenSet {
     photos,
     cheferize: readJson(dir, 'cheferize.json', cheferizeSchema),
     prices: readJson(dir, 'prices.json', pricesSchema),
-    shopping: readJson(dir, 'shopping.json', shoppingSchema),
     reviews: readJson(dir, 'reviews.json', reviewsSchema),
   };
 }

@@ -1,7 +1,9 @@
 // T-BUG-O1.2 (O-18 root cause): shrink a picked photo on the device before it
 // is uploaded (recipe photo) or scanned (Snap-to-log). A phone camera photo is
 // 3–10 MB; a recipe card or a vision estimate needs nowhere near 12–48 MP, so
-// the long edge goes to 2048 px at JPEG 0.8 (~0.5–1 MB).
+// the long edge goes to 1080 px at JPEG 0.75 (~0.1–0.25 MB). Phase 1 guardrails
+// (2026-10-11): 2048 → 1080, the shared UPLOAD_LIMITS the web client and the
+// server's own resize use too.
 //
 // expo-image-manipulator is a native module that only binaries built after it
 // was added contain. Importing it on an older binary throws at import time, so
@@ -9,12 +11,13 @@
 // back to T-BUG-O1's path (picker re-encode at 0.5 + the client size check).
 import { requireOptionalNativeModule } from 'expo';
 import type { ImagePickerAsset, ImagePickerOptions } from 'expo-image-picker';
+import { UPLOAD_LIMITS } from '@chefer/types';
 import { base64ToBytes, SOMETHING_WRONG_MESSAGE, type ImageMime } from './media-client';
 
 type ManipulatorModule = typeof import('expo-image-manipulator');
 
-export const PHOTO_MAX_EDGE = 2048;
-export const PHOTO_JPEG_QUALITY = 0.8;
+export const PHOTO_MAX_EDGE: number = UPLOAD_LIMITS.maxLongEdgePx;
+export const PHOTO_JPEG_QUALITY: number = UPLOAD_LIMITS.jpegQuality;
 
 export type PreparedPhoto = { bytes: Uint8Array; mime: ImageMime };
 

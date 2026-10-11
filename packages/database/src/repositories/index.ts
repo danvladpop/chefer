@@ -321,3 +321,34 @@ export {
   ingredientNoticeRepository,
   type IIngredientNoticeRepository,
 } from './ingredient-notice.repository';
+
+export {
+  AiUsageRepository,
+  aiUsageRepository,
+  type IAiUsageRepository,
+  type CreateAiUsageEventData,
+  type AiCostByWorkload,
+  type AiCostByUser,
+} from './ai-usage.repository';
+
+export {
+  SessionRepository,
+  sessionRepository,
+  type ISessionRepository,
+} from './session.repository';
+// Phase 1 guardrails: uploaded photos ledger + who references an upload
+export {
+  UploadedFileRepository,
+  uploadedFileRepository,
+  type IUploadedFileRepository,
+  type CreateUploadedFileData,
+  type UploadLimits,
+  type UploadReservation,
+} from './uploaded-file.repository';
+
+export {
+  UploadReferenceRepository,
+  uploadReferenceRepository,
+  type IUploadReferenceRepository,
+  type PurgeResult,
+} from './upload-reference.repository';

@@ -1,6 +1,7 @@
 import { chefProfileRepository, dailyLogRepository, mealRatingRepository } from '@chefer/database';
 import type { ChatAction, UserProfile } from '@chefer/types';
 import { chatActionsTrailer } from '@chefer/utils';
+import { runWithAiUsageScope } from '../../lib/ai/call-context.js';
 import { isAiCapacityFailure } from '../../lib/ai/friendly-error.js';
 import { aiService } from '../../lib/ai/index.js';
 import type { ChatContext, ChatMessage, ChatTools } from '../../lib/ai/index.js';
@@ -430,7 +431,12 @@ export class ChatService {
       tools: this.buildTools(user, plan, actions),
     };
     try {
-      const stream = await aiService.chat(messages, context);
+      // Cost tracking: /api/chat is a plain Express route with no AI call
+      // context, so the chef's calls (tool calls included) are billed to the
+      // user explicitly. Labels only — the call runs exactly as before.
+      const stream = await runWithAiUsageScope({ billedUserId: user.id }, () =>
+        aiService.chat(messages, context),
+      );
       return options.withActions ? withActionTrailer(stream, actions) : stream;
     } catch (err) {
       if (isAiCapacityFailure(err)) await reservation.release();

@@ -105,6 +105,10 @@ describe('T-BUG-O1 uploadErrorFrom', () => {
 });
 
 describe('T-BUG-O1 uploadImage — client-side size pre-check', () => {
+  it('matches the server limit: 5 MB (Phase 1 guardrails; was 10 MB)', () => {
+    expect(UPLOAD_MAX_BYTES).toBe(5 * 1024 * 1024);
+  });
+
   it('rejects with the too-big sentence before making a network call when oversize', async () => {
     const fetchImpl = jest.fn();
     const bytes = new Uint8Array(UPLOAD_MAX_BYTES + 1);

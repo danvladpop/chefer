@@ -129,7 +129,6 @@ export function aiConsentFeatureForPath(path: string | null | undefined): AiCons
     case 'recipe.importVideoPreview':
       return 'recipe-import';
     case 'shoppingList.regenerate':
-    case 'shoppingList.searchStores':
       return 'shopping-list';
     case 'ingredients.estimateNutrition':
       return 'ingredient-estimate';

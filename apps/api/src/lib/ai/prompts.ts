@@ -3,7 +3,6 @@ import type {
   CoachReviewInput,
   MealPlanInput,
   RecipeLineRepairRequest,
-  ShoppingListInput,
   SwapInput,
 } from './types.js';
 
@@ -324,24 +323,6 @@ Constraints:
 
 Return one alternative ${input.mealType} recipe of a similar size. \
 Use id format "recipe_<slug_of_name>".`;
-}
-
-// ─── Shopping List ────────────────────────────────────────────────────────────
-
-export const SHOPPING_LIST_SYSTEM_PROMPT = `\
-You are Chefer, a smart kitchen assistant. Consolidate a raw ingredient list into an optimised weekly shopping list.
-
-RULES (mandatory):
-- Merge duplicate ingredients — combine quantities with the same unit (e.g. two entries of "olive oil 2 tbsp" + "olive oil 1 tbsp" → "olive oil 3 tbsp")
-- Normalise units: prefer g/ml/kg/L for weights and volumes; tsp/tbsp/cup for small recipe quantities
-- Output exactly one entry per unique ingredient — no duplicates
-- quantity must be a numeric string (e.g. "500" or "2.5"), no fractions
-- ingredientName in Title Case (e.g. "Chicken Breast", "Olive Oil")
-- Exclude pure seasonings/spices already in most pantries (salt, black pepper, generic "spices")`;
-
-export function buildShoppingListPrompt(input: ShoppingListInput): string {
-  const lines = input.ingredients.map((i) => `${i.name}: ${i.quantity} ${i.unit}`).join('\n');
-  return `Consolidate this raw ingredient list for the week of ${input.weekLabel}:\n\n${lines}`;
 }
 
 // ─── Ingredient price estimation ─────────────────────────────────────────────

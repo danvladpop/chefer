@@ -92,8 +92,10 @@ export const PLAN_FEATURES = {
     upsell: true,
   },
   planGenerationsPerDay: {
+    // Premium 20 → 5 (Phase 1 guardrails, owner decision 2026-10-11): each
+    // premium generation is a full AI week; 5 a day is plenty for real use.
     free: 3,
-    premium: 20,
+    premium: 5,
     label: 'Daily plan generations',
     description: 'How many meal plans can be generated per day. Resets at midnight UTC.',
     upsell: false,
@@ -101,8 +103,10 @@ export const PLAN_FEATURES = {
   chatMessagesPerDay: {
     // Per-user AI is premium-only (owner decision 2026-09-25): free users see
     // a locked chat preview. Enforced by reserveChatMessage (lib/quotas.ts).
+    // Premium unlimited → 20/day (Phase 1 guardrails, owner decision
+    // 2026-10-11): a hard cost ceiling for the beta.
     free: false,
-    premium: true,
+    premium: 20,
     label: 'AI chef chat',
     description:
       'Ask the AI chef anything — it can swap meals, log what you ate and import recipes for you.',

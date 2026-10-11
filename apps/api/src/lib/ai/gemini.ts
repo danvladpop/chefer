@@ -10,7 +10,6 @@ import {
   buildMealPlanUserPrompt,
   buildRepairLinesPrompt,
   buildReviewUserPrompt,
-  buildShoppingListPrompt,
   buildSwapUserPrompt,
   CHAT_SYSTEM_PROMPT,
   CHEFERIZE_SYSTEM_PROMPT,
@@ -24,7 +23,6 @@ import {
   MEAL_PLAN_SYSTEM_PROMPT,
   REPAIR_LINES_SYSTEM_PROMPT,
   REVIEW_SYSTEM_PROMPT,
-  SHOPPING_LIST_SYSTEM_PROMPT,
   SWAP_SYSTEM_PROMPT,
 } from './prompts.js';
 import {
@@ -36,7 +34,6 @@ import {
   ingredientPricesResponseSchema,
   parseMealPhotoResponse,
   recipeLineRepairResponseSchema,
-  shoppingListResponseSchema,
   weekPlanResponseSchema,
 } from './schemas.js';
 import type {
@@ -58,8 +55,6 @@ import type {
   RecipeExtractionSource,
   RecipeLineRepair,
   RecipeLineRepairRequest,
-  ShoppingListInput,
-  ShoppingListResponse,
   SwapInput,
   WeekPlanResponse,
 } from './types.js';
@@ -67,9 +62,10 @@ import { logAiUsage } from './usage.js';
 
 // ─── Models ───────────────────────────────────────────────────────────────────
 // Names come from env (GEMINI_MODEL / GEMINI_FAST_MODEL) via the factory.
-// `fast` is the cheaper model for mechanical tasks (shopping-list
-// consolidation) where creative quality doesn't matter — roughly 2-3x lower
-// latency and a separate free-tier quota from the main model.
+// `fast` is the cheaper model for mechanical tasks where creative quality
+// doesn't matter — roughly 2-3x lower latency and a separate free-tier quota
+// from the main model. Its only caller, the shopping-list consolidation, was
+// removed on 2026-10-11; the slot stays so GEMINI_FAST_MODEL remains valid.
 
 export interface GeminiModels {
   main: string;
@@ -273,26 +269,6 @@ const CHEFERIZED_RECIPE_SCHEMA: Schema = {
   required: ['adapted', 'changes'],
 };
 
-// ─── Shopping list schemas ────────────────────────────────────────────────────
-
-const AI_SHOPPING_LIST_ITEM_SCHEMA: Schema = {
-  type: Type.OBJECT,
-  properties: {
-    ingredientName: { type: Type.STRING },
-    quantity: { type: Type.STRING },
-    unit: { type: Type.STRING },
-  },
-  required: ['ingredientName', 'quantity', 'unit'],
-};
-
-const SHOPPING_LIST_RESPONSE_SCHEMA: Schema = {
-  type: Type.OBJECT,
-  properties: {
-    items: { type: Type.ARRAY, items: AI_SHOPPING_LIST_ITEM_SCHEMA },
-  },
-  required: ['items'],
-};
-
 // ─── Ingredient price schemas ────────────────────────────────────────────────
 
 const INGREDIENT_PRICES_RESPONSE_SCHEMA: Schema = {
@@ -409,12 +385,23 @@ export class GeminiAIService implements IAIService {
   ): ReturnType<GoogleGenAI['models']['generateContent']> {
     const started = Date.now();
     const response = await this.client.models.generateContent(params);
+    const usage = response.usageMetadata;
+    // Gemini reports thinking tokens apart from the answer; both bill as
+    // output, so outputTokens includes them (the same meaning as the
+    // OpenAI-compatible client's completion_tokens).
+    const thoughts = usage?.thoughtsTokenCount;
+    const candidates = usage?.candidatesTokenCount;
     logAiUsage({
       provider: 'gemini',
       model: params.model,
       op,
-      inputTokens: response.usageMetadata?.promptTokenCount,
-      outputTokens: response.usageMetadata?.candidatesTokenCount,
+      inputTokens: usage?.promptTokenCount,
+      cachedInputTokens: usage?.cachedContentTokenCount,
+      outputTokens:
+        candidates === undefined && thoughts === undefined
+          ? undefined
+          : (candidates ?? 0) + (thoughts ?? 0),
+      reasoningTokens: thoughts,
       ms: Date.now() - started,
     });
     return response;
@@ -611,44 +598,6 @@ export class GeminiAIService implements IAIService {
       );
     }
     return parsed.data.items;
-  }
-
-  async generateShoppingList(input: ShoppingListInput): Promise<ShoppingListResponse> {
-    const response = await this.generateWithRetry(
-      {
-        model: this.models.fast,
-        contents: buildShoppingListPrompt(input),
-        config: {
-          systemInstruction: SHOPPING_LIST_SYSTEM_PROMPT,
-          responseMimeType: 'application/json',
-          responseSchema: SHOPPING_LIST_RESPONSE_SCHEMA,
-          temperature: 0.2, // low temperature for deterministic consolidation
-          maxOutputTokens: 4096,
-          thinkingConfig: { thinkingBudget: 0 },
-        },
-      },
-      'generateShoppingList',
-    );
-
-    let raw: string | null | undefined;
-    try {
-      raw = response.text;
-    } catch (err) {
-      throw new Error(
-        `GeminiAIService: could not read shopping list response — ${err instanceof Error ? err.message : String(err)}`,
-      );
-    }
-
-    if (!raw) throw new Error('GeminiAIService: empty response from generateShoppingList');
-
-    const parsed = shoppingListResponseSchema.safeParse(JSON.parse(raw));
-    if (!parsed.success) {
-      throw new Error(
-        `GeminiAIService: shopping list response failed validation — ${parsed.error.message}`,
-      );
-    }
-
-    return parsed.data;
   }
 
   async estimateIngredientPrices(

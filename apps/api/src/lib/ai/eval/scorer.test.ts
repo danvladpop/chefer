@@ -8,7 +8,6 @@ import {
   scorePhoto,
   scorePrices,
   scoreReview,
-  scoreShopping,
   scoreSwap,
   summarise,
   type CaseResult,
@@ -252,7 +251,7 @@ describe('scoreExtraction', () => {
   });
 });
 
-describe('scorePhoto / scorePrices / scoreShopping / scoreReview', () => {
+describe('scorePhoto / scorePrices / scoreReview', () => {
   it('photo: schema bounds, kcal error and dish match', () => {
     const photo = {
       dishName: 'Spaghetti bolognese',
@@ -283,24 +282,6 @@ describe('scorePhoto / scorePrices / scoreShopping / scoreReview', () => {
     });
     const s = scorePrices(['egg', 'apple'], { egg: 140, apple: 50 }, [est('Egg', 154)]);
     expect(s).toMatchObject({ schemaValid: true, kcalErrorPct: 10, checks: { coverage: 0.5 } });
-  });
-
-  it('shopping: covers each distinct input and consolidates duplicates', () => {
-    const input = {
-      weekLabel: 'w',
-      ingredients: [
-        { name: 'onion', quantity: 1, unit: 'piece' },
-        { name: 'Onion', quantity: 2, unit: 'piece' },
-        { name: 'rice', quantity: 100, unit: 'g' },
-      ],
-    };
-    const s = scoreShopping(input, {
-      items: [
-        { ingredientName: 'Onions', quantity: '3', unit: 'piece' },
-        { ingredientName: 'Rice', quantity: '100', unit: 'g' },
-      ],
-    });
-    expect(s.checks).toEqual({ coverage: 1, consolidated: 1 });
   });
 
   it('review: non-empty prose of at most 8 lines', () => {

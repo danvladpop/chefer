@@ -36,8 +36,11 @@ echo "==> Restarting Caddy (picks up Caddyfile changes)"
 # ~1s of downtime, guaranteed fresh config, and failures fail the deploy.
 $COMPOSE restart caddy
 
-echo "==> Pruning dangling images"
-docker image prune -f >/dev/null
+echo "==> Pruning images no container uses"
+# -a, not just dangling: every deploy leaves the previous tagged release behind
+# (~400 MB each), and by 2026-10-11 67 of them filled 26 GB of the 45 GB disk.
+# Rollback still works: deploy pulls the old tag from GHCR again.
+docker image prune -af >/dev/null
 
 echo "==> Status"
 $COMPOSE ps
