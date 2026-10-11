@@ -3752,6 +3752,11 @@ current size.
   restore-tested on the Mac's local Postgres — the full chain VM dump → mirror → restore is
   proven. The mirror is as fresh as the last day the Mac was on; move to object storage (rclone)
   if that ever becomes too weak.
+- **Uploads (added 2026-10-11):** the `chefer_uploads` volume (user photos + generated recipe
+  images) was not backed up. `backup-db.sh` now also copies `/app/uploads` out of `chefer-api`
+  into `~/chefer-uploads` on the VM (additive: files later deleted on the VM stay in the copy),
+  and `pull-backups.sh` mirrors it to `~/chefer-uploads-mirror` on the Mac with an incremental,
+  additive `rsync`. Restore: `docker cp ~/chefer-uploads/. chefer-api:/app/uploads/`.
 
 ### Uptime monitoring (A12)
 
