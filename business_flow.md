@@ -682,6 +682,14 @@ have` · `Switch back to Free`. The downgrade sheet names what you keep and
   a second count); `mealPlan.resumeTailoring` reserves nothing; an import's AI
   cost is the preview (counted when read), and `importsSaved` says how many
   ended as a saved recipe. No copy says curated plans are unlimited (Q-18).
+- **AI budgets (Phase 2).** On top of the daily quotas, every model call is
+  costed at the paid list price of its model (also on today's free tiers) and
+  capped: per user per calendar month (UTC) `AI_USER_MONTHLY_HARD_USD` (default
+  $6; a warning at the $3 soft limit) and globally per UTC day
+  `AI_GLOBAL_DAILY_USD` (default $25). Past either, a new AI action answers the
+  quota shape (TOO_MANY_REQUESTS) with a friendly sentence, and a premium
+  **Generate** quietly gives the curated week instead. See §25 "When the AI
+  budget is used up" and infrastructure.md §7 "AI cost tracking & budgets".
 
 The `source`-tagged events are the input to the PW-3 funnel (prompt → click →
 complete conversion by touchpoint). PW-3 adds per-feature usage events
@@ -4073,6 +4081,36 @@ chat messages and meal scans on capacity failures only (other failed attempts
 still count). The Sunday auto-plan stops asking for premium plans for that tick
 and retries the rest on the next hourly tick; the ingredient-price worker backs
 off 90 s → doubling → 1 h.
+
+**When the AI budget is used up** (Phase 2, `lib/ai-budget`, enforced while
+`AI_BUDGET_ENFORCE=on`; `warn` only logs and emails, `off` only records):
+
+```
+user starts an AI action (chat, scan, AI swap, import link/text/photo/video
+incl. Cheferize, nutrition auto-fill, "Tailor the rest")
+  └─ lib/quotas.ts reserve*  →  assertAiBudget(userId)   (before any row is written)
+       ├─ today's global spend ≥ AI_GLOBAL_DAILY_USD
+       │     → TOO_MANY_REQUESTS "AI is paused for today — the chef is taking a
+       │       break. It's back after midnight UTC, and everything else keeps working."
+       ├─ the user's month ≥ AI_USER_MONTHLY_HARD_USD
+       │     → TOO_MANY_REQUESTS "You've used this month's AI allowance. AI features
+       │       are back on the 1st — your plans, recipes and tracking keep working as usual."
+       ├─ the user's month ≥ AI_USER_MONTHLY_SOFT_USD → allowed; logged once a month,
+       │     profile.getAiUsage.aiBudget.status = 'soft'
+       └─ otherwise → the quota reservation as before
+
+premium mealPlan.generate (and the Sunday auto-plan) while blocked
+  └─ the curated week (the free path, zero AI) — never an error
+```
+
+Clients show the sentence where they already show quota messages (web and
+mobile: swap, import, scan, nutrition auto-fill, Tailor the rest). In the chef
+chat it arrives as the chef's reply with `X-Chat-Quota-Exhausted`; a **premium**
+user then sees "AI chat is paused for now" in place of the input — no upgrade
+pitch (free users keep the existing upgrade card). The owner gets one email per
+threshold per day at 50 %, 80 % and 100 % of the global budget; at 100 % the
+background AI (live tailoring, ingredient prices, Cloudflare recipe images —
+which switch to the free Pollinations image) also pauses until 00:00 UTC.
 
 ---
 

@@ -10,6 +10,8 @@ import {
   type TailoringProgressPatch,
   type TailoringSnapshots,
 } from '@chefer/database';
+import { checkUserAiBudget } from '../../lib/ai/budget-gate.js';
+import { runWithAiUsageScope } from '../../lib/ai/call-context.js';
 import { isAiCapacityFailure } from '../../lib/ai/friendly-error.js';
 import { mealPlanService, type MealPlanService } from './meal-plan.service.js';
 import {
@@ -67,7 +69,9 @@ export class PlanTailoringService {
     const job = await this.repo.claimNextDue(new Date(this.clock()), TAILORING_LEASE_MS);
     if (!job) return false;
     try {
-      await this.step(job);
+      // Cost tracking: the worker runs outside any request, so the day's AI
+      // calls are billed to the plan's owner explicitly (labels only).
+      await runWithAiUsageScope({ billedUserId: job.userId }, () => this.step(job));
     } catch (err) {
       // Infrastructure trouble (DB), not an AI verdict: release the lease and
       // try again later rather than spin on the same job.
@@ -224,7 +228,11 @@ export class PlanTailoringService {
   private async gateOpen(userId: string): Promise<boolean> {
     const gate = await this.repo.findUserGate(userId);
     if (!gate?.aiDataConsentAt) return false;
-    return gate.planTier === 'PREMIUM' || gate.role === 'ADMIN';
+    if (gate.planTier !== 'PREMIUM' && gate.role !== 'ADMIN') return false;
+    // Phase 2 AI budgets: a user past their monthly AI allowance keeps the
+    // curated days (the job ends PARTIAL; "Tailor the rest" is refused with
+    // the budget message until the allowance resets).
+    return (await checkUserAiBudget(userId)) === null;
   }
 
   /** A shopping tick added after generation: the list being shopped must stay true. */

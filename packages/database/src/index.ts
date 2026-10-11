@@ -155,6 +155,15 @@ export {
   IngredientNoticeRepository,
   ingredientNoticeRepository,
   type IIngredientNoticeRepository,
+  AiUsageRepository,
+  aiUsageRepository,
+  type IAiUsageRepository,
+  type CreateAiUsageEventData,
+  type AiCostByWorkload,
+  type AiCostByUser,
+  SessionRepository,
+  sessionRepository,
+  type ISessionRepository,
   type CatalogListQuery,
   type CatalogListPage,
   catalogListWhere,
@@ -318,6 +327,8 @@ export type {
   IngredientPortion,
   IngredientNotice,
   RecipeIngredient,
+  // Phase 2 AI cost tracking
+  AiUsageEvent,
 } from '@prisma/client';
 export {
   AiCallType,

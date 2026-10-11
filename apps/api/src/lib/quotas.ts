@@ -2,6 +2,7 @@ import { TRPCError } from '@trpc/server';
 import { AiCallType, prisma } from '@chefer/database';
 import { PLAN_FEATURES } from '@chefer/types';
 import type { UserProfile } from '@chefer/types';
+import { checkUserAiBudget } from './ai/budget-gate.js';
 import { getLimit, isPremiumUser } from './entitlements.js';
 
 // ─── Daily usage quotas ───────────────────────────────────────────────────────
@@ -37,6 +38,20 @@ function releaser(id: string): QuotaReservation {
   };
 }
 
+/**
+ * Phase 2 AI budgets (lib/ai-budget): refuses a new user-initiated AI action
+ * when the user's month is over AI_USER_MONTHLY_HARD_USD or today's global
+ * spend is over AI_GLOBAL_DAILY_USD (AI_BUDGET_ENFORCE=on). The same shape as
+ * a daily quota — TOO_MANY_REQUESTS with a friendly sentence — so every web
+ * and mobile surface that shows quota messages shows this one too (the
+ * /api/chat and /api/scan-meal routes map it like a quota as well).
+ * Nothing is written: a refused action reserves nothing.
+ */
+export async function assertAiBudget(userId: string): Promise<void> {
+  const block = await checkUserAiBudget(userId);
+  if (block) throw new TRPCError({ code: 'TOO_MANY_REQUESTS', message: block.message });
+}
+
 function isSerializationConflict(err: unknown): boolean {
   return typeof err === 'object' && err !== null && (err as { code?: string }).code === 'P2034';
 }
@@ -59,6 +74,9 @@ async function reserve(
   if (limit === 0) {
     throw new TRPCError({ code: 'FORBIDDEN', message: premiumOnlyMessage });
   }
+  // Phase 2 AI budgets: every reservation that leads to AI work is also the
+  // budget check (curated plans cost no AI and are never refused here).
+  if (callType !== AiCallType.CURATED_PLAN) await assertAiBudget(userId);
   if (limit === null) {
     const row = await prisma.aiCallLog.create({ data: { userId, callType } });
     return releaser(row.id);

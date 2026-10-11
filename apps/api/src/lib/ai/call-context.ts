@@ -37,5 +37,52 @@ export function getAiCallContext(): AiCallContext | undefined {
  * otherwise look like that user's request.
  */
 export function runOutsideAiCallContext<T>(fn: () => T): T {
-  return storage.exit(fn);
+  // The usage scope below is left too: a worker woken from a billed request
+  // must not charge its background calls to that user.
+  return storage.exit(() => usageScopeStorage.exit(fn));
+}
+
+// ─── AI usage scope (Phase 2 cost tracking) ──────────────────────────────────
+// Who a model call is BILLED to and which routing workload it served, for the
+// usage recorder (usage-recorder.ts). Deliberately a separate store from the
+// call context above: setting it changes nothing about how a call runs (no
+// shadow sampling, no interactive-vs-background 429 handling) — it only
+// labels the usage row. Nested scopes merge: an inner scope keeps the outer
+// one's fields it does not set.
+
+export interface AiUsageScope {
+  /**
+   * The user to charge. Set for per-user work that runs without a request
+   * context (the plan-tailoring worker, the Sunday auto-plan, the /api/chat
+   * route); `null` explicitly marks system work.
+   */
+  billedUserId?: string | null;
+  /** The routing workload (routing.ts AiWorkload), set by the provider chain. */
+  workload?: string;
+}
+
+const usageScopeStorage = new AsyncLocalStorage<AiUsageScope>();
+
+/** Runs `fn` with `scope` merged over the current usage scope. */
+export function runWithAiUsageScope<T>(scope: AiUsageScope, fn: () => T): T {
+  return usageScopeStorage.run({ ...usageScopeStorage.getStore(), ...scope }, fn);
+}
+
+/** The current usage scope, or undefined. */
+export function getAiUsageScope(): AiUsageScope | undefined {
+  return usageScopeStorage.getStore();
+}
+
+/**
+ * The user a model call made right now is charged to: the usage scope's
+ * `billedUserId` when one is set, else the signed-in request's user, else
+ * null (system). Shadow replays are never charged to anyone — they are our
+ * experiment, not the user's request.
+ */
+export function currentBilledUserId(): string | null {
+  const context = getAiCallContext();
+  if (context?.shadow) return null;
+  const scope = usageScopeStorage.getStore();
+  if (scope?.billedUserId !== undefined) return scope.billedUserId;
+  return context?.userId ?? null;
 }

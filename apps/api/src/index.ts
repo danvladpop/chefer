@@ -13,6 +13,7 @@ import {
   createContext,
   requestIdMiddleware,
 } from './interfaces/http/middleware/auth.middleware.js';
+import { startAiBudget } from './lib/ai-budget/index.js';
 import { asyncHandler } from './lib/async-handler.js';
 import { env } from './lib/env.js';
 import {
@@ -31,6 +32,7 @@ import { recipeImagesSseRouter } from './routers/recipe-images-sse.router.js';
 import { scanRouter } from './routers/scan.router.js';
 import { UPLOADS_DIR, uploadsRouter } from './routers/uploads.router.js';
 import { wellKnownRouter } from './routers/well-known.router.js';
+import { dataRetentionWorker } from './workers/data-retention.worker.js';
 import { friendsMaintenanceWorker } from './workers/friends-maintenance.worker.js';
 import { ingredientPriceWorker } from './workers/ingredient-price.worker.js';
 import { planTailoringWorker } from './workers/plan-tailoring.worker.js';
@@ -252,6 +254,11 @@ const server = app.listen(env.PORT, env.HOST, () => {
     logger.warn('AI_MOCK_ENABLED=true but an API key is also set — the mock takes precedence');
   }
 
+  // AI cost tracking + budgets (Phase 2): records every model call's
+  // estimated cost and installs the per-user / global budget gates. Before
+  // the workers, so their first calls are recorded and gated.
+  startAiBudget();
+
   // Start the background recipe image worker
   void recipeImageWorker.start();
 
@@ -269,6 +276,9 @@ const server = app.listen(env.PORT, env.HOST, () => {
 
   // Following housekeeping + the weekly moderation metrics line (plan §4.6)
   friendsMaintenanceWorker.start();
+
+  // Daily prune: expired sessions, AI usage + AI call logs older than 90 days
+  dataRetentionWorker.start();
 
   // Upsert the curated gym exercise library (prod never runs the seed). The
   // gym services also call it lazily, so a failure here only delays it.
@@ -326,6 +336,7 @@ async function gracefulShutdown(signal: string): Promise<void> {
   weeklyPlanWorker.stop();
   weeklyEmailWorker.stop();
   friendsMaintenanceWorker.stop();
+  dataRetentionWorker.stop();
   await planTailoringWorker.stop();
   await recipeImageWorker.stop();
 

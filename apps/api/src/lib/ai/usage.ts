@@ -15,9 +15,16 @@ export interface AiUsage {
   /** The IAIService operation, e.g. generateMealPlan or chat. */
   op: string;
   inputTokens?: number | undefined;
+  /** Part of inputTokens served from the provider's prompt cache, when reported. */
+  cachedInputTokens?: number | undefined;
+  /** Includes reasoningTokens on every client (reasoning bills as output). */
   outputTokens?: number | undefined;
-  /** Hidden reasoning tokens included in outputTokens (gpt-oss / qwen), when reported. */
+  /** Hidden reasoning tokens included in outputTokens (gpt-oss / qwen / Gemini thoughts), when reported. */
   reasoningTokens?: number | undefined;
+  /** Speech-to-text only: billed audio seconds (Whisper). */
+  audioSeconds?: number | undefined;
+  /** Image generation only: images produced. */
+  images?: number | undefined;
   ms: number;
   /** Workers AI only: this call's neurons, and today's running total (text + images). */
   neurons?: number | undefined;
@@ -41,7 +48,12 @@ export function logAiUsage(usage: AiUsage): void {
   }
 }
 
-/** Subscribes to usage records (eval harness token counting). Returns an unsubscribe. */
+/**
+ * Subscribes to usage records (eval harness token counting; the API's cost
+ * recorder, usage-recorder.ts). Listeners run synchronously inside the model
+ * call's async context — keep them cheap and never await in them. Returns an
+ * unsubscribe.
+ */
 export function onAiUsage(listener: UsageListener): () => void {
   listeners.add(listener);
   return () => {

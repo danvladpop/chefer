@@ -321,3 +321,18 @@ export {
   ingredientNoticeRepository,
   type IIngredientNoticeRepository,
 } from './ingredient-notice.repository';
+
+export {
+  AiUsageRepository,
+  aiUsageRepository,
+  type IAiUsageRepository,
+  type CreateAiUsageEventData,
+  type AiCostByWorkload,
+  type AiCostByUser,
+} from './ai-usage.repository';
+
+export {
+  SessionRepository,
+  sessionRepository,
+  type ISessionRepository,
+} from './session.repository';

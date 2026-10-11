@@ -385,12 +385,23 @@ export class GeminiAIService implements IAIService {
   ): ReturnType<GoogleGenAI['models']['generateContent']> {
     const started = Date.now();
     const response = await this.client.models.generateContent(params);
+    const usage = response.usageMetadata;
+    // Gemini reports thinking tokens apart from the answer; both bill as
+    // output, so outputTokens includes them (the same meaning as the
+    // OpenAI-compatible client's completion_tokens).
+    const thoughts = usage?.thoughtsTokenCount;
+    const candidates = usage?.candidatesTokenCount;
     logAiUsage({
       provider: 'gemini',
       model: params.model,
       op,
-      inputTokens: response.usageMetadata?.promptTokenCount,
-      outputTokens: response.usageMetadata?.candidatesTokenCount,
+      inputTokens: usage?.promptTokenCount,
+      cachedInputTokens: usage?.cachedContentTokenCount,
+      outputTokens:
+        candidates === undefined && thoughts === undefined
+          ? undefined
+          : (candidates ?? 0) + (thoughts ?? 0),
+      reasoningTokens: thoughts,
       ms: Date.now() - started,
     });
     return response;

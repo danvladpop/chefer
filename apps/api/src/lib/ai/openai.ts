@@ -211,6 +211,8 @@ interface ChatCompletionResponse {
     completion_tokens?: number;
     total_tokens?: number;
     completion_tokens_details?: { reasoning_tokens?: number };
+    /** Prompt-cache hits (`prompt_tokens_details.cached_tokens`), when reported. */
+    prompt_tokens_details?: { cached_tokens?: number };
     /** Workers AI only: what the call cost (also sent as the cf-ai-neurons header). */
     neurons?: number;
   };
@@ -567,6 +569,7 @@ export class OpenAICompatibleAIService implements IAIService {
       model,
       op: label,
       inputTokens,
+      cachedInputTokens: json.usage?.prompt_tokens_details?.cached_tokens,
       outputTokens,
       reasoningTokens: json.usage?.completion_tokens_details?.reasoning_tokens,
       ms: Date.now() - started,

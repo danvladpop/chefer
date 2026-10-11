@@ -1,6 +1,8 @@
 import { MealPlanOrigin, mealPlanRepository, prisma, type Prisma } from '@chefer/database';
 import { coachService } from '../application/coach/coach.service.js';
 import { mealPlanService } from '../application/meal-plan/meal-plan.service.js';
+import { checkUserAiBudget } from '../lib/ai/budget-gate.js';
+import { runWithAiUsageScope } from '../lib/ai/call-context.js';
 import { isAiCapacityFailure } from '../lib/ai/friendly-error.js';
 import { env } from '../lib/env.js';
 
@@ -169,18 +171,26 @@ export class WeeklyPlanWorker {
         // Premium: the same instant path as the Plan button — a curated week
         // now, tailored day by day by PlanTailoringWorker (consent already
         // checked above). With tailoring switched off, the blocking AI week.
-        const instant = user.premium && env.AI_PLAN_TAILORING;
-        await mealPlanService.generate(user.id, 1, user.premium, {
-          origin: MealPlanOrigin.WEEKLY_AUTO,
-          ...(instant && { instant: true }),
-        });
+        // Phase 2 AI budgets: past the user's monthly AI allowance, or while
+        // AI is paused for the day, a premium user gets the curated week —
+        // the same fallback as the Plan button (mealPlan.generate).
+        const budgetBlock = user.premium ? await checkUserAiBudget(user.id) : null;
+        const aiPlan = user.premium && budgetBlock === null;
+        const instant = aiPlan && env.AI_PLAN_TAILORING;
+        // Cost tracking: an inline AI week is billed to its user (labels only).
+        await runWithAiUsageScope({ billedUserId: user.id }, () =>
+          mealPlanService.generate(user.id, 1, aiPlan, {
+            origin: MealPlanOrigin.WEEKLY_AUTO,
+            ...(instant && { instant: true }),
+          }),
+        );
         generated += 1;
         console.log(
-          `[WeeklyPlanWorker] generated next week's ${user.premium ? (instant ? 'instant (tailoring)' : 'AI') : 'curated'} plan for user ${user.id}`,
+          `[WeeklyPlanWorker] generated next week's ${aiPlan ? (instant ? 'instant (tailoring)' : 'AI') : 'curated'} plan for user ${user.id}${budgetBlock ? ` (AI budget: ${budgetBlock.reason})` : ''}`,
         );
         // Only an inline AI week is worth spacing out (the tailoring worker
         // paces its own calls).
-        if (user.premium && !instant) await new Promise((r) => setTimeout(r, PER_USER_DELAY_MS));
+        if (aiPlan && !instant) await new Promise((r) => setTimeout(r, PER_USER_DELAY_MS));
       } catch (err) {
         // One user's failure must not starve the rest of the sweep (a free
         // user's restrictions can exhaust the curated pool, for example).

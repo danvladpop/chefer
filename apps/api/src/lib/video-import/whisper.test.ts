@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
+import { onAiUsage, type AiUsage } from '../ai/usage.js';
 import { GroqWhisperClient } from './whisper.js';
 
 // fetch is injected: no request ever leaves the test.
@@ -69,5 +70,28 @@ describe('GroqWhisperClient', () => {
     await expect(new GroqWhisperClient(CONFIG, fetchFn).transcribe(AUDIO)).rejects.toMatchObject({
       code: 'TIMEOUT',
     });
+  });
+
+  it('reports billed audio seconds for cost tracking (10 s minimum)', async () => {
+    vi.spyOn(console, 'info').mockImplementation(() => undefined);
+    const seen: AiUsage[] = [];
+    const off = onAiUsage((u) => seen.push(u));
+    try {
+      await new GroqWhisperClient(CONFIG, respond(200, { text: 'x', duration: 95.5 })).transcribe(
+        AUDIO,
+      );
+      await new GroqWhisperClient(CONFIG, respond(200, { text: 'x', duration: 3 })).transcribe(
+        AUDIO,
+      );
+      await new GroqWhisperClient(CONFIG, respond(500, 'down'))
+        .transcribe(AUDIO)
+        .catch(() => undefined);
+    } finally {
+      off();
+    }
+    expect(seen.map((u) => [u.provider, u.model, u.op, u.audioSeconds])).toEqual([
+      ['api.groq.com', 'whisper-large-v3-turbo', 'transcribe', 95.5],
+      ['api.groq.com', 'whisper-large-v3-turbo', 'transcribe', 10],
+    ]);
   });
 });
