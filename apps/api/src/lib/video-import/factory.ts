@@ -1,4 +1,5 @@
 import { env } from '../env.js';
+import { ConcurrencyLimitedTranscriber } from './concurrency.js';
 import { MockVideoTranscriber } from './mock.js';
 import { VideoTranscriber, type IVideoTranscriber } from './transcript.js';
 import { GroqWhisperClient } from './whisper.js';
@@ -16,8 +17,10 @@ export function createVideoTranscriber(): IVideoTranscriber {
         model: env.WHISPER_MODEL,
       })
     : null;
-  return new VideoTranscriber(new YtDlpVideoFetcher(), speech, {
+  const transcriber = new VideoTranscriber(new YtDlpVideoFetcher(), speech, {
     maxSeconds: env.VIDEO_MAX_SECONDS,
     maxDownloadBytes: env.VIDEO_MAX_DOWNLOAD_MB * 1024 * 1024,
   });
+  // One process-wide gate: the service builds this transcriber once and reuses it.
+  return new ConcurrencyLimitedTranscriber(transcriber, env.VIDEO_IMPORT_CONCURRENCY);
 }

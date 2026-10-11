@@ -116,6 +116,18 @@ const envSchema = z.object({
   // Largest source download yt-dlp may start (the transcoded audio sent to
   // Whisper is ~0.25 MB/min regardless).
   VIDEO_MAX_DOWNLOAD_MB: z.coerce.number().int().positive().max(500).default(50),
+  // Phase 1 guardrails: how many video imports (yt-dlp + ffmpeg) may run at
+  // once, process-wide. Another request while every slot is busy gets a
+  // friendly "busy, try again in a minute" instead of a second download.
+  VIDEO_IMPORT_CONCURRENCY: z.coerce.number().int().positive().max(8).default(1),
+
+  // Phase 1 guardrails: the daily uploads orphan sweeper
+  // (workers/upload-sweeper.worker.ts). 'true' logs what it would delete
+  // (files, ledger rows; the 30-day recipe purge is skipped) and deletes nothing.
+  UPLOAD_SWEEP_DRY_RUN: z
+    .string()
+    .default('false')
+    .transform((val) => val === 'true'),
 
   // Email — mock is enabled by default so local dev never sends real mail;
   // the mock logs the message (including reset links) to the console instead.

@@ -5,7 +5,7 @@ import { rejectWithoutAiConsent } from '../lib/ai-consent-gate.js';
 import { runWithAiCallContext } from '../lib/ai/call-context.js';
 import { asyncHandler } from '../lib/async-handler.js';
 import { isPremiumUser } from '../lib/entitlements.js';
-import { resolveRequestAuth } from '../lib/session-auth.js';
+import { authOnce } from '../lib/route-rate-limit.js';
 
 // ─── Meal photo scan endpoint (F4 Snap-to-Log) ────────────────────────────────
 // Session-authenticated raw-body image POST (same transport as the uploads
@@ -37,7 +37,7 @@ scanRouter.post(
   '/',
   express.raw({ type: 'image/*', limit: MAX_BYTES }),
   asyncHandler(async (req: Request, res: Response) => {
-    const { user } = await resolveRequestAuth(req);
+    const { user } = await authOnce(req, res);
     if (!user) {
       res.status(401).json({ error: 'Unauthorized' });
       return;
