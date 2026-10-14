@@ -3,6 +3,7 @@ import { Animated, StyleSheet, View } from 'react-native';
 import { Image } from 'expo-image';
 import { useIsFocused } from 'expo-router';
 import type { ExerciseEquipment } from '@chefer/types';
+import { heroMaxWidth, useReadableLayout } from '@chefer/ui-mobile';
 import { Placeholder } from '../components/exercise-image';
 
 // Start/end photo crossfade (gym_plan.md §1.3 exercise detail, §5.5 media): a
@@ -16,6 +17,7 @@ import { Placeholder } from '../components/exercise-image';
 // customs and any photo the audit hides.
 
 const CROSSFADE_MS = 1200;
+const HERO_ASPECT = 1.5;
 
 export interface PhotoCrossfadeProps {
   /** API-resolved photo URLs, already run through exerciseImageUrl. */
@@ -36,6 +38,14 @@ export function PhotoCrossfade({
 }: PhotoCrossfadeProps) {
   const isFocused = useIsFocused();
   const opacity = useRef(new Animated.Value(0)).current;
+  // Large screens: full width only up to 40% of the window height, centred —
+  // a full-width hero filled a tablet's screen, upscaled and blurry.
+  const { windowHeight } = useReadableLayout();
+  const frame = {
+    aspectRatio: HERO_ASPECT,
+    maxWidth: heroMaxWidth(windowHeight, HERO_ASPECT),
+    alignSelf: 'center' as const,
+  };
 
   useEffect(() => {
     if (images.length < 2 || !isFocused) {
@@ -61,22 +71,14 @@ export function PhotoCrossfade({
 
   if (hidden || images.length === 0) {
     return (
-      <View
-        testID={testID}
-        className="w-full overflow-hidden rounded-xl"
-        style={{ aspectRatio: 1.5 }}
-      >
+      <View testID={testID} className="w-full overflow-hidden rounded-xl" style={frame}>
         <Placeholder equipment={equipment} primaryMuscleLabel={primaryMuscleLabel} size="hero" />
       </View>
     );
   }
 
   return (
-    <View
-      testID={testID}
-      className="w-full overflow-hidden rounded-xl bg-muted"
-      style={{ aspectRatio: 1.5 }}
-    >
+    <View testID={testID} className="w-full overflow-hidden rounded-xl bg-muted" style={frame}>
       <Image
         source={{ uri: images[0] }}
         style={StyleSheet.absoluteFill}

@@ -3,7 +3,7 @@ import { Animated, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
 import type { ExerciseEquipment } from '@chefer/types';
-import { useReducedMotion } from '@chefer/ui-mobile';
+import { heroMaxWidth, useReadableLayout, useReducedMotion } from '@chefer/ui-mobile';
 
 // UX-05 amendment A6 (T-05.11, O-26, ⚖ D-22 a): one shared exercise-image
 // surface. 3:2 everywhere (never a square crop), a designed placeholder
@@ -11,6 +11,13 @@ import { useReducedMotion } from '@chefer/ui-mobile';
 // customs, requested exercises and any photo the audit hides, and one silent
 // retry + `exercise_image_failed` on a load error. MO-13 fade in while
 // loading; reduced motion shows the photo at once.
+//
+// Large screens: the hero is full width only while that keeps it within 40%
+// of the window height (`heroMaxWidth`) — on a tablet or a landscape window a
+// full-width 3:2 photo filled the screen, upscaled and blurry. Centred when
+// capped; on a phone in portrait the cap is wider than the screen.
+
+const HERO_ASPECT = 1.5;
 
 const EQUIPMENT_ICON: Record<ExerciseEquipment, keyof typeof Ionicons.glyphMap> = {
   BARBELL: 'barbell-outline',
@@ -107,9 +114,17 @@ export function ExerciseImage({
     opacity.setValue(reducedMotion ? 1 : 0);
   }, [uri, reducedMotion, opacity]);
 
+  const { windowHeight } = useReadableLayout();
   const showPlaceholder = hidden || !uri || failed;
   const dimensions =
-    size === 'hero' ? { width: '100%' as const, aspectRatio: 1.5 } : { width: 60, height: 40 };
+    size === 'hero'
+      ? {
+          width: '100%' as const,
+          aspectRatio: HERO_ASPECT,
+          maxWidth: heroMaxWidth(windowHeight, HERO_ASPECT),
+          alignSelf: 'center' as const,
+        }
+      : { width: 60, height: 40 };
 
   return (
     <View testID={testID} className="overflow-hidden rounded-lg" style={dimensions}>

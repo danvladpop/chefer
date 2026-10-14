@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { View } from 'react-native';
 import { router } from 'expo-router';
-import { PressableScale, Text, useThemeColors } from '@chefer/ui-mobile';
+import { PressableScale, Text, useReadableLayout, useThemeColors } from '@chefer/ui-mobile';
 import { Icon } from '../../components/icon';
 import { useActiveSessionRecord } from '../gym/offline/active-session-store';
 import { getGymOwner } from '../gym/offline/owner';
@@ -21,6 +21,9 @@ export function WorkoutMiniBar() {
   const record = useActiveSessionRecord();
   const colors = useThemeColors();
   const [now, setNow] = useState(() => Date.now());
+  // Large screens: line up with the screens' readable column instead of
+  // stretching "Resume" a window's width away from the workout's name.
+  const { gutter } = useReadableLayout();
   const owner = getGymOwner();
   const running =
     record !== null &&
@@ -40,7 +43,10 @@ export function WorkoutMiniBar() {
   ).length;
 
   return (
-    <View className="bg-canvas px-3 pb-2 pt-1">
+    <View
+      className="bg-canvas px-3 pb-2 pt-1"
+      style={gutter > 0 ? { paddingLeft: gutter + 12, paddingRight: gutter + 12 } : undefined}
+    >
       <PressableScale
         testID="workout-mini-bar"
         accessibilityRole="button"

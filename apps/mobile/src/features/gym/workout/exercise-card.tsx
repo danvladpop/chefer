@@ -478,7 +478,9 @@ function ExerciseCardImpl({
               accessibilityLabel={`Add set, unavailable. ${SET_CAP_REASON}`}
               className="min-h-12 items-center justify-center rounded-control border border-dashed border-separator px-3 py-2 opacity-60"
             >
-              <Text className="text-callout font-semibold text-label-secondary">Add set</Text>
+              <Text numberOfLines={1} className="text-callout font-semibold text-label-secondary">
+                Add set
+              </Text>
               <Text testID={`${base}-add-set-reason`} className="text-subhead text-label-secondary">
                 {SET_CAP_REASON}
               </Text>
@@ -491,7 +493,13 @@ function ExerciseCardImpl({
               className="min-h-12 flex-row items-center justify-center gap-1.5 rounded-control border border-dashed border-brand/40"
             >
               <Icon name="add" size={20} color={colors.brand} />
-              <Text className="text-callout font-semibold text-brand">Add set</Text>
+              {/* Large screens: on Android (tablet, 2x density) this shrink-wrapped
+                  semibold label was drawn a hair wider than RN measured it, so
+                  "set" wrapped onto a second line the 1-line box clips —
+                  "Add" (seen after a rotation). One line can't wrap. */}
+              <Text numberOfLines={1} className="text-callout font-semibold text-brand">
+                Add set
+              </Text>
             </Pressable>
           )}
         </View>

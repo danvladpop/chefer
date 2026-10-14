@@ -1,4 +1,5 @@
-import { fireEvent, screen } from '@testing-library/react-native';
+import { Dimensions } from 'react-native';
+import { act, fireEvent, screen } from '@testing-library/react-native';
 import { ExerciseImage } from '../../src/features/gym/components/exercise-image';
 import { renderWithGym } from './gym-screen-test-utils';
 
@@ -92,5 +93,30 @@ describe('ExerciseImage — UX-05 A6', () => {
     await renderImage({ uri: null, size: 'hero' });
     const hero = screen.getByTestId('img-placeholder');
     expect(hero.props.accessibilityLabel).toBe('No photo yet');
+  });
+
+  it('large screens: the 3:2 hero is capped at 40% of the window height and centred', async () => {
+    const initial = Dimensions.get('window');
+    const resize = (width: number, height: number) =>
+      act(() => {
+        const window = { width, height, scale: 2, fontScale: 1 };
+        Dimensions.set({ window, screen: window });
+      });
+    try {
+      await resize(1280, 800); // a 10" tablet in landscape
+      await renderImage();
+      expect(screen.getByTestId('img').props.style).toEqual({
+        width: '100%',
+        aspectRatio: 1.5,
+        maxWidth: 480, // 320pt tall
+        alignSelf: 'center',
+      });
+      // A phone in portrait: the cap is wider than the screen, so the hero is full width.
+      await resize(390, 844);
+      const phone = screen.getByTestId('img').props.style as { maxWidth: number };
+      expect(phone.maxWidth).toBeGreaterThan(390);
+    } finally {
+      await resize(initial.width, initial.height);
+    }
   });
 });
