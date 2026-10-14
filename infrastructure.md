@@ -3814,10 +3814,12 @@ account needed. All scripts live in `apps/mobile/scripts/`, export
   the runtime fingerprint on purpose (`expo-updates runtimeversion:resolve`, production variant,
   `EXPO_APPLE_TEAM_ID=45TS85YK89`, `EXPO_PUBLIC_API_URL=https://chefer.duckdns.org`, master before → after):
 
-  | Platform | Before (master at e024e4d7) | After                                      |
-  | -------- | --------------------------- | ------------------------------------------ |
-  | iOS      | `__IOS_BEFORE__`            | `2d000486362c5b538c01117458ad5f6a36f1c6a1` |
-  | Android  | `__ANDROID_BEFORE__`        | `c6c0f2360895587c5c63b67a7673b5507ca81194` |
+  | Platform | Before (master at e024e4d7)                | After                                      |
+  | -------- | ------------------------------------------ | ------------------------------------------ |
+  | iOS      | `442ae8554c9e8f4bac35c8e260328dda165f6000` | `2d000486362c5b538c01117458ad5f6a36f1c6a1` |
+  | Android  | `b16487329b0f2dbb8c36533855f79b252e99d49a` | `c6c0f2360895587c5c63b67a7673b5507ca81194` |
+
+  The Android "before" equals the runtime of the Play 1.0.1 AAB (`release-builds/runtime-android.txt` of that build).
 
   **Merge only when 1.0.2 is about to be built for both stores**: from the merge on, every CI OTA targets the new
   runtime, so installed 1.0.1 apps stop receiving updates until they install 1.0.2. Before building, bump `version`
