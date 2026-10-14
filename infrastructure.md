@@ -3814,10 +3814,10 @@ account needed. All scripts live in `apps/mobile/scripts/`, export
   the runtime fingerprint on purpose (`expo-updates runtimeversion:resolve`, production variant,
   `EXPO_APPLE_TEAM_ID=45TS85YK89`, `EXPO_PUBLIC_API_URL=https://chefer.duckdns.org`, master before → after):
 
-  | Platform | Before (master at e024e4d7)                | After Sentry                               | After the 1.0.2 bump (shipped runtime)     |
-  | -------- | ------------------------------------------ | ------------------------------------------ | ------------------------------------------ |
-  | iOS      | `442ae8554c9e8f4bac35c8e260328dda165f6000` | `2d000486362c5b538c01117458ad5f6a36f1c6a1` | `d29ee95ef233a45d3d5358b49aa7f967d1f46bd6` |
-  | Android  | `b16487329b0f2dbb8c36533855f79b252e99d49a` | `c6c0f2360895587c5c63b67a7673b5507ca81194` | `ed5a2444aaf9709dc633a16d3959f169e43a1e82` |
+  | Platform | Before (master at e024e4d7)                | After Sentry                               | After the 1.0.2 bump                       | After the phone-only portrait lock (shipped runtime) |
+  | -------- | ------------------------------------------ | ------------------------------------------ | ------------------------------------------ | ---------------------------------------------------- |
+  | iOS      | `442ae8554c9e8f4bac35c8e260328dda165f6000` | `2d000486362c5b538c01117458ad5f6a36f1c6a1` | `d29ee95ef233a45d3d5358b49aa7f967d1f46bd6` | `48164b511e206c3d79e0224d5f8c7b879eabf798`           |
+  | Android  | `b16487329b0f2dbb8c36533855f79b252e99d49a` | `c6c0f2360895587c5c63b67a7673b5507ca81194` | `ed5a2444aaf9709dc633a16d3959f169e43a1e82` | `9ada5dcddf642fa453c59ccf47c4a79e6a3e6b8b`           |
 
   The Android "before" equals the runtime of the Play 1.0.1 AAB (`release-builds/runtime-android.txt` of that build).
 
@@ -3829,6 +3829,27 @@ account needed. All scripts live in `apps/mobile/scripts/`, export
   (`appVersionSource: remote`, `autoIncrement`). The Sentry env does **not** affect the fingerprint (verified: same
   runtime with and without `SENTRY_AUTH_TOKEN`, `EXPO_PUBLIC_SENTRY_DSN`, `SENTRY_ORG`/`SENTRY_PROJECT`,
   `SENTRY_DISABLE_AUTO_UPLOAD`), because the plugin's arguments are literals.
+
+- **Native release 3, part 2 (1.0.2): phone-only portrait lock.** Play Console warns about orientation restrictions
+  (Android 16 ignores them on large screens, sw ≥ 600dp, and tablets already rotated with targetSdk 36), so the manifest
+  no longer locks orientation: `orientation: 'default'` (`android:screenOrientation="unspecified"`). Phones stay
+  portrait three ways, large screens are free:
+  - **JS** (`apps/mobile/src/lib/orientation-lock.ts`, `expo-screen-orientation` 57.0.3): `useOrientationLock()` in the
+    root layout locks `PORTRAIT_UP` while the window's smaller side is < `LARGE_SCREEN_MIN_SIDE_DP` (600) and unlocks
+    otherwise, re-evaluated on every window change (foldable unfolding, freeform/desktop resizing), plus one call at
+    module load. The module is `require`d inside try/catch, so a bundle on a binary without it just has no lock.
+  - **Android launch:** an inline config plugin (`withPhonePortraitAtLaunch` in `app.config.js`) adds to
+    `MainActivity.onCreate`: `smallestScreenWidthDp < 600` → `requestedOrientation = PORTRAIT`, so a phone held sideways
+    opens in portrait before JS runs. Only the system splash (starting window, drawn before `onCreate`) can show sideways
+    for a moment. The fingerprint records inline plugins by **name** only — rename the function when its body changes.
+  - **iOS:** the app is iPhone-only (`supportsTablet: false`, `TARGETED_DEVICE_FAMILY = 1`), so `ios.infoPlist` keeps
+    `UISupportedInterfaceOrientations` = portrait + upside down, exactly as before (it overrides the abstract
+    `orientation`; prebuild prints a warning saying so). No launch flash, nothing for App Review. Should iPad support
+    turn on, Expo's `requireFullScreen` handling adds all four `UISupportedInterfaceOrientations~ipad` entries
+    (multitasking, ITMS-90474) and the JS gate unlocks the large screen.
+
+  Verified on throwaway AVDs (production APK): phone 1080×2400 @420dpi stays portrait when launched sideways and when
+  rotated (`requestedOrientation=PORTRAIT`); tablet 2560×1600 @320dpi rotates (`UNSPECIFIED`).
 
 - **Mobile crash reporting (M1-6) — owner runbook.** The code ships inert: no DSN, no reports.
   1. **Sentry project:** in the `chefer` org (EU region, where web `javascript-nextjs` lives) create a **React

@@ -2,7 +2,7 @@
 // version ("Unexpected token '{'", eas-cli 23.1.0) while expo itself read it
 // fine — plain JS removes the loader variance. Typed via the JSDoc below.
 
-const { withEntitlementsPlist } = require('expo/config-plugins');
+const { withEntitlementsPlist, withMainActivity } = require('expo/config-plugins');
 
 const EAS_PROJECT_ID = 'f4d9a056-7f4d-4ee4-b185-2f0bcea37225';
 
@@ -19,6 +19,37 @@ const withoutPushEntitlement = (cfg) => {
     return c;
   });
 };
+
+// Phones start in portrait (1.0.2). The manifest no longer locks orientation
+// (see `orientation` below), so without this a phone held sideways would show
+// the app in landscape until the JS lock (src/lib/orientation-lock.ts) runs.
+// Same rule and threshold as that file: smallest width < 600dp = phone. The
+// system splash (starting window) can still appear sideways for a moment —
+// it is drawn before onCreate. Large screens are never touched here.
+// NOTE: the runtime fingerprint records an inline plugin by its NAME only, so
+// editing this body does not change the runtime — rename the function with
+// any change to the native code it writes.
+const PHONE_PORTRAIT_MARKER = '// chefer: phones start in portrait';
+const withPhonePortraitAtLaunch = (cfg) =>
+  withMainActivity(cfg, (c) => {
+    if (c.modResults.language !== 'kt') {
+      throw new Error('withPhonePortraitAtLaunch expects a Kotlin MainActivity');
+    }
+    if (c.modResults.contents.includes(PHONE_PORTRAIT_MARKER)) return c;
+    const anchor = /override fun onCreate\(savedInstanceState: Bundle\?\) \{\n/;
+    if (!anchor.test(c.modResults.contents)) {
+      throw new Error('withPhonePortraitAtLaunch: MainActivity.onCreate not found');
+    }
+    c.modResults.contents = c.modResults.contents.replace(
+      anchor,
+      (match) =>
+        `${match}    ${PHONE_PORTRAIT_MARKER} (orientation-lock.ts takes over from JS)\n` +
+        '    if (resources.configuration.smallestScreenWidthDp < 600) {\n' +
+        '      requestedOrientation = android.content.pm.ActivityInfo.SCREEN_ORIENTATION_PORTRAIT\n' +
+        '    }\n',
+    );
+    return c;
+  });
 
 // Two app variants (M4-4) so a laptop-independent production build and a
 // Metro-backed dev client can live side by side on the same phone:
@@ -127,7 +158,12 @@ const config = {
   // bare node calls in Gradle/Xcode — that flipped the runtime fingerprint
   // between build and `eas update`, silently blocking OTA delivery.
   platforms: ['ios', 'android'],
-  orientation: 'portrait',
+  // No orientation lock in the Android manifest (1.0.2): Play flags
+  // portrait-only apps because Android 16 ignores orientation restrictions on
+  // large screens (sw ≥ 600dp), and tablets already rotate there. Phones are
+  // kept portrait at runtime by src/lib/orientation-lock.ts. iOS keeps its
+  // portrait Info.plist through ios.infoPlist below (iPhone-only app).
+  orientation: 'default',
   // Plate-and-cutlery on brand brown; the dev variant carries a DEV band so the
   // two installs are distinguishable. Sources: assets/icon-source/*.svg.
   icon: IS_PRODUCTION ? './assets/icon.png' : './assets/icon-dev.png',
@@ -135,6 +171,19 @@ const config = {
   ios: {
     bundleIdentifier: IS_PRODUCTION ? 'com.popdan.chefer' : 'dev.chefer.app.dev',
     supportsTablet: false,
+    infoPlist: {
+      // iPhone stays portrait NATIVELY — the same Info.plist as with
+      // `orientation: 'portrait'`, so no landscape launch screen on a phone
+      // held sideways. Set here (it takes precedence over the abstract
+      // `orientation`) because `orientation` must be 'default' for Android.
+      // Should supportsTablet ever turn on, Expo adds all four
+      // UISupportedInterfaceOrientations~ipad entries (iPad multitasking,
+      // ITMS-90474) and orientation-lock.ts unlocks the large screen.
+      UISupportedInterfaceOrientations: [
+        'UIInterfaceOrientationPortrait',
+        'UIInterfaceOrientationPortraitUpsideDown',
+      ],
+    },
     // Apple team for signing local device builds (set in .env — the repo is
     // public). Unset is fine: simulator builds don't sign, and EAS cloud
     // builds bring their own credentials.
@@ -196,6 +245,7 @@ const config = {
     'expo-sqlite',
     'expo-image',
     ['expo-notifications', { color: '#944a00' }],
+    withPhonePortraitAtLaunch,
     // M1-6 crash reporting. Writes sentry.properties and the source-map /
     // debug-symbol upload steps into the native projects. The arguments are
     // part of the runtime fingerprint, so they are LITERALS — never read them

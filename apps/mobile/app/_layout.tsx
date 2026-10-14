@@ -28,6 +28,7 @@ import { getTrpcUrl } from '../src/lib/api-url';
 import { getToken } from '../src/lib/auth-store';
 import { initCrashReporting } from '../src/lib/crash-reporting';
 import { CURRENT_BUILD } from '../src/lib/current-build';
+import { applyInitialOrientationLock, useOrientationLock } from '../src/lib/orientation-lock';
 import { signOut } from '../src/lib/sign-out';
 import { makeQueryClient, trpc } from '../src/lib/trpc';
 import { buildTrpcLinks } from '../src/lib/trpc-links';
@@ -35,6 +36,10 @@ import { buildTrpcLinks } from '../src/lib/trpc-links';
 // M1-6: first thing at module scope, so a crash anywhere below is reported.
 // Production builds with EXPO_PUBLIC_SENTRY_DSN only; a no-op otherwise.
 initCrashReporting();
+
+// Phones stay portrait; tablets / unfolded foldables rotate (orientation-lock.ts).
+// Applied here once, then kept in step with the window by useOrientationLock().
+applyInitialOrientationLock();
 
 // One line per launch so device logs (logcat / Console.app) show which
 // bundle is live — embedded or which OTA update — without signing in.
@@ -75,6 +80,7 @@ function createAppQueryClient() {
 }
 
 export default function RootLayout() {
+  useOrientationLock();
   const { ready, token } = useSession();
   // Weekly plan / recap notification taps → the plan or Progress (P2-5).
   useNotificationLinks(ready && token !== null);

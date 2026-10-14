@@ -395,6 +395,10 @@ rejections and native crashes come from the SDK's default handlers;
 secret exists. **Native change:** new runtime fingerprint, so it ships with the next store
 binaries (1.0.2). Owner runbook: `infrastructure.md` §11 "Mobile crash reporting (M1-6)".
 The `log()` util below was not added (the app's few `console.*` calls are already deliberate).
+The same 1.0.2 native batch drops the manifest's portrait lock (Play's large-screen warning) and
+keeps phones portrait at runtime with `expo-screen-orientation` (`src/lib/orientation-lock.ts`,
+smallest side < 600dp) plus a `MainActivity` launch lock; iPhone keeps its portrait Info.plist.
+Details: `infrastructure.md` §11 "Native release 3, part 2".
 
 `@sentry/react-native` via the Expo plugin, wired only when `EXPO_PUBLIC_SENTRY_DSN` is
 set **[USER: provide DSN or say skip]**. Dev logging: keep Metro console clean; add a tiny
