@@ -4,6 +4,7 @@ import { PersistQueryClientProvider } from '@tanstack/react-query-persist-client
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { Snackbar } from '@chefer/ui-mobile';
+import { CrashReportingUserHost } from '../src/components/crash-reporting-user-host';
 import { AiConsentHost, AiConsentProvider } from '../src/features/ai-consent/ai-consent-provider';
 import { forceLightAppearance } from '../src/features/appearance/force-light';
 import { markSessionExpired, setUnauthorizedHandler } from '../src/features/auth/session-expired';
@@ -25,10 +26,15 @@ import { ShellFlagHost } from '../src/features/shell/shell-flag-host';
 import { initAnalytics, track } from '../src/lib/analytics';
 import { getTrpcUrl } from '../src/lib/api-url';
 import { getToken } from '../src/lib/auth-store';
+import { initCrashReporting } from '../src/lib/crash-reporting';
 import { CURRENT_BUILD } from '../src/lib/current-build';
 import { signOut } from '../src/lib/sign-out';
 import { makeQueryClient, trpc } from '../src/lib/trpc';
 import { buildTrpcLinks } from '../src/lib/trpc-links';
+
+// M1-6: first thing at module scope, so a crash anywhere below is reported.
+// Production builds with EXPO_PUBLIC_SENTRY_DSN only; a no-op otherwise.
+initCrashReporting();
 
 // One line per launch so device logs (logcat / Console.app) show which
 // bundle is live — embedded or which OTA update — without signing in.
@@ -173,6 +179,8 @@ export default function RootLayout() {
             <ForegroundLandingHost signedIn={token !== null} />
             {/* Mobile UX revamp: caches `mobileShellV2` for the next cold start. */}
             <ShellFlagHost signedIn={token !== null} />
+            {/* M1-6: crash reports carry the account id (not name/email). */}
+            <CrashReportingUserHost signedIn={token !== null} />
             {/* UX-26, Q-7 (pending counsel): data saved before health consent existed
                 is kept; the signed-in user is asked once per launch. */}
             <HealthConsentLaunchPrompt signedIn={token !== null} />

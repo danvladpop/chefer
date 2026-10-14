@@ -192,6 +192,19 @@ const config = {
     'expo-sqlite',
     'expo-image',
     ['expo-notifications', { color: '#944a00' }],
+    // M1-6 crash reporting. Writes sentry.properties and the source-map /
+    // debug-symbol upload steps into the native projects. The arguments are
+    // part of the runtime fingerprint, so they are LITERALS — never read them
+    // from env, or a build with Sentry env and an OTA publish without it would
+    // land on different runtimes. The auth token comes only from the
+    // SENTRY_AUTH_TOKEN env at upload time; without it scripts/common.sh and
+    // eas.json set SENTRY_DISABLE_AUTO_UPLOAD=true so builds don't fail. The
+    // DSN is runtime JS config (EXPO_PUBLIC_SENTRY_DSN, src/lib/crash-reporting.ts).
+    // Org slug as in apps/web/next.config.ts; EU region, like web and API.
+    [
+      '@sentry/react-native/expo',
+      { url: 'https://de.sentry.io/', organization: 'chefer', project: 'chefer-mobile' },
+    ],
     // …and LAST too: config-level edits happen in registration order.
     withoutPushEntitlement,
   ],
