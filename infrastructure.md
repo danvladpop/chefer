@@ -3814,18 +3814,18 @@ account needed. All scripts live in `apps/mobile/scripts/`, export
   the runtime fingerprint on purpose (`expo-updates runtimeversion:resolve`, production variant,
   `EXPO_APPLE_TEAM_ID=45TS85YK89`, `EXPO_PUBLIC_API_URL=https://chefer.duckdns.org`, master before → after):
 
-  | Platform | Before (master at e024e4d7)                | After                                      |
-  | -------- | ------------------------------------------ | ------------------------------------------ |
-  | iOS      | `442ae8554c9e8f4bac35c8e260328dda165f6000` | `2d000486362c5b538c01117458ad5f6a36f1c6a1` |
-  | Android  | `b16487329b0f2dbb8c36533855f79b252e99d49a` | `c6c0f2360895587c5c63b67a7673b5507ca81194` |
+  | Platform | Before (master at e024e4d7)                | After Sentry                               | After the 1.0.2 bump (shipped runtime)     |
+  | -------- | ------------------------------------------ | ------------------------------------------ | ------------------------------------------ |
+  | iOS      | `442ae8554c9e8f4bac35c8e260328dda165f6000` | `2d000486362c5b538c01117458ad5f6a36f1c6a1` | `d29ee95ef233a45d3d5358b49aa7f967d1f46bd6` |
+  | Android  | `b16487329b0f2dbb8c36533855f79b252e99d49a` | `c6c0f2360895587c5c63b67a7673b5507ca81194` | `ed5a2444aaf9709dc633a16d3959f169e43a1e82` |
 
   The Android "before" equals the runtime of the Play 1.0.1 AAB (`release-builds/runtime-android.txt` of that build).
 
   **Merge only when 1.0.2 is about to be built for both stores**: from the merge on, every CI OTA targets the new
-  runtime, so installed 1.0.1 apps stop receiving updates until they install 1.0.2. Before building, bump `version`
-  in `app.config.js` and the build numbers: Android `versionCode` is not set anywhere, so prebuild writes `1` — the
-  number Play 1.0.1 already used — and Play rejects a second `1` (set `android.versionCode` in `app.config.js`, e.g.
-  `2`; it is part of the fingerprint, so set it before the build and leave it); iOS build numbers come from EAS
+  runtime, so installed 1.0.1 apps stop receiving updates until they install 1.0.2. The same branch already bumps
+  `version` to **1.0.2** and sets `android.versionCode: 2` in `app.config.js` (1.0.1 shipped as code `1` because it
+  was unset; Play rejects a reused code). Both are part of the fingerprint, so the last column is what the 1.0.2
+  binaries carry; bump them again only together with the next store build. iOS build numbers come from EAS
   (`appVersionSource: remote`, `autoIncrement`). The Sentry env does **not** affect the fingerprint (verified: same
   runtime with and without `SENTRY_AUTH_TOKEN`, `EXPO_PUBLIC_SENTRY_DSN`, `SENTRY_ORG`/`SENTRY_PROJECT`,
   `SENTRY_DISABLE_AUTO_UPLOAD`), because the plugin's arguments are literals.

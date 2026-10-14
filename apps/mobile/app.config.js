@@ -121,7 +121,7 @@ const config = {
   // App Store / Play marketing version. Part of the runtime fingerprint, so
   // bumping it gives a new runtime: OTA updates reach only binaries built
   // from this version on (a store binary is a new build anyway).
-  version: '1.0.1',
+  version: '1.0.2',
   // Explicit, not auto-detected: "web" is added only when react-native-web
   // resolves, which differs between pnpm's `expo` shim (NODE_PATH) and the
   // bare node calls in Gradle/Xcode — that flipped the runtime fingerprint
@@ -150,6 +150,10 @@ const config = {
   },
   android: {
     package: IS_PRODUCTION ? 'dev.chefer.app' : 'dev.chefer.app.dev',
+    // Play build number. Must go up with every store upload (Play rejects a reused
+    // code; 1.0.1 shipped as 1 because this was unset). Part of the runtime
+    // fingerprint, so bump it only together with a store build.
+    versionCode: 2,
     adaptiveIcon: {
       backgroundColor: '#944a00',
       foregroundImage: IS_PRODUCTION
