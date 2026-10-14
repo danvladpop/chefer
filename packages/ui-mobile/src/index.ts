@@ -54,6 +54,7 @@ export {
   type ScrollFieldIntoView,
 } from './components/keyboard-aware-scroll-view';
 export {
+  keyboardBottomInset,
   useKeyboardInset,
   type KeyboardInset,
   type UseKeyboardInsetOptions,

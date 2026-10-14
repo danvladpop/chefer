@@ -13,22 +13,46 @@ export interface UseKeyboardInsetOptions {
 export interface KeyboardInset {
   /**
    * The bottom padding to apply to a container that must sit ABOVE the
-   * keyboard: the keyboard's height minus the bottom safe-area inset (the
-   * container, or the screen under it, already clears the home indicator),
-   * never negative. 0 while the keyboard is hidden.
+   * keyboard, given that the container (or the screen under it) already
+   * clears the bottom safe area itself — see `keyboardBottomInset`. Never
+   * negative; 0 while the keyboard is hidden.
    */
   inset: number;
-  /** The raw keyboard height, 0 while hidden. */
+  /** The keyboard height exactly as RN reports it (see `keyboardBottomInset`), 0 while hidden. */
   keyboardHeight: number;
   /** True from the keyboard's show event until its hide event. */
   isVisible: boolean;
 }
 
 /**
+ * The padding that lifts a container (which already clears the bottom safe
+ * area on its own) to sit flush on the keyboard.
+ *
+ * The two platforms report the keyboard differently:
+ *  - iOS: `endCoordinates.height` is the keyboard's full height from the
+ *    bottom of the screen — it covers the home-indicator strip, which the
+ *    container already pads for, so that strip is subtracted.
+ *  - Android: RN's root view reports `ime.bottom - systemBars.bottom`
+ *    (ReactRootView#checkForKeyboardEvents) — the navigation-bar strip is
+ *    ALREADY taken out. Subtracting the safe-area bottom again lifted every
+ *    container one navigation bar too little, so a Sheet's pinned footer
+ *    ("Log") sat behind the keyboard: ~24 pt with gesture navigation on a
+ *    phone, ~48 pt with 3-button navigation or a tablet's taskbar.
+ */
+export function keyboardBottomInset(
+  os: typeof Platform.OS,
+  keyboardHeight: number,
+  safeAreaBottom: number,
+): number {
+  const overlap = os === 'android' ? keyboardHeight : keyboardHeight - safeAreaBottom;
+  return Math.max(0, overlap);
+}
+
+/**
  * The one keyboard primitive for core RN (no native module, ships OTA):
  * `keyboardWillShow/Hide` on iOS (the layout moves together with the
  * keyboard), `keyboardDidShow/Hide` on Android (no Will* events exist there),
- * combined with the bottom safe-area inset.
+ * combined with the bottom safe-area inset per `keyboardBottomInset`.
  *
  * Why not `KeyboardAvoidingView`: under Expo SDK 57's mandatory Android
  * edge-to-edge the window no longer resizes for the keyboard, so
@@ -84,7 +108,7 @@ export function useKeyboardInset({ enabled = true }: UseKeyboardInsetOptions = {
   }, [enabled]);
 
   return {
-    inset: isVisible ? Math.max(0, keyboardHeight - insets.bottom) : 0,
+    inset: isVisible ? keyboardBottomInset(Platform.OS, keyboardHeight, insets.bottom) : 0,
     keyboardHeight,
     isVisible,
   };

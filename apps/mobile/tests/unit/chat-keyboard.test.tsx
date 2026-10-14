@@ -66,7 +66,10 @@ describe('AI Chef composer vs the keyboard (UX-FOOD-07)', () => {
     expect(paddingBottom()).toBe(0);
 
     await emit(show, 800);
-    expect(paddingBottom()).toBe(766); // keyboard 800 - safe-area bottom 34 (Screen pads that)
+    // Screen pads the bottom safe area (34). iOS reports the keyboard from the
+    // screen's bottom edge, so 34 of its 800 are already padded; Android's
+    // height already excludes the navigation bar, so all of it is the inset.
+    expect(paddingBottom()).toBe(os === 'ios' ? 766 : 800);
 
     await emit(hide);
     expect(paddingBottom()).toBe(0);
