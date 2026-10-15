@@ -55,6 +55,8 @@ chefer/
 ├── infrastructure/
 │   ├── docker/                 # Dockerfiles + docker-compose.yml
 │   └── scripts/                # setup.sh bootstrap script
+├── marketing/
+│   └── chefer-ad/              # Standalone Remotion project (npm, NOT a pnpm workspace) — 24s "Biscuit" app ad
 ├── tests/
 │   └── e2e/                    # Playwright end-to-end tests
 ├── .github/
