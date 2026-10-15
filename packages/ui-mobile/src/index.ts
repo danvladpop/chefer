@@ -176,6 +176,7 @@ export {
 } from './motion/celebration';
 export {
   ENTER_RISE,
+  enterFromSide,
   enterUp,
   listEntering,
   listExiting,

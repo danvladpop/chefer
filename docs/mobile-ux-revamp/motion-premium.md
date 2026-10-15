@@ -27,21 +27,25 @@ The original motion-system catalogue (MO-01…MO-15) predates this file; these e
 
 ## Moments
 
-| #   | Moment                                                              | Where                                                      |
-| --- | ------------------------------------------------------------------- | ---------------------------------------------------------- |
-| 1   | Tick a meal on Today                                                | `shell/today/your-day-card.tsx`, `next-meal-card.tsx`      |
-| 2   | Day complete (last meal)                                            | `shell/today/use-day-complete.ts`, `nutrition-card.tsx`    |
-| 3–4 | Shop check-off, aisle fold, list done                               | `shell/shop/shop-screen.tsx`                               |
-| 5   | Set ✓ in a workout (drawn tick, tint fade)                          | `gym/workout/set-row.tsx`                                  |
-| 6   | PR pill pops with one shine                                         | `gym/workout/set-row.tsx`                                  |
-| 7   | Rest bar slides in/out, linear fill, last-3-s pulse                 | `gym/workout/rest-timer-bar.tsx`                           |
-| 8   | Workout summary choreography + burst on a PR or week goal           | `shell/train/workout-summary-v2.tsx`                       |
-| 13  | Workout mini bar rises in, live dot breathes                        | `shell/workout-mini-bar.tsx`                               |
-| 10  | Tab entrances (first load per session)                              | `Stagger` + `useFirstEntrance` in Today, Meals, Train, You |
-| 11  | Workout sets added/removed glide                                    | `gym/workout/exercise-card.tsx`                            |
-| 12  | Shop aisle chevron turns; rows fade in/out                          | `Rotate`, `shell/shop/shop-screen.tsx`                     |
-| 14  | Photos fade in (and again on a swap); Meals loads as skeleton cards | `MediaFrame`, `shell/meals/meals-screen.tsx`               |
-| 9   | Tab bar pop, haptic, crossfade                                      | `app/(main)/_layout.tsx`, `shell/tab-icon.tsx`             |
+| #   | Moment                                                                  | Where                                                        |
+| --- | ----------------------------------------------------------------------- | ------------------------------------------------------------ |
+| 1   | Tick a meal on Today                                                    | `shell/today/your-day-card.tsx`, `next-meal-card.tsx`        |
+| 2   | Day complete (last meal)                                                | `shell/today/use-day-complete.ts`, `nutrition-card.tsx`      |
+| 3–4 | Shop check-off, aisle fold, list done                                   | `shell/shop/shop-screen.tsx`                                 |
+| 5   | Set ✓ in a workout (drawn tick, tint fade)                              | `gym/workout/set-row.tsx`                                    |
+| 6   | PR pill pops with one shine                                             | `gym/workout/set-row.tsx`                                    |
+| 7   | Rest bar slides in/out, linear fill, last-3-s pulse                     | `gym/workout/rest-timer-bar.tsx`                             |
+| 8   | Workout summary choreography + burst on a PR or week goal               | `shell/train/workout-summary-v2.tsx`                         |
+| 13  | Workout mini bar rises in, live dot breathes                            | `shell/workout-mini-bar.tsx`                                 |
+| 10  | Tab entrances (first load per session)                                  | `Stagger` + `useFirstEntrance` in Today, Meals, Train, You   |
+| 11  | Workout sets added/removed glide                                        | `gym/workout/exercise-card.tsx`                              |
+| 12  | Shop aisle chevron turns; rows fade in/out                              | `Rotate`, `shell/shop/shop-screen.tsx`                       |
+| 14  | Photos fade in (and again on a swap); Meals loads as skeleton cards     | `MediaFrame`, `shell/meals/meals-screen.tsx`                 |
+| 9   | Tab bar pop, haptic, crossfade                                          | `app/(main)/_layout.tsx`, `shell/tab-icon.tsx`               |
+| 15  | Suggested kcal counts up                                                | `preferences/targets-card.tsx`                               |
+| 16  | Charts draw in (lines left → right, bars bottom → top)                  | `charts/chart-reveal.tsx`, `line-chart.tsx`, `bar-chart.tsx` |
+| 17  | Onboarding: progress fill glides, steps slide in from their side        | `onboarding/onboarding-wizard.tsx`                           |
+| 18  | Cook mode: ingredient tick + strike, step slide, progress, finish burst | `app/cook/[id].tsx`                                          |
 
 Haptics: ticking is `haptics.tick`, unticking `haptics.selection`, the day's last meal and the
-shop list's last item `haptics.success`.
+shop list's last item and finishing cook mode `haptics.success`.

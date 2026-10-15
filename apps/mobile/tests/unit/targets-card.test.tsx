@@ -1,4 +1,4 @@
-import { render, screen, userEvent } from '@testing-library/react-native';
+import { render, screen, userEvent, waitFor } from '@testing-library/react-native';
 import { TargetsCard } from '../../src/features/preferences/targets-card';
 
 // §2.11, T-35.3 — Suggested / My own, AC1 (an own target flows through) and
@@ -75,7 +75,7 @@ beforeEach(() => {
 describe('TargetsCard', () => {
   it('shows the suggested numbers by default', async () => {
     await render(<TargetsCard />);
-    expect(screen.getByText('2,200 kcal')).toBeTruthy();
+    await waitFor(() => expect(screen.getByText('2,200 kcal')).toBeTruthy());
   });
 
   it('switching to My own reveals editable fields prefilled from suggested', async () => {
@@ -164,7 +164,9 @@ describe('TargetsCard — failed load (UX-X-12)', () => {
     it('shows the number computed from the metrics entered, not the default', async () => {
       mockGetData = DEFAULTS;
       await render(<TargetsCard previewKcal={1492} />);
-      expect(screen.getByTestId('targets-suggested-kcal')).toHaveTextContent('1,492 kcal');
+      await waitFor(() =>
+        expect(screen.getByTestId('targets-suggested-kcal')).toHaveTextContent('1,492 kcal'),
+      );
       expect(screen.queryByText(/2,000 kcal/)).toBeNull();
     });
 
@@ -183,7 +185,9 @@ describe('TargetsCard — failed load (UX-X-12)', () => {
     it('ignores the preview once the server knows the body (settings, later visits)', async () => {
       mockGetData = { ...DEFAULTS, inputs: { weightKg: 80 } };
       await render(<TargetsCard previewKcal={1492} />);
-      expect(screen.getByTestId('targets-suggested-kcal')).toHaveTextContent('2,000 kcal');
+      await waitFor(() =>
+        expect(screen.getByTestId('targets-suggested-kcal')).toHaveTextContent('2,000 kcal'),
+      );
     });
   });
 });

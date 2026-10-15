@@ -1236,7 +1236,10 @@ drawn tick), `FloatUp` ("+520 kcal" rise), `StrikeLine` (MO-17), `PopIn` (MO-14 
 presets (`enterUp(i)` MO-03 rise with capped stagger, `listEntering`/`listExiting`/`listLayout`
 MO-04/05, `useFirstEntrance(key)` so a tab's entrance plays once per session). `StatTile`
 takes an optional `count` that ticks up through `CountUp`. `Stagger` wraps a screen's cards in
-the MO-03 entrance, `Rotate` turns a disclosure chevron, and `MediaFrame` photos fade in on load (MO-13). All of it is
+the MO-03 entrance, `Rotate` turns a disclosure chevron, and `MediaFrame` photos fade in on load (MO-13).
+`enterFromSide(direction)` slides a wizard/cook step in from the side you're heading, and
+`LineChart`/`BarChart` draw in through an animated clip rect (`charts/chart-reveal.tsx`, restarts
+when the data's shape changes). All of it is
 Reanimated + react-native-svg, so it ships over OTA. ui-mobile
 has **no icon dependency** — pass an `Ionicons` (or other) node in; app-level features (e.g.
 `apps/mobile/src/features/safety/*`, `.../premium/*`) import `@expo/vector-icons` directly.

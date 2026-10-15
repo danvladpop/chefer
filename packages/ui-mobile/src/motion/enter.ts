@@ -2,6 +2,8 @@ import { useEffect, useState } from 'react';
 import {
   FadeIn,
   FadeInDown,
+  FadeInLeft,
+  FadeInRight,
   FadeOut,
   LinearTransition,
   ReduceMotion,
@@ -27,6 +29,18 @@ export function enterUp(index = 0) {
   return FadeInDown.duration(duration.base)
     .delay(step * stagger.step)
     .withInitialValues({ opacity: 0, transform: [{ translateY: ENTER_RISE }] })
+    .reduceMotion(ReduceMotion.System);
+}
+
+/**
+ * Step transitions (wizard steps, cook-mode steps): the new step slides in
+ * 24 pt from the side you're heading (`1` forward = from the right) and
+ * fades, `slow` (320 ms). Key the step's container so each step mounts.
+ */
+export function enterFromSide(direction: 1 | -1) {
+  return (direction === 1 ? FadeInRight : FadeInLeft)
+    .duration(duration.slow)
+    .withInitialValues({ opacity: 0, transform: [{ translateX: direction * ENTER_RISE * 3 }] })
     .reduceMotion(ReduceMotion.System);
 }
 

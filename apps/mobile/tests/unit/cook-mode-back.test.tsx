@@ -179,8 +179,8 @@ describe('Cook mode back navigation (UX-COOK-02)', () => {
     await renderCook();
     expect(screen.getByText('Step 3 of 3')).toBeOnTheScreen();
     await fireEvent.press(screen.getByTestId('cook-ingredients-toggle'));
-    const onion = screen.getByText(/onion/);
-    expect(onion.props.className).toMatch(/line-through/);
+    // Ticked: the row reads as checked (the strike-through is an animated line now).
+    expect(screen.getByRole('checkbox', { name: /onion/ })).toBeChecked();
   });
 
   it('finishing forgets the place: the next cook starts at step 1', async () => {
