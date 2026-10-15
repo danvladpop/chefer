@@ -37,6 +37,8 @@ export interface AnimatedCheckProps {
   ringColor?: string;
   /** Background while unchecked (default transparent). */
   emptyColor?: string;
+  /** A faint tick shown while unchecked (the workout set ✓ affordance). */
+  idleCheckColor?: string;
   /** Rounded square instead of a circle (shop checkbox). */
   shape?: 'circle' | 'square';
   testID?: string;
@@ -50,6 +52,7 @@ export function AnimatedCheck({
   checkColor,
   ringColor,
   emptyColor = 'transparent',
+  idleCheckColor,
   shape = 'circle',
   testID,
 }: AnimatedCheckProps) {
@@ -81,6 +84,9 @@ export function AnimatedCheck({
   const discStyle = useAnimatedStyle(() => ({
     opacity: fill.get() > 0.01 ? 1 : 0,
     transform: [{ scale: Math.max(0, fill.get()) }],
+  }));
+  const idleProps = useAnimatedProps(() => ({
+    strokeOpacity: 1 - Math.min(1, Math.max(0, fill.get())),
   }));
   const tickProps = useAnimatedProps(() => ({
     strokeDashoffset: CHECK_PATH_LENGTH * (1 - Math.min(1, Math.max(0, draw.get()))),
@@ -121,6 +127,17 @@ export function AnimatedCheck({
         ]}
       />
       <Svg width={tickSize} height={tickSize} viewBox="0 0 24 24">
+        {idleCheckColor ? (
+          <AnimatedPath
+            d={CHECK_PATH}
+            stroke={idleCheckColor}
+            strokeWidth={2.6}
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            fill="none"
+            animatedProps={idleProps}
+          />
+        ) : null}
         <AnimatedPath
           d={CHECK_PATH}
           stroke={checkColor}

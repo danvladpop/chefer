@@ -27,12 +27,17 @@ The original motion-system catalogue (MO-01…MO-15) predates this file; these e
 
 ## Moments
 
-| #   | Moment                                | Where                                                   |
-| --- | ------------------------------------- | ------------------------------------------------------- |
-| 1   | Tick a meal on Today                  | `shell/today/your-day-card.tsx`, `next-meal-card.tsx`   |
-| 2   | Day complete (last meal)              | `shell/today/use-day-complete.ts`, `nutrition-card.tsx` |
-| 3–4 | Shop check-off, aisle fold, list done | `shell/shop/shop-screen.tsx`                            |
-| 9   | Tab bar pop, haptic, crossfade        | `app/(main)/_layout.tsx`, `shell/tab-icon.tsx`          |
+| #   | Moment                                                    | Where                                                   |
+| --- | --------------------------------------------------------- | ------------------------------------------------------- |
+| 1   | Tick a meal on Today                                      | `shell/today/your-day-card.tsx`, `next-meal-card.tsx`   |
+| 2   | Day complete (last meal)                                  | `shell/today/use-day-complete.ts`, `nutrition-card.tsx` |
+| 3–4 | Shop check-off, aisle fold, list done                     | `shell/shop/shop-screen.tsx`                            |
+| 5   | Set ✓ in a workout (drawn tick, tint fade)                | `gym/workout/set-row.tsx`                               |
+| 6   | PR pill pops with one shine                               | `gym/workout/set-row.tsx`                               |
+| 7   | Rest bar slides in/out, linear fill, last-3-s pulse       | `gym/workout/rest-timer-bar.tsx`                        |
+| 8   | Workout summary choreography + burst on a PR or week goal | `shell/train/workout-summary-v2.tsx`                    |
+| 13  | Workout mini bar rises in, live dot breathes              | `shell/workout-mini-bar.tsx`                            |
+| 9   | Tab bar pop, haptic, crossfade                            | `app/(main)/_layout.tsx`, `shell/tab-icon.tsx`          |
 
 Haptics: ticking is `haptics.tick`, unticking `haptics.selection`, the day's last meal and the
 shop list's last item `haptics.success`.

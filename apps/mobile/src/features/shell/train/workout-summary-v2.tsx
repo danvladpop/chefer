@@ -1,10 +1,16 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { ScrollView, View } from 'react-native';
+import Animated from 'react-native-reanimated';
 import { router } from 'expo-router';
+import { radius } from '@chefer/tokens';
 import type { ExerciseDto, PersonalRecord, StreakInfo } from '@chefer/types';
 import {
   Button,
+  Celebration,
   EmptyState,
+  enterUp,
+  duration as motionDuration,
+  PopIn,
   PressableScale,
   ProgressRing,
   Screen,
@@ -50,6 +56,29 @@ import { BurnTile } from './burn-tile';
 // bodyweight and the workout time ("~310 kcal burned (est.)") — and Sets
 // only when neither exists (no weigh-in and nothing logged).
 
+// Premium motion #8: the summary arrives as a short choreography — trophy
+// pops (MO-14), the title and stat tiles rise in (MO-03, counts tick up),
+// the PR card pops last with one shine, the week ring fills (MO-06). A PR or
+// a week goal just met adds one confetti burst (MO-18) once per workout.
+const celebratedSummaries = new Set<string>();
+
+/** Test hook. */
+export function resetSummaryCelebrationsForTests(): void {
+  celebratedSummaries.clear();
+}
+
+/** Fire one burst for this workout after the trophy has popped. */
+function useSummaryBurst(id: string, earned: boolean): number {
+  const [burst, setBurst] = useState(0);
+  useEffect(() => {
+    if (!earned || celebratedSummaries.has(id)) return;
+    celebratedSummaries.add(id);
+    const timer = setTimeout(() => setBurst(1), motionDuration.slow);
+    return () => clearTimeout(timer);
+  }, [id, earned]);
+  return burst;
+}
+
 /** Duration tile: "52" + "min", or "1:05" + "h" from an hour on. */
 function durationTile(sec: number | null): { value: string; unit?: string } {
   if (sec === null) return { value: '—' };
@@ -93,6 +122,11 @@ export function WorkoutSummaryV2({ id }: { id: string }) {
     [view, bootstrap?.recentSessions, bootstrap?.olderBests],
   );
   const rows = useMemo(() => (view ? nextTimeRows(view, bootstrap) : []), [view, bootstrap]);
+  const weekJustMet =
+    !!bootstrap?.streak &&
+    bootstrap.streak.thisWeekGoal > 0 &&
+    bootstrap.streak.thisWeekSessions === bootstrap.streak.thisWeekGoal;
+  const burst = useSummaryBurst(id, view !== null && (prs.length > 0 || weekJustMet));
 
   if (!view) {
     return (
@@ -127,61 +161,75 @@ export function WorkoutSummaryV2({ id }: { id: string }) {
       <ScrollView testID="summary-scroll" contentContainerClassName="gap-4 px-4 pb-8 pt-6">
         <View className="items-center gap-2">
           {/* Decorative: the title says it. */}
-          <View
-            accessibilityElementsHidden
-            importantForAccessibility="no-hide-descendants"
-            className="h-20 w-20 items-center justify-center rounded-full bg-brand-tint"
-          >
-            <Text className="text-display">🏆</Text>
-          </View>
-          <Text
-            testID="summary-title"
-            accessibilityRole="header"
-            className="text-center text-title1 font-bold text-label"
-          >
-            Workout complete
-          </Text>
-          <Text
-            testID="summary-subline"
-            numberOfLines={2}
-            className="text-center text-subhead text-label-secondary"
-          >
-            {day ? `${view.name} · ${day}` : view.name}
-          </Text>
+          <PopIn from={0.4}>
+            <View
+              accessibilityElementsHidden
+              importantForAccessibility="no-hide-descendants"
+              className="h-20 w-20 items-center justify-center rounded-full bg-brand-tint"
+            >
+              <Text className="text-display">🏆</Text>
+            </View>
+          </PopIn>
+          <Animated.View entering={enterUp(1)} className="items-center gap-2">
+            <Text
+              testID="summary-title"
+              accessibilityRole="header"
+              className="text-center text-title1 font-bold text-label"
+            >
+              Workout complete
+            </Text>
+            <Text
+              testID="summary-subline"
+              numberOfLines={2}
+              className="text-center text-subhead text-label-secondary"
+            >
+              {day ? `${view.name} · ${day}` : view.name}
+            </Text>
+          </Animated.View>
         </View>
 
-        <StatTiles>
-          <StatTile
-            testID="summary-duration"
-            icon={<Icon name="time" size={18} color={colors.brand} />}
-            value={duration.value}
-            unit={duration.unit}
-            label="Duration"
-          />
-          {burn ? (
-            <BurnTile testID="summary-kcal" copy={sessionKcalCopy(burn)} />
-          ) : (
+        <Animated.View entering={enterUp(2)}>
+          <StatTiles>
             <StatTile
-              testID="summary-sets"
-              icon={<Icon name="barbell" size={18} color={colors.brand} />}
-              value={String(view.workingSets)}
-              label={view.workingSets === 1 ? 'Set' : 'Sets'}
+              testID="summary-duration"
+              icon={<Icon name="time" size={18} color={colors.brand} />}
+              value={duration.value}
+              {...(duration.unit === 'min' && { count: Number(duration.value) })}
+              unit={duration.unit}
+              label="Duration"
             />
-          )}
-          <StatTile
-            testID="summary-exercises"
-            icon={<Icon name="list" size={18} color={colors.brand} />}
-            value={String(exerciseCount)}
-            label={exerciseCount === 1 ? 'Exercise' : 'Exercises'}
-          />
-        </StatTiles>
+            {burn ? (
+              <BurnTile testID="summary-kcal" copy={sessionKcalCopy(burn)} />
+            ) : (
+              <StatTile
+                testID="summary-sets"
+                icon={<Icon name="barbell" size={18} color={colors.brand} />}
+                value={String(view.workingSets)}
+                count={view.workingSets}
+                label={view.workingSets === 1 ? 'Set' : 'Sets'}
+              />
+            )}
+            <StatTile
+              testID="summary-exercises"
+              icon={<Icon name="list" size={18} color={colors.brand} />}
+              value={String(exerciseCount)}
+              count={exerciseCount}
+              label={exerciseCount === 1 ? 'Exercise' : 'Exercises'}
+            />
+          </StatTiles>
+        </Animated.View>
 
         {prs.length > 0 ? (
-          <PrCard prs={prs} nameOf={(exerciseId) => lookup(exerciseId).name} loadOf={loadOf} />
+          <PopIn from={0.92} shine radius={radius.card} delayMs={motionDuration.slow}>
+            <PrCard prs={prs} nameOf={(exerciseId) => lookup(exerciseId).name} loadOf={loadOf} />
+          </PopIn>
         ) : null}
 
         {streak ? (
-          <View className="flex-row items-center gap-4 rounded-card border border-separator bg-surface p-4">
+          <Animated.View
+            entering={enterUp(4)}
+            className="flex-row items-center gap-4 rounded-card border border-separator bg-surface p-4"
+          >
             <ProgressRing
               testID="summary-week-ring"
               progress={streak.thisWeekGoal > 0 ? streak.thisWeekSessions / streak.thisWeekGoal : 0}
@@ -202,7 +250,7 @@ export function WorkoutSummaryV2({ id }: { id: string }) {
                 {streakLine(streak)}
               </Text>
             </View>
-          </View>
+          </Animated.View>
         ) : null}
 
         <RefuelRow bodyweightKg={bootstrap?.bodyweightKg ?? null} />
@@ -293,6 +341,12 @@ export function WorkoutSummaryV2({ id }: { id: string }) {
           Done
         </Button>
       </ScrollView>
+      <Celebration
+        testID="summary-celebration"
+        play={burst}
+        colors={[colors.brand, colors.positive, colors.attention, colors.info]}
+        origin={{ x: 0.5, y: 0.14 }}
+      />
 
       {adjusting ? (
         <AdjustSheet
