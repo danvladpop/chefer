@@ -1,0 +1,34 @@
+{
+  "fps": 30,
+  "voices": {
+    "heart": { "kokoro": "af_heart", "speed": 1.0 }
+  },
+  "lines": [
+    {
+      "id": "00-intro",
+      "at": 6,
+      "text": "Meet Biscuit. Professional couch potato."
+    },
+    { "id": "01-hook-a", "at": 94, "text": "Biscuit needed a plan." },
+    { "id": "02-hook-b", "at": 140, "text": "Not another pizza." },
+    {
+      "id": "03-mealplan",
+      "at": 190,
+      "text": "Chefer made him one: a week of meals, with AI."
+    },
+    {
+      "id": "04-shop",
+      "at": 282,
+      "text": "Then turned it into a shopping list."
+    },
+    { "id": "05-scan", "at": 374, "text": "Scan the plate." },
+    { "id": "06-check", "at": 420, "text": "Check it off." },
+    {
+      "id": "07-train-pr",
+      "at": 458,
+      "text": "Workouts that keep up with him... all the way to a new PR."
+    },
+    { "id": "09-payoff", "at": 600, "text": "Eat well. Train smart." },
+    { "id": "10-end", "at": 668, "text": "Chefer." }
+  ]
+}

@@ -1,0 +1,64 @@
+{
+  "heart": [
+    {
+      "id": "00-intro",
+      "at": 6,
+      "frames": 73,
+      "src": "voiceover/heart/00-intro.wav"
+    },
+    {
+      "id": "01-hook-a",
+      "at": 94,
+      "frames": 35,
+      "src": "voiceover/heart/01-hook-a.wav"
+    },
+    {
+      "id": "02-hook-b",
+      "at": 140,
+      "frames": 33,
+      "src": "voiceover/heart/02-hook-b.wav"
+    },
+    {
+      "id": "03-mealplan",
+      "at": 190,
+      "frames": 86,
+      "src": "voiceover/heart/03-mealplan.wav"
+    },
+    {
+      "id": "04-shop",
+      "at": 282,
+      "frames": 54,
+      "src": "voiceover/heart/04-shop.wav"
+    },
+    {
+      "id": "05-scan",
+      "at": 374,
+      "frames": 26,
+      "src": "voiceover/heart/05-scan.wav"
+    },
+    {
+      "id": "06-check",
+      "at": 420,
+      "frames": 21,
+      "src": "voiceover/heart/06-check.wav"
+    },
+    {
+      "id": "07-train-pr",
+      "at": 458,
+      "frames": 96,
+      "src": "voiceover/heart/07-train-pr.wav"
+    },
+    {
+      "id": "09-payoff",
+      "at": 600,
+      "frames": 41,
+      "src": "voiceover/heart/09-payoff.wav"
+    },
+    {
+      "id": "10-end",
+      "at": 668,
+      "frames": 16,
+      "src": "voiceover/heart/10-end.wav"
+    }
+  ]
+}
