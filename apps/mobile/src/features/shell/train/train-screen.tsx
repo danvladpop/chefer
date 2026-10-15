@@ -220,9 +220,11 @@ export function TrainScreen() {
       />
       <ListRow
         testID="train-stats"
-        title="Strength and history"
+        title="Strength stats"
         icon={<Icon name="stats" color={colors.brand} />}
-        onPress={() => router.push('/training/stats')}
+        // Stats revamp (2026-10-15): Stats opened on Strength; its "All charts
+        // and history" link goes on to /training/stats.
+        onPress={() => router.push({ pathname: '/progress', params: { tab: 'strength' } })}
       />
     </ListSection>
   );

@@ -23,13 +23,17 @@ import { ErrorState } from '@chefer/ui';
 import {
   bodyWeightInUnit,
   bodyWeightUnit,
-  DEFAULT_PROGRESS_RANGE,
+  bucketDays,
+  DEFAULT_STATS_RANGE,
   formatBodyWeight,
   isLoggedDay,
   localDateStr,
-  PROGRESS_RANGES,
+  STATS_RANGE_LABELS,
+  STATS_RANGE_SPAN,
+  STATS_RANGES,
+  statsBucketDays,
   weightChangeTone,
-  type ProgressRange,
+  type StatsRangeDays,
 } from '@chefer/utils';
 import { hasEnoughDaysForAverage, moreDaysHint } from './average-gate';
 
@@ -56,9 +60,10 @@ export default function ProgressPage() {
   /** Slightly larger than the default, so the point under a fingertip reads. */
   const activeDot = { r: 6 };
 
-  // UX-FOOD-20: the window is the user's to pick (7 / 28 / 90 days), anchored
-  // on their own local "today"; switching keeps the old chart until the new one lands.
-  const [range, setRange] = useState<ProgressRange>(DEFAULT_PROGRESS_RANGE);
+  // UX-FOOD-20: the window is the user's to pick, anchored on their own local
+  // "today"; switching keeps the old chart until the new one lands. Same
+  // 1W / 1M / 3M / 1Y ranges as the app's Stats (2026-10-15).
+  const [range, setRange] = useState<StatsRangeDays>(DEFAULT_STATS_RANGE);
   const {
     data: monthly,
     isLoading,
@@ -69,15 +74,18 @@ export default function ProgressPage() {
     { localDate: localDateStr(), days: range },
     { staleTime: 60_000, placeholderData: keepPreviousData },
   );
+  // Every weigh-in of at least 90 days stays editable; the chart follows the range.
   const { data: weightHistory } = trpc.tracker.weightHistory.useQuery(
-    { days: 90 },
-    { staleTime: 60_000 },
+    { days: Math.max(range, 90) },
+    { staleTime: 60_000, placeholderData: keepPreviousData },
   );
   const { data: preferences } = trpc.preferences.get.useQuery(undefined, {
     staleTime: 300_000,
   });
 
-  const chartData = (monthly?.days ?? []).map((d) => ({
+  // Past a month each point is a week: the daily average of its logged days.
+  const weekly = statsBucketDays(range) === 7;
+  const chartData = bucketDays(monthly?.days ?? [], statsBucketDays(range)).map((d) => ({
     date: format(localDate(d.date), 'dd MMM'),
     logged: isLoggedDay(d) ? d.totalKcal : null,
     target: monthly?.dailyCalorieTarget ?? 2000,
@@ -89,7 +97,11 @@ export default function ProgressPage() {
   // Stored in kg; charted and labelled in the user's unit (backlog P2-6).
   const system = preferences?.chefProfile?.preferredUnits ?? 'METRIC';
   const unit = bodyWeightUnit(system);
-  const weightData = (weightHistory ?? []).map((w) => ({
+  const since = Date.now() - range * 86_400_000;
+  const weightsInRange = (weightHistory ?? []).filter(
+    (w) => new Date(w.recordedAt).getTime() >= since,
+  );
+  const weightData = weightsInRange.map((w) => ({
     date: format(new Date(w.recordedAt), 'dd MMM'),
     weight: bodyWeightInUnit(w.weightKg, system),
   }));
@@ -98,7 +110,6 @@ export default function ProgressPage() {
   // something in them count as logged.
   const loggedDays = (monthly?.days ?? []).filter(isLoggedDay);
   const daysLogged = loggedDays.length;
-  const windowDays = monthly?.days.length ?? range;
   const avgKcal =
     loggedDays.length > 0
       ? Math.round(loggedDays.reduce((s, d) => s + d.totalKcal, 0) / loggedDays.length)
@@ -110,7 +121,7 @@ export default function ProgressPage() {
   const diffPct = target > 0 ? Math.round(((avgKcal - target) / target) * 100) : 0;
 
   const latestWeight = weightHistory?.[weightHistory.length - 1]?.weightKg;
-  const firstWeight = weightHistory?.[0]?.weightKg;
+  const firstWeight = weightsInRange.length > 1 ? weightsInRange[0]?.weightKg : undefined;
   const weightDelta =
     latestWeight != null && firstWeight != null ? latestWeight - firstWeight : null;
   // Gain is good news for GAIN_MUSCLE — it used to be red for everyone (audit F-TRK-4-1).
@@ -159,7 +170,7 @@ export default function ProgressPage() {
         aria-label="Time range"
         className="mb-6 inline-flex rounded-xl bg-neutral-100 p-1"
       >
-        {PROGRESS_RANGES.map((n) => (
+        {STATS_RANGES.map((n) => (
           <button
             key={n}
             type="button"
@@ -170,7 +181,7 @@ export default function ProgressPage() {
               range === n ? 'bg-white text-neutral-900 shadow-sm' : 'text-neutral-500'
             }`}
           >
-            {n} days
+            {STATS_RANGE_LABELS[n]}
           </button>
         ))}
       </div>
@@ -203,7 +214,7 @@ export default function ProgressPage() {
           {/* Calorie line chart */}
           <div className="mb-6 rounded-2xl border bg-white p-4 shadow-sm sm:p-5">
             <p className="mb-4 text-xs font-semibold uppercase tracking-widest text-neutral-500">
-              {`Calories — Last ${windowDays} Days`}
+              {`Calories — ${weekly ? 'Weekly Averages, ' : ''}Last ${STATS_RANGE_SPAN[range]}`}
             </p>
             {daysLogged === 0 ? (
               <div className="flex h-40 items-center justify-center text-sm text-neutral-500">
@@ -260,7 +271,7 @@ export default function ProgressPage() {
           {/* Macro stacked bar chart */}
           <div className="mb-6 rounded-2xl border bg-white p-4 shadow-sm sm:p-5">
             <p className="mb-4 text-xs font-semibold uppercase tracking-widest text-neutral-500">
-              {`Macros — Last ${windowDays} Days (g)`}
+              {`Macros — ${weekly ? 'Weekly Averages, ' : ''}Last ${STATS_RANGE_SPAN[range]} (g)`}
             </p>
             {daysLogged === 0 ? (
               <div className="flex h-40 items-center justify-center text-sm text-neutral-500">

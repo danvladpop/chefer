@@ -6,23 +6,33 @@ import { localDate } from '../../src/features/gym/offline/ids';
 import { gymBootstrapQueryKey } from '../../src/features/gym/use-gym-bootstrap';
 import {
   eatingStats,
+  liftChangeText,
+  liftSummary,
+  muscleSets,
   olderHistoryCursor,
+  pickLifts,
+  recentPrs,
   signedPct,
+  thisWeekDays,
   trainingStats,
+  trainingStatsForYear,
   trainingStatsWithHistory,
-  weekCells,
 } from '../../src/features/shell/stats/stats-helpers';
 import { renderWithTrpc, type Handlers } from './friends-core-harness';
 import { testQueryClient } from './friends-profile-fixtures';
-import { makeBootstrap } from './gym-fixtures';
+import { makeBootstrap, makeExercise } from './gym-fixtures';
 
-// 10 Oct redesign — Progress in the new shell is "Stats" (board Progress):
-// one range for eating (tiles, calorie bars with the target, average macros
-// vs targets), the weekly review in one line, weight with Log weight and Edit
-// entries, and a Training section only for people who train.
+// 10 Oct redesign — Progress in the new shell is "Stats" (board Progress),
+// revamped 2026-10-15: Eating | Strength tabs under one 1W / 1M / 3M / 1Y
+// range. Eating: tiles, intake bars with the target (weekly averages past a
+// month), average macros vs targets, the weekly review in one line, weight
+// with Log weight and Edit entries. Strength: workouts, PRs and streak,
+// workouts per week, your lifts in plain words, sets per muscle, recent PRs.
 
+let mockParams: { tab?: string } = {};
 jest.mock('expo-router', () => ({
   router: { back: jest.fn(), push: jest.fn(), replace: jest.fn(), canGoBack: () => true },
+  useLocalSearchParams: () => mockParams,
 }));
 jest.mock('../../src/features/shell/shell-store', () => ({ useShellV2: () => true }));
 jest.mock('../../src/features/premium/open-premium', () => ({ openPremium: jest.fn() }));
@@ -161,12 +171,22 @@ async function renderStats(over: Partial<Handlers> = {}, gym: unknown = GYM) {
   const queryClient = testQueryClient();
   if (gym) queryClient.setQueryData(gymBootstrapQueryKey, gym);
   const utils = await renderWithTrpc(<ProgressScreen />, server.handlers, queryClient);
-  await screen.findByTestId('stats-avg');
+  await screen.findByTestId(mockParams.tab === 'strength' ? 'stats-tab' : 'stats-avg');
   // `requests`: every tRPC call the screen made ({ path, input }).
   return { ...utils, calls: server.calls, requests: utils.calls };
 }
 
-beforeEach(() => jest.clearAllMocks());
+/** Stats on the Strength tab, as Train's link opens it. */
+async function renderStrength(over: Partial<Handlers> = {}, gym: unknown = GYM) {
+  mockParams = { tab: 'strength' };
+  const rendered = await renderStats(over, gym);
+  return rendered;
+}
+
+beforeEach(() => {
+  jest.clearAllMocks();
+  mockParams = {};
+});
 
 describe('Stats (new shell)', () => {
   it('titles the screen Stats, with the range control and the review in one line', async () => {
@@ -199,48 +219,112 @@ describe('Stats (new shell)', () => {
     expect(screen.getByTestId('stats-macros')).toHaveTextContent(/Daily averages on logged days/);
   });
 
-  it('switching the range asks for that many days', async () => {
+  it('offers 1W / 1M / 3M / 1Y, 1M first; switching asks for that many days', async () => {
     const user = userEvent.setup();
     const { calls } = await renderStats();
+    expect(calls.monthly[0]).toMatchObject({ days: 30 });
+    expect(screen.getByTestId('progress-range-7')).toHaveTextContent('1W');
+    expect(screen.getByTestId('progress-range-365')).toHaveTextContent('1Y');
     await user.press(screen.getByTestId('progress-range-90'));
     await waitFor(() => expect(calls.monthly.at(-1)).toMatchObject({ days: 90 }));
+    await user.press(screen.getByTestId('progress-range-365'));
+    await waitFor(() => expect(calls.monthly.at(-1)).toMatchObject({ days: 365 }));
   });
 
-  it('weight: current, the 90-day change, Log weight and Edit entries', async () => {
+  it('past a month the bars are weekly averages, and say so', async () => {
+    const user = userEvent.setup();
+    await renderStats();
+    expect(screen.queryByTestId('stats-chart-weekly')).toBeNull();
+    await user.press(screen.getByTestId('progress-range-90'));
+    expect(await screen.findByTestId('stats-chart-weekly')).toBeOnTheScreen();
+    expect(screen.getByTestId('stats-chart')).toHaveProp(
+      'accessibilityLabel',
+      expect.stringContaining('as weekly averages'),
+    );
+  });
+
+  it('weight: current, the change over the range, Log weight and Edit entries', async () => {
     const user = userEvent.setup();
     await renderStats();
     expect(await screen.findByTestId('progress-weight-current')).toHaveTextContent('72.4 kg');
-    expect(screen.getByTestId('progress-weight-change')).toHaveTextContent('−1.9 kg in 90 days');
+    // 1M holds one weigh-in: no trend yet, but every entry stays editable.
+    expect(screen.queryByTestId('progress-weight-change')).toBeNull();
+    expect(screen.getByTestId('progress-weight-few')).toBeOnTheScreen();
+    await user.press(screen.getByTestId('progress-range-90'));
+    expect(await screen.findByTestId('progress-weight-change')).toHaveTextContent(
+      '−1.9 kg in 90 days',
+    );
+    await user.press(screen.getByTestId('progress-range-365'));
+    expect(await screen.findByTestId('progress-weight-change')).toHaveTextContent(
+      '−1.9 kg in a year',
+    );
     await user.press(screen.getByTestId('stats-log-weight'));
     expect(screen.getByTestId('stats-weight-input')).toBeOnTheScreen();
     await user.press(screen.getByTestId('stats-edit-entries'));
     expect(screen.getByTestId('weight-entries')).toBeOnTheScreen();
   });
 
-  it('training: streak, workouts and new PRs in the range, the last 8 weeks and a way to history', async () => {
+  it('Eating has no training section; the Strength tab holds it', async () => {
     const user = userEvent.setup();
     await renderStats();
+    expect(screen.queryByTestId('stats-training')).toBeNull();
+    await user.press(screen.getByTestId('stats-tab-strength'));
+    expect(await screen.findByTestId('stats-training')).toBeOnTheScreen();
+    expect(screen.queryByTestId('stats-eating')).toBeNull();
+  });
+
+  it("Train's link opens Stats on Strength", async () => {
+    await renderStrength();
+    expect(screen.getByTestId('stats-training')).toBeOnTheScreen();
+  });
+
+  it('strength: workouts, new PRs and streak in the range, weeks chart and a way to the details', async () => {
+    const user = userEvent.setup();
+    await renderStrength();
     const section = screen.getByTestId('stats-training');
     expect(within(section).getByTestId('stats-streak')).toHaveProp(
       'accessibilityLabel',
       'week streak: 7',
     );
-    // 28 days: the sessions 2 and 9 days ago; 40 days ago is outside.
+    // 30 days: the sessions 2 and 9 days ago; 40 days ago is outside.
     expect(within(section).getByTestId('stats-workouts')).toHaveProp(
       'accessibilityLabel',
       'workouts: 2',
     );
     // 65 kg and 70 kg beat 60 kg; the first-ever 60 kg set is a baseline, not a PR.
     expect(within(section).getByTestId('stats-prs')).toHaveProp('accessibilityLabel', 'new PRs: 2');
-    expect(within(section).getByTestId('stats-weeks')).toHaveTextContent(/F/);
-    expect(within(section).getByTestId('stats-weeks')).toHaveTextContent(/2\/4/);
+    expect(within(section).getByTestId('stats-weeks-chart')).toBeOnTheScreen();
     await user.press(screen.getByTestId('stats-strength'));
     expect(router.push).toHaveBeenCalledWith('/training/stats');
   });
 
-  it('90 days: older sessions and the PR timeline cover the whole range, with no "last 12 weeks"', async () => {
+  it('strength: each lift in plain words, sets per muscle and the latest PRs', async () => {
+    await renderStrength();
+    // 65 → 70 kg × 8 in the last 30 days.
+    expect(screen.getByTestId('stats-lift-bench')).toHaveProp(
+      'accessibilityLabel',
+      'bench: best set 70 kg × 8, 8% stronger',
+    );
+    expect(screen.getByTestId('stats-muscle-chest')).toHaveProp(
+      'accessibilityLabel',
+      expect.stringMatching(/^Chest: [\d.]+ sets? a week$/),
+    );
+    expect(
+      within(screen.getByTestId('stats-recent-prs')).getAllByTestId('stats-pr-row'),
+    ).toHaveLength(2);
+  });
+
+  it('1W shows this week day by day instead of a chart', async () => {
     const user = userEvent.setup();
-    const { requests } = await renderStats({
+    await renderStrength();
+    await user.press(screen.getByTestId('progress-range-7'));
+    expect(await screen.findByTestId('stats-this-week')).toBeOnTheScreen();
+    expect(screen.queryByTestId('stats-weeks-chart')).toBeNull();
+  });
+
+  it('3M: older sessions and the PR timeline cover the whole range, with no "last 12 weeks"', async () => {
+    const user = userEvent.setup();
+    const { requests } = await renderStrength({
       'gym.session.list': () => ({
         items: [session('s0', 87, 55), session('s-old', 120, 50)],
         nextCursor: null,
@@ -270,19 +354,41 @@ describe('Stats (new shell)', () => {
     });
   });
 
-  it('7 and 28 days never ask the server for older history', async () => {
+  it('1Y: workouts from the week summaries, PRs from the timeline, no session paging', async () => {
     const user = userEvent.setup();
-    const { requests } = await renderStats();
-    await user.press(screen.getByTestId('progress-range-7'));
-    await user.press(screen.getByTestId('progress-range-28'));
-    expect(requests.some((c) => c.path === 'gym.session.list' || c.path === 'gym.stats.prs')).toBe(
-      false,
+    const { requests } = await renderStrength({
+      'gym.stats.prs': () => [pr('s3', 2), pr('s-old', 120), pr('s-older', 400)],
+    });
+    await user.press(screen.getByTestId('progress-range-365'));
+    const section = screen.getByTestId('stats-training');
+    // 7 weeks × 3 + the current week's 2.
+    await waitFor(() =>
+      expect(within(section).getByTestId('stats-workouts')).toHaveProp(
+        'accessibilityLabel',
+        'workouts: 23',
+      ),
     );
+    expect(within(section).getByTestId('stats-prs')).toHaveProp('accessibilityLabel', 'new PRs: 2');
+    expect(requests.some((c) => c.path === 'gym.session.list')).toBe(false);
   });
 
-  it('90 days without the older history (offline/error) falls back to the cache and says so', async () => {
+  it('1W and 1M never ask the server for older history', async () => {
     const user = userEvent.setup();
-    await renderStats(); // no handlers for the history: both calls fail
+    const { requests } = await renderStrength();
+    await user.press(screen.getByTestId('progress-range-7'));
+    await user.press(screen.getByTestId('progress-range-30'));
+    expect(
+      requests.some((c) =>
+        ['gym.session.list', 'gym.stats.prs', 'gym.stats.e1rm', 'gym.stats.muscleVolume'].includes(
+          c.path,
+        ),
+      ),
+    ).toBe(false);
+  });
+
+  it('3M without the older history (offline/error) falls back to the cache and says so', async () => {
+    const user = userEvent.setup();
+    await renderStrength(); // no handlers for the history: both calls fail
     await user.press(screen.getByTestId('progress-range-90'));
     const section = screen.getByTestId('stats-training');
     expect(within(section).getByTestId('stats-workouts')).toHaveProp(
@@ -291,9 +397,12 @@ describe('Stats (new shell)', () => {
     );
   });
 
-  it('no training section for someone without a gym profile', async () => {
-    await renderStats({}, makeBootstrap({ profile: null }));
+  it('someone without a gym profile gets a way to Train, not empty charts', async () => {
+    const user = userEvent.setup();
+    await renderStrength({}, makeBootstrap({ profile: null }));
     expect(screen.queryByTestId('stats-training')).toBeNull();
+    await user.press(screen.getByTestId('stats-strength-open-train'));
+    expect(router.push).toHaveBeenCalledWith('/train');
   });
 });
 
@@ -313,12 +422,6 @@ describe('stats helpers', () => {
     expect(signedPct(-7)).toBe('−7%');
     expect(signedPct(3)).toBe('+3%');
     expect(signedPct(0)).toBe('0%');
-  });
-
-  it('turns weeks into ✓ / F / P / x-of-goal cells, spoken in words', () => {
-    const cells = weekCells([week('2026-09-28', 'met'), week('2026-10-05', 'current', 2)]);
-    expect(cells.map((c) => c.text)).toEqual(['✓', '2/4']);
-    expect(cells[1]?.label).toBe('Week of 2026-10-05: this week, 2 of 4');
   });
 
   it('offline fallback: counts 90 days from the 12 weeks the bootstrap carries, and says so', () => {
@@ -349,5 +452,89 @@ describe('stats helpers', () => {
     expect(olderHistoryCursor([session('s3', 2, 70), oldest, session('s2', 9, 65)])).toBe(
       `${oldest.startedAt}|s1`,
     );
+  });
+
+  it('1Y training: workouts from the weeks touching the year, PRs from the timeline', () => {
+    const stats = trainingStatsForYear({
+      bootstrap: { ...GYM, weeks: [week(addDaysLocal(TODAY, -400), 'met', 5), ...GYM.weeks] },
+      prTimeline: [pr('a', 10), { ...pr('b', 20), isFirst: true }, pr('c', 380)],
+      today: TODAY,
+      rangeDays: 365,
+    });
+    expect(stats).toEqual({ streakWeeks: 7, workouts: 23, newPrs: 1, clipped: false });
+  });
+
+  it('a lift in plain words: best set in the range and how much stronger', () => {
+    const series = {
+      exerciseId: 'bench',
+      points: [
+        { localDate: '2026-08-01', e1rmKg: 80, weightKg: 70, reps: 5 },
+        { localDate: '2026-09-20', e1rmKg: 84, weightKg: 72.5, reps: 5 },
+        { localDate: '2026-10-10', e1rmKg: 88, weightKg: 75, reps: 5 },
+      ].map((p) => ({ ...p, sessionId: p.localDate, lowConfidence: false, isPr: false })),
+      trend: [80, 84, 88],
+    };
+    const summary = liftSummary(series, '2026-09-16', '2026-10-15');
+    expect(summary).toEqual({
+      best: { weightKg: 75, reps: 5, localDate: '2026-10-10' },
+      changePct: 5,
+      points: [84, 88],
+    });
+    expect(liftSummary(series, '2026-10-12', '2026-10-15').best).toBeNull();
+    expect(liftChangeText(5)).toBe('5% stronger');
+    expect(liftChangeText(-3)).toBe('3% lighter');
+    expect(liftChangeText(0)).toBe('About the same');
+    expect(liftChangeText(null)).toBeNull();
+  });
+
+  it('picks the lifts trained in the range, compounds first', () => {
+    const iso = { ...makeExercise('curl', 'Curl'), category: 'ISOLATION' as const };
+    const curl = (id: string, daysBack: number): SessionSummaryDto => {
+      const base = session(id, daysBack, 20);
+      return { ...base, exercises: base.exercises.map((e) => ({ ...e, exerciseId: 'curl' })) };
+    };
+    const sessions = [curl('c1', 1), curl('c2', 3), curl('c3', 5), ...GYM.recentSessions];
+    const picked = pickLifts(sessions, [...GYM.library, iso], addDaysLocal(TODAY, -29));
+    expect(picked.map((e) => e.id)).toEqual(['bench', 'curl']);
+  });
+
+  it('sets per muscle: a week is a total, longer ranges are a weekly average', () => {
+    const weeks = [
+      { weekStart: '2026-09-28', sets: { chest: 10, back: 6 } },
+      { weekStart: '2026-10-05', sets: { chest: 11, back: 0 } },
+    ];
+    expect(muscleSets(weeks, 7)).toEqual([
+      { group: 'chest', sets: 21 },
+      { group: 'back', sets: 6 },
+    ]);
+    expect(muscleSets(weeks, 14)).toEqual([
+      { group: 'chest', sets: 11 },
+      { group: 'back', sets: 3 },
+    ]);
+  });
+
+  it('recent PRs: newest first, one per lift per workout, no first-ever sets', () => {
+    const prs = recentPrs(
+      [
+        pr('s1', 9),
+        { ...pr('s2', 2), kind: 'e1rm', weightKg: 60 },
+        { ...pr('s2', 2), weightKg: 72.5 },
+        { ...pr('s0', 1), isFirst: true },
+        pr('old', 60),
+      ],
+      addDaysLocal(TODAY, -29),
+      TODAY,
+    );
+    expect(prs.map((p) => [p.sessionId, p.weightKg])).toEqual([
+      ['s2', 72.5],
+      ['s1', 70],
+    ]);
+  });
+
+  it('this week runs Monday to Sunday and marks trained days', () => {
+    const days = thisWeekDays([session('t', 0, 60)], TODAY);
+    expect(days).toHaveLength(7);
+    expect(days.find((d) => d.isToday)).toMatchObject({ trained: true, future: false });
+    expect(days.filter((d) => d.trained)).toHaveLength(1);
   });
 });
