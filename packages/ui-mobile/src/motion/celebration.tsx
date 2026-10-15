@@ -54,7 +54,7 @@ export function makeParticles(colors: readonly string[], count = CELEBRATION_PAR
       spin: (rand() - 0.5) * 3,
       size: 6 + Math.round(rand() * 4),
       round: rand() > 0.6,
-      color: colors[i % colors.length] ?? '#944A00',
+      color: colors[i % colors.length] ?? 'transparent',
     };
   });
 }
