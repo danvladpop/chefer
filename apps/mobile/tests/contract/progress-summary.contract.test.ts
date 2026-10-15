@@ -2,7 +2,8 @@ import { beforeAll, describe, expect, it } from 'vitest';
 import { makeContractClient, SEED_EMAIL, SEED_PASSWORD } from './client';
 
 // UX-FOOD-20: the Progress screen's range control. `tracker.monthlySummary`
-// takes an optional `days` (7–90); builds in the field send none and get 28.
+// takes an optional `days` (7–365 since Stats' 1Y range, 2026-10-15); builds in
+// the field send none and get 28.
 
 const { client, setToken } = makeContractClient();
 
@@ -21,9 +22,9 @@ describe('tracker.monthlySummary window (UX-FOOD-20)', () => {
     expect(typeof summary.dailyCalorieTarget).toBe('number');
   });
 
-  it('serves the 7 / 28 / 90-day windows, ending on the client date', async () => {
+  it('serves the 1W / 1M / 3M / 1Y windows (and 28), ending on the client date', async () => {
     const localDate = new Date().toISOString().slice(0, 10);
-    for (const days of [7, 28, 90]) {
+    for (const days of [7, 28, 30, 90, 365]) {
       const summary = await client.tracker.monthlySummary.query({ localDate, days });
       expect(summary.days).toHaveLength(days);
       expect(summary.days.at(-1)?.date).toBe(localDate);
@@ -31,6 +32,7 @@ describe('tracker.monthlySummary window (UX-FOOD-20)', () => {
   });
 
   it('rejects an out-of-range window', async () => {
-    await expect(client.tracker.monthlySummary.query({ days: 365 })).rejects.toThrow();
+    await expect(client.tracker.monthlySummary.query({ days: 6 })).rejects.toThrow();
+    await expect(client.tracker.monthlySummary.query({ days: 366 })).rejects.toThrow();
   });
 });
