@@ -1,7 +1,10 @@
-import { Children, isValidElement, type ReactNode } from 'react';
+import { Children, isValidElement, useEffect, type ReactNode } from 'react';
 import { Image, View } from 'react-native';
+import Animated, { useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
 import { cn } from '@chefer/utils';
+import { duration, timing } from '../motion/motion';
 import { PressableScale } from '../motion/pressable-scale';
+import { useReducedMotion } from '../motion/use-reduced-motion';
 import { Text } from './text';
 
 // One tile for recipes and workouts (10 Oct redesign: "the grid where the
@@ -25,6 +28,31 @@ export interface MediaFrameProps {
   testID?: string;
 }
 
+const AnimatedImage = Animated.createAnimatedComponent(Image);
+
+/**
+ * MO-13: a photo fades in over the sunken frame once it has loaded (`base`),
+ * and again when the URI changes (a swapped meal). Reduced motion: shown at once.
+ */
+function FadeInImage({ uri, testID }: { uri: string; testID?: string | undefined }) {
+  const reduced = useReducedMotion();
+  const opacity = useSharedValue(reduced ? 1 : 0);
+  useEffect(() => {
+    if (!reduced) opacity.set(0);
+  }, [uri, reduced, opacity]);
+  const style = useAnimatedStyle(() => ({ opacity: opacity.get() }));
+  return (
+    <AnimatedImage
+      testID={testID}
+      source={{ uri }}
+      resizeMode="cover"
+      accessibilityIgnoresInvertColors
+      onLoad={() => opacity.set(reduced ? 1 : withTiming(1, timing(duration.base, 'enter')))}
+      style={[{ width: '100%', height: '100%' }, style]}
+    />
+  );
+}
+
 /** The framed image shared by tiles and rows. */
 export function MediaFrame({
   imageUri,
@@ -38,14 +66,12 @@ export function MediaFrame({
   const box = square ? { width: size, height: size } : { height: size };
   if (imageUri) {
     return (
-      <Image
-        testID={testID}
-        source={{ uri: imageUri }}
-        resizeMode="cover"
-        accessibilityIgnoresInvertColors
-        className={cn('bg-surface-sunken', rounded, !square && 'w-full')}
+      <View
+        className={cn('overflow-hidden bg-surface-sunken', rounded, !square && 'w-full')}
         style={box}
-      />
+      >
+        <FadeInImage testID={testID} uri={imageUri} />
+      </View>
     );
   }
   return (

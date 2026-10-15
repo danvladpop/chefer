@@ -8,7 +8,9 @@ import {
   ListSection,
   Screen,
   Sheet,
+  Stagger,
   Text,
+  useFirstEntrance,
   useThemeColors,
 } from '@chefer/ui-mobile';
 import { supersetSlot } from '@chefer/utils';
@@ -174,6 +176,8 @@ export function TrainScreen() {
   const [menuOpen, setMenuOpen] = useState(false);
   // iOS presents one modal at a time: the ⋯ sheet's choice runs once it's gone.
   const afterMenu = useRef<(() => void) | null>(null);
+  // MO-03: the cards rise in on the first load of the session only.
+  const firstEntrance = useFirstEntrance('train');
 
   // UX-GYM-24: a failed first load shows Retry; offline with no cache says so.
   if (!bootstrap || bootstrapLoad.load !== 'data') {
@@ -332,7 +336,7 @@ export function TrainScreen() {
         }
       >
         <ShellTopBar />
-        {body}
+        <Stagger enabled={firstEntrance}>{body}</Stagger>
       </ScrollView>
 
       {activeWorkout.session ? (

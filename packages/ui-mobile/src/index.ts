@@ -185,6 +185,8 @@ export {
 } from './motion/enter';
 export { FLOAT_UP_RISE, FloatUp, type FloatUpProps } from './motion/float-up';
 export { PopIn, type PopInProps } from './motion/pop-in';
+export { Rotate, type RotateProps } from './motion/rotate';
+export { Stagger, type StaggerProps } from './motion/stagger';
 export { StrikeLine, type StrikeLineProps } from './motion/strike-line';
 export { haptics } from './motion/haptics';
 export { duration, springs, timing } from './motion/motion';

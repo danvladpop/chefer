@@ -8,7 +8,9 @@ import {
   PressableScale,
   Screen,
   Skeleton,
+  Stagger,
   Text,
+  useFirstEntrance,
   useThemeColors,
 } from '@chefer/ui-mobile';
 import { localDateStr } from '@chefer/utils';
@@ -92,6 +94,8 @@ export function TodayScreen() {
   const { proteinOnly } = useNumbersMode(d?.numbersMode);
   const slots = d ? yourDaySlots(d) : [];
   const dayBurst = useDayCompleteBurst(slots, today);
+  // MO-03: the cards rise in on the first load of the session only.
+  const firstEntrance = useFirstEntrance('today');
 
   const topBar = <ShellTopBar className="mb-1" />;
 
@@ -142,108 +146,110 @@ export function TodayScreen() {
         >
           {topBar}
 
-          {/* UX-26 AC2: after "Don't save it", plans aren't checked for allergies. */}
-          <HealthConsentTodayNotice />
-          {/* T-01.3: the legacy free-text safety review — self-gated. */}
-          <MigrationCard />
+          <Stagger enabled={firstEntrance}>
+            {/* UX-26 AC2: after "Don't save it", plans aren't checked for allergies. */}
+            <HealthConsentTodayNotice />
+            {/* T-01.3: the legacy free-text safety review — self-gated. */}
+            <MigrationCard />
 
-          {/* PW-5: this week's plan was prepared before the week started. */}
-          {d.weekReady && d.today.dayOfWeek === 0 ? (
-            <BoardCard testID="today-week-ready" className="gap-0.5 bg-brand-tint">
-              <Text className="text-callout font-semibold text-label">Your week is ready</Text>
-              <Text className="text-subhead text-label-secondary">
-                {d.weekReady.ratedCount > 0
-                  ? `Built from ${d.weekReady.ratedCount} dish${d.weekReady.ratedCount === 1 ? '' : 'es'} you rated.`
-                  : 'The chef prepared it on Sunday.'}
-              </Text>
-            </BoardCard>
-          ) : null}
-
-          {/* Premium without a profile: one compact line into onboarding. */}
-          {showProfileNudge ? (
-            <PressableScale
-              testID="profile-nudge"
-              accessibilityRole="button"
-              accessibilityHint="Your goals, body metrics and dietary needs shape your plans"
-              onPress={() => router.push('/onboarding')}
-              className="min-h-12 flex-row items-center justify-between gap-2 rounded-card bg-brand-tint px-4 py-3"
-            >
-              <Text className="min-w-0 flex-1 text-callout font-semibold text-brand">
-                Complete your profile
-              </Text>
-              <Icon name="chevronRight" color={colors.brand} size={18} />
-            </PressableScale>
-          ) : null}
-
-          {/* What you ate vs target (B-31: only with a goal, tracking, or the toggle on). */}
-          {d.showNutrition ? (
-            <NutritionCard
-              testID="today-nutrition"
-              eatenKcal={n.eatenKcal}
-              targetKcal={target.dailyCalorieTarget}
-              protein={{ value: n.protein.eaten, target: target.proteinG }}
-              carbs={{ value: n.carbs.eaten, target: target.carbsG }}
-              fat={{ value: n.fat.eaten, target: target.fatG }}
-              proteinOnly={proteinOnly}
-              proteinGuide={d.proteinGuide.label}
-              celebrate={dayBurst}
-              header={
-                n.trainingDay ? (
-                  <TrainingDayNote
-                    t={n.trainingDay}
-                    restKcal={n.dailyCalorieTarget}
-                    restProteinG={n.protein.targetG}
-                    className="mb-0"
-                  />
-                ) : null
-              }
-            />
-          ) : null}
-
-          <View className="gap-3">
-            <SectionTitle>Next meal</SectionTitle>
-            {d.nextMeal ? (
-              <NextMealCard
-                meal={d.nextMeal}
-                dayIndex={d.today.dayOfWeek}
-                proteinOnly={proteinOnly}
-                skipping={slotActions.pending}
-                onSkip={slotActions.skipSlot}
-              />
-            ) : (
-              <BoardCard testID="today-no-meal" className="flex-row items-center gap-3">
-                <Text className="min-w-0 flex-1 text-callout text-label-secondary">
-                  {hasPlan ? "You're all caught up for today." : 'No meals planned yet.'}
+            {/* PW-5: this week's plan was prepared before the week started. */}
+            {d.weekReady && d.today.dayOfWeek === 0 ? (
+              <BoardCard testID="today-week-ready" className="gap-0.5 bg-brand-tint">
+                <Text className="text-callout font-semibold text-label">Your week is ready</Text>
+                <Text className="text-subhead text-label-secondary">
+                  {d.weekReady.ratedCount > 0
+                    ? `Built from ${d.weekReady.ratedCount} dish${d.weekReady.ratedCount === 1 ? '' : 'es'} you rated.`
+                    : 'The chef prepared it on Sunday.'}
                 </Text>
-                {hasPlan ? null : (
-                  <PressableScale
-                    testID="today-open-plan"
-                    accessibilityRole="link"
-                    accessibilityLabel="Open Meals"
-                    onPress={() => router.navigate('/plan')}
-                    className="min-h-11 justify-center"
-                  >
-                    <Text className="text-callout font-semibold text-brand">Open Meals</Text>
-                  </PressableScale>
-                )}
               </BoardCard>
-            )}
-          </View>
+            ) : null}
 
-          <YourDayCard
-            slots={slots}
-            proteinOnly={proteinOnly}
-            celebrate={d.showNutrition ? 0 : dayBurst}
-          />
+            {/* Premium without a profile: one compact line into onboarding. */}
+            {showProfileNudge ? (
+              <PressableScale
+                testID="profile-nudge"
+                accessibilityRole="button"
+                accessibilityHint="Your goals, body metrics and dietary needs shape your plans"
+                onPress={() => router.push('/onboarding')}
+                className="min-h-12 flex-row items-center justify-between gap-2 rounded-card bg-brand-tint px-4 py-3"
+              >
+                <Text className="min-w-0 flex-1 text-callout font-semibold text-brand">
+                  Complete your profile
+                </Text>
+                <Icon name="chevronRight" color={colors.brand} size={18} />
+              </PressableScale>
+            ) : null}
 
-          {/* WP-07: a log here can offer to rebalance the week; Undo follows an Apply. */}
-          <RebalanceOffer onApplied={() => void refetch()} />
-          <RebalanceBanner onUndone={() => void refetch()} />
+            {/* What you ate vs target (B-31: only with a goal, tracking, or the toggle on). */}
+            {d.showNutrition ? (
+              <NutritionCard
+                testID="today-nutrition"
+                eatenKcal={n.eatenKcal}
+                targetKcal={target.dailyCalorieTarget}
+                protein={{ value: n.protein.eaten, target: target.proteinG }}
+                carbs={{ value: n.carbs.eaten, target: target.carbsG }}
+                fat={{ value: n.fat.eaten, target: target.fatG }}
+                proteinOnly={proteinOnly}
+                proteinGuide={d.proteinGuide.label}
+                celebrate={dayBurst}
+                header={
+                  n.trainingDay ? (
+                    <TrainingDayNote
+                      t={n.trainingDay}
+                      restKcal={n.dailyCalorieTarget}
+                      restProteinG={n.protein.targetG}
+                      className="mb-0"
+                    />
+                  ) : null
+                }
+              />
+            ) : null}
 
-          <TrainingSection />
+            <View className="gap-3">
+              <SectionTitle>Next meal</SectionTitle>
+              {d.nextMeal ? (
+                <NextMealCard
+                  meal={d.nextMeal}
+                  dayIndex={d.today.dayOfWeek}
+                  proteinOnly={proteinOnly}
+                  skipping={slotActions.pending}
+                  onSkip={slotActions.skipSlot}
+                />
+              ) : (
+                <BoardCard testID="today-no-meal" className="flex-row items-center gap-3">
+                  <Text className="min-w-0 flex-1 text-callout text-label-secondary">
+                    {hasPlan ? "You're all caught up for today." : 'No meals planned yet.'}
+                  </Text>
+                  {hasPlan ? null : (
+                    <PressableScale
+                      testID="today-open-plan"
+                      accessibilityRole="link"
+                      accessibilityLabel="Open Meals"
+                      onPress={() => router.navigate('/plan')}
+                      className="min-h-11 justify-center"
+                    >
+                      <Text className="text-callout font-semibold text-brand">Open Meals</Text>
+                    </PressableScale>
+                  )}
+                </BoardCard>
+              )}
+            </View>
 
-          {/* B-31: weight tracking assumes a goal. */}
-          {d.showNutrition ? <TodayWeight /> : null}
+            <YourDayCard
+              slots={slots}
+              proteinOnly={proteinOnly}
+              celebrate={d.showNutrition ? 0 : dayBurst}
+            />
+
+            {/* WP-07: a log here can offer to rebalance the week; Undo follows an Apply. */}
+            <RebalanceOffer onApplied={() => void refetch()} />
+            <RebalanceBanner onUndone={() => void refetch()} />
+
+            <TrainingSection />
+
+            {/* B-31: weight tracking assumes a goal. */}
+            {d.showNutrition ? <TodayWeight /> : null}
+          </Stagger>
         </KeyboardAwareScrollView>
       </Screen>
     </NumbersModeProvider>

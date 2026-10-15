@@ -9,6 +9,8 @@ import {
   makeParticles,
   PopIn,
   resetEntrancesForTests,
+  Rotate,
+  Stagger,
   StrikeLine,
   useFirstEntrance,
 } from '@chefer/ui-mobile';
@@ -127,6 +129,35 @@ describe('kit pieces', () => {
     await first.unmount();
     expect((await renderHook(() => useFirstEntrance('today'))).result.current).toBe(false);
     expect((await renderHook(() => useFirstEntrance('shop'))).result.current).toBe(true);
+  });
+});
+
+describe('Stagger and Rotate', () => {
+  it('Stagger renders every child, through fragments, enabled or not', async () => {
+    const tree = (enabled: boolean) => (
+      <Stagger enabled={enabled}>
+        <Text>One</Text>
+        {null}
+        <>
+          <Text>Two</Text>
+          {false}
+          <Text>Three</Text>
+        </>
+      </Stagger>
+    );
+    const { rerender } = await render(tree(true));
+    for (const t of ['One', 'Two', 'Three']) expect(screen.getByText(t)).toBeOnTheScreen();
+    await rerender(tree(false));
+    for (const t of ['One', 'Two', 'Three']) expect(screen.getByText(t)).toBeOnTheScreen();
+  });
+
+  it('Rotate wraps its child', async () => {
+    await render(
+      <Rotate turned>
+        <Text>v</Text>
+      </Rotate>,
+    );
+    expect(screen.getByText('v')).toBeOnTheScreen();
   });
 });
 

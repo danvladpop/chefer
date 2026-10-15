@@ -14,6 +14,7 @@ import {
   listEntering,
   listExiting,
   listLayout,
+  Rotate,
   Screen,
   SearchField,
   SegmentedControl,
@@ -316,11 +317,10 @@ export function ShopScreen() {
           >
             {status}
           </Text>
-          <Icon
-            name={expanded ? 'chevronUp' : 'chevronDown'}
-            color={colors.labelSecondary}
-            size={18}
-          />
+          {/* MO-05: the chevron turns with the aisle. */}
+          <Rotate turned={expanded}>
+            <Icon name="chevronDown" color={colors.labelSecondary} size={18} />
+          </Rotate>
         </Pressable>
         {expanded
           ? group.items.map((item) => {
