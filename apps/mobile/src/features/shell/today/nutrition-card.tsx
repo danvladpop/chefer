@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
 import { View } from 'react-native';
-import { CalorieGauge, MacroRow, Text } from '@chefer/ui-mobile';
+import { CalorieGauge, Celebration, MacroRow, Text, useThemeColors } from '@chefer/ui-mobile';
 import { formatNumber } from '@chefer/utils';
 import { BoardCard } from './parts';
 
@@ -26,6 +26,8 @@ export interface NutritionCardProps {
   header?: ReactNode;
   /** Top-right of the card, e.g. "Why this number". */
   action?: ReactNode;
+  /** Bump to fire the day-complete confetti over the gauge (MO-18). */
+  celebrate?: number;
   testID?: string;
 }
 
@@ -40,8 +42,10 @@ export function NutritionCard({
   targetLabel,
   header,
   action,
+  celebrate = 0,
   testID = 'nutrition-card',
 }: NutritionCardProps) {
+  const colors = useThemeColors();
   return (
     <BoardCard testID={testID}>
       {action ? <View className="absolute right-2 top-2 z-10">{action}</View> : null}
@@ -98,6 +102,12 @@ export function NutritionCard({
           {proteinGuide}
         </Text>
       ) : null}
+      <Celebration
+        testID={`${testID}-celebration`}
+        play={celebrate}
+        colors={[colors.brand, colors.positive, colors.attention, colors.info]}
+        origin={{ x: 0.5, y: 0.3 }}
+      />
     </BoardCard>
   );
 }

@@ -893,17 +893,15 @@ export const trackerService = {
     const dailyCalorieTarget = resolveDailyTargets(profile).dailyCalorieTarget;
 
     const anchor = localDate ? new Date(`${localDate}T00:00:00Z`) : new Date();
+    // One pass over the logs (a year's window is 365 lookups).
+    const logByDate = new Map(logs.map((l) => [new Date(l.date).toISOString().slice(0, 10), l]));
     const days: DaySummary[] = [];
     for (let i = dayCount - 1; i >= 0; i--) {
       const d = new Date(anchor);
       d.setUTCDate(d.getUTCDate() - i);
       d.setUTCHours(0, 0, 0, 0);
       const dateStr = d.toISOString().split('T')[0]!;
-      const log = logs.find((l) => {
-        const ld = new Date(l.date);
-        ld.setUTCHours(0, 0, 0, 0);
-        return ld.toISOString().split('T')[0] === dateStr;
-      });
+      const log = logByDate.get(dateStr);
       days.push({
         date: dateStr,
         totalKcal: log?.totalKcal ?? 0,

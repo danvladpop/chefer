@@ -145,10 +145,10 @@ function withEarlierHistory(bootstrap: GymBootstrap): GymBootstrap {
   return { ...bootstrap, recentSessions: [earlier, ...bootstrap.recentSessions] };
 }
 
-/** A StatTile shows exactly this value and caption. */
-function expectTile(testID: string, value: string, label: string) {
+/** A StatTile shows exactly this value and caption (counts settle after their tick-up). */
+async function expectTile(testID: string, value: string, label: string) {
   const tile = within(screen.getByTestId(testID));
-  expect(tile.getByText(value)).toBeOnTheScreen();
+  await waitFor(() => expect(tile.getByText(value)).toBeOnTheScreen());
   expect(tile.getByText(label)).toBeOnTheScreen();
 }
 
@@ -184,10 +184,10 @@ describe('WorkoutSummaryV2', () => {
 
     expect(screen.getByTestId('summary-title')).toHaveTextContent('Workout complete');
     expect(screen.getByTestId('summary-subline')).toHaveTextContent(/^Upper A · .*(Sep 24|24 Sep)/);
-    expect(screen.getByTestId('summary-duration')).toHaveTextContent(/52 min/);
+    await waitFor(() => expect(screen.getByTestId('summary-duration')).toHaveTextContent(/52 min/));
     expect(screen.getByTestId('summary-duration')).toHaveTextContent(/Duration/);
-    expectTile('summary-sets', '3', 'Sets');
-    expectTile('summary-exercises', '1', 'Exercise');
+    await expectTile('summary-sets', '3', 'Sets');
+    await expectTile('summary-exercises', '1', 'Exercise');
     expect(screen.queryByTestId('summary-kcal')).toBeNull();
     expect(screen.queryByText(/kcal/)).toBeNull();
 
@@ -204,9 +204,9 @@ describe('WorkoutSummaryV2', () => {
     rememberFinished(doc);
     await renderSummary(doc.id, makeBootstrap({ recentSessions: [toSessionSummary(doc)] }));
 
-    expectTile('summary-kcal', '310', 'kcal you logged');
+    await expectTile('summary-kcal', '310', 'kcal you logged');
     expect(screen.queryByTestId('summary-sets')).toBeNull();
-    expectTile('summary-exercises', '1', 'Exercise');
+    await expectTile('summary-exercises', '1', 'Exercise');
   });
 
   it('with a known bodyweight the middle tile is an estimated kcal burned, labelled as one', async () => {
@@ -215,7 +215,7 @@ describe('WorkoutSummaryV2', () => {
     await renderSummary(doc.id, { ...bootstrapAfterFinish(doc), bodyweightKg: 80 });
 
     // 3 working sets cap strength time at 25 of 52 min: 3.5 MET × 80 kg × 25/60 h ≈ 117 → 120.
-    expectTile('summary-kcal', '~120', 'kcal burned (est.)');
+    await expectTile('summary-kcal', '~120', 'kcal burned (est.)');
     expect(screen.getByTestId('summary-kcal')).toHaveProp(
       'accessibilityLabel',
       'About 120 kilocalories burned, estimated',
@@ -234,7 +234,7 @@ describe('WorkoutSummaryV2', () => {
       doc.id,
       makeBootstrap({ recentSessions: [toSessionSummary(doc)], bodyweightKg: 80 }),
     );
-    expectTile('summary-kcal', '310', 'kcal you logged');
+    await expectTile('summary-kcal', '310', 'kcal you logged');
   });
 
   it('shows the PR card with the exercise and the record set', async () => {

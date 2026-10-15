@@ -2112,13 +2112,33 @@ the adjusted target must shape next week's budget)
   /progress, mobile `progress` — linked from the card's "See progress" and
   from More); mobile can also expand them inside the dashboard card.
 - Progress (web + mobile): calories vs target and macro breakdown over a
-  window the user picks, 7 / 28 / 90 days (`tracker.monthlySummary({ localDate,
-  days })`, default 28; UX-FOOD-20). The calorie axis is floored at 0 with round
+  window the user picks, 1W / 1M / 3M / 1Y = 7 / 30 / 90 / 365 days
+  (`STATS_RANGES`, `tracker.monthlySummary({ localDate, days })`, default 30;
+  UX-FOOD-20, 1Y added 2026-10-15). Past a month each bar is a week: the daily
+  average of that week's logged days (`bucketDays`), so a year stays readable.
+  The weight chart and its change follow the same range; the weigh-ins list
+  keeps at least 90 days so older entries stay editable.
+- Stats (mobile shell v2, 2026-10-15 revamp): `/progress` has **Eating |
+  Strength** tabs under the one range. Eating is the block above plus the
+  chef's weekly review line. Strength (`shell/stats/strength-tab.tsx`) is the
+  training summary in plain words: workouts / new PRs / week streak tiles;
+  workouts per week coloured by goal met (1W: this week day by day); "Your
+  lifts" — each main lift's best set in the range and "N% stronger" (the
+  3-session smoothed estimated max at the end of the range against its start)
+  with a sparkline; working sets per muscle (a weekly average past 1W); the
+  latest PRs; and "All charts and history" to the detailed `/training/stats`.
+  Up to 12 weeks it reads only the cached `gym.bootstrap`; 3M adds one
+  `gym.session.list` page and `gym.stats.prs`; 1Y counts workouts from the
+  bootstrap's week summaries and PRs from `gym.stats.prs`; 3M/1Y lifts and
+  muscle sets use `gym.stats.e1rm` (range `1y`) and `gym.stats.muscleVolume`
+  online, the cache offline. Train's "Strength stats" row opens
+  `/progress?tab=strength`. Web keeps its separate gym stats page (no Strength
+  tab on web Progress). The calorie axis is floored at 0 with round
   ticks, the x labels are evenly spaced and kept inside the chart, and only
   days with something logged count (`isLoggedDay`: an emptied day keeps a log
   row with 0 kcal and no longer inflates "Days logged"). The weight card is
   rendered outside the calorie summary's error branch, so a failed summary
-  does not hide it (UX-FOOD-28). 90-day weight chart (`tracker.weightHistory`)
+  does not hide it (UX-FOOD-28). Weight chart over the range (`tracker.weightHistory`)
   with current weight and change. The change is coloured by goal via the
   shared `weightChangeTone` (`@chefer/utils`): gaining is green for
   GAIN_MUSCLE, losing is green for LOSE_WEIGHT, other goals stay neutral
@@ -4797,7 +4817,7 @@ tracker.deleteEntries({ date, entryIds })                      [T-19.3]
      batch a client already holds ids for. Idempotent: an unmatched id is
      silently ignored.
 
-tracker.weeklySummary({ localDate? }) / monthlySummary({ localDate?, days? })   [§2.12, T-21.1, B-33; days 7-90: UX-FOOD-20]
+tracker.weeklySummary({ localDate? }) / monthlySummary({ localDate?, days? })   [§2.12, T-21.1, B-33; days 7-365: UX-FOOD-20, 1Y 2026-10-15]
   └─ optional localDate anchors the trailing-N-day window on the CLIENT's
      local day instead of the server's UTC one (a user whose local day has
      turned over relative to UTC used to see a window shifted by a day);

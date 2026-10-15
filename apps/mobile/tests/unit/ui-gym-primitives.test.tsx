@@ -427,8 +427,9 @@ describe('charts', () => {
         ]}
       />,
     );
-    // band + 3 non-zero segments
-    expect(hostNodes('Rect')).toHaveLength(4);
+    // band + 3 non-zero segments (the draw-in clip rect is not a bar)
+    const bars = hostNodes('Rect').filter((n) => n.props.testID !== 'chart-reveal-clip');
+    expect(bars).toHaveLength(4);
   });
 
   it('BarChart labels its axis with round numbers, not 0 / 6.6 / 13.2', async () => {

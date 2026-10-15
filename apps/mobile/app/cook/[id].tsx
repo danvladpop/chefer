@@ -1,15 +1,23 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, View } from 'react-native';
+import Animated from 'react-native-reanimated';
 import { useKeepAwake } from 'expo-keep-awake';
 import { router, useLocalSearchParams } from 'expo-router';
 import {
+  AnimatedCheck,
+  Celebration,
   ChipGroup,
   ConfirmSheet,
+  enterFromSide,
   ErrorState,
+  haptics,
   IconButton,
   KeyboardAwareScrollView,
+  PopIn,
   PressableScale,
+  ProgressBar,
   Screen,
+  StrikeLine,
   Text,
   useQueryState,
   useThemeColors,
@@ -197,6 +205,9 @@ export default function CookModeScreen() {
   // UX-COOK-02: leaving and coming back resumes the step and the ticks.
   const [step, setStep] = useState(() => getCookSession(id).step);
   const [finished, setFinished] = useState(false);
+  const [finishBurst, setFinishBurst] = useState(0);
+  // Premium motion #16: which way the last step change went (slide direction).
+  const stepDirection = useRef<1 | -1>(1);
   const [logged, setLogged] = useState(false);
   const [checkedIngredients, setCheckedIngredients] = useState<Set<number>>(
     () => new Set(getCookSession(id).checked),
@@ -341,6 +352,9 @@ export default function CookModeScreen() {
     cookTimers.stopAll();
     clearCookSession(id);
     setFinished(true);
+    // MO-18: finishing a cook is a tier-3 moment.
+    haptics.success();
+    setFinishBurst((n) => n + 1);
   };
 
   const baseServings = recipe.servings || 1;
@@ -413,6 +427,7 @@ export default function CookModeScreen() {
               }
               onPress={() => {
                 setShowIngredients(false);
+                stepDirection.current = t.step >= step ? 1 : -1;
                 setStep(t.step);
               }}
               className={cn(
@@ -452,10 +467,14 @@ export default function CookModeScreen() {
 
       {/* Progress bar */}
       {noSteps ? null : (
-        <View className="mx-4 mb-2 h-1.5 overflow-hidden rounded-full bg-surface-sunken">
-          <View
-            className="h-full rounded-full bg-brand"
-            style={{ width: `${finished ? 100 : ((safeStep + 1) / totalSteps) * 100}%` }}
+        // Premium motion #16: the fill glides (scaleX, MO-06) as steps advance.
+        <View className="mx-4 mb-2">
+          <ProgressBar
+            testID="cook-progress"
+            progress={finished ? 1 : (safeStep + 1) / totalSteps}
+            color={colors.brand}
+            className="h-1.5 bg-surface-sunken"
+            accessibilityLabel={`Step ${Math.min(safeStep + 1, totalSteps)} of ${totalSteps}`}
           />
         </View>
       )}
@@ -514,9 +533,11 @@ export default function CookModeScreen() {
             return (
               <Pressable
                 key={i}
-                accessibilityRole="button"
+                accessibilityRole="checkbox"
                 accessibilityState={{ checked: isChecked }}
-                onPress={() =>
+                onPress={() => {
+                  if (isChecked) haptics.selection();
+                  else haptics.tick();
                   setCheckedIngredients((prev) => {
                     const next = new Set(prev);
                     if (isChecked) {
@@ -525,26 +546,27 @@ export default function CookModeScreen() {
                       next.add(i);
                     }
                     return next;
-                  })
-                }
+                  });
+                }}
                 className="min-h-11 flex-row items-center gap-3"
               >
-                <View
-                  className={cn(
-                    'h-6 w-6 items-center justify-center rounded-full border-2',
-                    isChecked ? 'border-brand bg-brand' : 'border-separator bg-surface',
-                  )}
-                >
-                  {isChecked && <Icon name="checkmark" size={14} color={colors.onBrand} />}
+                {/* MO-16 / MO-17: the same check and strike as Today and Shop. */}
+                <AnimatedCheck
+                  checked={isChecked}
+                  size={24}
+                  fillColor={colors.brand}
+                  checkColor={colors.onBrand}
+                  ringColor={colors.separator}
+                  emptyColor={colors.surface}
+                />
+                <View className="relative min-w-0 flex-1">
+                  <Text
+                    className={cn('text-body', isChecked ? 'text-label-tertiary' : 'text-label')}
+                  >
+                    {formatScaledQuantity(ing.quantity, ing.unit, scale, unitSystem)} {ing.name}
+                  </Text>
+                  <StrikeLine active={isChecked} color={colors.labelTertiary} />
                 </View>
-                <Text
-                  className={cn(
-                    'min-w-0 flex-1 text-body',
-                    isChecked ? 'text-label-tertiary line-through' : 'text-label',
-                  )}
-                >
-                  {formatScaledQuantity(ing.quantity, ing.unit, scale, unitSystem)} {ing.name}
-                </Text>
               </Pressable>
             );
           })}
@@ -571,7 +593,9 @@ export default function CookModeScreen() {
           keyboardShouldPersistTaps="handled"
           contentContainerClassName="items-center gap-4 px-6 py-10"
         >
-          <Text className="text-display">🎉</Text>
+          <PopIn from={0.4}>
+            <Text className="text-display">🎉</Text>
+          </PopIn>
           <Text testID="cook-finished" className="text-center text-title1 font-bold text-label">
             {finishMealCopy(meal)}
           </Text>
@@ -648,34 +672,45 @@ export default function CookModeScreen() {
       ) : (
         /* Step view — big text, kitchen-distance readable */
         <View className="flex-1 px-4 pb-6">
-          <ScrollView contentContainerClassName="gap-5 py-4">
-            <Text testID="cook-step-text" className="text-title1 font-semibold text-label">
-              {stepText}
-            </Text>
-            {stepAmounts.length > 0 ? (
-              <View
-                testID="cook-step-amounts"
-                className="gap-1 rounded-card border border-separator bg-surface p-4"
-              >
-                <Text className="text-subhead text-label-secondary">
-                  For {formatFractionalQuantity(selectedServings)}{' '}
-                  {selectedServings === 1 ? 'serving' : 'servings'}
-                </Text>
-                {stepAmounts.map((a) => (
-                  <View key={a.index} className="flex-row items-baseline gap-2">
-                    <Text className="shrink-0 text-body font-semibold text-label">{a.amount}</Text>
-                    <Text className="min-w-0 flex-1 text-body text-label-secondary">{a.name}</Text>
-                  </View>
-                ))}
-              </View>
-            ) : null}
-            {stepDuration !== null && (
-              <StepTimer
-                view={cookTimers.view(safeStep, stepDuration)}
-                onToggle={() => cookTimers.toggle(safeStep, stepDuration)}
-                onReset={() => cookTimers.reset(safeStep)}
-              />
-            )}
+          <ScrollView contentContainerClassName="py-4">
+            {/* Premium motion #16: each step slides in from the side you're heading. */}
+            <Animated.View
+              key={safeStep}
+              entering={enterFromSide(stepDirection.current)}
+              className="gap-5"
+            >
+              <Text testID="cook-step-text" className="text-title1 font-semibold text-label">
+                {stepText}
+              </Text>
+              {stepAmounts.length > 0 ? (
+                <View
+                  testID="cook-step-amounts"
+                  className="gap-1 rounded-card border border-separator bg-surface p-4"
+                >
+                  <Text className="text-subhead text-label-secondary">
+                    For {formatFractionalQuantity(selectedServings)}{' '}
+                    {selectedServings === 1 ? 'serving' : 'servings'}
+                  </Text>
+                  {stepAmounts.map((a) => (
+                    <View key={a.index} className="flex-row items-baseline gap-2">
+                      <Text className="shrink-0 text-body font-semibold text-label">
+                        {a.amount}
+                      </Text>
+                      <Text className="min-w-0 flex-1 text-body text-label-secondary">
+                        {a.name}
+                      </Text>
+                    </View>
+                  ))}
+                </View>
+              ) : null}
+              {stepDuration !== null && (
+                <StepTimer
+                  view={cookTimers.view(safeStep, stepDuration)}
+                  onToggle={() => cookTimers.toggle(safeStep, stepDuration)}
+                  onReset={() => cookTimers.reset(safeStep)}
+                />
+              )}
+            </Animated.View>
           </ScrollView>
           <View className="flex-row gap-3">
             <TrainButton
@@ -685,19 +720,35 @@ export default function CookModeScreen() {
               size="lg"
               className="flex-1"
               disabled={safeStep === 0}
-              onPress={() => setStep((s) => Math.max(0, s - 1))}
+              onPress={() => {
+                stepDirection.current = -1;
+                setStep((s) => Math.max(0, s - 1));
+              }}
             />
             <TrainButton
               testID="cook-next"
               label={safeStep >= totalSteps - 1 ? 'Finish' : 'Next step'}
               size="lg"
               className="flex-1"
-              onPress={() => (safeStep >= totalSteps - 1 ? finishCooking() : setStep((s) => s + 1))}
+              onPress={() => {
+                if (safeStep >= totalSteps - 1) {
+                  finishCooking();
+                  return;
+                }
+                stepDirection.current = 1;
+                setStep((s) => s + 1);
+              }}
             />
           </View>
         </View>
       )}
       <ConfirmSheet testID="cook-leave" {...guard.sheetProps} />
+      <Celebration
+        testID="cook-celebration"
+        play={finished ? finishBurst : 0}
+        colors={[colors.brand, colors.positive, colors.attention, colors.info]}
+        origin={{ x: 0.5, y: 0.2 }}
+      />
     </Screen>
   );
 }

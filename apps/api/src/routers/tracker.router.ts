@@ -323,13 +323,14 @@ export const trackerRouter = router({
       return trackerService.weeklySummary(ctx.user.id, input?.localDate);
     }),
 
-  // UX-FOOD-20: `days` (7–90) lets Progress pick its window; omitted keeps 28.
+  // UX-FOOD-20: `days` lets Progress pick its window; omitted keeps 28. Stats'
+  // 1Y range (2026-10-15) raised the cap from 90 to 365 (additive).
   monthlySummary: protectedProcedure
     .input(
       z
         .object({
           localDate: localDateSchema,
-          days: z.number().int().min(7).max(90).optional(),
+          days: z.number().int().min(7).max(365).optional(),
         })
         .optional(),
     )

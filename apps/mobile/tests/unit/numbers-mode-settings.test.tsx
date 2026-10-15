@@ -1,5 +1,5 @@
 import { SafeAreaProvider } from 'react-native-safe-area-context';
-import { fireEvent, render, screen, userEvent } from '@testing-library/react-native';
+import { fireEvent, render, screen, userEvent, waitFor } from '@testing-library/react-native';
 import { NumbersModeProvider } from '../../src/features/numbers-mode/numbers-mode';
 import { TargetsCard } from '../../src/features/preferences/targets-card';
 
@@ -167,7 +167,9 @@ describe('Your targets card — numbers settings (WP-08)', () => {
 
   it('the full numbers keep the calorie headline', async () => {
     await renderCard('FULL');
-    expect(screen.getByTestId('targets-suggested-kcal')).toHaveTextContent('2,200 kcal');
+    await waitFor(() =>
+      expect(screen.getByTestId('targets-suggested-kcal')).toHaveTextContent('2,200 kcal'),
+    );
     expect(screen.queryByTestId('targets-protein-why')).toBeNull();
   });
 });

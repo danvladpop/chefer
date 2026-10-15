@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { View } from 'react-native';
 import { router } from 'expo-router';
 import {
+  FloatUp,
   haptics,
   MediaFrame,
   PressableScale,
@@ -11,6 +12,7 @@ import {
 } from '@chefer/ui-mobile';
 import {
   cn,
+  formatNumber,
   formatPortion,
   HERO_LOGGED_HOLD_MS,
   localDateStr,
@@ -111,6 +113,8 @@ export function NextMealCard({
   const [held, setHeld] = useState<NextMeal | null>(null);
   const holdTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const meal = held ?? nextMeal;
+  // MO-16 companion: "+520 kcal" rises off Eaten when the log lands.
+  const [eatenFloat, setEatenFloat] = useState(0);
 
   useEffect(
     () => () => {
@@ -155,6 +159,7 @@ export function NextMealCard({
       // A log can offer to rebalance the week — same hand-off as the tracker.
       recordRebalanceOutcome(result);
       haptics.success();
+      setEatenFloat((n) => n + 1);
       if (holdTimer.current) clearTimeout(holdTimer.current);
       setHeld(logged);
       holdTimer.current = setTimeout(release, HERO_LOGGED_HOLD_MS);
@@ -244,22 +249,31 @@ export function NextMealCard({
         </View>
       </PressableScale>
       <View className="flex-row gap-2">
-        <MealAction
-          testID="next-meal-eaten"
-          label={holding ? 'Eaten ✓' : 'Eaten'}
-          icon="checkmark"
-          primary
-          disabled={holding || log.isPending}
-          accessibilityLabel={holding ? `${meal.recipe.name} logged` : `Mark ${label} as eaten`}
-          onPress={() =>
-            log.mutate({
-              date: localDateStr(),
-              ...REBALANCE_PREVIEW,
-              ...slotArgs(meal),
-              portionMultiplier: logPortion,
-            })
-          }
-        />
+        <View className="relative min-w-0 flex-1 flex-row">
+          <MealAction
+            testID="next-meal-eaten"
+            label={holding ? 'Eaten ✓' : 'Eaten'}
+            icon="checkmark"
+            primary
+            disabled={holding || log.isPending}
+            accessibilityLabel={holding ? `${meal.recipe.name} logged` : `Mark ${label} as eaten`}
+            onPress={() =>
+              log.mutate({
+                date: localDateStr(),
+                ...REBALANCE_PREVIEW,
+                ...slotArgs(meal),
+                portionMultiplier: logPortion,
+              })
+            }
+          />
+          {proteinOnly ? null : (
+            <FloatUp play={eatenFloat}>
+              <Text className="text-caption font-bold text-positive">
+                {`+${formatNumber(meal.recipe.kcal)} kcal`}
+              </Text>
+            </FloatUp>
+          )}
+        </View>
         <MealAction
           testID="next-meal-cook"
           label="Cook now"

@@ -1,5 +1,6 @@
 import { memo, useCallback } from 'react';
 import { Pressable, View } from 'react-native';
+import Animated from 'react-native-reanimated';
 import type {
   EquipmentProfile,
   ExerciseMeta,
@@ -8,7 +9,14 @@ import type {
   SessionSetDoc,
   WeightUnit,
 } from '@chefer/types';
-import { Text, useThemeColors, ValueStepper } from '@chefer/ui-mobile';
+import {
+  AnimatedCheck,
+  listEntering,
+  PopIn,
+  Text,
+  useThemeColors,
+  ValueStepper,
+} from '@chefer/ui-mobile';
 import { cn, formatLoad, formatLoadNumber, unitLabel } from '@chefer/utils';
 import { Icon } from '../../../components/icon';
 import { SwipeToRemove } from '../../../components/swipe-to-remove';
@@ -130,13 +138,17 @@ function SetRowImpl({
         onLongPress={longPress}
         className={cn(
           'gap-0.5 rounded-control border px-1 py-1',
-          done
-            ? 'border-transparent bg-positive/10'
-            : focused
-              ? 'border-brand/40'
-              : 'border-transparent',
+          done ? 'border-transparent' : focused ? 'border-brand/40' : 'border-transparent',
         )}
       >
+        {/* MO-16: the done tint fades in behind the row. */}
+        {done ? (
+          <Animated.View
+            entering={listEntering}
+            pointerEvents="none"
+            className="absolute inset-0 rounded-control bg-positive/10"
+          />
+        ) : null}
         {/* WP-04: labels one step up (text-callout, 16 pt). min-h, not h: at large OS text
             the row grows; "Last 60 × 10" wraps to two lines instead of clipping. */}
         <View className="min-h-6 flex-row items-center gap-2 px-1">
@@ -152,11 +164,14 @@ function SetRowImpl({
             {lastText}
           </Text>
           {prKind ? (
-            <View className="rounded-full bg-attention/10 px-2 py-0.5">
-              <Text testID={`${testID}-pr`} className="text-caption font-bold text-attention">
-                {PR_LABELS[prKind]}
-              </Text>
-            </View>
+            // MO-14: the PR pill pops in with one gold shine.
+            <PopIn shine>
+              <View className="rounded-full bg-attention/10 px-2 py-0.5">
+                <Text testID={`${testID}-pr`} className="text-caption font-bold text-attention">
+                  {PR_LABELS[prKind]}
+                </Text>
+              </View>
+            </PopIn>
           ) : null}
           {/* UX-05 A1 (T-05.A1.2, PAT-16): a visible remove control on every
             set's label line, same path as long-press/swipe. An ✕, not a ⋯
@@ -221,17 +236,19 @@ function SetRowImpl({
               accessibilityState={{ checked: done }}
               accessibilityLabel={done ? `${summary}. Logged, tap to undo` : `Log ${summary}`}
               onPress={() => onTick(seId, set.id)}
-              className={cn(
-                // WP-04: 52 pt visual + hit area (SET_TICK_SIZE) — the control
-                // used with a barbell in hand.
-                'h-[52px] w-[52px] shrink-0 items-center justify-center rounded-full border-2 active:opacity-70',
-                done ? 'border-positive bg-positive' : 'border-brand/40 bg-surface',
-              )}
+              // WP-04: 52 pt visual + hit area (SET_TICK_SIZE) — the control
+              // used with a barbell in hand. MO-16: the disc fills and the
+              // tick draws in; a faint tick shows while it is open.
+              className="h-[52px] w-[52px] shrink-0 items-center justify-center active:opacity-70"
             >
-              <Icon
-                name="checkmark"
-                size={28}
-                color={done ? colors.onBrand : colors.labelTertiary}
+              <AnimatedCheck
+                checked={done}
+                size={52}
+                fillColor={colors.positive}
+                checkColor={colors.onBrand}
+                ringColor={`${colors.brand}66`}
+                emptyColor={colors.surface}
+                idleCheckColor={colors.labelTertiary}
               />
             </Pressable>
           ) : null}

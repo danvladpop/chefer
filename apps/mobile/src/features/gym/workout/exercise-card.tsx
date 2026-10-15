@@ -1,5 +1,6 @@
 import { memo, useMemo, useState } from 'react';
 import { Pressable, useWindowDimensions, View } from 'react-native';
+import Animated from 'react-native-reanimated';
 import {
   HIDDEN_EXERCISE_IMAGE_IDS,
   RIR_VALUES,
@@ -12,7 +13,14 @@ import {
   type Suggestion,
   type WeightUnit,
 } from '@chefer/types';
-import { Chip, Text, useThemeColors } from '@chefer/ui-mobile';
+import {
+  Chip,
+  listEntering,
+  listExiting,
+  listLayout,
+  Text,
+  useThemeColors,
+} from '@chefer/ui-mobile';
 import { cn, explain, formatLoadNumber, unitLabel } from '@chefer/utils';
 import { Icon } from '../../../components/icon';
 import { ExerciseImage } from '../components/exercise-image';
@@ -369,22 +377,29 @@ function ExerciseCardImpl({
           ) : null}
 
           {working.map((s, i) => (
-            <SetRow
+            // MO-04: an added set fades in, a removed one fades out, the rest glide.
+            <Animated.View
               key={s.id}
-              seId={se.id}
-              set={s}
-              label={`Set ${i + 1}`}
-              last={lastSets[i] ?? null}
-              meta={meta}
-              profile={ctx.profile}
-              unit={ctx.unit}
-              weightMode={weightMode}
-              prKind={pr?.setId === s.id ? pr.kind : null}
-              focused={focusSetId === s.id}
-              handlers={ctx.handlers}
-              showCheck={!logging}
-              testID={`${base}-set-${i + 1}`}
-            />
+              entering={listEntering}
+              exiting={listExiting}
+              layout={listLayout}
+            >
+              <SetRow
+                seId={se.id}
+                set={s}
+                label={`Set ${i + 1}`}
+                last={lastSets[i] ?? null}
+                meta={meta}
+                profile={ctx.profile}
+                unit={ctx.unit}
+                weightMode={weightMode}
+                prKind={pr?.setId === s.id ? pr.kind : null}
+                focused={focusSetId === s.id}
+                handlers={ctx.handlers}
+                showCheck={!logging}
+                testID={`${base}-set-${i + 1}`}
+              />
+            </Animated.View>
           ))}
 
           {showRir ? (

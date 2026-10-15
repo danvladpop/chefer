@@ -800,11 +800,20 @@ export {
 } from './user-facing-error';
 export type { UserFacingErrorOptions, ValidationIssueLike } from './user-facing-error';
 export {
+  bucketDays,
   DEFAULT_PROGRESS_RANGE,
+  DEFAULT_STATS_RANGE,
   evenLabelIndices,
   isLoggedDay,
   PROGRESS_RANGES,
+  STATS_RANGE_LABELS,
+  STATS_RANGE_SPAN,
+  STATS_RANGES,
+  statsBucketDays,
+  type DayBucket,
+  type DayTotals,
   type ProgressRange,
+  type StatsRangeDays,
 } from './progress-days';
 export { chatActionsTrailer, splitChatActions } from './chat-actions';
 export {

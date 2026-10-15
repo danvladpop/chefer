@@ -6,6 +6,7 @@ import Svg, { G, Line, Rect, Text as SvgText } from 'react-native-svg';
 import { cn } from '@chefer/utils';
 import { Text } from '../text';
 import { chartPalette, colors } from '../theme';
+import { RevealClip, useChartReveal, useClipId } from './chart-reveal';
 import {
   clampLabelCentre,
   defaultFormat,
@@ -61,6 +62,11 @@ export function BarChart({
   accessibilityLabel,
 }: BarChartProps) {
   const { width, onLayout } = useChartWidth(widthProp);
+  // Draw-in: the bars rise from the baseline on mount and on a new series.
+  const clipId = useClipId();
+  const reveal = useChartReveal(
+    `${data.length}:${data[0]?.label ?? ''}:${data[data.length - 1]?.label ?? ''}:${width > 0}`,
+  );
 
   if (data.length === 0) {
     return (
@@ -142,40 +148,54 @@ export function BarChart({
             </G>
           ))}
 
+          <RevealClip
+            id={clipId}
+            progress={reveal}
+            direction="y"
+            width={width}
+            height={plotBottom}
+          />
+          <G clipPath={`url(#${clipId})`}>
+            {data.map((bar, i) => {
+              const left = plotLeft + i * slot + (slot - barWidth) / 2;
+              let base = 0;
+              return (
+                <G key={`bar-${i}`}>
+                  {bar.segments.map((segment) => {
+                    const value = Math.max(0, segment.value);
+                    const y0 = y(base);
+                    base += value;
+                    const y1 = y(base);
+                    return value > 0 ? (
+                      <Rect
+                        key={segment.key}
+                        x={left}
+                        y={y1}
+                        width={barWidth}
+                        height={Math.max(0, y0 - y1)}
+                        fill={palette.get(segment.key) ?? colors.primary}
+                      />
+                    ) : null;
+                  })}
+                </G>
+              );
+            })}
+          </G>
+
           {data.map((bar, i) => {
             const left = plotLeft + i * slot + (slot - barWidth) / 2;
-            let base = 0;
-            return (
-              <G key={`bar-${i}`}>
-                {bar.segments.map((segment) => {
-                  const value = Math.max(0, segment.value);
-                  const y0 = y(base);
-                  base += value;
-                  const y1 = y(base);
-                  return value > 0 ? (
-                    <Rect
-                      key={segment.key}
-                      x={left}
-                      y={y1}
-                      width={barWidth}
-                      height={Math.max(0, y0 - y1)}
-                      fill={palette.get(segment.key) ?? colors.primary}
-                    />
-                  ) : null;
-                })}
-                {i % every === 0 ? (
-                  <SvgText
-                    x={clampLabelCentre(left + barWidth / 2, bar.label, width)}
-                    y={height - 4}
-                    fontSize={10}
-                    fill={colors.mutedForeground}
-                    textAnchor="middle"
-                  >
-                    {bar.label}
-                  </SvgText>
-                ) : null}
-              </G>
-            );
+            return i % every === 0 ? (
+              <SvgText
+                key={`label-${i}`}
+                x={clampLabelCentre(left + barWidth / 2, bar.label, width)}
+                y={height - 4}
+                fontSize={10}
+                fill={colors.mutedForeground}
+                textAnchor="middle"
+              >
+                {bar.label}
+              </SvgText>
+            ) : null;
           })}
         </Svg>
       ) : null}
