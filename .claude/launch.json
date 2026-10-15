@@ -18,7 +18,16 @@
     {
       "name": "chefer-ad-studio",
       "runtimeExecutable": "npm",
-      "runtimeArgs": ["--prefix", "marketing/chefer-ad", "run", "dev", "--", "--port", "3123", "--no-open"],
+      "runtimeArgs": [
+        "--prefix",
+        "marketing/chefer-ad",
+        "run",
+        "dev",
+        "--",
+        "--port",
+        "3123",
+        "--no-open"
+      ],
       "port": 3123
     }
   ]
