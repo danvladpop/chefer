@@ -64,4 +64,14 @@ Music sits at 0.55 under narration, ducks to about 40% of that while a line play
 - `src/components/`: `Biscuit` (pure SVG, frame-math animation), `Logo` (the app icon SVG), `Phone` + `TabBar`, `fx` (tap paw, ripple, burst, ring, kibble confetti), `illustrations`, `Sfx`.
 - `src/scenes/`: one file per scene.
 
-Everything is drawn in SVG or CSS. There are no image assets.
+The ad is drawn entirely in SVG or CSS, with no image assets.
+
+## Store screenshots and feature graphic
+
+`src/store/` holds the captioned store screenshots and the Play feature graphic (`docs/app-store/aso-plan.md` §4.1, §4.3). They are one-frame compositions under the **Store** folder in Studio, and they use the raw app captures in `public/store/ios` and `public/store/play`.
+
+```bash
+node scripts/render-store.mjs            # renders every still into docs/app-store/aso-creatives-v1/
+```
+
+See [`docs/app-store/aso-creatives-v1/README.md`](../../docs/app-store/aso-creatives-v1/README.md) for the sets, the frame list and what to change where.
