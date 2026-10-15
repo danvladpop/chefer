@@ -1,7 +1,8 @@
 # Premium motion (2026-10-15)
 
 Proposal: <https://claude.ai/code/artifact/ed98eb20-3d26-4b55-a3e3-2ff7d3e852b1> (owner chose "everything").
-This file is the in-repo record of the patterns it added and where each moment lives.
+This file is the in-repo record of the patterns it added and where each moment lives. It shipped
+in one PR (#152) together with the Stats revamp (Eating | Strength, 1W / 1M / 3M / 1Y).
 
 ## Ground rules
 
