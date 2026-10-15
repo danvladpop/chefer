@@ -30,6 +30,7 @@ import { NutritionCard } from './nutrition-card';
 import { BoardCard, SectionTitle } from './parts';
 import { yourDaySlots } from './today-helpers';
 import { TrainingSection } from './training-card';
+import { useDayCompleteBurst } from './use-day-complete';
 import { TodayWeight } from './weight-card';
 import { YourDayCard } from './your-day-card';
 
@@ -89,6 +90,8 @@ export function TodayScreen() {
   const slotActions = useSlotActions(today);
   // WP-08: Today's own payload decides protein-only, so a cold start never flashes kcal.
   const { proteinOnly } = useNumbersMode(d?.numbersMode);
+  const slots = d ? yourDaySlots(d) : [];
+  const dayBurst = useDayCompleteBurst(slots, today);
 
   const topBar = <ShellTopBar className="mb-1" />;
 
@@ -126,7 +129,6 @@ export function TodayScreen() {
     fatG: n.fat.targetG,
   };
   const hasPlan = d.weekPlan.length > 0;
-  const slots = yourDaySlots(d);
   const showProfileNudge = d.showNutrition && isPremium === true && hasProfile === false;
 
   return (
@@ -184,6 +186,7 @@ export function TodayScreen() {
               fat={{ value: n.fat.eaten, target: target.fatG }}
               proteinOnly={proteinOnly}
               proteinGuide={d.proteinGuide.label}
+              celebrate={dayBurst}
               header={
                 n.trainingDay ? (
                   <TrainingDayNote
@@ -227,7 +230,11 @@ export function TodayScreen() {
             )}
           </View>
 
-          <YourDayCard slots={slots} proteinOnly={proteinOnly} />
+          <YourDayCard
+            slots={slots}
+            proteinOnly={proteinOnly}
+            celebrate={d.showNutrition ? 0 : dayBurst}
+          />
 
           {/* WP-07: a log here can offer to rebalance the week; Undo follows an Apply. */}
           <RebalanceOffer onApplied={() => void refetch()} />

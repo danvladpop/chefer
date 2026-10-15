@@ -167,6 +167,25 @@ export {
 } from './components/charts/week-grid';
 // Motion (docs/audit-2026-09/motion-system.md; tokens in @chefer/tokens)
 export { CountUp, useCountUp, type CountUpProps } from './motion/count-up';
+export { AnimatedCheck, CHECK_PATH_LENGTH, type AnimatedCheckProps } from './motion/animated-check';
+export {
+  Celebration,
+  CELEBRATION_PARTICLES,
+  makeParticles,
+  type CelebrationProps,
+} from './motion/celebration';
+export {
+  ENTER_RISE,
+  enterUp,
+  listEntering,
+  listExiting,
+  listLayout,
+  resetEntrancesForTests,
+  useFirstEntrance,
+} from './motion/enter';
+export { FLOAT_UP_RISE, FloatUp, type FloatUpProps } from './motion/float-up';
+export { PopIn, type PopInProps } from './motion/pop-in';
+export { StrikeLine, type StrikeLineProps } from './motion/strike-line';
 export { haptics } from './motion/haptics';
 export { duration, springs, timing } from './motion/motion';
 export {

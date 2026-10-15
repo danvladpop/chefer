@@ -1229,7 +1229,13 @@ React Native component library (NativeWind) for `apps/mobile`. Peer deps: `react
 - **Confirms.** Two-button destructive confirms use `ConfirmSheet` (`busy` / `error`), not `Alert.alert`.
 
 **Motion** (`src/motion/`, motion-system.md): `duration`/`springs`/`timing()` from `@chefer/tokens`,
-`PressableScale` (MO-01), `haptics.*`, `useReducedMotion()`, `CountUp`, progress helpers. ui-mobile
+`PressableScale` (MO-01), `haptics.*`, `useReducedMotion()`, `CountUp`, progress helpers. Premium
+motion (2026-10-15, `docs/mobile-ux-revamp/motion-premium.md`): `AnimatedCheck` (MO-16 disc fill +
+drawn tick), `FloatUp` ("+520 kcal" rise), `StrikeLine` (MO-17), `PopIn` (MO-14 pop + one shine),
+`Celebration` (MO-18 confetti, one shared value, nothing under reduced motion) and the `enter.ts`
+presets (`enterUp(i)` MO-03 rise with capped stagger, `listEntering`/`listExiting`/`listLayout`
+MO-04/05, `useFirstEntrance(key)` so a tab's entrance plays once per session). All of it is
+Reanimated + react-native-svg, so it ships over OTA. ui-mobile
 has **no icon dependency** — pass an `Ionicons` (or other) node in; app-level features (e.g.
 `apps/mobile/src/features/safety/*`, `.../premium/*`) import `@expo/vector-icons` directly.
 

@@ -1,6 +1,6 @@
 import { View } from 'react-native';
 import { Redirect, Tabs, usePathname } from 'expo-router';
-import { countPillText, useThemeColors } from '@chefer/ui-mobile';
+import { countPillText, haptics, useReducedMotion, useThemeColors } from '@chefer/ui-mobile';
 import { Icon, type IconName } from '../../src/components/icon';
 import { SnackbarAwareTabBar } from '../../src/components/snackbar-tab-bar';
 import { usePendingOnboarding } from '../../src/features/auth/pending-onboarding';
@@ -9,6 +9,7 @@ import { useSyncLandingCache } from '../../src/features/navigation/use-landing';
 import { useOnboardingGate } from '../../src/features/onboarding/use-onboarding-gate';
 import { isShellV2TabPath, type ShellTab } from '../../src/features/shell/shell-routes';
 import { useShellV2 } from '../../src/features/shell/shell-store';
+import { TabIcon } from '../../src/features/shell/tab-icon';
 import { WorkoutMiniBar } from '../../src/features/shell/workout-mini-bar';
 
 // ─── The new shell (mobile UX revamp, phase 1; plan: "Target navigation") ───
@@ -33,6 +34,7 @@ export default function MainTabsLayout() {
   const shellV2 = useShellV2();
   const pathname = usePathname();
   const colors = useThemeColors();
+  const reducedMotion = useReducedMotion();
   useSyncLandingCache();
   // Same in-app Following badge the old More tabs carried, now on You.
   const { badgeCount } = useFriendsMe();
@@ -46,8 +48,12 @@ export default function MainTabsLayout() {
 
   return (
     <Tabs
+      // Premium motion #9: a selection haptic on every tab press and a short
+      // crossfade between tabs (none under reduced motion).
+      screenListeners={{ tabPress: () => haptics.selection() }}
       screenOptions={{
         headerShown: false,
+        animation: reducedMotion ? 'none' : 'fade',
         tabBarActiveTintColor: colors.brand,
         tabBarInactiveTintColor: colors.labelSecondary,
         tabBarStyle: { backgroundColor: colors.surfaceRaised, borderTopColor: colors.separator },
@@ -68,7 +74,9 @@ export default function MainTabsLayout() {
             title: tab.title,
             tabBarButtonTestID: `tab-${tab.name}`,
             tabBarIcon: ({ color, focused }) => (
-              <Icon name={focused ? tab.activeIcon : tab.icon} color={color} size={24} />
+              <TabIcon focused={focused}>
+                <Icon name={focused ? tab.activeIcon : tab.icon} color={color} size={24} />
+              </TabIcon>
             ),
             ...(tab.name === 'you' && {
               tabBarBadge: badgeCount > 0 ? countPillText(badgeCount) : undefined,
