@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, BackHandler, Pressable, View } from 'react-native';
+import Animated, { useAnimatedStyle } from 'react-native-reanimated';
 import { Ionicons } from '@expo/vector-icons';
 import { router, useFocusEffect } from 'expo-router';
 import type { OnboardingJob } from '@chefer/types';
@@ -13,10 +14,12 @@ import {
   Button,
   colors,
   ConfirmSheet,
+  enterFromSide,
   ErrorState,
   KeyboardAwareScrollView,
   Screen,
   Text,
+  useProgressValue,
 } from '@chefer/ui-mobile';
 import {
   aiConsentRequiredFor,
@@ -159,6 +162,24 @@ function hasAnySafetyTerm(value: SafetyValue): boolean {
   );
 }
 
+/**
+ * The wizard's progress fill: glides to each step's fraction on the progress
+ * spring (MO-06) instead of jumping, via scaleX so only a transform animates.
+ */
+function ProgressFill({ fraction }: { fraction: number }) {
+  const value = useProgressValue(fraction);
+  const style = useAnimatedStyle(() => ({
+    transform: [{ scaleX: Math.min(1, Math.max(0, value.get())) }],
+  }));
+  return (
+    <Animated.View
+      testID="onboarding-progress-fill"
+      className="h-full w-full rounded-full bg-primary"
+      style={[{ transformOrigin: 'left' }, style]}
+    />
+  );
+}
+
 export function OnboardingWizard() {
   const isPremium = useIsPremium();
   const utils = trpc.useUtils();
@@ -174,6 +195,12 @@ export function OnboardingWizard() {
   // very first frame is already the resumed step.
   const [draft] = useState(() => readOnboardingDraft(getToken()));
   const [step, setStep] = useState(draft?.step ?? 0);
+  // Which way the last step change went, for the slide (forward = from the right).
+  const lastStep = useRef(step);
+  const stepDirection: 1 | -1 = step >= lastStep.current ? 1 : -1;
+  useEffect(() => {
+    lastStep.current = step;
+  }, [step]);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const savingRef = useRef(false);
@@ -984,7 +1011,7 @@ export function OnboardingWizard() {
         }
         className="mx-4 mb-2 h-1.5 overflow-hidden rounded-full bg-gray-100"
       >
-        <View className="h-full rounded-full bg-primary" style={{ width: `${progressPct}%` }} />
+        <ProgressFill fraction={progressPct / 100} />
       </View>
 
       {/* UX-ONB-07: Continue is the scroll view's sticky footer, so it rises with
@@ -1025,7 +1052,10 @@ export function OnboardingWizard() {
           </View>
         }
       >
-        {content}
+        {/* Premium motion #17: each step slides in from the side you're heading. */}
+        <Animated.View entering={enterFromSide(stepDirection)} className="gap-4">
+          {content}
+        </Animated.View>
         {error && (
           <View className="rounded-md bg-red-50 px-4 py-3">
             <Text className="text-sm text-red-600">{error}</Text>

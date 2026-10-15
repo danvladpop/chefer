@@ -1,15 +1,24 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Keyboard, Pressable, View, type TextInput } from 'react-native';
+import Animated from 'react-native-reanimated';
 import { router } from 'expo-router';
 import {
+  AnimatedCheck,
   Button,
+  Celebration,
+  duration,
   ErrorState,
   haptics,
   IconButton,
   KeyboardAwareScrollView,
+  listEntering,
+  listExiting,
+  listLayout,
+  Rotate,
   Screen,
   SearchField,
   SegmentedControl,
+  StrikeLine,
   Text,
   useScrollFieldIntoView,
   useSnackbar,
@@ -68,6 +77,9 @@ import { shopGroups, shopGroupStatus, type ShopGroup } from './shop-groups';
 // portions chip.
 
 type WeekOffset = 0 | 1;
+
+/** A finished aisle folds shut after its last strike has had time to play. */
+const AISLE_FOLD_DELAY_MS = duration.deliberate;
 
 const WEEK_OPTIONS = [
   { value: '0' as const, label: 'This week', testID: 'shop-week-0' },
@@ -205,14 +217,38 @@ export function ShopScreen() {
     });
   }, []);
 
+  // MO-18: the whole list done earns one burst; MO-05: a finished aisle folds
+  // shut once its last strike has played (not saved, so it reopens next time).
+  const [listBurst, setListBurst] = useState(0);
+  const foldTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(
+    () => () => {
+      if (foldTimer.current) clearTimeout(foldTimer.current);
+    },
+    [],
+  );
+
   const toggleItem = (key: string) => {
     if (!weekList?.planId) return;
-    haptics.selection();
-    toggleMutation.mutate({
-      planId: weekList.planId,
-      keys: [key],
-      checked: !checkedKeys.includes(key),
-    });
+    const checking = !checkedKeys.includes(key);
+    if (checking) {
+      haptics.tick();
+      const open = items.filter((i) => !checkedKeys.includes(i.key));
+      const category = items.find((i) => i.key === key)?.category;
+      const openInAisle = open.filter((i) => i.category === category).length;
+      if (open.length === 1) {
+        haptics.success();
+        setListBurst((b) => b + 1);
+      } else if (openInAisle === 1 && category !== undefined && !searching) {
+        if (foldTimer.current) clearTimeout(foldTimer.current);
+        foldTimer.current = setTimeout(() => {
+          setExpandedAisles((prev) => ({ ...prev, [category]: false }));
+        }, AISLE_FOLD_DELAY_MS);
+      }
+    } else {
+      haptics.selection();
+    }
+    toggleMutation.mutate({ planId: weekList.planId, keys: [key], checked: checking });
   };
 
   // T-21.5 (CI-14): keeps the field clear of the keyboard.
@@ -255,9 +291,10 @@ export function ShopScreen() {
     const expanded = searching || isAisleExpanded(expandedAisles, group.category);
     const status = shopGroupStatus(group);
     return (
-      <View
+      <Animated.View
         key={group.category}
         testID={`shop-group-${group.category}`}
+        layout={listLayout}
         className="overflow-hidden rounded-card border border-separator bg-surface"
       >
         <Pressable
@@ -280,11 +317,10 @@ export function ShopScreen() {
           >
             {status}
           </Text>
-          <Icon
-            name={expanded ? 'chevronUp' : 'chevronDown'}
-            color={colors.labelSecondary}
-            size={18}
-          />
+          {/* MO-05: the chevron turns with the aisle. */}
+          <Rotate turned={expanded}>
+            <Icon name="chevronDown" color={colors.labelSecondary} size={18} />
+          </Rotate>
         </Pressable>
         {expanded
           ? group.items.map((item) => {
@@ -292,7 +328,13 @@ export function ShopScreen() {
               const pending = isPendingItem(item);
               const quantity = quantityLabel(item);
               return (
-                <View key={item.key} className="flex-row items-center border-t border-separator">
+                <Animated.View
+                  key={item.key}
+                  entering={listEntering}
+                  exiting={listExiting}
+                  layout={listLayout}
+                  className="flex-row items-center border-t border-separator"
+                >
                   <Pressable
                     testID={`shop-item-${item.key}`}
                     accessibilityRole="checkbox"
@@ -302,27 +344,30 @@ export function ShopScreen() {
                     onPress={() => toggleItem(item.key)}
                     className="min-h-12 min-w-0 flex-1 flex-row items-center gap-3 py-1 pl-4 pr-3"
                   >
-                    <View
-                      className={cn(
-                        'items-center justify-center rounded-inner border-2',
-                        checked
-                          ? 'border-positive bg-positive'
-                          : 'border-label-tertiary bg-surface',
-                      )}
-                      style={{ width: 26, height: 26 }}
-                    >
-                      {checked ? <Icon name="checkmark" color={colors.onBrand} size={18} /> : null}
-                    </View>
+                    {/* MO-16: the box fills and the tick draws in. */}
+                    <AnimatedCheck
+                      checked={checked}
+                      size={26}
+                      shape="square"
+                      fillColor={colors.positive}
+                      checkColor={colors.onBrand}
+                      ringColor={colors.labelTertiary}
+                      emptyColor={colors.surface}
+                    />
                     <View className="min-w-0 flex-1 flex-row items-center gap-1.5">
-                      <Text
-                        numberOfLines={1}
-                        className={cn(
-                          'shrink text-body',
-                          checked ? 'text-label-tertiary line-through' : 'text-label',
-                        )}
-                      >
-                        {item.ingredientName}
-                      </Text>
+                      {/* MO-17: a strike sweeps across the name instead of line-through. */}
+                      <View className="relative shrink">
+                        <Text
+                          numberOfLines={1}
+                          className={cn(
+                            'text-body',
+                            checked ? 'text-label-tertiary' : 'text-label',
+                          )}
+                        >
+                          {item.ingredientName}
+                        </Text>
+                        <StrikeLine active={checked} color={colors.labelTertiary} />
+                      </View>
                       {/* T-01.9: the risk sits in a bought product — flagged inline. */}
                       {item.labelCheck && item.labelCheck.length > 0 ? (
                         <LabelCaveat
@@ -351,11 +396,11 @@ export function ShopScreen() {
                       }}
                     />
                   ) : null}
-                </View>
+                </Animated.View>
               );
             })
           : null}
-      </View>
+      </Animated.View>
     );
   };
 
@@ -519,6 +564,12 @@ export function ShopScreen() {
         checkedKeys={checkedKeys}
         fromDayOfWeek={weekList?.fromDayOfWeek}
         portions={weekList?.portions ?? null}
+      />
+      <Celebration
+        testID="shop-celebration"
+        play={listBurst}
+        colors={[colors.brand, colors.positive, colors.attention, colors.info]}
+        origin={{ x: 0.5, y: 0.45 }}
       />
     </Screen>
   );

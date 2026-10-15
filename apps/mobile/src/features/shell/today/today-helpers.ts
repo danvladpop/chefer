@@ -130,15 +130,17 @@ export function lastWeighInText(
 export function weightChangeText(
   entries: readonly WeightEntry[],
   system: UnitSystem,
-  windowDays: number,
+  /** Days, or the span in words ("a year"). */
+  windowDays: number | string,
 ): string | null {
   const first = entries.at(0);
   const latest = entries.at(-1);
   if (!first || !latest || entries.length < 2) return null;
+  const span = typeof windowDays === 'number' ? `${windowDays} days` : windowDays;
   const delta = latest.weightKg - first.weightKg;
-  if (Math.abs(delta) < 0.05) return `No change in ${windowDays} days`;
+  if (Math.abs(delta) < 0.05) return `No change in ${span}`;
   // A real minus sign reads better than a hyphen next to a number.
-  return `${formatBodyWeight(delta, system, { signed: true }).replace('-', '−')} in ${windowDays} days`;
+  return `${formatBodyWeight(delta, system, { signed: true }).replace('-', '−')} in ${span}`;
 }
 
 /** "18:40" in the device's own clock (same as the Recent workouts rows). */

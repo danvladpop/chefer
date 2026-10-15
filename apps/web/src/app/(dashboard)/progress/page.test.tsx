@@ -105,13 +105,17 @@ describe('ProgressPage (UX-FOOD-20, UX-FOOD-28)', () => {
     render(<ProgressPage />);
     const lastInput = () =>
       mocks.monthlyInput.mock.calls.at(-1)?.[0] as { days: number; localDate: string };
-    expect(lastInput().days).toBe(28);
+    expect(lastInput().days).toBe(30);
     expect(lastInput().localDate).toMatch(/^\d{4}-\d{2}-\d{2}$/);
     fireEvent.click(screen.getByTestId('progress-range-7'));
     expect(lastInput().days).toBe(7);
     expect(screen.getByTestId('progress-range-7').getAttribute('aria-pressed')).toBe('true');
     fireEvent.click(screen.getByTestId('progress-range-90'));
     expect(lastInput().days).toBe(90);
+    // 1Y (2026-10-15): the same four ranges as the app's Stats.
+    expect(screen.getByTestId('progress-range-365').textContent).toBe('1Y');
+    fireEvent.click(screen.getByTestId('progress-range-365'));
+    expect(lastInput().days).toBe(365);
   });
 
   it('keeps the weight card when the calorie summary fails', () => {

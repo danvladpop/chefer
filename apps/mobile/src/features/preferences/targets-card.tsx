@@ -1,6 +1,13 @@
 import { useEffect, useState } from 'react';
 import { Pressable, View } from 'react-native';
-import { ErrorState, Input, SegmentedControl, Text, useQueryState } from '@chefer/ui-mobile';
+import {
+  ErrorState,
+  Input,
+  SegmentedControl,
+  Text,
+  useCountUp,
+  useQueryState,
+} from '@chefer/ui-mobile';
 import { formatKcal, userFacingErrorMessage } from '@chefer/utils';
 import { trpc } from '../../lib/trpc';
 import { useNumbersMode } from '../numbers-mode/numbers-mode';
@@ -249,12 +256,9 @@ export function TargetsCard({ previewKcal, numbersSettings }: TargetsCardProps =
           </View>
         ) : (
           <View className="gap-1 rounded-control bg-brand-tint p-3">
-            <Text testID="targets-suggested-kcal" className="text-title2 font-bold text-brand">
-              {formatKcal(
-                fromEntered && previewKcal ? previewKcal : data.suggested.dailyCalorieTarget,
-              )}{' '}
-              kcal
-            </Text>
+            <SuggestedKcal
+              value={fromEntered && previewKcal ? previewKcal : data.suggested.dailyCalorieTarget}
+            />
             <Text className="text-subhead text-label-secondary">
               {fromEntered
                 ? 'Worked out from the details you entered. Your macros are set when you finish.'
@@ -338,5 +342,20 @@ export function TargetsCard({ previewKcal, numbersSettings }: TargetsCardProps =
         />
       )}
     </BoardCard>
+  );
+}
+
+/** Premium motion #17 (MO-06): the suggested daily kcal counts up to its value. */
+function SuggestedKcal({ value }: { value: number }) {
+  const shown = useCountUp(value);
+  return (
+    <Text
+      testID="targets-suggested-kcal"
+      accessibilityLabel={`${formatKcal(value)} kcal`}
+      className="text-title2 font-bold text-brand"
+      style={{ fontVariant: ['tabular-nums'] }}
+    >
+      {formatKcal(shown)} kcal
+    </Text>
   );
 }

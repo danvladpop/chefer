@@ -26,7 +26,10 @@ import {
   PressableScale,
   Screen,
   SegmentedControl,
+  Skeleton,
+  Stagger,
   Text,
+  useFirstEntrance,
   useReducedMotion,
   useSnackbar,
   useThemeColors,
@@ -132,6 +135,8 @@ function weekLabelFor(weekOffset: number): string {
 
 export function MealsScreen() {
   const colors = useThemeColors();
+  // MO-03: the week's cards rise in on the first load of the session only.
+  const firstEntrance = useFirstEntrance('meals');
   // UX-FOOD-18 deep link (Today's Tonight "Swap"): `week=0&day=<0-6>&swap=dinner`,
   // `at` makes a repeat count as new. `replan=1` comes back from Meal settings:
   // the shape changed and this week already has a plan — ask about a new one.
@@ -688,413 +693,429 @@ export function MealsScreen() {
           onChange={(value) => setWeekOffset(Number(value) as WeekOffset)}
         />
 
-        {isLoading ? (
-          <View className="items-center py-16">
-            <ActivityIndicator size="large" color={colors.brand} />
-          </View>
-        ) : isError && !plan ? (
-          // A failed load is not an empty week — never offer Generate over it (F-X-3-1).
-          <ErrorState title="Couldn't load your meal plan" onRetry={() => void refetch()} />
-        ) : !plan ? (
-          /* ── Empty week ─────────────────────────────────────────────── */
-          <>
+        <Stagger enabled={firstEntrance}>
+          {isLoading ? (
+            // MO-03: the week's shape while it loads, then the cards rise in.
             <View
-              testID="meals-empty"
-              className="items-center gap-3 rounded-card border border-separator bg-surface px-4 py-8"
+              testID="meals-loading"
+              accessible
+              accessibilityLabel="Loading meals"
+              className="gap-3"
             >
-              <Icon name="calendar" color={colors.labelTertiary} size={36} />
-              <Text className="text-center text-headline font-semibold text-label">
-                No plan for {weekLabel} yet
-              </Text>
-              <Text
-                testID="meals-empty-summary"
-                className="text-center text-subhead text-label-secondary"
-              >
-                {shape
-                  ? planShapeSummary(shape)
-                  : isPremium
-                    ? 'Generate an AI plan personalised to your profile and ratings.'
-                    : 'Generate a plan from our curated collection.'}
-              </Text>
-              <Button
-                testID="meals-generate"
-                loading={generateMutation.isPending}
-                onPress={() => generateWithConsent()}
-              >
-                {generateMutation.isPending
-                  ? 'Cooking up your week…'
-                  : shape
-                    ? planButtonLabel(shape)
-                    : 'Generate Plan'}
-              </Button>
-              <Pressable
-                testID="meals-change-shape"
-                accessibilityRole="button"
-                onPress={openSettings}
-                className="min-h-11 items-center justify-center px-2"
-              >
-                <Text className="text-subhead font-semibold text-brand">Change what we plan</Text>
-              </Pressable>
-              {isPremium === true ? (
-                <View className="min-h-11 flex-row items-center gap-3">
-                  <Text className="min-w-0 flex-1 text-subhead text-label-secondary">
-                    Cook once, eat twice (leftover lunches)
-                  </Text>
-                  <Switch
-                    testID="meals-leftovers"
-                    accessibilityLabel="Cook once, eat twice (leftover lunches)"
-                    value={leftovers}
-                    onValueChange={setLeftovers}
-                    trackColor={{ true: colors.brand, false: colors.separator }}
-                  />
-                </View>
-              ) : null}
+              <Skeleton className="h-16 w-full rounded-card" />
+              <Skeleton className="h-24 w-full rounded-card" />
+              <Skeleton className="h-24 w-full rounded-card" />
+              <Skeleton className="h-24 w-full rounded-card" />
             </View>
-
-            {poolExhaustedMessage ? (
-              <View className="gap-2 rounded-card bg-brand-tint p-4">
-                <Text testID="meals-pool-exhausted" className="text-headline text-label">
-                  Our recipes can’t fill this week around your restrictions.
+          ) : isError && !plan ? (
+            // A failed load is not an empty week — never offer Generate over it (F-X-3-1).
+            <ErrorState title="Couldn't load your meal plan" onRetry={() => void refetch()} />
+          ) : !plan ? (
+            /* ── Empty week ─────────────────────────────────────────────── */
+            <>
+              <View
+                testID="meals-empty"
+                className="items-center gap-3 rounded-card border border-separator bg-surface px-4 py-8"
+              >
+                <Icon name="calendar" color={colors.labelTertiary} size={36} />
+                <Text className="text-center text-headline font-semibold text-label">
+                  No plan for {weekLabel} yet
                 </Text>
-                <Text className="text-subhead text-label-secondary">{poolExhaustedMessage}</Text>
-                <Button
-                  testID="meals-pool-pick-recipes"
-                  variant="outline"
-                  onPress={() => router.push('/cookbook')}
+                <Text
+                  testID="meals-empty-summary"
+                  className="text-center text-subhead text-label-secondary"
                 >
-                  Pick recipes yourself
+                  {shape
+                    ? planShapeSummary(shape)
+                    : isPremium
+                      ? 'Generate an AI plan personalised to your profile and ratings.'
+                      : 'Generate a plan from our curated collection.'}
+                </Text>
+                <Button
+                  testID="meals-generate"
+                  loading={generateMutation.isPending}
+                  onPress={() => generateWithConsent()}
+                >
+                  {generateMutation.isPending
+                    ? 'Cooking up your week…'
+                    : shape
+                      ? planButtonLabel(shape)
+                      : 'Generate Plan'}
                 </Button>
-                {isPremium !== true ? (
-                  <Button
-                    testID="meals-pool-premium"
-                    variant="ghost"
-                    onPress={() => openPremium('pool-exhaustion')}
-                  >
-                    Premium builds a plan around them
-                  </Button>
+                <Pressable
+                  testID="meals-change-shape"
+                  accessibilityRole="button"
+                  onPress={openSettings}
+                  className="min-h-11 items-center justify-center px-2"
+                >
+                  <Text className="text-subhead font-semibold text-brand">Change what we plan</Text>
+                </Pressable>
+                {isPremium === true ? (
+                  <View className="min-h-11 flex-row items-center gap-3">
+                    <Text className="min-w-0 flex-1 text-subhead text-label-secondary">
+                      Cook once, eat twice (leftover lunches)
+                    </Text>
+                    <Switch
+                      testID="meals-leftovers"
+                      accessibilityLabel="Cook once, eat twice (leftover lunches)"
+                      value={leftovers}
+                      onValueChange={setLeftovers}
+                      trackColor={{ true: colors.brand, false: colors.separator }}
+                    />
+                  </View>
                 ) : null}
               </View>
-            ) : null}
 
-            {generateMutation.isError && !poolExhaustedMessage ? (
-              <Text
-                testID="meals-generate-error"
-                accessibilityLiveRegion="polite"
-                className="text-subhead text-attention"
-              >
-                {userFacingErrorMessage(generateMutation.error)}
-              </Text>
-            ) : null}
-
-            {cookbookEntry}
-          </>
-        ) : (
-          /* ── Day view ──────────────────────────────────────────────── */
-          <>
-            <DayStrip
-              testID="meals-days"
-              days={weekStripDays(getWeekStartDate(weekOffset), todayIndex)}
-              selectedKey={String(selectedDay)}
-              onSelect={(key) => setSelectedDay(Number(key))}
-            />
-
-            <TailoringLine
-              tailoring={plan.tailoring}
-              sawRunning={sawRunning}
-              onResume={
-                isPremium === true && plan.tailoring?.canResume ? resumeTailoring : undefined
-              }
-              resuming={resumeTailoringMutation.isPending}
-            />
-
-            {/* A log elsewhere swapped future meals — say which, offer undo. */}
-            <RebalanceBanner planId={plan.planId} onUndone={() => void refetch()} />
-            {/* WP-07 / Change week → Rebalance: the preview's offer. */}
-            <RebalanceOffer planId={plan.planId} onApplied={() => void refetch()} />
-
-            {showPremiumChanges ? (
-              <PremiumChangesCard
-                changes={premiumChanges}
-                hasPrevious={!!lastGenerate?.previousPlanId}
-                onFixIt={openMiss}
-                onCompare={() => setCompareOpen(true)}
-                onDismiss={() => {
-                  dismissPlan('premium-changes', plan.planId);
-                  setChangesDismissedFor(plan.planId);
-                }}
-              />
-            ) : null}
-
-            {/* T-11.3: the target moved since this week was planned. */}
-            {replanNeeded ? (
-              <View testID="meals-replan-banner" className="gap-1 rounded-card bg-brand-tint p-3">
-                <Text className="text-subhead text-label">
-                  {proteinOnly
-                    ? 'Your targets have changed since this week was planned. Re-plan to match them?'
-                    : `This week was planned for ${formatKcal(plannedKcal)} kcal. Re-plan with ${formatKcal(liveKcal)} kcal?`}
-                </Text>
-                <View className="flex-row gap-2">
-                  <Pressable
-                    testID="meals-replan-action"
-                    accessibilityRole="button"
-                    onPress={openRegenerateConfirm}
-                    className="min-h-11 justify-center px-2"
+              {poolExhaustedMessage ? (
+                <View className="gap-2 rounded-card bg-brand-tint p-4">
+                  <Text testID="meals-pool-exhausted" className="text-headline text-label">
+                    Our recipes can’t fill this week around your restrictions.
+                  </Text>
+                  <Text className="text-subhead text-label-secondary">{poolExhaustedMessage}</Text>
+                  <Button
+                    testID="meals-pool-pick-recipes"
+                    variant="outline"
+                    onPress={() => router.push('/cookbook')}
                   >
-                    <Text className="text-subhead font-semibold text-brand">Re-plan</Text>
-                  </Pressable>
-                  <Pressable
-                    testID="meals-replan-keep"
-                    accessibilityRole="button"
-                    onPress={() => {
-                      dismissPlan('replan', plan.planId);
-                      setReplanDismissedFor(plan.planId);
-                    }}
-                    className="min-h-11 justify-center px-2"
-                  >
-                    <Text className="text-subhead font-semibold text-brand">Keep</Text>
-                  </Pressable>
-                </View>
-              </View>
-            ) : null}
-
-            {plan.firstScaledWeek === true ? (
-              <Text testID="meals-first-scaled-week" className="text-caption text-label-secondary">
-                Sized for your table of {memberCount + 1}, free for your first week
-              </Text>
-            ) : null}
-            {plan.carriedOver ? (
-              <Text testID="meals-carried-over" className="text-caption text-label-secondary">
-                Continued from your last plan
-              </Text>
-            ) : null}
-
-            {/* The day's totals: the legacy maths (portions, swapped/skipped left out). */}
-            {meals.length > 0 ? (
-              <View
-                testID="meals-day-totals"
-                accessibilityLabel="Day totals"
-                className="gap-3 rounded-card border border-separator bg-surface p-4"
-              >
-                <Text className="text-subhead font-semibold text-label-secondary">
-                  {weekdayLongName(selectedDay)}
-                </Text>
-                <View className="flex-row items-end justify-between gap-2">
-                  {proteinOnly ? (
-                    <Text testID="meals-day-protein" className="text-title1 font-bold text-label">
-                      {totals.protein}
-                      <Text className="text-headline font-semibold text-label-secondary">
-                        {' '}
-                        g protein
-                      </Text>
-                    </Text>
-                  ) : (
-                    <Text
-                      testID="meals-day-kcal"
-                      className="text-title1 font-bold text-label"
-                      style={{ fontVariant: ['tabular-nums'] }}
+                    Pick recipes yourself
+                  </Button>
+                  {isPremium !== true ? (
+                    <Button
+                      testID="meals-pool-premium"
+                      variant="ghost"
+                      onPress={() => openPremium('pool-exhaustion')}
                     >
-                      {formatKcal(totals.kcal)}
-                      <Text className="text-headline font-semibold text-label-secondary">
-                        {' '}
-                        kcal
-                      </Text>
-                    </Text>
-                  )}
-                  {!proteinOnly && dayTarget ? (
-                    <Text
-                      testID="meals-day-target"
-                      className="pb-1 text-subhead text-label-secondary"
-                    >
-                      target {formatKcal(dayTarget)}
-                    </Text>
+                      Premium builds a plan around them
+                    </Button>
                   ) : null}
                 </View>
-                {proteinOnly ? null : (
-                  <MacroTiles
-                    testID="meals-day-macros"
-                    protein={totals.protein}
-                    carbs={totals.carbs}
-                    fat={totals.fat}
-                  />
-                )}
-                {dayStatus !== null ? (
-                  // T-11.3: neutral and tappable — Bigger portions / Add a snack / Keep it.
-                  <Pressable
-                    testID="meals-day-status"
-                    accessibilityRole="button"
-                    accessibilityLabel={`${dayStatus}. See options`}
-                    onPress={() => openMiss(selectedDay)}
-                    className="min-h-11 flex-row items-center gap-1.5"
-                  >
-                    <Text className="min-w-0 flex-shrink text-subhead text-label-secondary">
-                      {dayStatus}
-                    </Text>
-                    <Text className="text-subhead font-semibold text-brand">See options</Text>
-                  </Pressable>
-                ) : null}
-              </View>
-            ) : null}
+              ) : null}
 
-            <View className="flex-row items-center justify-between gap-2">
-              <Text accessibilityRole="header" className="text-title3 font-bold text-label">
-                Meals
-              </Text>
-              {/* MO-01: press feedback through PressableScale. */}
-              <PressableScale
-                testID="meals-change-week"
-                accessibilityRole="button"
-                accessibilityLabel="Change week"
-                onPress={() => {
-                  haptics.selection();
-                  setChangeWeekOpen(true);
-                }}
-                className="min-h-11 flex-row items-center gap-1.5 px-1"
-              >
-                <Icon name="refresh" color={colors.brand} size={18} />
-                <Text className="text-callout font-semibold text-brand">Change week</Text>
-              </PressableScale>
-            </View>
-
-            {meals.length === 0 ? (
-              // T-07.3: a day outside the chosen shape says so and offers `planDay`.
-              <View className="items-center gap-2 rounded-card border border-separator bg-surface px-4 py-6">
-                {day?.planned === false ? (
-                  <>
-                    <Text
-                      testID="meals-day-unplanned"
-                      className="text-center text-subhead text-label-secondary"
-                    >
-                      Not planned. You cook {shape ? planShapeSummary(shape) : 'some days'}.
-                    </Text>
-                    <Pressable
-                      testID="meals-day-add"
-                      accessibilityRole="button"
-                      accessibilityLabel={`Plan ${weekdayLongName(selectedDay)} too`}
-                      disabled={planDayMutation.isPending}
-                      onPress={() =>
-                        planDayMutation.mutate({ planId: plan.planId, dayOfWeek: selectedDay })
-                      }
-                      className="min-h-11 items-center justify-center px-2"
-                    >
-                      {planDayMutation.isPending ? (
-                        <ActivityIndicator size="small" color={colors.brand} />
-                      ) : (
-                        <Text className="text-subhead font-semibold text-brand">Plan this day</Text>
-                      )}
-                    </Pressable>
-                  </>
-                ) : (
-                  <Text className="text-subhead text-label-secondary">
-                    No meals planned for this day.
-                  </Text>
-                )}
-              </View>
-            ) : (
-              // MO-13: a day the chef just replaced fades its new meals in
-              // (opacity only — instant under Reduce Motion).
-              <Animated.View
-                key={meals.map((m) => m.recipe.id).join(',')}
-                entering={
-                  updatedDays.has(selectedDay)
-                    ? FadeIn.duration(reducedMotion ? 0 : duration.deliberate)
-                    : undefined
-                }
-                className="gap-2.5"
-              >
-                {updatedDays.has(selectedDay) ? (
-                  <Text
-                    testID="meals-day-updated"
-                    className="text-caption font-semibold text-positive"
-                  >
-                    {PLAN_TAILORING_COPY.dayUpdated}
-                  </Text>
-                ) : null}
-                {/* 11 Oct owner feedback: one meal card per line, not a 2-column grid. */}
-                <View testID="meals-tiles" className="gap-2.5">
-                  {slotEntries.map(renderTile)}
-                </View>
-              </Animated.View>
-            )}
-
-            {/* WP-06: a slot eaten as something else, or skipped — with its undo. */}
-            {slotEntries.map(({ entry }) => {
-              const state = slotStateList?.[entry.slotIndex];
-              const slotRef = { mealType: entry.meal.type, slotIndex: entry.slotIndex };
-              const who = mealLabel(entry.meal.type);
-              if (state?.status === 'replaced') {
-                const replaced = state.entry;
-                return (
-                  <SlotStatusLine
-                    key={`replaced-${entry.slotIndex}`}
-                    testID={`meals-slot-replaced-${entry.slotIndex}`}
-                    text={`${who}: ${youHadText(replaced, proteinOnly)}`}
-                    actionLabel={replaced.entryId ? SLOT_COPY.remove : undefined}
-                    onAction={() => {
-                      if (!replaced.entryId || !replaced.custom) return;
-                      slotFlow.actions.removeReplacement({
-                        entryId: replaced.entryId,
-                        name: replaced.custom.name,
-                        estimatedBy: replaced.custom.estimatedBy,
-                        kcal: replaced.kcal,
-                        protein: replaced.protein,
-                        carbs: replaced.carbs,
-                        fat: replaced.fat,
-                        unknownMacros: replaced.unknownMacros,
-                        replacesSlot: slotRef,
-                      });
-                    }}
-                  />
-                );
-              }
-              if (state?.status === 'skipped') {
-                return (
-                  <SlotStatusLine
-                    key={`skipped-${entry.slotIndex}`}
-                    testID={`meals-slot-skipped-${entry.slotIndex}`}
-                    text={`${who}: ${SLOT_COPY.skippedLabel}`}
-                    actionLabel={SLOT_COPY.undo}
-                    onAction={() => slotFlow.actions.unskipSlot(slotRef)}
-                  />
-                );
-              }
-              return null;
-            })}
-
-            {/* A dish that fails the table's rules is never shown silently. */}
-            {slotEntries.map(({ entry }) => {
-              const conflict = mealConflictText(entry.meal);
-              return conflict ? (
+              {generateMutation.isError && !poolExhaustedMessage ? (
                 <Text
-                  key={`conflict-${entry.slotIndex}`}
-                  testID={`meals-conflict-${entry.slotIndex}`}
-                  accessibilityRole="alert"
+                  testID="meals-generate-error"
+                  accessibilityLiveRegion="polite"
                   className="text-subhead text-attention"
                 >
-                  {entry.meal.recipe.name}: {conflict}. Check the ingredients or change it.
+                  {userFacingErrorMessage(generateMutation.error)}
                 </Text>
-              ) : null;
-            })}
+              ) : null}
 
-            {/* Owner decision 10 Oct: one safety line, the full text on tap. */}
-            <View testID="meals-safety" className="flex-row items-center gap-2">
-              <Icon name="shield" color={colors.positive} size={18} />
-              <Text
-                testID="meals-safety-text"
-                className="min-w-0 flex-1 text-caption text-label-secondary"
-              >
-                {mealsSafetyLine(plan.tableSafety)}
-              </Text>
-              <IconButton
-                testID="meals-safety-info"
-                accessibilityLabel="About meal suggestions and allergen checks"
-                icon={<Icon name="info" color={colors.labelSecondary} />}
-                onPress={() => setAboutOpen(true)}
+              {cookbookEntry}
+            </>
+          ) : (
+            /* ── Day view ──────────────────────────────────────────────── */
+            <>
+              <DayStrip
+                testID="meals-days"
+                days={weekStripDays(getWeekStartDate(weekOffset), todayIndex)}
+                selectedKey={String(selectedDay)}
+                onSelect={(key) => setSelectedDay(Number(key))}
               />
-            </View>
 
-            {cookbookEntry}
-          </>
-        )}
+              <TailoringLine
+                tailoring={plan.tailoring}
+                sawRunning={sawRunning}
+                onResume={
+                  isPremium === true && plan.tailoring?.canResume ? resumeTailoring : undefined
+                }
+                resuming={resumeTailoringMutation.isPending}
+              />
+
+              {/* A log elsewhere swapped future meals — say which, offer undo. */}
+              <RebalanceBanner planId={plan.planId} onUndone={() => void refetch()} />
+              {/* WP-07 / Change week → Rebalance: the preview's offer. */}
+              <RebalanceOffer planId={plan.planId} onApplied={() => void refetch()} />
+
+              {showPremiumChanges ? (
+                <PremiumChangesCard
+                  changes={premiumChanges}
+                  hasPrevious={!!lastGenerate?.previousPlanId}
+                  onFixIt={openMiss}
+                  onCompare={() => setCompareOpen(true)}
+                  onDismiss={() => {
+                    dismissPlan('premium-changes', plan.planId);
+                    setChangesDismissedFor(plan.planId);
+                  }}
+                />
+              ) : null}
+
+              {/* T-11.3: the target moved since this week was planned. */}
+              {replanNeeded ? (
+                <View testID="meals-replan-banner" className="gap-1 rounded-card bg-brand-tint p-3">
+                  <Text className="text-subhead text-label">
+                    {proteinOnly
+                      ? 'Your targets have changed since this week was planned. Re-plan to match them?'
+                      : `This week was planned for ${formatKcal(plannedKcal)} kcal. Re-plan with ${formatKcal(liveKcal)} kcal?`}
+                  </Text>
+                  <View className="flex-row gap-2">
+                    <Pressable
+                      testID="meals-replan-action"
+                      accessibilityRole="button"
+                      onPress={openRegenerateConfirm}
+                      className="min-h-11 justify-center px-2"
+                    >
+                      <Text className="text-subhead font-semibold text-brand">Re-plan</Text>
+                    </Pressable>
+                    <Pressable
+                      testID="meals-replan-keep"
+                      accessibilityRole="button"
+                      onPress={() => {
+                        dismissPlan('replan', plan.planId);
+                        setReplanDismissedFor(plan.planId);
+                      }}
+                      className="min-h-11 justify-center px-2"
+                    >
+                      <Text className="text-subhead font-semibold text-brand">Keep</Text>
+                    </Pressable>
+                  </View>
+                </View>
+              ) : null}
+
+              {plan.firstScaledWeek === true ? (
+                <Text
+                  testID="meals-first-scaled-week"
+                  className="text-caption text-label-secondary"
+                >
+                  Sized for your table of {memberCount + 1}, free for your first week
+                </Text>
+              ) : null}
+              {plan.carriedOver ? (
+                <Text testID="meals-carried-over" className="text-caption text-label-secondary">
+                  Continued from your last plan
+                </Text>
+              ) : null}
+
+              {/* The day's totals: the legacy maths (portions, swapped/skipped left out). */}
+              {meals.length > 0 ? (
+                <View
+                  testID="meals-day-totals"
+                  accessibilityLabel="Day totals"
+                  className="gap-3 rounded-card border border-separator bg-surface p-4"
+                >
+                  <Text className="text-subhead font-semibold text-label-secondary">
+                    {weekdayLongName(selectedDay)}
+                  </Text>
+                  <View className="flex-row items-end justify-between gap-2">
+                    {proteinOnly ? (
+                      <Text testID="meals-day-protein" className="text-title1 font-bold text-label">
+                        {totals.protein}
+                        <Text className="text-headline font-semibold text-label-secondary">
+                          {' '}
+                          g protein
+                        </Text>
+                      </Text>
+                    ) : (
+                      <Text
+                        testID="meals-day-kcal"
+                        className="text-title1 font-bold text-label"
+                        style={{ fontVariant: ['tabular-nums'] }}
+                      >
+                        {formatKcal(totals.kcal)}
+                        <Text className="text-headline font-semibold text-label-secondary">
+                          {' '}
+                          kcal
+                        </Text>
+                      </Text>
+                    )}
+                    {!proteinOnly && dayTarget ? (
+                      <Text
+                        testID="meals-day-target"
+                        className="pb-1 text-subhead text-label-secondary"
+                      >
+                        target {formatKcal(dayTarget)}
+                      </Text>
+                    ) : null}
+                  </View>
+                  {proteinOnly ? null : (
+                    <MacroTiles
+                      testID="meals-day-macros"
+                      protein={totals.protein}
+                      carbs={totals.carbs}
+                      fat={totals.fat}
+                    />
+                  )}
+                  {dayStatus !== null ? (
+                    // T-11.3: neutral and tappable — Bigger portions / Add a snack / Keep it.
+                    <Pressable
+                      testID="meals-day-status"
+                      accessibilityRole="button"
+                      accessibilityLabel={`${dayStatus}. See options`}
+                      onPress={() => openMiss(selectedDay)}
+                      className="min-h-11 flex-row items-center gap-1.5"
+                    >
+                      <Text className="min-w-0 flex-shrink text-subhead text-label-secondary">
+                        {dayStatus}
+                      </Text>
+                      <Text className="text-subhead font-semibold text-brand">See options</Text>
+                    </Pressable>
+                  ) : null}
+                </View>
+              ) : null}
+
+              <View className="flex-row items-center justify-between gap-2">
+                <Text accessibilityRole="header" className="text-title3 font-bold text-label">
+                  Meals
+                </Text>
+                {/* MO-01: press feedback through PressableScale. */}
+                <PressableScale
+                  testID="meals-change-week"
+                  accessibilityRole="button"
+                  accessibilityLabel="Change week"
+                  onPress={() => {
+                    haptics.selection();
+                    setChangeWeekOpen(true);
+                  }}
+                  className="min-h-11 flex-row items-center gap-1.5 px-1"
+                >
+                  <Icon name="refresh" color={colors.brand} size={18} />
+                  <Text className="text-callout font-semibold text-brand">Change week</Text>
+                </PressableScale>
+              </View>
+
+              {meals.length === 0 ? (
+                // T-07.3: a day outside the chosen shape says so and offers `planDay`.
+                <View className="items-center gap-2 rounded-card border border-separator bg-surface px-4 py-6">
+                  {day?.planned === false ? (
+                    <>
+                      <Text
+                        testID="meals-day-unplanned"
+                        className="text-center text-subhead text-label-secondary"
+                      >
+                        Not planned. You cook {shape ? planShapeSummary(shape) : 'some days'}.
+                      </Text>
+                      <Pressable
+                        testID="meals-day-add"
+                        accessibilityRole="button"
+                        accessibilityLabel={`Plan ${weekdayLongName(selectedDay)} too`}
+                        disabled={planDayMutation.isPending}
+                        onPress={() =>
+                          planDayMutation.mutate({ planId: plan.planId, dayOfWeek: selectedDay })
+                        }
+                        className="min-h-11 items-center justify-center px-2"
+                      >
+                        {planDayMutation.isPending ? (
+                          <ActivityIndicator size="small" color={colors.brand} />
+                        ) : (
+                          <Text className="text-subhead font-semibold text-brand">
+                            Plan this day
+                          </Text>
+                        )}
+                      </Pressable>
+                    </>
+                  ) : (
+                    <Text className="text-subhead text-label-secondary">
+                      No meals planned for this day.
+                    </Text>
+                  )}
+                </View>
+              ) : (
+                // MO-13: a day the chef just replaced fades its new meals in
+                // (opacity only — instant under Reduce Motion).
+                <Animated.View
+                  key={meals.map((m) => m.recipe.id).join(',')}
+                  entering={
+                    updatedDays.has(selectedDay)
+                      ? FadeIn.duration(reducedMotion ? 0 : duration.deliberate)
+                      : undefined
+                  }
+                  className="gap-2.5"
+                >
+                  {updatedDays.has(selectedDay) ? (
+                    <Text
+                      testID="meals-day-updated"
+                      className="text-caption font-semibold text-positive"
+                    >
+                      {PLAN_TAILORING_COPY.dayUpdated}
+                    </Text>
+                  ) : null}
+                  {/* 11 Oct owner feedback: one meal card per line, not a 2-column grid. */}
+                  <View testID="meals-tiles" className="gap-2.5">
+                    {slotEntries.map(renderTile)}
+                  </View>
+                </Animated.View>
+              )}
+
+              {/* WP-06: a slot eaten as something else, or skipped — with its undo. */}
+              {slotEntries.map(({ entry }) => {
+                const state = slotStateList?.[entry.slotIndex];
+                const slotRef = { mealType: entry.meal.type, slotIndex: entry.slotIndex };
+                const who = mealLabel(entry.meal.type);
+                if (state?.status === 'replaced') {
+                  const replaced = state.entry;
+                  return (
+                    <SlotStatusLine
+                      key={`replaced-${entry.slotIndex}`}
+                      testID={`meals-slot-replaced-${entry.slotIndex}`}
+                      text={`${who}: ${youHadText(replaced, proteinOnly)}`}
+                      actionLabel={replaced.entryId ? SLOT_COPY.remove : undefined}
+                      onAction={() => {
+                        if (!replaced.entryId || !replaced.custom) return;
+                        slotFlow.actions.removeReplacement({
+                          entryId: replaced.entryId,
+                          name: replaced.custom.name,
+                          estimatedBy: replaced.custom.estimatedBy,
+                          kcal: replaced.kcal,
+                          protein: replaced.protein,
+                          carbs: replaced.carbs,
+                          fat: replaced.fat,
+                          unknownMacros: replaced.unknownMacros,
+                          replacesSlot: slotRef,
+                        });
+                      }}
+                    />
+                  );
+                }
+                if (state?.status === 'skipped') {
+                  return (
+                    <SlotStatusLine
+                      key={`skipped-${entry.slotIndex}`}
+                      testID={`meals-slot-skipped-${entry.slotIndex}`}
+                      text={`${who}: ${SLOT_COPY.skippedLabel}`}
+                      actionLabel={SLOT_COPY.undo}
+                      onAction={() => slotFlow.actions.unskipSlot(slotRef)}
+                    />
+                  );
+                }
+                return null;
+              })}
+
+              {/* A dish that fails the table's rules is never shown silently. */}
+              {slotEntries.map(({ entry }) => {
+                const conflict = mealConflictText(entry.meal);
+                return conflict ? (
+                  <Text
+                    key={`conflict-${entry.slotIndex}`}
+                    testID={`meals-conflict-${entry.slotIndex}`}
+                    accessibilityRole="alert"
+                    className="text-subhead text-attention"
+                  >
+                    {entry.meal.recipe.name}: {conflict}. Check the ingredients or change it.
+                  </Text>
+                ) : null;
+              })}
+
+              {/* Owner decision 10 Oct: one safety line, the full text on tap. */}
+              <View testID="meals-safety" className="flex-row items-center gap-2">
+                <Icon name="shield" color={colors.positive} size={18} />
+                <Text
+                  testID="meals-safety-text"
+                  className="min-w-0 flex-1 text-caption text-label-secondary"
+                >
+                  {mealsSafetyLine(plan.tableSafety)}
+                </Text>
+                <IconButton
+                  testID="meals-safety-info"
+                  accessibilityLabel="About meal suggestions and allergen checks"
+                  icon={<Icon name="info" color={colors.labelSecondary} />}
+                  onPress={() => setAboutOpen(true)}
+                />
+              </View>
+
+              {cookbookEntry}
+            </>
+          )}
+        </Stagger>
       </ScrollView>
 
       {plan ? (

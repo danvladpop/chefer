@@ -1,8 +1,17 @@
 import { useState } from 'react';
 import { View } from 'react-native';
 import { router } from 'expo-router';
-import { haptics, PressableScale, Text, useSnackbar, useThemeColors } from '@chefer/ui-mobile';
-import { cn, formatNumber, localDateStr, slotPortion, userFacingErrorMessage } from '@chefer/utils';
+import {
+  AnimatedCheck,
+  Celebration,
+  FloatUp,
+  haptics,
+  PressableScale,
+  Text,
+  useSnackbar,
+  useThemeColors,
+} from '@chefer/ui-mobile';
+import { formatNumber, localDateStr, slotPortion, userFacingErrorMessage } from '@chefer/utils';
 import { Icon } from '../../../components/icon';
 import { trackMealLogged } from '../../../lib/analytics-events';
 import { trpc } from '../../../lib/trpc';
@@ -30,19 +39,23 @@ const STATE_WORDS: Record<DaySlot['state'], string> = {
 
 function SlotCircle({ state }: { state: DaySlot['state'] }) {
   const colors = useThemeColors();
+  if (state === 'skipped') {
+    return (
+      <View className="h-9 w-9 items-center justify-center rounded-full border-2 border-separator bg-surface-sunken">
+        <Icon name="remove" color={colors.labelTertiary} size={18} />
+      </View>
+    );
+  }
+  // MO-16: the disc fills and the tick draws in when a slot is ticked.
   return (
-    <View
-      className={cn(
-        'h-9 w-9 items-center justify-center rounded-full',
-        state === 'done' && 'bg-positive',
-        state === 'next' && 'border-2 border-brand bg-brand-tint',
-        state === 'upcoming' && 'border-2 border-separator',
-        state === 'skipped' && 'border-2 border-separator bg-surface-sunken',
-      )}
-    >
-      {state === 'done' ? <Icon name="checkmark" color={colors.onBrand} size={20} /> : null}
-      {state === 'skipped' ? <Icon name="remove" color={colors.labelTertiary} size={18} /> : null}
-    </View>
+    <AnimatedCheck
+      checked={state === 'done'}
+      size={36}
+      fillColor={colors.positive}
+      checkColor={colors.onBrand}
+      ringColor={state === 'next' ? colors.brand : colors.separator}
+      emptyColor={state === 'next' ? colors.brandTint : 'transparent'}
+    />
   );
 }
 
@@ -52,6 +65,8 @@ function useSlotToggle() {
   const snackbar = useSnackbar();
   // slotIndex → the state shown while the write and the refetch are in flight.
   const [pending, setPending] = useState<Record<number, DaySlot['state']>>({});
+  // slotIndex → how many times it was ticked here (drives the "+kcal" float).
+  const [floats, setFloats] = useState<Record<number, number>>({});
   const clear = (slotIndex: number) =>
     setPending((p) =>
       Object.fromEntries(Object.entries(p).filter(([key]) => Number(key) !== slotIndex)),
@@ -68,10 +83,11 @@ function useSlotToggle() {
     onSuccess: (result, vars) => {
       trackMealLogged('planned', vars.mealType);
       recordRebalanceOutcome(result);
-      haptics.success();
+      // The tap already gave a tick; the day's last meal gets the success (Today).
     },
     onError: (error, vars) => {
       clear(vars.slotIndex ?? -1);
+      haptics.error();
       snackbar.show({ message: `Couldn't log it. ${userFacingErrorMessage(error)}` });
     },
     onSettled: (_r, error, vars) => (error ? undefined : settle(vars.slotIndex ?? -1)),
@@ -88,11 +104,13 @@ function useSlotToggle() {
   const toggle = (slot: DaySlot) => {
     if (pending[slot.slotIndex] !== undefined) return;
     const target = { recipeId: slot.recipeId, mealType: slot.mealType, slotIndex: slot.slotIndex };
-    haptics.selection();
     if (slot.state === 'done') {
+      haptics.selection();
       setPending((p) => ({ ...p, [slot.slotIndex]: 'upcoming' }));
       unlog.mutate({ date: localDateStr(), ...target });
     } else {
+      haptics.tick();
+      setFloats((f) => ({ ...f, [slot.slotIndex]: (f[slot.slotIndex] ?? 0) + 1 }));
       setPending((p) => ({ ...p, [slot.slotIndex]: 'done' }));
       log.mutate({
         date: localDateStr(),
@@ -103,11 +121,21 @@ function useSlotToggle() {
     }
   };
 
-  return { pending, toggle };
+  return { pending, floats, toggle };
 }
 
-export function YourDayCard({ slots, proteinOnly }: { slots: DaySlot[]; proteinOnly: boolean }) {
-  const { pending, toggle } = useSlotToggle();
+export function YourDayCard({
+  slots,
+  proteinOnly,
+  celebrate = 0,
+}: {
+  slots: DaySlot[];
+  proteinOnly: boolean;
+  /** Bump to fire the day-complete confetti here (when Today has no gauge). */
+  celebrate?: number;
+}) {
+  const colors = useThemeColors();
+  const { pending, floats, toggle } = useSlotToggle();
   const shown = slots.map((slot) => {
     const state = pending[slot.slotIndex];
     return state === undefined ? slot : { ...slot, state, loggedAsPlanned: state === 'done' };
@@ -157,7 +185,16 @@ export function YourDayCard({ slots, proteinOnly }: { slots: DaySlot[]; proteinO
                 onPress={() => (toggleable ? toggle(slot) : router.push('/tracker'))}
                 className="min-h-11 min-w-0 flex-1 items-center gap-1"
               >
-                <SlotCircle state={slot.state} />
+                <View>
+                  <SlotCircle state={slot.state} />
+                  {proteinOnly ? null : (
+                    <FloatUp play={floats[slot.slotIndex] ?? 0}>
+                      <Text className="text-caption font-bold text-positive">
+                        {`+${formatNumber(slot.kcal)} kcal`}
+                      </Text>
+                    </FloatUp>
+                  )}
+                </View>
                 <Text numberOfLines={1} className="text-subhead font-semibold text-label">
                   {slot.label}
                 </Text>
@@ -181,6 +218,12 @@ export function YourDayCard({ slots, proteinOnly }: { slots: DaySlot[]; proteinO
         icon="list"
         accessibilityHint="Shows everything planned and logged today"
         onPress={() => router.push('/tracker')}
+      />
+      <Celebration
+        testID="your-day-celebration"
+        play={celebrate}
+        colors={[colors.brand, colors.positive, colors.attention, colors.info]}
+        origin={{ x: 0.5, y: 0.35 }}
       />
     </BoardCard>
   );

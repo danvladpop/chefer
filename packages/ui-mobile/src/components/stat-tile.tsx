@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react';
 import { View } from 'react-native';
 import { cn } from '@chefer/utils';
+import { CountUp } from '../motion/count-up';
 import { Text } from './text';
 
 // One number with its name (10 Oct redesign, ref-6 layout): a tinted icon
@@ -13,6 +14,11 @@ export interface StatTileProps {
   /** The icon, already sized (~18pt) and tinted brand by the caller. */
   icon?: ReactNode;
   value: string;
+  /**
+   * The value as a number: it then counts up from 0 (MO-06, `CountUp`) and
+   * `value` stays the spoken text. Omit for values that aren't one number.
+   */
+  count?: number;
   /** A unit drawn smaller after the value, e.g. "min". */
   unit?: string;
   label: string;
@@ -26,6 +32,7 @@ export interface StatTileProps {
 export function StatTile({
   icon,
   value,
+  count,
   unit,
   label,
   accessibilityLabel,
@@ -45,14 +52,21 @@ export function StatTile({
           {icon}
         </View>
       ) : null}
-      <Text
-        numberOfLines={1}
-        className="text-title2 font-bold text-label"
-        style={{ fontVariant: ['tabular-nums'] }}
-      >
-        {value}
-        {unit ? <Text className="text-subhead font-semibold text-label"> {unit}</Text> : null}
-      </Text>
+      {count !== undefined ? (
+        <View className="flex-row items-baseline">
+          <CountUp numberOfLines={1} value={count} className="text-title2 font-bold text-label" />
+          {unit ? <Text className="text-subhead font-semibold text-label"> {unit}</Text> : null}
+        </View>
+      ) : (
+        <Text
+          numberOfLines={1}
+          className="text-title2 font-bold text-label"
+          style={{ fontVariant: ['tabular-nums'] }}
+        >
+          {value}
+          {unit ? <Text className="text-subhead font-semibold text-label"> {unit}</Text> : null}
+        </Text>
+      )}
       <Text numberOfLines={2} className="text-center text-caption text-label-secondary">
         {label}
       </Text>
