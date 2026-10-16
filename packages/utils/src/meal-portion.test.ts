@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   choosePortions,
+  fitDayPortions,
   formatPortion,
   isDayOnTarget,
   proteinGapG,
@@ -180,5 +181,102 @@ describe('portion helpers', () => {
         { portion: null, recipe: { nutritionInfo: { calories: 100 } } },
       ]),
     ).toEqual({ kcal: 1400, protein: 82, carbs: 140, fat: 40 });
+  });
+});
+
+describe('choosePortions — fixed and current portions (day rebalance)', () => {
+  it('holds a fixed meal at its portion while the others make up the day', () => {
+    const plan = choosePortions(
+      [
+        { kcal: 600, protein: 30 },
+        { kcal: 700, protein: 40, fixedPortion: 1 },
+        { kcal: 500, protein: 30 },
+      ],
+      { calories: 2400, proteinG: 120 },
+    );
+    expect(plan.portions[1]).toBe(1);
+    expect(plan.kcalOnTarget).toBe(true);
+  });
+
+  it('measures change from the current portion, so a resized meal is not pulled back to 1×', () => {
+    const plan = choosePortions([{ kcal: 500, protein: 30, fromPortion: 1.5 }], {
+      calories: 750,
+      proteinG: 0,
+    });
+    expect(plan.portions).toEqual([1.5]);
+  });
+});
+
+describe('fitDayPortions (day rebalance)', () => {
+  const targets = { calories: 2000, proteinG: 100 };
+
+  it('resizes the open meals after a swap made the day short', () => {
+    const fit = fitDayPortions(
+      [
+        { kcal: 450, protein: 25, portion: 1, locked: false },
+        { kcal: 600, protein: 35, portion: 1, locked: false },
+        { kcal: 450, protein: 30, portion: 1, locked: true }, // the user's new dinner
+      ],
+      targets,
+    );
+    expect(fit.nothingOpen).toBe(false);
+    expect(fit.changed.length).toBeGreaterThan(0);
+    expect(fit.changed).not.toContain(2);
+    expect(fit.portions[2]).toBe(1);
+    expect(fit.onTarget).toBe(true);
+    expect(fit.before.kcal).toBe(1500);
+  });
+
+  it('leaves a day within 3% alone (no churn)', () => {
+    const fit = fitDayPortions(
+      [
+        { kcal: 700, protein: 35, portion: 1, locked: false },
+        { kcal: 650, protein: 35, portion: 1, locked: false },
+        { kcal: 600, protein: 32, portion: 1, locked: true },
+      ],
+      targets,
+    );
+    expect(fit.changed).toEqual([]);
+    expect(fit.onTarget).toBe(true);
+  });
+
+  it('a day 9% short is still resized toward its target (inside the ±10% band is not enough)', () => {
+    const fit = fitDayPortions(
+      [
+        { kcal: 1000, protein: 60, portion: 1, locked: false },
+        { kcal: 820, protein: 50, portion: 1, locked: false },
+      ],
+      targets,
+    );
+    expect(fit.before.kcal).toBe(1820);
+    expect(fit.changed.length).toBeGreaterThan(0);
+    expect(Math.abs(fit.after.kcal - 2000)).toBeLessThan(120);
+  });
+
+  it('does nothing when no open meal is left (dinner was the last)', () => {
+    const fit = fitDayPortions(
+      [
+        { kcal: 600, protein: 30, portion: 1, locked: true }, // eaten
+        { kcal: 700, protein: 35, portion: 1, locked: true }, // eaten
+        { kcal: 900, protein: 40, portion: 1, locked: true }, // the user's pick
+      ],
+      targets,
+    );
+    expect(fit.nothingOpen).toBe(true);
+    expect(fit.changed).toEqual([]);
+    expect(fit.after.kcal).toBe(2200);
+  });
+
+  it('a skipped slot does not count, and logged extras do', () => {
+    const fit = fitDayPortions(
+      [
+        { kcal: 500, protein: 30, portion: 1, locked: true, counts: false },
+        { kcal: 600, protein: 35, portion: 1, locked: false },
+      ],
+      targets,
+      { extra: { kcal: 900, protein: 40 } },
+    );
+    expect(fit.before.kcal).toBe(1500);
+    expect(fit.after.kcal).toBeGreaterThanOrEqual(1800);
   });
 });
