@@ -40,6 +40,7 @@ import {
   defaultWeekOffset,
   formatDateRange,
   formatKcal,
+  formatPortion,
   getWeekStartDate,
   groupDaySlots,
   isTailoringRunning,
@@ -75,6 +76,7 @@ import { useTailoringWatch } from '../../meal-plan/use-tailoring-watch';
 import { useNumbersMode } from '../../numbers-mode/numbers-mode';
 import { PlanMissSheet } from '../../nutrition/plan-miss-sheet';
 import { openPremium } from '../../premium/open-premium';
+import { DayFitNote } from '../../tracker/day-fit-note';
 import { RebalanceBanner } from '../../tracker/rebalance-banner';
 import { RebalanceOffer, useRebalanceCheck } from '../../tracker/rebalance-offer';
 import { SlotStatusLine } from '../../tracker/slot-controls';
@@ -82,6 +84,7 @@ import { mealLabel, SLOT_COPY, youHadText } from '../../tracker/slot-copy';
 import { useSlotFlow } from '../../tracker/slot-flow';
 import { ShellTopBar } from '../shell-chrome';
 import { ChangeWeekSheet } from './change-week-sheet';
+import { dayFitLocalDate, DayFitSuggestionCard, PortionRefitNotice, useDayFit } from './day-fit';
 import {
   intParam,
   mealConflictText,
@@ -241,6 +244,16 @@ export function MealsScreen() {
     void utils.tracker.invalidate();
     void utils.shoppingList.invalidate();
   };
+  // Day rebalance (2026-10-16): what a swap resized, its Undo and the suggestion.
+  const dayFit = useDayFit({
+    planId: plan?.planId ?? null,
+    todayIndex,
+    onChanged: () => {
+      void refetch();
+      invalidateDerived();
+    },
+  });
+
   const { sawRunning, updatedDays } = useTailoringWatch(
     plan?.planId,
     plan?.tailoring,
@@ -397,24 +410,6 @@ export function MealsScreen() {
     onError: (err) => showSnackbar({ message: userFacingErrorMessage(err) }),
   });
 
-  // T-08.5/T-08.6: Replace and AI swap undo through `replaceRecipe` back to
-  // the previous recipe and its previous pin (UX-PLAN-04).
-  const undoSwap = (
-    target: { mealType: MealType; slotIndex: number },
-    previousRecipeId: string,
-    previousPinned = false,
-  ) => {
-    if (!plan) return;
-    replaceMutation.mutate({
-      planId: plan.planId,
-      dayOfWeek: selectedDay,
-      mealType: target.mealType,
-      slotIndex: target.slotIndex,
-      recipeId: previousRecipeId,
-      pinned: previousPinned,
-    });
-  };
-
   const closePicker = () => {
     setPickerTarget(null);
     swapMutation.reset();
@@ -520,6 +515,7 @@ export function MealsScreen() {
   });
   const totals = sumPlanDay(plannedMealsOfDay);
   const dayTarget = targetForDay(selectedDay);
+  const suggestion = plan ? dayFit.suggestionFor(plan.planId, selectedDay) : null;
   const dayStatus = planDayStatus({
     kcal: totals.kcal,
     calorieTarget: proteinOnly ? undefined : dayTarget,
@@ -608,6 +604,7 @@ export function MealsScreen() {
     const status = slotStateList?.[slotIndex]?.status;
     const conflict = mealConflictText(meal);
     const portion = slotPortion(meal.portion);
+    const resized = dayFit.adjustedSlots(plan?.planId ?? '', selectedDay).includes(slotIndex);
     return (
       <MediaRow
         key={`${meal.type}-${slotIndex}`}
@@ -618,7 +615,13 @@ export function MealsScreen() {
         meta={mealTileMeta(meal, isSide, proteinOnly)}
         imageUri={meal.recipe.imageUrl ? getRecipeImageUrl(meal.recipe.imageUrl) : null}
         illustration={<Icon name="cook" color={colors.brand} size={32} />}
-        {...(conflict ? { badge: conflict } : status === 'eaten' ? { badge: 'Eaten' } : {})}
+        {...(conflict
+          ? { badge: conflict }
+          : status === 'eaten'
+            ? { badge: 'Eaten' }
+            : resized
+              ? { badge: `Resized to ${formatPortion(portion)}` }
+              : {})}
         accessibilityHint="Opens the recipe"
         onPress={() =>
           router.push({
@@ -806,6 +809,16 @@ export function MealsScreen() {
           ) : (
             /* ── Day view ──────────────────────────────────────────────── */
             <>
+              {plan.portionRefit ? (
+                <PortionRefitNotice
+                  planId={plan.planId}
+                  days={plan.portionRefit.days}
+                  onChanged={() => {
+                    void refetch();
+                    invalidateDerived();
+                  }}
+                />
+              ) : null}
               <DayStrip
                 testID="meals-days"
                 days={weekStripDays(getWeekStartDate(weekOffset), todayIndex)}
@@ -824,6 +837,7 @@ export function MealsScreen() {
 
               {/* A log elsewhere swapped future meals — say which, offer undo. */}
               <RebalanceBanner planId={plan.planId} onUndone={() => void refetch()} />
+              <DayFitNote onChanged={() => void refetch()} />
               {/* WP-07 / Change week → Rebalance: the preview's offer. */}
               <RebalanceOffer planId={plan.planId} onApplied={() => void refetch()} />
 
@@ -949,6 +963,16 @@ export function MealsScreen() {
                       </Text>
                       <Text className="text-subhead font-semibold text-brand">See options</Text>
                     </Pressable>
+                  ) : null}
+                  {suggestion ? (
+                    <DayFitSuggestionCard
+                      suggestion={suggestion.s}
+                      dayOfWeek={selectedDay}
+                      kcal={suggestion.kcal}
+                      onApply={() => void dayFit.applySuggestion()}
+                      onLeave={dayFit.leaveSuggestion}
+                      applying={dayFit.applying}
+                    />
                   ) : null}
                 </View>
               ) : null}
@@ -1205,18 +1229,16 @@ export function MealsScreen() {
                   slotIndex: target.slotIndex,
                   recipeId,
                   ...(acknowledgeConflict && { acknowledgeConflict }),
+                  localDate: dayFitLocalDate(),
                 },
                 {
-                  onSuccess: (data) => {
-                    const { previousRecipeId, previousPinned } = data;
-                    showSnackbar({
-                      message: `Swapped to ${data.name}${portion !== 1 ? ` · ${portion}× portion` : ''}`,
-                      actionLabel: previousRecipeId ? 'Undo' : undefined,
-                      onAction: previousRecipeId
-                        ? () => undoSwap(target, previousRecipeId, previousPinned === true)
-                        : undefined,
-                    });
-                  },
+                  onSuccess: (data) =>
+                    dayFit.afterSlotChange(
+                      data,
+                      target,
+                      selectedDay,
+                      `Swapped to ${data.name}${portion !== 1 ? ` · ${portion}× portion` : ''}`,
+                    ),
                 },
               );
             }}
@@ -1232,18 +1254,16 @@ export function MealsScreen() {
                           dayOfWeek: selectedDay,
                           mealType: target.mealType,
                           slotIndex: target.slotIndex,
+                          localDate: dayFitLocalDate(),
                         },
                         {
-                          onSuccess: (data) => {
-                            const { previousRecipeId, previousPinned } = data;
-                            showSnackbar({
-                              message: `Swapped to ${data.name}`,
-                              actionLabel: previousRecipeId ? 'Undo' : undefined,
-                              onAction: previousRecipeId
-                                ? () => undoSwap(target, previousRecipeId, previousPinned === true)
-                                : undefined,
-                            });
-                          },
+                          onSuccess: (data) =>
+                            dayFit.afterSlotChange(
+                              data,
+                              target,
+                              selectedDay,
+                              `Swapped to ${data.name}`,
+                            ),
                         },
                       ),
                     );

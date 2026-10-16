@@ -229,10 +229,141 @@ describe('Meals tab (new shell)', () => {
         mealType: 'breakfast',
         slotIndex: 0,
         recipeId: 'r9',
+        localDate: '2026-10-07',
       }),
     );
     expect(await screen.findByText('Swapped to Rice Bowl')).toBeOnTheScreen();
     expect(screen.getByText('Undo')).toBeOnTheScreen();
+  });
+
+  describe('day rebalance (2026-10-16)', () => {
+    const fit = (over: object = {}) => ({
+      planId: 'p1',
+      dayOfWeek: 2,
+      changes: [
+        { slotIndex: 2, mealType: 'dinner', recipeName: 'Salmon Quinoa', from: 1.5, to: 2 },
+      ],
+      previousPortions: [1, 1, 1.5, 1],
+      kcal: 2390,
+      proteinG: 120,
+      targetKcal: 2400,
+      targetProteinG: 120,
+      onTarget: true,
+      nothingOpen: false,
+      suggestion: null,
+      ...over,
+    });
+
+    it('says which meal was resized, and Undo puts the recipe and the portions back', async () => {
+      const user = userEvent.setup();
+      const replace = jest.fn(() => ({
+        name: 'Rice Bowl',
+        previousRecipeId: 'b1',
+        previousPinned: false,
+        dayFit: fit(),
+      }));
+      const restore = jest.fn(() => ({ restored: true }));
+      const { calls } = await renderWithTrpc(
+        <MealsScreen />,
+        base({ 'mealPlan.replaceRecipe': replace, 'mealPlan.restoreDayPortions': restore }),
+        testQueryClient(),
+      );
+      await user.press(await screen.findByLabelText('Change breakfast'));
+      await user.press(await screen.findByTestId('picker-recipe-r9'));
+      expect(
+        await screen.findByText('Dinner is now 2× so today stays on target'),
+      ).toBeOnTheScreen();
+      await user.press(screen.getByText('Undo'));
+      await waitFor(() =>
+        expect(calls.filter((c) => c.path === 'mealPlan.replaceRecipe')[1]?.input).toEqual({
+          planId: 'p1',
+          dayOfWeek: 2,
+          mealType: 'breakfast',
+          slotIndex: 0,
+          recipeId: 'b1',
+          pinned: false,
+          fitDay: false,
+        }),
+      );
+      await waitFor(() =>
+        expect(calls.find((c) => c.path === 'mealPlan.restoreDayPortions')?.input).toEqual({
+          planId: 'p1',
+          dayOfWeek: 2,
+          portions: [1, 1, 1.5, 1],
+        }),
+      );
+    });
+
+    it('offers the one change portions could not make, and Leave it hides it', async () => {
+      const user = userEvent.setup();
+      const suggestion = {
+        kind: 'swap',
+        slotIndex: 3,
+        mealType: 'dinner',
+        recipeId: 'cur-1',
+        recipeName: 'Beef Stir-fry',
+        kcalDelta: 390,
+        proteinDelta: 31,
+      };
+      const replace = jest.fn(() => ({
+        name: 'Rice Bowl',
+        previousRecipeId: 'b1',
+        dayFit: fit({ changes: [], onTarget: false, kcal: 1980, suggestion }),
+      }));
+      const apply = jest.fn(() => ({
+        dayFit: fit(),
+        undo: { kind: 'swap', slotIndex: 3, mealType: 'dinner', previousRecipeId: 's1' },
+        previousPortions: [1, 1, 1.5, 1],
+      }));
+      const { calls } = await renderWithTrpc(
+        <MealsScreen />,
+        base({ 'mealPlan.replaceRecipe': replace, 'mealPlan.applyDayFitSuggestion': apply }),
+        testQueryClient(),
+      );
+      await user.press(await screen.findByLabelText('Change breakfast'));
+      await user.press(await screen.findByTestId('picker-recipe-r9'));
+      expect(await screen.findByTestId('meals-dayfit-suggestion')).toBeOnTheScreen();
+      expect(screen.getByText('Dinner → Beef Stir-fry')).toBeOnTheScreen();
+      await user.press(screen.getByText('Swap dinner'));
+      await waitFor(() =>
+        expect(calls.find((c) => c.path === 'mealPlan.applyDayFitSuggestion')?.input).toEqual({
+          planId: 'p1',
+          dayOfWeek: 2,
+          kind: 'swap',
+          mealType: 'dinner',
+          recipeId: 'cur-1',
+          slotIndex: 3,
+          localDate: '2026-10-07',
+        }),
+      );
+      expect(await screen.findByText('Dinner swapped for Beef Stir-fry')).toBeOnTheScreen();
+      expect(screen.queryByTestId('meals-dayfit-suggestion')).toBeNull();
+    });
+
+    it('the targets-changed notice: Undo puts the portions back', async () => {
+      const user = userEvent.setup();
+      const undo = jest.fn(() => ({ restored: 5 }));
+      const { calls } = await renderWithTrpc(
+        <MealsScreen />,
+        base({
+          'mealPlan.getForWeek': () => ({
+            ...plan(),
+            portionRefit: { at: '2026-10-07T08:00:00Z', days: 5 },
+          }),
+          'mealPlan.undoPortionRefit': undo,
+        }),
+        testQueryClient(),
+      );
+      expect(await screen.findByText('Portions updated for your new targets')).toBeOnTheScreen();
+      expect(screen.getByText('Same meals, resized on 5 days to match.')).toBeOnTheScreen();
+      await user.press(screen.getByTestId('meals-refit-undo'));
+      await waitFor(() =>
+        expect(calls.find((c) => c.path === 'mealPlan.undoPortionRefit')?.input).toEqual({
+          planId: 'p1',
+        }),
+      );
+      expect(await screen.findByText('Portions put back')).toBeOnTheScreen();
+    });
   });
 
   it('a tile opens the recipe with the day and meal', async () => {

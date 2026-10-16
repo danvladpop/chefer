@@ -1,5 +1,6 @@
 import { useSyncExternalStore } from 'react';
 import type { RebalancePreviewLike, RebalanceResultLike } from '@chefer/utils';
+import { recordDayFit, type DayFitLike } from './day-fit-note';
 import { recordRebalance } from './rebalance-store';
 
 // The week-rebalance OFFER (WP-07, UX-PLAN-09). Every log write opts in to a
@@ -17,6 +18,7 @@ export const REBALANCE_PREVIEW = { rebalanceMode: 'preview' } as const;
 export type RebalanceOutcome = {
   rebalance?: RebalanceResultLike | null | undefined;
   rebalancePreview?: RebalancePreviewLike | null | undefined;
+  dayFit?: DayFitLike | null | undefined;
 };
 
 const listeners = new Set<() => void>();
@@ -49,6 +51,8 @@ export function recordRebalanceOutcome(result: RebalanceOutcome | null | undefin
   if (!result) return;
   recordRebalance(result.rebalance);
   if (result.rebalancePreview !== undefined) setRebalanceOffer(result.rebalancePreview);
+  // Day rebalance (2026-10-16): today's open meals were resized to absorb the log.
+  recordDayFit(result.dayFit);
 }
 
 function subscribe(listener: () => void): () => void {
