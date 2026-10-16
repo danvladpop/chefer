@@ -673,6 +673,14 @@ full ladder before declaring a task done.
     Android text: on the 2x-density tablet a shrink-wrapped bold label can be drawn a
     hair wider than RN measured it and wrap its last word onto a clipped second line
     ("Add set" → "Add"); `numberOfLines={1}` stops it where the label must not wrap.
+    Button labels that may need two lines (long label, small phone, large font) keep
+    wrapping and instead draw `withLabelSlack(label)` (`label-slack.ts`: a trailing
+    no-break space on Android) — `Button` and `TrainButton` already do; give the
+    button an explicit `accessibilityLabel` so the slack never reaches TalkBack or
+    Maestro selectors. Tab bars: every tab sets `tabBarAccessibilityLabel`
+    (`tabAccessibilityLabel()` in `src/lib/tab-bar-options.ts`) — without one,
+    React Navigation leaves Android's to the platform, which read the icon-font
+    glyph too ("<glyph>, Today").
     Test with a tablet AVD (copy `Pixel_8.avd`, `hw.lcd` 2560x1600 @ 320dpi; boot with
     `-gpu swiftshader_indirect` if the host GPU path aborts).
 
