@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
-import { beforeEach, describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import {
+  DAY_FIT_EVENT,
   handleRebalanceOutcome,
   handleRebalancePreview,
   handleRebalanceResult,
@@ -12,10 +13,14 @@ import {
   REBALANCE_PREVIEW,
   rebalanceBannerCopy,
   undoOperations,
+  withDayFitLine,
   type PendingRebalance,
   type RebalancePreviewLike,
   type RebalanceSwapLike,
 } from './rebalance-storage';
+
+const showAppToast = vi.hoisted(() => vi.fn());
+vi.mock('../../../lib/app-toast', () => ({ showAppToast }));
 
 // ─── Fixtures ─────────────────────────────────────────────────────────────────
 
@@ -175,5 +180,39 @@ describe('handleRebalancePreview (WP-07 offer)', () => {
     expect(readPendingRebalance()?.swaps).toHaveLength(1);
     expect(readRebalanceOffer()).toBeNull();
     expect(() => handleRebalanceOutcome(null)).not.toThrow();
+  });
+});
+
+describe('day rebalance after a log (2026-10-16)', () => {
+  const dayFit = { dayOfWeek: 2, changes: [{ mealType: 'dinner', to: 1.25 }] };
+
+  beforeEach(() => showAppToast.mockClear());
+
+  it('says in one small toast that today absorbed the log, and tells the Meals page', () => {
+    const heard = vi.fn();
+    window.addEventListener(DAY_FIT_EVENT, heard);
+    handleRebalanceOutcome({ rebalance: null, dayFit });
+    window.removeEventListener(DAY_FIT_EVENT, heard);
+    expect(showAppToast).toHaveBeenCalledWith({
+      message: 'Dinner is now 1¼× so today stays on target',
+      type: 'success',
+      durationMs: 5000,
+    });
+    expect(heard).toHaveBeenCalledTimes(1);
+  });
+
+  it('a surface with its own confirmation carries the line instead of a second toast', () => {
+    handleRebalanceOutcome({ rebalance: null, dayFit }, { announceDayFit: false });
+    expect(showAppToast).not.toHaveBeenCalled();
+    expect(withDayFitLine('Skipped lunch', { dayFit })).toBe(
+      'Skipped lunch. Dinner is now 1¼× so today stays on target',
+    );
+  });
+
+  it('nothing resized: no toast, and the confirmation is unchanged', () => {
+    handleRebalanceOutcome({ rebalance: null, dayFit: { dayOfWeek: 2, changes: [] } });
+    handleRebalanceOutcome({ rebalance: null, dayFit: null });
+    expect(showAppToast).not.toHaveBeenCalled();
+    expect(withDayFitLine('Skipped lunch', { dayFit: null })).toBe('Skipped lunch');
   });
 });

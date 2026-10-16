@@ -199,7 +199,8 @@ export function useTrackerWrites(dateStr: string, showToast: ShowToast) {
       }),
     onSuccess: (result, vars) => {
       trackMealLogged('replaced', vars.mealType);
-      handleRebalanceOutcome(result);
+      // The slot flow's own "Logged …" toast carries the day-fit line.
+      handleRebalanceOutcome(result, { announceDayFit: false });
     },
     onError: (error, _vars, snapshot) => {
       rollback(snapshot);
@@ -216,7 +217,8 @@ export function useTrackerWrites(dateStr: string, showToast: ShowToast) {
       applyOptimistic((day) =>
         withSlotSkipped(day, { mealType: vars.mealType, slotIndex: vars.slotIndex }),
       ),
-    onSuccess: (result) => handleRebalanceOutcome(result),
+    // The slot flow's own "Skipped …" toast carries the day-fit line.
+    onSuccess: (result) => handleRebalanceOutcome(result, { announceDayFit: false }),
     onError: (error, _vars, snapshot) => {
       rollback(snapshot);
       failed("Couldn't skip that.", error);

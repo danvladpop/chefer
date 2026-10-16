@@ -205,6 +205,7 @@ describe('ChatWidget (UX-FOOD-21)', () => {
         mealType: 'lunch',
         slotIndex: 1,
         recipeId: 'r-old',
+        fitDay: false,
       }),
     );
     expect(await screen.findByText('Undone')).toBeTruthy();

@@ -200,6 +200,7 @@ describe('RebalanceBanner offer flow', () => {
       slotIndex: 0,
       recipeId: 'old-dinner',
       pinned: false,
+      fitDay: false,
     });
     expect(m.replace).toHaveBeenCalledWith({
       planId: 'plan-1',
@@ -207,6 +208,7 @@ describe('RebalanceBanner offer flow', () => {
       mealType: 'lunch',
       recipeId: 'old-lunch',
       pinned: false,
+      fitDay: false,
     });
   });
 

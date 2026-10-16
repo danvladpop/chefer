@@ -6,7 +6,7 @@ import { AiGeneratedChip } from '@/features/privacy/components/AiGeneratedChip';
 import { AllergenWarningChip } from '@/features/recipes/components/AllergenWarning';
 import { RecipeImage, type ImageStatusType } from '@/features/recipes/components/RecipeImage';
 import { CheckedForChip } from '@/features/safety/components/CheckedForChip';
-import { ArrowLeftRight, Bookmark, CheckCircle2, Clock } from 'lucide-react';
+import { ArrowLeftRight, Bookmark, CheckCircle2, Clock, Scale } from 'lucide-react';
 import { pressControl, pressTransition } from '@chefer/ui';
 import {
   cn,
@@ -78,6 +78,12 @@ interface MealCardProps {
    * the portion's kcal/macros and the recipe page opens pre-set to it.
    */
   portion?: number | undefined;
+  /**
+   * Day rebalance (2026-10-16): the server just resized this slot so the day
+   * stays on target — a brand border and a highlighted portion badge, until
+   * the user moves to another day or week.
+   */
+  adjusted?: boolean | undefined;
   /** Opens the replace-recipe sheet for this slot (hidden when absent/readOnly). */
   onReplace?: (() => void) | undefined;
   /**
@@ -130,6 +136,7 @@ export function MealCard({
   variant = 'grid',
   leftoverLabel,
   portion: rawPortion,
+  adjusted = false,
   onReplace,
   pinned = false,
   onTogglePin,
@@ -222,16 +229,29 @@ export function MealCard({
     slotIndex !== undefined ? `&slot=${slotIndex}` : ''
   }${portion !== 1 ? `&portion=${portion}` : ''}`;
   const n = planMealMacros(recipe.nutritionInfo, portion);
+  // Day rebalance: the resized portion, highlighted (board DayFitPortions).
+  const adjustedBadge = adjusted ? (
+    <span
+      data-testid={`plan-meal-${slotKey}-adjusted`}
+      className="inline-flex items-center gap-1 rounded-full border border-[#944a00] bg-[#fff3e8] px-2 py-0.5 text-xs font-semibold text-[#944a00]"
+    >
+      <Scale className="h-3 w-3 shrink-0" aria-hidden="true" />
+      {formatPortion(portion)}
+      <span className="sr-only"> portion, adjusted to keep the day on target</span>
+    </span>
+  ) : null;
+  const adjustedBorder = adjusted ? 'border-[#944a00] ring-1 ring-[#944a00]' : 'border-gray-200';
   // "1½ portions" — the slot is sized to the day's targets (P1-1).
   const portionBadge =
-    portion !== 1 ? (
+    adjustedBadge ??
+    (portion !== 1 ? (
       <span
         className="inline-block rounded-full bg-[#fff3e8] px-2 py-0.5 text-xs font-semibold text-[#944a00]"
         title={`${formatPortion(portion)} the recipe's serving, sized to your daily targets`}
       >
         {formatPortion(portion)} portion
       </span>
-    ) : null;
+    ) : null);
 
   const effectiveImageUrl =
     imageUrlOverride !== undefined ? imageUrlOverride : (recipe.imageUrl ?? null);
@@ -326,7 +346,8 @@ export function MealCard({
     // No overflow clipping on the card: the "…" menu drops out of it. The photo
     // rounds its own left corners.
     const rowCls = cn(
-      'relative flex min-h-11 rounded-xl border border-gray-200 bg-white shadow-sm',
+      'relative flex min-h-11 rounded-xl border bg-white shadow-sm',
+      adjustedBorder,
       side && 'min-h-14',
     );
     if (readOnly) {
@@ -362,12 +383,12 @@ export function MealCard({
           />
         </div>
         {/* Meal type badge (+ the slot's portion when not 1×, P1-1) */}
-        {(!hideTypeBadge || portion !== 1) && (
+        {(!hideTypeBadge || (portion !== 1 && !adjusted)) && (
           <span
             className={`absolute left-2 top-2 rounded-full px-2 py-0.5 text-xs font-semibold uppercase tracking-wide backdrop-blur-sm ${MEAL_TYPE_COLORS[mealType] ?? 'bg-gray-100 text-gray-700'}`}
           >
             {!hideTypeBadge && (MEAL_TYPE_LABELS[mealType] ?? mealType)}
-            {portion !== 1 && (
+            {portion !== 1 && !adjusted && (
               <span className="normal-case tracking-normal">
                 {hideTypeBadge ? '' : ' · '}
                 {formatPortion(portion)}
@@ -409,6 +430,8 @@ export function MealCard({
         )}
         {/* A pinned meal: a small bookmark on the photo (the pin button is in the "…" menu). */}
         {pinnedBadge && <div className="absolute left-2 top-9">{pinnedBadge}</div>}
+        {/* A resized slot is never a pick, so the badge takes the pin's spot. */}
+        {adjustedBadge && <div className="absolute left-2 top-9">{adjustedBadge}</div>}
         {/* Swap above "…" — one compact action column over the photo. */}
         <div className="absolute right-1 top-1 flex flex-col rounded-full bg-white/90 shadow-sm backdrop-blur-sm">
           {swapButton('touch-target relative h-8 w-8 rounded-full')}
@@ -468,7 +491,9 @@ export function MealCard({
 
   if (readOnly) {
     return (
-      <div className="group relative block rounded-xl border border-gray-200 bg-white shadow-sm">
+      <div
+        className={cn('group relative block rounded-xl border bg-white shadow-sm', adjustedBorder)}
+      >
         {inner}
       </div>
     );
@@ -478,7 +503,8 @@ export function MealCard({
     <Link
       href={href}
       className={cn(
-        'group relative block rounded-xl border border-gray-200 bg-white shadow-sm',
+        'group relative block rounded-xl border bg-white shadow-sm',
+        adjustedBorder,
         pressTransition,
         'hover:border-[#944a00]/40 hover:shadow-md focus-within:z-10',
       )}

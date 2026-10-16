@@ -11,7 +11,11 @@ import { trpc } from '@/lib/trpc';
 import { Camera, Loader2, Sparkles } from 'lucide-react';
 import { Sheet } from '@chefer/ui';
 import { proteinLabel, userFacingErrorMessage, type SlotRef } from '@chefer/utils';
-import { handleRebalanceOutcome, REBALANCE_PREVIEW } from '../lib/rebalance-storage';
+import {
+  handleRebalanceOutcome,
+  REBALANCE_PREVIEW,
+  type DayFitLike,
+} from '../lib/rebalance-storage';
 import {
   scanMealPhoto,
   ScanUpgradeRequiredError,
@@ -42,7 +46,12 @@ interface ScanMealButtonProps {
    * Called with the new entry's id after a confirmed log (UX-FOOD-26), so the
    * page can confirm with an Undo toast. Absent from older servers' answers.
    */
-  onLoggedEntry?: (entry: { entryId: string; name: string }) => void;
+  /** `dayFit`: today's open meals resized to absorb the log (the caller's toast says so). */
+  onLoggedEntry?: (entry: {
+    entryId: string;
+    name: string;
+    dayFit?: DayFitLike | null | undefined;
+  }) => void;
   /**
    * WP-06 "Ate something else": the plan slot this scan replaces. The entry is
    * logged with `replacesSlot` (no API change — logCustomMeal takes it) and
@@ -93,11 +102,14 @@ export function ScanMealButton({
       capture('meal_scanned', { confirmed: true });
       // UX-PO-02: a photo scan, confirmed and logged.
       trackMealLogged('snap', variables.mealType);
-      handleRebalanceOutcome(data);
+      // A caller with its own "Logged …" toast carries the day-fit line itself.
+      handleRebalanceOutcome(data, { announceDayFit: !(data.entryId && onLoggedEntry) });
       setEstimate(null);
       setPhotoUrl(null);
       onLogged();
-      if (data.entryId) onLoggedEntry?.({ entryId: data.entryId, name: variables.name });
+      if (data.entryId) {
+        onLoggedEntry?.({ entryId: data.entryId, name: variables.name, dayFit: data.dayFit });
+      }
     },
   });
 

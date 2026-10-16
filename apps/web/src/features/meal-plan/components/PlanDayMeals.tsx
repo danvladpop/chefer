@@ -38,6 +38,8 @@ export interface PlanDayMealsProps {
   slotUi?: PlanSlotUi | undefined;
   /** UX-PLAN-11: recipes logged as eaten that day (the read-only history view). */
   loggedRecipeIds?: readonly string[] | undefined;
+  /** Day rebalance: slot indexes the server just resized (the "adjusted" marker). */
+  adjustedSlots?: ReadonlySet<number> | undefined;
   /** Opens the replace-recipe sheet for a slot. */
   onReplaceMeal?:
     | ((mealType: string, mealName: string, slotIndex: number, recipeId: string) => void)
@@ -63,6 +65,7 @@ export function PlanDayMeals({
   imageOverrides = {},
   slotUi,
   loggedRecipeIds,
+  adjustedSlots,
   onReplaceMeal,
   onTogglePin,
   onAddSide,
@@ -97,6 +100,7 @@ export function PlanDayMeals({
         imageStatusOverride={override?.status}
         leftoverLabel={meal.leftoverOf}
         portion={meal.portion}
+        adjusted={adjustedSlots?.has(slotIndex) === true}
         pinned={meal.pinned}
         side={isSide}
         hideTypeBadge={role !== 'solo'}

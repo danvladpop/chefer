@@ -156,6 +156,7 @@ vi.mock('@/features/tracker/components/ScanMealButton', () => ({ ScanMealButton:
 vi.mock('@/features/tracker/lib/rebalance-storage', () => ({
   handleRebalanceOutcome: vi.fn(),
   REBALANCE_PREVIEW: { rebalanceMode: 'preview' },
+  withDayFitLine: (message: string) => message,
 }));
 vi.mock('@/hooks/useIsPremium', () => ({ useIsPremium: () => false }));
 vi.mock('@/lib/recipe-image', () => ({ getRecipeImageProps: () => ({ src: '/x.jpg' }) }));

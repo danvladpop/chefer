@@ -1,5 +1,6 @@
 'use client';
 
+import type { ReactNode } from 'react';
 import { Check, UtensilsCrossed } from 'lucide-react';
 import type { PlanTailoring, PlanTrainingDay } from '@chefer/types';
 import { pressControl } from '@chefer/ui';
@@ -107,6 +108,10 @@ interface DayViewProps {
    * (future days, the read-only history view) = no overflow.
    */
   slotUi?: PlanSlotUi | undefined;
+  /** Day rebalance: slots of the selected day the server just resized. */
+  adjustedSlots?: ReadonlySet<number> | undefined;
+  /** Day rebalance: the one-change suggestion, shown inside the day totals. */
+  daySuggestion?: ReactNode;
 }
 
 /**
@@ -181,6 +186,8 @@ export function DayView({
   onOpenTrainingExplain,
   onOpenMiss,
   slotUi,
+  adjustedSlots,
+  daySuggestion,
 }: DayViewProps) {
   const day = days.find((d) => d.dayOfWeek === selectedDay);
   const meals = day?.meals ?? [];
@@ -344,6 +351,7 @@ export function DayView({
               imageOverrides={imageOverrides}
               slotUi={slotUi}
               loggedRecipeIds={day?.loggedRecipeIds}
+              adjustedSlots={adjustedSlots}
               onReplaceMeal={onReplaceMeal}
               onTogglePin={onTogglePin}
               onAddSide={onAddSide}
@@ -355,7 +363,9 @@ export function DayView({
             calorieTarget={dayTarget}
             proteinGapG={day?.proteinGapG}
             onOpenMiss={!readOnly && onOpenMiss ? () => onOpenMiss(selectedDay) : undefined}
-          />
+          >
+            {daySuggestion}
+          </DayRecapBar>
         </>
       )}
     </div>
