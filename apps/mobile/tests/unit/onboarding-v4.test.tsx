@@ -1,6 +1,7 @@
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { render, screen, userEvent, waitFor } from '@testing-library/react-native';
+import { claimLanding, resetLandingGateForTests } from '../../src/features/navigation/landing-gate';
 import {
   clearOnboardingV4Draft,
   readOnboardingV4Draft,
@@ -184,6 +185,7 @@ async function aboutYou(user: ReturnType<typeof userEvent.setup>, days: number[]
 
 beforeEach(() => {
   jest.clearAllMocks();
+  resetLandingGateForTests();
   clearOnboardingV4Draft();
   mockPremium = false;
   mockSetJobs.mockResolvedValue({});
@@ -264,6 +266,9 @@ describe('Onboarding V4', () => {
     );
     expect(mockRouter.replace).toHaveBeenCalledWith('/(food)');
     expect(readOnboardingV4Welcome()).toEqual({ jobs: ['PLAN_MEALS', 'TRAIN'] });
+    // The cold-start landing (Train on a training-day afternoon) must not
+    // override where setup lands: this sign-in's landing is already decided.
+    expect(claimLanding('token-A')).toBe(false);
     expect(readOnboardingV4Draft('token-A')).toBeNull();
   });
 

@@ -38,6 +38,7 @@ import { trpc, type RouterOutputs } from '../../lib/trpc';
 import { useAiConsent } from '../ai-consent/ai-consent-provider';
 import { setMode } from '../gym/mode-store';
 import { gymBootstrapQueryKey } from '../gym/use-gym-bootstrap';
+import { markLandingDecided } from '../navigation/landing-gate';
 import { clearOnboardingDraft } from '../onboarding/onboarding-draft';
 import { markOnboardingGateHandled } from '../onboarding/onboarding-gate';
 import { ACTIVITY_OPTIONS } from '../preferences/types';
@@ -264,6 +265,9 @@ export function OnboardingV4() {
     clearOnboardingDraft();
     clearOnboardingV4Draft();
     markOnboardingGateHandled(getToken());
+    // Land where setup says (Today + its welcome card), not where the
+    // cold-start rule would (Train on a training-day afternoon).
+    markLandingDecided(getToken());
     markOnboardingV4Welcome(jobs);
     void utils.preferences.invalidate();
     void utils.dashboard.invalidate();
