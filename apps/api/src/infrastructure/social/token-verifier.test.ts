@@ -154,7 +154,7 @@ describe('SocialTokenVerifier', () => {
       ).toBe('nonce');
     });
 
-    it('Google: nonce is optional unless the token carries one', async () => {
+    it('Google: nonce is optional unless the client supplies one', async () => {
       const plain = await keys.sign('GOOGLE', { sub: 'g-1', aud: GOOGLE_AUD });
       await expect(verifier.verify({ provider: 'GOOGLE', idToken: plain })).resolves.toBeDefined();
       const withNonce = await keys.sign('GOOGLE', {
@@ -162,10 +162,37 @@ describe('SocialTokenVerifier', () => {
         aud: GOOGLE_AUD,
         nonce: 'n-0123456789',
       });
-      await rejection(verifier.verify({ provider: 'GOOGLE', idToken: withNonce }));
       await expect(
         verifier.verify({ provider: 'GOOGLE', idToken: withNonce, nonce: 'n-0123456789' }),
       ).resolves.toBeDefined();
+      expect(
+        (
+          await rejection(
+            verifier.verify({ provider: 'GOOGLE', idToken: withNonce, nonce: 'another-nonce-123' }),
+          )
+        ).reason,
+      ).toBe('nonce');
+      expect(
+        (await rejection(verifier.verify({ provider: 'GOOGLE', idToken: plain, nonce: 'n-1' })))
+          .reason,
+      ).toBe('nonce');
+    });
+
+    // Regression: the iOS Google SDK (AppAuth) adds a random nonce of its own when the
+    // app passes none, so every iOS token carried a nonce the app could not send.
+    it('Google: accepts a token whose nonce the SDK added on its own (iOS)', async () => {
+      const sdkNonce = await keys.sign('GOOGLE', {
+        sub: 'g-ios',
+        aud: 'google-ios.apps.googleusercontent.com',
+        nonce: 'appauth-generated-state-value',
+        email: 'Ios.User@Gmail.com',
+        email_verified: true,
+      });
+      expect(await verifier.verify({ provider: 'GOOGLE', idToken: sdkNonce })).toMatchObject({
+        subject: 'g-ios',
+        email: 'ios.user@gmail.com',
+        emailVerified: true,
+      });
     });
   });
 

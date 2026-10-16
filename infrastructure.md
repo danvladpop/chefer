@@ -544,8 +544,8 @@ API, Maestro E2E in `e2e/`).
   **web** client id (it is what makes Google return an ID token; the Android client id only binds the SHA-1 in Google
   Cloud)); `social-credentials.ts` (nonce = 16 random bytes hex via `expo-crypto`, provider gets `sha256(raw)` as
   lowercase hex, the API gets `raw`; Apple: scopes FULL_NAME+EMAIL, `identityToken`, `authorizationCode`, name only when
-  Apple sends it; Google: ID token only — the library's original API has no nonce parameter and the API checks a nonce
-  only when the token carries one — then `GoogleSignin.signOut()` so the next attempt shows the account chooser);
+  Apple sends it; Google: ID token only — the library's original API has no nonce parameter (on iOS the Google SDK still adds a random
+  nonce of its own), and the API checks a Google nonce only when the client supplies one — then `GoogleSignin.signOut()` so the next attempt shows the account chooser);
   `use-social-sign-in.ts` (always sends `acceptLegal: true`, `acceptedTermsVersion`, `region`; session handling mirrors
   email login/registration: new user → `requestOnboarding()` BEFORE `setToken` (R-18b), existing → `setToken`;
   `setToken` clears the query cache); `social-errors.ts` (cancel = silence; `UNAUTHORIZED` from `socialSignIn` = the plain
@@ -2003,7 +2003,8 @@ Router (tRPC)          ← thin, only input/output + auth guard
   Apple private-relay addresses simply create a new account. The session is issued by `AuthService.createSession`
   (cookie for web, `session` in the body for `x-chefer-client: mobile`) — identical to `auth.login`.
 - **Nonce:** the client generates a raw nonce, gives the provider its SHA-256 hex and the API the raw value; the token's
-  `nonce` claim may equal either. Apple requires a nonce; Google's is checked when the token carries one.
+  `nonce` claim may equal either. Apple requires a nonce; Google's is checked only when the client sends one (the iOS
+  Google SDK puts its own nonce in every token, so "token has a nonce, client sent none" is accepted for Google).
 - **Apple grant (App Store 5.1.1(v))**: sign-in may carry the one-time `authorizationCode`; the service exchanges it at
   `https://appleid.apple.com/auth/token` and stores the refresh token encrypted. `deleteAccount()` reads the identities
   before the cascade and calls `revokeAppleGrants` after the commit (`/auth/revoke`, best effort, logged); unlinking an
