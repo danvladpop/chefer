@@ -2,6 +2,12 @@ import React from "react";
 import { Composition, Folder } from "remotion";
 import { CheferAd } from "./CheferAd";
 import { DevSheet } from "./DevSheet";
+import {
+  LOOP,
+  LOOP_SIZE,
+  ONBOARDING_LOOPS,
+  OnboardingLoopsSheet,
+} from "./onboarding/OnboardingLoops";
 import { cheferAdSchema } from "./schema";
 import { CookAndCheckOff } from "./scenes/CookAndCheckOff";
 import { EndCard } from "./scenes/EndCard";
@@ -217,6 +223,29 @@ export const RemotionRoot: React.FC = () => (
           playStoreLive: true,
         }}
       />
+    </Folder>
+
+    {/* Onboarding proposal: one Biscuit loop per step (transparent, seamless). */}
+    <Folder name="Onboarding">
+      <Composition
+        id="Onboarding-Sheet"
+        component={OnboardingLoopsSheet}
+        width={1800}
+        height={1530}
+        fps={30}
+        durationInFrames={LOOP * 2}
+      />
+      {ONBOARDING_LOOPS.map((l) => (
+        <Composition
+          key={l.id}
+          id={l.id}
+          component={l.component}
+          width={LOOP_SIZE}
+          height={LOOP_SIZE}
+          fps={30}
+          durationInFrames={LOOP}
+        />
+      ))}
     </Folder>
 
     <Folder name="Dev">

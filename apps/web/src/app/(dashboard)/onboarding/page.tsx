@@ -1,5 +1,6 @@
 import { headers } from 'next/headers';
 import { redirect } from 'next/navigation';
+import { OnboardingV4 } from '@/features/onboarding-v4/onboarding-v4';
 import { OnboardingWizard } from '@/features/onboarding/components/onboarding-wizard';
 import {
   EMPTY_WIZARD_DATA,
@@ -9,7 +10,7 @@ import {
   type WizardData,
 } from '@/features/onboarding/types';
 import { createServerClient } from '@/lib/trpc-server';
-import type { OnboardingJob } from '@chefer/types';
+import type { BodyUnits, OnboardingJob } from '@chefer/types';
 import { ErrorState } from '@chefer/ui';
 
 // ─── Onboarding Page ──────────────────────────────────────────────────────────
@@ -30,9 +31,17 @@ export default async function OnboardingPage() {
   let initialIntent: ReturnType<typeof savedIntent> = null;
   let initialJobs: OnboardingJob[] = [];
   let loadFailed = false;
+  // Onboarding V4 (flag `onboardingV4`): the short, Biscuit-led setup. Off —
+  // or a failed flag read — keeps today's wizard exactly as it was.
+  let onboardingV4 = false;
+  let savedUnits: BodyUnits | null = null;
 
   try {
     const client = createServerClient(cookieHeader);
+    onboardingV4 = await client.profile.flags
+      .query()
+      .then((flags) => flags.onboardingV4 === true)
+      .catch(() => false);
 
     const me = await client.user.me.query();
     isPremium = me.planTier === 'PREMIUM' || me.role === 'ADMIN';
@@ -48,6 +57,7 @@ export default async function OnboardingPage() {
     // Step 0 is asked once (P2-3): a saved answer skips it.
     initialIntent = savedIntent(saved);
     initialJobs = savedJobs(saved);
+    savedUnits = saved.chefProfile?.preferredUnits ?? null;
   } catch {
     // A blank wizard over data we couldn't load would save empty safety
     // lists (F-ONB-1-1): show an error instead.
@@ -68,6 +78,17 @@ export default async function OnboardingPage() {
           retryHref="/onboarding"
         />
       </div>
+    );
+  }
+
+  if (onboardingV4) {
+    return (
+      <OnboardingV4
+        isPremium={isPremium}
+        initialData={initialData}
+        initialJobs={initialJobs}
+        savedUnits={savedUnits}
+      />
     );
   }
 

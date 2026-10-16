@@ -34,6 +34,11 @@ export const featureFlagsSchema = z
      *  tab groups. Off by default; admins and dev builds can preview it
      *  per device from Settings. Mobile only — web ignores it. */
     mobileShellV2: z.boolean(),
+    /** Onboarding V4 (docs/onboarding-review-2026-10): the short, Biscuit-led
+     *  welcome → sign-up → setup flow with the first-week reveal and the
+     *  Premium step. Off by default; both platforms keep today's wizard
+     *  until it is flipped. */
+    onboardingV4: z.boolean(),
   })
   .partial();
 export type FeatureFlags = z.infer<typeof featureFlagsSchema>;

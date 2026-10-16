@@ -30,6 +30,7 @@ import { ModeSwitch } from '../../src/features/gym/components/mode-switch';
 import { TodaysWorkoutCard } from '../../src/features/gym/today/todays-workout-card';
 import { useTimedRefresh } from '../../src/features/gym/today/use-timed-refresh';
 import { NumbersModeProvider } from '../../src/features/numbers-mode/numbers-mode';
+import { OnboardingV4WelcomeCard } from '../../src/features/onboarding-v4/welcome-card';
 import { HealthConsentTodayNotice } from '../../src/features/privacy/health-consent-notice';
 import { MigrationCard } from '../../src/features/safety/migration-card';
 import { useShellV2 } from '../../src/features/shell/shell-store';
@@ -212,6 +213,9 @@ export default function HomeScreen() {
 
           {/* UX-26 AC2: after "Don't save it", plans aren't being checked for allergies. */}
           <HealthConsentTodayNotice />
+
+          {/* Onboarding V4: the one-time "You're all set" card. */}
+          <OnboardingV4WelcomeCard />
 
           {/* Header */}
           <View className="flex-row items-end justify-between gap-3">

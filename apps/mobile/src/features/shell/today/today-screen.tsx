@@ -21,6 +21,7 @@ import { TrainingDayNote } from '../../dashboard/components/training-day-note';
 import { useGymReminders } from '../../gym/reminders/use-gym-reminders';
 import { useTimedRefresh } from '../../gym/today/use-timed-refresh';
 import { NumbersModeProvider, useNumbersMode } from '../../numbers-mode/numbers-mode';
+import { OnboardingV4WelcomeCard } from '../../onboarding-v4/welcome-card';
 import { HealthConsentTodayNotice } from '../../privacy/health-consent-notice';
 import { MigrationCard } from '../../safety/migration-card';
 import { RebalanceBanner } from '../../tracker/rebalance-banner';
@@ -149,6 +150,8 @@ export function TodayScreen() {
           <Stagger enabled={firstEntrance}>
             {/* UX-26 AC2: after "Don't save it", plans aren't checked for allergies. */}
             <HealthConsentTodayNotice />
+            {/* Onboarding V4: the one-time "You're all set" card. */}
+            <OnboardingV4WelcomeCard />
             {/* T-01.3: the legacy free-text safety review — self-gated. */}
             <MigrationCard />
 

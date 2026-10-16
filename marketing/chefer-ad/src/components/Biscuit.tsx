@@ -3,7 +3,7 @@ import { interpolate, useCurrentFrame } from "remotion";
 import { CLAMP } from "../theme";
 
 export type BiscuitPose = "lie" | "stand" | "push" | "squat" | "proud" | "wink";
-export type BiscuitAccessory = "chefHat" | "headband" | "none";
+export type BiscuitAccessory = "chefHat" | "headband" | "crown" | "none";
 export type BiscuitMood = "happy" | "sad" | "excited" | "proud" | "focused";
 export type BiscuitHolding = "none" | "dumbbell" | "phone" | "carrot";
 
@@ -36,6 +36,8 @@ export type BiscuitProps = {
   slice?: number;
   /** Frame offset so blinks/wags of several instances don't sync up. */
   phase?: number;
+  /** Loop length in frames: breathing and wag snap to whole cycles so the clip loops seamlessly. */
+  loop?: number;
   style?: React.CSSProperties;
 };
 
@@ -345,6 +347,21 @@ const Head: React.FC<{
           />
         </g>
       ) : null}
+      {accessory === "crown" ? (
+        <g transform={`translate(${hx} ${hy - 78}) rotate(-6)`}>
+          <path
+            d="M-46 14 L-50 -30 L-24 -8 L0 -40 L24 -8 L50 -30 L46 14 Z"
+            fill="#F2B640"
+            stroke="#C98A12"
+            strokeWidth={4}
+            strokeLinejoin="round"
+          />
+          <rect x={-48} y={8} width={96} height={14} rx={6} fill="#E3A12A" />
+          <circle cx={0} cy={-14} r={7} fill="#944A00" />
+          <circle cx={-30} cy={0} r={5} fill="#FFF4E6" />
+          <circle cx={30} cy={0} r={5} fill="#FFF4E6" />
+        </g>
+      ) : null}
       {accessory === "headband" ? (
         <g transform={`translate(${hx + 82} ${hy - 44})`}>
           <rect
@@ -482,6 +499,7 @@ export const Biscuit: React.FC<BiscuitProps> = ({
   holding = "none",
   slice = 0,
   phase = 0,
+  loop,
   style,
 }) => {
   const uid = useId().replace(/[^a-zA-Z0-9]/g, "");
@@ -489,16 +507,26 @@ export const Biscuit: React.FC<BiscuitProps> = ({
   const bw = Math.max(0.75, Math.min(1, bodyWidth));
 
   // Frame-math life: breathing (≈1.5% scaleY), blink every 45 frames, tail wag via sin(frame).
-  const breathe = 1 + 0.015 * Math.sin((f * 2 * Math.PI) / 48);
+  const breathPeriod = loop ? loop / Math.max(1, Math.round(loop / 48)) : 48;
+  const breathe = 1 + 0.015 * Math.sin((f * 2 * Math.PI) / breathPeriod);
   const bphase = (f + 17) % 45;
   const eyeOpen = blink
     ? interpolate(bphase, [0, 2, 4], [1, 0.05, 1], CLAMP)
     : 1;
   const wagAmp = 8 + 26 * tailWag;
-  const wagSpeed = 0.22 + 0.6 * tailWag;
+  // With `loop`, every periodic motion snaps to a whole number of cycles per loop.
+  const snap = (speed: number) =>
+    loop
+      ? (2 *
+          Math.PI *
+          Math.max(1, Math.round((speed * loop) / (2 * Math.PI)))) /
+        loop
+      : speed;
+  const rawWagSpeed = 0.22 + 0.6 * tailWag;
+  const wagSpeed = snap(rawWagSpeed);
   const tailDeg = wagAmp * Math.sin(f * wagSpeed);
   const earDroop = mood === "sad" ? 1 : 0;
-  const earTwitch = mood === "excited" ? 4 * Math.sin(f * 0.9) : 0;
+  const earTwitch = mood === "excited" ? 4 * Math.sin(f * snap(0.9)) : 0;
 
   const svgProps = {
     width: size,
@@ -570,9 +598,9 @@ export const Biscuit: React.FC<BiscuitProps> = ({
   const drop = 30 * d;
   const torsoY = 272 + drop;
   const spread = 48 * (0.8 + 0.2 * bw) + 14 * d;
-  const stepL = walk ? 9 * Math.max(0, Math.sin(f * 0.55)) : 0;
-  const stepR = walk ? 9 * Math.max(0, -Math.sin(f * 0.55)) : 0;
-  const bob = walk ? -3 * Math.abs(Math.sin(f * 0.55)) : 0;
+  const stepL = walk ? 9 * Math.max(0, Math.sin(f * snap(0.55))) : 0;
+  const stepR = walk ? 9 * Math.max(0, -Math.sin(f * snap(0.55))) : 0;
+  const bob = walk ? -3 * Math.abs(Math.sin(f * snap(0.55))) : 0;
   const lean = pose === "push" ? 7 : 0;
   const chestPuff = pose === "proud" ? 6 : 0;
 
@@ -595,7 +623,7 @@ export const Biscuit: React.FC<BiscuitProps> = ({
     degL = 26;
     degR = -26;
   } else if (pose === "wink") {
-    degR = -132 + 12 * Math.sin(f * 0.45);
+    degR = -132 + 12 * Math.sin(f * snap(0.45));
     lenR = 92;
   }
   degR = mix(degR, RAISED_DEG, armRaise);

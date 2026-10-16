@@ -248,6 +248,51 @@ Admins can additionally create users via `user.create` (admin-only).
 
 ---
 
+### Onboarding V4 (flag `onboardingV4`, 2026-10-16)
+
+Behind the `onboardingV4` flag (`FEATURE_FLAGS`, off by default; `profile.flags`
+is public, so the signed-out screens can read it) both platforms replace the
+welcome → register → wizard path with the shorter Biscuit-led flow from
+`docs/onboarding-review-2026-10` (boards: design canvas page "Onboarding V4 —
+proposal"). With the flag off nothing changes.
+
+1. **Welcome** (mobile) — one screen, Biscuit waving, "Get started" / "I already
+   have an account".
+2. **Account** — Sign in with Apple / Google first (WP-22, consent line under the
+   buttons), then email + password with **one** "I'm 16+ and agree to the Terms
+   and Privacy Policy" checkbox that sends both `acceptedTerms` and
+   `ageConfirmed` to `auth.register` (same API contract as V3). Legal sign-off on
+   the combined checkbox is still pending (review D3).
+3. **What brings you here?** — job tiles (`PLAN_MEALS`, `TRAIN`, `TRACK`,
+   `HOUSEHOLD`), saved with `preferences.setJobs`.
+4. **Goal** — four tiles (lose weight, build muscle, eat healthier, "just good
+   food" = no goal); Biscuit switches loop per pick.
+5. **About you** — sex, age, height, weight (region units) and, for Train,
+   training weekdays. Activity is derived from the weekday count
+   (`activityFromTrainingDays`, overridable via "Change"); the calorie target
+   shows live. Saves `setJobs` (+ `trainingWeekdays`), `setDisplayPreferences`
+   (region units/currency) and — behind the health-consent sheet (§4.9) —
+   `saveProfileBasics`. Declining keeps the non-health saves.
+6. **Anything you can't eat?** (food jobs only) — "I eat everything" or quick
+   chips (diets + common allergens) and "More options" (the full safety
+   picker); saved with `updateSafety` behind the same consent.
+7. **Building → Your week is ready** (Plan meals / Feed my family) —
+   `mealPlan.generate` for this week behind the AI-consent guard (free plans are
+   curated, so no ask), then the seven dinners and the shopping-list count.
+   Failure offers Try again / Skip; Skip goes past the reveal.
+8. **Premium** (free users only) — the soft-paywall flip (`user.upgradePlan`, no
+   price, no checkout), "Maybe later" skips. Tracked as `upgrade_clicked` /
+   `upgrade_completed` with source `onboarding`.
+9. **Set up training** (Train) — experience + equipment, the recommended program
+   (`gym.profile.recommend`, "Change" cycles the alternatives), "Start training"
+   = `gym.profile.completeSetup` with the chosen weekdays.
+
+The flow ends on Today (Gym Today when Train is the only job) with a one-time
+"You're all set" card (Biscuit winking; dismiss clears it for good).
+Mobile keeps a session-scoped draft after every answer (UX-ONB-01), so a killed
+app or "Leave for now" resumes on the same step; a plan already built is not
+built again. Web, like V3 web, keeps the answers in memory only.
+
 ## 3. User Login Flow
 
 > **Status:** Implemented.

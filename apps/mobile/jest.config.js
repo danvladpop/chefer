@@ -3,7 +3,10 @@ module.exports = {
   preset: 'jest-expo',
   testMatch: ['<rootDir>/tests/unit/**/*.test.{ts,tsx}'],
   // Reanimated / worklets / expo-haptics mocks (motion primitives, P2-1).
-  setupFiles: ['<rootDir>/tests/setup/motion-mocks.js'],
+  setupFiles: [
+    '<rootDir>/tests/setup/motion-mocks.js',
+    '<rootDir>/tests/setup/onboarding-v4-flag.js',
+  ],
   // The @chefer/* packages publish raw TS via an "import"-only exports map,
   // which Jest's CJS resolver can't follow — point straight at the source.
   moduleNameMapper: {
