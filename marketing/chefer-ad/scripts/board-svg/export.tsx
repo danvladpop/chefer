@@ -2,7 +2,6 @@
 // Usage: tsx scripts/board-svg/export.tsx <outDir>
 import { writeFileSync, mkdirSync } from "node:fs";
 import { join } from "node:path";
-import React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { Biscuit, type BiscuitProps } from "./BiscuitStatic";
 
