@@ -289,24 +289,9 @@ jobs:
   # same DB bootstrap as the E2E job. AI stays mocked (no keys in CI).
   mobile-contract:
     name: Mobile Contract
-    runs-on: ubuntu-latest
+    # 24.04 ships PostgreSQL 16 — see .github/actions/setup-postgres.
+    runs-on: ubuntu-24.04
     if: github.event_name == 'pull_request'
-    services:
-      postgres:
-        # The same official image from AWS's public mirror: Docker Hub's
-        # unauthenticated pull limit failed E2E before any test ran.
-        image: public.ecr.aws/docker/library/postgres:16-alpine
-        env:
-          POSTGRES_USER: postgres
-          POSTGRES_PASSWORD: postgres
-          POSTGRES_DB: chefer_test
-        options: >-
-          --health-cmd pg_isready
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
-        ports:
-          - 5432:5432
     env:
       DATABASE_URL: postgresql://postgres:postgres@localhost:5432/chefer_test
       JWT_SECRET: ci-only-jwt-secret-0123456789abcdef0123456789abcdef
@@ -334,6 +319,14 @@ jobs:
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
+
+      # Runner-installed Postgres 16, not a service container: Docker Hub
+      # (2026-10-09) and then ECR Public (2026-10-16) anonymous pull quotas
+      # on shared runner IPs failed this job at "Initialize containers".
+      - name: Start Postgres
+        uses: ./.github/actions/setup-postgres
+        with:
+          database: chefer_test
 
       - name: Setup test database
         # ingredients:sync loads the global catalog, as every deploy does
@@ -395,24 +388,9 @@ jobs:
   # run against the dev database: cd tests && pnpm exec playwright test.
   e2e:
     name: E2E Tests
-    runs-on: ubuntu-latest
+    # 24.04 ships PostgreSQL 16 — see .github/actions/setup-postgres.
+    runs-on: ubuntu-24.04
     if: github.event_name == 'pull_request'
-    services:
-      postgres:
-        # The same official image from AWS's public mirror: Docker Hub's
-        # unauthenticated pull limit failed E2E before any test ran.
-        image: public.ecr.aws/docker/library/postgres:16-alpine
-        env:
-          POSTGRES_USER: postgres
-          POSTGRES_PASSWORD: postgres
-          POSTGRES_DB: chefer_test
-        options: >-
-          --health-cmd pg_isready
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
-        ports:
-          - 5432:5432
     env:
       DATABASE_URL: postgresql://postgres:postgres@localhost:5432/chefer_test
       # CI-only dummies — the api env schema requires 32+ chars at startup.
@@ -436,6 +414,14 @@ jobs:
 
       - name: Install Playwright browsers
         run: pnpm --filter @chefer/e2e exec playwright install --with-deps chromium
+
+      # Runner-installed Postgres 16, not a service container: Docker Hub
+      # (2026-10-09) and then ECR Public (2026-10-16) anonymous pull quotas
+      # on shared runner IPs failed this job at "Initialize containers".
+      - name: Start Postgres
+        uses: ./.github/actions/setup-postgres
+        with:
+          database: chefer_test
 
       - name: Setup test database
         run: pnpm db:push && pnpm ingredients:sync

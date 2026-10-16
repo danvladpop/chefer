@@ -4081,10 +4081,17 @@ PRs). `Build` no longer waits for Lint/Type Check/Unit Tests and `E2E Tests` no 
 `Build` (it builds with its own localhost URLs anyway); the deploy gate and branch protection still
 require all four checks, so nothing ships or merges on red.
 
-`Mobile Contract` and `E2E Tests` pull their Postgres service from
-`public.ecr.aws/docker/library/postgres:16-alpine` (the official image's AWS
-mirror), not Docker Hub, whose unauthenticated pull limit on shared runners
-failed those jobs before any test ran (2026-10-09).
+`Mobile Contract` and `E2E Tests` get Postgres from the local composite action
+`.github/actions/setup-postgres`, not a `services:` container: it starts the PostgreSQL 16
+server preinstalled on GitHub's `ubuntu-24.04` image (both jobs pin that runner instead of
+`ubuntu-latest`), sets the `postgres`/`postgres` password and creates `chefer_test` on
+`localhost:5432`. If a future runner image lacks PostgreSQL 16 it installs `postgresql-16` from
+the Ubuntu archive, so the major version stays 16 (matching production). No container registry
+is touched: anonymous pulls failed both jobs at "Initialize containers", first from Docker Hub
+(2026-10-09), then from its replacement `public.ecr.aws/docker/library/postgres:16-alpine` with
+`toomanyrequests: Data limit exceeded` (2026-10-16), since shared runner IPs share the quota.
+Nothing needs secrets. A new DB-backed job should use the same action rather than a service
+container.
 
 ### `deploy.yml` — one-button production deploy, gated on green CI
 

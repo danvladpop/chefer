@@ -1,7 +1,13 @@
 import { useEffect, useState } from 'react';
 import { View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { IconButton, ProgressBar, Text, useThemeColors } from '@chefer/ui-mobile';
+import {
+  IconButton,
+  ProgressBar,
+  Text,
+  useReadableLayout,
+  useThemeColors,
+} from '@chefer/ui-mobile';
 import { Icon } from '../../../components/icon';
 import { formatClock } from '../../gym/workout/workout-model';
 import { TrainButton } from './train-button';
@@ -54,11 +60,27 @@ export function WorkoutHeader({
 }: WorkoutHeaderProps) {
   const colors = useThemeColors();
   const insets = useSafeAreaInsets();
+  // Large screens: Screen pads a wide window down to the readable column; the
+  // brand header bleeds back out to the window's edges (a column-wide slab
+  // hanging from the top looked broken) while its content stays in the column.
+  // Screen's side padding on each edge is the larger of the gutter and the
+  // safe-area inset it sits on (the workout's Screen insets left and right).
+  const { gutter } = useReadableLayout();
+  const bleedLeft = Math.max(gutter, insets.left);
+  const bleedRight = Math.max(gutter, insets.right);
   return (
     <View
       testID="workout-header"
       className="gap-3 rounded-b-sheet bg-brand px-4 pb-4"
-      style={{ paddingTop: insets.top + 8 }}
+      style={[
+        { paddingTop: insets.top + 8 },
+        gutter > 0 && {
+          marginLeft: -bleedLeft,
+          marginRight: -bleedRight,
+          paddingLeft: bleedLeft + 16,
+          paddingRight: bleedRight + 16,
+        },
+      ]}
     >
       <View className="flex-row items-center gap-2">
         <IconButton
