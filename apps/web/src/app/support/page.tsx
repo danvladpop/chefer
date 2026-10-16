@@ -1,10 +1,13 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
+import { StoreBadges, StoreTrademarks } from '@/features/app-stores/components/StoreBadges';
+import { smartAppBanner } from '@/features/app-stores/store-metadata';
 import { fetchAiProviderDisclosure } from '@/lib/ai-providers';
 import { SUPPORT_EMAIL, type AiProviderDisclosure } from '@chefer/types';
 import { aiDisclosureProviders, formatAiProviderNames } from '@chefer/utils';
 
 export const metadata: Metadata = {
+  ...smartAppBanner(),
   title: 'Help & Support',
   description: 'How to get help with Chefer: contact, password reset, account deletion and AI.',
 };
@@ -79,6 +82,12 @@ export default async function SupportPage() {
         </section>
 
         <section>
+          <h2 className="mb-1 font-semibold text-gray-900">Get the app</h2>
+          <p>Sign in with the same account you use on the web.</p>
+          <StoreBadges campaign="support" className="mt-1 justify-start" />
+        </section>
+
+        <section>
           <h2 className="mb-1 font-semibold text-gray-900">Get help</h2>
           <ul className="list-disc space-y-1 pl-5">
             <li>
@@ -121,6 +130,7 @@ export default async function SupportPage() {
           Terms of Service
         </Link>
       </p>
+      <StoreTrademarks className="mt-6" />
     </main>
   );
 }

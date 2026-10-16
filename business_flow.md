@@ -75,6 +75,19 @@ back / Sign in" with no logo or value statement). Web has no separate first
 screen; the landing page (`/`, T-25.2) plays that role and now leads with the
 free workout log too, not meal planning alone (CI-16/CI-25).
 
+**Web → app stores (ASO plan §5.2–5.3, 2026-10-16).** The landing page shows
+the official store badges in the hero (under the register/sign-in buttons, which
+stay the primary calls to action) and under the closing CTA; `/support` has a
+"Get the app" section. Each placement is its own store campaign (`landing-hero`,
+`landing-footer`, `support`): Play links carry the UTM tags in `referrer`
+(Play Console → acquisition reports), App Store links carry `ct` (+ `pt` once
+the owner sets the provider token; App Store Connect → App Analytics →
+Campaigns). The mobile app has no attribution SDK, so these console reports are
+the web-install measurement. The App Store badge, its trademark notice and
+Safari's Smart App Banner (on every public page) stay hidden until
+`APP_STORE_APP_ID` is set in `@chefer/types`. The landing page also carries
+`SoftwareApplication` JSON-LD (free offer, live store listings, no ratings).
+
 ```
 1. User fills in RegisterForm at /(auth)/register
    └── email, password, firstName?, lastName? (react-hook-form + Zod)
