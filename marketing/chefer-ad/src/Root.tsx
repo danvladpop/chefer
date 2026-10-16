@@ -10,6 +10,7 @@ import { MealPlan } from "./scenes/MealPlan";
 import { Payoff } from "./scenes/Payoff";
 import { Shop } from "./scenes/Shop";
 import { Train } from "./scenes/Train";
+import { StoreCompositions } from "./store/StoreCompositions";
 
 export const RemotionRoot: React.FC = () => (
   <>
@@ -228,5 +229,7 @@ export const RemotionRoot: React.FC = () => (
         durationInFrames={60}
       />
     </Folder>
+
+    <StoreCompositions />
   </>
 );
