@@ -286,6 +286,8 @@ export const PREMIUM_SOURCES = [
   'monday-nudge',
   'meal-plan-banner',
   'post-rating',
+  // Onboarding V4's own Premium step (flag `onboardingV4`).
+  'onboarding',
 ] as const;
 export type PremiumSource = (typeof PREMIUM_SOURCES)[number];
 
