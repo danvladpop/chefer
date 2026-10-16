@@ -4,6 +4,7 @@ import { colors, countPillText } from '@chefer/ui-mobile';
 import { SnackbarAwareTabBar } from '../../src/components/snackbar-tab-bar';
 import { usePendingOnboarding } from '../../src/features/auth/pending-onboarding';
 import { useFriendsMe } from '../../src/features/friends/api/use-friends-me';
+import { claimLanding } from '../../src/features/navigation/landing-gate';
 import { landingSurfaceSync, useSyncLandingCache } from '../../src/features/navigation/use-landing';
 import { useOnboardingGate } from '../../src/features/onboarding/use-onboarding-gate';
 import { ShellV2Forward } from '../../src/features/shell/shell-forward';
@@ -18,14 +19,7 @@ import { TAB_BAR_SCREEN_OPTIONS, tabAccessibilityLabel } from '../../src/lib/tab
 // `(tabs)` for the Food / Gym mode switch — gym_plan.md §5.1; URLs are
 // unchanged.)
 
-/**
- * ONE-SHOT per sign-in (per launch), not per mount: switching to Gym replaces
- * this group in the root Stack (it unmounts), so a per-mount check re-ran on
- * every switch back to Food and, for a TRAIN-only account, redirected
- * straight to /today again — Food was unreachable (owner dogfood 2026-09-30,
- * iPhone). Keyed by the token so a fresh sign-in still gets its landing.
- */
-let landingCheckedForToken: string | null = null;
+// The one-shot landing check lives in features/navigation/landing-gate.ts.
 
 /** Tabs below, for each tab's spoken "N of 5" (iOS). */
 const TAB_COUNT = 5;
@@ -62,14 +56,12 @@ export default function FoodTabsLayout() {
   }
   if (shellV2) {
     let landing: '/train' | undefined;
-    if (landingCheckedForToken !== token) {
-      landingCheckedForToken = token;
+    if (claimLanding(token)) {
       if (pathname === '/' && landingSurfaceSync() === 'gym') landing = '/train';
     }
     return <ShellV2Forward landing={landing} />;
   }
-  if (landingCheckedForToken !== token) {
-    landingCheckedForToken = token;
+  if (claimLanding(token)) {
     if (pathname === '/' && landingSurfaceSync() === 'gym') {
       return <Redirect href="/today" />;
     }
