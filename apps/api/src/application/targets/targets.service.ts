@@ -21,6 +21,7 @@ import { isPremiumUser } from '../../lib/entitlements.js';
 import { isFlagEnabled } from '../../lib/flags.js';
 import { resolveTargets, type ResolveTargetsProfile } from '../preferences/preferences.service.js';
 import { trainingNutritionService } from '../training-nutrition/training-nutrition.service.js';
+import { notifyTargetsChanged } from './targets-changed.js';
 
 // ─── Targets service (§2.11, T-35.1, T-11.1) ───────────────────────────────────
 // The `targets.*` procedures: read the resolved view (and detect + record a
@@ -216,6 +217,7 @@ export class TargetsService {
       // not a silent change — move the snapshot without a notice.
       const resolved = await this.resolveFor(userId, profile);
       await this.writeSnapshot(userId, resolved);
+      await notifyTargetsChanged(userId);
       return this.get(userId);
     }
 
@@ -279,6 +281,7 @@ export class TargetsService {
     const profile = await chefProfileRepository.findByUserId(userId);
     const resolved = await this.resolveFor(userId, profile);
     await this.writeSnapshot(userId, resolved);
+    await notifyTargetsChanged(userId);
     return this.get(userId);
   }
 
@@ -365,6 +368,7 @@ export class TargetsService {
       targetAdjustmentKcal: (profile?.targetAdjustmentKcal ?? 0) + review.proposedAdjustmentKcal,
     });
     await chefReviewRepository.resolveProposal(review.id);
+    await notifyTargetsChanged(userId);
   }
 
   /**

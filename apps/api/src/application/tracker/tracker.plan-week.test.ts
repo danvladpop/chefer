@@ -40,6 +40,10 @@ vi.mock('@chefer/database', async (importOriginal) => ({
   weightEntryRepository: { findLatest: vi.fn().mockResolvedValue(null) },
 }));
 
+const mockFitPlanDay = vi.fn();
+vi.mock('../meal-plan/day-fit.js', () => ({
+  fitPlanDay: (...args: unknown[]) => mockFitPlanDay(...args) as unknown,
+}));
 vi.mock('../meal-plan/rebalance.js', () => ({
   rebalanceWeek: vi.fn().mockResolvedValue({ rebalanced: false, swaps: [], projectedDeviation: 0 }),
   previewRebalance: vi.fn().mockResolvedValue(null),
@@ -61,6 +65,7 @@ const user = (planTier: 'FREE' | 'PREMIUM'): UserProfile => ({
 });
 
 beforeEach(() => {
+  mockFitPlanDay.mockReset().mockResolvedValue(null);
   vi.clearAllMocks();
   // A faithful fake of the repository: only the plan whose week starts within
   // the requested calendar day comes back (findByWeekStart's window).
@@ -171,6 +176,59 @@ describe('trackerService.maybeRebalance — acts on the current week (UX-PLAN-09
     vi.setSystemTime(new Date(2026, 9, 2, 10, 0, 0)); // Friday 2 Oct 2026
     await trackerService.maybeRebalance(user('FREE'));
     expect(rebalanceWeek).toHaveBeenCalledWith('u1', 'plan-this-week');
+  });
+});
+
+describe('trackerService.rebalanceOutcome — day first, week only for a big miss (2026-10-16)', () => {
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+  const friday = () => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date(2026, 9, 2, 10, 0, 0)); // Friday 2 Oct 2026
+  };
+  const fit = (kcal: number, onTarget: boolean) => ({
+    planId: 'plan-this-week',
+    dayOfWeek: 4,
+    changes: [{ slotIndex: 2, mealType: 'dinner', recipeName: 'Stew', from: 1, to: 1.5 }],
+    previousPortions: [1, 1, 1],
+    kcal,
+    proteinG: 120,
+    targetKcal: 2000,
+    targetProteinG: 120,
+    onTarget,
+    nothingOpen: false,
+    suggestion: null,
+  });
+
+  it("today's open meals absorb the log: no week offer, the day fit comes back", async () => {
+    friday();
+    mockFitPlanDay.mockResolvedValueOnce(fit(2050, true));
+    const outcome = await trackerService.rebalanceOutcome(user('FREE'), 'preview', '2026-10-02');
+    expect(outcome).toEqual({ rebalance: null, rebalancePreview: null, dayFit: fit(2050, true) });
+    expect(previewRebalance).not.toHaveBeenCalled();
+    expect(mockFitPlanDay).toHaveBeenCalledWith('u1', 'plan-this-week', 4, {
+      localDate: '2026-10-02',
+      suggest: false,
+    });
+  });
+
+  it('a small miss the day cannot absorb still offers nothing', async () => {
+    friday();
+    mockFitPlanDay.mockResolvedValueOnce(fit(2300, false)); // 15% over
+    const outcome = await trackerService.rebalanceOutcome(user('FREE'), 'preview', '2026-10-02');
+    expect(outcome.rebalancePreview).toBeNull();
+    expect(previewRebalance).not.toHaveBeenCalled();
+  });
+
+  it('a big logged miss goes on to the week offer', async () => {
+    friday();
+    mockFitPlanDay.mockResolvedValueOnce(fit(2700, false)); // 35% over
+    const preview = { planId: 'plan-this-week', swaps: [], headline: '', snacks: [], week: {} };
+    vi.mocked(previewRebalance).mockResolvedValueOnce(preview as never);
+    const outcome = await trackerService.rebalanceOutcome(user('FREE'), 'preview', '2026-10-02');
+    expect(outcome.rebalancePreview).toEqual(preview);
+    expect(outcome.dayFit).toEqual(fit(2700, false));
   });
 });
 

@@ -37,6 +37,7 @@ import {
 } from '@chefer/utils';
 import { derivedServingSize, householdService } from '../household/household.service.js';
 import { consentService } from '../privacy/consent.service.js';
+import { notifyTargetsChanged } from '../targets/targets-changed.js';
 
 // ─── Calorie target (shared with web + mobile) ───────────────────────────────
 // Mifflin-St Jeor, goal adjustment, the under-18 no-deficit rule and the
@@ -679,6 +680,7 @@ export class PreferencesService {
       });
     }
     await this.absorbLegacyServingSize(userId, servingSize);
+    await notifyTargetsChanged(userId);
   }
 
   /**
@@ -777,6 +779,10 @@ export class PreferencesService {
     if (preferredUnits !== undefined) await this.syncGymUnit(userId, preferredUnits);
     // …and a serving size — the legacy "cooking for N" (P2-3).
     await this.absorbLegacyServingSize(userId, servingSize);
+    // Day rebalance: a new calorie target or goal resizes the plan's portions.
+    if (profileData.dailyCalorieTarget !== undefined || goal !== undefined) {
+      await notifyTargetsChanged(userId);
+    }
 
     return this.get(userId);
   }

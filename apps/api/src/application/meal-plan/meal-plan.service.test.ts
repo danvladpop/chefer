@@ -36,6 +36,13 @@ vi.mock('../../lib/ai-consent-gate.js', async (importOriginal) => {
 // AiRecipeFinisher — covered in ai-recipe-finisher.test.ts. Here it passes the
 // AI output through unchanged, so these tests keep exercising plan logic
 // (day totals, retries, safety, tailoring) with the numbers they set.
+// Day rebalance (2026-10-16) has its own suite (day-fit.test.ts); here only
+// that a slot change asks for it, and that Undo can opt out.
+const mockFitPlanDay = vi.fn();
+vi.mock('./day-fit.js', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('./day-fit.js')>()),
+  fitPlanDay: (...args: unknown[]) => mockFitPlanDay(...args) as unknown,
+}));
 vi.mock('./ai-recipe-finisher.js', () => ({
   aiRecipeFinisher: {
     finishPlan: vi.fn((plan: unknown) => Promise.resolve({ plan, stats: {} })),
@@ -173,6 +180,7 @@ function makeRepo() {
     updateDayMeal: vi.fn().mockResolvedValue(undefined),
     setSlotPinned: vi.fn().mockResolvedValue(undefined),
     setDayPortions: vi.fn().mockResolvedValue(undefined),
+    setPortionRefit: vi.fn().mockResolvedValue(undefined),
     setDayMeals: vi.fn().mockResolvedValue(undefined),
     findAllByUserId: vi.fn().mockResolvedValue([]),
     findByIdForUser: vi.fn().mockResolvedValue(null),
@@ -1341,6 +1349,61 @@ describe('MealPlanService.replaceRecipe — safety (B-34/B-46, T-00.11)', () => 
     await service.replaceRecipe('user1', 'plan1', 0, 'dinner', 'safe-r1');
 
     expect(repo.updateDayMeal).toHaveBeenCalledWith('plan1', 0, 'dinner', 'safe-r1', 1.5, 0, true);
+  });
+
+  it('day rebalance: a replace fits the rest of the day around the new pick (locked)', async () => {
+    const repo = makeRepo();
+    repo.findByIdForUser.mockResolvedValue(PLAN_ROW_SIMPLE);
+    repo.findRecipeById.mockResolvedValue({ ...AI_RECIPE, id: 'safe-r1', source: 'AI' });
+    vi.mocked(dietaryPreferencesRepository.findByUserId).mockResolvedValue(EGG_ALLERGY as never);
+    const fitted = { planId: 'plan1', dayOfWeek: 0, changes: [], onTarget: true };
+    mockFitPlanDay.mockResolvedValueOnce(fitted);
+    const service = new MealPlanService(repo);
+
+    const res = await service.replaceRecipe(
+      'user1',
+      'plan1',
+      0,
+      'dinner',
+      'safe-r1',
+      undefined,
+      undefined,
+      true,
+      {
+        localDate: '2026-10-16',
+      },
+    );
+
+    expect(mockFitPlanDay).toHaveBeenCalledWith('user1', 'plan1', 0, {
+      lockSlotIndexes: [0],
+      localDate: '2026-10-16',
+    });
+    expect(res.dayFit).toEqual(fitted);
+  });
+
+  it('day rebalance: Undo (fitDay: false) does not fit the day again', async () => {
+    const repo = makeRepo();
+    repo.findByIdForUser.mockResolvedValue(PLAN_ROW_SIMPLE);
+    repo.findRecipeById.mockResolvedValue({ ...AI_RECIPE, id: 'old', source: 'AI' });
+    vi.mocked(dietaryPreferencesRepository.findByUserId).mockResolvedValue(EGG_ALLERGY as never);
+    const service = new MealPlanService(repo);
+
+    const res = await service.replaceRecipe(
+      'user1',
+      'plan1',
+      0,
+      'dinner',
+      'old',
+      undefined,
+      undefined,
+      false,
+      {
+        fitDay: false,
+      },
+    );
+
+    expect(mockFitPlanDay).not.toHaveBeenCalled();
+    expect(res).not.toHaveProperty('dayFit');
   });
 
   it('UX-PLAN-04: Undo restores the slot UNPINNED when the swap displaced an unpinned dish', async () => {

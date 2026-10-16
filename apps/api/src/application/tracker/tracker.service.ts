@@ -17,6 +17,7 @@ import type {
 } from '@chefer/types';
 import { buildProteinGuide, localDateStr, slotPortion } from '@chefer/utils';
 import { hasFeature } from '../../lib/entitlements.js';
+import { fitPlanDay, type DayFitOutcome } from '../meal-plan/day-fit.js';
 import { planForDate, planForThisWeek } from '../meal-plan/plan-for-date.js';
 import {
   previewRebalance,
@@ -58,7 +59,31 @@ export type { LoggedMealEntry };
 export type RebalanceOutcome = {
   rebalance: RebalanceResult | null;
   rebalancePreview?: RebalancePreview | null;
+  /**
+   * Day rebalance (2026-10-16): after a log for today, today's still-open
+   * meals were resized to absorb it (`changes`, Undo = `previousPortions`).
+   * Additive; absent when nothing was fitted.
+   */
+  dayFit?: DayFitOutcome | null;
 };
+
+/**
+ * A log only offers the week rebalance when today itself can't absorb the
+ * miss: after today's open meals are resized, the day must still be this far
+ * off its calorie target (owner, 2026-10-16: "week rebalance only after big
+ * logged misses", never for a swap or a small difference).
+ */
+export const BIG_LOGGED_MISS = 0.2;
+
+const DAY_MS_TRACKER = 24 * 60 * 60 * 1000;
+
+/** The client's today for a log of `dateStr`: its own day when within a day of the server's. */
+function clientToday(dateStr: string | undefined): string {
+  const serverToday = localDateStr(new Date());
+  if (!dateStr) return serverToday;
+  const gap = Math.abs(Date.parse(`${dateStr}T00:00:00Z`) - Date.parse(`${serverToday}T00:00:00Z`));
+  return gap <= DAY_MS_TRACKER ? dateStr : serverToday;
+}
 
 export interface DayPlanMeal {
   recipeId: string;
@@ -844,20 +869,46 @@ export const trackerService = {
       return mode === 'preview' ? { rebalance: null, rebalancePreview: null } : { rebalance: null };
     }
     try {
+      // Day first: today's open meals absorb what was logged. Only a miss the
+      // day can't absorb goes on to the week rebalance.
+      const today = clientToday(dateStr);
+      const todayPlan =
+        !dateStr || dateStr === today
+          ? await planForDate(mealPlanRepository, user.id, today)
+          : null;
+      const dayFit = todayPlan
+        ? await fitPlanDay(user.id, todayPlan.id, dayIndexOfDate(today), {
+            localDate: today,
+            suggest: false,
+          }).catch((err: unknown) => {
+            // A broken day fit falls back to the week rebalance as before.
+            console.error('[tracker] day fit after a log failed:', err);
+            return null;
+          })
+        : null;
+      const bigMiss =
+        !dayFit ||
+        (!dayFit.onTarget &&
+          dayFit.targetKcal > 0 &&
+          Math.abs(dayFit.kcal - dayFit.targetKcal) / dayFit.targetKcal > BIG_LOGGED_MISS);
+      const withDay = dayFit ? { dayFit } : {};
       if (mode === 'preview') {
         const serverToday = localDateStr(new Date());
         const localDate = dateStr && dateStr > serverToday ? dateStr : serverToday;
+        if (!bigMiss) return { rebalance: null, rebalancePreview: null, ...withDay };
         const plan = await planForDate(mealPlanRepository, user.id, localDate);
-        if (!plan) return { rebalance: null, rebalancePreview: null };
+        if (!plan) return { rebalance: null, rebalancePreview: null, ...withDay };
         return {
           rebalance: null,
           rebalancePreview: await previewRebalance(user.id, plan.id, { localDate }),
+          ...withDay,
         };
       }
+      if (!bigMiss) return { rebalance: null, ...withDay };
       // Only the current week is ever rebalanced (UX-PLAN-09).
       const plan = await planForThisWeek(mealPlanRepository, user.id);
-      if (!plan) return { rebalance: null };
-      return { rebalance: await rebalanceWeek(user.id, plan.id) };
+      if (!plan) return { rebalance: null, ...withDay };
+      return { rebalance: await rebalanceWeek(user.id, plan.id), ...withDay };
     } catch (err) {
       console.error('[tracker] rebalanceWeek failed (log save unaffected):', err);
       return mode === 'preview' ? { rebalance: null, rebalancePreview: null } : { rebalance: null };
@@ -952,3 +1003,8 @@ export const trackerService = {
     return weightEntryRepository.findLastN(userId, days);
   },
 };
+
+/** 0 = Monday … 6 = Sunday for a calendar day string. */
+function dayIndexOfDate(dateStr: string): number {
+  return (new Date(`${dateStr}T00:00:00Z`).getUTCDay() + 6) % 7;
+}
