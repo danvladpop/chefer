@@ -1,5 +1,5 @@
-import type { MealPlan, MealPlanDay, Prisma, Recipe } from '@prisma/client';
-import { MealPlanOrigin, MealPlanStatus } from '@prisma/client';
+import type { MealPlan, MealPlanDay, Recipe } from '@prisma/client';
+import { MealPlanOrigin, MealPlanStatus, Prisma } from '@prisma/client';
 import { prisma } from '../client';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -28,6 +28,12 @@ export interface CreateRecipeData {
  * One stored plan slot (MealPlanDay.meals Json). `leftoverOf` and `portion`
  * are optional and additive — older rows and clients simply lack them.
  */
+/** `MealPlan.portionRefit`: what a targets refit changed, for the notice and its Undo. */
+export type PortionRefitJson = {
+  at: string;
+  days: { dayOfWeek: number; previousPortions: number[] }[];
+};
+
 export type PlanMealSlotJson = {
   type: string;
   recipeId: string;
@@ -149,6 +155,8 @@ export interface IMealPlanRepository {
     dayOfWeek: number,
     portions: (number | undefined)[],
   ): Promise<void>;
+  /** Day rebalance: records (or clears, with null) the plan's last targets refit. */
+  setPortionRefit(planId: string, value: PortionRefitJson | null): Promise<void>;
   /**
    * §wave-1 planDay: overwrites one day's `meals` array in full — unlike
    * `updateDayMeal`/`setDayPortions`, which patch one slot or a portions
@@ -557,6 +565,15 @@ export class MealPlanRepository implements IMealPlanRepository {
   }
 
   /** T-11.3: overwrites one day's slot portions in place, by index. */
+  async setPortionRefit(planId: string, value: PortionRefitJson | null): Promise<void> {
+    await prisma.mealPlan.update({
+      where: { id: planId },
+      data: {
+        portionRefit: value === null ? Prisma.DbNull : (value as unknown as Prisma.InputJsonValue),
+      },
+    });
+  }
+
   async setDayPortions(
     planId: string,
     dayOfWeek: number,

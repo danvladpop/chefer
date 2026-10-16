@@ -31,6 +31,7 @@ export {
   type CreateRecipeData,
   type CreateMealPlanData,
   type PlanMealSlotJson,
+  type PortionRefitJson,
 } from './meal-plan.repository';
 
 export {

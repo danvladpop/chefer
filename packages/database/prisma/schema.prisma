@@ -509,6 +509,10 @@ model MealPlan {
   isTemplate    Boolean        @default(false)
   name          String?
   isFollowed    Boolean        @default(false)
+  // Day rebalance (2026-10-16): the last time a target change resized this
+  // plan's portions — `{ at, days: [{ dayOfWeek, previousPortions }] }` — so
+  // Meals can say so once and Undo can put the portions back. Null = none.
+  portionRefit  Json?
 
   user      User               @relation(fields: [userId], references: [id], onDelete: Cascade)
   days      MealPlanDay[]
