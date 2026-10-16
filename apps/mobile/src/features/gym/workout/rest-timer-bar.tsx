@@ -11,7 +11,14 @@ import Animated, {
 } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { exit } from '@chefer/tokens';
-import { duration, haptics, Text, timing, useReducedMotion } from '@chefer/ui-mobile';
+import {
+  duration,
+  haptics,
+  Text,
+  timing,
+  useReadableLayout,
+  useReducedMotion,
+} from '@chefer/ui-mobile';
 import { cn } from '@chefer/utils';
 import {
   adjustRest,
@@ -147,6 +154,8 @@ function useRestAnnouncements(active: boolean, remainingSec: number): void {
  */
 export function RestTimerBar({ onHeightChange }: { onHeightChange?: (height: number) => void }) {
   const insets = useSafeAreaInsets();
+  // Large screens: the bar spans the window, its controls the readable column.
+  const { gutter } = useReadableLayout();
   const { remainingSec, state } = useRestRemaining(() => {
     haptics.warning();
     AccessibilityInfo.announceForAccessibility(REST_OVER_ANNOUNCEMENT);
@@ -180,7 +189,10 @@ export function RestTimerBar({ onHeightChange }: { onHeightChange?: (height: num
       onLayout={(e) => onHeightChange?.(Math.ceil(e.nativeEvent.layout.height))}
     >
       <RestFill progress={progress} />
-      <View className="flex-row items-center gap-2 px-3 pt-2">
+      <View
+        className="flex-row items-center gap-2 px-3 pt-2"
+        style={gutter > 0 ? { paddingLeft: gutter + 12, paddingRight: gutter + 12 } : undefined}
+      >
         <View className="min-w-0 flex-1">
           <Text className="text-caption text-label-secondary">Rest</Text>
           <RestClock remainingSec={remainingSec} />

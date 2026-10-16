@@ -28,6 +28,7 @@ import {
   useScrollFieldIntoViewFor,
 } from './keyboard-aware-scroll-view';
 import { KeyboardPersistFooter } from './keyboard-persist-footer';
+import { SHEET_MAX_WIDTH } from './readable-layout';
 import { sheetDragOffset, sheetReleaseAction, shouldStartSheetDrag } from './sheet-drag';
 import { Text } from './text';
 import { useKeyboardInset } from './use-keyboard-inset';
@@ -283,7 +284,7 @@ export function Sheet({
           />
         </Animated.View>
         <Animated.View
-          style={[{ maxHeight }, panelStyle]}
+          style={[{ maxHeight }, styles.panelColumn, panelStyle]}
           onLayout={(e) => panelHeight.set(e.nativeEvent.layout.height)}
         >
           <View
@@ -371,4 +372,7 @@ const styles = StyleSheet.create({
   scrim: { backgroundColor: SCRIM_COLOR },
   // flexShrink lets the panel fit the wrapper's maxHeight so the body scrolls.
   panel: { flexShrink: 1, boxShadow: elevation.e4Up },
+  // Large screens: a phone-width panel centred over the scrim instead of a
+  // 1,200 pt-wide one. Below SHEET_MAX_WIDTH it is exactly the full width.
+  panelColumn: { width: '100%', maxWidth: SHEET_MAX_WIDTH, alignSelf: 'center' },
 });

@@ -19,6 +19,7 @@ import {
   PressableScale,
   Text,
   timing,
+  useReadableLayout,
   useReducedMotion,
   useThemeColors,
 } from '@chefer/ui-mobile';
@@ -92,6 +93,9 @@ export function WorkoutMiniBar() {
   const record = useActiveSessionRecord();
   const colors = useThemeColors();
   const [now, setNow] = useState(() => Date.now());
+  // Large screens: line up with the screens' readable column instead of
+  // stretching "Resume" a window's width away from the workout's name.
+  const { gutter } = useReadableLayout();
   const owner = getGymOwner();
   const running =
     record !== null &&
@@ -111,7 +115,12 @@ export function WorkoutMiniBar() {
   ).length;
 
   return (
-    <Animated.View entering={barEntering} exiting={barExiting} className="bg-canvas px-3 pb-2 pt-1">
+    <Animated.View
+      entering={barEntering}
+      exiting={barExiting}
+      className="bg-canvas px-3 pb-2 pt-1"
+      style={gutter > 0 ? { paddingLeft: gutter + 12, paddingRight: gutter + 12 } : undefined}
+    >
       <PressableScale
         testID="workout-mini-bar"
         accessibilityRole="button"
