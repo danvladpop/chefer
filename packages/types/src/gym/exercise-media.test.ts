@@ -29,35 +29,13 @@ const hasPhoto = (id: string): boolean =>
   exercisePhotoFiles(id).every((f) => existsSync(join(PHOTO_DIR, f)));
 
 /**
- * Exercises with no photo yet: openly licensed photos did not exist and every AI render
- * (scripts/gym/generate-exercise-photos.ts, 3 rounds x 3-4 candidates each) showed the
- * wrong movement or wrong equipment, so they show the muscle-group icon placeholder
- * rather than a misleading photo. Re-try with a new seed (--reseed N) or a licensed photo
- * (vendor-commons-photos.ts) and remove the slug.
+ * Exercises allowed to ship without a photo. Empty since 2026-10-16: the last nine
+ * (assisted dip, bird dog, bodyweight Bulgarian split squat, clamshell, dumbbell hip
+ * thrust, hollow-body hold, landmine press, pike push-up, wall sit) got a Krea 2 Turbo
+ * render or a Commons photo. Add a slug only with a comment saying why, and only when
+ * no correct photo can be found: the placeholder beats a photo of the wrong movement.
  */
-const NO_PHOTO_ALLOWED: ReadonlySet<string> = new Set<string>([
-  // Machine the model cannot draw: every render looked like a squat rack or a pull-up bar.
-  'assisted-dip',
-  // The all-fours start frame rendered fine, but no end frame (opposite arm and leg extended in
-  // one horizontal line) did: all were a kneeling lunge or a one-arm reach.
-  'bird-dog',
-  // The model never put the rear FOOT on the bench (it sat or lunged beside it).
-  'bodyweight-bulgarian-split-squat',
-  // Renders showed her on her back with her legs in the air, or a stretch, never a clamshell.
-  'clamshell',
-  // Renders were a seated row or a bench plank; no hips-up bridge on a bench.
-  'dumbbell-hip-thrust',
-  // Rejected in the orchestrator's review (2026-10-08): the renders showed the wrong movement,
-  // which is worse than the placeholder for a training app.
-  // Hollow-body hold: one arm up / legs up, never the banana-shaped hold.
-  'hollow-body-hold',
-  // Landmine press: a regular barbell press with the bar on the floor, no landmine.
-  'landmine-press',
-  // Pike push-up: a dip and a side plank, never hips-up.
-  'pike-push-up',
-  // Wall sit: standing, then sitting on a bench; no wall.
-  'wall-sit',
-]);
+const NO_PHOTO_ALLOWED: ReadonlySet<string> = new Set<string>();
 
 /** Exercises with no demo video: none (every preset has an oEmbed-verified one). */
 const NO_VIDEO_ALLOWED: ReadonlySet<string> = new Set<string>();

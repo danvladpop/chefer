@@ -1019,6 +1019,28 @@ const STRUCTURE: Struct[] = [
     2.5,
     { swapGroup: 'biceps-curl', aliases: ['Cable Curl', 'Standing Cable Curl'] },
   ),
+  // Owner request 2026-10-16: single-arm cable curl facing away from the stack.
+  ex(
+    'face-away-cable-curl',
+    'Face-Away Cable Curl',
+    I,
+    'elbow-flexion',
+    'CABLE',
+    ['biceps'],
+    ['forearms'],
+    [10, 15],
+    90,
+    2.5,
+    {
+      swapGroup: 'biceps-curl',
+      aliases: [
+        'Bayesian Curl',
+        'Bayesian Cable Curl',
+        'Single-Arm Face-Away Cable Curl',
+        'Behind-the-Back Cable Curl',
+      ],
+    },
+  ),
   ex(
     'cable-rope-hammer-curl',
     'Cable Rope Hammer Curl',

@@ -63,10 +63,10 @@ export const PHOTO_BRIEFS: Readonly<Record<string, PhotoBrief>> = {
   'landmine-press': {
     who: 'man',
     setup:
-      'at a landmine press station, a barbell fixed at one end to a base on the floor so the other, plated end sticks up and out at an angle',
+      'holding the end of a long barbell that slants diagonally down to the floor: its far end rests on the floor two metres in front of him, the near end, with one weight plate on it, is in his right hand',
     start:
-      'standing with one hand gripping the raised plated end of the angled barbell at his shoulder, elbow bent',
-    end: 'standing with the same arm pressed straight out and up, lifting the raised plated end of the angled barbell above shoulder height',
+      'standing in a split stance, his right hand holding the near end of the slanted barbell right in front of his right shoulder at chin height, his elbow bent and tucked against his ribs',
+    end: 'standing in a split stance, his right arm extended straight forward and upward, having pressed the near end of the slanted barbell up and away from his shoulder',
   },
   'kettlebell-press': {
     who: 'man',
@@ -86,10 +86,10 @@ export const PHOTO_BRIEFS: Readonly<Record<string, PhotoBrief>> = {
   'assisted-dip': {
     who: 'man',
     setup:
-      'at an assisted dip machine: a tall vertical frame with two parallel handles at chest height and a padded kneeling platform that rides on a weight stack',
+      'between two parallel horizontal dip bars at waist height, his bent knees resting on a padded platform below him that helps lift him',
     start:
-      'kneeling on the padded platform, his hands gripping the two parallel handles, arms fully straight, body upright',
-    end: 'kneeling on the padded platform, his hands gripping the two parallel handles, elbows bent to ninety degrees and the body lowered between the handles',
+      'supporting himself on the two parallel dip bars with his hands pressing down beside his hips and his arms locked straight, torso upright',
+    end: 'doing a dip on the two parallel dip bars: his hands pressing down on the bars beside him, elbows bent ninety degrees pointing backwards, his shoulders lowered to the height of the bars',
   },
   'pendulum-squat': {
     who: 'man',
@@ -144,15 +144,8 @@ export const PHOTO_BRIEFS: Readonly<Record<string, PhotoBrief>> = {
     who: 'woman',
     setup: 'on an exercise mat',
     start:
-      'lying flat on her back on the mat with both arms stretched straight back overhead beside her ears and both legs straight and together on the mat',
-    end: 'lying on her back on the mat in the hollow body position: her shoulders and her straight legs both lifted off the mat, her arms stretched straight beside her ears, only the lower back pressing into the mat, the body forming a shallow banana curve',
-  },
-  'bird-dog': {
-    who: 'woman',
-    setup: 'on an exercise mat',
-    start:
-      'On all fours with the hands under the shoulders and the knees under the hips, back flat, head neutral',
-    end: 'doing the bird dog exercise: on her hands and knees on the mat in a tabletop position, with her right arm reaching straight forward and her left leg reaching straight back, both lifted off the floor and level with her flat back, so that her hand, spine and foot make one horizontal line',
+      'lying flat on her back on the mat with her legs straight and together and her arms resting straight along her sides',
+    end: 'lying on her back doing a hollow body hold core exercise: her head and shoulder blades curled up off the mat, her straight legs held together and raised a hand-width above the mat, her arms reaching straight forward past her hips, her lower back pressed into the mat, the whole body a shallow curve like a banana',
   },
   'suitcase-carry': {
     who: 'man',
@@ -164,10 +157,10 @@ export const PHOTO_BRIEFS: Readonly<Record<string, PhotoBrief>> = {
   'dumbbell-hip-thrust': {
     who: 'woman',
     setup:
-      'with her upper back resting against the long side of a flat bench and a dumbbell lying across her hips, her feet flat on the floor',
+      'with her upper back leaning against the long side of a flat gym bench, holding one dumbbell across her hip bones with both hands, knees bent and feet flat on the floor',
     start:
-      'sitting on the floor in front of the bench with her bottom close to the floor, knees bent',
-    end: 'doing a glute bridge on a bench: her shoulder blades rest on the bench, her feet are flat on the floor, her hips are lifted up high so that her body is a straight diagonal line from her shoulders to her knees, with a dumbbell resting on her hip bones, seen from the side',
+      'sitting on the floor with her upper back leaning against the side of the bench, her hips down on the floor',
+    end: 'at the top of a hip thrust: only her shoulder blades rest on the edge of the bench, her hips are lifted high in the air so that her body is straight and horizontal like a table from her shoulders to her knees, her knees bent at ninety degrees above her feet flat on the floor, the dumbbell resting on her raised hips',
   },
   'pistol-squat': {
     who: 'man',
@@ -178,9 +171,10 @@ export const PHOTO_BRIEFS: Readonly<Record<string, PhotoBrief>> = {
   },
   'wall-sit': {
     who: 'woman',
-    setup: 'next to a plain wall',
-    start: 'Standing with her back against the wall, feet shoulder-width apart',
-    end: 'in a wall sit: her whole back flat against the wall, sitting in an invisible chair with her thighs horizontal and parallel to the floor and her knees bent ninety degrees directly above her ankles, feet flat on the floor, arms hanging relaxed at her sides',
+    setup: 'with her back against a plain white wall, no furniture anywhere near her',
+    start:
+      'standing upright with her back and head touching the wall, her feet a short step out in front of her, arms relaxed at her sides',
+    end: 'holding a wall sit: her upper body upright and her whole back, from shoulders to hips, pressed flat against the wall, her thighs horizontal like sitting on a chair but with nothing underneath her, her knees bent at a right angle directly above her ankles, her hands resting on her thighs',
   },
   'reverse-lunge': {
     who: 'woman',
@@ -204,9 +198,10 @@ export const PHOTO_BRIEFS: Readonly<Record<string, PhotoBrief>> = {
   },
   'bodyweight-bulgarian-split-squat': {
     who: 'woman',
-    setup: 'with a flat bench behind her, the back foot resting on the bench, hands on the hips',
+    setup:
+      'with a flat gym bench behind her, the top of her back foot resting on the bench, her hands on her hips, no weights',
     start: 'Standing upright in a split stance, front foot forward and the rear foot on the bench',
-    end: 'lowered into a Bulgarian split squat: the top of her rear foot is resting on the flat bench behind her, her front foot is planted far in front, her front thigh is parallel to the floor and her rear knee hovers just above the floor, torso upright, hands on hips',
+    end: 'Lowered into the split squat with the front thigh parallel to the floor and the rear knee just above the floor, torso upright',
   },
   'single-leg-romanian-deadlift': {
     who: 'woman',
@@ -216,11 +211,11 @@ export const PHOTO_BRIEFS: Readonly<Record<string, PhotoBrief>> = {
   },
   clamshell: {
     who: 'woman',
-    setup: 'on an exercise mat',
+    setup:
+      'on an exercise mat, with a small resistance band looped around her thighs just above the knees',
     start:
-      'lying on her left side on the mat with her head resting on her left arm, her hips and knees bent so that her legs are folded in front of her, the knees and feet stacked together',
-    end: 'lying on her left side on the mat with her head resting on her left arm, her legs folded in front of her, her feet together and her top knee lifted open towards the ceiling like a clamshell',
-    view: 'Front view from slightly above',
+      'lying on her side on the mat with her head resting on her lower arm, both knees bent at a right angle in front of her body like sitting in a chair, her knees and ankles stacked together',
+    end: 'lying on her side on the mat with her head resting on her lower arm, both knees bent at a right angle in front of her body and her ankles touching, her upper knee raised high towards the ceiling so that her two thighs form a wide V shape',
   },
   'single-leg-calf-raise': {
     who: 'man',
@@ -239,8 +234,16 @@ export const PHOTO_BRIEFS: Readonly<Record<string, PhotoBrief>> = {
     who: 'man',
     setup: 'on a yoga mat',
     start:
-      'In the top of a pike push-up: hips raised high in an inverted V, legs and arms straight, head between the arms',
-    end: 'at the bottom of a pike push-up seen from the side: hips high in an inverted V, legs straight, elbows bent and the top of the head lowered toward the mat between the hands',
+      'in a downward-facing dog position: hands and feet on the mat, hips raised high, legs and arms straight, his body an upside-down V shape',
+    end: 'in a downward-facing dog position with his hips raised high and legs straight, but with his elbows bent so far that the top of his head nearly touches the mat between his hands, his body an upside-down V shape',
+  },
+  'face-away-cable-curl': {
+    who: 'man',
+    setup:
+      'standing one step in front of a cable machine with his back to it, a single D-handle on the low pulley behind him, the cable running diagonally up from the machine to his right hand',
+    start:
+      'facing away from the cable machine in a staggered stance, his right arm stretched straight down and slightly behind his body, holding the handle',
+    end: 'facing away from the cable machine in a staggered stance, his right elbow staying slightly behind his torso while his forearm curls the handle up to his right shoulder',
   },
 };
 

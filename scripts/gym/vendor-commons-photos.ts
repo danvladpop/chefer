@@ -58,6 +58,12 @@ export const COMMONS_PICKS: Readonly<Record<string, [Pick, Pick]>> = {
         'File:40. Schwimmzonen- und Mastersmeeting Enns 2017 200M FREISTIL HERREN (MASTERS)-0745.jpg',
     },
   ],
+  // Every AI render of the extended position failed (2026-10-08 and 2026-10-16); these
+  // are real photos of the same person reaching the opposite arm and leg out.
+  'bird-dog': [
+    { title: 'File:Girl doing bird dog yoga pose.jpg' },
+    { title: 'File:Girl doing bird dog yoga pose 2.jpg' },
+  ],
   // Running and outdoor running are the same activity: both use the same two scenes.
   running: [
     { title: 'File:120915-F-KX404-139 (7996341270).jpg' },
