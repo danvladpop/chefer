@@ -222,3 +222,37 @@ describe('Plan page — side dishes (FB7-04)', () => {
     expect(screen.queryAllByTestId('plan-meal-group-dinner')).toHaveLength(0);
   });
 });
+
+describe('Plan page — portions refit notice (day rebalance, board PlanRefit)', () => {
+  const withRefit = () => {
+    m.plan = Object.assign({}, m.plan, {
+      portionRefit: { at: '2026-10-16T08:00:00Z', days: 5 },
+    });
+  };
+
+  it('shows nothing without a refit', () => {
+    render(<MealPlanPage />);
+    expect(screen.queryByTestId('plan-portion-refit')).toBeNull();
+  });
+
+  it('Undo puts the portions back through undoPortionRefit and closes the notice', () => {
+    withRefit();
+    render(<MealPlanPage />);
+    const notice = screen.getByTestId('plan-portion-refit');
+    expect(notice.textContent).toContain('Portions updated for your new targets');
+    expect(notice.textContent).toContain('Same meals, resized on 5 days to match.');
+    fireEvent.click(screen.getByTestId('plan-portion-refit-undo'));
+    expect(m.mutations['mealPlan.undoPortionRefit']).toHaveBeenCalledWith({ planId: 'plan-1' });
+    expect(m.mutations['mealPlan.dismissPortionRefit']).toBeUndefined();
+    expect(screen.queryByTestId('plan-portion-refit')).toBeNull();
+  });
+
+  it('the X (aria-label Dismiss) closes it for good through dismissPortionRefit', () => {
+    withRefit();
+    render(<MealPlanPage />);
+    fireEvent.click(screen.getByRole('button', { name: 'Dismiss' }));
+    expect(m.mutations['mealPlan.dismissPortionRefit']).toHaveBeenCalledWith({ planId: 'plan-1' });
+    expect(m.mutations['mealPlan.undoPortionRefit']).toBeUndefined();
+    expect(screen.queryByTestId('plan-portion-refit')).toBeNull();
+  });
+});

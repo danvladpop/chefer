@@ -49,11 +49,13 @@ import {
   chunkShoppingLines,
   clampCookServings,
   defaultCookServings,
+  describeDayFit,
   formatFractionalQuantity,
   formatPortion,
   formatScaledQuantity,
   isNotFoundError,
   labelCaveatLineText,
+  localDateStr,
   recipeShareText,
   reportSentSnackbarText,
   scaleNutrition,
@@ -78,6 +80,14 @@ interface SwapUndoEntry {
   /** The slot's index in `day.meals` (two-snack days); absent = first of `meal`. */
   slot?: number | undefined;
   prevId: string;
+  /** UX-PLAN-04: the replaced slot was a pick — Undo puts that back too. */
+  prevPinned?: boolean | undefined;
+  /**
+   * Day rebalance (2026-10-16): the day's portions before the swap resized its
+   * other open meals (Undo restores them), and the line saying so.
+   */
+  portions?: number[] | undefined;
+  fitLine?: string | undefined;
   ts: number;
 }
 
@@ -236,12 +246,16 @@ export default function RecipeDetailPage({ params }: RecipePageProps) {
       // Offer undo on the destination page (F-2): the swap itself is instant
       // and unconfirmed, so a mis-tap needs a way back to the old recipe.
       if (planId && day !== null && meal) {
+        const fit = newRecipe.dayFit;
+        const fitLine = describeDayFit(fit) ?? undefined;
         const entry: SwapUndoEntry = {
           planId,
           day,
           meal,
           slot: slotIndex,
           prevId: id,
+          ...(newRecipe.previousPinned !== undefined && { prevPinned: newRecipe.previousPinned }),
+          ...(fit && fitLine && { portions: fit.previousPortions, fitLine }),
           ts: Date.now(),
         };
         sessionStorage.setItem(SWAP_UNDO_KEY, JSON.stringify(entry));
@@ -265,13 +279,33 @@ export default function RecipeDetailPage({ params }: RecipePageProps) {
       setSwapUndo(entry);
     }
   }, [planId, day, meal, slotIndex]);
-  const undoMutation = trpc.mealPlan.replaceRecipe.useMutation({
-    onSuccess: (restored) => {
+  const undoMutation = trpc.mealPlan.replaceRecipe.useMutation();
+  const restorePortions = trpc.mealPlan.restoreDayPortions.useMutation({ meta: { silent: true } });
+  // Undo = the old recipe back WITHOUT a new day fit, then (day rebalance) the
+  // day's portions exactly as they were before the swap.
+  const undoSwap = async (entry: SwapUndoEntry, dayOfWeek: number, mealType: string) => {
+    try {
+      const restored = await undoMutation.mutateAsync({
+        planId: entry.planId,
+        dayOfWeek,
+        mealType: mealType as 'breakfast' | 'lunch' | 'dinner' | 'snack',
+        slotIndex,
+        recipeId: entry.prevId,
+        pinned: entry.prevPinned === true,
+        fitDay: false,
+      });
+      if (entry.portions && entry.portions.length > 0) {
+        await restorePortions
+          .mutateAsync({ planId: entry.planId, dayOfWeek, portions: entry.portions })
+          .catch(() => undefined); // the recipe is back; portions are best-effort
+      }
       void utils.mealPlan.getForWeek.invalidate();
       void utils.mealPlan.getActive.invalidate();
       router.push(`/recipes/${restored.id}?planId=${planId}&day=${day}&meal=${meal}${slotQuery}`);
-    },
-  });
+    } catch {
+      /* the default mutation-error toast already said why */
+    }
+  };
 
   const replaceMutation = trpc.mealPlan.replaceRecipe.useMutation({
     meta: { silent: true },
@@ -713,6 +747,7 @@ export default function RecipeDetailPage({ params }: RecipePageProps) {
                           dayOfWeek: parseInt(day, 10),
                           mealType: meal as 'breakfast' | 'lunch' | 'dinner' | 'snack',
                           slotIndex,
+                          localDate: localDateStr(),
                         }),
                       { usesAi: aiConsentRequiredFor('meal-swap', isPremium) },
                     );
@@ -925,20 +960,14 @@ export default function RecipeDetailPage({ params }: RecipePageProps) {
       {/* Swap undo (F-2): brief window to restore the replaced recipe */}
       {swapUndo && planId && dayParam !== null && meal && (
         <Toast
-          message="Meal swapped."
+          message={swapUndo.fitLine ?? 'Meal swapped.'}
           duration={6000}
           onClose={() => setSwapUndo(null)}
           action={{
             label: undoMutation.isPending ? 'Undoing…' : 'Undo',
             onClick: () => {
               if (undoMutation.isPending) return;
-              undoMutation.mutate({
-                planId,
-                dayOfWeek: dayParam,
-                mealType: meal as 'breakfast' | 'lunch' | 'dinner' | 'snack',
-                slotIndex,
-                recipeId: swapUndo.prevId,
-              });
+              void undoSwap(swapUndo, dayParam, meal);
               setSwapUndo(null);
             },
           }}
@@ -1031,6 +1060,7 @@ export default function RecipeDetailPage({ params }: RecipePageProps) {
               mealType: meal as 'breakfast' | 'lunch' | 'dinner' | 'snack',
               slotIndex,
               recipeId,
+              localDate: localDateStr(),
             });
           }}
           onClose={() => setShowPicker(false)}

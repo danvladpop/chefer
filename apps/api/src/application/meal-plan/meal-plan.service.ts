@@ -115,7 +115,21 @@ import {
   type AiRecipeFinisher,
   type FinishContext,
 } from './ai-recipe-finisher.js';
-import { planCuratedWeek, type CuratedShapeOptions } from './curated-planner.js';
+import {
+  planCuratedWeek,
+  type CuratedShapeOptions,
+  type CuratedTargets,
+} from './curated-planner.js';
+import {
+  applyDayFitSuggestion,
+  dismissPortionRefit,
+  fitPlanDay,
+  portionRefitNotice,
+  restoreDayPortions,
+  undoPortionRefit,
+  type AppliedSuggestion,
+  type DayFitOutcome,
+} from './day-fit.js';
 import { mergeKeptSlots, selectKeptSlots, type KeptDay } from './keep-eaten.js';
 import { planShapeService } from './plan-shape.service.js';
 import {
@@ -131,6 +145,14 @@ import {
 } from './plan-tailoring.js';
 import { withServerRecipeIds } from './recipe-ids.js';
 import { reindexDayStateAfterSlotRemoval } from './slot-removal.js';
+
+/** How a slot change asks for its day rebalance (both optional, additive). */
+export interface DayFitRequest {
+  /** The user's calendar day (YYYY-MM-DD), so "today" is theirs, not the server's. */
+  localDate?: string;
+  /** False skips the rebalance (Undo restores portions itself). Default true. */
+  fitDay?: boolean;
+}
 
 export { PoolExhaustedCause };
 
@@ -321,6 +343,13 @@ export interface TemplateSummaryDto {
 }
 
 export interface WeekPlanDto {
+  /**
+   * Day rebalance (2026-10-16): a target change resized this plan's portions
+   * (`at`, on `days` days). Meals says so once, with Undo
+   * (`mealPlan.undoPortionRefit`) and Dismiss. Absent after a week or once
+   * undone/dismissed. Additive — older clients ignore it.
+   */
+  portionRefit?: { at: string; days: number };
   planId: string;
   weekStartDate: Date;
   days: DayPlanDto[];
@@ -1775,8 +1804,9 @@ export class MealPlanService {
     // fall short (curated-planner.ts, audit F-PLAN-1-3 / F-PM-4 / P1-1).
     // Variety rule unchanged: no repeat until a pool is used up.
     // Lifters (audit P2-4): protein from bodyweight, and the routine's
-    // training days lean toward the higher-protein combinations. The
-    // training-day calorie bump itself is premium.
+    // training days lean toward the higher-protein combinations. Those days
+    // are also fitted to the bumped training-day target (free since WP-07),
+    // so the plan matches the target Today shows (day-rebalance, 2026-10-16).
     const profile = await chefProfileRepository.findByUserId(userId);
     const { lifterBodyweightKg } = await this.training.loadLifter(userId, profile ?? null);
     const targets = resolveDailyTargets(profile ?? null, lifterBodyweightKg);
@@ -1827,12 +1857,7 @@ export class MealPlanService {
 
     const planned = planCuratedWeek(
       pools,
-      {
-        calories: targets.dailyCalorieTarget,
-        proteinG: targets.proteinG,
-        goal: profile?.goal ?? null,
-        ...(trainingDays.length > 0 && { trainingDays }),
-      },
+      curatedTargetsFor(targets, profile?.goal ?? null, trainingDays, lifterBodyweightKg),
       Math.random,
       shape,
     );
@@ -2133,12 +2158,15 @@ export class MealPlanService {
       /** ACTIVE/ARCHIVED — decides whether live tailoring is shown/resumable. */
       status?: string;
       days: { dayOfWeek: number; meals: unknown }[];
+      /** Day rebalance: the last targets refit (`MealPlan.portionRefit`). */
+      portionRefit?: unknown;
     },
     userId?: string,
     view: PlanViewOptions = {},
   ): Promise<WeekPlanDto> {
     const allMeals = plan.days.flatMap((d) => d.meals as PlanMealSlotJson[]);
     const uniqueIds = [...new Set(allMeals.map((m) => m.recipeId))];
+    const refitNotice = portionRefitNotice(plan.portionRefit);
     const [recipeRows, safetyCtx, targets, shape, tailoringRow] = await Promise.all([
       this.repo.findRecipesByIds(uniqueIds),
       userId ? this.loadSafetyContext(userId) : Promise.resolve(null),
@@ -2237,6 +2265,7 @@ export class MealPlanService {
       ...(tailoring && { tailoring }),
       ...(safetyCtx && { tableSafety: safetyCtx.table }),
       ...(userId && (await this.trainingPayload(userId, plan.weekStartDate, view.trainingAccess))),
+      ...(refitNotice && { portionRefit: refitNotice }),
     };
   }
 
@@ -2362,7 +2391,105 @@ export class MealPlanService {
    * Swaps a single meal slot. Premium users get an AI-generated alternative;
    * free users get a random curated recipe of the same meal type.
    */
+  /**
+   * Swap, then day rebalance (2026-10-16): the day's OTHER open slots are
+   * resized so the day lands back on its target (`day-fit.ts`). `dayFit` is
+   * null when the day is in the past. Undo passes `fitDay: false`.
+   */
   async swapRecipe(
+    userId: string,
+    planId: string,
+    dayOfWeek: number,
+    mealType: string,
+    reason?: string,
+    premium = false,
+    requestedSlotIndex?: number,
+    fit: DayFitRequest = {},
+  ): Promise<RecipeDto & { dayFit?: DayFitOutcome | null }> {
+    const swapped = await this.swapRecipeOnly(
+      userId,
+      planId,
+      dayOfWeek,
+      mealType,
+      reason,
+      premium,
+      requestedSlotIndex,
+    );
+    return {
+      ...swapped,
+      ...(await this.fitAfterSlotChange(
+        userId,
+        planId,
+        dayOfWeek,
+        mealType,
+        requestedSlotIndex,
+        fit,
+      )),
+    };
+  }
+
+  /** Undo the last targets refit of a plan (the Meals notice's Undo). */
+  async undoPortionRefit(userId: string, planId: string): Promise<{ restored: number }> {
+    return undoPortionRefit(userId, planId);
+  }
+
+  /** Close the Meals notice for the last targets refit. */
+  async dismissPortionRefit(userId: string, planId: string): Promise<{ ok: true }> {
+    await dismissPortionRefit(userId, planId);
+    return { ok: true };
+  }
+
+  /** Undo for a day rebalance: the day's portions back exactly as they were. */
+  async restoreDayPortions(
+    userId: string,
+    planId: string,
+    dayOfWeek: number,
+    portions: readonly number[],
+  ): Promise<{ restored: boolean }> {
+    return { restored: await restoreDayPortions(userId, planId, dayOfWeek, portions) };
+  }
+
+  /** The day-fit suggestion the user tapped (swap an open slot, or add a snack). */
+  async applyDayFitSuggestion(
+    userId: string,
+    input: Parameters<typeof applyDayFitSuggestion>[1],
+  ): Promise<AppliedSuggestion> {
+    const applied = await applyDayFitSuggestion(userId, input);
+    if (!applied) {
+      throw new TRPCError({
+        code: 'CONFLICT',
+        message: 'That day changed since the suggestion. Refresh the plan and try again.',
+      });
+    }
+    return applied;
+  }
+
+  /** The day rebalance that follows a slot change, best-effort (never fails the change). */
+  private async fitAfterSlotChange(
+    userId: string,
+    planId: string,
+    dayOfWeek: number,
+    mealType: string,
+    requestedSlotIndex: number | undefined,
+    fit: DayFitRequest,
+  ): Promise<{ dayFit?: DayFitOutcome | null }> {
+    if (fit.fitDay === false) return {};
+    try {
+      const plan = await this.repo.findByIdForUser(userId, planId);
+      if (!plan) return {};
+      const slotIndex = resolvePlanSlot(plan, dayOfWeek, mealType, requestedSlotIndex);
+      const dayFit = await fitPlanDay(userId, planId, dayOfWeek, {
+        ...(slotIndex !== null && { lockSlotIndexes: [slotIndex] }),
+        ...(fit.localDate && { localDate: fit.localDate }),
+      });
+      return { dayFit };
+    } catch (err) {
+      console.error('[meal-plan] day rebalance after a slot change failed:', err);
+      return {};
+    }
+  }
+
+  private async swapRecipeOnly(
     userId: string,
     planId: string,
     dayOfWeek: number,
@@ -2589,6 +2716,40 @@ export class MealPlanService {
      * Replace is a deliberate choice); Undo passes the PREVIOUS pinned state so
      * a swap that is undone doesn't leave the slot pinned.
      */
+    pinned = true,
+    fit: DayFitRequest = {},
+  ): Promise<RecipeDto & { dayFit?: DayFitOutcome | null }> {
+    const replaced = await this.replaceRecipeOnly(
+      userId,
+      planId,
+      dayOfWeek,
+      mealType,
+      recipeId,
+      requestedSlotIndex,
+      acknowledgeConflict,
+      pinned,
+    );
+    return {
+      ...replaced,
+      ...(await this.fitAfterSlotChange(
+        userId,
+        planId,
+        dayOfWeek,
+        mealType,
+        requestedSlotIndex,
+        fit,
+      )),
+    };
+  }
+
+  private async replaceRecipeOnly(
+    userId: string,
+    planId: string,
+    dayOfWeek: number,
+    mealType: string,
+    recipeId: string,
+    requestedSlotIndex?: number,
+    acknowledgeConflict?: boolean,
     pinned = true,
   ): Promise<RecipeDto> {
     const plan = await this.repo.findByIdForUser(userId, planId);
@@ -3008,12 +3169,7 @@ export class MealPlanService {
 
     const planned = planCuratedWeek(
       pools,
-      {
-        calories: targets.dailyCalorieTarget,
-        proteinG: targets.proteinG,
-        goal: profile?.goal ?? null,
-        ...(trainingDays.length > 0 && { trainingDays }),
-      },
+      curatedTargetsFor(targets, profile?.goal ?? null, trainingDays, lifterBodyweightKg),
       Math.random,
       shape,
     );
@@ -3698,6 +3854,40 @@ function rowToRecipeDto(row: {
     ...(row.source === 'AI' && { aiGenerated: true }),
     ...(row.nutritionStatus && {
       nutritionStatus: row.nutritionStatus as 'COMPUTED' | 'PARTIAL' | 'USER_ENTERED',
+    }),
+  };
+}
+
+/**
+ * The curated planner's targets: the base day, plus each training weekday
+ * fitted to the bumped training-day target Today shows (free since WP-07;
+ * day rebalance, 2026-10-16).
+ */
+function curatedTargetsFor(
+  targets: { dailyCalorieTarget: number; proteinG: number; carbsG: number; fatG: number },
+  goal: string | null,
+  trainingDays: readonly number[],
+  lifterBodyweightKg: number | null | undefined,
+): CuratedTargets {
+  const bumped =
+    lifterBodyweightKg && trainingDays.length > 0
+      ? applyTrainingDayBonus(
+          targets,
+          trainingDayBonus(targets.dailyCalorieTarget, lifterBodyweightKg),
+        )
+      : null;
+  return {
+    calories: targets.dailyCalorieTarget,
+    proteinG: targets.proteinG,
+    goal,
+    ...(trainingDays.length > 0 && { trainingDays: [...trainingDays] }),
+    ...(bumped && {
+      dayTargets: Object.fromEntries(
+        trainingDays.map((d) => [
+          d,
+          { calories: bumped.dailyCalorieTarget, proteinG: bumped.proteinG },
+        ]),
+      ),
     }),
   };
 }

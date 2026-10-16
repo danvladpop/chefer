@@ -33,10 +33,26 @@ export interface CuratedTargets {
   /**
    * A lifter's training weekdays (Monday = 0, audit P2-4): those days weigh
    * the protein shortfall double, so they land on the higher-protein
-   * combinations (usually the dinner). Calories are not bumped — that is
-   * premium.
+   * combinations (usually the dinner).
    */
   trainingDays?: number[];
+  /**
+   * Per-weekday overrides of `calories` / `proteinG` (Monday = 0). The
+   * training-day bump lands here — free since WP-07, so a plan fits the same
+   * day target Today and the tracker show (day-rebalance, 2026-10-16).
+   */
+  dayTargets?: Partial<Record<number, DayTargets>>;
+}
+
+export interface DayTargets {
+  calories: number;
+  proteinG: number;
+}
+
+/** The targets one weekday is fitted to: the week's, with its override applied. */
+export function targetsForDay(targets: CuratedTargets, dayOfWeek: number): CuratedTargets {
+  const day = targets.dayTargets?.[dayOfWeek];
+  return day ? { ...targets, calories: day.calories, proteinG: day.proteinG } : targets;
 }
 
 /**
@@ -254,6 +270,7 @@ export function planCuratedWeek(
     }
 
     const trainingDay = targets.trainingDays?.includes(dayOfWeek) ?? false;
+    const dayTargets = targetsForDay(targets, dayOfWeek);
     const capMins =
       shape?.timeCapMins != null && !(shape.weekendNoLimit && WEEKEND_DAYS.has(dayOfWeek))
         ? shape.timeCapMins
@@ -268,7 +285,7 @@ export function planCuratedWeek(
         return false;
       });
 
-    let best = bestCombo(optionSets, targets, trainingDay);
+    let best = bestCombo(optionSets, dayTargets, trainingDay);
     best.recipes.forEach((recipe, i) => take(best.types[i]!, recipe));
 
     // Snacks only when wanted and the portioned mains still miss (calories
@@ -288,7 +305,7 @@ export function planCuratedWeek(
         }
         let pick: { recipe: RecipeData; plan: PortionPlan } | null = null;
         for (const snack of snackCandidates) {
-          const plan = portionDay([...best.recipes, snack], targets, trainingDay);
+          const plan = portionDay([...best.recipes, snack], dayTargets, trainingDay);
           if (!pick || plan.score < pick.plan.score) pick = { recipe: snack, plan };
         }
         if (!pick || pick.plan.score >= best.plan.score) break;

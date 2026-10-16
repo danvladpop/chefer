@@ -135,6 +135,7 @@ describe('two-snack day: the second snack is its own slot', () => {
       mealType: 'snack',
       slotIndex: 4,
       recipeId: 'yoghurt',
+      localDate: expect.any(String) as unknown,
     });
   });
 
@@ -148,6 +149,7 @@ describe('two-snack day: the second snack is its own slot', () => {
       dayOfWeek: 2,
       mealType: 'snack',
       slotIndex: 3,
+      localDate: expect.any(String) as unknown,
     });
   });
 

@@ -37,6 +37,22 @@ const calendarDateInputSchema = z
 
 // ─── Router ───────────────────────────────────────────────────────────────────
 
+/**
+ * Day rebalance (2026-10-16), additive: the client's local today and an
+ * opt-out (Undo replays a swap with `fitDay: false` and restores portions).
+ */
+const dayFitInput = {
+  localDate: calendarDateInputSchema.optional(),
+  fitDay: z.boolean().optional(),
+};
+
+function dayFitRequest(input: { localDate?: string | undefined; fitDay?: boolean | undefined }) {
+  return {
+    ...(input.localDate !== undefined && { localDate: input.localDate }),
+    ...(input.fitDay !== undefined && { fitDay: input.fitDay }),
+  };
+}
+
 export const mealPlanRouter = router({
   /**
    * Generates a new 7-day meal plan for the authenticated user.
@@ -244,6 +260,7 @@ export const mealPlanRouter = router({
         mealType: z.enum(['breakfast', 'lunch', 'dinner', 'snack']),
         slotIndex: slotIndexSchema,
         reason: z.string().optional(),
+        ...dayFitInput,
       }),
     )
     .mutation(async ({ ctx, input }) => {
@@ -257,6 +274,7 @@ export const mealPlanRouter = router({
           input.reason,
           isPremiumUser(ctx.user),
           input.slotIndex,
+          dayFitRequest(input),
         );
       } catch (err) {
         await reservation.release();
@@ -288,6 +306,7 @@ export const mealPlanRouter = router({
          * absent = false) so an undone swap doesn't leave the slot pinned.
          */
         pinned: z.boolean().optional(),
+        ...dayFitInput,
       }),
     )
     .mutation(async ({ ctx, input }) => {
@@ -300,7 +319,63 @@ export const mealPlanRouter = router({
         input.slotIndex,
         input.acknowledgeConflict,
         input.pinned,
+        dayFitRequest(input),
       );
+    }),
+
+  // ─── Day rebalance (2026-10-16) — all tiers, no AI ─────────────────────────
+
+  /** The Meals notice's Undo: puts back every day the last targets refit resized. */
+  undoPortionRefit: protectedProcedure
+    .input(z.object({ planId: z.string().min(1) }))
+    .mutation(async ({ ctx, input }) => {
+      return mealPlanService.undoPortionRefit(ctx.user.id, input.planId);
+    }),
+
+  /** Closes the Meals notice for the last targets refit (its Undo goes with it). */
+  dismissPortionRefit: protectedProcedure
+    .input(z.object({ planId: z.string().min(1) }))
+    .mutation(async ({ ctx, input }) => {
+      return mealPlanService.dismissPortionRefit(ctx.user.id, input.planId);
+    }),
+
+  /** Undo for a day rebalance or a targets refit: puts a day's portions back. */
+  restoreDayPortions: protectedProcedure
+    .input(
+      z.object({
+        planId: z.string().min(1),
+        dayOfWeek: z.number().int().min(0).max(6),
+        portions: z.array(z.number().min(0.25).max(4)).min(1).max(12),
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      return mealPlanService.restoreDayPortions(
+        ctx.user.id,
+        input.planId,
+        input.dayOfWeek,
+        input.portions,
+      );
+    }),
+
+  /**
+   * Applies the one-change suggestion a day rebalance offered when portions
+   * alone could not reach the target: swap an open slot for a safe curated
+   * dish, or add a snack. Re-validated server-side; CONFLICT when stale.
+   */
+  applyDayFitSuggestion: protectedProcedure
+    .input(
+      z.object({
+        planId: z.string().min(1),
+        dayOfWeek: z.number().int().min(0).max(6),
+        kind: z.enum(['swap', 'snack']),
+        mealType: z.enum(['breakfast', 'lunch', 'dinner', 'snack']),
+        recipeId: z.string().min(1),
+        slotIndex: slotIndexSchema,
+        localDate: calendarDateInputSchema.optional(),
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      return mealPlanService.applyDayFitSuggestion(ctx.user.id, input);
     }),
 
   // ─── Week rebalance (WP-07, UX-PLAN-09) — all tiers, no AI ──────────────────

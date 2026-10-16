@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react';
 import { useNumbersMode } from '@/features/numbers-mode/numbers-mode';
 import { ChevronRight } from 'lucide-react';
 import { cn, formatKcal, formatMacroLine, sumPlanDay } from '@chefer/utils';
@@ -36,6 +37,8 @@ interface DayRecapBarProps {
    * Absent (read-only weeks) = the status is plain text.
    */
   onOpenMiss?: (() => void) | undefined;
+  /** Day rebalance: the one-change suggestion, under the totals (board DayFitSuggest). */
+  children?: ReactNode;
 }
 
 /** Matches the API's PLAN_KCAL_TOLERANCE — one band, every surface. */
@@ -80,7 +83,13 @@ function StatusLine({
   );
 }
 
-export function DayRecapBar({ meals, calorieTarget, proteinGapG, onOpenMiss }: DayRecapBarProps) {
+export function DayRecapBar({
+  meals,
+  calorieTarget,
+  proteinGapG,
+  onOpenMiss,
+  children,
+}: DayRecapBarProps) {
   // Totals count each slot at its portion (P1-1) — same sum as mobile.
   const { kcal, protein, carbs, fat } = sumPlanDay(meals);
   const totals = { calories: kcal, protein, carbs, fat };
@@ -122,6 +131,7 @@ export function DayRecapBar({ meals, calorieTarget, proteinGapG, onOpenMiss }: D
           onOpenMiss={onOpenMiss}
         />
       )}
+      {children}
     </div>
   );
 }

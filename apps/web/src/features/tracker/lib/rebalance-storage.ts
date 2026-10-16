@@ -1,6 +1,7 @@
 // Relative import (not `@/lib/analytics`): this module is unit-tested, and
 // the web vitest setup resolves relative paths only.
 import {
+  describeDayFit,
   isPendingFresh,
   mergePendingRebalance,
   type PendingRebalance,
@@ -8,6 +9,7 @@ import {
   type RebalanceResultLike,
 } from '@chefer/utils';
 import { capture } from '../../../lib/analytics';
+import { showAppToast } from '../../../lib/app-toast';
 
 // ─── Pending-rebalance hand-off (F4 Snap-to-Log) ──────────────────────────────
 // A rebalance happens as a side effect of logging (tracker save, quick-add,
@@ -176,15 +178,65 @@ export function handleRebalancePreview(preview: RebalancePreviewLike | null | un
   }
 }
 
+// ─── Day rebalance after a log (2026-10-16) ───────────────────────────────────
+// A log for today can resize today's still-open meals so the day absorbs it
+// (`dayFit` on the log's answer). Nothing to accept or undo here — the surface
+// just says so in one line, and the Meals page re-reads the plan.
+
+/** Fired on window after a log resized today's open meals — the Meals page refetches. */
+export const DAY_FIT_EVENT = 'chefer:day-fit';
+
+/** The part of the API's `DayFitOutcome` a log surface needs. */
+export interface DayFitLike {
+  dayOfWeek: number;
+  changes: readonly { mealType: string; to: number }[];
+}
+
+/** "Dinner is now 1½× so today stays on target", or null when nothing was resized. */
+export function dayFitLogLine(
+  outcome: { dayFit?: DayFitLike | null | undefined } | null | undefined,
+) {
+  return describeDayFit(outcome?.dayFit, { isToday: true });
+}
+
+/** `message` with the day-fit line after it, for a surface's own confirmation toast. */
+export function withDayFitLine(
+  message: string,
+  outcome: { dayFit?: DayFitLike | null | undefined } | null | undefined,
+): string {
+  const line = dayFitLogLine(outcome);
+  return line ? `${message}. ${line}` : message;
+}
+
 /** What every log write returns about the week: an applied result, an offer, or neither. */
 export interface RebalanceOutcome {
   rebalance?: RebalanceResultLike | null | undefined;
   rebalancePreview?: RebalancePreviewLike | null | undefined;
+  /** Day rebalance: today's open meals resized to absorb the log. */
+  dayFit?: DayFitLike | null | undefined;
 }
 
-/** One call for every logging surface: hands off whichever of the two came back. */
-export function handleRebalanceOutcome(outcome: RebalanceOutcome | null | undefined): void {
+/**
+ * One call for every logging surface: hands off whichever of the two came
+ * back, and says in a small app toast when today's open meals were resized.
+ * A surface that already shows its own confirmation passes
+ * `announceDayFit: false` and appends `dayFitLogLine(outcome)` to it instead.
+ */
+export function handleRebalanceOutcome(
+  outcome: RebalanceOutcome | null | undefined,
+  options: { announceDayFit?: boolean } = {},
+): void {
   if (!outcome) return;
   handleRebalanceResult(outcome.rebalance);
   handleRebalancePreview(outcome.rebalancePreview);
+  const line = dayFitLogLine(outcome);
+  if (!line) return;
+  try {
+    window.dispatchEvent(new Event(DAY_FIT_EVENT));
+  } catch {
+    /* no window (SSR) — nothing is mounted either */
+  }
+  if (options.announceDayFit !== false) {
+    showAppToast({ message: line, type: 'success', durationMs: 5000 });
+  }
 }

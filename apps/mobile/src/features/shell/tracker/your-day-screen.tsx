@@ -25,6 +25,7 @@ import { TrainingDayNote } from '../../dashboard/components/training-day-note';
 import { NumbersModeProvider } from '../../numbers-mode/numbers-mode';
 import { ChangeNoticeCard } from '../../nutrition/change-notice-card';
 import { TargetExplainSheet } from '../../nutrition/target-explain-sheet';
+import { DayFitNote } from '../../tracker/day-fit-note';
 import { EditEntrySheet } from '../../tracker/edit-entry-sheet';
 import { EditRecipeEntrySheet } from '../../tracker/edit-recipe-entry-sheet';
 import { invalidateDayQueries } from '../../tracker/invalidate';
@@ -184,6 +185,7 @@ export function YourDayScreen() {
               {/* A log on this screen can offer to rebalance the week (free, WP-07) */}
               <RebalanceOffer />
               <RebalanceBanner />
+              <DayFitNote />
               {/* Target change notice (§2.11, T-11.1/T-11.5) — never a silent change */}
               <ChangeNoticeCard />
 

@@ -467,6 +467,7 @@ export {
 } from './plan-training';
 export {
   choosePortions,
+  fitDayPortions,
   formatPortion,
   isDayOnTarget,
   MIN_PROTEIN_GAP_G,
@@ -477,6 +478,8 @@ export {
   scaleNutrition,
   slotPortion,
   sumPlanDay,
+  type DayFitResult,
+  type DayFitSlot,
   type PortionMeal,
   type PortionOptions,
   type PortionPlan,
@@ -900,3 +903,4 @@ export {
 export { PLAN_MEAL_MENU_COPY, PLAN_WEEK_COPY } from './plan-options-copy';
 export * from './biscuit';
 export * from './onboarding-v4';
+export * from './day-fit-copy';

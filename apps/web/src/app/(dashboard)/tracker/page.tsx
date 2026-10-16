@@ -17,6 +17,7 @@ import { invalidateDayQueries } from '@/features/tracker/lib/invalidate';
 import {
   handleRebalanceOutcome,
   REBALANCE_PREVIEW,
+  withDayFitLine,
 } from '@/features/tracker/lib/rebalance-storage';
 import { SKIPPED_LABEL, youHadLine } from '@/features/tracker/lib/slot-copy';
 import {
@@ -301,11 +302,12 @@ export default function TrackerPage() {
       { ...REBALANCE_PREVIEW, fromDate: copyFromDateStr, toDate: dateStr },
       {
         onSuccess: (result) => {
-          handleRebalanceOutcome(result);
+          // Day rebalance: the resize line rides on this toast, not a second one.
+          handleRebalanceOutcome(result, { announceDayFit: false });
           setCopyDayOpen(false);
           invalidateDayQueries(utils); // both the source and target dates
           showToast(
-            copyDayMessage(result.copiedEntryIds.length, copyLabel),
+            withDayFitLine(copyDayMessage(result.copiedEntryIds.length, copyLabel), result),
             result.copiedEntryIds.length > 0
               ? {
                   label: 'Undo',
@@ -438,8 +440,8 @@ export default function TrackerPage() {
                 date={dateStr}
                 isPremium={isPremium}
                 onLogged={() => void refetch()}
-                onLoggedEntry={({ entryId, name }) =>
-                  showToast(`Logged ${name}`, {
+                onLoggedEntry={({ entryId, name, dayFit }) =>
+                  showToast(withDayFitLine(`Logged ${name}`, { dayFit }), {
                     label: 'Undo',
                     onClick: () => deleteCustomMutation.mutate({ date: dateStr, entryId }),
                   })

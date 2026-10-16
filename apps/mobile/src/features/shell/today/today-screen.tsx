@@ -24,6 +24,7 @@ import { NumbersModeProvider, useNumbersMode } from '../../numbers-mode/numbers-
 import { OnboardingV4WelcomeCard } from '../../onboarding-v4/welcome-card';
 import { HealthConsentTodayNotice } from '../../privacy/health-consent-notice';
 import { MigrationCard } from '../../safety/migration-card';
+import { DayFitNote } from '../../tracker/day-fit-note';
 import { RebalanceBanner } from '../../tracker/rebalance-banner';
 import { RebalanceOffer } from '../../tracker/rebalance-offer';
 import { useSlotActions } from '../../tracker/use-slot-actions';
@@ -247,6 +248,7 @@ export function TodayScreen() {
             {/* WP-07: a log here can offer to rebalance the week; Undo follows an Apply. */}
             <RebalanceOffer onApplied={() => void refetch()} />
             <RebalanceBanner onUndone={() => void refetch()} />
+            <DayFitNote onChanged={() => void refetch()} />
 
             <TrainingSection />
 

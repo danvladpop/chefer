@@ -22,6 +22,7 @@ export {
   type CreateRecipeData,
   type CreateMealPlanData,
   type PlanMealSlotJson,
+  type PortionRefitJson,
   // Instant week, then live tailoring (premium)
   MealPlanTailoringRepository,
   mealPlanTailoringRepository,

@@ -41,6 +41,7 @@ import {
   weightUnitForSystem,
 } from '@chefer/utils';
 import { ensureExerciseLibrary } from '../../lib/exercise-library/ensure.js';
+import { notifyTargetsChanged } from '../targets/targets-changed.js';
 import { gymBootstrapService, type GymBootstrapService } from './gym-bootstrap.service.js';
 import { resolveSlot } from './gym-context.js';
 import { readGoalHistory, readOfferState, serverToday, toJson, toProfileDto } from './mappers.js';
@@ -415,6 +416,8 @@ export class GymProfileService {
     // The unit picked in setup becomes the global preference (P2-6), unless the
     // food side already holds a non-default one (UX-GYM-05).
     if (existing?.unit !== input.unit) await this.syncPreferredUnitsFromSetup(userId, input.unit);
+    // Day rebalance: now a lifter with training days — the plan is resized to match.
+    await notifyTargetsChanged(userId);
 
     return this.bootstrap.get(userId, { today }, level);
   }

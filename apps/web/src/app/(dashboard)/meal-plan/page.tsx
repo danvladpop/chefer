@@ -5,11 +5,13 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useAiConsent } from '@/features/ai-consent/AiConsentProvider';
 import { DayView, TailoringDayMark } from '@/features/meal-plan/components/day-view';
+import { DayFitSuggestionCard } from '@/features/meal-plan/components/DayFitSuggestionCard';
 import { DayRecapBar } from '@/features/meal-plan/components/DayRecapBar';
 import { GenerateOverlay } from '@/features/meal-plan/components/GenerateOverlay';
 import { PlanDayMeals } from '@/features/meal-plan/components/PlanDayMeals';
 import { PlanMissSheet } from '@/features/meal-plan/components/PlanMissSheet';
 import { PlanSettingsSheet } from '@/features/meal-plan/components/PlanSettingsSheet';
+import { PortionRefitNotice } from '@/features/meal-plan/components/PortionRefitNotice';
 import {
   PremiumChangesCard,
   type PremiumChangesData,
@@ -17,7 +19,6 @@ import {
 import { RebalanceBanner } from '@/features/meal-plan/components/RebalanceBanner';
 import {
   ReplaceMealSheet,
-  type ReplaceMealResult,
   type ReplaceTarget,
   type SideAddedResult,
 } from '@/features/meal-plan/components/ReplaceMealSheet';
@@ -30,6 +31,7 @@ import {
 } from '@/features/meal-plan/components/TrainingDayHeader';
 import { TrainingExplainSheet } from '@/features/meal-plan/components/TrainingExplainSheet';
 import { WeekOptionsSheet } from '@/features/meal-plan/components/WeekOptionsSheet';
+import { useDayFit } from '@/features/meal-plan/hooks/use-day-fit';
 import { usePlanDaySlots } from '@/features/meal-plan/hooks/use-plan-day-slots';
 import { useRebalanceCheck } from '@/features/meal-plan/hooks/use-rebalance-check';
 import { useTailoringWatch } from '@/features/meal-plan/hooks/use-tailoring-watch';
@@ -44,6 +46,7 @@ import { UpgradeButton } from '@/features/premium/components/UpgradeButton';
 import { UpgradeNudge } from '@/features/premium/components/UpgradeNudge';
 import type { ImageStatusType } from '@/features/recipes/components/RecipeImage';
 import { SlotActionsHost } from '@/features/tracker/components/SlotActionsHost';
+import { DAY_FIT_EVENT } from '@/features/tracker/lib/rebalance-storage';
 import { useHasMounted } from '@/hooks/useHasMounted';
 import { useHousehold } from '@/hooks/useHousehold';
 import { useIsPremium } from '@/hooks/useIsPremium';
@@ -69,6 +72,7 @@ import { PLAN_TAILORING_POLL_MS, planSlotMealTypeSchema } from '@chefer/types';
 import { ErrorState, pressControl, Sheet, Toast } from '@chefer/ui';
 import {
   aiConsentRequiredFor,
+  DAY_FIT_COPY,
   defaultWeekOffset,
   formatDateRange,
   formatKcal,
@@ -508,12 +512,6 @@ export default function MealPlanPage() {
     });
   };
   const pinMutation = trpc.mealPlan.setSlotPinned.useMutation({ onSuccess: () => void refetch() });
-  // T-08.5/T-08.6 Undo: replaceRecipe back to `previousRecipeId` — used by
-  // the swap/replace toast's Undo action (the sheet itself is closed by then).
-  const replaceMutation = trpc.mealPlan.replaceRecipe.useMutation({
-    meta: { silent: true },
-    onSuccess: () => void refetch(),
-  });
 
   // FB7-04: a side dish is a second slot of the same meal type on that day
   // (`recipe.addToWeek` mode 'add'); "Remove from plan" takes one back out.
@@ -596,6 +594,48 @@ export default function MealPlanPage() {
       },
     );
   };
+  // Day rebalance (2026-10-16): a swap/replace resizes the day's other open
+  // meals server-side. The toast names what changed (+ Undo), the resized cards
+  // carry an "adjusted" marker, and a day portions can't close gets one
+  // suggestion under its totals (T-08.5/T-08.6 Undo lives in the hook too).
+  const planChanged = () => {
+    void refetch();
+    invalidateDerived();
+  };
+  const dayFit = useDayFit({
+    planId: plan?.planId,
+    todayDayOfWeek: isCurrent ? todayIndex : null,
+    viewKey: `${weekOffset}:${selectedDay}`,
+    showToast: showToastAction,
+    onPlanChanged: planChanged,
+  });
+  // A log elsewhere (tracker, Today, cook mode, this page's slot actions) can
+  // resize today's open meals too: re-read the plan when it says so.
+  useEffect(() => {
+    const onDayFit = () => void refetch();
+    window.addEventListener(DAY_FIT_EVENT, onDayFit);
+    return () => window.removeEventListener(DAY_FIT_EVENT, onDayFit);
+  }, [refetch]);
+
+  // Board PlanRefit: a target change resized this plan's portions.
+  const [refitClosedFor, setRefitClosedFor] = useState<string | null>(null);
+  const undoRefitMutation = trpc.mealPlan.undoPortionRefit.useMutation({
+    meta: { silent: true },
+    onSuccess: () => setToast({ message: DAY_FIT_COPY.refitUndone }),
+    onError: (err) => {
+      setRefitClosedFor(null);
+      setToast({ message: userFacingErrorMessage(err) });
+    },
+    onSettled: planChanged,
+  });
+  const dismissRefitMutation = trpc.mealPlan.dismissPortionRefit.useMutation({
+    meta: { silent: true },
+    onError: () => setRefitClosedFor(null),
+    onSettled: () => void refetch(),
+  });
+  const refitKey = plan?.portionRefit ? `${plan.planId}:${plan.portionRefit.at}` : null;
+  const refitVisible = !isPast && refitKey !== null && refitClosedFor !== refitKey;
+
   const onSideAdded = ({ recipeName, added }: SideAddedResult) =>
     setToast({
       message: PLAN_MEAL_MENU_COPY.added(recipeName),
@@ -681,6 +721,22 @@ export default function MealPlanPage() {
         }
       : null;
   const openMiss = isPast ? undefined : (dayOfWeek: number) => setMissDay(dayOfWeek);
+  // Day rebalance (board DayFitSuggest): the one change that closes a day.
+  const daySuggestionFor = (dayOfWeek: number, compact: boolean) => {
+    const pending = dayFit.suggestionFor(dayOfWeek);
+    if (!pending) return null;
+    return (
+      <DayFitSuggestionCard
+        dayOfWeek={dayOfWeek}
+        kcal={pending.kcal}
+        suggestion={pending.suggestion}
+        pending={dayFit.applying}
+        compact={compact}
+        onApply={() => void dayFit.applySuggestion()}
+        onLeave={dayFit.leaveSuggestion}
+      />
+    );
+  };
 
   const navBar = (
     <div className="flex shrink-0 flex-col gap-3 px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-6 sm:py-4">
@@ -848,6 +904,23 @@ export default function MealPlanPage() {
           one <h1> for screen-reader heading navigation (F-X-5-3). */}
       <h1 className="sr-only">Meal planner</h1>
       {navBar}
+
+      {/* Day rebalance (board PlanRefit): new targets resized this week's portions */}
+      {refitVisible && plan?.portionRefit && (
+        <PortionRefitNotice
+          className="mx-4 mb-2 sm:mx-6"
+          days={plan.portionRefit.days}
+          pending={undoRefitMutation.isPending || dismissRefitMutation.isPending}
+          onUndo={() => {
+            setRefitClosedFor(refitKey);
+            undoRefitMutation.mutate({ planId: plan.planId });
+          }}
+          onDismiss={() => {
+            setRefitClosedFor(refitKey);
+            dismissRefitMutation.mutate({ planId: plan.planId });
+          }}
+        />
+      )}
 
       {/* §6.5 Monday nudge: free user opening a week that has no plan yet —
           premium members woke up to one (PW-5). Mount-gated so the nudge
@@ -1145,6 +1218,8 @@ export default function MealPlanPage() {
             onOpenTrainingExplain={() => setTrainingExplainOpen(true)}
             onOpenMiss={openMiss}
             slotUi={isPast ? undefined : selectedSlots.slotUi}
+            adjustedSlots={dayFit.adjustedSlots(selectedDay)}
+            daySuggestion={isPast ? null : daySuggestionFor(selectedDay, false)}
             onTogglePin={
               !isPast
                 ? (mealType, slotIndex, pinned) =>
@@ -1285,6 +1360,7 @@ export default function MealPlanPage() {
                       readOnly={isPast}
                       imageOverrides={imageOverrides}
                       slotUi={isToday ? todaySlots.slotUi : undefined}
+                      adjustedSlots={dayFit.adjustedSlots(day.dayOfWeek)}
                       onReplaceMeal={(mealType, mealName, slotIndex, recipeId) =>
                         setReplaceTarget({
                           planId: plan.planId,
@@ -1320,7 +1396,9 @@ export default function MealPlanPage() {
                       calorieTarget={dayTarget}
                       proteinGapG={day.proteinGapG}
                       onOpenMiss={openMiss ? () => openMiss(day.dayOfWeek) : undefined}
-                    />
+                    >
+                      {isPast ? null : daySuggestionFor(day.dayOfWeek, true)}
+                    </DayRecapBar>
                   </div>
                 </div>
               );
@@ -1367,31 +1445,7 @@ export default function MealPlanPage() {
         target={replaceTarget}
         onClose={() => setReplaceTarget(null)}
         onSideAdded={onSideAdded}
-        onChanged={({
-          recipeName,
-          previousRecipeId,
-          previousPinned,
-          target,
-        }: ReplaceMealResult) => {
-          setToast({
-            message: `Swapped to ${recipeName}`,
-            ...(previousRecipeId && {
-              action: {
-                label: 'Undo',
-                onClick: () =>
-                  replaceMutation.mutate({
-                    planId: target.planId,
-                    dayOfWeek: target.dayOfWeek,
-                    mealType: target.mealType as 'breakfast' | 'lunch' | 'dinner' | 'snack',
-                    slotIndex: target.slotIndex,
-                    recipeId: previousRecipeId,
-                    // UX-PLAN-04: restore the slot's previous pin state.
-                    pinned: previousPinned === true,
-                  }),
-              },
-            }),
-          });
-        }}
+        onChanged={dayFit.onSlotChanged}
       />
 
       {/* FB7-11: one sheet for "New meal plan for this week" and "Rebalance my week". */}

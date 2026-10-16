@@ -7,12 +7,13 @@ import { RecipeImage } from '@/features/recipes/components/RecipeImage';
 import { CheckedForChip } from '@/features/safety/components/CheckedForChip';
 import { FilteredForLine } from '@/features/safety/components/FilteredForLine';
 import { useIsPremium } from '@/hooks/useIsPremium';
-import { trpc } from '@/lib/trpc';
+import { trpc, type RouterOutputs } from '@/lib/trpc';
 import { Heart, ShieldCheck, Wand2 } from 'lucide-react';
 import { ErrorState, Sheet } from '@chefer/ui';
 import {
   buildPickerSections,
   filterReplaceCandidates,
+  localDateStr,
   pickerRowMeta,
   pickerSafetyHeader,
   pickerSafetyHeaderText,
@@ -69,6 +70,13 @@ export interface ReplaceMealResult {
   previousRecipeId?: string;
   /** UX-PLAN-04: the replaced slot was pinned — Undo must restore that, not pin it. */
   previousPinned?: boolean;
+  /**
+   * Day rebalance (2026-10-16): the day's other open meals the server resized
+   * so the day stays on target (`changes`), what Undo restores
+   * (`previousPortions`) and, when resizing alone could not close the day, a
+   * one-change `suggestion`. Absent/null = nothing was fitted.
+   */
+  dayFit?: RouterOutputs['mealPlan']['replaceRecipe']['dayFit'];
 }
 
 export function ReplaceMealSheet({
@@ -151,12 +159,14 @@ export function ReplaceMealSheet({
     recipeName: string,
     previousRecipeId?: string,
     previousPinned?: boolean,
+    dayFit?: ReplaceMealResult['dayFit'],
   ) => {
     onChanged?.({
       target,
       recipeName,
       ...(previousRecipeId && { previousRecipeId }),
       ...(previousPinned && { previousPinned }),
+      ...(dayFit && { dayFit }),
     });
   };
   const replaceMutation = trpc.mealPlan.replaceRecipe.useMutation({
@@ -164,7 +174,9 @@ export function ReplaceMealSheet({
     onSuccess: (data) => {
       invalidate();
       onClose();
-      if (target) notifyChanged(target, data.name, data.previousRecipeId, data.previousPinned);
+      if (target) {
+        notifyChanged(target, data.name, data.previousRecipeId, data.previousPinned, data.dayFit);
+      }
     },
   });
   const requestAiConsent = useAiConsent();
@@ -173,7 +185,9 @@ export function ReplaceMealSheet({
     onSuccess: (data) => {
       invalidate();
       onClose();
-      if (target) notifyChanged(target, data.name, data.previousRecipeId, data.previousPinned);
+      if (target) {
+        notifyChanged(target, data.name, data.previousRecipeId, data.previousPinned, data.dayFit);
+      }
     },
   });
 
@@ -274,6 +288,8 @@ export function ReplaceMealSheet({
                   dayOfWeek: target.dayOfWeek,
                   mealType: target.mealType as 'breakfast' | 'lunch' | 'dinner' | 'snack',
                   slotIndex: target.slotIndex,
+                  // Day rebalance: the server fits the day against the client's today.
+                  localDate: localDateStr(),
                 }),
               );
             }}
@@ -317,6 +333,7 @@ export function ReplaceMealSheet({
                     slotIndex: target.slotIndex,
                     recipeId: lastAttemptedId,
                     acknowledgeConflict: true,
+                    localDate: localDateStr(),
                   });
                 }}
                 className="mt-1 text-xs font-semibold text-red-700 underline disabled:opacity-50"
@@ -392,6 +409,7 @@ export function ReplaceMealSheet({
                                 | 'snack',
                               slotIndex: target.slotIndex,
                               recipeId: recipe.id,
+                              localDate: localDateStr(),
                             });
                           }}
                           className="flex w-full items-center gap-3 rounded-xl border p-2 text-left transition-colors hover:border-[#944a00]/40 hover:bg-orange-50/40 disabled:opacity-50"

@@ -72,8 +72,14 @@ export function RebalanceBanner({ planId, onUndone }: RebalanceBannerProps) {
       for (const op of undoOperations(shownPending)) {
         if (!isMealType(op.mealType)) continue; // defensive — slots are always one of the four
         // Rebalance only ever swaps unpinned slots, so undo puts the slot back
-        // as it was: not "Your pick" (UX-PLAN-04).
-        await replaceMutation.mutateAsync({ ...op, mealType: op.mealType, pinned: false });
+        // as it was: not "Your pick" (UX-PLAN-04). A put-back, not a new
+        // swap: no day rebalance on top of it (`fitDay: false`).
+        await replaceMutation.mutateAsync({
+          ...op,
+          mealType: op.mealType,
+          pinned: false,
+          fitDay: false,
+        });
       }
       clearPendingRebalance();
       setPending(null);

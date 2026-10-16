@@ -72,6 +72,8 @@ function Chip({
           mealType: action.mealType,
           slotIndex: action.slotIndex,
           recipeId: action.previousRecipeId,
+          // A put-back, not a new swap: no day rebalance on top of it.
+          fitDay: false,
         });
         void utils.mealPlan.invalidate();
         void utils.dashboard.summary.invalidate();

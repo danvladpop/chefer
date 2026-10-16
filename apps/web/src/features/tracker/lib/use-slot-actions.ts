@@ -4,7 +4,7 @@ import { useRef, useState } from 'react';
 import { trpc } from '@/lib/trpc';
 import { QUICK_ADD_MEAL_TYPES, type QuickAddMealType, type SlotRef } from '@chefer/utils';
 import { invalidateDayQueries } from './invalidate';
-import { REBALANCE_PREVIEW } from './rebalance-storage';
+import { REBALANCE_PREVIEW, withDayFitLine, type DayFitLike } from './rebalance-storage';
 import { useTrackerWrites, type ShowToast } from './use-tracker-writes';
 
 // ─── Flexible eating: "Ate something else" / "Skipped it" (WP-06) ─────────────
@@ -66,10 +66,18 @@ export function useSlotActions(dateStr: string, showToast: ShowToast) {
       { onSuccess: () => showToast(`Back to your planned ${slot.label.toLowerCase()}`) },
     );
 
-  /** Toast for a replacement the server accepted, with Undo (deletes that entry). */
-  const confirmReplacement = (name: string, entryId: string | undefined, slot: SlotTarget) =>
+  /**
+   * Toast for a replacement the server accepted, with Undo (deletes that
+   * entry). Day rebalance: when today's open meals absorbed it, says so too.
+   */
+  const confirmReplacement = (
+    name: string,
+    entryId: string | undefined,
+    slot: SlotTarget,
+    dayFit?: DayFitLike | null,
+  ) =>
     showToast(
-      `Logged ${name} for ${slot.label.toLowerCase()}`,
+      withDayFitLine(`Logged ${name} for ${slot.label.toLowerCase()}`, { dayFit }),
       entryId ? { label: 'Undo', onClick: () => undoReplacement(entryId, slot) } : undefined,
     );
 
@@ -85,8 +93,8 @@ export function useSlotActions(dateStr: string, showToast: ShowToast) {
     writes.skipSlot.mutate(
       { ...REBALANCE_PREVIEW, date: dateStr, mealType: slot.mealType, slotIndex: slot.slotIndex },
       {
-        onSuccess: () =>
-          showToast(`Skipped ${slot.label.toLowerCase()}`, {
+        onSuccess: (result) =>
+          showToast(withDayFitLine(`Skipped ${slot.label.toLowerCase()}`, result), {
             label: 'Undo',
             onClick: () => unskip(slot, true),
           }),
@@ -110,7 +118,9 @@ export function useSlotActions(dateStr: string, showToast: ShowToast) {
           : {}),
         replacesSlot: { mealType: slot.mealType, slotIndex: slot.slotIndex },
       },
-      { onSuccess: (result) => confirmReplacement(input.name, result.entryId, slot) },
+      {
+        onSuccess: (result) => confirmReplacement(input.name, result.entryId, slot, result.dayFit),
+      },
     );
 
   return {
@@ -142,8 +152,12 @@ export function useSlotActions(dateStr: string, showToast: ShowToast) {
     /** Undo of a replacement: deletes that custom entry, which restores the slot. */
     undoReplacement,
     /** For the describe / photo flows, which log their own entry. */
-    onLoggedEntry: (entry: { entryId: string; name: string }) => {
-      if (target) confirmReplacement(entry.name, entry.entryId, target);
+    onLoggedEntry: (entry: {
+      entryId: string;
+      name: string;
+      dayFit?: DayFitLike | null | undefined;
+    }) => {
+      if (target) confirmReplacement(entry.name, entry.entryId, target, entry.dayFit);
     },
     onLogged: () => invalidateDayQueries(utils, dateStr),
     pending: writes.logReplacement.isPending,

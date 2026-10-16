@@ -2317,6 +2317,40 @@ no-active-plan empty state are §30.
   `upgrade_prompt_shown { source: 'snap-scan' }` + `teaser_engaged
 { feature: 'snap' }` (§6.4 merchandising).
 
+### Day rebalance (free, no AI — owner, 2026-10-16)
+
+Each plan day is fitted to its own target — the training-day target Today
+shows included (free since WP-07; the planner used to fit training days to the
+base target, so a lifter's week landed ~9% short on those days).
+
+1. **Swap / replace a meal** → the day's OTHER open meals (not eaten, not
+   replaced or skipped today, not "Your pick", not leftovers) are resized
+   ¾×–2× so the day lands within ±10% of its target. The response's `dayFit`
+   lists the changes; clients say e.g. "Lunch is now 1½× so Tuesday stays on
+   target" with Undo (`replaceRecipe` back with `fitDay: false`, then
+   `restoreDayPortions`).
+2. **Resizing can't reach it** → one suggestion (swap an open meal for a safe
+   curated dish, or add a snack); nothing changes until tapped
+   (`applyDayFitSuggestion`); "Leave it" dismisses.
+3. **Nothing open left** (e.g. dinner was the last meal) → no day rebalance and
+   no week rebalance; the day's real total shows.
+4. **Targets change** (goal, body, training setup, active routine days, coach,
+   own targets) → today's open meals and the rest of this week + next week are
+   resized once (same recipes); Meals shows "Portions updated for your new
+   targets" with Undo / Dismiss for up to a week (`portionRefit`).
+5. **Clients** (web Meals page + recipe page, mobile Meals tab): the snackbar /
+   toast after a swap names what was resized ("Lunch is now 1½× so Tuesday stays
+   on target"); resized meals carry a "Resized" / "adjusted" marker until the
+   day or week changes; the suggestion card sits in the day totals; Undo of a
+   suggested snack uses `recipe.undoAddToWeek` (`mealPlan.removeSlot` refuses a
+   day's only snack). After a log, a small note (mobile, next to the week
+   banner) or toast line (web) says what was resized today. A resize only runs
+   when the day is more than 3% off and it improves the day by ≥ 2 points, so a
+   day lands on its target rather than just inside the ±10% band.
+6. **A log for today** → today's open meals absorb it first. The week
+   rebalance below is offered only when the day is still more than 20% off
+   after that (`BIG_LOGGED_MISS`) — never for a swap or a small difference.
+
 ### Week rebalance (free, protein-aware, preview before apply — WP-07)
 
 After ANY log write (tracker save, quick-add, photo scan, chat logMeal,

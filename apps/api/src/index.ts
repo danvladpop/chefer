@@ -8,7 +8,9 @@ import rateLimit from 'express-rate-limit';
 import helmet from 'helmet';
 import { gymTrackingBackfillService } from './application/gym/tracking-backfill.service.js';
 import { householdService } from './application/household/household.service.js';
+import { refitAfterTargetChange } from './application/meal-plan/day-fit.js';
 import { consentBackfillService } from './application/privacy/consent-backfill.service.js';
+import { setTargetsChangedListener } from './application/targets/targets-changed.js';
 import {
   createContext,
   requestIdMiddleware,
@@ -246,6 +248,9 @@ app.use(
 );
 
 // ─── Server Start ─────────────────────────────────────────────────────────────
+
+// Day rebalance: a target change resizes this and next week's plan portions.
+setTargetsChangedListener((userId) => refitAfterTargetChange(userId));
 
 const server = app.listen(env.PORT, env.HOST, () => {
   logger.info(

@@ -25,7 +25,11 @@ import {
   type SlotRef,
 } from '@chefer/utils';
 import { invalidateDayQueries } from '../lib/invalidate';
-import { handleRebalanceOutcome, REBALANCE_PREVIEW } from '../lib/rebalance-storage';
+import {
+  handleRebalanceOutcome,
+  REBALANCE_PREVIEW,
+  type DayFitLike,
+} from '../lib/rebalance-storage';
 
 // ─── Search-first Log sheet (T-19.1, UX-19) ────────────────────────────────────
 // Web counterpart of mobile's quick-add-sheet.tsx. Recent → This week's plan →
@@ -68,7 +72,10 @@ interface QuickAddSheetProps {
   /** Hide the "Log something" button (controlled use). */
   hideTrigger?: boolean | undefined;
   /** After a custom entry is logged: its id and name, for an Undo toast. */
-  onLoggedEntry?: ((entry: { entryId: string; name: string }) => void) | undefined;
+  /** `dayFit`: today's open meals resized to absorb the log (the caller's toast says so). */
+  onLoggedEntry?:
+    | ((entry: { entryId: string; name: string; dayFit?: DayFitLike | null | undefined }) => void)
+    | undefined;
 }
 
 const MEAL_OPTIONS = QUICK_ADD_MEAL_TYPES.map((v) => ({
@@ -206,8 +213,9 @@ export function QuickAddSheet({
 
   const onLoggedCommon = (
     data: RouterOutputs['tracker']['logRecipe'] | RouterOutputs['tracker']['logCustomMeal'],
+    options: { announceDayFit?: boolean } = {},
   ) => {
-    handleRebalanceOutcome(data);
+    handleRebalanceOutcome(data, options);
     // Recent (AC1) — and the weekly/monthly summaries, dashboard ring — must
     // reflect this log the next time the sheet (or those surfaces) opens, not
     // after the query's 60s staleTime. onLogged() alone only refetches
@@ -243,8 +251,12 @@ export function QuickAddSheet({
     meta: { silent: true },
     onSuccess: (data, vars) => {
       trackMealLogged(quickAddSource(vars, false), vars.mealType);
-      onLoggedCommon(data);
-      if (data.entryId) onLoggedEntry?.({ entryId: data.entryId, name: vars.name });
+      // A caller with its own "Logged …" toast carries the day-fit line itself.
+      const ownToast = Boolean(data.entryId && onLoggedEntry);
+      onLoggedCommon(data, { announceDayFit: !ownToast });
+      if (data.entryId) {
+        onLoggedEntry?.({ entryId: data.entryId, name: vars.name, dayFit: data.dayFit });
+      }
     },
   });
   const isPending = logRecipeMutation.isPending || logCustomMutation.isPending;
