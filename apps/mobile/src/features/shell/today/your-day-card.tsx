@@ -143,7 +143,12 @@ export function YourDayCard({
   return (
     <BoardCard testID="your-day-card">
       <View className="flex-row items-center justify-between gap-2">
-        <Text accessibilityRole="header" className="text-headline font-bold text-label">
+        {/* One line: see exercise-card's "Add set" (Android tablet wrap → "Your"). */}
+        <Text
+          accessibilityRole="header"
+          numberOfLines={1}
+          className="text-headline font-bold text-label"
+        >
           Your day
         </Text>
         {slots.length > 0 ? (

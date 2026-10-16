@@ -7,6 +7,7 @@ import {
   Avatar,
   ConfirmSheet,
   ErrorState,
+  heroHeight,
   IconButton,
   KeyboardAwareScrollView,
   ListRow,
@@ -16,6 +17,7 @@ import {
   Sheet,
   Text,
   useQueryState,
+  useReadableLayout,
   useSnackbar,
   useThemeColors,
 } from '@chefer/ui-mobile';
@@ -59,6 +61,9 @@ import { useCookingFor } from '../../src/hooks/use-cooking-for';
 import { useHousehold } from '../../src/hooks/use-household';
 import { useUnitSystem } from '../../src/hooks/use-unit-system';
 import { trpc } from '../../src/lib/trpc';
+
+/** The hero's height on a phone (Tailwind h-56). */
+const RECIPE_HERO_MIN_HEIGHT = 224;
 
 // Recipe detail — port of apps/web (dashboard)/recipes/[id]/page.tsx (M2-3).
 // Like web, the star rating shows only when opened from a meal-plan day
@@ -179,6 +184,17 @@ export default function RecipeDetailScreen() {
   const { scaledMembers } = useHousehold();
   const cookingFor = useCookingFor();
   const colors = useThemeColors();
+  // Large screens: the hero keeps its phone height (h-56) on a phone and
+  // grows 16:9 with the readable column elsewhere, capped at 40% of the
+  // window — a fixed 224pt strip across a tablet was a thin, upscaled crop.
+  const { windowWidth, windowHeight } = useReadableLayout();
+  const heroHeightPt = heroHeight({
+    windowWidth,
+    windowHeight,
+    minHeight: RECIPE_HERO_MIN_HEIGHT,
+    aspectRatio: 16 / 9,
+    horizontalPadding: 32,
+  });
 
   if (recipeState.state === 'loading') {
     return (
@@ -396,7 +412,8 @@ export default function RecipeDetailScreen() {
           <RecipeImage
             testID="recipe-hero"
             imageUrl={recipe.imageUrl}
-            className="h-56 w-full overflow-hidden rounded-card"
+            className="w-full overflow-hidden rounded-card"
+            style={{ height: heroHeightPt }}
             accessibilityLabel={recipe.name}
             iconSize={48}
           />

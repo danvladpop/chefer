@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
+import { smartAppBanner } from '@/features/app-stores/store-metadata';
 import { RegisterForm } from '@/features/auth/components/register-form';
 import { SocialSignIn } from '@/features/auth/components/social-sign-in';
 import { getSessionUser } from '@/features/auth/lib/session';
@@ -8,6 +9,7 @@ import { RegisterV4 } from '@/features/onboarding-v4/register-v4';
 import { serverClient } from '@/lib/trpc-server';
 
 export const metadata: Metadata = {
+  ...smartAppBanner(),
   title: 'Create Account',
   description: 'Create your Chefer account',
   robots: { index: false },

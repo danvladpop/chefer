@@ -1,10 +1,12 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
+import { smartAppBanner } from '@/features/app-stores/store-metadata';
 import { fetchAiProviderDisclosure } from '@/lib/ai-providers';
 import { AI_PROVIDERS, SUPPORT_EMAIL } from '@chefer/types';
 import { formatAiProviderNames } from '@chefer/utils';
 
 export const metadata: Metadata = {
+  ...smartAppBanner(),
   title: 'Privacy Policy',
   description:
     'What data Chefer collects, why, who processes it, how long we keep it and your rights.',

@@ -10,6 +10,7 @@ export * from './ai-consent';
 export * from './health-consent';
 export * from './account-deletion';
 export * from './support';
+export * from './app-stores';
 export * from './video-import';
 export * from './safety-taxonomy';
 export * from './safety';

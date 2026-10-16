@@ -1,8 +1,10 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
+import { smartAppBanner } from '@/features/app-stores/store-metadata';
 import { SUPPORT_EMAIL } from '@chefer/types';
 
 export const metadata: Metadata = {
+  ...smartAppBanner(),
   title: 'Terms of Service',
   description: 'The rules for using Chefer, including health, allergen and AI disclaimers.',
 };
