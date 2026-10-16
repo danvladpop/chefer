@@ -122,8 +122,9 @@ describe('home variants (audit F-GYM-2-1)', () => {
     // bench-press and back-extension. + 12 cardio entries (T-42.1).
     // + cable-biceps-curl (owner request 2026-10-02). + 91 library-expansion
     // rows (plan-library-supersets.md L1, 2026-10-02). + 8 quick-log
-    // activities (WP-20, 2026-10-04).
-    expect(EXERCISE_CATALOG).toHaveLength(191);
+    // activities (WP-20, 2026-10-04). + face-away-cable-curl (owner request
+    // 2026-10-16).
+    expect(EXERCISE_CATALOG).toHaveLength(192);
     for (const id of HOME_VARIANTS) {
       const e = EXERCISE_BY_ID.get(id);
       expect(e, id).toBeDefined();

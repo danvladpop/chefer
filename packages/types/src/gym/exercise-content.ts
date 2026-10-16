@@ -535,6 +535,24 @@ export const EXERCISE_CONTENT: Record<string, ExerciseContent> = {
     videoStartSec: 0,
     videoChannel: 'Colossus Fitness',
   },
+  // Added 2026-10-16 (owner request): the single-arm "Bayesian" curl.
+  'face-away-cable-curl': {
+    cues: [
+      'Set the pulley low and step forward, facing away from it.',
+      'Start with your arm straight and slightly behind your body.',
+      'Curl to your shoulder without letting your elbow swing forward.',
+    ],
+    mistakes: [
+      'Bringing the elbow forward so it turns into a front raise.',
+      'Standing too close, so the cable goes slack at the bottom.',
+    ],
+    blurb:
+      'With the arm behind your body the biceps start fully stretched, which makes this one of the best curls for the long head.',
+    freeExerciseDbId: null,
+    videoId: '1buGhj5AWbo',
+    videoStartSec: 0,
+    videoChannel: 'Live Lean TV Daily Exercises',
+  },
   'triceps-pushdown': {
     cues: [
       "Pin your elbows to your sides, don't let them drift.",
