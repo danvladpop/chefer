@@ -1,11 +1,13 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
+import { smartAppBanner } from '@/features/app-stores/store-metadata';
 import { LoginForm } from '@/features/auth/components/login-form';
 import { SocialSignIn } from '@/features/auth/components/social-sign-in';
 import { getSessionUser } from '@/features/auth/lib/session';
 
 export const metadata: Metadata = {
+  ...smartAppBanner(),
   title: 'Sign In',
   description: 'Sign in to your Chefer account',
   robots: { index: false },
