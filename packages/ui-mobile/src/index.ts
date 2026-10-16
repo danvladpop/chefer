@@ -70,6 +70,7 @@ export {
 export { EMAIL_FIELD_PROPS } from './components/email-field-props';
 export { ProgressBar, type ProgressBarProps } from './components/progress-bar';
 export { ProgressRing, type ProgressRingProps } from './components/progress-ring';
+export { Biscuit, type BiscuitProps } from './components/biscuit';
 export { Screen, type ScreenProps } from './components/screen';
 export {
   SegmentedControl,
