@@ -2,6 +2,7 @@ import { ActivityIndicator, Keyboard, Text } from 'react-native';
 import { cva, type VariantProps } from 'class-variance-authority';
 import { cn } from '@chefer/utils';
 import { PressableScale, type PressableScaleProps } from '../motion/pressable-scale';
+import { withLabelSlack } from './label-slack';
 import { DEFAULT_MAX_FONT_SCALE } from './text';
 import { colors } from './theme';
 
@@ -94,6 +95,9 @@ export function Button({
   return (
     <PressableScale
       accessibilityRole="button"
+      // A plain-string label is the button's name as is (the drawn Text gets
+      // Android slack, see label-slack.ts); callers may still override it.
+      accessibilityLabel={typeof children === 'string' ? children : undefined}
       className={cn(buttonVariants({ variant, size }), className)}
       disabled={isDisabled}
       // `busy` lets a screen reader (and tests) tell which of several buttons
@@ -127,7 +131,7 @@ export function Button({
           maxFontSizeMultiplier={DEFAULT_MAX_FONT_SCALE}
           className={cn(buttonTextVariants({ variant, size }), 'shrink text-center')}
         >
-          {children}
+          {withLabelSlack(children)}
         </Text>
       ) : (
         children

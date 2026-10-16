@@ -7,6 +7,7 @@ export {
 } from './components/avatar';
 export { Badge, type BadgeProps } from './components/badge';
 export { Button, buttonVariants, type ButtonProps } from './components/button';
+export { withLabelSlack } from './components/label-slack';
 export { Card, CardTitle, type CardProps } from './components/card';
 export {
   ChangeNoticeCard,
