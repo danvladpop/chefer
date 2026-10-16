@@ -1,5 +1,5 @@
 import { ActivityIndicator, View } from 'react-native';
-import { PressableScale, Text, useThemeColors } from '@chefer/ui-mobile';
+import { PressableScale, Text, useThemeColors, withLabelSlack } from '@chefer/ui-mobile';
 import { cn } from '@chefer/utils';
 import { Icon, type IconName } from '../../../components/icon';
 
@@ -97,7 +97,9 @@ export function TrainButton({
         numberOfLines={2}
         className={cn('shrink text-center text-callout font-semibold', LABEL[variant])}
       >
-        {label}
+        {/* Android: room for the drawn glyphs, so the last word never wraps
+            onto a clipped second line (label-slack.ts in @chefer/ui-mobile). */}
+        {withLabelSlack(label)}
       </Text>
     </PressableScale>
   );
