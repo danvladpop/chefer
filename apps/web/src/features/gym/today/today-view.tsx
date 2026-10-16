@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
+import { OnboardingV4WelcomeCard } from '@/features/onboarding-v4/welcome-card';
 import { capture } from '@/lib/analytics';
 import { trpc } from '@/lib/trpc';
 import {
@@ -180,6 +181,9 @@ export function TodayView() {
           onResume={() => router.push('/gym/workout')}
         />
       )}
+
+      {/* Onboarding V4 (train-only lands here): one-time "You're all set". */}
+      <OnboardingV4WelcomeCard className="mb-4" />
 
       <div className="flex flex-col gap-4 lg:grid lg:grid-cols-[minmax(0,1fr)_20rem] lg:items-start lg:gap-6">
         {/* Left: what to do today */}

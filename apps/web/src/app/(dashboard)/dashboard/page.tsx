@@ -18,6 +18,7 @@ import {
   type ReplaceTarget,
 } from '@/features/meal-plan/components/ReplaceMealSheet';
 import { NumbersModeProvider, useNumbersMode } from '@/features/numbers-mode/numbers-mode';
+import { OnboardingV4WelcomeCard } from '@/features/onboarding-v4/welcome-card';
 import {
   HealthConsentLaunchPrompt,
   HealthConsentTodayNotice,
@@ -200,6 +201,8 @@ export default function DashboardPage() {
       <div className="flex flex-col gap-4 p-4 xl:flex-row xl:gap-6 xl:p-6">
         {/* ── Main column ─────────────────────────────────────────────────────── */}
         <div className="flex min-w-0 flex-1 flex-col gap-4 sm:gap-6">
+          {/* Onboarding V4: one-time "You're all set" (renders nothing otherwise). */}
+          <OnboardingV4WelcomeCard />
           {/* PW-5: the Sunday worker (or planning ahead) left this week ready */}
           {d.weekReady && d.today.dayOfWeek === 0 && (
             <div className="flex items-start gap-3 rounded-2xl border border-emerald-200 bg-emerald-50 p-4">

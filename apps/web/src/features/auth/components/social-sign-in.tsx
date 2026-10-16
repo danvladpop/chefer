@@ -25,7 +25,14 @@ import { GoogleSignInButton } from './google-sign-in-button';
 export const SOCIAL_SDK_ERROR_COPY =
   'We couldn’t reach the sign-in service. Check your connection and try again.';
 
-export function SocialSignIn({ mode }: { mode: 'login' | 'register' }) {
+export function SocialSignIn({
+  mode,
+  hideDivider = false,
+}: {
+  mode: 'login' | 'register';
+  /** Onboarding V4 puts the providers first, so there is nothing to divide. */
+  hideDivider?: boolean;
+}) {
   const router = useRouter();
   const queryClient = useQueryClient();
   const providers = useWebSocialProviders();
@@ -74,11 +81,13 @@ export function SocialSignIn({ mode }: { mode: 'login' | 'register' }) {
 
   return (
     <div data-testid="social-sign-in" className="space-y-3">
-      <div className="flex items-center gap-3 text-xs text-muted-foreground" aria-hidden="true">
-        <span className="h-px flex-1 bg-border" />
-        <span>or</span>
-        <span className="h-px flex-1 bg-border" />
-      </div>
+      {!hideDivider && (
+        <div className="flex items-center gap-3 text-xs text-muted-foreground" aria-hidden="true">
+          <span className="h-px flex-1 bg-border" />
+          <span>or</span>
+          <span className="h-px flex-1 bg-border" />
+        </div>
+      )}
 
       {error && (
         <div
