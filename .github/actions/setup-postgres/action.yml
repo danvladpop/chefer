@@ -1,0 +1,58 @@
+name: Setup Postgres 16
+description: >-
+  Start the PostgreSQL 16 server that ships on GitHub's Ubuntu 24.04 runner
+  image, listening on localhost:5432 with password auth. No container
+  registry is involved, so no pull quota can fail the job.
+
+inputs:
+  user:
+    description: Role to create (superuser)
+    default: postgres
+  password:
+    description: Password for the role
+    default: postgres
+  database:
+    description: Database to create, owned by the role
+    required: true
+
+runs:
+  using: composite
+  steps:
+    - name: Start PostgreSQL 16
+      shell: bash
+      env:
+        PG_USER: ${{ inputs.user }}
+        PG_PASSWORD: ${{ inputs.password }}
+        PG_DATABASE: ${{ inputs.database }}
+      run: |
+        set -euo pipefail
+        # The runner image preinstalls PostgreSQL 16 (service disabled). If a
+        # future image drops or bumps it, install 16 from the Ubuntu archive
+        # (Azure-hosted apt mirror, no anonymous registry quota) so the major
+        # version stays pinned at 16, same as production.
+        if [ ! -x /usr/lib/postgresql/16/bin/postgres ]; then
+          echo "::notice::PostgreSQL 16 not preinstalled on this runner image — installing it"
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq postgresql-16
+        fi
+        # Only the 16 cluster may own port 5432.
+        for v in $(ls /etc/postgresql); do
+          [ "$v" = 16 ] || sudo pg_ctlcluster "$v" main stop 2>/dev/null || true
+        done
+        sudo pg_ctlcluster 16 main start || true  # apt may have started it already
+        for i in $(seq 1 30); do
+          pg_isready -h localhost -p 5432 -q && break
+          sleep 1
+        done
+        pg_isready -h localhost -p 5432
+
+        sudo -u postgres psql -v ON_ERROR_STOP=1 -q \
+          -v user="$PG_USER" -v password="$PG_PASSWORD" -v database="$PG_DATABASE" <<'SQL'
+        SELECT format('CREATE ROLE %I SUPERUSER LOGIN', :'user')
+          WHERE NOT EXISTS (SELECT FROM pg_roles WHERE rolname = :'user') \gexec
+        ALTER ROLE :"user" WITH PASSWORD :'password';
+        SELECT format('CREATE DATABASE %I OWNER %I', :'database', :'user')
+          WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = :'database') \gexec
+        SQL
+
+        PGPASSWORD="$PG_PASSWORD" psql -h localhost -U "$PG_USER" -d "$PG_DATABASE" -tAc 'SELECT version()'
