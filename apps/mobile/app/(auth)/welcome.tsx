@@ -5,6 +5,8 @@ import { Button, colors, Screen, Text } from '@chefer/ui-mobile';
 import { AUTH_COPY } from '../../src/features/auth/copy';
 import { SocialSignIn, useHasSocialProviders } from '../../src/features/auth/social/social-sign-in';
 import { openLegal } from '../../src/features/legal/open-legal';
+import { useOnboardingV4Flag } from '../../src/features/onboarding-v4/use-onboarding-v4-flag';
+import { WelcomeV4 } from '../../src/features/onboarding-v4/welcome-v4';
 
 // UX-25 (T-25.1): the first screen a fresh install ever sees (CI-09 — a
 // device that has never signed in landed on "Welcome back / Sign in" with no
@@ -28,7 +30,7 @@ const FEATURES: FeatureRow[] = [
   { icon: 'shield-checkmark-outline', copyKey: 'welcomeFeatureSafety' },
 ];
 
-export default function WelcomeScreen() {
+function WelcomeScreenV3() {
   // WP-22: with Apple/Google buttons on screen, their consent line (which also
   // covers the 16+ confirmation) replaces the plain legal footer.
   const hasSocial = useHasSocialProviders();
@@ -107,4 +109,11 @@ export default function WelcomeScreen() {
       </View>
     </Screen>
   );
+}
+
+// Onboarding V4 (flag `onboardingV4`): wait for the flag rather than flash today's screen.
+export default function WelcomeScreen() {
+  const v4 = useOnboardingV4Flag();
+  if (v4 === 'loading') return <View className="flex-1 bg-canvas" />;
+  return v4 === 'on' ? <WelcomeV4 /> : <WelcomeScreenV3 />;
 }

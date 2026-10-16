@@ -3,6 +3,7 @@ import { Pressable, RefreshControl, Text as RNText, ScrollView, View } from 'rea
 import { router } from 'expo-router';
 import { Button, Card, EmptyState, ProgressRing, Screen, Sheet, Text } from '@chefer/ui-mobile';
 import { cn, pauseSummaryLine, supersetRuns, supersetSlot } from '@chefer/utils';
+import { OnboardingV4WelcomeCard } from '../../onboarding-v4/welcome-card';
 import { useShellV2 } from '../../shell/shell-store';
 import { TrainLinks } from '../../shell/train-links';
 import { ExerciseNameLink } from '../components/exercise-name-link';
@@ -156,6 +157,9 @@ export function TodayScreen() {
       <Screen className="px-0">
         <ScrollView contentContainerClassName="gap-4 px-4 py-4">
           {header}
+
+          {/* Onboarding V4: the one-time "You're all set" card (train-only lands here). */}
+          <OnboardingV4WelcomeCard />
           <EmptyState
             testID="gym-today-empty-routine"
             title="No active routine"

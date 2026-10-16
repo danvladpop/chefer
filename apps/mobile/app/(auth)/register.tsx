@@ -31,6 +31,8 @@ import {
 import { registerSchema, type RegisterFormValues } from '../../src/features/auth/schemas';
 import { SocialSignIn } from '../../src/features/auth/social/social-sign-in';
 import { useConfirmPasswordError } from '../../src/features/auth/use-confirm-password';
+import { AccountV4 } from '../../src/features/onboarding-v4/account-v4';
+import { useOnboardingV4Flag } from '../../src/features/onboarding-v4/use-onboarding-v4-flag';
 import { track } from '../../src/lib/analytics';
 import { setToken } from '../../src/lib/auth-store';
 import { trpc } from '../../src/lib/trpc';
@@ -41,7 +43,7 @@ function withRegion(region: string | null): { region?: string } {
   return region ? { region } : {};
 }
 
-export default function RegisterScreen() {
+function RegisterScreenV3() {
   return (
     <AuthScreen testID="register-scroll">
       <RegisterForm />
@@ -355,4 +357,11 @@ function RegisterForm() {
       </View>
     </>
   );
+}
+
+// Onboarding V4 (flag `onboardingV4`): wait for the flag rather than flash today's screen.
+export default function RegisterScreen() {
+  const v4 = useOnboardingV4Flag();
+  if (v4 === 'loading') return <View className="flex-1 bg-canvas" />;
+  return v4 === 'on' ? <AccountV4 /> : <RegisterScreenV3 />;
 }
