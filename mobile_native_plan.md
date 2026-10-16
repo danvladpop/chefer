@@ -374,7 +374,32 @@ between the two. Success → store token → `(food)` (formerly `(tabs)`).
 `e2e/auth.flow.yaml`: launch → register a unique user → land on dashboard → logout →
 login again. This flow is the E2E template all Wave-2 tasks copy.
 
-#### M1-6 · Error reporting + logging **[PARALLEL]** — ⏸ DEFERRED pending [USER] Sentry DSN (env slot exists; @sentry/react-native not yet installed — installing it later requires a dev-client rebuild)
+#### M1-6 · Error reporting + logging **[PARALLEL]** — ✅ CODE DONE 2026-10-14 (branch `feat/mobile-sentry`), inert until [USER] creates the Sentry project and sets the DSN
+
+**What landed:** `@sentry/react-native` 7.11 (`npx expo install`) with the `@sentry/react-native/expo`
+config plugin in `app.config.js` (literal `organization: 'chefer'`, `project: 'chefer-mobile'`,
+`url: 'https://de.sentry.io/'`) and `getSentryExpoConfig` in `metro.config.js` (debug ids for
+source maps). `@sentry/cli` (the version `@sentry/react-native` pins) is a direct devDependency:
+pnpm does not hoist it, and the Xcode "Upload Debug Symbols to Sentry" phase resolves it from
+`apps/mobile` even when uploads are disabled, so an iOS Release build failed without it.
+`src/lib/crash-reporting.ts` inits Sentry at the top of `app/_layout.tsx` only
+for **production** builds with `EXPO_PUBLIC_SENTRY_DSN` (never the dev variant or `__DEV__`):
+`environment` = app variant, `sendDefaultPii: false`, no tracing, no replay, no screenshots,
+query strings stripped from network breadcrumbs, default expo-updates context (OTA update id,
+channel, runtime). The root `ErrorBoundary` reports what it catches; global JS errors, promise
+rejections and native crashes come from the SDK's default handlers;
+`CrashReportingUserHost` tags the account id (not name/email). Builds without
+`SENTRY_AUTH_TOKEN` skip the upload (`SENTRY_DISABLE_AUTO_UPLOAD=true` from
+`scripts/common.sh`, and from `eas.json` for the development/preview profiles; EAS production
+builds upload with the EAS `SENTRY_AUTH_TOKEN` secret). The deploy's OTA job bundles with the
+`EXPO_PUBLIC_SENTRY_DSN` repo variable and uploads source maps when the `SENTRY_AUTH_TOKEN`
+secret exists. **Native change:** new runtime fingerprint, so it ships with the next store
+binaries (1.0.2). Owner runbook: `infrastructure.md` §11 "Mobile crash reporting (M1-6)".
+The `log()` util below was not added (the app's few `console.*` calls are already deliberate).
+The same 1.0.2 native batch drops the manifest's portrait lock (Play's large-screen warning) and
+keeps phones portrait at runtime with `expo-screen-orientation` (`src/lib/orientation-lock.ts`,
+smallest side < 600dp) plus a `MainActivity` launch lock; iPhone keeps its portrait Info.plist.
+Details: `infrastructure.md` §11 "Native release 3, part 2".
 
 `@sentry/react-native` via the Expo plugin, wired only when `EXPO_PUBLIC_SENTRY_DSN` is
 set **[USER: provide DSN or say skip]**. Dev logging: keep Metro console clean; add a tiny
