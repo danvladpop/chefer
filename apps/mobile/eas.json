@@ -33,8 +33,7 @@
       "channel": "production",
       "env": {
         "APP_VARIANT": "production",
-        "EXPO_PUBLIC_API_URL": "https://chefer.duckdns.org",
-        "SENTRY_DISABLE_AUTO_UPLOAD": "true"
+        "EXPO_PUBLIC_API_URL": "https://chefer.duckdns.org"
       }
     }
   },

@@ -3730,7 +3730,7 @@ inlined at bundle time by Expo.
 | `ENABLE_APPLE_SIGN_IN`       | No       | —                                                                  | **NEW (WP-22)** — `1` adds the Sign in with Apple entitlement to a development build (production always has it); needs the paid Apple team                                                                                                                                                                                                                                                                                                                                                                                                       |
 | `APP_VARIANT`                | No       | `development`                                                      | Build-time only, set by the scripts, not in `.env`: `development` \| `production` (§4.3). `production` refuses to build unless `EXPO_PUBLIC_API_URL` is `https://…`                                                                                                                                                                                                                                                                                                                                                                              |
 | `SENTRY_AUTH_TOKEN`          | No       | —                                                                  | **M1-6** — build/upload-time only, a **secret**: Sentry org auth token for uploading source maps (Gradle release task, Xcode bundle phase, `sentry-expo-upload-sourcemaps`) and iOS debug symbols. Never in `app.config.js` (the Sentry plugin's arguments are literals, so builds with and without it share one fingerprint). Put it in `apps/mobile/.env` locally, the EAS `production` environment (secret visibility) and the `SENTRY_AUTH_TOKEN` repo secret                                                                                |
-| `SENTRY_DISABLE_AUTO_UPLOAD` | No       | set automatically                                                  | **M1-6** — `true` skips the native builds' Sentry upload, which otherwise **fails the build** without a token. `scripts/common.sh` sets it whenever `SENTRY_AUTH_TOKEN` is empty; `eas.json` sets it for every EAS profile. **`eas.json` is part of the native fingerprint** (whole file), so removing it there to let EAS builds upload is a native change: do it only in the same change as a store build (runbook, §11)                                                                                                                       |
+| `SENTRY_DISABLE_AUTO_UPLOAD` | No       | set automatically                                                  | **M1-6** — `true` skips the native builds' Sentry upload, which otherwise **fails the build** without a token. `scripts/common.sh` sets it whenever `SENTRY_AUTH_TOKEN` is empty; `eas.json` sets it for the `development` and `preview` profiles (production uploads with the EAS `SENTRY_AUTH_TOKEN` secret). **`eas.json` is part of the native fingerprint** (whole file), so removing it there to let EAS builds upload is a native change: do it only in the same change as a store build (runbook, §11)                                   |
 
 ### `packages/database/.env`
 
@@ -3814,10 +3814,10 @@ account needed. All scripts live in `apps/mobile/scripts/`, export
   the runtime fingerprint on purpose (`expo-updates runtimeversion:resolve`, production variant,
   `EXPO_APPLE_TEAM_ID=45TS85YK89`, `EXPO_PUBLIC_API_URL=https://chefer.duckdns.org`, master before → after):
 
-  | Platform | Before (master at e024e4d7)                | After Sentry                               | After the 1.0.2 bump                       | After the phone-only portrait lock (shipped runtime) |
-  | -------- | ------------------------------------------ | ------------------------------------------ | ------------------------------------------ | ---------------------------------------------------- |
-  | iOS      | `442ae8554c9e8f4bac35c8e260328dda165f6000` | `2d000486362c5b538c01117458ad5f6a36f1c6a1` | `d29ee95ef233a45d3d5358b49aa7f967d1f46bd6` | `48164b511e206c3d79e0224d5f8c7b879eabf798`           |
-  | Android  | `b16487329b0f2dbb8c36533855f79b252e99d49a` | `c6c0f2360895587c5c63b67a7673b5507ca81194` | `ed5a2444aaf9709dc633a16d3959f169e43a1e82` | `9ada5dcddf642fa453c59ccf47c4a79e6a3e6b8b`           |
+  | Platform | Before (master at e024e4d7)                | After Sentry                               | After the 1.0.2 bump                       | After the phone-only portrait lock         | After EAS production uploads (shipped runtime) |
+  | -------- | ------------------------------------------ | ------------------------------------------ | ------------------------------------------ | ------------------------------------------ | ---------------------------------------------- |
+  | iOS      | `442ae8554c9e8f4bac35c8e260328dda165f6000` | `2d000486362c5b538c01117458ad5f6a36f1c6a1` | `d29ee95ef233a45d3d5358b49aa7f967d1f46bd6` | `48164b511e206c3d79e0224d5f8c7b879eabf798` | `027e2640f829053d44e2553df166f5b640b363f9`     |
+  | Android  | `b16487329b0f2dbb8c36533855f79b252e99d49a` | `c6c0f2360895587c5c63b67a7673b5507ca81194` | `ed5a2444aaf9709dc633a16d3959f169e43a1e82` | `9ada5dcddf642fa453c59ccf47c4a79e6a3e6b8b` | `7c46f3d78003b9cb9e5d2d037521b614cebc7725`     |
 
   The Android "before" equals the runtime of the Play 1.0.1 AAB (`release-builds/runtime-android.txt` of that build).
 
@@ -3865,11 +3865,12 @@ account needed. All scripts live in `apps/mobile/scripts/`, export
   3. **Auth token (optional, for readable stack traces):** Sentry → Settings → Auth Tokens → org token. Store it as
      `SENTRY_AUTH_TOKEN` in `apps/mobile/.env` (gitignored; local Android/iOS release builds then upload their
      bundle's source maps), as the GitHub repo **secret** `SENTRY_AUTH_TOKEN` (OTA source maps, the bundles most
-     users run), and in the EAS `production` environment with **secret** visibility. EAS builds still skip the
-     upload while `eas.json` `build.production.env` has `SENTRY_DISABLE_AUTO_UPLOAD: "true"` — and since `eas.json`
-     is hashed into the native fingerprint, remove that line **only in the same change as a store build** (e.g.
-     before merging this PR, if the token exists by then), never on its own: a lone `eas.json` edit moves every
-     later OTA to a runtime no installed binary has. Without a token everything still builds and reports; only
+     users run), and in the EAS `production` environment with **secret** visibility. **Done 2026-10-16** (all three
+     places, plus the DSN in all three), so the `production` profile in `eas.json` no longer sets
+     `SENTRY_DISABLE_AUTO_UPLOAD` and EAS production builds upload source maps and dSYMs; `development` and
+     `preview` still skip (their EAS environments have no token, and the upload would fail the build). `eas.json` is
+     hashed into the native fingerprint, so any later edit there moves the runtime: change it **only in the same
+     change as a store build**, never on its own, or every later OTA targets a runtime no installed binary has. Without a token everything still builds and reports; only
      stack traces stay minified. After a manual `pnpm mobile:update`, run
      `cd apps/mobile && pnpm exec sentry-expo-upload-sourcemaps dist` (CI does this itself).
   4. **Store privacy labels** — update before the build with reporting on reaches review: App Store Connect → App

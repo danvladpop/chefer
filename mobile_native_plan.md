@@ -390,7 +390,8 @@ channel, runtime). The root `ErrorBoundary` reports what it catches; global JS e
 rejections and native crashes come from the SDK's default handlers;
 `CrashReportingUserHost` tags the account id (not name/email). Builds without
 `SENTRY_AUTH_TOKEN` skip the upload (`SENTRY_DISABLE_AUTO_UPLOAD=true` from
-`scripts/common.sh` / `eas.json`). The deploy's OTA job bundles with the
+`scripts/common.sh`, and from `eas.json` for the development/preview profiles; EAS production
+builds upload with the EAS `SENTRY_AUTH_TOKEN` secret). The deploy's OTA job bundles with the
 `EXPO_PUBLIC_SENTRY_DSN` repo variable and uploads source maps when the `SENTRY_AUTH_TOKEN`
 secret exists. **Native change:** new runtime fingerprint, so it ships with the next store
 binaries (1.0.2). Owner runbook: `infrastructure.md` §11 "Mobile crash reporting (M1-6)".
