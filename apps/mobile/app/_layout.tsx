@@ -21,6 +21,7 @@ import { useNotificationLinks } from '../src/features/notifications/use-notifica
 import { NumbersModeHost } from '../src/features/numbers-mode/numbers-mode';
 import { PremiumHost } from '../src/features/premium/premium-host';
 import { HealthConsentLaunchPrompt } from '../src/features/privacy/health-consent-launch-prompt';
+import { startReviewSession } from '../src/features/review/review-store';
 import { ShellFlagHost } from '../src/features/shell/shell-flag-host';
 import { initAnalytics, track } from '../src/lib/analytics';
 import { getTrpcUrl } from '../src/lib/api-url';
@@ -46,6 +47,10 @@ installQueryConnectivity();
 // and background-flush listener. A no-op when no PostHog key is configured.
 initAnalytics();
 track('app_opened', {});
+
+// Store rating prompt (ASO §5.1): counts today as an active day and opens the
+// session the prompt's "not the first session / nothing failed" rule reads.
+startReviewSession();
 
 // Catches render errors in every route; see root-error-boundary.tsx.
 export { RootErrorBoundary as ErrorBoundary } from '../src/components/root-error-boundary';

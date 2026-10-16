@@ -23,6 +23,7 @@ import {
 } from '@chefer/utils';
 import { Icon } from '../../../components/icon';
 import { useFlags } from '../../../hooks/use-flags';
+import { noteWorkoutCompleted } from '../../review/review-store';
 import { useShellV2 } from '../../shell/shell-store';
 import { WorkoutActions } from '../../shell/train/workout-actions';
 import { WorkoutHeader } from '../../shell/train/workout-header';
@@ -454,6 +455,7 @@ export function WorkoutScreen() {
             kind: doc.routineDayId ? 'planned' : 'freestyle',
           });
           rememberFinished(doc);
+          noteWorkoutCompleted(); // store rating prompt: the 3rd workout is a trigger
           router.replace({ pathname: '/gym/summary/[id]', params: { id: doc.id } });
           return;
         }

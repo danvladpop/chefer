@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { TextInput, View } from 'react-native';
 import type { ErrorBoundaryProps } from 'expo-router';
 import {
@@ -16,6 +16,7 @@ import {
   useFeedbackRoute,
 } from '../features/feedback/feedback-context';
 import { submitFeedbackStandalone } from '../features/feedback/standalone-submit';
+import { noteReviewBlockingError } from '../features/review/review-store';
 
 type ReportStatus = 'idle' | 'sending' | 'sent' | 'failed';
 
@@ -108,6 +109,8 @@ function ReportThis({ error }: { error: Error }) {
 export function RootErrorBoundary({ error, retry }: ErrorBoundaryProps) {
   // The only trace of the error until mobile Sentry lands (M1-6).
   console.error('[chefer] render error', error);
+  // No store rating prompt for the rest of this session (ASO §5.1).
+  useEffect(() => noteReviewBlockingError(), []);
   return (
     <Screen className="flex-1 bg-white px-6">
       {/* Scrolls, so the report field and Send stay clear of the keyboard. */}
