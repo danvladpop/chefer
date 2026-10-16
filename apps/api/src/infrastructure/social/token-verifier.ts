@@ -66,7 +66,14 @@ function stringClaim(payload: JWTPayload, key: string): string | null {
   return typeof value === 'string' && value.length > 0 ? value : null;
 }
 
-/** The token's nonce must be the raw nonce or its SHA-256 hex; Apple always needs one. */
+/**
+ * The token's nonce must be the raw nonce or its SHA-256 hex; Apple always needs one.
+ *
+ * Google is checked only when the CLIENT supplies a nonce: the iOS Google SDK
+ * (AppAuth) puts a random nonce of its own in every request when the app passes
+ * none, and @react-native-google-signin has no way to pass one — so an iOS token
+ * carries a nonce the app never knew. Rejecting it broke every iOS Google sign-in.
+ */
 function checkNonce(provider: SocialProvider, claim: string | null, raw: string | undefined): void {
   if (claim === null) {
     if (provider === 'APPLE' || raw !== undefined) {
@@ -74,7 +81,10 @@ function checkNonce(provider: SocialProvider, claim: string | null, raw: string 
     }
     return;
   }
-  if (raw === undefined) throw new SocialTokenError('Nonce was not supplied', 'nonce');
+  if (raw === undefined) {
+    if (provider === 'GOOGLE') return;
+    throw new SocialTokenError('Nonce was not supplied', 'nonce');
+  }
   const ok = claim === raw || claim.toLowerCase() === sha256Hex(raw);
   if (!ok) throw new SocialTokenError('Nonce mismatch', 'nonce');
 }
