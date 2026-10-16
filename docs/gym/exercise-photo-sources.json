@@ -1,4 +1,22 @@
 {
+  "assisted-dip": {
+    "source": "ai",
+    "generator": "ai-horde/Krea2-Turbo_fp8",
+    "frames": [
+      {
+        "file": "assisted-dip-0.3x2.webp",
+        "prompt": "A wide-angle side view photograph, taken from several metres away in a bright modern gym with white walls and large windows, of a fit athletic man with short dark hair in a grey t-shirt and black shorts, between two parallel horizontal dip bars at waist height, his bent knees resting on a padded platform below him that helps lift him, supporting himself on the two parallel dip bars with his hands pressing down beside his hips and his arms locked straight, torso upright. The entire body from head to feet and all the equipment are fully visible. Natural window light, sharp focus, realistic DSLR photo.",
+        "seed": 1023874,
+        "candidate": 2
+      },
+      {
+        "file": "assisted-dip-1.3x2.webp",
+        "prompt": "A wide-angle side view photograph, taken from several metres away in a bright modern gym with white walls and large windows, of a fit athletic man with short dark hair in a grey t-shirt and black shorts, between two parallel horizontal dip bars at waist height, his bent knees resting on a padded platform below him that helps lift him, doing a dip on the two parallel dip bars: his hands pressing down on the bars beside him, elbows bent ninety degrees pointing backwards, his shoulders lowered to the height of the bars. The entire body from head to feet and all the equipment are fully visible. Natural window light, sharp focus, realistic DSLR photo.",
+        "seed": 1023874,
+        "candidate": 2
+      }
+    ]
+  },
   "belt-squat": {
     "source": "ai",
     "generator": "ai-horde/Flux.1-Schnell fp8 (Compact)",
@@ -14,6 +32,41 @@
         "prompt": "A wide-angle side view photograph, taken from several metres away in a bright modern gym with white walls and large windows, of a fit athletic man with short dark hair in a grey t-shirt and black shorts, on a belt squat machine, a weighted belt around his hips attached to a loaded lever below, standing on two raised platforms, hands on the handles, in the bottom of a deep squat with the thighs parallel to the floor and the back upright. The entire body from head to feet and all the equipment are fully visible. Natural window light, sharp focus, realistic DSLR photo.",
         "seed": 227275,
         "candidate": 1
+      }
+    ]
+  },
+  "bird-dog": {
+    "source": "commons",
+    "frames": [
+      {
+        "file": "bird-dog-0.3x2.webp",
+        "sourceUrl": "https://commons.wikimedia.org/wiki/File:Girl_doing_bird_dog_yoga_pose.jpg",
+        "author": "PTPioneer",
+        "license": "CC BY 2.0"
+      },
+      {
+        "file": "bird-dog-1.3x2.webp",
+        "sourceUrl": "https://commons.wikimedia.org/wiki/File:Girl_doing_bird_dog_yoga_pose_2.jpg",
+        "author": "PTPioneer",
+        "license": "CC BY 2.0"
+      }
+    ]
+  },
+  "bodyweight-bulgarian-split-squat": {
+    "source": "ai",
+    "generator": "ai-horde/Krea2-Turbo_fp8",
+    "frames": [
+      {
+        "file": "bodyweight-bulgarian-split-squat-0.3x2.webp",
+        "prompt": "A wide-angle side view photograph, taken from several metres away in a bright modern gym with white walls and large windows, of a fit athletic woman with a ponytail in a navy sports top and black leggings, with a flat gym bench behind her, the top of her back foot resting on the bench, her hands on her hips, no weights, standing upright in a split stance, front foot forward and the rear foot on the bench. The entire body from head to feet and all the equipment are fully visible. Natural window light, sharp focus, realistic DSLR photo.",
+        "seed": 640708,
+        "candidate": 2
+      },
+      {
+        "file": "bodyweight-bulgarian-split-squat-1.3x2.webp",
+        "prompt": "A wide-angle side view photograph, taken from several metres away in a bright modern gym with white walls and large windows, of a fit athletic woman with a ponytail in a navy sports top and black leggings, with a flat gym bench behind her, the top of her back foot resting on the bench, her hands on her hips, no weights, lowered into the split squat with the front thigh parallel to the floor and the rear knee just above the floor, torso upright. The entire body from head to feet and all the equipment are fully visible. Natural window light, sharp focus, realistic DSLR photo.",
+        "seed": 640708,
+        "candidate": 2
       }
     ]
   },
@@ -35,6 +88,24 @@
       }
     ]
   },
+  "clamshell": {
+    "source": "ai",
+    "generator": "ai-horde/Krea2-Turbo_fp8",
+    "frames": [
+      {
+        "file": "clamshell-0.3x2.webp",
+        "prompt": "A wide-angle side view photograph, taken from several metres away in a bright modern gym with white walls and large windows, of a fit athletic woman with a ponytail in a navy sports top and black leggings, on an exercise mat, with a small resistance band looped around her thighs just above the knees, lying on her side on the mat with her head resting on her lower arm, both knees bent at a right angle in front of her body like sitting in a chair, her knees and ankles stacked together. The entire body from head to feet and all the equipment are fully visible. Natural window light, sharp focus, realistic DSLR photo.",
+        "seed": 1282359,
+        "candidate": 1
+      },
+      {
+        "file": "clamshell-1.3x2.webp",
+        "prompt": "A wide-angle side view photograph, taken from several metres away in a bright modern gym with white walls and large windows, of a fit athletic woman with a ponytail in a navy sports top and black leggings, on an exercise mat, with a small resistance band looped around her thighs just above the knees, lying on her side on the mat with her head resting on her lower arm, both knees bent at a right angle in front of her body and her ankles touching, her upper knee raised high towards the ceiling so that her two thighs form a wide V shape. The entire body from head to feet and all the equipment are fully visible. Natural window light, sharp focus, realistic DSLR photo.",
+        "seed": 1282359,
+        "candidate": 1
+      }
+    ]
+  },
   "dance-class": {
     "source": "commons",
     "frames": [
@@ -49,6 +120,42 @@
         "sourceUrl": "https://commons.wikimedia.org/wiki/File:US_Army_52862_Zumba_adds_Latin_dance_to_fitness_routine.jpg",
         "author": "Brittany Carlson (USAG Stuttgart)",
         "license": "Public domain"
+      }
+    ]
+  },
+  "dumbbell-hip-thrust": {
+    "source": "ai",
+    "generator": "ai-horde/Krea2-Turbo_fp8",
+    "frames": [
+      {
+        "file": "dumbbell-hip-thrust-0.3x2.webp",
+        "prompt": "A wide-angle side view photograph, taken from several metres away in a bright modern gym with white walls and large windows, of a fit athletic woman with a ponytail in a navy sports top and black leggings, with her upper back leaning against the long side of a flat gym bench, holding one dumbbell across her hip bones with both hands, knees bent and feet flat on the floor, sitting on the floor with her upper back leaning against the side of the bench, her hips down on the floor. The entire body from head to feet and all the equipment are fully visible. Natural window light, sharp focus, realistic DSLR photo.",
+        "seed": 1199684,
+        "candidate": 1
+      },
+      {
+        "file": "dumbbell-hip-thrust-1.3x2.webp",
+        "prompt": "A wide-angle side view photograph, taken from several metres away in a bright modern gym with white walls and large windows, of a fit athletic woman with a ponytail in a navy sports top and black leggings, with her upper back leaning against the long side of a flat gym bench, holding one dumbbell across her hip bones with both hands, knees bent and feet flat on the floor, at the top of a hip thrust: only her shoulder blades rest on the edge of the bench, her hips are lifted high in the air so that her body is straight and horizontal like a table from her shoulders to her knees, her knees bent at ninety degrees above her feet flat on the floor, the dumbbell resting on her raised hips. The entire body from head to feet and all the equipment are fully visible. Natural window light, sharp focus, realistic DSLR photo.",
+        "seed": 1286793,
+        "candidate": 2
+      }
+    ]
+  },
+  "face-away-cable-curl": {
+    "source": "ai",
+    "generator": "ai-horde/Krea2-Turbo_fp8",
+    "frames": [
+      {
+        "file": "face-away-cable-curl-0.3x2.webp",
+        "prompt": "A wide-angle side view photograph, taken from several metres away in a bright modern gym with white walls and large windows, of a fit athletic man with short dark hair in a grey t-shirt and black shorts, standing one step in front of a cable machine with his back to it, a single D-handle on the low pulley behind him, the cable running diagonally up from the machine to his right hand, facing away from the cable machine in a staggered stance, his right arm stretched straight down and slightly behind his body, holding the handle. The entire body from head to feet and all the equipment are fully visible. Natural window light, sharp focus, realistic DSLR photo.",
+        "seed": 1177500,
+        "candidate": 1
+      },
+      {
+        "file": "face-away-cable-curl-1.3x2.webp",
+        "prompt": "A wide-angle side view photograph, taken from several metres away in a bright modern gym with white walls and large windows, of a fit athletic man with short dark hair in a grey t-shirt and black shorts, standing one step in front of a cable machine with his back to it, a single D-handle on the low pulley behind him, the cable running diagonally up from the machine to his right hand, facing away from the cable machine in a staggered stance, his right elbow staying slightly behind his torso while his forearm curls the handle up to his right shoulder. The entire body from head to feet and all the equipment are fully visible. Natural window light, sharp focus, realistic DSLR photo.",
+        "seed": 1177500,
+        "candidate": 1
       }
     ]
   },
@@ -85,6 +192,24 @@
         "prompt": "Photo of a small group fitness bootcamp class in a bright gym, people doing squat jumps together, wide shot, full bodies in frame, sharp focus, professional photography, DSLR photo, 8k, realistic",
         "seed": 465082,
         "candidate": 2
+      }
+    ]
+  },
+  "hollow-body-hold": {
+    "source": "ai",
+    "generator": "ai-horde/Krea2-Turbo_fp8",
+    "frames": [
+      {
+        "file": "hollow-body-hold-0.3x2.webp",
+        "prompt": "A wide-angle side view photograph, taken from several metres away in a bright modern gym with white walls and large windows, of a fit athletic woman with a ponytail in a navy sports top and black leggings, on an exercise mat, lying flat on her back on the mat with her legs straight and together and her arms resting straight along her sides. The entire body from head to feet and all the equipment are fully visible. Natural window light, sharp focus, realistic DSLR photo.",
+        "seed": 759627,
+        "candidate": 1
+      },
+      {
+        "file": "hollow-body-hold-1.3x2.webp",
+        "prompt": "A wide-angle side view photograph, taken from several metres away in a bright modern gym with white walls and large windows, of a fit athletic woman with a ponytail in a navy sports top and black leggings, on an exercise mat, lying on her back doing a hollow body hold core exercise: her head and shoulder blades curled up off the mat, her straight legs held together and raised a hand-width above the mat, her arms reaching straight forward past her hips, her lower back pressed into the mat, the whole body a shallow curve like a banana. The entire body from head to feet and all the equipment are fully visible. Natural window light, sharp focus, realistic DSLR photo.",
+        "seed": 759627,
+        "candidate": 1
       }
     ]
   },
@@ -155,6 +280,24 @@
         "file": "kneeling-push-up-1.3x2.webp",
         "prompt": "A wide-angle side view photograph, taken from several metres away in a bright modern gym with white walls and large windows, of a fit athletic woman with a ponytail in a navy sports top and black leggings, on a yoga mat, at the bottom of a kneeling push-up: elbows bent, chest lowered close to the mat, a straight line from head to knees. The entire body from head to feet and all the equipment are fully visible. Natural window light, sharp focus, realistic DSLR photo.",
         "seed": 506363,
+        "candidate": 1
+      }
+    ]
+  },
+  "landmine-press": {
+    "source": "ai",
+    "generator": "ai-horde/Krea2-Turbo_fp8",
+    "frames": [
+      {
+        "file": "landmine-press-0.3x2.webp",
+        "prompt": "A wide-angle side view photograph, taken from several metres away in a bright modern gym with white walls and large windows, of a fit athletic man with short dark hair in a grey t-shirt and black shorts, holding the end of a long barbell that slants diagonally down to the floor: its far end rests on the floor two metres in front of him, the near end, with one weight plate on it, is in his right hand, standing in a split stance, his right hand holding the near end of the slanted barbell right in front of his right shoulder at chin height, his elbow bent and tucked against his ribs. The entire body from head to feet and all the equipment are fully visible. Natural window light, sharp focus, realistic DSLR photo.",
+        "seed": 1285454,
+        "candidate": 2
+      },
+      {
+        "file": "landmine-press-1.3x2.webp",
+        "prompt": "A wide-angle side view photograph, taken from several metres away in a bright modern gym with white walls and large windows, of a fit athletic man with short dark hair in a grey t-shirt and black shorts, holding the end of a long barbell that slants diagonally down to the floor: its far end rests on the floor two metres in front of him, the near end, with one weight plate on it, is in his right hand, standing in a split stance, his right arm extended straight forward and upward, having pressed the near end of the slanted barbell up and away from his shoulder. The entire body from head to feet and all the equipment are fully visible. Natural window light, sharp focus, realistic DSLR photo.",
+        "seed": 1198345,
         "candidate": 1
       }
     ]
@@ -297,6 +440,24 @@
         "file": "pendulum-squat-1.3x2.webp",
         "sameAs": "pendulum-squat-0.3x2.webp",
         "note": "end-frame render rejected in review 2026-10-08 (wrong position/equipment); start frame reused"
+      }
+    ]
+  },
+  "pike-push-up": {
+    "source": "ai",
+    "generator": "ai-horde/Krea2-Turbo_fp8",
+    "frames": [
+      {
+        "file": "pike-push-up-0.3x2.webp",
+        "prompt": "A wide-angle side view photograph, taken from several metres away in a bright modern gym with white walls and large windows, of a fit athletic man with short dark hair in a grey t-shirt and black shorts, on a yoga mat, in a downward-facing dog position: hands and feet on the mat, hips raised high, legs and arms straight, his body an upside-down V shape. The entire body from head to feet and all the equipment are fully visible. Natural window light, sharp focus, realistic DSLR photo.",
+        "seed": 884288,
+        "candidate": 1
+      },
+      {
+        "file": "pike-push-up-1.3x2.webp",
+        "prompt": "A wide-angle side view photograph, taken from several metres away in a bright modern gym with white walls and large windows, of a fit athletic man with short dark hair in a grey t-shirt and black shorts, on a yoga mat, in a downward-facing dog position with his hips raised high and legs straight, but with his elbows bent so far that the top of his head nearly touches the mat between his hands, his body an upside-down V shape. The entire body from head to feet and all the equipment are fully visible. Natural window light, sharp focus, realistic DSLR photo.",
+        "seed": 1042668,
+        "candidate": 2
       }
     ]
   },
@@ -525,6 +686,24 @@
         "file": "walking-1.3x2.webp",
         "prompt": "Photo of a man in a t-shirt and sneakers power walking on a city sidewalk, arms swinging, full body in frame, side view, morning light, sharp focus, professional photography, DSLR photo, 8k, realistic",
         "seed": 546736,
+        "candidate": 1
+      }
+    ]
+  },
+  "wall-sit": {
+    "source": "ai",
+    "generator": "ai-horde/Krea2-Turbo_fp8",
+    "frames": [
+      {
+        "file": "wall-sit-0.3x2.webp",
+        "prompt": "A wide-angle side view photograph, taken from several metres away in a bright modern gym with white walls and large windows, of a fit athletic woman with a ponytail in a navy sports top and black leggings, with her back against a plain white wall, no furniture anywhere near her, standing upright with her back and head touching the wall, her feet a short step out in front of her, arms relaxed at her sides. The entire body from head to feet and all the equipment are fully visible. Natural window light, sharp focus, realistic DSLR photo.",
+        "seed": 598132,
+        "candidate": 1
+      },
+      {
+        "file": "wall-sit-1.3x2.webp",
+        "prompt": "A wide-angle side view photograph, taken from several metres away in a bright modern gym with white walls and large windows, of a fit athletic woman with a ponytail in a navy sports top and black leggings, with her back against a plain white wall, no furniture anywhere near her, holding a wall sit: her upper body upright and her whole back, from shoulders to hips, pressed flat against the wall, her thighs horizontal like sitting on a chair but with nothing underneath her, her knees bent at a right angle directly above her ankles, her hands resting on her thighs. The entire body from head to feet and all the equipment are fully visible. Natural window light, sharp focus, realistic DSLR photo.",
+        "seed": 598132,
         "candidate": 1
       }
     ]

@@ -5,11 +5,11 @@ served offline-safe from this API at `/static/exercises/*` (see `gym_plan.md` §
 hot-linked at runtime. Since WP-25 (2026-10-08, "complete media") they come from **three sources**;
 `scripts/gym/exercise-media-gap-report.ts` prints the per-exercise source.
 
-| Source            | Exercises                                  | Licence                                                            | Provenance                               |
-| ----------------- | ------------------------------------------ | ------------------------------------------------------------------ | ---------------------------------------- |
-| free-exercise-db  | 151                                        | The Unlicense (public domain)                                      | `freeExerciseDbId` in the catalog        |
-| Wikimedia Commons | 6 (CC0 / public domain / CC BY / CC BY-SA) | per file, credits below                                            | `docs/gym/exercise-photo-sources.json`   |
-| AI render         | 29                                         | FLUX.1-schnell is Apache-2.0, renders carry no licence restriction | same JSON: prompt, seed, model per frame |
+| Source            | Exercises                                  | Licence                                                       | Provenance                               |
+| ----------------- | ------------------------------------------ | ------------------------------------------------------------- | ---------------------------------------- |
+| free-exercise-db  | 151                                        | The Unlicense (public domain)                                 | `freeExerciseDbId` in the catalog        |
+| Wikimedia Commons | 7 (CC0 / public domain / CC BY / CC BY-SA) | per file, credits below                                       | `docs/gym/exercise-photo-sources.json`   |
+| AI render         | 34                                         | see "AI renders" below; no licence restriction on the renders | same JSON: prompt, seed, model per frame |
 
 ## Naming and cache busting
 
@@ -34,6 +34,8 @@ Cropped to 600x400, otherwise unmodified.
 
 | Exercise        | Frame | Commons file                                                                                                                                                                                                               | Author                                                | Licence       |
 | --------------- | ----- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------- | ------------- |
+| `bird-dog`      | start | [Girl doing bird dog yoga pose.jpg](https://commons.wikimedia.org/wiki/File:Girl_doing_bird_dog_yoga_pose.jpg)                                                                                                             | PTPioneer                                             | CC BY 2.0     |
+| `bird-dog`      | end   | [Girl doing bird dog yoga pose 2.jpg](https://commons.wikimedia.org/wiki/File:Girl_doing_bird_dog_yoga_pose_2.jpg)                                                                                                         | PTPioneer                                             | CC BY 2.0     |
 | `dance-class`   | start | [Buckley Zumba session.JPG](https://commons.wikimedia.org/wiki/File:Buckley_Zumba_session.JPG)                                                                                                                             | U.S. Air Force photo by Airman 1st Class Phillip Houk | Public domain |
 | `dance-class`   | end   | [US Army 52862 Zumba adds Latin dance to fitness routine.jpg](https://commons.wikimedia.org/wiki/File:US_Army_52862_Zumba_adds_Latin_dance_to_fitness_routine.jpg)                                                         | Brittany Carlson (USAG Stuttgart)                     | Public domain |
 | `outdoor-run`   | start | [120915-F-KX404-139 (7996341270).jpg](<https://commons.wikimedia.org/wiki/File:120915-F-KX404-139_(7996341270).jpg>)                                                                                                       | U.S. Department of Defense Current Photos             | Public domain |
@@ -51,8 +53,14 @@ The same two scenes serve `running` and `outdoor-run` (one activity, two presets
 
 ## AI renders
 
-29 exercises have photos rendered with **FLUX.1-schnell** through the AI Horde (stablehorde.net,
-anonymous, free): `belt-squat`, `bulgarian-split-squat`, `glute-kickback-machine`, `hiit-class`, `kettlebell-deadlift`, `kettlebell-press`, `kettlebell-swing`, `kneeling-push-up`, `lateral-lunge`, `machine-lateral-raise`, `other-activity`, `outdoor-cycle`, `outdoor-walk`, `pendlay-row`, `pendulum-squat`, `pistol-squat`, `plank`, `reverse-lunge`, `single-leg-calf-raise`, `single-leg-romanian-deadlift`, `stationary-bike-recumbent`, `step-up`, `suitcase-carry`, `walking`, `yoga-class`.
+34 exercises have AI-rendered photos, all through the AI Horde (stablehorde.net, anonymous, free).
+25 use **FLUX.1-schnell** (Apache-2.0): `belt-squat`, `bulgarian-split-squat`, `glute-kickback-machine`, `hiit-class`, `kettlebell-deadlift`, `kettlebell-press`, `kettlebell-swing`, `kneeling-push-up`, `lateral-lunge`, `machine-lateral-raise`, `other-activity`, `outdoor-cycle`, `outdoor-walk`, `pendlay-row`, `pendulum-squat`, `pistol-squat`, `plank`, `reverse-lunge`, `single-leg-calf-raise`, `single-leg-romanian-deadlift`, `stationary-bike-recumbent`, `step-up`, `suitcase-carry`, `walking`, `yoga-class`.
+9 use **Krea 2 Turbo** (`Krea2-Turbo_fp8`, Krea 2 Community License; Krea claims no rights over
+generated images), added 2026-10-16 because it follows body positions that every Flux schnell render
+got wrong: `assisted-dip`, `bodyweight-bulgarian-split-squat`, `clamshell`, `dumbbell-hip-thrust`,
+`face-away-cable-curl`, `hollow-body-hold`, `landmine-press`, `pike-push-up`, `wall-sit`. Run it with
+`--model Krea2-Turbo_fp8`; the script turns Karras sigmas off for it (with them, Krea 2, Z-Image and
+Qwen-Image all come back smeared like a motion blur).
 They share one house style (same gym, lighting, framing; `scripts/gym/exercise-photo-prompts.ts`),
 with the prompt and seed of every frame recorded in `docs/gym/exercise-photo-sources.json`. Each frame
 was picked by eye from 3-4 candidates (contact sheets reviewed; wrong movements, wrong equipment and
@@ -65,23 +73,20 @@ coaching-perfect position. The weaker ones (a better source would be welcome): `
 (end frame shows the bell at the waist, not the top of the swing), `pendulum-squat` (end frame),
 `plank` (high plank on straight arms). Orchestrator review 2026-10-08: `pendlay-row`, `pendulum-squat`,
 `suitcase-carry` and `kettlebell-swing` reuse their start frame as the end frame (the end renders showed the
-wrong position or equipment); `hollow-body-hold`, `landmine-press`, `pike-push-up` and `wall-sit` were dropped
-(wrong movement) and show the placeholder until a correct photo exists.
+wrong position or equipment). Krea 2 review 2026-10-16: `assisted-dip` shows the dip on parallel bars, the
+assistance pad is out of frame; `landmine-press` has the far end of the bar resting on a plate, not in a
+landmine base; `pike-push-up` end frame lowers the head only part of the way; `hollow-body-hold` is the
+arms-forward variant.
 Regenerate one with `cd apps/api && pnpm exec tsx ../../scripts/gym/generate-exercise-photos.ts --only
 <slug> --force --reseed 3 --candidates 3`, look at the candidates cached in
 `~/Library/Caches/chefer-exercise-photos`, then install one with `--use <slug>:<frame>:s<seed>-<n>`.
 
 ## No photo (allow-listed)
 
-- `assisted-dip`
-- `bird-dog`
-- `bodyweight-bulgarian-split-squat`
-- `clamshell`
-- `dumbbell-hip-thrust`
-
-Their detail screens show the muscle-group placeholder until a good photo exists. The list is the
-commented `NO_PHOTO_ALLOWED` set in `packages/types/src/gym/exercise-media.test.ts` and may only
-shrink.
+None since 2026-10-16. The commented `NO_PHOTO_ALLOWED` set in
+`packages/types/src/gym/exercise-media.test.ts` is empty; add a slug there (with the reason) only when
+no correct photo can be found, so its detail screen shows the muscle-group placeholder instead of a
+photo of the wrong movement.
 
 ## Videos
 
@@ -128,3 +133,7 @@ mention it here) only as a last resort for a wrong photo you cannot replace.
   AI renders), `plank` fixed, 6 class-preset videos added, revision suffix mechanism, guard tightened to a
   5-slug allow-list. wger.de was checked too: its exercise images are line illustrations or a weighted
   variant, not photos in this set's style, so none were used.
+- **2026-10-16:** the last 9 photo-less exercises got photos (8 Krea 2 Turbo renders, `bird-dog` from
+  Commons) and the new `face-away-cable-curl` shipped with one, so the no-photo allow-list is empty.
+  Z-Image-Turbo and Qwen-Image on the Horde, and the FLUX.1-Krea-dev / Z-Image Hugging Face Spaces, were
+  tried too: the Spaces' anonymous ZeroGPU quota ran out after one or two renders.

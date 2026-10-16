@@ -16,6 +16,10 @@
  *                 takes ~20-40 min of queueing. --model switches model.
  *   hf            the public black-forest-labs/FLUX.1-schnell Hugging Face Space (better
  *                 images, but the anonymous ZeroGPU quota ran out after ~3 renders).
+ *   krea          the public black-forest-labs/FLUX.1-Krea-dev Hugging Face Space (2026-10-16:
+ *                 follows body positions far better than Flux schnell — wall sit, hip thrust;
+ *                 anonymous ZeroGPU quota, ~30 s per render). FLUX.1 [dev] licence: outputs
+ *                 may be used commercially; the model weights may not.
  *   pollinations  https://image.pollinations.ai. Since 2026-10 the anonymous tier answers
  *                 402 (payment required) to every new prompt, so it only works when the
  *                 prompt is already cached; bottom 40 px are trimmed for its logo.
@@ -28,7 +32,7 @@
  *   --reseed N        with --force: seed family N (default 0) — try 1, 2, ... when a
  *                     render is anatomically wrong or shows the wrong equipment
  *   --frame 0|1       with --force: only re-render this frame
- *   --provider p      horde | hf | pollinations
+ *   --provider p      horde | hf | krea | pollinations
  *   --model name      horde model (default Deliberate)
  *   --candidates n    render n (1-4) candidates per frame (horde: one job, n images); the
  *                     first is installed, all are cached in ~/Library/Caches/chefer-exercise-photos
@@ -60,13 +64,28 @@ import {
   type PhotoSourceEntry,
 } from './photo-lib';
 
-type Provider = 'horde' | 'hf' | 'pollinations';
+type Provider = 'horde' | 'hf' | 'krea' | 'pollinations';
 const PROVIDER: Provider = ((): Provider => {
   const p = option('--provider');
-  return p === 'hf' || p === 'pollinations' ? p : 'horde';
+  return p === 'hf' || p === 'krea' || p === 'pollinations' ? p : 'horde';
 })();
 const HORDE_MODEL = option('--model') ?? 'Flux.1-Schnell fp8 (Compact)';
 const IS_FLUX = HORDE_MODEL.toLowerCase().includes('flux');
+/**
+ * Sampler settings for the distilled / flow models (2026-10-16): Z-Image-Turbo and
+ * Qwen-Image (both Apache-2.0) follow body positions much better than Flux schnell.
+ * They take plain sentences like Flux and ignore negative prompts.
+ */
+const MODEL_PARAMS: Readonly<
+  Record<string, { steps: number; cfg_scale: number; sampler_name: string; karras: boolean }>
+> = {
+  // Karras sigmas (the Horde default) smear these flow models into a motion blur.
+  'Z-Image-Turbo': { steps: 9, cfg_scale: 1, sampler_name: 'k_euler', karras: false },
+  'Qwen-Image_fp8': { steps: 20, cfg_scale: 2.5, sampler_name: 'k_euler', karras: false },
+  'Krea2-Turbo_fp8': { steps: 8, cfg_scale: 1, sampler_name: 'k_euler', karras: false },
+  Chroma: { steps: 26, cfg_scale: 4, sampler_name: 'k_euler', karras: false },
+};
+const PLAIN_PROMPT = IS_FLUX || HORDE_MODEL in MODEL_PARAMS;
 const FORCE = flag('--force');
 const DRY = flag('--dry-run');
 const RESEED = Number(option('--reseed') ?? 0) || 0;
@@ -80,6 +99,7 @@ const CONCURRENCY = Math.max(
 );
 const RAW_DIR = join(homedir(), 'Library', 'Caches', 'chefer-exercise-photos');
 const HF_BASE = 'https://black-forest-labs-flux-1-schnell.hf.space/gradio_api';
+const KREA_BASE = 'https://black-forest-labs-flux-1-krea-dev.hf.space/gradio_api';
 const HORDE_BASE = 'https://stablehorde.net/api/v2';
 const MAX_ATTEMPTS = 200;
 
@@ -126,14 +146,16 @@ async function submitHorde(prompt: string, seed: number): Promise<string> {
     },
     body: JSON.stringify({
       // Flux follows plain sentences and ignores negatives; SD 1.5/SDXL want a negative prompt.
-      prompt: IS_FLUX ? prompt : `${prompt} ### ${NEGATIVE_PROMPT}`,
+      prompt: PLAIN_PROMPT ? prompt : `${prompt} ### ${NEGATIVE_PROMPT}`,
       params: {
         width: SIZE.w,
         height: SIZE.h,
-        steps: IS_FLUX ? 8 : 30,
+        ...(MODEL_PARAMS[HORDE_MODEL] ?? {
+          steps: IS_FLUX ? 8 : 30,
+          cfg_scale: IS_FLUX ? 1 : 6.5,
+          sampler_name: IS_FLUX ? 'k_euler' : 'k_euler_a',
+        }),
         n: CANDIDATES,
-        cfg_scale: IS_FLUX ? 1 : 6.5,
-        sampler_name: IS_FLUX ? 'k_euler' : 'k_euler_a',
         seed: String(seed),
       },
       nsfw: false,
@@ -194,15 +216,21 @@ async function renderHorde(prompt: string, seed: number, key: string): Promise<R
 }
 
 async function renderHf(prompt: string, seed: number): Promise<Render[]> {
-  const submit = await fetch(`${HF_BASE}/call/infer`, {
+  const krea = PROVIDER === 'krea';
+  const submit = await fetch(`${krea ? KREA_BASE : HF_BASE}/call/infer`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ data: [prompt, seed, false, SIZE.w, SIZE.h, 4] }),
+    body: JSON.stringify({
+      // Krea-dev: guidance 4.5 and 20 of its 28 default steps fit the anonymous GPU quota.
+      data: krea
+        ? [prompt, seed, false, SIZE.w, SIZE.h, 4.5, 20]
+        : [prompt, seed, false, SIZE.w, SIZE.h, 4],
+    }),
     signal: AbortSignal.timeout(60_000),
   });
   if (!submit.ok) throw new Error(`HF submit HTTP ${submit.status}`);
   const { event_id } = (await submit.json()) as { event_id: string };
-  const stream = await fetch(`${HF_BASE}/call/infer/${event_id}`, {
+  const stream = await fetch(`${krea ? KREA_BASE : HF_BASE}/call/infer/${event_id}`, {
     signal: AbortSignal.timeout(180_000),
   });
   const text = await stream.text();
@@ -237,7 +265,12 @@ async function render(prompt: string, seed: number, key: string): Promise<Render
     try {
       const s = seed + (attempt - 1) * 131; // a censored/odd seed is not retried as is
       if (PROVIDER === 'horde') return await renderHorde(prompt, s, key);
-      if (PROVIDER === 'hf') return await renderHf(prompt, s);
+      if (PROVIDER === 'hf' || PROVIDER === 'krea') {
+        // One image per call: candidates are consecutive seeds.
+        const out: Render[] = [];
+        for (let k = 0; k < CANDIDATES; k++) out.push(...(await renderHf(prompt, s + k * 1009)));
+        return out;
+      }
       return await renderPollinations(prompt, s);
     } catch (err) {
       last = (err as Error).message;
@@ -274,7 +307,9 @@ const generator =
     ? `ai-horde/${HORDE_MODEL}`
     : PROVIDER === 'hf'
       ? 'huggingface-space/FLUX.1-schnell'
-      : 'pollinations/flux';
+      : PROVIDER === 'krea'
+        ? 'huggingface-space/FLUX.1-Krea-dev'
+        : 'pollinations/flux';
 
 /** Converts a cached render to the catalog file and records prompt + seed. */
 function install(id: string, frame: 0 | 1, tag: string): void {
