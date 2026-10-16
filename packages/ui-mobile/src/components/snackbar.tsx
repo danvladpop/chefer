@@ -1,5 +1,13 @@
 import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
-import { AccessibilityInfo, Platform, Pressable, View } from 'react-native';
+import {
+  AccessibilityInfo,
+  PanResponder,
+  Platform,
+  Pressable,
+  View,
+  type GestureResponderEvent,
+  type ViewProps,
+} from 'react-native';
 import Animated, {
   useAnimatedStyle,
   useSharedValue,
@@ -31,6 +39,31 @@ export const SNACKBAR_MIN_RESUME_MS = 2000;
  * the control underneath (opening a picker, ticking another row).
  */
 export const SNACKBAR_TAP_SHIELD_MS = 300;
+/**
+ * The bar must never trap what it covers (owner, 2026-10-16: "Logged dinner"
+ * sat on the dinner's portion buttons until it timed out). A touch anywhere
+ * else on the screen sends it away — but not in its first moments, so the
+ * Undo stays reachable right after the action that raised it.
+ */
+export const SNACKBAR_OUTSIDE_TOUCH_GRACE_MS = 1500;
+/** Swipe distances (pt) / speed (px/ms) past which a released drag dismisses the bar. */
+export const SNACKBAR_SWIPE_DISTANCE_X = 80;
+export const SNACKBAR_SWIPE_DISTANCE_Y = 32;
+export const SNACKBAR_SWIPE_VELOCITY = 0.5;
+
+/** What to do when a drag on the bar is released: `dx`/`dy` pt travelled, `vx`/`vy` px/ms. */
+export function snackbarSwipeRelease(
+  dx: number,
+  dy: number,
+  vx: number,
+  vy: number,
+): 'dismiss' | 'snap-back' {
+  if (Math.abs(dx) >= SNACKBAR_SWIPE_DISTANCE_X || dy >= SNACKBAR_SWIPE_DISTANCE_Y)
+    return 'dismiss';
+  if (Math.abs(vx) >= SNACKBAR_SWIPE_VELOCITY && Math.abs(dx) > 16) return 'dismiss';
+  if (vy >= SNACKBAR_SWIPE_VELOCITY && dy > 12) return 'dismiss';
+  return 'snap-back';
+}
 
 export interface SnackbarOptions {
   message: string;
@@ -53,6 +86,11 @@ interface SnackbarState {
 
 let state: SnackbarState | null = null;
 let nextId = 0;
+/** When the current bar appeared (outside-touch grace), and where it is on screen. */
+let shownAt = 0;
+let barRect: { x: number; y: number; width: number; height: number } | null = null;
+/** A bar the user sent away themselves leaves no tap shield behind. */
+let quietDismissId: number | null = null;
 const listeners = new Set<() => void>();
 
 function notify(): void {
@@ -128,6 +166,7 @@ export function showSnackbar(options: SnackbarOptions): void {
     onAction: options.onAction,
     durationMs,
   };
+  shownAt = Date.now();
   notify();
   if (options.tone === 'success') {
     haptics.success();
@@ -135,17 +174,52 @@ export function showSnackbar(options: SnackbarOptions): void {
   announce(options.message, options.actionLabel);
 }
 
-function dismissSnackbar(id: number): void {
+function dismissSnackbar(id: number, quiet = false): void {
   if (state?.id === id) {
+    if (quiet) quietDismissId = id;
     state = null;
     notify();
   }
+}
+
+/**
+ * Report a touch that started at (`pageX`, `pageY`) anywhere in the app. One
+ * outside the bar, past the grace period, dismisses it (no shield — the touch
+ * was deliberate). `SnackbarTouchBoundary` calls this for every touch.
+ */
+export function noteTouchForSnackbar(pageX: number, pageY: number): void {
+  if (!state || Date.now() - shownAt < SNACKBAR_OUTSIDE_TOUCH_GRACE_MS) return;
+  const r = barRect;
+  const inside =
+    r !== null && pageX >= r.x && pageX <= r.x + r.width && pageY >= r.y && pageY <= r.y + r.height;
+  if (!inside) dismissSnackbar(state.id, true);
+}
+
+/**
+ * Wrap the app's screens (not the snackbar host) in this: it watches every
+ * touch in the capture phase without ever claiming one, so the screens behave
+ * exactly as before while a touch elsewhere moves the bar out of the way.
+ */
+export function SnackbarTouchBoundary({ style, ...props }: ViewProps) {
+  return (
+    <View
+      style={[{ flex: 1 }, style]}
+      onStartShouldSetResponderCapture={(e: GestureResponderEvent) => {
+        noteTouchForSnackbar(e.nativeEvent.pageX, e.nativeEvent.pageY);
+        return false;
+      }}
+      {...props}
+    />
+  );
 }
 
 /** Test-only: clears the module-level store between tests (same convention
  * as `resetRebalanceStoreForTests`). Never call this from app code. */
 export function resetSnackbarForTests(): void {
   state = null;
+  shownAt = 0;
+  barRect = null;
+  quietDismissId = null;
   tabBars.clear();
   recomputeTabBarHeight();
   notify();
@@ -182,6 +256,11 @@ export function Snackbar({ bottomOffset = 0 }: SnackbarProps = {}) {
   const [shield, setShield] = useState(false);
   const opacity = useSharedValue(0);
   const rise = useSharedValue(0);
+  // Swipe-to-dismiss: the finger's travel along the axis it started on.
+  const drag = useSharedValue(0);
+  // 1 = the drag runs sideways, 0 = down (a shared value: the style worklet reads it).
+  const dragAlongX = useSharedValue(0);
+  const barRef = useRef<View>(null);
   const dismissTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const hideTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const shieldTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -242,15 +321,22 @@ export function Snackbar({ bottomOffset = 0 }: SnackbarProps = {}) {
 
     if (!current) {
       if (lastShown) {
+        const quiet = quietDismissId === lastShown.id;
+        quietDismissId = null;
+        barRect = null;
         opacity.set(withTiming(0, timing(duration.fast)));
         hideTimer.current = setTimeout(() => {
           setLastShown(null);
+          drag.set(0);
+          if (quiet) return;
           setShield(true);
           shieldTimer.current = setTimeout(() => setShield(false), SNACKBAR_TAP_SHIELD_MS);
         }, duration.fast);
       }
       return;
     }
+    drag.set(0);
+    dragAlongX.set(0);
     setShield(false);
 
     setLastShown(current);
@@ -289,10 +375,46 @@ export function Snackbar({ bottomOffset = 0 }: SnackbarProps = {}) {
     [],
   );
 
-  const animatedStyle = useAnimatedStyle(() => ({
-    opacity: opacity.get(),
-    transform: [{ translateY: reduced ? 0 : (1 - rise.get()) * 12 }],
-  }));
+  const animatedStyle = useAnimatedStyle(() => {
+    const d = drag.get();
+    const alongX = dragAlongX.get() === 1;
+    return {
+      opacity: opacity.get() * (alongX ? Math.max(0.2, 1 - Math.abs(d) / 240) : 1),
+      transform: [
+        { translateX: alongX ? d : 0 },
+        { translateY: (reduced ? 0 : (1 - rise.get()) * 12) + (alongX ? 0 : Math.max(0, d)) },
+      ],
+    };
+  });
+
+  const panResponder = useRef(
+    PanResponder.create({
+      onMoveShouldSetPanResponder: (_e, g) =>
+        (Math.abs(g.dx) > 10 && Math.abs(g.dx) > Math.abs(g.dy)) ||
+        (g.dy > 10 && g.dy > Math.abs(g.dx)),
+      onPanResponderGrant: (_e, g) => {
+        dragAlongX.set(Math.abs(g.dx) > Math.abs(g.dy) ? 1 : 0);
+        pauseCountdown();
+      },
+      onPanResponderMove: (_e, g) => {
+        drag.set(dragAlongX.get() === 1 ? g.dx : g.dy);
+      },
+      onPanResponderRelease: (_e, g) => {
+        const id = currentId.current;
+        if (id !== null && snackbarSwipeRelease(g.dx, g.dy, g.vx, g.vy) === 'dismiss') {
+          touched.current = false;
+          dismissSnackbar(id, true);
+          return;
+        }
+        drag.set(reduced ? 0 : withSpring(0, springs.gentle));
+        resumeCountdown();
+      },
+      onPanResponderTerminate: () => {
+        drag.set(0);
+        resumeCountdown();
+      },
+    }),
+  ).current;
 
   const displayed = current ?? lastShown;
   const bottom =
@@ -324,9 +446,15 @@ export function Snackbar({ bottomOffset = 0 }: SnackbarProps = {}) {
       style={{ bottom }}
     >
       <Animated.View
+        ref={barRef}
         testID="snackbar"
         accessibilityLiveRegion={Platform.OS === 'android' ? 'polite' : undefined}
-        className="min-h-11 w-full max-w-[560px] flex-row items-center rounded-full bg-foreground px-4 py-2.5"
+        onLayout={() =>
+          barRef.current?.measureInWindow((x, y, width, height) => {
+            barRect = { x, y, width, height };
+          })
+        }
+        className="min-h-11 w-full max-w-[560px] rounded-full bg-foreground px-4 py-2.5"
         style={[animatedStyle, { boxShadow: elevation.e3 }]}
         // UX-X-16: a finger on the bar holds the countdown (touches on the
         // Undo button bubble up to here).
@@ -334,22 +462,37 @@ export function Snackbar({ bottomOffset = 0 }: SnackbarProps = {}) {
         onTouchEnd={resumeCountdown}
         onTouchCancel={resumeCountdown}
       >
-        <Text testID="snackbar-message" className="min-w-0 flex-1 text-[15px] text-background">
-          {displayed.message}
-        </Text>
-        {displayed.actionLabel ? (
+        {/* The swipe lives on this inner row so the bar's own touch handlers
+            (pause-on-touch) stay plain raw touches. */}
+        <View className="flex-row items-center" {...panResponder.panHandlers}>
+          {/* Tapping the message sends the bar away at once (the Undo button
+            keeps its own tap), so it never blocks what it covers. */}
           <Pressable
-            testID="snackbar-action"
+            testID="snackbar-dismiss"
             accessibilityRole="button"
-            onPress={handleAction}
-            hitSlop={8}
-            className="min-h-11 min-w-11 items-center justify-center pl-3"
+            accessibilityLabel={displayed.message}
+            accessibilityHint="Dismisses this message"
+            onPress={() => dismissSnackbar(displayed.id, true)}
+            className="min-h-11 min-w-0 flex-1 justify-center"
           >
-            <Text className="text-[15px] font-semibold text-primary-foreground">
-              {displayed.actionLabel}
+            <Text testID="snackbar-message" className="text-[15px] text-background">
+              {displayed.message}
             </Text>
           </Pressable>
-        ) : null}
+          {displayed.actionLabel ? (
+            <Pressable
+              testID="snackbar-action"
+              accessibilityRole="button"
+              onPress={handleAction}
+              hitSlop={8}
+              className="min-h-11 min-w-11 items-center justify-center pl-3"
+            >
+              <Text className="text-[15px] font-semibold text-primary-foreground">
+                {displayed.actionLabel}
+              </Text>
+            </Pressable>
+          ) : null}
+        </View>
       </Animated.View>
     </Animated.View>
   );

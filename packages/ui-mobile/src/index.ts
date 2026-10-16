@@ -120,8 +120,12 @@ export {
 export {
   Snackbar,
   SNACKBAR_MIN_RESUME_MS,
+  SNACKBAR_OUTSIDE_TOUCH_GRACE_MS,
   SNACKBAR_TAP_SHIELD_MS,
+  SnackbarTouchBoundary,
+  noteTouchForSnackbar,
   resetSnackbarForTests,
+  snackbarSwipeRelease,
   setSnackbarTabBarHeight,
   showSnackbar,
   useSnackbar,
