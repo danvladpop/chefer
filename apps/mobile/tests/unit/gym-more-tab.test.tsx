@@ -88,7 +88,8 @@ describe('Gym tab layout (FB7-01)', () => {
     await render(<GymTabsLayout />);
     const more = mockTabScreens.find((s) => s.name === 'gym-more');
     expect(more?.options.tabBarBadge).toBe('3');
-    expect(more?.options.tabBarAccessibilityLabel).toBe('More, 3 new');
+    // iOS (jest-expo's default platform) keeps React Navigation's "tab, N of M".
+    expect(more?.options.tabBarAccessibilityLabel).toBe('More, 3 new, tab, 5 of 5');
   });
 });
 

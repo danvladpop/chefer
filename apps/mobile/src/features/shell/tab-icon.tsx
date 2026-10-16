@@ -34,5 +34,15 @@ export function TabIcon({ focused, children }: { focused: boolean; children: Rea
   }, [focused, reduced, scale]);
 
   const style = useAnimatedStyle(() => ({ transform: [{ scale: scale.get() }] }));
-  return <Animated.View style={style}>{children}</Animated.View>;
+  // Decorative: the tab's name is its tabBarAccessibilityLabel. Hidden so the
+  // icon font's glyph never ends up in what a screen reader says.
+  return (
+    <Animated.View
+      style={style}
+      importantForAccessibility="no-hide-descendants"
+      accessibilityElementsHidden
+    >
+      {children}
+    </Animated.View>
+  );
 }

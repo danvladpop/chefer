@@ -9,7 +9,7 @@ import { useOnboardingGate } from '../../src/features/onboarding/use-onboarding-
 import { ShellV2Forward } from '../../src/features/shell/shell-forward';
 import { useShellV2 } from '../../src/features/shell/shell-store';
 import { getToken } from '../../src/lib/auth-store';
-import { TAB_BAR_SCREEN_OPTIONS } from '../../src/lib/tab-bar-options';
+import { TAB_BAR_SCREEN_OPTIONS, tabAccessibilityLabel } from '../../src/lib/tab-bar-options';
 
 // Food mode tab bar. Mirrors PRIMARY_NAV_ITEMS + "More" from
 // apps/web/src/features/nav/nav-items.ts: Today · Plan · Shop · Cookbook ·
@@ -26,6 +26,9 @@ import { TAB_BAR_SCREEN_OPTIONS } from '../../src/lib/tab-bar-options';
  * iPhone). Keyed by the token so a fresh sign-in still gets its landing.
  */
 let landingCheckedForToken: string | null = null;
+
+/** Tabs below, for each tab's spoken "N of 5" (iOS). */
+const TAB_COUNT = 5;
 
 export default function FoodTabsLayout() {
   // "/" is home; where home opens is `landingSurfaceSync()` (UX-04 §1,
@@ -82,6 +85,7 @@ export default function FoodTabsLayout() {
         name="index"
         options={{
           title: 'Today',
+          tabBarAccessibilityLabel: tabAccessibilityLabel('Today', 0, TAB_COUNT),
           tabBarIcon: ({ color, size }) => (
             <Ionicons name="today-outline" color={color} size={size + 2} />
           ),
@@ -91,6 +95,7 @@ export default function FoodTabsLayout() {
         name="meal-plan"
         options={{
           title: 'Plan',
+          tabBarAccessibilityLabel: tabAccessibilityLabel('Plan', 1, TAB_COUNT),
           tabBarIcon: ({ color, size }) => (
             <Ionicons name="calendar-outline" color={color} size={size + 2} />
           ),
@@ -100,6 +105,7 @@ export default function FoodTabsLayout() {
         name="shopping-list"
         options={{
           title: 'Shop',
+          tabBarAccessibilityLabel: tabAccessibilityLabel('Shop', 2, TAB_COUNT),
           tabBarIcon: ({ color, size }) => (
             <Ionicons name="cart-outline" color={color} size={size + 2} />
           ),
@@ -109,6 +115,7 @@ export default function FoodTabsLayout() {
         name="recipes"
         options={{
           title: 'Cookbook',
+          tabBarAccessibilityLabel: tabAccessibilityLabel('Cookbook', 3, TAB_COUNT),
           tabBarIcon: ({ color, size }) => (
             <Ionicons name="book-outline" color={color} size={size + 2} />
           ),
@@ -118,13 +125,13 @@ export default function FoodTabsLayout() {
         name="more"
         options={{
           title: 'More',
+          tabBarAccessibilityLabel: tabAccessibilityLabel('More', 4, TAB_COUNT, badgeCount),
           tabBarBadge: badgeCount > 0 ? countPillText(badgeCount) : undefined,
           tabBarBadgeStyle: {
             backgroundColor: colors.primary,
             color: colors.primaryForeground,
             fontSize: 12,
           },
-          tabBarAccessibilityLabel: badgeCount > 0 ? `More, ${badgeCount} new` : undefined,
           tabBarIcon: ({ color, size }) => (
             <Ionicons name="menu-outline" color={color} size={size + 2} />
           ),

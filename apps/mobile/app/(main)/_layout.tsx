@@ -11,6 +11,7 @@ import { isShellV2TabPath, type ShellTab } from '../../src/features/shell/shell-
 import { useShellV2 } from '../../src/features/shell/shell-store';
 import { TabIcon } from '../../src/features/shell/tab-icon';
 import { WorkoutMiniBar } from '../../src/features/shell/workout-mini-bar';
+import { tabAccessibilityLabel } from '../../src/lib/tab-bar-options';
 
 // ─── The new shell (mobile UX revamp, phase 1; plan: "Target navigation") ───
 // One tab bar instead of two Food|Gym modes: Today · Meals · Shop · Train ·
@@ -66,13 +67,21 @@ export default function MainTabsLayout() {
         </View>
       )}
     >
-      {TABS.map((tab) => (
+      {TABS.map((tab, index) => (
         <Tabs.Screen
           key={tab.name}
           name={tab.name}
           options={{
             title: tab.title,
             tabBarButtonTestID: `tab-${tab.name}`,
+            // TalkBack read the icon glyph too ("<glyph>, Today") — see
+            // tabAccessibilityLabel.
+            tabBarAccessibilityLabel: tabAccessibilityLabel(
+              tab.title,
+              index,
+              TABS.length,
+              tab.name === 'you' ? badgeCount : 0,
+            ),
             tabBarIcon: ({ color, focused }) => (
               <TabIcon focused={focused}>
                 <Icon name={focused ? tab.activeIcon : tab.icon} color={color} size={24} />
@@ -85,7 +94,6 @@ export default function MainTabsLayout() {
                 color: colors.onBrand,
                 fontSize: 12,
               },
-              tabBarAccessibilityLabel: badgeCount > 0 ? `You, ${badgeCount} new` : undefined,
             }),
           }}
         />
