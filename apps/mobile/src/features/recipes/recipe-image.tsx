@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Image, View } from 'react-native';
+import { Image, View, type ImageStyle, type StyleProp, type ViewStyle } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useThemeColors } from '@chefer/ui-mobile';
 import { cn } from '@chefer/utils';
@@ -16,10 +16,13 @@ export function RecipeImage({
   accessibilityLabel,
   iconSize = 32,
   testID,
+  style,
 }: {
   imageUrl: string | null | undefined;
   /** Size classes, e.g. `h-40 w-full`. */
   className: string;
+  /** Computed size (e.g. a window-aware hero height), applied over `className`. */
+  style?: StyleProp<ViewStyle & ImageStyle>;
   accessibilityLabel?: string;
   iconSize?: number;
   testID?: string;
@@ -37,6 +40,7 @@ export function RecipeImage({
         accessible={accessibilityLabel !== undefined}
         accessibilityLabel={accessibilityLabel}
         className={cn('items-center justify-center bg-brand-tint', className)}
+        style={style}
       >
         <Ionicons name="restaurant-outline" size={iconSize} color={colors.brand} />
       </View>
@@ -47,6 +51,7 @@ export function RecipeImage({
       testID={testID}
       source={{ uri }}
       className={className}
+      style={style}
       resizeMode="cover"
       accessibilityLabel={accessibilityLabel}
       onError={() => setFailedUri(uri)}

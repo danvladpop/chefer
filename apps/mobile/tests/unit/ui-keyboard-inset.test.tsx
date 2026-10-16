@@ -1,7 +1,7 @@
 import { Keyboard, Platform, Text as RNText, View } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { act, render, screen } from '@testing-library/react-native';
-import { Sheet, useKeyboardInset } from '@chefer/ui-mobile';
+import { keyboardBottomInset, Sheet, useKeyboardInset } from '@chefer/ui-mobile';
 
 // WP-01 (UX-X-02, UX-FOOD-07): one keyboard primitive. useKeyboardInset turns
 // RN core's keyboard events + the bottom safe-area into a bottom padding.
@@ -71,23 +71,25 @@ describe('useKeyboardInset', () => {
     expect(readProbe()).toBe('0|0|false');
   });
 
-  it('Android: follows keyboardDidShow/Hide instead', async () => {
+  it('Android: follows keyboardDidShow/Hide instead; the height already excludes the navigation bar', async () => {
     jest.replaceProperty(Platform, 'OS', 'android');
     const { listeners, emit } = spyOnKeyboard();
     await renderProbe();
 
     expect([...listeners.keys()].sort()).toEqual(['keyboardDidHide', 'keyboardDidShow']);
     await emit('keyboardDidShow', 800);
-    expect(readProbe()).toBe('766|800|true');
+    // Not 766: RN's Android root view reports ime - systemBars, so taking the
+    // safe-area bottom off again left a Sheet footer behind the keyboard.
+    expect(readProbe()).toBe('800|800|true');
     await emit('keyboardDidHide');
     expect(readProbe()).toBe('0|0|false');
   });
 
   it('never goes negative when the keyboard is shorter than the safe area', async () => {
-    jest.replaceProperty(Platform, 'OS', 'android');
+    jest.replaceProperty(Platform, 'OS', 'ios');
     const { emit } = spyOnKeyboard();
     await renderProbe();
-    await emit('keyboardDidShow', 20);
+    await emit('keyboardWillShow', 20);
     expect(readProbe()).toBe('0|20|true');
   });
 
@@ -116,6 +118,24 @@ describe('useKeyboardInset', () => {
     expect(listeners.size).toBe(2);
     await on.unmount();
     expect(remove).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe('keyboardBottomInset', () => {
+  it('iOS: the keyboard height counts from the screen edge, so the padded safe area comes off', () => {
+    expect(keyboardBottomInset('ios', 336, 34)).toBe(302);
+    expect(keyboardBottomInset('ios', 336, 0)).toBe(336);
+  });
+
+  it('Android: RN already reports the height above the navigation bar, so nothing comes off', () => {
+    // Gesture navigation (24 pt), 3-button navigation / tablet taskbar (48 pt)
+    expect(keyboardBottomInset('android', 300, 24)).toBe(300);
+    expect(keyboardBottomInset('android', 300, 48)).toBe(300);
+  });
+
+  it('is never negative (a floating keyboard reports ime 0 - systemBars < 0 on Android)', () => {
+    expect(keyboardBottomInset('ios', 20, 34)).toBe(0);
+    expect(keyboardBottomInset('android', -48, 48)).toBe(0);
   });
 });
 
@@ -150,7 +170,8 @@ describe('Sheet applies a single keyboard compensation (UX-X-02)', () => {
 
       expect(paddingBottomOf('sheet-keyboard-inset')).toBe(0);
       await emit(show, 336);
-      expect(paddingBottomOf('sheet-keyboard-inset')).toBe(302);
+      // The panel pads the safe area itself; Android's height already excludes it.
+      expect(paddingBottomOf('sheet-keyboard-inset')).toBe(os === 'ios' ? 302 : 336);
       await emit(hide);
       expect(paddingBottomOf('sheet-keyboard-inset')).toBe(0);
 
