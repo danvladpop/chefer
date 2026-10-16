@@ -223,12 +223,14 @@ export const ProgressRing: React.FC<{
 const KIBBLE_COLORS = [C.brand, C.attention, "#C46F27", C.ring, "#7E3E00"];
 
 /** Kibble-shaped confetti falling over the whole frame from `at`. */
-export const KibbleConfetti: React.FC<{ at: number; count?: number }> = ({
-  at,
-  count = 44,
-}) => {
+export const KibbleConfetti: React.FC<{
+  at: number;
+  count?: number;
+  area?: { width: number; height: number };
+}> = ({ at, count = 44, area }) => {
   const frame = useCurrentFrame();
-  const { width, height } = useVideoConfig();
+  const video = useVideoConfig();
+  const { width, height } = area ?? video;
   const t = frame - at;
   if (t < 0) return null;
   return (
