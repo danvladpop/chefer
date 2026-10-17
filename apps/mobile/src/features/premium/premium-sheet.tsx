@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Pressable, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Button, colors, Sheet, Text } from '@chefer/ui-mobile';
@@ -52,7 +52,13 @@ export function PremiumSheet({
   onExited,
   testID = 'premium-sheet',
 }: PremiumSheetProps) {
-  const [alsoIncludedOpen, setAlsoIncludedOpen] = useState(false);
+  // Folded by default; the tier row's overview opens with every benefit shown (F7).
+  const [alsoIncludedToggled, setAlsoIncludedOpen] = useState<boolean | null>(null);
+  const alsoIncludedOpen = alsoIncludedToggled ?? pitch.showAllIncluded;
+  // The host keeps the sheet mounted between opens: each open starts from the pitch's default.
+  useEffect(() => {
+    if (visible) setAlsoIncludedOpen(null);
+  }, [visible]);
   const success = phase === 'success';
 
   return (
@@ -143,7 +149,7 @@ export function PremiumSheet({
                 testID={`${testID}-also-included-toggle`}
                 accessibilityRole="button"
                 accessibilityState={{ expanded: alsoIncludedOpen }}
-                onPress={() => setAlsoIncludedOpen((v) => !v)}
+                onPress={() => setAlsoIncludedOpen(!alsoIncludedOpen)}
                 className="min-h-11 flex-row items-center justify-between"
               >
                 <Text className="text-sm font-medium">{PREMIUM_PITCH_COPY.alsoIncluded}</Text>
