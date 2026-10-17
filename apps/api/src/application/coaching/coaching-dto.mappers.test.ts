@@ -159,6 +159,40 @@ const STRENGTH = new Set<ExerciseTrackingType>([
 ]);
 
 describe('toCoachedWorkoutDto', () => {
+  it('a ticked-as-planned exercise reads "done as planned"; a typed workout keeps its type (PRD 2026-10 §4.3)', () => {
+    const base = session();
+    const [first] = base.exercises;
+    if (!first) throw new Error('fixture');
+    const ticked = {
+      ...first,
+      skipped: false,
+      sets: [
+        {
+          ...(first.sets[0] ?? {}),
+          position: 0,
+          isWarmup: false,
+          completedAt: new Date('2026-10-02T10:00:00Z'),
+          loadConfirmed: false,
+        },
+      ],
+    };
+    const dto = toCoachedWorkoutDto(
+      { ...base, workoutType: 'YOGA', exercises: [ticked] } as unknown as CoachedSessionRow,
+      ALL,
+    );
+    expect(dto.workoutType).toBe('YOGA');
+    expect(dto.exercises[0]?.doneAsPlanned).toBe(true);
+    // A set the client edited (load confirmed) is a real lift: no flag.
+    const edited = toCoachedWorkoutDto(
+      {
+        ...base,
+        exercises: [{ ...ticked, sets: [{ ...ticked.sets[0], loadConfirmed: null }] }],
+      } as unknown as CoachedSessionRow,
+      ALL,
+    );
+    expect(edited.exercises[0]).not.toHaveProperty('doneAsPlanned');
+  });
+
   it('has exactly the allow-listed keys, and nothing private anywhere', () => {
     const dto = toCoachedWorkoutDto(session(), ALL);
     expect(keyPaths(dto).sort()).toEqual(
@@ -170,6 +204,7 @@ describe('toCoachedWorkoutDto', () => {
         'finishedAt',
         'durationMin',
         'isDeload',
+        'workoutType',
         'exercises',
         'exercises.exerciseId',
         'exercises.name',

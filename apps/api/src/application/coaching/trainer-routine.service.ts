@@ -116,6 +116,8 @@ export class TrainerRoutineService {
             id: d.id,
             name: d.name.trim(),
             plannedWeekday: d.plannedWeekday,
+            // My week (simple mode): omitted keeps the stored type of an existing day.
+            ...(d.workoutType !== undefined && { workoutType: d.workoutType }),
             // Canonical superset letters, whatever the editor sent.
             exercises: normalizeSupersets(
               d.exercises.map((e) => ({

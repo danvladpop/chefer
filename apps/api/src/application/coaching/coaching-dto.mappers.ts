@@ -18,7 +18,7 @@ import {
   type RoutineDto,
   type TrainerRoutineDto,
 } from '@chefer/types';
-import { addDaysLocal, daysBetweenLocal } from '@chefer/utils';
+import { addDaysLocal, daysBetweenLocal, isDoneAsPlanned, workoutTypeOf } from '@chefer/utils';
 import { serverToday, toExerciseMeta, toRoutineDto } from '../gym/mappers.js';
 
 // ─── Trainer coaching: row → DTO mappers (spec §7.2, INV-2 pattern) ───────────
@@ -87,12 +87,22 @@ function toCoachedSetDto(s: CoachedSessionRow['exercises'][number]['sets'][numbe
 }
 
 function toCoachedExerciseDto(e: CoachedSessionRow['exercises'][number]): CoachedExerciseDto {
+  // Simple mode's progression guard (PRD 2026-10 §4.3): ticked with the planned
+  // numbers never edited reads "Done as planned", not as lifted weights.
+  const planned = isDoneAsPlanned({
+    sets: e.sets.map((s) => ({
+      completedAt: s.completedAt?.toISOString() ?? null,
+      isWarmup: s.isWarmup,
+      ...(s.loadConfirmed === false && { loadConfirmed: false as const }),
+    })),
+  });
   return {
     exerciseId: e.exercise.id,
     name: e.exercise.name,
     skipped: e.skipped,
     lastSetRir: e.lastSetRir,
     sets: [...e.sets].sort((a, b) => a.position - b.position).map(toCoachedSetDto),
+    ...(planned && { doneAsPlanned: true as const }),
     // `e.notes` (the exercise note of that session) is NEVER copied.
   };
 }
@@ -110,6 +120,11 @@ export function toCoachedWorkoutDto(
     finishedAt: session.finishedAt?.toISOString() ?? null,
     durationMin: durationMin(session.startedAt, session.finishedAt),
     isDeload: session.isDeload,
+    workoutType: workoutTypeOf({
+      workoutType: session.workoutType ?? undefined,
+      routineDayId: session.routineDayId,
+      exercises: session.exercises,
+    }),
     exercises: [...session.exercises]
       .sort((a, b) => a.position - b.position)
       .filter((e) => renderable.has(e.exercise.trackingType))
@@ -186,6 +201,7 @@ export function toTrainerRoutineDto(input: TrainerRoutineInput): TrainerRoutineD
       position: d.position,
       name: d.name,
       plannedWeekday: d.plannedWeekday,
+      workoutType: d.workoutType,
       exercises: d.exercises.map((e) => ({
         id: e.id,
         exerciseId: e.exerciseId,

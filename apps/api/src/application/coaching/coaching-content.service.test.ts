@@ -285,7 +285,11 @@ describe('overview', () => {
     content.listCompleted.mockResolvedValue([sessionRow('s1', '2026-10-06')]);
     const out = await service.overview(access(), '2026-10-07', 7);
 
-    expect(out.client).toEqual({ name: 'Maria Pop', since: '2026-10-07T09:00:00.000Z' });
+    expect(out.client).toEqual({
+      name: 'Maria Pop',
+      since: '2026-10-07T09:00:00.000Z',
+      keepItSimple: false,
+    });
     expect(content.listCompleted).toHaveBeenCalledWith(CLIENT, {
       fromLocalDate: WINDOW_START,
       cursor: null,

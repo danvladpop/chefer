@@ -3,7 +3,7 @@
 // binaries ship. DTOs (outputs) are in ./dto.
 
 import { z } from 'zod';
-import { localDateSchema, setOverrideInputSchema } from '../gym/schemas';
+import { localDateSchema, setOverrideInputSchema, workoutTypeSchema } from '../gym/schemas';
 import { COACHING_LIMITS } from './limits';
 
 /** Crockford base32: digits and letters without I, L, O, U. */
@@ -114,6 +114,8 @@ export const trainerRoutineDayDocSchema = z.object({
   id: z.string().max(100).optional(),
   name: z.string().min(1).max(40),
   plannedWeekday: z.number().int().min(0).max(6).nullable(),
+  /** Additive (2026-10-17): the My week workout type; omitted = unchanged on an existing day. */
+  workoutType: workoutTypeSchema.nullable().optional(),
   exercises: z.array(trainerRoutineExerciseDocSchema).max(20),
 });
 export type TrainerRoutineDayDoc = z.infer<typeof trainerRoutineDayDocSchema>;

@@ -25,6 +25,8 @@ export interface ChangeDay {
   id?: string | undefined;
   name: string;
   plannedWeekday: number | null;
+  /** My week's workout type; a change of type is a schedule change. */
+  workoutType?: string | null | undefined;
   exercises: ChangeExercise[];
 }
 
@@ -72,7 +74,11 @@ export function summarizeRoutineChanges(
   const scheduleChanged =
     after.some((d) => {
       const old = d.id ? oldDays.get(d.id) : undefined;
-      return old?.name !== d.name || old.plannedWeekday !== d.plannedWeekday;
+      return (
+        old?.name !== d.name ||
+        old.plannedWeekday !== d.plannedWeekday ||
+        (old.workoutType ?? null) !== (d.workoutType ?? null)
+      );
     }) || [...oldDays.keys()].some((id) => !afterIds.has(id));
   if (scheduleChanged) out.push({ kind: 'schedule' });
   return out;

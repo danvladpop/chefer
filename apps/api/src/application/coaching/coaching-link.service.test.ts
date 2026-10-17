@@ -336,6 +336,7 @@ describe('listClients', () => {
       week: { sessions: 2, goal: 3 },
       inactiveDays: 7,
       routineChangedByClientAt: null,
+      keepItSimple: false,
     });
     // The week is the trainer's device-local week (Mon 5 Oct – Sun 11 Oct).
     expect(content.countSessions).toHaveBeenCalledWith([CLIENT], '2026-10-05', '2026-10-11');

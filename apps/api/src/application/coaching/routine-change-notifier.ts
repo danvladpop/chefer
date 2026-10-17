@@ -33,6 +33,7 @@ function toChangeDays(row: RoutineWithDays): ChangeDay[] {
     id: d.id,
     name: d.name,
     plannedWeekday: d.plannedWeekday,
+    workoutType: d.workoutType,
     exercises: d.exercises.map((e) => ({
       id: e.id,
       exerciseId: e.exerciseId,

@@ -37,12 +37,14 @@ import {
   displayNameOf,
   encodeCursor,
   firstNameOf,
+  isSimpleTraining,
   isStrengthTrackingType,
   repBucket,
   trackingTypeOf,
   weekStartOf,
 } from '@chefer/utils';
 import { clientUnavailableError } from '../../lib/coaching-errors.js';
+import { isFlagEnabled } from '../../lib/flags.js';
 import { renderableTrackingTypes } from '../gym/client-level.js';
 import { readGoalHistory, serverToday } from '../gym/mappers.js';
 import {
@@ -147,7 +149,11 @@ export class CoachingContentService {
     const first = setupDate > windowStart ? setupDate : windowStart;
     const renderable = renderableSet(level);
     return {
-      client: { name: displayNameOf(client), since: link.startedAt.toISOString() },
+      client: {
+        name: displayNameOf(client),
+        since: link.startedAt.toISOString(),
+        keepItSimple: keepItSimple(profile),
+      },
       adherence: buildAdherence({
         today,
         // Only what the consent screen promised: from 28 days before joining.
@@ -208,7 +214,8 @@ export class CoachingContentService {
       entries: sessions.flatMap((s) => {
         const workout = toCoachedWorkoutDto(s, renderableSet(level));
         const e = workout.exercises.find((x) => x.exerciseId === exerciseId);
-        return e && !e.skipped
+        // "Done as planned" exposures carry no lifted numbers (PRD 2026-10 §4.3).
+        return e && !e.skipped && !e.doneAsPlanned
           ? [
               {
                 localDate: s.localDate,
@@ -321,3 +328,10 @@ function nextByRow(
 }
 
 export const coachingContentService = new CoachingContentService();
+
+/** The client trains in "Keep it simple" (PRD 2026-10 §4.3): the flag is on and their style is SIMPLE. */
+export function keepItSimple(
+  profile: { trainingStyle: 'SIMPLE' | 'PROGRESSIVE' } | null | undefined,
+): boolean {
+  return isSimpleTraining(profile, { simpleTraining: isFlagEnabled('simpleTraining') });
+}

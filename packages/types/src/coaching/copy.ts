@@ -231,6 +231,10 @@ export const COACHING_COPY = {
         ? 'Your 1 client loses you as their trainer at once and keeps their routine.'
         : `Your ${n} clients lose you as their trainer at once and keep their routines.`,
     endCoaching: 'End coaching',
+    keepItSimple: 'Keep it simple',
+    keepItSimpleHint: (client: string) =>
+      `${client} chose “Keep it simple”: they tick exercises off instead of logging weights. Only ${client} can change this.`,
+    doneAsPlanned: 'Done as planned',
     feedback: 'Send feedback',
   },
 

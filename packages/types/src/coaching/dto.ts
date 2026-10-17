@@ -7,7 +7,13 @@
 // rate, calorie estimates, pause reasons, age or profile, the client's own
 // routine-exercise `notes`, in-progress or discarded sessions.
 
-import type { ExerciseMeta, LastEditedByOtherDto, Suggestion, WeekStatus } from '../gym';
+import type {
+  ExerciseMeta,
+  LastEditedByOtherDto,
+  Suggestion,
+  WeekStatus,
+  WorkoutType,
+} from '../gym';
 
 // ─── Availability ─────────────────────────────────────────────────────────────
 
@@ -69,6 +75,12 @@ export interface ClientRowDto {
   inactiveDays: number;
   /** ISO date-time the CLIENT last saved the routine, when that is after the link started and after the trainer's last save; else null. */
   routineChangedByClientAt: string | null;
+  /**
+   * Additive (2026-10-17, PRD §4.3): the client trains in "Keep it simple" (the
+   * `simpleTraining` flag is on and their training style is SIMPLE). The
+   * trainer sees a badge and can never change the style.
+   */
+  keepItSimple?: boolean;
 }
 
 // ─── Workouts and adherence ───────────────────────────────────────────────────
@@ -92,6 +104,12 @@ export interface CoachedExerciseDto {
   /** Reps in reserve on the last set (0–3, 3 = "3+"), or null. */
   lastSetRir: number | null;
   sets: CoachedSetDto[];
+  /**
+   * Additive (2026-10-17, PRD §4.3): ticked "done" with the planned numbers never
+   * edited (simple mode's progression guard). Show "Done as planned", never the
+   * sets' weights as lifted numbers.
+   */
+  doneAsPlanned?: true;
 }
 
 export interface CoachedWorkoutDto {
@@ -103,6 +121,11 @@ export interface CoachedWorkoutDto {
   finishedAt: string | null;
   durationMin: number | null;
   isDeload: boolean;
+  /**
+   * Additive (2026-10-17): the workout type ("Yoga"), for a typed workout or a
+   * logged one with no exercises: "Yoga · 45 min". Never calories (D-8).
+   */
+  workoutType?: WorkoutType | null;
   exercises: CoachedExerciseDto[];
 }
 
@@ -149,7 +172,8 @@ export interface AdherenceDto {
 }
 
 export interface ClientOverviewDto {
-  client: { name: string; since: string };
+  /** `keepItSimple` additive (2026-10-17): see ClientRowDto. */
+  client: { name: string; since: string; keepItSimple?: boolean };
   adherence: AdherenceDto;
   /** The last 5 completed workouts, newest first. */
   recent: CoachedWorkoutDto[];
@@ -195,6 +219,8 @@ export interface TrainerRoutineDayDto {
   position: number;
   name: string;
   plannedWeekday: number | null;
+  /** Additive (2026-10-17): a My week day's workout type ("Tue · Yoga"); a type-only day has no exercises. */
+  workoutType?: WorkoutType | null;
   exercises: TrainerRoutineExerciseDto[];
 }
 

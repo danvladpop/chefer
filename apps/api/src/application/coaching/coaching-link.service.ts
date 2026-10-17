@@ -30,6 +30,7 @@ import {
 } from '@chefer/utils';
 import { clientUnavailableError } from '../../lib/coaching-errors.js';
 import { readGoalHistory, serverToday } from '../gym/mappers.js';
+import { keepItSimple } from './coaching-content.service.js';
 import { inviteStateOf, linkStartDay, resolveStartedOn } from './coaching-dto.mappers.js';
 import { coachingNoticeService, type CoachingNoticeService } from './coaching-notice.service.js';
 import { coachingRequestService, type CoachingRequestService } from './coaching-request.service.js';
@@ -235,6 +236,7 @@ export class CoachingLinkService {
         },
         inactiveDays: Math.max(0, daysBetweenLocal(lastWorkoutDate ?? linkStartDay(link), day)),
         routineChangedByClientAt: changedByClientAt(link, stamp),
+        keepItSimple: keepItSimple(profile),
       };
     });
   }
