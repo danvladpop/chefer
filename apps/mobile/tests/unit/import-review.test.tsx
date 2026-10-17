@@ -1,6 +1,8 @@
+import { AccessibilityInfo, type TextInput } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { fireEvent, render, screen } from '@testing-library/react-native';
 import { router } from 'expo-router';
+import { Input } from '@chefer/ui-mobile';
 import ImportRecipeScreen from '../../app/import-recipe';
 
 // plan-ingredient-catalog §6.2/§10 (P9) + UX-REC-14/15/07: the link/text
@@ -166,6 +168,19 @@ beforeEach(() => {
   };
 });
 
+async function textInputPrototype(): Promise<object> {
+  const holder: { node: TextInput | null } = { node: null };
+  await render(
+    <Input
+      ref={(n) => {
+        holder.node = n;
+      }}
+    />,
+  );
+  if (!holder.node) throw new Error('no TextInput ref');
+  return Object.getPrototypeOf(holder.node) as object;
+}
+
 async function openPreview() {
   await render(
     <SafeAreaProvider initialMetrics={metrics}>
@@ -223,6 +238,144 @@ describe('Import review — catalog lines (editable form)', () => {
     ];
     expect(input.acceptPartial).toBe(false);
     expect(input.recipe.ingredients.map((i) => i.ingredientId)).toEqual(['rice-id', 'spice-id']);
+  });
+});
+
+describe('Import review — which ingredient needs data (F2, feedback 2026-10-17)', () => {
+  const linked = (rawName: string, unit: string, id: string, slug: string) => ({
+    rawName,
+    unit,
+    note: null,
+    confidence: 'ALIAS' as const,
+    match: ref(id, slug, rawName),
+    candidates: [],
+    grams: null,
+  });
+  /** A preview whose every line is linked: only the live problems remain. */
+  function withLines(
+    ingredients: { name: string; quantity: number; unit: string }[],
+    lineResolution: ReturnType<typeof linked>[],
+  ) {
+    const draft = { ...recipe, ingredients };
+    mockPreviewData = {
+      ...(mockPreviewData as object),
+      original: draft,
+      adapted: draft,
+      resolution: { original: lineResolution, adapted: lineResolution },
+    };
+  }
+
+  it('marks a linked row whose unit can’t be weighed, on that row — not on the row before it', async () => {
+    // Row 0 is blank, so live line 0 is form row 1: the hint must follow the row.
+    withLines(
+      [
+        { name: '', quantity: 0, unit: '' },
+        { name: 'rice', quantity: 1, unit: 'cup' },
+        { name: 'grandma spice', quantity: 5, unit: 'g' },
+      ],
+      [
+        linked('', '', 'rice-id', 'rice-white-dry'),
+        linked('rice', 'cup', 'rice-id', 'rice-white-dry'),
+        linked('grandma spice', 'g', 'spice-id', 'four-spice-mix'),
+      ],
+    );
+    await openPreview();
+    expect(screen.getByTestId('video-draft-nutrition-status')).toHaveTextContent(
+      'Incomplete — 1 ingredient needs data',
+    );
+    expect(screen.getByTestId('video-draft-problem-1')).toHaveTextContent(
+      'Can’t be measured by volume — use grams',
+    );
+    expect(screen.queryByTestId('video-draft-problem-0')).toBeNull();
+    expect(screen.queryByTestId('video-draft-problem-2')).toBeNull();
+    // Announced with its row, so a screen reader knows which ingredient.
+    expect(
+      screen.getByLabelText('Ingredient 2, rice: Can’t be measured by volume — use grams'),
+    ).toBeOnTheScreen();
+  });
+
+  it('marks a linked row with no amount, counts it, and points the amount field at the fix', async () => {
+    withLines(
+      [
+        { name: 'rice', quantity: 200, unit: 'g' },
+        { name: 'grandma spice', quantity: 0, unit: 'g' },
+      ],
+      [
+        linked('rice', 'g', 'rice-id', 'rice-white-dry'),
+        linked('grandma spice', 'g', 'spice-id', 'four-spice-mix'),
+      ],
+    );
+    await openPreview();
+    expect(screen.getByTestId('video-draft-nutrition-status')).toHaveTextContent(
+      'Incomplete — 1 ingredient needs data',
+    );
+    expect(screen.getByTestId('video-draft-problem-1')).toHaveTextContent('Enter an amount');
+    expect(screen.queryByTestId('video-draft-problem-0')).toBeNull();
+    expect(screen.getByTestId('video-draft-qty-1').props.accessibilityHint).toBe('Enter an amount');
+    expect(screen.getByTestId('video-draft-qty-0').props.accessibilityHint).toBeUndefined();
+  });
+
+  it('the hint clears once the row is fixed', async () => {
+    withLines(
+      [
+        { name: 'rice', quantity: 200, unit: 'g' },
+        { name: 'grandma spice', quantity: 0, unit: 'g' },
+      ],
+      [
+        linked('rice', 'g', 'rice-id', 'rice-white-dry'),
+        linked('grandma spice', 'g', 'spice-id', 'four-spice-mix'),
+      ],
+    );
+    await openPreview();
+    await fireEvent.changeText(screen.getByTestId('video-draft-qty-1'), '5');
+    expect(screen.queryByTestId('video-draft-problem-1')).toBeNull();
+    expect(screen.getByTestId('video-draft-nutrition-status')).toHaveTextContent(
+      /^Computed from 2 ingredients/,
+    );
+  });
+
+  it('tapping "Incomplete …" focuses the first problem row’s amount when that is what is missing', async () => {
+    withLines(
+      [
+        { name: 'rice', quantity: 200, unit: 'g' },
+        { name: 'grandma spice', quantity: 0, unit: 'g' },
+      ],
+      [
+        linked('rice', 'g', 'rice-id', 'rice-white-dry'),
+        linked('grandma spice', 'g', 'spice-id', 'four-spice-mix'),
+      ],
+    );
+    // The mock TextInput is a class: spying on its prototype sees every field's focus().
+    const focused: (string | undefined)[] = [];
+    const focus = jest
+      .spyOn((await textInputPrototype()) as { focus: () => void }, 'focus')
+      .mockImplementation(function (this: { props: { testID?: string } }) {
+        focused.push(this.props.testID);
+      });
+    await openPreview();
+    await fireEvent.press(
+      screen.getByRole('button', { name: 'Incomplete — 1 ingredient needs data' }),
+    );
+    expect(focused).toEqual(['video-draft-qty-1']);
+    focus.mockRestore();
+  });
+
+  it('tapping "Incomplete …" moves screen-reader focus to the first problem row’s hint', async () => {
+    withLines(
+      [
+        { name: 'rice', quantity: 200, unit: 'g' },
+        { name: 'rice', quantity: 1, unit: 'cup' },
+      ],
+      [
+        linked('rice', 'g', 'rice-id', 'rice-white-dry'),
+        linked('rice', 'cup', 'rice-id', 'rice-white-dry'),
+      ],
+    );
+    await openPreview();
+    const announce = jest.spyOn(AccessibilityInfo, 'sendAccessibilityEvent');
+    await fireEvent.press(screen.getByTestId('video-draft-nutrition-status'));
+    expect(announce).toHaveBeenCalledWith(expect.anything(), 'focus');
+    announce.mockRestore();
   });
 });
 
