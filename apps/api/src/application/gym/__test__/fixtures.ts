@@ -57,6 +57,7 @@ export function profileRow(over: Partial<GymProfile> = {}): GymProfile {
     equipmentAccess: 'FULL_GYM',
     unit: 'KG',
     distanceUnit: null,
+    trainingStyle: 'PROGRESSIVE',
     weeklyGoal: 3,
     goalHistory: [{ fromWeek: '2026-08-31', goal: 3 }],
     barWeightKg: 20,
@@ -103,6 +104,7 @@ export function routineRow(over: Partial<RoutineWithDays> = {}): RoutineWithDays
         position: 0,
         name: 'Day A',
         plannedWeekday: 0,
+        workoutType: null,
         exercises: [
           {
             id: 're-bench',
@@ -128,6 +130,7 @@ export function routineRow(over: Partial<RoutineWithDays> = {}): RoutineWithDays
         position: 1,
         name: 'Day B',
         plannedWeekday: 3,
+        workoutType: null,
         exercises: [
           {
             id: 're-squat',
@@ -267,6 +270,7 @@ export function sessionRow(doc: WorkoutSessionDoc, userId = 'u1'): SessionWithCh
     clientUpdatedAt: new Date(doc.clientUpdatedAt),
     engineVersion: doc.engineVersion,
     rotationAppliedAt: null,
+    workoutType: doc.workoutType ?? null,
     createdAt: T0,
     updatedAt: T0,
     exercises: doc.exercises.map((e) => ({
@@ -300,6 +304,7 @@ export function sessionRow(doc: WorkoutSessionDoc, userId = 'u1'): SessionWithCh
         inclinePct: s.inclinePct ?? null,
         caloriesKcal: s.caloriesKcal ?? null,
         avgHeartRateBpm: s.avgHeartRateBpm ?? null,
+        loadConfirmed: s.loadConfirmed ?? null,
       })),
     })),
   };

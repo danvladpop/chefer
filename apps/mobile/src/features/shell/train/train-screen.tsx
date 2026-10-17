@@ -13,11 +13,13 @@ import {
   useFirstEntrance,
   useThemeColors,
 } from '@chefer/ui-mobile';
-import { supersetSlot } from '@chefer/utils';
+import { isSimpleTraining, supersetSlot } from '@chefer/utils';
 import { Icon } from '../../../components/icon';
 import { CoachingNotices } from '../../coaching/notices/coaching-notices';
+import { useFlags } from '../../../hooks/use-flags';
 import { GymBootstrapUnavailable } from '../../gym/components/gym-bootstrap-state';
 import { OutboxWaitingCard } from '../../gym/components/outbox-waiting-card';
+import { SimpleTodayView } from '../../gym/simple/simple-today-view';
 import { StartConflictSheet } from '../../gym/today/start-conflict-sheet';
 import { TargetChangeNotice } from '../../gym/today/target-change-notice';
 import { formatTarget } from '../../gym/today/today-helpers';
@@ -172,6 +174,7 @@ function TodayCard({ t, onOpenMenu }: { t: TrainToday; onOpenMenu: () => void })
 export function TrainScreen() {
   const colors = useThemeColors();
   const t = useTrainToday();
+  const flags = useFlags();
   const { bootstrap, bootstrapLoad, view, activeWorkout } = t;
   const [logOpen, setLogOpen] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
@@ -272,6 +275,26 @@ export function TrainScreen() {
             onPress={() => router.push('/gym/setup')}
           />
         </TrainCard>
+      </>
+    );
+  } else if (isSimpleTraining(bootstrap.profile, flags)) {
+    // "Keep it simple" (simple training mode §6.4): My week's plan, Start a
+    // workout, Log a workout — never "No active routine", no progression.
+    body = (
+      <>
+        {ongoing}
+        <SimpleTodayView bootstrap={bootstrap} />
+        <PastWorkouts bootstrap={bootstrap} />
+        <ParkedSessionCards t={t} />
+        <OutboxWaitingCard status={t.outboxStatus} testID="train-outbox" />
+        <ListSection testID="train-links">
+          <ListRow
+            testID="train-exercises"
+            title="Exercises"
+            icon={<Icon name="library" color={colors.brand} />}
+            onPress={() => router.push('/training/exercises')}
+          />
+        </ListSection>
       </>
     );
   } else if (!view) {

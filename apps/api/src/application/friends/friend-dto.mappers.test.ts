@@ -214,6 +214,7 @@ function fullRoutine(): FriendRoutineRow {
         position: 1,
         name: 'Pull',
         plannedWeekday: null,
+        workoutType: null,
         exercises: [re('custom-row', 0, ExerciseTrackingType.WEIGHT_REPS)],
       },
       {
@@ -222,6 +223,7 @@ function fullRoutine(): FriendRoutineRow {
         position: 0,
         name: 'Push',
         plannedWeekday: 0,
+        workoutType: null,
         exercises: [
           re('bench-press', 1, ExerciseTrackingType.WEIGHT_REPS),
           re('rowing', 0, ExerciseTrackingType.DURATION_DISTANCE),
@@ -247,6 +249,7 @@ function fullSession(): FriendSessionRow {
     inclinePct: 2,
     caloriesKcal: 50,
     avgHeartRateBpm: 150,
+    loadConfirmed: null,
     ...extra,
   });
   const se = (
@@ -289,6 +292,7 @@ function fullSession(): FriendSessionRow {
     clientUpdatedAt: new Date(),
     engineVersion: 3,
     rotationAppliedAt: new Date(),
+    workoutType: null,
     createdAt: new Date(),
     updatedAt: new Date(),
     exercises: [

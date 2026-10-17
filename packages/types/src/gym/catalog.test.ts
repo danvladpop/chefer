@@ -1,12 +1,12 @@
 import { randomUUID } from 'node:crypto';
 import { describe, expect, it } from 'vitest';
-import { ACTIVITY_LOG_EXERCISE_IDS, ACTIVITY_PRESETS } from './activity-log';
 import { CARDIO_CATALOG_BY_ID, CARDIO_EXERCISE_IDS } from './cardio-catalog';
 import { EXERCISE_BY_ID, EXERCISE_CATALOG, HIDDEN_EXERCISE_IMAGE_IDS } from './exercise-catalog';
 import { EXERCISE_CONTENT } from './exercise-content';
 import { workoutSessionDocSchema, type WorkoutSessionDoc } from './schemas';
 import { EQUIPMENT_ACCESS_SETS, EQUIPMENT_SWAPS, PROGRAM_TEMPLATES } from './templates';
 import { MUSCLES } from './vocab';
+import { LOGGED_WORKOUT_EXERCISE_IDS, WORKOUT_TYPE_GROUPS, WORKOUT_TYPES } from './workout-types';
 
 /** T-42.1: cardio entries opt out of the strength-only invariants below. */
 const isCardio = (e: { id: string }) => CARDIO_EXERCISE_IDS.has(e.id);
@@ -320,24 +320,49 @@ describe('cardio catalog (T-42.1)', () => {
   });
 });
 
-describe('activity quick-log presets (WP-20)', () => {
-  it('maps every chip to a DURATION cardio catalogue entry (renders on every shipped client)', () => {
-    expect(ACTIVITY_PRESETS.map((p) => p.key).at(-1)).toBe('other');
-    expect(new Set(ACTIVITY_PRESETS.map((p) => p.key)).size).toBe(ACTIVITY_PRESETS.length);
-    for (const p of ACTIVITY_PRESETS) {
-      const e = EXERCISE_BY_ID.get(p.exerciseId);
-      expect(e, p.key).toBeDefined();
-      expect(e?.trackingType, p.key).toBe('DURATION');
-      expect(CARDIO_EXERCISE_IDS.has(p.exerciseId), p.key).toBe(true);
-      expect(p.sessionName.length, p.key).toBeGreaterThan(0);
-      expect(p.sessionName.length, p.key).toBeLessThanOrEqual(80);
+describe('workout types (simple training mode §6.3)', () => {
+  it('maps every type to a DURATION cardio catalogue entry (renders on every shipped client)', () => {
+    expect(new Set(WORKOUT_TYPES.map((t) => t.type)).size).toBe(WORKOUT_TYPES.length);
+    for (const t of WORKOUT_TYPES) {
+      const e = EXERCISE_BY_ID.get(t.exerciseId);
+      expect(e, t.type).toBeDefined();
+      expect(e?.trackingType, t.type).toBe('DURATION');
+      expect(CARDIO_EXERCISE_IDS.has(t.exerciseId), t.type).toBe(true);
+      expect(t.label.length, t.type).toBeGreaterThan(0);
+      expect(t.metLow, t.type).toBeLessThanOrEqual(t.metHigh);
     }
   });
 
-  it('keeps the activity id set in step with the presets', () => {
-    expect([...ACTIVITY_LOG_EXERCISE_IDS].sort()).toEqual(
-      ACTIVITY_PRESETS.map((p) => p.exerciseId).sort(),
-    );
+  it('reuses the cardio catalogue MET range for every type with its own entry', () => {
+    for (const t of WORKOUT_TYPES.filter((w) => w.exerciseId !== 'other-activity')) {
+      const c = CARDIO_CATALOG_BY_ID.get(t.exerciseId);
+      expect([t.metLow, t.metHigh], t.type).toEqual([c?.metLow, c?.metHigh]);
+    }
+  });
+
+  it('lists types in group order, every group non-empty', () => {
+    const order = WORKOUT_TYPE_GROUPS.map((g) => g.group);
+    const seen = WORKOUT_TYPES.map((t) => order.indexOf(t.group));
+    expect(seen).toEqual([...seen].sort((x, y) => x - y));
+    for (const g of order)
+      expect(
+        WORKOUT_TYPES.some((t) => t.group === g),
+        g,
+      ).toBe(true);
+  });
+
+  it('keeps the logged-workout id set equal to the WP-20 activity rows', () => {
+    expect([...LOGGED_WORKOUT_EXERCISE_IDS].sort()).toEqual([
+      'dance-class',
+      'hiit-class',
+      'other-activity',
+      'pilates-class',
+      'running',
+      'spin-class',
+      'swimming',
+      'walking',
+      'yoga-class',
+    ]);
   });
 });
 

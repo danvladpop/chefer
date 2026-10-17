@@ -21,7 +21,6 @@ import {
   buildPlanTrainingDays,
   buildTrainingDayNutrition,
   hasTrainingDayBump,
-  isActivityLogSession,
   isLifter,
   LIFTER_PROTEIN_G_PER_KG,
   lifterProteinGPerKg,
@@ -240,17 +239,17 @@ export class TrainingNutritionService {
   }
 
   /**
-   * Completed sessions that make a day a training day. WP-20: a quick-logged
-   * activity ("45 min cycling class, 400 kcal") is record-only — it must not
-   * make the day a lift day, so it can never raise the food target; its kcal
-   * is never read here at all ("no eating back").
+   * Completed workouts that make a day a training day. F-1 (2026-10-17, both
+   * training styles): EVERY workout type counts — a logged yoga class is a
+   * training day like an upper-body session (this reversed WP-20's
+   * exclusion). The bump is still the fixed +10% (GAIN_MUSCLE only), never
+   * based on burned kcal, which is never read here ("no eating back", D-3).
    */
   private async completedWorkouts(
     userId: string,
     range: { fromLocalDate: string; toLocalDate: string },
   ) {
-    const sessions = await this.sessionRepo.findCompleted(userId, range);
-    return sessions.filter((s) => !isActivityLogSession(s));
+    return this.sessionRepo.findCompleted(userId, range);
   }
 
   /** The active routine's days with their planned weekday (Monday = 0). */

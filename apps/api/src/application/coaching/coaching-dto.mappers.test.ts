@@ -342,6 +342,7 @@ function routineRow(over: Partial<RoutineWithDays> = {}): RoutineWithDays {
         position: 0,
         name: 'Day A',
         plannedWeekday: 0,
+        workoutType: null,
         exercises: [
           row('re1', 'squat', {
             trainerNote: 'knees out',

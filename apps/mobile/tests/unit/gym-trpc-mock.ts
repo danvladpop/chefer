@@ -30,7 +30,11 @@ export function createTrpcGymMock() {
       // T-42.3: useFlags() (gym settings, workout/exercises-tab pickers) —
       // every flag off by default, same as ALL_FEATURE_FLAGS_OFF.
       profile: {
-        flags: { useQuery: jest.fn(() => ({ data: undefined })) },
+        flags: {
+          useQuery: jest.fn((): { data: Record<string, boolean> | undefined } => ({
+            data: undefined,
+          })),
+        },
       },
       // WP-18: Gym Today's coaching notices ask `coaching.availability` first; off by default, so every
       // existing Today test renders exactly as before. Tests of the notices override these per scenario.
@@ -68,9 +72,13 @@ export function createTrpcGymMock() {
         profile: {
           recommend: { useQuery: jest.fn() },
           completeSetup: { useMutation: jest.fn() },
+          completeSimpleSetup: { useMutation: jest.fn() },
           save: { useMutation: jest.fn() },
         },
-        routine: { setNextDay: { useMutation: jest.fn() } },
+        routine: {
+          setNextDay: { useMutation: jest.fn() },
+          saveMyWeek: { useMutation: jest.fn() },
+        },
         progression: {
           dismissOffer: { useMutation: jest.fn() },
           startDeload: { useMutation: jest.fn() },

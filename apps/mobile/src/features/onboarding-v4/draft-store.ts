@@ -49,6 +49,8 @@ const onboardingV4DraftSchema = z.object({
   premiumOn: z.boolean().catch(false),
   experience: z.enum(['BEGINNER', 'INTERMEDIATE']).catch('BEGINNER'),
   equipment: z.enum(['FULL_GYM', 'DUMBBELLS', 'BODYWEIGHT']).catch('FULL_GYM'),
+  /** Simple training mode §6.1: the "How do you like to train?" answer, once given. */
+  styleAnswer: z.enum(['program', 'workout', 'classes']).optional().catch(undefined),
 });
 
 export type OnboardingV4Draft = z.infer<typeof onboardingV4DraftSchema>;

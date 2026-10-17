@@ -2,7 +2,8 @@ import { useState } from 'react';
 import { Pressable, RefreshControl, Text as RNText, ScrollView, View } from 'react-native';
 import { router } from 'expo-router';
 import { Button, Card, EmptyState, ProgressRing, Screen, Sheet, Text } from '@chefer/ui-mobile';
-import { cn, pauseSummaryLine, supersetRuns, supersetSlot } from '@chefer/utils';
+import { cn, isSimpleTraining, pauseSummaryLine, supersetRuns, supersetSlot } from '@chefer/utils';
+import { useFlags } from '../../../hooks/use-flags';
 import { CoachingNotices } from '../../coaching/notices/coaching-notices';
 import { OnboardingV4WelcomeCard } from '../../onboarding-v4/welcome-card';
 import { useShellV2 } from '../../shell/shell-store';
@@ -12,10 +13,11 @@ import { GymBootstrapUnavailable } from '../components/gym-bootstrap-state';
 import { ModeSwitch } from '../components/mode-switch';
 import { OutboxWaitingCard } from '../components/outbox-waiting-card';
 import { weekdayLabel } from '../routine/weekday';
+import { SimpleTodayView } from '../simple/simple-today-view';
 import { libraryLookup } from '../use-gym-bootstrap';
 import { HowThisWorksSheet } from './how-this-works-sheet';
-import { LogActivityAction } from './log-activity-sheet';
 import { LogPastWorkoutAction } from './log-past-workout';
+import { LogWorkoutAction } from './log-workout-form';
 import { RecentWorkouts } from './recent-workouts';
 import { ResumeCard } from './resume-card';
 import { StartConflictSheet } from './start-conflict-sheet';
@@ -70,6 +72,7 @@ function WeekStrip({ days, today }: { days: WeekStripDay[]; today: string }) {
 
 export function TodayScreen() {
   const shellV2 = useShellV2();
+  const flags = useFlags();
   const [howThisWorksVisible, setHowThisWorksVisible] = useState(false);
   const {
     online,
@@ -154,6 +157,35 @@ export function TodayScreen() {
     );
   }
 
+  if (isSimpleTraining(bootstrap.profile, flags)) {
+    // "Keep it simple" (simple training mode §6.4): the same body as Train's,
+    // so a SIMPLE user never meets "No active routine".
+    return (
+      <Screen className="px-0">
+        <ScrollView
+          contentContainerClassName="gap-4 px-4 py-4"
+          refreshControl={
+            <RefreshControl
+              testID="gym-today-refresh"
+              refreshing={manualRefreshing}
+              onRefresh={handleRefresh}
+            />
+          }
+        >
+          {header}
+          <OnboardingV4WelcomeCard />
+          {activeWorkout.isActive && activeWorkout.session && (
+            <ResumeCard bootstrap={bootstrap} session={activeWorkout.session} pausedAt={pausedAt} />
+          )}
+          <SimpleTodayView bootstrap={bootstrap} />
+          <RecentWorkouts bootstrap={bootstrap} />
+          <OutboxWaitingCard status={outboxStatus} testID="gym-today-outbox" />
+          {shellV2 ? <TrainLinks /> : null}
+        </ScrollView>
+      </Screen>
+    );
+  }
+
   if (!bootstrap.activeRoutine || !view) {
     // UX-GYM-15: archiving the active routine must not hide the history — Recent
     // workouts and "Log a workout you already did" stay (they need no routine).
@@ -176,7 +208,7 @@ export function TodayScreen() {
             }}
           />
           <LogPastWorkoutAction bootstrap={bootstrap} />
-          <LogActivityAction bootstrap={bootstrap} />
+          <LogWorkoutAction bootstrap={bootstrap} />
           <RecentWorkouts bootstrap={bootstrap} />
           {shellV2 ? <TrainLinks /> : null}
         </ScrollView>
@@ -552,7 +584,7 @@ export function TodayScreen() {
         {/* Two quiet text links, side by side — neither competes with Start. */}
         <View className="flex-row flex-wrap items-center gap-x-6">
           <LogPastWorkoutAction bootstrap={bootstrap} />
-          <LogActivityAction bootstrap={bootstrap} />
+          <LogWorkoutAction bootstrap={bootstrap} />
         </View>
 
         <RecentWorkouts bootstrap={bootstrap} />

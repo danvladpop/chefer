@@ -22,6 +22,7 @@ import type {
   TrainingExperience,
   WeightUnit,
 } from './vocab';
+import type { TrainingStyle, WorkoutType } from './workout-types';
 
 export interface ExerciseDto extends ExerciseMeta {
   ownerId: string | null;
@@ -71,6 +72,11 @@ export interface GymProfileDto {
    * keep compiling until they're updated to set it explicitly.
    */
   distanceUnit?: DistanceUnit | null;
+  /**
+   * Simple training mode: "Keep it simple" / "Track my progress". Optional so
+   * older constructors keep compiling; absent reads as PROGRESSIVE.
+   */
+  trainingStyle?: TrainingStyle;
 }
 
 /**
@@ -116,6 +122,8 @@ export interface RoutineDayDto {
   position: number;
   name: string;
   plannedWeekday: number | null;
+  /** My week: the day's workout type; absent/null = none set. */
+  workoutType?: WorkoutType | null;
   exercises: RoutineExerciseDto[];
 }
 
@@ -205,6 +213,8 @@ export interface SessionSummaryDto {
   startedAt: string;
   finishedAt: string | null;
   isDeload: boolean;
+  /** Simple training mode: the workout's type, when it has one (additive). */
+  workoutType?: WorkoutType;
   exercises: {
     exerciseId: string;
     skipped: boolean;
@@ -227,6 +237,8 @@ export interface SessionSummaryDto {
       inclinePct?: number;
       caloriesKcal?: number;
       avgHeartRateBpm?: number;
+      /** Progression guard: present (false) only when ticked with unedited numbers ("done as planned"). */
+      loadConfirmed?: false;
     }[];
   }[];
 }

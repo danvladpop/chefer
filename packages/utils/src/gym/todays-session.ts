@@ -1,5 +1,4 @@
 import type { GymBootstrap } from '@chefer/types';
-import { isActivityLogSession } from './activity-log';
 import { todayStatus } from './session';
 import { weekdayOf } from './weeks';
 
@@ -30,9 +29,9 @@ export function selectTodaysSession(input: {
   since?: string | null | undefined;
 }): TodaysSession {
   const { bootstrap, today, since } = input;
-  // WP-20: a quick-logged activity never names "today's session".
+  // F-1 (2026-10-17): any workout done today names it, a logged one included.
   const done = bootstrap.recentSessions.find(
-    (s) => s.status === 'COMPLETED' && s.localDate === today && !isActivityLogSession(s),
+    (s) => s.status === 'COMPLETED' && s.localDate === today,
   );
   if (done) return { kind: 'completed', dayId: done.routineDayId, dayName: done.name };
 

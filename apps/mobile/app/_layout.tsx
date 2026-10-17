@@ -149,6 +149,7 @@ export default function RootLayout() {
                     <Stack.Screen name="gym/exercise/[id]" />
                     <Stack.Screen name="gym/exercise-form" />
                     <Stack.Screen name="gym/settings" />
+                    <Stack.Screen name="gym/my-week" />
                     {/* Following (code name `friends`, docs/friends/ux-design.md §2.2).
                     Every screen gates itself on `friends.availability`
                     (FriendsGate): reached while the feature is off, it shows

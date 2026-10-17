@@ -3,7 +3,6 @@ import {
   estimateSessionKcal,
   formatBodyWeight,
   formatDate,
-  isActivityLogSession,
   type SessionKcal,
   type UnitSystem,
 } from '@chefer/utils';
@@ -163,22 +162,15 @@ export type DoneToday = {
 };
 
 /**
- * The latest session finished today, if any. A quick-logged activity (WP-20)
- * is not "today's workout" — it only counts with `includeActivities`.
+ * The latest workout finished today, if any — a logged one included (F-1,
+ * 2026-10-17: every workout type counts as done today).
  */
 export function doneToday(
   bootstrap: Pick<GymBootstrap, 'recentSessions'> & Partial<Pick<GymBootstrap, 'bodyweightKg'>>,
   today: string,
-  { includeActivities = false }: { includeActivities?: boolean } = {},
 ): DoneToday | null {
   const finished = bootstrap.recentSessions
-    .filter(
-      (s) =>
-        s.status === 'COMPLETED' &&
-        s.localDate === today &&
-        s.finishedAt !== null &&
-        (includeActivities || !isActivityLogSession(s)),
-    )
+    .filter((s) => s.status === 'COMPLETED' && s.localDate === today && s.finishedAt !== null)
     .sort((a, b) => (b.finishedAt ?? '').localeCompare(a.finishedAt ?? ''));
   const session = finished[0];
   if (!session?.finishedAt) return null;

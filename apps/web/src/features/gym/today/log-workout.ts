@@ -5,17 +5,21 @@ import { outbox } from '../workout/outbox';
 import { getGymOwner } from '../workout/owner';
 import { foldFinished } from '../workout/use-active-workout';
 
-// Saving a quick-logged activity (WP-20): the finished doc goes through the same
-// offline outbox as any workout (durable first, uploaded by gym-sync via
-// `gym.session.upsertMany`), then is folded into the cached bootstrap so
-// History / Recent / the week ring show it at once. Mirrors the phone's
-// `saveLoggedSession`. Record only — nothing here touches food.
+// Saving a logged workout ("Log a workout", formerly WP-20 "Log an activity"):
+// the finished doc goes through the same offline outbox as any workout
+// (durable first, uploaded by gym-sync via `gym.session.upsertMany`), then is
+// folded into the cached bootstrap so History / Recent / the week ring show it
+// at once. Mirrors the phone's `saveLoggedSession`. Record only — nothing here
+// touches food.
 
-/** An activity starts at this local time on its day (like a past-workout log). */
-export const ACTIVITY_START_TIME = '18:00';
+/** A logged workout starts at this local time on its day (like a past-workout log). */
+export const LOGGED_WORKOUT_START_TIME = '18:00';
 
 /** "HH:MM" on a browser-local date → an absolute instant (the web twin of mobile's `localInstant`). */
-export function activityStartAt(date: string, time: string = ACTIVITY_START_TIME): string {
+export function loggedWorkoutStartAt(
+  date: string,
+  time: string = LOGGED_WORKOUT_START_TIME,
+): string {
   const [year, month, day] = date.split('-').map(Number);
   const [hour, minute] = time.split(':').map(Number);
   return new Date(
@@ -29,7 +33,7 @@ export function activityStartAt(date: string, time: string = ACTIVITY_START_TIME
   ).toISOString();
 }
 
-export async function saveActivityLog(
+export async function saveLoggedWorkout(
   utils: ReturnType<typeof trpc.useUtils>,
   doc: WorkoutSessionDoc,
 ): Promise<void> {

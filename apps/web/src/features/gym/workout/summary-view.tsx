@@ -46,6 +46,7 @@ import { Stepper } from '../shared/stepper';
 import { SyncIndicator } from '../shared/sync-indicator';
 import { FALLBACK_PROFILE, useGymData } from '../shared/use-gym-data';
 import { WeekRing } from '../shared/week-ring';
+import { SimpleSummary } from '../simple/simple-summary';
 import { useOutboxState } from './outbox';
 import { getGymOwner, subscribeGymOwner } from './owner';
 import { readLastFinished } from './use-active-workout';
@@ -100,6 +101,10 @@ export function SummaryView({ id }: { id: string }) {
     );
   }
   if (!doc) return <NotFound />;
+  // Simple training mode: a typed workout gets the "Keep it simple" summary.
+  if (doc.workoutType) {
+    return <SimpleSummary doc={doc} workoutType={doc.workoutType} data={data} lookup={lookup} />;
+  }
 
   const exercises = sortedExercises(doc).filter((se) => !se.skipped);
   const progress = sessionProgress(doc);

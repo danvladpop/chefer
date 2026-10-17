@@ -15,7 +15,7 @@ import { trpc } from '../../../lib/trpc';
 import { TrainButton } from '../../shell/train/train-button';
 import { sessionRowAccessibilityActions, useSessionActions } from '../history/use-session-actions';
 import { useIsOnline } from '../library-screens/online-status';
-import { LogActivityAction } from '../today/log-activity-sheet';
+import { LogWorkoutAction } from '../today/log-workout-form';
 
 // T-36.5 (bug B-41's home): Stats › History — every completed session,
 // week-grouped, newest first. First page from the cached
@@ -72,7 +72,7 @@ export function HistoryView({ bootstrap, testID = 'gym-history' }: HistoryViewPr
           description="Finished workouts show up here."
         />
         <View className="items-center">
-          <LogActivityAction bootstrap={bootstrap} testID={`${testID}-log-activity`} />
+          <LogWorkoutAction bootstrap={bootstrap} testID={`${testID}-log-workout`} />
         </View>
       </View>
     );
@@ -113,7 +113,7 @@ export function HistoryView({ bootstrap, testID = 'gym-history' }: HistoryViewPr
     <View testID={testID} className="gap-4">
       {/* WP-20: a class done elsewhere can be logged from here too. */}
       <View className="items-start">
-        <LogActivityAction bootstrap={bootstrap} testID={`${testID}-log-activity`} />
+        <LogWorkoutAction bootstrap={bootstrap} testID={`${testID}-log-workout`} />
       </View>
       {groups.map((group) => (
         <View key={group.weekStart} className="gap-1.5">

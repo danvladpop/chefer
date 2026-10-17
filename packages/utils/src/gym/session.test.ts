@@ -6,7 +6,7 @@ import type {
   SessionSummaryDto,
   WorkoutSessionDoc,
 } from '@chefer/types';
-import { buildActivityLogDoc } from './activity-log';
+import { buildLoggedWorkoutDoc } from './logged-workout';
 import { foldHistory, prescribe, progressionKey, repBucket } from './progression';
 import {
   applyFinishedSession,
@@ -958,8 +958,8 @@ describe('applyFinishedSession — the offline optimistic fold', () => {
 
   it('WP-20: a quick-logged activity counts for the week but folds no progression and moves no rotation', () => {
     const boot = bootstrapFor('2026-09-15');
-    const doc = buildActivityLogDoc({
-      input: { presetKey: 'yoga', localDate: '2026-09-15', durationMin: 60, caloriesKcal: 200 },
+    const doc = buildLoggedWorkoutDoc({
+      input: { workoutType: 'YOGA', localDate: '2026-09-15', durationMin: 60, caloriesKcal: 200 },
       id: '11111111-1111-4111-8111-111111111111',
       newId: () => crypto.randomUUID(),
       startAt: '2026-09-15T08:00:00.000Z',

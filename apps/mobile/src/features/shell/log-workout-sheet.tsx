@@ -1,11 +1,14 @@
 import { useRef, useState } from 'react';
 import { View } from 'react-native';
 import { router, type Href } from 'expo-router';
-import { ACTIVITY_PRESETS } from '@chefer/types';
+import type { WorkoutType } from '@chefer/types';
 import { Button, ChipGroup, Sheet, Text, useThemeColors } from '@chefer/ui-mobile';
+import { isSimpleTraining } from '@chefer/utils';
 import { Icon } from '../../components/icon';
+import { useFlags } from '../../hooks/use-flags';
 import { localDate } from '../gym/offline/ids';
-import { ActivityForm } from '../gym/today/log-activity-sheet';
+import { WorkoutTypeChips } from '../gym/simple/workout-type-chips';
+import { LoggedWorkoutForm } from '../gym/today/log-workout-form';
 import { useActiveWorkout } from '../gym/use-active-workout';
 import { useGymBootstrap } from '../gym/use-gym-bootstrap';
 
@@ -14,12 +17,14 @@ import { useGymBootstrap } from '../gym/use-gym-bootstrap';
 // is as close as logging food:
 //  - a gym day you already did → log mode for today (`/gym/workout?log=…`),
 //    the same screen the old "Log a workout you already did" link opened;
-//  - an activity done elsewhere → the existing activity form, with the tapped
-//    activity preselected (opened once this sheet has gone: iOS shows one
+//  - a workout done elsewhere → the "Log a workout" form, with the tapped
+//    workout type preselected (opened once this sheet has gone: iOS shows one
 //    modal at a time);
 //  - start a freestyle workout now (or resume the one already running).
+// "Keep it simple" (simple training mode §6.2) skips the chooser: the sheet IS
+// the form — no sets grid to log, so a type, a duration and Save.
 
-type Next = { kind: 'href'; href: Href } | { kind: 'activity'; presetKey: string };
+type Next = { kind: 'href'; href: Href } | { kind: 'form'; workoutType: WorkoutType };
 
 const FREESTYLE = '__freestyle';
 
@@ -33,15 +38,55 @@ function logHref(dayId: string | null): Href {
 export interface LogWorkoutSheetProps {
   visible: boolean;
   onClose: () => void;
+  /** Preselects a workout type in the form (simple Today's planned day). */
+  initialType?: WorkoutType | undefined;
 }
 
-export function LogWorkoutSheet({ visible, onClose }: LogWorkoutSheetProps) {
+export function LogWorkoutSheet(props: LogWorkoutSheetProps) {
+  const { data: bootstrap } = useGymBootstrap();
+  const flags = useFlags();
+  if (bootstrap && isSimpleTraining(bootstrap.profile, flags)) {
+    return <SimpleLogWorkoutSheet {...props} />;
+  }
+  return <LogWorkoutChooserSheet {...props} />;
+}
+
+/** Simple mode: the form itself, fresh on every opening. */
+function SimpleLogWorkoutSheet({ visible, onClose, initialType }: LogWorkoutSheetProps) {
+  const { data: bootstrap } = useGymBootstrap();
+  const [openCount, setOpenCount] = useState(0);
+  const [shownFor, setShownFor] = useState(visible);
+  if (visible !== shownFor) {
+    setShownFor(visible);
+    if (visible) setOpenCount((n) => n + 1);
+  }
+  if (!bootstrap) return null;
+  return (
+    <Sheet
+      visible={visible}
+      onClose={onClose}
+      eyebrow="Done elsewhere or earlier"
+      title="Log a workout"
+      testID="log-workout-sheet"
+    >
+      <LoggedWorkoutForm
+        key={openCount}
+        bootstrap={bootstrap}
+        initialType={initialType}
+        onDone={onClose}
+      />
+    </Sheet>
+  );
+}
+
+function LogWorkoutChooserSheet({ visible, onClose }: LogWorkoutSheetProps) {
   const colors = useThemeColors();
   const { data: bootstrap } = useGymBootstrap();
+  const { simpleTraining } = useFlags();
   const activeWorkout = useActiveWorkout();
   const next = useRef<Next | null>(null);
-  // The activity form opened from a chip; `openCount` gives every opening a fresh form.
-  const [activity, setActivity] = useState<{ presetKey: string; openCount: number } | null>(null);
+  // The form opened from a type chip; `openCount` gives every opening a fresh form.
+  const [form, setForm] = useState<{ workoutType: WorkoutType; openCount: number } | null>(null);
   const openCount = useRef(0);
 
   const days = [...(bootstrap?.activeRoutine?.days ?? [])].sort((a, b) => a.position - b.position);
@@ -49,12 +94,6 @@ export function LogWorkoutSheet({ visible, onClose }: LogWorkoutSheetProps) {
     ...days.map((day) => ({ value: day.id, label: day.name, testID: `log-workout-day-${day.id}` })),
     { value: FREESTYLE, label: 'Freestyle', testID: 'log-workout-day-freestyle' },
   ];
-  const activityOptions = ACTIVITY_PRESETS.map((preset) => ({
-    value: preset.key,
-    label: preset.label,
-    testID: `log-workout-activity-${preset.key}`,
-  }));
-
   const choose = (choice: Next) => {
     next.current = choice;
     onClose();
@@ -67,7 +106,7 @@ export function LogWorkoutSheet({ visible, onClose }: LogWorkoutSheetProps) {
     if (choice.kind === 'href') router.push(choice.href);
     else {
       openCount.current += 1;
-      setActivity({ presetKey: choice.presetKey, openCount: openCount.current });
+      setForm({ workoutType: choice.workoutType, openCount: openCount.current });
     }
   };
 
@@ -110,15 +149,15 @@ export function LogWorkoutSheet({ visible, onClose }: LogWorkoutSheetProps) {
             <View className="flex-row items-center gap-2">
               <Icon name="activity" color={colors.brand} />
               <Text accessibilityRole="header" className="text-headline font-semibold text-label">
-                Activity
+                Done elsewhere
               </Text>
             </View>
-            <ChipGroup
-              options={activityOptions}
-              value={[]}
-              onChange={(values) => {
-                const picked = values[0];
-                if (picked) choose({ kind: 'activity', presetKey: picked });
+            <WorkoutTypeChips
+              testID="log-workout-pick"
+              value={undefined}
+              includeStrength={simpleTraining}
+              onChange={(picked) => {
+                if (picked) choose({ kind: 'form', workoutType: picked });
               }}
             />
           </View>
@@ -130,18 +169,18 @@ export function LogWorkoutSheet({ visible, onClose }: LogWorkoutSheetProps) {
       </Sheet>
       {bootstrap ? (
         <Sheet
-          visible={activity !== null}
-          onClose={() => setActivity(null)}
-          title="Log an activity"
-          eyebrow="Done elsewhere"
-          testID="log-activity-sheet"
+          visible={form !== null}
+          onClose={() => setForm(null)}
+          title="Log a workout"
+          eyebrow="Done elsewhere or earlier"
+          testID="log-workout-form-sheet"
         >
-          {activity ? (
-            <ActivityForm
-              key={activity.openCount}
+          {form ? (
+            <LoggedWorkoutForm
+              key={form.openCount}
               bootstrap={bootstrap}
-              initialPresetKey={activity.presetKey}
-              onDone={() => setActivity(null)}
+              initialType={form.workoutType}
+              onDone={() => setForm(null)}
             />
           ) : null}
         </Sheet>

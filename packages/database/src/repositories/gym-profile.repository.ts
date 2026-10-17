@@ -4,6 +4,7 @@ import type {
   GymProfile,
   Prisma,
   TrainingExperience,
+  TrainingStyle,
   WeightUnit,
 } from '@prisma/client';
 import { prisma } from '../client';
@@ -44,6 +45,8 @@ export interface GymProfileWriteData {
   carryOver?: Prisma.InputJsonValue;
   /** S21 (T-42.0): null = derived from `unit` (MI when unit = LB, else KM). */
   distanceUnit?: DistanceUnit | null;
+  /** Simple training mode: "Keep it simple" / "Track my progress". */
+  trainingStyle?: TrainingStyle;
 }
 
 export type GymProfileUpdateData = Partial<GymProfileWriteData>;
@@ -70,6 +73,8 @@ export interface IGymProfileRepository {
     userId: string,
     data: CompleteSetupData,
   ): Promise<{ profile: GymProfile; routine: RoutineWithDays }>;
+  /** "Keep it simple" setup: profile upsert + setupCompletedAt, no routine. */
+  completeSimpleSetup(userId: string, profile: GymProfileWriteData): Promise<GymProfile>;
 }
 
 export class GymProfileRepository implements IGymProfileRepository {
@@ -100,6 +105,15 @@ export class GymProfileRepository implements IGymProfileRepository {
         });
       }
       return { profile, routine };
+    });
+  }
+
+  async completeSimpleSetup(userId: string, profile: GymProfileWriteData): Promise<GymProfile> {
+    const setupCompletedAt = new Date();
+    return prisma.gymProfile.upsert({
+      where: { userId },
+      create: { userId, ...profile, setupCompletedAt },
+      update: { ...profile, setupCompletedAt },
     });
   }
 }

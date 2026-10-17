@@ -43,6 +43,11 @@ export const featureFlagsSchema = z
      *  Premium step. Off by default; both platforms keep today's wizard
      *  until it is flipped. */
     onboardingV4: z.boolean(),
+    /** Simple training mode (docs/prd-2026-10/casual-training-mode.md,
+     *  phase 1): the "How do you like to train?" question, "Keep it simple"
+     *  Today/logger/summary, My week and the training-style switch. Off by
+     *  default for a dark launch to testers. */
+    simpleTraining: z.boolean(),
   })
   .partial();
 export type FeatureFlags = z.infer<typeof featureFlagsSchema>;

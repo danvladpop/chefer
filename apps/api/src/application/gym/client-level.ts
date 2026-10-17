@@ -46,6 +46,13 @@ import { isFlagEnabled } from '../../lib/flags.js';
 // rule (L-GYM's T-42.2 wires it into gym.bootstrap, gym.library.list,
 // gym.session.get, gym.session.list; a routine returned to a level < 7
 // client has its cardio slots removed the same way, W5).
+//
+// Simple training mode (2026-10-17) needed NO new level: My week's type-only
+// routine days (zero exercises) and typed workouts with no exercises are
+// shapes `routine.createBlank` / an empty freestyle finish have produced
+// since wave 0, and simple-training.contract.test.ts proves levels 2 and 4
+// read them. The new fields (`workoutType`, `trainingStyle`, `loadConfirmed`)
+// are additive keys older binaries ignore.
 
 /**
  * Tracking types renderable at `level` (Δ2.1, revised 2026-09-28 — cardio

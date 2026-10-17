@@ -1296,6 +1296,32 @@ enum TrainingExperience {
   INTERMEDIATE
 }
 
+/// Simple training mode (GLOSSARY "Training style"): a preference, not a skill level.
+enum TrainingStyle {
+  SIMPLE
+  PROGRESSIVE
+}
+
+/// Simple training mode §6.3 (GLOSSARY "Workout type"); @chefer/types workout-types.ts.
+enum WorkoutType {
+  UPPER_BODY
+  LOWER_BODY
+  FULL_BODY
+  STRENGTH_OTHER
+  CARDIO_MACHINES
+  RUNNING
+  WALKING
+  SWIMMING
+  CYCLING
+  YOGA
+  PILATES
+  SPIN
+  HIIT
+  DANCE
+  OTHER_CLASS
+  OTHER
+}
+
 enum GymEquipmentAccess {
   FULL_GYM
   DUMBBELLS
@@ -1391,6 +1417,8 @@ model GymProfile {
   reminderTimes     Json               @default("{}")
   /// { exerciseId, fromSessionId, routineDayId }[] (CarryOverItem, @chefer/utils gym/carry-over.ts)
   carryOver         Json               @default("[]")
+  /// "Keep it simple" / "Track my progress"; every existing profile stays PROGRESSIVE.
+  trainingStyle     TrainingStyle      @default(PROGRESSIVE)
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
@@ -1424,11 +1452,13 @@ model Routine {
 }
 
 model RoutineDay {
-  id             String @id @default(cuid())
+  id             String       @id @default(cuid())
   routineId      String
   position       Int
   name           String
   plannedWeekday Int? // 0 = Monday … 6 = Sunday
+  /// My week (ADR 0001): "Tue · Yoga". A day may have no exercises.
+  workoutType    WorkoutType?
 
   routine   Routine           @relation(fields: [routineId], references: [id], onDelete: Cascade)
   exercises RoutineExercise[]
@@ -1478,6 +1508,7 @@ model WorkoutSession {
   clientUpdatedAt   DateTime // last-write-wins guard for the sync upsert
   engineVersion     Int
   rotationAppliedAt DateTime? // set once, when completion advanced Routine.nextDayId
+  workoutType       WorkoutType? // simple training mode; null on routine/freestyle workouts from older binaries
   createdAt         DateTime      @default(now())
   updatedAt         DateTime      @updatedAt
 
@@ -1534,6 +1565,10 @@ model SessionSet {
   inclinePct        Float? // treadmill/incline walk
   caloriesKcal      Float? // computed estimate or synced, always labeled as an estimate
   avgHeartRateBpm   Int? // reserved slot, never written from manual entry
+  // Progression guard (simple training mode §6.5): false = ticked "done" with
+  // the prefilled numbers never edited, so the load is not confirmed and the
+  // progression engine ignores the set. null = confirmed (every legacy row).
+  loadConfirmed     Boolean?
 
   sessionExercise SessionExercise @relation(fields: [sessionExerciseId], references: [id], onDelete: Cascade)
 

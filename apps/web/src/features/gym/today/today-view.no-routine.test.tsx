@@ -13,6 +13,8 @@ vi.mock('next/navigation', () => ({ useRouter: () => ({ push: vi.fn(), replace: 
 vi.mock('@/lib/analytics', () => ({ capture: vi.fn() }));
 // WP-18: the coaching lines have their own tests (CoachingNotices.test.tsx).
 vi.mock('@/features/coaching/components/CoachingNotices', () => ({ CoachingNotices: () => null }));
+vi.mock('@/features/flags/use-flags', () => ({ useFlags: () => ({ simpleTraining: false }) }));
+vi.mock('@/features/onboarding-v4/welcome-card', () => ({ OnboardingV4WelcomeCard: () => null }));
 vi.mock('@/lib/trpc', () => ({
   trpc: {
     useUtils: () => ({ gym: { bootstrap: { invalidate: vi.fn() } } }),
@@ -68,8 +70,8 @@ describe('TodayView with no active routine', () => {
     expect(screen.getByTestId('gym-log-past-workout')).toHaveTextContent(
       'Log a workout you already did',
     );
-    // WP-20: "Log an activity" sits beside it (no routine needed).
-    expect(screen.getByTestId('gym-log-activity')).toHaveTextContent('Log an activity');
+    // "Log a workout" (formerly WP-20 "Log an activity") sits beside it (no routine needed).
+    expect(screen.getByTestId('gym-log-workout')).toHaveTextContent('Log a workout');
     expect(screen.getByTestId('recent-workouts')).toBeInTheDocument();
   });
 });

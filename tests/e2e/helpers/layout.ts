@@ -26,6 +26,7 @@ export const APP_ROUTES = [
   '/gym/setup',
   '/gym/workout',
   '/gym/settings',
+  '/gym/my-week',
   '/gym/routine',
   '/gym/routine/all',
   '/gym/exercises',

@@ -385,9 +385,11 @@ describe('TrainingNutritionService.refuelSnacks (T-06.3, AC4)', () => {
   });
 });
 
-// WP-20 (owner decision 2026-10-04): a quick-logged activity is RECORD ONLY — its
-// kcal never raises the food target and the day is not a "training day".
-describe('TrainingNutritionService — quick-logged activities are record only (WP-20)', () => {
+// F-1 (2026-10-17, simple training mode §6.3): EVERY workout type makes a
+// training day, a logged spin class included (this reversed WP-20's
+// exclusion). Its kcal stays record only (D-3): the bump is the fixed one,
+// never sized by what the workout burned.
+describe('TrainingNutritionService — every logged workout is a training day (F-1)', () => {
   const RAW = {
     goal: 'GAIN_MUSCLE',
     biologicalSex: 'MALE',
@@ -408,29 +410,40 @@ describe('TrainingNutritionService — quick-logged activities are record only (
     exercises: [{ exerciseId: 'spin-class', sets: [{ caloriesKcal: 900 }] }],
   };
 
-  it('an activity on a rest day does not make it a training day', async () => {
+  it('a logged workout on a rest day makes it a training day', async () => {
     const { svc } = service({ days, completed: [activity] });
-    expect(await svc.trainingDayFor('u1', '2026-09-29', 1)).toEqual({
-      isTrainingDay: false,
-      reason: null,
-      workoutName: null,
-      kind: null,
+    expect(await svc.trainingDayFor('u1', '2026-09-29', 1)).toMatchObject({
+      isTrainingDay: true,
+      reason: 'COMPLETED',
+      workoutName: 'Cycling class',
     });
   });
 
-  it('the targets are identical with or without the activity, however many kcal it carries', async () => {
-    const without = service({ ...lifter, days, widened: true });
-    const withActivity = service({ ...lifter, days, widened: true, completed: [activity] });
-    const a = await without.svc.targetsForDay('u1', profile, tuesday, true);
-    const b = await withActivity.svc.targetsForDay('u1', profile, tuesday, true);
+  it('the bump never depends on the kcal it carries ("no eating back")', async () => {
+    const light = { ...activity, exercises: [{ exerciseId: 'spin-class', sets: [{}] }] };
+    const a = await service({
+      ...lifter,
+      days,
+      widened: true,
+      completed: [light],
+    }).svc.targetsForDay('u1', profile, tuesday, true);
+    const b = await service({
+      ...lifter,
+      days,
+      widened: true,
+      completed: [activity],
+    }).svc.targetsForDay('u1', profile, tuesday, true);
     expect(b).toEqual(a);
-    expect(b.training?.adjustedTargets ?? null).toBeNull();
-    expect(b.training?.trainingDay.isTrainingDay ?? false).toBe(false);
+    expect(b.training?.trainingDay.isTrainingDay).toBe(true);
+    expect(b.training?.adjustedTargets).not.toBeNull();
   });
 
-  it('a planned lift day stays a lift day, and a real workout the same day still counts', async () => {
+  it('on a planned day it reads as done, and a lifting workout counts the same way', async () => {
     const planned = service({ days, completed: [{ ...activity, localDate: '2026-09-28' }] });
-    expect((await planned.svc.trainingDayFor('u1', '2026-09-28', 0)).reason).toBe('SCHEDULED');
+    expect(await planned.svc.trainingDayFor('u1', '2026-09-28', 0)).toMatchObject({
+      isTrainingDay: true,
+      reason: 'COMPLETED',
+    });
     const workout = service({
       days,
       completed: [activity, { localDate: '2026-09-29', name: 'Freestyle' }],
@@ -438,9 +451,9 @@ describe('TrainingNutritionService — quick-logged activities are record only (
     expect((await workout.svc.trainingDayFor('u1', '2026-09-29', 1)).reason).toBe('COMPLETED');
   });
 
-  it('the plan week does not mark an activity day as a training day', async () => {
+  it('the plan week marks the logged workout day as a training day', async () => {
     const { svc } = service({ ...lifter, days, completed: [activity], widened: true });
     const { trainingDays } = await svc.trainingWeek('u1', profile, new Date(2026, 8, 28), true);
-    expect(trainingDays.map((d) => d.dayOfWeek)).toEqual([0]);
+    expect(trainingDays.map((d) => d.dayOfWeek)).toEqual([0, 1]);
   });
 });

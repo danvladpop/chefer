@@ -6,7 +6,7 @@ import { IconButton, MediaRow, PressableScale, Text, useThemeColors } from '@che
 import {
   formatDistance,
   groupRecentSessions,
-  isActivityLogSession,
+  isLoggedWorkout,
   sessionStatsText,
   weekdayDateLabel,
   type RecentSessionRow,
@@ -87,7 +87,7 @@ export function PastWorkouts({ bootstrap }: { bootstrap: GymBootstrap }) {
 
       {rows.map((row) => {
         const session = pager.combined.find((s) => s.id === row.id);
-        const activity = session ? isActivityLogSession(session) : row.activity;
+        const activity = session ? isLoggedWorkout(session) : row.activity;
         const meta = pastWorkoutMeta(row, session, distanceUnit);
         return (
           <MediaRow

@@ -16,6 +16,8 @@ const m = vi.hoisted(() => ({
   generate: vi.fn(),
   upgrade: vi.fn(),
   completeSetup: vi.fn(),
+  completeSimpleSetup: vi.fn<[Record<string, unknown>], undefined>(),
+  flags: { simpleTraining: false },
   requestAiConsent: vi.fn((_feature: string, run: () => void) => run()),
 }));
 
@@ -33,6 +35,7 @@ vi.mock('@/features/ai-consent/AiConsentProvider', () => ({
 }));
 vi.mock('next/navigation', () => ({ useRouter: () => ({ push: m.push }) }));
 vi.mock('@/lib/analytics', () => ({ capture: vi.fn() }));
+vi.mock('@/features/flags/use-flags', () => ({ useFlags: () => m.flags }));
 
 vi.mock('@/lib/trpc', () => {
   const asyncMutation = (fn: (...a: unknown[]) => unknown) => () => ({
@@ -129,6 +132,15 @@ vi.mock('@/lib/trpc', () => {
               },
             }),
           },
+          completeSimpleSetup: {
+            useMutation: (opts: { onSuccess?: (b: unknown) => void }) => ({
+              isPending: false,
+              mutate: (input: unknown) => {
+                m.completeSimpleSetup(input as Record<string, unknown>);
+                opts.onSuccess?.({});
+              },
+            }),
+          },
         },
       },
     },
@@ -138,6 +150,7 @@ vi.mock('@/lib/trpc', () => {
 afterEach(cleanup);
 beforeEach(() => {
   vi.clearAllMocks();
+  m.flags.simpleTraining = false;
   window.localStorage.clear();
   m.setJobs.mockResolvedValue({});
   m.displayPrefs.mockResolvedValue({});
@@ -223,6 +236,47 @@ describe('OnboardingV4 — step order', () => {
       expect.objectContaining({ templateKey: 'ul3-beginner', plannedWeekdays: [] }),
     );
     expect(window.localStorage.getItem(ONBOARDING_V4_WELCOME_KEY)).toBe('train');
+  });
+
+  it('simple training on: "Keep it simple" skips the program and sets up with no routine', async () => {
+    m.flags.simpleTraining = true;
+    render(<OnboardingV4 isPremium={false} />);
+    await answerJobsAndGoal(['TRAIN'], 'GAIN_MUSCLE');
+    cont();
+    await onStep('premium');
+    fireEvent.click(screen.getByTestId('v4-premium-later'));
+    await onStep('train');
+    // The question comes first; nothing else until it is answered.
+    expect(screen.queryByTestId('v4-train-program')).toBeNull();
+    fireEvent.click(screen.getByTestId('v4-train-style-classes'));
+    expect(screen.queryByTestId('v4-train-exp-BEGINNER')).toBeNull();
+    fireEvent.click(screen.getByTestId('v4-train-start'));
+
+    await waitFor(() => expect(m.push).toHaveBeenCalledWith('/gym'));
+    // The units from About you; no training days were picked, so no weekly goal is sent.
+    expect(m.completeSimpleSetup).toHaveBeenCalledTimes(1);
+    const sent = m.completeSimpleSetup.mock.calls[0]?.[0] ?? {};
+    expect(Object.keys(sent)).toEqual(['unit']);
+    expect(['KG', 'LB']).toContain(sent['unit']);
+    expect(m.completeSetup).not.toHaveBeenCalled();
+  });
+
+  it('simple training on: "I follow a program" keeps the program and says PROGRESSIVE', async () => {
+    m.flags.simpleTraining = true;
+    render(<OnboardingV4 isPremium={false} />);
+    await answerJobsAndGoal(['TRAIN'], 'GAIN_MUSCLE');
+    cont();
+    await onStep('premium');
+    fireEvent.click(screen.getByTestId('v4-premium-later'));
+    await onStep('train');
+    fireEvent.click(screen.getByTestId('v4-train-style-program'));
+    fireEvent.click(screen.getByTestId('v4-train-start'));
+
+    await waitFor(() => expect(m.push).toHaveBeenCalledWith('/gym'));
+    expect(m.completeSetup).toHaveBeenCalledWith(
+      expect.objectContaining({ templateKey: 'fb3-beginner', trainingStyle: 'PROGRESSIVE' }),
+    );
+    expect(m.completeSimpleSetup).not.toHaveBeenCalled();
   });
 
   it('Premium step is hidden for premium users', async () => {

@@ -40,6 +40,7 @@ import { GymSkeleton } from '../shared/gym-card';
 import { SupersetSheet } from '../shared/superset-sheet';
 import { SyncIndicator } from '../shared/sync-indicator';
 import { FALLBACK_PROFILE, useGymData } from '../shared/use-gym-data';
+import { SimpleWorkoutView } from '../simple/simple-workout-view';
 import { ExerciseCard } from './components/exercise-card';
 import { PlateSheet } from './components/plate-sheet';
 import { RestTimerBar } from './components/rest-timer-bar';
@@ -311,6 +312,21 @@ export function WorkoutView() {
           </Button>
         </div>
       </Frame>
+    );
+  }
+
+  // Simple training mode: a typed workout gets the "Keep it simple" logger.
+  if (session.workoutType) {
+    return (
+      <SimpleWorkoutView
+        session={session}
+        workoutType={session.workoutType}
+        onFinished={(finished) => {
+          // Same offline-safe hand-off as below: render in place, update the URL.
+          setFinishedId(finished.id);
+          window.history.replaceState(null, '', `/gym/summary/${finished.id}`);
+        }}
+      />
     );
   }
 
