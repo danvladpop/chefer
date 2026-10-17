@@ -30,12 +30,19 @@ export const CF_NEURON_RATES: Readonly<Record<string, { input: number; output: n
 const FALLBACK_RATE = { input: 31_876, output: 204_805 };
 
 /**
- * flux-1-schnell: 4.80 neurons per 512×512 tile + 9.60 per step (pricing page,
- * 2026-09-26). The image client sends 4 steps; a 1024×1024 image is 4 tiles →
- * ~58 neurons. An estimate, used only when the response carries no
- * cf-ai-neurons header.
+ * Neurons one recipe image costs, per Workers AI image model (pricing page,
+ * checked 2026-10-17). An estimate: the `cf-ai-neurons` header wins when a
+ * response carries it. Also what the backfill worker reserves before a call.
+ *   - flux-1-schnell: 4.80 per 512×512 tile + 9.60 per step; the client sends
+ *     4 steps and the model only makes 1024×1024 (4 tiles) → ~58.
+ *   - flux-2-klein-4b: 26.05 per output tile (steps are fixed); the client asks
+ *     for 1024×768, counted as 4 tiles to stay on the safe side → ~104.
+ * An unknown model counts as the dearer of the two.
  */
-export const CF_IMAGE_NEURONS_ESTIMATE = 4 * 4.8 + 4 * 9.6;
+export function imageNeuronEstimate(model: string): number {
+  if (model.includes('flux-1-schnell')) return 4 * 4.8 + 4 * 9.6;
+  return 4 * 26.05;
+}
 
 /** Neurons a call cost, from the model's per-token rates. */
 export function estimateNeurons(model: string, inputTokens = 0, outputTokens = 0): number {

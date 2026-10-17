@@ -40,6 +40,7 @@ import { dataRetentionWorker } from './workers/data-retention.worker.js';
 import { friendsMaintenanceWorker } from './workers/friends-maintenance.worker.js';
 import { ingredientPriceWorker } from './workers/ingredient-price.worker.js';
 import { planTailoringWorker } from './workers/plan-tailoring.worker.js';
+import { recipeImageBackfillWorker } from './workers/recipe-image-backfill.worker.js';
 import { recipeImageWorker } from './workers/recipe-image.worker.js';
 import { uploadSweeperWorker } from './workers/upload-sweeper.worker.js';
 import { weeklyEmailWorker } from './workers/weekly-email.worker.js';
@@ -280,6 +281,8 @@ const server = app.listen(env.PORT, env.HOST, () => {
 
   // Start the background recipe image worker
   void recipeImageWorker.start();
+  // Replaces stored Pollinations images, a budgeted few a day (F3)
+  recipeImageBackfillWorker.start();
 
   // Build/refresh the ingredient price vocabulary (weekly cadence)
   ingredientPriceWorker.start();
@@ -362,6 +365,7 @@ async function gracefulShutdown(signal: string): Promise<void> {
   dataRetentionWorker.stop();
   uploadSweeperWorker.stop();
   await planTailoringWorker.stop();
+  await recipeImageBackfillWorker.stop();
   await recipeImageWorker.stop();
 
   server.close(() => {

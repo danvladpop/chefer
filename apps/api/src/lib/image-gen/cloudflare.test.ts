@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { cloudflareNeuronLedger, imageNeuronEstimate } from '../ai/cloudflare-budget.js';
 import { CloudflareImageService, isDailyQuotaError } from './cloudflare.js';
 import { ImagenRateLimitError, ImageQuotaExhaustedError, ImageStorageError } from './errors.js';
 
@@ -6,17 +7,20 @@ import { ImagenRateLimitError, ImageQuotaExhaustedError, ImageStorageError } fro
 
 const INPUT = { recipeId: 'r1', recipeName: 'Shakshuka', cuisineType: 'Middle Eastern' };
 
-function service(upload = vi.fn().mockResolvedValue('https://cdn/r1.jpg')) {
+const SCHNELL = '@cf/black-forest-labs/flux-1-schnell';
+const KLEIN = '@cf/black-forest-labs/flux-2-klein-4b';
+
+function service(upload = vi.fn().mockResolvedValue('https://cdn/r1.jpg'), model = SCHNELL) {
   return {
     upload,
-    svc: new CloudflareImageService({
-      accountId: 'acc',
-      apiToken: 'tok',
-      model: '@cf/black-forest-labs/flux-1-schnell',
-      upload,
-    }),
+    svc: new CloudflareImageService({ accountId: 'acc', apiToken: 'tok', model, upload }),
   };
 }
+
+const imageJson = () =>
+  new Response(JSON.stringify({ success: true, result: { image: 'aGVsbG8=' } }), {
+    headers: { 'content-type': 'application/json' },
+  });
 
 afterEach(() => {
   vi.unstubAllGlobals();
@@ -112,5 +116,37 @@ describe('CloudflareImageService', () => {
       ),
     );
     await expect(service().svc.generate(INPUT)).rejects.toThrow(/no image/);
+  });
+
+  it('asks flux-2-klein for a 4:3 1024×768 image as multipart form fields (F3)', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(imageJson());
+    vi.stubGlobal('fetch', fetchMock);
+    const { svc, upload } = service(undefined, KLEIN);
+
+    await expect(svc.generate(INPUT)).resolves.toBe('https://cdn/r1.jpg');
+    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(url).toMatch(/\/ai\/run\/@cf\/black-forest-labs\/flux-2-klein-4b$/);
+    const form = init.body as FormData;
+    expect(form).toBeInstanceOf(FormData);
+    expect(form.get('prompt')).toContain('Shakshuka');
+    expect(form.get('width')).toBe('1024');
+    expect(form.get('height')).toBe('768');
+    // fetch sets the multipart boundary itself; a hand-set content-type would drop it.
+    expect(new Headers(init.headers).get('content-type')).toBeNull();
+    expect(upload).toHaveBeenCalledWith('aGVsbG8=', 'image/jpeg', 'r1');
+  });
+
+  it("counts the model's own neuron estimate when Cloudflare reports none", async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockImplementation(() => Promise.resolve(imageJson())),
+    );
+    expect(imageNeuronEstimate(SCHNELL)).toBeCloseTo(57.6);
+    // 1024×768 bills as 4 output tiles at 26.05 (pricing page, 2026-10-17).
+    expect(imageNeuronEstimate(KLEIN)).toBeCloseTo(104.2);
+
+    const before = cloudflareNeuronLedger.usedToday();
+    await service(undefined, KLEIN).svc.generate(INPUT);
+    expect(cloudflareNeuronLedger.usedToday() - before).toBeCloseTo(104.2);
   });
 });

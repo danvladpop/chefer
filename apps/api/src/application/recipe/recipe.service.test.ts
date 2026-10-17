@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Recipe } from '@chefer/database';
+import { notifyRecipeImageQueued } from '../../lib/recipe-image-signal.js';
 import { RecipeService } from './recipe.service.js';
 
 // ─── Module mocks ─────────────────────────────────────────────────────────────
@@ -21,6 +22,7 @@ const {
   save,
   softDeleteManualRecipe,
   restoreManualRecipe,
+  findRecipesByIds,
 } = vi.hoisted(() => ({
   softDeleteManualRecipe: vi.fn(),
   restoreManualRecipe: vi.fn(),
@@ -43,7 +45,10 @@ const {
   findRecipeById: vi.fn(),
   isRecipeInUserPlans: vi.fn().mockResolvedValue(false),
   upsertRecipes: vi.fn().mockResolvedValue(undefined),
+  findRecipesByIds: vi.fn().mockResolvedValue([]),
 }));
+
+vi.mock('../../lib/recipe-image-signal.js', () => ({ notifyRecipeImageQueued: vi.fn() }));
 
 // Manual saves compute nutrition through RecipeNutritionService (catalog
 // reads); covered in recipe-nutrition.service.test.ts. Stubbed here.
@@ -80,7 +85,7 @@ vi.mock('@chefer/database', async (importOriginal) => {
     dietaryPreferencesRepository: { findByUserId },
     householdMemberRepository: { findByUserId: findHouseholdByUserId },
     safetyReportRepository: { findRecipeIdsByUser, create: vi.fn(), findAllByUser: vi.fn() },
-    mealPlanRepository: { findRecipeById, isRecipeInUserPlans, upsertRecipes },
+    mealPlanRepository: { findRecipeById, isRecipeInUserPlans, upsertRecipes, findRecipesByIds },
     recipeLineRepository: {
       findByRecipeIds: vi.fn().mockResolvedValue([]),
       findNutritionStates: vi.fn().mockResolvedValue([]),
@@ -339,6 +344,30 @@ describe('RecipeService.discover (T-01.2/T-02.1) — bug fix: summary rows must 
   });
 });
 
+describe('RecipeService.discover — images come from the stored rows (F3)', () => {
+  it('shows a curated recipe with the image stored on its row, not the pool object', async () => {
+    findByUserId.mockResolvedValueOnce(null);
+    findRecipesByIds.mockImplementationOnce((ids: string[]) =>
+      Promise.resolve(
+        ids.map((id, i) =>
+          recipe({
+            id,
+            name: id,
+            imageUrl: i === 0 ? null : `https://chefer.example/uploads/recipes/${id}.jpg`,
+            imageStatus: i === 0 ? 'PENDING' : 'DONE',
+          }),
+        ),
+      ),
+    );
+
+    const rows = await new RecipeService().discover('u1', {});
+
+    // The fixture's stock photo is replaced by the row's (here: none yet).
+    expect(rows[0]!.imageUrl).toBeNull();
+    expect(rows[1]!.imageUrl).toBe(`https://chefer.example/uploads/recipes/${rows[1]!.id}.jpg`);
+  });
+});
+
 describe('RecipeService.discoverHiddenCount (T-02.5/T-01.4)', () => {
   it('reports no hidden recipes and no active filters when the table has no rules', async () => {
     findByUserId.mockResolvedValueOnce({
@@ -565,6 +594,53 @@ describe('RecipeService word filter on writes (PRD §9.4, stub until L-MODERATIO
     });
     expect(createManualRecipe.mock.calls[0]![1]).not.toHaveProperty('originRecipeId');
     expect(createManualRecipe.mock.calls[0]![1]).not.toHaveProperty('originCreatorId');
+  });
+
+  it('"Generate with AI" saves the recipe without an image and queues a real one (F3)', async () => {
+    createManualRecipe.mockClear();
+    vi.mocked(notifyRecipeImageQueued).mockClear();
+    createManualRecipe.mockResolvedValueOnce(
+      recipe({ id: 'r9', name: 'Dal', imageStatus: 'PENDING' }),
+    );
+
+    await new RecipeService(undefined, undefined, moderation()).create('u1', {
+      ...BODY,
+      imageUrl: null,
+      generateImage: true,
+    });
+
+    expect(createManualRecipe.mock.calls[0]![1]).toMatchObject({
+      imageUrl: null,
+      imageStatus: 'PENDING',
+    });
+    expect(createManualRecipe.mock.calls[0]![1]).not.toHaveProperty('generateImage');
+    expect(notifyRecipeImageQueued).toHaveBeenCalled();
+  });
+
+  it('a Pollinations URL from an old web tab is never stored: it is queued instead', async () => {
+    createManualRecipe.mockClear();
+    await new RecipeService(undefined, undefined, moderation()).create('u1', {
+      ...BODY,
+      imageUrl: 'https://image.pollinations.ai/prompt/dal?seed=1&width=512&height=384',
+    });
+    expect(createManualRecipe.mock.calls[0]![1]).toMatchObject({
+      imageUrl: null,
+      imageStatus: 'PENDING',
+    });
+  });
+
+  it('an uploaded photo wins over "Generate with AI", and a plain save queues nothing', async () => {
+    createManualRecipe.mockClear();
+    vi.mocked(notifyRecipeImageQueued).mockClear();
+    const service = new RecipeService(undefined, undefined, moderation());
+
+    await service.create('u1', { ...BODY, imageUrl: '/uploads/me.jpg', generateImage: true });
+    await service.create('u1', { ...BODY, imageUrl: null });
+
+    for (const [, data] of createManualRecipe.mock.calls) {
+      expect(data).not.toHaveProperty('imageStatus');
+    }
+    expect(notifyRecipeImageQueued).not.toHaveBeenCalled();
   });
 
   it('update checks the text as it will be after the edit, with the recipe id', async () => {

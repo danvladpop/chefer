@@ -2,7 +2,9 @@ import { TRPCError } from '@trpc/server';
 import {
   favouriteRecipeRepository,
   followRepository,
+  mealPlanRepository,
   mealRatingRepository,
+  POLLINATIONS_IMAGE_HOST,
   recipeLineRepository,
   toIngredientsMirror,
   type CreateManualRecipeData,
@@ -19,6 +21,7 @@ import {
   safeCuratedPools,
 } from '../../lib/curated-recipes/index.js';
 import type { SafetyCheckable } from '../../lib/curated-recipes/safety.js';
+import { notifyRecipeImageQueued } from '../../lib/recipe-image-signal.js';
 import { moderationService, type ModerationService } from '../friends/moderation.service.js';
 import { socialAccessService } from '../friends/social-access.service.js';
 import {
@@ -43,9 +46,14 @@ import {
  * A manual save as the router passes it (plan-ingredient-catalog §6.2, §9):
  * catalog-aware lines, and typed nutrition the server only keeps under D4.
  */
-export type ManualRecipeInput = Omit<CreateManualRecipeData, 'ingredients' | 'nutritionInfo'> & {
+export type ManualRecipeInput = Omit<
+  CreateManualRecipeData,
+  'ingredients' | 'nutritionInfo' | 'imageStatus'
+> & {
   ingredients: SaveLineInput[];
   nutritionInfo?: TypedNutrition | undefined;
+  /** Web "Generate with AI": queue a generated image when no photo was picked (F3). */
+  generateImage?: boolean | undefined;
 };
 type UpdateManualRecipeInput = Partial<ManualRecipeInput>;
 
@@ -340,7 +348,19 @@ export class RecipeService {
       description: data.description,
     });
     // Origins are never taken from a create (only RecipeCopyService sets them).
-    const { originRecipeId: _o, originCreatorId: _c, ingredients, nutritionInfo, ...own } = data;
+    const {
+      originRecipeId: _o,
+      originCreatorId: _c,
+      generateImage,
+      ingredients,
+      nutritionInfo,
+      ...own
+    } = data;
+    // A retired Pollinations URL (an old web tab's "Generate with AI") is
+    // never stored: it becomes a queued generated image too.
+    const queueImage =
+      (generateImage === true && !own.imageUrl) ||
+      Boolean(own.imageUrl?.includes(POLLINATIONS_IMAGE_HOST));
     const prepared = await this.nutrition.prepareSave(
       userId,
       ingredients,
@@ -353,9 +373,11 @@ export class RecipeService {
         ...own,
         ingredients: toIngredientsMirror(prepared.lines),
         nutritionInfo: prepared.nutrition.perServing,
+        ...(queueImage && { imageUrl: null, imageStatus: 'PENDING' as const }),
       }),
       { lines: prepared.lines, nutrition: prepared.nutrition },
     );
+    if (queueImage) notifyRecipeImageQueued();
     return { ...recipe, lines: prepared.report };
   }
 
@@ -553,7 +575,13 @@ export class RecipeService {
     const searchPrefs = { ...ctx.prefs, dislikedIngredients: [] };
     const pools = safeCuratedPools(searchPrefs);
     const results = selectDiscoverRecipes(pools, filters, new Set(savedIds));
-    const visible = results.filter((r) => !ctx.hiddenRecipeIds.includes(r.id));
+    // F3: pool objects carry no generated image — the stored row's image
+    // (made by the image worker, replaced by the backfill) is what we show.
+    const rows = await mealPlanRepository.findRecipesByIds(results.map((r) => r.id));
+    const storedImage = new Map(rows.map((r) => [r.id, r.imageUrl]));
+    const visible = results
+      .filter((r) => !ctx.hiddenRecipeIds.includes(r.id))
+      .map((r) => (storedImage.has(r.id) ? { ...r, imageUrl: storedImage.get(r.id) ?? null } : r));
     // T-02.1: Discover rows get the same Checked chip as every other surface.
     if (!ctx.table.hasRules) return visible;
     // Bug fix: `DiscoverRecipeDto` is a SUMMARY shape — it carries neither

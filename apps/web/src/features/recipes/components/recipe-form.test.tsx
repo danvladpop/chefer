@@ -79,7 +79,6 @@ vi.mock('@/lib/trpc', async () => {
     trpc: {
       ingredients: catalogIngredientsMock(),
       recipe: {
-        aiImageUrl: { useQuery: () => ({ refetch: vi.fn(), isFetching: false }) },
         create: {
           useMutation: (options: { onSuccess?: (created: { id: string }) => void } = {}) => {
             createOptions.current = options;
@@ -291,6 +290,40 @@ describe('NewRecipePage accessibility', () => {
     expect(screen.queryByText('Recipe name is required.')).toBeNull();
     expect(name.getAttribute('aria-invalid')).toBeNull();
     expect(name.getAttribute('aria-describedby')).toBeNull();
+  });
+});
+
+describe('NewRecipePage "Generate with AI" (F3)', () => {
+  it('queues a generated image for after the save instead of fetching a preview', async () => {
+    render(<NewRecipePage />);
+    fireEvent.change(screen.getByLabelText(/Recipe Name/), { target: { value: 'Chicken' } });
+    await pickIngredient(1, 'chick', /Chicken breast, raw/);
+    fireEvent.change(screen.getByLabelText('Amount for ingredient 1'), {
+      target: { value: '200' },
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Generate with AI' }));
+    expect(screen.getByText(/made after you save/i)).toBeTruthy();
+
+    submit();
+    const sent = createMutate.mock.calls[0]?.[0] ?? {};
+    expect(sent['generateImage']).toBe(true);
+    expect(sent['imageUrl']).toBeUndefined();
+  });
+
+  it('removing the queued AI image sends no request for one', async () => {
+    render(<NewRecipePage />);
+    fireEvent.change(screen.getByLabelText(/Recipe Name/), { target: { value: 'Chicken' } });
+    await pickIngredient(1, 'chick', /Chicken breast, raw/);
+    fireEvent.change(screen.getByLabelText('Amount for ingredient 1'), {
+      target: { value: '200' },
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Generate with AI' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Remove image' }));
+
+    submit();
+    expect(createMutate.mock.calls[0]?.[0]).not.toHaveProperty('generateImage', true);
   });
 });
 

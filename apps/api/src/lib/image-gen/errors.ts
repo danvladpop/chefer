@@ -35,7 +35,7 @@ export class ImageStorageError extends Error {
  * The provider's DAILY free allowance is used up (Workers AI: 10,000
  * neurons/day, see ai/cloudflare-budget.ts). Unlike ImagenRateLimitError this
  * does not clear in seconds: the worker stops calling the provider until the
- * next UTC day and serves the free Pollinations fallback instead.
+ * next UTC day, and recipes wait in the queue (F3: no Pollinations fallback).
  */
 export class ImageQuotaExhaustedError extends Error {
   constructor(message = 'Image provider daily free allocation used up') {

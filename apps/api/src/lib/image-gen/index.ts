@@ -16,7 +16,6 @@ import type { IRecipeImageService, RecipeImageInput } from './types.js';
 // The worker references these types — keep them even if Imagen is no longer used.
 export { ImagenRateLimitError, ImagenContentFilterError } from './imagen.js';
 export { ImageQuotaExhaustedError, ImageStorageError } from './errors.js';
-export { recipeImageFallbackUrl } from './pollinations.js';
 export { CloudflareImageService } from './cloudflare.js';
 
 export type { IRecipeImageService, RecipeImageInput } from './types.js';
