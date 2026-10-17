@@ -416,12 +416,12 @@ the browser restore scroll position on back-navigation.
 Navigation components all read `src/features/nav/nav-items.ts`, the single source
 of truth for routes, through the active **mode** (`navFor(mode)`):
 
-| Component         | Role                                                                                                                                              |
-| ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `SideBar`         | Desktop rail (`lg`+): the `Food \| Gym` switch on top, then the tab bar's destinations, a divider, and the drawer's (one grouping on every shell) |
-| `BottomNav`       | Mobile tab bar — the mode's 4 primary destinations plus a More button (`< lg`)                                                                    |
-| `MobileNavDrawer` | Slide-over with the `Food \| Gym` switch, the mode's remaining destinations and the plan/upgrade footer                                           |
-| `TopHeader`       | Sticky header; carries a compact `Food \| Gym` switch below `lg`                                                                                  |
+| Component         | Role                                                                                                                                                  |
+| ----------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `SideBar`         | Desktop rail (`lg`+): the `Food \| Gym` switch on top, then the tab bar's destinations, a divider, and the drawer's (one grouping on every shell)     |
+| `BottomNav`       | Mobile tab bar — the mode's 4 primary destinations in `navFor(mode).tabBar` order (Food: `TAB_BAR_NAV_ITEMS`, Today in the middle) plus More (`< lg`) |
+| `MobileNavDrawer` | Slide-over with the `Food \| Gym` switch, the mode's remaining destinations and the plan/upgrade footer                                               |
+| `TopHeader`       | Sticky header; carries a compact `Food \| Gym` switch below `lg`                                                                                      |
 
 **Accessibility conventions (audit P2-7).** Every page renders its content inside
 `<main id="main" tabIndex={-1}>` (the dashboard shell, the auth layout, the
@@ -434,8 +434,8 @@ dashboard route segment that exports `metadata.title` (rendered through the root
 export metadata themselves, and a client `document.title` effect lost to Next's
 `<title>` on hard loads (F-X-1-1).
 
-**Food IA (P2-2 / P2-8, PM review §5).** The phone tab bar is **Today · Plan ·
-Shop · Cookbook · More**; More holds Progress, My weeks, Profile, Preferences.
+**Food IA (P2-2 / P2-8, PM review §5).** The phone tab bar is **Shop · Plan ·
+Today · Cookbook · More** (Today in the middle since owner feedback 2026-10-17, F4; the sidebar keeps Today first); More holds Progress, My weeks, Profile, Preferences.
 Today (`/dashboard`) absorbed the Tracker (`/tracker` lights Today via
 `alsoActiveFor`), Shop absorbed the Pantry (`/pantry` redirects to
 `/shopping-list?view=kitchen`), My weeks absorbed History (`/history`

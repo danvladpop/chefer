@@ -667,6 +667,7 @@ Changing a limit or moving a feature between tiers is an edit to that one file; 
 UpgradeButton (ONE shared surface; every touchpoint passes a `source`)
   sources: sidebar, mobile-drawer, meal-plan-banner, pool-exhaustion,
            shopping-list, preferences-locked, onboarding, profile-page, swap,
+           tier-row (the Free/Premium row atop Profile; mobile You has its own, F6/F7),
            chat-quota (the widget swaps its input for the shared surface when
            the API answers with X-Chat-Quota-Exhausted; upgrading re-enables
            the chat in place)
