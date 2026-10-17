@@ -377,6 +377,47 @@ describe('Import review — which ingredient needs data (F2, feedback 2026-10-17
     expect(announce).toHaveBeenCalledWith(expect.anything(), 'focus');
     announce.mockRestore();
   });
+
+  it('a linked row whose catalog data never arrived says so, and the status lands on it', async () => {
+    // `oil-id` is not in the catalog mock: offline, or the request failed.
+    withLines(
+      [
+        { name: 'rice', quantity: 200, unit: 'g' },
+        { name: 'olive oil', quantity: 10, unit: 'g' },
+      ],
+      [
+        linked('rice', 'g', 'rice-id', 'rice-white-dry'),
+        linked('olive oil', 'g', 'oil-id', 'olive-oil'),
+      ],
+    );
+    await openPreview();
+    expect(screen.getByTestId('video-draft-nutrition-status')).toHaveTextContent(
+      'Incomplete — 1 ingredient needs data',
+    );
+    expect(screen.getByTestId('video-draft-problem-1')).toHaveTextContent(
+      'Couldn’t load this ingredient’s nutrition — check your connection',
+    );
+    const announce = jest.spyOn(AccessibilityInfo, 'sendAccessibilityEvent');
+    await fireEvent.press(screen.getByTestId('video-draft-nutrition-status'));
+    expect(announce).toHaveBeenCalledTimes(1);
+    // The ref is the (mock) View carrying the hint.
+    const target = announce.mock.calls[0]?.[0] as unknown as { props: { testID?: string } };
+    expect(target.props.testID).toBe('video-draft-problem-1');
+    announce.mockRestore();
+  });
+
+  it('typing an amount of 0 marks the row, as the save rule does', async () => {
+    withLines(
+      [{ name: 'rice', quantity: 200, unit: 'g' }],
+      [linked('rice', 'g', 'rice-id', 'rice-white-dry')],
+    );
+    await openPreview();
+    await fireEvent.changeText(screen.getByTestId('video-draft-qty-0'), '0');
+    expect(screen.getByTestId('video-draft-problem-0')).toHaveTextContent('Enter an amount');
+    expect(screen.getByTestId('video-draft-nutrition-status')).toHaveTextContent(
+      'Incomplete — 1 ingredient needs data',
+    );
+  });
 });
 
 describe('Import review — editable everywhere (UX-REC-15)', () => {
