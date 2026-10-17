@@ -759,9 +759,16 @@ have` · `Switch back to Free`. The downgrade sheet names what you keep and
       bullets.
     - "Also included" opens unfolded (`pitch.showAllIncluded`).
     - Opting in is the usual `Turn on Premium`.
-  - **Premium (admins included).** It reads `Premium plan` ·
-    `Included · What you have`. It is status only and never pitches. A tap opens
-    Profile › Plan & Premium (mobile `/profile?section=plan`, web `#plan`).
+  - **Premium.** It reads `Premium plan` · `Included · What you have`. It is
+    status only and never pitches. A tap opens Profile › Plan & Premium (mobile
+    `/profile?section=plan`, web `#plan`).
+  - **Admin.** An admin has every feature without a Premium plan, and Profile
+    hides the plan card for them. Their row reads `Premium plan` ·
+    `Included with admin access` and does nothing on tap.
+  - **One rule for the tier.** `tierOf(user)` (`packages/utils/src/tier.ts`)
+    returns free, premium or admin. Mobile and web `useTier` read it, and so do
+    `useIsPremium` and the Profile tier badge. An admin whose plan is FREE
+    therefore reads `Premium` everywhere, never `Free plan`.
   - **Not a nudge.** It never opens on its own, has no dismiss, shows from the
     first session and sits outside the nudge cap. It renders nothing while the
     plan is loading, so a Premium user never sees "Free" flash.
