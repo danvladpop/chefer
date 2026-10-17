@@ -13,6 +13,8 @@ const m = vi.hoisted(() => ({
   previewCalls: 0,
   previewFails: false,
   mutations: {} as Record<string, ReturnType<typeof vi.fn>>,
+  search: 'week=0&day=2',
+  replace: vi.fn<[string], undefined>(),
 }));
 
 vi.mock('next/link', () => ({
@@ -23,8 +25,8 @@ vi.mock('next/link', () => ({
   ),
 }));
 vi.mock('next/navigation', () => ({
-  useRouter: () => ({ replace: vi.fn(), push: vi.fn() }),
-  useSearchParams: () => new URLSearchParams('week=0&day=2'),
+  useRouter: () => ({ replace: m.replace, push: vi.fn() }),
+  useSearchParams: () => new URLSearchParams(m.search),
 }));
 vi.mock('./loading', () => ({ default: () => null }));
 vi.mock('@/features/ai-consent/AiConsentProvider', () => ({
@@ -114,6 +116,7 @@ function planWith(meals: { type: string; recipe: ReturnType<typeof recipe> }[]) 
 beforeEach(() => {
   vi.clearAllMocks();
   m.mutations = {};
+  m.search = 'week=0&day=2';
   m.previewCalls = 0;
   m.previewFails = false;
   m.preview = null;
@@ -204,6 +207,42 @@ describe('Plan page — week options (FB7-11)', () => {
     expect(
       (await screen.findAllByText(/Couldn.t check your week just now/)).length,
     ).toBeGreaterThan(0);
+  });
+});
+
+// F1: the week arrows reset the day — the current week lands on today, any
+// other week on Monday — instead of carrying `?day` across weeks. (Wednesday.)
+describe('Plan page — week arrows pick the day (F1)', () => {
+  beforeEach(() => {
+    vi.useFakeTimers({ toFake: ['Date'], now: new Date(2026, 9, 7, 12, 0, 0) });
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+  const lastUrl = () => m.replace.mock.calls.at(-1)?.[0] ?? '';
+
+  it('Next week selects Monday, whatever day was open', () => {
+    m.search = 'week=0&day=4';
+    render(<MealPlanPage />);
+    fireEvent.click(screen.getByLabelText('Next week'));
+    expect(lastUrl()).toContain('week=1');
+    expect(lastUrl()).toContain('day=0');
+  });
+
+  it('back to This week selects today', () => {
+    m.search = 'week=1&day=5';
+    render(<MealPlanPage />);
+    fireEvent.click(screen.getByLabelText('Previous week'));
+    expect(lastUrl()).toContain('week=0');
+    expect(lastUrl()).toContain('day=2');
+  });
+
+  it('a past week selects Monday', () => {
+    m.search = 'week=0&day=2';
+    render(<MealPlanPage />);
+    fireEvent.click(screen.getByLabelText('Previous week'));
+    expect(lastUrl()).toContain('week=-1');
+    expect(lastUrl()).toContain('day=0');
   });
 });
 

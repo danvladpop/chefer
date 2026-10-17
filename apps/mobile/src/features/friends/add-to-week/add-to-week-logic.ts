@@ -1,5 +1,5 @@
 import { FRIENDS_COPY } from '@chefer/types';
-import { getWeekStartDate } from '@chefer/utils';
+import { defaultDay, getWeekStartDate, localWeekday } from '@chefer/utils';
 import { friendsErrorData } from '../api/friends-errors';
 
 // ─── Add to my week: the client-side rules (UX §9.5, PRD FR-17.4) ─────────────
@@ -16,10 +16,8 @@ export const MEAL_ORDER: readonly MealType[] = ['breakfast', 'lunch', 'dinner', 
 /** Thursday (Mon-first index 3). */
 export const NEXT_WEEK_FROM_WEEKDAY = 3;
 
-/** Today's Mon-first weekday in the viewer's local time. */
-export function localWeekday(now: Date = new Date()): number {
-  return (now.getDay() + 6) % 7;
-}
+// One rule for "today / Monday" lives in @chefer/utils (shared with the web).
+export { defaultDay, localWeekday };
 
 export function canPickNextWeek(now: Date = new Date()): boolean {
   return localWeekday(now) >= NEXT_WEEK_FROM_WEEKDAY;
@@ -27,11 +25,6 @@ export function canPickNextWeek(now: Date = new Date()): boolean {
 
 export function isPastDay(weekOffset: number, dayOfWeek: number, now: Date = new Date()): boolean {
   return weekOffset === 0 && dayOfWeek < localWeekday(now);
-}
-
-/** Today for this week, Monday for next week. */
-export function defaultDay(weekOffset: number, now: Date = new Date()): number {
-  return weekOffset === 0 ? localWeekday(now) : 0;
 }
 
 /** The day of the month of `dayOfWeek` in that week (`Tue 29`). */

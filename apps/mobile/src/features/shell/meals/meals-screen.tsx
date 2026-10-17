@@ -37,6 +37,7 @@ import {
 import {
   aiConsentRequiredFor,
   canRemoveSlot,
+  defaultDay,
   defaultWeekOffset,
   formatDateRange,
   formatKcal,
@@ -693,7 +694,12 @@ export function MealsScreen() {
           accessibilityLabel="Week"
           options={WEEK_OPTIONS}
           value={String(weekOffset) as '0' | '1'}
-          onChange={(value) => setWeekOffset(Number(value) as WeekOffset)}
+          onChange={(value) => {
+            // F1: this week lands on today, any other week on Monday.
+            const next = Number(value) as WeekOffset;
+            setWeekOffset(next);
+            setSelectedDay(defaultDay(next));
+          }}
         />
 
         <Stagger enabled={firstEntrance}>
