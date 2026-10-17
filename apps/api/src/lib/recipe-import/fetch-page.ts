@@ -1,10 +1,13 @@
 import { TRPCError } from '@trpc/server';
-import { assertSafeRemoteUrl } from './ssrf-guard.js';
+import { Agent, fetch, type Response } from 'undici';
+import { assertSafeRemoteUrl, guardedLookup, SSRF_BLOCKED_CODE } from './ssrf-guard.js';
 
 // ─── Guarded page fetcher (F5 recipe import) ─────────────────────────────────
-// Wraps global fetch with the SSRF guard, a hard byte cap enforced WHILE
+// Wraps undici fetch with the SSRF guard, a hard byte cap enforced WHILE
 // streaming (a Content-Length header can lie), a total timeout, and manual
-// redirect handling so every hop is re-validated against the guard.
+// redirect handling so every hop is re-validated against the guard. Sockets
+// connect through `guardedLookup`, so the address actually dialled is checked
+// too — not just the one `assertSafeRemoteUrl` saw (DNS rebinding).
 
 const MAX_HTML_BYTES = 1024 * 1024; // 1 MB
 const FETCH_TIMEOUT_MS = 10_000;
@@ -13,9 +16,20 @@ const USER_AGENT = 'CheferBot/1.0 (recipe import; +https://chefer.app)';
 
 const importError = (message: string): TRPCError => new TRPCError({ code: 'BAD_REQUEST', message });
 
+/** Every outbound import request goes through this pinned-lookup dispatcher. */
+const guardedDispatcher = new Agent({ connect: { lookup: guardedLookup } });
+
+/** True when a fetch failed because `guardedLookup` refused the address. */
+function isSsrfBlocked(err: unknown): boolean {
+  for (let e: unknown = err; e instanceof Error; e = e.cause) {
+    if ((e as NodeJS.ErrnoException).code === SSRF_BLOCKED_CODE) return true;
+  }
+  return false;
+}
+
 /** Reads a response body up to `maxBytes`, throwing when the cap is hit. */
 async function readBodyCapped(response: Response, maxBytes: number): Promise<string> {
-  // Node's fetch types the body stream loosely — pin the chunk type.
+  // undici types the body stream loosely — pin the chunk type.
   const reader = response.body?.getReader() as ReadableStreamDefaultReader<Uint8Array> | undefined;
   if (!reader) return '';
   const chunks: Uint8Array[] = [];
@@ -59,9 +73,10 @@ export async function fetchRecipePage(rawUrl: string): Promise<FetchedPage> {
 
     let response: Response;
     try {
-      response = await fetch(url, {
+      response = await fetch(url.href, {
         redirect: 'manual',
         signal,
+        dispatcher: guardedDispatcher,
         headers: {
           'user-agent': USER_AGENT,
           accept: 'text/html,application/xhtml+xml;q=0.9,*/*;q=0.1',
@@ -72,6 +87,7 @@ export async function fetchRecipePage(rawUrl: string): Promise<FetchedPage> {
       if (err instanceof Error && err.name === 'TimeoutError') {
         throw importError('That page took too long to respond (10 s limit).');
       }
+      if (isSsrfBlocked(err)) throw importError('That address cannot be imported.');
       throw importError('That page could not be fetched.');
     }
 
@@ -114,10 +130,11 @@ export async function headCheckImage(rawUrl: string): Promise<boolean> {
     let current = rawUrl;
     for (let hop = 0; hop < 2; hop++) {
       const url = await assertSafeRemoteUrl(current);
-      const response = await fetch(url, {
+      const response = await fetch(url.href, {
         method: 'HEAD',
         redirect: 'manual',
         signal,
+        dispatcher: guardedDispatcher,
         headers: { 'user-agent': USER_AGENT },
       });
       if (response.status >= 300 && response.status < 400) {
