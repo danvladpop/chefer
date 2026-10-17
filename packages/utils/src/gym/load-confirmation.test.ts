@@ -13,6 +13,12 @@ const newId = () => `00000000-0000-4000-8000-${String(++n).padStart(12, '0')}`;
 
 const AT = '2026-10-17T18:00:00.000Z';
 
+function only<T>(xs: readonly T[]): T {
+  const x = xs[0];
+  if (x === undefined) throw new Error('expected at least one item');
+  return x;
+}
+
 function planned(): WorkoutSessionDoc {
   return startSession({
     id: newId(),
@@ -60,18 +66,18 @@ function finish(doc: WorkoutSessionDoc): WorkoutSessionDoc {
 describe('progression guard', () => {
   it('a Done tick with unedited numbers is stored as load not confirmed', () => {
     const doc = planned();
-    const se = doc.exercises[0]!;
+    const se = only(doc.exercises);
     const ticked = workoutReducer(doc, { type: 'tickExercise', seId: se.id, done: true, at: AT });
-    const sets = ticked.exercises[0]!.sets;
+    const sets = only(ticked.exercises).sets;
     expect(sets.every((s) => s.completedAt === AT)).toBe(true);
     expect(sets.every((s) => !isLoadConfirmed(s))).toBe(true);
-    expect(isDoneAsPlanned(ticked.exercises[0]!)).toBe(true);
-    expect(hasConfirmedLoad(ticked.exercises[0]!)).toBe(false);
+    expect(isDoneAsPlanned(only(ticked.exercises))).toBe(true);
+    expect(hasConfirmedLoad(only(ticked.exercises))).toBe(false);
   });
 
   it('progression ignores an exercise ticked as planned', () => {
     const doc = planned();
-    const se = doc.exercises[0]!;
+    const se = only(doc.exercises);
     const done = finish(
       workoutReducer(doc, { type: 'tickExercise', seId: se.id, done: true, at: AT }),
     );
@@ -80,9 +86,9 @@ describe('progression guard', () => {
 
   it('editing the numbers confirms the load, so progression learns from it', () => {
     const doc = planned();
-    const se = doc.exercises[0]!;
+    const se = only(doc.exercises);
     let next = workoutReducer(doc, { type: 'tickExercise', seId: se.id, done: true, at: AT });
-    for (const s of next.exercises[0]!.sets) {
+    for (const s of only(next.exercises).sets) {
       next = workoutReducer(next, {
         type: 'editSet',
         seId: se.id,
@@ -92,20 +98,20 @@ describe('progression guard', () => {
       });
     }
     const done = finish(next);
-    expect(done.exercises[0]!.sets.every(isLoadConfirmed)).toBe(true);
-    expect(isDoneAsPlanned(done.exercises[0]!)).toBe(false);
+    expect(only(done.exercises).sets.every(isLoadConfirmed)).toBe(true);
+    expect(isDoneAsPlanned(only(done.exercises))).toBe(false);
     expect(exposuresFromSession(done).map((e) => e.exerciseId)).toEqual(['barbell-bench-press']);
   });
 
   it('one unedited working set keeps the whole exercise out of progression', () => {
     const doc = planned();
-    const se = doc.exercises[0]!;
+    const se = only(doc.exercises);
     let next = workoutReducer(doc, { type: 'tickExercise', seId: se.id, done: true, at: AT });
-    const first = next.exercises[0]!.sets[0]!;
+    const firstSet = only(only(next.exercises).sets);
     next = workoutReducer(next, {
       type: 'editSet',
       seId: se.id,
-      setId: first.id,
+      setId: firstSet.id,
       reps: 12,
       at: AT,
     });
@@ -114,7 +120,7 @@ describe('progression guard', () => {
 
   it('a "Track my progress" tick (completeSet) stays confirmed', () => {
     let doc = planned();
-    const se = doc.exercises[0]!;
+    const se = only(doc.exercises);
     for (const s of se.sets) {
       doc = workoutReducer(doc, { type: 'completeSet', seId: se.id, setId: s.id, at: AT });
     }
@@ -123,7 +129,7 @@ describe('progression guard', () => {
 
   it('unticking clears both the tick and the unconfirmed mark', () => {
     const doc = planned();
-    const se = doc.exercises[0]!;
+    const se = only(doc.exercises);
     const ticked = workoutReducer(doc, { type: 'tickExercise', seId: se.id, done: true, at: AT });
     const unticked = workoutReducer(ticked, {
       type: 'tickExercise',
@@ -131,18 +137,18 @@ describe('progression guard', () => {
       done: false,
       at: AT,
     });
-    expect(unticked.exercises[0]!.sets.every((s) => s.completedAt === null)).toBe(true);
-    expect(unticked.exercises[0]!.sets.every((s) => !('loadConfirmed' in s))).toBe(true);
+    expect(only(unticked.exercises).sets.every((s) => s.completedAt === null)).toBe(true);
+    expect(only(unticked.exercises).sets.every((s) => !('loadConfirmed' in s))).toBe(true);
   });
 
   it('a prefilled weight never sets a PR', () => {
     const doc = planned();
-    const se = doc.exercises[0]!;
+    const se = only(doc.exercises);
     const done = finish(
       workoutReducer(doc, { type: 'tickExercise', seId: se.id, done: true, at: AT }),
     );
     const summary: SessionSummaryDto = toSessionSummary(done);
-    expect(summary.exercises[0]!.sets.every((s) => s.loadConfirmed === false)).toBe(true);
+    expect(only(summary.exercises).sets.every((s) => s.loadConfirmed === false)).toBe(true);
     expect(collectPrs([summary])).toEqual([]);
   });
 });

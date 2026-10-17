@@ -38,7 +38,7 @@ function setup(
     get: vi.fn().mockResolvedValue(profile),
     save: vi.fn().mockResolvedValue(profile),
   };
-  return { svc: new MyWeekService(routines as never, profiles as never), routines, profiles };
+  return { svc: new MyWeekService(routines as never, profiles), routines, profiles };
 }
 
 describe('MyWeekService (ADR 0001: one active routine)', () => {

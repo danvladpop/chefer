@@ -442,7 +442,7 @@ export class GymProfileService {
   ): Promise<GymBootstrap> {
     const existing = await this.repo.findByUserId(userId);
     const inventory =
-      existing && existing.unit === input.unit
+      existing?.unit === input.unit
         ? {
             barWeightKg: existing.barWeightKg,
             platePairsKg: existing.platePairsKg,

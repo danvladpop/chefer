@@ -280,5 +280,5 @@ export function workoutTypeOf(session: {
   if (session.workoutType) return session.workoutType;
   if (!isLoggedWorkout(session)) return null;
   const first = session.exercises[0]?.exerciseId;
-  return (first && TYPE_BY_LOGGED_EXERCISE.get(first)) || 'OTHER';
+  return (first === undefined ? undefined : TYPE_BY_LOGGED_EXERCISE.get(first)) ?? 'OTHER';
 }
