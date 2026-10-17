@@ -25,7 +25,12 @@ env:
       visible:
         id: 'home-title'
     commands:
-      - tapOn: 'More(, .*)?'
+      # Open More by link: tapping its tab right after launch is the known flaky step
+      # (the tap reports done and nothing opens, Android especially).
+      - openLink: chefer-dev:///more
+      - tapOn:
+          text: 'Open'
+          optional: true
       - scrollUntilVisible:
           element:
             id: 'logout-button'

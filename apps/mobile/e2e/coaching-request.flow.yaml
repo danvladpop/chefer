@@ -26,6 +26,9 @@ env:
       visible:
         id: 'home-title'
     commands:
+      # Right after launch the tab bar can still be settling (Android): a tap then lands nowhere.
+      - waitForAnimationToEnd:
+          timeout: 5000
       - tapOn: '(More|You)(, .*)?'
       - scrollUntilVisible:
           element:

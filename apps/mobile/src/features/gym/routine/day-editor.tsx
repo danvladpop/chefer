@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
-import { Pressable, useWindowDimensions, View, type TextInput } from 'react-native';
+import { Platform, Pressable, useWindowDimensions, View, type TextInput } from 'react-native';
 import Animated, { FadeIn, FadeOut, LinearTransition } from 'react-native-reanimated';
 import { elevation } from '@chefer/tokens';
 import { COACHING_COPY, COACHING_LIMITS, type ExerciseMeta } from '@chefer/types';
@@ -82,6 +82,9 @@ export type DayEditorCoaching =
       renderNext?: (exercise: RoutineExerciseDraft) => ReactNode;
     }
   | { role: 'client'; trainerName: string };
+
+/** Rows animate their reflow only where Reanimated's layout transition is reliable (see ExerciseRow). */
+const ROW_LAYOUT_ANIMATED = Platform.OS === 'ios';
 
 /** "{n} sets · {min}–{max} reps · {rest} s rest" */
 export function exerciseSummary(ex: RoutineExerciseDraft): string {
@@ -219,7 +222,11 @@ export function ExerciseRow({
   return (
     <Animated.View
       testID={testIDBase}
-      layout={LinearTransition.duration(layoutMs)}
+      // The row reflow animates on iOS only: on Android a LinearTransition row whose day card is pushed down by
+      // an earlier row growing (expand, or the trainer's next-session panel loading) keeps its old
+      // position and is drawn over the next day (seen on Pixel_8, 2026-10-17). Android reflows
+      // without the animation instead.
+      layout={ROW_LAYOUT_ANIMATED ? LinearTransition.duration(layoutMs) : undefined}
       style={expanded ? { boxShadow: elevation.e1 } : undefined}
       className={cn(
         'rounded-control border border-separator bg-surface',

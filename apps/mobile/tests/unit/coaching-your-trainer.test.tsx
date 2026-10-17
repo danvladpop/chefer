@@ -58,7 +58,10 @@ describe('Your trainer', () => {
     await settle();
     expect(screen.getByText(COACHING_COPY.request.pending('Ana'))).toBeTruthy();
     accepted = true; // Ana accepted on her phone.
-    await act(async () => refocus());
+    await act(() => {
+      refocus();
+      return Promise.resolve();
+    });
     await settle();
     expect(screen.getByTestId('your-trainer-summary')).toHaveTextContent(
       'Coached by Ana since 2 Oct',
