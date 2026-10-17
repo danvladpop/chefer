@@ -246,6 +246,38 @@ describe('Plan page — week arrows pick the day (F1)', () => {
   });
 });
 
+// F1: with no `?day`, the day is `defaultDay(week)` — Monday for next week,
+// today for this one — so a Friday-evening cold start (no params) or a plain
+// `?week=1` link doesn't open next week on Friday.
+describe('Plan page — default day without ?day (F1)', () => {
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+  const dayShown = () =>
+    screen.getAllByRole('tab').findIndex((tab) => tab.getAttribute('aria-selected') === 'true');
+
+  it('?week=1 with no ?day shows Monday as the selected day', () => {
+    vi.useFakeTimers({ toFake: ['Date'], now: new Date(2026, 9, 7, 12, 0, 0) });
+    m.search = 'week=1';
+    render(<MealPlanPage />);
+    expect(dayShown()).toBe(0);
+  });
+
+  it('a Friday-evening cold start (next week opens) shows Monday', () => {
+    vi.useFakeTimers({ toFake: ['Date'], now: new Date(2026, 9, 9, 16, 0, 0) });
+    m.search = '';
+    render(<MealPlanPage />);
+    expect(dayShown()).toBe(0);
+  });
+
+  it('this week with no ?day still shows today', () => {
+    vi.useFakeTimers({ toFake: ['Date'], now: new Date(2026, 9, 7, 12, 0, 0) });
+    m.search = 'week=0';
+    render(<MealPlanPage />);
+    expect(dayShown()).toBe(2);
+  });
+});
+
 describe('Plan page — side dishes (FB7-04)', () => {
   it('two lunches read as ONE meal: a header with the count, main, a +side card and a total', () => {
     render(<MealPlanPage />);

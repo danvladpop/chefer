@@ -1,5 +1,12 @@
 import { FRIENDS_COPY } from '@chefer/types';
-import { defaultDay, getWeekStartDate, localWeekday } from '@chefer/utils';
+import {
+  canPickNextWeek,
+  dayOfMonth,
+  defaultDay,
+  isPastDay,
+  localWeekday,
+  NEXT_WEEK_FROM_WEEKDAY,
+} from '@chefer/utils';
 import { friendsErrorData } from '../api/friends-errors';
 
 // ─── Add to my week: the client-side rules (UX §9.5, PRD FR-17.4) ─────────────
@@ -13,26 +20,9 @@ import { friendsErrorData } from '../api/friends-errors';
 export type MealType = 'breakfast' | 'lunch' | 'dinner' | 'snack';
 export const MEAL_ORDER: readonly MealType[] = ['breakfast', 'lunch', 'dinner', 'snack'];
 
-/** Thursday (Mon-first index 3). */
-export const NEXT_WEEK_FROM_WEEKDAY = 3;
-
-// One rule for "today / Monday" lives in @chefer/utils (shared with the web).
-export { defaultDay, localWeekday };
-
-export function canPickNextWeek(now: Date = new Date()): boolean {
-  return localWeekday(now) >= NEXT_WEEK_FROM_WEEKDAY;
-}
-
-export function isPastDay(weekOffset: number, dayOfWeek: number, now: Date = new Date()): boolean {
-  return weekOffset === 0 && dayOfWeek < localWeekday(now);
-}
-
-/** The day of the month of `dayOfWeek` in that week (`Tue 29`). */
-export function dayOfMonth(weekOffset: number, dayOfWeek: number, now: Date = new Date()): number {
-  const d = getWeekStartDate(weekOffset, now);
-  d.setDate(d.getDate() + dayOfWeek);
-  return d.getDate();
-}
+// The pure day rules (Thursday gate, past days, "today / Monday") live in
+// @chefer/utils, shared with the web.
+export { canPickNextWeek, dayOfMonth, defaultDay, isPastDay, localWeekday, NEXT_WEEK_FROM_WEEKDAY };
 
 export type SlotRow = {
   key: string;
