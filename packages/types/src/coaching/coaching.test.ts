@@ -230,9 +230,12 @@ describe('copy', () => {
       else if (v && typeof v === 'object') Object.values(v).forEach(walk);
     };
     walk(COACHING_COPY);
+    // The one deliberate mention (PRD 2026-10 §4.1): turning on Trainer tools also turns on a private
+    // Following profile, and the trainer is told so before they agree.
+    const namesFollowing = new Set<string>([COACHING_COPY.trainerProfile.findableNote]);
     for (const s of strings) {
       expect(s).not.toMatch(/undefined|NaN|\[object|\{\w+\}/);
-      expect(s).not.toMatch(/\bFollowing\b|\bfriends?\b/i);
+      if (!namesFollowing.has(s)) expect(s).not.toMatch(/\bFollowing\b|\bfriends?\b/i);
     }
   });
 
@@ -256,11 +259,15 @@ describe('limits and retention (counsel to confirm the retention numbers)', () =
       invitesPerDay: 50,
       previewPerHour: 30,
       joinPerHour: 10,
+      // Phase 1 gaps (PRD 2026-10 §4.1)
+      gymLineMaxChars: 60,
+      requestTtlDays: 14,
     });
     expect(COACHING_RETENTION).toEqual({
       endedLinkMonths: 24,
       hiddenNoteDays: 30,
       inviteAfterExpiryDays: 30,
+      requestAfterAnswerDays: 30,
       clientExportIncludesTrainerNotes: false,
     });
   });
