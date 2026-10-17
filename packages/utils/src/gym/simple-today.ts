@@ -162,3 +162,20 @@ export function startSimpleWorkout(input: {
     workoutType: input.workoutType,
   };
 }
+
+/**
+ * Whether "Keep it simple" applies: the `simpleTraining` flag is on AND the
+ * profile chose SIMPLE. With the flag off every profile gets "Track my
+ * progress" (a dark launch never strands a SIMPLE tester's data).
+ */
+export function isSimpleTraining(
+  profile: { trainingStyle?: 'SIMPLE' | 'PROGRESSIVE' | undefined } | null | undefined,
+  flags: { simpleTraining?: boolean | undefined } | null | undefined,
+): boolean {
+  return flags?.simpleTraining === true && profile?.trainingStyle === 'SIMPLE';
+}
+
+/** Device-local key for "Skip" on today's planned workout (one per day). */
+export function simpleSkipKey(localDate: string): string {
+  return `chefer.gym.simple-skip.${localDate}`;
+}

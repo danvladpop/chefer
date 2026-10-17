@@ -2,7 +2,13 @@ import { describe, expect, it } from 'vitest';
 import type { RoutineDto, SessionSummaryDto, StreakInfo } from '@chefer/types';
 import { buildLoggedWorkoutDoc } from './logged-workout';
 import { toSessionSummary } from './session';
-import { lastWorkoutType, simpleToday, startSimpleWorkout, workoutMinutes } from './simple-today';
+import {
+  isSimpleTraining,
+  lastWorkoutType,
+  simpleToday,
+  startSimpleWorkout,
+  workoutMinutes,
+} from './simple-today';
 import { workoutReducer } from './workout-reducer';
 
 const TUESDAY = '2026-10-13';
@@ -106,5 +112,17 @@ describe('startSimpleWorkout', () => {
     const done = workoutReducer(doc, { type: 'finish', at: `${TUESDAY}T18:46:00.000Z` });
     expect(done.status).toBe('COMPLETED');
     expect(workoutMinutes(toSessionSummary(done))).toBe(46);
+  });
+});
+
+describe('isSimpleTraining', () => {
+  it('needs both the flag and a SIMPLE profile', () => {
+    expect(isSimpleTraining({ trainingStyle: 'SIMPLE' }, { simpleTraining: true })).toBe(true);
+    expect(isSimpleTraining({ trainingStyle: 'SIMPLE' }, { simpleTraining: false })).toBe(false);
+    expect(isSimpleTraining({ trainingStyle: 'PROGRESSIVE' }, { simpleTraining: true })).toBe(
+      false,
+    );
+    expect(isSimpleTraining({}, { simpleTraining: true })).toBe(false);
+    expect(isSimpleTraining(null, null)).toBe(false);
   });
 });
