@@ -126,6 +126,13 @@ env:
 - tapOn:
     id: 'routine-editor-day-.*-exercise-.*-toggle'
     index: 0
+# The note field opens below the fold, under the sticky save bar (V2 restyle):
+# bring it to the middle of the screen first.
+- scrollUntilVisible:
+    element:
+      id: 'routine-editor-day-.*-exercise-.*-trainer-note-input'
+    direction: DOWN
+    centerElement: true
 - tapOn:
     id: 'routine-editor-day-.*-exercise-.*-trainer-note-input'
     index: 0

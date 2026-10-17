@@ -9,9 +9,19 @@ import { settle } from './trainer-fixtures';
 
 // WP-18 lane D: Profile → Your trainer with Leave (spec §2.3 step 5, §2.6).
 
-jest.mock('expo-router', () => ({
-  router: { push: jest.fn(), back: jest.fn(), replace: jest.fn(), canGoBack: () => true },
-}));
+// `useFocusEffect` runs on mount; `refocus()` runs the latest callback again, as returning to the screen does.
+const focus: { run: (() => void) | null } = { run: null };
+const refocus = () => focus.run?.();
+jest.mock('expo-router', () => {
+  const { useEffect } = jest.requireActual<typeof import('react')>('react');
+  return {
+    router: { push: jest.fn(), back: jest.fn(), replace: jest.fn(), canGoBack: () => true },
+    useFocusEffect: (cb: () => void) => {
+      focus.run = cb;
+      useEffect(cb, [cb]);
+    },
+  };
+});
 jest.mock('@expo/vector-icons', () => ({ Ionicons: () => null }));
 
 const COACHED = {
@@ -29,6 +39,32 @@ beforeEach(() => {
 afterEach(() => jest.restoreAllMocks());
 
 describe('Your trainer', () => {
+  it('coming back to the screen re-reads the status: an accepted request is not shown as still waiting', async () => {
+    let accepted = false;
+    const pending = {
+      trainer: null,
+      request: {
+        id: 'r1',
+        trainer: { id: 't1', name: 'Ana' },
+        createdAt: '2026-10-17T09:00:00.000Z',
+        expiresAt: '2026-10-31T09:00:00.000Z',
+      },
+      stopped: null,
+    };
+    await renderWithTrpc(<YourTrainerRoute />, {
+      ...ON,
+      'coaching.status': () => (accepted ? { ...COACHED, request: null } : pending),
+    });
+    await settle();
+    expect(screen.getByText(COACHING_COPY.request.pending('Ana'))).toBeTruthy();
+    accepted = true; // Ana accepted on her phone.
+    await act(async () => refocus());
+    await settle();
+    expect(screen.getByTestId('your-trainer-summary')).toHaveTextContent(
+      'Coached by Ana since 2 Oct',
+    );
+  });
+
   it('shows who, since when, what they see and can do', async () => {
     await renderWithTrpc(<YourTrainerRoute />, { ...ON, 'coaching.status': () => COACHED });
     await settle();

@@ -110,12 +110,13 @@ env:
 - tapOn:
     id: 'coaching-find-search'
 - inputText: ${output.trainerName}
+# On iOS the result row is ONE accessible element: its label is
+# "<name>, Trainer, Iron Gym, Cluj" (the text fields alone are not exposed).
 - extendedWaitUntil:
-    visible: '${output.trainerName}'
+    visible: '${output.trainerName}, Trainer, Iron Gym, Cluj'
     timeout: 15000
-- assertVisible: 'Iron Gym, Cluj'
 - takeScreenshot: coaching-find
-- tapOn: '${output.trainerName}'
+- tapOn: '${output.trainerName}, Trainer, Iron Gym, Cluj'
 
 # ── The trainer's card → Ask to coach me → consent ───────────────────────────
 - extendedWaitUntil:
@@ -152,6 +153,12 @@ env:
     env:
       API_URL: ${API_URL}
       T_TOKEN: ${output.tToken}
+# Leave Your trainer and come back, as the client would: the screen re-reads the
+# status on focus (a deep link to the screen that is already open does not re-focus it).
+- openLink: chefer-dev:///coaching/find
+- tapOn:
+    text: 'Open'
+    optional: true
 - openLink: chefer-dev:///coaching
 - tapOn:
     text: 'Open'

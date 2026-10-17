@@ -1,6 +1,6 @@
-import { useState } from 'react';
+import { useCallback, useState } from 'react';
 import { ActivityIndicator, RefreshControl, ScrollView, View } from 'react-native';
-import { router } from 'expo-router';
+import { router, useFocusEffect } from 'expo-router';
 import { COACHING_COPY, type CoachingRequestDto } from '@chefer/types';
 import {
   Button,
@@ -89,6 +89,13 @@ export function YourTrainerScreen() {
   const online = useIsOnline();
   const snackbar = useSnackbar();
   const status = trpc.coaching.status.useQuery(undefined, { enabled, retry: false });
+  // The trainer may have answered a request, or ended the coaching, since the last visit:
+  // never show a cached "Waiting for Ana to answer" when the screen comes back into view.
+  useFocusEffect(
+    useCallback(() => {
+      if (enabled) void utils.coaching.status.invalidate();
+    }, [enabled, utils]),
+  );
   const [confirming, setConfirming] = useState(false);
   const [offlineError, setOfflineError] = useState(false);
   const leave = trpc.coaching.leave.useMutation({

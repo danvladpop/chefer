@@ -16,6 +16,10 @@ import { settle } from './trainer-fixtures';
 jest.mock('expo-router', () => ({
   router: { push: jest.fn(), back: jest.fn(), replace: jest.fn(), canGoBack: () => true },
   useLocalSearchParams: () => ({ trainerId: 'ctrainer-ana' }),
+  useFocusEffect: (cb: () => void) => {
+    const { useEffect } = jest.requireActual<typeof import('react')>('react');
+    useEffect(cb, [cb]);
+  },
 }));
 jest.mock('@expo/vector-icons', () => ({ Ionicons: () => null }));
 
