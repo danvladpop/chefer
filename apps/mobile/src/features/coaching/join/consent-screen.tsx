@@ -9,6 +9,12 @@ import { COACHING_MOBILE_COPY } from '../copy';
 // web page renders the same strings). Do not reword here.
 
 export type ConsentScreenProps = {
+  /**
+   * `join` (an invite link: "Ana wants to coach you in Chefer.") or `request` (Find a trainer → "Ask to
+   * coach me": "Ask Ana to coach you?", "Allow and send request", PRD 2026-10 §4.1). The legal lines
+   * between are the same COACHING_SHARING text either way.
+   */
+  mode?: 'join' | 'request';
   trainerName: string;
   /** The client's current trainer, when joining means switching. */
   currentTrainerName: string | null;
@@ -34,6 +40,7 @@ function Bullets({ lines, testID }: { lines: readonly string[]; testID: string }
 }
 
 export function ConsentScreen({
+  mode = 'join',
   trainerName,
   currentTrainerName,
   busy,
@@ -43,6 +50,13 @@ export function ConsentScreen({
   onDecline,
 }: ConsentScreenProps) {
   const copy = COACHING_COPY.consent;
+  const request = COACHING_COPY.request;
+  const asking = mode === 'request';
+  const allowLabel = asking
+    ? request.sendConsent
+    : currentTrainerName
+      ? copy.switchTo(trainerName)
+      : copy.allow;
   return (
     <KeyboardAwareScrollView
       testID="coaching-consent"
@@ -53,7 +67,7 @@ export function ConsentScreen({
         accessibilityRole="header"
         className="text-title2 font-bold text-label"
       >
-        {copy.title(trainerName)}
+        {asking ? request.askTitle(trainerName) : copy.title(trainerName)}
       </Text>
       <CoachingCard className="gap-4">
         <View className="gap-1.5">
@@ -85,9 +99,16 @@ export function ConsentScreen({
         {currentTrainerName ? (
           <View className="rounded-control bg-brand-tint px-3 py-2">
             <Text testID="coaching-switch-line" className="text-subhead font-semibold text-label">
-              {copy.switchLine(currentTrainerName)}
+              {asking
+                ? request.switchNote(currentTrainerName, trainerName)
+                : copy.switchLine(currentTrainerName)}
             </Text>
           </View>
+        ) : null}
+        {asking ? (
+          <Text testID="coaching-consent-no-follow" className="text-subhead text-label-secondary">
+            {request.noFollow}
+          </Text>
         ) : null}
       </CoachingCard>
       {error ? (
@@ -105,7 +126,7 @@ export function ConsentScreen({
         </Text>
       ) : null}
       <Button testID="coaching-consent-allow" loading={busy} disabled={offline} onPress={onAllow}>
-        {currentTrainerName ? copy.switchTo(trainerName) : copy.allow}
+        {allowLabel}
       </Button>
       <Button
         testID="coaching-consent-decline"

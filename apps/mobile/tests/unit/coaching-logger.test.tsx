@@ -160,6 +160,22 @@ describe('buildTrainerLines', () => {
     );
   });
 
+  it('a target set by a former trainer reads "Ana (former trainer)" (PRD 2026-10 §4.3)', () => {
+    const former = progression({
+      override: {
+        weightKg: 62.5,
+        reps: [6, 6, 6],
+        at: '2026-10-02T09:00:00.000Z',
+        setByName: 'Ana',
+        setByFormer: true,
+      },
+    });
+    const lines = buildTrainerLines(bootstrapWith({ progressions: [former] }), 'd1');
+    expect(lines?.setByFor(sessionExercise({ prescription: OVERRIDE }))).toBe(
+      'Ana (former trainer)',
+    );
+  });
+
   it('a client-set target carries no setByName: nothing is attributed', () => {
     const own = progression({
       override: { weightKg: 62.5, reps: [6, 6, 6], at: '2026-10-02T09:00:00.000Z' },

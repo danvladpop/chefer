@@ -1,0 +1,162 @@
+# Trainer coaching, Find a trainer (PRD 2026-10 §4.1): a `runScript` setup registers a trainer with a unique
+# name and a "Gym / city" line (tools on, so findable) and a client with gym setup done; the flow signs in as
+# the client, opens Your trainer (chefer-dev:///coaching), taps Find a trainer, searches the name, opens the
+# trainer's card, asks to be coached through the consent screen (request wording), sees the pending request,
+# then the trainer accepts over HTTP and Your trainer reads "Coached by <name> since …".
+#
+# Needs: the dev app on a booted simulator/emulator, Metro up, the local API up with coaching on
+# (FEATURE_FLAGS=coaching TRAINER_ALLOWLIST=*) — pass `-e API_URL=http://localhost:<port>` when the API
+# is not on :3001. Costs 2 registers + 1 login of the per-IP auth budget. Local only (the orchestrator
+# runs it).
+appId: dev.chefer.app.dev
+env:
+  API_URL: http://localhost:3001
+---
+- runScript: scripts/coaching-request-setup.js
+- runFlow: common/connect.yaml
+
+# Whoever is signed in, sign out — this flow signs in as the new client.
+- extendedWaitUntil:
+    visible:
+      id: 'home-title'
+    timeout: 30000
+    optional: true
+- runFlow:
+    when:
+      visible:
+        id: 'home-title'
+    commands:
+      - tapOn: '(More|You)(, .*)?'
+      - scrollUntilVisible:
+          element:
+            id: 'logout-button'
+          direction: DOWN
+          centerElement: true
+      - tapOn:
+          id: 'logout-button'
+      - runFlow: common/confirm-sign-out.yaml
+- extendedWaitUntil:
+    visible:
+      id: 'welcome-title'
+    timeout: 10000
+    optional: true
+- runFlow:
+    when:
+      visible:
+        id: 'welcome-title'
+    commands:
+      - tapOn:
+          id: 'welcome-sign-in'
+
+# ── Sign in as the client ────────────────────────────────────────────────────
+- extendedWaitUntil:
+    visible:
+      id: 'login-title'
+    timeout: 30000
+- tapOn:
+    id: 'login-email'
+- inputText: ${output.cEmail}
+- tapOn:
+    id: 'login-password'
+- inputText: ${output.cPassword}
+- runFlow:
+    when:
+      platform: Android
+    commands:
+      - hideKeyboard
+- tapOn:
+    id: 'login-submit'
+    optional: true
+- extendedWaitUntil:
+    visible: 'Not Now'
+    timeout: 5000
+    optional: true
+- tapOn:
+    text: 'Not Now'
+    optional: true
+- extendedWaitUntil:
+    visible:
+      id: 'onboarding-skip'
+    timeout: 15000
+    optional: true
+- tapOn:
+    id: 'onboarding-skip'
+    optional: true
+- extendedWaitUntil:
+    visible:
+      id: 'home-title'
+    timeout: 15000
+
+# ── Your trainer → Find a trainer ────────────────────────────────────────────
+- openLink: chefer-dev:///coaching
+- extendedWaitUntil:
+    visible: 'Open'
+    timeout: 3000
+    optional: true
+- tapOn:
+    text: 'Open'
+    optional: true
+- extendedWaitUntil:
+    visible:
+      id: 'your-trainer-find-open'
+    timeout: 20000
+- assertVisible: 'Your trainer uses Chefer? Find them by name.'
+- tapOn:
+    id: 'your-trainer-find-open'
+- extendedWaitUntil:
+    visible:
+      id: 'coaching-find-search'
+    timeout: 15000
+- tapOn:
+    id: 'coaching-find-search'
+- inputText: ${output.trainerName}
+- extendedWaitUntil:
+    visible: '${output.trainerName}'
+    timeout: 15000
+- assertVisible: 'Iron Gym, Cluj'
+- takeScreenshot: coaching-find
+- tapOn: '${output.trainerName}'
+
+# ── The trainer's card → Ask to coach me → consent ───────────────────────────
+- extendedWaitUntil:
+    visible:
+      id: 'coaching-trainer-ask'
+    timeout: 15000
+- assertVisible: 'Chefer does not verify trainers’ credentials.'
+- tapOn:
+    id: 'coaching-trainer-ask'
+- extendedWaitUntil:
+    visible:
+      id: 'coaching-consent'
+    timeout: 10000
+- assertVisible: 'Ask ${output.trainerName} to coach you?'
+- assertVisible: '${output.trainerName} will see:'
+- scrollUntilVisible:
+    element:
+      id: 'coaching-consent-allow'
+    direction: DOWN
+    centerElement: true
+- assertVisible: 'Asking doesn’t follow them or make your profile public.'
+- takeScreenshot: coaching-request-consent
+- tapOn:
+    id: 'coaching-consent-allow'
+- extendedWaitUntil:
+    visible:
+      id: 'coaching-trainer-pending'
+    timeout: 20000
+- assertVisible: 'Waiting for ${output.trainerName} to answer'
+
+# ── The trainer accepts (over HTTP) → Your trainer names them ─────────────────
+- runScript:
+    file: scripts/coaching-request-accept.js
+    env:
+      API_URL: ${API_URL}
+      T_TOKEN: ${output.tToken}
+- openLink: chefer-dev:///coaching
+- tapOn:
+    text: 'Open'
+    optional: true
+- extendedWaitUntil:
+    visible: 'Coached by ${output.trainerName} since.*'
+    timeout: 20000
+- takeScreenshot: coaching-request-accepted

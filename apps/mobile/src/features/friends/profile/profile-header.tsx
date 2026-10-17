@@ -6,6 +6,7 @@ import { FRIENDS_COPY, type FriendProfileDto, type FriendsMeDto } from '@chefer/
 import { Avatar, Badge, Button, Sheet, Skeleton, Text } from '@chefer/ui-mobile';
 import { AppealLink } from '../components/appeal-link';
 import { RelationButton } from '../components/relation-button';
+import { TrainerTag } from '../components/trainer-tag';
 import { ReportSheet } from '../safety/report-sheet';
 import { BlockConfirmSheet, RemoveFollowerConfirmSheet } from '../safety/safety-confirm-sheets';
 
@@ -69,6 +70,7 @@ export function ProfileHeader({
       >
         {user.displayName}
       </Text>
+      <TrainerTag trainer={user.trainer} centered testID={`${testID}-trainer`} />
       {!isSelf && user.followsYou ? (
         <Badge testID={`${testID}-follows-you`} variant="secondary">
           {FRIENDS_COPY.profile.followsYou}

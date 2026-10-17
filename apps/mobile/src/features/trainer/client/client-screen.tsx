@@ -142,7 +142,7 @@ export function ClientScreen({ clientId }: { clientId: string }) {
           className="mt-4"
           onPress={() => setRemoveOpen(true)}
         >
-          {COACHING_COPY.trainer.removeClient}
+          {COACHING_COPY.trainerProfile.endCoaching}
         </Button>
       </ScrollView>
 
@@ -157,7 +157,7 @@ export function ClientScreen({ clientId }: { clientId: string }) {
         onClose={() => setRemoveOpen(false)}
         title={COACHING_COPY.trainer.removeClientTitle(firstName)}
         body={COACHING_COPY.trainer.removeClientBody(firstName)}
-        confirmLabel={COACHING_COPY.trainer.removeClient}
+        confirmLabel={COACHING_COPY.trainerProfile.endCoaching}
         cancelLabel={COACHING_COPY.common.cancel}
         destructive
         busy={remove.isPending}

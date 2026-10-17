@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { ActivityIndicator, RefreshControl, ScrollView, View } from 'react-native';
+import { ActivityIndicator, RefreshControl, View } from 'react-native';
 import { router } from 'expo-router';
 import { COACHING_COPY, COACHING_LIMITS, type ClientRowDto } from '@chefer/types';
 import {
@@ -8,6 +8,7 @@ import {
   ConfirmSheet,
   EmptyState,
   ErrorState,
+  KeyboardAwareScrollView,
   PressableScale,
   Screen,
   Text,
@@ -19,13 +20,18 @@ import { trpc } from '../../../lib/trpc';
 import { localDate } from '../../gym/offline/ids';
 import { formatStampDate } from '../../gym/routine/attribution';
 import { CoachingCard } from '../components/coaching-card';
+import { TrainerFeedbackLink } from '../components/trainer-feedback-link';
 import { TrainerHeader } from '../components/trainer-header';
 import { firstNameOf, formatWeekdayDate } from '../format';
+import { RequestsSection } from './requests-section';
+import { TrainerNotices } from './trainer-notices';
+import { TrainerProfileCard } from './trainer-profile-card';
 
 // ─── Trainer home: Clients (spec §2.4) ────────────────────────────────────────
 // One row per active client: name, last workout, this week's sessions against the client's goal, a quiet
 // flag after 7 days without a workout, and "Routine changed by Maria · 3 Oct" when the client edited
-// after the trainer last did. Tap → the client. Below the list: turn trainer tools off.
+// after the trainer last did. Tap → the client. Above the list: the trainer's notices and Requests
+// (PRD 2026-10 §4.1–4.2); below it: the profile (name, gym line), turn trainer tools off, Send feedback.
 
 const SCREEN_EDGES: ('top' | 'bottom' | 'left' | 'right')[] = ['top', 'bottom', 'left', 'right'];
 
@@ -100,28 +106,46 @@ export function TrainerHome() {
   const colors = useThemeColors();
   const utils = trpc.useUtils();
   const clients = trpc.trainer.clients.list.useQuery({ today: localDate() });
+  const status = trpc.trainer.status.useQuery(undefined, { retry: false });
   const [turnOffOpen, setTurnOffOpen] = useState(false);
+  // PRD 2026-10 §4.3: the confirmation names the client count first.
+  const activeClients = status.data?.activeClients ?? clients.data?.length ?? 0;
+  const turnOffBody =
+    activeClients > 0
+      ? `${COACHING_COPY.trainerProfile.turnOffWithClients(activeClients)} ${COACHING_COPY.trainer.turnOffBody}`
+      : COACHING_COPY.trainer.turnOffBody;
   const deactivate = trpc.trainer.deactivate.useMutation({
     meta: { silent: true },
     onSuccess: () => {
       setTurnOffOpen(false);
       void utils.trainer.status.invalidate();
       void utils.trainer.clients.list.invalidate();
+      void utils.trainer.requests.list.invalidate();
     },
   });
 
   return (
     <Screen edges={SCREEN_EDGES} className="bg-canvas px-0" testID="trainer-home">
       <TrainerHeader testID="trainer-home-header" title={COACHING_COPY.trainer.clients} />
-      <ScrollView
+      <KeyboardAwareScrollView
+        testID="trainer-home-scroll"
         contentContainerClassName="gap-3 px-4 pb-8 pt-2"
         refreshControl={
           <RefreshControl
             refreshing={clients.isRefetching}
-            onRefresh={() => void clients.refetch()}
+            onRefresh={() => {
+              void clients.refetch();
+              void utils.trainer.requests.list.invalidate();
+              void utils.coaching.notices.invalidate();
+            }}
           />
         }
       >
+        {/* PRD 2026-10 §4.2: what clients did since the trainer last looked. */}
+        <TrainerNotices />
+        {/* PRD 2026-10 §4.1: coaching requests from Find a trainer. */}
+        <RequestsSection />
+
         <Button testID="trainer-home-invite" onPress={() => router.push('/trainer/invite')}>
           {COACHING_COPY.trainer.invite}
         </Button>
@@ -143,9 +167,11 @@ export function TrainerHome() {
           clients.data.map((row) => <ClientRow key={row.clientId} row={row} />)
         )}
 
+        <TrainerProfileCard />
+
         <CoachingCard className="mt-4 gap-2">
-          <Text className="text-subhead text-label-secondary">
-            {COACHING_COPY.trainer.turnOffBody}
+          <Text testID="trainer-home-turn-off-body" className="text-subhead text-label-secondary">
+            {turnOffBody}
           </Text>
           <Button
             testID="trainer-home-turn-off"
@@ -155,14 +181,15 @@ export function TrainerHome() {
             {COACHING_COPY.trainer.turnOff}
           </Button>
         </CoachingCard>
-      </ScrollView>
+        <TrainerFeedbackLink />
+      </KeyboardAwareScrollView>
 
       <ConfirmSheet
         testID="trainer-home-turn-off-confirm"
         visible={turnOffOpen}
         onClose={() => setTurnOffOpen(false)}
         title={COACHING_COPY.trainer.turnOff}
-        body={COACHING_COPY.trainer.turnOffBody}
+        body={turnOffBody}
         confirmLabel={COACHING_COPY.trainer.turnOff}
         cancelLabel={COACHING_COPY.common.cancel}
         destructive

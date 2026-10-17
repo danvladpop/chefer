@@ -252,7 +252,7 @@ export function TrainScreen() {
 
   // WP-18: "Ana updated your routine", "Ana stopped coaching you", "Carry on joining your trainer"
   // (self-gated on coaching.availability) — first, in every state, as on the old Gym Today.
-  const coachingNotices = <CoachingNotices bootstrap={bootstrap} />;
+  const coachingNotices = <CoachingNotices />;
 
   let body;
   if (!bootstrap.profile) {

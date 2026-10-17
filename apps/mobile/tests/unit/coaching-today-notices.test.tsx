@@ -1,10 +1,9 @@
 import { Platform } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { act, render, screen, userEvent } from '@testing-library/react-native';
-import type { RoutineDto } from '@chefer/types';
+import { render, screen, userEvent } from '@testing-library/react-native';
+import type { CoachingNoticeDto, RoutineDto } from '@chefer/types';
 import { resetSnackbarForTests } from '@chefer/ui-mobile';
-import { markRoutineSeen } from '../../src/features/coaching/seen-markers';
 import { activeSessionStore } from '../../src/features/gym/offline/active-session-store';
 import { KV_KEYS } from '../../src/features/gym/offline/keys';
 import { createMemoryKvBackend, kv, setKvBackendForTests } from '../../src/features/gym/offline/kv';
@@ -16,9 +15,10 @@ import { makeBootstrap } from './gym-fixtures';
 import type { createTrpcGymMock } from './gym-trpc-mock';
 import { mutationResult } from './gym-trpc-mock';
 
-// WP-18 lane D: Gym Today's one-line coaching notices (spec §2.6, §2.7): "Ana updated your routine · 2 Oct"
-// until the routine is opened on this device, "Ana stopped coaching you" (dismissible), "Carry on joining
-// your trainer" after the gym setup a join needed. Flag off: nothing, and nothing but availability asked.
+// Gym Today's coaching notices (PRD 2026-10 §4.2, §4.3): the client's unread server notices from their
+// trainer — "Ana updated your routine" with what changed (View opens the routine and dismisses), the
+// coaching ending, a request's answer — each dismissible on the server; plus the device-local "Carry on
+// joining your trainer" after the gym setup a join needed. Flag off: nothing but availability asked.
 
 jest.mock('../../src/lib/trpc', () => {
   // eslint-disable-next-line @typescript-eslint/no-require-imports -- see gym-today.test.tsx
@@ -61,7 +61,24 @@ function routine(extra: Partial<RoutineDto> = {}): RoutineDto {
   };
 }
 
-function setCoaching(opts: { enabled: boolean; status?: unknown }) {
+function notice(overrides: Partial<CoachingNoticeDto> = {}): CoachingNoticeDto {
+  return {
+    id: 'n1',
+    kind: 'ROUTINE_UPDATED',
+    at: CHANGED_AT,
+    read: false,
+    other: { id: 'trainer-ana', name: 'Ana', role: 'TRAINER' },
+    changes: [
+      { kind: 'added', exercise: 'Romanian deadlift' },
+      { kind: 'changed', exercise: 'Squat', from: '3×8', to: '4×6' },
+    ],
+    ...overrides,
+  };
+}
+
+const mockDismiss = jest.fn();
+
+function setCoaching(opts: { enabled: boolean; status?: unknown; notices?: CoachingNoticeDto[] }) {
   trpc.coaching.availability.useQuery.mockReturnValue({
     data: { enabled: opts.enabled, canBeTrainer: false },
     isError: false,
@@ -76,9 +93,18 @@ function setCoaching(opts: { enabled: boolean; status?: unknown }) {
     isError: false,
     isLoading: false,
   });
+  trpc.coaching.notices.useQuery.mockReturnValue({
+    data: opts.notices ?? [],
+    isError: false,
+    isLoading: false,
+  });
+  trpc.coaching.dismissNotice.useMutation.mockReturnValue({
+    mutate: mockDismiss,
+    isPending: false,
+  });
 }
 
-function renderToday(active: RoutineDto | null) {
+function renderToday(active: RoutineDto | null = routine()) {
   const queryClient = new QueryClient({
     defaultOptions: { queries: { gcTime: Infinity, retry: false } },
   });
@@ -96,6 +122,7 @@ function renderToday(active: RoutineDto | null) {
 }
 
 const COACHED = { trainer: { name: 'Ana', since: CHANGED_AT }, stopped: null };
+const UNCOACHED = { trainer: null, stopped: null };
 
 beforeEach(() => {
   jest.clearAllMocks();
@@ -114,86 +141,104 @@ beforeEach(() => {
 afterEach(() => jest.restoreAllMocks());
 
 describe('Today: "Ana updated your routine"', () => {
-  it('shows once, opens the routine, and is gone after the routine was opened', async () => {
+  it('shows what changed; View opens the routine and dismisses the card', async () => {
     const user = userEvent.setup();
-    await renderToday(routine({ lastEditedByOther: { name: 'Ana', at: CHANGED_AT } }));
-    expect(screen.getByTestId('coaching-routine-updated')).toHaveTextContent(
-      'Ana updated your routine · 2 Oct',
+    setCoaching({ enabled: true, status: COACHED, notices: [notice()] });
+    await renderToday();
+    expect(screen.getByTestId('coaching-routine-updated-title')).toHaveTextContent(
+      'Ana updated your routine',
     );
-    await user.press(screen.getByTestId('coaching-routine-updated'));
+    expect(screen.getByTestId('coaching-routine-updated-detail')).toHaveTextContent(
+      '+ Romanian deadlift · Squat 3×8 → 4×6',
+    );
+    await user.press(screen.getByTestId('coaching-routine-updated-view'));
     expect(router.push).toHaveBeenCalledWith('/routine');
+    expect(mockDismiss).toHaveBeenCalledWith({ id: 'n1' });
+  });
 
-    // The Routine tab calls markRoutineSeen when it opens: the line goes away.
-    await act(() => {
-      markRoutineSeen('r1', CHANGED_AT);
+  it('Dismiss marks it read on the server without opening anything', async () => {
+    const user = userEvent.setup();
+    setCoaching({ enabled: true, status: COACHED, notices: [notice()] });
+    await renderToday();
+    await user.press(screen.getByTestId('coaching-routine-updated-dismiss'));
+    expect(mockDismiss).toHaveBeenCalledWith({ id: 'n1' });
+    expect(router.push).not.toHaveBeenCalled();
+  });
+
+  it('a read notice, or one from a client (the trainer side), shows nothing', async () => {
+    setCoaching({
+      enabled: true,
+      status: COACHED,
+      notices: [
+        notice({ read: true }),
+        notice({ id: 'n2', other: { id: 'maria', name: 'Maria', role: 'CLIENT' } }),
+      ],
     });
-    expect(screen.queryByTestId('coaching-routine-updated')).toBeNull();
+    await renderToday();
     expect(screen.queryByTestId('coaching-notices')).toBeNull();
   });
 
-  it('a later change by the trainer brings the line back', async () => {
-    markRoutineSeen('r1', CHANGED_AT);
-    await renderToday(
-      routine({ lastEditedByOther: { name: 'Ana', at: '2026-10-03T08:00:00.000Z' } }),
-    );
-    expect(screen.getByTestId('coaching-routine-updated')).toHaveTextContent(/· 3 Oct$/);
-  });
-
-  it('an uncoached routine shows no notice', async () => {
-    setCoaching({ enabled: true, status: { trainer: null, stopped: null } });
-    await renderToday(routine());
+  it('flag off: no notice, and neither coaching.status nor coaching.notices is enabled', async () => {
+    setCoaching({ enabled: false, notices: [notice()] });
+    await renderToday();
     expect(screen.queryByTestId('coaching-notices')).toBeNull();
-  });
-
-  it('flag off: no notice, and coaching.status is not even enabled', async () => {
-    setCoaching({ enabled: false });
-    await renderToday(routine({ lastEditedByOther: { name: 'Ana', at: CHANGED_AT } }));
-    expect(screen.queryByTestId('coaching-notices')).toBeNull();
-    const calls = trpc.coaching.status.useQuery.mock.calls as unknown[][];
+    const calls = [
+      ...(trpc.coaching.status.useQuery.mock.calls as unknown[][]),
+      ...(trpc.coaching.notices.useQuery.mock.calls as unknown[][]),
+    ];
     expect(calls.length).toBeGreaterThan(0);
     for (const call of calls) expect(call[1]).toMatchObject({ enabled: false });
   });
 });
 
-describe('Today: "Ana stopped coaching you"', () => {
-  const stopped = {
-    trainer: null,
-    stopped: { trainerName: 'Ana', at: '2026-10-03T10:00:00.000Z' },
-  };
-
-  it('shows with the date and can be dismissed', async () => {
+describe('Today: the coaching ended, and a request’s answer', () => {
+  it.each([
+    [
+      notice({ kind: 'COACHING_ENDED', endedBy: 'TRAINER', changes: undefined }),
+      'Ana stopped coaching you. Your routine stays yours.',
+    ],
+    [
+      notice({
+        kind: 'COACHING_ENDED',
+        endedBy: 'SYSTEM',
+        other: { id: null, name: 'your trainer', role: 'TRAINER' },
+      }),
+      'Your trainer stopped using Chefer. Your routine stays yours.',
+    ],
+    [
+      notice({ kind: 'COACHING_ENDED', endedBy: 'SYSTEM' }),
+      'Ana stopped coaching you. Your routine stays yours.',
+    ],
+    [notice({ kind: 'REQUEST_ACCEPTED' }), 'Ana is now your trainer'],
+    [notice({ kind: 'REQUEST_DECLINED' }), 'Ana can’t take you on right now'],
+  ])('notice %#: reads its line and can be dismissed', async (n, text) => {
     const user = userEvent.setup();
-    setCoaching({ enabled: true, status: stopped });
-    await renderToday(routine());
-    expect(screen.getByTestId('coaching-stopped')).toHaveTextContent(
-      'Ana stopped coaching you · 3 Oct',
-    );
-    await user.press(screen.getByTestId('coaching-stopped-dismiss'));
-    expect(screen.queryByTestId('coaching-stopped')).toBeNull();
-    expect(kv.getString(KV_KEYS.coachingStoppedDismissed)).toBe('2026-10-03T10:00:00.000Z');
+    setCoaching({ enabled: true, status: UNCOACHED, notices: [n] });
+    await renderToday();
+    const testID = `coaching-notice-${n.kind.toLowerCase()}`;
+    expect(screen.getByTestId(`${testID}-title`)).toHaveTextContent(text);
+    expect(screen.queryByTestId(`${testID}-view`)).toBeNull();
+    await user.press(screen.getByTestId(`${testID}-dismiss`));
+    expect(mockDismiss).toHaveBeenCalledWith({ id: 'n1' });
   });
 
-  it('stays dismissed when Today is opened again', async () => {
-    setCoaching({ enabled: true, status: stopped });
-    kv.setString(KV_KEYS.coachingStoppedDismissed, '2026-10-03T10:00:00.000Z');
-    await renderToday(routine());
-    expect(screen.queryByTestId('coaching-stopped')).toBeNull();
-  });
-
-  it('a newer "stopped" (a different time) shows again after an older one was dismissed', async () => {
-    setCoaching({ enabled: true, status: stopped });
-    kv.setString(KV_KEYS.coachingStoppedDismissed, '2026-09-01T10:00:00.000Z');
-    await renderToday(routine());
-    expect(screen.getByTestId('coaching-stopped')).toBeTruthy();
+  it('the client’s own leaving is not news to them', async () => {
+    setCoaching({
+      enabled: true,
+      status: UNCOACHED,
+      notices: [notice({ kind: 'COACHING_ENDED', endedBy: 'CLIENT' })],
+    });
+    await renderToday();
+    expect(screen.queryByTestId('coaching-notices')).toBeNull();
   });
 });
 
 describe('Today: "Carry on joining your trainer"', () => {
   it('shows after gym setup, opens the invite, and can be dismissed', async () => {
     const user = userEvent.setup();
-    setCoaching({ enabled: true, status: { trainer: null, stopped: null } });
+    setCoaching({ enabled: true, status: UNCOACHED });
     kv.setString(KV_KEYS.coachingPendingJoin, 'ABCD234567');
-    await renderToday(routine());
+    await renderToday();
     expect(screen.getByText('Carry on joining your trainer')).toBeTruthy();
     await user.press(screen.getByTestId('coaching-carry-on-link'));
     expect(router.push).toHaveBeenCalledWith('/coaching/join/ABCD234567');
@@ -204,19 +249,19 @@ describe('Today: "Carry on joining your trainer"', () => {
 
   it('is not offered once the client already has a trainer', async () => {
     kv.setString(KV_KEYS.coachingPendingJoin, 'ABCD234567');
-    await renderToday(routine());
+    await renderToday();
     expect(screen.queryByTestId('coaching-carry-on')).toBeNull();
   });
 
   it('is not offered with the flag off', async () => {
     setCoaching({ enabled: false });
     kv.setString(KV_KEYS.coachingPendingJoin, 'ABCD234567');
-    await renderToday(routine());
+    await renderToday();
     expect(screen.queryByTestId('coaching-carry-on')).toBeNull();
   });
 
   it('also shows on the "set up your training" empty state', async () => {
-    setCoaching({ enabled: true, status: { trainer: null, stopped: null } });
+    setCoaching({ enabled: true, status: UNCOACHED });
     kv.setString(KV_KEYS.coachingPendingJoin, 'ABCD234567');
     const queryClient = new QueryClient({
       defaultOptions: { queries: { gcTime: Infinity, retry: false } },

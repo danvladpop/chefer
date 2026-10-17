@@ -2,7 +2,6 @@ import { useMemo, useRef, useState } from 'react';
 import { Alert, ScrollView, View } from 'react-native';
 import { router } from 'expo-router';
 import {
-  COACHING_COPY,
   FALLBACK_TRAINER_NAME,
   TEMPLATE_BY_KEY,
   type ExerciseMeta,
@@ -33,13 +32,12 @@ import {
 } from '@chefer/utils';
 import { Icon } from '../../../components/icon';
 import { trpc } from '../../../lib/trpc';
-import { useMarkRoutineSeen } from '../../coaching/seen-markers';
 import {
   GymBootstrapUnavailable,
   useGymBootstrapLoad,
 } from '../../gym/components/gym-bootstrap-state';
 import { exerciseCoverUrl, libraryImages } from '../../gym/library/exercise-image';
-import { ChangedByLine, TrainerNoteLine } from '../../gym/routine/attribution';
+import { ChangedByLine, setByText, TrainerNoteLine } from '../../gym/routine/attribution';
 import { dismissHint, getDismissedHints, hintKey } from '../../gym/routine/hints-storage';
 import { draftToRoutineDoc, routineDtoToDraft } from '../../gym/routine/mapping';
 import type { SetOverrideInput } from '../../gym/routine/override-payload';
@@ -63,8 +61,8 @@ import { TrainCard } from './train-cards';
 // Trainer coaching (WP-18), the same seams as the old Routine tab: "Ana
 // changed your routine · 2 Oct" on the card, "Changed by Ana · 2 Oct" and the
 // trainer's note (with Remove note) under an exercise, "Set by Ana" on a
-// trainer-set next target, and opening this screen marks the change as seen
-// (the Train/Today notice goes away).
+// trainer-set next target. (The "updated your routine" notice is a server
+// notice now: its View opens this screen and dismisses it.)
 
 interface OverrideTarget {
   exercise: ExerciseMeta;
@@ -207,8 +205,6 @@ export function TrainingRoutineScreen() {
 
   const data = bootstrap.data;
   const routine = data?.activeRoutine ?? null;
-  // WP-18: opening the routine counts as seeing the trainer's change (the notice goes away).
-  useMarkRoutineSeen(routine?.id ?? null, routine?.lastEditedByOther?.at ?? null);
   const trainerName = data?.coaching?.trainerName ?? FALLBACK_TRAINER_NAME;
   const lookup = useMemo(() => (data ? libraryLookup(data) : () => undefined), [data]);
   const imagesOf = useMemo(() => libraryImages(data?.library), [data?.library]);
@@ -408,12 +404,8 @@ export function TrainingRoutineScreen() {
                 const progression = data.progressions.find(
                   (p) => p.exerciseId === ex.exerciseId && p.repBucket === bucket,
                 );
-                const setBy = progression?.override?.setByName ?? null;
-                const edited = progression?.override
-                  ? setBy
-                    ? ` · ${COACHING_COPY.stamps.setBy(setBy)}`
-                    : ' (edited)'
-                  : '';
+                const setBy = setByText(progression?.override);
+                const edited = progression?.override ? (setBy ? ` · ${setBy}` : ' (edited)') : '';
                 const next =
                   meta && progression
                     ? ` · Next ${formatLoad(progression.suggestion.weightKg, unit, meta.loadType, {

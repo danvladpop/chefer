@@ -3,12 +3,7 @@ import { ScrollView, View } from 'react-native';
 import Animated from 'react-native-reanimated';
 import { router } from 'expo-router';
 import { radius } from '@chefer/tokens';
-import {
-  COACHING_COPY,
-  type ExerciseDto,
-  type PersonalRecord,
-  type StreakInfo,
-} from '@chefer/types';
+import type { ExerciseDto, PersonalRecord, StreakInfo } from '@chefer/types';
 import {
   Button,
   Celebration,
@@ -36,6 +31,7 @@ import {
 import { Icon } from '../../../components/icon';
 import { trpc } from '../../../lib/trpc';
 import { ExerciseNameLink } from '../../gym/components/exercise-name-link';
+import { setByText } from '../../gym/routine/attribution';
 import { formatStreakLine } from '../../gym/today/today-helpers';
 import { useGymBootstrap } from '../../gym/use-gym-bootstrap';
 import { getFinished } from '../../gym/workout/finished-store';
@@ -310,12 +306,12 @@ export function WorkoutSummaryV2({ id }: { id: string }) {
                         {meta.isTimed ? ' s' : ''}
                       </Text>
                       {/* WP-18: a next target the trainer set says so. */}
-                      {row.progression.override?.setByName ? (
+                      {setByText(row.progression.override) ? (
                         <Text
                           testID={`summary-next-${i}-set-by`}
                           className="text-caption text-label-secondary"
                         >
-                          {COACHING_COPY.stamps.setBy(row.progression.override.setByName)}
+                          {setByText(row.progression.override)}
                         </Text>
                       ) : null}
                     </View>

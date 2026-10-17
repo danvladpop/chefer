@@ -1,94 +1,84 @@
 import { View } from 'react-native';
 import { router } from 'expo-router';
-import { COACHING_COPY, type GymBootstrap } from '@chefer/types';
+import { COACHING_COPY, routineChangesLine, type CoachingNoticeDto } from '@chefer/types';
 import { IconButton, PressableScale, Text, useThemeColors } from '@chefer/ui-mobile';
-import { formatShortDay } from '@chefer/utils';
 import { Icon } from '../../../components/icon';
+import { useCoachingNotices } from '../api/use-coaching-notices';
 import { COACHING_MOBILE_COPY } from '../copy';
 import { clearPendingJoin, joinHref, usePendingJoin } from '../pending-join';
 import { routineHref } from '../routes';
-import {
-  dismissStopped,
-  isRoutineChangeUnseen,
-  useDismissedStoppedAt,
-  useSeenMarkersVersion,
-} from '../seen-markers';
 import { useCoachingStatus } from '../use-coaching-status';
+import { NoticeCard } from './notice-card';
 
-// ─── One quiet line per coaching event (spec §2.6, §2.7) ──────────────────────
-// - "Ana updated your routine · 2 Oct" until the routine is opened on this device (device-local marker);
-// - "Ana stopped coaching you" (30 days on the server, dismissible) when the trainer ended the link;
-// - "Carry on joining your trainer" after the gym setup a join needed.
-// Shown wherever the client's training is: the old Gym Today, and in the new shell the Train tab and
-// Today's Training section. Everything is gated on `coaching.availability`: with the flag off nothing
-// renders and nothing but `availability` is asked. Mirrors
-// apps/web/src/features/coaching/components/CoachingNotices.tsx.
+// ─── The client's coaching notices (PRD 2026-10 §4.2, §4.3) ───────────────────
+// Server notices from the client's trainer, unread ones only, each dismissible (read on every device):
+// - "Ana updated your routine" + what changed ("+ Romanian deadlift · Squat 3×8 → 4×6"), View opens the
+//   routine and dismisses the card;
+// - the coaching ended ("Ana stopped coaching you. Your routine stays yours." / "Your trainer stopped
+//   using Chefer…");
+// - "Ana is now your trainer" / "Ana can’t take you on right now" (a coaching request's answer).
+// Plus the device-local "Carry on joining your trainer" after the gym setup an invite needed.
+// Shown wherever the client's training is: the old Gym Today, Train and Today's Training section. Gated on
+// `coaching.availability`: with the flag off nothing renders and nothing but `availability` is asked.
+// Mirrors apps/web/src/features/coaching/components/CoachingNotices.tsx.
 
-function DismissButton({ testID, onPress }: { testID: string; onPress: () => void }) {
-  const colors = useThemeColors();
-  return (
-    <IconButton
-      testID={testID}
-      accessibilityLabel={COACHING_MOBILE_COPY.dismiss}
-      icon={<Icon name="close" color={colors.labelSecondary} size={18} />}
-      onPress={onPress}
-      className="-mr-1"
-    />
-  );
+/** The line a client-side notice reads, or null for one this side never shows. */
+export function clientNoticeTitle(notice: CoachingNoticeDto): string | null {
+  const copy = COACHING_COPY.notices;
+  switch (notice.kind) {
+    case 'ROUTINE_UPDATED':
+      return copy.routineUpdated(notice.other.name);
+    case 'COACHING_ENDED':
+      if (notice.endedBy === 'CLIENT') return null; // the client ended it themselves
+      if (notice.endedBy === 'SYSTEM' && notice.other.id === null) return copy.trainerGone;
+      return copy.endedByTrainer(notice.other.name);
+    case 'REQUEST_ACCEPTED':
+      return copy.requestAccepted(notice.other.name);
+    case 'REQUEST_DECLINED':
+      return copy.requestDeclined(notice.other.name);
+    case 'REQUEST_RECEIVED':
+      return null; // trainer side only
+  }
 }
 
-export function CoachingNotices({ bootstrap }: { bootstrap: GymBootstrap }) {
+export function CoachingNotices() {
   const colors = useThemeColors();
   const { enabled, data: status } = useCoachingStatus();
+  const { notices, dismiss } = useCoachingNotices('TRAINER');
   const pending = usePendingJoin();
-  const dismissed = useDismissedStoppedAt();
-  // Re-render when the routine screen marks the change as seen.
-  useSeenMarkersVersion();
-
-  const routine = bootstrap.activeRoutine;
-  const changedBy = routine?.lastEditedByOther;
-  const changed =
-    enabled && routine && changedBy !== undefined && isRoutineChangeUnseen(routine.id, changedBy.at)
-      ? changedBy
-      : null;
-  const stoppedNow = enabled ? (status?.stopped ?? null) : null;
-  const stopped = stoppedNow !== null && dismissed !== stoppedNow.at ? stoppedNow : null;
   const joiningCode = enabled && status?.trainer === null ? pending : null;
 
-  if (!changed && !stopped && !joiningCode) return null;
+  const cards = notices.flatMap((notice) => {
+    const title = clientNoticeTitle(notice);
+    return title === null ? [] : [{ notice, title }];
+  });
+  if (cards.length === 0 && !joiningCode) return null;
 
   return (
     <View testID="coaching-notices" className="gap-2">
-      {changed ? (
-        // MO-01: press feedback on the tappable notice.
-        <PressableScale
-          testID="coaching-routine-updated"
-          accessibilityRole="button"
-          onPress={() => router.push(routineHref())}
-          className="min-h-11 min-w-0 flex-row items-center gap-2 rounded-card bg-brand-tint px-3 py-2"
-        >
-          <Icon name="yourTrainer" color={colors.brand} size={18} />
-          <Text className="min-w-0 flex-1 text-subhead font-semibold text-label">
-            {COACHING_COPY.stamps.todayNotice(changed.name, formatShortDay(changed.at))}
-          </Text>
-          <Icon name="chevronRight" color={colors.labelTertiary} size={16} />
-        </PressableScale>
-      ) : null}
-      {stopped ? (
-        <View
-          testID="coaching-stopped"
-          className="min-w-0 flex-row items-center gap-2 rounded-card border border-separator bg-surface py-1 pl-3 pr-1"
-        >
-          <Icon name="yourTrainer" color={colors.labelSecondary} size={18} />
-          <Text className="min-w-0 flex-1 text-subhead text-label-secondary">
-            {COACHING_COPY.yourTrainer.stopped(stopped.trainerName)} · {formatShortDay(stopped.at)}
-          </Text>
-          <DismissButton
-            testID="coaching-stopped-dismiss"
-            onPress={() => dismissStopped(stopped.at)}
+      {cards.map(({ notice, title }) =>
+        notice.kind === 'ROUTINE_UPDATED' ? (
+          <NoticeCard
+            key={notice.id}
+            testID="coaching-routine-updated"
+            tone="brand"
+            title={title}
+            detail={notice.changes?.length ? routineChangesLine(notice.changes) : null}
+            onView={() => {
+              dismiss(notice.id);
+              router.push(routineHref());
+            }}
+            onDismiss={() => dismiss(notice.id)}
           />
-        </View>
-      ) : null}
+        ) : (
+          <NoticeCard
+            key={notice.id}
+            testID={`coaching-notice-${notice.kind.toLowerCase()}`}
+            title={title}
+            onDismiss={() => dismiss(notice.id)}
+          />
+        ),
+      )}
       {joiningCode ? (
         <View
           testID="coaching-carry-on"
@@ -104,7 +94,12 @@ export function CoachingNotices({ bootstrap }: { bootstrap: GymBootstrap }) {
               {COACHING_MOBILE_COPY.carryOn}
             </Text>
           </PressableScale>
-          <DismissButton testID="coaching-carry-on-dismiss" onPress={clearPendingJoin} />
+          <IconButton
+            testID="coaching-carry-on-dismiss"
+            accessibilityLabel={COACHING_MOBILE_COPY.dismiss}
+            icon={<Icon name="close" color={colors.labelSecondary} size={18} />}
+            onPress={clearPendingJoin}
+          />
         </View>
       ) : null}
     </View>

@@ -57,7 +57,7 @@ export function TrainingSection() {
   const [logOpen, setLogOpen] = useState(false);
 
   if (!bootstrap) return null;
-  const notices = <CoachingNotices bootstrap={bootstrap} />;
+  const notices = <CoachingNotices />;
   if (!bootstrap.profile) return notices;
   const today = localDate();
   const logSheet = <LogWorkoutSheet visible={logOpen} onClose={() => setLogOpen(false)} />;

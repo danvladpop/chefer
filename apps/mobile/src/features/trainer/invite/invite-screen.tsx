@@ -10,6 +10,7 @@ import {
   Input,
   KeyboardAwareScrollView,
   Screen,
+  Sheet,
   Text,
 } from '@chefer/ui-mobile';
 import { userFacingErrorMessage } from '@chefer/utils';
@@ -17,11 +18,13 @@ import { trpc } from '../../../lib/trpc';
 import { formatStampDate } from '../../gym/routine/attribution';
 import { CoachingCard } from '../components/coaching-card';
 import { TrainerHeader } from '../components/trainer-header';
+import { InviteQr } from './invite-qr';
 
 // ─── Invite a client (spec §2.2) ──────────────────────────────────────────────
 // Optional private label → "Create link". The link is single use, expires in 14 days and can be revoked.
 // Sharing uses RN core `Share` (its sheet includes Copy on iOS and Android; no clipboard module — OTA-safe).
-// Pending invites are listed with their label and expiry.
+// Pending invites are listed with their label and expiry. An open invite also shows as a QR code to scan
+// in person (PRD 2026-10 §4.1).
 
 const SCREEN_EDGES: ('top' | 'bottom' | 'left' | 'right')[] = ['top', 'bottom', 'left', 'right'];
 
@@ -34,13 +37,44 @@ export async function shareInvite(invite: Pick<InviteDto, 'url'>): Promise<void>
   }
 }
 
+/** The QR sheet (PRD 2026-10 §4.1, S5): the open invite as a code to scan in person. */
+function QrSheet({ invite, onClose }: { invite: InviteDto | null; onClose: () => void }) {
+  const qr = COACHING_COPY.trainer.qr;
+  return (
+    <Sheet
+      visible={invite !== null}
+      onClose={onClose}
+      title={qr.title}
+      eyebrow={invite?.label ?? undefined}
+      testID="trainer-invite-qr-sheet"
+    >
+      {invite ? (
+        <View className="gap-4 pb-4">
+          <InviteQr url={invite.url} />
+          <Text className="text-center text-subhead text-label-secondary">{qr.hint}</Text>
+        </View>
+      ) : null}
+    </Sheet>
+  );
+}
+
+function ShowQrButton({ invite, onShow }: { invite: InviteDto; onShow: () => void }) {
+  return (
+    <Button testID={`trainer-invite-${invite.code}-qr`} variant="outline" onPress={onShow}>
+      {COACHING_COPY.trainer.qr.show}
+    </Button>
+  );
+}
+
 function InviteRow({
   invite,
   onRevoke,
+  onShowQr,
   revoking,
 }: {
   invite: InviteDto;
   onRevoke: (code: string) => void;
+  onShowQr: () => void;
   revoking: boolean;
 }) {
   const open = invite.state === 'OPEN';
@@ -82,6 +116,7 @@ function InviteRow({
           </Button>
         </View>
       ) : null}
+      {open ? <ShowQrButton invite={invite} onShow={onShowQr} /> : null}
     </CoachingCard>
   );
 }
@@ -90,6 +125,7 @@ export function InviteScreen() {
   const utils = trpc.useUtils();
   const [label, setLabel] = useState('');
   const [created, setCreated] = useState<InviteDto | null>(null);
+  const [qrInvite, setQrInvite] = useState<InviteDto | null>(null);
   const invites = trpc.trainer.invites.list.useQuery();
   const create = trpc.trainer.invites.create.useMutation({
     meta: { silent: true },
@@ -155,6 +191,15 @@ export function InviteScreen() {
             <Button testID="trainer-invite-created-share" onPress={() => void shareInvite(created)}>
               {COACHING_COPY.common.share}
             </Button>
+            {created.state === 'OPEN' ? (
+              <Button
+                testID="trainer-invite-created-qr"
+                variant="outline"
+                onPress={() => setQrInvite(created)}
+              >
+                {COACHING_COPY.trainer.qr.show}
+              </Button>
+            ) : null}
           </CoachingCard>
         ) : null}
 
@@ -171,6 +216,7 @@ export function InviteScreen() {
               invite={invite}
               revoking={revoke.isPending}
               onRevoke={(code) => revoke.mutate({ code })}
+              onShowQr={() => setQrInvite(invite)}
             />
           ))
         )}
@@ -180,6 +226,7 @@ export function InviteScreen() {
           </Text>
         ) : null}
       </KeyboardAwareScrollView>
+      <QrSheet invite={qrInvite} onClose={() => setQrInvite(null)} />
     </Screen>
   );
 }

@@ -1,5 +1,5 @@
 import { View } from 'react-native';
-import { COACHING_COPY, trainerNameOrFallback } from '@chefer/types';
+import { COACHING_COPY, editorLabel, trainerNameOrFallback } from '@chefer/types';
 import { Button, Text } from '@chefer/ui-mobile';
 import { formatShortDay } from '@chefer/utils';
 import type { EditStamp } from './types';
@@ -11,20 +11,36 @@ import type { EditStamp } from './types';
 /** "2 Oct" for an ISO date-time (device-local day) or a `YYYY-MM-DD` date. The one formatter web uses too (`@chefer/utils`). */
 export const formatStampDate = formatShortDay;
 
-/** "Changed by Ana · 2 Oct" (a deleted trainer account reads "your trainer"). */
+/**
+ * Who a stamp names, through the shared `editorLabel`: "Ana", "Ana (former trainer)" once the link ended,
+ * "a former trainer" when the account is gone (an empty name still reads "your trainer" while coached).
+ */
+export function stampEditor(stamp: Pick<EditStamp, 'name' | 'former'>): string {
+  return editorLabel({ name: trainerNameOrFallback(stamp.name), former: stamp.former });
+}
+
+/** "Changed by Ana · 2 Oct" / "Changed by Ana (former trainer) · 2 Oct". */
 export function changedByText(stamp: EditStamp): string {
-  return COACHING_COPY.stamps.changedBy(
-    trainerNameOrFallback(stamp.name),
-    formatStampDate(stamp.at),
-  );
+  return COACHING_COPY.stamps.changedBy(stampEditor(stamp), formatStampDate(stamp.at));
 }
 
 /** "Ana changed your routine · 2 Oct". */
 export function routineChangedText(stamp: EditStamp): string {
-  return COACHING_COPY.stamps.routineChanged(
-    trainerNameOrFallback(stamp.name),
-    formatStampDate(stamp.at),
-  );
+  return COACHING_COPY.stamps.routineChanged(stampEditor(stamp), formatStampDate(stamp.at));
+}
+
+/** Who set a next-session target: "Ana", "Ana (former trainer)"; null when the owner set it. */
+export function overrideSetBy(
+  override: { setByName?: string | undefined; setByFormer?: true | undefined } | null | undefined,
+): string | null {
+  if (!override?.setByName) return null;
+  return editorLabel({ name: override.setByName, former: override.setByFormer });
+}
+
+/** "Set by Ana" / "Set by Ana (former trainer)" on a trainer-set next target, or null. */
+export function setByText(override: Parameters<typeof overrideSetBy>[0]): string | null {
+  const who = overrideSetBy(override);
+  return who === null ? null : COACHING_COPY.stamps.setBy(who);
 }
 
 /** A muted one-liner under a row or a routine title. */

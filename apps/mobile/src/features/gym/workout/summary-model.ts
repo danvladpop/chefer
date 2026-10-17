@@ -1,10 +1,11 @@
-import type {
-  ExerciseBest,
-  GymBootstrap,
-  PersonalRecord,
-  ProgressionDto,
-  SessionSummaryDto,
-  WorkoutSessionDoc,
+import {
+  editorLabel,
+  type ExerciseBest,
+  type GymBootstrap,
+  type PersonalRecord,
+  type ProgressionDto,
+  type SessionSummaryDto,
+  type WorkoutSessionDoc,
 } from '@chefer/types';
 import { collectPrs, explain, repBucket, toSessionSummary } from '@chefer/utils';
 import { directionOf, type Direction } from './workout-model';
@@ -119,7 +120,12 @@ export function nextTimeRows(
         progression.suggestion,
         unit,
         'next',
-        progression.override?.setByName ?? null,
+        progression.override?.setByName
+          ? editorLabel({
+              name: progression.override.setByName,
+              former: progression.override.setByFormer,
+            })
+          : null,
       ),
     });
   }

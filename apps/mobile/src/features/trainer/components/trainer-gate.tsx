@@ -5,8 +5,6 @@ import {
   Button,
   EmptyState,
   ErrorState,
-  FormField,
-  Input,
   KeyboardAwareScrollView,
   Screen,
   Text,
@@ -18,14 +16,16 @@ import { trpc } from '../../../lib/trpc';
 import { useCoachingAvailability } from '../api/use-coaching-availability';
 import { firstNameOf } from '../format';
 import { CoachingCard } from './coaching-card';
+import { TrainerFeedbackLink } from './trainer-feedback-link';
 import { goBackOrHome, TRAINER_SCREEN_CLASS, TrainerHeader } from './trainer-header';
+import { profileInput, TrainerProfileFields } from './trainer-profile-fields';
 
 // ─── TrainerGate: every /trainer/* route renders inside it ────────────────────
 // 1. `coaching.availability` (never gated) decides whether the feature exists for this user at all:
 //    pending → blank (no flash, no `trainer.*` query), unreachable → Retry, off / not on the trainer
 //    allowlist → "Trainer tools aren't available for your account yet." + Go back.
 // 2. `trainer.status` decides whether trainer tools are on: off → the turn-on card (display name,
-//    "Turn on"), on → the screen. Children mount only once both said yes.
+//    gym line, the findable note, "Turn on"), on → the screen. Children mount only once both said yes.
 
 const SCREEN_EDGES: ('top' | 'bottom' | 'left' | 'right')[] = ['top', 'bottom', 'left', 'right'];
 
@@ -47,15 +47,21 @@ function TurnOnScreen() {
   const utils = trpc.useUtils();
   const me = trpc.user.me.useQuery(undefined, { staleTime: 30_000 });
   const [name, setName] = useState<string | null>(null);
+  const [gymLine, setGymLine] = useState('');
   const prefill = me.data?.name ? firstNameOf(me.data.name) : '';
-  const displayName = name ?? prefill;
+  const draft = { displayName: name ?? prefill, gymLine };
   const activate = trpc.trainer.activate.useMutation({
     meta: { silent: true },
     onSuccess: (status) => {
       utils.trainer.status.setData(undefined, status);
     },
   });
-  const trimmed = displayName.trim();
+  const input = profileInput(draft);
+  const submit = () => {
+    if (input.displayName === '' || activate.isPending) return;
+    // An empty gym line is simply not sent (the field is optional and additive).
+    activate.mutate(input.gymLine === null ? { displayName: input.displayName } : input);
+  };
 
   return (
     <Screen edges={SCREEN_EDGES} className={TRAINER_SCREEN_CLASS} testID="trainer-turn-on">
@@ -65,44 +71,37 @@ function TurnOnScreen() {
           <Text accessibilityRole="header" className="text-title3 font-bold text-label">
             {COACHING_COPY.trainer.turnOnTitle}
           </Text>
-          <Text className="mt-1 text-subhead text-label-secondary">
+          <Text className="text-subhead text-label-secondary">
             {COACHING_COPY.trainer.turnOnBody}
           </Text>
-          <View className="mt-4">
-            <FormField
-              label={COACHING_COPY.trainer.displayName}
-              testID="trainer-turn-on-name-field"
-            >
-              <Input
-                testID="trainer-turn-on-name"
-                label={COACHING_COPY.trainer.displayName}
-                value={displayName}
-                maxLength={40}
-                autoCapitalize="words"
-                returnKeyType="go"
-                onSubmitEditing={() => {
-                  if (trimmed !== '' && !activate.isPending)
-                    activate.mutate({ displayName: trimmed });
-                }}
-                onChangeText={setName}
-              />
-            </FormField>
-          </View>
+          <TrainerProfileFields
+            testID="trainer-turn-on"
+            value={draft}
+            onChange={(next) => {
+              setName(next.displayName);
+              setGymLine(next.gymLine);
+            }}
+            onSubmit={submit}
+          />
+          {/* PRD 2026-10 §4.1: turning on makes the trainer findable by name (a private Following profile). */}
+          <Text testID="trainer-turn-on-findable" className="text-subhead text-label-secondary">
+            {COACHING_COPY.trainerProfile.findableNote}
+          </Text>
           {activate.error ? (
-            <Text testID="trainer-turn-on-error" className="mt-2 text-subhead text-danger">
+            <Text testID="trainer-turn-on-error" className="text-subhead text-danger">
               {userFacingErrorMessage(activate.error)}
             </Text>
           ) : null}
           <Button
             testID="trainer-turn-on-submit"
-            className="mt-4"
             loading={activate.isPending}
-            disabled={trimmed === ''}
-            onPress={() => activate.mutate({ displayName: trimmed })}
+            disabled={input.displayName === ''}
+            onPress={submit}
           >
             {COACHING_COPY.trainer.turnOn}
           </Button>
         </CoachingCard>
+        <TrainerFeedbackLink />
       </KeyboardAwareScrollView>
     </Screen>
   );

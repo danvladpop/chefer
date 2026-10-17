@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { ActivityIndicator, RefreshControl, ScrollView, View } from 'react-native';
-import { COACHING_COPY } from '@chefer/types';
+import { router } from 'expo-router';
+import { COACHING_COPY, type CoachingRequestDto } from '@chefer/types';
 import {
   Button,
   ConfirmSheet,
@@ -21,7 +22,8 @@ import { TrainerHeader } from '../../trainer/components/trainer-header';
 import { COACHING_MOBILE_COPY } from '../copy';
 
 // ─── Profile → Your trainer (spec §2.3 step 5, §2.6) ──────────────────────────
-// Who coaches you, since when, what they see and can do, and Leave. Mirrors the web card
+// Who coaches you, since when, what they see and can do, and Leave; a pending coaching request (Cancel
+// request) or, with neither, the way into Find a trainer (PRD 2026-10 §4.1). Mirrors the web card
 // (apps/web/src/features/coaching/components/YourTrainerCard.tsx) line for line.
 
 const EDGES: ('top' | 'bottom' | 'left' | 'right')[] = ['top', 'bottom', 'left', 'right'];
@@ -36,6 +38,46 @@ function Lines({ lines, testID }: { lines: readonly string[]; testID: string }) 
         </View>
       ))}
     </View>
+  );
+}
+
+/** The client's pending request (PRD 2026-10 §4.1): who, until when, and Cancel request. */
+function PendingRequestCard({ request }: { request: CoachingRequestDto }) {
+  const copy = COACHING_COPY.request;
+  const utils = trpc.useUtils();
+  const snackbar = useSnackbar();
+  const cancel = trpc.coaching.cancelRequest.useMutation({
+    meta: { silent: true },
+    onSuccess: () => {
+      snackbar.show({ message: copy.cancelled });
+    },
+    onSettled: () => {
+      void utils.coaching.status.invalidate();
+      void utils.coaching.trainerCard.invalidate();
+    },
+  });
+  return (
+    <CoachingCard testID="your-trainer-request" className="gap-2">
+      <Text className="text-headline font-semibold text-label">
+        {copy.pending(request.trainer.name)}
+      </Text>
+      <Text className="text-subhead text-label-secondary">
+        {copy.expires(formatShortDay(request.expiresAt))}
+      </Text>
+      {cancel.error ? (
+        <Text testID="your-trainer-request-error" className="text-subhead text-danger">
+          {userFacingErrorMessage(cancel.error)}
+        </Text>
+      ) : null}
+      <Button
+        testID="your-trainer-request-cancel"
+        variant="outline"
+        loading={cancel.isPending}
+        onPress={() => cancel.mutate(undefined)}
+      >
+        {copy.cancel}
+      </Button>
+    </CoachingCard>
   );
 }
 
@@ -103,6 +145,8 @@ export function YourTrainerScreen() {
   }
 
   const { trainer, stopped } = status.data;
+  // Additive (API 2026-10-17): the client's pending coaching request, from Find a trainer.
+  const request = status.data.request ?? null;
   const leaveError = offlineError
     ? COACHING_MOBILE_COPY.offlineLeave
     : leave.error
@@ -179,6 +223,20 @@ export function YourTrainerScreen() {
             </View>
           )}
         </CoachingCard>
+
+        {request ? (
+          <PendingRequestCard request={request} />
+        ) : trainer ? null : (
+          // PRD 2026-10 §4.1: no trainer and nothing pending — find one by name.
+          <CoachingCard testID="your-trainer-find" className="gap-2">
+            <Text className="text-subhead text-label-secondary">
+              {COACHING_COPY.find.entryHint}
+            </Text>
+            <Button testID="your-trainer-find-open" onPress={() => router.push('/coaching/find')}>
+              {COACHING_COPY.find.entry}
+            </Button>
+          </CoachingCard>
+        )}
       </ScrollView>
 
       {trainer ? (

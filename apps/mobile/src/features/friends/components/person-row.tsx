@@ -4,6 +4,7 @@ import { router } from 'expo-router';
 import { FRIENDS_COPY, type FriendUserSummary } from '@chefer/types';
 import { Avatar, PressableScale, Text } from '@chefer/ui-mobile';
 import { cn } from '@chefer/utils';
+import { TrainerTag, trainerTagLabel } from './trainer-tag';
 
 // ─── PersonRow (UX §3.2, §13) ─────────────────────────────────────────────────
 // Avatar + name (wraps to 2 lines) + an optional secondary line + a trailing
@@ -14,7 +15,8 @@ import { cn } from '@chefer/utils';
 // taps never open the profile. At ≥ 1.6× text the trailing control stacks
 // under the name instead of squeezing it (UX §13).
 
-export type PersonRowPerson = Pick<FriendUserSummary, 'id' | 'displayName' | 'imageUrl'>;
+export type PersonRowPerson = Pick<FriendUserSummary, 'id' | 'displayName' | 'imageUrl'> &
+  Partial<Pick<FriendUserSummary, 'trainer'>>;
 
 export type PersonRowProps = {
   person: PersonRowPerson;
@@ -43,7 +45,12 @@ export function PersonRow({
 }: PersonRowProps) {
   const { fontScale } = useWindowDimensions();
   const stacked = trailing != null && fontScale >= PERSON_ROW_STACK_FONT_SCALE;
-  const label = personRowLabel(person.displayName, secondary);
+  // PRD 2026-10 §4.1: a trainer reads "{name}, Trainer, {gym line}, {secondary}".
+  const tag = trainerTagLabel(person.trainer);
+  const label = personRowLabel(
+    person.displayName,
+    [tag, secondary].filter(Boolean).join(', ') || null,
+  );
 
   const identity = (
     <>
@@ -52,6 +59,7 @@ export function PersonRow({
         <Text className="font-semibold text-gray-900" numberOfLines={2}>
           {person.displayName}
         </Text>
+        <TrainerTag trainer={person.trainer} testID={`${testID}-trainer`} />
         {secondary ? (
           <Text variant="muted" numberOfLines={2}>
             {secondary}

@@ -2,7 +2,6 @@ import { useMemo, useState } from 'react';
 import { Alert, ScrollView, View } from 'react-native';
 import { router } from 'expo-router';
 import {
-  COACHING_COPY,
   FALLBACK_TRAINER_NAME,
   TEMPLATE_BY_KEY,
   type ExerciseMeta,
@@ -18,13 +17,16 @@ import {
   validateRoutine,
   volumeByGroup,
 } from '@chefer/utils';
-import { useMarkRoutineSeen } from '../../src/features/coaching/seen-markers';
 import {
   GymBootstrapUnavailable,
   useGymBootstrapLoad,
 } from '../../src/features/gym/components/gym-bootstrap-state';
 import { ModeSwitch } from '../../src/features/gym/components/mode-switch';
-import { ChangedByLine, TrainerNoteLine } from '../../src/features/gym/routine/attribution';
+import {
+  ChangedByLine,
+  setByText,
+  TrainerNoteLine,
+} from '../../src/features/gym/routine/attribution';
 import { DayCardView } from '../../src/features/gym/routine/day-card-view';
 import { dismissHint, getDismissedHints } from '../../src/features/gym/routine/hints-storage';
 import { draftToRoutineDoc, routineDtoToDraft } from '../../src/features/gym/routine/mapping';
@@ -128,9 +130,7 @@ function DayCard({
                     </Text>
                     {progression.override ? (
                       <Badge testID={`routine-exercise-${ex.id}-edited`} variant="secondary">
-                        {progression.override.setByName
-                          ? COACHING_COPY.stamps.setBy(progression.override.setByName)
-                          : 'Edited'}
+                        {setByText(progression.override) ?? 'Edited'}
                       </Badge>
                     ) : null}
                   </View>
@@ -186,8 +186,6 @@ export default function RoutineScreen() {
 
   const data = bootstrap.data;
   const routine = data?.activeRoutine ?? null;
-  // WP-18: opening the Routine tab counts as seeing the trainer's change (Today's notice goes away).
-  useMarkRoutineSeen(routine?.id ?? null, routine?.lastEditedByOther?.at ?? null);
   const trainerName = data?.coaching?.trainerName ?? FALLBACK_TRAINER_NAME;
   const lookup = useMemo(() => (data ? libraryLookup(data) : () => undefined), [data]);
   const unit = data?.profile?.unit ?? 'KG';

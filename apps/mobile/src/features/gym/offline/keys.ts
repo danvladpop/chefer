@@ -29,8 +29,6 @@ export const KV_KEYS = {
    * The invite code a client still has to finish joining (gym setup first, or sign in first).
    */
   coachingPendingJoin: 'coaching.pending-join',
-  /** `{ [routineId]: ISO of the trainer change already looked at }` — Today's "Ana updated your routine" line. */
-  coachingRoutineSeen: 'coaching.routine-seen',
-  /** ISO `at` of the "Ana stopped coaching you" notice the client dismissed. */
-  coachingStoppedDismissed: 'coaching.stopped-dismissed',
+  // (The device-local "routine seen" / "stopped dismissed" markers are gone: coaching notices are read on
+  // the server since PRD 2026-10 §4.2. Their old values are wiped at the next sign-out.)
 } as const;

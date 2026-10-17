@@ -107,6 +107,7 @@ const saveMutate = jest.fn((_input: SaveInput) => Promise.resolve({}));
 const utilsFake = {
   client: { gym: { routine: { save: { mutate: saveMutate } }, bootstrap: { query: jest.fn() } } },
   preferences: { get: { invalidate: jest.fn() } },
+  coaching: { notices: { invalidate: jest.fn(), setData: jest.fn() } },
   training: { getDayKinds: { setData: jest.fn() } },
   gym: {
     bootstrap: { invalidate: jest.fn() },

@@ -138,7 +138,7 @@ export function TodayScreen() {
       <Screen className="px-0">
         <View className="gap-4 px-4 pt-3">
           {header}
-          <CoachingNotices bootstrap={bootstrap} />
+          <CoachingNotices />
         </View>
         <EmptyState
           testID="gym-today-empty-setup"
@@ -161,7 +161,7 @@ export function TodayScreen() {
       <Screen className="px-0">
         <ScrollView contentContainerClassName="gap-4 px-4 py-4">
           {header}
-          <CoachingNotices bootstrap={bootstrap} />
+          <CoachingNotices />
 
           {/* Onboarding V4: the one-time "You're all set" card (train-only lands here). */}
           <OnboardingV4WelcomeCard />
@@ -223,7 +223,7 @@ export function TodayScreen() {
         {header}
 
         {/* WP-18: "Ana updated your routine", "stopped coaching you", "carry on joining" (flag-gated). */}
-        <CoachingNotices bootstrap={bootstrap} />
+        <CoachingNotices />
 
         {/* UX-44 (T-44.4, PAT-14): targets that moved after a correction synced. */}
         <TargetChangeNotice bootstrap={bootstrap} dataUpdatedAt={bootstrapQuery.dataUpdatedAt} />

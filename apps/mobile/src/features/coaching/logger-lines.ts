@@ -1,4 +1,5 @@
 import {
+  editorLabel,
   FALLBACK_TRAINER_NAME,
   type GymBootstrap,
   type ProgressionDto,
@@ -53,7 +54,11 @@ export function buildTrainerLines(
     },
     setByFor: (se) => {
       if (se.prescription.reasonCode !== 'USER_OVERRIDE') return null;
-      return overrideFor(bootstrap.progressions, se)?.override?.setByName ?? null;
+      const override = overrideFor(bootstrap.progressions, se)?.override;
+      // Through the shared label, like every "Set by …" (PRD 2026-10 §4.3): "Ana (former trainer)".
+      return override?.setByName
+        ? editorLabel({ name: override.setByName, former: override.setByFormer })
+        : null;
     },
   };
 }

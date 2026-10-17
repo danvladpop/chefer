@@ -1,11 +1,16 @@
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { onlineManager, QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { render, screen, userEvent, within } from '@testing-library/react-native';
-import type { GymBootstrap, NextWorkoutDto, ProgressionDto, RoutineDto } from '@chefer/types';
+import type {
+  CoachingNoticeDto,
+  GymBootstrap,
+  NextWorkoutDto,
+  ProgressionDto,
+  RoutineDto,
+} from '@chefer/types';
 import { resetSnackbarForTests } from '@chefer/ui-mobile';
 import TrainTab from '../../app/(main)/train';
 import TrainingRoutineRoute from '../../app/training/routine';
-import { isRoutineChangeUnseen, markRoutineSeen } from '../../src/features/coaching/seen-markers';
 import { activeSessionStore } from '../../src/features/gym/offline/active-session-store';
 import { KV_KEYS } from '../../src/features/gym/offline/keys';
 import { createMemoryKvBackend, kv, setKvBackendForTests } from '../../src/features/gym/offline/kv';
@@ -152,7 +157,27 @@ const TRAINER_TARGET: ProgressionDto = {
   },
 };
 
-function setCoaching(opts: { enabled: boolean; status?: unknown }) {
+const UPDATED: CoachingNoticeDto = {
+  id: 'n1',
+  kind: 'ROUTINE_UPDATED',
+  at: CHANGED_AT,
+  read: false,
+  other: { id: 'trainer-ana', name: 'Ana', role: 'TRAINER' },
+  changes: [{ kind: 'note', exercise: 'Bench press' }],
+};
+
+const mockDismiss = jest.fn();
+
+function setCoaching(opts: { enabled: boolean; status?: unknown; notices?: CoachingNoticeDto[] }) {
+  trpc.coaching.notices.useQuery.mockReturnValue({
+    data: opts.notices ?? [],
+    isError: false,
+    isLoading: false,
+  });
+  trpc.coaching.dismissNotice.useMutation.mockReturnValue({
+    mutate: mockDismiss,
+    isPending: false,
+  });
   trpc.coaching.availability.useQuery.mockReturnValue({
     data: { enabled: opts.enabled, canBeTrainer: false },
     isError: false,
@@ -207,7 +232,7 @@ beforeEach(() => {
   trpc.gym.progression.clearOverride.useMutation.mockReturnValue(mutationResult());
   trpc.gym.pause.end.useMutation.mockReturnValue(mutationResult());
   jest.spyOn(onlineManager, 'isOnline').mockReturnValue(true);
-  setCoaching({ enabled: true, status: COACHED });
+  setCoaching({ enabled: true, status: COACHED, notices: [UPDATED] });
 });
 afterEach(() => {
   jest.useRealTimers();
@@ -215,18 +240,22 @@ afterEach(() => {
 });
 
 describe('Train tab (new shell): coaching notices', () => {
-  it('"Ana updated your routine" opens Train → Routine', async () => {
+  it('"Ana updated your routine": View opens Train → Routine and dismisses it', async () => {
     const user = userEvent.setup();
     await renderWith(coachedBootstrap(), <TrainTab />);
-    expect(screen.getByTestId('coaching-routine-updated')).toHaveTextContent(
-      'Ana updated your routine · 2 Oct',
+    expect(screen.getByTestId('coaching-routine-updated-title')).toHaveTextContent(
+      'Ana updated your routine',
     );
-    await user.press(screen.getByTestId('coaching-routine-updated'));
+    expect(screen.getByTestId('coaching-routine-updated-detail')).toHaveTextContent(
+      'note on Bench press',
+    );
+    await user.press(screen.getByTestId('coaching-routine-updated-view'));
     expect(router.push).toHaveBeenCalledWith('/training/routine');
+    expect(mockDismiss).toHaveBeenCalledWith({ id: 'n1' });
   });
 
-  it('is gone once the routine was seen on this device', async () => {
-    markRoutineSeen('r1', CHANGED_AT);
+  it('a read notice shows nothing', async () => {
+    setCoaching({ enabled: true, status: COACHED, notices: [{ ...UPDATED, read: true }] });
     await renderWith(coachedBootstrap(), <TrainTab />);
     expect(screen.queryByTestId('coaching-notices')).toBeNull();
   });
@@ -235,14 +264,15 @@ describe('Train tab (new shell): coaching notices', () => {
     const user = userEvent.setup();
     setCoaching({
       enabled: true,
-      status: { trainer: null, stopped: { trainerName: 'Ana', at: '2026-10-03T10:00:00.000Z' } },
+      status: UNCOACHED,
+      notices: [{ ...UPDATED, kind: 'COACHING_ENDED', endedBy: 'TRAINER', changes: undefined }],
     });
     await renderWith(makeBootstrap({ activeRoutine: routine() }), <TrainTab />);
-    expect(screen.getByTestId('coaching-stopped')).toHaveTextContent(
-      'Ana stopped coaching you · 3 Oct',
+    expect(screen.getByTestId('coaching-notice-coaching_ended-title')).toHaveTextContent(
+      'Ana stopped coaching you. Your routine stays yours.',
     );
-    await user.press(screen.getByTestId('coaching-stopped-dismiss'));
-    expect(screen.queryByTestId('coaching-stopped')).toBeNull();
+    await user.press(screen.getByTestId('coaching-notice-coaching_ended-dismiss'));
+    expect(mockDismiss).toHaveBeenCalledWith({ id: 'n1' });
   });
 
   it('"Carry on joining your trainer" shows even before training is set up', async () => {
@@ -270,8 +300,8 @@ describe('Today (new shell): coaching notices in Training', () => {
   it('"Ana updated your routine" sits in the Training section, above the planned workout', async () => {
     await renderWith(coachedBootstrap(), <TrainingSection />);
     const section = within(screen.getByTestId('today-training'));
-    expect(section.getByTestId('coaching-routine-updated')).toHaveTextContent(
-      'Ana updated your routine · 2 Oct',
+    expect(section.getByTestId('coaching-routine-updated-title')).toHaveTextContent(
+      'Ana updated your routine',
     );
     expect(section.getByTestId('today-training-planned')).toBeOnTheScreen();
   });
@@ -285,7 +315,7 @@ describe('Today (new shell): coaching notices in Training', () => {
   });
 
   it('an uncoached client sees only the training card', async () => {
-    setCoaching({ enabled: true, status: UNCOACHED });
+    setCoaching({ enabled: true, status: UNCOACHED, notices: [] });
     await renderWith(
       coachedBootstrap({ activeRoutine: routine(), coaching: null }),
       <TrainingSection />,
@@ -315,13 +345,52 @@ describe('Train → Routine (new shell): coaching attribution', () => {
     });
   }
 
-  it('opening the routine marks the trainer’s change as seen', async () => {
-    expect(isRoutineChangeUnseen('r1', CHANGED_AT)).toBe(true);
+  it('the routine card says who changed it', async () => {
     await renderWith(coachedRoutine(), <TrainingRoutineRoute />);
     expect(screen.getByTestId('training-routine-changed-by')).toHaveTextContent(
       'Ana changed your routine · 2 Oct',
     );
-    expect(isRoutineChangeUnseen('r1', CHANGED_AT)).toBe(false);
+  });
+
+  it('a former trainer’s edits read "Ana (former trainer)" (PRD 2026-10 §4.3)', async () => {
+    const user = userEvent.setup();
+    const former = { ...ANA, former: true };
+    await renderWith(
+      makeBootstrap({
+        coaching: null,
+        activeRoutine: routine({ lastEditedByOther: former }, { lastEditedByOther: former }),
+      }),
+      <TrainingRoutineRoute />,
+    );
+    expect(screen.getByTestId('training-routine-changed-by')).toHaveTextContent(
+      'Ana (former trainer) changed your routine · 2 Oct',
+    );
+    await openDay(user);
+    expect(screen.getByTestId('training-routine-exercise-re1-changed-by')).toHaveTextContent(
+      'Changed by Ana (former trainer) · 2 Oct',
+    );
+  });
+
+  it('a target set by a former trainer reads "Set by Ana (former trainer)"', async () => {
+    const user = userEvent.setup();
+    const formerTarget: ProgressionDto = {
+      ...TRAINER_TARGET,
+      override: {
+        weightKg: 62.5,
+        reps: [6, 6, 6],
+        at: CHANGED_AT,
+        setByName: 'Ana',
+        setByFormer: true,
+      },
+    };
+    await renderWith(
+      makeBootstrap({ progressions: [formerTarget], activeRoutine: routine() }),
+      <TrainingRoutineRoute />,
+    );
+    await openDay(user);
+    expect(screen.getByTestId('training-routine-exercise-re1')).toHaveTextContent(
+      /Set by Ana \(former trainer\)/,
+    );
   });
 
   it('a day shows who changed an exercise, the trainer’s note and "Set by Ana"', async () => {

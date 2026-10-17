@@ -3,6 +3,7 @@ import { ActivityIndicator, Alert, View } from 'react-native';
 import { router } from 'expo-router';
 import {
   COACHING_COPY,
+  editorLabel,
   type ExerciseMeta,
   type NextTargetDto,
   type RoutineDto,
@@ -363,7 +364,7 @@ export function TrainerRoutineScreen({ clientId }: { clientId: string }) {
         {draft.lastEditedByOther ? (
           <Text testID="trainer-routine-changed-by" className="text-caption text-label-secondary">
             {COACHING_COPY.trainer.routineChangedByClient(
-              draft.lastEditedByOther.name,
+              editorLabel(draft.lastEditedByOther),
               formatStampDate(draft.lastEditedByOther.at),
             )}
           </Text>

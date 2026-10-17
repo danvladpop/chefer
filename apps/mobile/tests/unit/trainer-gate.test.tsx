@@ -149,6 +149,31 @@ describe('TrainerGate', () => {
     await waitFor(() => expect(screen.getByTestId('trainer-page')).toBeTruthy());
   });
 
+  it('turn-on: the optional gym line is sent, Return on it submits, and the findable note shows', async () => {
+    const user = userEvent.setup();
+    const r = await renderWithTrpc(
+      <TrainerGate>
+        <Page />
+      </TrainerGate>,
+      trainerHandlers({
+        'trainer.status': () => ({ canActivate: true, active: false, displayName: null }),
+        'trainer.activate': () => ({ canActivate: true, active: true, displayName: 'Ana' }),
+      }),
+    );
+    await settle();
+    expect(screen.getByText('Gym / city (optional)')).toBeTruthy();
+    expect(screen.getByTestId('trainer-turn-on-findable')).toHaveTextContent(
+      /clients can find you by name/,
+    );
+    await user.type(screen.getByTestId('trainer-turn-on-gym'), 'Iron Gym, Cluj');
+    await fireEvent(screen.getByTestId('trainer-turn-on-gym'), 'submitEditing');
+    await settle();
+    expect(r.calls.find((c) => c.path === 'trainer.activate')?.input).toEqual({
+      displayName: 'Ana',
+      gymLine: 'Iron Gym, Cluj',
+    });
+  });
+
   it('a FORBIDDEN activation shows the server message inline', async () => {
     const user = userEvent.setup();
     await renderWithTrpc(
