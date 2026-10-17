@@ -259,8 +259,11 @@ proposal"). With the flag off nothing changes.
 1. **Welcome** (mobile) — one screen, Biscuit waving, "Get started" / "I already
    have an account".
 2. **Account** — Sign in with Apple / Google first (WP-22, consent line under the
-   buttons), then email + password with **one** "I'm 16+ and agree to the Terms
-   and Privacy Policy" checkbox that sends both `acceptedTerms` and
+   buttons), then email + password + **Confirm password** (F9, 2026-10-17: one
+   Show toggle reveals both, "Passwords do not match" blocks the submit, and both
+   fields are tagged as new passwords so iOS's suggested strong password fills
+   both; the confirmation never reaches the API) with **one** "I'm 16+ and agree
+   to the Terms and Privacy Policy" checkbox that sends both `acceptedTerms` and
    `ageConfirmed` to `auth.register` (same API contract as V3). Legal sign-off on
    the combined checkbox is still pending (review D3).
 3. **What brings you here?** — job tiles (`PLAN_MEALS`, `TRAIN`, `TRACK`,
