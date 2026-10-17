@@ -4,7 +4,8 @@
 // to survive a real logged lift) — `PersonalRecord.isFirst` flags it so
 // callers can render "First {lift}: {w} × {reps}" instead of the usual
 // "beat your {kind} PR" copy; an e1RM PR needs a candidate set of ≤ 10 reps
-// (11–12 rep sets are low-confidence).
+// (11–12 rep sets are low-confidence); a load-unconfirmed set (progression
+// guard, load-confirmation.ts) never counts.
 import type { ExerciseBest, PersonalRecord, PrKind, SessionSummaryDto } from '@chefer/types';
 import { bestE1rm, e1rmConfidence, epley } from './e1rm';
 import { KG_EPS } from './loads';
@@ -26,8 +27,13 @@ function emptyBest(): PriorBest {
   return { maxWeight: 0, sets: [], maxE1rm: null, any: false };
 }
 
+/** Sets whose numbers are real: a "done as planned" tick (progression guard) never sets a PR. */
+function confirmedSets(ex: SummaryExercise): SummaryExercise['sets'] {
+  return ex.sets.filter((s) => s.loadConfirmed !== false);
+}
+
 function workingSets(ex: SummaryExercise): SummaryExercise['sets'] {
-  return ex.sets.filter((s) => !s.isWarmup && s.completed && s.reps > 0);
+  return confirmedSets(ex).filter((s) => !s.isWarmup && s.completed && s.reps > 0);
 }
 
 function absorb(best: PriorBest, ex: SummaryExercise): void {
@@ -36,7 +42,7 @@ function absorb(best: PriorBest, ex: SummaryExercise): void {
     best.maxWeight = Math.max(best.maxWeight, s.weightKg);
     best.sets.push([s.weightKg, s.reps]);
   }
-  const e = bestE1rm(ex.sets, ex.lastSetRir);
+  const e = bestE1rm(confirmedSets(ex), ex.lastSetRir);
   if (e && (best.maxE1rm === null || e.e1rmKg > best.maxE1rm)) {
     best.maxE1rm = e.e1rmKg;
   }

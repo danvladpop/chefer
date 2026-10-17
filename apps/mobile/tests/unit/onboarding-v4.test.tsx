@@ -70,6 +70,8 @@ const mockSafety = jest.fn();
 const mockGenerate = jest.fn();
 const mockUpgrade = jest.fn();
 const mockCompleteSetup = jest.fn();
+const mockCompleteSimpleSetup = jest.fn();
+let mockFlags: Record<string, boolean> | undefined;
 
 const PLAN = {
   planId: 'p1',
@@ -130,8 +132,18 @@ jest.mock('../../src/lib/trpc', () => {
           }),
         },
       },
+      profile: { flags: { useQuery: () => ({ data: mockFlags }) } },
       gym: {
         profile: {
+          completeSimpleSetup: {
+            useMutation: (opts: MutationOpts) => ({
+              mutate: (input: unknown) => {
+                mockCompleteSimpleSetup(input);
+                opts?.onSuccess?.({});
+              },
+              isPending: false,
+            }),
+          },
           recommend: {
             useQuery: (_input: unknown, o: { enabled: boolean }) => ({
               data: o.enabled
@@ -188,6 +200,7 @@ beforeEach(() => {
   resetLandingGateForTests();
   clearOnboardingV4Draft();
   mockPremium = false;
+  mockFlags = undefined;
   mockSetJobs.mockResolvedValue({});
   mockDisplayPrefs.mockResolvedValue({});
   mockBasics.mockResolvedValue({});
@@ -330,6 +343,61 @@ describe('Onboarding V4', () => {
     await user.press(screen.getByTestId('onb-v4-train-start'));
     expect(mockSetMode).toHaveBeenCalledWith('gym');
     expect(mockRouter.replace).toHaveBeenCalledWith('/today');
+  });
+
+  // Simple training mode §6.1: "How do you like to train?" at the top of Train.
+  async function toTrainStep(user: ReturnType<typeof userEvent.setup>) {
+    await user.press(screen.getByTestId('onb-v4-job-TRAIN'));
+    await user.press(screen.getByTestId('onb-v4-continue'));
+    await screen.findByTestId('onb-v4-goal');
+    await user.press(screen.getByTestId('onb-v4-goal-GAIN_MUSCLE'));
+    await user.press(screen.getByTestId('onb-v4-continue'));
+    await screen.findByTestId('onb-v4-aboutYou');
+    await aboutYou(user, [0, 2, 4]);
+    await user.press(screen.getByTestId('onb-v4-continue'));
+    await screen.findByTestId('onb-v4-premium');
+    await user.press(screen.getByTestId('onb-v4-premium-later'));
+    await screen.findByTestId('onb-v4-train');
+  }
+
+  it('flag off: no training-style question, the program flow is unchanged', async () => {
+    const user = await renderFlow();
+    await toTrainStep(user);
+    expect(screen.queryByTestId('onb-v4-style-answers')).toBeNull();
+    await user.press(screen.getByTestId('onb-v4-train-start'));
+    expect(mockCompleteSetup).toHaveBeenCalledTimes(1);
+    const [[sent]] = mockCompleteSetup.mock.calls as [[Record<string, unknown>]];
+    expect(sent).not.toHaveProperty('trainingStyle');
+  });
+
+  it('"I just want a good workout" hides the program and sets up simple training', async () => {
+    mockFlags = { simpleTraining: true };
+    const user = await renderFlow();
+    await toTrainStep(user);
+    // Nothing picked yet: Start waits for an answer.
+    await user.press(screen.getByTestId('onb-v4-train-start'));
+    expect(mockCompleteSetup).not.toHaveBeenCalled();
+    expect(mockCompleteSimpleSetup).not.toHaveBeenCalled();
+
+    await user.press(screen.getByTestId('onb-v4-style-workout'));
+    expect(screen.queryByTestId('onb-v4-program')).toBeNull();
+    expect(screen.queryByTestId('onb-v4-exp-BEGINNER')).toBeNull();
+    await user.press(screen.getByTestId('onb-v4-train-start'));
+    expect(mockCompleteSimpleSetup).toHaveBeenCalledWith({ unit: 'KG', weeklyGoal: 3 });
+    expect(mockCompleteSetup).not.toHaveBeenCalled();
+  });
+
+  it('"I follow a program" keeps the program step and records PROGRESSIVE', async () => {
+    mockFlags = { simpleTraining: true };
+    const user = await renderFlow();
+    await toTrainStep(user);
+    await user.press(screen.getByTestId('onb-v4-style-program'));
+    expect(screen.getByTestId('onb-v4-program')).toBeOnTheScreen();
+    await user.press(screen.getByTestId('onb-v4-train-start'));
+    expect(mockCompleteSetup).toHaveBeenCalledWith(
+      expect.objectContaining({ trainingStyle: 'PROGRESSIVE', templateKey: 'full-body-3' }),
+    );
+    expect(mockCompleteSimpleSetup).not.toHaveBeenCalled();
   });
 
   it('premium users never see the Premium step', async () => {

@@ -1,10 +1,16 @@
 import { useCallback, useMemo, useSyncExternalStore } from 'react';
 import { useQueryClient, type QueryClient } from '@tanstack/react-query';
-import type { NextWorkoutDto, WorkoutSessionDoc } from '@chefer/types';
+import type {
+  NextWorkoutDto,
+  NextWorkoutExerciseDto,
+  WorkoutSessionDoc,
+  WorkoutType,
+} from '@chefer/types';
 import {
   completeLoggedSession,
   setTickOutcome,
   startSession,
+  startSimpleWorkout,
   unstartedExercises,
   workoutReducer,
   type SessionSupersetSlot,
@@ -47,7 +53,19 @@ export type StartWorkoutInput =
        */
       carryOverExerciseIds?: string[];
     }
-  | { kind: 'freestyle'; name?: string; backfillDate?: string };
+  | { kind: 'freestyle'; name?: string; backfillDate?: string }
+  /**
+   * "Keep it simple" (simple training mode §6.4): a typed workout — a workout
+   * type, optionally the routine day it follows (its exercises listed, ready
+   * to tick). One tap to start, one to finish.
+   */
+  | {
+      kind: 'simple';
+      workoutType: WorkoutType;
+      name: string;
+      routine?: { routineId: string; dayId: string } | null;
+      exercises?: NextWorkoutExerciseDto[];
+    };
 
 export const FREESTYLE_NAME = 'Freestyle workout';
 
@@ -70,6 +88,21 @@ export function getResumableSession(): WorkoutSessionDoc | null {
 export function startWorkout(input: StartWorkoutInput): WorkoutSessionDoc {
   const existing = getResumableSession();
   if (existing) return existing;
+
+  if (input.kind === 'simple') {
+    const simple = startSimpleWorkout({
+      id: newId(),
+      newId,
+      now: nowIso(),
+      localDate: localDate(),
+      workoutType: input.workoutType,
+      name: input.name,
+      routine: input.routine ?? null,
+      exercises: input.exercises ?? [],
+    });
+    activeSessionStore.set(simple, getGymOwner());
+    return simple;
+  }
 
   const planned = input.kind === 'planned' ? input.workout : null;
   // Streak repair (gym_plan.md §1.4 "Repair"): a backfilled session gets the

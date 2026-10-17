@@ -3,16 +3,18 @@ import { createTRPCClient, httpBatchLink } from '@trpc/client';
 import superjson from 'superjson';
 import { beforeAll, describe, expect, it } from 'vitest';
 import type { AppRouter } from '@chefer/api';
-import { ACTIVITY_PRESETS, type WorkoutSessionDoc } from '@chefer/types';
-import { buildActivityLogDoc, weekdayOf } from '@chefer/utils';
+import { WORKOUT_TYPES, type WorkoutSessionDoc } from '@chefer/types';
+import { buildLoggedWorkoutDoc, weekdayOf } from '@chefer/utils';
 import { API_URL, CONTRACT_CONSENT, makeContractClient, uniqueEmail } from './client';
 
-// ─── WP-20 "Log an activity" against the REAL API ─────────────────────────────
-// "45 min cycling class, 400 kcal burnt" is stored as a finished, routine-less
-// gym session with one DURATION entry through the SAME `gym.session.upsertMany`
-// the app's offline outbox uses — no new procedure. Owner decision 2026-10-04:
-// RECORD ONLY. The kcal never changes a food target, and an activity is not a
-// training day for the nutrition bump. ONE throwaway registration per run.
+// ─── "Log a workout" (was WP-20 "Log an activity") against the REAL API ───────
+// "45 min spin, 400 kcal burnt" is stored as a finished, routine-less gym
+// session with one DURATION entry + its `workoutType`, through the SAME
+// `gym.session.upsertMany` the app's offline outbox uses — no new procedure.
+// F-1 (2026-10-17): every workout type makes a nutrition training day and
+// counts as done today. D-3 still holds: the kcal is RECORD ONLY — the bump is
+// the fixed training-day one, never sized by what was burned. ONE throwaway
+// registration per run.
 
 const { client, setToken, getToken } = makeContractClient();
 
@@ -39,11 +41,11 @@ function leveledClient(level: number) {
   });
 }
 
-/** What the sheet submits: Cycling class, 45 min, 400 kcal, hard effort, today. */
-function activityDoc(): WorkoutSessionDoc {
-  return buildActivityLogDoc({
+/** What the sheet submits: Spin, 45 min, 400 kcal, hard effort, today. */
+function loggedWorkoutDoc(): WorkoutSessionDoc {
+  return buildLoggedWorkoutDoc({
     input: {
-      presetKey: 'cycling',
+      workoutType: 'SPIN',
       localDate: today,
       durationMin: 45,
       caloriesKcal: 400,
@@ -139,7 +141,7 @@ let weekSessionsBefore = 0;
 
 beforeAll(async () => {
   const user = await client.auth.register.mutate({
-    email: uniqueEmail('activity-log'),
+    email: uniqueEmail('logged-workout'),
     password: 'Contract@123!',
     firstName: 'Cyclist',
     ...CONTRACT_CONSENT,
@@ -171,10 +173,10 @@ beforeAll(async () => {
   });
   weekSessionsBefore = setup.streak.thisWeekSessions;
   before = await foodSnapshot();
-  doc = activityDoc();
+  doc = loggedWorkoutDoc();
 });
 
-describe('logging an activity (WP-20)', () => {
+describe('logging a workout', () => {
   it('uploads through the existing offline sync and is acknowledged', async () => {
     const res = await client.gym.session.upsertMany.mutate({ docs: [doc] });
     expect(res.results).toEqual([expect.objectContaining({ id: doc.id, status: 'applied' })]);
@@ -187,7 +189,8 @@ describe('logging an activity (WP-20)', () => {
     const full = await client.gym.session.get.query({ id: doc.id });
     expect(full).toMatchObject({
       status: 'COMPLETED',
-      name: 'Cycling class',
+      name: 'Spin',
+      workoutType: 'SPIN',
       routineDayId: null,
       localDate: today,
     });
@@ -207,7 +210,7 @@ describe('logging an activity (WP-20)', () => {
   it('shows in gym.bootstrap history and counts toward this week, without moving the rotation', async () => {
     const boot = await client.gym.bootstrap.query({ today });
     const row = boot.recentSessions.find((s) => s.id === doc.id);
-    expect(row).toMatchObject({ name: 'Cycling class', status: 'COMPLETED' });
+    expect(row).toMatchObject({ name: 'Spin', status: 'COMPLETED', workoutType: 'SPIN' });
     expect(row?.exercises[0]?.sets[0]).toMatchObject({ durationSec: 2700, caloriesKcal: 400 });
     expect(boot.streak.thisWeekSessions).toBe(weekSessionsBefore + 1);
     // A cardio entry never becomes a strength progression.
@@ -242,32 +245,31 @@ describe('logging an activity (WP-20)', () => {
     }
   });
 
-  it('ships every activity chip as a governed DURATION library entry', async () => {
+  it("ships every workout type's entry as a governed DURATION library row", async () => {
     const library = await client.gym.library.list.query({});
-    for (const preset of ACTIVITY_PRESETS) {
-      const entry = library.find((e) => e.id === preset.exerciseId);
-      expect(entry, preset.key).toBeDefined();
-      expect(entry?.trackingType, preset.key).toBe('DURATION');
+    for (const type of WORKOUT_TYPES) {
+      const entry = library.find((e) => e.id === type.exerciseId);
+      expect(entry, type.type).toBeDefined();
+      expect(entry?.trackingType, type.type).toBe('DURATION');
     }
   });
 });
 
-describe('record only: the kcal never reaches the food side (WP-20)', () => {
-  it("the day's food targets, ring and training-day flag are exactly as before the activity", async () => {
-    const after = await foodSnapshot();
-    expect(after).toEqual(before);
-    expect(after.ring.isTrainingDay).toBe(false);
-    expect(after.tracker.isTrainingDay).toBe(false);
-    expect(after.ring.adjustedTargets).toBeNull();
-    expect(after.tracker.adjustedTargets).toBeNull();
+describe('a logged workout is a training day; its kcal stays record only (F-1, D-3)', () => {
+  let afterLog: Awaited<ReturnType<typeof foodSnapshot>>;
+
+  it('makes today a training day with the fixed bump; the base target never moves', async () => {
+    afterLog = await foodSnapshot();
+    expect(before.tracker.isTrainingDay).toBe(false);
+    expect(afterLog.tracker.isTrainingDay).toBe(true);
+    expect(afterLog.ring.isTrainingDay).toBe(true);
+    expect(afterLog.tracker.targets).toEqual(before.tracker.targets);
+    expect(afterLog.ring.eatenKcal).toBe(before.ring.eatenKcal);
   });
 
-  it('control: a real workout the same day DOES make it a training day (so the check can fail)', async () => {
+  it("the bump is the same as a lifting workout's: the 400 kcal never sizes it", async () => {
     await client.gym.session.upsertMany.mutate({ docs: [strengthDoc()] });
-    const after = await foodSnapshot();
-    expect(after.tracker.isTrainingDay).toBe(true);
-    expect(after.ring.isTrainingDay).toBe(true);
-    // The base target itself never moves either way; only the training-day payload does.
-    expect(after.tracker.targets).toEqual(before.tracker.targets);
+    const afterBoth = await foodSnapshot();
+    expect(afterBoth).toEqual(afterLog);
   });
 });

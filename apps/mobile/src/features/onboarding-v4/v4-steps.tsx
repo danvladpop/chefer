@@ -543,6 +543,8 @@ export function TrainStep({
   onEquipment,
   program,
   onChangeProgram,
+  styleQuestion,
+  simple = false,
 }: {
   experience: 'BEGINNER' | 'INTERMEDIATE';
   onExperience: (v: 'BEGINNER' | 'INTERMEDIATE') => void;
@@ -550,6 +552,13 @@ export function TrainStep({
   onEquipment: (v: 'FULL_GYM' | 'DUMBBELLS' | 'BODYWEIGHT') => void;
   program: { name: string; days: number } | null;
   onChangeProgram: (() => void) | null;
+  /**
+   * Simple training mode §6.1: "How do you like to train?" at the top of the
+   * step (flag on only). A "Keep it simple" answer (`simple`) hides the
+   * experience, equipment and program — nothing else is asked.
+   */
+  styleQuestion?: ReactNode;
+  simple?: boolean;
 }) {
   const c = useThemeColors();
   const row = (children: ReactNode) => <View className="flex-row flex-wrap gap-2">{children}</View>;
@@ -557,6 +566,44 @@ export function TrainStep({
     <>
       <BiscuitStage loop="goalMuscle" size={150} />
       <V4Heading title={COPY.trainTitle} />
+      {styleQuestion ?? null}
+      {simple ? null : (
+        <TrainProgramFields
+          experience={experience}
+          onExperience={onExperience}
+          equipment={equipment}
+          onEquipment={onEquipment}
+          program={program}
+          onChangeProgram={onChangeProgram}
+          row={row}
+          brand={c.brand}
+        />
+      )}
+    </>
+  );
+}
+
+function TrainProgramFields({
+  experience,
+  onExperience,
+  equipment,
+  onEquipment,
+  program,
+  onChangeProgram,
+  row,
+  brand,
+}: {
+  experience: 'BEGINNER' | 'INTERMEDIATE';
+  onExperience: (v: 'BEGINNER' | 'INTERMEDIATE') => void;
+  equipment: 'FULL_GYM' | 'DUMBBELLS' | 'BODYWEIGHT';
+  onEquipment: (v: 'FULL_GYM' | 'DUMBBELLS' | 'BODYWEIGHT') => void;
+  program: { name: string; days: number } | null;
+  onChangeProgram: (() => void) | null;
+  row: (children: ReactNode) => ReactNode;
+  brand: string;
+}) {
+  return (
+    <>
       <View className="gap-2">
         <V4Caption>{COPY.trainExperience}</V4Caption>
         {row(
@@ -606,7 +653,7 @@ export function TrainStep({
         testID="onb-v4-program"
       >
         <View className="h-12 w-12 items-center justify-center rounded-control bg-brand-tint">
-          <Ionicons name="barbell-outline" size={26} color={c.brand} />
+          <Ionicons name="barbell-outline" size={26} color={brand} />
         </View>
         <View className="min-w-0 flex-1">
           <Text className="text-headline font-semibold text-label">{program?.name ?? '…'}</Text>

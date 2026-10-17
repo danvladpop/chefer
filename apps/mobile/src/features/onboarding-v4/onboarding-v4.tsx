@@ -30,6 +30,7 @@ import {
   type OnboardingV4Step,
   type SafetyPickerValue,
 } from '@chefer/utils';
+import { useFlags } from '../../hooks/use-flags';
 import { useIsPremium } from '../../hooks/use-is-premium';
 import { track } from '../../lib/analytics';
 import { trackOnboardingCompleted, trackPlanGenerated } from '../../lib/analytics-events';
@@ -37,6 +38,12 @@ import { getToken } from '../../lib/auth-store';
 import { trpc, type RouterOutputs } from '../../lib/trpc';
 import { useAiConsent } from '../ai-consent/ai-consent-provider';
 import { setMode } from '../gym/mode-store';
+import {
+  onboardingWeeklyGoal,
+  styleOfAnswer,
+  type TrainingStyleAnswerKey,
+} from '../gym/simple/simple-helpers';
+import { TrainingStyleCards } from '../gym/simple/training-style-cards';
 import { gymBootstrapQueryKey } from '../gym/use-gym-bootstrap';
 import { markLandingDecided } from '../navigation/landing-gate';
 import { clearOnboardingDraft } from '../onboarding/onboarding-draft';
@@ -61,7 +68,7 @@ import {
   TrainStep,
   type AboutYouValue,
 } from './v4-steps';
-import { V4Chip, V4Ghost, V4Primary, V4Screen, V4TopBar } from './v4-ui';
+import { V4Caption, V4Chip, V4Ghost, V4Primary, V4Screen, V4TopBar } from './v4-ui';
 import { markOnboardingV4Welcome } from './welcome-card-store';
 
 // Onboarding V4 (flag `onboardingV4`; boards: canvas page "Onboarding V4 —
@@ -128,6 +135,13 @@ export function OnboardingV4() {
   const [experience, setExperience] = useState<Experience>(draft?.experience ?? 'BEGINNER');
   const [equipment, setEquipment] = useState<Equipment>(draft?.equipment ?? 'FULL_GYM');
   const [programIndex, setProgramIndex] = useState(0);
+  // Simple training mode §6.1: "How do you like to train?" (flag on only).
+  const { simpleTraining } = useFlags();
+  const [styleAnswer, setStyleAnswer] = useState<TrainingStyleAnswerKey | null>(
+    draft?.styleAnswer ?? null,
+  );
+  const simpleAnswer =
+    simpleTraining && styleAnswer !== null && styleOfAnswer(styleAnswer) === 'SIMPLE';
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [leaveOpen, setLeaveOpen] = useState(false);
@@ -192,11 +206,20 @@ export function OnboardingV4() {
     equipmentAccess: equipment,
   };
   const recommend = trpc.gym.profile.recommend.useQuery(recommendInput, {
-    enabled: step === 'train',
+    enabled: step === 'train' && !simpleAnswer,
     staleTime: Infinity,
     retry: false,
   });
   const completeSetup = trpc.gym.profile.completeSetup.useMutation({
+    ...silent,
+    onSuccess: (bootstrap) => {
+      queryClient.setQueryData(gymBootstrapQueryKey, bootstrap);
+      void utils.preferences.get.invalidate();
+      finish();
+    },
+    onError: (err) => setError(userFacingErrorMessage(err)),
+  });
+  const completeSimpleSetup = trpc.gym.profile.completeSimpleSetup.useMutation({
     ...silent,
     onSuccess: (bootstrap) => {
       queryClient.setQueryData(gymBootstrapQueryKey, bootstrap);
@@ -226,6 +249,7 @@ export function OnboardingV4() {
     premiumOn,
     experience,
     equipment,
+    ...(styleAnswer !== null && { styleAnswer }),
   };
   const draftJson = JSON.stringify(draftAnswers);
   useEffect(() => {
@@ -410,9 +434,26 @@ export function OnboardingV4() {
   const program = programs.length > 0 ? programs[programIndex % programs.length] : undefined;
   useEffect(() => setProgramIndex(0), [experience, equipment]);
 
+  const trainPending = completeSetup.isPending || completeSimpleSetup.isPending;
+  const trainReady = simpleTraining
+    ? styleAnswer !== null && (simpleAnswer || program !== undefined)
+    : program !== undefined;
+
   function startTraining() {
-    if (!program || completeSetup.isPending) return;
+    if (trainPending) return;
+    if (simpleAnswer) {
+      // "Keep it simple": no routine, nothing else asked; the picked training
+      // days become the weekly goal.
+      const weeklyGoal = onboardingWeeklyGoal(about.trainingWeekdays);
+      completeSimpleSetup.mutate({
+        unit: imperial ? 'LB' : 'KG',
+        ...(weeklyGoal !== undefined && { weeklyGoal }),
+      });
+      return;
+    }
+    if (!program || (simpleTraining && styleAnswer === null)) return;
     completeSetup.mutate({
+      ...(simpleTraining && { trainingStyle: 'PROGRESSIVE' as const }),
       days: recommendInput.days,
       experience,
       equipmentAccess: equipment,
@@ -572,14 +613,27 @@ export function OnboardingV4() {
           onEquipment={setEquipment}
           program={program ? { name: program.name, days: recommendInput.days } : null}
           onChangeProgram={programs.length > 1 ? () => setProgramIndex((i) => i + 1) : null}
+          simple={simpleAnswer}
+          styleQuestion={
+            simpleTraining ? (
+              <View className="gap-2">
+                <V4Caption>How do you like to train?</V4Caption>
+                <TrainingStyleCards
+                  value={styleAnswer}
+                  onChange={setStyleAnswer}
+                  testIDPrefix="onb-v4-style"
+                />
+              </View>
+            ) : undefined
+          }
         />
       );
       footer = (
         <V4Primary
           label={COPY.trainStart}
           onPress={startTraining}
-          loading={completeSetup.isPending}
-          disabled={!program}
+          loading={trainPending}
+          disabled={!trainReady}
           testID="onb-v4-train-start"
         />
       );

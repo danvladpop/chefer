@@ -98,6 +98,7 @@ export function toRoutineDto(row: RoutineWithDays): RoutineDto {
       position: d.position,
       name: d.name,
       plannedWeekday: d.plannedWeekday,
+      workoutType: d.workoutType,
       exercises: d.exercises.map((e) => ({
         id: e.id,
         exerciseId: e.exerciseId,
@@ -135,6 +136,7 @@ export function toProfileDto(row: GymProfile): GymProfileDto {
     sessionLengthMins: row.sessionLengthMins ?? null,
     // S21 (T-42.0/T-42.2): null/absent lets the client derive KM/MI from `unit`.
     distanceUnit: row.distanceUnit,
+    trainingStyle: row.trainingStyle,
   };
 }
 
@@ -186,6 +188,8 @@ export function toSessionDoc(row: SessionWithChildren): WorkoutSessionDoc {
     notes: row.notes,
     clientUpdatedAt: row.clientUpdatedAt.toISOString(),
     engineVersion: row.engineVersion,
+    // Simple training mode: only a typed workout carries the key.
+    ...(row.workoutType !== null && { workoutType: row.workoutType }),
     exercises: row.exercises.map((e) => ({
       id: e.id,
       exerciseId: e.exerciseId,
@@ -221,6 +225,8 @@ export function toSessionDoc(row: SessionWithChildren): WorkoutSessionDoc {
         inclinePct: s.inclinePct ?? undefined,
         caloriesKcal: s.caloriesKcal ?? undefined,
         avgHeartRateBpm: s.avgHeartRateBpm ?? undefined,
+        // Progression guard: only `false` travels; a confirmed set omits the key.
+        ...(s.loadConfirmed === false && { loadConfirmed: false as const }),
       })),
     })),
   };

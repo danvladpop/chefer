@@ -11,8 +11,6 @@ import {
   useThemeColors,
 } from '@chefer/ui-mobile';
 import {
-  activityFacts,
-  activitySummaryLine,
   cn,
   distanceUnitFor,
   effortLabelForRpe,
@@ -20,9 +18,11 @@ import {
   formatDurationMinutes,
   formatLoad,
   formatLocalDateLong,
-  isActivityLogSession,
+  isLoggedWorkout,
   isNotFoundError,
   isStrengthTrackingType,
+  loggedWorkoutFacts,
+  loggedWorkoutSummaryLine,
   toSessionSummary,
   trackingTypeOf,
   weekdayDateLabel,
@@ -156,7 +156,7 @@ export function SessionDetailScreen({ sessionId }: { sessionId: string }) {
 
   const duration = sessionDurationMin(view);
   const unit = bootstrap?.profile?.unit ?? 'KG';
-  const isActivity = isActivityLogSession({
+  const isActivity = isLoggedWorkout({
     routineDayId: view.routineDayId ?? null,
     exercises: view.exercises,
   });
@@ -216,7 +216,7 @@ export function SessionDetailScreen({ sessionId }: { sessionId: string }) {
         {isActivity ? (
           <TrainCard testID="session-detail-activity" className="gap-1">
             <Text className="text-headline font-semibold text-label">
-              {activitySummaryLine(view.name, activityFacts(view))}
+              {loggedWorkoutSummaryLine(view.name, loggedWorkoutFacts(view))}
             </Text>
             {activityEffort !== undefined ? (
               <Text className="text-subhead text-label-secondary">

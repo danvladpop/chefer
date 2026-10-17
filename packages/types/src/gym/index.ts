@@ -4,7 +4,7 @@ export * from './vocab';
 export * from './engine';
 export * from './schemas';
 export * from './dto';
-export * from './activity-log';
+export * from './workout-types';
 export * from './cardio-catalog';
 export * from './exercise-catalog';
 export * from './exercise-content';

@@ -30,16 +30,24 @@ export function createTrpcGymMock() {
       // T-42.3: useFlags() (gym settings, workout/exercises-tab pickers) —
       // every flag off by default, same as ALL_FEATURE_FLAGS_OFF.
       profile: {
-        flags: { useQuery: jest.fn(() => ({ data: undefined })) },
+        flags: {
+          useQuery: jest.fn((): { data: Record<string, boolean> | undefined } => ({
+            data: undefined,
+          })),
+        },
       },
       gym: {
         bootstrap: { _def: () => ({ path: ['gym', 'bootstrap'] }) },
         profile: {
           recommend: { useQuery: jest.fn() },
           completeSetup: { useMutation: jest.fn() },
+          completeSimpleSetup: { useMutation: jest.fn() },
           save: { useMutation: jest.fn() },
         },
-        routine: { setNextDay: { useMutation: jest.fn() } },
+        routine: {
+          setNextDay: { useMutation: jest.fn() },
+          saveMyWeek: { useMutation: jest.fn() },
+        },
         progression: {
           dismissOffer: { useMutation: jest.fn() },
           startDeload: { useMutation: jest.fn() },

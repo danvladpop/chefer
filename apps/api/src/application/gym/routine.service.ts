@@ -207,6 +207,8 @@ export class RoutineService {
           id: d.id,
           name: d.name.trim(),
           plannedWeekday: d.plannedWeekday,
+          // Absent (an older binary's doc) keeps the stored My week type.
+          ...(d.workoutType !== undefined && { workoutType: d.workoutType }),
           // Canonical letters (A, B… adjacent runs, no lone letters) whatever
           // the client sent — older clients only normalise on load.
           exercises: normalizeSupersets(d.exercises.map((e) => ({ ...e }))),
@@ -226,6 +228,33 @@ export class RoutineService {
     // Day rebalance: the active routine's weekdays are the plan's training days.
     if (res.routine.isActive) await notifyTargetsChanged(userId);
     return toRoutineDto(res.routine);
+  }
+
+  /**
+   * My week's first save (simple training mode §6.4): creates the ONE active
+   * routine (ADR 0001) from type-only days. Only called when there is none.
+   */
+  async createMyWeek(userId: string, days: RoutineDoc['days']): Promise<RoutineDto> {
+    await this.assertRoomForAnother(userId);
+    const row = await this.repo.create(userId, {
+      name: 'My week',
+      templateKey: null,
+      isActive: true,
+      days: days.map((d) => ({
+        name: d.name,
+        plannedWeekday: d.plannedWeekday,
+        workoutType: d.workoutType ?? null,
+        exercises: [],
+      })),
+    });
+    await notifyTargetsChanged(userId);
+    return toRoutineDto(row);
+  }
+
+  /** The active routine, or null. */
+  async getActive(userId: string): Promise<RoutineDto | null> {
+    const row = await this.repo.findActive(userId);
+    return row ? toRoutineDto(row) : null;
   }
 
   /** "Do another day instead" / "skip this day": moves the rotation pointer. */

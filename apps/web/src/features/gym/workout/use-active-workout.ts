@@ -2,12 +2,19 @@
 
 import { useCallback, useMemo, useSyncExternalStore } from 'react';
 import { trpc } from '@/lib/trpc';
-import type { GymBootstrap, NextWorkoutDto, WorkoutSessionDoc } from '@chefer/types';
+import type {
+  GymBootstrap,
+  NextWorkoutDto,
+  NextWorkoutExerciseDto,
+  WorkoutSessionDoc,
+  WorkoutType,
+} from '@chefer/types';
 import {
   applyFinishedSession,
   applyPendingCorrections,
   setTickOutcome,
   startSession,
+  startSimpleWorkout,
   workoutReducer,
   type SessionSupersetSlot,
 } from '@chefer/utils';
@@ -31,7 +38,15 @@ import type { WorkoutActionInput } from './workout-model';
 
 export type StartWorkoutInput =
   | { kind: 'planned'; workout: NextWorkoutDto; backfillDate?: string }
-  | { kind: 'freestyle'; name?: string; backfillDate?: string };
+  | { kind: 'freestyle'; name?: string; backfillDate?: string }
+  /** "Keep it simple": a typed workout, optionally following a My week / routine day. */
+  | {
+      kind: 'simple';
+      workoutType: WorkoutType;
+      name: string;
+      routine?: { routineId: string; dayId: string } | null;
+      exercises?: NextWorkoutExerciseDto[];
+    };
 
 export const FREESTYLE_NAME = 'Freestyle workout';
 
@@ -77,6 +92,21 @@ export function startWorkout(
 ): WorkoutSessionDoc {
   const existing = getResumableSession();
   if (existing) return existing;
+
+  if (input.kind === 'simple') {
+    const simple = startSimpleWorkout({
+      id: newId(),
+      newId,
+      now: nowIso(),
+      localDate: today,
+      workoutType: input.workoutType,
+      name: input.name,
+      routine: input.routine ?? null,
+      exercises: input.exercises ?? [],
+    });
+    activeSessionStore.set(simple, getGymOwner());
+    return simple;
+  }
 
   const planned = input.kind === 'planned' ? input.workout : null;
   // Streak repair (gym_plan.md §1.4 "Repair"): a backfilled session gets the

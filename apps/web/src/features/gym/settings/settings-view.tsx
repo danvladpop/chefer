@@ -2,14 +2,34 @@
 
 import Link from 'next/link';
 import { useState } from 'react';
+import { useFlags } from '@/features/flags/use-flags';
 import { capture } from '@/lib/analytics';
 import { trpc } from '@/lib/trpc';
-import { AlertTriangle, ArrowLeft, Copy, PauseCircle, RotateCw, Trash2 } from 'lucide-react';
-import type { ActivePauseDto, GymProfileDto, WeightUnit } from '@chefer/types';
-import { Button, ErrorState, Input, Sheet } from '@chefer/ui';
+import {
+  AlertTriangle,
+  ArrowLeft,
+  CalendarDays,
+  ChevronRight,
+  Copy,
+  PauseCircle,
+  RotateCw,
+  Trash2,
+} from 'lucide-react';
+import {
+  TRAINING_STYLE_LABEL,
+  type ActivePauseDto,
+  type GymProfileDto,
+  type RoutineDto,
+  type TrainingStyle,
+  type WeightUnit,
+} from '@chefer/types';
+import { Button, ErrorState, Input, pressControl, Sheet } from '@chefer/ui';
 import {
   cn,
   formatLoadNumber,
+  myWeekOf,
+  myWeekPlanOf,
+  myWeekSummary,
   PAUSE_EXPLAINER,
   PAUSE_START_CHOICES,
   pauseEndDate,
@@ -80,6 +100,7 @@ export function SettingsView() {
           <ProfileSettings
             key={data.profile.unit}
             profile={data.profile}
+            activeRoutine={data.activeRoutine}
             today={today}
             paused={data.weeks[data.weeks.length - 1]?.status === 'paused'}
             activePause={data.activePause}
@@ -93,18 +114,21 @@ export function SettingsView() {
 
 function ProfileSettings({
   profile,
+  activeRoutine,
   today,
   paused,
   activePause,
   upcomingPause,
 }: {
   profile: GymProfileDto;
+  activeRoutine: RoutineDto | null;
   today: string;
   paused: boolean;
   activePause: ActivePauseDto | null;
   upcomingPause: ActivePauseDto | null;
 }) {
   const unit = profile.unit;
+  const flags = useFlags();
   const [saved, setSaved] = useState<string | null>(null);
   // UX-GYM-22: optimistic — the screen shows the new value at once and rolls
   // back (with the error below) if the save fails.
@@ -129,6 +153,15 @@ function ProfileSettings({
 
   return (
     <>
+      {flags.simpleTraining && (
+        <TrainingStyleCard
+          style={profile.trainingStyle ?? 'PROGRESSIVE'}
+          activeRoutine={activeRoutine}
+          disabled={save.isPending}
+          onChange={(trainingStyle) => save.mutate({ trainingStyle })}
+        />
+      )}
+
       <GymCard>
         <CardLabel>Units</CardLabel>
         <div className="mt-3 grid grid-cols-2 gap-2 sm:w-64" role="group" aria-label="Weight unit">
@@ -602,6 +635,70 @@ function NeedsAttention({ entries }: { entries: OutboxEntry[] }) {
       >
         <div />
       </Sheet>
+    </GymCard>
+  );
+}
+
+const TRAINING_STYLES: readonly TrainingStyle[] = ['SIMPLE', 'PROGRESSIVE'];
+
+/**
+ * Simple training mode (§5): the lossless "Training style" switch, and — in
+ * "Keep it simple" — the My week row. Optimistic like every profile field.
+ */
+function TrainingStyleCard({
+  style,
+  activeRoutine,
+  disabled,
+  onChange,
+}: {
+  style: TrainingStyle;
+  activeRoutine: RoutineDto | null;
+  disabled: boolean;
+  onChange: (style: TrainingStyle) => void;
+}) {
+  return (
+    <GymCard data-testid="gym-training-style">
+      <CardLabel>Training style</CardLabel>
+      <div className="mt-3 grid grid-cols-2 gap-2" role="group" aria-label="Training style">
+        {TRAINING_STYLES.map((s) => (
+          <button
+            key={s}
+            type="button"
+            aria-pressed={style === s}
+            disabled={disabled}
+            onClick={() => style !== s && onChange(s)}
+            data-testid={`gym-training-style-${s}`}
+            className={cn(
+              'min-h-11 min-w-0 rounded-xl border px-2 text-sm font-semibold',
+              pressControl,
+              style === s
+                ? 'border-[#944a00] bg-[#fff3e8] text-[#944a00]'
+                : 'bg-white text-gray-700 hover:bg-gray-50',
+            )}
+          >
+            {TRAINING_STYLE_LABEL[s]}
+          </button>
+        ))}
+      </div>
+      <p className="mt-2 text-xs text-gray-500">
+        Switch any time — your routine and history stay as they are.
+      </p>
+      {style === 'SIMPLE' && (
+        <Link
+          href="/gym/my-week?from=settings"
+          className="-mx-2 mt-3 flex min-h-11 items-center gap-3 rounded-xl px-2 py-2 hover:bg-gray-50"
+          data-testid="gym-settings-my-week"
+        >
+          <CalendarDays className="h-5 w-5 shrink-0 text-[#944a00]" aria-hidden="true" />
+          <span className="min-w-0 flex-1">
+            <span className="block text-sm font-semibold text-gray-900">My week</span>
+            <span className="block truncate text-xs text-gray-500">
+              {myWeekSummary(myWeekPlanOf(myWeekOf(activeRoutine)))}
+            </span>
+          </span>
+          <ChevronRight className="h-4 w-4 shrink-0 text-gray-400" aria-hidden="true" />
+        </Link>
+      )}
     </GymCard>
   );
 }

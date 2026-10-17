@@ -1,5 +1,6 @@
 import { z } from 'zod';
-import { saveRoutineInputSchema } from '@chefer/types';
+import { saveMyWeekInputSchema, saveRoutineInputSchema } from '@chefer/types';
+import { myWeekService } from '../../application/gym/my-week.service.js';
 import { routineService } from '../../application/gym/routine.service.js';
 import { protectedProcedure, router } from '../../lib/trpc.js';
 
@@ -49,4 +50,12 @@ export const gymRoutineRouter = router({
     .mutation(({ ctx, input }) =>
       routineService.setNextDay(ctx.user.id, input.routineId, input.dayId),
     ),
+  /**
+   * Simple training mode: save My week — seven rows (a workout type or Rest)
+   * applied to the ONE active routine (ADR 0001), created on first save. A
+   * stale `expectedVersion` throws CONFLICT like `save`.
+   */
+  saveMyWeek: protectedProcedure
+    .input(saveMyWeekInputSchema)
+    .mutation(({ ctx, input }) => myWeekService.save(ctx.user.id, input)),
 });
