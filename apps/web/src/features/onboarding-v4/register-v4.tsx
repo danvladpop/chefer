@@ -9,11 +9,7 @@ import { trpc } from '@/lib/trpc';
 import { useQueryClient } from '@tanstack/react-query';
 import { Check, Mail } from 'lucide-react';
 import { z } from 'zod';
-import {
-  confirmPasswordSchema,
-  CURRENT_TERMS_VERSION,
-  withPasswordConfirmation,
-} from '@chefer/types';
+import { CURRENT_TERMS_VERSION, passwordConfirmationSchema } from '@chefer/types';
 import { pressControl } from '@chefer/ui';
 import { cn, detectRegion, ONBOARDING_V4_COPY, userFacingErrorMessage } from '@chefer/utils';
 import { BiscuitHalo, PrimaryButton, V4Heading, V4TopBar } from './components/ui';
@@ -38,12 +34,8 @@ const passwordSchema = z
   .max(100, 'Password must be at most 100 characters');
 const AGREE_ERROR = 'You must agree to the Terms and the Privacy Policy';
 // Only the confirmation's rules: empty, then "Passwords do not match".
-const confirmationSchema = withPasswordConfirmation({
-  password: z.string(),
-  confirmPassword: confirmPasswordSchema,
-});
 function confirmationError(password: string, confirmPassword: string): string | undefined {
-  const r = confirmationSchema.safeParse({ password, confirmPassword });
+  const r = passwordConfirmationSchema.safeParse({ password, confirmPassword });
   return r.success ? undefined : r.error.issues[0]?.message;
 }
 
@@ -231,7 +223,11 @@ export function RegisterV4() {
                   autoComplete="new-password"
                   value={password}
                   disabled={isPending}
-                  onChange={(e) => setPassword(e.target.value)}
+                  onChange={(e) => {
+                    setPassword(e.target.value);
+                    setServerError(null);
+                    setAccountExists(false);
+                  }}
                   aria-invalid={errors.password ? true : undefined}
                   aria-describedby={
                     errors.password ? 'v4-password-hint v4-password-error' : 'v4-password-hint'
@@ -270,7 +266,11 @@ export function RegisterV4() {
                 autoComplete="new-password"
                 value={confirmPassword}
                 disabled={isPending}
-                onChange={(e) => setConfirmPassword(e.target.value)}
+                onChange={(e) => {
+                  setConfirmPassword(e.target.value);
+                  setServerError(null);
+                  setAccountExists(false);
+                }}
                 aria-invalid={confirmError ? true : undefined}
                 aria-describedby={confirmError ? 'v4-confirm-password-error' : undefined}
                 className={inputCls}

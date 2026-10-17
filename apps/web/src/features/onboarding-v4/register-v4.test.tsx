@@ -6,7 +6,11 @@ import { RegisterV4 } from './register-v4';
 
 // "Save your plan" (flag onboardingV4): email + password + confirm (F9), one 16+/Terms
 // checkbox sent as both acceptedTerms and ageConfirmed; success → /onboarding.
-const m = vi.hoisted(() => ({ push: vi.fn(), register: vi.fn() }));
+const m = vi.hoisted(() => ({
+  push: vi.fn(),
+  register: vi.fn(),
+  failWith: null as string | null,
+}));
 
 vi.mock('next/navigation', () => ({ useRouter: () => ({ push: m.push, refresh: vi.fn() }) }));
 vi.mock('next/link', () => ({
@@ -23,11 +27,15 @@ vi.mock('@/lib/trpc', () => ({
   trpc: {
     auth: {
       register: {
-        useMutation: (opts: { onSuccess?: () => void }) => ({
+        useMutation: (opts: {
+          onSuccess?: () => void;
+          onError?: (err: { message: string; data: { code: string } }) => void;
+        }) => ({
           isPending: false,
           mutate: (input: unknown) => {
             m.register(input);
-            opts.onSuccess?.();
+            if (m.failWith) opts.onError?.({ message: m.failWith, data: { code: 'CONFLICT' } });
+            else opts.onSuccess?.();
           },
         }),
       },
@@ -38,6 +46,7 @@ vi.mock('@/lib/trpc', () => ({
 afterEach(cleanup);
 beforeEach(() => {
   vi.clearAllMocks();
+  m.failWith = null;
 });
 
 function openEmail(confirm = 'Spinach-9') {
@@ -118,5 +127,18 @@ describe('RegisterV4', () => {
     fireEvent.click(screen.getByTestId('v4-account-create'));
     expect(m.register).not.toHaveBeenCalled();
     expect(screen.getByRole('alert').textContent).toBe('Please confirm your password');
+  });
+
+  it('UX-ACC-15: editing either password field clears the server error', () => {
+    m.failWith = 'An account with this email already exists';
+    openEmail();
+    fireEvent.click(screen.getByTestId('v4-account-agree'));
+    for (const label of ['Password', 'Confirm password']) {
+      fireEvent.click(screen.getByTestId('v4-account-create'));
+      expect(screen.getByRole('alert').textContent).toMatch(/already exists/);
+      fireEvent.change(screen.getByLabelText(label), { target: { value: 'Spinach-99' } });
+      expect(screen.queryByText(/already exists/)).toBeNull();
+      fireEvent.change(screen.getByLabelText(label), { target: { value: 'Spinach-9' } });
+    }
   });
 });
