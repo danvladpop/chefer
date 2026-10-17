@@ -6012,6 +6012,18 @@ Attribution afterwards: a stamp by someone who is not the client's trainer NOW r
   or "Changed by a former trainer" when the account is gone (LastEditedByOtherDto.former, editorLabel).
 ```
 
-**Simple-mode clients (§4.3).** Depends on the simple-mode PR (one routine, ADR 0001): the trainer sees a "Keep it
-simple" badge and cannot change the client's training style; ticked exercises show as "done as planned"; a workout
-without exercises shows as "Yoga · 45 min" with no calories (D-8). See the PR for what landed and what follows.
+**Simple-mode clients (§4.3).** One routine for both training styles (ADR 0001), so the trainer edits the same
+routine whatever the client chose:
+
+```
+Clients list / client header: a "Keep it simple" badge when the `simpleTraining` flag is on and the client's style is
+  SIMPLE (ClientRowDto.keepItSimple, overview.client.keepItSimple) — with "<client> chose Keep it simple … Only <client>
+  can change this." There is no control for the trainer to change it.
+Workouts: an exercise ticked "Done" with the planned numbers never edited (SessionSet.loadConfirmed = false, the
+  progression guard) reads "Done as planned" (CoachedExerciseDto.doneAsPlanned) — never as lifted weights — and is
+  left out of the exercise's history; a typed workout with no exercises reads "Yoga · 45 min"
+  (CoachedWorkoutDto.workoutType + durationMin). Never calories (D-8).
+Routine: the trainer fills My week days with a workout type, exercises and notes (TrainerRoutineDayDto.workoutType,
+  saved through trainer.client.saveRoutine; omitted = unchanged). "Changed by …" and "Keep mine / Use the other
+  version" work the same in both styles; a changed workout type shows as "days changed" in the client's card.
+```
