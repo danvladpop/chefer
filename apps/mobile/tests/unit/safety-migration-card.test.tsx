@@ -123,4 +123,44 @@ describe('MigrationCard (T-01.3)', () => {
     );
     expect(mockConfirm).toHaveBeenCalledTimes(1);
   });
+
+  it('UX-ACC-01: a term typed in "Something else?" without "+" reaches the saved value', async () => {
+    mockTable = { people: [], hasRules: true, needsReview: true };
+    mockPrefs = { allergies: ['tree nuts'], dietaryRestrictions: [], dislikedIngredients: [] };
+    await renderCard(<MigrationCard />);
+    await fireEvent.press(screen.getByTestId('safety-migration-card-change'));
+    await fireEvent.changeText(
+      screen.getByTestId('safety-migration-card-picker-something-else-input'),
+      'sesame',
+    );
+    await fireEvent.press(screen.getByTestId('safety-migration-card-change-save'));
+
+    expect(mockUpdateSafety).toHaveBeenCalledTimes(1);
+    const [saved] = mockUpdateSafety.mock.calls[0] as [{ allergies: string[] }];
+    expect(saved.allergies).toEqual(expect.arrayContaining(['Tree nuts', 'Sesame']));
+    expect(mockConfirm).toHaveBeenCalledTimes(1);
+  });
+
+  it('UX-ACC-01: an unrecognised typed term holds the save until the user chooses', async () => {
+    mockTable = { people: [], hasRules: true, needsReview: true };
+    await renderCard(<MigrationCard />);
+    // needsReview with no stored terms still shows the card.
+    await fireEvent.press(screen.getByTestId('safety-migration-card-change'));
+    await fireEvent.changeText(
+      screen.getByTestId('safety-migration-card-picker-something-else-input'),
+      'zzqqxx',
+    );
+    await fireEvent.press(screen.getByTestId('safety-migration-card-change-save'));
+    expect(mockUpdateSafety).not.toHaveBeenCalled();
+    expect(screen.getByTestId('safety-migration-card-picker-save-blocked')).toHaveTextContent(
+      /zzqqxx/,
+    );
+
+    await fireEvent.press(
+      screen.getByTestId('safety-migration-card-picker-unchecked-notice-keep-note'),
+    );
+    await fireEvent.press(screen.getByTestId('safety-migration-card-change-save'));
+    expect(mockUpdateSafety).toHaveBeenCalledTimes(1);
+    expect(JSON.stringify(mockUpdateSafety.mock.calls[0])).toContain('zzqqxx');
+  });
 });

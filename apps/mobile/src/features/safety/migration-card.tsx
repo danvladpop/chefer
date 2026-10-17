@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Button, Card, Sheet, Text } from '@chefer/ui-mobile';
@@ -11,7 +11,7 @@ import {
 } from '@chefer/utils';
 import { trpc } from '../../lib/trpc';
 import { useHealthConsent } from '../privacy/use-health-consent';
-import { SafetyPicker } from './safety-picker';
+import { SafetyPicker, type SafetyPickerHandle } from './safety-picker';
 
 // T-01.3 — the one-time free-text migration card (UX-01 (b)). Exported for
 // wave 2 (L-HOME) to place on Food Today; this wave places it in Settings ›
@@ -34,6 +34,7 @@ export function MigrationCard({ testID = 'safety-migration-card' }: { testID?: s
   const { data: prefsData } = trpc.preferences.get.useQuery();
   const utils = trpc.useUtils();
   const [changeOpen, setChangeOpen] = useState(false);
+  const pickerRef = useRef<SafetyPickerHandle>(null);
   // T-26.2: re-saving the allergy lists stores health information.
   const { requestHealthConsent, healthConsentSheet } = useHealthConsent();
 
@@ -57,6 +58,21 @@ export function MigrationCard({ testID = 'safety-migration-card' }: { testID?: s
   });
 
   if (!table?.needsReview) return null;
+
+  const saveChanges = () => {
+    // UX-ACC-01: a typed-but-not-added term is flushed first; null = it still
+    // needs a Keep/Remove choice, so don't save yet.
+    const toSave = pickerRef.current ? pickerRef.current.flush() : draft;
+    if (toSave === null) return;
+    requestHealthConsent(() => updateSafetyMutation.mutate(toSave), {
+      hasHealthData:
+        toSave.allergies.length +
+          toSave.dietaryRestrictions.length +
+          toSave.dislikedIngredients.length >
+        0,
+      onDeclined: () => setChangeOpen(false),
+    });
+  };
 
   const terms = [
     ...ownSafety.allergies,
@@ -111,22 +127,18 @@ export function MigrationCard({ testID = 'safety-migration-card' }: { testID?: s
           <Button
             testID={`${testID}-change-save`}
             loading={updateSafetyMutation.isPending}
-            onPress={() =>
-              requestHealthConsent(() => updateSafetyMutation.mutate(draft), {
-                hasHealthData:
-                  draft.allergies.length +
-                    draft.dietaryRestrictions.length +
-                    draft.dislikedIngredients.length >
-                  0,
-                onDeclined: () => setChangeOpen(false),
-              })
-            }
+            onPress={saveChanges}
           >
             Save changes
           </Button>
         }
       >
-        <SafetyPicker value={draft} onChange={setDraft} testIDPrefix={`${testID}-picker`} />
+        <SafetyPicker
+          ref={pickerRef}
+          value={draft}
+          onChange={setDraft}
+          testIDPrefix={`${testID}-picker`}
+        />
         {/* Nested in the open Sheet: iOS can't present a Modal over a presenting one. */}
         {healthConsentSheet}
       </Sheet>
