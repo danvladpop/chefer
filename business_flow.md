@@ -5821,7 +5821,8 @@ Client "Leave" (coaching.leave) · trainer "Remove client" (trainer.clients.remo
   the private note hidden. The trainer loses access at once (NOT_FOUND on the very next request) and the client disappears from the list.
 The client keeps the routine, the trainer's exercise notes and any pending target (they can clear them). After a removal or a tools-off
 the client's coaching.status carries stopped { trainerName, at } for 30 days: "Ana stopped coaching you" (Q-5).
-Account deletion of either side cascades the coaching rows; edit stamps pointing at a deleted trainer become "Changed by your trainer".
+Account deletion of a client cascades the coaching rows. A trainer's deletion first ends every coaching with a notice
+that survives the cascade (37.10); edit stamps pointing at a deleted trainer read "Changed by a former trainer".
 Retention (COACHING_RETENTION, recommended defaults — counsel to confirm, Q-6): ENDED links 24 months; invites 30 days after expiry;
 hidden notes 30 days. CoachingMaintenanceWorker enforces it once per UTC day.
 ```
@@ -5840,3 +5841,83 @@ hidden notes 30 days. CoachingMaintenanceWorker enforces it once per UTC day.
   trainer's notes. Trainer tools there are web only. All procedures are new names; nothing was renamed, removed or tightened.
 - **Deleting the account** (§24): the user row cascades links, invites, notes and the trainer profile; the export (§28) gains a
   `coaching` section (your trainers and clients by display name, your invites, your own private notes).
+
+### 37.10 Phase 1 gaps (2026-10-17, PRD `docs/prd-2026-10/trainer-coaching.md` §4)
+
+> **Status:** API, web and mobile implemented in the phase-1 PR; still dark behind the same flags. Launch steps:
+> `docs/prd-2026-10/coaching-launch.md` (Following and coaching turn on the same day).
+
+**Turning on Trainer tools also turns on Following (§4.1).**
+
+```
+Trainer tools → "Turn on" { displayName, gymLine? }  → trainer.activate
+  ├─ (as 37.1) allowlist + word filter on the name AND the "Gym / city" line
+  └─ no Following profile yet → a PRIVATE one is created (account names, SOCIAL_SHARING consent):
+        findable by name, plan and workouts hidden; the Trainer badge + gym line show on Following rows.
+        Turning Following off later drops them out of Find a trainer; their invites keep working.
+```
+
+**Find a trainer → coaching request (client-initiated, §4.1).** Needs no Following on the client's side.
+
+```
+Your trainer → "Find a trainer" (no trainer, no pending request)
+  └─ search by name (≥ 2 letters) → coaching.findTrainers   (trainers only; never email; blocks and self excluded)
+        └─ a trainer → coaching.trainerCard
+              ├─ blocked / not a trainer / Following off        → "This trainer isn't available" (one NOT_FOUND)
+              ├─ YOUR_TRAINER                                    → "Ana is your trainer."
+              ├─ REQUESTED                                       → "Waiting for Ana to answer" · Cancel request
+              ├─ 50 clients                                      → "Not taking new clients" (no Ask button)
+              ├─ a pending request to someone else               → "You already asked Ion. Cancel that request first."
+              ├─ gym setup not finished                          → set up training first (simple mode counts)
+              └─ "Ask to coach me" → the consent screen (COACHING_COPY.consent; "This ends your coaching with Ion when
+                    Ana accepts." when the client has a trainer) → coaching.requestCoaching
+                    ├─ COACHING_SHARING granted (contextId = the request), 14-day expiry, one PENDING per client
+                    ├─ never a follow, never a visibility change
+                    └─ the trainer gets a COACHING_REQUEST notice
+Client: Cancel request → coaching.cancelRequest (withdrawn event; the trainer's notice disappears).
+Expiry: after 14 days the request reads as expired (withdrawn event by the daily worker or before the next request).
+Trainer: Trainer tools → Requests → trainer.requests.list
+  ├─ Accept → trainer.requests.accept: one transaction — request ACCEPTED, the client's current coaching ended
+  │     (the switch happens on accept), coaching starts (requestId, the client's local start day), 50-client cap;
+  │     the client gets "Ana is now your trainer", the previous trainer "Ioana left".
+  └─ Decline → trainer.requests.decline: withdrawn event; the client gets "Ana can't take you on right now".
+```
+
+**QR invite.** Trainer tools → Invite a client shows the open invite's link as a QR code too, for sign-ups on the gym
+floor. Scanning it opens the same `/coaching/join/<code>` flow (37.3).
+
+**"<Trainer> updated your routine" (§4.2).**
+
+```
+Trainer saves the client's routine (trainer.client.saveRoutine / createRoutine)
+  └─ the changes in plain words (summarizeRoutineChanges): "+ Romanian deadlift · Squat 3×8 → 4×6 · note on Bench press"
+        → COACHING_ROUTINE_UPDATED notice to the client; while unread, new changes fold into the same card
+          (a row changed twice keeps the first "from" and the last "to"; an add then a remove cancel out).
+Client: the card on Today and Train (web: dashboard + gym Today) → "View" opens the routine and dismisses it, or Dismiss
+        (coaching.dismissNotice). The next change starts a new card.
+The same the other way: a coached client saving their ACTIVE routine gives the trainer "Ioana changed their routine"
+with the same change list (trainer home).
+Push notifications come later with a native build (owner).
+```
+
+**Ending, retention and the trainer stopping (§4.3).**
+
+```
+Trainer "End coaching" (trainer.clients.remove, with a confirmation) — as 37.8 — and the client gets
+  "Ana stopped coaching you. Your routine stays yours." (COACHING_ENDED notice). Client "Leave" gives the trainer
+  "Ioana left. Their routine stays theirs."
+After a coaching ends the trainer loses access to everything, history included. The private note is hidden and deleted
+  after 30 days; if the same pair starts coaching again within 30 days (invite or request), the note comes back.
+The trainer stops being a trainer — every coaching ends, each client keeps the routine and gets a notice:
+  ├─ turns trainer tools off (the confirmation names the number of clients first)  → trainer.deactivate
+  ├─ is removed from TRAINER_ALLOWLIST → turned off on their next request, or by the daily sweep
+  │     (an unset or empty list never ends anything)
+  └─ deletes the account → coaching ends before the cascade; the notice survives ("Your trainer stopped using Chefer")
+  Pending requests to that trainer are declined.
+Attribution afterwards: a stamp by someone who is not the client's trainer NOW reads "Changed by Ana (former trainer)",
+  or "Changed by a former trainer" when the account is gone (LastEditedByOtherDto.former, editorLabel).
+```
+
+**Simple-mode clients (§4.3).** Depends on the simple-mode PR (one routine, ADR 0001): the trainer sees a "Keep it
+simple" badge and cannot change the client's training style; ticked exercises show as "done as planned"; a workout
+without exercises shows as "Yoga · 45 min" with no calories (D-8). See the PR for what landed and what follows.

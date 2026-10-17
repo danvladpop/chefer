@@ -257,7 +257,7 @@ const envSchema = z.object({
 
   // Following dark launch (docs/friends/implementation-plan.md §8, PRD §17):
   // comma-separated user ids that get Following while the `friends` flag is
-  // off. Empty (the default) = nobody. Read through isFriendsEnabledFor
+  // off; `*` = everyone. Empty (the default) = nobody. Read through isFriendsEnabledFor
   // (lib/friends-middleware.ts), never directly.
   FRIENDS_ALLOWLIST: z
     .string()
