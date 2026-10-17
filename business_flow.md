@@ -265,7 +265,11 @@ proposal"). With the flag off nothing changes.
    both; the confirmation never reaches the API) with **one** "I'm 16+ and agree
    to the Terms and Privacy Policy" checkbox that sends both `acceptedTerms` and
    `ageConfirmed` to `auth.register` (same API contract as V3). Legal sign-off on
-   the combined checkbox is still pending (review D3).
+   the combined checkbox is still pending (review D3). After the account exists
+   (both V3 and V4 email sign-up), the password manager is offered the new
+   credential: iOS by itself (or silently, for a suggested strong password),
+   Android through Credential Manager's "Save password?" sheet (F8, 1.0.2 build;
+   a cancel or failure is silent).
 3. **What brings you here?** — job tiles (`PLAN_MEALS`, `TRAIN`, `TRACK`,
    `HOUSEHOLD`), saved with `preferences.setJobs`.
 4. **Goal** — four tiles (lose weight, build muscle, eat healthier, "just good
@@ -315,6 +319,14 @@ built again. Web, like V3 web, keeps the answers in memory only.
 
 Sessions are DB rows (`sessions` table), not JWTs — resolution is a lookup on
 every request (see §4), and logout / password reset delete the rows.
+
+**Saving the password (F8, mobile).** After a successful sign-in whose password
+the user **typed**, the password manager is offered the credential: iOS shows its
+own "Save Password?" when the sign-in screen goes away; Android shows Credential
+Manager's sheet (native module in the 1.0.2 build — older binaries skip it). A
+password the password manager filled is already saved, so nothing is offered; a
+failed sign-in offers nothing; a cancel is silent. Social sign-in never offers.
+Web forms are plain `<form>` submits, so browsers offer to save on their own.
 
 **Leaving an account on mobile (UX-ACC-02/12/17, 2026-10).** More, Settings,
 account deletion and the 401 handler all run one `signOut()`
