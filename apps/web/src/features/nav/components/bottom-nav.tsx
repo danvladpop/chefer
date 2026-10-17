@@ -9,8 +9,8 @@ import { useAppMode } from '../mode-context';
 import { isItemActive } from '../nav-items';
 
 // ─── Mobile bottom tab bar ────────────────────────────────────────────────────
-// The active mode's four primary destinations plus a "More" button that
-// opens the nav drawer.
+// The active mode's four primary destinations, in tab-bar order (Food puts
+// Today in the middle), plus a "More" button that opens the nav drawer.
 // Hidden at lg+, where the SideBar takes over.
 
 interface BottomNavProps {
@@ -37,7 +37,7 @@ export function BottomNav({ onOpenMore, moreOpen = false, className }: BottomNav
       )}
     >
       <ul className="flex h-16">
-        {nav.primary.map((item) => {
+        {nav.tabBar.map((item) => {
           const { href, label, shortLabel, icon: Icon } = item;
           const active = isItemActive(pathname, item);
           return (

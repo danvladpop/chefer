@@ -109,6 +109,22 @@ export const PRIMARY_NAV_ITEMS: readonly NavItem[] = PRIMARY_NAV_HREFS.map(
   (href) => FOOD_NAV_ITEMS.find((item) => item.href === href)!,
 );
 
+/**
+ * The same four in the phone tab bar's order: Today in the middle (owner
+ * feedback 2026-10-17, F4 — "that is the core of the app, not the Shop"),
+ * matching the mobile app. The sidebar keeps PRIMARY_NAV_ITEMS, Today first.
+ */
+export const TAB_BAR_NAV_HREFS = [
+  '/shopping-list',
+  '/meal-plan',
+  '/dashboard',
+  '/recipes',
+] as const;
+
+export const TAB_BAR_NAV_ITEMS: readonly NavItem[] = TAB_BAR_NAV_HREFS.map(
+  (href) => PRIMARY_NAV_ITEMS.find((item) => item.href === href)!,
+);
+
 /** Everything not in the tab bar — rendered inside the mobile drawer. */
 export const SECONDARY_NAV_ITEMS: readonly NavItem[] = FOOD_NAV_ITEMS.filter(
   (item) => !PRIMARY_NAV_HREFS.includes(item.href as (typeof PRIMARY_NAV_HREFS)[number]),
@@ -168,8 +184,10 @@ export function deriveMode(pathname: string, cookieMode: string | null | undefin
 export interface ModeNav {
   /** Every destination of the mode, in sidebar order. */
   all: readonly NavItem[];
-  /** The tab bar's four slots. */
+  /** The mode's main destinations, in sidebar order. */
   primary: readonly NavItem[];
+  /** The same destinations in the phone tab bar's four slots. */
+  tabBar: readonly NavItem[];
   /** The drawer's list. */
   secondary: readonly NavItem[];
 }
@@ -179,10 +197,16 @@ export function navFor(mode: AppMode): ModeNav {
     return {
       all: [...GYM_NAV_ITEMS, ...GYM_SECONDARY_NAV_ITEMS],
       primary: GYM_NAV_ITEMS,
+      tabBar: GYM_NAV_ITEMS,
       secondary: GYM_SECONDARY_NAV_ITEMS,
     };
   }
-  return { all: FOOD_NAV_ITEMS, primary: PRIMARY_NAV_ITEMS, secondary: SECONDARY_NAV_ITEMS };
+  return {
+    all: FOOD_NAV_ITEMS,
+    primary: PRIMARY_NAV_ITEMS,
+    tabBar: TAB_BAR_NAV_ITEMS,
+    secondary: SECONDARY_NAV_ITEMS,
+  };
 }
 
 /** `document.cookie` assignment string for the mode (1 year, whole site). */

@@ -1620,9 +1620,10 @@ nothing.
 
 ### Today (P2-2) — Home + Tracker in one tab
 
-The food tab bar is **Today · Plan · Shop · Cookbook · More** on web below `lg`
-and on mobile; the desktop sidebar lists the same four, a divider, then More's
-items (Progress, My weeks, Profile, Preferences). Today (web `/dashboard`,
+The food tab bar is **Shop · Plan · Today · Cookbook · More** on web below `lg`
+(Today in the middle since owner feedback 2026-10-17, F4) and **Today · Plan · Shop ·
+Cookbook · More** in the old mobile Food shell; the desktop sidebar lists Today · Plan ·
+Shop · Cookbook, a divider, then More's items (Progress, My weeks, Profile, Preferences). Today (web `/dashboard`,
 mobile `(food)/index`) shows:
 
 ```
@@ -2980,8 +2981,10 @@ Food/Gym switch (header of every tab root) → persisted mode
 ### New mobile shell (UX revamp phase 1, behind `mobileShellV2`)
 
 With the flag (or the admin/dev preview switch) on, mobile has one tab bar instead of the Food | Gym modes:
-**Today · Meals · Shop · Train · You**, the same five for every account (hiding tabs by onboarding jobs
-stranded training-only accounts that also plan meals, 2026-10-10). A running workout shows a mini bar above
+**Shop · Meals · Today · Train · You**, the same five for every account (hiding tabs by onboarding jobs
+stranded training-only accounts that also plan meals, 2026-10-10). Today sits in the middle since owner
+feedback 2026-10-17 (F4: it is the core of the app); it is still where a launch lands (Train while a workout
+is running) and where Android Back returns from the other tabs. A running workout shows a mini bar above
 the tabs on every tab. Any old link (`/meal-plan`, `/today`, `/stats?tab=…`) lands on the same screen in the
 new shell. Flipping the preview on You leaves You open; switching off lands on the old shell. Web is unchanged.
 
