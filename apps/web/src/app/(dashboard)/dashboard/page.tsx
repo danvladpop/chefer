@@ -1,6 +1,5 @@
 'use client';
 
-import Image from 'next/image';
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import { ChefReviewBanner } from '@/features/coach/components/ChefReviewBanner';
@@ -24,13 +23,13 @@ import {
   HealthConsentLaunchPrompt,
   HealthConsentTodayNotice,
 } from '@/features/privacy/components/HealthConsentNudges';
+import { RecipeThumbnail } from '@/features/recipes/components/RecipeThumbnail';
 import { QuickAddSheet } from '@/features/tracker/components/QuickAddSheet';
 import { ScanMealButton } from '@/features/tracker/components/ScanMealButton';
 import { SlotActionsHost } from '@/features/tracker/components/SlotActionsHost';
 import { useSlotActions } from '@/features/tracker/lib/use-slot-actions';
 import { useIsPremium } from '@/hooks/useIsPremium';
 import { capture } from '@/lib/analytics';
-import { getRecipeImageProps } from '@/lib/recipe-image';
 import { trpc } from '@/lib/trpc';
 import { keepPreviousData } from '@tanstack/react-query';
 import { format, parseISO } from 'date-fns';
@@ -505,10 +504,9 @@ export default function DashboardPage() {
                             className="flex items-center gap-3 rounded-xl border bg-gray-50 p-2.5 transition-all hover:border-[#944a00]/30 hover:bg-white hover:shadow-sm"
                           >
                             <div className="relative h-12 w-12 shrink-0 overflow-hidden rounded-lg">
-                              <Image
-                                {...getRecipeImageProps(meal.imageUrl)}
-                                alt={meal.recipeName}
-                                fill
+                              <RecipeThumbnail
+                                imageUrl={meal.imageUrl}
+                                recipeName={meal.recipeName}
                                 sizes="48px"
                                 className="object-cover"
                               />
@@ -618,12 +616,12 @@ export default function DashboardPage() {
                     className="flex w-36 shrink-0 snap-start flex-col gap-2 rounded-xl border p-1 pb-2 transition-all hover:border-[#944a00]/40 hover:shadow-md"
                   >
                     <div className="relative h-24 overflow-hidden rounded-lg">
-                      <Image
-                        {...getRecipeImageProps(fav.imageUrl)}
-                        alt={fav.name}
-                        fill
+                      <RecipeThumbnail
+                        imageUrl={fav.imageUrl}
+                        recipeName={fav.name}
                         sizes="144px"
                         className="object-cover"
+                        cuisineType={fav.cuisineType}
                       />
                     </div>
                     <div className="px-1">

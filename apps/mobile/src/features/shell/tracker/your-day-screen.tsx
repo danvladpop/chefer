@@ -320,6 +320,7 @@ export function YourDayScreen() {
                             >
                               <MediaFrame
                                 imageUri={getRecipeImageUrl(meal.imageUrl)}
+                                illustration={<Icon name="cook" color={colors.brand} size={24} />}
                                 size={56}
                                 square
                                 radius="inner"

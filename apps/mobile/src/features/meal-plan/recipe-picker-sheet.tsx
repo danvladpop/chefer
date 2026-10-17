@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
-import { ActivityIndicator, Image, Pressable, SectionList, View } from 'react-native';
+import { ActivityIndicator, Pressable, SectionList, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Button, ErrorState, SEARCH_LIST_PROPS, SearchField, Sheet, Text } from '@chefer/ui-mobile';
 import {
@@ -10,11 +10,11 @@ import {
   pickerSafetyHeaderText,
   verifiedLabels,
 } from '@chefer/utils';
-import { getRecipeImageUrl } from '../../lib/recipe-image';
 import { trpc } from '../../lib/trpc';
 import { AiConsentHost } from '../ai-consent/ai-consent-provider';
 import { NutritionStatusTag } from '../ingredients/nutrition-provenance';
 import { useNumbersMode } from '../numbers-mode/numbers-mode';
+import { RecipeImage } from '../recipes/recipe-image';
 import { CheckedForChip } from '../safety/checked-for-chip';
 import { FilteredForLine } from '../safety/filtered-for-line';
 
@@ -281,10 +281,10 @@ export function RecipePickerSheet({
                 }}
                 className="mb-2 flex-row items-center gap-3 rounded-xl border border-border bg-background p-2"
               >
-                <Image
-                  source={{ uri: getRecipeImageUrl(recipe.imageUrl) }}
+                <RecipeImage
+                  imageUrl={recipe.imageUrl}
+                  imageStatus={recipe.imageStatus}
                   className="h-12 w-12 rounded-lg"
-                  resizeMode="cover"
                 />
                 <View className="min-w-0 flex-1">
                   <Text numberOfLines={2} className="text-sm font-medium text-gray-900">

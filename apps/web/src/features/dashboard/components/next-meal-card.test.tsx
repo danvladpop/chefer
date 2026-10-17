@@ -17,7 +17,8 @@ const mocks = vi.hoisted(() => ({
 }));
 
 vi.mock('next/image', () => ({
-  default: ({ alt }: { alt: string }) => <span role="img" aria-label={alt} />,
+  // eslint-disable-next-line @next/next/no-img-element -- a plain <img> stands in for next/image
+  default: ({ alt, src }: { alt: string; src: string }) => <img alt={alt} src={src} />,
 }));
 vi.mock('next/link', () => ({
   default: ({ href, children, ...rest }: { href: string; children: React.ReactNode }) => (
@@ -31,7 +32,6 @@ vi.mock('@/features/tracker/lib/rebalance-storage', () => ({
   REBALANCE_PREVIEW: { rebalanceMode: 'preview' },
 }));
 vi.mock('@/lib/analytics', () => ({ capture: vi.fn() }));
-vi.mock('@/lib/recipe-image', () => ({ getRecipeImageProps: () => ({ src: '/x.jpg' }) }));
 vi.mock('@/lib/trpc', () => ({
   trpc: {
     useUtils: () => ({
@@ -215,5 +215,24 @@ describe('NextMealCard — flexible eating (WP-06)', () => {
     cleanup();
     render(<NextMealCard meal={planned} isTomorrow flow={fakeSlotFlow()} />);
     expect(screen.queryByRole('button', { name: /More actions/ })).toBeNull();
+  });
+});
+
+describe('NextMealCard photo (F3)', () => {
+  it('a recipe without a photo shows the placeholder, never a stock photo', () => {
+    const { container } = render(<NextMealCard meal={MEAL} isTomorrow={false} />);
+    expect(container.querySelector('img')).toBeNull();
+    expect(screen.getByRole('img', { name: 'Lentil Curry' }).tagName).toBe('DIV');
+  });
+
+  it('a recipe with a photo shows it', () => {
+    const url = 'https://res.cloudinary.com/demo/image/upload/curry.jpg';
+    render(
+      <NextMealCard
+        meal={{ ...MEAL, recipe: { ...MEAL.recipe, imageUrl: url } }}
+        isTomorrow={false}
+      />,
+    );
+    expect(screen.getByRole('img', { name: 'Lentil Curry' }).getAttribute('src')).toBe(url);
   });
 });

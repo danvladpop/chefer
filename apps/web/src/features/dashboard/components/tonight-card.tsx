@@ -1,10 +1,10 @@
 'use client';
 
-import Image from 'next/image';
 import Link from 'next/link';
 import { useState } from 'react';
 import { useNumbersMode } from '@/features/numbers-mode/numbers-mode';
 import { StarRatingWidget } from '@/features/recipe/components/StarRatingWidget';
+import { RecipeThumbnail } from '@/features/recipes/components/RecipeThumbnail';
 import { CheckedForChip } from '@/features/safety/components/CheckedForChip';
 import { SlotActionsMenu } from '@/features/tracker/components/SlotActionsMenu';
 import {
@@ -14,7 +14,6 @@ import {
 import { SKIPPED_LABEL, youHadLine } from '@/features/tracker/lib/slot-copy';
 import { slotTargetOf, type SlotFlow } from '@/features/tracker/lib/use-slot-actions';
 import { trackMealLogged } from '@/lib/analytics-events';
-import { getRecipeImageProps } from '@/lib/recipe-image';
 import { trpc, type RouterOutputs } from '@/lib/trpc';
 import { Check, ChefHat, Repeat } from 'lucide-react';
 import { localDateStr, slotPortion, userFacingErrorMessage, verifiedLabels } from '@chefer/utils';
@@ -191,10 +190,9 @@ export function TonightCard({
           className="relative block h-40 w-full shrink-0 overflow-hidden rounded-xl sm:h-28 sm:w-32"
           aria-label={`Open ${meal.recipe.name}`}
         >
-          <Image
-            {...getRecipeImageProps(meal.recipe.imageUrl)}
-            alt={meal.recipe.name}
-            fill
+          <RecipeThumbnail
+            imageUrl={meal.recipe.imageUrl}
+            recipeName={meal.recipe.name}
             sizes="(max-width: 639px) 100vw, 128px"
             className="object-cover"
           />

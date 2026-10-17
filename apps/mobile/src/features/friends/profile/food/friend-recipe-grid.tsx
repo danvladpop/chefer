@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { ActivityIndicator, Image, Pressable, useWindowDimensions, View } from 'react-native';
+import { ActivityIndicator, Pressable, useWindowDimensions, View } from 'react-native';
 import Animated, {
   useAnimatedStyle,
   useSharedValue,
@@ -21,8 +21,8 @@ import {
   useReducedMotion,
   useSnackbar,
 } from '@chefer/ui-mobile';
-import { getRecipeImageUrl } from '../../../../lib/recipe-image';
 import { trpc } from '../../../../lib/trpc';
+import { RecipeImage } from '../../../recipes/recipe-image';
 
 // ─── FriendRecipeGrid: another person's shared recipes (UX §9.3, FR-16) ───────
 // `friends.recipes` (keyset pages of 20). Two columns (one at font scale ≥
@@ -219,10 +219,10 @@ export function FriendRecipeTile({
         className="overflow-hidden rounded-2xl border border-border bg-card"
       >
         {/* MO-13: the placeholder photo stays when the image fails. */}
-        <Image
-          source={{ uri: getRecipeImageUrl(recipe.imageUrl) }}
+        <RecipeImage
+          imageUrl={recipe.imageUrl}
+          imageStatus={recipe.imageStatus}
           className="aspect-[4/3] w-full bg-muted"
-          resizeMode="cover"
         />
         <View className="gap-1 p-3">
           <Text numberOfLines={2} className="text-sm font-semibold text-gray-900">

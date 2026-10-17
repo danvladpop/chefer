@@ -893,6 +893,22 @@ Recipe image backfill (F3, owner decisions 2026-10-17)
   Restart-safe: the remaining URLs are re-read every tick.
 ```
 
+**What a recipe without a photo shows (F3, 2026-10-17).** No client ever
+substitutes a stock photo for a missing `imageUrl` — a dish photo of some
+other dish read as "the app shows the wrong food". Instead:
+
+```
+imageUrl set                     → the photo (also while a new one is generated)
+no imageUrl, PENDING/GENERATING  → placeholder, "Preparing photo…" on heroes
+no imageUrl, FAILED/DONE         → placeholder, "Photo unavailable" on heroes
+no imageUrl, status not in DTO   → placeholder only (dashboard/tracker cards)
+```
+
+Web uses the cuisine-tinted gradient (`RecipeImage`, `RecipeThumbnail`);
+mobile the brand-tint wash with a dish icon (`RecipeImage`, `MediaFrame`).
+The mobile recipe page re-fetches every 30 s while the photo is being
+prepared, so it appears without leaving the screen (web gets it over SSE).
+
 ### Instant week, then live tailoring (premium, 2026-09-28)
 
 Production runs AI in free-only mode (Groq → Cloudflare fallback). A whole

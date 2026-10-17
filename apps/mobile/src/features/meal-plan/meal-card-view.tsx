@@ -1,10 +1,10 @@
 import type { ReactNode } from 'react';
-import { Image, Pressable, View } from 'react-native';
+import { Pressable, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Text } from '@chefer/ui-mobile';
 import { cn } from '@chefer/utils';
-import { getRecipeImageUrl } from '../../lib/recipe-image';
 import { MealTypeBadge } from '../dashboard/components/meal-type-badge';
+import { RecipeImage } from '../recipes/recipe-image';
 
 // ─── MealCardView: the presentational meal card ───────────────────────────────
 // Photo on the left, then the meal-type eyebrow (+ any badges), the name, an
@@ -73,11 +73,7 @@ export function MealCardView({
             <Ionicons name="eye-off-outline" size={22} color="#9ca3af" />
           </View>
         ) : (
-          <Image
-            source={{ uri: getRecipeImageUrl(imageUrl) }}
-            className="h-full w-full"
-            resizeMode="cover"
-          />
+          <RecipeImage imageUrl={imageUrl} className="h-full w-full" />
         )}
         {imageBadge && <View className="absolute left-1.5 top-1.5">{imageBadge}</View>}
       </View>

@@ -1,11 +1,11 @@
 import { useState } from 'react';
-import { Image, Pressable, ScrollView, View } from 'react-native';
+import { Pressable, ScrollView, View } from 'react-native';
 import type { WeekGlanceDay } from '@chefer/types';
 import { Card, Text } from '@chefer/ui-mobile';
 import { cn, formatDate } from '@chefer/utils';
-import { getRecipeImageUrl } from '../../../lib/recipe-image';
 import type { RouterOutputs } from '../../../lib/trpc';
 import { useNumbersMode } from '../../numbers-mode/numbers-mode';
+import { RecipeImage } from '../../recipes/recipe-image';
 import { MealTypeBadge } from './meal-type-badge';
 import { WeekGlance } from './week-glance';
 
@@ -128,11 +128,7 @@ export function WeekOutlook({
                   key={`${meal.mealType}-${meal.recipeId}`}
                   className="flex-row items-center gap-3 rounded-xl border border-border bg-gray-50 p-2.5"
                 >
-                  <Image
-                    source={{ uri: getRecipeImageUrl(meal.imageUrl) }}
-                    className="h-12 w-12 rounded-lg"
-                    resizeMode="cover"
-                  />
+                  <RecipeImage imageUrl={meal.imageUrl} className="h-12 w-12 rounded-lg" />
                   <View className="min-w-0 flex-1 gap-0.5">
                     <MealTypeBadge mealType={meal.mealType} />
                     <Text numberOfLines={1} className="text-sm font-medium text-gray-800">

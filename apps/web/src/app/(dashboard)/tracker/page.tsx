@@ -1,12 +1,12 @@
 'use client';
 
-import Image from 'next/image';
 import { useState } from 'react';
 import { TrainingDayNote } from '@/features/dashboard/components/training-day-note';
 import { RebalanceBanner } from '@/features/meal-plan/components/RebalanceBanner';
 import { NumbersModeProvider, useNumbersMode } from '@/features/numbers-mode/numbers-mode';
 import { ChangeNoticeCard } from '@/features/nutrition/components/ChangeNoticeCard';
 import { TargetExplainSheet } from '@/features/nutrition/components/TargetExplainSheet';
+import { RecipeThumbnail } from '@/features/recipes/components/RecipeThumbnail';
 import { EditEntrySheet } from '@/features/tracker/components/EditEntrySheet';
 import { EditRecipeEntrySheet } from '@/features/tracker/components/EditRecipeEntrySheet';
 import { QuickAddSheet } from '@/features/tracker/components/QuickAddSheet';
@@ -28,7 +28,6 @@ import {
 import { slotTargetOf, useSlotActions } from '@/features/tracker/lib/use-slot-actions';
 import { useTrackerWrites } from '@/features/tracker/lib/use-tracker-writes';
 import { useIsPremium } from '@/hooks/useIsPremium';
-import { getRecipeImageProps } from '@/lib/recipe-image';
 import { trpc } from '@/lib/trpc';
 import { addDays, format } from 'date-fns';
 import { ChevronLeft, ChevronRight, Copy, Flame, Info, Trash2 } from 'lucide-react';
@@ -593,10 +592,9 @@ export default function TrackerPage() {
                         className="flex items-center gap-3 rounded-2xl border border-neutral-200 bg-neutral-50 p-3"
                       >
                         <div className="relative h-14 w-14 shrink-0 overflow-hidden rounded-xl">
-                          <Image
-                            {...getRecipeImageProps(meal.imageUrl)}
-                            alt={meal.recipeName}
-                            fill
+                          <RecipeThumbnail
+                            imageUrl={meal.imageUrl}
+                            recipeName={meal.recipeName}
                             sizes="56px"
                             className="object-cover opacity-40"
                           />
@@ -653,10 +651,9 @@ export default function TrackerPage() {
                     >
                       {/* Image */}
                       <div className="relative h-14 w-14 shrink-0 overflow-hidden rounded-xl">
-                        <Image
-                          {...getRecipeImageProps(meal.imageUrl)}
-                          alt={meal.recipeName}
-                          fill
+                        <RecipeThumbnail
+                          imageUrl={meal.imageUrl}
+                          recipeName={meal.recipeName}
                           sizes="56px"
                           className={`object-cover transition-opacity ${isChecked ? 'opacity-100' : 'opacity-60'}`}
                         />

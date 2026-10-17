@@ -31,7 +31,13 @@ describe('RecipeImage', () => {
   });
 
   it('keeps cover on card and tile sizes too', async () => {
-    await render(<RecipeImage testID="recipe-card" imageUrl={null} className="h-40 w-full" />);
+    await render(
+      <RecipeImage
+        testID="recipe-card"
+        imageUrl="https://example.com/dish.jpg"
+        className="h-40 w-full"
+      />,
+    );
 
     const props = screen.getByTestId('recipe-card').props as ImageProps;
     expect(props.resizeMode).toBe('cover');

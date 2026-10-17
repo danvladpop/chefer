@@ -1,8 +1,7 @@
 'use client';
 
-import Image from 'next/image';
 import Link from 'next/link';
-import { getRecipeImageProps } from '@/lib/recipe-image';
+import { RecipeThumbnail } from '@/features/recipes/components/RecipeThumbnail';
 import type { RouterOutputs } from '@/lib/trpc';
 import { ArrowRight } from 'lucide-react';
 import { cn } from '@chefer/utils';
@@ -33,10 +32,9 @@ export function TomorrowCard({ meal }: { meal: Tomorrow }) {
           className="relative block h-32 w-full shrink-0 overflow-hidden rounded-xl sm:h-24 sm:w-28"
           aria-label={`Open ${meal.recipe.name}`}
         >
-          <Image
-            {...getRecipeImageProps(meal.recipe.imageUrl)}
-            alt={meal.recipe.name}
-            fill
+          <RecipeThumbnail
+            imageUrl={meal.recipe.imageUrl}
+            recipeName={meal.recipe.name}
             sizes="(max-width: 639px) 100vw, 112px"
             className="object-cover"
           />

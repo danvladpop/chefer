@@ -1,9 +1,9 @@
 'use client';
 
-import Image from 'next/image';
 import Link from 'next/link';
 import { useEffect, useRef, useState } from 'react';
 import { useNumbersMode } from '@/features/numbers-mode/numbers-mode';
+import { RecipeThumbnail } from '@/features/recipes/components/RecipeThumbnail';
 import { SlotActionsMenu } from '@/features/tracker/components/SlotActionsMenu';
 import {
   handleRebalanceOutcome,
@@ -11,7 +11,6 @@ import {
 } from '@/features/tracker/lib/rebalance-storage';
 import { slotTargetOf, type SlotFlow } from '@/features/tracker/lib/use-slot-actions';
 import { trackMealLogged } from '@/lib/analytics-events';
-import { getRecipeImageProps } from '@/lib/recipe-image';
 import { trpc, type RouterOutputs } from '@/lib/trpc';
 import { ArrowRight, Check, ChefHat, Clock, Flame } from 'lucide-react';
 import {
@@ -128,10 +127,9 @@ export function NextMealCard({ meal: nextMeal, isTomorrow, flow }: NextMealCardP
           className="relative block h-40 w-full shrink-0 overflow-hidden rounded-xl sm:h-28 sm:w-32"
           aria-label={`Open ${meal.recipe.name}`}
         >
-          <Image
-            {...getRecipeImageProps(meal.recipe.imageUrl)}
-            alt={meal.recipe.name}
-            fill
+          <RecipeThumbnail
+            imageUrl={meal.recipe.imageUrl}
+            recipeName={meal.recipe.name}
             sizes="(max-width: 639px) 100vw, 128px"
             className="object-cover"
           />

@@ -1,4 +1,4 @@
-import { ActivityIndicator, Image, Pressable, ScrollView, View } from 'react-native';
+import { ActivityIndicator, Pressable, ScrollView, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { ConfirmSheet, ErrorState, Screen, Text } from '@chefer/ui-mobile';
@@ -17,6 +17,7 @@ import { TrainingDayNote } from '../src/features/dashboard/components/training-d
 import { NumbersModeProvider } from '../src/features/numbers-mode/numbers-mode';
 import { ChangeNoticeCard } from '../src/features/nutrition/change-notice-card';
 import { TargetExplainSheet } from '../src/features/nutrition/target-explain-sheet';
+import { RecipeImage } from '../src/features/recipes/recipe-image';
 import { useShellV2 } from '../src/features/shell/shell-store';
 import { YourDayScreen } from '../src/features/shell/tracker/your-day-screen';
 import { EditEntrySheet } from '../src/features/tracker/edit-entry-sheet';
@@ -34,7 +35,6 @@ import {
   portionOptionsFor,
   useTrackerDay,
 } from '../src/features/tracker/use-tracker-day';
-import { getRecipeImageUrl } from '../src/lib/recipe-image';
 
 // Tracker — port of apps/web (dashboard)/tracker/page.tsx (M2-4), with the
 // search-first Log sheet, edit/undo and one-save model (T-19.1/2/3/4, UX-19).
@@ -358,11 +358,7 @@ function LegacyTrackerScreen() {
                           onPress={() => toggleMeal(meal)}
                           className="min-h-12 min-w-0 flex-1 flex-row items-center gap-3"
                         >
-                          <Image
-                            source={{ uri: getRecipeImageUrl(meal.imageUrl) }}
-                            className="h-12 w-12 rounded-lg"
-                            resizeMode="cover"
-                          />
+                          <RecipeImage imageUrl={meal.imageUrl} className="h-12 w-12 rounded-lg" />
                           <View className="min-w-0 flex-1">
                             <MealTypeBadge mealType={meal.mealType} />
                             <Text
