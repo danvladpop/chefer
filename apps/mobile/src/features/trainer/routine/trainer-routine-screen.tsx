@@ -45,9 +45,11 @@ import { routineDraftReducer, type RoutineDraftAction } from '../../gym/routine/
 import { MAX_DAYS, type RoutineDraft } from '../../gym/routine/types';
 import { useIsOnline } from '../../gym/routine/use-online';
 import { WEEKDAY_SHORT_LABELS } from '../../gym/routine/weekday';
+import { WorkoutTypePickerSheet } from '../../gym/simple/workout-type-chips';
 import { isClientUnavailable, useTrainerClientName } from '../client/use-trainer-client';
 import { goBackOrHome, TrainerHeader } from '../components/trainer-header';
 import { repRangeText } from '../format';
+import { DayWorkoutType, NO_WORKOUT_TYPE_LABEL } from './day-workout-type';
 import { fillDraftFromRoutine, FillFromMineSheet } from './fill-from-mine';
 import { NextTargetLine } from './next-target-line';
 
@@ -57,6 +59,8 @@ import { NextTargetLine } from './next-target-line';
 // (the existing D5c override, set through `trainer.client.setNextTarget`) and a curated-only picker.
 // Save is version-checked: a stale save opens the shared conflict sheet naming the client (Keep mine /
 // Use the other version). Online-only, like the client's own editor. Every call is checked per request.
+// PRD 2026-10 §4.3: each day carries the client's My week workout type through load and save (a
+// type-only day, "Yoga" with no exercises, is kept as is) and the trainer can set or change it.
 
 const EMPTY_DRAFT: RoutineDraft = { id: '', name: '', version: 0, days: [] };
 const SCREEN_EDGES: ('top' | 'bottom' | 'left' | 'right')[] = ['top', 'bottom', 'left', 'right'];
@@ -103,6 +107,7 @@ export function TrainerRoutineScreen({ clientId }: { clientId: string }) {
   const [conflict, setConflict] = useState<RoutineDto | null>(null);
   const [adjustRowId, setAdjustRowId] = useState<string | null>(null);
   const [fillOpen, setFillOpen] = useState(false);
+  const [typeDayKey, setTypeDayKey] = useState<string | null>(null);
   const loadedRef = useRef(false);
   const snackbar = useSnackbar();
 
@@ -227,6 +232,8 @@ export function TrainerRoutineScreen({ clientId }: { clientId: string }) {
     }));
     setAdjustRowId(null);
   };
+
+  const typeDay = typeDayKey ? draft.days.find((d) => d.key === typeDayKey) : undefined;
 
   const activePickerDay = picker ? draft.days.find((d) => d.key === picker.dayKey) : undefined;
   const excludeIds = activePickerDay?.exercises.map((e) => e.exerciseId) ?? [];
@@ -417,6 +424,14 @@ export function TrainerRoutineScreen({ clientId }: { clientId: string }) {
                     />
                   );
                 },
+                renderDayDetail: (d) => (
+                  <DayWorkoutType
+                    testID={`trainer-routine-type-${d.key}`}
+                    day={d}
+                    clientName={firstName}
+                    onPress={() => setTypeDayKey(d.key)}
+                  />
+                ),
               }}
             />
           </View>
@@ -445,6 +460,22 @@ export function TrainerRoutineScreen({ clientId }: { clientId: string }) {
         visible={fillOpen}
         onClose={() => setFillOpen(false)}
         onPick={(routine) => fillFrom(routine.id)}
+      />
+
+      <WorkoutTypePickerSheet
+        testID="trainer-routine-type-picker"
+        visible={typeDay !== undefined}
+        onClose={() => setTypeDayKey(null)}
+        title="Workout type"
+        {...(typeDay && { eyebrow: typeDay.name })}
+        initial={typeDay?.workoutType ?? null}
+        includeStrength
+        includeRest
+        restLabel={NO_WORKOUT_TYPE_LABEL}
+        onPick={(workoutType) => {
+          if (typeDay) dispatch({ type: 'setWorkoutType', dayKey: typeDay.key, workoutType });
+          setTypeDayKey(null);
+        }}
       />
 
       <ExercisePicker

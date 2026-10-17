@@ -3,12 +3,14 @@ import { ActivityIndicator, ScrollView, View } from 'react-native';
 import { router } from 'expo-router';
 import { COACHING_COPY, type CoachedExerciseDto } from '@chefer/types';
 import {
+  Badge,
   Button,
   ConfirmSheet,
   EmptyState,
   ErrorState,
   Screen,
   SegmentedControl,
+  Text,
   useThemeColors,
 } from '@chefer/ui-mobile';
 import { userFacingErrorMessage } from '@chefer/utils';
@@ -28,6 +30,8 @@ import { WorkoutsTab } from './workouts-tab';
 // (the private note). "Remove client" (confirm sheet) at the bottom. Every `trainer.client.*` call is
 // checked per request: a client who left or was removed answers NOT_FOUND ("This client isn't
 // available"), which this screen shows instead of an error.
+// PRD 2026-10 §4.3: a client who trains in "Keep it simple" gets a badge in the header and a line saying
+// only they can change it. There is deliberately no control here to change a client's training style.
 
 type Tab = 'workouts' | 'adherence' | 'notes';
 
@@ -36,7 +40,7 @@ const SCREEN_EDGES: ('top' | 'bottom' | 'left' | 'right')[] = ['top', 'bottom', 
 export function ClientScreen({ clientId }: { clientId: string }) {
   const colors = useThemeColors();
   const utils = trpc.useUtils();
-  const { name, firstName } = useTrainerClientName(clientId);
+  const { name, firstName, keepItSimple: listKeepItSimple } = useTrainerClientName(clientId);
   const [tab, setTab] = useState<Tab>('workouts');
   const [history, setHistory] = useState<{ exerciseId: string; name: string } | null>(null);
   const [removeOpen, setRemoveOpen] = useState(false);
@@ -50,6 +54,7 @@ export function ClientScreen({ clientId }: { clientId: string }) {
     },
   });
 
+  const keepItSimple = overview.data?.client.keepItSimple ?? listKeepItSimple;
   const unavailable = overview.isError && isClientUnavailable(overview.error);
   useEffect(() => {
     // Left or removed: the home list is stale now.
@@ -82,12 +87,27 @@ export function ClientScreen({ clientId }: { clientId: string }) {
         testID="trainer-client-header"
         title={overview.data?.client.name ?? name}
         onBack={goBackOrHome}
+        right={
+          keepItSimple ? (
+            <Badge testID="trainer-client-keep-it-simple" variant="secondary">
+              {COACHING_COPY.trainerProfile.keepItSimple}
+            </Badge>
+          ) : null
+        }
       />
       <ScrollView
         contentContainerClassName="gap-4 px-4 pb-8 pt-2"
         keyboardShouldPersistTaps="handled"
       >
         <CoachingCard className="gap-2">
+          {keepItSimple ? (
+            <Text
+              testID="trainer-client-keep-it-simple-hint"
+              className="text-subhead text-label-secondary"
+            >
+              {COACHING_COPY.trainerProfile.keepItSimpleHint(firstName)}
+            </Text>
+          ) : null}
           <Button
             testID="trainer-client-edit-routine"
             onPress={() => router.push(`/trainer/${clientId}/routine`)}

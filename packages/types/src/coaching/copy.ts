@@ -235,6 +235,17 @@ export const COACHING_COPY = {
     keepItSimpleHint: (client: string) =>
       `${client} chose “Keep it simple”: they tick exercises off instead of logging weights. Only ${client} can change this.`,
     doneAsPlanned: 'Done as planned',
+    // A My week day's workout type in the trainer's editor (web + mobile).
+    workoutType: {
+      label: 'Workout type',
+      set: 'Set workout type',
+      change: 'Change',
+      remove: 'Remove',
+      none: 'No type',
+      pickHint: 'Choose this day’s workout type',
+      typeOnly: (type: string, client: string) =>
+        `${type} · no exercises. ${client} ticks it off when it’s done.`,
+    },
     feedback: 'Send feedback',
   },
 

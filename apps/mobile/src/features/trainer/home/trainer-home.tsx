@@ -32,6 +32,7 @@ import { TrainerProfileCard } from './trainer-profile-card';
 // flag after 7 days without a workout, and "Routine changed by Maria · 3 Oct" when the client edited
 // after the trainer last did. Tap → the client. Above the list: the trainer's notices and Requests
 // (PRD 2026-10 §4.1–4.2); below it: the profile (name, gym line), turn trainer tools off, Send feedback.
+// A client who trains in "Keep it simple" wears a small badge (PRD 2026-10 §4.3); only they can change it.
 
 const SCREEN_EDGES: ('top' | 'bottom' | 'left' | 'right')[] = ['top', 'bottom', 'left', 'right'];
 
@@ -46,6 +47,7 @@ export function clientRowLabel(row: ClientRowDto): string {
   if (row.inactiveDays >= COACHING_LIMITS.inactiveDays) {
     parts.push(COACHING_COPY.trainer.quiet(row.inactiveDays));
   }
+  if (row.keepItSimple) parts.push(COACHING_COPY.trainerProfile.keepItSimple);
   return parts.join('. ');
 }
 
@@ -80,11 +82,18 @@ function ClientRow({ row }: { row: ClientRowDto }) {
           ? COACHING_COPY.trainer.lastWorkout(formatWeekdayDate(row.lastWorkoutDate))
           : COACHING_COPY.trainer.noWorkoutYet}
       </Text>
-      {quiet ? (
-        <View className="flex-row">
-          <Badge testID={`trainer-client-${row.clientId}-quiet`} variant="warning">
-            {COACHING_COPY.trainer.quiet(row.inactiveDays)}
-          </Badge>
+      {quiet || row.keepItSimple ? (
+        <View className="flex-row flex-wrap gap-1.5">
+          {quiet ? (
+            <Badge testID={`trainer-client-${row.clientId}-quiet`} variant="warning">
+              {COACHING_COPY.trainer.quiet(row.inactiveDays)}
+            </Badge>
+          ) : null}
+          {row.keepItSimple ? (
+            <Badge testID={`trainer-client-${row.clientId}-keep-it-simple`} variant="secondary">
+              {COACHING_COPY.trainerProfile.keepItSimple}
+            </Badge>
+          ) : null}
         </View>
       ) : null}
       {row.routineChangedByClientAt ? (

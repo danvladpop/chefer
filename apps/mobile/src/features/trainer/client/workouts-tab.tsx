@@ -3,12 +3,21 @@ import type { CoachedExerciseDto, CoachedWorkoutDto } from '@chefer/types';
 import { Badge, Button, EmptyState, ErrorState, Text } from '@chefer/ui-mobile';
 import { trpc } from '../../../lib/trpc';
 import { CoachingCard } from '../components/coaching-card';
-import { formatCoachedSet, formatWeekdayDate, rirText } from '../format';
+import {
+  doneAsPlannedText,
+  formatCoachedSet,
+  formatWeekdayDate,
+  rirText,
+  workoutTypeLine,
+} from '../format';
 
 // ─── Client › Workouts (spec §2.5 tab 2) ──────────────────────────────────────
 // Completed workouts, newest first, paged. Each shows date, name, duration and per exercise the sets
 // (weight × reps, warm-ups marked), skipped exercises and the last-set effort. Tapping an exercise opens
 // its recent history. Nothing else about the client is in this payload (spec §7.2).
+// PRD 2026-10 §4.3 ("Keep it simple" clients): an exercise ticked done with the plan untouched reads
+// "Done as planned" and never shows its sets' numbers; a typed workout with no exercises reads
+// "Yoga · 45 min". Never calories.
 
 function ExerciseBlock({
   exercise,
@@ -19,7 +28,9 @@ function ExerciseBlock({
   testID: string;
   onOpenHistory: (exercise: CoachedExerciseDto) => void;
 }) {
-  const effort = rirText(exercise.lastSetRir);
+  const asPlanned = doneAsPlannedText(exercise);
+  // A ticked exercise's effort is the plan's, not something the client reported.
+  const effort = asPlanned ? null : rirText(exercise.lastSetRir);
   return (
     <View testID={testID} className="gap-0.5 border-t border-border pt-2">
       <Pressable
@@ -33,6 +44,10 @@ function ExerciseBlock({
       </Pressable>
       {exercise.skipped ? (
         <Text className="text-subhead text-label-secondary">Skipped</Text>
+      ) : asPlanned ? (
+        <Text testID={`${testID}-done-as-planned`} className="text-subhead text-label-secondary">
+          {asPlanned}
+        </Text>
       ) : (
         <Text testID={`${testID}-sets`} className="text-sm">
           {exercise.sets.map(formatCoachedSet).join('  ·  ')}
@@ -52,6 +67,7 @@ export function WorkoutCard({
   workout: CoachedWorkoutDto;
   onOpenHistory: (exercise: CoachedExerciseDto) => void;
 }) {
+  const typeLine = workoutTypeLine(workout);
   return (
     <CoachingCard testID={`trainer-workout-${workout.id}`} className="gap-2">
       <View className="flex-row items-center gap-2">
@@ -60,10 +76,18 @@ export function WorkoutCard({
         </Text>
         {workout.isDeload ? <Badge variant="secondary">Deload</Badge> : null}
       </View>
-      <Text className="text-subhead text-label-secondary">
+      <Text
+        testID={`trainer-workout-${workout.id}-when`}
+        className="text-subhead text-label-secondary"
+      >
         {formatWeekdayDate(workout.localDate)}
-        {workout.durationMin !== null ? ` · ${workout.durationMin} min` : ''}
+        {typeLine === null && workout.durationMin !== null ? ` · ${workout.durationMin} min` : ''}
       </Text>
+      {typeLine !== null ? (
+        <Text testID={`trainer-workout-${workout.id}-type`} className="text-body text-label">
+          {typeLine}
+        </Text>
+      ) : null}
       {workout.exercises.map((exercise) => (
         <ExerciseBlock
           key={exercise.exerciseId}

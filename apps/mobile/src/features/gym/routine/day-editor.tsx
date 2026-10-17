@@ -70,7 +70,8 @@ const CARD = 'gap-3 rounded-card border border-separator bg-surface p-4';
 /**
  * Trainer coaching seams (WP-18, spec §2.5/§2.6). Omit for the owner's plain editor (unchanged).
  * - `trainer`: the trainer edits a client's routine — each row gets a "Note for <client>" field and an
- *   optional next-session slot (`renderNext`, always visible under the summary).
+ *   optional next-session slot (`renderNext`, always visible under the summary); `renderDayDetail` adds a
+ *   day-level row under the planned weekday (the client's My week workout type, PRD 2026-10 §4.3).
  * - `client`: the client edits their own routine — a trainer note shows as "Ana: …" with "Remove note"
  *   (the client can clear a note, not rewrite it).
  * Both roles show "Changed by …" on rows the other person last changed.
@@ -80,6 +81,7 @@ export type DayEditorCoaching =
       role: 'trainer';
       clientName: string;
       renderNext?: (exercise: RoutineExerciseDraft) => ReactNode;
+      renderDayDetail?: (day: RoutineDayDraft) => ReactNode;
     }
   | { role: 'client'; trainerName: string };
 
@@ -596,6 +598,8 @@ export function DayEditor({
           onChange={(weekday) => dispatch({ type: 'setPlannedWeekday', dayKey: day.key, weekday })}
         />
       </View>
+
+      {coaching?.role === 'trainer' ? coaching.renderDayDetail?.(day) : null}
 
       <View className="gap-2.5">
         {day.exercises.map((ex, i) => {

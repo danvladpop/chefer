@@ -9,7 +9,7 @@
 // row id, kept only for rows that existed before this edit, so `save` can
 // preserve session links (gym_plan.md §5.4 / routineExerciseDocSchema).
 
-import type { LastEditedByOtherDto } from '@chefer/types';
+import type { LastEditedByOtherDto, WorkoutType } from '@chefer/types';
 
 /** Trainer coaching (level 6+): who last changed a row / the routine, and when.
  * Display only — never sent back on save. */
@@ -38,6 +38,9 @@ export interface RoutineDayDraft {
   id?: string;
   name: string;
   plannedWeekday: number | null;
+  /** My week's workout type ("Tue · Yoga"); a type-only day has no exercises. Absent when the API
+   * did not send one (older payloads), which the trainer's save then omits (the server keeps it). */
+  workoutType?: WorkoutType | null;
   exercises: RoutineExerciseDraft[];
 }
 

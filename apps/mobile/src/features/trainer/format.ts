@@ -1,5 +1,17 @@
-import type { CoachedSetDto, ExerciseMeta, NextTargetDto } from '@chefer/types';
-import { formatDayWithWeekday, formatLoad, formatLoadNumber } from '@chefer/utils';
+import {
+  COACHING_COPY,
+  type CoachedExerciseDto,
+  type CoachedSetDto,
+  type CoachedWorkoutDto,
+  type ExerciseMeta,
+  type NextTargetDto,
+} from '@chefer/types';
+import {
+  formatDayWithWeekday,
+  formatLoad,
+  formatLoadNumber,
+  workoutTypeLabel,
+} from '@chefer/utils';
 
 // Pure formatting for the trainer screens (spec §2.4, §2.5). Weights are shown in kg: the trainer's
 // own unit preference is not part of what a client shares, and the engine stores kg.
@@ -32,6 +44,30 @@ export function formatCoachedSet(set: CoachedSetDto): string {
   const base = `${formatLoadNumber(set.weightKg, 'KG')} kg × ${set.reps}`;
   if (!set.completed) return `${base} (not completed)`;
   return set.isWarmup ? `${base} (warm-up)` : base;
+}
+
+/**
+ * PRD 2026-10 §4.3: a "Keep it simple" exercise ticked done with the planned numbers never edited reads
+ * "Done as planned · 3 sets" — its sets are the plan, never shown as lifted weights. Null otherwise.
+ */
+export function doneAsPlannedText(exercise: CoachedExerciseDto): string | null {
+  if (!exercise.doneAsPlanned) return null;
+  const n = exercise.sets.length;
+  return n > 0
+    ? `${COACHING_COPY.trainerProfile.doneAsPlanned} · ${n} ${n === 1 ? 'set' : 'sets'}`
+    : COACHING_COPY.trainerProfile.doneAsPlanned;
+}
+
+/**
+ * A typed workout with no exercises (a logged "Yoga" or a type-only day): "Yoga · 45 min", or "Yoga"
+ * when the duration is unknown. Null for any other workout. Never calories (D-8).
+ */
+export function workoutTypeLine(
+  workout: Pick<CoachedWorkoutDto, 'workoutType' | 'durationMin' | 'exercises'>,
+): string | null {
+  if (!workout.workoutType || workout.exercises.length > 0) return null;
+  const label = workoutTypeLabel(workout.workoutType);
+  return workout.durationMin !== null ? `${label} · ${workout.durationMin} min` : label;
 }
 
 /** "62.5 kg × 6, 6, 6, 6" — the weight once, then each set's reps. */

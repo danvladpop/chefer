@@ -16,6 +16,8 @@ export function routineDtoToDraft(dto: RoutineDto): RoutineDraft {
       id: d.id,
       name: d.name,
       plannedWeekday: d.plannedWeekday,
+      // My week (simple mode): kept on the draft so a reloaded conflict copy still shows it.
+      ...(d.workoutType !== undefined ? { workoutType: d.workoutType } : {}),
       // Canonical superset letters (A, B… per day), so the editor's toggles and
       // brackets always agree with what gets saved.
       exercises: normalizeSupersets(
@@ -52,6 +54,8 @@ export function trainerRoutineToDraft(dto: TrainerRoutineDto): RoutineDraft {
       id: d.id,
       name: d.name,
       plannedWeekday: d.plannedWeekday,
+      // My week (PRD 2026-10 §4.3): a type-only day ("Yoga") has no exercises.
+      ...(d.workoutType !== undefined ? { workoutType: d.workoutType } : {}),
       exercises: normalizeSupersets(
         d.exercises.map((e) => ({
           key: e.id,
@@ -72,7 +76,8 @@ export function trainerRoutineToDraft(dto: TrainerRoutineDto): RoutineDraft {
   };
 }
 
-/** Draft → the `trainer.client.saveRoutine` document: no `notes`, `trainerNote` on every row. */
+/** Draft → the `trainer.client.saveRoutine` document: no `notes`, `trainerNote` on every row, and each
+ * day's workout type when the draft knows it (omitted = the server keeps the stored type). */
 export function draftToTrainerRoutineDoc(draft: RoutineDraft): TrainerRoutineDoc {
   return {
     id: draft.id,
@@ -81,6 +86,7 @@ export function draftToTrainerRoutineDoc(draft: RoutineDraft): TrainerRoutineDoc
       ...(d.id ? { id: d.id } : {}),
       name: d.name.trim(),
       plannedWeekday: d.plannedWeekday,
+      ...(d.workoutType !== undefined ? { workoutType: d.workoutType } : {}),
       exercises: d.exercises.map((e) => ({
         ...(e.id ? { id: e.id } : {}),
         exerciseId: e.exerciseId,

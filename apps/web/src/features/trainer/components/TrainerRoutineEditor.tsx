@@ -276,6 +276,7 @@ export function TrainerRoutineEditor({ clientId }: { clientId: string }) {
   const renderDayExtra = (day: DraftDay) => (
     <DayWorkoutTypeRow
       day={day}
+      clientName={firstName}
       onEdit={() => setTypeDayKey(day.key)}
       onClear={() => dispatch({ type: 'set_day_workout_type', dayKey: day.key, workoutType: null })}
     />
