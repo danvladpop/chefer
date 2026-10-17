@@ -84,3 +84,41 @@ The web equivalent is [Enabling Password AutoFill on an HTML input element](http
 | On success, `setToken` flips `Stack.Protected guard={token === null}` and the whole `(auth)` group unmounts.               | The fields do leave the view hierarchy (step 3), and nothing clears them first. Low-ranked cause.                                                                                                                                                                                           |
 | Apple tags the confirm field `newPassword` too.                                                                            | F9: both fields use `NEW_PASSWORD_FIELD_PROPS`, so iOS fills both with the same strong password.                                                                                                                                                                                            |
 | Android save needs an autofill-context commit, which React Native never sends.                                             | The `username` hint helps Google pair the fields. A guaranteed Android save needs Credential Manager `createCredential`, which is a native module and a new binary. Out of scope for an OTA fix; tracked as a follow-up.                                                                    |
+
+## 8. F8 diagnosis (2026-10-17)
+
+**Red loop.** `apps/mobile/tests/unit/password-autofill.test.tsx` renders the V4 sign-up, the V3 sign-up and sign-in, and checks each field against Apple's contract. Before the fix all three cases failed with `Expected: "username"`, `Received: "emailAddress"`. After the fix they pass.
+
+| #   | Hypothesis                                                                                     | Prediction                                                                                 | Verdict                                                                                                                                                                                                                                      |
+| --- | ---------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| H1  | The account field is tagged `emailAddress`, so iOS has no `username` to pair with the password | With `username`, iOS offers to save, or saves the accepted strong password under the email | **Most likely, and fixed.** Apple's text-field and HTML guidance and WWDC18 all say `username` (plus the email keyboard). Shipped in `EMAIL_FIELD_PROPS`, and on web as `autocomplete="username"`. Needs the owner's device to confirm (§9). |
+| H4  | The build lacks the `webcredentials` entitlement                                               | With no association, there would be no strong-password suggestion either                   | **Ruled out.** The owner sees a strong password, and Apple only suggests one "in apps that have an associated domain". `eas.json` production sets `EXPO_PUBLIC_API_URL`, and Apple's CDN serves our AASA.                                    |
+| H3  | The fields never leave the view hierarchy after sign-up                                        | Explicitly dismissing the screen would bring the prompt back                               | **Unlikely.** `setToken` flips `Stack.Protected guard={token === null}` (`app/_layout.tsx`), which drops the whole `(auth)` group. Nothing clears the fields before that.                                                                    |
+| H2  | The Show toggle flips `secureTextEntry`, so iOS loses the password context                     | The prompt would appear only when Show is never tapped                                     | **Unlikely.** Both fields keep an explicit `textContentType`, which Apple says is exactly what keeps the context when text is shown in plain text. §9 step 9 covers it.                                                                      |
+
+**Simulator and emulator check (dev variant, local API, 2026-10-17).**
+
+- **iOS 26.5, iPhone 17 Pro simulator.** The V4 form shows Email, Password and Confirm password. One Show reveals both fields. A mismatch shows "Passwords do not match", which clears as soon as the passwords match. The confirm key reads Go, and sign-up lands on onboarding.
+- **What the simulator can't show.** The dev variant has no associated domain and uses `oneTimeCode`, so it can't show the strong-password or Keychain behaviour. That is the owner's check (§9).
+- **Android, Pixel_8 emulator with Google Autofill and a signed-in Google account.** The same F9 behaviour works, but Google offered no save after sign-up.
+  - `adb shell dumpsys autofill` shows the app's session with `mSaveOnAllViewsInvisible: false`, so the save would need an activity finish or `AutofillManager.commit()`. React Native sends neither.
+  - That confirms §6: a guaranteed save on Android needs a native change.
+
+**OTA or binary: OTA.** The fix only changes JS props on existing `TextInput`s. It needs no `app.config.js` or entitlement change. Android save is the exception: guaranteeing it would take Credential Manager, a native module, so a new binary (§6).
+
+## 9. Owner check on iPhone (production build)
+
+Do this after the PR is merged and deployed. Deploying publishes the OTA update.
+
+1. **Settings.** In Settings → General → AutoFill & Passwords, check that **AutoFill Passwords and Passkeys** is on and **Passwords** (iCloud Keychain) is ticked.
+2. **Get the update.** Open the App Store/TestFlight build of Chefer, wait about 5 s, then force-quit and reopen it so the OTA update applies.
+3. **Sign out** if you are signed in (More → Sign out).
+4. **Open the email form.** On Welcome, tap **Get started** to reach **Save your plan**, then tap **Continue with email**. The form should show **Email, Password and Confirm password**.
+5. **Email.** Tap Email and type a new address, for example `you+f8a@…`. The keyboard should still be the email keyboard, with @ and `.`.
+6. **Strong password.** Tap Password. iOS should offer **Use Strong Password**; accept it. **Expect both Password and Confirm password to fill**, both shown as yellow "Strong Password".
+7. **Create the account.** Tick the 16+ box and tap **Create account**.
+8. **Check it was saved.** Open the Passwords app (or Settings → Passwords) and search for `chefer`. **Expect a `chefer.duckdns.org` entry whose user name is the email from step 5.** This is the F8 pass. If it's missing, screenshot the Passwords search and the sign-up form, and tell the session.
+9. **Your own password.** Sign out and repeat steps 4–7 with a new address. This time, tap **Show** first and type your own password in both fields. **Expect an iOS "Save Password?" sheet** after Create account. Tap Save, then check the Passwords app again.
+10. **Mismatch.** Start a third sign-up, type different passwords, tick the box and tap Create account. **Expect "Passwords do not match"** under Confirm password and no account created. Fix the confirmation and the message should disappear straight away.
+11. **Sign-in fill.** Sign out and go to **Sign in**. Tap Email. **Expect the QuickType bar to offer the saved `chefer.duckdns.org` login.** Tap it and authenticate with Face ID; email and password should both fill.
+12. **Clean up.** Delete the test accounts in the app (Profile → Your data → Delete account) and their Passwords entries.
