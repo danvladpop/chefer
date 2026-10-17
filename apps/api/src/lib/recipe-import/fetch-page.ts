@@ -73,7 +73,7 @@ export async function fetchRecipePage(rawUrl: string): Promise<FetchedPage> {
 
     let response: Response;
     try {
-      response = await fetch(url, {
+      response = await fetch(url.href, {
         redirect: 'manual',
         signal,
         dispatcher: guardedDispatcher,
@@ -130,7 +130,7 @@ export async function headCheckImage(rawUrl: string): Promise<boolean> {
     let current = rawUrl;
     for (let hop = 0; hop < 2; hop++) {
       const url = await assertSafeRemoteUrl(current);
-      const response = await fetch(url, {
+      const response = await fetch(url.href, {
         method: 'HEAD',
         redirect: 'manual',
         signal,
