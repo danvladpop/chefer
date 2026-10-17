@@ -1,4 +1,4 @@
-import { Prisma, type Notification, type NotificationKind } from '@prisma/client';
+import type { Notification, NotificationKind, Prisma } from '@prisma/client';
 import { prisma } from '../client';
 import type { SocialDbClient, SocialKeysetCursor } from './social-profile.repository';
 

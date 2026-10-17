@@ -39,6 +39,7 @@ const link = (over: Partial<CoachingLink> = {}): CoachingLink => ({
   status: 'ACTIVE',
   inviteCode: 'ABCDEFGHJK',
   trainerLabel: null,
+  requestId: null,
   startedAt: new Date('2026-10-01T09:00:00Z'),
   startedOn: null,
   endedAt: null,
@@ -71,6 +72,7 @@ function setup(opts: Opts = {}) {
     findActiveForClient: vi.fn(async () => opts.current ?? null),
     listActiveForTrainer: vi.fn(async (): Promise<ActiveLinkWithClient[]> => []),
     countActiveForTrainer: vi.fn(),
+    countActiveForTrainers: vi.fn(),
     findLatestStoppedForClient: vi.fn(async () => opts.stopped ?? null),
     join: vi.fn(async () => joinResults.shift() ?? ({ status: 'invite_unavailable' } as const)),
     end: vi.fn(async () => link({ status: 'ENDED' })),
@@ -85,6 +87,7 @@ function setup(opts: Opts = {}) {
     listCompletedForExercise: vi.fn(),
     userNames: vi.fn(),
   };
+  const notices = { ended: vi.fn(async () => undefined) };
   const service = new CoachingLinkService({
     links,
     invites: {
@@ -93,9 +96,9 @@ function setup(opts: Opts = {}) {
     trainers: {
       find: vi.fn(async (id: string) =>
         id === TRAINER
-          ? { userId: id, displayName: 'Ana', activatedAt: NOW, disabledAt: null }
+          ? { userId: id, displayName: 'Ana', activatedAt: NOW, gymLine: null, disabledAt: null }
           : id === OTHER
-            ? { userId: id, displayName: 'Ion', activatedAt: NOW, disabledAt: null }
+            ? { userId: id, displayName: 'Ion', activatedAt: NOW, gymLine: null, disabledAt: null }
             : null,
       ),
       findMany: vi.fn(),
@@ -104,9 +107,11 @@ function setup(opts: Opts = {}) {
       findByUserId: vi.fn(async () => (opts.gym === undefined ? profile() : opts.gym)),
     },
     content,
+    notices,
+    requests: { clientRequest: vi.fn(async () => null) },
     now: () => NOW,
   });
-  return { service, links, content };
+  return { service, links, content, notices };
 }
 
 describe('join', () => {
@@ -126,6 +131,7 @@ describe('join', () => {
     });
     expect(status).toEqual({
       trainer: { name: 'Ana', since: '2026-10-01T09:00:00.000Z' },
+      request: null,
       stopped: null,
     });
   });
@@ -228,7 +234,11 @@ describe('join', () => {
 
 describe('status', () => {
   it('no trainer and nothing recent: both null', async () => {
-    expect(await setup().service.status(CLIENT)).toEqual({ trainer: null, stopped: null });
+    expect(await setup().service.status(CLIENT)).toEqual({
+      trainer: null,
+      request: null,
+      stopped: null,
+    });
   });
 
   it('"<trainer> stopped coaching you": the trainer removed the client in the last 30 days', async () => {
@@ -238,6 +248,7 @@ describe('status', () => {
     });
     expect(await service.status(CLIENT)).toEqual({
       trainer: null,
+      request: null,
       stopped: { trainerName: 'Ana', at: endedAt.toISOString() },
     });
     expect(links.findLatestStoppedForClient).toHaveBeenCalledWith(
@@ -264,7 +275,11 @@ describe('leave and remove', () => {
   it('leave ends the link as CLIENT with the privacy version and the platform', async () => {
     const { service, links } = setup({ current: link() });
     links.findActiveForClient.mockResolvedValueOnce(link()).mockResolvedValue(null);
-    expect(await service.leave(CLIENT, 'mobile')).toEqual({ trainer: null, stopped: null });
+    expect(await service.leave(CLIENT, 'mobile')).toEqual({
+      trainer: null,
+      request: null,
+      stopped: null,
+    });
     expect(links.end).toHaveBeenCalledWith({
       trainerId: TRAINER,
       clientId: CLIENT,

@@ -159,6 +159,13 @@ export const COACHING_COPY = {
     removeClientBody: (client: string) =>
       `${client} keeps their routine and is told you stopped coaching them. Your private note is deleted after 30 days.`,
     saveConflict: (client: string) => `${client} changed this routine while you were editing`,
+    // The invite as a QR code, for in-person sign-ups (PRD 2026-10 §4.1, S5).
+    qr: {
+      show: 'Show QR code',
+      title: 'Scan to join',
+      hint: 'Your client points their phone camera at this code to open the invite.',
+      label: 'QR code of the invite',
+    },
   },
 
   // ─── Find a trainer and coaching requests (PRD 2026-10 §4.1) ────────────────

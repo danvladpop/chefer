@@ -39,6 +39,7 @@ function setup(world: World) {
     userId: TRAINER.id,
     displayName: 'Ana',
     activatedAt: new Date('2026-10-01T00:00:00Z'),
+    gymLine: null,
     disabledAt: null,
   };
   const link: CoachingLink = {
@@ -48,6 +49,7 @@ function setup(world: World) {
     status: 'ACTIVE',
     inviteCode: null,
     trainerLabel: null,
+    requestId: null,
     startedAt: new Date('2026-10-02T00:00:00Z'),
     startedOn: null,
     endedAt: null,

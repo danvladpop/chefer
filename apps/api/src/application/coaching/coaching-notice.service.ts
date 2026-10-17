@@ -17,7 +17,6 @@ import {
   type RoutineChange,
 } from '@chefer/types';
 import { displayNameOf, mergeRoutineChanges } from '@chefer/utils';
-import { logger } from '../../lib/logger.js';
 
 // ─── Trainer coaching: in-app notices (PRD 2026-10 §4.2, §4.3) ────────────────
 // Rows in the existing Notification table, with coaching kinds that
@@ -116,7 +115,7 @@ export class CoachingNoticeService {
         actorId,
       );
       const unseen =
-        existing && existing.readAt === null ? (readPayload(existing)?.changes ?? []) : [];
+        existing?.readAt === null ? (readPayload(existing)?.changes ?? []) : [];
       const merged = mergeRoutineChanges(unseen, changes);
       if (merged.length === 0 && existing?.readAt === null) {
         // Everything went back to how the recipient last saw it.
@@ -203,9 +202,12 @@ export class CoachingNoticeService {
     const clientName = new Map(clients.map((u) => [u.id, displayNameOf(u)]));
 
     return parsed.map(({ row, payload }): CoachingNoticeDto => {
-      const gone = payload.goneName !== undefined;
+      const goneName = payload.goneName;
+      const gone = goneName !== undefined;
       const name = gone
-        ? payload.goneName || FALLBACK_TRAINER_NAME
+        ? goneName === ''
+          ? FALLBACK_TRAINER_NAME
+          : goneName
         : ((payload.role === 'TRAINER'
             ? trainerName.get(row.actorId)
             : clientName.get(row.actorId)) ?? FALLBACK_TRAINER_NAME);
@@ -241,7 +243,8 @@ export class CoachingNoticeService {
       await run();
     } catch (err) {
       // Never a name, a note or an id: the kind of failure only.
-      logger.warn({ err: err instanceof Error ? err.name : 'unknown' }, 'coaching.notice_failed');
+      // console, not lib/logger: this module is reached from gym code whose tests load no env.
+      console.warn('[coaching] notice failed:', err instanceof Error ? err.name : 'unknown');
     }
   }
 }

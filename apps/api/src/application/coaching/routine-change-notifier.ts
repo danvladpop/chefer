@@ -8,7 +8,6 @@ import {
 } from '@chefer/database';
 import type { RoutineChange } from '@chefer/types';
 import { summarizeRoutineChanges, type ChangeDay } from '@chefer/utils';
-import { logger } from '../../lib/logger.js';
 import { coachingNoticeService, type CoachingNoticeService } from './coaching-notice.service.js';
 
 // ─── "<Trainer> updated your routine" (PRD 2026-10 §4.2) ──────────────────────
@@ -112,7 +111,8 @@ export class RoutineChangeNotifier {
     try {
       await this.deps.notices.routineUpdated(recipientId, actorId, actorRole, await changes());
     } catch (err) {
-      logger.warn({ err: err instanceof Error ? err.name : 'unknown' }, 'coaching.notice_failed');
+      // console, not lib/logger: this module is reached from gym code whose tests load no env.
+      console.warn('[coaching] notice failed:', err instanceof Error ? err.name : 'unknown');
     }
   }
 }

@@ -8,6 +8,10 @@ import { CoachingMaintenanceWorker } from './coaching-maintenance.worker.js';
 vi.mock('../lib/logger.js', () => ({
   logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() },
 }));
+// The default allowlist sweep (trainer-profile.service.ts → lib/env.ts); tests inject their own.
+vi.mock('../application/coaching/trainer-profile.service.js', () => ({
+  trainerProfileService: { enforceAllowlist: vi.fn() },
+}));
 
 const DAY = 24 * 60 * 60 * 1000;
 const NOW = new Date('2026-10-04T12:00:00Z');
@@ -16,18 +20,50 @@ function setup() {
   const invites = { deleteExpiredBefore: vi.fn(async () => 3) };
   const notes = { deleteHiddenBefore: vi.fn(async () => 2) };
   const links = { deleteEndedBefore: vi.fn(async () => 1) };
+  const requests = {
+    expireDue: vi.fn(async () => 4),
+    deleteAnsweredBefore: vi.fn(async () => 5),
+  };
+  const trainers = {
+    listActiveWithEmail: vi.fn(async () => [
+      { userId: 't1', email: 'kept@x.dev' },
+      { userId: 't2', email: 'removed@x.dev' },
+    ]),
+  };
+  const enforceAllowlist = vi.fn(async (u: { email: string }) => u.email === 'removed@x.dev');
   return {
-    worker: new CoachingMaintenanceWorker({ invites, notes, links }),
+    worker: new CoachingMaintenanceWorker({
+      invites,
+      notes,
+      links,
+      requests,
+      trainers,
+      enforceAllowlist,
+    }),
     invites,
     notes,
     links,
+    requests,
+    enforceAllowlist,
   };
 }
 
 describe('CoachingMaintenanceWorker', () => {
   it('prunes with the retention constants and reports counts only', async () => {
-    const { worker, invites, notes, links } = setup();
-    expect(await worker.tick(NOW)).toEqual({ prunedInvites: 3, prunedNotes: 2, prunedLinks: 1 });
+    const { worker, invites, notes, links, requests, enforceAllowlist } = setup();
+    expect(await worker.tick(NOW)).toEqual({
+      prunedInvites: 3,
+      prunedNotes: 2,
+      prunedLinks: 1,
+      expiredRequests: 4,
+      prunedRequests: 5,
+      trainersRemoved: 1,
+    });
+    expect(requests.expireDue).toHaveBeenCalledWith(expect.objectContaining({ now: NOW }));
+    expect(requests.deleteAnsweredBefore).toHaveBeenCalledWith(
+      new Date(NOW.getTime() - COACHING_RETENTION.requestAfterAnswerDays * DAY),
+    );
+    expect(enforceAllowlist).toHaveBeenCalledTimes(2);
     expect(invites.deleteExpiredBefore).toHaveBeenCalledWith(
       new Date(NOW.getTime() - COACHING_RETENTION.inviteAfterExpiryDays * DAY),
     );
@@ -60,7 +96,7 @@ describe('CoachingMaintenanceWorker', () => {
     notes.deleteHiddenBefore.mockRejectedValueOnce(new Error('db down'));
     const spy = vi.spyOn(console, 'error').mockImplementation(() => undefined);
     const first = await worker.tick(NOW);
-    expect(first).toEqual({ prunedInvites: 3, prunedNotes: 0, prunedLinks: 1 });
+    expect(first).toMatchObject({ prunedInvites: 3, prunedNotes: 0, prunedLinks: 1 });
     expect(links.deleteEndedBefore).toHaveBeenCalled();
     // Same day, but the failed run did not mark it done: the next tick runs again.
     await worker.tick(new Date(NOW.getTime() + 60_000));

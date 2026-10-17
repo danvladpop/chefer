@@ -105,6 +105,29 @@ describe('toRoutineDto', () => {
     expect(dto.lastEditedByOther?.name).toBe('your trainer');
   });
 
+  describe('former trainer (PRD 2026-10 §4.3)', () => {
+    it('a stamp by the current trainer is not former', () => {
+      const dto = toRoutineDto(coached(), attribution({ currentTrainerId: TRAINER }));
+      expect(dto.lastEditedByOther).toEqual({ name: 'Ana', at: AT.toISOString() });
+    });
+
+    it('a stamp by someone who no longer coaches the viewer is former', () => {
+      const dto = toRoutineDto(coached(), attribution({ currentTrainerId: null }));
+      expect(dto.lastEditedByOther).toEqual({ name: 'Ana', at: AT.toISOString(), former: true });
+      expect(dto.days[0]?.exercises[0]?.lastEditedByOther?.former).toBe(true);
+    });
+
+    it('a deleted account is former even when the viewer has no trainer now', () => {
+      const row = { ...coached(), lastEditedById: null };
+      const dto = toRoutineDto(row, attribution({ currentTrainerId: null }));
+      expect(dto.lastEditedByOther).toMatchObject({ name: 'your trainer', former: true });
+    });
+
+    it('unresolved (no currentTrainerId) never sets the flag', () => {
+      expect(toRoutineDto(coached(), attribution()).lastEditedByOther).not.toHaveProperty('former');
+    });
+  });
+
   it('a row never edited since Phase 1 (no stamp at all) says nothing', () => {
     const dto = toRoutineDto(routineRow({ userId: USER }), attribution());
     expect(JSON.stringify(dto)).not.toContain('lastEditedByOther');

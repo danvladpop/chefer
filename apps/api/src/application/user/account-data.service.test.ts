@@ -94,6 +94,9 @@ vi.mock('../notifications/email-preferences.service.js', () => ({
   emailPreferencesService: { get: vi.fn() },
 }));
 
+vi.mock('../coaching/trainer-profile.service.js', () => ({
+  trainerProfileService: { deactivate: vi.fn(async () => ({ ok: true })) },
+}));
 vi.mock('../auth/social-auth.service.js', () => ({
   socialAuthService: {
     identitiesForDeletion: vi.fn(async () => []),

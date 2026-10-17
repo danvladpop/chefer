@@ -40,7 +40,7 @@ function notification(
   actorId: string,
   createdAt: Date,
 ): Notification {
-  return { id, userId: ME, kind, actorId, createdAt, readAt: null };
+  return { id, userId: ME, kind, actorId, createdAt, readAt: null, payload: null };
 }
 
 function hydratorWith(users: SocialUserRow[], edges: Follow[]) {
@@ -58,7 +58,11 @@ function hydratorWith(users: SocialUserRow[], edges: Follow[]) {
       ),
     ),
   };
-  return { hydrator: new FriendSummaryHydrator(profiles, follows, { findMany: () => Promise.resolve([]) }), profiles, follows };
+  return {
+    hydrator: new FriendSummaryHydrator(profiles, follows, { findMany: () => Promise.resolve([]) }),
+    profiles,
+    follows,
+  };
 }
 
 function notificationRepo(rows: Notification[]): ActivityNotificationRepository & {
@@ -149,6 +153,32 @@ describe('FriendSummaryHydrator', () => {
     expect(out[0]?.relation).toBe('following');
     expect(profiles.findUsers).toHaveBeenCalledTimes(1);
     expect(follows.findEdgesWith).toHaveBeenCalledTimes(1);
+  });
+
+  it('a person with trainer tools on gets the Trainer badge and gym line; a former trainer does not (PRD 2026-10 §4.1)', async () => {
+    const profiles = {
+      findUsers: vi.fn(async () => [user(ANA, 'Ana', 'Pop'), user(BOB, 'Bob', 'Ionescu')]),
+    };
+    const at = new Date('2026-10-01T00:00:00Z');
+    const hydrator = new FriendSummaryHydrator(
+      profiles,
+      { findEdgesWith: vi.fn(async () => []) },
+      {
+        findMany: vi.fn(async () => [
+          {
+            userId: ANA,
+            displayName: 'Ana',
+            gymLine: 'Iron Gym, Cluj',
+            activatedAt: at,
+            disabledAt: null,
+          },
+          { userId: BOB, displayName: 'Bob', gymLine: null, activatedAt: at, disabledAt: at },
+        ]),
+      },
+    );
+    const [ana, bob] = await hydrator.summaries(ME, [ANA, BOB]);
+    expect(ana?.trainer).toEqual({ gymLine: 'Iron Gym, Cluj' });
+    expect(bob).not.toHaveProperty('trainer');
   });
 });
 

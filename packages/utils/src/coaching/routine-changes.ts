@@ -45,11 +45,11 @@ export function summarizeRoutineChanges(
   for (const d of after) {
     for (const e of d.exercises) {
       const old = e.id ? oldRows.get(e.id) : undefined;
-      if (!old) {
+      if (e.id === undefined || !old) {
         out.push({ kind: 'added', exercise: nameOf(e.exerciseId) });
         continue;
       }
-      kept.add(old.id as string);
+      kept.add(e.id);
       if (old.exerciseId !== e.exerciseId) {
         out.push({ kind: 'removed', exercise: nameOf(old.exerciseId) });
         out.push({ kind: 'added', exercise: nameOf(e.exerciseId) });
@@ -67,12 +67,12 @@ export function summarizeRoutineChanges(
     if (!kept.has(id)) out.push({ kind: 'removed', exercise: nameOf(old.exerciseId) });
   }
 
-  const oldDays = new Map(before.filter((d) => d.id).map((d) => [d.id as string, d]));
+  const oldDays = new Map(before.flatMap((d) => (d.id ? [[d.id, d] as const] : [])));
   const afterIds = new Set(after.map((d) => d.id).filter(Boolean));
   const scheduleChanged =
     after.some((d) => {
       const old = d.id ? oldDays.get(d.id) : undefined;
-      return !old || old.name !== d.name || old.plannedWeekday !== d.plannedWeekday;
+      return old?.name !== d.name || old.plannedWeekday !== d.plannedWeekday;
     }) || [...oldDays.keys()].some((id) => !afterIds.has(id));
   if (scheduleChanged) out.push({ kind: 'schedule' });
   return out;
@@ -114,7 +114,7 @@ export function mergeRoutineChanges(
     if (change.kind === 'changed') {
       const at = list.findIndex((c) => c.kind === 'changed' && c.exercise === change.exercise);
       const prior = at >= 0 ? list[at] : undefined;
-      if (prior && prior.kind === 'changed') {
+      if (prior?.kind === 'changed') {
         if (prior.from === change.to) list.splice(at, 1);
         else list[at] = { ...prior, to: change.to };
         continue;

@@ -95,6 +95,8 @@ vi.mock('../../application/coaching/trainer-profile.service.js', () => ({
     activate: vi.fn(),
     updateProfile: vi.fn(),
     deactivate: vi.fn(),
+    // Listed: the allowlist sweep never ends anything here.
+    enforceAllowlist: vi.fn(async () => false),
   },
 }));
 
