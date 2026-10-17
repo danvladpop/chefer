@@ -34,6 +34,8 @@ export interface IAiUsageRepository {
   costByWorkloadSince(since: Date): Promise<AiCostByWorkload[]>;
   /** The `limit` users with the highest cost since `since` (system calls excluded). */
   topUsersSince(since: Date, limit: number): Promise<AiCostByUser[]>;
+  /** How many calls of one workload were made at or after `since`. */
+  countSince(since: Date, workload: string): Promise<number>;
   /** Retention: deletes usage events older than `date`. */
   deleteOlderThan(date: Date): Promise<number>;
   /** Retention: deletes quota reservations (AiCallLog) older than `date`. */
@@ -83,6 +85,10 @@ export class AiUsageRepository implements IAiUsageRepository {
         ? []
         : [{ userId: r.userId, costMicroUsd: r._sum.costMicroUsd ?? 0, calls: r._count._all }],
     );
+  }
+
+  countSince(since: Date, workload: string): Promise<number> {
+    return prisma.aiUsageEvent.count({ where: { createdAt: { gte: since }, workload } });
   }
 
   async deleteOlderThan(date: Date): Promise<number> {

@@ -51,10 +51,10 @@ const recipeNutritionInfoSchema = z.object({
 
 export const recipeRouter = router({
   /**
-   * Deterministic AI-generated image URL for a recipe (Pollinations — the
-   * image is generated on first fetch and CDN-cached; same name+cuisine
-   * always maps to the same URL). Used by the create-recipe form's
-   * "Generate with AI" option.
+   * @deprecated F3 (2026-10-17): no client calls this any more — the web form
+   * sends `generateImage` on create instead. Kept so the contract stays
+   * additive; a Pollinations URL sent back to `create` is swapped for a
+   * queued generated image (recipe.service.ts), so it never gets stored.
    */
   aiImageUrl: protectedProcedure
     .input(z.object({ name: z.string().min(2).max(120), cuisineType: z.string().max(60) }))
@@ -154,6 +154,9 @@ export const recipeRouter = router({
         cookTimeMins: z.number().int().min(0).default(0),
         servings: z.number().int().min(1).default(1),
         imageUrl: z.string().url().optional().or(z.literal('')),
+        // F3 (additive): "Generate with AI" — when no photo is picked, the
+        // recipe is saved without one and the image worker generates it.
+        generateImage: z.boolean().optional(),
       }),
     )
     .mutation(async ({ ctx, input }) => {

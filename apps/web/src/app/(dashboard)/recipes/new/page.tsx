@@ -92,6 +92,9 @@ export default function NewRecipePage() {
   // Image
   const [imageUrl, setImageUrl] = useState<string | null>(null);
   const [imageSource, setImageSource] = useState<'upload' | 'ai' | null>(null);
+  // "Generate with AI" (F3): the image is made after the save by the server's
+  // image worker — there is no preview to fetch.
+  const generateImage = imageSource === 'ai' && imageUrl === null;
   const [uploading, setUploading] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
 
@@ -155,19 +158,10 @@ export default function NewRecipePage() {
   const servingsNum = Math.max(1, Number(servings) || 1);
   const live = useLiveNutrition(lines, servingsNum);
 
-  // ── AI image generation (deterministic URL from name + cuisine) ────────────
-  const aiImageQuery = trpc.recipe.aiImageUrl.useQuery(
-    { name: name.trim(), cuisineType },
-    { enabled: false },
-  );
-
-  const generateAiImage = async () => {
+  const generateAiImage = () => {
     setUploadError(null);
-    const res = await aiImageQuery.refetch();
-    if (res.data) {
-      setImageUrl(res.data.url);
-      setImageSource('ai');
-    }
+    setImageUrl(null);
+    setImageSource('ai');
   };
 
   const handleUpload = async (file: File | undefined) => {
@@ -259,6 +253,7 @@ export default function NewRecipePage() {
       cookTimeMins: Number(cookTimeMins),
       servings: servingsNum,
       imageUrl: imageUrl ?? undefined,
+      ...(generateImage && { generateImage: true }),
       dietaryTags: tags,
       // Lines carry their ingredientId; the server computes nutrition.
       ingredients: toSaveLines(lines),
@@ -514,14 +509,21 @@ export default function NewRecipePage() {
         {/* ── Photo ──────────────────────────────────────────────────── */}
         <Section title="Photo">
           <div className="flex flex-col items-start gap-4 sm:flex-row">
-            {imageUrl ? (
+            {imageUrl || generateImage ? (
               <div className="relative w-full sm:w-auto">
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img
-                  src={imageUrl}
-                  alt="Recipe preview"
-                  className="h-40 w-full rounded-xl border object-cover sm:h-28 sm:w-36"
-                />
+                {imageUrl ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={imageUrl}
+                    alt="Recipe preview"
+                    className="h-40 w-full rounded-xl border object-cover sm:h-28 sm:w-36"
+                  />
+                ) : (
+                  <div className="flex h-40 w-full flex-col items-center justify-center gap-1 rounded-xl border border-amber-200 bg-amber-50 px-3 text-center text-xs font-medium text-amber-700 sm:h-28 sm:w-36">
+                    <Sparkles className="h-4 w-4" aria-hidden="true" />
+                    AI image will be made after you save
+                  </div>
+                )}
                 <button
                   type="button"
                   onClick={() => {
@@ -533,11 +535,6 @@ export default function NewRecipePage() {
                 >
                   <X className="h-3.5 w-3.5" aria-hidden="true" />
                 </button>
-                {imageSource === 'ai' && (
-                  <span className="absolute bottom-1 left-1 rounded-full bg-black/50 px-1.5 py-0.5 text-xs font-medium text-white">
-                    AI generated
-                  </span>
-                )}
               </div>
             ) : (
               <div className="flex h-40 w-full items-center justify-center rounded-xl border border-dashed border-gray-300 bg-gray-50 text-3xl sm:h-28 sm:w-36">
@@ -559,17 +556,17 @@ export default function NewRecipePage() {
               </label>
               <button
                 type="button"
-                onClick={() => void generateAiImage()}
-                disabled={name.trim().length < 2 || aiImageQuery.isFetching}
+                onClick={generateAiImage}
+                disabled={name.trim().length < 2 || generateImage}
                 title={name.trim().length < 2 ? 'Enter a recipe name first' : undefined}
                 className="flex min-h-11 w-full items-center justify-center gap-1.5 rounded-xl border border-amber-300 bg-amber-50 px-3 py-2 text-xs font-medium text-amber-700 hover:bg-amber-100 disabled:opacity-50 sm:min-h-0 sm:w-fit sm:justify-start"
               >
                 <Sparkles className="h-3.5 w-3.5" />
-                {aiImageQuery.isFetching ? 'Generating…' : 'Generate with AI'}
+                Generate with AI
               </button>
               <p className="text-xs text-gray-500">
                 Upload a photo from your phone or computer, or let AI create one from the recipe
-                name. The AI image may take ~20 s to appear the first time.
+                name once you save.
               </p>
               {uploadError && (
                 <p role="alert" className="text-xs text-red-600">

@@ -3,6 +3,7 @@ import {
   favouriteRecipeRepository,
   followRepository,
   mealRatingRepository,
+  POLLINATIONS_IMAGE_HOST,
   recipeLineRepository,
   toIngredientsMirror,
   type CreateManualRecipeData,
@@ -19,6 +20,7 @@ import {
   safeCuratedPools,
 } from '../../lib/curated-recipes/index.js';
 import type { SafetyCheckable } from '../../lib/curated-recipes/safety.js';
+import { notifyRecipeImageQueued } from '../../lib/recipe-image-signal.js';
 import { moderationService, type ModerationService } from '../friends/moderation.service.js';
 import { socialAccessService } from '../friends/social-access.service.js';
 import {
@@ -43,9 +45,14 @@ import {
  * A manual save as the router passes it (plan-ingredient-catalog §6.2, §9):
  * catalog-aware lines, and typed nutrition the server only keeps under D4.
  */
-export type ManualRecipeInput = Omit<CreateManualRecipeData, 'ingredients' | 'nutritionInfo'> & {
+export type ManualRecipeInput = Omit<
+  CreateManualRecipeData,
+  'ingredients' | 'nutritionInfo' | 'imageStatus'
+> & {
   ingredients: SaveLineInput[];
   nutritionInfo?: TypedNutrition | undefined;
+  /** Web "Generate with AI": queue a generated image when no photo was picked (F3). */
+  generateImage?: boolean | undefined;
 };
 type UpdateManualRecipeInput = Partial<ManualRecipeInput>;
 
@@ -340,7 +347,19 @@ export class RecipeService {
       description: data.description,
     });
     // Origins are never taken from a create (only RecipeCopyService sets them).
-    const { originRecipeId: _o, originCreatorId: _c, ingredients, nutritionInfo, ...own } = data;
+    const {
+      originRecipeId: _o,
+      originCreatorId: _c,
+      generateImage,
+      ingredients,
+      nutritionInfo,
+      ...own
+    } = data;
+    // A retired Pollinations URL (an old web tab's "Generate with AI") is
+    // never stored: it becomes a queued generated image too.
+    const queueImage =
+      (generateImage === true && !own.imageUrl) ||
+      Boolean(own.imageUrl?.includes(POLLINATIONS_IMAGE_HOST));
     const prepared = await this.nutrition.prepareSave(
       userId,
       ingredients,
@@ -353,9 +372,11 @@ export class RecipeService {
         ...own,
         ingredients: toIngredientsMirror(prepared.lines),
         nutritionInfo: prepared.nutrition.perServing,
+        ...(queueImage && { imageUrl: null, imageStatus: 'PENDING' as const }),
       }),
       { lines: prepared.lines, nutrition: prepared.nutrition },
     );
+    if (queueImage) notifyRecipeImageQueued();
     return { ...recipe, lines: prepared.report };
   }
 

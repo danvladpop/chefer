@@ -4,6 +4,7 @@ import { prisma } from '@chefer/database';
 import type { UserProfile } from '@chefer/types';
 import { MockAIService } from '../../lib/ai/mock.js';
 import type { CheferizedRecipe, ExtractedRecipe, IAIService } from '../../lib/ai/types.js';
+import { notifyRecipeImageQueued } from '../../lib/recipe-image-signal.js';
 import { headCheckImage } from '../../lib/recipe-import/index.js';
 import { MockVideoTranscriber } from '../../lib/video-import/index.js';
 import { mergeHouseholdSafety } from '../household/household.service.js';
@@ -73,6 +74,7 @@ vi.mock('../ingredients/recipe-nutrition.service.js', async (importOriginal) => 
 // The AI module validates env at import time — mock it; every test injects
 // its own stub IAIService through the constructor anyway.
 vi.mock('../../lib/ai/index.js', () => ({ aiService: {} }));
+vi.mock('../../lib/recipe-image-signal.js', () => ({ notifyRecipeImageQueued: vi.fn() }));
 
 // Network never happens in tests: the page fetcher + og:image HEAD check are
 // stubbed; everything else in lib/recipe-import stays real.
@@ -226,6 +228,7 @@ beforeEach(() => {
   aiCallLog().count.mockResolvedValue(0);
   aiCallLog().create.mockClear();
   vi.mocked(headCheckImage).mockResolvedValue(false);
+  vi.mocked(notifyRecipeImageQueued).mockClear();
 });
 
 // ─── Tests ────────────────────────────────────────────────────────────────────
@@ -325,16 +328,19 @@ describe('RecipeImportService.save — fail closed', () => {
     ).rejects.toMatchObject({ code: 'BAD_REQUEST' });
   });
 
-  it('saves a clean adapted recipe with provenance and a name-seeded image', async () => {
+  it('saves a clean adapted recipe with provenance and queues a generated image (F3)', async () => {
     const repo = recipeRepo();
     const service = new RecipeImportService(makeAi(), repo, prefsRepo(peanutVegetarian));
     const saved = (await service.save(premiumUser, {
       recipe: goodAdaptation.adapted,
       variant: 'adapted',
       sourceUrl: 'https://blog.example.com/satay',
-    })) as unknown as { sourceUrl: string; imageUrl: string };
+    })) as unknown as { sourceUrl: string; imageUrl: string | null; imageStatus: string };
     expect(saved.sourceUrl).toBe('https://blog.example.com/satay');
-    expect(saved.imageUrl).toContain('image.pollinations.ai');
+    // No Pollinations URL any more: the image worker makes a real one.
+    expect(saved.imageUrl).toBeNull();
+    expect(saved.imageStatus).toBe('PENDING');
+    expect(notifyRecipeImageQueued).toHaveBeenCalled();
   });
 
   it("marks the day's newest import preview as saved (T-10.8 importsSaved)", async () => {
@@ -356,6 +362,7 @@ describe('RecipeImportService.save — fail closed', () => {
       ogImageUrl: 'https://cdn.example.com/satay.jpg',
     })) as unknown as { imageUrl: string };
     expect(saved.imageUrl).toBe('https://cdn.example.com/satay.jpg');
+    expect(notifyRecipeImageQueued).not.toHaveBeenCalled();
   });
 
   it('allows saving the original even when it contains the allergen (explicit user choice)', async () => {

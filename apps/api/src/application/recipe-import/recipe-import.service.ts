@@ -31,9 +31,8 @@ import {
   type SafetyBlocker,
   type SafetyPrefs,
 } from '../../lib/curated-recipes/safety.js';
-import { buildPollinationsUrl } from '../../lib/image-gen/pollinations.js';
-import { buildRecipeImagePrompt } from '../../lib/image-gen/prompt.js';
 import { reserveRecipeImport } from '../../lib/quotas.js';
+import { notifyRecipeImageQueued } from '../../lib/recipe-image-signal.js';
 import {
   extractPageContent,
   fetchRecipePage,
@@ -540,18 +539,10 @@ export class RecipeImportService {
     }
 
     // Image: the page's og:image when it actually serves one (HEAD-checked,
-    // SSRF-guarded), otherwise the deterministic name-seeded Pollinations
-    // pipeline — same dish, same URL, CDN-cached.
-    let imageUrl: string;
-    if (input.ogImageUrl && (await headCheckImage(input.ogImageUrl))) {
-      imageUrl = input.ogImageUrl;
-    } else {
-      imageUrl = buildPollinationsUrl(
-        buildRecipeImagePrompt(recipe.name, recipe.cuisineType),
-        recipe.name,
-        recipe.cuisineType,
-      );
-    }
+    // SSRF-guarded), otherwise none yet — the image worker generates one
+    // (F3: no Pollinations fallback).
+    const ogImage =
+      input.ogImageUrl && (await headCheckImage(input.ogImageUrl)) ? input.ogImageUrl : null;
 
     // Nutrition is computed from the lines (plan §6.2): the client's — and the
     // AI's — numbers are dropped, never stored as USER_ENTERED (I2). Picked
@@ -583,11 +574,13 @@ export class RecipeImportService {
         ...recipe,
         ingredients: toIngredientsMirror(prepared.lines),
         nutritionInfo: prepared.nutrition.perServing,
-        imageUrl,
+        imageUrl: ogImage,
+        ...(!ogImage && { imageStatus: 'PENDING' as const }),
         sourceUrl: input.sourceUrl ?? null,
       },
       { lines: prepared.lines, nutrition: prepared.nutrition },
     );
+    if (!ogImage) notifyRecipeImageQueued();
     // T-10.8: the import's AI cost is its preview (already reserved); this
     // only lets Profile say how many of today's previews were saved.
     await markLatestImportSaved(user.id);

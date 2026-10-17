@@ -324,6 +324,14 @@ export {
 } from './ingredient-notice.repository';
 
 export {
+  RecipeImageRepository,
+  recipeImageRepository,
+  POLLINATIONS_IMAGE_HOST,
+  type IRecipeImageRepository,
+  type BackfillCandidate,
+} from './recipe-image.repository';
+
+export {
   AiUsageRepository,
   aiUsageRepository,
   type IAiUsageRepository,

@@ -233,11 +233,22 @@ const envSchema = z.object({
   IMAGE_PROVIDER: z.enum(['pollinations', 'cloudflare']).default('pollinations'),
   // CF_ACCOUNT_ID / CF_API_TOKEN live in ai/env-schema.ts (Workers AI text
   // uses them too).
-  CF_IMAGE_MODEL: z.string().default('@cf/black-forest-labs/flux-1-schnell'),
+  CF_IMAGE_MODEL: z.string().default('@cf/black-forest-labs/flux-2-klein-4b'),
   // Where generated image bytes go. local = the uploads volume, served at
   // /uploads/recipes/* like user photos; cloudinary = the optional CDN (needs
   // the three CLOUDINARY_* keys).
   IMAGE_STORAGE: z.enum(['local', 'cloudinary']).default('local'),
+  // F3 (2026-10-17): RecipeImageBackfillWorker replaces stored Pollinations
+  // images with Cloudflare ones (IMAGE_PROVIDER=cloudflare only). `false` is
+  // the kill switch. It makes at most DAILY_MAX images per UTC day and never
+  // spends into the last RESERVE_NEURONS of the free 10,000/day, which stay
+  // for user-triggered images.
+  RECIPE_IMAGE_BACKFILL: z
+    .string()
+    .default('true')
+    .transform((val) => val !== 'false'),
+  RECIPE_IMAGE_BACKFILL_DAILY_MAX: z.coerce.number().int().min(0).default(40),
+  RECIPE_IMAGE_BACKFILL_RESERVE_NEURONS: z.coerce.number().int().min(0).max(10_000).default(2_000),
   // Public origin of the API, used to build stored-image URLs outside a
   // request (the image worker). Unset = APP_URL in production (single-origin
   // deploy: Caddy routes /uploads/* to the API), http://localhost:PORT in dev.

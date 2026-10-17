@@ -1,5 +1,5 @@
 import { backgroundAiAllowed } from '../ai/budget-gate.js';
-import { CF_IMAGE_NEURONS_ESTIMATE, cloudflareNeuronLedger } from '../ai/cloudflare-budget.js';
+import { cloudflareNeuronLedger, imageNeuronEstimate } from '../ai/cloudflare-budget.js';
 import { logAiUsage } from '../ai/usage.js';
 import { ImagenRateLimitError, ImageQuotaExhaustedError, ImageStorageError } from './errors.js';
 import { buildRecipeImagePrompt } from './prompt.js';
@@ -30,10 +30,40 @@ export interface CloudflareImageConfig {
 
 const CLOUDFLARE_TIMEOUT_MS = 60_000;
 
+export { imageNeuronEstimate };
+
 /**
- * Workers AI text-to-image. Uses the JSON input/output of the flux-1-schnell
- * family ({ prompt, steps } → { result: { image: base64 } }); models that
- * answer with raw image bytes are handled too. Rate limits map to the
+ * The recipe hero is ~16:10 and cards are 4:3, so images are made 4:3 where
+ * the model lets us choose (F3, 2026-10-17: a square source lost 38–45% of
+ * the dish to the hero crop).
+ */
+const IMAGE_WIDTH = 1024;
+const IMAGE_HEIGHT = 768;
+
+/**
+ * The request body for a Workers AI image model. FLUX.2 models (klein, dev)
+ * take multipart form fields with a size; flux-1-schnell takes JSON
+ * `{ prompt, steps }` and always answers 1024×1024.
+ */
+function imageRequest(
+  model: string,
+  prompt: string,
+): { body: FormData | string; contentType?: string } {
+  if (model.includes('flux-2')) {
+    const form = new FormData();
+    form.append('prompt', prompt);
+    form.append('width', String(IMAGE_WIDTH));
+    form.append('height', String(IMAGE_HEIGHT));
+    // fetch writes the multipart content-type (with its boundary) itself.
+    return { body: form };
+  }
+  return { body: JSON.stringify({ prompt, steps: 4 }), contentType: 'application/json' };
+}
+
+/**
+ * Workers AI text-to-image: FLUX.2 (multipart, 4:3) or flux-1-schnell (JSON),
+ * both answering `{ result: { image: base64 } }`; models that answer with raw
+ * image bytes are handled too. Rate limits map to the
  * worker's back-off error so they don't burn a recipe's retries.
  */
 export class CloudflareImageService implements IRecipeImageService {
@@ -53,13 +83,14 @@ export class CloudflareImageService implements IRecipeImageService {
     const prompt = buildRecipeImagePrompt(input.recipeName, input.cuisineType);
     const url = `https://api.cloudflare.com/client/v4/accounts/${this.config.accountId}/ai/run/${this.config.model}`;
     const started = Date.now();
+    const request = imageRequest(this.config.model, prompt);
     const res = await fetch(url, {
       method: 'POST',
       headers: {
         authorization: `Bearer ${this.config.apiToken}`,
-        'content-type': 'application/json',
+        ...(request.contentType ? { 'content-type': request.contentType } : {}),
       },
-      body: JSON.stringify({ prompt, steps: 4 }),
+      body: request.body,
       signal: AbortSignal.timeout(CLOUDFLARE_TIMEOUT_MS),
     });
 
@@ -98,7 +129,8 @@ export class CloudflareImageService implements IRecipeImageService {
     // in the same ledger so text stops at CF_TEXT_NEURON_BUDGET and leaves
     // images the rest (cloudflare-budget.ts).
     const reported = Number(res.headers.get('cf-ai-neurons'));
-    const spent = Number.isFinite(reported) && reported > 0 ? reported : CF_IMAGE_NEURONS_ESTIMATE;
+    const spent =
+      Number.isFinite(reported) && reported > 0 ? reported : imageNeuronEstimate(this.config.model);
     cloudflareNeuronLedger.record(spent);
     logAiUsage({
       provider: 'cloudflare',

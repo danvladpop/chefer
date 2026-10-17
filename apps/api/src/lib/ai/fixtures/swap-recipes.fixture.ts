@@ -1,5 +1,3 @@
-import { buildPollinationsUrl } from '../../image-gen/pollinations.js';
-import { buildRecipeImagePrompt } from '../../image-gen/prompt.js';
 import type { RecipeData } from '../types.js';
 
 // ─── Swap Recipe Pool ─────────────────────────────────────────────────────────
@@ -7,11 +5,6 @@ import type { RecipeData } from '../types.js';
 // The mock cycles through this list deterministically.
 
 const U = (id: string) => `https://images.unsplash.com/${id}?auto=format&fit=crop&w=800&h=600&q=80`;
-
-// Pollinations fallback for recipes whose stock photo died (prod-followups
-// #5) — same generated-image pipeline the extra curated pool uses.
-const img = (name: string, cuisine: string) =>
-  buildPollinationsUrl(buildRecipeImagePrompt(name, cuisine), name, cuisine);
 
 export const SWAP_BREAKFAST_POOL: RecipeData[] = [
   {
@@ -95,8 +88,9 @@ export const SWAP_LUNCH_POOL: RecipeData[] = [
     prepTimeMins: 10,
     cookTimeMins: 25,
     servings: 1,
-    // photo-1540189549336-e6e99eb4f7c9 404s on Unsplash — generate instead
-    imageUrl: img('Lentil & Roasted Veg Salad', 'Mediterranean'),
+    // photo-1540189549336-e6e99eb4f7c9 404s on Unsplash — the image worker
+    // generates one instead (F3: no Pollinations URLs).
+    imageUrl: null,
   },
   {
     id: 'swap-l-002',

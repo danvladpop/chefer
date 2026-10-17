@@ -6,12 +6,11 @@ import {
   ImageStorageError,
 } from '../lib/image-gen/errors.js';
 import { generateAndUploadRecipeImage, probeRecipeImageStorage } from '../lib/image-gen/index.js';
-import { recipeImageFallbackUrl } from '../lib/image-gen/pollinations.js';
 import { recipeImageEventEmitter } from '../lib/sse/recipe-image-emitter.js';
 import { RecipeImageWorker } from './recipe-image.worker.js';
 
 // No live image calls (§8 AI-cost rule): the provider is mocked; the error
-// classes and the Pollinations URL builder are the real (env-free) ones.
+// classes are the real (env-free) ones.
 
 vi.mock('@chefer/database', async (importOriginal) => {
   const mod = await importOriginal<typeof import('@chefer/database')>();
@@ -32,12 +31,8 @@ vi.mock('../lib/image-gen/index.js', async () => {
   const errors = await vi.importActual<typeof import('../lib/image-gen/errors.js')>(
     '../lib/image-gen/errors.js',
   );
-  const pollinations = await vi.importActual<typeof import('../lib/image-gen/pollinations.js')>(
-    '../lib/image-gen/pollinations.js',
-  );
   return {
     ...errors,
-    recipeImageFallbackUrl: pollinations.recipeImageFallbackUrl,
     generateAndUploadRecipeImage: vi.fn(),
     probeRecipeImageStorage: vi.fn().mockResolvedValue(null),
   };
@@ -45,7 +40,6 @@ vi.mock('../lib/image-gen/index.js', async () => {
 
 const RECIPE = { id: 'r1', name: 'Shakshuka', cuisineType: 'Middle Eastern', creatorId: null };
 const OTHER = { id: 'r2', name: 'Pad Thai', cuisineType: 'Thai', creatorId: null };
-const FALLBACK = recipeImageFallbackUrl(RECIPE.name, RECIPE.cuisineType);
 
 /** The next claim pass returns these recipes once, then the queue is empty. */
 function queue(...recipes: (typeof RECIPE)[]) {
@@ -63,7 +57,8 @@ const now = () => clock;
 beforeEach(() => {
   vi.clearAllMocks();
   clock = Date.parse('2026-09-28T10:00:00Z');
-  vi.mocked(prisma.recipe.findMany).mockResolvedValue([]);
+  // mockReset: a queue() the worker never claimed must not leak into the next test.
+  vi.mocked(prisma.recipe.findMany).mockReset().mockResolvedValue([]);
   vi.mocked(prisma.recipe.updateMany).mockResolvedValue({ count: 1 });
   vi.mocked(prisma.recipe.update).mockResolvedValue({ imageRetries: 1 } as never);
   vi.mocked(probeRecipeImageStorage).mockResolvedValue(null);
@@ -72,9 +67,17 @@ beforeEach(() => {
   vi.spyOn(console, 'error').mockImplementation(() => undefined);
 });
 
+/** F3 (2026-10-17): no path may write a Pollinations URL any more. */
+function expectNoPollinations(): void {
+  const writes = JSON.stringify([
+    vi.mocked(prisma.recipe.update).mock.calls,
+    vi.mocked(prisma.recipe.updateMany).mock.calls,
+  ]);
+  expect(writes).not.toMatch(/pollinations/i);
+}
+
 describe('RecipeImageWorker — generation failures', () => {
-  it('a storage failure never regenerates: one generate call, then the Pollinations fallback', async () => {
-    const emit = vi.spyOn(recipeImageEventEmitter, 'emit');
+  it('a storage failure never regenerates: the recipe waits PENDING while the store is broken', async () => {
     vi.mocked(generateAndUploadRecipeImage).mockRejectedValueOnce(
       new ImageStorageError(
         "Could not write /app/uploads/recipes/r1-abc.jpg: EACCES: permission denied, mkdir '/app/uploads/recipes'",
@@ -88,24 +91,18 @@ describe('RecipeImageWorker — generation failures', () => {
     expect(generateAndUploadRecipeImage).toHaveBeenCalledTimes(1);
     expect(updates()).toContainEqual({
       where: { id: 'r1' },
-      data: { imageUrl: FALLBACK, imageStatus: ImageStatus.DONE },
+      data: { imageStatus: ImageStatus.PENDING },
     });
-    // No retry counter, no PENDING reset, no FAILED.
-    expect(JSON.stringify(updates())).not.toMatch(/imageRetries|PENDING|FAILED/);
-    expect(emit).toHaveBeenCalledWith('r1', { imageUrl: FALLBACK, status: 'DONE' });
+    // No retry counter burned, no FAILED.
+    expect(JSON.stringify(updates())).not.toMatch(/imageRetries|FAILED/);
 
     // While the store stays broken, the next recipe is not generated at all.
     vi.mocked(probeRecipeImageStorage).mockResolvedValue('/app/uploads/recipes is not writable');
+    clock += 61_000;
     queue(OTHER);
     await worker.tick();
     expect(generateAndUploadRecipeImage).toHaveBeenCalledTimes(1);
-    expect(updates()).toContainEqual({
-      where: { id: 'r2' },
-      data: {
-        imageUrl: recipeImageFallbackUrl(OTHER.name, OTHER.cuisineType),
-        imageStatus: ImageStatus.DONE,
-      },
-    });
+    expectNoPollinations();
   });
 
   it('resumes generation once the store is writable again (re-probed after a minute)', async () => {
@@ -124,7 +121,7 @@ describe('RecipeImageWorker — generation failures', () => {
     expect(generateAndUploadRecipeImage).toHaveBeenCalledTimes(2);
   });
 
-  it('a daily-quota error falls back and skips Cloudflare for the rest of the UTC day', async () => {
+  it('a daily-quota error leaves the recipe PENDING and skips Cloudflare until the next UTC day', async () => {
     vi.mocked(generateAndUploadRecipeImage)
       .mockRejectedValueOnce(new ImageQuotaExhaustedError('code 3036'))
       .mockResolvedValue('https://chefer.example/uploads/recipes/x.jpg');
@@ -134,7 +131,7 @@ describe('RecipeImageWorker — generation failures', () => {
     await worker.tick();
     expect(updates()).toContainEqual({
       where: { id: 'r1' },
-      data: { imageUrl: FALLBACK, imageStatus: ImageStatus.DONE },
+      data: { imageStatus: ImageStatus.PENDING },
     });
 
     // Same UTC day: no Cloudflare call at all.
@@ -145,12 +142,15 @@ describe('RecipeImageWorker — generation failures', () => {
 
     // Next UTC day: Cloudflare is tried again.
     clock = Date.parse('2026-09-29T00:01:00Z');
+    vi.mocked(prisma.recipe.findMany).mockReset().mockResolvedValue([]);
     queue(OTHER);
     await worker.tick();
     expect(generateAndUploadRecipeImage).toHaveBeenCalledTimes(2);
+    expectNoPollinations();
   });
 
-  it('the last retry of a transient failure ends DONE on the fallback, not FAILED', async () => {
+  it('the last retry of a transient failure ends FAILED, never on a Pollinations image', async () => {
+    const emit = vi.spyOn(recipeImageEventEmitter, 'emit');
     vi.mocked(generateAndUploadRecipeImage).mockRejectedValueOnce(new Error('HTTP 500'));
     vi.mocked(prisma.recipe.update).mockResolvedValueOnce({ imageRetries: 3 } as never);
     const worker = new RecipeImageWorker(now);
@@ -160,9 +160,10 @@ describe('RecipeImageWorker — generation failures', () => {
 
     expect(updates()).toContainEqual({
       where: { id: 'r1' },
-      data: { imageUrl: FALLBACK, imageStatus: ImageStatus.DONE },
+      data: { imageStatus: ImageStatus.FAILED },
     });
-    expect(JSON.stringify(updates())).not.toMatch(/FAILED/);
+    expect(emit).toHaveBeenCalledWith('r1', { imageUrl: null, status: 'FAILED' });
+    expectNoPollinations();
   });
 
   it('an earlier transient failure still goes back to PENDING for a retry', async () => {
@@ -192,44 +193,17 @@ describe('RecipeImageWorker — generation failures', () => {
   });
 });
 
-describe('RecipeImageWorker.backfillFailedImages', () => {
-  it('only touches FAILED rows without an image, with a per-row guard', async () => {
-    vi.mocked(prisma.recipe.findMany).mockResolvedValueOnce([
-      { id: 'a', name: 'Shakshuka', cuisineType: 'Middle Eastern' },
-      { id: 'b', name: 'Pad Thai', cuisineType: 'Thai' },
-    ] as never);
+describe('RecipeImageWorker.requeueFailedImages', () => {
+  it('puts FAILED rows without an image back in the queue with fresh retries', async () => {
+    vi.mocked(prisma.recipe.updateMany).mockResolvedValueOnce({ count: 2 });
 
-    const count = await new RecipeImageWorker(now).backfillFailedImages();
+    await expect(new RecipeImageWorker(now).requeueFailedImages()).resolves.toBe(2);
 
-    expect(count).toBe(2);
-    expect(vi.mocked(prisma.recipe.findMany).mock.calls[0]![0]).toMatchObject({
+    expect(prisma.recipe.updateMany).toHaveBeenCalledWith({
       where: { imageStatus: ImageStatus.FAILED, imageUrl: null },
+      data: { imageStatus: ImageStatus.PENDING, imageRetries: 0 },
     });
-    expect(prisma.recipe.updateMany).toHaveBeenCalledWith({
-      where: { id: 'a', imageStatus: ImageStatus.FAILED, imageUrl: null },
-      data: { imageUrl: FALLBACK, imageStatus: ImageStatus.DONE },
-    });
-    expect(prisma.recipe.updateMany).toHaveBeenCalledWith({
-      where: { id: 'b', imageStatus: ImageStatus.FAILED, imageUrl: null },
-      data: {
-        imageUrl: recipeImageFallbackUrl('Pad Thai', 'Thai'),
-        imageStatus: ImageStatus.DONE,
-      },
-    });
-  });
-
-  it('is idempotent: rows already changed elsewhere count zero and stop the loop', async () => {
-    const full = Array.from({ length: 100 }, (_, i) => ({
-      id: `r${i}`,
-      name: 'Soup',
-      cuisineType: 'French',
-    }));
-    // Always the same full batch, but the guard matches nothing.
-    vi.mocked(prisma.recipe.findMany).mockResolvedValue(full as never);
-    vi.mocked(prisma.recipe.updateMany).mockResolvedValue({ count: 0 });
-
-    await expect(new RecipeImageWorker(now).backfillFailedImages()).resolves.toBe(0);
-    expect(prisma.recipe.findMany).toHaveBeenCalledTimes(1);
+    expectNoPollinations();
   });
 
   it('never crashes boot when the database is not ready', async () => {

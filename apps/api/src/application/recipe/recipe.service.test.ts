@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Recipe } from '@chefer/database';
+import { notifyRecipeImageQueued } from '../../lib/recipe-image-signal.js';
 import { RecipeService } from './recipe.service.js';
 
 // ─── Module mocks ─────────────────────────────────────────────────────────────
@@ -44,6 +45,8 @@ const {
   isRecipeInUserPlans: vi.fn().mockResolvedValue(false),
   upsertRecipes: vi.fn().mockResolvedValue(undefined),
 }));
+
+vi.mock('../../lib/recipe-image-signal.js', () => ({ notifyRecipeImageQueued: vi.fn() }));
 
 // Manual saves compute nutrition through RecipeNutritionService (catalog
 // reads); covered in recipe-nutrition.service.test.ts. Stubbed here.
@@ -565,6 +568,53 @@ describe('RecipeService word filter on writes (PRD §9.4, stub until L-MODERATIO
     });
     expect(createManualRecipe.mock.calls[0]![1]).not.toHaveProperty('originRecipeId');
     expect(createManualRecipe.mock.calls[0]![1]).not.toHaveProperty('originCreatorId');
+  });
+
+  it('"Generate with AI" saves the recipe without an image and queues a real one (F3)', async () => {
+    createManualRecipe.mockClear();
+    vi.mocked(notifyRecipeImageQueued).mockClear();
+    createManualRecipe.mockResolvedValueOnce(
+      recipe({ id: 'r9', name: 'Dal', imageStatus: 'PENDING' }),
+    );
+
+    await new RecipeService(undefined, undefined, moderation()).create('u1', {
+      ...BODY,
+      imageUrl: null,
+      generateImage: true,
+    });
+
+    expect(createManualRecipe.mock.calls[0]![1]).toMatchObject({
+      imageUrl: null,
+      imageStatus: 'PENDING',
+    });
+    expect(createManualRecipe.mock.calls[0]![1]).not.toHaveProperty('generateImage');
+    expect(notifyRecipeImageQueued).toHaveBeenCalled();
+  });
+
+  it('a Pollinations URL from an old web tab is never stored: it is queued instead', async () => {
+    createManualRecipe.mockClear();
+    await new RecipeService(undefined, undefined, moderation()).create('u1', {
+      ...BODY,
+      imageUrl: 'https://image.pollinations.ai/prompt/dal?seed=1&width=512&height=384',
+    });
+    expect(createManualRecipe.mock.calls[0]![1]).toMatchObject({
+      imageUrl: null,
+      imageStatus: 'PENDING',
+    });
+  });
+
+  it('an uploaded photo wins over "Generate with AI", and a plain save queues nothing', async () => {
+    createManualRecipe.mockClear();
+    vi.mocked(notifyRecipeImageQueued).mockClear();
+    const service = new RecipeService(undefined, undefined, moderation());
+
+    await service.create('u1', { ...BODY, imageUrl: '/uploads/me.jpg', generateImage: true });
+    await service.create('u1', { ...BODY, imageUrl: null });
+
+    for (const [, data] of createManualRecipe.mock.calls) {
+      expect(data).not.toHaveProperty('imageStatus');
+    }
+    expect(notifyRecipeImageQueued).not.toHaveBeenCalled();
   });
 
   it('update checks the text as it will be after the edit, with the recipe id', async () => {

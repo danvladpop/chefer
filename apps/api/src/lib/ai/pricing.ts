@@ -47,6 +47,8 @@ export const MODEL_PRICES: Readonly<Record<string, ModelPrice>> = {
   '@cf/google/gemma-4-26b-a4b-it': { inputPerMTok: 0.1, outputPerMTok: 0.3 },
   // ~$0.00064 per 1024×1024 image at 4 steps (our request: steps 4).
   '@cf/black-forest-labs/flux-1-schnell': { inputPerMTok: 0, outputPerMTok: 0, perImage: 0.00064 },
+  // ~104 neurons per 1024×768 image × $0.011 per 1,000 neurons (F3 default).
+  '@cf/black-forest-labs/flux-2-klein-4b': { inputPerMTok: 0, outputPerMTok: 0, perImage: 0.00115 },
   // Pollinations is free and is never called server-side (the client loads
   // the URL), so it never produces a usage row; listed for completeness.
   pollinations: { inputPerMTok: 0, outputPerMTok: 0, perImage: 0 },

@@ -43,8 +43,9 @@ export {
 // under their own deterministic `curated-*` IDs with source=CURATED so they
 // never collide with mock-mode fixture rows.
 //
-// These recipes ship with preset stock images (imageStatus DONE) — the free
-// tier never touches the AI image-generation pipeline.
+// The original fixtures ship stock images (imageStatus DONE); the authored
+// pools ship none, so their rows are generated once by the image worker, and
+// the stored row's image is what clients see (F3, 2026-10-17).
 
 const R = RECIPE_LIBRARY;
 
@@ -116,34 +117,6 @@ export function safeCuratedPools(prefs: SafetyPrefs | null): Record<MealType, Re
 }
 
 let ensured = false;
-let warmed = false;
-
-/**
- * Fire-and-forget warm-up of the Pollinations-backed curated images. The
- * first request for each URL generates the image (~20s) and lands it in
- * Pollinations' CDN; every later request is a ~150ms cache hit. Without this,
- * the first free plan a user ever generates shows a wall of broken images
- * until reload. Low concurrency on purpose — parallel cold generations get
- * rate-limited (429), which is exactly the broken-image case again.
- */
-function warmCuratedImages(): void {
-  if (warmed) return;
-  warmed = true;
-  const urls = Object.values(CURATED_POOL_BY_TYPE)
-    .flat()
-    .map((r) => r.imageUrl)
-    .filter((u): u is string => Boolean(u?.includes('image.pollinations.ai')));
-  void (async () => {
-    for (const url of urls) {
-      try {
-        await fetch(url, { signal: AbortSignal.timeout(60_000) });
-      } catch {
-        // Best-effort: a failed warm just means that image warms on first view.
-      }
-    }
-    console.log(`[curated-recipes] warmed ${urls.length} pool images`);
-  })();
-}
 
 /**
  * Idempotently upserts the curated pool into the recipes table. Called lazily
@@ -151,7 +124,6 @@ function warmCuratedImages(): void {
  * an existing dev database (upsert by fixed ID, no destructive operations).
  */
 export async function ensureCuratedRecipes(): Promise<void> {
-  warmCuratedImages();
   if (ensured) return;
 
   const all = Object.values(CURATED_POOL_BY_TYPE).flat();
@@ -168,8 +140,11 @@ export async function ensureCuratedRecipes(): Promise<void> {
       prepTimeMins: r.prepTimeMins,
       cookTimeMins: r.cookTimeMins,
       servings: r.servings,
+      // A stock photo is DONE; a recipe without one is queued for the image
+      // worker. A null image never overwrites a stored one (upsertRecipes),
+      // so generated and backfilled images survive every restart.
       imageUrl: r.imageUrl ?? null,
-      imageStatus: 'DONE' as const,
+      imageStatus: r.imageUrl ? ('DONE' as const) : ('PENDING' as const),
       source: 'CURATED' as const,
     })),
   );

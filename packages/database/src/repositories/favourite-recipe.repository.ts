@@ -23,6 +23,12 @@ export interface CreateManualRecipeData {
   cookTimeMins: number;
   servings: number;
   imageUrl?: string | null;
+  /**
+   * `PENDING` queues a generated image (the API's recipe image worker) for a
+   * recipe saved without one — imports without an og:image, "Generate with
+   * AI" on the create form (F3). Omitted = DONE (the schema default).
+   */
+  imageStatus?: 'PENDING' | 'DONE';
   /** Provenance of imported recipes (Cheferize F5) — never rendered as a republished page. */
   sourceUrl?: string | null;
   /**
@@ -160,6 +166,7 @@ function manualCreateData(
     cookTimeMins: data.cookTimeMins,
     servings: data.servings,
     imageUrl: data.imageUrl ?? null,
+    ...(data.imageStatus && { imageStatus: data.imageStatus }),
     sourceUrl: data.sourceUrl ?? null,
     ...(data.originRecipeId && { originRecipeId: data.originRecipeId }),
     ...(data.originCreatorId && { originCreatorId: data.originCreatorId }),
@@ -517,7 +524,9 @@ export class FavouriteRecipeRepository implements IFavouriteRecipeRepository {
           ...(data.prepTimeMins !== undefined && { prepTimeMins: data.prepTimeMins }),
           ...(data.cookTimeMins !== undefined && { cookTimeMins: data.cookTimeMins }),
           ...(data.servings !== undefined && { servings: data.servings }),
-          ...('imageUrl' in data && { imageUrl: data.imageUrl ?? null }),
+          // A chosen image (or its removal) ends any queued generation, so
+          // the image worker never overwrites it.
+          ...('imageUrl' in data && { imageUrl: data.imageUrl ?? null, imageStatus: 'DONE' }),
         },
       });
     if (!lines) return update(prisma);

@@ -1,6 +1,7 @@
 import type { MealPlan, MealPlanDay, Recipe } from '@prisma/client';
 import { MealPlanOrigin, MealPlanStatus, Prisma } from '@prisma/client';
 import { prisma } from '../client';
+import { POLLINATIONS_IMAGE_HOST } from './recipe-image.repository';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -348,6 +349,8 @@ export class MealPlanRepository implements IMealPlanRepository {
    * Returns a map of lowercased recipe name → imageUrl for recipes that already
    * have a completed image. Lets a fresh plan generation reuse images for dishes
    * that were generated before (LLM recipe IDs differ between runs, names don't).
+   * Retired Pollinations images are never reused (F3): the new recipe is
+   * generated instead, and the backfill replaces the old one.
    */
   async findRecipeImagesByNames(names: string[]): Promise<Map<string, string>> {
     if (names.length === 0) return new Map();
@@ -356,6 +359,7 @@ export class MealPlanRepository implements IMealPlanRepository {
         name: { in: names, mode: 'insensitive' },
         imageStatus: 'DONE',
         imageUrl: { not: null },
+        NOT: { imageUrl: { contains: POLLINATIONS_IMAGE_HOST } },
       },
       select: { name: true, imageUrl: true },
       orderBy: { createdAt: 'desc' },

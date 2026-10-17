@@ -853,19 +853,35 @@ mealPlan.generate { weekOffset }
        │   on the planner; over-budget warning when it exceeds the
        │   premium weeklyBudgetEur (P2-4)
        ├─ image reuse: recipes whose name matches a previously generated
-       │   DONE image are marked DONE immediately
+       │   DONE image are marked DONE immediately (never a retired
+       │   Pollinations URL — F3)
        ├─ remaining recipes upserted as PENDING with imagePriority
        │   (0 = today) → RecipeImageWorker.wake()
        └─ worker generates up to 3 images in parallel (Pollinations, or
            Cloudflare Workers AI in prod), streaming DONE events to the
            client over SSE
-           └─ never "Photo unavailable" for a pipeline problem: Cloudflare's
-               daily free neurons used up (then skipped until 00:00 UTC),
-               the generated image can't be stored (never regenerated), or
-               the 3rd failed attempt → the dish's free deterministic
-               Pollinations URL, status DONE (client loads it; not warmed).
-               Only a content-policy refusal ends FAILED. On API start,
-               FAILED recipes with no image are backfilled the same way.
+           └─ no Pollinations fallback (F3, 2026-10-17): Cloudflare's daily
+               free neurons used up → the recipe waits PENDING (placeholder)
+               until 00:00 UTC; the image store is broken → it waits until
+               the store is writable; the 3rd failed attempt or a
+               content-policy refusal → FAILED ("Photo unavailable"). On API
+               start, FAILED recipes with no image are queued again.
+
+Recipe image backfill (F3, owner decisions 2026-10-17)
+  Recipes stored with a Pollinations image before F3 keep it until
+  RecipeImageBackfillWorker replaces it (IMAGE_PROVIDER=cloudflare only;
+  RECIPE_IMAGE_BACKFILL=false stops it):
+  every 10 min, at most one dish:
+    ├─ skip: paused today (quota gone / budget paused / store failed),
+    │   ≥ RECIPE_IMAGE_BACKFILL_DAILY_MAX (40) backfill images today (stored
+    │   count), or one more image would cut into the last
+    │   RECIPE_IMAGE_BACKFILL_RESERVE_NEURONS (2,000) of the free 10,000
+    │   neurons — that reserve is for images users are waiting on
+    ├─ next Pollinations URL, in order: on a current/upcoming plan →
+    │   favourited → curated pool → the rest (newest first)
+    └─ generate one 4:3 image (flux-2-klein-4b) → swap it on EVERY recipe
+        holding that URL (same dish: name reuse, copies) → log progress
+  Restart-safe: the remaining URLs are re-read every tick.
 ```
 
 ### Instant week, then live tailoring (premium, 2026-09-28)
@@ -2537,7 +2553,8 @@ recipe.importSave { recipe, variant, sourceUrl?, ogImageUrl?, acceptPartial? }  
   │    a recipe that still violates the user's allergies/restrictions is REJECTED
   │    (fail closed — the "AI missed the peanut" case cannot be saved as adapted)
   ├─ image: og:image only when a guarded HEAD check confirms an image response,
-  │    else the deterministic name-seeded Pollinations URL
+  │    else none yet: saved imageStatus PENDING and the recipe image worker
+  │    generates one (F3 — no Pollinations URL)
   └─ Recipe created with source: MANUAL, creatorId, sourceUrl provenance and
        its catalog lines (one transaction)
        → rateable + pinnable → flows into P1-1 generation placement
@@ -4352,7 +4369,8 @@ user then sees "You've reached your AI chat limit for now" in place of the
 input (the same panel as the daily chat cap) — no upgrade pitch (free users keep the existing upgrade card). The owner gets one email per
 threshold per day at 50 %, 80 % and 100 % of the global budget; at 100 % the
 background AI (live tailoring, ingredient prices, Cloudflare recipe images —
-which switch to the free Pollinations image) also pauses until 00:00 UTC.
+new recipes wait for theirs, and the image backfill pauses) also pauses until
+00:00 UTC.
 
 ---
 
@@ -5091,6 +5109,15 @@ D-19 minimum — recipe.create / recipe.update (additive widening, T-40.3):
   Web (T-40.6): validateRecipeCore + both pages' own checks relaxed to the
   same minimum — cuisine, description, steps, times and nutrition (computed
   or manual) are all optional now, closing the parity gap ("36 boxes").
+
+Photo — "Generate with AI" (web only; F3, 2026-10-17):
+  web form ── "Generate with AI" ──► preview says "AI image will be made after
+       you save" (no image is fetched any more) ──► recipe.create
+       { generateImage: true } (additive) ──► saved with no image,
+       imageStatus PENDING ──► recipe image worker (Cloudflare, 4:3)
+  An uploaded photo wins. A retired Pollinations URL sent as imageUrl (an
+  old tab still on the deprecated recipe.aiImageUrl) is never stored: it is
+  queued the same way. Editing the image later ends any queued generation.
 
 Diet tags (bug B-01, T-01.6):
   mobile/web form ── ticks Diet tags (ChipGroup) ──► payload.dietaryTags
