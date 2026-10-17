@@ -1,6 +1,11 @@
-import { useState } from 'react';
-import { View } from 'react-native';
-import { INGREDIENT_CATALOG_COPY, VIDEO_IMPORT_COPY, type VideoDraftField } from '@chefer/types';
+import { useRef, useState } from 'react';
+import { AccessibilityInfo, View, type TextInput } from 'react-native';
+import {
+  INGREDIENT_CATALOG_COPY,
+  VIDEO_IMPORT_COPY,
+  type LineProblem,
+  type VideoDraftField,
+} from '@chefer/types';
 import {
   ConfirmSheet,
   DONE_FIELD_PROPS,
@@ -10,6 +15,7 @@ import {
   PressableScale,
   SelectField,
   Text,
+  useScrollFieldIntoView,
   useThemeColors,
   type SelectOption,
 } from '@chefer/ui-mobile';
@@ -18,7 +24,7 @@ import {
   finalizeVideoDraft,
   incompleteLineCount,
   ingredientUnitGroups,
-  parseQuantityInput,
+  lineProblemCopy,
   unitForPickedIngredient,
   videoDraftProblems,
   videoDraftToForm,
@@ -31,6 +37,7 @@ import { pickedFromRef, type CatalogRef, type PickedIngredient } from '../ingred
 import { IngredientPickerField } from '../ingredients/ingredient-picker-field';
 import { useComputedNutrition } from '../ingredients/use-computed-nutrition';
 import { TrainButton } from '../shell/train/train-button';
+import { draftNutritionLines, rowLineProblems } from './draft-line-problems';
 
 // Import review form — port of web's VideoDraftForm. The AI reads the video's
 // words (or, UX-REC-15, a link's page or pasted text) into a draft; the user
@@ -125,6 +132,8 @@ const SECTION_TITLE = 'text-title3 font-bold text-label';
 const FIELD = 'rounded-control border-separator bg-surface text-body text-label';
 /** The redesign's card (BoardCard's look). */
 const CARD = 'gap-1 rounded-card border border-separator bg-surface p-4';
+/** F2: the field a row's problem is about — amount, or the unit it can't weigh. */
+const UNIT_PROBLEMS: readonly LineProblem[] = ['NO_DENSITY', 'NO_PORTION', 'BAD_UNIT'];
 
 export function VideoDraftForm({
   preview,
@@ -158,14 +167,31 @@ export function VideoDraftForm({
   const [pendingSave, setPendingSave] = useState<VideoSaveRecipe | null>(null);
 
   // Live nutrition over the linked rows (the server recomputes on save).
-  const live = useComputedNutrition(
-    form.ingredients.flatMap((row, i) => {
-      const quantity = parseQuantityInput(row.quantity) ?? 0;
-      if (!row.name.trim() || quantity <= 0) return [];
-      return [{ ingredientId: links[i]?.ingredient?.id ?? null, quantity, unit: row.unit }];
-    }),
-    Number(form.servings) || 1,
-  );
+  const liveLines = draftNutritionLines(form.ingredients, (i) => links[i]?.ingredient?.id ?? null);
+  const live = useComputedNutrition(liveLines.lines, Number(form.servings) || 1);
+  // F2: each counted line's problem, on the form row it came from.
+  const rowProblems = rowLineProblems(form.ingredients.length, liveLines.rowOf, live.result);
+  const incompleteCopy = live.result
+    ? INGREDIENT_CATALOG_COPY.status.incomplete(incompleteLineCount(live.result))
+    : '';
+  const scrollIntoView = useScrollFieldIntoView();
+  const rowRefs = useRef<(View | null)[]>([]);
+  const qtyRefs = useRef<(TextInput | null)[]>([]);
+  const noteRefs = useRef<(View | null)[]>([]);
+  // F2: "Incomplete …" takes the user to the first row it counted — the amount
+  // field when that is what's missing, else screen-reader focus on its hint.
+  const revealFirstProblem = () => {
+    const index = rowProblems.findIndex((p) => p !== undefined);
+    if (index < 0) return;
+    scrollIntoView(rowRefs.current[index] ?? null);
+    const qty = qtyRefs.current[index];
+    if (rowProblems[index] === 'BAD_QTY' && qty) {
+      qty.focus();
+      return;
+    }
+    const note = noteRefs.current[index];
+    if (note) AccessibilityInfo.sendAccessibilityEvent(note, 'focus');
+  };
 
   const flagged = (field: VideoDraftField) => notFound.includes(field);
   const update = (patch: Partial<VideoDraftFormValues>, field?: VideoDraftField) => {
@@ -316,98 +342,150 @@ export function VideoDraftForm({
           {ingredientsMissing && <MissingPill>{VIDEO_IMPORT_COPY.notFound}</MissingPill>}
         </View>
         <View className="gap-2">
-          {form.ingredients.map((row, index) => (
-            <View key={index}>
-              <View className="flex-row items-center gap-2">
-                <Input
-                  testID={`video-draft-qty-${index}`}
-                  accessibilityLabel={`Amount for ingredient ${index + 1}`}
-                  value={row.quantity}
-                  placeholder="Qty"
-                  keyboardType="decimal-pad"
-                  onChangeText={(quantity) => setIngredient(index, { quantity })}
-                  className={cn(FIELD, 'w-16', unheard[index] && 'border-attention')}
-                  {...DONE_FIELD_PROPS}
-                />
-                {links[index]?.ingredient ? (
-                  // FB7-03: wide enough for "piece" / "tbsp" / "clove" on one
-                  // line (w-20 broke them mid-word).
-                  <View className="w-24">
-                    <SelectField
-                      testID={`video-draft-unit-${index}`}
-                      label={`Unit for ingredient ${index + 1}`}
-                      value={row.unit || null}
-                      options={unitOptions(links[index].ingredient)}
-                      onChange={(unit) => setIngredient(index, { unit })}
-                      placeholder="unit"
-                    />
-                  </View>
-                ) : (
+          {form.ingredients.map((row, index) => {
+            const problem = rowProblems[index];
+            // An unlinked row says "Pick a match" below; a linked row's
+            // NO_INGREDIENT is its catalog data still loading (web does the same).
+            const hint =
+              links[index]?.ingredient && problem && problem !== 'NO_INGREDIENT'
+                ? lineProblemCopy(problem)
+                : null;
+            const qtyBad = hint !== null && problem === 'BAD_QTY';
+            const unitBad =
+              hint !== null && problem !== undefined && UNIT_PROBLEMS.includes(problem);
+            return (
+              <View
+                key={index}
+                ref={(node) => {
+                  rowRefs.current[index] = node;
+                }}
+              >
+                <View className="flex-row items-center gap-2">
                   <Input
-                    testID={`video-draft-unit-${index}`}
-                    accessibilityLabel={`Unit for ingredient ${index + 1}`}
-                    value={row.unit}
-                    placeholder="g"
-                    maxLength={20}
-                    autoCapitalize="none"
-                    onChangeText={(unit) => setIngredient(index, { unit })}
-                    className={cn(FIELD, 'w-16')}
+                    ref={(node) => {
+                      qtyRefs.current[index] = node;
+                    }}
+                    testID={`video-draft-qty-${index}`}
+                    accessibilityLabel={`Amount for ingredient ${index + 1}`}
+                    accessibilityHint={qtyBad ? hint : undefined}
+                    value={row.quantity}
+                    placeholder="Qty"
+                    keyboardType="decimal-pad"
+                    onChangeText={(quantity) => setIngredient(index, { quantity })}
+                    className={cn(
+                      FIELD,
+                      'w-16',
+                      (unheard[index] === true || qtyBad) && 'border-attention',
+                    )}
                     {...DONE_FIELD_PROPS}
                   />
-                )}
-                <IngredientPickerField
-                  testID={`video-draft-ingredient-${index}`}
-                  name={row.name}
-                  linked={Boolean(links[index]?.ingredient)}
-                  needsMatch={!links[index]?.ingredient && row.name.trim() !== ''}
-                  suggestions={links[index]?.candidates}
-                  placeholder="Search ingredient"
-                  accessibilityLabel={`Ingredient ${index + 1}`}
-                  onPick={(ingredient) => pickIngredient(index, ingredient)}
-                />
-                <IconButton
-                  accessibilityLabel={`Remove ingredient ${index + 1}`}
-                  icon={<Icon name="close" size={20} color={colors.labelTertiary} />}
-                  onPress={() => removeIngredient(index)}
-                />
-              </View>
-              {unheard[index] && (
-                <Text className="mt-1 text-caption text-attention">
-                  {VIDEO_IMPORT_COPY.quantityCheck}
-                </Text>
-              )}
-              {!links[index]?.ingredient && row.name.trim() !== '' ? (
-                <View testID={`video-draft-match-${index}`} className="mt-1 gap-1">
-                  <Text className="text-caption text-attention">
-                    {(links[index]?.candidates.length ?? 0) > 0
-                      ? INGREDIENT_CATALOG_COPY.picker.pickMatchHint(row.name)
-                      : INGREDIENT_CATALOG_COPY.picker.noMatchFound(row.name)}
-                  </Text>
-                  <View className="flex-row flex-wrap gap-1.5">
-                    {(links[index]?.candidates ?? []).slice(0, 3).map((c) => (
-                      // MO-01 press feedback on each suggestion.
-                      <PressableScale
-                        key={c.id}
-                        pressScale="control"
-                        testID={`video-draft-candidate-${index}-${c.slug}`}
-                        accessibilityRole="button"
-                        accessibilityLabel={`${INGREDIENT_CATALOG_COPY.picker.pickMatch}: ${c.name}`}
-                        onPress={() => {
-                          haptics.selection();
-                          pickIngredient(index, pickedFromRef(c));
-                        }}
-                        className="min-h-11 justify-center rounded-full bg-brand-tint px-3"
-                      >
-                        <Text numberOfLines={1} className="text-caption font-semibold text-brand">
-                          {c.name}
-                        </Text>
-                      </PressableScale>
-                    ))}
-                  </View>
+                  {links[index]?.ingredient ? (
+                    // FB7-03: wide enough for "piece" / "tbsp" / "clove" on one
+                    // line (w-20 broke them mid-word). F2: a unit the row can't
+                    // weigh gets a ring drawn outside it (-m-0.5 + 4pt wider), so
+                    // the field itself keeps its width.
+                    <View
+                      testID={`video-draft-unit-ring-${index}`}
+                      className={cn(
+                        'w-24',
+                        unitBad && '-m-0.5 w-[100px] rounded-control border-2 border-attention',
+                      )}
+                    >
+                      <SelectField
+                        testID={`video-draft-unit-${index}`}
+                        label={`Unit for ingredient ${index + 1}`}
+                        value={row.unit || null}
+                        options={unitOptions(links[index].ingredient)}
+                        onChange={(unit) => setIngredient(index, { unit })}
+                        placeholder="unit"
+                      />
+                    </View>
+                  ) : (
+                    <Input
+                      testID={`video-draft-unit-${index}`}
+                      accessibilityLabel={`Unit for ingredient ${index + 1}`}
+                      value={row.unit}
+                      placeholder="g"
+                      maxLength={20}
+                      autoCapitalize="none"
+                      onChangeText={(unit) => setIngredient(index, { unit })}
+                      className={cn(FIELD, 'w-16')}
+                      {...DONE_FIELD_PROPS}
+                    />
+                  )}
+                  <IngredientPickerField
+                    testID={`video-draft-ingredient-${index}`}
+                    name={row.name}
+                    linked={Boolean(links[index]?.ingredient)}
+                    needsMatch={!links[index]?.ingredient && row.name.trim() !== ''}
+                    suggestions={links[index]?.candidates}
+                    placeholder="Search ingredient"
+                    accessibilityLabel={`Ingredient ${index + 1}`}
+                    onPick={(ingredient) => pickIngredient(index, ingredient)}
+                  />
+                  <IconButton
+                    accessibilityLabel={`Remove ingredient ${index + 1}`}
+                    icon={<Icon name="close" size={20} color={colors.labelTertiary} />}
+                    onPress={() => removeIngredient(index)}
+                  />
                 </View>
-              ) : null}
-            </View>
-          ))}
+                {unheard[index] && (
+                  <Text className="mt-1 text-caption text-attention">
+                    {VIDEO_IMPORT_COPY.quantityCheck}
+                  </Text>
+                )}
+                {hint ? (
+                  <View
+                    ref={(node) => {
+                      noteRefs.current[index] = node;
+                    }}
+                    testID={`video-draft-problem-${index}`}
+                    accessible
+                    accessibilityLabel={`Ingredient ${index + 1}, ${row.name.trim()}: ${hint}`}
+                    className="mt-1"
+                  >
+                    <Text className="text-caption text-attention">{hint}</Text>
+                  </View>
+                ) : null}
+                {!links[index]?.ingredient && row.name.trim() !== '' ? (
+                  <View
+                    ref={(node) => {
+                      noteRefs.current[index] = node;
+                    }}
+                    testID={`video-draft-match-${index}`}
+                    className="mt-1 gap-1"
+                  >
+                    <Text className="text-caption text-attention">
+                      {(links[index]?.candidates.length ?? 0) > 0
+                        ? INGREDIENT_CATALOG_COPY.picker.pickMatchHint(row.name)
+                        : INGREDIENT_CATALOG_COPY.picker.noMatchFound(row.name)}
+                    </Text>
+                    <View className="flex-row flex-wrap gap-1.5">
+                      {(links[index]?.candidates ?? []).slice(0, 3).map((c) => (
+                        // MO-01 press feedback on each suggestion.
+                        <PressableScale
+                          key={c.id}
+                          pressScale="control"
+                          testID={`video-draft-candidate-${index}-${c.slug}`}
+                          accessibilityRole="button"
+                          accessibilityLabel={`${INGREDIENT_CATALOG_COPY.picker.pickMatch}: ${c.name}`}
+                          onPress={() => {
+                            haptics.selection();
+                            pickIngredient(index, pickedFromRef(c));
+                          }}
+                          className="min-h-11 justify-center rounded-full bg-brand-tint px-3"
+                        >
+                          <Text numberOfLines={1} className="text-caption font-semibold text-brand">
+                            {c.name}
+                          </Text>
+                        </PressableScale>
+                      ))}
+                    </View>
+                  </View>
+                ) : null}
+              </View>
+            );
+          })}
         </View>
         <TrainButton
           testID="video-draft-add-ingredient"
@@ -479,17 +557,25 @@ export function VideoDraftForm({
         </View>
       )}
 
-      {live.result ? (
-        <Text
-          testID="video-draft-nutrition-status"
-          className={cn(
-            'text-caption',
-            live.result.status === 'PARTIAL' ? 'text-attention' : 'text-label-secondary',
-          )}
+      {live.result?.status === 'PARTIAL' ? (
+        // F2: the count is a way in — tap it to reach the first row it counted.
+        <PressableScale
+          testID="video-draft-nutrition-status-button"
+          pressScale="control"
+          accessibilityRole="button"
+          accessibilityLabel={incompleteCopy}
+          accessibilityHint="Shows the first ingredient that needs data"
+          onPress={revealFirstProblem}
+          className="min-h-11 flex-row items-center gap-1 self-start"
         >
-          {live.result.status === 'PARTIAL'
-            ? INGREDIENT_CATALOG_COPY.status.incomplete(incompleteLineCount(live.result))
-            : `${INGREDIENT_CATALOG_COPY.status.computedFrom(live.result.lines.length)} · ${live.result.perServing.calories} kcal per serving`}
+          <Text testID="video-draft-nutrition-status" className="text-caption text-attention">
+            {incompleteCopy}
+          </Text>
+          <Icon name="chevronRight" size={14} color={colors.attention} />
+        </PressableScale>
+      ) : live.result ? (
+        <Text testID="video-draft-nutrition-status" className="text-caption text-label-secondary">
+          {`${INGREDIENT_CATALOG_COPY.status.computedFrom(live.result.lines.length)} · ${live.result.perServing.calories} kcal per serving`}
         </Text>
       ) : null}
       <Text className="text-caption text-label-secondary">
