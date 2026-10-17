@@ -1,33 +1,39 @@
 'use client';
 
 import { useState } from 'react';
+import { useFlags } from '@/features/flags/use-flags';
 import { trpc } from '@/lib/trpc';
 import {
-  ACTIVITY_MAX_DURATION_MIN,
-  ACTIVITY_MAX_KCAL,
-  ACTIVITY_NAME_MAX_LENGTH,
-  ACTIVITY_PRESETS,
+  LOGGED_WORKOUT_MAX_DURATION_MIN,
+  LOGGED_WORKOUT_MAX_KCAL,
+  WORKOUT_NAME_MAX_LENGTH,
+  type WorkoutType,
 } from '@chefer/types';
 import { Button, Sheet } from '@chefer/ui';
 import {
-  activityMinDate,
-  activitySessionName,
-  buildActivityLogDoc,
+  buildLoggedWorkoutDoc,
   cn,
   EFFORT_CHIP_RPE,
+  isNameableWorkoutType,
+  loggedWorkoutMinDate,
+  loggedWorkoutName,
   userFacingErrorMessage,
-  validateActivityLog,
+  validateLoggedWorkout,
+  workoutTypeOptions,
+  type LoggedWorkoutInput,
 } from '@chefer/utils';
 import { showGymToast } from '../shared/gym-toast';
+import { typeChipClass, WorkoutTypeChips } from '../shared/workout-type-sheet';
 import { localDate } from '../use-gym-bootstrap';
 import { newId, nowIso } from '../workout/ids';
-import { activityStartAt, saveActivityLog } from './log-activity';
+import { loggedWorkoutStartAt, saveLoggedWorkout } from './log-workout';
 
-// "Log an activity" (WP-20, owner decision 2026-10-04) — the web twin of
-// apps/mobile/src/features/gym/today/log-activity-sheet.tsx. A class done
-// elsewhere ("45 min cycling class, 400 kcal"), recorded as DONE: pick the
-// activity, pick a duration, Save. RECORD ONLY: the kcal is shown back in
-// history and never changes a food target.
+// "Log a workout" (simple training mode §6.2, unifying WP-20) — the web twin
+// of the phone's log sheet, one sheet in both training styles. A workout done
+// earlier or elsewhere ("45 min yoga", "60 min upper body, 300 kcal"),
+// recorded as DONE: pick the type, pick a duration, Save. The strength types
+// show only while the `simpleTraining` flag is on. RECORD ONLY: the kcal is
+// shown back in history and never changes a food target.
 
 const DURATION_CHIPS = [15, 30, 45, 60, 90] as const;
 const EFFORT_OPTIONS = [
@@ -35,14 +41,6 @@ const EFFORT_OPTIONS = [
   { label: 'Moderate', rpe: EFFORT_CHIP_RPE.Moderate },
   { label: 'Hard', rpe: EFFORT_CHIP_RPE.Hard },
 ] as const;
-
-const chip = (selected: boolean) =>
-  cn(
-    'inline-flex min-h-11 items-center justify-center rounded-full border px-4 py-2 text-sm font-medium transition-colors',
-    selected
-      ? 'border-[#944a00] bg-[#944a00] text-white'
-      : 'border-gray-300 bg-white text-gray-900 hover:bg-gray-50',
-  );
 
 const fieldClass =
   'h-11 w-full rounded-md border border-gray-300 bg-white px-3 text-base sm:text-sm focus:outline-none focus:ring-2 focus:ring-[#944a00]/40';
@@ -59,10 +57,20 @@ function FieldError({ id, message }: { id: string; message: string | undefined }
   ) : null;
 }
 
-function ActivityForm({ onDone }: { onDone: () => void }) {
+function LogWorkoutForm({
+  initialType,
+  onDone,
+}: {
+  initialType: WorkoutType | null;
+  onDone: () => void;
+}) {
   const utils = trpc.useUtils();
+  const flags = useFlags();
+  const options = workoutTypeOptions({ includeStrength: flags.simpleTraining === true });
   const today = localDate();
-  const [presetKey, setPresetKey] = useState<string | undefined>(undefined);
+  const [workoutType, setWorkoutType] = useState<WorkoutType | undefined>(
+    initialType && options.some((o) => o.type === initialType) ? initialType : undefined,
+  );
   const [customName, setCustomName] = useState('');
   const [date, setDate] = useState(today);
   const [minutesText, setMinutesText] = useState('');
@@ -73,9 +81,10 @@ function ActivityForm({ onDone }: { onDone: () => void }) {
 
   const minutes = numberOrUndefined(minutesText);
   const kcal = numberOrUndefined(kcalText);
-  const errors = validateActivityLog({
-    ...(presetKey !== undefined && { presetKey }),
-    customName,
+  const nameable = workoutType !== undefined && isNameableWorkoutType(workoutType);
+  const errors = validateLoggedWorkout({
+    ...(workoutType !== undefined && { workoutType }),
+    ...(nameable && { customName }),
     localDate: date,
     ...(minutes !== undefined && { durationMin: minutes }),
     ...(kcal !== undefined && { caloriesKcal: kcal }),
@@ -86,29 +95,29 @@ function ActivityForm({ onDone }: { onDone: () => void }) {
 
   const onSave = async () => {
     if (saving) return;
-    if (Object.keys(errors).length > 0 || !presetKey || minutes === undefined) {
+    if (Object.keys(errors).length > 0 || !workoutType || minutes === undefined) {
       setAttempted(true);
       return;
     }
-    const input = {
-      presetKey,
-      customName,
+    const input: LoggedWorkoutInput = {
+      workoutType,
+      ...(nameable && { customName }),
       localDate: date,
       durationMin: minutes,
       ...(kcal !== undefined && { caloriesKcal: kcal }),
       ...(effort !== undefined && { effort }),
     };
-    const doc = buildActivityLogDoc({
+    const doc = buildLoggedWorkoutDoc({
       input,
       id: newId(),
       newId,
-      startAt: activityStartAt(date),
+      startAt: loggedWorkoutStartAt(date),
       now: nowIso(),
     });
     setSaving(true);
     try {
-      await saveActivityLog(utils, doc);
-      showGymToast({ message: `${activitySessionName(input)} logged` });
+      await saveLoggedWorkout(utils, doc);
+      showGymToast({ message: `${loggedWorkoutName(input)} logged` });
       onDone();
     } catch (error) {
       showGymToast({ message: userFacingErrorMessage(error), type: 'error' });
@@ -120,55 +129,44 @@ function ActivityForm({ onDone }: { onDone: () => void }) {
   return (
     <form
       className="space-y-5 px-5 pb-5"
-      data-testid="log-activity-form"
+      data-testid="log-workout-form"
       onSubmit={(event) => {
         event.preventDefault();
         void onSave();
       }}
     >
       <fieldset>
-        <legend className="mb-1.5 text-sm font-medium text-gray-900">What did you do?</legend>
-        <div
-          className="flex flex-wrap gap-2"
-          role="group"
-          aria-describedby="log-activity-activity-error"
-        >
-          {ACTIVITY_PRESETS.map((p) => (
-            <button
-              key={p.key}
-              type="button"
-              aria-pressed={presetKey === p.key}
-              data-testid={`log-activity-chip-${p.key}`}
-              className={chip(presetKey === p.key)}
-              onClick={() => setPresetKey(p.key)}
-            >
-              {p.label}
-            </button>
-          ))}
-        </div>
-        <FieldError id="log-activity-activity-error" message={shown.activity} />
+        <legend className="mb-1.5 text-sm font-medium text-gray-900">Workout type</legend>
+        <WorkoutTypeChips
+          options={options}
+          value={workoutType}
+          onChange={(type) => type && setWorkoutType(type)}
+          testIdPrefix="log-workout-chip"
+          describedBy={shown.type ? 'log-workout-type-error' : undefined}
+        />
+        <FieldError id="log-workout-type-error" message={shown.type} />
       </fieldset>
 
-      {presetKey === 'other' && (
+      {nameable && (
         <div>
           <label
-            htmlFor="log-activity-name"
+            htmlFor="log-workout-name"
             className="mb-1.5 block text-sm font-medium text-gray-900"
           >
-            Activity name
+            Name (optional)
           </label>
           <input
-            id="log-activity-name"
-            data-testid="log-activity-name"
+            id="log-workout-name"
+            data-testid="log-workout-name"
             className={fieldClass}
             value={customName}
-            maxLength={ACTIVITY_NAME_MAX_LENGTH}
+            maxLength={WORKOUT_NAME_MAX_LENGTH}
             placeholder="e.g. Rock climbing"
             aria-invalid={shown.name !== undefined}
-            aria-describedby={shown.name ? 'log-activity-name-error' : undefined}
+            aria-describedby={shown.name ? 'log-workout-name-error' : undefined}
             onChange={(e) => setCustomName(e.target.value)}
           />
-          <FieldError id="log-activity-name-error" message={shown.name} />
+          <FieldError id="log-workout-name-error" message={shown.name} />
         </div>
       )}
 
@@ -180,8 +178,8 @@ function ActivityForm({ onDone }: { onDone: () => void }) {
               key={m}
               type="button"
               aria-pressed={minutes === m}
-              data-testid={`log-activity-duration-chip-${m}`}
-              className={chip(minutes === m)}
+              data-testid={`log-workout-duration-chip-${m}`}
+              className={typeChipClass(minutes === m)}
               onClick={() => setMinutesText(minutes === m ? '' : String(m))}
             >
               {m} min
@@ -189,58 +187,60 @@ function ActivityForm({ onDone }: { onDone: () => void }) {
           ))}
         </div>
         <div className="flex items-center gap-2">
-          <label htmlFor="log-activity-duration" className="sr-only">
+          <label htmlFor="log-workout-duration" className="sr-only">
             Duration in minutes
           </label>
           <input
-            id="log-activity-duration"
-            data-testid="log-activity-duration"
+            id="log-workout-duration"
+            data-testid="log-workout-duration"
             className={cn(fieldClass, 'w-24 text-center')}
             inputMode="numeric"
             placeholder="Other"
             value={minutesText}
             aria-invalid={shown.duration !== undefined}
-            aria-describedby={shown.duration ? 'log-activity-duration-error' : undefined}
+            aria-describedby={shown.duration ? 'log-workout-duration-error' : undefined}
             onChange={(e) => setMinutesText(digitsOnly(e.target.value, 3))}
           />
-          <span className="text-sm text-gray-500">min (up to {ACTIVITY_MAX_DURATION_MIN})</span>
+          <span className="text-sm text-gray-500">
+            min (up to {LOGGED_WORKOUT_MAX_DURATION_MIN})
+          </span>
         </div>
-        <FieldError id="log-activity-duration-error" message={shown.duration} />
+        <FieldError id="log-workout-duration-error" message={shown.duration} />
       </fieldset>
 
       <div>
         <label
-          htmlFor="log-activity-date"
+          htmlFor="log-workout-date"
           className="mb-1.5 block text-sm font-medium text-gray-900"
         >
           Date
         </label>
         <input
-          id="log-activity-date"
-          data-testid="log-activity-date"
+          id="log-workout-date"
+          data-testid="log-workout-date"
           type="date"
           className={fieldClass}
           value={date}
-          min={activityMinDate(today)}
+          min={loggedWorkoutMinDate(today)}
           max={today}
           aria-invalid={shown.date !== undefined}
-          aria-describedby={shown.date ? 'log-activity-date-error' : undefined}
+          aria-describedby={shown.date ? 'log-workout-date-error' : undefined}
           onChange={(e) => e.target.value && setDate(e.target.value)}
         />
-        <FieldError id="log-activity-date-error" message={shown.date} />
+        <FieldError id="log-workout-date-error" message={shown.date} />
       </div>
 
       <div>
         <label
-          htmlFor="log-activity-kcal"
+          htmlFor="log-workout-kcal"
           className="mb-1.5 block text-sm font-medium text-gray-900"
         >
-          Calories burnt (optional)
+          Calories from your watch (optional)
         </label>
         <div className="flex items-center gap-2">
           <input
-            id="log-activity-kcal"
-            data-testid="log-activity-kcal"
+            id="log-workout-kcal"
+            data-testid="log-workout-kcal"
             className={cn(fieldClass, 'w-28 text-center')}
             inputMode="numeric"
             placeholder="400"
@@ -248,18 +248,18 @@ function ActivityForm({ onDone }: { onDone: () => void }) {
             aria-invalid={shown.calories !== undefined}
             aria-describedby={
               shown.calories
-                ? 'log-activity-kcal-hint log-activity-kcal-error'
-                : 'log-activity-kcal-hint'
+                ? 'log-workout-kcal-hint log-workout-kcal-error'
+                : 'log-workout-kcal-hint'
             }
             onChange={(e) => setKcalText(digitsOnly(e.target.value, 4))}
           />
-          <span className="text-sm text-gray-500">kcal (up to {ACTIVITY_MAX_KCAL})</span>
+          <span className="text-sm text-gray-500">kcal (up to {LOGGED_WORKOUT_MAX_KCAL})</span>
         </div>
-        <p id="log-activity-kcal-hint" className="mt-1 text-xs text-gray-500">
-          From your watch or the machine. It&apos;s only recorded — it never changes your food
-          targets.
+        <p id="log-workout-kcal-hint" className="mt-1 text-xs text-gray-500">
+          Your watch&apos;s number wins over our estimate. It&apos;s only recorded — it never
+          changes your food targets.
         </p>
-        <FieldError id="log-activity-kcal-error" message={shown.calories} />
+        <FieldError id="log-workout-kcal-error" message={shown.calories} />
       </div>
 
       <fieldset>
@@ -270,8 +270,8 @@ function ActivityForm({ onDone }: { onDone: () => void }) {
               key={o.label}
               type="button"
               aria-pressed={effort === o.rpe}
-              data-testid={`log-activity-effort-${o.label.toLowerCase()}`}
-              className={chip(effort === o.rpe)}
+              data-testid={`log-workout-effort-${o.label.toLowerCase()}`}
+              className={typeChipClass(effort === o.rpe)}
               onClick={() => setEffort(effort === o.rpe ? undefined : o.rpe)}
             >
               {o.label}
@@ -280,23 +280,32 @@ function ActivityForm({ onDone }: { onDone: () => void }) {
         </div>
       </fieldset>
 
-      <Button type="submit" className="w-full" disabled={saving} data-testid="log-activity-save">
-        Save activity
+      <Button type="submit" className="w-full" disabled={saving} data-testid="log-workout-save">
+        Save workout
       </Button>
     </form>
   );
 }
 
-export function LogActivitySheet({ open, onClose }: { open: boolean; onClose: () => void }) {
+export function LogWorkoutSheet({
+  open,
+  onClose,
+  initialType = null,
+}: {
+  open: boolean;
+  onClose: () => void;
+  /** Preselected type, e.g. today's planned one from My week. */
+  initialType?: WorkoutType | null;
+}) {
   return (
     <Sheet
       open={open}
       onClose={onClose}
-      title="Log an activity"
-      description="A class or session you did somewhere else."
+      title="Log a workout"
+      description="A workout you did earlier or somewhere else."
       size="sm"
     >
-      <ActivityForm onDone={onClose} />
+      <LogWorkoutForm key={initialType ?? 'none'} initialType={initialType} onDone={onClose} />
     </Sheet>
   );
 }

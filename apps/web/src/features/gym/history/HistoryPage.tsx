@@ -6,12 +6,12 @@ import { ArrowLeft } from 'lucide-react';
 import { ErrorState } from '@chefer/ui';
 import { GymSkeleton } from '../shared/gym-card';
 import { useGymData } from '../shared/use-gym-data';
-import { LogActivitySheet } from '../today/log-activity-sheet';
+import { LogWorkoutSheet } from '../today/log-workout-sheet';
 import { HistoryList } from './HistoryList';
 
 export function HistoryPage() {
   const { data, ready, isError, refetch } = useGymData();
-  const [activityOpen, setActivityOpen] = useState(false);
+  const [logOpen, setLogOpen] = useState(false);
   return (
     <div className="mx-auto w-full max-w-2xl px-4 py-6 sm:py-8">
       <Link
@@ -23,15 +23,15 @@ export function HistoryPage() {
       </Link>
       <div className="mb-5 flex flex-wrap items-center justify-between gap-x-4">
         <h1 className="font-serif text-2xl font-bold text-neutral-900">Workout history</h1>
-        {/* WP-20: a class done elsewhere can be logged from here too. */}
+        {/* A workout done earlier or elsewhere can be logged from here too (WP-20). */}
         {data?.profile && (
           <button
             type="button"
-            data-testid="gym-history-log-activity"
-            onClick={() => setActivityOpen(true)}
+            data-testid="gym-history-log-workout"
+            onClick={() => setLogOpen(true)}
             className="min-h-11 text-sm font-medium text-[#944a00] hover:underline"
           >
-            Log an activity
+            Log a workout
           </button>
         )}
       </div>
@@ -42,7 +42,7 @@ export function HistoryPage() {
       ) : (
         <HistoryList data={data} />
       )}
-      <LogActivitySheet open={activityOpen} onClose={() => setActivityOpen(false)} />
+      <LogWorkoutSheet open={logOpen} onClose={() => setLogOpen(false)} />
     </div>
   );
 }
