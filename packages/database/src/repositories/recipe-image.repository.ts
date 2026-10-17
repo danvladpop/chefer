@@ -66,7 +66,8 @@ export class RecipeImageRepository implements IRecipeImageRepository {
           ],
         },
         select: { id: true, imageUrl: true, name: true, cuisineType: true },
-        orderBy: { createdAt: 'desc' },
+        // id breaks ties: a plan's recipes share one createdAt (one transaction).
+        orderBy: [{ createdAt: 'desc' }, { id: 'asc' }],
         distinct: ['imageUrl'],
         take: limit - out.length,
       });
