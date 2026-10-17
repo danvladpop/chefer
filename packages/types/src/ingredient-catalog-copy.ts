@@ -90,6 +90,12 @@ export const INGREDIENT_CATALOG_COPY = {
     saveIncompleteConfirm: 'Save anyway',
     saveIncompleteCancel: 'Keep checking',
     nutritionNote: 'Nutrition is computed from the matched ingredients.',
+    /** F2: a linked row whose catalog data hasn't arrived yet (mobile import review). */
+    rowLoading: 'Loading this ingredient’s nutrition…',
+    /** F2: a linked row whose catalog data couldn't be fetched (offline, or the request failed). */
+    rowUnavailable: 'Couldn’t load this ingredient’s nutrition — check your connection',
+    /** F2: the hint on the tappable "Incomplete …" status line. */
+    showFirstIncomplete: 'Shows the first ingredient that needs data',
   },
   form: {
     lineNeedsMatch: 'Pick this ingredient from the list, or remove the line.',

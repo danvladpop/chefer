@@ -261,8 +261,9 @@ describe('NewRecipePage accessibility', () => {
     });
     await waitFor(() => expect(screen.getByText(/computed from 1 ingredient/)).toBeTruthy());
     fireEvent.change(screen.getByLabelText('Amount for ingredient 1'), { target: { value: 'x' } });
-    // An unparseable amount just leaves the line out of the preview.
-    expect(screen.getByText(/Add ingredients with amounts/)).toBeTruthy();
+    // F2: a named line with no usable amount is counted and says so (as on mobile).
+    expect(screen.getByText(/Incomplete — 1 ingredient needs data/)).toBeTruthy();
+    expect(screen.getByText('Enter an amount')).toBeTruthy();
   });
 
   it('focuses the first invalid field further down (the audit’s −2 prep time)', async () => {

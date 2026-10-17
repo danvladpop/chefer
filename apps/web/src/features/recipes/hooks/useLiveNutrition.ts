@@ -4,23 +4,29 @@ import { useMemo } from 'react';
 import { toNutritionIngredient } from '@/features/ingredients/lib/picked-ingredient';
 import { trpc } from '@/lib/trpc';
 import type { LineProblem, NutritionFacts } from '@chefer/types';
-import { computeRecipeNutrition, type NutritionIngredient } from '@chefer/utils';
-import { isCompleteRow, lineRowQuantity, type LineRow } from '../lib/recipe-lines';
+import {
+  computeRecipeNutrition,
+  formNutritionLines,
+  type NutritionIngredient,
+} from '@chefer/utils';
+import { lineRowName, lineRowQuantity, type LineRow } from '../lib/recipe-lines';
 
 // ─── Live nutrition preview (plan-ingredient-catalog §10) ─────────────────────
 // The same engine the server runs (`computeRecipeNutrition` in @chefer/utils),
 // over the picked rows' full catalog data from `ingredients.getMany`. The
 // server recomputes on save; this only previews it. Nothing is estimated: an
 // unlinked row or a unit that cannot convert makes the result PARTIAL.
+// F2: lines come from the shared `formNutritionLines` (as on mobile), so a
+// named row with no amount counts as BAD_QTY — the save rule rejects it too.
 
 export interface LiveNutrition {
   status: 'EMPTY' | 'COMPUTED' | 'PARTIAL';
   perServing: NutritionFacts;
-  /** Complete, non-optional rows counted. */
+  /** Named, non-optional rows counted. */
   lineCount: number;
-  /** Complete, non-optional rows that contribute no grams. */
+  /** Named, non-optional rows that contribute no grams. */
   missingCount: number;
-  /** Problem per row key (complete rows only). */
+  /** Problem per row key (named rows only). */
   problems: Map<string, LineProblem>;
   /** Catalog data for some picked rows is still loading. */
   loading: boolean;
@@ -39,8 +45,16 @@ export function useLiveNutrition(rows: readonly LineRow[], servings: number): Li
   );
 
   return useMemo(() => {
-    const complete = rows.filter(isCompleteRow);
-    if (complete.length === 0) {
+    const { lines, rowOf } = formNutritionLines(
+      rows.map((r) => ({
+        name: lineRowName(r),
+        quantity: lineRowQuantity(r),
+        unit: r.unit,
+        ingredientId: r.ingredient?.id ?? null,
+        optional: r.optional,
+      })),
+    );
+    if (lines.length === 0) {
       return {
         status: 'EMPTY',
         perServing: ZERO,
@@ -53,22 +67,13 @@ export function useLiveNutrition(rows: readonly LineRow[], servings: number): Li
     const lookup = new Map<string, NutritionIngredient>(
       (details ?? []).map((d) => [d.id, toNutritionIngredient(d)] as const),
     );
-    const result = computeRecipeNutrition(
-      complete.map((r) => ({
-        ingredientId: r.ingredient?.id ?? null,
-        quantity: lineRowQuantity(r) ?? 0,
-        unit: r.unit,
-        optional: r.optional,
-      })),
-      lookup,
-      servings,
-    );
+    const result = computeRecipeNutrition(lines, lookup, servings);
     const problems = new Map<string, LineProblem>();
     let missing = 0;
     let loading = false;
-    for (const [i, row] of complete.entries()) {
-      const line = result.lines[i];
-      if (!line?.problem) continue;
+    for (const [k, line] of result.lines.entries()) {
+      const row = rows[rowOf[k] ?? -1];
+      if (!row || !line.problem) continue;
       // A picked row whose data has not arrived yet is loading, not missing.
       if (line.problem === 'NO_INGREDIENT' && row.ingredient && !lookup.has(row.ingredient.id)) {
         loading = true;
@@ -80,7 +85,7 @@ export function useLiveNutrition(rows: readonly LineRow[], servings: number): Li
     return {
       status: missing > 0 ? 'PARTIAL' : 'COMPUTED',
       perServing: result.perServing,
-      lineCount: complete.filter((r) => !r.optional).length,
+      lineCount: lines.filter((l) => !l.optional).length,
       missingCount: missing,
       problems,
       loading: loading || (isFetching && ids.some((id) => !lookup.has(id))),

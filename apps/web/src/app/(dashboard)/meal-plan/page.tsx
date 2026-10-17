@@ -73,6 +73,7 @@ import { ErrorState, pressControl, Sheet, Toast } from '@chefer/ui';
 import {
   aiConsentRequiredFor,
   DAY_FIT_COPY,
+  defaultDay,
   defaultWeekOffset,
   formatDateRange,
   formatKcal,
@@ -141,6 +142,9 @@ export default function MealPlanPage() {
     // (possibly next week again, e.g. Friday afternoon) instead of staying
     // on the week the arrows just navigated to.
     params.set('week', String(offset));
+    // F1: landing on this week selects today, any other week Monday — never
+    // the day the previous week had open (same rule as mobile's Meals tab).
+    params.set('day', String(defaultDay(offset)));
     router.replace(`/meal-plan?${params.toString()}`, { scroll: false });
   };
 
@@ -148,7 +152,11 @@ export default function MealPlanPage() {
   // forward and refresh all land on the day the user was actually looking at.
   const rawDay = parseInt(searchParams.get('day') ?? '', 10);
   const todayIndex = getTodayDayIndex();
-  const selectedDay = Number.isNaN(rawDay) || rawDay < 0 || rawDay > 6 ? todayIndex : rawDay;
+  // F1: no (valid) `?day` → the default for the week shown: today on this
+  // week, Monday on any other (so a Friday-evening cold start, which opens
+  // next week, or a plain `?week=1` link lands on Monday).
+  const selectedDay =
+    Number.isNaN(rawDay) || rawDay < 0 || rawDay > 6 ? defaultDay(weekOffset) : rawDay;
 
   const setSelectedDay = (day: number) => {
     const params = new URLSearchParams(searchParams.toString());

@@ -16,7 +16,7 @@ import { useLiveNutrition } from '../hooks/useLiveNutrition';
 import { lineRowName, rowsFromImport, toSaveLines, type LineRow } from '../lib/recipe-lines';
 import { NutritionPreview } from './NutritionPreview';
 import { Field, inputCls } from './recipe-form-fields';
-import { RecipeLinesEditor } from './RecipeLinesEditor';
+import { firstProblemField, lineFieldId, RecipeLinesEditor } from './RecipeLinesEditor';
 
 // ─── Video import review form ────────────────────────────────────────────────
 // The owner's flow (2026-09-26): the AI reads the video's words into a draft,
@@ -100,6 +100,13 @@ export function VideoDraftForm({
   );
   const servings = Math.max(1, Math.round(Number(form.servings) || 1));
   const live = useLiveNutrition(lines, servings);
+
+  // F2: "Incomplete …" takes the user to the first row it counted. Focusing
+  // the field scrolls it into view (the browser's own focus scroll).
+  const showFirstIncomplete = () => {
+    const target = firstProblemField(lines, live.problems);
+    if (target) document.getElementById(lineFieldId('video', target.index, target.field))?.focus();
+  };
 
   const flagged = (field: VideoDraftField) => notFound.includes(field);
   const update = (patch: Partial<VideoDraftFormValues>, field?: VideoDraftField) => {
@@ -314,7 +321,7 @@ export function VideoDraftForm({
         <h3 id="video-nutrition-title" className="mb-2 text-sm font-semibold text-gray-900">
           Nutrition per serving
         </h3>
-        <NutritionPreview live={live} />
+        <NutritionPreview live={live} onShowIncomplete={showFirstIncomplete} />
         {live.missingCount > 0 && (
           <label className="mt-2 flex min-h-11 items-center gap-2 text-sm text-gray-800">
             <input

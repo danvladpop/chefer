@@ -135,6 +135,37 @@ describe('PremiumSheet — offer (AC1, AC2)', () => {
     await user.press(screen.getByTestId('premium-sheet-not-now'));
     expect(onClose).toHaveBeenCalledTimes(1);
   });
+
+  it('from the tier row it shows every benefit up front, still foldable (F7)', async () => {
+    const user = userEvent.setup();
+    await renderSheet({ source: 'tier-row' });
+    expect(screen.getByTestId('premium-sheet-title')).toHaveTextContent('Everything Premium adds');
+    expect(screen.getByTestId('premium-sheet-also-included')).toBeOnTheScreen();
+    expect(screen.getByText('Portions for your table')).toBeOnTheScreen();
+    await user.press(screen.getByTestId('premium-sheet-also-included-toggle'));
+    expect(screen.queryByTestId('premium-sheet-also-included')).toBeNull();
+  });
+
+  it('a reopened sheet starts from the pitch again, not the last fold', async () => {
+    const user = userEvent.setup();
+    const sheet = (visible: boolean) => (
+      <SafeAreaProvider initialMetrics={metrics}>
+        <PremiumSheet
+          visible={visible}
+          onClose={jest.fn()}
+          onTurnOn={jest.fn()}
+          pitch={premiumPitchFor('tier-row')}
+        />
+      </SafeAreaProvider>
+    );
+    const { rerender } = await render(sheet(true));
+    await user.press(screen.getByTestId('premium-sheet-also-included-toggle'));
+    expect(screen.queryByTestId('premium-sheet-also-included')).toBeNull();
+
+    await rerender(sheet(false));
+    await rerender(sheet(true));
+    expect(screen.getByTestId('premium-sheet-also-included')).toBeOnTheScreen();
+  });
 });
 
 describe('PremiumSheet — error and success', () => {

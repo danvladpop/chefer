@@ -51,6 +51,16 @@ export function withPasswordConfirmation<
   });
 }
 
+/**
+ * Only the confirmation's rules (empty, then "Passwords do not match"), for
+ * forms that check the password itself with `newPasswordSchema` (the V4
+ * sign-up, F9). Errors land on `confirmPassword`.
+ */
+export const passwordConfirmationSchema = withPasswordConfirmation({
+  password: z.string(),
+  confirmPassword: confirmPasswordSchema,
+});
+
 export const loginFormSchema = z.object({
   email: authEmailSchema,
   password: z.string().min(1, 'Password is required'),

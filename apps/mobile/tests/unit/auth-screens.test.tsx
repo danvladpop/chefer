@@ -540,8 +540,8 @@ describe('Keyboard + credential fields (tester feedback 2026-10-04)', () => {
     expect(password.autoCorrect).toBe(false);
     const email = screen.getByTestId('login-email').props;
     expect(email.keyboardType).toBe('email-address');
-    expect(email.textContentType).toBe('emailAddress');
-    expect(email.autoComplete).toBe('email');
+    expect(email.textContentType).toBe('username');
+    expect(email.autoComplete).toBe('username');
     expect(email.autoCapitalize).toBe('none');
     expect(email.autoCorrect).toBe(false);
   });
@@ -554,7 +554,7 @@ describe('Keyboard + credential fields (tester feedback 2026-10-04)', () => {
 
     const email = screen.getByTestId('register-email').props;
     expect(email.keyboardType).toBe('email-address');
-    expect(email.textContentType).toBe('emailAddress');
+    expect(email.textContentType).toBe('username');
     for (const id of ['register-password', 'register-confirm-password']) {
       const field = screen.getByTestId(id).props;
       expect(field.secureTextEntry).toBe(true);
@@ -610,7 +610,7 @@ describe('Keyboard + credential fields (tester feedback 2026-10-04)', () => {
     trpc.auth.requestPasswordReset.useMutation.mockReturnValue(mutationResult({ mutate }));
     const user = userEvent.setup();
     await renderWithSafeArea(<ForgotPasswordScreen />);
-    expect(screen.getByTestId('forgot-password-email').props.textContentType).toBe('emailAddress');
+    expect(screen.getByTestId('forgot-password-email').props.textContentType).toBe('username');
     await user.type(screen.getByTestId('forgot-password-email'), 'alice@chefer.dev');
     await fireEvent(screen.getByTestId('forgot-password-email'), 'submitEditing');
     await waitFor(() => expect(mutate).toHaveBeenCalledWith({ email: 'alice@chefer.dev' }));

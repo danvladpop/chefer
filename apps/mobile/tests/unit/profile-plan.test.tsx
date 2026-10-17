@@ -126,6 +126,19 @@ describe('Profile › failed load (UX-X-12)', () => {
   });
 });
 
+describe('Profile › tier badge agrees with the You tier row', () => {
+  it('says Free plan for a free user', async () => {
+    await renderProfile();
+    expect(screen.getByTestId('profile-tier-badge')).toHaveTextContent('Free plan');
+  });
+
+  it('says Premium for an admin whose plan is still FREE', async () => {
+    mockUser = { ...mockUser, role: 'ADMIN', planTier: 'FREE' };
+    await renderProfile();
+    expect(screen.getByTestId('profile-tier-badge')).toHaveTextContent('Premium');
+  });
+});
+
 describe('Profile › role badge (R-15)', () => {
   it('hides the role for a normal user', async () => {
     await renderProfile();
