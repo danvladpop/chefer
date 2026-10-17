@@ -19,6 +19,7 @@ import {
   dailyAllowanceResetTime,
   downgradeLosses,
   PREMIUM_PITCH_COPY,
+  tierOf,
   userFacingErrorMessage,
 } from '@chefer/utils';
 import { Icon } from '../src/components/icon';
@@ -142,6 +143,7 @@ export default function ProfileScreen() {
     ? `${user.firstName}${user.lastName ? ` ${user.lastName}` : ''}`
     : (user?.name ?? user?.email ?? '—');
   const isPremiumTier = user?.planTier === 'PREMIUM';
+  const hasPremiumAccess = user ? tierOf(user) !== 'free' : false;
 
   // "You'll lose:" names only the Premium jobs this user has used (T-10.3);
   // their plans, recipes, ratings, logs and workouts are never on it.
@@ -212,13 +214,15 @@ export default function ProfileScreen() {
                     </Text>
                   </View>
                 ) : null}
+                {/* Same tier as You's tier row: an admin reads Premium, not "Free plan". */}
                 <Text
+                  testID="profile-tier-badge"
                   className={cn(
                     PILL,
-                    isPremiumTier ? 'bg-brand text-brand-on' : 'bg-brand-tint text-brand',
+                    hasPremiumAccess ? 'bg-brand text-brand-on' : 'bg-brand-tint text-brand',
                   )}
                 >
-                  {isPremiumTier ? 'Premium' : 'Free plan'}
+                  {hasPremiumAccess ? 'Premium' : 'Free plan'}
                 </Text>
               </View>
             </View>

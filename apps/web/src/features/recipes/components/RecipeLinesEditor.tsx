@@ -46,6 +46,23 @@ export function firstIncompleteField(rows: readonly LineRow[]): {
   return { index, field };
 }
 
+/** The field a row's live problem is about (F2: focused from the "Incomplete …" line). */
+export function problemField(problem: LineProblem): LineField {
+  if (problem === 'BAD_QTY') return 'qty';
+  if (problem === 'NO_INGREDIENT') return 'ingredient';
+  return 'unit';
+}
+
+/** The first row the live status counted, and the field to focus there; null when none. */
+export function firstProblemField(
+  rows: readonly LineRow[],
+  problems: ReadonlyMap<string, LineProblem>,
+): { index: number; field: LineField } | null {
+  const index = rows.findIndex((r) => problems.has(r.key));
+  const problem = rows[index] && problems.get(rows[index].key);
+  return problem ? { index, field: problemField(problem) } : null;
+}
+
 export function RecipeLinesEditor({
   rows,
   onChange,
@@ -95,6 +112,7 @@ export function RecipeLinesEditor({
           const units = pickerUnitOptions(row.ingredient);
           const unitOptions = row.unit && !units.includes(row.unit) ? [row.unit, ...units] : units;
           const problem = problems.get(row.key);
+          const badField = problem ? problemField(problem) : null;
           const unmatched = !row.ingredient && row.rawName.trim() !== '';
           return (
             <li
@@ -131,14 +149,16 @@ export function RecipeLinesEditor({
                     placeholder="Qty"
                     aria-label={`Amount for ingredient ${i + 1}`}
                     aria-invalid={
-                      (incomplete && !((qty ?? 0) > 0)) || problem === 'BAD_QTY' || undefined
+                      (incomplete && !((qty ?? 0) > 0)) || badField === 'qty' || undefined
                     }
                     aria-describedby={describedBy}
                     className={cn(
                       'min-h-11 w-20 shrink-0 rounded-xl border bg-white px-3 py-2 text-sm text-gray-800 placeholder-gray-500 focus:outline-none',
                       incomplete && !((qty ?? 0) > 0)
                         ? 'border-red-400 focus:border-red-500'
-                        : 'focus:border-[#944a00]',
+                        : badField === 'qty'
+                          ? 'border-amber-500 focus:border-[#944a00]'
+                          : 'focus:border-[#944a00]',
                     )}
                   />
                   <select
@@ -146,12 +166,11 @@ export function RecipeLinesEditor({
                     value={row.unit}
                     onChange={(e) => update(row.key, (r) => ({ ...r, unit: e.target.value }))}
                     aria-label={`Unit for ingredient ${i + 1}`}
-                    aria-invalid={
-                      problem === 'NO_DENSITY' || problem === 'NO_PORTION' || problem === 'BAD_UNIT'
-                        ? true
-                        : undefined
-                    }
-                    className="min-h-11 w-28 min-w-0 shrink-0 rounded-xl border bg-white px-2 py-2 text-sm text-gray-800 focus:border-[#944a00] focus:outline-none"
+                    aria-invalid={badField === 'unit' || undefined}
+                    className={cn(
+                      'min-h-11 w-28 min-w-0 shrink-0 rounded-xl border bg-white px-2 py-2 text-sm text-gray-800 focus:border-[#944a00] focus:outline-none',
+                      badField === 'unit' && 'border-amber-500',
+                    )}
                   >
                     {unitOptions.map((u) => (
                       <option key={u} value={u}>

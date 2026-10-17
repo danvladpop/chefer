@@ -4,7 +4,6 @@ import { router, type Href } from 'expo-router';
 import {
   CountPill,
   KeyboardAwareScrollView,
-  LargeHeader,
   ListRow,
   ListSection,
   Screen,
@@ -21,9 +20,10 @@ import { trpc } from '../../lib/trpc';
 import { useFriendsBadge } from '../friends/api/use-friends-badge';
 import { openLegal } from '../legal/open-legal';
 import { FOLLOWING_ITEM, TRAINER_TOOLS_ITEM, YOUR_TRAINER_ITEM } from '../more/more-items';
+import { TierRow } from '../premium/tier-row';
 import { useSignOut } from '../settings/use-sign-out';
 import { useCoachingAvailability } from '../trainer/api/use-coaching-availability';
-import { AskChefAction } from './add-action';
+import { ShellTopBar } from './shell-chrome';
 import { ShellPreviewSection } from './shell-preview-row';
 import { YouFeedbackRow } from './you/feedback-row';
 
@@ -111,12 +111,9 @@ export function YouScreen() {
     <Screen className="bg-canvas px-0">
       <KeyboardAwareScrollView testID="you-scroll" contentContainerClassName="gap-6 px-4 pb-8">
         <Stagger enabled={firstEntrance}>
-          <View>
-            <View className="min-h-11 flex-row items-center justify-end">
-              <AskChefAction />
-            </View>
-            <LargeHeader title="You" testID="you-title" />
-          </View>
+          <ShellTopBar />
+
+          <TierRow />
 
           <ListSection title="Your progress">{PROGRESS_ROWS.map(row)}</ListSection>
 

@@ -427,6 +427,45 @@ describe('Meals tab (new shell)', () => {
     );
   });
 
+  // F1: a week switch resets the day — This week lands on today (Wed here),
+  // Next week always on Monday — not on whatever day the last week had open.
+  it('switching weeks resets the day: Next week → Monday, This week → today', async () => {
+    const user = userEvent.setup();
+    await renderWithTrpc(<MealsScreen />, base(), testQueryClient());
+    await screen.findByTestId('meals-tile-breakfast-0');
+    expect(screen.getByTestId('meals-days-2')).toBeSelected();
+    await user.press(screen.getByTestId('meals-days-5'));
+    await user.press(screen.getByTestId('meals-week-1'));
+    await waitFor(() => expect(screen.getByTestId('meals-days-0')).toBeSelected());
+    await user.press(screen.getByTestId('meals-days-4'));
+    await user.press(screen.getByTestId('meals-week-0'));
+    await waitFor(() => expect(screen.getByTestId('meals-days-2')).toBeSelected());
+  });
+
+  // F1: whenever no explicit day is given, the day is `defaultDay(week)` — so
+  // from Friday 15:00 (next week opens) the day is Monday, not next Friday.
+  describe('default day follows the week that opens', () => {
+    afterEach(() => {
+      jest.setSystemTime(new Date(2026, 9, 7, 12, 0, 0));
+    });
+
+    it('cold start from Friday 16:00 opens next week on Monday', async () => {
+      mockParams = {};
+      jest.setSystemTime(new Date(2026, 9, 9, 16, 0, 0));
+      await renderWithTrpc(<MealsScreen />, base(), testQueryClient());
+      await screen.findByTestId('meals-days-0');
+      expect(screen.getByTestId('meals-week-1')).toBeSelected();
+      await waitFor(() => expect(screen.getByTestId('meals-days-0')).toBeSelected());
+    });
+
+    it('a ?week=1 link without ?day lands on Monday', async () => {
+      mockParams = { week: '1' };
+      await renderWithTrpc(<MealsScreen />, base(), testQueryClient());
+      await screen.findByTestId('meals-days-0');
+      expect(screen.getByTestId('meals-days-0')).toBeSelected();
+    });
+  });
+
   it('the Swap deep link selects the week and day and opens that slot’s picker once', async () => {
     mockParams = { week: '0', day: '3', swap: 'lunch', at: '100' };
     const user = userEvent.setup();

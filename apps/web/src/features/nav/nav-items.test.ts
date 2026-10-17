@@ -63,7 +63,7 @@ describe('nav item partitions', () => {
 describe('food IA (P2-2 / P2-8)', () => {
   const item = (href: string) => FOOD_NAV_ITEMS.find((i) => i.href === href)!;
 
-  it('tab bar reads Today · Plan · Shop · Cookbook', () => {
+  it('the sidebar lists Today · Plan · Shop · Cookbook first', () => {
     expect(PRIMARY_NAV_ITEMS.map((i) => i.shortLabel ?? i.label)).toEqual([
       'Today',
       'Plan',

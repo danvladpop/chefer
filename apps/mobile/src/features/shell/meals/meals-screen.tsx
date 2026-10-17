@@ -37,6 +37,7 @@ import {
 import {
   aiConsentRequiredFor,
   canRemoveSlot,
+  defaultDay,
   defaultWeekOffset,
   formatDateRange,
   formatKcal,
@@ -154,14 +155,17 @@ export function MealsScreen() {
   const [weekOffset, setWeekOffset] = useState<WeekOffset>(
     () => (intParam(params.week, 0, 1) as WeekOffset | null) ?? defaultWeekOffset(new Date()),
   );
+  // F1: no explicit day → the default for the week that opened (today on this
+  // week, Monday on next — e.g. Friday 15:00 onward opens next week).
   const [selectedDay, setSelectedDay] = useState(
-    () => intParam(params.day, 0, 6) ?? todayDayIndex(),
+    () => intParam(params.day, 0, 6) ?? defaultDay(weekOffset),
   );
   const [pendingSwap, setPendingSwap] = useState<MealType | null>(null);
   const [pendingReplan, setPendingReplan] = useState(false);
   const { markChecked } = useDayRollover(() => {
-    setSelectedDay(todayDayIndex());
-    setWeekOffset(defaultWeekOffset(new Date()));
+    const week = defaultWeekOffset(new Date());
+    setSelectedDay(defaultDay(week));
+    setWeekOffset(week);
   });
   const linkKey = `${params.week ?? ''}|${params.day ?? ''}|${params.swap ?? ''}|${params.at ?? ''}|${params.replan ?? ''}`;
   const appliedLinkKey = useRef<string | null>(null);
@@ -172,7 +176,10 @@ export function MealsScreen() {
     const week = intParam(params.week, 0, 1) as WeekOffset | null;
     const dayParam = intParam(params.day, 0, 6);
     if (week !== null && !first) setWeekOffset(week);
-    if (dayParam !== null && !first) setSelectedDay(dayParam);
+    if (!first) {
+      if (dayParam !== null) setSelectedDay(dayParam);
+      else if (week !== null) setSelectedDay(defaultDay(week));
+    }
     if (week !== null || dayParam !== null) markChecked();
     if (params.swap === 'breakfast' || params.swap === 'lunch' || params.swap === 'dinner') {
       setPendingSwap(params.swap);
@@ -693,7 +700,12 @@ export function MealsScreen() {
           accessibilityLabel="Week"
           options={WEEK_OPTIONS}
           value={String(weekOffset) as '0' | '1'}
-          onChange={(value) => setWeekOffset(Number(value) as WeekOffset)}
+          onChange={(value) => {
+            // F1: this week lands on today, any other week on Monday.
+            const next = Number(value) as WeekOffset;
+            setWeekOffset(next);
+            setSelectedDay(defaultDay(next));
+          }}
         />
 
         <Stagger enabled={firstEntrance}>

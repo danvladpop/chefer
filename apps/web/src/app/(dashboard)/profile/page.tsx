@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import { YourTrainerCard } from '@/features/coaching/components/YourTrainerCard';
+import { TierRow } from '@/features/premium/components/TierRow';
 import { DowngradeButton, UpgradeButton } from '@/features/premium/components/UpgradeButton';
 import { usePremiumPitch } from '@/features/premium/lib/use-premium-pitch';
 import { AccountDataCard } from '@/features/profile/components/AccountDataCard';
@@ -14,7 +15,7 @@ import { useHousehold } from '@/hooks/useHousehold';
 import { trpc } from '@/lib/trpc';
 import { Check, ChevronRight, Users } from 'lucide-react';
 import { PLAN_FEATURES } from '@chefer/types';
-import { dailyAllowanceResetTime, PREMIUM_PITCH_COPY, WELLNESS_COPY } from '@chefer/utils';
+import { dailyAllowanceResetTime, PREMIUM_PITCH_COPY, tierOf, WELLNESS_COPY } from '@chefer/utils';
 
 // ─── Usage bar ────────────────────────────────────────────────────────────────
 
@@ -133,8 +134,9 @@ function PlanCard({ isPremium }: { isPremium: boolean }) {
   const pitch = usePremiumPitch('profile');
   return (
     <div
+      id="plan"
       data-testid="profile-plan"
-      className="mb-6 rounded-2xl border border-amber-200 bg-gradient-to-br from-amber-50 to-orange-50 p-4 sm:p-5"
+      className="mb-6 scroll-mt-20 rounded-2xl border border-amber-200 bg-gradient-to-br from-amber-50 to-orange-50 p-4 sm:p-5"
     >
       <h2 data-testid="profile-plan-title" className="font-semibold text-gray-900">
         {isPremium ? PREMIUM_PITCH_COPY.planPremiumTitle : PREMIUM_PITCH_COPY.planFreeTitle}
@@ -187,6 +189,9 @@ export default function ProfilePage() {
         <h1 className="font-serif text-2xl font-bold text-gray-900">Profile</h1>
       </div>
 
+      {/* F6/F7: the plan first — status for Premium, the way in for Free. */}
+      <TierRow />
+
       {/* User info */}
       <div className="mb-6 flex items-center gap-4 rounded-2xl border bg-white p-4 shadow-sm sm:p-5">
         <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-[#fff3e8] text-2xl font-bold text-[#944a00]">
@@ -204,15 +209,17 @@ export default function ProfilePage() {
                 {user.role}
               </span>
             )}
+            {/* Same tier as the tier row: an admin reads Premium, not "Free plan". */}
             {user && (
               <span
+                data-testid="profile-tier-badge"
                 className={`inline-block rounded-full px-2 py-0.5 text-xs font-medium uppercase tracking-wide ${
-                  user.planTier === 'PREMIUM'
+                  tierOf(user) !== 'free'
                     ? 'bg-gradient-to-r from-amber-500 to-orange-500 text-white'
                     : 'bg-gray-100 text-gray-600'
                 }`}
               >
-                {user.planTier === 'PREMIUM' ? 'Premium' : 'Free plan'}
+                {tierOf(user) !== 'free' ? 'Premium' : 'Free plan'}
               </span>
             )}
           </div>

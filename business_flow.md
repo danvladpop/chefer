@@ -260,8 +260,11 @@ proposal"). With the flag off nothing changes.
 1. **Welcome** (mobile) — one screen, Biscuit waving, "Get started" / "I already
    have an account".
 2. **Account** — Sign in with Apple / Google first (WP-22, consent line under the
-   buttons), then email + password with **one** "I'm 16+ and agree to the Terms
-   and Privacy Policy" checkbox that sends both `acceptedTerms` and
+   buttons), then email + password + **Confirm password** (F9, 2026-10-17: one
+   Show toggle reveals both, "Passwords do not match" blocks the submit, and both
+   fields are tagged as new passwords so iOS's suggested strong password fills
+   both; the confirmation never reaches the API) with **one** "I'm 16+ and agree
+   to the Terms and Privacy Policy" checkbox that sends both `acceptedTerms` and
    `ageConfirmed` to `auth.register` (same API contract as V3). Legal sign-off on
    the combined checkbox is still pending (review D3).
 3. **What brings you here?** — job tiles (`PLAN_MEALS`, `TRAIN`, `TRACK`,
@@ -669,6 +672,7 @@ Changing a limit or moving a feature between tiers is an edit to that one file; 
 UpgradeButton (ONE shared surface; every touchpoint passes a `source`)
   sources: sidebar, mobile-drawer, meal-plan-banner, pool-exhaustion,
            shopping-list, preferences-locked, onboarding, profile-page, swap,
+           tier-row (the Free/Premium row atop Profile; mobile You has its own, F6/F7),
            chat-quota (the widget swaps its input for the shared surface when
            the API answers with X-Chat-Quota-Exhausted; upgrading re-enables
            the chat in place)
@@ -753,6 +757,31 @@ meals to my training days`; household and the AI chef open their job.
 have` · `Switch back to Free`. The downgrade sheet names what you keep and
   lists only the Premium jobs this user has used (`downgradeLosses`); cancel
   keeps Premium.
+- **Tier row (F6/F7, owner feedback 2026-10-17).** The tier (Free or Premium) is the first thing
+  on mobile **You** (under the shared `You` top bar, on the Ask Chef row) and on
+  web **/profile** (`TierRow`, mobile `features/premium/tier-row.tsx`, web
+  `features/premium/components/TierRow.tsx`).
+  - **Free.** It reads `Free plan` · `See what Premium adds`. A tap opens the
+    usual sheet or dialog with source `tier-row`, which maps to the `overview`
+    job.
+    - The headline is `Everything Premium adds`, followed by three weekly-plan
+      bullets.
+    - "Also included" opens unfolded (`pitch.showAllIncluded`).
+    - Opting in is the usual `Turn on Premium`.
+  - **Premium.** It reads `Premium plan` · `Included · What you have`. It is
+    status only and never pitches. A tap opens Profile › Plan & Premium (mobile
+    `/profile?section=plan`, web `#plan`).
+  - **Admin.** An admin has every feature without a Premium plan, and Profile
+    hides the plan card for them. Their row reads `Premium plan` ·
+    `Included with admin access` and does nothing on tap.
+  - **One rule for the tier.** `tierOf(user)` (`packages/utils/src/tier.ts`)
+    returns free, premium or admin. Mobile and web `useTier` read it, and so do
+    `useIsPremium` and the Profile tier badge. An admin whose plan is FREE
+    therefore reads `Premium` everywhere, never `Free plan`.
+  - **Not a nudge.** It never opens on its own, has no dismiss, shows from the
+    first session and sits outside the nudge cap. It renders nothing while the
+    plan is loading, so a Premium user never sees "Free" flash.
+  - Rationale and sources: `docs/research/premium-entry-points.md`.
 - **Nudge cap.** All unprompted nudges go through the pure rule in
   `packages/utils/src/nudge-cap.ts` (one per calendar day, 7-day cooldown per
   dismissed source) — web `localStorage` adapter, mobile KV adapter
@@ -1625,9 +1654,10 @@ nothing.
 
 ### Today (P2-2) — Home + Tracker in one tab
 
-The food tab bar is **Today · Plan · Shop · Cookbook · More** on web below `lg`
-and on mobile; the desktop sidebar lists the same four, a divider, then More's
-items (Progress, My weeks, Profile, Preferences). Today (web `/dashboard`,
+The food tab bar is **Shop · Plan · Today · Cookbook · More** on web below `lg`
+(Today in the middle since owner feedback 2026-10-17, F4) and **Today · Plan · Shop ·
+Cookbook · More** in the old mobile Food shell; the desktop sidebar lists Today · Plan ·
+Shop · Cookbook, a divider, then More's items (Progress, My weeks, Profile, Preferences). Today (web `/dashboard`,
 mobile `(food)/index`) shows:
 
 ```
@@ -2985,8 +3015,10 @@ Food/Gym switch (header of every tab root) → persisted mode
 ### New mobile shell (UX revamp phase 1, behind `mobileShellV2`)
 
 With the flag (or the admin/dev preview switch) on, mobile has one tab bar instead of the Food | Gym modes:
-**Today · Meals · Shop · Train · You**, the same five for every account (hiding tabs by onboarding jobs
-stranded training-only accounts that also plan meals, 2026-10-10). A running workout shows a mini bar above
+**Shop · Meals · Today · Train · You**, the same five for every account (hiding tabs by onboarding jobs
+stranded training-only accounts that also plan meals, 2026-10-10). Today sits in the middle since owner
+feedback 2026-10-17 (F4: it is the core of the app); it is still where a launch lands (Train while a workout
+is running) and where Android Back returns from the other tabs. A running workout shows a mini bar above
 the tabs on every tab. Any old link (`/meal-plan`, `/today`, `/stats?tab=…`) lands on the same screen in the
 new shell. Flipping the preview on You leaves You open; switching off lands on the old shell. Web is unchanged.
 
@@ -3033,7 +3065,8 @@ new shell. Flipping the preview on You leaves You open; switching off lands on t
   logged activities keep their activity glyph. Workout complete shows duration, calories burned (as on
   Today; Sets without a weigh-in) and exercises, PRs and the week.
   Program setup shows distinct program cards; New exercise uses dropdowns.
-- **You is the one home for settings:** Your progress (Stats, My weeks), Settings (Meals → the new Meal
+- **You is the one home for settings:** your tier first (the tier row, §9; since 2026-10-17, with the
+  `You` title on the Ask Chef row like every other tab), then Your progress (Stats, My weeks), Settings (Meals → the new Meal
   settings screen, Training → Training settings, Notifications, Account), People, Preview, Help (Send
   feedback opens a sheet), Sign out. Account holds what was left of Settings (goal, targets, Premium,
   emails, privacy, data, legal); Goals & diet (`/preferences`) lists Goal & body before allergies. In-context

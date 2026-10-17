@@ -34,7 +34,7 @@ export const featureFlagsSchema = z
      *  TRAINER_ALLOWLIST (emails, or `*`) decides who may turn trainer tools on. */
     coaching: z.boolean(),
     /** Mobile UX revamp (docs/mobile-ux-revamp/plan.md): the one-tab-bar
-     *  shell (Today · Plan · Shop · Train · You) instead of the Food|Gym
+     *  shell (Shop · Meals · Today · Train · You) instead of the Food|Gym
      *  tab groups. Off by default; admins and dev builds can preview it
      *  per device from Settings. Mobile only — web ignores it. */
     mobileShellV2: z.boolean(),
