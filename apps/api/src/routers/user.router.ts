@@ -4,12 +4,13 @@ import { SOCIAL_AUTH_MESSAGES, socialCredentialSchema, UserRole } from '@chefer/
 import { aiCostService } from '../application/ai-cost/ai-cost.instance.js';
 import { authService } from '../application/auth/auth.service.js';
 import { socialAuthService } from '../application/auth/social-auth.service.js';
+import { emailPreferencesService } from '../application/notifications/email-preferences.service.js';
 import { deleteAccount, exportAccountData } from '../application/user/account-data.service.js';
 import { UserService } from '../application/user/user.service.js';
 import { PrismaUserRepository } from '../infrastructure/prisma/prisma-user.repository.js';
 import { adminProcedure, protectedProcedure, router } from '../lib/trpc.js';
 
-const userService = new UserService(new PrismaUserRepository());
+const userService = new UserService(new PrismaUserRepository(), emailPreferencesService);
 
 // ─── Input Schemas ────────────────────────────────────────────────────────────
 

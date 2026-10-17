@@ -105,12 +105,19 @@ export class SocialAuthService {
           });
         }
         const data = identityData(verified);
-        identity = existing.emailVerified
-          ? await repo.createIdentity(existing.id, data)
-          : await repo.createIdentityAndSecureUnverifiedUser(existing.id, data);
-        user = existing.emailVerified
-          ? existing
-          : { ...existing, passwordHash: null, emailVerified: new Date() };
+        if (existing.emailVerified) {
+          identity = await repo.createIdentity(existing.id, data);
+          user = existing;
+        } else {
+          // Nobody proved they own this address — it may have been typed in
+          // via `user.update` by someone else. The provider just proved it,
+          // so the account becomes theirs alone: password, sessions and any
+          // other linked identity go (audit 2026-10-17 P0 0.2).
+          const replaced = await repo.listByUser(existing.id);
+          identity = await repo.createIdentityAndSecureUnverifiedUser(existing.id, data);
+          await this.revokeAppleGrants(replaced);
+          user = { ...existing, passwordHash: null, emailVerified: new Date() };
+        }
         linkedExistingAccount = true;
       } else {
         if (input.acceptLegal !== true) {

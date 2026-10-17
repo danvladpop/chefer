@@ -43,7 +43,11 @@ export interface IAuthIdentityRepository {
    * Links an identity to an existing account whose email address was never
    * verified: the password (which may have been set by someone who does not
    * own the inbox — "pre-hijacking") is cleared, every existing session is
-   * revoked and the email is marked verified (the provider just proved it).
+   * revoked, every other linked identity is removed and the email is marked
+   * verified (the provider just proved it). An unverified address may have
+   * been typed in by someone else (`user.update`), whose own Google/Apple
+   * sign-in would otherwise still open the account. Read `listByUser` first
+   * to revoke Apple grants for the removed rows.
    */
   createIdentityAndSecureUnverifiedUser(
     userId: string,
@@ -99,7 +103,8 @@ export class AuthIdentityRepository implements IAuthIdentityRepository {
     userId: string,
     data: CreateIdentityData,
   ): Promise<AuthIdentity> {
-    const [identity] = await prisma.$transaction([
+    const [, identity] = await prisma.$transaction([
+      prisma.authIdentity.deleteMany({ where: { userId } }),
       prisma.authIdentity.create({ data: { ...data, userId, lastSignInAt: new Date() } }),
       prisma.user.update({
         where: { id: userId },
