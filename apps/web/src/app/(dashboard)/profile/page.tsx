@@ -13,7 +13,7 @@ import { useHousehold } from '@/hooks/useHousehold';
 import { trpc } from '@/lib/trpc';
 import { Check, ChevronRight, Users } from 'lucide-react';
 import { PLAN_FEATURES } from '@chefer/types';
-import { dailyAllowanceResetTime, PREMIUM_PITCH_COPY, WELLNESS_COPY } from '@chefer/utils';
+import { dailyAllowanceResetTime, PREMIUM_PITCH_COPY, tierOf, WELLNESS_COPY } from '@chefer/utils';
 
 // ─── Usage bar ────────────────────────────────────────────────────────────────
 
@@ -207,15 +207,17 @@ export default function ProfilePage() {
                 {user.role}
               </span>
             )}
+            {/* Same tier as the tier row: an admin reads Premium, not "Free plan". */}
             {user && (
               <span
+                data-testid="profile-tier-badge"
                 className={`inline-block rounded-full px-2 py-0.5 text-xs font-medium uppercase tracking-wide ${
-                  user.planTier === 'PREMIUM'
+                  tierOf(user) !== 'free'
                     ? 'bg-gradient-to-r from-amber-500 to-orange-500 text-white'
                     : 'bg-gray-100 text-gray-600'
                 }`}
               >
-                {user.planTier === 'PREMIUM' ? 'Premium' : 'Free plan'}
+                {tierOf(user) !== 'free' ? 'Premium' : 'Free plan'}
               </span>
             )}
           </div>
