@@ -1,12 +1,12 @@
 import { useState } from 'react';
-import { Image, Pressable, View } from 'react-native';
+import { Pressable, View } from 'react-native';
 import { router } from 'expo-router';
 import { Button, Card, Text } from '@chefer/ui-mobile';
 import { localDateStr, slotPortion, userFacingErrorMessage, verifiedLabels } from '@chefer/utils';
 import { trackMealLogged } from '../../../lib/analytics-events';
-import { getRecipeImageUrl } from '../../../lib/recipe-image';
 import { trpc, type RouterOutputs } from '../../../lib/trpc';
 import { useNumbersMode } from '../../numbers-mode/numbers-mode';
+import { RecipeImage } from '../../recipes/recipe-image';
 import { StarRating } from '../../recipes/star-rating';
 import { CheckedForChip } from '../../safety/checked-for-chip';
 import { REBALANCE_PREVIEW, recordRebalanceOutcome } from '../../tracker/rebalance-offer-store';
@@ -164,10 +164,9 @@ export function TonightCard({
         onPress={() => router.push(`/recipe/${meal.recipe.id}`)}
         className="active:opacity-80"
       >
-        <Image
-          source={{ uri: getRecipeImageUrl(meal.recipe.imageUrl) }}
+        <RecipeImage
+          imageUrl={meal.recipe.imageUrl}
           className="h-40 w-full"
-          resizeMode="cover"
           accessibilityLabel={meal.recipe.name}
         />
         <View className="gap-2 px-4 pt-4">

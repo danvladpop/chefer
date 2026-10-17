@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Image, Keyboard, Pressable, View, type TextInput } from 'react-native';
+import { Keyboard, Pressable, View, type TextInput } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import {
   Button,
@@ -30,11 +30,11 @@ import {
   type SlotRef,
 } from '@chefer/utils';
 import { trackMealLogged } from '../../lib/analytics-events';
-import { getRecipeImageUrl } from '../../lib/recipe-image';
 import { trpc, type RouterOutputs } from '../../lib/trpc';
 import { NutritionStatusTag } from '../ingredients/nutrition-provenance';
 import { useNumbersMode } from '../numbers-mode/numbers-mode';
 import { useNumericChain } from '../preferences/use-numeric-chain';
+import { RecipeImage } from '../recipes/recipe-image';
 import { invalidateDayQueries } from './invalidate';
 import { REBALANCE_PREVIEW, recordRebalanceOutcome } from './rebalance-offer-store';
 import { mealLabel, SLOT_COPY } from './slot-copy';
@@ -593,11 +593,7 @@ export function QuickAddSheet({
                   key={r.key}
                   className="flex-row items-center gap-3 rounded-xl border border-border bg-card p-2.5"
                 >
-                  <Image
-                    source={{ uri: getRecipeImageUrl(r.imageUrl) }}
-                    className="h-9 w-9 rounded-lg"
-                    resizeMode="cover"
-                  />
+                  <RecipeImage imageUrl={r.imageUrl} className="h-9 w-9 rounded-lg" />
                   <View className="min-w-0 flex-1">
                     <Text numberOfLines={1} className="text-sm font-medium text-gray-800">
                       {r.name}
@@ -639,11 +635,7 @@ export function QuickAddSheet({
                       }}
                       className="flex-row items-center gap-3"
                     >
-                      <Image
-                        source={{ uri: getRecipeImageUrl(m.imageUrl) }}
-                        className="h-9 w-9 rounded-lg"
-                        resizeMode="cover"
-                      />
+                      <RecipeImage imageUrl={m.imageUrl} className="h-9 w-9 rounded-lg" />
                       <View className="min-w-0 flex-1">
                         <Text numberOfLines={1} className="text-sm font-medium text-gray-800">
                           {m.recipeName}
@@ -716,10 +708,10 @@ export function QuickAddSheet({
                       }}
                       className="flex-row items-center gap-3"
                     >
-                      <Image
-                        source={{ uri: getRecipeImageUrl(recipe.imageUrl ?? null) }}
+                      <RecipeImage
+                        imageUrl={recipe.imageUrl}
+                        imageStatus={recipe.imageStatus}
                         className="h-9 w-9 rounded-lg"
-                        resizeMode="cover"
                       />
                       <View className="min-w-0 flex-1">
                         <Text numberOfLines={1} className="text-sm font-medium text-gray-800">
@@ -809,11 +801,7 @@ export function QuickAddSheet({
                       }}
                       className="flex-row items-center gap-3"
                     >
-                      <Image
-                        source={{ uri: getRecipeImageUrl(ingredient.imageUrl) }}
-                        className="h-9 w-9 rounded-lg"
-                        resizeMode="cover"
-                      />
+                      <RecipeImage imageUrl={ingredient.imageUrl} className="h-9 w-9 rounded-lg" />
                       <View className="min-w-0 flex-1">
                         <Text numberOfLines={1} className="text-sm font-medium text-gray-800">
                           {ingredient.displayName}

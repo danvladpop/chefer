@@ -1,12 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import {
-  ActivityIndicator,
-  Image,
-  Pressable,
-  RefreshControl,
-  ScrollView,
-  View,
-} from 'react-native';
+import { ActivityIndicator, Pressable, RefreshControl, ScrollView, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { keepPreviousData } from '@tanstack/react-query';
 import { Link, router, useFocusEffect } from 'expo-router';
@@ -32,6 +25,7 @@ import { useTimedRefresh } from '../../src/features/gym/today/use-timed-refresh'
 import { NumbersModeProvider } from '../../src/features/numbers-mode/numbers-mode';
 import { OnboardingV4WelcomeCard } from '../../src/features/onboarding-v4/welcome-card';
 import { HealthConsentTodayNotice } from '../../src/features/privacy/health-consent-notice';
+import { RecipeImage } from '../../src/features/recipes/recipe-image';
 import { MigrationCard } from '../../src/features/safety/migration-card';
 import { useShellV2 } from '../../src/features/shell/shell-store';
 import { QuickAddSheet } from '../../src/features/tracker/quick-add-sheet';
@@ -40,7 +34,6 @@ import { RebalanceOffer } from '../../src/features/tracker/rebalance-offer';
 import { ScanMealCard } from '../../src/features/tracker/scan-meal-card';
 import { useSlotFlow } from '../../src/features/tracker/slot-flow';
 import { useIsPremium } from '../../src/hooks/use-is-premium';
-import { getRecipeImageUrl } from '../../src/lib/recipe-image';
 import { trpc } from '../../src/lib/trpc';
 
 // UX-04 §2: which moment band the clock is in, deciding the hero card.
@@ -414,11 +407,7 @@ export default function HomeScreen() {
                     asChild
                   >
                     <Pressable accessibilityRole="button" className="w-36">
-                      <Image
-                        source={{ uri: getRecipeImageUrl(fav.imageUrl) }}
-                        className="h-24 w-36 rounded-xl"
-                        resizeMode="cover"
-                      />
+                      <RecipeImage imageUrl={fav.imageUrl} className="h-24 w-36 rounded-xl" />
                       <Text numberOfLines={1} className="mt-1.5 text-sm font-medium text-gray-800">
                         {fav.name}
                       </Text>

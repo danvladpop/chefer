@@ -257,13 +257,28 @@ describe('recipe page details', () => {
   });
 
   it('UX-REC-10: a hero image that fails to load becomes a placeholder', async () => {
-    await renderWithTrpc(<RecipeDetailScreen />, handlers(), testQueryClient());
+    await renderWithTrpc(
+      <RecipeDetailScreen />,
+      handlers({}, true, { imageUrl: 'https://example.com/soup.jpg' }),
+      testQueryClient(),
+    );
     const hero = await screen.findByTestId('recipe-hero');
     const { fireEvent } = jest.requireActual<typeof import('@testing-library/react-native')>(
       '@testing-library/react-native',
     );
     await fireEvent(hero, 'error');
     expect(await screen.findByTestId('recipe-hero-placeholder')).toBeTruthy();
+  });
+
+  it('F3: a recipe still waiting for its photo says so instead of a stock photo', async () => {
+    await renderWithTrpc(
+      <RecipeDetailScreen />,
+      handlers({}, true, { imageUrl: null, imageStatus: 'PENDING' }),
+      testQueryClient(),
+    );
+    expect(await screen.findByTestId('recipe-hero-placeholder')).toBeTruthy();
+    expect(screen.getByText('Preparing photo…')).toBeTruthy();
+    expect(screen.queryByTestId('recipe-hero')).toBeNull();
   });
 
   it('the header with ← and ⋯ sits outside the scroll content (sticky)', async () => {

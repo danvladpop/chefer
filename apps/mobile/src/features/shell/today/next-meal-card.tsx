@@ -108,6 +108,7 @@ export function NextMealCard({
 }: NextMealCardProps) {
   const utils = trpc.useUtils();
   const snackbar = useSnackbar();
+  const colors = useThemeColors();
   // UX-FOOD-15: the summary refetch moves the card on to the NEXT meal under
   // the thumb, so the meal just logged is held (as "Eaten ✓") for a moment.
   const [held, setHeld] = useState<NextMeal | null>(null);
@@ -228,6 +229,7 @@ export function NextMealCard({
       >
         <MediaFrame
           imageUri={getRecipeImageUrl(meal.recipe.imageUrl)}
+          illustration={<Icon name="cook" color={colors.brand} size={32} />}
           size={84}
           square
           testID="next-meal-photo"

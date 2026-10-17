@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { Image, Pressable, View } from 'react-native';
+import { Pressable, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { Button, Card, Text } from '@chefer/ui-mobile';
@@ -11,9 +11,9 @@ import {
   userFacingErrorMessage,
 } from '@chefer/utils';
 import { trackMealLogged } from '../../../lib/analytics-events';
-import { getRecipeImageUrl } from '../../../lib/recipe-image';
 import { trpc, type RouterOutputs } from '../../../lib/trpc';
 import { useNumbersMode } from '../../numbers-mode/numbers-mode';
+import { RecipeImage } from '../../recipes/recipe-image';
 import { REBALANCE_PREVIEW, recordRebalanceOutcome } from '../../tracker/rebalance-offer-store';
 import { SlotOverflowButton } from '../../tracker/slot-controls';
 import { MealTypeBadge } from './meal-type-badge';
@@ -111,10 +111,9 @@ export function HeroMealCard({
         onPress={openRecipe}
         className="active:opacity-80"
       >
-        <Image
-          source={{ uri: getRecipeImageUrl(meal.recipe.imageUrl) }}
+        <RecipeImage
+          imageUrl={meal.recipe.imageUrl}
           className="h-40 w-full"
-          resizeMode="cover"
           accessibilityLabel={meal.recipe.name}
         />
         <View className="gap-2 px-4 pt-4">

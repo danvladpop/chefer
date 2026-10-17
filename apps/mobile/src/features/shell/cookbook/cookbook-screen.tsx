@@ -240,7 +240,7 @@ export function CookbookScreen() {
         testID={`cookbook-tile-${recipe.id}`}
         title={recipe.name}
         meta={cookbookTileMeta(recipe)}
-        imageUri={recipe.imageUrl ? getRecipeImageUrl(recipe.imageUrl) : null}
+        imageUri={getRecipeImageUrl(recipe.imageUrl)}
         illustration={<Icon name="recipes" color={colors.brand} size={32} />}
         {...(from ? { badge: from } : {})}
         accessibilityHint="Opens the recipe"

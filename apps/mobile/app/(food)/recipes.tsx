@@ -19,6 +19,7 @@ import { recipeCardMeta } from '../../src/features/recipes/recipe-actions';
 import { RecipeImage } from '../../src/features/recipes/recipe-image';
 import { FilteredForLine } from '../../src/features/safety/filtered-for-line';
 import { WhatWeCheckSheet } from '../../src/features/safety/what-we-check-sheet';
+import type { RecipeImageStatus } from '../../src/lib/recipe-image';
 import { trpc } from '../../src/lib/trpc';
 
 // Cookbook tab (was Recipes) — port of apps/web (dashboard)/recipes/page.tsx
@@ -67,6 +68,8 @@ interface CardRecipe {
   id: string;
   name: string;
   imageUrl: string | null;
+  /** F3: a null image is "preparing" while PENDING/GENERATING. */
+  imageStatus?: RecipeImageStatus;
   cuisineType: string;
   prepTimeMins: number;
   cookTimeMins: number;
@@ -371,6 +374,7 @@ export default function RecipesScreen() {
                 <RecipeImage
                   testID={`recipe-card-${recipe.id}-image`}
                   imageUrl={recipe.imageUrl}
+                  imageStatus={recipe.imageStatus}
                   className="h-28 w-28"
                 />
                 <View className="min-w-0 flex-1 gap-1 py-2.5 pl-3 pr-14">

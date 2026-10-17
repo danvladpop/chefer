@@ -1,8 +1,8 @@
-import { Image, Pressable, View } from 'react-native';
+import { Pressable, View } from 'react-native';
 import { router } from 'expo-router';
 import { Button, Card, Text } from '@chefer/ui-mobile';
-import { getRecipeImageUrl } from '../../../lib/recipe-image';
 import type { RouterOutputs } from '../../../lib/trpc';
+import { RecipeImage } from '../../recipes/recipe-image';
 import { MealTypeBadge } from './meal-type-badge';
 
 // Tomorrow card (UX-04 §2/§3, T-04.4): the 21:30–03:59 band, or once
@@ -24,10 +24,9 @@ export function TomorrowCard({ meal }: { meal: Tomorrow }) {
         onPress={openRecipe}
         className="active:opacity-80"
       >
-        <Image
-          source={{ uri: getRecipeImageUrl(meal.recipe.imageUrl) }}
+        <RecipeImage
+          imageUrl={meal.recipe.imageUrl}
           className="h-32 w-full"
-          resizeMode="cover"
           accessibilityLabel={meal.recipe.name}
         />
         <View className="gap-2 px-4 pt-4">

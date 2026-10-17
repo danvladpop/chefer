@@ -113,7 +113,11 @@ describe('cookbook rows (UX-REC-13, UX-REC-10)', () => {
   });
 
   it('a thumbnail that fails to load becomes a placeholder', async () => {
-    await renderWithTrpc(<RecipesScreen />, { 'recipe.list': () => [row('a')] }, testQueryClient());
+    await renderWithTrpc(
+      <RecipesScreen />,
+      { 'recipe.list': () => [row('a', { imageUrl: 'https://example.com/a.jpg' })] },
+      testQueryClient(),
+    );
     await screen.findByText('Recipe a');
     await fireEvent(screen.getByTestId('recipe-card-a-image'), 'error');
     expect(await screen.findByTestId('recipe-card-a-image-placeholder')).toBeTruthy();

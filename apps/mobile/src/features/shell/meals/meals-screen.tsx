@@ -620,7 +620,7 @@ export function MealsScreen() {
         frameSize={72}
         title={meal.recipe.name}
         meta={mealTileMeta(meal, isSide, proteinOnly)}
-        imageUri={meal.recipe.imageUrl ? getRecipeImageUrl(meal.recipe.imageUrl) : null}
+        imageUri={getRecipeImageUrl(meal.recipe.imageUrl)}
         illustration={<Icon name="cook" color={colors.brand} size={32} />}
         {...(conflict
           ? { badge: conflict }

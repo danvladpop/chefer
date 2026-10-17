@@ -60,10 +60,13 @@ import { TrainButton } from '../../src/features/shell/train/train-button';
 import { useCookingFor } from '../../src/hooks/use-cooking-for';
 import { useHousehold } from '../../src/hooks/use-household';
 import { useUnitSystem } from '../../src/hooks/use-unit-system';
+import { isPreparing } from '../../src/lib/recipe-image';
 import { trpc } from '../../src/lib/trpc';
 
 /** The hero's height on a phone (Tailwind h-56). */
 const RECIPE_HERO_MIN_HEIGHT = 224;
+/** How often a recipe still waiting for its photo is re-fetched (F3). */
+const PREPARING_REFETCH_MS = 30_000;
 
 // Recipe detail — port of apps/web (dashboard)/recipes/[id]/page.tsx (M2-3).
 // Like web, the star rating shows only when opened from a meal-plan day
@@ -150,7 +153,15 @@ export default function RecipeDetailScreen() {
   const planPortion = slotPortion(parseFloat(portion ?? ''));
   const unitSystem = useUnitSystem();
 
-  const recipeQuery = trpc.mealPlan.getRecipe.useQuery({ recipeId: id });
+  // F3: a recipe waiting for its generated photo shows "Preparing photo…";
+  // re-ask now and then so the photo appears without leaving the screen.
+  const recipeQuery = trpc.mealPlan.getRecipe.useQuery(
+    { recipeId: id },
+    {
+      refetchInterval: (query) =>
+        isPreparing(query.state.data?.imageStatus) ? PREPARING_REFETCH_MS : false,
+    },
+  );
   const { data: recipe } = recipeQuery;
   // UX-REC-03: a failed load is not "not found" — only a real NOT_FOUND says so.
   const recipeState = useQueryState(recipeQuery);
@@ -407,11 +418,13 @@ export default function RecipeDetailScreen() {
 
       <KeyboardAwareScrollView keyboardShouldPersistTaps="handled" contentContainerClassName="pb-8">
         {/* Hero image — the page is photo-led; a failed photo becomes a
-          placeholder (UX-REC-10) */}
+          placeholder (UX-REC-10), and so does one still being generated (F3) */}
         <View className="px-4 pt-2">
           <RecipeImage
             testID="recipe-hero"
             imageUrl={recipe.imageUrl}
+            imageStatus={recipe.imageStatus}
+            showStatusLabel
             className="w-full overflow-hidden rounded-card"
             style={{ height: heroHeightPt }}
             accessibilityLabel={recipe.name}
