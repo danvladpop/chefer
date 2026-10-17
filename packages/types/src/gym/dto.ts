@@ -150,8 +150,12 @@ export interface ProgressionDto {
   /**
    * `setByName` (level 6+, optional): the trainer who set this next-session
    * target ("Set by Ana"); absent when the owner set it. `setById` is never sent.
+   * `setByFormer` (additive 2026-10-17): that person no longer coaches the owner
+   * ("Set by Ana (former trainer)"; read it through `editorLabel`).
    */
-  override: (Omit<ProgressionOverride, 'setById'> & { setByName?: string }) | null;
+  override:
+    | (Omit<ProgressionOverride, 'setById'> & { setByName?: string; setByFormer?: true })
+    | null;
   /** Prescription for the next exposure as of `serverTime` (break/override/deload applied). */
   suggestion: Suggestion;
 }

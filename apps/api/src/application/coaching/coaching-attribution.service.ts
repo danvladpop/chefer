@@ -44,6 +44,11 @@ export class CoachingAttributionService {
     return new Map(rows.map((r) => [r.userId, r.displayName]));
   }
 
+  /** Who coaches `clientId` now (null = nobody): stamps by anyone else are "former". */
+  async currentTrainerId(clientId: string): Promise<string | null> {
+    return (await this.links.findActiveForClient(clientId))?.trainerId ?? null;
+  }
+
   /** Attribution for a routine as seen by its owner, or undefined below level 6 (legacy shape). */
   async forRoutine(
     row: RoutineWithDays,

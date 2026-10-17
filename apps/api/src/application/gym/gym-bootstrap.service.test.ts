@@ -391,7 +391,10 @@ describe('GymBootstrapService.get: trainer coaching', () => {
       dayId: 'day-a',
       exercises: [{ routineExerciseId: 're-bench' }, { routineExerciseId: 'other' }],
     } as unknown as NextWorkoutDto);
-    prog.setterNames.mockResolvedValue(new Map([['ctrainer', 'Ana']]));
+    prog.setterNames.mockResolvedValue({
+      names: new Map([['ctrainer', 'Ana']]),
+      currentTrainerId: 'ctrainer',
+    });
 
     const b = await service.get(USER, { today: TODAY }, 0, { rawLevel: 6, enabled: true });
 
@@ -404,7 +407,7 @@ describe('GymBootstrapService.get: trainer coaching', () => {
       [],
       expect.any(Map),
       TODAY,
-      expect.any(Map),
+      { names: expect.any(Map), currentTrainerId: 'ctrainer' },
     );
   });
 

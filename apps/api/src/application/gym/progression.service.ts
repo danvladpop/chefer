@@ -76,18 +76,27 @@ export interface CoachProgression {
   override: ProgressionOverride | null;
 }
 
+/**
+ * Who set pending targets (level 6+): display names, plus the owner's CURRENT
+ * trainer so a target set by anyone else is flagged `setByFormer` ("Set by Ana
+ * (former trainer)", PRD 2026-10 §4.3).
+ */
+export interface SetterNames {
+  names: ReadonlyMap<string, string>;
+  currentTrainerId: string | null;
+}
+
 export function toOverrideDto(
   override: ProgressionOverride | null,
   ownerId: string,
-  setterNames: ReadonlyMap<string, string> | undefined,
+  setters: SetterNames | undefined,
 ): ProgressionDto['override'] {
   if (!override) return null;
   const { setById, ...rest } = override;
-  const setByName =
-    setterNames && setById && setById !== ownerId
-      ? (setterNames.get(setById) ?? FALLBACK_TRAINER_NAME)
-      : undefined;
-  return { ...rest, ...(setByName !== undefined && { setByName }) };
+  if (!setters || !setById || setById === ownerId) return rest;
+  const setByName = setters.names.get(setById) ?? FALLBACK_TRAINER_NAME;
+  const former = setById !== setters.currentTrainerId;
+  return { ...rest, setByName, ...(former && { setByFormer: true }) };
 }
 
 interface BucketGroup {
@@ -105,7 +114,7 @@ export class ProgressionService {
     private readonly contextLoader: Pick<GymContextLoader, 'load'> = gymContextLoader,
     private readonly attribution: Pick<
       CoachingAttributionService,
-      'names'
+      'names' | 'currentTrainerId'
     > = coachingAttributionService,
   ) {}
 
@@ -278,13 +287,19 @@ export class ProgressionService {
   async setterNames(
     rows: readonly ExerciseProgression[],
     level: number,
-  ): Promise<ReadonlyMap<string, string> | undefined> {
+  ): Promise<SetterNames | undefined> {
     if (!CoachingAttributionService.understandsCoaching(level)) return undefined;
     const ids = rows.flatMap((row) => {
       const setBy = readOverride(row.override)?.setById;
       return setBy && setBy !== row.userId ? [setBy] : [];
     });
-    return this.attribution.names(ids);
+    const ownerId = rows[0]?.userId;
+    const [names, currentTrainerId] = await Promise.all([
+      this.attribution.names(ids),
+      // Only a target someone else set needs to know who coaches the owner now.
+      ids.length > 0 && ownerId ? this.attribution.currentTrainerId(ownerId) : null,
+    ]);
+    return { names, currentTrainerId };
   }
 
   /**
@@ -297,7 +312,7 @@ export class ProgressionService {
     rows: ExerciseProgression[],
     metas: ReadonlyMap<string, ExerciseMeta>,
     today: string,
-    setterNames?: ReadonlyMap<string, string>,
+    setterNames?: SetterNames,
   ): ProgressionDto[] {
     const deload = isDeloadActive(ctx.offerState, today);
     const out: ProgressionDto[] = [];

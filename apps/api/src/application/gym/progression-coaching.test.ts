@@ -65,6 +65,8 @@ function setup(rows: ExerciseProgression[] = [row()]) {
     names: vi.fn(
       async (ids: readonly string[]) => new Map(ids.includes(TRAINER) ? [[TRAINER, 'Ana']] : []),
     ),
+    // TRAINER coaches USER now: their targets are not "former".
+    currentTrainerId: vi.fn(async () => TRAINER),
   };
   const service = new ProgressionService(
     progressionRepo,
@@ -76,6 +78,11 @@ function setup(rows: ExerciseProgression[] = [row()]) {
   );
   return { service, progressionRepo, attribution };
 }
+
+const setters = (names: ReadonlyMap<string, string>, currentTrainerId: string | null = null) => ({
+  names,
+  currentTrainerId,
+});
 
 const override = (over: object = {}) => ({
   weightKg: 62.5,
@@ -116,15 +123,19 @@ describe('setOverride: who set it', () => {
 
 describe('toOverrideDto: never the setter id, a name at level 6', () => {
   it('null stays null; an owner-set target (or an old row with no setter) has no name', () => {
-    expect(toOverrideDto(null, USER, new Map())).toBeNull();
-    expect(toOverrideDto(override({ setById: USER }), USER, new Map([[USER, 'Me']]))).toEqual(
-      override(),
-    );
-    expect(toOverrideDto(override(), USER, new Map())).toEqual(override());
+    expect(toOverrideDto(null, USER, setters(new Map()))).toBeNull();
+    expect(
+      toOverrideDto(override({ setById: USER }), USER, setters(new Map([[USER, 'Me']]))),
+    ).toEqual(override());
+    expect(toOverrideDto(override(), USER, setters(new Map()))).toEqual(override());
   });
 
   it('a trainer-set target carries setByName when names were resolved, and never setById', () => {
-    const dto = toOverrideDto(override({ setById: TRAINER }), USER, new Map([[TRAINER, 'Ana']]));
+    const dto = toOverrideDto(
+      override({ setById: TRAINER }),
+      USER,
+      setters(new Map([[TRAINER, 'Ana']]), TRAINER),
+    );
     expect(dto).toEqual({ ...override(), setByName: 'Ana' });
     expect(dto).not.toHaveProperty('setById');
     // Below level 6 no names are resolved: the legacy shape, the target still applies.
@@ -135,9 +146,20 @@ describe('toOverrideDto: never the setter id, a name at level 6', () => {
   });
 
   it('a setter whose account is gone reads "your trainer"', () => {
-    expect(toOverrideDto(override({ setById: 'cgone' }), USER, new Map())).toMatchObject({
+    expect(toOverrideDto(override({ setById: 'cgone' }), USER, setters(new Map()))).toMatchObject({
       setByName: 'your trainer',
+      setByFormer: true,
     });
+  });
+
+  it('a target set by someone who no longer coaches the owner is flagged former (PRD 2026-10 §4.3)', () => {
+    expect(
+      toOverrideDto(
+        override({ setById: TRAINER }),
+        USER,
+        setters(new Map([[TRAINER, 'Ana']]), null),
+      ),
+    ).toEqual({ ...override(), setByName: 'Ana', setByFormer: true });
   });
 });
 
@@ -159,6 +181,7 @@ describe('levels', () => {
     const [dto] = await service.forExercises(USER, ['bench'], '2026-10-06', COACHING_API_LEVEL);
     expect(attribution.names).toHaveBeenCalledWith([TRAINER]);
     expect(dto?.override).toEqual({ ...override(), setByName: 'Ana' });
+    expect(attribution.currentTrainerId).toHaveBeenCalledWith(USER);
   });
 
   it('setterNames asks only about targets someone other than the owner set', async () => {
