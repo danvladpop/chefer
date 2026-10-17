@@ -1,9 +1,10 @@
 import { View } from 'react-native';
 import type { AdherenceDayDto, AdherenceDto, AdherenceWeekDto, WeekStatus } from '@chefer/types';
-import { Badge, Card, ProgressBar, Text } from '@chefer/ui-mobile';
+import { Badge, ProgressBar, Text } from '@chefer/ui-mobile';
 import { cn } from '@chefer/utils';
 import { formatStampDate } from '../../gym/routine/attribution';
 import { WEEKDAY_SHORT_LABELS } from '../../gym/routine/weekday';
+import { CoachingCard } from '../components/coaching-card';
 import { formatWeekdayDate } from '../format';
 
 // ─── Client › Adherence (spec §2.5 tab 3) ─────────────────────────────────────
@@ -62,7 +63,7 @@ function WeekRow({ week }: { week: AdherenceWeekDto }) {
       accessibilityLabel={`Week of ${formatStampDate(week.weekStart)}: ${week.sessions} of ${week.goal} sessions, ${WEEK_STATUS_LABEL[week.status]}`}
       className="min-h-11 flex-row items-center gap-3"
     >
-      <Text variant="muted" className="w-16 text-sm">
+      <Text className="w-16 text-subhead text-label-secondary">
         {formatStampDate(week.weekStart)}
       </Text>
       <View className="min-w-0 flex-1">
@@ -82,8 +83,10 @@ export function AdherenceTab({ adherence }: { adherence: AdherenceDto }) {
   const lastIndex = adherence.days.length - 1;
   return (
     <View testID="trainer-adherence" className="gap-4">
-      <Card className="gap-1">
-        <Text variant="heading">Last 14 days</Text>
+      <CoachingCard className="gap-1">
+        <Text accessibilityRole="header" className="text-title3 font-bold text-label">
+          Last 14 days
+        </Text>
         <View testID="trainer-adherence-strip" className="mt-2 flex-row justify-between">
           {adherence.days.map((day, i) => {
             const state = dayState(day, i === lastIndex);
@@ -95,16 +98,16 @@ export function AdherenceTab({ adherence }: { adherence: AdherenceDto }) {
                 accessibilityLabel={`${formatWeekdayDate(day.localDate)}: ${DAY_WORD[state]}`}
                 className="min-w-0 flex-1 items-center gap-1"
               >
-                <Text variant="muted" className="text-xs">
+                <Text className="text-caption text-label-secondary">
                   {dayInitial(day.localDate)}
                 </Text>
                 <View
                   className={cn(
                     'h-6 w-5 items-center justify-center rounded',
-                    state === 'trained' && 'bg-green-100',
-                    state === 'missed' && 'bg-red-100',
-                    state === 'paused' && 'bg-amber-100',
-                    (state === 'rest' || state === 'planned') && 'bg-gray-100',
+                    state === 'trained' && 'bg-positive/10',
+                    state === 'missed' && 'bg-danger/10',
+                    state === 'paused' && 'bg-attention/10',
+                    (state === 'rest' || state === 'planned') && 'bg-surface-sunken',
                   )}
                 >
                   <Text className="text-xs" importantForAccessibility="no">
@@ -115,16 +118,18 @@ export function AdherenceTab({ adherence }: { adherence: AdherenceDto }) {
             );
           })}
         </View>
-        <Text variant="muted" className="mt-2 text-xs">
+        <Text className="mt-2 text-caption text-label-secondary">
           ✓ trained · ✕ missed · P paused · · rest day
         </Text>
-      </Card>
-      <Card className="gap-1">
-        <Text variant="heading">Last 8 weeks</Text>
+      </CoachingCard>
+      <CoachingCard className="gap-1">
+        <Text accessibilityRole="header" className="text-title3 font-bold text-label">
+          Last 8 weeks
+        </Text>
         {adherence.weeks.map((week) => (
           <WeekRow key={week.weekStart} week={week} />
         ))}
-      </Card>
+      </CoachingCard>
     </View>
   );
 }

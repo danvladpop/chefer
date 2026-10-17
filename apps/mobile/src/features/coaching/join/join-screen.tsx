@@ -1,16 +1,17 @@
 import { useEffect, useState, useSyncExternalStore, type ReactNode } from 'react';
 import { ActivityIndicator, View } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { COACHING_COPY, type InvitePreviewDto } from '@chefer/types';
-import { Button, ErrorState, Screen, Text } from '@chefer/ui-mobile';
+import { Button, ErrorState, IconButton, Screen, Text, useThemeColors } from '@chefer/ui-mobile';
 import { isNetworkError, isServerError, localDateStr, userFacingErrorMessage } from '@chefer/utils';
+import { Icon } from '../../../components/icon';
 import { getToken, subscribe as subscribeToken } from '../../../lib/auth-store';
 import { trpc } from '../../../lib/trpc';
 import { useIsOnline } from '../../gym/workout/use-is-online';
 import { goBackOrHome } from '../../trainer/components/trainer-header';
 import { COACHING_MOBILE_COPY } from '../copy';
 import { clearPendingJoin, rememberPendingJoin, setReturnAfterSignIn } from '../pending-join';
+import { routineHref, trainingHomeHref } from '../routes';
 import { ConsentScreen } from './consent-screen';
 
 // ─── coaching/join/<code> (spec §2.3) ─────────────────────────────────────────
@@ -24,18 +25,17 @@ import { ConsentScreen } from './consent-screen';
 const EDGES: ('top' | 'bottom' | 'left' | 'right')[] = ['top', 'bottom', 'left', 'right'];
 
 function Page({ children, testID }: { children: ReactNode; testID: string }) {
+  const colors = useThemeColors();
   return (
-    <Screen edges={EDGES} className="px-0" testID={testID}>
-      <View className="min-h-12 flex-row items-center px-2">
-        <Button
+    <Screen edges={EDGES} className="bg-canvas px-0" testID={testID}>
+      <View className="min-h-11 flex-row items-center px-4 py-2">
+        <IconButton
           testID={`${testID}-back`}
-          variant="ghost"
-          size="icon"
           accessibilityLabel="Back"
+          icon={<Icon name="chevronBack" color={colors.brand} size={26} />}
           onPress={goBackOrHome}
-        >
-          <Ionicons name="arrow-back" size={20} color="#1f2937" />
-        </Button>
+          className="-ml-2"
+        />
       </View>
       {children}
     </Screen>
@@ -56,16 +56,16 @@ function Message({
   return (
     <Page testID={testID}>
       <View className="gap-3 px-4 pt-2">
-        <Text accessibilityRole="header" variant="title">
+        <Text accessibilityRole="header" className="text-title2 font-bold text-label">
           {title}
         </Text>
-        <Text testID="coaching-invite-message" className="text-sm text-gray-700">
+        <Text testID="coaching-invite-message" className="text-subhead text-label-secondary">
           {body}
         </Text>
         <Button
           testID={action?.testID ?? 'coaching-invite-go-gym'}
           className="mt-3"
-          onPress={action?.onPress ?? (() => router.replace('/today'))}
+          onPress={action?.onPress ?? (() => router.replace(trainingHomeHref()))}
         >
           {action?.label ?? COACHING_MOBILE_COPY.goToGym}
         </Button>
@@ -99,10 +99,12 @@ function SignedOutJoin({ code }: { code: string }) {
   return (
     <Page testID="coaching-join-signed-out">
       <View className="gap-3 px-4 pt-2">
-        <Text accessibilityRole="header" variant="title">
+        <Text accessibilityRole="header" className="text-title2 font-bold text-label">
           {COACHING_MOBILE_COPY.signedOutTitle}
         </Text>
-        <Text className="text-sm text-gray-700">{COACHING_MOBILE_COPY.signedOutBody}</Text>
+        <Text className="text-subhead text-label-secondary">
+          {COACHING_MOBILE_COPY.signedOutBody}
+        </Text>
         <Button
           testID="coaching-join-sign-in"
           className="mt-3"
@@ -156,14 +158,20 @@ function JoinFlow({ code }: { code: string }) {
     return (
       <Page testID="coaching-joined">
         <View className="gap-3 px-4 pt-2">
-          <Text testID="coaching-joined-title" accessibilityRole="header" variant="title">
+          <Text
+            testID="coaching-joined-title"
+            accessibilityRole="header"
+            className="text-title2 font-bold text-label"
+          >
             {COACHING_COPY.consent.joinedTitle(joined)}
           </Text>
-          <Text className="text-sm text-gray-700">{COACHING_COPY.consent.oneTrainer(joined)}</Text>
+          <Text className="text-subhead text-label-secondary">
+            {COACHING_COPY.consent.oneTrainer(joined)}
+          </Text>
           <Button
             testID="coaching-joined-routine"
             className="mt-3"
-            onPress={() => router.replace('/routine')}
+            onPress={() => router.replace(routineHref())}
           >
             {COACHING_MOBILE_COPY.openMyRoutine}
           </Button>
@@ -228,10 +236,10 @@ function JoinFlow({ code }: { code: string }) {
     return (
       <Page testID="coaching-join-needs-setup">
         <View className="gap-3 px-4 pt-2">
-          <Text accessibilityRole="header" variant="title">
+          <Text accessibilityRole="header" className="text-title2 font-bold text-label">
             {COACHING_COPY.consent.title(trainerName)}
           </Text>
-          <Text testID="coaching-needs-setup-body" className="text-sm text-gray-700">
+          <Text testID="coaching-needs-setup-body" className="text-subhead text-label-secondary">
             {COACHING_COPY.consent.needsSetup}
           </Text>
           <Button

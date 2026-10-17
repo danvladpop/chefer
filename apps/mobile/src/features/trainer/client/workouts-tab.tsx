@@ -1,7 +1,8 @@
 import { ActivityIndicator, Pressable, View } from 'react-native';
 import type { CoachedExerciseDto, CoachedWorkoutDto } from '@chefer/types';
-import { Badge, Button, Card, EmptyState, ErrorState, Text } from '@chefer/ui-mobile';
+import { Badge, Button, EmptyState, ErrorState, Text } from '@chefer/ui-mobile';
 import { trpc } from '../../../lib/trpc';
+import { CoachingCard } from '../components/coaching-card';
 import { formatCoachedSet, formatWeekdayDate, rirText } from '../format';
 
 // ─── Client › Workouts (spec §2.5 tab 2) ──────────────────────────────────────
@@ -31,18 +32,14 @@ function ExerciseBlock({
         <Text className="font-medium text-primary">{exercise.name}</Text>
       </Pressable>
       {exercise.skipped ? (
-        <Text variant="muted" className="text-sm">
-          Skipped
-        </Text>
+        <Text className="text-subhead text-label-secondary">Skipped</Text>
       ) : (
         <Text testID={`${testID}-sets`} className="text-sm">
           {exercise.sets.map(formatCoachedSet).join('  ·  ')}
         </Text>
       )}
       {effort && !exercise.skipped ? (
-        <Text variant="muted" className="text-xs">
-          {effort}
-        </Text>
+        <Text className="text-caption text-label-secondary">{effort}</Text>
       ) : null}
     </View>
   );
@@ -56,14 +53,14 @@ export function WorkoutCard({
   onOpenHistory: (exercise: CoachedExerciseDto) => void;
 }) {
   return (
-    <Card testID={`trainer-workout-${workout.id}`} className="gap-2">
+    <CoachingCard testID={`trainer-workout-${workout.id}`} className="gap-2">
       <View className="flex-row items-center gap-2">
         <Text className="min-w-0 flex-1 font-semibold" numberOfLines={2}>
           {workout.name}
         </Text>
         {workout.isDeload ? <Badge variant="secondary">Deload</Badge> : null}
       </View>
-      <Text variant="muted" className="text-sm">
+      <Text className="text-subhead text-label-secondary">
         {formatWeekdayDate(workout.localDate)}
         {workout.durationMin !== null ? ` · ${workout.durationMin} min` : ''}
       </Text>
@@ -75,7 +72,7 @@ export function WorkoutCard({
           onOpenHistory={onOpenHistory}
         />
       ))}
-    </Card>
+    </CoachingCard>
   );
 }
 

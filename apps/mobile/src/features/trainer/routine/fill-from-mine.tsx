@@ -74,7 +74,7 @@ export function FillFromMineSheet({
       ) : list.isError ? (
         <ErrorState testID="trainer-fill-error" onRetry={() => void list.refetch()} />
       ) : routines.length === 0 ? (
-        <Text testID="trainer-fill-empty" variant="muted">
+        <Text testID="trainer-fill-empty" className="text-subhead text-label-secondary">
           You have no routines of your own to copy yet.
         </Text>
       ) : (
@@ -91,7 +91,7 @@ export function FillFromMineSheet({
               <Text className="font-medium" numberOfLines={1}>
                 {routine.name}
               </Text>
-              <Text variant="muted" className="text-xs">
+              <Text className="text-caption text-label-secondary">
                 {routine.dayCount} {routine.dayCount === 1 ? 'day' : 'days'}
               </Text>
             </Pressable>

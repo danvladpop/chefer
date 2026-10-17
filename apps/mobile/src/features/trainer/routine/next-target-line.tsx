@@ -56,7 +56,7 @@ export function NextTargetLine({
         </Button>
       </View>
       {next.lastDoneDate ? (
-        <Text testID={`${testID}-last-done`} variant="muted" className="text-xs">
+        <Text testID={`${testID}-last-done`} className="text-caption text-label-secondary">
           {COACHING_COPY.trainer.lastDone(formatStampDate(next.lastDoneDate))}
         </Text>
       ) : null}

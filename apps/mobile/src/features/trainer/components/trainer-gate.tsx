@@ -1,10 +1,8 @@
 import { useState, type ReactNode } from 'react';
 import { ActivityIndicator, View } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
 import { COACHING_COPY } from '@chefer/types';
 import {
   Button,
-  Card,
   EmptyState,
   ErrorState,
   FormField,
@@ -12,12 +10,15 @@ import {
   KeyboardAwareScrollView,
   Screen,
   Text,
+  useThemeColors,
 } from '@chefer/ui-mobile';
 import { userFacingErrorMessage } from '@chefer/utils';
+import { Icon } from '../../../components/icon';
 import { trpc } from '../../../lib/trpc';
 import { useCoachingAvailability } from '../api/use-coaching-availability';
 import { firstNameOf } from '../format';
-import { goBackOrHome, TrainerHeader } from './trainer-header';
+import { CoachingCard } from './coaching-card';
+import { goBackOrHome, TRAINER_SCREEN_CLASS, TrainerHeader } from './trainer-header';
 
 // ─── TrainerGate: every /trainer/* route renders inside it ────────────────────
 // 1. `coaching.availability` (never gated) decides whether the feature exists for this user at all:
@@ -29,11 +30,12 @@ import { goBackOrHome, TrainerHeader } from './trainer-header';
 const SCREEN_EDGES: ('top' | 'bottom' | 'left' | 'right')[] = ['top', 'bottom', 'left', 'right'];
 
 export function TrainerUnavailableScreen({ testID = 'trainer-unavailable' }: { testID?: string }) {
+  const colors = useThemeColors();
   return (
-    <Screen edges={SCREEN_EDGES} className="justify-center">
+    <Screen edges={SCREEN_EDGES} className="justify-center bg-canvas">
       <EmptyState
         testID={testID}
-        icon={<Ionicons name="people-outline" size={40} color="#9ca3af" />}
+        icon={<Icon name="clients" color={colors.labelTertiary} size={40} />}
         title={COACHING_COPY.server.notAllowed}
         action={{ label: 'Go back', testID: `${testID}-back`, onPress: goBackOrHome }}
       />
@@ -56,12 +58,14 @@ function TurnOnScreen() {
   const trimmed = displayName.trim();
 
   return (
-    <Screen edges={SCREEN_EDGES} className="px-0" testID="trainer-turn-on">
+    <Screen edges={SCREEN_EDGES} className={TRAINER_SCREEN_CLASS} testID="trainer-turn-on">
       <TrainerHeader testID="trainer-turn-on-header" title={COACHING_COPY.trainer.title} />
       <KeyboardAwareScrollView contentContainerClassName="gap-4 px-4 py-4">
-        <Card>
-          <Text variant="heading">{COACHING_COPY.trainer.turnOnTitle}</Text>
-          <Text variant="muted" className="mt-1">
+        <CoachingCard>
+          <Text accessibilityRole="header" className="text-title3 font-bold text-label">
+            {COACHING_COPY.trainer.turnOnTitle}
+          </Text>
+          <Text className="mt-1 text-subhead text-label-secondary">
             {COACHING_COPY.trainer.turnOnBody}
           </Text>
           <View className="mt-4">
@@ -75,13 +79,17 @@ function TurnOnScreen() {
                 value={displayName}
                 maxLength={40}
                 autoCapitalize="words"
-                returnKeyType="done"
+                returnKeyType="go"
+                onSubmitEditing={() => {
+                  if (trimmed !== '' && !activate.isPending)
+                    activate.mutate({ displayName: trimmed });
+                }}
                 onChangeText={setName}
               />
             </FormField>
           </View>
           {activate.error ? (
-            <Text testID="trainer-turn-on-error" className="mt-2 text-sm text-destructive">
+            <Text testID="trainer-turn-on-error" className="mt-2 text-subhead text-danger">
               {userFacingErrorMessage(activate.error)}
             </Text>
           ) : null}
@@ -94,7 +102,7 @@ function TurnOnScreen() {
           >
             {COACHING_COPY.trainer.turnOn}
           </Button>
-        </Card>
+        </CoachingCard>
       </KeyboardAwareScrollView>
     </Screen>
   );
@@ -105,14 +113,14 @@ function TrainerStatusGate({ children }: { children: ReactNode }) {
   if (status.isPending && status.fetchStatus === 'paused') {
     // Offline before the first answer: Retry, not an endless spinner.
     return (
-      <Screen edges={SCREEN_EDGES} className="justify-center">
+      <Screen edges={SCREEN_EDGES} className="justify-center bg-canvas">
         <ErrorState testID="trainer-status-error" onRetry={() => void status.refetch()} />
       </Screen>
     );
   }
   if (status.isPending) {
     return (
-      <Screen edges={SCREEN_EDGES} testID="trainer-status-loading">
+      <Screen edges={SCREEN_EDGES} className="bg-canvas" testID="trainer-status-loading">
         <View className="flex-1 items-center justify-center">
           <ActivityIndicator />
         </View>
@@ -121,7 +129,7 @@ function TrainerStatusGate({ children }: { children: ReactNode }) {
   }
   if (status.isError) {
     return (
-      <Screen edges={SCREEN_EDGES} className="justify-center">
+      <Screen edges={SCREEN_EDGES} className="justify-center bg-canvas">
         <ErrorState testID="trainer-status-error" onRetry={() => void status.refetch()} />
       </Screen>
     );
@@ -132,10 +140,10 @@ function TrainerStatusGate({ children }: { children: ReactNode }) {
 
 export function TrainerGate({ children }: { children: ReactNode }) {
   const { enabled, canBeTrainer, isLoading, unreachable, retry } = useCoachingAvailability();
-  if (isLoading) return <Screen testID="trainer-gate-loading" />;
+  if (isLoading) return <Screen className="bg-canvas" testID="trainer-gate-loading" />;
   if (unreachable) {
     return (
-      <Screen edges={SCREEN_EDGES} className="justify-center">
+      <Screen edges={SCREEN_EDGES} className="justify-center bg-canvas">
         <ErrorState testID="trainer-gate-error" onRetry={retry} />
       </Screen>
     );

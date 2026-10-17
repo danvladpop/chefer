@@ -1,20 +1,21 @@
 import { useEffect, useState } from 'react';
 import { ActivityIndicator, ScrollView, View } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { COACHING_COPY, type CoachedExerciseDto } from '@chefer/types';
 import {
   Button,
-  Card,
   ConfirmSheet,
   EmptyState,
   ErrorState,
   Screen,
   SegmentedControl,
+  useThemeColors,
 } from '@chefer/ui-mobile';
 import { userFacingErrorMessage } from '@chefer/utils';
+import { Icon } from '../../../components/icon';
 import { trpc } from '../../../lib/trpc';
 import { localDate } from '../../gym/offline/ids';
+import { CoachingCard } from '../components/coaching-card';
 import { goBackOrHome, TrainerHeader } from '../components/trainer-header';
 import { AdherenceTab } from './adherence-tab';
 import { ExerciseHistorySheet } from './history-sheet';
@@ -33,6 +34,7 @@ type Tab = 'workouts' | 'adherence' | 'notes';
 const SCREEN_EDGES: ('top' | 'bottom' | 'left' | 'right')[] = ['top', 'bottom', 'left', 'right'];
 
 export function ClientScreen({ clientId }: { clientId: string }) {
+  const colors = useThemeColors();
   const utils = trpc.useUtils();
   const { name, firstName } = useTrainerClientName(clientId);
   const [tab, setTab] = useState<Tab>('workouts');
@@ -56,11 +58,11 @@ export function ClientScreen({ clientId }: { clientId: string }) {
 
   if (unavailable) {
     return (
-      <Screen edges={SCREEN_EDGES} className="px-0" testID="trainer-client-unavailable">
+      <Screen edges={SCREEN_EDGES} className="bg-canvas px-0" testID="trainer-client-unavailable">
         <TrainerHeader testID="trainer-client-header" title={COACHING_COPY.trainer.clients} />
         <EmptyState
           title={COACHING_COPY.server.clientUnavailable}
-          icon={<Ionicons name="person-remove-outline" size={40} color="#9ca3af" />}
+          icon={<Icon name="clientGone" color={colors.labelTertiary} size={40} />}
           action={{
             label: 'Back to clients',
             testID: 'trainer-client-unavailable-back',
@@ -75,7 +77,7 @@ export function ClientScreen({ clientId }: { clientId: string }) {
     setHistory({ exerciseId: exercise.exerciseId, name: exercise.name });
 
   return (
-    <Screen edges={SCREEN_EDGES} className="px-0" testID="trainer-client">
+    <Screen edges={SCREEN_EDGES} className="bg-canvas px-0" testID="trainer-client">
       <TrainerHeader
         testID="trainer-client-header"
         title={overview.data?.client.name ?? name}
@@ -85,14 +87,14 @@ export function ClientScreen({ clientId }: { clientId: string }) {
         contentContainerClassName="gap-4 px-4 pb-8 pt-2"
         keyboardShouldPersistTaps="handled"
       >
-        <Card className="gap-2">
+        <CoachingCard className="gap-2">
           <Button
             testID="trainer-client-edit-routine"
             onPress={() => router.push(`/trainer/${clientId}/routine`)}
           >
             Edit routine
           </Button>
-        </Card>
+        </CoachingCard>
 
         <SegmentedControl<Tab>
           testID="trainer-client-tabs"

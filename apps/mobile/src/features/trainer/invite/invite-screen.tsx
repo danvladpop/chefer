@@ -4,7 +4,7 @@ import { COACHING_COPY, type InviteDto } from '@chefer/types';
 import {
   Badge,
   Button,
-  Card,
+  DONE_FIELD_PROPS,
   ErrorState,
   FormField,
   Input,
@@ -15,6 +15,7 @@ import {
 import { userFacingErrorMessage } from '@chefer/utils';
 import { trpc } from '../../../lib/trpc';
 import { formatStampDate } from '../../gym/routine/attribution';
+import { CoachingCard } from '../components/coaching-card';
 import { TrainerHeader } from '../components/trainer-header';
 
 // ─── Invite a client (spec §2.2) ──────────────────────────────────────────────
@@ -44,7 +45,7 @@ function InviteRow({
 }) {
   const open = invite.state === 'OPEN';
   return (
-    <Card testID={`trainer-invite-${invite.code}`} className="gap-2">
+    <CoachingCard testID={`trainer-invite-${invite.code}`} className="gap-2">
       <View className="flex-row items-center gap-2">
         <Text className="min-w-0 flex-1 font-medium" numberOfLines={1}>
           {invite.label ?? 'No label'}
@@ -57,7 +58,7 @@ function InviteRow({
         </Badge>
       </View>
       {open ? (
-        <Text variant="muted" className="text-sm">
+        <Text className="text-subhead text-label-secondary">
           {COACHING_COPY.trainer.inviteExpires(formatStampDate(invite.expiresAt))}
         </Text>
       ) : null}
@@ -81,7 +82,7 @@ function InviteRow({
           </Button>
         </View>
       ) : null}
-    </Card>
+    </CoachingCard>
   );
 }
 
@@ -108,10 +109,10 @@ export function InviteScreen() {
   const others = (invites.data ?? []).filter((i) => i.code !== created?.code);
 
   return (
-    <Screen edges={SCREEN_EDGES} className="px-0" testID="trainer-invite">
+    <Screen edges={SCREEN_EDGES} className="bg-canvas px-0" testID="trainer-invite">
       <TrainerHeader testID="trainer-invite-header" title={COACHING_COPY.trainer.invite} />
       <KeyboardAwareScrollView contentContainerClassName="gap-4 px-4 py-4">
-        <Card className="gap-3">
+        <CoachingCard className="gap-3">
           <FormField
             testID="trainer-invite-label-field"
             label={COACHING_COPY.trainer.inviteLabel}
@@ -122,12 +123,12 @@ export function InviteScreen() {
               label={COACHING_COPY.trainer.inviteLabel}
               value={label}
               maxLength={60}
-              returnKeyType="done"
+              {...DONE_FIELD_PROPS}
               onChangeText={setLabel}
             />
           </FormField>
           {create.error ? (
-            <Text testID="trainer-invite-error" className="text-sm text-destructive">
+            <Text testID="trainer-invite-error" className="text-sm text-danger">
               {userFacingErrorMessage(create.error)}
             </Text>
           ) : null}
@@ -138,25 +139,23 @@ export function InviteScreen() {
           >
             {COACHING_COPY.trainer.createLink}
           </Button>
-        </Card>
+        </CoachingCard>
 
         {created ? (
-          <Card testID="trainer-invite-created" className="gap-2">
-            <Text variant="label">{created.label ?? COACHING_COPY.trainer.invite}</Text>
-            <Text
-              testID="trainer-invite-created-url"
-              selectable
-              className="text-sm text-foreground"
-            >
+          <CoachingCard testID="trainer-invite-created" className="gap-2">
+            <Text className="text-headline font-semibold text-label">
+              {created.label ?? COACHING_COPY.trainer.invite}
+            </Text>
+            <Text testID="trainer-invite-created-url" selectable className="text-sm text-label">
               {created.url}
             </Text>
-            <Text variant="muted" className="text-sm">
+            <Text className="text-subhead text-label-secondary">
               {COACHING_COPY.trainer.inviteExpires(formatStampDate(created.expiresAt))}
             </Text>
             <Button testID="trainer-invite-created-share" onPress={() => void shareInvite(created)}>
               {COACHING_COPY.common.share}
             </Button>
-          </Card>
+          </CoachingCard>
         ) : null}
 
         {invites.isPending ? (
@@ -176,7 +175,7 @@ export function InviteScreen() {
           ))
         )}
         {revoke.error ? (
-          <Text testID="trainer-invite-revoke-error" className="text-sm text-destructive">
+          <Text testID="trainer-invite-revoke-error" className="text-sm text-danger">
             {userFacingErrorMessage(revoke.error)}
           </Text>
         ) : null}

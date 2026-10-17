@@ -1,11 +1,15 @@
 import type { ReactNode } from 'react';
-import { Pressable, View } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
+import { View } from 'react-native';
 import { router } from 'expo-router';
-import { Text } from '@chefer/ui-mobile';
+import { IconButton, Text, useThemeColors } from '@chefer/ui-mobile';
+import { Icon } from '../../../components/icon';
 
-// The header row of every trainer stack screen (the root Stack has `headerShown: false`): a 44 pt back
-// button and the title as the screen's one heading.
+// The header row of every trainer and coaching stack screen (the root Stack has `headerShown: false`):
+// the new shell's pushed-page top bar — a 44 pt chevron Back and the title (title1) as the screen's one
+// heading — so these screens read like the rest of the app when reached from You.
+
+/** Every trainer/coaching screen runs edge to edge on the canvas, like the shell's pushed screens. */
+export const TRAINER_SCREEN_CLASS = 'bg-canvas px-0';
 
 export function goBackOrHome(): void {
   if (router.canGoBack()) router.back();
@@ -24,22 +28,20 @@ export function TrainerHeader({
   onBack?: () => void;
   testID: string;
 }) {
+  const colors = useThemeColors();
   return (
-    <View testID={testID} className="min-h-14 flex-row items-center gap-1 px-2 pb-1 pt-2">
-      <Pressable
+    <View testID={testID} className="min-h-11 flex-row items-center gap-1 px-4 py-2">
+      <IconButton
         testID={`${testID}-back`}
-        accessibilityRole="button"
         accessibilityLabel="Back"
+        icon={<Icon name="chevronBack" color={colors.brand} size={26} />}
         onPress={onBack ?? goBackOrHome}
-        className="h-11 w-11 items-center justify-center"
-      >
-        <Ionicons name="arrow-back" size={20} color="#1f2937" />
-      </Pressable>
+        className="-ml-2"
+      />
       <Text
         testID={`${testID}-title`}
         accessibilityRole="header"
-        variant="title"
-        className="min-w-0 flex-1 text-xl"
+        className="min-w-0 flex-1 text-title1 font-bold text-label"
         numberOfLines={2}
       >
         {title}

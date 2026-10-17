@@ -1,22 +1,24 @@
 import { useState } from 'react';
-import { ActivityIndicator, Pressable, RefreshControl, ScrollView, View } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
+import { ActivityIndicator, RefreshControl, ScrollView, View } from 'react-native';
 import { router } from 'expo-router';
 import { COACHING_COPY, COACHING_LIMITS, type ClientRowDto } from '@chefer/types';
 import {
   Badge,
   Button,
-  Card,
   ConfirmSheet,
   EmptyState,
   ErrorState,
+  PressableScale,
   Screen,
   Text,
+  useThemeColors,
 } from '@chefer/ui-mobile';
 import { userFacingErrorMessage } from '@chefer/utils';
+import { Icon } from '../../../components/icon';
 import { trpc } from '../../../lib/trpc';
 import { localDate } from '../../gym/offline/ids';
 import { formatStampDate } from '../../gym/routine/attribution';
+import { CoachingCard } from '../components/coaching-card';
 import { TrainerHeader } from '../components/trainer-header';
 import { firstNameOf, formatWeekdayDate } from '../format';
 
@@ -42,30 +44,32 @@ export function clientRowLabel(row: ClientRowDto): string {
 }
 
 function ClientRow({ row }: { row: ClientRowDto }) {
+  const colors = useThemeColors();
   const quiet = row.inactiveDays >= COACHING_LIMITS.inactiveDays;
   return (
-    <Pressable
+    // MO-01: a card-sized tap target scales on press.
+    <PressableScale
       testID={`trainer-client-${row.clientId}`}
       accessibilityRole="button"
       accessibilityLabel={clientRowLabel(row)}
       onPress={() => router.push(`/trainer/${row.clientId}`)}
-      className="min-h-14 gap-1 rounded-2xl border border-border bg-card px-4 py-3 active:bg-muted"
+      className="min-h-14 gap-1 rounded-card border border-separator bg-surface px-4 py-3"
     >
       <View className="flex-row items-center gap-2">
-        <Text className="min-w-0 flex-1 text-base font-semibold" numberOfLines={1}>
+        <Text className="min-w-0 flex-1 text-headline font-semibold text-label" numberOfLines={1}>
           {row.name}
         </Text>
-        <Text variant="muted" className="text-sm">
+        <Text className="text-subhead text-label-secondary">
           {COACHING_COPY.trainer.weekProgress(row.week.sessions, row.week.goal)}
         </Text>
-        <Ionicons name="chevron-forward" size={16} color="#9ca3af" />
+        <Icon name="chevronRight" color={colors.labelTertiary} size={16} />
       </View>
       {row.label ? (
-        <Text variant="muted" className="min-w-0 text-xs" numberOfLines={1}>
+        <Text className="min-w-0 text-caption text-label-secondary" numberOfLines={1}>
           {row.label}
         </Text>
       ) : null}
-      <Text variant="muted" className="min-w-0 text-sm">
+      <Text className="min-w-0 text-subhead text-label-secondary">
         {row.lastWorkoutDate
           ? COACHING_COPY.trainer.lastWorkout(formatWeekdayDate(row.lastWorkoutDate))
           : COACHING_COPY.trainer.noWorkoutYet}
@@ -80,8 +84,7 @@ function ClientRow({ row }: { row: ClientRowDto }) {
       {row.routineChangedByClientAt ? (
         <Text
           testID={`trainer-client-${row.clientId}-changed`}
-          variant="muted"
-          className="min-w-0 text-xs"
+          className="min-w-0 text-caption text-label-secondary"
         >
           {COACHING_COPY.trainer.routineChangedByClient(
             firstNameOf(row.name),
@@ -89,11 +92,12 @@ function ClientRow({ row }: { row: ClientRowDto }) {
           )}
         </Text>
       ) : null}
-    </Pressable>
+    </PressableScale>
   );
 }
 
 export function TrainerHome() {
+  const colors = useThemeColors();
   const utils = trpc.useUtils();
   const clients = trpc.trainer.clients.list.useQuery({ today: localDate() });
   const [turnOffOpen, setTurnOffOpen] = useState(false);
@@ -107,7 +111,7 @@ export function TrainerHome() {
   });
 
   return (
-    <Screen edges={SCREEN_EDGES} className="px-0" testID="trainer-home">
+    <Screen edges={SCREEN_EDGES} className="bg-canvas px-0" testID="trainer-home">
       <TrainerHeader testID="trainer-home-header" title={COACHING_COPY.trainer.clients} />
       <ScrollView
         contentContainerClassName="gap-3 px-4 pb-8 pt-2"
@@ -131,7 +135,7 @@ export function TrainerHome() {
         ) : clients.data.length === 0 ? (
           <EmptyState
             testID="trainer-home-empty"
-            icon={<Ionicons name="people-outline" size={40} color="#9ca3af" />}
+            icon={<Icon name="clients" color={colors.labelTertiary} size={40} />}
             title={COACHING_COPY.trainer.clientsEmpty}
             description={COACHING_COPY.trainer.turnOnBody}
           />
@@ -139,8 +143,8 @@ export function TrainerHome() {
           clients.data.map((row) => <ClientRow key={row.clientId} row={row} />)
         )}
 
-        <Card className="mt-4 gap-2">
-          <Text variant="muted" className="text-sm">
+        <CoachingCard className="mt-4 gap-2">
+          <Text className="text-subhead text-label-secondary">
             {COACHING_COPY.trainer.turnOffBody}
           </Text>
           <Button
@@ -150,7 +154,7 @@ export function TrainerHome() {
           >
             {COACHING_COPY.trainer.turnOff}
           </Button>
-        </Card>
+        </CoachingCard>
       </ScrollView>
 
       <ConfirmSheet

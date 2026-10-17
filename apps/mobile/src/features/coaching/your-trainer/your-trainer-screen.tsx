@@ -1,21 +1,22 @@
 import { useState } from 'react';
 import { ActivityIndicator, RefreshControl, ScrollView, View } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
 import { COACHING_COPY } from '@chefer/types';
 import {
   Button,
-  Card,
   ConfirmSheet,
   EmptyState,
   ErrorState,
   Screen,
   Text,
   useSnackbar,
+  useThemeColors,
 } from '@chefer/ui-mobile';
 import { formatShortDay, userFacingErrorMessage } from '@chefer/utils';
+import { Icon } from '../../../components/icon';
 import { trpc } from '../../../lib/trpc';
 import { useIsOnline } from '../../gym/workout/use-is-online';
 import { useCoachingAvailability } from '../../trainer/api/use-coaching-availability';
+import { CoachingCard } from '../../trainer/components/coaching-card';
 import { TrainerHeader } from '../../trainer/components/trainer-header';
 import { COACHING_MOBILE_COPY } from '../copy';
 
@@ -30,8 +31,8 @@ function Lines({ lines, testID }: { lines: readonly string[]; testID: string }) 
     <View className="gap-1.5">
       {lines.map((line, i) => (
         <View key={line} testID={`${testID}-${i}`} className="min-w-0 flex-row gap-2">
-          <Text className="text-sm text-gray-700">•</Text>
-          <Text className="min-w-0 flex-1 text-sm text-gray-700">{line}</Text>
+          <Text className="text-subhead text-label-secondary">•</Text>
+          <Text className="min-w-0 flex-1 text-subhead text-label-secondary">{line}</Text>
         </View>
       ))}
     </View>
@@ -40,6 +41,7 @@ function Lines({ lines, testID }: { lines: readonly string[]; testID: string }) 
 
 export function YourTrainerScreen() {
   const copy = COACHING_COPY.yourTrainer;
+  const colors = useThemeColors();
   const { enabled, isLoading, unreachable, retry } = useCoachingAvailability();
   const utils = trpc.useUtils();
   const online = useIsOnline();
@@ -59,10 +61,11 @@ export function YourTrainerScreen() {
 
   const header = <TrainerHeader testID="your-trainer-header" title={copy.title} />;
 
-  if (isLoading) return <Screen edges={EDGES} className="px-0" testID="your-trainer-loading" />;
+  if (isLoading)
+    return <Screen edges={EDGES} className="bg-canvas px-0" testID="your-trainer-loading" />;
   if (unreachable) {
     return (
-      <Screen edges={EDGES} className="px-0">
+      <Screen edges={EDGES} className="bg-canvas px-0">
         {header}
         <ErrorState testID="your-trainer-gate-error" onRetry={retry} />
       </Screen>
@@ -70,10 +73,10 @@ export function YourTrainerScreen() {
   }
   if (!enabled) {
     return (
-      <Screen edges={EDGES} className="px-0" testID="your-trainer-unavailable">
+      <Screen edges={EDGES} className="bg-canvas px-0" testID="your-trainer-unavailable">
         {header}
         <EmptyState
-          icon={<Ionicons name="person-outline" size={40} color="#9ca3af" />}
+          icon={<Icon name="yourTrainer" color={colors.labelTertiary} size={40} />}
           title={COACHING_MOBILE_COPY.unavailable}
         />
       </Screen>
@@ -82,7 +85,7 @@ export function YourTrainerScreen() {
 
   if (status.isPending) {
     return (
-      <Screen edges={EDGES} className="px-0" testID="your-trainer-status-loading">
+      <Screen edges={EDGES} className="bg-canvas px-0" testID="your-trainer-status-loading">
         {header}
         <View className="items-center py-16">
           <ActivityIndicator />
@@ -92,7 +95,7 @@ export function YourTrainerScreen() {
   }
   if (status.isError) {
     return (
-      <Screen edges={EDGES} className="px-0">
+      <Screen edges={EDGES} className="bg-canvas px-0">
         {header}
         <ErrorState testID="your-trainer-error" onRetry={() => void status.refetch()} />
       </Screen>
@@ -107,7 +110,7 @@ export function YourTrainerScreen() {
       : null;
 
   return (
-    <Screen edges={EDGES} className="px-0" testID="your-trainer">
+    <Screen edges={EDGES} className="bg-canvas px-0" testID="your-trainer">
       {header}
       <ScrollView
         contentContainerClassName="gap-4 px-4 pb-8 pt-2"
@@ -118,12 +121,15 @@ export function YourTrainerScreen() {
           />
         }
       >
-        <Card className="gap-4">
+        <CoachingCard className="gap-4">
           <View className="min-w-0 flex-row items-center gap-3">
-            <View className="h-10 w-10 items-center justify-center rounded-full bg-[#fff3e8]">
-              <Ionicons name="person-outline" size={20} color="#944a00" />
+            <View className="h-10 w-10 items-center justify-center rounded-full bg-brand-tint">
+              <Icon name="yourTrainer" color={colors.brand} size={20} />
             </View>
-            <Text testID="your-trainer-summary" className="min-w-0 flex-1 text-sm text-gray-700">
+            <Text
+              testID="your-trainer-summary"
+              className="min-w-0 flex-1 text-subhead text-label-secondary"
+            >
               {trainer ? copy.since(trainer.name, formatShortDay(trainer.since)) : copy.noTrainer}
             </Text>
           </View>
@@ -131,17 +137,17 @@ export function YourTrainerScreen() {
           {trainer ? (
             <>
               <View className="gap-1.5">
-                <Text accessibilityRole="header" className="text-sm font-semibold">
+                <Text accessibilityRole="header" className="text-subhead font-semibold text-label">
                   {copy.seesHeading(trainer.name)}
                 </Text>
                 <Lines lines={COACHING_COPY.consent.willSee} testID="your-trainer-sees" />
               </View>
               <View className="gap-1.5">
-                <Text accessibilityRole="header" className="text-sm font-semibold">
+                <Text accessibilityRole="header" className="text-subhead font-semibold text-label">
                   {copy.canHeading(trainer.name)}
                 </Text>
                 <Lines lines={COACHING_COPY.consent.can(trainer.name)} testID="your-trainer-can" />
-                <Text className="text-sm text-gray-700">
+                <Text className="text-subhead text-label-secondary">
                   {COACHING_COPY.consent.privateNotes(trainer.name)}
                 </Text>
               </View>
@@ -160,16 +166,19 @@ export function YourTrainerScreen() {
           ) : (
             <View className="gap-1">
               {stopped ? (
-                <Text testID="your-trainer-stopped" className="text-sm font-medium text-gray-800">
+                <Text
+                  testID="your-trainer-stopped"
+                  className="text-subhead font-semibold text-label"
+                >
                   {copy.stopped(stopped.trainerName)} · {formatShortDay(stopped.at)}
                 </Text>
               ) : null}
-              <Text testID="your-trainer-hint" variant="muted" className="text-sm">
+              <Text testID="your-trainer-hint" className="text-subhead text-label-secondary">
                 {copy.noTrainerHint}
               </Text>
             </View>
           )}
-        </Card>
+        </CoachingCard>
       </ScrollView>
 
       {trainer ? (

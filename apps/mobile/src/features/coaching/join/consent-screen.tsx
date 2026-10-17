@@ -1,6 +1,7 @@
 import { View } from 'react-native';
 import { COACHING_COPY } from '@chefer/types';
-import { Button, Card, KeyboardAwareScrollView, Text } from '@chefer/ui-mobile';
+import { Button, KeyboardAwareScrollView, Text } from '@chefer/ui-mobile';
+import { CoachingCard } from '../../trainer/components/coaching-card';
 import { COACHING_MOBILE_COPY } from '../copy';
 
 // ─── Consent screen (spec §2.3) ───────────────────────────────────────────────
@@ -24,8 +25,8 @@ function Bullets({ lines, testID }: { lines: readonly string[]; testID: string }
     <View className="gap-1.5">
       {lines.map((line, i) => (
         <View key={line} testID={`${testID}-${i}`} className="min-w-0 flex-row gap-2">
-          <Text className="text-sm text-gray-700">•</Text>
-          <Text className="min-w-0 flex-1 text-sm text-gray-700">{line}</Text>
+          <Text className="text-subhead text-label-secondary">•</Text>
+          <Text className="min-w-0 flex-1 text-subhead text-label-secondary">{line}</Text>
         </View>
       ))}
     </View>
@@ -47,55 +48,59 @@ export function ConsentScreen({
       testID="coaching-consent"
       contentContainerClassName="gap-4 px-4 pb-8 pt-4"
     >
-      <Text testID="coaching-consent-title" accessibilityRole="header" variant="title">
+      <Text
+        testID="coaching-consent-title"
+        accessibilityRole="header"
+        className="text-title2 font-bold text-label"
+      >
         {copy.title(trainerName)}
       </Text>
-      <Card className="gap-4">
+      <CoachingCard className="gap-4">
         <View className="gap-1.5">
-          <Text accessibilityRole="header" className="text-sm font-semibold">
+          <Text accessibilityRole="header" className="text-subhead font-semibold text-label">
             {copy.willSeeHeading(trainerName)}
           </Text>
           <Bullets lines={copy.willSee} testID="coaching-consent-sees" />
         </View>
         <View className="gap-1.5">
-          <Text accessibilityRole="header" className="text-sm font-semibold">
+          <Text accessibilityRole="header" className="text-subhead font-semibold text-label">
             {copy.canHeading(trainerName)}
           </Text>
           <Bullets lines={copy.can(trainerName)} testID="coaching-consent-can" />
         </View>
-        <Text testID="coaching-consent-private" className="text-sm text-gray-700">
+        <Text testID="coaching-consent-private" className="text-subhead text-label-secondary">
           {copy.privateNotes(trainerName)}
         </Text>
         <View className="gap-1.5">
-          <Text accessibilityRole="header" className="text-sm font-semibold">
+          <Text accessibilityRole="header" className="text-subhead font-semibold text-label">
             {copy.neverHeading(trainerName)}
           </Text>
-          <Text testID="coaching-consent-never" className="text-sm text-gray-700">
+          <Text testID="coaching-consent-never" className="text-subhead text-label-secondary">
             {copy.never}
           </Text>
         </View>
-        <Text testID="coaching-consent-one" className="text-sm text-gray-700">
+        <Text testID="coaching-consent-one" className="text-subhead text-label-secondary">
           {copy.oneTrainer(trainerName)}
         </Text>
         {currentTrainerName ? (
-          <View className="rounded-lg bg-amber-50 px-3 py-2">
-            <Text testID="coaching-switch-line" className="text-sm font-medium text-amber-900">
+          <View className="rounded-control bg-brand-tint px-3 py-2">
+            <Text testID="coaching-switch-line" className="text-subhead font-semibold text-label">
               {copy.switchLine(currentTrainerName)}
             </Text>
           </View>
         ) : null}
-      </Card>
+      </CoachingCard>
       {error ? (
         <Text
           testID="coaching-consent-error"
           accessibilityRole="alert"
-          className="text-sm text-red-700"
+          className="text-subhead text-danger"
         >
           {error}
         </Text>
       ) : null}
       {offline ? (
-        <Text testID="coaching-consent-offline" variant="muted" className="text-sm">
+        <Text testID="coaching-consent-offline" className="text-subhead text-label-secondary">
           {COACHING_MOBILE_COPY.offlineJoin}
         </Text>
       ) : null}

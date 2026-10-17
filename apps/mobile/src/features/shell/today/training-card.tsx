@@ -17,6 +17,7 @@ import {
   weekdayOf,
 } from '@chefer/utils';
 import { Icon } from '../../../components/icon';
+import { CoachingNotices } from '../../coaching/notices/coaching-notices';
 import { exerciseCoverUrl, libraryImages } from '../../gym/library/exercise-image';
 import { useActiveSessionPausedAt } from '../../gym/offline/active-session-store';
 import { localDate } from '../../gym/offline/ids';
@@ -43,6 +44,9 @@ import { useStartGuard } from './use-start-guard';
 //  - a planned day → Start workout (guarded like Train's Start) and Log a workout;
 //  - a rest day → one compact line; no gym profile or nothing planned → nothing,
 //    so people who don't train are never nagged.
+// WP-18: the coaching notices ("Ana updated your routine", "Ana stopped coaching
+// you", "Carry on joining your trainer") sit under the section title, as on
+// Train; with no card to show they stand alone. Self-gated on coaching.availability.
 
 export function TrainingSection() {
   const colors = useThemeColors();
@@ -52,12 +56,15 @@ export function TrainingSection() {
   const { startPlanned, conflictSheet } = useStartGuard();
   const [logOpen, setLogOpen] = useState(false);
 
-  if (!bootstrap?.profile) return null;
+  if (!bootstrap) return null;
+  const notices = <CoachingNotices bootstrap={bootstrap} />;
+  if (!bootstrap.profile) return notices;
   const today = localDate();
   const logSheet = <LogWorkoutSheet visible={logOpen} onClose={() => setLogOpen(false)} />;
   const section = (card: React.ReactNode) => (
     <View testID="today-training" className="gap-3">
       <SectionTitle>Training</SectionTitle>
+      {notices}
       {card}
       {logSheet}
       {conflictSheet}
@@ -208,7 +215,7 @@ export function TrainingSection() {
   }
 
   // Training with no routine day to offer — nothing useful to show here.
-  if (!nextWorkout) return null;
+  if (!nextWorkout) return notices;
 
   // A rotation day pinned to another weekday is "up next", not today's training.
   const pinnedWeekday =

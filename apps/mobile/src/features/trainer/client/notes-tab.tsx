@@ -1,6 +1,7 @@
 import { ActivityIndicator, View } from 'react-native';
 import { COACHING_COPY, COACHING_LIMITS } from '@chefer/types';
-import { Button, Card, ErrorState, FormField, Input, Text } from '@chefer/ui-mobile';
+import { Button, ErrorState, FormField, Input, Text } from '@chefer/ui-mobile';
+import { CoachingCard } from '../components/coaching-card';
 import { usePrivateNote, type NoteStatus } from './use-private-note';
 
 // ─── Client › Notes (spec §2.5 "Private notes") ───────────────────────────────
@@ -26,7 +27,7 @@ export function NotesTab({ clientId, firstName }: { clientId: string; firstName:
     return <ErrorState testID="trainer-notes-error" onRetry={note.reload} />;
   }
   return (
-    <Card testID="trainer-notes" className="gap-2">
+    <CoachingCard testID="trainer-notes" className="gap-2">
       <FormField
         testID="trainer-notes-field"
         label={COACHING_COPY.trainer.privateNote}
@@ -47,8 +48,7 @@ export function NotesTab({ clientId, firstName }: { clientId: string; firstName:
       <View className="flex-row items-center justify-between gap-2">
         <Text
           testID="trainer-notes-status"
-          variant="muted"
-          className="min-w-0 flex-1 text-xs"
+          className="min-w-0 flex-1 text-caption text-label-secondary"
           accessibilityLiveRegion="polite"
         >
           {STATUS_TEXT[note.status]}
@@ -64,6 +64,6 @@ export function NotesTab({ clientId, firstName }: { clientId: string; firstName:
           </Button>
         ) : null}
       </View>
-    </Card>
+    </CoachingCard>
   );
 }

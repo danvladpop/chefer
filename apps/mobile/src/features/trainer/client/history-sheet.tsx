@@ -30,7 +30,7 @@ export function ExerciseHistorySheet({
       ) : query.isError ? (
         <ErrorState testID="trainer-history-error" onRetry={() => void query.refetch()} />
       ) : query.data.entries.length === 0 ? (
-        <Text variant="muted">No history yet.</Text>
+        <Text className="text-subhead text-label-secondary">No history yet.</Text>
       ) : (
         <View className="gap-3">
           {query.data.entries.map((entry) => (
@@ -42,7 +42,7 @@ export function ExerciseHistorySheet({
               <Text className="font-medium">{formatWeekdayDate(entry.localDate)}</Text>
               <Text className="text-sm">{entry.sets.map(formatCoachedSet).join('  ·  ')}</Text>
               {rirText(entry.lastSetRir) ? (
-                <Text variant="muted" className="text-xs">
+                <Text className="text-caption text-label-secondary">
                   {rirText(entry.lastSetRir)}
                 </Text>
               ) : null}

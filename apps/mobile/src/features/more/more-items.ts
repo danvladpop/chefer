@@ -1,6 +1,6 @@
 import type { Ionicons } from '@expo/vector-icons';
 import type { Href } from 'expo-router';
-import { FRIENDS_COPY } from '@chefer/types';
+import { COACHING_COPY, FRIENDS_COPY } from '@chefer/types';
 
 // Secondary nav items of the More tab — the mobile counterpart of web's
 // MobileNavDrawer (SECONDARY_NAV_ITEMS / GYM_SECONDARY_NAV_ITEMS in
@@ -53,8 +53,34 @@ export const FOLLOWING_ITEM: MoreItem = {
   testID: 'more-friends',
 };
 
-export function withFollowing(items: readonly MoreItem[], available: boolean): MoreItem[] {
-  if (!available) return [...items];
+// Trainer coaching (WP-18, spec §2.1 / §2.3): right below Following. "Your trainer" for anyone while
+// `coaching.availability` says enabled; "Trainer tools" only for users who may be a trainer. With the
+// flag off neither row exists and nothing but `availability` is queried. The new shell's You screen
+// shows the same two rows (shell/you-screen.tsx), from these items.
+export const YOUR_TRAINER_ITEM: MoreItem = {
+  href: '/coaching',
+  label: COACHING_COPY.yourTrainer.title,
+  icon: 'person-outline',
+  testID: 'more-your-trainer',
+};
+export const TRAINER_TOOLS_ITEM: MoreItem = {
+  href: '/trainer',
+  label: COACHING_COPY.trainer.title,
+  icon: 'clipboard-outline',
+  testID: 'more-trainer-tools',
+};
+
+/** Which of the flag-gated rows exist for this user. */
+export type MoreExtras = { following: boolean; yourTrainer: boolean; trainerTools: boolean };
+
+/** The base list with Following, Your trainer and Trainer tools (when on) right below Profile. */
+export function withExtras(items: readonly MoreItem[], extras: MoreExtras): MoreItem[] {
+  const added = [
+    ...(extras.following ? [FOLLOWING_ITEM] : []),
+    ...(extras.yourTrainer ? [YOUR_TRAINER_ITEM] : []),
+    ...(extras.trainerTools ? [TRAINER_TOOLS_ITEM] : []),
+  ];
+  if (added.length === 0) return [...items];
   const at = items.findIndex((item) => item.testID === 'more-profile') + 1;
-  return [...items.slice(0, at), FOLLOWING_ITEM, ...items.slice(at)];
+  return [...items.slice(0, at), ...added, ...items.slice(at)];
 }

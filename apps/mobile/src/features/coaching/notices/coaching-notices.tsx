@@ -1,11 +1,12 @@
-import { Pressable, View } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
+import { View } from 'react-native';
 import { router } from 'expo-router';
 import { COACHING_COPY, type GymBootstrap } from '@chefer/types';
-import { Text } from '@chefer/ui-mobile';
+import { IconButton, PressableScale, Text, useThemeColors } from '@chefer/ui-mobile';
 import { formatShortDay } from '@chefer/utils';
+import { Icon } from '../../../components/icon';
 import { COACHING_MOBILE_COPY } from '../copy';
 import { clearPendingJoin, joinHref, usePendingJoin } from '../pending-join';
+import { routineHref } from '../routes';
 import {
   dismissStopped,
   isRoutineChangeUnseen,
@@ -14,32 +15,34 @@ import {
 } from '../seen-markers';
 import { useCoachingStatus } from '../use-coaching-status';
 
-// ─── Gym Today: one quiet line per coaching event (spec §2.6, §2.7) ───────────
+// ─── One quiet line per coaching event (spec §2.6, §2.7) ──────────────────────
 // - "Ana updated your routine · 2 Oct" until the routine is opened on this device (device-local marker);
 // - "Ana stopped coaching you" (30 days on the server, dismissible) when the trainer ended the link;
 // - "Carry on joining your trainer" after the gym setup a join needed.
-// Everything is gated on `coaching.availability`: with the flag off nothing renders and nothing but
-// `availability` is asked. Mirrors apps/web/src/features/coaching/components/CoachingNotices.tsx.
+// Shown wherever the client's training is: the old Gym Today, and in the new shell the Train tab and
+// Today's Training section. Everything is gated on `coaching.availability`: with the flag off nothing
+// renders and nothing but `availability` is asked. Mirrors
+// apps/web/src/features/coaching/components/CoachingNotices.tsx.
 
 function DismissButton({ testID, onPress }: { testID: string; onPress: () => void }) {
+  const colors = useThemeColors();
   return (
-    <Pressable
+    <IconButton
       testID={testID}
-      accessibilityRole="button"
       accessibilityLabel={COACHING_MOBILE_COPY.dismiss}
+      icon={<Icon name="close" color={colors.labelSecondary} size={18} />}
       onPress={onPress}
-      className="-mr-2 h-11 w-11 items-center justify-center"
-    >
-      <Ionicons name="close" size={16} color="#9ca3af" />
-    </Pressable>
+      className="-mr-1"
+    />
   );
 }
 
 export function CoachingNotices({ bootstrap }: { bootstrap: GymBootstrap }) {
+  const colors = useThemeColors();
   const { enabled, data: status } = useCoachingStatus();
   const pending = usePendingJoin();
   const dismissed = useDismissedStoppedAt();
-  // Re-render when the Routine tab marks the change as seen.
+  // Re-render when the routine screen marks the change as seen.
   useSeenMarkersVersion();
 
   const routine = bootstrap.activeRoutine;
@@ -57,25 +60,27 @@ export function CoachingNotices({ bootstrap }: { bootstrap: GymBootstrap }) {
   return (
     <View testID="coaching-notices" className="gap-2">
       {changed ? (
-        <Pressable
+        // MO-01: press feedback on the tappable notice.
+        <PressableScale
           testID="coaching-routine-updated"
           accessibilityRole="button"
-          onPress={() => router.push('/routine')}
-          className="min-h-11 min-w-0 flex-row items-center gap-2 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2"
+          onPress={() => router.push(routineHref())}
+          className="min-h-11 min-w-0 flex-row items-center gap-2 rounded-card bg-brand-tint px-3 py-2"
         >
-          <Ionicons name="person-outline" size={16} color="#92400e" />
-          <Text className="min-w-0 flex-1 text-sm text-amber-900">
+          <Icon name="yourTrainer" color={colors.brand} size={18} />
+          <Text className="min-w-0 flex-1 text-subhead font-semibold text-label">
             {COACHING_COPY.stamps.todayNotice(changed.name, formatShortDay(changed.at))}
           </Text>
-        </Pressable>
+          <Icon name="chevronRight" color={colors.labelTertiary} size={16} />
+        </PressableScale>
       ) : null}
       {stopped ? (
         <View
           testID="coaching-stopped"
-          className="min-w-0 flex-row items-center gap-2 rounded-xl border border-border bg-card px-3 py-1"
+          className="min-w-0 flex-row items-center gap-2 rounded-card border border-separator bg-surface py-1 pl-3 pr-1"
         >
-          <Ionicons name="person-outline" size={16} color="#9ca3af" />
-          <Text className="min-w-0 flex-1 text-sm text-gray-700">
+          <Icon name="yourTrainer" color={colors.labelSecondary} size={18} />
+          <Text className="min-w-0 flex-1 text-subhead text-label-secondary">
             {COACHING_COPY.yourTrainer.stopped(stopped.trainerName)} · {formatShortDay(stopped.at)}
           </Text>
           <DismissButton
@@ -87,18 +92,18 @@ export function CoachingNotices({ bootstrap }: { bootstrap: GymBootstrap }) {
       {joiningCode ? (
         <View
           testID="coaching-carry-on"
-          className="min-w-0 flex-row items-center gap-2 rounded-xl border border-border bg-card px-3 py-1"
+          className="min-w-0 flex-row items-center gap-2 rounded-card border border-separator bg-surface py-1 pl-3 pr-1"
         >
-          <Pressable
+          <PressableScale
             testID="coaching-carry-on-link"
             accessibilityRole="link"
             onPress={() => router.push(joinHref(joiningCode))}
             className="min-h-11 min-w-0 flex-1 justify-center"
           >
-            <Text className="text-sm font-medium text-gray-800 underline">
+            <Text className="text-subhead font-semibold text-brand">
               {COACHING_MOBILE_COPY.carryOn}
             </Text>
-          </Pressable>
+          </PressableScale>
           <DismissButton testID="coaching-carry-on-dismiss" onPress={clearPendingJoin} />
         </View>
       ) : null}

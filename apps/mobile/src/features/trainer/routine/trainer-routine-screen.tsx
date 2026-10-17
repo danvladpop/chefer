@@ -12,6 +12,7 @@ import {
   Badge,
   Button,
   ConfirmSheet,
+  DONE_FIELD_PROPS,
   EmptyState,
   ErrorState,
   Input,
@@ -247,7 +248,7 @@ export function TrainerRoutineScreen({ clientId }: { clientId: string }) {
 
   if (routineQuery.isPending && routineQuery.fetchStatus === 'paused') {
     return (
-      <Screen edges={SCREEN_EDGES} className="px-0">
+      <Screen edges={SCREEN_EDGES} className="bg-canvas px-0">
         {header()}
         <EmptyState
           testID="trainer-routine-offline"
@@ -264,7 +265,7 @@ export function TrainerRoutineScreen({ clientId }: { clientId: string }) {
   }
   if (routineQuery.isPending) {
     return (
-      <Screen edges={SCREEN_EDGES} className="px-0">
+      <Screen edges={SCREEN_EDGES} className="bg-canvas px-0">
         {header()}
         <View className="flex-1 items-center justify-center">
           <ActivityIndicator testID="trainer-routine-loading" />
@@ -275,7 +276,7 @@ export function TrainerRoutineScreen({ clientId }: { clientId: string }) {
   if (routineQuery.isError) {
     if (isClientUnavailable(routineQuery.error)) {
       return (
-        <Screen edges={SCREEN_EDGES} className="px-0">
+        <Screen edges={SCREEN_EDGES} className="bg-canvas px-0">
           {header()}
           <EmptyState
             testID="trainer-routine-unavailable"
@@ -290,7 +291,7 @@ export function TrainerRoutineScreen({ clientId }: { clientId: string }) {
       );
     }
     return (
-      <Screen edges={SCREEN_EDGES} className="px-0">
+      <Screen edges={SCREEN_EDGES} className="bg-canvas px-0">
         {header()}
         <ErrorState testID="trainer-routine-error" onRetry={() => void routineQuery.refetch()} />
       </Screen>
@@ -298,7 +299,7 @@ export function TrainerRoutineScreen({ clientId }: { clientId: string }) {
   }
   if (routineQuery.data === null) {
     return (
-      <Screen edges={SCREEN_EDGES} className="px-0">
+      <Screen edges={SCREEN_EDGES} className="bg-canvas px-0">
         {header()}
         <EmptyState
           testID="trainer-routine-none"
@@ -315,7 +316,7 @@ export function TrainerRoutineScreen({ clientId }: { clientId: string }) {
   }
 
   return (
-    <Screen edges={SCREEN_EDGES} className="px-0" testID="trainer-routine">
+    <Screen edges={SCREEN_EDGES} className="bg-canvas px-0" testID="trainer-routine">
       {header(
         dirty ? (
           <Badge testID="trainer-routine-dirty" variant="warning">
@@ -326,7 +327,7 @@ export function TrainerRoutineScreen({ clientId }: { clientId: string }) {
       <KeyboardAwareScrollView
         contentContainerClassName="gap-4 px-4 py-4"
         footer={
-          <View className="border-t border-border bg-background px-4 pb-2 pt-3">
+          <View className="border-t border-separator bg-canvas px-4 pb-2 pt-3">
             <Button
               testID="trainer-routine-save"
               loading={saveMutation.isPending}
@@ -341,9 +342,9 @@ export function TrainerRoutineScreen({ clientId }: { clientId: string }) {
         {!isOnline ? (
           <View
             testID="trainer-routine-offline-banner"
-            className="rounded-lg bg-amber-50 px-3 py-2"
+            className="rounded-control bg-surface-sunken px-3 py-2"
           >
-            <Text className="text-sm text-amber-900">
+            <Text className="text-subhead text-label-secondary">
               Editing a client’s routine needs a connection.
             </Text>
           </View>
@@ -355,12 +356,12 @@ export function TrainerRoutineScreen({ clientId }: { clientId: string }) {
           value={draft.name}
           maxLength={60}
           onChangeText={(name) => dispatch({ type: 'renameRoutine', name })}
-          returnKeyType="done"
+          {...DONE_FIELD_PROPS}
           placeholder="Routine name"
         />
 
         {draft.lastEditedByOther ? (
-          <Text testID="trainer-routine-changed-by" variant="muted" className="text-xs">
+          <Text testID="trainer-routine-changed-by" className="text-caption text-label-secondary">
             {COACHING_COPY.trainer.routineChangedByClient(
               draft.lastEditedByOther.name,
               formatStampDate(draft.lastEditedByOther.at),
@@ -369,7 +370,7 @@ export function TrainerRoutineScreen({ clientId }: { clientId: string }) {
         ) : null}
 
         {dirty ? (
-          <Text testID="trainer-routine-save-first" variant="muted" className="text-xs">
+          <Text testID="trainer-routine-save-first" className="text-caption text-label-secondary">
             Save your changes to adjust next-session targets.
           </Text>
         ) : null}

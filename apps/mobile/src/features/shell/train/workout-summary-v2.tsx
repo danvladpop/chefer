@@ -3,7 +3,12 @@ import { ScrollView, View } from 'react-native';
 import Animated from 'react-native-reanimated';
 import { router } from 'expo-router';
 import { radius } from '@chefer/tokens';
-import type { ExerciseDto, PersonalRecord, StreakInfo } from '@chefer/types';
+import {
+  COACHING_COPY,
+  type ExerciseDto,
+  type PersonalRecord,
+  type StreakInfo,
+} from '@chefer/types';
 import {
   Button,
   Celebration,
@@ -304,6 +309,15 @@ export function WorkoutSummaryV2({ id }: { id: string }) {
                         {loadOf(row.exerciseId, s.weightKg)} × {s.reps.join(' / ')}
                         {meta.isTimed ? ' s' : ''}
                       </Text>
+                      {/* WP-18: a next target the trainer set says so. */}
+                      {row.progression.override?.setByName ? (
+                        <Text
+                          testID={`summary-next-${i}-set-by`}
+                          className="text-caption text-label-secondary"
+                        >
+                          {COACHING_COPY.stamps.setBy(row.progression.override.setByName)}
+                        </Text>
+                      ) : null}
                     </View>
                     {/* MO-01: press feedback on the ghost Adjust control. */}
                     <PressableScale

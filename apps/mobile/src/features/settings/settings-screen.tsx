@@ -9,10 +9,10 @@ import { CURRENT_VERSION_LABEL } from '../../lib/current-build';
 import { useFriendsAvailability } from '../friends/api/use-friends-availability';
 import { useGymBootstrap } from '../gym/use-gym-bootstrap';
 import { legalHref } from '../legal/legal-docs';
-import { useCoachingAvailability } from '../trainer/api/use-coaching-availability';
 import { ShellPreviewSection } from '../shell/shell-preview-row';
 import { useShellV2 } from '../shell/shell-store';
 import { AccountScreen } from '../shell/you/account-screen';
+import { useCoachingAvailability } from '../trainer/api/use-coaching-availability';
 import { useSignOut } from './use-sign-out';
 
 // ─── Settings hub (T-00.9, PAT-9 §2.9; UX-ACC-04, UX-ACC-19) ───────────────────

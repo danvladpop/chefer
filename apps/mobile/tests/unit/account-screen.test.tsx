@@ -26,6 +26,11 @@ jest.mock('../../src/features/friends/api/use-friends-availability', () => ({
   useFriendsAvailability: () => ({ enabled: mockFriends }),
 }));
 
+// WP-18: the old hub's "Your trainer" / "Trainer tools" rows ask `coaching.availability` (off here).
+jest.mock('../../src/features/trainer/api/use-coaching-availability', () => ({
+  useCoachingAvailability: () => ({ enabled: false, canBeTrainer: false }),
+}));
+
 jest.mock('../../src/features/gym/use-gym-bootstrap', () => ({
   useGymBootstrap: () => ({ isSuccess: true, data: { profile: {} } }),
 }));
