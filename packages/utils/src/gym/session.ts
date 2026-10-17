@@ -21,10 +21,10 @@ import type {
   TrainingProfileFacts,
   WorkoutSessionDoc,
 } from '@chefer/types';
-import { isActivityLogSession } from './activity-log';
 import { nextCarryOver } from './carry-over';
 import { deloadContinues } from './deload';
 import { durationMinutes } from './duration';
+import { hasConfirmedLoad } from './load-confirmation';
 import {
   applyExposure,
   carriedWeightKg,
@@ -141,10 +141,10 @@ export function todayStatus(input: {
   since?: string | null | undefined;
 }): TodayStatus {
   const { bootstrap, today, since } = input;
-  // WP-20: a quick-logged activity (a class done elsewhere) is not "today's
-  // workout done" — Start stays offered; the activity still counts for the week.
+  // F-1 (2026-10-17): every workout counts as today's workout done — a logged
+  // yoga class just like a lifting session (it reversed WP-20's exclusion).
   const doneToday = bootstrap.recentSessions.some(
-    (s) => s.status === 'COMPLETED' && s.localDate === today && !isActivityLogSession(s),
+    (s) => s.status === 'COMPLETED' && s.localDate === today,
   );
   const next = bootstrap.nextWorkout;
   const weekday =
@@ -263,8 +263,9 @@ export function doneTodayCard(input: {
   today: string;
 }): DoneTodayCard | null {
   const { bootstrap, today } = input;
+  // F-1: any workout, a logged one included.
   const session = bootstrap.recentSessions.find(
-    (s) => s.status === 'COMPLETED' && s.localDate === today && !isActivityLogSession(s),
+    (s) => s.status === 'COMPLETED' && s.localDate === today,
   );
   if (!session) return null;
 
@@ -505,7 +506,11 @@ export function buildNextWorkout(input: {
   };
 }
 
-/** One Exposure per non-skipped exercise of a COMPLETED session. */
+/**
+ * One Exposure per non-skipped exercise of a COMPLETED session. An exercise
+ * with a load-unconfirmed working set (ticked with prefilled numbers, never
+ * edited — the progression guard, `load-confirmation.ts`) yields none.
+ */
 export function exposuresFromSession(
   doc: WorkoutSessionDoc,
 ): { exerciseId: string; exposure: Exposure }[] {
@@ -514,7 +519,7 @@ export function exposuresFromSession(
   }
   return [...doc.exercises]
     .sort((a, b) => a.position - b.position)
-    .filter((se) => !se.skipped)
+    .filter((se) => !se.skipped && hasConfirmedLoad(se))
     .map((se) => ({
       exerciseId: se.exerciseId,
       exposure: {
@@ -559,6 +564,7 @@ function toSummarySet(s: SessionSetDoc): SessionSummaryDto['exercises'][number][
     ...(s.inclinePct !== undefined && { inclinePct: s.inclinePct }),
     ...(s.caloriesKcal !== undefined && { caloriesKcal: s.caloriesKcal }),
     ...(s.avgHeartRateBpm !== undefined && { avgHeartRateBpm: s.avgHeartRateBpm }),
+    ...(s.loadConfirmed === false && { loadConfirmed: false as const }),
   };
 }
 
@@ -566,6 +572,7 @@ export function toSessionSummary(doc: WorkoutSessionDoc): SessionSummaryDto {
   return {
     id: doc.id,
     name: doc.name,
+    ...(doc.workoutType !== undefined && { workoutType: doc.workoutType }),
     routineDayId: doc.routineDayId,
     status: doc.status,
     localDate: doc.localDate,

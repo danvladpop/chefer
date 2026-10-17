@@ -1,20 +1,22 @@
-// WP-20: "Log an activity" — the pure rules shared by mobile and web.
+// "Log a workout" (simple training mode, unifying WP-20) — the pure rules shared by mobile and web.
 import { describe, expect, it } from 'vitest';
 import {
-  ACTIVITY_PRESETS,
+  WORKOUT_TYPES,
   workoutSessionDocSchema,
   type GymBootstrap,
   type SessionSummaryDto,
 } from '@chefer/types';
 import {
-  activityFacts,
-  activityMinDate,
-  activitySessionName,
-  activitySummaryLine,
-  buildActivityLogDoc,
-  isActivityLogSession,
-  validateActivityLog,
-} from './activity-log';
+  buildLoggedWorkoutDoc,
+  isLoggedWorkout,
+  loggedWorkoutFacts,
+  loggedWorkoutMinDate,
+  loggedWorkoutName,
+  loggedWorkoutSummaryLine,
+  validateLoggedWorkout,
+  workoutTypeOf,
+  workoutTypeOptions,
+} from './logged-workout';
 import { sessionStatsOf, sessionStatsText } from './recent';
 import { doneTodayCard, todayStatus, toSessionSummary } from './session';
 import { selectTodaysSession } from './todays-session';
@@ -30,13 +32,13 @@ const newId = () => {
 };
 
 const base = {
-  presetKey: 'cycling',
+  workoutType: 'SPIN',
   localDate: TODAY,
   durationMin: 45,
 } as const;
 
-function build(over: Partial<Parameters<typeof buildActivityLogDoc>[0]['input']> = {}) {
-  return buildActivityLogDoc({
+function build(over: Partial<Parameters<typeof buildLoggedWorkoutDoc>[0]['input']> = {}) {
+  return buildLoggedWorkoutDoc({
     input: { ...base, ...over },
     id: newId(),
     newId,
@@ -45,14 +47,15 @@ function build(over: Partial<Parameters<typeof buildActivityLogDoc>[0]['input']>
   });
 }
 
-describe('buildActivityLogDoc', () => {
+describe('buildLoggedWorkoutDoc', () => {
   it('is a finished, routine-less session with one DURATION entry that passes the wire schema', () => {
     const doc = build({ caloriesKcal: 400, effort: 7 });
     expect(workoutSessionDocSchema.safeParse(doc).success).toBe(true);
     expect(doc.status).toBe('COMPLETED');
     expect(doc.routineId).toBeNull();
     expect(doc.routineDayId).toBeNull();
-    expect(doc.name).toBe('Cycling class');
+    expect(doc.name).toBe('Spin');
+    expect(doc.workoutType).toBe('SPIN');
     expect(doc.exercises).toHaveLength(1);
     const ex = doc.exercises[0];
     expect(ex?.exerciseId).toBe('spin-class');
@@ -87,7 +90,7 @@ describe('buildActivityLogDoc', () => {
 
   it('keeps the picked day (yesterday) and names Other after what the user typed', () => {
     const doc = build({
-      presetKey: 'other',
+      workoutType: 'OTHER',
       customName: '  Rock climbing ',
       localDate: '2026-10-06',
     });
@@ -96,116 +99,147 @@ describe('buildActivityLogDoc', () => {
     expect(doc.exercises[0]?.exerciseId).toBe('other-activity');
   });
 
-  it('maps every chip to its catalogue entry', () => {
-    for (const p of ACTIVITY_PRESETS) {
-      const doc = build({ presetKey: p.key, customName: 'x' });
-      expect(doc.exercises[0]?.exerciseId).toBe(p.exerciseId);
+  it('maps every workout type to its catalogue entry, and the type round-trips', () => {
+    for (const t of WORKOUT_TYPES) {
+      const doc = build({ workoutType: t.type });
+      expect(doc.exercises[0]?.exerciseId).toBe(t.exerciseId);
+      expect(workoutTypeOf(doc)).toBe(t.type);
+      expect(workoutSessionDocSchema.safeParse(doc).success).toBe(true);
     }
   });
-});
 
-describe('activitySessionName', () => {
-  it('uses the chip name, ignores a stray custom name, and falls back for an empty Other', () => {
-    expect(activitySessionName({ presetKey: 'yoga', customName: 'ignored' })).toBe('Yoga class');
-    expect(activitySessionName({ presetKey: 'other', customName: '' })).toBe('Activity');
+  it('logs a strength focus too ("60 min upper body")', () => {
+    const doc = build({ workoutType: 'UPPER_BODY', durationMin: 60 });
+    expect(doc.name).toBe('Upper body');
+    expect(isLoggedWorkout(doc)).toBe(true);
   });
 });
 
-describe('validateActivityLog', () => {
+describe('loggedWorkoutName', () => {
+  it('uses the type label, ignores a stray custom name, and falls back for an empty Other', () => {
+    expect(loggedWorkoutName({ workoutType: 'YOGA', customName: 'ignored' })).toBe('Yoga');
+    expect(loggedWorkoutName({ workoutType: 'OTHER', customName: '' })).toBe('Other');
+    expect(loggedWorkoutName({ workoutType: 'OTHER_CLASS', customName: 'Barre' })).toBe('Barre');
+  });
+});
+
+describe('workoutTypeOptions / workoutTypeOf', () => {
+  it('hides the strength focuses unless simple training is on', () => {
+    expect(workoutTypeOptions({ includeStrength: false }).some((t) => t.group === 'strength')).toBe(
+      false,
+    );
+    expect(workoutTypeOptions({ includeStrength: true })).toHaveLength(WORKOUT_TYPES.length);
+  });
+
+  it('reads a WP-20 log from before the field existed by its entry', () => {
+    const { workoutType: _dropped, ...legacy } = build({ workoutType: 'YOGA' });
+    expect(workoutTypeOf(legacy)).toBe('YOGA');
+    expect(workoutTypeOf({ routineDayId: 'd1', exercises: [] })).toBeNull();
+  });
+});
+
+describe('validateLoggedWorkout', () => {
   it('accepts the common case: a chip and minutes', () => {
-    expect(validateActivityLog({ ...base, today: TODAY })).toEqual({});
+    expect(validateLoggedWorkout({ ...base, today: TODAY })).toEqual({});
   });
 
   it('asks for the minutes, with a plain message', () => {
-    expect(validateActivityLog({ ...base, durationMin: 0, today: TODAY }).duration).toMatch(
+    expect(validateLoggedWorkout({ ...base, durationMin: 0, today: TODAY }).duration).toMatch(
       /minutes/,
     );
     expect(
-      validateActivityLog({ ...base, durationMin: Number.NaN, today: TODAY }).duration,
+      validateLoggedWorkout({ ...base, durationMin: Number.NaN, today: TODAY }).duration,
     ).toBeTruthy();
-    expect(validateActivityLog({ ...base, durationMin: 181, today: TODAY }).duration).toMatch(
+    expect(validateLoggedWorkout({ ...base, durationMin: 181, today: TODAY }).duration).toMatch(
       /180/,
     );
   });
 
-  it('needs a name for Other, and a chip at all', () => {
-    expect(validateActivityLog({ ...base, presetKey: 'other', today: TODAY }).name).toBeTruthy();
+  it('needs a workout type; a name is optional but bounded', () => {
+    expect(validateLoggedWorkout({ ...base, workoutType: 'OTHER', today: TODAY })).toEqual({});
     expect(
-      validateActivityLog({ ...base, presetKey: 'other', customName: 'Padel', today: TODAY }),
-    ).toEqual({});
+      validateLoggedWorkout({
+        ...base,
+        workoutType: 'OTHER',
+        customName: 'x'.repeat(41),
+        today: TODAY,
+      }).name,
+    ).toBeTruthy();
     expect(
-      validateActivityLog({ localDate: TODAY, durationMin: 30, today: TODAY }).activity,
+      validateLoggedWorkout({ localDate: TODAY, durationMin: 30, today: TODAY }).type,
     ).toBeTruthy();
   });
 
   it('allows yesterday and earlier this fortnight, never the future or too far back', () => {
-    expect(validateActivityLog({ ...base, localDate: '2026-10-06', today: TODAY })).toEqual({});
-    expect(activityMinDate(TODAY)).toBe('2026-09-28');
-    expect(validateActivityLog({ ...base, localDate: '2026-09-28', today: TODAY })).toEqual({});
+    expect(validateLoggedWorkout({ ...base, localDate: '2026-10-06', today: TODAY })).toEqual({});
+    expect(loggedWorkoutMinDate(TODAY)).toBe('2026-09-28');
+    expect(validateLoggedWorkout({ ...base, localDate: '2026-09-28', today: TODAY })).toEqual({});
     expect(
-      validateActivityLog({ ...base, localDate: '2026-09-27', today: TODAY }).date,
+      validateLoggedWorkout({ ...base, localDate: '2026-09-27', today: TODAY }).date,
     ).toBeTruthy();
     expect(
-      validateActivityLog({ ...base, localDate: '2026-10-08', today: TODAY }).date,
+      validateLoggedWorkout({ ...base, localDate: '2026-10-08', today: TODAY }).date,
     ).toBeTruthy();
   });
 
   it('keeps kcal optional but bounded, and effort 1-10', () => {
-    expect(validateActivityLog({ ...base, caloriesKcal: 400, today: TODAY })).toEqual({});
-    expect(validateActivityLog({ ...base, caloriesKcal: -1, today: TODAY }).calories).toBeTruthy();
+    expect(validateLoggedWorkout({ ...base, caloriesKcal: 400, today: TODAY })).toEqual({});
     expect(
-      validateActivityLog({ ...base, caloriesKcal: 9000, today: TODAY }).calories,
+      validateLoggedWorkout({ ...base, caloriesKcal: -1, today: TODAY }).calories,
     ).toBeTruthy();
-    expect(validateActivityLog({ ...base, effort: 0, today: TODAY }).effort).toBeTruthy();
-    expect(validateActivityLog({ ...base, effort: 11, today: TODAY }).effort).toBeTruthy();
-    expect(validateActivityLog({ ...base, effort: 10, today: TODAY })).toEqual({});
+    expect(
+      validateLoggedWorkout({ ...base, caloriesKcal: 9000, today: TODAY }).calories,
+    ).toBeTruthy();
+    expect(validateLoggedWorkout({ ...base, effort: 0, today: TODAY }).effort).toBeTruthy();
+    expect(validateLoggedWorkout({ ...base, effort: 11, today: TODAY }).effort).toBeTruthy();
+    expect(validateLoggedWorkout({ ...base, effort: 10, today: TODAY })).toEqual({});
   });
 });
 
-describe('isActivityLogSession', () => {
-  it('is true for a routine-less session of activity entries only', () => {
-    expect(isActivityLogSession(build())).toBe(true);
-    expect(isActivityLogSession(toSessionSummary(build()))).toBe(true);
+describe('isLoggedWorkout', () => {
+  it('is true for a routine-less session of logged-workout entries only', () => {
+    expect(isLoggedWorkout(build())).toBe(true);
+    expect(isLoggedWorkout(toSessionSummary(build()))).toBe(true);
   });
 
   it('is false for a routine day, a strength session, a mixed one and an empty one', () => {
     const doc = build();
-    expect(isActivityLogSession({ ...doc, routineDayId: 'd1' })).toBe(false);
+    expect(isLoggedWorkout({ ...doc, routineDayId: 'd1' })).toBe(false);
     expect(
-      isActivityLogSession({
+      isLoggedWorkout({
         routineDayId: null,
         exercises: [{ exerciseId: 'barbell-bench-press' }],
       }),
     ).toBe(false);
     expect(
-      isActivityLogSession({
+      isLoggedWorkout({
         routineDayId: null,
         exercises: [{ exerciseId: 'spin-class' }, { exerciseId: 'barbell-bench-press' }],
       }),
     ).toBe(false);
-    expect(isActivityLogSession({ routineDayId: null, exercises: [] })).toBe(false);
+    expect(isLoggedWorkout({ routineDayId: null, exercises: [] })).toBe(false);
   });
 });
 
-describe('what an activity reads back as', () => {
+describe('what a logged workout reads back as', () => {
   it('reads minutes and kcal from the sets', () => {
-    expect(activityFacts(build({ caloriesKcal: 400 }))).toEqual({
+    expect(loggedWorkoutFacts(build({ caloriesKcal: 400 }))).toEqual({
       durationSec: 2700,
       caloriesKcal: 400,
     });
-    expect(activityFacts(build())).toEqual({ durationSec: 2700, caloriesKcal: null });
+    expect(loggedWorkoutFacts(build())).toEqual({ durationSec: 2700, caloriesKcal: null });
   });
 
   it('builds the detail line: name · minutes · ~kcal (from your watch)', () => {
-    expect(activitySummaryLine('Cycling class', { durationSec: 2700, caloriesKcal: 400 })).toBe(
-      'Cycling class · 45 min · ~400 kcal (from your watch)',
+    expect(loggedWorkoutSummaryLine('Spin', { durationSec: 2700, caloriesKcal: 400 })).toBe(
+      'Spin · 45 min · ~400 kcal (from your watch)',
     );
-    expect(activitySummaryLine('Yoga class', { durationSec: 3600, caloriesKcal: null })).toBe(
+    expect(loggedWorkoutSummaryLine('Yoga class', { durationSec: 3600, caloriesKcal: null })).toBe(
       'Yoga class · 1 h',
     );
   });
 
-  it('shows an activity row as "45 min · ~400 kcal", never "1 sets"', () => {
+  it('shows a logged workout row as "45 min · ~400 kcal", never "1 sets"', () => {
     const summary = toSessionSummary(build({ caloriesKcal: 400 }));
     expect(sessionStatsOf(summary, false).text).toBe('45 min · ~400 kcal');
     expect(sessionStatsOf(toSessionSummary(build()), false).text).toBe('45 min');
@@ -221,9 +255,9 @@ describe('what an activity reads back as', () => {
   });
 });
 
-// A logged activity counts for the week (it IS a finished session) but never
-// as "today's workout is done" (WP-20).
-describe('an activity does not hide Start', () => {
+// F-1 (2026-10-17): a logged workout counts for the week AND as today's
+// workout done, like any other workout (this reversed WP-20's exclusion).
+describe('a logged workout counts as done today', () => {
   const routineDay = {
     id: 'dA',
     position: 0,
@@ -258,16 +292,16 @@ describe('an activity does not hide Start', () => {
     olderBests: {},
   };
 
-  it("keeps today a training day and today's session the routine's", () => {
-    expect(todayStatus({ bootstrap: boot, today: TODAY })).toEqual({ kind: 'training' });
-    expect(doneTodayCard({ bootstrap: boot, today: TODAY })).toBeNull();
+  it("makes today done and names it today's session", () => {
+    expect(todayStatus({ bootstrap: boot, today: TODAY }).kind).toBe('done');
+    expect(doneTodayCard({ bootstrap: boot, today: TODAY })?.session.name).toBe('Spin');
     expect(selectTodaysSession({ bootstrap: boot, today: TODAY })).toMatchObject({
-      kind: 'planned',
-      dayId: 'dA',
+      kind: 'completed',
+      dayName: 'Spin',
     });
   });
 
-  it('but a real workout the same day still makes it Done', () => {
+  it('and so does a routine workout the same day', () => {
     const strength: SessionSummaryDto = {
       ...toSessionSummary(build()),
       id: 'strength',

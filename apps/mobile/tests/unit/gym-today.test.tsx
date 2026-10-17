@@ -657,8 +657,9 @@ describe('TodayScreen', () => {
       await waitFor(() => expect(screen.getByTestId('gym-today-day-picker')).toBeOnTheScreen());
     });
 
-    // WP-20: a quick-logged activity is record-only — it never replaces Start.
-    it('"Log an activity" sits beside the past-workout link, and an activity today keeps Start', async () => {
+    // F-1 (simple training mode, 2026-10-17): every workout counts as done
+    // today — a logged one ("Log a workout", was WP-20's activity) included.
+    it('"Log a workout" sits beside the past-workout link, and a logged workout today is done', async () => {
       const queryClient = makeClient();
       queryClient.setQueryData(
         gymBootstrapQueryKey,
@@ -695,10 +696,10 @@ describe('TodayScreen', () => {
       );
       await renderToday(queryClient);
 
-      expect(screen.getByTestId('gym-today-log-activity')).toBeOnTheScreen();
+      expect(screen.getByTestId('gym-today-log-workout')).toBeOnTheScreen();
       expect(screen.getByTestId('gym-today-log-past')).toBeOnTheScreen();
-      expect(screen.getByTestId('gym-today-start')).toBeOnTheScreen();
-      expect(screen.queryByTestId('gym-today-done')).not.toBeOnTheScreen();
+      expect(screen.getByTestId('gym-today-done')).toBeOnTheScreen();
+      expect(screen.queryByTestId('gym-today-start')).not.toBeOnTheScreen();
       // …and the class shows in Recent as minutes + kcal.
       expect(screen.getByTestId('gym-today-recent-row-class-today')).toHaveTextContent(
         /45 min · ~400 kcal/,

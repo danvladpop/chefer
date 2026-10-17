@@ -9,13 +9,14 @@ import { localDate } from '../../src/features/gym/offline/ids';
 import { createMemoryKvBackend, setKvBackendForTests } from '../../src/features/gym/offline/kv';
 import { outbox } from '../../src/features/gym/offline/outbox';
 import { resetGymOwnerForTests } from '../../src/features/gym/offline/owner';
-import { LogActivityAction } from '../../src/features/gym/today/log-activity-sheet';
+import { LogWorkoutAction } from '../../src/features/gym/today/log-workout-form';
 import { gymBootstrapQueryKey } from '../../src/features/gym/use-gym-bootstrap';
 import { makeBootstrap } from './gym-fixtures';
 import type { createTrpcGymMock } from './gym-trpc-mock';
 
-// WP-20 "Log an activity": the sheet, its validation, the payload it queues and
-// that it works offline like any finished workout.
+// "Log a workout" (simple training mode §6.2; was WP-20 "Log an activity"): the
+// sheet, its validation, the payload it queues and that it works offline like
+// any finished workout. Strength types only show with the simpleTraining flag.
 
 jest.mock('../../src/lib/trpc', () => {
   // eslint-disable-next-line @typescript-eslint/no-require-imports -- see gym-today.test.tsx
@@ -52,7 +53,7 @@ async function renderAction(client: QueryClient, bootstrap: GymBootstrap = makeB
   await render(
     <SafeAreaProvider initialMetrics={SAFE_AREA_METRICS}>
       <QueryClientProvider client={client}>
-        <LogActivityAction bootstrap={bootstrap} />
+        <LogWorkoutAction bootstrap={bootstrap} />
         <Snackbar />
       </QueryClientProvider>
     </SafeAreaProvider>,
@@ -77,22 +78,23 @@ afterEach(() => {
   onlineManager.setOnline(true);
 });
 
-describe('Log an activity (WP-20)', () => {
-  it('the common case is three taps in the sheet — an activity, a duration, Save', async () => {
+describe('Log a workout', () => {
+  it('the common case is three taps in the sheet — a workout type, a duration, Save', async () => {
     const client = makeClient();
     const user = await renderAction(client);
-    await user.press(screen.getByTestId('gym-today-log-activity'));
-    await waitFor(() => expect(screen.getByTestId('log-activity-form')).toBeOnTheScreen());
+    await user.press(screen.getByTestId('gym-today-log-workout'));
+    await waitFor(() => expect(screen.getByTestId('log-workout-form')).toBeOnTheScreen());
 
-    await user.press(screen.getByTestId('log-activity-chip-cycling')); // tap 1
-    await user.press(screen.getByTestId('log-activity-duration-chip-45')); // tap 2
-    await user.press(screen.getByTestId('log-activity-save')); // tap 3
+    await user.press(screen.getByTestId('log-workout-type-SPIN')); // tap 1
+    await user.press(screen.getByTestId('log-workout-duration-chip-45')); // tap 2
+    await user.press(screen.getByTestId('log-workout-save')); // tap 3
 
     await waitFor(() => expect(queued()).toHaveLength(1));
     const [doc] = queued();
     expect(doc).toMatchObject({
       status: 'COMPLETED',
-      name: 'Cycling class',
+      name: 'Spin',
+      workoutType: 'SPIN',
       localDate: localDate(),
       routineId: null,
       routineDayId: null,
@@ -103,23 +105,23 @@ describe('Log an activity (WP-20)', () => {
     expect(set).toMatchObject({ durationSec: 2700, weightKg: 0, reps: 0 });
     expect(set).not.toHaveProperty('caloriesKcal');
     expect(set).not.toHaveProperty('intensityRpe');
-    await waitFor(() => expect(screen.getByText('Cycling class logged')).toBeOnTheScreen());
-    await waitFor(() => expect(screen.queryByTestId('log-activity-form')).toBeNull());
+    await waitFor(() => expect(screen.getByText('Spin logged')).toBeOnTheScreen());
+    await waitFor(() => expect(screen.queryByTestId('log-workout-form')).toBeNull());
   });
 
   it('sends yesterday, the typed kcal, the effort and a custom name for Other', async () => {
     const client = makeClient();
     const user = await renderAction(client);
-    await user.press(screen.getByTestId('gym-today-log-activity'));
-    await waitFor(() => expect(screen.getByTestId('log-activity-form')).toBeOnTheScreen());
+    await user.press(screen.getByTestId('gym-today-log-workout'));
+    await waitFor(() => expect(screen.getByTestId('log-workout-form')).toBeOnTheScreen());
 
-    await user.press(screen.getByTestId('log-activity-chip-other'));
-    await user.type(screen.getByTestId('log-activity-name'), 'Rock climbing');
-    await user.type(screen.getByTestId('log-activity-duration'), '50');
-    await user.press(screen.getByTestId('log-activity-date-prev'));
-    await user.type(screen.getByTestId('log-activity-kcal'), '400');
+    await user.press(screen.getByTestId('log-workout-type-OTHER'));
+    await user.type(screen.getByTestId('log-workout-name'), 'Rock climbing');
+    await user.type(screen.getByTestId('log-workout-duration'), '50');
+    await user.press(screen.getByTestId('log-workout-date-prev'));
+    await user.type(screen.getByTestId('log-workout-kcal'), '400');
     await user.press(screen.getByText('Hard'));
-    await user.press(screen.getByTestId('log-activity-save'));
+    await user.press(screen.getByTestId('log-workout-save'));
 
     await waitFor(() => expect(queued()).toHaveLength(1));
     const [doc] = queued();
@@ -136,19 +138,20 @@ describe('Log an activity (WP-20)', () => {
   it('asks for what is missing in plain words and saves nothing', async () => {
     const client = makeClient();
     const user = await renderAction(client);
-    await user.press(screen.getByTestId('gym-today-log-activity'));
-    await waitFor(() => expect(screen.getByTestId('log-activity-form')).toBeOnTheScreen());
+    await user.press(screen.getByTestId('gym-today-log-workout'));
+    await waitFor(() => expect(screen.getByTestId('log-workout-form')).toBeOnTheScreen());
 
-    await user.press(screen.getByTestId('log-activity-save'));
-    expect(screen.getByText('Pick what you did.')).toBeOnTheScreen();
+    await user.press(screen.getByTestId('log-workout-save'));
+    expect(screen.getByText('Pick a workout type.')).toBeOnTheScreen();
     expect(screen.getByText('Enter how many minutes it lasted.')).toBeOnTheScreen();
     expect(queued()).toHaveLength(0);
 
-    await user.press(screen.getByTestId('log-activity-chip-other'));
-    await user.press(screen.getByTestId('log-activity-duration-chip-30'));
-    await user.press(screen.getByTestId('log-activity-save'));
-    expect(screen.getByText('Name the activity.')).toBeOnTheScreen();
-    expect(queued()).toHaveLength(0);
+    // The name is optional: "Other" with no name saves as "Other".
+    await user.press(screen.getByTestId('log-workout-type-OTHER'));
+    await user.press(screen.getByTestId('log-workout-duration-chip-30'));
+    await user.press(screen.getByTestId('log-workout-save'));
+    await waitFor(() => expect(queued()).toHaveLength(1));
+    expect(queued()[0]).toMatchObject({ name: 'Other', workoutType: 'OTHER' });
 
     // Rubbish never reaches the server: no raw Zod/JSON text anywhere.
     expect(screen.queryByText(/ZodError|invalid_type|too_big/)).toBeNull();
@@ -157,11 +160,11 @@ describe('Log an activity (WP-20)', () => {
   it('rejects more minutes than the set can hold', async () => {
     const client = makeClient();
     const user = await renderAction(client);
-    await user.press(screen.getByTestId('gym-today-log-activity'));
-    await waitFor(() => expect(screen.getByTestId('log-activity-form')).toBeOnTheScreen());
-    await user.press(screen.getByTestId('log-activity-chip-yoga'));
-    await user.type(screen.getByTestId('log-activity-duration'), '400');
-    await user.press(screen.getByTestId('log-activity-save'));
+    await user.press(screen.getByTestId('gym-today-log-workout'));
+    await waitFor(() => expect(screen.getByTestId('log-workout-form')).toBeOnTheScreen());
+    await user.press(screen.getByTestId('log-workout-type-YOGA'));
+    await user.type(screen.getByTestId('log-workout-duration'), '400');
+    await user.press(screen.getByTestId('log-workout-save'));
     expect(screen.getByText(/Up to 180 minutes/)).toBeOnTheScreen();
     expect(queued()).toHaveLength(0);
   });
@@ -170,16 +173,16 @@ describe('Log an activity (WP-20)', () => {
     onlineManager.setOnline(false);
     const client = makeClient();
     const user = await renderAction(client);
-    await user.press(screen.getByTestId('gym-today-log-activity'));
-    await waitFor(() => expect(screen.getByTestId('log-activity-form')).toBeOnTheScreen());
-    await user.press(screen.getByTestId('log-activity-chip-pilates'));
-    await user.press(screen.getByTestId('log-activity-duration-chip-60'));
-    await user.press(screen.getByTestId('log-activity-save'));
+    await user.press(screen.getByTestId('gym-today-log-workout'));
+    await waitFor(() => expect(screen.getByTestId('log-workout-form')).toBeOnTheScreen());
+    await user.press(screen.getByTestId('log-workout-type-PILATES'));
+    await user.press(screen.getByTestId('log-workout-duration-chip-60'));
+    await user.press(screen.getByTestId('log-workout-save'));
 
     await waitFor(() => expect(queued()).toHaveLength(1));
     // Folded into the cached bootstrap: History / Recent show it, the week counts it.
     const cached = client.getQueryData<GymBootstrap>(gymBootstrapQueryKey);
-    expect(cached?.recentSessions[0]?.name).toBe('Pilates class');
+    expect(cached?.recentSessions[0]?.name).toBe('Pilates');
     expect(cached?.streak.thisWeekSessions).toBe(1);
     // …and it moved neither the rotation nor any progression.
     expect(cached?.progressions).toEqual([]);
@@ -188,22 +191,55 @@ describe('Log an activity (WP-20)', () => {
   it('starts a fresh form every time it opens', async () => {
     const client = makeClient();
     const user = await renderAction(client);
-    await user.press(screen.getByTestId('gym-today-log-activity'));
-    await waitFor(() => expect(screen.getByTestId('log-activity-form')).toBeOnTheScreen());
-    await user.press(screen.getByTestId('log-activity-chip-yoga'));
-    await user.press(screen.getByTestId('log-activity-sheet-close'));
-    await waitFor(() => expect(screen.queryByTestId('log-activity-form')).toBeNull());
+    await user.press(screen.getByTestId('gym-today-log-workout'));
+    await waitFor(() => expect(screen.getByTestId('log-workout-form')).toBeOnTheScreen());
+    await user.press(screen.getByTestId('log-workout-type-YOGA'));
+    await user.press(screen.getByTestId('log-workout-form-sheet-close'));
+    await waitFor(() => expect(screen.queryByTestId('log-workout-form')).toBeNull());
 
-    await user.press(screen.getByTestId('gym-today-log-activity'));
-    await waitFor(() => expect(screen.getByTestId('log-activity-form')).toBeOnTheScreen());
-    expect(screen.getByTestId('log-activity-duration').props.value).toBe('');
+    await user.press(screen.getByTestId('gym-today-log-workout'));
+    await waitFor(() => expect(screen.getByTestId('log-workout-form')).toBeOnTheScreen());
+    expect(screen.getByTestId('log-workout-duration').props.value).toBe('');
     expect(queued()).toHaveLength(0);
+  });
+});
+
+describe('Log a workout — workout types', () => {
+  const flagsQuery = () =>
+    jest.requireMock<ReturnType<typeof createTrpcGymMock>>('../../src/lib/trpc').trpc.profile.flags
+      .useQuery;
+
+  afterEach(() => flagsQuery().mockReturnValue({ data: undefined }));
+
+  it('keeps the strength types hidden while simple training is off', async () => {
+    const user = await renderAction(makeClient());
+    await user.press(screen.getByTestId('gym-today-log-workout'));
+    await waitFor(() => expect(screen.getByTestId('log-workout-form')).toBeOnTheScreen());
+    expect(screen.queryByTestId('log-workout-type-UPPER_BODY')).toBeNull();
+    expect(screen.getByTestId('log-workout-type-YOGA')).toBeOnTheScreen();
+    expect(screen.queryByText('Log an activity')).toBeNull();
+    expect(screen.getAllByText('Log a workout').length).toBeGreaterThan(0);
+  });
+
+  it('offers and stores a strength type with the flag on', async () => {
+    flagsQuery().mockReturnValue({ data: { simpleTraining: true } });
+    const user = await renderAction(makeClient());
+    await user.press(screen.getByTestId('gym-today-log-workout'));
+    await waitFor(() => expect(screen.getByTestId('log-workout-form')).toBeOnTheScreen());
+    await user.press(screen.getByTestId('log-workout-type-UPPER_BODY'));
+    // A named type has no name field; only the "Other" ones do.
+    expect(screen.queryByTestId('log-workout-name')).toBeNull();
+    await user.press(screen.getByTestId('log-workout-duration-chip-60'));
+    await user.press(screen.getByTestId('log-workout-save'));
+    await waitFor(() => expect(queued()).toHaveLength(1));
+    expect(queued()[0]).toMatchObject({ name: 'Upper body', workoutType: 'UPPER_BODY' });
+    await waitFor(() => expect(screen.getByText('Upper body logged')).toBeOnTheScreen());
   });
 });
 
 // Tester feedback 2026-10-04: every field in the form closes the keyboard from
 // its own Return / Done key, and so does Save.
-describe('Log an activity — keyboard (tester feedback 2026-10-04)', () => {
+describe('Log a workout — keyboard (tester feedback 2026-10-04)', () => {
   let dismiss: jest.SpyInstance;
   beforeEach(() => {
     dismiss = jest.spyOn(Keyboard, 'dismiss').mockImplementation(() => undefined);
@@ -212,15 +248,15 @@ describe('Log an activity — keyboard (tester feedback 2026-10-04)', () => {
 
   async function openOther() {
     const user = await renderAction(makeClient());
-    await user.press(screen.getByTestId('gym-today-log-activity'));
-    await waitFor(() => expect(screen.getByTestId('log-activity-form')).toBeOnTheScreen());
-    await user.press(screen.getByTestId('log-activity-chip-other'));
+    await user.press(screen.getByTestId('gym-today-log-workout'));
+    await waitFor(() => expect(screen.getByTestId('log-workout-form')).toBeOnTheScreen());
+    await user.press(screen.getByTestId('log-workout-type-OTHER'));
     return user;
   }
 
   it('the name, duration and kcal fields each read Done and dismiss on submit', async () => {
     await openOther();
-    for (const id of ['log-activity-name', 'log-activity-duration', 'log-activity-kcal']) {
+    for (const id of ['log-workout-name', 'log-workout-duration', 'log-workout-kcal']) {
       const field = screen.getByTestId(id);
       expect(field.props.returnKeyType).toBe('done');
       dismiss.mockClear();
@@ -231,21 +267,21 @@ describe('Log an activity — keyboard (tester feedback 2026-10-04)', () => {
 
   it('the number pads carry the iOS Done bar (they have no Return key there)', async () => {
     await openOther();
-    for (const id of ['log-activity-duration', 'log-activity-kcal']) {
+    for (const id of ['log-workout-duration', 'log-workout-kcal']) {
       expect(screen.getByTestId(id).props.keyboardType).toBe('number-pad');
       expect(screen.getByTestId(id).props.inputAccessoryViewID).toBeTruthy();
     }
     dismiss.mockClear();
-    await fireEvent.press(screen.getByTestId('log-activity-numeric-bar'));
+    await fireEvent.press(screen.getByTestId('log-workout-numeric-bar'));
     expect(dismiss).toHaveBeenCalledTimes(1);
   });
 
   it('Save closes the keyboard', async () => {
     const user = await openOther();
-    await user.type(screen.getByTestId('log-activity-name'), 'Rock climbing');
-    await user.type(screen.getByTestId('log-activity-duration'), '50');
+    await user.type(screen.getByTestId('log-workout-name'), 'Rock climbing');
+    await user.type(screen.getByTestId('log-workout-duration'), '50');
     dismiss.mockClear();
-    await user.press(screen.getByTestId('log-activity-save'));
+    await user.press(screen.getByTestId('log-workout-save'));
     await waitFor(() => expect(queued()).toHaveLength(1));
     expect(dismiss).toHaveBeenCalled();
   });

@@ -15,6 +15,13 @@
 //  3. everything else is strength work, billed at STRENGTH_MET over the
 //     session's remaining active time.
 //
+// A TYPED workout (simple training mode §6.6: "Upper body", "Yoga") is billed
+// by its workout type instead: the generic logged entry (`other-activity`)
+// takes the type's MET range, and the rest of the wall time — exercises or
+// none — is billed at the type's MET. Without an effort answer (phase 2)
+// strength types sit at the low end of their 3.5–6 range (the wall clock
+// includes rests), every other type at its midpoint.
+//
 // Active time is finishedAt − startedAt (sessions carry no pause record), so a
 // "Save for later" session resumed hours later would read as a marathon. The
 // strength share is therefore capped at a plausible length for the sets
@@ -23,7 +30,12 @@
 // No bodyweight → no estimate (we never guess one): only a user-entered total
 // can still be returned.
 
-import { CARDIO_CATALOG_BY_ID, type CardioCatalogEntry } from '@chefer/types';
+import {
+  CARDIO_CATALOG_BY_ID,
+  WORKOUT_TYPE_BY_KEY,
+  type CardioCatalogEntry,
+  type WorkoutType,
+} from '@chefer/types';
 
 /**
  * Resistance training MET. Compendium of Physical Activities (Ainsworth et al.
@@ -49,6 +61,8 @@ const FALLBACK_CARDIO_ID = 'other-activity';
 export interface BurnSession {
   startedAt: string;
   finishedAt: string | null;
+  /** Simple training mode: a typed workout is billed by its type (see above). */
+  workoutType?: WorkoutType | null | undefined;
   exercises: readonly {
     exerciseId: string;
     skipped: boolean;
@@ -69,10 +83,20 @@ export interface SessionKcal {
 }
 
 /** The MET of a cardio entry: the range midpoint, or placed in the range by effort. */
-export function cardioMet(entry: CardioCatalogEntry, intensityRpe?: number): number {
+export function cardioMet(
+  entry: Pick<CardioCatalogEntry, 'metLow' | 'metHigh'>,
+  intensityRpe?: number,
+): number {
   if (intensityRpe === undefined) return (entry.metLow + entry.metHigh) / 2;
   const t = Math.min(1, Math.max(0, (intensityRpe - 1) / 9));
   return entry.metLow + (entry.metHigh - entry.metLow) * t;
+}
+
+/** The MET a typed workout's untracked time is billed at (no effort answer yet). */
+export function workoutTypeMet(type: WorkoutType): number {
+  const entry = WORKOUT_TYPE_BY_KEY.get(type);
+  if (!entry) return STRENGTH_MET;
+  return entry.group === 'strength' ? entry.metLow : (entry.metLow + entry.metHigh) / 2;
 }
 
 /** Estimates read as round numbers: nearest 5 under 100, nearest 10 from 100. */
@@ -103,6 +127,7 @@ export function estimateSessionKcal({
   let coveredSec = 0;
   let cardioKcalPerKg = 0;
   let strengthSets = 0;
+  const typed = session.workoutType ? WORKOUT_TYPE_BY_KEY.get(session.workoutType) : undefined;
 
   for (const ex of session.exercises) {
     if (ex.skipped) continue;
@@ -114,6 +139,17 @@ export function estimateSessionKcal({
         hasLogged = true;
         coveredSec += durationSec;
       } else if (durationSec > 0) {
+        // A typed workout's generic logged entry is billed like its live
+        // twin: by the type (effort, when given, places it in the range).
+        if (typed && ex.exerciseId === FALLBACK_CARDIO_ID) {
+          const met =
+            set.intensityRpe === undefined
+              ? workoutTypeMet(typed.type)
+              : cardioMet(typed, set.intensityRpe);
+          cardioKcalPerKg += (met * durationSec) / 3600;
+          coveredSec += durationSec;
+          continue;
+        }
         const entry =
           CARDIO_CATALOG_BY_ID.get(ex.exerciseId) ?? CARDIO_CATALOG_BY_ID.get(FALLBACK_CARDIO_ID);
         if (!entry) continue;
@@ -125,8 +161,13 @@ export function estimateSessionKcal({
     }
   }
 
+  // A typed workout bills ALL its remaining wall time at the type's MET — a
+  // "Keep it simple" workout often has no sets at all.
+  const typedSec = typed
+    ? Math.max(0, wallSeconds(session.startedAt, session.finishedAt) - coveredSec)
+    : 0;
   const strengthSec =
-    strengthSets > 0
+    !typed && strengthSets > 0
       ? Math.max(
           0,
           Math.min(
@@ -138,7 +179,10 @@ export function estimateSessionKcal({
 
   const weight = bodyweightKg !== null && bodyweightKg !== undefined && bodyweightKg > 0;
   const estimated = weight
-    ? (cardioKcalPerKg + (STRENGTH_MET * strengthSec) / 3600) * bodyweightKg
+    ? (cardioKcalPerKg +
+        (STRENGTH_MET * strengthSec) / 3600 +
+        (typed ? (workoutTypeMet(typed.type) * typedSec) / 3600 : 0)) *
+      bodyweightKg
     : 0;
 
   if (estimated > 0) {

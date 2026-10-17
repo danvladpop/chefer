@@ -488,6 +488,7 @@ function session(
     clientUpdatedAt: startedAt,
     engineVersion: 1,
     rotationAppliedAt: null,
+    workoutType: null,
     createdAt: startedAt,
     updatedAt: startedAt,
     exercises: exercises.map((e, position) => ({
@@ -523,6 +524,7 @@ function session(
           inclinePct: null,
           caloriesKcal: null,
           avgHeartRateBpm: 155,
+          loadConfirmed: null,
         },
       ],
     })),
@@ -611,6 +613,7 @@ describe('routine', () => {
           position: 0,
           name: 'A',
           plannedWeekday: 2,
+          workoutType: null,
           exercises: [
             ExerciseTrackingType.WEIGHT_REPS,
             ExerciseTrackingType.DISTANCE,

@@ -1,7 +1,12 @@
 import { useState, type ReactNode } from 'react';
 import { View } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
-import type { DistanceUnit, WeightUnit } from '@chefer/types';
+import {
+  TRAINING_STYLE_LABEL,
+  type DistanceUnit,
+  type TrainingStyle,
+  type WeightUnit,
+} from '@chefer/types';
 import {
   Button,
   EmptyState,
@@ -14,7 +19,7 @@ import {
   Text,
   useThemeColors,
 } from '@chefer/ui-mobile';
-import { pauseSummaryLine, weekStartOf, WELLNESS_COPY } from '@chefer/utils';
+import { isSimpleTraining, pauseSummaryLine, weekStartOf, WELLNESS_COPY } from '@chefer/utils';
 import { Icon } from '../../../components/icon';
 import { useFlags } from '../../../hooks/use-flags';
 import { trpc } from '../../../lib/trpc';
@@ -27,6 +32,7 @@ import { OutboxWaitingCard } from '../../gym/components/outbox-waiting-card';
 import { localDate } from '../../gym/offline/ids';
 import { outbox, useOutboxStatus, type OutboxStatus } from '../../gym/offline/outbox';
 import { GymSettingsScreen, type GymSettingsPart } from '../../gym/settings/settings-screen';
+import { myWeekSummaryOf } from '../../gym/simple/simple-helpers';
 import { useGymBootstrap } from '../../gym/use-gym-bootstrap';
 import { useSaveGymProfile } from '../../gym/use-save-gym-profile';
 import { ShellChromeProvider, ShellTopBar } from '../shell-chrome';
@@ -135,7 +141,8 @@ function TrainingSettingsBody() {
   const bootstrapQuery = useGymBootstrap();
   const { data: bootstrap } = bootstrapQuery;
   const bootstrapLoad = useGymBootstrapLoad(bootstrapQuery);
-  const { cardioLogging } = useFlags();
+  const flags = useFlags();
+  const { cardioLogging } = flags;
   const outboxStatus = useOutboxStatus();
   // Same optimistic save as the legacy screen (UX-GYM-22).
   const saveMutation = useSaveGymProfile();
@@ -191,11 +198,54 @@ function TrainingSettingsBody() {
       ? 'Training is paused this week.'
       : undefined;
   const setGoal = (n: number) => saveMutation.mutate({ weeklyGoal: Math.min(7, Math.max(1, n)) });
+  const simple = isSimpleTraining(profile, flags);
 
   return (
     <>
       {outboxStatus.parked.length > 0 ? <ParkedSessions parked={outboxStatus.parked} /> : null}
       <OutboxWaitingCard status={outboxStatus} testID="training-settings-outbox" />
+
+      {/* Simple training mode §6.5: the style switch (lossless — nothing is
+          deleted either way), and My week while it is "Keep it simple". */}
+      {flags.simpleTraining ? (
+        <View className="gap-1.5" testID="training-settings-style">
+          <GroupTitle>Training style</GroupTitle>
+          <View className="gap-3 rounded-card border border-separator bg-surface p-4">
+            <SegmentedControl<TrainingStyle>
+              testID="training-style-control"
+              accessibilityLabel="Training style"
+              options={[
+                {
+                  value: 'SIMPLE',
+                  label: TRAINING_STYLE_LABEL.SIMPLE,
+                  testID: 'training-style-simple',
+                },
+                {
+                  value: 'PROGRESSIVE',
+                  label: TRAINING_STYLE_LABEL.PROGRESSIVE,
+                  testID: 'training-style-progressive',
+                },
+              ]}
+              value={profile.trainingStyle ?? 'PROGRESSIVE'}
+              onChange={(next) => saveMutation.mutate({ trainingStyle: next })}
+            />
+          </View>
+          <Text className="px-4 text-caption text-label-tertiary">
+            Switch any time — your routine and history stay as they are.
+          </Text>
+        </View>
+      ) : null}
+      {simple ? (
+        <ListSection testID="training-settings-my-week-section">
+          <ListRow
+            testID="training-settings-my-week"
+            title="My week"
+            subtitle={myWeekSummaryOf(bootstrap.activeRoutine)}
+            icon={<Icon name="calendar" color={colors.brand} />}
+            onPress={() => router.push('/gym/my-week')}
+          />
+        </ListSection>
+      ) : null}
 
       <View className="gap-1.5" testID="training-settings-basics">
         <GroupTitle>Basics</GroupTitle>

@@ -18,6 +18,7 @@ const TITLE_MAP: [string, string][] = [
   ['/gym/summary', 'Workout summary'],
   ['/gym/setup', 'Gym setup'],
   ['/gym/settings', 'Gym settings'],
+  ['/gym/my-week', 'My week'],
   ['/gym/routine', 'Routine'],
   ['/gym/exercises', 'Exercises'],
   ['/gym/stats', 'Stats'],
