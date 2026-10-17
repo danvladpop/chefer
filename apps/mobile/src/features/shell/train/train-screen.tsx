@@ -15,8 +15,8 @@ import {
 } from '@chefer/ui-mobile';
 import { isSimpleTraining, supersetSlot } from '@chefer/utils';
 import { Icon } from '../../../components/icon';
-import { CoachingNotices } from '../../coaching/notices/coaching-notices';
 import { useFlags } from '../../../hooks/use-flags';
+import { CoachingNotices } from '../../coaching/notices/coaching-notices';
 import { GymBootstrapUnavailable } from '../../gym/components/gym-bootstrap-state';
 import { OutboxWaitingCard } from '../../gym/components/outbox-waiting-card';
 import { SimpleTodayView } from '../../gym/simple/simple-today-view';

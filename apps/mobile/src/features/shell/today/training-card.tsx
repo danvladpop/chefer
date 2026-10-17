@@ -20,8 +20,8 @@ import {
   weekdayOf,
 } from '@chefer/utils';
 import { Icon } from '../../../components/icon';
-import { CoachingNotices } from '../../coaching/notices/coaching-notices';
 import { useFlags } from '../../../hooks/use-flags';
+import { CoachingNotices } from '../../coaching/notices/coaching-notices';
 import { exerciseCoverUrl, libraryImages } from '../../gym/library/exercise-image';
 import { useActiveSessionPausedAt } from '../../gym/offline/active-session-store';
 import { localDate } from '../../gym/offline/ids';
