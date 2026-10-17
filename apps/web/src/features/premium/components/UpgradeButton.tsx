@@ -35,21 +35,34 @@ import { cn, downgradeLosses, PREMIUM_PITCH_COPY, userFacingErrorMessage } from 
 
 const PREMIUM_PERKS = PREMIUM_PERK_KEYS.map((key) => PLAN_FEATURES[key].label);
 
-export interface UpgradeButtonProps {
+/** The default trigger: the gradient "See what Premium adds" button. */
+interface DefaultTrigger {
   className?: string;
-  /** Which touchpoint rendered this button — feeds the PW-3 funnel. */
-  source: string;
   /** The trigger's text; defaults to `See what Premium adds`. */
   label?: string;
-  /** A custom trigger body (the tier row); `className` then styles it alone, without the gradient. */
-  children?: ReactNode;
+  trigger?: never;
+  triggerClassName?: never;
 }
+
+/** A custom trigger body (the tier row), styled only by `triggerClassName`. */
+interface CustomTrigger {
+  trigger: ReactNode;
+  triggerClassName: string;
+  className?: never;
+  label?: never;
+}
+
+export type UpgradeButtonProps = {
+  /** Which touchpoint rendered this button — feeds the PW-3 funnel. */
+  source: string;
+} & (DefaultTrigger | CustomTrigger);
 
 export function UpgradeButton({
   className,
   source,
   label = PREMIUM_PITCH_COPY.seeWhatPremiumAdds,
-  children,
+  trigger,
+  triggerClassName,
 }: UpgradeButtonProps) {
   const [open, setOpen] = useState(false);
   const pitch = usePremiumPitch(source, open);
@@ -84,15 +97,15 @@ export function UpgradeButton({
           setOpen(true);
         }}
         className={
-          children
-            ? className
+          trigger
+            ? triggerClassName
             : cn(
                 'flex min-h-11 items-center justify-center gap-1.5 rounded-lg bg-gradient-to-r from-amber-500 to-orange-500 px-3 py-1.5 text-xs font-semibold text-white shadow-sm transition-opacity hover:opacity-90',
                 className,
               )
         }
       >
-        {children ?? (
+        {trigger ?? (
           <>
             <Sparkles className="h-3.5 w-3.5" aria-hidden="true" />
             {label}

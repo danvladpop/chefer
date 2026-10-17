@@ -8,11 +8,11 @@ import { TierRow } from './TierRow';
 // Premium); Premium is status only and jumps to what they have.
 
 const mocks = vi.hoisted(() => ({
-  isPremium: undefined as boolean | undefined,
+  tier: undefined as 'free' | 'premium' | 'admin' | undefined,
   capture: vi.fn(),
 }));
 
-vi.mock('@/hooks/useIsPremium', () => ({ useIsPremium: () => mocks.isPremium }));
+vi.mock('@/hooks/useTier', () => ({ useTier: () => mocks.tier }));
 vi.mock('next/navigation', () => ({ useRouter: () => ({ refresh: vi.fn(), push: vi.fn() }) }));
 vi.mock('next/link', () => ({
   default: ({ href, children, ...rest }: { href: string; children: React.ReactNode }) => (
@@ -44,7 +44,7 @@ vi.mock('@/lib/trpc', () => ({
 beforeEach(() => {
   vi.clearAllMocks();
   vi.spyOn(window, 'scrollTo').mockImplementation(() => undefined); // the Sheet's scroll lock
-  mocks.isPremium = false;
+  mocks.tier = 'free';
 });
 afterEach(cleanup);
 
@@ -68,7 +68,7 @@ describe('TierRow', () => {
   });
 
   it('a premium user sees status only, linking to what they have', () => {
-    mocks.isPremium = true;
+    mocks.tier = 'premium';
     render(<TierRow />);
     const row = screen.getByTestId('profile-tier-row');
     expect(row.textContent).toContain('Premium plan');
@@ -77,8 +77,18 @@ describe('TierRow', () => {
     expect(screen.queryByText('See what Premium adds')).toBeNull();
   });
 
+  it('an admin sees Premium status with no link (no plan card to jump to)', () => {
+    mocks.tier = 'admin';
+    render(<TierRow />);
+    const row = screen.getByTestId('profile-tier-row');
+    expect(row.textContent).toContain('Premium plan');
+    expect(row.textContent).toContain('Included with admin access');
+    expect(row.tagName).not.toBe('A');
+    expect(within(row).queryByRole('button')).toBeNull();
+  });
+
   it('shows nothing until the plan is known', () => {
-    mocks.isPremium = undefined;
+    mocks.tier = undefined;
     render(<TierRow />);
     expect(screen.queryByTestId('profile-tier-row')).toBeNull();
   });

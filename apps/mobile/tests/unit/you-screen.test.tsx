@@ -244,10 +244,15 @@ describe('the tier row (F6, F7)', () => {
     expect(openPremium).not.toHaveBeenCalled();
   });
 
-  it('an admin counts as premium', async () => {
+  it('an admin has every feature: Premium status with nothing to open or switch off', async () => {
     mockMe = { role: 'ADMIN', planTier: 'FREE' };
     await renderYou();
-    expect(screen.getByTestId('you-tier')).toHaveTextContent(/Premium plan/);
+    const tier = screen.getByTestId('you-tier');
+    expect(tier).toHaveTextContent(/Premium plan/);
+    expect(tier).toHaveTextContent(/Included with admin access/);
+    await fireEvent.press(tier);
+    expect(mockPush).not.toHaveBeenCalled();
+    expect(openPremium).not.toHaveBeenCalled();
   });
 
   it('shows nothing until the plan is known, so it never flashes "Free"', async () => {

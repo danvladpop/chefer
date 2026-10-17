@@ -717,6 +717,7 @@ export {
   type PremiumPitchCopyKey,
   type PremiumPitchOptions,
 } from './premium-pitch';
+export { tierOf, type Tier } from './tier';
 export { tagConflicts, type RecipeTagConflict } from './recipe-tags';
 export { recipeShareText, type ActionRecipe } from './recipe-share';
 export {
