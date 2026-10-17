@@ -52,7 +52,17 @@ export function PremiumSheet({
   onExited,
   testID = 'premium-sheet',
 }: PremiumSheetProps) {
-  const [alsoIncludedOpen, setAlsoIncludedOpen] = useState(false);
+  // Folded by default; the tier row's overview opens with every benefit shown (F7).
+  const [alsoIncludedToggled, setAlsoIncludedToggled] = useState<boolean | null>(null);
+  // The host keeps the sheet mounted between opens, so each open starts from the
+  // pitch again. Reset while rendering the open (React's "previous props" pattern),
+  // not in an effect, so the first frame never shows the last fold.
+  const [wasVisible, setWasVisible] = useState(visible);
+  if (visible !== wasVisible) {
+    setWasVisible(visible);
+    if (visible) setAlsoIncludedToggled(null);
+  }
+  const alsoIncludedOpen = alsoIncludedToggled ?? pitch.showAllIncluded;
   const success = phase === 'success';
 
   return (
@@ -143,7 +153,7 @@ export function PremiumSheet({
                 testID={`${testID}-also-included-toggle`}
                 accessibilityRole="button"
                 accessibilityState={{ expanded: alsoIncludedOpen }}
-                onPress={() => setAlsoIncludedOpen((v) => !v)}
+                onPress={() => setAlsoIncludedToggled(!alsoIncludedOpen)}
                 className="min-h-11 flex-row items-center justify-between"
               >
                 <Text className="text-sm font-medium">{PREMIUM_PITCH_COPY.alsoIncluded}</Text>

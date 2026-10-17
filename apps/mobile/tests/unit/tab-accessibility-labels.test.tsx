@@ -13,6 +13,7 @@ import { tabAccessibilityLabel } from '../../src/lib/tab-bar-options';
 
 type CapturedScreen = { name: string; options: Record<string, unknown> };
 const mockTabScreens: CapturedScreen[] = [];
+const mockTabsProps: Record<string, unknown>[] = [];
 jest.mock('expo-router', () => {
   // eslint-disable-next-line @typescript-eslint/no-require-imports -- jest.mock factories can't close over imports
   const { View } = require('react-native') as typeof import('react-native');
@@ -20,7 +21,8 @@ jest.mock('expo-router', () => {
     mockTabScreens.push(props);
     return null;
   }
-  function Tabs({ children }: { children: React.ReactNode }) {
+  function Tabs({ children, ...props }: { children: React.ReactNode }) {
+    mockTabsProps.push(props);
     return <View>{children}</View>;
   }
   Tabs.Screen = TabsScreen;
@@ -57,7 +59,7 @@ const LAYOUTS = [
     shell: 'new shell',
     shellV2: true,
     Layout: MainTabsLayout,
-    titles: ['Today', 'Meals', 'Shop', 'Train', 'You'],
+    titles: ['Shop', 'Meals', 'Today', 'Train', 'You'],
   },
   {
     shell: 'old Food shell',
@@ -115,6 +117,36 @@ describe.each(['android', 'ios'] as const)('tab accessibility labels on %s', (os
       os === 'ios' ? `${last}, 3 new, tab, 5 of 5` : `${last}, 3 new`,
     );
     for (const label of labels) expect(label).toMatch(CLEAN);
+  });
+});
+
+// Owner feedback 2026-10-17 (F4): Today is the core of the app, so it sits in
+// the middle of the new shell's bar (a literal swap with Shop) and is still
+// where the bar starts and where Android Back returns to.
+describe('new shell tab order', () => {
+  beforeEach(() => {
+    mockShellV2 = true;
+    mockTabScreens.length = 0;
+    mockTabsProps.length = 0;
+  });
+
+  it('reads Shop · Meals · Today · Train · You', async () => {
+    await render(<MainTabsLayout />);
+    expect(mockTabScreens.map((s) => [s.name, s.options.title])).toEqual([
+      ['shop', 'Shop'],
+      ['plan', 'Meals'],
+      ['home', 'Today'],
+      ['train', 'Train'],
+      ['you', 'You'],
+    ]);
+  });
+
+  it('starts on Today and sends Back to Today, not to the first tab', async () => {
+    await render(<MainTabsLayout />);
+    expect(mockTabsProps[0]).toMatchObject({
+      initialRouteName: 'home',
+      backBehavior: 'initialRoute',
+    });
   });
 });
 

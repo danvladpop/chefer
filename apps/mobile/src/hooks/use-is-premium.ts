@@ -1,4 +1,4 @@
-import { trpc } from '../lib/trpc';
+import { useTier } from './use-tier';
 
 /**
  * Mirror of apps/web/src/hooks/useIsPremium.ts (admins count as premium).
@@ -6,9 +6,6 @@ import { trpc } from '../lib/trpc';
  * already keeps warm — instead of web's user.me; both return UserProfile.
  */
 export function useIsPremium(): boolean | undefined {
-  const { data: user } = trpc.auth.me.useQuery(undefined, { staleTime: 30_000 });
-  if (!user) {
-    return undefined;
-  }
-  return user.planTier === 'PREMIUM' || user.role === 'ADMIN';
+  const tier = useTier();
+  return tier === undefined ? undefined : tier !== 'free';
 }

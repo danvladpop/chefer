@@ -176,6 +176,71 @@ describe('VideoDraftForm', () => {
     expect(screen.queryByLabelText('Save with incomplete nutrition')).toBeNull();
   });
 
+  // F2 (owner feedback 2026-10-17): the count says WHICH rows, and agrees with mobile.
+  it('counts a named row with no amount (or 0) and says so on that row', async () => {
+    renderForm(
+      preview({
+        draft: {
+          ...preview().draft,
+          ingredients: [
+            { name: 'noodles', quantity: 200, unit: 'g' },
+            { name: 'olive oil', quantity: 0, unit: 'tbsp' },
+          ],
+        },
+      }),
+    );
+    await waitFor(() =>
+      expect(screen.getByText(/Incomplete — 1 ingredient needs data/)).toBeTruthy(),
+    );
+    expect(screen.getByText('Enter an amount')).toBeTruthy();
+    expect(screen.getByLabelText('Amount for ingredient 2').getAttribute('aria-invalid')).toBe(
+      'true',
+    );
+  });
+
+  it('the "Incomplete …" line is a button that focuses the first problem row’s field', async () => {
+    renderForm(
+      preview({
+        draft: {
+          ...preview().draft,
+          ingredients: [
+            { name: 'noodles', quantity: 200, unit: 'g' },
+            { name: 'olive oil', quantity: 0, unit: 'tbsp' },
+          ],
+        },
+      }),
+    );
+    const show = await screen.findByRole('button', {
+      name: /Incomplete — 1 ingredient needs data/,
+    });
+    fireEvent.click(show);
+    expect(document.activeElement).toBe(screen.getByLabelText('Amount for ingredient 2'));
+  });
+
+  it('for an unmatched row it focuses that row’s ingredient field', async () => {
+    renderForm(
+      preview({
+        resolution: [
+          matched('noodles', 'g', 'noodles'),
+          {
+            rawName: 'olive oil',
+            unit: 'tbsp',
+            note: null,
+            confidence: 'CANDIDATES',
+            match: null,
+            candidates: [catalogRef('oil')],
+            grams: null,
+            problem: 'NO_INGREDIENT',
+          },
+        ],
+      }),
+    );
+    fireEvent.click(
+      await screen.findByRole('button', { name: /Incomplete — 1 ingredient needs data/ }),
+    );
+    expect(document.activeElement?.id).toBe('video-line-1-ingredient');
+  });
+
   it('flags amounts nobody said, and the flag follows its row', () => {
     renderForm(preview({ unverifiedQuantities: [1] }));
     expect(screen.getAllByText('Amount not heard — please check')).toHaveLength(1);

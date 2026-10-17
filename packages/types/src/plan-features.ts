@@ -288,6 +288,8 @@ export const PREMIUM_SOURCES = [
   'post-rating',
   // Onboarding V4's own Premium step (flag `onboardingV4`).
   'onboarding',
+  // The tier row: Free or Premium at the top of You (mobile) and Profile (web), F6/F7.
+  'tier-row',
 ] as const;
 export type PremiumSource = (typeof PREMIUM_SOURCES)[number];
 
@@ -307,5 +309,7 @@ export const PREMIUM_JOB_IDS = [
   'targets',
   'default',
   'gym-first',
+  // Every benefit at once, for the tier row (no single job to lead with).
+  'overview',
 ] as const;
 export type PremiumJobId = (typeof PREMIUM_JOB_IDS)[number];

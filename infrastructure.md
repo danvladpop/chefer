@@ -416,12 +416,12 @@ the browser restore scroll position on back-navigation.
 Navigation components all read `src/features/nav/nav-items.ts`, the single source
 of truth for routes, through the active **mode** (`navFor(mode)`):
 
-| Component         | Role                                                                                                                                              |
-| ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `SideBar`         | Desktop rail (`lg`+): the `Food \| Gym` switch on top, then the tab bar's destinations, a divider, and the drawer's (one grouping on every shell) |
-| `BottomNav`       | Mobile tab bar — the mode's 4 primary destinations plus a More button (`< lg`)                                                                    |
-| `MobileNavDrawer` | Slide-over with the `Food \| Gym` switch, the mode's remaining destinations and the plan/upgrade footer                                           |
-| `TopHeader`       | Sticky header; carries a compact `Food \| Gym` switch below `lg`                                                                                  |
+| Component         | Role                                                                                                                                                  |
+| ----------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `SideBar`         | Desktop rail (`lg`+): the `Food \| Gym` switch on top, then the tab bar's destinations, a divider, and the drawer's (one grouping on every shell)     |
+| `BottomNav`       | Mobile tab bar — the mode's 4 primary destinations in `navFor(mode).tabBar` order (Food: `TAB_BAR_NAV_ITEMS`, Today in the middle) plus More (`< lg`) |
+| `MobileNavDrawer` | Slide-over with the `Food \| Gym` switch, the mode's remaining destinations and the plan/upgrade footer                                               |
+| `TopHeader`       | Sticky header; carries a compact `Food \| Gym` switch below `lg`                                                                                      |
 
 **Accessibility conventions (audit P2-7).** Every page renders its content inside
 `<main id="main" tabIndex={-1}>` (the dashboard shell, the auth layout, the
@@ -434,8 +434,8 @@ dashboard route segment that exports `metadata.title` (rendered through the root
 export metadata themselves, and a client `document.title` effect lost to Next's
 `<title>` on hard loads (F-X-1-1).
 
-**Food IA (P2-2 / P2-8, PM review §5).** The phone tab bar is **Today · Plan ·
-Shop · Cookbook · More**; More holds Progress, My weeks, Profile, Preferences.
+**Food IA (P2-2 / P2-8, PM review §5).** The phone tab bar is **Shop · Plan ·
+Today · Cookbook · More** (Today in the middle since owner feedback 2026-10-17, F4; the sidebar keeps Today first); More holds Progress, My weeks, Profile, Preferences.
 Today (`/dashboard`) absorbed the Tracker (`/tracker` lights Today via
 `alsoActiveFor`), Shop absorbed the Pantry (`/pantry` redirects to
 `/shopping-list?view=kitchen`), My weeks absorbed History (`/history`
@@ -731,7 +731,7 @@ enforced by the drift guard) built on the shared data hooks:
 | `/shop`                                                                                                                         | `shell/shop/shop-screen.tsx`           | grouped checklist, checked items sink to the bottom of their group, search-or-add field, one cost chip                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
 | `/train`                                                                                                                        | `shell/train/train-screen.tsx`         | ongoing workout first, week card, Up next, Log a workout, Routines `EntryCard`, past workouts as `MediaRow`s (first exercise photo via `exerciseCoverUrl`, activities keep their glyph); Up next shows the day's first exercise photo; state in `gym/today/use-train-today.ts` (shared with legacy Gym Today)                                                                                                                                                                                                                                                                                                                                       |
 | `/training/routine`, `/gym/summary/[id]`, `/gym/settings`, `/gym/setup` (step 5), `/gym/exercise-form`, `/gym/workout` (header) | `shell/train/*`                        | `useShellV2()` branch in the route/screen; legacy render unchanged. Routine-day rows (one per line) and setup program days use the first exercise photo (`coverImagePath`, cached library; setup reads it cache-only). The summary's kcal tile matches Today's (`BurnTile`). `/gym/settings` is "Training settings": an overview whose rows open `?section=equipment\|days\|reminders\|session\|pause\|export`                                                                                                                                                                                                                                      |
-| `/you`                                                                                                                          | `shell/you-screen.tsx`                 | the one home of all settings: Your progress, Settings (Meals, Training, Notifications, Account), People, Preview, Help, Sign out                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
+| `/you`                                                                                                                          | `shell/you-screen.tsx`                 | the one home of all settings: the tier row (`features/premium/tier-row.tsx`, F6/F7), Your progress, Settings (Meals, Training, Notifications, Account), People, Preview, Help, Sign out                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
 | `/settings`                                                                                                                     | `shell/you/account-screen.tsx`         | "Account" in the new shell (You, Account, Legal + shortened disclaimer); legacy hub unchanged                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
 | `/preferences`                                                                                                                  | `app/preferences.tsx` branch           | "Goals & diet": Goal & body first, then food safety; `?section=` links unchanged                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
 
@@ -1301,11 +1301,15 @@ the primitives, so every screen inherits it; `apps/mobile/tests/unit/keyboard-di
   dismiss themselves when the input is accepted.
 - **Credential fields**: `PasswordInput` defaults to `textContentType="password"` + `autoComplete="current-password"`
   (+ `secureTextEntry`, no autocapitalise/correct/spellcheck); "choose a password" fields spread
-  `NEW_PASSWORD_FIELD_PROPS` (`src/features/auth/password-fields.ts`); email fields spread `EMAIL_FIELD_PROPS`
-  (`email-address`, `autoComplete="email"`, `textContentType="emailAddress"`). The web auth forms already use
-  `type=password` + `autocomplete` `current-password` / `new-password` / `email` (pinned by
-  `apps/web/src/features/auth/components/credential-fields.test.tsx`). iOS strong-password suggestion / Keychain
-  saving additionally need an associated domain — a native-build change, not part of this fix.
+  `NEW_PASSWORD_FIELD_PROPS` (`src/features/auth/password-fields.ts`; a confirm field gets them too, so the suggested
+  strong password fills both); account email fields spread `EMAIL_FIELD_PROPS` (`email-address` keyboard,
+  `autoComplete="username"`, `textContentType="username"` — F8, 2026-10-17: Apple's Password AutoFill pairs the
+  password with the `username` field and asks for `username` + the email keyboard when the username is an email;
+  `emailAddress` left iOS without a username, so it suggested a strong password but never offered to save it.
+  Sources in `docs/research/password-autofill.md`; pinned by `tests/unit/password-autofill.test.tsx`). The web auth
+  forms already use `type=password` + `autocomplete` `current-password` / `new-password` / `username`
+  (`credential-fields.test.tsx`, `auth-autofill.test.tsx`). iOS strong-password suggestion / Keychain saving also
+  need the `webcredentials` associated domain, which production builds carry (§ build-time config below).
 
 Tests: Jest + RNTL in `apps/mobile/tests/unit/` (`ui-*.test.tsx` for the kit, plus
 `glossary-term.test.tsx`, `premium-shells.test.tsx`, `safety-shells.test.tsx`).

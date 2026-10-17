@@ -30,17 +30,17 @@ const attr = (selector: string, name: string) =>
   document.querySelector(selector)?.getAttribute(name);
 
 describe('auth form autofill attributes', () => {
-  it('login: email is "email", password is a password field with current-password', () => {
+  it('login: email is the "username" (Apple: type=email + autocomplete=username), password is a password field with current-password', () => {
     render(<LoginForm />);
     expect(attr('#email', 'type')).toBe('email');
-    expect(attr('#email', 'autocomplete')).toBe('email');
+    expect(attr('#email', 'autocomplete')).toBe('username');
     expect(attr('#password', 'type')).toBe('password');
     expect(attr('#password', 'autocomplete')).toBe('current-password');
   });
 
   it('register: both password fields are new-password (so managers suggest a strong one)', () => {
     render(<RegisterForm />);
-    expect(attr('#email', 'autocomplete')).toBe('email');
+    expect(attr('#email', 'autocomplete')).toBe('username');
     expect(attr('#password', 'type')).toBe('password');
     expect(attr('#password', 'autocomplete')).toBe('new-password');
     expect(attr('#confirmPassword', 'type')).toBe('password');

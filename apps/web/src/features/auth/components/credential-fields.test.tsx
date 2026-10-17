@@ -41,18 +41,20 @@ function fields(container: HTMLElement, selector: string) {
 }
 
 describe('credential fields declare themselves', () => {
-  it('login: type=email + autocomplete=email, type=password + current-password', () => {
+  it('login: type=email + autocomplete=username (F8), type=password + current-password', () => {
     const { container } = render(<LoginForm />);
     const [email] = fields(container, 'input[type="email"]');
-    expect(email?.getAttribute('autocomplete')).toBe('email');
+    expect(email?.getAttribute('autocomplete')).toBe('username');
     const passwords = fields(container, 'input[type="password"]');
     expect(passwords).toHaveLength(1);
     expect(passwords[0]?.getAttribute('autocomplete')).toBe('current-password');
   });
 
-  it('register: email, and BOTH password fields are new-password', () => {
+  it('register: email as the username, and BOTH password fields are new-password', () => {
     const { container } = render(<RegisterForm />);
-    expect(fields(container, 'input[type="email"]')[0]?.getAttribute('autocomplete')).toBe('email');
+    expect(fields(container, 'input[type="email"]')[0]?.getAttribute('autocomplete')).toBe(
+      'username',
+    );
     const passwords = fields(container, 'input[type="password"]');
     expect(passwords).toHaveLength(2);
     for (const field of passwords) expect(field.getAttribute('autocomplete')).toBe('new-password');
@@ -65,9 +67,9 @@ describe('credential fields declare themselves', () => {
     for (const field of passwords) expect(field.getAttribute('autocomplete')).toBe('new-password');
   });
 
-  it('forgot password: email', () => {
+  it('forgot password: the account email as the username', () => {
     const { container } = render(<ForgotPasswordForm />);
     const [email] = fields(container, 'input[type="email"]');
-    expect(email?.getAttribute('autocomplete')).toBe('email');
+    expect(email?.getAttribute('autocomplete')).toBe('username');
   });
 });

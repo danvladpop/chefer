@@ -14,9 +14,12 @@ import { WorkoutMiniBar } from '../../src/features/shell/workout-mini-bar';
 import { tabAccessibilityLabel } from '../../src/lib/tab-bar-options';
 
 // ─── The new shell (mobile UX revamp, phase 1; plan: "Target navigation") ───
-// One tab bar instead of two Food|Gym modes: Today · Meals · Shop · Train ·
+// One tab bar instead of two Food|Gym modes: Shop · Meals · Today · Train ·
 // You (Plan was renamed Meals on 10 Oct so it reads as food, not training;
-// the route stays /plan). Every account sees all five: the old app let anyone reach Food and
+// the route stays /plan). Today sits in the middle since owner feedback
+// 2026-10-17 (F4: "that is the core of the app, not the Shop"), so the
+// navigator is told it starts there and that Android Back returns there —
+// by default both follow the first tab. Every account sees all five: the old app let anyone reach Food and
 // Gym through the mode switch, so hiding tabs by onboarding jobs (first cut)
 // stranded a "training only" account without Plan or Shop.
 // Recipes live inside Plan, the old More inside You, Add and Ask Chef are
@@ -24,9 +27,9 @@ import { tabAccessibilityLabel } from '../../src/lib/tab-bar-options';
 // preview) is on; the old (food)/(gym) groups redirect here then.
 
 const TABS: { name: ShellTab; title: string; icon: IconName; activeIcon: IconName }[] = [
-  { name: 'home', title: 'Today', icon: 'today', activeIcon: 'todayActive' },
-  { name: 'plan', title: 'Meals', icon: 'plan', activeIcon: 'planActive' },
   { name: 'shop', title: 'Shop', icon: 'shop', activeIcon: 'shopActive' },
+  { name: 'plan', title: 'Meals', icon: 'plan', activeIcon: 'planActive' },
+  { name: 'home', title: 'Today', icon: 'today', activeIcon: 'todayActive' },
   { name: 'train', title: 'Train', icon: 'train', activeIcon: 'trainActive' },
   { name: 'you', title: 'You', icon: 'you', activeIcon: 'youActive' },
 ];
@@ -49,6 +52,8 @@ export default function MainTabsLayout() {
 
   return (
     <Tabs
+      initialRouteName="home"
+      backBehavior="initialRoute"
       // Premium motion #9: a selection haptic on every tab press and a short
       // crossfade between tabs (none under reduced motion).
       screenListeners={{ tabPress: () => haptics.selection() }}

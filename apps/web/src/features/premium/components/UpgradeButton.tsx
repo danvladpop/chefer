@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { useState } from 'react';
+import { useState, type ReactNode } from 'react';
 import {
   ACTIVATION_EVENT,
   ACTIVATION_FLAG,
@@ -35,18 +35,34 @@ import { cn, downgradeLosses, PREMIUM_PITCH_COPY, userFacingErrorMessage } from 
 
 const PREMIUM_PERKS = PREMIUM_PERK_KEYS.map((key) => PLAN_FEATURES[key].label);
 
-export interface UpgradeButtonProps {
+/** The default trigger: the gradient "See what Premium adds" button. */
+interface DefaultTrigger {
   className?: string;
-  /** Which touchpoint rendered this button — feeds the PW-3 funnel. */
-  source: string;
   /** The trigger's text; defaults to `See what Premium adds`. */
   label?: string;
+  trigger?: never;
+  triggerClassName?: never;
 }
+
+/** A custom trigger body (the tier row), styled only by `triggerClassName`. */
+interface CustomTrigger {
+  trigger: ReactNode;
+  triggerClassName: string;
+  className?: never;
+  label?: never;
+}
+
+export type UpgradeButtonProps = {
+  /** Which touchpoint rendered this button — feeds the PW-3 funnel. */
+  source: string;
+} & (DefaultTrigger | CustomTrigger);
 
 export function UpgradeButton({
   className,
   source,
   label = PREMIUM_PITCH_COPY.seeWhatPremiumAdds,
+  trigger,
+  triggerClassName,
 }: UpgradeButtonProps) {
   const [open, setOpen] = useState(false);
   const pitch = usePremiumPitch(source, open);
@@ -80,13 +96,21 @@ export function UpgradeButton({
           capture('upgrade_prompt_shown', { source, job: pitch.job });
           setOpen(true);
         }}
-        className={cn(
-          'flex min-h-11 items-center justify-center gap-1.5 rounded-lg bg-gradient-to-r from-amber-500 to-orange-500 px-3 py-1.5 text-xs font-semibold text-white shadow-sm transition-opacity hover:opacity-90',
-          className,
-        )}
+        className={
+          trigger
+            ? triggerClassName
+            : cn(
+                'flex min-h-11 items-center justify-center gap-1.5 rounded-lg bg-gradient-to-r from-amber-500 to-orange-500 px-3 py-1.5 text-xs font-semibold text-white shadow-sm transition-opacity hover:opacity-90',
+                className,
+              )
+        }
       >
-        <Sparkles className="h-3.5 w-3.5" aria-hidden="true" />
-        {label}
+        {trigger ?? (
+          <>
+            <Sparkles className="h-3.5 w-3.5" aria-hidden="true" />
+            {label}
+          </>
+        )}
       </button>
 
       {/* Sheet (bottom sheet on phones, dialog at sm+) supplies scroll lock,
@@ -136,7 +160,7 @@ export function UpgradeButton({
         </ul>
 
         {pitch.alsoIncluded.length > 0 && (
-          <details className="mt-3">
+          <details className="mt-3" open={pitch.showAllIncluded}>
             <summary className="flex min-h-11 cursor-pointer items-center text-sm font-medium text-gray-800">
               {PREMIUM_PITCH_COPY.alsoIncluded}
             </summary>

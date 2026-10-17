@@ -1,8 +1,13 @@
-import { useState } from 'react';
-import { Keyboard, Pressable, View } from 'react-native';
+import { useRef, useState } from 'react';
+import { Keyboard, Pressable, View, type TextInput } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
-import { authEmailSchema, CURRENT_TERMS_VERSION, newPasswordSchema } from '@chefer/types';
+import {
+  authEmailSchema,
+  CURRENT_TERMS_VERSION,
+  newPasswordSchema,
+  passwordConfirmationSchema,
+} from '@chefer/types';
 import {
   EMAIL_FIELD_PROPS,
   Input,
@@ -34,7 +39,8 @@ import { BiscuitStage, V4Ghost, V4Heading, V4Primary, V4Screen, V4TopBar } from 
 
 // Onboarding V4 — "Save your plan" (boards OnbV4Account + OnbV4AccountEmail).
 // Apple / Google first (their own consent line, as today), then email:
-// email + password (Show toggle, no confirm field) and ONE box for terms + age
+// email + password + confirm (F9: one Show toggle reveals both; both are
+// `newPassword` so iOS's strong password fills both) and ONE box for terms + age
 // that sends both `acceptedTerms` and `ageConfirmed` (legal sign-off pending,
 // see the PR). Session hand-off is the register screen's, unchanged.
 
@@ -51,6 +57,8 @@ export function AccountV4() {
   const [emailMode, setEmailMode] = useState(!hasSocial);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const confirmRef = useRef<TextInput>(null);
   const [revealed, setRevealed] = useState(false);
   const [agreed, setAgreed] = useState(false);
   const [showErrors, setShowErrors] = useState(false);
@@ -74,11 +82,15 @@ export function AccountV4() {
 
   const emailError = fieldError(authEmailSchema.safeParse(email));
   const passwordError = fieldError(newPasswordSchema.safeParse(password));
+  // Derived from the live values, so a stale mismatch can't outlive a fix (UX-ACC-16).
+  const confirmError = fieldError(
+    passwordConfirmationSchema.safeParse({ password, confirmPassword }),
+  );
   const agreeError = agreed ? null : COPY.accountAgreeRequired;
 
   function submit() {
     setShowErrors(true);
-    if (emailError || passwordError || agreeError || register.isPending) return;
+    if (emailError || passwordError || confirmError || agreeError || register.isPending) return;
     Keyboard.dismiss();
     const region = detectRegion();
     register.mutate({
@@ -198,10 +210,35 @@ export function AccountV4() {
             setPassword(t);
           }}
           editable={!register.isPending}
-          onSubmitEditing={submit}
+          returnKeyType="next"
+          onSubmitEditing={() => confirmRef.current?.focus()}
         />
         {showErrors && passwordError ? (
           <Text className="text-caption text-destructive">{passwordError}</Text>
+        ) : null}
+      </View>
+      <View className="gap-1.5">
+        <Text className="text-subhead font-semibold text-label-secondary">Confirm password</Text>
+        <PasswordInput
+          ref={confirmRef}
+          testID="register-confirm-password"
+          {...NEW_PASSWORD_FIELD_PROPS}
+          accessibilityLabel="Confirm password"
+          revealed={revealed}
+          hideToggle
+          value={confirmPassword}
+          onChangeText={(t) => {
+            if (register.error) register.reset();
+            setConfirmPassword(t);
+          }}
+          editable={!register.isPending}
+          returnKeyType="go"
+          onSubmitEditing={submit}
+        />
+        {showErrors && confirmError ? (
+          <Text className="text-caption text-destructive" testID="register-confirm-password-error">
+            {confirmError}
+          </Text>
         ) : null}
       </View>
       {agree}

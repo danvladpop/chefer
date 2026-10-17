@@ -78,7 +78,7 @@ export function ForgotPasswordForm() {
         <input
           id="email"
           type="email"
-          autoComplete="email"
+          autoComplete="username"
           autoFocus
           disabled={requestMutation.isPending}
           className={INPUT_CLASSES}

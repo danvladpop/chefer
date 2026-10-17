@@ -9,7 +9,7 @@ import { trpc } from '@/lib/trpc';
 import { useQueryClient } from '@tanstack/react-query';
 import { Check, Mail } from 'lucide-react';
 import { z } from 'zod';
-import { CURRENT_TERMS_VERSION } from '@chefer/types';
+import { CURRENT_TERMS_VERSION, passwordConfirmationSchema } from '@chefer/types';
 import { pressControl } from '@chefer/ui';
 import { cn, detectRegion, ONBOARDING_V4_COPY, userFacingErrorMessage } from '@chefer/utils';
 import { BiscuitHalo, PrimaryButton, V4Heading, V4TopBar } from './components/ui';
@@ -17,7 +17,8 @@ import { BiscuitHalo, PrimaryButton, V4Heading, V4TopBar } from './components/ui
 // ─── Save your plan (OnbV4Account + OnbV4AccountEmail) ────────────────────────
 // Flag `onboardingV4`. Apple / Google first (the existing SocialSignIn — a
 // provider tap is the legal consent, its own line says so), then "Continue
-// with email" reveals email + password (Show toggle, no confirm field) and ONE
+// with email" reveals email + password + confirm (F9: one Show toggle reveals
+// both, both `new-password` so a suggested strong password fills both) and ONE
 // checkbox for 16+ and Terms/Privacy, sent as both `acceptedTerms` and
 // `ageConfirmed`. Same auth.register mutation and success path as
 // RegisterForm: clear the cache, then /onboarding.
@@ -32,6 +33,11 @@ const passwordSchema = z
   .min(8, 'Password must be at least 8 characters')
   .max(100, 'Password must be at most 100 characters');
 const AGREE_ERROR = 'You must agree to the Terms and the Privacy Policy';
+// Only the confirmation's rules: empty, then "Passwords do not match".
+function confirmationError(password: string, confirmPassword: string): string | undefined {
+  const r = passwordConfirmationSchema.safeParse({ password, confirmPassword });
+  return r.success ? undefined : r.error.issues[0]?.message;
+}
 
 const inputCls =
   'min-h-12 w-full min-w-0 rounded-control border border-revamp-separator bg-revamp-surface px-3.5 text-[1.0625rem] text-revamp-label focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50';
@@ -42,11 +48,13 @@ export function RegisterV4() {
   const [emailOpen, setEmailOpen] = useState(false);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [agreed, setAgreed] = useState(false);
   const [errors, setErrors] = useState<{
     email?: string | undefined;
     password?: string | undefined;
+    confirm?: string | undefined;
     agree?: string | undefined;
   }>({});
   const [serverError, setServerError] = useState<string | null>(null);
@@ -67,19 +75,24 @@ export function RegisterV4() {
     },
   });
   const isPending = registerMutation.isPending;
+  // Flagged by a submit, then live (UX-ACC-16): never "do not match" under two
+  // identical passwords.
+  const confirmError = errors.confirm && confirmationError(password, confirmPassword);
 
   function submit() {
     setServerError(null);
     setAccountExists(false);
     const e = emailSchema.safeParse(email);
     const p = passwordSchema.safeParse(password);
+    const c = confirmationError(password, confirmPassword);
     const next = {
       ...(!e.success && { email: e.error.issues[0]?.message }),
       ...(!p.success && { password: p.error.issues[0]?.message }),
+      ...(c && { confirm: c }),
       ...(!agreed && { agree: AGREE_ERROR }),
     };
     setErrors(next);
-    if (!e.success || !p.success || !agreed) return;
+    if (!e.success || !p.success || c || !agreed) return;
     // Location defaults (P2-6): the browser's region seeds units + currency.
     const region = detectRegion(typeof navigator === 'undefined' ? [] : navigator.languages);
     registerMutation.mutate({
@@ -176,7 +189,7 @@ export function RegisterV4() {
               <input
                 id="v4-email"
                 type="email"
-                autoComplete="email"
+                autoComplete="username"
                 autoFocus
                 value={email}
                 disabled={isPending}
@@ -210,7 +223,11 @@ export function RegisterV4() {
                   autoComplete="new-password"
                   value={password}
                   disabled={isPending}
-                  onChange={(e) => setPassword(e.target.value)}
+                  onChange={(e) => {
+                    setPassword(e.target.value);
+                    setServerError(null);
+                    setAccountExists(false);
+                  }}
                   aria-invalid={errors.password ? true : undefined}
                   aria-describedby={
                     errors.password ? 'v4-password-hint v4-password-error' : 'v4-password-hint'
@@ -232,6 +249,35 @@ export function RegisterV4() {
               {errors.password && (
                 <p id="v4-password-error" role="alert" className="text-sm text-destructive">
                   {errors.password}
+                </p>
+              )}
+            </div>
+
+            <div className="flex flex-col gap-1.5">
+              <label
+                htmlFor="v4-confirm-password"
+                className="text-[0.9375rem] font-semibold text-revamp-label-secondary"
+              >
+                Confirm password
+              </label>
+              <input
+                id="v4-confirm-password"
+                type={showPassword ? 'text' : 'password'}
+                autoComplete="new-password"
+                value={confirmPassword}
+                disabled={isPending}
+                onChange={(e) => {
+                  setConfirmPassword(e.target.value);
+                  setServerError(null);
+                  setAccountExists(false);
+                }}
+                aria-invalid={confirmError ? true : undefined}
+                aria-describedby={confirmError ? 'v4-confirm-password-error' : undefined}
+                className={inputCls}
+              />
+              {confirmError && (
+                <p id="v4-confirm-password-error" role="alert" className="text-sm text-destructive">
+                  {confirmError}
                 </p>
               )}
             </div>
