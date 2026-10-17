@@ -1,6 +1,6 @@
 import { useRef } from 'react';
-import { TextInput, View } from 'react-native';
-import { Text, useScrollFieldIntoView } from '@chefer/ui-mobile';
+import { View, type TextInput } from 'react-native';
+import { Input, Text, useScrollFieldIntoView } from '@chefer/ui-mobile';
 import { SwipeToRemove } from '../../../components/swipe-to-remove';
 import { recipeFormCopy } from './copy';
 import { RowMenu } from './row-menu';
@@ -35,11 +35,11 @@ export function StepLine({
       <View testID={`rf-step-${index}`} className="flex-row items-start gap-2">
         <View
           accessibilityElementsHidden
-          className="mt-2 h-6 w-6 items-center justify-center rounded-full bg-primary"
+          className="mt-2.5 h-7 w-7 items-center justify-center rounded-full bg-brand-tint"
         >
-          <Text className="text-xs font-bold text-primary-foreground">{index + 1}</Text>
+          <Text className="text-caption font-bold text-brand">{index + 1}</Text>
         </View>
-        <TextInput
+        <Input
           ref={inputRef}
           testID={`rf-step-input-${index}`}
           value={value}
@@ -47,9 +47,8 @@ export function StepLine({
           onFocus={() => scrollFieldIntoView(inputRef.current)}
           multiline
           placeholder="Describe this step… (optional)"
-          placeholderTextColor="#9ca3af"
           accessibilityLabel={`Step ${index + 1}`}
-          className="min-h-11 flex-1 rounded-md border border-input bg-background px-3 py-2 text-base text-foreground"
+          className="min-w-0 flex-1"
         />
         <RowMenu
           testID={`rf-step-menu-${index}`}

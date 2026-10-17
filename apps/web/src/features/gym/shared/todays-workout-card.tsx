@@ -3,7 +3,7 @@
 import { useMemo } from 'react';
 import { useAppMode } from '@/features/nav/mode-context';
 import { ChevronRight, Dumbbell } from 'lucide-react';
-import { collectPrs, selectTodaysSession } from '@chefer/utils';
+import { collectPrs, isActivityLogSession, selectTodaysSession } from '@chefer/utils';
 import { localDate } from '../use-gym-bootstrap';
 import { useGymData } from './use-gym-data';
 import { WeekRing } from './week-ring';
@@ -20,7 +20,8 @@ export function TodaysWorkoutCard() {
   const todays = useMemo(() => {
     if (!data || !today) return { done: false, prs: 0 };
     const sessions = data.recentSessions.filter((s) => s.status === 'COMPLETED');
-    const done = sessions.some((s) => s.localDate === today);
+    // WP-20: a quick-logged activity does not make today's workout "done".
+    const done = sessions.some((s) => s.localDate === today && !isActivityLogSession(s));
     const prs = done ? collectPrs(sessions).filter((p) => p.localDate === today).length : 0;
     return { done, prs };
   }, [data, today]);

@@ -8,6 +8,8 @@ export interface CreateHouseholdMemberData {
   /** 0.5 kid … 1.5 big eater. Defaults to 1 in the schema. */
   portionFactor?: number;
   isKid?: boolean;
+  /** Optional kid age band (UX-PLAN-12); null clears it. */
+  ageBand?: string | null;
   allergies?: string[];
   dietaryRestrictions?: string[];
   dislikedIngredients?: string[];

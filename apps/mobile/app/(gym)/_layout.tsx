@@ -1,12 +1,29 @@
 import { Ionicons } from '@expo/vector-icons';
 import { Tabs } from 'expo-router';
+import { colors, countPillText } from '@chefer/ui-mobile';
 import { SnackbarAwareTabBar } from '../../src/components/snackbar-tab-bar';
-import { TAB_BAR_SCREEN_OPTIONS } from '../../src/lib/tab-bar-options';
+import { useFriendsMe } from '../../src/features/friends/api/use-friends-me';
+import { ShellV2Forward } from '../../src/features/shell/shell-forward';
+import { useShellV2 } from '../../src/features/shell/shell-store';
+import { TAB_BAR_SCREEN_OPTIONS, tabAccessibilityLabel } from '../../src/lib/tab-bar-options';
 
-// Gym mode tab bar (gym_plan.md D3): Today / Routine / Exercises / Stats.
-// Screens are not `index` — both tab groups resolve at the root, and "/"
-// belongs to the food dashboard.
+/** Tabs below, for each tab's spoken "N of 5" (iOS). */
+const TAB_COUNT = 5;
+
+// Gym mode tab bar (gym_plan.md D3): Today / Routine / Exercises / Stats /
+// More (FB7-01). Screens are not `index` and not `more` — both tab groups
+// resolve at the root, so "/" belongs to the food dashboard and "/more" to the
+// food More tab; Gym's is `gym-more`.
 export default function GymTabsLayout() {
+  // Same in-app Following badge as Food's More tab (pending requests + unread
+  // Activity, hidden at 0). Shares the useFriendsMe cache with the Food layout.
+  const { badgeCount } = useFriendsMe();
+  // Mobile UX revamp: with the new shell on, this group only forwards
+  // (Today → Train, Routine/Exercises/Stats → pushed from Train, More → You).
+  const shellV2 = useShellV2();
+  if (shellV2) {
+    return <ShellV2Forward />;
+  }
   return (
     <Tabs
       screenOptions={TAB_BAR_SCREEN_OPTIONS}
@@ -17,6 +34,7 @@ export default function GymTabsLayout() {
         name="today"
         options={{
           title: 'Today',
+          tabBarAccessibilityLabel: tabAccessibilityLabel('Today', 0, TAB_COUNT),
           tabBarIcon: ({ color, size }) => (
             <Ionicons name="today-outline" color={color} size={size + 2} />
           ),
@@ -26,6 +44,7 @@ export default function GymTabsLayout() {
         name="routine"
         options={{
           title: 'Routine',
+          tabBarAccessibilityLabel: tabAccessibilityLabel('Routine', 1, TAB_COUNT),
           tabBarIcon: ({ color, size }) => (
             <Ionicons name="list-outline" color={color} size={size + 2} />
           ),
@@ -35,6 +54,7 @@ export default function GymTabsLayout() {
         name="exercises"
         options={{
           title: 'Exercises',
+          tabBarAccessibilityLabel: tabAccessibilityLabel('Exercises', 2, TAB_COUNT),
           tabBarIcon: ({ color, size }) => (
             <Ionicons name="barbell-outline" color={color} size={size + 2} />
           ),
@@ -44,8 +64,25 @@ export default function GymTabsLayout() {
         name="stats"
         options={{
           title: 'Stats',
+          tabBarAccessibilityLabel: tabAccessibilityLabel('Stats', 3, TAB_COUNT),
           tabBarIcon: ({ color, size }) => (
             <Ionicons name="stats-chart-outline" color={color} size={size + 2} />
+          ),
+        }}
+      />
+      <Tabs.Screen
+        name="gym-more"
+        options={{
+          title: 'More',
+          tabBarAccessibilityLabel: tabAccessibilityLabel('More', 4, TAB_COUNT, badgeCount),
+          tabBarBadge: badgeCount > 0 ? countPillText(badgeCount) : undefined,
+          tabBarBadgeStyle: {
+            backgroundColor: colors.primary,
+            color: colors.primaryForeground,
+            fontSize: 12,
+          },
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons name="menu-outline" color={color} size={size + 2} />
           ),
         }}
       />

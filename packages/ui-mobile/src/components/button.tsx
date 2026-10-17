@@ -1,7 +1,8 @@
-import { ActivityIndicator, Text } from 'react-native';
+import { ActivityIndicator, Keyboard, Text } from 'react-native';
 import { cva, type VariantProps } from 'class-variance-authority';
 import { cn } from '@chefer/utils';
 import { PressableScale, type PressableScaleProps } from '../motion/pressable-scale';
+import { withLabelSlack } from './label-slack';
 import { DEFAULT_MAX_FONT_SCALE } from './text';
 import { colors } from './theme';
 
@@ -64,6 +65,14 @@ export interface ButtonProps
   extends Omit<PressableScaleProps, 'children'>, VariantProps<typeof buttonVariants> {
   className?: string;
   loading?: boolean;
+  /**
+   * Close the on-screen keyboard when pressed (tester feedback 2026-10-04: the
+   * keyboard stayed up after a form was submitted). Defaults to true for the
+   * primary `default` / `destructive` variants — the form's submit — and false
+   * for secondary / outline / ghost buttons, which are often "add another"
+   * actions in the middle of typing.
+   */
+  dismissKeyboard?: boolean;
   /** Plain strings are wrapped in a variant-colored Text automatically. */
   children: React.ReactNode;
 }
@@ -76,17 +85,33 @@ export function Button({
   disabled,
   children,
   accessibilityState,
+  dismissKeyboard,
+  onPress,
   ...props
 }: ButtonProps) {
+  const closesKeyboard =
+    dismissKeyboard ?? (!variant || variant === 'default' || variant === 'destructive');
   const isDisabled = (disabled ?? false) || loading;
   return (
     <PressableScale
       accessibilityRole="button"
+      // A plain-string label is the button's name as is (the drawn Text gets
+      // Android slack, see label-slack.ts); callers may still override it.
+      accessibilityLabel={typeof children === 'string' ? children : undefined}
       className={cn(buttonVariants({ variant, size }), className)}
       disabled={isDisabled}
       // `busy` lets a screen reader (and tests) tell which of several buttons
       // is the one working.
       accessibilityState={{ disabled: isDisabled, busy: loading, ...accessibilityState }}
+      // Dismiss first, so a handler that re-focuses a field still wins.
+      onPress={
+        onPress && closesKeyboard
+          ? (event) => {
+              Keyboard.dismiss();
+              onPress(event);
+            }
+          : onPress
+      }
       {...props}
     >
       {loading ? (
@@ -106,7 +131,7 @@ export function Button({
           maxFontSizeMultiplier={DEFAULT_MAX_FONT_SCALE}
           className={cn(buttonTextVariants({ variant, size }), 'shrink text-center')}
         >
-          {children}
+          {withLabelSlack(children)}
         </Text>
       ) : (
         children

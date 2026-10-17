@@ -11,7 +11,15 @@ import { trpc } from '@/lib/trpc';
 import { format, parseISO } from 'date-fns';
 import { ArrowLeft, Clock } from 'lucide-react';
 import { ErrorState } from '@chefer/ui';
-import { formatLoad, isNotFoundError, toSessionSummary } from '@chefer/utils';
+import {
+  activityFacts,
+  activitySummaryLine,
+  effortLabelForRpe,
+  formatLoad,
+  isActivityLogSession,
+  isNotFoundError,
+  toSessionSummary,
+} from '@chefer/utils';
 
 const RIR_LABEL: Record<number, string> = { 0: '0 RIR', 1: '1 RIR', 2: '2 RIR', 3: '3+ RIR' };
 
@@ -86,6 +94,11 @@ export default function GymHistoryDetailPage() {
   }
 
   const duration = durationLabel(session.startedAt, session.finishedAt);
+  const isActivity = isActivityLogSession(session);
+  const activityEffort = isActivity
+    ? session.exercises.flatMap((e) => e.sets).find((x) => x.intensityRpe !== undefined)
+        ?.intensityRpe
+    : undefined;
 
   return (
     <div className="mx-auto max-w-2xl px-4 py-6 sm:py-8">
@@ -128,7 +141,24 @@ export default function GymHistoryDetailPage() {
       </div>
 
       <div className="space-y-4">
-        {session.exercises.map((ex) => {
+        {/* WP-20: a quick-logged activity reads "Cycling class · 45 min · ~400 kcal (from your
+            watch)" — one line, no sets table. */}
+        {isActivity && (
+          <div
+            className="rounded-2xl border bg-white p-4 shadow-sm"
+            data-testid="gym-history-activity"
+          >
+            <p className="font-medium text-neutral-900">
+              {activitySummaryLine(session.name, activityFacts(session))}
+            </p>
+            {activityEffort !== undefined && (
+              <p className="mt-1 text-sm text-neutral-500">
+                {`Effort: ${effortLabelForRpe(activityEffort) ?? `RPE ${activityEffort}`}`}
+              </p>
+            )}
+          </div>
+        )}
+        {(isActivity ? [] : session.exercises).map((ex) => {
           const meta = lookup(ex.exerciseId);
           const working = ex.sets.filter((s) => !s.isWarmup);
           const warmups = ex.sets.filter((s) => s.isWarmup);

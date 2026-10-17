@@ -1,17 +1,6 @@
-import { useMemo, useRef, useState } from 'react';
+import { useRef } from 'react';
 import { ActivityIndicator, Keyboard, View, type TextInput } from 'react-native';
-import { router } from 'expo-router';
-import {
-  customExerciseInputSchema,
-  ExerciseCategory,
-  ExerciseLoadType,
-  ExerciseTrackingType,
-  MUSCLE_LABELS,
-  MUSCLES,
-  type CustomExerciseInput,
-  type ExerciseDto,
-  type Muscle,
-} from '@chefer/types';
+import { ExerciseTrackingType, type ExerciseDto } from '@chefer/types';
 import {
   Button,
   ChipGroup,
@@ -25,109 +14,25 @@ import {
   useFieldChain,
   useScrollFieldIntoView,
 } from '@chefer/ui-mobile';
-import { isTimedFor, trackingTypeOf, userFacingErrorMessage } from '@chefer/utils';
-import { useFlags } from '../../../hooks/use-flags';
-import { trpc } from '../../../lib/trpc';
-import { useGymBootstrapLoad } from '../components/gym-bootstrap-state';
-import { useGymBootstrap } from '../use-gym-bootstrap';
+import { isTimedFor } from '@chefer/utils';
 import { EQUIPMENT_FILTERS } from './exercise-filters';
-import {
-  EXERCISE_CUE_MAX,
-  EXERCISE_NAME_MAX,
-  exerciseFormErrors,
-  MAX_PRIMARY_MUSCLES,
-  MAX_SECONDARY_MUSCLES,
-  type ExerciseFormErrors,
-  type ExerciseFormField,
-} from './exercise-form-errors';
-import { useIsOnline } from './online-status';
+import { EXERCISE_CUE_MAX, EXERCISE_NAME_MAX } from './exercise-form-errors';
 import { StackBackButton } from './stack-back-button';
+import {
+  CATEGORY_OPTIONS,
+  LOAD_TYPE_OPTIONS,
+  MAX_CUES,
+  MUSCLE_OPTIONS,
+  TRACKING_TYPE_OPTIONS,
+  useExerciseForm,
+  useExerciseFormGate,
+} from './use-exercise-form';
 
 // Custom exercise form (gym_plan.md §1.3): name, category, equipment, load
 // type, primary/secondary muscles, rep range, rest, timed toggle, up to 6
 // cues. Validated with the shared Zod schema; online only (createCustom /
-// updateCustom).
-
-const CATEGORY_OPTIONS = Object.values(ExerciseCategory).map((v) => ({
-  value: v,
-  label: v === 'COMPOUND' ? 'Compound' : 'Isolation',
-}));
-
-const LOAD_TYPE_OPTIONS = Object.values(ExerciseLoadType).map((v) => ({
-  value: v,
-  label:
-    v === 'WEIGHTED'
-      ? 'Weighted'
-      : v === 'BODYWEIGHT'
-        ? 'Bodyweight'
-        : v === 'BODYWEIGHT_PLUS'
-          ? 'Bodyweight + load'
-          : 'Assisted',
-}));
-
-const MUSCLE_OPTIONS = MUSCLES.map((m) => ({ value: m, label: MUSCLE_LABELS[m] }));
-
-const MAX_CUES = 6;
-
-// T-42.3 (UX-42 (7), AC8): "How do you track it?" replaces the old
-// `isTimed` checkbox — isTimed is now DERIVED from the choice (isTimedFor),
-// never a separate field a client can leave inconsistent with trackingType.
-// A single-select, non-empty ChipGroup (no `allowEmpty`) is what makes a
-// tracking type required on this form, even though the wire schema keeps it
-// optional for old clients that only ever send `isTimed`.
-const TRACKING_TYPE_OPTIONS: { value: ExerciseTrackingType; label: string }[] = [
-  { value: ExerciseTrackingType.WEIGHT_REPS, label: 'Weight × reps' },
-  { value: ExerciseTrackingType.BODYWEIGHT_REPS, label: 'Reps only' },
-  { value: ExerciseTrackingType.DURATION, label: 'Time' },
-  { value: ExerciseTrackingType.DURATION_DISTANCE, label: 'Time + distance' },
-  { value: ExerciseTrackingType.DISTANCE, label: 'Distance' },
-];
-
-interface FormState {
-  name: string;
-  category: (typeof ExerciseCategory)[keyof typeof ExerciseCategory];
-  equipment: string;
-  loadType: (typeof ExerciseLoadType)[keyof typeof ExerciseLoadType];
-  primaryMuscles: Muscle[];
-  secondaryMuscles: Muscle[];
-  repMin: number;
-  repMax: number;
-  restSec: number;
-  trackingType: ExerciseTrackingType;
-  cues: string[];
-}
-
-const DEFAULT_STATE: FormState = {
-  name: '',
-  category: 'COMPOUND',
-  equipment: 'BARBELL',
-  loadType: 'WEIGHTED',
-  primaryMuscles: [],
-  secondaryMuscles: [],
-  repMin: 8,
-  repMax: 12,
-  restSec: 90,
-  trackingType: ExerciseTrackingType.WEIGHT_REPS,
-  cues: [],
-};
-
-function stateFrom(existing: ExerciseDto | undefined, initialName: string): FormState {
-  return existing
-    ? {
-        name: existing.name,
-        category: existing.category,
-        equipment: existing.equipment,
-        loadType: existing.loadType,
-        primaryMuscles: existing.primaryMuscles,
-        secondaryMuscles: existing.secondaryMuscles,
-        repMin: existing.repMin,
-        repMax: existing.repMax,
-        restSec: existing.restSec,
-        trackingType: trackingTypeOf(existing),
-        cues: existing.cues,
-      }
-    : { ...DEFAULT_STATE, name: initialName };
-}
+// updateCustom). State, rules and save live in `useExerciseForm` (shared with
+// the redesign's ExerciseFormV2).
 
 export function ExerciseFormScreen({
   exerciseId,
@@ -137,19 +42,12 @@ export function ExerciseFormScreen({
   /** UX-GYM-21: a name carried over from an empty search ("Create 'T-bar'"). */
   initialName?: string;
 }) {
-  const isEdit = exerciseId !== undefined;
-  const bootstrapQuery = useGymBootstrap();
-  const bootstrap = bootstrapQuery.data;
-  const { load, retry } = useGymBootstrapLoad(bootstrapQuery);
-  const existing = isEdit ? bootstrap?.library.find((e) => e.id === exerciseId) : undefined;
+  const { existing, missing, waiting, failed, retry } = useExerciseFormGate(exerciseId);
 
-  if (isEdit && !existing) {
-    // UX-GYM-21: editing right after creating used to seed the form with the
-    // DEFAULTS (the cached library lacked the new exercise for a moment) and a
-    // save then overwrote it. The form only mounts once the exercise is known;
-    // until then (library still refreshing) this waits, and a failed load
-    // offers Retry instead of "not found".
-    const waiting = load === 'loading' || (load === 'data' && bootstrapQuery.isFetching);
+  if (missing) {
+    // UX-GYM-21: the form only mounts once the exercise is known (see
+    // useExerciseFormGate); until then this waits, and a failed load offers
+    // Retry instead of "not found".
     return (
       <Screen className="px-0" edges={['top', 'bottom', 'left', 'right']}>
         <View className="px-4 pt-2">
@@ -158,7 +56,7 @@ export function ExerciseFormScreen({
         <View className="flex-1 items-center justify-center px-6">
           {waiting ? (
             <ActivityIndicator testID="exercise-form-loading" size="large" color="#944a00" />
-          ) : load === 'error' || load === 'offline' ? (
+          ) : failed ? (
             <ErrorState
               testID="exercise-form-load-error"
               title="Couldn’t load this exercise"
@@ -195,40 +93,23 @@ function ExerciseForm({
   existing: ExerciseDto | undefined;
   initialName: string;
 }) {
-  const isEdit = exerciseId !== undefined;
-  const { cardioLogging } = useFlags();
-  const utils = trpc.useUtils();
-  const online = useIsOnline();
-
-  const [state, setState] = useState<FormState>(() => stateFrom(existing, initialName));
-  // UX-GYM-21: field-level errors, plus one line for a failed save.
-  const [errors, setErrors] = useState<ExerciseFormErrors>({ fields: {}, form: null });
-  const clearError = (field: ExerciseFormField) =>
-    setErrors((prev) => {
-      if (!prev.fields[field]) return prev;
-      return { ...prev, fields: { ...prev.fields, [field]: undefined } };
-    });
-  const setFieldError = (field: ExerciseFormField, message: string) =>
-    setErrors((prev) => ({ ...prev, fields: { ...prev.fields, [field]: message } }));
-
-  const createMutation = trpc.gym.library.createCustom.useMutation({
-    onSuccess: (created) => {
-      void utils.gym.bootstrap.invalidate();
-      router.replace(`/gym/exercise/${created.id}`);
-    },
-    onError: (err) => setErrors({ fields: {}, form: userFacingErrorMessage(err) }),
-    // The form shows the failure itself — no second snackbar.
-    meta: { silent: true },
-  });
-  const updateMutation = trpc.gym.library.updateCustom.useMutation({
-    onSuccess: () => {
-      void utils.gym.bootstrap.invalidate();
-      router.back();
-    },
-    onError: (err) => setErrors({ fields: {}, form: userFacingErrorMessage(err) }),
-    meta: { silent: true },
-  });
-  const isSaving = createMutation.isPending || updateMutation.isPending;
+  const {
+    isEdit,
+    cardioLogging,
+    online,
+    state,
+    setState,
+    errors,
+    isSaving,
+    secondaryOptions,
+    setName,
+    setCue,
+    addCue,
+    removeCue,
+    setPrimaryMuscles,
+    setSecondaryMuscles,
+    onSubmit,
+  } = useExerciseForm({ exerciseId, existing, initialName });
 
   // Keyboard avoidance (dogfood #2): the Name field dismisses on submit; the
   // cues list chains Next/Done like the setup wizard's weights list (plain
@@ -237,54 +118,6 @@ function ExerciseForm({
   const nameRef = useRef<TextInput>(null);
   const cuesChain = useFieldChain(state.cues.length);
   const scrollFieldIntoView = useScrollFieldIntoView();
-
-  const secondaryOptions = useMemo(
-    () => MUSCLE_OPTIONS.filter((o) => !state.primaryMuscles.includes(o.value)),
-    [state.primaryMuscles],
-  );
-
-  const setCue = (index: number, value: string) => {
-    setState((s) => {
-      const cues = [...s.cues];
-      cues[index] = value;
-      return { ...s, cues };
-    });
-  };
-  const addCue = () =>
-    setState((s) => (s.cues.length >= MAX_CUES ? s : { ...s, cues: [...s.cues, ''] }));
-  const removeCue = (index: number) =>
-    setState((s) => ({ ...s, cues: s.cues.filter((_, i) => i !== index) }));
-
-  const onSubmit = () => {
-    const input: CustomExerciseInput = {
-      name: state.name.trim(),
-      category: state.category,
-      equipment: state.equipment as CustomExerciseInput['equipment'],
-      loadType: state.loadType,
-      primaryMuscles: state.primaryMuscles,
-      secondaryMuscles: state.secondaryMuscles,
-      repMin: state.repMin,
-      repMax: state.repMax,
-      restSec: state.restSec,
-      isTimed: isTimedFor(state.trackingType),
-      // cardioLogging off: send the old isTimed-only shape (no trackingType)
-      // — the same input a pre-T-42.3 client sends; the server derives the
-      // same default from isTimed/loadType (trackingTypeOf).
-      ...(cardioLogging && { trackingType: state.trackingType }),
-      cues: state.cues.map((c) => c.trim()).filter((c) => c.length > 0),
-    };
-    const result = customExerciseInputSchema.safeParse(input);
-    if (!result.success) {
-      setErrors(exerciseFormErrors(result.error.issues));
-      return;
-    }
-    setErrors({ fields: {}, form: null });
-    if (isEdit && exerciseId) {
-      updateMutation.mutate({ id: exerciseId, exercise: result.data });
-    } else {
-      createMutation.mutate(result.data);
-    }
-  };
 
   if (isEdit && !existing) {
     return (
@@ -324,10 +157,7 @@ function ExerciseForm({
             ref={nameRef}
             testID="exercise-form-name"
             value={state.name}
-            onChangeText={(name) => {
-              setState((s) => ({ ...s, name }));
-              clearError('name');
-            }}
+            onChangeText={setName}
             onFocus={() => scrollFieldIntoView(nameRef.current)}
             placeholder="e.g. Cable pull-through"
             accessibilityLabel="Exercise name"
@@ -393,22 +223,7 @@ function ExerciseForm({
             options={MUSCLE_OPTIONS}
             value={state.primaryMuscles}
             multiple
-            onChange={(primaryMuscles) => {
-              // The schema allows 4; say so instead of silently ignoring the tap.
-              if (primaryMuscles.length > MAX_PRIMARY_MUSCLES) {
-                setFieldError(
-                  'primaryMuscles',
-                  `Pick up to ${String(MAX_PRIMARY_MUSCLES)} primary muscles.`,
-                );
-                return;
-              }
-              clearError('primaryMuscles');
-              setState((s) => ({
-                ...s,
-                primaryMuscles,
-                secondaryMuscles: s.secondaryMuscles.filter((m) => !primaryMuscles.includes(m)),
-              }));
-            }}
+            onChange={setPrimaryMuscles}
           />
           <FieldError
             testID="exercise-form-error-primary-muscles"
@@ -425,17 +240,7 @@ function ExerciseForm({
             options={secondaryOptions}
             value={state.secondaryMuscles}
             multiple
-            onChange={(secondaryMuscles) => {
-              if (secondaryMuscles.length > MAX_SECONDARY_MUSCLES) {
-                setFieldError(
-                  'secondaryMuscles',
-                  `Pick up to ${String(MAX_SECONDARY_MUSCLES)} secondary muscles.`,
-                );
-                return;
-              }
-              clearError('secondaryMuscles');
-              setState((s) => ({ ...s, secondaryMuscles }));
-            }}
+            onChange={setSecondaryMuscles}
           />
           <FieldError
             testID="exercise-form-error-secondary-muscles"
@@ -535,10 +340,7 @@ function ExerciseForm({
               <Input
                 testID={`exercise-form-cue-${i}`}
                 value={cue}
-                onChangeText={(text) => {
-                  setCue(i, text);
-                  clearError('cues');
-                }}
+                onChangeText={(text) => setCue(i, text)}
                 placeholder={`Cue ${i + 1}`}
                 accessibilityLabel={`Cue ${i + 1}`}
                 maxLength={EXERCISE_CUE_MAX}

@@ -8,11 +8,14 @@ import rateLimit from 'express-rate-limit';
 import helmet from 'helmet';
 import { gymTrackingBackfillService } from './application/gym/tracking-backfill.service.js';
 import { householdService } from './application/household/household.service.js';
+import { refitAfterTargetChange } from './application/meal-plan/day-fit.js';
 import { consentBackfillService } from './application/privacy/consent-backfill.service.js';
+import { setTargetsChangedListener } from './application/targets/targets-changed.js';
 import {
   createContext,
   requestIdMiddleware,
 } from './interfaces/http/middleware/auth.middleware.js';
+import { startAiBudget } from './lib/ai-budget/index.js';
 import { asyncHandler } from './lib/async-handler.js';
 import { env } from './lib/env.js';
 import {
@@ -20,17 +23,25 @@ import {
   EXERCISE_STATIC_DIR,
   EXERCISE_STATIC_ROUTE,
 } from './lib/exercise-library/ensure.js';
+import {
+  INGREDIENT_STATIC_DIR,
+  INGREDIENT_STATIC_ROUTE,
+} from './lib/ingredient-images/static-images.js';
 import { logger } from './lib/logger.js';
-import { chatRouter } from './routers/chat.router.js';
+import { ROUTE_LIMITS, routeRateLimit } from './lib/route-rate-limit.js';
+import { chatBodyParser, chatRouter } from './routers/chat.router.js';
 import { appRouter } from './routers/index.js';
 import { recipeImagesSseRouter } from './routers/recipe-images-sse.router.js';
 import { scanRouter } from './routers/scan.router.js';
 import { UPLOADS_DIR, uploadsRouter } from './routers/uploads.router.js';
 import { coachingMaintenanceWorker } from './workers/coaching-maintenance.worker.js';
+import { wellKnownRouter } from './routers/well-known.router.js';
+import { dataRetentionWorker } from './workers/data-retention.worker.js';
 import { friendsMaintenanceWorker } from './workers/friends-maintenance.worker.js';
 import { ingredientPriceWorker } from './workers/ingredient-price.worker.js';
 import { planTailoringWorker } from './workers/plan-tailoring.worker.js';
 import { recipeImageWorker } from './workers/recipe-image.worker.js';
+import { uploadSweeperWorker } from './workers/upload-sweeper.worker.js';
 import { weeklyEmailWorker } from './workers/weekly-email.worker.js';
 import { weeklyPlanWorker } from './workers/weekly-plan.worker.js';
 
@@ -67,6 +78,12 @@ app.use(
   }),
 );
 
+// Phase 1 guardrails: POST /api/chat gets its own per-user rate limit (before
+// any body is read) and a 64 KB JSON body limit. ORDER MATTERS: this must stay
+// above the global parser — body-parser skips a body that was already read,
+// so whichever parser runs first sets the limit.
+app.use('/api/chat', routeRateLimit(ROUTE_LIMITS.chat), chatBodyParser);
+
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true }));
 app.use(requestIdMiddleware);
@@ -100,6 +117,8 @@ app.get(
 // Returns { ok: true } on success, { ok: false } with 503 when DB is unreachable.
 app.get(
   '/api/health',
+  // Phase 1 guardrails: per IP — it is public and does a DB round trip.
+  routeRateLimit(ROUTE_LIMITS.health),
   asyncHandler(async (_req, res) => {
     try {
       const { prisma } = await import('@chefer/database');
@@ -113,13 +132,26 @@ app.get(
   }),
 );
 
+// ─── Password-manager association files (WP-22) ──────────────────────────────
+
+app.use('/.well-known', wellKnownRouter);
+
 // ─── SSE — Recipe Images ──────────────────────────────────────────────────────
 
-app.use('/api/recipe-images', recipeImagesSseRouter);
+app.use('/api/recipe-images', routeRateLimit(ROUTE_LIMITS.recipeImages), recipeImagesSseRouter);
 
 // ─── Image uploads (recipe & ingredient photos) ──────────────────────────────
 
-app.use('/api/uploads', uploadsRouter);
+// Per-user rate limit first; the router then checks the session before the
+// (5 MB) body is buffered (Phase 1 guardrails).
+app.use('/api/uploads', routeRateLimit(ROUTE_LIMITS.uploads), uploadsRouter);
+// Vendored ingredient thumbnails (FB7-10, static/ingredients). Under /uploads so
+// Caddy's existing /uploads/* rule reaches it; registered first so the uploads
+// volume never shadows it. URLs carry ?v=<content hash>, so immutable is safe.
+app.use(
+  INGREDIENT_STATIC_ROUTE,
+  express.static(INGREDIENT_STATIC_DIR, { maxAge: '30d', immutable: true }),
+);
 app.use('/uploads', express.static(UPLOADS_DIR, { maxAge: '30d', immutable: true }));
 
 // ─── Gym exercise photos (gym_plan.md §5.5) — public-domain, self-hosted ─────
@@ -129,11 +161,12 @@ app.use(EXERCISE_STATIC_ROUTE, express.static(EXERCISE_STATIC_DIR, { maxAge: '7d
 
 // ─── AI chef chat (P1-4) — plain-text streaming, session-authenticated ───────
 
+// Rate limit + 64 KB body parser are mounted above the global JSON parser.
 app.use('/api/chat', chatRouter);
 
 // ─── Meal photo scan (F4 Snap-to-Log) — session-authenticated, metered ───────
 
-app.use('/api/scan-meal', scanRouter);
+app.use('/api/scan-meal', routeRateLimit(ROUTE_LIMITS.scanMeal), scanRouter);
 
 // ─── tRPC ─────────────────────────────────────────────────────────────────────
 
@@ -217,6 +250,9 @@ app.use(
 
 // ─── Server Start ─────────────────────────────────────────────────────────────
 
+// Day rebalance: a target change resizes this and next week's plan portions.
+setTargetsChangedListener((userId) => refitAfterTargetChange(userId));
+
 const server = app.listen(env.PORT, env.HOST, () => {
   logger.info(
     {
@@ -237,6 +273,11 @@ const server = app.listen(env.PORT, env.HOST, () => {
     logger.warn('AI_MOCK_ENABLED=true but an API key is also set — the mock takes precedence');
   }
 
+  // AI cost tracking + budgets (Phase 2): records every model call's
+  // estimated cost and installs the per-user / global budget gates. Before
+  // the workers, so their first calls are recorded and gated.
+  startAiBudget();
+
   // Start the background recipe image worker
   void recipeImageWorker.start();
 
@@ -255,6 +296,11 @@ const server = app.listen(env.PORT, env.HOST, () => {
   // Following housekeeping + the weekly moderation metrics line (plan §4.6)
   friendsMaintenanceWorker.start();
   coachingMaintenanceWorker.start();
+
+  // Daily prune: expired sessions, AI usage + AI call logs older than 90 days
+  dataRetentionWorker.start();
+  // Daily uploads orphan sweep + 30-day purge of soft-deleted recipes (Phase 1)
+  uploadSweeperWorker.start();
 
   // Upsert the curated gym exercise library (prod never runs the seed). The
   // gym services also call it lazily, so a failure here only delays it.
@@ -313,6 +359,8 @@ async function gracefulShutdown(signal: string): Promise<void> {
   weeklyEmailWorker.stop();
   friendsMaintenanceWorker.stop();
   coachingMaintenanceWorker.stop();
+  dataRetentionWorker.stop();
+  uploadSweeperWorker.stop();
   await planTailoringWorker.stop();
   await recipeImageWorker.stop();
 

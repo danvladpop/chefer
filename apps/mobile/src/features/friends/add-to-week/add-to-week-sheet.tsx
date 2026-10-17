@@ -325,8 +325,10 @@ export function AddToWeekSheet({
               const isSelected = selected?.key === row.key;
               const action =
                 row.mode === 'add'
-                  ? FRIENDS_COPY.addToWeek.addHere
-                  : FRIENDS_COPY.addToWeek.replace;
+                  ? row.side
+                    ? FRIENDS_COPY.addToWeek.addAsSide
+                    : FRIENDS_COPY.addToWeek.addHere
+                  : FRIENDS_COPY.addToWeek.replaceThisMeal;
               return (
                 <Pressable
                   key={row.key}

@@ -93,12 +93,12 @@ describe('TrainingDayNote', () => {
     expect(screen.queryByText('Rest-day target')).toBeNull();
   });
 
-  it('locked (free, flag off): dashed preview, upgrade opens Premium, no Why?', async () => {
-    const user = userEvent.setup();
+  // WP-07: training-day targets are free (no AI) — the note is never a lock.
+  it('never sells Premium: even an unapplied bump (older API) reads as the free note', async () => {
     await renderNote(lift({ applied: false }));
-    expect(screen.queryByTestId('training-day-why')).toBeNull();
-    expect(screen.queryByText(/Upgrade from your Profile/)).toBeNull();
-    await user.press(screen.getByTestId('training-day-upgrade'));
-    expect(openPremium).toHaveBeenCalledWith('training-day');
+    expect(screen.getByTestId('training-day-why')).toBeOnTheScreen();
+    expect(screen.queryByTestId('training-day-upgrade')).toBeNull();
+    expect(screen.queryByText(/Premium/)).toBeNull();
+    expect(openPremium).not.toHaveBeenCalled();
   });
 });

@@ -1,17 +1,16 @@
 import { useState } from 'react';
-import { Pressable, TextInput, View } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
+import { View } from 'react-native';
 import { INGREDIENT_CATALOG_COPY, VIDEO_IMPORT_COPY, type VideoDraftField } from '@chefer/types';
 import {
-  Badge,
-  Button,
-  Card,
   ConfirmSheet,
+  DONE_FIELD_PROPS,
   haptics,
+  IconButton,
   Input,
   PressableScale,
   SelectField,
   Text,
+  useThemeColors,
   type SelectOption,
 } from '@chefer/ui-mobile';
 import {
@@ -26,10 +25,12 @@ import {
   videoFormToDraft,
   type VideoDraftFormValues,
 } from '@chefer/utils';
+import { Icon } from '../../components/icon';
 import type { RouterOutputs } from '../../lib/trpc';
 import { pickedFromRef, type CatalogRef, type PickedIngredient } from '../ingredients/catalog-line';
 import { IngredientPickerField } from '../ingredients/ingredient-picker-field';
 import { useComputedNutrition } from '../ingredients/use-computed-nutrition';
+import { TrainButton } from '../shell/train/train-button';
 
 // Import review form — port of web's VideoDraftForm. The AI reads the video's
 // words (or, UX-REC-15, a link's page or pasted text) into a draft; the user
@@ -92,8 +93,38 @@ function initialLinks(preview: DraftReviewSource): RowLink[] {
 }
 
 function Label({ children }: { children: string }) {
-  return <Text className="mb-1 text-xs font-medium text-gray-600">{children}</Text>;
+  return <Text className="mb-1 text-subhead font-medium text-label-secondary">{children}</Text>;
 }
+
+/** A field the draft is missing ("Not found — please add"). */
+function MissingPill({ children, className }: { children: string; className?: string }) {
+  return (
+    <Text
+      className={cn(
+        'self-start rounded-full bg-surface-sunken px-2 text-caption font-semibold text-danger',
+        className,
+      )}
+    >
+      {children}
+    </Text>
+  );
+}
+
+/** A value the video did not state ("Servings: not stated…"). */
+function NotStatedPill({ children }: { children: string }) {
+  return (
+    <Text className="rounded-full bg-brand-tint px-2 text-caption font-semibold text-brand">
+      {children}
+    </Text>
+  );
+}
+
+/** A form section heading (SectionTitle's style). */
+const SECTION_TITLE = 'text-title3 font-bold text-label';
+/** A text field in the redesign's roles (over the kit Input's look). */
+const FIELD = 'rounded-control border-separator bg-surface text-body text-label';
+/** The redesign's card (BoardCard's look). */
+const CARD = 'gap-1 rounded-card border border-separator bg-surface p-4';
 
 export function VideoDraftForm({
   preview,
@@ -114,6 +145,7 @@ export function VideoDraftForm({
   onBack: () => void;
   onSave: (recipe: VideoSaveRecipe, acceptPartial: boolean) => void;
 }) {
+  const colors = useThemeColors();
   const [form, setForm] = useState<VideoDraftFormValues>(() => videoDraftToForm(preview.draft));
   const [touched, setTouched] = useState<Partial<Record<VideoDraftField, boolean>>>({});
   const [problems, setProblems] = useState<string[]>([]);
@@ -195,51 +227,48 @@ export function VideoDraftForm({
 
   return (
     <View testID="video-draft-form" className="gap-4">
-      <Card className="border-amber-200 bg-amber-50">
+      <View className="rounded-card bg-brand-tint p-4">
         <View className="flex-row items-start gap-2">
-          <Ionicons name="information-circle" size={18} color="#92400e" />
-          <View className="min-w-0 flex-1">
-            <Text className="text-sm font-semibold text-amber-900">
+          <Icon name="info" size={20} color={colors.brand} />
+          <View className="min-w-0 flex-1 gap-0.5">
+            <Text className="text-headline font-semibold text-brand">
               {VIDEO_IMPORT_COPY.checkTitle}
             </Text>
-            <Text className="mt-0.5 text-xs text-amber-900">
+            <Text className="text-subhead text-label">
               {preview.transcriptSource
                 ? VIDEO_IMPORT_COPY.checkBody[preview.transcriptSource]
                 : 'We read this from your link or text. Check the amounts and steps, and fix anything that looks off before you save.'}
             </Text>
           </View>
         </View>
-      </Card>
+      </View>
 
       {!preview.safety.ok && (
-        <Card testID="video-draft-unsafe" className="border-red-200 bg-red-50">
-          <Text className="text-xs text-red-700">
+        <View testID="video-draft-unsafe" className={cn(CARD, 'border-danger')}>
+          <Text className="text-subhead text-danger">
             This recipe conflicts with your household&apos;s allergies or diet (
             {preview.safety.issues.join(', ')}). Edit those ingredients before cooking it.
           </Text>
-        </Card>
+        </View>
       )}
 
       <View>
         <Label>Recipe name</Label>
-        {nameMissing && (
-          <Badge variant="destructive" className="mb-1">
-            {VIDEO_IMPORT_COPY.notFound}
-          </Badge>
-        )}
+        {nameMissing && <MissingPill className="mb-1">{VIDEO_IMPORT_COPY.notFound}</MissingPill>}
         <Input
           testID="video-draft-name"
           accessibilityLabel="Recipe name"
           value={form.name}
           maxLength={120}
           onChangeText={(name) => update({ name })}
-          className={cn((nameMissing || nameError) && 'border-red-400')}
+          className={cn(FIELD, (nameMissing || nameError) && 'border-danger')}
+          {...DONE_FIELD_PROPS}
         />
         {nameError ? (
           <Text
             testID="video-draft-name-error"
             nativeID="video-draft-name-error"
-            className="mt-1 text-sm text-red-700"
+            className="mt-1 text-subhead text-danger"
           >
             {nameError}
           </Text>
@@ -260,8 +289,10 @@ export function VideoDraftForm({
               testID={`video-draft-${key}`}
               accessibilityLabel={label}
               value={value}
+              className={FIELD}
               keyboardType="number-pad"
               onChangeText={(text) => update({ [key]: text }, field)}
+              {...DONE_FIELD_PROPS}
             />
           </View>
         ))}
@@ -269,18 +300,20 @@ export function VideoDraftForm({
       {(servingsUnstated || timeUnstated) && (
         <View className="-mt-2 flex-row flex-wrap gap-2">
           {servingsUnstated && (
-            <Badge variant="warning">{`Servings: ${VIDEO_IMPORT_COPY.notStated.toLowerCase()}`}</Badge>
+            <NotStatedPill>{`Servings: ${VIDEO_IMPORT_COPY.notStated.toLowerCase()}`}</NotStatedPill>
           )}
           {timeUnstated && (
-            <Badge variant="warning">{`Time: ${VIDEO_IMPORT_COPY.notStated.toLowerCase()}`}</Badge>
+            <NotStatedPill>{`Time: ${VIDEO_IMPORT_COPY.notStated.toLowerCase()}`}</NotStatedPill>
           )}
         </View>
       )}
 
       <View>
         <View className="mb-2 flex-row flex-wrap items-center gap-2">
-          <Text className="text-sm font-semibold text-gray-900">Ingredients</Text>
-          {ingredientsMissing && <Badge variant="destructive">{VIDEO_IMPORT_COPY.notFound}</Badge>}
+          <Text accessibilityRole="header" className={SECTION_TITLE}>
+            Ingredients
+          </Text>
+          {ingredientsMissing && <MissingPill>{VIDEO_IMPORT_COPY.notFound}</MissingPill>}
         </View>
         <View className="gap-2">
           {form.ingredients.map((row, index) => (
@@ -293,10 +326,13 @@ export function VideoDraftForm({
                   placeholder="Qty"
                   keyboardType="decimal-pad"
                   onChangeText={(quantity) => setIngredient(index, { quantity })}
-                  className={cn('w-16', unheard[index] && 'border-amber-400')}
+                  className={cn(FIELD, 'w-16', unheard[index] && 'border-attention')}
+                  {...DONE_FIELD_PROPS}
                 />
                 {links[index]?.ingredient ? (
-                  <View className="w-20">
+                  // FB7-03: wide enough for "piece" / "tbsp" / "clove" on one
+                  // line (w-20 broke them mid-word).
+                  <View className="w-24">
                     <SelectField
                       testID={`video-draft-unit-${index}`}
                       label={`Unit for ingredient ${index + 1}`}
@@ -315,7 +351,8 @@ export function VideoDraftForm({
                     maxLength={20}
                     autoCapitalize="none"
                     onChangeText={(unit) => setIngredient(index, { unit })}
-                    className="w-16"
+                    className={cn(FIELD, 'w-16')}
+                    {...DONE_FIELD_PROPS}
                   />
                 )}
                 <IngredientPickerField
@@ -328,23 +365,20 @@ export function VideoDraftForm({
                   accessibilityLabel={`Ingredient ${index + 1}`}
                   onPick={(ingredient) => pickIngredient(index, ingredient)}
                 />
-                <Pressable
-                  accessibilityRole="button"
+                <IconButton
                   accessibilityLabel={`Remove ingredient ${index + 1}`}
+                  icon={<Icon name="close" size={20} color={colors.labelTertiary} />}
                   onPress={() => removeIngredient(index)}
-                  className="h-11 w-11 items-center justify-center"
-                >
-                  <Ionicons name="close" size={18} color="#9ca3af" />
-                </Pressable>
+                />
               </View>
               {unheard[index] && (
-                <Text className="mt-1 text-xs text-amber-800">
+                <Text className="mt-1 text-caption text-attention">
                   {VIDEO_IMPORT_COPY.quantityCheck}
                 </Text>
               )}
               {!links[index]?.ingredient && row.name.trim() !== '' ? (
                 <View testID={`video-draft-match-${index}`} className="mt-1 gap-1">
-                  <Text className="text-xs text-amber-800">
+                  <Text className="text-caption text-attention">
                     {(links[index]?.candidates.length ?? 0) > 0
                       ? INGREDIENT_CATALOG_COPY.picker.pickMatchHint(row.name)
                       : INGREDIENT_CATALOG_COPY.picker.noMatchFound(row.name)}
@@ -362,9 +396,9 @@ export function VideoDraftForm({
                           haptics.selection();
                           pickIngredient(index, pickedFromRef(c));
                         }}
-                        className="min-h-11 justify-center rounded-full border border-amber-300 bg-amber-50 px-3"
+                        className="min-h-11 justify-center rounded-full bg-brand-tint px-3"
                       >
-                        <Text numberOfLines={1} className="text-xs font-medium text-amber-900">
+                        <Text numberOfLines={1} className="text-caption font-semibold text-brand">
                           {c.name}
                         </Text>
                       </PressableScale>
@@ -375,89 +409,82 @@ export function VideoDraftForm({
             </View>
           ))}
         </View>
-        <Button
+        <TrainButton
           testID="video-draft-add-ingredient"
           variant="ghost"
-          size="sm"
-          className="mt-1 self-start"
+          icon="add"
+          label="Add ingredient"
+          className="mt-1 self-start px-0"
           onPress={() => {
             update({ ingredients: [...form.ingredients, { quantity: '', unit: '', name: '' }] });
             setLinks((l) => [...l, { ingredient: null, candidates: [] }]);
           }}
-        >
-          + Add ingredient
-        </Button>
+        />
       </View>
 
       <View>
         <View className="mb-2 flex-row flex-wrap items-center gap-2">
-          <Text className="text-sm font-semibold text-gray-900">Steps</Text>
-          {stepsMissing && <Badge variant="destructive">{VIDEO_IMPORT_COPY.notFound}</Badge>}
+          <Text accessibilityRole="header" className={SECTION_TITLE}>
+            Steps
+          </Text>
+          {stepsMissing && <MissingPill>{VIDEO_IMPORT_COPY.notFound}</MissingPill>}
         </View>
         <View className="gap-2">
           {form.instructions.map((step, index) => (
             <View key={index} className="flex-row items-start gap-2">
-              <Text className="mt-3 w-5 text-right text-xs font-semibold text-gray-500">
+              <Text className="mt-3 w-6 text-right text-subhead font-semibold text-label-secondary">
                 {index + 1}.
               </Text>
-              <TextInput
+              <Input
                 testID={`video-draft-step-${index}`}
                 accessibilityLabel={`Step ${index + 1}`}
                 value={step}
                 multiline
                 maxLength={500}
-                placeholderTextColor="#9ca3af"
                 onChangeText={(text) =>
                   update({
                     instructions: form.instructions.map((s, i) => (i === index ? text : s)),
                   })
                 }
-                className={cn(
-                  'min-h-16 min-w-0 flex-1 rounded-md border border-input bg-background px-3 py-2 text-base text-foreground',
-                  stepsMissing && 'border-red-400',
-                )}
+                className={cn(FIELD, 'min-h-16 min-w-0 flex-1', stepsMissing && 'border-danger')}
               />
-              <Pressable
-                accessibilityRole="button"
+              <IconButton
                 accessibilityLabel={`Remove step ${index + 1}`}
+                icon={<Icon name="close" size={20} color={colors.labelTertiary} />}
                 onPress={() =>
                   update({ instructions: form.instructions.filter((_, i) => i !== index) })
                 }
-                className="h-11 w-11 items-center justify-center"
-              >
-                <Ionicons name="close" size={18} color="#9ca3af" />
-              </Pressable>
+              />
             </View>
           ))}
         </View>
-        <Button
+        <TrainButton
           testID="video-draft-add-step"
           variant="ghost"
-          size="sm"
-          className="mt-1 self-start"
+          icon="add"
+          label="Add step"
+          className="mt-1 self-start px-0"
           onPress={() => update({ instructions: [...form.instructions, ''] })}
-        >
-          + Add step
-        </Button>
+        />
       </View>
 
       {assumptions.length > 0 && (
-        <Card className="bg-gray-50">
-          <Text className="text-xs font-semibold text-gray-600">What we guessed</Text>
+        <View className="gap-0.5 rounded-card bg-surface-sunken p-4">
+          <Text className="text-subhead font-semibold text-label">What we guessed</Text>
           {assumptions.map((a) => (
-            <Text key={a} className="mt-0.5 text-xs text-gray-600">
+            <Text key={a} className="text-subhead text-label-secondary">
               • {a}
             </Text>
           ))}
-        </Card>
+        </View>
       )}
 
       {live.result ? (
         <Text
           testID="video-draft-nutrition-status"
           className={cn(
-            'text-xs',
-            live.result.status === 'PARTIAL' ? 'text-amber-800' : 'text-gray-600',
+            'text-caption',
+            live.result.status === 'PARTIAL' ? 'text-attention' : 'text-label-secondary',
           )}
         >
           {live.result.status === 'PARTIAL'
@@ -465,29 +492,29 @@ export function VideoDraftForm({
             : `${INGREDIENT_CATALOG_COPY.status.computedFrom(live.result.lines.length)} · ${live.result.perServing.calories} kcal per serving`}
         </Text>
       ) : null}
-      <Text variant="muted" className="text-xs">
+      <Text className="text-caption text-label-secondary">
         {INGREDIENT_CATALOG_COPY.importReview.nutritionNote} Saved to your private collection only.
       </Text>
 
       {(problems.length > 0 || saveError) && (
-        <Card testID="video-draft-problems" className="border-red-200 bg-red-50">
+        <View testID="video-draft-problems" className={cn(CARD, 'border-danger')}>
           {problems.map((p) => (
-            <Text key={p} className="text-sm text-red-700">
+            <Text key={p} className="text-callout text-danger">
               {p}
             </Text>
           ))}
-          {saveError && <Text className="text-sm text-red-700">{saveError}</Text>}
-        </Card>
+          {saveError && <Text className="text-callout text-danger">{saveError}</Text>}
+        </View>
       )}
 
-      <Button testID="video-draft-save" loading={saving} onPress={handleSave}>
-        {saveLabel}
-      </Button>
-      <Button variant="ghost" onPress={onBack}>
-        <Text variant="muted" className="text-xs">
-          Start over
-        </Text>
-      </Button>
+      <TrainButton
+        testID="video-draft-save"
+        size="lg"
+        label={saveLabel}
+        loading={saving}
+        onPress={handleSave}
+      />
+      <TrainButton variant="ghost" label="Start over" onPress={onBack} />
 
       <ConfirmSheet
         testID="video-draft-save-partial"

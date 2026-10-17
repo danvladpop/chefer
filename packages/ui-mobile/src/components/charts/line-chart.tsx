@@ -6,6 +6,7 @@ import Svg, { Circle, G, Line, Polyline, Text as SvgText } from 'react-native-sv
 import { cn } from '@chefer/utils';
 import { Text } from '../text';
 import { colors } from '../theme';
+import { RevealClip, useChartReveal, useClipId } from './chart-reveal';
 import {
   clampLabelCentre,
   defaultFormat,
@@ -102,6 +103,11 @@ export function LineChart({
 }: LineChartProps) {
   const { width, onLayout } = useChartWidth(widthProp);
   const secondaryData = secondary?.data ?? [];
+  // Draw-in: the line uncovers left → right on mount and on a new series.
+  const clipId = useClipId();
+  const reveal = useChartReveal(
+    `${data.length}:${data[0]?.x ?? ''}:${data[data.length - 1]?.x ?? ''}:${width > 0}`,
+  );
 
   const paddedY = paddedExtent([
     ...data.map((p) => p.y),
@@ -236,55 +242,58 @@ export function LineChart({
             </G>
           ) : null}
 
-          {y2 && secondaryData.length > 1 ? (
-            <Polyline
-              points={toPoints(secondaryData.map((p) => ({ x: x(p.x), y: y2(p.y) })))}
-              fill="none"
-              stroke={secondaryColor}
-              strokeWidth={1.5}
-              strokeDasharray="4 3"
-            />
-          ) : null}
-
-          {data.length > 1 ? (
-            <Polyline
-              points={toPoints(data.map((p) => ({ x: x(p.x), y: y(p.y) })))}
-              fill="none"
-              stroke={color}
-              strokeOpacity={0.3}
-              strokeWidth={1}
-            />
-          ) : null}
-
-          {trendRuns.map((run, i) =>
-            run.length > 1 ? (
+          <RevealClip id={clipId} progress={reveal} direction="x" width={width} height={height} />
+          <G clipPath={`url(#${clipId})`}>
+            {y2 && secondaryData.length > 1 ? (
               <Polyline
-                key={`trend-${i}`}
-                points={toPoints(run)}
+                points={toPoints(secondaryData.map((p) => ({ x: x(p.x), y: y2(p.y) })))}
                 fill="none"
-                stroke={trendColor ?? color}
-                strokeWidth={2.5}
-                strokeLinejoin="round"
-                strokeLinecap="round"
+                stroke={secondaryColor}
+                strokeWidth={1.5}
+                strokeDasharray="4 3"
               />
-            ) : null,
-          )}
+            ) : null}
 
-          {data.map((point, i) =>
-            point.highlight ? (
-              <Circle
-                key={`pt-${i}`}
-                cx={x(point.x)}
-                cy={y(point.y)}
-                r={5.5}
-                fill={colors.warning}
-                stroke={colors.card}
-                strokeWidth={2}
+            {data.length > 1 ? (
+              <Polyline
+                points={toPoints(data.map((p) => ({ x: x(p.x), y: y(p.y) })))}
+                fill="none"
+                stroke={color}
+                strokeOpacity={0.3}
+                strokeWidth={1}
               />
-            ) : (
-              <Circle key={`pt-${i}`} cx={x(point.x)} cy={y(point.y)} r={3} fill={color} />
-            ),
-          )}
+            ) : null}
+
+            {trendRuns.map((run, i) =>
+              run.length > 1 ? (
+                <Polyline
+                  key={`trend-${i}`}
+                  points={toPoints(run)}
+                  fill="none"
+                  stroke={trendColor ?? color}
+                  strokeWidth={2.5}
+                  strokeLinejoin="round"
+                  strokeLinecap="round"
+                />
+              ) : null,
+            )}
+
+            {data.map((point, i) =>
+              point.highlight ? (
+                <Circle
+                  key={`pt-${i}`}
+                  cx={x(point.x)}
+                  cy={y(point.y)}
+                  r={5.5}
+                  fill={colors.warning}
+                  stroke={colors.card}
+                  strokeWidth={2}
+                />
+              ) : (
+                <Circle key={`pt-${i}`} cx={x(point.x)} cy={y(point.y)} r={3} fill={color} />
+              ),
+            )}
+          </G>
 
           {xLabels?.map((label, i) => (
             <SvgText

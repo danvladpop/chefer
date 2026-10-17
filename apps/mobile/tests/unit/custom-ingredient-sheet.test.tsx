@@ -1,6 +1,8 @@
+import { Keyboard } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react-native';
 import { CustomIngredientSheet } from '../../src/features/ingredients/custom-ingredient-sheet';
+import { focusedFields, resetFocusedFields } from './keyboard-test-utils';
 
 // plan-ingredient-catalog §8.1 / D5 (P9; T-40.8 originally): the mobile
 // private-ingredient sheet. All five label values are required, CONFLICT
@@ -26,6 +28,7 @@ let mockEstimateState: {
   isPending: boolean;
   isError: boolean;
   data: unknown;
+  error?: unknown;
 } = { isPending: false, isError: false, data: undefined };
 
 jest.mock('expo-router', () => ({
@@ -261,6 +264,31 @@ describe('CustomIngredientSheet', () => {
     expect(screen.getByTestId('custom-sheet-fiber').props.value).toBe('10');
   });
 
+  it('a quota or AI-budget refusal (TOO_MANY_REQUESTS) shows the server sentence, like web', async () => {
+    const message = "You've used this month's AI allowance. AI features are back on the 1st.";
+    mockEstimateState = {
+      isPending: false,
+      isError: true,
+      data: undefined,
+      error: { message, data: { code: 'TOO_MANY_REQUESTS' } },
+    };
+    await renderSheet('oat bran');
+    expect(screen.getByTestId('custom-sheet-fill-in-error')).toHaveTextContent(message);
+  });
+
+  it('any other fill-in failure keeps the generic copy', async () => {
+    mockEstimateState = {
+      isPending: false,
+      isError: true,
+      data: undefined,
+      error: { message: 'boom', data: { code: 'INTERNAL_SERVER_ERROR' } },
+    };
+    await renderSheet('oat bran');
+    expect(screen.getByTestId('custom-sheet-fill-in-error')).toHaveTextContent(
+      'Could not fill this in right now. Copy the values from the label.',
+    );
+  });
+
   it('premium: "Fill in for me" asks for AI consent first (feature ingredient-estimate); declining sends nothing (R-10)', async () => {
     mockConsentGranted = false;
     await renderSheet('oat bran');
@@ -284,5 +312,41 @@ describe('CustomIngredientSheet', () => {
     mockPremiumUser = { planTier: 'FREE', role: 'USER' };
     await renderSheet('oat bran');
     expect(screen.queryByText(/\$|€|£|\bprice\b|\bcheckout\b|\bbuy\b/i)).toBeNull();
+  });
+});
+
+// Tester feedback 2026-10-04: name -> kcal -> protein -> carbs -> fat -> fibre
+// -> g/piece -> g/100 ml on Return / Next, closing the keyboard after the last.
+describe('CustomIngredientSheet — keyboard (tester feedback 2026-10-04)', () => {
+  it('Return walks every field in order and the last one closes the keyboard', async () => {
+    const dismiss = jest.spyOn(Keyboard, 'dismiss').mockImplementation(() => undefined);
+    await renderSheet();
+    const order = [
+      'custom-sheet-name',
+      'custom-sheet-kcal',
+      'custom-sheet-protein',
+      'custom-sheet-carbs',
+      'custom-sheet-fat',
+      'custom-sheet-fiber',
+      'custom-sheet-grams-per-piece',
+      'custom-sheet-grams-per-100ml',
+    ];
+    expect(screen.getByTestId(order[0] ?? '').props.returnKeyType).toBe('next');
+    expect(screen.getByTestId(order[7] ?? '').props.returnKeyType).toBe('done');
+    // number pads have no Return key on iOS: each carries its own Next / Done bar.
+    for (const id of order.slice(1)) {
+      expect(screen.getByTestId(id).props.inputAccessoryViewID).toBeTruthy();
+    }
+
+    resetFocusedFields();
+    for (const id of order.slice(0, 7)) {
+      await fireEvent(screen.getByTestId(id), 'submitEditing');
+    }
+    expect(focusedFields()).toEqual(order.slice(1));
+    expect(dismiss).not.toHaveBeenCalled();
+
+    await fireEvent(screen.getByTestId(order[7] ?? ''), 'submitEditing');
+    expect(dismiss).toHaveBeenCalledTimes(1);
+    dismiss.mockRestore();
   });
 });

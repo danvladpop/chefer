@@ -1,8 +1,10 @@
+import { Keyboard } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { onlineManager } from '@tanstack/react-query';
 import { act, fireEvent, render, screen, userEvent, waitFor } from '@testing-library/react-native';
 import { resetSnackbarForTests } from '@chefer/ui-mobile';
 import RecipeFormScreen from '../../app/recipe-form';
+import { focusedFields, resetFocusedFields } from './keyboard-test-utils';
 
 const SAFE_AREA_METRICS = {
   frame: { x: 0, y: 0, width: 390, height: 844 },
@@ -785,5 +787,66 @@ describe('RecipeFormScreen — duplicate (UX-REC-04)', () => {
   it('an untouched duplicate never asks to discard', async () => {
     await renderScreen();
     expect(mockPreventRemove.prevent).toBe(false);
+  });
+});
+
+// Tester feedback 2026-10-04: the form's keyboard behaviour.
+describe('RecipeFormScreen — keyboard (tester feedback 2026-10-04)', () => {
+  let dismiss: jest.SpyInstance;
+  beforeEach(() => {
+    dismiss = jest.spyOn(Keyboard, 'dismiss').mockImplementation(() => undefined);
+    resetFocusedFields();
+  });
+  afterEach(() => dismiss.mockRestore());
+
+  it('the name field reads Done and closes the keyboard on Return', async () => {
+    await renderScreen();
+    const name = screen.getByTestId('rf-name-input');
+    expect(name.props.returnKeyType).toBe('done');
+    await fireEvent(name, 'submitEditing');
+    expect(dismiss).toHaveBeenCalledTimes(1);
+  });
+
+  it('the description is multiline (Return = newline) and the scroll closes the keyboard on drag', async () => {
+    const user = userEvent.setup();
+    await renderScreen();
+    await user.press(screen.getByTestId('rf-more-details-toggle'));
+    const description = screen.getByTestId('rf-description');
+    expect(description.props.multiline).toBe(true);
+    // iOS: its own Done accessory.
+    expect(description.props.inputAccessoryViewID).toBeTruthy();
+    expect(screen.getByTestId('rf-scroll').props.keyboardDismissMode).toBeDefined();
+    expect(screen.getByTestId('rf-scroll').props.keyboardShouldPersistTaps).toBe('handled');
+  });
+
+  it('prep time hands focus to cook time; cook time is the last field and closes the keyboard', async () => {
+    const user = userEvent.setup();
+    await renderScreen();
+    await user.press(screen.getByTestId('rf-more-details-toggle'));
+    expect(screen.getByTestId('rf-prep').props.keyboardType).toBe('number-pad');
+    expect(screen.getByTestId('rf-prep').props.returnKeyType).toBe('next');
+    expect(screen.getByTestId('rf-cook').props.returnKeyType).toBe('done');
+    // number pads have no Return key on iOS — each field owns a Next / Done bar.
+    expect(screen.getByTestId('rf-prep').props.inputAccessoryViewID).toBeTruthy();
+    expect(screen.getByTestId('rf-cook').props.inputAccessoryViewID).toBeTruthy();
+
+    resetFocusedFields();
+    await fireEvent(screen.getByTestId('rf-prep'), 'submitEditing');
+    expect(focusedFields()).toEqual(['rf-cook']);
+    expect(dismiss).not.toHaveBeenCalled();
+    await fireEvent(screen.getByTestId('rf-cook'), 'submitEditing');
+    expect(dismiss).toHaveBeenCalledTimes(1);
+  });
+
+  it('saving closes the keyboard', async () => {
+    const user = userEvent.setup();
+    await renderScreen();
+    await user.type(screen.getByTestId('rf-name-input'), 'Bread');
+    await pickIngredient(0, 'flour', 'wheat-flour');
+    await user.type(screen.getByTestId('rf-ingredient-qty-0'), '200');
+    dismiss.mockClear();
+    await fireEvent.press(screen.getByTestId('rf-save'));
+    expect(mockCreate).toHaveBeenCalledTimes(1);
+    expect(dismiss).toHaveBeenCalled();
   });
 });

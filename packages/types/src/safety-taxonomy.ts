@@ -30,6 +30,13 @@ export interface SafetyTaxonomyEntry {
   mayContain?: string;
   /** Coeliac-style condition → the diet id it maps onto (`condition` group only). */
   impliesDietId?: string;
+  /**
+   * Legacy entry kept for stored data and server-side matching but no longer
+   * offered as a NEW pick (UX-ACC-06 follow-up: "Shellfish" next to Crustaceans
+   * and Molluscs). Pickers show it only while it is already selected, so nobody
+   * who ticked it loses sight of it or protection; the matcher is unchanged.
+   */
+  hiddenForNewPicks?: boolean;
 }
 
 // ─── Allergies ──────────────────────────────────────────────────────────────
@@ -127,6 +134,9 @@ const ALLERGY_ENTRIES: SafetyTaxonomyEntry[] = [
     synonyms: ['shellfish', 'shellfish allergy'],
     patternSet: 'SHELLFISH_PATTERNS',
     readBack: 'a shellfish allergy',
+    // UX-ACC-06 follow-up (owner, 2026-10-04): Crustaceans + Molluscs replace it
+    // for new picks; users who already have it keep it selected and protected.
+    hiddenForNewPicks: true,
   },
   {
     id: 'sesame',
@@ -489,6 +499,22 @@ export function findSafetyTaxonomyEntry(id: string): SafetyTaxonomyEntry | undef
 
 export function safetyTaxonomyEntriesByGroup(group: SafetyTaxonomyGroup): SafetyTaxonomyEntry[] {
   return SAFETY_TAXONOMY.filter((entry) => entry.group === group);
+}
+
+/**
+ * The entries a picker should render for `group`: every entry except those
+ * flagged `hiddenForNewPicks`, which stay visible only while the user already has
+ * them selected (so a legacy choice remains removable). Pickers on every platform
+ * use this instead of {@link safetyTaxonomyEntriesByGroup}; the matcher and the
+ * taxonomy lookups still see the full list.
+ */
+export function safetyPickerEntries(
+  group: SafetyTaxonomyGroup,
+  selectedIds: readonly string[],
+): SafetyTaxonomyEntry[] {
+  return safetyTaxonomyEntriesByGroup(group).filter(
+    (entry) => !entry.hiddenForNewPicks || selectedIds.includes(entry.id),
+  );
 }
 
 // ─── Hidden gluten (bug B-47 / T-01.9, rev 2) ──────────────────────────────────

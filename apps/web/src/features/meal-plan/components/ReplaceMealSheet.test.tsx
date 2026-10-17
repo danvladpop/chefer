@@ -25,6 +25,7 @@ vi.mock('@/lib/trpc', () => ({
         }),
       },
       listHiddenCount: { useQuery: () => ({ data: undefined }) },
+      addToWeek: { useMutation: () => ({ mutate: vi.fn(), isPending: false }) },
     },
     mealPlan: {
       replaceRecipe: { useMutation: () => ({ mutate: vi.fn(), isPending: false }) },

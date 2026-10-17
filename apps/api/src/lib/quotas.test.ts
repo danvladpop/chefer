@@ -1,10 +1,14 @@
 import { TRPCError } from '@trpc/server';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { prisma } from '@chefer/database';
 import type { UserProfile } from '@chefer/types';
+import { setAiBudgetGates, type AiBudgetBlock } from './ai/budget-gate.js';
 import {
+  assertAiBudget,
   reserveAiSwap,
+  reserveChatMessage,
   reserveMealScan,
+  reserveNutritionEstimate,
   reservePlanGeneration,
   reserveRecipeImport,
 } from './quotas.js';
@@ -138,5 +142,112 @@ describe('reservation mechanics (audit F-PLAN-2-3, F-TRK-2-2)', () => {
     await reservation.release();
     expect(txMock).not.toHaveBeenCalled();
     expect(createMock).not.toHaveBeenCalled();
+  });
+});
+
+// ─── Phase 2 AI budgets: the reservation is also the budget check ────────────
+
+describe('AI budget enforcement in the reservations', () => {
+  const monthly: AiBudgetBlock = {
+    reason: 'user_monthly',
+    message: "You've used this month's AI allowance.",
+  };
+  const userGate = vi.fn<[string], Promise<AiBudgetBlock | null>>();
+
+  beforeEach(() => {
+    userGate.mockReset().mockResolvedValue(monthly);
+    setAiBudgetGates({ user: userGate, background: () => Promise.resolve(true) });
+  });
+  afterEach(() => setAiBudgetGates(null));
+
+  it.each([
+    ['chat', () => reserveChatMessage(premium)],
+    ['scan', () => reserveMealScan(premium)],
+    ['import (link/text/photo/video)', () => reserveRecipeImport(premium)],
+    ['AI swap', () => reserveAiSwap(premium)],
+    ['premium plan generation', () => reservePlanGeneration(premium, true)],
+    ['nutrition auto-fill', () => reserveNutritionEstimate(premium)],
+  ])(
+    '%s: refused with TOO_MANY_REQUESTS + the budget message, nothing written',
+    async (_n, run) => {
+      const err = await run().catch((e: unknown) => e);
+      expect(err).toBeInstanceOf(TRPCError);
+      expect(err).toMatchObject({ code: 'TOO_MANY_REQUESTS', message: monthly.message });
+      expect(userGate).toHaveBeenCalledWith('u1');
+      expect(createMock).not.toHaveBeenCalled();
+    },
+  );
+
+  it('a curated (zero-AI) plan is never refused by the budget', async () => {
+    await reservePlanGeneration(free, false);
+    expect(userGate).not.toHaveBeenCalled();
+    expect(createMock).toHaveBeenCalledWith({ data: { userId: 'u1', callType: 'CURATED_PLAN' } });
+  });
+
+  it('free curated swaps are not checked either', async () => {
+    await reserveAiSwap(free);
+    expect(userGate).not.toHaveBeenCalled();
+  });
+
+  it('a premium-only feature still answers FORBIDDEN first for free users', async () => {
+    await expect(reserveChatMessage(free)).rejects.toMatchObject({ code: 'FORBIDDEN' });
+    expect(userGate).not.toHaveBeenCalled();
+  });
+
+  it('under budget, the reservation proceeds as before', async () => {
+    userGate.mockResolvedValue(null);
+    await reserveMealScan(premium);
+    expect(createMock).toHaveBeenCalledWith({ data: { userId: 'u1', callType: 'SCAN' } });
+  });
+
+  it('a failing budget check allows (fail-open), never blocks AI on its own error', async () => {
+    vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    userGate.mockRejectedValue(new Error('db down'));
+    await expect(assertAiBudget('u1')).resolves.toBeUndefined();
+  });
+
+  it('no gates installed (tests, scripts) = allowed', async () => {
+    setAiBudgetGates(null);
+    await expect(assertAiBudget('u1')).resolves.toBeUndefined();
+  });
+});
+
+describe('Phase 1 guardrails (2026-10-11)', () => {
+  it('chat: free has no access (FORBIDDEN) and writes nothing', async () => {
+    await expect(reserveChatMessage(free)).rejects.toMatchObject({ code: 'FORBIDDEN' });
+    expect(createMock).not.toHaveBeenCalled();
+  });
+
+  it('chat: premium reserves under 20 messages a day, in a serializable transaction', async () => {
+    countMock.mockResolvedValue(19);
+    await reserveChatMessage(premium);
+    expect(txMock).toHaveBeenCalledWith(expect.any(Function), { isolationLevel: 'Serializable' });
+    expect(createMock).toHaveBeenCalledWith({ data: { userId: 'u1', callType: 'CHAT' } });
+  });
+
+  it('chat: premium is refused at 100 (it used to be unlimited)', async () => {
+    countMock.mockResolvedValue(100);
+    const err = await reserveChatMessage(premium).catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(TRPCError);
+    expect((err as TRPCError).code).toBe('TOO_MANY_REQUESTS');
+    expect((err as TRPCError).message).toContain('20 chat messages');
+    expect(createMock).not.toHaveBeenCalled();
+  });
+
+  it('plans: premium is refused at 5 generations a day (was 20)', async () => {
+    countMock.mockResolvedValue(4);
+    await reservePlanGeneration(premium);
+    countMock.mockResolvedValue(5);
+    const err = await reservePlanGeneration(premium).catch((e: unknown) => e);
+    expect((err as TRPCError).code).toBe('TOO_MANY_REQUESTS');
+    expect((err as TRPCError).message).toContain('limit of 5 plan generations');
+  });
+
+  it('plans: free stays at 3 and the upsell names the premium 5', async () => {
+    countMock.mockResolvedValue(3);
+    const err = await reservePlanGeneration(free).catch((e: unknown) => e);
+    expect((err as TRPCError).message).toBe(
+      "You've used today's 3 free plan generations. Upgrade for 5 per day.",
+    );
   });
 });

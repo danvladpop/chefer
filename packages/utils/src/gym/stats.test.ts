@@ -2,7 +2,7 @@
 import { describe, expect, it } from 'vitest';
 import type { Rir, SessionSummaryDto } from '@chefer/types';
 import { bestE1rm, e1rmConfidence, epley } from './e1rm';
-import { collectPrs, detectPrs, hasPriorExposure, summarizeBests } from './prs';
+import { collectPrs, detectLivePrs, detectPrs, hasPriorExposure, summarizeBests } from './prs';
 import { KG_PROFILE, slotFor } from './test-fixtures';
 import { warmupSets } from './warmups';
 
@@ -218,6 +218,40 @@ describe('PRs (research §4.2 #8)', () => {
         candidate: { weightKg: 0, reps: 5 },
       }),
     ).toEqual([]);
+  });
+
+  // UX-GYM-18 follow-up: the live badge/haptic follow the summary's rule.
+  it('detectLivePrs: no PR for a first-ever lift, the usual PRs once there is history', () => {
+    const candidate = { weightKg: 100, reps: 5 };
+    expect(detectLivePrs({ exerciseId: 'barbell-bench-press', history: [], candidate })).toEqual(
+      [],
+    );
+    expect(detectLivePrs({ exerciseId: 'barbell-row', history, candidate })).toEqual([]);
+    // A skipped / discarded earlier session is not a baseline either.
+    expect(
+      detectLivePrs({ exerciseId: 'barbell-bench-press', history: history.slice(1), candidate }),
+    ).toEqual([]);
+    expect(
+      detectLivePrs({
+        exerciseId: 'barbell-bench-press',
+        history,
+        candidate: { weightKg: 150, reps: 5 },
+      }),
+    ).toEqual(
+      detectPrs({
+        exerciseId: 'barbell-bench-press',
+        history,
+        candidate: { weightKg: 150, reps: 5 },
+      }),
+    );
+    expect(
+      detectLivePrs({
+        exerciseId: 'barbell-row',
+        history: [],
+        candidate: { weightKg: 100, reps: 5 },
+        best: { maxWeightKg: 60, maxE1rmKg: 75, frontier: [[60, 8]] },
+      }),
+    ).toEqual(['e1rm', 'weight']);
   });
 
   it('detects weight, rep-at-weight and e1RM PRs, ranked e1rm > weight > reps', () => {

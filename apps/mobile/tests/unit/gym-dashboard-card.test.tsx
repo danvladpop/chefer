@@ -210,6 +210,27 @@ describe('TodaysWorkoutCard', () => {
     expect(router.push).toHaveBeenCalledWith('/today');
   });
 
+  // A Monday-pinned day that passed before a Wednesday setup is due today, but
+  // today is not its training day: "Up next", not "Training today".
+  it('a day pinned to another weekday reads "Up next · Usually <day>"', async () => {
+    const queryClient = makeClient();
+    const base = makeBootstrap();
+    queryClient.setQueryData(
+      gymBootstrapQueryKey,
+      makeBootstrap({
+        activeRoutine: routineFor(0),
+        nextWorkout: NEXT_WORKOUT,
+        ...(base.profile && { profile: { ...base.profile, setupCompletedAt: NOW.toISOString() } }),
+      }),
+    );
+    await renderCard(queryClient);
+
+    expect(screen.getByTestId('todays-workout-card')).toHaveTextContent(/UP NEXT/);
+    expect(screen.getByTestId('todays-workout-card')).toHaveTextContent(/Usually Monday · ~40 min/);
+    expect(screen.queryByText(/TRAINING TO/)).not.toBeOnTheScreen();
+    expect(screen.getByTestId('todays-workout-card-start')).toBeOnTheScreen();
+  });
+
   // UX-FOOD-19: the Plan names the routine day pinned to today's weekday. The
   // card used to name the rotation's next day instead, so the two disagreed.
   it('names the day pinned to today, not the rotation’s next day (UX-FOOD-19)', async () => {

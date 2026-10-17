@@ -14,6 +14,7 @@ type Entry = {
   recipeId?: string;
   mealType?: string;
   slotIndex?: number;
+  replacesSlot?: SlotRefLike;
   [key: string]: unknown;
 };
 type Planned = { recipeId?: string; kcal?: number; protein?: number; carbs?: number; fat?: number };
@@ -21,6 +22,7 @@ type Day = {
   plannedMeals: Planned[];
   offPlanLogged: { entryId?: string; [key: string]: unknown }[];
   log: { loggedMeals: Entry[] } | null;
+  skippedSlots?: SlotRefLike[];
   [key: string]: unknown;
 };
 type LogVars = {
@@ -28,6 +30,18 @@ type LogVars = {
   mealType: string;
   slotIndex?: number;
   portionMultiplier?: number;
+};
+type SlotRefLike = { mealType: string; slotIndex: number };
+type CustomVars = {
+  name: string;
+  estimatedBy: 'vision' | 'manual';
+  mealType: string;
+  kcal: number;
+  protein?: number;
+  carbs?: number;
+  fat?: number;
+  unknownMacros?: string[];
+  replacesSlot?: SlotRefLike;
 };
 type Cb = ((...args: unknown[]) => unknown) | undefined;
 type MutationOpts = { onMutate?: Cb; onSuccess?: Cb; onError?: Cb; onSettled?: Cb };
@@ -44,6 +58,7 @@ const m = vi.hoisted(() => {
     listeners: Set<() => void>;
     seq: number;
     copiedIds: string[];
+    recents: unknown[];
   } = {
     day: undefined,
     server: undefined,
@@ -52,6 +67,7 @@ const m = vi.hoisted(() => {
     listeners: new Set(),
     seq: 0,
     copiedIds: ['c1', 'c2'],
+    recents: [],
   };
   return {
     logRecipe: vi.fn(),
@@ -61,6 +77,9 @@ const m = vi.hoisted(() => {
     deleteCustom: vi.fn(),
     restoreCustom: vi.fn(),
     updateRecipeEntry: vi.fn(),
+    logCustom: vi.fn(),
+    skipSlot: vi.fn(),
+    unskipSlot: vi.fn(),
     state,
   };
 });
@@ -88,6 +107,10 @@ const store = (loggedMeals: Entry[]) => {
   };
 };
 const serverLog = () => (m.state.server as Day).log?.loggedMeals ?? [];
+const skippedOf = (): SlotRefLike[] => (m.state.server as Day).skippedSlots ?? [];
+const setSkipped = (skippedSlots: SlotRefLike[]) => {
+  m.state.server = { ...(m.state.server as Day), skippedSlots };
+};
 
 /** A mutation hook that behaves like react-query's: onMutate → server → onSuccess/onError → onSettled. */
 function mutation(serverWrite: (vars: never) => unknown) {
@@ -130,7 +153,11 @@ vi.mock('@/features/nutrition/components/TargetExplainSheet', () => ({
 }));
 vi.mock('@/features/tracker/components/QuickAddSheet', () => ({ QuickAddSheet: () => null }));
 vi.mock('@/features/tracker/components/ScanMealButton', () => ({ ScanMealButton: () => null }));
-vi.mock('@/features/tracker/lib/rebalance-storage', () => ({ handleRebalanceResult: vi.fn() }));
+vi.mock('@/features/tracker/lib/rebalance-storage', () => ({
+  handleRebalanceOutcome: vi.fn(),
+  REBALANCE_PREVIEW: { rebalanceMode: 'preview' },
+  withDayFitLine: (message: string) => message,
+}));
 vi.mock('@/hooks/useIsPremium', () => ({ useIsPremium: () => false }));
 vi.mock('@/lib/recipe-image', () => ({ getRecipeImageProps: () => ({ src: '/x.jpg' }) }));
 vi.mock('@/lib/trpc', () => ({
@@ -270,6 +297,58 @@ vi.mock('@/lib/trpc', () => ({
       updateCustomMeal: {
         useMutation: () => ({ mutate: vi.fn(), isPending: false, isError: false, error: null }),
       },
+      // WP-06: "Ate something else" — a custom entry that replaces a slot. Like
+      // the server: it takes the slot (dropping a ticked recipe or an earlier
+      // replacement) and clears a skip.
+      logCustomMeal: {
+        useMutation: mutation((vars: CustomVars) => {
+          m.logCustom(vars);
+          const slot = vars.replacesSlot;
+          const kept = serverLog().filter(
+            (e) =>
+              !slot ||
+              !(
+                e.replacesSlot?.slotIndex === slot.slotIndex ||
+                (e.recipeId && e.slotIndex === slot.slotIndex && e.mealType === slot.mealType)
+              ),
+          );
+          const entryId = `srv-${(m.state.seq += 1)}`;
+          store([
+            ...kept,
+            {
+              entryId,
+              custom: { name: vars.name, estimatedBy: vars.estimatedBy },
+              mealType: vars.mealType,
+              portionMultiplier: 1,
+              kcal: vars.kcal,
+              protein: vars.protein ?? 0,
+              carbs: vars.carbs ?? 0,
+              fat: vars.fat ?? 0,
+              ...(vars.unknownMacros && { unknownMacros: vars.unknownMacros }),
+              ...(slot && { replacesSlot: slot }),
+            },
+          ]);
+          if (slot) setSkipped(skippedOf().filter((x) => x.slotIndex !== slot.slotIndex));
+          return { log: {}, rebalance, entryId };
+        }),
+      },
+      skipSlot: {
+        useMutation: mutation((vars: SlotRefLike) => {
+          m.skipSlot(vars);
+          setSkipped([...skippedOf(), { mealType: vars.mealType, slotIndex: vars.slotIndex }]);
+          return { log: {}, skippedSlots: skippedOf(), rebalance };
+        }),
+      },
+      unskipSlot: {
+        useMutation: mutation((vars: SlotRefLike) => {
+          m.unskipSlot(vars);
+          setSkipped(skippedOf().filter((x) => x.slotIndex !== vars.slotIndex));
+          return { log: {}, skippedSlots: skippedOf() };
+        }),
+      },
+      recents: {
+        useQuery: () => ({ data: m.state.recents, isLoading: false, isError: false }),
+      },
     },
     // §2.11 — TargetExplainSheet's query (mocked away above; still called by
     // the page directly).
@@ -343,7 +422,12 @@ describe('Tracker — one-save model (bug B-23, T-19.4)', () => {
     fireEvent.click(firstSnack);
     await waitFor(() =>
       expect(m.logRecipe).toHaveBeenCalledWith(
-        expect.objectContaining({ recipeId: 'yogurt', mealType: 'snack', slotIndex: 1 }),
+        expect.objectContaining({
+          recipeId: 'yogurt',
+          mealType: 'snack',
+          slotIndex: 1,
+          rebalanceMode: 'preview', // WP-07: offer first, never a silent rebalance
+        }),
       ),
     );
   });
@@ -391,7 +475,10 @@ describe('Tracker — copy a day (T-19.3)', () => {
     fireEvent.click(screen.getByTestId('tracker-copy-day'));
     fireEvent.click(screen.getByTestId('tracker-copy-day-confirm'));
     expect(m.copyDay).toHaveBeenCalledWith(
-      expect.objectContaining({ toDate: expect.any(String) as string }),
+      expect.objectContaining({
+        toDate: expect.any(String) as string,
+        rebalanceMode: 'preview',
+      }),
     );
     expect(screen.getByText('Copied 2 entries')).toBeTruthy();
     fireEvent.click(screen.getByText('Undo'));
@@ -729,6 +816,478 @@ describe('Tracker — "Also eaten" recipe rows (UX-FOOD-03)', () => {
           portionMultiplier: 1,
         }),
       ),
+    );
+  });
+});
+
+// ─── WP-06: "Ate something else" / "Skipped it" ────────────────────────────────
+describe('Tracker — flexible eating (WP-06)', () => {
+  const dinner = {
+    recipeId: 'curry',
+    mealType: 'dinner',
+    recipeName: 'Chicken Curry',
+    imageUrl: null,
+    kcal: 600,
+    protein: 40,
+    carbs: 50,
+    fat: 20,
+    slotIndex: 0,
+  };
+  const lunch = {
+    ...dinner,
+    recipeId: 'salad',
+    mealType: 'lunch',
+    recipeName: 'Greek Salad',
+    kcal: 400,
+    slotIndex: 1,
+  };
+  const shawarma = {
+    entryId: 'r1',
+    custom: { name: 'Shawarma · normal', estimatedBy: 'manual' },
+    mealType: 'dinner',
+    portionMultiplier: 1,
+    kcal: 775,
+    protein: 40,
+    carbs: 0,
+    fat: 0,
+    unknownMacros: ['carbs', 'fat'],
+    replacesSlot: { mealType: 'dinner', slotIndex: 0 },
+  };
+
+  const openAteElse = (mealType: string) => {
+    fireEvent.click(screen.getByRole('button', { name: `More actions for ${mealType}` }));
+    fireEvent.click(screen.getByTestId('slot-action-ate-else'));
+  };
+
+  beforeEach(() => {
+    window.localStorage.clear();
+  });
+
+  it('every planned row has an overflow with "Ate something else" and "Skipped it"', () => {
+    day(null, { plannedMeals: [dinner, lunch] });
+    render(<TrackerPage />);
+    expect(screen.getByRole('button', { name: 'More actions for Dinner' })).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: 'More actions for Lunch' }));
+    expect(screen.getByText('Ate something else')).toBeTruthy();
+    expect(screen.getByText('Skipped it')).toBeTruthy();
+  });
+
+  it('a ticked row can be replaced but not skipped', () => {
+    day(
+      [
+        {
+          recipeId: 'curry',
+          mealType: 'dinner',
+          slotIndex: 0,
+          portionMultiplier: 1,
+          kcal: 600,
+          protein: 40,
+          carbs: 50,
+          fat: 20,
+        },
+      ],
+      {
+        plannedMeals: [dinner],
+      },
+    );
+    render(<TrackerPage />);
+    fireEvent.click(screen.getByRole('button', { name: 'More actions for Dinner' }));
+    expect(screen.getByText('Ate something else')).toBeTruthy();
+    expect(screen.queryByText('Skipped it')).toBeNull();
+  });
+
+  it('quick estimate logs the middle of the range against the slot, with carbs and fat unknown', async () => {
+    day(null, { plannedMeals: [dinner] });
+    render(<TrackerPage />);
+    openAteElse('Dinner');
+    expect(screen.getByTestId<HTMLButtonElement>('ate-else-log').disabled).toBe(true);
+    fireEvent.click(screen.getByTestId('ate-else-cuisine-shawarma'));
+    // The range, never a single false-precise number.
+    expect(screen.getByTestId('ate-else-range').textContent).toBe(
+      '≈ 700–850 kcal · ≈ 35–45 g protein',
+    );
+    fireEvent.click(screen.getByTestId('ate-else-log'));
+
+    await waitFor(() =>
+      expect(m.logCustom).toHaveBeenCalledWith({
+        date: expect.any(String) as string,
+        name: 'Shawarma · normal',
+        estimatedBy: 'manual',
+        mealType: 'dinner',
+        kcal: 775,
+        protein: 40,
+        carbs: 0,
+        fat: 0,
+        unknownMacros: ['carbs', 'fat'],
+        replacesSlot: { mealType: 'dinner', slotIndex: 0 },
+        rebalanceMode: 'preview',
+      }),
+    );
+    // The slot reads what you had, can't be ticked again, and is not repeated under "Also eaten".
+    await waitFor(() =>
+      expect(screen.getByTestId('tracker-slot-note-0').textContent).toBe(
+        'You had: Shawarma · normal (≈ 775 kcal)',
+      ),
+    );
+    expect(screen.queryByRole('button', { name: /check Chicken Curry/i })).toBeNull();
+    expect(screen.queryByTestId('tracker-also-eaten')).toBeNull();
+    // The day's total is the replacement, not the planned dinner on top of it.
+    expect(screen.getByText(/775 \/ 2,000 kcal/)).toBeTruthy();
+  });
+
+  it('is three taps from the slot on a repeat: the last cuisine and size are remembered', async () => {
+    window.localStorage.setItem(
+      'chefer.ate-else.last',
+      JSON.stringify({ cuisine: 'pizza', size: 'big' }),
+    );
+    day(null, { plannedMeals: [dinner] });
+    render(<TrackerPage />);
+    openAteElse('Dinner'); // tap 1 (overflow) + tap 2 (Ate something else)
+    fireEvent.click(screen.getByTestId('ate-else-log')); // tap 3
+    await waitFor(() =>
+      expect(m.logCustom).toHaveBeenCalledWith(
+        expect.objectContaining({
+          name: 'Pizza · big',
+          replacesSlot: { mealType: 'dinner', slotIndex: 0 },
+        }),
+      ),
+    );
+  });
+
+  it('shows a success toast whose Undo deletes the replacement and restores the slot', async () => {
+    day(null, { plannedMeals: [dinner] });
+    render(<TrackerPage />);
+    openAteElse('Dinner');
+    fireEvent.click(screen.getByTestId('ate-else-cuisine-burger'));
+    fireEvent.click(screen.getByTestId('ate-else-log'));
+    await waitFor(() => expect(screen.getByText(/Logged Burger · normal for dinner/)).toBeTruthy());
+
+    fireEvent.click(screen.getByRole('button', { name: 'Undo' }));
+    await waitFor(() =>
+      expect(m.deleteCustom).toHaveBeenCalledWith(
+        expect.objectContaining({ entryId: expect.stringMatching(/^srv-/) as string }),
+      ),
+    );
+    await waitFor(() =>
+      expect(screen.getByRole('button', { name: /check Chicken Curry/i })).toBeTruthy(),
+    );
+    expect(screen.queryByTestId('tracker-slot-note-0')).toBeNull();
+  });
+
+  it('a replaced slot from the server reads "You had…", refuses a tick and offers Undo', async () => {
+    day([shawarma], { plannedMeals: [dinner, lunch] });
+    render(<TrackerPage />);
+    expect(screen.getByTestId('tracker-slot-note-0').textContent).toBe(
+      'You had: Shawarma · normal (≈ 775 kcal)',
+    );
+    // The replaced slot has no tick; the other slot still does.
+    expect(screen.queryByRole('button', { name: /check Chicken Curry/i })).toBeNull();
+    expect(screen.getByRole('button', { name: /check Greek Salad/i })).toBeTruthy();
+    // Not duplicated under "Also eaten".
+    expect(screen.queryByTestId('tracker-also-eaten')).toBeNull();
+    // Totals: the replacement stands in for dinner; the planned curry adds nothing.
+    expect(screen.getByText(/775 \/ 2,000 kcal/)).toBeTruthy();
+
+    fireEvent.click(screen.getByTestId('tracker-slot-undo-0'));
+    await waitFor(() =>
+      expect(m.deleteCustom).toHaveBeenCalledWith(expect.objectContaining({ entryId: 'r1' })),
+    );
+    await waitFor(() =>
+      expect(screen.getByRole('button', { name: /check Chicken Curry/i })).toBeTruthy(),
+    );
+  });
+
+  it('a replacement whose slot has left the plan stays under "Also eaten"', () => {
+    day([{ ...shawarma, replacesSlot: { mealType: 'dinner', slotIndex: 5 } }], {
+      plannedMeals: [dinner],
+    });
+    render(<TrackerPage />);
+    expect(screen.getByTestId('tracker-also-eaten')).toBeTruthy();
+    expect(screen.getByText('Shawarma · normal')).toBeTruthy();
+  });
+
+  it('"Skipped it" skips the slot, with an Undo and no judgement', async () => {
+    day(null, { plannedMeals: [dinner, lunch] });
+    render(<TrackerPage />);
+    fireEvent.click(screen.getByRole('button', { name: 'More actions for Lunch' }));
+    fireEvent.click(screen.getByTestId('slot-action-skip'));
+
+    await waitFor(() =>
+      expect(m.skipSlot).toHaveBeenCalledWith({
+        date: expect.any(String) as string,
+        mealType: 'lunch',
+        slotIndex: 1,
+        // WP-07: the log write asks for an offer, never a silent rebalance.
+        rebalanceMode: 'preview',
+      }),
+    );
+    await waitFor(() =>
+      expect(screen.getByTestId('tracker-slot-note-1').textContent).toBe('Skipped'),
+    );
+    expect(screen.queryByRole('button', { name: /check Greek Salad/i })).toBeNull();
+    // Skipped is not eaten: the day's total stays at zero.
+    expect(screen.getByText(/0 \/ 2,000 kcal/)).toBeTruthy();
+    expect(screen.getByText('Skipped lunch')).toBeTruthy();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Undo' }));
+    await waitFor(() =>
+      expect(m.unskipSlot).toHaveBeenCalledWith(
+        expect.objectContaining({ mealType: 'lunch', slotIndex: 1 }),
+      ),
+    );
+    await waitFor(() =>
+      expect(screen.getByRole('button', { name: /check Greek Salad/i })).toBeTruthy(),
+    );
+  });
+
+  it('a skipped slot from the server reads "Skipped" and its row Undo unskips it', async () => {
+    day(null, { plannedMeals: [dinner], skippedSlots: [{ mealType: 'dinner', slotIndex: 0 }] });
+    render(<TrackerPage />);
+    expect(screen.getByTestId('tracker-slot-note-0').textContent).toBe('Skipped');
+    fireEvent.click(screen.getByTestId('tracker-slot-undo-0'));
+    await waitFor(() => expect(m.unskipSlot).toHaveBeenCalled());
+    await waitFor(() =>
+      expect(screen.getByRole('button', { name: /check Chicken Curry/i })).toBeTruthy(),
+    );
+  });
+
+  it('a failed skip rolls the row back and says why in plain words', async () => {
+    day(null, { plannedMeals: [dinner] });
+    m.state.failWrites = true;
+    render(<TrackerPage />);
+    fireEvent.click(screen.getByRole('button', { name: 'More actions for Dinner' }));
+    fireEvent.click(screen.getByTestId('slot-action-skip'));
+    await waitFor(() => expect(screen.getByText(/Couldn't skip that\./)).toBeTruthy());
+    expect(screen.queryByTestId('tracker-slot-note-0')).toBeNull();
+    expect(screen.getByRole('button', { name: /check Chicken Curry/i })).toBeTruthy();
+  });
+
+  it('a failed replacement rolls back and says why', async () => {
+    day(null, { plannedMeals: [dinner] });
+    m.state.failWrites = true;
+    render(<TrackerPage />);
+    openAteElse('Dinner');
+    fireEvent.click(screen.getByTestId('ate-else-cuisine-pizza'));
+    fireEvent.click(screen.getByTestId('ate-else-log'));
+    await waitFor(() => expect(screen.getByText(/Couldn't log that\./)).toBeTruthy());
+    expect(screen.queryByTestId('tracker-slot-note-0')).toBeNull();
+  });
+
+  it('Recent: logs a recent meal against the slot', async () => {
+    m.state.recents = [
+      {
+        key: 'c:kebab',
+        name: 'Kebab plate',
+        mealType: 'dinner',
+        kcal: 820,
+        protein: 44,
+        carbs: 60,
+        fat: 40,
+        estimatedBy: 'manual',
+        count: 2,
+        lastLoggedAt: '2026-09-20',
+        imageUrl: null,
+      },
+    ];
+    day(null, { plannedMeals: [dinner] });
+    render(<TrackerPage />);
+    openAteElse('Dinner');
+    fireEvent.click(screen.getByTestId('ate-else-tab-recent'));
+    fireEvent.click(screen.getByRole('button', { name: 'Log Kebab plate for dinner' }));
+    await waitFor(() =>
+      expect(m.logCustom).toHaveBeenCalledWith(
+        expect.objectContaining({
+          name: 'Kebab plate',
+          kcal: 820,
+          protein: 44,
+          carbs: 60,
+          fat: 40,
+          replacesSlot: { mealType: 'dinner', slotIndex: 0 },
+        }),
+      ),
+    );
+    m.state.recents = [];
+  });
+
+  it('neutral copy: no "off-plan", no "honestly", no red for a day over the target', () => {
+    day(
+      [
+        {
+          entryId: 'e9',
+          custom: { name: 'Birthday cake', estimatedBy: 'manual' },
+          mealType: 'snack',
+          portionMultiplier: 1,
+          kcal: 2600,
+          protein: 5,
+          carbs: 300,
+          fat: 100,
+        },
+      ],
+      { plannedMeals: [dinner] },
+    );
+    const { container } = render(<TrackerPage />);
+    expect(screen.getByText('Also eaten')).toBeTruthy();
+    expect(document.body.textContent).not.toMatch(/off-plan|honest/i);
+    expect(screen.getByText(/2,600 \/ 2,000 kcal/)).toBeTruthy();
+    expect(container.querySelector('.text-red-600:not([class*="hover:"])')).toBeNull();
+    expect(container.querySelector('.bg-red-500')).toBeNull();
+  });
+
+  it('size choices carry their hints and every control has an accessible name', () => {
+    day(null, { plannedMeals: [dinner] });
+    render(<TrackerPage />);
+    openAteElse('Dinner');
+    fireEvent.click(screen.getByTestId('ate-else-cuisine-pizza'));
+    expect(screen.getByText('3–4 slices')).toBeTruthy();
+    expect(screen.getByRole('group', { name: 'What did you have?' })).toBeTruthy();
+    expect(screen.getByRole('group', { name: 'How much?' })).toBeTruthy();
+    expect(screen.getByRole('tablist', { name: 'How to log it' })).toBeTruthy();
+  });
+});
+
+// ─── WP-08: protein-only mode ──────────────────────────────────────────────────
+describe('Tracker — protein-only mode (WP-08)', () => {
+  const dinner = {
+    recipeId: 'curry',
+    mealType: 'dinner',
+    recipeName: 'Chicken Curry',
+    imageUrl: null,
+    kcal: 600,
+    protein: 40,
+    carbs: 50,
+    fat: 20,
+    slotIndex: 0,
+  };
+  const lunch = {
+    ...dinner,
+    recipeId: 'salad',
+    mealType: 'lunch',
+    recipeName: 'Greek Salad',
+    slotIndex: 1,
+  };
+  const tofu = {
+    entryId: 'o1',
+    recipeId: 'pad-thai',
+    mealType: 'dinner',
+    portionMultiplier: 1,
+    kcal: 540,
+    protein: 22,
+    carbs: 70,
+    fat: 18,
+  };
+  const cake = {
+    entryId: 'c1',
+    custom: { name: 'Birthday cake', estimatedBy: 'manual' },
+    mealType: 'snack',
+    portionMultiplier: 1,
+    kcal: 420,
+    protein: 6,
+    carbs: 60,
+    fat: 16,
+  };
+  const guide = {
+    proteinG: 125,
+    meals: 3,
+    perMealG: 41.7,
+    lowG: 35,
+    highG: 45,
+    label: '35–45 g per meal',
+  };
+  const loggedDinner = {
+    recipeId: 'curry',
+    mealType: 'dinner',
+    slotIndex: 0,
+    portionMultiplier: 1,
+    kcal: 600,
+    protein: 40,
+    carbs: 50,
+    fat: 20,
+  };
+
+  const proteinDay = (mode: string | null) =>
+    day([loggedDinner, cake], {
+      plannedMeals: [dinner, lunch],
+      numbersMode: mode,
+      proteinGuide: guide,
+      offPlanLogged: [{ ...tofu, recipeName: 'Tofu Pad Thai' }],
+    });
+
+  beforeEach(() => {
+    window.localStorage.clear();
+  });
+
+  it('shows protein, never kcal: totals, planned rows, also-eaten rows and the per-meal guide', () => {
+    proteinDay('PROTEIN_ONLY');
+    render(<TrackerPage />);
+    expect(document.body.textContent).not.toMatch(/kcal|calorie/i);
+    // The day's total is protein against the protein target.
+    expect(screen.getByText(/46 \/ 125 g protein/)).toBeTruthy();
+    expect(screen.getByTestId('tracker-protein-guide').textContent).toBe('35–45 g per meal');
+    // Planned rows show their protein at the portion.
+    expect(screen.getAllByText('40 g protein').length).toBeGreaterThan(0);
+    // Custom entries too.
+    expect(screen.getByText('6 g protein')).toBeTruthy();
+    // Carbs and fat bars are gone.
+    expect(screen.queryByText('Carbs')).toBeNull();
+    expect(screen.queryByText('Fat')).toBeNull();
+  });
+
+  it('switching back to the full numbers restores every kcal figure', () => {
+    proteinDay('PROTEIN_ONLY');
+    render(<TrackerPage />);
+    expect(document.body.textContent).not.toMatch(/kcal/i);
+    act(() => setCache({ ...(m.state.cache as Day), numbersMode: 'FULL' }));
+    expect(document.body.textContent).toMatch(/\/ 2,000 kcal/);
+    expect(screen.getByText('Calories')).toBeTruthy();
+    expect(screen.queryByTestId('tracker-protein-guide')).toBeNull();
+    act(() => setCache({ ...(m.state.cache as Day), numbersMode: null }));
+    expect(document.body.textContent).toMatch(/\/ 2,000 kcal/);
+  });
+
+  it('NONE is reserved (WP-16) and reads as the full numbers', () => {
+    proteinDay('NONE');
+    render(<TrackerPage />);
+    expect(document.body.textContent).toMatch(/\/ 2,000 kcal/);
+  });
+
+  it('"Ate something else" shows the protein range only, and still logs the slot', async () => {
+    day(null, { plannedMeals: [dinner], numbersMode: 'PROTEIN_ONLY', proteinGuide: guide });
+    render(<TrackerPage />);
+    fireEvent.click(screen.getByRole('button', { name: 'More actions for Dinner' }));
+    fireEvent.click(screen.getByTestId('slot-action-ate-else'));
+    fireEvent.click(screen.getByTestId('ate-else-cuisine-pizza'));
+    const range = screen.getByTestId('ate-else-range').textContent ?? '';
+    expect(range).toMatch(/g protein/);
+    expect(range).not.toMatch(/kcal/i);
+    expect(document.body.textContent).not.toMatch(/kcal/i);
+    fireEvent.click(screen.getByTestId('ate-else-log'));
+    await waitFor(() => expect(m.logCustom).toHaveBeenCalledTimes(1));
+    // The plan balances on calories underneath: the entry still carries them.
+    expect(m.logCustom).toHaveBeenCalledWith(
+      expect.objectContaining({ replacesSlot: { mealType: 'dinner', slotIndex: 0 } }),
+    );
+  });
+
+  it('a replaced slot reads "You had: …" with its protein', () => {
+    day(
+      [
+        {
+          ...cake,
+          entryId: 'r1',
+          mealType: 'dinner',
+          replacesSlot: { mealType: 'dinner', slotIndex: 0 },
+          protein: 40,
+          kcal: 775,
+        },
+      ],
+      {
+        plannedMeals: [dinner],
+        numbersMode: 'PROTEIN_ONLY',
+      },
+    );
+    render(<TrackerPage />);
+    expect(screen.getByTestId('tracker-slot-note-0').textContent).toBe(
+      'You had: Birthday cake (≈ 40 g protein)',
     );
   });
 });

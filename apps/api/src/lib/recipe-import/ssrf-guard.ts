@@ -1,5 +1,6 @@
+import { lookup as lookupCallback, type LookupAddress } from 'node:dns';
 import { lookup } from 'node:dns/promises';
-import { isIP } from 'node:net';
+import { isIP, type LookupFunction } from 'node:net';
 import { TRPCError } from '@trpc/server';
 
 // ─── SSRF guard for recipe imports (F5) ───────────────────────────────────────
@@ -9,7 +10,9 @@ import { TRPCError } from '@trpc/server';
 // hostname is resolved BEFORE fetching with every returned address checked
 // against private/loopback/link-local/metadata/reserved ranges. Redirect hops
 // are re-validated by the fetcher (fetch-page.ts), so a public host cannot
-// bounce us into a private one.
+// bounce us into a private one. That pre-check alone is a TOCTOU gap — the
+// socket resolves the name again — so the fetcher also connects through
+// `guardedLookup`, which re-checks the addresses the socket actually uses.
 
 /** Parses an IPv4 dotted quad into its 32-bit value, or null. */
 function ipv4ToInt(ip: string): number | null {
@@ -48,8 +51,50 @@ const FORBIDDEN_V4: [string, number][] = [
 ];
 
 /**
+ * Parses any textual IPv6 form (compressed, full, or with a trailing dotted
+ * quad) into its eight 16-bit groups, or null when it is not valid IPv6.
+ */
+function parseIpv6(ip: string): number[] | null {
+  let head = ip;
+  const tail: number[] = [];
+  const dotted = /^(.*:)(\d{1,3}(?:\.\d{1,3}){3})$/.exec(ip);
+  if (dotted?.[1] && dotted[2]) {
+    const v4 = ipv4ToInt(dotted[2]);
+    if (v4 === null) return null;
+    tail.push(v4 >>> 16, v4 & 0xffff);
+    // "::ffff:" → "::ffff", but keep a bare "::" intact.
+    head = dotted[1].endsWith('::') ? dotted[1] : dotted[1].slice(0, -1);
+  }
+
+  const halves = head.split('::');
+  if (halves.length > 2) return null;
+  const toGroups = (part: string | undefined): number[] | null => {
+    if (!part) return [];
+    const groups: number[] = [];
+    for (const group of part.split(':')) {
+      if (!/^[0-9a-f]{1,4}$/.test(group)) return null;
+      groups.push(Number.parseInt(group, 16));
+    }
+    return groups;
+  };
+  const left = toGroups(halves[0]);
+  const right = toGroups(halves[1]);
+  if (!left || !right) return null;
+
+  const explicit = left.length + right.length + tail.length;
+  if (halves.length === 1) return explicit === 8 ? [...left, ...tail] : null;
+  if (explicit > 7) return null;
+  return [...left, ...new Array<number>(8 - explicit).fill(0), ...right, ...tail];
+}
+
+function isForbiddenIpv4(ip: number): boolean {
+  return FORBIDDEN_V4.some(([base, bits]) => inCidr4(ip, base, bits));
+}
+
+/**
  * True when the resolved address must never be fetched (private, loopback,
- * link-local, metadata, ULA, multicast, reserved). Pure — unit-tested directly.
+ * link-local, metadata, ULA, multicast, reserved, or an IPv6 form that embeds
+ * or tunnels to an IPv4 address). Pure — unit-tested directly.
  */
 export function isForbiddenAddress(rawIp: string): boolean {
   // Strip a zone index ("fe80::1%eth0") before classification.
@@ -59,21 +104,32 @@ export function isForbiddenAddress(rawIp: string): boolean {
   if (version === 4) {
     const value = ipv4ToInt(ip);
     if (value === null) return true; // unparseable → fail closed
-    return FORBIDDEN_V4.some(([base, bits]) => inCidr4(value, base, bits));
+    return isForbiddenIpv4(value);
   }
 
   if (version === 6) {
-    if (ip === '::' || ip === '::1') return true; // unspecified + loopback
-    // IPv4-mapped/compatible (::ffff:10.0.0.1 or trailing dotted quad) —
-    // classify by the embedded IPv4 address.
-    const dottedMatch = /^(?:.*:)((?:\d{1,3}\.){3}\d{1,3})$/.exec(ip);
-    if (dottedMatch?.[1]) return isForbiddenAddress(dottedMatch[1]);
-    const hextet = ip.split(':')[0] ?? '';
-    const first = hextet === '' ? 0 : Number.parseInt(hextet, 16);
-    if (Number.isNaN(first)) return true;
-    if ((first & 0xfe00) === 0xfc00) return true; // fc00::/7 ULA
-    if ((first & 0xffc0) === 0xfe80) return true; // fe80::/10 link-local
-    if ((first & 0xff00) === 0xff00) return true; // ff00::/8 multicast
+    const g = parseIpv6(ip);
+    if (!g) return true; // unparseable → fail closed
+    const [g0 = 0, g1 = 0, g2 = 0, g3 = 0, g4 = 0, g5 = 0, g6 = 0, g7 = 0] = g;
+    const embeddedV4 = ((g6 << 16) | g7) >>> 0;
+    const upperZero = g0 === 0 && g1 === 0 && g2 === 0 && g3 === 0;
+
+    // IPv4-mapped (::ffff:0:0/96), IPv4-translated (::ffff:0:0:0/96) and the
+    // deprecated IPv4-compatible (::/96, which also covers :: and ::1) forms
+    // all reach the embedded IPv4 address — classify by it, in any notation
+    // (URL parsing turns ::ffff:127.0.0.1 into the hex form ::ffff:7f00:1).
+    if (upperZero && g4 === 0 && (g5 === 0xffff || g5 === 0)) return isForbiddenIpv4(embeddedV4);
+    if (upperZero && g4 === 0xffff && g5 === 0) return isForbiddenIpv4(embeddedV4);
+
+    // Only global unicast (2000::/3) is ever fetchable. Everything else —
+    // ULA fc00::/7, link-local fe80::/10, multicast ff00::/8, NAT64
+    // 64:ff9b::/96 and 64:ff9b:1::/48, discard 100::/64 — is blocked.
+    if ((g0 & 0xe000) !== 0x2000) return true;
+    // Inside 2000::/3: tunnels and special-purpose space that can land on an
+    // internal IPv4 address or are never legitimate destinations.
+    if (g0 === 0x2002) return true; // 6to4 (2002::/16) embeds an IPv4 address
+    if (g0 === 0x2001 && g1 < 0x0200) return true; // 2001::/23 IETF, incl. Teredo 2001::/32
+    if (g0 === 0x2001 && g1 === 0x0db8) return true; // documentation
     return false;
   }
 
@@ -132,3 +188,41 @@ export async function assertSafeRemoteUrl(rawUrl: string): Promise<URL> {
 
   return url;
 }
+
+/** Error code a blocked connect-time lookup fails with (see `guardedLookup`). */
+export const SSRF_BLOCKED_CODE = 'ESSRFBLOCKED';
+
+/**
+ * A `net.connect` lookup that refuses to hand a forbidden address to the
+ * socket. `assertSafeRemoteUrl` resolves a name before fetching, but the
+ * socket resolves it again — a DNS-rebinding host can answer public first and
+ * private second. Connecting through this lookup checks the addresses the
+ * connection really uses. The hostname itself is untouched, so SNI and the
+ * Host header still name the original host.
+ */
+export const guardedLookup: LookupFunction = (hostname, options, callback) => {
+  lookupCallback(hostname, { ...options, all: true }, (err, addresses: LookupAddress[]) => {
+    if (err) {
+      callback(err, '', 0);
+      return;
+    }
+    const first = addresses[0];
+    if (!first) {
+      callback(
+        Object.assign(new Error(`No address for ${hostname}`), { code: 'ENOTFOUND' }),
+        '',
+        0,
+      );
+      return;
+    }
+    if (addresses.some(({ address }) => isForbiddenAddress(address))) {
+      const blocked = Object.assign(new Error(`Blocked forbidden address for ${hostname}`), {
+        code: SSRF_BLOCKED_CODE,
+      });
+      callback(blocked, '', 0);
+      return;
+    }
+    if (options.all) callback(null, addresses);
+    else callback(null, first.address, first.family);
+  });
+};

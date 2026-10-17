@@ -41,9 +41,13 @@ import {
 // engine decided for next time right away, from the optimistically folded
 // cached bootstrap — so it is correct offline too.
 
-const PR_KIND_LABEL = { e1rm: 'Estimated 1RM PR', weight: 'Weight PR', reps: 'Rep PR' } as const;
+export const PR_KIND_LABEL = {
+  e1rm: 'Estimated 1RM PR',
+  weight: 'Weight PR',
+  reps: 'Rep PR',
+} as const;
 
-function goToday(): void {
+export function goToday(): void {
   if (router.canDismiss()) router.dismissTo('/today');
   else router.replace('/today');
 }
@@ -356,16 +360,23 @@ function patchProgression(old: GymBootstrap | undefined, dto: ProgressionDto) {
   };
 }
 
-function AdjustSheet({
+export function AdjustSheet({
   row,
   meta,
   bootstrap,
   onClose,
+  reason,
 }: {
   row: NextTimeRow;
   meta: ExerciseDto;
   bootstrap: GymBootstrap | undefined;
   onClose: () => void;
+  /**
+   * The engine's "why" sentence, shown above the fields. Only the shell-v2
+   * summary passes it (its rows are compact); the legacy summary shows the
+   * sentence on the row instead, so it leaves this out.
+   */
+  reason?: string;
 }) {
   const queryClient = useQueryClient();
   const online = useIsOnline();
@@ -425,6 +436,11 @@ function AdjustSheet({
           </Button>
         }
       >
+        {reason ? (
+          <Text testID="adjust-sheet-reason" className="text-sm">
+            {reason}
+          </Text>
+        ) : null}
         <Text variant="muted">
           Your target wins over the suggestion, for the next session only.
         </Text>

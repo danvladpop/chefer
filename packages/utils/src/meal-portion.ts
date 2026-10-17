@@ -115,6 +115,13 @@ export function sumPlanDay(
 export interface PortionMeal {
   kcal: number;
   protein: number;
+  /**
+   * Hold this meal at exactly this portion (day rebalance: the user's pick,
+   * a pinned slot, something already eaten). It still counts in the day.
+   */
+  fixedPortion?: number;
+  /** The portion "no change" means for this meal (default 1×, as written). */
+  fromPortion?: number;
 }
 
 export interface PortionTargets {
@@ -222,15 +229,16 @@ export function choosePortions(
   };
 
   if (n === 0) return finish([], Infinity);
-  if (n > MAX_EXHAUSTIVE) {
-    const ones = meals.map(() => 1);
+  const free = meals.filter((m) => m.fixedPortion === undefined).length;
+  if (free > MAX_EXHAUSTIVE) {
+    const ones = meals.map((m) => m.fixedPortion ?? m.fromPortion ?? 1);
     const { kcal, protein } = sumAt(ones);
     return finish(ones, scorePortions(kcal, protein, 0, targets, weights));
   }
 
   // Order steps so 1× is tried first — ties then keep the recipe as written.
   const ordered = [...steps].sort((a, b) => Math.abs(a - 1) - Math.abs(b - 1) || a - b);
-  const current = new Array<number>(n).fill(1);
+  const current = meals.map((m) => m.fixedPortion ?? m.fromPortion ?? 1);
   let best: number[] = current.slice();
   let bestScore = Infinity;
 
@@ -245,11 +253,145 @@ export function choosePortions(
     }
     const meal = meals[i];
     if (!meal) return;
-    for (const p of ordered) {
+    if (meal.fixedPortion !== undefined) {
+      current[i] = meal.fixedPortion;
+      walk(
+        i + 1,
+        kcal + meal.kcal * meal.fixedPortion,
+        protein + meal.protein * meal.fixedPortion,
+        change,
+      );
+      return;
+    }
+    const from = meal.fromPortion ?? 1;
+    // Steps nearest the meal's current portion first: ties keep it as it is.
+    const stepsHere =
+      from === 1
+        ? ordered
+        : [...steps].sort((a, b) => Math.abs(a - from) - Math.abs(b - from) || a - b);
+    for (const p of stepsHere) {
       current[i] = p;
-      walk(i + 1, kcal + meal.kcal * p, protein + meal.protein * p, change + Math.abs(p - 1));
+      walk(i + 1, kcal + meal.kcal * p, protein + meal.protein * p, change + Math.abs(p - from));
     }
   };
   walk(0, 0, 0, 0);
   return finish(best, bestScore);
+}
+
+// ─── Day rebalance (2026-10-16) ───────────────────────────────────────────────
+// After a swap, a replace or a log, the day's OTHER open meals are resized
+// (same ¾×–2× steps) so the day lands back on its target. Open = still
+// planned: not eaten, not replaced or skipped, not the user's pick. With no
+// open meal left the day is left as it is — the user chose, and one day a
+// little over or under is not worth rearranging the rest of the week for.
+
+/** A day this close to its calorie target (and not protein-short) is not resized. */
+export const DAY_FIT_CLOSE_ENOUGH = 0.03;
+/** A resize must cut the day's miss by at least this much (calorie fraction + protein fraction). */
+export const DAY_FIT_MIN_GAIN = 0.02;
+
+function dayFitMiss(d: { kcal: number; protein: number }, t: PortionTargets): number {
+  const kcalMiss = t.calories > 0 ? Math.abs(d.kcal - t.calories) / t.calories : 0;
+  const proteinShort = t.proteinG > 0 ? Math.max(0, t.proteinG - d.protein) / t.proteinG : 0;
+  return kcalMiss + proteinShort;
+}
+
+export interface DayFitSlot {
+  /** Per-serving numbers of the slot's recipe (or of what replaced it). */
+  kcal: number;
+  protein: number;
+  /** The slot's current portion. */
+  portion: number;
+  /** True when the slot must keep its portion (eaten, replaced, the user's pick, pinned). */
+  locked: boolean;
+  /** False when the slot no longer counts toward the day (skipped). Default true. */
+  counts?: boolean;
+}
+
+export interface DayFitResult {
+  /** One portion per input slot (locked and non-counting slots unchanged). */
+  portions: number[];
+  /** Indexes whose portion changed. */
+  changed: number[];
+  /** The day before and after, at the portions. */
+  before: { kcal: number; protein: number };
+  after: { kcal: number; protein: number };
+  /** The day (after) is within ±10% of calories and not protein-short. */
+  onTarget: boolean;
+  /** No open slot was left to resize. */
+  nothingOpen: boolean;
+}
+
+/**
+ * Resizes a day's open slots so the day lands on `targets`. Leaves the day
+ * untouched when it is already on target (no churn) or when nothing is open.
+ * `extra` is eaten food not tied to a slot (an extra snack logged today).
+ */
+export function fitDayPortions(
+  slots: readonly DayFitSlot[],
+  targets: PortionTargets,
+  options: PortionOptions & { extra?: { kcal: number; protein: number } } = {},
+): DayFitResult {
+  const extra = options.extra ?? { kcal: 0, protein: 0 };
+  const total = (portions: readonly number[]) => {
+    let kcal = extra.kcal;
+    let protein = extra.protein;
+    slots.forEach((slot, i) => {
+      if (slot.counts === false) return;
+      const p = portions[i] ?? slot.portion;
+      kcal += slot.kcal * p;
+      protein += slot.protein * p;
+    });
+    return { kcal: Math.round(kcal), protein: Math.round(protein) };
+  };
+  const current = slots.map((slot) => slotPortion(slot.portion));
+  const before = total(current);
+  const open = slots.map((slot) => !slot.locked && slot.counts !== false);
+  const nothingOpen = !open.some(Boolean);
+  const unchanged = (): DayFitResult => ({
+    portions: current,
+    changed: [],
+    before,
+    after: before,
+    onTarget: isDayOnTarget(before, { calories: targets.calories, proteinG: targets.proteinG }),
+    nothingOpen,
+  });
+  // "On target" for the UI is the ±10% band, but a resize aims closer: a day
+  // already within DAY_FIT_CLOSE_ENOUGH (and not protein-short) is left alone,
+  // anything else is resized when that improves it by at least
+  // DAY_FIT_MIN_GAIN — so the plan lands ON the target, not just near it
+  // (owner, 2026-10-16: a 3,012 kcal training day against 3,309 is "short").
+  const closeEnough =
+    targets.calories > 0 &&
+    Math.abs(before.kcal - targets.calories) / targets.calories <= DAY_FIT_CLOSE_ENOUGH &&
+    proteinGapG(before.protein, targets.proteinG) === null;
+  if (nothingOpen || closeEnough) return unchanged();
+  // The extra food rides along as one more fixed "meal" at 1×.
+  const meals: PortionMeal[] = [
+    ...slots.map(
+      (slot, i): PortionMeal =>
+        slot.counts === false
+          ? { kcal: 0, protein: 0, fixedPortion: 1 }
+          : open[i]
+            ? { kcal: slot.kcal, protein: slot.protein, fromPortion: current[i] ?? 1 }
+            : { kcal: slot.kcal, protein: slot.protein, fixedPortion: current[i] ?? 1 },
+    ),
+    { kcal: extra.kcal, protein: extra.protein, fixedPortion: 1 },
+  ];
+  const plan = choosePortions(meals, targets, options);
+  const portions = slots.map((_, i) =>
+    open[i] ? (plan.portions[i] ?? current[i] ?? 1) : (current[i] ?? 1),
+  );
+  const changed = portions.flatMap((p, i) => (p !== current[i] ? [i] : []));
+  const after = total(portions);
+  if (dayFitMiss(after, targets) > dayFitMiss(before, targets) - DAY_FIT_MIN_GAIN)
+    return unchanged();
+  return {
+    portions,
+    changed,
+    before,
+    after,
+    onTarget: isDayOnTarget(after, { calories: targets.calories, proteinG: targets.proteinG }),
+    nothingOpen,
+  };
 }

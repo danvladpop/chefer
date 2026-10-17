@@ -657,6 +657,32 @@ full ladder before declaring a task done.
     (`patches/expo-modules-jsi@57.0.6.patch`) that drops the two constructor
     annotations, which is semantics-neutral on this compiler. REMOVE the patch when
     Xcode or the SDK updates past this (try a build without it after either upgrade).
+15. **Large screens (Android tablets / foldables; 2026-10-14).** `orientation: 'portrait'`
+    is ignored on Android 16+ for windows ≥ 600dp, so the app does run in landscape on
+    tablets (`ios.supportsTablet` is `false`, so iPad shows the scaled iPhone window and
+    none of this applies there). Layout rules: `Screen` pads a wide window out to a
+    centred `READABLE_MAX_WIDTH` (680pt) column, `Sheet` caps its panel at
+    `SHEET_MAX_WIDTH` (640pt), heroes cap at 40% of the window height — all from
+    `readable-layout.ts` in `@chefer/ui-mobile` (`useReadableLayout`, built on
+    `useWindowDimensions`, so rotation and split screen re-lay out). At phone widths
+    every helper is a no-op. Something absolutely positioned or outside `Screen` (the
+    workout mini bar, the rest-timer bar, a full-bleed header) uses the `gutter` itself.
+    Keyboard: RN's Android `keyboardDidShow` height is already `ime − systemBars`, so
+    `useKeyboardInset` must NOT subtract the bottom safe area again on Android (it did,
+    and every sheet footer sat one navigation bar behind the keyboard — phones too).
+    Android text: on the 2x-density tablet a shrink-wrapped bold label can be drawn a
+    hair wider than RN measured it and wrap its last word onto a clipped second line
+    ("Add set" → "Add"); `numberOfLines={1}` stops it where the label must not wrap.
+    Button labels that may need two lines (long label, small phone, large font) keep
+    wrapping and instead draw `withLabelSlack(label)` (`label-slack.ts`: a trailing
+    no-break space on Android) — `Button` and `TrainButton` already do; give the
+    button an explicit `accessibilityLabel` so the slack never reaches TalkBack or
+    Maestro selectors. Tab bars: every tab sets `tabBarAccessibilityLabel`
+    (`tabAccessibilityLabel()` in `src/lib/tab-bar-options.ts`) — without one,
+    React Navigation leaves Android's to the platform, which read the icon-font
+    glyph too ("<glyph>, Today").
+    Test with a tablet AVD (copy `Pixel_8.avd`, `hw.lcd` 2560x1600 @ 320dpi; boot with
+    `-gpu swiftshader_indirect` if the host GPU path aborts).
 
 ---
 

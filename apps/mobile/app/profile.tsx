@@ -1,19 +1,18 @@
 import { useState } from 'react';
-import { ActivityIndicator, Pressable, View } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
+import { ActivityIndicator, View } from 'react-native';
 import { router } from 'expo-router';
 import { PLAN_FEATURES } from '@chefer/types';
 import {
-  Button,
-  Card,
   ConfirmSheet,
   ErrorState,
+  IconButton,
   KeyboardAwareScrollView,
   PressableScale,
   Screen,
   Text,
   useQueryState,
   useSnackbar,
+  useThemeColors,
 } from '@chefer/ui-mobile';
 import {
   cn,
@@ -22,10 +21,13 @@ import {
   PREMIUM_PITCH_COPY,
   userFacingErrorMessage,
 } from '@chefer/utils';
+import { Icon } from '../src/components/icon';
 import { openPremium } from '../src/features/premium/open-premium';
 import { usePremiumPitch } from '../src/features/premium/use-premium-pitch';
 import { PrivacySection } from '../src/features/privacy/privacy-section';
+import { SignInMethodsCard } from '../src/features/profile/sign-in-methods-card';
 import { SectionAnchor, useSectionTitle } from '../src/features/settings/section-anchor';
+import { TrainButton } from '../src/features/shell/train/train-button';
 import { track } from '../src/lib/analytics';
 import { trpc } from '../src/lib/trpc';
 
@@ -39,22 +41,31 @@ import { trpc } from '../src/lib/trpc';
 // platform, delta rule 2), and a downgrade that says what you keep and what
 // you lose before it acts. "Daily AI allowances" sit under it and count only
 // what the server reserves (T-10.8, Q-18, Q-19).
+//
+// 11 Oct restyle: the shell's look — canvas, hairline surface cards, named
+// text styles and colour roles, and ShellTopBar's brand chevron + title1 top
+// bar (drawn here so the title keeps `profile-title`; Back falls back to You).
+
+/** The redesign's card: a surface on the canvas with a hairline border. */
+const CARD = 'gap-3 rounded-card border border-separator bg-surface p-4';
+/** A small pill (role, plan). */
+const PILL = 'rounded-full px-2 text-caption font-semibold';
 
 function StatRow({ label, used, limit }: { label: string; used: number; limit: number | null }) {
   const pct = limit ? Math.min(Math.round((used / limit) * 100), 100) : 0;
   return (
-    <View className="mt-3">
-      <View className="mb-1 flex-row justify-between">
-        <Text className="text-xs font-medium text-gray-700">{label}</Text>
-        <Text className="text-xs text-gray-500">
+    <View className="gap-1">
+      <View className="flex-row justify-between gap-3">
+        <Text className="min-w-0 flex-1 text-subhead text-label">{label}</Text>
+        <Text className="text-subhead text-label-secondary">
           {used}
           {limit !== null ? ` / ${limit}` : ' · unlimited'}
         </Text>
       </View>
       {limit !== null && (
-        <View className="h-1.5 w-full overflow-hidden rounded-full bg-gray-100">
+        <View className="h-1.5 w-full overflow-hidden rounded-full bg-surface-sunken">
           <View
-            className={cn('h-full rounded-full', pct >= 100 ? 'bg-red-400' : 'bg-primary')}
+            className={cn('h-full rounded-full', pct >= 100 ? 'bg-danger' : 'bg-brand')}
             style={{ width: `${pct}%` }}
           />
         </View>
@@ -68,6 +79,7 @@ function StatRow({ label, used, limit }: { label: string; used: number; limit: n
  * used to be reachable only from More.
  */
 function HouseholdRow() {
+  const colors = useThemeColors();
   const { data: members = [] } = trpc.household.list.useQuery(undefined, { staleTime: 60_000 });
   const summary =
     members.length === 0
@@ -80,27 +92,26 @@ function HouseholdRow() {
       accessibilityRole="button"
       accessibilityLabel="Your household"
       onPress={() => router.push('/household')}
-      className="min-h-11 flex-row items-center gap-3 rounded-xl border border-border bg-card p-4"
+      className="min-h-11 flex-row items-center gap-3 rounded-card border border-separator bg-surface p-4"
     >
-      <View className="h-10 w-10 items-center justify-center rounded-full bg-accent">
-        <Ionicons name="people-outline" size={20} color="#944a00" />
+      <View className="h-11 w-11 items-center justify-center rounded-full bg-brand-tint">
+        <Icon name="following" size={22} color={colors.brand} />
       </View>
       <View className="min-w-0 flex-1">
-        <Text className="font-semibold text-gray-900">Your household</Text>
+        <Text className="text-headline font-semibold text-label">Your household</Text>
         {/* T-21.13: no numberOfLines cap — a household of several names (or
             the same names at a large Dynamic Type size) needs more than one
             line; the row's min-h-11 is a floor, not a fixed height, so it
             grows to fit instead of clipping the names. */}
-        <Text variant="muted" className="text-sm">
-          {summary}
-        </Text>
+        <Text className="text-subhead text-label-secondary">{summary}</Text>
       </View>
-      <Ionicons name="chevron-forward" size={18} color="#9ca3af" />
+      <Icon name="chevronRight" size={18} color={colors.labelTertiary} />
     </PressableScale>
   );
 }
 
 export default function ProfileScreen() {
+  const colors = useThemeColors();
   // UX-ACC-04: opened from a Settings row (`?section=`), the title is the row's.
   const title = useSectionTitle('Profile');
   const userQuery = trpc.user.me.useQuery();
@@ -149,23 +160,27 @@ export default function ProfileScreen() {
   ].join('\n');
 
   return (
-    <Screen edges={['top', 'bottom', 'left', 'right']} className="px-0">
-      <View className="flex-row items-center gap-3 px-4 py-3">
-        <Pressable
-          accessibilityRole="button"
+    <Screen edges={['top', 'bottom', 'left', 'right']} className="bg-canvas px-0">
+      <View className="mx-4 mt-3 min-h-11 flex-row items-center gap-1">
+        <IconButton
+          testID="profile-back"
           accessibilityLabel="Back"
-          onPress={() => router.back()}
-          className="h-11 w-11 items-center justify-center"
+          icon={<Icon name="chevronBack" color={colors.brand} size={26} />}
+          onPress={() => (router.canGoBack() ? router.back() : router.replace('/you'))}
+          className="-ml-2"
+        />
+        <Text
+          testID="profile-title"
+          accessibilityRole="header"
+          numberOfLines={1}
+          className="min-w-0 flex-1 text-title1 font-bold text-label"
         >
-          <Ionicons name="arrow-back" size={20} color="#1f2937" />
-        </Pressable>
-        <Text testID="profile-title" variant="title">
           {title}
         </Text>
       </View>
 
       {/* Keyboard-aware, so a `?section=` anchor can scroll its card into view. */}
-      <KeyboardAwareScrollView contentContainerClassName="gap-4 px-4 pb-8">
+      <KeyboardAwareScrollView contentContainerClassName="gap-4 px-4 pb-8 pt-3">
         {/* UX-X-12: a failed load is not a name of "—" and an empty profile. */}
         {userState === 'error' && (
           <ErrorState
@@ -177,45 +192,37 @@ export default function ProfileScreen() {
 
         {/* User card */}
         {userState !== 'error' && (
-          <Card testID="profile-user-card" className="flex-row items-center gap-4">
-            <View className="h-14 w-14 items-center justify-center rounded-full bg-accent">
-              <Text className="text-2xl font-bold text-primary">
+          <View testID="profile-user-card" className={cn(CARD, 'flex-row items-center gap-4')}>
+            <View className="h-14 w-14 items-center justify-center rounded-full bg-brand-tint">
+              <Text className="text-title2 font-bold text-brand">
                 {displayName.charAt(0).toUpperCase()}
               </Text>
             </View>
-            <View className="min-w-0 flex-1">
-              <Text className="font-semibold text-gray-900">{displayName}</Text>
-              <Text numberOfLines={1} variant="muted" className="text-sm">
+            <View className="min-w-0 flex-1 gap-0.5">
+              <Text className="text-headline font-semibold text-label">{displayName}</Text>
+              <Text numberOfLines={1} className="text-subhead text-label-secondary">
                 {user?.email}
               </Text>
               <View className="mt-1 flex-row gap-1.5">
                 {/* R-15: "USER" means nothing to a person; staff roles only. */}
                 {user && (user.role === 'ADMIN' || user.role === 'MODERATOR') ? (
-                  <View
-                    testID="profile-role-badge"
-                    className="rounded-full bg-gray-100 px-2 py-0.5"
-                  >
-                    <Text className="text-xs font-medium uppercase text-gray-500">{user.role}</Text>
+                  <View testID="profile-role-badge">
+                    <Text className={cn(PILL, 'bg-surface-sunken text-label-secondary')}>
+                      {user.role}
+                    </Text>
                   </View>
                 ) : null}
-                <View
+                <Text
                   className={cn(
-                    'rounded-full px-2 py-0.5',
-                    isPremiumTier ? 'bg-amber-500' : 'bg-gray-100',
+                    PILL,
+                    isPremiumTier ? 'bg-brand text-brand-on' : 'bg-brand-tint text-brand',
                   )}
                 >
-                  <Text
-                    className={cn(
-                      'text-xs font-medium uppercase',
-                      isPremiumTier ? 'text-white' : 'text-gray-500',
-                    )}
-                  >
-                    {isPremiumTier ? 'Premium' : 'Free plan'}
-                  </Text>
-                </View>
+                  {isPremiumTier ? 'Premium' : 'Free plan'}
+                </Text>
               </View>
             </View>
-          </Card>
+          </View>
         )}
 
         <HouseholdRow />
@@ -223,53 +230,58 @@ export default function ProfileScreen() {
         {/* Plan & Premium (T-10.3). Admins have Premium access without a plan card. */}
         {user && user.role !== 'ADMIN' && (
           <SectionAnchor id="plan">
-            <Card
-              testID="profile-plan"
-              className={cn(!isPremiumTier && 'border-primary/20 bg-accent')}
-            >
-              <Text testID="profile-plan-title" className="font-semibold text-primary">
-                {isPremiumTier
-                  ? PREMIUM_PITCH_COPY.planPremiumTitle
-                  : PREMIUM_PITCH_COPY.planFreeTitle}
-              </Text>
-              {isPremiumTier ? (
-                <>
-                  <Text className="mt-0.5 text-xs font-semibold uppercase tracking-widest text-primary/80">
+            <View testID="profile-plan" className={CARD}>
+              <View className="gap-0.5">
+                <Text
+                  testID="profile-plan-title"
+                  accessibilityRole="header"
+                  className="text-headline font-semibold text-label"
+                >
+                  {isPremiumTier
+                    ? PREMIUM_PITCH_COPY.planPremiumTitle
+                    : PREMIUM_PITCH_COPY.planFreeTitle}
+                </Text>
+                {isPremiumTier ? (
+                  <Text className="text-subhead font-semibold text-brand">
                     {PREMIUM_PITCH_COPY.planPremiumNote}
                   </Text>
-                  <Text className="mt-3 text-xs font-semibold text-gray-700">
-                    {PREMIUM_PITCH_COPY.planWhatYouHave}
-                  </Text>
-                  <View testID="profile-plan-have" className="mt-1 gap-1">
-                    {[...pitch.bullets, ...pitch.alsoIncluded].map((line) => (
-                      <View key={line} className="flex-row items-start gap-2">
-                        <Ionicons name="checkmark" size={14} color="#944a00" />
-                        <Text className="min-w-0 flex-1 text-xs text-gray-700">{line}</Text>
-                      </View>
-                    ))}
-                  </View>
-                  <Button
-                    testID="profile-downgrade"
-                    variant="ghost"
-                    className="mt-2 self-start"
-                    onPress={() => setConfirmingDowngrade(true)}
-                  >
-                    <Text variant="muted" className="text-xs">
-                      {PREMIUM_PITCH_COPY.switchBackToFree}
-                    </Text>
-                  </Button>
-                </>
-              ) : (
-                <>
-                  <Text className="mb-3 mt-1 text-xs text-primary/80">
+                ) : (
+                  <Text className="text-subhead text-label-secondary">
                     {PREMIUM_PITCH_COPY.planFreeBody}
                   </Text>
-                  <Button testID="profile-upgrade" onPress={() => openPremium('profile')}>
-                    {PREMIUM_PITCH_COPY.seeWhatPremiumAdds}
-                  </Button>
+                )}
+              </View>
+              {isPremiumTier ? (
+                <>
+                  <View className="gap-1.5">
+                    <Text className="text-subhead font-semibold text-label-secondary">
+                      {PREMIUM_PITCH_COPY.planWhatYouHave}
+                    </Text>
+                    <View testID="profile-plan-have" className="gap-1.5">
+                      {[...pitch.bullets, ...pitch.alsoIncluded].map((line) => (
+                        <View key={line} className="flex-row items-start gap-2">
+                          <Icon name="checkmark" size={18} color={colors.brand} />
+                          <Text className="min-w-0 flex-1 text-subhead text-label">{line}</Text>
+                        </View>
+                      ))}
+                    </View>
+                  </View>
+                  <TrainButton
+                    testID="profile-downgrade"
+                    label={PREMIUM_PITCH_COPY.switchBackToFree}
+                    variant="ghost"
+                    className="-ml-4 self-start"
+                    onPress={() => setConfirmingDowngrade(true)}
+                  />
                 </>
+              ) : (
+                <TrainButton
+                  testID="profile-upgrade"
+                  label={PREMIUM_PITCH_COPY.seeWhatPremiumAdds}
+                  onPress={() => openPremium('profile')}
+                />
               )}
-            </Card>
+            </View>
           </SectionAnchor>
         )}
 
@@ -278,13 +290,17 @@ export default function ProfileScreen() {
             premium plan is ONE AI reservation, an import counts when it is read
             (saving is free) — T-10.8, Q-18, Q-19. */}
         {isLoading ? (
-          <ActivityIndicator color="#944a00" />
+          <ActivityIndicator color={colors.brand} />
         ) : usage && user && user.role !== 'ADMIN' ? (
-          <Card testID="profile-usage">
-            <Text variant="heading">{PREMIUM_PITCH_COPY.allowancesTitle}</Text>
-            <Text variant="muted" className="text-xs">
-              Allowances reset at {dailyAllowanceResetTime()} your time.
-            </Text>
+          <View testID="profile-usage" className={CARD}>
+            <View className="gap-0.5">
+              <Text accessibilityRole="header" className="text-headline font-semibold text-label">
+                {PREMIUM_PITCH_COPY.allowancesTitle}
+              </Text>
+              <Text className="text-subhead text-label-secondary">
+                Allowances reset at {dailyAllowanceResetTime()} your time.
+              </Text>
+            </View>
             {(() => {
               const tier = isPremiumTier ? 'premium' : 'free';
               // false = no access on this tier → 0, and the row is hidden below
@@ -344,7 +360,7 @@ export default function ProfileScreen() {
                   <StatRow key={r.label} label={r.label} used={r.used} limit={r.limit} />
                 ));
             })()}
-            <Text testID="profile-usage-helper" variant="muted" className="mt-3 text-xs">
+            <Text testID="profile-usage-helper" className="text-caption text-label-secondary">
               {isPremiumTier
                 ? 'Plans from our recipes use no AI. An import counts when we read it; saving it is free'
                 : 'Plans from our recipes use no AI, and free accounts can build a few a day'}
@@ -352,8 +368,10 @@ export default function ProfileScreen() {
                 ? ` (${usage.importsSaved} saved today).`
                 : '.'}
             </Text>
-          </Card>
+          </View>
         ) : null}
+        {/* WP-22: connected Google/Apple accounts (hidden when there is nothing to show). */}
+        <SignInMethodsCard />
         {/* T-39.4: AI & your data, Usage analytics, Consent history, Gym
             settings, Download my data / Delete account — all in one section. */}
         <SectionAnchor id="privacy">

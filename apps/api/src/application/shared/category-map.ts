@@ -1,4 +1,5 @@
-import type { GroceryCategory } from '../../lib/grocery-ai/types.js';
+/** The aisle an ingredient is shelved under on the shopping list. */
+export type GroceryCategory = 'produce' | 'proteins' | 'dairy' | 'grains' | 'frozen' | 'other';
 
 // ─── Ingredient → grocery category inference ──────────────────────────────────
 // The single keyword map for categorising ingredients. It used to exist twice

@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Cook mode — Finished</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+body{margin:0}
+a{color:#944a00;text-decoration:none}a:hover{color:#6e3700}
+input::placeholder,textarea::placeholder{color:#9ca3af}
+</style>
+</helmet>
+<div style="width: 390px; height: 844px; position: relative; overflow: hidden; background: #FFFFFF; font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Helvetica Neue', system-ui, sans-serif; color: #020817; display: flex; flex-direction: column">
+  <div style="height: 47px; flex: none"></div>
+
+  <main id="main" style="flex: 1; display: flex; flex-direction: column; min-height: 0">
+    <div style="padding: 10.5px 14px; display: flex; align-items: center; gap: 10.5px">
+      <a href="RecipeDetail.dc.html" aria-label="Exit cook mode" style="width: 44px; height: 44px; flex: none; color: #1F2937; display: flex; align-items: center; justify-content: center"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"></path></svg></a>
+      <div style="flex: 1; min-width: 0; display: flex; flex-direction: column">
+        <span style="font-size: 19px; line-height: 26px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis">Lemon Herb Salmon with Quinoa</span>
+      </div>
+      <a href="CookIngredients.dc.html" aria-label="Toggle ingredients" style="width: 44px; height: 44px; flex: none; color: #944A00; display: flex; align-items: center; justify-content: center"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" aria-hidden="true"><path d="M9 7h11M9 12h11M9 17h11" stroke-width="2"></path><path d="M4.5 7h.01M4.5 12h.01M4.5 17h.01" stroke-width="3"></path></svg></a>
+    </div>
+
+    <div role="progressbar" aria-valuenow="6" aria-valuemin="1" aria-valuemax="6" aria-label="Step progress" style="margin: 0 14px 7px; height: 5.25px; border-radius: 9999px; background: #F3F4F6; overflow: hidden"><div style="height: 100%; width: 100%; border-radius: 9999px; background: #944A00"></div></div>
+
+    <div style="padding: 35px 21px; display: flex; flex-direction: column; align-items: center; gap: 14px">
+      <span aria-hidden="true" style="font-size: 42px; line-height: 42px">🎉</span>
+      <h1 style="margin: 0; text-align: center; font-size: 25px; line-height: 31px; font-weight: 700">Enjoy your dinner!</h1>
+      <p style="margin: 0; text-align: center; font-size: 16px; line-height: 22px; color: #8A7560">Log it to today's tracker to keep your day's totals up to date.</p>
+
+      <div style="align-self: stretch; display: flex; flex-direction: column; align-items: center; gap: 7px">
+        <span style="font-size: 16px; line-height: 22px; color: #8A7560">Log it as</span>
+        <div role="radiogroup" aria-label="Meal" style="display: flex; flex-wrap: wrap; justify-content: center; gap: 7px">
+          <button type="button" aria-pressed="false" style="min-height: 44px; padding: 7px 14px; border: 1px solid #E2E8F0; border-radius: 9999px; background: #FFFFFF; font: inherit; font-size: 16px; font-weight: 500; color: #020817">Breakfast</button>
+          <button type="button" aria-pressed="false" style="min-height: 44px; padding: 7px 14px; border: 1px solid #E2E8F0; border-radius: 9999px; background: #FFFFFF; font: inherit; font-size: 16px; font-weight: 500; color: #020817">Lunch</button>
+          <button type="button" aria-pressed="true" style="min-height: 44px; padding: 7px 14px; border: 1px solid #944A00; border-radius: 9999px; background: #944A00; font: inherit; font-size: 16px; font-weight: 500; color: #FCF9F5">Dinner</button>
+          <button type="button" aria-pressed="false" style="min-height: 44px; padding: 7px 14px; border: 1px solid #E2E8F0; border-radius: 9999px; background: #FFFFFF; font: inherit; font-size: 16px; font-weight: 500; color: #020817">Snack</button>
+        </div>
+      </div>
+
+      <button type="button" style="min-height: 44px; padding: 7px 14px; border: none; border-radius: 5.25px; background: #944A00; font: inherit; font-size: 16px; font-weight: 500; color: #FCF9F5">Log this meal</button>
+      <a href="RecipeDetail.dc.html" style="min-height: 44px; box-sizing: border-box; padding: 7px 14px; border: 1px solid #E2E8F0; border-radius: 5.25px; background: #FFFFFF; font-size: 16px; font-weight: 500; color: #020817; display: flex; align-items: center; justify-content: center; text-decoration: none">Done</a>
+    </div>
+  </main>
+
+  <div style="height: 34px; flex: none"></div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":844}}'>
+class Component extends DCLogic {
+renderVals() {
+return {};
+}
+}
+</script>
+</body>
+</html>

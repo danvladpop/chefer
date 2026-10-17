@@ -1,7 +1,7 @@
 name: CI
 
 # The default branch is master — [main, develop] here meant CI never ran
-# (roadmap F-3). The Deploy workflow's "Wait for CI" gate polls the four
+# (roadmap F-3). The Deploy workflow's "Wait for CI" gate polls the five
 # job names below by exact name; rename them there too if they change here.
 on:
   push:
@@ -19,39 +19,10 @@ env:
   NODE_VERSION: '20'
 
 jobs:
-  # ─── Setup & Cache ───────────────────────────────────────────────────────────
-  setup:
-    name: Setup
-    runs-on: ubuntu-latest
-    outputs:
-      cache-key: ${{ steps.pnpm-cache.outputs.cache-key }}
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 2
-
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v4
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: ${{ env.NODE_VERSION }}
-          cache: 'pnpm'
-
-      - name: Get pnpm store directory
-        id: pnpm-cache
-        run: echo "cache-key=$(pnpm store path)" >> $GITHUB_OUTPUT
-
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
-
   # ─── Lint ─────────────────────────────────────────────────────────────────────
   lint:
     name: Lint
     runs-on: ubuntu-latest
-    needs: setup
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -78,6 +49,27 @@ jobs:
       - name: Lint
         run: pnpm lint
 
+  # ─── Format ───────────────────────────────────────────────────────────────────
+  # Split out of Lint so the ~50 s prettier pass runs alongside it.
+  format:
+    name: Format
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
       - name: Check formatting
         run: pnpm format:check
 
@@ -85,7 +77,6 @@ jobs:
   typecheck:
     name: Type Check
     runs-on: ubuntu-latest
-    needs: setup
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -113,10 +104,13 @@ jobs:
         run: pnpm typecheck
 
   # ─── Unit Tests ───────────────────────────────────────────────────────────────
-  test:
-    name: Unit Tests
+  # The mobile Jest suite (~300 files, jest-expo) took ~6 min of the old 7-min
+  # job, so it runs as three shards next to the vitest workspaces. "Unit Tests"
+  # is the aggregate both deploy.yml's gate and branch protection require —
+  # keep its name, and keep it failing whenever any part fails.
+  test-packages:
+    name: Unit Tests (API, web, packages)
     runs-on: ubuntu-latest
-    needs: setup
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -141,16 +135,58 @@ jobs:
           restore-keys: turbo-test-
 
       - name: Run tests
-        run: pnpm test
+        run: pnpm test --filter='!@chefer/mobile'
         env:
           CI: true
 
-      - name: Upload coverage reports
-        uses: codecov/codecov-action@v4
-        if: always()
+  test-mobile:
+    name: Unit Tests (mobile ${{ matrix.shard }}/3)
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
         with:
-          token: ${{ secrets.CODECOV_TOKEN }}
-          fail_ci_if_error: false
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      # Babel transforms of react-native/expo dominate a cold run; Jest keys
+      # its cache by file content, so restoring an older one is always safe.
+      - name: Cache Jest transforms
+        uses: actions/cache@v4
+        with:
+          path: /tmp/jest-cache
+          key: jest-mobile-${{ matrix.shard }}-${{ github.sha }}
+          restore-keys: jest-mobile-${{ matrix.shard }}-
+
+      - name: Run tests
+        working-directory: apps/mobile
+        run: pnpm exec jest --ci --shard=${{ matrix.shard }}/3 --cacheDirectory=/tmp/jest-cache
+        env:
+          CI: true
+
+  test:
+    name: Unit Tests
+    runs-on: ubuntu-latest
+    needs: [test-packages, test-mobile]
+    if: ${{ !cancelled() }}
+    steps:
+      - name: All unit test jobs passed
+        run: |
+          [ "${{ needs.test-packages.result }}" = "success" ] || { echo "::error::Unit Tests (API, web, packages): ${{ needs.test-packages.result }}"; exit 1; }
+          [ "${{ needs.test-mobile.result }}" = "success" ] || { echo "::error::Unit Tests (mobile): ${{ needs.test-mobile.result }}"; exit 1; }
 
   # ─── UTC-day guard (§2.12, T-21.1/T-00.10) ───────────────────────────────────
   # Grep-based lint: fails on a server-UTC "day" derivation in
@@ -158,7 +194,6 @@ jobs:
   utc-day-guard:
     name: UTC Day Guard
     runs-on: ubuntu-latest
-    needs: setup
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -179,7 +214,6 @@ jobs:
   safety-regression:
     name: Safety Regression
     runs-on: ubuntu-latest
-    needs: setup
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -229,7 +263,6 @@ jobs:
   mobile-bundle:
     name: Mobile Bundle
     runs-on: ubuntu-latest
-    needs: setup
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -256,23 +289,9 @@ jobs:
   # same DB bootstrap as the E2E job. AI stays mocked (no keys in CI).
   mobile-contract:
     name: Mobile Contract
-    runs-on: ubuntu-latest
-    needs: setup
+    # 24.04 ships PostgreSQL 16 — see .github/actions/setup-postgres.
+    runs-on: ubuntu-24.04
     if: github.event_name == 'pull_request'
-    services:
-      postgres:
-        image: postgres:16-alpine
-        env:
-          POSTGRES_USER: postgres
-          POSTGRES_PASSWORD: postgres
-          POSTGRES_DB: chefer_test
-        options: >-
-          --health-cmd pg_isready
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
-        ports:
-          - 5432:5432
     env:
       DATABASE_URL: postgresql://postgres:postgres@localhost:5432/chefer_test
       JWT_SECRET: ci-only-jwt-secret-0123456789abcdef0123456789abcdef
@@ -304,6 +323,14 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      # Runner-installed Postgres 16, not a service container: Docker Hub
+      # (2026-10-09) and then ECR Public (2026-10-16) anonymous pull quotas
+      # on shared runner IPs failed this job at "Initialize containers".
+      - name: Start Postgres
+        uses: ./.github/actions/setup-postgres
+        with:
+          database: chefer_test
+
       - name: Setup test database
         # ingredients:sync loads the global catalog, as every deploy does
         # after db push (docker-compose.deploy.yml migrate).
@@ -327,7 +354,6 @@ jobs:
   build:
     name: Build
     runs-on: ubuntu-latest
-    needs: [lint, typecheck, test]
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -365,23 +391,9 @@ jobs:
   # run against the dev database: cd tests && pnpm exec playwright test.
   e2e:
     name: E2E Tests
-    runs-on: ubuntu-latest
-    needs: build
+    # 24.04 ships PostgreSQL 16 — see .github/actions/setup-postgres.
+    runs-on: ubuntu-24.04
     if: github.event_name == 'pull_request'
-    services:
-      postgres:
-        image: postgres:16-alpine
-        env:
-          POSTGRES_USER: postgres
-          POSTGRES_PASSWORD: postgres
-          POSTGRES_DB: chefer_test
-        options: >-
-          --health-cmd pg_isready
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
-        ports:
-          - 5432:5432
     env:
       DATABASE_URL: postgresql://postgres:postgres@localhost:5432/chefer_test
       # CI-only dummies — the api env schema requires 32+ chars at startup.
@@ -405,6 +417,14 @@ jobs:
 
       - name: Install Playwright browsers
         run: pnpm --filter @chefer/e2e exec playwright install --with-deps chromium
+
+      # Runner-installed Postgres 16, not a service container: Docker Hub
+      # (2026-10-09) and then ECR Public (2026-10-16) anonymous pull quotas
+      # on shared runner IPs failed this job at "Initialize containers".
+      - name: Start Postgres
+        uses: ./.github/actions/setup-postgres
+        with:
+          database: chefer_test
 
       - name: Setup test database
         run: pnpm db:push && pnpm --filter @chefer/database db:ensure-indexes && pnpm ingredients:sync

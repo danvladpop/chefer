@@ -85,7 +85,7 @@ describe('buildShopShareText', () => {
     expect(text.split('\n\n')).toEqual([
       'Shopping list · 28 Sep – 4 Oct\nFor 1 dinner · 2 portions',
       'GRAINS & PANTRY\n- Rice, 500 g',
-      'OTHER\n- Mystery, 1 pcs',
+      'OTHER\n- Mystery, 1 piece',
       'This week’s dinners\nMon: Chicken Stir-fry',
       'Made with Chefer · https://chefer.example',
     ]);

@@ -13,16 +13,15 @@ export const HOME_CARD_IDS = [
   'planToday',
   'workout',
   'household',
-  'useWhatIHave',
   'savedRecipes',
 ] as const;
 export type HomeCardId = (typeof HOME_CARD_IDS)[number];
 
+// USE_WHAT_I_HAVE (retired pantry job, WP-24) deliberately has no card.
 const JOB_CARD: Readonly<Partial<Record<OnboardingJob, HomeCardId>>> = {
   PLAN_MEALS: 'planToday',
   TRAIN: 'workout',
   HOUSEHOLD: 'household',
-  USE_WHAT_I_HAVE: 'useWhatIHave',
   SAVED_RECIPES: 'savedRecipes',
 };
 

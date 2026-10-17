@@ -2,19 +2,23 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { useAiConsent } from '@/features/ai-consent/AiConsentProvider';
+import { useNumbersMode } from '@/features/numbers-mode/numbers-mode';
 import { RecipeImage } from '@/features/recipes/components/RecipeImage';
 import { CheckedForChip } from '@/features/safety/components/CheckedForChip';
 import { FilteredForLine } from '@/features/safety/components/FilteredForLine';
 import { useIsPremium } from '@/hooks/useIsPremium';
-import { trpc } from '@/lib/trpc';
+import { trpc, type RouterOutputs } from '@/lib/trpc';
 import { Heart, ShieldCheck, Wand2 } from 'lucide-react';
 import { ErrorState, Sheet } from '@chefer/ui';
 import {
   buildPickerSections,
   filterReplaceCandidates,
+  localDateStr,
   pickerRowMeta,
   pickerSafetyHeader,
   pickerSafetyHeaderText,
+  PLAN_MEAL_MENU_COPY,
+  readAddToWeekFailure,
   userFacingErrorMessage,
   verifiedLabels,
   type SlotMealType,
@@ -38,6 +42,25 @@ export interface ReplaceTarget {
    * as its own replacement.
    */
   recipeId: string;
+  /**
+   * FB7-04: `side` adds the picked recipe as a second dish of this meal type
+   * (`recipe.addToWeek` mode 'add') instead of replacing the slot; it needs the
+   * plan's `weekOffset`. Absent = a replace.
+   */
+  side?: { weekOffset: number } | undefined;
+}
+
+export interface SideAddedResult {
+  target: ReplaceTarget;
+  recipeName: string;
+  /** `recipe.addToWeek`'s result — exactly what `recipe.undoAddToWeek` takes back. */
+  added: {
+    planId: string;
+    dayOfWeek: number;
+    mealType: 'breakfast' | 'lunch' | 'dinner' | 'snack';
+    slotIndex: number;
+    addedRecipeId: string;
+  };
 }
 
 export interface ReplaceMealResult {
@@ -47,18 +70,29 @@ export interface ReplaceMealResult {
   previousRecipeId?: string;
   /** UX-PLAN-04: the replaced slot was pinned — Undo must restore that, not pin it. */
   previousPinned?: boolean;
+  /**
+   * Day rebalance (2026-10-16): the day's other open meals the server resized
+   * so the day stays on target (`changes`), what Undo restores
+   * (`previousPortions`) and, when resizing alone could not close the day, a
+   * one-change `suggestion`. Absent/null = nothing was fitted.
+   */
+  dayFit?: RouterOutputs['mealPlan']['replaceRecipe']['dayFit'];
 }
 
 export function ReplaceMealSheet({
   target,
   onClose,
   onChanged,
+  onSideAdded,
 }: {
   target: ReplaceTarget | null;
   onClose: () => void;
   /** Fired after a successful replace/AI-swap — lets the caller offer Undo. */
   onChanged?: (result: ReplaceMealResult) => void;
+  /** FB7-04: fired after a side dish was added — lets the caller offer Undo. */
+  onSideAdded?: (result: SideAddedResult) => void;
 }) {
+  const { proteinOnly } = useNumbersMode(); // WP-08
   const [search, setSearch] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -125,12 +159,14 @@ export function ReplaceMealSheet({
     recipeName: string,
     previousRecipeId?: string,
     previousPinned?: boolean,
+    dayFit?: ReplaceMealResult['dayFit'],
   ) => {
     onChanged?.({
       target,
       recipeName,
       ...(previousRecipeId && { previousRecipeId }),
       ...(previousPinned && { previousPinned }),
+      ...(dayFit && { dayFit }),
     });
   };
   const replaceMutation = trpc.mealPlan.replaceRecipe.useMutation({
@@ -138,7 +174,9 @@ export function ReplaceMealSheet({
     onSuccess: (data) => {
       invalidate();
       onClose();
-      if (target) notifyChanged(target, data.name, data.previousRecipeId, data.previousPinned);
+      if (target) {
+        notifyChanged(target, data.name, data.previousRecipeId, data.previousPinned, data.dayFit);
+      }
     },
   });
   const requestAiConsent = useAiConsent();
@@ -147,13 +185,32 @@ export function ReplaceMealSheet({
     onSuccess: (data) => {
       invalidate();
       onClose();
-      if (target) notifyChanged(target, data.name, data.previousRecipeId, data.previousPinned);
+      if (target) {
+        notifyChanged(target, data.name, data.previousRecipeId, data.previousPinned, data.dayFit);
+      }
     },
   });
 
-  const busy = replaceMutation.isPending || swapMutation.isPending;
-  const failure = replaceMutation.error ?? swapMutation.error;
-  const error = failure ? userFacingErrorMessage(failure) : null;
+  // The recipe being added as a side — its name goes in the Undo toast.
+  const sideName = useRef('');
+  const addSideMutation = trpc.recipe.addToWeek.useMutation({
+    meta: { silent: true },
+    onSuccess: (data) => {
+      invalidate();
+      void utils.recipe.list.invalidate();
+      onClose();
+      if (target) onSideAdded?.({ target, recipeName: sideName.current, added: data });
+    },
+  });
+  const isSide = target?.side !== undefined;
+  const busy = replaceMutation.isPending || swapMutation.isPending || addSideMutation.isPending;
+  const failure = replaceMutation.error ?? swapMutation.error ?? addSideMutation.error;
+  const sideFailure = addSideMutation.error ? readAddToWeekFailure(addSideMutation.error) : null;
+  const error = failure
+    ? sideFailure?.kind === 'conflict'
+      ? sideFailure.message
+      : userFacingErrorMessage(failure)
+    : null;
   // T-08.10 (bug B-50): never re-offer the meal being replaced; narrow to
   // the slot's type (rows without a `mealType` still pass).
   const filterOpts = {
@@ -185,11 +242,28 @@ export function ReplaceMealSheet({
     lastAttemptedId && mineQuery.data?.some((r) => r.id === lastAttemptedId),
   );
   const canAcknowledge =
-    replaceMutation.error?.data?.code === 'FORBIDDEN' && isOwnAttempt && lastAttemptedId !== null;
+    (replaceMutation.error?.data?.code === 'FORBIDDEN' ||
+      (sideFailure?.kind === 'conflict' && sideFailure.canAcknowledge)) &&
+    isOwnAttempt &&
+    lastAttemptedId !== null;
+
+  /** FB7-04: put `recipeId` next to the slot's meal (a second dish of its type). */
+  const addAsSide = (recipeId: string, acknowledgeConflict = false) => {
+    if (!target?.side) return;
+    addSideMutation.mutate({
+      recipeId,
+      weekOffset: target.side.weekOffset,
+      dayOfWeek: target.dayOfWeek,
+      mealType: target.mealType as 'breakfast' | 'lunch' | 'dinner' | 'snack',
+      mode: 'add',
+      ...(acknowledgeConflict && { acknowledgeConflict }),
+    });
+  };
 
   const handleClose = () => {
     replaceMutation.reset();
     swapMutation.reset();
+    addSideMutation.reset();
     onClose();
   };
 
@@ -197,10 +271,10 @@ export function ReplaceMealSheet({
     <Sheet
       open={open}
       onClose={handleClose}
-      title="Replace meal"
-      description={target?.mealName}
+      title={isSide ? PLAN_MEAL_MENU_COPY.addSide : 'Replace meal'}
+      description={isSide && target ? `Next to ${target.mealName}` : target?.mealName}
       footer={
-        isPremium === true ? (
+        isPremium === true && !isSide ? (
           <button
             type="button"
             data-testid="picker-ai-swap"
@@ -214,6 +288,8 @@ export function ReplaceMealSheet({
                   dayOfWeek: target.dayOfWeek,
                   mealType: target.mealType as 'breakfast' | 'lunch' | 'dinner' | 'snack',
                   slotIndex: target.slotIndex,
+                  // Day rebalance: the server fits the day against the client's today.
+                  localDate: localDateStr(),
                 }),
               );
             }}
@@ -246,6 +322,10 @@ export function ReplaceMealSheet({
                 disabled={busy}
                 onClick={() => {
                   if (!target || !lastAttemptedId) return;
+                  if (isSide) {
+                    addAsSide(lastAttemptedId, true);
+                    return;
+                  }
                   replaceMutation.mutate({
                     planId: target.planId,
                     dayOfWeek: target.dayOfWeek,
@@ -253,6 +333,7 @@ export function ReplaceMealSheet({
                     slotIndex: target.slotIndex,
                     recipeId: lastAttemptedId,
                     acknowledgeConflict: true,
+                    localDate: localDateStr(),
                   });
                 }}
                 className="mt-1 text-xs font-semibold text-red-700 underline disabled:opacity-50"
@@ -313,6 +394,11 @@ export function ReplaceMealSheet({
                           onClick={() => {
                             if (!target) return;
                             setLastAttemptedId(recipe.id);
+                            if (isSide) {
+                              sideName.current = recipe.name;
+                              addAsSide(recipe.id);
+                              return;
+                            }
                             replaceMutation.mutate({
                               planId: target.planId,
                               dayOfWeek: target.dayOfWeek,
@@ -323,6 +409,7 @@ export function ReplaceMealSheet({
                                 | 'snack',
                               slotIndex: target.slotIndex,
                               recipeId: recipe.id,
+                              localDate: localDateStr(),
                             });
                           }}
                           className="flex w-full items-center gap-3 rounded-xl border p-2 text-left transition-colors hover:border-[#944a00]/40 hover:bg-orange-50/40 disabled:opacity-50"
@@ -344,7 +431,11 @@ export function ReplaceMealSheet({
                               data-testid={`picker-recipe-${recipe.id}-meta`}
                               className="text-xs text-gray-500"
                             >
-                              {pickerRowMeta({ ...recipe, nutritionInfo: n })}
+                              {pickerRowMeta({
+                                ...recipe,
+                                // WP-08: protein-only mode lists protein, never kcal.
+                                nutritionInfo: proteinOnly ? { protein: n.protein ?? null } : n,
+                              })}
                             </p>
                           </div>
                           {recipe.isFavourite && (

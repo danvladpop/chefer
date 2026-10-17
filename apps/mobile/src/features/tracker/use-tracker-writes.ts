@@ -11,7 +11,7 @@ import {
 import { trackMealLogged } from '../../lib/analytics-events';
 import { trpc, type RouterOutputs } from '../../lib/trpc';
 import { invalidateDayQueries } from './invalidate';
-import { recordRebalance } from './rebalance-store';
+import { recordRebalanceOutcome } from './rebalance-offer-store';
 
 // Every write the tracker makes to a day (UX-FOOD-01, UX-FOOD-06).
 //
@@ -26,7 +26,7 @@ type Day = RouterOutputs['tracker']['getDay'];
 type Snapshot = { previous: Day | undefined } | undefined;
 
 /** One scope for every tracker write: same id → run one after another. */
-const WRITE_SCOPE = { id: 'tracker-day-writes' };
+export const WRITE_SCOPE = { id: 'tracker-day-writes' };
 
 const round1 = (v: number): number => Math.round(v * 10) / 10;
 
@@ -79,7 +79,7 @@ export function useTrackerWrites(dateStr: string) {
     onSuccess: (result, vars) => {
       // The tracker only ticks planned rows (WP-13).
       trackMealLogged('planned', vars.mealType);
-      recordRebalance(result.rebalance);
+      recordRebalanceOutcome(result);
     },
     onError: (error, vars, snapshot) => {
       rollback(snapshot);

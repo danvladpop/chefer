@@ -1,5 +1,7 @@
+import type { ReactNode } from 'react';
+import { useNumbersMode } from '@/features/numbers-mode/numbers-mode';
 import { ChevronRight } from 'lucide-react';
-import { cn, formatKcal, sumPlanDay } from '@chefer/utils';
+import { cn, formatKcal, formatMacroLine, sumPlanDay } from '@chefer/utils';
 
 interface NutritionInfo {
   calories: number;
@@ -35,6 +37,8 @@ interface DayRecapBarProps {
    * Absent (read-only weeks) = the status is plain text.
    */
   onOpenMiss?: (() => void) | undefined;
+  /** Day rebalance: the one-change suggestion, under the totals (board DayFitSuggest). */
+  children?: ReactNode;
 }
 
 /** Matches the API's PLAN_KCAL_TOLERANCE — one band, every surface. */
@@ -79,19 +83,34 @@ function StatusLine({
   );
 }
 
-export function DayRecapBar({ meals, calorieTarget, proteinGapG, onOpenMiss }: DayRecapBarProps) {
+export function DayRecapBar({
+  meals,
+  calorieTarget,
+  proteinGapG,
+  onOpenMiss,
+  children,
+}: DayRecapBarProps) {
   // Totals count each slot at its portion (P1-1) — same sum as mobile.
   const { kcal, protein, carbs, fat } = sumPlanDay(meals);
   const totals = { calories: kcal, protein, carbs, fat };
+  // WP-08: protein-only mode shows the day's protein and only a protein shortfall.
+  const { proteinOnly } = useNumbersMode();
+  const judgedTarget = proteinOnly ? undefined : calorieTarget;
 
-  const delta = calorieTarget ? totals.calories - calorieTarget : 0;
-  const offTarget = calorieTarget ? Math.abs(delta) / calorieTarget > TARGET_BAND : false;
+  const delta = judgedTarget ? totals.calories - judgedTarget : 0;
+  const offTarget = judgedTarget ? Math.abs(delta) / judgedTarget > TARGET_BAND : false;
   const proteinShort = proteinGapG !== undefined && proteinGapG > 0;
 
   return (
     <div className="mt-2 rounded-lg bg-gray-50 px-3 py-2">
       <p className="mb-1 text-xs font-semibold uppercase tracking-wider text-gray-500">Day total</p>
-      <p className="text-sm font-bold text-[#944a00]">{totals.calories} kcal</p>
+      {proteinOnly ? (
+        <p data-testid="day-total-protein" className="text-sm font-bold text-[#944a00]">
+          {totals.protein} g protein
+        </p>
+      ) : (
+        <p className="text-sm font-bold text-[#944a00]">{totals.calories} kcal</p>
+      )}
       {offTarget && (
         <StatusLine
           testId="day-target-status"
@@ -99,11 +118,12 @@ export function DayRecapBar({ meals, calorieTarget, proteinGapG, onOpenMiss }: D
           onOpenMiss={onOpenMiss}
         />
       )}
-      <div className="mt-1 flex gap-3 text-xs text-gray-500">
-        <span>P {totals.protein}g</span>
-        <span>C {totals.carbs}g</span>
-        <span>F {totals.fat}g</span>
-      </div>
+      {!proteinOnly && (
+        // FB7-11: the shared "P 80 g · C 200 g · F 60 g" format, as on mobile.
+        <p data-testid="day-total-macros" className="mt-1 text-xs text-gray-500">
+          {formatMacroLine(totals)}
+        </p>
+      )}
       {proteinShort && !offTarget && (
         <StatusLine
           testId="day-protein-gap"
@@ -111,6 +131,7 @@ export function DayRecapBar({ meals, calorieTarget, proteinGapG, onOpenMiss }: D
           onOpenMiss={onOpenMiss}
         />
       )}
+      {children}
     </div>
   );
 }

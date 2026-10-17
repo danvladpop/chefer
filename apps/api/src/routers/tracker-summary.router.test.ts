@@ -50,9 +50,14 @@ describe('tracker.monthlySummary window', () => {
     expect(svc.monthlySummary).toHaveBeenCalledWith('u1', undefined);
   });
 
-  it('rejects windows outside 7–90 days', async () => {
+  it('serves up to a year (Stats 1Y)', async () => {
+    await caller.monthlySummary({ localDate: '2026-10-03', days: 365 });
+    expect(svc.summary).toHaveBeenCalledWith('u1', 365, '2026-10-03');
+  });
+
+  it('rejects windows outside 7–365 days', async () => {
     await expect(caller.monthlySummary({ days: 6 })).rejects.toThrow();
-    await expect(caller.monthlySummary({ days: 91 })).rejects.toThrow();
+    await expect(caller.monthlySummary({ days: 366 })).rejects.toThrow();
     await expect(caller.monthlySummary({ days: 30.5 })).rejects.toThrow();
   });
 });

@@ -1,9 +1,17 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
+import { StoreBadges, StoreTrademarks } from '@/features/app-stores/components/StoreBadges';
+import {
+  serializeJsonLd,
+  smartAppBanner,
+  softwareApplicationJsonLd,
+} from '@/features/app-stores/store-metadata';
 import { getSessionUser } from '@/features/auth/lib/session';
+import { env } from '@/lib/env';
 
 export const metadata: Metadata = {
+  ...smartAppBanner(),
   title: 'Chefer — Gym Log & Meal Planner',
   description:
     'A free workout log that tells you what to lift next, plus a week of meal plans built around your goals, allergies and budget — with priced shopping lists, photo meal logging, recipe import and adaptive coaching. Free to use.',
@@ -18,6 +26,10 @@ export const metadata: Metadata = {
 // say only "meal planner" — CI-16/CI-25 evidence: "meal planning? My friend
 // said it does workouts." It now leads with both free flows, matching the
 // mobile Welcome screen (T-25.1) copy.
+//
+// ASO plan §5.2–5.3: store badges in the hero and by the closing call to
+// action (each placement its own store campaign), plus SoftwareApplication
+// JSON-LD and the Smart App Banner, so phone visitors have a route to install.
 
 const BRAND = '#944a00';
 
@@ -65,7 +77,7 @@ const PREMIUM_FEATURES = [
     icon: '📸',
     title: 'Snap a photo, log the meal',
     description:
-      "Photograph any plate — restaurant, leftovers, grandma's — and the chef estimates the dish and macros, then rebalances your week.",
+      "Photograph any plate — restaurant, leftovers, grandma's — and the chef estimates the dish and macros, then logs it to your day.",
   },
   {
     icon: '🔗',
@@ -80,10 +92,10 @@ const PREMIUM_FEATURES = [
       'Add your partner and kids with their own allergies and portions — plans, servings, and the shopping list scale for everyone.',
   },
   {
-    icon: '🧺',
-    title: 'Plans that cook from your pantry',
+    icon: '🛒',
+    title: 'A shopping list built from your recipes',
     description:
-      'Chefer remembers what you bought and plans around it — fewer duplicates, visible savings, zero-waste weeks.',
+      "The week's planned recipes become one list, grouped by aisle, with an estimated total — nothing to type, nothing to forget.",
   },
   {
     icon: '💶',
@@ -125,6 +137,12 @@ export default async function HomePage() {
 
   return (
     <div className="flex min-h-dvh flex-col bg-white text-gray-900">
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{
+          __html: serializeJsonLd(softwareApplicationJsonLd(env.NEXT_PUBLIC_APP_URL)),
+        }}
+      />
       {/* ── Top bar ── */}
       <header className="flex h-16 items-center justify-between border-b border-orange-100 px-4 sm:px-8">
         <div className="flex items-center gap-2">
@@ -180,6 +198,8 @@ export default async function HomePage() {
             <p className="mt-4 text-xs text-gray-500">
               First plan on screen in under a minute — no payment details, ever.
             </p>
+            <p className="mt-8 text-sm font-medium text-gray-700">Or get the app on your phone</p>
+            <StoreBadges campaign="landing-hero" className="mt-1" />
           </div>
 
           {/* ── Plan-day preview card ── */}
@@ -293,6 +313,7 @@ export default async function HomePage() {
               >
                 Cook something better this week
               </Link>
+              <StoreBadges campaign="landing-footer" className="mt-6" />
             </div>
           </div>
         </section>
@@ -327,6 +348,7 @@ export default async function HomePage() {
           </Link>
         </p>
         <p className="mt-3 text-xs">&copy; {new Date().getFullYear()} Chefer</p>
+        <StoreTrademarks className="mx-auto mt-2 max-w-xl" />
       </footer>
     </div>
   );

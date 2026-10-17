@@ -3,14 +3,19 @@
 import Image from 'next/image';
 import { useEffect, useRef, useState } from 'react';
 import { useAiConsent } from '@/features/ai-consent/AiConsentProvider';
+import { useNumbersMode } from '@/features/numbers-mode/numbers-mode';
 import { UpgradeButton } from '@/features/premium/components/UpgradeButton';
 import { capture } from '@/lib/analytics';
 import { trackMealLogged } from '@/lib/analytics-events';
 import { trpc } from '@/lib/trpc';
 import { Camera, Loader2, Sparkles } from 'lucide-react';
 import { Sheet } from '@chefer/ui';
-import { userFacingErrorMessage } from '@chefer/utils';
-import { handleRebalanceResult } from '../lib/rebalance-storage';
+import { proteinLabel, userFacingErrorMessage, type SlotRef } from '@chefer/utils';
+import {
+  handleRebalanceOutcome,
+  REBALANCE_PREVIEW,
+  type DayFitLike,
+} from '../lib/rebalance-storage';
 import {
   scanMealPhoto,
   ScanUpgradeRequiredError,
@@ -41,10 +46,33 @@ interface ScanMealButtonProps {
    * Called with the new entry's id after a confirmed log (UX-FOOD-26), so the
    * page can confirm with an Undo toast. Absent from older servers' answers.
    */
-  onLoggedEntry?: (entry: { entryId: string; name: string }) => void;
+  /** `dayFit`: today's open meals resized to absorb the log (the caller's toast says so). */
+  onLoggedEntry?: (entry: {
+    entryId: string;
+    name: string;
+    dayFit?: DayFitLike | null | undefined;
+  }) => void;
+  /**
+   * WP-06 "Ate something else": the plan slot this scan replaces. The entry is
+   * logged with `replacesSlot` (no API change — logCustomMeal takes it) and
+   * the meal is the slot's, so the meal picker goes.
+   */
+  replacesSlot?: SlotRef | undefined;
+  /** Hide the "Scan a meal" button; the opener is exposed on `openRef` instead. */
+  hideButton?: boolean | undefined;
+  /** Receives the function that starts a scan (premium: file picker; free: the demo sheet). */
+  openRef?: { current: (() => void) | null } | undefined;
 }
 
-export function ScanMealButton({ date, isPremium, onLogged, onLoggedEntry }: ScanMealButtonProps) {
+export function ScanMealButton({
+  date,
+  isPremium,
+  onLogged,
+  onLoggedEntry,
+  replacesSlot,
+  hideButton = false,
+  openRef,
+}: ScanMealButtonProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [scanning, setScanning] = useState(false);
   const [scanError, setScanError] = useState<string | null>(null);
@@ -59,7 +87,10 @@ export function ScanMealButton({ date, isPremium, onLogged, onLoggedEntry }: Sca
 
   // Editable confirm-sheet fields, seeded from the estimate.
   const [name, setName] = useState('');
-  const [mealType, setMealType] = useState<(typeof MEAL_TYPES)[number]>('lunch');
+  const slotMealType = MEAL_TYPES.find((t) => t === replacesSlot?.mealType);
+  const [mealType, setMealType] = useState<(typeof MEAL_TYPES)[number]>(slotMealType ?? 'lunch');
+  // WP-08: protein-only mode confirms the estimated protein, with no calorie field.
+  const { proteinOnly } = useNumbersMode();
   const [kcal, setKcal] = useState(0);
   const [protein, setProtein] = useState(0);
   const [carbs, setCarbs] = useState(0);
@@ -71,16 +102,20 @@ export function ScanMealButton({ date, isPremium, onLogged, onLoggedEntry }: Sca
       capture('meal_scanned', { confirmed: true });
       // UX-PO-02: a photo scan, confirmed and logged.
       trackMealLogged('snap', variables.mealType);
-      handleRebalanceResult(data.rebalance);
+      // A caller with its own "Logged …" toast carries the day-fit line itself.
+      handleRebalanceOutcome(data, { announceDayFit: !(data.entryId && onLoggedEntry) });
       setEstimate(null);
       setPhotoUrl(null);
       onLogged();
-      if (data.entryId) onLoggedEntry?.({ entryId: data.entryId, name: variables.name });
+      if (data.entryId) {
+        onLoggedEntry?.({ entryId: data.entryId, name: variables.name, dayFit: data.dayFit });
+      }
     },
   });
 
   const openPicker = () => {
     if (isPremium === undefined) return; // still loading the tier
+    if (slotMealType) setMealType(slotMealType);
     if (!isPremium) {
       // Ghost state (§6.4): the demo sheet IS the upgrade prompt impression.
       capture('upgrade_prompt_shown', { source: 'snap-scan' });
@@ -91,6 +126,10 @@ export function ScanMealButton({ date, isPremium, onLogged, onLoggedEntry }: Sca
     setScanError(null);
     fileInputRef.current?.click();
   };
+
+  useEffect(() => {
+    if (openRef) openRef.current = openPicker;
+  });
 
   // AI data consent (App Store 5.1.2(i)): asked after the photo is picked
   // (the file picker needs the original tap) and before anything is uploaded.
@@ -159,16 +198,18 @@ export function ScanMealButton({ date, isPremium, onLogged, onLoggedEntry }: Sca
 
   return (
     <>
-      <button
-        type="button"
-        onClick={openPicker}
-        disabled={scanning}
-        className="flex min-h-11 flex-1 items-center justify-center gap-2 rounded-2xl border border-[#944a00]/30 bg-white px-3 text-sm font-semibold text-[#944a00] shadow-sm transition hover:bg-[#fff8f0] disabled:opacity-60"
-      >
-        {scanning ? <Loader2 className="h-4 w-4 animate-spin" /> : <Camera className="h-4 w-4" />}
-        {scanning ? 'Reading your plate…' : 'Scan a meal'}
-        {isPremium === false && <Sparkles className="h-3.5 w-3.5 text-amber-500" />}
-      </button>
+      {!hideButton && (
+        <button
+          type="button"
+          onClick={openPicker}
+          disabled={scanning}
+          className="flex min-h-11 flex-1 items-center justify-center gap-2 rounded-2xl border border-[#944a00]/30 bg-white px-3 text-sm font-semibold text-[#944a00] shadow-sm transition hover:bg-[#fff8f0] disabled:opacity-60"
+        >
+          {scanning ? <Loader2 className="h-4 w-4 animate-spin" /> : <Camera className="h-4 w-4" />}
+          {scanning ? 'Reading your plate…' : 'Scan a meal'}
+          {isPremium === false && <Sparkles className="h-3.5 w-3.5 text-amber-500" />}
+        </button>
+      )}
       <input
         ref={fileInputRef}
         type="file"
@@ -192,6 +233,7 @@ export function ScanMealButton({ date, isPremium, onLogged, onLoggedEntry }: Sca
             type="button"
             onClick={() =>
               logMutation.mutate({
+                ...REBALANCE_PREVIEW,
                 date,
                 name: name.trim() || 'Scanned meal',
                 estimatedBy: 'vision',
@@ -200,12 +242,13 @@ export function ScanMealButton({ date, isPremium, onLogged, onLoggedEntry }: Sca
                 protein,
                 carbs,
                 fat,
+                ...(replacesSlot && { replacesSlot }),
               })
             }
             disabled={logMutation.isPending}
             className="min-h-11 w-full rounded-xl bg-[#944a00] px-4 text-sm font-semibold text-white transition hover:bg-[#7a3d00] disabled:opacity-50"
           >
-            {logMutation.isPending ? 'Logging…' : `Log ${kcal} kcal`}
+            {logMutation.isPending ? 'Logging…' : proteinOnly ? 'Log it' : `Log ${kcal} kcal`}
           </button>
         }
       >
@@ -244,26 +287,34 @@ export function ScanMealButton({ date, isPremium, onLogged, onLoggedEntry }: Sca
               />
             </label>
 
-            <div role="group" aria-label="Meal type" className="flex gap-1">
-              {MEAL_TYPES.map((t) => (
-                <button
-                  key={t}
-                  type="button"
-                  onClick={() => setMealType(t)}
-                  aria-pressed={mealType === t}
-                  className={`min-h-11 flex-1 rounded-xl text-xs font-medium capitalize transition ${mealType === t ? 'bg-[#944a00] text-white' : 'bg-neutral-100 text-neutral-600 hover:bg-neutral-200'}`}
-                >
-                  {t}
-                </button>
-              ))}
-            </div>
+            {!replacesSlot && (
+              <div role="group" aria-label="Meal type" className="flex gap-1">
+                {MEAL_TYPES.map((t) => (
+                  <button
+                    key={t}
+                    type="button"
+                    onClick={() => setMealType(t)}
+                    aria-pressed={mealType === t}
+                    className={`min-h-11 flex-1 rounded-xl text-xs font-medium capitalize transition ${mealType === t ? 'bg-[#944a00] text-white' : 'bg-neutral-100 text-neutral-600 hover:bg-neutral-200'}`}
+                  >
+                    {t}
+                  </button>
+                ))}
+              </div>
+            )}
 
-            <div className="grid grid-cols-2 gap-3">
-              {numberField('Calories', kcal, setKcal, 'kcal', 5000)}
-              {numberField('Protein', protein, setProtein, 'g', 500)}
-              {numberField('Carbs', carbs, setCarbs, 'g', 1000)}
-              {numberField('Fat', fat, setFat, 'g', 500)}
-            </div>
+            {proteinOnly ? (
+              <p data-testid="scan-protein" className="text-sm font-semibold text-neutral-800">
+                {`≈ ${proteinLabel(protein)}`}
+              </p>
+            ) : (
+              <div className="grid grid-cols-2 gap-3">
+                {numberField('Calories', kcal, setKcal, 'kcal', 5000)}
+                {numberField('Protein', protein, setProtein, 'g', 500)}
+                {numberField('Carbs', carbs, setCarbs, 'g', 1000)}
+                {numberField('Fat', fat, setFat, 'g', 500)}
+              </div>
+            )}
 
             {logMutation.isError && (
               <p className="text-xs text-red-600">{userFacingErrorMessage(logMutation.error)}</p>
@@ -285,8 +336,7 @@ export function ScanMealButton({ date, isPremium, onLogged, onLoggedEntry }: Sca
           <DemoScan />
           <p className="mt-4 text-sm text-neutral-600">
             Photograph any plate — restaurant, leftovers, grandma&apos;s — and the chef estimates
-            the dish and macros, logs it, and quietly rebalances the rest of your week to keep you
-            on track.
+            the dish and macros, and logs it to your day.
           </p>
         </div>
       </Sheet>
@@ -296,6 +346,7 @@ export function ScanMealButton({ date, isPremium, onLogged, onLoggedEntry }: Sca
 
 /** Sample scan animating into macros — pure CSS/state, no network. */
 function DemoScan() {
+  const { proteinOnly } = useNumbersMode();
   const [revealed, setRevealed] = useState(false);
   useEffect(() => {
     const t = setTimeout(() => setRevealed(true), 1200);
@@ -307,7 +358,7 @@ function DemoScan() {
     { label: 'protein', value: '38g' },
     { label: 'carbs', value: '55g' },
     { label: 'fat', value: '14g' },
-  ];
+  ].filter((m) => !proteinOnly || m.label === 'protein');
 
   return (
     <div className="overflow-hidden rounded-2xl border border-neutral-200">
@@ -325,7 +376,7 @@ function DemoScan() {
         )}
       </div>
       <div
-        className={`grid grid-cols-4 divide-x divide-neutral-100 bg-white transition-opacity duration-500 ${revealed ? 'opacity-100' : 'opacity-0'}`}
+        className={`grid ${proteinOnly ? 'grid-cols-1' : 'grid-cols-4'} divide-x divide-neutral-100 bg-white transition-opacity duration-500 ${revealed ? 'opacity-100' : 'opacity-0'}`}
       >
         {macros.map((m) => (
           <div key={m.label} className="px-2 py-3 text-center">

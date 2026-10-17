@@ -41,6 +41,19 @@ const UNIT_DEFS: Record<string, { family: UnitFamily; toBase: number }> = {
 };
 
 /**
+ * Count units that read wrong as stored ("1 pcs", "12 clove"): singular and
+ * plural display forms, picked by the quantity.
+ */
+const COUNT_WORDS: Record<string, readonly [string, string]> = {
+  pc: ['piece', 'pieces'],
+  pcs: ['piece', 'pieces'],
+  piece: ['piece', 'pieces'],
+  pieces: ['piece', 'pieces'],
+  clove: ['clove', 'cloves'],
+  cloves: ['clove', 'cloves'],
+};
+
+/**
  * Rounds for display: integers when large, one decimal when small. With a
  * `locale` the digits use that locale's separators ("1,5" in de-DE); without
  * one the output is the plain "1.5" (fixed, for storage-adjacent copy).
@@ -76,7 +89,11 @@ export function formatQuantity(
   const f = (value: number) => fmt(value, locale);
   if (!Number.isFinite(quantity)) return `${quantity} ${unit}`;
   const def = UNIT_DEFS[unit.toLowerCase().trim()];
-  if (!def || def.family === 'count') return `${f(quantity)} ${unit}`.trim();
+  if (!def || def.family === 'count') {
+    const count = COUNT_WORDS[unit.toLowerCase().trim()];
+    if (count) return `${f(quantity)} ${quantity === 1 ? count[0] : count[1]}`;
+    return `${f(quantity)} ${unit}`.trim();
+  }
 
   const base = quantity * def.toBase; // grams or millilitres
 

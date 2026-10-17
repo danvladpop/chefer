@@ -307,7 +307,11 @@ export const FRIENDS_COPY = {
     thisWeek: 'This week',
     nextWeek: 'Next week',
     addHere: 'Add here',
+    /** FB7-04: adding to a meal type that already has a dish puts the recipe next to it. */
+    addAsSide: 'Add as a side',
     replace: 'Replace',
+    /** FB7-04: the slot row's label (the confirm button keeps `replace`). */
+    replaceThisMeal: 'Replace this meal',
     /** `day` and `meal` are pre-formatted, e.g. "Tue" / "lunch". */
     cta: (day: string, meal: string): string => `Add to ${day} ${meal}`,
     noPlan: 'You don’t have a plan for this week yet.',

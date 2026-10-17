@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { Pressable, TextInput, View } from 'react-native';
+import { Keyboard, Pressable, TextInput, View } from 'react-native';
 import { cn } from '@chefer/utils';
 import { haptics } from '../motion/haptics';
 import { PressableScale } from '../motion/pressable-scale';
@@ -299,6 +299,9 @@ function OtherInput({
       placeholderTextColor="#9ca3af"
       accessibilityLabel={accessibilityLabel ?? placeholder}
       autoFocus={!placeholder}
+      returnKeyType="done"
+      submitBehavior="blurAndSubmit"
+      onSubmitEditing={() => Keyboard.dismiss()}
       className="min-h-11 rounded-md border border-input bg-background px-3 py-2 text-base text-foreground"
     />
   );

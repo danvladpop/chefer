@@ -1,14 +1,21 @@
-import { Pressable, View } from 'react-native';
+import { View } from 'react-native';
 import type { MuscleVolume, RoutineHint, VolumeGroup } from '@chefer/types';
-import { Badge, Card, CardTitle, colors, Text } from '@chefer/ui-mobile';
-import { VOLUME_GROUP_LABELS } from '@chefer/utils';
+import { IconButton, Text, useThemeColors } from '@chefer/ui-mobile';
+import { cn, VOLUME_GROUP_LABELS } from '@chefer/utils';
+import { Icon } from '../../../components/icon';
 import { hintKey } from './hints-storage';
+
+/** TrainCard's surface (10 Oct redesign) — inlined to keep this file free of the shell's router imports. */
+const CARD = 'gap-3 rounded-card border border-separator bg-surface p-4';
 
 // Weekly balance card (gym_plan.md §1.3 "Routine tab" / research §2.3): a
 // bar-per-group list of fractional sets against the productive band, plus
 // dismissible hint rows. Used read-only on the Routine tab (dismissedKeys +
 // onDismiss, persisted per routine) and live in the editor (neither prop —
 // every hint shows, nothing to persist yet since the draft isn't saved).
+// 10 Oct redesign: drawn like the Routine page's balance (TrainCard, a
+// hairline track, the target band in brand tint, the fill in brand —
+// attention when over the band) with colour roles only.
 
 export interface WeeklyBalanceCardProps {
   volume: readonly MuscleVolume[];
@@ -29,30 +36,25 @@ function VolumeRow({ mv, testID }: { mv: MuscleVolume; testID?: string }) {
   const bandLeftPct = pct(mv.floor);
   const bandWidthPct = pct(Math.max(0, Math.min(mv.productiveMax, scale) - mv.floor));
   const over = mv.fractional > mv.warnAbove;
-  const under = mv.fractional < mv.floor;
-  const fillColor = over ? colors.warning : under ? colors.mutedForeground : colors.primary;
 
   return (
-    <View testID={testID} className="gap-1">
-      <View className="flex-row items-center justify-between">
-        <Text className="text-sm font-medium">{label}</Text>
-        <Text variant="muted" className="text-xs">
+    <View testID={testID} className="gap-1.5">
+      <View className="flex-row items-center justify-between gap-2">
+        <Text className="text-subhead font-semibold text-label">{label}</Text>
+        <Text className="text-caption text-label-secondary">
           {fmt(mv.fractional)} sets/wk · target {mv.floor}–{mv.productiveMax}
         </Text>
       </View>
-      <View className="h-3 overflow-hidden rounded-full bg-muted">
+      <View className="h-2.5 overflow-hidden rounded-full border border-separator bg-surface">
         <View
           pointerEvents="none"
-          style={{
-            position: 'absolute',
-            left: bandLeftPct,
-            width: bandWidthPct,
-            height: '100%',
-            backgroundColor: colors.success,
-            opacity: 0.18,
-          }}
+          className="absolute h-full bg-brand-tint"
+          style={{ left: bandLeftPct, width: bandWidthPct }}
         />
-        <View style={{ width: pct(mv.fractional), height: '100%', backgroundColor: fillColor }} />
+        <View
+          className={cn('h-full rounded-full', over ? 'bg-attention' : 'bg-brand')}
+          style={{ width: pct(mv.fractional) }}
+        />
       </View>
     </View>
   );
@@ -65,46 +67,54 @@ export function WeeklyBalanceCard({
   onDismiss,
   testID,
 }: WeeklyBalanceCardProps) {
+  const colors = useThemeColors();
   const visibleHints = dismissedKeys ? hints.filter((h) => !dismissedKeys.has(hintKey(h))) : hints;
 
   return (
-    <Card testID={testID}>
-      <CardTitle>Weekly balance</CardTitle>
+    <View testID={testID} className={CARD}>
+      <Text accessibilityRole="header" className="text-headline font-semibold text-label">
+        Weekly balance
+      </Text>
       <View className="gap-3">
         {volume.map((mv) => (
           <VolumeRow key={mv.group} mv={mv} testID={testID ? `${testID}-${mv.group}` : undefined} />
         ))}
       </View>
+      {volume.length > 0 ? (
+        <Text className="text-caption text-label-secondary">Shaded band = weekly target sets</Text>
+      ) : null}
       {visibleHints.length > 0 ? (
-        <View className="mt-4 gap-2 border-t border-border pt-3">
+        <View className="gap-2 border-t border-separator pt-3">
           {visibleHints.map((hint) => {
             const key = hintKey(hint);
             return (
               <View
                 key={key}
                 testID={testID ? `${testID}-hint-${key}` : undefined}
-                className="min-h-11 flex-row items-center gap-2 rounded-lg bg-muted px-3 py-2"
+                className={cn(
+                  'min-h-11 flex-row items-center gap-2 rounded-control bg-surface-sunken py-2 pl-3',
+                  onDismiss ? 'pr-0' : 'pr-3',
+                )}
               >
-                <Badge variant={hint.level === 'warning' ? 'warning' : 'info'}>
-                  {hint.level === 'warning' ? '!' : 'i'}
-                </Badge>
-                <Text className="min-w-0 flex-1 text-sm">{hint.message}</Text>
+                <Icon
+                  name="info"
+                  color={hint.level === 'warning' ? colors.attention : colors.brand}
+                  size={18}
+                />
+                <Text className="min-w-0 flex-1 text-subhead text-label">{hint.message}</Text>
                 {onDismiss ? (
-                  <Pressable
+                  <IconButton
                     testID={testID ? `${testID}-hint-${key}-dismiss` : undefined}
-                    accessibilityRole="button"
                     accessibilityLabel="Dismiss"
                     onPress={() => onDismiss(key)}
-                    className="h-11 w-11 items-center justify-center"
-                  >
-                    <Text className="text-base text-muted-foreground">✕</Text>
-                  </Pressable>
+                    icon={<Icon name="close" color={colors.labelSecondary} size={18} />}
+                  />
                 ) : null}
               </View>
             );
           })}
         </View>
       ) : null}
-    </Card>
+    </View>
   );
 }

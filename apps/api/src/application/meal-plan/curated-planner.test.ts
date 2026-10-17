@@ -187,6 +187,17 @@ describe('planCuratedWeek — training days (audit P2-4)', () => {
     expect(monday.protein).toBeGreaterThan(90);
     expect(Math.abs(monday.kcal - 1800) / 1800).toBeLessThanOrEqual(0.1);
   });
+
+  it('fits a training day to its own (bumped) target, rest days to the base one', () => {
+    const week = planCuratedWeek(
+      trainingPools(),
+      { ...targets, trainingDays: [0], dayTargets: { 0: { calories: 2100, proteinG: 170 } } },
+      seeded(),
+    );
+    // The bump is reached on Monday (it used to stop at the base 1,800).
+    expect(Math.abs(week[0]!.kcal - 2100) / 2100).toBeLessThanOrEqual(0.05);
+    expect(Math.abs(week[1]!.kcal - 1800) / 1800).toBeLessThanOrEqual(0.05);
+  });
 });
 
 describe('planCuratedWeek — shape (§2.3, T-07.2)', () => {

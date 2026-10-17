@@ -35,11 +35,13 @@ export function MessageBubble({
   const foldable = shouldCollapse(role, content, live);
   const folded = foldable && !expanded;
   return (
-    <View className={cn('rounded-2xl px-3 py-2', role === 'user' ? 'bg-primary' : 'bg-gray-100')}>
+    <View
+      className={cn('rounded-card px-3 py-2', role === 'user' ? 'bg-brand' : 'bg-surface-sunken')}
+    >
       <Text
         testID={`${testID}-text`}
         {...(folded && { numberOfLines: COLLAPSED_LINES })}
-        className={cn('text-sm', role === 'user' ? 'text-primary-foreground' : 'text-gray-800')}
+        className={cn('text-callout', role === 'user' ? 'text-brand-on' : 'text-label')}
       >
         {content || '…'}
       </Text>
@@ -51,7 +53,12 @@ export function MessageBubble({
           onPress={() => setExpanded((v) => !v)}
           className="min-h-11 justify-center"
         >
-          <Text className="text-sm font-semibold text-primary">
+          <Text
+            className={cn(
+              'text-callout font-semibold',
+              role === 'user' ? 'text-brand-on' : 'text-brand',
+            )}
+          >
             {expanded ? 'Show less' : 'Show more'}
           </Text>
         </Pressable>

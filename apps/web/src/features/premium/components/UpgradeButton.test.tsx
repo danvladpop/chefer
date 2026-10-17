@@ -103,13 +103,25 @@ describe('UpgradeButton — a dialog that names the job', () => {
   });
 
   it('Turn on Premium flips the plan (the free toggle) and reports the click', () => {
-    render(<UpgradeButton source="pantry" />);
+    render(<UpgradeButton source="household" />);
     fireEvent.click(screen.getByRole('button', { name: 'See what Premium adds' }));
     fireEvent.click(screen.getByRole('button', { name: 'Turn on Premium' }));
     expect(mocks.upgradeMutate).toHaveBeenCalledTimes(1);
     expect(mocks.capture).toHaveBeenCalledWith('upgrade_clicked', {
+      source: 'household',
+      job: 'household',
+    });
+  });
+
+  it('a retired pantry source pitches the default week, never the kitchen (WP-24)', () => {
+    render(<UpgradeButton source="pantry" />);
+    fireEvent.click(screen.getByRole('button', { name: 'See what Premium adds' }));
+    expect(screen.getByText('Your week, ready every Monday')).toBeTruthy();
+    expect(screen.queryByText(/kitchen|pantry/i)).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'Turn on Premium' }));
+    expect(mocks.capture).toHaveBeenCalledWith('upgrade_clicked', {
       source: 'pantry',
-      job: 'pantry',
+      job: 'default',
     });
   });
 

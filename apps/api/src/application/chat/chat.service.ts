@@ -1,12 +1,14 @@
 import { chefProfileRepository, dailyLogRepository, mealRatingRepository } from '@chefer/database';
 import type { ChatAction, UserProfile } from '@chefer/types';
 import { chatActionsTrailer } from '@chefer/utils';
+import { runWithAiUsageScope } from '../../lib/ai/call-context.js';
 import { isAiCapacityFailure } from '../../lib/ai/friendly-error.js';
 import { aiService } from '../../lib/ai/index.js';
 import type { ChatContext, ChatMessage, ChatTools } from '../../lib/ai/index.js';
 import { isPremiumUser } from '../../lib/entitlements.js';
 import { reserveAiSwap, reserveChatMessage } from '../../lib/quotas.js';
 import { coachService } from '../coach/coach.service.js';
+import { trainingSummaryService } from '../gym/training-summary.service.js';
 import { mealPlanService, type WeekPlanDto } from '../meal-plan/meal-plan.service.js';
 import { pantryService } from '../pantry/pantry.service.js';
 import { resolveDailyTargets } from '../preferences/preferences.service.js';
@@ -365,6 +367,17 @@ export class ChatService {
         }
       },
 
+      getMyTraining: async () => {
+        // Read-only (no ChatAction): the user's local day drives the week
+        // and pause dates, the nutrition units are the fallback before the
+        // gym profile (which carries its own kg/lb) exists.
+        const profile = await chefProfileRepository.findByUserId(user.id);
+        return trainingSummaryService.forChat(user.id, {
+          today: localDateInZone(profile?.timeZone),
+          preferredUnits: profile?.preferredUnits ?? null,
+        });
+      },
+
       whatCanIMake: async () => {
         // F3 pantry: coverage ranking over known recipes. PantryService
         // handles the tier branch (free gets an honest teaser).
@@ -418,7 +431,12 @@ export class ChatService {
       tools: this.buildTools(user, plan, actions),
     };
     try {
-      const stream = await aiService.chat(messages, context);
+      // Cost tracking: /api/chat is a plain Express route with no AI call
+      // context, so the chef's calls (tool calls included) are billed to the
+      // user explicitly. Labels only — the call runs exactly as before.
+      const stream = await runWithAiUsageScope({ billedUserId: user.id }, () =>
+        aiService.chat(messages, context),
+      );
       return options.withActions ? withActionTrailer(stream, actions) : stream;
     } catch (err) {
       if (isAiCapacityFailure(err)) await reservation.release();

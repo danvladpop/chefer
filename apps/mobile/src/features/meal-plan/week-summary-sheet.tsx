@@ -16,6 +16,7 @@ import {
 } from '@chefer/utils';
 import { getWebUrl } from '../../lib/api-url';
 import { AiConsentHost } from '../ai-consent/ai-consent-provider';
+import { useNumbersMode } from '../numbers-mode/numbers-mode';
 
 // Week summary sheet — opened by tapping the week label on the Plan tab.
 // Day-level stays on the screen; WEEK-level lives here: per-day overview,
@@ -26,6 +27,8 @@ export interface DaySummary {
   dayIndex: number;
   mealsCount: number;
   totalKcal: number;
+  /** WP-08: the day's planned protein (g), shown instead of kcal in protein-only mode. */
+  totalProtein?: number | undefined;
   isToday: boolean;
   /** T-06.4: a training day — its glyph and workout name show on the row. */
   training?: { kind: DayKind; workoutName: string | null } | undefined;
@@ -77,6 +80,7 @@ export function WeekSummarySheet({
   dinners = [],
 }: WeekSummarySheetProps) {
   const { show: showSnackbar } = useSnackbar();
+  const { proteinOnly } = useNumbersMode();
   const trainingChip = trainingDaysChip(days.filter((d) => d.training).length);
 
   // T-13.2: plain text through the OS share sheet — not an AI call, so no
@@ -96,6 +100,7 @@ export function WeekSummarySheet({
   };
 
   const weekKcal = days.reduce((sum, d) => sum + d.totalKcal, 0);
+  const weekProtein = days.reduce((sum, d) => sum + (d.totalProtein ?? 0), 0);
   const plannedDays = days.filter((d) => d.mealsCount > 0).length;
 
   return (
@@ -136,13 +141,21 @@ export function WeekSummarySheet({
         <View className="rounded-full bg-gray-100 px-3 py-1">
           <Text className="text-xs font-medium text-gray-600">{plannedDays}/7 days planned</Text>
         </View>
-        {weekKcal > 0 && (
-          <View className="rounded-full bg-gray-100 px-3 py-1">
-            <Text className="text-xs font-medium text-gray-600">
-              ~{Math.round(weekKcal / Math.max(plannedDays, 1))} kcal/day
-            </Text>
-          </View>
-        )}
+        {proteinOnly
+          ? weekProtein > 0 && (
+              <View className="rounded-full bg-gray-100 px-3 py-1">
+                <Text className="text-xs font-medium text-gray-600">
+                  ~{Math.round(weekProtein / Math.max(plannedDays, 1))} g protein/day
+                </Text>
+              </View>
+            )
+          : weekKcal > 0 && (
+              <View className="rounded-full bg-gray-100 px-3 py-1">
+                <Text className="text-xs font-medium text-gray-600">
+                  ~{Math.round(weekKcal / Math.max(plannedDays, 1))} kcal/day
+                </Text>
+              </View>
+            )}
         {trainingChip !== null && (
           <View testID="week-summary-training-chip" className="rounded-full bg-accent px-3 py-1">
             <Text className="text-xs font-medium text-primary">{trainingChip}</Text>
@@ -209,11 +222,17 @@ export function WeekSummarySheet({
               )}
             </View>
             <View className="flex-row items-center gap-1.5">
-              {d.totalKcal > 0 && (
-                <Text variant="muted" className="text-xs">
-                  {d.totalKcal} kcal
-                </Text>
-              )}
+              {proteinOnly
+                ? (d.totalProtein ?? 0) > 0 && (
+                    <Text variant="muted" className="text-xs">
+                      {d.totalProtein} g protein
+                    </Text>
+                  )
+                : d.totalKcal > 0 && (
+                    <Text variant="muted" className="text-xs">
+                      {d.totalKcal} kcal
+                    </Text>
+                  )}
               <Ionicons name="chevron-forward" size={14} color="#9ca3af" />
             </View>
           </Pressable>

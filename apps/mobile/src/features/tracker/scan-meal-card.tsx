@@ -3,14 +3,16 @@ import { Image, Linking, Pressable, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import { fetch as expoFetch } from 'expo/fetch';
-import { Button, Card, Input, Text, useSnackbar } from '@chefer/ui-mobile';
+import { Button, Card, DONE_FIELD_PROPS, Input, Text, useSnackbar } from '@chefer/ui-mobile';
 import {
   cn,
   defaultMealSlot,
   PREMIUM_PITCH_COPY,
+  proteinLabel,
   QUICK_ADD_LIMITS,
   showSnapTaste,
   userFacingErrorMessage,
+  type SlotRef,
 } from '@chefer/utils';
 import { useEntitlement } from '../../hooks/use-entitlement';
 import { trackMealLogged } from '../../lib/analytics-events';
@@ -24,9 +26,11 @@ import {
 import { photoPickerOptions, preparePhoto } from '../../lib/prepare-photo';
 import { trpc } from '../../lib/trpc';
 import { useAiConsent } from '../ai-consent/ai-consent-provider';
+import { useNumbersMode } from '../numbers-mode/numbers-mode';
 import { openPremium } from '../premium/open-premium';
 import { invalidateDayQueries } from './invalidate';
-import { recordRebalance } from './rebalance-store';
+import { REBALANCE_PREVIEW, recordRebalanceOutcome } from './rebalance-offer-store';
+import { toLogMealType } from './slot-copy';
 
 // Snap-to-Log (F4 / M3-2) — mobile counterpart of web's ScanMealButton.
 // Camera or library → vision estimate → confirm card → logCustomMeal.
@@ -78,6 +82,11 @@ export type ScanMealCardProps = {
   autoPick?: boolean;
   /** Called once when `autoPick` has been acted on (so the caller can drop its route param). */
   onAutoPicked?: () => void;
+  /**
+   * WP-06 "Ate something else" → Snap: the photo's estimate REPLACES this plan
+   * slot (`replacesSlot`), and the slot decides the meal (no meal picker).
+   */
+  replacesSlot?: SlotRef;
 };
 
 export function ScanMealCard(props: ScanMealCardProps) {
@@ -134,8 +143,10 @@ function SnapTaste() {
   );
 }
 
-function SnapCard({ date, onLogged, autoPick, onAutoPicked }: ScanMealCardProps) {
+function SnapCard({ date, onLogged, autoPick, onAutoPicked, replacesSlot }: ScanMealCardProps) {
   const snackbar = useSnackbar();
+  // WP-08: protein-only mode confirms the estimated protein, with no calorie field.
+  const { proteinOnly } = useNumbersMode();
   const [scanning, setScanning] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [upgradeNeeded, setUpgradeNeeded] = useState(false);
@@ -170,7 +181,7 @@ function SnapCard({ date, onLogged, autoPick, onAutoPicked }: ScanMealCardProps)
     meta: { silent: true },
     onSuccess: (data, variables) => {
       trackMealLogged('snap', variables.mealType);
-      recordRebalance(data.rebalance);
+      recordRebalanceOutcome(data);
       // Bug B-44: Today used to lag the tracker by ~8s after a snap log —
       // this mutation invalidated nothing, so the dashboard ring only caught
       // up on its own stale-time refetch.
@@ -359,45 +370,56 @@ function SnapCard({ date, onLogged, autoPick, onAutoPicked }: ScanMealCardProps)
           <Text variant="muted" className="text-xs">
             {estimate.portionNote}
           </Text>
-          <View className="gap-1">
-            <Text className="text-xs font-medium text-gray-600">Calories</Text>
-            <View className="flex-row items-center gap-2">
-              <Input
-                testID="scan-kcal"
-                accessibilityLabel="Calories"
-                value={kcalText}
-                keyboardType="number-pad"
-                onChangeText={setKcalText}
-                className="min-w-0 flex-1"
-              />
-              <Text className="text-sm text-muted-foreground">kcal</Text>
-            </View>
-          </View>
-          <Text testID="scan-macros" className="text-sm text-gray-700">
-            {logged.protein}g P · {logged.carbs}g C · {logged.fat}g F
-          </Text>
-          <View className="flex-row gap-1.5">
-            {MEAL_TYPES.map((t) => (
-              <Pressable
-                key={t}
-                accessibilityRole="button"
-                onPress={() => setMealType(t)}
-                className={cn(
-                  'h-9 flex-1 items-center justify-center rounded-lg border',
-                  mealType === t ? 'border-primary bg-primary' : 'border-border bg-white',
-                )}
-              >
-                <Text
+          {proteinOnly ? (
+            <Text testID="scan-protein" className="text-sm font-semibold text-gray-800">
+              {`≈ ${proteinLabel(logged.protein)}`}
+            </Text>
+          ) : (
+            <>
+              <View className="gap-1">
+                <Text className="text-xs font-medium text-gray-600">Calories</Text>
+                <View className="flex-row items-center gap-2">
+                  <Input
+                    testID="scan-kcal"
+                    accessibilityLabel="Calories"
+                    value={kcalText}
+                    keyboardType="number-pad"
+                    onChangeText={setKcalText}
+                    className="min-w-0 flex-1"
+                    {...DONE_FIELD_PROPS}
+                  />
+                  <Text className="text-sm text-muted-foreground">kcal</Text>
+                </View>
+              </View>
+              <Text testID="scan-macros" className="text-sm text-gray-700">
+                {logged.protein}g P · {logged.carbs}g C · {logged.fat}g F
+              </Text>
+            </>
+          )}
+          {!replacesSlot && (
+            <View className="flex-row gap-1.5">
+              {MEAL_TYPES.map((t) => (
+                <Pressable
+                  key={t}
+                  accessibilityRole="button"
+                  onPress={() => setMealType(t)}
                   className={cn(
-                    'text-xs font-medium capitalize',
-                    mealType === t ? 'text-primary-foreground' : 'text-gray-600',
+                    'h-9 flex-1 items-center justify-center rounded-lg border',
+                    mealType === t ? 'border-primary bg-primary' : 'border-border bg-white',
                   )}
                 >
-                  {t}
-                </Text>
-              </Pressable>
-            ))}
-          </View>
+                  <Text
+                    className={cn(
+                      'text-xs font-medium capitalize',
+                      mealType === t ? 'text-primary-foreground' : 'text-gray-600',
+                    )}
+                  >
+                    {t}
+                  </Text>
+                </Pressable>
+              ))}
+            </View>
+          )}
           <View className="flex-row gap-2">
             <Button
               variant="outline"
@@ -417,9 +439,16 @@ function SnapCard({ date, onLogged, autoPick, onAutoPicked }: ScanMealCardProps)
               onPress={() =>
                 logMutation.mutate({
                   date,
+                  ...REBALANCE_PREVIEW,
                   name: estimate.dishName || 'Scanned meal',
                   estimatedBy: 'vision',
-                  mealType,
+                  mealType: replacesSlot ? toLogMealType(replacesSlot.mealType) : mealType,
+                  ...(replacesSlot && {
+                    replacesSlot: {
+                      mealType: replacesSlot.mealType,
+                      slotIndex: replacesSlot.slotIndex,
+                    },
+                  }),
                   kcal: logged.kcal,
                   protein: logged.protein,
                   carbs: logged.carbs,
@@ -427,7 +456,7 @@ function SnapCard({ date, onLogged, autoPick, onAutoPicked }: ScanMealCardProps)
                 })
               }
             >
-              {`Log ${logged.kcal} kcal`}
+              {proteinOnly ? 'Log it' : `Log ${logged.kcal} kcal`}
             </Button>
           </View>
           {logMutation.isError && (

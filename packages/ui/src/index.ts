@@ -14,6 +14,7 @@ export { Sheet, type SheetProps } from './components/sheet';
 export { Drawer, type DrawerProps } from './components/drawer';
 export { ErrorState, type ErrorStateProps } from './components/error-state';
 export { ProgressRing, type ProgressRingProps } from './components/progress-ring';
+export { Biscuit, type BiscuitProps } from './components/biscuit';
 export { ProgressBar, type ProgressBarProps } from './components/progress-bar';
 export { CountUp, type CountUpProps } from './components/count-up';
 export { pressCard, pressControl, pressTransition } from './motion/press';

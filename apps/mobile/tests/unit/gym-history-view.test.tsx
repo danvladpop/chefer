@@ -1,6 +1,6 @@
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { onlineManager } from '@tanstack/react-query';
-import { render, screen, userEvent, waitFor } from '@testing-library/react-native';
+import { render as rtlRender, screen, userEvent, waitFor } from '@testing-library/react-native';
 import type { SessionSummaryDto } from '@chefer/types';
 import { HistoryView } from '../../src/features/gym/stats/history-view';
 import { makeBootstrap } from './gym-fixtures';
@@ -44,6 +44,11 @@ function session(overrides: Partial<SessionSummaryDto> & { id: string }): Sessio
     ],
     ...overrides,
   };
+}
+
+// The history header carries "Log an activity" (WP-20), whose Sheet needs the safe-area context.
+function render(ui: React.ReactElement) {
+  return rtlRender(<SafeAreaProvider initialMetrics={safeAreaMetrics}>{ui}</SafeAreaProvider>);
 }
 
 let fetchMock: ReturnType<typeof trpc.useUtils>['gym']['session']['list']['fetch'];

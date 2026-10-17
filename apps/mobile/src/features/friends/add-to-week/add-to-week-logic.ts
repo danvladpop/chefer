@@ -49,6 +49,11 @@ export type SlotRow = {
   slotIndex: number | null;
   /** The meal currently there (a replace). */
   currentName: string | null;
+  /**
+   * FB7-04: an `add` row for a meal type that already has a dish — the recipe
+   * goes next to it as a side ("Add as a side"), not into an empty slot.
+   */
+  side?: boolean;
 };
 
 type PlanForSlots = {
@@ -98,6 +103,15 @@ export function slotRows(
         currentName: m.recipe.name,
       });
     }
+    // FB7-04: a second dish for the same meal — a side next to the main.
+    rows.push({
+      key: `${type}-side`,
+      mealType: type,
+      mode: 'add',
+      slotIndex: null,
+      currentName: null,
+      side: true,
+    });
   }
   return rows;
 }

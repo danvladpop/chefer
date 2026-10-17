@@ -9,10 +9,14 @@ import {
   withRecipeEntryEdited,
   withRecipeLogged,
   withRecipeUnlogged,
+  withSlotReplaced,
+  withSlotSkipped,
+  withSlotUnskipped,
   type DayEntry,
+  type SlotRef,
 } from '@chefer/utils';
 import { invalidateDayQueries } from './invalidate';
-import { handleRebalanceResult } from './rebalance-storage';
+import { handleRebalanceOutcome } from './rebalance-storage';
 
 // Every write the tracker makes to a day (UX-FOOD-01, UX-FOOD-06) — the web
 // twin of apps/mobile/src/features/tracker/use-tracker-writes.ts.
@@ -82,7 +86,7 @@ export function useTrackerWrites(dateStr: string, showToast: ShowToast) {
     onSuccess: (result, vars) => {
       // UX-PO-02: the tracker only ticks planned rows.
       trackMealLogged('planned', vars.mealType);
-      handleRebalanceResult(result.rebalance);
+      handleRebalanceOutcome(result);
     },
     onError: (error, vars, snapshot) => {
       rollback(snapshot);
@@ -171,5 +175,80 @@ export function useTrackerWrites(dateStr: string, showToast: ShowToast) {
     onSettled: settle,
   });
 
-  return { logRecipe, unlogRecipe, deleteCustom, deleteEntries, restoreCustom, updateRecipeEntry };
+  // WP-06 "Ate something else": a custom entry that REPLACES a plan slot. The
+  // cached day takes the entry at once (withSlotReplaced: the slot reads "You
+  // had: …" and cannot be ticked again); the server's own entry id arrives
+  // with the answer, which is what Undo deletes.
+  const logReplacement = trpc.tracker.logCustomMeal.useMutation({
+    meta: { silent: true },
+    scope: WRITE_SCOPE,
+    onMutate: (vars): Promise<Snapshot> =>
+      applyOptimistic((day) => {
+        if (!vars.replacesSlot) return day;
+        const entry: DayEntry & { replacesSlot: SlotRef } = {
+          custom: { name: vars.name, estimatedBy: vars.estimatedBy },
+          mealType: vars.replacesSlot.mealType,
+          replacesSlot: vars.replacesSlot,
+          portionMultiplier: 1,
+          kcal: vars.kcal,
+          protein: vars.protein ?? 0,
+          carbs: vars.carbs ?? 0,
+          fat: vars.fat ?? 0,
+        };
+        return withSlotReplaced(day, entry);
+      }),
+    onSuccess: (result, vars) => {
+      trackMealLogged('replaced', vars.mealType);
+      // The slot flow's own "Logged …" toast carries the day-fit line.
+      handleRebalanceOutcome(result, { announceDayFit: false });
+    },
+    onError: (error, _vars, snapshot) => {
+      rollback(snapshot);
+      failed("Couldn't log that.", error);
+    },
+    onSettled: settle,
+  });
+
+  // WP-06 "Skipped it" / its Undo: the slot is neither eaten nor remaining.
+  const skipSlot = trpc.tracker.skipSlot.useMutation({
+    meta: { silent: true },
+    scope: WRITE_SCOPE,
+    onMutate: (vars): Promise<Snapshot> =>
+      applyOptimistic((day) =>
+        withSlotSkipped(day, { mealType: vars.mealType, slotIndex: vars.slotIndex }),
+      ),
+    // The slot flow's own "Skipped …" toast carries the day-fit line.
+    onSuccess: (result) => handleRebalanceOutcome(result, { announceDayFit: false }),
+    onError: (error, _vars, snapshot) => {
+      rollback(snapshot);
+      failed("Couldn't skip that.", error);
+    },
+    onSettled: settle,
+  });
+
+  const unskipSlot = trpc.tracker.unskipSlot.useMutation({
+    meta: { silent: true },
+    scope: WRITE_SCOPE,
+    onMutate: (vars): Promise<Snapshot> =>
+      applyOptimistic((day) =>
+        withSlotUnskipped(day, { mealType: vars.mealType, slotIndex: vars.slotIndex }),
+      ),
+    onError: (error, _vars, snapshot) => {
+      rollback(snapshot);
+      failed("Couldn't undo that.", error);
+    },
+    onSettled: settle,
+  });
+
+  return {
+    logRecipe,
+    unlogRecipe,
+    deleteCustom,
+    deleteEntries,
+    restoreCustom,
+    updateRecipeEntry,
+    logReplacement,
+    skipSlot,
+    unskipSlot,
+  };
 }

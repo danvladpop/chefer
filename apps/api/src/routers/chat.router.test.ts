@@ -26,7 +26,7 @@ vi.mock('../application/chat/chat.service.js', () => ({
   chatService: { chat: vi.fn() },
 }));
 
-const { chatRouter } = await import('./chat.router.js');
+const { chatBodyParser, chatRouter, toChatMessages } = await import('./chat.router.js');
 const { chatService } = await import('../application/chat/chat.service.js');
 
 function textStream(text: string): ReadableStream {
@@ -43,7 +43,10 @@ let baseUrl: string;
 
 beforeAll(async () => {
   const app = express();
-  app.use(express.json());
+  // Mounted exactly like index.ts: the chat's own 64 KB parser BEFORE the
+  // global 10 MB one, so the small limit is the one that applies.
+  app.use('/api/chat', chatBodyParser);
+  app.use(express.json({ limit: '10mb' }));
   app.use('/api/chat', chatRouter);
   server = createServer(app);
   await new Promise<void>((resolve) => server.listen(0, resolve));
@@ -134,5 +137,68 @@ describe('chatRouter — action trailer opt-in (UX-FOOD-21)', () => {
     const calls = vi.mocked(chatService.chat).mock.calls;
     expect(calls[0]?.[2]).toEqual({ withActions: false });
     expect(calls[1]?.[2]).toEqual({ withActions: true });
+  });
+});
+
+describe('chatRouter — Phase 1 guardrails (message length, history, body size)', () => {
+  it('rejects a message over 500 characters with 400 and a friendly sentence, never calling the chef', async () => {
+    const res = await post('a'.repeat(501));
+    expect(res.status).toBe(400);
+    expect(await res.json()).toEqual({
+      error: 'That message is too long. Keep it under 500 characters.',
+    });
+    expect(chatService.chat).not.toHaveBeenCalled();
+  });
+
+  it('accepts a message of exactly 500 characters', async () => {
+    const res = await post('a'.repeat(500));
+    expect(res.status).toBe(200);
+    expect(chatService.chat).toHaveBeenCalledTimes(1);
+  });
+
+  it('hands the model only the newest 12 messages', async () => {
+    const messages = Array.from({ length: 30 }, (_, i) => ({
+      role: i % 2 === 0 ? 'user' : 'assistant',
+      content: `m${i}`,
+    }));
+    messages.push({ role: 'user', content: 'last' });
+    await fetch(`${baseUrl}/api/chat`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ messages }),
+    });
+    const sent = vi.mocked(chatService.chat).mock.calls[0]?.[1] ?? [];
+    expect(sent).toHaveLength(12);
+    expect(sent.at(-1)).toEqual({ role: 'user', content: 'last' });
+    expect(sent[0]).toEqual({ role: 'assistant', content: 'm19' });
+  });
+
+  it('answers a body over 64 KB with 413 { error: string } — the global 10 MB parser never applies', async () => {
+    const res = await post('a'.repeat(70 * 1024));
+    expect(res.status).toBe(413);
+    const data = (await res.json()) as { error?: unknown };
+    expect(data.error).toBe(
+      'This conversation is too long to send. Start a new chat and ask again.',
+    );
+    expect(chatService.chat).not.toHaveBeenCalled();
+  });
+});
+
+describe('toChatMessages', () => {
+  it('cuts earlier messages to 4,000 characters but leaves the last one whole', () => {
+    const out = toChatMessages([
+      { role: 'assistant', content: 'x'.repeat(5000) },
+      { role: 'user', content: 'y'.repeat(2500) },
+    ]);
+    expect(out[0]?.content).toHaveLength(4000);
+    expect(out[1]?.content).toHaveLength(2500);
+  });
+
+  it('drops empty messages and reads parts-based messages', () => {
+    const out = toChatMessages([
+      { role: 'user', content: '   ' },
+      { role: 'user', parts: [{ type: 'text', text: 'hi' }, { type: 'step-start' }] },
+    ]);
+    expect(out).toEqual([{ role: 'user', content: 'hi' }]);
   });
 });

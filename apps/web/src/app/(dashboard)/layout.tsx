@@ -4,6 +4,7 @@ import { TermsReacceptGate } from '@/features/auth/components/TermsReacceptGate'
 import { ChatWidgetGate } from '@/features/chat/components/ChatWidgetGate';
 import { DashboardShell } from '@/features/nav/components/dashboard-shell';
 import { MODE_COOKIE, parseMode } from '@/features/nav/nav-items';
+import { NumbersModeHost } from '@/features/numbers-mode/numbers-mode';
 
 interface DashboardLayoutProps {
   children: React.ReactNode;
@@ -17,14 +18,17 @@ export default async function DashboardLayout({ children }: DashboardLayoutProps
   return (
     // AI data consent guard (App Store 5.1.2(i)) for every AI action below.
     <AiConsentProvider>
-      <DashboardShell initialMode={initialMode}>
-        {children}
-        {/* Hidden on /gym/workout*: the active workout stays distraction-free. */}
-        <ChatWidgetGate />
-        {/* T-39.1: re-accept sheet for an existing account whose stored
+      {/* WP-08: protein-only mode for every page below (one predicate, useNumbersMode). */}
+      <NumbersModeHost>
+        <DashboardShell initialMode={initialMode}>
+          {children}
+          {/* Hidden on /gym/workout*: the active workout stays distraction-free. */}
+          <ChatWidgetGate />
+          {/* T-39.1: re-accept sheet for an existing account whose stored
             Terms/Privacy acceptance predates a document version bump. */}
-        <TermsReacceptGate />
-      </DashboardShell>
+          <TermsReacceptGate />
+        </DashboardShell>
+      </NumbersModeHost>
     </AiConsentProvider>
   );
 }

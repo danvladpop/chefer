@@ -20,6 +20,7 @@ import {
   isDeficitBlockedForAge,
   lifterProteinNote,
 } from '@chefer/utils';
+import { NumbersSettingsSection } from './numbers-settings-section';
 import { Section } from './section';
 import { TargetsCard } from './TargetsCard';
 
@@ -113,11 +114,18 @@ interface TargetsData {
   mealsPerDay: number;
 }
 
+/** WP-08: what the merged "Your targets" card needs for the numbers settings. */
+export interface NumbersSettings {
+  numbersMode: string | null | undefined;
+  showNutritionOnToday: boolean;
+}
+
 interface TargetsSectionProps {
   /** Free users see the upgrade panel instead (mutations are server-gated regardless). */
   isPremium: boolean;
   data: TargetsData;
   onChange: (patch: Partial<TargetsData>) => void;
+  numbersSettings?: NumbersSettings | undefined;
 }
 
 /**
@@ -125,7 +133,12 @@ interface TargetsSectionProps {
  * premium personalisation (the AI chef builds every plan around these).
  * Split out of preferences-form.tsx (T-00.13, no behaviour change).
  */
-export function TargetsSection({ isPremium, data, onChange }: TargetsSectionProps) {
+export function TargetsSection({
+  isPremium,
+  data,
+  onChange,
+  numbersSettings,
+}: TargetsSectionProps) {
   // Instant local estimate, replaced by the server's numbers as soon as they
   // arrive: preferences.computeTargets applies the same rules as the
   // dashboard (the 2.2 g/kg protein cap, and a lifter's bodyweight protein),
@@ -158,11 +171,27 @@ export function TargetsSection({ isPremium, data, onChange }: TargetsSectionProp
 
   if (!isPremium) {
     return (
-      <UpgradeCard
-        source="preferences-locked"
-        title="Unlock your personal targets"
-        description="Set your goal, body metrics and cuisine preferences, and the AI chef builds every plan around them. Your allergies and restrictions above are always respected — on any plan."
-      />
+      <>
+        {/* WP-08: what to keep an eye on is free on every tier, so it is not locked with the rest. */}
+        {numbersSettings && (
+          <section
+            id="targets"
+            data-testid="numbers-settings-free"
+            className="scroll-mt-20 rounded-xl border bg-card p-4 shadow-sm sm:p-6"
+          >
+            <h2 className="text-lg font-semibold">Your numbers</h2>
+            <NumbersSettingsSection
+              initialMode={numbersSettings.numbersMode}
+              initialShowNutrition={numbersSettings.showNutritionOnToday}
+            />
+          </section>
+        )}
+        <UpgradeCard
+          source="preferences-locked"
+          title="Unlock your personal targets"
+          description="Set your goal, body metrics and cuisine preferences, and the AI chef builds every plan around them. Your allergies and restrictions above are always respected — on any plan."
+        />
+      </>
     );
   }
 
@@ -212,7 +241,7 @@ export function TargetsSection({ isPremium, data, onChange }: TargetsSectionProp
 
       {/* §2.11, T-35.3 — Suggested (computed) or My own (never moved
           silently — gym setup, a weigh-in or a goal edit only propose). */}
-      <TargetsCard />
+      <TargetsCard numbersSettings={numbersSettings} />
 
       {/* Cuisine & meal cadence */}
       <Section>

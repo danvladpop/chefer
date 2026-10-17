@@ -35,7 +35,6 @@ describe('validateEnv — AI without Gemini (docs/ai-providers.md "Running witho
     AI_ROUTE_CHAT: 'groq',
     AI_ROUTE_REVIEW: 'groq',
     AI_ROUTE_PRICES: 'groq',
-    AI_ROUTE_SHOPPING: 'groq',
   };
 
   it('accepts the Groq-only production config with no GEMINI_API_KEY', () => {
@@ -54,6 +53,17 @@ describe('validateEnv — AI without Gemini (docs/ai-providers.md "Running witho
       AI_SECONDARY_REASONING_EFFORT: '',
     });
     expect(env.AI_SECONDARY_REASONING_EFFORT).toBe('auto');
+  });
+
+  it('ignores leftovers of the retired shopping workload (removed 2026-10-11)', () => {
+    const env = validateEnv({
+      ...BASE,
+      ...GROQ_ONLY,
+      AI_ROUTE_SHOPPING: 'groq>gemini',
+      AI_SHADOW_ROUTE: 'shopping:groq,mealPlan:groq',
+    });
+    expect(env).not.toHaveProperty('AI_ROUTE_SHOPPING');
+    expect(env.AI_SHADOW_ROUTE).toBe('shopping:groq,mealPlan:groq');
   });
 
   it('still requires the Groq key when Gemini is gone', () => {
@@ -152,5 +162,82 @@ describe('validateEnv — FRIENDS_ALLOWLIST (Following dark launch, plan §8)', 
     expect([...env.FRIENDS_ALLOWLIST].sort()).toEqual(['cuser1', 'cuser2']);
     expect(env.FRIENDS_ALLOWLIST.has('cuser2')).toBe(true);
     expect(env.FRIENDS_ALLOWLIST.has('cuser3')).toBe(false);
+  });
+});
+
+describe('validateEnv — social sign-in and password-manager files (WP-22)', () => {
+  it('everything is optional: no social variable set is valid (providers disabled)', () => {
+    const env = validateEnv({ ...BASE });
+    expect(env.GOOGLE_CLIENT_ID_WEB).toBeUndefined();
+    expect(env.APPLE_SERVICES_ID).toBeUndefined();
+    expect(env.APPLE_TEAM_ID).toBeUndefined();
+    expect(env.APPLE_PRIVATE_KEY).toBeUndefined();
+    expect(env.SOCIAL_TOKEN_SECRET).toBeUndefined();
+    expect(env.APPLE_BUNDLE_ID).toBe('com.popdan.chefer');
+    expect(env.ANDROID_CERT_SHA256).toEqual([]);
+  });
+
+  it('treats empty .env.example lines as unset', () => {
+    const env = validateEnv({
+      ...BASE,
+      GOOGLE_CLIENT_ID_WEB: '',
+      APPLE_KEY_ID: '',
+      APPLE_PRIVATE_KEY: '',
+      APPLE_WEB_REDIRECT_URI: '',
+      SOCIAL_TOKEN_SECRET: '',
+      ANDROID_CERT_SHA256: '',
+      APPLE_BUNDLE_ID: '',
+    });
+    expect(env.GOOGLE_CLIENT_ID_WEB).toBeUndefined();
+    expect(env.APPLE_KEY_ID).toBeUndefined();
+    expect(env.APPLE_PRIVATE_KEY).toBeUndefined();
+    expect(env.SOCIAL_TOKEN_SECRET).toBeUndefined();
+    expect(env.ANDROID_CERT_SHA256).toEqual([]);
+    expect(env.APPLE_BUNDLE_ID).toBe('com.popdan.chefer');
+  });
+
+  it('turns literal \\n in the Apple key into real newlines (one-line .env form)', () => {
+    const env = validateEnv({
+      ...BASE,
+      APPLE_PRIVATE_KEY: '-----BEGIN PRIVATE KEY-----\\nabc\\n-----END PRIVATE KEY-----',
+    });
+    expect(env.APPLE_PRIVATE_KEY).toBe(
+      '-----BEGIN PRIVATE KEY-----\nabc\n-----END PRIVATE KEY-----',
+    );
+  });
+
+  it('parses and normalises the Android certificate fingerprints', () => {
+    const env = validateEnv({ ...BASE, ANDROID_CERT_SHA256: ' aa:bb , CC:dd,, ' });
+    expect(env.ANDROID_CERT_SHA256).toEqual(['AA:BB', 'CC:DD']);
+  });
+
+  it('rejects a too-short SOCIAL_TOKEN_SECRET', () => {
+    expect(() => validateEnv({ ...BASE, SOCIAL_TOKEN_SECRET: 'short' })).toThrow(
+      /SOCIAL_TOKEN_SECRET/,
+    );
+  });
+});
+
+describe('validateEnv — Phase 1 guardrails', () => {
+  it('defaults to one video import at a time and a real (not dry-run) uploads sweep', () => {
+    const env = validateEnv(BASE);
+    expect(env.VIDEO_IMPORT_CONCURRENCY).toBe(1);
+    expect(env.UPLOAD_SWEEP_DRY_RUN).toBe(false);
+  });
+
+  it('reads both from the environment', () => {
+    const env = validateEnv({
+      ...BASE,
+      VIDEO_IMPORT_CONCURRENCY: '2',
+      UPLOAD_SWEEP_DRY_RUN: 'true',
+    });
+    expect(env.VIDEO_IMPORT_CONCURRENCY).toBe(2);
+    expect(env.UPLOAD_SWEEP_DRY_RUN).toBe(true);
+  });
+
+  it('refuses a zero concurrency', () => {
+    expect(() => validateEnv({ ...BASE, VIDEO_IMPORT_CONCURRENCY: '0' })).toThrow(
+      /VIDEO_IMPORT_CONCURRENCY/,
+    );
   });
 });

@@ -4,20 +4,21 @@ import Animated, { FadeOut } from 'react-native-reanimated';
 import { Ionicons } from '@expo/vector-icons';
 import { FRIENDS_COPY, type FriendUserSummary } from '@chefer/types';
 import {
-  Button,
   duration,
   EmptyState,
   ErrorState,
   Screen,
   Skeleton,
   useReducedMotion,
+  useThemeColors,
 } from '@chefer/ui-mobile';
 import { trpc } from '../../../lib/trpc';
+import { TrainButton } from '../../shell/train/train-button';
 import { FriendsGate } from '../components/friends-gate';
-import { FriendsScreenHeader } from '../components/friends-screen-header';
 import { PersonRow } from '../components/person-row';
 import { FRIENDS_SCREEN_TITLES } from '../components/screen-titles';
 import { UnblockConfirmSheet } from '../safety/safety-confirm-sheets';
+import { SettingsTopBar } from './settings-screen';
 
 // ─── Blocked people (`/friends/blocked`, UX §11.6, FR-13.3) ────────────────────
 // A plain list (PersonRow, not pressable: a blocked profile is unreachable)
@@ -25,6 +26,7 @@ import { UnblockConfirmSheet } from '../safety/safety-confirm-sheets';
 // row exits (MO-04: fade, `duration.base`; instant under reduced motion). The
 // removal itself is core's `useUnblock` (cache write + refetch marks).
 // 20 per page, infinite scroll.
+// 11 Oct restyle: the shell's top bar, canvas and colour roles.
 
 function BlockedBody() {
   const query = trpc.friends.blocked.useInfiniteQuery(
@@ -32,6 +34,7 @@ function BlockedBody() {
     { getNextPageParam: (last) => last.nextCursor ?? undefined },
   );
   const reduced = useReducedMotion();
+  const colors = useThemeColors();
   const [target, setTarget] = useState<FriendUserSummary | null>(null);
   const [visible, setVisible] = useState(false);
 
@@ -41,7 +44,7 @@ function BlockedBody() {
     return (
       <View testID="friends-blocked-loading" className="gap-3 px-4 pt-4">
         {[0, 1, 2].map((i) => (
-          <Skeleton key={i} className="h-12 w-full rounded-md" />
+          <Skeleton key={i} className="h-12 w-full rounded-card" />
         ))}
       </View>
     );
@@ -62,6 +65,7 @@ function BlockedBody() {
         testID="friends-blocked-list"
         data={people}
         keyExtractor={(person) => person.id}
+        contentContainerClassName="pt-3"
         refreshControl={
           <RefreshControl
             refreshing={query.isRefetching && !query.isFetchingNextPage}
@@ -75,7 +79,7 @@ function BlockedBody() {
         ListEmptyComponent={
           <EmptyState
             testID="friends-blocked-empty"
-            icon={<Ionicons name="ban-outline" size={40} color="#9ca3af" />}
+            icon={<Ionicons name="ban-outline" size={40} color={colors.labelTertiary} />}
             title={FRIENDS_COPY.blocked.empty}
           />
         }
@@ -86,18 +90,16 @@ function BlockedBody() {
               onPress={false}
               testID={`friends-blocked-row-${item.id}`}
               trailing={
-                <Button
+                <TrainButton
                   testID={`friends-blocked-unblock-${item.id}`}
+                  label={FRIENDS_COPY.unblock.cta}
                   variant="outline"
-                  size="sm"
                   accessibilityLabel={`${FRIENDS_COPY.unblock.cta} ${item.displayName}`}
                   onPress={() => {
                     setTarget(item);
                     setVisible(true);
                   }}
-                >
-                  {FRIENDS_COPY.unblock.cta}
-                </Button>
+                />
               }
             />
           </Animated.View>
@@ -118,9 +120,10 @@ function BlockedBody() {
 export function FriendsBlockedScreen() {
   return (
     <FriendsGate>
-      <Screen testID="friends-blocked" className="px-0">
-        <FriendsScreenHeader
+      <Screen testID="friends-blocked" className="bg-canvas px-0">
+        <SettingsTopBar
           title={FRIENDS_SCREEN_TITLES.blocked}
+          fallback="/friends/settings"
           testID="friends-blocked-header"
         />
         <BlockedBody />

@@ -1019,6 +1019,28 @@ const STRUCTURE: Struct[] = [
     2.5,
     { swapGroup: 'biceps-curl', aliases: ['Cable Curl', 'Standing Cable Curl'] },
   ),
+  // Owner request 2026-10-16: single-arm cable curl facing away from the stack.
+  ex(
+    'face-away-cable-curl',
+    'Face-Away Cable Curl',
+    I,
+    'elbow-flexion',
+    'CABLE',
+    ['biceps'],
+    ['forearms'],
+    [10, 15],
+    90,
+    2.5,
+    {
+      swapGroup: 'biceps-curl',
+      aliases: [
+        'Bayesian Curl',
+        'Bayesian Cable Curl',
+        'Single-Arm Face-Away Cable Curl',
+        'Behind-the-Back Cable Curl',
+      ],
+    },
+  ),
   ex(
     'cable-rope-hammer-curl',
     'Cable Rope Hammer Curl',
@@ -2471,6 +2493,43 @@ const STRUCTURE: Struct[] = [
   cardio('stair-climber', 'Stair Climber', 'STAIR_CLIMBER', ExerciseTrackingType.DURATION, {
     aliases: ['Stepmill', 'StairMaster'],
   }),
+
+  // ─── Quick-log activities (WP-20, owner decision 2026-10-04) ────────────────
+  // What "Log an activity" records: a class or session done elsewhere. All
+  // DURATION on purpose — that type renders on EVERY shipped client (see
+  // client-level.ts), so an activity reads back on 1.0.1 and earlier even with
+  // `cardioLogging` off. The chip → id map (with `spin-class` as the cycling
+  // chip) lives in activity-log.ts; the BODYWEIGHT-equipment rows carry
+  // loadType BODYWEIGHT only to satisfy the catalog's equipment invariant.
+  cardio('pilates-class', 'Pilates Class', 'BODYWEIGHT', ExerciseTrackingType.DURATION, {
+    loadType: 'BODYWEIGHT',
+    aliases: ['Pilates', 'Reformer Pilates', 'Mat Pilates'],
+  }),
+  cardio('yoga-class', 'Yoga Class', 'BODYWEIGHT', ExerciseTrackingType.DURATION, {
+    loadType: 'BODYWEIGHT',
+    aliases: ['Yoga', 'Hot Yoga', 'Vinyasa'],
+  }),
+  cardio('hiit-class', 'HIIT / Bootcamp Class', 'BODYWEIGHT', ExerciseTrackingType.DURATION, {
+    loadType: 'BODYWEIGHT',
+    aliases: ['HIIT', 'Bootcamp', 'Circuit Class'],
+  }),
+  cardio('dance-class', 'Dance / Zumba Class', 'BODYWEIGHT', ExerciseTrackingType.DURATION, {
+    loadType: 'BODYWEIGHT',
+    aliases: ['Zumba', 'Dance Class', 'Dance Fitness'],
+  }),
+  cardio('swimming', 'Swimming', 'POOL', ExerciseTrackingType.DURATION, {
+    aliases: ['Swim', 'Pool Swim', 'Lap Swim'],
+  }),
+  cardio('running', 'Running', 'OUTDOOR', ExerciseTrackingType.DURATION, {
+    aliases: ['Run', 'Jog', 'Jogging'],
+  }),
+  cardio('walking', 'Walking', 'OUTDOOR', ExerciseTrackingType.DURATION, {
+    aliases: ['Walk', 'Hike', 'Hiking'],
+  }),
+  cardio('other-activity', 'Other Activity', 'BODYWEIGHT', ExerciseTrackingType.DURATION, {
+    loadType: 'BODYWEIGHT',
+    aliases: ['Other Class', 'Other Workout'],
+  }),
 ];
 
 const EMPTY: ExerciseContent = {
@@ -2504,10 +2563,9 @@ export const EXERCISE_BY_ID: ReadonlyMap<string, ExerciseCatalogEntry> = new Map
  * imageKeysFor still returns the files (T-05.11, UX-05 A6, D-22 a). Record
  * an addition here in apps/api/static/exercises/README.md "Hidden photos"
  * too.
+ *
+ * Empty since WP-25: `plank` (free-exercise-db's photo showed a kneeling lunge
+ * stretch) got a correct photo under a new file name. The set stays exported
+ * because app builds in the field import it.
  */
-export const HIDDEN_EXERCISE_IMAGE_IDS: ReadonlySet<string> = new Set([
-  // free-exercise-db's "Plank" id (both frames) is actually a kneeling lunge
-  // stretch photo, not a plank — confirmed 2026-09-27 by a T-05.11 sample
-  // audit (apps/api/static/exercises/README.md "Hidden photos").
-  'plank',
-]);
+export const HIDDEN_EXERCISE_IMAGE_IDS: ReadonlySet<string> = new Set<string>();

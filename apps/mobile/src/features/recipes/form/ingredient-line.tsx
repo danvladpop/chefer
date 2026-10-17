@@ -1,13 +1,15 @@
 import { forwardRef, useRef, useState } from 'react';
-import { Keyboard, Pressable, TextInput, View } from 'react-native';
+import { Keyboard, TextInput, View } from 'react-native';
 import { INGREDIENT_CATALOG_COPY, RECIPE_UNIT_GROUPS } from '@chefer/types';
 import {
+  DONE_FIELD_PROPS,
   haptics,
   NumericReturnBar,
   PressableScale,
   SelectField,
   Text,
   useScrollFieldIntoView,
+  useThemeColors,
   type SelectOption,
 } from '@chefer/ui-mobile';
 import {
@@ -92,6 +94,7 @@ export const IngredientLine = forwardRef<TextInput, IngredientLineProps>(functio
   const [qtyFocused, setQtyFocused] = useState(false);
   const qtyInputRef = useRef<TextInput>(null);
   const scrollFieldIntoView = useScrollFieldIntoView();
+  const colors = useThemeColors();
   const accessoryID = `${nativeIDPrefix}-qty-${index}`;
   const linked = Boolean(line.ingredientId);
   const needsMatch = !linked && !line.resolving && (line.name.trim() !== '' || !!line.rawName);
@@ -133,7 +136,10 @@ export const IngredientLine = forwardRef<TextInput, IngredientLineProps>(functio
       <SwipeToRemove testID={`rf-ingredient-${index}-swipe`} onRemove={onRemove}>
         <View className="flex-row items-end gap-2">
           <View className="w-[72px] gap-1">
-            <Text variant="label" accessibilityElementsHidden>
+            <Text
+              accessibilityElementsHidden
+              className="text-subhead font-medium text-label-secondary"
+            >
               Qty
             </Text>
             <TextInput
@@ -148,10 +154,11 @@ export const IngredientLine = forwardRef<TextInput, IngredientLineProps>(functio
               onBlur={() => setQtyFocused(false)}
               keyboardType="decimal-pad"
               inputAccessoryViewID={accessoryID}
+              {...DONE_FIELD_PROPS}
               placeholder="200 or ½"
-              placeholderTextColor="#9ca3af"
+              placeholderTextColor={colors.labelTertiary}
               accessibilityLabel={`Quantity for ingredient ${index + 1}`}
-              className="min-h-11 py-2 rounded-md border border-input bg-background px-2 text-center text-base text-foreground"
+              className="min-h-11 rounded-control border border-separator bg-surface px-2 py-2 text-center text-body text-label"
             />
           </View>
           <View className="w-[88px]">
@@ -189,13 +196,16 @@ export const IngredientLine = forwardRef<TextInput, IngredientLineProps>(functio
         </View>
       </SwipeToRemove>
       {showLinkedName || line.note ? (
-        <Text testID={`rf-ingredient-linked-${index}`} variant="muted" className="text-xs">
+        <Text
+          testID={`rf-ingredient-linked-${index}`}
+          className="text-caption text-label-secondary"
+        >
           {[showLinkedName ? linkedName : null, line.note].filter(Boolean).join(' · ')}
         </Text>
       ) : null}
       {needsMatch ? (
         <View testID={`rf-ingredient-match-${index}`} className="gap-1">
-          <Text className="text-xs text-amber-800">
+          <Text className="text-caption text-attention">
             {line.candidates && line.candidates.length > 0
               ? INGREDIENT_CATALOG_COPY.picker.pickMatchHint(line.rawName ?? line.name)
               : INGREDIENT_CATALOG_COPY.picker.noMatchFound(line.rawName ?? line.name)}
@@ -214,9 +224,9 @@ export const IngredientLine = forwardRef<TextInput, IngredientLineProps>(functio
                     haptics.selection();
                     pick(pickedFromRef(c));
                   }}
-                  className="min-h-11 justify-center rounded-full border border-amber-300 bg-amber-50 px-3"
+                  className="min-h-11 justify-center rounded-full bg-brand-tint px-3"
                 >
-                  <Text numberOfLines={1} className="text-xs font-medium text-amber-900">
+                  <Text numberOfLines={1} className="text-caption font-semibold text-brand">
                     {c.name}
                   </Text>
                 </PressableScale>
@@ -226,12 +236,12 @@ export const IngredientLine = forwardRef<TextInput, IngredientLineProps>(functio
         </View>
       ) : null}
       {unitError ? (
-        <Text testID={`rf-ingredient-unit-error-${index}`} className="text-xs text-destructive">
+        <Text testID={`rf-ingredient-unit-error-${index}`} className="text-caption text-danger">
           {unitError}
         </Text>
       ) : null}
       {error ? (
-        <Text testID={`rf-ingredient-error-${index}`} className="text-xs text-destructive">
+        <Text testID={`rf-ingredient-error-${index}`} className="text-caption text-danger">
           {error}
         </Text>
       ) : null}
@@ -243,8 +253,9 @@ export const IngredientLine = forwardRef<TextInput, IngredientLineProps>(functio
           className="flex-row flex-wrap gap-1.5"
         >
           {FRACTION_CHIPS.map((chip) => (
-            <Pressable
+            <PressableScale
               key={chip.label}
+              pressScale="control"
               testID={`rf-fraction-${index}-${chip.label}`}
               accessibilityRole="radio"
               accessibilityLabel={chip.label}
@@ -252,10 +263,10 @@ export const IngredientLine = forwardRef<TextInput, IngredientLineProps>(functio
                 haptics.selection();
                 onChange({ quantity: String(chip.value) });
               }}
-              className="min-h-8 min-w-8 items-center justify-center rounded-full border border-border px-2.5"
+              className="min-h-11 min-w-11 items-center justify-center rounded-full border border-separator bg-surface px-3"
             >
-              <Text className="text-sm font-medium">{chip.label}</Text>
-            </Pressable>
+              <Text className="text-callout font-semibold text-label">{chip.label}</Text>
+            </PressableScale>
           ))}
         </View>
       ) : null}

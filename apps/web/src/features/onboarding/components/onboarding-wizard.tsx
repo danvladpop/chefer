@@ -3,6 +3,8 @@
 import { useRouter } from 'next/navigation';
 import { useRef, useState } from 'react';
 import { useAiConsent } from '@/features/ai-consent/AiConsentProvider';
+import { NumbersModeProvider } from '@/features/numbers-mode/numbers-mode';
+import { NumbersModeChoice } from '@/features/numbers-mode/numbers-mode-choice';
 import { HouseholdSection } from '@/features/preferences/components/household-section';
 import { TargetsCard } from '@/features/preferences/components/TargetsCard';
 import { UpgradeCard } from '@/features/premium/components/UpgradeButton';
@@ -168,6 +170,9 @@ export function OnboardingWizard({
   const updateTargetsMutation = trpc.preferences.updateTargets.useMutation({
     meta: { silent: true },
   });
+  const setNumbersModeMutation = trpc.preferences.setNumbersMode.useMutation({
+    meta: { silent: true },
+  });
   // R-18: the first week generates in the background AFTER the wizard has
   // navigated away, so the dashboard cached at navigation time says "nothing
   // planned". Invalidate everything that reads the plan when generation lands.
@@ -315,6 +320,11 @@ export function OnboardingWizard({
         if (Object.keys(basics).length > 0) {
           await profileBasicsMutation.mutateAsync(basics);
         }
+      }
+      // WP-08: "Just protein" (or back to the full numbers) — only when it differs from
+      // what is saved, and never for "Just good food", which shows no numbers at all.
+      if (!goodFood && data.numbersMode !== initialData.numbersMode) {
+        await setNumbersModeMutation.mutateAsync({ numbersMode: data.numbersMode });
       }
       if (isPremium && steps.includes('cuisine')) {
         await updateTargetsMutation.mutateAsync({
@@ -532,6 +542,14 @@ export function OnboardingWizard({
                 goodFood={goodFood}
                 onGoodFood={() => setGoodFood(true)}
               />
+              {/* WP-08: after the goal — what to keep an eye on. "Just good food" shows no numbers. */}
+              {!goodFood && (
+                <NumbersModeChoice
+                  value={data.numbersMode}
+                  onChange={(numbersMode) => setData((d) => ({ ...d, numbersMode }))}
+                  testIdPrefix="onb-numbers"
+                />
+              )}
               {healthDeclined === 'body' && (
                 <HealthDeclinedNotice
                   testId="onb-body-declined"
@@ -578,9 +596,12 @@ export function OnboardingWizard({
           )}
 
           {stepKey === 'targets' && (
-            <TargetsCard
-              previewKcal={previewTargetKcalFromBasics(data, goodFood ? null : data.goal)}
-            />
+            // WP-08: with "Just protein" picked, the targets step shows protein, not kcal.
+            <NumbersModeProvider mode={data.numbersMode}>
+              <TargetsCard
+                previewKcal={previewTargetKcalFromBasics(data, goodFood ? null : data.goal)}
+              />
+            </NumbersModeProvider>
           )}
 
           {stepKey === 'cuisine' && (

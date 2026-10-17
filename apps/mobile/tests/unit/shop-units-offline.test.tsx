@@ -19,13 +19,6 @@ jest.mock('../../src/features/ai-consent/ai-consent-provider', () => ({
   useAiConsent: () => (_feature: string, run: () => void) => run(),
 }));
 jest.mock('../../src/features/gym/components/mode-switch', () => ({ ModeSwitch: () => null }));
-jest.mock('../../src/features/pantry/pantry-check-banner', () => ({
-  PantryCheckBanner: () => null,
-}));
-jest.mock('../../src/features/pantry/pantry-ghost-banner', () => ({
-  PantryGhostBanner: () => null,
-}));
-jest.mock('../../src/features/pantry/pantry-panel', () => ({ PantryPanel: () => null }));
 jest.mock('../../src/hooks/use-currency', () => ({ useCurrency: () => 'EUR' }));
 jest.mock('../../src/hooks/use-household', () => ({
   useHousehold: () => ({ memberCount: 0, tablePortions: null, portionSum: null }),
@@ -172,7 +165,8 @@ describe('Shop: numbers you can shop for (UX-SHOP-03)', () => {
     // Whole units in whatever format the device uses ("€7", "7 €").
     expect(await screen.findByText(/~€?7(\D|$)/)).toBeOnTheScreen();
     expect(screen.queryByText(/6[.,]56/)).toBeNull();
-    expect(screen.getByText(/~<€?1(\D|$)/)).toBeOnTheScreen();
+    expect(screen.getByText(/(^|[^~])<€?1(\D|$)/)).toBeOnTheScreen();
+    expect(screen.queryByText(/~</)).toBeNull();
   });
 
   it('shows quantities in the user’s units', async () => {

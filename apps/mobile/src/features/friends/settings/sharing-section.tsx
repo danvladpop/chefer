@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Switch, View } from 'react-native';
 import { FRIENDS_COPY, type FriendsMeDto } from '@chefer/types';
-import { Text, useSnackbar } from '@chefer/ui-mobile';
+import { Text, useSnackbar, useThemeColors } from '@chefer/ui-mobile';
 import { track } from '../../../lib/analytics';
 import { FriendsConfirmSheet, type ConfirmCopy } from '../safety/confirm-copy';
 import { useUpdateSettings, type UpdateSettingsInput } from './use-update-settings';
@@ -45,6 +45,7 @@ const TARGETS_CONFIRM: ConfirmCopy = {
 export function SharingSection({ settings }: { settings: Settings }) {
   const { save } = useUpdateSettings();
   const snackbar = useSnackbar();
+  const colors = useThemeColors();
   const [targetsVisible, setTargetsVisible] = useState(false);
 
   const afterSave = (section: Section, on: boolean, hidden: number) => {
@@ -70,14 +71,12 @@ export function SharingSection({ settings }: { settings: Settings }) {
         <View
           key={key}
           testID={`friends-settings-row-${section}`}
-          className="min-h-11 flex-row items-center gap-3 py-1"
+          className="min-h-11 flex-row items-center gap-3 py-2"
         >
           <View className="min-w-0 flex-1">
-            <Text>{label}</Text>
+            <Text className="text-body text-label">{label}</Text>
             {detail ? (
-              <Text variant="muted" className="text-xs">
-                {detail}
-              </Text>
+              <Text className="mt-0.5 text-subhead text-label-secondary">{detail}</Text>
             ) : null}
           </View>
           <Switch
@@ -93,7 +92,7 @@ export function SharingSection({ settings }: { settings: Settings }) {
               }
               void toggle(section, key, on);
             }}
-            trackColor={{ true: '#944a00', false: '#d1d5db' }}
+            trackColor={{ true: colors.brand, false: colors.separator }}
           />
         </View>
       ))}

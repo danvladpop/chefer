@@ -1,4 +1,4 @@
-import { matchLoggedToSlots } from './today';
+import { matchLoggedToSlots, type SlotRef } from './today';
 
 // ─── Tracker day: derived ticks + optimistic cache edits (UX-FOOD-01/06) ──────
 // The tracker used to copy the server's log into component state once per day
@@ -15,6 +15,8 @@ export interface DayEntry {
   custom?: { name: string; estimatedBy: 'vision' | 'manual' } | undefined;
   mealType: string;
   slotIndex?: number | undefined;
+  /** WP-06: the plan slot this custom entry replaces ("Ate something else"). */
+  replacesSlot?: SlotRef | undefined;
   portionMultiplier: number;
   kcal: number;
   protein: number;
@@ -43,6 +45,8 @@ export interface DayLike {
     totalFat: number;
   } | null;
   offPlanLogged?: OffPlanRowLike[];
+  /** WP-06: the plan slots the user skipped (`tracker.getDay` `skippedSlots`). */
+  skippedSlots?: SlotRef[] | undefined;
 }
 
 /** A planned row's key: its plan slot, so two identical snacks tick separately. */
@@ -128,6 +132,15 @@ function withLog<D extends DayLike>(day: D, loggedMeals: DayEntry[]): D {
   };
 }
 
+const sameSlot = (a: SlotRef, b: SlotRef): boolean =>
+  a.mealType === b.mealType && a.slotIndex === b.slotIndex;
+
+/** The skips that survive logging something for `slot`: ticking a skipped slot un-skips it. */
+function withoutSkip(day: DayLike, slot: SlotRef | undefined): SlotRef[] | undefined {
+  if (!day.skippedSlots || !slot) return day.skippedSlots;
+  return day.skippedSlots.filter((s) => !sameSlot(s, slot));
+}
+
 /** Optimistic `logRecipe`: replaces the slot's entry (or adds one). */
 export function withRecipeLogged<D extends DayLike>(day: D, entry: DayEntry): D {
   const stored = day.log?.loggedMeals ?? [];
@@ -136,7 +149,46 @@ export function withRecipeLogged<D extends DayLike>(day: D, entry: DayEntry): D 
     mealType: entry.mealType,
     slotIndex: entry.slotIndex,
   };
-  return withLog(day, [...stored.filter((m) => !matchesRecipeSlot(m, target)), entry]);
+  const next = withLog(day, [...stored.filter((m) => !matchesRecipeSlot(m, target)), entry]);
+  const slot =
+    entry.slotIndex === undefined
+      ? undefined
+      : { mealType: entry.mealType, slotIndex: entry.slotIndex };
+  const skippedSlots = withoutSkip(day, slot);
+  return skippedSlots ? { ...next, skippedSlots } : next;
+}
+
+/**
+ * Optimistic `logCustomMeal` with `replacesSlot` ("Ate something else"): the
+ * custom `entry` (which carries `replacesSlot`) takes the slot, like the
+ * server — a ticked recipe entry or an earlier replacement for that slot is
+ * dropped, and a skip on it is cleared.
+ */
+export function withSlotReplaced<D extends DayLike>(
+  day: D,
+  entry: DayEntry & { replacesSlot: SlotRef },
+): D {
+  const slot = entry.replacesSlot;
+  const kept = (day.log?.loggedMeals ?? []).filter(
+    (m) =>
+      !(m.replacesSlot && sameSlot(m.replacesSlot, slot)) &&
+      !(m.recipeId && !m.custom && m.slotIndex === slot.slotIndex && m.mealType === slot.mealType),
+  );
+  const next = withLog(day, [...kept, entry]);
+  const skippedSlots = withoutSkip(day, slot);
+  return skippedSlots ? { ...next, skippedSlots } : next;
+}
+
+/** Optimistic `skipSlot`: idempotent. */
+export function withSlotSkipped<D extends DayLike>(day: D, slot: SlotRef): D {
+  const current = day.skippedSlots ?? [];
+  if (current.some((s) => sameSlot(s, slot))) return day;
+  return { ...day, skippedSlots: [...current, slot] };
+}
+
+/** Optimistic `unskipSlot`. */
+export function withSlotUnskipped<D extends DayLike>(day: D, slot: SlotRef): D {
+  return { ...day, skippedSlots: (day.skippedSlots ?? []).filter((s) => !sameSlot(s, slot)) };
 }
 
 /** Optimistic `unlogRecipe`. */

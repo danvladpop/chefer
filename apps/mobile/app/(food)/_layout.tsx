@@ -4,10 +4,13 @@ import { colors, countPillText } from '@chefer/ui-mobile';
 import { SnackbarAwareTabBar } from '../../src/components/snackbar-tab-bar';
 import { usePendingOnboarding } from '../../src/features/auth/pending-onboarding';
 import { useFriendsMe } from '../../src/features/friends/api/use-friends-me';
+import { claimLanding } from '../../src/features/navigation/landing-gate';
 import { landingSurfaceSync, useSyncLandingCache } from '../../src/features/navigation/use-landing';
 import { useOnboardingGate } from '../../src/features/onboarding/use-onboarding-gate';
+import { ShellV2Forward } from '../../src/features/shell/shell-forward';
+import { useShellV2 } from '../../src/features/shell/shell-store';
 import { getToken } from '../../src/lib/auth-store';
-import { TAB_BAR_SCREEN_OPTIONS } from '../../src/lib/tab-bar-options';
+import { TAB_BAR_SCREEN_OPTIONS, tabAccessibilityLabel } from '../../src/lib/tab-bar-options';
 
 // Food mode tab bar. Mirrors PRIMARY_NAV_ITEMS + "More" from
 // apps/web/src/features/nav/nav-items.ts: Today · Plan · Shop · Cookbook ·
@@ -16,14 +19,10 @@ import { TAB_BAR_SCREEN_OPTIONS } from '../../src/lib/tab-bar-options';
 // `(tabs)` for the Food / Gym mode switch — gym_plan.md §5.1; URLs are
 // unchanged.)
 
-/**
- * ONE-SHOT per sign-in (per launch), not per mount: switching to Gym replaces
- * this group in the root Stack (it unmounts), so a per-mount check re-ran on
- * every switch back to Food and, for a TRAIN-only account, redirected
- * straight to /today again — Food was unreachable (owner dogfood 2026-09-30,
- * iPhone). Keyed by the token so a fresh sign-in still gets its landing.
- */
-let landingCheckedForToken: string | null = null;
+// The one-shot landing check lives in features/navigation/landing-gate.ts.
+
+/** Tabs below, for each tab's spoken "N of 5" (iOS). */
+const TAB_COUNT = 5;
 
 export default function FoodTabsLayout() {
   // "/" is home; where home opens is `landingSurfaceSync()` (UX-04 §1,
@@ -33,6 +32,8 @@ export default function FoodTabsLayout() {
   // once the app is open (caught by e2e/gym-mode.flow.yaml, 2026-09-25),
   // and never writes the persisted mode.
   const pathname = usePathname();
+  // Mobile UX revamp: with the new shell on, this group only forwards.
+  const shellV2 = useShellV2();
   useSyncLandingCache();
   // Following (ux-design.md §2.1): the More tab carries the in-app
   // notification badge (pending requests + unread Activity, capped `9+`,
@@ -53,8 +54,14 @@ export default function FoodTabsLayout() {
   if (onboardingPending || onboardingUnfinished) {
     return <Redirect href="/onboarding" />;
   }
-  if (landingCheckedForToken !== token) {
-    landingCheckedForToken = token;
+  if (shellV2) {
+    let landing: '/train' | undefined;
+    if (claimLanding(token)) {
+      if (pathname === '/' && landingSurfaceSync() === 'gym') landing = '/train';
+    }
+    return <ShellV2Forward landing={landing} />;
+  }
+  if (claimLanding(token)) {
     if (pathname === '/' && landingSurfaceSync() === 'gym') {
       return <Redirect href="/today" />;
     }
@@ -70,6 +77,7 @@ export default function FoodTabsLayout() {
         name="index"
         options={{
           title: 'Today',
+          tabBarAccessibilityLabel: tabAccessibilityLabel('Today', 0, TAB_COUNT),
           tabBarIcon: ({ color, size }) => (
             <Ionicons name="today-outline" color={color} size={size + 2} />
           ),
@@ -79,6 +87,7 @@ export default function FoodTabsLayout() {
         name="meal-plan"
         options={{
           title: 'Plan',
+          tabBarAccessibilityLabel: tabAccessibilityLabel('Plan', 1, TAB_COUNT),
           tabBarIcon: ({ color, size }) => (
             <Ionicons name="calendar-outline" color={color} size={size + 2} />
           ),
@@ -88,6 +97,7 @@ export default function FoodTabsLayout() {
         name="shopping-list"
         options={{
           title: 'Shop',
+          tabBarAccessibilityLabel: tabAccessibilityLabel('Shop', 2, TAB_COUNT),
           tabBarIcon: ({ color, size }) => (
             <Ionicons name="cart-outline" color={color} size={size + 2} />
           ),
@@ -97,6 +107,7 @@ export default function FoodTabsLayout() {
         name="recipes"
         options={{
           title: 'Cookbook',
+          tabBarAccessibilityLabel: tabAccessibilityLabel('Cookbook', 3, TAB_COUNT),
           tabBarIcon: ({ color, size }) => (
             <Ionicons name="book-outline" color={color} size={size + 2} />
           ),
@@ -106,13 +117,13 @@ export default function FoodTabsLayout() {
         name="more"
         options={{
           title: 'More',
+          tabBarAccessibilityLabel: tabAccessibilityLabel('More', 4, TAB_COUNT, badgeCount),
           tabBarBadge: badgeCount > 0 ? countPillText(badgeCount) : undefined,
           tabBarBadgeStyle: {
             backgroundColor: colors.primary,
             color: colors.primaryForeground,
             fontSize: 12,
           },
-          tabBarAccessibilityLabel: badgeCount > 0 ? `More, ${badgeCount} new` : undefined,
           tabBarIcon: ({ color, size }) => (
             <Ionicons name="menu-outline" color={color} size={size + 2} />
           ),

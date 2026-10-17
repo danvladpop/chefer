@@ -1,17 +1,25 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, BackHandler, Pressable, View } from 'react-native';
+import Animated, { useAnimatedStyle } from 'react-native-reanimated';
 import { Ionicons } from '@expo/vector-icons';
 import { router, useFocusEffect } from 'expo-router';
 import type { OnboardingJob } from '@chefer/types';
-import { bodyMetricsAgeError, isPlausibleHeightCm, isPlausibleWeightKg } from '@chefer/types';
+import {
+  bodyMetricsAgeError,
+  effectiveNumbersMode,
+  isPlausibleHeightCm,
+  isPlausibleWeightKg,
+} from '@chefer/types';
 import {
   Button,
   colors,
   ConfirmSheet,
+  enterFromSide,
   ErrorState,
   KeyboardAwareScrollView,
   Screen,
   Text,
+  useProgressValue,
 } from '@chefer/ui-mobile';
 import {
   aiConsentRequiredFor,
@@ -38,10 +46,12 @@ import { trpc } from '../../lib/trpc';
 import { useAiConsent } from '../ai-consent/ai-consent-provider';
 import { setMode } from '../gym/mode-store';
 import { HouseholdEditor, type HouseholdEditorHandle } from '../household/household-editor';
+import { NumbersModeProvider } from '../numbers-mode/numbers-mode';
 import { CuisineStep, type CuisineStepValue } from '../preferences/components/cuisine-step';
 import { GoalStep } from '../preferences/components/goal-step';
 import { metricsFieldErrors, MetricsStep } from '../preferences/components/metrics-step';
 import { SafetyStep } from '../preferences/components/safety-step';
+import { NumbersModeChoice, type NumbersModeChoiceValue } from '../preferences/numbers-mode-choice';
 import { TargetsCard } from '../preferences/targets-card';
 import { GOALS, type Goal, type MetricsValue, type SafetyValue } from '../preferences/types';
 import { HEALTH_DECLINED_BODY_NOTICE } from '../privacy/copy';
@@ -152,6 +162,24 @@ function hasAnySafetyTerm(value: SafetyValue): boolean {
   );
 }
 
+/**
+ * The wizard's progress fill: glides to each step's fraction on the progress
+ * spring (MO-06) instead of jumping, via scaleX so only a transform animates.
+ */
+function ProgressFill({ fraction }: { fraction: number }) {
+  const value = useProgressValue(fraction);
+  const style = useAnimatedStyle(() => ({
+    transform: [{ scaleX: Math.min(1, Math.max(0, value.get())) }],
+  }));
+  return (
+    <Animated.View
+      testID="onboarding-progress-fill"
+      className="h-full w-full rounded-full bg-primary"
+      style={[{ transformOrigin: 'left' }, style]}
+    />
+  );
+}
+
 export function OnboardingWizard() {
   const isPremium = useIsPremium();
   const utils = trpc.useUtils();
@@ -167,6 +195,12 @@ export function OnboardingWizard() {
   // very first frame is already the resumed step.
   const [draft] = useState(() => readOnboardingDraft(getToken()));
   const [step, setStep] = useState(draft?.step ?? 0);
+  // Which way the last step change went, for the slide (forward = from the right).
+  const lastStep = useRef(step);
+  const stepDirection: 1 | -1 = step >= lastStep.current ? 1 : -1;
+  useEffect(() => {
+    lastStep.current = step;
+  }, [step]);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const savingRef = useRef(false);
@@ -205,6 +239,11 @@ export function OnboardingWizard() {
     inchesText: string;
   } | null>(null);
   const [goodFood, setGoodFood] = useState(draft?.goodFood ?? false);
+  // WP-08: protein-only or the full numbers; saved at Finish (never before, so an
+  // abandoned setup leaves no half-made profile behind).
+  const [numbersMode, setNumbersMode] = useState<NumbersModeChoiceValue>(
+    draft?.numbersMode ?? 'FULL',
+  );
   const [goal, setGoal] = useState<Goal | null>(knownGoal(draft?.goal));
   const [metrics, setMetrics] = useState<MetricsValue>(draft?.metrics ?? EMPTY_METRICS);
   const [ageText, setAgeText] = useState(draft?.ageText ?? '');
@@ -263,6 +302,7 @@ export function OnboardingWizard() {
     // UX-ONB-08: pre-fill the saved jobs so the steps are built from them (and
     // Continue on the first step re-saves them) instead of an empty answer.
     setJobsState(saved.jobs);
+    setNumbersMode(effectiveNumbersMode(saved.numbersMode));
     if (profile) {
       setTrainingWeekdays(profile.trainingWeekdays);
       setGoal(knownGoal(profile.goal));
@@ -331,6 +371,7 @@ export function OnboardingWizard() {
     trainingDayKinds,
     howYouCook,
     goodFood,
+    numbersMode,
     goal,
     metrics,
     ageText,
@@ -377,6 +418,9 @@ export function OnboardingWizard() {
     onError: (err) => setError(userFacingErrorMessage(err)),
   });
   const updateTargetsMutation = trpc.preferences.updateTargets.useMutation({
+    meta: { silent: true },
+  });
+  const setNumbersModeMutation = trpc.preferences.setNumbersMode.useMutation({
     meta: { silent: true },
   });
   // R-18: the first week generates in the background AFTER onboarding has
@@ -465,6 +509,7 @@ export function OnboardingWizard() {
     profileBasicsMutation.isPending ||
     setShapeMutation.isPending ||
     setDisplayPrefsMutation.isPending ||
+    setNumbersModeMutation.isPending ||
     updateTargetsMutation.isPending;
 
   function handleAgeText(raw: string) {
@@ -620,6 +665,11 @@ export function OnboardingWizard() {
         if (Object.keys(basics).length > 0) {
           await profileBasicsMutation.mutateAsync(basics);
         }
+      }
+      // WP-08: "Just protein" (or back to the full numbers) — only when it differs from
+      // what is saved, and never for "Just good food", which shows no numbers at all.
+      if (!goodFood && numbersMode !== effectiveNumbersMode(savedPrefs.data?.numbersMode)) {
+        await setNumbersModeMutation.mutateAsync({ numbersMode });
       }
       if (isPremium && steps.includes('cuisine')) {
         await updateTargetsMutation.mutateAsync({
@@ -865,7 +915,10 @@ export function OnboardingWizard() {
     content = <CuisineStep value={cuisine} onChange={setCuisine} />;
   } else if (stepKey === 'targets') {
     content = (
-      <TargetsCard previewKcal={previewTargetKcalFromBasics(metrics, goodFood ? null : goal)} />
+      // WP-08: with "Just protein" picked, the targets step shows protein, not kcal.
+      <NumbersModeProvider mode={numbersMode}>
+        <TargetsCard previewKcal={previewTargetKcalFromBasics(metrics, goodFood ? null : goal)} />
+      </NumbersModeProvider>
     );
   } else if (stepKey === 'goal') {
     content = (
@@ -883,6 +936,14 @@ export function OnboardingWizard() {
           goodFood={goodFood}
           onGoodFood={() => setGoodFood(true)}
         />
+        {/* WP-08: after the goal — what to keep an eye on. "Just good food" shows no numbers. */}
+        {!goodFood && (
+          <NumbersModeChoice
+            value={numbersMode}
+            onChange={setNumbersMode}
+            testIDPrefix="onb-numbers"
+          />
+        )}
         {healthDeclined === 'body' && (
           <HealthDeclinedNotice testID="onb-body-declined" message={HEALTH_DECLINED_BODY_NOTICE} />
         )}
@@ -950,7 +1011,7 @@ export function OnboardingWizard() {
         }
         className="mx-4 mb-2 h-1.5 overflow-hidden rounded-full bg-gray-100"
       >
-        <View className="h-full rounded-full bg-primary" style={{ width: `${progressPct}%` }} />
+        <ProgressFill fraction={progressPct / 100} />
       </View>
 
       {/* UX-ONB-07: Continue is the scroll view's sticky footer, so it rises with
@@ -991,7 +1052,10 @@ export function OnboardingWizard() {
           </View>
         }
       >
-        {content}
+        {/* Premium motion #17: each step slides in from the side you're heading. */}
+        <Animated.View entering={enterFromSide(stepDirection)} className="gap-4">
+          {content}
+        </Animated.View>
         {error && (
           <View className="rounded-md bg-red-50 px-4 py-3">
             <Text className="text-sm text-red-600">{error}</Text>

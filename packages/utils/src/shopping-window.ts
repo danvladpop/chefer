@@ -9,3 +9,12 @@ export function shoppingWindowLabel(fromDayOfWeek: number | null | undefined): s
   const from = SHORT_DAYS[Math.min(6, fromDayOfWeek)] ?? 'Sun';
   return fromDayOfWeek >= 6 ? `${from} only` : `${from}–Sun`;
 }
+
+/**
+ * FB7-10: the line under the Shop title that says where the list comes from and
+ * which days it covers — "From your plan's recipes · Mon–Sun" for a whole week,
+ * "… · Fri–Sun" for a plan made mid-week. One copy for web and mobile.
+ */
+export function shoppingProvenanceText(fromDayOfWeek: number | null | undefined): string {
+  return `From your plan's recipes · ${shoppingWindowLabel(fromDayOfWeek) ?? 'Mon–Sun'}`;
+}

@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
 import { ScrollView, View } from 'react-native';
 import { useLocalSearchParams } from 'expo-router';
-import { Chip, Screen, Text } from '@chefer/ui-mobile';
+import { Screen, SegmentedControl, Text } from '@chefer/ui-mobile';
+import { useShellChrome } from '../../shell/shell-chrome';
 import { GymBootstrapUnavailable, useGymBootstrapLoad } from '../components/gym-bootstrap-state';
 import { ModeSwitch } from '../components/mode-switch';
 import { useGymBootstrap } from '../use-gym-bootstrap';
@@ -20,15 +21,22 @@ import { StrengthTrendView } from './strength-trend-view';
 
 const MONTH_PARAM = /^\d{4}-(0[1-9]|1[0-2])$/;
 
+type Segment = 'overview' | 'history';
+const SEGMENTS: { value: Segment; label: string; testID: string }[] = [
+  { value: 'overview', label: 'Overview', testID: 'gym-stats-segment-overview' },
+  { value: 'history', label: 'History', testID: 'gym-stats-segment-history' },
+];
+
 export function StatsTab() {
   const bootstrapQuery = useGymBootstrap();
   const bootstrap = bootstrapQuery.data;
   // UX-GYM-24: a failed load is an error with Retry, never "Loading…" forever.
   const { load, retry } = useGymBootstrapLoad(bootstrapQuery);
   const { tab, month } = useLocalSearchParams<{ tab?: string; month?: string }>();
-  const [segment, setSegment] = useState<'overview' | 'history'>(
-    tab === 'history' ? 'history' : 'overview',
-  );
+  // 10 Oct redesign: under the new shell the top bar already names the page
+  // ("Stats"), so the body drops its own title; the old shell keeps it.
+  const chrome = useShellChrome();
+  const [segment, setSegment] = useState<Segment>(tab === 'history' ? 'history' : 'overview');
   // UX-GYM-13: Today's "See September" opens this tab with `?month=2026-09` —
   // show the Overview, scroll the recap into view and select that month.
   const recapMonth = month && MONTH_PARAM.test(month) ? month : undefined;
@@ -50,26 +58,25 @@ export function StatsTab() {
   }, [recapMonth, recapLaidOut]);
 
   return (
-    <Screen className="px-0" testID="gym-stats-screen">
-      <View className="gap-3 px-4 pb-2 pt-2">
+    <Screen className="bg-canvas px-0" testID="gym-stats-screen">
+      <View className="gap-3 px-4 pb-3 pt-2">
         <ModeSwitch mode="gym" />
-        <Text testID="gym-stats-title" variant="title">
-          Stats
-        </Text>
-        <View className="flex-row gap-2">
-          <Chip
-            testID="gym-stats-segment-overview"
-            label="Overview"
-            selected={segment === 'overview'}
-            onPress={() => setSegment('overview')}
-          />
-          <Chip
-            testID="gym-stats-segment-history"
-            label="History"
-            selected={segment === 'history'}
-            onPress={() => setSegment('history')}
-          />
-        </View>
+        {chrome?.title ? null : (
+          <Text
+            testID="gym-stats-title"
+            accessibilityRole="header"
+            className="text-title1 font-bold text-label"
+          >
+            Stats
+          </Text>
+        )}
+        <SegmentedControl
+          testID="gym-stats-segment"
+          accessibilityLabel="Stats view"
+          options={SEGMENTS}
+          value={segment}
+          onChange={setSegment}
+        />
       </View>
 
       {!bootstrap || load !== 'data' ? (
@@ -80,13 +87,16 @@ export function StatsTab() {
           what="your stats"
         />
       ) : segment === 'history' ? (
-        <ScrollView contentContainerClassName="gap-4 px-4 pb-8" testID="gym-stats-history-scroll">
+        <ScrollView
+          contentContainerClassName="gap-4 px-4 pb-8 pt-1"
+          testID="gym-stats-history-scroll"
+        >
           <HistoryView bootstrap={bootstrap} />
         </ScrollView>
       ) : (
         <ScrollView
           ref={scrollRef}
-          contentContainerClassName="gap-4 px-4 pb-8"
+          contentContainerClassName="gap-4 px-4 pb-8 pt-1"
           testID="gym-stats-scroll"
         >
           <StrengthTrendView bootstrap={bootstrap} />

@@ -135,7 +135,7 @@ describe('NutritionSummary — training day (audit P2-4)', () => {
     expect(screen.queryByTestId('training-day')).toBeNull();
   });
 
-  it('premium: the bump is applied to the ring and the protein bar', async () => {
+  it('the bump is applied to the ring and the protein bar (free for everyone)', async () => {
     await render(
       <NutritionSummary
         nutrition={{
@@ -154,8 +154,8 @@ describe('NutritionSummary — training day (audit P2-4)', () => {
     expect(screen.queryByTestId('training-day-upgrade')).toBeNull();
   });
 
-  it('free: the same line locked, base targets kept, the lock opens the premium sheet', async () => {
-    const user = userEvent.setup();
+  // WP-07: training-day targets are free for everyone — never a lock or an upsell.
+  it('an unapplied bump (older API) still reads as the free note: no lock, no Premium', async () => {
     await render(
       <NutritionSummary nutrition={{ ...nutrition(1900, 800), trainingDay: trainingDay(false) }} />,
     );
@@ -163,8 +163,9 @@ describe('NutritionSummary — training day (audit P2-4)', () => {
       'Training day · +250 kcal, +32 g protein',
     );
     expect(screen.getByText('of 2,000 kcal')).toBeOnTheScreen();
-    await user.press(screen.getByTestId('training-day-upgrade'));
-    expect(openPremium).toHaveBeenCalledWith('training-day');
+    expect(screen.queryByTestId('training-day-upgrade')).toBeNull();
+    expect(screen.queryByText(/Premium/)).toBeNull();
+    expect(openPremium).not.toHaveBeenCalled();
   });
 });
 

@@ -14,6 +14,7 @@ import {
 import type {
   DisplayCurrency,
   GoalValue,
+  NumbersMode,
   OnboardingIntent,
   OnboardingJob,
   SetDisplayPreferencesInput,
@@ -21,6 +22,7 @@ import type {
   TargetInputs,
   TargetsView,
 } from '@chefer/types';
+import { parseStoredNumbersMode } from '@chefer/types';
 import {
   calorieFloor,
   computeBmrTdee,
@@ -35,6 +37,7 @@ import {
 } from '@chefer/utils';
 import { derivedServingSize, householdService } from '../household/household.service.js';
 import { consentService } from '../privacy/consent.service.js';
+import { notifyTargetsChanged } from '../targets/targets-changed.js';
 
 // ─── Calorie target (shared with web + mobile) ───────────────────────────────
 // Mifflin-St Jeor, goal adjustment, the under-18 no-deficit rule and the
@@ -374,6 +377,12 @@ export interface PreferencesDto {
    * since it's read on nearly every screen.
    */
   jobs: OnboardingJob[];
+  /**
+   * WP-08: the stored numbers mode, `FULL` when never set. Additive — the
+   * same value is on `chefProfile.numbersMode` (nullable). Clients render
+   * `effectiveNumbersMode(numbersMode)` (NONE is treated as FULL until WP-16).
+   */
+  numbersMode: NumbersMode;
 }
 
 /**
@@ -421,8 +430,10 @@ export class PreferencesService {
    * multi-select replacement for `setIntent`. Also writes the legacy
    * `onboardingIntent` (the first job with a legacy equivalent) so web and
    * older mobile builds — which only ever read the intent — keep routing
-   * sensibly; when none of the chosen jobs has one (e.g. only `USE_WHAT_I_HAVE`
-   * / `SAVED_RECIPES` / `TRACK`), the stored legacy intent is left as it was.
+   * sensibly; when none of the chosen jobs has one (e.g. only `SAVED_RECIPES`
+   * / `TRACK`), the stored legacy intent is left as it was. `USE_WHAT_I_HAVE`
+   * (the retired pantry job) is still accepted and stored for old clients, but
+   * reads back as `PLAN_MEALS` through `effectiveJobs()`.
    */
   async setJobs(
     userId: string,
@@ -458,6 +469,22 @@ export class PreferencesService {
   ): Promise<{ showNutritionOnToday: boolean }> {
     const profile = await this.chefProfileRepo.upsert(userId, { showNutritionOnToday });
     return { showNutritionOnToday: profile.showNutritionOnToday ?? showNutritionOnToday };
+  }
+
+  /**
+   * WP-08 "What do you want to keep an eye on?" — free for every tier.
+   * Stores the numbers mode as given (`NONE` is reserved for WP-16 and is
+   * accepted now; clients treat it as FULL via `effectiveNumbersMode`).
+   * Deliberately independent of `showNutritionOnToday`: that flag keeps
+   * its own meaning for older app builds, and the new clients present both
+   * in one card.
+   */
+  async setNumbersMode(
+    userId: string,
+    numbersMode: NumbersMode,
+  ): Promise<{ numbersMode: NumbersMode }> {
+    const profile = await this.chefProfileRepo.upsert(userId, { numbersMode });
+    return { numbersMode: parseStoredNumbersMode(profile.numbersMode) ?? numbersMode };
   }
 
   /**
@@ -542,6 +569,7 @@ export class PreferencesService {
         jobs: chefProfile?.onboardingJobs ?? [],
         intent: chefProfile?.onboardingIntent ?? null,
       }),
+      numbersMode: parseStoredNumbersMode(chefProfile?.numbersMode) ?? 'FULL',
     };
   }
 
@@ -652,6 +680,7 @@ export class PreferencesService {
       });
     }
     await this.absorbLegacyServingSize(userId, servingSize);
+    await notifyTargetsChanged(userId);
   }
 
   /**
@@ -750,6 +779,10 @@ export class PreferencesService {
     if (preferredUnits !== undefined) await this.syncGymUnit(userId, preferredUnits);
     // …and a serving size — the legacy "cooking for N" (P2-3).
     await this.absorbLegacyServingSize(userId, servingSize);
+    // Day rebalance: a new calorie target or goal resizes the plan's portions.
+    if (profileData.dailyCalorieTarget !== undefined || goal !== undefined) {
+      await notifyTargetsChanged(userId);
+    }
 
     return this.get(userId);
   }

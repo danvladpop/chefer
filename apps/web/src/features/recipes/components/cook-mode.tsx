@@ -5,7 +5,10 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { RebalanceBanner } from '@/features/meal-plan/components/RebalanceBanner';
 import { StarRatingWidget } from '@/features/recipe/components/StarRatingWidget';
-import { handleRebalanceResult } from '@/features/tracker/lib/rebalance-storage';
+import {
+  handleRebalanceOutcome,
+  REBALANCE_PREVIEW,
+} from '@/features/tracker/lib/rebalance-storage';
 import { useCookingFor } from '@/hooks/useCookingFor';
 import { useHousehold } from '@/hooks/useHousehold';
 import { useUnitSystem } from '@/hooks/useUnitSystem';
@@ -258,7 +261,7 @@ export function CookMode({ recipeId }: { recipeId: string }) {
       trackMealLogged(isMealSlot(mealParam) ? 'planned' : 'quick', variables.mealType);
       // F4: a cook-mode log can trigger a week rebalance too — hand the swaps
       // off to the meal-plan banner (with undo).
-      handleRebalanceResult(result.rebalance);
+      handleRebalanceOutcome(result);
       void utils.tracker.getDay.invalidate();
       void utils.tracker.weeklySummary.invalidate();
       void utils.dashboard.summary.invalidate();
@@ -306,6 +309,7 @@ export function CookMode({ recipeId }: { recipeId: string }) {
     // Server-side atomic append: never clobbers other entries, and a double
     // tap can't double-log (F-PM-1, F-TRK-1-2).
     upsertDay.mutate({
+      ...REBALANCE_PREVIEW,
       date: todayIso(),
       recipeId: recipe.id,
       mealType: slot,

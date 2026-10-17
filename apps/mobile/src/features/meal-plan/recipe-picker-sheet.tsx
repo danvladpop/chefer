@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { ActivityIndicator, Image, Pressable, SectionList, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Button, ErrorState, SEARCH_LIST_PROPS, SearchField, Sheet, Text } from '@chefer/ui-mobile';
@@ -14,6 +14,7 @@ import { getRecipeImageUrl } from '../../lib/recipe-image';
 import { trpc } from '../../lib/trpc';
 import { AiConsentHost } from '../ai-consent/ai-consent-provider';
 import { NutritionStatusTag } from '../ingredients/nutrition-provenance';
+import { useNumbersMode } from '../numbers-mode/numbers-mode';
 import { CheckedForChip } from '../safety/checked-for-chip';
 import { FilteredForLine } from '../safety/filtered-for-line';
 
@@ -25,6 +26,8 @@ interface RecipePickerSheetProps {
   visible: boolean;
   /** Name of the meal being replaced — shown in the header. */
   mealName: string;
+  /** The small line above the title (default "Replace meal"; "Add a side dish" for FB7-04). */
+  eyebrow?: string;
   /**
    * T-08.10 (bug B-50): the recipe currently in the slot — never re-offered
    * as its own replacement.
@@ -44,6 +47,14 @@ interface RecipePickerSheetProps {
   onSelect: (recipeId: string, acknowledgeConflict?: boolean) => void;
   onAiSwap?: () => void;
   onClose: () => void;
+  /**
+   * New shell (Meals): extra rows above the list — the meal's other actions
+   * (pin, side dish, skipped…) live on its "Change" sheet. The old shell
+   * passes nothing.
+   */
+  actions?: ReactNode;
+  /** Forwarded to the Sheet: runs once it has fully gone (a next sheet may open then). */
+  onExited?: () => void;
 }
 
 /** The `slotType` list input for a slot type string, or nothing for an unknown one. */
@@ -61,6 +72,7 @@ function pickerSlotType(
 export function RecipePickerSheet({
   visible,
   mealName,
+  eyebrow = 'Replace meal',
   excludeRecipeId,
   slotType,
   busy,
@@ -69,7 +81,10 @@ export function RecipePickerSheet({
   onSelect,
   onAiSwap,
   onClose,
+  actions,
+  onExited,
 }: RecipePickerSheetProps) {
+  const { proteinOnly } = useNumbersMode();
   // Keep the title through the exit animation (the caller clears mealName on close).
   const [shownName, setShownName] = useState(mealName);
   useEffect(() => {
@@ -159,10 +174,11 @@ export function RecipePickerSheet({
     <Sheet
       visible={visible}
       onClose={onClose}
-      eyebrow="Replace meal"
+      eyebrow={eyebrow}
       title={mealName || shownName}
       scrollable={false}
       testID="picker"
+      {...(onExited && { onExited })}
       footer={
         // AI fallback (premium only; quota enforced server-side)
         onAiSwap ? (
@@ -172,6 +188,7 @@ export function RecipePickerSheet({
         ) : undefined
       }
     >
+      {actions}
       {/* T-02.5/AC7: how many results the table's rules hid from this list. */}
       {hiddenData && hiddenData.hiddenCount > 0 && (
         <FilteredForLine
@@ -278,7 +295,11 @@ export function RecipePickerSheet({
                       testID={`picker-recipe-${recipe.id}-meta`}
                       className="text-xs text-gray-500"
                     >
-                      {pickerRowMeta({ ...recipe, nutritionInfo: n })}
+                      {pickerRowMeta({
+                        ...recipe,
+                        // WP-08: protein-only mode lists protein, never kcal.
+                        nutritionInfo: proteinOnly ? { protein: n.protein ?? null } : n,
+                      })}
                     </Text>
                     <NutritionStatusTag status={recipe.nutritionStatus} />
                   </View>

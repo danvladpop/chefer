@@ -105,7 +105,7 @@ describe('add-to-week rules (pure)', () => {
     expect(defaultDay(1, thu)).toBe(0);
   });
 
-  it('builds Add here / Replace rows in meal order, one per filled meal', () => {
+  it('builds Add here / Replace rows in meal order, one per filled meal, then an "Add as a side" row (FB7-04)', () => {
     const rows = slotRows(
       {
         days: [
@@ -122,11 +122,15 @@ describe('add-to-week rules (pure)', () => {
       1,
       ['breakfast', 'lunch'],
     );
-    expect(rows.map((r) => [r.mealType, r.mode, r.slotIndex, r.currentName])).toEqual([
-      ['breakfast', 'add', null, null],
-      ['lunch', 'replace', 1, 'Wrap'],
-      ['snack', 'replace', 0, 'Apple'],
-      ['snack', 'replace', 2, 'Nuts'],
+    expect(
+      rows.map((r) => [r.mealType, r.mode, r.slotIndex, r.currentName, r.side ?? false]),
+    ).toEqual([
+      ['breakfast', 'add', null, null, false],
+      ['lunch', 'replace', 1, 'Wrap', false],
+      ['lunch', 'add', null, null, true],
+      ['snack', 'replace', 0, 'Apple', false],
+      ['snack', 'replace', 2, 'Nuts', false],
+      ['snack', 'add', null, null, true],
     ]);
   });
 
@@ -163,7 +167,9 @@ describe('AddToWeekSheet', () => {
     expect(screen.getByText('Lentil dal · 480 kcal')).toBeTruthy();
     expect(await screen.findByText('Chicken wrap')).toBeTruthy();
     expect(screen.getByText('Add here')).toBeTruthy();
-    expect(screen.getAllByText('Replace')).toHaveLength(2);
+    // FB7-04: a replace row per filled meal, and a side row for each type that has a dish.
+    expect(screen.getAllByText('Replace this meal')).toHaveLength(2);
+    expect(screen.getAllByText('Add as a side')).toHaveLength(2);
     expect(screen.getByTestId('friends-add-to-week-cta')).toBeDisabled();
   });
 
@@ -199,6 +205,24 @@ describe('AddToWeekSheet', () => {
         previousPinned: false,
       }),
     );
+  });
+
+  it('FB7-04: "Add as a side" puts the recipe next to the lunch — add mode, no confirm', async () => {
+    const add = jest.fn(() => addResult({ mealType: 'lunch', slotIndex: 2 }));
+    await renderSheet(baseHandlers({ 'friends.addRecipeToWeek': add }));
+    const user = userEvent.setup();
+    await user.press(await screen.findByTestId('friends-add-to-week-slot-lunch-side'));
+    await user.press(screen.getByTestId('friends-add-to-week-cta'));
+    await waitFor(() =>
+      expect(add).toHaveBeenCalledWith({
+        recipeId: 'rcp-dal',
+        weekOffset: 0,
+        dayOfWeek: TODAY,
+        mealType: 'lunch',
+        mode: 'add',
+      }),
+    );
+    expect(screen.queryByText('Replace lunch?')).toBeNull();
   });
 
   it('a filled slot closes the sheet, then asks `Replace {meal}?`, then replaces', async () => {

@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { useNumbersMode } from '@/features/numbers-mode/numbers-mode';
 import { trpc } from '@/lib/trpc';
 import { Sheet } from '@chefer/ui';
 import { userFacingErrorMessage } from '@chefer/utils';
@@ -44,6 +45,8 @@ export function ChangeNoticeCard() {
   const utils = trpc.useUtils();
   const { data: changes } = trpc.targets.changes.useQuery();
   const change = changes?.[0];
+  // WP-08: protein-only mode lists the protein change only, and never quotes kcal.
+  const { proteinOnly } = useNumbersMode();
   // UX-FOOD-14: "Keep" on an already-applied change fixes the targets at the
   // old numbers (it switches the user to "My own"), so it asks first.
   const [confirmKeepOpen, setConfirmKeepOpen] = useState(false);
@@ -63,7 +66,8 @@ export function ChangeNoticeCard() {
   const fields = change.fields as unknown as TargetChangeField[];
   const isSuggested = change.kind === 'SUGGESTED';
   const badgeLabel = isSuggested ? 'Suggested change' : 'Target changed';
-  const kcalField = fields.find((f) => f.field === 'dailyCalorieTarget');
+  const kcalField = proteinOnly ? undefined : fields.find((f) => f.field === 'dailyCalorieTarget');
+  const shownFields = proteinOnly ? fields.filter((f) => f.field === 'proteinG') : fields;
   const keepLabel = isSuggested
     ? 'Keep mine'
     : kcalField
@@ -83,7 +87,7 @@ export function ChangeNoticeCard() {
         {REASON_HEADING[change.reason] ?? 'Your targets changed'}
       </p>
       <ul className="mt-2 space-y-0.5">
-        {fields.map((f) => (
+        {shownFields.map((f) => (
           <li key={f.field} className="text-xs text-neutral-700">
             {fieldLine(f)}
           </li>

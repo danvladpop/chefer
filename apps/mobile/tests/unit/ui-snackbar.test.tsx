@@ -3,11 +3,14 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { act, fireEvent, render, screen } from '@testing-library/react-native';
 import { duration } from '@chefer/tokens';
 import {
+  noteTouchForSnackbar,
   resetSnackbarForTests,
   setSnackbarTabBarHeight,
   Snackbar,
   SNACKBAR_MIN_RESUME_MS,
+  SNACKBAR_OUTSIDE_TOUCH_GRACE_MS,
   SNACKBAR_TAP_SHIELD_MS,
+  snackbarSwipeRelease,
   useSnackbar,
   type SnackbarOptions,
 } from '@chefer/ui-mobile';
@@ -288,5 +291,60 @@ describe('Snackbar above the tab bar (App Review R-11)', () => {
     await render(<Harness a={{ message: 'Swapped' }} />);
     await fireEvent.press(screen.getByTestId('show-a'));
     expect(screen.getByTestId('snackbar').parent?.props.pointerEvents).toBe('box-none');
+  });
+});
+
+describe('Snackbar never traps what it covers (owner, 2026-10-16)', () => {
+  const undo: SnackbarOptions = {
+    message: 'Logged dinner',
+    actionLabel: 'Undo',
+    onAction: jest.fn(),
+  };
+
+  it('a tap on the message dismisses it at once, with no tap shield left behind', async () => {
+    jest.useFakeTimers();
+    await render(<Harness a={undo} />);
+    await fireEvent.press(screen.getByTestId('show-a'));
+    await fireEvent.press(screen.getByTestId('snackbar-dismiss'));
+    await act(() => {
+      jest.advanceTimersByTime(duration.fast);
+    });
+    expect(screen.queryByTestId('snackbar')).toBeNull();
+    expect(screen.queryByTestId('snackbar-shield')).toBeNull();
+    expect(undo.onAction).not.toHaveBeenCalled();
+  });
+
+  it('a touch elsewhere sends it away — but not during the grace period', async () => {
+    jest.useFakeTimers();
+    await render(<Harness a={undo} />);
+    await fireEvent.press(screen.getByTestId('show-a'));
+
+    // Right after the action that raised it, Undo stays reachable.
+    await act(() => {
+      noteTouchForSnackbar(10, 10);
+    });
+    expect(screen.getByTestId('snackbar')).toBeTruthy();
+
+    await act(() => {
+      jest.advanceTimersByTime(SNACKBAR_OUTSIDE_TOUCH_GRACE_MS);
+    });
+    await act(() => {
+      noteTouchForSnackbar(10, 10);
+    });
+    await act(() => {
+      jest.advanceTimersByTime(duration.fast);
+    });
+    expect(screen.queryByTestId('snackbar')).toBeNull();
+    expect(screen.queryByTestId('snackbar-shield')).toBeNull();
+  });
+
+  it('a released swipe dismisses past its distance or speed, else springs back', () => {
+    expect(snackbarSwipeRelease(120, 0, 0, 0)).toBe('dismiss');
+    expect(snackbarSwipeRelease(-90, 2, 0, 0)).toBe('dismiss');
+    expect(snackbarSwipeRelease(0, 40, 0, 0)).toBe('dismiss');
+    expect(snackbarSwipeRelease(30, 0, 0.8, 0)).toBe('dismiss');
+    expect(snackbarSwipeRelease(20, 5, 0.1, 0.1)).toBe('snap-back');
+    // An upward drag never dismisses.
+    expect(snackbarSwipeRelease(0, -60, 0, -1)).toBe('snap-back');
   });
 });

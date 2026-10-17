@@ -1,7 +1,13 @@
 import { useEffect, useState } from 'react';
 import { View } from 'react-native';
 import { Button, SegmentedControl, Sheet, Text } from '@chefer/ui-mobile';
-import { formatPortion, QUICK_ADD_MEAL_TYPES, type QuickAddMealType } from '@chefer/utils';
+import {
+  formatPortion,
+  proteinLabel,
+  QUICK_ADD_MEAL_TYPES,
+  type QuickAddMealType,
+} from '@chefer/utils';
+import { useNumbersMode } from '../numbers-mode/numbers-mode';
 
 // Edit or remove a logged recipe that is no longer on the day's plan — the
 // "Also eaten" rows (UX-FOOD-03). A mis-log or a stale one used to be
@@ -29,6 +35,7 @@ export interface EditRecipeEntrySheetProps {
     recipeName: string;
     mealType: string;
     kcal: number;
+    protein?: number | undefined;
     portionMultiplier?: number | undefined;
   } | null;
   onSave: (edit: { portionMultiplier: number; mealType: string }) => void;
@@ -42,6 +49,7 @@ export function EditRecipeEntrySheet({
   onSave,
   onDelete,
 }: EditRecipeEntrySheetProps) {
+  const { proteinOnly } = useNumbersMode(); // WP-08
   const [portion, setPortion] = useState('1');
   const [mealType, setMealType] = useState<QuickAddMealType>('dinner');
 
@@ -94,7 +102,13 @@ export function EditRecipeEntrySheet({
         <Text numberOfLines={2} className="text-sm font-medium text-gray-800">
           {entry.recipeName}
         </Text>
-        <Text className="text-xs text-gray-500">Logged as {Math.round(entry.kcal)} kcal</Text>
+        <Text className="text-xs text-gray-500">
+          {proteinOnly
+            ? entry.protein === undefined
+              ? 'Logged'
+              : `Logged as ${proteinLabel(entry.protein)}`
+            : `Logged as ${Math.round(entry.kcal)} kcal`}
+        </Text>
       </View>
 
       <View className="gap-1">

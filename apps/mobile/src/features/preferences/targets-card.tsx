@@ -1,16 +1,20 @@
 import { useEffect, useState } from 'react';
-import { View } from 'react-native';
+import { Pressable, View } from 'react-native';
 import {
-  Button,
-  Card,
   ErrorState,
   Input,
   SegmentedControl,
   Text,
+  useCountUp,
   useQueryState,
 } from '@chefer/ui-mobile';
 import { formatKcal, userFacingErrorMessage } from '@chefer/utils';
 import { trpc } from '../../lib/trpc';
+import { useNumbersMode } from '../numbers-mode/numbers-mode';
+import { ProteinWhySheet } from '../nutrition/protein-why-sheet';
+import { BoardCard } from '../shell/today/parts';
+import { TrainButton } from '../shell/train/train-button';
+import { NumbersSettingsSection } from './numbers-settings-section';
 import { useNumericChain } from './use-numeric-chain';
 
 // ─── TargetsCard (§2.11, T-35.3) ────────────────────────────────────────────────
@@ -41,10 +45,23 @@ export interface TargetsCardProps {
    * still resolves the 2,000 kcal default — show this number instead.
    */
   previewKcal?: number | null | undefined;
+  /**
+   * WP-08: Preferences passes the stored numbers mode and the resolved "show
+   * nutrition on Today", which merges that setting and the older Today toggle
+   * into this one card. Omitted in onboarding, which asks the question on its
+   * goal step.
+   */
+  numbersSettings?:
+    | { numbersMode: string | null | undefined; showNutritionOnToday: boolean }
+    | undefined;
 }
 
-export function TargetsCard({ previewKcal }: TargetsCardProps = {}) {
+export function TargetsCard({ previewKcal, numbersSettings }: TargetsCardProps = {}) {
   const utils = trpc.useUtils();
+  const { proteinOnly } = useNumbersMode();
+  const [whyOpen, setWhyOpen] = useState(false);
+  // Mounted on first open and kept, so the sheet still plays its exit motion.
+  const [whyMounted, setWhyMounted] = useState(false);
   const targetsQuery = trpc.targets.get.useQuery();
   const { data } = targetsQuery;
   const { state: loadState, retry } = useQueryState(targetsQuery);
@@ -145,40 +162,55 @@ export function TargetsCard({ previewKcal }: TargetsCardProps = {}) {
     });
   };
 
+  const numbersSection = numbersSettings ? (
+    <NumbersSettingsSection
+      initialMode={numbersSettings.numbersMode}
+      initialShowNutrition={numbersSettings.showNutritionOnToday}
+    />
+  ) : null;
+
   // UX-X-12: a failed load is not "Loading…" forever — say so and offer Retry.
   if (loadState === 'error') {
     return (
-      <Card testID="targets-card" className="gap-2">
-        <Text variant="heading">Your targets</Text>
+      <BoardCard testID="targets-card">
+        <Text accessibilityRole="header" className="text-headline font-semibold text-label">
+          Your targets
+        </Text>
+        {numbersSection}
         <ErrorState
           testID="targets-card-error"
           title="Couldn't load your targets"
           onRetry={retry}
           className="py-4"
         />
-      </Card>
+      </BoardCard>
     );
   }
   if (!data) {
     return (
-      <Card testID="targets-card" className="gap-2">
-        <Text variant="heading">Your targets</Text>
-        <Text variant="muted" className="text-xs">
-          Loading…
+      <BoardCard testID="targets-card">
+        <Text accessibilityRole="header" className="text-headline font-semibold text-label">
+          Your targets
         </Text>
-      </Card>
+        {numbersSection}
+        <Text className="text-subhead text-label-secondary">Loading…</Text>
+      </BoardCard>
     );
   }
 
   return (
-    <Card testID="targets-card" className="gap-4">
+    <BoardCard testID="targets-card" className="gap-4">
       <View className="gap-1">
-        <Text variant="heading">Your targets</Text>
-        <Text variant="muted" className="text-xs">
+        <Text accessibilityRole="header" className="text-headline font-semibold text-label">
+          Your targets
+        </Text>
+        <Text className="text-subhead text-label-secondary">
           Suggested is computed from your body and goal; My own is never changed for you — a gym
           setup, weigh-in or goal edit only ever proposes a change, and you decide.
         </Text>
       </View>
+
+      {numbersSection}
 
       <SegmentedControl
         size="sm"
@@ -190,24 +222,55 @@ export function TargetsCard({ previewKcal }: TargetsCardProps = {}) {
       />
 
       {mode === 'SUGGESTED' ? (
-        <View className="gap-1 rounded-lg bg-accent p-3">
-          <Text testID="targets-suggested-kcal" className="text-2xl font-bold text-primary">
-            {formatKcal(
-              fromEntered && previewKcal ? previewKcal : data.suggested.dailyCalorieTarget,
-            )}{' '}
-            kcal
-          </Text>
-          <Text variant="muted" className="text-xs">
-            {fromEntered
-              ? 'Worked out from the details you entered. Your macros are set when you finish.'
-              : `${data.suggested.proteinG}g protein · ${data.suggested.carbsG}g carbs · ${data.suggested.fatG}g fat`}
-          </Text>
-        </View>
+        proteinOnly ? (
+          // WP-08: protein-only mode shows the one number, and why it is that number.
+          <View className="gap-1 rounded-control bg-brand-tint p-3">
+            {fromEntered ? (
+              <Text className="text-subhead text-label-secondary">
+                Your protein is set from your weight and goal when you finish.
+              </Text>
+            ) : (
+              <>
+                <Text
+                  testID="targets-suggested-protein"
+                  className="text-title2 font-bold text-brand"
+                >
+                  {data.effective.proteinG} g protein a day
+                </Text>
+                <Pressable
+                  testID="targets-protein-why"
+                  accessibilityRole="button"
+                  accessibilityLabel="Why this protein number?"
+                  onPress={() => {
+                    setWhyMounted(true);
+                    setWhyOpen(true);
+                  }}
+                  className="min-h-11 justify-center self-start"
+                >
+                  <Text className="text-subhead font-semibold text-brand">
+                    Why this protein number?
+                  </Text>
+                </Pressable>
+              </>
+            )}
+          </View>
+        ) : (
+          <View className="gap-1 rounded-control bg-brand-tint p-3">
+            <SuggestedKcal
+              value={fromEntered && previewKcal ? previewKcal : data.suggested.dailyCalorieTarget}
+            />
+            <Text className="text-subhead text-label-secondary">
+              {fromEntered
+                ? 'Worked out from the details you entered. Your macros are set when you finish.'
+                : `${data.suggested.proteinG}g protein · ${data.suggested.carbsG}g carbs · ${data.suggested.fatG}g fat`}
+            </Text>
+          </View>
+        )
       ) : (
         <View className="gap-3">
           <View className="flex-row gap-2">
             <View className="flex-1 gap-1">
-              <Text variant="label">Calories</Text>
+              <Text className="text-subhead font-semibold text-label-secondary">Calories</Text>
               <Input
                 testID="targets-kcal"
                 {...numeric.bind(0)}
@@ -218,7 +281,7 @@ export function TargetsCard({ previewKcal }: TargetsCardProps = {}) {
               />
             </View>
             <View className="flex-1 gap-1">
-              <Text variant="label">Protein (g)</Text>
+              <Text className="text-subhead font-semibold text-label-secondary">Protein (g)</Text>
               <Input
                 testID="targets-protein"
                 {...numeric.bind(1)}
@@ -231,7 +294,7 @@ export function TargetsCard({ previewKcal }: TargetsCardProps = {}) {
           </View>
           <View className="flex-row gap-2">
             <View className="flex-1 gap-1">
-              <Text variant="label">Carbs (g)</Text>
+              <Text className="text-subhead font-semibold text-label-secondary">Carbs (g)</Text>
               <Input
                 testID="targets-carbs"
                 {...numeric.bind(2)}
@@ -242,7 +305,7 @@ export function TargetsCard({ previewKcal }: TargetsCardProps = {}) {
               />
             </View>
             <View className="flex-1 gap-1">
-              <Text variant="label">Fat (g)</Text>
+              <Text className="text-subhead font-semibold text-label-secondary">Fat (g)</Text>
               <Input
                 testID="targets-fat"
                 {...numeric.bind(3)}
@@ -258,16 +321,41 @@ export function TargetsCard({ previewKcal }: TargetsCardProps = {}) {
 
       {numeric.bars}
 
-      <Button testID="targets-save" loading={setMutation.isPending} onPress={save}>
-        {setMutation.isSuccess && !dirty ? 'Saved ✓' : 'Save targets'}
-      </Button>
+      <TrainButton
+        testID="targets-save"
+        label={setMutation.isSuccess && !dirty ? 'Saved ✓' : 'Save targets'}
+        loading={setMutation.isPending}
+        onPress={save}
+      />
       {(localError ??
         (setMutation.error ? userFacingErrorMessage(setMutation.error) : undefined)) && (
-        <Text testID="targets-error" className="text-xs text-red-600">
+        <Text testID="targets-error" className="text-caption text-danger">
           {localError ??
             (setMutation.error ? userFacingErrorMessage(setMutation.error) : undefined)}
         </Text>
       )}
-    </Card>
+      {whyMounted && (
+        <ProteinWhySheet
+          visible={whyOpen}
+          onClose={() => setWhyOpen(false)}
+          why={data.proteinWhy}
+        />
+      )}
+    </BoardCard>
+  );
+}
+
+/** Premium motion #17 (MO-06): the suggested daily kcal counts up to its value. */
+function SuggestedKcal({ value }: { value: number }) {
+  const shown = useCountUp(value);
+  return (
+    <Text
+      testID="targets-suggested-kcal"
+      accessibilityLabel={`${formatKcal(value)} kcal`}
+      className="text-title2 font-bold text-brand"
+      style={{ fontVariant: ['tabular-nums'] }}
+    >
+      {formatKcal(shown)} kcal
+    </Text>
   );
 }

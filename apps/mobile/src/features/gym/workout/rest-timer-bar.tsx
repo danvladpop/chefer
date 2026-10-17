@@ -1,7 +1,25 @@
 import { useEffect, useRef, useState } from 'react';
 import { AccessibilityInfo, Linking, Pressable, View } from 'react-native';
+import Animated, {
+  ReduceMotion,
+  SlideInDown,
+  SlideOutDown,
+  useAnimatedStyle,
+  useSharedValue,
+  withSequence,
+  withTiming,
+} from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { haptics, Text } from '@chefer/ui-mobile';
+import { exit } from '@chefer/tokens';
+import {
+  duration,
+  haptics,
+  Text,
+  timing,
+  useReadableLayout,
+  useReducedMotion,
+} from '@chefer/ui-mobile';
+import { cn } from '@chefer/utils';
 import {
   adjustRest,
   ensureRestNotificationPermission,
@@ -21,6 +39,60 @@ import { formatClock } from './workout-model';
 
 // Sticky rest bar (gym_plan.md §1.3). The ONLY subscriber to the 4×/s tick —
 // the workout list never re-renders because a timer is running.
+// Premium motion #7: the bar slides up from the bottom (`slow`) and away
+// (`exit`), its fill glides linearly between ticks (`scaleX`, never width),
+// and the last 3 seconds pulse the clock.
+
+/** The rest store ticks every 250 ms; the fill glides across one tick. */
+const REST_TICK_MS = 250;
+/** The clock pulses once a second for the last few seconds. */
+const PULSE_FROM_SEC = 3;
+const PULSE_SCALE = 1.08;
+
+const barEntering = SlideInDown.duration(duration.slow).reduceMotion(ReduceMotion.System);
+const barExiting = SlideOutDown.duration(exit(duration.slow)).reduceMotion(ReduceMotion.System);
+
+function RestFill({ progress }: { progress: number }) {
+  const reduced = useReducedMotion();
+  const fill = useSharedValue(progress);
+  useEffect(() => {
+    const to = Math.min(1, Math.max(0, progress));
+    fill.set(reduced ? to : withTiming(to, timing(REST_TICK_MS, 'linear')));
+  }, [progress, reduced, fill]);
+  const style = useAnimatedStyle(() => ({ transform: [{ scaleX: fill.get() }] }));
+  return (
+    <View className="h-1 overflow-hidden bg-surface-sunken">
+      <Animated.View className="h-1 bg-brand" style={[{ transformOrigin: 'left' }, style]} />
+    </View>
+  );
+}
+
+function RestClock({ remainingSec }: { remainingSec: number }) {
+  const reduced = useReducedMotion();
+  const scale = useSharedValue(1);
+  useEffect(() => {
+    if (reduced || remainingSec <= 0 || remainingSec > PULSE_FROM_SEC) return;
+    scale.set(
+      withSequence(
+        withTiming(PULSE_SCALE, timing(duration.fast, 'enter')),
+        withTiming(1, timing(duration.base, 'standard')),
+      ),
+    );
+  }, [remainingSec, reduced, scale]);
+  const style = useAnimatedStyle(() => ({ transform: [{ scale: scale.get() }] }));
+  return (
+    <Animated.View style={[{ alignSelf: 'flex-start', transformOrigin: 'left' }, style]}>
+      <Text
+        testID="rest-timer-remaining"
+        accessibilityLabel={`Rest, ${remainingSec} seconds left`}
+        className="text-title1 font-bold text-label"
+        style={{ fontVariant: ['tabular-nums'] }}
+      >
+        {formatClock(remainingSec)}
+      </Text>
+    </Animated.View>
+  );
+}
 
 /** B-40 (T-36.2): the rationale sheet the first time a rest actually starts. */
 function useRestPermissionRationale(active: boolean): {
@@ -82,6 +154,8 @@ function useRestAnnouncements(active: boolean, remainingSec: number): void {
  */
 export function RestTimerBar({ onHeightChange }: { onHeightChange?: (height: number) => void }) {
   const insets = useSafeAreaInsets();
+  // Large screens: the bar spans the window, its controls the readable column.
+  const { gutter } = useReadableLayout();
   const { remainingSec, state } = useRestRemaining(() => {
     haptics.warning();
     AccessibilityInfo.announceForAccessibility(REST_OVER_ANNOUNCEMENT);
@@ -106,30 +180,22 @@ export function RestTimerBar({ onHeightChange }: { onHeightChange?: (height: num
   const progress = state.durationSec > 0 ? 1 - remainingSec / state.durationSec : 1;
 
   return (
-    <View
+    <Animated.View
       testID="rest-timer"
-      className="absolute bottom-0 left-0 right-0 border-t border-border bg-card"
+      entering={barEntering}
+      exiting={barExiting}
+      className="absolute bottom-0 left-0 right-0 border-t border-separator bg-surface"
       style={{ paddingBottom: Math.max(insets.bottom, 8) }}
       onLayout={(e) => onHeightChange?.(Math.ceil(e.nativeEvent.layout.height))}
     >
-      <View className="h-1 bg-muted">
-        <View
-          className="h-1 bg-primary"
-          style={{ width: `${Math.min(100, Math.max(0, progress * 100))}%` }}
-        />
-      </View>
-      <View className="flex-row items-center gap-2 px-3 pt-2">
+      <RestFill progress={progress} />
+      <View
+        className="flex-row items-center gap-2 px-3 pt-2"
+        style={gutter > 0 ? { paddingLeft: gutter + 12, paddingRight: gutter + 12 } : undefined}
+      >
         <View className="min-w-0 flex-1">
-          <Text variant="muted" className="text-xs">
-            Rest
-          </Text>
-          <Text
-            testID="rest-timer-remaining"
-            accessibilityLabel={`Rest, ${remainingSec} seconds left`}
-            className="text-2xl font-bold tabular-nums"
-          >
-            {formatClock(remainingSec)}
-          </Text>
+          <Text className="text-caption text-label-secondary">Rest</Text>
+          <RestClock remainingSec={remainingSec} />
         </View>
         <TimerButton
           testID="rest-timer-minus"
@@ -156,7 +222,7 @@ export function RestTimerBar({ onHeightChange }: { onHeightChange?: (height: num
         onClose={rationale.onClose}
         onAllow={rationale.onAllow}
       />
-    </View>
+    </Animated.View>
   );
 }
 
@@ -179,12 +245,14 @@ function TimerButton({
       accessibilityRole="button"
       accessibilityLabel={a11y}
       onPress={onPress}
-      className={`min-h-[52px] min-w-14 items-center justify-center rounded-xl px-3 active:opacity-70 ${
-        primary ? 'bg-primary' : 'bg-muted'
-      }`}
+      className={cn(
+        'min-h-[52px] min-w-14 items-center justify-center rounded-control px-3 active:opacity-70',
+        primary ? 'bg-brand' : 'bg-brand-tint',
+      )}
     >
       <Text
-        className={`text-lg font-semibold ${primary ? 'text-primary-foreground' : 'text-foreground'}`}
+        className={cn('text-headline font-semibold', primary ? 'text-brand-on' : 'text-brand')}
+        style={{ fontVariant: ['tabular-nums'] }}
       >
         {label}
       </Text>
@@ -202,7 +270,11 @@ export function ElapsedTime({ startedAt, testID }: { startedAt: string; testID: 
   }, []);
   const sec = Number.isFinite(start) ? (now - start) / 1000 : 0;
   return (
-    <Text testID={testID} className="text-sm tabular-nums text-muted-foreground">
+    <Text
+      testID={testID}
+      className="text-subhead text-label-secondary"
+      style={{ fontVariant: ['tabular-nums'] }}
+    >
       {formatClock(sec)}
     </Text>
   );

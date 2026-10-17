@@ -8,7 +8,7 @@ import { activeDoc, SE_ID, SET_IDS } from './gym-workout-helpers';
 
 // WP-04 lane B (feedback 1): the logger is used with a barbell in hand and by
 // people without reading glasses. These pin the sizes and wrapping rules that
-// keep it usable at large OS text: a 52 pt tick, `text-xl` weight/reps values,
+// keep it usable at large OS text: a 52 pt tick, `text-title2` weight/reps values,
 // 2-line exercise names, and set-row text that grows (min-h) instead of clipping.
 
 jest.mock('expo-router', () => ({ router: { push: jest.fn() } }));
@@ -71,11 +71,11 @@ describe('SetRow readability (WP-04)', () => {
     expect(tick.props.accessibilityRole).toBe('checkbox');
   });
 
-  it('labels are text-sm and the row grows with large text (min-h, never h-)', async () => {
+  it('labels are text-callout (16 pt) and the row grows with large text (min-h, never h-)', async () => {
     await renderRow();
-    expect(String(screen.getByTestId('row-label').props.className)).toContain('text-sm');
+    expect(String(screen.getByTestId('row-label').props.className)).toContain('text-callout');
     const last = screen.getByTestId('row-last');
-    expect(String(last.props.className)).toContain('text-sm');
+    expect(String(last.props.className)).toContain('text-callout');
     expect(String(last.props.className)).toContain('min-w-0');
     // "Last 102.5 × 10" wraps to a second line rather than clipping mid-word.
     expect(last.props.numberOfLines).toBe(2);
@@ -86,9 +86,9 @@ describe('SetRow readability (WP-04)', () => {
     expect(String(screen.getByTestId('row-menu').props.className)).toMatch(/\bh-11\b.*\bw-11\b/);
   });
 
-  it('a bodyweight set shows its "BW" value at text-xl', async () => {
+  it('a bodyweight set shows its "BW" value at text-title2', async () => {
     await renderRow('none', false);
-    expect(String(screen.getByTestId('row-weight-value').props.className)).toContain('text-xl');
+    expect(String(screen.getByTestId('row-weight-value').props.className)).toContain('text-title2');
   });
 });
 

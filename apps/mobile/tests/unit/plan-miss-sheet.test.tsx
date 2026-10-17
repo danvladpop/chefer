@@ -99,6 +99,46 @@ describe('PlanMissSheet', () => {
   });
 });
 
+// WP-07 / UX-PLAN-08: a protein-gap fix on a weight-loss goal is capped at +10 %
+// of the day, never "Bigger portions (+503 kcal)"; a higher-protein route leads.
+describe('PlanMissSheet — loss goal with a protein gap', () => {
+  const proteinMiss = { ...base, kcal: 1950, protein: 90, proteinGapG: 60 };
+
+  it('caps the offered portion increase at +10 % and previews that, not the full fix', async () => {
+    await wrap(<PlanMissSheet {...proteinMiss} goal="LOSE_WEIGHT" />);
+    expect(mockScale).toHaveBeenCalledWith({
+      planId: 'p1',
+      dayOfWeek: 1,
+      factor: 1.1,
+      apply: false,
+    });
+    expect(screen.queryByText(/503/)).toBeNull();
+  });
+
+  it('a non-loss goal still gets the full protein fix', async () => {
+    await wrap(<PlanMissSheet {...proteinMiss} goal="MAINTAIN" />);
+    expect(mockScale).toHaveBeenCalledWith(expect.objectContaining({ factor: 1.5, apply: false }));
+    expect(screen.queryByTestId('plan-miss-protein-hint')).toBeNull();
+  });
+
+  it('points at a higher-protein swap or snack and runs the week rebalance check', async () => {
+    const onRebalance = jest.fn();
+    await wrap(<PlanMissSheet {...proteinMiss} goal="LOSE_WEIGHT" onRebalance={onRebalance} />);
+    expect(screen.getByTestId('plan-miss-protein-hint')).toHaveTextContent(
+      'A higher-protein swap or a protein snack closes this gap without many extra calories.',
+    );
+    await fireEvent.press(screen.getByTestId('plan-miss-rebalance'));
+    expect(base.onClose).toHaveBeenCalled();
+    expect(onRebalance).toHaveBeenCalled();
+  });
+
+  it('a calorie miss on a loss goal is unchanged (the cap is for protein fixes)', async () => {
+    await wrap(<PlanMissSheet {...base} goal="LOSE_WEIGHT" />);
+    expect(mockScale).toHaveBeenCalledWith(expect.objectContaining({ factor: 1.33 }));
+    expect(screen.queryByTestId('plan-miss-protein-hint')).toBeNull();
+  });
+});
+
 describe('missScaleFactor', () => {
   it('clamps to the server bounds and ignores near-1 factors', () => {
     const args = { protein: 90, proteinGapG: undefined };
@@ -110,5 +150,13 @@ describe('missScaleFactor', () => {
     expect(
       missScaleFactor({ kcal: 2000, protein: 100, calorieTarget: 2000, proteinGapG: 30 }),
     ).toBe(1.3);
+  });
+  it('caps a protein-driven increase on a loss goal at 1.1, and drops it when the cap leaves nothing', () => {
+    const args = { kcal: 2000, protein: 100, calorieTarget: 2000 };
+    expect(missScaleFactor({ ...args, proteinGapG: 50, goal: 'LOSE_WEIGHT' })).toBe(1.1);
+    expect(missScaleFactor({ ...args, proteinGapG: 50, goal: 'MAINTAIN' })).toBe(1.5);
+    expect(
+      missScaleFactor({ ...args, protein: 200, proteinGapG: 4, goal: 'LOSE_WEIGHT' }),
+    ).toBeNull();
   });
 });

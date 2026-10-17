@@ -167,3 +167,30 @@ describe('matchesRecipeSlot (T-19.4 — logRecipe/unlogRecipe agree on identity)
     expect(matchesRecipeSlot(stored, { recipeId: 'oats', mealType: 'dinner' })).toBe(false);
   });
 });
+
+describe('mergeLoggedMeals — replaced slots (WP-06)', () => {
+  const replacement: LoggedMealEntry = {
+    ...custom('Shawarma'),
+    mealType: 'dinner',
+    replacesSlot: { mealType: 'dinner', slotIndex: 2 },
+  };
+
+  it('drops an incoming tick for a slot the user replaced, keeps other ticks and the replacement', () => {
+    const tick = (slotIndex: number, mealType: string): LoggedMealEntry => ({
+      ...recipe('curry', mealType),
+      slotIndex,
+    });
+    const merged = mergeLoggedMeals(
+      [replacement],
+      [tick(2, 'dinner'), tick(1, 'lunch')],
+      new Set(['curry']),
+    );
+    expect(merged.filter((m) => m.recipeId).map((m) => m.slotIndex)).toEqual([1]);
+    expect(merged).toContain(replacement);
+  });
+
+  it('an incoming tick without a slot is kept (it cannot name the slot)', () => {
+    const merged = mergeLoggedMeals([replacement], [recipe('curry')], new Set(['curry']));
+    expect(merged.some((m) => m.recipeId === 'curry')).toBe(true);
+  });
+});

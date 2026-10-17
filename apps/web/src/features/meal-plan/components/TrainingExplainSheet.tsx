@@ -1,9 +1,10 @@
 'use client';
 
 import Link from 'next/link';
+import { useNumbersMode } from '@/features/numbers-mode/numbers-mode';
 import type { PlanTrainingBasis, PlanTrainingDay } from '@chefer/types';
 import { Sheet } from '@chefer/ui';
-import { trainingExplainCopy } from '@chefer/utils';
+import { proteinOnlyTrainingExplain, trainingExplainCopy } from '@chefer/utils';
 
 // ─── TrainingExplainSheet (UX-06, T-06.8) ──────────────────────────────────────
 // The `Why?` sheet behind Today's training-day note and the plan's
@@ -19,7 +20,10 @@ export interface TrainingExplainSheetProps {
 }
 
 export function TrainingExplainSheet({ open, onClose, days, basis }: TrainingExplainSheetProps) {
-  const copy = trainingExplainCopy({ days, basis });
+  const { proteinOnly } = useNumbersMode();
+  const copy = proteinOnly
+    ? proteinOnlyTrainingExplain({ days, basis })
+    : trainingExplainCopy({ days, basis });
   return (
     <Sheet
       open={open}

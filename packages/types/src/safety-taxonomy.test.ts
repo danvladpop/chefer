@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { findSafetyTaxonomyEntry, safetyTaxonomyEntriesByGroup } from './safety-taxonomy';
+import {
+  findSafetyTaxonomyEntry,
+  safetyPickerEntries,
+  safetyTaxonomyEntriesByGroup,
+} from './safety-taxonomy';
 
 describe('allergy taxonomy (UX-ACC-06)', () => {
   const allergies = safetyTaxonomyEntriesByGroup('allergy');
@@ -53,5 +57,39 @@ describe('allergy taxonomy (UX-ACC-06)', () => {
         seen.set(term, a.id);
       }
     }
+  });
+});
+
+describe('safetyPickerEntries: legacy Shellfish is hidden for new picks (UX-ACC-06 follow-up)', () => {
+  const ids = (selected: string[]) => safetyPickerEntries('allergy', selected).map((e) => e.id);
+
+  it('keeps Shellfish in the taxonomy (matching and stored ids unchanged) but flags it legacy', () => {
+    expect(findSafetyTaxonomyEntry('shellfish')).toMatchObject({
+      group: 'allergy',
+      label: 'Shellfish',
+      hiddenForNewPicks: true,
+    });
+    expect(safetyTaxonomyEntriesByGroup('allergy').map((a) => a.id)).toContain('shellfish');
+    expect(
+      safetyTaxonomyEntriesByGroup('allergy')
+        .filter((a) => a.hiddenForNewPicks)
+        .map((a) => a.id),
+    ).toEqual(['shellfish']);
+  });
+
+  it('omits Shellfish for a user who has not picked it, and offers Crustaceans and Molluscs', () => {
+    expect(ids([])).not.toContain('shellfish');
+    expect(ids(['peanuts'])).not.toContain('shellfish');
+    expect(ids([])).toEqual(expect.arrayContaining(['crustaceans', 'molluscs']));
+  });
+
+  it('keeps Shellfish visible, in place, for a user who already has it', () => {
+    const withShellfish = ids(['shellfish']);
+    expect(withShellfish).toContain('shellfish');
+    expect(withShellfish.length).toBe(ids([]).length + 1);
+  });
+
+  it('does not hide the dislike group Shellfish (only the allergy picker changes)', () => {
+    expect(safetyPickerEntries('dislike', []).map((e) => e.id)).toContain('shellfish');
   });
 });

@@ -1,23 +1,26 @@
 import { forwardRef, useEffect, useRef, useState } from 'react';
-import { Pressable, TextInput, View } from 'react-native';
+import { Keyboard, View, type TextInput } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { router, useLocalSearchParams } from 'expo-router';
 import { CUISINE_PRESETS, FRIENDS_COPY, INGREDIENT_CATALOG_COPY } from '@chefer/types';
 import {
-  Button,
-  Card,
   ChipGroup,
   ConfirmSheet,
+  DONE_FIELD_PROPS,
   ErrorState,
   FormField,
   haptics,
+  IconButton,
+  Input,
   KeyboardAwareScrollView,
+  PressableScale,
   Screen,
   SelectField,
   Stepper,
   Text,
   useScrollFieldIntoView,
   useSnackbar,
+  useThemeColors,
   type SelectOption,
 } from '@chefer/ui-mobile';
 import {
@@ -29,6 +32,7 @@ import {
   tagConflicts,
   userFacingErrorMessage,
 } from '@chefer/utils';
+import { Icon } from '../src/components/icon';
 import { textRejectedOf } from '../src/features/friends/api/friends-errors';
 import {
   applyResolution,
@@ -42,12 +46,17 @@ import {
 } from '../src/features/ingredients/catalog-line';
 import { ComputedNutritionCard } from '../src/features/ingredients/computed-nutrition-card';
 import { useComputedNutrition } from '../src/features/ingredients/use-computed-nutrition';
+import {
+  useNumericChain,
+  type NumericChainFieldProps,
+} from '../src/features/preferences/use-numeric-chain';
 import { recipeFormCopy } from '../src/features/recipes/form/copy';
 import { FormFooter } from '../src/features/recipes/form/form-footer';
 import { IngredientLine } from '../src/features/recipes/form/ingredient-line';
 import { PhotoField } from '../src/features/recipes/form/photo-field';
 import { StepLine } from '../src/features/recipes/form/step-line';
 import { useIsOnline } from '../src/features/recipes/form/use-is-online';
+import { TrainButton } from '../src/features/shell/train/train-button';
 import { trpc } from '../src/lib/trpc';
 import { useUnsavedGuard } from '../src/lib/use-unsaved-guard';
 
@@ -82,6 +91,10 @@ const DIETARY_TAG_PRESETS = [
   'nut-free',
 ];
 
+/** The redesign's card (BoardCard's look) and section heading (SectionTitle's). */
+const CARD = 'gap-3 rounded-card border border-separator bg-surface p-4';
+const SECTION_TITLE = 'text-title3 font-bold text-label';
+
 const CUISINE_OPTIONS: SelectOption[] = CUISINE_PRESETS.map((c) => ({ value: c, label: c }));
 
 /** T-BUG-O3 C7: never show a raw server message (Zod issue lists etc). */
@@ -95,20 +108,19 @@ const NameInput = forwardRef<
   { value: string; onChangeText: (v: string) => void; placeholder: string; label: string }
 >(function NameInput({ value, onChangeText, placeholder, label }, ref) {
   return (
-    <TextInput
+    <Input
       ref={ref}
       testID="rf-name-input"
-      accessibilityLabel={label}
+      label={label}
       value={value}
       onChangeText={onChangeText}
       placeholder={placeholder}
-      placeholderTextColor="#9ca3af"
-      returnKeyType="next"
-      className="min-h-11 py-2 rounded-md border border-input bg-background px-3 text-base text-foreground"
+      {...DONE_FIELD_PROPS}
     />
   );
 });
 
+// Multiline: Return stays a newline; `Input` adds iOS's "Done" accessory.
 function DescriptionInput({
   value,
   onChangeText,
@@ -117,40 +129,42 @@ function DescriptionInput({
   onChangeText: (v: string) => void;
 }) {
   return (
-    <TextInput
+    <Input
       testID="rf-description"
-      accessibilityLabel={recipeFormCopy.fields.description}
+      label={recipeFormCopy.fields.description}
       value={value}
       onChangeText={onChangeText}
       placeholder="What makes it special? (optional)"
-      placeholderTextColor="#9ca3af"
       multiline
-      className="min-h-20 rounded-md border border-input bg-background px-3 py-2 text-base text-foreground"
+      className="min-h-20"
     />
   );
 }
 
+// Numeric: prep → cook chain (`useNumericChain` binds ref, return key, the
+// per-field iOS Next/Done bar and Android's ✓).
 function TimeInput({
   value,
   onChangeText,
   testID,
   label,
+  chain,
 }: {
   value: string;
   onChangeText: (v: string) => void;
   testID: string;
   label: string;
+  chain: NumericChainFieldProps;
 }) {
   return (
-    <TextInput
+    <Input
       testID={testID}
-      accessibilityLabel={label}
+      label={label}
       value={value}
       onChangeText={onChangeText}
       placeholder="optional"
-      placeholderTextColor="#9ca3af"
       keyboardType="number-pad"
-      className="min-h-11 py-2 rounded-md border border-input bg-background px-3 text-base text-foreground"
+      {...chain}
     />
   );
 }
@@ -201,6 +215,7 @@ export default function RecipeFormScreen() {
   const sourceId = isEdit ? id : isDuplicate ? duplicateOf : '';
   const utils = trpc.useUtils();
   const snackbar = useSnackbar();
+  const colors = useThemeColors();
   const scrollFieldIntoView = useScrollFieldIntoView();
   const online = useIsOnline();
   const offline = !online;
@@ -234,6 +249,7 @@ export default function RecipeFormScreen() {
   const [photoUploading, setPhotoUploading] = useState(false);
 
   const nameInputRef = useRef<TextInput>(null);
+  const times = useNumericChain('rf-times', 2);
   const ingredientQtyRefs = useRef<(TextInput | null)[]>([]);
   const baselineRef = useRef<FormSnapshot | null>(null);
 
@@ -415,6 +431,7 @@ export default function RecipeFormScreen() {
       }
       return;
     }
+    Keyboard.dismiss();
     // The server computes from the linked lines and ignores these numbers
     // (D4); they are the same engine's preview, marked `computed`, so an API
     // that predates the catalog still stores something true.
@@ -508,7 +525,7 @@ export default function RecipeFormScreen() {
         <ErrorState
           title={recipeFormCopy.loadError.title}
           description="Nothing has been changed."
-          icon={<Ionicons name="cloud-offline-outline" size={40} color="#9ca3af" />}
+          icon={<Ionicons name="cloud-offline-outline" size={40} color={colors.labelTertiary} />}
           onRetry={() => void refetchExisting()}
         />
       </Screen>
@@ -518,47 +535,56 @@ export default function RecipeFormScreen() {
   // PAT-8 skeleton instead of a full-screen spinner while an edit loads.
   if (fromExisting && (loadingExisting || !prefilled)) {
     return (
-      <Screen edges={['top', 'bottom', 'left', 'right']} className="px-0" testID="rf-skeleton">
-        <View className="flex-row items-center gap-3 px-4 py-3">
-          <View className="h-6 w-40 rounded bg-muted" />
+      <Screen
+        edges={['top', 'bottom', 'left', 'right']}
+        className="bg-canvas px-0"
+        testID="rf-skeleton"
+      >
+        <View className="min-h-11 flex-row items-center px-4 pb-2 pt-1">
+          <View className="h-7 w-48 rounded-inner bg-surface-sunken" />
         </View>
         <View className="gap-4 px-4">
-          <View className="h-11 rounded-md bg-muted" />
-          <View className="h-11 rounded-md bg-muted" />
-          <View className="h-11 rounded-md bg-muted" />
-          <View className="h-11 rounded-md bg-muted" />
-          <View className="h-11 rounded-md bg-muted" />
+          <View className="h-11 rounded-control bg-surface-sunken" />
+          <View className="h-11 rounded-control bg-surface-sunken" />
+          <View className="h-11 rounded-control bg-surface-sunken" />
+          <View className="h-11 rounded-control bg-surface-sunken" />
+          <View className="h-11 rounded-control bg-surface-sunken" />
         </View>
       </Screen>
     );
   }
 
   return (
-    <Screen edges={['top', 'bottom', 'left', 'right']} className="px-0">
-      <View className="flex-row items-center gap-3 px-4 py-3">
-        <Pressable
-          accessibilityRole="button"
+    <Screen edges={['top', 'bottom', 'left', 'right']} className="bg-canvas px-0">
+      {/* The shell's top bar look (ShellTopBar: brand chevron Back + title1),
+          drawn here so the title keeps the `recipe-form-title` testID the
+          Maestro flows wait on, with the "* required" legend under it. */}
+      <View className="flex-row items-start gap-1 px-4 pb-2 pt-1">
+        <IconButton
           accessibilityLabel="Back"
+          icon={<Icon name="chevronBack" color={colors.brand} size={26} />}
           onPress={() => router.back()}
-          className="h-11 w-11 items-center justify-center"
-        >
-          <Ionicons name="arrow-back" size={20} color="#1f2937" />
-        </Pressable>
-        <View>
-          <Text testID="recipe-form-title" variant="title">
+          className="-ml-2"
+        />
+        <View className="min-h-11 min-w-0 flex-1 justify-center">
+          <Text
+            testID="recipe-form-title"
+            accessibilityRole="header"
+            numberOfLines={1}
+            className="text-title1 font-bold text-label"
+          >
             {isEdit
               ? recipeFormCopy.titles.edit
               : isDuplicate
                 ? recipeFormCopy.titles.duplicate
                 : recipeFormCopy.titles.create}
           </Text>
-          <Text variant="muted" className="text-xs">
-            {recipeFormCopy.titles.legend}
-          </Text>
+          <Text className="text-caption text-label-secondary">{recipeFormCopy.titles.legend}</Text>
         </View>
       </View>
 
       <KeyboardAwareScrollView
+        testID="rf-scroll"
         keyboardShouldPersistTaps="handled"
         contentContainerClassName="gap-4 px-4 pb-4"
         footer={
@@ -620,8 +646,10 @@ export default function RecipeFormScreen() {
         />
 
         {/* Diet tags (T-01.6, bug B-01) — kept through the rebuild. */}
-        <Card className="gap-2">
-          <Text variant="heading">Diet tags</Text>
+        <View className={CARD}>
+          <Text accessibilityRole="header" className={SECTION_TITLE}>
+            Diet tags
+          </Text>
           <ChipGroup
             testID="rf-diet-tags"
             multiple
@@ -630,15 +658,17 @@ export default function RecipeFormScreen() {
             onChange={(v) => setDietTags(v)}
           />
           {conflicts.length > 0 && (
-            <Text testID="rf-tag-conflict" className="text-xs text-amber-700">
+            <Text testID="rf-tag-conflict" className="text-subhead text-attention">
               {conflicts.map((c) => `${c.ingredients.join(', ')} doesn't look ${c.tag}.`).join(' ')}
             </Text>
           )}
-        </Card>
+        </View>
 
         {/* Ingredients — required */}
         <View className="gap-2">
-          <Text variant="heading">{recipeFormCopy.fields.ingredients} *</Text>
+          <Text accessibilityRole="header" className={SECTION_TITLE}>
+            {recipeFormCopy.fields.ingredients} *
+          </Text>
           {ingredients.map((row, i) => {
             const state = lineStates[i] ?? 'empty';
             const ingredient = ingredientFor(row);
@@ -663,18 +693,20 @@ export default function RecipeFormScreen() {
               />
             );
           })}
-          <Button
+          <TrainButton
             testID="rf-add-ingredient"
-            variant="outline"
+            variant="tinted"
+            icon="add"
+            label={recipeFormCopy.buttons.addIngredient}
             onPress={() => setIngredients((prev) => [...prev, blankLine()])}
-          >
-            {recipeFormCopy.buttons.addIngredient}
-          </Button>
+          />
         </View>
 
         {/* Steps — optional (D-19: "No steps yet" is a valid recipe) */}
         <View className="gap-2">
-          <Text variant="heading">{recipeFormCopy.fields.steps}</Text>
+          <Text accessibilityRole="header" className={SECTION_TITLE}>
+            {recipeFormCopy.fields.steps}
+          </Text>
           {instructions.map((step, i) => (
             <StepLine
               key={i}
@@ -687,18 +719,20 @@ export default function RecipeFormScreen() {
               onMoveDown={() => moveStep(i, 1)}
             />
           ))}
-          <Button
+          <TrainButton
             testID="rf-add-step"
-            variant="outline"
+            variant="tinted"
+            icon="add"
+            label={recipeFormCopy.buttons.addStep}
             onPress={() => setInstructions((prev) => [...prev, ''])}
-          >
-            {recipeFormCopy.buttons.addStep}
-          </Button>
+          />
         </View>
 
         {/* Photo */}
         <View className="gap-2">
-          <Text variant="heading">{recipeFormCopy.fields.photo}</Text>
+          <Text accessibilityRole="header" className={SECTION_TITLE}>
+            {recipeFormCopy.fields.photo}
+          </Text>
           <PhotoField
             imageUrl={imageUrl}
             onChange={setImageUrl}
@@ -711,7 +745,9 @@ export default function RecipeFormScreen() {
             above with the shared engine (plan-ingredient-catalog §10). No
             manual path: the server computes the stored numbers on save. */}
         <View className="gap-2">
-          <Text variant="heading">{recipeFormCopy.fields.nutrition}</Text>
+          <Text accessibilityRole="header" className={SECTION_TITLE}>
+            {recipeFormCopy.fields.nutrition}
+          </Text>
           <ComputedNutritionCard
             result={computed.result}
             isComputing={computed.isComputing}
@@ -723,20 +759,22 @@ export default function RecipeFormScreen() {
 
         {/* More details — collapsed by default; opens on edit when any field has a value (MO-05) */}
         <View className="gap-2">
-          <Pressable
+          <PressableScale
             testID="rf-more-details-toggle"
             accessibilityRole="button"
             accessibilityState={{ expanded: moreDetailsOpen }}
             onPress={() => setMoreDetailsOpen((v) => !v)}
             className="min-h-11 flex-row items-center gap-1.5"
           >
-            <Ionicons
-              name={moreDetailsOpen ? 'chevron-down' : 'chevron-forward'}
-              size={16}
-              color="#6b7280"
+            <Icon
+              name={moreDetailsOpen ? 'chevronDown' : 'chevronRight'}
+              size={18}
+              color={colors.brand}
             />
-            <Text className="text-sm font-medium">{recipeFormCopy.fields.moreDetails}</Text>
-          </Pressable>
+            <Text className="text-callout font-semibold text-brand">
+              {recipeFormCopy.fields.moreDetails}
+            </Text>
+          </PressableScale>
           {moreDetailsOpen ? (
             <View className="gap-3">
               <FormField label={recipeFormCopy.fields.description} testID="rf-description-field">
@@ -749,6 +787,7 @@ export default function RecipeFormScreen() {
                     onChangeText={setPrepTime}
                     testID="rf-prep"
                     label={recipeFormCopy.fields.prepTimeMins}
+                    chain={times.bind(0)}
                   />
                 </FormField>
                 <FormField label={recipeFormCopy.fields.cookTimeMins} testID="rf-cook-field">
@@ -757,9 +796,11 @@ export default function RecipeFormScreen() {
                     onChangeText={setCookTime}
                     testID="rf-cook"
                     label={recipeFormCopy.fields.cookTimeMins}
+                    chain={times.bind(1)}
                   />
                 </FormField>
               </View>
+              {times.bars}
             </View>
           ) : null}
         </View>

@@ -1,9 +1,10 @@
 import { TRPCError } from '@trpc/server';
-import { consentEventRepository, prisma } from '@chefer/database';
+import { consentEventRepository, prisma, uploadedFileRepository } from '@chefer/database';
 import { COACHING_RETENTION } from '@chefer/types';
 import { displayNameOf } from '@chefer/utils';
 import { posthogAdmin } from '../../infrastructure/analytics/posthog-admin.js';
 import { deleteUploadedFiles } from '../../lib/uploads/uploaded-files.js';
+import { socialAuthService } from '../auth/social-auth.service.js';
 import { emailPreferencesService } from '../notifications/email-preferences.service.js';
 
 // ─── Account data: export and self-deletion (audit P0-6, T-39.5) ─────────────
@@ -250,6 +251,7 @@ export async function exportAccountData(userId: string): Promise<Record<string, 
     consentEvents,
     emailPreferences,
     aiCallLog,
+    signInMethods,
   ] = await Promise.all([
     prisma.user.findUnique({
       where: { id: userId },
@@ -297,6 +299,12 @@ export async function exportAccountData(userId: string): Promise<Record<string, 
       select: { callType: true, provider: true, createdAt: true },
       orderBy: { createdAt: 'desc' },
     }),
+    // WP-22: which providers are connected (never subjects or tokens).
+    prisma.authIdentity.findMany({
+      where,
+      select: { provider: true, email: true, createdAt: true },
+      orderBy: { createdAt: 'asc' },
+    }),
   ]);
   if (!user) throw new TRPCError({ code: 'NOT_FOUND', message: 'User not found' });
 
@@ -336,6 +344,7 @@ export async function exportAccountData(userId: string): Promise<Record<string, 
     feedback,
     social,
     coaching,
+    signInMethods,
     privacy: {
       consentHistory: consentEvents,
       emailPreferences,
@@ -371,8 +380,10 @@ export async function exportAccountData(userId: string): Promise<Record<string, 
  * Household members are the user's own extra eaters (no other accounts are
  * linked to them), so they simply cascade — there is nothing to hand over.
  * Everything runs in one transaction: all or nothing. After it commits, the
- * photo files the account uploaded (avatar, own recipes, custom ingredients)
- * are removed from the uploads volume, best effort (backlog P0-6).
+ * photo files the account uploaded (avatar, own recipes, custom ingredients,
+ * every uploaded_files ledger row) are removed from the uploads volume, best
+ * effort (backlog P0-6) — except a file another row still references (a
+ * friend's copy of a recipe shares the image URL; Phase 1 guardrails).
  */
 export async function deleteAccount(userId: string): Promise<void> {
   const user = await prisma.user.findUnique({
@@ -382,16 +393,22 @@ export async function deleteAccount(userId: string): Promise<void> {
   if (!user) throw new TRPCError({ code: 'NOT_FOUND', message: 'User not found' });
   const plans = await prisma.mealPlan.findMany({ where: { userId }, select: { id: true } });
   const planIds = plans.map((p) => p.id);
-  const [ownRecipes, ownIngredients, linkedAnalytics] = await Promise.all([
+  const [ownRecipes, ownIngredients, ownUploads, linkedAnalytics, identities] = await Promise.all([
     prisma.recipe.findMany({
       where: { creatorId: userId, source: 'MANUAL' },
       select: { imageUrl: true },
     }),
     prisma.ingredientPrice.findMany({ where: { creatorId: userId }, select: { imageUrl: true } }),
+    // Phase 1 guardrails: every photo the account uploaded (the ledger rows
+    // cascade with the user), incl. ones no row points at any more.
+    uploadedFileRepository.fileNamesForUser(userId),
     // T-12.5: read BEFORE the transaction — the ConsentEvent row cascades
     // away with the user row, so this is the last chance to know whether
     // this account ever linked analytics to itself.
     consentEventRepository.findLatestByKind(userId, 'ANALYTICS_LINKED'),
+    // WP-22: the auth_identities rows cascade with the user — read them (and
+    // their stored Apple refresh tokens) now to revoke the grants after the commit.
+    socialAuthService.identitiesForDeletion(userId),
   ]);
 
   await prisma.$transaction([
@@ -407,11 +424,18 @@ export async function deleteAccount(userId: string): Promise<void> {
     prisma.user.delete({ where: { id: userId } }),
   ]);
 
+  // Only files no remaining row references are removed: another user's copy
+  // of one of these recipes shares its image URL (Phase 1 guardrails).
   await deleteUploadedFiles([
     user.image,
     ...ownRecipes.map((r) => r.imageUrl),
     ...ownIngredients.map((i) => i.imageUrl),
+    ...ownUploads.map((name) => `/uploads/${name}`),
   ]);
+
+  // WP-22 / App Store 5.1.1(v): revoke the Sign in with Apple grant(s), best
+  // effort (logged on failure; never reverts the deletion).
+  await socialAuthService.revokeAppleGrants(identities);
 
   // T-12.5: best-effort, after the commit — never blocks or reverts the
   // account deletion itself. A no-op (logged) when never linked, or when

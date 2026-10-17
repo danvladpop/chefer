@@ -32,6 +32,11 @@ describe('activationStepKeys (F-PREM-1-5, F-PM-9)', () => {
     expect(activationStepKeys('unknown-source', false)).toHaveLength(3);
   });
 
+  it('the retired pantry source (WP-24) falls back to the default order', () => {
+    expect(activationStepKeys('pantry', true)).toEqual(activationStepKeys(null, true));
+    expect(activationStepKeys('pantry', false)).toEqual(['profile', 'regenerate', 'cheferize']);
+  });
+
   it('introduces the list by its length', () => {
     expect(activationIntro(1)).toBe('One thing makes it worth it immediately:');
     expect(activationIntro(2)).toMatch(/^Two things/);

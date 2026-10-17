@@ -1,4 +1,10 @@
-import type { OnboardingIntent, OnboardingJob } from '@chefer/types';
+import {
+  HOUSEHOLD_AGE_BANDS,
+  HOUSEHOLD_PORTION_OPTIONS,
+  type HouseholdAgeBand,
+  type OnboardingIntent,
+  type OnboardingJob,
+} from '@chefer/types';
 
 // ─── Household maths + audience routing (backlog P2-3) ────────────────────────
 // Pure helpers shared by the API, web and mobile so every surface agrees on
@@ -14,6 +20,58 @@ export function householdPortionSum(members: readonly { portionFactor: number }[
   const raw = members.reduce((sum, m) => sum + Math.max(0, m.portionFactor), 1);
   // Float noise (0.25 + 0.5 + …) must not round 2.0000001 up to 3.
   return Math.max(1, Math.ceil(Math.round(raw * 1000) / 1000));
+}
+
+// ─── Kid age bands (UX-PLAN-12) ───────────────────────────────────────────────
+
+/**
+ * Suggested portion factor per age band, relative to one adult portion
+ * (~2,000 kcal/day). Basis: EFSA Dietary Reference Values for energy (2013),
+ * average requirements by age at PAL 1.4-1.6, boys and girls averaged:
+ *   1-3 y   ~1,000 kcal -> 0.5   (age 1 ~810, 2 ~1,060, 3 ~1,190)
+ *   4-8 y   ~1,450 kcal -> 0.7   (age 4 ~1,270 ... age 8 ~1,600-1,830)
+ *   9-13 y  ~2,100 kcal -> 1.05  (age 9 ~1,660-1,890 ... age 13 ~2,350-2,650)
+ *   14-17 y ~2,600 kcal -> 1.3   (teens out-eat an adult at ~2,000 kcal)
+ * Each ratio is snapped to the nearest chip the editors offer
+ * (HOUSEHOLD_PORTION_OPTIONS) so the suggestion shows as a selected chip:
+ * 0.5, 0.75, 1, 1.25. It only PRE-FILLS the editor — `portionFactor` stays
+ * the source of truth for planning and shopping, and the user can change it.
+ */
+export const AGE_BAND_PORTION_FACTORS: Readonly<Record<HouseholdAgeBand, number>> = {
+  TODDLER: 0.5,
+  CHILD: 0.75,
+  PRETEEN: 1,
+  TEEN: 1.25,
+};
+
+/** Short age-range label shown on the chips and the member summary. */
+export const AGE_BAND_LABELS: Readonly<Record<HouseholdAgeBand, string>> = {
+  TODDLER: '1–3',
+  CHILD: '4–8',
+  PRETEEN: '9–13',
+  TEEN: '14–17',
+};
+
+/** Narrows a stored string (the column is a plain string) to a known band, else null. */
+export function parseAgeBand(value: string | null | undefined): HouseholdAgeBand | null {
+  return HOUSEHOLD_AGE_BANDS.find((band) => band === value) ?? null;
+}
+
+/** The portion factor an age band pre-fills (one of the editors' portion chips). */
+export function ageBandPortionFactor(band: HouseholdAgeBand): number {
+  return AGE_BAND_PORTION_FACTORS[band];
+}
+
+/** "1–3" … "14–17" for a stored band; null when none / unknown. */
+export function ageBandLabel(value: string | null | undefined): string | null {
+  const band = parseAgeBand(value);
+  return band ? AGE_BAND_LABELS[band] : null;
+}
+
+/** True when every band's suggestion is one of the editors' portion chips (guarded by a test). */
+export function ageBandFactorsAreChips(): boolean {
+  const chips: readonly number[] = HOUSEHOLD_PORTION_OPTIONS;
+  return HOUSEHOLD_AGE_BANDS.every((band) => chips.includes(AGE_BAND_PORTION_FACTORS[band]));
 }
 
 /**

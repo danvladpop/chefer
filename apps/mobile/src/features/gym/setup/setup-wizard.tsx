@@ -1,9 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Platform, Pressable, View } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
-import { useQueryClient } from '@tanstack/react-query';
+import { skipToken, useQuery, useQueryClient } from '@tanstack/react-query';
 import { router, useLocalSearchParams } from 'expo-router';
 import type {
+  GymBootstrap,
   GymEquipmentAccess,
   GymSplitPreference,
   TrainingExperience,
@@ -11,10 +11,9 @@ import type {
   WeightUnit,
 } from '@chefer/types';
 import {
-  Button,
-  Card,
   ChipGroup,
   ConfirmSheet,
+  IconButton,
   Input,
   KeyboardAwareScrollView,
   NumericReturnBar,
@@ -24,6 +23,7 @@ import {
   Text,
   useFieldChain,
   useScrollFieldIntoView,
+  useThemeColors,
 } from '@chefer/ui-mobile';
 import {
   cn,
@@ -34,12 +34,17 @@ import {
   weightUnitForSystem,
   WELLNESS_COPY,
 } from '@chefer/utils';
+import { Icon } from '../../../components/icon';
 import { NotificationsOffRow } from '../../../components/notifications-off-row';
 import { trpc } from '../../../lib/trpc';
 import { refreshNotificationPermission } from '../../../lib/use-notification-permission';
 import { useUnsavedGuard } from '../../../lib/use-unsaved-guard';
+import { useShellV2 } from '../../shell/shell-store';
+import { ProgramStep } from '../../shell/train/program-step';
+import { TrainButton } from '../../shell/train/train-button';
 import { captureGymEvent } from '../analytics';
 import { ExerciseNameLink } from '../components/exercise-name-link';
+import { exerciseCoverUrl, libraryImages } from '../library/exercise-image';
 import { ensureGymReminderPermission } from '../reminders/permission';
 import { gymBootstrapQueryKey } from '../use-gym-bootstrap';
 import { gymErrorMessage, startingWeightError } from '../validation-copy';
@@ -66,6 +71,11 @@ const WEEKDAY_LABELS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
  */
 const weightsAccessoryId = (exerciseId: string): string => `gym-setup-weights-bar-${exerciseId}`;
 
+// 11 Oct restyle: the shell's look — canvas, hairline surface cards, named
+// text styles, colour roles, TrainButton, and a brand chevron Back.
+/** The redesign's card: a surface on the canvas with a hairline border. */
+const CARD = 'gap-3 rounded-card border border-separator bg-surface p-4';
+
 function ProgressDots({ step }: { step: number }) {
   return (
     <View
@@ -78,7 +88,7 @@ function ProgressDots({ step }: { step: number }) {
           key={n}
           className={cn(
             'h-2 w-2 rounded-full',
-            n === step ? 'bg-primary' : n < step ? 'bg-primary/40' : 'bg-muted',
+            n === step ? 'bg-brand' : n < step ? 'bg-brand/40' : 'bg-surface-sunken',
           )}
         />
       ))}
@@ -92,10 +102,14 @@ function StepHeader({ title, description }: { title: string; description: string
       {/* Stable testID across every step (gym-mode.flow.yaml anchors on it to
           detect "setup opened on top of Today", same contract the G1-C
           placeholder shipped). */}
-      <Text testID="gym-setup-title" variant="title">
+      <Text
+        testID="gym-setup-title"
+        accessibilityRole="header"
+        className="text-title1 font-bold text-label"
+      >
         {title}
       </Text>
-      <Text variant="muted">{description}</Text>
+      <Text className="text-body text-label-secondary">{description}</Text>
     </View>
   );
 }
@@ -110,7 +124,18 @@ function parseWeekdaysParam(raw: string | undefined): number[] {
 }
 
 export function SetupWizard() {
+  const colors = useThemeColors();
   const queryClient = useQueryClient();
+  // The cached library (cache-only, never fetched here) gives the new-shell
+  // program days their cover photo — the first exercise that has one.
+  const cachedLibrary = useQuery<GymBootstrap>({
+    queryKey: gymBootstrapQueryKey,
+    queryFn: skipToken,
+  }).data?.library;
+  const imagesOf = useMemo(() => libraryImages(cachedLibrary), [cachedLibrary]);
+  // 10 Oct redesign (board GymSetup): in the new shell step 5 is drawn by
+  // `ProgramStep`; every other step, and step 5 in the old shell, is unchanged.
+  const shellV2 = useShellV2();
 
   // T-03.4 (UX-03 AC2/AC3): L-HOME's onboarding hands off to gym setup with
   // `?from=onboarding&days=0,2,4` when the user picked Train + a food job —
@@ -324,18 +349,46 @@ export function SetupWizard() {
 
   const canGoNext = step === 5 ? preview !== null : step === 6 ? !hasWeightErrors : true;
 
+  if (shellV2 && step === 5) {
+    return (
+      <ProgramStep
+        step={step}
+        totalSteps={TOTAL_STEPS}
+        onBack={goBack}
+        recommendation={recommendQuery.data}
+        isLoading={recommendQuery.isLoading}
+        isError={recommendQuery.isError}
+        onRetry={() => void recommendQuery.refetch()}
+        selectedKey={templateKey}
+        onSelect={(key) => {
+          if (key === templateKey) return;
+          // Same reset as legacy's "Use this": a new routine drops the old
+          // routine's weight guesses.
+          setOverrideKey(key);
+          setWeightsChoice(null);
+          setKnownWeights({});
+        }}
+        preview={preview}
+        sessionLengthMins={sessionLengthMins}
+        coverOf={(exerciseIds) => exerciseCoverUrl(exerciseIds, imagesOf)}
+        canGoNext={canGoNext}
+        onNext={goNext}
+      >
+        <ConfirmSheet testID="gym-setup-leave" {...guard.sheetProps} />
+      </ProgramStep>
+    );
+  }
+
   return (
-    <Screen className="px-0" edges={['top', 'bottom', 'left', 'right']}>
-      <View className="flex-row items-center gap-3 px-4 pt-2">
-        <Pressable
+    <Screen className="bg-canvas px-0" edges={['top', 'bottom', 'left', 'right']}>
+      <View className="mx-4 mt-3 min-h-11 flex-row items-center gap-3">
+        <IconButton
           testID="gym-setup-title-back"
-          accessibilityRole="button"
           accessibilityLabel="Back"
+          icon={<Icon name="chevronBack" color={colors.brand} size={26} />}
           onPress={goBack}
-          className="h-11 w-11 items-center justify-center rounded-full bg-gray-100"
-        >
-          <Ionicons name="chevron-back" size={22} color="#374151" />
-        </Pressable>
+          className="-ml-2"
+        />
         <View className="flex-1">
           <ProgressDots step={step} />
         </View>
@@ -349,32 +402,37 @@ export function SetupWizard() {
         testID="gym-setup-scroll"
         contentContainerClassName="gap-5 px-4 py-4"
         footer={
-          <View className="gap-2 border-t border-border px-4 pb-2 pt-3">
+          <View className="gap-2 border-t border-separator bg-surface px-4 pb-2 pt-3">
             {step === 4 && (
-              <Button variant="ghost" testID="gym-setup-skip" onPress={goNext}>
-                Skip
-              </Button>
+              <TrainButton variant="ghost" testID="gym-setup-skip" label="Skip" onPress={goNext} />
             )}
             {/* Advisory disclaimer (2026-10-02): shown where the user
                 accepts the suggested program, right above "Start training". */}
             {step === 7 && (
-              <Text testID="gym-setup-advisory-disclaimer" variant="muted" className="text-xs">
+              <Text
+                testID="gym-setup-advisory-disclaimer"
+                className="text-caption text-label-secondary"
+              >
                 {WELLNESS_COPY.gymAdvisoryDisclaimer}
               </Text>
             )}
             {step < 7 ? (
-              <Button testID="gym-setup-next" disabled={!canGoNext} onPress={goNext}>
-                Next
-              </Button>
+              <TrainButton
+                testID="gym-setup-next"
+                label="Next"
+                size="lg"
+                disabled={!canGoNext}
+                onPress={goNext}
+              />
             ) : (
-              <Button
+              <TrainButton
                 testID="gym-setup-finish"
+                label="Start training"
+                size="lg"
                 loading={completeSetupMutation.isPending}
                 disabled={!templateKey}
                 onPress={handleFinish}
-              >
-                Start training
-              </Button>
+              />
             )}
           </View>
         }
@@ -402,10 +460,13 @@ export function SetupWizard() {
               }}
             />
             <View className="gap-2">
-              <Text testID="gym-setup-length-title" className="font-semibold">
+              <Text
+                testID="gym-setup-length-title"
+                className="text-headline font-semibold text-label"
+              >
                 How long can a session usually be?
               </Text>
-              <Text variant="muted" className="text-sm">
+              <Text className="text-subhead text-label-secondary">
                 Optional. On a short day, Start can trim the workout to fit.
               </Text>
               <ChipGroup
@@ -453,7 +514,7 @@ export function SetupWizard() {
                 }
               }}
             />
-            <Text variant="muted" className="text-xs">
+            <Text className="text-caption text-label-secondary">
               &quot;New or returning&quot; means under 6 months of consistent lifting.
             </Text>
 
@@ -461,7 +522,9 @@ export function SetupWizard() {
                 the same screen, so step 5 can lead with the matching template. */}
             {experience === 'INTERMEDIATE' && (
               <View className="gap-2">
-                <Text variant="label">Do you already follow a split?</Text>
+                <Text className="text-headline font-semibold text-label">
+                  Do you already follow a split?
+                </Text>
                 <ChipGroup
                   testID="gym-setup-split"
                   options={[
@@ -525,7 +588,7 @@ export function SetupWizard() {
               }}
             />
             <View className="gap-2">
-              <Text variant="label">Units</Text>
+              <Text className="text-headline font-semibold text-label">Units</Text>
               <ChipGroup
                 testID="gym-setup-unit"
                 options={[
@@ -541,7 +604,7 @@ export function SetupWizard() {
                   }
                 }}
               />
-              <Text variant="muted" className="text-xs">
+              <Text className="text-caption text-label-secondary">
                 Also used for recipes, shopping lists and your body weight.
               </Text>
             </View>
@@ -609,7 +672,7 @@ export function SetupWizard() {
                     onChange={setReminderHour}
                     label="hour"
                   />
-                  <Text className="text-lg font-semibold">:</Text>
+                  <Text className="text-title3 font-semibold text-label">:</Text>
                   <Stepper
                     testID="gym-setup-reminder-minute"
                     accessibilityLabel="Reminder minute"
@@ -634,87 +697,90 @@ export function SetupWizard() {
               description="Editable later — this is just the start."
             />
             {recommendQuery.isLoading && (
-              <Text variant="muted" testID="gym-setup-preview-loading">
+              <Text className="text-body text-label-secondary" testID="gym-setup-preview-loading">
                 Finding your program…
               </Text>
             )}
             {recommendQuery.isError && (
-              <Card className="gap-3">
-                <Text testID="gym-setup-preview-offline" className="font-medium">
+              <View className={CARD}>
+                <Text
+                  testID="gym-setup-preview-offline"
+                  className="text-headline font-semibold text-label"
+                >
                   Setup needs a connection.
                 </Text>
-                <Text variant="muted">Reconnect and try again.</Text>
-                <Button
+                <Text className="text-subhead text-label-secondary">Reconnect and try again.</Text>
+                <TrainButton
                   testID="gym-setup-preview-retry"
+                  label="Try again"
                   onPress={() => void recommendQuery.refetch()}
-                >
-                  Try again
-                </Button>
-              </Card>
+                />
+              </View>
             )}
             {preview && (
               <>
-                <Card className="gap-2">
-                  <Text className="font-semibold">{preview.name}</Text>
+                <View className={cn(CARD, 'gap-2')}>
+                  <Text className="text-headline font-semibold text-label">{preview.name}</Text>
                   {whyText && (
-                    <Text testID="gym-setup-why" variant="muted">
+                    <Text testID="gym-setup-why" className="text-subhead text-label-secondary">
                       {whyText}
                     </Text>
                   )}
-                </Card>
+                </View>
                 {/* UX-05 B (T-05.2, AC3): alternatives sit right under the
                     program card as visible rows — never below the fold —
                     with the existing "Choose another program" sheet kept as
                     a second path to the full list. */}
                 {recommendQuery.data && recommendQuery.data.alternatives.length > 0 && (
                   <View className="gap-2" testID="gym-setup-alternatives-inline">
-                    <Text variant="label">Other programs that fit {days} days</Text>
+                    <Text className="px-4 text-subhead font-semibold text-label-secondary">
+                      Other programs that fit {days} days
+                    </Text>
                     {recommendQuery.data.alternatives.map((t) => (
-                      <Card
+                      <View
                         key={t.key}
                         testID={`gym-setup-alt-inline-${t.key}`}
-                        className="flex-row items-center justify-between gap-2"
+                        className={cn(CARD, 'flex-row items-center justify-between gap-2')}
                       >
                         <View className="min-w-0 flex-1">
-                          <Text className="font-medium">{t.name}</Text>
-                          <Text variant="muted" className="text-xs">
+                          <Text className="text-body font-semibold text-label">{t.name}</Text>
+                          <Text className="text-subhead text-label-secondary">
                             {t.daysPerWeek}× a week · {t.description}
                           </Text>
                         </View>
-                        <Button
+                        <TrainButton
                           testID={`gym-setup-alt-use-${t.key}`}
-                          size="sm"
-                          variant="outline"
+                          label="Use this"
+                          variant="tinted"
                           onPress={() => {
                             setOverrideKey(t.key);
                             setWeightsChoice(null);
                             setKnownWeights({});
                           }}
-                        >
-                          Use this
-                        </Button>
-                      </Card>
+                        />
+                      </View>
                     ))}
                   </View>
                 )}
                 <View className="gap-3">
                   {preview.days.map((day, i) => (
-                    <Card
+                    <View
                       key={`${day.name}-${i}`}
                       testID={`gym-setup-preview-day-${i}`}
-                      className="gap-2"
+                      className={cn(CARD, 'gap-2')}
                     >
-                      <View className="flex-row items-center justify-between">
-                        <Text className="font-semibold">{day.name}</Text>
-                        <Text variant="muted" className="text-xs">
+                      <View className="flex-row items-center justify-between gap-2">
+                        <Text className="min-w-0 flex-1 text-headline font-semibold text-label">
+                          {day.name}
+                        </Text>
+                        <Text className="text-caption text-label-secondary">
                           ~{day.estimatedMin} min
                         </Text>
                       </View>
                       {sessionLengthMins !== null && day.estimatedMin > sessionLengthMins ? (
                         <Text
                           testID={`gym-setup-preview-day-${i}-long`}
-                          variant="muted"
-                          className="text-xs"
+                          className="text-caption text-attention"
                         >
                           {`Longer than your ${String(sessionLengthMins)} min — pick a shorter time at Start and we’ll trim it.`}
                         </Text>
@@ -727,48 +793,47 @@ export function SetupWizard() {
                             name={ex.name}
                             numberOfLines={1}
                             className="flex-1 pr-2"
-                            textClassName="text-sm"
+                            textClassName="text-subhead"
                           />
-                          <Text variant="muted" className="text-xs">
+                          <Text className="text-caption text-label-secondary">
                             {ex.sets} ×{' '}
                             {ex.repMin === ex.repMax ? ex.repMin : `${ex.repMin}-${ex.repMax}`}
                           </Text>
                         </View>
                       ))}
-                    </Card>
+                    </View>
                   ))}
                 </View>
-                <Card className="gap-2" testID="gym-setup-volume">
-                  <Text className="font-semibold">Weekly balance</Text>
+                <View className={cn(CARD, 'gap-2')} testID="gym-setup-volume">
+                  <Text className="text-headline font-semibold text-label">Weekly balance</Text>
                   {preview.volume.map((v) => {
                     const pct = Math.min(100, (v.fractional / Math.max(1, v.productiveMax)) * 100);
                     return (
                       <View key={v.group} className="gap-1">
                         <View className="flex-row items-center justify-between">
-                          <Text className="text-xs">
+                          <Text className="text-caption text-label">
                             {VOLUME_GROUP_LABELS[v.group as VolumeGroup]}
                           </Text>
-                          <Text variant="muted" className="text-xs">
+                          <Text className="text-caption text-label-secondary">
                             {v.fractional} sets
                           </Text>
                         </View>
-                        <View className="h-1.5 rounded-full bg-muted">
+                        <View className="h-1.5 rounded-full bg-surface-sunken">
                           <View
-                            className="h-1.5 rounded-full bg-primary"
+                            className="h-1.5 rounded-full bg-brand"
                             style={{ width: `${pct}%` }}
                           />
                         </View>
                       </View>
                     );
                   })}
-                </Card>
-                <Button
+                </View>
+                <TrainButton
                   variant="outline"
                   testID="gym-setup-choose-alt"
+                  label="Choose another program"
                   onPress={() => setShowAlternatives(true)}
-                >
-                  Choose another program
-                </Button>
+                />
               </>
             )}
             <Sheet
@@ -788,10 +853,10 @@ export function SetupWizard() {
                     setKnownWeights({});
                     setShowAlternatives(false);
                   }}
-                  className="min-h-11 gap-1 border-b border-border py-3"
+                  className="min-h-11 gap-1 border-b border-separator py-3"
                 >
-                  <Text className="font-medium">{t.name}</Text>
-                  <Text variant="muted" className="text-xs">
+                  <Text className="text-body font-semibold text-label">{t.name}</Text>
+                  <Text className="text-subhead text-label-secondary">
                     {t.daysPerWeek}× a week · {t.description}
                   </Text>
                 </Pressable>
@@ -824,7 +889,7 @@ export function SetupWizard() {
               onChange={(v) => setWeightsChoice(v[0] ?? null)}
             />
             {weightsChoice === 'know' && exercises.length === 0 ? (
-              <Text testID="gym-setup-weights-none" variant="muted" className="text-sm">
+              <Text testID="gym-setup-weights-none" className="text-subhead text-label-secondary">
                 Nothing to enter: bodyweight exercises start from your reps.
               </Text>
             ) : null}
@@ -833,7 +898,7 @@ export function SetupWizard() {
                 {exercises.map((ex, i) => (
                   <View key={ex.exerciseId} className="gap-1">
                     <View className="flex-row items-center gap-3">
-                      <Text numberOfLines={1} className="min-w-0 flex-1 text-sm">
+                      <Text numberOfLines={1} className="min-w-0 flex-1 text-body text-label">
                         {ex.name}
                       </Text>
                       <Input
@@ -852,9 +917,7 @@ export function SetupWizard() {
                         className="w-24 text-right"
                         {...weightsChain.bind(i, { onFocus: scrollFieldIntoView })}
                       />
-                      <Text variant="muted" className="text-xs">
-                        {unitLabel(unit)}
-                      </Text>
+                      <Text className="text-caption text-label-secondary">{unitLabel(unit)}</Text>
                     </View>
                     <NumericReturnBar
                       nativeID={weightsAccessoryId(ex.exerciseId)}
@@ -866,7 +929,7 @@ export function SetupWizard() {
                       <Text
                         testID={`gym-setup-weight-error-${ex.exerciseId}`}
                         accessibilityLiveRegion="polite"
-                        className="text-right text-xs text-red-600"
+                        className="text-right text-caption text-danger"
                       >
                         {weightErrors[ex.exerciseId]}
                       </Text>
@@ -884,9 +947,11 @@ export function SetupWizard() {
               title="You're set"
               description="One last thing before your first session."
             />
-            <Card className="gap-1">
-              <Text className="font-semibold">{preview?.name ?? 'Your program'}</Text>
-              <Text variant="muted" className="text-xs">
+            <View className={cn(CARD, 'gap-1')}>
+              <Text className="text-headline font-semibold text-label">
+                {preview?.name ?? 'Your program'}
+              </Text>
+              <Text className="text-subhead text-label-secondary">
                 {days}× a week ·{' '}
                 {equipmentAccess === 'FULL_GYM'
                   ? 'Full gym'
@@ -894,13 +959,13 @@ export function SetupWizard() {
                     ? 'Dumbbells + bench'
                     : 'Bodyweight'}
               </Text>
-            </Card>
-            <Text testID="gym-setup-expectation" variant="muted">
+            </View>
+            <Text testID="gym-setup-expectation" className="text-body text-label-secondary">
               The first 6–8 weeks build the habit. Missing a session changes nothing. Aim for your
               weekly goal.
             </Text>
             {completeSetupMutation.isError && (
-              <Text className="text-sm text-red-600" testID="gym-setup-error">
+              <Text className="text-subhead text-danger" testID="gym-setup-error">
                 {gymErrorMessage(completeSetupMutation.error)}
               </Text>
             )}

@@ -29,7 +29,7 @@ import type { ChefProfileData, DietaryPreferencesData } from '../types';
 import { BudgetSection } from './budget-section';
 import { HouseholdSection } from './household-section';
 import { SafetySection } from './safety-section';
-import { TargetsSection } from './targets-section';
+import { TargetsSection, type NumbersSettings } from './targets-section';
 import { UnitsSection } from './units-section';
 
 // ─── Currency helpers (backlog P2-6) ──────────────────────────────────────────
@@ -70,6 +70,8 @@ interface PreferencesFormProps {
   dietaryPreferences: DietaryPreferencesData | null;
   /** Free users edit only the safety section; the rest renders locked (P1-2). */
   isPremium: boolean;
+  /** WP-08: the stored numbers mode and the resolved "show nutrition on Today" (the merged targets card). */
+  numbersSettings?: NumbersSettings | undefined;
 }
 
 // ─── Component ────────────────────────────────────────────────────────────────
@@ -78,6 +80,7 @@ export function PreferencesForm({
   chefProfile,
   dietaryPreferences,
   isPremium,
+  numbersSettings,
 }: PreferencesFormProps) {
   const initialCurrency = toDisplayCurrency(chefProfile?.deliveryCurrency);
   const initialUnits =
@@ -329,6 +332,7 @@ export function PreferencesForm({
             mealsPerDay: data.mealsPerDay,
           }}
           onChange={patch}
+          numbersSettings={numbersSettings}
         />
 
         {/* Weekly budget (P2-4) — generation treats it as a hard ceiling. */}

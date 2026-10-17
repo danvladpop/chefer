@@ -5,7 +5,7 @@ import { useMemo, useState } from 'react';
 import { trpc } from '@/lib/trpc';
 import type { GymBootstrap, SessionSummaryDto } from '@chefer/types';
 import { Button } from '@chefer/ui';
-import { collectPrs, groupSessionsByWeek, weekdayDateLabel } from '@chefer/utils';
+import { collectPrs, groupSessionsByWeek, sessionStatsOf, weekdayDateLabel } from '@chefer/utils';
 import { GymCard } from '../shared/gym-card';
 import { SessionOptionsMenu } from './SessionOptionsMenu';
 import { useDeleteWorkout } from './use-delete-workout';
@@ -19,21 +19,6 @@ const PAGE_SIZE = 10;
 
 function cursorOf(session: SessionSummaryDto): string {
   return `${session.startedAt}|${session.id}`;
-}
-
-function durationMin(session: SessionSummaryDto): number {
-  if (!session.finishedAt) return 0;
-  return Math.max(
-    0,
-    Math.round((Date.parse(session.finishedAt) - Date.parse(session.startedAt)) / 60000),
-  );
-}
-
-function workingSetCount(session: SessionSummaryDto): number {
-  return session.exercises.reduce(
-    (n, ex) => n + ex.sets.filter((s) => !s.isWarmup && s.completed).length,
-    0,
-  );
 }
 
 export function HistoryList({ data }: { data: GymBootstrap }) {
@@ -115,9 +100,8 @@ export function HistoryList({ data }: { data: GymBootstrap }) {
           </h2>
           <ul className="space-y-1.5">
             {group.sessions.map((session) => {
-              const min = durationMin(session);
-              const sets = workingSetCount(session);
-              const hasPr = prSessionIds.has(session.id);
+              // WP-20: an activity reads "45 min · ~400 kcal", never "1 sets".
+              const stats = sessionStatsOf(session, prSessionIds.has(session.id));
               const day = weekdayDateLabel(session.localDate);
               return (
                 <li
@@ -127,7 +111,7 @@ export function HistoryList({ data }: { data: GymBootstrap }) {
                 >
                   <Link
                     href={`/gym/history/${session.id}`}
-                    aria-label={`${session.name}, ${day}, ${min} minutes, ${sets} sets${hasPr ? ', personal record' : ''}`}
+                    aria-label={`${session.name}, ${day}, ${stats.spoken}`}
                     className="flex min-h-11 min-w-0 flex-1 items-center justify-between gap-2 rounded-xl py-3 pl-4 pr-1 hover:bg-gray-50"
                   >
                     <span className="min-w-0">
@@ -135,7 +119,7 @@ export function HistoryList({ data }: { data: GymBootstrap }) {
                         {session.name}
                       </span>
                       <span className="block text-xs text-gray-500">
-                        {`${day} · ${min} min · ${sets} sets${hasPr ? ' · PR' : ''}`}
+                        {`${day} · ${stats.text}`}
                       </span>
                     </span>
                     <span className="text-[#944a00]" aria-hidden="true">

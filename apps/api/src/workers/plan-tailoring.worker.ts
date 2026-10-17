@@ -2,6 +2,7 @@ import {
   planTailoringService,
   type PlanTailoringService,
 } from '../application/meal-plan/plan-tailoring.service.js';
+import { backgroundAiAllowed } from '../lib/ai/budget-gate.js';
 import { runOutsideAiCallContext } from '../lib/ai/call-context.js';
 import { onTailoringQueued } from '../lib/plan-tailoring-signal.js';
 
@@ -25,8 +26,12 @@ export class PlanTailoringWorker {
   /** A wake-up that arrived mid-pass: look again before the pass ends. */
   private rerun = false;
 
+  /** Set while paused by the global AI budget, so the pause is logged once. */
+  private pausedLogged = false;
+
   constructor(
     private readonly service: Pick<PlanTailoringService, 'runNext'> = planTailoringService,
+    private readonly backgroundAllowed: () => Promise<boolean> = backgroundAiAllowed,
   ) {}
 
   start(): void {
@@ -46,8 +51,27 @@ export class PlanTailoringWorker {
   wake(): void {
     if (this.stopping) return;
     runOutsideAiCallContext(() => {
-      void this.tick();
+      void this.gatedTick();
     });
+  }
+
+  /**
+   * Global AI kill-switch (Phase 2): while today's global AI budget is used
+   * up, jobs wait in the queue until the next UTC day — the poll looks again
+   * every few seconds (a cached, in-memory check).
+   */
+  private async gatedTick(): Promise<void> {
+    if (!(await this.allowed())) return;
+    await this.tick();
+  }
+
+  private async allowed(): Promise<boolean> {
+    const ok = await this.backgroundAllowed();
+    if (!ok && !this.pausedLogged) {
+      console.warn('[PlanTailoringWorker] paused — today’s global AI budget is used up');
+    }
+    this.pausedLogged = !ok;
+    return ok;
   }
 
   async stop(): Promise<void> {
@@ -72,8 +96,11 @@ export class PlanTailoringWorker {
     }
     this.running = true;
     try {
-      for (;;) {
+      for (let steps = 0; ; steps++) {
         if (this.stopping) break;
+        // The budget can run out mid-pass: re-checked before every further
+        // step (the first is checked by gatedTick).
+        if (steps > 0 && !(await this.allowed())) break;
         const step = this.service.runNext();
         this.inFlight = step.then(
           () => undefined,

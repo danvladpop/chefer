@@ -1,16 +1,7 @@
 import { useMemo, useState } from 'react';
 import { View } from 'react-native';
 import type { E1rmSeriesDto, ExerciseDto, GymBootstrap, StatsRange } from '@chefer/types';
-import {
-  Button,
-  Card,
-  CardTitle,
-  Chip,
-  EmptyState,
-  LineChart,
-  SegmentedControl,
-  Text,
-} from '@chefer/ui-mobile';
+import { Chip, EmptyState, LineChart, SegmentedControl, Text } from '@chefer/ui-mobile';
 import {
   bodyweightOn,
   formatLoad,
@@ -23,6 +14,8 @@ import {
 } from '@chefer/utils';
 import { GlossaryTerm } from '../../../components/glossary-term';
 import { trpc } from '../../../lib/trpc';
+import { TrainButton } from '../../shell/train/train-button';
+import { TrainCard } from '../../shell/train/train-cards';
 import { useIsOnline } from '../library-screens/online-status';
 import { ExercisePicker } from '../library/exercise-picker';
 import { localE1rmSeries, topCompoundsByFrequency } from './local-engine';
@@ -41,6 +34,14 @@ const RANGE_OPTIONS: { value: StatsRange; label: string }[] = [
 /** Range longer than the bootstrap's ~12-week `recentSessions` window needs the API series. */
 function needsApiSeries(range: StatsRange): boolean {
   return range !== '3m';
+}
+
+function CardHeading() {
+  return (
+    <Text accessibilityRole="header" className="text-headline font-semibold text-label">
+      Strength trend
+    </Text>
+  );
 }
 
 export function StrengthTrendView({ bootstrap }: { bootstrap: GymBootstrap }) {
@@ -118,21 +119,21 @@ export function StrengthTrendView({ bootstrap }: { bootstrap: GymBootstrap }) {
 
   if (defaults.length === 0) {
     return (
-      <Card testID="stats-strength-trend-empty">
-        <CardTitle>Strength trend</CardTitle>
+      <TrainCard testID="stats-strength-trend-empty">
+        <CardHeading />
         <EmptyState
           testID="stats-strength-trend-empty-state"
           title="Log your first workout to see your trend"
           description="Your top lifts will show up here once you've logged a few sessions."
         />
-      </Card>
+      </TrainCard>
     );
   }
 
   return (
-    <Card testID="stats-strength-trend">
-      <CardTitle>Strength trend</CardTitle>
-      <View className="mb-3 flex-row flex-wrap items-center gap-2">
+    <TrainCard testID="stats-strength-trend">
+      <CardHeading />
+      <View className="flex-row flex-wrap items-center gap-2">
         {defaults.map((ex) => (
           <Chip
             key={ex.id}
@@ -142,14 +143,13 @@ export function StrengthTrendView({ bootstrap }: { bootstrap: GymBootstrap }) {
             onPress={() => setSelected(ex)}
           />
         ))}
-        <Button
+        <TrainButton
           testID="stats-strength-choose-exercise"
-          size="sm"
-          variant="secondary"
+          label="Choose…"
+          icon="search"
+          variant="tinted"
           onPress={() => setPickerOpen(true)}
-        >
-          Choose…
-        </Button>
+        />
       </View>
 
       <SegmentedControl
@@ -158,14 +158,11 @@ export function StrengthTrendView({ bootstrap }: { bootstrap: GymBootstrap }) {
         value={range}
         onChange={setRange}
         accessibilityLabel="Range"
-        className="mb-3"
       />
 
       {/* UX-05 F (CI-36): captions the chart so "e1RM" is never unexplained. */}
-      <View className="mb-1 flex-row flex-wrap items-center gap-1">
-        <Text variant="muted" className="text-xs">
-          Estimated 1-rep max
-        </Text>
+      <View className="-mb-2 flex-row flex-wrap items-center gap-1">
+        <Text className="text-caption text-label-secondary">Estimated 1-rep max</Text>
         <GlossaryTerm
           term="(e1RM)"
           title={GLOSSARY.e1rm?.term ?? 'Estimated 1RM'}
@@ -174,7 +171,7 @@ export function StrengthTrendView({ bootstrap }: { bootstrap: GymBootstrap }) {
             'Your estimated one-rep max, worked out from your recent sets.'
           }
           testID="stats-strength-e1rm-term"
-          className="text-xs text-muted-foreground"
+          className="text-caption text-label-secondary"
         />
       </View>
 
@@ -192,14 +189,14 @@ export function StrengthTrendView({ bootstrap }: { bootstrap: GymBootstrap }) {
           the shared LineChart has no tap-tooltip yet, so this names the
           latest point (usually the one someone wants) until it does. */}
       {latestPoint ? (
-        <Text testID="stats-strength-point-detail" variant="muted" className="mt-1 text-xs">
+        <Text testID="stats-strength-point-detail" className="text-caption text-label-secondary">
           {formatLocalDateLong(latestPoint.localDate)} ·{' '}
           {formatLoad(latestPoint.weightKg, unit, exercise?.loadType)} × {latestPoint.reps} → e1RM{' '}
           {formatLoad(latestPoint.e1rmKg, unit)}
         </Text>
       ) : null}
 
-      <View className="mt-3 flex-row flex-wrap gap-2">
+      <View className="flex-row flex-wrap gap-2">
         <Chip
           testID="stats-strength-bodyweight-toggle"
           label="Bodyweight overlay"
@@ -217,13 +214,16 @@ export function StrengthTrendView({ bootstrap }: { bootstrap: GymBootstrap }) {
       </View>
 
       {!hasAnyBodyweight ? (
-        <Text testID="stats-strength-relative-disabled" variant="muted" className="mt-2 text-xs">
+        <Text
+          testID="stats-strength-relative-disabled"
+          className="text-caption text-label-secondary"
+        >
           Log your weight below to compare your strength with your body weight.
         </Text>
       ) : null}
 
       {relativeStrength ? (
-        <Text testID="stats-strength-relative-note" variant="muted" className="mt-2 text-xs">
+        <Text testID="stats-strength-relative-note" className="text-caption text-label-secondary">
           Estimated 1-rep max divided by your body weight at the time (× body weight).
         </Text>
       ) : null}
@@ -241,6 +241,6 @@ export function StrengthTrendView({ bootstrap }: { bootstrap: GymBootstrap }) {
         title="Choose a lift"
         testID="stats-strength-picker"
       />
-    </Card>
+    </TrainCard>
   );
 }

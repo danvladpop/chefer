@@ -184,9 +184,9 @@ describe('PlanSettingsSheet', () => {
   });
 
   // T-06.8 (UX-06 §4): `Fit meals to my training days` is a premium switch and
-  // a locked preview for free.
-  it('premium: the fit-training-days switch reports its change to the page', () => {
-    const onFit = vi.fn();
+  // a locked preview for free. T-06.7 follow-up: it is saved with the shape.
+  it('premium: the fit-training-days switch starts on when never chosen and saves with the shape', () => {
+    mocks.shapeData = { ...LEGACY_SHAPE, fitTrainingDays: null } as typeof LEGACY_SHAPE;
     render(
       <PlanSettingsSheet
         open
@@ -195,14 +195,31 @@ describe('PlanSettingsSheet', () => {
         weekLabel="this week"
         isPremium
         onSaved={vi.fn()}
-        fitTrainingDays
-        onFitTrainingDaysChange={onFit}
       />,
     );
     const sw = screen.getByRole('switch', { name: 'Fit meals to my training days' });
     expect((sw as HTMLInputElement).checked).toBe(true);
     fireEvent.click(sw);
-    expect(onFit).toHaveBeenCalledWith(false);
+    expect((sw as HTMLInputElement).checked).toBe(false);
+    expect(mocks.setShapeMutate).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByTestId('plan-settings-save'));
+    expect(mocks.setShapeMutate.mock.calls[0]?.[0]).toMatchObject({ fitTrainingDays: false });
+  });
+
+  it('premium: the switch shows the saved choice', () => {
+    mocks.shapeData = { ...LEGACY_SHAPE, fitTrainingDays: false } as typeof LEGACY_SHAPE;
+    render(
+      <PlanSettingsSheet
+        open
+        onClose={vi.fn()}
+        hasPlan={false}
+        weekLabel="this week"
+        isPremium
+        onSaved={vi.fn()}
+      />,
+    );
+    const sw = screen.getByRole('switch', { name: 'Fit meals to my training days' });
+    expect((sw as HTMLInputElement).checked).toBe(false);
   });
 
   it('free: the switch is disabled with a lock and a See what Premium adds link', () => {

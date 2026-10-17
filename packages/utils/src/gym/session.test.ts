@@ -6,6 +6,7 @@ import type {
   SessionSummaryDto,
   WorkoutSessionDoc,
 } from '@chefer/types';
+import { buildActivityLogDoc } from './activity-log';
 import { foldHistory, prescribe, progressionKey, repBucket } from './progression';
 import {
   applyFinishedSession,
@@ -953,6 +954,24 @@ describe('applyFinishedSession — the offline optimistic fold', () => {
         }),
       );
     }
+  });
+
+  it('WP-20: a quick-logged activity counts for the week but folds no progression and moves no rotation', () => {
+    const boot = bootstrapFor('2026-09-15');
+    const doc = buildActivityLogDoc({
+      input: { presetKey: 'yoga', localDate: '2026-09-15', durationMin: 60, caloriesKcal: 200 },
+      id: '11111111-1111-4111-8111-111111111111',
+      newId: () => crypto.randomUUID(),
+      startAt: '2026-09-15T08:00:00.000Z',
+      now: '2026-09-15T20:00:00.000Z',
+    });
+    const next = applyFinishedSession({ bootstrap: boot, doc, lookup, facts, today: '2026-09-15' });
+
+    expect(next.recentSessions[0]?.id).toBe(doc.id);
+    expect(next.streak.thisWeekSessions).toBe(1);
+    expect(next.progressions).toEqual(boot.progressions);
+    expect(next.activeRoutine?.nextDayId).toBe(boot.activeRoutine?.nextDayId);
+    expect(next.nextWorkout?.dayId).toBe(boot.nextWorkout?.dayId);
   });
 
   it('T-36.3: carries an explicitly-moved exercise into the next workout, then consumes it', () => {

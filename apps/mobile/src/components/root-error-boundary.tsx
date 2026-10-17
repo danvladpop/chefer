@@ -1,7 +1,14 @@
 import { useState } from 'react';
 import { TextInput, View } from 'react-native';
 import type { ErrorBoundaryProps } from 'expo-router';
-import { Button, ErrorState, KeyboardAwareScrollView, Screen, Text } from '@chefer/ui-mobile';
+import {
+  Button,
+  ErrorState,
+  KeyboardAwareScrollView,
+  Screen,
+  Text,
+  useKeyboardDoneBar,
+} from '@chefer/ui-mobile';
 import { FEEDBACK_MAX_LENGTH } from '@chefer/utils';
 import {
   buildFeedbackContext,
@@ -23,6 +30,7 @@ function ReportThis({ error }: { error: Error }) {
   const [open, setOpen] = useState(false);
   const [message, setMessage] = useState(() => errorReportDraft(error));
   const [status, setStatus] = useState<ReportStatus>('idle');
+  const done = useKeyboardDoneBar();
 
   if (status === 'sent') {
     return (
@@ -68,8 +76,10 @@ function ReportThis({ error }: { error: Error }) {
         accessibilityLabel="Add what you were doing"
         accessibilityLabelledBy="root-error-report-label"
         multiline
+        inputAccessoryViewID={done.inputAccessoryViewID}
         className="min-h-28 rounded-md border border-input bg-background px-3 py-2 text-base text-foreground"
       />
+      {done.bar}
       {status === 'failed' ? (
         <Text testID="root-error-report-failed" className="text-sm text-red-600">
           Couldn&apos;t send that. Check your connection and sign-in, then try again.

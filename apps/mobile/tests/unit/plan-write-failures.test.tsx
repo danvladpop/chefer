@@ -78,7 +78,8 @@ describe('Plan: pin and Undo failures (UX-PLAN-14)', () => {
       }),
       testQueryClient(),
     );
-    await user.press(await screen.findByTestId('plan-regenerate-action'));
+    await user.press(await screen.findByTestId('plan-week-options'));
+    await user.press(await screen.findByTestId('plan-week-options-regenerate'));
     await user.press(await screen.findByTestId('regenerate-confirm-confirm'));
     await user.press(await screen.findByText('Undo'));
     expect(await screen.findByText(/Couldn't bring your previous week back/)).toBeOnTheScreen();
@@ -94,7 +95,8 @@ describe('Plan: pin and Undo failures (UX-PLAN-14)', () => {
       base({ 'mealPlan.setSlotPinned': serverDown }),
       testQueryClient(),
     );
-    await user.press(await screen.findByTestId('plan-meal-pin-dinner'));
+    await user.press(await screen.findByTestId('plan-slot-actions-0'));
+    await user.press(await screen.findByTestId('slot-action-pin'));
     expect(await screen.findByText(/Couldn't update that pin/)).toBeOnTheScreen();
   });
 
@@ -110,7 +112,7 @@ describe('Plan: pin and Undo failures (UX-PLAN-14)', () => {
       }),
       testQueryClient(),
     );
-    await screen.findByTestId('plan-meal-pin-dinner');
+    await screen.findByTestId('plan-meal-dinner');
     expect(loads).toBe(1);
     const { refreshControl } = screen.getByTestId('plan-day-scroll').props as {
       refreshControl: { props: { onRefresh: () => void } };

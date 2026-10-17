@@ -1,7 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { consentEventRepository, Prisma, prisma } from '@chefer/database';
+import { consentEventRepository, Prisma, prisma, uploadedFileRepository } from '@chefer/database';
 import { posthogAdmin } from '../../infrastructure/analytics/posthog-admin.js';
 import { deleteUploadedFiles } from '../../lib/uploads/uploaded-files.js';
+import { socialAuthService } from '../auth/social-auth.service.js';
 import { emailPreferencesService } from '../notifications/email-preferences.service.js';
 import { deleteAccount, exportAccountData } from './account-data.service.js';
 
@@ -24,6 +25,7 @@ vi.mock('@chefer/database', async (importOriginal) => {
       findAllByUser: vi.fn(async () => []),
       findLatestByKind: vi.fn(async () => null),
     },
+    uploadedFileRepository: { fileNamesForUser: vi.fn(async () => []) },
     prisma: {
       user: {
         findUnique: vi.fn(),
@@ -78,6 +80,7 @@ vi.mock('@chefer/database', async (importOriginal) => {
       coachingLink: { findMany: emptyFindMany() },
       coachingInvite: { findMany: emptyFindMany() },
       coachingNote: { findMany: emptyFindMany() },
+      authIdentity: { findMany: emptyFindMany() },
       $transaction: vi.fn(),
     },
   };
@@ -89,6 +92,13 @@ vi.mock('../../lib/uploads/uploaded-files.js', () => ({
 
 vi.mock('../notifications/email-preferences.service.js', () => ({
   emailPreferencesService: { get: vi.fn() },
+}));
+
+vi.mock('../auth/social-auth.service.js', () => ({
+  socialAuthService: {
+    identitiesForDeletion: vi.fn(async () => []),
+    revokeAppleGrants: vi.fn(async () => undefined),
+  },
 }));
 
 vi.mock('../../infrastructure/analytics/posthog-admin.js', () => ({
@@ -106,6 +116,8 @@ beforeEach(() => {
     .mockResolvedValue([] as never);
   vi.mocked(consentEventRepository.findLatestByKind).mockReset().mockResolvedValue(null);
   vi.mocked(posthogAdmin.deletePerson).mockClear();
+  vi.mocked(socialAuthService.identitiesForDeletion).mockReset().mockResolvedValue([]);
+  vi.mocked(socialAuthService.revokeAppleGrants).mockReset().mockResolvedValue(undefined);
 });
 
 function transactionOps(): Op[] {
@@ -189,6 +201,51 @@ describe('deleteAccount', () => {
       null,
       'https://x.dev/uploads/i1.png',
     ]);
+  });
+
+  it('also removes every photo in the uploads ledger (Phase 1 guardrails)', async () => {
+    vi.mocked(prisma.user.findUnique).mockResolvedValue({ email: 'a@test.dev' } as never);
+    vi.mocked(prisma.mealPlan.findMany).mockResolvedValue([] as never);
+    vi.mocked(prisma.recipe.findMany).mockResolvedValue([] as never);
+    vi.mocked(prisma.ingredientPrice.findMany).mockResolvedValue([] as never);
+    vi.mocked(uploadedFileRepository.fileNamesForUser).mockResolvedValueOnce(['f1.jpg']);
+
+    await deleteAccount('u1');
+
+    expect(uploadedFileRepository.fileNamesForUser).toHaveBeenCalledWith('u1');
+    expect(deleteUploadedFiles).toHaveBeenCalledWith([undefined, '/uploads/f1.jpg']);
+  });
+
+  describe('WP-22: Sign in with Apple grants', () => {
+    it('reads the identities BEFORE the cascade and revokes them after the commit', async () => {
+      const identities = [{ id: 'i1', provider: 'APPLE' }] as never;
+      vi.mocked(prisma.user.findUnique).mockResolvedValue({ email: 'a@test.dev' } as never);
+      vi.mocked(prisma.mealPlan.findMany).mockResolvedValue([] as never);
+      vi.mocked(socialAuthService.identitiesForDeletion).mockResolvedValue(identities);
+      const order: string[] = [];
+      vi.mocked(prisma.$transaction).mockImplementation(async () => {
+        order.push('commit');
+        return [];
+      });
+      vi.mocked(socialAuthService.revokeAppleGrants).mockImplementation(async () => {
+        order.push('revoke');
+      });
+
+      await deleteAccount('u1');
+
+      expect(socialAuthService.identitiesForDeletion).toHaveBeenCalledWith('u1');
+      expect(socialAuthService.revokeAppleGrants).toHaveBeenCalledWith(identities);
+      expect(order).toEqual(['commit', 'revoke']);
+    });
+
+    it('does not revoke when the deletion fails', async () => {
+      vi.mocked(prisma.user.findUnique).mockResolvedValue({ email: 'a@test.dev' } as never);
+      vi.mocked(prisma.mealPlan.findMany).mockResolvedValue([] as never);
+      vi.mocked(prisma.$transaction).mockRejectedValue(new Error('boom'));
+
+      await expect(deleteAccount('u1')).rejects.toThrow('boom');
+      expect(socialAuthService.revokeAppleGrants).not.toHaveBeenCalled();
+    });
   });
 
   describe('T-12.5: deletion of linked analytics events', () => {

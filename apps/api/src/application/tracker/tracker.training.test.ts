@@ -88,12 +88,12 @@ describe('tracker.getDay — training-day targets', () => {
     expect(day.adjustedTargets!.proteinG).toBe(144 + 32);
   });
 
-  it('free, training day: the line is a locked preview and targets stay at the base', async () => {
+  it('free, training day: applied like premium (WP-07: training-day targets are free)', async () => {
     profile('GAIN_MUSCLE');
     const day = await trackerService.getDay('u1', '2026-09-28', user('FREE'));
-    expect(day.trainingDay).toMatchObject({ isTrainingDay: true, applied: false });
+    expect(day.trainingDay).toMatchObject({ isTrainingDay: true, applied: true });
     expect(day.trainingDay!.kcalBonus).toBeGreaterThanOrEqual(150);
-    expect(day.adjustedTargets).toBeUndefined();
+    expect(day.adjustedTargets!.proteinG).toBe(144 + 32);
   });
 
   it('rest day: flagged, nothing added', async () => {

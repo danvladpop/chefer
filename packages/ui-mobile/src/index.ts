@@ -7,6 +7,7 @@ export {
 } from './components/avatar';
 export { Badge, type BadgeProps } from './components/badge';
 export { Button, buttonVariants, type ButtonProps } from './components/button';
+export { withLabelSlack } from './components/label-slack';
 export { Card, CardTitle, type CardProps } from './components/card';
 export {
   ChangeNoticeCard,
@@ -47,20 +48,43 @@ export { Input, type InputProps } from './components/input';
 export {
   KeyboardAwareScrollView,
   KEYBOARD_AWARE_DEFAULT_MARGIN,
+  keyboardDismissMode,
   useScrollFieldIntoView,
   useScrollFieldIntoViewFor,
   type KeyboardAwareScrollViewProps,
   type ScrollFieldIntoView,
 } from './components/keyboard-aware-scroll-view';
 export {
+  keyboardBottomInset,
   useKeyboardInset,
   type KeyboardInset,
   type UseKeyboardInsetOptions,
 } from './components/use-keyboard-inset';
+export {
+  HERO_MAX_HEIGHT_FRACTION,
+  READABLE_MAX_WIDTH,
+  READABLE_MIN_GUTTER,
+  SHEET_MAX_WIDTH,
+  heroHeight,
+  heroMaxWidth,
+  readableContentWidth,
+  readableGutter,
+  useReadableLayout,
+  type ReadableLayout,
+} from './components/readable-layout';
 export { PasswordInput, type PasswordInputProps } from './components/password-input';
-export { NumericReturnBar, type NumericReturnBarProps } from './components/numeric-return-bar';
+export {
+  DONE_FIELD_PROPS,
+  KeyboardDoneBar,
+  NumericReturnBar,
+  hasNoReturnKey,
+  useKeyboardDoneBar,
+  type NumericReturnBarProps,
+} from './components/numeric-return-bar';
+export { EMAIL_FIELD_PROPS } from './components/email-field-props';
 export { ProgressBar, type ProgressBarProps } from './components/progress-bar';
 export { ProgressRing, type ProgressRingProps } from './components/progress-ring';
+export { Biscuit, type BiscuitProps } from './components/biscuit';
 export { Screen, type ScreenProps } from './components/screen';
 export {
   SegmentedControl,
@@ -96,8 +120,12 @@ export {
 export {
   Snackbar,
   SNACKBAR_MIN_RESUME_MS,
+  SNACKBAR_OUTSIDE_TOUCH_GRACE_MS,
   SNACKBAR_TAP_SHIELD_MS,
+  SnackbarTouchBoundary,
+  noteTouchForSnackbar,
   resetSnackbarForTests,
+  snackbarSwipeRelease,
   setSnackbarTabBarHeight,
   showSnackbar,
   useSnackbar,
@@ -158,6 +186,28 @@ export {
 } from './components/charts/week-grid';
 // Motion (docs/audit-2026-09/motion-system.md; tokens in @chefer/tokens)
 export { CountUp, useCountUp, type CountUpProps } from './motion/count-up';
+export { AnimatedCheck, CHECK_PATH_LENGTH, type AnimatedCheckProps } from './motion/animated-check';
+export {
+  Celebration,
+  CELEBRATION_PARTICLES,
+  makeParticles,
+  type CelebrationProps,
+} from './motion/celebration';
+export {
+  ENTER_RISE,
+  enterFromSide,
+  enterUp,
+  listEntering,
+  listExiting,
+  listLayout,
+  resetEntrancesForTests,
+  useFirstEntrance,
+} from './motion/enter';
+export { FLOAT_UP_RISE, FloatUp, type FloatUpProps } from './motion/float-up';
+export { PopIn, type PopInProps } from './motion/pop-in';
+export { Rotate, type RotateProps } from './motion/rotate';
+export { Stagger, type StaggerProps } from './motion/stagger';
+export { StrikeLine, type StrikeLineProps } from './motion/strike-line';
 export { haptics } from './motion/haptics';
 export { duration, springs, timing } from './motion/motion';
 export {
@@ -177,3 +227,37 @@ export {
 } from './motion/progress';
 export { useProgressValue } from './motion/use-progress-value';
 export { useReducedMotion } from './motion/use-reduced-motion';
+// Revamp design system (docs/mobile-ux-revamp/plan.md, "Design system")
+export { IconButton, type IconButtonProps } from './components/icon-button';
+export { LargeHeader, type LargeHeaderProps } from './components/large-header';
+export { ListRow, ListSection, type ListRowProps, type ListSectionProps } from './components/list';
+export { SurfaceCard, type SurfaceCardProps } from './components/surface-card';
+export { useThemeColors } from './hooks/use-theme-colors';
+// 10 Oct redesign (docs/design/feedback/2026-10-10): shared tiles, gauge, macros
+export { CalorieGauge, type CalorieGaugeProps } from './components/calorie-gauge';
+export { DayStrip, type DayStripDay, type DayStripProps } from './components/day-strip';
+export { EntryCard, type EntryCardProps } from './components/entry-card';
+export {
+  MACRO_META,
+  MacroRow,
+  MacroTiles,
+  type MacroKey,
+  type MacroRowProps,
+  type MacroTilesProps,
+} from './components/macro';
+export {
+  MediaFrame,
+  MediaRow,
+  MediaTile,
+  TileGrid,
+  type MediaFrameProps,
+  type MediaRowProps,
+  type MediaTileProps,
+  type TileGridProps,
+} from './components/media-tile';
+export {
+  StatTile,
+  StatTiles,
+  type StatTileProps,
+  type StatTilesProps,
+} from './components/stat-tile';

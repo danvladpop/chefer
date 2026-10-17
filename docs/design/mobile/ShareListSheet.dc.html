@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Shop — Send the list</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+body{margin:0}
+a{color:#944a00;text-decoration:none}a:hover{color:#6e3700}
+input::placeholder,textarea::placeholder{color:#9ca3af}
+</style>
+</helmet>
+<div style="width: 390px; height: 844px; position: relative; overflow: hidden; background: #FFFFFF; font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Helvetica Neue', system-ui, sans-serif; color: #1C1917; display: flex; flex-direction: column">
+  <div style="height: 47px; flex: none"></div>
+
+  <a href="Shop.dc.html" aria-label="Close Send the list" style="position: absolute; inset: 0; background: rgba(0,0,0,.4)"></a>
+
+  <section role="dialog" aria-label="Send the list" style="margin-top: auto; position: relative; flex: none; background: #FFFFFF; border-radius: 21px 21px 0 0; box-shadow: 0 -4px 12px -4px rgba(67,42,25,.08), 0 -16px 40px -12px rgba(67,42,25,.18); display: flex; flex-direction: column">
+    <div style="width: 40px; height: 3.5px; border-radius: 9999px; background: #D1D5DB; margin: 7px auto 0; flex: none"></div>
+    <div style="padding: 10.5px 14px 7px; display: flex; align-items: center; justify-content: space-between; gap: 10.5px">
+      <h2 style="margin: 0; flex: 1; min-width: 0; font-size: 19px; line-height: 26px; font-weight: 600; color: #020817">Send the list</h2>
+      <a href="Shop.dc.html" aria-label="Close" style="width: 44px; height: 44px; flex: none; border-radius: 9999px; background: #F3F4F6; color: #374151; font-size: 19px; font-weight: 600; display: flex; align-items: center; justify-content: center; text-decoration: none">✕</a>
+    </div>
+
+    <div style="padding: 0 14px 14px; display: flex; flex-direction: column; gap: 10.5px">
+      <div role="radiogroup" aria-label="What to send" style="display: flex; flex-direction: column">
+        <button type="button" role="radio" aria-checked="true" style="min-height: 44px; border: none; background: transparent; padding: 0; font: inherit; text-align: left; display: flex; align-items: center; gap: 10.5px">
+          <span aria-hidden="true" style="width: 17.5px; height: 17.5px; flex: none; box-sizing: border-box; border-radius: 9999px; border: 2px solid #944A00; display: flex; align-items: center; justify-content: center"><span style="width: 8.75px; height: 8.75px; border-radius: 9999px; background: #944A00"></span></span>
+          <span style="flex: 1; min-width: 0; font-size: 17px; line-height: 24px; color: #020817">What’s left to buy · 19 items</span>
+        </button>
+        <button type="button" role="radio" aria-checked="false" style="min-height: 44px; border: none; background: transparent; padding: 0; font: inherit; text-align: left; display: flex; align-items: center; gap: 10.5px">
+          <span aria-hidden="true" style="width: 17.5px; height: 17.5px; flex: none; box-sizing: border-box; border-radius: 9999px; border: 2px solid #D1D5DB"></span>
+          <span style="flex: 1; min-width: 0; font-size: 17px; line-height: 24px; color: #020817">Everything · 23 items</span>
+        </button>
+      </div>
+      <div style="min-height: 44px; display: flex; align-items: center; justify-content: space-between; gap: 10.5px">
+        <span style="flex: 1; min-width: 0; font-size: 17px; line-height: 24px; color: #020817">Include amounts</span>
+        <button type="button" role="switch" aria-checked="true" aria-label="Include amounts" style="width: 51px; height: 31px; flex: none; border: none; border-radius: 9999px; background: #944A00; padding: 2px; display: flex; align-items: center; justify-content: flex-end"><span style="width: 27px; height: 27px; border-radius: 9999px; background: #FFFFFF; box-shadow: 0 2px 4px rgba(0,0,0,.2)"></span></button>
+      </div>
+      <div style="min-height: 44px; display: flex; align-items: center; justify-content: space-between; gap: 10.5px">
+        <span style="flex: 1; min-width: 0; font-size: 17px; line-height: 24px; color: #020817">Add next week’s dinners</span>
+        <button type="button" role="switch" aria-checked="false" aria-label="Add next week’s dinners" style="width: 51px; height: 31px; flex: none; border: none; border-radius: 9999px; background: #D1D5DB; padding: 2px; display: flex; align-items: center; justify-content: flex-start"><span style="width: 27px; height: 27px; border-radius: 9999px; background: #FFFFFF; box-shadow: 0 2px 4px rgba(0,0,0,.2)"></span></button>
+      </div>
+    </div>
+
+    <div style="border-top: 1px solid #E2E8F0; padding: 10.5px 14px 0">
+      <button type="button" style="width: 100%; min-height: 44px; border: none; border-radius: 5.25px; background: #944A00; padding: 7px 14px; font: inherit; font-size: 16px; font-weight: 500; color: #FCF9F5">Share…</button>
+    </div>
+    <div style="height: 34px; flex: none"></div>
+  </section>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":844}}'>
+class Component extends DCLogic {
+renderVals() {
+return {};
+}
+}
+</script>
+</body>
+</html>

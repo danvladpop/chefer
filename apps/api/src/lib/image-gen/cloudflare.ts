@@ -1,3 +1,4 @@
+import { backgroundAiAllowed } from '../ai/budget-gate.js';
 import { CF_IMAGE_NEURONS_ESTIMATE, cloudflareNeuronLedger } from '../ai/cloudflare-budget.js';
 import { logAiUsage } from '../ai/usage.js';
 import { ImagenRateLimitError, ImageQuotaExhaustedError, ImageStorageError } from './errors.js';
@@ -40,6 +41,15 @@ export class CloudflareImageService implements IRecipeImageService {
   constructor(private readonly config: CloudflareImageConfig) {}
 
   async generate(input: RecipeImageInput): Promise<string> {
+    // Global AI kill-switch (lib/ai-budget): once today's AI spend reaches
+    // AI_GLOBAL_DAILY_USD, background AI pauses until 00:00 UTC — the same
+    // answer as an exhausted daily allocation, so the worker serves the free
+    // Pollinations fallback for the rest of the day.
+    if (!(await backgroundAiAllowed())) {
+      throw new ImageQuotaExhaustedError(
+        "today's global AI budget (AI_GLOBAL_DAILY_USD) is reached — background AI is paused until 00:00 UTC",
+      );
+    }
     const prompt = buildRecipeImagePrompt(input.recipeName, input.cuisineType);
     const url = `https://api.cloudflare.com/client/v4/accounts/${this.config.accountId}/ai/run/${this.config.model}`;
     const started = Date.now();
@@ -94,6 +104,7 @@ export class CloudflareImageService implements IRecipeImageService {
       provider: 'cloudflare',
       model: this.config.model,
       op: 'recipeImage',
+      images: 1,
       ms: Date.now() - started,
       neurons: Math.round(spent * 100) / 100,
       neuronsToday: Math.round(cloudflareNeuronLedger.usedToday()),

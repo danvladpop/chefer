@@ -1,8 +1,21 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { dietaryPreferencesRepository, prisma } from '@chefer/database';
 import type { IMealPlanRepository, IPantryItemRepository, PantryItem } from '@chefer/database';
 import type { UserProfile } from '@chefer/types';
 import { PantryService } from './pantry.service.js';
+
+// FB7-10: the pantry is retired by default (`PANTRY_RETIRED`); the suites below
+// pin the reversible legacy path with the switch off, and `retired` tests flip it on.
+const pantrySwitch = vi.hoisted(() => ({ retired: false }));
+vi.mock('./pantry-retired.js', () => ({
+  get PANTRY_RETIRED() {
+    return pantrySwitch.retired;
+  },
+}));
+
+afterEach(() => {
+  pantrySwitch.retired = false;
+});
 
 // ─── Module mocks ─────────────────────────────────────────────────────────────
 
@@ -398,5 +411,21 @@ describe('PantryService', () => {
     });
     const service2 = new PantryService(makeRepo([]), planRepo);
     expect(await service2.computeWeekPantrySavings('u1', new Date())).toBe(0);
+  });
+
+  // ── FB7-10: retired ────────────────────────────────────────────────────────
+
+  it('retired: whatCanIMake does not read the pantry and says the feature is gone', async () => {
+    pantrySwitch.retired = true;
+    const repo = makeRepo([pantryRow('tomato')]);
+    const service = new PantryService(repo, makePlanRepo());
+    expect(await service.whatCanIMake(premiumUser)).toContain('retired');
+    expect(repo.findByUser).not.toHaveBeenCalled();
+  });
+
+  it('retired: computeWeekPantrySavings records no saving', async () => {
+    pantrySwitch.retired = true;
+    const service = new PantryService(makeRepo([pantryRow('tomato')]), makePlanRepo());
+    expect(await service.computeWeekPantrySavings('u1', new Date())).toBeNull();
   });
 });

@@ -30,7 +30,8 @@ export interface UpdateUserInput {
   role?: UserRole | undefined;
   planTier?: PlanTier | undefined;
   image?: string | undefined;
-  emailVerified?: Date | undefined;
+  /** null clears it (an email change) — unlike the other fields, null reaches Prisma. */
+  emailVerified?: Date | null | undefined;
 }
 
 export interface IUserRepository {
@@ -75,12 +76,13 @@ export class PrismaUserRepository implements IUserRepository {
   }
 
   async update(id: string, data: UpdateUserInput): Promise<User> {
-    const { email, ...rest } = data;
+    const { email, emailVerified, ...rest } = data;
     return prisma.user.update({
       where: { id },
       data: {
         ...removeNullish(rest),
         ...(email !== undefined && { email: email.toLowerCase().trim() }),
+        ...(emailVerified !== undefined && { emailVerified }),
         updatedAt: new Date(),
       },
     });

@@ -172,6 +172,32 @@ describe('WeightCard', () => {
     expect(dismiss).toHaveBeenCalled();
   });
 
+  // Tester feedback 2026-10-04: the keyboard closes once the weight is logged,
+  // however it is submitted, and the field reads "Done" on Android's IME.
+  it('closes the keyboard when the weight is logged by +, Return/✓ — and keeps it for an invalid one', async () => {
+    const dismiss = jest.spyOn(Keyboard, 'dismiss').mockImplementation(() => undefined);
+    const user = userEvent.setup();
+    await render(
+      <SafeAreaProvider initialMetrics={METRICS}>
+        <WeightCard />
+      </SafeAreaProvider>,
+    );
+    const input = screen.getByTestId('weight-input');
+    expect(input.props.returnKeyType).toBe('done');
+    expect(input.props.keyboardType).toBe('decimal-pad');
+
+    await user.type(input, '1000');
+    await user.press(screen.getByTestId('weight-save'));
+    expect(dismiss).not.toHaveBeenCalled();
+
+    await user.clear(input);
+    await user.type(input, '79.4');
+    await user.press(screen.getByTestId('weight-save'));
+    expect(mockLogMutate).toHaveBeenCalledWith({ weightKg: 79.4 });
+    expect(dismiss).toHaveBeenCalledTimes(1);
+    dismiss.mockRestore();
+  });
+
   // UX-FOOD-08: a logged weight leaves the field, with an Undo for 10 s.
   it('clears the field after a log and offers Logged · Undo', async () => {
     const user = userEvent.setup();

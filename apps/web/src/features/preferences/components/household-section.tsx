@@ -10,14 +10,23 @@ import { useHousehold, type HouseholdMemberDto } from '@/hooks/useHousehold';
 import { capture } from '@/lib/analytics';
 import { trpc } from '@/lib/trpc';
 import { Baby, ChevronRight, Pencil, Plus, Sparkles, Trash2, Users } from 'lucide-react';
-import { findSafetyTaxonomyEntry, HOUSEHOLD_PORTION_OPTIONS } from '@chefer/types';
+import {
+  findSafetyTaxonomyEntry,
+  HOUSEHOLD_AGE_BANDS,
+  HOUSEHOLD_PORTION_OPTIONS,
+  type HouseholdAgeBand,
+} from '@chefer/types';
 import { Sheet } from '@chefer/ui';
 import {
+  AGE_BAND_LABELS,
+  ageBandLabel,
+  ageBandPortionFactor,
   allergiesAndDietForText,
   classifySafetyValue,
   householdGhostSample,
   householdPortionSum,
   memberSummaryLine,
+  parseAgeBand,
   tableSummaryLine,
   userFacingErrorMessage,
   type HouseholdGhostKind,
@@ -50,6 +59,8 @@ export interface MemberFormState {
   name: string;
   portionFactor: number;
   isKid: boolean;
+  /** Optional kid age band (UX-PLAN-12); picking one pre-fills portionFactor. */
+  ageBand: HouseholdAgeBand | null;
   dietaryRestrictions: string[];
   allergies: string[];
   dislikedIngredients: string[];
@@ -59,6 +70,7 @@ const EMPTY_MEMBER: MemberFormState = {
   name: '',
   portionFactor: 1,
   isKid: false,
+  ageBand: null,
   dietaryRestrictions: [],
   allergies: [],
   dislikedIngredients: [],
@@ -116,6 +128,7 @@ export function MemberEditorSheet({
           name: editing.name,
           portionFactor: editing.portionFactor,
           isKid: editing.isKid,
+          ageBand: editing.isKid ? parseAgeBand(editing.ageBand) : null,
           dietaryRestrictions: editing.dietaryRestrictions,
           allergies: editing.allergies,
           dislikedIngredients: editing.dislikedIngredients,
@@ -165,7 +178,17 @@ export function MemberEditorSheet({
       dislikedIngredients: _dislikes,
       ...rest
     } = form;
-    const base = { ...rest, name: form.name.trim() };
+    // `ageBand` is sent only when it differs from what is stored (null clears
+    // it; a non-kid never keeps one).
+    const { ageBand: formBand, ...restWithoutBand } = rest;
+    const nextBand = form.isKid ? formBand : null;
+    const base = {
+      ...restWithoutBand,
+      name: form.name.trim(),
+      ...(nextBand !== (editing ? parseAgeBand(editing.ageBand) : null)
+        ? { ageBand: nextBand }
+        : {}),
+    };
     const send = (
       payload: typeof base &
         Partial<Pick<MemberFormState, 'allergies' | 'dietaryRestrictions' | 'dislikedIngredients'>>,
@@ -273,12 +296,51 @@ export function MemberEditorSheet({
                   isKid,
                   // Ticking "kid" on a standard portion is almost always ½.
                   portionFactor: isKid && f.portionFactor === 1 ? 0.5 : f.portionFactor,
+                  ageBand: isKid ? f.ageBand : null,
                 }));
               }}
               className="h-5 w-5 accent-[#944a00]"
             />
             This is a kid
           </label>
+
+          {/* UX-PLAN-12: optional age — picking one pre-fills the portion, which stays adjustable. */}
+          {form.isKid && (
+            <div>
+              <p id="member-age-label" className="mb-1 text-sm font-medium">
+                Age <span className="font-normal text-muted-foreground">(optional)</span>
+              </p>
+              <div
+                role="group"
+                aria-labelledby="member-age-label"
+                data-testid="member-age-group"
+                className="flex flex-wrap gap-2"
+              >
+                {HOUSEHOLD_AGE_BANDS.map((band) => (
+                  <button
+                    key={band}
+                    type="button"
+                    onClick={() =>
+                      setForm((f) =>
+                        f.ageBand === band
+                          ? { ...f, ageBand: null }
+                          : { ...f, ageBand: band, portionFactor: ageBandPortionFactor(band) },
+                      )
+                    }
+                    aria-pressed={form.ageBand === band}
+                    aria-label={`Age ${AGE_BAND_LABELS[band]}`}
+                    className={`min-h-11 rounded-xl border px-3 py-1.5 text-sm font-medium transition ${
+                      form.ageBand === band
+                        ? 'border-primary bg-primary/5 text-primary'
+                        : 'border-input text-muted-foreground hover:border-primary/40'
+                    }`}
+                  >
+                    {AGE_BAND_LABELS[band]}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
 
           {/* Safety — the same editor onboarding uses (per-member) */}
           <div className="rounded-xl border bg-muted/30 p-4">
@@ -712,6 +774,7 @@ export function HouseholdSection({
                       <span className="block truncate text-sm font-medium text-foreground">
                         {m.name}
                         <span className="ml-2 text-xs font-normal text-muted-foreground">
+                          {ageBandLabel(m.ageBand) ? `${ageBandLabel(m.ageBand)} · ` : ''}
                           {portionLabel(m.portionFactor)} portion
                         </span>
                       </span>

@@ -1,11 +1,16 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
+import { smartAppBanner } from '@/features/app-stores/store-metadata';
 import { RegisterForm } from '@/features/auth/components/register-form';
+import { SocialSignIn } from '@/features/auth/components/social-sign-in';
 import { getSessionUser } from '@/features/auth/lib/session';
 import { nextQuery, safeNextPath } from '@/features/coaching/lib/next-path';
+import { RegisterV4 } from '@/features/onboarding-v4/register-v4';
+import { serverClient } from '@/lib/trpc-server';
 
 export const metadata: Metadata = {
+  ...smartAppBanner(),
   title: 'Create Account',
   description: 'Create your Chefer account',
   robots: { index: false },
@@ -23,6 +28,14 @@ export default async function RegisterPage({
   if (await getSessionUser()) {
     redirect(next ?? '/dashboard');
   }
+
+  // Onboarding V4 (flag `onboardingV4`): "Save your plan". Off — or a failed
+  // flag read — keeps today's page exactly as it was.
+  const onboardingV4 = await serverClient.profile.flags
+    .query()
+    .then((flags) => flags.onboardingV4 === true)
+    .catch(() => false);
+  if (onboardingV4) return <RegisterV4 />;
 
   return (
     <div className="flex min-h-dvh flex-col items-center px-4 py-8 sm:py-12">
@@ -58,6 +71,10 @@ export default async function RegisterPage({
         {/* Register Form Card */}
         <div className="rounded-xl border bg-card p-6 shadow-sm sm:p-8">
           <RegisterForm next={next} />
+          {/* WP-22: shown only when the API reports a provider as configured. */}
+          <div className="mt-5 empty:hidden">
+            <SocialSignIn mode="register" />
+          </div>
         </div>
 
         {/* Footer Links */}

@@ -37,6 +37,8 @@ export function ExerciseNoteField({
       onBlur={() => onFocusChange?.(false)}
       placeholder="A personal cue or reminder…"
       multiline
+      // The screen pins its own sticky Done while this field is focused.
+      showDoneBar={false}
       textAlignVertical="top"
       className="h-auto min-h-20 py-2"
     />

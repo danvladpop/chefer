@@ -3,12 +3,14 @@ export * from './chat-actions';
 export * from './plan-features';
 export * from './gym';
 export * from './preferences';
+export * from './numbers-mode';
 export * from './training-nutrition';
 export * from './household';
 export * from './ai-consent';
 export * from './health-consent';
 export * from './account-deletion';
 export * from './support';
+export * from './app-stores';
 export * from './video-import';
 export * from './safety-taxonomy';
 export * from './safety';
@@ -23,8 +25,11 @@ export * from './legal';
 export * from './friends';
 export * from './friends-copy';
 export * from './coaching';
+export * from './meal-plan-slot';
 export * from './nutrition';
 export * from './ingredient-catalog-copy';
+export * from './social-auth';
+export * from './usage-limits';
 
 // ─── Enums ───────────────────────────────────────────────────────────────────
 

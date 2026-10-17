@@ -25,7 +25,7 @@ const JOB_TO_LEGACY_INTENT: Partial<Record<OnboardingJob, OnboardingIntent>> = {
  * alongside the new `onboardingJobs`, so web and older binaries — which only
  * ever read the intent — keep routing sensibly. This is the first job, in
  * the order the user picked them, that has a legacy equivalent; `null` when
- * none does (e.g. only `USE_WHAT_I_HAVE` / `SAVED_RECIPES` / `TRACK`), in
+ * none does (e.g. only `SAVED_RECIPES` / `TRACK`), in
  * which case the caller should leave the stored legacy intent as it was
  * rather than overwrite it with a guess.
  */
@@ -35,6 +35,23 @@ export function legacyIntentForJobs(jobs: readonly OnboardingJob[]): OnboardingI
     if (intent) return intent;
   }
   return null;
+}
+
+/**
+ * Jobs the product no longer offers (WP-24 / FB7-10: the "In my kitchen"
+ * pantry is retired). The enum value stays valid — old clients can still send
+ * it and rows already store it — but no picker shows it, and `effectiveJobs`
+ * reads it as its closest live job so it never routes anyone to the pantry.
+ */
+export const RETIRED_ONBOARDING_JOBS: readonly OnboardingJob[] = ['USE_WHAT_I_HAVE'];
+
+const RETIRED_JOB_REPLACEMENT: Partial<Record<OnboardingJob, OnboardingJob>> = {
+  USE_WHAT_I_HAVE: 'PLAN_MEALS',
+};
+
+/** True when a picker may still offer this job to the user. */
+export function isOfferedOnboardingJob(job: OnboardingJob): boolean {
+  return !RETIRED_ONBOARDING_JOBS.includes(job);
 }
 
 /** Logged on this many of the last 7 days (or more) counts as already tracking. */
@@ -56,7 +73,8 @@ export interface EffectiveJobsInput {
  */
 export function effectiveJobs(input: EffectiveJobsInput): OnboardingJob[] {
   const base = input.jobs.length > 0 ? [...input.jobs] : mapLegacyIntent(input.intent);
-  const jobs = new Set<OnboardingJob>(base);
+  // A stored retired job (USE_WHAT_I_HAVE) reads as its live neighbour, in place.
+  const jobs = new Set<OnboardingJob>(base.map((job) => RETIRED_JOB_REPLACEMENT[job] ?? job));
 
   if ((input.loggedDaysLast7 ?? 0) >= TRACK_INFERENCE_MIN_DAYS) {
     jobs.add('TRACK');

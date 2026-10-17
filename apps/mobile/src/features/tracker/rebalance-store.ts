@@ -16,6 +16,12 @@ import { kv } from '../gym/offline/kv';
 
 const STORAGE_KEY = 'chefer.rebalance.pending';
 
+/** The four plan meal types the plan procedures accept (a swap's `mealType` is a plain string). */
+export const MEAL_TYPES = ['breakfast', 'lunch', 'dinner', 'snack'] as const;
+export type MealTypeName = (typeof MEAL_TYPES)[number];
+export const isMealType = (v: string): v is MealTypeName =>
+  (MEAL_TYPES as readonly string[]).includes(v);
+
 const listeners = new Set<() => void>();
 let cached: PendingRebalance | null | undefined;
 

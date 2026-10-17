@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
 import { Switch, View } from 'react-native';
-import { Card, Text } from '@chefer/ui-mobile';
+import { Text, useThemeColors } from '@chefer/ui-mobile';
 import { trpc } from '../../lib/trpc';
+import { BoardCard } from '../shell/today/parts';
 
 // "Plan my week every Sunday" (audit F-PLAN-4-3) — mobile counterpart of web
 // features/preferences/auto-plan-toggle. Every tier since P2-5: premium gets
@@ -16,6 +17,7 @@ export function AutoPlanToggle({
 }) {
   const [enabled, setEnabled] = useState(initialEnabled);
   useEffect(() => setEnabled(initialEnabled), [initialEnabled]);
+  const colors = useThemeColors();
   const utils = trpc.useUtils();
   const mutation = trpc.preferences.setAutoPlanWeekly.useMutation({
     onSuccess: (res) => {
@@ -26,11 +28,13 @@ export function AutoPlanToggle({
   });
 
   return (
-    <Card testID="prefs-auto-plan" className="gap-2">
+    <BoardCard testID="prefs-auto-plan">
       <View className="flex-row items-center justify-between gap-3">
         <View className="min-w-0 flex-1">
-          <Text variant="heading">Plan my week every Sunday</Text>
-          <Text variant="muted" className="mt-1 text-sm">
+          <Text accessibilityRole="header" className="text-headline font-semibold text-label">
+            Plan my week every Sunday
+          </Text>
+          <Text className="mt-1 text-subhead text-label-secondary">
             {isPremium
               ? 'Your chef prepares next week on Sunday morning, learning from what you rate.'
               : 'We pick a fresh week of recipes for you on Sunday morning, matched to your allergies and targets.'}{' '}
@@ -46,12 +50,12 @@ export function AutoPlanToggle({
             setEnabled(next);
             mutation.mutate({ enabled: next });
           }}
-          trackColor={{ true: '#944a00', false: '#d1d5db' }}
+          trackColor={{ true: colors.brand, false: colors.separator }}
         />
       </View>
       {mutation.isError && (
-        <Text className="text-xs text-red-600">Couldn&apos;t save that. Try again.</Text>
+        <Text className="text-caption text-danger">Couldn&apos;t save that. Try again.</Text>
       )}
-    </Card>
+    </BoardCard>
   );
 }

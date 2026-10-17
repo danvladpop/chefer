@@ -3,14 +3,29 @@ import {
   chefProfileRepository,
   dailyLogRepository,
   mealPlanRepository,
+  parseSkippedSlots,
   weightEntryRepository,
 } from '@chefer/database';
-import type { DailyLog, LoggedMealEntry } from '@chefer/database';
-import type { NutritionTargets, TrainingDayNutrition, UserProfile } from '@chefer/types';
-import { slotPortion } from '@chefer/utils';
+import type { DailyLog, LoggedMealEntry, SlotRefJson } from '@chefer/database';
+import { parseStoredNumbersMode } from '@chefer/types';
+import type {
+  NumbersMode,
+  NutritionTargets,
+  ProteinGuide,
+  TrainingDayNutrition,
+  UserProfile,
+} from '@chefer/types';
+import { buildProteinGuide, localDateStr, slotPortion } from '@chefer/utils';
 import { hasFeature } from '../../lib/entitlements.js';
+import { fitPlanDay, type DayFitOutcome } from '../meal-plan/day-fit.js';
 import { planForDate, planForThisWeek } from '../meal-plan/plan-for-date.js';
-import { rebalanceWeek, type RebalanceResult } from '../meal-plan/rebalance.js';
+import {
+  previewRebalance,
+  rebalanceWeek,
+  type RebalanceMode,
+  type RebalancePreview,
+  type RebalanceResult,
+} from '../meal-plan/rebalance.js';
 import { resolveDailyTargets, resolveTargets } from '../preferences/preferences.service.js';
 import { findRecipeVisibleTo } from '../recipe/recipe-access.js';
 import { recipeCopyService } from '../recipe/recipe-copy.service.js';
@@ -22,16 +37,53 @@ import {
   aggregateRecents,
   ensureEntryIds,
   isRecipeEntry,
+  isSlotEntry,
   matchesRecipeSlot,
   mergeLoggedMeals,
   needsEntryIdBackfill,
   newEntryId,
+  sameSlot,
   type RecentLogDay,
 } from './merge-log.js';
 
 export type { LoggedMealEntry };
 
 // ─── Types ────────────────────────────────────────────────────────────────────
+
+/**
+ * What a log write says about the week rebalance. `rebalance` is today's
+ * field (the swaps already applied, or null) and keeps its shape for shipped
+ * clients. `rebalancePreview` exists only when the client opted in with
+ * `rebalanceMode: 'preview'` (WP-07): the swaps it would make, nothing applied.
+ */
+export type RebalanceOutcome = {
+  rebalance: RebalanceResult | null;
+  rebalancePreview?: RebalancePreview | null;
+  /**
+   * Day rebalance (2026-10-16): after a log for today, today's still-open
+   * meals were resized to absorb it (`changes`, Undo = `previousPortions`).
+   * Additive; absent when nothing was fitted.
+   */
+  dayFit?: DayFitOutcome | null;
+};
+
+/**
+ * A log only offers the week rebalance when today itself can't absorb the
+ * miss: after today's open meals are resized, the day must still be this far
+ * off its calorie target (owner, 2026-10-16: "week rebalance only after big
+ * logged misses", never for a swap or a small difference).
+ */
+export const BIG_LOGGED_MISS = 0.2;
+
+const DAY_MS_TRACKER = 24 * 60 * 60 * 1000;
+
+/** The client's today for a log of `dateStr`: its own day when within a day of the server's. */
+function clientToday(dateStr: string | undefined): string {
+  const serverToday = localDateStr(new Date());
+  if (!dateStr) return serverToday;
+  const gap = Math.abs(Date.parse(`${dateStr}T00:00:00Z`) - Date.parse(`${serverToday}T00:00:00Z`));
+  return gap <= DAY_MS_TRACKER ? dateStr : serverToday;
+}
 
 export interface DayPlanMeal {
   recipeId: string;
@@ -98,7 +150,24 @@ export interface DayTrackerData {
     totalProtein: number;
     totalCarbs: number;
     totalFat: number;
+    /** WP-06: same list as the top-level `skippedSlots` (the stored row's field). */
+    skippedSlots?: SlotRefJson[];
   } | null;
+  /**
+   * WP-06 "Skipped it": the plan slots the user skipped on this day. A
+   * skipped slot is neither eaten nor remaining. Always present from this
+   * version on (`[]` when none); optional only so older clients' types stay
+   * valid. Entries that REPLACE a slot are ordinary `log.loggedMeals` custom
+   * entries carrying `replacesSlot`.
+   */
+  skippedSlots?: SlotRefJson[];
+  /**
+   * WP-08: the stored numbers mode (`FULL` when never set) and the per-meal
+   * protein guide for this day's planned meals (3 when no plan), so a
+   * protein-only client renders without another round trip. Additive.
+   */
+  numbersMode?: NumbersMode;
+  proteinGuide?: ProteinGuide;
   targets: {
     dailyCalorieTarget: number;
     proteinG: number;
@@ -204,7 +273,7 @@ export const trackerService = {
       userId,
       profile,
       { localDate: dateStr, weekday: dayOfWeek },
-      viewer ? hasFeature(viewer, 'trainingNutrition') : false,
+      viewer ? hasFeature(viewer, 'trainingDayTargets') : false,
     );
 
     const plannedMeals: DayPlanMeal[] = [];
@@ -299,6 +368,8 @@ export const trackerService = {
       fat: m.fat,
     }));
 
+    const skippedSlots = parseSkippedSlots(log?.skippedSlots);
+
     return {
       date: dateStr,
       plannedMeals,
@@ -311,8 +382,12 @@ export const trackerService = {
             totalProtein: log.totalProtein,
             totalCarbs: log.totalCarbs,
             totalFat: log.totalFat,
+            skippedSlots,
           }
         : null,
+      skippedSlots,
+      numbersMode: parseStoredNumbersMode(profile?.numbersMode) ?? 'FULL',
+      proteinGuide: buildProteinGuide(proteinG, plannedMeals.length),
       targets: { dailyCalorieTarget, proteinG, carbsG, fatG },
       ...trainingDayFields(training),
     };
@@ -322,13 +397,13 @@ export const trackerService = {
     user: UserProfile,
     dateStr: string,
     loggedMeals: LoggedMealEntry[],
-  ): Promise<{ log: DailyLog; rebalance: RebalanceResult | null }> {
+    rebalanceMode: RebalanceMode = 'auto',
+  ): Promise<{ log: DailyLog } & RebalanceOutcome> {
     const plannedRecipeIds = await plannedRecipeIdsFor(user.id, dateStr);
     const log = await dailyLogRepository.mutateDay(user.id, dayDate(dateStr), (stored) =>
       mergeLoggedMeals(stored, loggedMeals, plannedRecipeIds),
     );
-    const rebalance = await this.maybeRebalance(user);
-    return { log, rebalance };
+    return { log, ...(await this.rebalanceOutcome(user, rebalanceMode, dateStr)) };
   },
 
   /**
@@ -354,7 +429,8 @@ export const trackerService = {
       portionMultiplier: number;
       slotIndex?: number | undefined;
     },
-  ): Promise<{ log: DailyLog; rebalance: RebalanceResult | null }> {
+    rebalanceMode: RebalanceMode = 'auto',
+  ): Promise<{ log: DailyLog } & RebalanceOutcome> {
     const visible = await findRecipeVisibleTo(user.id, input.recipeId);
     if (!visible) throw new TRPCError({ code: 'NOT_FOUND', message: 'Recipe not found.' });
     const { recipe } = await recipeCopyService.ownedRecipeFor(user.id, visible);
@@ -376,12 +452,32 @@ export const trackerService = {
       fat: Math.round((n.fat ?? 0) * p * 10) / 10,
     };
     const target = { recipeId: recipe.id, mealType: input.mealType, slotIndex: input.slotIndex };
-    const log = await dailyLogRepository.mutateDay(user.id, dayDate(dateStr), (stored) => [
-      ...stored.filter((m) => !matchesRecipeSlot(m, target)),
-      entry,
-    ]);
-    const rebalance = await this.maybeRebalance(user);
-    return { log, rebalance };
+    const slot: SlotRefJson | undefined =
+      input.slotIndex === undefined
+        ? undefined
+        : { mealType: input.mealType, slotIndex: input.slotIndex };
+    const log = await dailyLogRepository.mutateDayState(
+      user.id,
+      dayDate(dateStr),
+      ({ entries, skippedSlots }) => {
+        // WP-06: a slot the user replaced ("Ate something else") is already
+        // eaten, with the replacement's numbers — ticking the planned recipe
+        // too would count the meal twice. Remove the replacement first.
+        if (slot && entries.some((m) => m.replacesSlot && sameSlot(m.replacesSlot, slot))) {
+          throw new TRPCError({
+            code: 'CONFLICT',
+            message:
+              'You already logged something else for this meal. Remove that first if you want to log the planned one instead.',
+          });
+        }
+        return {
+          entries: [...entries.filter((m) => !matchesRecipeSlot(m, target)), entry],
+          // Eating a skipped slot un-skips it.
+          skippedSlots: slot ? skippedSlots.filter((s) => !sameSlot(s, slot)) : skippedSlots,
+        };
+      },
+    );
+    return { log, ...(await this.rebalanceOutcome(user, rebalanceMode, dateStr)) };
   },
 
   /**
@@ -420,6 +516,18 @@ export const trackerService = {
    * Appends one custom entry (photo scan or manual quick-add, F4) to the
    * day's log. Custom entries store pre-scaled macros with portionMultiplier
    * 1 — the confirm sheet already let the user edit the numbers.
+   *
+   * WP-06 "Ate something else": with `replacesSlot` the entry takes over that
+   * plan slot — the slot counts as eaten with THESE numbers and its planned
+   * recipe leaves the day's planned totals. The entry's `mealType` is forced
+   * to the slot's (so an older client, which only knows "a custom entry for
+   * this meal type", reads it the same way). Logging again for the same slot
+   * swaps the earlier replacement (no double count); a planned-recipe entry
+   * ticked for that slot is dropped (the user says they ate something else
+   * instead); a skip on the slot is cleared. Removing the entry through the
+   * existing delete paths restores the slot. The slot is not checked against
+   * the plan: a stale index (plan regenerated since) just leaves an ordinary
+   * custom entry, which still counts in the day's total.
    */
   async logCustomMeal(
     user: UserProfile,
@@ -433,30 +541,98 @@ export const trackerService = {
       carbs: number;
       fat: number;
       unknownMacros?: ('protein' | 'carbs' | 'fat')[] | undefined;
+      replacesSlot?: SlotRefJson | undefined;
     },
-  ): Promise<{ log: DailyLog; rebalance: RebalanceResult | null; entryId: string }> {
+    rebalanceMode: RebalanceMode = 'auto',
+  ): Promise<{ log: DailyLog; entryId: string } & RebalanceOutcome> {
     // The new row's id is minted here so the client can offer an exact Undo
     // (UX-FOOD-26) — additive: older clients ignore the extra field.
     const entryId = newEntryId();
+    const replaces = entry.replacesSlot;
+    const row: LoggedMealEntry = {
+      entryId,
+      custom: { name: entry.name, estimatedBy: entry.estimatedBy },
+      mealType: replaces ? replaces.mealType : entry.mealType,
+      portionMultiplier: 1,
+      kcal: entry.kcal,
+      protein: entry.protein,
+      carbs: entry.carbs,
+      fat: entry.fat,
+      ...(entry.unknownMacros && entry.unknownMacros.length > 0
+        ? { unknownMacros: entry.unknownMacros }
+        : {}),
+      ...(replaces && {
+        replacesSlot: { mealType: replaces.mealType, slotIndex: replaces.slotIndex },
+      }),
+    };
     // Atomic append — parallel adds no longer overwrite each other (F-TRK-1-2).
-    const log = await dailyLogRepository.mutateDay(user.id, dayDate(dateStr), (stored) => [
-      ...stored,
-      {
-        entryId,
-        custom: { name: entry.name, estimatedBy: entry.estimatedBy },
-        mealType: entry.mealType,
-        portionMultiplier: 1,
-        kcal: entry.kcal,
-        protein: entry.protein,
-        carbs: entry.carbs,
-        fat: entry.fat,
-        ...(entry.unknownMacros && entry.unknownMacros.length > 0
-          ? { unknownMacros: entry.unknownMacros }
-          : {}),
+    const log = await dailyLogRepository.mutateDayState(
+      user.id,
+      dayDate(dateStr),
+      ({ entries, skippedSlots }) => ({
+        entries: replaces
+          ? [...entries.filter((m) => !isSlotEntry(m, replaces)), row]
+          : [...entries, row],
+        skippedSlots: replaces ? skippedSlots.filter((s) => !sameSlot(s, replaces)) : skippedSlots,
+      }),
+    );
+    return { log, entryId, ...(await this.rebalanceOutcome(user, rebalanceMode, dateStr)) };
+  },
+
+  /**
+   * WP-06 "Skipped it": marks one plan slot of the day skipped — neither
+   * eaten nor remaining. Idempotent. Stored in the day's separate
+   * `skippedSlots` list, never as an entry, so shipped clients that total the
+   * entries are unaffected. CONFLICT when the slot is already logged (ticked
+   * from the plan, or replaced): remove that entry first. The slot is not
+   * checked against the plan (see logCustomMeal).
+   */
+  async skipSlot(
+    user: UserProfile,
+    dateStr: string,
+    slot: SlotRefJson,
+    rebalanceMode: RebalanceMode = 'auto',
+  ): Promise<{ log: DailyLog; skippedSlots: SlotRefJson[] } & RebalanceOutcome> {
+    const log = await dailyLogRepository.mutateDayState(
+      user.id,
+      dayDate(dateStr),
+      ({ entries, skippedSlots }) => {
+        if (entries.some((m) => isSlotEntry(m, slot))) {
+          throw new TRPCError({
+            code: 'CONFLICT',
+            message: 'That meal is already logged. Remove it first if you want to skip it instead.',
+          });
+        }
+        return {
+          entries,
+          skippedSlots: skippedSlots.some((s) => sameSlot(s, slot))
+            ? skippedSlots
+            : [...skippedSlots, { mealType: slot.mealType, slotIndex: slot.slotIndex }],
+        };
       },
-    ]);
-    const rebalance = await this.maybeRebalance(user);
-    return { log, rebalance, entryId };
+    );
+    return {
+      log,
+      skippedSlots: parseSkippedSlots(log.skippedSlots),
+      ...(await this.rebalanceOutcome(user, rebalanceMode, dateStr)),
+    };
+  },
+
+  /** Undo of `skipSlot`. A no-op when the slot is not skipped (a retried Undo). */
+  async unskipSlot(
+    userId: string,
+    dateStr: string,
+    slot: SlotRefJson,
+  ): Promise<{ log: DailyLog; skippedSlots: SlotRefJson[] }> {
+    const log = await dailyLogRepository.mutateDayState(
+      userId,
+      dayDate(dateStr),
+      ({ entries, skippedSlots }) => ({
+        entries,
+        skippedSlots: skippedSlots.filter((s) => !sameSlot(s, slot)),
+      }),
+    );
+    return { log, skippedSlots: parseSkippedSlots(log.skippedSlots) };
   },
 
   /**
@@ -602,27 +778,31 @@ export const trackerService = {
   /**
    * Copies every logged entry from `fromDateStr` onto `toDateStr` (T-19.3,
    * "Copy {yesterday} to today"). Each copy gets its OWN `entryId` (so Undo
-   * can delete exactly the copies, not the originals) and drops `slotIndex` —
-   * the target day's plan slots are a different day and may not even have
+   * can delete exactly the copies, not the originals) and drops `slotIndex` and
+   * `replacesSlot` — the target day's plan slots are a different day and may not even have
    * that slot.
    */
   async copyDay(
     user: UserProfile,
     fromDateStr: string,
     toDateStr: string,
-  ): Promise<{ log: DailyLog; copiedEntryIds: string[]; rebalance: RebalanceResult | null }> {
+    rebalanceMode: RebalanceMode = 'auto',
+  ): Promise<{ log: DailyLog; copiedEntryIds: string[] } & RebalanceOutcome> {
     const fromLog = await dailyLogRepository.findByDate(user.id, dayDate(fromDateStr));
     const sourceEntries = (fromLog?.loggedMeals as unknown as LoggedMealEntry[] | null) ?? [];
     const copies: LoggedMealEntry[] = sourceEntries.map((m) => {
-      const { slotIndex: _slotIndex, entryId: _entryId, ...rest } = m;
+      const { slotIndex: _slotIndex, entryId: _entryId, replacesSlot: _replacesSlot, ...rest } = m;
       return { ...rest, entryId: newEntryId() };
     });
     const log = await dailyLogRepository.mutateDay(user.id, dayDate(toDateStr), (stored) => [
       ...stored,
       ...copies,
     ]);
-    const rebalance = await this.maybeRebalance(user);
-    return { log, copiedEntryIds: copies.map((c) => c.entryId!), rebalance };
+    return {
+      log,
+      copiedEntryIds: copies.map((c) => c.entryId!),
+      ...(await this.rebalanceOutcome(user, rebalanceMode, toDateStr)),
+    };
   },
 
   /**
@@ -668,22 +848,76 @@ export const trackerService = {
   },
 
   /**
-   * F4 rebalance hook — runs after any log write. Premium-only (gated by the
-   * photoLogging matrix key: free tier logs honestly but the chef doesn't
-   * re-plan the week). Failures are swallowed: a broken rebalance must never
-   * fail the log save itself.
+   * F4 rebalance hook — runs after any log write. Free for everyone since
+   * WP-07 (`weekRebalance`: it swaps curated meals, no AI). Failures are
+   * swallowed: a broken rebalance must never fail the log save itself.
+   *
+   * `auto` (what shipped clients get, and the default) applies the swaps and
+   * returns them in `rebalance`. `preview` (new clients that send
+   * `rebalanceMode: 'preview'`, UX-PLAN-09) changes nothing: `rebalance` is
+   * null and `rebalancePreview` carries the swaps to show; the client applies
+   * them with `mealPlan.applyRebalance`. `dateStr` is the logged day: when it
+   * is ahead of the server's today (a client east of UTC after its midnight)
+   * the preview is anchored on it.
    */
-  async maybeRebalance(user: UserProfile): Promise<RebalanceResult | null> {
-    if (!hasFeature(user, 'photoLogging')) return null;
+  async rebalanceOutcome(
+    user: UserProfile,
+    mode: RebalanceMode = 'auto',
+    dateStr?: string,
+  ): Promise<RebalanceOutcome> {
+    if (!hasFeature(user, 'weekRebalance')) {
+      return mode === 'preview' ? { rebalance: null, rebalancePreview: null } : { rebalance: null };
+    }
     try {
+      // Day first: today's open meals absorb what was logged. Only a miss the
+      // day can't absorb goes on to the week rebalance.
+      const today = clientToday(dateStr);
+      const todayPlan =
+        !dateStr || dateStr === today
+          ? await planForDate(mealPlanRepository, user.id, today)
+          : null;
+      const dayFit = todayPlan
+        ? await fitPlanDay(user.id, todayPlan.id, dayIndexOfDate(today), {
+            localDate: today,
+            suggest: false,
+          }).catch((err: unknown) => {
+            // A broken day fit falls back to the week rebalance as before.
+            console.error('[tracker] day fit after a log failed:', err);
+            return null;
+          })
+        : null;
+      const bigMiss =
+        !dayFit ||
+        (!dayFit.onTarget &&
+          dayFit.targetKcal > 0 &&
+          Math.abs(dayFit.kcal - dayFit.targetKcal) / dayFit.targetKcal > BIG_LOGGED_MISS);
+      const withDay = dayFit ? { dayFit } : {};
+      if (mode === 'preview') {
+        const serverToday = localDateStr(new Date());
+        const localDate = dateStr && dateStr > serverToday ? dateStr : serverToday;
+        if (!bigMiss) return { rebalance: null, rebalancePreview: null, ...withDay };
+        const plan = await planForDate(mealPlanRepository, user.id, localDate);
+        if (!plan) return { rebalance: null, rebalancePreview: null, ...withDay };
+        return {
+          rebalance: null,
+          rebalancePreview: await previewRebalance(user.id, plan.id, { localDate }),
+          ...withDay,
+        };
+      }
+      if (!bigMiss) return { rebalance: null, ...withDay };
       // Only the current week is ever rebalanced (UX-PLAN-09).
       const plan = await planForThisWeek(mealPlanRepository, user.id);
-      if (!plan) return null;
-      return await rebalanceWeek(user.id, plan.id);
+      if (!plan) return { rebalance: null, ...withDay };
+      return { rebalance: await rebalanceWeek(user.id, plan.id), ...withDay };
     } catch (err) {
       console.error('[tracker] rebalanceWeek failed (log save unaffected):', err);
-      return null;
+      return mode === 'preview' ? { rebalance: null, rebalancePreview: null } : { rebalance: null };
     }
+  },
+
+  /** The apply-at-once rebalance only (kept for callers that never preview). */
+  async maybeRebalance(user: UserProfile): Promise<RebalanceResult | null> {
+    return (await this.rebalanceOutcome(user, 'auto')).rebalance;
   },
 
   /**
@@ -710,17 +944,15 @@ export const trackerService = {
     const dailyCalorieTarget = resolveDailyTargets(profile).dailyCalorieTarget;
 
     const anchor = localDate ? new Date(`${localDate}T00:00:00Z`) : new Date();
+    // One pass over the logs (a year's window is 365 lookups).
+    const logByDate = new Map(logs.map((l) => [new Date(l.date).toISOString().slice(0, 10), l]));
     const days: DaySummary[] = [];
     for (let i = dayCount - 1; i >= 0; i--) {
       const d = new Date(anchor);
       d.setUTCDate(d.getUTCDate() - i);
       d.setUTCHours(0, 0, 0, 0);
       const dateStr = d.toISOString().split('T')[0]!;
-      const log = logs.find((l) => {
-        const ld = new Date(l.date);
-        ld.setUTCHours(0, 0, 0, 0);
-        return ld.toISOString().split('T')[0] === dateStr;
-      });
+      const log = logByDate.get(dateStr);
       days.push({
         date: dateStr,
         totalKcal: log?.totalKcal ?? 0,
@@ -771,3 +1003,8 @@ export const trackerService = {
     return weightEntryRepository.findLastN(userId, days);
   },
 };
+
+/** 0 = Monday … 6 = Sunday for a calendar day string. */
+function dayIndexOfDate(dateStr: string): number {
+  return (new Date(`${dateStr}T00:00:00Z`).getUTCDay() + 6) % 7;
+}

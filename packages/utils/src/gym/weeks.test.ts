@@ -6,6 +6,7 @@ import { initialState } from './progression';
 import { KG_PROFILE, slotFor } from './test-fixtures';
 import {
   addDaysLocal,
+  dateOnlyKey,
   daysBetweenLocal,
   goalForWeek,
   monthNameOf,
@@ -454,5 +455,12 @@ describe('monthNameOf (UX-GYM-13)', () => {
     expect(monthNameOf('2026-12')).toBe('December');
     expect(monthNameOf('2026-13')).toBeNull();
     expect(monthNameOf('September')).toBeNull();
+  });
+});
+
+describe('dateOnlyKey', () => {
+  it('reads the stored calendar day of a UTC-midnight date, whatever the zone', () => {
+    expect(dateOnlyKey(new Date('2026-10-05T00:00:00.000Z'))).toBe('2026-10-05');
+    expect(dateOnlyKey(new Date(Date.UTC(2026, 0, 1)))).toBe('2026-01-01');
   });
 });

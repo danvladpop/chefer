@@ -1,5 +1,6 @@
 import { memo, useMemo, useState } from 'react';
-import { Pressable, Text as RNText, useWindowDimensions, View } from 'react-native';
+import { Pressable, useWindowDimensions, View } from 'react-native';
+import Animated from 'react-native-reanimated';
 import {
   HIDDEN_EXERCISE_IMAGE_IDS,
   RIR_VALUES,
@@ -12,8 +13,16 @@ import {
   type Suggestion,
   type WeightUnit,
 } from '@chefer/types';
-import { Chip, Text } from '@chefer/ui-mobile';
+import {
+  Chip,
+  listEntering,
+  listExiting,
+  listLayout,
+  Text,
+  useThemeColors,
+} from '@chefer/ui-mobile';
 import { cn, explain, formatLoadNumber, unitLabel } from '@chefer/utils';
+import { Icon } from '../../../components/icon';
 import type { TrainerLines } from '../../coaching/logger-lines';
 import { ExerciseImage } from '../components/exercise-image';
 import { exerciseImageUrl } from '../library/exercise-image';
@@ -119,6 +128,7 @@ function ExerciseCardImpl({
   focusSetId = null,
   ctx,
 }: ExerciseCardProps) {
+  const colors = useThemeColors();
   const base = `exercise-${index}`;
   const atSetCap = isAtSetCap(se.sets.length);
   const meta = ctx.lookup(se.exerciseId);
@@ -171,9 +181,9 @@ function ExerciseCardImpl({
       testID={base}
       onLayout={(e) => ctx.onLayoutY(se.id, e.nativeEvent.layout.y)}
       className={cn(
-        'rounded-2xl border bg-card',
-        isCurrent && !se.skipped ? 'border-primary/50' : 'border-border',
-        supersetLabel && 'border-l-4 border-l-violet-500',
+        'rounded-card border bg-surface',
+        isCurrent && !se.skipped ? 'border-brand/50' : 'border-separator',
+        supersetLabel && 'border-l-4 border-l-brand',
         se.skipped && 'opacity-60',
       )}
     >
@@ -183,7 +193,7 @@ function ExerciseCardImpl({
           accessibilityRole="button"
           accessibilityLabel={`Technique for ${meta.name}`}
           onPress={() => ctx.onSheet({ kind: 'technique', seId: se.id })}
-          className="overflow-hidden rounded-lg"
+          className="overflow-hidden rounded-control"
         >
           <ExerciseImage
             uri={imageUri}
@@ -205,26 +215,30 @@ function ExerciseCardImpl({
         >
           <View className="flex-row items-center gap-1.5">
             {supersetLabel ? (
-              <View className="rounded bg-violet-100 px-1.5 py-0.5">
-                <RNText
+              <View className="rounded-inner bg-brand-tint px-1.5 py-0.5">
+                <Text
                   testID={`${base}-superset`}
                   accessibilityLabel={`Superset ${supersetLabel}, exercise ${supersetIndex + 1}`}
-                  className="text-xs font-bold text-violet-800"
+                  className="text-caption font-bold text-brand"
                 >
                   {supersetLabel}
                   {supersetIndex + 1}
-                </RNText>
+                </Text>
               </View>
             ) : null}
             <Text
               testID={`${base}-name`}
               numberOfLines={2}
-              className="min-w-0 flex-1 text-lg font-semibold"
+              className="min-w-0 flex-1 text-headline font-semibold text-label"
             >
               {meta.name}
             </Text>
           </View>
-          <Text testID={`${base}-progress`} variant="muted" numberOfLines={2}>
+          <Text
+            testID={`${base}-progress`}
+            numberOfLines={2}
+            className="text-subhead text-label-secondary"
+          >
             {se.skipped ? 'Skipped' : subtitle}
             {pr ? ' · PR' : ''}
           </Text>
@@ -236,7 +250,11 @@ function ExerciseCardImpl({
             />
           ) : null}
           {lastNote && !editing ? (
-            <Text testID={`${base}-last-note`} variant="muted" numberOfLines={2}>
+            <Text
+              testID={`${base}-last-note`}
+              numberOfLines={2}
+              className="text-subhead text-label-secondary"
+            >
               Last time: {lastNote}
             </Text>
           ) : null}
@@ -246,22 +264,24 @@ function ExerciseCardImpl({
           accessibilityRole="button"
           accessibilityLabel={`More options for ${meta.name}`}
           onPress={() => ctx.onSheet({ kind: 'menu', seId: se.id })}
-          className="h-11 w-11 items-center justify-center rounded-full active:bg-muted"
+          className="h-11 w-11 items-center justify-center rounded-full active:bg-surface-sunken"
         >
-          <RNText className="text-xl font-bold text-foreground">⋯</RNText>
+          <Icon name="more" color={colors.label} />
         </Pressable>
       </View>
 
       {se.skipped ? (
         <View className="flex-row items-center justify-between px-3 pb-2">
-          <Text variant="muted">Skipped today. It won&apos;t count as a miss.</Text>
+          <Text className="min-w-0 flex-1 text-subhead text-label-secondary">
+            Skipped today. It won&apos;t count as a miss.
+          </Text>
           <Pressable
             testID={`${base}-unskip`}
             accessibilityRole="button"
             onPress={() => ctx.onSkip(se.id, false)}
             className="min-h-11 justify-center px-2"
           >
-            <Text className="font-semibold text-primary">Undo</Text>
+            <Text className="text-callout font-semibold text-brand">Undo</Text>
           </Pressable>
         </View>
       ) : expanded && cardio ? (
@@ -278,7 +298,7 @@ function ExerciseCardImpl({
             }}
           />
           {se.notes ? (
-            <Text testID={`${base}-note`} variant="muted" className="px-1">
+            <Text testID={`${base}-note`} className="px-1 text-subhead text-label-secondary">
               Note: {se.notes}
             </Text>
           ) : null}
@@ -289,19 +309,22 @@ function ExerciseCardImpl({
             <View
               testID={`${base}-suggestion-row`}
               className={cn(
-                'gap-2 rounded-xl bg-accent p-2',
+                'gap-2 rounded-control bg-brand-tint p-2',
                 stackSuggestion ? 'flex-row flex-wrap items-center' : 'flex-row items-start',
               )}
             >
-              <View className="rounded-md bg-card px-2 py-1">
-                <RNText testID={`${base}-direction`} className="text-xs font-bold text-primary">
+              <View className="rounded-inner bg-surface px-2 py-1">
+                <Text testID={`${base}-direction`} className="text-caption font-bold text-brand">
                   {bannerChip(se.prescription, ctx.unit)}
-                </RNText>
+                </Text>
               </View>
               {stackSuggestion ? (
                 <View className="flex-1" />
               ) : (
-                <Text testID={`${base}-suggestion`} className="min-w-0 flex-1 text-sm">
+                <Text
+                  testID={`${base}-suggestion`}
+                  className="min-w-0 flex-1 text-callout text-label"
+                >
                   {sentence}
                 </Text>
               )}
@@ -312,10 +335,13 @@ function ExerciseCardImpl({
                 onPress={() => ctx.onSheet({ kind: 'why', seId: se.id })}
                 className="-my-2 min-h-11 justify-center px-2"
               >
-                <Text className="text-sm font-semibold text-primary">Why?</Text>
+                <Text className="text-callout font-semibold text-brand">Why?</Text>
               </Pressable>
               {stackSuggestion ? (
-                <Text testID={`${base}-suggestion`} className="w-full min-w-0 text-sm">
+                <Text
+                  testID={`${base}-suggestion`}
+                  className="w-full min-w-0 text-callout text-label"
+                >
                   {sentence}
                 </Text>
               ) : null}
@@ -331,11 +357,20 @@ function ExerciseCardImpl({
                 onPress={() => setShowWarmups((v) => !v)}
                 className="min-h-11 flex-row items-center justify-between px-1"
               >
-                <Text variant="muted">
+                <Text className="text-subhead text-label-secondary">
                   {warmups.length} warm-up {warmups.length === 1 ? 'set' : 'sets'}
                   {warmupsDone > 0 ? ` · ${warmupsDone} done` : ''}
                 </Text>
-                <Text variant="muted">{showWarmups ? 'Hide ▴' : 'Show ▾'}</Text>
+                <View className="flex-row items-center gap-1">
+                  <Text className="text-subhead font-semibold text-brand">
+                    {showWarmups ? 'Hide' : 'Show'}
+                  </Text>
+                  <Icon
+                    name={showWarmups ? 'chevronUp' : 'chevronDown'}
+                    size={16}
+                    color={colors.brand}
+                  />
+                </View>
               </Pressable>
               {showWarmups
                 ? warmups.map((s, i) => (
@@ -361,22 +396,29 @@ function ExerciseCardImpl({
           ) : null}
 
           {working.map((s, i) => (
-            <SetRow
+            // MO-04: an added set fades in, a removed one fades out, the rest glide.
+            <Animated.View
               key={s.id}
-              seId={se.id}
-              set={s}
-              label={`Set ${i + 1}`}
-              last={lastSets[i] ?? null}
-              meta={meta}
-              profile={ctx.profile}
-              unit={ctx.unit}
-              weightMode={weightMode}
-              prKind={pr?.setId === s.id ? pr.kind : null}
-              focused={focusSetId === s.id}
-              handlers={ctx.handlers}
-              showCheck={!logging}
-              testID={`${base}-set-${i + 1}`}
-            />
+              entering={listEntering}
+              exiting={listExiting}
+              layout={listLayout}
+            >
+              <SetRow
+                seId={se.id}
+                set={s}
+                label={`Set ${i + 1}`}
+                last={lastSets[i] ?? null}
+                meta={meta}
+                profile={ctx.profile}
+                unit={ctx.unit}
+                weightMode={weightMode}
+                prKind={pr?.setId === s.id ? pr.kind : null}
+                focused={focusSetId === s.id}
+                handlers={ctx.handlers}
+                showCheck={!logging}
+                testID={`${base}-set-${i + 1}`}
+              />
+            </Animated.View>
           ))}
 
           {showRir ? (
@@ -384,21 +426,21 @@ function ExerciseCardImpl({
               <View
                 testID={`${base}-rir`}
                 className={cn(
-                  'gap-2 rounded-xl p-3',
-                  calibrating ? 'border border-primary/40 bg-accent' : 'bg-muted',
+                  'gap-2 rounded-control p-3',
+                  calibrating ? 'border border-brand/40 bg-brand-tint' : 'bg-surface-sunken',
                 )}
               >
                 <View className="flex-row items-start justify-between gap-2">
                   <View className="min-w-0 flex-1">
-                    <Text className="text-sm font-medium">
+                    <Text className="text-callout font-medium text-label">
                       How many more reps could you have done?
                     </Text>
                     {calibrating ? (
-                      <Text testID={`${base}-rir-calibrating`} className="text-xs text-primary">
+                      <Text testID={`${base}-rir-calibrating`} className="text-caption text-brand">
                         Helps us find your weight
                       </Text>
                     ) : (
-                      <Text variant="muted" className="text-xs">
+                      <Text className="text-caption text-label-secondary">
                         Optional, on your last set
                       </Text>
                     )}
@@ -413,7 +455,9 @@ function ExerciseCardImpl({
                     }}
                     className="-my-2 min-h-11 justify-center px-2"
                   >
-                    <Text variant="muted">{se.lastSetRir === null ? 'Not now' : 'Done'}</Text>
+                    <Text className="text-subhead font-semibold text-label-secondary">
+                      {se.lastSetRir === null ? 'Not now' : 'Done'}
+                    </Text>
                   </Pressable>
                 </View>
                 <View className="flex-row gap-2">
@@ -437,14 +481,14 @@ function ExerciseCardImpl({
                 testID={`${base}-rir-summary`}
                 accessibilityRole="button"
                 onPress={() => setRirOpen(true)}
-                className="min-h-11 flex-row items-center justify-between rounded-xl bg-muted px-3"
+                className="min-h-11 flex-row items-center justify-between gap-2 rounded-control bg-surface-sunken px-3"
               >
-                <Text className="text-sm">
+                <Text className="min-w-0 flex-1 text-callout text-label">
                   {se.lastSetRir === null
                     ? 'Reps left on the last set (optional)'
                     : `Reps left on the last set: ${se.lastSetRir === 3 ? '3+' : String(se.lastSetRir)}`}
                 </Text>
-                <Text className="text-sm font-semibold text-primary">
+                <Text className="text-callout font-semibold text-brand">
                   {se.lastSetRir === null ? 'Add' : 'Change'}
                 </Text>
               </Pressable>
@@ -452,7 +496,7 @@ function ExerciseCardImpl({
           ) : null}
 
           {se.notes ? (
-            <Text testID={`${base}-note`} variant="muted" className="px-1">
+            <Text testID={`${base}-note`} className="px-1 text-subhead text-label-secondary">
               Note: {se.notes}
             </Text>
           ) : null}
@@ -466,12 +510,12 @@ function ExerciseCardImpl({
               accessibilityRole="button"
               accessibilityState={{ disabled: true }}
               accessibilityLabel={`Add set, unavailable. ${SET_CAP_REASON}`}
-              className="min-h-12 items-center justify-center rounded-lg border border-dashed border-border px-3 py-2 opacity-60"
+              className="min-h-12 items-center justify-center rounded-control border border-dashed border-separator px-3 py-2 opacity-60"
             >
-              <Text variant="muted" className="text-base font-medium">
-                + Add set
+              <Text numberOfLines={1} className="text-callout font-semibold text-label-secondary">
+                Add set
               </Text>
-              <Text testID={`${base}-add-set-reason`} variant="muted" className="text-sm">
+              <Text testID={`${base}-add-set-reason`} className="text-subhead text-label-secondary">
                 {SET_CAP_REASON}
               </Text>
             </View>
@@ -480,9 +524,16 @@ function ExerciseCardImpl({
               testID={`${base}-add-set`}
               accessibilityRole="button"
               onPress={() => ctx.onAddSet(se.id)}
-              className="min-h-12 items-center justify-center rounded-lg border border-dashed border-border"
+              className="min-h-12 flex-row items-center justify-center gap-1.5 rounded-control border border-dashed border-brand/40"
             >
-              <Text className="text-base font-medium text-primary">+ Add set</Text>
+              <Icon name="add" size={20} color={colors.brand} />
+              {/* Large screens: on Android (tablet, 2x density) this shrink-wrapped
+                  semibold label was drawn a hair wider than RN measured it, so
+                  "set" wrapped onto a second line the 1-line box clips —
+                  "Add" (seen after a rotation). One line can't wrap. */}
+              <Text numberOfLines={1} className="text-callout font-semibold text-brand">
+                Add set
+              </Text>
             </Pressable>
           )}
         </View>

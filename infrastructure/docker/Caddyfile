@@ -4,6 +4,9 @@
 #
 #   /trpc/*, /api/uploads/*, /api/recipe-images/*, /api/chat, /api/health,
 #   /uploads/*, /static/exercises/*                                       -> api:3001
+#   /.well-known/apple-app-site-association, /.well-known/assetlinks.json  -> api:3001
+#     (password-manager association files; only these two paths, so Caddy's
+#      own ACME challenges under /.well-known/acme-challenge/ are untouched)
 #   everything else (pages, static)                                        -> web:3000
 #
 # The api and web hostnames resolve over the compose network.
@@ -31,6 +34,12 @@
 	# Uploaded files + gym exercise photos (gym_plan.md §5.5) served statically by the API
 	@uploads path /uploads/* /static/exercises/*
 	handle @uploads {
+		reverse_proxy api:3001
+	}
+
+	# iOS/Android password-manager association files (WP-22): JSON, 200, no redirect
+	@wellKnown path /.well-known/apple-app-site-association /.well-known/assetlinks.json
+	handle @wellKnown {
 		reverse_proxy api:3001
 	}
 

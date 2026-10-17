@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
+import { useNumbersMode } from '@/features/numbers-mode/numbers-mode';
 import { trpc, type RouterOutputs } from '@/lib/trpc';
 import { Sheet } from '@chefer/ui';
 import {
@@ -78,6 +79,8 @@ export function EditEntrySheet({
 }: EditEntrySheetProps) {
   const [name, setName] = useState('');
   const [mealType, setMealType] = useState<QuickAddMealType>('snack');
+  // WP-08: protein-only mode edits protein; calories and the other macros keep their stored values.
+  const { proteinOnly } = useNumbersMode();
   const [kcal, setKcal] = useState('');
   const [macros, setMacros] = useState<Record<MacroKey, string>>({
     protein: '',
@@ -134,9 +137,10 @@ export function EditEntrySheet({
   // Blank macros are unknown, not 0 g (UX-FOOD-11): stored as 0, flagged, and
   // never trip the "don't add up" check.
   const unknownMacros = MACROS.filter((k) => macros[k].trim() === '');
-  const sanity = sanityOverridden
-    ? null
-    : checkMacroSanity({ kcal: kcalNumber, ...macroNumbers, unknownMacros });
+  const sanity =
+    sanityOverridden || proteinOnly
+      ? null
+      : checkMacroSanity({ kcal: kcalNumber, ...macroNumbers, unknownMacros });
   const canSave =
     !!entryId && name.trim().length > 0 && kcalNumber > 0 && !updateMutation.isPending;
 
@@ -291,46 +295,62 @@ export function EditEntrySheet({
           ))}
         </div>
 
-        <label className="flex flex-col gap-1 text-xs font-medium text-neutral-600">
-          Calories
-          <span className="flex items-center gap-1">
+        {proteinOnly ? (
+          <label className="flex flex-col gap-1 text-xs font-medium text-neutral-600">
+            Protein (g)
             <input
               type="number"
-              inputMode="numeric"
-              data-testid="edit-entry-kcal"
-              ref={kcalRef}
-              value={kcal}
-              onChange={(e) => {
-                setKcal(e.target.value);
-                setSanityOverridden(false);
-              }}
+              inputMode="decimal"
+              data-testid="edit-entry-protein"
+              value={macros.protein}
+              onChange={(e) => setMacros((prev) => ({ ...prev, protein: e.target.value }))}
               className="min-h-11 w-full min-w-0 rounded-xl border border-neutral-200 px-3 text-sm text-neutral-900"
             />
-            <span className="shrink-0 text-neutral-400">kcal</span>
-          </span>
-        </label>
-
-        <div className="flex gap-2">
-          {MACROS.map((k) => (
-            <label
-              key={k}
-              className="flex min-w-0 flex-1 flex-col gap-1 text-xs font-medium text-neutral-600"
-            >
-              {k.charAt(0).toUpperCase() + k.slice(1)} (g)
-              <input
-                type="number"
-                inputMode="decimal"
-                data-testid={`edit-entry-${k}`}
-                value={macros[k]}
-                onChange={(e) => {
-                  setMacros((prev) => ({ ...prev, [k]: e.target.value }));
-                  setSanityOverridden(false);
-                }}
-                className="min-h-11 w-full min-w-0 rounded-xl border border-neutral-200 px-3 text-sm text-neutral-900"
-              />
+          </label>
+        ) : (
+          <>
+            <label className="flex flex-col gap-1 text-xs font-medium text-neutral-600">
+              Calories
+              <span className="flex items-center gap-1">
+                <input
+                  type="number"
+                  inputMode="numeric"
+                  data-testid="edit-entry-kcal"
+                  ref={kcalRef}
+                  value={kcal}
+                  onChange={(e) => {
+                    setKcal(e.target.value);
+                    setSanityOverridden(false);
+                  }}
+                  className="min-h-11 w-full min-w-0 rounded-xl border border-neutral-200 px-3 text-sm text-neutral-900"
+                />
+                <span className="shrink-0 text-neutral-400">kcal</span>
+              </span>
             </label>
-          ))}
-        </div>
+
+            <div className="flex gap-2">
+              {MACROS.map((k) => (
+                <label
+                  key={k}
+                  className="flex min-w-0 flex-1 flex-col gap-1 text-xs font-medium text-neutral-600"
+                >
+                  {k.charAt(0).toUpperCase() + k.slice(1)} (g)
+                  <input
+                    type="number"
+                    inputMode="decimal"
+                    data-testid={`edit-entry-${k}`}
+                    value={macros[k]}
+                    onChange={(e) => {
+                      setMacros((prev) => ({ ...prev, [k]: e.target.value }));
+                      setSanityOverridden(false);
+                    }}
+                    className="min-h-11 w-full min-w-0 rounded-xl border border-neutral-200 px-3 text-sm text-neutral-900"
+                  />
+                </label>
+              ))}
+            </div>
+          </>
+        )}
 
         {updateMutation.isError && (
           <p data-testid="edit-entry-api-error" className="text-xs text-red-600">

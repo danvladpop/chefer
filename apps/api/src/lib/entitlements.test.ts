@@ -47,12 +47,18 @@ describe('hasFeature', () => {
 describe('getLimit', () => {
   it('returns the tier limit for numeric access', () => {
     expect(getLimit(free, 'planGenerationsPerDay')).toBe(3);
-    expect(getLimit(premium, 'planGenerationsPerDay')).toBe(20);
-    expect(getLimit(admin, 'planGenerationsPerDay')).toBe(20);
+    // Phase 1 guardrails (2026-10-11): premium 20 → 5, free stays 3.
+    expect(getLimit(premium, 'planGenerationsPerDay')).toBe(5);
+    expect(getLimit(admin, 'planGenerationsPerDay')).toBe(5);
+  });
+
+  it('caps premium chat at 20 messages a day (Phase 1 guardrails)', () => {
+    expect(getLimit(premium, 'chatMessagesPerDay')).toBe(20);
+    expect(getLimit(admin, 'chatMessagesPerDay')).toBe(20);
   });
 
   it('returns null for unlimited access', () => {
-    expect(getLimit(premium, 'chatMessagesPerDay')).toBeNull();
+    expect(getLimit(premium, 'aiMealPlans')).toBeNull();
   });
 
   it('returns 0 for no access', () => {

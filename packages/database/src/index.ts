@@ -22,6 +22,7 @@ export {
   type CreateRecipeData,
   type CreateMealPlanData,
   type PlanMealSlotJson,
+  type PortionRefitJson,
   // Instant week, then live tailoring (premium)
   MealPlanTailoringRepository,
   mealPlanTailoringRepository,
@@ -44,6 +45,9 @@ export {
   dailyLogRepository,
   type IDailyLogRepository,
   type LoggedMealEntry,
+  type DayState,
+  type SlotRefJson,
+  parseSkippedSlots,
   type UpsertDailyLogData,
   WeightEntryRepository,
   weightEntryRepository,
@@ -155,6 +159,15 @@ export {
   IngredientNoticeRepository,
   ingredientNoticeRepository,
   type IIngredientNoticeRepository,
+  AiUsageRepository,
+  aiUsageRepository,
+  type IAiUsageRepository,
+  type CreateAiUsageEventData,
+  type AiCostByWorkload,
+  type AiCostByUser,
+  SessionRepository,
+  sessionRepository,
+  type ISessionRepository,
   type CatalogListQuery,
   type CatalogListPage,
   catalogListWhere,
@@ -162,6 +175,13 @@ export {
   consentEventRepository,
   type IConsentEventRepository,
   type RecordConsentEventData,
+  // Sign in with Google / Apple (WP-22)
+  AuthIdentityRepository,
+  authIdentityRepository,
+  type IAuthIdentityRepository,
+  type IdentityWithUser,
+  type CreateIdentityData,
+  type UpdateIdentityData,
   // Following (docs/friends/implementation-plan.md §2.4)
   SocialProfileRepository,
   socialProfileRepository,
@@ -236,6 +256,17 @@ export {
   type CoachedSessionRow,
   type CoachedSessionCursor,
   type ActiveRoutineStamp,
+  // Phase 1 guardrails: uploaded photos ledger + upload references
+  UploadedFileRepository,
+  uploadedFileRepository,
+  type IUploadedFileRepository,
+  type CreateUploadedFileData,
+  type UploadLimits,
+  type UploadReservation,
+  UploadReferenceRepository,
+  uploadReferenceRepository,
+  type IUploadReferenceRepository,
+  type PurgeResult,
 } from './repositories/index';
 
 // Ingredient catalog validators (docs/plan-ingredient-catalog.md §4.5) — pure, no I/O
@@ -266,7 +297,14 @@ export {
   type ValidateOptions,
   // Catalog sync (§4.4 step 7): catalog.json → global Ingredient rows
   readCatalogFile,
+  readGeneratedCatalogFile,
   CATALOG_FILE_PATH,
+  // Curated portions overlay (UX-REC-14)
+  applyPortionsOverlay,
+  readPortionsOverlay,
+  validatePortionsOverlay,
+  PORTIONS_OVERLAY_PATH,
+  type PortionsOverlayRow,
   applyCatalogSync,
   planCatalogSync,
   loadGlobalIngredients,
@@ -281,6 +319,7 @@ export {
 export type {
   User,
   Account,
+  AuthIdentity,
   Session,
   Post,
   Tag,
@@ -335,6 +374,8 @@ export type {
   IngredientPortion,
   IngredientNotice,
   RecipeIngredient,
+  // Phase 2 AI cost tracking
+  AiUsageEvent,
 } from '@prisma/client';
 export {
   AiCallType,

@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { fireEvent, render, screen } from '@testing-library/react-native';
+import { fireEvent, render, screen, within } from '@testing-library/react-native';
 import type { SafetyPickerValue } from '@chefer/utils';
 import { SafetyPicker } from '../../src/features/safety/safety-picker';
 
@@ -96,5 +96,28 @@ describe('SafetyPicker (T-01.7)', () => {
       accessibilityState?: { selected?: boolean };
     };
     expect(chip.accessibilityState?.selected).toBe(true);
+  });
+
+  // UX-ACC-06 follow-up: Crustaceans and Molluscs replace the legacy Shellfish chip for new picks.
+  describe('legacy Shellfish allergy chip', () => {
+    it('is not offered to a user who has not picked it', async () => {
+      await render(<Controlled initial={EMPTY} />);
+      const allergies = within(screen.getByTestId('p-allergies'));
+      expect(allergies.queryByText('Shellfish')).toBeNull();
+      expect(allergies.getByText('Crustaceans')).toBeTruthy();
+      expect(allergies.getByText('Molluscs')).toBeTruthy();
+    });
+
+    it('stays visible, selected and removable for a user who already has it', async () => {
+      await render(<Controlled initial={{ ...EMPTY, allergies: ['Shellfish'] }} />);
+      const allergies = within(screen.getByTestId('p-allergies'));
+      expect(allergies.getByText('Shellfish')).toBeTruthy();
+      expect(screen.getByTestId('p-allergies-readback')).toHaveTextContent(/Shellfish\./);
+      await fireEvent.press(allergies.getByText('Shellfish'));
+      expect(screen.getByTestId('p-allergies-readback')).toHaveTextContent(
+        /No allergies selected\./,
+      );
+      expect(within(screen.getByTestId('p-allergies')).queryByText('Shellfish')).toBeNull();
+    });
   });
 });

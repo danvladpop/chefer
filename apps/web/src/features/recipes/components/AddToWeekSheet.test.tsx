@@ -88,7 +88,10 @@ describe('AddToWeekSheet', () => {
     expect(screen.getByTestId(`add-to-week-day-${TODAY}`)).toHaveAttribute('aria-pressed', 'true');
     expect(screen.getByTestId('add-to-week-slot-breakfast-add')).toHaveTextContent('Add here');
     expect(screen.getByTestId('add-to-week-slot-lunch-0')).toHaveTextContent('Chicken wrap');
-    expect(screen.getByTestId('add-to-week-slot-lunch-0')).toHaveTextContent('Replace');
+    expect(screen.getByTestId('add-to-week-slot-lunch-0')).toHaveTextContent('Replace this meal');
+    // FB7-04: a type that already has a dish also offers "Add as a side".
+    expect(screen.getByTestId('add-to-week-slot-lunch-side')).toHaveTextContent('Add as a side');
+    expect(screen.queryByTestId('add-to-week-slot-breakfast-side')).toBeNull();
     expect(screen.getByTestId('add-to-week-cta')).toBeDisabled();
   });
 
@@ -109,6 +112,25 @@ describe('AddToWeekSheet', () => {
     });
     expect(onAdded).toHaveBeenCalledWith(RESULT);
     expect(onClose).toHaveBeenCalled();
+  });
+
+  it('FB7-04: "Add as a side" adds next to the lunch in add mode, with no replace confirm', async () => {
+    m.addMutateAsync.mockResolvedValue({ ...RESULT, mealType: 'lunch', slotIndex: 1 });
+    const { onAdded } = renderSheet();
+    fireEvent.click(screen.getByTestId('add-to-week-slot-lunch-side'));
+    fireEvent.click(screen.getByTestId('add-to-week-cta'));
+    await act(async () => {
+      await Promise.resolve();
+    });
+    expect(screen.queryByTestId('add-to-week-confirm')).toBeNull();
+    expect(m.addMutateAsync).toHaveBeenCalledWith({
+      recipeId: 'r1',
+      weekOffset: 0,
+      dayOfWeek: TODAY,
+      mealType: 'lunch',
+      mode: 'add',
+    });
+    expect(onAdded).toHaveBeenCalledTimes(1);
   });
 
   it('asks before replacing a filled slot, and sends its index', async () => {

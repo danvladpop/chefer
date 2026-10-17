@@ -1,5 +1,5 @@
-import type { MealPlan, MealPlanDay, Prisma, Recipe } from '@prisma/client';
-import { MealPlanOrigin, MealPlanStatus } from '@prisma/client';
+import type { MealPlan, MealPlanDay, Recipe } from '@prisma/client';
+import { MealPlanOrigin, MealPlanStatus, Prisma } from '@prisma/client';
 import { prisma } from '../client';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -28,6 +28,12 @@ export interface CreateRecipeData {
  * One stored plan slot (MealPlanDay.meals Json). `leftoverOf` and `portion`
  * are optional and additive — older rows and clients simply lack them.
  */
+/** `MealPlan.portionRefit`: what a targets refit changed, for the notice and its Undo. */
+export type PortionRefitJson = {
+  at: string;
+  days: { dayOfWeek: number; previousPortions: number[] }[];
+};
+
 export type PlanMealSlotJson = {
   type: string;
   recipeId: string;
@@ -127,6 +133,18 @@ export interface IMealPlanRepository {
     pinned: boolean,
   ): Promise<void>;
   /**
+   * FB7-04: removes the slot at `slotIndex` (its type must be `mealType`),
+   * atomically refusing when it would leave the day with no slot of that type.
+   * `removed` = done (later slots shift down by one); `missing` = no such
+   * slot (stale index or day); `last-of-type` = it is the only one of its type.
+   */
+  removeDaySlot(
+    planId: string,
+    dayOfWeek: number,
+    mealType: string,
+    slotIndex: number,
+  ): Promise<'removed' | 'missing' | 'last-of-type'>;
+  /**
    * T-11.3: overwrites one day's slot portions in place (by index, same
    * order as the day's `meals`), leaving recipe, `leftoverOf` and `pinned`
    * untouched. A `portions[i]` of `undefined` leaves that slot's portion
@@ -137,6 +155,8 @@ export interface IMealPlanRepository {
     dayOfWeek: number,
     portions: (number | undefined)[],
   ): Promise<void>;
+  /** Day rebalance: records (or clears, with null) the plan's last targets refit. */
+  setPortionRefit(planId: string, value: PortionRefitJson | null): Promise<void>;
   /**
    * §wave-1 planDay: overwrites one day's `meals` array in full — unlike
    * `updateDayMeal`/`setDayPortions`, which patch one slot or a portions
@@ -545,6 +565,15 @@ export class MealPlanRepository implements IMealPlanRepository {
   }
 
   /** T-11.3: overwrites one day's slot portions in place, by index. */
+  async setPortionRefit(planId: string, value: PortionRefitJson | null): Promise<void> {
+    await prisma.mealPlan.update({
+      where: { id: planId },
+      data: {
+        portionRefit: value === null ? Prisma.DbNull : (value as unknown as Prisma.InputJsonValue),
+      },
+    });
+  }
+
   async setDayPortions(
     planId: string,
     dayOfWeek: number,
@@ -643,6 +672,36 @@ export class MealPlanRepository implements IMealPlanRepository {
       });
       return true;
     });
+  }
+
+  async removeDaySlot(
+    planId: string,
+    dayOfWeek: number,
+    mealType: string,
+    slotIndex: number,
+  ): Promise<'removed' | 'missing' | 'last-of-type'> {
+    const result = await serializableDayWrite(async (tx) => {
+      const day = await tx.mealPlanDay.findFirst({ where: { mealPlanId: planId, dayOfWeek } });
+      if (!day) return 'missing' as const;
+      const meals = (day.meals as unknown as PlanMealSlotJson[] | null) ?? [];
+      if (meals[slotIndex]?.type !== mealType) return 'missing' as const;
+      if (meals.filter((m) => m.type === mealType).length < 2) return 'last-of-type' as const;
+      await tx.mealPlanDay.update({
+        where: { id: day.id },
+        data: {
+          meals: meals.filter((_, i) => i !== slotIndex),
+        },
+      });
+      return 'removed' as const;
+    });
+    if (result === 'removed') {
+      // An edited copy is the user's week now (audit F-PLAN-4-2), as updateDayMeal.
+      await prisma.mealPlan.updateMany({
+        where: { id: planId, origin: MealPlanOrigin.CARRY_FORWARD },
+        data: { origin: MealPlanOrigin.USER },
+      });
+    }
+    return result;
   }
 
   async hasShoppingProgress(planId: string): Promise<boolean> {

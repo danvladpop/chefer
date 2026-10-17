@@ -30,6 +30,32 @@ import {
 
 export type AddToWeekResult = RouterOutputs['recipe']['addToWeek'];
 
+/** FB7-04: an `add` row for a meal type that already has a dish — "Add as a side". */
+type SlotRowWithSide = AddToWeekSlotRow & { side?: boolean };
+
+/**
+ * After the last filled row of each meal type, one "Add as a side" row: the
+ * recipe goes next to the dish(es) already there, in add mode (no confirm).
+ */
+export function withSideRows(rows: readonly AddToWeekSlotRow[]): SlotRowWithSide[] {
+  const out: SlotRowWithSide[] = [];
+  rows.forEach((row, i) => {
+    out.push(row);
+    const next = rows[i + 1];
+    if (row.mode === 'replace' && next?.mealType !== row.mealType) {
+      out.push({
+        key: `${row.mealType}-side`,
+        mealType: row.mealType,
+        mode: 'add',
+        slotIndex: null,
+        currentName: null,
+        side: true,
+      });
+    }
+  });
+  return out;
+}
+
 export function AddToWeekSheet({
   open,
   onClose,
@@ -45,7 +71,7 @@ export function AddToWeekSheet({
   const nextWeekAllowed = canPickNextWeek();
   const [weekOffset, setWeekOffset] = useState<0 | 1>(0);
   const [day, setDay] = useState(() => defaultDay(0));
-  const [selected, setSelected] = useState<AddToWeekSlotRow | null>(null);
+  const [selected, setSelected] = useState<SlotRowWithSide | null>(null);
   const [failure, setFailure] = useState<AddToWeekFailure | null>(null);
   const [confirming, setConfirming] = useState(false);
 
@@ -54,7 +80,7 @@ export function AddToWeekSheet({
   const add = trpc.recipe.addToWeek.useMutation({ meta: { silent: true } });
 
   const plan = week.data;
-  const rows = plan ? addToWeekSlotRows(plan, day, shape.data?.slots ?? []) : [];
+  const rows = plan ? withSideRows(addToWeekSlotRows(plan, day, shape.data?.slots ?? [])) : [];
   const dayLabel = weekdayShortName(day);
   const noPlan = failure?.kind === 'noPlan' || (!week.isLoading && !week.isError && plan === null);
 
@@ -231,8 +257,10 @@ export function AddToWeekSheet({
               const isSelected = selected?.key === row.key;
               const action =
                 row.mode === 'add'
-                  ? FRIENDS_COPY.addToWeek.addHere
-                  : FRIENDS_COPY.addToWeek.replace;
+                  ? row.side
+                    ? FRIENDS_COPY.addToWeek.addAsSide
+                    : FRIENDS_COPY.addToWeek.addHere
+                  : FRIENDS_COPY.addToWeek.replaceThisMeal;
               return (
                 <button
                   key={row.key}

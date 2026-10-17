@@ -1,6 +1,6 @@
 // ─── Cardio catalogue data (T-42.1, 06 §6) ───────────────────────────────────
 // MET ranges, default metrics and quick-log presets for the 12 W2 cardio
-// entries in exercise-catalog.ts. Kept separate from ExerciseCatalogEntry
+// entries (+ the 8 WP-20 quick-log activities) in exercise-catalog.ts. Kept separate from ExerciseCatalogEntry
 // (structural/engine fields) because none of this drives the strength
 // engine — it's read only by the cardio entry UI (T-42.3) and the calorie
 // estimate (T-42.10, W5, behind cardioCaloriesOnSummary). MET values are
@@ -58,6 +58,18 @@ export const CARDIO_CATALOG: readonly CardioCatalogEntry[] = [
   // Rowing machine distance is conventionally metres (500 m splits), not km/mi.
   entry('rowing-machine', 5, 8.5, ['time', 'distance', 'pace'], { distanceInMetres: true }),
   entry('stair-climber', 8, 11, ['time', 'resistance']),
+  // WP-20 quick-log activities (activity-log.ts): time only — the duration the
+  // user types, plus an optional kcal/effort on the one set. MET ranges are the
+  // same Compendium-style estimates as above; nothing reads them for a calorie
+  // number (a quick-log's kcal is whatever the watch/machine said).
+  entry('pilates-class', 3, 4, ['time']),
+  entry('yoga-class', 2.5, 4, ['time']),
+  entry('hiit-class', 6, 10, ['time']),
+  entry('dance-class', 4.5, 7.5, ['time']),
+  entry('swimming', 5.8, 9.8, ['time']),
+  entry('running', 8, 12, ['time']),
+  entry('walking', 2.8, 4.3, ['time']),
+  entry('other-activity', 3, 8, ['time']),
 ];
 
 export const CARDIO_CATALOG_BY_ID: ReadonlyMap<string, CardioCatalogEntry> = new Map(

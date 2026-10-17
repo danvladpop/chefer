@@ -68,6 +68,9 @@ const TRPC_CODE: Record<VideoImportErrorCode, TRPCError['code']> = {
   TIMEOUT: 'TIMEOUT',
   BLOCKED: 'SERVICE_UNAVAILABLE',
   UNAVAILABLE: 'SERVICE_UNAVAILABLE',
+  // Phase 1 guardrails: every video-import slot is taken (VIDEO_IMPORT_CONCURRENCY).
+  // Not TOO_MANY_REQUESTS — clients read that as a quota/upgrade moment.
+  BUSY: 'SERVICE_UNAVAILABLE',
 };
 
 /** VideoImportError → a TRPCError carrying only the friendly sentence. */

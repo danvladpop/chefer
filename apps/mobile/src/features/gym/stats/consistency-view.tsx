@@ -1,7 +1,8 @@
-import { View } from 'react-native';
 import type { GymBootstrap } from '@chefer/types';
-import { Card, CardTitle, Text, WeekGrid } from '@chefer/ui-mobile';
+import { StatTile, StatTiles, Text, useThemeColors, WeekGrid } from '@chefer/ui-mobile';
+import { Icon } from '../../../components/icon';
 import { trpc } from '../../../lib/trpc';
+import { TrainCard } from '../../shell/train/train-cards';
 import { useIsOnline } from '../library-screens/online-status';
 
 // (c) Consistency (gym_plan.md §1.3 Stats #3): a grid of weeks by status
@@ -12,6 +13,7 @@ import { useIsOnline } from '../library-screens/online-status';
 const WEEKS = 52;
 
 export function ConsistencyView({ bootstrap }: { bootstrap: GymBootstrap }) {
+  const colors = useThemeColors();
   const online = useIsOnline();
   const apiConsistency = trpc.gym.stats.consistency.useQuery({ weeks: WEEKS }, { enabled: online });
 
@@ -19,16 +21,24 @@ export function ConsistencyView({ bootstrap }: { bootstrap: GymBootstrap }) {
   const streak = apiConsistency.data?.streak ?? bootstrap.streak;
 
   return (
-    <Card testID="stats-consistency">
-      <CardTitle>Consistency</CardTitle>
-      <View className="mb-3 flex-row gap-4">
-        <Text>
-          Current streak: <Text className="font-semibold">{streak.current}</Text>
-        </Text>
-        <Text>
-          Best: <Text className="font-semibold">{streak.best}</Text>
-        </Text>
-      </View>
+    <TrainCard testID="stats-consistency">
+      <Text accessibilityRole="header" className="text-headline font-semibold text-label">
+        Consistency
+      </Text>
+      <StatTiles>
+        <StatTile
+          testID="stats-consistency-current"
+          icon={<Icon name="flame" color={colors.brand} size={18} />}
+          value={String(streak.current)}
+          label="Current streak"
+        />
+        <StatTile
+          testID="stats-consistency-best"
+          icon={<Icon name="trophy" color={colors.brand} size={18} />}
+          value={String(streak.best)}
+          label="Best streak"
+        />
+      </StatTiles>
       <WeekGrid
         testID="stats-consistency-grid"
         weeks={weeks.map((w) => ({
@@ -38,6 +48,6 @@ export function ConsistencyView({ bootstrap }: { bootstrap: GymBootstrap }) {
         }))}
         showLegend
       />
-    </Card>
+    </TrainCard>
   );
 }

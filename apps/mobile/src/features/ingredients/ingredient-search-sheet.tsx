@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Image, ScrollView, View, type TextInput } from 'react-native';
+import { Image, Keyboard, ScrollView, View, type TextInput } from 'react-native';
 import {
   INGREDIENT_CATALOG_COPY,
   INGREDIENT_CATEGORY_LABELS,
@@ -7,7 +7,7 @@ import {
   NUTRITION_SOURCE_LABELS,
   type IngredientCategory,
 } from '@chefer/types';
-import { Chip, Input, PressableScale, Sheet, Text } from '@chefer/ui-mobile';
+import { Chip, Input, keyboardDismissMode, PressableScale, Sheet, Text } from '@chefer/ui-mobile';
 import { trpc } from '../../lib/trpc';
 import {
   pickedFromRef,
@@ -154,6 +154,7 @@ export function IngredientSearchSheet({
           onChangeText={setQuery}
           placeholder={copy.placeholder}
           returnKeyType="search"
+          onSubmitEditing={() => Keyboard.dismiss()}
         />
 
         <ScrollView
@@ -185,6 +186,7 @@ export function IngredientSearchSheet({
         <ScrollView
           testID={`${testID}-results`}
           keyboardShouldPersistTaps="handled"
+          keyboardDismissMode={keyboardDismissMode()}
           className="grow-0"
           style={{ maxHeight: resultsMaxHeight }}
         >

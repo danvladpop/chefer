@@ -31,6 +31,7 @@ export {
   type CreateRecipeData,
   type CreateMealPlanData,
   type PlanMealSlotJson,
+  type PortionRefitJson,
 } from './meal-plan.repository';
 
 export {
@@ -65,6 +66,9 @@ export {
   dailyLogRepository,
   type IDailyLogRepository,
   type LoggedMealEntry,
+  type DayState,
+  type SlotRefJson,
+  parseSkippedSlots,
   type UpsertDailyLogData,
 } from './daily-log.repository';
 
@@ -212,6 +216,15 @@ export {
   type RecordConsentEventData,
 } from './consent-event.repository';
 
+export {
+  AuthIdentityRepository,
+  authIdentityRepository,
+  type IAuthIdentityRepository,
+  type IdentityWithUser,
+  type CreateIdentityData,
+  type UpdateIdentityData,
+} from './auth-identity.repository';
+
 // ─── Following (docs/friends/implementation-plan.md §2.4) ──────────────────────
 
 export {
@@ -354,3 +367,34 @@ export {
   type CoachedSessionCursor,
   type ActiveRoutineStamp,
 } from './coaching-content.repository';
+
+export {
+  AiUsageRepository,
+  aiUsageRepository,
+  type IAiUsageRepository,
+  type CreateAiUsageEventData,
+  type AiCostByWorkload,
+  type AiCostByUser,
+} from './ai-usage.repository';
+
+export {
+  SessionRepository,
+  sessionRepository,
+  type ISessionRepository,
+} from './session.repository';
+// Phase 1 guardrails: uploaded photos ledger + who references an upload
+export {
+  UploadedFileRepository,
+  uploadedFileRepository,
+  type IUploadedFileRepository,
+  type CreateUploadedFileData,
+  type UploadLimits,
+  type UploadReservation,
+} from './uploaded-file.repository';
+
+export {
+  UploadReferenceRepository,
+  uploadReferenceRepository,
+  type IUploadReferenceRepository,
+  type PurgeResult,
+} from './upload-reference.repository';

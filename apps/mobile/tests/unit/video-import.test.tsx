@@ -1,5 +1,5 @@
 import { SafeAreaProvider } from 'react-native-safe-area-context';
-import { act, fireEvent, render, screen } from '@testing-library/react-native';
+import { act, fireEvent, render, screen, within } from '@testing-library/react-native';
 import { router } from 'expo-router';
 import ImportRecipeScreen from '../../app/import-recipe';
 import { openPremium } from '../../src/features/premium/open-premium';
@@ -380,6 +380,31 @@ describe('VideoDraftForm (mobile)', () => {
       }),
       true,
     );
+  });
+
+  it('FB7-03: a very long ingredient name with an amber hint keeps the picker in its row and the hint below it', async () => {
+    const longName =
+      'extra virgin cold-pressed organic olive oil from the first harvest of the season';
+    await renderForm(
+      preview({
+        draft: {
+          ...preview().draft,
+          ingredients: [{ name: longName, quantity: 3, unit: 'tbsp' }],
+        },
+        unverifiedQuantities: [0],
+      }),
+    );
+    const picker = screen.getByTestId('video-draft-ingredient-0');
+    const root = screen.getByTestId('video-draft-ingredient-0-root');
+    // The trigger flows in the row (never absolutely positioned over the text
+    // below it) and wraps the name to two lines instead of overflowing.
+    expect(picker).not.toHaveStyle({ position: 'absolute' });
+    expect(root).not.toHaveStyle({ position: 'absolute' });
+    expect(within(picker).getByText(longName).props.numberOfLines).toBe(2);
+    // Both amber hints are in the column under the row, as siblings of it.
+    expect(screen.getByText('Amount not heard — please check')).toBeOnTheScreen();
+    expect(screen.getByTestId('video-draft-match-0')).toBeOnTheScreen();
+    expect(screen.getByTestId('video-draft-match-0')).toHaveTextContent(/No match for/);
   });
 
   it('adds and removes rows', async () => {

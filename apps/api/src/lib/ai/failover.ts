@@ -1,3 +1,4 @@
+import { runWithAiUsageScope } from './call-context.js';
 import { isCapacityAiError } from './friendly-error.js';
 import { AI_WORKLOADS, DEFAULT_AI_ROUTES, type AiWorkload } from './routing.js';
 import type {
@@ -19,8 +20,6 @@ import type {
   RecipeExtractionSource,
   RecipeLineRepair,
   RecipeLineRepairRequest,
-  ShoppingListInput,
-  ShoppingListResponse,
   SwapInput,
   WeekPlanResponse,
 } from './types.js';
@@ -38,8 +37,7 @@ import type {
 // two-provider table exactly:
 // - PRIMARY-FIRST (quality-sensitive): generateMealPlan, generateRecipeSwap,
 //   cheferizeRecipe, extractRecipe (text sources), generateReviewText.
-// - SECONDARY-FIRST (cheap, high-volume): chat, estimateIngredientPrices,
-//   generateShoppingList.
+// - SECONDARY-FIRST (cheap, high-volume): chat, estimateIngredientPrices.
 // - GEMINI-FIRST by default: analyzeMealPhoto and photo extraction (the
 //   `vision` workload, routable via AI_ROUTE_VISION). Video links are read as
 //   text (lib/video-import) and ride the importText chain like any paste.
@@ -131,7 +129,9 @@ export class ChainAIService implements IAIService {
     for (let i = 0; i < chain.length; i++) {
       const ref = chain[i]!;
       try {
-        const result = await call(ref.service);
+        // Labels every model call this attempt makes with its workload (cost
+        // tracking, usage-recorder.ts) — changes nothing about how it runs.
+        const result = await runWithAiUsageScope({ workload }, () => call(ref.service));
         console.info(`[AI] ${label}: served by ${ref.name}${i > 0 ? ' (failover)' : ''}`);
         if (shadowInput !== undefined) {
           this.notifyShadow({
@@ -191,15 +191,6 @@ export class ChainAIService implements IAIService {
 
   generateRecipeSwap(input: SwapInput): Promise<RecipeData> {
     return this.run('generateRecipeSwap', 'swap', (s) => s.generateRecipeSwap(input), input);
-  }
-
-  generateShoppingList(input: ShoppingListInput): Promise<ShoppingListResponse> {
-    return this.run(
-      'generateShoppingList',
-      'shopping',
-      (s) => s.generateShoppingList(input),
-      input,
-    );
   }
 
   estimateIngredientPrices(

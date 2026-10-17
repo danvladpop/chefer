@@ -53,7 +53,8 @@
   },
   "pendlay-row": {
     "freeExerciseDb": null,
-    "wger": 448
+    "wger": 448,
+    "photoRejected": "free-exercise-db only has the bent-over barbell row (not a dead-stop Pendlay)"
   },
   "t-bar-row": {
     "freeExerciseDb": "T-Bar_Row_with_Handle",
@@ -85,7 +86,8 @@
   },
   "landmine-press": {
     "freeExerciseDb": null,
-    "wger": 346
+    "wger": 346,
+    "photoRejected": "no landmine press (only Landmine 180s / Linear Jammer)"
   },
   "standing-dumbbell-shoulder-press": {
     "freeExerciseDb": "Standing_Dumbbell_Press",
@@ -101,7 +103,8 @@
   },
   "kettlebell-press": {
     "freeExerciseDb": null,
-    "wger": null
+    "wger": null,
+    "photoRejected": "only the alternating two-kettlebell press"
   },
   "machine-lateral-raise": {
     "freeExerciseDb": null,
@@ -221,7 +224,8 @@
   },
   "kettlebell-swing": {
     "freeExerciseDb": null,
-    "wger": 960
+    "wger": 960,
+    "photoRejected": "only the one-arm swing"
   },
   "kettlebell-deadlift": {
     "freeExerciseDb": null,
@@ -313,7 +317,8 @@
   },
   "suitcase-carry": {
     "freeExerciseDb": null,
-    "wger": 1776
+    "wger": 1776,
+    "photoRejected": "only a two-handed farmers walk"
   },
   "band-lateral-walk": {
     "freeExerciseDb": "Monster_Walk",
@@ -329,7 +334,8 @@
   },
   "pistol-squat": {
     "freeExerciseDb": null,
-    "wger": 456
+    "wger": 456,
+    "photoRejected": "only a kettlebell pistol squat"
   },
   "wall-sit": {
     "freeExerciseDb": null,

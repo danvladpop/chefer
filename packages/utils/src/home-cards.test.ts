@@ -19,6 +19,14 @@ describe('homeCardOrder', () => {
     expect(homeCardOrder(['TRAIN', 'TRAIN'])).toEqual(['workout']);
   });
 
+  it('a stored retired USE_WHAT_I_HAVE job (pantry, WP-24) gets no card', () => {
+    expect(homeCardOrder(['USE_WHAT_I_HAVE'])).toEqual([]);
+    expect(homeCardOrder(['TRAIN', 'USE_WHAT_I_HAVE', 'SAVED_RECIPES'])).toEqual([
+      'workout',
+      'savedRecipes',
+    ]);
+  });
+
   it('is empty for an empty jobs list', () => {
     expect(homeCardOrder([])).toEqual([]);
   });

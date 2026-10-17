@@ -21,7 +21,7 @@ import {
 } from '@chefer/types';
 import {
   defaultTargetRir,
-  detectPrs,
+  detectLivePrs,
   ENGINE_VERSION,
   equipmentProfileOf,
   initialState,
@@ -333,7 +333,9 @@ export const PR_LABELS: Record<PrKind, string> = {
 /**
  * The single live PR badge for an exercise (research §4.2 #8: at most one per
  * exercise per session): the highest-ranked record any ticked working set
- * beats, on the first set that beat it.
+ * beats, on the first set that beat it. An exercise with no earlier history
+ * has no badge (UX-GYM-18: a first-ever lift is a baseline) — which also keeps
+ * the success haptic off it.
  */
 export function livePr(
   se: SessionExerciseDoc,
@@ -348,7 +350,7 @@ export function livePr(
     const s = sets[idx];
     if (!s || !isDone(s) || s.reps <= 0) continue;
     const rir = idx === sets.length - 1 ? se.lastSetRir : null;
-    const kind = detectPrs({
+    const kind = detectLivePrs({
       exerciseId: se.exerciseId,
       history: prior,
       candidate: { weightKg: s.weightKg, reps: s.reps, rir },

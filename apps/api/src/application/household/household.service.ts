@@ -200,7 +200,10 @@ export class HouseholdService {
   }
 
   /** Creates a member, enforcing the matrix cap (`householdMembers`) race-free. */
-  async add(user: UserProfile, data: CreateHouseholdMemberData): Promise<HouseholdMember> {
+  async add(
+    user: UserProfile,
+    data: Omit<CreateHouseholdMemberData, 'ageBand'> & { ageBand?: string | null | undefined },
+  ): Promise<HouseholdMember> {
     const limit = getLimit(user, 'householdMembers');
     if (limit === 0) {
       throw new TRPCError({
@@ -208,7 +211,13 @@ export class HouseholdService {
         message: 'Household members are not available on your plan.',
       });
     }
-    const created = await this.repo.createWithinCap(user.id, data, limit);
+    // An age band only means something for a kid (UX-PLAN-12): dropped otherwise.
+    const { ageBand, ...rest } = data;
+    const created = await this.repo.createWithinCap(
+      user.id,
+      data.isKid && ageBand ? { ...rest, ageBand } : rest,
+      limit,
+    );
     if (!created) {
       throw new TRPCError({
         code: 'FORBIDDEN',
@@ -223,7 +232,9 @@ export class HouseholdService {
     memberId: string,
     data: UpdateHouseholdMemberData,
   ): Promise<HouseholdMember> {
-    const updated = await this.repo.update(userId, memberId, data);
+    // Un-marking someone as a kid drops their age band (UX-PLAN-12).
+    const payload = data.isKid === false ? { ...data, ageBand: null } : data;
+    const updated = await this.repo.update(userId, memberId, payload);
     if (!updated) {
       throw new TRPCError({ code: 'NOT_FOUND', message: 'Household member not found.' });
     }

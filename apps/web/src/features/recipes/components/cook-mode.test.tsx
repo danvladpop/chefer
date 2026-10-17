@@ -48,7 +48,10 @@ vi.mock('@/features/recipe/components/StarRatingWidget', () => ({
   StarRatingWidget: () => null,
 }));
 vi.mock('@/features/meal-plan/components/RebalanceBanner', () => ({ RebalanceBanner: () => null }));
-vi.mock('@/features/tracker/lib/rebalance-storage', () => ({ handleRebalanceResult: vi.fn() }));
+vi.mock('@/features/tracker/lib/rebalance-storage', () => ({
+  handleRebalanceOutcome: vi.fn(),
+  REBALANCE_PREVIEW: { rebalanceMode: 'preview' },
+}));
 vi.mock('@/hooks/useHousehold', () => ({ useHousehold: () => ({ scaledMembers: mockMembers }) }));
 vi.mock('@/hooks/useCookingFor', () => ({ useCookingFor: () => mockCookingFor }));
 vi.mock('@/hooks/useUnitSystem', () => ({ useUnitSystem: () => 'metric' }));
@@ -190,7 +193,12 @@ describe('CookMode — plan portion (audit P1-1)', () => {
     key('ArrowRight');
     fireEvent.click(screen.getByText('Made it! Log this meal'));
     expect(mockLogRecipe).toHaveBeenCalledWith(
-      expect.objectContaining({ recipeId: 'r1', mealType: 'dinner', portionMultiplier: 1.5 }),
+      expect.objectContaining({
+        recipeId: 'r1',
+        mealType: 'dinner',
+        portionMultiplier: 1.5,
+        rebalanceMode: 'preview', // WP-07: offer first, never a silent rebalance
+      }),
     );
   });
 

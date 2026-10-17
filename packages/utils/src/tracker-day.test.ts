@@ -6,6 +6,9 @@ import {
   withRecipeEntryEdited,
   withRecipeLogged,
   withRecipeUnlogged,
+  withSlotReplaced,
+  withSlotSkipped,
+  withSlotUnskipped,
   type DayEntry,
   type DayLike,
 } from './tracker-day';
@@ -162,5 +165,68 @@ describe('withRecipeEntryEdited', () => {
       kcal: 900,
     });
     expect(d.log?.totalKcal).toBe(900);
+  });
+});
+
+// ─── WP-06: optimistic replace / skip edits ──────────────────────────────────
+
+describe('withSlotReplaced / withSlotSkipped (WP-06)', () => {
+  const shawarma = {
+    entryId: 'x1',
+    custom: { name: 'Shawarma', estimatedBy: 'manual' as const },
+    mealType: 'dinner',
+    replacesSlot: { mealType: 'dinner', slotIndex: 2 },
+    portionMultiplier: 1,
+    kcal: 775,
+    protein: 40,
+    carbs: 0,
+    fat: 0,
+  };
+  const ticked = {
+    recipeId: 'curry',
+    mealType: 'dinner',
+    slotIndex: 2,
+    portionMultiplier: 1,
+    kcal: 600,
+    protein: 30,
+    carbs: 50,
+    fat: 20,
+  };
+  const day = (): DayLike => ({
+    log: {
+      loggedMeals: [ticked],
+      totalKcal: 600,
+      totalProtein: 30,
+      totalCarbs: 50,
+      totalFat: 20,
+    },
+    skippedSlots: [{ mealType: 'dinner', slotIndex: 2 }],
+  });
+
+  it('a replacement takes the slot: drops the ticked recipe, clears the skip, re-totals', () => {
+    const next = withSlotReplaced(day(), shawarma);
+    expect(next.log?.loggedMeals).toEqual([shawarma]);
+    expect(next.log?.totalKcal).toBe(775);
+    expect(next.skippedSlots).toEqual([]);
+  });
+
+  it('replacing again swaps the earlier replacement instead of adding a second', () => {
+    const once = withSlotReplaced(day(), shawarma);
+    const twice = withSlotReplaced(once, { ...shawarma, entryId: 'x2', kcal: 500 });
+    expect(twice.log?.loggedMeals.map((m) => m.entryId)).toEqual(['x2']);
+    expect(twice.log?.totalKcal).toBe(500);
+  });
+
+  it('skip is idempotent and unskip removes it', () => {
+    const slot = { mealType: 'lunch', slotIndex: 1 };
+    const empty: DayLike = { log: null };
+    const once = withSlotSkipped(empty, slot);
+    expect(withSlotSkipped(once, slot).skippedSlots).toEqual([slot]);
+    expect(withSlotUnskipped(once, slot).skippedSlots).toEqual([]);
+  });
+
+  it('ticking a skipped slot un-skips it', () => {
+    const skippedDay: DayLike = { log: null, skippedSlots: [{ mealType: 'dinner', slotIndex: 2 }] };
+    expect(withRecipeLogged(skippedDay, ticked).skippedSlots).toEqual([]);
   });
 });

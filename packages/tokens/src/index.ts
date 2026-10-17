@@ -16,3 +16,13 @@ export {
 export { elevation, type ElevationLevel } from './elevation';
 export { radius, type RadiusRole } from './radius';
 export { cubicBezier, easingFn, type EasingFn } from './bezier';
+export {
+  colorRoles,
+  colorsFor,
+  contrastRatio,
+  cssVarName,
+  hexToRgbTriplet,
+  relativeLuminance,
+  type ColorRole,
+  type ColorScheme,
+} from './color';

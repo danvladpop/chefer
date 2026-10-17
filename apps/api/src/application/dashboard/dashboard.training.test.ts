@@ -103,16 +103,16 @@ describe('dashboard summary — training-aware nutrition', () => {
     });
   });
 
-  it('free, training day: a preview only — no adjusted targets', async () => {
+  it('free, training day: the bump is applied too (WP-07: training-day targets are free)', async () => {
     const s = await dashboardService.getSummary(
       'u1',
       'Ana',
       { localDate: '2026-09-28' },
       user('FREE'),
     );
-    expect(s.nutrition.trainingDay).toMatchObject({ isTrainingDay: true, applied: false });
+    expect(s.nutrition.trainingDay).toMatchObject({ isTrainingDay: true, applied: true });
     expect(s.nutrition.trainingDay!.kcalBonus).toBeGreaterThanOrEqual(150);
-    expect(s.nutrition.adjustedTargets).toBeUndefined();
+    expect(s.nutrition.adjustedTargets).toBeDefined();
   });
 
   it('rest day: flagged, nothing added', async () => {

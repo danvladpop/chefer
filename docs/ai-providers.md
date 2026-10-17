@@ -33,8 +33,11 @@ error (a validation failure, a bad input) is returned straight away.
 | `chat`       | AI chef chat (with tools)                   | `AI_ROUTE_CHAT`        | `groq>gemini`                            |
 | `review`     | weekly coach review prose                   | `AI_ROUTE_REVIEW`      | `gemini>groq`                            |
 | `prices`     | ingredient price + macro estimates (worker) | `AI_ROUTE_PRICES`      | `groq>gemini`                            |
-| `shopping`   | AI shopping-list consolidation              | `AI_ROUTE_SHOPPING`    | `groq>gemini`                            |
 
+- The `shopping` workload (AI shopping-list consolidation, `AI_ROUTE_SHOPPING`) was removed on
+  2026-10-11; the list has been derived without AI since FB7-10. A leftover `AI_ROUTE_SHOPPING`
+  line is ignored, and a `shopping:<chain>` entry in `AI_SHADOW_ROUTE` is skipped. The eval
+  results below that list a `shopping` row predate the removal.
 - A provider without a key is dropped from every chain. With no `AI_SECONDARY_API_KEY`, every
   workload is Gemini alone, as before. An override naming a missing provider logs a warning at
   startup.
@@ -66,7 +69,7 @@ error (a validation failure, a bad input) is returned straight away.
     waiting, and 300 s for the Sunday auto-plan and the eval. On a paid tier the budget always
     fits, so it never waits.
 - **429s.** Background calls wait out one 429 of up to 10 s (from `Retry-After`, or the body's
-  "try again in Xs") and retry once. Background calls are prices, shopping list, coach review,
+  "try again in Xs") and retry once. Background calls are prices, coach review,
   anything outside a user request (workers) and shadow replays. Interactive calls fail over to
   the next provider straight away, as before. With Groq as the only provider there is no next
   provider, so the user gets the friendly "over capacity" message.
@@ -92,7 +95,7 @@ AI_ROUTE_CHEFERIZE=groq>gemini
 AI_ROUTE_IMPORT_TEXT=groq>gemini
 AI_ROUTE_VISION=groq>gemini
 AI_ROUTE_MEAL_PLAN=groq>gemini
-# chat, prices and shopping already default to groq>gemini
+# chat and prices already default to groq>gemini
 ```
 
 Dropping Gemini entirely for a workload means a single-provider chain, for example
@@ -121,7 +124,6 @@ AI_ROUTE_VISION=groq
 AI_ROUTE_CHAT=groq
 AI_ROUTE_REVIEW=groq
 AI_ROUTE_PRICES=groq
-AI_ROUTE_SHOPPING=groq
 AI_SHADOW_ROUTE=
 AI_SHADOW_SAMPLE=0
 ```
@@ -271,7 +273,7 @@ Per day, per workload (**measured** = from the 2026-09-26 eval, `apps/api/eval/r
 ### Cheaper model for the simple workloads (optional, off)
 
 `AI_SECONDARY_FAST_MODEL=openai/gpt-oss-20b` (Groq) and `CF_FAST_MODEL=@cf/openai/gpt-oss-20b`
-(Cloudflare) move **ingredient prices, the shopping-list tidy-up and the weekly review prose** to the
+(Cloudflare) move **ingredient prices and the weekly review prose** to the
 smaller model. Chat stays on the main model because its tools write data.
 
 - **Why it might help:** if Groq counts each model against its own 200K tokens/day, these
@@ -279,13 +281,13 @@ smaller model. Chat stays on the main model because its tools write data.
   of gpt-oss-120b's neurons per output token.
 - **Why it is off:** Groq says limits apply at the organisation level, and whether each model has
   its own bucket is unverified. The tasks are simple (flat JSON, one paragraph), but the eval has
-  not scored gpt-oss-20b on them yet. Turn it on after `pnpm ai:eval --route=prices,shopping,review`
+  not scored gpt-oss-20b on them yet. Turn it on after `pnpm ai:eval --route=prices,review`
   passes with `AI_SECONDARY_MODEL=openai/gpt-oss-20b`, and check in the Groq console whether the
   120b daily counter stops moving when those workloads run.
 
 ### What users see when capacity runs out
 
-- **Interactive calls** (plan, swap, import, scan, chat, shopping list, nutrition estimate): the chain
+- **Interactive calls** (plan, swap, import, scan, chat, nutrition estimate): the chain
   fails over from Groq to Cloudflare. When both are out, the user sees **"The chef is over capacity
   right now — give it a minute and try again."** Never a raw provider error. Chat on mobile shows the
   same sentence (HTTP 503 with that `error`).
@@ -444,7 +446,7 @@ safe.
 
 ## Runbook: switching a workload off Gemini
 
-The rollout order, lowest risk first (research §5.4 step 4): images → chat, shopping, prices,
+The rollout order, lowest risk first (research §5.4 step 4): images → chat, prices,
 review → swap, cheferize, text import → vision → meal plan last. Each workload goes through three
 steps.
 
@@ -551,6 +553,79 @@ Set the workload's `AI_ROUTE_*` line from the list above, recreate the API conta
 it from `AI_SHADOW_ROUTE`. Watch the `[AI] <op>: served by …` and `[ai.usage]` lines for a day.
 Roll back by deleting the line.
 
+## Cost tracking and budgets
+
+Added 2026-10-11 (Phase 2), before the switch from free tiers to paid models. Code:
+`apps/api/src/lib/ai/pricing.ts`, `lib/ai/usage-recorder.ts`, `lib/ai/budget-gate.ts`,
+`lib/ai-budget/`; schema `AiUsageEvent` (infrastructure.md §6).
+
+**What is recorded.** One `ai_usage_events` row per real provider call — the same calls that print
+an `[ai.usage]` line: every completion, every repair retry, and a failed or rejected attempt that
+still reported usage (clients log before they validate), against the provider and model that
+actually spent the tokens. Calls that fail with no usage (HTTP 4xx/5xx, timeouts) cost nothing and
+record nothing. Columns: user (null for background/system work and shadow replays), operation,
+workload, provider, model, input / cached input / output (reasoning included) / reasoning tokens,
+audio seconds (Whisper, 10 s minimum), images (Cloudflare flux), estimated cost in micro-USD.
+Writes are fire-and-forget. Pollinations images are free and loaded by the client, so they never
+produce a row.
+
+**Prices.** `MODEL_PRICES` in `pricing.ts`, USD list prices checked 2026-10-11 (`PRICES_CHECKED_ON`):
+
+| Model                                  | Input / 1M | Cached input / 1M | Output / 1M | Other          |
+| -------------------------------------- | ---------- | ----------------- | ----------- | -------------- |
+| Groq `openai/gpt-oss-120b`             | $0.15      | $0.075            | $0.60       |                |
+| Groq `openai/gpt-oss-20b`              | $0.075     | —                 | $0.30       |                |
+| Groq `qwen/qwen3.8-27b`                | $0.80      | —                 | $4.00       |                |
+| Groq `whisper-large-v3-turbo`          | —          | —                 | —           | $0.04 per hour |
+| `gemini-2.5-flash`                     | $0.30      | —                 | $2.50       |                |
+| `gemini-2.5-flash-lite`                | $0.10      | —                 | $0.40       |                |
+| `@cf/openai/gpt-oss-120b`              | $0.35      | —                 | $0.75       |                |
+| `@cf/openai/gpt-oss-20b`               | $0.20      | —                 | $0.30       |                |
+| `@cf/google/gemma-4-26b-a4b-it`        | $0.10      | —                 | $0.30       |                |
+| `@cf/black-forest-labs/flux-1-schnell` | —          | —                 | —           | $0.00064/image |
+| Pollinations                           | —          | —                 | —           | $0             |
+
+**Free-tier calls are priced at the paid list price of the same model.** Today's real bill is $0,
+but the budgets must mean "what this would cost on the paid tier" so they already protect us and
+need no change on the day the paid switch happens. A model missing from the table is priced at a
+conservative fallback ($1.00 in / $5.00 out per 1M, above every listed model) with one warning per
+model in the log — add it to the table when that warning appears. Re-check the prices (and the
+date) before the paid switch.
+
+**Budgets** (env, infrastructure.md §10):
+
+| Variable                   | Default | What happens                                                                                                                            |
+| -------------------------- | ------- | --------------------------------------------------------------------------------------------------------------------------------------- |
+| `AI_USER_MONTHLY_SOFT_USD` | 2       | Per user per calendar month (UTC): logged once a month, `profile.getAiUsage.aiBudget.status = soft`                                     |
+| `AI_USER_MONTHLY_HARD_USD` | 3       | New user-initiated AI refused (TOO_MANY_REQUESTS, friendly copy); premium plans fall back to curated                                    |
+| `AI_GLOBAL_DAILY_USD`      | 10      | Per UTC day: alert emails at 50 / 80 / 100 %; at 100 % user AI refused ("AI is paused for today"), background AI paused until 00:00 UTC |
+| `AI_BUDGET_ENFORCE`        | on      | `warn` = log + email, never refuse; `off` = record only                                                                                 |
+| `AI_BUDGET_ALERT_EMAIL`    | —       | Alert recipient; unset = `FEEDBACK_NOTIFY_EMAIL`; neither = log only. Sent within `EMAIL_DAILY_CAP`                                     |
+
+User-initiated AI is checked where the quotas are reserved (`lib/quotas.ts` → `assertAiBudget`), so
+chat (and its swap tool), scans, AI swaps, every import (link, text, photo, video — Cheferize and
+Whisper included), nutrition auto-fill and "Tailor the rest" are all covered; free curated plans
+and free curated swaps cost no AI and are never refused. Background work shared by everyone
+(ingredient prices, recipe images, shadow replays) is charged to nobody but counts toward the
+global budget; live tailoring and the Sunday auto-plan are charged to the plan's user.
+
+The day and month totals are cached in memory for 60 s and every recorded call is added to the
+cache in between, so a burst cannot run far past a limit. The cache and the "already emailed"
+markers live in the API process: a restart re-reads the totals and may repeat one alert.
+
+**Seeing the numbers.** `user.aiCostSummary` (admin-only tRPC query): today's and this month's
+total, this month per workload and the 10 most expensive users. In SQL:
+
+```sql
+SELECT workload, model, count(*) AS calls, sum("costMicroUsd") / 1e6 AS usd
+FROM ai_usage_events
+WHERE "createdAt" >= date_trunc('month', now() AT TIME ZONE 'UTC')
+GROUP BY 1, 2 ORDER BY usd DESC;
+```
+
+Rows older than 90 days are deleted by `DataRetentionWorker` (with `ai_call_logs` older than 90
+days and expired sessions).
+
 ## Golden set
 
 Everything the eval needs is in `apps/api/eval/golden/`. Nothing is fetched live.
@@ -562,7 +637,7 @@ Everything the eval needs is in `apps/api/eval/golden/`. Nothing is fetched live
 | `cheferize.json`                 | 5 recipes paired with allergy and diet preferences                                                                                                                               |
 | `photos.json` + `photos/`        | Meal photos with labels                                                                                                                                                          |
 | `prices.json`                    | 20 ingredients in 2 batches, with reference kcal per 100 g                                                                                                                       |
-| `shopping.json`, `reviews.json`  | Shopping-list and coach-review inputs                                                                                                                                            |
+| `reviews.json`                   | Coach-review inputs                                                                                                                                                              |
 
 **Photos still to add.** The three committed images are generated in-repo and show no food. They
 test the vision plumbing and the prompt's "Not a meal" honesty rule.

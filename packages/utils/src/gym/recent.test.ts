@@ -2,7 +2,7 @@
 // Today's `Recent` section.
 import { describe, expect, it } from 'vitest';
 import type { SessionSummaryDto } from '@chefer/types';
-import { dayHeading, groupRecentSessions } from './recent';
+import { dayHeading, groupRecentSessions, sessionStatsText } from './recent';
 
 function session(
   id: string,
@@ -90,7 +90,15 @@ describe('groupRecentSessions', () => {
     // 3 sessions total (default limit), grouped: Today (2), Yesterday (1).
     expect(groups.map((g) => g.heading)).toEqual(['Today', 'Yesterday']);
     expect(groups[0]?.rows).toHaveLength(2);
-    expect(groups[0]?.rows.map((r) => r.startTime)).toEqual(['18:10', '07:30']);
+    // startTime is the device's local wall clock, whatever the test runner's zone.
+    const hhmm = (iso: string) => {
+      const d = new Date(iso);
+      return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+    };
+    expect(groups[0]?.rows.map((r) => r.startTime)).toEqual([
+      hhmm('2026-09-27T18:10:00.000Z'),
+      hhmm('2026-09-27T07:30:00.000Z'),
+    ]);
     expect(groups[1]?.rows).toHaveLength(1);
     expect(groups.flatMap((g) => g.rows)).toHaveLength(3);
     expect(groups.some((g) => /\d{4}-\d{2}-\d{2}/.test(g.heading))).toBe(false);
@@ -127,5 +135,28 @@ describe('groupRecentSessions', () => {
 
   it('no sessions → no groups (the section is hidden, P6)', () => {
     expect(groupRecentSessions([], TODAY)).toEqual([]);
+  });
+});
+
+describe('startTime (local wall clock)', () => {
+  it('is not the UTC hour when the device is ahead of UTC', () => {
+    const iso = '2026-09-27T18:10:00.000Z';
+    const [row] = groupRecentSessions(
+      [session('s1', TODAY, iso, '2026-09-27T18:52:00.000Z')],
+      TODAY,
+    ).flatMap((g) => g.rows);
+    const local = new Date(iso);
+    expect(row?.startTime).toBe(
+      `${String(local.getHours()).padStart(2, '0')}:${String(local.getMinutes()).padStart(2, '0')}`,
+    );
+  });
+});
+
+describe('sessionStatsText (activities)', () => {
+  it('omits kcal when none or zero was entered', () => {
+    const base = { durationMin: 45, workingSets: 1, hasPr: false, activity: true };
+    expect(sessionStatsText({ ...base, caloriesKcal: 400 }).text).toBe('45 min · ~400 kcal');
+    expect(sessionStatsText({ ...base, caloriesKcal: 0 }).text).toBe('45 min');
+    expect(sessionStatsText({ ...base, caloriesKcal: null }).text).toBe('45 min');
   });
 });

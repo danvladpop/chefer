@@ -4,6 +4,7 @@ import type { TargetChangeField, TargetChangeReason } from '@chefer/types';
 import { Button, Card, ConfirmSheet, Text, useSnackbar } from '@chefer/ui-mobile';
 import { userFacingErrorMessage } from '@chefer/utils';
 import { trpc } from '../../lib/trpc';
+import { useNumbersMode } from '../numbers-mode/numbers-mode';
 
 // ─── ChangeNoticeCard (§2.11, T-11.1/T-11.5) ────────────────────────────────────
 // "Never change your targets silently" made visible: the tracker shows this
@@ -39,6 +40,8 @@ export function ChangeNoticeCard() {
   const snackbar = useSnackbar();
   const { data: changes } = trpc.targets.changes.useQuery();
   const change = changes?.[0];
+  // WP-08: protein-only mode lists the protein change only, and never quotes kcal.
+  const { proteinOnly } = useNumbersMode();
   // UX-FOOD-14: "Keep" on an already-applied change fixes the targets at the
   // old numbers (it switches the user to "My own"), so it asks first.
   const [confirmKeepOpen, setConfirmKeepOpen] = useState(false);
@@ -72,7 +75,8 @@ export function ChangeNoticeCard() {
   // AC2: an own target's notice reads "Suggested change" — it's informational
   // (or the coach's proposal), never an already-applied number.
   const badgeLabel = isSuggested ? 'Suggested change' : 'Target changed';
-  const kcalField = fields.find((f) => f.field === 'dailyCalorieTarget');
+  const kcalField = proteinOnly ? undefined : fields.find((f) => f.field === 'dailyCalorieTarget');
+  const shownFields = proteinOnly ? fields.filter((f) => f.field === 'proteinG') : fields;
   const keepLabel = isSuggested
     ? 'Keep mine'
     : kcalField
@@ -89,7 +93,7 @@ export function ChangeNoticeCard() {
       </View>
       <Text className="text-sm font-semibold text-gray-900">{REASON_HEADING[reason]}</Text>
       <View className="gap-1">
-        {fields.map((f) => (
+        {shownFields.map((f) => (
           <Text key={f.field} className="text-xs text-gray-700">
             {fieldLine(f)}
           </Text>

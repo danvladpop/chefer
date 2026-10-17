@@ -1,16 +1,21 @@
 import type { ReactNode } from 'react';
-import { Pressable, Text as RNText, View } from 'react-native';
-import { Card, Text } from '@chefer/ui-mobile';
+import { Pressable, View } from 'react-native';
+import { Text } from '@chefer/ui-mobile';
 import { cn, supersetRuns, supersetSlot } from '@chefer/utils';
+
+/** TrainCard's surface (10 Oct redesign) — inlined to keep this file free of the shell's router imports. */
+const CARD = 'gap-3 rounded-card border border-separator bg-surface p-4';
 
 // ─── DayCardView: one routine day, presentational ─────────────────────────────
 // The day name + weekday line, an optional badge, then the exercises in
 // order with their supersets bracketed (a `Superset A` header over the run,
-// a violet rule and an `A1`/`A2` tag per member). It knows nothing about
+// a brand rule and an `A1`/`A2` tag per member). It knows nothing about
 // progressions, overrides or the gym bootstrap: the owner's Routine tab
 // (`app/(gym)/routine.tsx`) passes each row's `Next:` line and the override
 // press, and the Following Gym tab (`friends/profile/gym/friend-routine-card`)
 // renders another person's routine read-only with it (UX §10).
+// 10 Oct redesign: a TrainCard with named text styles and colour roles;
+// supersets wear the brand tint (a brand rule and an `A1` pill).
 
 export type DayCardViewExercise = {
   /** Row key and testID suffix (`{exerciseTestIDPrefix}-{id}`). */
@@ -57,21 +62,21 @@ export function DayCardView({
   const runs = supersetRuns(exercises);
   const shown = visibleCount === undefined ? exercises : exercises.slice(0, visibleCount);
   return (
-    <Card testID={testID}>
+    <View testID={testID} className={CARD}>
       <View className="flex-row items-center justify-between gap-2">
         <View className="min-w-0 flex-1">
-          <Text variant="heading" numberOfLines={1}>
+          <Text
+            accessibilityRole="header"
+            numberOfLines={1}
+            className="text-headline font-semibold text-label"
+          >
             {title}
           </Text>
-          {subtitle ? (
-            <Text variant="muted" className="text-xs">
-              {subtitle}
-            </Text>
-          ) : null}
+          {subtitle ? <Text className="text-caption text-label-secondary">{subtitle}</Text> : null}
         </View>
         {badge}
       </View>
-      <View className="mt-3 gap-1">
+      <View className="gap-1">
         {shown.map((ex, i) => {
           const slot = supersetSlot(exercises, i);
           const run = slot?.position === 0 ? runs.find((r) => r.start === i) : undefined;
@@ -84,10 +89,13 @@ export function DayCardView({
                   testID={`${testID}-superset-${slot.label}`}
                   className="flex-row items-center gap-2 pt-2"
                 >
-                  <Text className="text-sm font-semibold text-violet-800">
+                  <Text className="text-subhead font-semibold text-brand">
                     Superset {slot.label}
                   </Text>
-                  <Text variant="muted" className="min-w-0 flex-1 text-xs" numberOfLines={1}>
+                  <Text
+                    className="min-w-0 flex-1 text-caption text-label-secondary"
+                    numberOfLines={1}
+                  >
                     {lastRest ?? ex.restSec} s rest after each round
                   </Text>
                 </View>
@@ -100,29 +108,25 @@ export function DayCardView({
                 onPress={ex.onPress}
                 className={cn(
                   'min-h-11 justify-center gap-0.5 py-1',
-                  slot && 'border-l-4 border-l-violet-500 pl-2',
+                  slot && 'border-l-4 border-l-brand pl-2',
                 )}
               >
                 <View className="flex-row items-center justify-between gap-2">
                   <View className="min-w-0 flex-1 flex-row items-center gap-1.5">
                     {slot ? (
-                      <View className="rounded bg-violet-100 px-1.5 py-0.5">
-                        <RNText
-                          testID={`${rowTestID}-superset`}
-                          className="text-xs font-bold text-violet-800"
-                        >
-                          {slot.label}
-                          {slot.position + 1}
-                        </RNText>
-                      </View>
+                      <Text
+                        testID={`${rowTestID}-superset`}
+                        className="rounded-full bg-brand-tint px-2 text-caption font-bold text-brand"
+                      >
+                        {slot.label}
+                        {slot.position + 1}
+                      </Text>
                     ) : null}
-                    <Text className="min-w-0 flex-1 font-medium" numberOfLines={1}>
+                    <Text className="min-w-0 flex-1 text-callout text-label" numberOfLines={1}>
                       {ex.name}
                     </Text>
                   </View>
-                  <Text variant="muted" className="text-xs">
-                    {ex.summary}
-                  </Text>
+                  <Text className="text-caption text-label-secondary">{ex.summary}</Text>
                 </View>
                 {ex.detail}
               </Pressable>
@@ -131,12 +135,10 @@ export function DayCardView({
           );
         })}
         {exercises.length === 0 ? (
-          <Text variant="muted" className="text-sm">
-            {emptyText}
-          </Text>
+          <Text className="text-subhead text-label-secondary">{emptyText}</Text>
         ) : null}
         {footer}
       </View>
-    </Card>
+    </View>
   );
 }

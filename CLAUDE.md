@@ -24,6 +24,7 @@ Whenever you make a change that affects the architecture of this project, you **
 | New business flow or flow change | `business_flow.md`                                                                       |
 | Auth/authorization change        | `infrastructure.md` §9, `business_flow.md` §4                                            |
 | User-facing change to a feature  | The other platform's implementation, or `mobile_parity_backlog.md` (see Platform Parity) |
+| Domain term settled or renamed   | `GLOSSARY.md`; a hard-to-reverse trade-off also gets `docs/adr/NNNN-*.md`                |
 
 Do not defer documentation updates. If you add a procedure today, the docs reflect it today.
 
@@ -111,6 +112,7 @@ For business flows see [`business_flow.md`](./business_flow.md).
 - Component variants use `class-variance-authority`
 - Overlays use `Sheet` (dialogs) or `Drawer` (slide-overs) from `@chefer/ui` — never a hand-rolled `fixed inset-0` div, which skips scroll locking, focus trapping and Escape handling
 - **Motion:** build interactions on the shared primitives and tokens — `PressableScale`, `haptics`, `CountUp`, `ProgressRing`/`ProgressBar` and the `timing()`/`springs` configs in `@chefer/ui-mobile`, durations/easings/springs from `@chefer/tokens` (no magic ms numbers). Animate transform/opacity only, respect reduced motion (`useReducedMotion`), and name the pattern ID (MO-01…MO-15) from `docs/audit-2026-09/motion-system.md` in the code comment. **Web:** the same tokens are Tailwind utilities (`duration-instant…deliberate`, `ease-standard/enter/exit/spring-*`, `shadow-e1…e4`/`e4-up`, `rounded-inner/control/card/sheet`); press feedback is `pressControl`/`pressCard` from `@chefer/ui` (already in `buttonVariants`) instead of `transition-colors`; overlays exit through `usePresence`; progress uses `ProgressRing`/`ProgressBar`/`CountUp`/`useCountUp` from `@chefer/ui`; JS motion checks `useReducedMotion()` and CSS motion is covered by the global rule in `globals.css`. `hover:` only fires on hover-capable pointers (`hoverOnlyWhenSupported`), so never hide a touch-reachable action behind hover. No `transition-all`, no `width` transitions.
+- **Mobile keyboards:** every single-line input sets `returnKeyType` + `onSubmitEditing`; numeric fields use `NumericReturnBar` (or `Input`'s built-in Done bar); scroll forms dismiss on drag (`keyboardDismissMode`) — see `infrastructure.md` §5.8 (guarded by `keyboard-dismiss-guard.test.ts`)
 - Dropdown menus use `useMenu()` from `@chefer/ui` (Escape, arrow keys, focus return, outside click) — same rule, no click-catcher div
 - Every page renders inside `<main id="main">` (the skip link's target) and owns exactly one `<h1>` (`sr-only` if the design has no visible title) — the shell header title is deliberately not a heading. New dashboard routes get a `layout.tsx` exporting `metadata.title` for the tab title
 - Every input needs an accessible name (`<label htmlFor>` or `aria-label`; a placeholder is not a label), errors are linked with `aria-describedby` + `aria-invalid`, and text is never smaller than `text-xs` (12px)
@@ -169,6 +171,31 @@ Supporting rules:
 - **Never break shipped mobile clients.** Web redeploys instantly; app-store binaries in the field do not. API changes must be additive/backward-compatible (new optional fields, new procedures — not renamed or removed ones) once mobile is in stores. Breaking changes require an explicit versioning plan and user sign-off.
 - **Verify per platform.** Web: existing lint/typecheck/tests + Playwright mobile sweep after layout changes. Mobile: the test ladder in `mobile_native_plan.md` §4 (typecheck → Jest → contract tests → `expo export` → Maestro). One mobile implementation serves both OSes; run Android (emulator `Pixel_8`) in addition to iOS when the change is layout-heavy or touches platform APIs.
 - When a session ends with a knowingly unported change and no backlog entry, that is a bug in the session, not an acceptable outcome.
+
+---
+
+## Engineering Principles
+
+Steering vocabulary for every task. Where one conflicts with a rule above, the rule above wins.
+
+- **Prove it works.** Verify the real artifact (run it, read the value, drive the screen), not "it compiles" or a self-report.
+- **Fix root causes.** Trace a symptom to where things first went wrong and fix it there. A guard is a fix only when the state it handles is legitimate.
+- **Attack the premise.** After two fixes built on the same assumption have failed, test the assumption before writing a third.
+- **Encode lessons in structure.** A mistake corrected twice becomes a lint rule, type, test or CI check, not another line of prose.
+- **Smallest change, one source of truth.** Subtract dead weight before adding; put shared logic in `@chefer/utils` / `@chefer/types` once.
+- **Model the domain.** Prefer discriminated unions, state machines and Zod-derived types over scattered conditionals and optional-field bags; parse at boundaries, trust types inside. Use the terms in `GLOSSARY.md`.
+- **Test behaviour, not implementation.** Assert what a user or caller can observe.
+- **Guard the context window.** Send bulk reading and searching to subagents; keep summaries, not raw dumps, in the main thread.
+- **Align before building.** For a feature or flow change, settle the owner's decisions first; never proceed on a guessed product call. Never adopt "delete the legacy API in the same wave" for anything a shipped mobile binary calls.
+
+---
+
+## AI Workflow (skills)
+
+Two skill plugins are enabled for this repo (`.claude/settings.json`): `mattpocock-skills` and `pstack`. The daily loop (align → shape → build → prove → review → learn), which skill to use when, and the guardrails are in [`docs/ai-workflow/README.md`](./docs/ai-workflow/README.md). Read it before running any `/mattpocock-skills:*` or `/pstack:*` skill.
+
+- Never run the pstack **Shipping**, **Autopilot-full**, **Autopilot-stack** or **Babysit** playbooks: the owner merges PRs and the app's Auto-fix watches CI.
+- Never run `setup-pre-commit`, `git-guardrails-claude-code`, `no-comments`, `make-bot-ui` or `setup-pstack`.
 
 ---
 

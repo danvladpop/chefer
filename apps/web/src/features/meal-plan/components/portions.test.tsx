@@ -31,7 +31,8 @@ describe('DayRecapBar — plan portions (audit P1-1)', () => {
     );
     // 400 + 600 × 1.5 = 1,300 kcal; 20 + 60 = 80 g protein.
     expect(screen.getByText('1300 kcal')).toBeTruthy();
-    expect(screen.getByText('P 80g')).toBeTruthy();
+    // FB7-11: the shared macro format, as on mobile.
+    expect(screen.getByTestId('day-total-macros').textContent).toBe('P 80 g · C 125 g · F 50 g');
     expect(screen.queryByText(/under target/)).toBeNull();
   });
 
@@ -95,7 +96,10 @@ describe('MealCard — plan portions (audit P1-1)', () => {
         portion={1.5}
       />,
     );
-    expect(screen.getByText('750 kcal')).toBeTruthy();
+    expect(screen.getByTestId('plan-meal-dinner-meta').textContent).toBe('30 min · 750 kcal');
+    expect(screen.getByTestId('plan-meal-dinner-macros').textContent).toBe(
+      'P 60 g · C 75 g · F 30 g',
+    );
     expect(screen.getByText('1½× portion')).toBeTruthy();
     expect(screen.getByRole('link').getAttribute('href')).toBe(
       '/recipes/r1?planId=p1&day=2&meal=dinner&portion=1.5',
@@ -104,7 +108,7 @@ describe('MealCard — plan portions (audit P1-1)', () => {
 
   it('looks exactly as before at 1×', () => {
     render(<MealCard variant="row" mealType="dinner" recipe={recipe} planId="p1" dayOfWeek={2} />);
-    expect(screen.getByText('500 kcal')).toBeTruthy();
+    expect(screen.getByTestId('plan-meal-dinner-meta').textContent).toBe('30 min · 500 kcal');
     expect(screen.queryByText(/portion/)).toBeNull();
     expect(screen.getByRole('link').getAttribute('href')).toBe(
       '/recipes/r1?planId=p1&day=2&meal=dinner',

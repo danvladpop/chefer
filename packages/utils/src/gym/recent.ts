@@ -2,6 +2,7 @@
 // completed sessions for Gym Today's `Recent` section. Shared by mobile
 // (`recent-workouts.tsx`) and web (`today-view.tsx`).
 import type { SessionSummaryDto } from '@chefer/types';
+import { activityFacts, isActivityLogSession } from './activity-log';
 import { addDaysLocal, daysBetweenLocal } from './weeks';
 
 const WEEKDAY_NAMES = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
@@ -15,6 +16,51 @@ export interface RecentSessionRow {
   durationMin: number;
   workingSets: number;
   hasPr: boolean;
+  /** WP-20: a quick-logged activity — reads "45 min · ~400 kcal", never "1 sets". */
+  activity: boolean;
+  /** The kcal the user entered for an activity, else null. Record only. */
+  caloriesKcal: number | null;
+}
+
+/**
+ * The stats half of a session row — `{text}` for the visible line and `{spoken}`
+ * for the accessibility label. A workout: "52 min · 12 sets · PR". An activity:
+ * "45 min · ~400 kcal" (the kcal only when entered).
+ */
+export function sessionStatsText(stats: {
+  durationMin: number;
+  workingSets: number;
+  hasPr: boolean;
+  activity: boolean;
+  caloriesKcal: number | null;
+}): { text: string; spoken: string } {
+  if (stats.activity) {
+    // 0 reads as "not entered" — "~0 kcal" says nothing useful.
+    const kcal =
+      stats.caloriesKcal !== null && stats.caloriesKcal > 0 ? Math.round(stats.caloriesKcal) : null;
+    return {
+      text: `${stats.durationMin} min${kcal !== null ? ` · ~${kcal} kcal` : ''}`,
+      spoken: `${stats.durationMin} minutes${kcal !== null ? `, about ${kcal} kilocalories` : ''}`,
+    };
+  }
+  return {
+    text: `${stats.durationMin} min · ${stats.workingSets} sets${stats.hasPr ? ' · PR' : ''}`,
+    spoken: `${stats.durationMin} minutes, ${stats.workingSets} sets${stats.hasPr ? ', personal record' : ''}`,
+  };
+}
+
+/** `sessionStatsText` for a summary (history lists compute their own minutes). */
+export function sessionStatsOf(
+  session: SessionSummaryDto,
+  hasPr: boolean,
+): { text: string; spoken: string } {
+  return sessionStatsText({
+    durationMin: session.finishedAt ? minutesBetween(session.startedAt, session.finishedAt) : 0,
+    workingSets: workingSetCount(session),
+    hasPr,
+    activity: isActivityLogSession(session),
+    caloriesKcal: activityFacts(session).caloriesKcal,
+  });
 }
 
 export interface RecentDayGroup {
@@ -56,10 +102,13 @@ function toRow(session: SessionSummaryDto, prSessionIds: ReadonlySet<string>): R
     id: session.id,
     name: session.name,
     localDate: session.localDate,
-    startTime: `${String(start.getUTCHours()).padStart(2, '0')}:${String(start.getUTCMinutes()).padStart(2, '0')}`,
+    // Device-local wall clock (was UTC: an evening session read 3 h early in Romania).
+    startTime: `${String(start.getHours()).padStart(2, '0')}:${String(start.getMinutes()).padStart(2, '0')}`,
     durationMin: session.finishedAt ? minutesBetween(session.startedAt, session.finishedAt) : 0,
     workingSets: workingSetCount(session),
     hasPr: prSessionIds.has(session.id),
+    activity: isActivityLogSession(session),
+    caloriesKcal: activityFacts(session).caloriesKcal,
   };
 }
 

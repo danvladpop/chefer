@@ -3,7 +3,16 @@ import { Pressable, ScrollView, TextInput, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { fetch as expoFetch } from 'expo/fetch';
-import { Card, Screen, Text, useKeyboardInset } from '@chefer/ui-mobile';
+import { CHAT_LIMITS } from '@chefer/types';
+import {
+  IconButton,
+  keyboardDismissMode,
+  PressableScale,
+  Screen,
+  Text,
+  useKeyboardInset,
+  useThemeColors,
+} from '@chefer/ui-mobile';
 import {
   cn,
   dailyAllowanceResetTime,
@@ -11,6 +20,7 @@ import {
   splitChatActions,
   WELLNESS_COPY,
 } from '@chefer/utils';
+import { Icon } from '../src/components/icon';
 import { useAiConsent } from '../src/features/ai-consent/ai-consent-provider';
 import { ChatActionChips } from '../src/features/chat/chat-action-chips';
 import { chatErrorMessage, isAbortError } from '../src/features/chat/chat-errors';
@@ -37,7 +47,11 @@ import { streamChat } from '../src/lib/chat-stream';
 // retry, Stop ends a reply (and leaving the screen ends it too), long replies
 // fold, and an empty thread offers starter prompts.
 
+/** The redesign's card (BoardCard's look, kept local: no shell imports in this route). */
+const CARD = 'gap-3 rounded-card border border-separator bg-surface p-4';
+
 export default function ChatScreen() {
+  const colors = useThemeColors();
   // UX-FOOD-21: today's thread, restored from the device (empty on a new day).
   const [thread, setThread] = useState<ThreadMessage[]>(() => loadThread(localDateStr()));
   const [draft, setDraft] = useState('');
@@ -52,7 +66,12 @@ export default function ChatScreen() {
   const threadRef = useRef(thread);
   threadRef.current = thread;
   // Free tier: chat is premium-only — locked preview, no input.
-  const locked = useIsPremium() === false;
+  const isPremium = useIsPremium();
+  const locked = isPremium === false;
+  // Phase 1 guardrails: one message is at most 2,000 characters (the server
+  // refuses longer); the count shows near the end.
+  const nearLimit = draft.length >= CHAT_LIMITS.counterFromChars;
+  const atLimit = draft.length >= CHAT_LIMITS.maxMessageChars;
   // AI data consent (App Store 5.1.2(i)): the first message asks before
   // anything is sent; "Not now" keeps the draft and sends nothing.
   const requestAiConsent = useAiConsent();
@@ -184,36 +203,43 @@ export default function ChatScreen() {
     );
 
   return (
-    <Screen edges={['top', 'bottom', 'left', 'right']} className="px-0">
-      <View className="flex-row items-center gap-3 px-4 py-3">
-        <Pressable
-          accessibilityRole="button"
+    <Screen edges={['top', 'bottom', 'left', 'right']} className="bg-canvas px-0">
+      {/* The page's top bar in the shell's look (ShellTopBar: brand chevron
+          Back + title1, 10 Oct redesign). Drawn here so the title keeps the
+          `chat-title` testID the Maestro flow waits on, with the disclaimer
+          subtitle under it and "New chat" on the right. */}
+      <View className="flex-row items-start gap-1 px-4 pb-2 pt-1">
+        <IconButton
           accessibilityLabel="Back"
+          icon={<Icon name="chevronBack" color={colors.brand} size={26} />}
           onPress={() => router.back()}
-          className="h-11 w-11 items-center justify-center"
-        >
-          <Ionicons name="arrow-back" size={20} color="#1f2937" />
-        </Pressable>
-        <View className="min-w-0 flex-1">
-          <Text testID="chat-title" variant="title">
+          className="-ml-2"
+        />
+        <View className="min-h-11 min-w-0 flex-1 justify-center">
+          <Text
+            testID="chat-title"
+            accessibilityRole="header"
+            numberOfLines={1}
+            className="text-title1 font-bold text-label"
+          >
             AI Chef
           </Text>
           {/* UX-22 (T-22.2, AC2/AC5): always visible, at 1.8× text without
               truncation — no `numberOfLines`, wraps under the title. */}
-          <Text testID="chat-header-subtitle" variant="muted" className="text-xs">
+          <Text testID="chat-header-subtitle" className="text-caption text-label-secondary">
             {WELLNESS_COPY.chatHeaderSubtitle}
           </Text>
         </View>
         {!locked && thread.length > 0 && !streaming && (
-          <Pressable
+          <PressableScale
             testID="chat-new"
             accessibilityRole="button"
             accessibilityLabel="Start a new chat"
             onPress={newChat}
             className="min-h-11 justify-center px-2"
           >
-            <Text className="text-sm font-semibold text-primary">New chat</Text>
-          </Pressable>
+            <Text className="text-callout font-semibold text-brand">New chat</Text>
+          </PressableScale>
         )}
       </View>
 
@@ -224,36 +250,42 @@ export default function ChatScreen() {
       >
         <ScrollView
           ref={scrollRef}
+          keyboardShouldPersistTaps="handled"
+          keyboardDismissMode={keyboardDismissMode()}
           contentContainerClassName="gap-3 px-4 py-2"
           onContentSizeChange={() => scrollRef.current?.scrollToEnd({ animated: false })}
         >
           {locked && <LockedChatPreview />}
           {!locked && thread.length === 0 && (
-            <Card testID="chat-empty">
-              <Text variant="heading">Ask the chef anything</Text>
-              <Text variant="muted" className="mt-1 text-sm">
-                Swap ideas, cooking questions, nutrition doubts — or ask to add something to your
-                shopping list.
-              </Text>
-              <View className="mt-3 gap-2">
+            <View testID="chat-empty" className={CARD}>
+              <View className="gap-1">
+                <Text accessibilityRole="header" className="text-title3 font-bold text-label">
+                  Ask the chef anything
+                </Text>
+                <Text className="text-subhead text-label-secondary">
+                  Swap ideas, cooking questions, nutrition doubts — or ask to add something to your
+                  shopping list.
+                </Text>
+              </View>
+              <View className="gap-2">
                 {CHAT_STARTER_PROMPTS.map((prompt, i) => (
-                  <Pressable
+                  <PressableScale
                     key={prompt}
                     testID={`chat-starter-${i}`}
                     accessibilityRole="button"
                     disabled={quotaExhausted}
                     onPress={() => send(prompt)}
-                    className="min-h-11 justify-center rounded-xl border border-border px-3 py-2"
+                    className="min-h-11 justify-center rounded-control bg-surface-sunken px-3 py-2"
                   >
-                    <Text className="text-sm text-gray-700">{prompt}</Text>
-                  </Pressable>
+                    <Text className="text-callout text-label">{prompt}</Text>
+                  </PressableScale>
                 ))}
               </View>
               {/* UX-22 (T-22.2, AC2): the chef-not-a-doctor line on the empty thread. */}
-              <Text testID="chat-empty-disclaimer" variant="muted" className="mt-3 text-xs">
+              <Text testID="chat-empty-disclaimer" className="text-caption text-label-tertiary">
                 {WELLNESS_COPY.chatEmptyStateDisclaimer}
               </Text>
-            </Card>
+            </View>
           )}
           {thread.map((m, i) => (
             <View
@@ -269,8 +301,7 @@ export default function ChatScreen() {
               {m.stopped && (
                 <Text
                   testID={`chat-message-${m.id}-stopped`}
-                  variant="muted"
-                  className="mt-1 text-xs"
+                  className="mt-1 text-caption text-label-secondary"
                 >
                   Reply stopped.
                 </Text>
@@ -284,7 +315,7 @@ export default function ChatScreen() {
                   onPress={() => retry(m)}
                   className="min-h-11 justify-center self-end"
                 >
-                  <Text className="text-xs font-semibold text-red-600">
+                  <Text className="text-caption font-semibold text-danger">
                     Couldn&apos;t send. Tap to retry
                   </Text>
                 </Pressable>
@@ -303,8 +334,7 @@ export default function ChatScreen() {
               {((m.healthTopic ?? false) || (m.safetyTopic ?? false)) && (
                 <Text
                   testID={m.healthTopic ? 'chat-health-topic-footer' : 'chat-safety-topic-footer'}
-                  variant="muted"
-                  className="mt-1 text-xs"
+                  className="mt-1 text-caption text-label-secondary"
                 >
                   {m.healthTopic
                     ? WELLNESS_COPY.chatHealthTopicFooter
@@ -314,18 +344,33 @@ export default function ChatScreen() {
             </View>
           ))}
           {error && (
-            <Card testID="chat-error" className="border-red-200 bg-red-50">
-              <Text className="text-sm text-red-600">{error}</Text>
-            </Card>
+            <View testID="chat-error" className={cn(CARD, 'border-danger')}>
+              <Text className="text-callout text-danger">{error}</Text>
+            </View>
           )}
         </ScrollView>
 
-        {locked ? null : quotaExhausted ? (
-          <Card testID="chat-quota" className="m-4 border-primary/20 bg-accent">
-            <Text className="text-sm font-semibold text-primary">
+        {locked ? null : quotaExhausted && isPremium === true ? (
+          // Premium past its AI allowance — the daily chat cap (Phase 1), the
+          // monthly AI budget or a global AI pause (Phase 2). All arrive as the
+          // same quota header, so the copy fits every case: the chef's reply
+          // above says when it is back, and there is no upgrade pitch to
+          // someone who already has Premium.
+          <View testID="chat-ai-paused" className="m-4 gap-1 rounded-card bg-brand-tint p-4">
+            <Text className="text-headline font-semibold text-brand">
+              You&apos;ve reached your AI chat limit for now
+            </Text>
+            <Text className="text-subhead text-label-secondary">
+              The chef&apos;s note above says when it&apos;s back. Your plans, recipes and tracking
+              keep working.
+            </Text>
+          </View>
+        ) : quotaExhausted ? (
+          <View testID="chat-quota" className="m-4 gap-1 rounded-card bg-brand-tint p-4">
+            <Text className="text-headline font-semibold text-brand">
               You&apos;ve used today&apos;s chat messages
             </Text>
-            <Text className="mt-1 text-xs text-primary/80">
+            <Text className="text-subhead text-label-secondary">
               Premium raises the daily limit. Allowances reset at {dailyAllowanceResetTime()} your
               time.
             </Text>
@@ -335,46 +380,61 @@ export default function ChatScreen() {
               onPress={() => openPremium('chat-quota')}
               className="min-h-11 justify-center"
             >
-              <Text className="text-xs font-semibold text-primary">See what Premium adds</Text>
+              <Text className="text-callout font-semibold text-brand">See what Premium adds</Text>
             </Pressable>
-          </Card>
+          </View>
         ) : (
-          <View className="flex-row items-end gap-2 border-t border-border px-4 py-3">
-            <TextInput
-              testID="chat-input"
-              accessibilityLabel="Message the chef"
-              value={draft}
-              onChangeText={setDraft}
-              placeholder="Message the chef…"
-              placeholderTextColor="#9ca3af"
-              multiline
-              className="max-h-28 min-h-11 flex-1 rounded-2xl border border-input bg-background px-4 py-3 text-base text-foreground"
-            />
-            {streaming ? (
-              <Pressable
-                testID="chat-stop"
-                accessibilityRole="button"
-                accessibilityLabel="Stop"
-                onPress={stop}
-                className="h-11 w-11 items-center justify-center rounded-full bg-primary"
-              >
-                <Ionicons name="stop" size={18} color="white" />
-              </Pressable>
-            ) : (
-              <Pressable
-                testID="chat-send"
-                accessibilityRole="button"
-                accessibilityLabel="Send"
-                disabled={!draft.trim()}
-                onPress={() => send()}
+          <View className="gap-1 border-t border-separator bg-surface px-4 py-3">
+            {nearLimit && (
+              <Text
+                testID="chat-char-counter"
+                accessibilityLiveRegion="polite"
                 className={cn(
-                  'h-11 w-11 items-center justify-center rounded-full bg-primary',
-                  !draft.trim() && 'opacity-40',
+                  'text-right text-caption',
+                  atLimit ? 'text-danger' : 'text-label-secondary',
                 )}
               >
-                <Ionicons name="arrow-up" size={20} color="white" />
-              </Pressable>
+                {atLimit
+                  ? `${CHAT_LIMITS.maxMessageChars.toLocaleString('en-US')} characters is the most one message can hold.`
+                  : `${draft.length.toLocaleString('en-US')} / ${CHAT_LIMITS.maxMessageChars.toLocaleString('en-US')}`}
+              </Text>
             )}
+            <View className="flex-row items-end gap-2">
+              <TextInput
+                testID="chat-input"
+                accessibilityLabel="Message the chef"
+                accessibilityHint={
+                  nearLimit
+                    ? `${draft.length} of ${CHAT_LIMITS.maxMessageChars} characters`
+                    : undefined
+                }
+                value={draft}
+                maxLength={CHAT_LIMITS.maxMessageChars}
+                onChangeText={setDraft}
+                placeholder="Message the chef…"
+                placeholderTextColor={colors.labelTertiary}
+                multiline
+                className="max-h-28 min-h-11 flex-1 rounded-control border border-separator bg-surface-sunken px-4 py-3 text-body text-label"
+              />
+              {streaming ? (
+                <IconButton
+                  testID="chat-stop"
+                  accessibilityLabel="Stop"
+                  variant="filled"
+                  icon={<Ionicons name="stop" size={18} color={colors.onBrand} />}
+                  onPress={stop}
+                />
+              ) : (
+                <IconButton
+                  testID="chat-send"
+                  accessibilityLabel="Send"
+                  variant="filled"
+                  disabled={!draft.trim()}
+                  icon={<Icon name="arrowUp" size={20} color={colors.onBrand} />}
+                  onPress={() => send()}
+                />
+              )}
+            </View>
           </View>
         )}
       </View>

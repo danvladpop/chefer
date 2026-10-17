@@ -24,7 +24,6 @@ function stubService(overrides: Partial<Record<keyof IAIService, unknown>> = {})
     generateMealPlanDay: vi.fn().mockResolvedValue({ dayOfWeek: 0, meals: [] }),
     generateRecipeSwap: vi.fn().mockResolvedValue({ id: 'r1' }),
     repairRecipeLines: vi.fn().mockResolvedValue([]),
-    generateShoppingList: vi.fn().mockResolvedValue({ items: [] }),
     estimateIngredientPrices: vi.fn().mockResolvedValue([]),
     chat: vi.fn().mockResolvedValue(new ReadableStream()),
     analyzeMealPhoto: vi.fn().mockResolvedValue({ dishName: 'Pasta' }),
@@ -129,7 +128,7 @@ describe('FailoverAIService — primary-first calls', () => {
 });
 
 describe('FailoverAIService — secondary-first (cheap high-volume) calls', () => {
-  it.each(['chat', 'estimateIngredientPrices', 'generateShoppingList'] as const)(
+  it.each(['chat', 'estimateIngredientPrices'] as const)(
     '%s goes to the secondary first',
     async (method) => {
       const primary = stubService();
@@ -137,8 +136,6 @@ describe('FailoverAIService — secondary-first (cheap high-volume) calls', () =
       const wrapped = wrap(primary, secondary);
       if (method === 'chat') await wrapped.chat([], { userId: 'u1', contextSummary: '' });
       if (method === 'estimateIngredientPrices') await wrapped.estimateIngredientPrices(['egg']);
-      if (method === 'generateShoppingList')
-        await wrapped.generateShoppingList({ ingredients: [], weekLabel: 'w' });
 
       expect(secondary[method]).toHaveBeenCalled();
       expect(primary[method]).not.toHaveBeenCalled();
@@ -152,11 +149,9 @@ describe('FailoverAIService — secondary-first (cheap high-volume) calls', () =
       { status: 413 },
     );
     const primary = stubService();
-    const secondary = stubService({ generateShoppingList: failing(tooLarge413) });
-    await expect(
-      wrap(primary, secondary).generateShoppingList({ ingredients: [], weekLabel: 'w' }),
-    ).resolves.toEqual({ items: [] });
-    expect(primary.generateShoppingList).toHaveBeenCalled();
+    const secondary = stubService({ estimateIngredientPrices: failing(tooLarge413) });
+    await expect(wrap(primary, secondary).estimateIngredientPrices(['egg'])).resolves.toEqual([]);
+    expect(primary.estimateIngredientPrices).toHaveBeenCalled();
   });
 
   it('falls back to Gemini when the secondary throws a capacity error', async () => {
@@ -250,7 +245,6 @@ describe('ChainAIService — default routes equal today’s table', () => {
     expect(svc.chainNames('review')).toEqual(['gemini', 'groq']);
     expect(svc.chainNames('chat')).toEqual(['groq', 'gemini']);
     expect(svc.chainNames('prices')).toEqual(['groq', 'gemini']);
-    expect(svc.chainNames('shopping')).toEqual(['groq', 'gemini']);
     expect(svc.chainNames('vision')).toEqual(['gemini']);
   });
 });

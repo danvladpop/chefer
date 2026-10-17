@@ -13,6 +13,7 @@ import {
   Avatar,
   Button,
   colors,
+  DONE_FIELD_PROPS,
   FormField,
   haptics,
   Input,
@@ -266,7 +267,7 @@ function IntroForm({ me, onActivated }: FriendsIntroProps) {
               autoCapitalize="words"
               autoComplete="family-name"
               textContentType="familyName"
-              returnKeyType="done"
+              {...DONE_FIELD_PROPS}
               maxLength={50}
               accessibilityLabel={FRIENDS_COPY.intro.lastName}
               accessibilityHint={

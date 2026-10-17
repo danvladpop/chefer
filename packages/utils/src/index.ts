@@ -30,6 +30,7 @@ export {
 export {
   deviceLocale,
   formatApproxPrice,
+  formatApproxPriceHint,
   formatDate,
   formatDateRange,
   formatKcal,
@@ -374,18 +375,32 @@ export {
   type QuickAddParseResult,
 } from './quick-add';
 export {
+  LOSS_PROTEIN_KCAL_INCREASE_CAP,
+  REBALANCE_MIN_PROTEIN_SWAP_G,
+  REBALANCE_PROTEIN_TRIGGER_FRACTION,
+  REBALANCE_PROTEIN_TRIGGER_G,
   REBALANCE_UNDO_EXPIRY_MS,
+  capProteinScaleFactor,
+  describeProteinSnack,
+  describeRebalanceSwap,
+  describeWeekGap,
+  isLossGoal,
   isPendingFresh,
   mergePendingRebalance,
   parsePendingRebalance,
   rebalanceBannerCopy,
+  rebalanceOfferCopy,
   undoOperations,
   type PendingRebalance,
+  type RebalancePreviewLike,
+  type RebalanceReason,
   type RebalanceResultLike,
+  type RebalanceSnackLike,
   type RebalanceSwapLike,
+  type WeekGapLike,
 } from './rebalance';
 export { RATING_LABELS, composeNotesWithLikedBy, parseLikedBy, stripLikedBy } from './rating';
-export { shoppingWindowLabel } from './shopping-window';
+export { shoppingProvenanceText, shoppingWindowLabel } from './shopping-window';
 export {
   defaultSavedWeekName,
   dinnersHeadingFor,
@@ -453,6 +468,7 @@ export {
 } from './plan-training';
 export {
   choosePortions,
+  fitDayPortions,
   formatPortion,
   isDayOnTarget,
   MIN_PROTEIN_GAP_G,
@@ -463,6 +479,8 @@ export {
   scaleNutrition,
   slotPortion,
   sumPlanDay,
+  type DayFitResult,
+  type DayFitSlot,
   type PortionMeal,
   type PortionOptions,
   type PortionPlan,
@@ -472,12 +490,40 @@ export {
   MEAL_ORDER,
   MEAL_WINDOW_END,
   isSlotEaten,
+  isSlotSkipped,
   matchLoggedToSlots,
+  plannedTotals,
+  remainingTotals,
+  replacementFor,
   resolveTodayMeals,
+  slotStates,
+  slotStatus,
   type LoggedMealRef,
+  type MacroTotals,
+  type PlannedMacros,
   type PlannedMealSlot,
+  type SlotRef,
+  type SlotState,
+  type SlotStatus,
   type TodayMeals,
 } from './today';
+export {
+  EAT_OUT_CUISINES,
+  EAT_OUT_CUISINE_LABELS,
+  EAT_OUT_SIZES,
+  EAT_OUT_SIZE_HINTS,
+  EAT_OUT_SIZE_LABELS,
+  eatOutEstimate,
+  eatOutEstimates,
+  eatOutLogValues,
+  eatOutMealName,
+  formatEatOutKcal,
+  formatEatOutProtein,
+  type EatOutCuisine,
+  type EatOutEstimate,
+  type EatOutRange,
+  type EatOutSize,
+} from './eat-out';
 export { pastWeeks, type PlanWeekLike } from './my-weeks';
 export {
   PANTRY_CONFIRM_MIN_AGE_DAYS,
@@ -486,8 +532,14 @@ export {
   type PantryItemAgeLike,
 } from './pantry-confirm';
 export {
+  AGE_BAND_LABELS,
+  AGE_BAND_PORTION_FACTORS,
+  ageBandFactorsAreChips,
+  ageBandLabel,
+  ageBandPortionFactor,
   householdGhostSample,
   householdPortionSum,
+  parseAgeBand,
   onboardingProgress,
   onboardingSteps,
   perPortionCost,
@@ -560,7 +612,9 @@ export {
 } from './nudge-cap';
 export {
   effectiveJobs,
+  isOfferedOnboardingJob,
   legacyIntentForJobs,
+  RETIRED_ONBOARDING_JOBS,
   TRACK_INFERENCE_MIN_DAYS,
   type EffectiveJobsInput,
 } from './effective-jobs';
@@ -750,11 +804,20 @@ export {
 } from './user-facing-error';
 export type { UserFacingErrorOptions, ValidationIssueLike } from './user-facing-error';
 export {
+  bucketDays,
   DEFAULT_PROGRESS_RANGE,
+  DEFAULT_STATS_RANGE,
   evenLabelIndices,
   isLoggedDay,
   PROGRESS_RANGES,
+  STATS_RANGE_LABELS,
+  STATS_RANGE_SPAN,
+  STATS_RANGES,
+  statsBucketDays,
+  type DayBucket,
+  type DayTotals,
   type ProgressRange,
+  type StatsRangeDays,
 } from './progress-days';
 export { chatActionsTrailer, splitChatActions } from './chat-actions';
 export {
@@ -778,8 +841,67 @@ export {
   withRecipeEntryEdited,
   withRecipeLogged,
   withRecipeUnlogged,
+  withSlotReplaced,
+  withSlotSkipped,
+  withSlotUnskipped,
   type DayEntry,
   type DayLike,
   type OffPlanRowLike,
 } from './tracker-day';
 export { regenerateConfirmBody } from './regenerate-copy';
+export {
+  weeklyAverage,
+  weeklyAverageText,
+  WEEKLY_AVERAGE_MIN_DAYS,
+  type WeekDay,
+} from './weekly-average';
+
+// ─── Protein-only mode (WP-08, D-5) ──────────────────────────────────────────
+export {
+  DEFAULT_PROTEIN_MEALS,
+  PROTEIN_REFERENCE_G_PER_KG,
+  PROTEIN_REFERENCE_TOLERANCE,
+  buildProteinGuide,
+  explainProteinTarget,
+} from './protein-guide';
+
+// ─── Protein-only mode copy (WP-08), shared by mobile and web ────────────────
+export {
+  NUMBERS_MODE_COPY,
+  PROTEIN_ONLY_KCAL_PER_PROTEIN_G,
+  describeSnackProteinOnly,
+  describeSwapProteinOnly,
+  estimateKcalFromProtein,
+  nutritionLabel,
+  proteinAverageText,
+  proteinLabel,
+  proteinOnlyHeadline,
+  proteinOnlyOfferCopy,
+  proteinOnlyTrainingExplain,
+  proteinOnlyTrainingHeader,
+  proteinRingLabel,
+  withoutKcalLines,
+} from './numbers-mode-copy';
+
+// ─── Plan page: slot groups (FB7-04), macro lines and week-options copy (FB7-11) ──
+export {
+  canRemoveSlot,
+  groupDaySlots,
+  type DaySlotEntry,
+  type DaySlotGroup,
+} from './plan-slot-groups';
+export {
+  formatMacroLine,
+  formatPlanMinutes,
+  mealGroupTotalLine,
+  planMealMacroLine,
+  planMealMacros,
+  planMealMetaLine,
+  planMealNutritionLabel,
+  type PlanMealMacros,
+  type PlanMealNutrition,
+} from './plan-meal-macros';
+export { PLAN_MEAL_MENU_COPY, PLAN_WEEK_COPY } from './plan-options-copy';
+export * from './biscuit';
+export * from './onboarding-v4';
+export * from './day-fit-copy';

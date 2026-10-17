@@ -1,21 +1,25 @@
 import { useRef, useState } from 'react';
-import { ActivityIndicator, Pressable, Share, View } from 'react-native';
+import { ActivityIndicator, Share, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { router, useLocalSearchParams } from 'expo-router';
 import { FRIENDS_COPY } from '@chefer/types';
 import {
   Avatar,
-  Button,
-  Card,
   ConfirmSheet,
   ErrorState,
+  heroHeight,
+  IconButton,
   KeyboardAwareScrollView,
+  ListRow,
+  ListSection,
   PressableScale,
   Screen,
   Sheet,
   Text,
   useQueryState,
+  useReadableLayout,
   useSnackbar,
+  useThemeColors,
 } from '@chefer/ui-mobile';
 import {
   clampCookServings,
@@ -34,6 +38,7 @@ import {
   userFacingErrorMessage,
 } from '@chefer/utils';
 import { AiGeneratedChip } from '../../src/components/ai-generated-chip';
+import { Icon, type IconName } from '../../src/components/icon';
 import { AddToWeekSheet } from '../../src/features/friends/add-to-week/add-to-week-sheet';
 import { AppealLink } from '../../src/features/friends/components/appeal-link';
 import { SourceLink } from '../../src/features/friends/components/source-link';
@@ -50,10 +55,15 @@ import { CheckedForLine } from '../../src/features/safety/checked-for-line';
 import { LabelCaveat } from '../../src/features/safety/label-caveat';
 import { ReportSafetySheet } from '../../src/features/safety/report-sheet';
 import { WhatWeCheckSheet } from '../../src/features/safety/what-we-check-sheet';
+import { BoardCard, SectionTitle } from '../../src/features/shell/today/parts';
+import { TrainButton } from '../../src/features/shell/train/train-button';
 import { useCookingFor } from '../../src/hooks/use-cooking-for';
 import { useHousehold } from '../../src/hooks/use-household';
 import { useUnitSystem } from '../../src/hooks/use-unit-system';
 import { trpc } from '../../src/lib/trpc';
+
+/** The hero's height on a phone (Tailwind h-56). */
+const RECIPE_HERO_MIN_HEIGHT = 224;
 
 // Recipe detail — port of apps/web (dashboard)/recipes/[id]/page.tsx (M2-3).
 // Like web, the star rating shows only when opened from a meal-plan day
@@ -76,9 +86,9 @@ import { trpc } from '../../src/lib/trpc';
 // runs from the menu sheet's onExited so iOS never presents one sheet while
 // another is still dismissing.
 //
-// UX-REC-10: a failed hero image becomes a placeholder, and the ← / ✎ / ⋯
-// buttons live in a translucent bar pinned above the scroll view, so they
-// stay on a surface and never scroll away.
+// UX-REC-10: a failed hero image becomes a placeholder, and the ‹ / ✎ / ⋯
+// buttons live in the shell-style top bar pinned above the scroll view (and
+// the photo), so they stay on the canvas and never scroll away.
 //
 // UX-REC-07: the source link shows on every imported recipe (a YouTube
 // import has no embed, so the link back to the video is how you reach it).
@@ -101,34 +111,29 @@ function leave() {
   else router.replace('/recipes');
 }
 
-function MenuItem({
-  testID,
-  icon,
-  label,
+/** The ⋯ sheet's rows: brand-tinted glyphs, a danger one for Delete. */
+function MenuIcon({
+  name,
+  ionicon,
   destructive = false,
-  onPress,
 }: {
-  testID: string;
-  icon: keyof typeof Ionicons.glyphMap;
-  label: string;
+  name?: IconName;
+  /** A glyph the Icon set lacks (the report flag), tinted the same way. */
+  ionicon?: keyof typeof Ionicons.glyphMap;
   destructive?: boolean;
-  onPress: () => void;
 }) {
-  return (
-    <Pressable
-      testID={testID}
-      accessibilityRole="button"
-      accessibilityLabel={label}
-      onPress={onPress}
-      className="min-h-12 flex-row items-center gap-3 rounded-xl border border-border px-4"
-    >
-      <Ionicons name={icon} size={20} color={destructive ? '#b91c1c' : '#374151'} />
-      <Text
-        className={cn('min-w-0 flex-1 text-base', destructive ? 'text-red-700' : 'text-gray-900')}
-      >
-        {label}
-      </Text>
-    </Pressable>
+  const colors = useThemeColors();
+  const color = destructive ? colors.danger : colors.brand;
+  return name ? (
+    <Icon name={name} color={color} />
+  ) : (
+    <Ionicons
+      name={ionicon ?? 'ellipse-outline'}
+      size={22}
+      color={color}
+      accessibilityElementsHidden
+      importantForAccessibility="no"
+    />
   );
 }
 
@@ -178,11 +183,26 @@ export default function RecipeDetailScreen() {
   const addShopping = trpc.shoppingList.addCustomItems.useMutation({ meta: { silent: true } });
   const { scaledMembers } = useHousehold();
   const cookingFor = useCookingFor();
+  const colors = useThemeColors();
+  // Large screens: the hero keeps its phone height (h-56) on a phone and
+  // grows 16:9 with the readable column elsewhere, capped at 40% of the
+  // window — a fixed 224pt strip across a tablet was a thin, upscaled crop.
+  const { windowWidth, windowHeight } = useReadableLayout();
+  const heroHeightPt = heroHeight({
+    windowWidth,
+    windowHeight,
+    minHeight: RECIPE_HERO_MIN_HEIGHT,
+    aspectRatio: 16 / 9,
+    horizontalPadding: 32,
+  });
 
   if (recipeState.state === 'loading') {
     return (
-      <Screen edges={['top', 'bottom', 'left', 'right']} className="items-center justify-center">
-        <ActivityIndicator size="large" color="#944a00" />
+      <Screen
+        edges={['top', 'bottom', 'left', 'right']}
+        className="items-center justify-center bg-canvas"
+      >
+        <ActivityIndicator size="large" color={colors.brand} />
       </Screen>
     );
   }
@@ -192,10 +212,10 @@ export default function RecipeDetailScreen() {
     return (
       <Screen
         edges={['top', 'bottom', 'left', 'right']}
-        className="items-center justify-center gap-3"
+        className="items-center justify-center gap-3 bg-canvas"
       >
         {notFound ? (
-          <Text testID="recipe-not-found" variant="muted">
+          <Text testID="recipe-not-found" className="text-body text-label-secondary">
             Recipe not found.
           </Text>
         ) : (
@@ -205,9 +225,7 @@ export default function RecipeDetailScreen() {
             onRetry={recipeState.retry}
           />
         )}
-        <Button variant="outline" onPress={leave}>
-          Go back
-        </Button>
+        <TrainButton variant="outline" label="Go back" onPress={leave} />
       </Screen>
     );
   }
@@ -351,449 +369,410 @@ export default function RecipeDetailScreen() {
   };
 
   return (
-    <Screen edges={['top', 'bottom', 'left', 'right']} className="px-0">
-      <View className="flex-1">
-        <KeyboardAwareScrollView
-          keyboardShouldPersistTaps="handled"
-          contentContainerClassName="pb-8"
-        >
-          {/* Hero image — a failed photo becomes a placeholder (UX-REC-10) */}
+    <Screen edges={['top', 'bottom', 'left', 'right']} className="bg-canvas px-0">
+      {/* Top bar (UX-REC-10, 11 Oct restyle): the shell's pushed-screen bar —
+        brand chevron Back, Edit and ⋯ — pinned above the scroll view so it
+        never scrolls away and always sits on the canvas, photo or not. */}
+      <View
+        testID="recipe-header"
+        className="min-h-11 flex-row items-center justify-between gap-2 px-4"
+      >
+        <IconButton
+          testID="recipe-back"
+          accessibilityLabel="Back"
+          icon={<Icon name="chevronBack" color={colors.brand} size={26} />}
+          onPress={leave}
+          className="-ml-2"
+        />
+        <View className="flex-row items-center gap-1">
+          {/* Owner dogfood 2026-09-30: your own recipes are editable from
+            the recipe itself, not only from the Cookbook "Mine" card. */}
+          {isOwner ? (
+            <IconButton
+              testID="recipe-edit"
+              accessibilityLabel="Edit recipe"
+              icon={<Icon name="edit" color={colors.brand} />}
+              onPress={() => router.push({ pathname: '/recipe-form', params: { id: recipe.id } })}
+            />
+          ) : null}
+          <IconButton
+            testID="recipe-report-overflow"
+            accessibilityLabel="More options"
+            icon={<Icon name="more" color={colors.brand} />}
+            onPress={() => setOverflowOpen(true)}
+            className="-mr-2"
+          />
+        </View>
+      </View>
+
+      <KeyboardAwareScrollView keyboardShouldPersistTaps="handled" contentContainerClassName="pb-8">
+        {/* Hero image — the page is photo-led; a failed photo becomes a
+          placeholder (UX-REC-10) */}
+        <View className="px-4 pt-2">
           <RecipeImage
             testID="recipe-hero"
             imageUrl={recipe.imageUrl}
-            className="h-56 w-full"
+            className="w-full overflow-hidden rounded-card"
+            style={{ height: heroHeightPt }}
             accessibilityLabel={recipe.name}
             iconSize={48}
           />
+        </View>
 
-          <View className="gap-4 px-4 pt-4">
-            {/* Tags + title */}
-            <View className="gap-2">
-              <View className="flex-row flex-wrap gap-2">
-                <View className="rounded-full bg-accent px-3 py-0.5">
-                  <Text className="text-xs font-medium text-primary">{recipe.cuisineType}</Text>
-                </View>
-                {recipe.dietaryTags.slice(0, 2).map((tag) => (
-                  <View key={tag} className="rounded-full bg-gray-100 px-3 py-0.5">
-                    <Text className="text-xs text-gray-600">{tag}</Text>
-                  </View>
-                ))}
-              </View>
-              <Text testID="recipe-name" variant="title">
-                {recipe.name}
+        <View className="gap-4 px-4 pt-4">
+          {/* Tags + title */}
+          <View className="gap-2">
+            <View className="flex-row flex-wrap gap-2">
+              <Text className="rounded-full bg-brand-tint px-2 text-caption font-semibold text-brand">
+                {recipe.cuisineType}
               </Text>
-              {/* R-14 (Art. 50): AI-generated recipes carry the same label as plan cards. */}
-              <AiGeneratedChip recipe={recipe} />
-              {creator ? (
-                <PressableScale
-                  testID="recipe-by"
-                  pressScale="control"
-                  accessibilityRole="button"
-                  accessibilityLabel={FRIENDS_COPY.recipe.byLabel(creator.displayName)}
-                  onPress={() =>
-                    router.push({ pathname: '/friends/[userId]', params: { userId: creator.id } })
-                  }
-                  className="min-h-11 flex-row items-center gap-2 self-start"
+              {recipe.dietaryTags.slice(0, 2).map((tag) => (
+                <Text
+                  key={tag}
+                  className="rounded-full bg-surface-sunken px-2 text-caption text-label-secondary"
                 >
-                  <Avatar name={creator.displayName} seed={creator.id} size="sm" />
-                  <Text className="text-sm font-medium text-gray-900">
-                    {FRIENDS_COPY.recipe.by(creator.displayName)}
-                  </Text>
-                </PressableScale>
-              ) : null}
-              {origin ? (
-                <View
-                  testID="recipe-from"
-                  className="self-start rounded-full bg-gray-100 px-3 py-0.5"
-                >
-                  <Text className="text-xs text-gray-700">
-                    {origin.creatorFirstName
-                      ? FRIENDS_COPY.recipe.from(origin.creatorFirstName)
-                      : FRIENDS_COPY.recipe.fromGone}
-                  </Text>
-                </View>
-              ) : null}
-              {recipe.sourceUrl ? (
-                <SourceLink testID="recipe-source" url={recipe.sourceUrl} />
-              ) : null}
-              {recipe.deleted ? (
-                <View
-                  testID="recipe-deleted-banner"
-                  accessibilityRole="summary"
-                  className="rounded-xl bg-gray-100 px-3 py-2"
-                >
-                  <Text className="text-sm text-gray-800">
-                    This recipe was deleted. It stays in the plan slots that already use it.
-                  </Text>
-                </View>
-              ) : null}
-              {recipe.hidden ? (
-                <View
-                  testID="recipe-hidden-banner"
-                  accessibilityRole="summary"
-                  className="gap-1 rounded-xl bg-blue-50 px-3 py-2"
-                >
-                  <Text className="text-sm font-semibold text-blue-900">
-                    {FRIENDS_COPY.recipe.hidden.title}
-                  </Text>
-                  <Text className="text-sm text-blue-900">
-                    {recipe.hidden.reason === 'FILTER'
-                      ? FRIENDS_COPY.recipe.hidden.filter
-                      : FRIENDS_COPY.recipe.hidden.reports}
-                  </Text>
-                  <AppealLink subject="recipe" tone="text-blue-900" testID="recipe-hidden-appeal" />
-                </View>
-              ) : null}
-              <Text variant="muted" className="text-sm">
-                {recipe.description}
-              </Text>
-              <AllergenWarningBanner
-                warnings={recipe.allergenWarnings}
-                details={safetyData?.safetyChecks?.conflictDetails}
-                className="mt-2"
-              />
-              {/* T-02.3 AC3: never both — the line only shows when the
-                existing conflict banner above isn't already showing one. */}
-              {(recipe.allergenWarnings?.length ?? 0) === 0 && safetyData?.safetyChecks ? (
-                <CheckedForLine
-                  testID="recipe-checked-for"
-                  checks={safetyData.safetyChecks}
-                  onPress={() => setWhatWeCheckOpen(true)}
-                />
-              ) : null}
-              {safetyData?.safetyChecks?.labelCaveats &&
-              safetyData.safetyChecks.labelCaveats.length > 0 ? (
-                <LabelCaveat
-                  testID="recipe-label-caveat"
-                  text={labelCaveatLineText(
-                    safetyData.safetyChecks.labelCaveats.map((c) => c.ingredient),
-                  )}
-                />
-              ) : null}
+                  {tag}
+                </Text>
+              ))}
             </View>
-
-            {/* Following (UX §9.4): another person's recipe leads with Add to my week. */}
-            {offerAddToWeek ? (
-              <Button testID="recipe-add-to-week" onPress={() => setAddToWeekOpen(true)}>
-                <View className="flex-row items-center gap-1.5">
-                  <Ionicons name="calendar-outline" size={16} color="white" />
-                  <Text className="text-sm font-medium text-primary-foreground">
-                    {FRIENDS_COPY.recipe.addToWeek}
-                  </Text>
-                </View>
-              </Button>
-            ) : null}
-
-            {/* Actions: cook is primary (web P1-3), save secondary */}
-            <View className="flex-row gap-2">
-              <Button
-                testID="recipe-cook"
-                variant={offerAddToWeek ? 'outline' : 'default'}
-                className="flex-1"
+            <Text
+              testID="recipe-name"
+              accessibilityRole="header"
+              className="text-title1 font-bold text-label"
+            >
+              {recipe.name}
+            </Text>
+            {/* R-14 (Art. 50): AI-generated recipes carry the same label as plan cards. */}
+            <AiGeneratedChip recipe={recipe} />
+            {creator ? (
+              <PressableScale
+                testID="recipe-by"
+                pressScale="control"
+                accessibilityRole="button"
+                accessibilityLabel={FRIENDS_COPY.recipe.byLabel(creator.displayName)}
                 onPress={() =>
-                  router.push({
-                    pathname: '/cook/[id]',
-                    params: {
-                      id,
-                      ...(meal && { meal }),
-                      ...(planPortion !== 1 && { portion: String(planPortion) }),
-                      // UX-COOK-05: the stepper's choice follows you into cook mode.
-                      ...(servings !== null && { servings: String(selectedServings) }),
-                    },
-                  })
+                  router.push({ pathname: '/friends/[userId]', params: { userId: creator.id } })
                 }
+                className="min-h-11 flex-row items-center gap-2 self-start"
               >
-                <View className="flex-row items-center gap-1.5">
-                  <Ionicons
-                    name="restaurant-outline"
-                    size={16}
-                    color={offerAddToWeek ? '#944a00' : 'white'}
-                  />
-                  <Text
-                    className={cn(
-                      'text-sm font-medium',
-                      offerAddToWeek ? 'text-primary' : 'text-primary-foreground',
-                    )}
-                  >
-                    Cook
-                  </Text>
-                </View>
-              </Button>
-              <Button
-                testID="recipe-save"
-                variant={isSaved ? 'secondary' : 'outline'}
-                className="flex-1"
-                loading={toggleFav.isPending}
-                onPress={() => toggleFav.mutate({ recipeId: id })}
-              >
-                <View className="flex-row items-center gap-1.5">
-                  <Ionicons name={isSaved ? 'heart' : 'heart-outline'} size={16} color="#944a00" />
-                  <Text className="text-sm font-medium text-primary">
-                    {isSaved ? 'Saved' : 'Save'}
-                  </Text>
-                </View>
-              </Button>
-            </View>
-
-            {/* UX-REC-08: every other recipe gets Add to my week too (the leading
-              button above is Following's, for another person's recipe). */}
-            {!offerAddToWeek && !recipe.deleted ? (
-              <Button
-                testID="recipe-add-to-week"
-                variant="outline"
-                onPress={() => setAddToWeekOpen(true)}
-              >
-                <View className="flex-row items-center gap-1.5">
-                  <Ionicons name="calendar-outline" size={16} color="#944a00" />
-                  <Text className="text-sm font-medium text-primary">
-                    {FRIENDS_COPY.recipe.addToWeek}
-                  </Text>
-                </View>
-              </Button>
+                <Avatar name={creator.displayName} seed={creator.id} size="sm" />
+                <Text className="text-subhead font-semibold text-label">
+                  {FRIENDS_COPY.recipe.by(creator.displayName)}
+                </Text>
+              </PressableScale>
             ) : null}
-
-            {/* Stats — a 0 prep/cook/total time or an empty nutrition is
-              hidden rather than shown as "0m" / "0 kcal" (UX-40). */}
-            {(timeStats.length > 0 || nutritionAdded) && (
-              <View className="flex-row justify-between rounded-2xl border border-border bg-gray-50 px-4 py-3">
-                {timeStats.map(([label, minutes]) => (
-                  <View key={label} className="items-center">
-                    <Text className="text-xs text-gray-500">{label}</Text>
-                    <Text className="text-sm font-semibold text-gray-800">{minutes}m</Text>
-                  </View>
-                ))}
-                {nutritionAdded && (
-                  <View className="items-center">
-                    <Text className="text-xs text-gray-500">Energy</Text>
-                    <Text className="text-sm font-semibold text-gray-800">{n.calories} kcal</Text>
-                    {statusBadge ? (
-                      <Text
-                        testID="recipe-energy-status"
-                        className={cn(
-                          'text-xs',
-                          nutritionStatus === 'PARTIAL' ? 'text-amber-700' : 'text-gray-500',
-                        )}
-                      >
-                        {statusBadge}
-                      </Text>
-                    ) : null}
-                  </View>
+            {origin ? (
+              <View testID="recipe-from" className="self-start rounded-full bg-surface-sunken px-2">
+                <Text className="text-caption text-label-secondary">
+                  {origin.creatorFirstName
+                    ? FRIENDS_COPY.recipe.from(origin.creatorFirstName)
+                    : FRIENDS_COPY.recipe.fromGone}
+                </Text>
+              </View>
+            ) : null}
+            {recipe.sourceUrl ? <SourceLink testID="recipe-source" url={recipe.sourceUrl} /> : null}
+            {recipe.deleted ? (
+              <View
+                testID="recipe-deleted-banner"
+                accessibilityRole="summary"
+                className="rounded-card bg-surface-sunken px-3 py-2"
+              >
+                <Text className="text-subhead text-label">
+                  This recipe was deleted. It stays in the plan slots that already use it.
+                </Text>
+              </View>
+            ) : null}
+            {recipe.hidden ? (
+              <View
+                testID="recipe-hidden-banner"
+                accessibilityRole="summary"
+                className="gap-1 rounded-card bg-info/10 px-3 py-2"
+              >
+                <Text className="text-subhead font-semibold text-info">
+                  {FRIENDS_COPY.recipe.hidden.title}
+                </Text>
+                <Text className="text-subhead text-info">
+                  {recipe.hidden.reason === 'FILTER'
+                    ? FRIENDS_COPY.recipe.hidden.filter
+                    : FRIENDS_COPY.recipe.hidden.reports}
+                </Text>
+                <AppealLink subject="recipe" tone="text-info" testID="recipe-hidden-appeal" />
+              </View>
+            ) : null}
+            <Text className="text-body text-label-secondary">{recipe.description}</Text>
+            <AllergenWarningBanner
+              warnings={recipe.allergenWarnings}
+              details={safetyData?.safetyChecks?.conflictDetails}
+              className="mt-2"
+            />
+            {/* T-02.3 AC3: never both — the line only shows when the
+              existing conflict banner above isn't already showing one. */}
+            {(recipe.allergenWarnings?.length ?? 0) === 0 && safetyData?.safetyChecks ? (
+              <CheckedForLine
+                testID="recipe-checked-for"
+                checks={safetyData.safetyChecks}
+                onPress={() => setWhatWeCheckOpen(true)}
+              />
+            ) : null}
+            {safetyData?.safetyChecks?.labelCaveats &&
+            safetyData.safetyChecks.labelCaveats.length > 0 ? (
+              <LabelCaveat
+                testID="recipe-label-caveat"
+                text={labelCaveatLineText(
+                  safetyData.safetyChecks.labelCaveats.map((c) => c.ingredient),
                 )}
-              </View>
-            )}
+              />
+            ) : null}
+          </View>
 
-            {/* P1-1: the plan sized this slot to the day's targets */}
-            {planPortion !== 1 && (
-              <View testID="recipe-plan-portion" className="rounded-xl bg-accent px-3 py-2">
-                <Text className="text-xs text-primary">
-                  Your plan has a {formatPortion(planPortion)} portion here — {planN.calories} kcal
-                  · {Math.round(planN.protein)} g protein. Quantities start at it.
-                </Text>
-              </View>
-            )}
+          {/* Following (UX §9.4): another person's recipe leads with Add to my week. */}
+          {offerAddToWeek ? (
+            <TrainButton
+              testID="recipe-add-to-week"
+              icon="calendar"
+              label={FRIENDS_COPY.recipe.addToWeek}
+              onPress={() => setAddToWeekOpen(true)}
+            />
+          ) : null}
 
-            {/* UX-REC-02: the table is the user's portion plus each member, spelled out. */}
-            {scaledMembers !== null && (
-              <Text testID="recipe-table-breakdown" variant="muted" className="text-xs">
-                Sized for your table: {tableBreakdown(planPortion, scaledMembers)}
-              </Text>
-            )}
+          {/* Actions: cook is primary (web P1-3), save secondary */}
+          <View className="flex-row gap-2">
+            <TrainButton
+              testID="recipe-cook"
+              variant={offerAddToWeek ? 'tinted' : 'primary'}
+              icon="cook"
+              label="Cook"
+              className="flex-1"
+              onPress={() =>
+                router.push({
+                  pathname: '/cook/[id]',
+                  params: {
+                    id,
+                    ...(meal && { meal }),
+                    ...(planPortion !== 1 && { portion: String(planPortion) }),
+                    // UX-COOK-05: the stepper's choice follows you into cook mode.
+                    ...(servings !== null && { servings: String(selectedServings) }),
+                  },
+                })
+              }
+            />
+            <TrainButton
+              testID="recipe-save"
+              variant={isSaved ? 'tinted' : 'outline'}
+              icon={isSaved ? 'heart' : 'heartOutline'}
+              label={isSaved ? 'Saved' : 'Save'}
+              className="flex-1"
+              loading={toggleFav.isPending}
+              onPress={() => toggleFav.mutate({ recipeId: id })}
+            />
+          </View>
 
-            {/* Macros — no Fiber (D-18); hidden entirely when nothing was added. */}
-            {nutritionAdded && (
-              <View className="flex-row gap-2">
-                {(
-                  [
-                    ['Protein', n.protein],
-                    ['Carbs', n.carbs],
-                    ['Fat', n.fat],
-                  ] as const
-                ).map(([label, value]) => (
-                  <View key={label} className="flex-1 items-center rounded-xl bg-gray-100 py-2">
-                    <Text className="text-xs text-gray-500">{label}</Text>
-                    <Text className="text-sm font-semibold text-gray-800">{value}g</Text>
-                  </View>
-                ))}
-              </View>
-            )}
+          {/* UX-REC-08: every other recipe gets Add to my week too (the leading
+            button above is Following's, for another person's recipe). */}
+          {!offerAddToWeek && !recipe.deleted ? (
+            <TrainButton
+              testID="recipe-add-to-week"
+              variant="tinted"
+              icon="calendar"
+              label={FRIENDS_COPY.recipe.addToWeek}
+              onPress={() => setAddToWeekOpen(true)}
+            />
+          ) : null}
 
-            {/* Ingredients + servings adjuster */}
-            <Card testID="recipe-ingredients">
-              <View className="mb-3 flex-row items-center justify-between">
-                <Text variant="heading">Ingredients</Text>
-                <View className="flex-row items-center gap-1 rounded-xl border border-border px-1">
-                  <Pressable
-                    accessibilityRole="button"
-                    accessibilityLabel="Decrease servings"
-                    onPress={() => setServings(clampCookServings(selectedServings - 1))}
-                    className="h-11 w-11 items-center justify-center"
-                  >
-                    <Text className="text-lg text-gray-600">−</Text>
-                  </Pressable>
-                  <Text
-                    testID="recipe-servings-count"
-                    className="w-8 text-center text-sm font-medium"
-                  >
-                    {formatFractionalQuantity(selectedServings)}
-                  </Text>
-                  <Pressable
-                    accessibilityRole="button"
-                    accessibilityLabel="Increase servings"
-                    onPress={() => setServings(clampCookServings(selectedServings + 1))}
-                    className="h-11 w-11 items-center justify-center"
-                  >
-                    <Text className="text-lg text-gray-600">+</Text>
-                  </Pressable>
+          {/* Stats — a 0 prep/cook/total time or an empty nutrition is
+            hidden rather than shown as "0m" / "0 kcal" (UX-40). */}
+          {(timeStats.length > 0 || nutritionAdded) && (
+            <View className="flex-row justify-between rounded-card border border-separator bg-surface px-4 py-3">
+              {timeStats.map(([label, minutes]) => (
+                <View key={label} className="items-center">
+                  <Text className="text-caption text-label-secondary">{label}</Text>
+                  <Text className="text-callout font-semibold text-label">{minutes}m</Text>
                 </View>
-              </View>
-              {/* UX-REC-11: say what the stepper changed, with the totals. */}
-              {selectedServings !== recipe.servings ? (
-                <Text testID="recipe-servings-note" variant="muted" className="mb-3 text-xs">
-                  Cooking for {formatFractionalQuantity(selectedServings)} (recipe makes{' '}
-                  {recipe.servings}) — amounts are scaled
-                  {nutritionAdded
-                    ? `; about ${Math.round(totalN.calories)} kcal and ${Math.round(totalN.protein)} g protein in total.`
-                    : '.'}
-                </Text>
-              ) : null}
-              <View className="gap-2">
-                {recipe.ingredients.map((ing, i) => (
-                  <View key={i} className="flex-row items-baseline gap-2">
-                    <Text className="shrink-0 text-sm font-medium text-gray-900">
-                      {formatScaledQuantity(ing.quantity, ing.unit, scale, unitSystem)}
+              ))}
+              {nutritionAdded && (
+                <View className="items-center">
+                  <Text className="text-caption text-label-secondary">Energy</Text>
+                  <Text className="text-callout font-semibold text-label">{n.calories} kcal</Text>
+                  {statusBadge ? (
+                    <Text
+                      testID="recipe-energy-status"
+                      className={cn(
+                        'text-caption',
+                        nutritionStatus === 'PARTIAL' ? 'text-attention' : 'text-label-tertiary',
+                      )}
+                    >
+                      {statusBadge}
                     </Text>
-                    <Text className="min-w-0 flex-1 text-sm text-gray-600">{ing.name}</Text>
+                  ) : null}
+                </View>
+              )}
+            </View>
+          )}
+
+          {/* P1-1: the plan sized this slot to the day's targets */}
+          {planPortion !== 1 && (
+            <View testID="recipe-plan-portion" className="rounded-card bg-brand-tint px-3 py-2">
+              <Text className="text-subhead text-brand">
+                Your plan has a {formatPortion(planPortion)} portion here — {planN.calories} kcal ·{' '}
+                {Math.round(planN.protein)} g protein. Quantities start at it.
+              </Text>
+            </View>
+          )}
+
+          {/* UX-REC-02: the table is the user's portion plus each member, spelled out. */}
+          {scaledMembers !== null && (
+            <Text testID="recipe-table-breakdown" className="text-caption text-label-secondary">
+              Sized for your table: {tableBreakdown(planPortion, scaledMembers)}
+            </Text>
+          )}
+
+          {/* Macros — no Fiber (D-18); hidden entirely when nothing was added. */}
+          {nutritionAdded && (
+            <View className="flex-row gap-2">
+              {(
+                [
+                  ['Protein', n.protein],
+                  ['Carbs', n.carbs],
+                  ['Fat', n.fat],
+                ] as const
+              ).map(([label, value]) => (
+                <View
+                  key={label}
+                  className="flex-1 items-center rounded-card bg-surface-sunken py-2"
+                >
+                  <Text className="text-caption text-label-secondary">{label}</Text>
+                  <Text className="text-callout font-semibold text-label">{value}g</Text>
+                </View>
+              ))}
+            </View>
+          )}
+
+          {/* Ingredients + servings adjuster */}
+          <BoardCard testID="recipe-ingredients">
+            <View className="flex-row items-center justify-between gap-2">
+              <SectionTitle>Ingredients</SectionTitle>
+              <View className="flex-row items-center rounded-full border border-separator">
+                <IconButton
+                  accessibilityLabel="Decrease servings"
+                  icon={<Icon name="remove" color={colors.brand} size={20} />}
+                  onPress={() => setServings(clampCookServings(selectedServings - 1))}
+                />
+                <Text
+                  testID="recipe-servings-count"
+                  className="min-w-[32px] text-center text-callout font-semibold text-label"
+                >
+                  {formatFractionalQuantity(selectedServings)}
+                </Text>
+                <IconButton
+                  accessibilityLabel="Increase servings"
+                  icon={<Icon name="add" color={colors.brand} size={20} />}
+                  onPress={() => setServings(clampCookServings(selectedServings + 1))}
+                />
+              </View>
+            </View>
+            {/* UX-REC-11: say what the stepper changed, with the totals. */}
+            {selectedServings !== recipe.servings ? (
+              <Text testID="recipe-servings-note" className="text-caption text-label-secondary">
+                Cooking for {formatFractionalQuantity(selectedServings)} (recipe makes{' '}
+                {recipe.servings}) — amounts are scaled
+                {nutritionAdded
+                  ? `; about ${Math.round(totalN.calories)} kcal and ${Math.round(totalN.protein)} g protein in total.`
+                  : '.'}
+              </Text>
+            ) : null}
+            <View className="gap-2">
+              {recipe.ingredients.map((ing, i) => (
+                <View key={i} className="flex-row items-baseline gap-2">
+                  <Text className="shrink-0 text-body font-semibold text-label">
+                    {formatScaledQuantity(ing.quantity, ing.unit, scale, unitSystem)}
+                  </Text>
+                  <Text className="min-w-0 flex-1 text-body text-label-secondary">{ing.name}</Text>
+                </View>
+              ))}
+            </View>
+          </BoardCard>
+
+          {/* Instructions — D10/UX-40: no steps is a valid recipe, not an
+            error; the card reads "No steps yet" instead of rendering empty. */}
+          <BoardCard testID="recipe-instructions">
+            <SectionTitle>Instructions</SectionTitle>
+            {recipe.instructions.length > 0 ? (
+              <View className="gap-4">
+                {recipe.instructions.map((step, i) => (
+                  <View key={i} className="flex-row gap-3">
+                    <View className="h-7 w-7 items-center justify-center rounded-full bg-brand">
+                      <Text className="text-caption font-bold text-brand-on">{i + 1}</Text>
+                    </View>
+                    <Text className="min-w-0 flex-1 text-body text-label">{step}</Text>
                   </View>
                 ))}
               </View>
-            </Card>
-
-            {/* Instructions — D10/UX-40: no steps is a valid recipe, not an
-              error; the card reads "No steps yet" instead of rendering empty. */}
-            <Card testID="recipe-instructions">
-              <Text variant="heading" className="mb-3">
-                Instructions
+            ) : (
+              <Text testID="recipe-no-steps" className="text-body text-label-secondary">
+                No steps yet
               </Text>
-              {recipe.instructions.length > 0 ? (
-                <View className="gap-4">
-                  {recipe.instructions.map((step, i) => (
-                    <View key={i} className="flex-row gap-3">
-                      <View className="h-6 w-6 items-center justify-center rounded-full bg-primary">
-                        <Text className="text-xs font-bold text-primary-foreground">{i + 1}</Text>
-                      </View>
-                      <Text className="min-w-0 flex-1 text-sm leading-relaxed text-gray-700">
-                        {step}
-                      </Text>
+            )}
+          </BoardCard>
+
+          {/* Nutrition facts. bug B-22: the label used to read "per {recipe.
+            servings} servings" while sitting right under a stepper that
+            changes the SELECTED servings — easy to misread as already
+            scaled. The label is fixed; a separate line states the total
+            for what's actually selected. */}
+          <BoardCard testID="recipe-nutrition-facts">
+            <View className="flex-row items-baseline gap-2">
+              <SectionTitle>Nutrition Facts</SectionTitle>
+              <Text className="text-subhead text-label-secondary">per serving</Text>
+            </View>
+            {nutritionAdded ? (
+              <>
+                <View className="flex-row flex-wrap">
+                  {(
+                    [
+                      ['Calories', `${n.calories} kcal`],
+                      ['Protein', `${n.protein}g`],
+                      ['Carbs', `${n.carbs}g`],
+                      ['Fat', `${n.fat}g`],
+                    ] as const
+                  ).map(([label, value]) => (
+                    <View key={label} className="w-1/2 flex-row justify-between py-1 pr-4">
+                      <Text className="text-subhead text-label-secondary">{label}</Text>
+                      <Text className="text-subhead font-semibold text-label">{value}</Text>
                     </View>
                   ))}
                 </View>
-              ) : (
-                <Text testID="recipe-no-steps" variant="muted" className="text-sm">
-                  No steps yet
-                </Text>
-              )}
-            </Card>
-
-            {/* Nutrition facts. bug B-22: the label used to read "per {recipe.
-              servings} servings" while sitting right under a stepper that
-              changes the SELECTED servings — easy to misread as already
-              scaled. The label is fixed; a separate line states the total
-              for what's actually selected. */}
-            <Card testID="recipe-nutrition-facts">
-              <Text variant="heading" className="mb-2">
-                Nutrition Facts{' '}
-                <Text variant="muted" className="text-xs">
-                  per serving
-                </Text>
+                {selectedServings !== recipe.servings && (
+                  <Text
+                    testID="recipe-nutrition-scaled"
+                    className="text-caption text-label-secondary"
+                  >
+                    Scaled for {formatFractionalQuantity(selectedServings)} servings:{' '}
+                    {Math.round(n.calories * selectedServings)} kcal total
+                  </Text>
+                )}
+                <NutritionProvenance
+                  status={nutritionStatus}
+                  lines={recipe.nutritionLines ?? []}
+                  ingredientCount={recipe.ingredients.length}
+                  servings={recipe.servings}
+                  onFix={
+                    savedData?.canEdit
+                      ? () => router.push({ pathname: '/recipe-form', params: { id: recipe.id } })
+                      : undefined
+                  }
+                />
+              </>
+            ) : (
+              <Text testID="recipe-nutrition-not-added" className="text-body text-label-secondary">
+                Nutrition not added
               </Text>
-              {nutritionAdded ? (
-                <>
-                  <View className="flex-row flex-wrap">
-                    {(
-                      [
-                        ['Calories', `${n.calories} kcal`],
-                        ['Protein', `${n.protein}g`],
-                        ['Carbs', `${n.carbs}g`],
-                        ['Fat', `${n.fat}g`],
-                      ] as const
-                    ).map(([label, value]) => (
-                      <View key={label} className={cn('w-1/2 flex-row justify-between py-1 pr-4')}>
-                        <Text className="text-sm text-gray-500">{label}</Text>
-                        <Text className="text-sm font-medium text-gray-800">{value}</Text>
-                      </View>
-                    ))}
-                  </View>
-                  {selectedServings !== recipe.servings && (
-                    <Text testID="recipe-nutrition-scaled" variant="muted" className="mt-2 text-xs">
-                      Scaled for {formatFractionalQuantity(selectedServings)} servings:{' '}
-                      {Math.round(n.calories * selectedServings)} kcal total
-                    </Text>
-                  )}
-                  <NutritionProvenance
-                    status={nutritionStatus}
-                    lines={recipe.nutritionLines ?? []}
-                    ingredientCount={recipe.ingredients.length}
-                    servings={recipe.servings}
-                    onFix={
-                      savedData?.canEdit
-                        ? () => router.push({ pathname: '/recipe-form', params: { id: recipe.id } })
-                        : undefined
-                    }
-                  />
-                </>
-              ) : (
-                <Text testID="recipe-nutrition-not-added" variant="muted" className="text-sm">
-                  Nutrition not added
-                </Text>
-              )}
-            </Card>
+            )}
+          </BoardCard>
 
-            {/* Star rating — shown when opened from a meal-plan day */}
-            {day !== undefined && <StarRating recipeId={id} />}
-          </View>
-        </KeyboardAwareScrollView>
-
-        {/* Sticky translucent header (UX-REC-10): pinned above the scroll view. */}
-        <View
-          testID="recipe-header"
-          pointerEvents="box-none"
-          className="absolute inset-x-0 top-0 flex-row items-center justify-between bg-white/70 px-3 py-1.5"
-        >
-          <Pressable
-            testID="recipe-back"
-            accessibilityRole="button"
-            accessibilityLabel="Back"
-            onPress={leave}
-            className="h-11 w-11 items-center justify-center rounded-full border border-black/10 bg-white"
-          >
-            <Ionicons name="arrow-back" size={20} color="#1f2937" />
-          </Pressable>
-          <View className="flex-row gap-2">
-            {/* Owner dogfood 2026-09-30: your own recipes are editable from
-              the recipe itself, not only from the Cookbook "Mine" card. */}
-            {isOwner ? (
-              <Pressable
-                testID="recipe-edit"
-                accessibilityRole="button"
-                accessibilityLabel="Edit recipe"
-                onPress={() => router.push({ pathname: '/recipe-form', params: { id: recipe.id } })}
-                className="h-11 w-11 items-center justify-center rounded-full border border-black/10 bg-white"
-              >
-                <Ionicons name="pencil" size={18} color="#944a00" />
-              </Pressable>
-            ) : null}
-            <Pressable
-              testID="recipe-report-overflow"
-              accessibilityRole="button"
-              accessibilityLabel="More options"
-              onPress={() => setOverflowOpen(true)}
-              className="h-11 w-11 items-center justify-center rounded-full border border-black/10 bg-white"
-            >
-              <Ionicons name="ellipsis-horizontal" size={20} color="#1f2937" />
-            </Pressable>
-          </View>
+          {/* Star rating — shown when opened from a meal-plan day */}
+          {day !== undefined && <StarRating recipeId={id} />}
         </View>
-      </View>
+      </KeyboardAwareScrollView>
 
       {table ? (
         <WhatWeCheckSheet
@@ -823,67 +802,75 @@ export default function RecipeDetailScreen() {
           runOverflowChoice(choice);
         }}
       >
-        <View className="gap-2">
+        {/* ListSection draws one row per child element: no fragments here. */}
+        <ListSection>
           {recipe.deleted ? null : (
-            <MenuItem
+            <ListRow
               testID="recipe-overflow-week"
-              icon="calendar-outline"
-              label={FRIENDS_COPY.recipe.addToWeek}
+              icon={<MenuIcon name="calendar" />}
+              title={FRIENDS_COPY.recipe.addToWeek}
+              accessory="none"
               onPress={() => chooseOverflow('week')}
             />
           )}
-          <MenuItem
+          <ListRow
             testID="recipe-overflow-shopping"
-            icon="cart-outline"
-            label="Add ingredients to shopping list"
+            icon={<MenuIcon name="cart" />}
+            title="Add ingredients to shopping list"
+            accessory="none"
             onPress={() => chooseOverflow('shopping')}
           />
-          <MenuItem
+          <ListRow
             testID="recipe-overflow-share"
-            icon="share-outline"
-            label="Share"
+            icon={<MenuIcon name="share" />}
+            title="Share"
+            accessory="none"
             onPress={() => chooseOverflow('share')}
           />
           {isOwner ? (
-            <>
-              <MenuItem
-                testID="recipe-overflow-edit"
-                icon="pencil-outline"
-                label="Edit"
-                onPress={() => chooseOverflow('edit')}
-              />
-              <MenuItem
-                testID="recipe-overflow-duplicate"
-                icon="copy-outline"
-                label="Duplicate"
-                onPress={() => chooseOverflow('duplicate')}
-              />
-            </>
+            <ListRow
+              testID="recipe-overflow-edit"
+              icon={<MenuIcon name="edit" />}
+              title="Edit"
+              accessory="none"
+              onPress={() => chooseOverflow('edit')}
+            />
           ) : null}
-          <MenuItem
+          {isOwner ? (
+            <ListRow
+              testID="recipe-overflow-duplicate"
+              icon={<MenuIcon name="copy" />}
+              title="Duplicate"
+              accessory="none"
+              onPress={() => chooseOverflow('duplicate')}
+            />
+          ) : null}
+          <ListRow
             testID="recipe-overflow-safety"
-            icon="shield-outline"
-            label="Report a safety problem"
+            icon={<MenuIcon name="shield" />}
+            title="Report a safety problem"
+            accessory="none"
             onPress={() => chooseOverflow('safety')}
           />
           {creator ? (
-            <MenuItem
+            <ListRow
               testID="recipe-overflow-report"
-              icon="flag-outline"
-              label={FRIENDS_COPY.recipe.report}
+              icon={<MenuIcon ionicon="flag-outline" />}
+              title={FRIENDS_COPY.recipe.report}
+              accessory="none"
               onPress={() => chooseOverflow('report')}
             />
           ) : null}
           {isOwner ? (
-            <MenuItem
+            <ListRow
               testID="recipe-overflow-delete"
-              icon="trash-outline"
-              label="Delete"
+              icon={<MenuIcon name="trash" destructive />}
+              title="Delete"
               destructive
               onPress={() => chooseOverflow('delete')}
             />
           ) : null}
-        </View>
+        </ListSection>
       </Sheet>
       <ConfirmSheet
         testID="recipe-delete-confirm"

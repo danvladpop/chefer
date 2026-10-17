@@ -45,6 +45,9 @@ vi.mock('@/lib/trpc', () => {
         },
         updateTargets: { useMutation: () => ({ mutateAsync: m.targets, isPending: false }) },
         computeTargets: { useQuery: (input: unknown) => m.computeTargets(input) },
+        // WP-08: the merged numbers settings.
+        setNumbersMode: { useMutation: () => ({ mutate: vi.fn(), isPending: false }) },
+        setHomeDisplay: { useMutation: () => ({ mutate: vi.fn(), isPending: false }) },
       },
       // TargetsCard (§2.11, T-35.3) — not under test here.
       targets: {
@@ -188,5 +191,43 @@ describe('PreferencesForm — typed-but-unadded safety term (UX-ACC-01)', () => 
     await new Promise((resolve) => setTimeout(resolve, 20));
     expect(m.safety).not.toHaveBeenCalled();
     expect(screen.getByTestId('safety-save-blocked')).toBeTruthy();
+  });
+});
+
+// WP-08: what to keep an eye on is free on every tier, so a free user still
+// reaches it (their locked targets panel carries none of it).
+describe('PreferencesForm — numbers settings (WP-08)', () => {
+  const numbersSettings = { numbersMode: 'PROTEIN_ONLY', showNutritionOnToday: true };
+
+  it('a FREE user gets the numbers choice and the Today switch', () => {
+    render(
+      <PreferencesForm
+        chefProfile={profile}
+        dietaryPreferences={null}
+        isPremium={false}
+        numbersSettings={numbersSettings}
+      />,
+    );
+    const card = screen.getByTestId('numbers-settings-free');
+    expect(card.contains(screen.getByTestId('prefs-numbers-mode-protein'))).toBe(true);
+    expect(screen.getByTestId('prefs-numbers-mode-protein').getAttribute('aria-checked')).toBe(
+      'true',
+    );
+    expect(card.contains(screen.getByTestId('prefs-home-display-switch'))).toBe(true);
+  });
+
+  it('a PREMIUM user gets them inside "Your targets", once', () => {
+    render(
+      <PreferencesForm
+        chefProfile={profile}
+        dietaryPreferences={null}
+        isPremium
+        numbersSettings={numbersSettings}
+      />,
+    );
+    expect(screen.queryByTestId('numbers-settings-free')).toBeNull();
+    expect(screen.getAllByTestId('prefs-numbers-mode-protein')).toHaveLength(1);
+    const card = screen.getByRole('heading', { name: 'Your targets' }).closest('section');
+    expect(card?.contains(screen.getByTestId('prefs-home-display-switch'))).toBe(true);
   });
 });

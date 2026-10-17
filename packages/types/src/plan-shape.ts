@@ -18,6 +18,19 @@ export const planShapeSchema = z.object({
 });
 export type PlanShape = z.infer<typeof planShapeSchema>;
 
+/**
+ * What `mealPlan.setShape` accepts: the shape, `leftovers` (bug B-27) and the
+ * saved `Fit meals to training days` choice (T-06.7 follow-up, 2026-10-10).
+ * `fitTrainingDays` is optional so clients that predate it never reset it:
+ * omitted = leave the stored value alone, null = back to "not chosen" (the
+ * default: on for lifters whose goal gets the training-day bump).
+ */
+export const planSettingsInputSchema = planShapeSchema.extend({
+  leftovers: z.boolean(),
+  fitTrainingDays: z.boolean().nullable().optional(),
+});
+export type PlanSettingsInput = z.infer<typeof planSettingsInputSchema>;
+
 /** [] on DietaryPreferences.planSlots/planDays means "legacy" — see planShapeSummary in @chefer/utils. */
 export const LEGACY_PLAN_SLOTS: readonly PlanSlot[] = ['breakfast', 'lunch', 'dinner'];
 export const LEGACY_PLAN_DAYS: readonly number[] = [0, 1, 2, 3, 4, 5, 6];

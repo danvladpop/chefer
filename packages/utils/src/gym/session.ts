@@ -21,6 +21,7 @@ import type {
   TrainingProfileFacts,
   WorkoutSessionDoc,
 } from '@chefer/types';
+import { isActivityLogSession } from './activity-log';
 import { nextCarryOver } from './carry-over';
 import { deloadContinues } from './deload';
 import { durationMinutes } from './duration';
@@ -33,6 +34,7 @@ import {
   repBucket,
 } from './progression';
 import { collectPrs } from './prs';
+import { isStrengthTrackingType, trackingTypeOf } from './tracking';
 import type { ExerciseLookup } from './volume';
 import { warmupSets } from './warmups';
 import { addDaysLocal, settleWeeks, weekdayOf, weekStartOf, type WeekRow } from './weeks';
@@ -139,8 +141,10 @@ export function todayStatus(input: {
   since?: string | null | undefined;
 }): TodayStatus {
   const { bootstrap, today, since } = input;
+  // WP-20: a quick-logged activity (a class done elsewhere) is not "today's
+  // workout done" — Start stays offered; the activity still counts for the week.
   const doneToday = bootstrap.recentSessions.some(
-    (s) => s.status === 'COMPLETED' && s.localDate === today,
+    (s) => s.status === 'COMPLETED' && s.localDate === today && !isActivityLogSession(s),
   );
   const next = bootstrap.nextWorkout;
   const weekday =
@@ -260,7 +264,7 @@ export function doneTodayCard(input: {
 }): DoneTodayCard | null {
   const { bootstrap, today } = input;
   const session = bootstrap.recentSessions.find(
-    (s) => s.status === 'COMPLETED' && s.localDate === today,
+    (s) => s.status === 'COMPLETED' && s.localDate === today && !isActivityLogSession(s),
   );
   if (!session) return null;
 
@@ -649,6 +653,12 @@ export function applyFinishedSession(input: {
       const meta = lookup(exerciseId);
       const se = doc.exercises.find((e) => e.exerciseId === exerciseId && !e.skipped);
       if (!meta || !se) {
+        continue;
+      }
+      // Cardio (and a quick-logged activity) has no stored progression — the
+      // server's fold skips it too (progression.service.ts), so the offline
+      // fold must not invent one that the next bootstrap would then drop.
+      if (!isStrengthTrackingType(trackingTypeOf(meta))) {
         continue;
       }
       const bucket = repBucket(exposure.repMin, exposure.repMax);

@@ -110,9 +110,14 @@ describe('PremiumSheet — offer (AC1, AC2)', () => {
     );
     expect(screen.queryByText(/Re-planned when your training days change/)).toBeNull();
     expect(screen.queryByText(/Refuel snacks/)).toBeNull();
-    // 2 live bullets are enough — nothing fills the gap with a promise.
+    // WP-07: training-day targets and the week rebalance are free, so the only
+    // live bullet sells the AI week — nothing fills the gap with a promise.
     const bullets = screen.getByTestId('premium-sheet-bullets');
-    expect(bullets.children).toHaveLength(2);
+    expect(bullets.children).toHaveLength(1);
+    expect(
+      screen.getByText(/A week with protein-rich meals on your training days/),
+    ).toBeOnTheScreen();
+    expect(screen.queryByText(/rebalanc/i)).toBeNull();
   });
 
   it('"Turn on Premium" and "Not now" call back; "Also included" expands and collapses', async () => {

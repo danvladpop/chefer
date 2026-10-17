@@ -65,6 +65,19 @@ export function formatQty(
  * to the cent. Under one unit it says so ("<€1") instead of rounding a
  * 40-cent herb to a full euro. Callers add their own "~".
  */
+/**
+ * `formatApproxPrice` with its "about" mark: "~€3", or "<€1" alone — never
+ * "~<€1", which reads as a typo.
+ */
+export function formatApproxPriceHint(
+  amountEur: number,
+  currency: DisplayCurrency,
+  locale?: string,
+): string {
+  const price = formatApproxPrice(amountEur, currency, locale);
+  return price.startsWith('<') ? price : `~${price}`;
+}
+
 export function formatApproxPrice(
   amountEur: number,
   currency: DisplayCurrency,

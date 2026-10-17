@@ -16,6 +16,8 @@ export interface HouseholdMemberDto {
   name: string;
   portionFactor: number;
   isKid: boolean;
+  /** Optional kid age band (UX-PLAN-12) — a plain string column, narrowed with parseAgeBand. */
+  ageBand: string | null;
   allergies: string[];
   dietaryRestrictions: string[];
   dislikedIngredients: string[];

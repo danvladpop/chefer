@@ -1,5 +1,6 @@
 import { getToken } from '../../lib/auth-store';
 import { trpc } from '../../lib/trpc';
+import { readOnboardingV4Draft } from '../onboarding-v4/draft-store';
 import { readOnboardingDraft } from './onboarding-draft';
 import { isOnboardingGateHandled } from './onboarding-gate';
 
@@ -7,6 +8,7 @@ import { isOnboardingGateHandled } from './onboarding-gate';
 // wizard? Two signals, either one is enough:
 //  • a saved draft for THIS session (the app was killed or BACK-ed out
 //    mid-wizard) — read synchronously, so a resumed setup is the first frame;
+//    V3 and Onboarding V4 each keep their own;
 //  • the server says the account never answered "what should Chefer help
 //    with?" (`preferences.get().jobs` is empty) — covers a Free user who lost
 //    the local state, and an account whose registration was interrupted before
@@ -19,6 +21,6 @@ export function useOnboardingGate(): boolean {
   const token = getToken();
   const prefs = trpc.preferences.get.useQuery(undefined, { enabled: token !== null });
   if (token === null || isOnboardingGateHandled(token)) return false;
-  if (readOnboardingDraft(token) !== null) return true;
+  if (readOnboardingDraft(token) !== null || readOnboardingV4Draft(token) !== null) return true;
   return prefs.data?.jobs.length === 0;
 }

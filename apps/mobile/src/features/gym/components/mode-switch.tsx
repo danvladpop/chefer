@@ -8,6 +8,8 @@ import { SegmentedControl } from '@chefer/ui-mobile';
 import { cn } from '@chefer/utils';
 import { HeaderAvatar } from '../../../components/header-avatar';
 import { trpc } from '../../../lib/trpc';
+import { ShellTopBar } from '../../shell/shell-chrome';
+import { useShellV2 } from '../../shell/shell-store';
 import {
   commitPendingGymMode,
   deferGymMode,
@@ -47,6 +49,11 @@ export function modeFromSegments(segments: readonly string[]): AppMode {
  * Setup on top of Today, so backing out of setup lands on Today.
  */
 export function ModeSwitch({ className, mode }: { className?: string; mode?: AppMode }) {
+  // Mobile UX revamp: the new shell has one tab bar and no Food|Gym modes;
+  // this header row becomes its top bar (Back on pushed screens, the tab's
+  // actions on tab roots) — see src/features/shell/shell-chrome.tsx.
+  const shellV2 = useShellV2();
+  if (shellV2) return <ShellTopBar className={className} />;
   // Gym-only screens pass `gym` so the pill never depends on route state
   // (UX-GYM-20); the rest read the route group.
   return mode ? (

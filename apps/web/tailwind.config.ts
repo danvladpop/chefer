@@ -1,10 +1,19 @@
 import type { Config } from 'tailwindcss';
 import { fontFamily } from 'tailwindcss/defaultTheme';
-import { cssEasing, cssSpring, duration, radius } from '@chefer/tokens';
+import { colorRoles, cssEasing, cssSpring, duration, radius } from '@chefer/tokens';
 
 // Motion / depth tokens come from @chefer/tokens (docs/audit-2026-09/
 // motion-system.md §2.2), shared with the mobile app — no magic ms numbers.
 const ms = (n: number) => `${n}ms`;
+
+// The revamp colour roles (@chefer/tokens colorRoles, light values) as
+// `revamp-*` utilities — `bg-revamp-canvas`, `text-revamp-label-secondary`,
+// `bg-revamp-brand-tint` … First used by Onboarding V4; the legacy shadcn
+// palette above them is unchanged.
+const kebab = (s: string) => s.replace(/[A-Z]/g, (c) => `-${c.toLowerCase()}`);
+const revampColors = Object.fromEntries(
+  Object.entries(colorRoles).map(([role, value]) => [kebab(role), value.light]),
+);
 
 const config: Config = {
   darkMode: ['class'],
@@ -64,6 +73,7 @@ const config: Config = {
           DEFAULT: 'hsl(var(--card))',
           foreground: 'hsl(var(--card-foreground))',
         },
+        revamp: revampColors,
       },
       borderRadius: {
         lg: 'var(--radius)',

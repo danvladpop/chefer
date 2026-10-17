@@ -41,14 +41,7 @@ test.describe('Preferences — home-display toggle (T-04.5)', () => {
   });
 });
 
-const ALL_JOB_IDS = [
-  'TRAIN',
-  'PLAN_MEALS',
-  'HOUSEHOLD',
-  'USE_WHAT_I_HAVE',
-  'SAVED_RECIPES',
-  'TRACK',
-] as const;
+const ALL_JOB_IDS = ['TRAIN', 'PLAN_MEALS', 'HOUSEHOLD', 'SAVED_RECIPES', 'TRACK'] as const;
 
 test.describe('Preferences — "What you use Chefer for" (T-03.5, UX-03)', () => {
   test('shows the job cards and saves a selection change', async ({ page }) => {

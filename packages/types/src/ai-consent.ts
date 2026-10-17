@@ -24,7 +24,7 @@ export const AI_CONSENT_FEATURE_DATA: Record<AiConsentFeature, { action: string;
       data: [
         'Your dietary preferences, allergies and disliked ingredients',
         'Your goal and body metrics (age, sex, height, weight, activity level, calorie target)',
-        'Your household members’ needs, the recipes you rated and your pantry items',
+        'Your household members’ needs and the recipes you rated',
       ],
     },
     'meal-swap': {

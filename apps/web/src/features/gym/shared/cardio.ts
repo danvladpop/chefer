@@ -25,7 +25,10 @@ export function profileDistanceUnit(
   return profile?.unit === 'LB' ? 'MI' : 'KM';
 }
 
-type CardioSetFields = Pick<SessionSetDoc, 'durationSec' | 'distanceM' | 'intensityRpe'>;
+type CardioSetFields = Pick<
+  SessionSetDoc,
+  'durationSec' | 'distanceM' | 'intensityRpe' | 'caloriesKcal'
+>;
 
 /** "20 min · 5.0 km · Moderate" — only the parts that were logged. */
 export function cardioSetText(
@@ -40,5 +43,7 @@ export function cardioSetText(
   if (set.intensityRpe !== undefined) {
     parts.push(effortLabelForRpe(set.intensityRpe) ?? `RPE ${set.intensityRpe}`);
   }
+  // WP-20: the kcal a quick-logged activity carries (the user's own number).
+  if (set.caloriesKcal !== undefined) parts.push(`~${Math.round(set.caloriesKcal)} kcal`);
   return parts.length > 0 ? parts.join(' · ') : '—';
 }

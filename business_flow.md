@@ -76,6 +76,19 @@ back / Sign in" with no logo or value statement). Web has no separate first
 screen; the landing page (`/`, T-25.2) plays that role and now leads with the
 free workout log too, not meal planning alone (CI-16/CI-25).
 
+**Web → app stores (ASO plan §5.2–5.3, 2026-10-16).** The landing page shows
+the official store badges in the hero (under the register/sign-in buttons, which
+stay the primary calls to action) and under the closing CTA; `/support` has a
+"Get the app" section. Each placement is its own store campaign (`landing-hero`,
+`landing-footer`, `support`): Play links carry the UTM tags in `referrer`
+(Play Console → acquisition reports), App Store links carry `ct` (+ `pt` once
+the owner sets the provider token; App Store Connect → App Analytics →
+Campaigns). The mobile app has no attribution SDK, so these console reports are
+the web-install measurement. The App Store badge, its trademark notice and
+Safari's Smart App Banner (on every public page) stay hidden until
+`APP_STORE_APP_ID` is set in `@chefer/types`. The landing page also carries
+`SoftwareApplication` JSON-LD (free offer, live store listings, no ratings).
+
 ```
 1. User fills in RegisterForm at /(auth)/register
    └── email, password, firstName?, lastName? (react-hook-form + Zod)
@@ -236,6 +249,51 @@ Admins can additionally create users via `user.create` (admin-only).
 
 ---
 
+### Onboarding V4 (flag `onboardingV4`, 2026-10-16)
+
+Behind the `onboardingV4` flag (`FEATURE_FLAGS`, off by default; `profile.flags`
+is public, so the signed-out screens can read it) both platforms replace the
+welcome → register → wizard path with the shorter Biscuit-led flow from
+`docs/onboarding-review-2026-10` (boards: design canvas page "Onboarding V4 —
+proposal"). With the flag off nothing changes.
+
+1. **Welcome** (mobile) — one screen, Biscuit waving, "Get started" / "I already
+   have an account".
+2. **Account** — Sign in with Apple / Google first (WP-22, consent line under the
+   buttons), then email + password with **one** "I'm 16+ and agree to the Terms
+   and Privacy Policy" checkbox that sends both `acceptedTerms` and
+   `ageConfirmed` to `auth.register` (same API contract as V3). Legal sign-off on
+   the combined checkbox is still pending (review D3).
+3. **What brings you here?** — job tiles (`PLAN_MEALS`, `TRAIN`, `TRACK`,
+   `HOUSEHOLD`), saved with `preferences.setJobs`.
+4. **Goal** — four tiles (lose weight, build muscle, eat healthier, "just good
+   food" = no goal); Biscuit switches loop per pick.
+5. **About you** — sex, age, height, weight (region units) and, for Train,
+   training weekdays. Activity is derived from the weekday count
+   (`activityFromTrainingDays`, overridable via "Change"); the calorie target
+   shows live. Saves `setJobs` (+ `trainingWeekdays`), `setDisplayPreferences`
+   (region units/currency) and — behind the health-consent sheet (§4.9) —
+   `saveProfileBasics`. Declining keeps the non-health saves.
+6. **Anything you can't eat?** (food jobs only) — "I eat everything" or quick
+   chips (diets + common allergens) and "More options" (the full safety
+   picker); saved with `updateSafety` behind the same consent.
+7. **Building → Your week is ready** (Plan meals / Feed my family) —
+   `mealPlan.generate` for this week behind the AI-consent guard (free plans are
+   curated, so no ask), then the seven dinners and the shopping-list count.
+   Failure offers Try again / Skip; Skip goes past the reveal.
+8. **Premium** (free users only) — the soft-paywall flip (`user.upgradePlan`, no
+   price, no checkout), "Maybe later" skips. Tracked as `upgrade_clicked` /
+   `upgrade_completed` with source `onboarding`.
+9. **Set up training** (Train) — experience + equipment, the recommended program
+   (`gym.profile.recommend`, "Change" cycles the alternatives), "Start training"
+   = `gym.profile.completeSetup` with the chosen weekdays.
+
+The flow ends on Today (Gym Today when Train is the only job) with a one-time
+"You're all set" card (Biscuit winking; dismiss clears it for good).
+Mobile keeps a session-scoped draft after every answer (UX-ONB-01), so a killed
+app or "Leave for now" resumes on the same step; a plan already built is not
+built again. Web, like V3 web, keeps the answers in memory only.
+
 ## 3. User Login Flow
 
 > **Status:** Implemented.
@@ -337,12 +395,12 @@ during render. A successful login overwrites it via `Set-Cookie`.
 
 **Role capabilities:**
 
-| Role              | What they can do                                                                                                                                          |
-| ----------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| (unauthenticated) | `auth.register`, `auth.login`, `auth.requestPasswordReset`, `auth.resetPassword`, `auth.me`                                                               |
-| USER              | All protected procedures: `user.me`, `user.update` (own), `user.deleteSelf` (own, password), `user.grant/revokeAiDataConsent`, plans, recipes, tracker, … |
-| MODERATOR         | Same as USER (moderation capabilities reserved for future)                                                                                                |
-| ADMIN             | Everything, incl. `user.list`, `user.getById`, `user.create`, `user.delete`, `user.update` (any user); treated as premium by `premiumProcedure`           |
+| Role              | What they can do                                                                                                                                                                                                                   |
+| ----------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| (unauthenticated) | `auth.register`, `auth.login`, `auth.socialAvailability`, `auth.socialSignIn`, `auth.requestPasswordReset`, `auth.resetPassword`, `auth.me`                                                                                        |
+| USER              | All protected procedures: `user.me`, `user.update` (own), `user.deleteSelf` (own, password or provider re-auth), `auth.linkedIdentities/linkIdentity/unlinkIdentity`, `user.grant/revokeAiDataConsent`, plans, recipes, tracker, … |
+| MODERATOR         | Same as USER (moderation capabilities reserved for future)                                                                                                                                                                         |
+| ADMIN             | Everything, incl. `user.list`, `user.getById`, `user.create`, `user.delete`, `user.update` (any user); treated as premium by `premiumProcedure`                                                                                    |
 
 ---
 
@@ -355,8 +413,69 @@ client sending `x-chefer-api-level >= 4`; a request WITHOUT the header (installe
 §33 and `infrastructure.md` §9.
 
 > **Trainer coaching (WP-18) adds one more access path:** a trainer reaches a client's routine, workouts and adherence only
-> through an `ACTIVE` coaching link and `CoachingAccessService` (§36.9, `infrastructure.md` §9 "Trainer coaching
+> through an `ACTIVE` coaching link and `CoachingAccessService` (§37.9, `infrastructure.md` §9 "Trainer coaching
 > authorization"). Ending a link takes effect on the trainer's very next request: there is no cached access.
+
+### 4.10 Sign in with Google / Apple (WP-22, 2026-10-04)
+
+> **Status:** API, web and mobile implemented; the mobile buttons need the **next native build** (new Google/Apple SDK
+> modules + the Apple entitlement, `infrastructure.md` §4.3/§11) and appear only on binaries that contain them.
+> Disabled everywhere until the owner sets the provider credentials (`infrastructure.md` §10 runbook).
+
+```
+Login / Register page (web)  |  mobile sign-in / sign-up screen
+  │  auth.socialAvailability (public) → { google: { enabled, … }, apple: { enabled, … } }
+  │     a provider that is not configured is simply not shown (no error, no empty space)
+  │
+  ├─ "Continue with Google"  (web: Google's own button via Google Identity Services; mobile: native Google sign-in)
+  └─ "Continue with Apple"   (web: Sign in with Apple JS popup; iOS: native sheet — Apple REQUIRES it next to Google)
+        client creates a nonce: provider gets sha256(raw), the API gets raw
+        under the buttons: "By continuing you agree to the Terms and Privacy Policy and confirm you are 16 or older."
+        │
+        └─ auth.socialSignIn { provider, idToken, nonce, authorizationCode?, givenName?, familyName?, acceptLegal: true,
+                               acceptedTermsVersion, region? }      (rate-limited like login)
+              ├─ token fails (signature / issuer / audience / expiry / nonce) → UNAUTHORIZED "We couldn't verify your sign-in…"
+              ├─ provider not configured                                       → PRECONDITION_FAILED
+              ├─ (provider, sub) already linked          → sign in                        isNewUser: false
+              ├─ same email as an existing account:
+              │     ├─ provider did NOT verify the email  → CONFLICT (sign in with your password, connect later)
+              │     └─ verified → link + sign in           linkedExistingAccount: true
+              │           (account whose email was never verified — incl. one whose email was just changed via
+              │            `user.update`: its password is cleared, its sessions revoked and every other linked
+              │            Google/Apple identity removed, Apple grants revoked — the person holding the inbox is now
+              │            the only one who can get in)
+              └─ new person:
+                    needs acceptLegal: true               → else BAD_REQUEST (legalRequired)
+                    needs a provider-VERIFIED email       → else BAD_REQUEST (Apple "Hide My Email" relay addresses are fine)
+                    create user (no password, emailVerified), TERMS + PRIVACY + AGE consent events (source web|mobile),
+                    the usual email/auto-plan "off" defaults             isNewUser: true
+        │
+        └─ result = auth.login's (cookie for web / session token for mobile) + { isNewUser, linkedExistingAccount }
+              new user → onboarding (same as register); returning user → dashboard
+```
+
+- **Mobile (iOS / Android app):** Welcome, Sign in and Create account show **Continue with Apple** (Apple's own button, iOS
+  only — never on Android) and **Continue with Google** (white button, Google "G") below the email form, with the consent line.
+  A button appears only when `auth.socialAvailability` enables the provider, the app binary contains the native module and
+  was built for it, and the device can use it (Google on iOS needs the iOS client id, on Android the web client id). The
+  native sheet runs with a fresh nonce; **cancelling the sheet does nothing** (no error). On success the session is stored
+  exactly like an email sign-in: a new account goes through onboarding, a returning one lands on its home screen. If the
+  API answers "couldn't verify" (UNAUTHORIZED) the app shows that message — it never treats it as an expired session.
+  Profile → **Sign-in methods** lists connected Google/Apple accounts, connects one (a fresh provider sign-in →
+  `auth.linkIdentity`), disconnects one (refused with the server's message when it is the only way to sign in), and offers
+  "Email me a link to set a password" to an account that has none.
+- **Names:** Apple sends `givenName`/`familyName` only the first time, outside the token — the client forwards them at once.
+- **Linked accounts** (web Profile → Sign-in methods, mobile Profile): `auth.linkedIdentities` lists them with `hasPassword`;
+  `auth.linkIdentity` connects another (a different Apple "Hide My Email" account can be connected this way);
+  `auth.unlinkIdentity` disconnects — refused ("set a password first") when it is the only way to sign in. Unlinking
+  Apple also revokes the Apple grant.
+- **No password?** An OAuth-only account can still use "Forgot password" (reset link → sets its first password). Changing the
+  sign-in email stays password-gated, so it is not available until a password exists.
+- **Account deletion** (§24): OAuth-only accounts confirm with a fresh provider sign-in (`reauth`) instead of a password — on
+  mobile the delete sheet shows no password field for them, asks them to type DELETE, and offers one "Confirm with Apple/Google
+  and delete" button per connected provider the device can run (cancelling the sheet deletes nothing).
+- **Password managers:** password fields are `autocomplete="current-password"` (login) / `new-password` (register, reset);
+  the native apps also need the `/.well-known/apple-app-site-association` and `/.well-known/assetlinks.json` files.
 
 ## 5. View User Profile Flow
 
@@ -402,15 +521,32 @@ adminProcedure user.create
 
 ```
 protectedProcedure user.update
-  Input: { id, name?, email?, role?, image? }
+  Input: { id, name?, email?, currentPassword?, role?, image? }
   │
   ├── If caller is not ADMIN:
   │     └── Reject if id != ctx.user.id (FORBIDDEN)
   │     └── Reject if role is being changed (FORBIDDEN)
+  ├── Changing your OWN email needs currentPassword (FORBIDDEN otherwise)
   └── UserService.update(id, data)
-        └── PrismaUserRepository.update()
-  Output: User
+        ├── email compared lower-cased/trimmed — a case-only edit is no change
+        ├── new address already used by another account → CONFLICT
+        ├── PrismaUserRepository.update()
+        │     └── email actually changed → emailVerified = null
+        └── email actually changed → confirmation link emailed to the NEW
+            address (EmailPreferencesService, same link as at registration;
+            best effort, never fails the update)
+  Output: User (emailVerified: null after an email change)
 ```
+
+**Why the reset (audit 2026-10-17 P0 0.2):** a kept `emailVerified` let anyone
+type in an address they don't own. When the real owner then signed in with
+Google/Apple, §4.10 linked them into that account as a _verified_ one —
+password, sessions and the claimant's own linked sign-ins intact. Now the
+address stays unconfirmed until its owner clicks the link, so that sign-in takes
+the secure branch instead. Admin edits of another user follow the same rule
+(the admin can't vouch for the new inbox either). No web or mobile screen calls
+`user.update` today, so there is no client copy to change; Preferences already
+shows "confirm your address" with a resend button while `emailConfirmed` is false.
 
 ### Delete User
 
@@ -624,10 +760,19 @@ have` · `Switch back to Free`. The downgrade sheet names what you keep and
 - **Honest allowances.** Profile › Daily AI allowances counts what
   `lib/quotas.ts` reserves (`profile.getAiUsage`, infrastructure.md §8): a plan
   from our recipes uses no AI (free cap 3/day, `curatedPlans`); a Premium
-  generate is ONE AI reservation (`aiMealPlans`, its instant curated week is not
-  a second count); `mealPlan.resumeTailoring` reserves nothing; an import's AI
+  generate is ONE AI reservation (`aiMealPlans`, capped at 5/day since the
+  Phase 1 guardrails — it was 20; its instant curated week is not a second
+  count); premium chat shows `n / 20`; `mealPlan.resumeTailoring` reserves nothing; an import's AI
   cost is the preview (counted when read), and `importsSaved` says how many
   ended as a saved recipe. No copy says curated plans are unlimited (Q-18).
+- **AI budgets (Phase 2).** On top of the daily quotas, every model call is
+  costed at the paid list price of its model (also on today's free tiers) and
+  capped: per user per calendar month (UTC) `AI_USER_MONTHLY_HARD_USD` (default
+  $3; a warning at the $2 soft limit) and globally per UTC day
+  `AI_GLOBAL_DAILY_USD` (default $10). Past either, a new AI action answers the
+  quota shape (TOO_MANY_REQUESTS) with a friendly sentence, and a premium
+  **Generate** quietly gives the curated week instead. See §25 "When the AI
+  budget is used up" and infrastructure.md §7 "AI cost tracking & budgets".
 
 The `source`-tagged events are the input to the PW-3 funnel (prompt → click →
 complete conversion by touchpoint). PW-3 adds per-feature usage events
@@ -957,12 +1102,31 @@ picker.ts`) — a pure stand-in for the server-side, safety-aware
   mobile-first day view and the desktop week grid) says why and offers
   "Plan this day" via `mealPlan.planDay`.
 - **Regenerate is visible, asks first, and is undoable.** Once a plan
-  exists, the nav bar's Regenerate opens a confirm `Sheet` with a "Keep the
+  exists, the nav bar's single **Week options** button (FB7-11, replaces the
+  separate Regenerate and Rebalance buttons and the price line) opens a sheet
+  with two described actions (`PLAN_WEEK_COPY`): "New meal plan for this week"
+  (opens a confirm `Sheet` with a "Keep the
   N meals you chose" switch (only when picks exist); the success Toast
   offers `Undo` → `mealPlan.restore(previousPlanId)`. An empty week's own
-  CTA still generates directly (nothing to lose).
-- **Pin/unpin.** A bookmark toggle on `MealCard` (row and grid variants)
-  calls `mealPlan.setSlotPinned`; a pinned slot shows "Your pick".
+  CTA still generates directly (nothing to lose). "Rebalance my week" (current
+  week only) runs `mealPlan.previewRebalance` only when pressed: an offer is
+  parked for the usual Preview · Apply · Not now card and scrolled into view;
+  nothing to fix → toast + the row reads disabled ("already on target").
+- **Plan card (FB7-11).** image | body | one compact action column: swap (one
+  click) and a "…" menu (`useMenu`): Keep in next plans / Stop keeping
+  (`mealPlan.setSlotPinned`), Ate something else + Skipped it (slot still to
+  eat), Add a side dish, Remove from plan (sides only). A pinned meal shows a
+  bookmark on its photo ("Your pick"). The body shows type badge, name, a meta
+  line ("30 min · 700 kcal"; AI mark = small sparkle) and a macro line ("P 32 g
+  · C 60 g · F 18 g"; protein-only mode drops the macro line). Day totals use the
+  same macro format.
+- **Side dishes (FB7-04).** Same-type slots of a day render as one meal group
+  (`groupDaySlots`): header with dish count, main card, compact indented "+ side"
+  cards, and a total (`mealGroupTotalLine`). "Add a side dish" opens the replace
+  picker in add mode → `recipe.addToWeek({mode:'add'})` with an Undo toast
+  (`recipe.undoAddToWeek`); "Remove from plan" → `mealPlan.removeSlot` (refused
+  for the only dish of a type) with an Undo that re-adds it as a side. The Add to
+  week sheet offers "Add as a side" next to "Replace this meal".
 - **Undoable Replace/AI swap.** Both show a "Swapped to X" Toast with
   `Undo` back to `previousRecipeId` (`ReplaceMealSheet`'s new `onChanged`
   callback).
@@ -1231,9 +1395,13 @@ Recipe creation (revamped form)
   |    computed from N ingredients" opens the per-line breakdown (grams, kcal,
   |    protein, source); PARTIAL -> "Incomplete -- N ingredients need data" +
   |    a fix link for the owner; USER_ENTERED -> "Entered by you"
-  +- recipe photo: device upload (POST /api/uploads/image, <=10 MB since
-  |    T-BUG-O1/Q-22; the mobile app first shrinks the photo to <= 2048 px,
-  |    JPEG 0.8 — T-BUG-O1.2) or deterministic AI image (recipe.aiImageUrl); a failed
+  +- recipe photo: device upload (POST /api/uploads/image, <=5 MB since the
+  |    Phase 1 guardrails, 2026-10-11; BOTH clients first shrink the photo to
+  |    <= 1080 px, JPEG 0.75 — mobile prepare-photo.ts, web resize-image.ts —
+  |    and the server re-encodes it again: EXIF-rotated, metadata stripped,
+  |    <= 1080 px, JPEG q75; per user 60 uploads / rolling 24 h and 200 MB
+  |    stored (premium 1 GB), DB-backed — see "Photo uploads" below) or
+  |    deterministic AI image (recipe.aiImageUrl); a failed
   |    upload always shows one of the four UX-40 sentences (never a status
   |    code or "[object Object]") — see §15's "Error states" note and
   |    infrastructure.md §4.1.1
@@ -1250,6 +1418,55 @@ IngredientPriceWorker (background)
   +- prices missing entries, refreshes entries older than 7 days
   +- IAIService.estimateIngredientPrices (Gemini, batches of 40)
 ```
+
+### Photo uploads, storage quota and the orphan sweep (Phase 1 guardrails, 2026-10-11)
+
+Every photo a user adds (recipe photo, custom-ingredient photo) goes through one
+path on each platform — web `uploadImage` (`lib/upload-image.ts`), mobile
+`preparePhoto` + `uploadImage` (`lib/prepare-photo.ts`, `lib/media-client.ts`); the
+meal scan uses the same resize on both.
+
+```
+pick a photo
+  ├─ client resize: long edge ≤ 1080 px, JPEG 0.75, EXIF orientation applied
+  │    (web: createImageBitmap/canvas, falls back to the original file if the
+  │    browser can't decode it; mobile: expo-image-manipulator)
+  ├─ client pre-check ≤ 5 MB → "That photo is too big…" without a request
+POST /api/uploads/image  (raw image/* body)
+  ├─ per-user rate limit 20/min (per IP when signed out) → 429
+  ├─ session checked BEFORE the body is read → 401 (nothing buffered)
+  ├─ body ≤ 5 MB → else 413 "That photo is too big…"
+  ├─ declared type ∈ jpeg/png/webp/gif/avif and the bytes match → else 415
+  ├─ server resize (sharp): EXIF-rotate, strip ALL metadata (no GPS leaves
+  │    in a shared recipe), ≤ 1080 px, JPEG q75, transparency → white;
+  │    animated GIF/WebP → 415 "Animated images aren't supported…"
+  ├─ uploaded_files ledger, ONE serializable transaction:
+  │    ├─ ≥ 60 uploads in the last 24 h → 429 "Daily upload limit reached — try
+  │    │    again tomorrow"
+  │    ├─ stored bytes + this photo > quota (free 200 MB, premium/admin 1 GB)
+  │    │    → 403 "You've used your 200 MB of photo storage. Delete recipes or
+  │    │    ingredients whose photos you no longer need, or upgrade to Premium
+  │    │    for 1 GB." (premium: no upsell)
+  │    └─ row recorded with the FINAL (resized) byte size
+  └─ file written as <uuid>.jpg → 201 { url }
+```
+
+Both clients show the server's `{ error }` sentence for 403/429 as is.
+
+**Daily sweep** (`UploadSweeperWorker`, once per UTC day, first run 10 min after
+boot): hard-deletes recipes soft-deleted (`deletedAt`) more than 30 days ago that
+no plan day or food log still names; then deletes every file in the uploads
+volume (user photos and generated recipe images) that is older than 24 h and
+referenced by no row (avatar, any recipe — soft-deleted ones until their purge —,
+custom/catalog ingredient, post cover); then drops ledger rows whose file is
+gone, which frees the user's storage quota. Deleting a recipe therefore frees
+its photo's space within about a day (30 days for a soft-deleted one).
+`UPLOAD_SWEEP_DRY_RUN=true` logs the same `uploads.sweep` summary without
+deleting anything.
+
+**Shared photos.** Copying a friend's recipe reuses its image URL. Deleting an
+account removes the account's photo files only when no other row still
+references them, so the friend's copy keeps its photo.
 
 ### Units & currency — one preference, every tier (P2-6)
 
@@ -1443,6 +1660,16 @@ Plan/Shop/Today used to answer "what's my plan" four different ways: `mealPlan.g
 
 `dashboard.summary.showNutritionCards` is `true` when `chefProfile.goal` is set **or** the user already tracks (logged on ≥ 3 of the last 7 days, rev 2 — a tracker keeps the ring even goal-less). A goal-less, non-tracking user gets `false`, and both clients hide `NutritionSummary` (the ring), `WeightCard`, the "Complete your profile" nudge and Snap-to-log — a ring and a weight chart against a target nobody set was meaningless, and the profile nudge and Snap-to-log both assume the same thing. Quick add stays available to everyone (it needs no goal). No schema field yet — the flag is derived fresh on every call; wave 1 persists the equivalent choice in `ChefProfile.showNutritionOnToday`.
 
+### Protein-only mode: one number, protein (WP-08, owner decision D-5)
+
+A user who does not want to count calories picks "Just protein" (`preferences.setNumbersMode({ numbersMode: 'PROTEIN_ONLY' })`; `FULL` switches back, `NONE` is reserved for WP-16). The mode is `ChefProfile.numbersMode` (null = `FULL`) and changes **presentation only**: targets, the plan generator and the rebalance keep balancing kcal underneath, so nothing is recomputed when the mode flips. It is independent of `showNutritionOnToday` (older builds keep calling `setHomeDisplay`; the new clients show both choices in one card).
+
+- **What the API hands the client.** `preferences.get.numbersMode`, `dashboard.summary.{numbersMode, proteinGuide}`, `tracker.getDay.{numbersMode, proteinGuide}` and `targets.get.{numbersMode, proteinWhy}`, all additive. Clients render `effectiveNumbersMode(numbersMode)` from `@chefer/types`, which maps null/`NONE` to `FULL` until WP-16.
+- **The protein number** is always the effective protein target from `resolveTargets` (own override, lifter rule or goal split). Today's ring reads "72 of 120 g protein"; macro bars and the kcal caption are hidden.
+- **Per-meal guide** (`buildProteinGuide`, `@chefer/utils`): target ÷ planned meals (3 when nothing is planned), shown as a 10 g range aligned to 5 g and centred on the per-meal figure ("30–40 g per meal").
+- **"Why this number?"** (`explainProteinTarget`): the research default is 1.6 g per kg of body weight. When the user's effective target is not within 0.1 g/kg of that, `proteinWhy` names it (own override, the training-focused goal rule, or the goal's calorie split) with a plain sentence and the 1.6 g/kg figure for their weight.
+- **Old clients (1.0.1)** ignore the new fields and keep full numbers; no API gating, no existing field changes shape.
+
 ### Cookbook, Shop, My weeks (P2-8)
 
 - **Cookbook** (was Recipes): All (past-plan recipes) / Saved / My Recipes /
@@ -1489,8 +1716,8 @@ a goal, and a known bodyweight (latest `WeightEntry`, else
 | Rule              | Value                                                                                                                                                                                                          | Tier                                                                                                                                        |
 | ----------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
 | Base protein      | by goal: **GAIN_MUSCLE 1.8 g/kg**, **LOSE_WEIGHT 2.0 g/kg** (keeps muscle in a deficit), **MAINTAIN / EAT_HEALTHIER 1.6 g/kg** — replaces the goal's % split; carbs absorb the difference so kcal is unchanged | every tier — `resolveDailyTargets(profile, lifterBodyweightKg)` in dashboard, tracker, chat context, coach review and both generation paths |
-| Training day      | a workout **completed** that day (any day), else a routine day **planned** for that weekday outside a training pause                                                                                           | —                                                                                                                                           |
-| Training-day bump | GAIN_MUSCLE only (a cut keeps its deficit): protein to **2.2 g/kg** (+0.4 g/kg), kcal **+10%** of the base (rounded to 10, clamped 150–300); kcal not covered by protein → carbs; fat unchanged                | **premium** applies it; **free** sees the same numbers locked (upgrade source `training-day`)                                               |
+| Training day      | a workout **completed** that day (any day — **not** a quick-logged activity, WP-20), else a routine day **planned** for that weekday outside a training pause                                                  | —                                                                                                                                           |
+| Training-day bump | GAIN_MUSCLE only (a cut keeps its deficit): protein to **2.2 g/kg** (+0.4 g/kg), kcal **+10%** of the base (rounded to 10, clamped 150–300); kcal not covered by protein → carbs; fat unchanged                | **every tier** applies it (free since WP-07: no AI)                                                                                         |
 | Post-workout meal | **~0.4 g/kg** protein, rounded to 5 g, 20–45 g (30 g without a bodyweight)                                                                                                                                     | every tier                                                                                                                                  |
 | Premium AI week   | the routine's training weekdays + the bump go into the generation prompt (`buildTrainingDaysSection`), and the ±15%/±20% validation judges those days against the bumped targets                               | premium                                                                                                                                     |
 | Free curated week | training weekdays weigh the protein shortfall double in `planCuratedWeek`, so those days pick the higher-protein combinations (usually dinner); no kcal bump                                                   | free                                                                                                                                        |
@@ -1557,13 +1784,31 @@ protein targets (owner decision Q-3, 2026-09-30 — no widening to other goals,
 no run-day numbers). A long run still adds an evening-before carb snack idea
 on the previous day.
 
-**Free vs premium (D-2).** The bump on Today, the tracker and the plan's day
-targets is gated by `trainingDayTargets` (premium) OR the flag
-`trainingBumpFree` (free). Flag off → a free user sees the same numbers as a
-locked preview and the target does not move. `trainingNutrition` (premium)
-means "Fit meals to my training days" — the AI/curated week is built around
-the lift days; the switch is in the Plan settings sheet and is sent as
-`generate.fitTrainingDays`.
+**Free vs premium (WP-07, "Premium is for heavy AI only").** Training-day
+nutrition uses no AI, so the bump on Today, the tracker and the plan's day
+targets is **free for every tier** (`trainingDayTargets` and `trainingNutrition`
+are `free: true`; the old `trainingBumpFree` flag is redundant and kept only
+until it is removed). What stays premium is the AI-built week: "Fit meals to my
+training days" in the Plan settings sheet (`generate.fitTrainingDays`) runs
+through `aiMealPlans`. A free GAIN_MUSCLE lifter with a training day today sees
+the applied targets, not a locked preview.
+
+**"Fit meals to training days" is a saved choice (2026-10-10).** It used to be a
+per-call flag only (lost when the app restarted, and never seen by the Sunday
+auto-plan). It is now stored on `DietaryPreferences.fitTrainingDays` (null =
+never chosen = on for lifters whose goal gets the bump) and travels with the
+plan shape: `mealPlan.getShape` returns it, `mealPlan.setShape` takes it as an
+optional field (a client that does not send it — every shipped binary,
+onboarding, the Settings form — leaves it alone). Precedence when a week is
+generated (`resolveFitTrainingDays`): an explicit `generate({ fitTrainingDays })`
+wins; otherwise a **premium** user's saved choice applies — on the Plan button,
+on the Sunday `WeeklyPlanWorker` (which never sent the flag) and on every day
+live tailoring re-plans (it reads the saved choice too); otherwise the default.
+Free generation never applies it, exactly like the per-call flag. Web's Plan
+settings sheet and the new mobile shell's Meal settings save it with the rest of
+the settings (Save); neither sends a per-call flag any more. The old mobile shell
+keeps its session switch (sent per call, so it still wins) but starts from the
+saved value.
 
 **Plan (web + mobile).** Day chips carry a barbell (lift) or walk (run) glyph
 on exactly the training weekdays; the day view gets a header (`Training day ·
@@ -1574,9 +1819,9 @@ training days`); a user whose goal gets no bump sees the marker and title but
 no kcal. The week summary shows `3 training days`. The day before a long run
 shows the pre-run snack idea.
 
-**Today.** `training-day-note` renders the applied state for free (flag on)
-and premium with a `Why?` link; the locked variant only when the bump is not
-applied. For users who train, the week outlook becomes the week glance: seven
+**Today.** `training-day-note` renders the applied state for every tier with a
+`Why?` link; the locked variant only shows when the server did not apply the
+bump (never for tier reasons since WP-07). For users who train, the week outlook becomes the week glance: seven
 equal columns (Mon–Sun, never a scroll), each with the meal count and a
 barbell / walk glyph (filled = done, outline = planned, never red).
 `dashboard.summary.refuelSnacks` carries two allergy-safe snacks for the gym
@@ -1654,6 +1899,9 @@ fill this week around your restrictions.` with `Pick recipes yourself` and
        ├─ delete all reset tokens for the address (single-use)
        ├─ confirm the address (emailVerified) if it wasn't yet — the user
        │   just proved they read that inbox (P2-5, §23)
+       ├─ if it wasn't confirmed: delete every linked Google/Apple identity —
+       │   the address may have been typed in by someone else (`user.update`),
+       │   whose own provider sign-in must not survive (audit 2026-10-17 P0 0.2)
        └─ delete ALL of the user's sessions — every device signs out
 ```
 
@@ -1782,14 +2030,53 @@ free preview's example prompts). The last thread is kept for the rest of the
 calendar day: mobile in the on-device KV store (wiped at sign-out), web in
 `sessionStorage` (this tab only, cleared at logout); "New chat" clears it.
 
+**Ask Chef helps with training (2026-10-10).** The chef is now a personal chef
+AND training helper. `CHAT_SYSTEM_PROMPT` tells the model that for questions
+about workouts, routines, progress, sets, PRs or what to train next it calls the
+read-only tool `getMyTraining` and answers from what it returns — never
+inventing weights, reps, sets, dates or sessions. The tool
+(`TrainingSummaryService.forChat`, `application/gym/training-summary.service.ts`)
+reads the same data the Train tab shows (`gym.bootstrap` for the user's local
+today, the PR timeline, the setup recommendation) and returns a short text:
+whether training is set up (if not: say so and point to the Train tab), the
+weekly goal and this week's sessions, the streak, the next workout (each
+exercise with sets × rep range and the suggested load), the active routine's
+days and exercises, the last 5 finished sessions (date, name, minutes, working
+sets, user-logged kcal of an activity), recent PRs (first-ever baseline sets
+are not PRs), an active or planned training pause, and the program the app
+recommends for their setup (marked when it is already theirs). Loads are in the
+user's kg/lb (`GymProfile.unit`; before setup, `ChefProfile.preferredUnits`).
+The chef cannot create or edit routines or log workouts from chat — it explains
+the in-app path (Train → Routines → Edit); the tool records no `ChatAction`, so
+no client chip or contract changes. Guardrail: `TRAINING_NOT_PHYSIO_RULE` — for
+training it is a helper, not a doctor or physiotherapist: no injury diagnosis,
+no rehab or pain-management advice, never "train through pain"; pain or an
+injury → see a doctor or physiotherapist. The chef-not-doctor and
+disordered-eating rules are unchanged. The mock provider (`AI_MOCK_ENABLED`)
+answers "what should I train", "my workouts / training / routine / lifts / PRs"
+with the real tool's text.
+
 ```
 POST /api/chat (session cookie)
+  ├─ per-user rate limit: 10 requests/min (429 { error }), before any body
+  │    is read; JSON body ≤ 64 KB (413 "This conversation is too long to
+  │    send. Start a new chat and ask again.") — Phase 1 guardrails
   ├─ resolve user from session (401 without)
-  ├─ ChatService.assertChatQuota
-  │    └─ FREE: 5 messages/day (PLAN_FEATURES.chatMessagesPerDay, counted
-  │       from ai_call_logs CHAT rows) — over quota streams the upgrade
-  │       message as a normal reply + X-Chat-Quota-Exhausted header; the
-  │       widget then swaps its input for UpgradeButton (source: chat-quota)
+  ├─ history: text only, newest 12 messages (clients send no more than
+  │    12), earlier ones cut to 4,000 chars; the message being sent over
+  │    500 chars → 400 "That message is too long. Keep it under 500
+  │    characters." (no quota charged). Both clients cap the input at 500
+  │    (maxLength) and show a "450 / 500" counter from 400 on
+  ├─ ChatService → reserveChatMessage (PLAN_FEATURES.chatMessagesPerDay)
+  │    ├─ FREE: no access (FORBIDDEN) — streams the upgrade message as a
+  │    │    normal reply + X-Chat-Quota-Exhausted (+ X-Chat-Upgrade-Required);
+  │    │    the widget swaps its input for UpgradeButton (source: chat-quota)
+  │    └─ PREMIUM: 20 messages / UTC day (was unlimited until the Phase 1
+  │         guardrails) — over quota: same 200 reply + X-Chat-Quota-Exhausted;
+  │         premium clients show one neutral panel — "You've reached your
+  │         AI chat limit for now — the chef's note above says when it's
+  │         back" — the same panel as the AI budget pause (the client
+  │         cannot tell the two apart) — no upsell
   ├─ build fresh context from REAL data:
   │    today's meals + macros + day totals, weekly overview, resolved
   │    daily targets, allergies/restrictions/dislikes, recent ratings
@@ -1801,9 +2088,11 @@ POST /api/chat (session cookie)
        │    │    (a chat swap IS a plan swap — the meal-plan page reflects it)
        │    ├─ scaleRecipe(recipeName, servings) → quantities rescaled from
        │    │    the active plan
-       │    └─ addToShoppingList(items[]) → ShoppingListService.addCustomItems
-       │         (items land in the customItems overlay — visible and
-       │         removable on the Shopping List page)
+       │    ├─ addToShoppingList(items[]) → ShoppingListService.addCustomItems
+       │    │    (items land in the customItems overlay — visible and
+       │    │    removable on the Shopping List page)
+       │    └─ getMyTraining() → TrainingSummaryService.forChat (read-only:
+       │         gym.bootstrap + PR timeline + setup recommendation as text)
        └─ mock: echoes the same context and exercises the same tools
 ```
 
@@ -1908,13 +2197,33 @@ the adjusted target must shape next week's budget)
   /progress, mobile `progress` — linked from the card's "See progress" and
   from More); mobile can also expand them inside the dashboard card.
 - Progress (web + mobile): calories vs target and macro breakdown over a
-  window the user picks, 7 / 28 / 90 days (`tracker.monthlySummary({ localDate,
-  days })`, default 28; UX-FOOD-20). The calorie axis is floored at 0 with round
+  window the user picks, 1W / 1M / 3M / 1Y = 7 / 30 / 90 / 365 days
+  (`STATS_RANGES`, `tracker.monthlySummary({ localDate, days })`, default 30;
+  UX-FOOD-20, 1Y added 2026-10-15). Past a month each bar is a week: the daily
+  average of that week's logged days (`bucketDays`), so a year stays readable.
+  The weight chart and its change follow the same range; the weigh-ins list
+  keeps at least 90 days so older entries stay editable.
+- Stats (mobile shell v2, 2026-10-15 revamp): `/progress` has **Eating |
+  Strength** tabs under the one range. Eating is the block above plus the
+  chef's weekly review line. Strength (`shell/stats/strength-tab.tsx`) is the
+  training summary in plain words: workouts / new PRs / week streak tiles;
+  workouts per week coloured by goal met (1W: this week day by day); "Your
+  lifts" — each main lift's best set in the range and "N% stronger" (the
+  3-session smoothed estimated max at the end of the range against its start)
+  with a sparkline; working sets per muscle (a weekly average past 1W); the
+  latest PRs; and "All charts and history" to the detailed `/training/stats`.
+  Up to 12 weeks it reads only the cached `gym.bootstrap`; 3M adds one
+  `gym.session.list` page and `gym.stats.prs`; 1Y counts workouts from the
+  bootstrap's week summaries and PRs from `gym.stats.prs`; 3M/1Y lifts and
+  muscle sets use `gym.stats.e1rm` (range `1y`) and `gym.stats.muscleVolume`
+  online, the cache offline. Train's "Strength stats" row opens
+  `/progress?tab=strength`. Web keeps its separate gym stats page (no Strength
+  tab on web Progress). The calorie axis is floored at 0 with round
   ticks, the x labels are evenly spaced and kept inside the chart, and only
   days with something logged count (`isLoggedDay`: an emptied day keeps a log
   row with 0 kcal and no longer inflates "Days logged"). The weight card is
   rendered outside the calorie summary's error branch, so a failed summary
-  does not hide it (UX-FOOD-28). 90-day weight chart (`tracker.weightHistory`)
+  does not hide it (UX-FOOD-28). Weight chart over the range (`tracker.weightHistory`)
   with current weight and change. The change is coloured by goal via the
   shared `weightChangeTone` (`@chefer/utils`): gaining is green for
   GAIN_MUSCLE, losing is green for LOSE_WEIGHT, other goals stay neutral
@@ -1935,8 +2244,9 @@ matching mobile's `progress.tsx` `shortDate`, which already did this.
 
 Photo logging + week rebalance (premium*plan.md W1-B). The honesty principle:
 logging off-plan food is FREE (manual quick-add, chat "I ate this"); the
-\_vision* scan and the automatic week rebalance are premium
-(`PLAN_FEATURES.photoLogging`, `mealScansPerDay: 10`).
+\_vision* scan is premium (`PLAN_FEATURES.photoLogging`, `mealScansPerDay: 10`).
+**Since WP-07 the week rebalance is free** (`PLAN_FEATURES.weekRebalance`, no AI —
+"Premium is for heavy AI only") and shows a preview before it changes anything.
 
 ### Photo scan (premium)
 
@@ -1963,8 +2273,9 @@ POST /api/scan-meal (session cookie, raw image body — same transport as upload
 **Error states (T-BUG-O1, O-18).** A failed scan never shows a status code or
 the literal text `[object Object]`. `scanMealPhoto` (mobile
 `src/lib/media-client.ts`, web `features/tracker/lib/scan-client.ts`) checks
-the photo's size against the 5 MB limit before sending (on mobile, after
-shrinking it to <= 2048 px / JPEG 0.8 — T-BUG-O1.2), and maps any failure —
+the photo's size against the 5 MB limit before sending (after shrinking it to
+<= 1080 px / JPEG 0.75 on both platforms — T-BUG-O1.2 on mobile, the Phase 1
+guardrails on web), and maps any failure —
 client-side pre-check or a server response — to a sentence: **too big** ("That
 photo is too big. Choose another, or use a screenshot of it.") for a 413 or an
 oversize body, **no connection** ("No connection. Try again when you're back
@@ -2033,35 +2344,123 @@ no-active-plan empty state are §30.
   `upgrade_prompt_shown { source: 'snap-scan' }` + `teaser_engaged
 { feature: 'snap' }` (§6.4 merchandising).
 
-### Week rebalance (premium)
+### Day rebalance (free, no AI — owner, 2026-10-16)
+
+Each plan day is fitted to its own target — the training-day target Today
+shows included (free since WP-07; the planner used to fit training days to the
+base target, so a lifter's week landed ~9% short on those days).
+
+1. **Swap / replace a meal** → the day's OTHER open meals (not eaten, not
+   replaced or skipped today, not "Your pick", not leftovers) are resized
+   ¾×–2× so the day lands within ±10% of its target. The response's `dayFit`
+   lists the changes; clients say e.g. "Lunch is now 1½× so Tuesday stays on
+   target" with Undo (`replaceRecipe` back with `fitDay: false`, then
+   `restoreDayPortions`).
+2. **Resizing can't reach it** → one suggestion (swap an open meal for a safe
+   curated dish, or add a snack); nothing changes until tapped
+   (`applyDayFitSuggestion`); "Leave it" dismisses.
+3. **Nothing open left** (e.g. dinner was the last meal) → no day rebalance and
+   no week rebalance; the day's real total shows.
+4. **Targets change** (goal, body, training setup, active routine days, coach,
+   own targets) → today's open meals and the rest of this week + next week are
+   resized once (same recipes); Meals shows "Portions updated for your new
+   targets" with Undo / Dismiss for up to a week (`portionRefit`).
+5. **Clients** (web Meals page + recipe page, mobile Meals tab): the snackbar /
+   toast after a swap names what was resized ("Lunch is now 1½× so Tuesday stays
+   on target"); resized meals carry a "Resized" / "adjusted" marker until the
+   day or week changes; the suggestion card sits in the day totals; Undo of a
+   suggested snack uses `recipe.undoAddToWeek` (`mealPlan.removeSlot` refuses a
+   day's only snack). After a log, a small note (mobile, next to the week
+   banner) or toast line (web) says what was resized today. A resize only runs
+   when the day is more than 3% off and it improves the day by ≥ 2 points, so a
+   day lands on its target rather than just inside the ±10% band.
+6. **A log for today** → today's open meals absorb it first. The week
+   rebalance below is offered only when the day is still more than 20% off
+   after that (`BIG_LOGGED_MISS`) — never for a swap or a small difference.
+
+### Week rebalance (free, protein-aware, preview before apply — WP-07)
 
 After ANY log write (tracker save, quick-add, photo scan, chat logMeal,
-cook-mode "Made it!"), `TrackerService.maybeRebalance` runs for users with
-`photoLogging` access:
+cook-mode "Made it!", skip), `TrackerService.rebalanceOutcome` runs for every
+user (`weekRebalance`, free + premium). There are two deliveries:
+
+- **Old clients (no opt-in, e.g. app 1.0.1):** exactly as before — the swaps are
+  applied at once and returned in the log response's `rebalance`; the banner
+  offers Undo.
+- **New clients (`rebalanceMode: 'preview'` on the log):** nothing is applied.
+  The response carries `rebalance: null` and `rebalancePreview`; the client shows
+  "I can rebalance the rest of your week: Sunday dinner → Chicken bowl (+28 g
+  protein)" with **Preview · Apply · Not now**. Apply calls
+  `mealPlan.applyRebalance` with the swaps it was shown; the result has the same
+  shape as an auto rebalance, so Undo is unchanged. Plan can ask at any time with
+  `mealPlan.previewRebalance`.
 
 ```
-rebalanceWeek(userId, activePlanId)   [application/meal-plan/rebalance.ts]
+rebalanceWeek / previewRebalance(userId, planId)   [application/meal-plan/rebalance.ts]
   ├─ only the CURRENT week's plan; Sunday → no-op (no future days)
-  ├─ projection = Σ logged kcal Mon…today + Σ planned kcal for days AFTER today
-  ├─ |projection − 7×dailyTarget| ≤ 15% → no-op ("week is on track")
-  └─ else: greedy-swap up to 2 FUTURE slots for closer-calorie alternatives
-       from the safety-filtered curated pool (deterministic, no AI call);
-       stops early when back within 15% or no swap improves ≥2% of target
-       → applies via mealPlanRepository.updateDayMeal
-       → returns { rebalanced, swaps[previous↔new pairs], planId }
+  ├─ projection (kcal AND protein) = Σ logged Mon…today
+  │     + today's slots still to eat (planned; a replaced slot is eaten with the
+  │       replacement's numbers, a skipped slot is neither — WP-06 slot rules)
+  │     + Σ planned for days AFTER today
+  ├─ kcal off by > 15% of 7×dailyTarget  → calorie swaps (auto and preview)
+  ├─ protein short by ≥ max(30 g, 2%)     → protein swaps (preview only; an
+  │     auto rebalance never rewrites the week for protein alone)
+  └─ greedy-swap up to 2 FUTURE, un-pinned slots from the safety-filtered curated
+       pool (deterministic, NO AI): a swap scores on the kcal gap and the protein
+       gap it closes; a protein swap may not leave the kcal tolerance, and on a
+       weight-loss goal protein fixes add at most 10% of one day's calories
+       (never "Bigger portions (+503 kcal)"); when swaps cannot close a protein
+       gap the preview also lists safe protein snacks
 ```
 
-The client hands the swap pairs to localStorage
+Every swap carries a one-line explanation (`describeRebalanceSwap`, shared by
+mobile and web): "Sunday dinner → Chicken bowl (+28 g protein, −60 kcal)".
+
+**Web.** Every log write on web (tracker tick / copy day / skip / "Ate
+something else", quick add, photo scan, Today's "I ate this" and Tonight card,
+cook-mode "Made it!") sends `rebalanceMode: 'preview'` (`REBALANCE_PREVIEW` in
+`features/tracker/lib/rebalance-storage.ts`). A non-null `rebalancePreview` is
+parked in localStorage as an **offer** (`handleRebalanceOutcome`; a later log
+that finds nothing to offer retires it; it expires after 6 h) and
+`RebalanceBanner` renders it as `RebalanceOfferCard` on the tracker, Today,
+cook mode and the plan: the headline ("You're 36 g short on protein this
+week."), one line saying how many coming meals would change, and
+**Preview · Apply · Not now**, with the actions stacked UNDER the text so a
+320 px screen never squeezes them. **Preview** expands each swap's one-line
+explanation (`explanation ?? describeRebalanceSwap`) and any protein snacks.
+**Apply** calls `mealPlan.applyRebalance` with exactly the swaps shown, then
+feeds the result to `handleRebalanceResult` (the Undo hand-off below) and
+refetches the plan; if the week moved on (`rebalanced: false`) it says "Those
+meals have changed since, so nothing was swapped." **Not now** only discards
+the offer: no mutation, no Undo. The plan page has a **Rebalance my week**
+action (current week; inside **Week options**) that runs
+`mealPlan.previewRebalance` only when pressed and parks a non-empty preview as the
+same offer the plan banner shows, or says the week is already on target.
+
+The client hands the swap pairs of an APPLIED rebalance to localStorage
 (`features/tracker/lib/rebalance-storage.ts`), MERGED with any still-pending
 swaps (`@chefer/utils` `mergePendingRebalance` — a second rebalance used to
 erase the first one's undo, F-TRK-3-2). The banner ("I adjusted Thursday
 dinner to keep your week on track") shows where the log happened (tracker,
-cook-mode finish) and on the meal-plan page, with one-tap
-**undo**, which replays `mealPlan.replaceRecipe(previousRecipeId)` per swap.
+Today, cook-mode finish) and on the meal-plan page, with one-tap
+**undo**, which replays `mealPlan.replaceRecipe(previousRecipeId, pinned: false)`
+per swap (a rebalance only ever swaps un-pinned slots, so an undone slot does not
+become "Your pick").
 Undo is per-device and expires after 24 h — nothing about the swap pairs is
 stored server-side (wave-0 schema freeze). Analytics: `week_rebalanced` fires
-on the client when a log's response carries an applied rebalance. Failures in
+on the client when an applied rebalance is recorded. Failures in
 the rebalance path never fail the log save itself.
+
+**Plan-miss sheet (UX-PLAN-08, web + mobile).** On a weight-loss goal "Bigger
+portions" is held to +10 % (`capProteinScaleFactor`, "Held to +10% on your
+weight-loss goal"), and a protein gap is answered first with "Add a protein
+snack" instead of a large kcal increase; other goals keep the full step.
+
+**Premium copy (WP-07).** The week rebalance and training-day targets are not
+sold anywhere on web: no `/premium` card or "free equivalent" label for
+`trainingNutrition`, no locked "Premium adds this" line on Today / the tracker
+(`training-day-note` is information only when the server does not apply the
+bump), and the photo-scan pitch sells the scan alone.
 
 **Mobile** (P1-7, 2026-09-26): every logging surface (tracker Save Day, quick
 add, photo scan, cook-mode log) feeds the response's `rebalance` into
@@ -2072,9 +2471,8 @@ swapped twice keeps its original recipe for undo, a slot swapped back drops
 out; another plan or a stale hand-off is replaced) — so a second rebalance no
 longer destroys the first one's undo (audit F-TRK-3-2). The banner with Undo
 / Dismiss renders **where the log happened** (tracker, cook-mode finish) and
-on the Plan tab (filtered to the displayed plan). Web still overwrites and
-shows the banner only on the meal-plan page — reverse row in
-`mobile_parity_backlog.md`.
+on the Plan tab (filtered to the displayed plan). Web does the same (merge,
+banner on every logging surface and the plan).
 
 Routing: Caddy sends `/api/scan-meal` to the API in production; a Next.js
 rewrite proxies it in dev.
@@ -2167,6 +2565,10 @@ Import → "Video" tab (web sheet + mobile screen; premium only — free users s
   ├─ AI data consent (recipe-import; now names the Groq transcription for videos)
 recipe.importVideoPreview { url }   (protected; RECIPE_IMPORT quota → FREE FORBIDDEN,
   │                                  PREMIUM 5/day, refunded on any failure)
+  ├─ one video import at a time, server-wide (VIDEO_IMPORT_CONCURRENCY, default 1 —
+  │    Phase 1 guardrails): a second one while the slot is taken fails fast with
+  │    SERVICE_UNAVAILABLE "We're reading another video right now. Try again in a
+  │    minute, or paste the recipe text instead." (quota refunded; no queue)
   ├─ yt-dlp metadata → caption/description
   │    └─ caption carries the whole recipe (ingredients AND method)? → use it, stop
   ├─ else one subtitle track (uploaded in the video's language, else the original
@@ -2239,11 +2641,20 @@ Entry points (≤ 2 taps from Profile / "You", PM review §5)
 Members (household.* — protected, EVERY tier, cap householdMembers = 5)
   ├─ household.list — member chips with per-member safety summary
   ├─ household.add — { name, portionFactor 0.25–3 (0.5 kid … 1.5 big eater),
-  │    isKid, allergies[], dietaryRestrictions[], dislikedIngredients[] }
+  │    isKid, ageBand? (kids only), allergies[], dietaryRestrictions[],
+  │    dislikedIngredients[] }
   │    count + insert in one SERIALIZABLE transaction (F-ONB-3-1: parallel
   │    adds can no longer pass the cap); `household_member_added` on save
   ├─ household.update / household.remove — ownership-scoped; removing asks
   │    to confirm first (F-ONB-3-2)
+  ├─ Kid age band (UX-PLAN-12, optional, web + mobile editors): when "kid" is on,
+  │    "Age" chips 1–3 / 4–8 / 9–13 / 14–17 appear. Picking one PRE-FILLS the
+  │    portion (½ / ¾ / 1 / 1¼ — EFSA energy needs by age relative to a ~2,000
+  │    kcal adult); the user can still change it, tapping the chip again clears
+  │    it. `portionFactor` stays the only number planning, servings and the
+  │    shopping list read — the band is display + a suggestion. The member row
+  │    shows it ("Kid · 4–8" on mobile, "4–8 · ¾ portion" on web). Un-marking
+  │    someone as a kid clears the band; 1.0.1 clients never send it.
   └─ quick chips on an empty household: "+ add your partner" / "+ add a kid"
        ├─ premium: open the editor pre-filled (kid = ½ portion, isKid)
        └─ free: the §6.4 ghost reflects the chip tapped (F-PM-12) — the kid
@@ -2566,8 +2977,87 @@ Food/Gym switch (header of every tab root) → persisted mode
   │         weekly goal = the days the user chose (`input.days`), not the resulting
   │         template's own day count (bug B-18, T-05.2, AC4 — 5 chosen days → goal 5,
   │         even when the template itself has only 4)
-  └─ profile exists → Gym tabs: Today / Routine / Exercises / Stats
+  └─ profile exists → Gym tabs: Today / Routine / Exercises / Stats / More
+      (FB7-01: Gym's More = Gym settings, Profile, Following, Progress, Settings,
+      feedback, legal links, Sign out — route `/gym-more`)
 ```
+
+### New mobile shell (UX revamp phase 1, behind `mobileShellV2`)
+
+With the flag (or the admin/dev preview switch) on, mobile has one tab bar instead of the Food | Gym modes:
+**Today · Meals · Shop · Train · You**, the same five for every account (hiding tabs by onboarding jobs
+stranded training-only accounts that also plan meals, 2026-10-10). A running workout shows a mini bar above
+the tabs on every tab. Any old link (`/meal-plan`, `/today`, `/stats?tab=…`) lands on the same screen in the
+new shell. Flipping the preview on You leaves You open; switching off lands on the old shell. Web is unchanged.
+
+**10 Oct redesign** (owner feedback `docs/design/feedback/2026-10-10/feedback.md`, approved boards in
+`docs/design/mobile/`). Less text, one tile for recipes and workouts, and settings in one place:
+
+- **Every tab** has its title and an **Ask Chef** pill in the same spot (the chat helps with food and, since
+  2026-10-10, with workouts and routines — §13). Plan is renamed **Meals** so it reads as food.
+- **Today:** a half-ring calorie gauge (eaten · left · target) with protein 🍖, carbs 🍞 and fat 🥑 rows
+  (over target says "N g over", amber, never red) → the **next meal** with Eaten / Cook now / Swap / Skip →
+  **Your day** (one circle per meal — tap a circle to mark that meal eaten, tap an eaten one to untick it
+  (since 2026-10-11); "Open your day" → the day's log, renamed Your day) → **Training**
+  (planned: the day's first exercise photo, Start workout + Log a workout; done: duration, calories burned,
+  exercises, Summary, Log another workout; rest days are one quiet row; nothing for people who don't
+  train) → **weight** (weigh in; once logged today it becomes a widget with the 30-day change, tapping
+  opens Stats). **Stats** (top bar) joins eating trends (7/28/90 days), weight and training streaks; the
+  weekly chef review moved there. Training numbers cover the whole range: 7 and 28 days come from the
+  cached gym data (offline too); 90 days also reads the older sessions (`gym.session.list`, one page after
+  the cache) and the PR timeline (`gym.stats.prs`). Only when those can't load (offline) does it show the
+  cached numbers labelled "last 12 weeks".
+- **Calories burned** (Today's done card, Workout complete): the kcal the user logged (an activity or a
+  cardio set, "kcal you logged") wins; otherwise an estimate from their latest weigh-in and the workout —
+  MET × body weight (kg) × hours (`estimateSessionKcal` in `@chefer/utils`): strength work at 3.5 MET
+  (Compendium 02054, general resistance training — the time includes rests) over the session's time,
+  capped at 5 min per working set + 10 min (a "Save for later" session resumed hours later is not a
+  marathon), cardio and activities at their catalogue MET (range midpoint, or placed by the logged effort)
+  over their logged duration. Shown as "~310" · "kcal burned (est.)", rounded to 5/10, spoken as "About 310
+  kilocalories burned, estimated" with the hint "Estimated from your body weight and workout time". No
+  weigh-in means no estimate — never a guessed weight — and the tile falls back to Sets.
+  The shop reminder, Later today and Tonight/Tomorrow cards are gone from Today.
+- **Log a workout** (Today, the + sheet, Train): pick the gym day you already did (log mode for today), an
+  activity (form opens with it picked), or start a freestyle workout now.
+- **Meals:** This week / Next week, a day strip, big day totals (kcal + macro tiles), the day's meals as
+  tiles labelled with the meal type, each with a swap button; **Change week** (new plan, rebalance, Meal
+  settings); one safety line with an info button for the full disclaimer; the **Cookbook** card (open it or
+  add a recipe). Nothing training-related on Meals.
+- **Shop:** one cost chip and a done count, one "Search or add an item" field, items grouped (Fruit & veg,
+  Meat & fish, Dairy & eggs, Grains & pantry, Frozen, Other); **checked items move to the bottom of their
+  group**.
+- **Train:** an ongoing workout first, then the week, **Up next** (time chips, Start, Edit, Freestyle), Log a
+  workout, the **Routines** card (same weight as Cookbook), past workouts one per line with PR badges.
+  Routines and sessions have no picture of their own, so routine days (Routine, Up next, Today, setup
+  program days) and past workouts show the photo of their first exercise that has one, else the barbell;
+  logged activities keep their activity glyph. Workout complete shows duration, calories burned (as on
+  Today; Sets without a weigh-in) and exercises, PRs and the week.
+  Program setup shows distinct program cards; New exercise uses dropdowns.
+- **You is the one home for settings:** Your progress (Stats, My weeks), Settings (Meals → the new Meal
+  settings screen, Training → Training settings, Notifications, Account), People, Preview, Help (Send
+  feedback opens a sheet), Sign out. Account holds what was left of Settings (goal, targets, Premium,
+  emails, privacy, data, legal); Goals & diet (`/preferences`) lists Goal & body before allergies. In-context
+  shortcuts only link into these screens (Change week → Meal settings). Every old Settings row is reachable:
+  food rows → Meal settings, training rows → Training settings, workout history → Train → Strength and
+  history.
+
+### Tester feedback 2026-10-07 — gym (WP-23)
+
+Source: `docs/backlog-2026-10/feedback-2026-10-07.md` (FB7-01, 05–09).
+
+- **Gym More tab (mobile, FB7-01).** Gym mode has a fifth tab, **More** (`app/(gym)/gym-more.tsx`, route
+  `/gym-more` because `/more` belongs to Food). It shares `MoreScreen` with Food (`src/features/more/`), lists Gym
+  settings, Profile, Following (when available), Progress and Settings, and carries the same Following badge.
+- **Exercise names (FB7-05).** `ExerciseNameLink` renders plain text by default (no dotted underline); it stays a
+  link for screen readers with a 44 pt hit area.
+- **Exercise filters (FB7-07, mobile + web).** One scrolling row: `Equipment ▾` (a sheet / select; "Any equipment"
+  clears it), `Mine`, `Clear` (only while a filter is set), then the muscle chips. The routine exercise picker's
+  muscle row no longer wraps.
+- **Stats (FB7-08/09, mobile).** "Weekly sets per muscle" and "PR timeline" pick their muscle / exercise from a
+  `SelectField` (searchable above 12 options) instead of a wall of chips — same as web's `<select>`.
+- **Exercise media (FB7-06).** Owner decision 2026-10-07: free-exercise-db photos for rows that lacked one; every
+  video is oEmbed-verified. 151/191 exercises have a photo and 185/191 a video; the rest are listed (with reasons)
+  in `packages/types/src/gym/exercise-media.test.ts`, whose allow-lists can only shrink.
 
 ### The daily loop (offline-first)
 
@@ -2760,6 +3250,66 @@ connection) spun forever. `useTimedRefresh()`
 (`src/features/gym/today/use-timed-refresh.ts`) decouples the two — the
 spinner always drops after 10 s, whether or not the refetch itself ever
 settles.
+
+### Log an activity (WP-20, owner decision 2026-10-04)
+
+A class is not a trainer feature: **any** gym user can quickly record something
+they did elsewhere — "45 min cycling class, 400 kcal burnt" — as done. It is
+**record only**: the calories never raise the day's food target ("no eating
+back"), never feed the meal planner or a rebalance.
+
+- **Where.** `Log an activity` is a quiet text link beside "Log a workout you
+  already did" on Gym Today (also when no routine is active), and at the top of
+  History (mobile Stats › History, web `/gym/history`). Never next to — or
+  instead of — `Start`.
+- **The sheet** (mobile `today/log-activity-sheet.tsx`, web
+  `today/log-activity-sheet.tsx`; copy and rules come from `@chefer/utils`
+  `activity-log.ts`, so the two cannot drift): activity chips — Cycling class,
+  Pilates, Yoga, HIIT / bootcamp, Zumba / dance, Swimming, Running, Walking,
+  Other (+ a free-text name) — then a duration (chips 15/30/45/60/90 or any
+  1–180 min), the date (today by default; back to Monday of last week, never the
+  future), **Calories burnt (optional)** — "From your watch or the machine" —
+  and **Effort (optional)** Easy / Moderate / Hard (RPE 3/5/7; the phone also
+  has the exact 1–10). Common case: three taps inside the sheet — activity,
+  duration, Save. Errors are plain sentences (`validateActivityLog`), never raw
+  Zod.
+- **Storage — the existing gym model, no new procedure.** A finished
+  `WorkoutSession` (`COMPLETED`, `routineId`/`routineDayId` null, named after the
+  chip or the typed name) with ONE session exercise whose catalogue row is a
+  `DURATION` cardio entry (`ACTIVITY_PRESETS` in
+  `packages/types/src/gym/activity-log.ts`: `spin-class`, `pilates-class`,
+  `yoga-class`, `hiit-class`, `dance-class`, `swimming`, `running`, `walking`,
+  `other-activity`) and one ticked set: `durationSec`, optional `caloriesKcal`,
+  optional `intensityRpe`, `weightKg 0`, `reps 0`. `buildActivityLogDoc()` builds
+  it; it goes through the same offline outbox and `gym.session.upsertMany` as any
+  finished workout (works offline, retries idempotently) and is folded into the
+  cached bootstrap at once (`saveLoggedSession` on the phone, `saveActivityLog`
+  on web).
+- **Counts as a training day for the WEEK, not for today's workout.** It is a
+  finished session, so the weekly goal ring, week strip and streak count it (a
+  class is training). But it does **not** make Gym Today say `Done today` (Start
+  stays), and it never advances the rotation (freestyle: no `routineDayId`).
+  `isActivityLogSession()` (no routine day + every exercise is an activity entry)
+  is the single test, used by `todayStatus`, `doneTodayCard`,
+  `selectTodaysSession` and the web Today/dashboard cards.
+- **Not a training day for nutrition.** `trainingNutritionService` drops activity
+  sessions from the "completed workout that day" lookup (`trainingDayFor`,
+  `trainingWeek`), so a logged class neither marks the plan week nor applies the
+  lift bump — and `caloriesKcal` is not read anywhere on the food side.
+  Contract-tested against the real API (`activity-log.contract.test.ts`: targets,
+  ring and training-day flag identical before/after; a real workout the same day
+  is the control that flips it).
+- **Display.** Recent / History rows read `45 min · ~400 kcal` (never "1 sets");
+  the session detail reads `Cycling class · 45 min · ~400 kcal (from your watch)`
+  plus the effort. Strength PRs / e1RM / volume are untouched (a cardio set has
+  `reps 0`, no progression is folded for a non-strength exercise — the offline
+  fold now skips it too).
+- **Old apps.** `DURATION` is renderable at every API level (client-level.ts), so
+  a 1.0.1 app (level 4) and older apps read the session back in the legacy cardio
+  shape and receive the new library rows; an unknown exercise would fall back to
+  the session name. Health-consent gating is unchanged: `gym.session.upsertMany`
+  is not a consent-gated procedure (the kcal is a gym-set field like the other
+  cardio fields).
 
 ### Correcting a past workout (UX-44, T-44.1–T-44.5, D-21 a: any past session)
 
@@ -3085,7 +3635,10 @@ streaks, no red "missed" markers.
   the same exercise's other bucket (`carriedWeightKg`, Epley e1RM re-estimate)
   instead of the starting guess; an exercise's first-ever session is a baseline and
   is not counted as a PR on the finish summary (the PR timeline still lists it as
-  "First logged").
+  "First logged"). The live in-workout badge and its success haptic follow the
+  same rule (owner decision 2026-10-04): with no earlier history for the exercise
+  the set is a plain tick — one shared `detectLivePrs` in `@chefer/utils` backs
+  both the web and mobile live badge, and the summary reads the same result.
 - **Reminders (mobile only, local `expo-notifications`, G4-A):** one
   notification per planned weekday over the next 14 days at the profile's
   `reminderTime`, skipping a day already trained or inside a pause, plus at
@@ -3584,8 +4137,12 @@ Profile → Your data → "Delete account"  (web /profile, mobile Profile — la
      password field opts out of iOS "Save Password?" (R-17), and the footer
      button works on the first tap with the keyboard up (R-03, `Sheet` footers).
         │
-        └─ user.deleteSelf { password, confirm: 'DELETE' }
+        └─ user.deleteSelf { password?, reauth?, confirm: 'DELETE' }
+              │   (WP-22: an account that signs in with Google/Apple only has no password — the sheet shows
+              │    "Confirm it's you" with that provider's button instead of the password field, and sends the
+              │    FRESH ID token (≤ 10 min old, for an identity linked to this account) as `reauth`)
               ├─ wrong password            → FORBIDDEN "That password is not correct"
+              ├─ neither / bad reauth      → FORBIDDEN (deleteNeedsReauth)
               ├─ caller is the last ADMIN  → BAD_REQUEST (promote someone first)
               └─ deleteAccount(userId) — ONE transaction:
                     shopping_lists (by the user's planIds; no FK)
@@ -3594,10 +4151,14 @@ Profile → Your data → "Delete account"  (web /profile, mobile Profile — la
                     verification_tokens 'reset:<email>'
                     workout_sessions, routines (before the user: RESTRICT FKs)
                     sessions (every device)
-                    users row → cascades everything else
+                    users row → cascades everything else (incl. auth_identities)
+                 then Sign in with Apple grants are REVOKED at Apple (best effort, App Review 5.1.1(v))
                  then deleteUploadedFiles(): the /uploads files behind the
-                 avatar, own recipes and custom ingredients (best effort,
-                 P0-6) — then authService.logout clears the web cookie
+                 avatar, own recipes, custom ingredients and every
+                 uploaded_files ledger row (the rows cascade) — EXCEPT a file
+                 another row still references, e.g. a friend's copy of one of
+                 these recipes (Phase 1 guardrails); best effort, P0-6 — then
+                 authService.logout clears the web cookie
         │
         ├─ web:    window.location.assign('/') — full navigation drops every cache
         └─ mobile: clear SecureStore token + queryClient.clear() (incl. persisted
@@ -3693,7 +4254,7 @@ AI action ──► API
         ├─ tRPC procedure ─► FORBIDDEN, message "Allow AI features in
         │    Profile → AI & your data to use this.", data.reason =
         │    'AI_CONSENT_REQUIRED'   (recipe.importPreview/importVideoPreview,
-        │    shoppingList.regenerate/searchStores, premium mealPlan.swapRecipe,
+        │    shoppingList.regenerate, premium mealPlan.swapRecipe,
         │    ingredients.estimateNutrition's AI fallback, mealPlan.resumeTailoring)
         ├─ /api/chat, /api/scan-meal ─► 403 { error, reason } +
         │    X-AI-Consent-Required: 1
@@ -3734,6 +4295,36 @@ chat messages and meal scans on capacity failures only (other failed attempts
 still count). The Sunday auto-plan stops asking for premium plans for that tick
 and retries the rest on the next hourly tick; the ingredient-price worker backs
 off 90 s → doubling → 1 h.
+
+**When the AI budget is used up** (Phase 2, `lib/ai-budget`, enforced while
+`AI_BUDGET_ENFORCE=on`; `warn` only logs and emails, `off` only records):
+
+```
+user starts an AI action (chat, scan, AI swap, import link/text/photo/video
+incl. Cheferize, nutrition auto-fill, "Tailor the rest")
+  └─ lib/quotas.ts reserve*  →  assertAiBudget(userId)   (before any row is written)
+       ├─ today's global spend ≥ AI_GLOBAL_DAILY_USD
+       │     → TOO_MANY_REQUESTS "AI is paused for today — the chef is taking a
+       │       break. It's back after midnight UTC, and everything else keeps working."
+       ├─ the user's month ≥ AI_USER_MONTHLY_HARD_USD
+       │     → TOO_MANY_REQUESTS "You've used this month's AI allowance. AI features
+       │       are back on the 1st — your plans, recipes and tracking keep working as usual."
+       ├─ the user's month ≥ AI_USER_MONTHLY_SOFT_USD → allowed; logged once a month,
+       │     profile.getAiUsage.aiBudget.status = 'soft'
+       └─ otherwise → the quota reservation as before
+
+premium mealPlan.generate (and the Sunday auto-plan) while blocked
+  └─ the curated week (the free path, zero AI) — never an error
+```
+
+Clients show the sentence where they already show quota messages (web and
+mobile: swap, import, scan, nutrition auto-fill, Tailor the rest). In the chef
+chat it arrives as the chef's reply with `X-Chat-Quota-Exhausted`; a **premium**
+user then sees "You've reached your AI chat limit for now" in place of the
+input (the same panel as the daily chat cap) — no upgrade pitch (free users keep the existing upgrade card). The owner gets one email per
+threshold per day at 50 %, 80 % and 100 % of the global budget; at 100 % the
+background AI (live tailoring, ingredient prices, Cloudflare recipe images —
+which switch to the free Pollinations image) also pauses until 00:00 UTC.
 
 ---
 
@@ -4300,6 +4891,39 @@ tracker.copyDay({ fromDate, toDate })                         [T-19.3]
      (so the header's own Undo can delete exactly the copies, not the
      originals) and no slotIndex (the target day's plan slots differ)
 
+tracker.logCustomMeal({ …, replacesSlot? }) / skipSlot / unskipSlot  [WP-06 flexible eating]
+  Every planned slot can be eaten as planned, swapped for what was actually
+  eaten, or skipped — and the app never judges any of the three.
+  ├─ "Ate something else": logCustomMeal with `replacesSlot { mealType, slotIndex }`.
+  │    The entry is a normal custom entry (so 1.0.1 clients total it and show it
+  │    as "Also eaten") that names its slot; its mealType is forced to the
+  │    slot's. The slot is `replaced`: EATEN with the replacement's numbers,
+  │    its planned recipe leaves the day's planned totals. Logging again for the
+  │    slot swaps the earlier replacement; a recipe ticked for it is dropped;
+  │    a skip on it is cleared. logRecipe for a replaced slot → CONFLICT
+  │    ("You already logged something else for this meal…"). Undo = delete the
+  │    entry (deleteEntries / deleteCustomMeal): the slot is open again.
+  ├─ "Skipped it": skipSlot / unskipSlot edit DailyLog.skippedSlots — a SEPARATE
+  │    list, never an entry, so old clients that iterate entries never see it.
+  │    A skipped slot is neither eaten nor remaining and leaves the planned
+  │    totals. skipSlot on a ticked/replaced slot → CONFLICT; ticking or
+  │    replacing a skipped slot un-skips it. Idempotent both ways.
+  ├─ Status (one rule set, `@chefer/utils` today.ts): planned | eaten | replaced |
+  │    skipped, precedence replaced > eaten > skipped. Clients use
+  │    `slotStates(plannedMeals, loggedMeals, skippedSlots)`; Today reads the
+  │    server's `dashboard.summary.today.slots`. `resolveTodayMeals` treats a
+  │    replaced slot as eaten and drops a skipped one from next/later.
+  ├─ Old clients (no API level needed): the day's entries and totals are exactly
+  │    what they were; a skipped slot just looks unticked on an old tracker; an
+  │    old tracker that taps a replaced slot's tick gets the CONFLICT message.
+  ├─ upsertDay (older clients' save) preserves skips and drops a tick for a
+  │    replaced slot; copyDay copies entries without `replacesSlot` or skips.
+  ├─ maybeRebalance runs after replace and skip like any other log (gating
+  │    unchanged, premium).
+  └─ Eating-out quick estimate (no AI, free): `eatOutEstimates` in
+     `@chefer/utils` eat-out.ts — cuisine × size → kcal/protein RANGE rounded
+     UP ("≈ 700–850 kcal"); clients log the middle via `eatOutLogValues`.
+
 tracker.unlogRecipe({ date, recipeId, mealType, slotIndex? })  [T-19.4, B-23]
   └─ the one-save model's untick: removes exactly the entry logRecipe would
      have written for that slot (matchesRecipeSlot, shared identity rule with
@@ -4312,7 +4936,7 @@ tracker.deleteEntries({ date, entryIds })                      [T-19.3]
      batch a client already holds ids for. Idempotent: an unmatched id is
      silently ignored.
 
-tracker.weeklySummary({ localDate? }) / monthlySummary({ localDate?, days? })   [§2.12, T-21.1, B-33; days 7-90: UX-FOOD-20]
+tracker.weeklySummary({ localDate? }) / monthlySummary({ localDate?, days? })   [§2.12, T-21.1, B-33; days 7-365: UX-FOOD-20, 1Y 2026-10-15]
   └─ optional localDate anchors the trailing-N-day window on the CLIENT's
      local day instead of the server's UTC one (a user whose local day has
      turned over relative to UTC used to see a window shifted by a day);
@@ -5038,7 +5662,28 @@ There is deliberately no API procedure, screen or queue for either. Nothing depe
 
 ---
 
-## 36. Trainer Coaching (1:1) (`docs/trainer-platform/`, WP-18)
+## 36. Tester feedback 2026-10-07 — food, account (WP-24)
+
+Source: `docs/backlog-2026-10/feedback-2026-10-07.md` (FB7-02, 03, 04, 10, 11). Plan-page details (Week options,
+cards, side dishes) are in the meal-plan section above.
+
+- **Shop is computed, not AI-written (FB7-10).** The list always comes from the week's planned recipes (every dish of
+  every slot, sides included), aggregated by ingredient and aisle. A line under the title says so: "From your plan's
+  recipes · Mon–Sun" (`shoppingProvenanceText`; a mid-week plan shows the remaining days). The "Regenerate with AI"
+  button is gone; weeks that were AI-tidied before go back to the computed list with their ticks kept.
+- **"In my kitchen" is retired (FB7-10).** No pantry segment, panel or banners on Shop (mobile + web); `/pantry`
+  redirects to Shop; ticking an item no longer records it as "in the kitchen" and nothing is marked "Have it". Server
+  switch: `PANTRY_RETIRED`. The landing page, premium pitches and onboarding no longer offer the pantry.
+- **Thumbnails never blank (FB7-10).** A missing or broken item photo shows the aisle icon on a tinted tile; the
+  catalog's ingredient photos are pre-rendered static files (see infrastructure.md).
+- **Sign out on Profile (FB7-02).** The "Your data" card has Export my data · **Sign out** · Delete account. Mobile
+  uses the same confirm sheet as More/Settings (incl. the unsynced-workouts warning); web signs out directly like the
+  header menu.
+- **Import review (FB7-03).** The old "Ingredients to check" card (whose "Change" button overlapped the text) was
+  replaced on 2026-10-03 by the editable review form; the ingredient picker now has an explicit row/stack layout and
+  wraps long names, and the unit picker fits "piece"/"tbsp" on one line.
+
+## 37. Trainer Coaching (1:1) (`docs/trainer-platform/`, WP-18)
 
 > **Status:** API implemented and **dark**: every `trainer.*` / `coaching.*` procedure sits behind the `coaching` flag or
 > `COACHING_ALLOWLIST`, and turning trainer tools on needs `TRAINER_ALLOWLIST` during the beta (`infrastructure.md` §8, §9, §10).
@@ -5051,7 +5696,7 @@ edit the client's own active routine, leave a short note on an exercise, set wei
 client's completed workouts and adherence. There is no chat, no comments and no payment (free during the beta). One trainer per
 client; the client can leave at any time and keeps the routine.
 
-### 36.1 Turn on trainer tools
+### 37.1 Turn on trainer tools
 
 ```
 Profile → Trainer tools                (shown when coaching.availability → { enabled, canBeTrainer: true })
@@ -5065,7 +5710,7 @@ Turn off → trainer.deactivate: ONE transaction — every ACTIVE link ENDED (en
 COACHING_SHARING event on each client's log, private notes hidden, open invites revoked, profile disabledAt.
 ```
 
-### 36.2 Invite a client
+### 37.2 Invite a client
 
 ```
 Clients → Invite a client → trainer.invites.create { label? }
@@ -5076,7 +5721,7 @@ trainer.invites.revoke { code }  (a used, revoked or foreign invite is NOT_FOUND
 The trainer shares the link however they like (RN Share sheet on mobile, navigator.share or copy on web).
 ```
 
-### 36.3 The client joins (web or mobile)
+### 37.3 The client joins (web or mobile)
 
 ```
 Link → web page "Open in the Chefer app" (chefer://coaching/join/<code>) | "Continue on the web"; signed-out users sign in first
@@ -5108,9 +5753,9 @@ joining: "You're coached by Ana" with Open my routine / Your trainer. More and S
 for allowlisted trainers, "Trainer tools". Gym Today shows one line per event: "Ana updated your routine · 2 Oct" (until the Routine tab is
 opened on this device), "Ana stopped coaching you" (30 days, dismissible). The workout logger shows the trainer's cue under the exercise name
 and "Set by Ana" on a trainer-set target. The app sends API level 6, so all of this appears only on updated apps; an installed 1.0.1 (level 4)
-keeps working unchanged (§36.9).
+keeps working unchanged (§37.9).
 
-### 36.4 What the trainer sees and does
+### 37.4 What the trainer sees and does
 
 ```
 trainer.clients.list { today? }   one row per ACTIVE client: name, since, label, last workout, this week "2 / 3", quiet days,
@@ -5124,7 +5769,7 @@ trainer.client.routine { clientId, today? }   the client's ACTIVE routine: train
    it (TRAINER / CLIENT), and when the exercise was last logged
 ```
 
-### 36.5 Editing the routine (two editors, one routine)
+### 37.5 Editing the routine (two editors, one routine)
 
 ```
 trainer.client.saveRoutine { clientId, routine, expectedVersion }
@@ -5145,7 +5790,7 @@ trainer.client.createRoutine: only when the client has NO active routine — cre
 A workout already started keeps its own snapshot; a trainer edit applies from the next workout.
 ```
 
-### 36.6 Next-session targets
+### 37.6 Next-session targets
 
 ```
 trainer.client.setNextTarget { clientId, exerciseId, repBucket, weightKg, reps[] }
@@ -5159,7 +5804,7 @@ trainer.client.setNextTarget { clientId, exerciseId, repBucket, weightKg, reps[]
 trainer.client.clearNextTarget: "Reset to app suggestion". Either side can set or clear; the last write wins and is attributed.
 ```
 
-### 36.7 Private note
+### 37.7 Private note
 
 ```
 trainer.client.note / saveNote { clientId, body (<= 4000) }   one note per (trainer, client), autosaved, empty = delete
@@ -5168,7 +5813,7 @@ trainer.client.note / saveNote { clientId, body (<= 4000) }   one note per (trai
   Hidden when the link ends (not readable), deleted 30 days later, restored if the same pair links again (Q-6).
 ```
 
-### 36.8 Ending
+### 37.8 Ending
 
 ```
 Client "Leave" (coaching.leave) · trainer "Remove client" (trainer.clients.remove) · trainer turns tools off — each in one transaction:
@@ -5181,7 +5826,7 @@ Retention (COACHING_RETENTION, recommended defaults — counsel to confirm, Q-6)
 hidden notes 30 days. CoachingMaintenanceWorker enforces it once per UTC day.
 ```
 
-### 36.9 Authorization, consent and old apps
+### 37.9 Authorization, consent and old apps
 
 - **Access** (`infrastructure.md` §9): flag or `COACHING_ALLOWLIST` → active `TrainerProfile` → not yourself → an `ACTIVE` link. One
   uniform `NOT_FOUND` "This client isn't available" for every denial; `FORBIDDEN` + `reason: 'TRAINER_TOOLS_OFF'` only when the caller

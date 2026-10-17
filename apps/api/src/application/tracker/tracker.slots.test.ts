@@ -40,7 +40,11 @@ vi.mock('@chefer/database', async (importOriginal) => ({
       },
     ]),
   },
-  dailyLogRepository: { findByDate: vi.fn().mockResolvedValue(null), mutateDay: vi.fn() },
+  dailyLogRepository: {
+    findByDate: vi.fn().mockResolvedValue(null),
+    mutateDay: vi.fn(),
+    mutateDayState: vi.fn(),
+  },
   gymProfileRepository: { findByUserId: vi.fn().mockResolvedValue(null) },
   weightEntryRepository: { findLatest: vi.fn().mockResolvedValue(null) },
 }));
@@ -66,8 +70,8 @@ async function logOnto(
   input: { recipeId: string; mealType: string; portionMultiplier: number; slotIndex?: number },
 ): Promise<LoggedMealEntry[]> {
   let written: LoggedMealEntry[] = [];
-  vi.mocked(dailyLogRepository.mutateDay).mockImplementation((_u, _d, mutate) => {
-    written = mutate(stored);
+  vi.mocked(dailyLogRepository.mutateDayState).mockImplementation((_u, _d, mutate) => {
+    written = mutate({ entries: stored, skippedSlots: [] }).entries;
     return Promise.resolve({} as never);
   });
   await trackerService.logRecipe(FREE, '2026-09-26', input);

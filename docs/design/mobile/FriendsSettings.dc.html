@@ -1,0 +1,97 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Following — Sharing &amp; privacy</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+body{margin:0}
+a{color:#944a00;text-decoration:none}a:hover{color:#6e3700}
+input::placeholder,textarea::placeholder{color:#9ca3af}
+</style>
+</helmet>
+<div style="width: 390px; height: 991px; position: relative; overflow: hidden; background: #FFFFFF; font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Helvetica Neue', system-ui, sans-serif; color: #020817; display: flex; flex-direction: column">
+  <div style="height: 47px; flex: none"></div>
+
+  <div style="min-height: 49px; box-sizing: border-box; flex: none; display: flex; align-items: center; gap: 3.5px; padding: 7px 7px 3.5px">
+    <a href="Friends.dc.html" aria-label="Back" style="width: 44px; height: 44px; flex: none; display: flex; align-items: center; justify-content: center; color: #1F2937"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M11 5l-7 7 7 7M4 12h16"></path></svg></a>
+    <h1 style="margin: 0; flex: 1; min-width: 0; font-size: 21px; line-height: 28px; font-weight: 700; color: #020817">Sharing &amp; privacy</h1>
+  </div>
+
+  <main id="main" style="flex: 1; display: flex; flex-direction: column; padding: 0 16px 32px">
+
+    <h2 style="margin: 0; padding-top: 21px; font-size: 14px; line-height: 19px; font-weight: 600; text-transform: uppercase; letter-spacing: .025em; color: #8A7560">Who can follow you</h2>
+    <div role="radiogroup" aria-label="Who can follow you" style="display: flex; flex-direction: column; gap: 3.5px">
+      <button type="button" role="radio" aria-checked="true" style="min-height: 44px; display: flex; align-items: center; gap: 10.5px; padding: 7px 0; border: none; background: transparent; font: inherit; text-align: left; color: #020817">
+        <span style="width: 17.5px; height: 17.5px; box-sizing: border-box; flex: none; border-radius: 9999px; border: 2px solid #944A00; display: flex; align-items: center; justify-content: center"><span style="width: 8.75px; height: 8.75px; border-radius: 9999px; background: #944A00"></span></span>
+        <span style="flex: 1; min-width: 0; font-size: 17px; line-height: 24px">Private — you approve each follower</span>
+      </button>
+      <button type="button" role="radio" aria-checked="false" style="min-height: 44px; display: flex; align-items: center; gap: 10.5px; padding: 7px 0; border: none; background: transparent; font: inherit; text-align: left; color: #020817">
+        <span style="width: 17.5px; height: 17.5px; box-sizing: border-box; flex: none; border-radius: 9999px; border: 2px solid #E2E8F0"></span>
+        <span style="flex: 1; min-width: 0; font-size: 17px; line-height: 24px">Public — anyone on Chefer can follow you</span>
+      </button>
+    </div>
+
+    <h2 style="margin: 0; padding-top: 21px; font-size: 14px; line-height: 19px; font-weight: 600; text-transform: uppercase; letter-spacing: .025em; color: #8A7560">How others will see you</h2>
+    <div style="display: flex; flex-direction: column; gap: 10.5px">
+      <div style="display: flex; flex-direction: column; gap: 3.5px">
+        <label for="fs-first" style="font-size: 16px; line-height: 22px; font-weight: 500">First name</label>
+        <input id="fs-first" value="Dan" autocomplete="given-name" style="min-height: 44px; box-sizing: border-box; width: 100%; border: 1px solid #E2E8F0; border-radius: 5.25px; padding: 7px 10.5px; font: inherit; font-size: 17px; color: #020817; background: #FFFFFF">
+      </div>
+      <div style="display: flex; flex-direction: column; gap: 3.5px">
+        <label for="fs-last" style="font-size: 16px; line-height: 22px; font-weight: 500">Last name</label>
+        <input id="fs-last" value="Reed" autocomplete="family-name" style="min-height: 44px; box-sizing: border-box; width: 100%; border: 1px solid #E2E8F0; border-radius: 5.25px; padding: 7px 10.5px; font: inherit; font-size: 17px; color: #020817; background: #FFFFFF">
+      </div>
+    </div>
+
+    <h2 style="margin: 0; padding-top: 21px; font-size: 14px; line-height: 19px; font-weight: 600; text-transform: uppercase; letter-spacing: .025em; color: #8A7560">What followers can see</h2>
+    <div style="display: flex; flex-direction: column; gap: 3.5px">
+      <div style="min-height: 44px; display: flex; align-items: center; gap: 10.5px; padding: 3.5px 0">
+        <span style="flex: 1; min-width: 0; font-size: 17px; line-height: 24px">This week’s meal plan</span>
+        <button type="button" role="switch" aria-checked="true" aria-label="This week’s meal plan" style="width: 51px; height: 31px; flex: none; border: none; border-radius: 9999px; background: #944A00; padding: 2px; display: flex; justify-content: flex-end"><span style="width: 27px; height: 27px; border-radius: 9999px; background: #FFFFFF; box-shadow: 0 1px 3px rgba(0,0,0,.2)"></span></button>
+      </div>
+      <div style="min-height: 44px; display: flex; align-items: center; gap: 10.5px; padding: 3.5px 0">
+        <span style="flex: 1; min-width: 0; font-size: 17px; line-height: 24px">Recipes you’ve written or imported</span>
+        <button type="button" role="switch" aria-checked="true" aria-label="Recipes you’ve written or imported" style="width: 51px; height: 31px; flex: none; border: none; border-radius: 9999px; background: #944A00; padding: 2px; display: flex; justify-content: flex-end"><span style="width: 27px; height: 27px; border-radius: 9999px; background: #FFFFFF; box-shadow: 0 1px 3px rgba(0,0,0,.2)"></span></button>
+      </div>
+      <div style="min-height: 44px; display: flex; align-items: center; gap: 10.5px; padding: 3.5px 0">
+        <span style="flex: 1; min-width: 0; font-size: 17px; line-height: 24px">Your routine and workouts</span>
+        <button type="button" role="switch" aria-checked="true" aria-label="Your routine and workouts" style="width: 51px; height: 31px; flex: none; border: none; border-radius: 9999px; background: #944A00; padding: 2px; display: flex; justify-content: flex-end"><span style="width: 27px; height: 27px; border-radius: 9999px; background: #FFFFFF; box-shadow: 0 1px 3px rgba(0,0,0,.2)"></span></button>
+      </div>
+      <div style="min-height: 44px; display: flex; align-items: center; gap: 10.5px; padding: 3.5px 0">
+        <span style="flex: 1; min-width: 0; display: flex; flex-direction: column"><span style="font-size: 17px; line-height: 24px">Your daily targets</span><span style="font-size: 14px; line-height: 19px; color: #8A7560">Calorie and macro targets, next to your meal plan.</span></span>
+        <button type="button" role="switch" aria-checked="false" aria-label="Your daily targets" style="width: 51px; height: 31px; flex: none; border: none; border-radius: 9999px; background: #D1D5DB; padding: 2px; display: flex; justify-content: flex-start"><span style="width: 27px; height: 27px; border-radius: 9999px; background: #FFFFFF; box-shadow: 0 1px 3px rgba(0,0,0,.2)"></span></button>
+      </div>
+    </div>
+    <a href="FriendProfile.dc.html" style="min-height: 44px; display: flex; align-items: center; gap: 7px; padding: 7px 0; color: #020817; text-decoration: none">
+      <span style="flex: 1; min-width: 0; font-size: 17px; line-height: 24px">See what followers see</span>
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#9CA3AF" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 5l7 7-7 7"></path></svg>
+    </a>
+
+    <h2 style="margin: 0; padding-top: 21px; font-size: 14px; line-height: 19px; font-weight: 600; text-transform: uppercase; letter-spacing: .025em; color: #8A7560">Safety</h2>
+    <a href="FriendsBlocked.dc.html" style="min-height: 44px; display: flex; align-items: center; gap: 7px; padding: 7px 0; color: #020817; text-decoration: none">
+      <span style="flex: 1; min-width: 0; font-size: 17px; line-height: 24px">Blocked people (2)</span>
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#9CA3AF" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 5l7 7-7 7"></path></svg>
+    </a>
+
+    <div style="margin-top: 14px; border-top: 1px solid #E2E8F0; padding-top: 7px">
+      <button type="button" style="width: 100%; min-height: 44px; padding: 7px 0; border: none; background: transparent; font: inherit; text-align: left; font-size: 17px; line-height: 24px; font-weight: 500; color: #EF4444">Turn off Following</button>
+    </div>
+  </main>
+
+  <div style="height: 34px; flex: none"></div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":991}}'>
+class Component extends DCLogic {
+renderVals() {
+return {};
+}
+}
+</script>
+</body>
+</html>

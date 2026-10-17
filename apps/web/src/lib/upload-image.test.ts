@@ -36,23 +36,42 @@ function fileOfSize(bytes: number, type = 'image/jpeg'): File {
 }
 
 describe('T-BUG-O1 uploadImage error sentences', () => {
-  it('rejects with the too-big sentence before any network call when over 10 MB', async () => {
+  // Phase 1 guardrails: the limit is 5 MB again (photos are resized in the
+  // browser first; these zero-byte "photos" do not decode, so the original
+  // file is what the size check sees — the fallback path).
+  it('rejects with the too-big sentence before any network call when over 5 MB', async () => {
     const fetchMock = vi.fn();
     vi.stubGlobal('fetch', fetchMock);
 
-    await expect(uploadImage(fileOfSize(10 * 1024 * 1024 + 1))).rejects.toThrow(TOO_BIG);
+    await expect(uploadImage(fileOfSize(5 * 1024 * 1024 + 1))).rejects.toThrow(TOO_BIG);
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
-  it('uploads a 10 MB file (the new limit) without the pre-check firing', async () => {
+  it('uploads a 5 MB file (the limit) without the pre-check firing', async () => {
     const fetchMock = vi
       .fn()
       .mockResolvedValue(jsonResponse(201, { url: 'https://api.test/uploads/x.jpg' }));
     vi.stubGlobal('fetch', fetchMock);
 
-    await expect(uploadImage(fileOfSize(10 * 1024 * 1024))).resolves.toBe(
+    await expect(uploadImage(fileOfSize(5 * 1024 * 1024))).resolves.toBe(
       'https://api.test/uploads/x.jpg',
     );
+  });
+
+  it('uploads the resized photo, not the original', async () => {
+    const resized = new File([new Uint8Array(10)], 'photo.jpg', { type: 'image/jpeg' });
+    const resize = await import('./resize-image');
+    const spy = vi.spyOn(resize, 'resizeImageForUpload').mockResolvedValue(resized);
+    const fetchMock = vi
+      .fn<[string, RequestInit], Promise<Response>>()
+      .mockResolvedValue(jsonResponse(201, { url: 'https://api.test/uploads/y.jpg' }));
+    vi.stubGlobal('fetch', fetchMock);
+
+    await uploadImage(fileOfSize(8 * 1024 * 1024, 'image/png'));
+    const init = fetchMock.mock.calls[0]?.[1] ?? {};
+    expect(init.body).toBe(resized);
+    expect(new Headers(init.headers).get('content-type')).toBe('image/jpeg');
+    spy.mockRestore();
   });
 
   it('maps a 413 with the { code, message } object body to the too-big sentence, never [object Object]', async () => {

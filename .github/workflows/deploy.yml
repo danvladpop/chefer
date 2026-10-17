@@ -5,9 +5,9 @@ name: Deploy
 #   • CLI      → gh workflow run deploy.yml
 #   • Auto     → any push to master that touches code
 #
-# Images are built HERE (4 vCPU / 16 GB runner) and pushed to GHCR; the 1 GB
-# production VM only pulls them. Building on the VM takes 15-40 min, so this is
-# both the "one button" and the speed fix.
+# Images are built HERE (native amd64 + arm64 runners) and pushed to GHCR as
+# one multi-arch tag; the production VM only pulls them. Building on the VM
+# takes 15-40 min, so this is both the "one button" and the speed fix.
 
 on:
   push:
@@ -69,7 +69,7 @@ jobs:
         run: |
           set -euo pipefail
           # Exact job names from ci.yml — update both files together.
-          required=("Lint" "Type Check" "Unit Tests" "Build")
+          required=("Lint" "Format" "Type Check" "Unit Tests" "Build")
           echo "Waiting for CI on ${{ github.sha }}: ${required[*]}"
           for attempt in $(seq 1 80); do  # 80 × 15 s = 20 min
             json=$(gh api "repos/${{ github.repository }}/commits/${{ github.sha }}/check-runs?per_page=100" \
@@ -100,23 +100,36 @@ jobs:
           echo "::error::Timed out waiting for CI after 20 min"
           exit 1
 
-  # ─── Build both images in parallel ──────────────────────────────────────────
+  # ─── Build both images, natively for each CPU ───────────────────────────────
+  # Multi-arch (Phase 3, 2026-10-11): production is moving from the 1 GB AMD
+  # micro VM to the free Ampere A1 (ARM) shape, so every image is published
+  # for linux/amd64 AND linux/arm64 under one tag; each server pulls its own.
+  # Each platform builds on a native runner (ubuntu-24.04-arm is free for
+  # public repos) — QEMU emulation would make the Next.js build 5-10× slower.
+  # Pattern from docs.docker.com "Distribute build across multiple runners":
+  # push each platform by digest, then `merge` joins them into one manifest.
   build:
-    name: Build ${{ matrix.app }}
+    name: Build ${{ matrix.app }} (${{ matrix.arch }})
     needs: [setup, gate]
     if: needs.setup.outputs.build == 'true'
-    runs-on: ubuntu-latest
+    runs-on: ${{ matrix.runner }}
     permissions:
       contents: read
       packages: write
     strategy:
       fail-fast: true
       matrix:
+        app: [api, web]
+        arch: [amd64, arm64]
         include:
           - app: api
             dockerfile: infrastructure/docker/Dockerfile.api
           - app: web
             dockerfile: infrastructure/docker/Dockerfile.web
+          - arch: amd64
+            runner: ubuntu-latest
+          - arch: arm64
+            runner: ubuntu-24.04-arm
     steps:
       - uses: actions/checkout@v4
 
@@ -129,15 +142,14 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Build and push
+      - name: Build and push by digest
+        id: build
         uses: docker/build-push-action@v6
         with:
           context: .
           file: ${{ matrix.dockerfile }}
-          push: true
-          tags: |
-            ghcr.io/${{ github.repository_owner }}/chefer-${{ matrix.app }}:latest
-            ghcr.io/${{ github.repository_owner }}/chefer-${{ matrix.app }}:${{ needs.setup.outputs.tag }}
+          platforms: linux/${{ matrix.arch }}
+          outputs: type=image,name=ghcr.io/${{ github.repository_owner }}/chefer-${{ matrix.app }},push-by-digest=true,name-canonical=true,push=true
           # NEXT_PUBLIC_* are baked into the web bundle at BUILD time, so they must
           # be supplied here (public URLs → repo Variables, not Secrets). If the
           # public URL ever changes, update these Variables — editing
@@ -146,20 +158,73 @@ jobs:
             NEXT_PUBLIC_API_URL=${{ vars.NEXT_PUBLIC_API_URL || 'https://chefer.duckdns.org' }}
             NEXT_PUBLIC_APP_URL=${{ vars.NEXT_PUBLIC_APP_URL || 'https://chefer.duckdns.org' }}
             NEXT_PUBLIC_APP_NAME=${{ vars.NEXT_PUBLIC_APP_NAME || 'Chefer' }}
-          cache-from: type=gha,scope=${{ matrix.app }}
-          cache-to: type=gha,scope=${{ matrix.app }},mode=max
+          cache-from: type=gha,scope=${{ matrix.app }}-${{ matrix.arch }}
+          cache-to: type=gha,scope=${{ matrix.app }}-${{ matrix.arch }},mode=max
+
+      - name: Export digest
+        run: |
+          mkdir -p /tmp/digests
+          digest="${{ steps.build.outputs.digest }}"
+          touch "/tmp/digests/${digest#sha256:}"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: digests-${{ matrix.app }}-${{ matrix.arch }}
+          path: /tmp/digests/*
+          if-no-files-found: error
+          retention-days: 1
+
+  # ─── Join the per-CPU images into one multi-arch tag ────────────────────────
+  merge:
+    name: Publish ${{ matrix.app }}
+    needs: [setup, build]
+    if: needs.setup.outputs.build == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      packages: write
+    strategy:
+      fail-fast: true
+      matrix:
+        app: [api, web]
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: /tmp/digests
+          pattern: digests-${{ matrix.app }}-*
+          merge-multiple: true
+
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Create the manifest list and push both tags
+        working-directory: /tmp/digests
+        run: |
+          set -euo pipefail
+          image="ghcr.io/${{ github.repository_owner }}/chefer-${{ matrix.app }}"
+          docker buildx imagetools create \
+            -t "$image:latest" \
+            -t "$image:${{ needs.setup.outputs.tag }}" \
+            $(printf "$image@sha256:%s " *)
+          docker buildx imagetools inspect "$image:${{ needs.setup.outputs.tag }}"
 
   # ─── Deploy to the VM over SSH ──────────────────────────────────────────────
   deploy:
     name: Deploy to VM
-    needs: [setup, gate, build]
+    needs: [setup, gate, build, merge]
     # Runs even when gate+build were skipped (rollback path: build=false).
     # A FAILED gate must block — a failed dependency only auto-skips build,
     # and always() would otherwise let the deploy proceed around it.
     if: |
       always() && needs.setup.result == 'success' &&
       (needs.gate.result == 'success' || needs.gate.result == 'skipped') &&
-      (needs.build.result == 'success' || needs.build.result == 'skipped')
+      (needs.build.result == 'success' || needs.build.result == 'skipped') &&
+      (needs.merge.result == 'success' || needs.merge.result == 'skipped')
     runs-on: ubuntu-latest
     steps:
       # Without this, missing secrets produce ssh's usage dump, which reads like
@@ -262,6 +327,10 @@ jobs:
     env:
       EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
       EXPO_APPLE_TEAM_ID: ${{ vars.EXPO_APPLE_TEAM_ID }}
+      # WP-22: part of the iOS runtime fingerprint, like the team id — must
+      # equal the value the store binary was built with (optional repo VARIABLE;
+      # empty = no Google URL scheme, as in a build without it).
+      GOOGLE_IOS_URL_SCHEME: ${{ vars.GOOGLE_IOS_URL_SCHEME }}
     steps:
       - name: Check credentials
         id: creds

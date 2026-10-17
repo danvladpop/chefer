@@ -43,6 +43,7 @@ export function LogWeightPrompt({ testID = 'log-weight-prompt' }: { testID?: str
     }
     setError(null);
     setDeclined(false);
+    Keyboard.dismiss();
     // "Don't save it": nothing is stored; the typed value stays in the field.
     requestHealthConsent(() => logWeight.mutate({ weightKg: parsed.kg }), {
       onDeclined: () => setDeclined(true),
@@ -51,7 +52,7 @@ export function LogWeightPrompt({ testID = 'log-weight-prompt' }: { testID?: str
 
   return (
     <View testID={testID} className="items-center gap-2 py-4">
-      <Text variant="muted" className="text-center">
+      <Text className="text-center text-subhead text-label-secondary">
         No bodyweight logged yet.
       </Text>
       <View className="flex-row gap-2">
@@ -62,6 +63,7 @@ export function LogWeightPrompt({ testID = 'log-weight-prompt' }: { testID?: str
             setValue(text);
             setError(null);
           }}
+          returnKeyType="done"
           onSubmitEditing={submit}
           keyboardType="decimal-pad"
           inputAccessoryViewID={barId}
@@ -83,7 +85,7 @@ export function LogWeightPrompt({ testID = 'log-weight-prompt' }: { testID?: str
         onPress={() => Keyboard.dismiss()}
       />
       {error && (
-        <Text testID={`${testID}-error`} className="text-xs text-red-600">
+        <Text testID={`${testID}-error`} className="text-caption text-danger">
           {error}
         </Text>
       )}

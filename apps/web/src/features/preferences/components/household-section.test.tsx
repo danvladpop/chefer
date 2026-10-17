@@ -142,6 +142,38 @@ describe('HouseholdSection', () => {
     );
   });
 
+  it('UX-PLAN-12: a kid gets age chips that pre-fill the portion and are sent with the member', () => {
+    render(<HouseholdSection isPremium={false} ownerSafety={owner} />);
+    fireEvent.click(screen.getByRole('button', { name: '+ add a kid' }));
+    fireEvent.click(screen.getByRole('button', { name: /Add a kid — free/ }));
+    expect(screen.getByTestId('member-age-group')).toBeTruthy();
+    fireEvent.change(screen.getByLabelText('Name'), { target: { value: 'Ana' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Age 14–17' }));
+    expect(screen.getByRole('button', { name: 'Age 14–17' }).getAttribute('aria-pressed')).toBe(
+      'true',
+    );
+    // Pre-filled to 1¼, still adjustable.
+    expect(screen.getByRole('button', { name: '1¼ · hearty' }).getAttribute('aria-pressed')).toBe(
+      'true',
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'Add to my table' }));
+    expect(m.add).toHaveBeenCalledWith(
+      expect.objectContaining({ name: 'Ana', isKid: true, ageBand: 'TEEN', portionFactor: 1.25 }),
+    );
+  });
+
+  it('UX-PLAN-12: age chips are hidden for a non-kid, and the stored band shows on the member', () => {
+    m.members = [{ ...sam, ageBand: 'CHILD' }];
+    render(<HouseholdSection isPremium={false} ownerSafety={owner} />);
+    expect(screen.getByText(/4–8 · /)).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: 'Edit Sam' }));
+    expect(screen.getByRole('button', { name: 'Age 4–8' }).getAttribute('aria-pressed')).toBe(
+      'true',
+    );
+    fireEvent.click(screen.getByLabelText('This is a kid'));
+    expect(screen.queryByTestId('member-age-group')).toBeNull();
+  });
+
   it('a free table with members can edit them and sees the scaling upsell', () => {
     m.members = [sam];
     render(<HouseholdSection isPremium={false} ownerSafety={owner} />);

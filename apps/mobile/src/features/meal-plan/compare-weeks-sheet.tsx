@@ -2,6 +2,7 @@ import { ActivityIndicator, View } from 'react-native';
 import { Sheet, Text } from '@chefer/ui-mobile';
 import { formatKcal, sumPlanDay, weekdayLongName } from '@chefer/utils';
 import { trpc } from '../../lib/trpc';
+import { useNumbersMode } from '../numbers-mode/numbers-mode';
 
 // The compare sheet behind `What Premium changed`: the free week the
 // regeneration replaced next to the new one, day by day — kcal and protein
@@ -32,8 +33,11 @@ export function compareRows(before: WeekLike | null | undefined, after: WeekLike
   })).filter((r) => r.before !== null || r.after !== null);
 }
 
-const cell = (t: { kcal: number; protein: number } | null): string =>
-  t ? `${formatKcal(t.kcal)} kcal · ${t.protein} g` : '—';
+const cell = (t: { kcal: number; protein: number } | null, proteinOnly = false): string => {
+  if (!t) return '—';
+  // WP-08: protein-only mode compares protein alone.
+  return proteinOnly ? `${t.protein} g protein` : `${formatKcal(t.kcal)} kcal · ${t.protein} g`;
+};
 
 export function CompareWeeksSheet({
   visible,
@@ -46,6 +50,7 @@ export function CompareWeeksSheet({
   previousPlanId: string | undefined;
   current: WeekLike;
 }) {
+  const { proteinOnly } = useNumbersMode();
   const { data, isLoading, isError } = trpc.mealPlan.getById.useQuery(
     { planId: previousPlanId ?? '' },
     { enabled: visible && !!previousPlanId, retry: false },
@@ -87,8 +92,12 @@ export function CompareWeeksSheet({
               <Text className="w-20 text-sm font-medium text-gray-700">
                 {weekdayLongName(r.dayOfWeek).slice(0, 3)}
               </Text>
-              <Text className="min-w-0 flex-1 text-xs text-gray-600">{cell(r.before)}</Text>
-              <Text className="min-w-0 flex-1 text-xs text-gray-900">{cell(r.after)}</Text>
+              <Text className="min-w-0 flex-1 text-xs text-gray-600">
+                {cell(r.before, proteinOnly)}
+              </Text>
+              <Text className="min-w-0 flex-1 text-xs text-gray-900">
+                {cell(r.after, proteinOnly)}
+              </Text>
             </View>
           ))}
         </View>

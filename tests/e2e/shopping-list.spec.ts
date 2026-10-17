@@ -4,8 +4,8 @@ import { gotoAndSettle } from './helpers/layout';
 // ─── Shopping list — wave-1 L-PLAN web parity (T-08.9) ────────────────────────
 // Default week (shared with Plan, bug B-13), the estimated total as a price
 // range (not a false-precision point number), the removed "Saved ~X this
-// week" chip (bug B-33), and the partial-pantry-coverage line (bug B-24)
-// when the seeded account happens to have a partially-covered item.
+// week" chip (bug B-33). FB7-10 retired the pantry coverage line (bug B-24) with
+// the pantry, and added the provenance line.
 
 test.describe('Shop — default week (bug B-13, T-08.9)', () => {
   test('Shop defaults via the SAME defaultWeekOffset/getWeekStartDate Plan uses', async ({
@@ -53,15 +53,14 @@ test.describe('Shop — price range, no savings chip (T-08.9, bug B-33)', () => 
   });
 });
 
-test.describe('Shop — partial pantry coverage line (bug B-24, T-08.4)', () => {
-  test('a partially-covered item says "You have N of M"', async ({ page }) => {
+test.describe('Shop — provenance, no kitchen (FB7-10)', () => {
+  test('says where the list comes from, and has no "In my kitchen" segment or AI button', async ({
+    page,
+  }) => {
     await gotoAndSettle(page, '/shopping-list');
-
-    const coverageLine = page.locator('[data-testid^="shopping-item-coverage-"]').first();
-    if (!(await coverageLine.isVisible().catch(() => false))) {
-      test.skip(true, 'No partially-covered item on the seeded account this week.');
-      return;
-    }
-    await expect(coverageLine).toHaveText(/You have .+ of .+ · Buy .+/);
+    await expect(page.getByTestId('shop-provenance')).toHaveText(/^From your plan's recipes · /);
+    await expect(page.getByTestId('shop-segment-kitchen')).toHaveCount(0);
+    await expect(page.getByText('In my kitchen')).toHaveCount(0);
+    await expect(page.getByRole('button', { name: /Regenerate list/ })).toHaveCount(0);
   });
 });

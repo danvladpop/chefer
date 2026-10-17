@@ -1,20 +1,17 @@
 import { useState } from 'react';
 import { Pressable, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { Text } from '@chefer/ui-mobile';
+import { Button, Text } from '@chefer/ui-mobile';
 import { cn, isPendingFresh, rebalanceBannerCopy, undoOperations } from '@chefer/utils';
 import { trpc } from '../../lib/trpc';
-import { clearPendingRebalance, usePendingRebalance } from './rebalance-store';
+import { clearPendingRebalance, isMealType, usePendingRebalance } from './rebalance-store';
 
 // Week-rebalance banner (F4, audit TRK-3) — mobile counterpart of web's
 // meal-plan RebalanceBanner. Unlike web it also renders on the surface where
 // the log happened (tracker, cook finish), so the user learns about the swap
 // right away (F-TRK-3-2). Undo replays each slot's previous recipe through
-// mealPlan.replaceRecipe; every mounted banner shares one store.
-
-const MEAL_TYPES = ['breakfast', 'lunch', 'dinner', 'snack'] as const;
-type MealTypeName = (typeof MEAL_TYPES)[number];
-const isMealType = (v: string): v is MealTypeName => (MEAL_TYPES as readonly string[]).includes(v);
+// mealPlan.replaceRecipe; every mounted banner shares one store. The Undo
+// action sits UNDER the text, not squeezed beside it (WP-07, UX-PLAN-09).
 
 export interface RebalanceBannerProps {
   /** When set (Plan tab), only swaps for the displayed plan show. */
@@ -47,7 +44,9 @@ export function RebalanceBanner({ planId, onUndone, className }: RebalanceBanner
         if (!isMealType(op.mealType)) {
           continue; // defensive — slots are always one of the four
         }
-        await replaceMutation.mutateAsync({ ...op, mealType: op.mealType });
+        // Only unpinned slots are ever rebalanced, so the restored recipe goes
+        // back unpinned too (replaceRecipe would otherwise pin it as "your pick").
+        await replaceMutation.mutateAsync({ ...op, mealType: op.mealType, pinned: false });
       }
       clearPendingRebalance();
       void utils.mealPlan.getForWeek.invalidate();
@@ -67,12 +66,12 @@ export function RebalanceBanner({ planId, onUndone, className }: RebalanceBanner
       testID="rebalance-banner"
       accessibilityLiveRegion="polite"
       className={cn(
-        'flex-row items-center gap-2 rounded-2xl border border-primary/20 bg-accent py-2 pl-3 pr-1',
+        'flex-row items-start gap-2 rounded-2xl border border-primary/20 bg-accent py-1 pl-3 pr-1',
         className,
       )}
     >
-      <Ionicons name="color-wand-outline" size={18} color="#944a00" />
-      <View className="min-w-0 flex-1">
+      <Ionicons name="color-wand-outline" size={18} color="#944a00" style={{ marginTop: 12 }} />
+      <View className="min-w-0 flex-1 py-2">
         <Text testID="rebalance-banner-text" className="text-sm text-gray-800">
           {rebalanceBannerCopy(pending.swaps)}
         </Text>
@@ -81,19 +80,21 @@ export function RebalanceBanner({ planId, onUndone, className }: RebalanceBanner
             Undo failed — please try again.
           </Text>
         )}
+        <Button
+          testID="rebalance-undo"
+          variant="ghost"
+          size="sm"
+          className="-ml-3 self-start"
+          accessibilityLabel="Undo meal plan changes"
+          disabled={undoing}
+          onPress={() => void undo()}
+        >
+          <Ionicons name="arrow-undo-outline" size={16} color="#944a00" />
+          <Text className="text-sm font-semibold text-primary">
+            {undoing ? 'Undoing…' : 'Undo'}
+          </Text>
+        </Button>
       </View>
-      <Pressable
-        testID="rebalance-undo"
-        accessibilityRole="button"
-        accessibilityLabel="Undo meal plan changes"
-        accessibilityState={{ disabled: undoing, busy: undoing }}
-        disabled={undoing}
-        onPress={() => void undo()}
-        className={cn('h-11 flex-row items-center gap-1 rounded-xl px-2', undoing && 'opacity-50')}
-      >
-        <Ionicons name="arrow-undo-outline" size={16} color="#944a00" />
-        <Text className="text-sm font-semibold text-primary">{undoing ? 'Undoing…' : 'Undo'}</Text>
-      </Pressable>
       <Pressable
         testID="rebalance-dismiss"
         accessibilityRole="button"

@@ -32,7 +32,7 @@ import type { ActivityLevel, BiologicalSex } from '../types';
 
 // ─── Activity level options ───────────────────────────────────────────────────
 
-const ACTIVITY_OPTIONS: { value: ActivityLevel; label: string; description: string }[] = [
+export const ACTIVITY_OPTIONS: { value: ActivityLevel; label: string; description: string }[] = [
   { value: 'SEDENTARY', label: 'Sedentary', description: 'Little or no exercise, desk job' },
   {
     value: 'LIGHTLY_ACTIVE',

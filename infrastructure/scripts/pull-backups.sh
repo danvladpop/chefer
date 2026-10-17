@@ -14,12 +14,26 @@ set -euo pipefail
 SSH_HOST="${CHEFER_SSH_HOST:-chefer}"
 REMOTE_DIR="chefer-backups"
 MIRROR_DIR="${CHEFER_BACKUP_MIRROR:-$HOME/chefer-backups-mirror}"
+# Uploaded/generated images, copied nightly on the VM by backup-db.sh.
+REMOTE_UPLOADS_DIR="chefer-uploads"
+UPLOADS_MIRROR_DIR="${CHEFER_UPLOADS_MIRROR:-$HOME/chefer-uploads-mirror}"
 KEEP=30
 
 mkdir -p "$MIRROR_DIR"
 
 echo "[$(date '+%Y-%m-%d %H:%M:%S')] pulling $SSH_HOST:$REMOTE_DIR → $MIRROR_DIR"
 rsync -az --timeout=60 "$SSH_HOST:$REMOTE_DIR/" "$MIRROR_DIR/"
+
+# Images: incremental and additive (no --delete), so the mirror also keeps
+# files a later sweep removed on the VM. Skipped quietly until the VM's
+# backup-db.sh has run once with the uploads copy.
+mkdir -p "$UPLOADS_MIRROR_DIR"
+if ssh "$SSH_HOST" test -d "$REMOTE_UPLOADS_DIR"; then
+  rsync -az --timeout=120 "$SSH_HOST:$REMOTE_UPLOADS_DIR/" "$UPLOADS_MIRROR_DIR/"
+  echo "uploads mirror: $(du -sh "$UPLOADS_MIRROR_DIR" | cut -f1)"
+else
+  echo "WARNING: $SSH_HOST:$REMOTE_UPLOADS_DIR not found — has backup-db.sh run since the uploads copy was added?" >&2
+fi
 
 # Local retention: keep more than the VM's 14 so the mirror also covers
 # dumps the VM has already rotated out.

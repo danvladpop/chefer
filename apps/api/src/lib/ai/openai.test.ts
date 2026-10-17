@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { runWithAiCallContext } from './call-context.js';
 import { DAY_PLAN_JSON_SCHEMA, isBackgroundCall, OpenAICompatibleAIService } from './openai.js';
-import type { MealPlanInput, RecipeData, ShoppingListInput, SwapInput } from './types.js';
+import type { MealPlanInput, RecipeData, SwapInput } from './types.js';
 
 // Fixture responses only — no live calls (§8 AI-cost rule).
 
@@ -68,7 +68,8 @@ const SWAP_INPUT: SwapInput = {
   preferences: { dietaryRestrictions: [], allergies: [], cuisinePreferences: [] },
 };
 
-const SHOP_INPUT: ShoppingListInput = { ingredients: [], weekLabel: 'this week' };
+/** A background op (isBackgroundCall): the price worker's batch. */
+const PRICE_NAMES = ['egg'];
 
 let fetchMock: ReturnType<typeof vi.fn>;
 
@@ -471,7 +472,7 @@ describe('OpenAICompatibleAIService — reasoning effort', () => {
   it('omits it when not configured (non-reasoning models reject it)', async () => {
     fetchMock.mockResolvedValueOnce(completion({ items: [] }));
     const svc = new OpenAICompatibleAIService(BASE);
-    await svc.generateShoppingList(SHOP_INPUT);
+    await svc.estimateIngredientPrices(PRICE_NAMES);
     expect(body(fetchMock)).not.toHaveProperty('reasoning_effort');
   });
 });
@@ -481,7 +482,7 @@ describe('OpenAICompatibleAIService — 429 handling (background vs interactive)
     new Response(text, { status: 429, headers });
 
   it('classifies background calls: background ops, no user context, shadow replays', () => {
-    expect(isBackgroundCall('generateShoppingList')).toBe(true);
+    expect(isBackgroundCall('estimateIngredientPrices')).toBe(true);
     expect(isBackgroundCall('generateRecipeSwap')).toBe(true); // no context = worker/script
     runWithAiCallContext({ userId: 'u', premium: true }, () => {
       expect(isBackgroundCall('generateRecipeSwap')).toBe(false);
@@ -499,9 +500,7 @@ describe('OpenAICompatibleAIService — 429 handling (background vs interactive)
     fetchMock.mockResolvedValueOnce(rateLimited());
     fetchMock.mockResolvedValueOnce(completion({ items: [] }));
     const svc = new OpenAICompatibleAIService({ ...BASE, sleep });
-    await expect(svc.generateShoppingList(SHOP_INPUT)).resolves.toEqual({
-      items: [],
-    });
+    await expect(svc.estimateIngredientPrices(PRICE_NAMES)).resolves.toEqual([]);
     expect(sleep).toHaveBeenCalledWith(3250);
     expect(fetchMock).toHaveBeenCalledTimes(2);
   });
@@ -511,7 +510,7 @@ describe('OpenAICompatibleAIService — 429 handling (background vs interactive)
     fetchMock.mockResolvedValueOnce(rateLimited({}, 'Please try again in 4.5s.'));
     fetchMock.mockResolvedValueOnce(completion({ items: [] }));
     const svc = new OpenAICompatibleAIService({ ...BASE, sleep });
-    await svc.generateShoppingList(SHOP_INPUT);
+    await svc.estimateIngredientPrices(PRICE_NAMES);
     expect(sleep).toHaveBeenCalledWith(4750);
   });
 
@@ -520,13 +519,13 @@ describe('OpenAICompatibleAIService — 429 handling (background vs interactive)
     fetchMock.mockResolvedValueOnce(rateLimited());
     fetchMock.mockResolvedValueOnce(rateLimited());
     const svc = new OpenAICompatibleAIService({ ...BASE, sleep });
-    await expect(svc.generateShoppingList(SHOP_INPUT)).rejects.toMatchObject({
+    await expect(svc.estimateIngredientPrices(PRICE_NAMES)).rejects.toMatchObject({
       status: 429,
     });
     expect(fetchMock).toHaveBeenCalledTimes(2);
 
     fetchMock.mockResolvedValueOnce(rateLimited({ 'retry-after': '45' }));
-    await expect(svc.generateShoppingList(SHOP_INPUT)).rejects.toMatchObject({
+    await expect(svc.estimateIngredientPrices(PRICE_NAMES)).rejects.toMatchObject({
       status: 429,
       retryAfterMs: 45_000,
     });

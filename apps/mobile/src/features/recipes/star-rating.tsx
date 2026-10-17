@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { Pressable, View, type TextInput } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { Button, Card, Chip, Input, Text, useScrollFieldIntoView } from '@chefer/ui-mobile';
+import { Chip, Input, Text, useScrollFieldIntoView, useThemeColors } from '@chefer/ui-mobile';
 import {
   cn,
   composeNotesWithLikedBy,
@@ -10,10 +10,12 @@ import {
   stripLikedBy,
   userFacingErrorMessage,
 } from '@chefer/utils';
+import { Icon } from '../../components/icon';
 import { useIsPremium } from '../../hooks/use-is-premium';
 import { trpc } from '../../lib/trpc';
 import { useNudge } from '../premium/nudge-cap';
 import { openPremium } from '../premium/open-premium';
+import { TrainButton } from '../shell/train/train-button';
 
 // Star rating — mobile counterpart of web's StarRatingWidget. Ratings feed
 // next week's generation (P1-1); the optional "Who liked it" chips (F2) are
@@ -38,6 +40,7 @@ export function StarRating({
   className,
 }: StarRatingProps) {
   const isPremium = useIsPremium();
+  const colors = useThemeColors();
   const notesRef = useRef<TextInput>(null);
   const scrollFieldIntoView = useScrollFieldIntoView();
   const { data: existing, isSuccess } = trpc.recipe.getMyRating.useQuery({ recipeId });
@@ -91,14 +94,15 @@ export function StarRating({
   };
 
   return (
-    <Card testID="star-rating" className={cn('gap-3', className)}>
+    <View
+      testID="star-rating"
+      className={cn('gap-3 rounded-card border border-separator bg-surface p-4', className)}
+    >
       <View className="gap-0.5">
-        <Text variant="heading">{title}</Text>
-        {hint ? (
-          <Text variant="muted" className="text-xs">
-            {hint}
-          </Text>
-        ) : null}
+        <Text accessibilityRole="header" className="text-headline font-semibold text-label">
+          {title}
+        </Text>
+        {hint ? <Text className="text-subhead text-label-secondary">{hint}</Text> : null}
       </View>
 
       {/* Star row — each star pads its hit area to 44pt */}
@@ -119,13 +123,13 @@ export function StarRating({
               <Ionicons
                 name={filled ? 'star' : 'star-outline'}
                 size={28}
-                color={filled ? '#fbbf24' : '#d1d5db'}
+                color={filled ? colors.attention : colors.labelTertiary}
               />
             </Pressable>
           );
         })}
         {selected > 0 && (
-          <Text testID="star-rating-label" className="ml-2 text-sm text-gray-500">
+          <Text testID="star-rating-label" className="ml-2 text-subhead text-label-secondary">
             {RATING_LABELS[selected]}
           </Text>
         )}
@@ -134,7 +138,7 @@ export function StarRating({
       {/* Who liked it (F2) — optional member chips, stored in the notes */}
       {members.length > 0 && (
         <View className="gap-1.5">
-          <Text className="text-xs font-medium text-gray-500">Who liked it?</Text>
+          <Text className="text-caption font-semibold text-label-secondary">Who liked it?</Text>
           <View className="flex-row flex-wrap gap-1.5">
             {['Me', ...members.map((m) => m.name)].map((name) => (
               <Chip
@@ -167,8 +171,9 @@ export function StarRating({
         textAlignVertical="top"
       />
 
-      <Button
+      <TrainButton
         testID="star-rating-save"
+        label={saved ? '✓ Saved' : 'Save rating'}
         disabled={selected === 0 || saved}
         loading={rateMutation.isPending}
         onPress={() =>
@@ -178,18 +183,16 @@ export function StarRating({
             notes: composeNotesWithLikedBy(notes, likedBy),
           })
         }
-      >
-        {saved ? '✓ Saved' : 'Save rating'}
-      </Button>
+      />
       {rateMutation.isError && (
-        <Text testID="star-rating-error" className="text-xs text-red-600">
+        <Text testID="star-rating-error" className="text-caption text-danger">
           {userFacingErrorMessage(rateMutation.error)}
         </Text>
       )}
 
       {/* The P1-1 pitch at the exact moment they generated the signal */}
       {justRated && isPremium === false && <RatingNudge />}
-    </Card>
+    </View>
   );
 }
 
@@ -200,10 +203,11 @@ export function StarRating({
  */
 function RatingNudge() {
   const { visible, dismiss } = useNudge('post-rating');
+  const colors = useThemeColors();
   if (!visible) return null;
   return (
     <View testID="star-rating-nudge" className="flex-row items-center gap-2">
-      <Text className="min-w-0 flex-1 text-xs text-primary">
+      <Text className="min-w-0 flex-1 text-caption text-brand">
         Premium turns your ratings into next week&apos;s menu.
       </Text>
       <Pressable
@@ -212,7 +216,7 @@ function RatingNudge() {
         onPress={() => openPremium('post-rating')}
         className="min-h-11 justify-center"
       >
-        <Text className="text-xs font-semibold text-primary">See what Premium adds</Text>
+        <Text className="text-caption font-semibold text-brand">See what Premium adds</Text>
       </Pressable>
       <Pressable
         testID="star-rating-nudge-dismiss"
@@ -221,7 +225,7 @@ function RatingNudge() {
         onPress={dismiss}
         className="h-11 w-11 items-center justify-center"
       >
-        <Ionicons name="close" size={16} color="#9ca3af" />
+        <Icon name="close" size={16} color={colors.labelTertiary} />
       </Pressable>
     </View>
   );

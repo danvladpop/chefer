@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Setup — Your targets</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+body{margin:0}
+a{color:#944a00;text-decoration:none}a:hover{color:#6e3700}
+input::placeholder,textarea::placeholder{color:#9ca3af}
+</style>
+</helmet>
+<div style="width: 390px; height: 844px; position: relative; overflow: hidden; background: #FFFFFF; font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Helvetica Neue', system-ui, sans-serif; color: #020817; display: flex; flex-direction: column">
+  <div style="height: 47px; flex: none"></div>
+
+  <div style="flex: none; display: flex; align-items: center; gap: 7px; padding: 10.5px 14px">
+    <a href="OnbMetrics.dc.html" aria-label="Back" style="width: 44px; height: 44px; flex: none; color: #020817; display: flex; align-items: center; justify-content: center"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M11 5l-7 7 7 7M4 12h16"></path></svg></a>
+    <div style="flex: 1; min-width: 0; display: flex; flex-direction: column">
+      <span style="font-size: 14px; line-height: 19px; color: #8A7560">Step 7 of 7 · 100%</span>
+      <h1 style="margin: 0; font-size: 19px; line-height: 26px; font-weight: 600">Your targets</h1>
+    </div>
+  </div>
+  <div role="progressbar" aria-label="Setup progress" aria-valuemin="0" aria-valuemax="7" aria-valuenow="7" style="flex: none; margin: 0 14px 7px; height: 5.25px; border-radius: 9999px; background: #F3F4F6; overflow: hidden"><div style="height: 100%; width: 100%; border-radius: 9999px; background: #944A00"></div></div>
+
+  <main id="main" style="flex: 1; display: flex; flex-direction: column; gap: 14px; padding: 10.5px 14px 28px">
+    <section aria-labelledby="targets-title" style="border: 1px solid #E2E8F0; border-radius: 7px; background: #FFFFFF; padding: 14px; display: flex; flex-direction: column; gap: 14px">
+      <div style="display: flex; flex-direction: column; gap: 3.5px">
+        <h2 id="targets-title" style="margin: 0; font-size: 19px; line-height: 26px; font-weight: 600">Your targets</h2>
+        <p style="margin: 0; font-size: 14px; line-height: 19px; color: #8A7560">Suggested is computed from your body and goal; My own is never changed for you — a gym setup, weigh-in or goal edit only ever proposes a change, and you decide.</p>
+      </div>
+
+      <div role="tablist" aria-label="Target mode" style="display: flex; border-radius: 7px; background: #FAF5F0; padding: 4px">
+        <button type="button" role="tab" aria-selected="true" style="flex: 1; min-height: 44px; padding: 3.5px 10.5px; border: none; border-radius: 6px; background: #FFFFFF; box-shadow: 0 1px 2px rgba(0,0,0,.08); font: inherit; font-size: 14px; line-height: 19px; font-weight: 500; color: #020817">Suggested</button>
+        <button type="button" role="tab" aria-selected="false" style="flex: 1; min-height: 44px; padding: 3.5px 10.5px; border: none; border-radius: 5.25px; background: transparent; font: inherit; font-size: 14px; line-height: 19px; font-weight: 500; color: #8A7560">My own</button>
+      </div>
+
+      <div style="display: flex; flex-direction: column; gap: 3.5px; border-radius: 7px; background: #FCF3EA; padding: 10.5px">
+        <span style="font-size: 25px; line-height: 31px; font-weight: 700; color: #944A00">3,059 kcal</span>
+        <span style="font-size: 14px; line-height: 19px; color: #8A7560">Worked out from the details you entered. Your macros are set when you finish.</span>
+      </div>
+
+      <button type="button" style="min-height: 44px; padding: 7px 14px; box-sizing: border-box; border: none; border-radius: 5.25px; background: #944A00; color: #FCF9F5; font: inherit; font-size: 16px; line-height: 22px; font-weight: 500; display: flex; align-items: center; justify-content: center">Save targets</button>
+    </section>
+  </main>
+
+  <div style="flex: none; display: flex; flex-direction: column; gap: 7px; border-top: 1px solid #E2E8F0; background: #FFFFFF; padding: 10.5px 14px 7px">
+    <a href="OnbNudge.dc.html" style="min-height: 44px; padding: 7px 14px; box-sizing: border-box; border-radius: 5.25px; background: #944A00; color: #FCF9F5; font-size: 16px; line-height: 22px; font-weight: 500; display: flex; align-items: center; justify-content: center; text-decoration: none">Next: set up training</a>
+  </div>
+  <div style="height: 34px; flex: none"></div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":844}}'>
+class Component extends DCLogic {
+renderVals() {
+return {};
+}
+}
+</script>
+</body>
+</html>

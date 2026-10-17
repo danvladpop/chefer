@@ -91,7 +91,10 @@ async function checkConsentBoxes(user: ReturnType<typeof userEvent.setup>) {
 beforeEach(() => {
   jest.clearAllMocks();
   useLocalSearchParams.mockReturnValue({});
-  for (const hook of Object.values(trpc.auth)) hook.useMutation.mockReturnValue(mutationResult());
+  for (const hook of Object.values(trpc.auth)) {
+    // WP-22: socialAvailability is a query (its plain-function mock is kept).
+    if (jest.isMockFunction(hook.useMutation)) hook.useMutation.mockReturnValue(mutationResult());
+  }
   clearRegisterDraft();
   clearEmailHint();
 });

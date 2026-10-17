@@ -41,6 +41,11 @@ export const PasswordInput = forwardRef<TextInput, PasswordInputProps>(function 
         secureTextEntry={!isRevealed}
         autoCapitalize="none"
         autoCorrect={false}
+        spellCheck={false}
+        // Defaults to "sign in with the saved password"; fields where the user
+        // CHOOSES a password override via `NEW_PASSWORD_FIELD_PROPS`.
+        textContentType="password"
+        autoComplete="current-password"
         className={cn(!hideToggle && 'pr-16', className)}
         {...props}
       />

@@ -7,7 +7,7 @@ import {
   type ExerciseWriteData,
   type IExerciseRepository,
 } from '@chefer/database';
-import { EXERCISE_CATALOG, type ExerciseCatalogEntry } from '@chefer/types';
+import { EXERCISE_CATALOG, exercisePhotoFiles, type ExerciseCatalogEntry } from '@chefer/types';
 
 // ─── Curated exercise library seeding (gym_plan.md §4.1) ─────────────────────
 // Production never runs the seed, so the API upserts the @chefer/types
@@ -19,9 +19,9 @@ import { EXERCISE_CATALOG, type ExerciseCatalogEntry } from '@chefer/types';
 // (sessions still reference it).
 
 /**
- * Self-hosted free-exercise-db photos (public domain), served by Express at
+ * Self-hosted exercise photos (free-exercise-db, openly licensed or AI renders), served by Express at
  * /static/exercises/<key> and proxied by Caddy (gym_plan.md §5.5). Photos are
- * named `<slug>-0.webp` (start) and `<slug>-1.webp` (end).
+ * named by `exercisePhotoFile` (`<slug>-0.3x2.webp` start, `<slug>-1.3x2.webp` end).
  */
 // (path.resolve over a URL object: the mobile app type-checks this file through
 // the AppRouter type, and DOM's URL type doesn't satisfy node's.)
@@ -41,18 +41,21 @@ export function exerciseImageUrl(key: string): string {
   return `${EXERCISE_STATIC_ROUTE}/${key}`;
 }
 
+/**
+ * Image keys for a catalog entry: whichever of its two frames exist on disk.
+ * Purely file-based since WP-25: the photo may come from free-exercise-db (the
+ * entry has a `freeExerciseDbId`), an openly licensed photo or an AI render —
+ * apps/api/static/exercises/README.md records which. The names (incl. the
+ * `.3x2` crop marker and the per-slug revision from `@chefer/types`) are what
+ * change `imageKeys`, so re-vendoring bumps `contentVersion` (see changedFields)
+ * and already-installed clients' `librarySince` fetch — and any disk/CDN cache
+ * keyed by URL — picks up the new photo instead of a stale one.
+ */
 export function imageKeysFor(
-  entry: Pick<ExerciseCatalogEntry, 'id' | 'freeExerciseDbId'>,
+  entry: Pick<ExerciseCatalogEntry, 'id'>,
   fileExists: (file: string) => boolean = (f) => existsSync(path.join(EXERCISE_STATIC_DIR, f)),
 ): string[] {
-  if (!entry.freeExerciseDbId) return [];
-  // T-05.11: `.3x2` is a real 600×400 cover crop, not the client-side square
-  // crop the plain `-0.webp` names used to get. The suffix is also what
-  // forces a rename (not an in-place overwrite) when photos are re-vendored,
-  // which bumps contentVersion (see changedFields) so already-installed
-  // clients' librarySince fetch — and any disk/CDN cache keyed by URL —
-  // picks up a new crop instead of serving a stale one under the old key.
-  return [`${entry.id}-0.3x2.webp`, `${entry.id}-1.3x2.webp`].filter(fileExists);
+  return exercisePhotoFiles(entry.id).filter(fileExists);
 }
 
 export function catalogToWriteData(

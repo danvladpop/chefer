@@ -2,8 +2,9 @@ import { useState } from 'react';
 import { Linking, View } from 'react-native';
 import WebView from 'react-native-webview';
 import type { ShouldStartLoadRequest } from 'react-native-webview/lib/WebViewTypes';
-import { Button, Sheet, Text } from '@chefer/ui-mobile';
+import { Sheet, Text } from '@chefer/ui-mobile';
 import { shouldLoadEmbedUrl } from '../../../lib/webview-guard';
+import { TrainButton } from '../../shell/train/train-button';
 import { useIsOnline } from './online-status';
 
 // Technique-video sheet (gym_plan.md §5.5): a YouTube iframe over WebView,
@@ -72,7 +73,7 @@ export function ExerciseVideoSheet({
         {showPlayer ? (
           <View
             testID={`${testID}-player`}
-            className="w-full overflow-hidden rounded-xl bg-black"
+            className="w-full overflow-hidden rounded-control bg-black"
             style={{ aspectRatio: 16 / 9 }}
           >
             <WebView
@@ -98,23 +99,23 @@ export function ExerciseVideoSheet({
         ) : (
           <View
             testID={`${testID}-fallback-panel`}
-            className="w-full items-center justify-center rounded-xl bg-muted"
+            className="w-full items-center justify-center rounded-control bg-surface-sunken px-4"
             style={{ aspectRatio: 16 / 9 }}
           >
-            <Text variant="muted">
+            <Text className="text-center text-subhead text-label-secondary">
               {online ? 'Video unavailable right now.' : 'You’re offline.'}
             </Text>
           </View>
         )}
-        <Button
+        <TrainButton
           testID={`${testID}-open-youtube`}
+          label="Open in YouTube"
+          icon="play"
           variant="outline"
           onPress={() => void Linking.openURL(youtubeUrl)}
-        >
-          Open in YouTube
-        </Button>
+        />
         {channel ? (
-          <Text variant="muted" testID={`${testID}-channel`}>
+          <Text className="text-caption text-label-secondary" testID={`${testID}-channel`}>
             Video: {channel}
           </Text>
         ) : null}

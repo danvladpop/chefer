@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { CoachingNotices } from '@/features/coaching/components/CoachingNotices';
+import { OnboardingV4WelcomeCard } from '@/features/onboarding-v4/welcome-card';
 import { capture } from '@/lib/analytics';
 import { trpc } from '@/lib/trpc';
 import {
@@ -21,6 +22,7 @@ import type { GymOffer, NextWorkoutDto, WeightUnit } from '@chefer/types';
 import { Button } from '@chefer/ui';
 import {
   cn,
+  isActivityLogSession,
   monthNameOf,
   nextDayIdAfter,
   pickOffer,
@@ -40,6 +42,7 @@ import { weekDays, WeekStrip } from '../shared/week-strip';
 import { localDate } from '../use-gym-bootstrap';
 import { useActiveWorkout } from '../workout/use-active-workout';
 import { HowThisWorksSheet } from './HowThisWorksSheet';
+import { LogActivitySheet } from './log-activity-sheet';
 import {
   backfillDateFor,
   buildBackfillWorkout,
@@ -62,6 +65,7 @@ export function TodayView() {
   const utils = trpc.useUtils();
   const [pickOpen, setPickOpen] = useState(false);
   const [backfillOpen, setBackfillOpen] = useState(false);
+  const [activityOpen, setActivityOpen] = useState(false);
   const [howOpen, setHowOpen] = useState(false);
 
   // First visit without a gym profile → the setup flow (gym_plan.md §1.3).
@@ -115,8 +119,9 @@ export function TodayView() {
       : rotationNext;
   const weekGoal = proRatedWeekGoal({ goal: data.streak.thisWeekGoal, today, setupDate });
   const days = weekDays(data, today);
+  // WP-20: a quick-logged activity does not make today's workout "done".
   const doneToday = data.recentSessions.some(
-    (s) => s.status === 'COMPLETED' && s.localDate === today,
+    (s) => s.status === 'COMPLETED' && s.localDate === today && !isActivityLogSession(s),
   );
   const currentWeek = data.weeks[data.weeks.length - 1];
   const paused = currentWeek?.status === 'paused';
@@ -180,6 +185,9 @@ export function TodayView() {
 
       <CoachingNotices routine={data.activeRoutine} />
 
+      {/* Onboarding V4 (train-only lands here): one-time "You're all set". */}
+      <OnboardingV4WelcomeCard className="mb-4" />
+
       <div className="flex flex-col gap-4 lg:grid lg:grid-cols-[minmax(0,1fr)_20rem] lg:items-start lg:gap-6">
         {/* Left: what to do today */}
         <div className="flex min-w-0 flex-col gap-4">
@@ -226,14 +234,25 @@ export function TodayView() {
             </Button>
           </GymCard>
 
-          <button
-            type="button"
-            data-testid="gym-log-past-workout"
-            onClick={() => setBackfillOpen(true)}
-            className="min-h-11 self-start text-sm font-medium text-[#944a00] hover:underline"
-          >
-            Log a workout you already did
-          </button>
+          {/* Two quiet text links — neither competes with Start. */}
+          <div className="flex flex-wrap items-center gap-x-6">
+            <button
+              type="button"
+              data-testid="gym-log-past-workout"
+              onClick={() => setBackfillOpen(true)}
+              className="min-h-11 text-sm font-medium text-[#944a00] hover:underline"
+            >
+              Log a workout you already did
+            </button>
+            <button
+              type="button"
+              data-testid="gym-log-activity"
+              onClick={() => setActivityOpen(true)}
+              className="min-h-11 text-sm font-medium text-[#944a00] hover:underline"
+            >
+              Log an activity
+            </button>
+          </div>
 
           {/* UX-36 A2 (T-36.A2.2): grouped Recent list replaces the single "Last session" link. */}
           <RecentWorkouts data={data} today={today} />
@@ -265,6 +284,11 @@ export function TodayView() {
               <div className="min-w-0 text-sm">
                 <p className="font-semibold text-gray-900">
                   {data.streak.thisWeekSessions} of {weekGoal} this week
+                  {weekGoal < data.streak.thisWeekGoal && (
+                    <span className="font-normal text-gray-500">
+                      {` · ${data.streak.thisWeekGoal} from next week`}
+                    </span>
+                  )}
                 </p>
                 <p className="flex items-center gap-1 text-xs text-gray-500">
                   <Flame className="h-3.5 w-3.5 shrink-0 text-[#944a00]" aria-hidden="true" />
@@ -303,6 +327,8 @@ export function TodayView() {
       )}
 
       <HowThisWorksSheet open={howOpen} onClose={() => setHowOpen(false)} />
+
+      <LogActivitySheet open={activityOpen} onClose={() => setActivityOpen(false)} />
 
       <LogPastWorkoutSheet
         open={backfillOpen}

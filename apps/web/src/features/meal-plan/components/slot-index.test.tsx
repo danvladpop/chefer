@@ -12,6 +12,7 @@ const m = vi.hoisted(() => ({
   isPremium: true,
   replace: vi.fn(),
   swap: vi.fn(),
+  addSide: vi.fn(),
 }));
 vi.mock('@/features/recipes/components/RecipeImage', () => ({ RecipeImage: () => null }));
 // Consent already on record: the guard runs the action straight away.
@@ -66,6 +67,7 @@ vi.mock('@/lib/trpc', () => {
         list: { useQuery: () => ({ data: [picked], isLoading: false }) },
         // T-02.5/AC7: ReplaceMealSheet's FilteredForLine footer query.
         listHiddenCount: { useQuery: () => ({ data: { hiddenCount: 0, filteredFor: [] } }) },
+        addToWeek: { useMutation: mutation(m.addSide) },
       },
       mealPlan: {
         replaceRecipe: { useMutation: mutation(m.replace) },
@@ -79,6 +81,7 @@ afterEach(cleanup);
 beforeEach(() => {
   m.replace.mockClear();
   m.swap.mockClear();
+  m.addSide.mockClear();
 });
 
 const recipe = (id: string, name: string) => ({
@@ -132,6 +135,7 @@ describe('two-snack day: the second snack is its own slot', () => {
       mealType: 'snack',
       slotIndex: 4,
       recipeId: 'yoghurt',
+      localDate: expect.any(String) as unknown,
     });
   });
 
@@ -145,6 +149,7 @@ describe('two-snack day: the second snack is its own slot', () => {
       dayOfWeek: 2,
       mealType: 'snack',
       slotIndex: 3,
+      localDate: expect.any(String) as unknown,
     });
   });
 

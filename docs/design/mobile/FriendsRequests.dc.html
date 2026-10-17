@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Following — Requests</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+body{margin:0}
+a{color:#944a00;text-decoration:none}a:hover{color:#6e3700}
+input::placeholder,textarea::placeholder{color:#9ca3af}
+</style>
+</helmet>
+<div style="width: 390px; height: 844px; position: relative; overflow: hidden; background: #FFFFFF; font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Helvetica Neue', system-ui, sans-serif; color: #020817; display: flex; flex-direction: column">
+  <div style="height: 47px; flex: none"></div>
+
+  <div style="min-height: 49px; box-sizing: border-box; flex: none; display: flex; align-items: center; gap: 3.5px; padding: 7px 7px 3.5px">
+    <a href="Friends.dc.html" aria-label="Back" style="width: 44px; height: 44px; flex: none; display: flex; align-items: center; justify-content: center; color: #1F2937"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M11 5l-7 7 7 7M4 12h16"></path></svg></a>
+    <h1 style="margin: 0; flex: 1; min-width: 0; font-size: 21px; line-height: 28px; font-weight: 700; color: #020817">Follow requests</h1>
+  </div>
+
+  <main id="main" style="flex: 1; display: flex; flex-direction: column">
+    <p style="margin: 0; padding: 0 14px 7px; font-size: 16px; line-height: 22px; color: #8A7560">Only you can see this list.</p>
+
+    <div style="min-height: 56px; display: flex; align-items: center; gap: 10.5px; padding: 7px 14px">
+      <a href="FriendProfile.dc.html" style="flex: 1; min-width: 0; min-height: 44px; display: flex; align-items: center; gap: 10.5px; color: inherit; text-decoration: none">
+        <span aria-hidden="true" style="width: 40px; height: 40px; flex: none; border-radius: 9999px; background: #B91C1C; color: #FFFFFF; font-size: 16px; font-weight: 600; display: flex; align-items: center; justify-content: center">SC</span>
+        <span style="flex: 1; min-width: 0; font-size: 17px; line-height: 24px; font-weight: 600; color: #111827">Sam Carter</span>
+      </a>
+      <div style="flex: none; display: flex; align-items: center; gap: 7px">
+        <button type="button" aria-label="Accept Sam Carter" style="min-height: 44px; padding: 7px 10.5px; border: none; border-radius: 5.25px; background: #944A00; color: #FCF9F5; font: inherit; font-size: 16px; font-weight: 500">Accept</button>
+        <button type="button" aria-label="Decline Sam Carter" style="min-height: 44px; padding: 7px 10.5px; border: 1px solid #E2E8F0; border-radius: 5.25px; background: #FFFFFF; color: #020817; font: inherit; font-size: 16px; font-weight: 500">Decline</button>
+      </div>
+    </div>
+
+    <div style="min-height: 56px; display: flex; align-items: center; gap: 10.5px; padding: 7px 14px">
+      <a href="FriendProfile.dc.html" style="flex: 1; min-width: 0; min-height: 44px; display: flex; align-items: center; gap: 10.5px; color: inherit; text-decoration: none">
+        <span aria-hidden="true" style="width: 40px; height: 40px; flex: none; border-radius: 9999px; background: #9A3412; color: #FFFFFF; font-size: 16px; font-weight: 600; display: flex; align-items: center; justify-content: center">EM</span>
+        <span style="flex: 1; min-width: 0; font-size: 17px; line-height: 24px; font-weight: 600; color: #111827">Elena Marin</span>
+      </a>
+      <div style="flex: none; display: flex; align-items: center; gap: 7px">
+        <button type="button" aria-label="Accept Elena Marin" style="min-height: 44px; padding: 7px 10.5px; border: none; border-radius: 5.25px; background: #944A00; color: #FCF9F5; font: inherit; font-size: 16px; font-weight: 500">Accept</button>
+        <button type="button" aria-label="Decline Elena Marin" style="min-height: 44px; padding: 7px 10.5px; border: 1px solid #E2E8F0; border-radius: 5.25px; background: #FFFFFF; color: #020817; font: inherit; font-size: 16px; font-weight: 500">Decline</button>
+      </div>
+    </div>
+
+    <div style="min-height: 56px; display: flex; align-items: center; gap: 10.5px; padding: 7px 14px">
+      <a href="FriendProfile.dc.html" style="flex: 1; min-width: 0; min-height: 44px; display: flex; align-items: center; gap: 10.5px; color: inherit; text-decoration: none">
+        <span aria-hidden="true" style="width: 40px; height: 40px; flex: none; border-radius: 9999px; background: #7C2D12; color: #FFFFFF; font-size: 16px; font-weight: 600; display: flex; align-items: center; justify-content: center">AI</span>
+        <span style="flex: 1; min-width: 0; font-size: 17px; line-height: 24px; font-weight: 600; color: #111827">Andrei Ionescu</span>
+      </a>
+      <div style="flex: none; display: flex; align-items: center; gap: 7px">
+        <button type="button" aria-label="Accept Andrei Ionescu" style="min-height: 44px; padding: 7px 10.5px; border: none; border-radius: 5.25px; background: #944A00; color: #FCF9F5; font: inherit; font-size: 16px; font-weight: 500">Accept</button>
+        <button type="button" aria-label="Decline Andrei Ionescu" style="min-height: 44px; padding: 7px 10.5px; border: 1px solid #E2E8F0; border-radius: 5.25px; background: #FFFFFF; color: #020817; font: inherit; font-size: 16px; font-weight: 500">Decline</button>
+      </div>
+    </div>
+
+    <div style="min-height: 56px; display: flex; align-items: center; gap: 10.5px; padding: 7px 14px">
+      <a href="FriendProfile.dc.html" style="flex: 1; min-width: 0; min-height: 44px; display: flex; align-items: center; gap: 10.5px; color: inherit; text-decoration: none">
+        <span aria-hidden="true" style="width: 40px; height: 40px; flex: none; border-radius: 9999px; background: #9F1239; color: #FFFFFF; font-size: 16px; font-weight: 600; display: flex; align-items: center; justify-content: center">TP</span>
+        <span style="flex: 1; min-width: 0; font-size: 17px; line-height: 24px; font-weight: 600; color: #111827">Tom Price</span>
+      </a>
+      <div style="flex: none; display: flex; align-items: center; gap: 7px">
+        <button type="button" aria-label="Accept Tom Price" style="min-height: 44px; padding: 7px 10.5px; border: none; border-radius: 5.25px; background: #944A00; color: #FCF9F5; font: inherit; font-size: 16px; font-weight: 500">Accept</button>
+        <button type="button" aria-label="Decline Tom Price" style="min-height: 44px; padding: 7px 10.5px; border: 1px solid #E2E8F0; border-radius: 5.25px; background: #FFFFFF; color: #020817; font: inherit; font-size: 16px; font-weight: 500">Decline</button>
+      </div>
+    </div>
+  </main>
+
+  <div style="height: 34px; flex: none"></div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":844}}'>
+class Component extends DCLogic {
+renderVals() {
+return {};
+}
+}
+</script>
+</body>
+</html>

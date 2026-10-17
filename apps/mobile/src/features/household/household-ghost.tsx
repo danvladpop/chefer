@@ -1,9 +1,11 @@
 import { View } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
-import { Button, Card, Text } from '@chefer/ui-mobile';
+import { Text, useThemeColors } from '@chefer/ui-mobile';
 import { householdGhostSample, householdPortionSum, type HouseholdGhostKind } from '@chefer/utils';
+import { Icon } from '../../components/icon';
 import { trpc } from '../../lib/trpc';
 import { openPremium } from '../premium/open-premium';
+import { BoardCard } from '../shell/today/parts';
+import { TrainButton } from '../shell/train/train-button';
 
 // Free-tier ghost (§6.4, audit F-PM-12) — port of web's HouseholdGhost in
 // features/preferences/components/household-section.tsx. The chip tapped
@@ -18,6 +20,7 @@ const SAMPLE_WEEK: { day: string; dish: string }[] = [
 ];
 
 export function HouseholdGhost({ kind }: { kind: HouseholdGhostKind }) {
+  const colors = useThemeColors();
   const { data: prefs } = trpc.preferences.get.useQuery(undefined, { staleTime: 60_000 });
   const owner = prefs?.dietaryPreferences;
   const sample = householdGhostSample(kind);
@@ -35,47 +38,47 @@ export function HouseholdGhost({ kind }: { kind: HouseholdGhostKind }) {
   ];
 
   return (
-    <Card testID="household-ghost-sample" className="gap-3 border-amber-200 bg-amber-50">
+    <BoardCard testID="household-ghost-sample" className="bg-brand-tint">
       <View className="flex-row items-center gap-1.5">
-        <Ionicons name="sparkles" size={14} color="#b45309" />
-        <Text className="text-xs font-semibold uppercase tracking-widest text-amber-700">
+        <Icon name="chef" size={16} color={colors.brand} />
+        <Text className="min-w-0 flex-1 text-subhead font-semibold text-brand">
           Sample: your week with {sample.name}
         </Text>
       </View>
-      <Text className="text-sm text-gray-700">
-        Say you add <Text className="text-sm font-semibold text-gray-900">{sample.name}</Text> —{' '}
+      <Text className="text-body text-label">
+        Say you add <Text className="text-body font-semibold text-label">{sample.name}</Text> —{' '}
         {sample.summary}. Every dinner would be safe for you both:
       </Text>
       <View className="gap-1.5">
         {SAMPLE_WEEK.map(({ day, dish }) => (
           <View key={day} className="flex-row items-center gap-2">
-            <Text className="w-10 text-xs font-semibold uppercase text-gray-500">{day}</Text>
-            <Text numberOfLines={1} className="min-w-0 flex-1 text-sm font-medium text-gray-800">
+            <Text className="w-10 text-caption font-semibold text-label-secondary">{day}</Text>
+            <Text numberOfLines={1} className="min-w-0 flex-1 text-callout text-label">
               {dish}
             </Text>
-            <View className="rounded-full bg-white px-2 py-0.5">
-              <Text className="text-xs font-medium text-gray-600">{servings} servings</Text>
+            <View className="rounded-full bg-surface px-2 py-0.5">
+              <Text className="text-caption font-semibold text-label-secondary">
+                {servings} servings
+              </Text>
             </View>
           </View>
         ))}
       </View>
       {rules.length > 0 && (
-        <Text testID="household-ghost-rules" className="text-xs text-gray-600">
+        <Text testID="household-ghost-rules" className="text-subhead text-label-secondary">
           Combined table rules: {rules.join(' · ')}
         </Text>
       )}
-      <Text className="text-xs text-gray-600">
+      <Text className="text-subhead text-label-secondary">
         Adding {kind === 'kid' ? 'a kid' : 'your partner'} below is free, allergies included.
         Premium also sizes servings and the shopping list for {servings} portions.
       </Text>
-      <Button
+      <TrainButton
         testID="household-ghost-upgrade"
-        variant="outline"
-        size="sm"
+        label="See what Premium adds"
+        variant="onBrand"
         onPress={() => openPremium('household')}
-      >
-        See what Premium adds
-      </Button>
-    </Card>
+      />
+    </BoardCard>
   );
 }

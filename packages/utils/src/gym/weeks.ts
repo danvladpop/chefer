@@ -28,6 +28,15 @@ function formatLocal(ms: number): string {
   return `${String(d.getUTCFullYear()).padStart(4, '0')}-${mm}-${dd}`;
 }
 
+/**
+ * `YYYY-MM-DD` of a date-only value stored as UTC midnight (Prisma `@db.Date`,
+ * e.g. `DailyLog.date`). Reads the stored calendar day — never "today" from the
+ * server clock (§2.12).
+ */
+export function dateOnlyKey(date: Date): string {
+  return formatLocal(date.getTime());
+}
+
 export function addDaysLocal(localDate: string, days: number): string {
   return formatLocal(parseLocal(localDate) + days * DAY_MS);
 }

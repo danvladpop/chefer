@@ -14,14 +14,27 @@ export function AiGeneratedChip({
   recipe,
   testID = 'ai-generated-chip',
   a11yLabel = AI_GENERATED_A11Y_LABEL,
+  variant = 'chip',
 }: {
   /** Anything carrying the optional `aiGenerated` flag (a recipe, or the weekly review). */
   recipe: object | null | undefined;
   testID?: string;
   /** Spoken label; defaults to the recipe wording. */
   a11yLabel?: string;
+  /**
+   * `icon` (FB7-11): just the small sparkle for a dense meta line — the
+   * a11y label still says it, the visible word is dropped.
+   */
+  variant?: 'chip' | 'icon';
 }) {
   if (!isAiGenerated(recipe)) return null;
+  if (variant === 'icon') {
+    return (
+      <View testID={testID} accessible accessibilityRole="image" accessibilityLabel={a11yLabel}>
+        <Ionicons name="sparkles-outline" size={13} color="#6b7280" />
+      </View>
+    );
+  }
   return (
     <View
       testID={testID}

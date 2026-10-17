@@ -1,9 +1,16 @@
 import { useRef, useState } from 'react';
 import { Controller, useForm } from 'react-hook-form';
-import { View, type TextInput } from 'react-native';
+import { Keyboard, View, type TextInput } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { Button, Card, Input, Text, useScrollFieldIntoView } from '@chefer/ui-mobile';
+import {
+  Button,
+  Card,
+  EMAIL_FIELD_PROPS,
+  Input,
+  Text,
+  useScrollFieldIntoView,
+} from '@chefer/ui-mobile';
 import { userFacingErrorMessage } from '@chefer/utils';
 import { AuthField, AuthScreen, backToLogin } from '../../src/features/auth/auth-screen';
 import { setEmailHint, takeEmailHint } from '../../src/features/auth/email-hint';
@@ -51,6 +58,7 @@ function ForgotPasswordForm() {
   const onSubmit = handleSubmit((values) => {
     // UX-ACC-18: no second submit from the keyboard while one is in flight.
     if (request.isPending) return;
+    Keyboard.dismiss();
     // UX-ACC-09: "Sign in" below returns with this address prefilled.
     setEmailHint(values.email);
     request.mutate(values);
@@ -83,11 +91,7 @@ function ForgotPasswordForm() {
                 <Input
                   ref={emailRef}
                   testID="forgot-password-email"
-                  autoCapitalize="none"
-                  autoCorrect={false}
-                  spellCheck={false}
-                  autoComplete="email"
-                  keyboardType="email-address"
+                  {...EMAIL_FIELD_PROPS}
                   placeholder="you@example.com"
                   returnKeyType="send"
                   editable={!request.isPending}

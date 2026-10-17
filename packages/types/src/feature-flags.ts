@@ -33,6 +33,16 @@ export const featureFlagsSchema = z
      *  default; the COACHING_ALLOWLIST (emails) sees it while it is off, and the
      *  TRAINER_ALLOWLIST (emails, or `*`) decides who may turn trainer tools on. */
     coaching: z.boolean(),
+    /** Mobile UX revamp (docs/mobile-ux-revamp/plan.md): the one-tab-bar
+     *  shell (Today · Plan · Shop · Train · You) instead of the Food|Gym
+     *  tab groups. Off by default; admins and dev builds can preview it
+     *  per device from Settings. Mobile only — web ignores it. */
+    mobileShellV2: z.boolean(),
+    /** Onboarding V4 (docs/onboarding-review-2026-10): the short, Biscuit-led
+     *  welcome → sign-up → setup flow with the first-week reveal and the
+     *  Premium step. Off by default; both platforms keep today's wizard
+     *  until it is flipped. */
+    onboardingV4: z.boolean(),
   })
   .partial();
 export type FeatureFlags = z.infer<typeof featureFlagsSchema>;

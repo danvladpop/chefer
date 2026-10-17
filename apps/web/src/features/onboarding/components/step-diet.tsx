@@ -2,7 +2,11 @@
 
 import { useEffect, useImperativeHandle, useState, type Ref } from 'react';
 import { UncheckedNotice } from '@/features/safety/components/UncheckedNotice';
-import { findSafetyTaxonomyEntry, safetyTaxonomyEntriesByGroup } from '@chefer/types';
+import {
+  findSafetyTaxonomyEntry,
+  safetyPickerEntries,
+  safetyTaxonomyEntriesByGroup,
+} from '@chefer/types';
 import {
   applySafetyTerm,
   BASE_DIET_IDS,
@@ -47,6 +51,8 @@ interface StepDietProps {
   ref?: Ref<StepDietHandle> | undefined;
   /** True while the field holds un-added text or a Keep/Remove choice is open (a pending edit). */
   onPendingChange?: ((pending: boolean) => void) | undefined;
+  /** Hides the built-in heading when a host (e.g. a Sheet) already titles it. */
+  hideHeading?: boolean | undefined;
 }
 
 function labelFor(id: string): string {
@@ -77,7 +83,13 @@ const chipCls = (selected: boolean, disabled = false) =>
         : 'border-border text-muted-foreground hover:border-primary/40 hover:text-foreground'
   }`;
 
-export function StepDiet({ value, onChange, ref, onPendingChange }: StepDietProps) {
+export function StepDiet({
+  value,
+  onChange,
+  ref,
+  onPendingChange,
+  hideHeading = false,
+}: StepDietProps) {
   const classified = classifySafetyValue(value);
   const [somethingElse, setSomethingElse] = useState('');
   const [addedMessage, setAddedMessage] = useState<string | null>(null);
@@ -92,7 +104,8 @@ export function StepDiet({ value, onChange, ref, onPendingChange }: StepDietProp
     onChange(serialiseSafetyPickerValue({ ...classified, ...patch }));
   };
 
-  const allergyEntries = safetyTaxonomyEntriesByGroup('allergy');
+  // Legacy "Shellfish" is offered only while already selected (UX-ACC-06 follow-up).
+  const allergyEntries = safetyPickerEntries('allergy', classified.allergyIds);
   const dislikeEntries = safetyTaxonomyEntriesByGroup('dislike');
   const veganSelected = classified.dietBaseId === 'vegan';
   const knownModifierIds = classified.dietModifierIds.filter((id) =>
@@ -171,18 +184,20 @@ export function StepDiet({ value, onChange, ref, onPendingChange }: StepDietProp
   return (
     <div className="space-y-8">
       {/* Heading */}
-      <div className="text-center">
-        <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">Diet & restrictions</h1>
-        <p className="mt-2 text-muted-foreground">
-          All fields are optional — skip anything that doesn&apos;t apply.
-        </p>
-      </div>
+      {!hideHeading && (
+        <div className="text-center">
+          <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">Diet & restrictions</h1>
+          <p className="mt-2 text-muted-foreground">
+            All fields are optional — skip anything that doesn&apos;t apply.
+          </p>
+        </div>
+      )}
 
       <div className="space-y-8">
         {/* Allergies */}
         <div className="space-y-3">
           <p className="text-sm font-medium">Allergies</p>
-          <div className="flex flex-wrap gap-2">
+          <div role="group" aria-label="Allergies" className="flex flex-wrap gap-2">
             {allergyEntries.map((entry) => {
               const selected = classified.allergyIds.includes(entry.id);
               return (

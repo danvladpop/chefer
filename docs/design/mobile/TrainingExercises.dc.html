@@ -1,0 +1,115 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Train — Exercises</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+body{margin:0}
+a{color:#944a00;text-decoration:none}a:hover{color:#6e3700}
+input::placeholder,textarea::placeholder{color:#9ca3af}
+</style>
+</helmet>
+<div style="width: 390px; height: 1207px; position: relative; overflow: hidden; background: #FFFFFF; font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Helvetica Neue', system-ui, sans-serif; color: #1C1917; display: flex; flex-direction: column">
+  <div style="height: 47px; flex: none"></div>
+  <main id="main" style="flex: 1; display: flex; flex-direction: column">
+  <div style="padding: 7px 14px; display: flex; flex-direction: column; gap: 10.5px">
+    <div style="min-height: 44px; display: flex; align-items: center; justify-content: space-between; gap: 7px">
+      <a href="Train.dc.html" aria-label="Back" style="width: 44px; height: 44px; margin-left: -7px; border-radius: 9999px; color: #944A00; display: flex; align-items: center; justify-content: center"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 5l-7 7 7 7"></path></svg></a>
+    </div>
+    <div style="display: flex; align-items: center; justify-content: space-between; gap: 10.5px">
+      <h1 style="margin: 0; font-size: 25px; line-height: 31px; font-weight: 700; color: #020817">Exercises</h1>
+      <a href="ExerciseForm.dc.html" style="min-height: 44px; padding: 7px 10.5px; box-sizing: border-box; border-radius: 5.25px; background: #FAF5F0; color: #3A2414; font-size: 16px; font-weight: 500; display: flex; align-items: center; justify-content: center; text-decoration: none">+ Custom</a>
+    </div>
+    <label style="min-height: 44px; box-sizing: border-box; border-radius: 9999px; border: 1px solid #E2E8F0; background: #FFFFFF; padding-left: 10.5px; display: flex; align-items: center; gap: 7px">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#8A7560" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5"></circle><path d="M15.5 15.5L20 20"></path></svg>
+      <input aria-label="Search exercises" placeholder="Search exercises" style="flex: 1; min-width: 0; height: 42px; border: none; outline: none; background: transparent; font: inherit; font-size: 17px; color: #020817; padding: 0 14px 0 0">
+    </label>
+    <div style="margin: 0 -14px; overflow: hidden">
+      <div role="group" aria-label="Filters" style="display: flex; align-items: center; gap: 7px; padding: 0 14px; width: max-content">
+        <button type="button" aria-label="Equipment, any" style="flex: none; min-height: 44px; padding: 0 14px; border: 1px solid #E2E8F0; border-radius: 9999px; background: #FFFFFF; font: inherit; display: flex; align-items: center; gap: 3.5px; white-space: nowrap"><span style="font-size: 16px; font-weight: 500; color: #020817">Equipment</span><span aria-hidden="true" style="font-size: 14px; color: #8A7560">▾</span></button>
+        <button type="button" aria-pressed="false" style="flex: none; min-height: 44px; padding: 0 14px; border: 1px solid #E2E8F0; border-radius: 9999px; background: #FFFFFF; font: inherit; font-size: 16px; font-weight: 500; color: #020817; white-space: nowrap">Mine</button>
+        <button type="button" aria-pressed="false" style="flex: none; min-height: 44px; padding: 0 14px; border: 1px solid #E2E8F0; border-radius: 9999px; background: #FFFFFF; font: inherit; font-size: 16px; font-weight: 500; color: #020817; white-space: nowrap">Cardio</button>
+        <button type="button" aria-pressed="false" style="flex: none; min-height: 44px; padding: 0 14px; border: 1px solid #E2E8F0; border-radius: 9999px; background: #FFFFFF; font: inherit; font-size: 16px; font-weight: 500; color: #020817; white-space: nowrap">Chest</button>
+        <button type="button" aria-pressed="false" style="flex: none; min-height: 44px; padding: 0 14px; border: 1px solid #E2E8F0; border-radius: 9999px; background: #FFFFFF; font: inherit; font-size: 16px; font-weight: 500; color: #020817; white-space: nowrap">Back</button>
+        <button type="button" aria-pressed="false" style="flex: none; min-height: 44px; padding: 0 14px; border: 1px solid #E2E8F0; border-radius: 9999px; background: #FFFFFF; font: inherit; font-size: 16px; font-weight: 500; color: #020817; white-space: nowrap">Quads</button>
+        <button type="button" aria-pressed="false" style="flex: none; min-height: 44px; padding: 0 14px; border: 1px solid #E2E8F0; border-radius: 9999px; background: #FFFFFF; font: inherit; font-size: 16px; font-weight: 500; color: #020817; white-space: nowrap">Hamstrings</button>
+        <button type="button" aria-pressed="false" style="flex: none; min-height: 44px; padding: 0 14px; border: 1px solid #E2E8F0; border-radius: 9999px; background: #FFFFFF; font: inherit; font-size: 16px; font-weight: 500; color: #020817; white-space: nowrap">Glutes</button>
+      </div>
+    </div>
+  </div>
+  <div role="list" aria-label="Exercises" style="display: flex; flex-direction: column">
+    <a href="ExerciseDetail.dc.html" style="min-height: 49px; display: flex; align-items: center; gap: 10.5px; border-bottom: 1px solid #E2E8F0; padding: 7px 14px; color: inherit; text-decoration: none">
+      <span style="width: 56px; flex: none"><span style="width: 60px; height: 40px; border-radius: 7px; overflow: hidden; background: #EADCCD; display: flex; align-items: center; justify-content: center; color: #8A7560; font-size: 12px">Photo</span></span>
+      <span style="flex: 1; min-width: 0; display: flex; flex-direction: column"><span style="font-size: 17px; line-height: 24px; font-weight: 500; color: #020817; white-space: nowrap; overflow: hidden; text-overflow: ellipsis">Ab Crunch Machine</span><span style="font-size: 16px; line-height: 22px; color: #8A7560; white-space: nowrap; overflow: hidden; text-overflow: ellipsis">Abs · machine</span></span>
+    </a>
+    <a href="ExerciseDetail.dc.html" style="min-height: 49px; display: flex; align-items: center; gap: 10.5px; border-bottom: 1px solid #E2E8F0; padding: 7px 14px; color: inherit; text-decoration: none">
+      <span style="width: 56px; flex: none"><span style="width: 60px; height: 40px; border-radius: 7px; overflow: hidden; background: #EADCCD; display: flex; align-items: center; justify-content: center; color: #8A7560; font-size: 12px">Photo</span></span>
+      <span style="flex: 1; min-width: 0; display: flex; flex-direction: column"><span style="font-size: 17px; line-height: 24px; font-weight: 500; color: #020817; white-space: nowrap; overflow: hidden; text-overflow: ellipsis">Ab Wheel Rollout</span><span style="font-size: 16px; line-height: 22px; color: #8A7560; white-space: nowrap; overflow: hidden; text-overflow: ellipsis">Abs · bodyweight</span></span>
+    </a>
+    <a href="ExerciseDetail.dc.html" style="min-height: 49px; display: flex; align-items: center; gap: 10.5px; border-bottom: 1px solid #E2E8F0; padding: 7px 14px; color: inherit; text-decoration: none">
+      <span style="width: 56px; flex: none"><span style="width: 60px; height: 40px; border-radius: 7px; overflow: hidden; background: #EADCCD; display: flex; align-items: center; justify-content: center; color: #8A7560; font-size: 12px">Photo</span></span>
+      <span style="flex: 1; min-width: 0; display: flex; flex-direction: column"><span style="font-size: 17px; line-height: 24px; font-weight: 500; color: #020817; white-space: nowrap; overflow: hidden; text-overflow: ellipsis">Arnold Press</span><span style="font-size: 16px; line-height: 22px; color: #8A7560; white-space: nowrap; overflow: hidden; text-overflow: ellipsis">Front delts · dumbbell</span></span>
+    </a>
+    <a href="ExerciseDetail.dc.html" style="min-height: 49px; display: flex; align-items: center; gap: 10.5px; border-bottom: 1px solid #E2E8F0; padding: 7px 14px; color: inherit; text-decoration: none">
+      <span style="width: 56px; flex: none"><span style="width: 60px; height: 40px; border-radius: 7px; overflow: hidden; background: #EADCCD; display: flex; align-items: center; justify-content: center; color: #8A7560; font-size: 12px">Photo</span></span>
+      <span style="flex: 1; min-width: 0; display: flex; flex-direction: column"><span style="font-size: 17px; line-height: 24px; font-weight: 500; color: #020817; white-space: nowrap; overflow: hidden; text-overflow: ellipsis">Assisted Dip</span><span style="font-size: 16px; line-height: 22px; color: #8A7560; white-space: nowrap; overflow: hidden; text-overflow: ellipsis">Triceps, Chest · assisted</span></span>
+    </a>
+    <a href="ExerciseDetail.dc.html" style="min-height: 49px; display: flex; align-items: center; gap: 10.5px; border-bottom: 1px solid #E2E8F0; padding: 7px 14px; color: inherit; text-decoration: none">
+      <span style="width: 56px; flex: none"><span style="width: 60px; height: 40px; border-radius: 7px; overflow: hidden; background: #EADCCD; display: flex; align-items: center; justify-content: center; color: #8A7560; font-size: 12px">Photo</span></span>
+      <span style="flex: 1; min-width: 0; display: flex; flex-direction: column"><span style="font-size: 17px; line-height: 24px; font-weight: 500; color: #020817; white-space: nowrap; overflow: hidden; text-overflow: ellipsis">Assisted Pull-Up</span><span style="font-size: 16px; line-height: 22px; color: #8A7560; white-space: nowrap; overflow: hidden; text-overflow: ellipsis">Lats · assisted</span></span>
+    </a>
+    <a href="ExerciseDetail.dc.html" style="min-height: 49px; display: flex; align-items: center; gap: 10.5px; border-bottom: 1px solid #E2E8F0; padding: 7px 14px; color: inherit; text-decoration: none">
+      <span style="width: 56px; flex: none"><span style="width: 60px; height: 40px; border-radius: 7px; overflow: hidden; background: #EADCCD; display: flex; align-items: center; justify-content: center; color: #8A7560; font-size: 12px">Photo</span></span>
+      <span style="flex: 1; min-width: 0; display: flex; flex-direction: column"><span style="font-size: 17px; line-height: 24px; font-weight: 500; color: #020817; white-space: nowrap; overflow: hidden; text-overflow: ellipsis">Back Squat</span><span style="font-size: 16px; line-height: 22px; color: #8A7560; white-space: nowrap; overflow: hidden; text-overflow: ellipsis">Quads · barbell</span></span>
+    </a>
+    <a href="ExerciseDetail.dc.html" style="min-height: 49px; display: flex; align-items: center; gap: 10.5px; border-bottom: 1px solid #E2E8F0; padding: 7px 14px; color: inherit; text-decoration: none">
+      <span style="width: 56px; flex: none"><span style="width: 60px; height: 40px; border-radius: 7px; overflow: hidden; background: #EADCCD; display: flex; align-items: center; justify-content: center; color: #8A7560; font-size: 12px">Photo</span></span>
+      <span style="flex: 1; min-width: 0; display: flex; flex-direction: column"><span style="font-size: 17px; line-height: 24px; font-weight: 500; color: #020817; white-space: nowrap; overflow: hidden; text-overflow: ellipsis">Band External Rotation</span><span style="font-size: 16px; line-height: 22px; color: #8A7560; white-space: nowrap; overflow: hidden; text-overflow: ellipsis">Rear delts · band</span></span>
+    </a>
+    <a href="ExerciseDetail.dc.html" style="min-height: 49px; display: flex; align-items: center; gap: 10.5px; border-bottom: 1px solid #E2E8F0; padding: 7px 14px; color: inherit; text-decoration: none">
+      <span style="width: 56px; flex: none"><span style="width: 60px; height: 40px; border-radius: 7px; overflow: hidden; background: #EADCCD; display: flex; align-items: center; justify-content: center; color: #8A7560; font-size: 12px">Photo</span></span>
+      <span style="flex: 1; min-width: 0; display: flex; flex-direction: column"><span style="font-size: 17px; line-height: 24px; font-weight: 500; color: #020817; white-space: nowrap; overflow: hidden; text-overflow: ellipsis">Band Lateral Raise</span><span style="font-size: 16px; line-height: 22px; color: #8A7560; white-space: nowrap; overflow: hidden; text-overflow: ellipsis">Side delts · band</span></span>
+    </a>
+    <a href="ExerciseDetail.dc.html" style="min-height: 49px; display: flex; align-items: center; gap: 10.5px; border-bottom: 1px solid #E2E8F0; padding: 7px 14px; color: inherit; text-decoration: none">
+      <span style="width: 56px; flex: none"><span style="width: 60px; height: 40px; border-radius: 7px; overflow: hidden; background: #EADCCD; display: flex; align-items: center; justify-content: center; color: #8A7560; font-size: 12px">Photo</span></span>
+      <span style="flex: 1; min-width: 0; display: flex; flex-direction: column"><span style="font-size: 17px; line-height: 24px; font-weight: 500; color: #020817; white-space: nowrap; overflow: hidden; text-overflow: ellipsis">Band Pull-Apart</span><span style="font-size: 16px; line-height: 22px; color: #8A7560; white-space: nowrap; overflow: hidden; text-overflow: ellipsis">Rear delts · band</span></span>
+    </a>
+    <a href="ExerciseDetail.dc.html" style="min-height: 49px; display: flex; align-items: center; gap: 10.5px; border-bottom: 1px solid #E2E8F0; padding: 7px 14px; color: inherit; text-decoration: none">
+      <span style="width: 56px; flex: none"><span style="width: 60px; height: 40px; border-radius: 7px; overflow: hidden; background: #EADCCD; display: flex; align-items: center; justify-content: center; color: #8A7560; font-size: 12px">Photo</span></span>
+      <span style="flex: 1; min-width: 0; display: flex; flex-direction: column"><span style="font-size: 17px; line-height: 24px; font-weight: 500; color: #020817; white-space: nowrap; overflow: hidden; text-overflow: ellipsis">Banded Lateral Walk</span><span style="font-size: 16px; line-height: 22px; color: #8A7560; white-space: nowrap; overflow: hidden; text-overflow: ellipsis">Abductors · band</span></span>
+    </a>
+    <a href="ExerciseDetail.dc.html" style="min-height: 49px; display: flex; align-items: center; gap: 10.5px; border-bottom: 1px solid #E2E8F0; padding: 7px 14px; color: inherit; text-decoration: none">
+      <span style="width: 56px; flex: none"><span style="width: 60px; height: 40px; border-radius: 7px; overflow: hidden; background: #EADCCD; display: flex; align-items: center; justify-content: center; color: #8A7560; font-size: 12px">Photo</span></span>
+      <span style="flex: 1; min-width: 0; display: flex; flex-direction: column"><span style="font-size: 17px; line-height: 24px; font-weight: 500; color: #020817; white-space: nowrap; overflow: hidden; text-overflow: ellipsis">Barbell Bench Press</span><span style="font-size: 16px; line-height: 22px; color: #8A7560; white-space: nowrap; overflow: hidden; text-overflow: ellipsis">Chest · barbell</span></span>
+    </a>
+    <a href="ExerciseDetail.dc.html" style="min-height: 49px; display: flex; align-items: center; gap: 10.5px; border-bottom: 1px solid #E2E8F0; padding: 7px 14px; color: inherit; text-decoration: none">
+      <span style="width: 56px; flex: none"><span style="width: 60px; height: 40px; border-radius: 7px; overflow: hidden; background: #EADCCD; display: flex; align-items: center; justify-content: center; color: #8A7560; font-size: 12px">Photo</span></span>
+      <span style="flex: 1; min-width: 0; display: flex; flex-direction: column"><span style="font-size: 17px; line-height: 24px; font-weight: 500; color: #020817; white-space: nowrap; overflow: hidden; text-overflow: ellipsis">Barbell Curl</span><span style="font-size: 16px; line-height: 22px; color: #8A7560; white-space: nowrap; overflow: hidden; text-overflow: ellipsis">Biceps · barbell</span></span>
+    </a>
+    <a href="ExerciseDetail.dc.html" style="min-height: 49px; display: flex; align-items: center; gap: 10.5px; border-bottom: 1px solid #E2E8F0; padding: 7px 14px; color: inherit; text-decoration: none">
+      <span style="width: 56px; flex: none"><span style="width: 60px; height: 40px; border-radius: 7px; overflow: hidden; background: #EADCCD; display: flex; align-items: center; justify-content: center; color: #8A7560; font-size: 12px">Photo</span></span>
+      <span style="flex: 1; min-width: 0; display: flex; flex-direction: column"><span style="font-size: 17px; line-height: 24px; font-weight: 500; color: #020817; white-space: nowrap; overflow: hidden; text-overflow: ellipsis">Barbell Glute Bridge</span><span style="font-size: 16px; line-height: 22px; color: #8A7560; white-space: nowrap; overflow: hidden; text-overflow: ellipsis">Glutes · barbell</span></span>
+    </a>
+    <a href="ExerciseDetail.dc.html" style="min-height: 49px; display: flex; align-items: center; gap: 10.5px; border-bottom: 1px solid #E2E8F0; padding: 7px 14px; color: inherit; text-decoration: none">
+      <span style="width: 56px; flex: none"><span style="width: 60px; height: 40px; border-radius: 7px; overflow: hidden; background: #EADCCD; display: flex; align-items: center; justify-content: center; color: #8A7560; font-size: 12px">Photo</span></span>
+      <span style="flex: 1; min-width: 0; display: flex; flex-direction: column"><span style="font-size: 17px; line-height: 24px; font-weight: 500; color: #020817; white-space: nowrap; overflow: hidden; text-overflow: ellipsis">Barbell Lunge</span><span style="font-size: 16px; line-height: 22px; color: #8A7560; white-space: nowrap; overflow: hidden; text-overflow: ellipsis">Quads · barbell</span></span>
+    </a>
+  </div>
+  </main>
+  <div style="height: 34px; flex: none"></div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":1207}}'>
+class Component extends DCLogic {
+renderVals() {
+return {};
+}
+}
+</script>
+</body>
+</html>

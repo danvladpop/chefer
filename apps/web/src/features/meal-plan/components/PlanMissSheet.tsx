@@ -1,9 +1,16 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { useNumbersMode } from '@/features/numbers-mode/numbers-mode';
 import { trpc } from '@/lib/trpc';
 import { Sheet } from '@chefer/ui';
-import { formatKcal, userFacingErrorMessage } from '@chefer/utils';
+import {
+  capProteinScaleFactor,
+  formatKcal,
+  isLossGoal,
+  LOSS_PROTEIN_KCAL_INCREASE_CAP,
+  userFacingErrorMessage,
+} from '@chefer/utils';
 import { canOfferSnack, missDirection, scaleFactorFor } from '../plan-miss';
 import { aboutKcal } from './DayRecapBar';
 
@@ -12,6 +19,10 @@ import { aboutKcal } from './DayRecapBar';
 // day with portions (previewed through `mealPlan.scaleDay` apply=false, applied
 // with apply=true), add a snack (under target only, never on a weight-loss goal),
 // or keep the day as planned. Web mirror of the mobile plan-miss sheet.
+//
+// UX-PLAN-08 (WP-07): on a weight-loss goal "Bigger portions" never goes past
+// +10 % (capProteinScaleFactor; it used to offer "+503 kcal" to fix protein) and
+// a protein gap is answered with a protein snack first.
 
 export interface PlanMissSheetProps {
   open: boolean;
@@ -48,9 +59,18 @@ export function PlanMissSheet({
   onApplied,
 }: PlanMissSheetProps) {
   const utils = trpc.useUtils();
-  const direction = missDirection(kcal, target, 0) ?? 'under';
-  const factor = scaleFactorFor(kcal, target);
-  const scalable = factor !== 1;
+  // WP-08: protein-only mode judges a day by its protein alone and states no calorie figure.
+  const { proteinOnly } = useNumbersMode();
+  const proteinGap = proteinGapG !== undefined && proteinGapG > 0;
+  const direction =
+    proteinOnly && proteinGap ? 'under' : (missDirection(kcal, target, 0) ?? 'under');
+  const rawFactor = scaleFactorFor(kcal, target);
+  // UX-PLAN-08: the portion step a loss goal may take is held to +10 %; null
+  // = nothing worth offering (a step under 3 %), so the option is hidden.
+  const factor = capProteinScaleFactor(rawFactor, goal) ?? 1;
+  const capped = factor < rawFactor;
+  // Protein-only only ever offers bigger portions (to close a protein gap).
+  const scalable = proteinOnly ? factor > 1 : factor !== 1;
   const [preview, setPreview] = useState<Preview | null>(null);
 
   const previewMutation = trpc.mealPlan.scaleDay.useMutation({
@@ -80,22 +100,52 @@ export function PlanMissSheet({
     // eslint-disable-next-line react-hooks/exhaustive-deps -- one preview per open/day, not per mutation state
   }, [open, planId, dayOfWeek, factor, scalable]);
 
-  const showSnack = onAddSnack !== undefined && canOfferSnack(direction, goal);
+  const proteinShort = proteinGapG !== undefined && proteinGapG > 0;
+  const lossProteinSnack = direction === 'under' && isLossGoal(goal) && proteinShort;
+  const showSnack =
+    onAddSnack !== undefined && (canOfferSnack(direction, goal) || lossProteinSnack);
+  const snackTitle = proteinShort ? 'Add a protein snack' : 'Add a snack';
   const optionCls =
     'flex min-h-11 w-full flex-col items-start justify-center rounded-xl border border-gray-200 bg-white px-4 py-2.5 text-left hover:bg-gray-50 disabled:opacity-50';
+
+  const snackButton = showSnack ? (
+    <button
+      type="button"
+      data-testid="plan-miss-snack"
+      onClick={() => {
+        onClose();
+        onAddSnack();
+      }}
+      className={optionCls}
+    >
+      <span className="text-sm font-semibold text-gray-900">{snackTitle}</span>
+      <span className="text-xs text-gray-600">
+        {proteinShort
+          ? 'A small high-protein extra to close the gap'
+          : 'A small extra to close the gap'}
+      </span>
+    </button>
+  ) : null;
 
   return (
     <Sheet
       open={open}
       onClose={onClose}
-      title={`${aboutKcal(kcal - target)} ${direction} target`}
-      description={`${dayName}: planned ${formatKcal(kcal)} kcal, target ${formatKcal(target)} kcal`}
+      title={proteinOnly ? 'Short on protein' : `${aboutKcal(kcal - target)} ${direction} target`}
+      description={
+        proteinOnly
+          ? proteinGap
+            ? `${dayName}: about ${proteinGapG} g short on protein`
+            : `${dayName}: as planned`
+          : `${dayName}: planned ${formatKcal(kcal)} kcal, target ${formatKcal(target)} kcal`
+      }
       size="sm"
     >
       <div className="flex flex-col gap-2 px-5 pb-5" data-testid="plan-miss-sheet">
-        {proteinGapG !== undefined && proteinGapG > 0 && (
+        {!proteinOnly && proteinGapG !== undefined && proteinGapG > 0 && (
           <p className="text-xs text-gray-600">Protein is about {proteinGapG} g short too.</p>
         )}
+        {lossProteinSnack && snackButton}
         {scalable && (
           <button
             type="button"
@@ -105,31 +155,22 @@ export function PlanMissSheet({
             className={optionCls}
           >
             <span className="text-sm font-semibold text-gray-900">
-              {direction === 'under' ? 'Bigger portions' : 'Smaller portions'}
+              {direction === 'under'
+                ? capped
+                  ? 'Slightly bigger portions'
+                  : 'Bigger portions'
+                : 'Smaller portions'}
             </span>
             <span className="text-xs text-gray-600">
               {preview
-                ? `Brings the day to about ${formatKcal(preview.kcal)} kcal · ${preview.protein} g protein`
+                ? `${capped ? `Held to +${Math.round(LOSS_PROTEIN_KCAL_INCREASE_CAP * 100)}% on your weight-loss goal. ` : ''}Brings the day to about ${proteinOnly ? `${preview.protein} g protein` : `${formatKcal(preview.kcal)} kcal · ${preview.protein} g protein`}`
                 : previewMutation.isError
                   ? 'Adjusts every meal on this day'
                   : 'Checking the numbers…'}
             </span>
           </button>
         )}
-        {showSnack && (
-          <button
-            type="button"
-            data-testid="plan-miss-snack"
-            onClick={() => {
-              onClose();
-              onAddSnack();
-            }}
-            className={optionCls}
-          >
-            <span className="text-sm font-semibold text-gray-900">Add a snack</span>
-            <span className="text-xs text-gray-600">A small extra to close the gap</span>
-          </button>
-        )}
+        {!lossProteinSnack && snackButton}
         <button type="button" data-testid="plan-miss-keep" onClick={onClose} className={optionCls}>
           <span className="text-sm font-semibold text-gray-900">Keep it</span>
           <span className="text-xs text-gray-600">Leave {dayName} as planned</span>

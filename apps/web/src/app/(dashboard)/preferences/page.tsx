@@ -2,7 +2,6 @@ import type { Metadata } from 'next';
 import { headers } from 'next/headers';
 import Link from 'next/link';
 import { AutoPlanToggle } from '@/features/preferences/components/auto-plan-toggle';
-import { HomeDisplayToggle } from '@/features/preferences/components/home-display-toggle';
 import { JobsSection } from '@/features/preferences/components/jobs-section';
 import { PreferencesForm } from '@/features/preferences/components/preferences-form';
 import {
@@ -34,6 +33,8 @@ export default async function PreferencesPage() {
   let jobs: OnboardingJob[] = [];
   // T-04.5/T-04.7: an explicit choice overrides the goal-derived B-31 default.
   let showNutritionOnToday = true;
+  // WP-08: protein-only mode lives on the same card as the Today toggle.
+  let numbersMode: string | null | undefined = null;
 
   try {
     const headerStore = await headers();
@@ -45,6 +46,7 @@ export default async function PreferencesPage() {
 
     const result = await client.preferences.get.query();
     jobs = result.jobs;
+    numbersMode = result.numbersMode;
 
     // Weekly emails (P2-5) — optional: a failure here hides the section
     // instead of failing the whole page.
@@ -130,10 +132,10 @@ export default async function PreferencesPage() {
         chefProfile={chefProfile}
         dietaryPreferences={dietaryPreferences}
         isPremium={isPremium}
+        numbersSettings={{ numbersMode, showNutritionOnToday }}
       />
       {/* Every tier since P2-5: free users get a curated Sunday week */}
       <AutoPlanToggle initialEnabled={autoPlanWeekly} isPremium={isPremium} />
-      <HomeDisplayToggle initialEnabled={showNutritionOnToday} />
       <JobsSection initialJobs={jobs} />
       {emailPrefs && <WeeklyEmailToggles initial={emailPrefs} />}
     </div>

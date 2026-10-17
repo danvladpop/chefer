@@ -840,3 +840,44 @@ describe('PreferencesService.setHomeDisplay (§2.4, T-04.1)', () => {
     expect(upsert).toHaveBeenCalledWith('user1', { showNutritionOnToday: false });
   });
 });
+
+describe('PreferencesService.setNumbersMode / get (WP-08)', () => {
+  it('stores PROTEIN_ONLY and reads it back', async () => {
+    const upsert = vi
+      .fn()
+      .mockResolvedValue({ ...CHEF_PROFILE_FIXTURE, numbersMode: 'PROTEIN_ONLY' });
+    const service = new PreferencesService(
+      makeChefProfileRepo({ upsert }),
+      makeDietaryPreferencesRepo(),
+    );
+    await expect(service.setNumbersMode('user1', 'PROTEIN_ONLY')).resolves.toEqual({
+      numbersMode: 'PROTEIN_ONLY',
+    });
+    expect(upsert).toHaveBeenCalledWith('user1', { numbersMode: 'PROTEIN_ONLY' });
+  });
+
+  it('accepts the reserved NONE and does not touch showNutritionOnToday', async () => {
+    const upsert = vi.fn().mockResolvedValue({ ...CHEF_PROFILE_FIXTURE, numbersMode: 'NONE' });
+    const service = new PreferencesService(
+      makeChefProfileRepo({ upsert }),
+      makeDietaryPreferencesRepo(),
+    );
+    await expect(service.setNumbersMode('user1', 'NONE')).resolves.toEqual({ numbersMode: 'NONE' });
+    expect(upsert.mock.calls[0]?.[1]).not.toHaveProperty('showNutritionOnToday');
+  });
+
+  it('get() reports numbersMode (FULL when unset) next to the untouched chefProfile', async () => {
+    const findByUserId = vi.fn().mockResolvedValue({ ...CHEF_PROFILE_FIXTURE, numbersMode: null });
+    const service = new PreferencesService(
+      makeChefProfileRepo({ findByUserId }),
+      makeDietaryPreferencesRepo(),
+    );
+    const unset = await service.get('user1');
+    expect(unset.numbersMode).toBe('FULL');
+
+    findByUserId.mockResolvedValue({ ...CHEF_PROFILE_FIXTURE, numbersMode: 'PROTEIN_ONLY' });
+    const set = await service.get('user1');
+    expect(set.numbersMode).toBe('PROTEIN_ONLY');
+    expect(set.chefProfile?.numbersMode).toBe('PROTEIN_ONLY');
+  });
+});

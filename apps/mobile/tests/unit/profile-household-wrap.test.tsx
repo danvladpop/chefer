@@ -10,6 +10,9 @@ import ProfileScreen from '../../app/profile';
 
 const mockMembers = [{ name: 'Alice' }, { name: 'Bob' }, { name: 'Carol' }, { name: 'Dave' }];
 
+jest.mock('../../src/features/profile/sign-in-methods-card', () => ({
+  SignInMethodsCard: () => null,
+}));
 jest.mock('../../src/features/privacy/privacy-section', () => ({
   PrivacySection: () => null,
 }));

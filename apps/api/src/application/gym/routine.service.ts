@@ -31,6 +31,7 @@ import {
   coachingAttributionService,
   type CoachingAttributionService,
 } from '../coaching/coaching-attribution.service.js';
+import { notifyTargetsChanged } from '../targets/targets-changed.js';
 import { toRoutineDto } from './mappers.js';
 
 // ─── RoutineService (gym_plan.md §4.1, D4/D5a) ───────────────────────────────
@@ -128,6 +129,7 @@ export class RoutineService {
       isActive: setActive,
       days: draft.days,
     });
+    if (setActive) await notifyTargetsChanged(userId);
     return toRoutineDto(row);
   }
 
@@ -193,6 +195,8 @@ export class RoutineService {
   async setActive(userId: string, id: string, level = 0): Promise<RoutineDto> {
     const row = await this.repo.setActive(userId, id);
     if (!row) throw notFound();
+    // Its training weekdays may differ: the plan's training-day targets move.
+    await notifyTargetsChanged(userId);
     return this.toDto(row, userId, level);
   }
 
@@ -250,6 +254,8 @@ export class RoutineService {
         cause: new ConflictCause({ kind: 'routine', current }),
       });
     }
+    // Day rebalance: the active routine's weekdays are the plan's training days.
+    if (res.routine.isActive) await notifyTargetsChanged(userId);
     return this.toDto(res.routine, userId, level);
   }
 

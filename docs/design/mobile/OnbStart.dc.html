@@ -1,0 +1,97 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Setup — Jobs</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+body{margin:0}
+a{color:#944a00;text-decoration:none}a:hover{color:#6e3700}
+input::placeholder,textarea::placeholder{color:#9ca3af}
+</style>
+</helmet>
+<div style="width: 390px; height: 938px; position: relative; overflow: hidden; background: #FFFFFF; font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Helvetica Neue', system-ui, sans-serif; color: #020817; display: flex; flex-direction: column">
+  <div style="height: 47px; flex: none"></div>
+
+  <div style="flex: none; display: flex; align-items: center; gap: 7px; padding: 10.5px 14px">
+    <button type="button" aria-label="Back" style="width: 44px; height: 44px; flex: none; padding: 0; border: none; background: transparent; color: #020817; display: flex; align-items: center; justify-content: center"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M11 5l-7 7 7 7M4 12h16"></path></svg></button>
+    <div style="flex: 1; min-width: 0; display: flex; flex-direction: column">
+      <span style="font-size: 14px; line-height: 19px; color: #8A7560">Getting started</span>
+      <h1 style="margin: 0; font-size: 19px; line-height: 26px; font-weight: 600">What should Chefer help with?</h1>
+    </div>
+  </div>
+  <div role="progressbar" aria-label="Getting started" style="flex: none; margin: 0 14px 7px; height: 5.25px; border-radius: 9999px; background: #F3F4F6; overflow: hidden"><div style="height: 100%; width: 0%; border-radius: 9999px; background: #944A00"></div></div>
+
+  <main id="main" style="flex: 1; display: flex; flex-direction: column; gap: 14px; padding: 10.5px 14px 28px">
+    <div style="display: flex; flex-direction: column; gap: 10.5px">
+      <p style="margin: 0; font-size: 16px; line-height: 22px; color: #8A7560">Pick all that fit. You can change this any time in Settings.</p>
+
+      <div style="display: flex; flex-direction: column; gap: 10.5px">
+        <button type="button" role="checkbox" aria-checked="true" aria-label="Train. Workouts that tell you what to lift next. Free." style="min-height: 44px; display: flex; align-items: center; gap: 14px; padding: 14px; border-radius: 10.5px; border: 2px solid #944A00; background: #FCF3EA; font: inherit; text-align: left; color: inherit">
+          <span style="width: 44px; height: 44px; flex: none; border-radius: 10.5px; background: #944A00; color: #FCF9F5; display: flex; align-items: center; justify-content: center"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2.5 12h19M6 7.5v9M9 6v12M15 6v12M18 7.5v9"></path></svg></span>
+          <span style="flex: 1; min-width: 0; display: flex; flex-direction: column">
+            <span style="font-size: 17px; line-height: 24px; font-weight: 600; color: #111827">Train</span>
+            <span style="font-size: 16px; line-height: 22px; color: #8A7560">Workouts that tell you what to lift next. Free.</span>
+          </span>
+          <span style="width: 21px; height: 21px; flex: none; box-sizing: border-box; border-radius: 9999px; border: 2px solid #944A00; background: #944A00; color: #FCF9F5; display: flex; align-items: center; justify-content: center"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"></path></svg></span>
+        </button>
+
+        <button type="button" role="checkbox" aria-checked="true" aria-label="Plan my meals. A week of meals that fits your time and taste, with one shopping list." style="min-height: 44px; display: flex; align-items: center; gap: 14px; padding: 14px; border-radius: 10.5px; border: 2px solid #944A00; background: #FCF3EA; font: inherit; text-align: left; color: inherit">
+          <span style="width: 44px; height: 44px; flex: none; border-radius: 10.5px; background: #944A00; color: #FCF9F5; display: flex; align-items: center; justify-content: center"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3.5" y="5" width="17" height="15.5" rx="2.5"></rect><path d="M3.5 9.5h17M8 3v3.5M16 3v3.5"></path></svg></span>
+          <span style="flex: 1; min-width: 0; display: flex; flex-direction: column">
+            <span style="font-size: 17px; line-height: 24px; font-weight: 600; color: #111827">Plan my meals</span>
+            <span style="font-size: 16px; line-height: 22px; color: #8A7560">A week of meals that fits your time and taste, with one shopping list.</span>
+          </span>
+          <span style="width: 21px; height: 21px; flex: none; box-sizing: border-box; border-radius: 9999px; border: 2px solid #944A00; background: #944A00; color: #FCF9F5; display: flex; align-items: center; justify-content: center"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"></path></svg></span>
+        </button>
+
+        <button type="button" role="checkbox" aria-checked="false" aria-label="Feed my household. One plan for everyone at my table, allergies included." style="min-height: 44px; display: flex; align-items: center; gap: 14px; padding: 14px; border-radius: 10.5px; border: 2px solid #E2E8F0; background: #FFFFFF; font: inherit; text-align: left; color: inherit">
+          <span style="width: 44px; height: 44px; flex: none; border-radius: 10.5px; background: #FCF3EA; color: #944A00; display: flex; align-items: center; justify-content: center"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="9" cy="8.5" r="3.2"></circle><path d="M3 19.5c0-3.3 2.7-5.5 6-5.5s6 2.2 6 5.5"></path><circle cx="17" cy="9.5" r="2.5"></circle><path d="M16.5 14.2c2.7.2 4.5 2 4.5 4.8"></path></svg></span>
+          <span style="flex: 1; min-width: 0; display: flex; flex-direction: column">
+            <span style="font-size: 17px; line-height: 24px; font-weight: 600; color: #111827">Feed my household</span>
+            <span style="font-size: 16px; line-height: 22px; color: #8A7560">One plan for everyone at my table, allergies included.</span>
+          </span>
+          <span style="width: 21px; height: 21px; flex: none; box-sizing: border-box; border-radius: 9999px; border: 2px solid #E2E8F0; background: #FFFFFF"></span>
+        </button>
+
+        <button type="button" role="checkbox" aria-checked="false" aria-label="Cook my saved recipes. Keep recipes from links and videos, and plan with them." style="min-height: 44px; display: flex; align-items: center; gap: 14px; padding: 14px; border-radius: 10.5px; border: 2px solid #E2E8F0; background: #FFFFFF; font: inherit; text-align: left; color: inherit">
+          <span style="width: 44px; height: 44px; flex: none; border-radius: 10.5px; background: #FCF3EA; color: #944A00; display: flex; align-items: center; justify-content: center"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 6.5c-2-1.7-5-2.3-8.5-2v14c3.5-.3 6.5.3 8.5 2 2-1.7 5-2.3 8.5-2v-14c-3.5-.3-6.5.3-8.5 2zM12 6.5v14"></path></svg></span>
+          <span style="flex: 1; min-width: 0; display: flex; flex-direction: column">
+            <span style="font-size: 17px; line-height: 24px; font-weight: 600; color: #111827">Cook my saved recipes</span>
+            <span style="font-size: 16px; line-height: 22px; color: #8A7560">Keep recipes from links and videos, and plan with them.</span>
+          </span>
+          <span style="width: 21px; height: 21px; flex: none; box-sizing: border-box; border-radius: 9999px; border: 2px solid #E2E8F0; background: #FFFFFF"></span>
+        </button>
+
+        <button type="button" role="checkbox" aria-checked="false" aria-label="Track what I eat. Log meals fast against my own calorie and protein targets." style="min-height: 44px; display: flex; align-items: center; gap: 14px; padding: 14px; border-radius: 10.5px; border: 2px solid #E2E8F0; background: #FFFFFF; font: inherit; text-align: left; color: inherit">
+          <span style="width: 44px; height: 44px; flex: none; border-radius: 10.5px; background: #FCF3EA; color: #944A00; display: flex; align-items: center; justify-content: center"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M11 4a8.5 8.5 0 108.5 9.5H11z"></path><path d="M14 2.5a8 8 0 017.5 7.5H14z"></path></svg></span>
+          <span style="flex: 1; min-width: 0; display: flex; flex-direction: column">
+            <span style="font-size: 17px; line-height: 24px; font-weight: 600; color: #111827">Track what I eat</span>
+            <span style="font-size: 16px; line-height: 22px; color: #8A7560">Log meals fast against my own calorie and protein targets.</span>
+          </span>
+          <span style="width: 21px; height: 21px; flex: none; box-sizing: border-box; border-radius: 9999px; border: 2px solid #E2E8F0; background: #FFFFFF"></span>
+        </button>
+      </div>
+    </div>
+  </main>
+
+  <div style="flex: none; display: flex; flex-direction: column; gap: 7px; border-top: 1px solid #E2E8F0; background: #FFFFFF; padding: 10.5px 14px 7px">
+    <a href="OnbTrainingDays.dc.html" style="min-height: 44px; padding: 7px 14px; box-sizing: border-box; border-radius: 5.25px; background: #944A00; color: #FCF9F5; font-size: 16px; line-height: 22px; font-weight: 500; display: flex; align-items: center; justify-content: center; text-decoration: none">Continue — 2 selected</a>
+    <a href="Home.dc.html" style="height: 44px; display: flex; align-items: center; justify-content: center; font-size: 16px; line-height: 22px; font-weight: 600; color: #944A00; text-decoration: none">Just looking around</a>
+  </div>
+  <div style="height: 34px; flex: none"></div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":938}}'>
+class Component extends DCLogic {
+renderVals() {
+return {};
+}
+}
+</script>
+</body>
+</html>
