@@ -69,4 +69,20 @@ describe('ClientList', () => {
     expect(screen.getByText('No workout yet')).toBeInTheDocument();
     expect(screen.queryByTestId('trainer-client-changed')).toBeNull();
   });
+
+  it('badges a client who trains in Keep it simple, and only that client', () => {
+    render(
+      <ClientList
+        clients={[
+          { ...maria, keepItSimple: true },
+          { ...maria, clientId: 'c2', name: 'Ion', keepItSimple: false },
+        ]}
+      />,
+    );
+    const [simple, other] = screen.getAllByTestId('trainer-client-row');
+    expect(within(simple!).getByTestId('trainer-client-simple')).toHaveTextContent(
+      'Keep it simple',
+    );
+    expect(within(other!).queryByTestId('trainer-client-simple')).toBeNull();
+  });
 });

@@ -52,8 +52,15 @@ export function ClientList({ clients }: { clients: ClientRowDto[] }) {
                 data-testid="trainer-client-row"
               >
                 <span className="min-w-0">
-                  <span className="block min-w-0 break-words font-semibold text-gray-900">
-                    {client.name}
+                  <span className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
+                    <span className="min-w-0 break-words font-semibold text-gray-900">
+                      {client.name}
+                    </span>
+                    {client.keepItSimple && (
+                      <Badge variant="info" data-testid="trainer-client-simple">
+                        {COACHING_COPY.trainerProfile.keepItSimple}
+                      </Badge>
+                    )}
                   </span>
                   {client.label && (
                     <span className="block min-w-0 break-words text-xs text-gray-500">

@@ -192,3 +192,92 @@ describe('trainer draft', () => {
     );
   });
 });
+
+// PRD 2026-10 §4.3: a "Keep it simple" client's My week days carry a workout type.
+describe('trainer draft: workout types (My week)', () => {
+  function withYogaDay(): TrainerRoutineDto {
+    const routine = trainerRoutine();
+    return {
+      ...routine,
+      days: [
+        ...routine.days,
+        {
+          id: 'd2',
+          position: 1,
+          name: 'Yoga',
+          plannedWeekday: 1,
+          workoutType: 'YOGA',
+          exercises: [],
+        },
+      ],
+    };
+  }
+
+  it('keeps a type-only day through load and save, and the doc is valid', () => {
+    const doc = toTrainerRoutineDoc(fromTrainerRoutineDto(withYogaDay()));
+    expect(doc.days[1]).toEqual({
+      id: 'd2',
+      name: 'Yoga',
+      plannedWeekday: 1,
+      workoutType: 'YOGA',
+      exercises: [],
+    });
+    expect(doc.days[0]?.workoutType).toBeNull();
+    expect(trainerRoutineDocSchema.safeParse(doc).success).toBe(true);
+  });
+
+  it('setting a type is a change; an exercise-less day takes the type as its name', () => {
+    const baseline = fromTrainerRoutineDto(withYogaDay());
+    let draft = draftReducer(baseline, { type: 'add_day' });
+    const added = draft.days[2]!;
+    draft = draftReducer(draft, {
+      type: 'set_day_workout_type',
+      dayKey: added.key,
+      workoutType: 'PILATES',
+    });
+    draft = draftReducer(draft, {
+      type: 'set_day_workout_type',
+      dayKey: baseline.days[0]!.key,
+      workoutType: 'LOWER_BODY',
+    });
+    expect(isDraftEqual(draft, baseline)).toBe(false);
+    const doc = toTrainerRoutineDoc(draft);
+    expect(doc.days[2]).toMatchObject({ name: 'Pilates', workoutType: 'PILATES', exercises: [] });
+    // A day with exercises keeps its own name.
+    expect(doc.days[0]).toMatchObject({ name: 'Day A', workoutType: 'LOWER_BODY' });
+  });
+
+  it('removing a type sends null; a new day with no type omits it', () => {
+    const baseline = fromTrainerRoutineDto(withYogaDay());
+    let draft = draftReducer(baseline, {
+      type: 'set_day_workout_type',
+      dayKey: baseline.days[1]!.key,
+      workoutType: null,
+    });
+    draft = draftReducer(draft, { type: 'add_day' });
+    const doc = toTrainerRoutineDoc(draft);
+    expect(doc.days[1]?.workoutType).toBeNull();
+    expect(doc.days[2]).not.toHaveProperty('workoutType');
+  });
+
+  it('adopts the other version from a conflict with its workout types', () => {
+    const own = ownRoutine(null);
+    const draft = fromRoutineDto({
+      ...own,
+      days: [
+        ...own.days,
+        {
+          id: 'd2',
+          position: 1,
+          name: 'Spin',
+          plannedWeekday: 4,
+          workoutType: 'SPIN',
+          exercises: [],
+        },
+      ],
+    });
+    expect(toTrainerRoutineDoc(draft).days[1]?.workoutType).toBe('SPIN');
+    // The owner's document is unchanged: omitted keeps the stored type.
+    expect(toRoutineDoc(draft).days[1]).not.toHaveProperty('workoutType');
+  });
+});

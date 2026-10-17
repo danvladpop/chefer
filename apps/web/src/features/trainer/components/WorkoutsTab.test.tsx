@@ -58,4 +58,68 @@ describe('WorkoutList', () => {
     render(<WorkoutList workouts={[]} unit="KG" />);
     expect(screen.getByText('No completed workouts yet.')).toBeInTheDocument();
   });
+
+  it('reads an unedited tick as "Done as planned", never as lifted weights', () => {
+    render(
+      <WorkoutList
+        workouts={[
+          {
+            ...workout,
+            exercises: [
+              {
+                exerciseId: 'back-squat',
+                name: 'Back Squat',
+                skipped: false,
+                lastSetRir: null,
+                doneAsPlanned: true,
+                sets: [
+                  { weightKg: 60, reps: 8, isWarmup: false, completed: true },
+                  { weightKg: 60, reps: 8, isWarmup: false, completed: true },
+                  { weightKg: 60, reps: 8, isWarmup: false, completed: true },
+                ],
+              },
+            ],
+          },
+        ]}
+        unit="KG"
+      />,
+    );
+    const card = screen.getByTestId('trainer-workout');
+    expect(screen.getByTestId('trainer-done-as-planned')).toHaveTextContent(
+      'Done as planned · 3 sets',
+    );
+    expect(card).not.toHaveTextContent('60 kg');
+    expect(card).not.toHaveTextContent('× 8');
+  });
+
+  it('shows a logged workout with no exercises as "Yoga · 45 min", and never calories', () => {
+    render(
+      <WorkoutList
+        workouts={[
+          {
+            ...workout,
+            id: 'w2',
+            name: 'Yoga',
+            durationMin: 45,
+            workoutType: 'YOGA',
+            exercises: [],
+          },
+          {
+            ...workout,
+            id: 'w3',
+            name: 'Spin class',
+            durationMin: null,
+            finishedAt: null,
+            workoutType: 'SPIN',
+            exercises: [],
+          },
+        ]}
+        unit="KG"
+      />,
+    );
+    const [yoga, spin] = screen.getAllByTestId('trainer-workout-type');
+    expect(yoga).toHaveTextContent(/^Yoga · 45 min$/);
+    expect(spin).toHaveTextContent(/^Spin$/);
+    expect(screen.getByRole('list', { name: 'Workouts' })).not.toHaveTextContent(/kcal|calorie/i);
+  });
 });

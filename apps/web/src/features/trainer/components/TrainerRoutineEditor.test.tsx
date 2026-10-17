@@ -13,12 +13,14 @@ type SaveOptions = {
 const m = vi.hoisted(
   (): {
     routine: TrainerRoutineDto | null;
+    keepItSimple: boolean;
     save: ReturnType<typeof vi.fn<[unknown], undefined>>;
     saveOptions: SaveOptions;
     setTarget: ReturnType<typeof vi.fn<[unknown], undefined>>;
     clearTarget: ReturnType<typeof vi.fn<[unknown], undefined>>;
   } => ({
     routine: null,
+    keepItSimple: false,
     save: vi.fn<[unknown], undefined>(),
     saveOptions: {},
     setTarget: vi.fn<[unknown], undefined>(),
@@ -55,7 +57,13 @@ vi.mock('@/lib/trpc', () => {
         client: {
           overview: {
             useQuery: () => ({
-              data: { client: { name: 'Maria Popescu', since: '2026-09-20T09:00:00.000Z' } },
+              data: {
+                client: {
+                  name: 'Maria Popescu',
+                  since: '2026-09-20T09:00:00.000Z',
+                  keepItSimple: m.keepItSimple,
+                },
+              },
               isLoading: false,
               isError: false,
             }),
@@ -149,6 +157,7 @@ function routine(): TrainerRoutineDto {
 
 beforeEach(() => {
   m.routine = routine();
+  m.keepItSimple = false;
   m.save.mockClear();
   m.setTarget.mockClear();
   m.clearTarget.mockClear();
@@ -256,5 +265,92 @@ describe('TrainerRoutineEditor', () => {
     render(<TrainerRoutineEditor clientId="c1" />);
     expect(screen.getByText('This client has no active routine yet.')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Create a 3-day routine' })).toBeInTheDocument();
+  });
+
+  describe('a Keep it simple client (PRD 2026-10 §4.3)', () => {
+    function withYogaDay(): TrainerRoutineDto {
+      const base = routine();
+      return {
+        ...base,
+        days: [
+          ...base.days,
+          {
+            id: 'd2',
+            position: 1,
+            name: 'Yoga',
+            plannedWeekday: 1,
+            workoutType: 'YOGA',
+            exercises: [],
+          },
+        ],
+      };
+    }
+    type SavedDoc = {
+      routine: {
+        days: { id?: string; name: string; workoutType?: string | null; exercises: unknown[] }[];
+      };
+    };
+
+    beforeEach(() => {
+      m.routine = withYogaDay();
+      m.keepItSimple = true;
+    });
+
+    it('badges the client and shows the type-only day as "Tue · Yoga"', () => {
+      render(<TrainerRoutineEditor clientId="c1" />);
+      expect(screen.getByTestId('trainer-client-simple')).toHaveTextContent('Keep it simple');
+      expect(screen.getByTestId('trainer-client-simple-hint')).toHaveTextContent(
+        'Only Maria can change this.',
+      );
+      const lines = screen.getAllByTestId('trainer-day-type').map((el) => el.textContent);
+      expect(lines).toContain('Tue · Yoga');
+    });
+
+    it('keeps the type-only day and its workout type when saving another change', () => {
+      render(<TrainerRoutineEditor clientId="c1" />);
+      const [field] = screen.getAllByLabelText('Note for Maria');
+      fireEvent.change(field!, { target: { value: 'tempo 3-1-1' } });
+      fireEvent.click(screen.getByRole('button', { name: 'Save changes' }));
+      expect(m.save).toHaveBeenCalledTimes(1);
+      const input = m.save.mock.calls[0]?.[0] as SavedDoc;
+      expect(input.routine.days).toHaveLength(2);
+      expect(input.routine.days[1]).toEqual({
+        id: 'd2',
+        name: 'Yoga',
+        plannedWeekday: 1,
+        workoutType: 'YOGA',
+        exercises: [],
+      });
+    });
+
+    it('lets the trainer change a day’s workout type with the My week picker', async () => {
+      render(<TrainerRoutineEditor clientId="c1" />);
+      const save = screen.getByRole('button', { name: 'Save changes' });
+      expect(save).toBeDisabled();
+      fireEvent.click(screen.getAllByRole('button', { name: 'Change workout type: Yoga' })[0]!);
+      fireEvent.click(await screen.findByTestId('trainer-day-type-PILATES'));
+      expect(screen.getAllByTestId('trainer-day-type').map((el) => el.textContent)).toContain(
+        'Tue · Pilates',
+      );
+      expect(save).toBeEnabled();
+      fireEvent.click(save);
+      const input = m.save.mock.calls[0]?.[0] as SavedDoc;
+      expect(input.routine.days[1]).toMatchObject({
+        id: 'd2',
+        name: 'Pilates',
+        workoutType: 'PILATES',
+        exercises: [],
+      });
+    });
+
+    it('sets a workout type on a day with exercises without renaming it', async () => {
+      render(<TrainerRoutineEditor clientId="c1" />);
+      fireEvent.click(screen.getAllByRole('button', { name: 'Set workout type: Day A' })[0]!);
+      fireEvent.click(await screen.findByTestId('trainer-day-type-LOWER_BODY'));
+      fireEvent.click(screen.getByRole('button', { name: 'Save changes' }));
+      const input = m.save.mock.calls[0]?.[0] as SavedDoc;
+      expect(input.routine.days[0]).toMatchObject({ name: 'Day A', workoutType: 'LOWER_BODY' });
+      expect(input.routine.days[0]?.exercises).toHaveLength(2);
+    });
   });
 });

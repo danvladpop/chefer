@@ -17,6 +17,7 @@ import {
   isDraftEqual,
   toTrainerRoutineDoc,
   type DraftAction,
+  type DraftDay,
   type DraftExercise,
   type DraftRoutine,
 } from '@/features/gym/routine/draft';
@@ -26,6 +27,7 @@ import {
   useUnsavedChangesWarning,
 } from '@/features/gym/routine/use-unsaved-warning';
 import { SupersetSheet } from '@/features/gym/shared/superset-sheet';
+import { WorkoutTypeSheet } from '@/features/gym/shared/workout-type-sheet';
 import { localDate } from '@/features/gym/use-gym-bootstrap';
 import { trpc } from '@/lib/trpc';
 import { COACHING_COPY, COACHING_LIMITS, editorLabel, type RoutineDto } from '@chefer/types';
@@ -36,6 +38,7 @@ import { isClientUnavailable, useClientOverview } from '../use-client-overview';
 import { useTrainerUnit } from '../use-trainer-unit';
 import { ClientHeader } from './ClientHeader';
 import { ClientUnavailable } from './ClientUnavailable';
+import { DayWorkoutTypeRow } from './DayWorkoutTypeRow';
 import { FillFromMineSheet } from './FillFromMineSheet';
 import { NextSessionPanel, type NextRowTarget } from './NextSessionPanel';
 import { PrivateNotesPanel } from './PrivateNotesPanel';
@@ -45,7 +48,9 @@ import { TrainerNoteField } from './TrainerNoteField';
 // The client's active routine in the SAME editor components the owner uses
 // (DesktopEditorBoard / PhoneEditorList / picker / conflict dialog), fed by
 // `trainer.client.*`. The seams: a note field per exercise, "Changed by Maria"
-// stamps, curated-only picker. Next-session targets sit beside the editor.
+// stamps, curated-only picker, each day's workout type (My week: a type-only
+// day such as "Tue · Yoga" is a real day and is saved like any other).
+// Next-session targets sit beside the editor.
 
 export function TrainerRoutineEditor({ clientId }: { clientId: string }) {
   const copy = COACHING_COPY.trainer;
@@ -72,6 +77,7 @@ export function TrainerRoutineEditor({ clientId }: { clientId: string }) {
   const [swapTarget, setSwapTarget] = useState<{ dayKey: string; exerciseKey: string } | null>(
     null,
   );
+  const [typeDayKey, setTypeDayKey] = useState<string | null>(null);
   const [fillOpen, setFillOpen] = useState(false);
   const [adjusting, setAdjusting] = useState<NextRowTarget | null>(null);
 
@@ -198,6 +204,7 @@ export function TrainerRoutineEditor({ clientId }: { clientId: string }) {
       clientId={clientId}
       name={clientName || copy.clients}
       active="routine"
+      keepItSimple={overview.data?.client.keepItSimple}
       confirmLeave={() => confirmDiscardChanges(isDirty)}
     />
   );
@@ -265,6 +272,15 @@ export function TrainerRoutineEditor({ clientId }: { clientId: string }) {
       }
     />
   );
+
+  const renderDayExtra = (day: DraftDay) => (
+    <DayWorkoutTypeRow
+      day={day}
+      onEdit={() => setTypeDayKey(day.key)}
+      onClear={() => dispatch({ type: 'set_day_workout_type', dayKey: day.key, workoutType: null })}
+    />
+  );
+  const typeDay = draft.days.find((d) => d.key === typeDayKey) ?? null;
 
   const adjustTarget: OverrideTargetSheetTarget | null = adjusting
     ? (() => {
@@ -342,6 +358,7 @@ export function TrainerRoutineEditor({ clientId }: { clientId: string }) {
               onSwap={(dayKey, exerciseKey) => setSwapTarget({ dayKey, exerciseKey })}
               renderAttribution={renderAttribution}
               renderExtra={renderExtra}
+              renderDayExtra={renderDayExtra}
             />
           </div>
           <PhoneEditorList
@@ -354,6 +371,7 @@ export function TrainerRoutineEditor({ clientId }: { clientId: string }) {
             onSwap={(dayKey, exerciseKey) => setSwapTarget({ dayKey, exerciseKey })}
             renderAttribution={renderAttribution}
             renderExtra={renderExtra}
+            renderDayExtra={renderDayExtra}
           />
         </div>
 
@@ -413,6 +431,19 @@ export function TrainerRoutineEditor({ clientId }: { clientId: string }) {
             dispatch({ type: 'create_superset', dayKey: supersetDay.key, exerciseKeys });
           }
           setSupersetDayKey(null);
+        }}
+      />
+
+      <WorkoutTypeSheet
+        open={typeDay !== null}
+        onClose={() => setTypeDayKey(null)}
+        title={typeDay ? `Workout type · ${typeDay.name}` : 'Workout type'}
+        description="Pick a workout type for this day."
+        initial={typeDay?.workoutType ?? null}
+        testIdPrefix="trainer-day-type"
+        onPick={(workoutType) => {
+          if (typeDay) dispatch({ type: 'set_day_workout_type', dayKey: typeDay.key, workoutType });
+          setTypeDayKey(null);
         }}
       />
 

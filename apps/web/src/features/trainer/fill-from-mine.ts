@@ -25,6 +25,8 @@ export function draftFromOwnRoutine(
       key: makeKey('day'),
       name: day.name,
       plannedWeekday: day.plannedWeekday,
+      // My week: a type-only day ("Yoga") keeps its type.
+      workoutType: day.workoutType ?? null,
       exercises: normalizeSupersets(
         day.exercises
           .slice()

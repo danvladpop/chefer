@@ -14,6 +14,7 @@ import type {
   RoutineLike,
   TrainerRoutineDoc,
   TrainerRoutineDto,
+  WorkoutType,
 } from '@chefer/types';
 import {
   createSuperset,
@@ -24,6 +25,7 @@ import {
   removeSupersetItem,
   setSupersetWithNext,
   ungroupSuperset,
+  workoutTypeLabel,
 } from '@chefer/utils';
 
 export interface DraftExercise {
@@ -51,6 +53,11 @@ export interface DraftDay {
   id?: string;
   name: string;
   plannedWeekday: number | null;
+  /**
+   * My week (ADR 0001): the day's workout type ("Tue · Yoga"). A type-only day
+   * has no exercises. `undefined` = not known (a new day): the save omits it.
+   */
+  workoutType?: WorkoutType | null;
   exercises: DraftExercise[];
 }
 
@@ -83,6 +90,7 @@ export function fromRoutineDto(routine: RoutineDto): DraftRoutine {
         id: day.id,
         name: day.name,
         plannedWeekday: day.plannedWeekday,
+        workoutType: day.workoutType ?? null,
         // Canonical superset letters (A, B… per day), so the toggles and
         // brackets always agree with what gets saved.
         exercises: normalizeSupersets(
@@ -123,6 +131,7 @@ export function fromTrainerRoutineDto(routine: TrainerRoutineDto): DraftRoutine 
         id: day.id,
         name: day.name,
         plannedWeekday: day.plannedWeekday,
+        workoutType: day.workoutType ?? null,
         exercises: normalizeSupersets(
           day.exercises
             .slice()
@@ -202,7 +211,8 @@ export function toRoutineDoc(draft: DraftRoutine): RoutineDoc {
 
 /**
  * Draft → wire document for `trainer.client.saveRoutine`: the same rows, no
- * `notes`, plus the trainer's note (trimmed; empty = none).
+ * `notes`, plus the trainer's note (trimmed; empty = none) and each day's
+ * workout type.
  */
 export function toTrainerRoutineDoc(draft: DraftRoutine): TrainerRoutineDoc {
   return {
@@ -212,6 +222,8 @@ export function toTrainerRoutineDoc(draft: DraftRoutine): TrainerRoutineDoc {
       ...(day.id ? { id: day.id } : {}),
       name: day.name,
       plannedWeekday: day.plannedWeekday,
+      // A type-only day ("Yoga", no exercises) is a valid day; omitted = keep the stored type.
+      ...(day.workoutType !== undefined && { workoutType: day.workoutType }),
       exercises: day.exercises.map((exercise) => {
         const note = exercise.trainerNote?.trim() ?? '';
         return {
@@ -270,13 +282,15 @@ export function toRoutineLike(draft: DraftRoutine): RoutineLike {
 export function isDraftEqual(a: DraftRoutine, b: DraftRoutine): boolean {
   return (
     JSON.stringify(toRoutineDoc(a)) === JSON.stringify(toRoutineDoc(b)) &&
-    trainerNoteSignature(a) === trainerNoteSignature(b)
+    trainerSignature(a) === trainerSignature(b)
   );
 }
 
-/** Trainer notes are not in `toRoutineDoc`, but editing or clearing one is a change. */
-function trainerNoteSignature(draft: DraftRoutine): string {
-  return JSON.stringify(draft.days.map((d) => d.exercises.map((e) => e.trainerNote ?? null)));
+/** Trainer notes and workout types are not in `toRoutineDoc`, but changing one is a change. */
+function trainerSignature(draft: DraftRoutine): string {
+  return JSON.stringify(
+    draft.days.map((d) => [d.workoutType ?? null, d.exercises.map((e) => e.trainerNote ?? null)]),
+  );
 }
 
 // ─── Actions ──────────────────────────────────────────────────────────────────
@@ -288,6 +302,8 @@ export type DraftAction =
   | { type: 'delete_day'; dayKey: string }
   | { type: 'rename_day'; dayKey: string; name: string }
   | { type: 'set_day_weekday'; dayKey: string; weekday: number | null }
+  /** My week: set or clear a day's workout type; a day with no exercises takes the type's name. */
+  | { type: 'set_day_workout_type'; dayKey: string; workoutType: WorkoutType | null }
   | { type: 'move_day'; fromIndex: number; toIndex: number }
   | { type: 'add_exercise'; dayKey: string; exercise: ExerciseMeta }
   | { type: 'remove_exercise'; dayKey: string; exerciseKey: string }
@@ -354,6 +370,7 @@ export function draftReducer(state: DraftRoutine, action: DraftAction): DraftRou
         key: makeKey('day'),
         name: `${source.name} copy`,
         plannedWeekday: null,
+        ...(source.workoutType !== undefined && { workoutType: source.workoutType }),
         exercises: source.exercises.map((e) => {
           // Fresh copies get no id — the server assigns a new row on save.
           const { id: _sourceId, ...rest } = e;
@@ -378,6 +395,22 @@ export function draftReducer(state: DraftRoutine, action: DraftAction): DraftRou
         ...state,
         days: state.days.map((d) =>
           d.key === action.dayKey ? { ...d, plannedWeekday: action.weekday } : d,
+        ),
+      };
+
+    case 'set_day_workout_type':
+      return {
+        ...state,
+        days: state.days.map((d) =>
+          d.key === action.dayKey
+            ? {
+                ...d,
+                workoutType: action.workoutType,
+                // Same rule as My week (applyMyWeek): a type-only day reads as its type.
+                ...(action.workoutType &&
+                  d.exercises.length === 0 && { name: workoutTypeLabel(action.workoutType) }),
+              }
+            : d,
         ),
       };
 

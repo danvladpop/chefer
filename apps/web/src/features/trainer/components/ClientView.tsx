@@ -48,7 +48,12 @@ export function ClientView({ clientId, tab }: { clientId: string; tab: 'workouts
   const name = overview.data.client.name;
   return (
     <div className="mx-auto flex w-full max-w-6xl flex-col gap-5 px-4 py-6 sm:px-6 sm:py-8">
-      <ClientHeader clientId={clientId} name={name} active={tab} />
+      <ClientHeader
+        clientId={clientId}
+        name={name}
+        active={tab}
+        keepItSimple={overview.data.client.keepItSimple}
+      />
       <div className="grid grid-cols-1 gap-5 xl:grid-cols-[minmax(0,1fr)_22rem] xl:items-start">
         <div className="min-w-0">
           {tab === 'adherence' ? (
