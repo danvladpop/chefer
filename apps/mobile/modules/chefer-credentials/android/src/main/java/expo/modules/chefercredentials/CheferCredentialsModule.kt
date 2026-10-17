@@ -1,6 +1,5 @@
 package expo.modules.chefercredentials
 
-import android.content.MutableContextWrapper
 import android.os.Build
 import android.view.autofill.AutofillManager
 import androidx.credentials.CreatePasswordRequest
@@ -25,9 +24,9 @@ class CheferCredentialsModule : Module() {
       val activity = appContext.currentActivity ?: return@Coroutine "unavailable"
       if (username.isEmpty() || password.isEmpty()) return@Coroutine "unavailable"
       try {
-        // An activity context keeps the sheet in this task (androidx.credentials docs).
+        // The activity itself keeps the sheet in this task (androidx.credentials docs).
         CredentialManager.create(activity)
-          .createCredential(MutableContextWrapper(activity), CreatePasswordRequest(username, password))
+          .createCredential(activity, CreatePasswordRequest(username, password))
         "saved"
       } catch (e: CreateCredentialCancellationException) {
         "cancelled"
@@ -39,9 +38,12 @@ class CheferCredentialsModule : Module() {
         "unavailable"
       } finally {
         // Drop the pending autofill session so it can't offer the same
-        // credential a second time when the activity later finishes.
+        // credential a second time when the activity later finishes. On the UI
+        // thread: this coroutine resumes on a background one. Any other
+        // CreateCredentialException (interrupted, unknown, a provider's own)
+        // rejects the promise, which the JS logs and swallows.
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-          activity.getSystemService(AutofillManager::class.java)?.cancel()
+          activity.runOnUiThread { activity.getSystemService(AutofillManager::class.java)?.cancel() }
         }
       }
     }

@@ -539,11 +539,12 @@ API, Maestro E2E in `e2e/`).
   dependency (transitive only; swipe-to-remove is PanResponder-based, Q-17)
 - **Password save on Android (F8, native release for 1.0.2): local Expo module `modules/chefer-credentials`**
   (Android only, autolinked from `apps/mobile/modules/`; `androidx.credentials:credentials` +
-  `credentials-play-services-auth` 1.6.0 in its own `android/build.gradle`). One function, `savePassword(username,
-password)`: Credential Manager `createCredential(CreatePasswordRequest)` from the current activity, then
-  `AutofillManager.cancel()`; resolves `saved` / `cancelled` / `unavailable`. JS: `src/features/auth/save-credentials.ts`
-  `saveCredentials(email, password)` looks the module up with `requireOptionalNativeModule('CheferCredentials')` (null on
-  iOS and on binaries built before it → no-op), never throws, logs `[credentials] …` without the password. Called after
+  `credentials-play-services-auth` 1.6.0 in its own `android/build.gradle`). One function,
+  `savePassword(username, password)`: Credential Manager `createCredential(CreatePasswordRequest)` from the current
+  activity, then `AutofillManager.cancel()` on the UI thread; resolves `saved` / `cancelled` / `unavailable` (other
+  provider errors reject). JS: `src/features/auth/save-credentials.ts` `saveCredentials(email, password)` looks the module
+  up with `requireOptionalNativeModule('CheferCredentials')` (null on iOS and on binaries built before it → no-op), saves
+  the email trimmed and lower-cased like the API, never throws, logs `[credentials] …` without the password. Called after
   `setToken` on a successful email sign-up (V3 `app/(auth)/register.tsx`, V4 `onboarding-v4/account-v4.tsx`) and a
   successful sign-in whose password was typed (`login.tsx` + `src/features/auth/password-entry.ts` — a password-manager
   fill is already saved). iOS has no module on purpose: its own save prompt works with the `webcredentials` entitlement

@@ -147,7 +147,7 @@ Second round, for a native save in the 1.0.2 build. Primary sources: the iOS 26.
 
 - **androidx.credentials 1.6.0** is the stable release (2026-04-08, [release notes](https://developer.android.com/jetpack/androidx/releases/credentials)). Its minSdk is 23; Expo 57 builds for 24.
   - Dependencies are `credentials` plus `credentials-play-services-auth`, which provides Google Password Manager on API 33 and below.
-- **The call is `CredentialManager.createCredential(activityContext, CreatePasswordRequest(id, password))`.** "Use an activity context" (`CredentialManager.kt:245-256`; the guide wraps it in `MutableContextWrapper`).
+- **The call is `CredentialManager.createCredential(activityContext, CreatePasswordRequest(id, password))`.** "Use an activity context" (`CredentialManager.kt:245-256`). The guide wraps it in `MutableContextWrapper`; Chefer passes the activity itself, because on Android 14+ a wrapper is not an `Activity` and the sheet could open in a new task.
 - **Errors** all extend `CreateCredentialException`:
   - `CreateCredentialCancellationException` means the user said no.
   - `NoCreateOption`, `ProviderConfiguration` and `Unsupported` mean there is nothing to save to.
@@ -270,4 +270,5 @@ Use a fresh address for each sign-up (`you+f8b@…`, `you+f8c@…`), and delete 
    - **Expect the sheet.** This time tap **Not now**: the app carries on with no error.
 5. **C. Filled sign-in.** Sign out, then sign in by picking the saved login that Google suggests above the keyboard. **Expect no sheet.**
 6. **D. Wrong password.** Sign in with a wrong password. **Expect "Invalid email or password" and no sheet.**
-7. **If A or B shows nothing:** run `adb logcat | grep -E "credentials\]|CredentialManager"` while repeating, and send the output. The app logs `[credentials] save: saved | cancelled | unavailable`.
+7. **Google sign-in still works.** Sign out and use Continue with Google. The new module brings `androidx.credentials` 1.6.0 into the build, and Gradle may resolve Google sign-in's copy to that version too.
+8. **If A or B shows nothing:** run `adb logcat | grep -E "credentials\]|CredentialManager"` while repeating, and send the output. The app logs `[credentials] save: saved | cancelled | unavailable`.

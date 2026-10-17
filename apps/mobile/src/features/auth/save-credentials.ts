@@ -25,13 +25,12 @@ export async function saveCredentials(email: string, password: string): Promise<
   const native = requireOptionalNativeModule<CheferCredentialsModule>('CheferCredentials');
   if (!native) return;
   try {
-    const result = await native.savePassword(email.trim(), password);
-    // Device logs (logcat) only, like the bundle line in app/_layout.tsx.
-    // eslint-disable-next-line no-console
+    // As the API stores it (auth.service.ts), so one account is one saved entry.
+    const result = await native.savePassword(email.trim().toLowerCase(), password);
+    // eslint-disable-next-line no-console -- device log (logcat) only, like app/_layout.tsx
     console.info(`[credentials] save: ${result}`);
   } catch (err) {
-    // The message only: the password must never reach a log.
-    // eslint-disable-next-line no-console
+    // eslint-disable-next-line no-console -- the message only: a password never reaches a log
     console.info(`[credentials] save failed: ${err instanceof Error ? err.message : 'unknown'}`);
   }
 }

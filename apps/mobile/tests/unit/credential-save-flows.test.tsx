@@ -135,6 +135,20 @@ describe('Sign in', () => {
     await waitFor(() => expect(mutate).toHaveBeenCalled());
     await waitFor(() => expect(save).toHaveBeenCalledWith(EMAIL, PASSWORD));
   });
+  it('one typed character, then the password manager replaces it: offers nothing', async () => {
+    const mutate = settleMutation(trpc.auth.login, 'success');
+    const user = userEvent.setup();
+    await renderWithSafeArea(<LoginScreen />);
+    await user.type(screen.getByTestId('login-email'), EMAIL);
+    await user.type(screen.getByTestId('login-password'), 'x');
+    // Google's suggestion replaces the field's text with the saved password.
+    await fireEvent.changeText(screen.getByTestId('login-password'), PASSWORD);
+    await user.press(screen.getByTestId('login-submit'));
+
+    await waitFor(() => expect(mutate).toHaveBeenCalled());
+    expect(save).not.toHaveBeenCalled();
+  });
+
   it('a wrong typed password, then a password-manager fill: offers nothing', async () => {
     const outcomes: Outcome[] = ['failure', 'success'];
     const mutate = jest.fn();
@@ -223,7 +237,7 @@ describe('Sign up (Onboarding V4 account step)', () => {
     expect(save).toHaveBeenCalledWith(EMAIL, PASSWORD);
   });
 
-  it('a suggested strong password is new too: offered once', async () => {
+  it('a suggested strong password is new too: handed over once (iOS saves it itself; no module there)', async () => {
     const mutate = settleMutation(trpc.auth.register, 'success');
     await fillAndSubmit({ filled: true });
 

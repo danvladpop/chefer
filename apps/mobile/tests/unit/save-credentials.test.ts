@@ -22,11 +22,11 @@ beforeEach(() => {
 
 afterEach(() => jest.restoreAllMocks());
 
-it('hands the trimmed email and the password to the native module', async () => {
+it('hands the account email as the API stores it (trimmed, lower case) and the password', async () => {
   const savePassword = jest.fn(() => Promise.resolve('saved'));
   installModule(savePassword);
 
-  await saveCredentials('  ana@example.com ', 'Password123!');
+  await saveCredentials('  Ana@Example.com ', 'Password123!');
 
   expect(savePassword).toHaveBeenCalledTimes(1);
   expect(savePassword).toHaveBeenCalledWith('ana@example.com', 'Password123!');

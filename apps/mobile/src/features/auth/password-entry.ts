@@ -16,7 +16,8 @@ export const EMPTY_PASSWORD_ENTRY: PasswordEntry = { kind: 'empty', text: '' };
 export function nextPasswordEntry(entry: PasswordEntry, next: string): PasswordEntry {
   if (next === '') return EMPTY_PASSWORD_ENTRY;
   if (Math.abs(next.length - entry.text.length) === 1) return { kind: 'typed', text: next };
-  // A whole value landing in an empty field is a fill; any other jump (a paste
-  // over typed text) keeps what the user did before.
-  return { kind: entry.text === '' ? 'filled' : entry.kind, text: next };
+  // A jump that keeps the typed text in front (a paste at the end) keeps what
+  // the user did; one that replaces it (or lands in an empty field) is a fill.
+  const keepsTypedText = entry.text !== '' && next.startsWith(entry.text);
+  return { kind: keepsTypedText ? entry.kind : 'filled', text: next };
 }
