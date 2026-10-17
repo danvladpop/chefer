@@ -58,6 +58,7 @@ export const PREMIUM_PITCH_COPY = {
   tierRowFree: 'Free plan',
   tierRowPremium: 'Premium plan',
   tierRowPremiumHint: 'Included · What you have',
+  tierRowAdminHint: 'Included with admin access',
   switchBackToFree: 'Switch back to Free',
   downgradeTitle: 'Switch back to Free?',
   downgradeKeep: "You'll keep your plans, recipes, ratings, logs and workouts.",
@@ -131,6 +132,10 @@ interface PitchJob {
   bullets: readonly PitchBullet[];
   /** Whether the job runs on a daily AI allowance. */
   ai?: boolean;
+  /** Open with "Also included" unfolded (the overview shows every benefit up front). */
+  showAllIncluded?: boolean;
+  /** Jobs whose "Also included" line this job's bullets already say. */
+  covers?: readonly LivePitchJobId[];
 }
 
 const b = (
@@ -138,6 +143,13 @@ const b = (
   feature: PitchBullet['feature'],
   extra: Partial<Omit<PitchBullet, 'text' | 'feature'>> = {},
 ): PitchBullet => ({ text: typeof text === 'string' ? () => text : text, feature, ...extra });
+
+/** The weekly plan: the default pitch, and the lead of the overview. */
+const WEEKLY_PLAN_BULLETS: readonly PitchBullet[] = [
+  b('A new week planned for you every Sunday', 'weeklyAutoGeneration'),
+  b('Built around your table, budget and training days', 'aiMealPlans'),
+  b('Keeps the meals you rated highly', 'weeklyAutoGeneration'),
+];
 
 const JOBS: Record<LivePitchJobId, PitchJob> = {
   household: {
@@ -266,22 +278,16 @@ const JOBS: Record<LivePitchJobId, PitchJob> = {
   default: {
     headline: () => 'Your week, ready every Monday',
     lede: 'Premium plans next week for you before it starts.',
-    bullets: [
-      b('A new week planned for you every Sunday', 'weeklyAutoGeneration'),
-      b('Built around your table, budget and training days', 'aiMealPlans'),
-      b('Keeps the meals you rated highly', 'weeklyAutoGeneration'),
-    ],
+    bullets: WEEKLY_PLAN_BULLETS,
   },
   // F7: the tier row asks "what is Premium?", not "unlock this one thing", so
   // it leads with the weekly plan and opens with "Also included" unfolded.
   overview: {
     headline: () => 'Everything Premium adds',
     lede: 'Premium plans your week for you and adds the AI tools. Everything in Free stays free.',
-    bullets: [
-      b('A new week planned for you every Sunday', 'weeklyAutoGeneration'),
-      b('Built around your table, budget and training days', 'aiMealPlans'),
-      b('Keeps the meals you rated highly', 'weeklyAutoGeneration'),
-    ],
+    bullets: WEEKLY_PLAN_BULLETS,
+    showAllIncluded: true,
+    covers: ['default'],
   },
   'gym-first': {
     headline: () => 'Food that fits your training week',
@@ -310,11 +316,6 @@ const ALSO_INCLUDED: readonly { job: LivePitchJobId; line: string; feature: Plan
     feature: 'aiNutritionEstimatesPerDay',
   },
 ];
-
-/** Jobs whose bullets already say what another job's "Also included" line would. */
-const COVERS: Partial<Record<LivePitchJobId, readonly LivePitchJobId[]>> = {
-  overview: ['default'],
-};
 
 // ─── Availability ───────────────────────────────────────────────────────────────
 
@@ -392,7 +393,7 @@ export function premiumPitchFor(
     .slice(0, 3)
     .map((bullet) => bullet.text(context));
 
-  const covered = COVERS[job] ?? [];
+  const covered = def.covers ?? [];
   const rows = ALSO_INCLUDED.filter(
     (r) => r.job !== job && !covered.includes(r.job) && featureLive(r.feature),
   );
@@ -412,7 +413,7 @@ export function premiumPitchFor(
     bullets,
     alsoIncluded,
     ai: def.ai === true,
-    showAllIncluded: job === 'overview',
+    showAllIncluded: def.showAllIncluded === true,
     terms: { heading: PREMIUM_PITCH_COPY.termsHeading, body: PREMIUM_PITCH_COPY.termsBody },
   };
 }
