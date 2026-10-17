@@ -73,6 +73,7 @@ import { ErrorState, pressControl, Sheet, Toast } from '@chefer/ui';
 import {
   aiConsentRequiredFor,
   DAY_FIT_COPY,
+  defaultDay,
   defaultWeekOffset,
   formatDateRange,
   formatKcal,
@@ -141,6 +142,9 @@ export default function MealPlanPage() {
     // (possibly next week again, e.g. Friday afternoon) instead of staying
     // on the week the arrows just navigated to.
     params.set('week', String(offset));
+    // F1: landing on this week selects today, any other week Monday — never
+    // the day the previous week had open (same rule as mobile's Meals tab).
+    params.set('day', String(defaultDay(offset)));
     router.replace(`/meal-plan?${params.toString()}`, { scroll: false });
   };
 
