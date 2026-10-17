@@ -100,6 +100,12 @@ export class PasswordResetService {
       prisma.verificationToken.deleteMany({ where: { identifier: row.identifier } }),
       // Invalidate every existing session.
       prisma.session.deleteMany({ where: { userId: user.id } }),
+      // An unconfirmed address may have been typed in by someone else
+      // (`user.update`); their linked Google/Apple sign-in must not survive
+      // the real owner taking the account over (audit 2026-10-17 P0 0.2).
+      ...(user.emailVerified
+        ? []
+        : [prisma.authIdentity.deleteMany({ where: { userId: user.id } })]),
     ]);
   }
 }

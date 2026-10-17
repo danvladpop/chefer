@@ -102,6 +102,7 @@ class FakeRepo implements IAuthIdentityRepository {
       user.emailVerified = new Date();
     }
     this.sessionsRevokedFor.push(userId);
+    this.identities = this.identities.filter((i) => i.userId !== userId);
     return this.identity(userId, data);
   }
   async update(id: string, data: Parameters<IAuthIdentityRepository['update']>[1]) {
@@ -467,6 +468,49 @@ describe('socialSignIn: existing identities and linking', () => {
     expect(repo.users[0]?.passwordHash).toBeNull();
     expect(repo.users[0]?.emailVerified).toBeInstanceOf(Date);
     expect(repo.sessionsRevokedFor).toEqual(['u-squat']);
+  });
+
+  it('takeover guard: an address typed in via user.update (unverified) is handed to its real owner alone', async () => {
+    // The claimant signs up with Apple (a stored, revocable grant), sets a
+    // password, then changes the account email to the victim's address —
+    // which clears emailVerified (UserService.update).
+    const raw = 'raw-nonce-123456';
+    await service.signIn(
+      {
+        provider: 'APPLE',
+        idToken: await appleToken(raw, { email: 'claimant@privaterelay.appleid.com' }),
+        nonce: raw,
+        authorizationCode: 'code-1',
+        acceptLegal: true,
+      },
+      mockRes(),
+      OPTIONS,
+    );
+    const claimant = firstUser();
+    Object.assign(claimant, {
+      email: 'alice@gmail.com',
+      emailVerified: null,
+      passwordHash: 'claimant-hash',
+    });
+    fetchImpl.mockClear();
+
+    // The victim signs in with Google for the first time.
+    const result = await service.signIn(
+      { provider: 'GOOGLE', idToken: await googleToken() },
+      mockRes(),
+      OPTIONS,
+    );
+
+    expect(result).toMatchObject({ id: claimant.id, linkedExistingAccount: true });
+    expect(claimant.passwordHash).toBeNull();
+    expect(claimant.emailVerified).toBeInstanceOf(Date);
+    expect(repo.sessionsRevokedFor).toEqual([claimant.id]);
+    // The claimant's Apple sign-in no longer opens the account…
+    expect(repo.identities.map((i) => i.provider)).toEqual(['GOOGLE']);
+    // …and the Apple grant it held is revoked.
+    expect(fetchImpl.mock.calls.map(([url]) => url)).toContainEqual(
+      expect.stringContaining('appleid.apple.com/auth/revoke'),
+    );
   });
 
   it('never links by an email the provider has not verified', async () => {

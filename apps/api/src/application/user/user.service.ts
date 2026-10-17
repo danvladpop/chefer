@@ -7,6 +7,7 @@ import {
   UserNotFoundError,
 } from '../../domain/user/user.errors.js';
 import type { IUserRepository } from '../../infrastructure/prisma/prisma-user.repository.js';
+import type { EmailPreferencesService } from '../notifications/email-preferences.service.js';
 import { consentService } from '../privacy/consent.service.js';
 
 /** 'web' | 'mobile' | 'migration' — see ConsentService.record. */
@@ -72,8 +73,14 @@ export interface PaginatedUsersDto {
 
 // ─── Service ──────────────────────────────────────────────────────────────────
 
+/** Sends the confirm-your-address link (EmailPreferencesService in production). */
+export type EmailConfirmationSender = Pick<EmailPreferencesService, 'sendConfirmationInBackground'>;
+
 export class UserService {
-  constructor(private readonly userRepository: IUserRepository) {}
+  constructor(
+    private readonly userRepository: IUserRepository,
+    private readonly emailConfirmation: EmailConfirmationSender,
+  ) {}
 
   /**
    * Finds a user by ID. Returns null if not found (doesn't throw).
@@ -184,6 +191,13 @@ export class UserService {
 
   /**
    * Updates a user by ID.
+   *
+   * A new email address starts unconfirmed: `emailVerified` is cleared and a
+   * confirmation link goes to the new address. Keeping the old timestamp let
+   * anyone claim an address they don't own — social sign-in links a verified
+   * account by email without securing it, so the real owner of the address
+   * would land in an account the claimant still controls (audit 2026-10-17
+   * P0 0.2).
    */
   async update(id: string, input: UpdateUserInput): Promise<UserDto> {
     // Check that user exists
@@ -192,9 +206,12 @@ export class UserService {
       throw new TRPCError({ code: 'NOT_FOUND', message: `User not found: ${id}` });
     }
 
-    // Check email uniqueness if changing email
-    if (input.email && input.email !== existing.email) {
-      const emailConflict = await this.userRepository.findByEmail(input.email);
+    // Compare the stored (normalised) form, so a case-only edit is no change.
+    const email = input.email?.toLowerCase().trim();
+    const emailChanged = email !== undefined && email !== existing.email;
+
+    if (emailChanged) {
+      const emailConflict = await this.userRepository.findByEmail(email);
       if (emailConflict) {
         throw new TRPCError({
           code: 'CONFLICT',
@@ -204,7 +221,13 @@ export class UserService {
     }
 
     try {
-      const updated = await this.userRepository.update(id, input);
+      const updated = await this.userRepository.update(id, {
+        ...input,
+        ...(emailChanged && { emailVerified: null }),
+      });
+      if (emailChanged) {
+        this.emailConfirmation.sendConfirmationInBackground(id, updated.firstName);
+      }
       return this.toDto(updated);
     } catch (error) {
       this.handleError(error);

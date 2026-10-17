@@ -21,6 +21,7 @@ vi.mock('@chefer/database', async (importOriginal) => {
         deleteMany: vi.fn(),
       },
       session: { deleteMany: vi.fn() },
+      authIdentity: { deleteMany: vi.fn() },
       $transaction: vi.fn(),
     },
   };
@@ -60,5 +61,37 @@ describe('password reset for an OAuth-only account', () => {
       },
     });
     expect(prisma.session.deleteMany).toHaveBeenCalledWith({ where: { userId: 'u1' } });
+  });
+});
+
+// Audit 2026-10-17 P0 0.2: an unconfirmed address may have been typed in by
+// someone else, so the reset that proves the real owner drops every linked
+// Google/Apple sign-in the claimant could still use.
+describe('password reset of an account whose email was never confirmed', () => {
+  const resetRow = {
+    identifier: 'reset:a@test.dev',
+    token: hashToken('tok'),
+    expires: new Date(Date.now() + 60_000),
+  };
+
+  it('removes linked identities when the address was unconfirmed', async () => {
+    vi.mocked(prisma.verificationToken.findUnique).mockResolvedValue(resetRow);
+    vi.mocked(prisma.user.findUnique).mockResolvedValue(oauthOnly as never);
+
+    await service.resetPassword('tok', 'a-new-password-1');
+
+    expect(prisma.authIdentity.deleteMany).toHaveBeenCalledWith({ where: { userId: 'u1' } });
+  });
+
+  it('keeps linked identities when the address was already confirmed', async () => {
+    vi.mocked(prisma.verificationToken.findUnique).mockResolvedValue(resetRow);
+    vi.mocked(prisma.user.findUnique).mockResolvedValue({
+      ...oauthOnly,
+      emailVerified: new Date(),
+    } as never);
+
+    await service.resetPassword('tok', 'a-new-password-1');
+
+    expect(prisma.authIdentity.deleteMany).not.toHaveBeenCalled();
   });
 });

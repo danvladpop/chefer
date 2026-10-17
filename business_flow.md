@@ -435,8 +435,10 @@ Login / Register page (web)  |  mobile sign-in / sign-up screen
               ├─ same email as an existing account:
               │     ├─ provider did NOT verify the email  → CONFLICT (sign in with your password, connect later)
               │     └─ verified → link + sign in           linkedExistingAccount: true
-              │           (account whose email was never verified: its password is cleared and its other sessions are
-              │            revoked — the person holding the inbox is now the only one who can get in)
+              │           (account whose email was never verified — incl. one whose email was just changed via
+              │            `user.update`: its password is cleared, its sessions revoked and every other linked
+              │            Google/Apple identity removed, Apple grants revoked — the person holding the inbox is now
+              │            the only one who can get in)
               └─ new person:
                     needs acceptLegal: true               → else BAD_REQUEST (legalRequired)
                     needs a provider-VERIFIED email       → else BAD_REQUEST (Apple "Hide My Email" relay addresses are fine)
@@ -514,15 +516,32 @@ adminProcedure user.create
 
 ```
 protectedProcedure user.update
-  Input: { id, name?, email?, role?, image? }
+  Input: { id, name?, email?, currentPassword?, role?, image? }
   │
   ├── If caller is not ADMIN:
   │     └── Reject if id != ctx.user.id (FORBIDDEN)
   │     └── Reject if role is being changed (FORBIDDEN)
+  ├── Changing your OWN email needs currentPassword (FORBIDDEN otherwise)
   └── UserService.update(id, data)
-        └── PrismaUserRepository.update()
-  Output: User
+        ├── email compared lower-cased/trimmed — a case-only edit is no change
+        ├── new address already used by another account → CONFLICT
+        ├── PrismaUserRepository.update()
+        │     └── email actually changed → emailVerified = null
+        └── email actually changed → confirmation link emailed to the NEW
+            address (EmailPreferencesService, same link as at registration;
+            best effort, never fails the update)
+  Output: User (emailVerified: null after an email change)
 ```
+
+**Why the reset (audit 2026-10-17 P0 0.2):** a kept `emailVerified` let anyone
+type in an address they don't own. When the real owner then signed in with
+Google/Apple, §4.10 linked them into that account as a _verified_ one —
+password, sessions and the claimant's own linked sign-ins intact. Now the
+address stays unconfirmed until its owner clicks the link, so that sign-in takes
+the secure branch instead. Admin edits of another user follow the same rule
+(the admin can't vouch for the new inbox either). No web or mobile screen calls
+`user.update` today, so there is no client copy to change; Preferences already
+shows "confirm your address" with a resend button while `emailConfirmed` is false.
 
 ### Delete User
 
@@ -1875,6 +1894,9 @@ fill this week around your restrictions.` with `Pick recipes yourself` and
        ├─ delete all reset tokens for the address (single-use)
        ├─ confirm the address (emailVerified) if it wasn't yet — the user
        │   just proved they read that inbox (P2-5, §23)
+       ├─ if it wasn't confirmed: delete every linked Google/Apple identity —
+       │   the address may have been typed in by someone else (`user.update`),
+       │   whose own provider sign-in must not survive (audit 2026-10-17 P0 0.2)
        └─ delete ALL of the user's sessions — every device signs out
 ```
 
