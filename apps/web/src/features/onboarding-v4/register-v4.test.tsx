@@ -4,7 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { CURRENT_TERMS_VERSION } from '@chefer/types';
 import { RegisterV4 } from './register-v4';
 
-// "Save your plan" (flag onboardingV4): email + password, one 16+/Terms
+// "Save your plan" (flag onboardingV4): email + password + confirm (F9), one 16+/Terms
 // checkbox sent as both acceptedTerms and ageConfirmed; success → /onboarding.
 const m = vi.hoisted(() => ({ push: vi.fn(), register: vi.fn() }));
 
@@ -40,13 +40,14 @@ beforeEach(() => {
   vi.clearAllMocks();
 });
 
-function openEmail() {
+function openEmail(confirm = 'Spinach-9') {
   render(<RegisterV4 />);
   expect(screen.getByRole('heading', { name: 'Save your plan' })).toBeTruthy();
   expect(screen.getByText('social buttons')).toBeTruthy();
   fireEvent.click(screen.getByTestId('v4-account-email'));
   fireEvent.change(screen.getByLabelText('Email'), { target: { value: ' dana@example.com ' } });
   fireEvent.change(screen.getByLabelText('Password'), { target: { value: 'Spinach-9' } });
+  fireEvent.change(screen.getByLabelText('Confirm password'), { target: { value: confirm } });
 }
 
 describe('RegisterV4', () => {
@@ -73,11 +74,49 @@ describe('RegisterV4', () => {
     );
   });
 
-  it('Show reveals the password', () => {
+  it('one Show reveals both password fields', () => {
     openEmail();
     const field = screen.getByLabelText<HTMLInputElement>('Password');
+    const confirm = screen.getByLabelText<HTMLInputElement>('Confirm password');
     expect(field.type).toBe('password');
+    expect(confirm.type).toBe('password');
+    expect(screen.getAllByRole('button', { name: 'Show password' })).toHaveLength(1);
     fireEvent.click(screen.getByRole('button', { name: 'Show password' }));
     expect(field.type).toBe('text');
+    expect(confirm.type).toBe('text');
+  });
+
+  it('F8/F9: the email is the username and both password fields are new-password', () => {
+    openEmail();
+    expect(screen.getByLabelText('Email').getAttribute('autocomplete')).toBe('username');
+    expect(screen.getByLabelText('Password').getAttribute('autocomplete')).toBe('new-password');
+    expect(screen.getByLabelText('Confirm password').getAttribute('autocomplete')).toBe(
+      'new-password',
+    );
+  });
+
+  it('F9: a different confirmation blocks Create account until it matches', () => {
+    openEmail('Spinach-8');
+    fireEvent.click(screen.getByTestId('v4-account-agree'));
+    fireEvent.click(screen.getByTestId('v4-account-create'));
+    expect(m.register).not.toHaveBeenCalled();
+    expect(screen.getByRole('alert').textContent).toBe('Passwords do not match');
+
+    fireEvent.change(screen.getByLabelText('Confirm password'), {
+      target: { value: 'Spinach-9' },
+    });
+    expect(screen.queryByRole('alert')).toBeNull();
+    fireEvent.click(screen.getByTestId('v4-account-create'));
+    expect(m.register).toHaveBeenCalledTimes(1);
+    const [input] = m.register.mock.calls[0] as [Record<string, unknown>];
+    expect(input).not.toHaveProperty('confirmPassword');
+  });
+
+  it('F9: an empty confirmation asks for it', () => {
+    openEmail('');
+    fireEvent.click(screen.getByTestId('v4-account-agree'));
+    fireEvent.click(screen.getByTestId('v4-account-create'));
+    expect(m.register).not.toHaveBeenCalled();
+    expect(screen.getByRole('alert').textContent).toBe('Please confirm your password');
   });
 });
