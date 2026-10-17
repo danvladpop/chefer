@@ -1301,11 +1301,15 @@ the primitives, so every screen inherits it; `apps/mobile/tests/unit/keyboard-di
   dismiss themselves when the input is accepted.
 - **Credential fields**: `PasswordInput` defaults to `textContentType="password"` + `autoComplete="current-password"`
   (+ `secureTextEntry`, no autocapitalise/correct/spellcheck); "choose a password" fields spread
-  `NEW_PASSWORD_FIELD_PROPS` (`src/features/auth/password-fields.ts`); email fields spread `EMAIL_FIELD_PROPS`
-  (`email-address`, `autoComplete="email"`, `textContentType="emailAddress"`). The web auth forms already use
-  `type=password` + `autocomplete` `current-password` / `new-password` / `email` (pinned by
-  `apps/web/src/features/auth/components/credential-fields.test.tsx`). iOS strong-password suggestion / Keychain
-  saving additionally need an associated domain — a native-build change, not part of this fix.
+  `NEW_PASSWORD_FIELD_PROPS` (`src/features/auth/password-fields.ts`; a confirm field gets them too, so the suggested
+  strong password fills both); account email fields spread `EMAIL_FIELD_PROPS` (`email-address` keyboard,
+  `autoComplete="username"`, `textContentType="username"` — F8, 2026-10-17: Apple's Password AutoFill pairs the
+  password with the `username` field and asks for `username` + the email keyboard when the username is an email;
+  `emailAddress` left iOS without a username, so it suggested a strong password but never offered to save it.
+  Sources in `docs/research/password-autofill.md`; pinned by `tests/unit/password-autofill.test.tsx`). The web auth
+  forms already use `type=password` + `autocomplete` `current-password` / `new-password` / `username`
+  (`credential-fields.test.tsx`, `auth-autofill.test.tsx`). iOS strong-password suggestion / Keychain saving also
+  need the `webcredentials` associated domain, which production builds carry (§ build-time config below).
 
 Tests: Jest + RNTL in `apps/mobile/tests/unit/` (`ui-*.test.tsx` for the kit, plus
 `glossary-term.test.tsx`, `premium-shells.test.tsx`, `safety-shells.test.tsx`).

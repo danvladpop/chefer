@@ -160,12 +160,12 @@ describe('PasswordInput / email fields are treated like the credentials they are
     expect(screen.getByTestId('pw').props.textContentType).toBe('password');
   });
 
-  it('EMAIL_FIELD_PROPS: email keyboard, autofill hints, no autocapitalise/correct', async () => {
+  it('EMAIL_FIELD_PROPS: email keyboard, account-username autofill (F8), no autocapitalise/correct', async () => {
     await render(<Input testID="em" label="Email" {...EMAIL_FIELD_PROPS} />);
     const field = screen.getByTestId('em');
     expect(field.props.keyboardType).toBe('email-address');
-    expect(field.props.autoComplete).toBe('email');
-    expect(field.props.textContentType).toBe('emailAddress');
+    expect(field.props.autoComplete).toBe('username');
+    expect(field.props.textContentType).toBe('username');
     expect(field.props.autoCapitalize).toBe('none');
     expect(field.props.autoCorrect).toBe(false);
   });
