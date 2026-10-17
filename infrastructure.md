@@ -564,6 +564,28 @@ API, Maestro E2E in `e2e/`).
   `GOOGLE_IOS_URL_SCHEME` (or `GOOGLE_IOS_CLIENT_ID`, from which it is derived) registers the reversed iOS client id as a
   URL scheme through the Google plugin. `extra.socialSignIn = { apple, googleIos }` tells the UI what the binary can do.
   Android needs no build-time value (package `dev.chefer.app`; the SHA-1/256 live in Google Cloud / Play Console).
+- **Store rating prompt (ASO plan §5.1, ships in the 1.0.2 binary).** `expo-store-review` (`~57.0.3`, no config
+  plugin) asks the OS for its native rating sheet — the **only** path: no "Rate us" button, no "Enjoying Chefer?"
+  pre-prompt (both stores forbid gating). Code in `src/features/review/`: `review-eligibility.ts` (the pure rule),
+  `review-store.ts` (KV key `review.prompt-state` = `{ firstOpenAt, activeDays[], lastPromptAt, fullWeekPlannedAt,
+completedWorkouts }`, a **device** key kept on sign-out via `DEVICE_KV_KEYS_KEPT`; the in-memory session),
+  `request-review.ts` (`maybeRequestReview(trigger)`), `review-signals.ts` (where the triggers come from). A trigger
+  asks only when ALL hold: active on ≥ 3 distinct local days (counted at launch and on each return to the foreground);
+  not the session that first opened the app; nothing failed this session (root ErrorBoundary rendered, any tRPC
+  mutation failed — i.e. its error snackbar — or the gym outbox hit a server/validation failure; a return after
+  ≥ 30 min in the background starts a new session); no request from us in the last 120 days; and the trigger's own
+  condition. Triggers: `food_log` / `shopping_tick` — a successful `tracker.logRecipe` / `tracker.logCustomMeal`, or
+  `shoppingList.toggleItems` with `checked: true`, once a week with meals on all 7 days has been seen (noted from any
+  `mealPlan.*` query/mutation result) — hooked centrally on the QueryClient's `MutationCache`/`QueryCache`
+  `onSuccess` in `src/lib/trpc.ts` because meals are logged from ~10 call sites; `gym_pr` / `gym_third_workout` — the
+  workout summary (both shells, `useWorkoutReviewPrompt`) of a workout just finished in this process with a new PR, or
+  from the 3rd workout finished on this device (`noteWorkoutCompleted()` in `workout-screen.tsx` `doFinish`). The
+  request fires after the success UI settles (2 s after a food success, 3 s after the summary mounts), is re-checked at
+  fire time (still foreground, still no error), and needs `StoreReview.isAvailableAsync()` (false on TestFlight). The
+  120-day clock starts at the request — the OS may still show nothing (iOS: 3 a year; Play: undisclosed quota).
+  The module is looked up with `requireOptionalNativeModule('ExpoStoreReview')` and `require`d inline, and every path
+  is try/catch, so on an older binary or any failure the prompt is a silent no-op. Fires `review_prompt_requested
+{ trigger }`. Mobile-only: web has no store rating.
 - **Monorepo:** `metro.config.js` watches the workspace root so `@chefer/types`,
   `@chefer/utils`, `@chefer/tokens` and `@chefer/ui-mobile` (raw-TS exports) resolve
   (Jest maps them to source in `jest.config.js`); `@chefer/ui` and
@@ -3842,6 +3864,12 @@ account needed. All scripts live in `apps/mobile/scripts/`, export
   there, should it ever run on one). A new binary is required — bump `version` if it ships as a new store version. The
   fingerprint covers the config plugins and `ios.associatedDomains`, so build and publish with the same
   `GOOGLE_IOS_URL_SCHEME` / `EXPO_PUBLIC_API_URL` / `EXPO_APPLE_TEAM_ID` (see the runbook in §10).
+
+- **1.0.2 addition: `expo-store-review` (store rating prompt, ASO plan §5.1).** One more native module (`~57.0.3`, no
+  config plugin, no `ios/`/`android/` edit) that rides in the **same** 1.0.2 binary as mobile Sentry (danvladpop/chefer#146).
+  It changes the runtime fingerprint again, so the two PRs are merged together right before the owner builds 1.0.2 —
+  never earlier, or the deploy's OTA would target a runtime no installed binary has. The JS feature-detects the module,
+  so it would be a no-op (not a crash) on an older binary anyway.
 
 - **API compatibility:** web/API deploy on push to master; an OTA update
   goes live when published. Publish only after the API it depends on is

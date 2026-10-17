@@ -9,6 +9,8 @@ import {
   userFacingErrorMessage,
   type MutationMetaShape,
 } from '@chefer/utils';
+import { reviewOnMutationSuccess, reviewOnQuerySuccess } from '../features/review/review-signals';
+import { noteReviewBlockingError } from '../features/review/review-store';
 import { bindSessionQueryClient, clearToken, getToken } from './auth-store';
 
 export const trpc = createTRPCReact<AppRouter>();
@@ -66,9 +68,19 @@ export function makeQueryClient(options: QueryClientOptions = {}): QueryClient {
   const notifyMutationError =
     options.onMutationError ?? ((message: string) => showSnackbar({ message }));
   const client = new QueryClient({
-    queryCache: new QueryCache({ onError: (error) => handleUnauthorized(error, onUnauthorized) }),
+    queryCache: new QueryCache({
+      onError: (error) => handleUnauthorized(error, onUnauthorized),
+      // Store rating prompt (ASO §5.1): notes the first fully planned week.
+      onSuccess: (data, query) => reviewOnQuerySuccess(query.queryKey, data),
+    }),
     mutationCache: new MutationCache({
+      // Store rating prompt: a meal log or a shopping tick is a food success moment.
+      onSuccess: (data, variables, _context, mutation) =>
+        reviewOnMutationSuccess(mutation.options.mutationKey, variables, data),
       onError: (error, _variables, _context, mutation) => {
+        // Any failed write (its error snackbar, inline or default) means no
+        // rating prompt this session.
+        noteReviewBlockingError();
         handleUnauthorized(error, onUnauthorized);
         // R-10: the server refused an AI action for missing consent → the
         // consent provider reopens its sheet instead of a generic error.

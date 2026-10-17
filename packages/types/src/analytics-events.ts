@@ -124,6 +124,10 @@ export interface EventMap {
 
   // ─── L-DATA's own events (T-12.4) ────────────────────────────────────────────
   app_opened: Record<string, never>;
+  /** Mobile asked the OS for its native store rating sheet (ASO §5.1); the OS may still show nothing. */
+  review_prompt_requested: {
+    trigger: 'food_log' | 'shopping_tick' | 'gym_pr' | 'gym_third_workout';
+  };
   analytics_consent_changed: { anonymous: boolean; linked: boolean };
   // ─── L-CONSENT (T-26.2/T-26.4) — counts only ─────────────────────────────────
   health_consent_answered: { allowed: boolean };

@@ -2,6 +2,7 @@ import { useSyncExternalStore } from 'react';
 import { onlineManager } from '@tanstack/react-query';
 import { workoutSessionDocSchema, type SyncResultDto, type WorkoutSessionDoc } from '@chefer/types';
 import { isNetworkError } from '@chefer/utils';
+import { noteReviewBlockingError } from '../../review/review-store';
 import { describeValidationIssues, friendlyValidationMessage } from '../validation-copy';
 import { createExternalStore } from './external-store';
 import { KV_KEYS } from './keys';
@@ -220,6 +221,7 @@ export function createOutbox(deps: OutboxDeps = {}) {
           parkedReason: reason,
         }));
         result.parked++;
+        noteReviewBlockingError(); // no store rating prompt after a failed sync
       }
     }
 
@@ -258,6 +260,9 @@ export function createOutbox(deps: OutboxDeps = {}) {
         return true;
       }
       const message = errorMessage(error);
+      // A sync the server failed or refused (not just "offline") blocks the
+      // store rating prompt for this session.
+      if (!isNetworkError(error)) noteReviewBlockingError();
       if (isBadRequest(error)) {
         patchEntries(ids, (e) =>
           isSentCopy(e)

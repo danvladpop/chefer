@@ -68,7 +68,7 @@ jest.mock('expo-notifications', () => ({
   getAllScheduledNotificationsAsync: () => Promise.resolve(mockScheduled),
 }));
 
-/** Every KV key the app writes today, one per feature, plus the two that must survive. */
+/** Every KV key the app writes today, one per feature, plus the device ones that must survive. */
 const ACCOUNT_KEYS: Record<string, string> = {
   [KV_KEYS.mode]: 'gym',
   [KV_KEYS.owner]: 'user-a',
@@ -96,7 +96,11 @@ const ACCOUNT_KEYS: Record<string, string> = {
   [ONBOARDING_DRAFT_KEY]: '{"v":1}',
   'notifications.food-nudges': '{"dinner":true,"planSunday":true}',
 };
-const DEVICE_KEYS: Record<string, string> = { 'analytics.consent': '{"optedOut":true}' };
+const DEVICE_KEYS: Record<string, string> = {
+  'analytics.consent': '{"optedOut":true}',
+  // The store rating prompt's 120-day cooldown must outlive the account.
+  'review.prompt-state': '{"lastPromptAt":"2026-10-01T00:00:00.000Z"}',
+};
 
 function seed(keys: Record<string, string>) {
   for (const [key, value] of Object.entries(keys)) kv.setString(key, value);
@@ -137,7 +141,7 @@ describe('signOut()', () => {
     expect(queryClient.getQueryData([['preferences', 'get']])).toBeUndefined();
   });
 
-  it('removes every account key from the device store and keeps the two device ones', async () => {
+  it('removes every account key from the device store and keeps the device ones', async () => {
     await signOut();
     expect(kv.keys().sort()).toEqual(Object.keys(DEVICE_KEYS).sort());
     // …including the per-exercise notes and the plan dismissals, which have
@@ -213,10 +217,10 @@ describe('signOut()', () => {
     expect(order).toEqual([
       'cancelQueries',
       'clear',
-      'token-cleared(kv-keys-left=1,reminders-done=1)',
+      `token-cleared(kv-keys-left=${Object.keys(DEVICE_KEYS).length},reminders-done=1)`,
     ]);
     // Reminders were cancelled after the KV wipe, before the token went.
-    expect(mockKvKeysWhenRemindersCancelled).toEqual(['analytics.consent']);
+    expect([...mockKvKeysWhenRemindersCancelled].sort()).toEqual(Object.keys(DEVICE_KEYS).sort());
     expect(getToken()).toBeNull();
     cancelSpy.mockRestore();
     clearSpy.mockRestore();
@@ -253,6 +257,7 @@ describe('signOut()', () => {
       expect(kv.getString(KV_KEYS.mode)).toBeNull();
       expect(kv.getString(ONBOARDING_DRAFT_KEY)).toBeNull();
       expect(kv.getString('analytics.consent')).not.toBeNull();
+      expect(kv.getString('review.prompt-state')).not.toBeNull();
       expect(getToken()).toBeNull();
     });
   });
