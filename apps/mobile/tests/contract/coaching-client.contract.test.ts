@@ -131,7 +131,11 @@ describe('the shipped client at level 6', () => {
 
     // Leave: the status the "Your trainer" screen reads, and a withdrawal row.
     await api.coaching.leave.mutate();
-    expect(await api.coaching.status.query()).toEqual({ trainer: null, stopped: null });
+    expect(await api.coaching.status.query()).toEqual({
+      trainer: null,
+      request: null,
+      stopped: null,
+    });
     const after = (await api.privacy.getConsentHistory.query()).filter(
       (e) => e.kind === 'COACHING_SHARING',
     );

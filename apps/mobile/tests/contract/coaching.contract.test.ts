@@ -159,7 +159,11 @@ describe('coaching.* (client side)', () => {
   it('a client cannot see trainer data of someone else', async () => {
     if (!enabled) return;
     const user = await makeCoachUser({ prefix: 'coaching-plain', gymSetup: true });
-    expect(await user.api.coaching.status.query()).toEqual({ trainer: null, stopped: null });
+    expect(await user.api.coaching.status.query()).toEqual({
+      trainer: null,
+      request: null,
+      stopped: null,
+    });
     const boot = await user.api.gym.bootstrap.query({ today: '2026-10-04' });
     expect(boot.coaching).toBeNull();
     // Not a trainer: trainer.* is refused with the trainer-tools reason.

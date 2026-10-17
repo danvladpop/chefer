@@ -65,7 +65,14 @@ describe.skipIf(false)('trainer coaching (WP-18)', () => {
   it('a user who is not a trainer: status says they can turn tools on, trainer.* is FORBIDDEN with a reason', async () => {
     if (!enabled) return;
     const status = await trainer.api.trainer.status.query();
-    expect(status).toEqual({ canActivate: true, active: false, displayName: null });
+    expect(status).toEqual({
+      canActivate: true,
+      active: false,
+      displayName: null,
+      gymLine: null,
+      activeClients: 0,
+      findable: false,
+    });
     const err = await errorOf(trainer.api.trainer.clients.list.query());
     expect(err.code).toBe('FORBIDDEN');
     expect(err.data.reason).toBe('TRAINER_TOOLS_OFF');
@@ -423,7 +430,7 @@ describe.skipIf(false)('trainer coaching (WP-18)', () => {
   it('the client leaves: the trainer is locked out at once, the client keeps the routine and the notes', async () => {
     if (!enabled) return;
     const left = await client.api.coaching.leave.mutate();
-    expect(left).toEqual({ trainer: null, stopped: null });
+    expect(left).toEqual({ trainer: null, request: null, stopped: null });
 
     expect(
       (await errorOf(trainer.api.trainer.client.routine.query({ clientId: client.id }))).code,
@@ -581,8 +588,23 @@ describe('account deletion (spec §2.7)', () => {
     const kept = boot.activeRoutine?.days[0]?.exercises[0];
     expect(kept?.trainerNote).toBe('cue from a trainer who leaves');
     expect(kept?.lastEditedByOther?.name).toBe('your trainer');
-    expect(boot.activeRoutine?.lastEditedByOther?.name).toBe('your trainer');
-    expect(await c.api.coaching.status.query()).toEqual({ trainer: null, stopped: null });
+    expect(boot.activeRoutine?.lastEditedByOther).toMatchObject({
+      name: 'your trainer',
+      // PRD 2026-10 §4.3: "Changed by a former trainer".
+      former: true,
+    });
+    expect(await c.api.coaching.status.query()).toEqual({
+      trainer: null,
+      request: null,
+      stopped: null,
+    });
+    // The client is told, and the notice survives the trainer's cascade.
+    const ended = (await c.api.coaching.notices.query()).find((n) => n.kind === 'COACHING_ENDED');
+    expect(ended).toMatchObject({
+      other: { id: null, role: 'TRAINER' },
+      endedBy: 'SYSTEM',
+      read: false,
+    });
   });
 
   it("a deleted client: the trainer's list drops them, and the invite stays used", async () => {
