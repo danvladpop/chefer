@@ -1,5 +1,11 @@
 import { describe, expect, it, vi } from 'vitest';
-import type { GymBootstrap, PrDto, RecommendResultDto, SessionSummaryDto } from '@chefer/types';
+import {
+  INTERVALS_API_LEVEL,
+  type GymBootstrap,
+  type PrDto,
+  type RecommendResultDto,
+  type SessionSummaryDto,
+} from '@chefer/types';
 import { exerciseRow, profileRow, routineRow, suggestion } from './__test__/fixtures.js';
 import { toExerciseDto, toProfileDto, toRoutineDto } from './mappers.js';
 import {
@@ -271,7 +277,7 @@ describe('TrainingSummaryService.forChat', () => {
   it('reads the bootstrap for the user’s local today and asks for the profile’s recommendation', async () => {
     const { deps, service } = make(bootstrap());
     const text = await service.forChat('u1', { today: TODAY });
-    expect(deps.bootstrap.get).toHaveBeenCalledWith('u1', { today: TODAY }, 5);
+    expect(deps.bootstrap.get).toHaveBeenCalledWith('u1', { today: TODAY }, INTERVALS_API_LEVEL);
     expect(deps.profiles.recommend).toHaveBeenCalledWith({
       days: 3,
       experience: 'BEGINNER',

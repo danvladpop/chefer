@@ -3642,6 +3642,11 @@ parsing. A level is only ever sent by a bundle that implements it.
 | 6     | WP-18 trainer coaching's OTA (`COACHING_API_LEVEL`)                  | shows trainer notes on exercises, "Changed by <trainer>" stamps, "Set by <trainer>" targets, `bootstrap.coaching` and the `COACHING_SHARING` consent-history rows; gated on the RAW level (see "Trainer coaching authorization") |
 | 7     | W5 L-GYMDATA's OTA (`INTERVALS_API_LEVEL`)                           | also renders `INTERVALS`, requested exercises (`origin: REQUESTED`, status chips) and routine cardio slots                                                                                                                       |
 
+Re-claimed at the 2026-10-17 rebase of WP-18 onto master: coaching keeps **6** (the next free level; master still
+gated INTERVALS at 5, which no bundle sends), INTERVALS stays moved to **7**, and simple training mode needs no level
+of its own (its new fields are additive keys older binaries ignore). The chat training summary reads at the highest
+level (`INTERVALS_API_LEVEL`), since it is text for the model, not a client render.
+
 `renderableTrackingTypes(level)` (`apps/api/src/application/gym/client-level.ts`, T-42.0) =
 strength types (`WEIGHT_REPS`, `BODYWEIGHT_REPS`) + `DURATION` at every level (a timed exercise —
 plank, carries — already renders on every shipped client) + `DURATION_DISTANCE`/`DISTANCE` at
