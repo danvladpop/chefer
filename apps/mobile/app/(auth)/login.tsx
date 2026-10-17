@@ -21,6 +21,12 @@ import {
 import { AuthField, AuthScreen } from '../../src/features/auth/auth-screen';
 import { AUTH_COPY } from '../../src/features/auth/copy';
 import { takeEmailHint } from '../../src/features/auth/email-hint';
+import {
+  EMPTY_PASSWORD_ENTRY,
+  nextPasswordEntry,
+  type PasswordEntry,
+} from '../../src/features/auth/password-entry';
+import { saveCredentials } from '../../src/features/auth/save-credentials';
 import { loginSchema, type LoginFormValues } from '../../src/features/auth/schemas';
 import {
   clearSessionExpired,
@@ -61,6 +67,8 @@ function LoginForm() {
   // or "Sign in" on an existing-account notice) must not show the previous
   // attempt's password — least of all in clear text.
   const [revealed, setRevealed] = useState(false);
+  // F8: only a typed password is offered to the password manager after sign-in.
+  const passwordEntry = useRef<PasswordEntry>(EMPTY_PASSWORD_ENTRY);
 
   const {
     control,
@@ -79,14 +87,20 @@ function LoginForm() {
     // "Save Password" with it.
     onError: () => {
       setValue('password', '');
+      passwordEntry.current = EMPTY_PASSWORD_ENTRY;
       passwordRef.current?.focus();
     },
-    onSuccess: async (data) => {
+    onSuccess: async (data, credentials) => {
       if (data.session) {
         // Flips the root layout's auth gate straight into (food) (or Gym Today).
         await setToken(data.session.token);
         clearSessionExpired();
         clearAccountDeletedNotice();
+        // F8: a typed password goes to the password manager (Android; iOS
+        // prompts by itself when this screen unmounts).
+        if (passwordEntry.current.kind === 'typed') {
+          void saveCredentials(credentials.email, credentials.password);
+        }
       }
     },
   });
@@ -96,6 +110,7 @@ function LoginForm() {
   useFocusEffect(
     useCallback(() => {
       setValue('password', '');
+      passwordEntry.current = EMPTY_PASSWORD_ENTRY;
       setRevealed(false);
       const hint = takeEmailHint();
       if (hint && !getValues('email')) setValue('email', hint);
@@ -191,6 +206,7 @@ function LoginForm() {
               editable={!login.isPending}
               onChangeText={(text) => {
                 clearServerError();
+                passwordEntry.current = nextPasswordEntry(passwordEntry.current, text);
                 onChange(text);
               }}
               value={value}

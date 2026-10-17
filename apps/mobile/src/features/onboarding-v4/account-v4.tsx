@@ -29,6 +29,7 @@ import { setEmailHint } from '../auth/email-hint';
 import { isAccountExistsError } from '../auth/errors';
 import { NEW_PASSWORD_FIELD_PROPS } from '../auth/password-fields';
 import { clearPendingOnboarding, requestOnboarding } from '../auth/pending-onboarding';
+import { saveCredentials } from '../auth/save-credentials';
 import {
   SocialConsentLine,
   SocialSignIn,
@@ -65,7 +66,7 @@ export function AccountV4() {
 
   const register = trpc.auth.register.useMutation({
     meta: { silent: true },
-    onSuccess: async (data) => {
+    onSuccess: async (data, account) => {
       track('signup_completed', {});
       if (data.session) {
         // Same order as the register screen (R-18b): flag onboarding, then the token.
@@ -76,6 +77,8 @@ export function AccountV4() {
           clearPendingOnboarding();
           throw err;
         }
+        // F8: offer the new account's credential (Android; see save-credentials.ts).
+        void saveCredentials(account.email, account.password);
       }
     },
   });
