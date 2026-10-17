@@ -1,5 +1,5 @@
 // ─── Shell v2 routes (mobile UX revamp, phase 1) ────────────────────────────
-// The new shell's one tab bar (Today · Plan · Shop · Train · You, plan:
+// The new shell's one tab bar (Shop · Meals · Today · Train · You, plan:
 // "Target navigation") and the map from the old Food|Gym URLs to it. The old
 // tab groups stay in the app untouched; while the new shell is on, their
 // layouts send every visit (a push from an old screen, a notification, a

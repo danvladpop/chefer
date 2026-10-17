@@ -4,7 +4,7 @@ import { kv } from '../gym/offline/kv';
 
 // ─── Shell v2 switch (mobile UX revamp, phase 1) ────────────────────────────
 // Which app shell renders: the current Food|Gym tab groups, or the revamp's
-// one tab bar (Today · Plan · Shop · Train · You — `app/(main)`). Two inputs:
+// one tab bar (Shop · Meals · Today · Train · You — `app/(main)`). Two inputs:
 //  - the server flag `mobileShellV2` (profile.flags), cached here so a cold
 //    start decides synchronously, with no flash of the old shell;
 //  - a per-device preview opt-in, offered to admins and dev builds in

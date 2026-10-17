@@ -69,12 +69,13 @@ test.describe('bottom tab bar', () => {
 test.describe('food IA (P2-2 / P2-8)', () => {
   test.use({ viewport: MOBILE });
 
-  test('tab bar reads Today · Plan · Shop · Cookbook · More', async ({ page }) => {
+  // Owner feedback 2026-10-17 (F4): Today sits in the middle.
+  test('tab bar reads Shop · Plan · Today · Cookbook · More', async ({ page }) => {
     await gotoAndSettle(page, '/dashboard');
     await expect(bottomNav(page).locator('a, button')).toHaveText([
-      'Today',
-      'Plan',
       'Shop',
+      'Plan',
+      'Today',
       'Cookbook',
       'More',
     ]);
