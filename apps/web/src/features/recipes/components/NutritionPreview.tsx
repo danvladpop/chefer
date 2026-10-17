@@ -1,7 +1,8 @@
 'use client';
 
 import { AlertTriangle, Calculator, Loader2 } from 'lucide-react';
-import { CountUp } from '@chefer/ui';
+import { INGREDIENT_CATALOG_COPY } from '@chefer/types';
+import { cn, CountUp, pressControl } from '@chefer/ui';
 import { nutritionComputedCopy, nutritionIncompleteCopy } from '@chefer/utils';
 import type { LiveNutrition } from '../hooks/useLiveNutrition';
 
@@ -15,9 +16,12 @@ const fmt1 = (n: number) => (Math.round(n * 10) / 10).toString();
 export function NutritionPreview({
   live,
   note,
+  onShowIncomplete,
 }: {
   live: LiveNutrition;
   note?: string | undefined;
+  /** F2: makes "Incomplete — N …" a button that takes the user to the first row it counted. */
+  onShowIncomplete?: (() => void) | undefined;
 }) {
   const n = live.perServing;
   return (
@@ -53,8 +57,24 @@ export function NutritionPreview({
               aria-hidden="true"
             />
             <span className="min-w-0 font-medium text-amber-900">
-              {nutritionIncompleteCopy(live.missingCount)}. The numbers above leave{' '}
-              {live.missingCount === 1 ? 'it' : 'them'} out.
+              {onShowIncomplete ? (
+                // F2: MO-01 press feedback (pressControl); -my-3 keeps the
+                // 44px hit area without growing the status line.
+                <button
+                  type="button"
+                  onClick={onShowIncomplete}
+                  title={INGREDIENT_CATALOG_COPY.importReview.showFirstIncomplete}
+                  className={cn(
+                    '-my-3 min-h-11 text-left font-medium underline decoration-amber-400 underline-offset-2',
+                    pressControl,
+                  )}
+                >
+                  {nutritionIncompleteCopy(live.missingCount)}
+                </button>
+              ) : (
+                nutritionIncompleteCopy(live.missingCount)
+              )}
+              . The numbers above leave {live.missingCount === 1 ? 'it' : 'them'} out.
             </span>
           </>
         ) : (

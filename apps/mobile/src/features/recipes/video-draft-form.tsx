@@ -22,9 +22,12 @@ import {
 import {
   cn,
   finalizeVideoDraft,
+  formNutritionLines,
   incompleteLineCount,
   ingredientUnitGroups,
   lineProblemCopy,
+  parseQuantityInput,
+  rowLineProblems,
   unitForPickedIngredient,
   videoDraftProblems,
   videoDraftToForm,
@@ -37,7 +40,6 @@ import { pickedFromRef, type CatalogRef, type PickedIngredient } from '../ingred
 import { IngredientPickerField } from '../ingredients/ingredient-picker-field';
 import { useComputedNutrition } from '../ingredients/use-computed-nutrition';
 import { TrainButton } from '../shell/train/train-button';
-import { draftNutritionLines, rowLineProblems } from './draft-line-problems';
 
 // Import review form — port of web's VideoDraftForm. The AI reads the video's
 // words (or, UX-REC-15, a link's page or pasted text) into a draft; the user
@@ -167,10 +169,29 @@ export function VideoDraftForm({
   const [pendingSave, setPendingSave] = useState<VideoSaveRecipe | null>(null);
 
   // Live nutrition over the linked rows (the server recomputes on save).
-  const liveLines = draftNutritionLines(form.ingredients, (i) => links[i]?.ingredient?.id ?? null);
+  // F2: the shared row → line mapping (web builds its lines the same way).
+  const liveLines = formNutritionLines(
+    form.ingredients.map((row, i) => ({
+      name: row.name,
+      quantity: parseQuantityInput(row.quantity),
+      unit: row.unit,
+      ingredientId: links[i]?.ingredient?.id ?? null,
+    })),
+  );
   const live = useComputedNutrition(liveLines.lines, Number(form.servings) || 1);
   // F2: each counted line's problem, on the form row it came from.
   const rowProblems = rowLineProblems(form.ingredients.length, liveLines.rowOf, live.result);
+  // What a counted, linked row says under it. An unlinked row has its own
+  // "Pick a match" block; a linked row's NO_INGREDIENT is its catalog data
+  // not being here — still loading, or offline / failed — never left unexplained.
+  const rowHint = (index: number): string | null => {
+    const problem = rowProblems[index];
+    if (!problem || !links[index]?.ingredient) return null;
+    if (problem !== 'NO_INGREDIENT') return lineProblemCopy(problem);
+    return live.isComputing
+      ? INGREDIENT_CATALOG_COPY.importReview.rowLoading
+      : INGREDIENT_CATALOG_COPY.importReview.rowUnavailable;
+  };
   const incompleteCopy = live.result
     ? INGREDIENT_CATALOG_COPY.status.incomplete(incompleteLineCount(live.result))
     : '';
@@ -344,12 +365,7 @@ export function VideoDraftForm({
         <View className="gap-2">
           {form.ingredients.map((row, index) => {
             const problem = rowProblems[index];
-            // An unlinked row says "Pick a match" below; a linked row's
-            // NO_INGREDIENT is its catalog data still loading (web does the same).
-            const hint =
-              links[index]?.ingredient && problem && problem !== 'NO_INGREDIENT'
-                ? lineProblemCopy(problem)
-                : null;
+            const hint = rowHint(index);
             const qtyBad = hint !== null && problem === 'BAD_QTY';
             const unitBad =
               hint !== null && problem !== undefined && UNIT_PROBLEMS.includes(problem);
@@ -559,12 +575,13 @@ export function VideoDraftForm({
 
       {live.result?.status === 'PARTIAL' ? (
         // F2: the count is a way in — tap it to reach the first row it counted.
+        // MO-01 press feedback (PressableScale, control scale).
         <PressableScale
           testID="video-draft-nutrition-status-button"
           pressScale="control"
           accessibilityRole="button"
           accessibilityLabel={incompleteCopy}
-          accessibilityHint="Shows the first ingredient that needs data"
+          accessibilityHint={INGREDIENT_CATALOG_COPY.importReview.showFirstIncomplete}
           onPress={revealFirstProblem}
           className="min-h-11 flex-row items-center gap-1 self-start"
         >
