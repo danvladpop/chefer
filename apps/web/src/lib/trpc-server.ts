@@ -1,6 +1,7 @@
 import { createTRPCClient, httpBatchLink } from '@trpc/client';
 import superjson from 'superjson';
 import type { AppRouter } from '@chefer/api';
+import { COACHING_API_LEVEL } from '@chefer/types';
 
 // Server-only: prefer the internal Docker network URL so RSC calls stay on the
 // private network in production; fall back to the public URL, then localhost.
@@ -13,7 +14,8 @@ const API_URL = `${
 // see trpc-links.ts. 3 (T-42.5, UX-42): the web renders cardio (Δ2.1).
 // 4 (T-26.2/T-26.3, L-CONSENT): the web shows the health consent sheet before any
 // health save. Same value as HEALTH_CONSENT_API_LEVEL (@chefer/types).
-const API_LEVEL_HEADERS = { 'x-chefer-api-level': '4' };
+// 6 (WP-18, trainer coaching): same value as the browser client (trpc-provider.tsx).
+const API_LEVEL_HEADERS = { 'x-chefer-api-level': String(COACHING_API_LEVEL) };
 
 export const serverClient = createTRPCClient<AppRouter>({
   links: [

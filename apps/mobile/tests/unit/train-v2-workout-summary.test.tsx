@@ -270,6 +270,50 @@ describe('WorkoutSummaryV2', () => {
     );
   });
 
+  it('the app’s own next target carries no "Set by" line (WP-18)', async () => {
+    const doc = finishedDoc();
+    rememberFinished(doc);
+    await renderSummary(doc.id, bootstrapAfterFinish(doc));
+    expect(screen.queryByTestId('summary-next-0-set-by')).toBeNull();
+  });
+
+  it('a trainer-set next target reads "Set by Ana" under the target (WP-18)', async () => {
+    const doc = finishedDoc();
+    rememberFinished(doc);
+    const base = bootstrapAfterFinish(doc);
+    const trainerSet = base.progressions.map((p) => ({
+      ...p,
+      override: {
+        weightKg: 62.5,
+        reps: [8, 8, 8],
+        at: '2026-10-02T09:00:00.000Z',
+        setByName: 'Ana',
+      },
+    }));
+    await renderSummary(doc.id, { ...base, progressions: trainerSet });
+    expect(screen.getByTestId('summary-next-0-set-by')).toHaveTextContent('Set by Ana');
+  });
+
+  it('a former trainer’s target reads "Set by Ana (former trainer)" (PRD 2026-10 §4.3)', async () => {
+    const doc = finishedDoc();
+    rememberFinished(doc);
+    const base = bootstrapAfterFinish(doc);
+    const former = base.progressions.map((p) => ({
+      ...p,
+      override: {
+        weightKg: 62.5,
+        reps: [8, 8, 8],
+        at: '2026-10-02T09:00:00.000Z',
+        setByName: 'Ana',
+        setByFormer: true as const,
+      },
+    }));
+    await renderSummary(doc.id, { ...base, progressions: former });
+    expect(screen.getByTestId('summary-next-0-set-by')).toHaveTextContent(
+      'Set by Ana (former trainer)',
+    );
+  });
+
   it('Adjust is disabled offline with an explanation', async () => {
     onlineManager.setOnline(false);
     const doc = finishedDoc();

@@ -1,7 +1,7 @@
 import { Pressable, ScrollView, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { router, type Href } from 'expo-router';
-import { FRIENDS_COPY } from '@chefer/types';
+import { COACHING_COPY, FRIENDS_COPY } from '@chefer/types';
 import { Button, Screen, Text } from '@chefer/ui-mobile';
 import { WELLNESS_COPY } from '@chefer/utils';
 import { track } from '../../lib/analytics';
@@ -12,6 +12,7 @@ import { legalHref } from '../legal/legal-docs';
 import { ShellPreviewSection } from '../shell/shell-preview-row';
 import { useShellV2 } from '../shell/shell-store';
 import { AccountScreen } from '../shell/you/account-screen';
+import { useCoachingAvailability } from '../trainer/api/use-coaching-availability';
 import { useSignOut } from './use-sign-out';
 
 // ─── Settings hub (T-00.9, PAT-9 §2.9; UX-ACC-04, UX-ACC-19) ───────────────────
@@ -125,7 +126,33 @@ const FOLLOWING_ROW: SettingsRow = {
   onOpen: () => track('friends_opened', { source: 'settings' }),
 };
 
-function groupsFor(friendsAvailable: boolean, hasTraining: boolean): SettingsGroup[] {
+// Trainer coaching (WP-18): "Your trainer" for anyone while `coaching.availability` says enabled,
+// "Trainer tools" only for users who may be a trainer — Gym mode's way in (Gym has no More tab).
+const YOUR_TRAINER_ROW: SettingsRow = {
+  label: COACHING_COPY.yourTrainer.title,
+  testID: 'settings-your-trainer',
+  href: '/coaching',
+};
+const TRAINER_TOOLS_ROW: SettingsRow = {
+  label: COACHING_COPY.trainer.title,
+  testID: 'settings-trainer-tools',
+  href: '/trainer',
+};
+
+function groupsFor(
+  friendsAvailable: boolean,
+  hasTraining: boolean,
+  coaching: { yourTrainer: boolean; trainerTools: boolean } = {
+    yourTrainer: false,
+    trainerTools: false,
+  },
+): SettingsGroup[] {
+  const accountRows = [
+    ...(friendsAvailable ? [FOLLOWING_ROW] : []),
+    ...(coaching.yourTrainer ? [YOUR_TRAINER_ROW] : []),
+    ...(coaching.trainerTools ? [TRAINER_TOOLS_ROW] : []),
+    ...ACCOUNT_ROWS,
+  ];
   return [
     YOU_GROUP,
     FOOD_GROUP,
@@ -134,7 +161,7 @@ function groupsFor(friendsAvailable: boolean, hasTraining: boolean): SettingsGro
     hasTraining ? TRAINING_GROUP : { title: 'Training', rows: [], setUpCta: true },
     {
       title: 'Account',
-      rows: friendsAvailable ? [FOLLOWING_ROW, ...ACCOUNT_ROWS] : ACCOUNT_ROWS,
+      rows: accountRows,
     },
     LEGAL_GROUP,
   ];
@@ -208,11 +235,15 @@ export function SettingsScreen() {
 
 function LegacySettingsScreen() {
   const { enabled: friendsAvailable } = useFriendsAvailability();
+  const coachingAvailability = useCoachingAvailability();
   // Only a *loaded* "no gym profile" swaps the Training rows for the CTA — a
   // slow or failed load keeps the rows rather than flashing a setup prompt.
   const bootstrap = useGymBootstrap();
   const trainingSetUp = !(bootstrap.isSuccess && !bootstrap.data.profile);
-  const groups = groupsFor(friendsAvailable, trainingSetUp);
+  const groups = groupsFor(friendsAvailable, trainingSetUp, {
+    yourTrainer: coachingAvailability.enabled,
+    trainerTools: coachingAvailability.canBeTrainer,
+  });
   const signOut = useSignOut('settings-sign-out-confirm');
 
   return (

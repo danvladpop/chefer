@@ -1,5 +1,5 @@
 import { ActivityIndicator, View } from 'react-native';
-import { FRIENDS_COPY } from '@chefer/types';
+import { COACHING_CONSENT_LABELS, FRIENDS_COPY } from '@chefer/types';
 import { Card, ErrorState, Text, useQueryState } from '@chefer/ui-mobile';
 import { trpc } from '../../lib/trpc';
 
@@ -22,7 +22,8 @@ type ConsentKind =
   | 'EMAIL_RECAP'
   | 'AUTO_PLAN'
   | 'HEALTH'
-  | 'SOCIAL_SHARING';
+  | 'SOCIAL_SHARING'
+  | 'COACHING_SHARING';
 
 interface ConsentEventRow {
   kind: ConsentKind;
@@ -60,6 +61,10 @@ function describe(event: ConsentEventRow): string {
       // Following (code name `friends`): turned on, made public, shared
       // targets (granted) or turned off (withdrawn) — implementation-plan §7.
       return FRIENDS_COPY.consent.label(event.granted);
+    case 'COACHING_SHARING':
+      // Trainer coaching (WP-18): joined a trainer (granted) or the link ended (withdrawn). Level 6+ only:
+      // the API filters these rows out below it, so an older bundle never prints the raw enum.
+      return COACHING_CONSENT_LABELS[event.granted ? 'granted' : 'withdrawn'];
     default:
       return event.kind;
   }

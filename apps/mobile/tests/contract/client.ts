@@ -1,7 +1,8 @@
-import { createTRPCClient } from '@trpc/client';
+import { createTRPCClient, httpBatchLink } from '@trpc/client';
+import superjson from 'superjson';
 import type { AppRouter } from '@chefer/api';
 import { CURRENT_TERMS_VERSION } from '@chefer/types';
-import { buildTrpcLinks } from '../../src/lib/trpc-links';
+import { buildAuthHeaders, buildTrpcLinks } from '../../src/lib/trpc-links';
 
 export const API_URL = process.env.CHEFER_API_URL ?? 'http://localhost:3001';
 
@@ -16,17 +17,39 @@ export interface ContractClient {
   getToken: () => string | null;
 }
 
+export interface ContractClientOptions {
+  /**
+   * Send this `x-chefer-api-level` instead of the one the app ships (trainer
+   * coaching tests: 6 = a coaching bundle, 4 = an installed 1.0.1 binary).
+   * Omitted = exactly the app's own header.
+   */
+  apiLevel?: number;
+}
+
 /**
  * A vanilla tRPC client wired through the app's own link builder — identical
  * headers, transformer, and batching to what ships on the phone.
  */
-export function makeContractClient(): ContractClient {
+export function makeContractClient(options: ContractClientOptions = {}): ContractClient {
   let token: string | null = null;
+  const { apiLevel } = options;
   const client = createTRPCClient<AppRouter>({
-    links: buildTrpcLinks({
-      url: `${API_URL}/trpc`,
-      getToken: () => token,
-    }),
+    links:
+      apiLevel === undefined
+        ? buildTrpcLinks({
+            url: `${API_URL}/trpc`,
+            getToken: () => token,
+          })
+        : [
+            httpBatchLink({
+              transformer: superjson,
+              url: `${API_URL}/trpc`,
+              headers: () => ({
+                ...buildAuthHeaders(() => token),
+                'x-chefer-api-level': String(apiLevel),
+              }),
+            }),
+          ],
   });
   return {
     client,

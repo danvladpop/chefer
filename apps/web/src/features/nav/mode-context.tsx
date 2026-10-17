@@ -2,6 +2,7 @@
 
 import { usePathname, useRouter } from 'next/navigation';
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
+import { useTrainerStatus } from '@/features/trainer/use-trainer-status';
 import { capture } from '@/lib/analytics';
 import {
   deriveMode,
@@ -62,6 +63,8 @@ export function ModeProvider({
   }, [pathname]);
 
   const mode = pending ?? deriveMode(pathname, cookieMode);
+  // WP-18: "Clients" appears for a user whose trainer tools are on, never otherwise.
+  const { active: isTrainer } = useTrainerStatus();
 
   const switchMode = useCallback(
     (next: AppMode) => {
@@ -76,7 +79,10 @@ export function ModeProvider({
     [mode, router],
   );
 
-  const value = useMemo(() => ({ mode, nav: navFor(mode), switchMode }), [mode, switchMode]);
+  const value = useMemo(
+    () => ({ mode, nav: navFor(mode, { trainer: isTrainer }), switchMode }),
+    [mode, isTrainer, switchMode],
+  );
   return <ModeContext.Provider value={value}>{children}</ModeContext.Provider>;
 }
 

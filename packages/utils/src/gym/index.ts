@@ -20,6 +20,8 @@ export * from './reasons';
 export * from './offers';
 // Superset grouping (routine editors) and round logic (active workout), G4-B.
 export * from './supersets';
+// Routine document diff: which rows a save changed (trainer coaching edit stamps).
+export * from './routine-diff';
 // Carry-over + short-version types (T-00.7 scaffold for T-36.3/T-36.6).
 export * from './carry-over';
 export * from './short-version';

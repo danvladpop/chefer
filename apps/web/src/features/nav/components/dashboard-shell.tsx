@@ -36,6 +36,8 @@ const TITLE_MAP: [string, string][] = [
   ['/preferences', 'Preferences'],
   ['/premium', 'Premium'],
   ['/admin', 'Admin'],
+  ['/coaching/find', 'Find a trainer'],
+  ['/coaching/trainers', 'Find a trainer'],
   ['/onboarding', 'Get Started'],
   ['/dashboard', 'Today'],
 ];

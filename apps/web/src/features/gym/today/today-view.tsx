@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
+import { CoachingNotices } from '@/features/coaching/components/CoachingNotices';
 import { useFlags } from '@/features/flags/use-flags';
 import { OnboardingV4WelcomeCard } from '@/features/onboarding-v4/welcome-card';
 import { capture } from '@/lib/analytics';
@@ -194,6 +195,8 @@ export function TodayView() {
           onResume={() => router.push('/gym/workout')}
         />
       )}
+
+      <CoachingNotices />
 
       {/* Onboarding V4 (train-only lands here): one-time "You're all set". */}
       <OnboardingV4WelcomeCard className="mb-4" />

@@ -16,6 +16,7 @@ import {
 import { isSimpleTraining, supersetSlot } from '@chefer/utils';
 import { Icon } from '../../../components/icon';
 import { useFlags } from '../../../hooks/use-flags';
+import { CoachingNotices } from '../../coaching/notices/coaching-notices';
 import { GymBootstrapUnavailable } from '../../gym/components/gym-bootstrap-state';
 import { OutboxWaitingCard } from '../../gym/components/outbox-waiting-card';
 import { SimpleTodayView } from '../../gym/simple/simple-today-view';
@@ -252,22 +253,29 @@ export function TrainScreen() {
       />
     ) : null;
 
+  // WP-18: "Ana updated your routine", "Ana stopped coaching you", "Carry on joining your trainer"
+  // (self-gated on coaching.availability) — first, in every state, as on the old Gym Today.
+  const coachingNotices = <CoachingNotices />;
+
   let body;
   if (!bootstrap.profile) {
     body = (
-      <TrainCard testID="train-empty-setup">
-        <Text accessibilityRole="header" className="text-title3 font-bold text-label">
-          Set up your training
-        </Text>
-        <Text className="text-subhead text-label-secondary">
-          A 90-second setup gets you a routine and today’s workout.
-        </Text>
-        <TrainButton
-          testID="train-setup-cta"
-          label="Set up training"
-          onPress={() => router.push('/gym/setup')}
-        />
-      </TrainCard>
+      <>
+        {coachingNotices}
+        <TrainCard testID="train-empty-setup">
+          <Text accessibilityRole="header" className="text-title3 font-bold text-label">
+            Set up your training
+          </Text>
+          <Text className="text-subhead text-label-secondary">
+            A 90-second setup gets you a routine and today’s workout.
+          </Text>
+          <TrainButton
+            testID="train-setup-cta"
+            label="Set up training"
+            onPress={() => router.push('/gym/setup')}
+          />
+        </TrainCard>
+      </>
     );
   } else if (isSimpleTraining(bootstrap.profile, flags)) {
     // "Keep it simple" (simple training mode §6.4): My week's plan, Start a
@@ -294,6 +302,7 @@ export function TrainScreen() {
     // logging and past workouts stay (they need no routine).
     body = (
       <>
+        {coachingNotices}
         {ongoing}
         <TrainCard testID="train-empty-routine">
           <Text accessibilityRole="header" className="text-title3 font-bold text-label">
@@ -326,6 +335,7 @@ export function TrainScreen() {
   } else {
     body = (
       <>
+        {coachingNotices}
         {/* UX-44 (T-44.4): targets that moved after a correction synced. */}
         <TargetChangeNotice bootstrap={bootstrap} dataUpdatedAt={t.bootstrapQuery.dataUpdatedAt} />
         {ongoing}

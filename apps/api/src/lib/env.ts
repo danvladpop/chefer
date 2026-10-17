@@ -257,7 +257,7 @@ const envSchema = z.object({
 
   // Following dark launch (docs/friends/implementation-plan.md §8, PRD §17):
   // comma-separated user ids that get Following while the `friends` flag is
-  // off. Empty (the default) = nobody. Read through isFriendsEnabledFor
+  // off; `*` = everyone. Empty (the default) = nobody. Read through isFriendsEnabledFor
   // (lib/friends-middleware.ts), never directly.
   FRIENDS_ALLOWLIST: z
     .string()
@@ -269,6 +269,37 @@ const envSchema = z.object({
             .split(',')
             .map((id) => id.trim())
             .filter((id) => id.length > 0),
+        ),
+    ),
+
+  // Trainer coaching dark launch (docs/trainer-platform/spec.md §11): comma-
+  // separated EMAIL ADDRESSES (case-insensitive). COACHING_ALLOWLIST gets the
+  // coaching feature while the `coaching` flag is off; TRAINER_ALLOWLIST decides
+  // who may turn trainer tools on during the beta (invite-only, Q-1). `*` means
+  // everyone. Empty (the default) = nobody. Read through lib/coaching-middleware.ts,
+  // never directly.
+  COACHING_ALLOWLIST: z
+    .string()
+    .default('')
+    .transform(
+      (val) =>
+        new Set(
+          val
+            .split(',')
+            .map((e) => e.trim().toLowerCase())
+            .filter((e) => e.length > 0),
+        ),
+    ),
+  TRAINER_ALLOWLIST: z
+    .string()
+    .default('')
+    .transform(
+      (val) =>
+        new Set(
+          val
+            .split(',')
+            .map((e) => e.trim().toLowerCase())
+            .filter((e) => e.length > 0),
         ),
     ),
 

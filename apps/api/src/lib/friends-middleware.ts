@@ -41,10 +41,12 @@ export function isFriendsEnabledFor(userId: string): boolean {
 /**
  * Takes the set as possibly undefined on purpose: a test that mocks
  * lib/env.js with a partial object must not crash here (the lib/flags.ts
- * precedent) — a missing allowlist is an empty one.
+ * precedent) — a missing allowlist is an empty one. `*` means everyone, like
+ * COACHING_ALLOWLIST, so Following and coaching launch with the same steps
+ * (docs/prd-2026-10/coaching-launch.md).
  */
 function isAllowlisted(allowlist: ReadonlySet<string> | undefined, userId: string): boolean {
-  return allowlist ? allowlist.has(userId) : false;
+  return allowlist ? allowlist.has('*') || allowlist.has(userId) : false;
 }
 
 /** Context after `protectedProcedure`'s auth middleware. */

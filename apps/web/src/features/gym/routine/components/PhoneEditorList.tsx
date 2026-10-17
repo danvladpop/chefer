@@ -1,10 +1,10 @@
 'use client';
 
-import { useEffect, useRef, useState, type Dispatch } from 'react';
+import { useEffect, useRef, useState, type Dispatch, type ReactNode } from 'react';
 import { ChevronDown, ChevronUp, Link2, Plus } from 'lucide-react';
 import { Button } from '@chefer/ui';
 import { isSupersetWithNext, supersetSlot, type ExerciseLookup } from '@chefer/utils';
-import type { DraftAction, DraftRoutine } from '../draft';
+import type { DraftAction, DraftDay, DraftExercise, DraftRoutine } from '../draft';
 import { DayHeaderFields } from './DayHeaderFields';
 import { ExerciseFieldsForm } from './ExerciseFieldsForm';
 import { SupersetHeading } from './SupersetHeading';
@@ -18,6 +18,11 @@ export interface PhoneEditorListProps {
   /** Opens the "Superset" sheet for a day (plan-library-supersets S3). */
   onOpenSuperset: (dayKey: string) => void;
   onSwap: (dayKey: string, exerciseKey: string) => void;
+  /** Trainer coaching seams: a line under each exercise name / a block of fields in its settings. */
+  renderAttribution?: (dayKey: string, exercise: DraftExercise) => ReactNode;
+  renderExtra?: (dayKey: string, exercise: DraftExercise) => ReactNode;
+  /** Trainer coaching seam: a block under each day's header (the day's workout type). */
+  renderDayExtra?: (day: DraftDay) => ReactNode;
 }
 
 const exerciseMoveButtonCls =
@@ -32,6 +37,9 @@ export function PhoneEditorList({
   onOpenPicker,
   onOpenSuperset,
   onSwap,
+  renderAttribution,
+  renderExtra,
+  renderDayExtra,
 }: PhoneEditorListProps) {
   // UX-05 A4 (AC25): one exercise card expanded at a time, per day.
   const [expanded, setExpanded] = useState<Record<string, string | null>>({});
@@ -100,6 +108,7 @@ export function PhoneEditorList({
               </div>
             }
           />
+          {renderDayExtra && <div className="mt-2">{renderDayExtra(day)}</div>}
 
           <div className="mt-3 flex flex-col gap-2.5">
             {day.exercises.map((exercise, exIndex) => (
@@ -118,6 +127,8 @@ export function PhoneEditorList({
                 <ExerciseFieldsForm
                   exercise={exercise}
                   lookup={lookup}
+                  attribution={renderAttribution?.(day.key, exercise)}
+                  extra={renderExtra?.(day.key, exercise)}
                   compact
                   expanded={expanded[day.key] === exercise.key}
                   onToggleExpand={() =>

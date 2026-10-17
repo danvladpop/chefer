@@ -11,6 +11,8 @@ import { TodayView } from './today-view';
 
 vi.mock('next/navigation', () => ({ useRouter: () => ({ push: vi.fn(), replace: vi.fn() }) }));
 vi.mock('@/lib/analytics', () => ({ capture: vi.fn() }));
+// WP-18: the coaching lines have their own tests (CoachingNotices.test.tsx).
+vi.mock('@/features/coaching/components/CoachingNotices', () => ({ CoachingNotices: () => null }));
 vi.mock('@/features/flags/use-flags', () => ({ useFlags: () => ({ simpleTraining: false }) }));
 vi.mock('@/features/onboarding-v4/welcome-card', () => ({ OnboardingV4WelcomeCard: () => null }));
 vi.mock('@/lib/trpc', () => ({

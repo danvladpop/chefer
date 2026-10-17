@@ -20,12 +20,12 @@ export const privacyRouter = router({
    * is the name used going forward (T-39.2, `src/features/privacy/consent-history.tsx`).
    */
   consentLog: protectedProcedure.query(({ ctx }) =>
-    privacyService.listMyConsentEvents(ctx.user.id),
+    privacyService.listMyConsentEvents(ctx.user.id, ctx.clientApiLevel),
   ),
 
   /** Profile → Privacy & data → "Consent history". */
   getConsentHistory: protectedProcedure.query(({ ctx }) =>
-    privacyService.getConsentHistory(ctx.user.id),
+    privacyService.getConsentHistory(ctx.user.id, ctx.clientApiLevel),
   ),
 
   /**

@@ -80,6 +80,11 @@ const GLYPHS = {
   barbell: 'barbell-outline',
   pause: 'pause-outline',
   images: 'images-outline',
+  // Trainer coaching (WP-18)
+  yourTrainer: 'person-outline',
+  trainerTools: 'clipboard-outline',
+  clients: 'people-outline',
+  clientGone: 'person-remove-outline',
 } as const satisfies Record<string, keyof typeof Ionicons.glyphMap>;
 
 export type IconName = keyof typeof GLYPHS;

@@ -21,12 +21,15 @@ export function WorkoutTypeChips({
   onChange,
   includeStrength,
   includeRest = false,
+  restLabel = 'Rest',
   testID,
 }: {
   value: WorkoutTypePick;
   onChange: (next: WorkoutType | null) => void;
   includeStrength: boolean;
   includeRest?: boolean;
+  /** The null chip's label: "Rest" in My week; the trainer's routine editor says "No type". */
+  restLabel?: string;
   testID: string;
 }) {
   const options = workoutTypeOptions({ includeStrength });
@@ -35,7 +38,7 @@ export function WorkoutTypeChips({
       {includeRest ? (
         <ChipGroup
           testID={`${testID}-rest-group`}
-          options={[{ value: REST, label: 'Rest', testID: `${testID}-REST` }]}
+          options={[{ value: REST, label: restLabel, testID: `${testID}-REST` }]}
           value={value === null ? [REST] : []}
           onChange={(next) => {
             if (next[0] === REST) onChange(null);
@@ -87,6 +90,7 @@ export function WorkoutTypePickerSheet({
   initial,
   includeStrength,
   includeRest = false,
+  restLabel,
   confirmLabel,
   onPick,
   testID = 'workout-type-picker',
@@ -99,6 +103,7 @@ export function WorkoutTypePickerSheet({
   initial: WorkoutTypePick;
   includeStrength: boolean;
   includeRest?: boolean;
+  restLabel?: string;
   confirmLabel?: string;
   onPick: (type: WorkoutType | null) => void;
   testID?: string;
@@ -143,6 +148,7 @@ export function WorkoutTypePickerSheet({
           value={picked}
           includeStrength={includeStrength}
           includeRest={includeRest}
+          {...(restLabel !== undefined && { restLabel })}
           onChange={(next) => {
             haptics.selection();
             setPicked(next);

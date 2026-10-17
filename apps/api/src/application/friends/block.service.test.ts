@@ -71,9 +71,13 @@ function makeWorld() {
     ),
   };
   const suggestions = { invalidate: vi.fn(), invalidateAll: vi.fn() };
-  const hydrator = new FriendSummaryHydrator(profiles, {
-    findEdgesWith: () => Promise.resolve([]),
-  });
+  const hydrator = new FriendSummaryHydrator(
+    profiles,
+    {
+      findEdgesWith: () => Promise.resolve([]),
+    },
+    { findMany: () => Promise.resolve([]) },
+  );
   const txs: SocialDbClient[] = [];
   const tx: SocialTx = (fn) => {
     const t = { n: txs.length } as unknown as SocialDbClient;

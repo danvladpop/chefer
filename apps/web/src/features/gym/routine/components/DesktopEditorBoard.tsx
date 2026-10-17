@@ -23,7 +23,7 @@ import {
 import { GripVertical, Link2, Plus } from 'lucide-react';
 import { Button } from '@chefer/ui';
 import { isSupersetWithNext, supersetSlot, type ExerciseLookup } from '@chefer/utils';
-import type { DraftAction, DraftExercise, DraftRoutine } from '../draft';
+import type { DraftAction, DraftDay, DraftExercise, DraftRoutine } from '../draft';
 import { DayHeaderFields } from './DayHeaderFields';
 import { ExerciseFieldsForm } from './ExerciseFieldsForm';
 import { SupersetHeading } from './SupersetHeading';
@@ -37,6 +37,11 @@ export interface DesktopEditorBoardProps {
   /** Opens the "Superset" sheet for a day (plan-library-supersets S3). */
   onOpenSuperset: (dayKey: string) => void;
   onSwap: (dayKey: string, exerciseKey: string) => void;
+  /** Trainer coaching seams: a line under each exercise name / a block of fields under its form. */
+  renderAttribution?: (dayKey: string, exercise: DraftExercise) => ReactNode;
+  renderExtra?: (dayKey: string, exercise: DraftExercise) => ReactNode;
+  /** Trainer coaching seam: a block under each day's header (the day's workout type). */
+  renderDayExtra?: (day: DraftDay) => ReactNode;
 }
 
 /** The subset of dnd-kit's internal Transform shape useSortable() gives us. */
@@ -74,6 +79,9 @@ export function DesktopEditorBoard({
   onOpenPicker,
   onOpenSuperset,
   onSwap,
+  renderAttribution,
+  renderExtra,
+  renderDayExtra,
 }: DesktopEditorBoardProps) {
   const [activeId, setActiveId] = useState<string | null>(null);
 
@@ -171,6 +179,9 @@ export function DesktopEditorBoard({
               onOpenPicker={onOpenPicker}
               onOpenSuperset={onOpenSuperset}
               onSwap={onSwap}
+              {...(renderAttribution ? { renderAttribution } : {})}
+              {...(renderExtra ? { renderExtra } : {})}
+              {...(renderDayExtra ? { renderDayExtra } : {})}
             />
           ))}
           <button
@@ -210,6 +221,10 @@ interface DayColumnProps {
   onOpenPicker: (dayKey: string) => void;
   onOpenSuperset: (dayKey: string) => void;
   onSwap: (dayKey: string, exerciseKey: string) => void;
+  renderAttribution?: (dayKey: string, exercise: DraftExercise) => ReactNode;
+  renderExtra?: (dayKey: string, exercise: DraftExercise) => ReactNode;
+  /** Trainer coaching seam: a block under each day's header (the day's workout type). */
+  renderDayExtra?: (day: DraftDay) => ReactNode;
 }
 
 function DayColumn({
@@ -220,6 +235,9 @@ function DayColumn({
   onOpenPicker,
   onOpenSuperset,
   onSwap,
+  renderAttribution,
+  renderExtra,
+  renderDayExtra,
 }: DayColumnProps) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: day.key,
@@ -259,6 +277,7 @@ function DayColumn({
           </button>
         }
       />
+      {renderDayExtra?.(day)}
 
       <SortableContext
         items={day.exercises.map((e) => e.key)}
@@ -289,6 +308,8 @@ function DayColumn({
               lookup={lookup}
               dispatch={dispatch}
               onSwap={() => onSwap(day.key, exercise.key)}
+              attribution={renderAttribution?.(day.key, exercise)}
+              extra={renderExtra?.(day.key, exercise)}
             />
           ))}
           {day.exercises.length === 0 && (
@@ -336,6 +357,8 @@ interface SortableExerciseRowProps {
   lookup: ExerciseLookup;
   dispatch: Dispatch<DraftAction>;
   onSwap: () => void;
+  attribution?: ReactNode;
+  extra?: ReactNode;
 }
 
 function SortableExerciseRow({
@@ -348,6 +371,8 @@ function SortableExerciseRow({
   lookup,
   dispatch,
   onSwap,
+  attribution,
+  extra,
 }: SortableExerciseRowProps) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: exercise.key,
@@ -364,6 +389,8 @@ function SortableExerciseRow({
       <ExerciseFieldsForm
         exercise={exercise}
         lookup={lookup}
+        attribution={attribution}
+        extra={extra}
         superset={superset}
         linkedToNext={linkedToNext}
         {...(isLast

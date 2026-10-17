@@ -1,24 +1,30 @@
 import {
+  coachingLinkRepository,
   exerciseProgressionRepository,
   exerciseRepository,
+  trainerProfileRepository,
   trainingPauseRepository,
   weightEntryRepository,
   workoutSessionRepository,
+  type ICoachingLinkRepository,
   type IExerciseProgressionRepository,
   type IExerciseRepository,
+  type ITrainerProfileRepository,
   type ITrainingPauseRepository,
   type IWeightEntryRepository,
   type IWorkoutSessionRepository,
   type TrainingPause,
 } from '@chefer/database';
-import type {
-  ActivePauseDto,
-  GymBootstrap,
-  GymOffer,
-  NextWorkoutDto,
-  ProgressionDto,
-  SessionSummaryDto,
-  WeekSummary,
+import {
+  FALLBACK_TRAINER_NAME,
+  type ActivePauseDto,
+  type GymBootstrap,
+  type GymOffer,
+  type NextWorkoutDto,
+  type ProgressionDto,
+  type RoutineDto,
+  type SessionSummaryDto,
+  type WeekSummary,
 } from '@chefer/types';
 import {
   addDaysLocal,
@@ -33,6 +39,10 @@ import {
   type ProgressionEntry,
 } from '@chefer/utils';
 import { ensureExerciseLibrary } from '../../lib/exercise-library/ensure.js';
+import {
+  coachingAttributionService,
+  CoachingAttributionService,
+} from '../coaching/coaching-attribution.service.js';
 import { filterExerciseDtosForLevel, filterSessionExercisesForLevel } from './client-level.js';
 import {
   gymContextLoader,
@@ -47,6 +57,7 @@ import {
   serverToday,
   toExerciseDto,
   toProfileDto,
+  toRoutineDto,
   toSessionDoc,
 } from './mappers.js';
 import { progressionService, type ProgressionService } from './progression.service.js';
@@ -73,14 +84,34 @@ export class GymBootstrapService {
     private readonly pauseRepo: ITrainingPauseRepository = trainingPauseRepository,
     private readonly weightRepo: Pick<IWeightEntryRepository, 'findLatest'> = weightEntryRepository,
     private readonly contextLoader: Pick<GymContextLoader, 'load'> = gymContextLoader,
-    private readonly progression: Pick<ProgressionService, 'toDtos'> = progressionService,
+    private readonly progression: Pick<
+      ProgressionService,
+      'toDtos' | 'setterNames'
+    > = progressionService,
     private readonly ensure: () => Promise<void> = ensureExerciseLibrary,
+    private readonly attribution: Pick<
+      CoachingAttributionService,
+      'forRoutine'
+    > = coachingAttributionService,
+    private readonly coachingLinks: Pick<
+      ICoachingLinkRepository,
+      'findActiveForClient'
+    > = coachingLinkRepository,
+    private readonly trainers: Pick<ITrainerProfileRepository, 'find'> = trainerProfileRepository,
   ) {}
 
+  /**
+   * `level` is the EFFECTIVE gym level (tracking-type gating, capped by the
+   * cardio flag). `coaching` carries what trainer coaching needs: the RAW
+   * `x-chefer-api-level` (spec §10: gate on the raw level, not the effective
+   * one) and whether coaching is on for this user. Below level 6 nothing new is
+   * sent or queried.
+   */
   async get(
     userId: string,
     input: { librarySince?: string | undefined; today?: string | undefined } = {},
     level = 0,
+    coaching: { rawLevel: number; enabled: boolean } = { rawLevel: 0, enabled: false },
   ): Promise<GymBootstrap> {
     const today = input.today ?? serverToday();
     await this.ensure();
@@ -120,7 +151,17 @@ export class GymBootstrapService {
       ...libraryRows.map((r) => r.updatedAt.getTime()),
     );
 
-    const progressions = this.progression.toDtos(ctx, progressionRows, metas, today);
+    const wantsCoaching = CoachingAttributionService.understandsCoaching(coaching.rawLevel);
+    const setterNames = await this.progression.setterNames(progressionRows, coaching.rawLevel);
+    const progressions = this.progression.toDtos(ctx, progressionRows, metas, today, setterNames);
+    // Level 6+: the routine carries the trainer's notes and edit stamps.
+    const activeRoutine =
+      wantsCoaching && ctx.activeRoutineRow
+        ? toRoutineDto(
+            ctx.activeRoutineRow,
+            await this.attribution.forRoutine(ctx.activeRoutineRow, userId, coaching.rawLevel),
+          )
+        : ctx.activeRoutine;
     const recentSessions = recentRows
       .map((r) => toSessionSummary(toSessionDoc(r)))
       .reverse() // newest first
@@ -137,8 +178,11 @@ export class GymBootstrapService {
 
     return {
       profile: ctx.profileRow ? toProfileDto(ctx.profileRow) : null,
-      activeRoutine: ctx.activeRoutine,
-      nextWorkout: this.nextWorkout(ctx, lookup, progressions, recentSessions, today),
+      activeRoutine,
+      nextWorkout: this.withTrainerNotes(
+        this.nextWorkout(ctx, lookup, progressions, recentSessions, today),
+        wantsCoaching ? activeRoutine : null,
+      ),
       library: filterExerciseDtosForLevel(libraryRows.map(toExerciseDto), level),
       libraryCursor: new Date(cursorMs).toISOString(),
       progressions,
@@ -156,6 +200,36 @@ export class GymBootstrapService {
       olderBests: summarizeBests(olderRows.map((r) => toSessionSummary(toSessionDoc(r)))),
       serverTime: new Date().toISOString(),
       engineVersion: ENGINE_VERSION,
+      ...(wantsCoaching && coaching.enabled && { coaching: await this.coaching(userId) }),
+    };
+  }
+
+  /** Level 6+: the client's current trainer, or null. */
+  private async coaching(userId: string): Promise<{ trainerName: string } | null> {
+    const link = await this.coachingLinks.findActiveForClient(userId);
+    if (!link) return null;
+    const trainer = await this.trainers.find(link.trainerId);
+    return { trainerName: trainer?.displayName ?? FALLBACK_TRAINER_NAME };
+  }
+
+  /** Level 6+: copies each routine row's trainer note onto the matching next-workout exercise. */
+  private withTrainerNotes(
+    next: NextWorkoutDto | null,
+    routine: RoutineDto | null,
+  ): NextWorkoutDto | null {
+    if (!next || !routine) return next;
+    const notes = new Map(
+      routine.days.flatMap((d) =>
+        d.exercises.flatMap((e) => (e.trainerNote ? [[e.id, e.trainerNote] as const] : [])),
+      ),
+    );
+    if (notes.size === 0) return next;
+    return {
+      ...next,
+      exercises: next.exercises.map((e) => {
+        const note = notes.get(e.routineExerciseId);
+        return note ? { ...e, trainerNote: note } : e;
+      }),
     };
   }
 

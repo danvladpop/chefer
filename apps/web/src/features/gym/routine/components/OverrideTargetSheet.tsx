@@ -1,7 +1,13 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import type { ExerciseLoadType, ProgressionOverride, Suggestion, WeightUnit } from '@chefer/types';
+import {
+  COACHING_COPY,
+  type ExerciseLoadType,
+  type ProgressionOverride,
+  type Suggestion,
+  type WeightUnit,
+} from '@chefer/types';
 import { Button, Sheet } from '@chefer/ui';
 import { formatLoad, kgToUnit } from '@chefer/utils';
 import { buildOverridePayload } from '../override-payload';
@@ -16,6 +22,8 @@ export interface OverrideTargetSheetTarget {
   isTimed: boolean;
   suggestion: Suggestion;
   override: ProgressionOverride | null;
+  /** Trainer coaching: the rep range this target is keyed by ("6-8"), shown in the trainer's wording. */
+  repRangeLabel?: string;
 }
 
 export interface OverrideTargetSheetProps {
@@ -25,6 +33,11 @@ export interface OverrideTargetSheetProps {
   onSave: (weightKg: number, reps: number[]) => void;
   onReset: () => void;
   saving?: boolean;
+  /**
+   * Trainer coaching: the trainer sets the CLIENT's next-session target. The
+   * sheet then says whose target it is and when it applies (spec §2.5, §6.2).
+   */
+  coaching?: { clientName: string };
 }
 
 /** D5c target-level edit: override next session's weight and reps for one exercise. */
@@ -35,6 +48,7 @@ export function OverrideTargetSheet({
   onSave,
   onReset,
   saving = false,
+  coaching,
 }: OverrideTargetSheetProps) {
   const active = target?.override ?? null;
   const suggestion = target?.suggestion;
@@ -75,7 +89,11 @@ export function OverrideTargetSheet({
       open
       onClose={onClose}
       title={target.exerciseName}
-      description="Override the next session's target"
+      description={
+        coaching
+          ? `Set ${coaching.clientName}’s target for the next session`
+          : "Override the next session's target"
+      }
       footer={
         <div className="flex items-center justify-between gap-2">
           <Button
@@ -85,7 +103,7 @@ export function OverrideTargetSheet({
             onClick={onReset}
             disabled={!active || saving}
           >
-            Reset to suggestion
+            {coaching ? COACHING_COPY.trainer.resetToSuggestion : 'Reset to suggestion'}
           </Button>
           <div className="flex gap-2">
             <Button type="button" variant="outline" size="sm" onClick={onClose}>
@@ -101,8 +119,14 @@ export function OverrideTargetSheet({
       <div className="flex flex-col gap-4 px-5 py-4">
         <p className="text-sm text-gray-500">
           The engine suggests <span className="font-medium text-gray-700">{suggestedText}</span> for{' '}
-          {suggestion.sets} set{suggestion.sets === 1 ? '' : 's'}. Set your own target for next
-          time, or reset to let it decide again.
+          {suggestion.sets} set{suggestion.sets === 1 ? '' : 's'}.{' '}
+          {coaching
+            ? COACHING_COPY.trainer.appliesTo(
+                coaching.clientName,
+                target.exerciseName,
+                (target.repRangeLabel ?? target.repBucket).replace('-', '–'),
+              )
+            : 'Set your own target for next time, or reset to let it decide again.'}
         </p>
 
         <label className="flex flex-col gap-1.5">

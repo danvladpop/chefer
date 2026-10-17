@@ -72,6 +72,12 @@ jest.mock('../../src/features/friends/api/use-friends-badge', () => ({
   useFriendsBadge: () => ({ available: mockAvailable, badgeCount: mockBadge }),
 }));
 
+// WP-18: "Your trainer" / "Trainer tools" follow `coaching.availability` (off by default here).
+let mockCoaching = { enabled: false, canBeTrainer: false };
+jest.mock('../../src/features/trainer/api/use-coaching-availability', () => ({
+  useCoachingAvailability: () => mockCoaching,
+}));
+
 const { track } = jest.requireMock<{ track: jest.Mock }>('../../src/lib/analytics');
 const { openPremium } = jest.requireMock<{ openPremium: jest.Mock }>(
   '../../src/features/premium/open-premium',
@@ -102,6 +108,7 @@ beforeEach(() => {
   mockAvailable = true;
   mockBadge = 0;
   mockVariant = 'production';
+  mockCoaching = { enabled: false, canBeTrainer: false };
 });
 
 describe('You (10 Oct redesign)', () => {
@@ -218,6 +225,34 @@ describe('You (10 Oct redesign)', () => {
   it('shows the version line', async () => {
     await renderYou();
     expect(screen.getByTestId('build-info')).toHaveTextContent(/^Version/);
+  });
+});
+
+describe('You: trainer coaching rows (WP-18)', () => {
+  it('coaching off: neither "Your trainer" nor "Trainer tools" exists', async () => {
+    await renderYou();
+    expect(screen.queryByTestId('you-your-trainer')).toBeNull();
+    expect(screen.queryByTestId('you-trainer-tools')).toBeNull();
+  });
+
+  it('coaching on: "Your trainer" under People opens /coaching; no "Trainer tools" for a non-trainer', async () => {
+    mockCoaching = { enabled: true, canBeTrainer: false };
+    await renderYou();
+    expect(screen.getByTestId('you-your-trainer')).toHaveTextContent(/Your trainer/);
+    expect(screen.queryByTestId('you-trainer-tools')).toBeNull();
+    await fireEvent.press(screen.getByTestId('you-your-trainer'));
+    expect(mockPush).toHaveBeenLastCalledWith('/coaching');
+  });
+
+  it('a user who may be a trainer also gets "Trainer tools" → /trainer, after Following', async () => {
+    mockCoaching = { enabled: true, canBeTrainer: true };
+    await renderYou();
+    const ids = screen.getAllByRole('button').map((b) => b.props.testID as string | undefined);
+    expect(ids.indexOf('you-household')).toBeLessThan(ids.indexOf('you-friends'));
+    expect(ids.indexOf('you-friends')).toBeLessThan(ids.indexOf('you-your-trainer'));
+    expect(ids.indexOf('you-your-trainer')).toBeLessThan(ids.indexOf('you-trainer-tools'));
+    await fireEvent.press(screen.getByTestId('you-trainer-tools'));
+    expect(mockPush).toHaveBeenLastCalledWith('/trainer');
   });
 });
 

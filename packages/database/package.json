@@ -21,7 +21,8 @@
     "db:seed": "tsx src/seed.ts",
     "ingredients:sync": "tsx src/catalog/sync-cli.ts",
     "db:studio": "prisma studio",
-    "db:generate": "prisma generate"
+    "db:generate": "prisma generate",
+    "db:ensure-indexes": "prisma db execute --schema prisma/schema.prisma --file prisma/ensure-indexes.sql"
   },
   "dependencies": {
     "@chefer/types": "workspace:*",

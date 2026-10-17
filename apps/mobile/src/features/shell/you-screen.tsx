@@ -19,9 +19,10 @@ import { CURRENT_BUILD, CURRENT_VERSION_LABEL } from '../../lib/current-build';
 import { trpc } from '../../lib/trpc';
 import { useFriendsBadge } from '../friends/api/use-friends-badge';
 import { openLegal } from '../legal/open-legal';
-import { FOLLOWING_ITEM } from '../more/more-items';
+import { FOLLOWING_ITEM, TRAINER_TOOLS_ITEM, YOUR_TRAINER_ITEM } from '../more/more-items';
 import { TierRow } from '../premium/tier-row';
 import { useSignOut } from '../settings/use-sign-out';
+import { useCoachingAvailability } from '../trainer/api/use-coaching-availability';
 import { ShellTopBar } from './shell-chrome';
 import { ShellPreviewSection } from './shell-preview-row';
 import { YouFeedbackRow } from './you/feedback-row';
@@ -88,6 +89,8 @@ export function YouScreen() {
   const firstEntrance = useFirstEntrance('you');
   const [showBuildDetails, setShowBuildDetails] = useState(false);
   const { available, badgeCount } = useFriendsBadge();
+  // WP-18: "Your trainer" for everyone while coaching is on, "Trainer tools" for allowed trainers.
+  const coaching = useCoachingAvailability();
   const signOut = useSignOut('you-sign-out-confirm');
   // Same cached query (and staleTime) as Profile's household row.
   const { data: members = [] } = trpc.household.list.useQuery(undefined, { staleTime: 60_000 });
@@ -138,6 +141,22 @@ export function YouScreen() {
                   track('friends_opened', { source: 'more' });
                   router.push(FOLLOWING_ITEM.href);
                 }}
+              />
+            ) : null}
+            {coaching.enabled ? (
+              <ListRow
+                testID="you-your-trainer"
+                title={YOUR_TRAINER_ITEM.label}
+                icon={<Icon name="yourTrainer" color={colors.brand} />}
+                onPress={() => router.push(YOUR_TRAINER_ITEM.href)}
+              />
+            ) : null}
+            {coaching.canBeTrainer ? (
+              <ListRow
+                testID="you-trainer-tools"
+                title={TRAINER_TOOLS_ITEM.label}
+                icon={<Icon name="trainerTools" color={colors.brand} />}
+                onPress={() => router.push(TRAINER_TOOLS_ITEM.href)}
               />
             ) : null}
           </ListSection>

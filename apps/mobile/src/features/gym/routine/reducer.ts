@@ -1,7 +1,7 @@
 // Pure draft reducer for the routine editor (gym_plan.md §5.4). Ids are
 // passed IN (never generated here — same convention as the workout reducer
 // in @chefer/utils), so replaying actions in a test is deterministic.
-import type { ExerciseMeta } from '@chefer/types';
+import { COACHING_LIMITS, type ExerciseMeta, type WorkoutType } from '@chefer/types';
 import {
   createSuperset,
   defaultTargetRir,
@@ -10,6 +10,7 @@ import {
   removeSupersetItem,
   setSupersetWithNext,
   ungroupSuperset,
+  workoutTypeLabel,
 } from '@chefer/utils';
 import {
   MAX_DAYS,
@@ -35,6 +36,11 @@ export type RoutineDraftAction =
   | { type: 'moveDay'; dayKey: string; direction: 'up' | 'down' }
   | { type: 'renameDay'; dayKey: string; name: string }
   | { type: 'setPlannedWeekday'; dayKey: string; weekday: number | null }
+  /**
+   * My week's workout type (the trainer's editor, PRD 2026-10 §4.3); null clears it. A type-only day
+   * (no exercises) is renamed to the type's label, as My week's own save does (`applyMyWeek`).
+   */
+  | { type: 'setWorkoutType'; dayKey: string; workoutType: WorkoutType | null }
   | { type: 'addExercise'; dayKey: string; newExerciseKey: string; exercise: ExerciseMeta }
   | { type: 'swapExercise'; dayKey: string; exerciseKey: string; exercise: ExerciseMeta }
   | { type: 'removeExercise'; dayKey: string; exerciseKey: string }
@@ -58,7 +64,9 @@ export type RoutineDraftAction =
   | { type: 'setRepMin'; dayKey: string; exerciseKey: string; repMin: number }
   | { type: 'setRepMax'; dayKey: string; exerciseKey: string; repMax: number }
   | { type: 'setRestSec'; dayKey: string; exerciseKey: string; restSec: number }
-  | { type: 'setTargetRir'; dayKey: string; exerciseKey: string; targetRir: number };
+  | { type: 'setTargetRir'; dayKey: string; exerciseKey: string; targetRir: number }
+  /** Trainer coaching: the trainer edits the cue (clamped, '' = none); the client's "Remove note" passes null. */
+  | { type: 'setTrainerNote'; dayKey: string; exerciseKey: string; note: string | null };
 
 const clamp = (n: number, min: number, max: number) => Math.min(max, Math.max(min, n));
 
@@ -146,15 +154,16 @@ export function routineDraftReducer(draft: RoutineDraft, action: RoutineDraftAct
       if (draft.days.length >= MAX_DAYS) return draft;
       const source = draft.days.find((d) => d.key === action.dayKey);
       if (!source) return draft;
-      const exercises = normalizeSupersets(source.exercises).map((e, i) => ({
-        ...e,
-        key: action.exerciseIds[i] ?? `${action.dayId}-${i}`,
-        id: undefined,
-      }));
+      // A copy is a new row: no server id, and no "changed by" stamp of the original.
+      const exercises = normalizeSupersets(source.exercises).map((e, i) => {
+        const { lastEditedByOther: _stamp, ...rest } = e;
+        return { ...rest, key: action.exerciseIds[i] ?? `${action.dayId}-${i}`, id: undefined };
+      });
       const copy: RoutineDayDraft = {
         key: action.dayId,
         name: `${source.name} (copy)`.slice(0, 40),
         plannedWeekday: null,
+        ...(source.workoutType !== undefined ? { workoutType: source.workoutType } : {}),
         exercises,
       };
       const index = draft.days.findIndex((d) => d.key === action.dayKey);
@@ -176,6 +185,14 @@ export function routineDraftReducer(draft: RoutineDraft, action: RoutineDraftAct
 
     case 'setPlannedWeekday':
       return updateDay(draft, action.dayKey, (d) => ({ ...d, plannedWeekday: action.weekday }));
+
+    case 'setWorkoutType':
+      return updateDay(draft, action.dayKey, (d) => ({
+        ...d,
+        workoutType: action.workoutType,
+        ...(action.workoutType !== null &&
+          d.exercises.length === 0 && { name: workoutTypeLabel(action.workoutType) }),
+      }));
 
     case 'addExercise':
       return updateDay(draft, action.dayKey, (d) => {
@@ -279,6 +296,14 @@ export function routineDraftReducer(draft: RoutineDraft, action: RoutineDraftAct
           ...e,
           targetRir: clamp(Math.round(action.targetRir), MIN_TARGET_RIR, MAX_TARGET_RIR),
         })),
+      );
+
+    case 'setTrainerNote':
+      return updateDay(draft, action.dayKey, (d) =>
+        updateExercise(d, action.exerciseKey, (e) => {
+          const note = action.note?.slice(0, COACHING_LIMITS.trainerNoteMaxChars) ?? '';
+          return { ...e, trainerNote: note === '' ? null : note };
+        }),
       );
 
     default:

@@ -34,6 +34,9 @@ vi.mock('recharts', () => ({
 }));
 vi.mock('@/features/coach/components/ChefReviewBanner', () => ({ ChefReviewBanner: () => null }));
 vi.mock('@/features/coach/components/WeightCard', () => ({ WeightCard: () => null }));
+vi.mock('@/features/coaching/components/CoachingNoticeList', () => ({
+  CoachingNoticeList: () => null,
+}));
 vi.mock('@/features/gym/shared/todays-workout-card', () => ({ TodaysWorkoutCard: () => null }));
 vi.mock('@/features/meal-plan/components/RebalanceBanner', () => ({ RebalanceBanner: () => null }));
 vi.mock('@/features/meal-plan/components/ReplaceMealSheet', () => ({

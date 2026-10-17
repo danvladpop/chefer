@@ -12,6 +12,9 @@ import type {
   RoutineDoc,
   RoutineDto,
   RoutineLike,
+  TrainerRoutineDoc,
+  TrainerRoutineDto,
+  WorkoutType,
 } from '@chefer/types';
 import {
   createSuperset,
@@ -22,6 +25,7 @@ import {
   removeSupersetItem,
   setSupersetWithNext,
   ungroupSuperset,
+  workoutTypeLabel,
 } from '@chefer/utils';
 
 export interface DraftExercise {
@@ -35,6 +39,13 @@ export interface DraftExercise {
   restSec: number;
   supersetGroup: string | null;
   notes: string | null;
+  /**
+   * Trainer coaching: the trainer's cue for this exercise. The owner's editor
+   * only ever clears it (`clearTrainerNoteIds`); the trainer's editor writes it
+   * (`toTrainerRoutineDoc`). `undefined`/`null` = no note. Never part of the
+   * owner's `toRoutineDoc`.
+   */
+  trainerNote?: string | null;
 }
 
 export interface DraftDay {
@@ -42,6 +53,11 @@ export interface DraftDay {
   id?: string;
   name: string;
   plannedWeekday: number | null;
+  /**
+   * My week (ADR 0001): the day's workout type ("Tue · Yoga"). A type-only day
+   * has no exercises. `undefined` = not known (a new day): the save omits it.
+   */
+  workoutType?: WorkoutType | null;
   exercises: DraftExercise[];
 }
 
@@ -74,6 +90,7 @@ export function fromRoutineDto(routine: RoutineDto): DraftRoutine {
         id: day.id,
         name: day.name,
         plannedWeekday: day.plannedWeekday,
+        workoutType: day.workoutType ?? null,
         // Canonical superset letters (A, B… per day), so the toggles and
         // brackets always agree with what gets saved.
         exercises: normalizeSupersets(
@@ -91,6 +108,46 @@ export function fromRoutineDto(routine: RoutineDto): DraftRoutine {
               restSec: exercise.restSec,
               supersetGroup: exercise.supersetGroup,
               notes: exercise.notes,
+              trainerNote: exercise.trainerNote ?? null,
+            })),
+        ),
+      })),
+  };
+}
+
+/**
+ * The trainer's view of the client's routine (`trainer.client.routine`) as a
+ * draft. The client's own `notes` never reach a trainer, so rows carry null.
+ */
+export function fromTrainerRoutineDto(routine: TrainerRoutineDto): DraftRoutine {
+  return {
+    id: routine.id,
+    name: routine.name,
+    days: routine.days
+      .slice()
+      .sort((a, b) => a.position - b.position)
+      .map((day) => ({
+        key: makeKey('day'),
+        id: day.id,
+        name: day.name,
+        plannedWeekday: day.plannedWeekday,
+        workoutType: day.workoutType ?? null,
+        exercises: normalizeSupersets(
+          day.exercises
+            .slice()
+            .sort((a, b) => a.position - b.position)
+            .map((exercise) => ({
+              key: makeKey('ex'),
+              id: exercise.id,
+              exerciseId: exercise.exerciseId,
+              sets: exercise.sets,
+              repMin: exercise.repMin,
+              repMax: exercise.repMax,
+              targetRir: exercise.targetRir,
+              restSec: exercise.restSec,
+              supersetGroup: exercise.supersetGroup,
+              notes: null,
+              trainerNote: exercise.trainerNote,
             })),
         ),
       })),
@@ -152,6 +209,59 @@ export function toRoutineDoc(draft: DraftRoutine): RoutineDoc {
   };
 }
 
+/**
+ * Draft → wire document for `trainer.client.saveRoutine`: the same rows, no
+ * `notes`, plus the trainer's note (trimmed; empty = none) and each day's
+ * workout type.
+ */
+export function toTrainerRoutineDoc(draft: DraftRoutine): TrainerRoutineDoc {
+  return {
+    id: draft.id,
+    name: draft.name,
+    days: draft.days.map((day) => ({
+      ...(day.id ? { id: day.id } : {}),
+      name: day.name,
+      plannedWeekday: day.plannedWeekday,
+      // A type-only day ("Yoga", no exercises) is a valid day; omitted = keep the stored type.
+      ...(day.workoutType !== undefined && { workoutType: day.workoutType }),
+      exercises: day.exercises.map((exercise) => {
+        const note = exercise.trainerNote?.trim() ?? '';
+        return {
+          ...(exercise.id ? { id: exercise.id } : {}),
+          exerciseId: exercise.exerciseId,
+          sets: exercise.sets,
+          repMin: exercise.repMin,
+          repMax: exercise.repMax,
+          targetRir: exercise.targetRir,
+          restSec: exercise.restSec,
+          supersetGroup: exercise.supersetGroup,
+          trainerNote: note === '' ? null : note,
+        };
+      }),
+    })),
+  };
+}
+
+/**
+ * Ids of the rows whose trainer note the client removed since `baseline`
+ * (`gym.routine.save` `clearTrainerNoteIds`). Only rows that still exist.
+ */
+export function clearedTrainerNoteIds(draft: DraftRoutine, baseline: DraftRoutine): string[] {
+  const had = new Set<string>();
+  for (const day of baseline.days) {
+    for (const exercise of day.exercises) {
+      if (exercise.id && exercise.trainerNote) had.add(exercise.id);
+    }
+  }
+  const cleared: string[] = [];
+  for (const day of draft.days) {
+    for (const exercise of day.exercises) {
+      if (exercise.id && had.has(exercise.id) && !exercise.trainerNote) cleared.push(exercise.id);
+    }
+  }
+  return cleared;
+}
+
 /** Draft → the minimal shape the volume/validation engine understands. */
 export function toRoutineLike(draft: DraftRoutine): RoutineLike {
   return {
@@ -170,7 +280,17 @@ export function toRoutineLike(draft: DraftRoutine): RoutineLike {
 
 /** Deep-equal-enough check for the dirty flag: compare the would-be save payloads. */
 export function isDraftEqual(a: DraftRoutine, b: DraftRoutine): boolean {
-  return JSON.stringify(toRoutineDoc(a)) === JSON.stringify(toRoutineDoc(b));
+  return (
+    JSON.stringify(toRoutineDoc(a)) === JSON.stringify(toRoutineDoc(b)) &&
+    trainerSignature(a) === trainerSignature(b)
+  );
+}
+
+/** Trainer notes and workout types are not in `toRoutineDoc`, but changing one is a change. */
+function trainerSignature(draft: DraftRoutine): string {
+  return JSON.stringify(
+    draft.days.map((d) => [d.workoutType ?? null, d.exercises.map((e) => e.trainerNote ?? null)]),
+  );
 }
 
 // ─── Actions ──────────────────────────────────────────────────────────────────
@@ -182,6 +302,8 @@ export type DraftAction =
   | { type: 'delete_day'; dayKey: string }
   | { type: 'rename_day'; dayKey: string; name: string }
   | { type: 'set_day_weekday'; dayKey: string; weekday: number | null }
+  /** My week: set or clear a day's workout type; a day with no exercises takes the type's name. */
+  | { type: 'set_day_workout_type'; dayKey: string; workoutType: WorkoutType | null }
   | { type: 'move_day'; fromIndex: number; toIndex: number }
   | { type: 'add_exercise'; dayKey: string; exercise: ExerciseMeta }
   | { type: 'remove_exercise'; dayKey: string; exerciseKey: string }
@@ -191,7 +313,10 @@ export type DraftAction =
       dayKey: string;
       exerciseKey: string;
       patch: Partial<
-        Pick<DraftExercise, 'sets' | 'repMin' | 'repMax' | 'targetRir' | 'restSec' | 'notes'>
+        Pick<
+          DraftExercise,
+          'sets' | 'repMin' | 'repMax' | 'targetRir' | 'restSec' | 'notes' | 'trainerNote'
+        >
       >;
     }
   /** Phone arrows: one step, hopping over a neighbouring superset as a whole. */
@@ -245,6 +370,7 @@ export function draftReducer(state: DraftRoutine, action: DraftAction): DraftRou
         key: makeKey('day'),
         name: `${source.name} copy`,
         plannedWeekday: null,
+        ...(source.workoutType !== undefined && { workoutType: source.workoutType }),
         exercises: source.exercises.map((e) => {
           // Fresh copies get no id — the server assigns a new row on save.
           const { id: _sourceId, ...rest } = e;
@@ -269,6 +395,22 @@ export function draftReducer(state: DraftRoutine, action: DraftAction): DraftRou
         ...state,
         days: state.days.map((d) =>
           d.key === action.dayKey ? { ...d, plannedWeekday: action.weekday } : d,
+        ),
+      };
+
+    case 'set_day_workout_type':
+      return {
+        ...state,
+        days: state.days.map((d) =>
+          d.key === action.dayKey
+            ? {
+                ...d,
+                workoutType: action.workoutType,
+                // Same rule as My week (applyMyWeek): a type-only day reads as its type.
+                ...(action.workoutType &&
+                  d.exercises.length === 0 && { name: workoutTypeLabel(action.workoutType) }),
+              }
+            : d,
         ),
       };
 

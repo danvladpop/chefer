@@ -4,6 +4,7 @@ import { router } from 'expo-router';
 import { Button, Card, EmptyState, ProgressRing, Screen, Sheet, Text } from '@chefer/ui-mobile';
 import { cn, isSimpleTraining, pauseSummaryLine, supersetRuns, supersetSlot } from '@chefer/utils';
 import { useFlags } from '../../../hooks/use-flags';
+import { CoachingNotices } from '../../coaching/notices/coaching-notices';
 import { OnboardingV4WelcomeCard } from '../../onboarding-v4/welcome-card';
 import { useShellV2 } from '../../shell/shell-store';
 import { TrainLinks } from '../../shell/train-links';
@@ -138,7 +139,10 @@ export function TodayScreen() {
   if (!bootstrap.profile) {
     return (
       <Screen className="px-0">
-        <View className="gap-4 px-4 pt-3">{header}</View>
+        <View className="gap-4 px-4 pt-3">
+          {header}
+          <CoachingNotices />
+        </View>
         <EmptyState
           testID="gym-today-empty-setup"
           title="Set up your training"
@@ -189,6 +193,7 @@ export function TodayScreen() {
       <Screen className="px-0">
         <ScrollView contentContainerClassName="gap-4 px-4 py-4">
           {header}
+          <CoachingNotices />
 
           {/* Onboarding V4: the one-time "You're all set" card (train-only lands here). */}
           <OnboardingV4WelcomeCard />
@@ -248,6 +253,9 @@ export function TodayScreen() {
         }
       >
         {header}
+
+        {/* WP-18: "Ana updated your routine", "stopped coaching you", "carry on joining" (flag-gated). */}
+        <CoachingNotices />
 
         {/* UX-44 (T-44.4, PAT-14): targets that moved after a correction synced. */}
         <TargetChangeNotice bootstrap={bootstrap} dataUpdatedAt={bootstrapQuery.dataUpdatedAt} />

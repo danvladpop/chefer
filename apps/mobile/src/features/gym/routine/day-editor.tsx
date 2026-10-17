@@ -1,11 +1,12 @@
-import { useEffect, useRef, useState } from 'react';
-import { Pressable, useWindowDimensions, View, type TextInput } from 'react-native';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { Platform, Pressable, useWindowDimensions, View, type TextInput } from 'react-native';
 import Animated, { FadeIn, FadeOut, LinearTransition } from 'react-native-reanimated';
 import { elevation } from '@chefer/tokens';
-import type { ExerciseMeta } from '@chefer/types';
+import { COACHING_COPY, COACHING_LIMITS, type ExerciseMeta } from '@chefer/types';
 import {
   ConfirmSheet,
   DONE_FIELD_PROPS,
+  FormField,
   IconButton,
   Input,
   ListRow,
@@ -31,6 +32,7 @@ import { TrainButton } from '../../shell/train/train-button';
 import { ExerciseNameLink } from '../components/exercise-name-link';
 import { SUPERSET_COPY, SupersetSheet } from '../components/superset-sheet';
 import { newId } from '../offline/ids';
+import { ChangedByLine, TrainerNoteLine } from './attribution';
 import type { RoutineDraftAction } from './reducer';
 import {
   MAX_DAYS,
@@ -64,6 +66,27 @@ const CARD = 'gap-3 rounded-card border border-separator bg-surface p-4';
 // 10 Oct redesign: the day is a TrainCard, rows are hairline surfaces, menus
 // are ListSections, and every colour is a role (supersets wear the brand
 // tint, as MediaRow's pills do).
+
+/**
+ * Trainer coaching seams (WP-18, spec §2.5/§2.6). Omit for the owner's plain editor (unchanged).
+ * - `trainer`: the trainer edits a client's routine — each row gets a "Note for <client>" field and an
+ *   optional next-session slot (`renderNext`, always visible under the summary); `renderDayDetail` adds a
+ *   day-level row under the planned weekday (the client's My week workout type, PRD 2026-10 §4.3).
+ * - `client`: the client edits their own routine — a trainer note shows as "Ana: …" with "Remove note"
+ *   (the client can clear a note, not rewrite it).
+ * Both roles show "Changed by …" on rows the other person last changed.
+ */
+export type DayEditorCoaching =
+  | {
+      role: 'trainer';
+      clientName: string;
+      renderNext?: (exercise: RoutineExerciseDraft) => ReactNode;
+      renderDayDetail?: (day: RoutineDayDraft) => ReactNode;
+    }
+  | { role: 'client'; trainerName: string };
+
+/** Rows animate their reflow only where Reanimated's layout transition is reliable (see ExerciseRow). */
+const ROW_LAYOUT_ANIMATED = Platform.OS === 'ios';
 
 /** "{n} sets · {min}–{max} reps · {rest} s rest" */
 export function exerciseSummary(ex: RoutineExerciseDraft): string {
@@ -163,7 +186,9 @@ export function ExerciseRow({
   onRemove,
   onOpenMenu,
   testIDBase,
+  coaching,
 }: {
+  coaching?: DayEditorCoaching | undefined;
   exercise: RoutineExerciseDraft;
   meta: ExerciseMeta | undefined;
   /** Place in a superset ("A", 0-based position), when in one. */
@@ -199,7 +224,11 @@ export function ExerciseRow({
   return (
     <Animated.View
       testID={testIDBase}
-      layout={LinearTransition.duration(layoutMs)}
+      // The row reflow animates on iOS only: on Android a LinearTransition row whose day card is pushed down by
+      // an earlier row growing (expand, or the trainer's next-session panel loading) keeps its old
+      // position and is drawn over the next day (seen on Pixel_8, 2026-10-17). Android reflows
+      // without the animation instead.
+      layout={ROW_LAYOUT_ANIMATED ? LinearTransition.duration(layoutMs) : undefined}
       style={expanded ? { boxShadow: elevation.e1 } : undefined}
       className={cn(
         'rounded-control border border-separator bg-surface',
@@ -248,6 +277,20 @@ export function ExerciseRow({
               size={16}
             />
           </Pressable>
+          {exercise.lastEditedByOther ? (
+            <ChangedByLine testID={`${testIDBase}-changed-by`} stamp={exercise.lastEditedByOther} />
+          ) : null}
+          {coaching?.role === 'client' && exercise.trainerNote ? (
+            <TrainerNoteLine
+              testID={`${testIDBase}-trainer-note`}
+              trainer={coaching.trainerName}
+              note={exercise.trainerNote}
+              onRemove={() =>
+                set({ type: 'setTrainerNote', dayKey: '', exerciseKey: exercise.key, note: null })
+              }
+            />
+          ) : null}
+          {coaching?.role === 'trainer' ? coaching.renderNext?.(exercise) : null}
         </View>
         <IconButton
           testID={`${testIDBase}-menu`}
@@ -313,6 +356,28 @@ export function ExerciseRow({
               className="flex-1"
             />
           </View>
+
+          {coaching?.role === 'trainer' ? (
+            <FormField
+              testID={`${testIDBase}-trainer-note-field`}
+              label={COACHING_COPY.trainer.noteForClient(coaching.clientName)}
+              hint={COACHING_COPY.trainer.noteForClientHint(coaching.clientName)}
+            >
+              <Input
+                testID={`${testIDBase}-trainer-note-input`}
+                label={COACHING_COPY.trainer.noteForClient(coaching.clientName)}
+                value={exercise.trainerNote ?? ''}
+                maxLength={COACHING_LIMITS.trainerNoteMaxChars}
+                multiline
+                onChangeText={(note) =>
+                  set({ type: 'setTrainerNote', dayKey: '', exerciseKey: exercise.key, note })
+                }
+              />
+              <Text variant="muted" className="text-xs">
+                {(exercise.trainerNote ?? '').length} / {COACHING_LIMITS.trainerNoteMaxChars}
+              </Text>
+            </FormField>
+          ) : null}
 
           {/* MO-05: RIR + superset are expert settings, out of the way. */}
           <PressableScale
@@ -417,7 +482,9 @@ export function DayEditor({
   dispatch,
   onAddExercise,
   onSwapExercise,
+  coaching,
 }: {
+  coaching?: DayEditorCoaching | undefined;
   day: RoutineDayDraft;
   index: number;
   dayCount: number;
@@ -532,6 +599,8 @@ export function DayEditor({
         />
       </View>
 
+      {coaching?.role === 'trainer' ? coaching.renderDayDetail?.(day) : null}
+
       <View className="gap-2.5">
         {day.exercises.map((ex, i) => {
           const slot = supersetSlot(day.exercises, i);
@@ -580,6 +649,7 @@ export function DayEditor({
                 onSwap={() => onSwapExercise(day.key, ex.key)}
                 onRemove={() => removeExercise(ex.key)}
                 onOpenMenu={() => setMenuKey(ex.key)}
+                coaching={coaching}
                 testIDBase={`${testIDBase}-exercise-${ex.key}`}
               />
             </View>

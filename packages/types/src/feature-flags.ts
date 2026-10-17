@@ -29,6 +29,10 @@ export const featureFlagsSchema = z
      *  meals/recipes/workouts. Dark by default; ships behind this flag plus
      *  the FRIENDS_ALLOWLIST env var (implementation-plan §8). */
     friends: z.boolean(),
+    /** WP-18 trainer coaching (spec §11): trainers coach individual clients. Dark by
+     *  default; the COACHING_ALLOWLIST (emails) sees it while it is off, and the
+     *  TRAINER_ALLOWLIST (emails, or `*`) decides who may turn trainer tools on. */
+    coaching: z.boolean(),
     /** Mobile UX revamp (docs/mobile-ux-revamp/plan.md): the one-tab-bar
      *  shell (Shop · Meals · Today · Train · You) instead of the Food|Gym
      *  tab groups. Off by default; admins and dev builds can preview it

@@ -8,7 +8,7 @@ import {
   weightEntryRepository,
   type ConsentEvent,
 } from '@chefer/database';
-import { HEALTH_CONSENT_VERSION } from '@chefer/types';
+import { COACHING_API_LEVEL, HEALTH_CONSENT_VERSION } from '@chefer/types';
 import { consentService } from './consent.service.js';
 
 // ─── Privacy service (§2.8, §2.13, T-26.1, T-39.2) ─────────────────────────────
@@ -40,15 +40,34 @@ export interface HealthConsentInput {
   version?: string | undefined;
 }
 
+/**
+ * Trainer coaching (spec §10): a client below COACHING_API_LEVEL has no label for
+ * a `COACHING_SHARING` row (old mobile would print the raw enum), so those rows
+ * are not sent to it. `level` is the RAW `x-chefer-api-level`. The rows stay in
+ * the log (and in the account export): only the old clients' view is filtered.
+ */
+export function filterConsentEventsForLevel<T extends { kind: string }>(
+  events: readonly T[],
+  level: number,
+): T[] {
+  return level >= COACHING_API_LEVEL
+    ? [...events]
+    : events.filter((e) => e.kind !== 'COACHING_SHARING');
+}
+
 export class PrivacyService {
-  /** This user's full consent log, newest first — a passthrough read. */
-  async listMyConsentEvents(userId: string): Promise<ConsentEvent[]> {
-    return consentEventRepository.findAllByUser(userId);
+  /**
+   * This user's full consent log, newest first — a passthrough read. `level`
+   * defaults to 0, the safe side: a caller that forgets it never leaks the
+   * coaching rows to an old client.
+   */
+  async listMyConsentEvents(userId: string, level = 0): Promise<ConsentEvent[]> {
+    return filterConsentEventsForLevel(await consentEventRepository.findAllByUser(userId), level);
   }
 
   /** Alias of `listMyConsentEvents` under the T-39.2 procedure name. */
-  async getConsentHistory(userId: string): Promise<ConsentEvent[]> {
-    return consentService.history(userId);
+  async getConsentHistory(userId: string, level = 0): Promise<ConsentEvent[]> {
+    return filterConsentEventsForLevel(await consentService.history(userId), level);
   }
 
   /**

@@ -14,6 +14,8 @@ export interface RecordConsentEventData {
   documentVersion?: string | null;
   /** 'web' | 'mobile' | 'migration'. */
   source: string;
+  /** The CoachingLink id for `COACHING_SHARING` events (which trainer the consent named). */
+  contextId?: string | null;
   /**
    * When consent was actually given/withdrawn. Defaults to now — pass this
    * explicitly for a backfill (e.g. `source: 'migration'`), where the event

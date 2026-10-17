@@ -77,6 +77,11 @@ export function explain(
   suggestion: Suggestion,
   unit: WeightUnit,
   when: 'today' | 'next' = 'today',
+  /**
+   * Trainer coaching: the name of whoever set a USER_OVERRIDE target
+   * (`ProgressionDto.override.setByName`, level 6+). Absent = the owner set it.
+   */
+  setBy?: string | null,
 ): string {
   const s = suggestion;
   const i = s.inputs;
@@ -216,7 +221,9 @@ export function explain(
         : `${lead}: ${formatLoad(s.weightKg, unit)} of assistance.`;
     }
     case 'USER_OVERRIDE':
-      return `Your own target: ${w}, ${aimText(s.reps, repMin, timed)}.`;
+      return setBy
+        ? `Set by ${setBy}: ${w}, ${aimText(s.reps, repMin, timed)}.`
+        : `Your own target: ${w}, ${aimText(s.reps, repMin, timed)}.`;
   }
 }
 
@@ -251,6 +258,8 @@ const RULES: Record<Suggestion['reasonCode'], (r: string) => string> = {
 export function explainInputs(
   suggestion: Suggestion,
   unit: WeightUnit,
+  /** Trainer coaching: who set a USER_OVERRIDE target (see `explain`). */
+  setBy?: string | null,
 ): { label: string; value: string }[] {
   const s = suggestion;
   const i = s.inputs;
@@ -278,7 +287,11 @@ export function explainInputs(
       value: rir === null ? 'Not given' : rir >= 3 ? '3+' : String(rir),
     });
   }
-  rows.push({ label: 'Rule', value: RULES[s.reasonCode](range) });
+  rows.push({
+    label: 'Rule',
+    value:
+      s.reasonCode === 'USER_OVERRIDE' && setBy ? `Set by ${setBy}` : RULES[s.reasonCode](range),
+  });
   const gap = num(i, 'gapDays');
   if (gap !== null) {
     rows.push({ label: 'Days since last session', value: String(gap) });
