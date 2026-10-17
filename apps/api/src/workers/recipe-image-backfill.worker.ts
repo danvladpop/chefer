@@ -1,4 +1,5 @@
 import { aiUsageRepository, recipeImageRepository, type BackfillCandidate } from '@chefer/database';
+import { startOfUtcDay, utcDayKey } from '../lib/ai-budget/budget.js';
 import { runWithAiUsageScope } from '../lib/ai/call-context.js';
 import {
   CF_FREE_NEURONS_PER_DAY,
@@ -46,7 +47,7 @@ export const BACKFILL_WORKLOAD = 'recipeImageBackfill';
 
 export interface RecipeImageBackfillConfig {
   enabled: boolean;
-  provider: string;
+  provider: 'pollinations' | 'cloudflare';
   dailyMax: number;
   reserveNeurons: number;
   neuronsPerImage: number;
@@ -89,13 +90,8 @@ function defaultDeps(): RecipeImageBackfillDeps {
   };
 }
 
-/** "2026-10-17" — Cloudflare's free allocation resets at 00:00 UTC. */
-function utcDay(d: Date): string {
-  return d.toISOString().slice(0, 10);
-}
-
-function startOfUtcDay(d: Date): Date {
-  return new Date(`${utcDay(d)}T00:00:00Z`);
+function errorMessage(err: unknown): string {
+  return err instanceof Error ? err.message : String(err);
 }
 
 export class RecipeImageBackfillWorker {
@@ -125,7 +121,7 @@ export class RecipeImageBackfillWorker {
       logger.info({ enabled, provider }, 'recipeImages.backfill.off');
       return;
     }
-    console.log('[RecipeImageBackfillWorker] started (one image per 10 min tick)');
+    logger.info({ dailyMax: this.deps.config().dailyMax }, 'recipeImages.backfill.started');
     this.timer = setInterval(() => void this.tick(), TICK_INTERVAL_MS);
     this.firstRun = setTimeout(() => void this.tick(), FIRST_RUN_DELAY_MS);
   }
@@ -158,7 +154,7 @@ export class RecipeImageBackfillWorker {
     const deps = this.deps;
     const config = deps.config();
     if (!config.enabled || config.provider !== 'cloudflare') return;
-    const today = utcDay(now);
+    const today = utcDayKey(now); // Cloudflare's free allocation resets at 00:00 UTC
     if (this.pausedDay === today) return;
 
     const doneToday = await deps.backfilledSince(startOfUtcDay(now));
@@ -223,7 +219,7 @@ export class RecipeImageBackfillWorker {
     const count = (this.failures.get(next.imageUrl) ?? 0) + 1;
     this.failures.set(next.imageUrl, count);
     logger.warn(
-      { recipeId: next.recipeId, attempt: count, err: (err as Error).message },
+      { recipeId: next.recipeId, attempt: count, err: errorMessage(err) },
       'recipeImages.backfill.failed',
     );
   }

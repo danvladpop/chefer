@@ -1441,7 +1441,7 @@ Recipe creation (revamped form)
   |    and the server re-encodes it again: EXIF-rotated, metadata stripped,
   |    <= 1080 px, JPEG q75; per user 60 uploads / rolling 24 h and 200 MB
   |    stored (premium 1 GB), DB-backed — see "Photo uploads" below) or
-  |    deterministic AI image (recipe.aiImageUrl); a failed
+  |    "Generate with AI" (web: an image generated after the save, F3); a failed
   |    upload always shows one of the four UX-40 sentences (never a status
   |    code or "[object Object]") — see §15's "Error states" note and
   |    infrastructure.md §4.1.1

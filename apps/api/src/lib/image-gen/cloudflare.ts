@@ -30,8 +30,6 @@ export interface CloudflareImageConfig {
 
 const CLOUDFLARE_TIMEOUT_MS = 60_000;
 
-export { imageNeuronEstimate };
-
 /**
  * The recipe hero is ~16:10 and cards are 4:3, so images are made 4:3 where
  * the model lets us choose (F3, 2026-10-17: a square source lost 38–45% of
@@ -73,8 +71,8 @@ export class CloudflareImageService implements IRecipeImageService {
   async generate(input: RecipeImageInput): Promise<string> {
     // Global AI kill-switch (lib/ai-budget): once today's AI spend reaches
     // AI_GLOBAL_DAILY_USD, background AI pauses until 00:00 UTC — the same
-    // answer as an exhausted daily allocation, so the worker serves the free
-    // Pollinations fallback for the rest of the day.
+    // answer as an exhausted daily allocation, so recipes wait in the queue
+    // and the backfill pauses for the rest of the day.
     if (!(await backgroundAiAllowed())) {
       throw new ImageQuotaExhaustedError(
         "today's global AI budget (AI_GLOBAL_DAILY_USD) is reached — background AI is paused until 00:00 UTC",

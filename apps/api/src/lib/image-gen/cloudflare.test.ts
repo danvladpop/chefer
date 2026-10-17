@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { cloudflareNeuronLedger } from '../ai/cloudflare-budget.js';
-import { CloudflareImageService, imageNeuronEstimate, isDailyQuotaError } from './cloudflare.js';
+import { cloudflareNeuronLedger, imageNeuronEstimate } from '../ai/cloudflare-budget.js';
+import { CloudflareImageService, isDailyQuotaError } from './cloudflare.js';
 import { ImagenRateLimitError, ImageQuotaExhaustedError, ImageStorageError } from './errors.js';
 
 // Fixture responses only — no live calls (§8 AI-cost rule).

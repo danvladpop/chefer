@@ -24,8 +24,8 @@ export type BackfillCandidate = {
 export interface IRecipeImageRepository {
   /**
    * Up to `limit` distinct Pollinations URLs still stored on live recipes, in
-   * backfill order (owner, 2026-10-17): recipes on a plan whose week is current
-   * or upcoming, then favourited ones, then the curated pool, then the rest,
+   * backfill order (owner, 2026-10-17): recipes on a plan day from today
+   * onward, then favourited ones, then the curated pool, then the rest,
    * newest first. `excludeUrls` are skipped.
    */
   findBackfillCandidates(
@@ -97,20 +97,22 @@ export class RecipeImageRepository implements IRecipeImageRepository {
     return count;
   }
 
-  /** Recipe ids on non-template plans whose week has not ended yet. */
+  /** Recipe ids on non-template plan days from today (UTC) onward. */
   private async plannedRecipeIds(now: Date): Promise<string[]> {
+    const today = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate());
     const days = await prisma.mealPlanDay.findMany({
       where: {
-        mealPlan: {
-          isTemplate: false,
-          weekStartDate: { gt: new Date(now.getTime() - 7 * DAY_MS) },
-        },
+        mealPlan: { isTemplate: false, weekStartDate: { gt: new Date(today - 7 * DAY_MS) } },
       },
-      select: { meals: true },
+      select: { dayOfWeek: true, meals: true, mealPlan: { select: { weekStartDate: true } } },
     });
     const ids = new Set<string>();
     for (const day of days) {
-      if (!Array.isArray(day.meals)) continue;
+      // dayOfWeek 0 = the week's Monday. weekStartDate is the server's local
+      // midnight (21:00Z in UTC+3), so a day counts while it ends after today
+      // starts — at most one extra day, never a missed one.
+      const start = day.mealPlan.weekStartDate.getTime() + day.dayOfWeek * DAY_MS;
+      if (start + DAY_MS <= today || !Array.isArray(day.meals)) continue;
       for (const slot of day.meals) {
         const id = (slot as { recipeId?: unknown } | null)?.recipeId;
         if (typeof id === 'string') ids.add(id);

@@ -22,6 +22,7 @@ const {
   save,
   softDeleteManualRecipe,
   restoreManualRecipe,
+  findRecipesByIds,
 } = vi.hoisted(() => ({
   softDeleteManualRecipe: vi.fn(),
   restoreManualRecipe: vi.fn(),
@@ -44,6 +45,7 @@ const {
   findRecipeById: vi.fn(),
   isRecipeInUserPlans: vi.fn().mockResolvedValue(false),
   upsertRecipes: vi.fn().mockResolvedValue(undefined),
+  findRecipesByIds: vi.fn().mockResolvedValue([]),
 }));
 
 vi.mock('../../lib/recipe-image-signal.js', () => ({ notifyRecipeImageQueued: vi.fn() }));
@@ -83,7 +85,7 @@ vi.mock('@chefer/database', async (importOriginal) => {
     dietaryPreferencesRepository: { findByUserId },
     householdMemberRepository: { findByUserId: findHouseholdByUserId },
     safetyReportRepository: { findRecipeIdsByUser, create: vi.fn(), findAllByUser: vi.fn() },
-    mealPlanRepository: { findRecipeById, isRecipeInUserPlans, upsertRecipes },
+    mealPlanRepository: { findRecipeById, isRecipeInUserPlans, upsertRecipes, findRecipesByIds },
     recipeLineRepository: {
       findByRecipeIds: vi.fn().mockResolvedValue([]),
       findNutritionStates: vi.fn().mockResolvedValue([]),
@@ -339,6 +341,30 @@ describe('RecipeService.discover (T-01.2/T-02.1) — bug fix: summary rows must 
     expect(withChecks[0]?.safetyChecks?.checked.map((c) => c.label)).toContain('Tree nuts');
     // None of Discover's own results conflict — it already excludes them.
     expect(rows.every((r) => (r.safetyChecks?.conflicts ?? []).length === 0)).toBe(true);
+  });
+});
+
+describe('RecipeService.discover — images come from the stored rows (F3)', () => {
+  it('shows a curated recipe with the image stored on its row, not the pool object', async () => {
+    findByUserId.mockResolvedValueOnce(null);
+    findRecipesByIds.mockImplementationOnce((ids: string[]) =>
+      Promise.resolve(
+        ids.map((id, i) =>
+          recipe({
+            id,
+            name: id,
+            imageUrl: i === 0 ? null : `https://chefer.example/uploads/recipes/${id}.jpg`,
+            imageStatus: i === 0 ? 'PENDING' : 'DONE',
+          }),
+        ),
+      ),
+    );
+
+    const rows = await new RecipeService().discover('u1', {});
+
+    // The fixture's stock photo is replaced by the row's (here: none yet).
+    expect(rows[0]!.imageUrl).toBeNull();
+    expect(rows[1]!.imageUrl).toBe(`https://chefer.example/uploads/recipes/${rows[1]!.id}.jpg`);
   });
 });
 

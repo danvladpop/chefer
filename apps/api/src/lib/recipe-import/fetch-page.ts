@@ -122,7 +122,7 @@ export async function fetchRecipePage(rawUrl: string): Promise<FetchedPage> {
 /**
  * HEAD-checks that a page's og:image actually serves an image (guarded like
  * any other outbound fetch). Any failure means "no usable image" — the caller
- * falls back to the Pollinations pipeline.
+ * saves the recipe without one and queues a generated image.
  */
 export async function headCheckImage(rawUrl: string): Promise<boolean> {
   try {

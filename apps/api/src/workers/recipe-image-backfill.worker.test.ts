@@ -191,7 +191,7 @@ describe('RecipeImageBackfillWorker', () => {
     for (const config of [
       { enabled: false, provider: 'cloudflare' },
       { enabled: true, provider: 'pollinations' },
-    ]) {
+    ] as const) {
       const { deps } = fakeDeps(
         { a: POLL(1) },
         {

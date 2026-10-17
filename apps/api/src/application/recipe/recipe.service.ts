@@ -2,6 +2,7 @@ import { TRPCError } from '@trpc/server';
 import {
   favouriteRecipeRepository,
   followRepository,
+  mealPlanRepository,
   mealRatingRepository,
   POLLINATIONS_IMAGE_HOST,
   recipeLineRepository,
@@ -574,7 +575,13 @@ export class RecipeService {
     const searchPrefs = { ...ctx.prefs, dislikedIngredients: [] };
     const pools = safeCuratedPools(searchPrefs);
     const results = selectDiscoverRecipes(pools, filters, new Set(savedIds));
-    const visible = results.filter((r) => !ctx.hiddenRecipeIds.includes(r.id));
+    // F3: pool objects carry no generated image — the stored row's image
+    // (made by the image worker, replaced by the backfill) is what we show.
+    const rows = await mealPlanRepository.findRecipesByIds(results.map((r) => r.id));
+    const storedImage = new Map(rows.map((r) => [r.id, r.imageUrl]));
+    const visible = results
+      .filter((r) => !ctx.hiddenRecipeIds.includes(r.id))
+      .map((r) => (storedImage.has(r.id) ? { ...r, imageUrl: storedImage.get(r.id) ?? null } : r));
     // T-02.1: Discover rows get the same Checked chip as every other surface.
     if (!ctx.table.hasRules) return visible;
     // Bug fix: `DiscoverRecipeDto` is a SUMMARY shape — it carries neither
