@@ -24,6 +24,7 @@ Whenever you make a change that affects the architecture of this project, you **
 | New business flow or flow change | `business_flow.md`                                                                       |
 | Auth/authorization change        | `infrastructure.md` §9, `business_flow.md` §4                                            |
 | User-facing change to a feature  | The other platform's implementation, or `mobile_parity_backlog.md` (see Platform Parity) |
+| Domain term settled or renamed   | `GLOSSARY.md`; a hard-to-reverse trade-off also gets `docs/adr/NNNN-*.md`                |
 
 Do not defer documentation updates. If you add a procedure today, the docs reflect it today.
 
@@ -170,6 +171,31 @@ Supporting rules:
 - **Never break shipped mobile clients.** Web redeploys instantly; app-store binaries in the field do not. API changes must be additive/backward-compatible (new optional fields, new procedures — not renamed or removed ones) once mobile is in stores. Breaking changes require an explicit versioning plan and user sign-off.
 - **Verify per platform.** Web: existing lint/typecheck/tests + Playwright mobile sweep after layout changes. Mobile: the test ladder in `mobile_native_plan.md` §4 (typecheck → Jest → contract tests → `expo export` → Maestro). One mobile implementation serves both OSes; run Android (emulator `Pixel_8`) in addition to iOS when the change is layout-heavy or touches platform APIs.
 - When a session ends with a knowingly unported change and no backlog entry, that is a bug in the session, not an acceptable outcome.
+
+---
+
+## Engineering Principles
+
+Steering vocabulary for every task. Where one conflicts with a rule above, the rule above wins.
+
+- **Prove it works.** Verify the real artifact (run it, read the value, drive the screen), not "it compiles" or a self-report.
+- **Fix root causes.** Trace a symptom to where things first went wrong and fix it there. A guard is a fix only when the state it handles is legitimate.
+- **Attack the premise.** After two fixes built on the same assumption have failed, test the assumption before writing a third.
+- **Encode lessons in structure.** A mistake corrected twice becomes a lint rule, type, test or CI check, not another line of prose.
+- **Smallest change, one source of truth.** Subtract dead weight before adding; put shared logic in `@chefer/utils` / `@chefer/types` once.
+- **Model the domain.** Prefer discriminated unions, state machines and Zod-derived types over scattered conditionals and optional-field bags; parse at boundaries, trust types inside. Use the terms in `GLOSSARY.md`.
+- **Test behaviour, not implementation.** Assert what a user or caller can observe.
+- **Guard the context window.** Send bulk reading and searching to subagents; keep summaries, not raw dumps, in the main thread.
+- **Align before building.** For a feature or flow change, settle the owner's decisions first; never proceed on a guessed product call. Never adopt "delete the legacy API in the same wave" for anything a shipped mobile binary calls.
+
+---
+
+## AI Workflow (skills)
+
+Two skill plugins are enabled for this repo (`.claude/settings.json`): `mattpocock-skills` and `pstack`. The daily loop (align → shape → build → prove → review → learn), which skill to use when, and the guardrails are in [`docs/ai-workflow/README.md`](./docs/ai-workflow/README.md). Read it before running any `/mattpocock-skills:*` or `/pstack:*` skill.
+
+- Never run the pstack **Shipping**, **Autopilot-full**, **Autopilot-stack** or **Babysit** playbooks: the owner merges PRs and the app's Auto-fix watches CI.
+- Never run `setup-pre-commit`, `git-guardrails-claude-code`, `no-comments`, `make-bot-ui` or `setup-pstack`.
 
 ---
 
