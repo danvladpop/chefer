@@ -748,6 +748,24 @@ meals to my training days`; household and the AI chef open their job.
 have` · `Switch back to Free`. The downgrade sheet names what you keep and
   lists only the Premium jobs this user has used (`downgradeLosses`); cancel
   keeps Premium.
+- **Tier row (F6/F7, owner feedback 2026-10-17).** The tier (Free or Premium) is the first thing
+  on mobile **You** (under the shared `You` top bar, on the Ask Chef row) and on
+  web **/profile** (`TierRow`, mobile `features/premium/tier-row.tsx`, web
+  `features/premium/components/TierRow.tsx`).
+  - **Free.** It reads `Free plan` · `See what Premium adds`. A tap opens the
+    usual sheet or dialog with source `tier-row`, which maps to the `overview`
+    job.
+    - The headline is `Everything Premium adds`, followed by three weekly-plan
+      bullets.
+    - "Also included" opens unfolded (`pitch.showAllIncluded`).
+    - Opting in is the usual `Turn on Premium`.
+  - **Premium (admins included).** It reads `Premium plan` ·
+    `Included · What you have`. It is status only and never pitches. A tap opens
+    Profile › Plan & Premium (mobile `/profile?section=plan`, web `#plan`).
+  - **Not a nudge.** It never opens on its own, has no dismiss, shows from the
+    first session and sits outside the nudge cap. It renders nothing while the
+    plan is loading, so a Premium user never sees "Free" flash.
+  - Rationale and sources: `docs/research/premium-entry-points.md`.
 - **Nudge cap.** All unprompted nudges go through the pure rule in
   `packages/utils/src/nudge-cap.ts` (one per calendar day, 7-day cooldown per
   dismissed source) — web `localStorage` adapter, mobile KV adapter
@@ -3031,7 +3049,8 @@ new shell. Flipping the preview on You leaves You open; switching off lands on t
   logged activities keep their activity glyph. Workout complete shows duration, calories burned (as on
   Today; Sets without a weigh-in) and exercises, PRs and the week.
   Program setup shows distinct program cards; New exercise uses dropdowns.
-- **You is the one home for settings:** Your progress (Stats, My weeks), Settings (Meals → the new Meal
+- **You is the one home for settings:** your tier first (the tier row, §9; since 2026-10-17, with the
+  `You` title on the Ask Chef row like every other tab), then Your progress (Stats, My weeks), Settings (Meals → the new Meal
   settings screen, Training → Training settings, Notifications, Account), People, Preview, Help (Send
   feedback opens a sheet), Sign out. Account holds what was left of Settings (goal, targets, Premium,
   emails, privacy, data, legal); Goals & diet (`/preferences`) lists Goal & body before allergies. In-context

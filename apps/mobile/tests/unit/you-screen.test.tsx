@@ -1,6 +1,7 @@
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react-native';
-import { householdSummary, YouScreen } from '../../src/features/shell/you-screen';
+import YouTab from '../../app/(main)/you';
+import { householdSummary } from '../../src/features/shell/you-screen';
 
 // 10 Oct redesign, board "You": You is the one home of every setting — Meals,
 // Training, Notifications and Account rows — plus progress, people, the
@@ -63,6 +64,7 @@ jest.mock('../../src/lib/trpc', () => ({
 }));
 jest.mock('../../src/lib/sign-out', () => ({ signOut: jest.fn(() => Promise.resolve()) }));
 jest.mock('../../src/lib/analytics', () => ({ track: jest.fn() }));
+jest.mock('../../src/features/premium/open-premium', () => ({ openPremium: jest.fn() }));
 
 let mockAvailable = true;
 let mockBadge = 0;
@@ -71,6 +73,9 @@ jest.mock('../../src/features/friends/api/use-friends-badge', () => ({
 }));
 
 const { track } = jest.requireMock<{ track: jest.Mock }>('../../src/lib/analytics');
+const { openPremium } = jest.requireMock<{ openPremium: jest.Mock }>(
+  '../../src/features/premium/open-premium',
+);
 
 const METRICS = {
   frame: { x: 0, y: 0, width: 390, height: 844 },
@@ -80,7 +85,7 @@ const METRICS = {
 function renderYou() {
   return render(
     <SafeAreaProvider initialMetrics={METRICS}>
-      <YouScreen />
+      <YouTab />
     </SafeAreaProvider>,
   );
 }
@@ -90,6 +95,7 @@ beforeEach(() => {
   mockLogoutMutate.mockClear();
   mockFeedbackMutate.mockClear();
   track.mockClear();
+  openPremium.mockClear();
   mockFeedbackOnSuccess = undefined;
   mockMe = { role: 'USER', planTier: 'FREE' };
   mockMembers = [];
@@ -99,10 +105,12 @@ beforeEach(() => {
 });
 
 describe('You (10 Oct redesign)', () => {
-  it('has Ask Chef in its top bar and the large "You" title', async () => {
+  it('names itself in the shared top bar, next to Ask Chef (F5)', async () => {
     await renderYou();
+    expect(screen.getByRole('header', { name: 'You' })).toBeTruthy();
     expect(screen.getByTestId('shell-ask-chef')).toBeTruthy();
-    expect(within(screen.getByTestId('you-title')).getByText('You')).toBeTruthy();
+    // No second, larger title on its own row under Ask Chef.
+    expect(screen.queryByTestId('you-title')).toBeNull();
   });
 
   it('every row opens its screen', async () => {
@@ -210,6 +218,42 @@ describe('You (10 Oct redesign)', () => {
   it('shows the version line', async () => {
     await renderYou();
     expect(screen.getByTestId('build-info')).toHaveTextContent(/^Version/);
+  });
+});
+
+describe('the tier row (F6, F7)', () => {
+  it('a free user sees their plan first, and a tap shows what Premium adds', async () => {
+    await renderYou();
+    const plan = screen.getByTestId('you-tier');
+    expect(plan).toHaveTextContent(/Free plan/);
+    expect(plan).toHaveTextContent(/See what Premium adds/);
+    await fireEvent.press(plan);
+    expect(openPremium).toHaveBeenCalledWith('tier-row');
+    expect(mockPush).not.toHaveBeenCalled();
+  });
+
+  it('a premium user sees status only, and a tap opens what they have', async () => {
+    mockMe = { role: 'USER', planTier: 'PREMIUM' };
+    await renderYou();
+    const plan = screen.getByTestId('you-tier');
+    expect(plan).toHaveTextContent(/Premium plan/);
+    expect(plan).toHaveTextContent(/Included · What you have/);
+    expect(within(plan).queryByText(/See what Premium adds/)).toBeNull();
+    await fireEvent.press(plan);
+    expect(mockPush).toHaveBeenCalledWith('/profile?section=plan');
+    expect(openPremium).not.toHaveBeenCalled();
+  });
+
+  it('an admin counts as premium', async () => {
+    mockMe = { role: 'ADMIN', planTier: 'FREE' };
+    await renderYou();
+    expect(screen.getByTestId('you-tier')).toHaveTextContent(/Premium plan/);
+  });
+
+  it('shows nothing until the plan is known, so it never flashes "Free"', async () => {
+    mockMe = undefined;
+    await renderYou();
+    expect(screen.queryByTestId('you-tier')).toBeNull();
   });
 });
 

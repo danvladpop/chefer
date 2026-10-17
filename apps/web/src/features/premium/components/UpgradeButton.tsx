@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { useState } from 'react';
+import { useState, type ReactNode } from 'react';
 import {
   ACTIVATION_EVENT,
   ACTIVATION_FLAG,
@@ -41,12 +41,15 @@ export interface UpgradeButtonProps {
   source: string;
   /** The trigger's text; defaults to `See what Premium adds`. */
   label?: string;
+  /** A custom trigger body (the tier row); `className` then styles it alone, without the gradient. */
+  children?: ReactNode;
 }
 
 export function UpgradeButton({
   className,
   source,
   label = PREMIUM_PITCH_COPY.seeWhatPremiumAdds,
+  children,
 }: UpgradeButtonProps) {
   const [open, setOpen] = useState(false);
   const pitch = usePremiumPitch(source, open);
@@ -80,13 +83,21 @@ export function UpgradeButton({
           capture('upgrade_prompt_shown', { source, job: pitch.job });
           setOpen(true);
         }}
-        className={cn(
-          'flex min-h-11 items-center justify-center gap-1.5 rounded-lg bg-gradient-to-r from-amber-500 to-orange-500 px-3 py-1.5 text-xs font-semibold text-white shadow-sm transition-opacity hover:opacity-90',
-          className,
-        )}
+        className={
+          children
+            ? className
+            : cn(
+                'flex min-h-11 items-center justify-center gap-1.5 rounded-lg bg-gradient-to-r from-amber-500 to-orange-500 px-3 py-1.5 text-xs font-semibold text-white shadow-sm transition-opacity hover:opacity-90',
+                className,
+              )
+        }
       >
-        <Sparkles className="h-3.5 w-3.5" aria-hidden="true" />
-        {label}
+        {children ?? (
+          <>
+            <Sparkles className="h-3.5 w-3.5" aria-hidden="true" />
+            {label}
+          </>
+        )}
       </button>
 
       {/* Sheet (bottom sheet on phones, dialog at sm+) supplies scroll lock,
@@ -136,7 +147,7 @@ export function UpgradeButton({
         </ul>
 
         {pitch.alsoIncluded.length > 0 && (
-          <details className="mt-3">
+          <details className="mt-3" open={pitch.showAllIncluded}>
             <summary className="flex min-h-11 cursor-pointer items-center text-sm font-medium text-gray-800">
               {PREMIUM_PITCH_COPY.alsoIncluded}
             </summary>
