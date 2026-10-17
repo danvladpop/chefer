@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import { TierRow } from '@/features/premium/components/TierRow';
 import { DowngradeButton, UpgradeButton } from '@/features/premium/components/UpgradeButton';
 import { usePremiumPitch } from '@/features/premium/lib/use-premium-pitch';
 import { AccountDataCard } from '@/features/profile/components/AccountDataCard';
@@ -131,8 +132,9 @@ function PlanCard({ isPremium }: { isPremium: boolean }) {
   const pitch = usePremiumPitch('profile');
   return (
     <div
+      id="plan"
       data-testid="profile-plan"
-      className="mb-6 rounded-2xl border border-amber-200 bg-gradient-to-br from-amber-50 to-orange-50 p-4 sm:p-5"
+      className="mb-6 scroll-mt-20 rounded-2xl border border-amber-200 bg-gradient-to-br from-amber-50 to-orange-50 p-4 sm:p-5"
     >
       <h2 data-testid="profile-plan-title" className="font-semibold text-gray-900">
         {isPremium ? PREMIUM_PITCH_COPY.planPremiumTitle : PREMIUM_PITCH_COPY.planFreeTitle}
@@ -184,6 +186,9 @@ export default function ProfilePage() {
         <p className="text-xs font-semibold uppercase tracking-widest text-gray-500">Account</p>
         <h1 className="font-serif text-2xl font-bold text-gray-900">Profile</h1>
       </div>
+
+      {/* F6/F7: the plan first — status for Premium, the way in for Free. */}
+      <TierRow />
 
       {/* User info */}
       <div className="mb-6 flex items-center gap-4 rounded-2xl border bg-white p-4 shadow-sm sm:p-5">
