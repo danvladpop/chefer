@@ -43,7 +43,7 @@ import { clearOnboardingDraft } from '../onboarding/onboarding-draft';
 import { markOnboardingGateHandled } from '../onboarding/onboarding-gate';
 import { ACTIVITY_OPTIONS } from '../preferences/types';
 import { useHealthConsent } from '../privacy/use-health-consent';
-import { SafetyPicker } from '../safety/safety-picker';
+import { SafetyPicker, type SafetyPickerHandle } from '../safety/safety-picker';
 import {
   clearOnboardingV4Draft,
   readOnboardingV4Draft,
@@ -116,6 +116,7 @@ export function OnboardingV4() {
   const [activityOpen, setActivityOpen] = useState(false);
   const [safety, setSafety] = useState<SafetyPickerValue>(draft?.safety ?? EMPTY_SAFETY_VALUE);
   const [moreOpen, setMoreOpen] = useState(false);
+  const morePickerRef = useRef<SafetyPickerHandle>(null);
   const [healthDeclined, setHealthDeclined] = useState(draft?.healthDeclined ?? false);
   const [plan, setPlan] = useState<Plan | null>(null);
   const [planBuilt, setPlanBuilt] = useState(draft?.planBuilt ?? false);
@@ -332,6 +333,14 @@ export function OnboardingV4() {
         },
       },
     );
+  }
+
+  /** UX-ACC-01: a typed-but-not-added term is flushed first; a pending choice keeps the sheet open. */
+  function closeMore() {
+    const flushed = morePickerRef.current ? morePickerRef.current.flush() : safety;
+    if (flushed === null) return;
+    setSafety(flushed);
+    setMoreOpen(false);
   }
 
   function continueSafety() {
@@ -600,17 +609,18 @@ export function OnboardingV4() {
 
       <Sheet
         visible={moreOpen}
-        onClose={() => setMoreOpen(false)}
+        onClose={closeMore}
         title={COPY.safetyMore}
         testID="onb-v4-more-sheet"
       >
         <View className="gap-3 pb-2">
-          <SafetyPicker value={safety} onChange={setSafety} testIDPrefix="onb-v4-more" />
-          <V4Primary
-            label={COPY.continue}
-            onPress={() => setMoreOpen(false)}
-            testID="onb-v4-more-done"
+          <SafetyPicker
+            ref={morePickerRef}
+            value={safety}
+            onChange={setSafety}
+            testIDPrefix="onb-v4-more"
           />
+          <V4Primary label={COPY.continue} onPress={closeMore} testID="onb-v4-more-done" />
         </View>
       </Sheet>
 

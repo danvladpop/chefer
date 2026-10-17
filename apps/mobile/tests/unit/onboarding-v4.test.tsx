@@ -352,6 +352,46 @@ describe('Onboarding V4', () => {
     expect(mockSafety).not.toHaveBeenCalled();
   });
 
+  async function toSafetyStep(user: ReturnType<typeof userEvent.setup>) {
+    await user.press(screen.getByTestId('onb-v4-job-PLAN_MEALS'));
+    await user.press(screen.getByTestId('onb-v4-continue'));
+    await screen.findByTestId('onb-v4-goal');
+    await user.press(screen.getByTestId('onb-v4-goal-EAT_HEALTHIER'));
+    await user.press(screen.getByTestId('onb-v4-continue'));
+    await screen.findByTestId('onb-v4-aboutYou');
+    await user.press(screen.getByTestId('onb-v4-continue'));
+    await screen.findByTestId('onb-v4-safety');
+    await user.press(screen.getByTestId('onb-v4-safety-more'));
+  }
+
+  it('UX-ACC-01: an allergy typed in "Something else?" without "+" is saved on Continue', async () => {
+    const user = await renderFlow();
+    await toSafetyStep(user);
+    await user.type(screen.getByTestId('onb-v4-more-something-else-input'), 'sesame');
+    await user.press(screen.getByTestId('onb-v4-more-done'));
+    await waitFor(() => expect(screen.queryByTestId('onb-v4-more-done')).toBeNull());
+
+    await user.press(screen.getByTestId('onb-v4-continue'));
+    await waitFor(() => expect(mockSafety).toHaveBeenCalled());
+    const [saved] = mockSafety.mock.calls[0] as [{ allergies: string[] }];
+    expect(saved.allergies).toContain('Sesame');
+  });
+
+  it('UX-ACC-01: an unrecognised typed term keeps the sheet open until the user chooses', async () => {
+    const user = await renderFlow();
+    await toSafetyStep(user);
+    await user.type(screen.getByTestId('onb-v4-more-something-else-input'), 'zzqqxx');
+    await user.press(screen.getByTestId('onb-v4-more-done'));
+    expect(screen.getByTestId('onb-v4-more-save-blocked')).toHaveTextContent(/zzqqxx/);
+
+    await user.press(screen.getByTestId('onb-v4-more-unchecked-notice-keep-note'));
+    await user.press(screen.getByTestId('onb-v4-more-done'));
+    await waitFor(() => expect(screen.queryByTestId('onb-v4-more-done')).toBeNull());
+    await user.press(screen.getByTestId('onb-v4-continue'));
+    await waitFor(() => expect(mockSafety).toHaveBeenCalled());
+    expect(JSON.stringify(mockSafety.mock.calls[0])).toContain('zzqqxx');
+  });
+
   it('a failed build offers Try again and Skip', async () => {
     mockGenerate.mockRejectedValueOnce(new Error('The kitchen is busy.'));
     const user = await renderFlow();
