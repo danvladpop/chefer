@@ -9,6 +9,7 @@ import type {
   Suggestion,
   WorkoutSessionDoc,
 } from '@chefer/types';
+import { confirmLoad, tickAsPlanned } from './load-confirmation';
 import { ENGINE_VERSION } from './progression';
 import {
   createSuperset,
@@ -41,6 +42,10 @@ export type WorkoutAction =
       at: string;
     } & CardioSetFields)
   | { type: 'uncompleteSet'; seId: string; setId: string; at: string }
+  // Simple training mode: the one Done tick of an exercise. `done: true` ticks
+  // every unticked set AS PLANNED (load not confirmed — the progression guard,
+  // load-confirmation.ts); `done: false` unticks them all.
+  | { type: 'tickExercise'; seId: string; done: boolean; at: string }
   | ({
       type: 'editSet';
       seId: string;
@@ -328,12 +333,26 @@ export function workoutReducer(doc: WorkoutSessionDoc, action: WorkoutAction): W
       return withExercises(
         mapSet(doc, action.seId, action.setId, (s) => ({ ...s, completedAt: null })),
       );
+    case 'tickExercise':
+      return withExercises(
+        mapExercise(doc, action.seId, (se) => ({
+          ...se,
+          sets: se.sets.map((s) =>
+            action.done
+              ? s.completedAt === null
+                ? tickAsPlanned(s, action.at)
+                : s
+              : confirmLoad({ ...s, completedAt: null }),
+          ),
+        })),
+      );
     case 'editSet':
+      // Editing a number is what confirms a load (progression guard).
       return withExercises(
         mapSet(doc, action.seId, action.setId, (s) =>
           withCardioFields(
             {
-              ...s,
+              ...confirmLoad(s),
               weightKg: action.weightKg ?? s.weightKg,
               reps: action.reps ?? s.reps,
             },

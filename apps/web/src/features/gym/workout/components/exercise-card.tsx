@@ -1,6 +1,7 @@
 'use client';
 
 import { memo, useState } from 'react';
+import { TrainerNoteLine } from '@/features/coaching/components/RoutineAttribution';
 import { ChevronDown, CircleSlash, MoreHorizontal, StickyNote } from 'lucide-react';
 import {
   HIDDEN_EXERCISE_IMAGE_IDS,
@@ -55,6 +56,11 @@ export interface ExerciseCardProps {
   onOpenActions: (seId: string) => void;
   onOpenPlates: (weightKg: number) => void;
   onOpenSetMenu: (seId: string, setId: string) => void;
+  /** Trainer coaching (level 6+): the trainer's cue for this exercise and who it is from. */
+  trainerNote?: string | null;
+  trainerName?: string | null;
+  /** The trainer who set this exercise's target ("Set by Ana"), when it is a trainer-set override. */
+  setByName?: string | null;
 }
 
 /**
@@ -84,6 +90,9 @@ export const ExerciseCard = memo(function ExerciseCard({
   onOpenActions,
   onOpenPlates,
   onOpenSetMenu,
+  trainerNote = null,
+  trainerName = null,
+  setByName = null,
 }: ExerciseCardProps) {
   const [showWarmups, setShowWarmups] = useState(false);
   const [showWhy, setShowWhy] = useState(false);
@@ -199,7 +208,7 @@ export const ExerciseCard = memo(function ExerciseCard({
               <span className="mt-px text-sm font-bold" aria-hidden="true">
                 {KIND_ARROW[p.kind]}
               </span>
-              <p className="min-w-0 flex-1 text-sm">{explain(p, unit)}</p>
+              <p className="min-w-0 flex-1 text-sm">{explain(p, unit, 'today', setByName)}</p>
               <button
                 type="button"
                 onClick={() => setShowWhy((v) => !v)}
@@ -211,7 +220,7 @@ export const ExerciseCard = memo(function ExerciseCard({
             </div>
             {showWhy && (
               <dl className="mt-2 grid grid-cols-[auto_minmax(0,1fr)] gap-x-3 gap-y-1 border-t border-black/10 pt-2 text-xs">
-                {explainInputs(p, unit).map((row) => (
+                {explainInputs(p, unit, setByName).map((row) => (
                   <div key={row.label} className="contents">
                     <dt className="font-medium opacity-80">{row.label}</dt>
                     <dd className="min-w-0">{row.value}</dd>
@@ -220,6 +229,10 @@ export const ExerciseCard = memo(function ExerciseCard({
               </dl>
             )}
           </div>
+
+          {trainerNote && (
+            <TrainerNoteLine trainerName={trainerName ?? 'Your trainer'} note={trainerNote} />
+          )}
 
           {se.notes && (
             <p className="flex items-start gap-1.5 rounded-lg bg-yellow-50 px-3 py-2 text-xs text-yellow-900">

@@ -5,6 +5,7 @@ import { ExerciseImage } from '@/features/gym/library/ExerciseImage';
 import { exerciseImageUrl } from '@/features/gym/use-gym-bootstrap';
 import { Search, X } from 'lucide-react';
 import {
+  COACHING_COPY,
   HIDDEN_EXERCISE_IMAGE_IDS,
   type ExerciseDto,
   type LibraryFilterGroup,
@@ -25,6 +26,11 @@ export interface ExercisePickerSheetProps {
   preferSwapGroup?: string | null | undefined;
   /** Hidden from the list (e.g. the exercise already in the slot being swapped). */
   excludeIds?: readonly string[] | undefined;
+  /**
+   * Trainer coaching: only Chefer's own exercises can be added to a client's
+   * routine, so the trainer's custom exercises are hidden (spec §2.5).
+   */
+  curatedOnly?: boolean;
 }
 
 export function ExercisePickerSheet({
@@ -35,15 +41,17 @@ export function ExercisePickerSheet({
   title = 'Choose an exercise',
   preferSwapGroup,
   excludeIds,
+  curatedOnly = false,
 }: ExercisePickerSheetProps) {
   const [query, setQuery] = useState('');
   const [group, setGroup] = useState<LibraryFilterGroup | null>(null);
 
   const rows = useMemo(() => {
-    const filtered = filterExercises(library, { query, group, excludeIds });
+    const source = curatedOnly ? library.filter((e) => !e.ownerId) : library;
+    const filtered = filterExercises(source, { query, group, excludeIds });
     if (query || group) return filtered;
     return sortBySwapGroupFirst(filtered, preferSwapGroup);
-  }, [library, query, group, excludeIds, preferSwapGroup]);
+  }, [library, curatedOnly, query, group, excludeIds, preferSwapGroup]);
 
   const handlePick = (exercise: ExerciseDto) => {
     onPick(exercise);
@@ -54,6 +62,9 @@ export function ExercisePickerSheet({
   return (
     <Sheet open={open} onClose={onClose} title={title} size="lg">
       <div className="flex flex-col gap-3 px-5 pb-2 pt-1">
+        {curatedOnly && (
+          <p className="text-xs text-gray-500">{COACHING_COPY.trainer.curatedOnly}</p>
+        )}
         <div className="relative">
           <Search
             className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400"

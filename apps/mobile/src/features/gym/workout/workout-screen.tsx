@@ -23,6 +23,7 @@ import {
 } from '@chefer/utils';
 import { Icon } from '../../../components/icon';
 import { useFlags } from '../../../hooks/use-flags';
+import { buildTrainerLines } from '../../coaching/logger-lines';
 import { useShellV2 } from '../../shell/shell-store';
 import { WorkoutActions } from '../../shell/train/workout-actions';
 import { WorkoutHeader } from '../../shell/train/workout-header';
@@ -397,10 +398,17 @@ export function WorkoutScreen() {
     [],
   );
 
+  // WP-18: the trainer's cue and "Set by Ana", read from the cached bootstrap (null when uncoached).
+  const trainerLines = useMemo(
+    () => buildTrainerLines(bootstrap, session?.routineDayId ?? null),
+    [bootstrap, session?.routineDayId],
+  );
+
   const ctx = useMemo<WorkoutContext>(
     () => ({
       unit,
       profile,
+      trainer: trainerLines,
       lookup,
       prior,
       olderBests,
@@ -431,7 +439,7 @@ export function WorkoutScreen() {
       onLogCardio: (seId, setId, fields) =>
         dispatchWorkout({ type: 'completeSet', seId, setId, weightKg: 0, reps: 0, ...fields }),
     }),
-    [unit, profile, lookup, prior, olderBests, handlers, openSheet, scheduleScroll],
+    [unit, profile, trainerLines, lookup, prior, olderBests, handlers, openSheet, scheduleScroll],
   );
 
   // ── Finish / discard / minimise ────────────────────────────────────────────
@@ -1041,6 +1049,7 @@ export function WorkoutScreen() {
         exercise={contentSe}
         name={contentMeta?.name ?? ''}
         unit={unit}
+        setBy={contentSe ? (trainerLines?.setByFor(contentSe) ?? null) : null}
       />
       {contentSet && contentSe && contentMeta ? (
         <NumberSheet

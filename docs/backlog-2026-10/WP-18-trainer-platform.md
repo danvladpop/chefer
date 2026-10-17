@@ -1,5 +1,10 @@
 # WP-18 · Trainer platform
 
+> **Superseded scope (2026-10-04).** The owner replaced the group / "publish the week" model below with 1:1 coaching.
+> The current design and build plan are [`docs/trainer-platform/spec.md`](../trainer-platform/spec.md) and
+> [`phase-1-plan.md`](../trainer-platform/phase-1-plan.md); Phase 1 runs on `feat/trainer-coaching`. This file is
+> kept for the Phase 0 history.
+
 |                       |                                                                                                                                                                                                                                                     |
 | --------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Wave / priority       | **Phase B, first among new features** (owner decision D-7, 2026-10-02)                                                                                                                                                                              |

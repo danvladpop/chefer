@@ -115,6 +115,12 @@ export interface FriendUserSummary {
   relation: Relation;
   followsYou: boolean;
   requestedYou: boolean;
+  /**
+   * Additive (2026-10-17, trainer coaching PRD §4.1): present when this person
+   * has trainer tools on — the "Trainer" badge and the optional "Gym / city"
+   * line. Absent for everyone else.
+   */
+  trainer?: { gymLine: string | null };
 }
 export interface FriendsAvailabilityDto {
   enabled: boolean;

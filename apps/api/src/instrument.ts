@@ -12,4 +12,13 @@ Sentry.init({
   // Fine at beta traffic; lower before the volume grows.
   tracesSampleRate: 1,
   enableLogs: true,
+  // Trainer coaching (spec §8.3): the trainer's private note about a client is
+  // opaque text that must never reach logs or Sentry. An error captured while
+  // `trainer.client.saveNote` runs would otherwise attach the request body.
+  beforeSend(event) {
+    if (event.request?.url?.includes('trainer.client.saveNote')) {
+      delete event.request.data;
+    }
+    return event;
+  },
 });

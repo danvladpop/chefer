@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { useForm } from 'react-hook-form';
+import { nextQuery } from '@/features/coaching/lib/next-path';
 import { capture } from '@/lib/analytics';
 import { trpc } from '@/lib/trpc';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -42,7 +43,7 @@ const registerSchema = z
 
 type RegisterFormValues = z.infer<typeof registerSchema>;
 
-export function RegisterForm() {
+export function RegisterForm({ next = null }: { next?: string | null }) {
   const router = useRouter();
   const queryClient = useQueryClient();
   const [serverError, setServerError] = useState<string | null>(null);
@@ -56,7 +57,7 @@ export function RegisterForm() {
       capture('signup_completed', {});
       // Same as login: drop anything cached for a previously signed-in account.
       queryClient.clear();
-      router.push('/onboarding');
+      router.push(next ?? '/onboarding');
       router.refresh();
     },
     onError: (err) => {
@@ -132,7 +133,7 @@ export function RegisterForm() {
           {accountExists && (
             <p className="mt-2 flex flex-wrap gap-x-4">
               <Link
-                href="/login"
+                href={`/login${nextQuery(next)}`}
                 className="touch-target relative font-medium underline underline-offset-4"
               >
                 Sign in instead

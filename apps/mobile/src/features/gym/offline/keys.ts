@@ -22,4 +22,13 @@ export const KV_KEYS = {
   restPermissionRationaleShown: 'gym.rest-timer.rationale-shown',
   /** `Time today:` choice remembered per weekday (T-36.6): `{ "0": 30 }`; absent = Full. */
   timeToday: 'gym.today.time-today',
+  /**
+   * Trainer coaching (WP-18, lane D) — device-local, no server state. NOT `gym.`-prefixed on purpose:
+   * sign-out wipes everything outside `gym.` (they belong to the account), and an invite code kept
+   * across a sign-in is written after that wipe.
+   * The invite code a client still has to finish joining (gym setup first, or sign in first).
+   */
+  coachingPendingJoin: 'coaching.pending-join',
+  // (The device-local "routine seen" / "stopped dismissed" markers are gone: coaching notices are read on
+  // the server since PRD 2026-10 §4.2. Their old values are wiped at the next sign-out.)
 } as const;

@@ -75,6 +75,9 @@ function setup(existing = null as ReturnType<typeof profileRow> | null) {
     findByUserId: vi.fn().mockResolvedValue(existing),
     update: vi.fn((_u: string, data) => Promise.resolve(profileRow({ ...data } as never))),
     completeSetup: vi.fn().mockResolvedValue({ profile: profileRow(), routine: routineRow() }),
+    completeSimpleSetup: vi.fn((_u: string, data) =>
+      Promise.resolve(profileRow({ ...data } as never)),
+    ),
   };
   const bootstrap = {
     get: vi.fn().mockResolvedValue({ profile: null }),
@@ -399,5 +402,54 @@ describe('GymProfileService.save / recommend', () => {
       },
     );
     expect(repo.findByUserId).not.toHaveBeenCalled();
+  });
+});
+
+describe('GymProfileService — simple training mode', () => {
+  it('"Keep it simple" setup writes a SIMPLE profile, builds no routine and returns a bootstrap', async () => {
+    const { service, repo, bootstrap } = setup();
+    await service.completeSimpleSetup(USER, { unit: 'KG' }, '2026-09-24');
+    expect(repo.completeSetup).not.toHaveBeenCalled();
+    expect(repo.completeSimpleSetup).toHaveBeenCalledWith(
+      USER,
+      expect.objectContaining({
+        trainingStyle: 'SIMPLE',
+        unit: 'KG',
+        weeklyGoal: 3,
+        experience: 'BEGINNER',
+        goalHistory: [{ fromWeek: '2026-09-21', goal: 3 }],
+      }),
+    );
+    expect(bootstrap.get).toHaveBeenCalled();
+  });
+
+  it("re-running it keeps an existing profile's experience, rack and goal", async () => {
+    const existing = profileRow({ experience: 'INTERMEDIATE', weeklyGoal: 4, barWeightKg: 15 });
+    const { service, repo } = setup(existing);
+    await service.completeSimpleSetup(USER, { unit: 'KG' }, '2026-09-24');
+    expect(repo.completeSimpleSetup).toHaveBeenCalledWith(
+      USER,
+      expect.objectContaining({ experience: 'INTERMEDIATE', weeklyGoal: 4, barWeightKg: 15 }),
+    );
+  });
+
+  it('the settings switch only changes the training style (lossless)', async () => {
+    const { service, repo, progressions } = setup(profileRow());
+    await service.save(USER, { trainingStyle: 'SIMPLE' }, '2026-09-24');
+    expect(repo.update).toHaveBeenCalledWith(USER, { trainingStyle: 'SIMPLE' });
+    expect(progressions.recompute).not.toHaveBeenCalled();
+  });
+
+  it('a progressive setup records the answer; an older binary leaves the style alone', async () => {
+    const { service, repo } = setup();
+    await service.completeSetup(USER, setupInput({ trainingStyle: 'PROGRESSIVE' }), '2026-09-24');
+    expect(vi.mocked(repo.completeSetup).mock.calls[0]?.[1].profile.trainingStyle).toBe(
+      'PROGRESSIVE',
+    );
+    const old = setup();
+    await old.service.completeSetup(USER, setupInput(), '2026-09-24');
+    expect(vi.mocked(old.repo.completeSetup).mock.calls[0]?.[1].profile).not.toHaveProperty(
+      'trainingStyle',
+    );
   });
 });

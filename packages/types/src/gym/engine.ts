@@ -170,6 +170,12 @@ export interface ProgressionOverride {
   weightKg: number;
   reps: number[];
   at: string;
+  /**
+   * Trainer coaching (spec §5.2): who set this target. Absent (every row written
+   * before Phase 1) means "the owner set it". The API never sends this field to a
+   * client (it sends `ProgressionDto.override.setByName` instead).
+   */
+  setById?: string;
 }
 
 export interface WarmupSet {

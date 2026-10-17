@@ -19,9 +19,22 @@ import {
   type RoutineListItemDto,
   type TemplateSummaryDto,
 } from '@chefer/types';
-import { instantiateTemplate, normalizeSupersets, type ExerciseLookup } from '@chefer/utils';
+import {
+  diffRoutineDoc,
+  instantiateTemplate,
+  normalizeSupersets,
+  type ExerciseLookup,
+} from '@chefer/utils';
 import { ConflictCause } from '../../lib/conflict.js';
 import { ensureExerciseLibrary } from '../../lib/exercise-library/ensure.js';
+import {
+  coachingAttributionService,
+  type CoachingAttributionService,
+} from '../coaching/coaching-attribution.service.js';
+import {
+  routineChangeNotifier,
+  type RoutineChangeNotifier,
+} from '../coaching/routine-change-notifier.js';
 import { notifyTargetsChanged } from '../targets/targets-changed.js';
 import { toRoutineDto } from './mappers.js';
 
@@ -75,6 +88,14 @@ export class RoutineService {
     private readonly exerciseRepo: IExerciseRepository = exerciseRepository,
     private readonly profileRepo: IGymProfileRepository = gymProfileRepository,
     private readonly ensure: () => Promise<void> = ensureExerciseLibrary,
+    private readonly attribution: Pick<
+      CoachingAttributionService,
+      'forRoutine'
+    > = coachingAttributionService,
+    private readonly coachingNotifier: Pick<
+      RoutineChangeNotifier,
+      'coachingOf' | 'clientSaved'
+    > = routineChangeNotifier,
   ) {}
 
   async list(userId: string): Promise<RoutineListItemDto[]> {
@@ -90,8 +111,9 @@ export class RoutineService {
     }));
   }
 
-  async get(userId: string, id: string): Promise<RoutineDto> {
-    return toRoutineDto(await this.findOwned(userId, id));
+  /** `level` is the RAW `x-chefer-api-level`: 6+ also gets trainer notes and edit stamps (spec §10). */
+  async get(userId: string, id: string, level = 0): Promise<RoutineDto> {
+    return this.toDto(await this.findOwned(userId, id), userId, level);
   }
 
   templates(): TemplateSummaryDto[] {
@@ -178,15 +200,26 @@ export class RoutineService {
   }
 
   /** Makes this the one active routine (unarchiving it if needed). */
-  async setActive(userId: string, id: string): Promise<RoutineDto> {
+  async setActive(userId: string, id: string, level = 0): Promise<RoutineDto> {
     const row = await this.repo.setActive(userId, id);
     if (!row) throw notFound();
     // Its training weekdays may differ: the plan's training-day targets move.
     await notifyTargetsChanged(userId);
-    return toRoutineDto(row);
+    return this.toDto(row, userId, level);
   }
 
-  async save(userId: string, routine: RoutineDoc, expectedVersion: number): Promise<RoutineDto> {
+  /**
+   * Full-document save by the OWNER. Every save (any client version) is stamped
+   * with who changed which rows (spec §5.3); the owner path never writes
+   * `trainerNote` except to remove the notes in `clearTrainerNoteIds`.
+   */
+  async save(
+    userId: string,
+    routine: RoutineDoc,
+    expectedVersion: number,
+    opts: { level?: number; clearTrainerNoteIds?: readonly string[] | undefined } = {},
+  ): Promise<RoutineDto> {
+    const level = opts.level ?? 0;
     const exerciseIds = [
       ...new Set(routine.days.flatMap((d) => d.exercises.map((e) => e.exerciseId))),
     ];
@@ -198,6 +231,10 @@ export class RoutineService {
       throw new TRPCError({ code: 'BAD_REQUEST', message: `Unknown exercise: ${unknown}` });
     }
 
+    // A coached client's save becomes a card for their trainer (PRD 2026-10 §4.2).
+    const coaching = await this.coachingNotifier.coachingOf(userId);
+    const before = coaching ? await this.repo.findByIdForUser(userId, routine.id) : null;
+
     const res = await this.repo.replaceDocument(
       userId,
       routine.id,
@@ -207,16 +244,24 @@ export class RoutineService {
           id: d.id,
           name: d.name.trim(),
           plannedWeekday: d.plannedWeekday,
+          // Absent (an older binary's doc) keeps the stored My week type.
+          ...(d.workoutType !== undefined && { workoutType: d.workoutType }),
           // Canonical letters (A, B… adjacent runs, no lone letters) whatever
           // the client sent — older clients only normalise on load.
           exercises: normalizeSupersets(d.exercises.map((e) => ({ ...e }))),
         })),
       },
       expectedVersion,
+      {
+        actorId: userId,
+        path: 'OWNER',
+        clearTrainerNoteIds: opts.clearTrainerNoteIds,
+        diff: diffRoutineDoc,
+      },
     );
     if (res.status === 'not_found') throw notFound();
     if (res.status === 'conflict') {
-      const current = toRoutineDto(res.current);
+      const current = await this.toDto(res.current, userId, level);
       throw new TRPCError({
         code: 'CONFLICT',
         message: `This routine was changed elsewhere (now version ${current.version}).`,
@@ -225,14 +270,52 @@ export class RoutineService {
     }
     // Day rebalance: the active routine's weekdays are the plan's training days.
     if (res.routine.isActive) await notifyTargetsChanged(userId);
-    return toRoutineDto(res.routine);
+    if (coaching && before) await this.coachingNotifier.clientSaved(coaching, before, res.routine);
+    return this.toDto(res.routine, userId, level);
+  }
+
+  /**
+   * My week's first save (simple training mode §6.4): creates the ONE active
+   * routine (ADR 0001) from type-only days. Only called when there is none.
+   */
+  async createMyWeek(userId: string, days: RoutineDoc['days']): Promise<RoutineDto> {
+    await this.assertRoomForAnother(userId);
+    const row = await this.repo.create(userId, {
+      name: 'My week',
+      templateKey: null,
+      isActive: true,
+      days: days.map((d) => ({
+        name: d.name,
+        plannedWeekday: d.plannedWeekday,
+        workoutType: d.workoutType ?? null,
+        exercises: [],
+      })),
+    });
+    await notifyTargetsChanged(userId);
+    return toRoutineDto(row);
+  }
+
+  /** The active routine, or null. */
+  async getActive(userId: string): Promise<RoutineDto | null> {
+    const row = await this.repo.findActive(userId);
+    return row ? toRoutineDto(row) : null;
   }
 
   /** "Do another day instead" / "skip this day": moves the rotation pointer. */
-  async setNextDay(userId: string, routineId: string, dayId: string): Promise<RoutineDto> {
+  async setNextDay(
+    userId: string,
+    routineId: string,
+    dayId: string,
+    level = 0,
+  ): Promise<RoutineDto> {
     const row = await this.repo.setNextDay(userId, routineId, dayId);
     if (!row) throw notFound('Routine day not found.');
-    return toRoutineDto(row);
+    return this.toDto(row, userId, level);
+  }
+
+  /** The owner's view of a routine row: legacy shape below level 6, with trainer notes and edit stamps from it. */
+  private async toDto(row: RoutineWithDays, viewerId: string, level: number): Promise<RoutineDto> {
+    return toRoutineDto(row, await this.attribution.forRoutine(row, viewerId, level));
   }
 
   private async findOwned(userId: string, id: string): Promise<RoutineWithDays> {

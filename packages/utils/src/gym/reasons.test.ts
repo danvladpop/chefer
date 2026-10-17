@@ -231,3 +231,24 @@ describe('explainInputs — the "Why?" sheet', () => {
     }
   });
 });
+
+describe('USER_OVERRIDE — who set the target (trainer coaching)', () => {
+  const s = sug('USER_OVERRIDE', 62.5, [6, 6, 6, 6], { repMin: 6, repMax: 8 });
+
+  it('keeps the owner wording without a setter', () => {
+    expect(explain(s, 'KG')).toBe('Your own target: 62.5 kg, 6+ reps.');
+    expect(explainInputs(s, 'KG').find((r) => r.label === 'Rule')?.value).toBe(
+      'You set this target yourself',
+    );
+  });
+
+  it('names the trainer when a setter name is given', () => {
+    expect(explain(s, 'KG', 'today', 'Ana')).toBe('Set by Ana: 62.5 kg, 6+ reps.');
+    expect(explainInputs(s, 'KG', 'Ana').find((r) => r.label === 'Rule')?.value).toBe('Set by Ana');
+  });
+
+  it('ignores a setter name on any other reason', () => {
+    const hold = sug('ADD_REPS', 60, [8, 8, 8]);
+    expect(explain(hold, 'KG', 'today', 'Ana')).toBe(explain(hold, 'KG'));
+  });
+});

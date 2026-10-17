@@ -41,6 +41,7 @@
 33. [Health Information Consent Flow](#33-health-information-consent-flow-ux-26-t-261t-264-wave-3)
 34. [Following: Follow, See, Save](#34-following-follow-see-save-docsfriends-f1d)
 35. [Automatic Moderation](#35-automatic-moderation-following-prd-9-q-f-13-f1d)
+36. [Trainer Coaching (1:1)](#36-trainer-coaching-11-docstrainer-platform-wp-18)
 
 ---
 
@@ -292,7 +293,11 @@ proposal"). With the flag off nothing changes.
    `upgrade_completed` with source `onboarding`.
 9. **Set up training** (Train) — experience + equipment, the recommended program
    (`gym.profile.recommend`, "Change" cycles the alternatives), "Start training"
-   = `gym.profile.completeSetup` with the chosen weekdays.
+   = `gym.profile.completeSetup` with the chosen weekdays. With the
+   `simpleTraining` flag the step opens with "How do you like to train?": the
+   two "Keep it simple" answers skip experience/equipment/program and call
+   `gym.profile.completeSimpleSetup` (weekly goal = the training-weekday count),
+   no routine built (see §21 "Simple training mode").
 
 The flow ends on Today (Gym Today when Train is the only job) with a one-time
 "You're all set" card (Biscuit winking; dismiss clears it for good).
@@ -425,6 +430,10 @@ Health writes (`preferences.updateSafety/setup/saveProfileBasics/updateTargets`,
 rejects. `declared`: an un-consented write is rejected (`PRECONDITION_FAILED` / `HEALTH_CONSENT_REQUIRED`) only from a
 client sending `x-chefer-api-level >= 4`; a request WITHOUT the header (installed binary) is always accepted. See
 §33 and `infrastructure.md` §9.
+
+> **Trainer coaching (WP-18) adds one more access path:** a trainer reaches a client's routine, workouts and adherence only
+> through an `ACTIVE` coaching link and `CoachingAccessService` (§37.9, `infrastructure.md` §9 "Trainer coaching
+> authorization"). Ending a link takes effect on the trainer's very next request: there is no cached access.
 
 ### 4.10 Sign in with Google / Apple (WP-22, 2026-10-04)
 
@@ -1750,14 +1759,14 @@ a goal, and a known bodyweight (latest `WeightEntry`, else
 `ChefProfile.weightKg`). Every goal has a g/kg protein base (follow-up,
 2026-09-26); only `GAIN_MUSCLE` lifters get the training-day rules.
 
-| Rule              | Value                                                                                                                                                                                                          | Tier                                                                                                                                        |
-| ----------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
-| Base protein      | by goal: **GAIN_MUSCLE 1.8 g/kg**, **LOSE_WEIGHT 2.0 g/kg** (keeps muscle in a deficit), **MAINTAIN / EAT_HEALTHIER 1.6 g/kg** — replaces the goal's % split; carbs absorb the difference so kcal is unchanged | every tier — `resolveDailyTargets(profile, lifterBodyweightKg)` in dashboard, tracker, chat context, coach review and both generation paths |
-| Training day      | a workout **completed** that day (any day — **not** a quick-logged activity, WP-20), else a routine day **planned** for that weekday outside a training pause                                                  | —                                                                                                                                           |
-| Training-day bump | GAIN_MUSCLE only (a cut keeps its deficit): protein to **2.2 g/kg** (+0.4 g/kg), kcal **+10%** of the base (rounded to 10, clamped 150–300); kcal not covered by protein → carbs; fat unchanged                | **every tier** applies it (free since WP-07: no AI)                                                                                         |
-| Post-workout meal | **~0.4 g/kg** protein, rounded to 5 g, 20–45 g (30 g without a bodyweight)                                                                                                                                     | every tier                                                                                                                                  |
-| Premium AI week   | the routine's training weekdays + the bump go into the generation prompt (`buildTrainingDaysSection`), and the ±15%/±20% validation judges those days against the bumped targets                               | premium                                                                                                                                     |
-| Free curated week | training weekdays weigh the protein shortfall double in `planCuratedWeek`, so those days pick the higher-protein combinations (usually dinner); no kcal bump                                                   | free                                                                                                                                        |
+| Rule              | Value                                                                                                                                                                                                                          | Tier                                                                                                                                        |
+| ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------- |
+| Base protein      | by goal: **GAIN_MUSCLE 1.8 g/kg**, **LOSE_WEIGHT 2.0 g/kg** (keeps muscle in a deficit), **MAINTAIN / EAT_HEALTHIER 1.6 g/kg** — replaces the goal's % split; carbs absorb the difference so kcal is unchanged                 | every tier — `resolveDailyTargets(profile, lifterBodyweightKg)` in dashboard, tracker, chat context, coach review and both generation paths |
+| Training day      | a workout of **any workout type** **completed** that day (a logged yoga class counts like a lifting session — F-1, 2026-10-17, both training styles), else a routine day **planned** for that weekday outside a training pause | —                                                                                                                                           |
+| Training-day bump | GAIN_MUSCLE only (a cut keeps its deficit): protein to **2.2 g/kg** (+0.4 g/kg), kcal **+10%** of the base (rounded to 10, clamped 150–300); kcal not covered by protein → carbs; fat unchanged                                | **every tier** applies it (free since WP-07: no AI)                                                                                         |
+| Post-workout meal | **~0.4 g/kg** protein, rounded to 5 g, 20–45 g (30 g without a bodyweight)                                                                                                                                                     | every tier                                                                                                                                  |
+| Premium AI week   | the routine's training weekdays + the bump go into the generation prompt (`buildTrainingDaysSection`), and the ±15%/±20% validation judges those days against the bumped targets                                               | premium                                                                                                                                     |
+| Free curated week | training weekdays weigh the protein shortfall double in `planCuratedWeek`, so those days pick the higher-protein combinations (usually dinner); no kcal bump                                                                   | free                                                                                                                                        |
 
 ```
 dashboard.summary / tracker.getDay (lifter)
@@ -3293,6 +3302,10 @@ settles.
 
 ### Log an activity (WP-20, owner decision 2026-10-04)
 
+> **Superseded 2026-10-17 — see "Simple training mode" below.** The sheet is now **"Log a workout"** in both
+> training styles, keyed by **workout type**; and the two "does not count" rules below were **reversed (F-1)**:
+> a logged workout now counts as done today AND as a nutrition training day. Its kcal is still record only.
+
 A class is not a trainer feature: **any** gym user can quickly record something
 they did elsewhere — "45 min cycling class, 400 kcal burnt" — as done. It is
 **record only**: the calories never raise the day's food target ("no eating
@@ -3441,6 +3454,59 @@ screen.tsx` now numbers warm-ups and working sets with their own counters
 each starting at 1 — `Warm-up 1`, `Warm-up 2`, `Set 1`, `Set 2` — the same
 convention `setLabelOf()` already uses in the live logger
 (`workout/workout-model.ts`).
+
+### Simple training mode (flag `simpleTraining`, phase 1, 2026-10-17)
+
+Source: `docs/prd-2026-10/casual-training-mode.md`; terms in `GLOSSARY.md`; one routine per person
+(`docs/adr/0001-one-active-routine.md`). For the **mover** — "45 minutes of upper body, roughly what did it
+burn?" — next to today's **tracker**. Off by default (dark launch to testers); with the flag off every profile
+gets "Track my progress" (`isSimpleTraining(profile, flags)` is the one gate). Simple mode is free (D-7).
+
+- **Training style** (`GymProfile.trainingStyle`: `SIMPLE` "Keep it simple" / `PROGRESSIVE` "Track my progress",
+  default PROGRESSIVE — nobody already training sees a change). A preference, not a skill level
+  (`TrainingExperience` stays separate).
+- **Choosing it.** Onboarding V4's TRAIN step and gym setup ask one question, "How do you like to train?":
+  "I follow a program and track my lifts" → PROGRESSIVE (today's setup continues; `completeSetup` records
+  `trainingStyle: 'PROGRESSIVE'`); "I just want a good workout" / "Mostly classes, or with a trainer" → SIMPLE via
+  `gym.profile.completeSimpleSetup` — **no routine is built**, nothing else is asked, and setup ends with the
+  optional "Want to plan your week? You can do it later." (no "No active routine" dead end).
+- **Switching** is lossless and any time: gym settings → Training style (`gym.profile.save({ trainingStyle })`).
+  Both styles write the same `WorkoutSession` data; only the view changes.
+- **The workout** is the unit (D-4: **Chefer never generates workouts**). Start one **live** or **Log a workout**
+  afterwards. Workout type is the only required field (one tap); exercises are optional ("+ Add exercise" from the
+  library, then a Done tick). The smallest workout is one tap to start and one to finish. A live simple workout is a
+  `WorkoutSession` with `workoutType` (`startSimpleWorkout`); the logger shows the type, a timer, "~kcal so far" and
+  the optional exercise list — no sets grid, RIR, warm-ups, rest timer or progression messages.
+- **Workout types** (`WORKOUT_TYPES`): Strength — Upper body, Lower body, Full body, Strength (other); Cardio —
+  Cardio machines, Running, Walking, Swimming, Cycling; Classes — Yoga, Pilates, Spin, HIIT, Dance, Other class;
+  Other. One list for live workouts, logged workouts and My week. **Every type counts** toward the weekly goal and
+  streak, as **done today**, and as a **nutrition training day** — in both styles (F-1). The training-day bump is
+  unchanged (fixed +10%, GAIN_MUSCLE only, protein 2.2 g/kg): F-1 widens which days qualify, never how much.
+- **Log a workout** (replaces "Log an activity" in both styles): workout type (strength focuses only shown with the
+  flag), duration, day, optional "calories from your watch" and effort. Stored the WP-20 way — a finished session
+  with ONE `DURATION` entry (the type's catalogue row, `other-activity` for strength/other types) **plus**
+  `workoutType`, so shipped binaries still render it (`buildLoggedWorkoutDoc`).
+- **My week** = the "Keep it simple" face of the ONE active routine. Seven rows, each Rest or a workout type
+  ("Tue · Yoga"); one planned workout per weekday; the weekly goal defaults to the planned-day count (still
+  editable). Saved by `gym.routine.saveMyWeek` through the ordinary versioned routine save, creating the routine
+  ("My week") on first save. Routine days with no weekday (a rotation kept from "Track my progress", or one a
+  trainer built) show as **unscheduled** days — one-tap shortcuts on Today. Simple mode ignores the rotation
+  pointer. A type-only day (zero exercises) is valid; exercises on My week days are phase 2.
+- **Today (simple).** The week ring ("1 of 3"), minutes and ~kcal this week; today's planned workout from My week
+  ("Tuesday · Yoga": **Start**, **Log a workout**, **Skip** — Skip is device-local for the day); on an unplanned or
+  skipped day **Start a workout** with the workout-type picker (preselected from today's plan, else the last type
+  used), plus the unscheduled-day shortcuts. Missing a planned day is never a failure state: no red marks.
+- **Summary (simple).** Workout type, minutes, "~N kcal (est.)" with "How we estimate this", week ring and streak;
+  ticked exercises read as done. No PRs, volume, e1RM or progression changes.
+- **Calories (§6.6, D-3).** A typed workout is billed by its type's MET over the workout time (strength at the low,
+  conservative end of 3.5–6 until the effort answer of phase 2; others at the midpoint); a watch number wins. Burned
+  calories **never change food targets** ("no eating back").
+- **Progression guard (§6.5, F-2).** A ticked exercise whose prefilled numbers were never edited is stored as
+  **done, load not confirmed** (`SessionSet.loadConfirmed = false`); the progression engine and PR detection ignore
+  it. Editing a number confirms the load. Coaching shows such exercises as "done as planned".
+- **Shipped binaries.** Routines of zero-exercise days already existed (`routine.createBlank`), and contract tests
+  show API levels 2 (App Store 1.0.0) and 4 (1.0.1) read a My week routine and a typed workout with no exercises,
+  so no new API level is needed. An older binary's routine save omits `workoutType` and keeps the stored types.
 
 ### Weekday kinds (T-06.9) and gym settings reachability (bug B-19, T-36.1)
 
@@ -5700,6 +5766,8 @@ From `apps/api`, with `pnpm exec tsx --env-file=.env src/scripts/<name>.ts …`:
 
 There is deliberately no API procedure, screen or queue for either. Nothing depends on them.
 
+---
+
 ## 36. Tester feedback 2026-10-07 — food, account (WP-24)
 
 Source: `docs/backlog-2026-10/feedback-2026-10-07.md` (FB7-02, 03, 04, 10, 11). Plan-page details (Week options,
@@ -5720,3 +5788,254 @@ cards, side dishes) are in the meal-plan section above.
 - **Import review (FB7-03).** The old "Ingredients to check" card (whose "Change" button overlapped the text) was
   replaced on 2026-10-03 by the editable review form; the ingredient picker now has an explicit row/stack layout and
   wraps long names, and the unit picker fits "piece"/"tbsp" on one line.
+
+## 37. Trainer Coaching (1:1) (`docs/trainer-platform/`, WP-18)
+
+> **Status:** API implemented and **dark**: every `trainer.*` / `coaching.*` procedure sits behind the `coaching` flag or
+> `COACHING_ALLOWLIST`, and turning trainer tools on needs `TRAINER_ALLOWLIST` during the beta (`infrastructure.md` §8, §9, §10).
+> Web and mobile screens ship in the same program (trainer tools on both; the client's join page and "Your trainer" on both). Source of
+> truth: `docs/trainer-platform/spec.md` (and `phase-1-plan.md`). Every consent, attribution and error string is `COACHING_COPY`
+> (`@chefer/types`). **Nothing here stores client health data**: the trainer's private note is opaque text.
+
+A trainer coaches **individual clients**. A client joins with an invite link and an explicit consent screen. The trainer can then
+edit the client's own active routine, leave a short note on an exercise, set weights and reps for the next session, and see the
+client's completed workouts and adherence. There is no chat, no comments and no payment (free during the beta). One trainer per
+client; the client can leave at any time and keeps the routine.
+
+### 37.1 Turn on trainer tools
+
+```
+Profile → Trainer tools                (shown when coaching.availability → { enabled, canBeTrainer: true })
+  └─ "Turn on" { displayName }  → trainer.activate
+        ├─ not on TRAINER_ALLOWLIST (Q-1)            → FORBIDDEN
+        ├─ name fails the word filter, or "Chefer…"  → BAD_REQUEST (the text is never echoed)
+        └─ TrainerProfile upserted (a former trainer who turns tools back on keeps the same row)      idempotent
+  trainer.status → { canActivate, active, displayName }       (any user may ask; a non-trainer calling trainer.* is
+                                                                FORBIDDEN with data.reason = 'TRAINER_TOOLS_OFF')
+Turn off → trainer.deactivate: ONE transaction — every ACTIVE link ENDED (endedBy SYSTEM) with a withdrawn
+COACHING_SHARING event on each client's log, private notes hidden, open invites revoked, profile disabledAt.
+```
+
+### 37.2 Invite a client
+
+```
+Clients → Invite a client → trainer.invites.create { label? }
+  ├─ max 20 open invites; none once the trainer has 50 active clients; 50 per day
+  └─ code = 10 chars of Crockford base32 from crypto random; expires in 14 days; url = APP_URL/coaching/join/<code>
+trainer.invites.list → the last 30 days with state OPEN | USED | EXPIRED | REVOKED
+trainer.invites.revoke { code }  (a used, revoked or foreign invite is NOT_FOUND)
+The trainer shares the link however they like (RN Share sheet on mobile, navigator.share or copy on web).
+```
+
+### 37.3 The client joins (web or mobile)
+
+```
+Link → web page "Open in the Chefer app" (chefer://coaching/join/<code>) | "Continue on the web"; signed-out users sign in first
+coaching.previewInvite { code }  (30/h)  → { state, trainerName, currentTrainerName, needsGymSetup }
+  state OK | EXPIRED | USED | REVOKED | SELF | ALREADY_YOURS | NOT_FOUND   — the trainer's name only for OK / ALREADY_YOURS;
+  an open invite of a trainer who turned tools off reads REVOKED
+  needsGymSetup → the existing gym setup runs first (the engine needs the equipment and plates), then back to the link
+Consent screen (COACHING_COPY.consent, the same words on both platforms):
+  Ana will see: active routine · completed workouts (sets, weights, reps, last-set effort, dates) from the last 4 weeks and from now
+                on · which planned days you trained or missed, and pause DATES only
+  Ana can: change the routine (and notes on exercises) and set weights and reps for the next session; the client sees what changed
+  Ana can keep private notes you won't see · Ana will never see food, body weight, targets, your workout notes, heart rate or
+  calorie estimates, age or profile · "One trainer at a time. Leave whenever you want"
+  already coached by Ion → "You'll stop being coached by Ion" and the button reads "Switch to Ana"
+"Allow and join" → coaching.join { code, localDate }  (10/h; localDate = the device's local day → CoachingLink.startedOn,
+  which opens the trainer's 28-day window; ignored when more than a day from the server's UTC date)
+  ONE transaction (CoachingLinkRepository.join): claim the invite (single use) · end the client's other ACTIVE link (endedBy CLIENT,
+  withdrawn event, that note hidden) · create the link · record COACHING_SHARING granted (documentVersion = LEGAL_VERSIONS.privacy,
+  contextId = the new link id) · restore a hidden private note of the same pair
+  errors: BAD_REQUEST (invite not valid / trainer at 50 clients) · PRECONDITION_FAILED (no gym setup) · BAD_REQUEST (your own invite)
+  already coached by this trainer → no-op, returns the status
+  two joins racing for one client: the partial unique index lets one win; the loser re-reads once (a switch) → exactly one ACTIVE link
+```
+
+**Mobile client side (lane D):** the invite page's "Open in the Chefer app" opens `coaching/join/<code>`. Signed out → "Join your trainer" with
+Sign in / Create account; the code is remembered and the app returns to the invite after sign-in (and after onboarding for a new account).
+`needsGymSetup` → "Set up training" opens the existing setup and Gym Today then shows "Carry on joining your trainer" (dismissible). After
+joining: "You're coached by Ana" with Open my routine / Your trainer. More and Settings carry the rows "Your trainer" (Leave with a confirm) and,
+for allowlisted trainers, "Trainer tools". Gym Today shows one line per event: "Ana updated your routine · 2 Oct" (until the Routine tab is
+opened on this device), "Ana stopped coaching you" (30 days, dismissible). The workout logger shows the trainer's cue under the exercise name
+and "Set by Ana" on a trainer-set target. The app sends API level 6, so all of this appears only on updated apps; an installed 1.0.1 (level 4)
+keeps working unchanged (§37.9).
+
+### 37.4 What the trainer sees and does
+
+```
+trainer.clients.list { today? }   one row per ACTIVE client: name, since, label, last workout, this week "2 / 3", quiet days,
+                                  "Routine changed by Maria · 3 Oct" (the CLIENT saved last, after the link started)
+trainer.client.overview { clientId, today }   adherence (8 weeks, 14-day strip) + the last 5 workouts
+trainer.client.workouts / exerciseHistory     completed workouts, newest first, keyset-paged; the last 8 times of one exercise
+   Window: from 28 DAYS BEFORE the link started (Q-2). Only COMPLETED sessions; no session or exercise notes, calories, heart rate or
+   anything derived from body weight; pause DATES only. Cardio types are filtered by the trainer's own client level.
+trainer.client.routine { clientId, today? }   the client's ACTIVE routine: trainer notes, "Changed by Maria" only for what the client
+   changed after the link started, and per strength row the NEXT-SESSION panel: the app's suggestion, the pending target with who set
+   it (TRAINER / CLIENT), and when the exercise was last logged
+```
+
+### 37.5 Editing the routine (two editors, one routine)
+
+```
+trainer.client.saveRoutine { clientId, routine, expectedVersion }
+  ├─ the client's routine must be the ACTIVE one (a client who switched routine → PRECONDITION_FAILED)
+  ├─ exercises: every id must exist for the client; only CURATED exercises may be ADDED — a custom exercise of the client's already in
+  │    the routine can stay but cannot be added again (BAD_REQUEST otherwise)
+  ├─ RoutineRepository.replaceDocument(clientId, …, { actorId: trainer, path: 'TRAINER', diff }) in the version-checked transaction:
+  │    rows the save CHANGED get lastEditedById/At = the trainer; the routine too when anything changed; trainerNote is written;
+  │    the client's own `notes` is never touched (kept as stored, null on new rows)
+  └─ stale expectedVersion → CONFLICT { kind: 'routine', current: RoutineDto } — the editors' existing "Keep mine / Use the other
+       version" dialog; from the trainer's side `lastEditedByOther` names the client and the client's notes are blanked
+The client's own save (gym.routine.save, every app version) goes through the same diff: its changed rows are stamped with the client,
+and a full-document save from an OLD app keeps the trainer's notes (it never writes trainerNote; clearTrainerNoteIds removes some).
+A row is "changed" when it is new, moved to another day, or exercise / sets / reps / RIR / rest / trainer note / superset partners differ;
+a pure reorder is not a change. The client sees "Ana changed your routine · 2 Oct" and "Changed by Ana" on exactly those rows
+(level >= 6); nothing on rows the trainer did not touch. A trainer's account deleted later reads "your trainer".
+trainer.client.createRoutine: only when the client has NO active routine — creates and activates one in the client's account (stamped).
+A workout already started keeps its own snapshot; a trainer edit applies from the next workout.
+```
+
+### 37.6 Next-session targets
+
+```
+trainer.client.setNextTarget { clientId, exerciseId, repBucket, weightKg, reps[] }
+  = the existing D5c override (ExerciseProgression.override) with setById = the trainer. The exercise must be a strength exercise in
+  the client's active routine with a row in that rep bucket ("Applies the next time Maria does Back squat (6–8 reps)").
+  The progression STATE is never touched; the engine continues from what was lifted.
+  It reaches every client version through gym.bootstrap.progressions (level >= 6 adds override.setByName → "Set by Ana"; older apps apply
+  it and say "You set this target yourself").
+  Consumed ONCE: when an exposure newer than override.at is logged (server recompute, or the phone's own fold offline). A session done
+  offline BEFORE the target was set does not consume it when it syncs later. The trainer then sees "Last done <date>".
+trainer.client.clearNextTarget: "Reset to app suggestion". Either side can set or clear; the last write wins and is attributed.
+```
+
+### 37.7 Private note
+
+```
+trainer.client.note / saveNote { clientId, body (<= 4000) }   one note per (trainer, client), autosaved, empty = delete
+  Opaque text: never parsed, filtered, logged, put in analytics, sent to AI or returned to the client; the router input is not
+  logged, a failed write is rethrown without its cause, and Sentry drops the request body of saveNote.
+  Hidden when the link ends (not readable), deleted 30 days later, restored if the same pair links again (Q-6).
+```
+
+### 37.8 Ending
+
+```
+Client "Leave" (coaching.leave) · trainer "Remove client" (trainer.clients.remove) · trainer turns tools off — each in one transaction:
+  link ENDED (endedBy CLIENT | TRAINER | SYSTEM) · withdrawn COACHING_SHARING event on the CLIENT's log with contextId = the link ·
+  the private note hidden. The trainer loses access at once (NOT_FOUND on the very next request) and the client disappears from the list.
+The client keeps the routine, the trainer's exercise notes and any pending target (they can clear them). After a removal or a tools-off
+the client's coaching.status carries stopped { trainerName, at } for 30 days: "Ana stopped coaching you" (Q-5).
+Account deletion of a client cascades the coaching rows. A trainer's deletion first ends every coaching with a notice
+that survives the cascade (37.10); edit stamps pointing at a deleted trainer read "Changed by a former trainer".
+Retention (COACHING_RETENTION, recommended defaults — counsel to confirm, Q-6): ENDED links 24 months; invites 30 days after expiry;
+hidden notes 30 days. CoachingMaintenanceWorker enforces it once per UTC day.
+```
+
+### 37.9 Authorization, consent and old apps
+
+- **Access** (`infrastructure.md` §9): flag or `COACHING_ALLOWLIST` → active `TrainerProfile` → not yourself → an `ACTIVE` link. One
+  uniform `NOT_FOUND` "This client isn't available" for every denial; `FORBIDDEN` + `reason: 'TRAINER_TOOLS_OFF'` only when the caller
+  has no active trainer profile. The access matrix is tested through the router for every `trainer.client.*` procedure.
+- **Consent:** explicit (GDPR Art. 9(2)(a) with 6(1)(a)); every grant and end is a `COACHING_SHARING` event with the link as
+  `contextId`; withdrawal is one tap and immediate. The trainer is an independent controller for their coaching relationship and
+  their private notes (counsel to confirm, Q-7); the client's data export does not include the trainer's notes about them by default.
+  Policy text and the DPIA addendum (`docs/trainer-platform/dpia-addendum.md`) must be live before the flag goes beyond the allowlists.
+- **Old apps (API level < 6, e.g. the 1.0.1 binaries):** every new field is stripped (nothing coaching-related is queried), the
+  `COACHING_SHARING` rows are not sent in the consent history, a trainer's target is still applied, their own routine saves keep the
+  trainer's notes. Trainer tools there are web only. All procedures are new names; nothing was renamed, removed or tightened.
+- **Deleting the account** (§24): the user row cascades links, invites, notes and the trainer profile; the export (§28) gains a
+  `coaching` section (your trainers and clients by display name, your invites, your own private notes).
+
+### 37.10 Phase 1 gaps (2026-10-17, PRD `docs/prd-2026-10/trainer-coaching.md` §4)
+
+> **Status:** API, web and mobile implemented in the phase-1 PR; still dark behind the same flags. Launch steps:
+> `docs/prd-2026-10/coaching-launch.md` (Following and coaching turn on the same day).
+
+**Turning on Trainer tools also turns on Following (§4.1).**
+
+```
+Trainer tools → "Turn on" { displayName, gymLine? }  → trainer.activate
+  ├─ (as 37.1) allowlist + word filter on the name AND the "Gym / city" line
+  └─ no Following profile yet → a PRIVATE one is created (account names, SOCIAL_SHARING consent):
+        findable by name, plan and workouts hidden; the Trainer badge + gym line show on Following rows.
+        Turning Following off later drops them out of Find a trainer; their invites keep working.
+```
+
+**Find a trainer → coaching request (client-initiated, §4.1).** Needs no Following on the client's side.
+
+```
+Your trainer → "Find a trainer" (no trainer, no pending request)
+  └─ search by name (≥ 2 letters) → coaching.findTrainers   (trainers only; never email; blocks and self excluded)
+        └─ a trainer → coaching.trainerCard
+              ├─ blocked / not a trainer / Following off        → "This trainer isn't available" (one NOT_FOUND)
+              ├─ YOUR_TRAINER                                    → "Ana is your trainer."
+              ├─ REQUESTED                                       → "Waiting for Ana to answer" · Cancel request
+              ├─ 50 clients                                      → "Not taking new clients" (no Ask button)
+              ├─ a pending request to someone else               → "You already asked Ion. Cancel that request first."
+              ├─ gym setup not finished                          → set up training first (simple mode counts)
+              └─ "Ask to coach me" → the consent screen (COACHING_COPY.consent; "This ends your coaching with Ion when
+                    Ana accepts." when the client has a trainer) → coaching.requestCoaching
+                    ├─ COACHING_SHARING granted (contextId = the request), 14-day expiry, one PENDING per client
+                    ├─ never a follow, never a visibility change
+                    └─ the trainer gets a COACHING_REQUEST notice
+Client: Cancel request → coaching.cancelRequest (withdrawn event; the trainer's notice disappears).
+Expiry: after 14 days the request reads as expired (withdrawn event by the daily worker or before the next request).
+Trainer: Trainer tools → Requests → trainer.requests.list
+  ├─ Accept → trainer.requests.accept: one transaction — request ACCEPTED, the client's current coaching ended
+  │     (the switch happens on accept), coaching starts (requestId, the client's local start day), 50-client cap;
+  │     the client gets "Ana is now your trainer", the previous trainer "Ioana left".
+  └─ Decline → trainer.requests.decline: withdrawn event; the client gets "Ana can't take you on right now".
+```
+
+**QR invite.** Trainer tools → Invite a client shows the open invite's link as a QR code too, for sign-ups on the gym
+floor. Scanning it opens the same `/coaching/join/<code>` flow (37.3).
+
+**"<Trainer> updated your routine" (§4.2).**
+
+```
+Trainer saves the client's routine (trainer.client.saveRoutine / createRoutine)
+  └─ the changes in plain words (summarizeRoutineChanges): "+ Romanian deadlift · Squat 3×8 → 4×6 · note on Bench press"
+        → COACHING_ROUTINE_UPDATED notice to the client; while unread, new changes fold into the same card
+          (a row changed twice keeps the first "from" and the last "to"; an add then a remove cancel out).
+Client: the card on Today and Train (web: dashboard + gym Today) → "View" opens the routine and dismisses it, or Dismiss
+        (coaching.dismissNotice). The next change starts a new card.
+The same the other way: a coached client saving their ACTIVE routine gives the trainer "Ioana changed their routine"
+with the same change list (trainer home).
+Push notifications come later with a native build (owner).
+```
+
+**Ending, retention and the trainer stopping (§4.3).**
+
+```
+Trainer "End coaching" (trainer.clients.remove, with a confirmation) — as 37.8 — and the client gets
+  "Ana stopped coaching you. Your routine stays yours." (COACHING_ENDED notice). Client "Leave" gives the trainer
+  "Ioana left. Their routine stays theirs."
+After a coaching ends the trainer loses access to everything, history included. The private note is hidden and deleted
+  after 30 days; if the same pair starts coaching again within 30 days (invite or request), the note comes back.
+The trainer stops being a trainer — every coaching ends, each client keeps the routine and gets a notice:
+  ├─ turns trainer tools off (the confirmation names the number of clients first)  → trainer.deactivate
+  ├─ is removed from TRAINER_ALLOWLIST → turned off on their next request, or by the daily sweep
+  │     (an unset or empty list never ends anything)
+  └─ deletes the account → coaching ends before the cascade; the notice survives ("Your trainer stopped using Chefer")
+  Pending requests to that trainer are declined.
+Attribution afterwards: a stamp by someone who is not the client's trainer NOW reads "Changed by Ana (former trainer)",
+  or "Changed by a former trainer" when the account is gone (LastEditedByOtherDto.former, editorLabel).
+```
+
+**Simple-mode clients (§4.3).** One routine for both training styles (ADR 0001), so the trainer edits the same
+routine whatever the client chose:
+
+```
+Clients list / client header: a "Keep it simple" badge when the `simpleTraining` flag is on and the client's style is
+  SIMPLE (ClientRowDto.keepItSimple, overview.client.keepItSimple) — with "<client> chose Keep it simple … Only <client>
+  can change this." There is no control for the trainer to change it.
+Workouts: an exercise ticked "Done" with the planned numbers never edited (SessionSet.loadConfirmed = false, the
+  progression guard) reads "Done as planned" (CoachedExerciseDto.doneAsPlanned) — never as lifted weights — and is
+  left out of the exercise's history; a typed workout with no exercises reads "Yoga · 45 min"
+  (CoachedWorkoutDto.workoutType + durationMin). Never calories (D-8).
+Routine: the trainer fills My week days with a workout type, exercises and notes (TrainerRoutineDayDto.workoutType,
+  saved through trainer.client.saveRoutine; omitted = unchanged). "Changed by …" and "Keep mine / Use the other
+  version" work the same in both styles; a changed workout type shows as "days changed" in the client's card.
+```

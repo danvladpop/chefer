@@ -27,6 +27,8 @@ export type DayCardViewExercise = {
   restSec: number;
   /** A line under the name (the owner's `Next:` target). */
   detail?: ReactNode;
+  /** Rendered under the row, OUTSIDE its press target (trainer note + "Remove note", "Changed by …"). */
+  extra?: ReactNode;
   /** Makes the row a button. */
   onPress?: () => void;
   accessibilityLabel?: string;
@@ -128,6 +130,7 @@ export function DayCardView({
                 </View>
                 {ex.detail}
               </Pressable>
+              {ex.extra}
             </View>
           );
         })}

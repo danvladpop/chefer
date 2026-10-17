@@ -15,9 +15,11 @@ import { kvAsyncStorage } from './kv';
  * Bump when the persisted cache shape changes; ENGINE_VERSION bumps on its
  * own. 2 (T-42.3): the client moved to x-chefer-api-level 3, so a persisted
  * library cache filtered under the old level (no cardio rows) must be
- * dropped for a full re-bootstrap (Δ2.1).
+ * dropped for a full re-bootstrap (Δ2.1). 3 (WP-18): the client moved to
+ * x-chefer-api-level 6, so the persisted bootstrap lacks the level-6 coaching
+ * fields (stamps, trainer notes, `coaching`) and must be re-fetched.
  */
-export const GYM_CACHE_SCHEMA_VERSION = 2;
+export const GYM_CACHE_SCHEMA_VERSION = 3;
 export const GYM_CACHE_BUSTER = `${ENGINE_VERSION}:${GYM_CACHE_SCHEMA_VERSION}`;
 export const GYM_CACHE_MAX_AGE_MS = 30 * 24 * 60 * 60 * 1000;
 

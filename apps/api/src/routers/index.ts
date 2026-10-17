@@ -1,6 +1,7 @@
 import { mergeRouters, router } from '../lib/trpc.js';
 import { authRouter } from './auth.router.js';
 import { coachRouter } from './coach.router.js';
+import { coachingRouter } from './coaching.router.js';
 import { dashboardRouter } from './dashboard.router.js';
 import { feedbackRouter } from './feedback.router.js';
 import { friendsRouter } from './friends/index.js';
@@ -19,12 +20,16 @@ import { safetyRouter } from './safety.router.js';
 import { shoppingListRouter } from './shopping-list.router.js';
 import { targetsRouter } from './targets.router.js';
 import { trackerRouter } from './tracker.router.js';
+import { trainerRouter } from './trainer/index.js';
 import { trainingRouter } from './training.router.js';
 import { userRouter } from './user.router.js';
 
 export const appRouter = router({
   auth: authRouter,
   coach: coachRouter,
+  // Trainer coaching (docs/trainer-platform/spec.md §7) — dark behind the `coaching`
+  // flag + COACHING_ALLOWLIST. `trainer.*` is the trainer side, `coaching.*` the client side.
+  coaching: coachingRouter,
   dashboard: dashboardRouter,
   feedback: feedbackRouter,
   // Following (docs/friends/implementation-plan.md §4.1) — dark behind the
@@ -49,6 +54,7 @@ export const appRouter = router({
   shoppingList: shoppingListRouter,
   targets: targetsRouter,
   tracker: trackerRouter,
+  trainer: trainerRouter,
   training: trainingRouter,
   user: userRouter,
 });

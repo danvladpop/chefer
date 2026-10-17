@@ -12,12 +12,12 @@ import { format, parseISO } from 'date-fns';
 import { ArrowLeft, Clock } from 'lucide-react';
 import { ErrorState } from '@chefer/ui';
 import {
-  activityFacts,
-  activitySummaryLine,
   effortLabelForRpe,
   formatLoad,
-  isActivityLogSession,
+  isLoggedWorkout,
   isNotFoundError,
+  loggedWorkoutFacts,
+  loggedWorkoutSummaryLine,
   toSessionSummary,
 } from '@chefer/utils';
 
@@ -94,7 +94,7 @@ export default function GymHistoryDetailPage() {
   }
 
   const duration = durationLabel(session.startedAt, session.finishedAt);
-  const isActivity = isActivityLogSession(session);
+  const isActivity = isLoggedWorkout(session);
   const activityEffort = isActivity
     ? session.exercises.flatMap((e) => e.sets).find((x) => x.intensityRpe !== undefined)
         ?.intensityRpe
@@ -149,7 +149,7 @@ export default function GymHistoryDetailPage() {
             data-testid="gym-history-activity"
           >
             <p className="font-medium text-neutral-900">
-              {activitySummaryLine(session.name, activityFacts(session))}
+              {loggedWorkoutSummaryLine(session.name, loggedWorkoutFacts(session))}
             </p>
             {activityEffort !== undefined && (
               <p className="mt-1 text-sm text-neutral-500">

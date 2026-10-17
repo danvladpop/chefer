@@ -17,6 +17,7 @@ import {
   WeightUnit,
   WorkoutStatus,
 } from './vocab';
+import { TrainingStyle, WorkoutType } from './workout-types';
 
 const values = <T extends Record<string, string>>(o: T) =>
   Object.values(o) as [T[keyof T], ...T[keyof T][]];
@@ -48,6 +49,9 @@ export const workoutStatusSchema = z.enum(values(WorkoutStatus));
 export const exerciseTrackingTypeSchema = z.enum(values(ExerciseTrackingType));
 /** S21 (T-42.0). */
 export const distanceUnitSchema = z.enum(values(DistanceUnit));
+/** Simple training mode §6.3 / §4. */
+export const workoutTypeSchema = z.enum(values(WorkoutType));
+export const trainingStyleSchema = z.enum(values(TrainingStyle));
 
 // ─── Suggestion (stored on every session exercise) ────────────────────────────
 
@@ -84,6 +88,13 @@ export const sessionSetDocSchema = z.object({
   inclinePct: z.number().min(0).max(50).optional(),
   caloriesKcal: z.number().min(0).max(10_000).optional(),
   avgHeartRateBpm: z.number().int().min(0).max(300).optional(),
+  /**
+   * Progression guard (simple training mode §6.5): `false` = the set was
+   * ticked "done" with its prefilled numbers never edited, so the load is not
+   * confirmed and progression ignores it. Absent = confirmed (every legacy doc
+   * and every "Track my progress" tick). Additive; only `false` is ever sent.
+   */
+  loadConfirmed: z.literal(false).optional(),
 });
 export type SessionSetDoc = z.infer<typeof sessionSetDocSchema>;
 
@@ -134,6 +145,12 @@ export const workoutSessionDocSchema = z.object({
    * routineDayId (freestyle sessions never carry over).
    */
   carryOverExerciseIds: z.array(z.string().min(1).max(100)).max(30).optional(),
+  /**
+   * Simple training mode: the workout's type (Upper body, Yoga…). Additive —
+   * absent on every doc an older binary writes (a routine workout or a
+   * freestyle workout without a type). A logged workout always carries one.
+   */
+  workoutType: workoutTypeSchema.optional(),
 });
 export type WorkoutSessionDoc = z.infer<typeof workoutSessionDocSchema>;
 
@@ -163,6 +180,12 @@ export const routineDayDocSchema = z.object({
   id: z.string().max(100).optional(),
   name: z.string().min(1).max(40),
   plannedWeekday: z.number().int().min(0).max(6).nullable(),
+  /**
+   * My week (ADR 0001): the day's workout type ("Tue · Yoga"). Optional:
+   * a doc from an older binary omits it, which KEEPS the stored value (the
+   * save never clears what a client didn't know about); `null` clears it.
+   */
+  workoutType: workoutTypeSchema.nullable().optional(),
   exercises: z.array(routineExerciseDocSchema).max(20),
 });
 export type RoutineDayDoc = z.infer<typeof routineDayDocSchema>;
@@ -177,6 +200,13 @@ export type RoutineDoc = z.infer<typeof routineDocSchema>;
 export const saveRoutineInputSchema = z.object({
   routine: routineDocSchema,
   expectedVersion: z.number().int().min(1),
+  /**
+   * Trainer coaching (spec §7.3, additive): ids of routine exercises whose
+   * trainer note the client removes with this save. The save never writes
+   * `trainerNote` otherwise, so a full-document save from an older client keeps
+   * the trainer's notes.
+   */
+  clearTrainerNoteIds: z.array(z.string().min(1).max(100)).max(100).optional(),
 });
 
 // ─── Setup, profile, library, progression ────────────────────────────────────
@@ -215,6 +245,12 @@ export const completeSetupInputSchema = recommendInputSchema.extend({
   knownWeightsKg: z.record(weightKgSchema).optional(),
   /** T-36.6: omit to leave an existing preference untouched. */
   sessionLengthMins: sessionLengthMinsSchema.optional(),
+  /**
+   * Simple training mode: the "How do you like to train?" answer — always
+   * PROGRESSIVE here (SIMPLE goes through completeSimpleSetup). Omitted by
+   * older binaries, which keeps what is stored.
+   */
+  trainingStyle: z.literal('PROGRESSIVE').optional(),
 });
 export type CompleteSetupInput = z.infer<typeof completeSetupInputSchema>;
 
@@ -253,8 +289,35 @@ export const saveGymProfileInputSchema = z.object({
   sessionLengthMins: sessionLengthMinsSchema.optional(),
   // S21 (T-42.0): null clears the override (falls back to unit-derived default).
   distanceUnit: distanceUnitSchema.nullable().optional(),
+  // Simple training mode: the settings switch. Lossless — only the view changes.
+  trainingStyle: trainingStyleSchema.optional(),
 });
 export type SaveGymProfileInput = z.infer<typeof saveGymProfileInputSchema>;
+
+/**
+ * "Keep it simple" setup (§6.1): asks nothing else, builds no routine. Creates
+ * the gym profile (or switches an existing one to SIMPLE) and marks setup done.
+ */
+export const completeSimpleSetupInputSchema = z.object({
+  unit: weightUnitSchema,
+  /** Defaults to 3 when omitted; My week resets it to the planned-day count. */
+  weeklyGoal: z.number().int().min(1).max(7).optional(),
+});
+export type CompleteSimpleSetupInput = z.infer<typeof completeSimpleSetupInputSchema>;
+
+/**
+ * My week (§6.4): seven rows, Monday first — each a workout type or null
+ * (rest). Applied to the ONE active routine (ADR 0001), creating it when
+ * there is none.
+ */
+export const saveMyWeekInputSchema = z.object({
+  week: z.array(workoutTypeSchema.nullable()).length(7),
+  /** The active routine's version the edit started from; omit when there is none. */
+  expectedVersion: z.number().int().min(1).optional(),
+  /** Omit to set the goal to the planned-day count (the default rule). */
+  weeklyGoal: z.number().int().min(1).max(7).optional(),
+});
+export type SaveMyWeekInput = z.infer<typeof saveMyWeekInputSchema>;
 
 export const customExerciseInputSchema = z
   .object({

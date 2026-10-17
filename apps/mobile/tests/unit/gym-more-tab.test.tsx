@@ -54,6 +54,11 @@ jest.mock('../../src/features/friends/api/use-friends-badge', () => ({
 jest.mock('../../src/features/friends/api/use-friends-me', () => ({
   useFriendsMe: () => ({ available: mockAvailable, badgeCount: mockBadge }),
 }));
+// WP-18: the "Your trainer" / "Trainer tools" rows follow `coaching.availability` (off by default here).
+let mockCoaching = { enabled: false, canBeTrainer: false };
+jest.mock('../../src/features/trainer/api/use-coaching-availability', () => ({
+  useCoachingAvailability: () => mockCoaching,
+}));
 
 const SAFE_AREA = {
   frame: { x: 0, y: 0, width: 390, height: 844 },
@@ -66,6 +71,7 @@ beforeEach(() => {
   mockTabScreens.length = 0;
   mockAvailable = true;
   mockBadge = 0;
+  mockCoaching = { enabled: false, canBeTrainer: false };
 });
 
 describe('Gym tab layout (FB7-01)', () => {
@@ -126,6 +132,19 @@ describe('Gym More screen (FB7-01)', () => {
     await renderMore();
     expect(screen.queryByTestId('more-friends')).toBeNull();
     expect(screen.getByTestId('more-profile')).toBeOnTheScreen();
+  });
+
+  it('coaching on: "Your trainer" and, for a trainer, "Trainer tools" right after Following', async () => {
+    mockCoaching = { enabled: true, canBeTrainer: true };
+    await renderMore();
+    const ids = screen.getAllByRole('button').map((b) => b.props.testID as string | undefined);
+    expect(ids.indexOf('more-friends')).toBeLessThan(ids.indexOf('more-your-trainer'));
+    expect(ids.indexOf('more-your-trainer')).toBeLessThan(ids.indexOf('more-trainer-tools'));
+    expect(ids.indexOf('more-trainer-tools')).toBeLessThan(ids.indexOf('more-progress'));
+    await fireEvent.press(screen.getByTestId('more-your-trainer'));
+    expect(mockPush).toHaveBeenLastCalledWith('/coaching');
+    await fireEvent.press(screen.getByTestId('more-trainer-tools'));
+    expect(mockPush).toHaveBeenLastCalledWith('/trainer');
   });
 
   it('keeps legal links and Sign out (with its confirm)', async () => {

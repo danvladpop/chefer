@@ -2,7 +2,7 @@ import { useRef, useState, type ReactNode } from 'react';
 import { Keyboard, Platform, Pressable, View, type TextInput } from 'react-native';
 import { useQueryClient } from '@tanstack/react-query';
 import { router } from 'expo-router';
-import type { DayKind, WeightUnit } from '@chefer/types';
+import { TRAINING_STYLE_LABEL, type DayKind, type WeightUnit } from '@chefer/types';
 import {
   ChipGroup,
   EmptyState,
@@ -19,6 +19,7 @@ import {
 } from '@chefer/ui-mobile';
 import {
   formatLoadNumber,
+  isSimpleTraining,
   kgToUnit,
   PAUSE_EXPLAINER,
   PAUSE_START_CHOICES,
@@ -51,6 +52,7 @@ import { localDate } from '../offline/ids';
 import { outbox, useOutboxStatus } from '../offline/outbox';
 import { ensureGymReminderPermission } from '../reminders/permission';
 import { WEEKDAY_SHORT_LABELS, weekdayLabel } from '../routine/weekday';
+import { myWeekSummaryOf } from '../simple/simple-helpers';
 import { gymBootstrapQueryKey, useGymBootstrap } from '../use-gym-bootstrap';
 import { useSaveGymProfile } from '../use-save-gym-profile';
 
@@ -286,7 +288,8 @@ export function GymSettingsScreen({ part, header }: GymSettingsScreenProps = {})
   const bootstrapQuery = useGymBootstrap();
   const { data: bootstrap } = bootstrapQuery;
   const bootstrapLoad = useGymBootstrapLoad(bootstrapQuery);
-  const { cardioLogging } = useFlags();
+  const flags = useFlags();
+  const { cardioLogging } = flags;
   const outboxStatus = useOutboxStatus();
   const [pauseSheetVisible, setPauseSheetVisible] = useState(false);
   const [pauseWeeks, setPauseWeeks] = useState(1);
@@ -425,6 +428,51 @@ export function GymSettingsScreen({ part, header }: GymSettingsScreenProps = {})
       {header ?? <LegacyHeader title={title} />}
 
       <KeyboardAwareScrollView contentContainerClassName="gap-6 px-4 pb-8 pt-4">
+        {full && flags.simpleTraining ? (
+          // Simple training mode §6.5: the style switch (lossless), and My week
+          // while it is "Keep it simple".
+          <View className="gap-1.5" testID="gym-settings-style">
+            <SectionTitle>Training style</SectionTitle>
+            <SettingsCard>
+              <ChipGroup
+                testID="training-style-control"
+                options={[
+                  {
+                    value: 'SIMPLE' as const,
+                    label: TRAINING_STYLE_LABEL.SIMPLE,
+                    testID: 'training-style-simple',
+                  },
+                  {
+                    value: 'PROGRESSIVE' as const,
+                    label: TRAINING_STYLE_LABEL.PROGRESSIVE,
+                    testID: 'training-style-progressive',
+                  },
+                ]}
+                value={[profile.trainingStyle ?? 'PROGRESSIVE']}
+                onChange={(v) => {
+                  const next = v[0];
+                  if (next) saveMutation.mutate({ trainingStyle: next });
+                }}
+              />
+              {isSimpleTraining(profile, flags) ? (
+                <Pressable
+                  testID="gym-settings-my-week"
+                  accessibilityRole="link"
+                  onPress={() => router.push('/gym/my-week')}
+                  className="min-h-11 justify-center"
+                >
+                  <Text className="text-sm font-medium text-primary">My week</Text>
+                  <Text variant="muted" className="text-xs">
+                    {myWeekSummaryOf(bootstrap.activeRoutine)}
+                  </Text>
+                </Pressable>
+              ) : null}
+            </SettingsCard>
+            <Text className="px-4 text-caption text-label-tertiary">
+              Switch any time — your routine and history stay as they are.
+            </Text>
+          </View>
+        ) : null}
         {full ? (
           <>
             <SectionAnchor id="units" className="gap-1.5">

@@ -2,7 +2,7 @@
 // completed sessions for Gym Today's `Recent` section. Shared by mobile
 // (`recent-workouts.tsx`) and web (`today-view.tsx`).
 import type { SessionSummaryDto } from '@chefer/types';
-import { activityFacts, isActivityLogSession } from './activity-log';
+import { isLoggedWorkout, loggedWorkoutFacts } from './logged-workout';
 import { addDaysLocal, daysBetweenLocal } from './weeks';
 
 const WEEKDAY_NAMES = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
@@ -58,8 +58,8 @@ export function sessionStatsOf(
     durationMin: session.finishedAt ? minutesBetween(session.startedAt, session.finishedAt) : 0,
     workingSets: workingSetCount(session),
     hasPr,
-    activity: isActivityLogSession(session),
-    caloriesKcal: activityFacts(session).caloriesKcal,
+    activity: isLoggedWorkout(session),
+    caloriesKcal: loggedWorkoutFacts(session).caloriesKcal,
   });
 }
 
@@ -107,8 +107,8 @@ function toRow(session: SessionSummaryDto, prSessionIds: ReadonlySet<string>): R
     durationMin: session.finishedAt ? minutesBetween(session.startedAt, session.finishedAt) : 0,
     workingSets: workingSetCount(session),
     hasPr: prSessionIds.has(session.id),
-    activity: isActivityLogSession(session),
-    caloriesKcal: activityFacts(session).caloriesKcal,
+    activity: isLoggedWorkout(session),
+    caloriesKcal: loggedWorkoutFacts(session).caloriesKcal,
   };
 }
 

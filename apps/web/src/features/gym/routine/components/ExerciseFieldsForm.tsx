@@ -36,6 +36,15 @@ export interface ExerciseFieldsFormProps {
   compact?: boolean;
   expanded?: boolean;
   onToggleExpand?: () => void;
+  /**
+   * Trainer coaching seams (additive; the owner's editor passes neither when not
+   * coached). `attribution` is a quiet line under the exercise name ("Changed by
+   * Ana · 2 Oct", the trainer's note); `extra` is a block of fields under the
+   * form (the trainer's "Note for Maria"). On the compact phone card `extra` is
+   * shown inside the expanded settings.
+   */
+  attribution?: ReactNode;
+  extra?: ReactNode;
 }
 
 /** "{n} sets · {min}–{max} reps · {rest} s rest" (mirrors the mobile day-editor). */
@@ -66,6 +75,8 @@ function CompactExerciseFieldsForm({
   onSupersetWithNext,
   expanded = false,
   onToggleExpand,
+  attribution,
+  extra,
 }: ExerciseFieldsFormProps) {
   const meta = lookup(exercise.exerciseId);
   const name = meta?.name ?? exercise.exerciseId;
@@ -116,6 +127,7 @@ function CompactExerciseFieldsForm({
               <ChevronRight className="h-4 w-4 shrink-0 rotate-90 text-gray-400" />
             )}
           </button>
+          {attribution}
         </div>
       </div>
 
@@ -228,6 +240,8 @@ function CompactExerciseFieldsForm({
             </div>
           )}
 
+          {extra}
+
           {/* One filled control area (the steppers above); Swap/Remove are text buttons. */}
           <div className="flex items-center gap-4">
             <button
@@ -272,6 +286,8 @@ function FullExerciseFieldsForm({
   superset = null,
   linkedToNext = false,
   onSupersetWithNext,
+  attribution,
+  extra,
 }: ExerciseFieldsFormProps) {
   const meta = lookup(exercise.exerciseId);
 
@@ -316,6 +332,7 @@ function FullExerciseFieldsForm({
           <Trash2 className="h-4 w-4" />
         </button>
       </div>
+      {attribution}
 
       <div className="grid grid-cols-4 gap-2">
         <label className="flex flex-col gap-1">
@@ -416,6 +433,7 @@ function FullExerciseFieldsForm({
           </span>
         </button>
       )}
+      {extra}
     </div>
   );
 }

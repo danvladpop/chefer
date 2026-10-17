@@ -16,6 +16,7 @@ import {
   Trash2,
 } from 'lucide-react';
 import {
+  editorLabel,
   GYM_MAX_EXERCISES_PER_SESSION,
   GYM_MAX_SETS_PER_EXERCISE,
   type ExerciseDto,
@@ -27,6 +28,7 @@ import {
 import { Button, pressControl, Sheet, Toast } from '@chefer/ui';
 import {
   cn,
+  repBucket,
   routineWithoutSuperset,
   routineWithSuperset,
   sessionSupersetKey,
@@ -38,6 +40,7 @@ import { GymSkeleton } from '../shared/gym-card';
 import { SupersetSheet } from '../shared/superset-sheet';
 import { SyncIndicator } from '../shared/sync-indicator';
 import { FALLBACK_PROFILE, useGymData } from '../shared/use-gym-data';
+import { SimpleWorkoutView } from '../simple/simple-workout-view';
 import { ExerciseCard } from './components/exercise-card';
 import { PlateSheet } from './components/plate-sheet';
 import { RestTimerBar } from './components/rest-timer-bar';
@@ -180,6 +183,30 @@ export function WorkoutView() {
     () => new Map((data?.library ?? []).map((e) => [e.id, e] as const)),
     [data?.library],
   );
+  // Trainer coaching (API level 6): the trainer's cue per routine row, and who set a
+  // trainer-set target. Read from the cached bootstrap, never from the session doc,
+  // so nothing coaching-related is ever written into a workout.
+  const trainerNoteByRowId = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const day of data?.activeRoutine?.days ?? []) {
+      for (const row of day.exercises) {
+        if (row.trainerNote) map.set(row.id, row.trainerNote);
+      }
+    }
+    return map;
+  }, [data?.activeRoutine]);
+  const setByNameFor = (se: WorkoutSessionDoc['exercises'][number]): string | null => {
+    if (se.prescription.reasonCode !== 'USER_OVERRIDE') return null;
+    const bucket = repBucket(se.repMin, se.repMax);
+    const progression = data?.progressions.find(
+      (p) => p.exerciseId === se.exerciseId && p.repBucket === bucket,
+    );
+    const setByName = progression?.override?.setByName;
+    // "Set by Ana" runs through the same former-trainer label as "Changed by".
+    return setByName
+      ? editorLabel({ name: setByName, former: progression?.override?.setByFormer })
+      : null;
+  };
   const inventory = profile ?? FALLBACK_PROFILE;
   const displayUnit = profile ? unit : inventory.unit;
 
@@ -288,6 +315,21 @@ export function WorkoutView() {
     );
   }
 
+  // Simple training mode: a typed workout gets the "Keep it simple" logger.
+  if (session.workoutType) {
+    return (
+      <SimpleWorkoutView
+        session={session}
+        workoutType={session.workoutType}
+        onFinished={(finished) => {
+          // Same offline-safe hand-off as below: render in place, update the URL.
+          setFinishedId(finished.id);
+          window.history.replaceState(null, '', `/gym/summary/${finished.id}`);
+        }}
+      />
+    );
+  }
+
   const exercises = sortedExercises(session);
   const progress = sessionProgress(session);
   const selected =
@@ -328,6 +370,9 @@ export function WorkoutView() {
         unit={displayUnit}
         lastTime={lastTimeByExercise.get(se.exerciseId) ?? NO_SETS}
         lastNote={lastNoteByExercise.get(se.exerciseId) ?? null}
+        trainerNote={trainerNoteByRowId.get(se.routineExerciseId ?? '') ?? null}
+        trainerName={data?.coaching?.trainerName ?? null}
+        setByName={setByNameFor(se)}
         prSetId={prs.get(se.id)?.setId ?? null}
         prKind={prs.get(se.id)?.kind ?? null}
         onEditSet={onEditSet}

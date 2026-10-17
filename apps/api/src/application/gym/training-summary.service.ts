@@ -1,5 +1,6 @@
 import {
   ExerciseTrackingType,
+  INTERVALS_API_LEVEL,
   type ActivePauseDto,
   type ExerciseMeta,
   type GymBootstrap,
@@ -10,10 +11,10 @@ import {
   type WeightUnit,
 } from '@chefer/types';
 import {
-  activityFacts,
   formatDurationMinutes,
   formatLoad,
-  isActivityLogSession,
+  isLoggedWorkout,
+  loggedWorkoutFacts,
   pauseReasonLabel,
   sessionDurationMin,
   trackingTypeOf,
@@ -39,9 +40,10 @@ export const CHAT_TRAINING_RECENT_PRS = 5;
 /**
  * The gym API level the summary reads at. The level gates what a CLIENT can
  * render (cardio rows, INTERVALS); this is text for the model, which can
- * describe any entry, so it reads everything (the highest level, 5).
+ * describe any entry, so it reads everything: the highest level, where
+ * INTERVALS is gated (7 since trainer coaching claimed 6, WP-18).
  */
-const CHAT_TRAINING_LEVEL = 5;
+const CHAT_TRAINING_LEVEL = INTERVALS_API_LEVEL;
 
 export type ChatTrainingInput = {
   /** The user's local calendar day, YYYY-MM-DD (week boundaries, pauses). */
@@ -257,8 +259,8 @@ function loadText(kg: number, unit: WeightUnit, meta: ExerciseMeta | undefined):
 }
 
 function sessionLine(s: SessionSummaryDto, hasPr: boolean): string {
-  const activity = isActivityLogSession(s);
-  const facts = activityFacts(s);
+  const activity = isLoggedWorkout(s);
+  const facts = loggedWorkoutFacts(s);
   const minutes =
     activity && facts.durationSec !== null
       ? formatDurationMinutes(facts.durationSec)

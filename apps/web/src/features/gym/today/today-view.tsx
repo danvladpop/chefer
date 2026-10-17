@@ -3,6 +3,8 @@
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
+import { CoachingNotices } from '@/features/coaching/components/CoachingNotices';
+import { useFlags } from '@/features/flags/use-flags';
 import { OnboardingV4WelcomeCard } from '@/features/onboarding-v4/welcome-card';
 import { capture } from '@/lib/analytics';
 import { trpc } from '@/lib/trpc';
@@ -21,7 +23,7 @@ import type { GymOffer, NextWorkoutDto, WeightUnit } from '@chefer/types';
 import { Button } from '@chefer/ui';
 import {
   cn,
-  isActivityLogSession,
+  isSimpleTraining,
   monthNameOf,
   nextDayIdAfter,
   pickOffer,
@@ -38,15 +40,16 @@ import { SyncIndicator } from '../shared/sync-indicator';
 import { useGymData } from '../shared/use-gym-data';
 import { WeekRing } from '../shared/week-ring';
 import { weekDays, WeekStrip } from '../shared/week-strip';
+import { SimpleTodayBody } from '../simple/simple-today';
 import { localDate } from '../use-gym-bootstrap';
 import { useActiveWorkout } from '../workout/use-active-workout';
 import { HowThisWorksSheet } from './HowThisWorksSheet';
-import { LogActivitySheet } from './log-activity-sheet';
 import {
   backfillDateFor,
   buildBackfillWorkout,
   LogPastWorkoutSheet,
 } from './log-past-workout-sheet';
+import { LogWorkoutSheet } from './log-workout-sheet';
 import { PickDaySheet } from './pick-day-sheet';
 import { RecentWorkouts } from './RecentWorkouts';
 import { ResumeBanner } from './ResumeBanner';
@@ -62,9 +65,10 @@ export function TodayView() {
   const { data, lookup, unit, today, ready, isError, refetch } = useGymData();
   const { session, start } = useActiveWorkout();
   const utils = trpc.useUtils();
+  const flags = useFlags();
   const [pickOpen, setPickOpen] = useState(false);
   const [backfillOpen, setBackfillOpen] = useState(false);
-  const [activityOpen, setActivityOpen] = useState(false);
+  const [logOpen, setLogOpen] = useState(false);
   const [howOpen, setHowOpen] = useState(false);
 
   // First visit without a gym profile → the setup flow (gym_plan.md §1.3).
@@ -103,6 +107,16 @@ export function TodayView() {
     );
   }
 
+  // Simple training mode: "Keep it simple" replaces the whole body (§6.7).
+  if (isSimpleTraining(data.profile, flags)) {
+    return (
+      <Shell>
+        <OnboardingV4WelcomeCard className="mb-4" />
+        <SimpleTodayBody data={data} today={today} />
+      </Shell>
+    );
+  }
+
   const routine = data.activeRoutine;
   const rotationNext = data.nextWorkout;
   // UX-GYM-12: the first week's goal is pro-rated to the days left.
@@ -118,9 +132,9 @@ export function TodayView() {
       : rotationNext;
   const weekGoal = proRatedWeekGoal({ goal: data.streak.thisWeekGoal, today, setupDate });
   const days = weekDays(data, today);
-  // WP-20: a quick-logged activity does not make today's workout "done".
+  // F-1 (2026-10-17): any workout done today, a logged one included.
   const doneToday = data.recentSessions.some(
-    (s) => s.status === 'COMPLETED' && s.localDate === today && !isActivityLogSession(s),
+    (s) => s.status === 'COMPLETED' && s.localDate === today,
   );
   const currentWeek = data.weeks[data.weeks.length - 1];
   const paused = currentWeek?.status === 'paused';
@@ -181,6 +195,8 @@ export function TodayView() {
           onResume={() => router.push('/gym/workout')}
         />
       )}
+
+      <CoachingNotices />
 
       {/* Onboarding V4 (train-only lands here): one-time "You're all set". */}
       <OnboardingV4WelcomeCard className="mb-4" />
@@ -243,11 +259,11 @@ export function TodayView() {
             </button>
             <button
               type="button"
-              data-testid="gym-log-activity"
-              onClick={() => setActivityOpen(true)}
+              data-testid="gym-log-workout"
+              onClick={() => setLogOpen(true)}
               className="min-h-11 text-sm font-medium text-[#944a00] hover:underline"
             >
-              Log an activity
+              Log a workout
             </button>
           </div>
 
@@ -325,7 +341,7 @@ export function TodayView() {
 
       <HowThisWorksSheet open={howOpen} onClose={() => setHowOpen(false)} />
 
-      <LogActivitySheet open={activityOpen} onClose={() => setActivityOpen(false)} />
+      <LogWorkoutSheet open={logOpen} onClose={() => setLogOpen(false)} />
 
       <LogPastWorkoutSheet
         open={backfillOpen}

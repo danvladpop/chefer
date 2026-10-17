@@ -202,6 +202,7 @@ function makeWorld() {
           ),
         ),
     },
+    { findMany: () => Promise.resolve([]) },
   );
   const tx: SocialTx = (fn) => {
     const t = { id: txs.length } as unknown as SocialDbClient;

@@ -101,6 +101,7 @@ function makeWorld() {
   const hydrator = new FriendSummaryHydrator(
     { findUsers: (ids: string[]) => Promise.resolve(users.filter((u) => ids.includes(u.id))) },
     { findEdgesWith: () => Promise.resolve([]) },
+    { findMany: () => Promise.resolve([]) },
   );
   const cache = new SuggestionCache();
   const service = new SuggestionService(

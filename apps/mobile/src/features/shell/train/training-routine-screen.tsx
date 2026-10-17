@@ -1,12 +1,14 @@
 import { useMemo, useRef, useState } from 'react';
-import { ScrollView, View } from 'react-native';
+import { Alert, ScrollView, View } from 'react-native';
 import { router } from 'expo-router';
 import {
+  FALLBACK_TRAINER_NAME,
   TEMPLATE_BY_KEY,
   type ExerciseMeta,
   type MuscleVolume,
   type ProgressionDto,
   type RoutineDayDto,
+  type RoutineDto,
   type RoutineHint,
   type VolumeGroup,
 } from '@chefer/types';
@@ -23,6 +25,7 @@ import {
 import {
   formatLoad,
   repBucket,
+  userFacingErrorMessage,
   validateRoutine,
   VOLUME_GROUP_LABELS,
   volumeByGroup,
@@ -34,7 +37,9 @@ import {
   useGymBootstrapLoad,
 } from '../../gym/components/gym-bootstrap-state';
 import { exerciseCoverUrl, libraryImages } from '../../gym/library/exercise-image';
+import { ChangedByLine, setByText, TrainerNoteLine } from '../../gym/routine/attribution';
 import { dismissHint, getDismissedHints, hintKey } from '../../gym/routine/hints-storage';
+import { draftToRoutineDoc, routineDtoToDraft } from '../../gym/routine/mapping';
 import type { SetOverrideInput } from '../../gym/routine/override-payload';
 import { OverrideSheet } from '../../gym/routine/override-sheet';
 import { useIsOnline } from '../../gym/routine/use-online';
@@ -53,6 +58,11 @@ import { TrainCard } from './train-cards';
 // through the same guarded start as Train — and the weekly balance as bars
 // against the target band. A day tile opens its exercises with their next
 // targets; tapping one opens the override sheet, as on the old Routine tab.
+// Trainer coaching (WP-18), the same seams as the old Routine tab: "Ana
+// changed your routine · 2 Oct" on the card, "Changed by Ana · 2 Oct" and the
+// trainer's note (with Remove note) under an exercise, "Set by Ana" on a
+// trainer-set next target. (The "updated your routine" notice is a server
+// notice now: its View opens this screen and dismisses it.)
 
 interface OverrideTarget {
   exercise: ExerciseMeta;
@@ -173,8 +183,29 @@ export function TrainingRoutineScreen() {
     },
   });
 
+  // Trainer coaching: the client clears a trainer note with a normal version-checked save that names it.
+  // Imperative (not a mutation hook) so an uncoached user's screen carries no extra hook.
+  const [removingNote, setRemovingNote] = useState(false);
+  const removeNote = (current: RoutineDto, rowId: string) => {
+    setRemovingNote(true);
+    utils.client.gym.routine.save
+      .mutate({
+        routine: draftToRoutineDoc(routineDtoToDraft(current)),
+        expectedVersion: current.version,
+        clearTrainerNoteIds: [rowId],
+      })
+      .catch((error: unknown) => {
+        Alert.alert('Could not remove the note', userFacingErrorMessage(error));
+      })
+      .finally(() => {
+        setRemovingNote(false);
+        void utils.gym.bootstrap.invalidate();
+      });
+  };
+
   const data = bootstrap.data;
   const routine = data?.activeRoutine ?? null;
+  const trainerName = data?.coaching?.trainerName ?? FALLBACK_TRAINER_NAME;
   const lookup = useMemo(() => (data ? libraryLookup(data) : () => undefined), [data]);
   const imagesOf = useMemo(() => libraryImages(data?.library), [data?.library]);
   const unit = data?.profile?.unit ?? 'KG';
@@ -260,6 +291,13 @@ export function TrainingRoutineScreen() {
                 <Text className="text-subhead text-label-secondary">
                   {`${days.length} ${days.length === 1 ? 'day' : 'days'} · goal ${weeklyGoal} a week`}
                 </Text>
+                {routine.lastEditedByOther ? (
+                  <ChangedByLine
+                    routine
+                    testID="training-routine-changed-by"
+                    stamp={routine.lastEditedByOther}
+                  />
+                ) : null}
               </View>
               <View className="flex-row gap-2">
                 <TrainButton
@@ -366,13 +404,15 @@ export function TrainingRoutineScreen() {
                 const progression = data.progressions.find(
                   (p) => p.exerciseId === ex.exerciseId && p.repBucket === bucket,
                 );
+                const setBy = setByText(progression?.override);
+                const edited = progression?.override ? (setBy ? ` · ${setBy}` : ' (edited)') : '';
                 const next =
                   meta && progression
                     ? ` · Next ${formatLoad(progression.suggestion.weightKg, unit, meta.loadType, {
                         each: meta.perHand,
-                      })} × ${progression.suggestion.reps.join('/')}${progression.override ? ' (edited)' : ''}`
+                      })} × ${progression.suggestion.reps.join('/')}${edited}`
                     : '';
-                return (
+                const row = (
                   <ListRow
                     key={ex.id}
                     testID={`training-routine-exercise-${ex.id}`}
@@ -388,6 +428,31 @@ export function TrainingRoutineScreen() {
                         }
                       : {})}
                   />
+                );
+                if (!ex.lastEditedByOther && !ex.trainerNote) return row;
+                // WP-18: who changed the row and the trainer's note, under the row.
+                return (
+                  <View key={ex.id}>
+                    {row}
+                    <View className="min-w-0 gap-0.5 px-4 pb-3">
+                      {ex.lastEditedByOther ? (
+                        <ChangedByLine
+                          testID={`training-routine-exercise-${ex.id}-changed-by`}
+                          stamp={ex.lastEditedByOther}
+                        />
+                      ) : null}
+                      {ex.trainerNote ? (
+                        <TrainerNoteLine
+                          testID={`training-routine-exercise-${ex.id}-trainer-note`}
+                          trainer={trainerName}
+                          note={ex.trainerNote}
+                          {...(isOnline && !removingNote && routine
+                            ? { onRemove: () => removeNote(routine, ex.id) }
+                            : {})}
+                        />
+                      ) : null}
+                    </View>
+                  </View>
                 );
               })}
             </ListSection>

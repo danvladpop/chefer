@@ -15,11 +15,12 @@ describe('profile.flags (T-00.8)', () => {
   it('every flag is off by default', async () => {
     const { client } = makeContractClient();
     const flags = await client.profile.flags.query();
-    // `friends` (Following) is the one flag CI turns on, so friends.contract
-    // can run (.github/workflows/ci.yml mobile-contract); every other flag
-    // must still default off.
+    // `friends` (Following) and `coaching` (trainer coaching, WP-18) are the
+    // flags CI turns on, so friends.contract and the coaching contract suites
+    // can run (.github/workflows/ci.yml mobile-contract); every other flag must
+    // still default off.
     for (const [name, value] of Object.entries(flags)) {
-      if (name === 'friends') continue;
+      if (name === 'friends' || name === 'coaching') continue;
       expect(value, `flag ${name}`).not.toBe(true);
     }
   });

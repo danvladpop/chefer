@@ -31,6 +31,7 @@ import {
 import { Icon } from '../../../components/icon';
 import { trpc } from '../../../lib/trpc';
 import { ExerciseNameLink } from '../../gym/components/exercise-name-link';
+import { setByText } from '../../gym/routine/attribution';
 import { formatStreakLine } from '../../gym/today/today-helpers';
 import { useGymBootstrap } from '../../gym/use-gym-bootstrap';
 import { getFinished } from '../../gym/workout/finished-store';
@@ -304,6 +305,15 @@ export function WorkoutSummaryV2({ id }: { id: string }) {
                         {loadOf(row.exerciseId, s.weightKg)} × {s.reps.join(' / ')}
                         {meta.isTimed ? ' s' : ''}
                       </Text>
+                      {/* WP-18: a next target the trainer set says so. */}
+                      {setByText(row.progression.override) ? (
+                        <Text
+                          testID={`summary-next-${i}-set-by`}
+                          className="text-caption text-label-secondary"
+                        >
+                          {setByText(row.progression.override)}
+                        </Text>
+                      ) : null}
                     </View>
                     {/* MO-01: press feedback on the ghost Adjust control. */}
                     <PressableScale

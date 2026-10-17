@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, Alert, View, type TextInput } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
-import { TEMPLATE_BY_KEY, type RoutineDto } from '@chefer/types';
+import { FALLBACK_TRAINER_NAME, TEMPLATE_BY_KEY, type RoutineDto } from '@chefer/types';
 import {
   ConfirmSheet,
   DONE_FIELD_PROPS,
@@ -9,7 +9,6 @@ import {
   Input,
   KeyboardAwareScrollView,
   Screen,
-  Sheet,
   Text,
   useScrollFieldIntoView,
   useThemeColors,
@@ -19,15 +18,18 @@ import { Icon } from '../../src/components/icon';
 import { openCreateExercise } from '../../src/features/gym/library/create-exercise-href';
 import { ExercisePicker } from '../../src/features/gym/library/exercise-picker';
 import { newId } from '../../src/features/gym/offline/ids';
+import { ChangedByLine } from '../../src/features/gym/routine/attribution';
 import {
   extractRoutineConflict,
   keepMineAfterConflict,
   loadTheirsAfterConflict,
 } from '../../src/features/gym/routine/conflict';
+import { RoutineConflictSheet } from '../../src/features/gym/routine/conflict-sheet';
 import { DayEditor } from '../../src/features/gym/routine/day-editor';
 import {
   draftsEqual,
   draftToRoutineDoc,
+  removedTrainerNoteIds,
   routineDtoToDraft,
 } from '../../src/features/gym/routine/mapping';
 import {
@@ -164,8 +166,14 @@ export default function GymRoutineEditorScreen() {
   }, [draft, bootstrap.data, lookup, templateKey]);
 
   const submitSave = (routine: RoutineDraft) => {
+    // Trainer coaching: a removed trainer note is cleared explicitly; the save never rewrites one.
+    const clearTrainerNoteIds = baseline ? removedTrainerNoteIds(baseline, routine) : [];
     saveMutation.mutate(
-      { routine: draftToRoutineDoc(routine), expectedVersion: routine.version },
+      {
+        routine: draftToRoutineDoc(routine),
+        expectedVersion: routine.version,
+        ...(clearTrainerNoteIds.length > 0 ? { clearTrainerNoteIds } : {}),
+      },
       {
         onSuccess: (dto) => {
           const next = routineDtoToDraft(dto);
@@ -321,6 +329,14 @@ export default function GymRoutineEditorScreen() {
           placeholder="Routine name"
         />
 
+        {draft.lastEditedByOther ? (
+          <ChangedByLine
+            routine
+            testID="gym-routine-editor-changed-by"
+            stamp={draft.lastEditedByOther}
+          />
+        ) : null}
+
         {draft.days.map((day, index) => (
           <DayEditor
             key={day.key}
@@ -329,6 +345,10 @@ export default function GymRoutineEditorScreen() {
             dayCount={draft.days.length}
             lookup={lookup}
             dispatch={dispatch}
+            coaching={{
+              role: 'client',
+              trainerName: bootstrap.data?.coaching?.trainerName ?? FALLBACK_TRAINER_NAME,
+            }}
             onAddExercise={(dayKey) => setPicker({ dayKey, mode: 'add' })}
             onSwapExercise={(dayKey, exerciseKey) =>
               setPicker({ dayKey, mode: 'swap', exerciseKey })
@@ -378,53 +398,22 @@ export default function GymRoutineEditorScreen() {
         }}
       />
 
-      <Sheet
-        visible={conflict !== null}
+      <RoutineConflictSheet
+        current={conflict?.current ?? null}
         onClose={() => setConflict(null)}
-        title="Changed on another device"
-        testID="gym-routine-editor-conflict"
-        footer={
-          <View className="gap-2">
-            <TrainButton
-              testID="gym-routine-editor-conflict-keep-mine"
-              label="Keep mine"
-              size="lg"
-              onPress={() => {
-                if (!conflict) return;
-                const bumped = keepMineAfterConflict(draft, conflict.current);
-                setDraft(bumped);
-                setConflict(null);
-                submitSave(bumped);
-              }}
-            />
-            <TrainButton
-              testID="gym-routine-editor-conflict-use-theirs"
-              label="Use the other version"
-              variant="outline"
-              onPress={() => {
-                if (!conflict) return;
-                const next = loadTheirsAfterConflict(conflict.current);
-                setDraft(next);
-                setBaseline(next);
-                setConflict(null);
-              }}
-            />
-          </View>
-        }
-      >
-        <Text className="text-subhead text-label-secondary">
-          This routine changed on another device. Keep mine re-saves your edits with the newer
-          version; use the other version reloads it and discards your edits here.
-        </Text>
-        {conflict ? (
-          <Text
-            testID="gym-routine-editor-conflict-version"
-            className="self-start rounded-full bg-brand-tint px-2 text-caption font-semibold text-brand"
-          >
-            Server version {conflict.current.version}
-          </Text>
-        ) : null}
-      </Sheet>
+        onKeepMine={(current) => {
+          const bumped = keepMineAfterConflict(draft, current);
+          setDraft(bumped);
+          setConflict(null);
+          submitSave(bumped);
+        }}
+        onUseTheirs={(current) => {
+          const next = loadTheirsAfterConflict(current);
+          setDraft(next);
+          setBaseline(next);
+          setConflict(null);
+        }}
+      />
 
       <ConfirmSheet testID="gym-routine-editor-discard" {...guard.sheetProps} />
     </Screen>

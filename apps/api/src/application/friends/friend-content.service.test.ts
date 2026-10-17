@@ -488,6 +488,7 @@ function session(
     clientUpdatedAt: startedAt,
     engineVersion: 1,
     rotationAppliedAt: null,
+    workoutType: null,
     createdAt: startedAt,
     updatedAt: startedAt,
     exercises: exercises.map((e, position) => ({
@@ -523,6 +524,7 @@ function session(
           inclinePct: null,
           caloriesKcal: null,
           avgHeartRateBpm: 155,
+          loadConfirmed: null,
         },
       ],
     })),
@@ -568,7 +570,7 @@ describe('workouts (FD-15: owner-today − 6 … owner-today, ≤ 30, no cursor)
     expect(level3[0]!.exercises[1]!.sets).toEqual([
       { weightKg: 80, reps: 6, durationSec: 1500, distanceM: 5000 },
     ]);
-    const level5 = await service.workouts(OWNER, 5);
+    const level5 = await service.workouts(OWNER, 7);
     expect(level5[0]!.exercises.map((e) => e.exerciseId)).toEqual(['squat', 'run', 'intervals']);
 
     const json = JSON.stringify(level5);
@@ -604,6 +606,8 @@ describe('routine', () => {
       archivedAt: null,
       createdAt: new Date(),
       updatedAt: new Date(),
+      lastEditedById: null,
+      lastEditedAt: null,
       days: [
         {
           id: 'cd',
@@ -611,6 +615,7 @@ describe('routine', () => {
           position: 0,
           name: 'A',
           plannedWeekday: 2,
+          workoutType: null,
           exercises: [
             ExerciseTrackingType.WEIGHT_REPS,
             ExerciseTrackingType.DISTANCE,
@@ -627,6 +632,9 @@ describe('routine', () => {
             restSec: 90,
             supersetGroup: null,
             notes: 'private',
+            trainerNote: null,
+            lastEditedById: null,
+            lastEditedAt: null,
             exercise: meta(t, t),
           })),
         },
@@ -637,6 +645,6 @@ describe('routine', () => {
       (await service.routine(OWNER, level))!.days[0]!.exercises.map((e) => e.trackingType);
     expect(await types(0)).toEqual(['WEIGHT_REPS']);
     expect(await types(3)).toEqual(['WEIGHT_REPS', 'DISTANCE']);
-    expect(await types(5)).toEqual(['WEIGHT_REPS', 'DISTANCE', 'INTERVALS']);
+    expect(await types(7)).toEqual(['WEIGHT_REPS', 'DISTANCE', 'INTERVALS']);
   });
 });

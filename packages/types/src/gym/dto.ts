@@ -22,6 +22,7 @@ import type {
   TrainingExperience,
   WeightUnit,
 } from './vocab';
+import type { TrainingStyle, WorkoutType } from './workout-types';
 
 export interface ExerciseDto extends ExerciseMeta {
   ownerId: string | null;
@@ -71,6 +72,28 @@ export interface GymProfileDto {
    * keep compiling until they're updated to set it explicitly.
    */
   distanceUnit?: DistanceUnit | null;
+  /**
+   * Simple training mode: "Keep it simple" / "Track my progress". Optional so
+   * older constructors keep compiling; absent reads as PROGRESSIVE.
+   */
+  trainingStyle?: TrainingStyle;
+}
+
+/**
+ * Trainer coaching (spec §5.3, level >= COACHING_API_LEVEL only): the routine, or
+ * a row of it, was last changed by someone other than the viewer. `name` is the
+ * trainer's display name ("Ana"), or "your trainer" when that account is gone.
+ */
+export interface LastEditedByOtherDto {
+  name: string;
+  /** ISO date-time of the change. */
+  at: string;
+  /**
+   * Additive (2026-10-17): the editor no longer coaches the viewer (or the
+   * account is gone). Read through `editorLabel` (@chefer/types):
+   * "Ana (former trainer)" / "a former trainer".
+   */
+  former?: boolean;
 }
 
 export interface RoutineExerciseDto {
@@ -84,6 +107,14 @@ export interface RoutineExerciseDto {
   restSec: number;
   supersetGroup: string | null;
   notes: string | null;
+  /**
+   * Trainer coaching (level 6+; absent below it and on a routine with no
+   * trainer note): a short cue from the trainer. The client can clear it
+   * (`gym.routine.save` `clearTrainerNoteIds`), not rewrite it.
+   */
+  trainerNote?: string | null;
+  /** Level 6+: present when this row was last changed by someone other than the viewer. */
+  lastEditedByOther?: LastEditedByOtherDto;
 }
 
 export interface RoutineDayDto {
@@ -91,6 +122,8 @@ export interface RoutineDayDto {
   position: number;
   name: string;
   plannedWeekday: number | null;
+  /** My week: the day's workout type; absent/null = none set. */
+  workoutType?: WorkoutType | null;
   exercises: RoutineExerciseDto[];
 }
 
@@ -104,6 +137,8 @@ export interface RoutineDto {
   archived: boolean;
   days: RoutineDayDto[];
   updatedAt: string;
+  /** Level 6+: present when the document was last saved by someone other than the viewer. */
+  lastEditedByOther?: LastEditedByOtherDto;
 }
 
 export interface RoutineListItemDto {
@@ -120,7 +155,15 @@ export interface ProgressionDto {
   exerciseId: string;
   repBucket: string;
   state: ProgressionState;
-  override: ProgressionOverride | null;
+  /**
+   * `setByName` (level 6+, optional): the trainer who set this next-session
+   * target ("Set by Ana"); absent when the owner set it. `setById` is never sent.
+   * `setByFormer` (additive 2026-10-17): that person no longer coaches the owner
+   * ("Set by Ana (former trainer)"; read it through `editorLabel`).
+   */
+  override:
+    | (Omit<ProgressionOverride, 'setById'> & { setByName?: string; setByFormer?: true })
+    | null;
   /** Prescription for the next exposure as of `serverTime` (break/override/deload applied). */
   suggestion: Suggestion;
 }
@@ -147,6 +190,8 @@ export interface NextWorkoutExerciseDto {
   lastTime: { localDate: string; sets: LastTimeSet[]; lastSetRir: Rir | null } | null;
   /** T-36.3: prepended from `GymProfile.carryOver` — render under `From last time`. */
   fromLastTime?: boolean;
+  /** Trainer coaching (level 6+): the trainer's cue for this exercise, if any. */
+  trainerNote?: string;
 }
 
 export interface NextWorkoutDto {
@@ -168,6 +213,8 @@ export interface SessionSummaryDto {
   startedAt: string;
   finishedAt: string | null;
   isDeload: boolean;
+  /** Simple training mode: the workout's type, when it has one (additive). */
+  workoutType?: WorkoutType;
   exercises: {
     exerciseId: string;
     skipped: boolean;
@@ -190,6 +237,8 @@ export interface SessionSummaryDto {
       inclinePct?: number;
       caloriesKcal?: number;
       avgHeartRateBpm?: number;
+      /** Progression guard: present (false) only when ticked with unedited numbers ("done as planned"). */
+      loadConfirmed?: false;
     }[];
   }[];
 }
@@ -253,6 +302,11 @@ export interface GymBootstrap {
   upcomingPause?: ActivePauseDto | null;
   /** `GymProfile.carryOver` (T-36.3) — additive; already folded into `nextWorkout`. */
   carryOver: CarryOverList;
+  /**
+   * Trainer coaching (level 6+, optional): the client's current trainer, or null.
+   * Absent below level 6 and while the `coaching` flag is off for this user.
+   */
+  coaching?: { trainerName: string } | null;
   /** Latest known bodyweight (kg) from the nutrition weight log. */
   bodyweightKg: number | null;
   /**

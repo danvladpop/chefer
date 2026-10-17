@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { View } from 'react-native';
 import { router } from 'expo-router';
+import type { WorkoutType } from '@chefer/types';
 import {
   MediaFrame,
   PressableScale,
@@ -10,17 +11,23 @@ import {
   useThemeColors,
 } from '@chefer/ui-mobile';
 import {
+  isSimpleTraining,
   resumeSummary,
   selectTodaysSession,
   sessionKcalCopy,
+  simpleToday,
   todayStatus,
   weekdayOf,
 } from '@chefer/utils';
 import { Icon } from '../../../components/icon';
+import { useFlags } from '../../../hooks/use-flags';
+import { CoachingNotices } from '../../coaching/notices/coaching-notices';
 import { exerciseCoverUrl, libraryImages } from '../../gym/library/exercise-image';
 import { useActiveSessionPausedAt } from '../../gym/offline/active-session-store';
 import { localDate } from '../../gym/offline/ids';
 import { weekdayLabel } from '../../gym/routine/weekday';
+import { isSimpleSkipped } from '../../gym/simple/simple-skip';
+import { useSimpleStart } from '../../gym/simple/use-simple-start';
 import { setupLocalDate, workoutForDay } from '../../gym/today/today-helpers';
 import { useActiveWorkout } from '../../gym/use-active-workout';
 import { libraryLookup, useGymBootstrap } from '../../gym/use-gym-bootstrap';
@@ -43,6 +50,9 @@ import { useStartGuard } from './use-start-guard';
 //  - a planned day → Start workout (guarded like Train's Start) and Log a workout;
 //  - a rest day → one compact line; no gym profile or nothing planned → nothing,
 //    so people who don't train are never nagged.
+// WP-18: the coaching notices ("Ana updated your routine", "Ana stopped coaching
+// you", "Carry on joining your trainer") sit under the section title, as on
+// Train; with no card to show they stand alone. Self-gated on coaching.availability.
 
 export function TrainingSection() {
   const colors = useThemeColors();
@@ -50,17 +60,30 @@ export function TrainingSection() {
   const activeWorkout = useActiveWorkout();
   const pausedAt = useActiveSessionPausedAt();
   const { startPlanned, conflictSheet } = useStartGuard();
+  const flags = useFlags();
+  const simpleStart = useSimpleStart(bootstrap);
   const [logOpen, setLogOpen] = useState(false);
+  const [logType, setLogType] = useState<WorkoutType | undefined>(undefined);
 
-  if (!bootstrap?.profile) return null;
+  if (!bootstrap) return null;
+  const notices = <CoachingNotices />;
+  if (!bootstrap.profile) return notices;
   const today = localDate();
-  const logSheet = <LogWorkoutSheet visible={logOpen} onClose={() => setLogOpen(false)} />;
+  const simple = isSimpleTraining(bootstrap.profile, flags);
+  const logSheet = (
+    <LogWorkoutSheet visible={logOpen} onClose={() => setLogOpen(false)} initialType={logType} />
+  );
+  const openLog = (type?: WorkoutType) => {
+    setLogType(type);
+    setLogOpen(true);
+  };
   const section = (card: React.ReactNode) => (
     <View testID="today-training" className="gap-3">
       <SectionTitle>Training</SectionTitle>
+      {notices}
       {card}
       {logSheet}
-      {conflictSheet}
+      {simple ? simpleStart.conflictSheet : conflictSheet}
     </View>
   );
 
@@ -162,13 +185,51 @@ export function TrainingSection() {
           testID="today-training-log-another"
           label="Log another workout"
           icon="add"
-          onPress={() => setLogOpen(true)}
+          onPress={() => openLog()}
         />
       </BoardCard>,
     );
 
   const doneGym = doneToday(bootstrap, today);
   if (doneGym) return doneCard(doneGym);
+
+  // "Keep it simple" (simple training mode §6.4): today's My week workout, if
+  // any — Start runs the typed live workout; nothing planned shows nothing.
+  if (simple) {
+    const { plan } = simpleToday({ bootstrap, today, skipped: isSimpleSkipped(today) });
+    if (plan.kind !== 'planned') return null;
+    return section(
+      <BoardCard testID="today-training-simple">
+        <View className="min-w-0 gap-0.5">
+          <Text className="text-subhead font-semibold text-brand">Planned today</Text>
+          <Text
+            testID="today-training-day"
+            numberOfLines={1}
+            className="text-headline font-bold text-label"
+          >
+            {plan.label}
+          </Text>
+        </View>
+        <View className="flex-row gap-2">
+          <ActionButton
+            testID="today-training-start"
+            label="Start"
+            icon="play"
+            variant="filled"
+            className="flex-1 px-2"
+            onPress={() => simpleStart.startDay(plan.day)}
+          />
+          <ActionButton
+            testID="today-training-log"
+            label="Log a workout"
+            icon="add"
+            className="flex-1 px-2"
+            onPress={() => openLog(plan.workoutType ?? undefined)}
+          />
+        </View>
+      </BoardCard>,
+    );
+  }
 
   const since = setupLocalDate(bootstrap.profile.setupCompletedAt);
   const status = todayStatus({ bootstrap, today, since });
@@ -178,12 +239,6 @@ export function TrainingSection() {
     todays.kind === 'planned'
       ? workoutForDay(bootstrap, todays.dayId, today)
       : bootstrap.nextWorkout;
-
-  // An activity logged today (a class done elsewhere) doesn't replace a
-  // workout still to do; otherwise it is today's training, done.
-  const doneActivity = doneToday(bootstrap, today, { includeActivities: true });
-  const plannedToday = status.kind === 'training' || todays.kind === 'planned';
-  if (doneActivity && !(plannedToday && nextWorkout)) return doneCard(doneActivity);
 
   if (status.kind === 'done' || (status.kind === 'rest' && todays.kind !== 'planned')) {
     const lead = status.kind === 'done' ? 'Done today' : 'Rest day';
@@ -208,7 +263,7 @@ export function TrainingSection() {
   }
 
   // Training with no routine day to offer — nothing useful to show here.
-  if (!nextWorkout) return null;
+  if (!nextWorkout) return notices;
 
   // A rotation day pinned to another weekday is "up next", not today's training.
   const pinnedWeekday =
@@ -262,7 +317,7 @@ export function TrainingSection() {
           label="Log a workout"
           icon="add"
           className="flex-1 px-2"
-          onPress={() => setLogOpen(true)}
+          onPress={() => openLog()}
         />
       </View>
     </BoardCard>,

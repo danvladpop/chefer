@@ -1,5 +1,6 @@
 import { z } from 'zod';
-import { saveRoutineInputSchema } from '@chefer/types';
+import { saveMyWeekInputSchema, saveRoutineInputSchema } from '@chefer/types';
+import { myWeekService } from '../../application/gym/my-week.service.js';
 import { routineService } from '../../application/gym/routine.service.js';
 import { protectedProcedure, router } from '../../lib/trpc.js';
 
@@ -9,7 +10,7 @@ export const gymRoutineRouter = router({
   list: protectedProcedure.query(({ ctx }) => routineService.list(ctx.user.id)),
   get: protectedProcedure
     .input(idInput)
-    .query(({ ctx, input }) => routineService.get(ctx.user.id, input.id)),
+    .query(({ ctx, input }) => routineService.get(ctx.user.id, input.id, ctx.clientApiLevel)),
   templates: protectedProcedure.query(() => routineService.templates()),
   createFromTemplate: protectedProcedure
     .input(
@@ -33,20 +34,33 @@ export const gymRoutineRouter = router({
     .mutation(({ ctx, input }) => routineService.restore(ctx.user.id, input.id)),
   setActive: protectedProcedure
     .input(idInput)
-    .mutation(({ ctx, input }) => routineService.setActive(ctx.user.id, input.id)),
+    .mutation(({ ctx, input }) =>
+      routineService.setActive(ctx.user.id, input.id, ctx.clientApiLevel),
+    ),
   /**
    * Full-document replace. A stale expectedVersion throws CONFLICT with
    * `error.data.conflict = { kind: 'routine', current: RoutineDto }` (lib/conflict.ts).
+   * Every save is stamped with who changed which rows (trainer coaching §5.3); a
+   * save never writes `trainerNote` except to remove `clearTrainerNoteIds`.
    */
-  save: protectedProcedure
-    .input(saveRoutineInputSchema)
-    .mutation(({ ctx, input }) =>
-      routineService.save(ctx.user.id, input.routine, input.expectedVersion),
-    ),
+  save: protectedProcedure.input(saveRoutineInputSchema).mutation(({ ctx, input }) =>
+    routineService.save(ctx.user.id, input.routine, input.expectedVersion, {
+      level: ctx.clientApiLevel,
+      clearTrainerNoteIds: input.clearTrainerNoteIds,
+    }),
+  ),
   /** Week-level edit: "do another day instead" / "skip this day". */
   setNextDay: protectedProcedure
     .input(z.object({ routineId: z.string().min(1).max(100), dayId: z.string().min(1).max(100) }))
     .mutation(({ ctx, input }) =>
-      routineService.setNextDay(ctx.user.id, input.routineId, input.dayId),
+      routineService.setNextDay(ctx.user.id, input.routineId, input.dayId, ctx.clientApiLevel),
     ),
+  /**
+   * Simple training mode: save My week — seven rows (a workout type or Rest)
+   * applied to the ONE active routine (ADR 0001), created on first save. A
+   * stale `expectedVersion` throws CONFLICT like `save`.
+   */
+  saveMyWeek: protectedProcedure
+    .input(saveMyWeekInputSchema)
+    .mutation(({ ctx, input }) => myWeekService.save(ctx.user.id, input)),
 });

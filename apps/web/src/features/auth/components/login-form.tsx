@@ -25,9 +25,12 @@ type LoginFormValues = z.infer<typeof loginSchema>;
 export function LoginForm({
   sessionExpired = false,
   accountDeleted = false,
+  next = null,
 }: {
   sessionExpired?: boolean;
   accountDeleted?: boolean;
+  /** A validated coaching join path to return to after signing in (WP-18). */
+  next?: string | null;
 }) {
   const router = useRouter();
   const queryClient = useQueryClient();
@@ -47,7 +50,7 @@ export function LoginForm({
       // navigation — without a clear, everything cached for the previous
       // account (auth.me, plans, dashboard) is served to the new one.
       queryClient.clear();
-      router.push('/dashboard');
+      router.push(next ?? '/dashboard');
       router.refresh();
     },
     onError: (err) => {

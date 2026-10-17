@@ -20,6 +20,8 @@ export * from './reasons';
 export * from './offers';
 // Superset grouping (routine editors) and round logic (active workout), G4-B.
 export * from './supersets';
+// Routine document diff: which rows a save changed (trainer coaching edit stamps).
+export * from './routine-diff';
 // Carry-over + short-version types (T-00.7 scaffold for T-36.3/T-36.6).
 export * from './carry-over';
 export * from './short-version';
@@ -40,9 +42,15 @@ export * from './session-edit';
 export * from './pause-copy';
 // Relative strength (e1RM ÷ body weight) with a profile-weight fallback (UX-GYM-17).
 export * from './relative-strength';
-// Activity quick-log (WP-20): record a class done elsewhere; record-only kcal.
-export * from './activity-log';
+// Log a workout (simple training mode, unifying WP-20): record-only kcal.
+export * from './logged-workout';
+// My week: the "Keep it simple" view of the one active routine (ADR 0001).
+export * from './my-week';
 // Calories burned for a finished session — MET × bodyweight × hours, logged kcal wins.
 export * from './burn';
 // Routine-day / past-workout cover: the first exercise photo, in order.
 export * from './cover-image';
+// Progression guard: "done, load not confirmed" ticks never feed progression.
+export * from './load-confirmation';
+// "Keep it simple" Today: planned workout, week ring, minutes + ~kcal this week.
+export * from './simple-today';

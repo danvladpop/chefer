@@ -228,6 +228,13 @@ describe('isFriendsEnabledFor', () => {
     expect(isFriendsEnabledFor(FRIEND)).toBe(false);
   });
 
+  it('`*` means everyone, like COACHING_ALLOWLIST', () => {
+    flag.on = false;
+    envMock.FRIENDS_ALLOWLIST = new Set(['*']);
+    expect(isFriendsEnabledFor(ME)).toBe(true);
+    expect(isFriendsEnabledFor(NOBODY)).toBe(true);
+  });
+
   it('treats a missing allowlist (a partial env mock) as empty', () => {
     flag.on = false;
     envMock.FRIENDS_ALLOWLIST = undefined;

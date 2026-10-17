@@ -1,5 +1,6 @@
 import {
   completeSetupInputSchema,
+  completeSimpleSetupInputSchema,
   recommendInputSchema,
   saveGymProfileInputSchema,
 } from '@chefer/types';
@@ -27,4 +28,19 @@ export const gymProfileRouter = router({
       effectiveLevel(ctx.clientApiLevel),
     );
   }),
+  /**
+   * Simple training mode: "Keep it simple" setup — the profile (style SIMPLE),
+   * no routine. Returns a fresh bootstrap.
+   */
+  completeSimpleSetup: protectedProcedure
+    .input(completeSimpleSetupInputSchema)
+    .mutation(({ ctx, input }) => {
+      assertWithinRateLimit('gym.completeSetup', ctx.user.id, 20, 60 * 60 * 1000);
+      return gymProfileService.completeSimpleSetup(
+        ctx.user.id,
+        input,
+        undefined,
+        effectiveLevel(ctx.clientApiLevel),
+      );
+    }),
 });

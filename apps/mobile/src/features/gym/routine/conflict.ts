@@ -37,3 +37,13 @@ export function keepMineAfterConflict(
 export function loadTheirsAfterConflict(serverCurrent: RoutineDto): RoutineDraft {
   return routineDtoToDraft(serverCurrent);
 }
+
+/**
+ * Trainer coaching (level 6+, spec §9.1): who changed the routine while you were editing — the
+ * conflict payload's `current.lastEditedByOther` — or null when the server did not say (an older API,
+ * an edit by the same person on another device). Used for the dialog copy only.
+ */
+export function conflictOtherName(current: RoutineDto): string | null {
+  const name = current.lastEditedByOther?.name;
+  return name && name.trim() !== '' ? name : null;
+}

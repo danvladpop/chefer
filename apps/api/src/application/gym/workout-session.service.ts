@@ -342,6 +342,7 @@ function toWriteData(doc: WorkoutSessionDoc): SessionDocWriteData {
     notes: doc.notes,
     clientUpdatedAt: new Date(doc.clientUpdatedAt),
     engineVersion: doc.engineVersion,
+    workoutType: doc.workoutType ?? null,
     exercises: doc.exercises.map((e) => ({
       id: e.id,
       exerciseId: e.exerciseId,
@@ -373,6 +374,7 @@ function toWriteData(doc: WorkoutSessionDoc): SessionDocWriteData {
         inclinePct: s.inclinePct ?? null,
         caloriesKcal: s.caloriesKcal ?? null,
         avgHeartRateBpm: s.avgHeartRateBpm ?? null,
+        loadConfirmed: s.loadConfirmed ?? null,
       })),
     })),
   };

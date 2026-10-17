@@ -68,6 +68,7 @@ beforeEach(() => {
   trpc.useUtils.mockReturnValue({
     client: { gym: { bootstrap: { query: jest.fn() } } },
     preferences: { get: { invalidate: jest.fn() } },
+    coaching: { notices: { invalidate: jest.fn(), setData: jest.fn() } },
     training: { getDayKinds: { setData: jest.fn() } },
     gym: { session: { list: { fetch: fetchMock } } },
   });

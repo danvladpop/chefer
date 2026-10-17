@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { useFlags } from '@/features/flags/use-flags';
 import {
   buildSetupPayload,
   friendlySetupError,
@@ -10,7 +11,12 @@ import { localDate } from '@/features/gym/use-gym-bootstrap';
 import { capture } from '@/lib/analytics';
 import { trpc } from '@/lib/trpc';
 import { Dumbbell } from 'lucide-react';
-import type { BodyUnits, GymEquipmentAccess, TrainingExperience } from '@chefer/types';
+import {
+  TRAINING_STYLE_ANSWERS,
+  type BodyUnits,
+  type GymEquipmentAccess,
+  type TrainingExperience,
+} from '@chefer/types';
 import { pressControl } from '@chefer/ui';
 import {
   cn,
@@ -26,6 +32,12 @@ import { BiscuitHalo, Chip, ErrorLine, PrimaryButton, V4Heading } from './ui';
 // the engine's recommended program for the training days picked on About you
 // (gym.profile.recommend), "Change" cycling through its alternatives, and
 // completeSetup with the same payload builder as features/gym/setup.
+// Simple training mode (§6.1, flag on): "How do you like to train?" comes
+// first. The two "Keep it simple" answers hide the rest and finish with
+// completeSimpleSetup (no routine); "I follow a program" keeps this step and
+// sends trainingStyle PROGRESSIVE.
+
+type StyleAnswer = (typeof TRAINING_STYLE_ANSWERS)[number];
 
 const EXPERIENCE: { value: TrainingExperience; label: string }[] = [
   { value: 'BEGINNER', label: ONBOARDING_V4_COPY.trainExperienceNew },
@@ -48,6 +60,11 @@ export function StepTrain({
   onDone: () => void;
 }) {
   const utils = trpc.useUtils();
+  const flags = useFlags();
+  const askStyle = flags.simpleTraining === true;
+  const [answer, setAnswer] = useState<StyleAnswer | null>(null);
+  const simple = askStyle && answer?.style === 'SIMPLE';
+  const showProgram = !askStyle || answer?.style === 'PROGRESSIVE';
   const [experience, setExperience] = useState<TrainingExperience>('BEGINNER');
   const [equipmentAccess, setEquipment] = useState<GymEquipmentAccess>('FULL_GYM');
   const [choice, setChoice] = useState(0);
@@ -56,7 +73,7 @@ export function StepTrain({
 
   const recommend = trpc.gym.profile.recommend.useQuery(
     { days, experience, equipmentAccess },
-    { staleTime: Infinity },
+    { staleTime: Infinity, enabled: showProgram },
   );
   const recommended = recommend.data;
   const options = recommended
@@ -73,6 +90,24 @@ export function StepTrain({
       recommended?.alternatives.find((a) => a.key === templateKey)?.name ??
       templateKey)
     : null;
+
+  const completeSimple = trpc.gym.profile.completeSimpleSetup.useMutation({
+    meta: { silent: true },
+    onSuccess: (bootstrap) => {
+      utils.gym.bootstrap.setData({ today: localDate() }, bootstrap);
+      void utils.preferences.get.invalidate();
+      void utils.gym.bootstrap.invalidate();
+      capture('gym_setup_completed', {
+        template: null,
+        days,
+        experience,
+        knownWeights: false,
+        trainingStyle: 'SIMPLE',
+      });
+      onDone();
+    },
+    onError: (e) => setError(userFacingErrorMessage(e)),
+  });
 
   const complete = trpc.gym.profile.completeSetup.useMutation({
     meta: { silent: true },
@@ -93,11 +128,20 @@ export function StepTrain({
   });
 
   function start() {
-    if (!templateKey) return;
     setError(null);
+    if (simple) {
+      // The training days picked on About you become the weekly goal.
+      const goal = Math.min(7, Math.max(1, new Set(weekdays).size));
+      completeSimple.mutate({
+        unit: weightUnitForSystem(units),
+        ...(weekdays.length > 0 && { weeklyGoal: goal }),
+      });
+      return;
+    }
+    if (!templateKey) return;
     try {
-      complete.mutate(
-        buildSetupPayload({
+      complete.mutate({
+        ...buildSetupPayload({
           days,
           experience,
           equipmentAccess,
@@ -108,7 +152,8 @@ export function StepTrain({
           startMode: 'calibrate',
           knownWeights: {},
         }),
-      );
+        ...(askStyle && { trainingStyle: 'PROGRESSIVE' as const }),
+      });
     } catch (err) {
       // The payload is built from chips here, so an invalid one is a bug, not a typo.
       setError(userFacingErrorMessage(err));
@@ -120,83 +165,116 @@ export function StepTrain({
       <BiscuitHalo loop="goalMuscle" size={150} />
       <V4Heading title={ONBOARDING_V4_COPY.trainTitle} />
 
-      <div className="flex flex-col gap-2">
-        <span id="v4-train-exp" className="text-sm font-semibold text-revamp-label-secondary">
-          {ONBOARDING_V4_COPY.trainExperience}
-        </span>
-        <div role="group" aria-labelledby="v4-train-exp" className="flex flex-wrap gap-2">
-          {EXPERIENCE.map((o) => (
-            <Chip
-              key={o.value}
-              label={o.label}
-              selected={experience === o.value}
-              onClick={() => {
-                setExperience(o.value);
-                setChoice(0);
-              }}
-              testId={`v4-train-exp-${o.value}`}
-            />
-          ))}
-        </div>
-      </div>
-
-      <div className="flex flex-col gap-2">
-        <span id="v4-train-where" className="text-sm font-semibold text-revamp-label-secondary">
-          {ONBOARDING_V4_COPY.trainWhere}
-        </span>
-        <div role="group" aria-labelledby="v4-train-where" className="flex flex-wrap gap-2">
-          {EQUIPMENT.map((o) => (
-            <Chip
-              key={o.value}
-              label={o.label}
-              selected={equipmentAccess === o.value}
-              onClick={() => {
-                setEquipment(o.value);
-                setChoice(0);
-              }}
-              testId={`v4-train-where-${o.value}`}
-            />
-          ))}
-        </div>
-      </div>
-
-      <section
-        aria-label="Your program"
-        aria-busy={recommend.isLoading}
-        className="flex min-h-[4.75rem] items-center gap-3 rounded-card border border-revamp-separator bg-revamp-surface p-3.5"
-      >
-        <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-control bg-revamp-brand-tint text-revamp-brand">
-          <Dumbbell className="h-6 w-6" aria-hidden="true" />
-        </span>
-        <span className="flex min-w-0 flex-1 flex-col">
-          <b className="text-[1.0625rem] text-revamp-label" data-testid="v4-train-program">
-            {programName ?? '…'}
-          </b>
-          <span className="text-[0.9375rem] text-revamp-label-secondary">
-            {ONBOARDING_V4_COPY.trainFits(days)}
+      {askStyle && (
+        <div className="flex flex-col gap-2">
+          <span id="v4-train-style" className="text-sm font-semibold text-revamp-label-secondary">
+            How do you like to train?
           </span>
-        </span>
-        {options.length > 1 && (
-          <button
-            type="button"
-            onClick={() => setChoice((c) => (c + 1) % options.length)}
-            data-testid="v4-train-change"
-            className={cn(
-              'min-h-11 rounded-control bg-revamp-brand-tint px-3 text-[0.9375rem] font-semibold text-revamp-brand focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
-              pressControl,
-            )}
+          <div role="radiogroup" aria-labelledby="v4-train-style" className="flex flex-col gap-2">
+            {TRAINING_STYLE_ANSWERS.map((a) => (
+              <button
+                key={a.key}
+                type="button"
+                role="radio"
+                aria-checked={answer?.key === a.key}
+                onClick={() => setAnswer(a)}
+                data-testid={`v4-train-style-${a.key}`}
+                className={cn(
+                  'min-h-14 w-full rounded-card px-4 py-3 text-left text-base font-semibold text-revamp-label focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
+                  answer?.key === a.key
+                    ? 'border-2 border-revamp-brand bg-revamp-brand-tint'
+                    : 'border border-revamp-separator bg-revamp-surface',
+                  pressControl,
+                )}
+              >
+                {a.label}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {showProgram && (
+        <>
+          <div className="flex flex-col gap-2">
+            <span id="v4-train-exp" className="text-sm font-semibold text-revamp-label-secondary">
+              {ONBOARDING_V4_COPY.trainExperience}
+            </span>
+            <div role="group" aria-labelledby="v4-train-exp" className="flex flex-wrap gap-2">
+              {EXPERIENCE.map((o) => (
+                <Chip
+                  key={o.value}
+                  label={o.label}
+                  selected={experience === o.value}
+                  onClick={() => {
+                    setExperience(o.value);
+                    setChoice(0);
+                  }}
+                  testId={`v4-train-exp-${o.value}`}
+                />
+              ))}
+            </div>
+          </div>
+
+          <div className="flex flex-col gap-2">
+            <span id="v4-train-where" className="text-sm font-semibold text-revamp-label-secondary">
+              {ONBOARDING_V4_COPY.trainWhere}
+            </span>
+            <div role="group" aria-labelledby="v4-train-where" className="flex flex-wrap gap-2">
+              {EQUIPMENT.map((o) => (
+                <Chip
+                  key={o.value}
+                  label={o.label}
+                  selected={equipmentAccess === o.value}
+                  onClick={() => {
+                    setEquipment(o.value);
+                    setChoice(0);
+                  }}
+                  testId={`v4-train-where-${o.value}`}
+                />
+              ))}
+            </div>
+          </div>
+
+          <section
+            aria-label="Your program"
+            aria-busy={recommend.isLoading}
+            className="flex min-h-[4.75rem] items-center gap-3 rounded-card border border-revamp-separator bg-revamp-surface p-3.5"
           >
-            {ONBOARDING_V4_COPY.trainChange}
-          </button>
-        )}
-      </section>
+            <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-control bg-revamp-brand-tint text-revamp-brand">
+              <Dumbbell className="h-6 w-6" aria-hidden="true" />
+            </span>
+            <span className="flex min-w-0 flex-1 flex-col">
+              <b className="text-[1.0625rem] text-revamp-label" data-testid="v4-train-program">
+                {programName ?? '…'}
+              </b>
+              <span className="text-[0.9375rem] text-revamp-label-secondary">
+                {ONBOARDING_V4_COPY.trainFits(days)}
+              </span>
+            </span>
+            {options.length > 1 && (
+              <button
+                type="button"
+                onClick={() => setChoice((c) => (c + 1) % options.length)}
+                data-testid="v4-train-change"
+                className={cn(
+                  'min-h-11 rounded-control bg-revamp-brand-tint px-3 text-[0.9375rem] font-semibold text-revamp-brand focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+                  pressControl,
+                )}
+              >
+                {ONBOARDING_V4_COPY.trainChange}
+              </button>
+            )}
+          </section>
+        </>
+      )}
 
       {error && <ErrorLine message={error} />}
 
       <PrimaryButton
         onClick={start}
-        disabled={!templateKey}
-        busy={complete.isPending}
+        disabled={simple ? false : !showProgram || !templateKey}
+        busy={complete.isPending || completeSimple.isPending}
         testId="v4-train-start"
       >
         {ONBOARDING_V4_COPY.trainStart}

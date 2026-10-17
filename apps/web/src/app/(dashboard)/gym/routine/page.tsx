@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import { useMemo, useState } from 'react';
+import { routineChangedLine } from '@/features/coaching/components/RoutineAttribution';
 import { DayCard } from '@/features/gym/routine/components/DayCard';
 import {
   OverrideTargetSheet,
@@ -95,6 +96,11 @@ export default function RoutinePage() {
           <h1 className="truncate font-serif text-xl font-semibold text-gray-900">
             {routine.name}
           </h1>
+          {routine.lastEditedByOther && (
+            <p className="text-sm font-medium text-amber-800" data-testid="routine-changed-by">
+              {routineChangedLine(routine.lastEditedByOther)}
+            </p>
+          )}
           {bootstrap?.profile?.weeklyGoal && (
             <p className="text-sm text-gray-500">
               {bootstrap.profile.weeklyGoal} sessions / week goal
@@ -128,6 +134,7 @@ export default function RoutinePage() {
               lookup={lookup}
               progressionByKey={progressionByKey}
               onOpenOverride={setOverrideTarget}
+              trainerName={bootstrap?.coaching?.trainerName ?? null}
             />
           ))}
         </div>

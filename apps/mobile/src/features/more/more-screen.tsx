@@ -11,7 +11,8 @@ import { useFriendsBadge } from '../friends/api/use-friends-badge';
 import { ModeSwitch } from '../gym/components/mode-switch';
 import { openLegal } from '../legal/open-legal';
 import { useSignOut } from '../settings/use-sign-out';
-import { FOLLOWING_ITEM, withFollowing, type MoreItem } from './more-items';
+import { useCoachingAvailability } from '../trainer/api/use-coaching-availability';
+import { FOLLOWING_ITEM, withExtras, type MoreItem } from './more-items';
 
 // Secondary nav hub shared by the Food and Gym tab groups (FB7-01): each mode
 // passes its own item list; the feedback card, legal links, Sign out and the
@@ -26,7 +27,12 @@ export function MoreScreen({
 }) {
   const [showBuildDetails, setShowBuildDetails] = useState(false);
   const { available, badgeCount } = useFriendsBadge();
-  const items = withFollowing(baseItems, available);
+  const coaching = useCoachingAvailability();
+  const items = withExtras(baseItems, {
+    following: available,
+    yourTrainer: coaching.enabled,
+    trainerTools: coaching.canBeTrainer,
+  });
   const signOut = useSignOut('more-sign-out-confirm');
 
   return (

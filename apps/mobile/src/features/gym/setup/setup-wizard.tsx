@@ -123,7 +123,17 @@ function parseWeekdaysParam(raw: string | undefined): number[] {
     .filter((n) => Number.isInteger(n) && n >= 0 && n <= 6);
 }
 
-export function SetupWizard() {
+export interface SetupWizardProps {
+  /**
+   * Simple training mode §6.1: "I follow a program…" was answered first — the
+   * wizard runs unchanged and `completeSetup` records the PROGRESSIVE style.
+   */
+  trainingStyle?: 'PROGRESSIVE';
+  /** Back from the first step returns to that question instead of leaving setup. */
+  onExitFirstStep?: () => void;
+}
+
+export function SetupWizard({ trainingStyle, onExitFirstStep }: SetupWizardProps = {}) {
   const colors = useThemeColors();
   const queryClient = useQueryClient();
   // The cached library (cache-only, never fetched here) gives the new-shell
@@ -281,6 +291,10 @@ export function SetupWizard() {
         setStep((s) => s - 1);
         return true;
       }
+      if (onExitFirstStep) {
+        onExitFirstStep();
+        return true;
+      }
       return false;
     },
   });
@@ -292,6 +306,10 @@ export function SetupWizard() {
     // or step 2 when onboarding pre-filled step 1 and skipped it — returns
     // to whatever pushed this screen (onboarding, or Today).
     if (step === firstStep) {
+      if (onExitFirstStep) {
+        onExitFirstStep();
+        return;
+      }
       if (router.canGoBack()) router.back();
       else router.replace('/today');
       return;
@@ -326,6 +344,7 @@ export function SetupWizard() {
       templateKey,
       plannedWeekdays: [...weekdays].sort((a, b) => a - b),
       reminderTime,
+      ...(trainingStyle ? { trainingStyle } : {}),
       ...(sessionLengthMins !== null ? { sessionLengthMins } : {}),
       ...(experience === 'INTERMEDIATE' && split ? { split } : {}),
       ...(weightsChoice === 'know' && Object.keys(knownWeightsKg).length > 0

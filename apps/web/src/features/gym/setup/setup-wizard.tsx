@@ -2,11 +2,13 @@
 
 import { useRouter } from 'next/navigation';
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { useFlags } from '@/features/flags/use-flags';
 import { capture } from '@/lib/analytics';
 import { trpc } from '@/lib/trpc';
 import { ArrowLeft, Check, ChevronRight } from 'lucide-react';
 import {
   EXERCISE_BY_ID,
+  TRAINING_STYLE_ANSWERS,
   type GymEquipmentAccess,
   type TrainingExperience,
   type WeightUnit,
@@ -37,6 +39,10 @@ import {
 // ─── Gym setup (gym_plan.md §1.3) ─────────────────────────────────────────────
 // Four questions (days, experience, equipment + units, which days), then the
 // recommended program with "choose another" and starting weights, then done.
+// Simple training mode (§6.1, flag on): "How do you like to train?" comes
+// first. "I follow a program" continues with the steps above (and saves
+// trainingStyle PROGRESSIVE); the two "Keep it simple" answers finish at once
+// with completeSimpleSetup (no routine) and offer to plan the week.
 
 const WEEKDAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 const STEP_TITLES = [
@@ -49,6 +55,9 @@ const STEP_TITLES = [
 ] as const;
 
 type Step = 0 | 1 | 2 | 3 | 4 | 5;
+type StyleAnswer = (typeof TRAINING_STYLE_ANSWERS)[number];
+/** The style question: being asked, answered "program", or simple setup done. */
+type StylePhase = 'ask' | 'program' | 'simpleDone';
 
 export function SetupWizard() {
   const router = useRouter();
@@ -57,7 +66,12 @@ export function SetupWizard() {
   // (/gym would just send a profile-less account straight back here).
   const { data: existing } = useGymData();
   const exitHref = existing?.profile ? '/gym' : '/dashboard';
+  const flags = useFlags();
   const [step, setStep] = useState<Step>(0);
+  const [stylePhase, setStylePhase] = useState<StylePhase>('ask');
+  const [styleChoice, setStyleChoice] = useState<StyleAnswer | null>(null);
+  const askingStyle = flags.simpleTraining && stylePhase === 'ask' && step === 0;
+  const simpleDone = stylePhase === 'simpleDone';
   const [days, setDays] = useState(3);
   const [experience, setExperience] = useState<TrainingExperience>('BEGINNER');
   const [equipmentAccess, setEquipment] = useState<GymEquipmentAccess>('FULL_GYM');
@@ -106,6 +120,30 @@ export function SetupWizard() {
   );
 
   const saveProfile = trpc.gym.profile.save.useMutation();
+  const completeSimple = trpc.gym.profile.completeSimpleSetup.useMutation({
+    meta: { silent: true },
+    onSuccess: (bootstrap) => {
+      utils.gym.bootstrap.setData({ today: localDate() }, bootstrap);
+      void utils.preferences.get.invalidate();
+      void utils.gym.bootstrap.invalidate();
+      capture('gym_setup_completed', {
+        template: null,
+        days: bootstrap.profile?.weeklyGoal ?? null,
+        experience: null,
+        knownWeights: false,
+        trainingStyle: 'SIMPLE',
+      });
+      setStylePhase('simpleDone');
+    },
+    onError: (e) => setError(friendlySetupError(e.message)),
+  });
+
+  const answerStyle = () => {
+    if (!styleChoice) return;
+    setError(null);
+    if (styleChoice.style === 'PROGRESSIVE') setStylePhase('program');
+    else completeSimple.mutate({ unit });
+  };
   const complete = trpc.gym.profile.completeSetup.useMutation({
     meta: { silent: true },
     onSuccess: async (bootstrap) => {
@@ -153,14 +191,103 @@ export function SetupWizard() {
         startMode,
         knownWeights,
       });
-      complete.mutate(payload);
+      complete.mutate(
+        flags.simpleTraining ? { ...payload, trainingStyle: 'PROGRESSIVE' as const } : payload,
+      );
     } catch {
       setError('Some answers look off. Check the weights you typed and try again.');
     }
   };
 
-  const next = () => setStep((s) => Math.min(5, s + 1) as Step);
+  const next = () => {
+    // Leaving the first step settles the style question (a late flag never re-asks it).
+    if (stylePhase === 'ask') setStylePhase('program');
+    setStep((s) => Math.min(5, s + 1) as Step);
+  };
   const back = () => setStep((s) => Math.max(0, s - 1) as Step);
+  const exitFirstStep = () => {
+    if (flags.simpleTraining && stylePhase === 'program') setStylePhase('ask');
+    else router.push(exitHref);
+  };
+
+  if (askingStyle || simpleDone) {
+    return (
+      <div className="mx-auto w-full max-w-2xl px-4 py-6 sm:py-8" data-testid="gym-setup">
+        <div className="mb-6">
+          <p className="text-xs font-semibold uppercase tracking-widest text-neutral-500">
+            Gym setup{simpleDone ? ' · Done' : ''}
+          </p>
+          <h1 className="mt-1 font-serif text-2xl font-bold text-neutral-900">
+            {simpleDone ? 'You’re set' : 'How do you like to train?'}
+          </h1>
+        </div>
+
+        {simpleDone ? (
+          <GymCard className="text-center" data-testid="setup-simple-done">
+            <span className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-emerald-50">
+              <Check className="h-6 w-6 text-emerald-600" aria-hidden="true" />
+            </span>
+            <p className="mx-auto mt-3 max-w-md text-sm text-gray-600">
+              Want to plan your week? You can do it later.
+            </p>
+            <div className="mt-5 flex flex-col-reverse justify-center gap-2 sm:flex-row">
+              <Button
+                variant="outline"
+                size="lg"
+                onClick={() => router.replace('/gym')}
+                data-testid="setup-simple-later"
+              >
+                Later
+              </Button>
+              <Button
+                size="lg"
+                className="bg-[#944a00] hover:bg-[#7a3d00]"
+                onClick={() => router.replace('/gym/my-week')}
+                data-testid="setup-simple-plan-week"
+              >
+                Plan my week
+              </Button>
+            </div>
+          </GymCard>
+        ) : (
+          <>
+            <div role="radiogroup" aria-label="How do you like to train?" className="grid gap-2">
+              {TRAINING_STYLE_ANSWERS.map((a) => (
+                <Choice
+                  key={a.key}
+                  role="radio"
+                  selected={styleChoice?.key === a.key}
+                  onClick={() => setStyleChoice(a)}
+                  title={a.label}
+                  testId={`setup-style-${a.key}`}
+                />
+              ))}
+            </div>
+            {error && (
+              <p role="alert" className="mt-4 text-sm text-red-600">
+                {error}
+              </p>
+            )}
+            <div className="mt-6 flex items-center justify-between gap-3">
+              <Button variant="ghost" onClick={() => router.push(exitHref)}>
+                <ArrowLeft aria-hidden="true" />
+                Back
+              </Button>
+              <Button
+                onClick={answerStyle}
+                disabled={!styleChoice || completeSimple.isPending}
+                loading={completeSimple.isPending}
+                data-testid="setup-style-next"
+              >
+                Next
+                <ChevronRight aria-hidden="true" />
+              </Button>
+            </div>
+          </>
+        )}
+      </div>
+    );
+  }
 
   return (
     <div className="mx-auto w-full max-w-2xl px-4 py-6 sm:py-8" data-testid="gym-setup">
@@ -381,7 +508,7 @@ export function SetupWizard() {
 
       {step < 5 && (
         <div className="mt-6 flex items-center justify-between gap-3">
-          <Button variant="ghost" onClick={step === 0 ? () => router.push(exitHref) : back}>
+          <Button variant="ghost" onClick={step === 0 ? exitFirstStep : back}>
             <ArrowLeft aria-hidden="true" />
             Back
           </Button>
@@ -432,7 +559,10 @@ function Choice({
   body,
   children,
   testId,
+  role,
 }: {
+  /** "radio" inside a radiogroup (aria-checked); otherwise a toggle button (aria-pressed). */
+  role?: 'radio';
   selected: boolean;
   onClick: () => void;
   title?: string;
@@ -443,7 +573,7 @@ function Choice({
   return (
     <button
       type="button"
-      aria-pressed={selected}
+      {...(role === 'radio' ? { role, 'aria-checked': selected } : { 'aria-pressed': selected })}
       onClick={onClick}
       data-testid={testId}
       className={cn(
