@@ -171,4 +171,19 @@ describe('V4 sign-up confirm password (F9)', () => {
     expect(screen.getByTestId('register-password').props.secureTextEntry).toBe(false);
     expect(screen.getByTestId('register-confirm-password').props.secureTextEntry).toBe(false);
   });
+
+  it('clears a server error as soon as the confirmation is edited (UX-ACC-15)', async () => {
+    const reset = jest.fn();
+    const serverError = Object.assign(new Error('An account with this email already exists'), {
+      name: 'TRPCClientError',
+      data: { code: 'CONFLICT', httpStatus: 409 },
+    });
+    trpc.auth.register.useMutation.mockReturnValue(mutationResult({ error: serverError, reset }));
+    const user = userEvent.setup();
+    await renderWithSafeArea(<AccountV4 />);
+
+    await user.type(screen.getByTestId('register-confirm-password'), 'x');
+
+    expect(reset).toHaveBeenCalled();
+  });
 });

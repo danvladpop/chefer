@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { authEmailSchema, loginFormSchema, resetPasswordFormSchema } from './auth';
+import {
+  authEmailSchema,
+  loginFormSchema,
+  passwordConfirmationSchema,
+  resetPasswordFormSchema,
+} from './auth';
 
 describe('auth schemas (UX-ACC-07)', () => {
   it('trims the email before validating it', () => {
@@ -20,5 +25,16 @@ describe('auth schemas (UX-ACC-07)', () => {
     });
     expect(result.success).toBe(false);
     expect(result.success ? [] : result.error.issues[0]?.path).toEqual(['confirmPassword']);
+  });
+
+  it('checks only the confirmation: empty first, then a mismatch (F9)', () => {
+    const issue = (password: string, confirmPassword: string) => {
+      const result = passwordConfirmationSchema.safeParse({ password, confirmPassword });
+      return result.success ? null : result.error.issues[0]?.message;
+    };
+    expect(issue('short', '')).toBe('Please confirm your password');
+    expect(issue('short', 'shorter')).toBe('Passwords do not match');
+    // The password's own rules (length) are not this schema's job.
+    expect(issue('short', 'short')).toBeNull();
   });
 });

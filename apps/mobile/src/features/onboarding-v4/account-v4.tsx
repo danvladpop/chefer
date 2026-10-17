@@ -2,13 +2,11 @@ import { useRef, useState } from 'react';
 import { Keyboard, Pressable, View, type TextInput } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
-import { z } from 'zod';
 import {
   authEmailSchema,
-  confirmPasswordSchema,
   CURRENT_TERMS_VERSION,
   newPasswordSchema,
-  withPasswordConfirmation,
+  passwordConfirmationSchema,
 } from '@chefer/types';
 import {
   EMAIL_FIELD_PROPS,
@@ -53,14 +51,6 @@ function fieldError(result: {
   return result.success ? null : (result.error?.issues[0]?.message ?? null);
 }
 
-// Only the confirmation's rules (empty, then "Passwords do not match"); the
-// password's own rules are `newPasswordSchema` above. Errors derive from the
-// live values, so a stale mismatch can't outlive a fix (UX-ACC-16).
-const confirmationSchema = withPasswordConfirmation({
-  password: z.string(),
-  confirmPassword: confirmPasswordSchema,
-});
-
 export function AccountV4() {
   const c = useThemeColors();
   const hasSocial = useHasSocialProviders();
@@ -92,7 +82,10 @@ export function AccountV4() {
 
   const emailError = fieldError(authEmailSchema.safeParse(email));
   const passwordError = fieldError(newPasswordSchema.safeParse(password));
-  const confirmError = fieldError(confirmationSchema.safeParse({ password, confirmPassword }));
+  // Derived from the live values, so a stale mismatch can't outlive a fix (UX-ACC-16).
+  const confirmError = fieldError(
+    passwordConfirmationSchema.safeParse({ password, confirmPassword }),
+  );
   const agreeError = agreed ? null : COPY.accountAgreeRequired;
 
   function submit() {
@@ -234,7 +227,10 @@ export function AccountV4() {
           revealed={revealed}
           hideToggle
           value={confirmPassword}
-          onChangeText={setConfirmPassword}
+          onChangeText={(t) => {
+            if (register.error) register.reset();
+            setConfirmPassword(t);
+          }}
           editable={!register.isPending}
           returnKeyType="go"
           onSubmitEditing={submit}
