@@ -159,7 +159,6 @@ vi.mock('@/features/tracker/lib/rebalance-storage', () => ({
   withDayFitLine: (message: string) => message,
 }));
 vi.mock('@/hooks/useIsPremium', () => ({ useIsPremium: () => false }));
-vi.mock('@/lib/recipe-image', () => ({ getRecipeImageProps: () => ({ src: '/x.jpg' }) }));
 vi.mock('@/lib/trpc', () => ({
   trpc: {
     useUtils: () => ({

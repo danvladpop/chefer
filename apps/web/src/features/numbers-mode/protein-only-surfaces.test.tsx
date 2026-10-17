@@ -29,7 +29,6 @@ vi.mock('next/link', () => ({
 }));
 vi.mock('@/lib/analytics', () => ({ capture: vi.fn() }));
 vi.mock('@/lib/analytics-events', () => ({ trackMealLogged: vi.fn() }));
-vi.mock('@/lib/recipe-image', () => ({ getRecipeImageProps: () => ({ src: '/x.jpg' }) }));
 vi.mock('@/features/tracker/lib/rebalance-storage', () => ({
   handleRebalanceOutcome: vi.fn(),
   REBALANCE_PREVIEW: { rebalanceMode: 'preview' },

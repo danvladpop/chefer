@@ -54,7 +54,15 @@ function placeholderStyle(recipeName: string, cuisineType?: string) {
   return { emoji, gradient };
 }
 
-function Placeholder({
+/** 'generating' pulses with "Preparing photo…"; 'unavailable' shows a static hint; 'none' is emoji-only. */
+export type RecipeImagePlaceholderLabel = 'generating' | 'unavailable' | 'none';
+
+/**
+ * The photo-less recipe look, shared by `RecipeImage` and the status-blind
+ * thumbnails (`RecipeThumbnail`) so a recipe without a photo never shows an
+ * unrelated stock dish.
+ */
+export function RecipeImagePlaceholder({
   recipeName,
   cuisineType,
   label,
@@ -62,8 +70,7 @@ function Placeholder({
 }: {
   recipeName: string;
   cuisineType?: string | undefined;
-  /** 'generating' pulses with "Preparing photo…"; 'unavailable' shows a static hint; 'none' is emoji-only. */
-  label: 'generating' | 'unavailable' | 'none';
+  label: RecipeImagePlaceholderLabel;
   className?: string | undefined;
 }) {
   const { emoji, gradient } = placeholderStyle(recipeName, cuisineType);
@@ -114,7 +121,7 @@ export function RecipeImage({
 
   if (isPending) {
     return (
-      <Placeholder
+      <RecipeImagePlaceholder
         recipeName={recipeName}
         cuisineType={cuisineType}
         label="generating"
@@ -127,7 +134,7 @@ export function RecipeImage({
     // Distinguishable from "Preparing photo…" so a final failure doesn't read
     // as an eternally-loading card.
     return (
-      <Placeholder
+      <RecipeImagePlaceholder
         recipeName={recipeName}
         cuisineType={cuisineType}
         label="unavailable"
@@ -139,7 +146,7 @@ export function RecipeImage({
   return (
     <div className={cn('relative', className)}>
       {!imgLoaded && (
-        <Placeholder
+        <RecipeImagePlaceholder
           recipeName={recipeName}
           cuisineType={cuisineType}
           label="generating"

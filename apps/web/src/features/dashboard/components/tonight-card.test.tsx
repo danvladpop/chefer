@@ -24,7 +24,6 @@ vi.mock('@/features/tracker/lib/rebalance-storage', () => ({
   handleRebalanceOutcome: vi.fn(),
   REBALANCE_PREVIEW: { rebalanceMode: 'preview' },
 }));
-vi.mock('@/lib/recipe-image', () => ({ getRecipeImageProps: () => ({ src: '/x.jpg' }) }));
 vi.mock('@/features/safety/components/CheckedForChip', () => ({
   CheckedForChip: () => null,
 }));
