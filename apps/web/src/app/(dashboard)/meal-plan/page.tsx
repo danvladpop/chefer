@@ -152,7 +152,11 @@ export default function MealPlanPage() {
   // forward and refresh all land on the day the user was actually looking at.
   const rawDay = parseInt(searchParams.get('day') ?? '', 10);
   const todayIndex = getTodayDayIndex();
-  const selectedDay = Number.isNaN(rawDay) || rawDay < 0 || rawDay > 6 ? todayIndex : rawDay;
+  // F1: no (valid) `?day` → the default for the week shown: today on this
+  // week, Monday on any other (so a Friday-evening cold start, which opens
+  // next week, or a plain `?week=1` link lands on Monday).
+  const selectedDay =
+    Number.isNaN(rawDay) || rawDay < 0 || rawDay > 6 ? defaultDay(weekOffset) : rawDay;
 
   const setSelectedDay = (day: number) => {
     const params = new URLSearchParams(searchParams.toString());
