@@ -242,6 +242,7 @@ function fullSession(): FriendSessionRow {
     inclinePct: 2,
     caloriesKcal: 50,
     avgHeartRateBpm: 150,
+    loadConfirmed: null,
     ...extra,
   });
   const se = (

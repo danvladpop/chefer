@@ -1501,6 +1501,10 @@ model SessionSet {
   inclinePct        Float? // treadmill/incline walk
   caloriesKcal      Float? // computed estimate or synced, always labeled as an estimate
   avgHeartRateBpm   Int? // reserved slot, never written from manual entry
+  // Progression guard (simple training mode §6.5): false = ticked "done" with
+  // the prefilled numbers never edited, so the load is not confirmed and the
+  // progression engine ignores the set. null = confirmed (every legacy row).
+  loadConfirmed     Boolean?
 
   sessionExercise SessionExercise @relation(fields: [sessionExerciseId], references: [id], onDelete: Cascade)
 

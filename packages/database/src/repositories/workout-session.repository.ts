@@ -43,6 +43,8 @@ export interface SessionSetWriteData {
   inclinePct?: number | null;
   caloriesKcal?: number | null;
   avgHeartRateBpm?: number | null;
+  /** Progression guard: false = load not confirmed; null = confirmed. */
+  loadConfirmed?: boolean | null;
 }
 
 export interface SessionExerciseWriteData {

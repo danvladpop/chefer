@@ -46,3 +46,5 @@ export * from './activity-log';
 export * from './burn';
 // Routine-day / past-workout cover: the first exercise photo, in order.
 export * from './cover-image';
+// Progression guard: "done, load not confirmed" ticks never feed progression.
+export * from './load-confirmation';

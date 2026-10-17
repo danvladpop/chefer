@@ -25,6 +25,7 @@ import { isActivityLogSession } from './activity-log';
 import { nextCarryOver } from './carry-over';
 import { deloadContinues } from './deload';
 import { durationMinutes } from './duration';
+import { hasConfirmedLoad } from './load-confirmation';
 import {
   applyExposure,
   carriedWeightKg,
@@ -505,7 +506,11 @@ export function buildNextWorkout(input: {
   };
 }
 
-/** One Exposure per non-skipped exercise of a COMPLETED session. */
+/**
+ * One Exposure per non-skipped exercise of a COMPLETED session. An exercise
+ * with a load-unconfirmed working set (ticked with prefilled numbers, never
+ * edited — the progression guard, `load-confirmation.ts`) yields none.
+ */
 export function exposuresFromSession(
   doc: WorkoutSessionDoc,
 ): { exerciseId: string; exposure: Exposure }[] {
@@ -514,7 +519,7 @@ export function exposuresFromSession(
   }
   return [...doc.exercises]
     .sort((a, b) => a.position - b.position)
-    .filter((se) => !se.skipped)
+    .filter((se) => !se.skipped && hasConfirmedLoad(se))
     .map((se) => ({
       exerciseId: se.exerciseId,
       exposure: {
@@ -559,6 +564,7 @@ function toSummarySet(s: SessionSetDoc): SessionSummaryDto['exercises'][number][
     ...(s.inclinePct !== undefined && { inclinePct: s.inclinePct }),
     ...(s.caloriesKcal !== undefined && { caloriesKcal: s.caloriesKcal }),
     ...(s.avgHeartRateBpm !== undefined && { avgHeartRateBpm: s.avgHeartRateBpm }),
+    ...(s.loadConfirmed === false && { loadConfirmed: false as const }),
   };
 }
 

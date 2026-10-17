@@ -373,6 +373,7 @@ function toWriteData(doc: WorkoutSessionDoc): SessionDocWriteData {
         inclinePct: s.inclinePct ?? null,
         caloriesKcal: s.caloriesKcal ?? null,
         avgHeartRateBpm: s.avgHeartRateBpm ?? null,
+        loadConfirmed: s.loadConfirmed ?? null,
       })),
     })),
   };

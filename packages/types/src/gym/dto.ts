@@ -190,6 +190,8 @@ export interface SessionSummaryDto {
       inclinePct?: number;
       caloriesKcal?: number;
       avgHeartRateBpm?: number;
+      /** Progression guard: present (false) only when ticked with unedited numbers ("done as planned"). */
+      loadConfirmed?: false;
     }[];
   }[];
 }

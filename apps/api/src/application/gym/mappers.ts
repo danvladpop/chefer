@@ -221,6 +221,8 @@ export function toSessionDoc(row: SessionWithChildren): WorkoutSessionDoc {
         inclinePct: s.inclinePct ?? undefined,
         caloriesKcal: s.caloriesKcal ?? undefined,
         avgHeartRateBpm: s.avgHeartRateBpm ?? undefined,
+        // Progression guard: only `false` travels; a confirmed set omits the key.
+        ...(s.loadConfirmed === false && { loadConfirmed: false as const }),
       })),
     })),
   };

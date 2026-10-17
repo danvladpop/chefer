@@ -523,6 +523,7 @@ function session(
           inclinePct: null,
           caloriesKcal: null,
           avgHeartRateBpm: 155,
+          loadConfirmed: null,
         },
       ],
     })),

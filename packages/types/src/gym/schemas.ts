@@ -84,6 +84,13 @@ export const sessionSetDocSchema = z.object({
   inclinePct: z.number().min(0).max(50).optional(),
   caloriesKcal: z.number().min(0).max(10_000).optional(),
   avgHeartRateBpm: z.number().int().min(0).max(300).optional(),
+  /**
+   * Progression guard (simple training mode §6.5): `false` = the set was
+   * ticked "done" with its prefilled numbers never edited, so the load is not
+   * confirmed and progression ignores it. Absent = confirmed (every legacy doc
+   * and every "Track my progress" tick). Additive; only `false` is ever sent.
+   */
+  loadConfirmed: z.literal(false).optional(),
 });
 export type SessionSetDoc = z.infer<typeof sessionSetDocSchema>;
 
