@@ -285,7 +285,11 @@ proposal"). With the flag off nothing changes.
    `upgrade_completed` with source `onboarding`.
 9. **Set up training** (Train) — experience + equipment, the recommended program
    (`gym.profile.recommend`, "Change" cycles the alternatives), "Start training"
-   = `gym.profile.completeSetup` with the chosen weekdays.
+   = `gym.profile.completeSetup` with the chosen weekdays. With the
+   `simpleTraining` flag the step opens with "How do you like to train?": the
+   two "Keep it simple" answers skip experience/equipment/program and call
+   `gym.profile.completeSimpleSetup` (weekly goal = the training-weekday count),
+   no routine built (see §21 "Simple training mode").
 
 The flow ends on Today (Gym Today when Train is the only job) with a one-time
 "You're all set" card (Biscuit winking; dismiss clears it for good).
@@ -1708,14 +1712,14 @@ a goal, and a known bodyweight (latest `WeightEntry`, else
 `ChefProfile.weightKg`). Every goal has a g/kg protein base (follow-up,
 2026-09-26); only `GAIN_MUSCLE` lifters get the training-day rules.
 
-| Rule              | Value                                                                                                                                                                                                          | Tier                                                                                                                                        |
-| ----------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
-| Base protein      | by goal: **GAIN_MUSCLE 1.8 g/kg**, **LOSE_WEIGHT 2.0 g/kg** (keeps muscle in a deficit), **MAINTAIN / EAT_HEALTHIER 1.6 g/kg** — replaces the goal's % split; carbs absorb the difference so kcal is unchanged | every tier — `resolveDailyTargets(profile, lifterBodyweightKg)` in dashboard, tracker, chat context, coach review and both generation paths |
-| Training day      | a workout **completed** that day (any day — **not** a quick-logged activity, WP-20), else a routine day **planned** for that weekday outside a training pause                                                  | —                                                                                                                                           |
-| Training-day bump | GAIN_MUSCLE only (a cut keeps its deficit): protein to **2.2 g/kg** (+0.4 g/kg), kcal **+10%** of the base (rounded to 10, clamped 150–300); kcal not covered by protein → carbs; fat unchanged                | **every tier** applies it (free since WP-07: no AI)                                                                                         |
-| Post-workout meal | **~0.4 g/kg** protein, rounded to 5 g, 20–45 g (30 g without a bodyweight)                                                                                                                                     | every tier                                                                                                                                  |
-| Premium AI week   | the routine's training weekdays + the bump go into the generation prompt (`buildTrainingDaysSection`), and the ±15%/±20% validation judges those days against the bumped targets                               | premium                                                                                                                                     |
-| Free curated week | training weekdays weigh the protein shortfall double in `planCuratedWeek`, so those days pick the higher-protein combinations (usually dinner); no kcal bump                                                   | free                                                                                                                                        |
+| Rule              | Value                                                                                                                                                                                                                          | Tier                                                                                                                                        |
+| ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------- |
+| Base protein      | by goal: **GAIN_MUSCLE 1.8 g/kg**, **LOSE_WEIGHT 2.0 g/kg** (keeps muscle in a deficit), **MAINTAIN / EAT_HEALTHIER 1.6 g/kg** — replaces the goal's % split; carbs absorb the difference so kcal is unchanged                 | every tier — `resolveDailyTargets(profile, lifterBodyweightKg)` in dashboard, tracker, chat context, coach review and both generation paths |
+| Training day      | a workout of **any workout type** **completed** that day (a logged yoga class counts like a lifting session — F-1, 2026-10-17, both training styles), else a routine day **planned** for that weekday outside a training pause | —                                                                                                                                           |
+| Training-day bump | GAIN_MUSCLE only (a cut keeps its deficit): protein to **2.2 g/kg** (+0.4 g/kg), kcal **+10%** of the base (rounded to 10, clamped 150–300); kcal not covered by protein → carbs; fat unchanged                                | **every tier** applies it (free since WP-07: no AI)                                                                                         |
+| Post-workout meal | **~0.4 g/kg** protein, rounded to 5 g, 20–45 g (30 g without a bodyweight)                                                                                                                                                     | every tier                                                                                                                                  |
+| Premium AI week   | the routine's training weekdays + the bump go into the generation prompt (`buildTrainingDaysSection`), and the ±15%/±20% validation judges those days against the bumped targets                                               | premium                                                                                                                                     |
+| Free curated week | training weekdays weigh the protein shortfall double in `planCuratedWeek`, so those days pick the higher-protein combinations (usually dinner); no kcal bump                                                                   | free                                                                                                                                        |
 
 ```
 dashboard.summary / tracker.getDay (lifter)
@@ -3248,6 +3252,10 @@ settles.
 
 ### Log an activity (WP-20, owner decision 2026-10-04)
 
+> **Superseded 2026-10-17 — see "Simple training mode" below.** The sheet is now **"Log a workout"** in both
+> training styles, keyed by **workout type**; and the two "does not count" rules below were **reversed (F-1)**:
+> a logged workout now counts as done today AND as a nutrition training day. Its kcal is still record only.
+
 A class is not a trainer feature: **any** gym user can quickly record something
 they did elsewhere — "45 min cycling class, 400 kcal burnt" — as done. It is
 **record only**: the calories never raise the day's food target ("no eating
@@ -3396,6 +3404,59 @@ screen.tsx` now numbers warm-ups and working sets with their own counters
 each starting at 1 — `Warm-up 1`, `Warm-up 2`, `Set 1`, `Set 2` — the same
 convention `setLabelOf()` already uses in the live logger
 (`workout/workout-model.ts`).
+
+### Simple training mode (flag `simpleTraining`, phase 1, 2026-10-17)
+
+Source: `docs/prd-2026-10/casual-training-mode.md`; terms in `GLOSSARY.md`; one routine per person
+(`docs/adr/0001-one-active-routine.md`). For the **mover** — "45 minutes of upper body, roughly what did it
+burn?" — next to today's **tracker**. Off by default (dark launch to testers); with the flag off every profile
+gets "Track my progress" (`isSimpleTraining(profile, flags)` is the one gate). Simple mode is free (D-7).
+
+- **Training style** (`GymProfile.trainingStyle`: `SIMPLE` "Keep it simple" / `PROGRESSIVE` "Track my progress",
+  default PROGRESSIVE — nobody already training sees a change). A preference, not a skill level
+  (`TrainingExperience` stays separate).
+- **Choosing it.** Onboarding V4's TRAIN step and gym setup ask one question, "How do you like to train?":
+  "I follow a program and track my lifts" → PROGRESSIVE (today's setup continues; `completeSetup` records
+  `trainingStyle: 'PROGRESSIVE'`); "I just want a good workout" / "Mostly classes, or with a trainer" → SIMPLE via
+  `gym.profile.completeSimpleSetup` — **no routine is built**, nothing else is asked, and setup ends with the
+  optional "Want to plan your week? You can do it later." (no "No active routine" dead end).
+- **Switching** is lossless and any time: gym settings → Training style (`gym.profile.save({ trainingStyle })`).
+  Both styles write the same `WorkoutSession` data; only the view changes.
+- **The workout** is the unit (D-4: **Chefer never generates workouts**). Start one **live** or **Log a workout**
+  afterwards. Workout type is the only required field (one tap); exercises are optional ("+ Add exercise" from the
+  library, then a Done tick). The smallest workout is one tap to start and one to finish. A live simple workout is a
+  `WorkoutSession` with `workoutType` (`startSimpleWorkout`); the logger shows the type, a timer, "~kcal so far" and
+  the optional exercise list — no sets grid, RIR, warm-ups, rest timer or progression messages.
+- **Workout types** (`WORKOUT_TYPES`): Strength — Upper body, Lower body, Full body, Strength (other); Cardio —
+  Cardio machines, Running, Walking, Swimming, Cycling; Classes — Yoga, Pilates, Spin, HIIT, Dance, Other class;
+  Other. One list for live workouts, logged workouts and My week. **Every type counts** toward the weekly goal and
+  streak, as **done today**, and as a **nutrition training day** — in both styles (F-1). The training-day bump is
+  unchanged (fixed +10%, GAIN_MUSCLE only, protein 2.2 g/kg): F-1 widens which days qualify, never how much.
+- **Log a workout** (replaces "Log an activity" in both styles): workout type (strength focuses only shown with the
+  flag), duration, day, optional "calories from your watch" and effort. Stored the WP-20 way — a finished session
+  with ONE `DURATION` entry (the type's catalogue row, `other-activity` for strength/other types) **plus**
+  `workoutType`, so shipped binaries still render it (`buildLoggedWorkoutDoc`).
+- **My week** = the "Keep it simple" face of the ONE active routine. Seven rows, each Rest or a workout type
+  ("Tue · Yoga"); one planned workout per weekday; the weekly goal defaults to the planned-day count (still
+  editable). Saved by `gym.routine.saveMyWeek` through the ordinary versioned routine save, creating the routine
+  ("My week") on first save. Routine days with no weekday (a rotation kept from "Track my progress", or one a
+  trainer built) show as **unscheduled** days — one-tap shortcuts on Today. Simple mode ignores the rotation
+  pointer. A type-only day (zero exercises) is valid; exercises on My week days are phase 2.
+- **Today (simple).** The week ring ("1 of 3"), minutes and ~kcal this week; today's planned workout from My week
+  ("Tuesday · Yoga": **Start**, **Log a workout**, **Skip** — Skip is device-local for the day); on an unplanned or
+  skipped day **Start a workout** with the workout-type picker (preselected from today's plan, else the last type
+  used), plus the unscheduled-day shortcuts. Missing a planned day is never a failure state: no red marks.
+- **Summary (simple).** Workout type, minutes, "~N kcal (est.)" with "How we estimate this", week ring and streak;
+  ticked exercises read as done. No PRs, volume, e1RM or progression changes.
+- **Calories (§6.6, D-3).** A typed workout is billed by its type's MET over the workout time (strength at the low,
+  conservative end of 3.5–6 until the effort answer of phase 2; others at the midpoint); a watch number wins. Burned
+  calories **never change food targets** ("no eating back").
+- **Progression guard (§6.5, F-2).** A ticked exercise whose prefilled numbers were never edited is stored as
+  **done, load not confirmed** (`SessionSet.loadConfirmed = false`); the progression engine and PR detection ignore
+  it. Editing a number confirms the load. Coaching shows such exercises as "done as planned".
+- **Shipped binaries.** Routines of zero-exercise days already existed (`routine.createBlank`), and contract tests
+  show API levels 2 (App Store 1.0.0) and 4 (1.0.1) read a My week routine and a typed workout with no exercises,
+  so no new API level is needed. An older binary's routine save omits `workoutType` and keeps the stored types.
 
 ### Weekday kinds (T-06.9) and gym settings reachability (bug B-19, T-36.1)
 
