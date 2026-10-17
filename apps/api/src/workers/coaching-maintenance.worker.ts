@@ -2,11 +2,16 @@ import {
   coachingInviteRepository,
   coachingLinkRepository,
   coachingNoteRepository,
+  coachingRequestRepository,
+  trainerProfileRepository,
   type ICoachingInviteRepository,
   type ICoachingLinkRepository,
   type ICoachingNoteRepository,
+  type ICoachingRequestRepository,
+  type ITrainerProfileRepository,
 } from '@chefer/database';
-import { COACHING_RETENTION } from '@chefer/types';
+import { COACHING_RETENTION, LEGAL_VERSIONS } from '@chefer/types';
+import { trainerProfileService } from '../application/coaching/trainer-profile.service.js';
 import { logger } from '../lib/logger.js';
 
 // ─── Trainer coaching maintenance (docs/trainer-platform/spec.md §8.4, Q-6) ───
@@ -15,7 +20,11 @@ import { logger } from '../lib/logger.js';
 // must still confirm.
 //   1. delete invites that expired more than `inviteAfterExpiryDays` (30) ago;
 //   2. delete private notes hidden more than `hiddenNoteDays` (30) ago;
-//   3. delete ENDED links that ended more than `endedLinkMonths` (24) ago.
+//   3. delete ENDED links that ended more than `endedLinkMonths` (24) ago;
+//   4. expire coaching requests past their 14 days (withdrawn consent events);
+//   5. delete answered / cancelled / expired requests after `requestAfterAnswerDays` (30);
+//   6. the allowlist sweep: a trainer no longer on TRAINER_ALLOWLIST stops being
+//      a trainer (PRD 2026-10 §4.3; also enforced lazily on their next request).
 // Every step is idempotent; the "done today" marker is only set when all steps
 // succeeded, so a failed step retries on the next tick.
 
@@ -37,18 +46,28 @@ export interface CoachingMaintenanceDeps {
   invites: Pick<ICoachingInviteRepository, 'deleteExpiredBefore'>;
   notes: Pick<ICoachingNoteRepository, 'deleteHiddenBefore'>;
   links: Pick<ICoachingLinkRepository, 'deleteEndedBefore'>;
+  requests: Pick<ICoachingRequestRepository, 'expireDue' | 'deleteAnsweredBefore'>;
+  trainers: Pick<ITrainerProfileRepository, 'listActiveWithEmail'>;
+  /** TrainerProfileService.enforceAllowlist: true when it turned trainer tools off. */
+  enforceAllowlist: (user: { id: string; email: string }) => Promise<boolean>;
 }
 
 const defaultDeps: CoachingMaintenanceDeps = {
   invites: coachingInviteRepository,
   notes: coachingNoteRepository,
   links: coachingLinkRepository,
+  requests: coachingRequestRepository,
+  trainers: trainerProfileRepository,
+  enforceAllowlist: (user) => trainerProfileService.enforceAllowlist(user),
 };
 
 export interface CoachingHousekeepingResult {
   prunedInvites: number;
   prunedNotes: number;
   prunedLinks: number;
+  expiredRequests: number;
+  prunedRequests: number;
+  trainersRemoved: number;
 }
 
 export class CoachingMaintenanceWorker {
@@ -91,7 +110,14 @@ export class CoachingMaintenanceWorker {
     const day = now.toISOString().slice(0, 10);
     if (day === this.lastDay) return null;
 
-    const result: CoachingHousekeepingResult = { prunedInvites: 0, prunedNotes: 0, prunedLinks: 0 };
+    const result: CoachingHousekeepingResult = {
+      prunedInvites: 0,
+      prunedNotes: 0,
+      prunedLinks: 0,
+      expiredRequests: 0,
+      prunedRequests: 0,
+      trainersRemoved: 0,
+    };
     let failed = false;
     const step = async (name: string, run: () => Promise<void>): Promise<void> => {
       try {
@@ -116,6 +142,26 @@ export class CoachingMaintenanceWorker {
       result.prunedLinks = await this.deps.links.deleteEndedBefore(
         monthsBefore(now, COACHING_RETENTION.endedLinkMonths),
       );
+    });
+
+    await step('expire requests', async () => {
+      result.expiredRequests = await this.deps.requests.expireDue({
+        source: 'web',
+        documentVersion: LEGAL_VERSIONS.privacy,
+        now,
+      });
+    });
+    await step('prune requests', async () => {
+      result.prunedRequests = await this.deps.requests.deleteAnsweredBefore(
+        daysBefore(now, COACHING_RETENTION.requestAfterAnswerDays),
+      );
+    });
+    await step('allowlist sweep', async () => {
+      for (const t of await this.deps.trainers.listActiveWithEmail()) {
+        if (await this.deps.enforceAllowlist({ id: t.userId, email: t.email })) {
+          result.trainersRemoved += 1;
+        }
+      }
     });
 
     if (!failed) this.lastDay = day;

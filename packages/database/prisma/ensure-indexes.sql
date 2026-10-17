@@ -9,3 +9,9 @@
 CREATE UNIQUE INDEX IF NOT EXISTS "coaching_links_one_active_trainer"
   ON "coaching_links" ("clientId")
   WHERE "status" = 'ACTIVE';
+
+-- WP-18 phase 1: a client has at most one PENDING coaching request. The request
+-- transaction expires a stale one first; this index is the backstop.
+CREATE UNIQUE INDEX IF NOT EXISTS "coaching_requests_one_pending"
+  ON "coaching_requests" ("clientId")
+  WHERE "status" = 'PENDING';

@@ -7,6 +7,7 @@ import {
   type CoachingAccess,
   type CoachingScope,
 } from '../application/coaching/coaching-access.service.js';
+import { trainerProfileService } from '../application/coaching/trainer-profile.service.js';
 import { coachingUnavailableError, trainerToolsOffError } from './coaching-errors.js';
 import { isCoachingEnabledFor } from './coaching-flags.js';
 import { protectedProcedure, type Context } from './trpc.js';
@@ -49,6 +50,9 @@ export const requireActiveTrainer: TRPCMiddlewareFunction<
   { trainerProfile: TrainerProfile; coachingMemo: CoachingAccessMemo },
   unknown
 > = async ({ ctx, next }) => {
+  // PRD 2026-10 §4.3: removed from TRAINER_ALLOWLIST = stops being a trainer
+  // (every coaching ends, clients are told). No query while the user is listed.
+  if (await trainerProfileService.enforceAllowlist(ctx.user)) throw trainerToolsOffError();
   const coachingMemo = new CoachingAccessMemo();
   const trainerProfile = await coachingAccessService.trainerProfile(ctx.user.id, coachingMemo);
   if (!trainerProfile) throw trainerToolsOffError();

@@ -31,6 +31,10 @@ import {
   coachingAttributionService,
   type CoachingAttributionService,
 } from '../coaching/coaching-attribution.service.js';
+import {
+  routineChangeNotifier,
+  type RoutineChangeNotifier,
+} from '../coaching/routine-change-notifier.js';
 import { notifyTargetsChanged } from '../targets/targets-changed.js';
 import { toRoutineDto } from './mappers.js';
 
@@ -88,6 +92,10 @@ export class RoutineService {
       CoachingAttributionService,
       'forRoutine'
     > = coachingAttributionService,
+    private readonly coachingNotifier: Pick<
+      RoutineChangeNotifier,
+      'coachingOf' | 'clientSaved'
+    > = routineChangeNotifier,
   ) {}
 
   async list(userId: string): Promise<RoutineListItemDto[]> {
@@ -223,6 +231,10 @@ export class RoutineService {
       throw new TRPCError({ code: 'BAD_REQUEST', message: `Unknown exercise: ${unknown}` });
     }
 
+    // A coached client's save becomes a card for their trainer (PRD 2026-10 §4.2).
+    const coaching = await this.coachingNotifier.coachingOf(userId);
+    const before = coaching ? await this.repo.findByIdForUser(userId, routine.id) : null;
+
     const res = await this.repo.replaceDocument(
       userId,
       routine.id,
@@ -256,6 +268,7 @@ export class RoutineService {
     }
     // Day rebalance: the active routine's weekdays are the plan's training days.
     if (res.routine.isActive) await notifyTargetsChanged(userId);
+    if (coaching && before) await this.coachingNotifier.clientSaved(coaching, before, res.routine);
     return this.toDto(res.routine, userId, level);
   }
 

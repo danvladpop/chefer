@@ -111,6 +111,7 @@ function makeWorld(
           ),
         ),
     },
+    { findMany: () => Promise.resolve([]) },
   );
   return { service: new FriendSearchService(profiles, follows, blocks, hydrator), profiles };
 }

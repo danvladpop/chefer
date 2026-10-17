@@ -284,6 +284,10 @@ export {
   notificationRepository,
   type INotificationRepository,
   type SocialNotificationData,
+  type CoachingNotificationData,
+  type CoachingNotificationKindDb,
+  SOCIAL_NOTIFICATION_KINDS,
+  COACHING_NOTIFICATION_KINDS,
 } from './notification.repository';
 
 export {
@@ -350,7 +354,23 @@ export {
   type JoinLinkData,
   type JoinLinkResult,
   type EndLinkData,
+  type CoachingTx,
+  type StartLinkData,
+  startLinkTx,
+  closePendingRequestsTx,
 } from './coaching-link.repository';
+
+export {
+  CoachingRequestRepository,
+  coachingRequestRepository,
+  type ICoachingRequestRepository,
+  type CoachingRequestWithClient,
+  type CreateRequestData,
+  type CreateRequestResult,
+  type AcceptRequestData,
+  type AcceptRequestResult,
+  type AnswerRequestData,
+} from './coaching-request.repository';
 
 export {
   CoachingNoteRepository,

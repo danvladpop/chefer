@@ -31,21 +31,21 @@ beforeEach(() => {
 describe('/register — onboardingV4 flag', () => {
   it('flag on renders the V4 account step', async () => {
     m.flags.mockResolvedValue({ onboardingV4: true });
-    render(await RegisterPage());
+    render(await RegisterPage({ searchParams: Promise.resolve({}) }));
     expect(screen.getByText('save your plan')).toBeTruthy();
     expect(screen.queryByText('current register form')).toBeNull();
   });
 
   it('flag off renders the current page', async () => {
     m.flags.mockResolvedValue({});
-    render(await RegisterPage());
+    render(await RegisterPage({ searchParams: Promise.resolve({}) }));
     expect(screen.getByText('current register form')).toBeTruthy();
     expect(screen.getByRole('heading', { name: 'Create your account' })).toBeTruthy();
   });
 
   it('a failed flag read keeps the current page', async () => {
     m.flags.mockRejectedValue(new Error('down'));
-    render(await RegisterPage());
+    render(await RegisterPage({ searchParams: Promise.resolve({}) }));
     expect(screen.getByText('current register form')).toBeTruthy();
   });
 });

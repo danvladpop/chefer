@@ -96,6 +96,12 @@ export interface RoutineAttribution {
   viewerId: string;
   /** Editor user id → display name (trainer display names). A missing id reads "your trainer". */
   names: ReadonlyMap<string, string>;
+  /**
+   * The viewer's CURRENT trainer (PRD 2026-10 §4.3). A stamp by anyone else, or
+   * by a deleted account, is marked `former` ("Ana (former trainer)").
+   * Undefined = not resolved (no `former` flags at all).
+   */
+  currentTrainerId?: string | null;
 }
 
 /** Ids of everyone other than `viewerId` who last edited the routine or one of its rows. */
@@ -121,7 +127,10 @@ function otherStamp(
 ): LastEditedByOtherDto | undefined {
   if (at === null || editorId === attribution.viewerId) return undefined;
   const name = editorId === null ? undefined : attribution.names.get(editorId);
-  return { name: name ?? FALLBACK_TRAINER_NAME, at: at.toISOString() };
+  const former =
+    attribution.currentTrainerId !== undefined &&
+    (editorId === null || editorId !== attribution.currentTrainerId);
+  return { name: name ?? FALLBACK_TRAINER_NAME, at: at.toISOString(), ...(former && { former }) };
 }
 
 export function toRoutineDto(row: RoutineWithDays, attribution?: RoutineAttribution): RoutineDto {

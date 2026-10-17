@@ -31,3 +31,13 @@ export function isCoachingEnabledFor(user: Pick<UserProfile, 'email'>): boolean 
 export function canBeTrainer(user: Pick<UserProfile, 'email'>): boolean {
   return isCoachingEnabledFor(user) && listed(env.TRAINER_ALLOWLIST, user.email);
 }
+
+/**
+ * Whether TRAINER_ALLOWLIST lists anyone at all. The allowlist sweep (a
+ * trainer removed from the list stops being a trainer, PRD 2026-10 §4.3) runs
+ * only then: an unset or emptied variable is a deploy mistake, and must never
+ * end every trainer's coaching.
+ */
+export function trainerAllowlistConfigured(): boolean {
+  return (env.TRAINER_ALLOWLIST?.size ?? 0) > 0;
+}

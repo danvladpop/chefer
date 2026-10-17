@@ -1,6 +1,7 @@
 import { TRPCError } from '@trpc/server';
 import { consentEventRepository, prisma, uploadedFileRepository } from '@chefer/database';
 import { COACHING_RETENTION } from '@chefer/types';
+import { trainerProfileService } from '../coaching/trainer-profile.service.js';
 import { displayNameOf } from '@chefer/utils';
 import { posthogAdmin } from '../../infrastructure/analytics/posthog-admin.js';
 import { deleteUploadedFiles } from '../../lib/uploads/uploaded-files.js';
@@ -410,6 +411,11 @@ export async function deleteAccount(userId: string): Promise<void> {
     // their stored Apple refresh tokens) now to revoke the grants after the commit.
     socialAuthService.identitiesForDeletion(userId),
   ]);
+
+  // PRD 2026-10 §4.3: a trainer deleting their account stops being a trainer
+  // first — every coaching ends and each client keeps a notice ("Your trainer
+  // stopped using Chefer"), written so it survives this account's cascade.
+  await trainerProfileService.deactivate(userId, 'web', { accountDeleted: true });
 
   await prisma.$transaction([
     prisma.shoppingList.deleteMany({ where: { planId: { in: planIds } } }),

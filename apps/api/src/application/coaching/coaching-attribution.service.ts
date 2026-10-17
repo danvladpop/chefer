@@ -1,5 +1,7 @@
 import {
+  coachingLinkRepository,
   trainerProfileRepository,
+  type ICoachingLinkRepository,
   type ITrainerProfileRepository,
   type RoutineWithDays,
 } from '@chefer/database';
@@ -12,7 +14,10 @@ import { otherEditorIds, type RoutineAttribution } from '../gym/mappers.js';
 // level nothing is resolved (and nothing is queried): the DTO mappers then emit
 // the legacy shape. The editors a client sees are trainers, so names come from
 // TrainerProfile.displayName (kept after trainer tools are turned off, so a
-// former trainer's "Changed by Ana" stays readable).
+// former trainer's "Changed by Ana" stays readable). A stamp by anyone who is
+// not the viewer's trainer NOW is flagged `former` (PRD 2026-10 §4.3): the
+// apps read it as "Ana (former trainer)", or "a former trainer" when the
+// account is gone.
 
 export class CoachingAttributionService {
   constructor(
@@ -20,6 +25,10 @@ export class CoachingAttributionService {
       ITrainerProfileRepository,
       'findMany'
     > = trainerProfileRepository,
+    private readonly links: Pick<
+      ICoachingLinkRepository,
+      'findActiveForClient'
+    > = coachingLinkRepository,
   ) {}
 
   /** The raw `x-chefer-api-level` understands the coaching fields (spec §10). */
@@ -42,7 +51,15 @@ export class CoachingAttributionService {
     level: number,
   ): Promise<RoutineAttribution | undefined> {
     if (!CoachingAttributionService.understandsCoaching(level)) return undefined;
-    return { viewerId, names: await this.names(otherEditorIds(row, viewerId)) };
+    const editors = otherEditorIds(row, viewerId);
+    const hasStamps =
+      row.lastEditedAt !== null || row.days.some((d) => d.exercises.some((e) => e.lastEditedAt));
+    const [names, link] = await Promise.all([
+      this.names(editors),
+      // Only a routine someone else stamped needs to know who coaches the viewer now.
+      hasStamps ? this.links.findActiveForClient(viewerId) : Promise.resolve(null),
+    ]);
+    return { viewerId, names, currentTrainerId: link?.trainerId ?? null };
   }
 }
 

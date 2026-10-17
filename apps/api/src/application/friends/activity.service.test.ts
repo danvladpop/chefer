@@ -58,7 +58,7 @@ function hydratorWith(users: SocialUserRow[], edges: Follow[]) {
       ),
     ),
   };
-  return { hydrator: new FriendSummaryHydrator(profiles, follows), profiles, follows };
+  return { hydrator: new FriendSummaryHydrator(profiles, follows, { findMany: () => Promise.resolve([]) }), profiles, follows };
 }
 
 function notificationRepo(rows: Notification[]): ActivityNotificationRepository & {

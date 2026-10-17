@@ -35,6 +35,7 @@ import { progressionService, type ProgressionService } from '../gym/progression.
 import { templateToDays } from '../gym/routine.service.js';
 import type { CoachingAccess } from './coaching-access.service.js';
 import { coachingContentService, type CoachingContentService } from './coaching-content.service.js';
+import { routineChangeNotifier, type RoutineChangeNotifier } from './routine-change-notifier.js';
 
 // ─── Trainer coaching: the trainer's writes (spec §5.3, §6, §7.2) ─────────────
 // The only two write paths into a client's data: the routine document and
@@ -56,6 +57,7 @@ export interface TrainerRoutineDeps {
   content: Pick<CoachingContentService, 'routineDto' | 'nextTarget' | 'conflictDto'>;
   progression: Pick<ProgressionService, 'setOverride' | 'clearOverride'>;
   ensureLibrary: () => Promise<void>;
+  notifier: Pick<RoutineChangeNotifier, 'trainerSaved' | 'trainerCreated'>;
   now: () => Date;
 }
 
@@ -66,6 +68,7 @@ const defaultDeps: TrainerRoutineDeps = {
   content: coachingContentService,
   progression: progressionService,
   ensureLibrary: ensureExerciseLibrary,
+  notifier: routineChangeNotifier,
   now: () => new Date(),
 };
 
@@ -147,6 +150,8 @@ export class TrainerRoutineService {
         cause: new ConflictCause({ kind: 'routine', current }),
       });
     }
+    // PRD 2026-10 §4.2: the client's "<Trainer> updated your routine" card.
+    await this.deps.notifier.trainerSaved(clientId, trainerId, active, res.routine);
     return this.deps.content.routineDto(res.routine, link, clientId, today);
   }
 
@@ -183,6 +188,7 @@ export class TrainerRoutineService {
       isActive: true,
       editedBy: { id: trainerId, at: now },
     });
+    await this.deps.notifier.trainerCreated(clientId, trainerId);
     return this.deps.content.routineDto(row, link, clientId, serverToday(now));
   }
 

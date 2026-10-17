@@ -1,6 +1,7 @@
 import {
   clientIdInputSchema,
   clientsListInputSchema,
+  coachingRequestIdInputSchema,
   COACHING_LIMITS,
   createInviteInputSchema,
   revokeInviteInputSchema,
@@ -8,6 +9,7 @@ import {
 } from '@chefer/types';
 import { coachingInviteService } from '../../application/coaching/coaching-invite.service.js';
 import { coachingLinkService } from '../../application/coaching/coaching-link.service.js';
+import { coachingRequestService } from '../../application/coaching/coaching-request.service.js';
 import { trainerProfileService } from '../../application/coaching/trainer-profile.service.js';
 import {
   coachingProcedure,
@@ -53,6 +55,21 @@ export const trainerClientsRouter = router({
     ),
 });
 
+/** Coaching requests from clients (PRD 2026-10 §4.1): accept starts the coaching, decline tells the client. */
+export const trainerRequestsRouter = router({
+  list: trainerProcedure.query(({ ctx }) => coachingRequestService.listForTrainer(ctx.user.id)),
+  accept: trainerProcedure
+    .input(coachingRequestIdInputSchema)
+    .mutation(({ ctx, input }) =>
+      coachingRequestService.accept(ctx.user.id, input.requestId, sourceOf(ctx)),
+    ),
+  decline: trainerProcedure
+    .input(coachingRequestIdInputSchema)
+    .mutation(({ ctx, input }) =>
+      coachingRequestService.decline(ctx.user.id, input.requestId, sourceOf(ctx)),
+    ),
+});
+
 export const trainerProfileRouter = router({
   /** A non-trainer can ask (coachingProcedure): `canActivate` says whether the button shows. */
   status: coachingProcedure.query(({ ctx }) => trainerProfileService.status(ctx.user)),
@@ -67,4 +84,5 @@ export const trainerProfileRouter = router({
   ),
   invites: trainerInvitesRouter,
   clients: trainerClientsRouter,
+  requests: trainerRequestsRouter,
 });

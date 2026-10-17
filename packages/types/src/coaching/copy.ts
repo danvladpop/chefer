@@ -9,6 +9,8 @@
 // (spec §8.2): change it only together with the privacy policy, and bump
 // LEGAL_VERSIONS.privacy (owner action).
 
+import type { RoutineChange } from './dto';
+
 /** Shown instead of a trainer's name when that account is gone ("Changed by your trainer"). */
 export const FALLBACK_TRAINER_NAME = 'your trainer';
 
@@ -159,6 +161,73 @@ export const COACHING_COPY = {
     saveConflict: (client: string) => `${client} changed this routine while you were editing`,
   },
 
+  // ─── Find a trainer and coaching requests (PRD 2026-10 §4.1) ────────────────
+  find: {
+    title: 'Find a trainer',
+    entry: 'Find a trainer',
+    entryHint: 'Your trainer uses Chefer? Find them by name.',
+    searchLabel: 'Search trainers by name',
+    searchPlaceholder: 'Trainer’s name',
+    tooShort: 'Type at least 2 letters.',
+    empty: 'No trainers found. Check the spelling, or ask your trainer for an invite link.',
+    badge: 'Trainer',
+    notTaking: 'Not taking new clients',
+    unverified: 'Chefer does not verify trainers’ credentials.',
+  },
+  request: {
+    ask: 'Ask to coach me',
+    askTitle: (trainer: string) => `Ask ${trainer} to coach you?`,
+    sendConsent: 'Allow and send request',
+    sent: (trainer: string) => `Request sent to ${trainer}`,
+    pending: (trainer: string) => `Waiting for ${trainer} to answer`,
+    expires: (date: string) => `Expires ${date}`,
+    cancel: 'Cancel request',
+    cancelled: 'Request cancelled',
+    switchNote: (current: string, trainer: string) =>
+      `This ends your coaching with ${current} when ${trainer} accepts.`,
+    otherPending: (trainer: string) =>
+      `You already asked ${trainer}. Cancel that request first.`,
+    yourTrainer: (trainer: string) => `${trainer} is your trainer.`,
+    noFollow: 'Asking doesn’t follow them or make your profile public.',
+    // Trainer side
+    listTitle: 'Requests',
+    fromClient: (client: string) => `${client} asked you to coach them`,
+    hasTrainer: 'Has a trainer now: accepting ends that coaching.',
+    accept: 'Accept',
+    decline: 'Decline',
+    accepted: (client: string) => `You now coach ${client}`,
+    declined: 'Request declined',
+  },
+
+  // ─── Coaching notices (PRD 2026-10 §4.2, §4.3) ──────────────────────────────
+  notices: {
+    routineUpdated: (name: string) => `${name} updated your routine`,
+    clientUpdated: (client: string) => `${client} changed their routine`,
+    requestReceived: (client: string) => `${client} asked you to coach them`,
+    requestAccepted: (trainer: string) => `${trainer} is now your trainer`,
+    requestDeclined: (trainer: string) => `${trainer} can’t take you on right now`,
+    endedByTrainer: (trainer: string) =>
+      `${trainer} stopped coaching you. Your routine stays yours.`,
+    endedByClient: (client: string) => `${client} left. Their routine stays theirs.`,
+    trainerGone: 'Your trainer stopped using Chefer. Your routine stays yours.',
+    view: 'View',
+    dismiss: 'Dismiss',
+  },
+
+  // ─── Trainer stops / profile (PRD 2026-10 §4.1, §4.3) ───────────────────────
+  trainerProfile: {
+    gymLine: 'Gym / city (optional)',
+    gymLineHint: 'Shown under your name, for example “Iron Gym, Cluj”.',
+    findableNote:
+      'Turning this on also turns on a private Following profile, so clients can find you by name. Your plan and workouts stay hidden.',
+    turnOffWithClients: (n: number) =>
+      n === 1
+        ? 'Your 1 client loses you as their trainer at once and keeps their routine.'
+        : `Your ${n} clients lose you as their trainer at once and keep their routines.`,
+    endCoaching: 'End coaching',
+    feedback: 'Send feedback',
+  },
+
   // ─── Server messages (BAD_REQUEST etc. shown as is by older clients) ────────
   server: {
     clientUnavailable: 'This client isn’t available',
@@ -177,8 +246,56 @@ export const COACHING_COPY = {
     routineSwitched: 'The client switched to a different routine. Reload to see it.',
     exerciseNotInRoutine: 'That exercise isn’t in the client’s active routine.',
     tooManyAttempts: 'Too many attempts. Please wait a while and try again.',
+    trainerUnavailable: 'This trainer isn’t available',
+    requestUnavailable: 'This request isn’t available',
+    notTakingClients: 'This trainer isn’t taking new clients.',
+    alreadyYourTrainer: 'This is already your trainer.',
+    requestPendingElsewhere: 'You already have a pending request. Cancel it first.',
   },
 } as const;
+
+/**
+ * Who an edit stamp names: "Ana", "Ana (former trainer)", or "a former trainer"
+ * when the account is gone. Used by "Changed by …" and "Set by …".
+ */
+export function editorLabel(stamp: { name: string; former?: boolean | undefined }): string {
+  if (!stamp.former) return stamp.name;
+  if (stamp.name === FALLBACK_TRAINER_NAME || stamp.name.trim() === '') return 'a former trainer';
+  return `${stamp.name} (former trainer)`;
+}
+
+/** "3×8" / "3×8–10": a routine row's sets and reps in a change line. */
+export function setsRepsLabel(sets: number, repMin: number, repMax: number): string {
+  return repMin === repMax ? `${sets}×${repMin}` : `${sets}×${repMin}–${repMax}`;
+}
+
+/** One change in plain words: "+ Romanian deadlift", "Squat 3×8 → 4×6", "note on Bench press". */
+export function routineChangeText(change: RoutineChange): string {
+  switch (change.kind) {
+    case 'added':
+      return `+ ${change.exercise}`;
+    case 'removed':
+      return `− ${change.exercise}`;
+    case 'changed':
+      return `${change.exercise} ${change.from} → ${change.to}`;
+    case 'note':
+      return `note on ${change.exercise}`;
+    case 'schedule':
+      return 'days changed';
+    case 'created':
+      return 'new routine';
+  }
+}
+
+/** The whole card line: "+ Romanian deadlift · Squat 3×8 → 4×6 · note on Bench press · + 2 more". */
+export function routineChangesLine(
+  changes: readonly RoutineChange[],
+  max = 4,
+): string {
+  const shown = changes.slice(0, max).map(routineChangeText);
+  const more = changes.length - shown.length;
+  return [...shown, ...(more > 0 ? [`+ ${more} more`] : [])].join(' · ');
+}
 
 /** The trainer's display name for a client-facing line, or the fallback when it is gone. */
 export function trainerNameOrFallback(name: string | null | undefined): string {

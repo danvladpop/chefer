@@ -1,4 +1,4 @@
-import type { Notification, NotificationKind } from '@prisma/client';
+import { Prisma, type Notification, type NotificationKind } from '@prisma/client';
 import { prisma } from '../client';
 import type { SocialDbClient, SocialKeysetCursor } from './social-profile.repository';
 
@@ -6,6 +6,39 @@ import type { SocialDbClient, SocialKeysetCursor } from './social-profile.reposi
 // One row per (recipient, kind, actor): re-sending a request upserts the row
 // (fresh createdAt, unread again) instead of stacking duplicates. No push and
 // no email (PRD §12) — this table is the whole mechanism.
+
+/**
+ * Following's kinds: the only ones `list` / `unreadCount` / `markReadUpTo` and
+ * Following's turn-off touch, so a shipped app's Activity inbox never meets a
+ * kind it does not know.
+ */
+export const SOCIAL_NOTIFICATION_KINDS = [
+  'FOLLOW_REQUEST',
+  'NEW_FOLLOWER',
+  'REQUEST_ACCEPTED',
+] as const satisfies readonly NotificationKind[];
+
+/** Trainer coaching's kinds (PRD 2026-10 §4.2): read only through `listCoaching`. */
+export const COACHING_NOTIFICATION_KINDS = [
+  'COACHING_REQUEST',
+  'COACHING_REQUEST_ACCEPTED',
+  'COACHING_REQUEST_DECLINED',
+  'COACHING_ROUTINE_UPDATED',
+  'COACHING_ENDED',
+] as const satisfies readonly NotificationKind[];
+export type CoachingNotificationKindDb = (typeof COACHING_NOTIFICATION_KINDS)[number];
+
+const SOCIAL_KIND_FILTER = { in: [...SOCIAL_NOTIFICATION_KINDS] };
+
+export interface CoachingNotificationData {
+  /** Recipient. */
+  userId: string;
+  kind: CoachingNotificationKindDb;
+  /** The other person; the recipient themself when the other account is being deleted. */
+  actorId: string;
+  /** What the card renders (JSON). */
+  payload: Prisma.InputJsonValue;
+}
 
 export interface SocialNotificationData {
   /** Recipient. */
@@ -33,6 +66,22 @@ export interface INotificationRepository {
   markReadUpTo(userId: string, upTo: Date): Promise<number>;
   /** Retention (FRIENDS_LIMITS.activityRetentionDays). */
   deleteOlderThan(date: Date): Promise<number>;
+
+  // ─── Trainer coaching (PRD 2026-10 §4.2) ───
+  /** The (userId, kind, actorId) row, read or not: a new routine change folds into its payload while unread. */
+  findCoaching(
+    userId: string,
+    kind: CoachingNotificationKindDb,
+    actorId: string,
+  ): Promise<Notification | null>;
+  /** Create, or refresh the (userId, kind, actorId) row: new payload, createdAt = now, unread. */
+  upsertCoaching(data: CoachingNotificationData): Promise<Notification>;
+  /** The recipient's coaching notices: unread ones, and read ones created at or after `since`. Newest first. */
+  listCoaching(userId: string, since: Date, limit: number): Promise<Notification[]>;
+  /** Marks one of the recipient's coaching notices read. False when it isn't theirs. */
+  markCoachingRead(userId: string, id: string): Promise<boolean>;
+  /** Withdraws one coaching notice (a cancelled request disappears from the trainer's list). */
+  withdrawCoaching(userId: string, kind: CoachingNotificationKindDb, actorId: string): Promise<number>;
 }
 
 export class NotificationRepository implements INotificationRepository {
@@ -78,6 +127,7 @@ export class NotificationRepository implements INotificationRepository {
     return prisma.notification.findMany({
       where: {
         userId,
+        kind: SOCIAL_KIND_FILTER,
         ...(cursor && {
           OR: [
             { createdAt: { lt: cursor.createdAt } },
@@ -91,12 +141,12 @@ export class NotificationRepository implements INotificationRepository {
   }
 
   async unreadCount(userId: string): Promise<number> {
-    return prisma.notification.count({ where: { userId, readAt: null } });
+    return prisma.notification.count({ where: { userId, readAt: null, kind: SOCIAL_KIND_FILTER } });
   }
 
   async markReadUpTo(userId: string, upTo: Date): Promise<number> {
     const { count } = await prisma.notification.updateMany({
-      where: { userId, readAt: null, createdAt: { lte: upTo } },
+      where: { userId, readAt: null, createdAt: { lte: upTo }, kind: SOCIAL_KIND_FILTER },
       data: { readAt: new Date() },
     });
     return count;
@@ -104,6 +154,56 @@ export class NotificationRepository implements INotificationRepository {
 
   async deleteOlderThan(date: Date): Promise<number> {
     const { count } = await prisma.notification.deleteMany({ where: { createdAt: { lt: date } } });
+    return count;
+  }
+
+  async findCoaching(
+    userId: string,
+    kind: CoachingNotificationKindDb,
+    actorId: string,
+  ): Promise<Notification | null> {
+    return prisma.notification.findUnique({
+      where: { userId_kind_actorId: { userId, kind, actorId } },
+    });
+  }
+
+  async upsertCoaching(data: CoachingNotificationData): Promise<Notification> {
+    const { userId, kind, actorId, payload } = data;
+    return prisma.notification.upsert({
+      where: { userId_kind_actorId: { userId, kind, actorId } },
+      create: { userId, kind, actorId, payload },
+      update: { payload, createdAt: new Date(), readAt: null },
+    });
+  }
+
+  async listCoaching(userId: string, since: Date, limit: number): Promise<Notification[]> {
+    return prisma.notification.findMany({
+      where: {
+        userId,
+        kind: { in: [...COACHING_NOTIFICATION_KINDS] },
+        OR: [{ readAt: null }, { createdAt: { gte: since } }],
+      },
+      orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+      take: limit,
+    });
+  }
+
+  async markCoachingRead(userId: string, id: string): Promise<boolean> {
+    const { count } = await prisma.notification.updateMany({
+      where: { id, userId, kind: { in: [...COACHING_NOTIFICATION_KINDS] }, readAt: null },
+      data: { readAt: new Date() },
+    });
+    if (count > 0) return true;
+    // Already read is fine; someone else's id is not.
+    return (await prisma.notification.count({ where: { id, userId } })) > 0;
+  }
+
+  async withdrawCoaching(
+    userId: string,
+    kind: CoachingNotificationKindDb,
+    actorId: string,
+  ): Promise<number> {
+    const { count } = await prisma.notification.deleteMany({ where: { userId, kind, actorId } });
     return count;
   }
 }

@@ -30,6 +30,12 @@ export interface TrainerStatusDto {
   /** An active TrainerProfile exists. */
   active: boolean;
   displayName: string | null;
+  /** Additive (2026-10-17): the optional "Gym / city" line under the name. */
+  gymLine?: string | null;
+  /** Additive (2026-10-17): active clients now; "Turn off" names this number first. */
+  activeClients?: number;
+  /** Additive (2026-10-17): Following is on, so clients can find this trainer by name. */
+  findable?: boolean;
 }
 
 export type InviteState = 'OPEN' | 'USED' | 'EXPIRED' | 'REVOKED';
@@ -243,10 +249,109 @@ export interface InvitePreviewDto {
 
 export interface CoachingStatusDto {
   trainer: { name: string; since: string } | null;
+  /** Additive (2026-10-17): the client's pending coaching request, if any. */
+  request?: CoachingRequestDto | null;
   /**
    * The trainer ended the link (removed the client or turned trainer tools off)
    * in the last COACHING_LIMITS.stoppedNoticeDays days and the client has no
    * trainer now: "Ana stopped coaching you".
    */
   stopped: { trainerName: string; at: string } | null;
+}
+
+// ─── Find a trainer and coaching requests (PRD 2026-10 §4.1) ──────────────────
+
+/** One result of Find a trainer: never an email, never a photo of the client side. */
+export interface TrainerSummaryDto {
+  trainerId: string;
+  /** TrainerProfile.displayName ("Ana"). */
+  name: string;
+  /** "Gym / city", to tell apart six people called Ana. */
+  gymLine: string | null;
+  /** False at COACHING_LIMITS.maxActiveClients: the profile shows "Not taking new clients". */
+  acceptingClients: boolean;
+}
+
+export type TrainerRelation =
+  /** No coaching and no request to this trainer. */
+  | 'NONE'
+  /** This trainer coaches the viewer now. */
+  | 'YOUR_TRAINER'
+  /** The viewer's pending request is to this trainer. */
+  | 'REQUESTED';
+
+/** `coaching.trainerCard`: what the trainer profile screen needs before "Ask to coach me". */
+export interface TrainerCardDto extends TrainerSummaryDto {
+  relation: TrainerRelation;
+  /** The viewer's current trainer when it is someone else: "This ends your coaching with Ana when Mihai accepts." */
+  currentTrainerName: string | null;
+  /** The viewer's pending request to ANOTHER trainer (one at a time): cancel it first. */
+  pendingRequestTo: string | null;
+  /** The viewer has not finished gym setup (simple mode counts): it must run first. */
+  needsGymSetup: boolean;
+}
+
+/** The client's pending request (`coaching.status.request`). */
+export interface CoachingRequestDto {
+  id: string;
+  trainer: { id: string; name: string };
+  createdAt: string;
+  expiresAt: string;
+}
+
+/** One pending request in the trainer's list. */
+export interface TrainerRequestDto {
+  id: string;
+  client: { id: string; name: string };
+  createdAt: string;
+  expiresAt: string;
+  /** The client has another trainer now: accepting ends that coaching. */
+  hasTrainer: boolean;
+}
+
+// ─── Coaching notices (PRD 2026-10 §4.2, §4.3) ────────────────────────────────
+
+/**
+ * One change in a "<Trainer> updated your routine" card, in plain words:
+ * "+ Romanian deadlift · Squat 3×8 → 4×6 · note on Bench press".
+ * `exercise` is the exercise name at the time of the change.
+ */
+export type RoutineChange =
+  | { kind: 'added'; exercise: string }
+  | { kind: 'removed'; exercise: string }
+  /** `from` / `to` are "3×8" or "3×8–10". */
+  | { kind: 'changed'; exercise: string; from: string; to: string }
+  | { kind: 'note'; exercise: string }
+  /** Days added, removed, renamed or moved to another weekday. */
+  | { kind: 'schedule' }
+  /** The trainer set up a routine for a client who had none. */
+  | { kind: 'created' };
+
+export type CoachingNoticeKind =
+  /** Trainer: a client asked to be coached. */
+  | 'REQUEST_RECEIVED'
+  /** Client: the trainer accepted the request. */
+  | 'REQUEST_ACCEPTED'
+  /** Client: the trainer declined the request. */
+  | 'REQUEST_DECLINED'
+  /** Either side: the other one changed the client's routine. */
+  | 'ROUTINE_UPDATED'
+  /** Either side: the coaching ended (the other side ended it, or the trainer stopped being a trainer). */
+  | 'COACHING_ENDED';
+
+export interface CoachingNoticeDto {
+  id: string;
+  kind: CoachingNoticeKind;
+  /** ISO date-time of the (latest) event. */
+  at: string;
+  read: boolean;
+  /**
+   * The other person. `id` is null when their account is gone; `name` is then
+   * FALLBACK_TRAINER_NAME. `role` is what they are to the viewer.
+   */
+  other: { id: string | null; name: string; role: 'TRAINER' | 'CLIENT' };
+  /** ROUTINE_UPDATED only: every change since the viewer last dismissed the card, oldest first. */
+  changes?: RoutineChange[];
+  /** COACHING_ENDED only: who ended it. SYSTEM = trainer tools off, removed from the allowlist, or account deleted. */
+  endedBy?: 'CLIENT' | 'TRAINER' | 'SYSTEM';
 }

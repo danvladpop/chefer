@@ -261,6 +261,8 @@ model User {
   coachingNotesWritten   CoachingNote[]    @relation("CoachingNotesWritten")
   coachingNotesAbout     CoachingNote[]    @relation("CoachingNotesAbout")
   routinesEdited         Routine[]         @relation("RoutineEditedBy")
+  coachingRequestsMade   CoachingRequest[] @relation("CoachingRequestsMade")
+  coachingRequestsGot    CoachingRequest[] @relation("CoachingRequestsGot")
   routineExercisesEdited RoutineExercise[] @relation("RoutineExerciseEditedBy")
 
   // Phase 1 guardrails: the ledger of photos this user uploaded
@@ -1589,6 +1591,13 @@ enum NotificationKind {
   FOLLOW_REQUEST
   NEW_FOLLOWER
   REQUEST_ACCEPTED
+  // Trainer coaching (WP-18 phase 1, PRD §4.1–§4.3). Never listed by friends.activity
+  // (COACHING_NOTIFICATION_KINDS in @chefer/types); read through coaching.notices.
+  COACHING_REQUEST // trainer ← client asked to be coached
+  COACHING_REQUEST_ACCEPTED // client ← trainer accepted
+  COACHING_REQUEST_DECLINED // client ← trainer declined
+  COACHING_ROUTINE_UPDATED // the other side changed the client's routine; payload = the changes
+  COACHING_ENDED // the other side (or the system) ended the coaching; payload = { by, trainerName }
 }
 
 enum ReportReason {
@@ -1730,6 +1739,8 @@ model Notification {
   actorId   String
   createdAt DateTime         @default(now())
   readAt    DateTime?
+  /// Coaching kinds only: what the card renders (routine changes, who ended it). Social kinds leave it null.
+  payload   Json?
 
   user  User @relation("NotificationsReceived", fields: [userId], references: [id], onDelete: Cascade)
   actor User @relation("NotificationsCaused", fields: [actorId], references: [id], onDelete: Cascade)
@@ -1750,6 +1761,7 @@ model Notification {
 model TrainerProfile {
   userId      String    @id
   displayName String // shown to clients ("Ana"); word-filtered like Following names
+  gymLine     String? // optional "Gym / city" line under the name (PRD §4.1), word-filtered, max 60
   activatedAt DateTime  @default(now())
   disabledAt  DateTime? // turned off: every link ENDED, invites revoked
 
@@ -1797,6 +1809,7 @@ model CoachingLink {
   clientId     String
   status       CoachingLinkStatus @default(ACTIVE)
   inviteCode   String? // provenance, no FK (invites are pruned)
+  requestId    String? // provenance when it started from a coaching request (no FK, requests are pruned)
   trainerLabel String? // copied from the invite, trainer-private
   startedAt    DateTime           @default(now())
   startedOn    String? // the client's device-local YYYY-MM-DD at join; null on links that predate it or joins without `localDate`
@@ -1809,6 +1822,36 @@ model CoachingLink {
   @@index([trainerId, status])
   @@index([clientId, status])
   @@map("coaching_links")
+}
+
+enum CoachingRequestStatus {
+  PENDING
+  ACCEPTED
+  DECLINED
+  CANCELLED
+  EXPIRED
+}
+
+/// A client's ask to be coached (PRD §4.1, "Coaching request"). Never creates a follow.
+/// One PENDING request per client: raw-SQL partial unique index (ensure-indexes.sql):
+///   CREATE UNIQUE INDEX coaching_requests_one_pending ON coaching_requests ("clientId") WHERE status = 'PENDING';
+/// A PENDING row past `expiresAt` reads as EXPIRED and is flipped before the client's next request.
+model CoachingRequest {
+  id          String                @id @default(cuid())
+  clientId    String
+  trainerId   String
+  status      CoachingRequestStatus @default(PENDING)
+  createdAt   DateTime              @default(now())
+  expiresAt   DateTime // createdAt + 14 days
+  respondedAt DateTime? // accepted / declined / cancelled / expired
+  startedOn   String? // the client's device-local YYYY-MM-DD when asking; anchors the coaching's start if accepted
+
+  client  User @relation("CoachingRequestsMade", fields: [clientId], references: [id], onDelete: Cascade)
+  trainer User @relation("CoachingRequestsGot", fields: [trainerId], references: [id], onDelete: Cascade)
+
+  @@index([trainerId, status, createdAt])
+  @@index([clientId, status])
+  @@map("coaching_requests")
 }
 
 /// The trainer's private note about one client. Never shown to the client, never

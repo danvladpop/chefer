@@ -45,7 +45,18 @@ export const trainerDisplayNameSchema = z
   .min(1)
   .max(COACHING_LIMITS.displayNameMaxChars);
 
-export const trainerProfileInputSchema = z.object({ displayName: trainerDisplayNameSchema });
+/** The optional "Gym / city" line (PRD §4.1). Empty or null clears it. */
+export const trainerGymLineSchema = z
+  .string()
+  .trim()
+  .max(COACHING_LIMITS.gymLineMaxChars)
+  .nullable();
+
+export const trainerProfileInputSchema = z.object({
+  displayName: trainerDisplayNameSchema,
+  /** Additive (2026-10-17): omitted = unchanged. */
+  gymLine: trainerGymLineSchema.optional(),
+});
 export type TrainerProfileInput = z.infer<typeof trainerProfileInputSchema>;
 
 export const createInviteInputSchema = z.object({
@@ -171,3 +182,33 @@ export const joinInputSchema = z.object({
   localDate: localDateSchema.optional(),
 });
 export const leaveInputSchema = z.object({ source: coachingSourceSchema.optional() }).optional();
+
+// ─── Find a trainer and coaching requests (PRD 2026-10 §4.1) ──────────────────
+
+/** `coaching.findTrainers`: by NAME only (never email), like `friends.search`. */
+export const findTrainersInputSchema = z.object({
+  query: z.string().trim().min(2).max(100),
+  cursor: z.string().max(20).optional(),
+  limit: z.number().int().min(1).max(COACHING_LIMITS.findTrainersPageSize).default(20),
+});
+
+/** `coaching.trainerCard` / `coaching.requestCoaching`: the trainer's user id. */
+export const trainerIdInputSchema = z.object({ trainerId: coachingClientIdSchema });
+
+export const requestCoachingInputSchema = z.object({
+  trainerId: coachingClientIdSchema,
+  source: coachingSourceSchema.optional(),
+  /** The client's device-local date when asking: anchors the coaching's start if the trainer accepts. */
+  localDate: localDateSchema.optional(),
+});
+
+export const cancelCoachingRequestInputSchema = z
+  .object({ source: coachingSourceSchema.optional() })
+  .optional();
+
+/** `trainer.requests.accept` / `decline`. */
+export const coachingRequestIdInputSchema = z.object({ requestId: z.string().min(1).max(64) });
+
+// ─── Coaching notices (PRD 2026-10 §4.2) ──────────────────────────────────────
+
+export const dismissCoachingNoticeInputSchema = z.object({ id: z.string().min(1).max(64) });

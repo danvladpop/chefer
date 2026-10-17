@@ -74,8 +74,13 @@ function setup() {
       level >= 6 ? { viewerId, names: new Map([['ctrainer', 'Ana']]) } : undefined,
     ),
   };
+  // Not coached: no "updated your routine" card is written.
+  const notifier = {
+    coachingOf: vi.fn().mockResolvedValue(null),
+    clientSaved: vi.fn().mockResolvedValue(undefined),
+  };
   return {
-    service: new RoutineService(repo, exerciseRepo, profileRepo, ensure, attribution),
+    service: new RoutineService(repo, exerciseRepo, profileRepo, ensure, attribution, notifier),
     repo,
     ensure,
     attribution,

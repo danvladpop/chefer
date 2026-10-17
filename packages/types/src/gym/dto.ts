@@ -82,6 +82,12 @@ export interface LastEditedByOtherDto {
   name: string;
   /** ISO date-time of the change. */
   at: string;
+  /**
+   * Additive (2026-10-17): the editor no longer coaches the viewer (or the
+   * account is gone). Read through `editorLabel` (@chefer/types):
+   * "Ana (former trainer)" / "a former trainer".
+   */
+  former?: boolean;
 }
 
 export interface RoutineExerciseDto {

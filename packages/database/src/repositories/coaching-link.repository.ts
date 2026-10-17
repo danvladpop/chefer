@@ -1,4 +1,9 @@
-import { Prisma, type CoachingEndedBy, type CoachingLink } from '@prisma/client';
+import {
+  Prisma,
+  type CoachingEndedBy,
+  type CoachingLink,
+  type CoachingRequest,
+} from '@prisma/client';
 import { prisma } from '../client';
 
 // ─── Trainer coaching: links (docs/trainer-platform/spec.md §5.1, §8) ─────────
@@ -56,6 +61,8 @@ export interface ICoachingLinkRepository {
   /** The trainer's ACTIVE links with each client's name columns, oldest first. */
   listActiveForTrainer(trainerId: string): Promise<ActiveLinkWithClient[]>;
   countActiveForTrainer(trainerId: string): Promise<number>;
+  /** ACTIVE client counts per trainer (missing = 0). */
+  countActiveForTrainers(trainerIds: readonly string[]): Promise<Map<string, number>>;
   /** The client's most recent link ended by the TRAINER or SYSTEM at or after `since`. */
   findLatestStoppedForClient(clientId: string, since: Date): Promise<CoachingLink | null>;
   /**
@@ -72,6 +79,151 @@ export interface ICoachingLinkRepository {
   end(data: EndLinkData): Promise<CoachingLink | null>;
   /** Maintenance: deletes ENDED links that ended before `cutoff`. */
   deleteEndedBefore(cutoff: Date): Promise<number>;
+}
+
+/** The transaction client handed to `prisma.$transaction(async (tx) => …)`. */
+export type CoachingTx = Prisma.TransactionClient;
+
+export interface StartLinkData {
+  trainerId: string;
+  clientId: string;
+  inviteCode: string | null;
+  requestId: string | null;
+  trainerLabel: string | null;
+  startedOn: string | null;
+  source: string;
+  documentVersion: string;
+  now: Date;
+  /**
+   * An invite join records the client's consent now (`contextId` = the link).
+   * An accepted coaching request does not: the client consented when sending
+   * it (`contextId` = the request), and the link keeps `requestId`.
+   */
+  writeGrantedEvent: boolean;
+}
+
+/**
+ * Inside a transaction: ends the client's other ACTIVE link (a switch: `CLIENT`,
+ * withdrawn event, note hidden) BEFORE creating the new one, so the partial
+ * unique index never trips for it; creates the link; un-hides an earlier note
+ * of this pair (the 30-day reconnection window). Shared by invite joins and
+ * accepted coaching requests.
+ */
+export async function startLinkTx(
+  tx: CoachingTx,
+  data: StartLinkData,
+): Promise<{ link: CoachingLink; endedLinks: CoachingLink[] }> {
+  const previous = await tx.coachingLink.findMany({
+    where: { clientId: data.clientId, status: 'ACTIVE' },
+  });
+  if (previous.length > 0) {
+    await tx.coachingLink.updateMany({
+      where: { id: { in: previous.map((l) => l.id) } },
+      data: { status: 'ENDED', endedAt: data.now, endedBy: 'CLIENT' },
+    });
+    await tx.consentEvent.createMany({
+      data: previous.map((l) => ({
+        userId: data.clientId,
+        kind: 'COACHING_SHARING' as const,
+        granted: false,
+        providers: [],
+        documentVersion: data.documentVersion,
+        source: data.source,
+        contextId: l.id,
+        createdAt: data.now,
+      })),
+    });
+    for (const l of previous) {
+      await tx.coachingNote.updateMany({
+        where: { trainerId: l.trainerId, clientId: l.clientId, hiddenAt: null },
+        data: { hiddenAt: data.now },
+      });
+    }
+  }
+
+  // Coaching started some other way (an invite, or the trainer accepted this
+  // request, already marked ACCEPTED): any other pending request is moot.
+  await closePendingRequestsTx(tx, {
+    clientId: data.clientId,
+    status: 'CANCELLED',
+    source: data.source,
+    documentVersion: data.documentVersion,
+    now: data.now,
+  });
+
+  const link = await tx.coachingLink.create({
+    data: {
+      trainerId: data.trainerId,
+      clientId: data.clientId,
+      inviteCode: data.inviteCode,
+      requestId: data.requestId,
+      trainerLabel: data.trainerLabel,
+      startedAt: data.now,
+      startedOn: data.startedOn,
+    },
+  });
+  if (data.writeGrantedEvent) {
+    await tx.consentEvent.create({
+      data: {
+        userId: data.clientId,
+        kind: 'COACHING_SHARING',
+        granted: true,
+        providers: [],
+        documentVersion: data.documentVersion,
+        source: data.source,
+        contextId: link.id,
+        createdAt: data.now,
+      },
+    });
+  }
+  // The same pair within the retention window gets its private note back.
+  await tx.coachingNote.updateMany({
+    where: { trainerId: data.trainerId, clientId: data.clientId, hiddenAt: { not: null } },
+    data: { hiddenAt: null },
+  });
+  return { link, endedLinks: previous };
+}
+
+/**
+ * Inside a transaction: closes PENDING coaching requests (one client's, or every
+ * one sent to a trainer) with `status`, and logs the withdrawn `COACHING_SHARING`
+ * event (`contextId` = the request) on each client's log. Returns the closed rows.
+ */
+export async function closePendingRequestsTx(
+  tx: CoachingTx,
+  data: {
+    clientId?: string;
+    trainerId?: string;
+    status: 'CANCELLED' | 'DECLINED' | 'EXPIRED';
+    source: string;
+    documentVersion: string;
+    now: Date;
+  },
+): Promise<CoachingRequest[]> {
+  const where = {
+    status: 'PENDING' as const,
+    ...(data.clientId !== undefined && { clientId: data.clientId }),
+    ...(data.trainerId !== undefined && { trainerId: data.trainerId }),
+  };
+  const rows = await tx.coachingRequest.findMany({ where });
+  if (rows.length === 0) return [];
+  await tx.coachingRequest.updateMany({
+    where: { id: { in: rows.map((r) => r.id) }, status: 'PENDING' },
+    data: { status: data.status, respondedAt: data.now },
+  });
+  await tx.consentEvent.createMany({
+    data: rows.map((r) => ({
+      userId: r.clientId,
+      kind: 'COACHING_SHARING' as const,
+      granted: false,
+      providers: [],
+      documentVersion: data.documentVersion,
+      source: data.source,
+      contextId: r.id,
+      createdAt: data.now,
+    })),
+  });
+  return rows;
 }
 
 /** Thrown inside the join transaction to roll it back with a typed outcome. */
@@ -100,6 +252,16 @@ export class CoachingLinkRepository implements ICoachingLinkRepository {
 
   async countActiveForTrainer(trainerId: string): Promise<number> {
     return prisma.coachingLink.count({ where: { trainerId, status: 'ACTIVE' } });
+  }
+
+  async countActiveForTrainers(trainerIds: readonly string[]): Promise<Map<string, number>> {
+    if (trainerIds.length === 0) return new Map();
+    const rows = await prisma.coachingLink.groupBy({
+      by: ['trainerId'],
+      where: { trainerId: { in: [...trainerIds] }, status: 'ACTIVE' },
+      _count: { _all: true },
+    });
+    return new Map(rows.map((r) => [r.trainerId, r._count._all]));
   }
 
   async findLatestStoppedForClient(clientId: string, since: Date): Promise<CoachingLink | null> {
@@ -142,64 +304,19 @@ export class CoachingLinkRepository implements ICoachingLinkRepository {
         });
         if (active >= data.maxActiveClients) throw new JoinAbort({ status: 'client_limit' });
 
-        // A switch: end the client's current link first so the partial unique
-        // index never trips for it.
-        const previous = await tx.coachingLink.findMany({
-          where: { clientId: data.clientId, status: 'ACTIVE' },
+        const { link, endedLinks } = await startLinkTx(tx, {
+          trainerId: invite.trainerId,
+          clientId: data.clientId,
+          inviteCode: invite.code,
+          requestId: null,
+          trainerLabel: invite.label,
+          startedOn: data.startedOn,
+          source: data.source,
+          documentVersion: data.documentVersion,
+          now: data.now,
+          writeGrantedEvent: true,
         });
-        if (previous.length > 0) {
-          await tx.coachingLink.updateMany({
-            where: { id: { in: previous.map((l) => l.id) } },
-            data: { status: 'ENDED', endedAt: data.now, endedBy: 'CLIENT' },
-          });
-          await tx.consentEvent.createMany({
-            data: previous.map((l) => ({
-              userId: data.clientId,
-              kind: 'COACHING_SHARING' as const,
-              granted: false,
-              providers: [],
-              documentVersion: data.documentVersion,
-              source: data.source,
-              contextId: l.id,
-              createdAt: data.now,
-            })),
-          });
-          for (const l of previous) {
-            await tx.coachingNote.updateMany({
-              where: { trainerId: l.trainerId, clientId: l.clientId, hiddenAt: null },
-              data: { hiddenAt: data.now },
-            });
-          }
-        }
-
-        const link = await tx.coachingLink.create({
-          data: {
-            trainerId: invite.trainerId,
-            clientId: data.clientId,
-            inviteCode: invite.code,
-            trainerLabel: invite.label,
-            startedAt: data.now,
-            startedOn: data.startedOn,
-          },
-        });
-        await tx.consentEvent.create({
-          data: {
-            userId: data.clientId,
-            kind: 'COACHING_SHARING',
-            granted: true,
-            providers: [],
-            documentVersion: data.documentVersion,
-            source: data.source,
-            contextId: link.id,
-            createdAt: data.now,
-          },
-        });
-        // The same pair within the retention window gets its private note back.
-        await tx.coachingNote.updateMany({
-          where: { trainerId: invite.trainerId, clientId: data.clientId, hiddenAt: { not: null } },
-          data: { hiddenAt: null },
-        });
-        return { status: 'joined', link, endedLinks: previous } satisfies JoinLinkResult;
+        return { status: 'joined', link, endedLinks } satisfies JoinLinkResult;
       });
     } catch (err) {
       if (err instanceof JoinAbort) return err.result;

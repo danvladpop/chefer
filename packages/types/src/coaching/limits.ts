@@ -50,6 +50,21 @@ export const COACHING_LIMITS = {
   inactiveDays: 7,
   /** `coaching.status` keeps showing "<trainer> stopped coaching you" this long. */
   stoppedNoticeDays: 30,
+  // ─── Phase 1 gaps (PRD 2026-10 §4) ───
+  /** The optional "Gym / city" line under a trainer's name. */
+  gymLineMaxChars: 60,
+  /** A coaching request expires this many days after it was sent (PRD §4.1). */
+  requestTtlDays: 14,
+  /** `coaching.requestCoaching` calls per user per day (rate limit). */
+  requestsPerDay: 10,
+  /** `coaching.findTrainers` calls per user per minute (rate limit). */
+  findTrainersPerMinute: 30,
+  /** Find a trainer: the page size. */
+  findTrainersPageSize: 20,
+  /** A "<Trainer> updated your routine" card lists at most this many changes ("+ 3 more"). */
+  routineChangesMax: 20,
+  /** `coaching.notices` returns the unread notices and the read ones from the last N days. */
+  noticeDays: 30,
 } as const;
 
 /**
@@ -64,6 +79,8 @@ export const COACHING_RETENTION = {
   hiddenNoteDays: 30,
   /** Invites are deleted this many days after they expired (or were revoked / used). */
   inviteAfterExpiryDays: 30,
+  /** Answered, cancelled and expired coaching requests are deleted this many days later. */
+  requestAfterAnswerDays: 30,
   /**
    * Q-7: whether a client's data export includes the trainer's private notes
    * about them. Default false: the trainer is an independent controller of the

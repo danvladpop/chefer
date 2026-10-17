@@ -31,6 +31,11 @@ import {
 import { clientUnavailableError } from '../../lib/coaching-errors.js';
 import { readGoalHistory, serverToday } from '../gym/mappers.js';
 import { inviteStateOf, linkStartDay, resolveStartedOn } from './coaching-dto.mappers.js';
+import { coachingNoticeService, type CoachingNoticeService } from './coaching-notice.service.js';
+import {
+  coachingRequestService,
+  type CoachingRequestService,
+} from './coaching-request.service.js';
 
 // ─── Trainer coaching: links (spec §2.3, §2.7, §7.2, §7.3) ────────────────────
 // join / leave / remove are single transactions in CoachingLinkRepository: the
@@ -45,6 +50,8 @@ export interface CoachingLinkDeps {
   trainers: Pick<ITrainerProfileRepository, 'find' | 'findMany'>;
   gymProfiles: Pick<IGymProfileRepository, 'findByUserId'>;
   content: ICoachingContentRepository;
+  notices: Pick<CoachingNoticeService, 'ended'>;
+  requests: Pick<CoachingRequestService, 'clientRequest'>;
   now: () => Date;
 }
 
@@ -54,6 +61,8 @@ const defaultDeps: CoachingLinkDeps = {
   trainers: trainerProfileRepository,
   gymProfiles: gymProfileRepository,
   content: coachingContentRepository,
+  notices: coachingNoticeService,
+  requests: coachingRequestService,
   now: () => new Date(),
 };
 
@@ -106,7 +115,13 @@ export class CoachingLinkService {
         startedOn: resolveStartedOn(localDate, now),
         now,
       });
-      if (result.status === 'joined') return this.status(clientId);
+      if (result.status === 'joined') {
+        // A switch: the previous trainer hears that the client left.
+        for (const old of result.endedLinks) {
+          await this.deps.notices.ended(old.trainerId, clientId, 'CLIENT', 'CLIENT');
+        }
+        return this.status(clientId);
+      }
       if (result.status === 'invite_unavailable') throw invalidInvite();
       if (result.status === 'client_limit') {
         throw new TRPCError({ code: 'BAD_REQUEST', message: COACHING_COPY.server.clientLimit });
@@ -118,13 +133,17 @@ export class CoachingLinkService {
   /** `coaching.status` */
   async status(clientId: string): Promise<CoachingStatusDto> {
     const now = this.deps.now();
-    const active = await this.deps.links.findActiveForClient(clientId);
+    const [active, request] = await Promise.all([
+      this.deps.links.findActiveForClient(clientId),
+      this.deps.requests.clientRequest(clientId),
+    ]);
     if (active) {
       return {
         trainer: {
           name: await this.trainerName(active.trainerId),
           since: active.startedAt.toISOString(),
         },
+        request,
         stopped: null,
       };
     }
@@ -132,6 +151,7 @@ export class CoachingLinkService {
     const stopped = await this.deps.links.findLatestStoppedForClient(clientId, since);
     return {
       trainer: null,
+      request,
       stopped:
         stopped?.endedAt != null
           ? {
@@ -154,6 +174,7 @@ export class CoachingLinkService {
         documentVersion: LEGAL_VERSIONS.privacy,
         now: this.deps.now(),
       });
+      await this.deps.notices.ended(link.trainerId, clientId, 'CLIENT', 'CLIENT');
     }
     return this.status(clientId);
   }
@@ -173,6 +194,7 @@ export class CoachingLinkService {
       now: this.deps.now(),
     });
     if (!ended) throw clientUnavailableError();
+    await this.deps.notices.ended(clientId, trainerId, 'TRAINER', 'TRAINER');
     return { ok: true };
   }
 

@@ -3,10 +3,13 @@ import {
   notificationRepository,
   prisma,
   socialProfileRepository,
+  SOCIAL_NOTIFICATION_KINDS,
+  trainerProfileRepository,
   type Follow,
   type IFollowRepository,
   type INotificationRepository,
   type ISocialProfileRepository,
+  type ITrainerProfileRepository,
   type NotificationKind,
   type SocialDbClient,
   type SocialUserRow,
@@ -75,8 +78,13 @@ export function summaryFromEdges(
   });
 }
 
+function isSocialKind(kind: NotificationKind): kind is ActivityItemDto['kind'] {
+  return (SOCIAL_NOTIFICATION_KINDS as readonly NotificationKind[]).includes(kind);
+}
+
 export type HydratorProfileRepository = Pick<ISocialProfileRepository, 'findUsers'>;
 export type HydratorFollowRepository = Pick<IFollowRepository, 'findEdgesWith'>;
+export type HydratorTrainerRepository = Pick<ITrainerProfileRepository, 'findMany'>;
 
 /** A page of person rows: users + edges, in two queries (plan §4.5). */
 export interface HydratedPeople {
@@ -89,14 +97,20 @@ export class FriendSummaryHydrator {
   constructor(
     private readonly profiles: HydratorProfileRepository = socialProfileRepository,
     private readonly follows: HydratorFollowRepository = followRepository,
+    private readonly trainers: HydratorTrainerRepository = trainerProfileRepository,
   ) {}
 
   async hydrate(viewerId: string, userIds: readonly string[]): Promise<HydratedPeople> {
     const ids = [...new Set(userIds)];
-    const [users, edges] = await Promise.all([
+    const [users, edges, trainerRows] = await Promise.all([
       this.profiles.findUsers(ids),
       this.follows.findEdgesWith(viewerId, ids),
+      this.trainers.findMany(ids),
     ]);
+    // Trainer coaching PRD §4.1: the "Trainer" badge + "Gym / city" line on people rows.
+    const trainers = new Map(
+      trainerRows.filter((t) => t.disabledAt === null).map((t) => [t.userId, t.gymLine]),
+    );
     const byId = new Map(users.map((u) => [u.id, u]));
     const byOther = new Map<string, Follow[]>();
     for (const e of edges) {
@@ -108,7 +122,11 @@ export class FriendSummaryHydrator {
       edges,
       summary: (userId) => {
         const user = byId.get(userId);
-        return user ? summaryFromEdges(user, viewerId, byOther.get(userId) ?? []) : null;
+        if (!user) return null;
+        const summary = summaryFromEdges(user, viewerId, byOther.get(userId) ?? []);
+        return trainers.has(userId)
+          ? { ...summary, trainer: { gymLine: trainers.get(userId) ?? null } }
+          : summary;
       },
     };
   }
@@ -192,6 +210,9 @@ export class ActivityService {
         page.flatMap((n): ActivityItemDto[] => {
           const actor = people.summary(n.actorId);
           if (!actor) return []; // the actor's account is gone (cascade race)
+          // The repository lists Following's kinds only; this narrows the type
+          // (a coaching notice never reaches a shipped app's Activity inbox).
+          if (!isSocialKind(n.kind)) return [];
           const item: ActivityItemDto = {
             id: n.id,
             kind: n.kind,
